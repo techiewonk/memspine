@@ -13,8 +13,6 @@ Startup follows plan §4 (Phase-0 scope — runners join in Phase 1):
 from __future__ import annotations
 
 import asyncio
-import functools
-import inspect
 import itertools
 import re
 import secrets
@@ -31,10 +29,9 @@ from collections.abc import (
 )
 from contextlib import asynccontextmanager, contextmanager
 from contextvars import ContextVar
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from time import perf_counter
 from typing import Any, ClassVar, Self, TypedDict, TypeVar, cast
 
 import orjson
@@ -58,27 +55,15 @@ from memspine.config import constants
 from memspine.config.loader import ResolvedConfig
 from memspine.config.schema import FirewallConfig, MemspineConfig
 from memspine.core import trace_sink
-from memspine.core.agentic import clean_query, evidence_view, fuse_new, merge_budget
 from memspine.core.concentration import collapse_concentrated
 from memspine.core.correction import Correction
 from memspine.core.dedupe import dedupe_scored
 from memspine.core.escaping import escape_markers
 from memspine.core.event_date import SAID_PREFIX, date_anchor, happened_of, happened_tag
-from memspine.core.event_ledger import (
-    is_event_question,
-    link_mentions,
-    render_ledger,
-    validate_events,
-)
 from memspine.core.evidence import evidence_signal, second_round_probe
 from memspine.core.excerpt import focused_excerpt
 from memspine.core.fact_chain import (
     fact_projection_on,
-    join_chains,
-    norm_entity,
-    relation_unresolved,
-    render_chains,
-    validate_assertions,
 )
 from memspine.core.fact_views import view_tags
 from memspine.core.forget_request import forget_target
@@ -87,9 +72,6 @@ from memspine.core.language import language_scope
 from memspine.core.latest_wins import apply_latest_wins, recent_first
 from memspine.core.owner_check import (
     InjectionLog,
-    first_person,
-    referenced_names,
-    store_vocab,
 )
 from memspine.core.policies.conflict import ConflictPolicy
 from memspine.core.policies.dedup import DedupPolicy
@@ -109,10 +91,8 @@ from memspine.core.read_filters import (
     record_scope,
     to_utc,
 )
-from memspine.core.reference_edges import reference_kinds
-from memspine.core.relevance_probes import OFF_TOPIC_PROBES, Calibration, calibrate
+from memspine.core.relevance_probes import Calibration
 from memspine.core.rule_miner import mine_rules
-from memspine.core.slot_loop import CalcError, calculate, slot_hint, slot_view, step_signature
 from memspine.core.vetting import VetFlag, draft_sentences, vet_sentences
 from memspine.exceptions import (
     ConfigError,
@@ -131,7 +111,6 @@ from memspine.ingest.write import (
     WriteOutcome,
     _message_sender,
     _NeighbourBatch,
-    _reply_targets,
     _screen_text,
 )
 from memspine.memories.associative.entities import (
@@ -201,18 +180,9 @@ from memspine.models.encoders.query.perspective import (
     PerspectiveOptions,
     QuestionPerspective,
     Subject,
-    acknowledges,
-    active_asker,
-    as_of_subject_ok,
-    factor,
     inherit_perspective_tags,
-    match_subject,
-    perspective_leg,
     record_marker,
     record_view,
-    refine_with_decider,
-    resolve_question,
-    resolve_write,
 )
 from memspine.models.encoders.query.shape import (
     content_words,
@@ -221,17 +191,14 @@ from memspine.models.encoders.query.shape import (
     is_aggregation,
     is_count,
     is_duration,
-    is_multi_hop,
     is_novelty,
     is_ordering,
-    is_personal,
     is_temporal,
     is_verbatim,
     split_intents,
     statement_form,
 )
 from memspine.models.encoders.query.temporal_query import (
-    SPEAKER_PREFIX,
     LegHit,
     NamedLeg,
     forget_mentions,
@@ -244,7 +211,7 @@ from memspine.models.providers.llm import structured as _structured
 from memspine.models.providers.llm.base import LLMRouter, LLMService
 from memspine.models.providers.llm.structured import structured_call
 from memspine.models.providers.llm.tier_gate import WITHHELD_MARKER, is_local_provider
-from memspine.models.providers.rerank.base import Reranker, concat_background
+from memspine.models.providers.rerank.base import Reranker
 from memspine.models.providers.rerank.factory import RerankSettings, build_reranker, rerank_modes
 from memspine.observability.logging import (
     EVENT_FEEDBACK,
@@ -254,11 +221,9 @@ from memspine.observability.logging import (
     EVENT_RETRIEVE,
     EVENT_WRITE,
     get_logger,
-    redact_error,
 )
 from memspine.observability.timers import StepTimers, timed
 from memspine.prompts.models import (
-    AgenticStepOut,
     AnswerVerdictOut,
     AnticipatedCue,
     AnticipatedCues,
@@ -267,7 +232,6 @@ from memspine.prompts.models import (
     ConflictVerdictOut,
     EntityMatches,
     EntitySummaries,
-    EventsOut,
     ExtractedEdge,
     ExtractedEdges,
     ExtractedFact,
@@ -275,11 +239,7 @@ from memspine.prompts.models import (
     FactClasses,
     FactDates,
     Insights,
-    MissingInfoOut,
     ReadPlan,
-    RelevanceLabels,
-    SlotStepOut,
-    SufficiencyOut,
 )
 from memspine.prompts.registry import PromptRegistry
 from memspine.read.contract import (
@@ -302,24 +262,32 @@ from memspine.read.lead import (
     render_timeline,
     timeline_line,
 )
+from memspine.read.pipeline import deep as read_deep
 from memspine.read.pipeline import fusion as read_fusion
+from memspine.read.pipeline import gate as read_gate
 from memspine.read.pipeline import legs as read_legs
+from memspine.read.pipeline import lift as read_lift
 from memspine.read.pipeline import request as read_request
 from memspine.read.pipeline import rerank as read_rerank
 from memspine.read.pipeline import router as read_router
+from memspine.read.pipeline import timeview as read_timeview
 from memspine.read.pipeline.fusion import _cosine, _jaccard
 from memspine.read.pipeline.state import (
     _FOCAL_ENTITY,
     _FORENSICS,
     _LIST_MODE,
-    _PASSIVE_SCOPE,
     _RAW_SCORES,
+    _READ_SNAPSHOT,
     _RERANKED,
     _TAINT_ARCHIVED_TAG,
     CUE_TAG,
     ReadResult,
     _passive_hidden,
-    _PassiveScope,
+)
+from memspine.read.pipeline.timeview import (
+    _passive_scoped,
+    _snapshot_listings,
+    _snapshot_scoped,
 )
 from memspine.runtime.container import (
     Capabilities,
@@ -432,14 +400,6 @@ def _unrendered(content: str) -> str:
     return _RENDER_PREFIX.sub("", content, count=1)
 
 
-def _json_line(value: object) -> str:
-    """#10: ``value`` as one line of JSON. orjson escapes quotes and control
-    characters; the Unicode line and paragraph separators are escaped too, since
-    a model may read them as line breaks."""
-    text = orjson.dumps(value).decode()
-    return text.replace("\u2028", "\\u2028").replace("\u2029", "\\u2029")
-
-
 #: #3: tag on a held record an operator rejected (archived, never releasable).
 _QUARANTINE_REJECTED_TAG = "quarantine_rejected"
 
@@ -510,58 +470,6 @@ class AuthorizeDecision:
 _log = get_logger(__name__)
 
 
-#: I2 (isolation review 2026-10-08): the records a read has listed, by (namespace,
-#: memory_type, group_id). Set for the duration of one ``search`` / ``assemble`` /
-#: ``read`` call (outermost wins), cleared by every append, so a read sees exactly what
-#: an uncached read would see while listing each namespace at most once.
-_READ_SNAPSHOT: ContextVar[dict[tuple[str, str | None, str | None], list[MemoryRecord]] | None] = (
-    ContextVar("memspine_read_snapshot", default=None)
-)
-
-
-def _snapshot_listings(storage: Any) -> None:
-    """I2: make ``storage.list_records`` read through the current read snapshot.
-
-    Inside a read every listing of a (namespace, type, group) is fetched once and a
-    fresh list is returned to each caller; outside a read it is the plain listing.
-    Every append clears the snapshot (``_append_and_project``), so a read never sees
-    a listing older than its own writes. The episodic store and every engine helper
-    share the storage object, so all of them go through it."""
-    original = storage.list_records
-
-    async def list_records(
-        namespace: str, memory_type: str | None = None, group_id: str | None = None
-    ) -> list[MemoryRecord]:
-        cache = _READ_SNAPSHOT.get()
-        if cache is None:
-            records: list[MemoryRecord] = await original(namespace, memory_type, group_id)
-            return records
-        key = (namespace, memory_type, group_id)
-        if key not in cache:
-            cache[key] = await original(namespace, memory_type, group_id)
-        return list(cache[key])
-
-    storage.list_records = list_records
-
-
-def _snapshot_scoped[**P, R](
-    fn: Callable[P, Coroutine[Any, Any, R]],
-) -> Callable[P, Coroutine[Any, Any, R]]:
-    """I2: run ``fn`` inside one read snapshot (a nested call reuses the outer one)."""
-
-    @functools.wraps(fn)
-    async def wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
-        if _READ_SNAPSHOT.get() is not None:
-            return await fn(*args, **kwargs)
-        token = _READ_SNAPSHOT.set({})
-        focal = _FOCAL_ENTITY.set(None)  # G-11: a focal entity lives for one read
-        try:
-            return await fn(*args, **kwargs)
-        finally:
-            _FOCAL_ENTITY.reset(focal)
-            _READ_SNAPSHOT.reset(token)
-
-    return wrapper
 
 
 #: R02 / I75 v2: legs that vote from the same evidence form one *source family*. A leg that
@@ -592,37 +500,6 @@ def search_forensics() -> Iterator[dict[str, Any]]:
 _REPLACED_CONTENTS: ContextVar[frozenset[str]] = ContextVar(
     "memspine_replaced_contents", default=frozenset()
 )
-
-
-def _passive_scoped[**P, R](
-    fn: Callable[P, Coroutine[Any, Any, R]],
-) -> Callable[P, Coroutine[Any, Any, R]]:
-    """#53: run a public read with its ``include_passive`` / ``session_id`` arguments
-    widening the passive-session scope for every search it makes (nested reads
-    only widen it, never narrow it)."""
-    signature = inspect.signature(fn)
-
-    @functools.wraps(fn)
-    async def wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
-        bound = signature.bind_partial(*args, **kwargs).arguments
-        include = bool(bound.get("include_passive", False))
-        # I9: ``ledger_id`` is the clearer name of the same argument and wins.
-        session = bound.get("ledger_id") or bound.get("session_id")
-        outer = _PASSIVE_SCOPE.get()
-        if not include and not session:
-            return await fn(*args, **kwargs)
-        scope = _PassiveScope(
-            include_all=include or (outer is not None and outer.include_all),
-            sessions=(outer.sessions if outer is not None else frozenset())
-            | ({str(session)} if session else frozenset()),
-        )
-        token = _PASSIVE_SCOPE.set(scope)
-        try:
-            return await fn(*args, **kwargs)
-        finally:
-            _PASSIVE_SCOPE.reset(token)
-
-    return wrapper
 
 
 def _without_entity(text: str, entity: str) -> str:
@@ -668,18 +545,6 @@ def _gisted(record: MemoryRecord, query: str) -> MemoryRecord:
     asked = content_words(query)
     best = max(parts, key=lambda part: (len(asked & content_words(part)), -parts.index(part)))
     return record.model_copy(update={"content": best})
-
-
-def _current_at(record: MemoryRecord, as_of: datetime | None) -> bool:
-    """W7: ``record`` is a superseded (ARCHIVED) fact that was the current one at
-    ``as_of``: begun by then, ended after it, not a retraction, never quarantined."""
-    if as_of is None or record.status is not RecordStatus.ARCHIVED or record.quarantined:
-        return False
-    if record.valid_to is None or "retract" in record.tags:
-        return False
-    start = record.valid_from if record.valid_from.tzinfo else record.valid_from.replace(tzinfo=UTC)
-    end = record.valid_to if record.valid_to.tzinfo else record.valid_to.replace(tzinfo=UTC)
-    return start <= as_of < end
 
 
 def _shares_key(records: Sequence[MemoryRecord]) -> bool:
@@ -1734,32 +1599,10 @@ class Engine:
         return await read_legs._word_vector_leg(self, ns, query, fetch_k)
 
     def _perspective_options(self) -> PerspectiveOptions:
-        """I39: ``memories.episodic.policies.perspective`` (off unless set)."""
-        return PerspectiveOptions.parse(
-            self._memory_policy(self._config(), "episodic").get("perspective")
-        )
+        return read_lift._perspective_options(self)
 
     async def _persp_state_for(self, ns: str) -> dict[str, Any]:
-        """I39: the participants seen in ``ns`` (seeded once from the stored tags) and the
-        speaker of the latest annotated turn."""
-        state = self._persp_state.get(ns)
-        if state is None:
-            known: set[str] = set(self._perspective_options().speakers)  # I51
-            acked: set[str] = set()  # I47: assistant records a later user turn acknowledged
-            try:
-                for r in await self._records(ns):
-                    for tag in r.tags:
-                        if tag.startswith(("spk:", "addr:")):
-                            known.add(tag.split(":", 1)[1])
-                        elif tag.startswith(SPEAKER_PREFIX):
-                            known.add(tag[len(SPEAKER_PREFIX) :])
-                        elif tag.startswith("ack:"):
-                            acked.add(tag[4:])
-            except Exception as exc:  # an enhancer, never a gate
-                _log.warning("perspective.seed_failed", namespace=ns, error=str(exc))
-            state = {"known": known, "last": None, "acked": acked, "assistant": None}
-            self._persp_state[ns] = state
-        return state
+        return await read_lift._persp_state_for(self, ns)
 
     async def _annotate_perspective(
         self,
@@ -1770,80 +1613,10 @@ class Engine:
         opts: PerspectiveOptions,
         when: datetime | None = None,
     ) -> list[str]:
-        """I39: the tags of ``content``'s perspective. Explicit ``spk:`` / ``addr:`` tags (from
-        ``write_messages`` ``speaker`` / ``addressee``) beat the rules; a ``decider`` mode lets
-        the decider port answer the typed stance questions (``is_fact`` ...) above its
-        confidence floor. Never raises: a failure leaves the tags as they were."""
-        try:
-            state = await self._persp_state_for(ns)
-            explicit_spk = explicit_addr = None
-            kept: list[str] = []
-            for tag in tags or []:
-                if tag.startswith("spk:"):
-                    explicit_spk = tag[4:]
-                elif tag.startswith("addr:"):
-                    explicit_addr = tag[5:]
-                else:
-                    kept.append(tag)
-            p = resolve_write(
-                content,
-                speaker=explicit_spk,
-                role=role,
-                addressee=explicit_addr,
-                known=state["known"],
-                previous=state["last"],
-                axes=opts.axes,
-                when=when or self._clock(),
-            )
-            read = self._config().read
-            if opts.mode == "decider" and read.decider != "heuristic":
-                adapter = self._decider_adapter()
-
-                async def decide(task: str, text: str) -> tuple[str, float | None]:
-                    d = await adapter.decide(task, text, None)
-                    return d.label, d.confidence
-
-                p = await refine_with_decider(
-                    p, content.split(":", 1)[-1], decide, read.decider_min_confidence
-                )
-            if p.spk:
-                state["known"].add(p.spk)
-                state["last"] = p.spk
-            if p.addr:
-                state["known"].add(p.addr)
-            out = [*kept, *(t for t in p.tags(opts.axes) if t not in kept)]
-            if opts.ack and p.spk != "assistant" and state.get("assistant") is not None:
-                # I47: the next non-assistant turn after an assistant turn either
-                # acknowledges it (the claim becomes user-confirmed) or leaves it proposed
-                prev_id, prev_text = state["assistant"]
-                state["assistant"] = None
-                reply = re.sub(r"^\s*[\w'-]{1,30}(?: [\w'-]{1,30})?:\s+", "", content, count=1)
-                said_yes = acknowledges(reply)
-                if opts.mode == "decider" and read.decider != "heuristic":
-                    try:
-                        d = await self._decider_adapter().decide("acknowledges", reply, prev_text)
-                        if d.confidence is not None and d.confidence >= read.decider_min_confidence:
-                            said_yes = d.label == "ack"
-                    except Exception:  # the rules' answer stands
-                        pass
-                if said_yes:
-                    state["acked"].add(prev_id)
-                    out.append(f"ack:{prev_id}")
-            return out
-        except Exception as exc:  # an enhancer, never a gate
-            _log.warning("perspective.annotate_failed", namespace=ns, error=str(exc))
-            return list(tags or [])
+        return await read_lift._annotate_perspective(self, ns, content, role, tags, opts, when)
 
     async def _question_perspective(self, ns: str, query: str) -> QuestionPerspective:
-        """I39: who asks and who / what the question is about (see ``resolve_question``)."""
-        state = await self._persp_state_for(ns)
-        return resolve_question(
-            query,
-            asker=self._config().read.perspective_asker
-            or active_asker()
-            or self._perspective_options().owner,
-            known=state["known"],
-        )
+        return await read_lift._question_perspective(self, ns, query)
 
     def _penalise_reinjected(
         self,
@@ -1854,13 +1627,7 @@ class Engine:
         return read_fusion._penalise_reinjected(self, candidates, ns, session_id)
 
     async def _entity_vocabulary(self, ns: str) -> frozenset[str]:
-        records = [r for r in await self._records(ns) if not r.quarantined]
-        cached = self._entity_vocab.get(ns)
-        if cached is None or cached[0] != len(records):
-            state = await self._persp_state_for(ns)
-            vocab = store_vocab((r.content for r in records), state["known"])
-            cached = self._entity_vocab[ns] = (len(records), vocab)
-        return cached[1]
+        return await read_lift._entity_vocabulary(self, ns)
 
     # ── E04 image assets and E03 public knowledge (both opt-in, default off) ─────────
 
@@ -1978,70 +1745,14 @@ class Engine:
     async def _perspective_leg(
         self, ns: str, qp: QuestionPerspective, vector_hits: Sequence[Any]
     ) -> list[list[LegHit]]:
-        """``read.perspective_mode``: the subject vote leg (records about the question's
-        subject, in the vector order)."""
-        try:
-            top_k = self._config().read.list_vote_top_k
-            records = [r for r in await self._records(ns) if not r.quarantined]
-            ids = perspective_leg(qp, records, [h.record_id for h in vector_hits], top_k)
-            leg = NamedLeg("perspective", [LegHit(rid, 1.0) for rid in ids])
-            return [leg] if leg else []
-        except Exception as exc:  # an enhancer, never a gate
-            _log.warning("read.perspective_leg_failed", namespace=ns, error=str(exc))
-            return []
+        return await read_lift._perspective_leg(self, ns, qp, vector_hits)
 
     def _apply_perspective(
         self,
         candidates: list[tuple[MemoryRecord, float]],
         qp: QuestionPerspective,
     ) -> list[tuple[MemoryRecord, float]]:
-        """``read.perspective_mode``: reweight each candidate's relevance by the axes in
-        ``read.perspective_axes`` (``subject_filter``: also drop candidates about someone
-        else, keeping at least ``perspective_min_keep``). Records without perspective tags
-        are neutral. The effect is recorded in the forensics as ``perspective``."""
-        read = self._config().read
-        axes = set(read.perspective_axes)
-        scored: list[tuple[MemoryRecord, float, bool]] = []
-        factors: dict[str, dict[str, float]] = {}
-        as_of = active_as_of()
-        for rec, rel in candidates:
-            rv = record_view(rec)
-            state = self._persp_state.get(rec.namespace)
-            if state is not None and rec.record_id in state.get("acked", ()):
-                rv = replace(rv, acked=True)  # I47: a user turn acknowledged this claim
-            if (
-                read.perspective_as_of_subject
-                and as_of is not None
-                and rec.status is not RecordStatus.ACTIVATED
-                and qp.bound
-                and not as_of_subject_ok(qp, rv)
-            ):
-                continue  # I42: another subject's history is not part of this point in time
-            mult, parts = factor(qp, rv, read.perspective_weight, axes)
-            if parts:
-                factors[rec.record_id] = {k: round(v, 3) for k, v in parts.items()}
-            about_other = (
-                "subject" in axes and qp.bound and rv.annotated and match_subject(qp, rv) == 0.0
-            ) or "ack" in parts
-            scored.append((rec, rel * mult, about_other))
-        out = sorted(scored, key=lambda t: t[1], reverse=True)
-        dropped: list[str] = []
-        if read.perspective_mode == "subject_filter":
-            kept = [t for t in out if not t[2]]
-            floor = min(max(read.perspective_min_keep, 0), len(out))
-            if len(kept) < floor:
-                kept += [t for t in out if t[2]][: floor - len(kept)]
-                kept.sort(key=lambda t: t[1], reverse=True)
-            dropped = [t[0].record_id for t in out if t not in kept]
-            out = kept
-        if (fx := _FORENSICS.get()) is not None:
-            fx["perspective"] = {
-                **qp.meta(),
-                "mode": read.perspective_mode,
-                "factors": factors,
-                "dropped": dropped,
-            }
-        return [(rec, rel) for rec, rel, _ in out]
+        return read_lift._apply_perspective(self, candidates, qp)
 
     async def _strip_speaker_names(self, ns: str, query: str) -> str:
         return await read_legs._strip_speaker_names(self, ns, query)
@@ -2209,7 +1920,7 @@ class Engine:
     def _by_time(
         lines: Mapping[str, tuple[MemoryRecord, str]],
     ) -> list[tuple[MemoryRecord, str]]:
-        return sorted(lines.values(), key=lambda v: chrono_key(v[0]))
+        return read_timeview._by_time(lines)
 
     async def _admitted_edge_sources(self, ns: str, fact: MemoryRecord) -> int:
         return await read_legs._admitted_edge_sources(self, ns, fact)
@@ -2876,26 +2587,7 @@ class Engine:
         )
 
     async def _date_allowed(self, ns: str) -> tuple[set[str], int] | None:
-        """#37: under an active date filter, the ids a search leg may return, and how
-        many records the namespace holds (the leg window that reaches all of them).
-
-        The ids are the records that match the filter plus every cue record: a cue is a
-        key whose target is judged after the gates resolve it. None: no filter."""
-        date_filter = active_date_filter()
-        scope = active_record_scope()  # I7 / I8: session and role limits
-        if date_filter is None and scope is None:
-            return None
-        listed = await self._records(ns)
-        allowed = {
-            r.record_id
-            for r in listed
-            if CUE_TAG in r.tags
-            or (
-                (date_filter is None or date_filter.matches(r))
-                and (scope is None or scope.matches(r))
-            )
-        }
-        return allowed, len(listed)
+        return await read_timeview._date_allowed(self, ns)
 
     async def _vector_leg(
         self,
@@ -2919,88 +2611,7 @@ class Engine:
         tags: list[str] | None,
         memory_type: str | None = None,
     ) -> list[tuple[MemoryRecord, float]]:
-        """The E1 / EI-1 / C8' / D2 gates of :meth:`search`, in ranked order."""
-        storage = self._require_started()
-        candidates: list[tuple[MemoryRecord, float]] = []
-        tracing = _FORENSICS.get() is not None
-        for record_id, relevance in ranked:
-            record = await storage.get_record(record_id)
-            if record is None or (
-                record.status is not RecordStatus.ACTIVATED
-                and not _current_at(record, active_as_of())
-            ):
-                if tracing:
-                    trace_sink.cut(
-                        "status_or_missing", record_id,
-                        status=None if record is None else str(record.status),
-                    )  # fmt: skip
-                # Only live facts reach a context window: DELETED/QUARANTINED are
-                # excluded (E1), and ARCHIVED/superseded history never surfaces as
-                # current truth — a promoted-then-superseded record cannot re-enter.
-                # W7: under an as-of read, a fact superseded AFTER that time was
-                # the current one then, and is admitted.
-                continue
-            if record.quarantined:
-                if tracing:
-                    trace_sink.cut("quarantine", record_id)
-                continue  # defense in depth: quarantined never reaches assembly
-            if not self._consent_ok(record):
-                if tracing:
-                    trace_sink.cut("consent_purpose", record_id)
-                continue  # #50: the record's purposes do not allow this read
-            if record.memory_type == "shared":
-                # EI-1: grant/subscription bookkeeping is authorization state, not
-                # memory content — it must never occupy retrieval slots (shared_search
-                # already hides foreign ones; this hides the reader's own).
-                if tracing:
-                    trace_sink.cut("shared_bookkeeping", record_id)
-                continue
-            if CUE_TAG in record.tags:
-                # C8': a cue is a key, never content. Off, cues are invisible; on,
-                # a trusted cue resolves to its live target, which then passes the
-                # same gates as any other hit.
-                read_cfg = self._config().read
-                if not read_cfg.anticipatory_cues or record.trust < read_cfg.cue_min_trust:
-                    if tracing:
-                        trace_sink.cut("cue_not_content", record_id)
-                    continue
-                parents = record.source.parents
-                target = await storage.get_record(parents[0]) if parents else None
-                if (
-                    target is None
-                    or target.status is not RecordStatus.ACTIVATED
-                    or target.quarantined
-                    or not self._consent_ok(target)
-                ):
-                    if tracing:
-                        trace_sink.cut("cue_target_unavailable", record_id)
-                    continue
-                record = target
-            # D2 sub-scoping gate: narrow to a group and/or records carrying all tags.
-            if group_id is not None and record.group_id != group_id:
-                if tracing:
-                    trace_sink.cut("group_filter", record_id, group=group_id)
-                continue
-            if _passive_hidden(record, group_id):
-                if tracing:
-                    trace_sink.cut("passive_session", record_id)
-                continue  # #53: an archived (PASSIVE) session stays out of default reads
-            if tags and not set(tags).issubset(record.tags):
-                if tracing:
-                    trace_sink.cut("tag_filter", record_id)
-                continue
-            if memory_type is not None and record.memory_type != memory_type:
-                if tracing:
-                    trace_sink.cut("memory_type_filter", record_id)
-                continue
-            try:
-                record = self._inflate.inflate(record)  # cold-tier content restored (M6)
-            except StorageError:
-                # One corrupt cold-tier row must not take down the whole query.
-                _log.warning("memory.inflate_failed", namespace=ns, record_id=record.record_id)
-                continue
-            candidates.append((record, relevance))
-        return candidates
+        return await read_gate._gate_hits(self, ns, ranked, group_id, tags, memory_type)
 
     async def _search(
         self,
@@ -3903,17 +3514,7 @@ class Engine:
         )
 
     async def _agentic_fires(self, query: str, read: Any, records: Sequence[MemoryRecord]) -> bool:
-        """I67 ``read.agentic_trigger``: ``always``; ``multi_hop`` (the surface heuristic);
-        ``decider`` (task ``needs_more_evidence``; the heuristic when the decider is
-        inactive, unsure or failing)."""
-        heuristic = "needs_more" if is_multi_hop(query) else "enough"
-        if read.agentic_trigger == "always":
-            return True
-        if read.agentic_trigger == "multi_hop":
-            return heuristic == "needs_more"
-        snippets = chr(10).join(f"- {r.content}" for r in records[:5])
-        label = await self._decided("needs_more_evidence", query, snippets, heuristic)
-        return label == "needs_more"
+        return await read_deep._agentic_fires(self, query, read, records)
 
     async def _agentic_extend(
         self,
@@ -3925,165 +3526,9 @@ class Engine:
         hide: Callable[[MemoryRecord], bool] | None,
         session_id: str | None,
     ) -> ReadResult:
-        """I67 (``read.agentic``): step 0 is ``result`` (the normal read, untouched). Up to
-        ``read.agentic_max_steps`` times the action role sees the question and a compact
-        view of the evidence and returns one structured action (``answer_ready``,
-        ``search``, ``search_person_time``; JSON/YAML validated by ``structured_call`` with
-        its repair and retry, not native tool calling). A search runs through the same
-        gated ``_search`` of the SAME namespace (the model supplies only text, never a
-        namespace); the new hits of all steps are RRF-fused, de-duplicated by record id and
-        appended after the step-0 records under ``budget_tokens``: step-0 records inside
-        ``read.agentic_first_share`` of the budget are never displaced. Stops on
-        ``answer_ready``, ``max_steps``, ``no_new`` (a step found nothing new),
-        ``budget`` (nothing more fits), ``repeat`` (a query already run), ``error`` or
-        ``unbound`` (no action role); any of the last two keeps ``result``. Every step goes
-        to ``search_forensics()["agentic_steps"]`` and the totals to ``["agentic"]``."""
-        read = self._config().read
-        steps: list[dict[str, Any]] = []
-        info: dict[str, Any] = {
-            "trigger": read.agentic_trigger,
-            "fired": False,
-            "stop": None,
-            "llm_calls": 0,
-            "llm_s": 0.0,
-            "search_s": 0.0,
-            "new_ids": [],
-            "displaced_ids": [],
-        }
-        if (fx := _FORENSICS.get()) is not None:
-            fx["agentic"] = info
-            fx["agentic_steps"] = steps
-        context = result.context
-        if result.mode == "full" or context.abstained or not context.records:
-            info["stop"] = "full_context" if result.mode == "full" else "abstained"
-            return result
-        if not await self._agentic_fires(query, read, context.records):
-            info["stop"] = "not_triggered"
-            return result
-        llm_router = self._llm
-        role = next(
-            (r for r in ("sufficiency", "plan") if llm_router and r in llm_router.roles), None
+        return await read_deep._agentic_extend(
+            self, query, ns, result, budget_tokens, hide=hide, session_id=session_id,
         )
-        if llm_router is None or role is None or self._prompts is None:
-            _log.warning("read.agentic_unbound", role="sufficiency")
-            info["stop"] = "unbound"
-            return result
-        info["fired"] = True
-        if read.agentic_mode == "slot":  # E02: the missing-slot-driven loop
-            return await self._agentic_slot_loop(
-                query,
-                ns,
-                result,
-                budget_tokens,
-                hide=hide,
-                session_id=session_id,
-                role=role,
-                info=info,
-                steps=steps,
-            )
-        llm = llm_router.for_role(role)
-        prompt = self._prompts.select("sufficiency", condition="agentic")
-        step0 = list(context.records)
-        step0_ids = {r.record_id for r in step0}
-        rrf_k = read.rrf_k or constants.RRF_K
-        evidence = list(step0)
-        rankings: list[list[MemoryRecord]] = []
-        searched = {query.strip().lower()}
-        added: list[MemoryRecord] = []
-        displaced: list[MemoryRecord] = []
-        stop = "max_steps"
-        for number in range(1, read.agentic_max_steps + 1):
-            row: dict[str, Any] = {"step": number, "action": None, "query": None, "why": ""}
-            steps.append(row)
-            shown = self._remote_view(role, evidence)
-            calls_before = self.model_calls().get(role, 0)
-            started = perf_counter()
-            try:
-                act = await structured_call(
-                    llm,
-                    prompt,
-                    {"question": query, "context": evidence_view(shown)},
-                    AgenticStepOut,
-                )
-            except Exception as exc:  # an enhancer, never a gate
-                _log.warning("read.agentic_failed", error=str(exc))
-                row.update(action="error", error=str(exc)[:200])
-                stop = "error"
-                break
-            finally:
-                spent = perf_counter() - started
-                row["llm_s"] = round(spent, 4)
-                row["llm_calls"] = self.model_calls().get(role, 0) - calls_before
-                info["llm_s"] += spent
-                info["llm_calls"] += row["llm_calls"]
-            row.update(action=act.action, why=act.why[:200])
-            if act.action == "answer_ready":
-                stop = "answer_ready"
-                break
-            legs: list[list[LegHit]] = []
-            if act.action == "search":
-                text = clean_query(act.query)
-            else:
-                text = clean_query(f"{act.person} {act.time}")
-                plan = ReadPlan(
-                    mode="lookup",
-                    persons=[act.person] if act.person else [],
-                    time_expr=act.time or None,
-                )
-                legs = [await self._person_time_leg(ns, plan)]
-                row.update(person=act.person[:80], time=act.time[:80])
-            row["query"] = text
-            if not text or text.lower() in searched:
-                stop = "repeat"
-                break
-            searched.add(text.lower())
-            started = perf_counter()
-            sink = _FORENSICS.set(None)  # the step-0 forensics stay the first pass's
-            try:
-                hits = await self._search(
-                    text,
-                    ns,
-                    read.agentic_top_k,
-                    session_id=session_id,
-                    keep_k=read.agentic_top_k,
-                    hide=hide,
-                    probes=[],
-                    fused_legs=legs,
-                )
-                if read.facts_to_sources and hits:
-                    hits = await self._facts_to_sources(ns, hits)
-            except Exception as exc:  # an enhancer, never a gate
-                _log.warning("read.agentic_search_failed", error=str(exc))
-                row["error"] = str(exc)[:200]
-                stop = "error"
-                break
-            finally:
-                _FORENSICS.reset(sink)
-                row["search_s"] = round(perf_counter() - started, 4)
-                info["search_s"] += row["search_s"]
-            rankings.append([r for r, _ in hits if r.namespace == ns and not r.quarantined])
-            prior = {r.record_id for r in added}
-            ranked = fuse_new(rankings, step0_ids, rrf_k)
-            row["new_ids"] = [r.record_id for r in ranked if r.record_id not in prior]
-            if not row["new_ids"]:
-                stop = "no_new"
-                break
-            decorated = await self._decorate(
-                ns, [(r, 0.0) for r in ranked[: read.agentic_max_new * 2]], hide=hide
-            )
-            kept, added, displaced = merge_budget(
-                step0,
-                [r for r, _ in decorated],
-                budget_tokens,
-                share=read.agentic_first_share,
-                max_new=read.agentic_max_new,
-            )
-            evidence = [*kept, *added]
-            if {r.record_id for r in added} <= prior:
-                stop = "budget"  # nothing of this step's hits fits
-                break
-        info["stop"] = stop
-        return self._agentic_assemble(query, result, added, displaced, info)
 
     def _agentic_assemble(
         self,
@@ -4094,27 +3539,7 @@ class Engine:
         info: dict[str, Any],
         notes: Sequence[MemoryRecord] = (),
     ) -> ReadResult:
-        """The agentic read's result: the step-0 records (less the displaced ones), the
-        added records rendered, then the computed-note blocks. Nothing added => ``result``."""
-        context = result.context
-        if not added and not notes:
-            return result
-        info["new_ids"] = [r.record_id for r in added]
-        info["displaced_ids"] = [r.record_id for r in displaced]
-        gone = {r.record_id for r in displaced}
-        kept_records = [r for r in context.records if r.record_id not in gone]
-        extra = self._render(query, AssembledContext(records=list(added))).records if added else []
-        records = [*kept_records, *extra, *notes]
-        return ReadResult(
-            result.mode,
-            AssembledContext(
-                records=records,
-                boundary_index=min(context.boundary_index, len(kept_records)),
-                abstained=False,
-                tokens_used=sum(estimate_tokens(r.content) for r in records),
-                evidence=context.evidence,
-            ),
-        )
+        return read_deep._agentic_assemble(self, query, result, added, displaced, info, notes)
 
     async def _agentic_slot_loop(
         self,
@@ -4129,203 +3554,18 @@ class Engine:
         info: dict[str, Any],
         steps: list[dict[str, Any]],
     ) -> ReadResult:
-        """E02 (``read.agentic_mode: slot``): the missing-slot-driven loop.
-
-        Step 0 is ``result`` (untouched). Each step the action role sees the question, the
-        A03 contract line, the evidence with turn handles (``[T1]``...) and the earlier
-        steps, names the MISSING SLOT and picks ONE action: ``memory_search`` (the gated
-        search of the SAME namespace), ``relation_expand`` (stored facts of one entity),
-        ``neighbor_lookup`` (the turns next to a cited one), ``calculate`` (code, see
-        :func:`~memspine.core.slot_loop.calculate`), ``answer`` or ``qualified_stop``. The
-        model supplies only text: a namespace is never an argument, a turn can only be a
-        handle it was shown, and every record a tool returns is re-checked for the
-        namespace and for quarantine. New records are appended under ``budget_tokens`` with
-        the step-0 share protected (:func:`merge_budget`); computed values ride as one
-        derived note. Stops on ``sufficient``, ``qualified_stop`` (the slot is named in
-        ``info['unresolved_slot']``; nothing is guessed), ``max_steps``, ``budget``,
-        ``repeat``, ``no_new`` (a step gave no new evidence and no computed value) or
-        ``error``. A tool that fails changes nothing and ends the loop as ``no_new``. Every
-        step, with its slot, goes to ``search_forensics()["agentic_steps"]``."""
-        assert self._llm is not None and self._prompts is not None
-        read = self._config().read
-        llm = self._llm.for_role(role)
-        prompt = self._prompts.select("sufficiency", condition="agentic_slot")
-        contract = await self._query_contract(query)
-        hint = slot_hint(contract)
-        info["mode"] = "slot"
-        info["contract"] = contract.type_label
-        info["unresolved_slot"] = None
-        context = result.context
-        step0 = list(context.records)
-        step0_ids = {r.record_id for r in step0}
-        rrf_k = read.rrf_k or constants.RRF_K
-        evidence = list(step0)
-        pool: list[MemoryRecord] = []
-        pool_ids: set[str] = set()
-        computed: list[str] = []
-        log: list[str] = []
-        taken: set[tuple[str, ...]] = {step_signature("memory_search", query=query)}
-        added: list[MemoryRecord] = []
-        displaced: list[MemoryRecord] = []
-        stop = "max_steps"
-        for number in range(1, read.agentic_max_steps + 1):
-            row: dict[str, Any] = {
-                "step": number,
-                "action": None,
-                "slot": "",
-                "query": None,
-                "why": "",
-            }
-            steps.append(row)
-            view, handles = slot_view(self._remote_view(role, evidence))
-            calls_before = self.model_calls().get(role, 0)
-            started = perf_counter()
-            try:
-                act = await structured_call(
-                    llm,
-                    prompt,
-                    {
-                        "question": query,
-                        "contract": hint,
-                        "context": view,
-                        "steps": "\n".join(log) or "(none)",
-                    },
-                    SlotStepOut,
-                )
-            except Exception as exc:  # an enhancer, never a gate
-                _log.warning("read.agentic_failed", error=str(exc))
-                row.update(action="error", error=str(exc)[:200])
-                stop = "error"
-                break
-            finally:
-                spent = perf_counter() - started
-                row["llm_s"] = round(spent, 4)
-                row["llm_calls"] = self.model_calls().get(role, 0) - calls_before
-                info["llm_s"] += spent
-                info["llm_calls"] += row["llm_calls"]
-            row.update(action=act.action, slot=act.slot[:160], why=act.why[:200])
-            if act.action == "answer":
-                stop = "sufficient"
-                break
-            if act.action == "qualified_stop":
-                stop = "qualified_stop"
-                info["unresolved_slot"] = act.slot[:160]
-                break
-            text = clean_query(act.query)
-            signature = step_signature(
-                act.action,
-                query=text,
-                entity=act.entity,
-                relation=act.relation,
-                turn_id=act.turn_id,
-                op=act.op,
-                arg_a=act.arg_a,
-                arg_b=act.arg_b,
-                amount=act.amount,
-                unit=act.unit,
-                anchor=act.anchor,
-            )
-            if signature in taken or (act.action == "memory_search" and not text):
-                stop = "repeat"
-                break
-            taken.add(signature)
-            seen = step0_ids | pool_ids | {r.record_id for r in evidence}
-            fresh: list[MemoryRecord] = []
-            note = ""
-            started = perf_counter()
-            sink = _FORENSICS.set(None)  # the step-0 forensics stay the first pass's
-            try:
-                if act.action == "memory_search":
-                    row["query"] = text
-                    hits = await self._search(
-                        text,
-                        ns,
-                        read.agentic_top_k,
-                        session_id=session_id,
-                        keep_k=read.agentic_top_k,
-                        hide=hide,
-                        probes=[],
-                    )
-                    if read.facts_to_sources and hits:
-                        hits = await self._facts_to_sources(ns, hits)
-                    ranking = [r for r, _ in hits if r.namespace == ns and not r.quarantined]
-                    ranked = fuse_new([ranking], seen, rrf_k)
-                    decorated = await self._decorate(
-                        ns, [(r, 0.0) for r in ranked[: read.agentic_max_new * 2]], hide=hide
-                    )
-                    fresh = [r for r, _ in decorated]
-                elif act.action == "relation_expand":
-                    row.update(entity=act.entity[:80], relation=act.relation[:80])
-                    fresh = await self._slot_expand(ns, act.entity, act.relation, hide, seen)
-                elif act.action == "neighbor_lookup":
-                    row["turn_id"] = act.turn_id[:40]
-                    cited = handles.get(act.turn_id.strip().strip("[]").upper())
-                    if cited is None:
-                        raise ValueError("turn_id is not a handle of the evidence shown")
-                    fresh = await self._slot_neighbours(ns, cited, seen)
-                else:  # calculate: code, never the model
-                    try:
-                        note = calculate(
-                            act.op, act.arg_a, act.arg_b, act.amount, act.unit, act.anchor
-                        )
-                    except CalcError as exc:
-                        raise ValueError(f"calculation failed: {exc}") from exc
-                    row["computed"] = note
-            except Exception as exc:  # fail safe: nothing changes, the loop ends
-                _log.warning("read.agentic_slot_failed", action=act.action, error=str(exc))
-                row["error"] = str(exc)[:200]
-                log.append(f"- {act.action} for '{act.slot[:80]}' failed; do not repeat it")
-            finally:
-                _FORENSICS.reset(sink)
-                row["search_s"] = round(perf_counter() - started, 4)
-                info["search_s"] += row["search_s"]
-            fresh = [
-                r
-                for r in fresh
-                if r.record_id not in seen and r.namespace == ns and not r.quarantined
-            ]
-            row["new_ids"] = [r.record_id for r in fresh]
-            if note:
-                computed.append(note[: constants.SLOT_CALC_NOTE_CHARS])
-                log.append(
-                    f"- computed for '{act.slot[:80]}': {note[: constants.SLOT_CALC_NOTE_CHARS]}"
-                )
-            if not fresh and not note:
-                stop = "no_new"
-                break
-            if fresh:
-                log.append(
-                    f"- {act.action} for '{act.slot[:80]}': {len(fresh)} new note(s) added above"
-                )
-                pool.extend(fresh)
-                pool_ids.update(r.record_id for r in fresh)
-                reserve = sum(estimate_tokens(c) for c in computed)
-                prior = {r.record_id for r in added}
-                kept, added, displaced = merge_budget(
-                    step0,
-                    pool,
-                    max(1, budget_tokens - reserve),
-                    share=read.agentic_first_share,
-                    max_new=read.agentic_max_new,
-                )
-                evidence = [*kept, *added]
-                if {r.record_id for r in added} <= prior and not note:
-                    stop = "budget"  # nothing of this step's records fits
-                    break
-        info["stop"] = stop
-        notes: list[MemoryRecord] = []
-        if computed:
-            body = "\n".join(f"- {c}" for c in computed)
-            notes.append(
-                self._lead_record(
-                    ns,
-                    "COMPUTED (by code, from values written in the notes):\n" + body,
-                    step0,
-                    extra_tags=[constants.SLOT_NOTE_TAG],
-                )
-            )
-            info["computed"] = list(computed)
-        return self._agentic_assemble(query, result, added, displaced, info, notes)
+        return await read_deep._agentic_slot_loop(
+            self,
+            query,
+            ns,
+            result,
+            budget_tokens,
+            hide=hide,
+            session_id=session_id,
+            role=role,
+            info=info,
+            steps=steps,
+        )
 
     async def _slot_expand(
         self,
@@ -4335,315 +3575,20 @@ class Engine:
         hide: Callable[[MemoryRecord], bool] | None,
         seen: set[str],
     ) -> list[MemoryRecord]:
-        """E02 ``relation_expand``: the live stored facts of one entity (one hop), in
-        ``ns`` only. A fact matches when its entity field, or its text, names the entity
-        (exact normalised match) and, when a relation is given, its attribute or text holds
-        the relation's words (five-letter prefixes). Exact entity matches first, newest
-        first, at most ``SLOT_EXPAND_MAX``; derived facts whose parents are gone are not
-        live, so they never come back."""
-        from memspine.core.fact_chain import fold
-
-        want = norm_entity(entity)
-        words = [w[:5] for w in fold(relation).split() if len(w) > 2]
-        if not want and not words:
-            return []
-        scored: list[tuple[int, datetime, MemoryRecord]] = []
-        for record in await self._records(ns, "semantic"):
-            if record.namespace != ns or record.quarantined or record.record_id in seen:
-                continue
-            if hide is not None and hide(record):
-                continue
-            text = fold(record.content)
-            exact = bool(want) and norm_entity(record.entity or "") == want
-            if want and not exact and want not in text:
-                continue
-            haystack = f"{fold(record.attribute or '')} {text}"
-            if words and not any(w in haystack for w in words):
-                continue
-            view = await self._live_view(record)
-            if view is not None:
-                scored.append((0 if exact else 1, view.valid_from, view))
-        scored.sort(key=lambda t: (t[0], -t[1].timestamp()))
-        picked = [v for _, _, v in scored[: constants.SLOT_EXPAND_MAX]]
-        decorated = await self._decorate(ns, [(r, 0.0) for r in self._inflate_all(picked, ns)])
-        return [r for r, _ in decorated]
+        return await read_deep._slot_expand(self, ns, entity, relation, hide, seen)
 
     async def _slot_neighbours(self, ns: str, record_id: str, seen: set[str]) -> list[MemoryRecord]:
-        """E02 ``neighbor_lookup``: the live turns right before and after a cited one, in the
-        namespace's chronological order of episodic turns (a mined fact stands for its first
-        source turn). Already-shown turns are skipped; each goes through the same gates as a
-        replayed neighbour."""
-        storage = self._require_started()
-        anchor = await storage.get_record(record_id)
-        if anchor is None or anchor.namespace != ns:
-            return []
-        if anchor.memory_type != "episodic":
-            parents = [p for p in anchor.source.parents]
-            anchor = await storage.get_record(parents[0]) if parents else None
-            if anchor is None or anchor.namespace != ns:
-                return []
-        turns = [r for r in await self._records(ns, "episodic") if self._context_eligible(r)]
-        turns.sort(key=chrono_key)
-        ids = [r.record_id for r in turns]
-        if anchor.record_id not in ids:
-            return []
-        at = ids.index(anchor.record_id)
-        window = constants.SLOT_NEIGHBOUR_WINDOW
-        out: list[MemoryRecord] = []
-        for index in sorted(
-            range(max(0, at - window), min(len(ids), at + window + 1)),
-            key=lambda i: (abs(i - at), i),
-        ):
-            rid = ids[index]
-            if rid == anchor.record_id or rid in seen:
-                continue
-            neighbour = await self._replay_neighbour(rid, ns)
-            if neighbour is not None:
-                out.append(neighbour)
-        return out
+        return await read_deep._slot_neighbours(self, ns, record_id, seen)
 
     async def _fact_chain_extend(
         self, query: str, ns: str, result: ReadResult, budget_tokens: int
     ) -> ReadResult:
-        """E01 (``read.fact_chain: read_time``): query-directed atomic assertions over the
-        evidence already in context, joined into a short derived-chain block.
-
-        Fires (``read.fact_chain_trigger``) when the question is multi-hop or the A03
-        contract's relation is not stated beside its subject in any evidence line. ONE
-        bounded ``extract@assertions`` call over the numbered evidence lines; an assertion
-        whose quoted span is not in its line is dropped; two assertions are joined only
-        through a resolved entity or an evidenced relation
-        (:func:`~memspine.core.fact_chain.join_chains`). The block quotes every link and
-        names the date of its source line; it is a synthetic, never-stored record (trust =
-        the least of its sources) appended after the raw turns under the same budget rules
-        as the agentic read (the step-0 share is protected). Raw turns stay authoritative.
-        Any failure, no join, or an unbound role keeps ``result``. Forensics:
-        ``search_forensics()["fact_chain"]``."""
-        read = self._config().read
-        info: dict[str, Any] = {
-            "mode": read.fact_chain,
-            "trigger": read.fact_chain_trigger,
-            "fired": False,
-            "stop": None,
-            "llm_calls": 0,
-            "llm_s": 0.0,
-            "assertions": 0,
-            "valid": 0,
-            "chains": 0,
-        }
-        if (fx := _FORENSICS.get()) is not None:
-            fx["fact_chain"] = info
-        context = result.context
-        evidence = [
-            r
-            for r in context.records
-            if constants.LEAD_TAG not in r.tags and r.namespace == ns and not r.quarantined
-        ][: constants.FACT_CHAIN_MAX_LINES]
-        if result.mode == "full" or context.abstained or not evidence:
-            info["stop"] = "full_context" if result.mode == "full" else "no_evidence"
-            return result
-        lines = [" ".join(r.content.split())[: constants.FACT_CHAIN_LINE_CHARS] for r in evidence]
-        contract = await self._query_contract(query)
-        info["fires_on"] = (
-            "always"
-            if read.fact_chain_trigger == "always"
-            else "multi_hop"
-            if is_multi_hop(query)
-            else "relation_unresolved"
-            if read.fact_chain_trigger == "triggered" and relation_unresolved(contract, lines)
-            else None
-        )
-        if info["fires_on"] is None:
-            info["stop"] = "not_triggered"
-            return result
-        llm_router = self._llm
-        if llm_router is None or self._prompts is None or "extract" not in llm_router.roles:
-            _log.warning("read.fact_chain_unbound", role="extract")
-            info["stop"] = "unbound"
-            return result
-        info["fired"] = True
-        shown = self._remote_view("extract", evidence)
-        numbered = "\n".join(
-            f"[{i}] " + " ".join(r.content.split())[: constants.FACT_CHAIN_LINE_CHARS]
-            for i, r in enumerate(shown, 1)
-        )
-        calls_before = self.model_calls().get("extract", 0)
-        started = perf_counter()
-        try:
-            out = await structured_call(
-                llm_router.for_role("extract"),
-                self._prompts.select("extract", condition="assertions"),
-                {"question": query, "content": numbered},
-                AssertionsOut,
-            )
-        except Exception as exc:  # an enhancer, never a gate
-            _log.warning("read.fact_chain_failed", error=str(exc))
-            info["stop"] = "error"
-            return result
-        finally:
-            info["llm_s"] = round(perf_counter() - started, 4)
-            info["llm_calls"] = self.model_calls().get("extract", 0) - calls_before
-        info["assertions"] = len(out.assertions)
-        valid = validate_assertions(out.assertions, lines)
-        info["valid"] = len(valid)
-        focus = [*contract.subjects, contract.relation, query]
-        chains = join_chains(valid, focus=focus)
-        while chains:
-            text = render_chains(chains, lambda n: f"[{evidence[n - 1].valid_from:%Y-%m-%d}]")
-            if estimate_tokens(text) <= max(
-                1, int(constants.FACT_CHAIN_BLOCK_SHARE * budget_tokens)
-            ):
-                break
-            chains = chains[:-1]
-        info["chains"] = len(chains)
-        if not chains:
-            info["stop"] = "no_join"
-            return result
-        cited = sorted({n for c in chains for n in (c.first.line, c.second.line)})
-        block = self._lead_record(
-            ns, text, [evidence[n - 1] for n in cited], extra_tags=[constants.FACT_CHAIN_TAG]
-        )
-        info["chain_lines"] = cited
-        info["stop"] = "joined"
-        kept, added, displaced = merge_budget(
-            list(context.records),
-            [block],
-            budget_tokens,
-            share=read.agentic_first_share,
-            max_new=1,
-        )
-        if not added:
-            info["stop"] = "budget"
-            return result
-        info["displaced_ids"] = [r.record_id for r in displaced]
-        records = [*kept, *added]
-        return ReadResult(
-            result.mode,
-            AssembledContext(
-                records=records,
-                boundary_index=min(context.boundary_index, len(kept)),
-                abstained=False,
-                tokens_used=sum(estimate_tokens(r.content) for r in records),
-                evidence=context.evidence,
-            ),
-        )
+        return await read_deep._fact_chain_extend(self, query, ns, result, budget_tokens)
 
     async def _event_ledger_extend(
         self, query: str, ns: str, result: ReadResult, budget_tokens: int
     ) -> ReadResult:
-        """A02 (``read.event_ledger: on``): a source-backed event ledger over the evidence
-        already in context, for a question about events or state.
-
-        ONE bounded ``extract@events`` call over the numbered evidence lines; code validates
-        every span, resolves the event time from the quoted phrase, links repeated mentions
-        only on identity evidence and renders a compact block (a synthetic, never-stored
-        record, trust = the least of its sources) appended after the raw turns under the same
-        budget rules as the fact chain. Any failure, no valid mention or an unbound role keeps
-        ``result``. Forensics: ``search_forensics()["event_ledger"]``."""
-        read = self._config().read
-        info: dict[str, Any] = {
-            "trigger": read.event_ledger_trigger,
-            "fired": False,
-            "stop": None,
-            "llm_calls": 0,
-            "llm_s": 0.0,
-            "mentions": 0,
-            "valid": 0,
-            "events": 0,
-        }
-        if (fx := _FORENSICS.get()) is not None:
-            fx["event_ledger"] = info
-        context = result.context
-        evidence = [
-            r
-            for r in context.records
-            if constants.LEAD_TAG not in r.tags and r.namespace == ns and not r.quarantined
-        ][: constants.EVENT_LEDGER_MAX_LINES]
-        if result.mode == "full" or context.abstained or not evidence:
-            info["stop"] = "full_context" if result.mode == "full" else "no_evidence"
-            return result
-        if read.event_ledger_trigger == "event_questions":
-            contract = await self._query_contract(query)
-            if not is_event_question(query, contract.answer_type):
-                info["stop"] = "not_triggered"
-                return result
-        llm_router = self._llm
-        if llm_router is None or self._prompts is None or "extract" not in llm_router.roles:
-            _log.warning("read.event_ledger_unbound", role="extract")
-            info["stop"] = "unbound"
-            return result
-        info["fired"] = True
-        shown = self._remote_view("extract", evidence)
-        lines = [
-            " ".join(r.content.split())[: constants.EVENT_LEDGER_LINE_CHARS] for r in shown
-        ]
-        numbered = "\n".join(f"[{i}] {text}" for i, text in enumerate(lines, 1))
-        calls_before = self.model_calls().get("extract", 0)
-        started = perf_counter()
-        try:
-            out = await structured_call(
-                llm_router.for_role("extract"),
-                self._prompts.select("extract", condition="events"),
-                {"question": query, "content": numbered},
-                EventsOut,
-            )
-        except Exception as exc:  # an enhancer, never a gate
-            _log.warning("read.event_ledger_failed", error=str(exc))
-            info["stop"] = "error"
-            return result
-        finally:
-            info["llm_s"] = round(perf_counter() - started, 4)
-            info["llm_calls"] = self.model_calls().get("extract", 0) - calls_before
-        info["mentions"] = len(out.events)
-        mentions, dropped = validate_events(
-            out.events, lines, [r.valid_from for r in shown]
-        )
-        info["valid"] = len(mentions)
-        info["dropped"] = dropped
-        if not mentions:
-            info["stop"] = "no_valid_mention"
-            return result
-        events, refused = link_mentions(mentions, lines)
-        info["refused_links"] = refused
-        text, events = render_ledger(
-            events,
-            heading=constants.EVENT_LEDGER_MARKER,
-            max_events=constants.EVENT_LEDGER_MAX_EVENTS,
-            fits=lambda t: estimate_tokens(t)
-            <= max(1, int(constants.EVENT_LEDGER_BLOCK_SHARE * budget_tokens)),
-        )
-        info["events"] = len(events)
-        if not events:
-            info["stop"] = "budget"
-            return result
-        cited = sorted({m.line for ev in events for m in ev.mentions})
-        block = self._lead_record(
-            ns, text, [shown[n - 1] for n in cited], extra_tags=[constants.EVENT_LEDGER_TAG]
-        )
-        info["ledger_lines"] = cited
-        info["stop"] = "built"
-        kept, added, displaced = merge_budget(
-            list(context.records),
-            [block],
-            budget_tokens,
-            share=read.agentic_first_share,
-            max_new=1,
-        )
-        if not added:
-            info["stop"] = "budget"
-            return result
-        info["displaced_ids"] = [r.record_id for r in displaced]
-        records = [*kept, *added]
-        return ReadResult(
-            result.mode,
-            AssembledContext(
-                records=records,
-                boundary_index=min(context.boundary_index, len(kept)),
-                abstained=False,
-                tokens_used=sum(estimate_tokens(r.content) for r in records),
-                evidence=context.evidence,
-            ),
-        )
+        return await read_deep._event_ledger_extend(self, query, ns, result, budget_tokens)
 
     async def _read_routed(
         self,
@@ -4684,43 +3629,9 @@ class Engine:
         budget_tokens: int,
         read_cfg: Any,
     ) -> int:
-        """A07 (``read.reference_edges``): the antecedent of each retrieved turn that carries a
-        ``ref:`` tag joins the evidence, best hit first, at most ``reference_max_per_read``,
-        same namespace, within the budget. Each decision is logged (``reference_edges`` in the
-        forensics): attached, already present, over budget, over the cap, or missing. Never
-        raises: a failure leaves the evidence as it was. Returns the updated token use."""
-        fx = _FORENSICS.get()
-        attached = 0
-        try:
-            for rank, hit in enumerate(hits):
-                kinds = reference_kinds(hit.tags)
-                if not kinds:
-                    continue
-                for answered in _reply_targets(hit):
-                    entry = {"hit": hit.record_id, "antecedent": answered, "kind": kinds[0]}
-                    if answered in seen:
-                        outcome = "present"
-                    elif attached >= read_cfg.reference_max_per_read:
-                        outcome = "over_cap"
-                    else:
-                        turn = await self._replay_neighbour(answered, ns)
-                        if turn is None or turn.namespace != ns:
-                            outcome = "missing"
-                        elif used + len(turn.content) // 4 + 1 > budget_tokens:
-                            outcome = "over_budget"
-                        else:
-                            outcome = "attached"
-                            chosen.append(turn)
-                            seen.add(answered)
-                            used += len(turn.content) // 4 + 1
-                            attached += 1
-                            if rank == 0:
-                                best_window.add(answered)
-                    if fx is not None:
-                        fx.setdefault("reference_edges", []).append({**entry, "outcome": outcome})
-        except Exception as exc:  # an enhancer, never a gate
-            _log.warning("read.reference_edges_failed", namespace=ns, error=str(exc))
-        return used
+        return await read_deep._attach_antecedents(
+            self, ns, hits, chosen, seen, best_window, used, budget_tokens, read_cfg,
+        )
 
     def _list_mode_fires(self, query: str) -> bool:
         return read_request._list_mode_fires(self, query)
@@ -4789,155 +3700,25 @@ class Engine:
         return await read_request._bridge_fires(self, query, read, scored)
 
     async def _gate_raw_tops(self, ns: str, text: str, legs: Sequence[str]) -> dict[str, float]:
-        """I29: the top RAW score of ``text`` against the namespace's live records, per leg
-        (``vector``: cosine of the best live hit; ``rerank``: the reranker's raw score over
-        the best vector candidates). Read-only: no events, no ledger, no forensics of its own.
-        Probes and real messages both go through here, so the two are always comparable."""
-        assert self._embedder is not None
-        read = self._config().read
-        [qv] = await embed_queries(self._embedder, [text])
-        hits = await self._vector_leg(ns, qv, read.relevance_gate_candidates)
-        live = await self._gate_hits(ns, [(h.record_id, h.score) for h in hits], None, None)
-        if not live:
-            return {}
-        out: dict[str, float] = {}
-        if "vector" in legs:
-            out["vector"] = max(score for _, score in live)
-        if "rerank" in legs:
-            reranker = self._rerank_provider()
-            if reranker is not None:
-                raws = await reranker.rerank(text, [concat_background(r) for r, _ in live])
-                out["rerank"] = float(max(raws))
-        return out
+        return await read_gate._gate_raw_tops(self, ns, text, legs)
 
     async def _store_calibration(
         self, ns: str, legs: Sequence[str]
     ) -> tuple[dict[str, Calibration], bool]:
-        """The namespace's off-topic score level per leg, computed lazily on the first
-        gated read and again when the store has grown past ``relevance_gate_regrow`` x the
-        record count it was calibrated on. Returns (calibrations, recomputed)."""
-        assert self._embedder is not None
-        read = self._config().read
-        n_records = len(await self._require_started().list_records(ns))
-        reranker = self._rerank_provider() if "rerank" in legs else None
-        key = (ns, self._embedder.embedder_id, getattr(reranker, "reranker_id", None), tuple(legs))
-        cache: dict[Any, dict[str, Calibration]] = self.__dict__.setdefault("_relevance_cal", {})
-        cached = cache.get(key)
-        if cached and n_records <= read.relevance_gate_regrow * max(
-            c.n_records for c in cached.values()
-        ):
-            return cached, False
-        tops: dict[str, list[float]] = {leg: [] for leg in legs}
-        for probe in OFF_TOPIC_PROBES:
-            for leg, value in (await self._gate_raw_tops(ns, probe, legs)).items():
-                tops[leg].append(value)
-        cal = {leg: calibrate(leg, v, n_records) for leg, v in tops.items() if v}
-        cache[key] = cal
-        return cal, True
+        return await read_gate._store_calibration(self, ns, legs)
 
     async def _calibrated_gate(
         self, query: str, result: ReadResult, ns: str | None = None
     ) -> ReadResult:
-        """I29/I37 (``relevance_gate: store_calibrated``): a message passes only when its raw
-        top score exceeds the namespace's off-topic p95 by ``relevance_gate_margin_sd``
-        standard deviations; otherwise an empty abstained context. Fails open."""
-        read = self._config().read
-        if result.context.abstained or self._embedder is None:
-            return result
-        records = [r for r in result.context.records if r.source.channel != "persona"]
-        if not records:
-            return result
-        ns = ns or records[0].namespace
-        entry: dict[str, Any] = {"margin_sd": read.relevance_gate_margin_sd}
-        try:
-            has_reranker = self._rerank_provider() is not None
-            want = read.relevance_gate_leg
-            if want == "auto":
-                legs = ["rerank"] if has_reranker else ["vector"]
-            elif want == "any":
-                legs = ["vector", "rerank"] if has_reranker else ["vector"]
-            else:
-                legs = [want] if (want == "vector" or has_reranker) else ["vector"]
-            cal, recomputed = await self._store_calibration(ns, legs)
-            tops = await self._gate_raw_tops(ns, query, legs)
-            verdicts: dict[str, dict[str, Any]] = {}
-            for leg, c in cal.items():
-                if leg in tops:
-                    thr = c.threshold(read.relevance_gate_margin_sd)
-                    verdicts[leg] = {
-                        "raw_top": tops[leg],
-                        "threshold": thr,
-                        "pass": tops[leg] > thr,
-                        **c.as_meta(),
-                    }
-            entry.update(legs=verdicts, recalibrated=recomputed)
-            passed = not verdicts or any(v["pass"] for v in verdicts.values())
-            entry["decision"] = "inject" if passed else "empty"
-        except Exception as exc:  # an enhancer, never a gate: fail open
-            _log.warning("read.relevance_gate_failed", error=redact_error(exc))
-            entry.update(decision="inject", error=str(exc))
-            passed = True
-        if (fx := _FORENSICS.get()) is not None:
-            fx["relevance_calibration"] = entry
-            if not passed:
-                for r in records:
-                    trace_sink.cut("relevance_gate_calibrated", r.record_id)
-        return result if passed else ReadResult(result.mode, AssembledContext(abstained=True))
+        return await read_gate._calibrated_gate(self, query, result, ns)
 
     async def _gate_bypassed(self, query: str, ns: str | None, result: ReadResult) -> bool:
-        """I74 (``read.relevance_gate_bypass``): whether the message references the store's own
-        people / entities (``named``) or the speaker ("I", "my"; ``named_or_first_person``),
-        in which case memory is needed and the relevance gate is skipped. Recorded in the
-        forensics as ``relevance_bypass``. Fails closed to "no bypass"."""
-        read = self._config().read
-        if read.relevance_gate == "off" or read.relevance_gate_bypass == "none":
-            return False
-        if result.context.abstained:
-            return False
-        ns = ns or next((r.namespace for r in result.context.records), None)
-        entry: dict[str, Any] = {"mode": read.relevance_gate_bypass, "fired": False}
-        try:
-            names: list[str] = []
-            if ns is not None:
-                state = await self._persp_state_for(ns)
-                names = referenced_names(query, await self._entity_vocabulary(ns), state["known"])
-            if names:
-                entry.update(fired=True, kind="named", names=names)
-            elif read.relevance_gate_bypass == "named_or_first_person":
-                tok = first_person(query)
-                if tok:
-                    entry.update(fired=True, kind="first_person", names=[tok])
-        except Exception as exc:  # an enhancer, never a gate
-            _log.warning("read.relevance_bypass_failed", error=redact_error(exc))
-            entry["error"] = str(exc)
-        if (fx := _FORENSICS.get()) is not None:
-            fx["relevance_bypass"] = entry
-        return bool(entry["fired"])
+        return await read_gate._gate_bypassed(self, query, ns, result)
 
     async def _relevance_gate(
         self, query: str, result: ReadResult, ns: str | None = None
     ) -> ReadResult:
-        """I29 (``task=relevance``): when the decider is sure none of the retrieved memories
-        bear on the message, inject nothing (an abstained, empty context). Off by default.
-        ``store_calibrated``: the per-namespace calibrated raw-score gate.
-        I74: a message that names the store's own people / entities skips either gate."""
-        if await self._gate_bypassed(query, ns, result):
-            return result
-        if self._config().read.relevance_gate == "store_calibrated":
-            return await self._calibrated_gate(query, result, ns)
-        if not self._decider_active("relevance") or result.context.abstained:
-            return result
-        records = [r for r in result.context.records if r.source.channel != "persona"]
-        if not records:
-            return result
-        memories = chr(10).join(f"- {r.content}" for r in records[:10])
-        label = await self._decided("relevance", query, memories, "relevant")
-        if label == "irrelevant":
-            if _FORENSICS.get() is not None:
-                for r in records:
-                    trace_sink.cut("relevance_gate_decider", r.record_id)
-            return ReadResult(result.mode, AssembledContext(abstained=True))
-        return result
+        return await read_gate._relevance_gate(self, query, result, ns)
 
     async def _replay_neighbour(self, record_id: str, ns: str) -> MemoryRecord | None:
         """C7': a replayed neighbour turn, gated, inflated and decorated; None if not shown.
@@ -5088,23 +3869,7 @@ class Engine:
         return "\n".join([constants.CARDS_MARKER, *lines])
 
     async def _applies_to_person(self, ns: str, query: str) -> bool:
-        """W9 (``read.profile_scope_gate``): the question is about the asker, a choice
-        they face, or a person memory knows (an entity, a ``person:`` tag or a
-        ``speaker:`` tag); not general knowledge ("France" is not a known person)."""
-        if is_personal(query):
-            return True
-        names = {n.lower() for n in query_names(query)}
-        if not names:
-            return False
-        for record in await self._records(ns):
-            known = {
-                t.split(":", 1)[1] for t in record.tags if t.startswith(("person:", "speaker:"))
-            }
-            if record.entity:
-                known.add(record.entity.lower())
-            if names & known:
-                return True
-        return False
+        return await read_lift._applies_to_person(self, ns, query)
 
     async def _slots_section(self, ns: str, query: str, budget_tokens: int) -> MemoryRecord | None:
         """W5 (plan v3.2, ``read.profile_slots_header``): the Λ-profile block: for each
@@ -5796,22 +4561,7 @@ class Engine:
     async def _raw_evidence_strong(
         self, ns: str, query: str, top_k: int, session_id: str | None
     ) -> bool:
-        """F4 (plan v3.2, ``read.cards_when_weak``): True when the raw turns alone give
-        strong evidence (the W3 signal of a raw-only search is not ``weak``), so the
-        cards header and the mined facts stay out of the read. One extra local search,
-        only with ``read.cards: header`` and the key on; otherwise False, no search."""
-        read_cfg = self._config().read
-        if read_cfg.cards != "header" or not read_cfg.cards_when_weak:
-            return False
-        raw = await self._search(
-            query,
-            ns,
-            top_k,
-            session_id=session_id,
-            keep_k=top_k,
-            hide=lambda record: record.memory_type != "episodic",
-        )
-        return not evidence_signal(query, raw, read_cfg.evidence_weak_below).weak
+        return await read_gate._raw_evidence_strong(self, ns, query, top_k, session_id)
 
     def _cards_gated(self, query: str, *, strong: bool = False) -> bool:
         """ADR-055 addendum (``read.cards_only_aggregate``): True when ``query`` gets
@@ -6113,45 +4863,7 @@ class Engine:
         return result
 
     async def _missing_info_queries(self, query: str, context: AssembledContext) -> list[str]:
-        """#38: the completeness verdict on ``context``, then (only when incomplete) the
-        missing-information queries; [] when complete, unbound or on any failure.
-
-        The ``sufficiency`` role answers, else the ``plan`` role. The notes are the
-        context's records one line each, as the read rendered them (escaped, wrapped)."""
-        llm_router = self._llm
-        role = next(
-            (r for r in ("sufficiency", "plan") if llm_router and r in llm_router.roles),
-            None,
-        )
-        if llm_router is None or role is None or self._prompts is None:
-            _log.warning("read.completeness_unbound", role="sufficiency")
-            return []
-        shown = self._remote_view(role, context.records)  # #50: withheld by id
-        notes = "\n".join(f"- {' '.join(r.content.split())}" for r in shown)
-        values: dict[str, object] = {"question": query, "context": notes}
-        llm = llm_router.for_role(role)
-        try:
-            verdict = await structured_call(
-                llm, self._prompts.select("sufficiency"), values, SufficiencyOut
-            )
-            if verdict.complete:
-                return []
-            wanted = await structured_call(
-                llm,
-                self._prompts.select("sufficiency", condition="missing"),
-                values,
-                MissingInfoOut,
-            )
-        except Exception as exc:  # an enhancer, never a gate
-            _log.warning("read.completeness_failed", error=str(exc))
-            return []
-        seen = {query.strip().lower()}
-        queries: list[str] = []
-        for text in wanted.queries:
-            if text.strip().lower() not in seen:
-                seen.add(text.strip().lower())
-                queries.append(text.strip())
-        return queries[: constants.COMPLETENESS_MAX_QUERIES]
+        return await read_deep._missing_info_queries(self, query, context)
 
     def _window_sides(self, window: int) -> tuple[int, int]:
         """The neighbour window as (turns before, turns after) a hit: ``window`` on both
@@ -8476,20 +7188,13 @@ class Engine:
         end: datetime | None = None,
     ) -> list[MemoryRecord]:
         """Chronological episodic timeline (M13.2), optionally windowed."""
-        self._require_started()
-        if self._episodic is None:
-            raise MemspineError("episodic memory not enabled — set memories.episodic.enabled: true")
-        ns = validate_namespace(namespace)
-        return self._inflate_all(await self._episodic.timeline(ns, start, end), ns)
+        return await read_timeview.timeline(self, namespace, start, end)
 
     async def sessions(
         self, namespace: str = "default", gap_minutes: int = constants.SESSION_GAP_MINUTES
     ) -> list[Session]:
         """Derived session boundaries over the episodic timeline (M13.2)."""
-        self._require_started()
-        if self._episodic is None:
-            raise MemspineError("episodic memory not enabled — set memories.episodic.enabled: true")
-        return await self._episodic.sessions(validate_namespace(namespace), gap_minutes)
+        return await read_timeview.sessions(self, namespace, gap_minutes)
 
     async def ingest(
         self,
@@ -10587,35 +9292,7 @@ class Engine:
     async def _relevance_filter(
         self, query: str, candidates: list[tuple[MemoryRecord, float]]
     ) -> list[tuple[MemoryRecord, float]]:
-        """H17: drop only candidates the ``relevance`` role labels irrelevant.
-
-        The ``relevance_safety_net`` best-scored candidates are always kept. Any failure,
-        or no bound role, leaves the candidates unchanged (an enhancer, never a gate).
-        """
-        if self._llm is None or self._prompts is None or "relevance" not in self._llm.roles:
-            return candidates
-        keep_n = self._config().read.relevance_safety_net
-        ranked = sorted(range(len(candidates)), key=lambda i: candidates[i][1], reverse=True)
-        safe = set(ranked[:keep_n])
-        # #10: each note is one JSON object on one line (quotes, newlines and line
-        # separators escaped) inside markers carrying a fresh nonce, so stored text
-        # can neither start a forged label line nor close the notes block.
-        shown = self._remote_view("relevance", [r for r, _ in candidates])  # #50
-        notes = "\n".join(
-            _json_line({"index": i, "text": r.content[:400]}) for i, r in enumerate(shown)
-        )
-        try:
-            result = await structured_call(
-                self._llm.for_role("relevance"),
-                self._prompts.select("relevance"),
-                {"question": query, "notes": notes, "nonce": secrets.token_hex(6)},
-                RelevanceLabels,
-            )
-        except Exception as exc:
-            _log.warning("read.relevance_filter_failed", error=redact_error(exc))
-            return candidates
-        drop = {item.index for item in result.labels if item.label.strip().lower() == "irrelevant"}
-        return [pair for i, pair in enumerate(candidates) if i in safe or i not in drop]
+        return await read_gate._relevance_filter(self, query, candidates)
 
     def _build_reflector(self) -> Any:
         """H14: the profile reflector, when a ``reflect`` role and reflective memory exist."""
