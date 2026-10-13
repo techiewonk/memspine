@@ -300,7 +300,9 @@ async def test_store_contract(profile: str, tmp_path: Path, request: pytest.Fixt
         lineage = sa.Table("lineage", sa.MetaData(), autoload_with=engine)
         with engine.begin() as conn:
             conn.execute(lineage.insert(), {"child_id": "c", "parent_id": "p", "role": "support"})
-            with pytest.raises(sa.exc.IntegrityError):
+            # a SAVEPOINT: Postgres aborts the whole transaction on an error (SQLite does
+            # not), which would roll the first insert back with it.
+            with pytest.raises(sa.exc.IntegrityError), conn.begin_nested():
                 conn.execute(
                     lineage.insert(), {"child_id": "c", "parent_id": "p", "role": "support"}
                 )
