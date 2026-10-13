@@ -81,6 +81,10 @@ async def decay_sweep(ctx: PipelineContext) -> dict[str, object]:
     between (empirically: a concurrent RETRIEVE's access stats were lost and a
     just-accessed record got demoted); a delta touches only the tier.
     """
+    if ctx.config.offline.decay_v2:  # O4-09 (LIB-33): activation tiers, hysteresis; off by default
+        from memspine.derive.pipeline.stages.decay_v2 import decay_sweep_v2
+
+        return await decay_sweep_v2(ctx)
     if ctx.append_event is None:
         return {"status": "skipped", "reason": "read-only context (no write door)"}
     now = datetime.now(UTC)
@@ -175,7 +179,12 @@ async def compress(ctx: PipelineContext) -> dict[str, object]:
                         error=str(exc),
                         exc_info=True,
                     )
-    return _sweep_stats("compressed", compressed, errors)
+    stats = _sweep_stats("compressed", compressed, errors)
+    if ctx.config.offline.decay_v2:  # O4-09: multi-resolution jobs for cold groups; off by default
+        from memspine.derive.pipeline.stages.decay_v2 import multires_v2
+
+        stats.update(await multires_v2(ctx))
+    return stats
 
 
 async def sleep_compute(ctx: PipelineContext) -> dict[str, object]:

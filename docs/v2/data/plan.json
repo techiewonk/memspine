@@ -3330,8 +3330,8 @@
    ],
    "kind": "move",
    "gate": "Protocol tests",
-   "status": "In progress",
-   "note": "Swarm: agent running",
+   "status": "Done",
+   "note": "REST/MCP/tools on scoped Memory handle; protocols/ -> api/ (no alias); principal-bound viewer; tap middleware",
    "layers": [
     "ctx",
     "scope"
@@ -6057,8 +6057,8 @@
    ],
    "kind": "behaviour",
    "gate": "G-C9-style screen; golden unchanged with flag off",
-   "status": "In progress",
-   "note": "Swarm: offline wiring flag-off (agent running)",
+   "status": "Needs measurement",
+   "note": "OW-A wired flag-off (offline.session_close_v2 / profile_card_v2); erasure gap on card markers pending owner",
    "layers": [
     "L0",
     "L1",
@@ -6219,8 +6219,8 @@
    ],
    "kind": "behaviour",
    "gate": "Global-question workload",
-   "status": "In progress",
-   "note": "Swarm: offline wiring flag-off (agent running)",
+   "status": "Needs measurement",
+   "note": "OW-D wired flag-off (offline.communities_v2 / decay_v2); summaries via door type summary",
    "layers": [
     "L1",
     "L3",
@@ -6261,8 +6261,8 @@
    ],
    "kind": "behaviour",
    "gate": "OP-Bench and PrefEval up; hand audit at least 90%",
-   "status": "In progress",
-   "note": "Swarm: offline wiring flag-off (agent running)",
+   "status": "Needs measurement",
+   "note": "OW-A wired flag-off (offline.session_close_v2 / profile_card_v2); erasure gap on card markers pending owner",
    "layers": [
     "L1",
     "L4",
@@ -6338,8 +6338,8 @@
    ],
    "kind": "behaviour",
    "gate": "Context tokens down at no QA loss",
-   "status": "In progress",
-   "note": "Swarm: offline wiring flag-off (agent running)",
+   "status": "Needs measurement",
+   "note": "OW-D wired flag-off (offline.communities_v2 / decay_v2); summaries via door type summary",
    "layers": [
     "L0",
     "L1",
