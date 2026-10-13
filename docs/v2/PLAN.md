@@ -9,9 +9,9 @@ Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summarie
 |---|---|
 | Not started | 32 |
 | Ready | 0 |
-| In progress | 3 |
+| In progress | 2 |
 | Blocked | 0 |
-| Needs measurement | 45 |
+| Needs measurement | 46 |
 | Done | 81 |
 | Dropped | 1 |
 
@@ -113,7 +113,7 @@ Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summarie
 | F-03 | Model upgrades: versioned vector spaces, selective re-derivation | - | K_C | P-25 | - | F-02a | behaviour | S2 foundations (serial: Alembic) | - | Shadow index switch test | **Needs measurement** | VersionedSpaceStore, shadow reembed + switch, stale_derivations/rederive plan; flag off (3a78b6e1); parity screen queued |
 | F-04 | Durable outbox and inline runner, read barrier; model calls outside namespace locks | L0 L1 L3 ctx | D K_C | W-02, W-10, W-13, W-25, G-19, P-21 | ER-06, ER-07, ER-09 | F-02b, LIB-07, LIB-26 | behaviour | S2 foundations (serial: Alembic) | `src/memspine/runtime/**` +7 | Fault-injection tests; golden unchanged with barrier | **Needs measurement** | Durable outbox + InlineRunner + read barrier behind workers.outbox; alembic f04_outbox; screen: outbox on/off parity + kill/restart |
 | RT-01 | Taskiq transport over the outbox: in-memory broker (library), external broker + worker entry point (server) | L0 L1 L3 ctx | D K_C | G-19, W-13 | ER-06 | F-04 | behaviour | S2 foundations (serial: Alembic) | `src/memspine/runtime/**` +7 | Crash tests with both brokers; unfinished rows re-sent on start | **Needs measurement** | workers.transport=taskiq flag-off; crash tests (memory + stub external); live Redis untested |
-| RT-02 | Executors, priority classes, global model semaphore, backpressure (coalesce, never drop) | L0 L1 ctx | D K_C R | P-20, W-25, P-21 | ER-08, ER-10, ER-39 | RT-01 | behaviour | S2 foundations (serial: Alembic) | `src/memspine/runtime/**` +7 | Load test: reads keep p95 under background load; no dropped work | **In progress** | Sonnet agent launched 2026-10-13 (worktree memspine-RT-02) |
+| RT-02 | Executors, priority classes, global model semaphore, backpressure (coalesce, never drop) | L0 L1 ctx | D K_C R | P-20, W-25, P-21 | ER-08, ER-10, ER-39 | RT-01 | behaviour | S2 foundations (serial: Alembic) | `src/memspine/runtime/**` +7 | Load test: reads keep p95 under background load; no dropped work | **Needs measurement** | runtime.scheduler_v2 / model_concurrency flag-off; load test p95 held; read-while-ingest screen pending |
 | F-16a | Lineage table and the single derived-write door (layer, parents, trust cap, fingerprint) | L0 L1 L3 L4 L5 ctx scope | D K_C | M-09, G-08 | ER-11, ER-22, POL-2 | RT-02 | behaviour | S2 foundations (serial: Alembic) | `src/memspine/store/lineage.py` +6 | Every L1-L5 writer goes through the door; erasure contract test registered | **Needs measurement** | Lineage table (0006_lineage) + write door, flag write.lineage_table off; 7 derived sites routed; procedural lessons + event-appending summaries not yet routed (d858924) |
 | F-16b | Event upcasters and migration by replay of the retained log (limited rebuild advertised) | L0 L1 L3 L4 L5 ctx scope | D K_C | M-01, M-26, G-23 | ER-27, ER-33 | F-16a | migration | S2 foundations (serial: Alembic) | `src/memspine/store/lineage.py` +6 | v1 log replays byte-stably | **Done** | Upcasters + memspine migrate replay (offline, byte-stable); limited rebuild advertised |
 | F-16c | Stable memory scope in every key (session as provenance); viewer required on every multi-party read, bound to the authenticated principal | L0 L1 L3 L4 L5 ctx scope | D R | M-05, G-12 | ER-13, ER-29 | F-16a | behaviour | S2 foundations (serial: Alembic) | `src/memspine/store/lineage.py` +6 | Isolation probes | **Needs measurement** | isolation.scope_keys_v2 / viewer_required flag-off; isolation probes pass; I19 leakage screen pending |

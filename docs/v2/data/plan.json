@@ -3877,8 +3877,8 @@
    ],
    "kind": "behaviour",
    "gate": "Load test: reads keep p95 under background load; no dropped work",
-   "status": "In progress",
-   "note": "Sonnet agent launched 2026-10-13 (worktree memspine-RT-02)",
+   "status": "Needs measurement",
+   "note": "runtime.scheduler_v2 / model_concurrency flag-off; load test p95 held; read-while-ingest screen pending",
    "layers": [
     "L0",
     "L1",

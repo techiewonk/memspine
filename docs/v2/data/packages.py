@@ -186,7 +186,7 @@ WP = [
     ("RT-01", 1, "Taskiq transport over the outbox: in-memory broker (library), external broker + worker entry point (server)", ["G-19", "W-13"], ["F-04"], "behaviour",
      "Crash tests with both brokers; unfinished rows re-sent on start", "Needs measurement", "workers.transport=taskiq flag-off; crash tests (memory + stub external); live Redis untested"),
     ("RT-02", 1, "Executors, priority classes, global model semaphore, backpressure (coalesce, never drop)", ["P-20", "W-25", "P-21"], ["RT-01"], "behaviour",
-     "Load test: reads keep p95 under background load; no dropped work", "In progress", "Sonnet agent launched 2026-10-13 (worktree memspine-RT-02)"),
+     "Load test: reads keep p95 under background load; no dropped work", "Needs measurement", "runtime.scheduler_v2 / model_concurrency flag-off; load test p95 held; read-while-ingest screen pending"),
     ("F-16a", 1, "Lineage table and the single derived-write door (layer, parents, trust cap, fingerprint)",
      ["M-09", "G-08"], ["RT-02"], "behaviour", "Every L1-L5 writer goes through the door; erasure contract test registered", "Needs measurement", "Lineage table (0006_lineage) + write door, flag write.lineage_table off; 7 derived sites routed; procedural lessons + event-appending summaries not yet routed (d858924)"),
     ("F-16b", 1, "Event upcasters and migration by replay of the retained log (limited rebuild advertised)", ["M-01", "M-26", "G-23"], ["F-16a"], "migration", "v1 log replays byte-stably", "Done", "Upcasters + memspine migrate replay (offline, byte-stable); limited rebuild advertised"),
