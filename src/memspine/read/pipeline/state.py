@@ -6,6 +6,8 @@ from __future__ import annotations
 from contextvars import ContextVar
 from dataclasses import dataclass
 
+import orjson
+
 from memspine.compose.pack import (
     AssembledContext,
 )
@@ -97,3 +99,20 @@ CUE_TAG = constants.CUE_TAG
 #: R1-2: how far :meth:`Engine.search` widens its leg windows (x1, x4, x16, x64) when
 #: the gates leave fewer than ``top_k`` live candidates.
 _SEARCH_MAX_WIDEN = 64
+
+
+#: I2 (isolation review 2026-10-08): the records a read has listed, by (namespace,
+#: memory_type, group_id). Set for the duration of one ``search`` / ``assemble`` /
+#: ``read`` call (outermost wins), cleared by every append, so a read sees exactly what
+#: an uncached read would see while listing each namespace at most once.
+_READ_SNAPSHOT: ContextVar[dict[tuple[str, str | None, str | None], list[MemoryRecord]] | None] = (
+    ContextVar("memspine_read_snapshot", default=None)
+)
+
+
+def _json_line(value: object) -> str:
+    """#10: ``value`` as one line of JSON. orjson escapes quotes and control
+    characters; the Unicode line and paragraph separators are escaped too, since
+    a model may read them as line breaks."""
+    text = orjson.dumps(value).decode()
+    return text.replace("\u2028", "\\u2028").replace("\u2029", "\\u2029")
