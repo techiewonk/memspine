@@ -1339,8 +1339,14 @@ class WindowPipeline:
                     "write.window.skipped", reason="no_live_turns", turns=len(job.window.turns)
                 )
                 continue
-            if await self._prepass_skips(records):
+            verdict = await self._prepass_verdict(records)
+            if verdict == "skip":
                 out[i] = self._skipped(job, records, ns)
+                continue
+            if verdict == "episode_only":  # FU-GAPS: a quiet window still gets its episode
+                out[i] = await self._prepare_records(
+                    ns, job, records, strict=strict, episode_only=True
+                )
                 continue
             live.append((i, job, records))
         if len(live) == 1:
@@ -1664,14 +1670,23 @@ class WindowPipeline:
         return await self._prepare_records(ns, job, records, strict=strict)
 
     async def _prepare_records(
-        self, ns: str, job: _Job, records: list[MemoryRecord], *, strict: bool
+        self,
+        ns: str,
+        job: _Job,
+        records: list[MemoryRecord],
+        *,
+        strict: bool,
+        episode_only: bool = False,
     ) -> _Prepared | None:
         """The model calls of one window whose live turns are known (``_prepare_job`` and the
         single-window case of a batch)."""
         window = job.window
         assert window is not None
-        if await self._prepass_skips(records):
-            return self._skipped(job, records, ns)
+        if not episode_only:
+            verdict = await self._prepass_verdict(records)
+            if verdict == "skip":
+                return self._skipped(job, records, ns)
+            episode_only = verdict == "episode_only"
         member_ids = [r.record_id for r in records]
         window_id = fingerprint_payload({"ns": ns, "turns": member_ids})[:12]
         transcript, line_texts, people = build_transcript(records)
@@ -1692,7 +1707,7 @@ class WindowPipeline:
             tokens=window.tokens,
             groups=len(self._groups()),
         )
-        groups = self._groups()
+        groups = [("episode",)] if episode_only else self._groups()
         merged, failed = await self._run_groups(
             ns, groups, variables, transcript, member_ids, window_id
         )
@@ -1727,12 +1742,14 @@ class WindowPipeline:
         if windows:
             out["windows"] = windows
         return out
-    async def _prepass_skips(self, records: list[MemoryRecord]) -> bool:
-        """W2-13: True when the pre-pass found nothing extractable (filler) in this window. Never
-        with the ``episode`` section on (the episode of a quiet window is still wanted)."""
+    async def _prepass_verdict(self, records: list[MemoryRecord]) -> str | None:
+        """W2-13: ``"skip"`` when the pre-pass found nothing extractable (filler) in this window.
+        With the ``episode`` section on the episode of a quiet window is still wanted, so the
+        verdict is ``"episode_only"`` (FU-GAPS): the facts and edges part is dropped from the
+        call and only the episode is asked for. None when the window goes through in full."""
         pre = self._prepass
-        if pre is None or "episode" in self.sections:
-            return False
+        if pre is None:
+            return None
         self._counts["prepass_checked"] += 1
         hints = await pre.ahints(records)
         if tap.enabled():
@@ -1744,7 +1761,14 @@ class WindowPipeline:
                 numbers=len(hints.numbers),
                 skipped=hints.nothing_extractable,
             )
-        return bool(hints.nothing_extractable)
+        if not hints.nothing_extractable:
+            return None
+        if "episode" in self.sections:
+            if len(self.sections) == 1:  # nothing to trim
+                return None
+            self._counts["windows_prepass_episode_only"] += 1
+            return "episode_only"
+        return "skip"
 
     def _skipped(self, job: _Job, records: list[MemoryRecord], ns: str) -> _Prepared:
         """A window whose extraction call was skipped: nothing to deposit, no call, no cache."""
@@ -2268,6 +2292,8 @@ class WindowPipeline:
             out["windows_prepass_checked"] = c["prepass_checked"]
             out["windows_prepass_skipped"] = c["windows_prepass_skipped"]
             out["turns_prepass_skipped"] = c["turns_prepass_skipped"]
+            if c["windows_prepass_episode_only"]:
+                out["windows_prepass_episode_only"] = c["windows_prepass_episode_only"]
         if c["windows_deferred_backpressure"]:  # RT-02: only present once backpressure bit
             out["deferred_backpressure"] = c["windows_deferred_backpressure"]
         if c["windows_deferred_budget"]:  # W2-12: only present once a budget paused work

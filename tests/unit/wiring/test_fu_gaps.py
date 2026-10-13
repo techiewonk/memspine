@@ -83,3 +83,43 @@ async def test_still_unparseable_after_the_re_ask_fails_closed(monkeypatch: pyte
         assert stats["parse_failures"] >= 1 and len(await _facts(eng)) == 0
     finally:
         await eng.stop()
+
+
+# --- 2. pre-pass skip with the episode section on -------------------------------------------
+async def test_filler_window_asks_for_the_episode_only(monkeypatch: pytest.MonkeyPatch) -> None:
+    from test_window_write import FakeWindowLLM
+    from test_window_write import _engine as legacy_engine
+    from test_window_write import _send
+
+    llm = FakeWindowLLM()
+    eng = await legacy_engine(monkeypatch, llm, mode="all", prepass="rules")
+    try:
+        await _send(eng, "a", "s1", [{"role": "user", "content": "Ilse: Hi!"}, {"role": "user", "content": "Bram: thanks"}])
+        stats = await eng.flush_windows()
+        assert llm.calls == [["episode"]]
+        assert stats["windows_prepass_skipped"] == 0
+        assert stats["windows_prepass_episode_only"] == 1
+        assert len(await _facts(eng)) == 0  # no facts section was asked for
+    finally:
+        await eng.stop()
+
+
+async def test_episode_only_in_the_one_call_path(monkeypatch: pytest.MonkeyPatch) -> None:
+    from test_window_write import _send
+
+    llm = WindowLLM()
+    eng = await _engine_for(monkeypatch, llm)
+    try:
+        await _send(eng, "a", "s1", [{"role": "user", "content": "Ilse: Hi!"}, {"role": "user", "content": "Bram: thanks"}])
+        stats = await eng.flush_windows()
+        asked = [m[-1]["content"] for m, _ in llm.requests if "NEW:\n" in m[-1]["content"]]
+        assert len(asked) == 1 and "Sections: episode." in asked[0]
+        assert stats["windows_prepass_episode_only"] == 1
+    finally:
+        await eng.stop()
+
+
+async def _engine_for(monkeypatch: pytest.MonkeyPatch, llm: WindowLLM) -> Any:
+    from test_w2_06a_envelope import _engine
+
+    return await _engine(monkeypatch, llm, window_extract="all", prompt_v2=True, prepass="rules")
