@@ -51,6 +51,7 @@ from memspine.read.tiers import Tier, choose_tier, normalise_request
 from memspine.schemas.durable.common import OwnerScope
 from memspine.schemas.public.read import ReadRequest
 from memspine.store.events import EventKind
+from memspine.store.layer_registry import LayerRegistry, LayerTemplate
 from memspine.store.records import (
     MemoryRecord,
 )
@@ -443,7 +444,46 @@ def _services(eng: Any, read: Any) -> ServiceState:
 
 
 async def layer_state(eng: Any, ns: str, read: Any) -> LayerState:
-    """Adapter: what the store actually has populated, as a :class:`LayerState`.
+    """Adapter: the :class:`LayerRegistry` of the namespace as a :class:`LayerState` (F-02b).
+
+    Enabled = what the template switches on plus every populated layer; counts = live records per
+    ``layer`` column. Two router-specific supplements keep the earlier behaviour where the column
+    cannot say it: L2 also counts the distinct sessions of the raw turns (the episode leg reads
+    sessions, not summaries) and L3 is on when a graph store is. If the registry cannot be built
+    (no storage, an old store) the inferred adapter :func:`_inferred_layer_state` answers."""
+    try:
+        storage = eng._require_started()
+        template = LayerTemplate.from_config(
+            eng._config(),
+            worker_model=_services(eng, read).worker_model,
+            graph_store=eng._graph is not None,
+        )
+        registry = await LayerRegistry.load(storage, ns, template)
+    except Exception:  # fall back, never fail a read on bookkeeping
+        return await _inferred_layer_state(eng, ns, read)
+    counts: dict[str, int] = dict(registry.counts)
+    enabled: set[str] = set(registry.enabled) | {"L0", "L1"}
+    listed = await eng._records(ns)
+    sessions = {r.group_id for r in listed if r.memory_type == "episodic" and r.group_id}
+    profile = sum(1 for r in listed if _layer_of(r) == "L5")  # profile / preference entries
+    if profile and not counts.get("L5"):
+        counts["L5"] = profile
+        enabled.add("L5")
+    if sessions and counts.get("L2", 0) < len(sessions):
+        counts["L2"] = len(sessions)
+        enabled.add("L2")
+    if eng._graph is not None:
+        counts["L3"] = max(counts.get("L3", 0), counts.get("L0", 0) + counts.get("L1", 0))
+        enabled.add("L3")
+    return LayerState(
+        enabled=frozenset(enabled),  # type: ignore[arg-type]
+        counts=counts,  # type: ignore[arg-type]
+        services=_services(eng, read),
+    )
+
+
+async def _inferred_layer_state(eng: Any, ns: str, read: Any) -> LayerState:
+    """The pre-registry adapter (RW-A): layers inferred from memory type, tags and the graph store.
 
     L0 = episodic raw turns, L1 = other stored records (facts), L2 = distinct sessions
     (``group_id``) of the raw turns, L3 = graph store (count = records, an upper bound),

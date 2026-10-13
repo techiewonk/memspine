@@ -30,6 +30,7 @@ from pydantic import (
 )
 
 from memspine.config.constants import REFLECTION_DEPTH_CAP, TRUST_DEFAULT
+from memspine.schemas.durable.temporal import TimeBasis, TimePrecision
 from memspine.store.events import fingerprint_payload
 from memspine.store.layers import (
     Layer,
@@ -296,6 +297,17 @@ class MemoryRecord(BaseModel):
     axes: RecordAxes = Field(default_factory=RecordAxes)
     fingerprint: RecordFingerprint = Field(default_factory=RecordFingerprint)
 
+    # Tri-temporal (F-02b; M-10, S6). Optional and additive: ``valid_from`` / ``valid_to`` stay the
+    # event interval, ``recorded_at`` the record axis; these say when it was SAID (``source_at``)
+    # and how well the event interval is known. None = not known: a date is never invented. A dump
+    # omits a field while it is None (``event_approximate`` while False), so records that
+    # never set them serialise as before.
+    source_at: datetime | None = None
+    source_precision: TimePrecision | None = None
+    event_precision: TimePrecision | None = None
+    event_approximate: bool = False
+    event_basis: TimeBasis | None = None
+
     # A context block the engine built at read time (lead section, cards and
     # profile headers). Private: it is never serialised and no payload, tag or
     # field a caller controls can set it, so stored text cannot claim to be one.
@@ -322,6 +334,11 @@ class MemoryRecord(BaseModel):
             return data
         if self.invalid_at is None:
             data.pop("invalid_at", None)
+        for key in ("source_at", "source_precision", "event_precision", "event_basis"):
+            if data.get(key) is None:
+                data.pop(key, None)
+        if not data.get("event_approximate"):
+            data.pop("event_approximate", None)
         # Envelope fields equal to their derivation are redundant: left out, so the payload (and the
         # event-log fingerprint) of a record that never customised them is what it was before F-02a.
         if data.get("schema_version") == 1:

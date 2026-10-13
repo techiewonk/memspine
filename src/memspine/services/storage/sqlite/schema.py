@@ -130,6 +130,14 @@ memory_records = Table(
     Column("sub", LargeBinary),
     Column("fingerprint", LargeBinary),
     Column("schema_version", Integer, nullable=False, server_default="1"),
+    # F-02b (migration 0008): tri-temporal. ``source_at`` (when said, iso) plus the precision of
+    # it, and the precision / approximate flag / basis of the event interval (valid_from..valid_to).
+    # All nullable: NULL = not known (a date is never invented).
+    Column("source_at", String),
+    Column("source_precision", String),
+    Column("event_precision", String),
+    Column("event_approximate", Integer),
+    Column("event_basis", String),
     Index("ix_memory_records_ns_type", "namespace", "memory_type"),
     Index("ix_memory_records_fingerprint", "content_fingerprint"),
     Index("ix_memory_records_fact_key", "namespace", "entity", "attribute"),
