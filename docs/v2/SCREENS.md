@@ -516,3 +516,5 @@ From `docs/v2/research/R14_MASTER.md` (2026-10-14). Proposals only: none is in `
 | S98 | R14-M-19 | support-recall report | the 10 + 8 + 3 + 59 ids; guard: correct questions with context-dependent gold | yes |
 | S99 | R14-M-20 | known_keys (after S34/S42) | fail_mix_120 attribute subset (33) + MAB-CR dev for the history half | no |
 | S100 | R14-M-21 | link_table | fail_retrieval + fail_mix_120; CPU prototype over stored embeddings of one conversation first | no |
+
+**S79 build (R14-LISTCOV)**: arm `evals/arms/v2-R14-M-1-list_cov.json` = J reference + `read.list_mode_trigger_v2` + `read.coverage_select`, slice fail_list (+ 60 matched n_gold>=3 correct as guard). Offline first step done by `evals/analysis/r14_listcov_trigger_check.py`: on the reference full run the trigger fires on 132/184 (71.7%) of n_gold>=3 questions vs 72/184 (39.1%) for the regex, and on 147/1123 (13.1%) of n_gold==1 vs 124/1123 (11.0%); 5-fold by-conversation refit gives 70.1% recall at the same false fire. Cost: one extra query embedding and 30-deep vector search per read, no model call.

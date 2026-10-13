@@ -211,6 +211,27 @@ async def retrieve(
     return records
 
 
+def _coverage_reorder(
+    scored: list[tuple[MemoryRecord, float]], penalty: float
+) -> list[tuple[MemoryRecord, float]]:
+    """R14-M-1 (``read.coverage_select``): session-diverse order of the ranked pool; same
+    members, same scores, same length (``read/list_trigger.py:coverage_order``)."""
+    from memspine.read.list_trigger import coverage_order
+
+    order = coverage_order(
+        scored,
+        [score for _, score in scored],
+        [record.group_id for record, _ in scored],
+        penalty=penalty,
+        keys=[" ".join(record.content.lower().split()) for record, _ in scored],
+    )
+    out = [scored[i] for i in order]
+    if tap.enabled():
+        moved = sum(1 for new, old in enumerate(order) if new != old)
+        tap.event("read.coverage_select", pool=len(scored), moved=moved)
+    return out
+
+
 async def _lexical_guarded(eng: Any, ns: str, query: str, fetch_k: int) -> Any:
     """The BM25 leg; a broken lexical leg degrades to vector-only, never takes down the search."""
     assert eng._lexical is not None  # narrowed by use_hybrid
@@ -929,6 +950,8 @@ async def _search(
     if mmr_lambda is not None and len(scored) > 2:
         # G-10 (Graphiti MMR): diversity among near-duplicate hits, on embeddings.
         scored = await eng._mmr_order(query, scored, mmr_lambda)
+    if read_cfg.coverage_select and _LIST_MODE.get() and len(scored) > 2:
+        scored = _coverage_reorder(scored, read_cfg.coverage_session_penalty)  # R14-M-1
     _RERANKED.set(reranked)
     if (
         reranked
@@ -1362,7 +1385,10 @@ async def _read_routed(
         # A1 (ADR-055): a list or count question read by replay pools more
         # candidates too; replay rendering, no compose. The budget still caps it.
         top_k = read_cfg.aggregate_top_k
-    list_fire = await eng._list_fires(query)
+    if read_cfg.list_mode and read_cfg.list_mode_trigger_v2:
+        list_fire = await read_request._list_fires_v2(eng, ns, query)  # R14-M-1
+    else:
+        list_fire = await eng._list_fires(query)
     list_token = _LIST_MODE.set(list_fire)  # B1: the search widens for a list question
     try:
         base = await eng._assemble_core(
