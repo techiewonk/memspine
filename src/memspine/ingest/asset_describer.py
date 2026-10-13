@@ -318,6 +318,10 @@ async def describe_and_deposit(
     info = asset_info_of(asset)
     if info is None:
         return None
+    live = await eng._require_started().get_record(asset.record_id)
+    if live is None or live.status is not RecordStatus.ACTIVATED:  # erased/archived since the read
+        tap.event("write.asset.skipped", asset=asset.record_id, reason="parent_gone")
+        return None
     describer = resolve_describer(eng)
     existing = await _descriptions_of(eng, ns, asset.record_id)
     if trigger == "on_read" and existing:  # an ingest caption wins; a read never re-describes
@@ -438,6 +442,39 @@ async def on_read(
             seen.add(got.record_id)
             placed.append((got, score))
     return placed
+
+
+def _records_in(result: Any) -> list[MemoryRecord]:
+    """The records a read verb returns, whatever its shape: a record, a list of records or
+    ``(record, score)`` pairs, an assembled context (``.records``) or a read result (``.context``)."""
+    if isinstance(result, MemoryRecord):
+        return [result]
+    if isinstance(result, list):
+        return [r for item in result if isinstance(r := _pair_record(item), MemoryRecord)]
+    inner = getattr(result, "context", result)
+    records = getattr(inner, "records", None)
+    if isinstance(records, list):
+        return [r for r in records if isinstance(r, MemoryRecord)]
+    return []
+
+
+def _pair_record(item: Any) -> Any:
+    return item[0] if isinstance(item, tuple) and item else item
+
+
+async def after_read(eng: Any, ns: str, result: Any) -> Any:
+    """FU-ASSET: ``on_read`` for any read verb's output (called once per outermost verb, after the
+    viewer filter, so only assets the caller can see are described). ``(record, score)`` lists get
+    a made description placed right after its asset, as :func:`on_read` does; other shapes (a
+    record list, an assembled context, a single record) are returned unchanged, the description
+    being written for the next read."""
+    records = _records_in(result)
+    if not any(ASSET_TAG in r.tags for r in records):
+        return result
+    if isinstance(result, list) and result and all(isinstance(i, tuple) for i in result):
+        return await on_read(eng, ns, result)
+    await on_read(eng, ns, [(r, 0.0) for r in records])
+    return result
 
 
 async def shutdown(eng: Any) -> None:

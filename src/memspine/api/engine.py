@@ -1958,9 +1958,15 @@ class Engine:
             date_filter_mode=date_filter_mode,
             viewer=viewer,
         )
-        if self._config().write.asset_describer == "on_read":  # W2-11: describe on first read
-            hits = await asset_describer.on_read(self, namespace, hits)
         return hits
+
+    async def _after_read(self, verb: str, namespace: str, result: Any) -> Any:
+        """FU-ASSET: the single post-read hook, called by ``scope_guard.viewer_guarded`` once per
+        outermost read verb, after the viewer filter. W2-11 ``write.asset_describer: on_read``
+        describes the asset records the caller is about to get. Off: returns ``result`` as is."""
+        if self._config().write.asset_describer == "on_read":
+            return await asset_describer.after_read(self, namespace, result)
+        return result
 
     async def _date_allowed(self, ns: str) -> tuple[set[str], int] | None:
         return await read_timeview._date_allowed(self, ns)
