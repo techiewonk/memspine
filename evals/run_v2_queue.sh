@@ -246,6 +246,9 @@ while IFS=$'\t' read -r id batch pkg arm ref rule sets deps kind est flag; do
     case "$bl" in
       *SAFETY_REJECT*) say "$id: $bl -> REJECT, batch $batch stopped"; BSTOP[$batch]=1; state_set "$id" REJECT "$summary"; continue ;;
       *REGRESSION*) status=NOT_ADOPTED; say "$id: $bl (blocks adoption; sets still run)" ;;
+      # The behavioural check builds a MODEL-FREE engine; arms that need an LLM role or a model-backed memory type cannot
+      # load there (ConfigError). That is "not applicable", not a reason to skip the GPU screen. Unknown flags still block.
+      *ConfigError*needs\ an\ LLM\ role*|*ConfigError*not\ enabled*) say "$id: $bl (model-free check not applicable; sets still run)"; summary="beh=N/A(model-free)" ;;
       *ERROR*) say "$id: $bl (flag not wired in this commit?) -> screen skipped"; state_set "$id" BLOCKED "$summary"; continue ;;
     esac
   fi

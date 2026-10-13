@@ -24,6 +24,21 @@ pyver="${PINNED_PYTHON:-}"
 [ -n "$pyver" ] || pyver="$(git -C "$repo" show "$rev:.python-version" 2>/dev/null | head -n1 | tr -d '[:space:]' || true)"
 [ -n "$pyver" ] || pyver="default"
 venv_root="${PINNED_VENV_ROOT:-$(cd "$repo/.." && pwd)/memspine-venvs}"
+# GPU torch: uv.lock resolves PyPI torch, which is CPU-only on Windows. PINNED_TORCH installs a CUDA build after the
+# sync (default: the exact torch build of the shared venv, e.g. "torch==2.11.0+cu128", from the matching PyTorch index),
+# so screens run on the GPU with the same torch as the reference runs. PINNED_TORCH=none keeps the lock's torch.
+torch_spec="${PINNED_TORCH:-}"
+if [ -z "$torch_spec" ]; then
+  sp="$repo/.venv/Scripts/python.exe"; [ -x "$sp" ] || sp="$repo/.venv/bin/python"
+  # a worktree has no .venv of its own: fall back to the main checkout's shared venv (../memspine/.venv)
+  [ -x "$sp" ] || sp="$(cd "$repo/.." && pwd)/memspine/.venv/Scripts/python.exe"
+  tv="$("$sp" -c 'import torch;print(torch.__version__)' 2>/dev/null || true)"
+  [ -n "$tv" ] && torch_spec="torch==$tv" || torch_spec="none"
+fi
+torch_index="${PINNED_TORCH_INDEX:-}"
+if [ -z "$torch_index" ] && [[ "$torch_spec" == *+cu* ]]; then
+  torch_index="https://download.pytorch.org/whl/${torch_spec##*+}"
+fi
 
 # Lock hash: read from the commit itself (no worktree needed, so a dry run touches nothing).
 lock_hash="$({ printf 'uv.lock\n'; git -C "$repo" show "$rev:uv.lock"
@@ -42,6 +57,7 @@ if [ -n "${PINNED_DRY_RUN:-}" ]; then
   echo "  lock_hash=$lock_hash"
   echo "  python=$pyver"
   echo "  extras=$extras"
+  echo "  torch=$torch_spec ${torch_index:+(index $torch_index)}"
   echo "  venv=$venv"
   echo "  action=$action"
   exit 0
