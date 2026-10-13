@@ -35,7 +35,7 @@ from collections.abc import (
 from contextlib import asynccontextmanager, contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass, replace
-from datetime import UTC, datetime, timedelta, tzinfo
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from time import perf_counter
 from typing import Any, ClassVar, Self, TypedDict, TypeVar, cast
@@ -63,7 +63,7 @@ from memspine.config.schema import FirewallConfig, MemspineConfig
 from memspine.core import trace_sink
 from memspine.core.agentic import clean_query, evidence_view, fuse_new, merge_budget
 from memspine.core.concentration import collapse_concentrated
-from memspine.core.correction import Correction, detect_correction
+from memspine.core.correction import Correction
 from memspine.core.dedupe import dedupe_scored
 from memspine.core.escaping import escape_markers
 from memspine.core.event_date import SAID_PREFIX, date_anchor, happened_of, happened_tag
@@ -84,15 +84,7 @@ from memspine.core.fact_chain import (
     validate_assertions,
 )
 from memspine.core.fact_views import view_tags
-from memspine.core.forget_request import forget_target, is_forget_request
-from memspine.core.inference import (
-    INFERRED_CHANNELS,
-    INFERRED_TAG,
-    classify,
-    is_inferred,
-    support_count,
-    support_tags,
-)
+from memspine.core.forget_request import forget_target
 from memspine.core.integrity import IntegrityPolicy
 from memspine.core.language import language_scope
 from memspine.core.latest_wins import apply_latest_wins, recent_first
@@ -128,24 +120,13 @@ from memspine.core.read_filters import (
     time_expr_span,
     to_utc,
 )
-from memspine.core.reference_edges import REF_PREFIX, antecedent_kind, reference_kinds
+from memspine.core.reference_edges import reference_kinds
 from memspine.core.relevance_probes import OFF_TOPIC_PROBES, Calibration, calibrate
 from memspine.core.rule_edges import BECAUSE_REL, is_why_question
 from memspine.core.rule_miner import mine_rules
-from memspine.core.sensitive import sensitive_topics
-from memspine.core.sensitivity import (
-    GRADE_TAG_PREFIX,
-    grade_rank,
-    grade_text,
-    label_of,
-    label_tags,
-    passes_gate,
-    query_topics,
-)
 from memspine.core.slot_loop import CalcError, calculate, slot_hint, slot_view, step_signature
 from memspine.core.ties import settle_ties
 from memspine.core.vetting import VetFlag, draft_sentences, vet_sentences
-from memspine.core.window import WindowSettings
 from memspine.exceptions import (
     ConfigError,
     ConflictError,
@@ -153,6 +134,18 @@ from memspine.exceptions import (
     MissingServiceError,
     RollbackUnavailableError,
     StorageError,
+)
+from memspine.ingest import assets as ingest_assets
+from memspine.ingest import windows as ingest_windows
+from memspine.ingest import write as ingest_write
+from memspine.ingest.write import (
+    _NEIGHBOUR_BATCH,
+    _RECALL_MARKERS,  # noqa: F401  (tests import it from here)
+    WriteOutcome,
+    _message_sender,
+    _NeighbourBatch,
+    _reply_targets,
+    _screen_text,
 )
 from memspine.memories.associative.entities import (
     ENTITY_PREFIX,
@@ -258,7 +251,6 @@ from memspine.models.encoders.query.shape import (
     statement_form,
 )
 from memspine.models.encoders.query.temporal_query import (
-    RECOMMENDATION_TAG,
     SPEAKER_PREFIX,
     LegHit,
     NamedLeg,
@@ -270,7 +262,6 @@ from memspine.models.encoders.query.temporal_query import (
     entity_leg,
     forget_mentions,
     has_bridge_cue,
-    is_recommendation,
     metadata_leg,
     sentence_leg,
     sentences,
@@ -410,14 +401,6 @@ from memspine.trust.privacy import (
     read_scope,
     verify_audit_chain,
 )
-from memspine.trust.redaction import find_pii, redact
-from memspine.trust.visibility import (
-    PARTICIPANT_PREFIX,
-    VISIBILITY_PREFIX,
-    inherit_tags,
-    participant_tags,
-    visibility_tag,
-)
 from memspine.workers.list_cards import (
     LIST_CARD_KEY_PREFIX,
     LabelClasses,
@@ -439,33 +422,16 @@ from memspine.workers.pipelines import (
     entity_summary_name,
     entity_summary_node,
     resolve_mode,
-    session_close,
     stage_marker,
 )
 from memspine.workers.runner import TaskRunner
 from memspine.workers.schedule import run_sleep_cycle
 from memspine.workers.scheduler import SleepScheduler
-from memspine.workers.windows import SECTION_MODES, PromptWindowExtractor, WindowPipeline
+from memspine.workers.windows import WindowPipeline
 
 __all__ = ["Engine"]
 
 
-#: H21: markers memspine itself writes into assembled context. A message carrying them is
-#: recalled memory echoed back, not a new observation. Built from the emitters' constants
-#: (R5-4) so a new or reworded wrapper cannot silently slip past the filter.
-_RECALL_MARKERS = (
-    constants.UNTRUSTED_NOTE_MARKER,
-    constants.CURRENT_STATE_MARKER,
-    constants.HISTORY_MARKER,
-    constants.DISPUTED_MARKER,
-    constants.INSTRUCTION_FLAG_MARKER,
-    constants.TIMELINE_MARKER,
-    constants.STANDING_MARKER,
-    constants.CLAIM_MARKER,
-    constants.CARDS_MARKER,
-    constants.PROFILE_MARKER,
-    constants.COUNT_MARKER,
-)
 
 
 def _gap_marker(days: int) -> str:
@@ -492,16 +458,8 @@ def _unrendered(content: str) -> str:
     return _RENDER_PREFIX.sub("", content, count=1)
 
 
-#: #44: ordering of PII tiers, least to most sensitive.
-_PII_RANK = {PiiTier.NONE: 0, PiiTier.LOW: 1, PiiTier.HIGH: 2, PiiTier.REGULATED: 3}
 
 
-def _screen_text(text: str, fw: FirewallConfig) -> tuple[str, list[str]]:
-    """``text`` as the write door stores it: secrets masked under ``redact_secrets``,
-    PII masked under ``pii: redact``; unchanged when both are off."""
-    return redact(
-        text, secrets=fw.redact_secrets, pii=fw.pii == "redact", pii_extended=fw.pii_extended
-    )
 
 
 def _json_line(value: object) -> str:
@@ -512,36 +470,14 @@ def _json_line(value: object) -> str:
     return text.replace("\u2028", "\\u2028").replace("\u2029", "\\u2029")
 
 
-def _looks_like_recall(content: str) -> bool:
-    return any(marker in content for marker in _RECALL_MARKERS)
 
 
 #: #3: tag on a held record an operator rejected (archived, never releasable).
 _QUARANTINE_REJECTED_TAG = "quarantine_rejected"
 
 
-def _reply_targets(record: MemoryRecord) -> list[str]:
-    """G27: the record ids ``record``'s ``reply_to:<id>`` tags name."""
-    prefix = constants.REPLY_TO_PREFIX
-    return [tag[len(prefix) :] for tag in record.tags if tag.startswith(prefix) and tag != prefix]
 
 
-def _reply_target(turn: Mapping[str, Any], index: int, written: Mapping[int, str]) -> str | None:
-    """G27: the record a ``write_messages`` turn answers (its ``reply_to`` field).
-
-    A string is a record id; an int is the index of an earlier message of the same
-    call (one skipped as system/tool text or injected recall links to nothing).
-    Anything else, or an index that is not earlier, is a ``ValueError``."""
-    raw: object = turn.get("reply_to")
-    if raw is None:
-        return None
-    if isinstance(raw, str) and raw:
-        return raw
-    if isinstance(raw, int) and not isinstance(raw, bool) and 0 <= raw < index:
-        return written.get(raw)
-    raise ValueError(
-        f"messages[{index}]['reply_to'] must be a record id or the index of an earlier message"
-    )
 
 
 def _attributed(
@@ -556,24 +492,8 @@ def _attributed(
     return record.model_copy(update={"content": f"{marker} {record.content}"})
 
 
-def _caller_tags(tags: Sequence[str] | None, ns: str) -> list[str]:
-    """Caller-supplied tags without the engine-only ones (``RESERVED_TAGS``): a
-    caller must not mark its text as a lead block, a cue or a rolled-back record."""
-    kept = [tag for tag in tags or [] if tag not in constants.RESERVED_TAGS]
-    if len(kept) != len(tags or []):
-        dropped = sorted({tag for tag in tags or [] if tag in constants.RESERVED_TAGS})
-        _log.warning("memory.reserved_tags_dropped", namespace=ns, tags=dropped)
-    return kept
 
 
-def _merge_correction_tags(old: Sequence[str], extra: Sequence[str] | None, ns: str) -> list[str]:
-    """Tags of a corrected record: the old ones minus ``disputed``, plus the caller's
-    (reserved tags dropped); a new ``src:*`` tag replaces the old ``src:*`` ones."""
-    added = _caller_tags(extra, ns)
-    keep = [t for t in old if t != "disputed"]
-    if any(t.startswith("src:") for t in added):
-        keep = [t for t in keep if not t.startswith("src:")]
-    return [*keep, *(t for t in added if t not in keep)]
 
 
 #: A thousands separator between digit groups ("1,000", "1_000").
@@ -623,26 +543,8 @@ def _taint_archive_delta(record: MemoryRecord) -> dict[str, object]:
     return change
 
 
-def _zone_of(name: str) -> tzinfo:
-    """F5: an IANA zone name -> tzinfo (``UTC`` needs no tz database)."""
-    if name.upper() == "UTC":
-        return UTC
-    from zoneinfo import ZoneInfo
-
-    return ZoneInfo(name)
 
 
-def _parse_event_time(value: object) -> datetime | None:
-    """ISO-8601 string or datetime -> aware datetime; None when absent/unparseable."""
-    if value is None:
-        return None
-    if isinstance(value, datetime):
-        return value if value.tzinfo else value.replace(tzinfo=UTC)
-    try:
-        parsed = datetime.fromisoformat(str(value))
-    except ValueError:
-        return None
-    return parsed if parsed.tzinfo else parsed.replace(tzinfo=UTC)
 
 
 @dataclass(frozen=True)
@@ -655,84 +557,11 @@ class AuthorizeDecision:
     reason: str
 
 
-@dataclass(frozen=True)
-class WriteOutcome:
-    """What ``Engine.write_ex`` did (G8): the surviving record, the action taken,
-    and a fresh per-call occurrence id."""
-
-    record: MemoryRecord
-    action: str
-    occurrence_id: str
 
 
 _log = get_logger(__name__)
 
 
-class _NeighbourBatch:
-    """#63: the firewall's nearest-neighbour context for one ``write_messages`` call.
-
-    ``prefetched`` holds, per content, the top-k hits of ONE batched vector query
-    made before the first turn is written. Every WRITE or FORGET the namespace
-    sees while the batch is open is observed (whatever task made it), so
-    :meth:`neighbours` ranks those prefetched hits together with the rows written
-    since, exactly the set a per-turn query would rank.
-    """
-
-    def __init__(self, namespace: str, prefetched: dict[str, list[VectorHit]]) -> None:
-        self.namespace = namespace
-        self.prefetched = prefetched
-        self.written: dict[str, str] = {}  # record_id -> content, in write order
-        self.forgotten: set[str] = set()
-        self._ids: list[str] = []
-        self._matrix: Any = None  # unit rows of the written vectors (float32)
-
-    def observe(self, event: MemoryEvent) -> None:
-        if event.kind is EventKind.WRITE:
-            snapshot = event.payload.get("record")
-            if isinstance(snapshot, dict) and snapshot.get("record_id") is not None:
-                record_id = str(snapshot["record_id"])
-                if record_id in self.written:
-                    self._matrix = None  # a replaced row invalidates the cached rows
-                self.written[record_id] = str(snapshot.get("content") or "")
-                self.forgotten.discard(record_id)
-        elif event.kind is EventKind.FORGET:
-            record_id = str(event.payload.get("record_id"))
-            self.forgotten.add(record_id)
-            self.written.pop(record_id, None)
-            self._matrix = None
-
-    async def neighbours(
-        self, content: str, vector: list[float], embedder: EmbeddingService, top_k: int
-    ) -> list[VectorHit]:
-        """Top-k cosine neighbours of ``vector`` over the prefetched and written rows."""
-        written = [rid for rid in self.written if rid not in self.forgotten]
-        hits = [
-            hit
-            for hit in self.prefetched[content]
-            if hit.record_id not in self.written and hit.record_id not in self.forgotten
-        ]
-        if written:
-            import numpy as np  # lancedb's own dependency; loaded only for batched ingest
-
-            if self._matrix is None or written[: len(self._ids)] != self._ids:
-                self._matrix, self._ids = np.zeros((0, len(vector)), dtype=np.float32), []
-            fresh = written[len(self._ids) :]
-            if fresh:  # rows are appended as turns are written: embed only the new ones
-                rows = np.asarray(
-                    await embedder.embed([self.written[rid] for rid in fresh]), dtype=np.float32
-                )
-                norms = np.linalg.norm(rows, axis=1, keepdims=True)
-                self._matrix = np.vstack([self._matrix, rows / np.where(norms == 0, 1, norms)])
-                self._ids = written
-            query = np.asarray(vector, dtype=np.float32)
-            norm = float(np.linalg.norm(query)) or 1.0
-            scores = self._matrix @ (query / norm)
-            hits.extend(
-                VectorHit(record_id=rid, score=float(score))
-                for rid, score in zip(written, scores, strict=True)
-            )
-        hits.sort(key=lambda hit: -hit.score)
-        return hits[:top_k]
 
 
 #: I2 (isolation review 2026-10-08): the records a read has listed, by (namespace,
@@ -923,10 +752,6 @@ def search_forensics() -> Iterator[dict[str, Any]]:
         _FORENSICS.reset(token)
 
 
-#: #63: the neighbour batch of the ``write_messages`` call running in this task.
-_NEIGHBOUR_BATCH: ContextVar[_NeighbourBatch | None] = ContextVar(
-    "memspine_neighbour_batch", default=None
-)
 
 #: #30: contents of the engine's own list cards a re-derived card replaces. A new card
 #: repeats its predecessor's prefix by construction, so those (and only those) are
@@ -1073,18 +898,8 @@ def _jaccard(a: Collection[str], b: Collection[str]) -> float:
     return len(sa & sb) / len(sa | sb) if sa and sb else 0.0
 
 
-def _speaker_of(turn: Mapping[str, str]) -> str:
-    """I53: who spoke a message: its ``speaker`` or ``name`` key, else its role."""
-    return str(turn.get("speaker") or turn.get("name") or turn.get("role") or "")
 
 
-def _turn_content(turn: Mapping[str, str]) -> str:
-    """G30 (plan v3.2): a turn's text, with an image or attachment ``caption`` (when
-    the turn carries one) appended as ``[image: caption]``, so it is embedded, indexed
-    and read with the turn. Raises ``KeyError`` without ``content``, as before."""
-    content = turn["content"]
-    caption = turn.get("caption")
-    return f"{content} [image: {caption}]".strip() if caption else content
 
 
 def _current_at(record: MemoryRecord, as_of: datetime | None) -> bool:
@@ -1117,14 +932,6 @@ def _as_options_dict(raw: Any) -> dict[str, object] | None:
     return dict(raw) if isinstance(raw, dict) else None
 
 
-def _message_sender(record: MemoryRecord) -> str | None:
-    """B5: the sender namespace of a :meth:`Engine.send` message, else None."""
-    if record.source.channel != "message":
-        return None
-    for tag in record.tags:
-        if tag.startswith("from:") and tag[5:] != record.namespace:
-            return tag[5:]
-    return None
 
 
 def _static_prefilter(
@@ -1698,163 +1505,35 @@ class Engine:
         ``owner_shared``), stored as ``participant:<name>`` / ``visibility:<v>`` tags. They
         matter only to a read with ``viewer=``; the namespace stays the isolation boundary.
         """
-        wt = self._write_timers  # I73: None (the default) costs one attribute read
-        t_validation = perf_counter() if wt is not None else 0.0
-        session_id = ledger_id if ledger_id is not None else session_id  # I9
-        if participants:
-            tags = [*(tags or []), *participant_tags(participants)]
-        if visibility is not None:
-            tags = [*(tags or []), visibility_tag(visibility)]
-        if extraction_hint:  # G-8: rides as a tag; extract_graph passes it to the prompt
-            tags = [*(tags or []), constants.EXTRACTION_HINT_PREFIX + extraction_hint.strip()]
-        storage = self._require_started()
-        ns = validate_namespace(namespace)
-        if reply_to is not None:
-            target = await storage.get_record(reply_to)
-            if target is None or target.namespace != ns or target.status is RecordStatus.DELETED:
-                raise ConflictError(f"no such record {reply_to!r} in namespace {ns!r}")
-            tags = [*(tags or []), f"{constants.REPLY_TO_PREFIX}{reply_to}"]
-        # SEC-H1/ADR-018: the "shared" type is engine-internal bookkeeping
-        # (grants + subscriptions carry authorization state). A public write of
-        # it would forge a live grant — parse_grant only checks shape, so a
-        # crafted content='{"grant":...}' would bypass grant()'s scope/self-grant/
-        # supersession guards. Grants come ONLY from grant()/subscribe(), which
-        # build the record and go through _write_locked directly.
-        if memory_type == "shared":
-            raise ConflictError("memory_type 'shared' is engine-internal — use grant()/subscribe()")
-        source = source or SourceInfo(role=actor)
-        tags = _caller_tags(tags, ns)
-        if wt is not None:
-            wt.record("validation", perf_counter() - t_validation)
-        if memory_type == "episodic" and self._memory_policy(self._config(), "episodic").get(
-            "subject_tagging"
-        ):
-            # W8 (plan v3.2): the speaker of a "Name: text" turn becomes a tag.
-            speaker = speaker_of(content)
-            if speaker and f"{SPEAKER_PREFIX}{speaker}" not in (tags or []):
-                tags = [*(tags or []), f"{SPEAKER_PREFIX}{speaker}"]
-        if memory_type == "episodic":
-            opts = self._perspective_options()
-            if opts.on:  # I39: speaker / addressee / subject / stance tags; content untouched
-                tags = await self._annotate_perspective(
-                    ns, content, source.role, tags, opts, valid_from
-                )
-        implicit = self._consume_reads(ns, session_id)
-        parents = list(dict.fromkeys([*(derived_from or []), *implicit]))
-        if parents:
-            source = source.model_copy(update={"parents": parents})
-        record = MemoryRecord(
-            namespace=ns,
-            memory_type=memory_type,
-            content=content,
-            source=source,
-            pii_tier=pii_tier,
-            entity=entity,
-            attribute=attribute,
-            group_id=group_id,
-            tags=tags or [],
-            consent_tags=list(dict.fromkeys(purposes or [])),
+        return await ingest_write.write(
+            self,
+            content,
+            namespace,
+            memory_type,
+            source,
+            pii_tier,
+            actor,
+            entity,
+            attribute,
+            group_id,
+            tags,
+            derived_from,
+            valid_from,
+            session_id,
+            ledger_id,
+            extraction_hint,
+            parent_weights,
+            purposes,
+            reply_to,
+            participants,
+            visibility,
         )
-        if memory_type == "episodic" and "spk:assistant" in record.tags:
-            state = self._persp_state.get(ns)
-            if state is not None:  # I47: the turn the next user turn may acknowledge
-                state["assistant"] = (record.record_id, content[:600])
-        if valid_from is not None:
-            stamp = self._localize(valid_from)
-            record = record.model_copy(update={"valid_from": stamp})
-        elif self._config().read.skip_defaulted_dates:
-            # I7: the event time is the write clock, not the source's; date renders skip it.
-            record = record.model_copy(update={"tags": [*record.tags, constants.UNDATED_TAG]})
-        trust_cap = await self._parent_trust_cap(ns, record.source.parents)
-        if trust_cap is not None and parent_weights:
-            # B1 weighted lineage: a parent of weight w contributes
-            # w*view + (1-w)*base, so strong edges (w=1) keep the full MTI-D and
-            # the radius; weak edges (e.g. retrieved but barely used) drain less.
-            base = self._firewall.policy.trust_at_write(record.source)
-            weighted = []
-            for parent_id, view in zip(record.source.parents, trust_cap, strict=False):
-                w = min(1.0, max(0.0, parent_weights.get(parent_id, 1.0)))
-                weighted.append(w * view + (1.0 - w) * base)
-            trust_cap = weighted
-        if implicit:
-            # B0: the view trust the session SAW at read time also caps the write
-            # (a record's trust may have dropped since; never raise it back).
-            trust_cap = [*(trust_cap or []), *implicit.values()]
-        # One writer per namespace: the firewall's context reads, the write,
-        # and corroboration form one unit racing writers must not interleave.
-        async with self._write_locks.setdefault(ns, asyncio.Lock()):
-            written, action = await self._write_locked_ex(
-                storage, ns, record, memory_type, actor, trust_cap=trust_cap
-            )
-        self._last_write_action = action
-        if self._sessions_horizon is not None and memory_type == "episodic":
-            await self._reopen_session(storage, ns, session_of(record))
-        if reply_to is not None:
-            await self._link_reply(ns, written, reply_to)
-        if self._windows is not None and memory_type == "episodic" and action == "added":
-            try:  # W1: the turn joins the open window; never fails the write
-                await self._windows.observe(written, session_of(written))
-            except Exception as exc:
-                _log.warning("window.observe_failed", namespace=ns, error=redact_error(exc))
-        return written
 
     async def _link_reply(self, ns: str, written: MemoryRecord, reply_to: str) -> None:
-        """G27: the ``reply_to`` LINK beside the tag, when associative memory is on.
-        A held endpoint or a full link budget skips it (the tag still links them)."""
-        if self._associative is None or written.quarantined or written.record_id == reply_to:
-            return
-        try:
-            async with self._write_locks.setdefault(ns, asyncio.Lock()):
-                await self._associative.link(
-                    ns,
-                    written.record_id,
-                    reply_to,
-                    rel=constants.REPLY_TO_REL,
-                    weight=max(0.01, min(1.0, written.trust)),
-                    reason="reply_to",
-                    actor="system",
-                )
-        except ConflictError as exc:
-            _log.warning("memory.reply_link_skipped", namespace=ns, error=str(exc))
+        return await ingest_write._link_reply(self, ns, written, reply_to)
 
     async def _reopen_session(self, storage: SqlStorage, ns: str, session: str | None) -> None:
-        """#53: a write to a PASSIVE session reopens it (one SESSION ``active`` event
-        listing its members), so the whole conversation is back in default reads."""
-        if session is None:
-            return
-        async with self._write_locks.setdefault(ns, asyncio.Lock()):
-            passive = self._passive_sessions.get(ns)
-            records: list[MemoryRecord] | None = None
-            if passive is None:  # first episodic write here since start or a sleep
-                records = await storage.list_records(ns, "episodic")
-                passive = {
-                    sid for r in records if r.scoring.passive and (sid := session_of(r)) is not None
-                }
-                self._passive_sessions[ns] = passive
-            if session not in passive:
-                return
-            if records is None:
-                records = await storage.list_records(ns, "episodic")
-            members = sorted(
-                r.record_id
-                for r in records
-                if session_of(r) == session and r.status is not RecordStatus.DELETED
-            )
-            await self._append_and_project(
-                MemoryEvent(
-                    kind=EventKind.SESSION,
-                    namespace=ns,
-                    actor="system",
-                    payload={
-                        "session_id": session,
-                        "state": "active",
-                        "record_ids": members,
-                        "reason": "new_write",
-                    },
-                )
-            )
-            passive.discard(session)
-        _log.info("memory.session_reopened", namespace=ns, session_id=session)
+        return await ingest_windows._reopen_session(self, storage, ns, session)
 
     async def write_ex(self, content: str, **kwargs: Any) -> WriteOutcome:
         """``write`` that also reports what happened (G8).
@@ -1866,11 +1545,7 @@ class Engine:
         ``occurrence_id`` is fresh per call, so two identical deposits remain
         distinguishable in the caller's own bookkeeping.
         """
-        record = await self.write(content, **kwargs)
-        # Safe without a lock: ``write`` sets the action and returns with no
-        # await in between, so no other task can run before it is read here.
-        action = self._last_write_action
-        return WriteOutcome(record=record, action=action, occurrence_id=new_record_id())
+        return await ingest_write.write_ex(self, content, **kwargs)
 
     @staticmethod
     def _ledger_key(ns: str, session_id: str | None) -> tuple[str, str]:
@@ -2229,9 +1904,7 @@ class Engine:
     def end_session(self, namespace: str = "default", session_id: str | None = None) -> None:
         """B0: forget a session's read ledger (``session_id=None``: the namespace's
         anonymous ledger, which no read or write ever clears on its own)."""
-        key = self._ledger_key(validate_namespace(namespace), session_id)
-        self._read_ledger.pop(key, None)
-        self._ledger_written.discard(key)
+        return ingest_windows.end_session(self, namespace, session_id)
 
     async def effective_trust(self, record_id: str) -> float:
         """B4': a record's trust re-checked against its CURRENT parents.
@@ -2946,34 +2619,7 @@ class Engine:
         self._external = None
 
     def _asset_adapter(self) -> Any:
-        if self._assets is None:
-            from memspine.services.assets import (
-                AssetAdapter,
-                AssetRegistry,
-                HttpAssetFetcher,
-                NoopVision,
-                OllamaVision,
-            )
-
-            cfg = self._config().ingest
-            vision: Any = (
-                OllamaVision(
-                    cfg.asset_vision_model,
-                    cfg.asset_vision_url,
-                    timeout=cfg.asset_vision_timeout_s,
-                )
-                if cfg.asset_vision == "ollama"
-                else NoopVision()
-            )
-            self._assets = AssetAdapter(
-                AssetRegistry(cfg.asset_dir),
-                HttpAssetFetcher(tuple(cfg.asset_allowed_mime)),
-                vision,
-                cfg.asset_dir,
-                max_bytes=cfg.asset_max_bytes,
-                timeout=cfg.asset_timeout_s,
-            )
-        return self._assets
+        return ingest_assets._asset_adapter(self)
 
     def asset_stats(self) -> dict[str, int]:
         """E04 cost counters of this engine (fetches, vision calls, failures, cache hits)."""
@@ -3004,14 +2650,7 @@ class Engine:
     def _attachment_refs(
         self, turn: Mapping[str, Any], index: int, session_id: str | None
     ) -> list[tuple[Any, str]]:
-        """``ingest.assets``: the turn's attachments with their asset ids (empty when off)."""
-        if self._config().ingest.assets != "on" or not isinstance(turn, Mapping):
-            return []
-        from memspine.services.assets import asset_id_for, parse_attachments
-
-        source = str(turn.get("turn_id") or f"{session_id or 'nosession'}:{index}")
-        refs = parse_attachments(turn.get("attachments"))
-        return [(ref, asset_id_for(source, ref.uri)) for ref in refs]
+        return ingest_assets._attachment_refs(self, turn, index, session_id)
 
     def _register_assets(
         self,
@@ -3021,22 +2660,7 @@ class Engine:
         session_id: str | None,
         record_id: str,
     ) -> None:
-        from memspine.services.assets import AssetEntry
-
-        source = str(turn.get("turn_id") or f"{session_id or 'nosession'}:{index}")
-        adapter = self._asset_adapter()
-        for ref, aid in refs:
-            adapter.registry.register(
-                AssetEntry(
-                    asset_id=aid,
-                    source_turn_id=source,
-                    uri=ref.uri,
-                    kind=ref.kind,
-                    caption=ref.caption,
-                    search_hint=ref.search_hint,
-                    record_id=record_id,
-                )
-            )
+        return ingest_assets._register_assets(self, refs, turn, index, session_id, record_id)
 
     async def _asset_overlay(
         self, query: str, ns: str, context: AssembledContext
@@ -4281,62 +3905,14 @@ class Engine:
         The turns share one projection batch (:meth:`_projection_batch`): the
         lexical index commits and the projector checkpoints happen once per
         call instead of once per turn."""
-        contents = self._depositable_contents(messages)
-        await self._prewarm_embeddings(contents)
-        batch = await self._prefetch_neighbours(validate_namespace(namespace), contents)
-        if batch is None:
-            async with self._projection_batch():
-                return await self._write_turns(
-                    messages, namespace, actor, session_id, channel, group_id, tags, valid_from
-                )
-        open_batches = self._neighbour_batches.setdefault(batch.namespace, [])
-        open_batches.append(batch)
-        token = _NEIGHBOUR_BATCH.set(batch)
-        try:
-            async with self._projection_batch():
-                return await self._write_turns(
-                    messages, namespace, actor, session_id, channel, group_id, tags, valid_from
-                )
-        finally:
-            _NEIGHBOUR_BATCH.reset(token)
-            open_batches.remove(batch)
-            if not open_batches:
-                del self._neighbour_batches[batch.namespace]
+        return await ingest_write.write_messages(
+            self, messages, namespace, actor, session_id, channel, group_id, tags, valid_from
+        )
 
     async def _prefetch_neighbours(
         self, ns: str, contents: Sequence[str]
     ) -> _NeighbourBatch | None:
-        """#63: the firewall's neighbour query for every turn, as one batched
-        vector search (in chunks of ``embedding.batch_size``) before the first
-        write. None (per-turn queries) below two distinct contents, with the
-        firewall off, or when the vector store has no batched query."""
-        query_many = getattr(self._vector, "query_many", None)
-        unique = list(dict.fromkeys(contents))
-        if (
-            len(unique) < 2
-            or self._embedder is None
-            or not callable(query_many)
-            or not self._config().firewall.enabled
-        ):
-            return None
-        prefetched: dict[str, list[VectorHit]] = {}
-        # Enough rows that the nearest non-held ones are always among them (rows
-        # held later in the batch are written ones, which are scored separately).
-        top_k = constants.ANOMALY_MIN_NEIGHBOURS + await self._require_started().count_quarantined(
-            ns
-        )
-        size = self._config().embedding.batch_size
-        for start in range(0, len(unique), size):
-            chunk = unique[start : start + size]
-            vectors = await self._embedder.embed(chunk)
-            results = await query_many(
-                ns,
-                vectors,
-                embedder_id=self._embedder.embedder_id,
-                top_k=top_k,
-            )
-            prefetched.update(zip(chunk, results, strict=True))
-        return _NeighbourBatch(ns, prefetched)
+        return await ingest_write._prefetch_neighbours(self, ns, contents)
 
     async def _write_turns(
         self,
@@ -4349,204 +3925,24 @@ class Engine:
         tags: list[str] | None,
         valid_from: datetime | None,
     ) -> list[MemoryRecord]:
-        """The per-turn loop of :meth:`write_messages`: each turn goes through
-        the write door on its own, with its own firewall and ladder decisions."""
-        records: list[MemoryRecord] = []
-        written_at: dict[int, str] = {}  # G27: message index -> its record id
-        ref_cfg = self._config().read  # A07
-        prev_turn: tuple[str, str] | None = None  # (record id, speaker) of the last turn written
-        fw = self._config().firewall
-        if self._perspective_options().on:
-            # I39: the call's participants are known before its first turn is annotated
-            state = await self._persp_state_for(validate_namespace(namespace))
-            for turn in messages:
-                if isinstance(turn, Mapping):
-                    who = turn.get("speaker") or turn.get("name")
-                    if isinstance(who, str) and who.strip():
-                        state["known"].add(who.strip().lower())
-        session_speakers = (  # I53: everyone present in this call, in order of first turn
-            list(dict.fromkeys(_speaker_of(t) for t in messages if isinstance(t, Mapping)))
-            if self._config().write.participants == "session"
-            else []
+        return await ingest_write._write_turns(
+            self, messages, namespace, actor, session_id, channel, group_id, tags, valid_from
         )
-        for i, turn in enumerate(messages):
-            try:
-                role = turn["role"]
-                content = _turn_content(turn)
-            except (KeyError, TypeError) as exc:
-                raise ValueError(
-                    f"messages[{i}] must be a mapping with 'role' and 'content' keys"
-                ) from exc
-            reply_to = _reply_target(turn, i, written_at)
-            if role in fw.skip_message_roles:
-                continue  # H21: system/tool text is not memory
-            if fw.skip_injected_recall and _looks_like_recall(content):
-                # H21: recalled memory echoed back is not new evidence. R2-11:
-                # never silently: a MARKER event traces what was dropped (by
-                # fingerprint, not content) so a genuine turn that merely
-                # quotes a marker can be found and re-ingested.
-                _log.info("memory.skip_injected_recall", namespace=namespace)
-                self._require_started()
-                await self._append_and_project(
-                    MemoryEvent(
-                        kind=EventKind.MARKER,
-                        namespace=validate_namespace(namespace),
-                        actor=actor,
-                        payload={
-                            "marker": "recall_skipped",
-                            "role": role,
-                            "session_id": session_id,
-                            "message_index": i,
-                            "content_fingerprint": fingerprint_payload({"content": content}),
-                            "chars": len(content),
-                        },
-                    )
-                )
-                continue
-            turn_tags = list(tags or [])
-            if self._perspective_options().on:  # I39: explicit participants ride as tags
-                who = turn.get("speaker") or turn.get("name")
-                to = turn.get("addressee")
-                if isinstance(who, str) and who.strip():
-                    turn_tags.append(f"spk:{who.strip().lower()}")
-                if isinstance(to, str) and to.strip():
-                    turn_tags.append(f"addr:{to.strip().lower()}")
-            if fw.tag_assistant_claims and role == "assistant":
-                turn_tags.append("assistant_claim")
-            if (
-                role == "assistant"
-                and self._config().read.role_aware
-                and is_recommendation(content)
-            ):
-                turn_tags.append(RECOMMENDATION_TAG)  # W11: the recommendation ledger
-            if (
-                role == "user"
-                and self._memory_policy(self._config(), "episodic").get("forget_detector")
-                and is_forget_request(content)
-            ):
-                # G25: tagged and listed by forget_requests(); never deleted on a regex.
-                turn_tags.append(constants.FORGET_REQUEST_TAG)
-            correction = (
-                detect_correction(content)
-                if role == "user"
-                and self._memory_policy(self._config(), "episodic").get("correction_detector")
-                else None
-            )
-            if correction is not None:
-                turn_tags.append(constants.CORRECTION_TAG)  # W17d
-            asset_refs = self._attachment_refs(turn, i, session_id)
-            for _ref, aid in asset_refs:
-                turn_tags.append(f"asset:{aid}")  # E04: ingest.assets
-            if ref_cfg.reference_edges == "on" and reply_to is None and prev_turn is not None:
-                # A07: a short reply / deictic turn answers the turn right before it
-                ref_kind = antecedent_kind(
-                    content,
-                    _speaker_of(turn),
-                    prev_turn[1],
-                    max_words=ref_cfg.reference_short_words,
-                )
-                if ref_kind is not None:
-                    reply_to = prev_turn[0]
-                    turn_tags.append(f"{REF_PREFIX}{ref_kind}")
-            stamp = self._event_time(turn.get("timestamp")) or valid_from
-            if stamp is not None and session_id and self._config().read.session_sequence:
-                stamp = self._sequenced(namespace, session_id, self._localize(stamp))
-            record = await self.write(
-                content,
-                namespace=namespace,
-                memory_type="episodic",
-                source=SourceInfo(role=role, channel=channel, message_id=session_id),
-                actor=actor,
-                group_id=group_id,
-                tags=turn_tags or None,
-                valid_from=stamp,
-                reply_to=reply_to,
-                participants=([_speaker_of(turn), *session_speakers] if session_speakers else None),
-                visibility=(
-                    str(turn["visibility"]) if session_speakers and "visibility" in turn else None
-                ),
-            )
-            if asset_refs:
-                self._register_assets(asset_refs, turn, i, session_id, record.record_id)
-            if correction is not None and not record.quarantined:
-                await self._apply_correction(record.namespace, record, correction, records)
-            records.append(record)
-            written_at[i] = record.record_id
-            if not record.quarantined:
-                prev_turn = (record.record_id, _speaker_of(turn))
-        return records
 
     def _localize(self, value: datetime) -> datetime:
-        """F5: an aware datetime is returned as is; a naive one is read in
-        ``read.naive_timezone`` (default UTC) and a warning is logged once per engine."""
-        if value.tzinfo is not None:
-            return value
-        name = self._config().read.naive_timezone
-        if not self._naive_warned:
-            self._naive_warned = True
-            _log.warning(
-                "write.naive_datetime",
-                assumed_timezone=name,
-                hint="pass an aware datetime or set read.naive_timezone to the source's zone",
-            )
-        return value.replace(tzinfo=_zone_of(name))
+        return ingest_write._localize(self, value)
 
     def _event_time(self, value: object) -> datetime | None:
-        """F5: an ISO-8601 string or datetime -> aware datetime (naive ones via
-        :meth:`_localize`); None when absent or unparseable."""
-        if value is None:
-            return None
-        if isinstance(value, datetime):
-            return self._localize(value)
-        try:
-            parsed = datetime.fromisoformat(str(value))
-        except ValueError:
-            return None
-        return self._localize(parsed)
+        return ingest_write._event_time(self, value)
 
     def _sequenced(self, namespace: str, session_id: str, stamp: datetime) -> datetime:
-        """F5 (``read.session_sequence``): the n-th write of one session at the same event
-        time is stored ``n`` microseconds later, so ties keep write order."""
-        key = (namespace, session_id, stamp)
-        tick = self._session_ticks.get(key, 0)
-        self._session_ticks[key] = tick + 1
-        return stamp + timedelta(microseconds=tick)
+        return ingest_write._sequenced(self, namespace, session_id, stamp)
 
     def _depositable_contents(self, messages: Sequence[Mapping[str, str]]) -> list[str]:
-        """The contents ``write_messages`` will send through the door, as the
-        firewall will see them (role/recall skips applied, secrets redacted).
-
-        Malformed turns are left out here; the write loop raises on them exactly
-        as it did before batching existed."""
-        fw = self._config().firewall
-        contents: list[str] = []
-        for turn in messages:
-            try:
-                role = turn["role"]
-                content = _turn_content(turn)
-            except (KeyError, TypeError):
-                continue
-            if role in fw.skip_message_roles:
-                continue
-            if fw.skip_injected_recall and _looks_like_recall(content):
-                continue
-            contents.append(_screen_text(content, fw)[0])
-        return contents
+        return ingest_write._depositable_contents(self, messages)
 
     async def _prewarm_embeddings(self, texts: Sequence[str]) -> None:
-        """G9: embed a batch of contents in chunked calls so the per-record
-        write path finds every vector in the embedding cache (E3).
-
-        Below two distinct texts this does nothing, so a single write makes
-        the same embedding calls it always has."""
-        if self._embedder is None or self._vector is None:
-            return
-        unique = list(dict.fromkeys(texts))
-        if len(unique) < 2:
-            return
-        size = self._config().embedding.batch_size
-        for start in range(0, len(unique), size):
-            await self._embedder.embed(unique[start : start + size])
+        return await ingest_write._prewarm_embeddings(self, texts)
 
     async def write_episode(
         self,
@@ -4562,16 +3958,7 @@ class Engine:
         (D2), so the turns are retrievable and consolidatable as a single
         episode — the M13.2 session detector then treats them as one session at
         consolidation time."""
-        session_id = fingerprint_payload({"episode": [str(turn) for turn in messages]})
-        return await self.write_messages(
-            messages,
-            namespace=namespace,
-            actor=actor,
-            session_id=session_id,
-            channel=channel,
-            group_id=session_id,
-            tags=tags,
-        )
+        return await ingest_write.write_episode(self, messages, namespace, actor, channel, tags)
 
     async def _write_locked(
         self,
@@ -4582,8 +3969,9 @@ class Engine:
         actor: str,
         trust_cap: list[float] | None = None,
     ) -> MemoryRecord:
-        written, _ = await self._write_locked_ex(storage, ns, record, memory_type, actor, trust_cap)
-        return written
+        return await ingest_write._write_locked(
+            self, storage, ns, record, memory_type, actor, trust_cap
+        )
 
     async def _write_locked_ex(
         self,
@@ -4594,266 +3982,36 @@ class Engine:
         actor: str,
         trust_cap: list[float] | None = None,
     ) -> tuple[MemoryRecord, str]:
-        record, verdict = await self._screen_write(record, trust_cap)
-        if verdict.quarantine:
-            # Quarantined content is stored inert: no dedup merging, no
-            # conflict-ladder participation, no retrieval surface — but the
-            # write IS recorded (audit + later corroboration need it).
-            await self._append_and_project(
-                MemoryEvent(
-                    kind=EventKind.WRITE,
-                    namespace=ns,
-                    actor=actor,
-                    payload={
-                        "record": record.model_dump(mode="json"),
-                        "firewall": {"reasons": verdict.reasons},
-                    },
-                )
-            )
-            _log.warning(
-                "memory.quarantined",
-                namespace=ns,
-                record_id=record.record_id,
-                reasons=verdict.reasons,
-            )
-            if (
-                self._procedural is not None
-                and record.attribute != "lesson"
-                and self._procedural_policy().get("quarantine_lesson")
-            ):
-                await self._quarantine_lesson(storage, ns, record, verdict.reasons)  # N24
-            return record, "quarantined"
-        return await self._write_screened(storage, ns, record, memory_type, actor)
+        return await ingest_write._write_locked_ex(
+            self, storage, ns, record, memory_type, actor, trust_cap
+        )
 
     async def _screen_derived(
         self, record: MemoryRecord, trust_cap: list[float]
     ) -> tuple[MemoryRecord, list[str]]:
-        """N2: the write-door firewall for derived content written outside the door.
-
-        ``extract_graph`` and the C3 write pipeline append their own WRITE events
-        (their provenance and ladder semantics differ from a caller write), but
-        the record passes the same screening first: redaction, trust matrix,
-        instruction/anomaly/size/protected-key checks, the parent trust cap and
-        principal reputation. Returns the stamped record and, when it is
-        quarantined, the firewall reasons (empty otherwise).
-        """
-        screened, verdict = await self._screen_write(record, trust_cap)
-        return screened, (verdict.reasons if verdict.quarantine else [])
+        return await ingest_write._screen_derived(self, record, trust_cap)
 
     async def _screen_write(
         self, record: MemoryRecord, trust_cap: list[float] | None
     ) -> tuple[MemoryRecord, FirewallVerdict]:
-        """The firewall half of the write door: the stamped record and its verdict."""
-        fw = self._config().firewall
-        record = self._redact_fields(record, fw)
-        record = await self._govern_write(record)  # I48 / I52 / I53 (all off by default)
-        # Memory Firewall gate (E1/M17): every write of every type passes the
-        # deterministic trust/anomaly/instruction assessment BEFORE the door.
-        if fw.enabled:
-            verdict = await self._assess_write(record)
-            privileged = record.source.role in ("operator", "system")
-            key = f"{record.entity}.{record.attribute}" if record.entity else None
-            extra: list[str] = []
-            if (
-                fw.max_content_chars is not None
-                and len(record.content) > fw.max_content_chars
-                and not privileged
-            ):
-                extra.append(f"size_anomaly({len(record.content)}>{fw.max_content_chars})")
-            if (
-                fw.protected_keys
-                and not privileged
-                and (record.entity in fw.protected_keys or key in fw.protected_keys)
-            ):
-                extra.append(f"protected_key({key or record.entity})")
-            if extra:
-                verdict = FirewallVerdict(
-                    trust=verdict.trust,
-                    instruction_flag=verdict.instruction_flag,
-                    anomalous=True,
-                    quarantine=True,
-                    reasons=[*verdict.reasons, *extra, "quarantined"],
-                )
-        else:
-            # N1 ablation arm: trust scoring only — no flags, anomaly or quarantine.
-            verdict = FirewallVerdict(trust=self._firewall.policy.trust_at_write(record.source))
-        record = verdict.apply(record)
-        hearsay_cap = fw.hearsay_trust_cap
-        if (
-            hearsay_cap is not None
-            and record.trust > hearsay_cap
-            and any(t.startswith("rep:") for t in record.tags)
-        ):
-            # I43: second-hand ("my mom said X") never outranks first-hand; the parent
-            # cap below carries it to everything derived from the record.
-            record = record.model_copy(update={"trust": hearsay_cap})
-        if trust_cap is not None:
-            # MTI-D (integrity.enabled): after the firewall has set base trust,
-            # never exceed the least-trusted parent's view. Quarantine stays the
-            # firewall's decision; admission (read side) enforces the radius.
-            capped = self._integrity().deposit_trust(record.trust, trust_cap)
-            record = record.model_copy(update={"trust": capped})
-        integrity_cfg = self._config().integrity
-        if integrity_cfg.enabled and integrity_cfg.principal_reputation and record.source.principal:
-            factor = await self.principal_reputation(record.source.principal)
-            if factor < 1.0:
-                record = record.model_copy(update={"trust": record.trust * factor})
-        if INFERRED_TAG in record.tags:  # I48: an inference is never as trusted as a statement
-            cap = self._config().write.inferred_trust_cap
-            if record.trust > cap:
-                record = record.model_copy(update={"trust": cap})
-        return record, verdict
+        return await ingest_write._screen_write(self, record, trust_cap)
 
     def _redact_fields(self, record: MemoryRecord, fw: FirewallConfig) -> MemoryRecord:
-        """B8 secrets + #44 PII pack over every text field, and the PII tier.
-
-        Content, entity, attribute and tags are masked when ``redact_secrets`` or
-        ``pii: redact`` is on. ``pii: tag`` leaves the text and adds a
-        ``pii:<kind>`` tag per kind found, raising ``pii_tier`` to at least
-        ``high``. A record written with no tier takes its memory type's
-        ``pii_default_tier`` policy, when one is configured."""
-        update: dict[str, object] = {}
-        kinds: list[str] = []
-        if fw.redact_secrets or fw.pii == "redact":
-            content, found = _screen_text(record.content, fw)
-            if found:
-                update["content"] = content
-                update["content_fingerprint"] = fingerprint_payload({"content": content})
-                kinds.extend(found)
-            for name in ("entity", "attribute"):
-                value = getattr(record, name)
-                if value:
-                    cleaned, found = _screen_text(value, fw)
-                    if found:
-                        update[name] = cleaned
-                        kinds.extend(found)
-            tags: list[str] = []
-            for tag in record.tags:
-                cleaned, found = _screen_text(tag, fw)
-                tags.append(cleaned)
-                kinds.extend(found)
-            if tags != record.tags:
-                update["tags"] = tags
-        if kinds:
-            _log.warning(
-                "memory.redacted", namespace=record.namespace, kinds=list(dict.fromkeys(kinds))
-            )
-            record = record.model_copy(update=update)
-        update = {}
-        tier = record.pii_tier
-        if fw.pii == "tag":
-            fields = [record.content, record.entity or "", record.attribute or "", *record.tags]
-            found_pii = list(
-                dict.fromkeys(
-                    k for text in fields for k in find_pii(text, extended=fw.pii_extended)
-                )
-            )
-            if found_pii:
-                marks = [f"pii:{kind}" for kind in found_pii]
-                update["tags"] = [*record.tags, *(m for m in marks if m not in record.tags)]
-                tier = max(tier, PiiTier.HIGH, key=_PII_RANK.__getitem__)
-                _log.warning("memory.pii_tagged", namespace=record.namespace, kinds=found_pii)
-        if fw.sensitive_topics:
-            # W16 (plan v3.2): GDPR art. 9-style topics are tagged, not masked; the
-            # tier raise brings consent / purpose / remote-LLM rules to bear on them.
-            topics = sensitive_topics(record.content)
-            if topics:
-                tagged = update.get("tags")
-                current = list(tagged) if isinstance(tagged, list) else list(record.tags)
-                marks = [f"sensitive:{topic}" for topic in topics]
-                update["tags"] = [*current, *(m for m in marks if m not in current)]
-                tier = max(tier, PiiTier.HIGH, key=_PII_RANK.__getitem__)
-                _log.info("memory.sensitive_tagged", namespace=record.namespace, topics=topics)
-        if tier is PiiTier.NONE:
-            default = self._memory_policy(self._config(), record.memory_type).get(
-                "pii_default_tier"
-            )
-            if default:
-                tier = PiiTier(str(default))
-        if tier is not record.pii_tier:
-            update["pii_tier"] = tier
-        return record.model_copy(update=update) if update else record
+        return ingest_write._redact_fields(self, record, fw)
 
     # -- I48 / I52 / I53: governance labels (tags only; the text is never copied out) --
 
     async def _grade_sensitivity(self, content: str, mode: str) -> tuple[str, tuple[str, ...]]:
-        """I52: the (grade, categories) of ``content``. The lexicon grades it; under
-        ``decider`` the ``sensitivity`` task may raise an ungraded text to ``medium`` (category
-        ``other``) when it is sure. It never lowers a grade, and a failure keeps the lexicon."""
-        label = grade_text(content)
-        if mode != "decider" or label.grade != "none":
-            return label.grade, label.categories
-        read = self._config().read
-        try:
-            decision = await self._decider_adapter().decide("sensitivity", content[:2000], None)
-            if (
-                decision.label == "sensitive"
-                and decision.confidence is not None
-                and decision.confidence >= read.decider_min_confidence
-            ):
-                return "medium", ("other",)
-        except Exception as exc:  # an enhancer, never a gate; log the class, not the text
-            _log.warning("write.sensitivity_decider_failed", error=type(exc).__name__)
-        return label.grade, label.categories
+        return await ingest_write._grade_sensitivity(self, content, mode)
 
     async def _govern_write(self, record: MemoryRecord) -> MemoryRecord:
-        """I48 / I52 / I53: the write-time labels. Every key is off by default (unchanged)."""
-        wc = self._config().write
-        if wc.sensitivity == "off" and wc.participants == "off" and wc.inferred == "off":
-            return record
-        tags = list(record.tags)
-        update: dict[str, Any] = {}
-        if wc.sensitivity != "off" and not any(t.startswith(GRADE_TAG_PREFIX) for t in tags):
-            grade, categories = await self._grade_sensitivity(record.content, wc.sensitivity)
-            if grade != "none":
-                tags.extend(t for t in label_tags((grade, categories)) if t not in tags)
-                if grade == "high" and _PII_RANK[record.pii_tier] < _PII_RANK[PiiTier.HIGH]:
-                    update["pii_tier"] = PiiTier.HIGH
-                _log.info(  # label and category only, never the text
-                    "memory.sensitivity_graded",
-                    namespace=record.namespace,
-                    grade=grade,
-                    categories=list(categories),
-                )
-        parents: list[MemoryRecord] = []
-        if record.source.parents and (wc.participants != "off" or wc.inferred != "off"):
-            storage = self._require_started()
-            got = [await storage.get_record(p) for p in record.source.parents]
-            parents = [p for p in got if p is not None and p.namespace == record.namespace]
-        if wc.participants != "off" and parents:
-            has_people = any(t.startswith(PARTICIPANT_PREFIX) for t in tags)
-            has_vis = any(t.startswith(VISIBILITY_PREFIX) for t in tags)
-            for tag in inherit_tags([p.tags for p in parents]):
-                is_person = tag.startswith(PARTICIPANT_PREFIX)
-                if tag not in tags and not (has_people if is_person else has_vis):
-                    tags.append(tag)
-        if wc.inferred != "off" and INFERRED_TAG not in tags:
-            marked = self._mark_inferred(record, parents, wc)
-            if marked is not None:
-                tags.extend(t for t in marked if t not in tags)
-                _log.info("memory.inferred_tagged", namespace=record.namespace)
-        if tags != record.tags:
-            update["tags"] = tags
-        return record.model_copy(update=update) if update else record
+        return await ingest_write._govern_write(self, record)
 
     @staticmethod
     def _mark_inferred(
         record: MemoryRecord, parents: Sequence[MemoryRecord], wc: Any
     ) -> list[str] | None:
-        """I48: the tags of an engine-derived record that states something no user turn
-        does, else None (a stated or non-derived record is left alone)."""
-        derived = record.source.channel in INFERRED_CHANNELS or (
-            record.source.role == "assistant" and bool(parents)
-        )
-        if not derived or record.memory_type == "episodic":
-            return None
-        inferred, support = classify(
-            record.content,
-            [(p.record_id, p.source.role, p.content) for p in parents],
-            explicit_overlap=wc.inferred_explicit_overlap,
-            support_overlap=wc.inferred_support_overlap,
-        )
-        return [INFERRED_TAG, *support_tags(support)] if inferred else None
+        return ingest_write._mark_inferred(record, parents, wc)
 
     async def review_inferred(
         self, namespace: str = "default", *, include_supported: bool = False
@@ -4861,53 +4019,15 @@ class Engine:
         """I48: the review list. Live records tagged ``src:inferred`` that have fewer than
         ``read.inferred_min_support`` distinct supporting user turns (all inferred records
         with ``include_supported``), lowest support first."""
-        ns = validate_namespace(namespace)
-        need = self._config().read.inferred_min_support
-        out = [
-            r
-            for r in await self._records(ns)
-            if is_inferred(r.tags)
-            and r.status is RecordStatus.ACTIVATED
-            and not r.quarantined
-            and (include_supported or support_count(r.tags) < need)
-        ]
-        return sorted(out, key=lambda r: (support_count(r.tags), r.recorded_at))
+        return await ingest_write.review_inferred(
+            self, namespace, include_supported=include_supported
+        )
 
     async def _sensitivity_scope_open(self, query: str) -> bool:
-        """I52 (``read.sensitivity_gate: decider``): is the message about the user's own
-        sensitive details? Only a sure ``about`` answer opens the gate; anything else keeps it."""
-        if self._config().read.decider == "heuristic":
-            return False
-        return await self._decided("sensitivity_scope", query, None, "not_about") == "about"
+        return await ingest_write._sensitivity_scope_open(self, query)
 
     async def _scope_check(self, query: str) -> Callable[[MemoryRecord], bool] | None:
-        """I48 / I52: the per-record read predicate for ``query``, or None when both gates are
-        off. Sensitive records need a topic, subject or word match with the question
-        (:func:`~memspine.core.sensitivity.passes_gate`); inferred ones need their support."""
-        read = self._config().read
-        sens = read.sensitivity_gate != "off"
-        infer = read.inferred_gate != "off"
-        if not (sens or infer):
-            return None
-        topics = query_topics(query) if sens else frozenset()
-        opened = (
-            sens
-            and read.sensitivity_gate == "decider"
-            and not topics
-            and await self._sensitivity_scope_open(query)
-        )
-        need = read.inferred_min_support
-
-        def check(record: MemoryRecord) -> bool:
-            if sens and not opened:
-                label = label_of(record.tags)
-                if grade_rank(label.grade) >= 2 and not passes_gate(
-                    label, record.content, record.entity, query, topics
-                ):
-                    return False
-            return not (infer and is_inferred(record.tags) and support_count(record.tags) < need)
-
-        return check
+        return await ingest_write._scope_check(self, query)
 
     async def _write_screened(
         self,
@@ -4917,53 +4037,7 @@ class Engine:
         memory_type: str,
         actor: str,
     ) -> tuple[MemoryRecord, str]:
-        """The door after an admitting firewall verdict: cue, semantic or plain WRITE."""
-        if CUE_TAG in record.tags:
-            # R2-1: a cue is a retrieval key, not a fact. It skips dedup, entity
-            # extraction and the M4 ladder (an extracted key would let the cue
-            # archive the very fact it points at), and it corroborates nothing.
-            await self._append_and_project(
-                MemoryEvent(
-                    kind=EventKind.WRITE,
-                    namespace=ns,
-                    actor=actor,
-                    payload={"record": record.model_dump(mode="json")},
-                )
-            )
-            _log.info(EVENT_WRITE, namespace=ns, record_id=record.record_id, cue=True)
-            return record, "added"
-
-        # Semantic writes run the full M5/M4 pipeline (dedup → entities →
-        # conflict); every other type is a plain WRITE through the door.
-        if memory_type == "semantic" and self._semantic is not None:
-            result = await self._semantic.write(record)
-            _log.info(
-                EVENT_WRITE,
-                namespace=ns,
-                record_id=result.record.record_id,
-                action=result.action,
-            )
-            await self._corroborate(ns, result.record)
-            await self._evolve_links(ns, result.record)
-            return result.record, result.action
-
-        event = MemoryEvent(
-            kind=EventKind.WRITE,
-            namespace=ns,
-            actor=actor,
-            payload={"record": record.model_dump(mode="json")},
-        )
-        await self._append_and_project(event)
-        _log.info(EVENT_WRITE, namespace=ns, record_id=record.record_id)
-        await self._corroborate(ns, record)
-        await self._evolve_links(ns, record)
-
-        # Working memory keeps its hot window bounded (M13.1): overflow pages
-        # out to episodic via DECAY_TRANSITION events through the same door.
-        if memory_type == "working" and self._working is not None:
-            active = await storage.list_records(ns, "working")
-            await self._working.enforce(ns, active)
-        return record, "added"
+        return await ingest_write._write_screened(self, storage, ns, record, memory_type, actor)
 
     @_passive_scoped
     async def retrieve(
@@ -10613,102 +9687,16 @@ class Engine:
         the old record's ``src:*`` tags (``memory_confirm`` flips ``src:assistant-proposed``
         to ``src:user-confirmed``). Engine-reserved tags are dropped.
         """
-        storage = self._require_started()
-        ns = validate_namespace(namespace)
-        async with self._write_locks.setdefault(ns, asyncio.Lock()):
-            if isinstance(target, tuple):
-                entity, attribute = target
-                existing = await storage.find_active_fact(ns, entity, attribute)
-                if existing is None:
-                    raise ConflictError(f"no current fact {entity}.{attribute} in namespace {ns!r}")
-            else:
-                existing = await storage.get_record(target)
-                if existing is None or existing.namespace != ns:
-                    raise ConflictError(f"no such record {target!r} in namespace {ns!r}")
-            if existing.status is not RecordStatus.ACTIVATED or existing.quarantined:
-                raise ConflictError(f"record {existing.record_id} is not live — nothing to correct")
-            if existing.memory_type == "shared":
-                raise ConflictError("memory_type 'shared' is engine-internal — use grant()")
-            now = self._clock()
-            src = source or SourceInfo(role=actor, channel="correction")
-            incoming = MemoryRecord(
-                namespace=ns,
-                memory_type=existing.memory_type,
-                content=new_value,
-                source=src,
-                entity=existing.entity,
-                attribute=existing.attribute,
-                group_id=existing.group_id,
-                tags=_merge_correction_tags(existing.tags, tags, ns),
-                pii_tier=existing.pii_tier,
-                consent_tags=list(existing.consent_tags),
-                valid_from=now,
-                recorded_at=now,
-            )
-            incoming, verdict = await self._screen_write(incoming, None)
-            correction = {"supersedes": existing.record_id, "actor": actor, "reason": reason}
-            if verdict.quarantine:
-                await self._append_and_project(
-                    MemoryEvent(
-                        kind=EventKind.WRITE,
-                        namespace=ns,
-                        actor=actor,
-                        payload={
-                            "record": incoming.model_dump(mode="json"),
-                            "firewall": {"reasons": verdict.reasons},
-                            "correction": correction,
-                        },
-                    )
-                )
-                _log.warning(
-                    "memory.correction_quarantined",
-                    namespace=ns,
-                    record_id=incoming.record_id,
-                    reasons=verdict.reasons,
-                )
-                return incoming
-            closed = existing.model_copy(
-                update={
-                    "valid_to": now,
-                    "superseded_at": now,
-                    "status": RecordStatus.ARCHIVED,
-                    "evolve_to": incoming.record_id,
-                    "tags": [t for t in existing.tags if t != "disputed"],
-                }
-            )
-            await self._append_and_project(
-                MemoryEvent(
-                    kind=EventKind.WRITE,
-                    namespace=ns,
-                    actor=actor,
-                    payload={"record": closed.model_dump(mode="json"), "correction": correction},
-                )
-            )
-            await self._append_and_project(
-                MemoryEvent(
-                    kind=EventKind.WRITE,
-                    namespace=ns,
-                    actor=actor,
-                    payload={"record": incoming.model_dump(mode="json"), "correction": correction},
-                )
-            )
-            if self._semantic is not None and existing.memory_type == "semantic":
-                await self._semantic._clear_dispute(existing, keep={existing.record_id})
-                self._semantic.invalidate_index(ns)
-        _log.info(
-            EVENT_WRITE,
-            namespace=ns,
-            record_id=incoming.record_id,
-            corrected=existing.record_id,
-        )
-        await self._audit_action(
-            "correct",
-            ns,
-            [existing.record_id, incoming.record_id],
+        return await ingest_write.correct(
+            self,
+            target,
+            new_value,
             actor=actor,
-            reason=reason or None,
+            reason=reason,
+            namespace=namespace,
+            source=source,
+            tags=tags,
         )
-        return incoming
 
     async def expire_retention(self, now: datetime | None = None) -> dict[str, object]:
         """#48: hard-forget every record past its retention class's TTL.
@@ -12567,80 +11555,7 @@ class Engine:
         correction: Correction,
         recent: Sequence[MemoryRecord],
     ) -> MemoryRecord | None:
-        """W17d: act on a detected user correction.
-
-        The target is the live keyed semantic fact with the highest word overlap
-        on the negated span (or, without one, on the latest assistant turn within
-        ``CORRECTION_LOOKBACK_TURNS``), when it reaches ``CORRECTION_MIN_OVERLAP``.
-        With a replacement the fact is superseded on its key (the M4 ladder);
-        without one it is retracted. With lessons on, a lesson records the
-        correction so a later, different task retrieves it. Returns the new
-        record (supersede or retraction) or None when no target qualified."""
-        span = correction.negated
-        if span is None:
-            claims = [r for r in recent[-constants.CORRECTION_LOOKBACK_TURNS :]]
-            claims = [r for r in claims if r.source.role == "assistant"]
-            span = claims[-1].content if claims else None
-        if not span:
-            return None
-        wanted = content_words(span)
-        best: tuple[float, MemoryRecord] | None = None
-        for fact in await self._records(ns, "semantic"):
-            if (
-                fact.entity is None
-                or fact.status is not RecordStatus.ACTIVATED
-                or fact.quarantined
-                or "retract" in fact.tags
-            ):
-                continue
-            words = content_words(fact.content)
-            if not words or not wanted:
-                continue
-            base = wanted if correction.negated else words
-            overlap = len(wanted & words) / len(base)
-            if best is None or overlap > best[0]:
-                best = (overlap, fact)
-        if best is None or best[0] < constants.CORRECTION_MIN_OVERLAP:
-            return None
-        fact = best[1]
-        source = SourceInfo(role="user", channel="correction")
-        if correction.replacement:
-            content = correction.replacement
-            if correction.negated:
-                pattern = re.compile(re.escape(correction.negated), re.IGNORECASE)
-                if pattern.search(fact.content):
-                    content = pattern.sub(correction.replacement, fact.content, count=1)
-            written = await self.write(
-                content,
-                namespace=ns,
-                memory_type="semantic",
-                source=source,
-                entity=fact.entity,
-                attribute=fact.attribute,
-                group_id=turn.group_id,
-                derived_from=[turn.record_id],
-            )
-        else:
-            assert fact.entity is not None
-            written = await self.retract(
-                fact.entity,
-                fact.attribute or "",
-                namespace=ns,
-                reason="user correction",
-                source=source.model_copy(update={"parents": [turn.record_id]}),
-            )
-        if self._procedural is not None and self._procedural_policy().get("lessons"):
-            await self.record_outcome(
-                f"{fact.entity} {fact.attribute or ''}".strip(),
-                "failure",
-                namespace=ns,
-                action=f"stated {fact.content}",
-                error="the user corrected it",
-                next_action=f"state {correction.replacement}" if correction.replacement else None,
-                derived_from=[turn.record_id],
-                actor="user",
-            )
-        return written
+        return await ingest_write._apply_correction(self, ns, turn, correction, recent)
 
     async def reflect(
         self,
@@ -13670,62 +12585,10 @@ class Engine:
     # ── W1: adaptive-window write (call 1), session close (call 2 hook) ───────────
 
     def _build_windows(self, config: MemspineConfig) -> WindowPipeline | None:
-        """``write.window_extract``: the window manager, or None when off. Hard-fails at start
-        (D-10) when the layers it needs are missing, never silently at the first write."""
-        mode = config.write.window_extract
-        if mode == "off":
-            return None
-        if self._llm is None or self._prompts is None or "window_extract" not in self._llm.roles:
-            raise ConfigError(
-                f"write.window_extract={mode!r} needs an LLM role: set llm.roles.window_extract"
-            )
-        if self._semantic is None or self._episodic is None:
-            raise ConfigError(
-                f"write.window_extract={mode!r} needs memories.episodic and memories.semantic "
-                "enabled (turns are episodic, facts land in the semantic layer)"
-            )
-        sections = SECTION_MODES[mode]
-        role = config.llm.roles.get("window_extract")
-        storage = self._storage
-        assert storage is not None  # built in start() before the memory types
-        asynchronous = config.write.window_async
-        if asynchronous and client_is_memory(config):
-            # Like the sleep scheduler: one shared connection, no WAL, so a background call
-            # would collide with foreground writes ("table is locked"). Batch mode instead.
-            _log.warning(
-                "window.async_disabled_on_memory_db",
-                detail="write.window_async ignored for storage.path=':memory:'; "
-                "call flush_windows() (sleep() and close_session() do)",
-            )
-            asynchronous = False
-        return WindowPipeline(
-            settings=WindowSettings(
-                max_turns=config.write.window_max_turns,
-                max_tokens=config.write.window_max_tokens,
-                topic_k=config.write.window_topic_k,
-                idle_s=config.write.window_idle_s,
-            ),
-            sections=sections,
-            extractor=PromptWindowExtractor(
-                self._llm.for_role("window_extract"),
-                self._prompts.for_role("window_extract"),
-                role.model if role is not None else "",
-            ),
-            get_record=storage.get_record,
-            deposit_fact=self._deposit_mined_fact,
-            deposit_episode=self._deposit_window_episode if "episode" in sections else None,
-            embed=self._embedder.embed if self._embedder is not None else None,
-            lock=self._namespace_lock,
-            cache=self._cache,
-            use_cache=config.write.window_cache,
-            split=config.write.window_split,
-            asynchronous=asynchronous,
-            on_session_closed=self._window_session_closed,
-        )
+        return ingest_windows._build_windows(self, config)
 
     async def _window_session_closed(self, info: SessionClosed) -> dict[str, object]:
-        """The session-closed hook of the window manager: the call-2 stage (a stub today)."""
-        return await session_close(self._pipeline_ctx(), info)
+        return await ingest_windows._window_session_closed(self, info)
 
     async def flush_windows(
         self, namespace: str | None = None, *, final: bool = True
@@ -13735,11 +12598,7 @@ class Engine:
         session-closed hook for the sessions still open: the end of a stream or a batch (the
         eval harness calls it before reads and before the sleep cycle). A no-op returning
         ``{}`` when ``write.window_extract`` is off."""
-        self._require_started()
-        if self._windows is None:
-            return {}
-        ns = validate_namespace(namespace) if namespace is not None else None
-        return await self._windows.flush(ns, final=final)
+        return await ingest_windows.flush_windows(self, namespace, final=final)
 
     async def close_session(
         self, namespace: str = "default", session_id: str | None = None
@@ -13749,14 +12608,7 @@ class Engine:
         a stub today, it only records a ``session_closed`` MARKER). ``session_id=None``: the
         namespace's current session. Works without ``write.window_extract`` too (then only the
         stage runs, and a ``session_id`` is required)."""
-        self._require_started()
-        ns = validate_namespace(namespace)
-        if self._windows is not None:
-            return await self._windows.close_session(ns, session_id)
-        if session_id is None:
-            return {"status": "skipped", "reason": "no session_id and write.window_extract is off"}
-        hook = await session_close(self._pipeline_ctx(), SessionClosed(ns, session_id))
-        return {"status": "ok", "session_id": session_id, "hook": hook}
+        return await ingest_windows.close_session(self, namespace, session_id)
 
     def window_stats(self, *, reset: bool = False) -> dict[str, Any]:
         """G-W13 write-quality counters of the window write (``{}`` when it is off): windows and
@@ -13774,39 +12626,9 @@ class Engine:
         *,
         require_live: Sequence[str] = (),
     ) -> MemoryRecord | None:
-        """W1: one episode fragment through the semantic door: derived (non-privileged
-        ``assistant`` role, channel ``window_episode``), parents = the cited turns, trust capped
-        at the least trusted parent, screened by the firewall, never keyed (no entity or
-        attribute, so the ladder ADDs it). Skipped under the lock when a parent or another turn
-        of the window is no longer live (I72)."""
-        storage = self._require_started()
-        ns = validate_namespace(namespace)
-        sources = [r for r in [await storage.get_record(p) for p in parents] if r is not None]
-        tags = ["episode_fragment", "kind:episode", f"window:{window_id}"]
-        if sources and all("assistant_claim" in r.tags for r in sources):
-            tags.append("assistant_claim")
-        if sources and self._perspective_options().on:
-            tags.extend(t for t in inherit_perspective_tags(sources) if t not in tags)
-        record = MemoryRecord(
-            namespace=ns,
-            memory_type="semantic",
-            content=text,
-            source=SourceInfo(
-                role=constants.DERIVED_ROLE,
-                channel=constants.WINDOW_EPISODE_CHANNEL,
-                parents=list(parents),
-            ),
-            valid_from=valid_from,
-            tags=tags,
+        return await ingest_windows._deposit_window_episode(
+            self, namespace, text, parents, valid_from, window_id, require_live=require_live
         )
-        cap = [min(r.trust for r in sources)] if sources else None
-        integrity_cap = await self._parent_trust_cap(ns, parents)
-        if integrity_cap:
-            cap = [*(cap or []), *integrity_cap]
-        async with self._write_locks.setdefault(ns, asyncio.Lock()):
-            if await self._derived_parents_gone(ns, [*parents, *require_live], "window_extract"):
-                return None
-            return await self._write_locked(storage, ns, record, "semantic", "system", cap)
 
     def _build_entity_summarizer(self) -> SummarizeEntities | None:
         """GP-6 (#17): the batched entity summariser, when a ``summarize_entity``
