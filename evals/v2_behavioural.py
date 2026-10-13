@@ -60,6 +60,10 @@ def main(argv: list[str] | None = None) -> int:
     load = lambda n: json.loads((HERE / "arms" / f"{n}.json").read_text(encoding="utf-8"))  # noqa: E731
     arm = load(a.arm)
     ov = with_pool_shape(overlay(arm, load(a.ref)), arm)
+    if ("graph" in ov or "offline" in ov) and arm.get("memories"):
+        # a graph / sleep overlay needs the arm's memory types (associative for the graph) or the
+        # model-free engine refuses the config before any case runs
+        ov = {**ov, "memories": arm["memories"]}
     if not ov:
         print("behavioural: SKIPPED (arm has no read/write/graph difference from the reference)")
         return 0
