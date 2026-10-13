@@ -215,6 +215,15 @@ def make_scorer(name: str) -> LexicalScorer:
         raise ValueError(f"unknown lexical scorer {name!r} (known: {', '.join(SCORERS)})") from None
 
 
+def _doc_text(record: MemoryRecord, dates: bool) -> str:
+    """The indexed text of a record; ``read.lexical_dates`` (N30) adds its date words."""
+    if not dates:
+        return record.content
+    from memspine.models.encoders.query.temporal_query import date_words
+
+    return f"{record.content} {date_words(record)}"
+
+
 @dataclass
 class _Index:
     scorer: LexicalScorer
@@ -243,6 +252,7 @@ class LexicalLeg:
             ctx.namespace,
             tokeniser.name,
             ctx.lexical_scorer,
+            ctx.lexical_dates,
             tuple((r.record_id, r.content_fingerprint) for r in records),
         )
         hit = self._cache.get(key)
@@ -250,7 +260,8 @@ class LexicalLeg:
             self._cache.move_to_end(key)
             return hit
         scorer = make_scorer(ctx.lexical_scorer)
-        scorer.fit({r.record_id: tokeniser.tokens(r.content) for r in records})
+        docs = {r.record_id: tokeniser.tokens(_doc_text(r, ctx.lexical_dates)) for r in records}
+        scorer.fit(docs)
         built = _Index(scorer, {r.record_id: r for r in records})
         self._cache[key] = built
         while len(self._cache) > 8:
@@ -262,7 +273,7 @@ class LexicalLeg:
         if not records:
             return LegOutput([], f"no_records:{'+'.join(self.layers)}")
         tokeniser = ctx.tokeniser_for()
-        terms = tokeniser.tokens(ctx.query)
+        terms = tokeniser.tokens(ctx.lexical_query or ctx.query)
         if not terms:
             return LegOutput([], "no_query_terms")
         index = self._index(ctx, tokeniser, records)

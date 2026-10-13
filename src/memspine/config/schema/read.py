@@ -830,6 +830,11 @@ class ReadConfig(BaseModel):
     #: the place of ``temporal_leg``. An empty leg (no records on its layer, no query terms, no
     #: window, no embedder) reports a reason and returns nothing; it is never an error. Off: the
     #: current legs, unchanged.
+    #: FU-TEMPORAL: the temporal leg runs only with ``temporal_leg`` and reads the same keys as
+    #: the old leg (``temporal_relative``, ``temporal_infer_year``, ``temporal_rank``,
+    #: ``temporal_soft``, ``temporal_leg_mentions``, ``temporal_leg_event_dates``); the lexical
+    #: leg honours ``lexical_strip_names`` and ``lexical_dates``; the router's ``legs_off`` applies
+    #: to every registered leg. See ``docs/v2/RETIRED.md`` "Temporal rules: old -> v2".
     legs_v2: bool = False
     #: W2-14 (R-07, M-10; needs ``legs_v2``): the ``temporal`` leg reads the precision the write path
     #: stored. A ``happened:`` interval is a stated period (a year-precision fact spans the year): it

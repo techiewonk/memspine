@@ -1187,8 +1187,10 @@ class Engine:
     async def _encoder_legs(self, ns: str, query: str) -> list[list[LegHit]]:
         return await read_legs._encoder_legs(self, ns, query)
 
-    async def _metadata_legs(self, ns: str, query: str, fetch_k: int) -> list[list[LegHit]]:
-        return await read_legs._metadata_legs(self, ns, query, fetch_k)
+    async def _metadata_legs(
+        self, ns: str, query: str, fetch_k: int, *, temporal: Sequence[LegHit] = ()
+    ) -> list[list[LegHit]]:
+        return await read_legs._metadata_legs(self, ns, query, fetch_k, temporal=temporal)
 
     async def _person_time_leg(self, ns: str, plan: ReadPlan) -> list[LegHit]:
         return await read_legs._person_time_leg(self, ns, plan)

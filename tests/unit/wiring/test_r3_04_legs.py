@@ -343,7 +343,7 @@ async def test_flag_on_routes_candidates_through_the_registry_and_finds_the_reco
         "event",
         lambda stage, /, **f: seen.append(f["leg"]) if stage == "read.leg" else None,
     )
-    eng = await _engine(legs_v2=True)
+    eng = await _engine(legs_v2=True, temporal_leg=True)
     try:
         hits = await _ids(eng, "which cat did Alice adopt")
         dated = await _ids(eng, "what happened on 7 May 2023")
@@ -355,7 +355,7 @@ async def test_flag_on_routes_candidates_through_the_registry_and_finds_the_reco
 
 
 async def test_flag_on_with_hybrid_off_runs_vector_and_temporal_only() -> None:
-    eng = await _engine(legs_v2=True, hybrid=False)
+    eng = await _engine(legs_v2=True, hybrid=False, temporal_leg=True)
     try:
         hits = await _ids(eng, "what happened on 7 May 2023")
     finally:

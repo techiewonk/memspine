@@ -170,8 +170,14 @@ async def _encoder_legs(eng: Any, ns: str, query: str) -> list[list[LegHit]]:
     return [leg] if leg else []
 
 
-async def _metadata_legs(eng: Any, ns: str, query: str, fetch_k: int) -> list[list[LegHit]]:
-    """C3': the non-empty temporal / metadata legs for this query (opt-in)."""
+async def _metadata_legs(
+    eng: Any, ns: str, query: str, fetch_k: int, *, temporal: Sequence[LegHit] = ()
+) -> list[list[LegHit]]:
+    """C3': the non-empty temporal / metadata legs for this query (opt-in).
+
+    ``temporal`` (FU-TEMPORAL): under ``read.legs_v2`` the registry's temporal leg ran already;
+    its hits take the place the old temporal leg held in this list, so fusion sees the legs in
+    the same order with the flag on and off."""
     read = eng._config().read
     legs: list[list[LegHit]] = []
     if read.core_terms_leg and eng._lexical is not None:
@@ -204,7 +210,11 @@ async def _metadata_legs(eng: Any, ns: str, query: str, fetch_k: int) -> list[li
             and not r.quarantined
             and r.memory_type != "shared"
         ]
-        if read.temporal_leg and not read.legs_v2:  # R3-04: legs_v2 has its own temporal leg
+        if read.temporal_leg and read.legs_v2:
+            # R3-04 / FU-TEMPORAL: the registry's temporal leg (same keys), passed in
+            if temporal:
+                legs.append(NamedLeg("temporal", [LegHit(h.record_id, h.score) for h in temporal]))
+        elif read.temporal_leg:
             # F2 / W7: relative phrases in the question resolve against the as-of
             # time or the read time; without either the call is unchanged.
             anchored: dict[str, Any] = {}
@@ -255,7 +265,7 @@ async def _metadata_legs(eng: Any, ns: str, query: str, fetch_k: int) -> list[li
         if read.view_tag_leg:
             # G-16 (SimpleMem symbolic leg): location / topic / person view tags.
             legs.append(NamedLeg("view_tags", view_tag_leg(query, live, fetch_k)))
-        if read.entity_leg_v2:
+        if read.entity_leg_v2 and "entity" not in read_request.legs_off():
             legs += await _entity_leg_v2(eng, ns, query, live, fetch_k)
         if read.entity_leg or read.speaker_probe:
             speakers = {s for r in live if (s := speaker_of(r.content)) is not None}
@@ -310,6 +320,11 @@ async def registry_base_legs(
         for r in await eng._records(ns)
         if r.status is RecordStatus.ACTIVATED and not r.quarantined and r.memory_type != "shared"
     ]
+    off = read_request.legs_off()  # R3-03: one rule for every registered leg (FU-TEMPORAL)
+    as_of = active_as_of()
+    # FU-TEMPORAL: the old read.temporal_* keys decide what the temporal leg may resolve
+    anchored = read.temporal_relative or as_of is not None
+    infer_year = read.temporal_infer_year and bool(live)
 
     async def search_vector(k: int) -> list[VectorHit]:
         return await eng._vector_leg(ns, query_vector, k)
@@ -322,41 +337,53 @@ async def registry_base_legs(
         language=read.lexical_language,
         namespace_languages=read.lexical_namespace_languages,
         lexical_scorer=read.lexical_scorer,
-        reference_time=active_as_of() or eng._clock(),
-        year_ref=max(
-            (r.valid_from if r.valid_from.tzinfo else r.valid_from.replace(tzinfo=UTC))
-            for r in live
+        reference_time=(as_of or eng._clock()) if anchored else None,
+        year_ref=(
+            as_of
+            or max(
+                (r.valid_from if r.valid_from.tzinfo else r.valid_from.replace(tzinfo=UTC))
+                for r in live
+            )
         )
-        if live
+        if infer_year
         else None,
         week=read.relative_week,
         precision_aware=read.temporal_precision_aware,
+        temporal_rank=read.temporal_rank,
+        temporal_soft=read.temporal_soft,
+        temporal_mentions=read.temporal_leg_mentions,
+        # the precision flag reads the stored event-time field, so it implies the happened date
+        temporal_event_dates=read.temporal_leg_event_dates or read.temporal_precision_aware,
+        lexical_dates=read.lexical_dates,
         vector_search=search_vector if eng._embedder is not None else None,
     )
-    names = ["vector", *(["lexical"] if use_hybrid else []), "temporal"]
+    if use_hybrid and read.lexical_strip_names:
+        ctx.lexical_query = await eng._strip_speaker_names(ns, query)  # read.lexical_strip_names
+    temporal_on = read.temporal_leg and "temporal" not in off
+    lexical_on = use_hybrid and "lexical" not in off
+    names = ["vector", *(["lexical"] if lexical_on else []), *(["temporal"] if temporal_on else [])]
     registry = lib.REGISTRY
-    graph_on = read.graph_leg_v2 and "graph" not in read_request.legs_off()
-    if read.episode_leg_v2 or graph_on:
+    graph_on = read.graph_leg_v2 and "graph" not in off
+    episode_on = read.episode_leg_v2 and "episode" not in off
+    if episode_on or graph_on:
         # R3-05c / R3-05b: the layer registry says whether L2 / L3 hold records
         from memspine.store.layer_registry import LayerRegistry, LayerTemplate
 
         ctx.layer_registry = LayerRegistry.of(
             ns, LayerTemplate(), await eng._require_started().layer_counts(ns)
         )
-    if read.episode_leg_v2:
+    if episode_on:
         # R3-05c: the episode leg (L2) joins
         registry = lib.with_episode_leg(lib.REGISTRY)
         names.append("episode")
     out = await lib.run_legs(registry, names, ctx)
     vector_hits = list(out["vector"].hits)
     lexical_hits = (
-        [LexicalHit(h.record_id, h.score) for h in out["lexical"].hits] if use_hybrid else []
+        [LexicalHit(h.record_id, h.score) for h in out["lexical"].hits] if lexical_on else []
     )
-    extra_legs: list[Any] = list(await eng._metadata_legs(ns, query, fetch_k))
-    temporal = [LegHit(h.record_id, h.score) for h in out["temporal"].hits]
-    if temporal:
-        extra_legs.append(NamedLeg("temporal", temporal))
-    if read.episode_leg_v2 and out["episode"].hits:
+    temporal = [LegHit(h.record_id, h.score) for h in out["temporal"].hits] if temporal_on else []
+    extra_legs: list[Any] = list(await eng._metadata_legs(ns, query, fetch_k, temporal=temporal))
+    if episode_on and out["episode"].hits:
         from memspine.read.pipeline.lift import lift_episode_hits
 
         turns = await lift_episode_hits(
