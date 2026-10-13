@@ -79,12 +79,22 @@ class PrivacyConfig(BaseModel):
       each hidden dependant is hard-forgotten instead (row, log payloads, indexes, caches), and its
       queue entry is marked ``dropped_no_rederive`` (not consumed by the offline runner). Off
       (default): dependants stay hidden and queued, as before.
+    - ``erasure_rederive`` (FU-ERASE; needs ``erasure_v2``, no effect on dependants that
+      ``erasure_redact_hidden`` already dropped): the sleep stage ``erasure_rederive`` consumes
+      the queue. A hidden dependant that is a session or community summary or a mined fact is
+      re-run over its remaining live parents (the bound ``summarize`` / ``extract`` role, outside
+      the namespace lock); the new version is written through the derived-write door with only
+      live parents, and the hidden old row is hard-forgotten (content purged) and released. A
+      dependant with no live parent left, or of a kind that cannot be re-derived, is
+      hard-forgotten and marked ``dropped_no_rederive``. Off (default): the queue waits for
+      ``Engine.erasure_release``.
     """
 
     model_config = ConfigDict(extra="forbid")
 
     erasure_v2: bool = False
     erasure_redact_hidden: bool = False
+    erasure_rederive: bool = False
 
 
 class ConsentConfig(BaseModel):

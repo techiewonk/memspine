@@ -29,6 +29,7 @@ _log = get_logger(__name__)
 
 __all__ = [
     "COMPILE_EDGES_STAGE",
+    "ERASURE_REDERIVE_STAGE",
     "HISTORIES_STAGE",
     "MAINTENANCE_STAGES",
     "PATTERN_OBSERVATIONS_STAGE",
@@ -110,6 +111,12 @@ HISTORIES_STAGE = "histories"
 COMPILE_EDGES_STAGE = "compile_edges"
 
 
+#: FU-ERASE: runs right after ``retention_expire`` and before ``consolidate`` (a re-derived summary
+#: carries its membership key, so consolidation skips it), only when ``privacy.erasure_rederive``
+#: and ``privacy.erasure_v2`` are on, so the default cycle is unchanged.
+ERASURE_REDERIVE_STAGE = "erasure_rederive"
+
+
 def _predict_calibrate_on(ctx: PipelineContext) -> bool:
     mem = ctx.config.memories.get("episodic")
     options = mem.policies.get("consolidation") if mem is not None else None
@@ -149,6 +156,8 @@ def sleep_stage_order(ctx: PipelineContext) -> tuple[str, ...]:
     if ctx.config.graph.edge_compiler_v2:  # F-02c: once the facts settled
         at = order.index("summarize_entities")
         order = (*order[:at], COMPILE_EDGES_STAGE, *order[at:])
+    if ctx.config.privacy.erasure_v2 and ctx.config.privacy.erasure_rederive:
+        order = (ERASURE_REDERIVE_STAGE, *order)
     if ctx.config.retention.classes:
         order = (RETENTION_STAGE, *order)
     return order

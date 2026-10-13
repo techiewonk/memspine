@@ -162,11 +162,12 @@ class StubCloseLLM:
 # --------------------------------------------------------------------------- the workload
 
 
-def _overrides(db: Path, redact: bool = False) -> dict[str, Any]:
+def _overrides(db: Path, redact: bool = False, rederive: bool = False) -> dict[str, Any]:
     """Every landed foundation flag ON, on the embedded (SQLite) profile.
 
     ``redact`` turns ``privacy.erasure_redact_hidden`` on (finding F2): the whole milestone runs
-    with it off (the default) and on.
+    with it off (the default) and on. ``rederive`` turns ``privacy.erasure_rederive`` on (FU-ERASE):
+    the sleep stage ``erasure_rederive`` then re-derives the hidden dependants.
     """
     return {
         "template": "core",
@@ -206,7 +207,11 @@ def _overrides(db: Path, redact: bool = False) -> dict[str, Any]:
             "scope_keys_v2": True,  # isolation.scope_keys_v2
             "viewer_required": True,  # isolation.viewer_required
         },
-        "privacy": {"erasure_v2": True, "erasure_redact_hidden": redact},  # privacy.erasure_v2
+        "privacy": {
+            "erasure_v2": True,
+            "erasure_redact_hidden": redact,
+            "erasure_rederive": rederive,
+        },  # privacy.erasure_v2
         "retention": {  # retention.v2 (a class far beyond the workload: plans, expires nothing)
             "v2": True,
             "classes": [{"namespace": "*", "ttl_days": 36500}],
@@ -266,14 +271,17 @@ class World:
     home_ilse: Memory
     ids: dict[str, str]
     redact: bool = False
+    rederive: bool = False
 
     @classmethod
-    async def build(cls, db: Path, redact: bool = False) -> World:
-        eng = await memspine.open(dotenv_path=None, **_overrides(db, redact))
-        return cls._handles(db, eng, {}, redact)
+    async def build(cls, db: Path, redact: bool = False, rederive: bool = False) -> World:
+        eng = await memspine.open(dotenv_path=None, **_overrides(db, redact, rederive))
+        return cls._handles(db, eng, {}, redact, rederive)
 
     @staticmethod
-    def _handles(db: Path, eng: Engine, ids: dict[str, str], redact: bool = False) -> World:
+    def _handles(
+        db: Path, eng: Engine, ids: dict[str, str], redact: bool = False, rederive: bool = False
+    ) -> World:
         home = OwnerScope(tenant=TENANT, owner="household", owner_kind="group")
         return World(
             db=db,
@@ -283,13 +291,16 @@ class World:
             home_ilse=eng.scope(home, principal="ilse", viewer="ilse"),
             ids=ids,
             redact=redact,
+            rederive=rederive,
         )
 
     async def restart(self) -> None:
         if self.eng.is_started:
             await self.eng.stop()
-        eng = await memspine.open(dotenv_path=None, **_overrides(self.db, self.redact))
-        fresh = self._handles(self.db, eng, self.ids, self.redact)
+        eng = await memspine.open(
+            dotenv_path=None, **_overrides(self.db, self.redact, self.rederive)
+        )
+        fresh = self._handles(self.db, eng, self.ids, self.redact, self.rederive)
         self.eng, self.ilse, self.bram, self.home_ilse = (
             fresh.eng,
             fresh.ilse,
@@ -336,11 +347,17 @@ class World:
         return await self.ilse.sleep()
 
 
-@pytest.fixture(params=[False, True], ids=["redact_off", "redact_on"])
+@pytest.fixture(
+    params=["off", "redact", "rederive"], ids=["redact_off", "redact_on", "rederive_on"]
+)
 async def world(
     request: pytest.FixtureRequest, tmp_path: Path, stubs: dict[str, Any]
 ) -> AsyncIterator[World]:
-    w = await World.build(tmp_path / "ex1a.db", redact=bool(request.param))
+    w = await World.build(
+        tmp_path / "ex1a.db",
+        redact=request.param == "redact",
+        rederive=request.param == "rederive",
+    )
     try:
         await w.populate()
         yield w
@@ -697,8 +714,31 @@ async def test_step4_hard_erase(world: World, report: Report) -> None:
         assert not holders, f"erased text still on disk: {holders}"
         await world.restart()
         assert (await world.eng.verify_forget(secret_id, NS_ILSE))["clean"] is True
+    if world.rederive:
+        # FU-ERASE: the sleep stage re-derives (or drops) every queued dependant and purges its row
+        queued_ids = {str(i["record_id"]) for i in world.eng.erasure_queue()}
+        assert queued_ids, "nothing queued for the erasure_rederive stage"
+        stats = await world.sleep()
+        assert stats["erasure_rederive"]["status"] in ("ok", "partial"), stats["erasure_rederive"]
+        assert not world.eng.erasure_queue(), world.eng.erasure_queue()
+        storage = world.eng._require_started()  # the restart replaced the storage handle
+        for rid in queued_ids:
+            assert await storage.get_record(rid) is None, f"queued dependant {rid} kept its row"
+        after = world.eng.erasure_status()
+        # re-derived ones leave the hidden set; dropped ones stay (row gone, entry kept as dropped)
+        expect_hidden = status["hidden"] - len(queued_ids) + after["dropped_no_rederive"]
+        assert after["hidden"] == expect_hidden, after
+        await clean("after-rederive")
+        verdict2 = await world.eng.verify_forget(secret_id, NS_ILSE)
+        assert verdict2["clean"] is True and verdict2["descendants_leaked"] == [], verdict2
+        await world.eng.stop()
+        holders = _byte_holders(world.db, SECRET)
+        assert not holders, f"erased text still on disk after re-derivation: {holders}"
+        await world.restart()
+        assert (await world.eng.verify_forget(secret_id, NS_ILSE))["clean"] is True
     done(
         redact_hidden=world.redact,
+        rederive=world.rederive,
         dependants_hidden=status["hidden"],
         queued=status["queued"],
         generation=status["generation"],
