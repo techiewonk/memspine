@@ -410,6 +410,7 @@
       "integration_v2": false,
       "lineage_table": false,
       "participants": "off",
+      "prepass": "off",
       "prompt_context_turns": 3,
       "prompt_known_cap": 40,
       "prompt_schema": "auto",
