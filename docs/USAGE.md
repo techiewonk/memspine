@@ -703,6 +703,7 @@ in the schema — or if the schema gains a key not documented here.
 | `event_log.mode` | `full` | `full` \| `rolling` (bounded window) \| `ephemeral` (nothing persisted — no rebuild/audit; taint rollback falls back to archiving the seed alone, `strict=True` raises) (D-45, #64). |
 | `event_log.retention_days` | `30` | Rolling-window retention floor; never prunes past a projector high-water mark. |
 | `event_log.compress` | `false` | zstd-compress event payloads at rest. |
+| `storage.profile` | `embedded` | `embedded` \| `server` (F-16d, M-04 C). `embedded` = SQLite + LanceDB + Tantivy (today). `server` = Postgres (needs `storage.url`; sets `backend: postgres`) built by its own Alembic tree, pgvector when installed. Both pass the same store contract tests. |
 | `storage.backend` | `sqlite` | `sqlite` \| `postgres` (ADR-025). |
 | `storage.path` | `./memspine.db` | SQLite db file, or `:memory:` for ephemeral. |
 | `storage.url` | `null` | Postgres DSN (secrets-resolved); required when `backend: postgres`. |

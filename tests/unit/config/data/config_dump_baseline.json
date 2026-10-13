@@ -539,6 +539,7 @@
     "mode": "none"
    },
    "path": "./memspine.db",
+   "profile": "embedded",
    "url": null
   },
   "strict_services": true,
@@ -577,7 +578,7 @@
    "window_topic_k": 2.0
   }
  },
- "json_schema_sha256": "715f32bcf4fff701d7df556f16814820aa359bcf1ee90301302db1c326f22115",
+ "json_schema_sha256": "0cfbdb93207cb22175140c9f5a7954171aac428075b0d1e0967d0de04dce094e",
  "preset:chat_roles": {
   "audit": {
    "actions": false,
@@ -1149,6 +1150,7 @@
     "mode": "none"
    },
    "path": "./memspine.db",
+   "profile": "embedded",
    "url": null
   },
   "strict_services": true,
@@ -1754,6 +1756,7 @@
     "mode": "none"
    },
    "path": "./memspine.db",
+   "profile": "embedded",
    "url": null
   },
   "strict_services": true,
@@ -2359,6 +2362,7 @@
     "mode": "none"
    },
    "path": "./memspine.db",
+   "profile": "embedded",
    "url": null
   },
   "strict_services": true,
@@ -2964,6 +2968,7 @@
     "mode": "none"
    },
    "path": "./memspine.db",
+   "profile": "embedded",
    "url": null
   },
   "strict_services": true,
@@ -3569,6 +3574,7 @@
     "mode": "none"
    },
    "path": "./memspine.db",
+   "profile": "embedded",
    "url": null
   },
   "strict_services": true,
@@ -4174,6 +4180,7 @@
     "mode": "none"
    },
    "path": "./memspine.db",
+   "profile": "embedded",
    "url": null
   },
   "strict_services": true,
@@ -4779,6 +4786,7 @@
     "mode": "none"
    },
    "path": "./memspine.db",
+   "profile": "embedded",
    "url": null
   },
   "strict_services": true,
@@ -5384,6 +5392,7 @@
     "mode": "none"
    },
    "path": "./memspine.db",
+   "profile": "embedded",
    "url": null
   },
   "strict_services": true,
@@ -5989,6 +5998,7 @@
     "mode": "none"
    },
    "path": "./memspine.db",
+   "profile": "embedded",
    "url": null
   },
   "strict_services": true,
@@ -6603,6 +6613,7 @@
     "mode": "none"
    },
    "path": "./memspine_benchmark.db",
+   "profile": "embedded",
    "url": null
   },
   "strict_services": true,
@@ -7213,6 +7224,7 @@
     "mode": "none"
    },
    "path": "./memspine.db",
+   "profile": "embedded",
    "url": null
   },
   "strict_services": true,
@@ -7804,6 +7816,7 @@
     "mode": "none"
    },
    "path": "./memspine.db",
+   "profile": "embedded",
    "url": null
   },
   "strict_services": true,
@@ -8417,6 +8430,7 @@
     "mode": "none"
    },
    "path": "./memspine.db",
+   "profile": "embedded",
    "url": null
   },
   "strict_services": true,
@@ -9026,6 +9040,7 @@
     "mode": "none"
    },
    "path": "./memspine.db",
+   "profile": "embedded",
    "url": null
   },
   "strict_services": true,
@@ -9639,6 +9654,7 @@
     "mode": "none"
    },
    "path": "./memspine.db",
+   "profile": "embedded",
    "url": null
   },
   "strict_services": true,
@@ -10244,6 +10260,7 @@
     "mode": "none"
    },
    "path": "./memspine.db",
+   "profile": "embedded",
    "url": null
   },
   "strict_services": true,
@@ -10850,6 +10867,7 @@
     "mode": "none"
    },
    "path": "./memspine.db",
+   "profile": "embedded",
    "url": null
   },
   "strict_services": true,
@@ -11457,6 +11475,7 @@
     "mode": "none"
    },
    "path": "./memspine.db",
+   "profile": "embedded",
    "url": null
   },
   "strict_services": true,
