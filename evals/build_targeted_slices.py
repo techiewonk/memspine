@@ -85,7 +85,15 @@ SCREEN_OVERRIDES: dict[str, tuple[str, ...]] = {
     "S61": ("fail_retrieval",),
     "S62": ("fail_temporal",),
     "S63": ("fail_reader",),  # plus the OP-Bench sample slice, which the queue keeps for the 'o' set
+    "S20": (MIX,),  # the relevance gate must not break correct category 1-4 answers; its category-5 row is CAT5_SCREENS
 }
+# S20-CAT5: screens whose arm gates or abstains on irrelevant evidence also run on the LoCoMo category-5 (adversarial)
+# slices of make_cat5_slice.py. The row carries a sixth column ``categories=5`` that the queue turns into ``--categories 5``
+# (the reference run uses the same categories and a distinct cached name). S20 = read.gate_v2; the S55 / S63 arms contain it.
+CAT5_SCREENS = ("S20", "S55", "S63")
+CAT5_SLICE = "analysis/sample_slice_loc_cat5_s{seed}.json"
+CAT5_SLICE_C3 = "analysis/sample_slice_loc_cat5_s{seed}_c3.json"
+CAT5_COLUMN = "categories=5"
 MAP_RULES = ("PROMOTE", "NONINF")
 
 
@@ -276,12 +284,17 @@ def read_queue(path: Path) -> list[dict]:
     return rows
 
 
-def build_map(queue: list[dict], solution_map: dict, seed: int = SEED) -> list[tuple[str, str, str, str, str]]:
-    """Rows (screen, set, slice, slice_gc, note) for the LoCoMo set of every queue row that has a target class family."""
+def build_map(queue: list[dict], solution_map: dict, seed: int = SEED) -> list[tuple[str, ...]]:
+    """Rows (screen, set, slice, slice_gc, note) for the LoCoMo set of every queue row that has a target class family;
+    the category-5 rows of ``CAT5_SCREENS`` carry a sixth field ``categories=5``."""
     rows = []
     for q in queue:
         if q["rule"] not in MAP_RULES or not re.search("[fF]", q["sets"]):
             continue
+        if q["id"] in CAT5_SCREENS:
+            rows.append((q["id"], "loc", CAT5_SLICE.format(seed=seed), CAT5_SLICE_C3.format(seed=seed),
+                         f"cat5 (adversarial, abstention); arm {q['arm']}; does the arm still refuse what was never said",
+                         CAT5_COLUMN))
         fams = SCREEN_OVERRIDES.get(q["id"]) or derive_families(solution_map["screens"].get(q["id"], {}).get("targets", {}))
         for fam in fams:
             rows.append((q["id"], "loc", f"analysis/{slice_name(fam, seed, None)}", f"analysis/{slice_name(fam, seed, 3)}",
@@ -292,6 +305,7 @@ def build_map(queue: list[dict], solution_map: dict, seed: int = SEED) -> list[t
 def render_map(rows: list[tuple]) -> str:
     head = ("# screen -> targeted slice (FAIL-SLICE; written by evals/build_targeted_slices.py, read by run_v2_queue.sh in MODE=sample)\n"
             "# columns: screen<TAB>set<TAB>slice (reader-flag rows, kind J)<TAB>slice_gc (engine-LLM rows, kind GC: top-3 conversations)<TAB>note\n"
+            "# optional column 6 'categories=5': that row's run passes --categories 5 (LoCoMo category-5 adversarial slices) and its reference run uses the same categories; without it run.sh keeps 1,2,3,4.\n"
             "# A screen with several rows runs once per slice. A screen without a row keeps the random sample slices.\n"
             "# Disable the whole map with V2_SLICE_MAP= (empty); use another file with V2_SLICE_MAP=path. OP-Bench ('o') sets are not mapped.\n")
     return head + "".join("\t".join(r) + "\n" for r in rows)
@@ -303,10 +317,10 @@ def gpu_estimate(queue: list[dict], rows: list[tuple], slices: dict[str, dict]) 
     focus estimate (39 of 150 min for gc3). A targeted slice of n questions costs 3.5 ingest + 1 start + 1.7 s/q (J)."""
     est = {q["id"]: q for q in queue}
     per_screen: dict[str, dict] = defaultdict(lambda: {"focus": 0.0, "targeted": 0.0, "random_sample": 0.0})
-    for sid, _set, sl, slc, _note in rows:
+    for sid, _set, sl, slc, _note, *_rest in rows:
         q = est[sid]
         gc = q["kind"] == "GC"
-        s = slices[Path(slc if gc else sl).name]
+        s = slices.get(Path(slc if gc else sl).name) or json.loads((HERE / (slc if gc else sl)).read_text(encoding="utf-8"))
         t = 0.26 * q["est"] if gc else 3.5 + 1.0 + s["n"] * 1.7 / 60
         per_screen[sid]["targeted"] += t
         per_screen[sid]["focus"] = q["est"]

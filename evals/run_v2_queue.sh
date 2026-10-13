@@ -153,19 +153,20 @@ ref_spec() {  # ref_spec <queue reference run id> -> REFARM REFKIND (the arm who
   esac
   [ -n "$REFARM" ] || { REFARM="$BLIND_REF"; REFKIND=J; }
 }
-sample_run() {  # sample_run <arm> <run-id> <loc|opb> <slice> <n> <kind>
-  local arm=$1 rid=$2 set=$3 sl=$4 n=$5 kind=$6 fl="$J" of="$OPBF"
+sample_run() {  # sample_run <arm> <run-id> <loc|opb> <slice> <n> <kind> [categories]
+  local arm=$1 rid=$2 set=$3 sl=$4 n=$5 kind=$6 cats=${7:-} fl="$J" of="$OPBF" cx=()
   [ "$kind" = GC ] && { fl="$J $B"; of="$OPBF $B"; }
+  [ -n "$cats" ] && cx=(--categories "$cats")  # slice-map column 6 'categories=5': LoCoMo category-5 (adversarial) slices; absent = run.sh default 1,2,3,4
   if [ "$set" = loc ]; then
-    pr run.sh --arm "$arm" --run-id "$rid" --mode qa --topk 10 --query-ids "@$sl" --questions "$n" --forensics --batch-turns 32 --flags "$fl" --force
+    pr run.sh --arm "$arm" --run-id "$rid" --mode qa --topk 10 "${cx[@]}" --query-ids "@$sl" --questions "$n" --forensics --batch-turns 32 --flags "$fl" --force
   else
     pr run.sh --arm "$arm" --run-id "$rid" --mode qa --topk 10 $OPBD --questions "$n" --query-ids "@$sl" --batch-turns 32 --flags "$of" --force
   fi
 }
-ensure_ref() {  # ensure_ref <set> <slice>: REFARM/REFKIND already set -> REFRUN (built once per ref arm + commit + slice)
-  local set=$1 sl=$2 sid sn
+ensure_ref() {  # ensure_ref <set> <slice> [categories]: REFARM/REFKIND already set -> REFRUN (built once per ref arm + commit + slice [+ categories])
+  local set=$1 sl=$2 cats=${3:-} sid sn
   sid="$(slice_field "$sl" slice_id)"; sn="$(slice_field "$sl" n)"
-  REFRUN="smp-ref-${REFARM}-${SMP_REF_COMMIT:-${commit:0:8}}-${sid}"
+  REFRUN="smp-ref-${REFARM}-${SMP_REF_COMMIT:-${commit:0:8}}-${sid}${cats:+-cat${cats//,/}}"  # distinct cached reference per category set
   if [ -n "${SMP_REF_COMMIT:-}" ]; then  # cross-commit parity (S29): the reference must already exist, never rebuilt here
     if [ -f "runs/${REFRUN}--memspine/results.jsonl" ] && [ "$(cat "runs/${REFRUN}.STATUS" 2>/dev/null)" = ok ]; then
       say "reference $REFRUN (pre-built at SMP_REF_COMMIT) reused"; return 0
@@ -179,12 +180,12 @@ ensure_ref() {  # ensure_ref <set> <slice>: REFARM/REFKIND already set -> REFRUN
   if [ -n "${REFSEEN[$REFRUN]:-}" ]; then say "reference $REFRUN cached (built earlier in this queue, reused)"; return 0; fi
   REFSEEN[$REFRUN]=1
   say "building reference $REFRUN once (reference arm $REFARM, commit ${commit:0:8}, slice $sid)"
-  sample_run "$REFARM" "$REFRUN" "$set" "$sl" "$sn" "$REFKIND" || { say "reference $REFRUN FAILED"; unset 'REFSEEN[$REFRUN]'; return 1; }
+  sample_run "$REFARM" "$REFRUN" "$set" "$sl" "$sn" "$REFKIND" "$cats" || { say "reference $REFRUN FAILED"; unset 'REFSEEN[$REFRUN]'; return 1; }
 }
-slices_for() {  # slices_for <screen> <set> <kind> <default slice>: one slice path per line (FAIL-SLICE: evals/v2_slice_map.tsv)
+slices_for() {  # slices_for <screen> <set> <kind> <default slice>: one "slice path[TAB]categories" per line (FAIL-SLICE: evals/v2_slice_map.tsv; categories from column 6 'categories=5', empty when absent)
   local f="${V2_SLICE_MAP-$here/v2_slice_map.tsv}" out=""
   if [ -n "$f" ] && [ -f "$f" ]; then
-    out="$(awk -F'	' -v id="$1" -v s="$2" -v k="$3" '{gsub(//,"")} /^#/||NF<3{next} $1==id&&$2==s{p=$3; if(k=="GC"&&$4!="")p=$4; print p}' "$f")"
+    out="$(awk -F'	' -v id="$1" -v s="$2" -v k="$3" '{gsub(//,"")} /^#/||NF<3{next} $1==id&&$2==s{p=$3; if(k=="GC"&&$4!="")p=$4; c=""; if($6 ~ /^categories=/)c=substr($6,12); print p "	" c}' "$f")"
   fi
   if [ -n "$out" ]; then printf '%s
 ' "$out"; else printf '%s
@@ -198,14 +199,14 @@ sample_row() {  # sample_row <id> <arm> <ref> <kind> <sets>: descriptive only, n
     if [ "$set" = loc ]; then dflt="$SLICE_LOC"; [ "$kind" = GC ] && dflt="$SLICE_LOC_GC"; else dflt="$SLICE_OPB"; fi
     # a per-row targeted slice (evals/v2_slice_map.tsv) replaces the random sample slice of the LoCoMo set; no row = old behaviour
     local slist; slist="$(slices_for "$id" "$set" "$kind" "$dflt")"
-    while IFS= read -r sl; do
+    while IFS=$'	' read -r sl cats; do
       [ -n "$sl" ] || continue
       sn="$(slice_field "$sl" n)"; sid="$(slice_field "$sl" slice_id)"; tag=""
       rid="smp-$id-$set-$STAMP"
       if [ "$sl" != "$dflt" ]; then tag="$(slice_field "$sl" family)"; rid="smp-$id-tgt-$tag-$STAMP"; fi
-      ensure_ref "$set" "$sl" || { SUMMARY="$SUMMARY $set=REF_FAILED"; continue; }
-      say "$id sample $set: $arm on $sid (n=$sn${tag:+, targeted $tag}) vs $REFRUN"
-      if ! sample_run "$arm" "$rid" "$set" "$sl" "$sn" "$kind"; then
+      ensure_ref "$set" "$sl" "$cats" || { SUMMARY="$SUMMARY $set=REF_FAILED"; continue; }
+      say "$id sample $set: $arm on $sid (n=$sn${tag:+, targeted $tag}${cats:+, categories $cats}) vs $REFRUN"
+      if ! sample_run "$arm" "$rid" "$set" "$sl" "$sn" "$kind" "$cats"; then
         SUMMARY="$SUMMARY $set=RUN_FAILED"
         pr v2_py.sh v2_ledger.py record --mode sample --screen "$id" --arm "$arm" --reference "$REFRUN" --commit "${commit:0:7}" --slice-id "$sid" --verdict RUN_FAILED
         continue
