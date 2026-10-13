@@ -4186,8 +4186,8 @@
    ],
    "kind": "behaviour",
    "gate": "Matrix green on embedded and server",
-   "status": "In progress",
-   "note": "Sonnet agent launched 2026-10-13",
+   "status": "Needs measurement",
+   "note": "matrix 26 pass on embedded (incl. neo4j fake) after G1 fix; 14 server cells skip until MEMSPINE_TEST_PG_URL run",
    "layers": [
     "L0",
     "L1",
@@ -4378,8 +4378,8 @@
    ],
    "kind": "behaviour",
    "gate": "Focus slice non-inferior",
-   "status": "In progress",
-   "note": "Sonnet agent launched 2026-10-13",
+   "status": "Needs measurement",
+   "note": "write.stamping_v2; alembic 0010 (sqlite+pg); multilingual assent checker; focus non-inferiority screen pending",
    "layers": [
     "L0",
     "L1",
@@ -4498,8 +4498,8 @@
    ],
    "kind": "behaviour",
    "gate": "Calls per turn down, grounding inside band",
-   "status": "In progress",
-   "note": "Sonnet agent launched 2026-10-13",
+   "status": "Needs measurement",
+   "note": "write.segmentation_v2; stub calls/turn 0.175 -> 0.015 on 200-turn workload; grounding screen pending",
    "layers": [
     "L0"
    ],
@@ -4911,8 +4911,8 @@
    ],
    "kind": "behaviour",
    "gate": "Off by default; on-arm screen",
-   "status": "In progress",
-   "note": "Sonnet agent launched 2026-10-13",
+   "status": "Needs measurement",
+   "note": "write.asset_describer off|ingest|on_read; metadata fallback; vision path untested vs real model",
    "layers": [
     "L0"
    ],
@@ -5067,8 +5067,8 @@
    ],
    "kind": "behaviour",
    "gate": "Worker-tier screen per role; no-model template zero calls",
-   "status": "In progress",
-   "note": "Sonnet agent launched 2026-10-13 (Phase 2 wave 1)",
+   "status": "Needs measurement",
+   "note": "models.tiers_v2; CUDA/CPU placement; reranker chain jina->qwen3->MiniLM; per-role worker-tier screens pending",
    "layers": [
     "L0",
     "L1",
@@ -5380,8 +5380,8 @@
    ],
    "kind": "behaviour",
    "gate": "Own focus and blind screen",
-   "status": "In progress",
-   "note": "Sonnet agent launched 2026-10-13",
+   "status": "Needs measurement",
+   "note": "read.graph_leg_v2 one-hop convergent over compiled edges; needs GC arm (sleep+edge_compiler_v2)",
    "layers": [
     "L3"
    ],
@@ -6011,8 +6011,8 @@
    ],
    "kind": "behaviour",
    "gate": "Deferred work counted, never dropped",
-   "status": "In progress",
-   "note": "Sonnet agent launched (after O4-01a)",
+   "status": "Needs measurement",
+   "note": "offline.budget_v2 (defer, never drop) + covers_seq + read.freshness_v2/fallback",
    "layers": [
     "L0",
     "L1",
