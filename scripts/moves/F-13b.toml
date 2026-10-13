@@ -1,0 +1,13 @@
+# F-13b: REST and MCP move under api/ (protocols/ is deleted, no aliases; ADR-067).
+# Run: python scripts/codemod_move.py scripts/moves/F-13b.toml
+[[move]]
+from = "memspine.protocols.rest"
+to = "memspine.api.rest"
+
+[[move]]
+from = "memspine.protocols.mcp"
+to = "memspine.api.mcp"
+
+[[move]]
+from = "memspine.protocols.tools"
+to = "memspine.api.tools"
