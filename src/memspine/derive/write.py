@@ -31,6 +31,7 @@ from memspine.store.records import MemoryRecord
 from memspine.trust.horizon import deposit_trust
 from memspine.trust.pipeline import consent as trust_consent
 from memspine.trust.pipeline import gates_v2
+from memspine.trust.visibility import restrict_to_parents
 
 __all__ = ["DerivedWithoutParents", "write_derived"]
 
@@ -63,6 +64,7 @@ async def write_derived(
     gates refuse is still written, but held in quarantine (inert, never served, never a parent of
     further derivation); the reasons ride the write door as ``GATE_HOLD``.
     """
+    record = await _inherit_visibility(eng, storage, ns, record, parents)
     reasons: list[str] = []
     if gates_v2.gates_on(eng):
         pids = list(parents if parents is not None else record.source.parents)
@@ -87,6 +89,28 @@ async def write_derived(
         )  # fmt: skip
     finally:
         gates_v2.GATE_HOLD.reset(token)
+
+
+async def _inherit_visibility(
+    eng: Any,
+    storage: Any,
+    ns: str,
+    record: MemoryRecord,
+    parents: Sequence[str] | None,
+) -> MemoryRecord:
+    """F1: under ``isolation.viewer_required`` the record is never more visible than its parents.
+
+    The named ``parents`` (else ``source.parents``) lend their participant and visibility tags, so
+    a derived path that names parents the record does not cite in ``source.parents`` is covered
+    too (the write door's governance sees only ``source.parents``). Flag off: untouched.
+    """
+    if not getattr(eng._config().isolation, "viewer_required", False):
+        return record
+    pids = [p for p in dict.fromkeys(parents if parents is not None else record.source.parents)]
+    found = [await storage.get_record(p) for p in pids if p != record.record_id]
+    visible = [r.tags for r in found if r is not None and r.namespace == ns]
+    tags = restrict_to_parents(record.tags, visible)
+    return record if tags == record.tags else record.model_copy(update={"tags": tags})
 
 
 async def _write_derived(

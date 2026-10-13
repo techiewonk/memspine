@@ -17,8 +17,7 @@ PYTHONPATH=src;evals python -m pytest tests/e2e/test_ex1a_embedded.py -m milesto
 
 About 25 s. Every foundation flag that has landed is on: `write.lineage_table`, `workers.outbox` (inline transport),
 `isolation.scope_keys_v2`, `isolation.viewer_required`, `privacy.erasure_v2`, `retention.v2`, `audit.chain_v2`,
-`consent.v2`, `graph.edge_compiler_v2`, `offline.session_close_v2`, `read.legs_v2` (plus `write.participants=session`,
-see finding F1). The workload: three sessions for two owners (`acme/ilse`, `acme/bram`) and a two-record shared
+`consent.v2`, `graph.edge_compiler_v2`, `offline.session_close_v2`, `read.legs_v2`; `write.participants` stays at its default (off), see F1). The workload: three sessions for two owners (`acme/ilse`, `acme/bram`) and a two-record shared
 namespace (`acme/household`), consent choices, session close (call 2 stub), the sleep cycle.
 
 | Step | Test | What it proves |
@@ -26,7 +25,7 @@ namespace (`acme/household`), consent choices, session close (call 2 stub), the 
 | 1 | `test_step1_workload_written` | all flags are on in the effective config; turns and shared records written |
 | 2 | `test_step2_sleep_and_read` | sleep runs; answers cite the right turn; no cross-owner leak; a multi-party read without a viewer is refused (`viewer_required`); a non-participant sees nothing |
 | 3 | `test_step3_restart_state` | stop and reopen the same store: record ids, lineage edges, outbox states, consent registry (and its behaviour), erasure state identical; audit chain verifies |
-| 4 | `test_step4_hard_erase` | hard-forget one turn: dependants hidden, purge `done`, no read serves it (also after a cache hit and after a restart), lineage edges gone, manifest has no content |
+| 4 | `test_step4_hard_erase` | (run with `privacy.erasure_redact_hidden` off and on) hard-forget one turn: dependants hidden, purge `done`, no read serves it (also after a cache hit and after a restart), lineage edges gone, manifest has no content |
 | 5 | `test_step5_replay_migrate` | `migrate_sqlite` into a fresh store; projected records equal the live store field for field; the erased turn does not come back; an engine on the replayed store rebuilds the erasure state |
 
 The JSON report has per-step counts and timings, the flag list and the findings below. `MigrationReport.not_rebuilt`
@@ -35,10 +34,21 @@ logged write, so no live record needed to be excluded from the comparison.
 
 ### Findings (not failures; owner decisions)
 
-- F1: with `write.participants=off` (default) a fact mined from a private turn in a multi-party namespace has no
-  visibility tag and is served to a non-participant. `isolation.viewer_required` alone does not cover derived records.
-- F2: `privacy.erasure_v2` hides dependants for re-derivation but keeps their rows and WRITE events, which still hold the
-  erased text on disk. No read serves them; replay reproduces exactly the same set.
-- F3: a kept dependant still lists the erased id in `source.parents` (the lineage-table edge is removed). An id, no text.
-- F4: `Engine.verify_forget()["clean"]` is false under `erasure_v2` while a dependant row is retained.
+- F1 (fixed, FX-EX1A): with `write.participants=off` a fact mined from a private turn in a multi-party namespace had no
+  visibility tag and was served to a non-participant. Now, while `isolation.viewer_required` is on, a multi-party
+  namespace (`isolation.multi_party_namespaces`, a `multi_party=True` handle, or detected) behaves as
+  `write.participants: session`, and a derived record inherits the participants and the strictest visibility of its
+  parents (`ingest/write.py:_govern_write`, `derive/write.py:_inherit_visibility`, `trust/visibility.py:restrict_to_parents`),
+  so it is never more visible than its most restrictive parent. The workload no longer sets `write.participants`; with
+  the isolation flags off nothing changes.
+- F2 (fixed behind a flag, FX-EX1A): `privacy.erasure_v2` hides dependants for re-derivation but keeps their rows and WRITE
+  events, which still hold the erased text on disk (no read serves them); re-derivation itself is still not implemented.
+  `privacy.erasure_redact_hidden` (default off) hard-forgets the hidden dependants instead and marks their queue entry
+  `dropped_no_rederive`. The milestone runs both ways; with the flag on a byte scan of the sqlite file finds no erased text.
+- F3 (left as is): a kept dependant still lists the erased id in `source.parents` (the lineage-table edge is removed). An
+  id, no text; the dependant stays supported by its other live parent.
+- F4 (fixed, FX-EX1A): `Engine.verify_forget()["clean"]` is `privacy.erasure_v2`-aware: clean when the erased id is purged
+  everywhere and each dependant is kept (another live parent) or hidden and queued. New fields
+  `descendants_hidden_pending_rederive`, `descendants_kept`, `descendants_leaked` (and `erasure_v2`); only a leaked
+  dependant blocks `clean`. The milestone asserts `clean`.
 - F5 (fixed): `Memory.retrieve()` on a handle with a `purpose` raised `TypeError` (`src/memspine/api/handle.py`).

@@ -3380,10 +3380,12 @@ class Engine:
         purge jobs (state, done, total) by manifest id."""
         return trust_erasure_v2.status(self)
 
-    def erasure_queue(self) -> list[dict[str, object]]:
+    def erasure_queue(self, *, include_dropped: bool = False) -> list[dict[str, object]]:
         """T5-04: the re-derivation queue (record id, action, remaining live sources) the
-        offline runner consumes; ids only."""
-        return trust_erasure_v2.queue(self)
+        offline runner consumes; ids only. Entries ``privacy.erasure_redact_hidden`` marked
+        ``dropped_no_rederive`` (hard-forgotten, nothing to re-derive) show only with
+        ``include_dropped``."""
+        return trust_erasure_v2.queue(self, include_dropped=include_dropped)
 
     async def erasure_release(self, record_ids: Sequence[str], namespace: str = "default") -> int:
         """T5-04: hidden ids the offline runner re-derived (or dropped) become visible again;

@@ -162,8 +162,12 @@ class StubCloseLLM:
 # --------------------------------------------------------------------------- the workload
 
 
-def _overrides(db: Path) -> dict[str, Any]:
-    """Every landed foundation flag ON, on the embedded (SQLite) profile."""
+def _overrides(db: Path, redact: bool = False) -> dict[str, Any]:
+    """Every landed foundation flag ON, on the embedded (SQLite) profile.
+
+    ``redact`` turns ``privacy.erasure_redact_hidden`` on (finding F2): the whole milestone runs
+    with it off (the default) and on.
+    """
     return {
         "template": "core",
         "storage": {"path": str(db)},
@@ -191,16 +195,18 @@ def _overrides(db: Path) -> dict[str, Any]:
             "window_extract": "facts",
             "window_async": False,
             "window_idle_s": 0.0,
-            # not one of the 11 flags, but a multi-party namespace needs it: without it a fact
-            # mined from a private turn carries no visibility tag and leaks it (finding F1)
-            "participants": "session",
+            # write.participants stays at its default (off). Finding F1 is fixed: with
+            # isolation.viewer_required on, a multi-party namespace behaves as participants=session
+            # (raw turns are tagged with their speakers, derived records inherit their parents'
+            # participant and visibility tags), so no explicit participants setting is needed.
+            "participants": "off",
         },
         "workers": {"outbox": True, "transport": "inline"},  # workers.outbox (inline transport)
         "isolation": {
             "scope_keys_v2": True,  # isolation.scope_keys_v2
             "viewer_required": True,  # isolation.viewer_required
         },
-        "privacy": {"erasure_v2": True},  # privacy.erasure_v2
+        "privacy": {"erasure_v2": True, "erasure_redact_hidden": redact},  # privacy.erasure_v2
         "retention": {  # retention.v2 (a class far beyond the workload: plans, expires nothing)
             "v2": True,
             "classes": [{"namespace": "*", "ttl_days": 36500}],
@@ -259,14 +265,15 @@ class World:
     bram: Memory
     home_ilse: Memory
     ids: dict[str, str]
+    redact: bool = False
 
     @classmethod
-    async def build(cls, db: Path) -> World:
-        eng = await memspine.open(dotenv_path=None, **_overrides(db))
-        return cls._handles(db, eng, {})
+    async def build(cls, db: Path, redact: bool = False) -> World:
+        eng = await memspine.open(dotenv_path=None, **_overrides(db, redact))
+        return cls._handles(db, eng, {}, redact)
 
     @staticmethod
-    def _handles(db: Path, eng: Engine, ids: dict[str, str]) -> World:
+    def _handles(db: Path, eng: Engine, ids: dict[str, str], redact: bool = False) -> World:
         home = OwnerScope(tenant=TENANT, owner="household", owner_kind="group")
         return World(
             db=db,
@@ -275,12 +282,14 @@ class World:
             bram=eng.scope(NS_BRAM, principal="bram", viewer="bram", purpose="assist"),
             home_ilse=eng.scope(home, principal="ilse", viewer="ilse"),
             ids=ids,
+            redact=redact,
         )
 
     async def restart(self) -> None:
-        await self.eng.stop()
-        eng = await memspine.open(dotenv_path=None, **_overrides(self.db))
-        fresh = self._handles(self.db, eng, self.ids)
+        if self.eng.is_started:
+            await self.eng.stop()
+        eng = await memspine.open(dotenv_path=None, **_overrides(self.db, self.redact))
+        fresh = self._handles(self.db, eng, self.ids, self.redact)
         self.eng, self.ilse, self.bram, self.home_ilse = (
             fresh.eng,
             fresh.ilse,
@@ -327,9 +336,11 @@ class World:
         return await self.ilse.sleep()
 
 
-@pytest.fixture
-async def world(tmp_path: Path, stubs: dict[str, Any]) -> AsyncIterator[World]:
-    w = await World.build(tmp_path / "ex1a.db")
+@pytest.fixture(params=[False, True], ids=["redact_off", "redact_on"])
+async def world(
+    request: pytest.FixtureRequest, tmp_path: Path, stubs: dict[str, Any]
+) -> AsyncIterator[World]:
+    w = await World.build(tmp_path / "ex1a.db", redact=bool(request.param))
     try:
         await w.populate()
         yield w
@@ -406,16 +417,19 @@ STEPS = (
 #: Behaviours the run observed that are not test failures but the owner should know (the steps
 #: assert the bounds around each, so a change in kind shows up as a failure).
 FINDINGS = {
-    "F1": "write.participants=off (default): a fact mined from a private turn of a multi-party "
-    "namespace carries no visibility tag and is served to a non-participant. The workload sets "
-    "write.participants=session; isolation.viewer_required alone does not protect derived records.",
+    "F1": "FIXED (FX-EX1A): with write.participants=off a fact mined from a private turn of a "
+    "multi-party namespace carried no visibility tag and was served to a non-participant. Under "
+    "isolation.viewer_required a multi-party namespace now behaves as participants=session and "
+    "derived records never widen their parents' visibility. The workload no longer sets "
+    "write.participants.",
     "F2": "privacy.erasure_v2 hides dependants for re-derivation but keeps their rows and their "
     "WRITE events, which still carry the erased text on disk (not served by any read). Replay "
-    "reproduces exactly that set.",
-    "F3": "A kept dependant (another live support parent) still lists the erased id in "
-    "source.parents; the lineage table edge is removed. An id, no text.",
-    "F4": "Engine.verify_forget()['clean'] is False under erasure_v2 whenever a dependant row is "
-    "retained (descendants_remaining); it is not erasure_v2-aware.",
+    "reproduces exactly that set. privacy.erasure_redact_hidden=on hard-forgets them instead (the "
+    "milestone runs both ways; with it on no erased text remains in the sqlite file).",
+    "F3": "OPEN BY DESIGN: a kept dependant (another live support parent) still lists the erased "
+    "id in source.parents; the lineage table edge is removed. An id, no text.",
+    "F4": "FIXED (FX-EX1A): Engine.verify_forget() is erasure_v2-aware: clean when every dependant "
+    "is kept or hidden and queued; fields descendants_hidden_pending_rederive / _kept / _leaked.",
     "F5": "Memory.retrieve() with a handle purpose raised TypeError (fixed in src/memspine/api/"
     "handle.py).",
 }
@@ -635,9 +649,26 @@ async def test_step4_hard_erase(world: World, report: Report) -> None:
 
     await clean("cache-hit")  # the same queries run again: a cache hit must not resurface it
     verdict = await world.eng.verify_forget(secret_id, NS_ILSE)
-    # `clean` is the v1 notion: it stays false while a hidden dependant row is retained for
-    # re-derivation (finding F4). Every physical check on the erased record itself must hold, and
-    # each remaining descendant must be hidden or free of the erased text.
+    # F4: erasure_v2-aware. A hidden dependant queued for re-derivation (or a kept one with another
+    # live parent) is not a leak; only a dependant that is neither is.
+    assert verdict["clean"] is True, verdict
+    assert verdict["erasure_v2"] is True and verdict["descendants_leaked"] == [], verdict
+    pending = set(verdict["descendants_hidden_pending_rederive"])  # type: ignore[arg-type]
+    kept = set(verdict["descendants_kept"])  # type: ignore[arg-type]
+    assert pending <= hidden_kids and not (pending & kept), verdict
+    assert pending | kept == set(verdict["descendants_remaining"]), verdict  # type: ignore[arg-type]
+    status_now = world.eng.erasure_status()
+    if world.redact:
+        # F2 on: hidden dependants were hard-forgotten; none waits for re-derivation
+        assert not pending and not world.eng.erasure_queue(), verdict
+        assert status_now["queued"] == 0
+        for rid in hidden_kids:
+            assert await storage.get_record(rid) is None, f"hidden dependant {rid} kept its row"
+    else:
+        assert pending, "no hidden dependant was left pending re-derivation"
+        assert status_now["dropped_no_rederive"] == 0
+    # Every physical check on the erased record itself must hold, and each remaining descendant
+    # must be hidden or free of the erased text.
     for key in ("record_absent", "vector_absent", "vector_history_absent", "log_redacted"):
         assert verdict[key] is True, (key, verdict)
     assert not verdict["log_retained_fields"], verdict
@@ -659,7 +690,15 @@ async def test_step4_hard_erase(world: World, report: Report) -> None:
     assert status2["erased"] == 1 and status2["hidden"] == status["hidden"]
     assert await world.ilse.recall(OTHER), "an unrelated Ilse record disappeared"
     assert await world.eng.verify_audit_chain_v2()
+    if world.redact:
+        # F2 on: no erased text anywhere in the sqlite file (nor its WAL) once the engine stops
+        await world.eng.stop()
+        holders = _byte_holders(world.db, SECRET)
+        assert not holders, f"erased text still on disk: {holders}"
+        await world.restart()
+        assert (await world.eng.verify_forget(secret_id, NS_ILSE))["clean"] is True
     done(
+        redact_hidden=world.redact,
         dependants_hidden=status["hidden"],
         queued=status["queued"],
         generation=status["generation"],
@@ -688,6 +727,9 @@ async def test_step5_replay_migrate(world: World, report: Report, tmp_path: Path
     # holders allowed are hidden dependants (retained for re-derivation, finding F2)
     hidden = set(hidden_ids)
     live_hold, replay_hold = _holders(live), _holders(replay)
+    if world.redact:  # F2 on: no holder at all, in the live store or the replay
+        assert not live_hold["events"] and not live_hold["records"], live_hold
+        assert not replay_hold["events"] and not replay_hold["records"], replay_hold
     assert set(live_hold["events"]) <= hidden, f"erased text in live log: {live_hold['events']}"
     assert replay_hold["events"] == live_hold["events"], (
         "the replayed log differs from the live log"
@@ -742,6 +784,16 @@ async def _dump(db: Path) -> bytes:
         return await dump_store(storage)
     finally:
         await client.close()
+
+
+def _byte_holders(db: Path, needle: str) -> list[str]:
+    """Files among the sqlite database and its sidecars whose bytes contain ``needle``."""
+    raw = needle.encode()
+    return [
+        p.name
+        for p in (db, db.with_name(db.name + "-wal"), db.with_name(db.name + "-shm"))
+        if p.exists() and raw in p.read_bytes()
+    ]
 
 
 def _holders(dump: dict[str, Any]) -> dict[str, list[str]]:

@@ -472,6 +472,15 @@ async def verify_forget(
     if eng._lexical is not None:
         lexical_absent = not await eng._lexical.exists(record_id)
     descendants = await eng._descendants(storage, validate_namespace(namespace), [record_id])
+    # F4: under ``privacy.erasure_v2`` a dependant is not a leak when it is kept (another live
+    # parent) or hidden and queued for re-derivation; only a ``leaked`` one blocks ``clean``.
+    v2 = bool(eng._config().privacy.erasure_v2)
+    split: dict[str, list[str]] | None = None
+    if v2:
+        from memspine.trust.pipeline import erasure_v2
+
+        split = await erasure_v2.classify_descendants(eng, storage, record_id, descendants)
+    blocking = split["leaked"] if split is not None else descendants
     log_verifiable = storage.can_rebuild  # ephemeral persists nothing to prove
     retained: set[str] = set()
     after = 0
@@ -507,7 +516,7 @@ async def verify_forget(
         and log_verifiable
         and log_clean
         and not residual
-        and not descendants
+        and not blocking
         and vector_absent is True
         and vector_history_absent is True
         and lexical_absent is not False  # True (absent) or None (no store) both pass
@@ -528,6 +537,11 @@ async def verify_forget(
         "log_redacted": log_clean,
         "log_retained_fields": sorted(retained),
         "descendants_remaining": descendants,
+        # F4 (erasure_v2 only; None under v1): hidden-pending-rederive is not a leak
+        "erasure_v2": v2,
+        "descendants_hidden_pending_rederive": split["hidden_pending_rederive"] if split else None,
+        "descendants_kept": split["kept"] if split else None,
+        "descendants_leaked": split["leaked"] if split else None,
         # W14: records the probe still recalls (None: no probe given).
         "residual_recall": residual,
         "clean": clean,
