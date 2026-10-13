@@ -144,6 +144,7 @@ class ResourceMemory(BaseMemory):
         version: int = 1,
         pii_tier: PiiTier = PiiTier.NONE,
         actor: str = "user",
+        extra_tags: Sequence[str] = (),
     ) -> dict[str, MemoryRecord]:
         """W2-01: write the given ``(chunk index, intake write id, text)`` chunks, one WRITE event
         each, through the same firewall gate as :meth:`ingest`. Idempotency is the intake gateway's
@@ -157,7 +158,7 @@ class ResourceMemory(BaseMemory):
                 memory_type="resource",
                 content=text,
                 pii_tier=pii_tier,
-                tags=[f"idem:{wid}", f"srcver:{version}"],
+                tags=[f"idem:{wid}", f"srcver:{version}", *extra_tags],
                 source=SourceInfo(
                     role=actor,
                     channel="ingest",

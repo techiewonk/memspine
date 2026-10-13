@@ -23,6 +23,12 @@ CANONICAL_CONTEXTS: dict[str, dict[str, Any]] = {
         "nonce": "0a1b2c3d4e5f",
     },
     "anticipate": {"content": "[1] [2026-01-02] Alice: I found out I am allergic to nuts"},
+    "describe_asset": {
+        "filename": "hive.png",
+        "mime": "image/png",
+        "size": 1234,
+        "alt_text": "a hive",
+    },
     "judge": {
         "existing_content": "Alice lives in Berlin",
         "existing_valid_from": "2026-01-01",
