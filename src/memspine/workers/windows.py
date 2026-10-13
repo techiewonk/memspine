@@ -64,17 +64,20 @@ from memspine.derive.items import (
 )
 from memspine.derive.pipeline.stages.context import SessionClosed, WindowEdgeBatch
 from memspine.derive.pipeline.stages.mining import _fact_date
-from memspine.derive.temporal_stage import happened_label_for
+from memspine.derive.prompt_context import PromptContextBuilder
 from memspine.derive.segmenter import SegmentationSettings, StreamSegmenter
+from memspine.derive.temporal_stage import happened_label_for
 from memspine.economy import ledger as _costs
 from memspine.exceptions import LLMError
 from memspine.models.concurrency import Priority, priority_scope
-from memspine.models.providers.llm.base import LLMService
+from memspine.models.providers.llm.base import LLMService, lenient_json
+from memspine.models.providers.llm.capabilities import schema_options
 from memspine.models.providers.llm.structured import structured_call
 from memspine.observability import tap
 from memspine.observability.logging import get_logger
 from memspine.ops import ledger as _ops
 from memspine.prompts.base import Prompt
+from memspine.prompts.layout_language import detect_language
 from memspine.prompts.models import (
     ExtractedEdge,
     WindowEpisode,
@@ -82,7 +85,14 @@ from memspine.prompts.models import (
     WindowPayload,
     fact_guard,
 )
-from memspine.prompts.structured import STRUCTURED_VERSION, extraction_messages
+from memspine.prompts.structured import (
+    STRUCTURED_VERSION,
+    WINDOW_VERSION,
+    default_partial,
+    extraction_messages,
+    window_messages,
+    window_schema,
+)
 from memspine.schemas.durable.common import OwnerScope
 from memspine.store.events import fingerprint_payload
 from memspine.store.records import MemoryRecord, RecordStatus
@@ -96,6 +106,7 @@ __all__ = [
     "WindowPipeline",
     "build_transcript",
     "grounded",
+    "split_batch_episodes",
     "split_batch_section",
     "validate_edges",
     "validate_episode",
@@ -140,9 +151,22 @@ class PromptWindowExtractor:
     """:class:`WindowExtractor` over the ``window_extract`` prompt and a structured call."""
 
     def __init__(
-        self, llm: LLMService, prompt: Prompt, model: str = "", *, items: bool = False
+        self,
+        llm: LLMService,
+        prompt: Prompt,
+        model: str = "",
+        *,
+        items: bool = False,
+        unified: bool = False,
+        partial: Callable[[str], str] | None = None,
+        use_schema: bool = True,
     ) -> None:
         self._llm = llm
+        #: W2-06b (``write.prompt_v2``): ONE call for every requested section (needs ``items``).
+        self._unified = unified and items
+        self._partial = partial or default_partial
+        self._use_schema = use_schema
+        self._schema_rejected = False
         self._prompt = prompt
         #: W2-06a (``write.envelope_v2``): the ``facts`` section is an ``ItemV1`` list from the
         #: ``structured`` prompt, returned raw (each item is validated alone by the pipeline).
@@ -150,6 +174,8 @@ class PromptWindowExtractor:
         self.identity = f"{model}|{prompt.prompt_version}"
         if items:
             self.identity += f"|items{STRUCTURED_VERSION}"
+        if self._unified:
+            self.identity += f"|window{WINDOW_VERSION}"
 
     async def __call__(
         self, sections: Sequence[str], variables: Mapping[str, object]
@@ -157,6 +183,8 @@ class PromptWindowExtractor:
         options: dict[str, Any] = {"temperature": 0.0}
         if self._prompt.token_budget:
             options["max_tokens"] = self._prompt.token_budget
+        if self._unified:
+            return await self._unified_call(sections, variables, options)
         if self._items and "facts" in sections:
             result: dict[str, Any] = {}
             reply = await self._llm.chat(
@@ -177,6 +205,51 @@ class PromptWindowExtractor:
             return result
         return await self._legacy(sections, variables, options)
 
+    async def _unified_call(
+        self, sections: Sequence[str], variables: Mapping[str, object], options: dict[str, Any]
+    ) -> Mapping[str, Any]:
+        """W2-06b: one chat call for all of ``sections``; the schema goes with it when the provider
+        supports it, else the W2-06a validator plus its one repair take over downstream."""
+        content = str(variables.get("content", ""))
+        batched = int(variables.get("windows", 0) or 0) > 1  # type: ignore[call-overload]
+        messages = window_messages(
+            sections,
+            content,
+            str(variables.get("participants", "")),
+            int(variables["turn_count"]) if "turn_count" in variables else None,  # type: ignore[call-overload]
+            context=str(variables.get("context", "")),
+            known=str(variables.get("known", "")),
+            batched=batched,
+            language=detect_language(content),
+            partial=self._partial,
+        )
+        mode: str = "off"
+        extra: dict[str, Any] = {}
+        if self._use_schema and not self._schema_rejected:
+            mode, extra = schema_options(
+                self._llm, window_schema(sections, batched=batched), "window_extract"
+            )
+        tap.event(
+            "write.prompt.v2",
+            sections=list(sections),
+            known_count=int(variables.get("known_count", 0) or 0),  # type: ignore[call-overload]
+            schema_mode=mode,
+            batched=batched,
+        )
+        try:
+            reply = await self._llm.chat(messages, **options, **extra)
+        except LLMError as exc:
+            if not extra or not _SCHEMA_REJECTED.search(str(exc)):
+                raise
+            # The backend refused the schema: stop sending it, answer this call without it.
+            self._schema_rejected = True
+            tap.event("write.prompt.v2", sections=list(sections), schema_mode="rejected")
+            reply = await self._llm.chat(messages, **options)
+        data = _parse_window_reply(reply, sections)
+        if data is None:
+            raise LLMError("structured window reply failed validation: not a JSON object")
+        return {name: data[name] for name in sections if name in data}
+
     async def _legacy(
         self, sections: Sequence[str], variables: Mapping[str, object], options: dict[str, Any]
     ) -> Mapping[str, Any]:
@@ -189,6 +262,26 @@ class PromptWindowExtractor:
         )
         # A section the reply omitted is absent (not null): the writer fails it closed.
         return {name: getattr(out, name) for name in sections if name in out.model_fields_set}
+
+
+_SCHEMA_REJECTED = re.compile(r"schema|response_format|grammar|format|unsupported", re.I)
+
+
+def _parse_window_reply(reply: str, sections: Sequence[str]) -> dict[str, Any] | None:
+    text = reply.strip()
+    fence = re.match(r"^```[a-zA-Z0-9_-]*\s*\n(.*?)\n?```\s*$", text, re.DOTALL)
+    if fence:
+        text = fence.group(1).strip()
+    try:
+        data: Any = json.loads(text)
+    except ValueError:
+        try:
+            data = lenient_json(text)
+        except Exception:
+            return None
+    if isinstance(data, list) and tuple(sections) == ("facts",):
+        return {"facts": data}
+    return data if isinstance(data, dict) and data else None
 
 
 #: ``(namespace, text, entity, attribute, parents, valid_from, session_key, **views)``: the
@@ -422,6 +515,37 @@ def split_batch_section(
     return parts, cross
 
 
+def split_batch_episodes(raw: object, spans: Sequence[tuple[int, int]]) -> list[Any]:
+    """W2-06b: the ``episode`` section of a batched call is a list with one object per window block
+    (``window`` = block number from 1; no ``window`` keys: by position). One reply per window, its
+    ``turns`` renumbered to the window's own 1..n; a window with no object fails closed alone."""
+    n = len(spans)
+    if not isinstance(raw, list):
+        return [raw for _ in spans]
+    by_window: dict[int, Any] = {}
+    positional = [e for e in raw if isinstance(e, dict) and "window" not in e]
+    for i, entry in enumerate(raw):
+        if not isinstance(entry, dict):
+            continue
+        w = entry.get("window")
+        if isinstance(w, int) and not isinstance(w, bool) and 1 <= w <= n:
+            by_window.setdefault(w - 1, entry)
+        elif len(positional) == len(raw) == n:
+            by_window.setdefault(i, entry)
+    out: list[Any] = []
+    for w, (base, count) in enumerate(spans):
+        entry = by_window.get(w)
+        if entry is None:
+            out.append(_MISSING)
+            continue
+        local = {k: v for k, v in entry.items() if k != "window"}
+        local["turns"] = [
+            t - base for t in _int_lines(entry.get("turns")) if base < t <= base + count
+        ]
+        out.append(local)
+    return out
+
+
 # --- the manager ----------------------------------------------------------------------------
 
 
@@ -491,6 +615,8 @@ class _Store:
     inflight_batch: list[_Job] = field(default_factory=list)
     batch_timer: asyncio.TimerHandle | None = None
     session_windows: Counter[str] = field(default_factory=Counter)
+    #: W2-06b: the last turns of the previous window (the CONTEXT part of the prompt)
+    tail: list[str] = field(default_factory=list)
 
 
 class WindowPipeline:
@@ -518,7 +644,10 @@ class WindowPipeline:
         clock: Callable[[], float] = time.time,
         role_policy: bool = False,
         envelope: EnvelopeWrite | None = None,
+        context_builder: PromptContextBuilder | None = None,
     ) -> None:
+        #: W2-06b (``write.prompt_v2``): one call per window or batch, NEW / CONTEXT / KNOWN.
+        self._ctx = context_builder
         self._role_policy = role_policy  # W2-03: write.role_policy_v2
         self.settings = settings
         self.sections = tuple(sections)
@@ -554,7 +683,9 @@ class WindowPipeline:
         #: W2-05 (``write.segmentation_v2``): time-gap/adaptive segmenter and the call batcher.
         self._seg = segmentation
         self._clock = clock
-        self._batch_sections = tuple(s for s in self.sections if s != "episode")
+        self._batch_sections = tuple(
+            s for s in self.sections if s != "episode" or self._ctx is not None
+        )
         self._batcher: CallBatcher | None = None
         if segmentation is not None and segmentation.batching and self._batch_sections:
             self._batcher = CallBatcher(
@@ -1183,7 +1314,16 @@ class WindowPipeline:
         transcript = "\n".join(lines)
         all_ids = [r.record_id for _, _, records in live for r in records]
         batch_id = fingerprint_payload({"ns": ns, "turns": all_ids})[:12]
-        variables = {"content": transcript, "participants": ", ".join(people), "turn_count": base}
+        variables: dict[str, Any] = {
+            "content": transcript,
+            "participants": ", ".join(people),
+            "turn_count": base,
+        }
+        if self._ctx is not None:
+            variables = await self._with_prompt_context(
+                ns, variables, [t for texts in texts_by_window for t in texts], len(live)
+            )
+            self._store(ns).tail = self._ctx.tail(texts_by_window[-1])
         self._counts["windows_processed"] += len(live)
         self._counts["batches"] += 1
         self._counts["batched_windows"] += len(live)
@@ -1208,6 +1348,10 @@ class WindowPipeline:
                 for merged in per_window:
                     merged[section] = _MISSING
                 continue
+            if section == "episode":
+                for merged, part in zip(per_window, split_batch_episodes(raw, spans), strict=True):
+                    merged[section] = part
+                continue
             parts, cross = split_batch_section(section, raw, spans)
             for merged, part in zip(per_window, parts, strict=True):
                 merged[section] = part
@@ -1221,7 +1365,7 @@ class WindowPipeline:
             member_ids = [r.record_id for r in records]
             window_id = fingerprint_payload({"ns": ns, "turns": member_ids})[:12]
             window_failed = failed
-            if "episode" in self.sections:
+            if "episode" in self.sections and self._ctx is None:
                 ep_transcript, _, who = build_transcript(records)
                 ep_vars = {
                     "content": ep_transcript,
@@ -1251,7 +1395,7 @@ class WindowPipeline:
                 per_window[w],
                 texts_by_window[w],
                 window_id,
-                2 if "episode" in self.sections else 1,
+                2 if "episode" in self.sections and self._ctx is None else 1,
                 window_failed,
             )
         return out
@@ -1353,6 +1497,8 @@ class WindowPipeline:
 
     def _groups(self) -> list[tuple[str, ...]]:
         secs = self.sections
+        if self._ctx is not None:  # W2-06b: one call carries every section
+            return [secs]
         first = tuple(s for s in secs if s != "episode")
         second = tuple(s for s in secs if s == "episode")
         if len(secs) < 2 or not first or not second:
@@ -1389,6 +1535,11 @@ class WindowPipeline:
                     "sections": list(group),
                     "content": transcript,
                     "participants": variables.get("participants"),
+                    **(
+                        {"ctx": [variables.get("context"), variables.get("known")]}
+                        if self._ctx is not None
+                        else {}
+                    ),
                 }
             )
             try:
@@ -1473,6 +1624,8 @@ class WindowPipeline:
             "participants": ", ".join(people),
             "turn_count": len(records),
         }
+        if self._ctx is not None:
+            variables = await self._with_prompt_context(ns, variables, line_texts)
         self._counts["windows_processed"] += 1
         tap.event(
             "write.window.planned",
@@ -1500,6 +1653,24 @@ class WindowPipeline:
             await self._purge_window_cache(member_ids)
             return None
         return _Prepared(job, records, merged, line_texts, window_id, len(groups), failed)
+
+    async def _with_prompt_context(
+        self, ns: str, variables: dict[str, Any], texts: Sequence[str], windows: int = 0
+    ) -> dict[str, Any]:
+        """W2-06b: add CONTEXT (the previous window's tail) and KNOWN to the prompt variables."""
+        assert self._ctx is not None
+        store = self._store(ns)
+        built = await self._ctx.build(ns, "\n".join(texts), store.tail)
+        store.tail = self._ctx.tail(texts)
+        out = {
+            **variables,
+            "context": built.context,
+            "known": built.known,
+            "known_count": built.known_count,
+        }
+        if windows:
+            out["windows"] = windows
+        return out
 
     async def _compile_items(
         self,

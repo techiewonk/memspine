@@ -178,6 +178,12 @@ class PromptRegistry:
         self._prompts[prompt_id] = self._bind(prompt)
         self._overridden.add(prompt_id)
 
+    def partial(self, name: str) -> str:
+        """W2-06b: the text of shared partial ``name`` as this registry renders it (a partial
+        switched off by ``prompts.layout_partials``, or overridden by ``prompts.partials``, is
+        honoured), for the one-call window prompt."""
+        return self._env.get_template(f"{name}.j2").render().strip()
+
     def get(self, prompt_id: str) -> Prompt:
         prompt = self._prompts.get(prompt_id)
         if prompt is None:
