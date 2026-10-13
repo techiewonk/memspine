@@ -44,6 +44,10 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("arm")
     ap.add_argument("--ref", required=True)
     ap.add_argument("--runs-dir", type=Path, default=HERE / "runs")
+    ap.add_argument("--ledger-screen", default="", help="RUNBOOK2: also append the result to runs/_logs/v2_results.tsv")
+    ap.add_argument("--ledger-mode", default="final")
+    ap.add_argument("--ledger-arm", default="")
+    ap.add_argument("--ledger-commit", default="")
     a = ap.parse_args(argv)
     if a.ref == a.arm:
         ap.error("--ref must name a different run than the arm")
@@ -55,6 +59,10 @@ def main(argv: list[str] | None = None) -> int:
                ref_manifest=read_manifest(results_path(a.runs_dir, a.ref)))
     for line in format_result(f"{a.arm} vs {a.ref}", r):
         print(line)
+    if a.ledger_screen:
+        import v2_ledger
+        v2_ledger.append_paired(r, mode=a.ledger_mode, screen=a.ledger_screen, arm=a.ledger_arm or a.arm, reference=a.ref,
+                                commit=a.ledger_commit, slice_id="full")
     print(f"verdict: {r.verdict}")
     return 0
 

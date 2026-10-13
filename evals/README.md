@@ -1016,3 +1016,7 @@ adapter's own content hash. The `cost` block is only known after the run, so lin
 `pinned_run.sh` builds each pinned commit's venv from its own `uv.lock` under `../memspine-venvs/<hash>/`
 (`PINNED_SHARED_VENV=1` keeps the shared venv, `PINNED_DRY_RUN=1` prints the plan, `PINNED_EXTRAS` sets the extras,
 default `--all-extras`).
+
+## v2 screens: sample-first (RUNBOOK2)
+
+`MODE=sample|focus|final bash run_v2_queue.sh` (default sample): small seeded stratified slices (`make_sample_slice.py`, `analysis/sample_slice_*.json`), descriptive scoring (`eval_sample.py`, no verdict), append-only ledger `runs/_logs/v2_results.tsv` (`v2_ledger.py summary|history|mark`), and a final full + sealed-blind run only for screens marked `promote_candidate`. Workflow and GPU-time estimates: `docs/v2/SCREENS.md`.

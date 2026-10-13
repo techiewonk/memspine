@@ -4,6 +4,66 @@ Owner decision 2026-10-13: the GPU stays stopped, every behaviour change is buil
 This file is the ordered queue; `evals/v2_queue.tsv` is the same list in machine form and `evals/run_v2_queue.sh` runs it.
 Nothing here has been run. Every status is `queued`; the runner writes live status to `evals/runs/_logs/v2_queue.state`.
 
+## Sample-first workflow (owner decision 2026-10-13)
+
+"When we use GPU, don't run complete tests; test with samples and keep recording, so we can iterate, and in the final run enhance
+and optimise based on the small results." The queue therefore has three modes (`MODE=sample` is the DEFAULT):
+
+| Mode | What runs | Output | Never |
+|---|---|---|---|
+| `sample` | each arm and its reference on a small seeded stratified sample slice | descriptive row in the ledger | blind sets; a PROMOTE verdict; skip-if-finished (re-running is the point) |
+| `focus` | today's focus-slice paired screens (LoCoMo 437 q, OP-Bench dev 331) | gate verdicts + ledger row | full and blind sets |
+| `final` | LoCoMo full with the paired gate (+ OP-Bench dev where the row has it), then the sealed blind sets (one exposure per arm) | gate verdicts + ledger row | any screen not marked `promote_candidate` |
+
+The loop:
+
+1. **Sample batch.** `MODE=sample bash evals/run_v2_queue.sh --only B1` (or `B2`, `B3`, or a list of ids). Dry run first with
+   `PINNED_DRY_RUN=1`. The reference run of each reference arm is built once per slice + commit and reused by every arm
+   (`runs/smp-ref-<ref arm>-<commit>-<slice>`); run ids of arms are `smp-<id>-<loc|opb>-<MMDD-HHMM>`, so an iteration never
+   overwrites the last one.
+2. **Read.** `python evals/v2_ledger.py summary --mode sample` lists the latest result of every screen, best net first, ties broken
+   by the lower end of the interval. Each row: wins / losses / ties, net, delta in points with a paired bootstrap interval
+   (a spread over 60-80 questions, not a test), per-category wins/losses, tokens and latency p50/p95. `history <screen>` shows every
+   iteration with the arm-file digest, so a change to the arm between iterations is visible next to its effect.
+3. **Iterate.** Change the arm (flags, parameters in `evals/arms/<arm>.json`), commit, re-run only that screen
+   (`--only S13`). The reference is rebuilt only if the commit or the slice changed (pass `--commit` to keep one code commit
+   when only arm files moved). Record the decision with `python evals/v2_ledger.py mark S13 iterate|drop|promote_candidate "why"`.
+4. **One final run.** `MODE=final bash evals/run_v2_queue.sh`: only `promote_candidate` screens run the full set (LoCoMo 1,540 vs
+   `clean-jina-full`, paired gate) and, for rows with a blind set, the sealed MAB-CR / ConvoMem sets via `eval_blind.py`. The
+   rest print "not a promote_candidate". Freeze the arms before this run: the blind sets are exposed once per arm.
+
+Sample slices (ids only, no benchmark text; `evals/make_sample_slice.py`, seed 20261013; the `slice_id` and the 16-hex ids hash go
+into the run manifest and so into the comparability key; a sample run is only comparable with a run on the same slice):
+
+| Slice file | Questions | Strata | Used by |
+|---|---|---|---|
+| `analysis/sample_slice_loc_80_s20261013.json` | 80 of 1,540 LoCoMo (cat 1: 16, 2: 18, 3: 9, 4: 37; the source run has no cat 5) | category (floor 6), then conversation; all 10 conversations | all non-engine-LLM rows |
+| `analysis/sample_slice_loc_60_s20261013_c3.json` | 60 LoCoMo from 3 seeded conversations (conv-42, conv-48, conv-50) | same | engine-LLM rows (kind GC: S01-S04, S28), which are ingest-bound |
+| `analysis/sample_slice_opb_60_s20261013.json` | 60 of 331 OP-Bench probes (diversity 25, irrelevance_easy 12, irrelevance_hard 8, sycophancy 15) | probe family, then person | OP-Bench rows (S20, S23, S27) |
+
+Blind sets (MAB-CR, ConvoMem, PrefEval) are never sampled: a sample is for iteration, a blind set is seen once. A sample of 60-80
+questions cannot carry an adoption decision (band 0.328*sqrt(80) = 2.9 questions); it ranks arms and shows where to iterate.
+The 2-question check run is dropped in sample mode (the sample itself is the check; a failed run is recorded as RUN_FAILED).
+
+Ledger `evals/runs/_logs/v2_results.tsv` (append-only, header row, git-ignored): `ts, mode, screen, arm, arm_digest, reference,
+commit, slice_id, slice_hash, n, wins, losses, ties, net, delta, ci_low, ci_high, per_category, cost, latency_p50_ms,
+latency_p95_ms, comparability_key, verdict, notes`. Decisions: `v2_decisions.tsv` beside it (last line per screen wins).
+
+GPU time per mode (estimates from measured runs: focus 437 q = 17 min, of which ingest about 3.5 min; full 1,540 q = 41 min; about
+1.7 s per question after ingest; engine-LLM ingest from `GAP_REGISTER.md`):
+
+| Unit | Sample | Focus | Final |
+|---|---|---|---|
+| Non-GC LoCoMo screen | about 7 min (3.5 ingest, 80 q about 2.3, start-up 1) | 20 min | 45 min (full) + 65 min blind (+ 65 min once for the blind reference) |
+| OP-Bench screen | about 6 min | 20 min | included in the row's full set |
+| Engine-LLM screen (GC, 3 conversations) | 11 (gc9) / 24 (gc2) / 39 (gc3) / 33 (window) / 40 (S28) min | 45-150 min | ingest + 45 min + 65 min blind |
+| Reference runs | once per ref arm + commit + slice: 7 (LoCoMo 80), 5 (c3), 6 (OP-Bench) min | one run | `clean-jina-full` already exists |
+
+Whole queue: **sample about 6.5 h** (B1 2.3 h, B2 2.9 h, B3 1.3 h, references included) against the 17 h floor / 25.3 h ceiling of
+the focus-first plan; **final** about 110 min per promote_candidate with a blind set (+ 65 min once), so 5 candidates are about
+10 h. Each further sample iteration of one non-GC screen costs about 7 min. These are planning figures derived from the measured
+runs above; no sample run has been made yet.
+
 ## How to run the whole batch
 
 1. Merge the wiring branches first. The queue is pinned to ONE commit (`--commit`, default HEAD) and `pinned_run.sh` builds that
@@ -12,7 +72,8 @@ Nothing here has been run. Every status is `queued`; the runner writes live stat
 2. `python -m pytest evals/tests/test_v2_arms.py -q -rs`: the skip list names every flag the commit still lacks. A screen whose flag
    is missing is not run (its behavioural step reports ERROR and the row becomes BLOCKED).
 3. `PINNED_DRY_RUN=1 bash evals/run_v2_queue.sh` prints every command and runs nothing.
-4. Start Ollama (qwen3.5:9b, reader/judge and engine roles) and run `bash evals/run_v2_queue.sh`. Run it again after a crash: finished
+4. Start Ollama (qwen3.5:9b, reader/judge and engine roles) and run `MODE=sample bash evals/run_v2_queue.sh` (sample is the default; see
+   the sample-first workflow above; the focus-first description below is `MODE=focus`, the full + blind run is `MODE=final`). Run it again after a crash: finished
    rows are skipped (`--rerun` forces). Limit with `--only S01,B2`.
 5. Read `evals/runs/_logs/v2_queue.log`. Adoption is a separate step: `suite/gate.py` composed with the behavioural report, and the owner.
 

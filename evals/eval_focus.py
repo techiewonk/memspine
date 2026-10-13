@@ -108,6 +108,10 @@ def main() -> None:
     ap.add_argument("--slice", type=Path, default=None)
     ap.add_argument("--opb", action="store_true", help="force OP-Bench scoring (auto if opbench_summary.json exists)")
     ap.add_argument("--runs-dir", type=Path, default=HERE / "runs")
+    ap.add_argument("--ledger-screen", default="", help="RUNBOOK2: also append the result to runs/_logs/v2_results.tsv")
+    ap.add_argument("--ledger-mode", default="focus")
+    ap.add_argument("--ledger-arm", default="")
+    ap.add_argument("--ledger-commit", default="")
     a = ap.parse_args()
     run_dir = a.runs_dir / f"{a.arm_run}--memspine"
     is_opb = a.opb or (run_dir / "opbench_summary.json").exists()
@@ -157,6 +161,10 @@ def main() -> None:
     print("   paired gate (G-E1):")
     for line in format_result("LoCoMo slice", pr):
         print("   " + line)
+    if a.ledger_screen:
+        import v2_ledger
+        v2_ledger.append_paired(pr, mode=a.ledger_mode, screen=a.ledger_screen, arm=a.ledger_arm or a.arm_run,
+                                reference=a.ref, commit=a.ledger_commit, slice_id=sl_path.stem, slice_hash=sl["hash"][:16])
     print(f"verdict: {pr.verdict}")
 
 
