@@ -15,9 +15,12 @@ from memspine.derive.pipeline.stages.context import (
     PipelineContext,
     _parents_gone,
     _policy_options,
+    live_record,
+    live_records,
     sweep_namespaces,
 )
 from memspine.derive.pipeline.stages.index import COMMUNITY_PARTITION_MARKER, CommunityState
+from memspine.derive.pipeline.stages.offline_door import link_summary, stamp_summary
 from memspine.memories.associative.communities import (
     PartitionResult,
     communities_available,
@@ -63,7 +66,7 @@ async def _reorganize_records(ctx: PipelineContext, namespace: str) -> list[Memo
     """Every summary parent this pipeline wrote in ``namespace``, any status."""
     return [
         record
-        for record in await ctx.storage.list_records(namespace, "semantic")
+        for record in await live_records(ctx, namespace, "semantic")
         if record.source.channel == "reorganize"
     ]
 
@@ -433,7 +436,7 @@ async def _reorganize_summaries(ctx: PipelineContext, namespace: str) -> list[Me
     """Active summary parents this pipeline previously wrote in ``namespace``."""
     return [
         record
-        for record in await ctx.storage.list_records(namespace, "semantic")
+        for record in await live_records(ctx, namespace, "semantic")
         if record.source.channel == "reorganize" and record.status is RecordStatus.ACTIVATED
     ]
 
@@ -445,7 +448,7 @@ async def _resolve_community(
     None when too few qualify."""
     members: list[MemoryRecord] = []
     for record_id in community:
-        record = await ctx.storage.get_record(record_id)
+        record = await live_record(ctx, record_id)
         # Only live namespace truth feeds a summary (E1): quarantined or
         # non-active members are held/derived content, not community evidence,
         # and a summary parent is never a member of a community (no
@@ -558,6 +561,7 @@ async def _reorganize_community(
             trust=min(member.trust for member in members),
             instruction_flag=instruction_shaped(summary_text),
         )
+        summary = stamp_summary(ctx, summary, "reorganize")  # FU-SAFE: layer + derivation
         # The WRITE carries consolidation-shaped provenance, so audit taint and
         # the graph projector's derived_from edges ride existing machinery.
         await ctx.append_event(
@@ -571,6 +575,7 @@ async def _reorganize_community(
                 },
             )
         )
+        await link_summary(ctx, namespace, summary, member_ids, "reorganize")  # FU-SAFE
         # Member -> parent LINK events (ADR-015). System-written membership
         # links are budget-exempt by design: budget enforcement lives at the
         # memory-layer creation surface, and a 20-member community keeps all

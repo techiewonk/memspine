@@ -15,6 +15,7 @@ are the record's ``consent_tags`` (none, or ``*``, mean the broadest purpose), t
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from typing import Any
 
 from memspine.observability import tap
@@ -51,6 +52,22 @@ def _consent_ok(eng: Any, record: MemoryRecord) -> bool:
     if cfg.v2:
         return read_decision(eng, record, current_purpose()).allowed
     return purpose_allows(record, current_purpose(), cfg)
+
+
+async def offline_live(eng: Any, records: Sequence[MemoryRecord]) -> list[MemoryRecord]:
+    """FU-SAFE (T5-05): the records an offline stage may read. The owner's own view (no read
+    purpose): erased/hidden ids and consent-refused ones are dropped (``_consent_ok``), so are
+    quarantined ones and, under ``consent.v2``, subjects marked do-not-derive (``may_derive``)."""
+    if eng._config().consent.v2:
+        await ensure_registry(eng)
+    out: list[MemoryRecord] = []
+    for r in records:
+        if r.quarantined or not eng._consent_ok(r):
+            continue
+        if eng._config().consent.v2 and derive_denial(eng, r) is not None:
+            continue
+        out.append(r)
+    return out
 
 
 # --------------------------------------------------------------------------- registry

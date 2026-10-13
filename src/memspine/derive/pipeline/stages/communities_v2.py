@@ -38,7 +38,13 @@ from memspine.derive.communities import (
     plan_summary_jobs,
     update,
 )
-from memspine.derive.pipeline.stages.context import PipelineContext, _parents_gone, sweep_namespaces
+from memspine.derive.pipeline.stages.context import (
+    PipelineContext,
+    _parents_gone,
+    live_record,
+    live_records,
+    sweep_namespaces,
+)
 from memspine.derive.pipeline.stages.offline_door import (
     COMMUNITY_CHANNEL,
     COMMUNITY_TAG,
@@ -73,7 +79,7 @@ async def _previous(
 ) -> tuple[list[Community], dict[str, list[MemoryRecord]]]:
     """The live community summaries of ``namespace`` as library communities, and their records by id."""
     by_id: dict[str, list[MemoryRecord]] = {}
-    for record in await ctx.storage.list_records(namespace, "semantic"):
+    for record in await live_records(ctx, namespace, "semantic"):
         if record.source.channel != COMMUNITY_CHANNEL or not is_live(record):
             continue
         cid = _community_id_of(record)
@@ -110,7 +116,7 @@ async def _entity_edges(
             mentions.setdefault(edge.src, set()).add(edge.dst)
     live: dict[str, MemoryRecord] = {}
     for rid in sorted(mentions):
-        record = await ctx.storage.get_record(rid)
+        record = await live_record(ctx, rid)
         if (
             record is not None
             and record.namespace == namespace

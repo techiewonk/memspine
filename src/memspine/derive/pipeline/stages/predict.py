@@ -8,7 +8,7 @@ from memspine.config import constants
 from memspine.core.escaping import escape_markers
 from memspine.core.event_date import happened_of, label_start, normalise_label
 from memspine.core.policies.consolidation import ConsolidationPolicy
-from memspine.derive.pipeline.stages.context import PipelineContext, _policy_options
+from memspine.derive.pipeline.stages.context import PipelineContext, _policy_options, live_records
 from memspine.derive.pipeline.stages.mining import _fact_date
 from memspine.derive.pipeline.stages.session_stage import _legacy_tag_check, _run_session_stage
 from memspine.models.encoders.query.shape import content_words
@@ -79,7 +79,7 @@ async def _known_statements(
     member_ids = {m.record_id for m in members}
     session_words = content_words(" ".join(m.content for m in members))
     scored: list[tuple[int, str, MemoryRecord]] = []
-    for record in await ctx.storage.list_records(namespace, "semantic"):
+    for record in await live_records(ctx, namespace, "semantic"):
         if (
             record.status is not RecordStatus.ACTIVATED
             or record.quarantined

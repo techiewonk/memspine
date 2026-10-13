@@ -267,9 +267,30 @@ async def record_outcome(
             kind="lesson",
             source=SourceInfo(role=actor, channel="lesson", parents=list(derived_from)),
         ).model_copy(update={"tags": [constants.LESSON_TAG, key, f"outcome:{outcome}"]})
+        return await _write_lesson(eng, storage, ns, record, actor, trust_cap)
+
+
+async def _write_lesson(
+    eng: Any,
+    storage: SqlStorage,
+    ns: str,
+    record: MemoryRecord,
+    actor: str,
+    trust_cap: list[float] | None,
+    *,
+    parents: Sequence[str] | None = None,
+) -> MemoryRecord:
+    """FU-SAFE: a lesson through the derived-write door when ``write.lineage_table`` is on and it
+    has parents (the trajectory steps, or the held record), so lineage and erasure find it as a
+    dependant. No parent, or the flag off: the plain write, as before. Caller holds the lock."""
+    pids = list(parents if parents is not None else record.source.parents)
+    if not eng._config().write.lineage_table or not pids:
         return await eng._write_locked(
             storage, ns, record, "procedural", actor, trust_cap=trust_cap
         )
+    return await eng._write_derived(
+        storage, ns, record, "procedural", actor, parents=pids, trust_cap=trust_cap, site="lesson"
+    )
 
 
 async def _repeat_lesson(
@@ -300,7 +321,8 @@ async def _quarantine_lesson(
         kind="lesson",
         source=SourceInfo(role="system", channel="firewall"),
     ).model_copy(update={"tags": [constants.LESSON_TAG, key, "outcome:quarantine"]})
-    await eng._write_locked(storage, ns, record, "procedural", "system")
+    parents = [held.record_id] if await storage.get_record(held.record_id) is not None else []
+    await _write_lesson(eng, storage, ns, record, "system", None, parents=parents)
 
 
 async def recall_lessons(

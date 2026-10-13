@@ -6,7 +6,7 @@ from collections.abc import Awaitable, Callable
 
 from memspine.compose.compression import CompressionPolicy
 from memspine.derive import role_filter
-from memspine.derive.pipeline.stages.context import PipelineContext
+from memspine.derive.pipeline.stages.context import PipelineContext, live_record
 from memspine.derive.pipeline.stages.index import _members_fp, stage_marker
 from memspine.observability import tap
 from memspine.store.events import EventLogMode
@@ -25,7 +25,7 @@ async def _live_members(ctx: PipelineContext, member_ids: list[str]) -> list[Mem
     members: list[MemoryRecord] = []
     role_on = ctx.config.write.role_policy_v2
     for record_id in member_ids:
-        record = await ctx.storage.get_record(record_id)
+        record = await live_record(ctx, record_id)
         if record is None or record.status is not RecordStatus.ACTIVATED or record.quarantined:
             continue
         if role_on:  # W2-03: system turns and echoes are raw only

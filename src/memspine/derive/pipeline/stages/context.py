@@ -325,6 +325,40 @@ class PipelineContext:
     #: FU-ERASE (``privacy.erasure_rederive``): the engine whose erasure queue the
     #: ``erasure_rederive`` stage consumes. None (bare contexts) => the stage self-skips.
     erasure_engine: Any | None = None
+    #: FU-SAFE (T5-05; ``consent.v2`` / ``privacy.erasure_v2``): keeps the records an offline stage
+    #: may read: not quarantined, erasure-visible, consent-allowed, derivable. None (flags off, bare
+    #: contexts) => every record is kept, as before. Stages go through :func:`live_records`.
+    live_gate: Callable[[list[MemoryRecord]], Awaitable[list[MemoryRecord]]] | None = None
+    #: FU-SAFE (``write.lineage_table``): ``(namespace, record, parent ids, site)`` writes the
+    #: lineage edges of a summary a legacy stage appended as a raw WRITE event. None (flag off, bare
+    #: contexts) => no edges, as before. See ``offline_door.stamp_summary`` / ``link_summary``.
+    link_derived: Callable[[str, MemoryRecord, Sequence[str], str], Awaitable[None]] | None = None
+
+
+async def gate_records(ctx: PipelineContext, records: list[MemoryRecord]) -> list[MemoryRecord]:
+    """FU-SAFE: ``records`` minus what ``ctx.live_gate`` refuses (the identity with no gate)."""
+    gate = getattr(ctx, "live_gate", None)  # duck-typed contexts in tests have no gate
+    return records if gate is None else await gate(records)
+
+
+async def live_records(
+    ctx: PipelineContext, namespace: str, memory_type: str | None = None
+) -> list[MemoryRecord]:
+    """FU-SAFE: the one way an offline/sleep stage lists raw records to read their content. With
+    ``consent.v2`` or ``privacy.erasure_v2`` on, an erased or hidden record, a consent-refused or
+    do-not-derive one and a quarantined one are dropped; with both off it is ``list_records``.
+    Stages that must see every row (erasure re-derivation, retention, idempotency checks) call
+    ``ctx.storage.list_records`` directly."""
+    return await gate_records(ctx, await ctx.storage.list_records(namespace, memory_type))
+
+
+async def live_record(ctx: PipelineContext, record_id: str) -> MemoryRecord | None:
+    """FU-SAFE: ``get_record`` through the same gate (None when absent or refused)."""
+    record = await ctx.storage.get_record(record_id)
+    gate = getattr(ctx, "live_gate", None)
+    if record is None or gate is None:
+        return record
+    return record if await gate([record]) else None
 
 
 async def sweep_namespaces(ctx: PipelineContext) -> list[str]:
