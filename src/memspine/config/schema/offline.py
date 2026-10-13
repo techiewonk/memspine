@@ -84,6 +84,34 @@ class OfflineConfig(BaseModel):
     #: A cold group needs at least this many eligible members to be compressed.
     decay_group_min_size: int = Field(default=2, ge=1)
 
+    #: O4-01a (O-01, O-02, O-03; LIB-07): non-blocking sleep. ``True``: ``Engine.sleep()`` returns a
+    #: ``SleepHandle`` at once (``status()``, ``wait()``, ``cancel()``) and the cycle runs as a
+    #: namespace job under a persisted lease (epoch-fenced, so one runner per namespace across
+    #: processes) with a per-stage watermark (a restart resumes after the last completed stage).
+    #: A ``TriggerPolicy`` also fires a job on its own: (``sleep_min_turns`` N new deposits AND
+    #: ``sleep_idle_minutes`` M minutes idle) OR context pressure ``sleep_context_pressure`` C, both
+    #: behind a ``sleep_min_gap_minutes`` K gap since the last run, evaluated on commit, from an idle
+    #: timer and at engine open. A daily maintenance job (retention, decay, compress) runs every
+    #: ``sleep_maintenance_hours``. ``False`` (default): the blocking sleep, exactly as before.
+    #: Taps: ``job.sleep.handle``, ``job.trigger``, ``job.lease``, ``job.watermark``.
+    sleep_v2: bool = False
+    #: N: deposits since the last run before a trigger can fire (0 = the interval-loop migration).
+    sleep_min_turns: int = Field(default=20, ge=0)
+    #: M: minutes without a deposit before the deposit trigger fires.
+    sleep_idle_minutes: float = Field(default=10.0, ge=0.0)
+    #: C: context pressure (0..1] that fires a job without waiting for N and M (still behind K).
+    sleep_context_pressure: float = Field(default=0.70, gt=0.0, le=1.0)
+    #: K: minimum minutes between two trigger-fired runs of one namespace (manual sleeps bypass it).
+    sleep_min_gap_minutes: float = Field(default=60.0, ge=0.0)
+    #: Hours between daily maintenance jobs (decay, retention, compress); a full sleep counts as one.
+    sleep_maintenance_hours: float = Field(default=24.0, gt=0.0)
+    #: Seconds a namespace lease lasts without a heartbeat before another job may take it over.
+    sleep_lease_ttl_seconds: float = Field(default=300.0, gt=0.0)
+    #: ``True``: with ``sleep_v2`` on, only a manual ``sleep()`` starts a job; deposit commits do not
+    #: arm idle timers and engine open does no catch-up (deterministic runs). ``False`` (default):
+    #: the trigger policy fires jobs on its own.
+    sleep_manual_only: bool = False
+
     @model_validator(mode="after")
     def _decay_bands(self) -> OfflineConfig:
         b = self.decay_boundaries

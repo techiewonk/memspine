@@ -86,6 +86,7 @@ from memspine.derive.pipeline.stages.context import (
     SummarizeIncremental,
 )
 from memspine.derive.pipeline.stages.table import PIPELINES
+from memspine.derive.scheduler import DerivationScheduler
 from memspine.economy.slo import timed_read
 from memspine.exceptions import (
     ConfigError,
@@ -367,6 +368,8 @@ class Engine:
         self._runner: TaskRunner | None = None
         self._sched_v2: _scheduler_rt.Scheduler | None = None  # RT-02
         self._scheduler: SleepScheduler | None = None  # D1: autonomous sleep loop
+        #: O4-01a: namespace jobs, leases, watermarks and triggers (``offline.sleep_v2``).
+        self._derive_sched: DerivationScheduler | None = None
         self._started = False
         self._write_locks: dict[str, asyncio.Lock] = {}
         #: #63: open neighbour batches per namespace (they observe every write).
@@ -664,6 +667,10 @@ class Engine:
 
                 self._scheduler = SleepScheduler(interval, _tick)
                 self._scheduler.start()
+        if config.offline.sleep_v2:  # O4-01a: non-blocking sleep, triggers, leases, watermarks
+            self._derive_sched = derive_scheduler.build_sleep_v2(self, config)
+            if not config.offline.sleep_manual_only:
+                await self._derive_sched.on_open()
         self._install_write_timers(config)
         if config.observability.tap.enabled:  # WT-01: debugging wiretap, off by default
             tap.configure(config.observability.tap)
@@ -726,6 +733,9 @@ class Engine:
         if self._scheduler is not None:
             await self._scheduler.stop()  # stop the loop before tearing down its deps
             self._scheduler = None
+        if self._derive_sched is not None:  # O4-01a: cancel timers and jobs (cycles stay open)
+            derive_sched, self._derive_sched = self._derive_sched, None
+            await derive_sched.stop()
         if self._windows is not None:
             await self._windows.stop()  # window workers and idle timers, before the storage goes
         if self._runner is not None:
@@ -4519,9 +4529,12 @@ class Engine:
         return admin.llm(self, role)
 
     @tap.traced("job")
-    async def sleep(self) -> dict[str, dict[str, object]]:
+    async def sleep(self) -> Any:
         """Run the maintenance sleep cycle now (M2/E7): consolidate → decay →
-        compress → prune. All steps are idempotent; P3 gives them teeth."""
+        compress → prune. All steps are idempotent; P3 gives them teeth.
+
+        Under ``offline.sleep_v2`` returns a ``SleepHandle`` at once instead of the stage stats
+        (``await handle.wait()`` gives the stats)."""
         return await derive_scheduler.sleep(self)
 
     def _inflate_all(self, records: list[MemoryRecord], namespace: str) -> list[MemoryRecord]:
@@ -4621,6 +4634,9 @@ class Engine:
             snapshot.clear()
         event = await self._inherit_governance(event)
         appended = await self._storage.append_event(event)
+        if self._derive_sched is not None and event.kind is EventKind.WRITE:
+            # O4-01a: count the deposit toward the sleep trigger
+            self._derive_sched.on_commit(event.namespace, appended.seq or 0)
         read_request._bump_generations(self, event)  # R3-15: read-cache generations
         if appended.seq is None:  # pragma: no cover - write door always assigns seq
             raise MemspineError("write door returned an event without seq")
