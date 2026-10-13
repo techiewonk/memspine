@@ -71,6 +71,8 @@ def is_active(value: Any) -> bool:
         return False
     if isinstance(value, str):
         return value.lower() not in _OFF
+    if isinstance(value, (int, float)):
+        return value != 0  # FU-RRPOOL: a count key (0 = off) is active when above zero
     return True
 
 
@@ -123,6 +125,9 @@ REQUIRES: dict[str, tuple[Need, ...]] = {
             ("cache", "web"),
             why="the E03 opt-in; this flag never enables lookups",
         ),
+    ),
+    "read.rerank_v2_search_pool": (
+        Need("read.rerank_v2", why="the v2 reranker the wide pool feeds"),
     ),
     "read.graph_node_search": (Need("graph.entity_embeddings", why="embedded entity names"),),
     "read.deep_v2": (

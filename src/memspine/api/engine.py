@@ -2015,6 +2015,7 @@ class Engine:
         hide: Callable[[MemoryRecord], bool] | None = None,
         probes: Sequence[str] = (),
         fused_legs: Sequence[list[LegHit]] = (),
+        search_pool: int = 0,
     ) -> list[tuple[MemoryRecord, float]]:
         return await read_router._search(
             self,
@@ -2029,6 +2030,7 @@ class Engine:
             hide=hide,
             probes=probes,
             fused_legs=fused_legs,
+            search_pool=search_pool,
         )
 
     def _reply_budget(self, budget_tokens: int) -> int:

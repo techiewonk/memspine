@@ -86,10 +86,14 @@ def test_defaults_are_valid_and_every_required_flag_is_off() -> None:
         assert not is_active(resolve_path(cfg, key)), f"{key} must default to off"
 
 
+#: count keys (0 = off): not in the flag registry, which lists bools and Literal modes only.
+_COUNT_KEYS = {"economy.budget", "read.rerank_v2_search_pool"}
+
+
 def test_every_declared_key_exists() -> None:
     reg = flags.registry()
     for key, needs in REQUIRES.items():
-        assert key in reg or key == "economy.budget", f"{key} is not a flag of the schema"
+        assert key in reg or key in _COUNT_KEYS, f"{key} is not a flag of the schema"
         for need in needs:
             for path in (need.path, *need.alt):
                 assert path in reg or path.startswith(("llm.roles.", "workers.", "economy.")), path

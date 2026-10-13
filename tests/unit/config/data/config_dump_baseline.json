@@ -504,6 +504,7 @@
     "fastembed"
    ],
    "rerank_v2_pool": 64,
+   "rerank_v2_search_pool": 0,
    "resolve_durations": false,
    "resolve_relative_dates": false,
    "role_aware": false,
@@ -683,7 +684,7 @@
    "window_topic_k": 2.0
   }
  },
- "json_schema_sha256": "04d0a60694ea1d6b89ec43903f86b4cc948247b8b1168020789b0a77b7484a03",
+ "json_schema_sha256": "a19829239b7a07bbd96e42a4b8594e33d42208953478b60460e64ae590fec2bd",
  "preset:chat_roles": {
   "audit": {
    "actions": false,
@@ -1216,6 +1217,7 @@
     "fastembed"
    ],
    "rerank_v2_pool": 64,
+   "rerank_v2_search_pool": 0,
    "resolve_durations": false,
    "resolve_relative_dates": true,
    "role_aware": false,
@@ -1927,6 +1929,7 @@
     "fastembed"
    ],
    "rerank_v2_pool": 64,
+   "rerank_v2_search_pool": 0,
    "resolve_durations": false,
    "resolve_relative_dates": true,
    "role_aware": false,
@@ -2638,6 +2641,7 @@
     "fastembed"
    ],
    "rerank_v2_pool": 64,
+   "rerank_v2_search_pool": 0,
    "resolve_durations": false,
    "resolve_relative_dates": true,
    "role_aware": false,
@@ -3349,6 +3353,7 @@
     "fastembed"
    ],
    "rerank_v2_pool": 64,
+   "rerank_v2_search_pool": 0,
    "resolve_durations": false,
    "resolve_relative_dates": true,
    "role_aware": false,
@@ -4060,6 +4065,7 @@
     "fastembed"
    ],
    "rerank_v2_pool": 64,
+   "rerank_v2_search_pool": 0,
    "resolve_durations": false,
    "resolve_relative_dates": true,
    "role_aware": false,
@@ -4771,6 +4777,7 @@
     "fastembed"
    ],
    "rerank_v2_pool": 64,
+   "rerank_v2_search_pool": 0,
    "resolve_durations": false,
    "resolve_relative_dates": true,
    "role_aware": false,
@@ -5482,6 +5489,7 @@
     "fastembed"
    ],
    "rerank_v2_pool": 64,
+   "rerank_v2_search_pool": 0,
    "resolve_durations": false,
    "resolve_relative_dates": true,
    "role_aware": false,
@@ -6197,6 +6205,7 @@
     "fastembed"
    ],
    "rerank_v2_pool": 64,
+   "rerank_v2_search_pool": 0,
    "resolve_durations": false,
    "resolve_relative_dates": true,
    "role_aware": false,
@@ -6908,6 +6917,7 @@
     "fastembed"
    ],
    "rerank_v2_pool": 64,
+   "rerank_v2_search_pool": 0,
    "resolve_durations": false,
    "resolve_relative_dates": true,
    "role_aware": false,
@@ -7619,6 +7629,7 @@
     "fastembed"
    ],
    "rerank_v2_pool": 64,
+   "rerank_v2_search_pool": 0,
    "resolve_durations": false,
    "resolve_relative_dates": true,
    "role_aware": false,
@@ -8330,6 +8341,7 @@
     "fastembed"
    ],
    "rerank_v2_pool": 64,
+   "rerank_v2_search_pool": 0,
    "resolve_durations": false,
    "resolve_relative_dates": true,
    "role_aware": false,
@@ -9041,6 +9053,7 @@
     "fastembed"
    ],
    "rerank_v2_pool": 64,
+   "rerank_v2_search_pool": 0,
    "resolve_durations": false,
    "resolve_relative_dates": true,
    "role_aware": false,
@@ -9752,6 +9765,7 @@
     "fastembed"
    ],
    "rerank_v2_pool": 64,
+   "rerank_v2_search_pool": 0,
    "resolve_durations": false,
    "resolve_relative_dates": false,
    "role_aware": false,
@@ -10463,6 +10477,7 @@
     "fastembed"
    ],
    "rerank_v2_pool": 64,
+   "rerank_v2_search_pool": 0,
    "resolve_durations": false,
    "resolve_relative_dates": true,
    "role_aware": false,
@@ -11174,6 +11189,7 @@
     "fastembed"
    ],
    "rerank_v2_pool": 64,
+   "rerank_v2_search_pool": 0,
    "resolve_durations": false,
    "resolve_relative_dates": true,
    "role_aware": false,
@@ -11885,6 +11901,7 @@
     "fastembed"
    ],
    "rerank_v2_pool": 64,
+   "rerank_v2_search_pool": 0,
    "resolve_durations": false,
    "resolve_relative_dates": true,
    "role_aware": false,
@@ -12605,6 +12622,7 @@
     "fastembed"
    ],
    "rerank_v2_pool": 64,
+   "rerank_v2_search_pool": 0,
    "resolve_durations": false,
    "resolve_relative_dates": true,
    "role_aware": false,
@@ -13321,6 +13339,7 @@
     "fastembed"
    ],
    "rerank_v2_pool": 64,
+   "rerank_v2_search_pool": 0,
    "resolve_durations": false,
    "resolve_relative_dates": true,
    "role_aware": false,
@@ -14022,6 +14041,7 @@
     "fastembed"
    ],
    "rerank_v2_pool": 64,
+   "rerank_v2_search_pool": 0,
    "resolve_durations": false,
    "resolve_relative_dates": false,
    "role_aware": false,
@@ -14737,6 +14757,7 @@
     "fastembed"
    ],
    "rerank_v2_pool": 64,
+   "rerank_v2_search_pool": 0,
    "resolve_durations": false,
    "resolve_relative_dates": true,
    "role_aware": false,
@@ -15452,6 +15473,7 @@
     "fastembed"
    ],
    "rerank_v2_pool": 64,
+   "rerank_v2_search_pool": 0,
    "resolve_durations": false,
    "resolve_relative_dates": true,
    "role_aware": false,
@@ -16171,6 +16193,7 @@
     "fastembed"
    ],
    "rerank_v2_pool": 64,
+   "rerank_v2_search_pool": 0,
    "resolve_durations": false,
    "resolve_relative_dates": true,
    "role_aware": false,
@@ -16882,6 +16905,7 @@
     "fastembed"
    ],
    "rerank_v2_pool": 64,
+   "rerank_v2_search_pool": 0,
    "resolve_durations": false,
    "resolve_relative_dates": true,
    "role_aware": false,
@@ -17594,6 +17618,7 @@
     "fastembed"
    ],
    "rerank_v2_pool": 64,
+   "rerank_v2_search_pool": 0,
    "resolve_durations": false,
    "resolve_relative_dates": true,
    "role_aware": false,
@@ -18307,6 +18332,7 @@
     "fastembed"
    ],
    "rerank_v2_pool": 64,
+   "rerank_v2_search_pool": 0,
    "resolve_durations": false,
    "resolve_relative_dates": true,
    "role_aware": false,
