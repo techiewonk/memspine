@@ -241,3 +241,66 @@ Forensics check (`evals/runs/smp-S*-loc-1013-1228--forensics/forensics.jsonl` vs
 | S14 | `read.family_fusion` (R3-06) | 80 / 80 / 74 | Live: +4/-1, net +3. Candidate for a focus run. |
 
 Rule taken: a 0/0/0 forensic diff means the screen did not exercise the flag; it is marked `iterate`, never `drop`, and re-queued on an arm that builds the layer it needs.
+
+## Resume list (GPU taken by the owner, 2026-10-13)
+
+Nothing below runs until the GPU is free again. In this order: S16 (rerun), S17-S27 (rest of B2), B3 (S28), B4 (S29), then B5 and B6 below.
+Dry runs that load models are also held; the B5/B6 rows were checked statically only (see "Static validation").
+
+## B5 / B6 plan (Q-B5)
+
+B5 turns the flags that need the sleep cycle (kind GC) into screens on the best B1 GC arm, `scr-gc3-graph-jina` (S02, +4 net). B6
+is the one J flag worth a focus run. No GPU was used; arms and rows are static.
+
+Arms are generated: `python evals/gen_b5_arms.py` writes `evals/arms/scr-gc3-<name>.json` = the gc3 arm plus the listed flags and nothing
+else (plus an LLM role `session_close` / `window_extract`, bound like the existing gc3 roles, where the flag needs one). `--check` validates every
+arm against the config schema. Sample set for GC rows: `analysis/sample_slice_loc_60_s20261013_c3.json`. Reference: a row's `ref_run`
+`v2-S02-i2` resolves to the S02 arm (one cached gc3 sample run per commit and slice) so each row isolates its flag; S44 and S45 use
+S43 (gc3 + `write.window_extract=facts`) because their flags only exist on a window write. Run: `MODE=sample bash evals/run_v2_queue.sh --only B5`
+(or ids), later `MODE=focus ... --only B6`.
+
+| Row | Flag(s) in the arm | Base | Reference | Kind | Set | Expected effect | Sample min | Focus min |
+|---|---|---|---|---|---|---|---|---|
+| S30 | `read.graph_leg_v2` + `read.legs_v2` + `graph.edge_compiler_v2` | gc3 | S02 | GC | f | New graph one-hop leg over compiled edges; multi-hop and list questions. Read with S38 + S39 for the split | 42 | 150 |
+| S31 | `read.episode_leg_v2` + `read.legs_v2` (L2 from `offline.session_close_v2`) | gc3 | S02 | GC | f | Episode hits lifted to member turns; temporal and summary questions | 45 | 160 |
+| S32 | `read.entity_leg_v2` | gc3 | S02 | GC | f | Entity-id boost on a built entity index (S13 was inert without it) | 40 | 150 |
+| S33 | `offline.session_close_v2` | gc3 | S02 | GC | f | Session summaries and episodes added as records; modest gain or noise | 45 | 160 |
+| S34 | `offline.standing_v2` + `read.standing_v2` | gc3 | S02 | GC | f, o | Standing-answer lead block; only if gc3 yields keyed state facts, else inert | 46 | 150 |
+| S35 | `offline.patterns_v2` | gc3 | S02 | GC | f | Observation records (recurrence, frequency); small, may be inert on LoCoMo | 40 | 150 |
+| S36 | `read.tiers_v2` | gc3 | S02 | GC | f | Re-screen of S10: depth tier chosen with derived layers present | 40 | 150 |
+| S37 | `read.router_rules` | gc3 | S02 | GC | f | Re-screen of S12: leg routing over populated layers | 40 | 150 |
+| S38 | `read.legs_v2` | gc3 | S02 | GC | f | Leg registry and BM25 lexical leg replace the old legs; decomposes S30/S31 | 40 | 150 |
+| S39 | `graph.edge_compiler_v2` | gc3 | S02 | GC | f | Compiled edges only; expected near-identical reads, tests the stage | 42 | 150 |
+| S40 | `offline.communities_v2` | gc3 | S02 | GC | f | Community summaries; adds model calls | 50 | 170 |
+| S41 | `offline.reconcile_v2` | gc3 | S02 | GC | f | Event-time re-fold of facts; helps knowledge-update and temporal | 40 | 150 |
+| S42 | `offline.histories_v2` | gc3 | S02 | GC | f | Near-duplicate merge and histories; small | 40 | 150 |
+| S43 | `write.window_extract=facts` | gc3 | (reference) | GC | f | Reference for S44 and S45 (REF, built automatically in sample mode) | 55 | 150 |
+| S44 | `write.envelope_v2` | gc3 + window facts | S43 | GC | f | Validated assertion envelopes; fewer ungrounded facts | 55 | 170 |
+| S45 | `write.segmentation_v2` | gc3 + window facts | S43 | GC | f | Gap/day cuts and batched window calls; mostly cost | 55 | 170 |
+| S46 | `offline.profile_card_v2` (+ `session_close_v2`) | gc3 | S02 | GC | f | No read consumer of the card exists yet: expected inert | 45 | 160 |
+| S47 | `offline.decay_v2` | gc3 | S02 | GC | f | Tiers do not change ranking (O-22): expected PARITY | 40 | 150 |
+| S48 | `write.stamping_v2` | gc3 | S02 | GC | f | Three clocks, typed speakers; mostly integrity, small | 40 | 150 |
+| S49 | `write.role_policy_v2` | gc3 | S02 | GC | f | Echo guard and role routing; LoCoMo has few echoes | 40 | 150 |
+| S50 | `write.intake_v2` | gc3 | S02 | GC | f | Idempotent intake gateway; expected parity | 40 | 150 |
+| S51 (B6) | `read.family_fusion` | Jina J reference | `f-jref2-i2` | J | f | S14 sample was live, +4/-1 net +3; confirm on 437 | 7 | 20 |
+
+Order is by expected value: graph leg, episode leg, entity leg, session close, standing, patterns, the S10/S12 re-screens, then the rest.
+S38 and S39 are decomposition rows so S30 and S31 can be read as (flag + its prerequisites) against (prerequisites alone). Dependency
+notes: `graph_leg_v2` needs `legs_v2` and the compiled edges (which come from the gc3 `extract_graph` facts); `episode_leg_v2` needs
+`legs_v2` and L2 episodes (taken from session close, which costs one call per session, instead of the heavier `window_extract=all`);
+`profile_card_v2` needs `session_close_v2` to receive ops; `envelope_v2` and `segmentation_v2` need `window_extract`.
+
+Sample GPU time for B5: about 16 h (rows 865 min, plus the gc3 reference 39 min if not cached from B1 and the S43 reference 55 min
+= about 960 min). The first six rows alone are about 5 h with the reference. B6 sample adds 7 min, focus 20 min. These follow the
+existing per-unit estimates (gc3 39 min, window 33 min, small extras for the added stage); no B5 run has been made.
+
+Not expressed or weak: `offline.profile_card_v2` has no read-side consumer in this commit, so QA cannot see it (the row only proves the
+stage runs); `offline.decay_v2` is ranking-neutral by design; `offline.standing_v2` needs keyed state facts, which the gc3 graph facts may
+not supply (check the `job.standing` tap: built count 0 means inert, re-arm on a window-facts base). `write.window_extract=all` was not
+used for the episode leg (session close gives L2 more cheaply); add it as a variant if S31 is inert.
+
+### Static validation
+
+`python evals/gen_b5_arms.py --check` and `pytest evals/tests/test_b5_arms.py evals/tests/test_v2_arms.py` (CPU only, no models): all 21 arms equal
+the generator output and pass `validate_engine_config` (so no unknown key); every row's arm file exists and its reference resolves to a
+queue row of the same kind. The queue runner itself was not run, not even with `--dry-run`.
