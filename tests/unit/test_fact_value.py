@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from memspine.engine import _fact_value
+from memspine.trust.pipeline.state import _fact_value
 
 # ── fact values keep the symbols that change their meaning ────────────────
 
