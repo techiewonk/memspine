@@ -233,9 +233,7 @@ def matrix(op: str, *, g1: bool = False) -> Any:
         pytest.param(
             c,
             id=f"{_ids(c)}-{op}",
-            marks=[pytest.mark.xfail(strict=True, raises=AssertionError, reason=G1)]
-            if g1 and c == ("embedded", "neo4j")
-            else [],
+            marks=[],  # G1 fixed: erasure_v2 purges the Neo4j mirror too
         )
         for c in CELLS
     ]

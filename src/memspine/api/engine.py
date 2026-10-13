@@ -4660,6 +4660,14 @@ class Engine:
         if callable(purge):
             await purge()
         self._passive_sessions.clear()  # #53: passive flags were replayed
+        if self._neo4j is not None:
+            # F-16f G1: the replay re-feeds erasure-hidden dependants (their WRITE events stay in
+            # the log until re-derivation); drain the mirror, then drop every lost id again.
+            lost = self.__dict__.get("_erasure_state")
+            if lost is not None and lost.lost:
+                await self._neo4j.runner.drain()
+                for rid in lost.lost:
+                    await self._neo4j.store.delete_node(rid)
         _log.info(EVENT_REBUILD, counts=counts)
         return counts
 

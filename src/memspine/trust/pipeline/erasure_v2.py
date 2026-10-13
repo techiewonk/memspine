@@ -395,8 +395,12 @@ async def _purge_step(eng: Any, ns: str, step: Any, texts: Sequence[str]) -> Non
         if eng._graph is not None:
             for rid in step.ids:
                 await eng._graph.delete_node(rid)
-            if eng._config().graph.edge_compiler_v2:  # F-02c: compiled edges sourced from them
-                await eng._retract_compiled_edges(ns, list(step.ids))
+        neo4j = getattr(eng, "_neo4j", None)  # F-16e mirror (graph.neo4j_outbox); F-16f G1
+        if neo4j is not None:
+            for rid in step.ids:
+                await neo4j.store.delete_node(rid)
+        if eng._graph is not None and eng._config().graph.edge_compiler_v2:
+            await eng._retract_compiled_edges(ns, list(step.ids))  # F-02c: edges sourced from them
     elif step.kind == "bump_generation":
         d = eng.__dict__
         d["_erasure_generation"] = max(d.get("_erasure_generation", 0), step.generation)
