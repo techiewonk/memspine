@@ -607,3 +607,272 @@ def check_conventions_v2(question: str, answer: str, gold: str | None) -> Conven
         if hit is not None:
             return hit
     return _folded_rule(question, answer, gold)
+
+
+# =============================================================================================
+# R14-M-17: conventions v3 (``--judge-conventions-v3``, column ``score_conventions_v3``)
+# =============================================================================================
+#
+# The residue after the date guard and v1/v2 is, on the finished reference run, list / containment /
+# annotation / geography. Same contract as v1/v2: rules only turn a wrong verdict into a right one,
+# they are reported as their OWN column (``score_conventions_v3`` / ``convention_v3``), they see only
+# the question, the answer and the gold, and an abstention gold or a refusal answer is never touched.
+#
+# ``list_scoped``     a list gold whose every item is in the answer (v1 matcher), where a negation
+#                     word only blocks when it sits within ``NEG_BEFORE`` tokens before or
+#                     ``NEG_AFTER`` after the item's own words ("no confirmation he went there" on
+#                     another line no longer voids a list that is right). Restriction words
+#                     ("only", "just", "except", "excluding", "but not", "rather than") still
+#                     block anywhere. The list may be a concluding sentence at the end.
+# ``contained``       a short non-list gold (1 to 8 content words, one of at least 4 letters, no
+#                     month or year, not a bare number) whose every content word sits close together
+#                     in the answer, the answer having at most ``CONTAIN_MAX_TOKENS`` tokens, no
+#                     "or" / "either" / hedge ("maybe", "might"), no negation word anywhere in the
+#                     answer, and the match in the answer's first sentence.
+#                     Third-person pronouns are not content ("She got hurt" = "Melanie got hurt").
+#                     The extra detail is not checked (the layer cannot), which is the residual
+#                     false-positive risk.
+# ``geography``       the question asks for a country / nation and the answer names cities of it
+#                     (``CITY_COUNTRY``, everyday geography, no dataset answers): the country is
+#                     appended after each such city and ``list_scoped`` / ``contained`` re-run.
+# ``relative_year``   the gold is "N years ago" / "a year ago" and the answer holds exactly one
+#                     calendar year and nothing that hedges or negates: the year is the annotation's
+#                     own way of saying it. The year is not checked against the session date (the
+#                     function sees no date), which is the residual risk of this rule.
+#
+# Not covered, on purpose: synonym pairs and paraphrase ("necklace" for "chain", "fun and
+# rewarding" for "happy"), a gold item split across a conjunction ("spending time with her pet")
+# and golds that need the evidence. The LLM judge decides those.
+
+CONVENTIONS_V3_VERSION = "conventions/v3"
+
+NEG_BEFORE = 5
+NEG_AFTER = 3
+CONTAIN_MAX_TOKENS = 40
+_NEG_TOKENS = frozenset(
+    "never not no none neither nor cannot unknown unconfirmed without nobody nothing".split()
+)
+_RESTRICT = re.compile(
+    r"\b(only|just|except|excluding|but not|rather than|other than|apart from|aside from)\b", re.I
+)
+_UNSURE = re.compile(
+    r"\b(or|either|maybe|perhaps|possibly|probably|might|unclear|uncertain|unsure)\b", re.I
+)
+_PRONOUN = frozenset("she he they her his their him them hers theirs".split())
+_REL_YEAR = re.compile(
+    r"^(?:about |around |roughly )?(?:a|an|one|two|three|four|five|\d+) years? ago\.?$", re.I
+)
+_FIRST_SENTENCE = re.compile(r"(?<=[.!?])\s|\n")
+_COUNTRY_Q = re.compile(r"\b(country|countries|nation|nations)\b", re.I)
+
+#: everyday geography (city -> country), lower case; used only when the question asks for a country
+CITY_COUNTRY: dict[str, str] = {
+    **dict.fromkeys(("toronto", "vancouver", "montreal", "ottawa", "calgary", "edmonton", "quebec"), "Canada"),
+    "nuuk": "Greenland",
+    **dict.fromkeys(("rome", "milan", "venice", "florence", "naples", "turin"), "Italy"),
+    **dict.fromkeys(("paris", "lyon", "marseille", "nice"), "France"),
+    **dict.fromkeys(("berlin", "munich", "hamburg", "frankfurt", "cologne"), "Germany"),
+    **dict.fromkeys(("madrid", "barcelona", "seville", "valencia"), "Spain"),
+    **dict.fromkeys(("lisbon", "porto"), "Portugal"),
+    **dict.fromkeys(("london", "manchester", "liverpool", "edinburgh", "glasgow"), "England"),
+    **dict.fromkeys(("tokyo", "kyoto", "osaka", "yokohama", "sapporo"), "Japan"),
+    **dict.fromkeys(("beijing", "shanghai", "shenzhen", "guangzhou"), "China"),
+    **dict.fromkeys(("istanbul", "ankara", "izmir", "antalya"), "Turkey"),
+    **dict.fromkeys(("cancun", "guadalajara", "monterrey", "tijuana"), "Mexico"),
+    **dict.fromkeys(("sydney", "melbourne", "brisbane", "perth"), "Australia"),
+    **dict.fromkeys(("mumbai", "delhi", "bangalore", "kolkata", "chennai"), "India"),
+    **dict.fromkeys(("seoul", "busan"), "Korea"),
+    **dict.fromkeys(("bangkok", "phuket"), "Thailand"),
+    **dict.fromkeys(("athens", "thessaloniki"), "Greece"),
+    **dict.fromkeys(("amsterdam", "rotterdam"), "Netherlands"),
+    **dict.fromkeys(("vienna", "salzburg"), "Austria"),
+    **dict.fromkeys(("reykjavik",), "Iceland"),
+    **dict.fromkeys(("cairo", "alexandria"), "Egypt"),
+    **dict.fromkeys(("dublin", "cork"), "Ireland"),
+    **dict.fromkeys(("stockholm", "gothenburg"), "Sweden"),
+    **dict.fromkeys(("oslo", "bergen"), "Norway"),
+    **dict.fromkeys(("copenhagen",), "Denmark"),
+    **dict.fromkeys(("zurich", "geneva", "bern"), "Switzerland"),
+    **dict.fromkeys(("rio", "sao paulo"), "Brazil"),
+    **dict.fromkeys(("lima", "cusco"), "Peru"),
+}
+_CITY_RE = re.compile(
+    r"\b(" + "|".join(sorted((re.escape(c) for c in CITY_COUNTRY), key=len, reverse=True)) + r")\b", re.I
+)
+
+
+def _is_neg(token: str) -> bool:
+    return token in _NEG_TOKENS or token.endswith("n't")
+
+
+def _item_windows(
+    item: str, tokens: list[str], proper: bool, question: set[str]
+) -> list[tuple[int, int]]:
+    """Every (lo, hi) token window holding all content words of ``item`` close together."""
+    words = _content(item)
+    if not words:
+        return []
+    found = [_positions(w, tokens, proper, question) for w in words]
+    if any(f is None for f in found):
+        return []
+    where = [f[1] for f in found if f is not None]
+    if len(words) == 1:
+        return [(p, p) for p in where[0]]
+    out = []
+    for start in where[0]:
+        lo = hi = start
+        for pos in where[1:]:
+            near = min(pos, key=lambda p: abs(p - start))
+            lo, hi = min(lo, near), max(hi, near)
+        if hi - lo + 1 <= len(words) + WINDOW_SLACK:
+            out.append((lo, hi))
+    return out
+
+
+def _clean_window(windows: list[tuple[int, int]], neg_at: list[int]) -> bool:
+    """True when some window has no negation token within the scope around it."""
+    return any(
+        not any(lo - NEG_BEFORE <= n <= hi + NEG_AFTER for n in neg_at) for lo, hi in windows
+    )
+
+
+def _gate_v3(question: str, answer: str, gold: str | None) -> tuple[str, str] | None:
+    if not gold or not answer or not answer.strip():
+        return None
+    gold, answer = gold.strip(), answer.strip()
+    if gold.lower().startswith("not mentioned") or _REFUSAL.search(answer):
+        return None
+    return gold, answer
+
+
+def _list_scoped(question: str, answer: str, gold: str) -> ConventionResult | None:
+    if _MONTH.search(gold) or _RESTRICT.search(answer):
+        return None
+    items = list(dict.fromkeys(i.lower() for i in gold_items(gold)))
+    if len(items) < 2:
+        return None
+    tokens, q_tokens = _tokens(answer), set(_tokens(question))
+    neg_at = [i for i, t in enumerate(tokens) if _is_neg(t)]
+    for item in items:
+        wins = _item_windows(item, tokens, _proper_phrase(item.title()), q_tokens)
+        if not wins or not _clean_window(wins, neg_at):
+            return None
+    return ConventionResult("list_scoped", f"{len(items)} items")
+
+
+def _contained(question: str, answer: str, gold: str) -> ConventionResult | None:
+    if _MONTH.search(gold) or _PURE_NUMBER.match(gold) or _NUM_TOKEN.search(gold):
+        return None
+    if gold_items(gold):
+        return None
+    words = [w for w in _content(gold) if w not in _PRONOUN]
+    if not (1 <= len(words) <= 8) or max(len(w) for w in words) < 4:
+        return None
+    tokens = _tokens(answer)
+    if len(tokens) > CONTAIN_MAX_TOKENS or _RESTRICT.search(answer):
+        return None
+    if _UNSURE.search(answer) and not _UNSURE.search(gold):
+        return None
+    if any(_is_neg(t) for t in tokens):
+        return None  # a short answer that negates anything is not "the gold plus detail"
+    # the gold must be in the answer's first sentence: a later mention is a side remark
+    first = _tokens(_FIRST_SENTENCE.split(answer, maxsplit=1)[0])
+    wins = _item_windows(" ".join(words), tokens, _proper_phrase(gold), set(_tokens(question)))
+    if any(hi < len(first) for _, hi in wins):
+        return ConventionResult("contained", " ".join(words))
+    return None
+
+
+def _fold_geography(question: str, answer: str) -> str:
+    if not _COUNTRY_Q.search(question):
+        return answer
+    return _CITY_RE.sub(lambda m: f"{m.group(0)} {CITY_COUNTRY[m.group(1).lower()]}", answer)
+
+
+def _relative_year(answer: str, gold: str) -> ConventionResult | None:
+    if not _REL_YEAR.match(gold) or _NEGATION.search(answer) or _COMPARATIVE.search(answer):
+        return None
+    years = set(_YEAR.findall(answer))
+    if len(years) == 1 and not _HEDGE.search(answer) and not _UNSURE.search(answer):
+        return ConventionResult("relative_year", next(iter(years)))
+    return None
+
+
+def check_conventions_v3(question: str, answer: str, gold: str | None) -> ConventionResult | None:
+    """v2 first (its rule name is kept), then ``list_scoped``, ``geography``, ``contained``,
+    ``relative_year``. Pure and offline; never reads the category, the dataset or the run."""
+    v2 = check_conventions_v2(question, answer, gold)
+    if v2 is not None:
+        return v2
+    gated = _gate_v3(question, answer, gold)
+    if gated is None:
+        return None
+    gold, answer = gated
+    hit = _list_scoped(question, answer, gold)
+    if hit is not None:
+        return hit
+    folded = _fold_geography(question, answer)
+    if folded != answer:
+        for rule in (_list_scoped, _contained):
+            hit = rule(question, folded, gold)
+            if hit is not None:
+                return ConventionResult("geography", hit.rule)
+    hit = _contained(question, answer, gold)
+    if hit is not None:
+        return hit
+    return _relative_year(answer, gold)
+
+
+# =============================================================================================
+# R14-M-18: the strict-list scorer (a report column, never a judge)
+# =============================================================================================
+
+
+STRICT_MIN_COVER = 0.5
+
+
+def _covered(words: list[str], stems: set[str]) -> bool:
+    """At least ``STRICT_MIN_COVER`` of the content ``words`` are in the answer (stem equality or a
+    shared 5-letter prefix: "vaccination" / "vaccinated"), anywhere in it."""
+    got = sum(
+        1
+        for w in words
+        if _stem(w) in stems or (len(w) >= 5 and any(len(a) >= 5 and a[:5] == w[:5] for a in stems))
+    )
+    return bool(words) and got / len(words) >= STRICT_MIN_COVER
+
+
+def list_item_recall(question: str, answer: str, gold: str | None) -> tuple[int, int] | None:
+    """(items found, items in the gold) for a COMMA / SEMICOLON list gold, else None. No model call.
+    An item is found when the v1 phrase matcher finds it, or when at least half of its content
+    words are in the answer (so a paraphrased item is not a miss, only an absent one). Geography
+    and alias folds are tried when the plain answer lacks an item. A gold with no comma or
+    semicolon ("surreal and cool", "California or Florida") is no list: the descriptive and
+    alternative golds are not item-checked. Duplicate gold items count once."""
+    if not gold or not answer or gold.strip().lower().startswith("not mentioned"):
+        return None
+    if not re.search(r"[,;]", gold):
+        return None
+    items = list(dict.fromkeys(i.lower() for i in gold_items(gold.strip())))
+    if len(items) < 2:
+        return None
+    q_tokens = set(_tokens(question))
+    texts = [answer, _fold_geography(question, answer), _fold_aliases(answer)]
+    found = 0
+    for item in items:
+        for n, text in enumerate(texts):
+            toks = _tokens(text)
+            it = _fold_aliases(item) if n == 2 else item
+            if _item_in(it, toks, _proper_phrase(item.title()), q_tokens) is not None or _covered(
+                _content(it), {_stem(t) for t in toks} | set(toks)
+            ):
+                found += 1
+                break
+    return found, len(items)
+
+
+def strict_list_ok(question: str, answer: str, gold: str | None) -> bool | None:
+    """True when every item of a list gold appears in the answer, False when one is missing,
+    None when the gold is not a list (the column then falls back to the row's own verdict)."""
+    rec = list_item_recall(question, answer, gold)
+    return None if rec is None else rec[0] == rec[1]

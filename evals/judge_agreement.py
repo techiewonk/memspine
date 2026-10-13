@@ -111,7 +111,11 @@ def with_conventions(rows: list[dict[str, Any]], judged: dict[str, str]) -> dict
     """I58: agreement of ``judge OR convention`` with the human verdicts, the credits the layer
     gave (each with the human verdict, so a false positive is visible), and the layer alone."""
     sys.path.insert(0, str(Path(__file__).parent))
-    from memspine_evals.judge_conventions import check_conventions, check_conventions_v2
+    from memspine_evals.judge_conventions import (
+        check_conventions,
+        check_conventions_v2,
+        check_conventions_v3,
+    )
 
     rows = [r for r in rows if r["id"] in judged]
     credited: dict[str, str] = {}
@@ -138,7 +142,25 @@ def with_conventions(rows: list[dict[str, Any]], judged: dict[str, str]) -> dict
             credits2.append({"id": r["id"], "rule": hit.rule, "human": r["human_verdict"],
                              "judge": judged[r["id"]], "in_v1": r["id"] in credited})
     added = [c for c in credits2 if not c["in_v1"]]
+    # R14-M-17: the v3 layer, as a further separate block (v1 / v2 above are unchanged)
+    in_v2 = {c["id"] for c in credits2}
+    layered3 = dict(judged)
+    credits3 = []
+    for r in rows:
+        hit = check_conventions_v3(r["question"], r["answer"], r["gold"])
+        if hit is not None and judged[r["id"]] != "CORRECT":
+            layered3[r["id"]] = "CORRECT"
+            credits3.append({"id": r["id"], "rule": hit.rule, "human": r["human_verdict"],
+                             "judge": judged[r["id"]], "in_v2": r["id"] in in_v2})
+    added3 = [c for c in credits3 if not c["in_v2"]]
     return {
+        "v3": {
+            "judge_or_conventions_v3": score(rows, layered3),
+            "new_credits": len(credits3),
+            "credits_beyond_v2": added3,
+            "false_positives": sum(c["human"] != "CORRECT" for c in credits3),
+            "false_positives_beyond_v2": sum(c["human"] != "CORRECT" for c in added3),
+        },
         "v2": {
             "judge_or_conventions_v2": score(rows, layered2),
             "new_credits": len(credits2),

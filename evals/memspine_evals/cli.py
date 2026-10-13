@@ -146,7 +146,10 @@ def _dataset(args: argparse.Namespace) -> DatasetAdapter:
         from .datasets import LoCoMoDataset
 
         return LoCoMoDataset(
-            args.path, revision_id=args.revision, categories=resolve_categories(args)
+            args.path,
+            revision_id=args.revision,
+            categories=resolve_categories(args),
+            repair_evidence=getattr(args, "repair_evidence", False),
         )
     if args.dataset == "convomem":
         from .datasets import ConvoMemDataset
@@ -227,6 +230,7 @@ def apply_opbench_protocol(args: argparse.Namespace) -> list[str]:
         "judge_date_check",
         "judge_conventions",
         "judge_conventions_v2",
+        "judge_conventions_v3",
         "count_verify",
         "date_repair",
         "duration_solve",
@@ -379,6 +383,7 @@ def cmd_c0_1(args: argparse.Namespace) -> int:
         judge_date_check=args.judge_date_check,
         judge_conventions=args.judge_conventions,
         judge_conventions_v2=args.judge_conventions_v2,
+        judge_conventions_v3=args.judge_conventions_v3,
         count_verify=args.count_verify,
         date_repair=args.date_repair,
         duration_solve=args.duration_solve,
@@ -767,6 +772,20 @@ def build_parser() -> argparse.ArgumentParser:
         "another way, a quantity in another unit of the same dimension, an ordinal in digits or "
         "words, a listed everyday alias) as score_conventions_v2 / convention_v2; a third column "
         "next to score and score_conventions, which never change; off by default",
+    )
+    c01.add_argument(
+        "--judge-conventions-v3",
+        action="store_true",
+        help="R14-M-17: also record the verdict under the v3 conventions (v2 plus: a list matched "
+        "with negation scoped to the item, a short gold contained in the answer with extra "
+        "detail, a city for a country, 'N years ago' met by a year) as score_conventions_v3 / "
+        "convention_v3; a column next to the others, which never change; off by default",
+    )
+    c01.add_argument(
+        "--repair-evidence",
+        action="store_true",
+        help="R14-M-19: LoCoMo gold turn ids through the strict evidence parser (whitespace-joined "
+        "lists, stray colon, existence check); off by default (official labels as the file holds them)",
     )
     c01.add_argument(
         "--count-verify",

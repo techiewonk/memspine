@@ -201,6 +201,9 @@ class C01Config:
     #: I77: the v2 rules (date format, unit, ordinal, alias) as a third column,
     #: ``score_conventions_v2``; ``score`` and ``score_conventions`` never change.
     judge_conventions_v2: bool = False
+    #: R14-M-17: the v3 rules (scoped-negation list, containment, geography, relative year) as a
+    #: further column, ``score_conventions_v3``; the other columns never change.
+    judge_conventions_v3: bool = False
     #: I56: enumerate-then-count for count questions: "" (off), ``two_call`` (+1 call on count
     #: questions) or ``single`` (list then count in one call). See ``count_verify.py``.
     count_verify: str = ""
@@ -609,12 +612,14 @@ def build_judge(config: C01Config, chat: Any, model: str, judge_id: str | None =
                 empty_guard=config.judge_guards,
                 conventions=config.judge_conventions,
                 conventions_v2=config.judge_conventions_v2,
+                conventions_v3=config.judge_conventions_v3,
             )
             if (
                 config.judge_guards
                 or config.judge_date_check
                 or config.judge_conventions
                 or config.judge_conventions_v2
+                or config.judge_conventions_v3
             )
             else AliasContainsJudge()
         )
@@ -638,6 +643,7 @@ def build_judge(config: C01Config, chat: Any, model: str, judge_id: str | None =
         or config.judge_date_check
         or config.judge_conventions
         or config.judge_conventions_v2
+        or config.judge_conventions_v3
     ):
         return GuardedJudge(
             judge,
@@ -645,6 +651,7 @@ def build_judge(config: C01Config, chat: Any, model: str, judge_id: str | None =
             empty_guard=config.judge_guards,
             conventions=config.judge_conventions,
             conventions_v2=config.judge_conventions_v2,
+            conventions_v3=config.judge_conventions_v3,
         )
     return judge
 
@@ -1041,6 +1048,7 @@ async def run_c0_1(
             **({"judge_guards": True} if config.judge_guards else {}),
             **({"judge_conventions": "conventions/v1"} if config.judge_conventions else {}),
             **({"judge_conventions_v2": "conventions/v2"} if config.judge_conventions_v2 else {}),
+            **({"judge_conventions_v3": "conventions/v3"} if config.judge_conventions_v3 else {}),
             **({"count_verify": config.count_verify} if config.count_verify else {}),
             **({"date_repair": "v1"} if config.date_repair else {}),
             **({"duration_solve": f"v1/{config.duration_solve}"} if config.duration_solve else {}),
