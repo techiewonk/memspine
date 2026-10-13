@@ -158,6 +158,23 @@ class WriteConfig(BaseModel):
     #: when it is unsure or unavailable. ``off``: stays ``uncertain`` (kept).
     ground_adjudicator: Literal["lexical", "decider", "off"] = "lexical"
 
+    #: W2-15 (W-17, W-15; LIB-17): coverage check and ONE targeted re-extraction (needs ``envelope_v2``;
+    #: envelope-stage order 250, after grounding). Coverage is the share of the window's informative
+    #: lines (greetings / filler, and system / echo turns per the W2-03 tags, excluded) cited as
+    #: support by at least one kept assertion. Below ``coverage_threshold`` with an uncited
+    #: informative line left, the stage makes at most one extra call on the ``window_extract`` LLM
+    #: for those lines only (W2-06b prompt with KNOWN); the reply is validated, compiled and run
+    #: through the earlier stages again, and an item is added only if it comes out grounded. The call
+    #: is counted in the cost ledger (stage ``coverage_reextract``) and in the window notes
+    #: (``coverage.*``). ``False`` (default): unchanged.
+    coverage_v2: bool = False
+    #: W2-15: re-extract when coverage is below this share (0..1). Needs ``coverage_v2``.
+    coverage_threshold: float = Field(default=0.8, ge=0.0, le=1.0)
+    #: W2-15: most uncited lines sent in the one targeted call. Needs ``coverage_v2``.
+    coverage_max_targets: int = Field(default=6, ge=1)
+    #: W2-15: neighbouring lines shown as CONTEXT on each side of the targets. Needs ``coverage_v2``.
+    coverage_context_lines: int = Field(default=2, ge=0)
+
     #: W2-06b (LIB-05; W-16, P-04, P-09, P-11, G-W49; needs ``envelope_v2``). ``True``: ONE model call
     #: per window (or per batch of windows) fills every requested section (facts, edges, episode)
     #: under one schema, instead of the facts call plus a second call for edges / episode. The prompt
