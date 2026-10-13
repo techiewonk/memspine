@@ -22,8 +22,8 @@ process clock. On Postgres, processes on different hosts would each judge expiry
 so a fast host could take a live lease over; there the store reads the DATABASE clock
 (``clock_timestamp()``, inside the claim or heartbeat transaction) for every lease time it writes
 or compares, and :meth:`LeaseStore.lease_state` hands the same clock to a waiting scheduler. An
-injected ``clock`` (tests) always wins. The outbox job book (``runtime.jobs``) keeps its own injected
-clock; it is not part of this change.
+injected ``clock`` (tests) always wins. The outbox job book (``runtime.jobs``) keeps its own
+injected clock; it is not part of this change.
 
 ``derive`` may not import ``runtime``: this module reuses the *concepts* of
 ``runtime/outbox.py`` and ``runtime/jobs.py`` (lease, epoch, watermark, fence log) and shares
