@@ -9,9 +9,9 @@ Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summarie
 |---|---|
 | Not started | 26 |
 | Ready | 0 |
-| In progress | 6 |
+| In progress | 4 |
 | Blocked | 0 |
-| Needs measurement | 47 |
+| Needs measurement | 49 |
 | Done | 82 |
 | Dropped | 1 |
 
@@ -132,7 +132,7 @@ Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summarie
 | W2-03 | Role policy, echo guard (marker + last-read overlap) and routing | L0 L1 L5 ctx | D | W-06, W-09 | ER-17 | W2-02, LIB-13 | behaviour | write | - | Focus slice non-inferior | **Not started** |  |
 | W2-04 | Firewall at three gates; base plus extended signals | L0 L1 scope | D | W-07, G-06 | - | LIB-38, F-16a | behaviour | write | - | False-positive screen on the behavioural suite | **Needs measurement** | TW-A wired flag-off (integrity.horizon_v2 / consent.v2 / firewall.gates_v2); MINJA FP rate needs OP-Bench screen |
 | W2-05 | Segmentation: adaptive window, time-gap cut, token batching | L0 | D | W-11 | - | W2-01, LIB-14 | behaviour | write | - | Calls per turn down, grounding inside band | **Not started** |  |
-| W2-07 | Prompt layout rules: no examples, stable prefix, same language | L0 L1 L3 ctx | D C | W-18, P-07, P-08, P-10 | ER-16 | P0-09, EX-1a, LIB-46 | behaviour | write | - | English output unchanged on focus slice (per partial) | **In progress** | Sonnet agent launched 2026-10-13 (Phase 2 wave 1) |
+| W2-07 | Prompt layout rules: no examples, stable prefix, same language | L0 L1 L3 ctx | D C | W-18, P-07, P-08, P-10 | ER-16 | P0-09, EX-1a, LIB-46 | behaviour | write | - | English output unchanged on focus slice (per partial) | **Needs measurement** | prompts.layout_v2 flag-off; flag-off byte-identical; v2 English diff = examples removed + schema to user part + coarse_date; screen per partial pending |
 | W2-06a | ItemV1 to AssertionEnvelope compile, validation, repair re-ask, dead letters | L0 L1 L3 | D | W-14, W-15, P-05, P-06 | ER-11, ER-15, ER-32 | W2-05, F-16a, LIB-05 | behaviour | S4 extraction (serial) | - | Unit tests; items dropped counted | **Not started** |  |
 | W2-06b | Prompt v2 and schema-constrained decoding | L0 L1 L3 | D | W-16, P-04, P-09, P-11 | ER-12, ER-15 | W2-06a, W2-07 | behaviour | S4 extraction (serial) | - | Window arm: items dropped down; at most 1 call per window | **Not started** | G-W49 |
 | W2-06c | Online extraction via the outbox with a stage hook list | L1 L3 | D R | W-12 | - | W2-06b, F-04 | behaviour | S4 extraction (serial) | - | No-model template: zero calls; window arm screen | **Not started** |  |
@@ -146,7 +146,7 @@ Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summarie
 | W2-13 | Small local pre-pass (GLiNER2) as hints | L1 L3 | D | P-23 | - | W2-10 | behaviour | S4 extraction (serial) | - | Calls down, grounded facts not down | **Not started** |  |
 | MD-03 | Second GPU (AMD Radeon iGPU via DirectML): embedder and small reranker offload, measured | L0 L1 | R | P-19, P-17 | - | LIB-42 | behaviour | models | - | Identical outputs (cosine >= 0.999, same rank order) and a measured speed gain, else not adopted | **Dropped** | Measured negative (d0b65ac): AMD iGPU DirectML 5-8x slower than contended CPU, driver reset on bge-small; models stay on RTX 5080/CPU |
 | MD-01 | Model tiers, placement, no-model fallbacks, device plan, thinking per role | L0 L1 L4 | D K_C R G | P-01, P-02, P-03, P-15, P-19 | - | EX-1a, LIB-42 | behaviour | models | - | Worker-tier screen per role; no-model template zero calls | **In progress** | Sonnet agent launched 2026-10-13 (Phase 2 wave 1) |
-| MD-02 | Default embedders (CPU multilingual, GPU profile) | L0 L1 | R | P-17, M-23 | - | EX-1a, F-03 | behaviour | models | - | English R@k within band; non-English probe | **In progress** | Sonnet agent launched 2026-10-13 (Phase 2 wave 1) |
+| MD-02 | Default embedders (CPU multilingual, GPU profile) | L0 L1 | R | P-17, M-23 | - | EX-1a, F-03 | behaviour | models | - | English R@k within band; non-English probe | **Needs measurement** | embedding.profile/pin_profile/migrate_profile flag-off; cpu_multilingual = paraphrase-multilingual-MiniLM (fastembed cache); R@k screen + non-English probe pending |
 | EX-2 | Phase 2 exit: window arm non-inferior, grounding 95%, write p95 | L0 L1 L4 L5 ctx scope | D K_C K_P R C G | G-01 | - | W2-10, W2-04, W2-13 | measure | exit | - | ROADMAP Phase 2 exit gate | **Not started** |  |
 
 ## Phase 3: read path

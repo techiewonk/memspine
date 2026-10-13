@@ -212,7 +212,7 @@ WP = [
     ("W2-05", 2, "Segmentation: adaptive window, time-gap cut, token batching", ["W-11"], ["W2-01", "LIB-14"], "behaviour",
      "Calls per turn down, grounding inside band", "Not started", ""),
     ("W2-07", 2, "Prompt layout rules: no examples, stable prefix, same language", ["W-18", "P-07", "P-08", "P-10"], ["P0-09", "EX-1a", "LIB-46"], "behaviour",
-     "English output unchanged on focus slice (per partial)", "In progress", "Sonnet agent launched 2026-10-13 (Phase 2 wave 1)"),
+     "English output unchanged on focus slice (per partial)", "Needs measurement", "prompts.layout_v2 flag-off; flag-off byte-identical; v2 English diff = examples removed + schema to user part + coarse_date; screen per partial pending"),
     ("W2-06a", 2, "ItemV1 to AssertionEnvelope compile, validation, repair re-ask, dead letters", ["W-14", "W-15", "P-05", "P-06"],
      ["W2-05", "F-16a", "LIB-05"], "behaviour", "Unit tests; items dropped counted", "Not started", ""),
     ("W2-06b", 2, "Prompt v2 and schema-constrained decoding", ["W-16", "P-04", "P-09", "P-11"], ["W2-06a", "W2-07"], "behaviour",
@@ -237,7 +237,7 @@ WP = [
     ("MD-01", 2, "Model tiers, placement, no-model fallbacks, device plan, thinking per role",
      ["P-01", "P-02", "P-03", "P-15", "P-19"], ["EX-1a", "LIB-42"], "behaviour", "Worker-tier screen per role; no-model template zero calls", "In progress", "Sonnet agent launched 2026-10-13 (Phase 2 wave 1)"),
     ("MD-02", 2, "Default embedders (CPU multilingual, GPU profile)", ["P-17", "M-23"], ["EX-1a", "F-03"], "behaviour",
-     "English R@k within band; non-English probe", "In progress", "Sonnet agent launched 2026-10-13 (Phase 2 wave 1)"),
+     "English R@k within band; non-English probe", "Needs measurement", "embedding.profile/pin_profile/migrate_profile flag-off; cpu_multilingual = paraphrase-multilingual-MiniLM (fastembed cache); R@k screen + non-English probe pending"),
     ("EX-2", 2, "Phase 2 exit: window arm non-inferior, grounding 95%, write p95", ["G-01"], ["W2-10", "W2-04", "W2-13"], "measure",
      "ROADMAP Phase 2 exit gate", "Not started", ""),
     # ---- Phase 3: read path (serial within the read orchestration) ----
