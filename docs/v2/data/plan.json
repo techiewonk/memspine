@@ -3330,7 +3330,7 @@
     "O-04"
    ],
    "depends_on": [
-    "F-13c"
+    "F-11"
    ],
    "kind": "move",
    "gate": "Golden; stage order unchanged",
@@ -3370,7 +3370,7 @@
     "G-22"
    ],
    "depends_on": [
-    "F-13c"
+    "F-11"
    ],
    "kind": "move",
    "gate": "Golden unchanged; retired flags raise ConfigError",
@@ -3415,8 +3415,8 @@
    ],
    "kind": "move",
    "gate": "Owner decision per item",
-   "status": "Blocked",
-   "note": "Needs owner: event ledger, maxsim, causal walk, bridge hop, prefilter, novelty exclusions, agentic query",
+   "status": "Needs measurement",
+   "note": "Coordinator decision 2026-10-13 (owner delegated choices): defer deletion; candidates stay flag-off until GPU screens decide",
    "layers": [
     "L0",
     "L1",

@@ -10,8 +10,8 @@ Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summarie
 | Not started | 86 |
 | Ready | 0 |
 | In progress | 0 |
-| Blocked | 1 |
-| Needs measurement | 3 |
+| Blocked | 0 |
+| Needs measurement | 4 |
 | Done | 69 |
 | Dropped | 0 |
 
@@ -101,9 +101,9 @@ Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summarie
 | F-13a | Scoped handle; engine reduced to lifecycle and admin | L0 L1 L4 L5 ctx scope | D K_C K_P R C | G-16 | ER-03 | F-12 | api | S1 split (serial) | `src/memspine/api/**` +3 | Golden | **Not started** | S13; no aliases |
 | F-13b | REST and MCP on the handle | ctx scope | D R | G-17, G-18 | - | F-13a | move | S1 split (serial) | `src/memspine/api/**` +3 | Protocol tests | **Not started** |  |
 | F-13c | Eval-harness adapter and test-import migration; paired-gate replay | L0 L1 L4 L5 ctx scope | D K_C K_P R C | G-16 | - | F-13a | move | S1 split (serial) | `src/memspine/api/**` +3 | Paired-gate replay NO CHANGE vs f-jref2-i2 (GPU, one run) | **Not started** | Exit of the split |
-| F-15 | Split the pipelines module into derive stages | L0 L1 L3 L4 L5 ctx | K_C K_P | O-04 | - | F-13c | move | S1 split (serial) | `src/memspine/derive/stages/**` +1 | Golden; stage order unchanged | **Not started** | S15 part 1 |
-| F-14a | Retire measured-negative and owner-retired code (slot loop, fact chain, word vectors, decider gate, kuzu, opensearch stub, full/compose read modes, v1 read headers) | L0 L1 L4 L5 ctx scope | D R C | G-22 | ER-40 | F-13c | move | S1 split (serial) | - | Golden unchanged; retired flags raise ConfigError | **Not started** |  |
-| F-14b | Retire unscreened candidates | L0 L1 L4 L5 ctx scope | D R C | G-22 | ER-40 | F-14a | move | S1 split (serial) | - | Owner decision per item | **Blocked** | Needs owner: event ledger, maxsim, causal walk, bridge hop, prefilter, novelty exclusions, agentic query |
+| F-15 | Split the pipelines module into derive stages | L0 L1 L3 L4 L5 ctx | K_C K_P | O-04 | - | F-11 | move | S1 split (serial) | `src/memspine/derive/stages/**` +1 | Golden; stage order unchanged | **Not started** | S15 part 1 |
+| F-14a | Retire measured-negative and owner-retired code (slot loop, fact chain, word vectors, decider gate, kuzu, opensearch stub, full/compose read modes, v1 read headers) | L0 L1 L4 L5 ctx scope | D R C | G-22 | ER-40 | F-11 | move | S1 split (serial) | - | Golden unchanged; retired flags raise ConfigError | **Not started** |  |
+| F-14b | Retire unscreened candidates | L0 L1 L4 L5 ctx scope | D R C | G-22 | ER-40 | F-14a | move | S1 split (serial) | - | Owner decision per item | **Needs measurement** | Coordinator decision 2026-10-13 (owner delegated choices): defer deletion; candidates stay flag-off until GPU screens decide |
 | F-01 | Graph key identity: kind, occurrence, A-B-A, old-key aliases | L0 L1 L3 | D | M-17, W-20 | ER-13, ER-20 | F-15 | behaviour | S2 foundations (serial: Alembic) | `src/memspine/store/keys.py` +1 | A-B-A returns to A; same-day events stay two; replay idempotent; built flag-off, then GC arm screen | **Not started** | S1; G-W50 |
 | F-02a | Record envelope: layer field, type tag, provenance class, axes, fingerprint; Alembic and upcaster | L0 L1 L3 L4 L5 ctx scope | D K_C R | M-02, M-03, M-06, M-07, M-08, P-12 | ER-03, ER-14, ER-32 | F-01, MOD-01 | migration | S2 foundations (serial: Alembic) | `src/memspine/store/envelope.py` +4 | Replay byte-stable; upcaster round-trips; golden unchanged | **Not started** | S2+S3; Q1 |
 | F-02b | Tri-temporal times with precision; LayerRegistry (template-enabled and populated layers) | L0 L1 L3 L4 ctx | D K_C | M-10, M-02 | ER-03, ER-18 | F-02a | migration | S2 foundations (serial: Alembic) | `src/memspine/store/envelope.py` +4 | Golden unchanged; registry reports layers per namespace | **Not started** | Legs run only when their layer exists |
