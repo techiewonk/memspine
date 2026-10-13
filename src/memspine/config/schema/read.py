@@ -937,6 +937,34 @@ class ReadConfig(BaseModel):
     #: Recalibrate when the namespace holds more than this multiple of the record count it
     #: was calibrated on.
     relevance_gate_regrow: float = Field(default=2.0, gt=1.0)
+    #: R3-11 (LIB-12, ER-23; wired in ``read/pipeline/gate.py``): ``True`` replaces the
+    #: all-or-nothing calibrated gate by the five-state gate (answerable / conflicting / weak /
+    #: missing / bypass) scored per candidate record against the store's own off-topic level.
+    #: Needs ``relevance_gate: store_calibrated`` NOT to be set (it is a replacement, not a
+    #: layer). Off (default): the I29/I74 path, unchanged. A named-entity bypass applies only
+    #: when the named entity is in the store AND a candidate scores above the weak threshold.
+    gate_v2: bool = False
+    #: R3-11: what a ``weak`` gate decision does under ``gate_v2``. ``keep``: the weak
+    #: records pass, flagged low-confidence in the forensics. ``abstain``: an empty, abstained
+    #: context (the same as ``missing``).
+    gate_v2_weak: Literal["keep", "abstain"] = "keep"
+    #: R3-11: what makes a named reference real under ``gate_v2`` (an unknown name never
+    #: bypasses). ``hit`` (default): the name resolves in the store AND a candidate record
+    #: mentions it or scores above the weak threshold. ``scored``: stricter, a candidate must
+    #: score above the weak threshold (a name in a question about something the store never
+    #: stated then no longer waves its records through).
+    gate_v2_named: Literal["hit", "scored"] = "hit"
+    #: R3-12 (LIB-43, R-22 B; wired in ``read/pipeline/deep.py``): ``True`` runs the deep
+    #: tier after the first pass: rules first (zero calls when every obligation is met), then
+    #: one sufficiency check, at most one rewrite and one extra retrieval, never a loop. Model
+    #: calls go through the bound ``sufficiency``/``plan`` role and are counted. Needs
+    #: ``obligations`` for its rule check (it derives the report itself when that is off).
+    deep_v2: bool = False
+    #: R3-16 (LIB-15, ER-19; wired in ``read/pipeline/deep.py``): ``True`` derives evidence
+    #: obligations (joins, durations, lists, counts, latest) from the typed query contract
+    #: and checks them against the read's records; the report goes to the forensics and the
+    #: wiretap and drives the deep tier's rule check. No model call.
+    obligations: bool = False
     #: I30: judge ``assembly.theta_abstain`` and ``assembly.relative_floor`` on the RAW
     #: reranker scores (before min-max), so they work under rerank (the min-max makes the top
     #: candidate 1.0, which kills ``theta_abstain``). Off (default): the composite scores,

@@ -6,7 +6,8 @@ import secrets
 from collections.abc import Sequence
 from typing import Any
 
-from memspine.compose.pack import AssembledContext
+from memspine.compose.pack import AssembledContext, estimate_tokens
+from memspine.config import constants
 from memspine.core import trace_sink
 from memspine.core.evidence import evidence_signal
 from memspine.core.owner_check import first_person, referenced_names
@@ -16,8 +17,18 @@ from memspine.exceptions import StorageError
 from memspine.models.encoders.embedding.base import embed_queries
 from memspine.models.providers.llm.structured import structured_call
 from memspine.models.providers.rerank.base import concat_background
+from memspine.observability import tap
 from memspine.observability.logging import get_logger, redact_error
 from memspine.prompts.models import RelevanceLabels
+from memspine.read.contract_rules import build_contract as build_typed_contract
+from memspine.read.gate import (
+    GateConfig,
+    GateContract,
+    GateItem,
+    ProbeObservation,
+    StoreCalibration,
+    assess,
+)
 from memspine.read.pipeline.state import (
     _FORENSICS,
     CUE_TAG,
@@ -257,7 +268,10 @@ async def _relevance_gate(
 ) -> ReadResult:
     """I29 ``read.relevance_gate: store_calibrated``: the per-namespace calibrated raw-score
     gate (off by default; the decider form is retired, G-22).
-    I74: a message that names the store's own people / entities skips the gate."""
+    I74: a message that names the store's own people / entities skips the gate.
+    R3-11 (``read.gate_v2``): the LIB-12 five-state gate replaces both (:func:`_gate_v2`)."""
+    if eng._config().read.gate_v2:
+        return await _gate_v2(eng, query, result, ns)
     if await eng._gate_bypassed(query, ns, result):
         return result
     if eng._config().read.relevance_gate == "store_calibrated":
@@ -318,3 +332,207 @@ async def _relevance_filter(
         return candidates
     drop = {item.index for item in result.labels if item.label.strip().lower() == "irrelevant"}
     return [pair for i, pair in enumerate(candidates) if i in safe or i not in drop]
+
+
+# --------------------------------------------------------------------------------------------
+# R3-11 (``read.gate_v2``): the LIB-12 five-state gate, scored per candidate record.
+# --------------------------------------------------------------------------------------------
+
+_TIME_VIEW_KINDS = {"current": "current", "as_of": "as_of", "history": "history"}
+
+
+def _gate_contract(query: str, named: bool, supported: bool) -> GateContract:
+    """Map the typed query contract (LIB-16 ``TypedContract``) onto the LIB-12 ``GateContract``:
+    its personal flag, request kind and time view; ``named`` is decided by the caller.
+
+    A bypass must be backed by evidence: enumeration / show-all requests always bypass, but an
+    as-of / history request bypasses only when ``supported`` (some candidate scores above the
+    weak threshold); otherwise it is read as a plain lookup, so a time phrase alone ("in 1998")
+    can never wave unrelated memories through."""
+    typed = build_typed_contract(query)
+    kind = typed.request_kind
+    view = _TIME_VIEW_KINDS.get(typed.time_view.kind, "current")
+    if not supported:
+        if kind == "as_of":
+            kind = "lookup"
+        view = "current"
+    return GateContract(
+        personal=typed.personal,
+        request_kind=kind,
+        named_reference=named,
+        time_view=view,  # type: ignore[arg-type]
+    )
+
+
+def _gate_v2_leg(eng: Any) -> str:
+    read = eng._config().read
+    has_reranker = eng._rerank_provider() is not None
+    want = read.relevance_gate_leg
+    if want in ("auto", "any"):
+        return "rerank" if has_reranker else "vector"
+    return want if (want == "vector" or has_reranker) else "vector"
+
+
+async def _gate_v2_calibration(eng: Any, ns: str, leg: str) -> tuple[StoreCalibration, bool]:
+    """The store's off-topic level for ``leg`` as a LIB-12 calibration (probe tops kept as
+    samples); cached per namespace/embedder/reranker and recomputed once the store has grown
+    past ``relevance_gate_regrow`` x the record count it was calibrated on."""
+    read = eng._config().read
+    n_records = len(await eng._require_started().list_records(ns))
+    reranker = eng._rerank_provider() if leg == "rerank" else None
+    key = (ns, eng._embedder.embedder_id, getattr(reranker, "reranker_id", None), leg)
+    cache: dict[Any, tuple[StoreCalibration, int]] = eng.__dict__.setdefault("_gate_v2_cal", {})
+    cached = cache.get(key)
+    if cached and n_records <= read.relevance_gate_regrow * max(cached[1], 1):
+        return cached[0], False
+    observations = []
+    for probe in OFF_TOPIC_PROBES:
+        top = (await eng._gate_raw_tops(ns, probe, [leg])).get(leg)
+        observations.append(ProbeObservation(query=probe, scorer=leg, top_score=top))
+    cal = StoreCalibration.from_observations(observations)
+    cache[key] = (cal, n_records)
+    return cal, True
+
+
+async def _gate_v2_scores(
+    eng: Any, ns: str, query: str, records: Sequence[MemoryRecord], leg: str
+) -> dict[str, float]:
+    """The raw ``leg`` score of each candidate record (absent = unscored, never 0)."""
+    read = eng._config().read
+    if leg == "rerank":
+        reranker = eng._rerank_provider()
+        raws = await reranker.rerank(query, [concat_background(r) for r in records])
+        return {r.record_id: float(s) for r, s in zip(records, raws, strict=True)}
+    [qv] = await embed_queries(eng._embedder, [query])
+    n = max(read.relevance_gate_candidates, 4 * len(records))
+    hits = await eng._vector_leg(ns, qv, n)
+    return {h.record_id: float(h.score) for h in hits}
+
+
+def _gate_v2_item(record: MemoryRecord, score: float | None, leg: str) -> GateItem:
+    keyed = bool(record.entity and record.attribute and record.memory_type == "semantic")
+    return GateItem(
+        item_id=record.record_id,
+        score=score,
+        scorer=leg,
+        personal=True,  # every record of a memory store is about the user or their people
+        key=f"{record.entity}|{record.attribute}" if keyed else None,
+        value=record.content if keyed else None,
+        current=record.status is RecordStatus.ACTIVATED and record.valid_to is None,
+    )
+
+
+async def _gate_v2(eng: Any, query: str, result: ReadResult, ns: str | None = None) -> ReadResult:
+    """R3-11 (``read.gate_v2``): classify the read's candidate records against the store's
+    calibrated off-topic level (LIB-12) and act on the state.
+
+    * ``missing``: an empty, abstained context (a recorded absence, ER-23).
+    * ``weak``: ``read.gate_v2_weak`` (``keep``: pass, flagged low-confidence; ``abstain``).
+    * ``conflicting`` / ``answerable``: the context stays whole minus records the gate dropped
+      (a personal record on a generic question); conflicts are recorded, nothing is resolved.
+    * ``bypass``: enumeration / show-all / as-of / history requests, and a named reference
+      that is real: the name resolves in the store AND a candidate scores above the weak
+      threshold. An unknown name never bypasses.
+
+    Lead/header blocks and persona records are not judged and ride along. Fails open."""
+    read = eng._config().read
+    if result.context.abstained or eng._embedder is None:
+        return result
+    records = [r for r in result.context.records if r.source.channel != "persona"]
+    judged = [r for r in records if constants.LEAD_TAG not in r.tags]
+    if not judged:
+        return result
+    ns = ns or judged[0].namespace
+    entry: dict[str, Any] = {"margin_sd": read.relevance_gate_margin_sd}
+    try:
+        leg = _gate_v2_leg(eng)
+        cal, recomputed = await _gate_v2_calibration(eng, ns, leg)
+        scores = await _gate_v2_scores(eng, ns, query, judged, leg)
+        items = [_gate_v2_item(r, scores.get(r.record_id), leg) for r in judged]
+        cfg = GateConfig(
+            margin_sd=read.relevance_gate_margin_sd,
+            min_samples=min(5, max(1, len(OFF_TOPIC_PROBES))),
+        )
+        plain = assess(items, cal, contract=_gate_contract(query, False, False), config=cfg)
+        supported = any(a.band in ("strong", "weak") for a in plain.assessments)
+        names: list[str] = []
+        first: list[str] = []
+        if read.relevance_gate_bypass != "none":
+            state = await eng._persp_state_for(ns)
+            names = referenced_names(query, await eng._entity_vocabulary(ns), state["known"])
+            if read.relevance_gate_bypass == "named_or_first_person" and not names:
+                tok = first_person(query)
+                first = [tok] if tok else []
+        # A name bypasses only when it is real: resolved in the store (referenced_names only
+        # returns names the store knows) AND hit, a candidate scores above the weak threshold
+        # or mentions the name. A first-person reference needs a scored candidate.
+        folded = [n.casefold() for n in names]
+        mentioned = read.gate_v2_named == "hit" and any(
+            n in r.content.casefold() for r in judged for n in folded
+        )
+        real = (bool(names) and (supported or mentioned)) or (bool(first) and supported)
+        decision = assess(
+            items, cal, contract=_gate_contract(query, real, supported), config=cfg
+        )
+        names = names or first
+        entry.update(
+            leg=leg,
+            state=decision.state,
+            reason=decision.reason,
+            bypass_reason=decision.bypass_reason,
+            names=names,
+            name_resolved_with_evidence=real,
+            recalibrated=recomputed,
+        )
+    except Exception as exc:  # an enhancer, never a gate: fail open
+        _log.warning("read.gate_v2_failed", error=redact_error(exc))
+        tap.event("read.gate.decision", state="error", error=redact_error(exc))
+        return result
+    dropped = set(decision.dropped_ids)
+    keep = decision.state in ("answerable", "conflicting", "bypass") or (
+        decision.state == "weak" and read.gate_v2_weak == "keep"
+    )
+    entry["decision"] = "inject" if keep else "empty"
+    if tap.enabled():
+        tap.event(
+            "read.gate.decision",
+            state=decision.state,
+            leg=leg,
+            thresholds={
+                a.item_id: [a.weak_threshold, a.strong_threshold] for a in decision.assessments[:20]
+            },
+            scores={a.item_id: [a.score, a.band] for a in decision.assessments[:20]},
+            admitted=list(decision.admitted_ids),
+            dropped=list(decision.dropped_ids),
+            conflicts=[{"key": c.key, "ids": list(c.item_ids)} for c in decision.conflicts],
+            bypass_reason=decision.bypass_reason,
+            low_confidence=decision.low_confidence,
+            decision=entry["decision"],
+        )
+    else:
+        tap.event("read.gate.decision", state=decision.state, decision=entry["decision"])
+    if (fx := _FORENSICS.get()) is not None:
+        fx["relevance_gate_v2"] = {
+            **entry,
+            "conflicts": [c.model_dump() for c in decision.conflicts],
+            "low_confidence": decision.low_confidence,
+        }
+        if not keep:
+            for r in records:
+                trace_sink.cut("relevance_gate_v2", r.record_id)
+    if not keep:
+        return ReadResult(result.mode, AssembledContext(abstained=True))
+    if not dropped:
+        return result
+    context = result.context
+    kept = [r for r in context.records if r.record_id not in dropped]
+    return ReadResult(
+        result.mode,
+        AssembledContext(
+            records=kept,
+            boundary_index=min(context.boundary_index, len(kept)),
+            abstained=False,
+            tokens_used=sum(estimate_tokens(r.content) for r in kept),
+            evidence=context.evidence,
+        ),
+    )
