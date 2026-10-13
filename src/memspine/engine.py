@@ -298,7 +298,7 @@ from memspine.workers.list_cards import (
     ListCard,
     fact_statement,
 )
-from memspine.workers.pipelines import (
+from memspine.derive.pipeline.stages.context import (
     DERIVED_STAGES,
     PIPELINES,
     CalibrateEpisode,

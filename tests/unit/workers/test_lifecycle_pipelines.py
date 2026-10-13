@@ -18,7 +18,7 @@ from memspine.services.storage.projector import RecordProjector
 from memspine.services.storage.sqlite.engine import SQLiteStorage
 from memspine.store.events import EventKind, MemoryEvent
 from memspine.store.records import MemoryRecord, RecordStatus
-from memspine.workers.pipelines import PipelineContext, compress, consolidate, decay_sweep
+from memspine.derive.pipeline.stages.context import PipelineContext, compress, consolidate, decay_sweep
 
 NOW = datetime.now(UTC)
 

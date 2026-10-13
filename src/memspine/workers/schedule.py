@@ -15,7 +15,7 @@ counts — delivery stays pull-based via ``Engine.due()`` in v0.1.
 from __future__ import annotations
 
 from memspine.observability.logging import get_logger
-from memspine.workers.pipelines import PipelineContext, projection_on, rule_edges_options
+from memspine.derive.pipeline.stages.context import PipelineContext, projection_on, rule_edges_options
 from memspine.workers.runner import TaskRunner
 
 _log = get_logger(__name__)

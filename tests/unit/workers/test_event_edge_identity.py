@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from memspine.prompts.models import ExtractedEdge
-from memspine.workers.pipelines import _edge_key
+from memspine.derive.pipeline.stages.context import _edge_key
 
 
 def _edge(fact: str, day: str | None, kind: str = "event") -> ExtractedEdge:

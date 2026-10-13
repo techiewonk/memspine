@@ -15,7 +15,7 @@ import pytest
 
 from memspine import Engine
 from memspine.store.records import MemoryRecord, RecordStatus
-from memspine.workers.pipelines import reorganize
+from memspine.derive.pipeline.stages.context import reorganize
 
 MELANIE = [
     ("Melanie read Dune", "Dune"),

@@ -24,7 +24,7 @@ from memspine.trust.privacy import (
     purpose_allows,
     read_scope,
 )
-from memspine.workers.pipelines import entity_summary_name, summarize_entities
+from memspine.derive.pipeline.stages.context import entity_summary_name, summarize_entities
 
 T0 = datetime(2023, 5, 8, 13, 0, tzinfo=UTC)
 

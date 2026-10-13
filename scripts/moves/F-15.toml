@@ -1,0 +1,6 @@
+# F-15: workers/pipelines.py becomes derive/pipeline/stages/context.py (importers rewritten here), then the
+# stage code is split into sibling modules by scripts/split_pipelines.py in the next commit.
+# Run: python scripts/codemod_move.py scripts/moves/F-15.toml
+[[move]]
+from = "memspine.workers.pipelines"
+to = "memspine.derive.pipeline.stages.context"

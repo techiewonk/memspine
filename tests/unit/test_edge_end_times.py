@@ -6,7 +6,7 @@ from datetime import UTC, datetime
 
 from memspine import Engine
 from memspine.prompts.models import ExtractedEdge
-from memspine.workers.pipelines import extract_graph
+from memspine.derive.pipeline.stages.context import extract_graph
 
 T0 = datetime(2023, 5, 1, tzinfo=UTC)
 

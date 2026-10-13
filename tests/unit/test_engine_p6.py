@@ -120,7 +120,7 @@ async def test_verbs_fail_loudly_when_associative_disabled() -> None:
 async def test_reorganize_reports_skipped_without_the_extra(
     engine: Engine, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from memspine.workers import pipelines
+    from memspine.derive.pipeline.stages import context as pipelines
 
     monkeypatch.setattr(pipelines, "communities_available", lambda: False)
     stats = await engine.sleep()

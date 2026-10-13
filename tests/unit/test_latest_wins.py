@@ -12,7 +12,7 @@ from memspine.config.schema import ReadConfig
 from memspine.core.latest_wins import apply_latest_wins, mark_latest
 from memspine.prompts.models import ExtractedEdge
 from memspine.store.records import MemoryRecord, SourceInfo
-from memspine.workers.pipelines import extract_graph
+from memspine.derive.pipeline.stages.context import extract_graph
 
 T0 = datetime(2023, 1, 1, tzinfo=UTC)
 

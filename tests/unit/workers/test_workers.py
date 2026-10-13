@@ -9,7 +9,7 @@ from memspine.config.loader import load_config
 from memspine.services.storage.sqlite.engine import SQLiteStorage
 from memspine.store.events import EventKind, EventLogMode, MemoryEvent
 from memspine.workers.inline import InlineRunner
-from memspine.workers.pipelines import PIPELINES, PipelineContext
+from memspine.derive.pipeline.stages.context import PIPELINES, PipelineContext
 from memspine.workers.schedule import SLEEP_CYCLE_ORDER, run_sleep_cycle
 
 
@@ -37,7 +37,7 @@ async def test_pipelines_contain_no_runner_imports() -> None:
     """D-17 anti-lock-in: pipelines.py must not import any runner module."""
     import inspect
 
-    import memspine.workers.pipelines as pipelines
+    import memspine.derive.pipeline.stages.context as pipelines
 
     source = inspect.getsource(pipelines)
     for forbidden in ("inline", "dbos", "taskiq", "runner"):

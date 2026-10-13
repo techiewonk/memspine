@@ -76,7 +76,7 @@ from memspine.services.storage.sqlite.engine import SQLiteStorage
 from memspine.services.vector.base import VectorStore
 from memspine.store.registry import GRAPH_STORES, LEXICAL_INDEXES, VECTOR_STORES
 from memspine.workers.inline import InlineRunner
-from memspine.workers.pipelines import PIPELINES, ExtractEdges, PipelineContext
+from memspine.derive.pipeline.stages.context import PIPELINES, ExtractEdges, PipelineContext
 from memspine.workers.runner import TaskRunner
 
 __all__ = [

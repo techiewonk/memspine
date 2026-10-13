@@ -28,7 +28,7 @@ from memspine.store.records import (
     SourceInfo,
 )
 from memspine.store.scope import validate_namespace
-from memspine.workers.pipelines import (
+from memspine.derive.pipeline.stages.context import (
     SessionClosed,
     session_close,
 )

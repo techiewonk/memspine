@@ -15,7 +15,7 @@ from memspine.config.loader import load_config
 from memspine.exceptions import MemspineError, MissingServiceError
 from memspine.services.storage.sqlite.engine import SQLiteStorage
 from memspine.store.events import EventLogMode
-from memspine.workers.pipelines import PIPELINES, PipelineContext
+from memspine.derive.pipeline.stages.context import PIPELINES, PipelineContext
 from memspine.workers.schedule import SLEEP_CYCLE_ORDER, run_sleep_cycle
 from memspine.workers.taskiq_runner import (
     CONSUMER_GROUP,

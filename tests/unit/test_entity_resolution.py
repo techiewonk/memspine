@@ -23,7 +23,7 @@ from memspine.memories.associative.resolution import (
 )
 from memspine.prompts.models import ExtractedEdge
 from memspine.store.records import MemoryRecord, SourceInfo
-from memspine.workers.pipelines import (
+from memspine.derive.pipeline.stages.context import (
     ENTITY_RESOLVED_MARKER,
     SessionIndex,
     extract_graph,

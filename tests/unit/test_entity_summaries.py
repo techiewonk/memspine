@@ -15,7 +15,7 @@ from test_graph_leg_off_golden import T0, seed
 from memspine import Engine
 from memspine.config import constants
 from memspine.store.records import MemoryRecord, RecordStatus
-from memspine.workers.pipelines import (
+from memspine.derive.pipeline.stages.context import (
     ENTITY_SUMMARIZED_MARKER,
     PIPELINES,
     SessionIndex,
@@ -310,7 +310,7 @@ async def test_about_block_off_by_default() -> None:
 
 async def test_summaries_are_not_extract_graph_sources() -> None:
     from memspine.prompts.models import ExtractedEdge
-    from memspine.workers.pipelines import extract_graph
+    from memspine.derive.pipeline.stages.context import extract_graph
 
     eng = _engine()
     await eng.start()

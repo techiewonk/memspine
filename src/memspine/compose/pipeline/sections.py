@@ -47,7 +47,7 @@ from memspine.read.pipeline.state import _TAINT_ARCHIVED_TAG, CUE_TAG
 from memspine.store.records import MemoryRecord, RecordStatus, SourceInfo, chrono_key
 from memspine.store.scope import grant_allows
 from memspine.trust.privacy import inherited_consent, inherited_pii
-from memspine.workers.pipelines import entity_summary_name, entity_summary_node
+from memspine.derive.pipeline.stages.context import entity_summary_name, entity_summary_node
 
 _log = get_logger(__name__)
 

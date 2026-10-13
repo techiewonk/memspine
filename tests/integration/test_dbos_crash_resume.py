@@ -59,7 +59,7 @@ import pytest
 from memspine import Engine
 from memspine.store.events import EventKind, MemoryEvent
 from memspine.store.records import MemoryRecord, RecordStatus
-from memspine.workers.pipelines import consolidate
+from memspine.derive.pipeline.stages.context import consolidate
 
 # episodic + semantic: consolidation reads closed episodic sessions and writes
 # semantic summaries. Both enabled so the engine is a realistic lifecycle host.

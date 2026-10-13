@@ -39,7 +39,7 @@ from typing import Any
 from memspine.config import constants
 from memspine.exceptions import MemspineError, MissingServiceError
 from memspine.observability.logging import get_logger
-from memspine.workers.pipelines import Pipeline, PipelineContext
+from memspine.derive.pipeline.stages.context import Pipeline, PipelineContext
 
 __all__ = [
     "CONSUMER_GROUP",

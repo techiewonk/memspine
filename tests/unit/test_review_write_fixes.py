@@ -18,7 +18,7 @@ from memspine.core.policies.conflict import ConflictPolicy, ConflictVerdict
 from memspine.prompts.models import AnticipatedCue, ExtractedFact
 from memspine.store.events import EventKind, MemoryEvent
 from memspine.store.records import MemoryRecord, RecordStatus, SourceInfo
-from memspine.workers.pipelines import (
+from memspine.derive.pipeline.stages.context import (
     _fact_date,
     anticipate,
     consolidate,
