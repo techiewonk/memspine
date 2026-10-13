@@ -5453,8 +5453,8 @@
    ],
    "kind": "behaviour",
    "gate": "Source-family pool non-inferior to per-leg pool",
-   "status": "In progress",
-   "note": "Swarm 2026-10-13: wiring flag-off (agent running)",
+   "status": "Needs measurement",
+   "note": "Wired flag-off (RW-B d1941c2); screen queued",
    "layers": [
     "L0",
     "L1"
@@ -5494,8 +5494,8 @@
    ],
    "kind": "behaviour",
    "gate": "Matches the 81.4% reference; boosts off until screened",
-   "status": "In progress",
-   "note": "Swarm 2026-10-13: wiring flag-off (agent running)",
+   "status": "Needs measurement",
+   "note": "Wired flag-off (RW-B d1941c2); screen queued",
    "layers": [
     "L0",
     "L1",
@@ -5537,8 +5537,8 @@
    ],
    "kind": "behaviour",
    "gate": "Focus non-inferior",
-   "status": "In progress",
-   "note": "Swarm 2026-10-13: wiring flag-off (agent running)",
+   "status": "Needs measurement",
+   "note": "Wired flag-off (RW-B d1941c2); screen queued",
    "layers": [
     "L0",
     "L1",

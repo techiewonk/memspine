@@ -9,9 +9,9 @@ Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summarie
 |---|---|
 | Not started | 63 |
 | Ready | 0 |
-| In progress | 9 |
+| In progress | 6 |
 | Blocked | 0 |
-| Needs measurement | 16 |
+| Needs measurement | 19 |
 | Done | 74 |
 | Dropped | 0 |
 
@@ -160,9 +160,9 @@ Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summarie
 | R3-05a | Entity leg with anti-hub damping | L1 L3 | R | R-08 | - | LIB-34 | behaviour | S3 read (serial) | - | Own focus and blind screen | **In progress** | Swarm 2026-10-13: wiring flag-off (agent running) |
 | R3-05b | Graph one-hop leg (only when L3 exists) | L3 | R | R-09 | ER-19 | R3-04, F-02c, F-16e | behaviour | S3 read (serial) | - | Own focus and blind screen | **Not started** |  |
 | R3-05c | Episode leg lifted to turns (only when L2 exists) | L0 L4 | R | R-10 | - | R3-04, O4-02 | behaviour | S3 read (serial) | - | L2-enabled template arm | **Not started** |  |
-| R3-06 | Family fusion, protected pool, calibrated floors | L0 L1 | R | R-11, R-12, R-13 | - | LIB-10 | behaviour | S3 read (serial) | - | Source-family pool non-inferior to per-leg pool | **In progress** | Swarm 2026-10-13: wiring flag-off (agent running) |
-| R3-07 | Jina rerank on every read (pools capped at 64); licence fallback; bounded boosts | L0 L1 L4 ctx | R | R-14, R-15, R-16, P-18 | ER-21 | R3-08, X-06 | behaviour | S3 read (serial) | - | Matches the 81.4% reference; boosts off until screened | **In progress** | Swarm 2026-10-13: wiring flag-off (agent running) |
-| R3-08 | Lift derived hits to turns BEFORE rerank (via lineage) | L0 L1 L3 L4 | R | R-17 | ER-21, ER-22, POL-2 | LIB-11, R3-06 | behaviour | S3 read (serial) | - | Focus non-inferior | **In progress** | Swarm 2026-10-13: wiring flag-off (agent running) |
+| R3-06 | Family fusion, protected pool, calibrated floors | L0 L1 | R | R-11, R-12, R-13 | - | LIB-10 | behaviour | S3 read (serial) | - | Source-family pool non-inferior to per-leg pool | **Needs measurement** | Wired flag-off (RW-B d1941c2); screen queued |
+| R3-07 | Jina rerank on every read (pools capped at 64); licence fallback; bounded boosts | L0 L1 L4 ctx | R | R-14, R-15, R-16, P-18 | ER-21 | R3-08, X-06 | behaviour | S3 read (serial) | - | Matches the 81.4% reference; boosts off until screened | **Needs measurement** | Wired flag-off (RW-B d1941c2); screen queued |
+| R3-08 | Lift derived hits to turns BEFORE rerank (via lineage) | L0 L1 L3 L4 | R | R-17 | ER-21, ER-22, POL-2 | LIB-11, R3-06 | behaviour | S3 read (serial) | - | Focus non-inferior | **Needs measurement** | Wired flag-off (RW-B d1941c2); screen queued |
 | R3-09a | Packer: exact reader-tokenizer accounting incl. headers, citations, reserves; early-break fix | ctx | C | R-18 | ER-24 | LIB-06 | behaviour | S3 read (serial) | - | Exact-tokenizer, multilingual and long-token tests; estimated mode labelled | **Needs measurement** | Wired flag-off (RW-C bb21249); screen queued |
 | R3-09b | Adaptive complete evidence bundles and block shares | ctx | C | R-18 | ER-24 | R3-09a | behaviour | S3 read (serial) | - | Equal-budget screen; adaptive bundle selection gets a separate quality screen (ER-24) | **Needs measurement** | Wired flag-off (RW-C bb21249); screen queued |
 | R3-10 | Neighbour windows after rerank | L0 | C | R-19 | ER-24 | LIB-24 | behaviour | S3 read (serial) | - | Focus non-inferior | **In progress** | Swarm 2026-10-13: wiring flag-off (agent running) |
