@@ -4095,8 +4095,8 @@
    ],
    "kind": "behaviour",
    "gate": "Both profiles pass the store contract tests",
-   "status": "In progress",
-   "note": "Sonnet agent launched 2026-10-13 (worktree memspine-F-16d)",
+   "status": "Needs measurement",
+   "note": "storage.profile embedded|server; PG alembic tree (parity on SQLite); PG contract skipped here (no server) - needs MEMSPINE_TEST_PG_URL run",
    "layers": [
     "L0",
     "L1",
@@ -4238,8 +4238,8 @@
    ],
    "kind": "measure",
    "gate": "Restart, erasure and replay on the embedded profile; not a server release",
-   "status": "In progress",
-   "note": "Sonnet agent: synthetic E2E restart/erasure/replay, all foundation flags on (model-free)",
+   "status": "Done",
+   "note": "5/5 steps pass with 11 foundation flags on; findings F1 (participants off leaks derived facts in multi-party), F2 hidden dependants keep text until re-derive, F3 parent id kept, F4 verify_forget not v2-aware",
    "layers": [
     "L0",
     "L1",

@@ -9,10 +9,10 @@ Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summarie
 |---|---|
 | Not started | 32 |
 | Ready | 0 |
-| In progress | 2 |
+| In progress | 0 |
 | Blocked | 0 |
-| Needs measurement | 46 |
-| Done | 81 |
+| Needs measurement | 47 |
+| Done | 82 |
 | Dropped | 1 |
 
 ## Phase 0: settle and prepare
@@ -117,10 +117,10 @@ Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summarie
 | F-16a | Lineage table and the single derived-write door (layer, parents, trust cap, fingerprint) | L0 L1 L3 L4 L5 ctx scope | D K_C | M-09, G-08 | ER-11, ER-22, POL-2 | RT-02 | behaviour | S2 foundations (serial: Alembic) | `src/memspine/store/lineage.py` +6 | Every L1-L5 writer goes through the door; erasure contract test registered | **Needs measurement** | Lineage table (0006_lineage) + write door, flag write.lineage_table off; 7 derived sites routed; procedural lessons + event-appending summaries not yet routed (d858924) |
 | F-16b | Event upcasters and migration by replay of the retained log (limited rebuild advertised) | L0 L1 L3 L4 L5 ctx scope | D K_C | M-01, M-26, G-23 | ER-27, ER-33 | F-16a | migration | S2 foundations (serial: Alembic) | `src/memspine/store/lineage.py` +6 | v1 log replays byte-stably | **Done** | Upcasters + memspine migrate replay (offline, byte-stable); limited rebuild advertised |
 | F-16c | Stable memory scope in every key (session as provenance); viewer required on every multi-party read, bound to the authenticated principal | L0 L1 L3 L4 L5 ctx scope | D R | M-05, G-12 | ER-13, ER-29 | F-16a | behaviour | S2 foundations (serial: Alembic) | `src/memspine/store/lineage.py` +6 | Isolation probes | **Needs measurement** | isolation.scope_keys_v2 / viewer_required flag-off; isolation probes pass; I19 leakage screen pending |
-| F-16d | Storage-profile contract; Postgres server profile and its Alembic tree | L0 L1 L3 L4 L5 ctx scope | R | M-04 | - | F-16b | behaviour | S2 foundations (serial: Alembic) | `src/memspine/store/lineage.py` +6 | Both profiles pass the store contract tests | **In progress** | Sonnet agent launched 2026-10-13 (worktree memspine-F-16d) |
+| F-16d | Storage-profile contract; Postgres server profile and its Alembic tree | L0 L1 L3 L4 L5 ctx scope | R | M-04 | - | F-16b | behaviour | S2 foundations (serial: Alembic) | `src/memspine/store/lineage.py` +6 | Both profiles pass the store contract tests | **Needs measurement** | storage.profile embedded|server; PG alembic tree (parity on SQLite); PG contract skipped here (no server) - needs MEMSPINE_TEST_PG_URL run |
 | F-16e | Neo4j graph adapter fed through the outbox | L3 | R | M-18 | - | F-16d, F-04 | behaviour | S2 foundations (serial: Alembic) | `src/memspine/store/lineage.py` +6 | Graph contract on Neo4j | **Not started** | Q4 |
 | F-16f | Isolation, erasure and rebuild matrix on both profiles | L0 L1 L3 L4 L5 ctx scope | K_C | M-25 | ER-05, ER-30 | F-16e, F-16c | behaviour | S2 foundations (serial: Alembic) | `src/memspine/store/lineage.py` +6 | Matrix green on embedded and server | **Not started** |  |
-| EX-1a | Embedded milestone: one synthetic end-to-end workload survives restart and erasure | L0 L1 L4 L5 ctx scope | D K_C K_P R C G | G-01 | ER-05 | F-16c, F-16b, F-02c, F-03 | measure | S2 foundations (serial: Alembic) | - | Restart, erasure and replay on the embedded profile; not a server release | **In progress** | Sonnet agent: synthetic E2E restart/erasure/replay, all foundation flags on (model-free) |
+| EX-1a | Embedded milestone: one synthetic end-to-end workload survives restart and erasure | L0 L1 L4 L5 ctx scope | D K_C K_P R C G | G-01 | ER-05 | F-16c, F-16b, F-02c, F-03 | measure | S2 foundations (serial: Alembic) | - | Restart, erasure and replay on the embedded profile; not a server release | **Done** | 5/5 steps pass with 11 foundation flags on; findings F1 (participants off leaks derived facts in multi-party), F2 hidden dependants keep text until re-derive, F3 parent id kept, F4 verify_forget not v2-aware |
 | EX-1 | Phase 1 exit (server milestone): raw-only read non-inferior; golden; replay NO CHANGE | L0 L1 L4 L5 ctx scope | D K_C K_P R C G | G-01 | ER-05 | F-16f, EX-1a, P0-03 | measure | S2 foundations (serial: Alembic) | - | ROADMAP Phase 1 exit gate | **Not started** |  |
 
 ## Phase 2: write path and models
@@ -306,4 +306,4 @@ Files each package may write (glob patterns, repo-relative; includes removal and
 | F-16e | `src/memspine/store/lineage.py`<br>`src/memspine/store/migrate.py`<br>`src/memspine/store/profiles.py`<br>`src/memspine/store/backends/postgres/**`<br>`src/memspine/store/backends/neo4j/**`<br>`src/memspine/derive/write.py`<br>`src/memspine/services/graph/neo4j.py` |
 | F-16f | `src/memspine/store/lineage.py`<br>`src/memspine/store/migrate.py`<br>`src/memspine/store/profiles.py`<br>`src/memspine/store/backends/postgres/**`<br>`src/memspine/store/backends/neo4j/**`<br>`src/memspine/derive/write.py`<br>`src/memspine/services/graph/neo4j.py` |
 
-No ownership yet (cannot be briefed): 70 packages.
+No ownership yet (cannot be briefed): 69 packages.
