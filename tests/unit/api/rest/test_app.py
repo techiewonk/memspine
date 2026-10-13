@@ -13,8 +13,8 @@ fastapi = pytest.importorskip("fastapi")
 import httpx  # noqa: E402
 
 from memspine import Engine  # noqa: E402
-from memspine.exceptions import MissingServiceError  # noqa: E402
 from memspine.api.rest import create_app  # noqa: E402
+from memspine.exceptions import MissingServiceError  # noqa: E402
 
 NOW = datetime.now(UTC)
 

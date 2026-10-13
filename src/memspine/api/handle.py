@@ -320,3 +320,138 @@ class Memory:
     async def stats(self) -> dict[str, Any]:
         """Counts for this scope's namespace (``Engine.namespace_stats``)."""
         return await self._engine.namespace_stats(self.namespace)
+
+    # ── verbs the remote protocols (REST, MCP, agent tools) call; scope filled in (F-13b) ──
+
+    async def _scoped(self, verb: str, *args: Any, **kwargs: Any) -> Any:
+        """Call engine ``verb`` with this scope's namespace (the handle owns it)."""
+        self._check(kwargs)
+        return await getattr(self._engine, verb)(*args, namespace=self.namespace, **kwargs)
+
+    async def remember_ex(self, content: str, **kwargs: Any) -> Any:
+        """Write one memory and return the outcome (``Engine.write_ex``)."""
+        return await self._scoped("write_ex", content, **kwargs)
+
+    async def write_messages(self, turns: Sequence[Mapping[str, Any]], **kwargs: Any) -> Any:
+        """Write chat turns (``Engine.write_messages``)."""
+        return await self._scoped("write_messages", turns, **kwargs)
+
+    async def write_episode(self, turns: Sequence[Mapping[str, Any]], **kwargs: Any) -> Any:
+        """Write chat turns as one episode (``Engine.write_episode``)."""
+        return await self._scoped("write_episode", turns, **kwargs)
+
+    async def retrieve(self, **kwargs: Any) -> Any:
+        """List records of one type (``Engine.retrieve``); the handle's purpose applies."""
+        self._check(kwargs)
+        if self.purpose is not None:
+            kwargs["purpose"] = self.purpose
+        return await self._engine.retrieve(namespace=self.namespace, **kwargs)
+
+    async def feedback(self, record_id: str, signal: Any, **kwargs: Any) -> Any:
+        """Utility feedback on one record (``Engine.feedback``)."""
+        return await self._scoped("feedback", record_id, signal, **kwargs)
+
+    async def list_quarantined(self) -> Any:
+        """Records held by the firewall in this scope (``Engine.list_quarantined``)."""
+        return await self._scoped("list_quarantined")
+
+    async def approve_quarantined(self, record_id: str, **kwargs: Any) -> Any:
+        """Release a held record (``Engine.approve_quarantined``)."""
+        return await self._scoped("approve_quarantined", record_id, **kwargs)
+
+    async def reject_quarantined(self, record_id: str, **kwargs: Any) -> Any:
+        """Reject a held record (``Engine.reject_quarantined``)."""
+        return await self._scoped("reject_quarantined", record_id, **kwargs)
+
+    async def add_skill(self, content: str, name: str, **kwargs: Any) -> Any:
+        """Add a procedural skill (``Engine.add_skill``)."""
+        return await self._scoped("add_skill", content, name, **kwargs)
+
+    async def promote_skill(self, record_id: str, **kwargs: Any) -> Any:
+        """Promote a skill (``Engine.promote_skill``)."""
+        return await self._scoped("promote_skill", record_id, **kwargs)
+
+    async def deprecate_skill(self, record_id: str) -> Any:
+        """Deprecate a skill (``Engine.deprecate_skill``)."""
+        return await self._scoped("deprecate_skill", record_id)
+
+    async def record_plan(self, task: str, content: str, **kwargs: Any) -> Any:
+        """Record a plan (``Engine.record_plan``)."""
+        return await self._scoped("record_plan", task, content, **kwargs)
+
+    async def recall_plan(self, task: str, **kwargs: Any) -> Any:
+        """Recall the closest plan (``Engine.recall_plan``)."""
+        return await self._scoped("recall_plan", task, **kwargs)
+
+    async def reflect(self, content: str, source_record_ids: Sequence[str], **kwargs: Any) -> Any:
+        """Write a reflection (``Engine.reflect``)."""
+        return await self._scoped("reflect", content, source_record_ids, **kwargs)
+
+    async def watch(self, content: str, **kwargs: Any) -> Any:
+        """Register a prospective watch (``Engine.watch``)."""
+        return await self._scoped("watch", content, **kwargs)
+
+    async def due(self, **kwargs: Any) -> Any:
+        """Watches that are due (``Engine.due``)."""
+        return await self._scoped("due", **kwargs)
+
+    async def acknowledge_watch(self, record_id: str) -> Any:
+        """Acknowledge a watch (``Engine.acknowledge_watch``)."""
+        return await self._scoped("acknowledge_watch", record_id)
+
+    async def grant(self, to_namespace: str, **kwargs: Any) -> Any:
+        """Grant another namespace read access (``Engine.grant``)."""
+        return await self._scoped("grant", to_namespace, **kwargs)
+
+    async def revoke(self, to_namespace: str, **kwargs: Any) -> Any:
+        """Revoke a grant (``Engine.revoke``)."""
+        return await self._scoped("revoke", to_namespace, **kwargs)
+
+    async def grants_from(self) -> Any:
+        """Live grants this scope has issued (``Engine.grants_from``)."""
+        return await self._scoped("grants_from")
+
+    async def shared_search(self, query: str, **kwargs: Any) -> Any:
+        """Search what other namespaces shared with this one (``Engine.shared_search``)."""
+        return await self._scoped("shared_search", query, **kwargs)
+
+    async def subscribe(self, query: str, **kwargs: Any) -> Any:
+        """Subscribe to a query (``Engine.subscribe``)."""
+        return await self._scoped("subscribe", query, **kwargs)
+
+    async def subscriptions(self) -> Any:
+        """This scope's subscriptions (``Engine.subscriptions``)."""
+        return await self._scoped("subscriptions")
+
+    async def export(self, **kwargs: Any) -> Any:
+        """Subject-access export, JSONL lines (``Engine.export``)."""
+        self._check(kwargs)
+        return await self._engine.export(self.namespace, **kwargs)
+
+    async def audit_taint(self, record_id: str) -> Any:
+        """Taint report seeded in this scope (``Engine.audit_taint``)."""
+        return await self._scoped("audit_taint", record_id)
+
+    async def get_record(self, record_id: str) -> MemoryRecord | None:
+        """One record of this scope by id, else None (a foreign id looks missing)."""
+        record = await self._engine._require_started().get_record(record_id)
+        return record if record is not None and record.namespace == self.namespace else None
+
+    async def list_records(self, memory_type: str | None = None) -> list[MemoryRecord]:
+        """All stored records of this scope, optionally of one memory type."""
+        storage = self._engine._require_started()
+        if memory_type is None:
+            return await storage.list_records(self.namespace)
+        return await storage.list_records(self.namespace, memory_type)
+
+    async def audit_action(self, action: str, record_ids: list[str], **kwargs: Any) -> None:
+        """Append a chained audit event for this scope (no-op unless ``audit.actions`` is on)."""
+        await self._engine._audit_action(action, self.namespace, record_ids, **kwargs)
+
+    async def rebuild(self) -> dict[str, int]:
+        """Rebuild the derived indexes (``Engine.rebuild``; engine-wide)."""
+        return await self._engine.rebuild()
+
+    def describe(self) -> dict[str, Any]:
+        """The engine's self-description (``Engine.describe``; engine-wide)."""
+        return self._engine.describe()

@@ -18,8 +18,8 @@ import json
 import sys
 from typing import IO, Any
 
-from memspine.observability.logging import get_logger
 from memspine.api.tools import AgentMemoryTools, ToolSpec
+from memspine.observability.logging import get_logger
 
 __all__ = ["PROTOCOL_VERSIONS", "McpServer", "serve_stdio"]
 
