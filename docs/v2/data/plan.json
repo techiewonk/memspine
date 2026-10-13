@@ -3033,8 +3033,8 @@
    ],
    "kind": "move",
    "gate": "Golden byte-identical hit order",
-   "status": "Not started",
-   "note": "S10",
+   "status": "Done",
+   "note": "S10a: 69 units to read/pipeline/{fusion,legs,request,rerank,router,state}.py, engine 13497->11144; unit 5905, evals 1435, golden, 14 contracts (e8a49a3)",
    "layers": [
     "L0",
     "L1",
