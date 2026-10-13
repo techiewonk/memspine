@@ -5,13 +5,20 @@ from __future__ import annotations
 import functools
 import inspect
 from collections.abc import Callable, Coroutine, Mapping
-from datetime import UTC, datetime
+from dataclasses import replace
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from memspine.config import constants
-from memspine.core.read_filters import active_date_filter, active_record_scope
+from memspine.core.read_filters import (
+    active_as_of,
+    active_date_filter,
+    active_record_scope,
+)
 from memspine.exceptions import MemspineError
 from memspine.memories.episodic.sessions import Session
+from memspine.observability import tap
+from memspine.read import timeview as tv
 from memspine.read.pipeline.state import (
     _FOCAL_ENTITY,
     _PASSIVE_SCOPE,
@@ -19,6 +26,12 @@ from memspine.read.pipeline.state import (
     CUE_TAG,
     _PassiveScope,
 )
+from memspine.schemas.durable.assertion import AssertionEnvelope, Mention
+from memspine.schemas.durable.assessment import Assessment, Support
+from memspine.schemas.durable.common import OwnerScope
+from memspine.schemas.durable.evidence import Evidence, TurnRef
+from memspine.schemas.durable.identity import AssertionKey
+from memspine.schemas.durable.temporal import Interval, TemporalRef, TimeAxes
 from memspine.store.records import MemoryRecord, RecordStatus, chrono_key
 from memspine.store.scope import validate_namespace
 
@@ -128,6 +141,10 @@ async def _date_allowed(eng: Any, ns: str) -> tuple[set[str], int] | None:
     if date_filter is None and scope is None:
         return None
     listed = await eng._records(ns)
+    if eng._config().read.timeview_v2:
+        v2 = _timeview_allowed(listed, date_filter, scope)
+        if v2 is not None:
+            return v2, len(listed)
     allowed = {
         r.record_id
         for r in listed
@@ -159,3 +176,113 @@ async def sessions(
     if eng._episodic is None:
         raise MemspineError("episodic memory not enabled — set memories.episodic.enabled: true")
     return await eng._episodic.sessions(validate_namespace(namespace), gap_minutes)
+
+
+_MICRO = timedelta(microseconds=1)
+
+
+def _aware(t: datetime) -> datetime:
+    return t if t.tzinfo is not None else t.replace(tzinfo=UTC)
+
+
+def _as_envelope(r: MemoryRecord) -> AssertionEnvelope:
+    """R3-14 adapter: a record as the time view sees it. Event time = ``valid_from`` /
+    ``invalid_at`` (else ``valid_to``, an inferred end); recorded time = ``recorded_at``."""
+    start = TemporalRef(at=_aware(r.valid_from), precision="instant", basis="explicit")
+    end_at = r.invalid_at or r.valid_to
+    end = (
+        TemporalRef(at=_aware(end_at), precision="instant", basis="inferred")
+        if end_at is not None
+        else None
+    )
+    status = (
+        "active"
+        if r.status is RecordStatus.ACTIVATED
+        else "superseded"
+        if r.status is RecordStatus.ARCHIVED
+        else "hidden"
+    )
+    time = TimeAxes(
+        event=Interval(start=start, end=end),
+        recorded_at=_aware(r.recorded_at),
+    )
+    return AssertionEnvelope(
+        write_id=r.record_id,
+        assertion_key=AssertionKey(
+            src=r.entity or "_", rel=r.attribute or "_", dst="_", kind="fact"
+        ),
+        occurrence_id=r.record_id,
+        record_id=r.record_id,
+        scope=OwnerScope(tenant=r.namespace or "_", owner="_"),
+        text=r.content or "_",
+        kind="fact",
+        subject=Mention(surface=r.entity, mention_id=f"m:{r.record_id}") if r.entity else None,
+        attribute=r.attribute,
+        time=time,
+        evidence=[
+            Evidence(
+                role="support",
+                turn=TurnRef(source_id=r.record_id, source_version=1, seg_index=0),
+                source_family="user",
+            )
+        ],
+        assessment=Assessment(
+            source_trust=0.9,
+            binding="bound",
+            modality="asserted",
+            time_precision=time.event_precision,
+            support=Support(),
+        ),
+        src_class="user_stated",
+        status=status,  # type: ignore[arg-type]
+    )
+
+
+def _timeview_allowed(listed: list[MemoryRecord], date_filter: Any, scope: Any) -> set[str] | None:
+    """R3-14 (``read.timeview_v2``): the allow-list under the three-valued time view, or
+    None when the read has no as-of / known-at bound (the legacy path then runs).
+
+    The as-of scope's own ``valid_from_before`` and a ``recorded_before`` bound are taken
+    over by the view (event time and knowledge time); every other date bound still
+    applies. Undecidable records stay in (flagged) instead of being dropped."""
+    as_of = active_as_of()
+    known_bound = date_filter.recorded_before if date_filter is not None else None
+    if date_filter is not None and date_filter.mode == "or":
+        return None
+    if as_of is None and known_bound is None:
+        return None
+    if as_of is not None and known_bound is not None:
+        view = tv.TimeView.both(as_of, known_bound - _MICRO)
+    elif as_of is not None:
+        view = tv.TimeView.at_valid(as_of)
+    else:
+        view = tv.TimeView.at_known(known_bound - _MICRO)
+    rest = date_filter
+    if date_filter is not None:
+        drop: dict[str, None] = {"recorded_before": None}
+        if as_of is not None and date_filter.valid_from_before == as_of + _MICRO:
+            drop["valid_from_before"] = None
+        rest = replace(date_filter, **drop)
+        if not rest.bounds():
+            rest = None
+    result = tv.apply(view, [_as_envelope(r) for r in listed])
+    kept = {h.record_id for h in result.hits}
+    undecidable = sum(1 for h in result.hits if h.uncertain_time)
+    if tap.enabled():
+        tap.event(
+            "read.timeview",
+            mode=view.mode,
+            n_in=len(kept) - undecidable,
+            n_out=len(result.out_of_window),
+            n_undecidable=undecidable,
+        )
+    return {
+        r.record_id
+        for r in listed
+        if CUE_TAG in r.tags
+        or (
+            r.record_id in kept
+            and (rest is None or rest.matches(r))
+            and (scope is None or scope.matches(r))
+        )
+    }

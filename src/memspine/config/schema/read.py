@@ -810,6 +810,19 @@ class ReadConfig(BaseModel):
     #: N59 (Dakera name boost): an RRF leg of raw turns naming the question's proper
     #: nouns and years beyond the speakers (``temporal_query.entity_leg``).
     entity_leg: bool = False
+    #: R3-05a (LIB-34, R-08): the entity leg over RESOLVED entity ids (the associative
+    #: entity index): Mem0 boost, max over the matched entities, capped, with hub damping
+    #: ``1/(1+0.001 (degree-1)^2)``. Joins fusion as the ``entity_v2`` leg. Off: unchanged.
+    entity_leg_v2: bool = False
+    #: R3-14 (LIB-22, R-24, S6-3): as-of reads through the three-valued time view: ``true_at``
+    #: judges event time (valid_from/valid_to), ``known_at`` recorded time, undecidable
+    #: records are kept (flagged) rather than dropped. Applies to the read's date allow-list
+    #: when an as-of or a ``recorded_before`` bound is active. Off: the date filter as before.
+    timeview_v2: bool = False
+    #: R3-10 (LIB-24, retrieve step 15): neighbour windows after rerank through
+    #: ``read.neighbours.expand``: budget-aware, viewer-checked, overlapping windows merged.
+    #: Replaces the G2c compose expansion (turn windows only). Off: unchanged.
+    neighbours_v2: bool = False
     #: N63 (EverMemOS multi-query, by rules): the question rewritten as a statement
     #: ("When did Ana go camping?" -> "Ana go camping") joins the search as a probe.
     statement_probe: bool = False

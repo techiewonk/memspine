@@ -270,6 +270,22 @@ class AssociativeMemory(BaseMemory):
                 nodes.append(edge.dst)
         return index
 
+    async def entity_mentions(self, namespace: str) -> dict[str, list[str]]:
+        """R3-05a: entity node id -> the records with a live ``mentions`` edge to it
+        in ``namespace`` (edge order, no duplicates). Unfiltered: the caller gates."""
+        out: dict[str, list[str]] = {}
+        for edge in await self._graph.edge_list(namespace):
+            if (
+                edge.rel_type != MENTIONS_REL
+                or edge.weight <= 0
+                or not _entity_in(edge.dst, namespace)
+            ):
+                continue
+            rows = out.setdefault(edge.dst, [])
+            if edge.src not in rows:
+                rows.append(edge.src)
+        return out
+
     async def entities_of(self, namespace: str, record_ids: Sequence[str]) -> list[str]:
         """The entity nodes the records mention (live edges), in record order."""
         found: list[str] = []

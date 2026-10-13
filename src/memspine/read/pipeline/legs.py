@@ -33,7 +33,9 @@ from memspine.core.rule_edges import BECAUSE_REL
 from memspine.core.ties import settle_ties
 from memspine.memories.associative.entities import (
     MENTIONS_REL,
+    canonical_entity,
     is_entity_node,
+    parse_entity_node,
 )
 from memspine.memories.associative.store import match_key
 from memspine.models.encoders.embedding.base import embed_queries
@@ -75,6 +77,12 @@ from memspine.prompts.models import (
 )
 from memspine.read.contract import (
     contract_header,
+)
+from memspine.read.entity_leg import (
+    DampingConfig,
+    EntityIndex,
+    EntityMention,
+    entity_leg_explained,
 )
 from memspine.read.pipeline.fusion import (
     _unit,
@@ -181,6 +189,7 @@ async def _metadata_legs(eng: Any, ns: str, query: str, fetch_k: int) -> list[li
         or read.sentence_leg
         or read.recency_leg
         or read.entity_leg
+        or read.entity_leg_v2
         or read.speaker_probe
         or read.view_tag_leg
     ):
@@ -244,6 +253,8 @@ async def _metadata_legs(eng: Any, ns: str, query: str, fetch_k: int) -> list[li
         if read.view_tag_leg:
             # G-16 (SimpleMem symbolic leg): location / topic / person view tags.
             legs.append(NamedLeg("view_tags", view_tag_leg(query, live, fetch_k)))
+        if read.entity_leg_v2:
+            legs += await _entity_leg_v2(eng, ns, query, live, fetch_k)
         if read.entity_leg or read.speaker_probe:
             speakers = {s for r in live if (s := speaker_of(r.content)) is not None}
             if read.entity_leg:
@@ -268,6 +279,63 @@ async def _metadata_legs(eng: Any, ns: str, query: str, fetch_k: int) -> list[li
         _log.warning("read.metadata_legs_failed", namespace=ns, error=str(exc))
         return []
     return [leg for leg in legs if leg]
+
+
+async def _entity_leg_v2(
+    eng: Any, ns: str, query: str, live: Sequence[MemoryRecord], fetch_k: int
+) -> list[list[LegHit]]:
+    """R3-05a (``read.entity_leg_v2``, LIB-34, R-08): the entity leg over resolved ids.
+
+    The entities the question names are today's graph seeds (``_graph_seeds``: n-gram match
+    on the entity index, the focal entity, the optional NER hook); the records that mention
+    them come from the associative store's live ``mentions`` edges. Scored by the library:
+    the Mem0 boost, max over the matched entities, capped, with hub damping by degree. The
+    role of an entity in a record is subject (the record's ``entity``), object (its ``dst:``
+    tag) or mention. One named leg ``entity_v2`` (family ``structured``)."""
+    if eng._associative is None:
+        return []
+    seeds = await eng._graph_seeds(ns, query)
+    if not seeds:
+        if tap.enabled():
+            tap.event("read.leg.entity", matched=[], damping={}, hits=0, seeds=0)
+        return []
+    by_id = {r.record_id: r for r in live}
+    mentions = await eng._associative.entity_mentions(ns)
+    index: dict[str, list[EntityMention]] = {}
+    for node in seeds:
+        parsed = parse_entity_node(node)
+        name = parsed[1] if parsed else node
+        for rid in mentions.get(node, ()):
+            rec = by_id.get(rid)
+            if rec is None:  # not live: quarantined, archived, another type
+                continue
+            if rec.entity and canonical_entity(rec.entity) == name:
+                role = "subject"
+            elif any(t.startswith("dst:") and canonical_entity(t[4:]) == name for t in rec.tags):
+                role = "object"
+            else:
+                role = "mention"
+            index.setdefault(node, []).append(EntityMention(rid, role, rec.valid_from))
+    result = entity_leg_explained(
+        seeds,
+        EntityIndex(index, n_records=len(by_id)),
+        k=fetch_k,
+        damping=DampingConfig(),
+    )
+    if tap.enabled():
+        damping = {
+            ev.entity_id: round(ev.damping, 4) for evs in result.provenance.values() for ev in evs
+        }
+        tap.event(
+            "read.leg.entity",
+            seeds=len(seeds),
+            matched=list(result.matched_entities),
+            unknown=list(result.unknown_entities),
+            damping=damping,
+            hits=len(result.leg.hits),
+        )
+    hits = [LegHit(h.record_id, h.score) for h in result.leg.hits]
+    return [NamedLeg("entity_v2", hits)] if hits else []
 
 
 async def _person_time_leg(eng: Any, ns: str, plan: ReadPlan) -> list[LegHit]:
