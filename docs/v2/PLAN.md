@@ -9,9 +9,9 @@ Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summarie
 |---|---|
 | Not started | 63 |
 | Ready | 0 |
-| In progress | 6 |
+| In progress | 3 |
 | Blocked | 0 |
-| Needs measurement | 19 |
+| Needs measurement | 22 |
 | Done | 74 |
 | Dropped | 0 |
 
@@ -157,7 +157,7 @@ Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summarie
 | R3-02 | Typed query contract by rules; render header | ctx | R C | R-03, R-20 | ER-19 | LIB-16, R3-01 | behaviour | S3 read (serial) | - | A03 full set and blind | **Needs measurement** | Wired flag-off (RW-A 9ebc35c, merged with RW-F cache); screen queued |
 | R3-03 | Rule router reading the LayerRegistry; LLM rewrites only in deep tier | ctx | R | R-04 | - | LIB-23, R3-01 | behaviour | S3 read (serial) | - | Focus non-inferior | **Needs measurement** | Wired flag-off (RW-A 9ebc35c, merged with RW-F cache); screen queued |
 | R3-04 | Core legs: vector, language-aware BM25, temporal on event intervals | L0 L1 L3 L5 | R | R-05, R-06, R-07 | - | R3-03 | behaviour | S3 read (serial) | - | Focus non-inferior; no-model template: L1 legs empty, not error | **Not started** |  |
-| R3-05a | Entity leg with anti-hub damping | L1 L3 | R | R-08 | - | LIB-34 | behaviour | S3 read (serial) | - | Own focus and blind screen | **In progress** | Swarm 2026-10-13: wiring flag-off (agent running) |
+| R3-05a | Entity leg with anti-hub damping | L1 L3 | R | R-08 | - | LIB-34 | behaviour | S3 read (serial) | - | Own focus and blind screen | **Needs measurement** | Wired flag-off (RW-E ece067e); screen queued |
 | R3-05b | Graph one-hop leg (only when L3 exists) | L3 | R | R-09 | ER-19 | R3-04, F-02c, F-16e | behaviour | S3 read (serial) | - | Own focus and blind screen | **Not started** |  |
 | R3-05c | Episode leg lifted to turns (only when L2 exists) | L0 L4 | R | R-10 | - | R3-04, O4-02 | behaviour | S3 read (serial) | - | L2-enabled template arm | **Not started** |  |
 | R3-06 | Family fusion, protected pool, calibrated floors | L0 L1 | R | R-11, R-12, R-13 | - | LIB-10 | behaviour | S3 read (serial) | - | Source-family pool non-inferior to per-leg pool | **Needs measurement** | Wired flag-off (RW-B d1941c2); screen queued |
@@ -165,11 +165,11 @@ Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summarie
 | R3-08 | Lift derived hits to turns BEFORE rerank (via lineage) | L0 L1 L3 L4 | R | R-17 | ER-21, ER-22, POL-2 | LIB-11, R3-06 | behaviour | S3 read (serial) | - | Focus non-inferior | **Needs measurement** | Wired flag-off (RW-B d1941c2); screen queued |
 | R3-09a | Packer: exact reader-tokenizer accounting incl. headers, citations, reserves; early-break fix | ctx | C | R-18 | ER-24 | LIB-06 | behaviour | S3 read (serial) | - | Exact-tokenizer, multilingual and long-token tests; estimated mode labelled | **Needs measurement** | Wired flag-off (RW-C bb21249); screen queued |
 | R3-09b | Adaptive complete evidence bundles and block shares | ctx | C | R-18 | ER-24 | R3-09a | behaviour | S3 read (serial) | - | Equal-budget screen; adaptive bundle selection gets a separate quality screen (ER-24) | **Needs measurement** | Wired flag-off (RW-C bb21249); screen queued |
-| R3-10 | Neighbour windows after rerank | L0 | C | R-19 | ER-24 | LIB-24 | behaviour | S3 read (serial) | - | Focus non-inferior | **In progress** | Swarm 2026-10-13: wiring flag-off (agent running) |
+| R3-10 | Neighbour windows after rerank | L0 | C | R-19 | ER-24 | LIB-24 | behaviour | S3 read (serial) | - | Focus non-inferior | **Needs measurement** | Wired flag-off (RW-E ece067e); screen queued |
 | R3-11 | Store-calibrated relevance gate with named bypass | L1 ctx | R | R-21 | ER-23, POL-1 | LIB-12 | behaviour | S3 read (serial) | - | OP-Bench up; no recall loss on MAB-CR, ConvoMem, LoCoMo | **Needs measurement** | Wired flag-off (RW-D 949b5ff); SAF-GENERIC passes with gate_v2; screen queued (SCREENS.md) |
 | R3-12 | Deep tier: one sufficiency check and one rewrite | L0 ctx | R C | R-22 | ER-19, ER-23 | LIB-43, R3-11 | behaviour | S3 read (serial) | - | f-suff: net beyond band, no category loss, at most 2x wall time | **Needs measurement** | Wired flag-off (RW-D 949b5ff); SAF-GENERIC passes with gate_v2; screen queued (SCREENS.md) |
 | R3-13 | External public knowledge (opt-in, separate block) | L0 | R | R-23 | ER-25 | LIB-45 | behaviour | S3 read (serial) | - | Separate arm; never mixed in headline | **Needs measurement** | Wired flag-off (RW-F 976f27d); screen queued |
-| R3-14 | Time view and two-axis as-of reads | L0 L1 | R | R-24, M-11 | ER-18 | LIB-22 | behaviour | S3 read (serial) | - | Temporal and MAB-CR non-inferior | **In progress** | Swarm 2026-10-13: wiring flag-off (agent running) |
+| R3-14 | Time view and two-axis as-of reads | L0 L1 | R | R-24, M-11 | ER-18 | LIB-22 | behaviour | S3 read (serial) | - | Temporal and MAB-CR non-inferior | **Needs measurement** | Wired flag-off (RW-E ece067e); screen queued |
 | R3-16 | Evidence obligations for joins, durations and lists (screened) | L0 ctx | R C | R-03, R-22 | ER-19 | LIB-15, R3-12 | behaviour | S3 read (serial) | - | Unseen intersections, durations and enumerations improve at fixed reader/token budgets; no more unsupported answers | **Needs measurement** | Wired flag-off (RW-D 949b5ff); SAF-GENERIC passes with gate_v2; screen queued (SCREENS.md) |
 | R3-15 | Parallel legs, latency SLOs (declared hardware/concurrency), caches keyed by scope/version (off until ER-31 tests pass), prefix layout | L0 L1 ctx | D R C | R-25, R-26, P-20, P-24 | ER-09, ER-31, ER-39 | LIB-19 | infra | S3 read (serial) | - | p95 SLO tests in CI; caching (result/context caches disabled until ER-31 keys and use-time admission tests pass) | **Needs measurement** | Wired flag-off (RW-F 976f27d); screen queued |
 | EX-3 | Phase 3 exit: beats or matches 81.4% beyond band; blind sets hold | L0 L1 L4 L5 ctx scope | D K_C K_P R C G | G-01 | - | R3-15, R3-02 | measure | exit | - | ROADMAP Phase 3 exit gate | **Not started** |  |
