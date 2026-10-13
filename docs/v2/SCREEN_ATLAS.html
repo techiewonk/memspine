@@ -116,7 +116,7 @@ ul.tight{margin:0;padding-left:20px;display:grid;gap:4px}
 <div class="wrap">
 
 <header style="display:grid;gap:12px">
-  <div class="eyebrow">MemSpine 2.0 restructure · screen plan · 13 Oct 2026</div>
+  <div class="eyebrow">MemSpine 2.0 restructure · screen plan · 14 Oct 2026</div>
   <h1>MemSpine Screen Atlas</h1>
   <p class="lede">How the engine works end to end, what every GPU screen switches on, where it sits in the flow, what we expect it to do on LoCoMo and the other benchmarks, and which ones to run next. Measured numbers are marked as measured; every benchmark effect below is a <b>hypothesis</b> for discussion.</p>
 </header>
@@ -170,6 +170,7 @@ flowchart LR
   <a class="chip" href="#retrieval-track">Retrieval (read + compose)</a>
   <a class="chip" href="#catalogue">All screens</a>
   <a class="chip" href="#results">Results</a>
+  <a class="chip" href="#r14">R14 research</a>
 </nav>
 
 <section id="ingestion">
@@ -327,6 +328,19 @@ flowchart TB
   </div>
 </section>
 
+
+<!-- 5b. R14 RESEARCH -->
+<section id="r14">
+  <div class="eyebrow">5b · Research round R14 · 14 Oct 2026</div>
+  <h2>Observations and R14 research: problems, gaps, hypotheses, solutions</h2>
+  <p>Five CPU-only studies (no model calls): your 11 pipeline observations, the retrieval-side failures, the reader and judge failures, a literature survey and a survey of other engines. They were clustered into 21 generic problems, ranked by value per effort. <span class="pill s-queued">R14</span> marks a problem that is new; <span class="pill s-iterate">R14-confirmed</span> marks new evidence for a gap we already had. Counts are measured on the reference full run (1,540 questions) and overlap between items; every expected effect is a <b>hypothesis</b> until a screen reports. Screens S68–S100 are proposals, none is queued yet.</p>
+  <div class="callout" id="r14Head"></div>
+  <nav class="filters" aria-label="R14 layer filter" id="r14Filt"><label>Layer</label></nav>
+  <div class="cards" id="r14Cards"><p class="note">Loading R14 items…</p></div>
+  <h3 style="margin-top:8px">Your 11 observations: where each stands</h3>
+  <div class="tablewrap"><table class="mtab"><thead><tr><th>#</th><th>Observation</th><th>Today</th><th>Gap</th><th>Proposal</th><th>Targets</th><th>Effort</th><th>Priority</th></tr></thead><tbody id="obsBody"></tbody></table></div>
+</section>
+
 <!-- 6. PLAN -->
 <section id="plan">
   <div class="eyebrow">6 · Plan and time</div>
@@ -472,7 +486,7 @@ function showRef(id){const t=INT[id];const box=document.getElementById("refBox")
   box.innerHTML=`<h3 style="margin-bottom:8px">${esc(id)}</h3>${internalsHTML(t)}`}
 document.querySelectorAll("[data-ref]").forEach(b=>b.addEventListener("click",()=>{
   document.querySelectorAll("[data-ref]").forEach(x=>x.setAttribute("aria-pressed",String(x===b)));showRef(b.dataset.ref)}));
-fetch(location.protocol==="file:"?"data/screen_atlas_internals.json":"internals.json").then(r=>r.json()).then(d=>{INT=d.internals||{};REC=d.recover||{};render();showRef("REF-J")})
+fetch("data/screen_atlas_internals.json").then(r=>r.json()).then(d=>{INT=d.internals||{};REC=d.recover||{};render();showRef("REF-J")})
   .catch(()=>{document.getElementById("refBox").innerHTML=`<p class="note">The internals file did not load.</p>`});
 // ingestion stage table
 const ING=[
@@ -534,4 +548,36 @@ document.getElementById("q").addEventListener("input",e=>{state.q=e.target.value
 render();
 ingestRows();
 if(location.hash){const el=document.getElementById(location.hash.slice(1));if(el&&el.tagName==="DETAILS"){el.open=true;el.scrollIntoView()}}
+
+// R14 research section
+(function(){
+ const LAY={ingest:"bD",retrieval:"bR",reader:"bC",judge:"bT",eval:"bX"};
+ let R=null,cur="all";
+ const tagPill=t=>`<span class="pill ${t==="R14"?"s-queued":"s-iterate"}">${esc(t)}</span>`;
+ function card(it){
+  const sols=(it.solutions||[]).map(s=>`<li><b>${esc(s.name)}</b> — ${esc(s.mechanism||"")}<span class="note" style="display:block;font-family:var(--f-mono);font-size:12px">flag ${esc(s.flag||"–")} · cost ${esc(String(s.cost??"–"))} calls · source ${esc(s.source||"–")} · risk ${esc(s.risk||"–")}</span></li>`).join("");
+  const t=it.test||{};
+  const first=it.cpu_no_llm_first_step===true?"CPU only, no model call":(it.cpu_no_llm_first_step||"–");
+  return `<details class="scr"><summary><span class="sid">${esc(it.id.replace("R14-",""))}</span><span class="lay ${LAY[it.layer]||"bX"}">${esc(it.layer)}</span><span class="sname"><b>${esc(it.title)}</b><span>#${it.rank} · ${it.count??"?"} questions · ${esc(it.priority)} · effort ${esc(it.effort)}${it.built_off_screen_only?" · already built, screen only":""}</span></span>${tagPill(it.tag)}</summary>
+  <div class="body"><dl class="kv">
+   <dt>Problem</dt><dd>${esc(it.problem)}</dd>
+   <dt>Evidence</dt><dd>${esc(it.evidence||"")} <span class="note">(${esc(it.method||"")})</span></dd>
+   <dt>Gap</dt><dd>${esc(it.gap||"")}${it.confirms?` <span class="note">Confirms: ${esc(it.confirms)}</span>`:""}</dd>
+   <dt>Hypothesis</dt><dd>${esc(it.hypothesis||"")}</dd>
+   <dt>Expected</dt><dd>${esc(it.effect||"–")}</dd>
+   <dt>First step</dt><dd>${esc(String(first))}</dd>
+   <dt>Test</dt><dd>${esc(t.slice||"")} → ${esc(t.screen||"")}</dd>
+  </dl><div class="int"><h4>Solutions</h4><ul class="tight">${sols}</ul></div></div></details>`}
+ function draw(){
+  const xs=R.items.filter(i=>cur==="all"||i.layer===cur);
+  document.getElementById("r14Cards").innerHTML=xs.map(card).join("")||`<p class="note">None.</p>`;
+  document.querySelectorAll("#r14Filt .chip").forEach(c=>c.setAttribute("aria-pressed",String(c.dataset.l===cur)))}
+ fetch("data/screen_atlas_r14.json").then(r=>r.json()).then(d=>{R=d;const H=d.headline;const pc=x=>(x*100).toFixed(1);
+  document.getElementById("r14Head").innerHTML=`<h3>Honest headline</h3><p>LoCoMo raw <b>${pc(H.raw)}%</b> becomes about <b>${pc(H.adjusted_central)}%</b> (range ${pc(H.adjusted_range[0])}–${pc(H.adjusted_range[1])}) after hand-read judge errors in both directions: about ${Math.round(H.fn_central)} correct answers marked wrong and ${Math.round(H.fp_central)} wrong answers marked correct. ${esc(H.note)}</p><p class="note">The judge-error figures come from one annotator's hand reading; adjudicate once before publishing any number.</p>`;
+  const f=document.getElementById("r14Filt");
+  ["all","ingest","retrieval","reader","judge","eval"].forEach(l=>{const b=document.createElement("button");b.className="chip";b.dataset.l=l;b.textContent=l==="all"?`All (${d.items.length})`:`${l} (${d.items.filter(i=>i.layer===l).length})`;b.addEventListener("click",()=>{cur=l;draw()});f.appendChild(b)});
+  draw();
+  document.getElementById("obsBody").innerHTML=d.obs.map(o=>{const tg=o.targets||{};return `<tr><td class="num">${esc(o.id.replace("OBS-",""))}</td><td><b>${esc(o.title)}</b></td><td>${esc(o.status)}</td><td>${esc(o.gap)}</td><td>${esc(o.proposal)}<span class="note" style="display:block">${esc(o.proposed_flag||"")} · ${esc(o.proposed_screen||"")}</span></td><td class="num">${tg.count??"–"}${tg.upper_bound?` (≤${tg.upper_bound})`:""}</td><td>${esc(o.effort)}</td><td>${esc(o.priority)}</td></tr>`}).join("")})
+ .catch(()=>{document.getElementById("r14Cards").innerHTML=`<p class="note">The R14 data file did not load.</p>`});
+})();
 </script>
