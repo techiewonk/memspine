@@ -17,7 +17,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision = "f04_outbox"
-down_revision = "0006_lineage"
+down_revision = "0007"
 branch_labels = None
 depends_on = None
 
