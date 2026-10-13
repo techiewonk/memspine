@@ -310,6 +310,82 @@ async def lineage_from_records(
     return lineage, fetched
 
 
+async def lift_episode_hits(
+    eng: Any,
+    ns: str,
+    hits: Sequence[Any],
+    episodes: dict[str, MemoryRecord],
+    *,
+    max_turns: int,
+    carry: float,
+) -> list[LegHit]:
+    """R3-05c (``read.episode_leg_v2``, R-10): episode hits to their member turns, with scores.
+
+    ``hits`` are the episode leg's ``(record_id, score)`` hits, best first; ``episodes`` maps the
+    episode ids to their records. Each episode walks to its source turns through lineage (the
+    lineage table under ``write.lineage_table``, else ``source.parents``; ``liblift.lift``, strict
+    POL-2: a hit whose lineage is partly hidden loses its slot). The episode and every turn pass
+    the read gates again (status, quarantine, consent, erasure, group-less; then the date and scope
+    filters), so a forgotten or erased turn is never returned. A turn scores
+    ``episode_score * carry ** hops`` (:func:`memspine.read.legs.carry_score`); a turn reached from
+    several episodes keeps the best. Returns the turn leg, best first (episodes are not returned).
+    """
+    from memspine.read.legs.episode import carry_score
+
+    recs = [episodes[h.record_id] for h in hits if h.record_id in episodes]
+    if not recs:
+        return []
+    lineage, fetched = await lineage_from_records(eng, recs, LiftPolicy().max_depth)
+    turn_ids = list(
+        dict.fromkeys(e.parent for edges in lineage.values() for e in edges if e.parent not in lineage)
+    )
+    gate_ids = list(dict.fromkeys([r.record_id for r in recs] + turn_ids))
+    gated = await eng._gate_hits(ns, [(rid, 0.0) for rid in gate_ids], None, None, None)
+    date_filter = active_date_filter()
+    scope = active_record_scope()
+    visible: set[str] = set()
+    for rec, _ in gated:
+        if date_filter is not None and not date_filter.matches(rec):
+            continue
+        if scope is not None and not scope.matches(rec):
+            continue
+        visible.add(rec.record_id)
+    pol = LiftPolicy(is_turn=lambda rid: rid in fetched and fetched[rid].memory_type == "episodic")
+    cands = [
+        Candidate(record_id=h.record_id, kind="episode", rank=float(i), prior_score=h.score)
+        for i, h in enumerate(hits)
+        if h.record_id in episodes
+    ]
+    dropped: list[Dropped] = []
+    lifted = liblift.lift(
+        cands,
+        lineage,
+        lambda rid: rid in visible,
+        max_turns_per_hit=max_turns,
+        policy=pol,
+        dropped=dropped,
+    )
+    best: dict[str, float] = {}
+    for c in lifted:
+        if c.record_id not in visible:  # ER-22: admitted again
+            dropped.append(Dropped(c.record_id, "not_visible_at_readmit", "readmit"))
+            continue
+        hops = c.provenance[0].hops if c.provenance else 1
+        score = carry_score(c.prior_score if c.prior_score is not None else 0.0, carry, hops)
+        if score > best.get(c.record_id, -1.0):
+            best[c.record_id] = score
+    out = [LegHit(rid, s) for rid, s in sorted(best.items(), key=lambda kv: (-kv[1], kv[0]))]
+    if tap.enabled():
+        tap.event(
+            "read.lift",
+            source="episode",
+            episodes=[c.record_id for c in cands],
+            turns=[h.record_id for h in out],
+            dropped=[{"id": d.record_id, "reason": d.reason, "stage": d.stage} for d in dropped],
+        )
+    return out
+
+
 async def lift_stage(
     eng: Any,
     ns: str,

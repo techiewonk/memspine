@@ -80,6 +80,9 @@ class LegContext:
     week: str = "calendar"
     #: ``None`` when no embedder is up: the vector leg then reports ``no_embedder``
     vector_search: Callable[[int], Awaitable[Sequence[Any]]] | None = None
+    #: R3-05c: which layers hold live records (``store.layer_registry.LayerRegistry``); ``None``
+    #: means "read it off ``records``"
+    layer_registry: Any | None = None
 
     def records_for(self, layers: Sequence[str]) -> list[MemoryRecord]:
         wanted = set(layers)

@@ -17,6 +17,7 @@ from memspine.read.legs.core import (
     LegRegistry,
     run_legs,
 )
+from memspine.read.legs.episode import EpisodeLeg, carry_score, with_episode_leg
 from memspine.read.legs.lexical import (
     Bm25Scorer,
     LexicalLeg,
@@ -32,6 +33,7 @@ from memspine.read.legs.temporal import TemporalLeg, TimeWindow, event_intervals
 __all__ = [
     "REGISTRY",
     "Bm25Scorer",
+    "EpisodeLeg",
     "Family",
     "Hit",
     "Leg",
@@ -45,11 +47,13 @@ __all__ = [
     "Tokeniser",
     "UnicodeTokeniser",
     "VectorLeg",
+    "carry_score",
     "event_intervals",
     "make_scorer",
     "make_tokeniser",
     "register_scorer",
     "run_legs",
+    "with_episode_leg",
 ]
 
 
