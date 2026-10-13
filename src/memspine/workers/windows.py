@@ -93,6 +93,7 @@ from memspine.prompts.structured import (
     window_messages,
     window_schema,
 )
+from memspine.schemas.durable import AssertionEnvelope
 from memspine.schemas.durable.common import OwnerScope
 from memspine.store.events import fingerprint_payload
 from memspine.store.records import MemoryRecord, RecordStatus
@@ -336,6 +337,9 @@ DepositEpisodeFn = Callable[..., Awaitable[object]]
 #: ``(namespace, session_id, info)``: the session-closed hook (call 2 interface).
 SessionClosedFn = Callable[[SessionClosed], Awaitable[object]]
 GetRecord = Callable[[str], Awaitable[MemoryRecord | None]]
+#: ``(namespace, record_id)``: tag a live record ``disputed`` through a normal tag-update event;
+#: True when the tag was added (FU-GAPS).
+MarkDisputedFn = Callable[[str, str], Awaitable[bool]]
 Embed = Callable[[list[str]], Awaitable[list[list[float]]]]
 
 
@@ -692,6 +696,7 @@ class WindowPipeline:
         envelope: EnvelopeWrite | None = None,
         context_builder: PromptContextBuilder | None = None,
         prepass: Any = None,
+        mark_disputed: MarkDisputedFn | None = None,
     ) -> None:
         #: W2-06b (``write.prompt_v2``): one call per window or batch, NEW / CONTEXT / KNOWN.
         self._ctx = context_builder
@@ -705,6 +710,8 @@ class WindowPipeline:
         self._get = get_record
         self._deposit_fact = deposit_fact
         self._deposit_episode = deposit_episode
+        #: FU-GAPS (``write.integration_v2``): marks the older live peer of a contest ``disputed``.
+        self._mark_disputed = mark_disputed
         self._embed = embed
         self._lock = lock or (lambda _ns: nullcontext())
         self._cache = cache if use_cache else None
@@ -2175,6 +2182,27 @@ class WindowPipeline:
                 layer="facts",
                 parents=len(parents),
             )
+            await self._dispute_peers(ns, env, getattr(stored, "record_id", None))
+
+    async def _dispute_peers(self, ns: str, env: AssertionEnvelope, new_id: str | None) -> None:
+        """FU-GAPS: a contest keeps both values live, so the older peer carries ``disputed`` too
+        (the new record got the tag at deposit). Only with ``write.integration_v2``."""
+        if self._mark_disputed is None or env.verdict is None or env.verdict.op != "contest":
+            return
+        peers = env.extras.get("integrate_affected") or []
+        for peer in dict.fromkeys(str(p) for p in peers):
+            if peer == new_id:
+                continue
+            try:
+                done = await self._mark_disputed(ns, peer)
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:  # the new record is stored; a peer mark must not lose the rest
+                _log.warning("window.dispute_peer_failed", error=str(exc)[:200])
+                continue
+            if done:
+                self._counts["contest_peers_marked"] += 1
+                tap.event("write.integrate.peer_disputed", id=peer, new=new_id)
 
     async def _store_episode(
         self,

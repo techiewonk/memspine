@@ -207,7 +207,38 @@ def _build_windows(eng: Any, config: MemspineConfig) -> WindowPipeline | None:
         envelope=envelope,
         context_builder=context_builder,
         prepass=_prepass(eng, config),
+        mark_disputed=_mark_disputed(eng) if config.write.integration_v2 else None,
     )
+
+
+def _mark_disputed(eng: Any) -> Any:
+    """FU-GAPS: the tag-update door for the older side of a contest (replays like any event)."""
+
+    async def mark(namespace: str, record_id: str) -> bool:
+        record = await eng._storage.get_record(record_id)
+        if (
+            record is None
+            or record.namespace != namespace
+            or record.status is not RecordStatus.ACTIVATED
+            or "disputed" in record.tags
+        ):
+            return False
+        await eng._append_and_project(
+            MemoryEvent(
+                kind=EventKind.DECAY_TRANSITION,
+                namespace=namespace,
+                actor="system",
+                payload={
+                    "record_id": record_id,
+                    "set": {"tags_add": ["disputed"]},
+                    "transition": "fact->integration_contest",
+                    "reason": "integration_contest",
+                },
+            )
+        )
+        return True
+
+    return mark
 
 
 #: W2-06b: the entity list is rebuilt from the graph every this many windows (it is a scan).

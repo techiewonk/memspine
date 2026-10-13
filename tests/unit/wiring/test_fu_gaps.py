@@ -87,9 +87,8 @@ async def test_still_unparseable_after_the_re_ask_fails_closed(monkeypatch: pyte
 
 # --- 2. pre-pass skip with the episode section on -------------------------------------------
 async def test_filler_window_asks_for_the_episode_only(monkeypatch: pytest.MonkeyPatch) -> None:
-    from test_window_write import FakeWindowLLM
+    from test_window_write import FakeWindowLLM, _send
     from test_window_write import _engine as legacy_engine
-    from test_window_write import _send
 
     llm = FakeWindowLLM()
     eng = await legacy_engine(monkeypatch, llm, mode="all", prepass="rules")
@@ -123,3 +122,42 @@ async def _engine_for(monkeypatch: pytest.MonkeyPatch, llm: WindowLLM) -> Any:
     from test_w2_06a_envelope import _engine
 
     return await _engine(monkeypatch, llm, window_extract="all", prompt_v2=True, prepass="rules")
+
+
+# --- 3. a contest marks both sides ---------------------------------------------------------
+async def _contest_run(monkeypatch: pytest.MonkeyPatch, integration: bool) -> list[Any]:
+    from test_w2_10_integration import CityLLM, engine, say
+
+    class Changed(CityLLM):
+        async def chat(self, messages: list[dict[str, str]], **options: Any) -> str:
+            items = json.loads(await super().chat(messages, **options))
+            for it in items:
+                it["chg"] = True
+            return json.dumps(items)
+
+    eng = await engine(monkeypatch, Changed(), integration_v2=integration)
+    try:
+        await say(eng, "s0", "Oslo", 0)
+        await say(eng, "s1", "Rome", 4)
+        rows = [
+            r
+            for r in await eng._require_started().list_records("a", "semantic")
+            if "window_fact" in r.tags
+        ]
+        return rows
+    finally:
+        await eng.stop()
+
+
+async def test_contest_marks_the_older_peer_too(monkeypatch: pytest.MonkeyPatch) -> None:
+    rows = await _contest_run(monkeypatch, True)
+    by_city = {r.content.rsplit(" ", 1)[1]: r for r in rows}
+    assert set(by_city) == {"Oslo", "Rome"}
+    assert "disputed" in by_city["Rome"].tags
+    assert "disputed" in by_city["Oslo"].tags
+    assert all(r.status.value == "activated" for r in rows)  # both stay live
+
+
+async def test_flag_off_leaves_the_old_peer_untouched(monkeypatch: pytest.MonkeyPatch) -> None:
+    rows = await _contest_run(monkeypatch, False)
+    assert not any("disputed" in r.tags for r in rows)
