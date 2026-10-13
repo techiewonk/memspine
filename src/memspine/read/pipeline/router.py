@@ -71,6 +71,7 @@ from memspine.read.pipeline.fusion import (
     _protected_ids,
     fuse_families,
 )
+from memspine.read.pipeline.legs import registry_base_legs
 from memspine.read.pipeline.lift import lift_stage
 from memspine.read.pipeline.rerank import (
     _static_prefilter,
@@ -457,7 +458,12 @@ async def _search(
     while True:
         protected = {}
         fetch_k = base_fetch * widen
-        if eng._config().read.parallel_legs:
+        if eng._config().read.legs_v2:
+            # R3-04 (read.legs_v2): vector + language-aware BM25 + temporal through the registry
+            vector_hits, lexical_hits, extra_legs = await registry_base_legs(
+                eng, ns, query, query_vector, fetch_k, use_hybrid, probe_texts, probe_vectors
+            )
+        elif eng._config().read.parallel_legs:
             vector_hits, lexical_hits, extra_legs = await _gather_base_legs(
                 eng, ns, query, query_vector, fetch_k, use_hybrid, probe_texts, probe_vectors
             )
