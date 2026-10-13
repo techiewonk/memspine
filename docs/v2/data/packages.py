@@ -271,7 +271,7 @@ WP = [
      "ROADMAP Phase 3 exit gate", "Not started", ""),
     # ---- Phase 4: offline memory (every derived layer off by default) ----
     ("O4-01a", 4, "Non-blocking sleep handles, triggers ((N AND M) OR context C, gap K), namespace jobs, leases, watermarks, daily maintenance", ["O-01", "O-02", "O-03"], ["EX-1a", "F-15"], "behaviour",
-     "Restart and lock fault tests; off by default", "In progress", "Sonnet agent launched 2026-10-13 (Phase 2 wave 1)"),
+     "Restart and lock fault tests; off by default", "Needs measurement", "offline.sleep_v2 flag-off; handle/leases/watermarks/triggers; M=idle minutes per offline.md; stages still engine-wide; PG leases per-process only"),
     ("O4-01b", 4, "Background budget and freshness (covers_seq; read-side freshness)", ["O-05", "O-06"], ["O4-01a", "F-16a", "LIB-26"], "behaviour",
      "Deferred work counted, never dropped", "Not started", ""),
     ("O4-02", 4, "Call 2 at session close: summary, stitched episode, profile ops (L2, opt-in)", ["O-07", "O-08", "O-09", "M-14"],

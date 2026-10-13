@@ -9,9 +9,9 @@ Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summarie
 |---|---|
 | Not started | 25 |
 | Ready | 0 |
-| In progress | 5 |
+| In progress | 4 |
 | Blocked | 0 |
-| Needs measurement | 49 |
+| Needs measurement | 50 |
 | Done | 82 |
 | Dropped | 1 |
 
@@ -178,7 +178,7 @@ Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summarie
 
 | Id | Work package | Layers | Ops | Decisions | Review | Depends on | Kind | Agent lane | Owns | Gate | Status | Note |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
-| O4-01a | Non-blocking sleep handles, triggers ((N AND M) OR context C, gap K), namespace jobs, leases, watermarks, daily maintenance | L0 L1 L3 L4 L5 ctx | K_C K_P | O-01, O-02, O-03 | ER-07, ER-26 | EX-1a, F-15 | behaviour | offline | - | Restart and lock fault tests; off by default | **In progress** | Sonnet agent launched 2026-10-13 (Phase 2 wave 1) |
+| O4-01a | Non-blocking sleep handles, triggers ((N AND M) OR context C, gap K), namespace jobs, leases, watermarks, daily maintenance | L0 L1 L3 L4 L5 ctx | K_C K_P | O-01, O-02, O-03 | ER-07, ER-26 | EX-1a, F-15 | behaviour | offline | - | Restart and lock fault tests; off by default | **Needs measurement** | offline.sleep_v2 flag-off; handle/leases/watermarks/triggers; M=idle minutes per offline.md; stages still engine-wide; PG leases per-process only |
 | O4-01b | Background budget and freshness (covers_seq; read-side freshness) | L0 L1 L3 L4 ctx | K_C K_P R | O-05, O-06 | ER-09, ER-26 | O4-01a, F-16a, LIB-26 | behaviour | offline | - | Deferred work counted, never dropped | **Not started** |  |
 | O4-02 | Call 2 at session close: summary, stitched episode, profile ops (L2, opt-in) | L0 L1 ctx | K_C K_P | O-07, O-08, O-09, M-14 | ER-26 | LIB-40, F-16a | behaviour | offline | - | G-C9-style screen; golden unchanged with flag off | **Needs measurement** | OW-A wired flag-off (offline.session_close_v2 / profile_card_v2); erasure gap on card markers pending owner |
 | O4-03 | Reconcile backlog, staged entity resolution, contradictions | L1 L3 | K_C | O-10, O-11, O-12 | - | LIB-37, F-16a | behaviour | offline | - | Contradiction-recall set; MAB-CR non-inferior | **Needs measurement** | Wired flag-off (OW-B 15e27536); INV-ORDER-SWAP passes with offline.reconcile_v2+histories_v2; sample screen queued |
