@@ -24,3 +24,11 @@ class IsolationConfig(BaseModel):
     #: F-16c: namespaces (and everything under them) that are multi-party whatever their
     #: records say.
     multi_party_namespaces: list[str] = Field(default_factory=list)
+    #: Owner-bound handles (owner decision 2026-10-13, coordinator default): a single-owner
+    #: ``Memory`` handle opened with an authenticated ``principal`` must belong to that principal: the
+    #: namespace's owner segment (``tenant/owner``) must equal the principal. Reading someone else's
+    #: memory goes through grants (``shared_search``, T5-01), never by naming their namespace. A
+    #: tenant-level namespace (no owner segment) and multi-party / group handles are not affected;
+    #: a handle with no principal (in-process library use) is not affected. Refused with reason
+    #: ``cross_owner``. Off = today's behaviour (the namespace alone decides).
+    owner_bound_handles: bool = False

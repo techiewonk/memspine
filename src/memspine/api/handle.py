@@ -251,6 +251,8 @@ class Memory:
                 raise ReadRequestError("the viewer must be the authenticated principal")
         if multi and viewer is None:
             raise ReadRequestError("a multi-party read requires a viewer bound to the principal")
+        if principal is not None and not multi:
+            _check_owner_bound(engine, _namespace_of(scope), principal)
         self._engine = engine
         self.scope = scope
         self.namespace = _namespace_of(scope)
@@ -484,3 +486,17 @@ class Memory:
     def describe(self) -> dict[str, Any]:
         """The engine's self-description (``Engine.describe``; engine-wide)."""
         return self._engine.describe()
+
+
+def _check_owner_bound(engine: Engine, namespace: str, principal: str) -> None:
+    """``isolation.owner_bound_handles``: a single-owner handle's principal must own its namespace."""
+    if not engine._config().isolation.owner_bound_handles:
+        return
+    from memspine.observability import tap
+    from memspine.scope import Scope, ScopeRefused
+
+    owner = Scope.from_namespace(namespace).owner
+    if owner and owner != principal.strip():
+        if tap.enabled():
+            tap.event("scope.refused", reason="cross_owner", site="handle")
+        raise ScopeRefused("cross_owner", "this handle's principal does not own the namespace")
