@@ -4143,8 +4143,8 @@
    ],
    "kind": "behaviour",
    "gate": "Graph contract on Neo4j",
-   "status": "Not started",
-   "note": "Q4",
+   "status": "In progress",
+   "note": "Sonnet agent: Neo4j adapter via outbox (fake driver contract; live if MEMSPINE_TEST_NEO4J_URL)",
    "layers": [
     "L3"
    ],

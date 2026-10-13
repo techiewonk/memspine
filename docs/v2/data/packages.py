@@ -194,7 +194,7 @@ WP = [
      "Isolation probes", "Needs measurement", "isolation.scope_keys_v2 / viewer_required flag-off; isolation probes pass; I19 leakage screen pending"),
     ("F-16d", 1, "Storage-profile contract; Postgres server profile and its Alembic tree", ["M-04"], ["F-16b"], "behaviour",
      "Both profiles pass the store contract tests", "Needs measurement", "storage.profile embedded|server; PG alembic tree (parity on SQLite); PG contract skipped here (no server) - needs MEMSPINE_TEST_PG_URL run"),
-    ("F-16e", 1, "Neo4j graph adapter fed through the outbox", ["M-18"], ["F-16d", "F-04"], "behaviour", "Graph contract on Neo4j", "Not started", "Q4"),
+    ("F-16e", 1, "Neo4j graph adapter fed through the outbox", ["M-18"], ["F-16d", "F-04"], "behaviour", "Graph contract on Neo4j", "In progress", "Sonnet agent: Neo4j adapter via outbox (fake driver contract; live if MEMSPINE_TEST_NEO4J_URL)"),
     ("F-16f", 1, "Isolation, erasure and rebuild matrix on both profiles", ["M-25"], ["F-16e", "F-16c"], "behaviour",
      "Matrix green on embedded and server", "Not started", ""),
     ("EX-1a", 1, "Embedded milestone: one synthetic end-to-end workload survives restart and erasure", ["G-01"],
