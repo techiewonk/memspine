@@ -1,0 +1,1458 @@
+{
+ "tag": "R14",
+ "package": "DEEP-RETR",
+ "area": "RET",
+ "population": {
+  "run": "clean-jina-full",
+  "questions": 1540,
+  "correct": 1253,
+  "wrong": 287,
+  "retrieval_stage_wrong": {
+   "b": 68,
+   "cf": 43,
+   "cr": 4,
+   "total": 115,
+   "share_of_wrong": 0.401,
+   "share_of_all": 0.075
+  },
+  "retrieval_loss_rate_by_category": {
+   "cat1_multihop": "53/282 (18.8%)",
+   "cat2_temporal": "14/321 (4.4%)",
+   "cat3_open_domain": "28/96 (29.2%)",
+   "cat4_single_hop": "20/841 (2.4%)"
+  },
+  "gold_turns_in_retrieval_losses": {
+   "total": 347,
+   "in_context": 137,
+   "missing": 210,
+   "missing_no_leg": 115,
+   "missing_cut_at_fusion": 84,
+   "missing_cut_at_rerank": 11
+  },
+  "missing_gold_taxonomy": {
+   "cut_best_leg_rank_le10": 15,
+   "cut_11_30": 29,
+   "cut_31_60": 51,
+   "noleg_paraphrase_answer_bearing": 30,
+   "noleg_context_dependent": 36,
+   "noleg_indirect": 27,
+   "noleg_overlap_but_deep": 22
+  },
+  "reach_accuracy": {
+   "all_gold_at_anchors": [
+    1161,
+    0.883
+   ],
+   "all_gold_some_via_window": [
+    163,
+    0.798
+   ],
+   "partial": [
+    141,
+    0.532
+   ],
+   "none": [
+    71,
+    0.282
+   ],
+   "no_gold_ids": [
+    4,
+    0.75
+   ]
+  },
+  "reader_accuracy_given_all_gold_by_category": {
+   "cat1": 0.755,
+   "cat2": 0.866,
+   "cat3": 0.469,
+   "cat4": 0.922
+  },
+  "expected_gain_if_all_115_get_complete_gold": {
+   "questions": 83.7,
+   "points": 5.4,
+   "method": "sum over losses of reader accuracy given all gold in context for the same category (same run)"
+  },
+  "union_leg_top_k_ceiling": {
+   "questions_all_gold_within_top_K_of_any_leg": {
+    "10": 9,
+    "20": 16,
+    "30": 20,
+    "60": 40
+   },
+   "missing_gold_turns_within_K": {
+    "10": 15,
+    "20": 28,
+    "30": 44,
+    "60": 87
+   }
+  },
+  "exclusive_waterfall_primary_pattern": {
+   "P_fusion_cut": 14,
+   "P_multi_evidence_agg": 39,
+   "P_context_dependent_gold": 10,
+   "P_open_inference": 28,
+   "P_two_gold_partial_or_none": 6,
+   "P_date_anchored_cut": 12,
+   "P_rerank_cut": 2,
+   "P_indirect_gold": 1,
+   "P_paraphrase_gap": 2,
+   "P_other": 1
+  },
+  "eleven_gold_ids_missing_from_forensics": "8-31 (3 ids), 8-38 (4), 8-46 (4): evidence given as one space-separated string; all three correct cat3 lucky passes"
+ },
+ "items": [
+  {
+   "id": "R14-RET-1",
+   "problem": "Multi-evidence (aggregation) questions need more independent evidence turns than a fixed top-k anchor set delivers; the probability that every gold turn reaches the reader falls steeply with the number of gold turns.",
+   "evidence": {
+    "count": 55,
+    "question_ids": [
+     "0-15",
+     "0-69",
+     "1-3",
+     "1-23",
+     "2-64",
+     "3-1",
+     "3-23",
+     "3-30",
+     "3-34",
+     "3-42",
+     "3-55",
+     "3-58",
+     "3-61",
+     "3-66",
+     "3-68",
+     "3-74",
+     "3-78",
+     "3-79",
+     "4-3",
+     "4-7",
+     "4-17",
+     "4-18",
+     "4-19",
+     "4-34",
+     "4-38",
+     "4-67",
+     "4-70",
+     "5-3",
+     "5-12",
+     "5-23",
+     "5-28",
+     "5-33",
+     "5-52",
+     "6-2",
+     "6-24",
+     "6-51",
+     "7-8",
+     "7-36",
+     "7-54",
+     "7-55",
+     "7-82",
+     "7-86",
+     "7-88",
+     "8-18",
+     "8-20",
+     "8-26",
+     "8-36",
+     "8-43",
+     "8-44",
+     "8-45",
+     "8-49",
+     "8-51",
+     "8-81",
+     "8-82",
+     "9-29"
+    ],
+    "method": "measured: n_gold >= 3 among the 115 retrieval-stage losses (47.8%); all-gold-in-context rate by n_gold over all 1,540 questions: 1 gold 95.9%, 2 gold 77.3%, 3 gold 54.3%, 4-5 gold 30.0%, 6+ gold 8.7%; retrieval-loss rate 29.9% for n_gold>=3 vs 4.4% (OR 9.2). Mean share of gold retrieved in these 55 questions: 47%. Exclusive waterfall (primary pattern) takes 39 of the 55.",
+    "share_of_retrieval_losses_pct": 47.8,
+    "expected_fix_questions_if_gold_complete": 37.6
+   },
+   "layer": "retrieve",
+   "existing": [
+    "B1",
+    "B8",
+    "I4",
+    "R01",
+    "SOL-LISTMODE",
+    "SOL-STANDING",
+    "SOL-AGENTIC",
+    "SOL-OBLIG",
+    "read.list_mode",
+    "read.pool_protect_per_leg"
+   ],
+   "gap": "Retrieval depth is fixed per query (10 anchors, 30-34 in list mode) and independent of how many pieces of evidence the question implies; there is no coverage objective (entity, session, item) and no stop rule. Missing gold turns in these 55 questions by class: 38 cut_31_60, 21 no-leg-paraphrase, 21 context-dependent, 20 cut_11_30, 20 indirect, 12 deep, 8 cut_top10.",
+   "hypothesis": "Replacing 'top-k by relevance' with 'cover the evidence set' (diversified selection plus a second slot-filling pass for categories with many instances) lifts all-gold-in-context for n_gold>=3 from 34% (non-list) / 44% (list) to >=60%, converting about 20 of the 55 questions (reader conversion 75% for cat1) = +1.3 points on the 1,540.",
+   "solutions": [
+    {
+     "name": "Adaptive depth by evidence demand",
+     "generic_mechanism": "Estimate expected cardinality from question shape or from the flatness of the leg score curve and raise anchor count (and drop window width) in proportion; stop when marginal relevance falls below a floor.",
+     "source": "ours: read.list_mode, read.query_contract; technique class: adaptive-k retrieval",
+     "cost": "0 model calls (heuristic) or 1 small-classifier call",
+     "risk": "regresses precision on single-fact questions; needs per-shape screens"
+    },
+    {
+     "name": "Coverage-aware selection (MMR / entity-session diversity)",
+     "generic_mechanism": "Select the evidence set greedily for relevance minus redundancy with already selected turns, with a session or entity bucket cap lifted for aggregate questions.",
+     "source": "technique class: maximal marginal relevance, determinantal selection; ours: pool_protect, session_cap (B14 says session_cap was neutral for single-shot)",
+     "cost": "0",
+     "risk": "B14 reports neutral or harmful expansion options; must be gated by the aggregation detector"
+    },
+    {
+     "name": "Slot-filling second round",
+     "generic_mechanism": "After round one, extract the instances found (items, names, places), then issue one targeted query per missing slot or per sibling category and merge.",
+     "source": "ours: read.agentic_mode=slot, read.second_round, read.deep_v2; technique class: iterative retrieval",
+     "cost": "1-2 model calls per aggregate question (about 12-18% of questions)",
+     "risk": "latency; drift"
+    },
+    {
+     "name": "Derived instance index at write time",
+     "generic_mechanism": "Maintain per-entity attribute-to-instance sets (hobbies, books, trips) updated on deposit so aggregation reads one record per entity attribute instead of many turns.",
+     "source": "ours: offline.standing_v2, patterns_v2; technique class: fact or profile extraction at ingest",
+     "cost": "ingest-time model calls",
+     "risk": "extraction misses; staleness"
+    }
+   ],
+   "test": "Slice = the 55 ids plus 60 matched n_gold>=3 correct questions as guard; metric all-gold-in-context and accuracy; screen with read.agentic_mode=slot and a list_mode trigger that uses n_gold-proxy features (see R14-RET-12); sample-first, then full run.",
+   "priority": "H",
+   "tag": "R14"
+  },
+  {
+   "id": "R14-RET-2",
+   "problem": "Open-domain (hypothetical or trait) questions have gold evidence that is indirect: the question asks for a judgement and the supporting turns describe behaviour, never using the question's words.",
+   "evidence": {
+    "count": 28,
+    "question_ids": [
+     "0-42",
+     "0-69",
+     "2-8",
+     "2-45",
+     "2-64",
+     "3-14",
+     "3-66",
+     "3-68",
+     "4-3",
+     "4-19",
+     "4-34",
+     "4-53",
+     "4-67",
+     "4-70",
+     "5-19",
+     "5-33",
+     "5-43",
+     "5-44",
+     "5-52",
+     "6-6",
+     "6-19",
+     "6-33",
+     "7-23",
+     "7-36",
+     "7-48",
+     "8-20",
+     "8-43",
+     "8-51"
+    ],
+    "method": "measured: category 3 (open-domain) among retrieval losses; 28 of 96 cat3 questions (29.2%) vs 2.4% in single-hop; 99 of 208 cat3 gold turns (47.6%) miss the context vs 2.8% for cat4; reader accuracy given all gold is only 46.9%, so expected fix is 13.1 questions. 24 are stage b (no leg), 3 cf, 1 cr.",
+    "share_of_retrieval_losses_pct": 24.3,
+    "expected_fix_questions_if_gold_complete": 13.1
+   },
+   "layer": "retrieve",
+   "existing": [
+    "B3",
+    "C3",
+    "C4",
+    "SOL-PLANNER",
+    "SOL-GAP-HYDE",
+    "SOL-AGENTIC",
+    "SOL-GRAPH",
+    "SOL-EPISODE",
+    "read.planner=llm"
+   ],
+   "gap": "Class open_domain_inference_retrieval has no built primary solution in the solution map. Single-shot queries use the question text; there is no step that turns 'would X like A or B' into the evidence kinds that would settle it (preferences, past choices, values).",
+   "hypothesis": "Rewriting the question into 3-4 evidence-kind sub-queries (what X chose, enjoys, said about A, B) and merging them recovers at least half of the missing gold in cat3 (about 14 of 28 questions) but the reader ceiling (47%) caps the gain at about +6 questions.",
+   "solutions": [
+    {
+     "name": "Evidence-kind query decomposition",
+     "generic_mechanism": "Model rewrites a hypothetical or trait question into several concrete retrieval queries, one per supporting evidence kind, then fuses results.",
+     "source": "ours: read.planner=llm; technique class: query decomposition, multi-query",
+     "cost": "1 model call per open-domain-shaped question",
+     "risk": "planner hallucination of facts; cost; small gain because reader is the bottleneck"
+    },
+    {
+     "name": "Answer-hypothesis (HyDE-style) leg",
+     "generic_mechanism": "Generate a short hypothetical supporting statement and embed it as an extra vector query.",
+     "source": "ours: SOL-GAP-HYDE (not built); technique class: hypothetical document embeddings",
+     "cost": "1 model call",
+     "risk": "paraphrase drift; the class is 'indirect', hypothesis may miss"
+    },
+    {
+     "name": "Trait and preference synthesis at write time",
+     "generic_mechanism": "Consolidate scattered behavioural evidence per entity into trait or preference summary records (reflection) that carry links to source turns, then retrieve the summary and lift to sources.",
+     "source": "ours: K stage (profile P^u), SOL-EPISODE, SOL-LIFT; technique class: reflection memory, profile building",
+     "cost": "ingest/sleep-time model calls",
+     "risk": "summaries assert unsupported inferences (see A08)"
+    }
+   ],
+   "test": "Slice = the 28 ids plus all 96 cat3 for denominator; paired comparison with all-gold-in-context and accuracy; run oracle-gold upper bound first (reader-only) to size the ceiling.",
+   "priority": "M",
+   "tag": "R14"
+  },
+  {
+   "id": "R14-RET-3",
+   "problem": "A question that contains an explicit calendar date points at the session of that date, but the engine treats the date as ordinary words; the gold turn is found by one leg and then lost in fusion.",
+   "evidence": {
+    "count": 13,
+    "question_ids": [
+     "2-107",
+     "2-133",
+     "3-103",
+     "3-122",
+     "5-46",
+     "6-11",
+     "6-32",
+     "6-75",
+     "7-121",
+     "8-45",
+     "8-110",
+     "9-27",
+     "9-48"
+    ],
+    "method": "measured: question contains a parseable day or month plus year; 12 of 13 are stage cf and 1 is b; gold session date minus question date: 5 questions gap 0 days, 7 within 7 days, 10 within 12 days (min over gold turns). Explicit-date questions are 11.7% of all questions but 28% (12/43) of stage cf. Exclusive primary pattern covers 12.",
+    "share_of_retrieval_losses_pct": 11.3,
+    "expected_fix_questions_if_gold_complete": 11.7
+   },
+   "layer": "retrieve",
+   "existing": [
+    "B4",
+    "I8",
+    "SOL-TEMPLEG",
+    "SOL-LEXICAL (read.lexical_dates)",
+    "SOL-RELANCHOR",
+    "read.temporal_relative",
+    "read.temporal_infer_year"
+   ],
+   "gap": "No session-date prior at fusion: a gold turn whose session date equals the date in the question gets no boost, while the temporal leg fires on only 187 of 1,540 questions and is off by default in the reference config.",
+   "hypothesis": "Scoping or boosting candidates to sessions whose date is within a few days of the question date recovers 9-11 of the 13 questions (expected fix 10.8-11.7) with no loss on the other 167 dated questions that already pass.",
+   "solutions": [
+    {
+     "name": "Date-scoped retrieval prior",
+     "generic_mechanism": "Parse absolute and month-level dates in the query; add a candidate leg or score multiplier for turns whose session or event date falls in a window around it (window widens for month-level dates).",
+     "source": "ours: read.temporal_relative, read.temporal_infer_year, read.lexical_dates",
+     "cost": "0 model calls",
+     "risk": "questions whose date is a distractor (event date differs from session date, premise errors such as I61)"
+    },
+    {
+     "name": "Event-date index",
+     "generic_mechanism": "Index resolved event dates (said vs happened) alongside session dates and match the query date against both.",
+     "source": "ours: core/event_date.py, I42; technique class: temporal indexing",
+     "cost": "0 at read",
+     "risk": "annotator misses (I79)"
+    }
+   ],
+   "test": "Slice = all 180 explicit-date questions (13 fail, 167 pass as guard); screen read.temporal_relative on, then a date-prior fusion change; metric accuracy on slice and all-gold-in-context.",
+   "priority": "H",
+   "tag": "R14"
+  },
+  {
+   "id": "R14-RET-4",
+   "problem": "Gold turns that a retrieval leg ranks well are discarded when the legs are fused into a small candidate pool, especially BM25-only or vector-only evidence that other legs do not corroborate.",
+   "evidence": {
+    "count": 68,
+    "question_ids": [
+     "0-11",
+     "0-15",
+     "0-42",
+     "0-69",
+     "1-3",
+     "1-23",
+     "1-31",
+     "2-42",
+     "2-133",
+     "3-1",
+     "3-22",
+     "3-23",
+     "3-30",
+     "3-55",
+     "3-58",
+     "3-61",
+     "3-68",
+     "3-78",
+     "3-95",
+     "3-173",
+     "3-195",
+     "4-3",
+     "4-17",
+     "4-18",
+     "4-19",
+     "4-34",
+     "4-38",
+     "4-41",
+     "4-45",
+     "4-67",
+     "4-70",
+     "5-0",
+     "5-3",
+     "5-12",
+     "5-18",
+     "5-23",
+     "5-24",
+     "5-46",
+     "5-52",
+     "5-55",
+     "6-2",
+     "6-5",
+     "6-6",
+     "6-24",
+     "6-32",
+     "6-51",
+     "6-75",
+     "7-8",
+     "7-48",
+     "7-82",
+     "7-86",
+     "7-88",
+     "7-158",
+     "7-179",
+     "7-188",
+     "8-18",
+     "8-20",
+     "8-44",
+     "8-45",
+     "8-49",
+     "8-51",
+     "8-81",
+     "8-82",
+     "8-110",
+     "9-10",
+     "9-29",
+     "9-48",
+     "9-118"
+    ],
+    "method": "measured: at least one missing gold turn has a rank in vector, lexical or perspective top-60 but is not in the context; 95 such gold turns (15 with best leg rank <=10, 29 at 11-30, 51 at 31-60); in 43 questions every missing gold was of this kind. Cut golds by leg: 27 vector-only, 27 BM25-only, 24 both. 11 of the 15 top-10 cuts never entered the 20-candidate pool, 10 of them BM25 top-10 gold with vector rank >30 or absent. In-context rate by best leg rank over all gold turns: rank 1-3 99.6%, 4-10 95.8%, 11-20 87.9%, 21-30 67.9%, 31-60 47.6%.",
+    "share_of_retrieval_losses_pct": 59.1,
+    "expected_fix_questions_if_gold_complete": 50.3
+   },
+   "layer": "retrieve",
+   "existing": [
+    "B7",
+    "B9",
+    "B10",
+    "I75",
+    "I78",
+    "R02",
+    "SOL-POOLPROT",
+    "SOL-POOL3",
+    "SOL-RRPOOL",
+    "SOL-FAMFUS",
+    "read.pool_protect_per_leg=3",
+    "read.candidate_pool",
+    "read.rerank_v2_search_pool"
+   ],
+   "gap": "Protection covers only the top 3 per leg and fusion is rank-based, so a gold at BM25 rank 4-10 competes against turns that two legs rank in the 20s. The engine logs no fusion cut (I78), only rerank_keep cuts.",
+   "hypothesis": "Protecting the top 8 per leg or fusing with score-normalised weights keeps the 15 top-10 cut gold turns; widening the rerank search pool to 30-40 recovers a further share of the 11-30 band. Ceiling if every missing gold within leg top-K were kept: all-gold-in-context in 9 / 16 / 20 / 40 of the 115 questions for K = 10 / 20 / 30 / 60.",
+   "solutions": [
+    {
+     "name": "Deeper per-leg protection",
+     "generic_mechanism": "Reserve pool slots for each leg's top-p (p 3 -> 8) before consensus scoring.",
+     "source": "ours: read.pool_protect_per_leg, read.pool_protect_mode",
+     "cost": "0 (pool size grows, rerank cost grows)",
+     "risk": "pool noise; reranker cost (I84)"
+    },
+    {
+     "name": "Score-aware or learned fusion",
+     "generic_mechanism": "Fuse normalised scores (z-score or margin) rather than ranks, or learn per-query-shape leg weights.",
+     "source": "ours: read.family_fusion, read.legs_v2/router_rules; technique class: score fusion, learning-to-rank",
+     "cost": "0",
+     "risk": "tuning on one benchmark (I37)"
+    },
+    {
+     "name": "Wider rerank pool",
+     "generic_mechanism": "Let the cross-encoder see 30-40 candidates and keep by budget, not a fixed count.",
+     "source": "ours: SOL-RRPOOL, SOL-RERANKKEEP",
+     "cost": "GPU/CPU reranker time",
+     "risk": "latency; B9 shows rerankers also delete hits"
+    }
+   ],
+   "test": "Slice = the 68 ids plus the 95 lucky/barely cases as guard; offline CPU re-fusion from forensics.jsonl (legs are logged to rank 60) to size effects before any run.",
+   "priority": "H",
+   "tag": "R14"
+  },
+  {
+   "id": "R14-RET-5",
+   "problem": "Gold turns that share almost no content words with the question (paraphrase, synonym, category-versus-instance wording) are missed by both lexical and dense legs, and word overlap is the strongest single predictor of whether a gold turn is retrieved.",
+   "evidence": {
+    "count": 81,
+    "question_ids": [
+     "0-11",
+     "0-15",
+     "0-34",
+     "0-42",
+     "0-69",
+     "0-75",
+     "1-23",
+     "1-44",
+     "1-56",
+     "2-8",
+     "2-10",
+     "2-40",
+     "2-45",
+     "2-49",
+     "2-64",
+     "3-1",
+     "3-14",
+     "3-22",
+     "3-23",
+     "3-30",
+     "3-34",
+     "3-42",
+     "3-55",
+     "3-58",
+     "3-61",
+     "3-66",
+     "3-74",
+     "3-79",
+     "3-134",
+     "3-135",
+     "3-151",
+     "3-195",
+     "4-3",
+     "4-7",
+     "4-17",
+     "4-34",
+     "4-38",
+     "4-41",
+     "4-45",
+     "4-53",
+     "4-67",
+     "4-70",
+     "5-12",
+     "5-18",
+     "5-23",
+     "5-24",
+     "5-33",
+     "5-39",
+     "5-43",
+     "5-46",
+     "5-52",
+     "6-2",
+     "6-5",
+     "6-6",
+     "6-11",
+     "6-19",
+     "6-32",
+     "6-33",
+     "7-19",
+     "7-23",
+     "7-36",
+     "7-48",
+     "7-54",
+     "7-55",
+     "7-82",
+     "7-86",
+     "7-88",
+     "7-121",
+     "8-18",
+     "8-20",
+     "8-36",
+     "8-43",
+     "8-45",
+     "8-49",
+     "8-51",
+     "8-82",
+     "8-110",
+     "9-3",
+     "9-27",
+     "9-29",
+     "9-48"
+    ],
+    "method": "measured: question has at least one missing gold turn with zero stemmed content-word overlap (turn plus caption); 68 questions have every missing gold at overlap <=0.1. Gold-level miss rate by overlap: 0 -> 33.9%, 0.1-0.2 -> 19.0%, 0.2-0.4 -> 6.2%, >0.4 -> 2.1%. Spearman of overlap with BM25 rank -0.66, with vector rank -0.48. Of 210 missing gold turns, 133 (63%) have zero overlap vs 22% of retrieved gold turns. Missing no-leg gold turns split: 30 answer-bearing but unmatched wording, 27 inferential (answer not in turn), 36 context-dependent (see RET-6), 22 with overlap but deep rank.",
+    "share_of_retrieval_losses_pct": 70.4,
+    "expected_fix_questions_if_gold_complete": 56.8
+   },
+   "layer": "retrieve",
+   "existing": [
+    "B2",
+    "B5",
+    "B6",
+    "B15",
+    "SOL-LEXICAL",
+    "SOL-GAP-HYDE",
+    "SOL-PLANNER",
+    "read.word_vector_leg",
+    "read.lexical_analyzer=english"
+   ],
+   "gap": "Both legs depend on surface form: BM25 literally, the embedder partially (rho -0.48). Neither side of the pair (record or query) is enriched with the vocabulary of the category the question uses.",
+   "hypothesis": "Document-side enrichment (each turn indexed with extracted entities, topic and instance-to-category terms) lifts the no-leg answer-bearing gold turns; expected 6-8 questions among the 21 'paraphrase' questions. Query-side multi-query helps less because the missing vocabulary is on the record side.",
+   "solutions": [
+    {
+     "name": "Record-side enrichment at write",
+     "generic_mechanism": "Append a short generated gloss to each stored turn (entities, topics, category words, what question it answers) and index the gloss in both legs.",
+     "source": "technique class: document expansion; ours: SOL-WINDOWFACTS, write.envelope_v2",
+     "cost": "one model call per turn at ingest (or batched)",
+     "risk": "ingest cost; gloss hallucination; licence"
+    },
+    {
+     "name": "Learned sparse or late-interaction leg",
+     "generic_mechanism": "Add a leg that expands terms semantically (learned sparse) or matches tokens softly (late interaction).",
+     "source": "technique class: learned sparse retrieval, late interaction; ours: read.word_vector_leg (built, B15)",
+     "cost": "model inference at index and query",
+     "risk": "adds a voter that can crowd gold (I75)"
+    },
+    {
+     "name": "Query-side expansion",
+     "generic_mechanism": "Expand generic nouns (hobbies, activities) into likely instances.",
+     "source": "ours: read.planner=llm; technique class: query expansion",
+     "cost": "1 model call",
+     "risk": "B14 expansion options neutral or harmful so far"
+    }
+   ],
+   "test": "Slice = the 81 ids; offline estimate: re-score BM25 on text plus a synthetic gloss built from a local small model; or check the existing word_vector_leg screen on the 21 paraphrase ids.",
+   "priority": "M",
+   "tag": "R14"
+  },
+  {
+   "id": "R14-RET-6",
+   "problem": "Elliptical or anaphoric gold turns ('Sure, I will do it this weekend') contain the answer but not the topic; the topic lives in the neighbouring turn, and a +-2 turn window around retrieved anchors rarely reaches them.",
+   "evidence": {
+    "count": 32,
+    "question_ids": [
+     "0-11",
+     "0-15",
+     "0-34",
+     "1-23",
+     "1-44",
+     "1-56",
+     "2-8",
+     "2-10",
+     "3-14",
+     "3-22",
+     "3-30",
+     "3-42",
+     "3-58",
+     "3-74",
+     "3-79",
+     "4-7",
+     "4-45",
+     "5-18",
+     "5-24",
+     "6-5",
+     "6-6",
+     "6-11",
+     "6-33",
+     "7-19",
+     "7-36",
+     "7-82",
+     "8-49",
+     "8-82",
+     "8-110",
+     "9-3",
+     "9-27",
+     "9-29"
+    ],
+    "method": "measured: missing gold turn has own overlap <=0.1 and a turn within +-2 positions has overlap >=0.25 with the question; 36 missing gold turns (miss rate 24.7% vs 13.7% for other gold turns); in 25 the previous turn alone carries the overlap. Only 12 of 210 missing gold turns lie within 2 turns of any final anchor (median distance to nearest anchor in the same session: 6). Exclusive primary pattern: 10 (all stage b).",
+    "share_of_retrieval_losses_pct": 27.8,
+    "expected_fix_questions_if_gold_complete": 23.8
+   },
+   "layer": "ingest",
+   "existing": [
+    "A07",
+    "I6",
+    "B12",
+    "SOL-BUNDLES",
+    "SOL-PRESENT",
+    "SOL-WINDOWFACTS",
+    "read.neighbours_v2",
+    "read.replay_window_before/after"
+   ],
+   "gap": "Records are single turns; the pairing context (question turn, previous speaker's statement) is attached only by window expansion around an anchor that has to be found first. The anchor (the topical neighbour) often is not found either.",
+   "hypothesis": "Indexing exchange-level records (turn plus its addressed turn) as an extra leg, or contextualising each turn at write, makes the topical neighbour findable and recovers 8-10 of the 32 questions (expected fix 23.8 x conversion share).",
+   "solutions": [
+    {
+     "name": "Exchange-pair records",
+     "generic_mechanism": "Add a second index whose units are consecutive turn pairs or triples; hits expand back to the member turns.",
+     "source": "ours: SOL-BUNDLES; technique class: multi-granularity chunking",
+     "cost": "0 model calls; index grows 2-3x",
+     "risk": "duplicate hits; crowding"
+    },
+    {
+     "name": "Write-time decontextualisation",
+     "generic_mechanism": "Rewrite or prefix each turn with the minimal context needed to stand alone (who, about what) before embedding and BM25.",
+     "source": "technique class: contextual retrieval, decontextualised propositions; ours: SOL-WINDOWFACTS",
+     "cost": "one model call per elliptical turn (about 10-15% of turns by the overlap rule)",
+     "risk": "added hallucination; provenance must remain the raw turn"
+    },
+    {
+     "name": "Reply-edge expansion",
+     "generic_mechanism": "Store reply links and expand a hit along them, bounded.",
+     "source": "ours: A07",
+     "cost": "0",
+     "risk": "only helps once an anchor exists"
+    }
+   ],
+   "test": "Slice = the 32 ids plus the correct questions that contain context-dependent gold turns as guard; offline: simulate exchange-pair BM25 on CPU and report how many missing gold turns reach rank <=30.",
+   "priority": "M",
+   "tag": "R14"
+  },
+  {
+   "id": "R14-RET-7",
+   "problem": "Gold that survives fusion is dropped by the reranker keep-line even though the context budget is half empty.",
+   "evidence": {
+    "count": 4,
+    "question_ids": [
+     "3-78",
+     "3-95",
+     "4-45",
+     "4-70"
+    ],
+    "method": "measured: stage cr (rerank_keep cut): 4 questions, 11 gold turns in 9 questions were in the pool but dropped by the keep-line at reranker positions 4-21 (4 of those questions are stage cr, the others are labelled b or cf because another gold turn was lost earlier). Context tokens of the 115 retrieval losses: median 2,216 of a 4,096 budget; 105 of 115 under 3,000 tokens; only 2 of 1,540 contexts hit the cap.",
+    "share_of_retrieval_losses_pct": 3.5,
+    "expected_fix_questions_if_gold_complete": 3.0
+   },
+   "layer": "compose",
+   "existing": [
+    "B9",
+    "B10",
+    "I9",
+    "I6",
+    "SOL-RERANKKEEP",
+    "SOL-RRPOOL",
+    "SOL-BUNDLES",
+    "read.rerank_keep",
+    "read.exact_budget"
+   ],
+   "gap": "The keep count is fixed (10 anchors) instead of budget-driven; roughly 1,800 tokens are unspent in the failures while 52 turns in the window carry mostly non-gold text (retrieved gold arrives via anchors in 1,726 of 1,996 cases, via window only in 270).",
+   "hypothesis": "Keeping anchors until the token budget is filled (rerank_keep 15 per forensics, or budget-driven) recovers the 4 cr questions and some of the 15 top-10 cuts at no accuracy cost.",
+   "solutions": [
+    {
+     "name": "Budget-driven keep",
+     "generic_mechanism": "Admit reranked candidates in order until the prompt budget is filled, with a minimum relevance floor.",
+     "source": "ours: read.rerank_keep=15, read.exact_budget, SOL-BUNDLES",
+     "cost": "0",
+     "risk": "dilution; reader churn on changed context"
+    },
+    {
+     "name": "Anchor-over-window allocation",
+     "generic_mechanism": "Trade window width for anchor count when the question needs breadth.",
+     "source": "ours: read.replay_window_before/after, SOL-PRESENT",
+     "cost": "0",
+     "risk": "loses window-rescued gold (270 gold turns, 86 in wrong answers)"
+    }
+   ],
+   "test": "Offline CPU: simulate keep 15 and budget fill from the logged rerank order; guard with the 184 correct questions that rely on window-only gold.",
+   "priority": "M",
+   "tag": "R14"
+  },
+  {
+   "id": "R14-RET-8",
+   "problem": "Gold evidence for one question is spread over many sessions; retrieval is turn-level and session-agnostic, so questions that need three or more sessions rarely get all of them.",
+   "evidence": {
+    "count": 43,
+    "question_ids": [
+     "0-15",
+     "0-69",
+     "1-23",
+     "2-64",
+     "3-1",
+     "3-23",
+     "3-30",
+     "3-42",
+     "3-55",
+     "3-58",
+     "3-66",
+     "3-68",
+     "3-74",
+     "3-78",
+     "3-79",
+     "4-7",
+     "4-17",
+     "4-18",
+     "4-34",
+     "4-38",
+     "4-67",
+     "4-70",
+     "5-3",
+     "5-12",
+     "5-33",
+     "5-52",
+     "6-2",
+     "6-24",
+     "6-51",
+     "7-8",
+     "7-36",
+     "7-82",
+     "7-86",
+     "7-88",
+     "8-18",
+     "8-20",
+     "8-36",
+     "8-43",
+     "8-44",
+     "8-49",
+     "8-81",
+     "8-82",
+     "9-29"
+    ],
+    "method": "measured: gold turns of the question lie in >=3 distinct sessions; 43 of the 115 retrieval losses (37.4%); retrieval-loss rate 34.1% for n_sessions>=3 vs 5.1% (OR 9.7). All-gold-in-context rate by number of gold sessions: 1 -> 95.3%, 2 -> 69.9%, 3 -> 35.8%, 4+ -> 15.5%.",
+    "share_of_retrieval_losses_pct": 37.4,
+    "expected_fix_questions_if_gold_complete": 29.0
+   },
+   "layer": "retrieve",
+   "existing": [
+    "B8",
+    "SOL-EPISODE",
+    "SOL-GRAPH",
+    "read.episode_leg_v2",
+    "read.session_leg"
+   ],
+   "gap": "No session-level coverage objective: nothing asks whether the sessions that mention the entity or topic are each represented.",
+   "hypothesis": "A session-level leg (digest or summary index) followed by one best turn per matched session lifts all-gold coverage for n_sessions>=3 from 26% (35.8% at 3 sessions, 15.5% at 4+) to >=45%.",
+   "solutions": [
+    {
+     "name": "Session-level leg with per-session best turn",
+     "generic_mechanism": "Retrieve sessions by digest, then take the top-1 or 2 turns inside each of the top-m sessions.",
+     "source": "ours: SOL-EPISODE (offline.session_close_v2, read.episode_leg_v2); technique class: hierarchical retrieval",
+     "cost": "digest generation at close (model calls)",
+     "risk": "digest cost; summaries lose detail"
+    },
+    {
+     "name": "Entity-linked turn index",
+     "generic_mechanism": "Index turns by mentioned entity or topic and fetch all mentions of the question entity in bounded fashion.",
+     "source": "ours: SOL-GRAPH (read.entity_leg_v2)",
+     "cost": "extraction at ingest",
+     "risk": "extraction misses"
+    }
+   ],
+   "test": "Slice = the 43 ids; metric number of distinct gold sessions represented in the context.",
+   "priority": "M",
+   "tag": "R14"
+  },
+  {
+   "id": "R14-RET-9",
+   "problem": "Correct answers are not proof of retrieval success: a share are right with gold evidence missing (alternative support, priors, lenient inference) or right with gold barely in the context, which makes recall metrics and ablations noisy in both directions.",
+   "evidence": {
+    "count": 95,
+    "question_ids": [
+     "0-7",
+     "0-14",
+     "0-32",
+     "0-38",
+     "0-39",
+     "0-47",
+     "0-48",
+     "0-50",
+     "0-149",
+     "1-18",
+     "1-27",
+     "2-3",
+     "2-6",
+     "2-11",
+     "2-28",
+     "2-30",
+     "2-44",
+     "2-47",
+     "2-50",
+     "3-0",
+     "3-11",
+     "3-50",
+     "3-51",
+     "3-56",
+     "3-63",
+     "3-67",
+     "3-69",
+     "3-81",
+     "3-83",
+     "3-84",
+     "3-198",
+     "4-4",
+     "4-9",
+     "4-11",
+     "4-14",
+     "4-20",
+     "4-26",
+     "4-50",
+     "4-52",
+     "4-61",
+     "4-65",
+     "5-8",
+     "5-9",
+     "5-13",
+     "5-26",
+     "5-27",
+     "5-31",
+     "5-35",
+     "5-40",
+     "5-42",
+     "5-45",
+     "5-50",
+     "5-51",
+     "5-53",
+     "5-54",
+     "5-56",
+     "5-60",
+     "6-3",
+     "6-8",
+     "6-38",
+     "6-40",
+     "7-11",
+     "7-40",
+     "7-41",
+     "7-78",
+     "7-133",
+     "8-7",
+     "8-10",
+     "8-11",
+     "8-14",
+     "8-19",
+     "8-28",
+     "8-31",
+     "8-32",
+     "8-38",
+     "8-46",
+     "8-48",
+     "8-50",
+     "8-55",
+     "8-64",
+     "8-72",
+     "8-77",
+     "8-86",
+     "9-4",
+     "9-5",
+     "9-19",
+     "9-23",
+     "9-31",
+     "9-37",
+     "9-43",
+     "9-46",
+     "9-57",
+     "9-58",
+     "9-63",
+     "9-66"
+    ],
+    "method": "measured: correct answer, gold ids present, at least one gold turn not in context: 95 questions (7.6% of the 1,253 correct), 20 with no gold turn in context (ids in lucky_none). Of the 95: 68 cat1, 15 cat3, 8 cat2, 4 cat4; 28 have the gold answer string present in the context in a non-gold turn; 37 have a gold answer of two words or fewer; 15 are yes/no or either-or questions. Barely-in correct: 153 questions where every gold is in context but at least one only via the window or at anchor rank >=8. Accuracy by reach: all gold at anchors 88.3% (1,161), all in context but some via window 79.8% (163), partial 53.2% (141), none 28.2% (71)."
+   },
+   "layer": "data",
+   "existing": [
+    "A12",
+    "B2",
+    "I24",
+    "A16",
+    "A5"
+   ],
+   "gap": "Gold evidence labels are treated as necessary and sufficient. They are neither: alternative turns restate the answer, and yes/no or binary questions are answerable from priors. No metric separates 'supported by retrieved text' from 'correct'.",
+   "hypothesis": "Reporting answer-support recall (gold answer string or judge-checked support present in context) next to gold-id recall removes about 28 of the 95 'lucky' labels and gives a cleaner target for retrieval screens; screens should be run on the 153 barely-in plus the 95 lucky as a fragility guard slice.",
+   "solutions": [
+    {
+     "name": "Answer-support recall metric",
+     "generic_mechanism": "Compute whether the context supports the gold answer independent of the labelled gold ids (string match or checked entailment).",
+     "source": "ours: A12, I24 metric work; technique class: answer-recall / support metrics",
+     "cost": "0 (string) or 1 judge call per question",
+     "risk": "string match misses paraphrase"
+    },
+    {
+     "name": "Fragility slice",
+     "generic_mechanism": "Re-run correct questions under perturbed retrieval (drop lowest anchor, shrink window) to flag fragile passes.",
+     "source": "ours: noise-floor work A16; technique class: perturbation testing",
+     "cost": "reader calls on a small slice",
+     "risk": "noise floor of 19% flips (A16)"
+    }
+   ],
+   "test": "Compute from existing results.jsonl and forensics.jsonl on CPU; no run needed; add the two columns to the forensics report.",
+   "priority": "L",
+   "tag": "R14"
+  },
+  {
+   "id": "R14-RET-10",
+   "problem": "Retrieval losses are not spread evenly over conversations; the two with the highest loss rates are dense in near-duplicate topical turns.",
+   "evidence": {
+    "count": 39,
+    "question_ids": [
+     "3-1",
+     "3-14",
+     "3-22",
+     "3-23",
+     "3-30",
+     "3-34",
+     "3-42",
+     "3-55",
+     "3-58",
+     "3-61",
+     "3-66",
+     "3-68",
+     "3-74",
+     "3-78",
+     "3-79",
+     "3-95",
+     "3-103",
+     "3-122",
+     "3-134",
+     "3-135",
+     "3-151",
+     "3-173",
+     "3-195",
+     "5-0",
+     "5-3",
+     "5-12",
+     "5-15",
+     "5-18",
+     "5-19",
+     "5-23",
+     "5-24",
+     "5-28",
+     "5-33",
+     "5-39",
+     "5-43",
+     "5-44",
+     "5-46",
+     "5-52",
+     "5-55"
+    ],
+    "method": "measured: conversations 3 and 5: 39 of 322 questions (12.1%) vs 76 of 1,218 (6.2%), Fisher OR 2.07, p=0.0008; ten-way chi-square p=0.08. Per conversation loss rates: 0:3.9%, 1:6.2%, 2:5.9%, 3:11.6%, 4:6.7%, 5:13.0%, 6:6.7%, 7:7.3%, 8:7.7%, 9:5.1%. Spearman of loss rate with mean words per turn -0.62 (n=10, weak evidence), with number of sessions -0.07.",
+    "share_of_retrieval_losses_pct": 33.9,
+    "expected_fix_questions_if_gold_complete": 28.9
+   },
+   "layer": "data",
+   "existing": [
+    "A16",
+    "I20",
+    "SOL-LEGS-V2"
+   ],
+   "gap": "No per-conversation difficulty diagnostic; conclusions from the dev conversations (0-3) transfer unevenly (conversation 3 is in dev, conversation 5 is not).",
+   "hypothesis": "Conversations with many short repeated-topic turns (pets, hobbies, projects) lose gold to crowding by near-duplicates; diversity-aware selection (RET-1) reduces the gap between conversations. Not testable with n=10 beyond a descriptive stat.",
+   "solutions": [
+    {
+     "name": "Per-conversation breakdown in every screen report",
+     "generic_mechanism": "Report retrieval-loss and accuracy by conversation with exact counts and paired tests.",
+     "source": "ours: forensics_report.py",
+     "cost": "0",
+     "risk": "none"
+    },
+    {
+     "name": "Near-duplicate suppression in the pool",
+     "generic_mechanism": "Cluster near-duplicate turns and keep a representative plus one extra per cluster.",
+     "source": "ours: I31 de-duplication gap; technique class: diversification",
+     "cost": "0",
+     "risk": "drops legitimately repeated evidence for counts"
+    }
+   ],
+   "test": "Descriptive only; add per-conversation columns to the screen report (already in the CSV).",
+   "priority": "L",
+   "tag": "R14"
+  },
+  {
+   "id": "R14-RET-11",
+   "problem": "Aggregation questions are not recognised as such: the list-mode trigger fires on less than half of the questions that need three or more gold turns, and the questions it misses fail more often.",
+   "evidence": {
+    "count": 37,
+    "question_ids": [
+     "0-69",
+     "1-23",
+     "2-64",
+     "3-23",
+     "3-34",
+     "3-55",
+     "3-61",
+     "3-66",
+     "3-68",
+     "3-74",
+     "3-78",
+     "3-79",
+     "4-3",
+     "4-7",
+     "4-17",
+     "4-18",
+     "4-19",
+     "4-34",
+     "4-38",
+     "4-67",
+     "4-70",
+     "5-23",
+     "5-28",
+     "5-33",
+     "5-52",
+     "7-8",
+     "7-36",
+     "7-54",
+     "7-55",
+     "7-82",
+     "8-20",
+     "8-26",
+     "8-43",
+     "8-49",
+     "8-51",
+     "8-81",
+     "8-82"
+    ],
+    "method": "measured: n_gold>=3 questions with list mode not fired among the retrieval losses (37 of 55); list mode fired on 72 of 184 n_gold>=3 questions (39%); loss rate 33% (37/112) when not fired vs 25% (18/72) when fired; all-gold-in-context 33.9% vs 44.4%. Question openings with high loss rate: 'would' 29%, 'could' 43%, 'might' 42% (open-domain), 'how many' 19%, 'which' 15.5%, 'what are' 15.6%; 'when' questions 2.1%.",
+    "share_of_retrieval_losses_pct": 32.2,
+    "expected_fix_questions_if_gold_complete": 23.9
+   },
+   "layer": "retrieve",
+   "existing": [
+    "I4",
+    "I28",
+    "I56",
+    "SOL-LISTMODE",
+    "SOL-CONTRACT",
+    "read.list_mode",
+    "read.query_contract"
+   ],
+   "gap": "The trigger is an English LoCoMo-vocabulary regex (I4); no signal from the retrieval side (a flat score profile, many same-entity hits) feeds the decision.",
+   "hypothesis": "A trigger that combines question shape with the leg score profile fires on at least 70% of n_gold>=3 questions at no more than 15% false-fire on single-gold ones; applying list-mode depth to the 37 missed questions brings all gold into context for about 4 more of them (the 10-point all-gold lift seen for fired vs not fired, applied to 37).",
+   "solutions": [
+    {
+     "name": "Score-profile trigger",
+     "generic_mechanism": "Switch to wide retrieval when the score curve is flat (many near-equal candidates mentioning the same entity).",
+     "source": "technique class: adaptive retrieval depth; ours: read.list_mode",
+     "cost": "0",
+     "risk": "needs per-benchmark calibration"
+    },
+    {
+     "name": "Small learned shape classifier",
+     "generic_mechanism": "A small model labels questions single-fact, aggregate, temporal, inference and routes retrieval.",
+     "source": "ours: I28 OpenDecider-nano, read.planner",
+     "cost": "1 small-model call",
+     "risk": "I37 tuning risk"
+    }
+   ],
+   "test": "Offline: compute precision and recall of candidate triggers against n_gold>=3 as proxy label over all 1,540 (CSV has list_mode, n_gold, nfinal); one screen on the 37.",
+   "priority": "H",
+   "tag": "R14"
+  },
+  {
+   "id": "R14-RET-12",
+   "problem": "Evidence-id data hygiene: some gold ids are lost or malformed by the id parser, hiding gold turns from forensics and metrics.",
+   "evidence": {
+    "count": 10,
+    "question_ids": [
+     "8-31",
+     "8-38",
+     "8-46",
+     "9-69",
+     "3-58",
+     "6-38",
+     "0-30",
+     "0-46",
+     "9-39",
+     "9-42"
+    ],
+    "method": "measured: 8-31, 8-38, 8-46 carry evidence as one string with space-separated ids (3+4+4 = 11 gold ids absent from the forensics gold lists, all three are correct cat3 answers with only 2 of 3-4 gold turns in context, i.e. lucky passes); 9-69 has a zero-padded id (D30:05); 3-58 and 6-38 each name a non-existent turn id (D10:19, D4:36); 4 questions have no evidence ids (0-30, 0-46, 9-39, 9-42)."
+   },
+   "layer": "data",
+   "existing": [
+    "A5",
+    "I62",
+    "locomo_errata.json"
+   ],
+   "gap": "Parser accepts only list elements that are single ids; no assertion that every gold id exists in the corpus.",
+   "hypothesis": "Splitting on whitespace and zero-padding normalisation restores the 12 ids and moves 3 correct questions into the visible lucky-pass group.",
+   "solutions": [
+    {
+     "name": "Strict evidence parser with existence check",
+     "generic_mechanism": "Normalise ids (split on whitespace and semicolons, strip leading zeros) and fail loudly on ids absent from the corpus.",
+     "source": "ours: forensics_report.normalise_evidence",
+     "cost": "0",
+     "risk": "none"
+    }
+   ],
+   "test": "Unit test on the 10 ids; regenerate fx per_question and compare counts.",
+   "priority": "L",
+   "tag": "R14"
+  }
+ ],
+ "pattern_not_supported": [
+  {
+   "id": "R14-RET-N1",
+   "tag": "R14",
+   "pattern": "Very short gold turns ('Yes!', 'Me too')",
+   "evidence": {
+    "count": 2,
+    "question_ids": [],
+    "method": "measured: gold turn <=6 words; 15 of 2,359 gold turns; 3 missing (miss rate 20% vs 15%); only 2 retrieval-loss questions"
+   },
+   "verdict": "not a driver (1.0% of missing gold turns)"
+  },
+  {
+   "id": "R14-RET-N2",
+   "tag": "R14",
+   "pattern": "Long gold turns (>=60 words)",
+   "evidence": {
+    "count": 8,
+    "question_ids": [],
+    "method": "measured: 101 long gold turns, miss rate 18.8% vs 15.2%; 3.8% of missing vs 4.1% of retrieved"
+   },
+   "verdict": "not a driver"
+  },
+  {
+   "id": "R14-RET-N3",
+   "tag": "R14",
+   "pattern": "Gold in image captions",
+   "evidence": {
+    "count": 8,
+    "question_ids": [
+     "0-15",
+     "3-58",
+     "3-74",
+     "3-122",
+     "4-34",
+     "5-19",
+     "5-28",
+     "5-44"
+    ],
+    "method": "measured: answer words only in the caption of the gold turn (not in its text); 8 questions; missing gold turns carry a caption in 36.2% vs 39.1% of retrieved; miss rate with caption 14.2% vs 16.1% without. Captions are already written into the stored text."
+   },
+   "verdict": "not a retrieval driver; reader side (C7) only"
+  },
+  {
+   "id": "R14-RET-N4",
+   "tag": "R14",
+   "pattern": "Entity aliasing and nicknames",
+   "evidence": {
+    "count": 4,
+    "question_ids": [
+     "0-34",
+     "3-14",
+     "7-36",
+     "8-36"
+    ],
+    "method": "measured: the gold text uses a short form of a speaker name while the question uses the full name (gold level 1.9% of missing vs 2.4% of retrieved)"
+   },
+   "verdict": "not a driver; one nickname question (cat3) shows the mechanism"
+  },
+  {
+   "id": "R14-RET-N5",
+   "tag": "R14",
+   "pattern": "Question names one person, gold spoken by the other",
+   "evidence": {
+    "count": 10,
+    "question_ids": [
+     "1-44",
+     "2-49",
+     "3-22",
+     "3-79",
+     "3-95",
+     "6-24",
+     "7-179",
+     "8-45",
+     "8-49",
+     "8-51"
+    ],
+    "method": "measured: gold speaker not among named speakers; 17 of 83 such gold turns missed (20.5%) vs 344 of 2,248 (15.3%), OR 1.43, p=0.22"
+   },
+   "verdict": "not significant (I75 and perspective weights already cover)"
+  },
+  {
+   "id": "R14-RET-N6",
+   "tag": "R14",
+   "pattern": "Relative date in the gold turn",
+   "evidence": {
+    "count": 51,
+    "question_ids": [],
+    "method": "measured: relative-date marker in gold; miss rate 14.2% vs 15.9% without"
+   },
+   "verdict": "retrieval-neutral; the cost is on the reader/date side (I57, I76, I79)"
+  },
+  {
+   "id": "R14-RET-N7",
+   "tag": "R14",
+   "pattern": "Generic category noun in the question ('hobbies', 'activities')",
+   "evidence": {
+    "count": 50,
+    "question_ids": [],
+    "method": "measured: lexicon of category nouns; retrieval-loss rate 8.6% vs 6.8% (OR 1.28, p=0.23); question-opener 'listy' wording OR 2.80 (p=4e-5) but acts through n_gold"
+   },
+   "verdict": "proxy for aggregation (RET-1), not an independent driver"
+  },
+  {
+   "id": "R14-RET-N8",
+   "tag": "R14",
+   "pattern": "Recency and position effects",
+   "evidence": {
+    "count": 0,
+    "question_ids": [],
+    "method": "measured: gold miss rate by relative session position 17.9%, 16.7%, 14.4%, 13.0%, 14.3% (first to last fifth); first turn of session 14.8%, last turn 21.1% (n=40), others 15.4%"
+   },
+   "verdict": "weak primacy tilt only (older sessions lose slightly more); no recency effect"
+  },
+  {
+   "id": "R14-RET-N9",
+   "tag": "R14",
+   "pattern": "Photo-referencing questions",
+   "evidence": {
+    "count": 1,
+    "question_ids": [],
+    "method": "measured: 37 questions mention photo or picture; 1 retrieval loss (2.7% vs 7.6%)"
+   },
+   "verdict": "not a driver"
+  }
+ ],
+ "confirmed_existing": [
+  {
+   "existing": "B1",
+   "r14": "R14-confirmed: category-vs-instance aggregation is the largest retrieval class: 39 exclusive and 55 overlapping of 115 retrieval losses; gold-complete rate collapses 95.9% -> 8.7% as n_gold grows (RET-1)."
+  },
+  {
+   "existing": "B3",
+   "r14": "R14-confirmed: 28 open-domain questions, 47.6% of their gold turns missing; reader ceiling 46.9% given all gold (RET-2)."
+  },
+  {
+   "existing": "B4",
+   "r14": "R14-sharpened: temporal retrieval loss is concentrated in explicit-date questions, 12 of 13 are fusion cuts with the gold session 0-12 days from the query date (RET-3)."
+  },
+  {
+   "existing": "B7/I75",
+   "r14": "R14-confirmed: 11 of 15 top-10 cuts never entered the 20-pool (10 are BM25-top-10 gold with vector rank >30 or absent); in-context rate falls from 95.8% at best leg rank 4-10 to 67.9% at 21-30 (RET-4)."
+  },
+  {
+   "existing": "B8",
+   "r14": "R14-confirmed: n_sessions>=3 questions have 35.8% (3 sessions) and 15.5% (4+) all-gold rate (RET-8)."
+  },
+  {
+   "existing": "B9/B10",
+   "r14": "R14-confirmed: 4 rerank-keep cuts and 105 of 115 failures use <3,000 of the 4,096 token budget (RET-7)."
+  },
+  {
+   "existing": "I4",
+   "r14": "R14-confirmed: list mode fires on 39% of n_gold>=3 questions; 37 of 55 aggregation losses were not in list mode (RET-11)."
+  },
+  {
+   "existing": "A12/I24",
+   "r14": "R14-extended: 95 correct answers lack gold in context (28 have the answer string in other turns) and 153 are barely in (RET-9)."
+  }
+ ],
+ "primary_pattern_ids": {
+  "P_fusion_cut": [
+   "0-11",
+   "1-31",
+   "2-42",
+   "3-173",
+   "3-195",
+   "4-41",
+   "5-0",
+   "5-18",
+   "5-55",
+   "7-158",
+   "7-179",
+   "7-188",
+   "9-10",
+   "9-118"
+  ],
+  "P_multi_evidence_agg": [
+   "0-15",
+   "1-3",
+   "1-23",
+   "3-1",
+   "3-23",
+   "3-30",
+   "3-34",
+   "3-42",
+   "3-55",
+   "3-58",
+   "3-61",
+   "3-74",
+   "3-78",
+   "3-79",
+   "4-7",
+   "4-17",
+   "4-18",
+   "4-38",
+   "5-3",
+   "5-12",
+   "5-23",
+   "5-28",
+   "6-2",
+   "6-24",
+   "6-51",
+   "7-8",
+   "7-54",
+   "7-55",
+   "7-82",
+   "7-86",
+   "7-88",
+   "8-18",
+   "8-26",
+   "8-36",
+   "8-44",
+   "8-49",
+   "8-81",
+   "8-82",
+   "9-29"
+  ],
+  "P_context_dependent_gold": [
+   "0-34",
+   "1-44",
+   "1-56",
+   "2-10",
+   "3-22",
+   "5-24",
+   "6-5",
+   "6-11",
+   "7-19",
+   "9-3"
+  ],
+  "P_open_inference": [
+   "0-42",
+   "0-69",
+   "2-8",
+   "2-45",
+   "2-64",
+   "3-14",
+   "3-66",
+   "3-68",
+   "4-3",
+   "4-19",
+   "4-34",
+   "4-53",
+   "4-67",
+   "4-70",
+   "5-19",
+   "5-33",
+   "5-43",
+   "5-44",
+   "5-52",
+   "6-6",
+   "6-19",
+   "6-33",
+   "7-23",
+   "7-36",
+   "7-48",
+   "8-20",
+   "8-43",
+   "8-51"
+  ],
+  "P_two_gold_partial_or_none": [
+   "0-75",
+   "2-40",
+   "2-49",
+   "5-15",
+   "5-39",
+   "9-45"
+  ],
+  "P_date_anchored_cut": [
+   "2-107",
+   "2-133",
+   "3-103",
+   "3-122",
+   "5-46",
+   "6-32",
+   "6-75",
+   "7-121",
+   "8-45",
+   "8-110",
+   "9-27",
+   "9-48"
+  ],
+  "P_rerank_cut": [
+   "3-95",
+   "4-45"
+  ],
+  "P_indirect_gold": [
+   "3-134"
+  ],
+  "P_paraphrase_gap": [
+   "3-135",
+   "3-151"
+  ],
+  "P_other": [
+   "9-152"
+  ]
+ },
+ "licence_note": "ids, counts and invented-name paraphrases only; no dataset text"
+}
