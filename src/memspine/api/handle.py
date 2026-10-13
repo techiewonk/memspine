@@ -17,6 +17,7 @@ from memspine.compose.pack import estimate_tokens
 from memspine.config import constants
 from memspine.core.escaping import escape_markers
 from memspine.exceptions import MemspineError
+from memspine.read.pipeline.scope_guard import declare_multi_party, viewer_required
 from memspine.read.tiers import ReadRequestError
 from memspine.schemas.durable import OwnerScope
 from memspine.store.records import MemoryRecord, PiiTier, RecordStatus, chrono_key
@@ -253,6 +254,8 @@ class Memory:
         self.purpose = purpose
         self.viewer = viewer
         self.multi_party = multi
+        if multi:  # F-16c: the engine's viewer guard treats this namespace as multi-party
+            declare_multi_party(engine, self.namespace)
 
     def __repr__(self) -> str:
         return (
@@ -265,6 +268,14 @@ class Memory:
         clash = _BOUND_KEYS & set(kwargs)
         if clash:
             raise TypeError(f"{sorted(clash)} are fixed by the handle's scope and cannot be passed")
+
+    def _viewer_kw(self, kwargs: dict[str, Any]) -> dict[str, Any]:
+        """``kwargs`` plus the viewer, for the verbs that did not take one before F-16c. The viewer
+        is passed only under ``isolation.viewer_required``, so a flag-off handle reads as before."""
+        self._check(kwargs)
+        if self.viewer is not None and viewer_required(self._engine):
+            return {**kwargs, "viewer": self.viewer}
+        return dict(kwargs)
 
     def _read_kwargs(self, kwargs: dict[str, Any]) -> dict[str, Any]:
         self._check(kwargs)
@@ -311,15 +322,17 @@ class Memory:
 
     async def brief(self, **kwargs: Any) -> Any:
         """The scope's standing brief (``Engine.brief``)."""
-        return await self._engine.brief(self.namespace, **kwargs)
+        return await self._engine.brief(self.namespace, **self._viewer_kw(kwargs))
 
     async def conversation(self, session_id: str, **kwargs: Any) -> Any:
         """One session's turns in this scope (``Engine.conversation``)."""
-        return await self._engine.conversation(self.namespace, session_id, **kwargs)
+        return await self._engine.conversation(
+            self.namespace, session_id, **self._viewer_kw(kwargs)
+        )
 
     async def stats(self) -> dict[str, Any]:
         """Counts for this scope's namespace (``Engine.namespace_stats``)."""
-        return await self._engine.namespace_stats(self.namespace)
+        return await self._engine.namespace_stats(self.namespace, **self._viewer_kw({}))
 
     # ── verbs the remote protocols (REST, MCP, agent tools) call; scope filled in (F-13b) ──
 
@@ -345,7 +358,7 @@ class Memory:
         self._check(kwargs)
         if self.purpose is not None:
             kwargs["purpose"] = self.purpose
-        return await self._engine.retrieve(namespace=self.namespace, **kwargs)
+        return await self._engine.retrieve(namespace=self.namespace, **self._viewer_kw(kwargs))
 
     async def feedback(self, record_id: str, signal: Any, **kwargs: Any) -> Any:
         """Utility feedback on one record (``Engine.feedback``)."""
@@ -413,7 +426,10 @@ class Memory:
 
     async def shared_search(self, query: str, **kwargs: Any) -> Any:
         """Search what other namespaces shared with this one (``Engine.shared_search``)."""
-        return await self._scoped("shared_search", query, **kwargs)
+        self._check(kwargs)
+        return await self._engine.shared_search(
+            query, namespace=self.namespace, **self._viewer_kw(kwargs)
+        )
 
     async def subscribe(self, query: str, **kwargs: Any) -> Any:
         """Subscribe to a query (``Engine.subscribe``)."""
@@ -434,15 +450,15 @@ class Memory:
 
     async def get_record(self, record_id: str) -> MemoryRecord | None:
         """One record of this scope by id, else None (a foreign id looks missing)."""
-        record = await self._engine._require_started().get_record(record_id)
-        return record if record is not None and record.namespace == self.namespace else None
+        return await self._engine.get_record(
+            record_id, namespace=self.namespace, **self._viewer_kw({})
+        )
 
     async def list_records(self, memory_type: str | None = None) -> list[MemoryRecord]:
         """All stored records of this scope, optionally of one memory type."""
-        storage = self._engine._require_started()
-        if memory_type is None:
-            return await storage.list_records(self.namespace)
-        return await storage.list_records(self.namespace, memory_type)
+        return await self._engine.list_records(
+            self.namespace, memory_type, **self._viewer_kw({})
+        )
 
     async def audit_action(self, action: str, record_ids: list[str], **kwargs: Any) -> None:
         """Append a chained audit event for this scope (no-op unless ``audit.actions`` is on)."""

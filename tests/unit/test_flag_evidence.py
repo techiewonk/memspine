@@ -77,6 +77,7 @@ def test_registry_areas_are_schema_modules():
     assert areas <= {
         "storage", "llm", "read", "write", "firewall", "integrity",
         "privacy", "observability", "rest", "root", "offline",
+        "isolation",
     }  # fmt: skip
 
 

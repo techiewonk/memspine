@@ -120,6 +120,11 @@
    "untrusted_wrap_below": 0.0,
    "verification_bonus": 1.0
   },
+  "isolation": {
+   "multi_party_namespaces": [],
+   "scope_keys_v2": false,
+   "viewer_required": false
+  },
   "llm": {
    "roles": {},
    "structured": {
@@ -537,7 +542,7 @@
    "window_topic_k": 2.0
   }
  },
- "json_schema_sha256": "06981e344dc0887bdf17d4326aec2665f1a5387e675ef8b8b954a95e328d3334",
+ "json_schema_sha256": "a3d18e1c06184e0f210840afaea885b86cae96203497333ba4e2a9205efe8fe6",
  "preset:chat_roles": {
   "audit": {
    "actions": false,
@@ -660,6 +665,11 @@
    "trust_weighted_ranking": true,
    "untrusted_wrap_below": 0.0,
    "verification_bonus": 1.0
+  },
+  "isolation": {
+   "multi_party_namespaces": [],
+   "scope_keys_v2": false,
+   "viewer_required": false
   },
   "llm": {
    "roles": {},
@@ -1228,6 +1238,11 @@
    "untrusted_wrap_below": 0.0,
    "verification_bonus": 1.0
   },
+  "isolation": {
+   "multi_party_namespaces": [],
+   "scope_keys_v2": false,
+   "viewer_required": false
+  },
   "llm": {
    "roles": {},
    "structured": {
@@ -1792,6 +1807,11 @@
    "trust_weighted_ranking": true,
    "untrusted_wrap_below": 0.0,
    "verification_bonus": 1.0
+  },
+  "isolation": {
+   "multi_party_namespaces": [],
+   "scope_keys_v2": false,
+   "viewer_required": false
   },
   "llm": {
    "roles": {},
@@ -2358,6 +2378,11 @@
    "untrusted_wrap_below": 0.0,
    "verification_bonus": 1.0
   },
+  "isolation": {
+   "multi_party_namespaces": [],
+   "scope_keys_v2": false,
+   "viewer_required": false
+  },
   "llm": {
    "roles": {},
    "structured": {
@@ -2922,6 +2947,11 @@
    "trust_weighted_ranking": true,
    "untrusted_wrap_below": 0.0,
    "verification_bonus": 1.0
+  },
+  "isolation": {
+   "multi_party_namespaces": [],
+   "scope_keys_v2": false,
+   "viewer_required": false
   },
   "llm": {
    "roles": {},
@@ -3488,6 +3518,11 @@
    "untrusted_wrap_below": 0.0,
    "verification_bonus": 1.0
   },
+  "isolation": {
+   "multi_party_namespaces": [],
+   "scope_keys_v2": false,
+   "viewer_required": false
+  },
   "llm": {
    "roles": {},
    "structured": {
@@ -4052,6 +4087,11 @@
    "trust_weighted_ranking": true,
    "untrusted_wrap_below": 0.0,
    "verification_bonus": 1.0
+  },
+  "isolation": {
+   "multi_party_namespaces": [],
+   "scope_keys_v2": false,
+   "viewer_required": false
   },
   "llm": {
    "roles": {},
@@ -4618,6 +4658,11 @@
    "untrusted_wrap_below": 0.0,
    "verification_bonus": 1.0
   },
+  "isolation": {
+   "multi_party_namespaces": [],
+   "scope_keys_v2": false,
+   "viewer_required": false
+  },
   "llm": {
    "roles": {},
    "structured": {
@@ -5183,6 +5228,11 @@
    "untrusted_wrap_below": 0.0,
    "verification_bonus": 1.0
   },
+  "isolation": {
+   "multi_party_namespaces": [],
+   "scope_keys_v2": false,
+   "viewer_required": false
+  },
   "llm": {
    "roles": {},
    "structured": {
@@ -5747,6 +5797,11 @@
    "trust_weighted_ranking": true,
    "untrusted_wrap_below": 0.0,
    "verification_bonus": 1.0
+  },
+  "isolation": {
+   "multi_party_namespaces": [],
+   "scope_keys_v2": false,
+   "viewer_required": false
   },
   "llm": {
    "roles": {},
@@ -6322,6 +6377,11 @@
    "untrusted_wrap_below": 0.0,
    "verification_bonus": 1.0
   },
+  "isolation": {
+   "multi_party_namespaces": [],
+   "scope_keys_v2": false,
+   "viewer_required": false
+  },
   "llm": {
    "roles": {},
    "structured": {
@@ -6892,6 +6952,11 @@
    "untrusted_wrap_below": 0.0,
    "verification_bonus": 1.0
   },
+  "isolation": {
+   "multi_party_namespaces": [],
+   "scope_keys_v2": false,
+   "viewer_required": false
+  },
   "llm": {
    "roles": {},
    "structured": {
@@ -7442,6 +7507,11 @@
    "trust_weighted_ranking": true,
    "untrusted_wrap_below": 0.0,
    "verification_bonus": 1.0
+  },
+  "isolation": {
+   "multi_party_namespaces": [],
+   "scope_keys_v2": false,
+   "viewer_required": false
   },
   "llm": {
    "roles": {},
@@ -8016,6 +8086,11 @@
    "untrusted_wrap_below": 0.5,
    "verification_bonus": 1.0
   },
+  "isolation": {
+   "multi_party_namespaces": [],
+   "scope_keys_v2": false,
+   "viewer_required": false
+  },
   "llm": {
    "roles": {},
    "structured": {
@@ -8584,6 +8659,11 @@
    "trust_weighted_ranking": true,
    "untrusted_wrap_below": 0.0,
    "verification_bonus": 1.0
+  },
+  "isolation": {
+   "multi_party_namespaces": [],
+   "scope_keys_v2": false,
+   "viewer_required": false
   },
   "llm": {
    "roles": {},
@@ -9158,6 +9238,11 @@
    "untrusted_wrap_below": 0.0,
    "verification_bonus": 1.0
   },
+  "isolation": {
+   "multi_party_namespaces": [],
+   "scope_keys_v2": false,
+   "viewer_required": false
+  },
   "llm": {
    "roles": {},
    "structured": {
@@ -9722,6 +9807,11 @@
    "trust_weighted_ranking": true,
    "untrusted_wrap_below": 0.5,
    "verification_bonus": 1.0
+  },
+  "isolation": {
+   "multi_party_namespaces": [],
+   "scope_keys_v2": false,
+   "viewer_required": false
   },
   "llm": {
    "roles": {},
@@ -10288,6 +10378,11 @@
    "trust_weighted_ranking": true,
    "untrusted_wrap_below": 0.0,
    "verification_bonus": 1.0
+  },
+  "isolation": {
+   "multi_party_namespaces": [],
+   "scope_keys_v2": false,
+   "viewer_required": false
   },
   "llm": {
    "roles": {},
