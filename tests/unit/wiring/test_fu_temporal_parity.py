@@ -45,14 +45,18 @@ TURNS: list[tuple[str, str, datetime, list[str]]] = [
 LABELS: dict[int, dict[str, str]] = {}  # engine -> record id -> fixture label (ids are random)
 
 
-async def _engine(**read: Any) -> Engine:
+async def _engine(*, graph: dict[str, Any] | None = None, **read: Any) -> Engine:
     eng = Engine(
         template="core",
         dotenv_path=None,
         storage={"path": ":memory:"},
         embedding={"provider": "hash"},
-        memories={"episodic": {"enabled": True}},
+        memories={
+            "episodic": {"enabled": True},
+            **({"associative": {"enabled": True}} if graph else {}),
+        },
         read={"hybrid": False, "record_access": False, **read},
+        **({"graph": graph} if graph else {}),
     )
     await eng.start()
     eng._clock = lambda: NOW
@@ -327,7 +331,12 @@ async def test_router_legs_off_applies_to_every_registered_leg(
         lambda stage, /, **f: ran.append(f["leg"]) if stage == "read.leg" else None,
     )
     eng = await _engine(
-        legs_v2=True, hybrid=True, temporal_leg=True, episode_leg_v2=True, graph_leg_v2=True
+        legs_v2=True,
+        hybrid=True,
+        temporal_leg=True,
+        episode_leg_v2=True,
+        graph_leg_v2=True,
+        graph={"edge_compiler_v2": True},  # FU-REQS: graph_leg_v2 requires it
     )
     try:
         [vec] = await embed_queries(eng._embedder, ["what happened on 7 May 2023"])
