@@ -144,6 +144,11 @@
    },
    "write_timers": false
   },
+  "offline": {
+   "histories_v2": false,
+   "near_duplicate_text": 0.8,
+   "reconcile_v2": false
+  },
   "plugins": [],
   "profile": "simple",
   "prompts": {
@@ -496,7 +501,7 @@
    "window_topic_k": 2.0
   }
  },
- "json_schema_sha256": "ce68927475ecf9a62b6a968a2c8b0c1802b0333388bee003be7637fd3cf46094",
+ "json_schema_sha256": "2e48a2cb5d88c42f09a18711b3c25e892c6ff5a316608977773559c79f06686f",
  "preset:chat_roles": {
   "audit": {
    "actions": false,
@@ -662,6 +667,11 @@
     "sink": "jsonl"
    },
    "write_timers": false
+  },
+  "offline": {
+   "histories_v2": false,
+   "near_duplicate_text": 0.8,
+   "reconcile_v2": false
   },
   "plugins": [],
   "profile": "simple",
@@ -1187,6 +1197,11 @@
    },
    "write_timers": false
   },
+  "offline": {
+   "histories_v2": false,
+   "near_duplicate_text": 0.8,
+   "reconcile_v2": false
+  },
   "plugins": [],
   "profile": "simple",
   "prompts": {
@@ -1710,6 +1725,11 @@
     "sink": "jsonl"
    },
    "write_timers": false
+  },
+  "offline": {
+   "histories_v2": false,
+   "near_duplicate_text": 0.8,
+   "reconcile_v2": false
   },
   "plugins": [],
   "profile": "simple",
@@ -2235,6 +2255,11 @@
    },
    "write_timers": false
   },
+  "offline": {
+   "histories_v2": false,
+   "near_duplicate_text": 0.8,
+   "reconcile_v2": false
+  },
   "plugins": [],
   "profile": "simple",
   "prompts": {
@@ -2758,6 +2783,11 @@
     "sink": "jsonl"
    },
    "write_timers": false
+  },
+  "offline": {
+   "histories_v2": false,
+   "near_duplicate_text": 0.8,
+   "reconcile_v2": false
   },
   "plugins": [],
   "profile": "simple",
@@ -3283,6 +3313,11 @@
    },
    "write_timers": false
   },
+  "offline": {
+   "histories_v2": false,
+   "near_duplicate_text": 0.8,
+   "reconcile_v2": false
+  },
   "plugins": [],
   "profile": "simple",
   "prompts": {
@@ -3806,6 +3841,11 @@
     "sink": "jsonl"
    },
    "write_timers": false
+  },
+  "offline": {
+   "histories_v2": false,
+   "near_duplicate_text": 0.8,
+   "reconcile_v2": false
   },
   "plugins": [],
   "profile": "simple",
@@ -4331,6 +4371,11 @@
    },
    "write_timers": false
   },
+  "offline": {
+   "histories_v2": false,
+   "near_duplicate_text": 0.8,
+   "reconcile_v2": false
+  },
   "plugins": [],
   "profile": "assistant",
   "prompts": {
@@ -4854,6 +4899,11 @@
     "sink": "jsonl"
    },
    "write_timers": false
+  },
+  "offline": {
+   "histories_v2": false,
+   "near_duplicate_text": 0.8,
+   "reconcile_v2": false
   },
   "plugins": [],
   "profile": "simple",
@@ -5386,6 +5436,11 @@
    },
    "write_timers": false
   },
+  "offline": {
+   "histories_v2": false,
+   "near_duplicate_text": 0.8,
+   "reconcile_v2": false
+  },
   "plugins": [],
   "profile": "benchmark",
   "prompts": {
@@ -5917,6 +5972,11 @@
    },
    "write_timers": false
   },
+  "offline": {
+   "histories_v2": false,
+   "near_duplicate_text": 0.8,
+   "reconcile_v2": false
+  },
   "plugins": [],
   "profile": "coding",
   "prompts": {
@@ -6436,6 +6496,11 @@
     "sink": "jsonl"
    },
    "write_timers": false
+  },
+  "offline": {
+   "histories_v2": false,
+   "near_duplicate_text": 0.8,
+   "reconcile_v2": false
   },
   "plugins": [],
   "profile": "core",
@@ -6958,6 +7023,11 @@
     "sink": "jsonl"
    },
    "write_timers": false
+  },
+  "offline": {
+   "histories_v2": false,
+   "near_duplicate_text": 0.8,
+   "reconcile_v2": false
   },
   "plugins": [],
   "profile": "graph",
@@ -7486,6 +7556,11 @@
     "sink": "jsonl"
    },
    "write_timers": false
+  },
+  "offline": {
+   "histories_v2": false,
+   "near_duplicate_text": 0.8,
+   "reconcile_v2": false
   },
   "plugins": [],
   "profile": "multi_agent",
@@ -8019,6 +8094,11 @@
    },
    "write_timers": false
   },
+  "offline": {
+   "histories_v2": false,
+   "near_duplicate_text": 0.8,
+   "reconcile_v2": false
+  },
   "plugins": [],
   "profile": "personal",
   "prompts": {
@@ -8542,6 +8622,11 @@
     "sink": "jsonl"
    },
    "write_timers": false
+  },
+  "offline": {
+   "histories_v2": false,
+   "near_duplicate_text": 0.8,
+   "reconcile_v2": false
   },
   "plugins": [],
   "profile": "protected",
@@ -9068,6 +9153,11 @@
    },
    "write_timers": false
   },
+  "offline": {
+   "histories_v2": false,
+   "near_duplicate_text": 0.8,
+   "reconcile_v2": false
+  },
   "plugins": [],
   "profile": "regulated_financial",
   "prompts": {
@@ -9593,6 +9683,11 @@
     "sink": "jsonl"
    },
    "write_timers": false
+  },
+  "offline": {
+   "histories_v2": false,
+   "near_duplicate_text": 0.8,
+   "reconcile_v2": false
   },
   "plugins": [],
   "profile": "voice",

@@ -16,6 +16,7 @@ from memspine.config.schema.llm import (
     WorkersConfig,
 )
 from memspine.config.schema.observability import ObservabilityConfig
+from memspine.config.schema.offline import OfflineConfig
 from memspine.config.schema.privacy import AuditConfig, ConsentConfig, RetentionConfig
 from memspine.config.schema.read import ReadConfig
 from memspine.config.schema.rest import RestConfig
@@ -74,6 +75,7 @@ class MemspineConfig(BaseModel):
     integrity: IntegrityConfig = Field(default_factory=IntegrityConfig)
     firewall: FirewallConfig = Field(default_factory=FirewallConfig)
     workers: WorkersConfig = Field(default_factory=WorkersConfig)
+    offline: OfflineConfig = Field(default_factory=OfflineConfig)
     retention: RetentionConfig = Field(default_factory=RetentionConfig)
     audit: AuditConfig = Field(default_factory=AuditConfig)
     observability: ObservabilityConfig = Field(default_factory=ObservabilityConfig)
