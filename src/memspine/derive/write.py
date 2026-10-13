@@ -29,6 +29,8 @@ from memspine.store.events import fingerprint_payload
 from memspine.store.layers import LAYERS, derive_layer
 from memspine.store.records import MemoryRecord
 from memspine.trust.horizon import deposit_trust
+from memspine.trust.pipeline import consent as trust_consent
+from memspine.trust.pipeline import gates_v2
 
 __all__ = ["DerivedWithoutParents", "write_derived"]
 
@@ -56,7 +58,51 @@ async def write_derived(
 
     ``roles`` maps a parent id to its lineage role (default ``support``); ``spans`` maps a parent id
     to the evidence span in that parent. The caller holds the namespace write lock, as before.
+
+    ``firewall.gates_v2`` (W2-04, gate 3) and ``consent.v2`` (T5-03, ``may_derive``): a record the
+    gates refuse is still written, but held in quarantine (inert, never served, never a parent of
+    further derivation); the reasons ride the write door as ``GATE_HOLD``.
     """
+    reasons: list[str] = []
+    if gates_v2.gates_on(eng):
+        pids = list(parents if parents is not None else record.source.parents)
+        reasons.extend(await gates_v2.derive_hold(eng, storage, record, pids))
+    if eng._config().consent.v2:
+        await trust_consent.ensure_registry(eng)
+        denied = trust_consent.derive_denial(eng, record)
+        if denied is not None:
+            reasons.append(f"consent_{denied}")
+    if not reasons:
+        return await _write_derived(
+            eng, storage, ns, record, memory_type, actor,
+            parents, roles, spans, layer, trust_cap, site,
+        )  # fmt: skip
+    if tap.enabled():
+        tap.event("derive.gate.hold", site=site, record=record.record_id, reasons=reasons)
+    token = gates_v2.GATE_HOLD.set((record.record_id, tuple(reasons)))
+    try:
+        return await _write_derived(
+            eng, storage, ns, record, memory_type, actor,
+            parents, roles, spans, layer, trust_cap, site,
+        )  # fmt: skip
+    finally:
+        gates_v2.GATE_HOLD.reset(token)
+
+
+async def _write_derived(
+    eng: Any,
+    storage: Any,
+    ns: str,
+    record: MemoryRecord,
+    memory_type: str,
+    actor: str,
+    parents: Sequence[str] | None,
+    roles: Mapping[str, str] | None,
+    spans: Mapping[str, Span] | None,
+    layer: str | None,
+    trust_cap: list[float] | None,
+    site: str,
+) -> MemoryRecord:
     if not eng._config().write.lineage_table:
         return await eng._write_locked(storage, ns, record, memory_type, actor, trust_cap)
 

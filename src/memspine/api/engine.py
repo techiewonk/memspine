@@ -3222,6 +3222,22 @@ class Engine:
         """#50: whether the current read's purpose may see ``record``."""
         return trust_consent._consent_ok(self, record)
 
+    async def consent_grant(
+        self, owner: str, purpose: str = "*", *, grantee: str | None = None
+    ) -> int:
+        """T5-03 (``consent.v2``): ``owner`` opts in to ``purpose``; returns the generation."""
+        return (await trust_consent.grant(self, owner, purpose, grantee=grantee)).generation
+
+    async def consent_revoke(
+        self, owner: str, purpose: str = "*", *, grantee: str | None = None
+    ) -> int:
+        """T5-03: ``owner`` withdraws ``purpose``: its records stop being served (not deleted)."""
+        return (await trust_consent.revoke(self, owner, purpose, grantee=grantee)).generation
+
+    async def consent_do_not_derive(self, owner: str, subject: str, on: bool = True) -> int:
+        """T5-03: switch derivation off (or on) for one subject of ``owner``'s memory (G-11)."""
+        return (await trust_consent.set_do_not_derive(self, owner, subject, on)).generation
+
     def _consent_context(self, context: AssembledContext) -> AssembledContext:
         """#50: drop records an assembled context may not carry for this purpose.
 

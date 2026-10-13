@@ -17,7 +17,8 @@
    "enforce": false,
    "local_hosts": [],
    "remote_llm_max_tier": null,
-   "untagged": "allow"
+   "untagged": "allow",
+   "v2": false
   },
   "data_profile": "off",
   "data_shape": {
@@ -59,6 +60,7 @@
   },
   "firewall": {
    "enabled": true,
+   "gates_v2": false,
    "hearsay_trust_cap": null,
    "max_content_chars": null,
    "pii": "off",
@@ -111,6 +113,8 @@
    "derivation_decay": 1.0,
    "edge_kappa": {},
    "enabled": false,
+   "grant_horizon": null,
+   "horizon_v2": false,
    "implicit_parents": "off",
    "kappa": 0.5,
    "live_reevaluation": false,
@@ -554,7 +558,7 @@
    "window_topic_k": 2.0
   }
  },
- "json_schema_sha256": "8f571c729ff828adf2d68c0a7dcdab7e716309b011e1373fa33cf415b44997e5",
+ "json_schema_sha256": "b4198da44709e8c92665181b5f97663329ebb7d130abdf781120f770242a186d",
  "preset:chat_roles": {
   "audit": {
    "actions": false,
@@ -573,7 +577,8 @@
    "enforce": false,
    "local_hosts": [],
    "remote_llm_max_tier": null,
-   "untagged": "allow"
+   "untagged": "allow",
+   "v2": false
   },
   "data_profile": "off",
   "data_shape": {
@@ -615,6 +620,7 @@
   },
   "firewall": {
    "enabled": true,
+   "gates_v2": false,
    "hearsay_trust_cap": null,
    "max_content_chars": null,
    "pii": "off",
@@ -669,6 +675,8 @@
    "derivation_decay": 1.0,
    "edge_kappa": {},
    "enabled": false,
+   "grant_horizon": null,
+   "horizon_v2": false,
    "implicit_parents": "off",
    "kappa": 0.5,
    "live_reevaluation": false,
@@ -1159,7 +1167,8 @@
    "enforce": false,
    "local_hosts": [],
    "remote_llm_max_tier": null,
-   "untagged": "allow"
+   "untagged": "allow",
+   "v2": false
   },
   "data_profile": "off",
   "data_shape": {
@@ -1201,6 +1210,7 @@
   },
   "firewall": {
    "enabled": true,
+   "gates_v2": false,
    "hearsay_trust_cap": null,
    "max_content_chars": null,
    "pii": "off",
@@ -1253,6 +1263,8 @@
    "derivation_decay": 1.0,
    "edge_kappa": {},
    "enabled": false,
+   "grant_horizon": null,
+   "horizon_v2": false,
    "implicit_parents": "off",
    "kappa": 0.5,
    "live_reevaluation": false,
@@ -1741,7 +1753,8 @@
    "enforce": false,
    "local_hosts": [],
    "remote_llm_max_tier": null,
-   "untagged": "allow"
+   "untagged": "allow",
+   "v2": false
   },
   "data_profile": "off",
   "data_shape": {
@@ -1783,6 +1796,7 @@
   },
   "firewall": {
    "enabled": true,
+   "gates_v2": false,
    "hearsay_trust_cap": null,
    "max_content_chars": null,
    "pii": "off",
@@ -1835,6 +1849,8 @@
    "derivation_decay": 1.0,
    "edge_kappa": {},
    "enabled": false,
+   "grant_horizon": null,
+   "horizon_v2": false,
    "implicit_parents": "off",
    "kappa": 0.5,
    "live_reevaluation": false,
@@ -2323,7 +2339,8 @@
    "enforce": false,
    "local_hosts": [],
    "remote_llm_max_tier": null,
-   "untagged": "allow"
+   "untagged": "allow",
+   "v2": false
   },
   "data_profile": "off",
   "data_shape": {
@@ -2365,6 +2382,7 @@
   },
   "firewall": {
    "enabled": true,
+   "gates_v2": false,
    "hearsay_trust_cap": null,
    "max_content_chars": null,
    "pii": "off",
@@ -2417,6 +2435,8 @@
    "derivation_decay": 1.0,
    "edge_kappa": {},
    "enabled": false,
+   "grant_horizon": null,
+   "horizon_v2": false,
    "implicit_parents": "off",
    "kappa": 0.5,
    "live_reevaluation": false,
@@ -2905,7 +2925,8 @@
    "enforce": false,
    "local_hosts": [],
    "remote_llm_max_tier": null,
-   "untagged": "allow"
+   "untagged": "allow",
+   "v2": false
   },
   "data_profile": "off",
   "data_shape": {
@@ -2947,6 +2968,7 @@
   },
   "firewall": {
    "enabled": true,
+   "gates_v2": false,
    "hearsay_trust_cap": null,
    "max_content_chars": null,
    "pii": "off",
@@ -2999,6 +3021,8 @@
    "derivation_decay": 1.0,
    "edge_kappa": {},
    "enabled": false,
+   "grant_horizon": null,
+   "horizon_v2": false,
    "implicit_parents": "off",
    "kappa": 0.5,
    "live_reevaluation": false,
@@ -3487,7 +3511,8 @@
    "enforce": false,
    "local_hosts": [],
    "remote_llm_max_tier": null,
-   "untagged": "allow"
+   "untagged": "allow",
+   "v2": false
   },
   "data_profile": "off",
   "data_shape": {
@@ -3529,6 +3554,7 @@
   },
   "firewall": {
    "enabled": true,
+   "gates_v2": false,
    "hearsay_trust_cap": null,
    "max_content_chars": null,
    "pii": "off",
@@ -3581,6 +3607,8 @@
    "derivation_decay": 1.0,
    "edge_kappa": {},
    "enabled": false,
+   "grant_horizon": null,
+   "horizon_v2": false,
    "implicit_parents": "off",
    "kappa": 0.5,
    "live_reevaluation": false,
@@ -4069,7 +4097,8 @@
    "enforce": false,
    "local_hosts": [],
    "remote_llm_max_tier": null,
-   "untagged": "allow"
+   "untagged": "allow",
+   "v2": false
   },
   "data_profile": "off",
   "data_shape": {
@@ -4111,6 +4140,7 @@
   },
   "firewall": {
    "enabled": true,
+   "gates_v2": false,
    "hearsay_trust_cap": null,
    "max_content_chars": null,
    "pii": "off",
@@ -4163,6 +4193,8 @@
    "derivation_decay": 1.0,
    "edge_kappa": {},
    "enabled": false,
+   "grant_horizon": null,
+   "horizon_v2": false,
    "implicit_parents": "off",
    "kappa": 0.5,
    "live_reevaluation": false,
@@ -4651,7 +4683,8 @@
    "enforce": false,
    "local_hosts": [],
    "remote_llm_max_tier": null,
-   "untagged": "allow"
+   "untagged": "allow",
+   "v2": false
   },
   "data_profile": "off",
   "data_shape": {
@@ -4693,6 +4726,7 @@
   },
   "firewall": {
    "enabled": true,
+   "gates_v2": false,
    "hearsay_trust_cap": null,
    "max_content_chars": null,
    "pii": "off",
@@ -4745,6 +4779,8 @@
    "derivation_decay": 1.0,
    "edge_kappa": {},
    "enabled": false,
+   "grant_horizon": null,
+   "horizon_v2": false,
    "implicit_parents": "off",
    "kappa": 0.5,
    "live_reevaluation": false,
@@ -5233,7 +5269,8 @@
    "enforce": false,
    "local_hosts": [],
    "remote_llm_max_tier": null,
-   "untagged": "allow"
+   "untagged": "allow",
+   "v2": false
   },
   "data_profile": "off",
   "data_shape": {
@@ -5275,6 +5312,7 @@
   },
   "firewall": {
    "enabled": true,
+   "gates_v2": false,
    "hearsay_trust_cap": null,
    "max_content_chars": null,
    "pii": "off",
@@ -5327,6 +5365,8 @@
    "derivation_decay": 1.0,
    "edge_kappa": {},
    "enabled": false,
+   "grant_horizon": null,
+   "horizon_v2": false,
    "implicit_parents": "off",
    "kappa": 0.5,
    "live_reevaluation": false,
@@ -5815,7 +5855,8 @@
    "enforce": false,
    "local_hosts": [],
    "remote_llm_max_tier": null,
-   "untagged": "allow"
+   "untagged": "allow",
+   "v2": false
   },
   "data_profile": "off",
   "data_shape": {
@@ -5857,6 +5898,7 @@
   },
   "firewall": {
    "enabled": true,
+   "gates_v2": false,
    "hearsay_trust_cap": null,
    "max_content_chars": null,
    "pii": "off",
@@ -5909,6 +5951,8 @@
    "derivation_decay": 1.0,
    "edge_kappa": {},
    "enabled": false,
+   "grant_horizon": null,
+   "horizon_v2": false,
    "implicit_parents": "off",
    "kappa": 0.5,
    "live_reevaluation": false,
@@ -6406,7 +6450,8 @@
    "enforce": false,
    "local_hosts": [],
    "remote_llm_max_tier": null,
-   "untagged": "allow"
+   "untagged": "allow",
+   "v2": false
   },
   "data_profile": "off",
   "data_shape": {
@@ -6448,6 +6493,7 @@
   },
   "firewall": {
    "enabled": true,
+   "gates_v2": false,
    "hearsay_trust_cap": null,
    "max_content_chars": null,
    "pii": "off",
@@ -6500,6 +6546,8 @@
    "derivation_decay": 1.0,
    "edge_kappa": {},
    "enabled": false,
+   "grant_horizon": null,
+   "horizon_v2": false,
    "implicit_parents": "off",
    "kappa": 0.5,
    "live_reevaluation": false,
@@ -6993,7 +7041,8 @@
    "enforce": false,
    "local_hosts": [],
    "remote_llm_max_tier": null,
-   "untagged": "allow"
+   "untagged": "allow",
+   "v2": false
   },
   "data_profile": "off",
   "data_shape": {
@@ -7035,6 +7084,7 @@
   },
   "firewall": {
    "enabled": true,
+   "gates_v2": false,
    "hearsay_trust_cap": null,
    "max_content_chars": null,
    "pii": "off",
@@ -7087,6 +7137,8 @@
    "derivation_decay": 1.0,
    "edge_kappa": {},
    "enabled": false,
+   "grant_horizon": null,
+   "horizon_v2": false,
    "implicit_parents": "off",
    "kappa": 0.5,
    "live_reevaluation": false,
@@ -7561,7 +7613,8 @@
    "enforce": false,
    "local_hosts": [],
    "remote_llm_max_tier": null,
-   "untagged": "allow"
+   "untagged": "allow",
+   "v2": false
   },
   "data_profile": "off",
   "data_shape": {
@@ -7603,6 +7656,7 @@
   },
   "firewall": {
    "enabled": true,
+   "gates_v2": false,
    "hearsay_trust_cap": null,
    "max_content_chars": null,
    "pii": "off",
@@ -7655,6 +7709,8 @@
    "derivation_decay": 1.0,
    "edge_kappa": {},
    "enabled": false,
+   "grant_horizon": null,
+   "horizon_v2": false,
    "implicit_parents": "off",
    "kappa": 0.5,
    "live_reevaluation": false,
@@ -8151,7 +8207,8 @@
    "enforce": false,
    "local_hosts": [],
    "remote_llm_max_tier": null,
-   "untagged": "allow"
+   "untagged": "allow",
+   "v2": false
   },
   "data_profile": "off",
   "data_shape": {
@@ -8193,6 +8250,7 @@
   },
   "firewall": {
    "enabled": true,
+   "gates_v2": false,
    "hearsay_trust_cap": null,
    "max_content_chars": null,
    "pii": "redact",
@@ -8245,6 +8303,8 @@
    "derivation_decay": 1.0,
    "edge_kappa": {},
    "enabled": true,
+   "grant_horizon": null,
+   "horizon_v2": false,
    "implicit_parents": "off",
    "kappa": 0.5,
    "live_reevaluation": false,
@@ -8737,7 +8797,8 @@
    "enforce": false,
    "local_hosts": [],
    "remote_llm_max_tier": null,
-   "untagged": "allow"
+   "untagged": "allow",
+   "v2": false
   },
   "data_profile": "off",
   "data_shape": {
@@ -8779,6 +8840,7 @@
   },
   "firewall": {
    "enabled": true,
+   "gates_v2": false,
    "hearsay_trust_cap": null,
    "max_content_chars": null,
    "pii": "off",
@@ -8831,6 +8893,8 @@
    "derivation_decay": 1.0,
    "edge_kappa": {},
    "enabled": false,
+   "grant_horizon": null,
+   "horizon_v2": false,
    "implicit_parents": "off",
    "kappa": 0.5,
    "live_reevaluation": false,
@@ -9327,7 +9391,8 @@
    "enforce": false,
    "local_hosts": [],
    "remote_llm_max_tier": null,
-   "untagged": "allow"
+   "untagged": "allow",
+   "v2": false
   },
   "data_profile": "off",
   "data_shape": {
@@ -9369,6 +9434,7 @@
   },
   "firewall": {
    "enabled": true,
+   "gates_v2": false,
    "hearsay_trust_cap": null,
    "max_content_chars": null,
    "pii": "off",
@@ -9421,6 +9487,8 @@
    "derivation_decay": 1.0,
    "edge_kappa": {},
    "enabled": false,
+   "grant_horizon": null,
+   "horizon_v2": false,
    "implicit_parents": "turn",
    "kappa": 0.5,
    "live_reevaluation": false,
@@ -9909,7 +9977,8 @@
    "enforce": false,
    "local_hosts": [],
    "remote_llm_max_tier": null,
-   "untagged": "allow"
+   "untagged": "allow",
+   "v2": false
   },
   "data_profile": "off",
   "data_shape": {
@@ -9951,6 +10020,7 @@
   },
   "firewall": {
    "enabled": true,
+   "gates_v2": false,
    "hearsay_trust_cap": null,
    "max_content_chars": null,
    "pii": "redact",
@@ -10003,6 +10073,8 @@
    "derivation_decay": 1.0,
    "edge_kappa": {},
    "enabled": true,
+   "grant_horizon": null,
+   "horizon_v2": false,
    "implicit_parents": "off",
    "kappa": 0.5,
    "live_reevaluation": false,
@@ -10492,7 +10564,8 @@
    "enforce": false,
    "local_hosts": [],
    "remote_llm_max_tier": null,
-   "untagged": "allow"
+   "untagged": "allow",
+   "v2": false
   },
   "data_profile": "off",
   "data_shape": {
@@ -10534,6 +10607,7 @@
   },
   "firewall": {
    "enabled": true,
+   "gates_v2": false,
    "hearsay_trust_cap": null,
    "max_content_chars": null,
    "pii": "off",
@@ -10586,6 +10660,8 @@
    "derivation_decay": 1.0,
    "edge_kappa": {},
    "enabled": false,
+   "grant_horizon": null,
+   "horizon_v2": false,
    "implicit_parents": "off",
    "kappa": 0.5,
    "live_reevaluation": false,

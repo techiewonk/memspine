@@ -15,6 +15,7 @@ from memspine.read.pipeline.fusion import _cosine, _jaccard
 from memspine.store.events import EventKind, MemoryEvent
 from memspine.store.records import MemoryRecord, RecordStatus
 from memspine.store.scope import grant_allows, validate_namespace
+from memspine.trust.pipeline import gates_v2
 
 _log = get_logger(__name__)
 
@@ -377,9 +378,21 @@ async def _shared_search(
                         if integrity.live_reevaluation
                         else record.trust
                     )
-                    view = integrity.view_trust(home, grantor, ns)
-                    if not integrity.admits(view):
-                        continue
+                    if gates_v2.gates_on(eng) and integrity.horizon_v2:
+                        # W2-04 gate 4 over the T5-01 grant: a visible chain, attenuated trust
+                        gate = gates_v2.read_item(
+                            record.model_copy(update={"trust": min(1.0, max(0.0, home))}),
+                            ns,
+                            grants=[integrity.grant(grantor, ns)],
+                            min_view_trust=integrity.admission_threshold,
+                        )
+                        if gate.action != "accept":
+                            continue
+                        view = gate.trust
+                    else:
+                        view = integrity.view_trust(home, grantor, ns)
+                        if not integrity.admits(view):
+                            continue
                     record = record.model_copy(update={"trust": view})
                     results.append((record, integrity.ranked(score, view)))
                     continue

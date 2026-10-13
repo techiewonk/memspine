@@ -7,12 +7,22 @@ independently of storage (Paper A, Prop. 1).
 
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
 
 from memspine.config.schema import IntegrityConfig
+from memspine.trust import horizon as _horizon
 
 __all__ = ["IntegrityPolicy"]
+
+
+#: ``integrity.grant_horizon`` None: no explicit hop cap (the library needs an int).
+_UNBOUNDED_HORIZON = 1_000_000
+
+
+def _unit(value: float) -> float:
+    """Clamp to [0, 1]: the library rejects anything else, the legacy arithmetic never did."""
+    return min(1.0, max(0.0, value))
 
 
 @dataclass(frozen=True)
@@ -33,6 +43,8 @@ class IntegrityPolicy:
     claims_only_below: float = 0.0
     live_reevaluation: bool = False
     principal_reputation: bool = False
+    horizon_v2: bool = False
+    grant_horizon: int | None = None
 
     @classmethod
     def from_config(cls, config: IntegrityConfig) -> IntegrityPolicy:
@@ -46,7 +58,25 @@ class IntegrityPolicy:
         if grantor == grantee:
             return trust
         kappa = self.kappa_for(grantor, grantee)
+        if self.horizon_v2:  # T5-01: one grant edge through the LIB-21 library
+            return _horizon.effective_trust(
+                _horizon.TrustedRecord(owner=grantor, scope="*", trust=_unit(trust)),
+                [self.grant(grantor, grantee)],
+                viewer=grantee,
+            )
         return trust * kappa if self.attenuation == "product" else min(trust, kappa)
+
+    def grant(self, grantor: str, grantee: str) -> _horizon.Grant:
+        """The LIB-21 grant for the edge ``grantor -> grantee`` (T5-01)."""
+        horizon = self.grant_horizon if self.grant_horizon is not None else _UNBOUNDED_HORIZON
+        return _horizon.Grant(grantor, grantee, "*", "*", horizon, self.kappa_for(grantor, grantee))
+
+    def chain_view(self, trust: float, path: Sequence[_horizon.Grant]) -> float:
+        """Trust of a record seen across a whole grant chain: ``trust * prod(kappa)``, or 0.0
+        when the chain is not visible (disconnected or past its horizon). T5-01."""
+        if not path:
+            return trust
+        return trust * _horizon.chain_attenuation(path)
 
     def deposit_trust(self, base: float, parent_views: Iterable[float]) -> float:
         """MTI-D: never more trusted than the least-trusted parent, then decayed.
@@ -57,7 +87,12 @@ class IntegrityPolicy:
         views = list(parent_views)
         if not views:
             return base
-        derived = min(base, *views) * self.derivation_decay * self.verification_bonus
+        capped = (
+            _horizon.deposit_trust(_unit(base), [_unit(v) for v in views])
+            if self.horizon_v2
+            else min(base, *views)
+        )
+        derived = capped * self.derivation_decay * self.verification_bonus
         return min(1.0, derived)
 
     def admits(self, view_trust: float) -> bool:

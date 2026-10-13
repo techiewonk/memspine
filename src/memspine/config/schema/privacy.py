@@ -97,6 +97,15 @@ class ConsentConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     enforce: bool = False
+    #: T5-03 (LIB-18, G-10, G-11): privacy tiers, a consent registry with a
+    #: generation, purpose narrowing and a per-subject do-not-derive switch.
+    #: On, the read gate, the write door and the derived-write door use
+    #: ``trust.consent`` (``may_read`` / ``may_store`` / ``may_derive``) instead of
+    #: the ``consent_tags`` membership test, and implies ``enforce``. Sensitive and
+    #: special-category records (``pii_tier`` high / regulated) are default-deny
+    #: until the owner grants a purpose. The registry generation joins the read
+    #: cache key. Off: unchanged.
+    v2: bool = False
     untagged: Literal["allow", "deny"] = "allow"
     remote_llm_max_tier: Literal["none", "low", "high", "regulated"] | None = None
     local_hosts: list[str] = Field(default_factory=list)
