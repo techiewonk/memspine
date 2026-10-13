@@ -59,15 +59,17 @@ class PromptContextBuilder:
         context_turns: int = 3,
         max_aliases: int = 3,
         max_chars: int = 1600,
+        prepass: KnownSource | None = None,
+        resolver: KnownSource | None = None,
     ) -> None:
         self.cap = cap
         self.context_turns = context_turns
         self.max_aliases = max_aliases
         self.max_chars = max_chars
         #: Hook: the P-23 pre-pass (W2-13). None until built.
-        self.prepass: KnownSource | None = None
+        self.prepass: KnownSource | None = prepass
         #: Hook: the online resolver (W2-09). None until built.
-        self.resolver: KnownSource | None = None
+        self.resolver: KnownSource | None = resolver
         self.store = store
 
     def tail(self, line_texts: Sequence[str]) -> list[str]:
