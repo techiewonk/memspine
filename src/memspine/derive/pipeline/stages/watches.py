@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
+from memspine.derive.pipeline import advisory
 from memspine.derive.pipeline.stages.context import PipelineContext, _sweep_stats
 from memspine.memories.prospective.triggers import due_watches, invalidation_watches
 from memspine.observability.logging import get_logger
@@ -83,7 +84,32 @@ async def check_watches(ctx: PipelineContext) -> dict[str, object]:
             )
     stats = _sweep_stats("fired", fired_total, errors)
     stats.update(due=due_total, invalidated=invalidated_total)
+    await _advisory_v2(ctx, now, stats)
     return stats
+
+
+async def _advisory_v2(ctx: PipelineContext, now: datetime, stats: dict[str, object]) -> None:
+    """O4-10 (flag-off): advisory intentions / reminders (S14) then procedures (S15). Read-only;
+    a failure is reported in the stats and never stops the cycle."""
+    prospective_on = advisory.prospective_v2_on(ctx.config)
+    procedural_on = advisory.procedural_v2_on(ctx.config)
+    if not (prospective_on or procedural_on):
+        return
+    namespaces = await ctx.storage.list_namespaces()
+    if prospective_on:
+        try:
+            totals = await advisory.prospective_sweep(ctx.storage, namespaces, now)
+            stats.update({f"intentions_{k}": v for k, v in totals.items()})
+        except Exception as exc:
+            _log.warning("check_watches.prospective_v2_failed", error=str(exc), exc_info=True)
+            stats["prospective_v2_error"] = type(exc).__name__
+    if procedural_on:
+        try:
+            totals = await advisory.procedural_sweep(ctx.storage, namespaces, ctx.config)
+            stats.update({f"procedures_{k}": v for k, v in totals.items()})
+        except Exception as exc:
+            _log.warning("check_watches.procedural_v2_failed", error=str(exc), exc_info=True)
+            stats["procedural_v2_error"] = type(exc).__name__
 
 
 async def _conflicts_by_namespace(ctx: PipelineContext) -> dict[str, list[MemoryEvent]]:

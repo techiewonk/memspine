@@ -9,6 +9,7 @@ from memspine.memories.procedural.knn import Exemplar, knn_vote, render_table
 from memspine.memories.procedural.lessons import action_signature, failures_dominate, outcome_rank
 from memspine.models.encoders.embedding.base import embed_queries
 from memspine.models.encoders.query.shape import content_words
+from memspine.observability import tap
 from memspine.observability.logging import EVENT_RETRIEVE, get_logger
 from memspine.read.pipeline.fusion import _cosine, _jaccard
 from memspine.store.events import EventKind, MemoryEvent
@@ -233,6 +234,73 @@ async def _independent_roots(eng: Any, held: MemoryRecord, incoming: MemoryRecor
         after = max(event.seq for event in events if event.seq is not None)
 
 
+def _observer_results(
+    ns: str,
+    candidates: list[tuple[MemoryRecord, float, float]],
+    grants: Any,
+    integrity: Any,
+) -> list[tuple[MemoryRecord, float]]:
+    """O4-11: the observer's view of the foreign hits ``candidates`` = (record, score, home trust).
+
+    Each direct grant ``grantor -> ns`` becomes a LIB-21 grant per memory type it covers (horizon 1,
+    kappa from ``integrity.kappa``/``edge_kappa``, which the library multiplies along the chain). A
+    hit the view includes crosses at ``min(view trust, TRUST_RETRIEVED_CAP)`` (E1) or, under
+    ``integrity.enabled``, at the view trust, still subject to the admission threshold; the rest are
+    dropped with a reason code. The result is read-only: records are copies, nothing is written.
+    """
+    from memspine.derive import feedback as fb
+    from memspine.trust.horizon import Grant
+
+    types = {rec.memory_type for rec, _, _ in candidates}
+    edges: list[Grant] = []
+    for grantor, scope in sorted(grants.items()):
+        kappa = integrity.kappa_for(grantor, ns)
+        for mem_type in sorted(types if scope is None else types & scope):
+            edges.append(Grant(grantor, ns, mem_type, "read", 1, kappa))
+    observable = [
+        fb.ObservableRecord(
+            record_id=rec.record_id,
+            owner=rec.namespace,
+            scope=rec.memory_type,
+            trust=home,
+            text=rec.content or " ",
+        )
+        for rec, _, home in candidates
+    ]
+    items = {item.record_id: item for item in fb.observer_view(ns, observable, edges)}
+    out: list[tuple[MemoryRecord, float]] = []
+    excluded: dict[str, int] = {}
+    for rec, score, _ in candidates:
+        item = items[rec.record_id]
+        view = item.trust
+        reason = item.reason
+        if item.included:
+            if not integrity.enabled:
+                view = min(view, constants.TRUST_RETRIEVED_CAP)
+            elif not integrity.admits(view):
+                reason = "below_threshold"
+        if not item.included or reason is not None:
+            excluded[reason or "excluded"] = excluded.get(reason or "excluded", 0) + 1
+            continue
+        out.append(
+            (
+                rec.model_copy(update={"trust": view}),
+                integrity.ranked(score, view) if integrity.enabled else score,
+            )
+        )
+    if tap.enabled():
+        tap.event(
+            "read.observer_view",
+            candidates=len(candidates),
+            included=len(out),
+            excluded=sum(excluded.values()),
+            reasons=excluded,
+            included_ids=[r.record_id for r, _ in out],
+            hops=sorted({items[r.record_id].hops for r, _ in out}),
+        )
+    return out
+
+
 async def _shared_search(
     eng: Any,
     query: str,
@@ -262,6 +330,10 @@ async def _shared_search(
         return results
     [query_vector] = await embed_queries(eng._embedder, [query])
     integrity = eng._integrity()
+    # O4-11 (``memories.shared.policies.observer_views_v2``, off): foreign hits are judged by the
+    # observer view (LIB-44 over the LIB-21 grant chain) instead of the per-edge attenuation below.
+    observer_v2 = bool(eng._memory_policy(eng._config(), "shared").get("observer_views_v2"))
+    candidates: list[tuple[MemoryRecord, float, float]] = []
     for grantor in sorted(grants):
         # SF-7/ADR-018: one grantor's broken vector index must not sink the
         # reader's own results or the other grantors' — contain per grantor.
@@ -289,6 +361,14 @@ async def _shared_search(
                     )
                     continue
                 score = eng._scoring.composite_score(record, relevance=hit.score)
+                if observer_v2:
+                    home = (
+                        await eng.effective_trust(record.record_id)
+                        if integrity.enabled and integrity.live_reevaluation
+                        else record.trust
+                    )
+                    candidates.append((record, score, home))
+                    continue
                 if integrity.enabled:
                     # MTI read door: attenuate per grant edge, rank by
                     # score x view trust, admit only at >= threshold.
@@ -317,6 +397,8 @@ async def _shared_search(
                 error=str(exc),
                 exc_info=True,
             )
+    if observer_v2:
+        results.extend(_observer_results(ns, candidates, grants, integrity))
     results = rank_pairs(results)
     # COR-2/ADR-018: the per-grantor loop appended up to top_k EACH — a final
     # truncation keeps the contract that shared_search returns at most top_k.
