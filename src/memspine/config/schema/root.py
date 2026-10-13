@@ -17,7 +17,12 @@ from memspine.config.schema.llm import (
 )
 from memspine.config.schema.observability import ObservabilityConfig
 from memspine.config.schema.offline import OfflineConfig
-from memspine.config.schema.privacy import AuditConfig, ConsentConfig, RetentionConfig
+from memspine.config.schema.privacy import (
+    AuditConfig,
+    ConsentConfig,
+    PrivacyConfig,
+    RetentionConfig,
+)
 from memspine.config.schema.read import ReadConfig
 from memspine.config.schema.rest import RestConfig
 from memspine.config.schema.storage import (
@@ -80,6 +85,7 @@ class MemspineConfig(BaseModel):
     audit: AuditConfig = Field(default_factory=AuditConfig)
     observability: ObservabilityConfig = Field(default_factory=ObservabilityConfig)
     consent: ConsentConfig = Field(default_factory=ConsentConfig)
+    privacy: PrivacyConfig = Field(default_factory=PrivacyConfig)
     rest: RestConfig = Field(default_factory=RestConfig)
     prompts: PromptsConfig = Field(default_factory=PromptsConfig)
     memories: dict[str, MemoryTypeConfig] = Field(default_factory=dict)

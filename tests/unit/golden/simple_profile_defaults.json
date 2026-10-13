@@ -2,6 +2,7 @@
   "config": {
     "audit": {
       "actions": false,
+      "chain_v2": false,
       "reads": false
     },
     "consent": {
@@ -361,7 +362,9 @@
       "rate_limit": null
     },
     "retention": {
-      "classes": []
+      "classes": [],
+      "profile": null,
+      "v2": false
     },
     "write": {
       "feedback_operators": [],

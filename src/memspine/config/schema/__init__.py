@@ -26,6 +26,7 @@ from memspine.config.schema.offline import OfflineConfig
 from memspine.config.schema.privacy import (
     AuditConfig,
     ConsentConfig,
+    PrivacyConfig,
     RetentionClassConfig,
     RetentionConfig,
 )
@@ -69,6 +70,7 @@ __all__ = [
     "NamespaceConfig",
     "ObservabilityConfig",
     "OfflineConfig",
+    "PrivacyConfig",
     "PromptsConfig",
     "ReadConfig",
     "RestApiKeyConfig",

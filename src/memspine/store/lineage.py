@@ -13,7 +13,7 @@ from __future__ import annotations
 from collections.abc import Iterable, Sequence
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import and_, delete, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.ext.asyncio import AsyncEngine
@@ -23,7 +23,14 @@ from memspine.schemas.durable.evidence import Span
 from memspine.schemas.durable.lineage import LineageEdge
 from memspine.services.storage.sqlite.schema import lineage
 
-__all__ = ["SqlLineageGraph", "add_edges", "children_of", "load_edges", "parents_of"]
+__all__ = [
+    "SqlLineageGraph",
+    "add_edges",
+    "children_of",
+    "delete_edges",
+    "load_edges",
+    "parents_of",
+]
 
 _CHUNK = 400  # stay under SQLite's bound-parameter limit
 
@@ -70,6 +77,22 @@ async def add_edges(
             )
             added += int((await conn.execute(stmt)).rowcount or 0)
     return added
+
+
+async def delete_edges(engine: AsyncEngine, edges: Sequence[LineageEdge]) -> int:
+    """Remove the given (child, parent, role) edges (erasure, T5-04). Returns rows removed."""
+    removed = 0
+    async with engine.begin() as conn:
+        for e in edges:
+            stmt = delete(lineage).where(
+                and_(
+                    lineage.c.child_id == e.child,
+                    lineage.c.parent_id == e.parent,
+                    lineage.c.role == e.role,
+                )
+            )
+            removed += int((await conn.execute(stmt)).rowcount or 0)
+    return removed
 
 
 async def _select(
