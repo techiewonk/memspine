@@ -123,9 +123,14 @@ def test_unchanged_kinds_are_returned_as_is() -> None:
 
 
 def test_registry_survives_reset() -> None:
+    saved = (dict(versioning._UPCASTERS), dict(versioning._DECLARED))
     versioning.reset_registry()
-    up = V1Upcaster()
-    assert up.latest(EventKind.WRITE) == 2
+    try:
+        up = V1Upcaster()
+        assert up.latest(EventKind.WRITE) == 2
+    finally:  # restore the model declarations the reset wiped (other tests rely on them)
+        versioning._UPCASTERS.update(saved[0])
+        versioning._DECLARED.update(saved[1])
 
 
 def test_ensure_is_idempotent() -> None:
