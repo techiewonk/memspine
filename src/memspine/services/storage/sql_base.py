@@ -295,6 +295,15 @@ class SqlStorage(ServiceAdapter):
             "invalid_at": _iso(record.invalid_at) if record.invalid_at else None,
             "session_key": record.source.message_id,  # I6
             "source_role": record.source.role,  # I6
+            "layer": record.layer,  # F-02a envelope
+            "type_tag": record.type_tag,
+            "provenance_class": record.provenance_class,
+            "spk": record.axes.speaker,
+            "addr": record.axes.addressee,
+            "ask": record.axes.asker,
+            "sub": orjson.dumps(record.axes.subject),
+            "fingerprint": orjson.dumps(record.fingerprint.model_dump(mode="json")),
+            "schema_version": record.schema_version,
         }
         stmt = self._insert(memory_records).values(record_id=record.record_id, **values)
         stmt = stmt.on_conflict_do_update(index_elements=["record_id"], set_=values)
@@ -556,5 +565,21 @@ class SqlStorage(ServiceAdapter):
                 # NULL tags (rows written before D2) read back as an empty list.
                 "tags": orjson.loads(row["tags"]) if row["tags"] is not None else [],
                 "invalid_at": row["invalid_at"],
+                **self._envelope_fields(row),
             }
         )
+
+    @staticmethod
+    def _envelope_fields(row: Any) -> dict[str, Any]:
+        """F-02a: the stored envelope columns; a NULL one is left out, so the record derives it."""
+        out: dict[str, Any] = {"schema_version": row["schema_version"] or 1}
+        for key in ("layer", "type_tag", "provenance_class"):
+            if row[key] is not None:
+                out[key] = row[key]
+        axes = {"speaker": row["spk"], "addressee": row["addr"], "asker": row["ask"]}
+        if row["sub"] is not None or any(v is not None for v in axes.values()):
+            axes["subject"] = orjson.loads(row["sub"]) if row["sub"] is not None else []
+            out["axes"] = axes
+        if row["fingerprint"] is not None:
+            out["fingerprint"] = orjson.loads(row["fingerprint"])
+        return out

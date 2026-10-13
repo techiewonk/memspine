@@ -48,7 +48,8 @@
    "query_instruction": null,
    "query_prompt_name": null,
    "request_dimensions": false,
-   "trust_remote_code": false
+   "trust_remote_code": false,
+   "versioned_spaces": false
   },
   "event_log": {
    "compress": false,
@@ -145,9 +146,12 @@
    "write_timers": false
   },
   "offline": {
+   "histories_v2": false,
+   "near_duplicate_text": 0.8,
    "patterns_kinds": [],
    "patterns_max_new": 50,
    "patterns_v2": false,
+   "reconcile_v2": false,
    "standing_idle_after": 5,
    "standing_max_answers": 50,
    "standing_v2": false
@@ -506,7 +510,7 @@
    "window_topic_k": 2.0
   }
  },
- "json_schema_sha256": "9180a6552f62a631aa9438f091989fbc65e1b27cdffb79b981eeae69cee2637f",
+ "json_schema_sha256": "d0cb9bd07662893b7141e5db1f905ae1dc932008ad6ff0c09ea7c3d724f5eeac",
  "preset:chat_roles": {
   "audit": {
    "actions": false,
@@ -556,7 +560,8 @@
    "query_instruction": null,
    "query_prompt_name": null,
    "request_dimensions": false,
-   "trust_remote_code": false
+   "trust_remote_code": false,
+   "versioned_spaces": false
   },
   "event_log": {
    "compress": false,
@@ -674,9 +679,12 @@
    "write_timers": false
   },
   "offline": {
+   "histories_v2": false,
+   "near_duplicate_text": 0.8,
    "patterns_kinds": [],
    "patterns_max_new": 50,
    "patterns_v2": false,
+   "reconcile_v2": false,
    "standing_idle_after": 5,
    "standing_max_answers": 50,
    "standing_v2": false
@@ -1094,7 +1102,8 @@
    "query_instruction": null,
    "query_prompt_name": null,
    "request_dimensions": false,
-   "trust_remote_code": false
+   "trust_remote_code": false,
+   "versioned_spaces": false
   },
   "event_log": {
    "compress": false,
@@ -1208,9 +1217,12 @@
    "write_timers": false
   },
   "offline": {
+   "histories_v2": false,
+   "near_duplicate_text": 0.8,
    "patterns_kinds": [],
    "patterns_max_new": 50,
    "patterns_v2": false,
+   "reconcile_v2": false,
    "standing_idle_after": 5,
    "standing_max_answers": 50,
    "standing_v2": false
@@ -1628,7 +1640,8 @@
    "query_instruction": null,
    "query_prompt_name": null,
    "request_dimensions": false,
-   "trust_remote_code": false
+   "trust_remote_code": false,
+   "versioned_spaces": false
   },
   "event_log": {
    "compress": false,
@@ -1742,9 +1755,12 @@
    "write_timers": false
   },
   "offline": {
+   "histories_v2": false,
+   "near_duplicate_text": 0.8,
    "patterns_kinds": [],
    "patterns_max_new": 50,
    "patterns_v2": false,
+   "reconcile_v2": false,
    "standing_idle_after": 5,
    "standing_max_answers": 50,
    "standing_v2": false
@@ -2162,7 +2178,8 @@
    "query_instruction": null,
    "query_prompt_name": null,
    "request_dimensions": false,
-   "trust_remote_code": false
+   "trust_remote_code": false,
+   "versioned_spaces": false
   },
   "event_log": {
    "compress": false,
@@ -2276,9 +2293,12 @@
    "write_timers": false
   },
   "offline": {
+   "histories_v2": false,
+   "near_duplicate_text": 0.8,
    "patterns_kinds": [],
    "patterns_max_new": 50,
    "patterns_v2": false,
+   "reconcile_v2": false,
    "standing_idle_after": 5,
    "standing_max_answers": 50,
    "standing_v2": false
@@ -2696,7 +2716,8 @@
    "query_instruction": null,
    "query_prompt_name": null,
    "request_dimensions": false,
-   "trust_remote_code": false
+   "trust_remote_code": false,
+   "versioned_spaces": false
   },
   "event_log": {
    "compress": false,
@@ -2810,9 +2831,12 @@
    "write_timers": false
   },
   "offline": {
+   "histories_v2": false,
+   "near_duplicate_text": 0.8,
    "patterns_kinds": [],
    "patterns_max_new": 50,
    "patterns_v2": false,
+   "reconcile_v2": false,
    "standing_idle_after": 5,
    "standing_max_answers": 50,
    "standing_v2": false
@@ -3230,7 +3254,8 @@
    "query_instruction": null,
    "query_prompt_name": null,
    "request_dimensions": false,
-   "trust_remote_code": false
+   "trust_remote_code": false,
+   "versioned_spaces": false
   },
   "event_log": {
    "compress": false,
@@ -3344,9 +3369,12 @@
    "write_timers": false
   },
   "offline": {
+   "histories_v2": false,
+   "near_duplicate_text": 0.8,
    "patterns_kinds": [],
    "patterns_max_new": 50,
    "patterns_v2": false,
+   "reconcile_v2": false,
    "standing_idle_after": 5,
    "standing_max_answers": 50,
    "standing_v2": false
@@ -3764,7 +3792,8 @@
    "query_instruction": null,
    "query_prompt_name": null,
    "request_dimensions": false,
-   "trust_remote_code": false
+   "trust_remote_code": false,
+   "versioned_spaces": false
   },
   "event_log": {
    "compress": false,
@@ -3878,9 +3907,12 @@
    "write_timers": false
   },
   "offline": {
+   "histories_v2": false,
+   "near_duplicate_text": 0.8,
    "patterns_kinds": [],
    "patterns_max_new": 50,
    "patterns_v2": false,
+   "reconcile_v2": false,
    "standing_idle_after": 5,
    "standing_max_answers": 50,
    "standing_v2": false
@@ -4298,7 +4330,8 @@
    "query_instruction": null,
    "query_prompt_name": null,
    "request_dimensions": false,
-   "trust_remote_code": false
+   "trust_remote_code": false,
+   "versioned_spaces": false
   },
   "event_log": {
    "compress": false,
@@ -4412,9 +4445,12 @@
    "write_timers": false
   },
   "offline": {
+   "histories_v2": false,
+   "near_duplicate_text": 0.8,
    "patterns_kinds": [],
    "patterns_max_new": 50,
    "patterns_v2": false,
+   "reconcile_v2": false,
    "standing_idle_after": 5,
    "standing_max_answers": 50,
    "standing_v2": false
@@ -4832,7 +4868,8 @@
    "query_instruction": null,
    "query_prompt_name": null,
    "request_dimensions": false,
-   "trust_remote_code": false
+   "trust_remote_code": false,
+   "versioned_spaces": false
   },
   "event_log": {
    "compress": false,
@@ -4946,9 +4983,12 @@
    "write_timers": false
   },
   "offline": {
+   "histories_v2": false,
+   "near_duplicate_text": 0.8,
    "patterns_kinds": [],
    "patterns_max_new": 50,
    "patterns_v2": false,
+   "reconcile_v2": false,
    "standing_idle_after": 5,
    "standing_max_answers": 50,
    "standing_v2": false
@@ -5366,7 +5406,8 @@
    "query_instruction": null,
    "query_prompt_name": null,
    "request_dimensions": false,
-   "trust_remote_code": false
+   "trust_remote_code": false,
+   "versioned_spaces": false
   },
   "event_log": {
    "compress": false,
@@ -5487,9 +5528,12 @@
    "write_timers": false
   },
   "offline": {
+   "histories_v2": false,
+   "near_duplicate_text": 0.8,
    "patterns_kinds": [],
    "patterns_max_new": 50,
    "patterns_v2": false,
+   "reconcile_v2": false,
    "standing_idle_after": 5,
    "standing_max_answers": 50,
    "standing_v2": false
@@ -5909,7 +5953,8 @@
    "query_instruction": null,
    "query_prompt_name": null,
    "request_dimensions": false,
-   "trust_remote_code": false
+   "trust_remote_code": false,
+   "versioned_spaces": false
   },
   "event_log": {
    "compress": false,
@@ -6028,9 +6073,12 @@
    "write_timers": false
   },
   "offline": {
+   "histories_v2": false,
+   "near_duplicate_text": 0.8,
    "patterns_kinds": [],
    "patterns_max_new": 50,
    "patterns_v2": false,
+   "reconcile_v2": false,
    "standing_idle_after": 5,
    "standing_max_answers": 50,
    "standing_v2": false
@@ -6448,7 +6496,8 @@
    "query_instruction": null,
    "query_prompt_name": null,
    "request_dimensions": false,
-   "trust_remote_code": false
+   "trust_remote_code": false,
+   "versioned_spaces": false
   },
   "event_log": {
    "compress": false,
@@ -6558,9 +6607,12 @@
    "write_timers": false
   },
   "offline": {
+   "histories_v2": false,
+   "near_duplicate_text": 0.8,
    "patterns_kinds": [],
    "patterns_max_new": 50,
    "patterns_v2": false,
+   "reconcile_v2": false,
    "standing_idle_after": 5,
    "standing_max_answers": 50,
    "standing_v2": false
@@ -6968,7 +7020,8 @@
    "query_instruction": null,
    "query_prompt_name": null,
    "request_dimensions": false,
-   "trust_remote_code": false
+   "trust_remote_code": false,
+   "versioned_spaces": false
   },
   "event_log": {
    "compress": false,
@@ -7090,9 +7143,12 @@
    "write_timers": false
   },
   "offline": {
+   "histories_v2": false,
+   "near_duplicate_text": 0.8,
    "patterns_kinds": [],
    "patterns_max_new": 50,
    "patterns_v2": false,
+   "reconcile_v2": false,
    "standing_idle_after": 5,
    "standing_max_answers": 50,
    "standing_v2": false
@@ -7510,7 +7566,8 @@
    "query_instruction": null,
    "query_prompt_name": null,
    "request_dimensions": false,
-   "trust_remote_code": false
+   "trust_remote_code": false,
+   "versioned_spaces": false
   },
   "event_log": {
    "compress": false,
@@ -7628,9 +7685,12 @@
    "write_timers": false
   },
   "offline": {
+   "histories_v2": false,
+   "near_duplicate_text": 0.8,
    "patterns_kinds": [],
    "patterns_max_new": 50,
    "patterns_v2": false,
+   "reconcile_v2": false,
    "standing_idle_after": 5,
    "standing_max_answers": 50,
    "standing_v2": false
@@ -8048,7 +8108,8 @@
    "query_instruction": null,
    "query_prompt_name": null,
    "request_dimensions": false,
-   "trust_remote_code": false
+   "trust_remote_code": false,
+   "versioned_spaces": false
   },
   "event_log": {
    "compress": false,
@@ -8170,9 +8231,12 @@
    "write_timers": false
   },
   "offline": {
+   "histories_v2": false,
+   "near_duplicate_text": 0.8,
    "patterns_kinds": [],
    "patterns_max_new": 50,
    "patterns_v2": false,
+   "reconcile_v2": false,
    "standing_idle_after": 5,
    "standing_max_answers": 50,
    "standing_v2": false
@@ -8590,7 +8654,8 @@
    "query_instruction": null,
    "query_prompt_name": null,
    "request_dimensions": false,
-   "trust_remote_code": false
+   "trust_remote_code": false,
+   "versioned_spaces": false
   },
   "event_log": {
    "compress": false,
@@ -8704,9 +8769,12 @@
    "write_timers": false
   },
   "offline": {
+   "histories_v2": false,
+   "near_duplicate_text": 0.8,
    "patterns_kinds": [],
    "patterns_max_new": 50,
    "patterns_v2": false,
+   "reconcile_v2": false,
    "standing_idle_after": 5,
    "standing_max_answers": 50,
    "standing_v2": false
@@ -9124,7 +9192,8 @@
    "query_instruction": null,
    "query_prompt_name": null,
    "request_dimensions": false,
-   "trust_remote_code": false
+   "trust_remote_code": false,
+   "versioned_spaces": false
   },
   "event_log": {
    "compress": true,
@@ -9239,9 +9308,12 @@
    "write_timers": false
   },
   "offline": {
+   "histories_v2": false,
+   "near_duplicate_text": 0.8,
    "patterns_kinds": [],
    "patterns_max_new": 50,
    "patterns_v2": false,
+   "reconcile_v2": false,
    "standing_idle_after": 5,
    "standing_max_answers": 50,
    "standing_v2": false
@@ -9659,7 +9731,8 @@
    "query_instruction": null,
    "query_prompt_name": null,
    "request_dimensions": false,
-   "trust_remote_code": false
+   "trust_remote_code": false,
+   "versioned_spaces": false
   },
   "event_log": {
    "compress": true,
@@ -9775,9 +9848,12 @@
    "write_timers": false
   },
   "offline": {
+   "histories_v2": false,
+   "near_duplicate_text": 0.8,
    "patterns_kinds": [],
    "patterns_max_new": 50,
    "patterns_v2": false,
+   "reconcile_v2": false,
    "standing_idle_after": 5,
    "standing_max_answers": 50,
    "standing_v2": false

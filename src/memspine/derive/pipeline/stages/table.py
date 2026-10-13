@@ -8,6 +8,7 @@ from memspine.derive.pipeline.stages.consolidate import consolidate
 from memspine.derive.pipeline.stages.context import Pipeline
 from memspine.derive.pipeline.stages.entity_summaries import summarize_entities
 from memspine.derive.pipeline.stages.extract_graph import extract_graph
+from memspine.derive.pipeline.stages.histories import histories
 from memspine.derive.pipeline.stages.maintenance import (
     compress,
     decay_sweep,
@@ -17,6 +18,7 @@ from memspine.derive.pipeline.stages.maintenance import (
 from memspine.derive.pipeline.stages.mining import mine_facts, project_facts
 from memspine.derive.pipeline.stages.patterns import pattern_observations
 from memspine.derive.pipeline.stages.predict import predict_calibrate
+from memspine.derive.pipeline.stages.reconcile import reconcile
 from memspine.derive.pipeline.stages.reflect import reflect_profile
 from memspine.derive.pipeline.stages.retention import event_log_prune, retention_expire
 from memspine.derive.pipeline.stages.rule_edges import rule_edges
@@ -31,6 +33,8 @@ PIPELINES: dict[str, Pipeline] = {
     "reorganize": reorganize,
     "extract_graph": extract_graph,
     "rule_edges": rule_edges,
+    "reconcile": reconcile,
+    "histories": histories,
     "summarize_entities": summarize_entities,
     "mine_facts": mine_facts,
     "project_facts": project_facts,

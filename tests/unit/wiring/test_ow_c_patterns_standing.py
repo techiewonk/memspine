@@ -185,7 +185,7 @@ async def test_patterns_on_writes_a_recurrence_with_lineage_and_trust_cap(tmp_pa
         assert "weekly" in rec.content and "climbing" in rec.content
         assert set(rec.source.parents) == {f.record_id for f in facts}
         assert rec.trust <= 0.3 + 1e-9  # capped at the least-trusted parent
-        assert any(t.startswith("layer:observation") for t in rec.tags)
+        assert rec.layer == "L4"
         with sqlite3.connect(path) as db:
             rows = db.execute(
                 "SELECT parent_id FROM lineage WHERE child_id = ?", (rec.record_id,)
@@ -288,7 +288,7 @@ async def test_standing_build_refresh_and_stale_skip(tmp_path: Path) -> None:
         s = (await eng.sleep())["standing_answers"]
         assert s["built"] == 1
         std = await _list(eng, "standing")
-        assert len(std) == 1
+        assert len(std) == 1 and std[0].layer == "L5"
         ans = answer_from_record(std[0])
         assert ans is not None and ans.values == ("Lisbon",)
         assert ans.support_ids == (first.record_id,)

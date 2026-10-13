@@ -76,6 +76,7 @@ class MemspineConfig(BaseModel):
     integrity: IntegrityConfig = Field(default_factory=IntegrityConfig)
     firewall: FirewallConfig = Field(default_factory=FirewallConfig)
     workers: WorkersConfig = Field(default_factory=WorkersConfig)
+    offline: OfflineConfig = Field(default_factory=OfflineConfig)
     retention: RetentionConfig = Field(default_factory=RetentionConfig)
     audit: AuditConfig = Field(default_factory=AuditConfig)
     observability: ObservabilityConfig = Field(default_factory=ObservabilityConfig)

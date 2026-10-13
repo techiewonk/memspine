@@ -408,7 +408,8 @@ async def _write_extracted_fact(
         cap.extend(integrity_cap)
     # OW-C: the opt-in L4/L5 stages (observations, standing answers) share this door
     channel = record.source.channel
-    derived_layer = channel if channel in ("observation", "standing") else None
+    derived_site = channel if channel in ("observation", "standing") else None
+    derived_layer = {"observation": "L4", "standing": "L5"}.get(channel)
     return await write_derived(
         eng,
         storage,
@@ -417,6 +418,6 @@ async def _write_extracted_fact(
         "semantic",
         "system",
         trust_cap=cap,
-        site=derived_layer or "extract_graph",
+        site=derived_site or "extract_graph",
         layer=derived_layer,
     )

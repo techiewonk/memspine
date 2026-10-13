@@ -3373,7 +3373,7 @@
    "kind": "move",
    "gate": "Paired-gate replay NO CHANGE vs f-jref2-i2 (GPU, one run)",
    "status": "In progress",
-   "note": "Swarm: agent running",
+   "note": "Built (18e811d): adapter on open()/Memory handle, parity snapshot test, S29 parity row; merge held until B1 sample batch finishes (touches run_v2_queue.sh)",
    "layers": [
     "L0",
     "L1",
@@ -3587,8 +3587,8 @@
    ],
    "kind": "migration",
    "gate": "Replay byte-stable; upcaster round-trips; golden unchanged",
-   "status": "In progress",
-   "note": "Foundations: envelope + Alembic (agent running)",
+   "status": "Done",
+   "note": "Envelope fields on MemoryRecord (layer, type_tag, provenance_class, axes, fingerprint, schema_version), 0007 migration + backfill, store/envelope.py, store/layers.py (F-02a)",
    "layers": [
     "L0",
     "L1",
@@ -3643,8 +3643,8 @@
    ],
    "kind": "migration",
    "gate": "Golden unchanged; registry reports layers per namespace",
-   "status": "Not started",
-   "note": "Legs run only when their layer exists",
+   "status": "In progress",
+   "note": "Foundations: agent running",
    "layers": [
     "L0",
     "L1",
@@ -3734,8 +3734,8 @@
    ],
    "kind": "behaviour",
    "gate": "Shadow index switch test",
-   "status": "Not started",
-   "note": "",
+   "status": "Needs measurement",
+   "note": "VersionedSpaceStore, shadow reembed + switch, stale_derivations/rederive plan; flag off (3a78b6e1); parity screen queued",
    "layers": [],
    "operators": [
     "K_C"
@@ -4873,7 +4873,7 @@
    "kind": "behaviour",
    "gate": "MAB-CR non-inferior; A-B-A tests; behavioural INV-ORDER-SWAP passes",
    "status": "Not started",
-   "note": "Q7 coexist unless marked; P0-08 finding: reverse-order ingest leaves old and new value live (supersede follows ingest order, not event time)",
+   "note": "Q7 coexist unless marked; INV-ORDER-SWAP now fixed offline by O4-03/04 (flag-on); W2-10 adds the online ladder (LIB-02)",
    "layers": [
     "L1",
     "L3"
@@ -6104,8 +6104,8 @@
    ],
    "kind": "behaviour",
    "gate": "Contradiction-recall set; MAB-CR non-inferior",
-   "status": "In progress",
-   "note": "Swarm: offline wiring flag-off (agent running)",
+   "status": "Needs measurement",
+   "note": "Wired flag-off (OW-B 15e27536); INV-ORDER-SWAP passes with offline.reconcile_v2+histories_v2; sample screen queued",
    "layers": [
     "L1",
     "L3"
@@ -6143,8 +6143,8 @@
    ],
    "kind": "behaviour",
    "gate": "Zero wrong numeric merges; MAB-CR token check",
-   "status": "In progress",
-   "note": "Swarm: offline wiring flag-off (agent running)",
+   "status": "Needs measurement",
+   "note": "Wired flag-off (OW-B 15e27536); INV-ORDER-SWAP passes with offline.reconcile_v2+histories_v2; sample screen queued",
    "layers": [
     "L1",
     "L4"

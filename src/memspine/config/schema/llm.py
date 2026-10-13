@@ -48,6 +48,11 @@ class EmbeddingConfig(BaseModel):
     #: fastembed's own ``query_embed`` does not add it. None = queries embed like
     #: documents (unchanged).
     query_instruction: str | None = None
+    #: F-03 (P-25 C): version the vector space. Each stored vector belongs to a space (embedder
+    #: model, dim, dtype, query instruction, normalisation); after an embedder change new writes go
+    #: to the new space, reads query only a namespace's active space, and ``reembed`` builds the new
+    #: space in batches then switches. Off = one table per embedder, as before.
+    versioned_spaces: bool = False
 
 
 class LLMRoleConfig(BaseModel):
