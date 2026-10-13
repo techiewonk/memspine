@@ -834,6 +834,16 @@ def make_outbox_runner(
         engine = memory_engine()
     else:
         engine = sqlite_engine(wiring_client.path, wiring_client.sync_creator)
+    if config.workers.transport == "taskiq":  # RT-01: the same outbox, ids sent over taskiq
+        from memspine.runtime.transport import TransportRunner, make_broker
+
+        kind = config.workers.transport_broker
+        return TransportRunner(
+            SqlJobStore(engine),
+            broker=make_broker(kind, config.workers.broker_url),
+            local_drain=kind == "memory",
+            commit_lock=commit_lock,
+        )
     return OutboxRunner(SqlJobStore(engine), commit_lock=commit_lock)
 
 
