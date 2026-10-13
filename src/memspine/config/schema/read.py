@@ -10,6 +10,14 @@ from memspine.config import constants
 from memspine.exceptions import ConfigError
 
 
+class ReadCacheConfig(BaseModel):
+    """R3-15 read-result cache (``read.cache``)."""
+
+    enabled: bool = False
+    max_entries: int = Field(default=256, ge=1)
+    ttl_seconds: float | None = Field(default=None, gt=0)
+
+
 class ReadConfig(BaseModel):
     """ReadPolicy bindings (M12) + the E8/E5 opt-in stages (D-51, default OFF).
 
@@ -993,6 +1001,25 @@ class ReadConfig(BaseModel):
     external_max_results: int = Field(default=3, ge=1, le=10)
     #: E03: directory of the persistent query cache (JSON). None: in memory.
     external_cache_dir: str | None = None
+
+    #: R3-13 / LIB-45: the external public-knowledge block of ``read/external.py`` on top of
+    #: the ``external_evidence`` opt-in (which must be ``cache`` or ``web``; this flag never
+    #: enables lookups by itself). The planner (a generic or explicitly public question,
+    #: within the call cap) decides whether to call; snippets are filtered (freshness, https,
+    #: dedupe, per-domain cap) and packed into a separate labelled ``public`` block of at
+    #: most ``external_v2_budget_tokens``; it is never deposited. Off: the E03 block is
+    #: unchanged.
+    external_v2: bool = False
+    external_v2_budget_tokens: int = Field(default=300, ge=1)
+    #: R3-15 / LIB-19 (ER-31 B): cache whole read results, keyed by scope, viewer, query,
+    #: config, model ids and the store / erasure generations. Every hit is revalidated
+    #: (POL-1) against the live store before it is returned; a partial revalidation
+    #: recomputes. Off: no cache is consulted or filled. A read that names a ``session_id``
+    #: (stateful read ledger) is never cached.
+    cache: ReadCacheConfig = Field(default_factory=lambda: ReadCacheConfig())
+    #: R3-15: run the independent retrieval legs (vector, lexical, metadata, encoder, probes)
+    #: with ``asyncio.gather``. Result order is the sequential order. Off: sequential.
+    parallel_legs: bool = False
 
     @model_validator(mode="after")
     def _header_shares_leave_room(self) -> ReadConfig:

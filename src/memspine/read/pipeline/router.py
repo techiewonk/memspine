@@ -47,6 +47,7 @@ from memspine.models.encoders.query.temporal_query import (
     NamedLeg,
 )
 from memspine.models.providers.rerank.base import concat_background
+from memspine.observability import tap
 from memspine.observability.logging import (
     EVENT_RETRIEVE,
     get_logger,
@@ -57,6 +58,7 @@ from memspine.prompts.models import (
 from memspine.read.contract import (
     rerank_hint,
 )
+from memspine.read.pipeline import request as read_request
 from memspine.read.pipeline.fusion import (
     _balanced_pool,
     _cut_missing,
@@ -192,6 +194,78 @@ async def retrieve(
         if outer:
             await eng._audit_read("retrieve", ns, [r.record_id for r in records])
     return records
+
+
+async def _lexical_guarded(eng: Any, ns: str, query: str, fetch_k: int) -> Any:
+    """The BM25 leg; a broken lexical leg degrades to vector-only, never takes down the search."""
+    assert eng._lexical is not None  # narrowed by use_hybrid
+    try:
+        lexical_query = (
+            await eng._strip_speaker_names(ns, query)
+            if eng._config().read.lexical_strip_names
+            else query
+        )
+        return await eng._lexical_leg(ns, lexical_query, fetch_k)
+    except Exception as exc:
+        # Defense in depth: fusing an empty leg preserves the vector ordering.
+        _log.warning("lexical.search_failed", namespace=ns, error=str(exc))
+        return []
+
+
+async def _gather_base_legs(
+    eng: Any,
+    ns: str,
+    query: str,
+    query_vector: Any,
+    fetch_k: int,
+    use_hybrid: bool,
+    probe_texts: Sequence[str],
+    probe_vectors: Sequence[Any],
+) -> tuple[Any, Any, Any]:
+    """R3-15 ``read.parallel_legs``: the legs that depend only on the query (vector, lexical,
+    metadata, encoder, probes) run together. Results keep the sequential order, so fusion is
+    unchanged. Timings go to the wiretap as ``read.legs.parallel``."""
+    import asyncio
+    import time
+
+    timings: dict[str, float] = {}
+
+    async def timed(name: str, coro: Any) -> Any:
+        t0 = time.perf_counter()
+        try:
+            return await coro
+        finally:
+            timings[name] = round((time.perf_counter() - t0) * 1000, 2)
+
+    names = ["vector"]
+    coros = [timed("vector", eng._vector_leg(ns, query_vector, fetch_k))]
+    if use_hybrid:
+        names.append("lexical")
+        coros.append(timed("lexical", _lexical_guarded(eng, ns, query, fetch_k)))
+    names.append("metadata")
+    coros.append(timed("metadata", eng._metadata_legs(ns, query, fetch_k)))
+    if eng._config().read.query_encoder != "none":
+        names.append("encoder")
+        coros.append(timed("encoder", eng._encoder_legs(ns, query)))
+    for i, (text, vector) in enumerate(zip(probe_texts, probe_vectors, strict=True)):
+        names.append(f"probe{i}")
+        coros.append(timed(f"probe{i}", eng._probe_legs(ns, text, vector, fetch_k, use_hybrid)))
+    t0 = time.perf_counter()
+    out = await asyncio.gather(*coros)  # results come back in argument order
+    by_name = dict(zip(names, out, strict=True))
+    extra_legs = list(by_name["metadata"])
+    if "encoder" in by_name:
+        extra_legs += by_name["encoder"]
+    for name in names:
+        if name.startswith("probe"):
+            extra_legs += by_name[name]
+    tap.event(
+        "read.legs.parallel",
+        legs=names,
+        leg_ms=timings,
+        wall_ms=round((time.perf_counter() - t0) * 1000, 2),
+    )
+    return by_name["vector"], by_name.get("lexical", []), extra_legs
 
 
 async def search(
@@ -377,31 +451,23 @@ async def _search(
     while True:
         protected = {}
         fetch_k = base_fetch * widen
-        vector_hits = await eng._vector_leg(ns, query_vector, fetch_k)
-        # Hybrid (D-25): fuse the lexical BM25 leg via RRF. Off (default),
-        # ``ranked`` is exactly the vector hits in cosine order — bit-identical.
-        if use_hybrid:
-            assert eng._lexical is not None  # narrowed by use_hybrid
-            try:
-                lexical_query = (
-                    await eng._strip_speaker_names(ns, query)
-                    if eng._config().read.lexical_strip_names
-                    else query
-                )
-                lexical_hits = await eng._lexical_leg(ns, lexical_query, fetch_k)
-            except Exception as exc:
-                # Defense in depth: a broken lexical leg degrades to vector-only
-                # (fusing an empty leg preserves the vector ordering), it never
-                # takes down the whole search().
-                _log.warning("lexical.search_failed", namespace=ns, error=str(exc))
-                lexical_hits = []
+        if eng._config().read.parallel_legs:
+            vector_hits, lexical_hits, extra_legs = await _gather_base_legs(
+                eng, ns, query, query_vector, fetch_k, use_hybrid, probe_texts, probe_vectors
+            )
         else:
-            lexical_hits = []
-        extra_legs = await eng._metadata_legs(ns, query, fetch_k)
-        if eng._config().read.query_encoder != "none":
-            extra_legs += await eng._encoder_legs(ns, query)
-        for text, vector in zip(probe_texts, probe_vectors, strict=True):
-            extra_legs += await eng._probe_legs(ns, text, vector, fetch_k, use_hybrid)
+            vector_hits = await eng._vector_leg(ns, query_vector, fetch_k)
+            # Hybrid (D-25): fuse the lexical BM25 leg via RRF. Off (default),
+            # ``ranked`` is exactly the vector hits in cosine order — bit-identical.
+            if use_hybrid:
+                lexical_hits = await _lexical_guarded(eng, ns, query, fetch_k)
+            else:
+                lexical_hits = []
+            extra_legs = await eng._metadata_legs(ns, query, fetch_k)
+            if eng._config().read.query_encoder != "none":
+                extra_legs += await eng._encoder_legs(ns, query)
+            for text, vector in zip(probe_texts, probe_vectors, strict=True):
+                extra_legs += await eng._probe_legs(ns, text, vector, fetch_k, use_hybrid)
         if community_gate is None and eng._config().read.graph_communities:
             community_gate = await eng._community_gate(
                 ns, query, vector_hits, lexical_hits, extra_legs, use_hybrid
@@ -925,17 +991,34 @@ async def read(
             )
         ),
     ):
-        result = await eng._read(
+        hit, cache_key = await read_request._cache_get(
+            eng,
             query,
             namespace,
-            mode,
-            budget_tokens,
-            top_k,
-            replay_window,
-            compose_pool,
+            viewer,
             session_id,
+            (
+                *(mode, budget_tokens, top_k, replay_window, compose_pool, purpose),
+                *(include_passive, sessions, roles, memory_types, tags_any, focal_entity, as_of),
+                *(date_filter_mode, valid_from_after, valid_from_before, valid_to_after),
+                *(valid_to_before, recorded_after, recorded_before),
+            ),
         )
-        result = ReadResult(result.mode, eng._consent_context(result.context))
+        if hit is not None:
+            result = hit
+        else:
+            result = await eng._read(
+                query,
+                namespace,
+                mode,
+                budget_tokens,
+                top_k,
+                replay_window,
+                compose_pool,
+                session_id,
+            )
+            result = ReadResult(result.mode, eng._consent_context(result.context))
+            read_request._cache_put(eng, cache_key, result)
         if outer:
             ids = [r.record_id for r in result.context.records]
             await eng._audit_read("read", namespace, ids)

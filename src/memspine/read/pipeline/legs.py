@@ -68,6 +68,7 @@ from memspine.models.encoders.query.temporal_query import (
     temporal_leg,
     view_tag_leg,
 )
+from memspine.observability import tap
 from memspine.observability.logging import get_logger
 from memspine.prompts.models import (
     ReadPlan,
@@ -93,6 +94,7 @@ from memspine.store.events import EventKind, MemoryEvent
 from memspine.store.records import (
     MemoryRecord,
     RecordStatus,
+    SourceInfo,
     chrono_key,
 )
 
@@ -602,6 +604,8 @@ async def _external_overlay(
     mode = eng._config().read.external_evidence
     if mode == "off":
         return context
+    if eng._config().read.external_v2:
+        return await _external_overlay_v2(eng, query, ns, context, mode)
     from memspine.services.external import (
         format_public_block,
         invites_inference,
@@ -630,6 +634,108 @@ async def _external_overlay(
         block = eng._lead_record(ns, text, evidence, extra_tags=("ext:public",))
         context.records = [*context.records, block]
         context.tokens_used += estimate_tokens(text)
+    except Exception as exc:  # an enhancer, never a gate
+        _log.warning("read.external_evidence_failed", namespace=ns, error=str(exc))
+    return context
+
+
+class _TokenCounter:
+    def count(self, text: str) -> int:
+        return estimate_tokens(text)
+
+
+async def _external_overlay_v2(
+    eng: Any, query: str, ns: str, context: AssembledContext, mode: str
+) -> AssembledContext:
+    """R3-13 / LIB-45 ``read.external_v2`` (needs ``read.external_evidence`` ``cache`` or ``web``):
+    the planner (``plan_external``) decides from the typed contract, the broker looks up a
+    privacy-filtered generic query, and the snippets become one separate labelled ``public`` block
+    (``external_block``: freshness, https, dedupe, per-domain cap, token budget). The block is a
+    synthetic context record, never stored; a failure leaves the context as it was."""
+    from memspine.read.contract_rules import build_contract as build_typed_contract
+    from memspine.read.external import (
+        ExternalConfig,
+        ExternalSnippet,
+        external_block,
+        plan_external,
+    )
+    from memspine.services.external import private_terms_from
+
+    read = eng._config().read
+    broker = eng._external_broker()
+    plan = plan_external(
+        build_typed_contract(query),
+        ExternalConfig(
+            enabled=True, max_calls=read.external_max_calls, max_snippets=read.external_max_results
+        ),
+        query=query,
+        calls_used=broker.stats.network_calls,
+    )
+    if not plan:
+        tap.event("read.external", planned=False, reason=plan.reason)
+        return context
+    try:
+        evidence = [r for r in context.records if constants.LEAD_TAG not in r.tags]
+        state = await eng._persp_state_for(ns)
+        private = private_terms_from((r.content for r in evidence), names=state["known"])
+        result = await broker.lookup(query, private, allow_network=mode == "web")
+        if (fx := _FORENSICS.get()) is not None:
+            fx["external_evidence"] = {
+                "status": result.status,
+                "public_query": result.public_query,
+                "provider": result.provider,
+                "n_snippets": len(result.snippets),
+                "v2": True,
+            }
+        if not result.usable:
+            tap.event(
+                "read.external",
+                planned=True,
+                reason=plan.reason,
+                status=result.status,
+                kept=0,
+                dropped={},
+            )
+            return context
+        snippets = [
+            ExternalSnippet(url=sn.url, text=sn.text, title=sn.title) for sn in result.snippets
+        ]
+        block = external_block(
+            snippets,
+            read.external_v2_budget_tokens,
+            _TokenCounter(),
+            config=ExternalConfig(enabled=True, max_snippets=read.external_max_results),
+            now=datetime.now(UTC),
+        )
+        tap.event(
+            "read.external",
+            planned=True,
+            reason=plan.reason,
+            status=result.status,
+            kept=len(block.lines),
+            dropped=dict(block.dropped),
+        )
+        if block.empty:
+            return context
+        body = [f"[{block.label}] {block.clause}"]
+        body += [
+            f"- {ln.title + ': ' if ln.title else ''}{ln.text} ({ln.url})" for ln in block.lines
+        ]
+        text = chr(10).join(body)
+        if evidence:
+            rec = eng._lead_record(ns, text, evidence, extra_tags=("ext:public",))
+            rec = rec.model_copy(update={"trust": min(rec.trust, block.lines[0].trust)})
+        else:
+            rec = MemoryRecord(
+                namespace=ns,
+                memory_type="semantic",
+                content=text,
+                tags=[constants.LEAD_TAG, "ext:public"],
+                trust=block.lines[0].trust,
+                source=SourceInfo(role="system", channel="lead", parents=[]),
+            ).as_engine_block()
+        context.records = [*context.records, rec]
+        context.tokens_used += block.tokens
     except Exception as exc:  # an enhancer, never a gate
         _log.warning("read.external_evidence_failed", namespace=ns, error=str(exc))
     return context

@@ -5176,6 +5176,7 @@ class Engine:
             snapshot.clear()
         event = await self._inherit_governance(event)
         appended = await self._storage.append_event(event)
+        read_request._bump_generations(self, event)  # R3-15: read-cache generations
         if appended.seq is None:  # pragma: no cover - write door always assigns seq
             raise MemspineError("write door returned an event without seq")
         if self._neighbour_batches and event.kind in (EventKind.WRITE, EventKind.FORGET):

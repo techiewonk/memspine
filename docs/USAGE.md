@@ -893,6 +893,12 @@ in the schema — or if the schema gains a key not documented here.
 | `read.external_max_calls` | `20` | E03: network calls the engine may make in its lifetime (cache hits are free; the budget is checked before the call). |
 | `read.external_max_results` | `3` | E03: snippets kept per query. |
 | `read.external_cache_dir` | `null` | E03: directory of the persistent query cache (`external_cache.json`); null keeps it in memory. |
+| `read.external_v2` | `false` | R3-13 (LIB-45): with `external_evidence` `cache` or `web`, the planner decides whether to look up (a generic or explicitly public question, within the call cap), and the snippets (freshness, https, dedupe, per-domain cap, token budget) form one separate labelled `[public]` block with the never-proves clause. Never stored. Does not enable lookups by itself. |
+| `read.external_v2_budget_tokens` | `300` | R3-13: token budget of the `[public]` block. |
+| `read.cache.enabled` | `false` | R3-15 (LIB-19, ER-31 B): cache whole read results, keyed by scope, viewer, query, config, model ids and store / erasure generations. Every hit is revalidated against the live store (POL-1); a partial revalidation recomputes. Reads naming a `session_id` are never cached. |
+| `read.cache.max_entries` | `256` | R3-15: read-cache capacity (oldest evicted). |
+| `read.cache.ttl_seconds` | `null` | R3-15: optional read-cache entry lifetime in seconds. |
+| `read.parallel_legs` | `false` | R3-15: run the query-only retrieval legs (vector, lexical, metadata, encoder, probes) with `asyncio.gather`; fusion order is unchanged. |
 | `read.sentence_leg` | `false` | N05 (ADR-059): an RRF leg ranking records by their single best-matching sentence (shared content words / √length), so one strong sentence in a long turn is not diluted. No model. |
 | `read.rerank_instruction` | `null` | N12 (ADR-059): the task instruction an instruction-conditioned reranker (`rerank: qwen3`) judges with; null keeps its memory default. |
 | `read.evidence_line` | `false` | W3 step 2 (ADR-059): with `evidence_signal`, a weak read opens its volatile part with a one-line note that memory holds no clear record answering the question. |
