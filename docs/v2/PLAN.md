@@ -9,9 +9,9 @@ Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summarie
 |---|---|
 | Not started | 7 |
 | Ready | 0 |
-| In progress | 2 |
+| In progress | 1 |
 | Blocked | 0 |
-| Needs measurement | 69 |
+| Needs measurement | 70 |
 | Done | 83 |
 | Dropped | 1 |
 
@@ -137,7 +137,7 @@ Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summarie
 | W2-06b | Prompt v2 and schema-constrained decoding | L0 L1 L3 | D | W-16, P-04, P-09, P-11 | ER-12, ER-15 | W2-06a, W2-07 | behaviour | S4 extraction (serial) | - | Window arm: items dropped down; at most 1 call per window | **Needs measurement** | write.prompt_v2: one call per window/batch (facts_graph/all 2->1), NEW/CONTEXT/KNOWN, json_schema where supported |
 | W2-06c | Online extraction via the outbox with a stage hook list | L1 L3 | D R | W-12 | - | W2-06b, F-04 | behaviour | S4 extraction (serial) | - | No-model template: zero calls; window arm screen | **In progress** | Sonnet agent launched |
 | W2-14 | Temporal extraction by every means: anchor ladder, basis and precision, relations without dates | L0 L1 L3 L5 | D R | W-04, M-10, R-07 | ER-18 | W2-06c, LIB-01 | behaviour | S4 extraction (serial) | - | Temporal category up; no invented exact dates (precision audit) | **Needs measurement** | write.temporal_v2 stage (order 100) + read.temporal_precision_aware; precision audit test; full unit run pending (machine load) |
-| W2-15 | Coverage check and targeted re-extraction (screened) | L1 L3 | D | W-17, W-15 | ER-12 | W2-08, LIB-17 | behaviour | S4 extraction (serial) | - | Omitted-fact recall and unsupported additions measured separately on unseen domains; extra calls counted | **In progress** | Sonnet agent launched |
+| W2-15 | Coverage check and targeted re-extraction (screened) | L1 L3 | D | W-17, W-15 | ER-12 | W2-08, LIB-17 | behaviour | S4 extraction (serial) | - | Omitted-fact recall and unsupported additions measured separately on unseen domains; extra calls counted | **Needs measurement** | write.coverage_v2 (order 250): stub unseen-domain set recall 0.586->0.931, 0/7 hallucinations kept, 1.58 calls/window; real run needs LLM adjudicator |
 | W2-08 | Grounding: spans per assertion, rule checks, assent | L1 L3 | D | W-17 | ER-11, ER-14 | W2-14, X-05, LIB-03 | behaviour | S4 extraction (serial) | - | Grounding at least 95% on the labelled set | **Needs measurement** | write.grounding_v2 stage (order 200); labelled set 85.5% CPU-only (rules+lexical) vs 95% gate; non-English undecided items need an LLM adjudicator (GPU) |
 | W2-09 | Online entity resolution with pending_merge | L1 L3 | D K_C | W-19, M-15 | ER-13, ER-20 | W2-08, LIB-04 | behaviour | S4 extraction (serial) | - | Calibrated thresholds: no homonym merges above a stated rate | **Needs measurement** | write.resolver_v2 stage (order 300); EntityRegistry MERGE/SPLIT events; homonym merges 0/200 (rules; recalibrate with production embedder) |
 | W2-10 | Integration ladder and cardinality registry | L1 L3 | D K_C | W-21, W-22, M-12 | ER-14, ER-17 | W2-09, F-01, LIB-02 | behaviour | S4 extraction (serial) | - | MAB-CR non-inferior; A-B-A tests; behavioural INV-ORDER-SWAP passes | **Needs measurement** | write.integration_v2 stage (order 400); INV-ORDER-SWAP passes with flag on; MAB-CR screen pending (GPU) |

@@ -222,7 +222,7 @@ WP = [
     ("W2-14", 2, "Temporal extraction by every means: anchor ladder, basis and precision, relations without dates", ["W-04", "M-10", "R-07"], ["W2-06c", "LIB-01"], "behaviour",
      "Temporal category up; no invented exact dates (precision audit)", "Needs measurement", "write.temporal_v2 stage (order 100) + read.temporal_precision_aware; precision audit test; full unit run pending (machine load)"),
     ("W2-15", 2, "Coverage check and targeted re-extraction (screened)", ["W-17", "W-15"], ["W2-08", "LIB-17"], "behaviour",
-     "Omitted-fact recall and unsupported additions measured separately on unseen domains; extra calls counted", "In progress", "Sonnet agent launched"),
+     "Omitted-fact recall and unsupported additions measured separately on unseen domains; extra calls counted", "Needs measurement", "write.coverage_v2 (order 250): stub unseen-domain set recall 0.586->0.931, 0/7 hallucinations kept, 1.58 calls/window; real run needs LLM adjudicator"),
     ("W2-08", 2, "Grounding: spans per assertion, rule checks, assent", ["W-17"], ["W2-14", "X-05", "LIB-03"], "behaviour",
      "Grounding at least 95% on the labelled set", "Needs measurement", "write.grounding_v2 stage (order 200); labelled set 85.5% CPU-only (rules+lexical) vs 95% gate; non-English undecided items need an LLM adjudicator (GPU)"),
     ("W2-09", 2, "Online entity resolution with pending_merge", ["W-19", "M-15"], ["W2-08", "LIB-04"], "behaviour",
