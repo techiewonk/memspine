@@ -160,6 +160,9 @@
    "write_timers": false
   },
   "offline": {
+   "budget_calls_per_cycle": null,
+   "budget_tokens_per_cycle": null,
+   "budget_v2": false,
    "communities_v2": false,
    "community_hub_fraction": 0.5,
    "community_hubs": [],
@@ -315,6 +318,10 @@
    "facts_to_sources": false,
    "family_fusion": false,
    "focused_excerpt": false,
+   "freshness_fallback": false,
+   "freshness_fallback_max": 20,
+   "freshness_stale_gap": 20,
+   "freshness_v2": false,
    "fusion": "rrf",
    "gap_markers": false,
    "gate_v2": false,
@@ -594,7 +601,7 @@
    "window_topic_k": 2.0
   }
  },
- "json_schema_sha256": "aba4e5d0c8d66a5938fb20a6a4350b4db8105861b0c4d5c7ae47a9a171c900bc",
+ "json_schema_sha256": "7e1f60a29b9cdc7e769856a77c33ebfd73aa51dc98f6fa7dbea8a0d58c00d73f",
  "preset:chat_roles": {
   "audit": {
    "actions": false,
@@ -777,6 +784,9 @@
    "write_timers": false
   },
   "offline": {
+   "budget_calls_per_cycle": null,
+   "budget_tokens_per_cycle": null,
+   "budget_v2": false,
    "communities_v2": false,
    "community_hub_fraction": 0.5,
    "community_hubs": [],
@@ -938,6 +948,10 @@
    "facts_to_sources": false,
    "family_fusion": false,
    "focused_excerpt": false,
+   "freshness_fallback": false,
+   "freshness_fallback_max": 20,
+   "freshness_stale_gap": 20,
+   "freshness_v2": false,
    "fusion": "rrf",
    "gap_markers": false,
    "gate_v2": false,
@@ -1399,6 +1413,9 @@
    "write_timers": false
   },
   "offline": {
+   "budget_calls_per_cycle": null,
+   "budget_tokens_per_cycle": null,
+   "budget_v2": false,
    "communities_v2": false,
    "community_hub_fraction": 0.5,
    "community_hubs": [],
@@ -1560,6 +1577,10 @@
    "facts_to_sources": false,
    "family_fusion": false,
    "focused_excerpt": false,
+   "freshness_fallback": false,
+   "freshness_fallback_max": 20,
+   "freshness_stale_gap": 20,
+   "freshness_v2": false,
    "fusion": "rrf",
    "gap_markers": false,
    "gate_v2": false,
@@ -2021,6 +2042,9 @@
    "write_timers": false
   },
   "offline": {
+   "budget_calls_per_cycle": null,
+   "budget_tokens_per_cycle": null,
+   "budget_v2": false,
    "communities_v2": false,
    "community_hub_fraction": 0.5,
    "community_hubs": [],
@@ -2182,6 +2206,10 @@
    "facts_to_sources": false,
    "family_fusion": false,
    "focused_excerpt": false,
+   "freshness_fallback": false,
+   "freshness_fallback_max": 20,
+   "freshness_stale_gap": 20,
+   "freshness_v2": false,
    "fusion": "rrf",
    "gap_markers": false,
    "gate_v2": false,
@@ -2643,6 +2671,9 @@
    "write_timers": false
   },
   "offline": {
+   "budget_calls_per_cycle": null,
+   "budget_tokens_per_cycle": null,
+   "budget_v2": false,
    "communities_v2": false,
    "community_hub_fraction": 0.5,
    "community_hubs": [],
@@ -2804,6 +2835,10 @@
    "facts_to_sources": false,
    "family_fusion": false,
    "focused_excerpt": false,
+   "freshness_fallback": false,
+   "freshness_fallback_max": 20,
+   "freshness_stale_gap": 20,
+   "freshness_v2": false,
    "fusion": "rrf",
    "gap_markers": false,
    "gate_v2": false,
@@ -3265,6 +3300,9 @@
    "write_timers": false
   },
   "offline": {
+   "budget_calls_per_cycle": null,
+   "budget_tokens_per_cycle": null,
+   "budget_v2": false,
    "communities_v2": false,
    "community_hub_fraction": 0.5,
    "community_hubs": [],
@@ -3426,6 +3464,10 @@
    "facts_to_sources": false,
    "family_fusion": false,
    "focused_excerpt": false,
+   "freshness_fallback": false,
+   "freshness_fallback_max": 20,
+   "freshness_stale_gap": 20,
+   "freshness_v2": false,
    "fusion": "rrf",
    "gap_markers": false,
    "gate_v2": false,
@@ -3887,6 +3929,9 @@
    "write_timers": false
   },
   "offline": {
+   "budget_calls_per_cycle": null,
+   "budget_tokens_per_cycle": null,
+   "budget_v2": false,
    "communities_v2": false,
    "community_hub_fraction": 0.5,
    "community_hubs": [],
@@ -4048,6 +4093,10 @@
    "facts_to_sources": false,
    "family_fusion": false,
    "focused_excerpt": false,
+   "freshness_fallback": false,
+   "freshness_fallback_max": 20,
+   "freshness_stale_gap": 20,
+   "freshness_v2": false,
    "fusion": "rrf",
    "gap_markers": false,
    "gate_v2": false,
@@ -4509,6 +4558,9 @@
    "write_timers": false
   },
   "offline": {
+   "budget_calls_per_cycle": null,
+   "budget_tokens_per_cycle": null,
+   "budget_v2": false,
    "communities_v2": false,
    "community_hub_fraction": 0.5,
    "community_hubs": [],
@@ -4670,6 +4722,10 @@
    "facts_to_sources": false,
    "family_fusion": false,
    "focused_excerpt": false,
+   "freshness_fallback": false,
+   "freshness_fallback_max": 20,
+   "freshness_stale_gap": 20,
+   "freshness_v2": false,
    "fusion": "rrf",
    "gap_markers": false,
    "gate_v2": false,
@@ -5131,6 +5187,9 @@
    "write_timers": false
   },
   "offline": {
+   "budget_calls_per_cycle": null,
+   "budget_tokens_per_cycle": null,
+   "budget_v2": false,
    "communities_v2": false,
    "community_hub_fraction": 0.5,
    "community_hubs": [],
@@ -5292,6 +5351,10 @@
    "facts_to_sources": false,
    "family_fusion": false,
    "focused_excerpt": false,
+   "freshness_fallback": false,
+   "freshness_fallback_max": 20,
+   "freshness_stale_gap": 20,
+   "freshness_v2": false,
    "fusion": "rrf",
    "gap_markers": false,
    "gate_v2": false,
@@ -5753,6 +5816,9 @@
    "write_timers": false
   },
   "offline": {
+   "budget_calls_per_cycle": null,
+   "budget_tokens_per_cycle": null,
+   "budget_v2": false,
    "communities_v2": false,
    "community_hub_fraction": 0.5,
    "community_hubs": [],
@@ -5914,6 +5980,10 @@
    "facts_to_sources": false,
    "family_fusion": false,
    "focused_excerpt": false,
+   "freshness_fallback": false,
+   "freshness_fallback_max": 20,
+   "freshness_stale_gap": 20,
+   "freshness_v2": false,
    "fusion": "rrf",
    "gap_markers": false,
    "gate_v2": false,
@@ -6382,6 +6452,9 @@
    "write_timers": false
   },
   "offline": {
+   "budget_calls_per_cycle": null,
+   "budget_tokens_per_cycle": null,
+   "budget_v2": false,
    "communities_v2": false,
    "community_hub_fraction": 0.5,
    "community_hubs": [],
@@ -6545,6 +6618,10 @@
    "facts_to_sources": false,
    "family_fusion": false,
    "focused_excerpt": false,
+   "freshness_fallback": false,
+   "freshness_fallback_max": 20,
+   "freshness_stale_gap": 20,
+   "freshness_v2": false,
    "fusion": "rrf",
    "gap_markers": false,
    "gate_v2": false,
@@ -7011,6 +7088,9 @@
    "write_timers": false
   },
   "offline": {
+   "budget_calls_per_cycle": null,
+   "budget_tokens_per_cycle": null,
+   "budget_v2": false,
    "communities_v2": false,
    "community_hub_fraction": 0.5,
    "community_hubs": [],
@@ -7172,6 +7252,10 @@
    "facts_to_sources": false,
    "family_fusion": false,
    "focused_excerpt": false,
+   "freshness_fallback": false,
+   "freshness_fallback_max": 20,
+   "freshness_stale_gap": 20,
+   "freshness_v2": false,
    "fusion": "rrf",
    "gap_markers": false,
    "gate_v2": false,
@@ -7629,6 +7713,9 @@
    "write_timers": false
   },
   "offline": {
+   "budget_calls_per_cycle": null,
+   "budget_tokens_per_cycle": null,
+   "budget_v2": false,
    "communities_v2": false,
    "community_hub_fraction": 0.5,
    "community_hubs": [],
@@ -7784,6 +7871,10 @@
    "facts_to_sources": false,
    "family_fusion": false,
    "focused_excerpt": false,
+   "freshness_fallback": false,
+   "freshness_fallback_max": 20,
+   "freshness_stale_gap": 20,
+   "freshness_v2": false,
    "fusion": "rrf",
    "gap_markers": false,
    "gate_v2": false,
@@ -8249,6 +8340,9 @@
    "write_timers": false
   },
   "offline": {
+   "budget_calls_per_cycle": null,
+   "budget_tokens_per_cycle": null,
+   "budget_v2": false,
    "communities_v2": false,
    "community_hub_fraction": 0.5,
    "community_hubs": [],
@@ -8410,6 +8504,10 @@
    "facts_to_sources": false,
    "family_fusion": false,
    "focused_excerpt": false,
+   "freshness_fallback": false,
+   "freshness_fallback_max": 20,
+   "freshness_stale_gap": 20,
+   "freshness_v2": false,
    "fusion": "rrf",
    "gap_markers": false,
    "gate_v2": false,
@@ -8875,6 +8973,9 @@
    "write_timers": false
   },
   "offline": {
+   "budget_calls_per_cycle": null,
+   "budget_tokens_per_cycle": null,
+   "budget_v2": false,
    "communities_v2": false,
    "community_hub_fraction": 0.5,
    "community_hubs": [],
@@ -9036,6 +9137,10 @@
    "facts_to_sources": false,
    "family_fusion": false,
    "focused_excerpt": false,
+   "freshness_fallback": false,
+   "freshness_fallback_max": 20,
+   "freshness_stale_gap": 20,
+   "freshness_v2": false,
    "fusion": "rrf",
    "gap_markers": false,
    "gate_v2": false,
@@ -9505,6 +9610,9 @@
    "write_timers": false
   },
   "offline": {
+   "budget_calls_per_cycle": null,
+   "budget_tokens_per_cycle": null,
+   "budget_v2": false,
    "communities_v2": false,
    "community_hub_fraction": 0.5,
    "community_hubs": [],
@@ -9666,6 +9774,10 @@
    "facts_to_sources": false,
    "family_fusion": false,
    "focused_excerpt": false,
+   "freshness_fallback": false,
+   "freshness_fallback_max": 20,
+   "freshness_stale_gap": 20,
+   "freshness_v2": false,
    "fusion": "rrf",
    "gap_markers": false,
    "gate_v2": false,
@@ -10127,6 +10239,9 @@
    "write_timers": false
   },
   "offline": {
+   "budget_calls_per_cycle": null,
+   "budget_tokens_per_cycle": null,
+   "budget_v2": false,
    "communities_v2": false,
    "community_hub_fraction": 0.5,
    "community_hubs": [],
@@ -10288,6 +10403,10 @@
    "facts_to_sources": false,
    "family_fusion": false,
    "focused_excerpt": false,
+   "freshness_fallback": false,
+   "freshness_fallback_max": 20,
+   "freshness_stale_gap": 20,
+   "freshness_v2": false,
    "fusion": "rrf",
    "gap_markers": false,
    "gate_v2": false,
@@ -10750,6 +10869,9 @@
    "write_timers": false
   },
   "offline": {
+   "budget_calls_per_cycle": null,
+   "budget_tokens_per_cycle": null,
+   "budget_v2": false,
    "communities_v2": false,
    "community_hub_fraction": 0.5,
    "community_hubs": [],
@@ -10911,6 +11033,10 @@
    "facts_to_sources": false,
    "family_fusion": false,
    "focused_excerpt": false,
+   "freshness_fallback": false,
+   "freshness_fallback_max": 20,
+   "freshness_stale_gap": 20,
+   "freshness_v2": false,
    "fusion": "rrf",
    "gap_markers": false,
    "gate_v2": false,
@@ -11374,6 +11500,9 @@
    "write_timers": false
   },
   "offline": {
+   "budget_calls_per_cycle": null,
+   "budget_tokens_per_cycle": null,
+   "budget_v2": false,
    "communities_v2": false,
    "community_hub_fraction": 0.5,
    "community_hubs": [],
@@ -11535,6 +11664,10 @@
    "facts_to_sources": false,
    "family_fusion": false,
    "focused_excerpt": false,
+   "freshness_fallback": false,
+   "freshness_fallback_max": 20,
+   "freshness_stale_gap": 20,
+   "freshness_v2": false,
    "fusion": "rrf",
    "gap_markers": false,
    "gate_v2": false,

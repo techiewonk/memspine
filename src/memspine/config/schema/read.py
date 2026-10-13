@@ -1183,6 +1183,22 @@ class ReadConfig(BaseModel):
     #: their own flag is on, and every skip is recorded. Core legs (vector, lexical, temporal)
     #: are unchanged. LLM rewrites stay deep-tier only. Off (default): unchanged.
     router_rules: bool = False
+    #: O4-01b (O-06): read-side freshness. On: each search computes, per derived layer, the gap
+    #: between the namespace's latest raw-turn seq and the minimum ``covers_seq`` of the layer's
+    #: stamped records (stamped under ``offline.budget_v2``), flags the layer ``stale`` when the gap
+    #: exceeds ``freshness_stale_gap`` and records it in the read trace (forensics ``freshness``)
+    #: and the ``read.freshness`` tap. Metadata only: results are unchanged.
+    #: Off (default): unchanged.
+    freshness_v2: bool = False
+    #: O4-01b: raw-turn seqs a derived layer may lag behind before it is flagged stale.
+    freshness_stale_gap: int = Field(default=20, ge=0)
+    #: O4-01b: with ``freshness_v2``, when the derived layer is stale for the query the raw turns
+    #: newer than its ``covers_seq`` join the candidate pool as one more fused leg (newest first,
+    #: at most ``freshness_fallback_max``), so answers are not missing new facts. Off (default):
+    #: unchanged.
+    freshness_fallback: bool = False
+    #: O4-01b: raw turns the stale fallback may add to one search.
+    freshness_fallback_max: int = Field(default=20, ge=1)
 
     @model_validator(mode="after")
     def _header_shares_leave_room(self) -> ReadConfig:

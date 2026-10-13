@@ -164,7 +164,9 @@ from memspine.prompts.registry import PromptRegistry
 from memspine.read.contract import (
     QueryContract,
 )
+from memspine.read.freshness import SourceSeqTracker
 from memspine.read.pipeline import deep as read_deep
+from memspine.read.pipeline import freshness as read_freshness
 from memspine.read.pipeline import fusion as read_fusion
 from memspine.read.pipeline import gate as read_gate
 from memspine.read.pipeline import legs as read_legs
@@ -370,6 +372,8 @@ class Engine:
         self._scheduler: SleepScheduler | None = None  # D1: autonomous sleep loop
         #: O4-01a: namespace jobs, leases, watermarks and triggers (``offline.sleep_v2``).
         self._derive_sched: DerivationScheduler | None = None
+        #: O4-01b: latest raw-turn seq per namespace (``offline.budget_v2``, ``read.freshness_v2``).
+        self._freshness_tracker: SourceSeqTracker | None = None
         self._started = False
         self._write_locks: dict[str, asyncio.Lock] = {}
         #: #63: open neighbour batches per namespace (they observe every write).
@@ -667,6 +671,10 @@ class Engine:
 
                 self._scheduler = SleepScheduler(interval, _tick)
                 self._scheduler.start()
+        if config.offline.budget_v2 or config.read.freshness_v2:  # O4-01b: source seq, covers_seq
+            self._freshness_tracker = SourceSeqTracker()
+            if not client_is_memory(config):
+                await read_freshness.bootstrap(self, self._freshness_tracker)
         if config.offline.sleep_v2:  # O4-01a: non-blocking sleep, triggers, leases, watermarks
             self._derive_sched = derive_scheduler.build_sleep_v2(self, config)
             if not config.offline.sleep_manual_only:
@@ -4528,6 +4536,15 @@ class Engine:
         """
         return admin.llm(self, role)
 
+    async def freshness(self, namespace: str = "default") -> dict[str, Any]:
+        """O4-01b (O-06): per derived layer, the gap between the namespace's latest raw-turn seq and
+        the minimum ``covers_seq`` of the layer's stamped records, and its ``stale`` flag. Needs
+        ``offline.budget_v2`` or ``read.freshness_v2``."""
+        self._require_started()
+        if self._freshness_tracker is None:
+            raise MemspineError("freshness needs offline.budget_v2 or read.freshness_v2")
+        return (await read_freshness.report(self, validate_namespace(namespace))).as_dict()
+
     @tap.traced("job")
     async def sleep(self) -> Any:
         """Run the maintenance sleep cycle now (M2/E7): consolidate → decay →
@@ -4634,6 +4651,8 @@ class Engine:
             snapshot.clear()
         event = await self._inherit_governance(event)
         appended = await self._storage.append_event(event)
+        if self._freshness_tracker is not None:  # O4-01b: the raw-turn seq the derived layers cover
+            read_freshness.note_event(self._freshness_tracker, appended)
         if self._derive_sched is not None and event.kind is EventKind.WRITE:
             # O4-01a: count the deposit toward the sleep trigger
             self._derive_sched.on_commit(event.namespace, appended.seq or 0)

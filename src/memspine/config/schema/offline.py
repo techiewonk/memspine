@@ -111,6 +111,20 @@ class OfflineConfig(BaseModel):
     #: arm idle timers and engine open does no catch-up (deterministic runs). ``False`` (default):
     #: the trigger policy fires jobs on its own.
     sleep_manual_only: bool = False
+    #: O4-01b (O-05, O-06): the background budget and the freshness stamp. ``True`` (needs
+    #: ``sleep_v2``): each namespace job spends at most ``budget_calls_per_cycle`` model calls and
+    #: ``budget_tokens_per_cycle`` tokens per cycle (None = that dimension is open); once spent, the
+    #: remaining model stages are deferred, recorded (persisted, counted per stage, counted toward the
+    #: trigger N) and never dropped, and the next cycle runs them first. A started stage always
+    #: finishes, so a cycle can overshoot by one stage. Every derived record written by a cycle is
+    #: stamped with ``covers_seq`` (``RecordFingerprint.covers_seq``), the newest raw-turn seq of its
+    #: namespace when the cycle started; the read side is ``read.freshness_v2``. ``False`` (default):
+    #: no cap, no stamp, exactly as before. Taps: ``job.budget``, ``job.deferred``.
+    budget_v2: bool = False
+    #: O4-01b: model calls one namespace may spend per cycle (None = no cap on calls).
+    budget_calls_per_cycle: int | None = Field(default=None, ge=0)
+    #: O4-01b: tokens one namespace may spend per cycle (None = no cap on tokens).
+    budget_tokens_per_cycle: int | None = Field(default=None, ge=0)
 
     @model_validator(mode="after")
     def _decay_bands(self) -> OfflineConfig:

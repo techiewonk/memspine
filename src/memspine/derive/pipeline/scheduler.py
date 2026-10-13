@@ -6,6 +6,7 @@ import asyncio
 from datetime import timedelta
 from typing import Any
 
+from memspine.derive.budget import COVERS_SEQ, DerivationBudget
 from memspine.derive.job import LeaseStore
 from memspine.derive.scheduler import DerivationScheduler
 from memspine.derive.triggers import TriggerConfig, TriggerPolicy
@@ -86,6 +87,12 @@ def build_sleep_v2(eng: Any, config: Any) -> DerivationScheduler:
         if eng._windows is not None:  # W1: call 1 first (same as the blocking sleep)
             await eng._windows.flush(final=not eng._windows.asynchronous)
 
+    budget = None
+    if off.budget_v2 and (
+        off.budget_calls_per_cycle is not None or off.budget_tokens_per_cycle is not None
+    ):
+        budget = DerivationBudget(off.budget_calls_per_cycle, off.budget_tokens_per_cycle)
+    tracker = getattr(eng, "_freshness_tracker", None)
     return DerivationScheduler(
         store=LeaseStore(path),
         policy=policy,
@@ -96,6 +103,8 @@ def build_sleep_v2(eng: Any, config: Any) -> DerivationScheduler:
         lease_ttl=off.sleep_lease_ttl_seconds,
         background_priority=bool(config.runtime.scheduler_v2),
         idle_timers=not off.sleep_manual_only,
+        budget=budget,
+        covers_snapshot=tracker.snapshot if tracker is not None else None,
     )
 
 
@@ -114,7 +123,13 @@ async def sleep(eng: Any) -> Any:
         # live (async) mode the open window is left to its idle timer; in batch mode
         # nothing else would ever close it.
         await eng._windows.flush(final=not eng._windows.asynchronous)
-    stats = await run_sleep_cycle(eng._runner, eng._pipeline_ctx())
+    tracker = getattr(eng, "_freshness_tracker", None)
+    marks = COVERS_SEQ.set(tracker.snapshot()) if tracker is not None else None
+    try:
+        stats = await run_sleep_cycle(eng._runner, eng._pipeline_ctx())
+    finally:
+        if marks is not None:
+            COVERS_SEQ.reset(marks)
     eng._passive_sessions.clear()  # #53: the cycle may have passivated sessions
     degraded = {
         name: stage for name, stage in stats.items() if stage.get("status") in ("error", "partial")

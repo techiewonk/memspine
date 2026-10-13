@@ -20,10 +20,11 @@ import contextvars
 import os
 import time
 import uuid
-from collections.abc import Awaitable, Callable, Sequence
+from collections.abc import Awaitable, Callable, Mapping, Sequence
 from datetime import UTC, datetime
 from typing import Any
 
+from memspine.derive.budget import COVERS_SEQ, DerivationBudget
 from memspine.derive.job import (
     JobOutcome,
     LeaseStore,
@@ -73,10 +74,14 @@ class DerivationScheduler:
         background_priority: bool = False,
         idle_timers: bool = True,
         clock: Callable[[], float] = time.time,
+        budget: DerivationBudget | None = None,
+        covers_snapshot: Callable[[], Mapping[str, int]] | None = None,
     ) -> None:
         self.store, self.policy, self.clock = store, policy, clock
         self._run_stage, self._stages, self._maint = run_stage, stages, maintenance_stages
         self._prepare, self._ttl = prepare, lease_ttl
+        self.budget = budget  # O4-01b (offline.budget_v2): caps model work per cycle per namespace
+        self._covers_snapshot = covers_snapshot  # O4-01b: stamps covers_seq on derived records
         self.last_seq = 0  # highest committed event seq this process has seen
         self._background, self._idle_timers = background_priority, idle_timers
         self._owner = f"{os.getpid()}-{uuid.uuid4().hex[:8]}"
@@ -118,6 +123,7 @@ class DerivationScheduler:
             prepare=None if maint else self._prepare,
             cancelled=lambda: handle._cancel,
             head_seq=lambda: self.last_seq,
+            budget=self.budget,
         )
         token = _IN_JOB.set(True)
         try:
@@ -140,7 +146,13 @@ class DerivationScheduler:
             self._rearm(handle.ns)
 
     async def _stage_runner(self, stage: str) -> dict[str, object]:
-        return await self._run_stage(stage)
+        if self._covers_snapshot is None:
+            return await self._run_stage(stage)
+        token = COVERS_SEQ.set(self._covers_snapshot())  # what this stage will have read
+        try:
+            return await self._run_stage(stage)
+        finally:
+            COVERS_SEQ.reset(token)
 
     async def _wait_for_holder(
         self,
