@@ -56,12 +56,28 @@ class StorageConfig(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
+    #: F-16d (M-04 C): the storage profile. ``embedded`` (default, today's behaviour): SQLite +
+    #: LanceDB + Tantivy. ``server``: Postgres (``url`` required; ``backend`` is set to
+    #: ``postgres``) with its own Alembic tree, pgvector when installed. A legacy
+    #: ``backend: postgres`` with the default profile keeps its ``create_all`` bring-up.
+    profile: Literal["embedded", "server"] = "embedded"
     backend: str = "sqlite"  # sqlite | postgres
     path: str = "./memspine.db"  # sqlite db file, or ":memory:"
     url: str | None = None  # postgres DSN, required when backend=postgres
     data_dir: str | None = None  # base dir for derived vector/lexical files (postgres)
     #: #52: SQLCipher encryption at rest (sqlite backend only); off by default.
     encryption: EncryptionConfig = Field(default_factory=EncryptionConfig)
+
+    @model_validator(mode="after")
+    def _profile_backend(self) -> StorageConfig:
+        if self.profile == "server":
+            if self.backend == "sqlite":
+                self.backend = "postgres"  # the default backend, so the profile picks it
+            if self.backend != "postgres":
+                raise ConfigError(
+                    f"storage.profile=server needs storage.backend=postgres (got {self.backend!r})"
+                )
+        return self
 
 
 class VectorConfig(BaseModel):

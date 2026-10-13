@@ -76,6 +76,7 @@ from memspine.services.lexical.base import LexicalStore
 from memspine.services.secrets.base import SecretsService
 from memspine.services.secrets.chained import ChainedSecrets
 from memspine.services.secrets.env import EnvSecrets
+from memspine.services.storage.profile import resolve_profile
 from memspine.services.storage.sql_base import SqlStorage
 from memspine.services.storage.sqlite.engine import SQLiteStorage
 from memspine.services.vector.base import VectorStore
@@ -395,6 +396,7 @@ async def build_storage(config: MemspineConfig, wiring: Wiring) -> SqlStorage:
     ``storage.url`` (already secrets-resolved by the config loader). Both wrap
     the same dialect-neutral :class:`SqlStorage`."""
     backend = config.storage.backend
+    resolve_profile(config.storage)  # F-16d: taps store.profile.resolved
     mode = config.event_log.mode
     compress = config.event_log.compress
     encryption = config.storage.encryption
@@ -424,7 +426,12 @@ async def build_storage(config: MemspineConfig, wiring: Wiring) -> SqlStorage:
 
         wiring.pg = PostgresClient(config.storage.url)
         await wiring.pg.connect()
-        return PostgresStorage(wiring.pg, mode=mode, compress=compress)
+        return PostgresStorage(
+            wiring.pg,
+            mode=mode,
+            compress=compress,
+            use_alembic=config.storage.profile == "server",
+        )
     raise ConfigError(f"unknown storage.backend {backend!r} (valid: sqlite, postgres)")
 
 
