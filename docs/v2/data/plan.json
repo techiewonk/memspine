@@ -3155,8 +3155,8 @@
    ],
    "kind": "move",
    "gate": "Golden",
-   "status": "Not started",
-   "note": "S12",
+   "status": "Done",
+   "note": "S12: 91 units to trust/pipeline + memory/pipeline, engine 8028->6369; 12 units left (contract-blocked helpers, go with F-13a); unit 5905, evals 1435, golden, 14 contracts (9a4876e)",
    "layers": [
     "L4",
     "ctx",
