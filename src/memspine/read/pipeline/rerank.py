@@ -10,7 +10,7 @@ from memspine.config import constants
 from memspine.exceptions import (
     MissingServiceError,
 )
-from memspine.models.providers.rerank.base import concat_background
+from memspine.models.providers.rerank.base import concat_background, gated_rerank
 from memspine.models.providers.rerank.factory import RerankSettings, build_reranker
 from memspine.observability import tap
 from memspine.observability.logging import get_logger
@@ -142,7 +142,7 @@ async def chain_score(
             continue
         try:
             eng._rerank_calls += 1
-            raw = list(await reranker.rerank(query, documents))
+            raw = list(await gated_rerank(reranker, query, documents))
             if len(raw) != len(documents):
                 raise ValueError(f"{len(raw)} scores for {len(documents)} documents")
         except Exception as exc:

@@ -437,6 +437,46 @@ class SqlJobStore:
                 .values(payload=json.dumps(payload, default=str))
             )
 
+    def item_created_at(self, scope: OwnerScope, stage: str, offset: int) -> datetime | None:
+        """When item ``offset`` was queued (RT-02: the start of its time-to-searchable)."""
+        with self._tx() as c:
+            r = c.execute(
+                select(outbox_item.c.created_at).where(
+                    *_scope_where(outbox_item, scope),
+                    outbox_item.c.stage == stage,
+                    outbox_item.c.item_offset == offset,
+                )
+            ).first()
+        return None if r is None else _dt(r.created_at)
+
+    def backlog(
+        self, scope: OwnerScope | None = None, stage: str | None = None
+    ) -> tuple[int, datetime | None]:
+        """Unfinished items (beyond the watermark) and the oldest one's queue time (RT-02).
+
+        These rows ARE the persisted "underived" markers: an item is underived from the moment it
+        is queued until the watermark passes it, so a restart recomputes the same answer."""
+        mark = func.coalesce(outbox_progress.c.watermark, -1)
+        j = outbox_item.outerjoin(
+            outbox_progress,
+            (outbox_progress.c.tenant == outbox_item.c.tenant)
+            & (outbox_progress.c.owner == outbox_item.c.owner)
+            & (outbox_progress.c.owner_kind == outbox_item.c.owner_kind)
+            & (outbox_progress.c.job_kind == outbox_item.c.stage),
+        )
+        q = (
+            select(func.count(), func.min(outbox_item.c.created_at))
+            .select_from(j)
+            .where(outbox_item.c.item_offset > mark)
+        )
+        if scope is not None:
+            q = q.where(*_scope_where(outbox_item, scope))
+        if stage is not None:
+            q = q.where(outbox_item.c.stage == stage)
+        with self._tx() as c:
+            n, oldest = c.execute(q).one()
+        return int(n or 0), _dt(oldest)
+
     def live_scopes(self) -> list[tuple[OwnerScope, str]]:
         """``(scope, stage)`` pairs holding a queued or running job (what a restart resumes)."""
         seen: dict[tuple[ScopeKey, str], tuple[OwnerScope, str]] = {}

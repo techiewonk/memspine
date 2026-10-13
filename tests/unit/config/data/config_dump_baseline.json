@@ -516,6 +516,21 @@
    "profile": null,
    "v2": false
   },
+  "runtime": {
+   "background_reserve": 1,
+   "backlog_coalesce_age_s": 60.0,
+   "backlog_coalesce_items": 200,
+   "backlog_max_age_s": 900.0,
+   "backlog_max_items": 2000,
+   "backlog_max_total_items": 0,
+   "backlog_retry_after_s": 1.0,
+   "encoder_batch_max": 32,
+   "encoder_batch_wait_ms": 5.0,
+   "lag_p95_budget_s": null,
+   "model_concurrency": 0,
+   "read_p95_budget_s": null,
+   "scheduler_v2": false
+  },
   "storage": {
    "backend": "sqlite",
    "data_dir": null,
@@ -562,7 +577,7 @@
    "window_topic_k": 2.0
   }
  },
- "json_schema_sha256": "34f0c4e9d74467731ae9889cb27ee91e6cea9516446fbc11867ac16b6f5aa696",
+ "json_schema_sha256": "715f32bcf4fff701d7df556f16814820aa359bcf1ee90301302db1c326f22115",
  "preset:chat_roles": {
   "audit": {
    "actions": false,
@@ -1110,6 +1125,21 @@
    "classes": [],
    "profile": null,
    "v2": false
+  },
+  "runtime": {
+   "background_reserve": 1,
+   "backlog_coalesce_age_s": 60.0,
+   "backlog_coalesce_items": 200,
+   "backlog_max_age_s": 900.0,
+   "backlog_max_items": 2000,
+   "backlog_max_total_items": 0,
+   "backlog_retry_after_s": 1.0,
+   "encoder_batch_max": 32,
+   "encoder_batch_wait_ms": 5.0,
+   "lag_p95_budget_s": null,
+   "model_concurrency": 0,
+   "read_p95_budget_s": null,
+   "scheduler_v2": false
   },
   "storage": {
    "backend": "sqlite",
@@ -1701,6 +1731,21 @@
    "profile": null,
    "v2": false
   },
+  "runtime": {
+   "background_reserve": 1,
+   "backlog_coalesce_age_s": 60.0,
+   "backlog_coalesce_items": 200,
+   "backlog_max_age_s": 900.0,
+   "backlog_max_items": 2000,
+   "backlog_max_total_items": 0,
+   "backlog_retry_after_s": 1.0,
+   "encoder_batch_max": 32,
+   "encoder_batch_wait_ms": 5.0,
+   "lag_p95_budget_s": null,
+   "model_concurrency": 0,
+   "read_p95_budget_s": null,
+   "scheduler_v2": false
+  },
   "storage": {
    "backend": "sqlite",
    "data_dir": null,
@@ -2290,6 +2335,21 @@
    "classes": [],
    "profile": null,
    "v2": false
+  },
+  "runtime": {
+   "background_reserve": 1,
+   "backlog_coalesce_age_s": 60.0,
+   "backlog_coalesce_items": 200,
+   "backlog_max_age_s": 900.0,
+   "backlog_max_items": 2000,
+   "backlog_max_total_items": 0,
+   "backlog_retry_after_s": 1.0,
+   "encoder_batch_max": 32,
+   "encoder_batch_wait_ms": 5.0,
+   "lag_p95_budget_s": null,
+   "model_concurrency": 0,
+   "read_p95_budget_s": null,
+   "scheduler_v2": false
   },
   "storage": {
    "backend": "sqlite",
@@ -2881,6 +2941,21 @@
    "profile": null,
    "v2": false
   },
+  "runtime": {
+   "background_reserve": 1,
+   "backlog_coalesce_age_s": 60.0,
+   "backlog_coalesce_items": 200,
+   "backlog_max_age_s": 900.0,
+   "backlog_max_items": 2000,
+   "backlog_max_total_items": 0,
+   "backlog_retry_after_s": 1.0,
+   "encoder_batch_max": 32,
+   "encoder_batch_wait_ms": 5.0,
+   "lag_p95_budget_s": null,
+   "model_concurrency": 0,
+   "read_p95_budget_s": null,
+   "scheduler_v2": false
+  },
   "storage": {
    "backend": "sqlite",
    "data_dir": null,
@@ -3470,6 +3545,21 @@
    "classes": [],
    "profile": null,
    "v2": false
+  },
+  "runtime": {
+   "background_reserve": 1,
+   "backlog_coalesce_age_s": 60.0,
+   "backlog_coalesce_items": 200,
+   "backlog_max_age_s": 900.0,
+   "backlog_max_items": 2000,
+   "backlog_max_total_items": 0,
+   "backlog_retry_after_s": 1.0,
+   "encoder_batch_max": 32,
+   "encoder_batch_wait_ms": 5.0,
+   "lag_p95_budget_s": null,
+   "model_concurrency": 0,
+   "read_p95_budget_s": null,
+   "scheduler_v2": false
   },
   "storage": {
    "backend": "sqlite",
@@ -4061,6 +4151,21 @@
    "profile": null,
    "v2": false
   },
+  "runtime": {
+   "background_reserve": 1,
+   "backlog_coalesce_age_s": 60.0,
+   "backlog_coalesce_items": 200,
+   "backlog_max_age_s": 900.0,
+   "backlog_max_items": 2000,
+   "backlog_max_total_items": 0,
+   "backlog_retry_after_s": 1.0,
+   "encoder_batch_max": 32,
+   "encoder_batch_wait_ms": 5.0,
+   "lag_p95_budget_s": null,
+   "model_concurrency": 0,
+   "read_p95_budget_s": null,
+   "scheduler_v2": false
+  },
   "storage": {
    "backend": "sqlite",
    "data_dir": null,
@@ -4650,6 +4755,21 @@
    "classes": [],
    "profile": null,
    "v2": false
+  },
+  "runtime": {
+   "background_reserve": 1,
+   "backlog_coalesce_age_s": 60.0,
+   "backlog_coalesce_items": 200,
+   "backlog_max_age_s": 900.0,
+   "backlog_max_items": 2000,
+   "backlog_max_total_items": 0,
+   "backlog_retry_after_s": 1.0,
+   "encoder_batch_max": 32,
+   "encoder_batch_wait_ms": 5.0,
+   "lag_p95_budget_s": null,
+   "model_concurrency": 0,
+   "read_p95_budget_s": null,
+   "scheduler_v2": false
   },
   "storage": {
    "backend": "sqlite",
@@ -5241,6 +5361,21 @@
    "profile": null,
    "v2": false
   },
+  "runtime": {
+   "background_reserve": 1,
+   "backlog_coalesce_age_s": 60.0,
+   "backlog_coalesce_items": 200,
+   "backlog_max_age_s": 900.0,
+   "backlog_max_items": 2000,
+   "backlog_max_total_items": 0,
+   "backlog_retry_after_s": 1.0,
+   "encoder_batch_max": 32,
+   "encoder_batch_wait_ms": 5.0,
+   "lag_p95_budget_s": null,
+   "model_concurrency": 0,
+   "read_p95_budget_s": null,
+   "scheduler_v2": false
+  },
   "storage": {
    "backend": "sqlite",
    "data_dir": null,
@@ -5830,6 +5965,21 @@
    "classes": [],
    "profile": null,
    "v2": false
+  },
+  "runtime": {
+   "background_reserve": 1,
+   "backlog_coalesce_age_s": 60.0,
+   "backlog_coalesce_items": 200,
+   "backlog_max_age_s": 900.0,
+   "backlog_max_items": 2000,
+   "backlog_max_total_items": 0,
+   "backlog_retry_after_s": 1.0,
+   "encoder_batch_max": 32,
+   "encoder_batch_wait_ms": 5.0,
+   "lag_p95_budget_s": null,
+   "model_concurrency": 0,
+   "read_p95_budget_s": null,
+   "scheduler_v2": false
   },
   "storage": {
    "backend": "sqlite",
@@ -6430,6 +6580,21 @@
    "profile": null,
    "v2": false
   },
+  "runtime": {
+   "background_reserve": 1,
+   "backlog_coalesce_age_s": 60.0,
+   "backlog_coalesce_items": 200,
+   "backlog_max_age_s": 900.0,
+   "backlog_max_items": 2000,
+   "backlog_max_total_items": 0,
+   "backlog_retry_after_s": 1.0,
+   "encoder_batch_max": 32,
+   "encoder_batch_wait_ms": 5.0,
+   "lag_p95_budget_s": null,
+   "model_concurrency": 0,
+   "read_p95_budget_s": null,
+   "scheduler_v2": false
+  },
   "storage": {
    "backend": "sqlite",
    "data_dir": null,
@@ -7025,6 +7190,21 @@
    "profile": null,
    "v2": false
   },
+  "runtime": {
+   "background_reserve": 1,
+   "backlog_coalesce_age_s": 60.0,
+   "backlog_coalesce_items": 200,
+   "backlog_max_age_s": 900.0,
+   "backlog_max_items": 2000,
+   "backlog_max_total_items": 0,
+   "backlog_retry_after_s": 1.0,
+   "encoder_batch_max": 32,
+   "encoder_batch_wait_ms": 5.0,
+   "lag_p95_budget_s": null,
+   "model_concurrency": 0,
+   "read_p95_budget_s": null,
+   "scheduler_v2": false
+  },
   "storage": {
    "backend": "sqlite",
    "data_dir": null,
@@ -7600,6 +7780,21 @@
    "classes": [],
    "profile": null,
    "v2": false
+  },
+  "runtime": {
+   "background_reserve": 1,
+   "backlog_coalesce_age_s": 60.0,
+   "backlog_coalesce_items": 200,
+   "backlog_max_age_s": 900.0,
+   "backlog_max_items": 2000,
+   "backlog_max_total_items": 0,
+   "backlog_retry_after_s": 1.0,
+   "encoder_batch_max": 32,
+   "encoder_batch_wait_ms": 5.0,
+   "lag_p95_budget_s": null,
+   "model_concurrency": 0,
+   "read_p95_budget_s": null,
+   "scheduler_v2": false
   },
   "storage": {
    "backend": "sqlite",
@@ -8199,6 +8394,21 @@
    "profile": null,
    "v2": false
   },
+  "runtime": {
+   "background_reserve": 1,
+   "backlog_coalesce_age_s": 60.0,
+   "backlog_coalesce_items": 200,
+   "backlog_max_age_s": 900.0,
+   "backlog_max_items": 2000,
+   "backlog_max_total_items": 0,
+   "backlog_retry_after_s": 1.0,
+   "encoder_batch_max": 32,
+   "encoder_batch_wait_ms": 5.0,
+   "lag_p95_budget_s": null,
+   "model_concurrency": 0,
+   "read_p95_budget_s": null,
+   "scheduler_v2": false
+  },
   "storage": {
    "backend": "sqlite",
    "data_dir": null,
@@ -8792,6 +9002,21 @@
    "classes": [],
    "profile": null,
    "v2": false
+  },
+  "runtime": {
+   "background_reserve": 1,
+   "backlog_coalesce_age_s": 60.0,
+   "backlog_coalesce_items": 200,
+   "backlog_max_age_s": 900.0,
+   "backlog_max_items": 2000,
+   "backlog_max_total_items": 0,
+   "backlog_retry_after_s": 1.0,
+   "encoder_batch_max": 32,
+   "encoder_batch_wait_ms": 5.0,
+   "lag_p95_budget_s": null,
+   "model_concurrency": 0,
+   "read_p95_budget_s": null,
+   "scheduler_v2": false
   },
   "storage": {
    "backend": "sqlite",
@@ -9391,6 +9616,21 @@
    "profile": null,
    "v2": false
   },
+  "runtime": {
+   "background_reserve": 1,
+   "backlog_coalesce_age_s": 60.0,
+   "backlog_coalesce_items": 200,
+   "backlog_max_age_s": 900.0,
+   "backlog_max_items": 2000,
+   "backlog_max_total_items": 0,
+   "backlog_retry_after_s": 1.0,
+   "encoder_batch_max": 32,
+   "encoder_batch_wait_ms": 5.0,
+   "lag_p95_budget_s": null,
+   "model_concurrency": 0,
+   "read_p95_budget_s": null,
+   "scheduler_v2": false
+  },
   "storage": {
    "backend": "sqlite",
    "data_dir": null,
@@ -9980,6 +10220,21 @@
    "classes": [],
    "profile": null,
    "v2": false
+  },
+  "runtime": {
+   "background_reserve": 1,
+   "backlog_coalesce_age_s": 60.0,
+   "backlog_coalesce_items": 200,
+   "backlog_max_age_s": 900.0,
+   "backlog_max_items": 2000,
+   "backlog_max_total_items": 0,
+   "backlog_retry_after_s": 1.0,
+   "encoder_batch_max": 32,
+   "encoder_batch_wait_ms": 5.0,
+   "lag_p95_budget_s": null,
+   "model_concurrency": 0,
+   "read_p95_budget_s": null,
+   "scheduler_v2": false
   },
   "storage": {
    "backend": "sqlite",
@@ -10572,6 +10827,21 @@
    "profile": null,
    "v2": false
   },
+  "runtime": {
+   "background_reserve": 1,
+   "backlog_coalesce_age_s": 60.0,
+   "backlog_coalesce_items": 200,
+   "backlog_max_age_s": 900.0,
+   "backlog_max_items": 2000,
+   "backlog_max_total_items": 0,
+   "backlog_retry_after_s": 1.0,
+   "encoder_batch_max": 32,
+   "encoder_batch_wait_ms": 5.0,
+   "lag_p95_budget_s": null,
+   "model_concurrency": 0,
+   "read_p95_budget_s": null,
+   "scheduler_v2": false
+  },
   "storage": {
    "backend": "sqlite",
    "data_dir": null,
@@ -11163,6 +11433,21 @@
    "classes": [],
    "profile": null,
    "v2": false
+  },
+  "runtime": {
+   "background_reserve": 1,
+   "backlog_coalesce_age_s": 60.0,
+   "backlog_coalesce_items": 200,
+   "backlog_max_age_s": 900.0,
+   "backlog_max_items": 2000,
+   "backlog_max_total_items": 0,
+   "backlog_retry_after_s": 1.0,
+   "encoder_batch_max": 32,
+   "encoder_batch_wait_ms": 5.0,
+   "lag_p95_budget_s": null,
+   "model_concurrency": 0,
+   "read_p95_budget_s": null,
+   "scheduler_v2": false
   },
   "storage": {
    "backend": "sqlite",

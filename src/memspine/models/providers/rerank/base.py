@@ -14,11 +14,12 @@ about.
 
 from __future__ import annotations
 
-from typing import Protocol, runtime_checkable
+from typing import Any, Protocol, runtime_checkable
 
+from memspine.models.concurrency import model_slot
 from memspine.store.records import MemoryRecord
 
-__all__ = ["Reranker", "concat_background"]
+__all__ = ["Reranker", "concat_background", "gated_rerank"]
 
 
 @runtime_checkable
@@ -42,3 +43,9 @@ def concat_background(record: MemoryRecord) -> str:
     if record.source.doc_path:
         parts.append(f"doc: {record.source.doc_path}")
     return "[" + " | ".join(parts) + "]\n" + record.content
+
+
+async def gated_rerank(reranker: Reranker, query: str, documents: list[str]) -> Any:
+    """``reranker.rerank`` under the global model slot (RT-02; a no-op without the gate)."""
+    async with model_slot("rerank"):
+        return await reranker.rerank(query, documents)

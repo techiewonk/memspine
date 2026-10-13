@@ -151,8 +151,10 @@ class TransportRunner(InlineRunner):
         tap.event("runtime.transport.kick", job_id=job_id)
         return True
 
-    async def enqueue(self, scope: Any, stage: str, payload: dict[str, Any]) -> Any:
-        handle = await super().enqueue(scope, stage, payload)
+    async def enqueue(
+        self, scope: Any, stage: str, payload: dict[str, Any], *, force: bool = False
+    ) -> Any:
+        handle = await super().enqueue(scope, stage, payload, force=force)
         # a coalesced handle names the job that already covers the offset: wake that one
         await self.kick(handle.coalesced_into or handle.job_id)
         return handle

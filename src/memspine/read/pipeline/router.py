@@ -46,7 +46,7 @@ from memspine.models.encoders.query.temporal_query import (
     LegHit,
     NamedLeg,
 )
-from memspine.models.providers.rerank.base import concat_background
+from memspine.models.providers.rerank.base import concat_background, gated_rerank
 from memspine.observability import tap
 from memspine.observability.logging import (
     EVENT_RETRIEVE,
@@ -844,7 +844,7 @@ async def _search(
             )
         try:
             eng._rerank_calls += 1
-            raw_scores = await reranker.rerank(rerank_query, documents)
+            raw_scores = await gated_rerank(reranker, rerank_query, documents)
             if len(raw_scores) > 1:
                 _RERANK_SUPPORT.set(sorted(raw_scores, reverse=True)[1])
             if (raw_sink := _RAW_SCORES.get()) is not None:
