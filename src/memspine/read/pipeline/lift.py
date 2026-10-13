@@ -34,6 +34,7 @@ from memspine.read.lead import query_names
 from memspine.read.lift import Candidate, Dropped, LiftPolicy
 from memspine.read.pipeline.state import _FORENSICS
 from memspine.schemas.durable.lineage import LineageEdge
+from memspine.store import lineage as lineage_store
 from memspine.store.records import MemoryRecord, RecordStatus
 
 _log = get_logger(__name__)
@@ -266,8 +267,8 @@ def _is_derived(record: MemoryRecord) -> bool:
 async def lineage_from_records(
     eng: Any, derived: Sequence[MemoryRecord], max_depth: int
 ) -> tuple[dict[str, list[LineageEdge]], dict[str, MemoryRecord]]:
-    """The LIB-11 lineage input from today's record links (adapter; there is no lineage table yet,
-F-16a).
+    """The LIB-11 lineage input (adapter). With ``write.lineage_table`` on, edges come from the
+    lineage table (F-16a), falling back to ``source.parents`` for a record with no rows.
 
     A derived record points at its source turns through ``record.source.parents``. Each parent becomes
     one ``support`` edge (child -> parent). A parent that is itself derived (parents of its own) is
@@ -279,12 +280,18 @@ F-16a).
     lineage: dict[str, list[LineageEdge]] = {}
     fetched: dict[str, MemoryRecord] = {}
     frontier = list(derived)
+    use_table = bool(eng._config().write.lineage_table)  # F-16a: the table, parents as fallback
     for _ in range(max_depth):
         nxt: list[MemoryRecord] = []
+        table: dict[str, list[LineageEdge]] = {}
+        if use_table:
+            table = await lineage_store.parents_of(
+                storage._client.engine, [r.record_id for r in frontier]
+            )
         for rec in frontier:
             if rec.record_id in lineage:
                 continue
-            edges = [
+            edges = table.get(rec.record_id) or [
                 LineageEdge(child=rec.record_id, parent=pid, role="support")
                 for pid in dict.fromkeys(rec.source.parents)
                 if pid != rec.record_id
@@ -328,12 +335,16 @@ async def lift_stage(
     max_depth = LiftPolicy().max_depth
     lineage, fetched = await lineage_from_records(eng, derived, max_depth)
     turn_ids = list(
-        dict.fromkeys(e.parent for edges in lineage.values() for e in edges if e.parent not in lineage)
+        dict.fromkeys(
+            e.parent for edges in lineage.values() for e in edges if e.parent not in lineage
+        )
     )
     records: dict[str, MemoryRecord] = {rec.record_id: rec for rec, _ in candidates}
     visible: set[str] = set(records)
     if turn_ids:
-        gated = await eng._gate_hits(ns, [(tid, 0.0) for tid in turn_ids], group_id, tags, memory_type)
+        gated = await eng._gate_hits(
+            ns, [(tid, 0.0) for tid in turn_ids], group_id, tags, memory_type
+        )
         date_filter = active_date_filter()
         scope = active_record_scope()
         for rec, _ in gated:
@@ -375,7 +386,9 @@ async def lift_stage(
     deduped = liblift.dedupe(admitted)
     capped = liblift.cap(deduped, len(candidates))
     kept = {c.record_id for c in capped}
-    dropped.extend(Dropped(c.record_id, "over_cap", "cap") for c in deduped if c.record_id not in kept)
+    dropped.extend(
+        Dropped(c.record_id, "over_cap", "cap") for c in deduped if c.record_id not in kept
+    )
     if tap.enabled():
         tap.event(
             "read.lift.stage",

@@ -14,6 +14,7 @@ from memspine.config.schema import MemspineConfig
 from memspine.core.window import WindowSettings
 from memspine.derive.pipeline.stages.close import session_close
 from memspine.derive.pipeline.stages.context import SessionClosed
+from memspine.derive.write import write_derived
 from memspine.exceptions import (
     ConfigError,
 )
@@ -219,4 +220,6 @@ async def _deposit_window_episode(
     async with eng._write_locks.setdefault(ns, asyncio.Lock()):
         if await eng._derived_parents_gone(ns, [*parents, *require_live], "window_extract"):
             return None
-        return await eng._write_locked(storage, ns, record, "semantic", "system", cap)
+        return await write_derived(
+            eng, storage, ns, record, "semantic", "system", trust_cap=cap, site="window_episode"
+        )

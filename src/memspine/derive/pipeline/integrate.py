@@ -10,6 +10,7 @@ from typing import Any
 from memspine.config import constants
 from memspine.core.event_date import SAID_PREFIX, happened_tag
 from memspine.core.fact_views import view_tags
+from memspine.derive.write import write_derived
 from memspine.exceptions import MemspineError
 from memspine.models.encoders.query.perspective import inherit_perspective_tags
 from memspine.models.encoders.query.temporal_resolve import resolve
@@ -80,7 +81,19 @@ async def add_cues(
         async with eng._write_locks.setdefault(ns, asyncio.Lock()):
             if require_live and await eng._derived_parents_gone(ns, [record_id], "anticipate"):
                 break  # I72: the target was forgotten while the cues were authored
-            written.append(await eng._write_locked(storage, ns, record, "semantic", actor, cap))
+            written.append(
+                await write_derived(
+                    eng,
+                    storage,
+                    ns,
+                    record,
+                    "semantic",
+                    actor,
+                    parents=[record_id],
+                    trust_cap=cap,
+                    site="anticipate",
+                )
+            )
     if eng._config().read.query_encoder != "none":
         for cue_record in written:
             eng._encoder().observe(cue_record)  # #61: the write-time index
@@ -135,7 +148,16 @@ async def _deposit_surprise_fact(
     async with eng._write_locks.setdefault(ns, asyncio.Lock()):
         if await eng._derived_parents_gone(ns, parents, "predict_calibrate"):  # I72
             return None
-        return await eng._write_locked(storage, ns, record, "semantic", "system", cap)
+        return await write_derived(
+            eng,
+            storage,
+            ns,
+            record,
+            "semantic",
+            "system",
+            trust_cap=cap,
+            site="predict_calibrate",
+        )
 
 
 async def _deposit_profile_reflection(
@@ -261,7 +283,9 @@ async def _deposit_mined_fact(
         site = "window_extract" if require_live else "mine_facts"
         if await eng._derived_parents_gone(ns, [*parents, *require_live], site):  # I72
             return None
-        written = await eng._write_locked(storage, ns, record, "semantic", "system", cap)
+        written = await write_derived(
+            eng, storage, ns, record, "semantic", "system", trust_cap=cap, site=site
+        )
     if planned and eng._consolidation_option("auto_watch", False):
         await eng._auto_watch(ns, written, sources)
     return written
@@ -363,7 +387,9 @@ async def _deposit_list_card(
         )
         token = _REPLACED_CONTENTS.set(replaced)
         try:
-            return await eng._write_locked(storage, ns, record, "semantic", "system", cap)
+            return await write_derived(
+                eng, storage, ns, record, "semantic", "system", trust_cap=cap, site="list_card"
+            )
         finally:
             _REPLACED_CONTENTS.reset(token)
 
@@ -380,4 +406,13 @@ async def _write_extracted_fact(
     integrity_cap = await eng._parent_trust_cap(record.namespace, record.source.parents)
     if integrity_cap:
         cap.extend(integrity_cap)
-    return await eng._write_locked(storage, record.namespace, record, "semantic", "system", cap)
+    return await write_derived(
+        eng,
+        storage,
+        record.namespace,
+        record,
+        "semantic",
+        "system",
+        trust_cap=cap,
+        site="extract_graph",
+    )
