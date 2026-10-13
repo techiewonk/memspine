@@ -27,7 +27,7 @@ PENDING_FLAGS = (
     "read.lift_before_rerank", "read.rerank_v2", "read.exact_budget", "read.evidence_bundles",
     "read.trust_rendering", "read.gate_v2", "read.deep_v2", "read.obligations", "read.timeview_v2",
     "read.entity_leg_v2", "read.neighbours_v2", "read.cache.enabled", "read.parallel_legs",
-    "read.external_v2", "graph.key_v2",
+    "read.external_v2", "graph.key_v2", "read.rerank_v2_search_pool",
 )
 
 
