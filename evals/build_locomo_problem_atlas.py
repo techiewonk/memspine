@@ -41,6 +41,7 @@ sys.path.append(str(HERE))
 
 import build_forensics_explorer as BFE  # noqa: E402  (assert_ignored, dumps, OUT_DIR: the existing refusal of non-ignored paths)
 import build_locomo_solution_map as SM  # noqa: E402
+import locomo_atlas_data as AD  # noqa: E402
 import locomo_problem_classes as PC  # noqa: E402
 from memspine_evals.date_check import date_equivalent  # noqa: E402
 from memspine_evals.judge_conventions import check_conventions  # noqa: E402
@@ -365,6 +366,73 @@ def table_rows(cl: list[dict], smap: dict) -> list[dict]:
     return rows
 
 
+# ---------------------------------------------------------------------------------------------------------------------
+# ATLAS-TURNS: conversation viewer data, reader context, per-question judge, per-screen answer flips
+# ---------------------------------------------------------------------------------------------------------------------
+def full_results(run: str) -> dict[tuple[str, str], dict]:
+    out: dict[tuple[str, str], dict] = {}
+    with open(RUNS / f"{run}--memspine" / "results.jsonl", encoding="utf-8", errors="replace") as fh:
+        for line in fh:
+            if '"kind": "result"' in line:
+                r = json.loads(line)
+                out[(r["item_id"], r["query_id"])] = r
+    return out
+
+
+def forensics_context(run: str):
+    """Stream the forensics file keeping only what the viewer needs (item, query_id, context_records)."""
+    with open(RUNS / f"{run}--forensics" / "forensics.jsonl", encoding="utf-8", errors="replace") as fh:
+        for line in fh:
+            if line.strip():
+                r = json.loads(line)
+                yield {"item": r.get("item"), "query_id": r.get("query_id"), "context_records": r.get("context_records") or []}
+
+
+def run_answers(name: str) -> dict[tuple[str, str], tuple[float, str]]:
+    p = RUNS / f"{name}--memspine" / "results.jsonl"
+    out: dict[tuple[str, str], tuple[float, str]] = {}
+    if not p.exists():
+        return out
+    with open(p, encoding="utf-8", errors="replace") as fh:
+        for line in fh:
+            if '"kind": "result"' not in line:
+                continue
+            r = json.loads(line)
+            if r.get("status") == "completed" or r.get("score") is not None:
+                out[(r["item_id"], r["query_id"])] = (float(r.get("score") or 0.0), r.get("answer") or "")
+    return out
+
+
+def screen_run_flips(run: str, rows: list[dict]) -> list[dict]:
+    """Attach, per sample-screen run, the questions whose verdict differs from the reference answer; returns the run list.
+
+    ``smp-S*-loc-*`` (best run per screen, same-slice reference rerun as in the Flips tab) and every ``smp-S*-tgt-*`` run
+    (reference = the full run ``run``, the slices were drawn from its failures).
+    """
+    full = run_answers(run)
+    refs = {n: run_answers(n) for n in SLICE_REFS.values()}
+    jobs: list[tuple[str, str, str, dict]] = []  # (screen, run name, mode, reference answers)
+    for sid, v in discover_samples().items():
+        sc = run_answers(v["run"])
+        if not sc:
+            continue
+        ref_name = SLICE_REFS[60] if v["n"] <= 60 or len(sc) <= 60 else SLICE_REFS[80]
+        jobs.append((sid, v["run"], "loc", refs[ref_name], ref_name))
+    for p in sorted(RUNS.glob("smp-S*-tgt-*--memspine")):
+        name = p.name[: -len("--memspine")]
+        m = re.match(r"smp-(S\d+)-tgt-", name)
+        if m and run_answers(name):
+            jobs.append((m.group(1), name, "tgt", full, run))
+    info = []
+    for sid, name, mode, ref, ref_name in jobs:
+        sc = run_answers(name)
+        fl = AD.screen_flips(ref, sc)
+        meta = {"screen": sid, "run": name, "ref": ref_name, "mode": mode, "n": len(sc)}
+        AD.attach_flips(rows, meta, fl)
+        info.append({**meta, "gains": sum(f["kind"] == "gain" for f in fl), "losses": sum(f["kind"] == "loss" for f in fl)})
+    return info
+
+
 def assert_ignored(path: Path) -> None:
     """Same refusal as ``build_forensics_explorer.assert_ignored`` (inside ``_analysis``, and git-ignored), but lexical:
     ``evals/runs`` may be a junction to the shared run store, so the path is not resolved through it."""
@@ -653,6 +721,12 @@ def main() -> None:
     flips = measured_flips(smap, cl)
     val = validate_vs_hand(ds, errata)
     trs = table_rows(cl, smap)
+    raw = json.loads(DATA.read_text(encoding="utf-8"))
+    convs = AD.build_conversations(raw)
+    results = full_results(a.run)
+    ctx = AD.build_context(forensics_context(a.run), results, convs)
+    coverage = AD.enrich_rows(trs, convs, AD.qa_index(raw), results, ctx)
+    flip_runs = screen_run_flips(a.run, trs) if not a.no_html else []
 
     labels = Path(a.labels) if a.labels else HERE / "analysis" / f"locomo_problem_labels_{a.run.replace('-', '_')}.txt"
     write_labels(labels, cl)
@@ -670,8 +744,10 @@ def main() -> None:
             "run": a.run, "generated": datetime.now().strftime("%Y-%m-%d %H:%M"), "classes": {c: {k: v for k, v in m.items() if k != "solutions"} | {"solutions": m["solutions"], "n": counts["by_class"].get(c, 0)} for c, m in smap["classes"].items()},
             "stages": PC.STAGE_NAME, "solutions": smap["solutions"], "screens": sest, "screen_defs": smap["screens"], "q": trs, "convs": sorted(ds, key=lambda s: int(s.split("-")[1])),
             "sessions": session_view(ds, trs), "flips": flips, "gaps": smap["structural_gaps"], "val": val, "captures": CAPTURES, "open_statuses": OPEN_STATUSES,
+            "flip_runs": flip_runs, "coverage": coverage, "ctx_note": "Reader context = forensics context_records (ids and rendered text, in the order the reader saw them).",
         }
-        write_local(Path(a.out), render_html(BFE.dumps(data)))
+        write_local(Path(a.out), render_html(BFE.dumps(data), {k: BFE.dumps(v) for k, v in convs.items()}))
+        print("coverage:", coverage, "| screen runs with flips:", len(flip_runs))
     print(f"{a.run}: {counts['n']} questions, {counts['wrong']} wrong; classes {dict(counts['by_class'].most_common())}")
     print("hand-label check:", {k: v for k, v in val.items() if k != "confusion"})
 
