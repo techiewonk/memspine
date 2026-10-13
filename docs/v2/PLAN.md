@@ -9,9 +9,9 @@ Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summarie
 |---|---|
 | Not started | 9 |
 | Ready | 0 |
-| In progress | 7 |
+| In progress | 6 |
 | Blocked | 0 |
-| Needs measurement | 62 |
+| Needs measurement | 63 |
 | Done | 83 |
 | Dropped | 1 |
 
@@ -136,7 +136,7 @@ Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summarie
 | W2-06a | ItemV1 to AssertionEnvelope compile, validation, repair re-ask, dead letters | L0 L1 L3 | D | W-14, W-15, P-05, P-06 | ER-11, ER-15, ER-32 | W2-05, F-16a, LIB-05 | behaviour | S4 extraction (serial) | - | Unit tests; items dropped counted | **Needs measurement** | write.envelope_v2: validate, one repair re-ask, dead letters, kind cap 64; envelope not yet persisted as column |
 | W2-06b | Prompt v2 and schema-constrained decoding | L0 L1 L3 | D | W-16, P-04, P-09, P-11 | ER-12, ER-15 | W2-06a, W2-07 | behaviour | S4 extraction (serial) | - | Window arm: items dropped down; at most 1 call per window | **In progress** | Sonnet agent launched |
 | W2-06c | Online extraction via the outbox with a stage hook list | L1 L3 | D R | W-12 | - | W2-06b, F-04 | behaviour | S4 extraction (serial) | - | No-model template: zero calls; window arm screen | **Not started** |  |
-| W2-14 | Temporal extraction by every means: anchor ladder, basis and precision, relations without dates | L0 L1 L3 L5 | D R | W-04, M-10, R-07 | ER-18 | W2-06c, LIB-01 | behaviour | S4 extraction (serial) | - | Temporal category up; no invented exact dates (precision audit) | **In progress** | Parallel build on the W2-06c envelope stage hook list (derive/envelope_stages.py); merged in order 14,08,09,10,13 |
+| W2-14 | Temporal extraction by every means: anchor ladder, basis and precision, relations without dates | L0 L1 L3 L5 | D R | W-04, M-10, R-07 | ER-18 | W2-06c, LIB-01 | behaviour | S4 extraction (serial) | - | Temporal category up; no invented exact dates (precision audit) | **Needs measurement** | write.temporal_v2 stage (order 100) + read.temporal_precision_aware; precision audit test; full unit run pending (machine load) |
 | W2-15 | Coverage check and targeted re-extraction (screened) | L1 L3 | D | W-17, W-15 | ER-12 | W2-08, LIB-17 | behaviour | S4 extraction (serial) | - | Omitted-fact recall and unsupported additions measured separately on unseen domains; extra calls counted | **Not started** | ER-12 |
 | W2-08 | Grounding: spans per assertion, rule checks, assent | L1 L3 | D | W-17 | ER-11, ER-14 | W2-14, X-05, LIB-03 | behaviour | S4 extraction (serial) | - | Grounding at least 95% on the labelled set | **In progress** | Parallel build on the W2-06c envelope stage hook list (derive/envelope_stages.py); merged in order 14,08,09,10,13 |
 | W2-09 | Online entity resolution with pending_merge | L1 L3 | D K_C | W-19, M-15 | ER-13, ER-20 | W2-08, LIB-04 | behaviour | S4 extraction (serial) | - | Calibrated thresholds: no homonym merges above a stated rate | **In progress** | Parallel build on the W2-06c envelope stage hook list (derive/envelope_stages.py); merged in order 14,08,09,10,13 |

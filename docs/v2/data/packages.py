@@ -220,7 +220,7 @@ WP = [
     ("W2-06c", 2, "Online extraction via the outbox with a stage hook list", ["W-12"], ["W2-06b", "F-04"], "behaviour",
      "No-model template: zero calls; window arm screen", "Not started", ""),
     ("W2-14", 2, "Temporal extraction by every means: anchor ladder, basis and precision, relations without dates", ["W-04", "M-10", "R-07"], ["W2-06c", "LIB-01"], "behaviour",
-     "Temporal category up; no invented exact dates (precision audit)", "In progress", "Parallel build on the W2-06c envelope stage hook list (derive/envelope_stages.py); merged in order 14,08,09,10,13"),
+     "Temporal category up; no invented exact dates (precision audit)", "Needs measurement", "write.temporal_v2 stage (order 100) + read.temporal_precision_aware; precision audit test; full unit run pending (machine load)"),
     ("W2-15", 2, "Coverage check and targeted re-extraction (screened)", ["W-17", "W-15"], ["W2-08", "LIB-17"], "behaviour",
      "Omitted-fact recall and unsupported additions measured separately on unseen domains; extra calls counted", "Not started", "ER-12"),
     ("W2-08", 2, "Grounding: spans per assertion, rule checks, assent", ["W-17"], ["W2-14", "X-05", "LIB-03"], "behaviour",
