@@ -304,6 +304,11 @@ class SqlStorage(ServiceAdapter):
             "sub": orjson.dumps(record.axes.subject),
             "fingerprint": orjson.dumps(record.fingerprint.model_dump(mode="json")),
             "schema_version": record.schema_version,
+            "source_at": _iso(record.source_at) if record.source_at else None,  # F-02b
+            "source_precision": record.source_precision,
+            "event_precision": record.event_precision,
+            "event_approximate": 1 if record.event_approximate else None,
+            "event_basis": record.event_basis,
         }
         stmt = self._insert(memory_records).values(record_id=record.record_id, **values)
         stmt = stmt.on_conflict_do_update(index_elements=["record_id"], set_=values)
@@ -387,6 +392,23 @@ class SqlStorage(ServiceAdapter):
         live = [(_parse_ts(row[1]), str(row[0])) for row in rows if not row[2]]
         live.sort(key=lambda pair: pair[0])
         return [content for _, content in live[-limit:]] if limit > 0 else []
+
+    async def layer_counts(self, namespace: str) -> dict[str, int]:
+        """F-02b: live (activated / resolving, not quarantined) records of ``namespace`` by layer
+        (one grouped query). A row with no stored layer counts as ``L0``."""
+        layer = func.coalesce(memory_records.c.layer, "L0")
+        stmt = (
+            select(layer, func.count())
+            .where(
+                memory_records.c.namespace == namespace,
+                memory_records.c.status.in_(("activated", "resolving")),
+                memory_records.c.quarantined.is_(False),
+            )
+            .group_by(layer)
+        )
+        async with self._client.engine.connect() as conn:
+            rows = (await conn.execute(stmt)).all()
+        return {str(row[0]): int(row[1]) for row in rows}
 
     async def count_quarantined(self, namespace: str) -> int:
         """How many rows of ``namespace`` carry the quarantine flag (#63: the
@@ -582,4 +604,9 @@ class SqlStorage(ServiceAdapter):
             out["axes"] = axes
         if row["fingerprint"] is not None:
             out["fingerprint"] = orjson.loads(row["fingerprint"])
+        for key in ("source_at", "source_precision", "event_precision", "event_basis"):
+            if row[key] is not None:
+                out[key] = row[key]
+        if row["event_approximate"]:
+            out["event_approximate"] = True
         return out

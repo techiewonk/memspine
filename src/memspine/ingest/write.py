@@ -70,6 +70,7 @@ from memspine.store.records import (
     new_record_id,
 )
 from memspine.store.scope import validate_namespace
+from memspine.store.tri_temporal import derived_times, turn_times
 from memspine.trust.firewall import FirewallVerdict
 from memspine.trust.redaction import find_pii, redact
 from memspine.trust.visibility import (
@@ -400,7 +401,7 @@ async def write(
             state["assistant"] = (record.record_id, content[:600])
     if valid_from is not None:
         stamp = eng._localize(valid_from)
-        record = record.model_copy(update={"valid_from": stamp})
+        record = record.model_copy(update={"valid_from": stamp, **turn_times(stamp)})
     elif eng._config().read.skip_defaulted_dates:
         # I7: the event time is the write clock, not the source's; date renders skip it.
         record = record.model_copy(update={"tags": [*record.tags, constants.UNDATED_TAG]})
@@ -843,6 +844,7 @@ async def _write_locked_ex(
     actor: str,
     trust_cap: list[float] | None = None,
 ) -> tuple[MemoryRecord, str]:
+    record = await _stamp_derived_times(storage, record)
     record, verdict = await eng._screen_write(record, trust_cap)
     if verdict.quarantine:
         # Quarantined content is stored inert: no dedup merging, no
@@ -877,6 +879,26 @@ async def _write_locked_ex(
     written, action = await eng._write_screened(storage, ns, record, memory_type, actor)
     _tap_deposit(written, memory_type, action)
     return written, action
+
+
+async def _stamp_derived_times(storage: SqlStorage, record: MemoryRecord) -> MemoryRecord:
+    """F-02b: a derived record inherits ``source_at`` from its earliest dated parent; window-derived
+    records say their event time is the window start (basis ``inferred``). Fills only unset."""
+    if record.source_at is not None or not record.source.parents:
+        return record
+    found = [await storage.get_record(p) for p in record.source.parents]
+    parents = [r for r in found if r is not None]
+    update = {
+        k: v
+        for k, v in derived_times(
+            channel=record.source.channel,
+            tags=record.tags,
+            valid_from=record.valid_from,
+            parents=parents,
+        ).items()
+        if k not in record.model_fields_set
+    }
+    return record.model_copy(update=update) if update else record
 
 
 def _tap_deposit(record: MemoryRecord, memory_type: str, action: str) -> None:

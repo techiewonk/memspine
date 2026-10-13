@@ -185,10 +185,28 @@ def _aware(t: datetime) -> datetime:
     return t if t.tzinfo is not None else t.replace(tzinfo=UTC)
 
 
+def _event_start(r: MemoryRecord) -> TemporalRef:
+    """The event start with the record's own precision, approximate flag and basis (F-02b) when it
+    has them; otherwise an exact, explicit instant as before."""
+    basis = r.event_basis or "explicit"
+    anchor = _aware(r.source_at) if r.source_at is not None else None
+    if basis == "source_time" and anchor is None:
+        basis = "explicit"  # a source-time basis needs the anchor it came from
+    if basis in ("relation", "none"):
+        basis = "explicit"  # the record keeps no relation; the date itself is the start
+    return TemporalRef(
+        at=_aware(r.valid_from),
+        precision=r.event_precision if r.event_precision not in (None, "unknown") else "instant",
+        approximate=r.event_approximate,
+        basis=basis,
+        anchor=anchor if basis == "source_time" else None,
+    )
+
+
 def _as_envelope(r: MemoryRecord) -> AssertionEnvelope:
     """R3-14 adapter: a record as the time view sees it. Event time = ``valid_from`` /
     ``invalid_at`` (else ``valid_to``, an inferred end); recorded time = ``recorded_at``."""
-    start = TemporalRef(at=_aware(r.valid_from), precision="instant", basis="explicit")
+    start = _event_start(r)
     end_at = r.invalid_at or r.valid_to
     end = (
         TemporalRef(at=_aware(end_at), precision="instant", basis="inferred")
@@ -204,6 +222,9 @@ def _as_envelope(r: MemoryRecord) -> AssertionEnvelope:
     )
     time = TimeAxes(
         event=Interval(start=start, end=end),
+        # F-02b: knowledge time is when it was said and when it was stored; ``source_at`` only
+        # when the record has it (never guessed from ``valid_from``).
+        source_time=_aware(r.source_at) if r.source_at is not None else None,
         recorded_at=_aware(r.recorded_at),
     )
     return AssertionEnvelope(

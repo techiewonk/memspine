@@ -24,7 +24,7 @@ from memspine.schemas.durable.assessment import Assessment, Support
 from memspine.schemas.durable.common import Fingerprint, OwnerScope, Provenance
 from memspine.schemas.durable.evidence import Evidence, TurnRef
 from memspine.schemas.durable.identity import AssertionKey, occurrence_id, write_id
-from memspine.schemas.durable.temporal import TimeAxes
+from memspine.schemas.durable.temporal import Interval, TemporalRef, TimeAxes
 from memspine.schemas.versioning import declare_kind, upcast
 from memspine.store.records import MemoryRecord, RecordStatus
 
@@ -70,6 +70,46 @@ def _aware(moment: datetime) -> datetime:
     return moment if moment.tzinfo is not None else moment.replace(tzinfo=UTC)
 
 
+def _time_axes(record: MemoryRecord, recorded: datetime) -> TimeAxes:
+    """The three axes (S6-3) with precision and basis. ``source_time`` is ``source_at`` when the record
+    has it, else the legacy ``valid_from`` (what the envelope carried before F-02b). The event interval
+    is filled only when the record says how its event time was obtained (``event_basis``): a date is
+    never presented as known when nothing says so."""
+    source_at = _aware(record.source_at) if record.source_at is not None else None
+    event: Interval | None = None
+    if record.event_basis is not None and record.event_basis != "none":
+        start_at = _aware(record.valid_from)
+        basis = record.event_basis
+        if basis == "source_time" and source_at is None:
+            basis = "explicit"
+        if basis == "relation":
+            basis = "inferred"  # the record keeps no relation target
+        precision = record.event_precision or "instant"
+        if precision == "unknown":
+            precision = "instant"
+        start = TemporalRef(
+            at=start_at,
+            precision=precision,  # type: ignore[arg-type]
+            approximate=record.event_approximate,
+            basis=basis,  # type: ignore[arg-type]
+            anchor=source_at if basis == "source_time" else None,
+        )
+        end: TemporalRef | None = None
+        if record.valid_to is not None and _aware(record.valid_to) >= start_at:
+            end = TemporalRef(
+                at=_aware(record.valid_to),
+                precision=precision,  # type: ignore[arg-type]
+                approximate=record.event_approximate,
+                basis="inferred",
+            )
+        event = Interval(start=start, end=end)
+    return TimeAxes(
+        event=event,
+        source_time=source_at if source_at is not None else _aware(record.valid_from),
+        recorded_at=recorded,
+    )
+
+
 def to_envelope(record: MemoryRecord) -> AssertionEnvelope:
     """The durable assertion envelope for ``record``."""
     ns = record.namespace
@@ -109,6 +149,7 @@ def to_envelope(record: MemoryRecord) -> AssertionEnvelope:
         if prompt_hash and model_id
         else None
     )
+    time = _time_axes(record, recorded)
     return AssertionEnvelope(
         write_id=write_id(scope, conversation, recorded, record.content),
         assertion_key=key,
@@ -125,13 +166,14 @@ def to_envelope(record: MemoryRecord) -> AssertionEnvelope:
         ),
         attribute=record.attribute,
         speaker=record.axes.speaker,
-        time=TimeAxes(source_time=_aware(record.valid_from), recorded_at=recorded),
+        time=time,
         evidence=evidence,
         assessment=Assessment(
             source_trust=record.trust,
             support=Support(independent=record.corroborations),
             binding="bound",
             modality="asserted",
+            time_precision=time.event_precision,
         ),
         src_class=record.provenance_class,
         parents=parents,
@@ -178,6 +220,15 @@ def from_envelope(envelope: AssertionEnvelope) -> MemoryRecord:
         base["recorded_at"] = envelope.time.recorded_at
     if "valid_from" not in base and envelope.time.source_time is not None:
         base["valid_from"] = envelope.time.source_time
+    event = envelope.time.event
+    if event is not None and event.start is not None and event.start.at is not None:
+        base.setdefault("valid_from", event.start.at)
+        base.setdefault("event_precision", event.start.precision)
+        base.setdefault("event_basis", event.start.basis)
+        if event.start.approximate:
+            base.setdefault("event_approximate", True)
+        if event.end is not None and event.end.at is not None:
+            base.setdefault("valid_to", event.end.at)
     record = MemoryRecord.model_validate(upcast_record_payload(base))
     if envelope.speaker is not None and envelope.speaker != record.axes.speaker:
         axes = record.axes.model_copy(update={"speaker": envelope.speaker})
