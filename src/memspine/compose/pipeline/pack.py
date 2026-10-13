@@ -5,7 +5,10 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping
 from typing import Any
 
-from memspine.compose.pack import AssembledContext, estimate_tokens
+from memspine.compose.budget import Budget, EstimatingCounter
+from memspine.compose.bundles import TurnKey, TurnText, build_bundles, pack
+from memspine.compose.pack import AssembledContext
+from memspine.compose.pipeline.render import BUNDLE_TAG, current_counter, record_envelope, tok
 from memspine.config import constants
 from memspine.core import trace_sink
 from memspine.core.dedupe import dedupe_scored
@@ -19,12 +22,16 @@ from memspine.models.encoders.query.shape import (
     is_temporal,
     is_verbatim,
 )
+from memspine.observability import tap
 from memspine.observability.logging import get_logger
 from memspine.read.lead import count_terms, query_names
 from memspine.read.pipeline.state import _FORENSICS, CUE_TAG, _passive_hidden
 from memspine.store.records import MemoryRecord, RecordStatus
 
 _log = get_logger(__name__)
+
+#: R3-09b: source turns shown with a fact bundle (the best-overlapping ones).
+_BUNDLE_TURNS = 2
 
 
 def _reply_budget(eng: Any, budget_tokens: int) -> int:
@@ -70,7 +77,7 @@ def _place_procedural(
     records.extend(lessons)
     assembled.records = records
     assembled.boundary_index += len(pinned)
-    assembled.tokens_used += sum(estimate_tokens(r.content) for r in [*pinned, *lessons])
+    assembled.tokens_used += sum(tok(r.content) for r in [*pinned, *lessons])
     return assembled
 
 
@@ -103,7 +110,7 @@ async def _expand_trajectories(
         for step in await eng.trajectory_window(
             record.record_id, namespace=ns, radius=radius, cap=cap
         ):
-            cost = estimate_tokens(step.content)
+            cost = tok(step.content)
             if step.record_id in present or added >= cap or used + cost > budget_tokens:
                 continue
             present.add(step.record_id)
@@ -136,7 +143,7 @@ def _place_lead(
     records[boundary:boundary] = timelines
     assembled.records = records
     assembled.boundary_index = boundary
-    assembled.tokens_used += sum(estimate_tokens(r.content) for r in [*standing, *timelines])
+    assembled.tokens_used += sum(tok(r.content) for r in [*standing, *timelines])
     return assembled
 
 
@@ -285,7 +292,7 @@ def _count_allowance(eng: Any, query: str, budget_tokens: int) -> int:
     if not read_cfg.count_timeline or not is_count(query) or not count_terms(query):
         return 0
     allowance = int(budget_tokens * read_cfg.count_budget_share)
-    return allowance if allowance > estimate_tokens(constants.COUNT_MARKER) else 0
+    return allowance if allowance > tok(constants.COUNT_MARKER) else 0
 
 
 def _cap_lead_blocks(
@@ -303,7 +310,7 @@ def _cap_lead_blocks(
         return headers, count_share
     cap = int(budget_tokens * share)
     if count_share > cap:
-        count_share = cap if cap > estimate_tokens(constants.COUNT_MARKER) else 0
+        count_share = cap if cap > tok(constants.COUNT_MARKER) else 0
     room = cap - count_share
     kept = list(headers)
     for tag in constants.LEAD_BLOCK_DROP_ORDER:
@@ -315,7 +322,7 @@ def _cap_lead_blocks(
 
 
 def _headers_cost(headers: list[MemoryRecord]) -> int:
-    return sum(estimate_tokens(h.content) for h in headers)
+    return sum(tok(h.content) for h in headers)
 
 
 def _cards_gated(eng: Any, query: str, *, strong: bool = False) -> bool:
@@ -497,3 +504,160 @@ def _context_eligible(eng: Any, record: MemoryRecord) -> bool:
         return False  # #50: the read's purpose may not see it
     integrity = eng._integrity()
     return not integrity.enabled or integrity.admits(record.trust)
+
+
+async def _source_turns(eng: Any, fact: MemoryRecord, cap: int) -> list[MemoryRecord]:
+    """R3-09b: the eligible parent turns of ``fact`` (decorated like any context record), the
+    ``cap`` sharing most words with it first. Today's records carry no evidence lists: the fact's
+    source turns (``source.parents``) are its support evidence."""
+    storage = eng._require_started()
+    words = set(fact.content.lower().split())
+    found: list[tuple[float, int, MemoryRecord]] = []
+    for index, parent_id in enumerate(fact.source.parents):
+        parent = await storage.get_record(parent_id)
+        if parent is None or parent.memory_type != "episodic":
+            continue
+        view = await eng._live_view(parent)
+        if view is None:
+            continue
+        inflated = eng._inflate_all([view], fact.namespace)
+        if not inflated:
+            continue
+        decorated = await eng._decorate(fact.namespace, [(inflated[0], 0.0)], expand_claims=False)
+        if not decorated:
+            continue
+        other = set(decorated[0][0].content.lower().split())
+        overlap = len(words & other) / (len(words | other) or 1)
+        found.append((-overlap, index, decorated[0][0]))
+    found.sort(key=lambda t: (t[0], t[1]))
+    return [r for _, _, r in found[:cap]]
+
+
+def _turn_text(turn: MemoryRecord) -> TurnText:
+    undated = constants.UNDATED_TAG in turn.tags
+    return TurnText(text=turn.content, date=None if undated else f"{turn.valid_from:%Y-%m-%d}")
+
+
+def _line_record(source: MemoryRecord, line: Any) -> MemoryRecord:
+    return source.model_copy(
+        update={"content": f"{line.alias} {line.text}", "tags": [*source.tags, BUNDLE_TAG]}
+    )
+
+
+async def bundle_selected(
+    eng: Any, ns: str, assembled: AssembledContext, budget_tokens: int
+) -> AssembledContext:
+    """R3-09b (``read.evidence_bundles``): the volatile part of ``assembled`` packed under the TRUE
+    ``budget_tokens`` (the selection ran on a wider pool), mined facts as complete bundles.
+
+    A fact's bundle is the fact plus its source turns (cited ``[n]``, shared turns once); it enters
+    whole or not at all. Other records are their own evidence and enter whole in rank order with
+    what the bundles left. Fact bundles may take ``read.bundle_fact_share`` of the room while
+    other records wait, all of it when none do. A turn cited by an included bundle is not repeated
+    as a record of its own. The stable prefix is kept and charged first.
+    """
+    cfg = eng._config().read
+    counter = current_counter() or EstimatingCounter()
+    boundary = min(assembled.boundary_index, len(assembled.records))
+    facts: dict[str, tuple[MemoryRecord, list[MemoryRecord]]] = {}
+    for record in assembled.records:
+        if "atomic_fact" in record.tags and record.source.parents and not record.is_engine_block:
+            turns = await _source_turns(eng, record, _BUNDLE_TURNS)
+            if turns:
+                facts[record.record_id] = (record, turns)
+    # Mined facts are semantic records, so placement puts them in the stable prefix; as bundles
+    # they depend on the query, so they move to the front of the volatile part.
+    stable = [r for r in assembled.records[:boundary] if r.record_id not in facts]
+    volatile = [r for r in assembled.records if r.record_id in facts] + [
+        r for r in assembled.records[boundary:] if r.record_id not in facts
+    ]
+    room = max(0, budget_tokens - sum(counter.count(r.content) for r in stable))
+    others = [r for r in volatile if r.record_id not in facts]
+
+    turn_text: dict[TurnKey, TurnText] = {}
+    envelopes = []
+    for fact, turns in facts.values():
+        for t in turns:
+            turn_text[(t.record_id, 1, 0)] = _turn_text(t)
+        envelopes.append(record_envelope(fact, turns))
+    bundles = build_bundles(envelopes)
+    fact_room = room if not others else int(room * cfg.bundle_fact_share)
+    dropped: list[dict[str, Any]] = []
+    included_ids: set[str] = set()
+    cited: set[str] = set()
+    lines_for: dict[str, list[MemoryRecord]] = {}
+    spent = 0
+    if bundles and fact_room > 0:
+        packed = pack(
+            bundles,
+            Budget(total=fact_room, counter=counter),
+            order=[b.record_id for b in bundles],
+            turns=turn_text,
+            early_break_after_n_skips=cfg.exact_budget_max_skips,
+        )
+        spent = packed.tokens
+        dropped.extend({"id": d.record_id, "reason": d.reason} for d in packed.dropped)
+        included_ids = {b.record_id for b in packed.included}
+        by_text: dict[str, MemoryRecord] = {}
+        for _fact, turns in facts.values():
+            for t in turns:
+                tt = _turn_text(t)
+                for role in ("support", "binding"):
+                    by_text[f"{role} | {tt.text}" + (f" ({tt.date})" if tt.date else "")] = t
+        current: list[MemoryRecord] | None = None
+        for block in packed.blocks:
+            previous = None
+            for ln in block.lines:
+                is_evidence = ln.record_id == previous and ln.text.startswith(
+                    ("support | ", "binding | ")
+                )
+                if is_evidence and ln.text in by_text and current is not None:
+                    source = by_text[ln.text]
+                    cited.add(source.record_id)
+                    current.append(_line_record(source, ln))
+                else:
+                    previous = ln.record_id
+                    current = lines_for.setdefault(ln.record_id, [])
+                    current.append(_line_record(facts[ln.record_id][0], ln))
+    elif bundles:
+        dropped.extend({"id": b.record_id, "reason": "over_budget"} for b in bundles)
+
+    remaining = max(0, room - spent)
+    kept_other: set[str] = set()
+    skips = 0
+    for record in others:
+        if record.record_id in cited:
+            dropped.append({"id": record.record_id, "reason": "cited_by_bundle"})
+            continue
+        if skips >= cfg.exact_budget_max_skips:
+            dropped.append({"id": record.record_id, "reason": "early_break"})
+            continue
+        cost = counter.count(record.content)
+        if cost <= remaining or (not kept_other and not included_ids and not stable):
+            kept_other.add(record.record_id)  # never an empty context: the first one always enters
+            remaining -= min(cost, remaining)
+        else:
+            skips += 1
+            dropped.append({"id": record.record_id, "reason": "over_budget"})
+
+    out: list[MemoryRecord] = []
+    for record in volatile:
+        if record.record_id in included_ids:
+            out.extend(lines_for.get(record.record_id, []))
+        elif record.record_id in kept_other:
+            out.append(record)
+    assembled.records = [*stable, *out]
+    assembled.boundary_index = len(stable)
+    assembled.tokens_used = sum(counter.count(r.content) for r in assembled.records)
+    if tap.enabled():
+        tap.event("compose.pack.dropped", dropped=dropped, n_dropped=len(dropped))
+        tap.event(
+            "compose.bundles",
+            bundles=len(bundles),
+            included=sorted(included_ids),
+            others_kept=len(kept_other),
+            tokens=assembled.tokens_used,
+            room=room,
+            accounting=counter.accounting,
+        )
+    return assembled

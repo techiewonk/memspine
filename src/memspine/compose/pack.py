@@ -9,7 +9,7 @@ prefix cache stays warm across turns.
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, field
 from typing import ClassVar
 
@@ -18,6 +18,7 @@ from memspine.config import constants
 from memspine.core import trace_sink
 from memspine.core.evidence import EvidenceSignal
 from memspine.core.policies.base import BindablePolicy, PolicyOptions
+from memspine.observability import tap
 from memspine.store.records import MemoryRecord
 
 __all__ = ["AssembledContext", "AssemblyPolicy", "estimate_tokens"]
@@ -183,6 +184,8 @@ class AssemblyPolicy(BindablePolicy):
         compression: CompressionPolicy | None = None,
         apply_floor: bool = True,
         raw_scores: Mapping[str, float] | None = None,
+        cost: Callable[[str], int] | None = None,
+        max_skips: int | None = None,
     ) -> AssembledContext:
         """Select by MMR under a token budget, then place by E2 stability order.
 
@@ -194,7 +197,14 @@ class AssemblyPolicy(BindablePolicy):
         orders the full candidate set and the compression fallbacks
         (drop-lowest → llmlingua → provider seam) fit it to the budget —
         persona / instruction-flagged / disputed blocks are never touched.
+
+        R3-09a (``read.exact_budget``): ``cost`` counts a record's tokens (default
+        :func:`estimate_tokens`); with ``max_skips`` set, a record that does not fit is skipped and
+        later, smaller ones are still tried, until ``max_skips`` skips close the budget (the old
+        behaviour is to stop at the first overflow).
         """
+        count = cost or estimate_tokens
+        skips = 0
         options = self.options
         assert isinstance(options, AssemblyOptions)
         fit_stage = compression is not None and compression.assembly_enabled()
@@ -215,7 +225,7 @@ class AssemblyPolicy(BindablePolicy):
                 records=personas,
                 boundary_index=len(personas) if options.cache_aware_placement else 0,
                 abstained=True,
-                tokens_used=sum(estimate_tokens(record.content) for record in personas),
+                tokens_used=sum(count(record.content) for record in personas),
             )
         before_floor = [r.record_id for r, _ in scored] if tracing else []
         if raw_scores:  # I30: the floor reads the raw reranker scores, min-max or not
@@ -256,12 +266,12 @@ class AssemblyPolicy(BindablePolicy):
                     if tracing:
                         trace_sink.cut("jaccard_dedupe", pair[0].record_id, slot="latest")
                     continue
-                cost = estimate_tokens(pair[0].content)
-                if selected and tokens_used + cost > budget_tokens:
+                need = count(pair[0].content)
+                if selected and tokens_used + need > budget_tokens:
                     break
                 remaining.remove(pair)
                 selected.append(pair)
-                tokens_used += cost
+                tokens_used += need
         while remaining:
             best_index = -1
             best_value = float("-inf")
@@ -280,17 +290,34 @@ class AssemblyPolicy(BindablePolicy):
                 if tracing:
                     trace_sink.cut("jaccard_dedupe", candidate.record_id)
                 continue
-            cost = estimate_tokens(candidate.content)
+            need = count(candidate.content)
             # E5 on: admit everything in MMR order — the compression stage
             # fits the selection to the budget afterwards (D-51). Otherwise,
             # over budget: stop — unless nothing is selected yet, in which
             # case admit this one record so assembly never returns empty.
-            if not fit_stage and tokens_used + cost > budget_tokens and selected:
+            if not fit_stage and tokens_used + need > budget_tokens and selected:
                 if tracing:
                     trace_sink.cut(
-                        "budget", candidate.record_id, cost=cost, used=tokens_used,
+                        "budget", candidate.record_id, cost=need, used=tokens_used,
                         budget=budget_tokens,
                     )  # fmt: skip
+                if max_skips is not None:
+                    # R3-09a: skip this one, try smaller later ones, early break after max_skips.
+                    skips += 1
+                    tap.event(
+                        "compose.pack.dropped",
+                        ids=[candidate.record_id],
+                        reason="over_budget",
+                        cost=need,
+                        used=tokens_used,
+                    )
+                    if skips < max_skips:
+                        continue
+                    tap.event(
+                        "compose.pack.dropped",
+                        ids=[r.record_id for r, _ in remaining],
+                        reason="early_break",
+                    )
                     for rest, _ in remaining:
                         trace_sink.cut(
                             "budget", rest.record_id, used=tokens_used, budget=budget_tokens,
@@ -298,7 +325,7 @@ class AssemblyPolicy(BindablePolicy):
                         )  # fmt: skip
                 break
             selected.append((candidate, score))
-            tokens_used += cost
+            tokens_used += need
             if not fit_stage and tokens_used >= budget_tokens:
                 if tracing:
                     for rest, _ in remaining:
@@ -311,13 +338,13 @@ class AssemblyPolicy(BindablePolicy):
         if fit_stage:
             assert compression is not None
             before_fit = [r.record_id for r, _ in selected] if tracing else []
-            selected = compression.fit_assembly(selected, budget_tokens, estimate_tokens)
+            selected = compression.fit_assembly(selected, budget_tokens, count)
             if tracing:
                 kept_fit = {r.record_id for r, _ in selected}
                 for rid in before_fit:
                     if rid not in kept_fit:
                         trace_sink.cut("compression_fit", rid, budget=budget_tokens)
-            tokens_used = sum(estimate_tokens(record.content) for record, _ in selected)
+            tokens_used = sum(count(record.content) for record, _ in selected)
 
         # E2 placement: stability rank first; within a rank, score descending.
         # The stable-prefix promise only holds when placement actually sorted —

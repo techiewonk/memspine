@@ -6,10 +6,15 @@ import itertools
 import re
 import secrets
 from collections.abc import Sequence
+from contextvars import ContextVar
 from datetime import datetime
+from functools import lru_cache
 from typing import Any
 
+from memspine.compose.budget import CallableCounter, EstimatingCounter, TokenCounter
 from memspine.compose.pack import AssembledContext, estimate_tokens
+from memspine.compose.render_trust import TrustItem, TrustStyle, classify, find_directives
+from memspine.compose.render_trust import render as render_trust_lines
 from memspine.config import constants
 from memspine.core.escaping import escape_markers
 from memspine.core.event_date import date_anchor
@@ -21,7 +26,195 @@ from memspine.models.encoders.query.perspective import record_marker
 from memspine.models.encoders.query.shape import content_words, is_ordering, is_verbatim
 from memspine.models.encoders.query.temporal_query import sentences
 from memspine.models.encoders.query.temporal_resolve import annotate as annotate_relative_dates
-from memspine.store.records import MemoryRecord, chrono_key
+from memspine.observability import tap
+from memspine.schemas.durable.assertion import AssertionEnvelope
+from memspine.schemas.durable.assessment import Assessment
+from memspine.schemas.durable.common import OwnerScope, Provenance
+from memspine.schemas.durable.evidence import Evidence, TurnRef
+from memspine.schemas.durable.identity import AssertionKey
+from memspine.schemas.durable.temporal import TimeAxes
+from memspine.store.records import MemoryRecord, RecordStatus, chrono_key
+
+#: Tag on a record that stands for one line of an evidence bundle (R3-09b): never re-dated.
+BUNDLE_TAG = "evidence_bundle_line"
+
+# --- R3-09a: the active token counter -------------------------------------------------------------
+
+_COUNTER: ContextVar[TokenCounter | None] = ContextVar("memspine_compose_counter", default=None)
+
+
+class _OfflineOnly(RuntimeError):
+    """A tokenizer file is not cached and fetching it would download."""
+
+
+def _tiktoken_counter(name: str) -> TokenCounter | None:
+    try:
+        import tiktoken
+        import tiktoken.load as tload
+    except ImportError:
+        return None
+    real = tload.read_file
+
+    def refuse(blobpath: str) -> bytes:
+        if blobpath.startswith(("http://", "https://")):
+            raise _OfflineOnly(blobpath)
+        return real(blobpath)
+
+    tload.read_file = refuse  # type: ignore[assignment]  # never download, only read the cache
+    try:
+        try:
+            enc = tiktoken.encoding_for_model(name)
+        except KeyError:
+            enc = tiktoken.get_encoding(name)
+    except Exception:
+        return None
+    finally:
+        tload.read_file = real  # type: ignore[assignment]
+    return CallableCounter(lambda t: enc.encode(t, disallowed_special=()), f"tiktoken:{name}")
+
+
+def _hf_counter(name: str) -> TokenCounter | None:
+    try:
+        from transformers import AutoTokenizer
+
+        tokenizer = AutoTokenizer.from_pretrained(name, local_files_only=True)
+    except Exception:
+        return None
+    return CallableCounter(lambda t: tokenizer.encode(t, add_special_tokens=False), f"hf:{name}")
+
+
+@lru_cache(maxsize=8)
+def resolve_counter(name: str | None) -> TokenCounter:
+    """The reader's tokenizer if it resolves OFFLINE (cached HF tokenizer or cached tiktoken
+    encoding), else the labelled chars/4 estimate. Never downloads."""
+    if name:
+        if name.startswith("tiktoken:"):
+            found = _tiktoken_counter(name[9:])
+        elif name.startswith("hf:"):
+            found = _hf_counter(name[3:])
+        else:
+            found = _hf_counter(name) or _tiktoken_counter(name)
+        if found is not None:
+            return found
+    return EstimatingCounter()
+
+
+def activate_counter(eng: Any) -> TokenCounter | None:
+    """Set (or clear) the counter every token count of this read uses; ``read.exact_budget`` off
+    leaves ``len // 4 + 1`` exactly as before."""
+    cfg = eng._config().read
+    counter = resolve_counter(cfg.reader_tokenizer) if cfg.exact_budget else None
+    _COUNTER.set(counter)
+    return counter
+
+
+def current_counter() -> TokenCounter | None:
+    return _COUNTER.get()
+
+
+def tok(text: str) -> int:
+    """Tokens of ``text`` under the active counter (the estimate when none is active)."""
+    counter = _COUNTER.get()
+    return estimate_tokens(text) if counter is None else counter.count(text)
+
+
+# --- adapters: records to library inputs ---------------------------------------------------
+
+_CHANNEL_CLASS = {
+    "tool": "tool",
+    "document": "document",
+    "doc": "document",
+    "external": "external",
+    "web": "external",
+    "search": "external",
+}
+
+
+def record_envelope(record: MemoryRecord, cites: Sequence[MemoryRecord] = ()) -> AssertionEnvelope:
+    """An assertion envelope for ``record`` (library input only; never stored).
+
+    Evidence: the records in ``cites`` (a fact's source turns) as ``support`` turns, else the record
+    itself. Status: ``disputed`` tag -> contested, resolving -> tentative. Source class from the
+    channel. Trust is the record's view trust.
+    """
+    channel = record.source.channel
+    if channel in _CHANNEL_CLASS:
+        src_class = _CHANNEL_CLASS[channel]
+    elif record.source.doc_path:
+        src_class = "document"
+    elif record.source.role == "assistant":
+        src_class = "assistant_proposed"
+    else:
+        src_class = "user_stated"
+    turns = list(cites) or [record]
+    evidence = [
+        Evidence(
+            role="support",
+            turn=TurnRef(source_id=t.record_id, source_version=1, seg_index=0),
+            source_family=t.source.principal or t.source.role or "unknown",
+        )
+        for t in turns
+    ]
+    if "disputed" in record.tags:
+        status = "contested"
+    elif record.status is RecordStatus.RESOLVING:
+        status = "tentative"
+    else:
+        status = "active"
+    source_time = record.valid_from if record.valid_from.tzinfo is not None else None
+    return AssertionEnvelope(
+        write_id=f"w:{record.record_id}",
+        assertion_key=AssertionKey(
+            src=record.entity or record.record_id,
+            rel=record.attribute or "note",
+            kind=record.memory_type,
+        ),
+        occurrence_id=f"o:{record.record_id}",
+        record_id=record.record_id,
+        scope=OwnerScope(tenant=record.namespace, owner=record.namespace),
+        provenance=Provenance(principal=record.source.principal),
+        text=record.content if record.content.strip() else "(empty)",
+        kind=record.memory_type,
+        time=TimeAxes(source_time=source_time),
+        evidence=evidence,
+        assessment=Assessment(source_trust=record.trust, binding="bound", modality="asserted"),
+        src_class=src_class,  # type: ignore[arg-type]
+        status=status,  # type: ignore[arg-type]
+    )
+
+
+def trust_render(records: Sequence[MemoryRecord]) -> list[MemoryRecord]:
+    """T5-02 (``read.trust_rendering``): ``records`` re-presented by trust band.
+
+    Order: trusted, contested, tentative, low-trust (input order inside a band). Low-trust text is
+    quoted and defanged, contested values of one keyed fact share a line, quarantined records leave.
+    Each library line becomes one copy of its first source record with the line text as content.
+    """
+    by_id = {r.record_id: r for r in records}
+    items = [
+        TrustItem(
+            record_envelope(r), quarantined=r.quarantined, instruction_flag=r.instruction_flag
+        )
+        for r in records
+    ]
+    style = TrustStyle(default_trust=constants.TRUST_DEFAULT)
+    lines = render_trust_lines(items, style=style)
+    out = [by_id[ln.record_id].model_copy(update={"content": ln.text}) for ln in lines]
+    if tap.enabled():
+        bands: dict[str, int] = {}
+        for item in items:
+            band = classify(item, style)
+            bands[band] = bands.get(band, 0) + 1
+        tap.event(
+            "compose.render.bands",
+            bands=bands,
+            neutralised=sum(1 for ln in lines if ln.wrapped == "untrusted"),
+            injection_like=sum(1 for r in records if find_directives(r.content)),
+            quarantined_withheld=bands.get("quarantined", 0),
+            n_in=len(records),
+            n_out=len(out),
+        )
+    return out
 
 
 def _gap_marker(days: int) -> str:
@@ -105,6 +298,7 @@ def _render(
     below one record. The plain render changes nothing.
     """
     read_cfg = eng._config().read
+    activate_counter(eng)  # R3-09a
     boundary = assembled.boundary_index
     stable = assembled.records[:boundary]
     volatile = assembled.records[boundary:]
@@ -135,12 +329,16 @@ def _render(
         volatile = sorted(volatile, key=chrono_key)
     if read_cfg.latest_wins == "annotate_recent_first" and restated:
         volatile = recent_first(volatile, restated)
+    if read_cfg.trust_rendering:
+        # T5-02: bands, quoting and neutralisation; the budget fit below drops from the tail.
+        volatile = trust_render(volatile)
+        priority = list(volatile)
     if read_cfg.render != "dated":
         assembled.records = [*stable, *volatile]
         return assembled
     while True:
         rendered = eng._render_volatile(volatile, gap_markers=read_cfg.gap_markers)
-        used = sum(estimate_tokens(r.content) for r in [*stable, *rendered])
+        used = sum(tok(r.content) for r in [*stable, *rendered])
         if (
             budget_tokens is None
             or used <= budget_tokens
@@ -217,7 +415,7 @@ def _render_dated(record: MemoryRecord) -> MemoryRecord:
     """H5: ``[YYYY-MM-DD Day] content`` for episodic and semantic records."""
     if record.memory_type not in ("episodic", "semantic"):
         return record
-    if constants.UNDATED_TAG in record.tags:  # I7: no real source date
+    if constants.UNDATED_TAG in record.tags or BUNDLE_TAG in record.tags:  # I7 / R3-09b
         return record
     return record.model_copy(
         update={"content": f"[{record.valid_from:%Y-%m-%d %a}] {record.content}"}
@@ -277,6 +475,8 @@ def _wrap_untrusted(eng: Any, record: MemoryRecord) -> MemoryRecord:
     integrity = eng._integrity()
     wrap_below = integrity.untrusted_wrap_below if integrity.enabled else 0.0
     if wrap_below <= 0.0 or record.trust >= wrap_below:
+        return record
+    if eng._config().read.trust_rendering:  # T5-02 quotes and labels low-trust text instead
         return record
     # #11: a fresh nonce per wrap closes the note, so stored text can neither
     # guess the closing marker nor end the note early.

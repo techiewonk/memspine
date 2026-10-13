@@ -765,6 +765,13 @@ in the schema — or if the schema gains a key not documented here.
 | `read.temporal_leg` | `false` (`true` in `base` and every template that extends it, ADR-062) | C3': fuse a temporal RRF leg: records whose event time lies in an absolute date span named in the query ("7 May 2023", "May 2023", "in 2023"); relative dates are not resolved. |
 | `read.rrf_k` | `null` | RRF rank constant k in 1/(k+rank). `null` = 60; Graphiti uses 1 (ablation knob). |
 | `read.reply_reserve_tokens` | `0` | ContextPipe: tokens kept free for the reply inside the assembly budget. |
+| `read.exact_budget` | `false` | R3-09a: count every budgeted piece with the reader tokenizer (not `len // 4 + 1`) and skip an oversize record to try smaller ones instead of stopping at the first overflow. |
+| `read.reader_tokenizer` | `null` | R3-09a: reader tokenizer, resolved offline only (`hf:<name>` cached tokenizer, `tiktoken:<name>` cached encoding, or a bare name); unresolvable: chars/4 estimate, reported as `accounting=estimated`. |
+| `read.exact_budget_max_skips` | `8` | R3-09a: over-budget records skipped before the rest are dropped (early break). |
+| `read.evidence_bundles` | `false` | R3-09b: mined facts enter as complete evidence bundles (fact plus cited source turns), whole or not at all, packed under the true budget. |
+| `read.bundle_pool_factor` | `2.0` | R3-09b: selection pool as a multiple of the budget when bundles are on. |
+| `read.bundle_fact_share` | `0.6` | R3-09b: share of the evidence budget fact bundles may take while other records wait. |
+| `read.trust_rendering` | `false` | T5-02: low-trust, tentative and contested records rendered by band as quoted, neutralised data; quarantined records withheld; replaces the B6 untrusted note. |
 | `read.default_mode` | `auto` | The mode `Engine.read()` uses when the caller passes none (`auto` / `full` / `replay` / `retrieve` / `compose`). The `assistant` template pins `replay`. |
 | `read.rerank_date_prefix` | `false` | Hindsight: prefix reranker inputs with `[Date: YYYY-MM-DD]`, so the cross-encoder sees when each candidate happened. |
 | `read.rerank_blend` | `None` | N41: None = the reranker's relevance replaces the retrieval score (unchanged). A weight `w` in [0, 1] blends them: `w * rerank + (1 - w) * retrieval`, each min-max normalised over the candidates. |
