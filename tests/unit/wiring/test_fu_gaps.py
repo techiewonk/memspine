@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import json
+import os
 import sys
 from pathlib import Path
 from typing import Any
@@ -14,7 +15,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from test_w2_06b_prompt_v2 import WindowLLM, _run
 from test_window_write import _facts
-
 
 
 # --- 1. write.prompt_v2 partial-parse recovery ------------------------------------------------
@@ -275,3 +275,140 @@ def test_erasure_scrubs_the_logged_envelope() -> None:
     }
     assert redact_record({"record": snap}, "r1")
     assert "envelope" not in snap["fingerprint"] and snap["content"] == ""
+
+
+# --- 6. Neo4j walks are single variable-length queries --------------------------------------
+async def _graph() -> tuple[Any, Any]:
+    from test_f_16e_neo4j_outbox import NS, NS2, FakeNeo4j
+
+    from memspine.services.graph.neo4j import Neo4jGraphStore
+
+    fake = FakeNeo4j()
+    g = Neo4jGraphStore(fake)
+    for src, dst, w, ns in [
+        ("a", "b", 1.0, NS), ("b", "c", 0.8, NS), ("c", "d", 1.0, NS), ("a", "x", 0.0, NS),
+        ("a", "y", 1.0, NS2), ("d", "a", 0.5, NS), ("e", "f", 1.0, NS),
+    ]:
+        await g.upsert_edge(src, dst, "related", {"weight": w}, namespace=ns)
+    await g.upsert_edge("b", "z", "likes", {"weight": 1.0}, namespace=NS)
+    await g.upsert_node("c", ["semantic"], {"namespace": NS}, namespace=NS)
+    fake.calls.clear()
+    return g, fake
+
+
+async def test_neighbors_is_one_query_and_matches_the_stepwise_walk() -> None:
+    from test_f_16e_neo4j_outbox import NS
+
+    g, fake = await _graph()
+    for depth in (1, 2, 3, 5):
+        for ns in (None, NS):
+            for rel in (None, "related"):
+                fake.calls.clear()
+                got = await g.neighbors("a", rel, depth, namespace=ns)
+                assert fake.calls == ["walk_nodes"], fake.calls  # one round trip, whatever the depth
+                dist, _ = await g._walk(["a"], depth, ns, None, rel)  # the per-hop loop it replaces
+                want = sorted((d, n) for n, d in dist.items() if n != "a")
+                assert [n.node_id for n in got] == [n for _, n in want], (depth, ns, rel)
+    assert [n.node_id for n in await g.neighbors("a", depth=0)] == []
+    assert [n.node_id for n in await g.neighbors("zzz", depth=3)] == []
+
+
+async def test_subgraph_is_one_query_and_matches_the_stepwise_walk() -> None:
+    from test_f_16e_neo4j_outbox import NS
+
+    g, fake = await _graph()
+    for depth in (1, 2, 4):
+        for ns in (None, NS):
+            for seeds in (["a"], ["a", "e"], ["c", "nope"]):
+                fake.calls.clear()
+                got = await g.subgraph(seeds, depth, namespace=ns)
+                assert fake.calls == ["walk_edges"], fake.calls
+                dist, _ = await g._walk(seeds, depth, ns, None)
+                rows = await g._run("edges_of", ids=list(dist))
+                keep = [g._edge(r) for r in rows if ns is None or r.get("ns") == ns]
+                want = sorted(
+                    (e for e in keep if e.weight > 0 and e.src in dist and e.dst in dist),
+                    key=lambda e: (e.src, e.dst, e.rel_type),
+                )
+                assert [(e.src, e.dst, e.rel_type) for e in got] == [
+                    (e.src, e.dst, e.rel_type) for e in want
+                ], (depth, ns, seeds)
+
+
+async def test_a_degree_cap_keeps_the_stepwise_walk() -> None:
+    g, fake = await _graph()
+    got = await g.neighbors("a", depth=2, max_degree=1)
+    assert "walk_nodes" not in fake.calls and "edges_of" in fake.calls
+    assert [n.node_id for n in got] == ["b"]  # cap 1: b (tie on weight, lower id), then back to a
+
+
+async def test_the_walk_cypher_is_variable_length_and_depth_is_validated() -> None:
+    from memspine.services.graph.neo4j import CYPHER, MAX_WALK_DEPTH, DriverExecutor
+
+    assert "*1..{D}" in CYPHER["walk_nodes"] and "*1..{D}" in CYPHER["walk_edges"]
+    texts: list[str] = []
+
+    class Result:
+        def __aiter__(self) -> Any:
+            return self
+
+        async def __anext__(self) -> Any:
+            raise StopAsyncIteration
+
+    class Tx:
+        async def run(self, text: str, params: Any) -> Any:
+            texts.append(text)
+            return Result()
+
+    class Session:
+        async def __aenter__(self) -> Any:
+            return self
+
+        async def __aexit__(self, *_: Any) -> None:
+            return None
+
+        async def execute_write(self, work: Any) -> list[Any]:
+            return await work(Tx())
+
+    class Driver:
+        def session(self, **_: Any) -> Any:
+            return Session()
+
+    ex = DriverExecutor(Driver())
+    await ex.run("walk_nodes", {"seeds": ["a"], "depth": 3, "ns": None, "rel": None})
+    await ex.run("walk_nodes", {"seeds": ["a"], "depth": 10**6, "ns": None, "rel": None})
+    assert "*1..3]" in texts[0] and f"*1..{MAX_WALK_DEPTH}]" in texts[1]
+
+
+@pytest.mark.skipif(
+    not os.environ.get("MEMSPINE_TEST_NEO4J_URL"),
+    reason="needs a live server: MEMSPINE_TEST_NEO4J_URL",
+)
+async def test_live_walks_match_the_stepwise_walk() -> None:
+    import uuid
+
+    from memspine.services.graph.neo4j import Neo4jGraphStore, executor_from_env
+
+    ex = executor_from_env(
+        url_env="MEMSPINE_TEST_NEO4J_URL",
+        user_env="MEMSPINE_TEST_NEO4J_USER",
+        password_env="MEMSPINE_TEST_NEO4J_PASSWORD",
+        node_label=f"MemFu{uuid.uuid4().hex[:10]}",
+        rel_type=f"MemFuRel{uuid.uuid4().hex[:10]}",
+    )
+    g = Neo4jGraphStore(ex)
+    try:
+        edges = [("a", "b", 1.0), ("b", "c", 0.8), ("c", "d", 1.0), ("a", "x", 0.0), ("d", "a", 0.5)]
+        for src, dst, w in edges:
+            await g.upsert_edge(src, dst, "related", {"weight": w}, namespace="ns1")
+        await g.upsert_edge("a", "y", "related", {"weight": 1.0}, namespace="ns2")
+        for depth in (1, 2, 4):
+            got = await g.neighbors("a", None, depth, namespace="ns1")
+            dist, _ = await g._walk(["a"], depth, "ns1", None, None)
+            want = [n for _, n in sorted((d, n) for n, d in dist.items() if n != "a")]
+            assert [n.node_id for n in got] == want
+            sub = await g.subgraph(["a"], depth, namespace="ns1")
+            assert sub and all(e.weight > 0 for e in sub)
+    finally:
+        await ex.run("clear", {})
+        await ex.close()

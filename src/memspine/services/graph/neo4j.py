@@ -20,6 +20,12 @@ take a bare node id (the port has no namespace there) and match on the ``id`` pr
 Edges with weight ``<= 0`` are the ADR-015 tombstone: stored, never traversed. Constructing the
 store without an executor raises the D-10 error naming the ``[neo4j]`` extra (the config value
 ``graph.provider: neo4j`` as a *primary* store stays unsupported).
+
+Walks (FU-GAPS). ``neighbors`` and ``subgraph`` are ONE variable-length Cypher query each (ops
+``walk_nodes`` / ``walk_edges``: ``(s)-[:R*1..D]-(m)`` over live edges, the namespace and relation
+filters inside the path predicate), not one round trip per hop. A walk with a ``max_degree`` cap
+keeps the per-hop loop: the cap ranks each node's own neighbours (weight, then id), which a path
+pattern cannot express.
 """
 
 from __future__ import annotations
@@ -51,6 +57,8 @@ __all__ = [
 
 _IDENT = re.compile(r"^[A-Za-z][A-Za-z0-9_]{0,40}$")
 _SEP = "\x1f"
+#: The deepest single-query walk; a deeper request is clamped (the loop it replaces had no cap).
+MAX_WALK_DEPTH = 16
 
 #: op name -> Cypher. ``{N}`` / ``{R}`` are the (validated) node label and relationship type.
 CYPHER: dict[str, str] = {
@@ -101,6 +109,29 @@ CYPHER: dict[str, str] = {
         "MATCH (n:{N}) WHERE n.id IN $ids "
         "RETURN n.id AS id, n.labels AS labels, n.props AS props, n.namespace AS ns"
     ),
+    # FU-GAPS: the whole walk in one query. ``{D}`` is the validated depth (the executor formats it;
+    # a variable-length bound cannot be a parameter). Shortest hop count per reached node id.
+    "walk_nodes": (
+        "MATCH (s:{N}) WHERE s.id IN $seeds "
+        "MATCH p = (s)-[rels:{R}*1..{D}]-(m:{N}) "
+        "WHERE all(r IN rels WHERE r.weight > 0 AND ($ns IS NULL OR r.namespace = $ns) "
+        "AND ($rel IS NULL OR r.rel_type = $rel)) "
+        "WITH m.id AS id, min(length(p)) AS dist WHERE NOT id IN $seeds "
+        "MATCH (n:{N}) WHERE n.id = id "
+        "RETURN id, dist, n.labels AS labels, n.props AS props"
+    ),
+    # The live edges between the seeds and everything within ``{D}`` hops of them.
+    "walk_edges": (
+        "MATCH (s:{N}) WHERE s.id IN $seeds "
+        "OPTIONAL MATCH (s)-[rels:{R}*1..{D}]-(m:{N}) "
+        "WHERE all(r IN rels WHERE r.weight > 0 AND ($ns IS NULL OR r.namespace = $ns)) "
+        "WITH collect(DISTINCT s.id) + collect(DISTINCT m.id) AS reach "
+        "MATCH (a:{N})-[r:{R}]->(b:{N}) "
+        "WHERE a.id IN reach AND b.id IN reach AND r.weight > 0 "
+        "AND ($ns IS NULL OR r.namespace = $ns) "
+        "RETURN DISTINCT a.id AS src, b.id AS dst, r.rel_type AS rel, r.namespace AS ns, "
+        "r.props AS props"
+    ),
     "node_count": "MATCH (n:{N}) RETURN count(n) AS c",
     "edge_count": "MATCH (:{N})-[r:{R}]->(:{N}) RETURN count(r) AS c",
     "clear": "MATCH (n:{N}) DETACH DELETE n",
@@ -138,7 +169,10 @@ class DriverExecutor:
         self._fmt = {"N": _check_ident(node_label, "label"), "R": _check_ident(rel_type, "type")}
 
     async def run(self, op: str, params: Mapping[str, Any]) -> list[dict[str, Any]]:
-        text = CYPHER[op].format(**self._fmt)
+        fmt = self._fmt
+        if "depth" in params:  # a variable-length bound is text, validated here
+            fmt = {**fmt, "D": max(1, min(int(params["depth"]), MAX_WALK_DEPTH))}
+        text = CYPHER[op].format(**fmt)
 
         async def work(tx: Any) -> list[dict[str, Any]]:
             result = await tx.run(text, dict(params))
@@ -350,6 +384,20 @@ class Neo4jGraphStore:
         namespace: str | None = None,
         max_degree: int | None = None,
     ) -> list[GraphNode]:
+        if depth <= 0:
+            return []
+        if max_degree is None and depth <= MAX_WALK_DEPTH:  # FU-GAPS: one variable-length query
+            rows = await self._run(
+                "walk_nodes", seeds=[node_id], depth=depth, ns=namespace, rel=rel_type
+            )
+            hit = {str(r["id"]): r for r in rows}
+            dists = {str(r["id"]): int(r["dist"]) for r in rows}
+            out = []
+            for n in sorted(dists, key=lambda i: (dists[i], i)):
+                row = hit[n]
+                labels = tuple(str(x) for x in row.get("labels") or ())
+                out.append(GraphNode(n, labels, _load(row.get("props"))))
+            return out
         dist, _ = await self._walk([node_id], depth, namespace, max_degree, rel_type)
         found = [(d, n) for n, d in dist.items() if n != node_id]
         if not found:
@@ -371,6 +419,12 @@ class Neo4jGraphStore:
         namespace: str | None = None,
         max_degree: int | None = None,
     ) -> list[GraphEdge]:
+        if max_degree is None and seeds and 0 < depth <= MAX_WALK_DEPTH:  # FU-GAPS: one query
+            rows = await self._run(
+                "walk_edges", seeds=list(dict.fromkeys(seeds)), depth=depth, ns=namespace
+            )
+            edges = [self._edge(r) for r in rows if namespace is None or r.get("ns") == namespace]
+            return sorted(edges, key=lambda e: (e.src, e.dst, e.rel_type))
         dist, _ = await self._walk(list(seeds), depth, namespace, max_degree)
         if not dist:
             return []

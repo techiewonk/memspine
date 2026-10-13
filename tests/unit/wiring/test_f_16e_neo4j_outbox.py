@@ -210,6 +210,45 @@ class FakeNeo4j:
             if n["id"] in p["ids"]
         ]
 
+    def _reach(self, p: Mapping[str, Any], use_rel: bool) -> dict[str, int]:
+        """What ``walk_nodes`` / ``walk_edges`` compute: shortest hop count to every node id
+        within ``depth`` hops over live (weight > 0) edges, undirected, optional ns / rel filter."""
+        dist = {s: 0 for s in p["seeds"]}
+        frontier = list(p["seeds"])
+        for hop in range(1, int(p["depth"]) + 1):
+            nxt: list[str] = []
+            for e in self.edges.values():
+                if e["weight"] <= 0 or (p["ns"] is not None and e["ns"] != p["ns"]):
+                    continue
+                if use_rel and p["rel"] is not None and e["rel"] != p["rel"]:
+                    continue
+                a, b = self.nodes[e["a"]]["id"], self.nodes[e["b"]]["id"]
+                for u, v in ((a, b), (b, a)):
+                    if u in frontier and v not in dist:
+                        dist[v] = hop
+                        nxt.append(v)
+            frontier = nxt
+        return dist
+
+    def _walk_nodes(self, p: Mapping[str, Any]) -> list[dict[str, Any]]:
+        dist = self._reach(p, True)
+        return [
+            {"id": n["id"], "dist": dist[n["id"]], "labels": n["labels"], "props": n["props"]}
+            for n in self.nodes.values()
+            if n["id"] in dist and n["id"] not in p["seeds"]
+        ]
+
+    def _walk_edges(self, p: Mapping[str, Any]) -> list[dict[str, Any]]:
+        reach = self._reach(p, False)
+        return [
+            self._row(e)
+            for e in self.edges.values()
+            if e["weight"] > 0
+            and (p["ns"] is None or e["ns"] == p["ns"])
+            and self.nodes[e["a"]]["id"] in reach
+            and self.nodes[e["b"]]["id"] in reach
+        ]
+
     def _node_count(self, p: Mapping[str, Any]) -> list[dict[str, Any]]:
         return [{"c": len(self.nodes)}]
 
