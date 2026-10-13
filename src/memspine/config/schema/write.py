@@ -61,6 +61,13 @@ class WriteConfig(BaseModel):
     #: the same history is free (needs the engine cache; in memory unless a durable one is set).
     window_cache: bool = True
 
+    #: F-16a (M-09, G-08, POL-2): the lineage table and the single derived-write door. ``True``:
+    #: every derived record written through ``derive/write.py`` gets one lineage edge per parent
+    #: (``support`` unless the site names a role), its trust capped at the least-trusted parent, a
+    #: ``layer:`` and ``deriv:`` tag, and is refused when it has no parent at all. ``False``
+    #: (default): the old write path exactly, and the table is never written.
+    lineage_table: bool = False
+
 
 class IngestConfig(BaseModel):
     """E04 attachment handling at write time. Off by default: a message's ``attachments`` are

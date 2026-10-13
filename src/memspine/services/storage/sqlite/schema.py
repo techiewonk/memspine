@@ -22,6 +22,7 @@ from sqlalchemy import (
 __all__ = [
     "graph_edges",
     "graph_nodes",
+    "lineage",
     "memory_events",
     "memory_records",
     "metadata",
@@ -175,6 +176,26 @@ graph_edges = Table(
     Index("ix_graph_edges_dst", "dst"),
     Index("ix_graph_edges_ns_src_weight", "namespace", "src", "weight"),
     Index("ix_graph_edges_ns_dst_weight", "namespace", "dst", "weight"),
+)
+
+# F-16a (M-09, migration 0006): the lineage DAG, one row per (child, parent, role). Written only
+# when ``write.lineage_table`` is on; ``created_seq`` is the insertion order. ``span`` and
+# ``derivation`` are JSON text (the LineageEdge span / Fingerprint), ``source_version`` pins the
+# parent version the child was derived from.
+lineage = Table(
+    "lineage",
+    metadata,
+    Column("created_seq", Integer, primary_key=True, autoincrement=True),
+    Column("child_id", String, nullable=False),
+    Column("parent_id", String, nullable=False),
+    Column("role", String, nullable=False),
+    Column("namespace", String),
+    Column("span", String),
+    Column("source_version", Integer),
+    Column("source_family", String),
+    Column("derivation", String),
+    Index("uq_lineage_edge", "child_id", "parent_id", "role", unique=True),
+    Index("ix_lineage_parent", "parent_id"),
 )
 
 # NOTE(ADR-021/ADR-025): ``memory_embeddings`` (the removed SQLite brute-force

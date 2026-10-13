@@ -212,7 +212,7 @@ def synthetic(tmp_path: Path) -> Path:
     src = tmp_path / "src"
     for pkg in ("api", "read", "derive", "store", "schemas", "trust", "core"):
         _write(src, f"memspine/{pkg}/__init__.py")
-    _write(src, "memspine/__init__.py", "from memspine.engine import Engine\n")
+    _write(src, "memspine/__init__.py", "from memspine.api.engine import Engine\n")
     _write(src, "memspine/engine.py")
     _write(src, "memspine/api/handle.py", "from memspine.read import x\nfrom memspine.store import y\n")
     _write(src, "memspine/read/x.py", "from ..store import y\nfrom ..schemas import z\n")
@@ -230,7 +230,7 @@ def test_checker_detects_new_violations(synthetic: Path):
     _write(synthetic, "memspine/store/y.py", "from memspine.read import x\n")  # store -> read
     _write(synthetic, "memspine/read/x.py", "def f():\n    from memspine.derive import d\n")  # lazy
     _write(synthetic, "memspine/schemas/z.py", "import memspine.store.y\n")  # schemas not leaf
-    _write(synthetic, "memspine/core/c.py", "from memspine.engine import Engine\n")
+    _write(synthetic, "memspine/core/c.py", "from memspine.api.engine import Engine\n")
     _write(synthetic, "memspine/derive/d.py", "from memspine.read import x\n")  # sibling layer, ok
     found = violations(synthetic)
     assert ("memspine/store/y.py", "memspine.read.x") in found["store-below-pipelines"] or (
@@ -239,7 +239,7 @@ def test_checker_detects_new_violations(synthetic: Path):
     ) in found["store-below-pipelines"]
     assert ("memspine/read/x.py", "memspine.derive") in found["read-not-derive"]
     assert found["schemas-leaf"], "schemas importing store must be flagged"
-    assert ("memspine/core/c.py", "memspine.engine") in found["engine-only-from-api"]
+    assert ("memspine/core/c.py", "memspine.api.engine") in found["engine-only-from-api"]
     assert found["target-layers"], "store importing read goes up a layer"
 
 

@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from memspine.engine import Engine
+from memspine.api.engine import Engine
 from memspine.services.lexical.projector import LexicalProjector
 from memspine.services.lexical.tantivy import TantivyLexical
 from memspine.store.records import MemoryRecord

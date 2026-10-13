@@ -15,11 +15,11 @@ import pytest
 
 from memspine import Engine
 from memspine.config.schema import ReadConfig
-from memspine.engine import search_forensics
 from memspine.exceptions import MissingServiceError
 from memspine.models.providers.decision import decider as decider_mod
 from memspine.models.providers.decision import opendecider_nano as nano
 from memspine.models.providers.decision.decider import TASKS, OpenDeciderDecider, build_decider
+from memspine.observability.trace import search_forensics
 
 # -- config plumbing -------------------------------------------------------------------------
 
@@ -62,7 +62,7 @@ async def test_engine_passes_every_knob_to_build_decider(monkeypatch: pytest.Mon
         seen.append((kind, model, device, kw))
         return Stub()
 
-    import memspine.engine as engine_mod
+    import memspine.api.engine as engine_mod
 
     monkeypatch.setattr(engine_mod, "build_decider", build)
     eng = _engine(

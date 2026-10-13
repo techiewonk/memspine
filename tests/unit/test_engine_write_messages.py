@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import pytest
 
-from memspine.engine import Engine
+from memspine.api.engine import Engine
 
 
 async def _engine() -> Engine:

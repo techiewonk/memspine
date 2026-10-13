@@ -51,7 +51,7 @@ async def _render(mode: str, monkeypatch: pytest.MonkeyPatch) -> tuple[str, Mems
     def fake_forensics() -> Any:
         yield {"final": [("h1", 0.9), ("h2", 0.8)]}
 
-    monkeypatch.setattr("memspine.engine.search_forensics", fake_forensics)
+    monkeypatch.setattr("memspine.observability.trace.search_forensics", fake_forensics)
     system = MemspineSystem(mark_hits=mode)
     system._engine = _Engine()
     system.flush = _no_flush  # type: ignore[method-assign]

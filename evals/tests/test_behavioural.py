@@ -10,7 +10,6 @@ import json
 import logging
 
 import pytest
-
 from memspine_evals.behavioural import CASES, BehaviouralReport, Status, run_behavioural
 from memspine_evals.behavioural_cases import FILLER_TURNS, STORY_A, rename, rename_story
 from suite.gate import BASELINE_PATH

@@ -339,7 +339,7 @@ class MemspineSystem:
     async def _build_engine(self) -> Any:
         try:
             import memspine
-            from memspine.engine import Engine
+            from memspine.api.engine import Engine
         except ImportError as exc:  # pragma: no cover - needs the engine installed
             raise RuntimeError(
                 "MemspineSystem needs the memspine package — run `uv sync --all-extras` "
@@ -1008,7 +1008,7 @@ class MemspineSystem:
             as_of = {**as_of, "session_id": self._read_session}
 
         log_dirs = self._log_dirs()
-        from memspine.engine import search_forensics
+        from memspine.observability.trace import search_forensics
         from memspine.models.encoders.query.perspective import asker_scope
 
         with search_forensics() as stages, asker_scope(self._asker):

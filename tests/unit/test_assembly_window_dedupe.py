@@ -10,7 +10,7 @@ import pytest
 from memspine import Engine
 from memspine.config.schema import ReadConfig
 from memspine.core.dedupe import dedupe_scored
-from memspine.engine import search_forensics
+from memspine.observability.trace import search_forensics
 from memspine.store.records import MemoryRecord, SourceInfo
 
 

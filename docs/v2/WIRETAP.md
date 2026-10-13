@@ -83,3 +83,42 @@ where ops are `eq ne gt ge lt le truthy falsy present absent in`. Add one `Rule`
 `missing_capability`, `partial_read`, `abstention`, `model_error`, `model_timeout`, `model_retry`, `quarantine`,
 `extraction_rejected`, `coverage_hole`, `field_rejected`, `no_events`, and `slow_stage` (events carrying
 `duration_ms` above the per-stage `SLO_MS` table).
+
+## Write, derive and model events (WT-02)
+
+All are `<pipeline>.<stage>.<what>`; ids, counts, enums and short codes only (firewall reasons are reduced to
+their code, `size_anomaly(9>5)` becomes `size_anomaly`; free text such as a stage's skip reason rides as `*_text`
+under `tap.content`).
+
+| event | where | fields |
+|---|---|---|
+| `write.intake.received` / `write.intake.rejected` | `ingest/intake.py` | kind, source_id, segments, version, replayed, noop, new_events, intent_id / reason=quota |
+| `write.received` | `ingest/write.py` | memory_type, actor, chars, has_entity, reply |
+| `write.messages.received` | `ingest/write.py` | turns, depositable, session, channel |
+| `write.turn.skipped` | `ingest/write.py` | reason (role / injected_recall), turn, role |
+| `write.firewall.verdict` | `ingest/write.py` | id, firewall, trust, quarantine, anomalous, instruction_flag, reasons |
+| `write.quarantine` | `ingest/write.py` | id, reasons |
+| `write.route` | `ingest/write.py` | id, memory_type, route (cue / semantic_pipeline / plain) |
+| `write.deposit` | `ingest/write.py` (every door, also derived deposits) | id, memory_type, action (added / merged / updated / superseded / rejected / quarantined), trust, parents |
+| `write.rejected` | `ingest/write.py` | id, reason |
+| `write.time.parsed` / `write.time.unparsed` | `ingest/write.py`, `ingest/timeparse.py` | anchored, unknown_tz, assumed, precision / reason |
+| `write.assets.attached` / `write.assets.registered` | `ingest/assets.py` | n, turn / id |
+| `write.window.cut` | `workers/windows.py` | reason, turns, tokens, session, queued |
+| `write.window.planned` | `workers/windows.py` | id, reason, turns, excluded, tokens, groups |
+| `write.window.skipped` / `write.window.job_failed` | `workers/windows.py` | reason, turns / error |
+| `write.extract.call.start` / `.end` | `workers/windows.py` (span), or one `write.extract.call` (cached=true) | sections, cached, duration_ms, error |
+| `write.extract.failed` / `write.extract.rejected` | `workers/windows.py` | reason (call_errors / parse_failures / section_malformed / parent_gone / *_deposit_error), sections, error, id |
+| `write.extract.facts` / `.edges` / `.episode` | `workers/windows.py` | returned, accepted, invalid, ungrounded, uncited (truncated, present) |
+| `write.extract.deposit` | `workers/windows.py` | id, layer, parents |
+| `job` request, `stage=<name>` | `workers/schedule.py`: one child trace per sleep stage; `workers/windows.py`: one per window job | stage |
+| `job.stage.start` / `job.stage.end` | `workers/schedule.py` | stage, status, every numeric or boolean stat of the stage (in/out/skipped counts, budget_full ...), skipped, failed, reason_text / error_text (content) |
+| `model.call` | `models/providers/llm/base.py` (the one counting wrapper) | role, model, outcome (ok / error / timeout), prompt_tokens, completion_tokens, tokens_estimated, duration_ms, error |
+
+Limits: window jobs run by the async worker (`write.window_async`) outlive the request that created them, so their
+events are only recorded when a sleep or flush drives them (batch mode). Provider-internal retries are not visible
+(`model.call` is one event per call as the stages see it).
+
+New gap rules: `extraction_rejected` (also on `write.extract.facts/edges/episode` with invalid, ungrounded or
+uncited above 0), `extraction_failed`, `stage_failed`, `stage_partial`, `stage_skipped` (also `write.*.skipped`),
+`firewall_flag`, `write_replayed`, `time_unanchored`, `time_unparsed`, `window_anomaly`; `model_error` and
+`model_timeout` fire on `model.call`. SLOs: `model.call` 60 s, `job.stage.*` 120 s.
