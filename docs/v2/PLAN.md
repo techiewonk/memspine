@@ -7,12 +7,12 @@ Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summarie
 
 | Status | Count |
 |---|---|
-| Not started | 86 |
+| Not started | 85 |
 | Ready | 0 |
 | In progress | 0 |
 | Blocked | 0 |
 | Needs measurement | 4 |
-| Done | 69 |
+| Done | 70 |
 | Dropped | 0 |
 
 ## Phase 0: settle and prepare
@@ -96,7 +96,7 @@ Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summarie
 | F-09 | Write path out of the engine | L0 L1 L5 | D | W-01, W-09 | - | F-08, LIB-13, LIB-14, LIB-29, LIB-30 | move | S1 split (serial) | `src/memspine/ingest/**` +1 | Golden | **Done** | S9: 49 units to ingest/{write,assets,windows,timeparse}.py, engine 14675->13497, thin delegations; unit 5905, evals 1435, golden, 14 contracts (d6cb48c) |
 | F-10a | Read path out: legs, fusion, rerank | L0 L1 L3 | R | R-05 | - | F-09, LIB-10, LIB-11, LIB-12, LIB-15, LIB-16, LIB-19, LIB-22, LIB-23, LIB-24, LIB-34, LIB-43, LIB-45, LIB-47 | move | S1 split (serial) | `src/memspine/read/**` +1 | Golden byte-identical hit order | **Done** | S10a: 69 units to read/pipeline/{fusion,legs,request,rerank,router,state}.py, engine 13497->11144; unit 5905, evals 1435, golden, 14 contracts (e8a49a3) |
 | F-10b | Read path out: lift, gates, filters | L0 L1 L3 | R | R-05 | - | F-10a, LIB-11, LIB-12 | move | S1 split (serial) | `src/memspine/read/**` +1 | Golden byte-identical hit order | **Done** | S10b: 34 units to read/pipeline/{lift,gate,deep,timeview}.py, engine 11144->9821; unit 5905, evals 1435, golden, 14 contracts (38e9321) |
-| F-11 | Compose out of the engine | ctx | C | R-20 | - | F-10b, LIB-06, LIB-25 | move | S1 split (serial) | `src/memspine/compose/**` +1 | Golden context hash identical | **Not started** | S11 |
+| F-11 | Compose out of the engine | ctx | C | R-20 | - | F-10b, LIB-06, LIB-25 | move | S1 split (serial) | `src/memspine/compose/**` +1 | Golden context hash identical | **Done** | S11: 68 units to compose/pipeline/{render,sections,pack,windows,answer,state}.py, engine 9821->8028; unit 5905, evals 1435, golden, 14 contracts (2902f19) |
 | F-12 | Trust, admin and memory-type mechanisms out | L4 ctx scope | K_C R C | M-21, M-24 | - | F-11, LIB-08, LIB-09, LIB-18, LIB-21, LIB-28, LIB-38, LIB-41 | move | S1 split (serial) | `src/memspine/trust/**` +2 | Golden | **Not started** | S12 |
 | F-13a | Scoped handle; engine reduced to lifecycle and admin | L0 L1 L4 L5 ctx scope | D K_C K_P R C | G-16 | ER-03 | F-12 | api | S1 split (serial) | `src/memspine/api/**` +3 | Golden | **Not started** | S13; no aliases |
 | F-13b | REST and MCP on the handle | ctx scope | D R | G-17, G-18 | - | F-13a | move | S1 split (serial) | `src/memspine/api/**` +3 | Protocol tests | **Not started** |  |

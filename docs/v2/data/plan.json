@@ -3111,8 +3111,8 @@
    ],
    "kind": "move",
    "gate": "Golden context hash identical",
-   "status": "Not started",
-   "note": "S11",
+   "status": "Done",
+   "note": "S11: 68 units to compose/pipeline/{render,sections,pack,windows,answer,state}.py, engine 9821->8028; unit 5905, evals 1435, golden, 14 contracts (2902f19)",
    "layers": [
     "ctx"
    ],
