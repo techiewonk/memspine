@@ -20,6 +20,7 @@ from memspine.store.events import EventKind, MemoryEvent
 from memspine.store.records import MemoryRecord, RecordStatus
 from memspine.store.scope import validate_namespace
 from memspine.trust.erasure import retained_fields
+from memspine.trust.pipeline import erasure_v2
 from memspine.trust.pipeline.state import _as_options_dict
 
 _log = get_logger(__name__)
@@ -55,6 +56,10 @@ async def forget(
     ``actor`` and ``reason`` (#49) are recorded in a ``memory.audit`` event
     under ``audit.actions``.
     """
+    if hard and erasure_v2.enabled(eng):  # T5-04: plan over the lineage, hide, purge
+        return await erasure_v2.forget(
+            eng, record_id, namespace, cascade, actor=actor, reason=reason
+        )
     storage = eng._require_started()
     ns = validate_namespace(namespace)
     # Same per-namespace lock as write(): a hard delete's read-hold-check-
@@ -539,7 +544,12 @@ async def _derived_parents_gone(
     gone: list[str] = []
     for parent_id in dict.fromkeys(parents):
         parent = await storage.get_record(parent_id)
-        if parent is None or parent.status is not RecordStatus.ACTIVATED or parent.quarantined:
+        if (
+            parent is None
+            or parent.status is not RecordStatus.ACTIVATED
+            or parent.quarantined
+            or not erasure_v2.visible_id(eng, parent_id)  # T5-04: erased or hidden by a plan
+        ):
             gone.append(parent_id)
     if not gone:
         return False

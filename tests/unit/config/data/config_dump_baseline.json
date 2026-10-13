@@ -2,6 +2,7 @@
  "default": {
   "audit": {
    "actions": false,
+   "chain_v2": false,
    "reads": false
   },
   "cache": {
@@ -151,6 +152,9 @@
    "reconcile_v2": false
   },
   "plugins": [],
+  "privacy": {
+   "erasure_v2": false
+  },
   "profile": "simple",
   "prompts": {
    "overrides": {},
@@ -459,7 +463,9 @@
    "rate_limit": null
   },
   "retention": {
-   "classes": []
+   "classes": [],
+   "profile": null,
+   "v2": false
   },
   "storage": {
    "backend": "sqlite",
@@ -502,10 +508,11 @@
    "window_topic_k": 2.0
   }
  },
- "json_schema_sha256": "f1ab6188456f6d39a5143796182237970c0ff9aadb4abee9edf6cbbba38c1142",
+ "json_schema_sha256": "72667f80d04ffc1261922a212c9475f40d652f8917da7b9ccff1186ea7e84853",
  "preset:chat_roles": {
   "audit": {
    "actions": false,
+   "chain_v2": false,
    "reads": false
   },
   "cache": {
@@ -676,6 +683,9 @@
    "reconcile_v2": false
   },
   "plugins": [],
+  "privacy": {
+   "erasure_v2": false
+  },
   "profile": "simple",
   "prompts": {
    "overrides": {},
@@ -994,7 +1004,9 @@
    "rate_limit": null
   },
   "retention": {
-   "classes": []
+   "classes": [],
+   "profile": null,
+   "v2": false
   },
   "storage": {
    "backend": "sqlite",
@@ -1040,6 +1052,7 @@
  "preset:large_history": {
   "audit": {
    "actions": false,
+   "chain_v2": false,
    "reads": false
   },
   "cache": {
@@ -1206,6 +1219,9 @@
    "reconcile_v2": false
   },
   "plugins": [],
+  "privacy": {
+   "erasure_v2": false
+  },
   "profile": "simple",
   "prompts": {
    "overrides": {},
@@ -1524,7 +1540,9 @@
    "rate_limit": null
   },
   "retention": {
-   "classes": []
+   "classes": [],
+   "profile": null,
+   "v2": false
   },
   "storage": {
    "backend": "sqlite",
@@ -1570,6 +1588,7 @@
  "preset:long_turns": {
   "audit": {
    "actions": false,
+   "chain_v2": false,
    "reads": false
   },
   "cache": {
@@ -1736,6 +1755,9 @@
    "reconcile_v2": false
   },
   "plugins": [],
+  "privacy": {
+   "erasure_v2": false
+  },
   "profile": "simple",
   "prompts": {
    "overrides": {},
@@ -2054,7 +2076,9 @@
    "rate_limit": null
   },
   "retention": {
-   "classes": []
+   "classes": [],
+   "profile": null,
+   "v2": false
   },
   "storage": {
    "backend": "sqlite",
@@ -2100,6 +2124,7 @@
  "preset:named_speakers": {
   "audit": {
    "actions": false,
+   "chain_v2": false,
    "reads": false
   },
   "cache": {
@@ -2266,6 +2291,9 @@
    "reconcile_v2": false
   },
   "plugins": [],
+  "privacy": {
+   "erasure_v2": false
+  },
   "profile": "simple",
   "prompts": {
    "overrides": {},
@@ -2584,7 +2612,9 @@
    "rate_limit": null
   },
   "retention": {
-   "classes": []
+   "classes": [],
+   "profile": null,
+   "v2": false
   },
   "storage": {
    "backend": "sqlite",
@@ -2630,6 +2660,7 @@
  "preset:non_english": {
   "audit": {
    "actions": false,
+   "chain_v2": false,
    "reads": false
   },
   "cache": {
@@ -2796,6 +2827,9 @@
    "reconcile_v2": false
   },
   "plugins": [],
+  "privacy": {
+   "erasure_v2": false
+  },
   "profile": "simple",
   "prompts": {
    "overrides": {},
@@ -3114,7 +3148,9 @@
    "rate_limit": null
   },
   "retention": {
-   "classes": []
+   "classes": [],
+   "profile": null,
+   "v2": false
   },
   "storage": {
    "backend": "sqlite",
@@ -3160,6 +3196,7 @@
  "preset:ts_dated": {
   "audit": {
    "actions": false,
+   "chain_v2": false,
    "reads": false
   },
   "cache": {
@@ -3326,6 +3363,9 @@
    "reconcile_v2": false
   },
   "plugins": [],
+  "privacy": {
+   "erasure_v2": false
+  },
   "profile": "simple",
   "prompts": {
    "overrides": {},
@@ -3644,7 +3684,9 @@
    "rate_limit": null
   },
   "retention": {
-   "classes": []
+   "classes": [],
+   "profile": null,
+   "v2": false
   },
   "storage": {
    "backend": "sqlite",
@@ -3690,6 +3732,7 @@
  "preset:ts_none": {
   "audit": {
    "actions": false,
+   "chain_v2": false,
    "reads": false
   },
   "cache": {
@@ -3856,6 +3899,9 @@
    "reconcile_v2": false
   },
   "plugins": [],
+  "privacy": {
+   "erasure_v2": false
+  },
   "profile": "simple",
   "prompts": {
    "overrides": {},
@@ -4174,7 +4220,9 @@
    "rate_limit": null
   },
   "retention": {
-   "classes": []
+   "classes": [],
+   "profile": null,
+   "v2": false
   },
   "storage": {
    "backend": "sqlite",
@@ -4220,6 +4268,7 @@
  "template:assistant": {
   "audit": {
    "actions": false,
+   "chain_v2": false,
    "reads": false
   },
   "cache": {
@@ -4386,6 +4435,9 @@
    "reconcile_v2": false
   },
   "plugins": [],
+  "privacy": {
+   "erasure_v2": false
+  },
   "profile": "assistant",
   "prompts": {
    "overrides": {},
@@ -4704,7 +4756,9 @@
    "rate_limit": null
   },
   "retention": {
-   "classes": []
+   "classes": [],
+   "profile": null,
+   "v2": false
   },
   "storage": {
    "backend": "sqlite",
@@ -4750,6 +4804,7 @@
  "template:base": {
   "audit": {
    "actions": false,
+   "chain_v2": false,
    "reads": false
   },
   "cache": {
@@ -4916,6 +4971,9 @@
    "reconcile_v2": false
   },
   "plugins": [],
+  "privacy": {
+   "erasure_v2": false
+  },
   "profile": "simple",
   "prompts": {
    "overrides": {},
@@ -5234,7 +5292,9 @@
    "rate_limit": null
   },
   "retention": {
-   "classes": []
+   "classes": [],
+   "profile": null,
+   "v2": false
   },
   "storage": {
    "backend": "sqlite",
@@ -5280,6 +5340,7 @@
  "template:benchmark": {
   "audit": {
    "actions": false,
+   "chain_v2": false,
    "reads": false
   },
   "cache": {
@@ -5453,6 +5514,9 @@
    "reconcile_v2": false
   },
   "plugins": [],
+  "privacy": {
+   "erasure_v2": false
+  },
   "profile": "benchmark",
   "prompts": {
    "overrides": {},
@@ -5773,7 +5837,9 @@
    "rate_limit": null
   },
   "retention": {
-   "classes": []
+   "classes": [],
+   "profile": null,
+   "v2": false
   },
   "storage": {
    "backend": "sqlite",
@@ -5819,6 +5885,7 @@
  "template:coding": {
   "audit": {
    "actions": false,
+   "chain_v2": false,
    "reads": false
   },
   "cache": {
@@ -5990,6 +6057,9 @@
    "reconcile_v2": false
   },
   "plugins": [],
+  "privacy": {
+   "erasure_v2": false
+  },
   "profile": "coding",
   "prompts": {
    "overrides": {},
@@ -6308,7 +6378,9 @@
    "rate_limit": null
   },
   "retention": {
-   "classes": []
+   "classes": [],
+   "profile": null,
+   "v2": false
   },
   "storage": {
    "backend": "sqlite",
@@ -6354,6 +6426,7 @@
  "template:core": {
   "audit": {
    "actions": false,
+   "chain_v2": false,
    "reads": false
   },
   "cache": {
@@ -6516,6 +6589,9 @@
    "reconcile_v2": false
   },
   "plugins": [],
+  "privacy": {
+   "erasure_v2": false
+  },
   "profile": "core",
   "prompts": {
    "overrides": {},
@@ -6824,7 +6900,9 @@
    "rate_limit": null
   },
   "retention": {
-   "classes": []
+   "classes": [],
+   "profile": null,
+   "v2": false
   },
   "storage": {
    "backend": "sqlite",
@@ -6870,6 +6948,7 @@
  "template:graph": {
   "audit": {
    "actions": false,
+   "chain_v2": false,
    "reads": false
   },
   "cache": {
@@ -7044,6 +7123,9 @@
    "reconcile_v2": false
   },
   "plugins": [],
+  "privacy": {
+   "erasure_v2": false
+  },
   "profile": "graph",
   "prompts": {
    "overrides": {},
@@ -7362,7 +7444,9 @@
    "rate_limit": null
   },
   "retention": {
-   "classes": []
+   "classes": [],
+   "profile": null,
+   "v2": false
   },
   "storage": {
    "backend": "sqlite",
@@ -7408,6 +7492,7 @@
  "template:multi_agent": {
   "audit": {
    "actions": false,
+   "chain_v2": false,
    "reads": false
   },
   "cache": {
@@ -7578,6 +7663,9 @@
    "reconcile_v2": false
   },
   "plugins": [],
+  "privacy": {
+   "erasure_v2": false
+  },
   "profile": "multi_agent",
   "prompts": {
    "overrides": {},
@@ -7896,7 +7984,9 @@
    "rate_limit": null
   },
   "retention": {
-   "classes": []
+   "classes": [],
+   "profile": null,
+   "v2": false
   },
   "storage": {
    "backend": "sqlite",
@@ -7942,6 +8032,7 @@
  "template:personal": {
   "audit": {
    "actions": false,
+   "chain_v2": false,
    "reads": false
   },
   "cache": {
@@ -8116,6 +8207,9 @@
    "reconcile_v2": false
   },
   "plugins": [],
+  "privacy": {
+   "erasure_v2": false
+  },
   "profile": "personal",
   "prompts": {
    "overrides": {},
@@ -8434,7 +8528,9 @@
    "rate_limit": null
   },
   "retention": {
-   "classes": []
+   "classes": [],
+   "profile": null,
+   "v2": false
   },
   "storage": {
    "backend": "sqlite",
@@ -8480,6 +8576,7 @@
  "template:protected": {
   "audit": {
    "actions": false,
+   "chain_v2": false,
    "reads": false
   },
   "cache": {
@@ -8646,6 +8743,9 @@
    "reconcile_v2": false
   },
   "plugins": [],
+  "privacy": {
+   "erasure_v2": false
+  },
   "profile": "protected",
   "prompts": {
    "overrides": {},
@@ -8964,7 +9064,9 @@
    "rate_limit": null
   },
   "retention": {
-   "classes": []
+   "classes": [],
+   "profile": null,
+   "v2": false
   },
   "storage": {
    "backend": "sqlite",
@@ -9010,6 +9112,7 @@
  "template:regulated_financial": {
   "audit": {
    "actions": false,
+   "chain_v2": false,
    "reads": false
   },
   "cache": {
@@ -9177,6 +9280,9 @@
    "reconcile_v2": false
   },
   "plugins": [],
+  "privacy": {
+   "erasure_v2": false
+  },
   "profile": "regulated_financial",
   "prompts": {
    "overrides": {},
@@ -9495,7 +9601,9 @@
    "rate_limit": null
   },
   "retention": {
-   "classes": []
+   "classes": [],
+   "profile": null,
+   "v2": false
   },
   "storage": {
    "backend": "sqlite",
@@ -9541,6 +9649,7 @@
  "template:voice": {
   "audit": {
    "actions": false,
+   "chain_v2": false,
    "reads": false
   },
   "cache": {
@@ -9709,6 +9818,9 @@
    "reconcile_v2": false
   },
   "plugins": [],
+  "privacy": {
+   "erasure_v2": false
+  },
   "profile": "voice",
   "prompts": {
    "overrides": {},
@@ -10027,7 +10139,9 @@
    "rate_limit": null
   },
   "retention": {
-   "classes": []
+   "classes": [],
+   "profile": null,
+   "v2": false
   },
   "storage": {
    "backend": "sqlite",

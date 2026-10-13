@@ -190,6 +190,7 @@ from memspine.runtime.container import (
     memory_policy,
 )
 from memspine.schemas.durable import OwnerScope
+from memspine.schemas.durable.erasure import RetentionBoundary
 from memspine.services.graph.base import GraphStore
 from memspine.services.lexical.base import LexicalHit, LexicalStore
 from memspine.services.lexical.projector import LexicalProjector
@@ -212,12 +213,15 @@ from memspine.trust.audit import IntegrityReport, TaintReport
 from memspine.trust.erasure import redact_record
 from memspine.trust.firewall import Firewall, FirewallSignals, FirewallVerdict, QueryHistory
 from memspine.trust.pipeline import audit as trust_audit
+from memspine.trust.pipeline import audit_v2 as trust_audit_v2
 from memspine.trust.pipeline import consent as trust_consent
 from memspine.trust.pipeline import erasure as trust_erasure
+from memspine.trust.pipeline import erasure_v2 as trust_erasure_v2
 from memspine.trust.pipeline import firewall as trust_firewall
 from memspine.trust.pipeline import horizon as trust_horizon
 from memspine.trust.pipeline import privacy as trust_privacy
 from memspine.trust.pipeline import quarantine as trust_quarantine
+from memspine.trust.pipeline import retention_v2 as trust_retention_v2
 from memspine.trust.pipeline.state import (
     AuthorizeDecision,
     _as_options_dict,
@@ -230,6 +234,7 @@ from memspine.trust.privacy import (
     payload_mentions,
     read_scope,
 )
+from memspine.trust.retention import ChainReport
 from memspine.workers.list_cards import (
     LabelClasses,
     ListCard,
@@ -650,6 +655,8 @@ class Engine:
         if config.observability.tap.enabled:  # WT-01: debugging wiretap, off by default
             tap.configure(config.observability.tap)
             self._tap_owner = True
+        if config.privacy.erasure_v2:  # T5-04: erased / hidden ids, queue, purge table
+            await trust_erasure_v2.load(self)
         self._started = True
         return self
 
@@ -3242,8 +3249,39 @@ class Engine:
         return await trust_audit.verify_audit_chain(self)
 
     async def audit_chain_ok(self) -> bool:
-        """#49: True when the audit hash chain verifies (see :meth:`verify_audit_chain`)."""
+        """#49: True when the audit hash chain verifies (see :meth:`verify_audit_chain`);
+        under ``audit.chain_v2`` the LIB-41 chain (:meth:`verify_audit_chain_v2`)."""
         return await trust_audit.audit_chain_ok(self)
+
+    async def verify_audit_chain_v2(self) -> ChainReport:
+        """T5-05 (``audit.chain_v2``): re-read the hash-chained audit records and verify the
+        sequence, the links, each hash and the time order. A rolling log anchors at its oldest
+        surviving record; an ephemeral log persists none."""
+        return await trust_audit_v2.verify(self)
+
+    def erasure_status(self) -> dict[str, object]:
+        """T5-04 (``privacy.erasure_v2``): generation, erased / hidden / queued counts and the
+        purge jobs (state, done, total) by manifest id."""
+        return trust_erasure_v2.status(self)
+
+    def erasure_queue(self) -> list[dict[str, object]]:
+        """T5-04: the re-derivation queue (record id, action, remaining live sources) the
+        offline runner consumes; ids only."""
+        return trust_erasure_v2.queue(self)
+
+    async def erasure_release(self, record_ids: Sequence[str], namespace: str = "default") -> int:
+        """T5-04: hidden ids the offline runner re-derived (or dropped) become visible again;
+        erased ids never do. Returns how many were released."""
+        return await trust_erasure_v2.release(self, record_ids, namespace)
+
+    async def erasure_resume_purges(self) -> list[str]:
+        """T5-04: re-run every purge job that is not done; returns the manifest ids now done."""
+        return await trust_erasure_v2.resume_purges(self)
+
+    def retention_boundary(self, namespace: str = "default") -> RetentionBoundary | None:
+        """T5-05 (``retention.v2``): the last retention boundary and rebuild mode planned for
+        ``namespace`` (None before the first pass)."""
+        return trust_retention_v2.boundary(self, namespace)
 
     async def export(
         self,

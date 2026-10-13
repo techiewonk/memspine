@@ -8,6 +8,7 @@ from typing import Any
 from memspine.core.policies.retention import RetentionPolicy
 from memspine.exceptions import ConflictError, MemspineError
 from memspine.store.records import MemoryRecord
+from memspine.trust.pipeline import retention_v2
 from memspine.trust.pipeline.state import _as_options_dict
 from memspine.trust.privacy import matching_class
 
@@ -21,7 +22,12 @@ async def expire_retention(eng: Any, now: datetime | None = None) -> dict[str, o
     policy refuses deletion (legal hold, regulated PII: ``may_delete``) is kept,
     and so is one any of whose descendants would be; the rest go through
     :meth:`forget` (``hard=True``, cascading), each with an audit reason naming
-    the class. No classes configured: nothing runs."""
+    the class. No classes configured: nothing runs.
+
+    ``retention.v2`` (T5-05): the pass is planned by the LIB-41 library instead
+    (:mod:`memspine.trust.pipeline.retention_v2`)."""
+    if eng._config().retention.v2:
+        return await retention_v2.expire(eng, now)
     storage = eng._require_started()
     classes = eng._config().retention.classes
     if not classes:

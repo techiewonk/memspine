@@ -9,6 +9,7 @@ from typing import Any
 from memspine.config import constants
 from memspine.store.events import EventKind, EventLogMode, MemoryEvent
 from memspine.store.scope import validate_namespace
+from memspine.trust.pipeline import audit_v2
 from memspine.trust.privacy import (
     AUDIT_GENESIS,
     AUDIT_KINDS,
@@ -96,6 +97,8 @@ async def bulk_read_alerts(
 
 async def _audit_read(eng: Any, verb: str, namespace: str, record_ids: Sequence[str]) -> None:
     """#49: a READ_AUDIT event for one read verb (``audit.reads`` only)."""
+    if audit_v2.enabled(eng):  # T5-05: LIB-41 hash-chained records, the profile decides
+        return await audit_v2.read(eng, verb, namespace, record_ids)
     if not eng._config().audit.reads:
         return
     principal = current_principal() or "anonymous"
@@ -123,6 +126,8 @@ async def _audit_action(
     **extra: object,
 ) -> None:
     """#49: an AUDIT event for a governance action (``audit.actions`` only)."""
+    if audit_v2.enabled(eng):  # T5-05: LIB-41 hash-chained records, the profile decides
+        return await audit_v2.action(eng, action, ns, record_ids, actor=actor, reason=reason)
     if not eng._config().audit.actions:
         return
     await eng._append_audit(
@@ -161,5 +166,8 @@ async def verify_audit_chain(eng: Any) -> AuditChainReport:
 
 
 async def audit_chain_ok(eng: Any) -> bool:
-    """#49: True when the audit hash chain verifies (see :meth:`verify_audit_chain`)."""
+    """#49: True when the audit hash chain verifies (see :meth:`verify_audit_chain`); under
+    ``audit.chain_v2`` the LIB-41 chain (:meth:`verify_audit_chain_v2`)."""
+    if audit_v2.enabled(eng):
+        return (await audit_v2.verify(eng)).ok
     return (await eng.verify_audit_chain()).ok

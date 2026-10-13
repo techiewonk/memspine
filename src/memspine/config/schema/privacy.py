@@ -29,6 +29,14 @@ class RetentionConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     classes: list[RetentionClassConfig] = Field(default_factory=list)
+    #: T5-05 (LIB-41): plan expiry with the retention library at the sleep cycle. The record
+    #: layer L0 (turns, the event log) never expires under ``event_log.mode: full``; expired
+    #: records leave a tombstone and keep their lineage; the plan advertises the rebuild mode
+    #: (full / limited / unavailable). Needs ``classes`` or ``profile`` to expire anything.
+    v2: bool = False
+    #: T5-05: a named LIB-41 template (assistant, coding, ephemeral, multi_agent, regulated)
+    #: whose classes apply under ``v2`` besides ``classes``. None: ``classes`` only.
+    profile: Literal["assistant", "coding", "ephemeral", "multi_agent", "regulated"] | None = None
 
 
 class AuditConfig(BaseModel):
@@ -48,6 +56,28 @@ class AuditConfig(BaseModel):
 
     reads: bool = False
     actions: bool = False
+    #: T5-05 (LIB-41): hash-chained audit records (ids, action, purpose, outcome; never content)
+    #: replace the ``memory.audit`` / ``memory.read_audit`` events. What is audited follows the
+    #: retention profile (erase, consent and admin always; correct; reads under ``audit.reads``).
+    #: ``Engine.verify_audit_chain_v2()`` checks the chain on demand.
+    chain_v2: bool = False
+
+
+class PrivacyConfig(BaseModel):
+    """T5-04 erasure planning (LIB-09), opt-in.
+
+    - ``erasure_v2``: a hard forget plans over the lineage graph (the lineage table under
+      ``write.lineage_table``, else ``source.parents``). The erased record is removed; each
+      dependant is kept, hidden for re-derivation, unbound, or re-run by its lineage role. Erased
+      and hidden ids are invisible at once (every read revalidates, POL-1); a content-free manifest
+      (ids and the erasure generation) is stored; a tracked purge job clears vectors, the lexical
+      index, the graph and the caches; re-derivation work is queued for the offline runner.
+      ``cascade`` is ignored while on: the plan decides the dependants.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    erasure_v2: bool = False
 
 
 class ConsentConfig(BaseModel):
