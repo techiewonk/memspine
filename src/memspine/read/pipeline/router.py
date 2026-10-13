@@ -991,6 +991,10 @@ async def _read(
         )
     if eng._config().read.event_ledger == "on":  # A02: opt-in, read-time only
         result = await eng._event_ledger_extend(query, ns, result, routed_budget)
+    if eng._config().read.deep_v2 or eng._config().read.obligations:  # R3-12 / R3-16: opt-in
+        result = await eng._deep_extend(
+            query, ns, result, routed_budget, hide=hide, session_id=session_id
+        )
     headers = eng._count_section(ns, query, result.context, count_share, headers)
     headers = eng._duration_section(ns, query, result.context, headers)
     gated = await eng._relevance_gate(

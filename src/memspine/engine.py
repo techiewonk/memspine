@@ -2315,6 +2315,20 @@ class Engine:
             self, query, ns, result, budget_tokens, hide=hide, session_id=session_id,
         )
 
+    async def _deep_extend(
+        self,
+        query: str,
+        ns: str,
+        result: ReadResult,
+        budget_tokens: int,
+        *,
+        hide: Callable[[MemoryRecord], bool] | None,
+        session_id: str | None,
+    ) -> ReadResult:
+        return await read_deep._deep_extend(
+            self, query, ns, result, budget_tokens, hide=hide, session_id=session_id,
+        )
+
     def _agentic_assemble(
         self,
         query: str,
