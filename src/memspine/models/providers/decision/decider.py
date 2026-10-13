@@ -184,6 +184,15 @@ TASKS: dict[str, TaskSpec] = {
         "not_about",
         "question_context",
     ),
+    # W2-08 (W-17): question = the extracted claim, context = the cited evidence lines
+    "grounded": TaskSpec(
+        "Does the context state the claim, with the same person, numbers, dates, negation and "
+        "certainty, without adding or changing anything? Answer no if any detail of the claim is "
+        "missing from the context or contradicts it.",
+        "grounded",
+        "ungrounded",
+        "question_context",
+    ),
     "abstention": TaskSpec(
         "Can the question be answered from the context?",
         "answerable",

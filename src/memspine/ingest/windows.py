@@ -16,6 +16,7 @@ from memspine.config.schema import MemspineConfig
 from memspine.core.window import WindowSettings
 from memspine.derive.envelope_compiler import EnvelopeCompiler
 from memspine.derive.failure_ledger import FailureLedger
+from memspine.derive.grounding_stage import build_grounding_stage
 from memspine.derive.items import ItemValidator, RepairAsk
 from memspine.derive.pipeline.stages.close import session_close
 from memspine.derive.pipeline.stages.context import SessionClosed
@@ -204,6 +205,8 @@ def _envelope_stages(eng: Any, config: MemspineConfig) -> tuple[Any, ...]:
         stages.append(build_stage(trust_valid_from=not config.write.stamping_v2))
     if config.write.integration_v2:  # W2-10 (order 400)
         stages.append(_integration_stage(eng, config))
+    if config.write.grounding_v2:
+        stages.append(build_grounding_stage(eng, config))
     return tuple(stages)
 
 
