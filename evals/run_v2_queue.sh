@@ -187,8 +187,7 @@ ensure_ref() {  # ensure_ref <set> <slice> [categories]: REFARM/REFKIND already 
 slices_for() {  # slices_for <screen> <set> <kind> <default slice>: one "slice path[TAB]categories" per line (FAIL-SLICE: evals/v2_slice_map.tsv; categories from column 6 'categories=5', empty when absent)
   local f="${V2_SLICE_MAP-$here/v2_slice_map.tsv}" out=""
   if [ -n "$f" ] && [ -f "$f" ]; then
-    out="$(awk -F'	' -v id="$1" -v s="$2" -v k="$3" '{gsub(/
-/,"")} /^#/||NF<3{next} $1==id&&$2==s{p=$3; if(k=="GC"&&$4!="")p=$4; c=""; if($6 ~ /^categories=/)c=substr($6,12); print p "	" c}' "$f")"
+    out="$(awk -F'	' -v id="$1" -v s="$2" -v k="$3" '{gsub(//,"")} /^#/||NF<3{next} $1==id&&$2==s{p=$3; if(k=="GC"&&$4!="")p=$4; c=""; if($6 ~ /^categories=/)c=substr($6,12); print p "	" c}' "$f")"
   fi
   if [ -n "$out" ]; then printf '%s
 ' "$out"; else printf '%s
