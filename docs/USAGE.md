@@ -994,6 +994,10 @@ in the schema — or if the schema gains a key not documented here.
 | `read.short_query_lexical_weight` | `None` | N33: the BM25 leg's RRF weight for a question of at most `SHORT_QUERY_WORDS` (5) content words. |
 | `read.entity_leg` | `false` | N59: an RRF leg of raw turns that name the question's proper nouns and years, beyond the conversation's speakers. Ranked by names matched, then content words shared, then time order. |
 | `read.entity_leg_v2` | `false` | R3-05a: entity leg over resolved entity ids (associative entity index) with the Mem0 boost (max over matched entities, capped at 0.5) and hub damping; joins fusion as `entity_v2`. |
+| `read.legs_v2` | `false` | R3-04 (R-05/06/07): candidate generation through the leg registry (`memspine.read.legs`): `vector`, language-aware BM25 `lexical` (runs when `hybrid` is on, replaces the tantivy leg) and `temporal` (event intervals in the anchored window, replaces `temporal_leg`). An empty leg reports a reason (wiretap `read.leg`), never an error. |
+| `read.lexical_scorer` | `bm25` | R3-04: the scorer behind the `lexical` leg under `legs_v2`; only `bm25` today, others register through `memspine.read.legs.register_scorer`. |
+| `read.lexical_language` | `en` | R3-04: default tokeniser language of the `lexical` leg under `legs_v2` (ISO 639-1 stop words and Snowball stemming; other values: no stemming; CJK is always character bigrams). |
+| `read.lexical_namespace_languages` | `{}` | R3-04: per-namespace language override for the `lexical` leg, e.g. `{"ns-de": "de"}`. |
 | `read.timeview_v2` | `false` | R3-14: as-of reads through the three-valued time view (event time for true-at, recorded time for known-at); undecidable records are kept and flagged, not dropped. |
 | `read.neighbours_v2` | `false` | R3-10: neighbour windows after rerank via the neighbours library: budget-aware, viewer-checked, overlapping windows merged; replaces the G2c expansion. |
 | `read.statement_probe` | `false` | N63: the question rewritten as a statement by rules ("When did Ana go camping?" becomes "Ana go camping") joins the search as one more probe (vector + BM25). |

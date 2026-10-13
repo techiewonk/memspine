@@ -202,7 +202,7 @@ async def _metadata_legs(eng: Any, ns: str, query: str, fetch_k: int) -> list[li
             and not r.quarantined
             and r.memory_type != "shared"
         ]
-        if read.temporal_leg:
+        if read.temporal_leg and not read.legs_v2:  # R3-04: legs_v2 has its own temporal leg
             # F2 / W7: relative phrases in the question resolve against the as-of
             # time or the read time; without either the call is unchanged.
             anchored: dict[str, Any] = {}
@@ -279,6 +279,72 @@ async def _metadata_legs(eng: Any, ns: str, query: str, fetch_k: int) -> list[li
         _log.warning("read.metadata_legs_failed", namespace=ns, error=str(exc))
         return []
     return [leg for leg in legs if leg]
+
+
+async def registry_base_legs(
+    eng: Any,
+    ns: str,
+    query: str,
+    query_vector: Any,
+    fetch_k: int,
+    use_hybrid: bool,
+    probe_texts: Sequence[str],
+    probe_vectors: Sequence[Any],
+) -> tuple[Any, Any, Any]:
+    """R3-04 (``read.legs_v2``; R-05, R-06, R-07): base candidates through the leg registry.
+
+    Same return shape as the inline path in ``router._search``: ``(vector_hits, lexical_hits,
+    extra_legs)``. ``vector`` (dense), ``lexical`` (language-aware BM25) and ``temporal`` (event
+    intervals in the question's window, anchored to the as-of or the read clock) run through
+    ``memspine.read.legs``; the lexical leg runs when ``hybrid`` is on and fills the lexical slot,
+    the temporal leg joins the extra legs as the named leg ``temporal``. The metadata, encoder and
+    probe legs are the current ones.
+    """
+    from memspine.read import legs as lib
+
+    read = eng._config().read
+    live = [
+        r
+        for r in await eng._records(ns)
+        if r.status is RecordStatus.ACTIVATED and not r.quarantined and r.memory_type != "shared"
+    ]
+
+    async def search_vector(k: int) -> list[VectorHit]:
+        return await eng._vector_leg(ns, query_vector, k)
+
+    ctx = lib.LegContext(
+        query=query,
+        namespace=ns,
+        fetch_k=fetch_k,
+        records=live,
+        language=read.lexical_language,
+        namespace_languages=read.lexical_namespace_languages,
+        lexical_scorer=read.lexical_scorer,
+        reference_time=active_as_of() or eng._clock(),
+        year_ref=max(
+            (r.valid_from if r.valid_from.tzinfo else r.valid_from.replace(tzinfo=UTC))
+            for r in live
+        )
+        if live
+        else None,
+        week=read.relative_week,
+        vector_search=search_vector if eng._embedder is not None else None,
+    )
+    names = ["vector", *(["lexical"] if use_hybrid else []), "temporal"]
+    out = await lib.run_legs(lib.REGISTRY, names, ctx)
+    vector_hits = list(out["vector"].hits)
+    lexical_hits = (
+        [LexicalHit(h.record_id, h.score) for h in out["lexical"].hits] if use_hybrid else []
+    )
+    extra_legs: list[Any] = list(await eng._metadata_legs(ns, query, fetch_k))
+    temporal = [LegHit(h.record_id, h.score) for h in out["temporal"].hits]
+    if temporal:
+        extra_legs.append(NamedLeg("temporal", temporal))
+    if read.query_encoder != "none":
+        extra_legs += await eng._encoder_legs(ns, query)
+    for text, vector in zip(probe_texts, probe_vectors, strict=True):
+        extra_legs += await eng._probe_legs(ns, text, vector, fetch_k, use_hybrid)
+    return vector_hits, lexical_hits, extra_legs
 
 
 async def _entity_leg_v2(

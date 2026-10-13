@@ -822,6 +822,25 @@ class ReadConfig(BaseModel):
     #: entity index): Mem0 boost, max over the matched entities, capped, with hub damping
     #: ``1/(1+0.001 (degree-1)^2)``. Joins fusion as the ``entity_v2`` leg. Off: unchanged.
     entity_leg_v2: bool = False
+    #: R3-04 (R-05, R-06, R-07; ``memspine.read.legs``): candidate generation through the leg
+    #: registry: ``vector`` (dense), ``lexical`` (language-aware BM25 over the live records,
+    #: Tokeniser + scorer ports) and ``temporal`` (event intervals in the question's anchored
+    #: window), each a registered family that feeds the existing fusion. The lexical leg takes
+    #: the place of the tantivy BM25 leg (it runs when ``hybrid`` is on) and the temporal leg
+    #: the place of ``temporal_leg``. An empty leg (no records on its layer, no query terms, no
+    #: window, no embedder) reports a reason and returns nothing; it is never an error. Off: the
+    #: current legs, unchanged.
+    legs_v2: bool = False
+    #: R3-04 (R-06): the scorer behind the ``lexical`` leg under ``legs_v2``. Only ``bm25`` is
+    #: implemented; another scorer (for example a word-vector one) registers through
+    #: ``memspine.read.legs.register_scorer`` and is then named here.
+    lexical_scorer: Literal["bm25"] = "bm25"
+    #: R3-04 (R-06): the default tokeniser language of the ``lexical`` leg under ``legs_v2``
+    #: (ISO 639-1: stop words and Snowball stemming; any other value: no stemming). CJK text is
+    #: always indexed as character bigrams.
+    lexical_language: str = "en"
+    #: R3-04 (R-06): per-namespace language override, ``{"ns-de": "de"}``. Empty: the default.
+    lexical_namespace_languages: dict[str, str] = Field(default_factory=dict)
     #: R3-14 (LIB-22, R-24, S6-3): as-of reads through the three-valued time view: ``true_at``
     #: judges event time (valid_from/valid_to), ``known_at`` recorded time, undecidable
     #: records are kept (flagged) rather than dropped. Applies to the read's date allow-list
