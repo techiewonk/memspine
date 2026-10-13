@@ -143,9 +143,9 @@ WP = [
      "Unit tests; pure, unwired (wiring in R3-01); depends only on memspine.schemas", "Done", "read/tiers.py: tier budgets, viewer-bound ReadRequest, tier choice, evidence unit (eb1b1a1)"),
     # ---- Wiretap (owner 2026-10-13): per-request trace of every stage, configurable, debug/dev only ----
     ("WT-01", 1, "Wiretap core: request tracer, stage events, configurable sinks (off by default), gap report CLI and HTML view", ["G-20"], ["F-07"], "infra",
-     "Off by default; ids+scores, text opt-in; gap report lists per-request gaps", "In progress", "Swarm 2026-10-13: wiring flag-off (agent running)"),
+     "Off by default; ids+scores, text opt-in; gap report lists per-request gaps", "Done", "observability/tap.py + tap_report (gap rules, HTML), sinks jsonl/sqlite/memory/log/otel, off by default; engine reads/writes/sleep traced; WIRETAP.md (43ef09f)"),
     ("WT-02", 1, "Wiretap instrumentation of the write and derive paths (ingest/write, windows, derive stages, outbox)", ["G-20"], ["WT-01"], "infra",
-     "Every write and derive stage emits events; golden unchanged with tap off", "Not started", "Owner 2026-10-13"),
+     "Every write and derive stage emits events; golden unchanged with tap off", "In progress", "Swarm: instrument write and derive paths"),
     # ---- Phase 1a: pure-move split (one serial lane, golden-gated) ----
     ("F-05", 1, "Package skeleton; move store and trust leaves", ["G-16"], ["P0-04", "X-00", "X-01", "X-02"], "move",
      "Both suites and golden green; no old import paths", "Done", "S5: 11 modules moved, codemod_move.py; unit 3343, evals 1435, golden, 14 contracts kept (afb3d16)"),
@@ -171,7 +171,7 @@ WP = [
      "Coordinator decision 2026-10-13 (owner delegated choices): defer deletion; candidates stay flag-off until GPU screens decide"),
     # ---- Phase 1b: foundations in the new modules (serial lane: each adds an Alembic revision) ----
     ("F-01", 1, "Graph key identity: kind, occurrence, A-B-A, old-key aliases", ["M-17", "W-20"], ["F-15"], "behaviour",
-     "A-B-A returns to A; same-day events stay two; replay idempotent; built flag-off, then GC arm screen", "In progress", "Swarm 2026-10-13: wiring flag-off (agent running)"),
+     "A-B-A returns to A; same-day events stay two; replay idempotent; built flag-off, then GC arm screen", "Needs measurement", "graph.key_v2 flag-off: store/keys.py v2 keys with occurrence, A-B-A, alias lookup (f15cfc5); screen queued"),
     ("F-02a", 1, "Record envelope: layer field, type tag, provenance class, axes, fingerprint; Alembic and upcaster",
      ["M-02", "M-03", "M-06", "M-07", "M-08", "P-12"], ["F-01", "MOD-01"], "migration", "Replay byte-stable; upcaster round-trips; golden unchanged",
      "Not started", "S2+S3; Q1"),
@@ -254,8 +254,8 @@ WP = [
     ("R3-07", 3, "Jina rerank on every read (pools capped at 64); licence fallback; bounded boosts", ["R-14", "R-15", "R-16", "P-18"], ["R3-08", "X-06"], "behaviour",
      "Matches the 81.4% reference; boosts off until screened", "In progress", "Swarm 2026-10-13: wiring flag-off (agent running)"),
     ("R3-08", 3, "Lift derived hits to turns BEFORE rerank (via lineage)", ["R-17"], ["LIB-11", "R3-06"], "behaviour", "Focus non-inferior", "In progress", "Swarm 2026-10-13: wiring flag-off (agent running)"),
-    ("R3-09a", 3, "Packer: exact reader-tokenizer accounting incl. headers, citations, reserves; early-break fix", ["R-18"], ["LIB-06"], "behaviour", "Exact-tokenizer, multilingual and long-token tests; estimated mode labelled", "In progress", "Swarm 2026-10-13: wiring flag-off (agent running)"),
-    ("R3-09b", 3, "Adaptive complete evidence bundles and block shares", ["R-18"], ["R3-09a"], "behaviour", "Equal-budget screen; adaptive bundle selection gets a separate quality screen (ER-24)", "In progress", "Swarm 2026-10-13: wiring flag-off (agent running)"),
+    ("R3-09a", 3, "Packer: exact reader-tokenizer accounting incl. headers, citations, reserves; early-break fix", ["R-18"], ["LIB-06"], "behaviour", "Exact-tokenizer, multilingual and long-token tests; estimated mode labelled", "Needs measurement", "Wired flag-off (RW-C bb21249); screen queued"),
+    ("R3-09b", 3, "Adaptive complete evidence bundles and block shares", ["R-18"], ["R3-09a"], "behaviour", "Equal-budget screen; adaptive bundle selection gets a separate quality screen (ER-24)", "Needs measurement", "Wired flag-off (RW-C bb21249); screen queued"),
     ("R3-10", 3, "Neighbour windows after rerank", ["R-19"], ["LIB-24"], "behaviour", "Focus non-inferior", "In progress", "Swarm 2026-10-13: wiring flag-off (agent running)"),
     ("R3-11", 3, "Store-calibrated relevance gate with named bypass", ["R-21"], ["LIB-12"], "behaviour",
      "OP-Bench up; no recall loss on MAB-CR, ConvoMem, LoCoMo", "Needs measurement", "Wired flag-off (RW-D 949b5ff); SAF-GENERIC passes with gate_v2; screen queued (SCREENS.md)"),
@@ -294,7 +294,7 @@ WP = [
      ["O4-07", "O4-05", "O4-06", "O4-09"], "measure", "ROADMAP Phase 4 exit gate", "Not started", ""),
     # ---- Phase 5: trust, operations ----
     ("T5-01", 5, "Trust horizon on grants", ["G-07"], ["F-16c", "W2-04", "LIB-21"], "behaviour", "Read cost of the bound; N1 tests", "Not started", ""),
-    ("T5-02", 5, "Low-trust rendering in context", ["G-09"], ["LIB-25"], "behaviour", "Count wrapped blocks; QA non-inferior", "In progress", "Swarm 2026-10-13: wiring flag-off (agent running)"),
+    ("T5-02", 5, "Low-trust rendering in context", ["G-09"], ["LIB-25"], "behaviour", "Count wrapped blocks; QA non-inferior", "Needs measurement", "Wired flag-off (RW-C bb21249); screen queued"),
     ("T5-03", 5, "Privacy tiers, consent and purpose scopes", ["G-10", "G-11"], ["EX-1a", "LIB-18"], "behaviour", "Remote-tier gate tests", "Not started", ""),
     ("T5-04", 5, "Erasure index across caches and projections (contract re-run per layer)", ["G-13", "M-25"], ["F-16f", "LIB-09"], "behaviour",
      "Forget probes on both profiles; every layer registered", "Not started", ""),

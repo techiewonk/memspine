@@ -2794,8 +2794,8 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
    ],
    "kind": "infra",
    "gate": "Off by default; ids+scores, text opt-in; gap report lists per-request gaps",
-   "status": "In progress",
-   "note": "Swarm 2026-10-13: wiring flag-off (agent running)",
+   "status": "Done",
+   "note": "observability/tap.py + tap_report (gap rules, HTML), sinks jsonl/sqlite/memory/log/otel, off by default; engine reads/writes/sleep traced; WIRETAP.md (43ef09f)",
    "layers": [
     "L0",
     "L1",
@@ -2836,8 +2836,8 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
    ],
    "kind": "infra",
    "gate": "Every write and derive stage emits events; golden unchanged with tap off",
-   "status": "Not started",
-   "note": "Owner 2026-10-13",
+   "status": "In progress",
+   "note": "Swarm: instrument write and derive paths",
    "layers": [
     "L0",
     "L1",
@@ -3647,8 +3647,8 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
    ],
    "kind": "behaviour",
    "gate": "A-B-A returns to A; same-day events stay two; replay idempotent; built flag-off, then GC arm screen",
-   "status": "In progress",
-   "note": "Swarm 2026-10-13: wiring flag-off (agent running)",
+   "status": "Needs measurement",
+   "note": "graph.key_v2 flag-off: store/keys.py v2 keys with occurrence, A-B-A, alias lookup (f15cfc5); screen queued",
    "layers": [
     "L0",
     "L1",
@@ -5682,8 +5682,8 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
    ],
    "kind": "behaviour",
    "gate": "Exact-tokenizer, multilingual and long-token tests; estimated mode labelled",
-   "status": "In progress",
-   "note": "Swarm 2026-10-13: wiring flag-off (agent running)",
+   "status": "Needs measurement",
+   "note": "Wired flag-off (RW-C bb21249); screen queued",
    "layers": [
     "ctx"
    ],
@@ -5717,8 +5717,8 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
    ],
    "kind": "behaviour",
    "gate": "Equal-budget screen; adaptive bundle selection gets a separate quality screen (ER-24)",
-   "status": "In progress",
-   "note": "Swarm 2026-10-13: wiring flag-off (agent running)",
+   "status": "Needs measurement",
+   "note": "Wired flag-off (RW-C bb21249); screen queued",
    "layers": [
     "ctx"
    ],
@@ -6659,8 +6659,8 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
    ],
    "kind": "behaviour",
    "gate": "Count wrapped blocks; QA non-inferior",
-   "status": "In progress",
-   "note": "Swarm 2026-10-13: wiring flag-off (agent running)",
+   "status": "Needs measurement",
+   "note": "Wired flag-off (RW-C bb21249); screen queued",
    "layers": [
     "L0",
     "L1",
