@@ -23,6 +23,7 @@ from memspine.derive.pipeline.stages.context import SessionClosed
 from memspine.derive.pipeline.stages.index import SessionIndex
 from memspine.derive.prepass import Prepass, prepass_stage
 from memspine.derive.prompt_context import KnownEntity, KnownSource, PromptContextBuilder
+from memspine.derive.resolve_stage import ResolveSettings, build_resolve_stage
 from memspine.derive.segmenter import SegmentationSettings
 from memspine.derive.write import write_derived
 from memspine.exceptions import (
@@ -270,6 +271,8 @@ def _envelope_stages(eng: Any, config: MemspineConfig) -> tuple[Any, ...]:
     pre = _prepass(eng, config)
     if pre is not None:  # W2-13: cross-check only, order 500
         stages.append(prepass_stage(pre))
+    if config.write.resolver_v2:  # W2-09: online entity resolution (order 300)
+        stages.append(_resolve_stage(eng, config))
     return tuple(stages)
 
 
@@ -296,6 +299,23 @@ def _prepass(eng: Any, config: MemspineConfig) -> Prepass | None:
         shared = Prepass(config.write.prepass)
         eng._window_prepass = shared
     return shared
+
+
+def _resolve_stage(eng: Any, config: MemspineConfig) -> Any:
+    """W2-09 (``write.resolver_v2``): the resolve stage; event log and embedder bound lazily."""
+    w = config.write
+    stage = build_resolve_stage(
+        ResolveSettings(
+            high=w.resolve_high,
+            grey=w.resolve_grey,
+            max_cache=w.resolve_cache,
+            scoped=bool(config.isolation.scope_keys_v2),
+        ),
+        embed=eng._embedder.embed if eng._embedder is not None else None,
+        storage=lambda: eng._storage,
+    )
+    eng.__dict__["_entity_resolve_stage"] = stage
+    return stage.as_stage()
 
 
 def _segmentation(config: MemspineConfig) -> SegmentationSettings | None:
