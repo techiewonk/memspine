@@ -19,6 +19,7 @@ from memspine.derive.failure_ledger import FailureLedger
 from memspine.derive.items import ItemValidator, RepairAsk
 from memspine.derive.pipeline.stages.close import session_close
 from memspine.derive.pipeline.stages.context import SessionClosed
+from memspine.derive.prepass import Prepass, prepass_stage
 from memspine.derive.segmenter import SegmentationSettings
 from memspine.derive.write import write_derived
 from memspine.exceptions import (
@@ -172,6 +173,7 @@ def _build_windows(eng: Any, config: MemspineConfig) -> WindowPipeline | None:
         segmentation=_segmentation(config),
         role_policy=config.write.role_policy_v2,
         envelope=envelope,
+        prepass=_prepass(eng, config),
     )
 
 
@@ -198,7 +200,21 @@ def _envelope_stages(eng: Any, config: MemspineConfig) -> tuple[Any, ...]:
     """W2-06c: the post-compile stage list. Each W2 package appends ONE builder line here, gated
     on its own flag (see ``derive/envelope_stages.py`` for the order)."""
     stages: list[Any] = []
+    pre = _prepass(eng, config)
+    if pre is not None:  # W2-13: cross-check only, order 500
+        stages.append(prepass_stage(pre))
     return tuple(stages)
+
+
+def _prepass(eng: Any, config: MemspineConfig) -> Prepass | None:
+    """W2-13 (``write.prepass``): ONE pre-pass per engine, shared by the skip and the stage."""
+    if config.write.prepass == "off":
+        return None
+    shared: Prepass | None = getattr(eng, "_window_prepass", None)
+    if shared is None:
+        shared = Prepass(config.write.prepass)
+        eng._window_prepass = shared
+    return shared
 
 
 def _segmentation(config: MemspineConfig) -> SegmentationSettings | None:

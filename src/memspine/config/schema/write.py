@@ -104,6 +104,18 @@ class WriteConfig(BaseModel):
     #: ``False`` (default): the old fact section.
     envelope_v2: bool = False
 
+    #: W2-13 (P-23; needs ``window_extract``). A small local pre-pass over each window's raw turns,
+    #: as hints, before the extraction call. ``rules``: a regex baseline (capitalised names, dates,
+    #: numbers, aliases learned from deposited envelopes). ``gliner``: the rules plus GLiNER2
+    #: entities (local CPU, ``[ner]``; the rules alone when gliner2 is absent). Three uses: (1) hint
+    #: lines for the KNOWN / NEW prompt context (``derive.prepass.prepass_hints``), (2) a window whose
+    #: every turn is greeting / thanks / acknowledgement filler and in which nothing was seen skips
+    #: the extraction call (not when the ``episode`` section is on; counted as
+    #: ``windows_prepass_skipped``), (3) with ``envelope_v2`` an order-500 stage flags envelopes whose
+    #: proper-name entity the pre-pass never saw (``extras.prepass_unseen``); it never adds or drops
+    #: a fact. Tap ``write.prepass.*``. ``off`` (default): unchanged.
+    prepass: Literal["off", "rules", "gliner"] = "off"
+
     #: F-16a (M-09, G-08, POL-2): the lineage table and the single derived-write door. ``True``:
     #: every derived record written through ``derive/write.py`` gets one lineage edge per parent
     #: (``support`` unless the site names a role), its trust capped at the least-trusted parent, a
