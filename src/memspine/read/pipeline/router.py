@@ -383,6 +383,7 @@ async def search(
             tags=tags,
             session_id=session_id,
             keep_k=top_k,
+            search_pool=eng._config().read.rerank_v2_search_pool,
         )
         if outer:
             await eng._audit_read("search", namespace, [r.record_id for r, _ in scored])
@@ -403,6 +404,7 @@ async def _search(
     hide: Callable[[MemoryRecord], bool] | None = None,
     probes: Sequence[str] = (),
     fused_legs: Sequence[list[LegHit]] = (),
+    search_pool: int = 0,
 ) -> list[tuple[MemoryRecord, float]]:
     """:meth:`search` with ``keep_k``: how many results the caller finally keeps
     (assembly fetches ``candidate_pool x top_k``); the H18 rerank gate uses it.
@@ -418,6 +420,11 @@ async def _search(
     ``fused_legs`` (#36): precomputed ranked legs (the persons / time leg) fused by RRF
     like the C3' legs. Empty: unchanged.
 
+    ``search_pool`` (FU-RRPOOL, ``read.rerank_v2_search_pool``, passed by :func:`search` only):
+    with ``read.rerank_v2`` on, fetch and rerank ``max(top_k, search_pool)`` candidates, then
+    cut to ``top_k``. 0 = off. :func:`assemble` already widens through ``candidate_pool`` and
+    does not pass it.
+
     The active date filter (#37, :func:`active_date_filter`) keeps only matching
     records in every leg, before fusion; each leg then looks over the whole
     namespace so no matching record is cut by a leg window."""
@@ -429,6 +436,10 @@ async def _search(
         # (REST already guards ``ge=1``).
         raise ValueError(f"top_k must be >= 1, got {top_k}")
     ns = validate_namespace(namespace)
+    final_k = top_k
+    if search_pool > top_k and eng._config().read.rerank_v2:
+        # FU-RRPOOL: the reranker sees a wider pool; the cut back to ``final_k`` follows it.
+        top_k = search_pool
     if eng._config().read.freshness_v2:  # O4-01b (O-06): staleness metadata, optional raw fallback
         stale_leg = await read_freshness.apply(eng, ns)
         if stale_leg:
@@ -929,6 +940,12 @@ async def _search(
         _pre = _ids(scored)
         scored = scored[: read_cfg.rerank_keep]
         _cut_missing(_pre, scored, "rerank_keep", keep=read_cfg.rerank_keep)
+    if len(scored) > final_k:
+        # FU-RRPOOL: the wide pool was reranked; only the caller's top_k leave.
+        _pre = _ids(scored)
+        scored = scored[:final_k]
+        _cut_missing(_pre, scored, "rerank_v2_search_pool", keep=final_k)
+        tap.event("read.rerank_v2_search_pool", pool=top_k, kept=final_k)
     if scored and eng._config().read.record_access:
         # Reinforcement stats via the log (M1): last_accessed_at + access_count.
         await eng._append_and_project(

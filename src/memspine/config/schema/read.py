@@ -243,6 +243,12 @@ class ReadConfig(BaseModel):
     #: Drop ``jina`` to avoid its CC-BY-NC weights.
     rerank_v2_chain: list[str] = Field(default_factory=lambda: ["jina", "qwen3", "fastembed"])
     rerank_v2_pool: int = Field(default=64, ge=1, le=256)
+    #: FU-RRPOOL (INV-FILLER): ``search()`` fetched only ``top_k`` candidates, so ``rerank_v2``
+    #: could only reorder those; filler turns pushed the evidence out and it never came back.
+    #: > 0 (needs ``rerank_v2``): ``search`` fetches ``max(top_k, rerank_v2_search_pool)``,
+    #: reranks them, then cuts to ``top_k``. ``assemble`` is not touched (it widens through
+    #: ``candidate_pool``). 0 (default) = off. Capped by ``rerank_v2_pool`` at the reranker.
+    rerank_v2_search_pool: int = Field(default=0, ge=0, le=256)
     #: G-10 (Graphiti MMR): None = off; a lambda in [0, 1] reorders the final hits by
     #: maximal marginal relevance on embeddings (1 = relevance only, 0 = diversity only).
     mmr_lambda: float | None = Field(default=None, ge=0.0, le=1.0)

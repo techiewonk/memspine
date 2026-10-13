@@ -310,6 +310,7 @@
         "fastembed"
       ],
       "rerank_v2_pool": 64,
+      "rerank_v2_search_pool": 0,
       "resolve_durations": false,
       "resolve_relative_dates": false,
       "role_aware": false,

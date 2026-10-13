@@ -69,3 +69,4 @@ S63	B8	profile	scr-b8-read-v2-safe	v2-S02-i2	NONINF	fo	S02	GC	200	profile read-v
 S64	B8	profile	scr-b8-offline-v2	v2-S02-i2	NONINF	f	S02	GC	230	profile offline-v2 (replaces S33-S35, S40-S42, S46, S47)
 S65	B8	profile	scr-b8-trust-v2	v2-S02-i2	REPORT	f	S02	GC	160	profile trust-v2 (viewer_required may refuse eval reads: then RUN_FAILED is the finding; real test is the behavioural suite and N1)
 S66	B8	profile	scr-b8-run-v2	v2-S02-i2	PARITY	f	S02	GC	150	profile run-v2 (NO CHANGE expected on answers; latency and cost only)
+S67	B9	FU-RRPOOL	v2-R3-07b-rerank_v2_pool	v2-S15-i2	NONINF	fo	S15	J	63	read.rerank_v2_search_pool=30 on rerank_v2 (search fetches max(top_k,30), reranks, cuts to top_k; FU-RRPOOL)
