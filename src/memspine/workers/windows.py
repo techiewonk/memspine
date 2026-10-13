@@ -2168,6 +2168,7 @@ class WindowPipeline:
                     extra_tags=tags,
                     require_live=member_ids,
                     trust_cap=env.assessment.source_trust,
+                    envelope=env.model_dump(mode="json"),
                 )
             except asyncio.CancelledError:
                 raise

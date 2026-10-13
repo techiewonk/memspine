@@ -78,7 +78,14 @@ def _scrub(carrier: dict[str, Any], scrub: dict[str, object]) -> bool:
     fields = _identifying(carrier, scrub)
     for field in fields:
         carrier[field] = scrub[field]
-    return bool(fields)
+    changed = bool(fields)
+    if scrub is _SNAPSHOT_SCRUB:
+        # FU-GAPS: the compiled envelope in the fingerprint blob quotes the statement and its evidence
+        fingerprint = carrier.get("fingerprint")
+        if isinstance(fingerprint, dict) and fingerprint.get("envelope") is not None:
+            fingerprint.pop("envelope")
+            changed = True
+    return changed
 
 
 def _merge_carriers(node: dict[str, Any], record_id: str) -> list[_Carrier]:

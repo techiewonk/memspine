@@ -15,7 +15,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from test_w2_06b_prompt_v2 import WindowLLM, _run
 from test_window_write import _facts
 
-pytestmark = pytest.mark.asyncio
 
 
 # --- 1. write.prompt_v2 partial-parse recovery ------------------------------------------------
@@ -211,3 +210,68 @@ def test_kind_registry_restore_respects_the_cap() -> None:
     assert reg.restore(["b", "c", "d"]) == 1
     assert "d" not in reg.kinds and reg.drain_new() == []
     assert reg("x") == "other" and reg.drain_new() == []
+
+
+# --- 5. the compiled envelope is stored and read back ---------------------------------------
+async def test_get_envelope_reads_back_the_compiled_envelope(monkeypatch: pytest.MonkeyPatch) -> None:
+    from test_w2_06a_envelope import ItemLLM, _engine
+    from test_window_write import _send, _turns
+
+    from memspine.schemas.durable import AssertionEnvelope
+
+    eng = await _engine(monkeypatch, ItemLLM())
+    try:
+        await _send(eng, "a", "s1", _turns("trip", 3))
+        await eng.flush_windows()
+        facts = await _facts(eng)
+        assert facts
+        got = [await eng.get_envelope(r.record_id, "a") for r in facts]
+        assert all(isinstance(e, AssertionEnvelope) for e in got)
+        env = got[0]
+        assert env is not None and env.evidence and env.time.source_time is not None
+        assert await eng.get_envelope("missing", "a") is None
+        turn = next(r for r in await eng.list_records("a", "episodic"))
+        assert await eng.get_envelope(turn.record_id, "a") is None  # a raw turn has no envelope
+    finally:
+        await eng.stop()
+
+
+async def test_envelope_survives_a_restart(monkeypatch: pytest.MonkeyPatch, tmp_path: Any) -> None:
+    from test_w2_06a_envelope import ItemLLM, _engine
+    from test_window_write import _send, _turns
+
+    path = tmp_path / "e.db"
+    eng = await _engine(monkeypatch, ItemLLM(), path)
+    try:
+        await _send(eng, "a", "s1", _turns("trip", 2))
+        await eng.flush_windows()
+        rid = (await _facts(eng))[0].record_id
+        before = await eng.get_envelope(rid, "a")
+    finally:
+        await eng.stop()
+    eng2 = await _engine(monkeypatch, ItemLLM(), path)
+    try:
+        after = await eng2.get_envelope(rid, "a")
+        assert before is not None and after == before
+    finally:
+        await eng2.stop()
+
+
+def test_fingerprint_without_an_envelope_dumps_as_before() -> None:
+    from memspine.store.records import RecordFingerprint
+
+    assert "envelope" not in RecordFingerprint().model_dump(mode="json")
+    assert RecordFingerprint(envelope={"a": 1}).model_dump(mode="json")["envelope"] == {"a": 1}
+
+
+def test_erasure_scrubs_the_logged_envelope() -> None:
+    from memspine.trust.erasure import redact_record
+
+    snap = {
+        "record_id": "r1",
+        "namespace": "a",
+        "content": "Ilse lives in Oslo",
+        "fingerprint": {"content": "", "envelope": {"text": "Ilse lives in Oslo"}},
+    }
+    assert redact_record({"record": snap}, "r1")
+    assert "envelope" not in snap["fingerprint"] and snap["content"] == ""
