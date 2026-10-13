@@ -144,6 +144,26 @@ class GraphConfig(BaseModel):
     #: takes its edges with it. With ``isolation.scope_keys_v2`` the edge keys use tenant + owner.
     #: Off (default): no compiled edges, byte-identical. Tap: ``graph.compile.*``.
     edge_compiler_v2: bool = False
+    #: F-16e (M-04 / M-18, owner Q4): the server profile's graph backend. ``auto`` (default) = the
+    #: embedded store chosen by ``provider``; ``neo4j`` selects Neo4j as the server graph (it still
+    #: needs ``neo4j_outbox``; the embedded store stays the read path, Neo4j is fed by the outbox).
+    backend: Literal["auto", "neo4j"] = "auto"
+    #: F-16e: feed a Neo4j graph through the durable outbox. Every graph event (record nodes, LINK
+    #: edges and compiled edges, tombstones, FORGET) is queued as a ``graph_projection`` item and a
+    #: registered handler applies it with idempotent MERGE (scope-keyed with
+    #: ``isolation.scope_keys_v2``), resuming from the F-04 watermark after a crash. Erasure and
+    #: retire remove edges and orphan nodes. Needs ``storage.profile: server`` or
+    #: ``graph.backend: neo4j``, the ``[neo4j]`` extra, memories.associative, and the three
+    #: environment variables below. Off (default): no Neo4j, embedded graph unchanged.
+    #: Tap: ``graph.neo4j.*``.
+    neo4j_outbox: bool = False
+    #: F-16e: NAMES of the environment variables holding the Neo4j URL, user and password. The
+    #: values never live in config or the repo.
+    neo4j_url_env: str = "MEMSPINE_NEO4J_URL"
+    neo4j_user_env: str = "MEMSPINE_NEO4J_USER"
+    neo4j_password_env: str = "MEMSPINE_NEO4J_PASSWORD"
+    #: F-16e: Neo4j database name.
+    neo4j_database: str = "neo4j"
 
 
 class CacheConfig(BaseModel):

@@ -104,9 +104,12 @@ __all__ = [
     "lexical_projector_name",
     "lexical_variant",
     "make_container",
+    "make_neo4j_projection",
     "make_outbox_runner",
     "memory_policy",
+    "neo4j_outbox_on",
     "request_scope",
+    "set_neo4j_executor_factory",
 ]
 
 _log = get_logger(__name__)
@@ -933,6 +936,74 @@ def build_outbox(config: MemspineConfig, wiring: Wiring, _storage: SqlStorage) -
     if not config.workers.outbox:
         return OutboxHandle(None)
     return OutboxHandle(make_outbox_runner(config, wiring.client, wiring.pg))
+
+
+# ── F-16e: Neo4j graph projection through the outbox ─────────────────────────────────────
+
+Neo4jExecutorFactory = Callable[["MemspineConfig"], Any]
+_neo4j_executor_factory: Neo4jExecutorFactory | None = None
+
+
+def set_neo4j_executor_factory(factory: Neo4jExecutorFactory | None) -> None:
+    """Replace how the Neo4j executor is built (tests stand in a recorder; None = the driver)."""
+    global _neo4j_executor_factory
+    _neo4j_executor_factory = factory
+
+
+def neo4j_outbox_on(config: MemspineConfig) -> bool:
+    """``graph.neo4j_outbox`` is on. Raises :class:`ConfigError` when its prerequisites are not
+    met (server storage profile or ``graph.backend: neo4j``)."""
+    if not config.graph.neo4j_outbox:
+        return False
+    from memspine.services.storage.profile import resolve_profile
+
+    if resolve_profile(config.storage).name != "server" and config.graph.backend != "neo4j":
+        raise ConfigError(
+            "graph.neo4j_outbox needs storage.profile: server or graph.backend: neo4j"
+        )
+    return True
+
+
+@dataclass
+class Neo4jProjection:
+    """The pieces of the Neo4j mirror: the queueing projector, its runner, the store."""
+
+    projector: Any
+    runner: OutboxRunner
+    store: Any
+
+    async def close(self) -> None:
+        await self.runner.stop(1.0)
+        self.runner.close()
+        await self.store.close()
+
+
+def make_neo4j_projection(
+    config: MemspineConfig,
+    wiring_client: SQLiteClient | None,
+    pg_client: PostgresClient | None,
+    commit_lock: Callable[[str], Any] | None,
+    entities: Any,
+    compiled: str,
+) -> Neo4jProjection:
+    """Build the outbox runner, the Neo4j store and the registered ``graph_projection`` handler."""
+    from memspine.memories.associative.graph_outbox import Neo4jGraphHandler, Neo4jOutboxProjector
+    from memspine.services.graph.neo4j import Neo4jGraphStore, executor_from_env
+
+    g = config.graph
+    if _neo4j_executor_factory is not None:
+        executor = _neo4j_executor_factory(config)
+    else:
+        executor = executor_from_env(
+            url_env=g.neo4j_url_env,
+            user_env=g.neo4j_user_env,
+            password_env=g.neo4j_password_env,
+            database=g.neo4j_database,
+        )
+    store = Neo4jGraphStore(executor, scoped=config.isolation.scope_keys_v2)
+    runner = make_outbox_runner(config, wiring_client, pg_client, commit_lock)
+    Neo4jGraphHandler(store, entities, compiled=compiled).register(runner)
+    return Neo4jProjection(Neo4jOutboxProjector(runner), runner, store)
 
 
 def _window_outbox(eng: Any, config: MemspineConfig) -> OutboxRunner:
