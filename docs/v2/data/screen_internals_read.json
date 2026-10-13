@@ -1,0 +1,2766 @@
+[
+ {
+  "id": "REF-J",
+  "settings": {
+   "arm": "evals/arms/scr-pool-protect-jina.json on template base (src/memspine/config/templates/base.yaml)",
+   "read.hybrid": "true (template default): BM25 on tantivy joins the vector leg",
+   "read.temporal_leg": "true (base template) with read.temporal_leg_mentions true (arm)",
+   "read.candidate_pool": 2,
+   "read.rerank": "jina",
+   "read.rerank_model": "jinaai/jina-reranker-v3.5",
+   "read.rerank_keep": 10,
+   "read.rerank_floor": "skip",
+   "read.pool_protect_per_leg": 3,
+   "read.list_mode": true,
+   "read.perspective_mode": "subject_weight",
+   "read.replay_window_before": 2,
+   "read.replay_window_after": 4,
+   "read.resolve_relative_dates": true,
+   "read.relative_dates_anchored": true,
+   "read.order_by_time_for_ordering": true,
+   "read.assembly.relative_floor": 0.3,
+   "read.scoring": "recency, importance, utility weights all 0.0",
+   "read.record_access": false,
+   "embedding": "st Qwen3-Embedding-0.6B, dim 1024, bf16, cuda, instruct query prefix",
+   "harness": "--memspine-read-mode replay --top-k 10 (budget 4096 tokens); --qa-prompt grounded --retry-refusal --judge-guards --judge-date-check; reader and judge qwen3.5:9b",
+   "diff_vs_reference": "this IS the reference; every J screen is this arm plus one flag"
+  },
+  "stage": "B",
+  "trigger": "per question (LoCoMo categories 1-4): one Engine.read call, then one reader call and one judge call",
+  "steps": [
+   {
+    "n": 1,
+    "what": "Harness driver. evals/run.sh builds `_launch.py c0-1 --mode qa --with-memspine --only-systems memspine --memspine-read-mode replay --memspine-config <arm json> --top-k 10 --reader-model qwen3.5:9b --judge-model qwen3.5:9b` plus the flags `--qa-prompt grounded --retry-refusal --judge-guards --judge-date-check`. The runner calls MemspineSystem.query(question, budget_tokens=4096, top_k=10), which calls Engine.read(text, mode='replay', budget_tokens=4096, top_k=10) inside search_forensics. The engine is opened with template base plus the arm (record_access forced False, storage tempdir: SQLite records, LanceDB vectors, tantivy BM25 index, one store per conversation). Ingest (write path, outside this screen) has already stored one episodic record per turn, embedded it, indexed it in tantivy and tagged speaker perspective (memories.episodic.policies.perspective heuristic).",
+    "code": "evals/run.sh:153 (cmd) ; evals/memspine_evals/systems/memspine_system.py:996 (query), :339 (_build_engine) ; evals/memspine_evals/runner.py:1008",
+    "kind": "io"
+   },
+   {
+    "n": 2,
+    "what": "Query analysis (rules, zero model calls). read() sees no v2 flag, so the plan stage is skipped. _read_planned opens the read scope, date filter (none) and record scope, and looks in the read cache (off). _read fixes mode=replay, budget=_reply_budget (reserve 0, so 4096) and asks for read headers (cards, profile, novelty, slots, digest, recent are all off, so none). Rule classifiers then fire: is_set_question (list_trigger default set_question) turns list mode on for this read, is_ordering (first, latest, before) will sort the final turns by time, resolve_question builds the question perspective (asker, named speakers known to the store) for the perspective leg and the relevance multiplier, query_interval parses an absolute or yearless date span for the temporal leg.",
+    "code": "src/memspine/read/pipeline/router.py:966 (read), :1091 (_read_planned), :1189 (_read) ; read/pipeline/request.py:64 (_list_mode_fires), :105 (_list_fires) ; models/encoders/query/shape.py:157 (is_ordering), :216 (is_set_question) ; read/pipeline/lift.py:147 (_question_perspective) ; models/encoders/query/temporal_query.py:106 (query_interval)",
+    "kind": "rule"
+   },
+   {
+    "n": 3,
+    "what": "Embed the query and size the candidate window. The query is embedded once with Qwen3-Embedding-0.6B after the arm's instruction prefix ('Instruct: Given a question about a user's past conversations, retrieve memories that answer it / Query: ' + question), unit-normalised, 1024 dims. _assemble_core asks _search for want = top_k x pool = 10 x 2 = 20 candidates (pool is max(candidate_pool, list_pool 3) = 3, so 30, when list mode fired). Because hybrid is on, each leg fetches fetch_k = want x LEXICAL_FETCH_MULTIPLIER 3 = 60 (90 in list mode). If the gates later leave fewer than want live candidates, fetch_k is multiplied by 4 and the legs are re-run, up to a 64x widening.",
+    "code": "src/memspine/models/encoders/embedding/st_local.py:111 (embed_queries) ; compose/pipeline/windows.py:175 (_assemble_core, pool and want) ; read/pipeline/router.py:393 (_search, base_fetch), :706 (widen)",
+    "kind": "library"
+   },
+   {
+    "n": 4,
+    "what": "Vector leg. LanceDB returns the fetch_k nearest stored turn vectors by cosine distance; the score is 1 - distance. Equal-score runs are settled by content order so the cut is deterministic. This leg is the base of the 'semantic' family.",
+    "code": "src/memspine/read/pipeline/legs.py:1570 (_vector_leg) ; services/vector/lancedb_store.py:219 (query, metric cosine)",
+    "kind": "storage"
+   },
+   {
+    "n": 5,
+    "what": "BM25 leg. The question is tokenised with the content field's analyser (lower-cased alphanumeric runs, no stemming; lexical_analyzer default) and searched in tantivy as a Must namespace term AND an OR of Should content terms. tantivy's BM25 (Okapi, k1 1.2 / b 0.75 defaults) scores them; the leg returns fetch_k hits. A failed lexical leg degrades to vector-only, never an error.",
+    "code": "src/memspine/read/pipeline/router.py:214 (_lexical_guarded) ; read/pipeline/legs.py:1605 (_lexical_leg) ; services/lexical/tantivy.py:284 (search), :309 (_search)",
+    "kind": "library"
+   },
+   {
+    "n": 6,
+    "what": "Temporal leg (base template temporal_leg, plus temporal_leg_mentions). Only fires when the question holds a date or a relative phrase resolvable to a span ('12 June 2020', 'in March'; a relative phrase needs temporal_relative, which is off, so those name no span). Records whose valid_from lies in the span, and turns whose own text names a date that overlaps the span (mentioned_spans, resolved against the turn's time), are ranked by closeness to the span's middle; the leg is a NamedLeg('temporal') and is dropped when empty.",
+    "code": "src/memspine/read/pipeline/legs.py:173 (_metadata_legs, temporal branch) ; models/encoders/query/temporal_query.py:181 (temporal_leg), :260 (mentioned_spans)",
+    "kind": "rule"
+   },
+   {
+    "n": 7,
+    "what": "Perspective and speaker-vote legs (read.perspective_mode subject_weight, list_mode). perspective leg: records tagged as about the question's subject, in vector order, top list_vote_top_k 30, as NamedLeg('perspective'). speaker_vote leg (only when list mode fired): the vector leg is re-fetched 100 deep (list_vote_depth), kept to the turns of the one speaker the question names (top 30), as NamedLeg('speaker_vote'); two named speakers with a comparison cue vote once each.",
+    "code": "src/memspine/read/pipeline/router.py:537 (_perspective_leg call), :539 (_speaker_vote_leg call) ; read/pipeline/lift.py:169 (_perspective_leg) ; read/pipeline/legs.py:1186 (_speaker_vote_leg)",
+    "kind": "rule"
+   },
+   {
+    "n": 8,
+    "what": "Fusion and the protected pool (legacy per-leg path, family_fusion off). rrf_fuse(vector, lexical, extra legs, k=60) adds 1/(60+rank) per leg per record, ties broken by the per-leg rank tuple; scores are divided by the theoretical maximum (legs/(k+1)) so relevance is in [0,1]; the fused list is cut to top_k x widen. Then pool_protect_per_leg=3 re-adds each leg's own top 3 hits that fell below the cut (per_leg mode, so the pool can grow by up to legs x 3).",
+    "code": "src/memspine/read/pipeline/router.py:593 (rrf_fuse), :616 (_protected_ids) ; services/lexical/base.py:80 (rrf_fuse) ; read/pipeline/fusion.py:83 (_protected_ids)",
+    "kind": "algorithm"
+   },
+   {
+    "n": 9,
+    "what": "Gates, perspective multiplier, pool cut. _gate_hits re-reads each id and drops: records missing or not ACTIVATED (archived, superseded, deleted), quarantined, consent-purpose failures, gate4 (off), grant bookkeeping, cues, group/tag filters, passive sessions; cold-tier content is inflated. Then the perspective multiplier reweights relevance by 1 - 0.4 x (1 - match) on the subject axis (about the subject 1.0, the subject speaking of others 0.6, about someone else 0.0) and re-sorts. The pool is cut to candidates[:top_k] plus every protected hit beyond it.",
+    "code": "src/memspine/read/pipeline/gate.py:47 (_gate_hits) ; read/pipeline/lift.py:185 (_apply_perspective) ; read/pipeline/router.py:669, :698, :737-770 (pool cut)",
+    "kind": "rule"
+   },
+   {
+    "n": 10,
+    "what": "Rerank with jina-reranker-v3.5. Each pool record becomes '[type: episodic | ...]\\ncontent' (concat_background); the listwise model scores the whole pool in one forward pass (window 64 documents, scores outside the window would stay 0.0). Raw scores are min-max normalised to [0,1] and replace the retrieval relevance (no blend, no confidence gate, no balanced shortlist, no ordering-question skip). Failure degrades to retrieval order.",
+    "code": "src/memspine/read/pipeline/router.py:857 (legacy rerank branch) ; models/providers/rerank/jina_rerank.py:68 (score) ; models/providers/rerank/base.py:34, :48 ; read/pipeline/fusion.py:182 (_minmax_normalize)",
+    "kind": "llm"
+   },
+   {
+    "n": 11,
+    "what": "Score and keep. composite_score(record, relevance) with recency, importance and utility weights all 0.0 is just the reranked relevance; integrity is off; rank_pairs orders by score then valid_from then fingerprint; mmr_lambda is None. Because the read was reranked, candidate_pool > 1 and list mode did not fire, rerank_keep=10 cuts the list to the best 10 (in list mode the whole reranked pool, up to 30, is kept). record_access is False so no RETRIEVE event is written.",
+    "code": "src/memspine/read/pipeline/router.py:927 (rank_pairs), :931 (mmr), :941 (rerank_keep cut)",
+    "kind": "rule"
+   },
+   {
+    "n": 12,
+    "what": "Assembly (_assemble_core). _decorate annotates relative phrases against each record's own event time ('last <weekday> [= <date>]', resolve_relative_dates + relative_dates_anchored) and wraps instruction-flagged or low-trust records. AssemblyPolicy.assemble then: abstains when the best score < theta 0.25 (never after min-max, the best is 1.0); skips the H4 relative floor (0.3 x best) because the read was reranked and rerank_floor=skip; selects greedily by MMR (lambda 0.7, word-Jaccard redundancy) under the 4096-token budget counted as len//4+1, never returning empty; places stable (non-episodic) records before volatile ones.",
+    "code": "src/memspine/compose/pipeline/windows.py:175 (_assemble_core), :399 (_decorate), :412 (assemble) ; compose/pipeline/pack.py:206 (_decorate) ; compose/pipeline/render.py:425 (_annotate_dates) ; compose/pack.py:114 (abstains), :138 (apply_floor), :180 (assemble)",
+    "kind": "algorithm"
+   },
+   {
+    "n": 13,
+    "what": "Replay windows. In replay mode each selected episodic hit (and the best source turn of any mined fact) is expanded inside its session (episodic.sessions, gap 30 minutes): the hit first, then neighbours nearest-first (older on a tie), 2 turns before and 4 after (replay_window_before/after). A neighbour that is hidden by the gates, already present, or does not fit the remaining 4096 tokens (len//4+1) is skipped; it never costs the hit its place. In list mode hits ranked beyond window_full_hits=10 are single turns. Turns are sorted chronologically (chrono_key); ordering questions stay in time order; stable records stay first. _render is plain (render != dated).",
+    "code": "src/memspine/read/pipeline/router.py:1365-1498 (_read_routed replay branch) ; compose/pipeline/windows.py:792 (_window_turns) ; compose/pipeline/render.py:285 (_render)",
+    "kind": "algorithm"
+   },
+   {
+    "n": 14,
+    "what": "Hand-off to the reader. The headers/overlays/gates stage is a no-op (relevance_gate off, owner/entity checks off, external off). MemspineSystem.query turns each record into '[YYYY-MM-DD] content' (dated rendering, event date of the record, engine order = stable first then chronological), records span offsets and hit ranks, and the runner truncates by hit rank to 4096 reader tokens if needed (whole lowest-ranked lines go first). The prompt GROUNDED_QA_PROMPT is formatted with {context} and {question}: lines carry [YYYY-MM-DD] said-dates and 'phrase [= date]' resolved dates; give a short direct best-supported answer; say not mentioned only if nothing bears on it; dates in the wording the memories use. One chat completion to qwen3.5:9b via Ollama (temperature 0, max 512 tokens, thinking off, sampler explicit). RefusalRetryReader re-asks once with a neutral firmer instruction when the answer is a refusal on a non-empty context.",
+    "code": "evals/memspine_evals/systems/memspine_system.py:996-1125 ; evals/memspine_evals/runner.py:1008-1085 ; evals/memspine_evals/readers.py:152 (GROUNDED_QA_PROMPT), :760 (OpenAICompatReader), :661 (thinking_off) ; evals/memspine_evals/refusal.py:238",
+    "kind": "llm"
+   },
+   {
+    "n": 15,
+    "what": "Judge. GuardedJudge wraps the rubric-guarded LLM judge: an empty answer is WRONG without a call (--judge-guards); a deterministic date check credits an answer whose first date is the single day the gold names (--judge-date-check); otherwise one qwen3.5:9b call with the rubric prompt (CORRECT only if the same fact as gold, hedging and extra detail allowed, equivalent relative dates credited, do-not-know is WRONG) returns JSON {label}. The score is accuracy over LoCoMo categories 1-4 (1,540 questions); reference result clean-jina-full 81.4% (1,253), mean context 2,097 tokens, p50 764 ms.",
+    "code": "evals/memspine_evals/judge.py:384 (GuardedJudge), :196 (RUBRIC_GUARDED_BINARY_PROMPT) ; evals/memspine_evals/judge_prompts.py:435 (RoutedLLMJudge) ; evals/memspine_evals/experiments.py:586 (build_judge) ; evals/memspine_evals/runner.py:1117",
+    "kind": "llm"
+   }
+  ],
+  "algorithms": [
+   "Qwen3-Embedding dense retrieval, cosine on L2-normalised vectors",
+   "BM25 (Okapi; tantivy defaults k1 1.2, b 0.75) with OR-of-terms query",
+   "reciprocal rank fusion k=60 with per-leg rank-tuple tie-break and max-normalisation",
+   "per-leg protected pool (top 3 of every leg survive the cut)",
+   "temporal span overlap ranking (midpoint distance)",
+   "perspective multiplier 1 - w(1 - match), w 0.4",
+   "listwise cross-encoder rerank, min-max normalisation",
+   "greedy MMR (lambda 0.7) under a token budget, word-Jaccard redundancy",
+   "session-window replay (2 before, 4 after, nearest first)"
+  ],
+  "libraries": [
+   "external: sentence-transformers (Qwen3-Embedding-0.6B)",
+   "external: lancedb (vector store, cosine)",
+   "external: tantivy (BM25)",
+   "external: sqlite (records, events)",
+   "external: transformers + torch (jina-reranker-v3.5, custom code)",
+   "external: Ollama (qwen3.5:9b reader and judge)",
+   "external: httpx (OpenAI-compatible calls)",
+   "none of LIB-01..47 is on in this arm (all v2 read flags are off)"
+  ],
+  "models": [
+   {
+    "role": "embedder",
+    "model": "Qwen/Qwen3-Embedding-0.6B (sentence-transformers, bf16, cuda, dim 1024, normalised)",
+    "calls": "1 query embedding per read (cached by text); documents were embedded at ingest",
+    "prompt": "query instruction prefix set in the arm (read.embedding.query_instruction)"
+   },
+   {
+    "role": "reranker",
+    "model": "jinaai/jina-reranker-v3.5 (0.6B listwise, cuda, trust_remote_code)",
+    "calls": "1 forward pass per read over at most 64 documents (pool is about 20 to 30 plus protected extras)",
+    "prompt": "none"
+   },
+   {
+    "role": "reader",
+    "model": "qwen3.5:9b via Ollama /v1/chat/completions (temperature 0, max_tokens 512, reasoning_effort none)",
+    "calls": "1 per question, plus at most 1 re-ask when --retry-refusal sees a refusal on a non-empty context",
+    "prompt": "evals/memspine_evals/readers.py:GROUNDED_QA_PROMPT (python constant, not a yaml default)"
+   },
+   {
+    "role": "decider",
+    "model": "qwen3.5:9b via Ollama (rubric-guarded binary judge, JSON label CORRECT or WRONG)",
+    "calls": "1 per question; 0 when the answer is empty or the deterministic date check credits it",
+    "prompt": "evals/memspine_evals/judge.py:RUBRIC_GUARDED_BINARY_PROMPT (python constant)"
+   }
+  ],
+  "storage": "reads: SQLite records (status, tags, perspective tags, valid_from, group_id), LanceDB vectors (namespace table), tantivy index, episodic session boundaries; writes: nothing (record_access False, no RETRIEVE event); harness writes results.jsonl and forensics rows",
+  "cost": "2 model-class inference calls on GPU per read (query embedding, one listwise rerank of about 20 to 30 documents) plus 1 reader call and 1 judge call per question (and at most 1 retry call). Measured anchors (docs/v2/pipelines/retrieve.md): mean context 2,097 tokens, p50 764 ms read latency on clean-jina-full. Queue estimate: S05 full 1,540 questions 43 min, S09 focus 437 questions 20 min.",
+  "inputs": "an ingested conversation store: episodic turns with embeddings, tantivy rows, speaker/perspective tags and event times (valid_from from the dataset session stamps); no sleep cycle or derived layer is needed or used",
+  "outputs": "an AssembledContext of reranked evidence turns plus their session neighbours, dated and chronological, about 2,000 tokens; then the reader's short answer and the judge's CORRECT/WRONG",
+  "failure_modes": [
+   "Fusion pool cut can drop the gold turn before the reranker ever sees it (INV-FILLER shape: filler turns that share the question words outrank the evidence in the fused order); pool_protect_per_leg 3 is the mitigation, S14/S67 the follow-ups.",
+   "pool_protect per_leg lets the pool grow with the number of legs; no family de-duplication of correlated votes (vector, perspective and speaker_vote all vote for the same semantic order).",
+   "temporal_relative is off, so relative phrases in a question ('last week') form no temporal span; only absolute and yearless dates do.",
+   "rerank window 64: documents beyond the window would score 0.0 in the legacy provider (pool is smaller in practice).",
+   "list mode keeps the whole reranked pool (up to 30 hits) and ties the context to window_full_hits 10; multi-hop (66.7%) and open-domain (42.7%) are the weak categories of the 81.4% reference.",
+   "Replay window is fixed (2 before, 4 after) regardless of how long the turns are; 4096 budget rarely binds, so window size, not budget, decides context size.",
+   "S05 is marked drop in the ledger although 0/0 is its expected pass (audit finding 9)."
+  ],
+  "tests": [
+   "tests/unit/test_engine_read_modes.py",
+   "tests/unit/test_engine_hybrid.py",
+   "tests/unit/test_assembly_window_dedupe.py",
+   "tests/unit/wiring/test_rw_a_read_entry.py",
+   "evals/tests/test_v2_arms.py",
+   "evals/tests/test_context_order.py",
+   "evals/tests/test_answer_prompt_arms.py",
+   "evals/tests/test_i1_retry_flags.py",
+   "evals/tests/test_i12_date_check.py"
+  ],
+  "mermaid": "flowchart LR\n  Q[question] --> A[analysis and embed]\n  A --> V[vector LanceDB]\n  A --> B[BM25 tantivy]\n  A --> T[temporal and perspective legs]\n  V --> F[RRF k60 plus protect top3]\n  B --> F\n  T --> F\n  F --> R[gates and jina v3.5 rerank]\n  R --> W[assemble and replay window]\n  W --> L[qwen3.5 9b reader]\n  L --> J[qwen3.5 9b judge]"
+ },
+ {
+  "id": "S05",
+  "settings": {
+   "flags": "none: reproduction of the reference arm scr-pool-protect-jina on all 1,540 LoCoMo cat 1-4 questions",
+   "rule": "PARITY vs clean-jina-full (81.4%, 1,253): answers must be identical, verdict NO CHANGE"
+  },
+  "stage": "B",
+  "trigger": "once per run, every question of the full set (batch B1, first row; fresh per-run venv at the pinned commit)",
+  "steps": [
+   {
+    "n": 1,
+    "what": "Pinned run. run_v2_queue.sh calls pinned_run.sh with the commit, which builds a per-commit venv and a pinned worktree so the engine code equals the commit under test; the whole queue is pinned to one commit.",
+    "code": "evals/run_v2_queue.sh:set 'F' branch ; evals/pinned_run.sh",
+    "kind": "io"
+   },
+   {
+    "n": 2,
+    "what": "Behavioural pre-check: run.sh --items 1 --max-queries 2 --forensics proves the arm loads and reads (t2 run).",
+    "code": "evals/run_v2_queue.sh (F case) ; evals/run.sh:153",
+    "kind": "io"
+   },
+   {
+    "n": 3,
+    "what": "Full run: run.sh --arm scr-pool-protect-jina --run-id v2-S05-full --mode qa --topk 10 --forensics --batch-turns 32 --flags '--qa-prompt grounded --retry-refusal --judge-guards --judge-date-check'. Each of the 1,540 questions goes through exactly the REF-J read path, reader and judge.",
+    "code": "evals/run_v2_queue.sh (F case)",
+    "kind": "io"
+   },
+   {
+    "n": 4,
+    "what": "Paired compare: eval_paired.py v2-S05-full --ref clean-jina-full pairs answers question by question; PARITY expects 0 wins, 0 losses (identical answers, deterministic reader at temperature 0). Anything else is flagged.",
+    "code": "evals/eval_paired.py ; evals/memspine_evals/paired_gate.py",
+    "kind": "algorithm"
+   },
+   {
+    "n": 5,
+    "what": "Ledger row: v2_ledger.py records wins/losses/ties and verdict (audit finding 9: S05 is stored as drop although 0/0 is the expected pass; should read parity_ok).",
+    "code": "evals/v2_ledger.py",
+    "kind": "io"
+   }
+  ],
+  "algorithms": [
+   "paired sign test over per-question verdicts",
+   "bootstrap interval on the delta"
+  ],
+  "libraries": [
+   "external: Ollama, sentence-transformers, lancedb, tantivy, jina reranker (see REF-J)"
+  ],
+  "models": [
+   {
+    "role": "embedder",
+    "model": "Qwen/Qwen3-Embedding-0.6B (sentence-transformers, bf16, cuda, dim 1024, normalised)",
+    "calls": "1 query embedding per read (cached by text); documents were embedded at ingest",
+    "prompt": "query instruction prefix set in the arm (read.embedding.query_instruction)"
+   },
+   {
+    "role": "reranker",
+    "model": "jinaai/jina-reranker-v3.5 (0.6B listwise, cuda, trust_remote_code)",
+    "calls": "1 forward pass per read over at most 64 documents (pool is about 20 to 30 plus protected extras)",
+    "prompt": "none"
+   },
+   {
+    "role": "reader",
+    "model": "qwen3.5:9b via Ollama /v1/chat/completions (temperature 0, max_tokens 512, reasoning_effort none)",
+    "calls": "1 per question, plus at most 1 re-ask when --retry-refusal sees a refusal on a non-empty context",
+    "prompt": "evals/memspine_evals/readers.py:GROUNDED_QA_PROMPT (python constant, not a yaml default)"
+   },
+   {
+    "role": "decider",
+    "model": "qwen3.5:9b via Ollama (rubric-guarded binary judge, JSON label CORRECT or WRONG)",
+    "calls": "1 per question; 0 when the answer is empty or the deterministic date check credits it",
+    "prompt": "evals/memspine_evals/judge.py:RUBRIC_GUARDED_BINARY_PROMPT (python constant)"
+   }
+  ],
+  "storage": "same as REF-J; writes runs/v2-S05-full--memspine/results.jsonl and a ledger row",
+  "cost": "queue estimate 43 min GPU for 1,540 questions; no extra model calls versus the reference",
+  "inputs": "an installed model stack (Ollama qwen3.5:9b, Qwen3-Embedding-0.6B, jina-reranker-v3.5) and data/locomo10.json",
+  "outputs": "a reproduction of the 81.4% reference to prove the pinned commit still gives the same answers",
+  "failure_modes": [
+   "Fresh-venv dependency drift (sentence-transformers, lancedb, tantivy versions) can change retrieval order and break parity.",
+   "Ollama sampling is deterministic only at temperature 0 with fixed sampler settings; a server upgrade changes answers.",
+   "Ledger stored the expected 0/0 as drop (audit 9)."
+  ],
+  "tests": [
+   "evals/tests/test_pinned_run.py",
+   "evals/tests/test_paired_gate.py",
+   "evals/tests/test_v2_arms.py"
+  ],
+  "mermaid": "flowchart LR\n  A[pinned venv at commit] --> B[arm scr-pool-protect-jina]\n  B --> C[1540 questions REF-J read]\n  C --> D[reader and judge]\n  D --> E[eval_paired vs clean-jina-full]\n  E --> F[expect NO CHANGE]"
+ },
+ {
+  "id": "S06",
+  "settings": {
+   "read.query_contract": "heuristic",
+   "read.query_contract_use": [
+    "header",
+    "rerank"
+   ]
+  },
+  "stage": "R",
+  "trigger": "per read: twice (reranker hint inside the search, header after the routed read); contract is cached per question text",
+  "steps": [
+   {
+    "n": 1,
+    "what": "Build the A03 typed query contract from the question alone, by English surface rules: subjects (capitalised names, I/you markers), relation, answer_type and subtype (person, place/city/country, date/time/year, duration, count, quantity, title, name, yesno, choice, reason, description, unknown), time scope, cardinality (one/many/count), request (recall/inference/recommendation). Cached per question text (512 entries).",
+    "code": "src/memspine/read/pipeline/request.py:156 (_query_contract) ; read/contract.py:461 (build_contract)",
+    "kind": "rule"
+   },
+   {
+    "n": 2,
+    "what": "Reranker hint. In _search, right after the pool is final and before the rerank, if the contract is known (answer type not unknown) the rerank query becomes question + ' (the answer is a <type label>)'. Only the reranker sees it; the embedder and BM25 legs used the raw question.",
+    "code": "src/memspine/read/pipeline/router.py:836-852 ; read/contract.py:549 (rerank_hint)",
+    "kind": "rule"
+   },
+   {
+    "n": 3,
+    "what": "jina-reranker-v3.5 scores the pool against the hinted query (same single listwise pass as REF-J, so no extra model call).",
+    "code": "src/memspine/read/pipeline/router.py:857",
+    "kind": "llm"
+   },
+   {
+    "n": 4,
+    "what": "Reader header. After the routed read, _read_overlay builds contract_header(contract): 'Answer type: <label>; expected: one | many (list every one the memories support) | a number.' plus ' Inference from the memories is invited.' for inference questions, and inserts it as a lead record at index 0, boundary +1, tokens added. Unknown contracts add nothing.",
+    "code": "src/memspine/read/pipeline/legs.py:1000 (_read_overlay), :1082-1090 ; read/contract.py:535 (contract_header)",
+    "kind": "rule"
+   },
+   {
+    "n": 5,
+    "what": "Forensics: the contract, hint and header are logged to the forensics file (status observed) so the effect can be read per question.",
+    "code": "src/memspine/read/pipeline/router.py:844-851",
+    "kind": "io"
+   }
+  ],
+  "algorithms": [
+   "rule-based question typing (regex cues, no model)",
+   "query suffix for a cross-encoder"
+  ],
+  "libraries": [
+   "core query contract (src/memspine/read/contract.py, A03)"
+  ],
+  "models": [
+   {
+    "role": "reranker",
+    "model": "jinaai/jina-reranker-v3.5 (0.6B listwise, cuda, trust_remote_code)",
+    "calls": "1 forward pass per read over at most 64 documents (pool is about 20 to 30 plus protected extras)",
+    "prompt": "none"
+   },
+   {
+    "role": "none",
+    "model": "none (query_contract=llm would add one plan@contract call when the rules are unsure; this arm is heuristic)",
+    "calls": "0",
+    "prompt": "none"
+   }
+  ],
+  "storage": "reads nothing new; writes nothing; one forensics field",
+  "cost": "no extra model call; about 40 extra tokens in the context when the contract is known",
+  "inputs": "nothing beyond the question text (works on the J arm)",
+  "outputs": "a rerank query with an answer-type phrase and a one-line reader header; ranking can change, context gains a header line",
+  "failure_modes": [
+   "Ledger: sample net +1; the earlier A03 header on the focus slice was +15/-7 net +8 HOLD under the paired gate (sign p 0.134); the full run was stopped partway (P0-07).",
+   "Wrong answer types in the contract mislead both reranker and reader; unknown type adds nothing.",
+   "English cues only; other languages produce unknown."
+  ],
+  "tests": [
+   "tests/unit/test_query_contract.py",
+   "evals/tests/test_v2_arms.py",
+   "evals/contract_offline.py"
+  ],
+  "mermaid": "flowchart LR\n  Q[question] --> C[rule contract]\n  C --> H[rerank hint suffix]\n  H --> R[jina rerank]\n  R --> A[assembly and replay]\n  C --> L[Answer type header line]\n  A --> O[context]\n  L --> O"
+ },
+ {
+  "id": "S09",
+  "settings": {
+   "flags": "none: same-commit focus reference (run id f-jref3-i2) on the 437-question LoCoMo focus slice"
+  },
+  "stage": "B",
+  "trigger": "once per queue: the reference every focus J screen is paired against when REF_OVERRIDE=f-jref3-i2",
+  "steps": [
+   {
+    "n": 1,
+    "what": "Behavioural pre-check on 1 conversation, 2 questions (run id v2-S09-t2) to prove the arm loads.",
+    "code": "evals/run_v2_queue.sh (f case)",
+    "kind": "io"
+   },
+   {
+    "n": 2,
+    "what": "Focus run: run.sh --arm scr-pool-protect-jina --run-id f-jref3-i2 --query-ids @analysis/focus_slice_r7protect.json --questions 437 with the grounded reader and judge flags; every question uses the REF-J path.",
+    "code": "evals/run_v2_queue.sh (f case, S09 special-cased to f-jref3-i2)",
+    "kind": "io"
+   },
+   {
+    "n": 3,
+    "what": "REF_DONE: with ref '-' the queue stops after the run; no paired compare. The result is stored as the same-commit control that removes the commit mismatch between f-jref2-i2 (older commit) and later screens (audit finding 9).",
+    "code": "evals/run_v2_queue.sh",
+    "kind": "rule"
+   },
+   {
+    "n": 4,
+    "what": "Downstream use: later focus rows whose ref_run is f-jref2-i2 (an older commit) can be re-pointed with REF_OVERRIDE=f-jref3-i2 so the paired gate compares answers produced by the same engine commit.",
+    "code": "evals/run_v2_queue.sh:REF / REF_OVERRIDE ; evals/eval_focus.py",
+    "kind": "rule"
+   }
+  ],
+  "algorithms": [
+   "none (control run)"
+  ],
+  "libraries": [
+   "see REF-J"
+  ],
+  "models": [
+   {
+    "role": "embedder",
+    "model": "Qwen/Qwen3-Embedding-0.6B (sentence-transformers, bf16, cuda, dim 1024, normalised)",
+    "calls": "1 query embedding per read (cached by text); documents were embedded at ingest",
+    "prompt": "query instruction prefix set in the arm (read.embedding.query_instruction)"
+   },
+   {
+    "role": "reranker",
+    "model": "jinaai/jina-reranker-v3.5 (0.6B listwise, cuda, trust_remote_code)",
+    "calls": "1 forward pass per read over at most 64 documents (pool is about 20 to 30 plus protected extras)",
+    "prompt": "none"
+   },
+   {
+    "role": "reader",
+    "model": "qwen3.5:9b via Ollama /v1/chat/completions (temperature 0, max_tokens 512, reasoning_effort none)",
+    "calls": "1 per question, plus at most 1 re-ask when --retry-refusal sees a refusal on a non-empty context",
+    "prompt": "evals/memspine_evals/readers.py:GROUNDED_QA_PROMPT (python constant, not a yaml default)"
+   },
+   {
+    "role": "decider",
+    "model": "qwen3.5:9b via Ollama (rubric-guarded binary judge, JSON label CORRECT or WRONG)",
+    "calls": "1 per question; 0 when the answer is empty or the deterministic date check credits it",
+    "prompt": "evals/memspine_evals/judge.py:RUBRIC_GUARDED_BINARY_PROMPT (python constant)"
+   }
+  ],
+  "storage": "runs/f-jref3-i2--memspine/results.jsonl",
+  "cost": "queue estimate 20 min GPU for 437 questions",
+  "inputs": "the 437-question focus slice (analysis/focus_slice_r7protect.json)",
+  "outputs": "a reference result at the current commit",
+  "failure_modes": [
+   "Until it runs, J screens compare against f-jref2-i2, built on an older commit (INCOMPARABLE risk at the paired gate)."
+  ],
+  "tests": [
+   "evals/tests/test_focus_slice.py",
+   "evals/tests/test_v2_arms.py"
+  ],
+  "mermaid": "flowchart LR\n  A[arm scr-pool-protect-jina] --> B[437 focus questions]\n  B --> C[REF-J read reader judge]\n  C --> D[f-jref3-i2 stored as reference]"
+ },
+ {
+  "id": "S10",
+  "settings": {
+   "read.tiers_v2": true
+  },
+  "stage": "R",
+  "trigger": "per read, at the very start of Engine.read (request stage, before any search)",
+  "steps": [
+   {
+    "n": 1,
+    "what": "v2_flags_on(read) is true, so read() calls plan_read before _read_planned.",
+    "code": "src/memspine/read/pipeline/router.py:966 (read), request.py:393 (v2_flags_on)",
+    "kind": "rule"
+   },
+   {
+    "n": 2,
+    "what": "normalise_request builds the public ReadRequest: query NFKC-normalised with whitespace collapsed (case kept), scope OwnerScope(tenant=ns, owner=viewer or ns), viewer bound to the principal, depth = tiers_v2_depth (fast), budget_tokens, as-of instants to UTC. Empty query or multi-party read without a viewer raises.",
+    "code": "src/memspine/read/tiers.py:198 (normalise_request) ; read/pipeline/request.py:527 (plan_read)",
+    "kind": "rule"
+   },
+   {
+    "n": 3,
+    "what": "The rules typed contract is built (needed by choose_tier) and choose_tier picks the tier: explicit depth wins, fast tier = 0 generative calls, rerank pool cap 64; deep only if allowed, a worker model is bound and the shape needs it. Logged as read.request.normalised and read.tier.chosen.",
+    "code": "src/memspine/read/tiers.py:333 (choose_tier)",
+    "kind": "rule"
+   },
+   {
+    "n": 4,
+    "what": "The normalised query replaces the query text for the rest of the read; ReadPlanState(request, tier, contract, route=None, legs_off=empty) is put in a ContextVar. No later stage reads the tier's pool size, call caps or SLO: only the normalised text is consumed.",
+    "code": "src/memspine/read/pipeline/request.py:379-391 ; router.py:1034-1047",
+    "kind": "rule"
+   }
+  ],
+  "algorithms": [
+   "NFKC normalisation",
+   "tier table lookup"
+  ],
+  "libraries": [
+   "LIB-47 read/tiers.py (tiers, ReadRequest normalisation)"
+  ],
+  "models": [
+   {
+    "role": "none",
+    "model": "none",
+    "calls": "0 (rules and libraries only)",
+    "prompt": "none"
+   }
+  ],
+  "storage": "none (ContextVar plan, wiretap events only)",
+  "cost": "no model call, microseconds; tier fields unused downstream",
+  "inputs": "nothing; works on any store",
+  "outputs": "the same query text (NFKC and whitespace-collapsed) and unchanged retrieval",
+  "failure_modes": [
+   "Inert by design today: sample forensics 0/0/0 of 80 (fused, final, context identical). The tier's pool size, call caps and slo_p95_ms are computed but not consumed by any stage.",
+   "SCREENS.md said J arms build no derived layers 'so there is nothing to tier'; the code shows the tier is only logged even where layers exist (re-screen S36 on GC will most likely be 0/0 as well)."
+  ],
+  "tests": [
+   "tests/unit/lib/test_lib_47_tiers.py",
+   "tests/unit/wiring/test_rw_a_read_entry.py",
+   "tests/unit/wiring/test_md_01_model_tiers.py"
+  ],
+  "mermaid": "flowchart LR\n  Q[question] --> N[normalise request NFKC]\n  N --> T[choose tier fast]\n  T --> L[log plan in ContextVar]\n  N --> R[normal read path]"
+ },
+ {
+  "id": "S11",
+  "settings": {
+   "read.contract_rules": true
+  },
+  "stage": "C",
+  "trigger": "per read: contract built in the request stage, header inserted after the routed read",
+  "steps": [
+   {
+    "n": 1,
+    "what": "plan_read runs (v2 flag on) and builds the LIB-16 typed contract by rules (en/de/nl/es): shape (single, join, as_of, history, comparison, latest, list_count), answer type, time view (current, as_of, history, range with resolved intervals), personal vs generic, cardinality, targets, attributes, language and an unknown list. Cached per question text.",
+    "code": "src/memspine/read/pipeline/request.py:397 (typed_contract), :527 (plan_read) ; read/contract_rules.py:1477 (build_contract)",
+    "kind": "rule"
+   },
+   {
+    "n": 2,
+    "what": "The retrieval, fusion, rerank and replay stages run exactly as in REF-J (the contract is only logged as read.contract.built).",
+    "code": "src/memspine/read/pipeline/router.py:1189 (_read)",
+    "kind": "rule"
+   },
+   {
+    "n": 3,
+    "what": "_read_planned: after eng._read returns, add_typed_header renders one '[contract] ...' line (render_header, only fields above MIN_HEADER_CONFIDENCE) and inserts it as a lead record before the first evidence record, boundary_index +1, tokens added. A failure keeps the context as it was.",
+    "code": "src/memspine/read/pipeline/router.py:1160-1170 ; read/pipeline/request.py:625 (add_typed_header) ; read/contract_rules.py:1661 (render_header)",
+    "kind": "rule"
+   },
+   {
+    "n": 4,
+    "what": "Consent filter on the context and cache put (cache off).",
+    "code": "src/memspine/read/pipeline/router.py:1171-1173",
+    "kind": "rule"
+   }
+  ],
+  "algorithms": [
+   "rule-based multilingual question typing",
+   "time-view interval resolution against the read clock"
+  ],
+  "libraries": [
+   "LIB-16 read/contract_rules.py",
+   "LIB-47 (plan stage)"
+  ],
+  "models": [
+   {
+    "role": "none",
+    "model": "none",
+    "calls": "0 (rules and libraries only)",
+    "prompt": "none"
+   }
+  ],
+  "storage": "none",
+  "cost": "no model call; context grows by one short line (tens of tokens)",
+  "inputs": "the question text only",
+  "outputs": "same candidates and ranking, one extra '[contract]' lead line at the top of the context",
+  "failure_modes": [
+   "Sample forensics: fused 0 / final 0 / context 80 of 80 differ; +1/-1 net 0 (changes composition only).",
+   "The header is not used by retrieval, so it can only help or confuse the reader; a wrong shape (join vs single) misleads.",
+   "Distinct from A03 query_contract (S06): different code, different header text."
+  ],
+  "tests": [
+   "tests/unit/lib/test_lib_16_contract_rules.py",
+   "tests/unit/lib/test_lib_16_contract_details.py",
+   "tests/unit/lib/test_lib_16_parity.py",
+   "tests/unit/wiring/test_rw_a_read_entry.py"
+  ],
+  "mermaid": "flowchart LR\n  Q[question] --> C[typed contract rules]\n  Q --> S[REF-J read path]\n  S --> X[context]\n  C --> H[contract header line]\n  H --> X"
+ },
+ {
+  "id": "S12",
+  "settings": {
+   "read.router_rules": true
+  },
+  "stage": "R",
+  "trigger": "per read, in the request stage; its only consumer is the check for optional legs inside the search",
+  "steps": [
+   {
+    "n": 1,
+    "what": "plan_read builds the typed contract (as S11) and, because router_rules is on, layer_state: the LayerRegistry of the namespace (counts of live records per layer L0..L5, enabled layers from the template plus every populated layer; L2 also from distinct sessions of raw turns, L3 when a graph store exists) and the service state (embedder, lexical index, reranker, graph store, worker model).",
+    "code": "src/memspine/read/pipeline/request.py:457 (layer_state), :527 (plan_read)",
+    "kind": "storage"
+   },
+   {
+    "n": 2,
+    "what": "query_desc_of(contract) projects the contract onto a QueryDesc (shape lookup/temporal/as_of/join/list/count/generic, named subjects, many-cardinality, personal).",
+    "code": "src/memspine/read/pipeline/request.py:412 (query_desc_of)",
+    "kind": "rule"
+   },
+   {
+    "n": 3,
+    "what": "route(query_desc, layers, tier): vector, lexical, temporal always; entity if named subjects or a join; graph only for a join (needs L3 and a graph store); episode for temporal/as_of/list/count or an episodic cue (needs L2); profile for personal questions (needs L5); each leg skipped with a reason code (layer_disabled, layer_empty, service_missing, not_routed, generic_query). It also computes fetch budgets, pool size, a rerank plan and a deep-tier rewrite plan.",
+    "code": "src/memspine/read/router_rules.py:227 (route)",
+    "kind": "rule"
+   },
+   {
+    "n": 4,
+    "what": "Only one product of the plan is consumed: legs_off = the optional legs {entity, graph, episode} that the route did not plan. The search then skips the old graph leg, graph_node_search, anchor/entity legs, session leg and entity_leg_v2/graph_leg_v2/episode_leg_v2 for this read. Budgets, pool size, rerank plan and list_mode of the RoutePlan are logged (read.router.plan) but not used.",
+    "code": "src/memspine/read/pipeline/request.py:619 (legs_off) ; read/pipeline/router.py:476, :525, :533 ; read/pipeline/legs.py:268, :323",
+    "kind": "rule"
+   }
+  ],
+  "algorithms": [
+   "rule router over a layer registry",
+   "skip reasons recorded"
+  ],
+  "libraries": [
+   "LIB-23 read/router_rules.py",
+   "store/layer_registry.py"
+  ],
+  "models": [
+   {
+    "role": "none",
+    "model": "none",
+    "calls": "0 (rules and libraries only)",
+    "prompt": "none"
+   }
+  ],
+  "storage": "reads layer counts (storage.layer_counts) and records; writes nothing",
+  "cost": "no model call; one layer count per read",
+  "inputs": "optional legs and derived layers to route among",
+  "outputs": "a set of suppressed optional legs; on the J arm none of those legs is enabled",
+  "failure_modes": [
+   "Inert on the J arm: sample forensics 0/0/0 of 80, because no optional leg exists to suppress.",
+   "On a GC arm (S37) it is not neutral: graph is planned only for join questions, so the old graph leg and graph_node_search are switched off for most questions."
+  ],
+  "tests": [
+   "tests/unit/lib/test_lib_23_router_rules.py",
+   "tests/unit/wiring/test_rw_a_read_entry.py"
+  ],
+  "mermaid": "flowchart LR\n  Q[question] --> C[typed contract]\n  C --> D[query description]\n  L[layer state] --> R[route rules]\n  D --> R\n  R --> O[legs off set]\n  O --> S[search skips unplanned optional legs]"
+ },
+ {
+  "id": "S13",
+  "settings": {
+   "read.entity_leg_v2": true
+  },
+  "stage": "R",
+  "trigger": "per read, inside _search with the other metadata legs, once per widen",
+  "steps": [
+   {
+    "n": 1,
+    "what": "Entity seeds. _graph_seeds matches 1..N-word n-grams of the question (punctuation dropped, canonical words) against the namespace's entity index (associative store entity nodes), adds the caller's focal entity, and the optional GLiNER2 hook; with no named entity it falls back to the entities of the best non-graph hits.",
+    "code": "src/memspine/read/pipeline/legs.py:591 (_graph_seeds)",
+    "kind": "rule"
+   },
+   {
+    "n": 2,
+    "what": "Mentions. For each seed the associative store's live 'mentions' edges give the records that mention the entity; records not live (quarantined, archived, other type) are skipped. The role of the entity in each record is subject (record.entity), object (a dst: tag) or mention.",
+    "code": "src/memspine/read/pipeline/legs.py:472 (_entity_leg_v2) ; memories/associative",
+    "kind": "storage"
+   },
+   {
+    "n": 3,
+    "what": "Library scoring. entity_leg_explained scores records per matched entity with the Mem0-style boost, max over matched entities and capped (cap 0.5), with hub damping by entity degree (DampingConfig) so a very common entity does not flood the leg; returns provenance for the wiretap (read.leg.entity).",
+    "code": "src/memspine/read/entity_leg.py:196 (entity_leg_explained)",
+    "kind": "algorithm"
+   },
+   {
+    "n": 4,
+    "what": "The hits become NamedLeg('entity_v2') and join the extra legs before fusion (per-leg RRF gives it its own vote; under family_fusion its name falls into family 'other'); skipped when the router suppressed 'entity'.",
+    "code": "src/memspine/read/pipeline/legs.py:262-270 (_metadata_legs) ; router.py:593 (rrf_fuse)",
+    "kind": "algorithm"
+   }
+  ],
+  "algorithms": [
+   "n-gram entity matching",
+   "Mem0 entity boost (max, capped 0.5)",
+   "hub damping by degree",
+   "reciprocal rank fusion k=60"
+  ],
+  "libraries": [
+   "LIB-34 read/entity_leg.py",
+   "associative memory entity index"
+  ],
+  "models": [
+   {
+    "role": "none",
+    "model": "none",
+    "calls": "0 (rules and libraries only)",
+    "prompt": "none"
+   }
+  ],
+  "storage": "reads the associative store (entity index and mentions edges) and records; writes nothing",
+  "cost": "no model call; one index lookup per seed",
+  "inputs": "entity nodes and 'mentions' edges, which exist only when memories.associative.policies.entity_nodes is on and a sleep/extraction stage built them (the J arm builds none)",
+  "outputs": "one extra ranked leg of records that mention the question's entities",
+  "failure_modes": [
+   "Inert on the J arm (no associative memory, _entity_leg_v2 returns []): sample 0/0/0 of 80; re-screened on the GC arm as S32.",
+   "Entity matching is lexical (n-grams), so aliases and pronouns miss; hub damping can bury a truly central entity."
+  ],
+  "tests": [
+   "tests/unit/lib/test_lib_34_entity_leg.py",
+   "tests/unit/wiring/test_rw_e_time_entity_neighbours.py",
+   "tests/unit/wiring/test_fu_temporal_parity.py"
+  ],
+  "mermaid": "flowchart LR\n  Q[question] --> S[entity seeds n-gram match]\n  S --> M[mentions edges]\n  M --> E[score boost and hub damping]\n  E --> L[entity_v2 leg]\n  L --> F[RRF fusion]"
+ },
+ {
+  "id": "S14",
+  "settings": {
+   "read.family_fusion": true
+  },
+  "stage": "R",
+  "trigger": "per read, replaces the per-leg RRF and protected-pool step inside _search",
+  "steps": [
+   {
+    "n": 1,
+    "what": "The legs are collected exactly as in REF-J (vector, lexical, temporal, perspective, speaker_vote, ...), each as a ranked list.",
+    "code": "src/memspine/read/pipeline/router.py:487-560",
+    "kind": "rule"
+   },
+   {
+    "n": 2,
+    "what": "Instead of rrf_fuse, fuse_families converts each leg to a LIB-10 Leg with a source family from leg_family(name): vector, perspective, maxsim, session, graph_nodes, speaker_vote* are 'semantic'; lexical, entity, view_tags 'lexical'; temporal* 'temporal'; anything else 'other'. Legs of one family merge by best rank, so a second semantic leg never adds a vote.",
+    "code": "src/memspine/read/pipeline/fusion.py:326 (_lib_legs), :354 (fuse_families) ; read/registry.py:15-43",
+    "kind": "algorithm"
+   },
+   {
+    "n": 3,
+    "what": "Top pool_protect_per_leg (3) records of every family are protected; per-leg score floors (leg_min_scores, none set) never drop a protected hit; RRF k=60 runs across families with equal weights and max-normalisation.",
+    "code": "src/memspine/read/fusion.py:233 (fuse)",
+    "kind": "algorithm"
+   },
+   {
+    "n": 4,
+    "what": "The pool is capped at pool_size = top_k x widen (20): protected records are never evicted, the rest fill by fused rank. Back in _search the source_family-style block keeps the pool at top_k: family-protected hits first, then RRF order; the lowest unprotected candidates are evicted (REF-J instead lets the pool grow by up to legs x 3).",
+    "code": "src/memspine/read/pipeline/router.py:565-577, :737-770",
+    "kind": "algorithm"
+   },
+   {
+    "n": 5,
+    "what": "Forensics: pool trace (legs_in, kept, families, protected, evicted) logged as read.fusion.pool; the rest (gates, rerank, assembly, replay) is REF-J.",
+    "code": "src/memspine/read/pipeline/fusion.py:380-396",
+    "kind": "io"
+   }
+  ],
+  "algorithms": [
+   "family-level reciprocal rank fusion (k=60)",
+   "protected pool per source family",
+   "calibrated per-leg floors (unused here)",
+   "deterministic tie-break on per-family ranks"
+  ],
+  "libraries": [
+   "LIB-10 read/fusion.py",
+   "read/registry.py (leg families)"
+  ],
+  "models": [
+   {
+    "role": "reranker",
+    "model": "jinaai/jina-reranker-v3.5 (0.6B listwise, cuda, trust_remote_code)",
+    "calls": "1 forward pass per read over at most 64 documents (pool is about 20 to 30 plus protected extras)",
+    "prompt": "none"
+   }
+  ],
+  "storage": "none",
+  "cost": "no model call; fusion is CPU microseconds; pool size is fixed (fewer documents to rerank than REF-J when many legs fire)",
+  "inputs": "at least two legs (hybrid is on, so always vector and lexical)",
+  "outputs": "a different fused order and a pool bounded to top_k with family-protected hits first",
+  "failure_modes": [
+   "The only live signal so far: sample +4/-1 (net +3), fused/final/context differ on 80/80/74 of 80; selected for a focus run (S51) at MODE=focus after B2; interval [-1.25, +10] touches zero at n=80.",
+   "Votes of correlated semantic legs (vector, perspective, speaker_vote) now count once, which shifts weight toward lexical and temporal evidence.",
+   "Leg names outside the registry fall into family 'other' and each unnamed leg is its own family."
+  ],
+  "tests": [
+   "tests/unit/lib/test_lib_10_fusion.py",
+   "tests/unit/wiring/test_rw_b_fusion_lift_rerank.py"
+  ],
+  "mermaid": "flowchart LR\n  L[legs vector lexical temporal perspective] --> G[group by source family]\n  G --> B[best rank per family]\n  B --> P[protect top3 per family]\n  P --> R[RRF k60 across families]\n  R --> C[pool capped at top_k]\n  C --> J[jina rerank]"
+ },
+ {
+  "id": "S15",
+  "settings": {
+   "read.lift_before_rerank": true
+  },
+  "stage": "R",
+  "trigger": "per read, between the pool cut and the rerank inside _search",
+  "steps": [
+   {
+    "n": 1,
+    "what": "After the pool cut and the optional filters, lift_stage looks at the candidates: _is_derived marks mined facts, summaries, entity summaries and cards (anything not a raw episodic turn).",
+    "code": "src/memspine/read/pipeline/lift.py:261 (_is_derived), :390 (lift_stage)",
+    "kind": "rule"
+   },
+   {
+    "n": 2,
+    "what": "If none is derived (the J arm has only raw turns) lift_stage returns the candidates untouched: the flag is inert. Otherwise lineage_from_records walks each derived record's parents (lineage table or source.parents) to the source turns, depth-bounded.",
+    "code": "src/memspine/read/pipeline/lift.py:267 (lineage_from_records)",
+    "kind": "storage"
+   },
+   {
+    "n": 3,
+    "what": "Every source turn is re-admitted through _gate_hits (status, quarantine, consent, trust) and the date/scope filters and the header hide; a derived hit with a hidden or missing source is dropped (strict POL-2).",
+    "code": "src/memspine/read/pipeline/lift.py:403-432",
+    "kind": "rule"
+   },
+   {
+    "n": 4,
+    "what": "liblift.lift replaces each derived hit by up to lift_max_turns (2) visible source turns, inheriting its rank and relevance, keeps protected hits, dedupes and caps the list to the incoming pool size; the rerank then scores the lifted turns, not the summaries.",
+    "code": "src/memspine/read/lift.py:160 (lift), :216 (dedupe), :240 (cap)",
+    "kind": "algorithm"
+   }
+  ],
+  "algorithms": [
+   "lineage walk",
+   "lift, re-admit, dedupe, cap"
+  ],
+  "libraries": [
+   "LIB-11 read/lift.py"
+  ],
+  "models": [
+   {
+    "role": "reranker",
+    "model": "jinaai/jina-reranker-v3.5 (0.6B listwise, cuda, trust_remote_code)",
+    "calls": "1 forward pass per read over at most 64 documents (pool is about 20 to 30 plus protected extras)",
+    "prompt": "none"
+   }
+  ],
+  "storage": "reads lineage (parents) and records; writes nothing",
+  "cost": "no model call; one extra gate pass per lifted turn",
+  "inputs": "derived records in the candidate pool (mined facts, summaries) with parent turns; none exist on the J arm",
+  "outputs": "the pool contains source turns instead of derived records, so the reranker scores evidence text",
+  "failure_modes": [
+   "Inert on the J arm (0/0 of 80); audit says mark iterate, not no-op: lift needs derived hits (GC/window-facts arm).",
+   "Strict POL-2: a derived hit whose source is partly hidden loses its slot instead of falling back to the summary."
+  ],
+  "tests": [
+   "tests/unit/lib/test_lib_11_lift.py",
+   "tests/unit/wiring/test_rw_b_fusion_lift_rerank.py",
+   "evals/tests/test_v2_behavioural_pool.py"
+  ],
+  "mermaid": "flowchart LR\n  P[pool after cut] --> D{derived hits}\n  D -- none --> R[rerank unchanged]\n  D -- some --> L[lineage to source turns]\n  L --> G[re-admit gates]\n  G --> C[dedupe and cap]\n  C --> R"
+ },
+ {
+  "id": "S16",
+  "settings": {
+   "read.lift_before_rerank": true,
+   "read.rerank_v2": true,
+   "arm_note": "the arm v2-R3-07-rerank_v2 sets lift_before_rerank too; reference is v2-S15-i2 (J + lift_before_rerank), so only rerank_v2 differs"
+  },
+  "stage": "R",
+  "trigger": "per read, replaces the rerank block inside _search",
+  "steps": [
+   {
+    "n": 1,
+    "what": "The pool is built exactly as REF-J (RRF, gates, pool cut). v2_on = rerank_v2 and not (skip_rerank_for_ordering and ordering question).",
+    "code": "src/memspine/read/pipeline/router.py:828-856",
+    "kind": "rule"
+   },
+   {
+    "n": 2,
+    "what": "rerank_v2_stage replaces the legacy branch: head = candidates[:rerank_v2_pool (64)]; documents are concat_background(record) (optionally with [Date:] prefix and session-neighbour context if configured, both off here).",
+    "code": "src/memspine/read/pipeline/rerank.py:183 (rerank_v2_stage)",
+    "kind": "rule"
+   },
+   {
+    "n": 3,
+    "what": "chain_score walks rerank_v2_chain [jina, qwen3, fastembed] (or the MD-01 planned chain) and uses the first reranker that builds and scores; Jina is built with unscored_tail=True so a document beyond its 64 window is None, never 0.0; failures fall through to the next mode and are logged in 'tried'.",
+    "code": "src/memspine/read/pipeline/rerank.py:147 (chain_score), :127 (_chain_provider) ; models/providers/rerank/jina_rerank.py:68",
+    "kind": "llm"
+   },
+   {
+    "n": 4,
+    "what": "Scored candidates take the min-max normalised score (blend optional); a candidate with no score is NOT given 0: its relevance is its retrieval score scaled below the lowest scored one, so it follows every scored candidate. With no working reranker the pool is unchanged and reranked=False.",
+    "code": "src/memspine/read/pipeline/rerank.py:228-251",
+    "kind": "algorithm"
+   },
+   {
+    "n": 5,
+    "what": "Differences from the legacy branch: bypasses the rerank_max_top_k gate, ignores read.rerank (chain used), records scored/unscored/model/fallback in forensics (rerank_v2) and the wiretap (read.rerank.scored). Downstream (composite score, rerank_keep 10, assembly, replay) is REF-J.",
+    "code": "src/memspine/read/pipeline/router.py:855",
+    "kind": "rule"
+   }
+  ],
+  "algorithms": [
+   "listwise cross-encoder rerank",
+   "licence fallback chain (jina, qwen3-reranker-0.6B, MiniLM)",
+   "unscored tail handling (None, not 0)",
+   "min-max normalisation"
+  ],
+  "libraries": [
+   "LIB-42 models/tiers.py (reranker chain)",
+   "external: jina-reranker-v3.5, optional Qwen3-Reranker-0.6B, fastembed MiniLM"
+  ],
+  "models": [
+   {
+    "role": "reranker",
+    "model": "jinaai/jina-reranker-v3.5 (0.6B listwise, cuda, trust_remote_code)",
+    "calls": "1 forward pass per read over at most 64 documents (pool is about 20 to 30 plus protected extras)",
+    "prompt": "none"
+   }
+  ],
+  "storage": "none",
+  "cost": "same single rerank pass as REF-J, pool at most 64",
+  "inputs": "a built reranker (jina installed)",
+  "outputs": "same ordering as legacy when jina scores everything; differs in unscored handling and fallback",
+  "failure_modes": [
+   "Sample: 0/0 of 80 (no answer changed); the behavioural gate flagged INV-FILLER and the screen is marked iterate: the evidence never reaches the reranker when filler turns outrank it in the fused pool (see S67).",
+   "S16 crashed once on a host MemoryError while CPU suites ran in parallel (not a code defect)."
+  ],
+  "tests": [
+   "tests/unit/wiring/test_rw_b_fusion_lift_rerank.py",
+   "tests/unit/lib/test_lib_42_tiers.py",
+   "evals/tests/test_v2_behavioural_pool.py"
+  ],
+  "mermaid": "flowchart LR\n  P[pool top 64] --> D[concat_background docs]\n  D --> C{chain}\n  C --> J[jina v3.5]\n  C -.fallback.-> Q[qwen3 reranker]\n  C -.fallback.-> F[MiniLM]\n  J --> N[min-max normalise]\n  N --> U[unscored follow scored]"
+ },
+ {
+  "id": "S17",
+  "settings": {
+   "read.exact_budget": true
+  },
+  "stage": "C",
+  "trigger": "per read, in assembly and render",
+  "steps": [
+   {
+    "n": 1,
+    "what": "activate_counter(eng) sets a per-read token counter: read.exact_budget on resolves reader_tokenizer offline; this arm sets none, so it is the labelled chars/4 EstimatingCounter (accounting 'estimated', not the reader's own tokens). Off, everything uses len//4+1.",
+    "code": "src/memspine/compose/pipeline/render.py:102 (activate_counter), :87 (resolve_counter), :115 (tok)",
+    "kind": "rule"
+   },
+   {
+    "n": 2,
+    "what": "_assemble_core passes cost=tok and max_skips=exact_budget_max_skips (8) to AssemblyPolicy.assemble. Greedy MMR selection counts each record with the counter and, when a record does not fit, skips it and tries smaller later ones (stop after 8 skips) instead of stopping at the first overflow.",
+    "code": "src/memspine/compose/pipeline/windows.py:412 ; compose/pack.py:180 (assemble, max_skips)",
+    "kind": "algorithm"
+   },
+   {
+    "n": 3,
+    "what": "Headers, lead blocks and the rendered text are counted with the same counter (tok), and _render recounts the rendered context.",
+    "code": "src/memspine/compose/pipeline/render.py:285",
+    "kind": "rule"
+   },
+   {
+    "n": 4,
+    "what": "The replay stage that follows is unchanged: neighbour turns still cost len//4+1 against budget_tokens - used, so only the base assembly selection becomes skip-and-continue.",
+    "code": "src/memspine/read/pipeline/router.py:1380-1440",
+    "kind": "rule"
+   }
+  ],
+  "algorithms": [
+   "tokenizer-based budget counting (here chars/4 estimate)",
+   "skip-and-continue knapsack-style packing"
+  ],
+  "libraries": [
+   "LIB-06 compose/budget.py"
+  ],
+  "models": [
+   {
+    "role": "none",
+    "model": "none",
+    "calls": "0 (rules and libraries only)",
+    "prompt": "none"
+   }
+  ],
+  "storage": "none",
+  "cost": "none; tokenizer load is offline-only",
+  "inputs": "a binding token budget to have any effect",
+  "outputs": "possibly more records fit when an early large record would have closed the budget",
+  "failure_modes": [
+   "Inert on the J arm: 0/0 (audit predicted; the 4096 budget never binds with candidate_pool 2 and rerank_keep 10). Marked iterate; replaced by S52/S53 with reply_reserve_tokens 3072.",
+   "Without a reader tokenizer the count is still an estimate; 'exact' is a misnomer here."
+  ],
+  "tests": [
+   "tests/unit/lib/test_lib_06_budget_bundles.py",
+   "tests/unit/wiring/test_rw_c_compose.py"
+  ],
+  "mermaid": "flowchart LR\n  C[counter chars/4] --> A[assembly under budget]\n  A --> S{record fits}\n  S -- no --> K[skip try smaller up to 8 skips]\n  S -- yes --> T[take]"
+ },
+ {
+  "id": "S18",
+  "settings": {
+   "read.exact_budget": true,
+   "read.evidence_bundles": true,
+   "note": "reference v2-S17-i2 already has exact_budget, so only evidence_bundles differs"
+  },
+  "stage": "C",
+  "trigger": "per read, after AssemblyPolicy.assemble in _assemble_core",
+  "steps": [
+   {
+    "n": 1,
+    "what": "With evidence_bundles the assembly runs on a pool x bundle_pool_factor (2.0) wider budget instead of the true budget.",
+    "code": "src/memspine/compose/pipeline/windows.py:412-425",
+    "kind": "rule"
+   },
+   {
+    "n": 2,
+    "what": "bundle_selected finds assembled records tagged atomic_fact with source.parents (mined facts). For each, _source_turns loads its eligible parent turns (live view, decorated), the ones sharing most words first, capped.",
+    "code": "src/memspine/compose/pipeline/pack.py:547 (bundle_selected), :509 (_source_turns)",
+    "kind": "storage"
+   },
+   {
+    "n": 3,
+    "what": "build_bundles forms one EvidenceBundle per fact (assertion + support + binding + time anchors); compose.bundles.pack includes a bundle whole or not at all under fact_room (bundle_fact_share 0.6 of the room while other records wait, all of it when none do), cites turns [n] and renders a shared turn once.",
+    "code": "src/memspine/compose/bundles.py:82 (build_bundles), :261 (pack)",
+    "kind": "algorithm"
+   },
+   {
+    "n": 4,
+    "what": "Other records keep rank order with what the bundles left; a turn cited by an included bundle is not repeated; the first record always enters. The stable prefix is kept and charged first.",
+    "code": "src/memspine/compose/pipeline/pack.py:610-640",
+    "kind": "rule"
+   }
+  ],
+  "algorithms": [
+   "whole-or-nothing bundle packing",
+   "skip-and-continue with early break"
+  ],
+  "libraries": [
+   "LIB-06 compose/budget.py + bundles.py"
+  ],
+  "models": [
+   {
+    "role": "none",
+    "model": "none",
+    "calls": "0 (rules and libraries only)",
+    "prompt": "none"
+   }
+  ],
+  "storage": "reads source.parents of facts; writes nothing",
+  "cost": "no model call",
+  "inputs": "mined atomic facts with parent turns (none on the J arm)",
+  "outputs": "facts rendered with their cited source turns as whole units",
+  "failure_modes": [
+   "Inert on the J arm (no mined facts); moved to the window-facts arm as S54 (reference S43).",
+   "Bundles move mined facts, which are semantic and normally in the stable prefix, to the front of the volatile part."
+  ],
+  "tests": [
+   "tests/unit/lib/test_lib_06_budget_bundles.py",
+   "tests/unit/wiring/test_rw_c_compose.py"
+  ],
+  "mermaid": "flowchart LR\n  A[assembled on 2x budget] --> F{atomic facts}\n  F -- none --> O[unchanged]\n  F -- some --> S[source turns]\n  S --> B[bundle fact plus cited turns]\n  B --> P[pack whole or nothing]"
+ },
+ {
+  "id": "S19",
+  "settings": {
+   "read.neighbours_v2": true
+  },
+  "stage": "C",
+  "trigger": "inside the compose read mode only (_compose via _expand_neighbours); NOT reached in replay mode",
+  "steps": [
+   {
+    "n": 1,
+    "what": "Entry. _expand_neighbours checks read.neighbours_v2 and delegates to _expand_neighbours_v2. It is called only from _compose (compose mode, taken for aggregation questions under mode auto or an explicit compose). The harness passes --memspine-read-mode replay, so _read_routed never calls it: replay windows are built by _window_turns.",
+    "code": "src/memspine/compose/pipeline/windows.py:650 (_expand_neighbours), :558 (only caller) ; read/pipeline/router.py:1380-1440 (replay uses _window_turns)",
+    "kind": "rule"
+   },
+   {
+    "n": 2,
+    "what": "(If it ran) the reranked hits and their session turn ids are collected; every turn in a hit's reach (before/after from replay_window_before/after, scaled by budget factor) is prefetched through eng._replay_neighbour so the library's visibility test is exactly the gates (viewer, consent, status, date).",
+    "code": "src/memspine/compose/pipeline/windows.py:702 (_expand_neighbours_v2)",
+    "kind": "storage"
+   },
+   {
+    "n": 3,
+    "what": "(If it ran) the LIB-24 expand builds budget-aware windows per conversation: anchors merged when windows overlap, hit-adjacent turns nearest first, neighbours cost chars//4+1 against budget - used, skipped with a reason (hidden, over budget). Added turns join the chosen list; wiretap compose.neighbours and forensics window rows.",
+    "code": "src/memspine/read/neighbours.py ; compose/pipeline/windows.py:750-790",
+    "kind": "algorithm"
+   },
+   {
+    "n": 4,
+    "what": "What replay does instead: _read_routed builds windows with _window_turns (hit first, neighbours nearest first, 2 before and 4 after, token-bounded by len//4+1), so the v2 neighbour library never replaces it in the harness arms.",
+    "code": "src/memspine/compose/pipeline/windows.py:792 (_window_turns) ; src/memspine/read/pipeline/router.py:1380",
+    "kind": "rule"
+   }
+  ],
+  "algorithms": [
+   "budget-aware window expansion with overlap merging"
+  ],
+  "libraries": [
+   "LIB-24 read/neighbours.py"
+  ],
+  "models": [
+   {
+    "role": "none",
+    "model": "none",
+    "calls": "0 (rules and libraries only)",
+    "prompt": "none"
+   }
+  ],
+  "storage": "reads neighbouring turn records through the replay gates",
+  "cost": "no model call",
+  "inputs": "compose read mode (aggregation questions) or an explicit mode compose",
+  "outputs": "in replay mode: nothing. In compose mode: windows from the library instead of the G2c loop",
+  "failure_modes": [
+   "Inert in the LoCoMo/replay harness by construction: the flag is read only inside the compose-mode neighbour expansion, so the replay read never consults it (this is stronger than 'no effect observed'). The comment in config also says it conflicts with replay_window_* (audit 31).",
+   "Needs a compose-mode screen or removal from the replay bundle S63."
+  ],
+  "tests": [
+   "tests/unit/lib/test_lib_24_neighbours.py",
+   "tests/unit/wiring/test_rw_e_time_entity_neighbours.py"
+  ],
+  "mermaid": "flowchart LR\n  M{read mode} -- replay --> W[_window_turns unchanged]\n  M -- compose --> N[neighbours_v2 library]\n  N --> X[windows merged and budgeted]"
+ },
+ {
+  "id": "S20",
+  "settings": {
+   "read.gate_v2": true
+  },
+  "stage": "R",
+  "trigger": "per read, last stage before the overlays: judges the finished context",
+  "steps": [
+   {
+    "n": 1,
+    "what": "The routed read finishes (headers, replay, deep extension). _relevance_gate sees read.gate_v2 and calls _gate_v2 instead of the I74 bypass plus the I29 calibrated gate (both off here).",
+    "code": "src/memspine/read/pipeline/gate.py:275 (_relevance_gate), :434 (_gate_v2) ; router.py:1244",
+    "kind": "rule"
+   },
+   {
+    "n": 2,
+    "what": "Pick the scoring leg: rerank if a reranker is installed, else vector (relevance_gate_leg auto). Calibration: the 20 OFF_TOPIC_PROBES are scored against the store (vector top cosine or the reranker's raw score on the best probe candidates); the observations make a LIB-12 StoreCalibration (median/MAD off-topic level), cached per (namespace, embedder, reranker, leg) and recomputed when the store grows 2x.",
+    "code": "src/memspine/read/pipeline/gate.py:376 (_gate_v2_leg), :385 (_gate_v2_calibration), :145 (_gate_raw_tops)",
+    "kind": "storage"
+   },
+   {
+    "n": 3,
+    "what": "Score every judged context record (lead blocks and persona excluded) with the same leg: one extra jina pass over concat_background texts (or a vector search widened to max(10, 4 x n)); a record with no score stays unscored, never 0.",
+    "code": "src/memspine/read/pipeline/gate.py:406 (_gate_v2_scores)",
+    "kind": "llm"
+   },
+   {
+    "n": 4,
+    "what": "assess(items, calibration, contract) classifies the read: answerable, missing, conflicting, weak or bypass. The contract (personal flag, request kind, named reference, time view) comes from the LIB-16 rules; a name bypasses only if it resolves in the store (referenced_names) AND a candidate scores above the weak threshold or mentions it; first-person needs a scored candidate; enumeration/show-all always bypass; as-of/history bypass only when supported.",
+    "code": "src/memspine/read/pipeline/gate.py:353 (_gate_contract), :445-490 ; read/gate.py (LIB-12 assess)",
+    "kind": "algorithm"
+   },
+   {
+    "n": 5,
+    "what": "Act on the state: missing -> an empty abstained context (a recorded absence); weak -> keep (gate_v2_weak 'keep') flagged low-confidence or abstain; conflicting/answerable -> drop the records the gate dropped (a personal record on a generic question), conflicts recorded not resolved. Fails open on any error. Logged as read.gate.decision and forensics relevance_gate_v2.",
+    "code": "src/memspine/read/pipeline/gate.py:495-547",
+    "kind": "rule"
+   }
+  ],
+  "algorithms": [
+   "median/MAD off-topic calibration with margin_sd 1.0",
+   "five-state evidence classification",
+   "named-reference bypass with evidence check"
+  ],
+  "libraries": [
+   "LIB-12 read/gate.py",
+   "LIB-16 contract rules (gate contract)"
+  ],
+  "models": [
+   {
+    "role": "reranker",
+    "model": "jinaai/jina-reranker-v3.5 (0.6B listwise, cuda, trust_remote_code)",
+    "calls": "1 forward pass per read over at most 64 documents (pool is about 20 to 30 plus protected extras)",
+    "prompt": "none"
+   }
+  ],
+  "storage": "calibration cache in engine memory (per namespace); reads records and vectors; writes nothing",
+  "cost": "one extra reranker pass per read over the final context (the context holds hits plus neighbours, so up to about 40 records), plus a one-off calibration of 20 off-topic probes per namespace (embedding + vector search + up to 10 reranked candidates each; every conversation has its own fresh store, so it repeats per conversation); queue estimate 105 min for sets o,f,b",
+  "inputs": "a store with an off-topic reference level; OP-Bench abstention items (set o) to show any gain",
+  "outputs": "an empty abstained context for off-topic questions; otherwise the context minus dropped records",
+  "failure_modes": [
+   "Meant for abstention: LoCoMo cat 1-4 has no unanswerable question, so the first-set check is non-inferiority; real gain is judged on OP-Bench (dev 331 probes, reference r7-protect-opb is a different engine arm: audit 35).",
+   "A false 'missing' on a legitimate low-scoring question empties the context (recall loss); the bypass rules exist to limit that.",
+   "Must not be combined with relevance_gate=store_calibrated (comment-only, no validator)."
+  ],
+  "tests": [
+   "tests/unit/lib/test_lib_12_gate.py",
+   "tests/unit/wiring/test_rw_d_gate_deep.py",
+   "evals/tests/test_v2_sample.py"
+  ],
+  "mermaid": "flowchart LR\n  C[finished context] --> L[pick leg rerank or vector]\n  L --> K[store calibration off-topic probes]\n  C --> S[score each record]\n  K --> A[assess five states]\n  S --> A\n  A --> D{state}\n  D -- missing --> E[empty abstained]\n  D -- other --> F[keep minus dropped]"
+ },
+ {
+  "id": "S21",
+  "settings": {
+   "read.gate_v2": true,
+   "read.deep_v2": true,
+   "note": "reference v2-S20-i2 has gate_v2; arm adds deep_v2 with NO bound llm role"
+  },
+  "stage": "R",
+  "trigger": "per read, after the routed read and before the count/duration sections and the gate",
+  "steps": [
+   {
+    "n": 1,
+    "what": "The routed read finishes; _read calls _deep_extend when deep_v2 or obligations is on. It skips full-mode reads, abstained contexts and empty contexts.",
+    "code": "src/memspine/read/pipeline/router.py:1239 ; read/pipeline/deep.py:530 (_deep_extend)",
+    "kind": "rule"
+   },
+   {
+    "n": 2,
+    "what": "Build the typed contract, map it to a QueryDescription (obligation kind: single, join, comparison, latest, list, count, duration; entities, asked attribute, time view), and make the evidence bundle from the read's KEYED semantic records only (entity + attribute); raw turns are not claimed as facts, so an obligation they would satisfy only by guesswork stays open.",
+    "code": "src/memspine/read/pipeline/deep.py:467 (_query_description), :496 (_evidence_bundle)",
+    "kind": "rule"
+   },
+   {
+    "n": 3,
+    "what": "derive_obligations + check produce an ObligationReport: per-obligation status and typed holes (missing entity, attribute, value, time). Logged as read.obligations.report and forensics 'obligations'. No model call.",
+    "code": "src/memspine/read/obligations.py:204 (derive_obligations), :531 (check) ; deep.py:517 (_report_view)",
+    "kind": "algorithm"
+   },
+   {
+    "n": 4,
+    "what": "deep_v2 only: if the report is answerable the stop reason is rules_met with 0 calls. Else the LIB-43 deep_read runs: at most one sufficiency judgement, one rewrite and one extra retrieval, never a loop. In this arm no llm.roles.sufficiency/plan is bound, so allow_sufficiency and allow_rewrite are false (log agentic_unbound): the deep tier is rules-only with zero model calls and can add nothing.",
+    "code": "src/memspine/read/pipeline/deep.py:605-690 ; read/deep.py:373 (deep_read)",
+    "kind": "llm"
+   },
+   {
+    "n": 5,
+    "what": "Extra retrieval: _search for each rewritten query (agentic_top_k 8; first pass forensics preserved); new items are decorated and merged under merge_budget (agentic_first_share 0.6, agentic_max_new 6) into the context by _agentic_assemble; info (calls, stop reason, holes, queries) goes to forensics 'deep_v2'.",
+    "code": "src/memspine/read/pipeline/deep.py:660-704, :223 (_agentic_assemble)",
+    "kind": "rule"
+   }
+  ],
+  "algorithms": [
+   "typed obligations (join, list, count, duration, comparison, latest)",
+   "rules-first sufficiency",
+   "at most one rewrite and one retrieve"
+  ],
+  "libraries": [
+   "LIB-15 read/obligations.py",
+   "LIB-43 read/deep.py",
+   "LIB-16 contract_rules"
+  ],
+  "models": [
+   {
+    "role": "sufficiency",
+    "model": "unbound in this arm (would be ollama/qwen3.5:9b in S55)",
+    "calls": "0",
+    "prompt": "src/memspine/prompts/defaults/sufficiency.yaml (sufficiency and sufficiency@missing)"
+   }
+  ],
+  "storage": "reads records; no writes",
+  "cost": "0 model calls here; with a bound role at most 1 sufficiency + 1 rewrite call and 1 retrieval per query (target <= 1 deep call per read)",
+  "inputs": "keyed semantic facts (entity + attribute) in the context for the obligation check to pass or fail meaningfully, and a bound sufficiency role to act",
+  "outputs": "a possibly extended context; here effectively unchanged",
+  "failure_modes": [
+   "Audit 4: unbound role means the screen cannot show an effect; it was removed from the first batch and returns as S55 with a bound sufficiency role.",
+   "On the J arm every read has no keyed semantic fact, so the report is never answerable and, once a role is bound, nearly every read would call the model (cost, not gain)."
+  ],
+  "tests": [
+   "tests/unit/lib/test_lib_43_deep.py",
+   "tests/unit/lib/test_lib_15_obligations.py",
+   "tests/unit/wiring/test_rw_d_gate_deep.py"
+  ],
+  "mermaid": "flowchart LR\n  C[routed context] --> O[obligations from contract]\n  C --> B[keyed facts bundle]\n  O --> K[check holes]\n  B --> K\n  K --> D{answerable}\n  D -- yes --> N[stop rules_met]\n  D -- no --> U{role bound}\n  U -- no --> N\n  U -- yes --> M[sufficiency rewrite retrieve once]"
+ },
+ {
+  "id": "S22",
+  "settings": {
+   "read.gate_v2": true,
+   "read.deep_v2": true,
+   "read.obligations": true,
+   "note": "reference v2-S21-i2; obligations is the only addition"
+  },
+  "stage": "R",
+  "trigger": "per read, same slot as S21 (inside _deep_extend)",
+  "steps": [
+   {
+    "n": 1,
+    "what": "_deep_extend runs for obligations as well as deep_v2: typed contract, QueryDescription, keyed-fact evidence bundle (as S21 steps 1-2).",
+    "code": "src/memspine/read/pipeline/deep.py:530-575",
+    "kind": "rule"
+   },
+   {
+    "n": 2,
+    "what": "check(derive_obligations(description), [bundle]) yields the report; with read.obligations the verdict, per-obligation status and typed holes are written to the wiretap (read.obligations.report) and forensics['obligations'].",
+    "code": "src/memspine/read/pipeline/deep.py:586-596",
+    "kind": "rule"
+   },
+   {
+    "n": 3,
+    "what": "Without deep_v2 nothing else happens, so obligations alone is forensics-only. With deep_v2 on (this arm), the same report decides whether the deep tier is needed (rules_met) and its typed holes become the rewrite request lines ('missing <kind>: entity attribute') instead of free text.",
+    "code": "src/memspine/read/pipeline/deep.py:597-640",
+    "kind": "rule"
+   },
+   {
+    "n": 4,
+    "what": "Report view: _report_view serialises verdict, per-obligation status and holes (kind, entity, attribute) and caveats; nothing is written to the context unless deep_v2 later merges retrieved items.",
+    "code": "src/memspine/read/pipeline/deep.py:517 (_report_view)",
+    "kind": "io"
+   }
+  ],
+  "algorithms": [
+   "obligation derivation and checking"
+  ],
+  "libraries": [
+   "LIB-15 read/obligations.py"
+  ],
+  "models": [
+   {
+    "role": "none",
+    "model": "none",
+    "calls": "0 (rules and libraries only)",
+    "prompt": "none"
+   }
+  ],
+  "storage": "none",
+  "cost": "no extra model call over S21",
+  "inputs": "keyed semantic facts for a meaningful report",
+  "outputs": "forensics only; with deep_v2 the holes steer the rewrite",
+  "failure_modes": [
+   "Alone it is forensics-only (read.py doc). With deep_v2 and no bound role (this arm) there is no behavioural difference from S21; returns as S56 on the S55 arm with a bound role.",
+   "A vocabulary mismatch between question words and store attribute keys is handled by dropping the attribute when no fact carries it (otherwise reported as missing)."
+  ],
+  "tests": [
+   "tests/unit/lib/test_lib_15_obligations.py",
+   "tests/unit/wiring/test_rw_d_gate_deep.py"
+  ],
+  "mermaid": "flowchart LR\n  Q[question] --> D[query description]\n  C[context facts] --> B[evidence bundle]\n  D --> K[check obligations]\n  B --> K\n  K --> R[report and holes]\n  R --> F[forensics and rewrite request]"
+ },
+ {
+  "id": "S23",
+  "settings": {
+   "read.external_v2": true
+  },
+  "stage": "C",
+  "trigger": "per read, after the gate, as the last overlay (_external_overlay)",
+  "steps": [
+   {
+    "n": 1,
+    "what": "_external_overlay first reads read.external_evidence; it is 'off' in this arm, so the function returns the context unchanged before external_v2 is consulted. (config validation also rejects external_v2 without external_evidence cache|web: requires.py.)",
+    "code": "src/memspine/read/pipeline/legs.py:851 (_external_overlay)",
+    "kind": "rule"
+   },
+   {
+    "n": 2,
+    "what": "(With external_evidence cache or web) plan_external decides from the typed contract whether a public-knowledge lookup is allowed (inference/recommendation invitation, call budget external_max_calls).",
+    "code": "src/memspine/read/external.py:181 (plan_external)",
+    "kind": "rule"
+   },
+   {
+    "n": 3,
+    "what": "(With a provider) the broker looks up a privacy-filtered generic query: private terms from the evidence (names, places, capital words) are removed; result snippets pass freshness, https, dedupe, per-domain cap and a token budget (external_v2_budget_tokens 300) in external_block.",
+    "code": "src/memspine/read/pipeline/legs.py:903 (_external_overlay_v2) ; read/external.py:271 (external_block)",
+    "kind": "library"
+   },
+   {
+    "n": 4,
+    "what": "(With usable snippets) one labelled '[public]' lead record with an ext:public tag and a trust cap is appended after the evidence; never stored.",
+    "code": "src/memspine/read/pipeline/legs.py:960-998",
+    "kind": "rule"
+   }
+  ],
+  "algorithms": [
+   "privacy filtering of lookup queries",
+   "snippet freshness/https/domain caps"
+  ],
+  "libraries": [
+   "LIB-45 read/external.py",
+   "services/external broker"
+  ],
+  "models": [
+   {
+    "role": "none",
+    "model": "none",
+    "calls": "0 (rules and libraries only)",
+    "prompt": "none"
+   }
+  ],
+  "storage": "none (external cache dir only when configured)",
+  "cost": "no model call; network egress only in web mode (owner decision: skipped in B7)",
+  "inputs": "external_evidence cache or web and an external_provider (http/wikipedia); neither is set",
+  "outputs": "nothing in this arm",
+  "failure_modes": [
+   "Inert as configured and now fails config validation; skipped in B7 (no cache/provider can answer unseen questions, web means egress). REPORT-only on OP-Bench."
+  ],
+  "tests": [
+   "tests/unit/lib/test_lib_45_external.py",
+   "tests/unit/wiring/test_rw_f_cache_external.py",
+   "tests/unit/test_external_privacy.py"
+  ],
+  "mermaid": "flowchart LR\n  C[context] --> M{external_evidence}\n  M -- off --> X[unchanged]\n  M -- cache or web --> P[plan from contract]\n  P --> L[privacy filtered lookup]\n  L --> B[public block]\n  B --> X2[context plus public block]"
+ },
+ {
+  "id": "S24",
+  "settings": {
+   "read.timeview_v2": true
+  },
+  "stage": "R",
+  "trigger": "per read, in _date_allowed before any leg runs; acts only with an active as-of or recorded_before bound",
+  "steps": [
+   {
+    "n": 1,
+    "what": "_search calls _date_allowed: with no date filter and no record scope it returns None (no restriction). LoCoMo QA passes no as-of (as_of_question_date false), so the whole feature short-circuits here.",
+    "code": "src/memspine/read/pipeline/timeview.py:133 (_date_allowed)",
+    "kind": "rule"
+   },
+   {
+    "n": 2,
+    "what": "(With a bound) _timeview_allowed derives the TimeView: as_of -> at_valid(as_of); recorded_before -> at_known(t - 1us); both -> both(...). 'or'-mode date filters are not handled and fall back.",
+    "code": "src/memspine/read/pipeline/timeview.py:262 (_timeview_allowed)",
+    "kind": "rule"
+   },
+   {
+    "n": 3,
+    "what": "tv.apply runs the LIB-22 three-valued time view over every record as an assertion envelope: out_of_window removed, undecidable (no event time, approximate straddle) kept flagged uncertain_time; for known_at/both the known subset is re-derived (inferred ends and superseded statuses re-opened unless a known record supersedes at that instant).",
+    "code": "src/memspine/read/timeview.py:607 (apply), :77 (TimeView) ; read/pipeline/timeview.py:206 (_as_envelope)",
+    "kind": "algorithm"
+   },
+   {
+    "n": 4,
+    "what": "The resulting id set (plus cues) intersected with the remaining date bounds and record scope becomes the allow-list restricting every leg before fusion; base_fetch grows to the namespace size so a filter never costs recall.",
+    "code": "src/memspine/read/pipeline/router.py:430-440 ; timeview.py:284-309",
+    "kind": "rule"
+   }
+  ],
+  "algorithms": [
+   "three-valued interval logic",
+   "as-known re-derivation"
+  ],
+  "libraries": [
+   "LIB-22 read/timeview.py"
+  ],
+  "models": [
+   {
+    "role": "none",
+    "model": "none",
+    "calls": "0 (rules and libraries only)",
+    "prompt": "none"
+   }
+  ],
+  "storage": "reads all records of the namespace (listing O(records)); writes nothing",
+  "cost": "no model call; O(records) per read when active",
+  "inputs": "an as-of or recorded_before bound on the read",
+  "outputs": "an allow-list narrowing candidates to what was true/known at the bound",
+  "failure_modes": [
+   "Cannot show an effect on LoCoMo (no as-of); skipped in B7 pending a time-travel set (MAB-CR or locomo_plus with --memspine-as-of-question-date); arm scr-b7-timeview is ready.",
+   "Listing the whole namespace per read is O(records)."
+  ],
+  "tests": [
+   "tests/unit/lib/test_lib_22_timeview.py",
+   "tests/unit/wiring/test_rw_e_time_entity_neighbours.py",
+   "tests/unit/test_as_of_read.py"
+  ],
+  "mermaid": "flowchart LR\n  R[read] --> B{as-of or known bound}\n  B -- none --> N[legacy path unchanged]\n  B -- yes --> V[build time view]\n  V --> A[apply three-valued to records]\n  A --> L[allow-list for all legs]"
+ },
+ {
+  "id": "S25",
+  "settings": {
+   "read.cache.enabled": true
+  },
+  "stage": "X",
+  "trigger": "per read, around the whole read (_read_planned): lookup first, store last",
+  "steps": [
+   {
+    "n": 1,
+    "what": "_read_cache returns an in-memory ReadCache (InMemoryBackend, max_entries 256, ttl none) when read.cache.enabled; reads that pass a session_id are never cached (stateful ledger).",
+    "code": "src/memspine/read/pipeline/request.py:256 (_read_cache), :334 (_cache_get)",
+    "kind": "storage"
+   },
+   {
+    "n": 2,
+    "what": "Key (ER-31): scope (tenant+owner of the namespace), viewer, query text, a sha256 of the read config (minus cache) + consent config + every argument that shapes the result (mode, budget, top_k, windows, dates, as_of...), embedder and reranker ids, store generation, erasure generation, consent generation.",
+    "code": "src/memspine/read/pipeline/request.py:281 (_read_cache_key) ; read/cache.py:144 (read_key)",
+    "kind": "rule"
+   },
+   {
+    "n": 3,
+    "what": "Hit: revalidate every cached record against the live store (still live, context-eligible, consent ok; POL-1); a partial drop evicts the entry and falls through to a full read; a clean hit returns a copy.",
+    "code": "src/memspine/read/pipeline/request.py:316 (_revalidate_result)",
+    "kind": "rule"
+   },
+   {
+    "n": 4,
+    "what": "Miss: the normal read runs (REF-J) and _cache_put stores a copy under the key computed at the start, so a write during the read makes it stale on its first lookup.",
+    "code": "src/memspine/read/pipeline/request.py:359 (_cache_put) ; router.py:1131-1173",
+    "kind": "storage"
+   }
+  ],
+  "algorithms": [
+   "generation-aware cache keys",
+   "POL-1 revalidation on hit"
+  ],
+  "libraries": [
+   "LIB-19 read/cache.py"
+  ],
+  "models": [
+   {
+    "role": "none",
+    "model": "none",
+    "calls": "0 (rules and libraries only)",
+    "prompt": "none"
+   }
+  ],
+  "storage": "in-memory LRU of ReadResult copies; no writes to the store",
+  "cost": "saves a full read on a repeat of the same question; adds a hash + store listing check per read",
+  "inputs": "repeated identical reads",
+  "outputs": "identical ReadResult; PARITY expected",
+  "failure_modes": [
+   "On LoCoMo every question text is asked once per freshly built store, so all lookups miss: answers unchanged, only latency/overhead measured (PARITY rule).",
+   "Per-process cache; a second engine in the same process does not share it."
+  ],
+  "tests": [
+   "tests/unit/lib/test_lib_19_cache.py",
+   "tests/unit/wiring/test_rw_f_cache_external.py"
+  ],
+  "mermaid": "flowchart LR\n  R[read] --> K[build key]\n  K --> L{hit}\n  L -- yes --> V[revalidate records]\n  V --> O[return copy]\n  L -- no --> F[full read]\n  F --> P[store under key]\n  P --> O"
+ },
+ {
+  "id": "S26",
+  "settings": {
+   "read.parallel_legs": true
+  },
+  "stage": "R",
+  "trigger": "per read, replaces the sequential base-leg calls in _search (only when legs_v2 is off)",
+  "steps": [
+   {
+    "n": 1,
+    "what": "In _search, with legs_v2 off and parallel_legs on, _gather_base_legs runs the legs that depend only on the query together: vector, lexical (BM25), metadata/temporal (_metadata_legs), query-encoder legs and probe legs.",
+    "code": "src/memspine/read/pipeline/router.py:487-499 ; :230 (_gather_base_legs)",
+    "kind": "rule"
+   },
+   {
+    "n": 2,
+    "what": "asyncio.gather returns results in argument order, so extra_legs keep the sequential order (metadata, encoder, probes) and fusion input is unchanged. Per-leg timings and wall time go to the wiretap read.legs.parallel.",
+    "code": "src/memspine/read/pipeline/router.py:230-285",
+    "kind": "rule"
+   },
+   {
+    "n": 3,
+    "what": "Everything after (graph legs that depend on first-pass hits, fusion, gates, rerank, assembly) is sequential as in REF-J. With read.legs_v2 on, registry_base_legs takes precedence and this path is unused.",
+    "code": "src/memspine/read/pipeline/router.py:507-560",
+    "kind": "rule"
+   },
+   {
+    "n": 4,
+    "what": "Failure isolation: each gathered leg is an enhancer; a failed BM25 leg is caught in _lexical_guarded and returns [] so the gather never raises and the search degrades to the remaining legs.",
+    "code": "src/memspine/read/pipeline/router.py:214 (_lexical_guarded)",
+    "kind": "rule"
+   }
+  ],
+  "algorithms": [
+   "concurrent leg execution (asyncio.gather), order-preserving"
+  ],
+  "libraries": [
+   "none (engine-internal)"
+  ],
+  "models": [
+   {
+    "role": "none",
+    "model": "none",
+    "calls": "0 (rules and libraries only)",
+    "prompt": "none"
+   }
+  ],
+  "storage": "none",
+  "cost": "latency only: legs overlap (vector search in LanceDB, BM25 in tantivy, temporal in Python); no extra model calls",
+  "inputs": "none",
+  "outputs": "identical candidates and answers; shorter read wall time",
+  "failure_modes": [
+   "PARITY screen: any answer change is a bug.",
+   "Python-level CPU legs are still serialised by the GIL; benefit is limited to I/O and native-code waits."
+  ],
+  "tests": [
+   "tests/unit/wiring/test_rw_f_cache_external.py"
+  ],
+  "mermaid": "flowchart LR\n  Q[query] --> G[gather]\n  G --> V[vector]\n  G --> B[BM25]\n  G --> M[metadata and temporal]\n  G --> P[probes]\n  V --> F[fuse in fixed order]\n  B --> F\n  M --> F\n  P --> F"
+ },
+ {
+  "id": "S30",
+  "settings": {
+   "read.legs_v2": true,
+   "read.graph_leg_v2": true,
+   "graph.edge_compiler_v2": true,
+   "arm": "scr-gc3-graphleg = GC reference arm S02 (graph_leg, graph_depth 2, graph_node_search, entity_summaries, extract_graph session) + the three flags"
+  },
+  "stage": "R",
+  "trigger": "build side per session at sleep; read side per read inside _search",
+  "steps": [
+   {
+    "n": 1,
+    "what": "GC build (before any read; sleep cycle run by --memspine-build-sleep after ingest). Session granularity extract_graph: one extract_edges@session call per session produces keyed semantic fact records and entity nodes (resolve=rules); entity_nodes and entity_summaries policies add entity nodes with 'mentions' edges and summarize_entity writes one 'About X' summary per entity; graph.entity_embeddings embeds entity names for node search.",
+    "code": "src/memspine/derive/pipeline/stages/extract_graph.py ; derive/pipeline/stages/entity_summaries.py ; memories/associative",
+    "kind": "llm"
+   },
+   {
+    "n": 2,
+    "what": "Compile edges (graph.edge_compiler_v2, a sleep stage): the namespace's live semantic records are compiled to assertion nodes and n-ary role edges in the embedded graph (typed role edges, tentative tag for hypothetical, planned, reported, question and partly bound claims, closed flag for ended validity, A-B-A keys), each edge carrying properties.compiled='edge_compiler_v2' and the source record_id; stale edges are retracted.",
+    "code": "src/memspine/derive/pipeline/stages/edge_compiler_v2.py:450 (compile_graph_edges), :403 (_compile_one) ; derive/edges.py (LIB-35)",
+    "kind": "algorithm"
+   },
+   {
+    "n": 3,
+    "what": "Reference path (S02, scr-gc3-graph-jina) around the screen: REF-J retrieval plus the old graph leg (read.graph_leg: entities the query names, 2 hops over the association graph, up to 10 facts each followed by their source turns), graph_node_search (embedded entity names by cosine + text, then records that mention them) as NamedLeg('graph_nodes'), and the 'About <Name>' entity-summary header (read.entity_summaries, cards share 0.25 of the budget), all fused by the per-leg RRF and reranked by jina.",
+    "code": "src/memspine/read/pipeline/legs.py:652 (_graph_leg), :702 (_graph_node_legs) ; compose/pipeline/sections.py:974 (_entity_summary_section) ; read/pipeline/router.py:514-540",
+    "kind": "rule"
+   },
+   {
+    "n": 4,
+    "what": "read.legs_v2 switches the base legs to the registry: vector (same LanceDB search), lexical (in-memory Okapi BM25 k1 1.2 b 0.75 over live L0+L1 records with a language-aware tokeniser: NFKC casefold, stop words and Snowball stemming through tantivy's analyser; replaces the tantivy search) and temporal (event intervals, score 1/(1+days)).",
+    "code": "src/memspine/read/pipeline/legs.py:296 (registry_base_legs) ; read/legs/lexical.py:165 (Bm25Scorer), :233 (LexicalLeg) ; read/legs/temporal.py:120",
+    "kind": "library"
+   },
+   {
+    "n": 5,
+    "what": "graph_leg_v2: _graph_hop_leg seeds = entity nodes the question names (_graph_seeds) plus the entities of the best graph_leg_seed_hits (3) vector hits; edges = compiled edges only (weight > 0). OneHopConvergent drops tentative edges, walks exactly one hop from each seed and keeps nodes reached from at least graph_leg_min_seeds (2) distinct seeds; the leg returns the records on the edges joining a seed to a convergent node, scored k / n_seeds. Empty with a reason (no_records:L3, no_seeds, no_edges, no_convergence).",
+    "code": "src/memspine/read/pipeline/legs.py:408 (_graph_hop_leg) ; read/legs/graph.py:53 (one_hop), :95 (OneHopConvergent)",
+    "kind": "algorithm"
+   },
+   {
+    "n": 6,
+    "what": "Lift: the fact records are walked to their evidence turns through lineage (up to 8 turns per fact), each turn re-admitted through the read gates (consent, erasure, scope, status) and scored fact_score x 0.9^hops; the result is NamedLeg('graph') and joins the extra legs.",
+    "code": "src/memspine/read/pipeline/lift.py:313 (lift_episode_hits) ; read/legs/episode.py:carry_score",
+    "kind": "algorithm"
+   },
+   {
+    "n": 7,
+    "what": "Fusion (per-leg RRF, protect top 3 of every leg including 'graph'), gates, jina rerank, keep 10, assembly, replay windows: as REF-J. The old graph leg and graph_nodes leg also still run, so two graph-derived votes may reach the pool.",
+    "code": "src/memspine/read/pipeline/router.py:593",
+    "kind": "rule"
+   }
+  ],
+  "algorithms": [
+   "typed role-edge compilation",
+   "one-hop convergent graph walk (min 2 seeds)",
+   "lineage lift with carry 0.9",
+   "Okapi BM25 k1 1.2 b 0.75 (in-memory, stemmed)",
+   "reciprocal rank fusion k=60"
+  ],
+  "libraries": [
+   "LIB-35 derive/edges.py",
+   "read/legs registry (R3-04/05b)",
+   "LIB-11 lift",
+   "external: embedded graph store, lancedb, jina-reranker-v3.5"
+  ],
+  "models": [
+   {
+    "role": "extract",
+    "model": "ollama/qwen3.5:9b via Ollama (http://127.0.0.1:11434, no_think, timeout 180 s) role llm.roles.extract_edges",
+    "calls": "sleep: 1 per session (session granularity), run once per conversation build (--memspine-build-sleep, cap --max-model-calls 4000)",
+    "prompt": "src/memspine/prompts/defaults/extract_edges@session.yaml"
+   },
+   {
+    "role": "summarize",
+    "model": "ollama/qwen3.5:9b via Ollama (http://127.0.0.1:11434, no_think, timeout 180 s) role llm.roles.summarize_entity",
+    "calls": "sleep: 1 per entity that gets a summary",
+    "prompt": "src/memspine/prompts/defaults/summarize_entity.yaml"
+   },
+   {
+    "role": "reranker",
+    "model": "jinaai/jina-reranker-v3.5 (0.6B listwise, cuda, trust_remote_code)",
+    "calls": "1 forward pass per read over at most 64 documents (pool is about 20 to 30 plus protected extras)",
+    "prompt": "none"
+   }
+  ],
+  "storage": "build writes assertion nodes and role edges to the graph store and entity/fact records; read reads edge_list(ns) and records, writes nothing",
+  "cost": "build: extract_edges per session + summarize_entity per entity (+ compile with no model); read: no extra model call; queue estimate 150 min for the sample (ingest-bound)",
+  "inputs": "L3 populated: compiled edges from sleep (extract_graph facts compiled by edge_compiler_v2) and entity nodes; with fewer than 2 seeds or no shared neighbour the leg is empty by design",
+  "outputs": "one extra 'graph' leg of evidence turns (bridging seed entities) plus a changed lexical/temporal base from legs_v2",
+  "failure_modes": [
+   "Reference v2-S02-i2 is itself a built-graph arm: effects are measured on 60 questions over 3 conversations (sample) because ingest + sleep dominate cost.",
+   "Needs the sleep build to succeed on every conversation (LLM extraction by a 9B model); an empty graph makes the screen inert.",
+   "Convergence needs at least 2 seeds reaching the same node: single-entity questions get nothing; only multi-hop/join-like questions benefit.",
+   "Tentative edges are dropped, so hedged statements never bridge.",
+   "legs_v2 also swaps the BM25 implementation, so S30 mixes two changes (S38 isolates legs_v2)."
+  ],
+  "tests": [
+   "tests/unit/wiring/test_r3_05b_graph_leg.py",
+   "tests/unit/wiring/test_f_02c_edge_compiler.py",
+   "tests/unit/lib/test_lib_35_edges.py",
+   "tests/unit/wiring/test_r3_04_legs.py"
+  ],
+  "mermaid": "flowchart LR\n  S[sleep extract_graph facts] --> C[compile edges]\n  Q[question] --> D[seeds from query and top hits]\n  C --> W[one hop walk]\n  D --> W\n  W --> V[convergent nodes min 2 seeds]\n  V --> F[fact records]\n  F --> L[lift to source turns]\n  L --> R[graph leg into RRF]"
+ },
+ {
+  "id": "S31",
+  "settings": {
+   "read.legs_v2": true,
+   "read.episode_leg_v2": true,
+   "offline.session_close_v2": true,
+   "llm.roles.session_close": "ollama/qwen3.5:9b",
+   "arm": "scr-gc3-episodeleg"
+  },
+  "stage": "R",
+  "trigger": "build side once per closed session at sleep; read side per read",
+  "steps": [
+   {
+    "n": 1,
+    "what": "GC build (before any read; sleep cycle run by --memspine-build-sleep after ingest). Session granularity extract_graph: one extract_edges@session call per session produces keyed semantic fact records and entity nodes (resolve=rules); entity_nodes and entity_summaries policies add entity nodes with 'mentions' edges and summarize_entity writes one 'About X' summary per entity; graph.entity_embeddings embeds entity names for node search.",
+    "code": "src/memspine/derive/pipeline/stages/extract_graph.py ; derive/pipeline/stages/entity_summaries.py ; memories/associative",
+    "kind": "llm"
+   },
+   {
+    "n": 2,
+    "what": "Session close (offline.session_close_v2): one model call per closed session (call 2, role session_close) is planned under a token budget with a stable-prefix prompt; the reply is validated item by item (reserved names, citations, derived time) and the summary and stitched episode records (kind:episode, layer L2) are written through the derived-write door with the cited turns as parents (lineage rows when write.lineage_table). A stage_done marker keyed by the session fingerprint makes a repeat close a no-op.",
+    "code": "src/memspine/derive/pipeline/stages/close_v2.py:152 (run_close_v2) ; derive/session_close.py:247 (plan_session_close)",
+    "kind": "llm"
+   },
+   {
+    "n": 3,
+    "what": "Reference path (S02, scr-gc3-graph-jina) around the screen: REF-J retrieval plus the old graph leg (read.graph_leg: entities the query names, 2 hops over the association graph, up to 10 facts each followed by their source turns), graph_node_search (embedded entity names by cosine + text, then records that mention them) as NamedLeg('graph_nodes'), and the 'About <Name>' entity-summary header (read.entity_summaries, cards share 0.25 of the budget), all fused by the per-leg RRF and reranked by jina.",
+    "code": "src/memspine/read/pipeline/legs.py:652 (_graph_leg), :702 (_graph_node_legs) ; compose/pipeline/sections.py:974 (_entity_summary_section) ; read/pipeline/router.py:514-540",
+    "kind": "rule"
+   },
+   {
+    "n": 4,
+    "what": "legs_v2 registry base legs (vector, in-memory BM25, temporal) as in S30, then with episode_leg_v2 the registry gains the episode leg: it asks the layer registry whether L2 is populated (else no_records:L2), takes the L2 episode records, ranks them by vector search (oversampled x4, at least 50, filtered to L2 ids) and by BM25 over the episodes (episode_lexical), and fuses the two rankings by RRF k=60 normalised to (0,1].",
+    "code": "src/memspine/read/pipeline/legs.py:296-380 ; read/legs/episode.py:36 (EpisodeLeg)",
+    "kind": "algorithm"
+   },
+   {
+    "n": 5,
+    "what": "lift_episode_hits walks each episode hit to its member turns through lineage (episode_lift_max_turns 8), re-admits every turn through the read gates and date/scope filters, scores each turn episode_score x episode_lift_carry (0.9)^hops (best episode wins), and appends NamedLeg('episode').",
+    "code": "src/memspine/read/pipeline/lift.py:313 (lift_episode_hits)",
+    "kind": "algorithm"
+   },
+   {
+    "n": 6,
+    "what": "Fusion, gates, jina rerank, keep 10, assembly, replay: as REF-J. The episode leg adds a vote for the turns of the best matching sessions.",
+    "code": "src/memspine/read/pipeline/router.py:593",
+    "kind": "rule"
+   }
+  ],
+  "algorithms": [
+   "episode search by dense + BM25 fused with RRF k=60",
+   "lineage lift with carry 0.9",
+   "stitching of adjacent episodes by code"
+  ],
+  "libraries": [
+   "LIB-40 derive/session_close.py",
+   "read/legs/episode.py (R3-05c)",
+   "LIB-11 lift",
+   "external: lancedb, jina-reranker-v3.5"
+  ],
+  "models": [
+   {
+    "role": "extract",
+    "model": "ollama/qwen3.5:9b via Ollama (http://127.0.0.1:11434, no_think, timeout 180 s) role llm.roles.extract_edges",
+    "calls": "sleep: 1 per session (session granularity), run once per conversation build (--memspine-build-sleep, cap --max-model-calls 4000)",
+    "prompt": "src/memspine/prompts/defaults/extract_edges@session.yaml"
+   },
+   {
+    "role": "summarize",
+    "model": "ollama/qwen3.5:9b via Ollama (http://127.0.0.1:11434, no_think, timeout 180 s) role llm.roles.summarize_entity",
+    "calls": "sleep: 1 per entity that gets a summary",
+    "prompt": "src/memspine/prompts/defaults/summarize_entity.yaml"
+   },
+   {
+    "role": "summarize",
+    "model": "ollama/qwen3.5:9b via Ollama (http://127.0.0.1:11434, no_think, timeout 180 s) role llm.roles.session_close",
+    "calls": "sleep: 1 call (call 2) per closed session",
+    "prompt": "built by derive/session_close.py:render_prompt (stable prefix, no examples)"
+   },
+   {
+    "role": "reranker",
+    "model": "jinaai/jina-reranker-v3.5 (0.6B listwise, cuda, trust_remote_code)",
+    "calls": "1 forward pass per read over at most 64 documents (pool is about 20 to 30 plus protected extras)",
+    "prompt": "none"
+   }
+  ],
+  "storage": "build writes L2 summary and episode records with parent lineage and stage markers; read reads L2 records and lineage, writes nothing",
+  "cost": "build: +1 session_close call per session on top of the GC build; read: no extra model call; queue estimate 160 min",
+  "inputs": "L2 episode records from session_close_v2 (layer registry must report L2 populated)",
+  "outputs": "a leg of turns from the best matching sessions (cross-session recall)",
+  "failure_modes": [
+   "Reference v2-S02-i2 is itself a built-graph arm: effects are measured on 60 questions over 3 conversations (sample) because ingest + sleep dominate cost.",
+   "Needs the sleep build to succeed on every conversation (LLM extraction by a 9B model); an empty graph makes the screen inert.",
+   "If the 9B model returns unusable call-2 JSON the session yields no episode and the leg stays empty (write.window_extract=all would give L2 an alternative source: noted but not used).",
+   "Lift is strict: an episode whose parents are partly hidden loses its slot."
+  ],
+  "tests": [
+   "tests/unit/wiring/test_r3_05c_episode_leg.py",
+   "tests/unit/lib/test_lib_40_session_close.py",
+   "tests/unit/wiring/test_ow_a_close_call2_profile.py"
+  ],
+  "mermaid": "flowchart LR\n  S[sleep session close call 2] --> E[L2 episode records]\n  Q[question] --> V[vector over episodes]\n  Q --> B[BM25 over episodes]\n  E --> V\n  E --> B\n  V --> R[RRF k60]\n  B --> R\n  R --> L[lift to member turns carry 0.9]\n  L --> F[episode leg into RRF]"
+ },
+ {
+  "id": "S32",
+  "settings": {
+   "read.entity_leg_v2": true,
+   "arm": "scr-gc3-entityleg = GC reference arm S02 + entity_leg_v2 (re-screen of S13)"
+  },
+  "stage": "R",
+  "trigger": "build side at sleep; read side per read with the metadata legs",
+  "steps": [
+   {
+    "n": 1,
+    "what": "GC build (before any read; sleep cycle run by --memspine-build-sleep after ingest). Session granularity extract_graph: one extract_edges@session call per session produces keyed semantic fact records and entity nodes (resolve=rules); entity_nodes and entity_summaries policies add entity nodes with 'mentions' edges and summarize_entity writes one 'About X' summary per entity; graph.entity_embeddings embeds entity names for node search.",
+    "code": "src/memspine/derive/pipeline/stages/extract_graph.py ; derive/pipeline/stages/entity_summaries.py ; memories/associative",
+    "kind": "llm"
+   },
+   {
+    "n": 2,
+    "what": "Reference path (S02, scr-gc3-graph-jina) around the screen: REF-J retrieval plus the old graph leg (read.graph_leg: entities the query names, 2 hops over the association graph, up to 10 facts each followed by their source turns), graph_node_search (embedded entity names by cosine + text, then records that mention them) as NamedLeg('graph_nodes'), and the 'About <Name>' entity-summary header (read.entity_summaries, cards share 0.25 of the budget), all fused by the per-leg RRF and reranked by jina.",
+    "code": "src/memspine/read/pipeline/legs.py:652 (_graph_leg), :702 (_graph_node_legs) ; compose/pipeline/sections.py:974 (_entity_summary_section) ; read/pipeline/router.py:514-540",
+    "kind": "rule"
+   },
+   {
+    "n": 3,
+    "what": "Entity seeds. _graph_seeds matches 1..N-word n-grams of the question (punctuation dropped, canonical words) against the namespace's entity index (associative store entity nodes), adds the caller's focal entity, and the optional GLiNER2 hook; with no named entity it falls back to the entities of the best non-graph hits.",
+    "code": "src/memspine/read/pipeline/legs.py:591 (_graph_seeds)",
+    "kind": "rule"
+   },
+   {
+    "n": 4,
+    "what": "Mentions. For each seed the associative store's live 'mentions' edges give the records that mention the entity; records not live (quarantined, archived, other type) are skipped. The role of the entity in each record is subject (record.entity), object (a dst: tag) or mention.",
+    "code": "src/memspine/read/pipeline/legs.py:472 (_entity_leg_v2) ; memories/associative",
+    "kind": "storage"
+   },
+   {
+    "n": 5,
+    "what": "Library scoring. entity_leg_explained scores records per matched entity with the Mem0-style boost, max over matched entities and capped (cap 0.5), with hub damping by entity degree (DampingConfig) so a very common entity does not flood the leg; returns provenance for the wiretap (read.leg.entity).",
+    "code": "src/memspine/read/entity_leg.py:196 (entity_leg_explained)",
+    "kind": "algorithm"
+   },
+   {
+    "n": 6,
+    "what": "The hits become NamedLeg('entity_v2') and join the extra legs before fusion (per-leg RRF gives it its own vote; under family_fusion its name falls into family 'other'); skipped when the router suppressed 'entity'.",
+    "code": "src/memspine/read/pipeline/legs.py:262-270 (_metadata_legs) ; router.py:593 (rrf_fuse)",
+    "kind": "algorithm"
+   }
+  ],
+  "algorithms": [
+   "n-gram entity matching",
+   "Mem0 entity boost (max, capped 0.5)",
+   "hub damping by degree",
+   "reciprocal rank fusion k=60"
+  ],
+  "libraries": [
+   "LIB-34 read/entity_leg.py",
+   "associative memory entity index",
+   "external: jina-reranker-v3.5"
+  ],
+  "models": [
+   {
+    "role": "extract",
+    "model": "ollama/qwen3.5:9b via Ollama (http://127.0.0.1:11434, no_think, timeout 180 s) role llm.roles.extract_edges",
+    "calls": "sleep: 1 per session (session granularity), run once per conversation build (--memspine-build-sleep, cap --max-model-calls 4000)",
+    "prompt": "src/memspine/prompts/defaults/extract_edges@session.yaml"
+   },
+   {
+    "role": "summarize",
+    "model": "ollama/qwen3.5:9b via Ollama (http://127.0.0.1:11434, no_think, timeout 180 s) role llm.roles.summarize_entity",
+    "calls": "sleep: 1 per entity that gets a summary",
+    "prompt": "src/memspine/prompts/defaults/summarize_entity.yaml"
+   },
+   {
+    "role": "reranker",
+    "model": "jinaai/jina-reranker-v3.5 (0.6B listwise, cuda, trust_remote_code)",
+    "calls": "1 forward pass per read over at most 64 documents (pool is about 20 to 30 plus protected extras)",
+    "prompt": "none"
+   }
+  ],
+  "storage": "build writes entity nodes and mentions edges; read reads the entity index and mentions edges",
+  "cost": "no model call at read; queue estimate 150 min (ingest-bound)",
+  "inputs": "entity nodes with 'mentions' edges from the GC build (memories.associative.policies.entity_nodes)",
+  "outputs": "an 'entity_v2' leg boosting records that mention the question's entities, resolved to ids",
+  "failure_modes": [
+   "Reference v2-S02-i2 is itself a built-graph arm: effects are measured on 60 questions over 3 conversations (sample) because ingest + sleep dominate cost.",
+   "Needs the sleep build to succeed on every conversation (LLM extraction by a 9B model); an empty graph makes the screen inert.",
+   "S13 was inert on the J arm only because _associative is None there; on GC the old graph leg already uses the same seeds, so overlap with the existing graph votes is likely."
+  ],
+  "tests": [
+   "tests/unit/lib/test_lib_34_entity_leg.py",
+   "tests/unit/wiring/test_rw_e_time_entity_neighbours.py",
+   "tests/unit/wiring/test_fu_temporal_parity.py"
+  ],
+  "mermaid": "flowchart LR\n  G[GC build entity nodes] --> S[seeds from question]\n  S --> M[mentions edges]\n  M --> E[boost and hub damping]\n  E --> L[entity_v2 leg]\n  L --> F[RRF]"
+ },
+ {
+  "id": "S36",
+  "settings": {
+   "read.tiers_v2": true,
+   "arm": "scr-gc3-tiers = GC reference arm + tiers_v2 (re-screen of S10 on a built-graph arm)"
+  },
+  "stage": "R",
+  "trigger": "per read, request stage",
+  "steps": [
+   {
+    "n": 1,
+    "what": "GC build (before any read; sleep cycle run by --memspine-build-sleep after ingest). Session granularity extract_graph: one extract_edges@session call per session produces keyed semantic fact records and entity nodes (resolve=rules); entity_nodes and entity_summaries policies add entity nodes with 'mentions' edges and summarize_entity writes one 'About X' summary per entity; graph.entity_embeddings embeds entity names for node search.",
+    "code": "src/memspine/derive/pipeline/stages/extract_graph.py ; derive/pipeline/stages/entity_summaries.py ; memories/associative",
+    "kind": "llm"
+   },
+   {
+    "n": 2,
+    "what": "plan_read normalises the request (NFKC, whitespace collapse, OwnerScope(tenant=ns, owner=ns), depth 'fast', budget) and choose_tier picks the fast tier (0 generative calls, rerank pool cap 64): no worker role 'plan' is bound in this arm, so even an explicit deep request would degrade to standard.",
+    "code": "src/memspine/read/pipeline/request.py:527 (plan_read) ; read/tiers.py:198, :333",
+    "kind": "rule"
+   },
+   {
+    "n": 3,
+    "what": "The tier is stored in the ContextVar plan and logged (read.tier.chosen); no stage reads pool size, call cap or SLO from it. Only the normalised query text changes (almost never for LoCoMo questions).",
+    "code": "src/memspine/read/pipeline/request.py:379-391",
+    "kind": "rule"
+   },
+   {
+    "n": 4,
+    "what": "The GC read path then runs unchanged (graph leg, node search, About block, rerank).",
+    "code": "src/memspine/read/pipeline/router.py:1189",
+    "kind": "rule"
+   }
+  ],
+  "algorithms": [
+   "NFKC normalisation",
+   "tier table lookup"
+  ],
+  "libraries": [
+   "LIB-47 read/tiers.py"
+  ],
+  "models": [
+   {
+    "role": "extract",
+    "model": "ollama/qwen3.5:9b via Ollama (http://127.0.0.1:11434, no_think, timeout 180 s) role llm.roles.extract_edges",
+    "calls": "sleep: 1 per session (session granularity), run once per conversation build (--memspine-build-sleep, cap --max-model-calls 4000)",
+    "prompt": "src/memspine/prompts/defaults/extract_edges@session.yaml"
+   },
+   {
+    "role": "summarize",
+    "model": "ollama/qwen3.5:9b via Ollama (http://127.0.0.1:11434, no_think, timeout 180 s) role llm.roles.summarize_entity",
+    "calls": "sleep: 1 per entity that gets a summary",
+    "prompt": "src/memspine/prompts/defaults/summarize_entity.yaml"
+   },
+   {
+    "role": "reranker",
+    "model": "jinaai/jina-reranker-v3.5 (0.6B listwise, cuda, trust_remote_code)",
+    "calls": "1 forward pass per read over at most 64 documents (pool is about 20 to 30 plus protected extras)",
+    "prompt": "none"
+   }
+  ],
+  "storage": "none beyond the GC build",
+  "cost": "no read-side model call; queue estimate 150 min (dominated by the GC build)",
+  "inputs": "the GC build (for the arm), though tiers_v2 itself needs nothing",
+  "outputs": "unchanged retrieval; identical context expected",
+  "failure_modes": [
+   "Reference v2-S02-i2 is itself a built-graph arm: effects are measured on 60 questions over 3 conversations (sample) because ingest + sleep dominate cost.",
+   "Needs the sleep build to succeed on every conversation (LLM extraction by a 9B model); an empty graph makes the screen inert.",
+   "By code the tier is logged but not consumed, so 0/0/0 is expected even on GC (the S10 note that J had 'nothing to tier' does not explain it)."
+  ],
+  "tests": [
+   "tests/unit/lib/test_lib_47_tiers.py",
+   "tests/unit/wiring/test_rw_a_read_entry.py"
+  ],
+  "mermaid": "flowchart LR\n  Q[question] --> N[normalise]\n  N --> T[tier fast logged only]\n  N --> R[GC read path unchanged]"
+ },
+ {
+  "id": "S37",
+  "settings": {
+   "read.router_rules": true,
+   "arm": "scr-gc3-router = GC reference arm + router_rules (re-screen of S12 on GC)"
+  },
+  "stage": "R",
+  "trigger": "per read, request stage; effect inside _search",
+  "steps": [
+   {
+    "n": 1,
+    "what": "GC build (before any read; sleep cycle run by --memspine-build-sleep after ingest). Session granularity extract_graph: one extract_edges@session call per session produces keyed semantic fact records and entity nodes (resolve=rules); entity_nodes and entity_summaries policies add entity nodes with 'mentions' edges and summarize_entity writes one 'About X' summary per entity; graph.entity_embeddings embeds entity names for node search.",
+    "code": "src/memspine/derive/pipeline/stages/extract_graph.py ; derive/pipeline/stages/entity_summaries.py ; memories/associative",
+    "kind": "llm"
+   },
+   {
+    "n": 2,
+    "what": "plan_read builds the typed contract and the layer state of the namespace (the GC build populates L0, L1 and L3; L2 from distinct sessions); services: embedder, lexical index, reranker, graph store, worker model (the 'plan'/'sufficiency' role is not bound).",
+    "code": "src/memspine/read/pipeline/request.py:457 (layer_state), :527",
+    "kind": "storage"
+   },
+   {
+    "n": 3,
+    "what": "route(): entity leg for questions with named subjects or a join; graph leg ONLY for a join shape and only if L3 is populated and a graph store exists; episode leg for temporal/as_of/list/count shapes or an episodic cue and only if L2 is populated; the rest skipped with reason codes.",
+    "code": "src/memspine/read/router_rules.py:227 (route)",
+    "kind": "rule"
+   },
+   {
+    "n": 4,
+    "what": "legs_off = {entity, graph, episode} minus the planned ones. In _search: the old graph leg (read.graph_leg) is not computed when 'graph' is off, graph_node_search is skipped, cohesion/entity-expand anchor legs are skipped when 'entity' is off, and the session leg when 'episode' is off.",
+    "code": "src/memspine/read/pipeline/router.py:476-480, :514, :525-540",
+    "kind": "rule"
+   },
+   {
+    "n": 5,
+    "what": "Consequence: for most single-hop LoCoMo questions the GC arm's graph and graph_nodes votes disappear (the question is not a join), leaving vector, BM25, temporal and perspective legs. The About block is a header from entity summaries and is not governed by legs_off.",
+    "code": "src/memspine/read/pipeline/router.py:476",
+    "kind": "rule"
+   }
+  ],
+  "algorithms": [
+   "rule router with skip reasons"
+  ],
+  "libraries": [
+   "LIB-23 read/router_rules.py",
+   "store/layer_registry.py"
+  ],
+  "models": [
+   {
+    "role": "extract",
+    "model": "ollama/qwen3.5:9b via Ollama (http://127.0.0.1:11434, no_think, timeout 180 s) role llm.roles.extract_edges",
+    "calls": "sleep: 1 per session (session granularity), run once per conversation build (--memspine-build-sleep, cap --max-model-calls 4000)",
+    "prompt": "src/memspine/prompts/defaults/extract_edges@session.yaml"
+   },
+   {
+    "role": "summarize",
+    "model": "ollama/qwen3.5:9b via Ollama (http://127.0.0.1:11434, no_think, timeout 180 s) role llm.roles.summarize_entity",
+    "calls": "sleep: 1 per entity that gets a summary",
+    "prompt": "src/memspine/prompts/defaults/summarize_entity.yaml"
+   },
+   {
+    "role": "reranker",
+    "model": "jinaai/jina-reranker-v3.5 (0.6B listwise, cuda, trust_remote_code)",
+    "calls": "1 forward pass per read over at most 64 documents (pool is about 20 to 30 plus protected extras)",
+    "prompt": "none"
+   }
+  ],
+  "storage": "reads layer counts; writes nothing",
+  "cost": "no read-side model call; fewer legs per read (less retrieval work, fewer graph walks); queue estimate 150 min",
+  "inputs": "the GC build and a typed contract with a shape that selects legs",
+  "outputs": "a smaller leg set per question (graph/entity/episode legs only when the route plans them)",
+  "failure_modes": [
+   "Reference v2-S02-i2 is itself a built-graph arm: effects are measured on 60 questions over 3 conversations (sample) because ingest + sleep dominate cost.",
+   "Needs the sleep build to succeed on every conversation (LLM extraction by a 9B model); an empty graph makes the screen inert.",
+   "This is the first screen where router_rules is not neutral: it can only remove votes the S02 reference had, so it is a non-inferiority check on pruning.",
+   "Shape detection errors (a multi-hop question typed as single) switch the graph leg off exactly where it helps."
+  ],
+  "tests": [
+   "tests/unit/lib/test_lib_23_router_rules.py",
+   "tests/unit/wiring/test_rw_a_read_entry.py"
+  ],
+  "mermaid": "flowchart LR\n  Q[question] --> C[typed contract]\n  C --> D[shape named subjects]\n  L[layer counts] --> R[route]\n  D --> R\n  R --> O[legs off entity graph episode]\n  O --> S[search skips them]"
+ },
+ {
+  "id": "S38",
+  "settings": {
+   "read.legs_v2": true,
+   "arm": "scr-gc3-legs = GC reference arm + legs_v2 alone (decomposes S30 and S31)"
+  },
+  "stage": "R",
+  "trigger": "per read, replaces the inline base-leg calls in _search",
+  "steps": [
+   {
+    "n": 1,
+    "what": "GC build (before any read; sleep cycle run by --memspine-build-sleep after ingest). Session granularity extract_graph: one extract_edges@session call per session produces keyed semantic fact records and entity nodes (resolve=rules); entity_nodes and entity_summaries policies add entity nodes with 'mentions' edges and summarize_entity writes one 'About X' summary per entity; graph.entity_embeddings embeds entity names for node search.",
+    "code": "src/memspine/derive/pipeline/stages/extract_graph.py ; derive/pipeline/stages/entity_summaries.py ; memories/associative",
+    "kind": "llm"
+   },
+   {
+    "n": 2,
+    "what": "registry_base_legs loads the live records of the namespace (ACTIVATED, unquarantined, not shared) and builds a LegContext (language 'en', lexical scorer bm25, reference time only if temporal_relative or as-of, year_ref only with temporal_infer_year, mentions on).",
+    "code": "src/memspine/read/pipeline/legs.py:296 (registry_base_legs)",
+    "kind": "storage"
+   },
+   {
+    "n": 3,
+    "what": "run_legs executes vector (same LanceDB cosine search through eng._vector_leg), lexical (LexicalLeg: tokenise question with the language tokeniser, Okapi BM25 k1 1.2 b 0.75 over the L0/L1 records, index cached by (namespace, tokeniser, record fingerprints); equal scores settle in chronological order) and temporal (event intervals: closed validity [valid_from, valid_to), instant valid_from, happened: span; mention spans; score 1/(1+days)).",
+    "code": "src/memspine/read/legs/core.py (run_legs) ; read/legs/lexical.py:233 ; read/legs/temporal.py:120",
+    "kind": "library"
+   },
+   {
+    "n": 4,
+    "what": "The lexical hits fill the lexical slot (replacing tantivy), the temporal hits take the old temporal leg's place; metadata/encoder/probe legs and the GC graph legs are the existing ones; leg order and fusion are unchanged.",
+    "code": "src/memspine/read/pipeline/legs.py:296-405 ; router.py:487-491",
+    "kind": "rule"
+   },
+   {
+    "n": 5,
+    "what": "Differences that can move answers: stop words and stemming ('camping' matches 'camp'), no tantivy dependency, BM25 over derived L1 facts too but not L2/L3 records, in-memory index rebuilt when the namespace changes.",
+    "code": "src/memspine/read/legs/lexical.py:165-285",
+    "kind": "rule"
+   }
+  ],
+  "algorithms": [
+   "Okapi BM25 k1 1.2 b 0.75 (in-memory)",
+   "language-aware tokenisation with stemming",
+   "event-interval temporal ranking",
+   "reciprocal rank fusion k=60"
+  ],
+  "libraries": [
+   "R3-04 read/legs registry",
+   "external: lancedb, tantivy analyser (for stemming), jina-reranker-v3.5"
+  ],
+  "models": [
+   {
+    "role": "extract",
+    "model": "ollama/qwen3.5:9b via Ollama (http://127.0.0.1:11434, no_think, timeout 180 s) role llm.roles.extract_edges",
+    "calls": "sleep: 1 per session (session granularity), run once per conversation build (--memspine-build-sleep, cap --max-model-calls 4000)",
+    "prompt": "src/memspine/prompts/defaults/extract_edges@session.yaml"
+   },
+   {
+    "role": "summarize",
+    "model": "ollama/qwen3.5:9b via Ollama (http://127.0.0.1:11434, no_think, timeout 180 s) role llm.roles.summarize_entity",
+    "calls": "sleep: 1 per entity that gets a summary",
+    "prompt": "src/memspine/prompts/defaults/summarize_entity.yaml"
+   },
+   {
+    "role": "reranker",
+    "model": "jinaai/jina-reranker-v3.5 (0.6B listwise, cuda, trust_remote_code)",
+    "calls": "1 forward pass per read over at most 64 documents (pool is about 20 to 30 plus protected extras)",
+    "prompt": "none"
+   }
+  ],
+  "storage": "reads live records; builds an in-memory BM25 index per namespace",
+  "cost": "no model call; BM25 rebuild cost O(records) when the namespace changes; queue estimate 150 min",
+  "inputs": "any store (the GC arm is just the shared reference)",
+  "outputs": "a different BM25 ranking and temporal ranking feeding the same fusion",
+  "failure_modes": [
+   "Reference v2-S02-i2 is itself a built-graph arm: effects are measured on 60 questions over 3 conversations (sample) because ingest + sleep dominate cost.",
+   "Needs the sleep build to succeed on every conversation (LLM extraction by a 9B model); an empty graph makes the screen inert.",
+   "FU-TEMPORAL ported the old temporal rules into the new leg; parity is tested but not bit-identical to temporal_query.temporal_leg for closed intervals.",
+   "Gold evidence in a derived record stays out of the lexical leg only if it is L2/L3."
+  ],
+  "tests": [
+   "tests/unit/wiring/test_r3_04_legs.py",
+   "tests/unit/wiring/test_fu_temporal_parity.py"
+  ],
+  "mermaid": "flowchart LR\n  R[live records] --> C[leg context]\n  C --> V[vector leg]\n  C --> B[in-memory BM25]\n  C --> T[temporal intervals]\n  V --> F[RRF unchanged]\n  B --> F\n  T --> F"
+ },
+ {
+  "id": "S51",
+  "settings": {
+   "read.family_fusion": true,
+   "note": "identical to S14; queued as a focus candidate"
+  },
+  "stage": "R",
+  "trigger": "per read; same mechanism as S14, run as a focus candidate (MODE=focus after B2)",
+  "steps": [
+   {
+    "n": 1,
+    "what": "The legs are collected exactly as in REF-J (vector, lexical, temporal, perspective, speaker_vote, ...), each as a ranked list.",
+    "code": "src/memspine/read/pipeline/router.py:487-560",
+    "kind": "rule"
+   },
+   {
+    "n": 2,
+    "what": "Instead of rrf_fuse, fuse_families converts each leg to a LIB-10 Leg with a source family from leg_family(name): vector, perspective, maxsim, session, graph_nodes, speaker_vote* are 'semantic'; lexical, entity, view_tags 'lexical'; temporal* 'temporal'; anything else 'other'. Legs of one family merge by best rank, so a second semantic leg never adds a vote.",
+    "code": "src/memspine/read/pipeline/fusion.py:326 (_lib_legs), :354 (fuse_families) ; read/registry.py:15-43",
+    "kind": "algorithm"
+   },
+   {
+    "n": 3,
+    "what": "Top pool_protect_per_leg (3) records of every family are protected; per-leg score floors (leg_min_scores, none set) never drop a protected hit; RRF k=60 runs across families with equal weights and max-normalisation.",
+    "code": "src/memspine/read/fusion.py:233 (fuse)",
+    "kind": "algorithm"
+   },
+   {
+    "n": 4,
+    "what": "The pool is capped at pool_size = top_k x widen (20): protected records are never evicted, the rest fill by fused rank. Back in _search the source_family-style block keeps the pool at top_k: family-protected hits first, then RRF order; the lowest unprotected candidates are evicted (REF-J instead lets the pool grow by up to legs x 3).",
+    "code": "src/memspine/read/pipeline/router.py:565-577, :737-770",
+    "kind": "algorithm"
+   },
+   {
+    "n": 5,
+    "what": "Forensics: pool trace (legs_in, kept, families, protected, evicted) logged as read.fusion.pool; the rest (gates, rerank, assembly, replay) is REF-J.",
+    "code": "src/memspine/read/pipeline/fusion.py:380-396",
+    "kind": "io"
+   }
+  ],
+  "algorithms": [
+   "family-level reciprocal rank fusion (k=60)",
+   "protected pool per source family",
+   "calibrated per-leg floors (unused here)",
+   "deterministic tie-break on per-family ranks"
+  ],
+  "libraries": [
+   "LIB-10 read/fusion.py",
+   "read/registry.py (leg families)"
+  ],
+  "models": [
+   {
+    "role": "reranker",
+    "model": "jinaai/jina-reranker-v3.5 (0.6B listwise, cuda, trust_remote_code)",
+    "calls": "1 forward pass per read over at most 64 documents (pool is about 20 to 30 plus protected extras)",
+    "prompt": "none"
+   }
+  ],
+  "storage": "none",
+  "cost": "no model call; fusion is CPU microseconds; pool size is fixed (fewer documents to rerank than REF-J when many legs fire)",
+  "inputs": "at least two legs (hybrid is on, so always vector and lexical)",
+  "outputs": "a different fused order and a pool bounded to top_k with family-protected hits first",
+  "failure_modes": [
+   "Focus-candidate re-run of S14 after the sample showed +4/-1 (net +3); the mechanism is identical (see S14).",
+   "Sample interval [-1.25, +10] touches zero; the 437-question focus run is what can separate it from noise.",
+   "Votes of correlated semantic legs (vector, perspective, speaker_vote) now count once, which shifts weight toward lexical and temporal evidence.",
+   "Leg names outside the registry fall into family 'other' and each unnamed leg is its own family."
+  ],
+  "tests": [
+   "tests/unit/lib/test_lib_10_fusion.py",
+   "tests/unit/wiring/test_rw_b_fusion_lift_rerank.py"
+  ],
+  "mermaid": "flowchart LR\n  L[legs vector lexical temporal perspective] --> G[group by source family]\n  G --> B[best rank per family]\n  B --> P[protect top3 per family]\n  P --> R[RRF k60 across families]\n  R --> C[pool capped at top_k]\n  C --> J[jina rerank]"
+ },
+ {
+  "id": "S52",
+  "settings": {
+   "read.reply_reserve_tokens": 3072,
+   "role": "reference for S53 (REF)"
+  },
+  "stage": "C",
+  "trigger": "per read, at the start of _read and in assembly/replay budgets",
+  "steps": [
+   {
+    "n": 1,
+    "what": "The harness still passes budget_tokens 4096 to Engine.read. With read.reply_reserve_tokens=3072, _reply_budget returns max(1, 4096 - 3072) = 1024: a quarter of the cap is left for evidence.",
+    "code": "src/memspine/compose/pipeline/pack.py:37 (_reply_budget) ; read/pipeline/router.py:1200",
+    "kind": "rule"
+   },
+   {
+    "n": 2,
+    "what": "Headers are none; the routed read gets 1024 tokens. _assemble_core selects reranked candidates by MMR (lambda 0.7) under 1024 tokens counted len//4+1, stopping at the first record that does not fit (never empty).",
+    "code": "src/memspine/compose/pipeline/windows.py:412 ; compose/pack.py:180",
+    "kind": "algorithm"
+   },
+   {
+    "n": 3,
+    "what": "Replay windows add each hit and its neighbours only while used + cost <= 1024; neighbours that do not fit are skipped (a hit still goes first). The rest of the path is REF-J.",
+    "code": "src/memspine/read/pipeline/router.py:1380-1440 ; compose/pipeline/windows.py:792",
+    "kind": "algorithm"
+   },
+   {
+    "n": 4,
+    "what": "Harness hand-off: MemspineSystem formats the 1,024-token result as dated lines; the runner's own 4,096-token truncation never binds, so the reader sees roughly a quarter of the usual evidence.",
+    "code": "evals/memspine_evals/systems/memspine_system.py:996 ; evals/memspine_evals/runner.py:1008",
+    "kind": "io"
+   }
+  ],
+  "algorithms": [
+   "greedy MMR under a token budget",
+   "session-window replay under budget"
+  ],
+  "libraries": [
+   "none"
+  ],
+  "models": [
+   {
+    "role": "reranker",
+    "model": "jinaai/jina-reranker-v3.5 (0.6B listwise, cuda, trust_remote_code)",
+    "calls": "1 forward pass per read over at most 64 documents (pool is about 20 to 30 plus protected extras)",
+    "prompt": "none"
+   }
+  ],
+  "storage": "none",
+  "cost": "none; shrinks the context to about 1,024 tokens (the REF-J mean is 2,097)",
+  "inputs": "none",
+  "outputs": "a deliberately budget-bound J reference so exact_budget has something to change",
+  "failure_modes": [
+   "A tighter budget lowers accuracy for both arms; the reference exists only to isolate exact_budget, not to be adopted.",
+   "Replay still uses len//4+1 for window costs."
+  ],
+  "tests": [
+   "tests/unit/test_engine_read_modes.py",
+   "evals/tests/test_b7_b8_arms.py"
+  ],
+  "mermaid": "flowchart LR\n  B[budget 4096] --> R[minus reserve 3072]\n  R --> A[assemble under 1024]\n  A --> W[replay windows under 1024]"
+ },
+ {
+  "id": "S53",
+  "settings": {
+   "read.reply_reserve_tokens": 3072,
+   "read.exact_budget": true,
+   "reference": "S52 (same reserve, no exact_budget)"
+  },
+  "stage": "C",
+  "trigger": "per read, in assembly and render, with a binding 1024-token budget",
+  "steps": [
+   {
+    "n": 1,
+    "what": "Same reserve as S52: routed budget 1024 tokens.",
+    "code": "src/memspine/compose/pipeline/pack.py:37",
+    "kind": "rule"
+   },
+   {
+    "n": 2,
+    "what": "activate_counter(eng) sets a per-read token counter: read.exact_budget on resolves reader_tokenizer offline; this arm sets none, so it is the labelled chars/4 EstimatingCounter (accounting 'estimated', not the reader's own tokens). Off, everything uses len//4+1.",
+    "code": "src/memspine/compose/pipeline/render.py:102 (activate_counter), :87 (resolve_counter), :115 (tok)",
+    "kind": "rule"
+   },
+   {
+    "n": 3,
+    "what": "_assemble_core passes cost=tok and max_skips=exact_budget_max_skips (8) to AssemblyPolicy.assemble. Greedy MMR selection counts each record with the counter and, when a record does not fit, skips it and tries smaller later ones (stop after 8 skips) instead of stopping at the first overflow.",
+    "code": "src/memspine/compose/pipeline/windows.py:412 ; compose/pack.py:180 (assemble, max_skips)",
+    "kind": "algorithm"
+   },
+   {
+    "n": 4,
+    "what": "Headers, lead blocks and the rendered text are counted with the same counter (tok), and _render recounts the rendered context.",
+    "code": "src/memspine/compose/pipeline/render.py:285",
+    "kind": "rule"
+   },
+   {
+    "n": 5,
+    "what": "The replay stage that follows is unchanged: neighbour turns still cost len//4+1 against budget_tokens - used, so only the base assembly selection becomes skip-and-continue.",
+    "code": "src/memspine/read/pipeline/router.py:1380-1440",
+    "kind": "rule"
+   }
+  ],
+  "algorithms": [
+   "tokenizer-based budget counting (here chars/4 estimate)",
+   "skip-and-continue packing (max 8 skips)"
+  ],
+  "libraries": [
+   "LIB-06 compose/budget.py"
+  ],
+  "models": [
+   {
+    "role": "reranker",
+    "model": "jinaai/jina-reranker-v3.5 (0.6B listwise, cuda, trust_remote_code)",
+    "calls": "1 forward pass per read over at most 64 documents (pool is about 20 to 30 plus protected extras)",
+    "prompt": "none"
+   }
+  ],
+  "storage": "none",
+  "cost": "none; the budget now binds so skip-and-continue can fit smaller later records",
+  "inputs": "a binding budget (provided by the reserve)",
+  "outputs": "a possibly fuller 1024-token selection than S52",
+  "failure_modes": [
+   "Counter is the chars/4 estimate (no reader_tokenizer set), so the gain comes from skip-and-continue and from counting headers, not from true tokenisation.",
+   "Neighbour windows still use len//4+1; the replay stage can fill what assembly left."
+  ],
+  "tests": [
+   "tests/unit/lib/test_lib_06_budget_bundles.py",
+   "tests/unit/wiring/test_rw_c_compose.py",
+   "evals/tests/test_b7_b8_arms.py"
+  ],
+  "mermaid": "flowchart LR\n  B[budget 1024] --> C[chars/4 counter]\n  C --> A[assembly skip and continue]\n  A --> W[replay windows]"
+ },
+ {
+  "id": "S55",
+  "settings": {
+   "read.gate_v2": true,
+   "read.deep_v2": true,
+   "llm.roles.sufficiency": "ollama/qwen3.5:9b (bound)",
+   "reference": "v2-S20-i2 (gate_v2 only), so the screen isolates deep_v2 plus the bound role"
+  },
+  "stage": "R",
+  "trigger": "per read, after the routed read; model calls only when the obligation check cannot be satisfied by rules",
+  "steps": [
+   {
+    "n": 1,
+    "what": "The routed read finishes; _read calls _deep_extend when deep_v2 or obligations is on. It skips full-mode reads, abstained contexts and empty contexts.",
+    "code": "src/memspine/read/pipeline/router.py:1239 ; read/pipeline/deep.py:530 (_deep_extend)",
+    "kind": "rule"
+   },
+   {
+    "n": 2,
+    "what": "Build the typed contract, map it to a QueryDescription (obligation kind: single, join, comparison, latest, list, count, duration; entities, asked attribute, time view), and make the evidence bundle from the read's KEYED semantic records only (entity + attribute); raw turns are not claimed as facts, so an obligation they would satisfy only by guesswork stays open.",
+    "code": "src/memspine/read/pipeline/deep.py:467 (_query_description), :496 (_evidence_bundle)",
+    "kind": "rule"
+   },
+   {
+    "n": 3,
+    "what": "derive_obligations + check produce an ObligationReport: per-obligation status and typed holes (missing entity, attribute, value, time). Logged as read.obligations.report and forensics 'obligations'. No model call.",
+    "code": "src/memspine/read/obligations.py:204 (derive_obligations), :531 (check) ; deep.py:517 (_report_view)",
+    "kind": "algorithm"
+   },
+   {
+    "n": 4,
+    "what": "deep_v2 only: if the report is answerable the stop reason is rules_met with 0 calls. Else the LIB-43 deep_read runs: at most one sufficiency judgement, one rewrite and one extra retrieval, never a loop. Here llm.roles.sufficiency is bound (qwen3.5:9b, no_think): at most one sufficiency judgement (prompt sufficiency) and, if not complete, one rewrite (sufficiency@missing) producing search queries, then at most one retrieval per query. Calls are counted (deep.model_calls); the report target is <= 1 deep call per read.",
+    "code": "src/memspine/read/pipeline/deep.py:605-690 ; read/deep.py:373 (deep_read)",
+    "kind": "llm"
+   },
+   {
+    "n": 5,
+    "what": "Extra retrieval: _search for each rewritten query (agentic_top_k 8; first pass forensics preserved); new items are decorated and merged under merge_budget (agentic_first_share 0.6, agentic_max_new 6) into the context by _agentic_assemble; info (calls, stop reason, holes, queries) goes to forensics 'deep_v2'.",
+    "code": "src/memspine/read/pipeline/deep.py:660-704, :223 (_agentic_assemble)",
+    "kind": "rule"
+   }
+  ],
+  "algorithms": [
+   "typed obligations",
+   "rules-first sufficiency",
+   "one rewrite, one retrieve, no loop",
+   "merge under a share budget (first pass 0.6, max 6 new)"
+  ],
+  "libraries": [
+   "LIB-15 read/obligations.py",
+   "LIB-43 read/deep.py",
+   "LIB-12 gate (gate_v2 from the reference)"
+  ],
+  "models": [
+   {
+    "role": "sufficiency",
+    "model": "ollama/qwen3.5:9b via Ollama (http://127.0.0.1:11434, no_think, timeout 180 s) role llm.roles.sufficiency",
+    "calls": "read: at most 1 sufficiency judgement + 1 rewrite per read, only when the obligation check is not answerable; target <= 1 deep call per read",
+    "prompt": "src/memspine/prompts/defaults/sufficiency.yaml and sufficiency@missing.yaml"
+   },
+   {
+    "role": "reranker",
+    "model": "jinaai/jina-reranker-v3.5 (0.6B listwise, cuda, trust_remote_code)",
+    "calls": "1 forward pass per read over at most 64 documents (pool is about 20 to 30 plus protected extras)",
+    "prompt": "none"
+   }
+  ],
+  "storage": "reads records; no writes",
+  "cost": "0 model calls when rules are met; otherwise up to 2 (sufficiency + rewrite) + 1 retrieval and rerank per rewritten query; queue estimate 45 min for sets f and o",
+  "inputs": "keyed semantic facts for the obligation check; on the J base none exist, so most reads are 'not answerable' and call the model (this arm is J: the cost is the measurement)",
+  "outputs": "possibly extra evidence merged into the context; deep calls per read reported",
+  "failure_modes": [
+   "Replaces S21 whose role was unbound (zero calls, no effect possible).",
+   "On a J base with no keyed facts the obligation check cannot pass, so the deep tier fires on nearly every read; the call count, not accuracy, is the first number to read.",
+   "Extra _search per rewritten query includes a rerank (GPU pass)."
+  ],
+  "tests": [
+   "tests/unit/lib/test_lib_43_deep.py",
+   "tests/unit/wiring/test_rw_d_gate_deep.py",
+   "evals/tests/test_b7_b8_arms.py"
+  ],
+  "mermaid": "flowchart LR\n  C[routed context] --> O[obligation check]\n  O --> D{answerable}\n  D -- yes --> N[stop zero calls]\n  D -- no --> S[sufficiency call]\n  S --> W[rewrite call]\n  W --> R[retrieve once]\n  R --> M[merge under budget]"
+ },
+ {
+  "id": "S56",
+  "settings": {
+   "read.gate_v2": true,
+   "read.deep_v2": true,
+   "read.obligations": true,
+   "llm.roles.sufficiency": "bound",
+   "reference": "v2-S55-i2 (deep_v2 + bound role), so only obligations is added"
+  },
+  "stage": "R",
+  "trigger": "per read, inside _deep_extend",
+  "steps": [
+   {
+    "n": 1,
+    "what": "Same entry as S55: _deep_extend builds the contract, QueryDescription and the keyed-fact bundle.",
+    "code": "src/memspine/read/pipeline/deep.py:530-575",
+    "kind": "rule"
+   },
+   {
+    "n": 2,
+    "what": "With read.obligations the report (verdict, per-obligation status, typed holes) is published to the wiretap and forensics; with deep_v2 already on it already decided rules_met vs deep in S55, so obligations changes only what is logged and the hole lines passed to the rewrite prompt (missing <kind>: entity attribute).",
+    "code": "src/memspine/read/pipeline/deep.py:586-640",
+    "kind": "rule"
+   },
+   {
+    "n": 3,
+    "what": "Model calls and merging are those of S55; no additional call.",
+    "code": "src/memspine/read/pipeline/deep.py:640-704",
+    "kind": "llm"
+   },
+   {
+    "n": 4,
+    "what": "Measurement: eval_focus pairs the run against v2-S55-i2 on set f and the forensics deep_v2 block gives deep.model_calls per read (the S55 target is at most 1 per read).",
+    "code": "evals/eval_focus.py ; src/memspine/read/pipeline/deep.py:606",
+    "kind": "io"
+   }
+  ],
+  "algorithms": [
+   "obligation derivation and checking"
+  ],
+  "libraries": [
+   "LIB-15 read/obligations.py",
+   "LIB-43 read/deep.py"
+  ],
+  "models": [
+   {
+    "role": "sufficiency",
+    "model": "ollama/qwen3.5:9b via Ollama (http://127.0.0.1:11434, no_think, timeout 180 s) role llm.roles.sufficiency",
+    "calls": "read: at most 1 sufficiency judgement + 1 rewrite per read, only when the obligation check is not answerable; target <= 1 deep call per read",
+    "prompt": "src/memspine/prompts/defaults/sufficiency.yaml and sufficiency@missing.yaml"
+   }
+  ],
+  "storage": "none",
+  "cost": "no extra model call over S55",
+  "inputs": "S55's setup",
+  "outputs": "forensics plus hole-based rewrite input",
+  "failure_modes": [
+   "Because deep_v2 already runs the same check, the incremental effect is expected to be tiny; a NONINF verdict is the likely outcome.",
+   "Replaces S22."
+  ],
+  "tests": [
+   "tests/unit/lib/test_lib_15_obligations.py",
+   "tests/unit/wiring/test_rw_d_gate_deep.py"
+  ],
+  "mermaid": "flowchart LR\n  C[routed context] --> R[obligation report holes]\n  R --> F[forensics]\n  R --> W[holes into rewrite prompt]"
+ },
+ {
+  "id": "S67",
+  "settings": {
+   "read.lift_before_rerank": true,
+   "read.rerank_v2": true,
+   "read.rerank_v2_search_pool": 30,
+   "reference": "v2-S15-i2 (J + lift_before_rerank)"
+  },
+  "stage": "R",
+  "trigger": "per Engine.search call (FU-RRPOOL); not exercised by Engine.read",
+  "steps": [
+   {
+    "n": 1,
+    "what": "The pool reaches the rerank block exactly as in S15/S16: lift_before_rerank is on (as in the reference v2-S15-i2), so any derived hit is first lifted to source turns (a no-op on the J arm).",
+    "code": "src/memspine/read/pipeline/router.py:810",
+    "kind": "rule"
+   },
+   {
+    "n": 2,
+    "what": "rerank_v2 replaces the legacy rerank (same as S16): chain jina -> qwen3 -> fastembed, head 64, unscored tail not 0, min-max normalisation.",
+    "code": "src/memspine/read/pipeline/rerank.py:183",
+    "kind": "llm"
+   },
+   {
+    "n": 3,
+    "what": "read.rerank_v2_search_pool=30: _search(search_pool=30) fetches max(top_k, 30) candidates, reranks them and cuts back to final_k at the end. router.search() passes this setting; _assemble_core (the read path) calls _search WITHOUT it, so in Engine.read it has no effect: the read path already fetches top_k x candidate_pool (20 or 30).",
+    "code": "src/memspine/read/pipeline/router.py:286 (search passes search_pool), :442 (top_k = search_pool), :943 (cut to final_k) ; compose/pipeline/windows.py:208 (no search_pool)",
+    "kind": "rule"
+   },
+   {
+    "n": 4,
+    "what": "Net effect in the replay harness: the arm equals S16 on top of S15 (rerank_v2 on a J pool); the pool-widening part is exercised only through Engine.search / h.recall.",
+    "code": "src/memspine/read/pipeline/rerank.py:183",
+    "kind": "rule"
+   }
+  ],
+  "algorithms": [
+   "listwise cross-encoder rerank",
+   "wider fetch then cut (search path)"
+  ],
+  "libraries": [
+   "LIB-42 rerank chain",
+   "LIB-11 lift"
+  ],
+  "models": [
+   {
+    "role": "reranker",
+    "model": "jinaai/jina-reranker-v3.5 (0.6B listwise, cuda, trust_remote_code)",
+    "calls": "1 forward pass per read over at most 64 documents (pool is about 20 to 30 plus protected extras)",
+    "prompt": "none"
+   }
+  ],
+  "storage": "none",
+  "cost": "search path: rerank over up to 30 documents instead of top_k (still one pass, window 64)",
+  "inputs": "rerank_v2 (validated by requires.py)",
+  "outputs": "in search(): a reranker pool wide enough to see evidence the fused order would have cut",
+  "failure_modes": [
+   "Written for INV-FILLER (filler turns outrank the evidence in the fused pool): it cures search() but not the read path used by the harness, so the S16 INV-FILLER signal is not addressed here; the read path needs candidate_pool/protect changes instead.",
+   "Result will reproduce S16, not test FU-RRPOOL, unless the arm drives search()."
+  ],
+  "tests": [
+   "tests/unit/wiring/test_fu_rrpool.py",
+   "evals/tests/test_fu_rrpool_arm.py",
+   "tests/unit/config/test_requires.py"
+  ],
+  "mermaid": "flowchart LR\n  S[search call top_k] --> W[fetch max top_k 30]\n  W --> R[rerank_v2 jina]\n  R --> C[cut to top_k]\n  RD[read path] -. does not pass pool .-> R"
+ },
+ {
+  "id": "S60",
+  "settings": {
+   "profile": "read-v2-core (src/memspine/config/presets/read-v2-core.yaml)",
+   "read.legs_v2": true,
+   "read.family_fusion": true,
+   "read.lift_before_rerank": true,
+   "read.rerank_v2": true,
+   "read.exact_budget": true,
+   "read.contract_rules": true,
+   "read.router_rules": true,
+   "read.tiers_v2": true,
+   "arm": "scr-b8-read-v2-core = GC reference arm S02 + the profile",
+   "replaces": "S11, S12, S14-S16, S17, S36-S38"
+  },
+  "stage": "R",
+  "trigger": "per read, every v2 read-spine stage in pipeline order",
+  "steps": [
+   {
+    "n": 1,
+    "what": "Request stage (plan_read, R3-01/02/03): tiers_v2 normalises the query and picks the fast tier (logged only); contract_rules builds the typed contract; router_rules builds the layer state and RoutePlan, of which only legs_off is consumed (graph/entity/episode off unless planned: graph only for join, entity for named subjects, episode for temporal/list/count).",
+    "code": "src/memspine/read/pipeline/request.py:527 (plan_read) ; read/tiers.py ; read/router_rules.py:227",
+    "kind": "rule"
+   },
+   {
+    "n": 2,
+    "what": "Base legs through the registry (legs_v2): vector, in-memory BM25 (stemmed, stop words), temporal intervals; the GC arm's old graph leg, graph_nodes leg and entity summaries still run unless the router switched them off.",
+    "code": "src/memspine/read/pipeline/legs.py:296 (registry_base_legs)",
+    "kind": "library"
+   },
+   {
+    "n": 3,
+    "what": "Fusion by family (family_fusion): legs merged by source family, top 3 per family protected, RRF k=60 across families, pool fixed at top_k with protected first.",
+    "code": "src/memspine/read/pipeline/fusion.py:354 (fuse_families)",
+    "kind": "algorithm"
+   },
+   {
+    "n": 4,
+    "what": "Gates and pool cut as REF-J, then lift_before_rerank: derived hits (GC facts, summaries) are replaced by up to 2 visible source turns each, re-admitted, deduped and capped, so the reranker scores evidence turns.",
+    "code": "src/memspine/read/pipeline/lift.py:390 (lift_stage) ; router.py:810",
+    "kind": "algorithm"
+   },
+   {
+    "n": 5,
+    "what": "Rerank (rerank_v2): jina-reranker-v3.5 first in the chain over at most 64 candidates, unscored tail handled explicitly; then keep 10, MMR assembly.",
+    "code": "src/memspine/read/pipeline/rerank.py:183 (rerank_v2_stage)",
+    "kind": "llm"
+   },
+   {
+    "n": 6,
+    "what": "Assembly with exact_budget: chars/4 counter, skip-and-continue (max 8 skips); replay windows as REF-J (2 before, 4 after).",
+    "code": "src/memspine/compose/pipeline/windows.py:412 ; compose/pipeline/render.py:102",
+    "kind": "algorithm"
+   },
+   {
+    "n": 7,
+    "what": "contract_rules header: after the read, one '[contract] ...' lead line is inserted before the evidence.",
+    "code": "src/memspine/read/pipeline/request.py:625 (add_typed_header)",
+    "kind": "rule"
+   }
+  ],
+  "algorithms": [
+   "family reciprocal rank fusion",
+   "lineage lift",
+   "listwise rerank with unscored handling",
+   "skip-and-continue token packing",
+   "rule routing and rule contracts",
+   "Okapi BM25 (in-memory)"
+  ],
+  "libraries": [
+   "LIB-47 tiers",
+   "LIB-16 contract_rules",
+   "LIB-23 router_rules",
+   "R3-04 read/legs",
+   "LIB-10 fusion",
+   "LIB-11 lift",
+   "LIB-42 rerank chain",
+   "LIB-06 budget",
+   "external: jina-reranker-v3.5"
+  ],
+  "models": [
+   {
+    "role": "extract",
+    "model": "ollama/qwen3.5:9b via Ollama (http://127.0.0.1:11434, no_think, timeout 180 s) role llm.roles.extract_edges",
+    "calls": "sleep: 1 per session (session granularity), run once per conversation build (--memspine-build-sleep, cap --max-model-calls 4000)",
+    "prompt": "src/memspine/prompts/defaults/extract_edges@session.yaml"
+   },
+   {
+    "role": "summarize",
+    "model": "ollama/qwen3.5:9b via Ollama (http://127.0.0.1:11434, no_think, timeout 180 s) role llm.roles.summarize_entity",
+    "calls": "sleep: 1 per entity that gets a summary",
+    "prompt": "src/memspine/prompts/defaults/summarize_entity.yaml"
+   },
+   {
+    "role": "reranker",
+    "model": "jinaai/jina-reranker-v3.5 (0.6B listwise, cuda, trust_remote_code)",
+    "calls": "1 forward pass per read over at most 64 documents (pool is about 20 to 30 plus protected extras)",
+    "prompt": "none"
+   }
+  ],
+  "storage": "GC build as S30; read reads records, lineage, layer counts; writes nothing",
+  "cost": "no read-side model call beyond the one rerank pass; queue estimate 160 min (sample, ingest-bound)",
+  "inputs": "the GC build (graph, entity summaries); lift only acts on derived hits",
+  "outputs": "the v2 read spine as one unit: different fusion, lifted evidence, pruned legs, header line",
+  "failure_modes": [
+   "Reference v2-S02-i2 is itself a built-graph arm: effects are measured on 60 questions over 3 conversations (sample) because ingest + sleep dominate cost.",
+   "Needs the sleep build to succeed on every conversation (LLM extraction by a 9B model); an empty graph makes the screen inert.",
+   "Interactions are untested together beyond pairwise (audit 2): router_rules can switch off the graph votes that lift and family_fusion then expect, and exact_budget's skip-and-continue interacts with a fixed-size pool.",
+   "S14 is the only individually live component so far (+4/-1); the bundle can hide a loser behind it, so a drop-one pass follows only if the bundle passes.",
+   "tiers_v2 contributes nothing by code; contract header affects composition only."
+  ],
+  "tests": [
+   "tests/combinations/test_profiles_v2.py",
+   "tests/unit/wiring/test_rw_a_read_entry.py",
+   "tests/unit/wiring/test_rw_b_fusion_lift_rerank.py",
+   "tests/unit/wiring/test_rw_c_compose.py",
+   "evals/tests/test_b7_b8_arms.py"
+  ],
+  "mermaid": "flowchart LR\n  R[request tiers contract router] --> L[legs_v2 base legs]\n  L --> F[family fusion]\n  F --> G[gates and lift]\n  G --> K[rerank_v2 jina]\n  K --> A[assembly exact budget]\n  A --> W[replay windows]\n  R --> H[contract header]\n  W --> O[context]\n  H --> O"
+ },
+ {
+  "id": "S63",
+  "settings": {
+   "profile": "read-v2-safe (src/memspine/config/presets/read-v2-safe.yaml)",
+   "read.gate_v2": true,
+   "read.deep_v2": true,
+   "read.obligations": true,
+   "read.trust_rendering": true,
+   "read.timeview_v2": true,
+   "read.neighbours_v2": true,
+   "llm.roles.sufficiency": "ollama/qwen3.5:9b (bound)",
+   "arm": "scr-b8-read-v2-safe = GC reference arm S02 + the profile + a bound sufficiency role",
+   "replaces": "S19-S22, S24, S27"
+  },
+  "stage": "R",
+  "trigger": "per read; stages in pipeline order (time-view allow-list, deep extension, trust render, gate)",
+  "steps": [
+   {
+    "n": 1,
+    "what": "GC build (before any read; sleep cycle run by --memspine-build-sleep after ingest). Session granularity extract_graph: one extract_edges@session call per session produces keyed semantic fact records and entity nodes (resolve=rules); entity_nodes and entity_summaries policies add entity nodes with 'mentions' edges and summarize_entity writes one 'About X' summary per entity; graph.entity_embeddings embeds entity names for node search.",
+    "code": "src/memspine/derive/pipeline/stages/extract_graph.py ; derive/pipeline/stages/entity_summaries.py ; memories/associative",
+    "kind": "llm"
+   },
+   {
+    "n": 2,
+    "what": "Read-v2-safe base: GC reference read path (graph leg, node search, About block, rerank), no v2 spine flags.",
+    "code": "src/memspine/read/pipeline/router.py:393 (_search)",
+    "kind": "rule"
+   },
+   {
+    "n": 3,
+    "what": "timeview_v2: _date_allowed builds a three-valued allow-list only when an as-of or recorded_before bound is active; LoCoMo/OP-Bench QA passes none, so it returns None and does nothing.",
+    "code": "src/memspine/read/pipeline/timeview.py:133, :262",
+    "kind": "rule"
+   },
+   {
+    "n": 4,
+    "what": "neighbours_v2: only used by the compose-mode neighbour expansion; replay reads never consult it, so it is inert in this harness.",
+    "code": "src/memspine/compose/pipeline/windows.py:650, :558",
+    "kind": "rule"
+   },
+   {
+    "n": 5,
+    "what": "deep_v2 + obligations (sufficiency role bound): after the routed read, obligations are checked on keyed semantic facts; if not met, up to one sufficiency + one rewrite call and one retrieve add evidence merged under a share budget.",
+    "code": "src/memspine/read/pipeline/deep.py:530 (_deep_extend)",
+    "kind": "llm"
+   },
+   {
+    "n": 6,
+    "what": "trust_rendering: in _render, volatile records are re-presented by trust band (trusted, contested, tentative, low-trust; quarantined withheld): low-trust text NFKC-normalised, brackets and backticks replaced, imperative-to-assistant phrases wrapped, emitted as a quoted escaped string with a band marker; contested values of one keyed fact share a line. Replaces the B6 untrusted-note wrapper. On uniform-trust data every record is 'trusted' and text is unchanged.",
+    "code": "src/memspine/compose/pipeline/render.py:186 (trust_render), :285 (_render) ; compose/render_trust.py",
+    "kind": "algorithm"
+   },
+   {
+    "n": 7,
+    "what": "gate_v2 (last): calibrate off-topic level (20 probes, cached per namespace), score each context record with jina, classify answerable/missing/conflicting/weak/bypass, empty the context on 'missing', drop records on a personal/generic mismatch.",
+    "code": "src/memspine/read/pipeline/gate.py:434 (_gate_v2)",
+    "kind": "llm"
+   }
+  ],
+  "algorithms": [
+   "median/MAD off-topic calibration",
+   "five-state evidence classification",
+   "typed obligations with one-rewrite deep tier",
+   "trust-band rendering with quoting and defanging",
+   "three-valued time view"
+  ],
+  "libraries": [
+   "LIB-12 gate",
+   "LIB-15 obligations",
+   "LIB-43 deep",
+   "LIB-25 render_trust",
+   "LIB-22 timeview",
+   "LIB-24 neighbours"
+  ],
+  "models": [
+   {
+    "role": "extract",
+    "model": "ollama/qwen3.5:9b via Ollama (http://127.0.0.1:11434, no_think, timeout 180 s) role llm.roles.extract_edges",
+    "calls": "sleep: 1 per session (session granularity), run once per conversation build (--memspine-build-sleep, cap --max-model-calls 4000)",
+    "prompt": "src/memspine/prompts/defaults/extract_edges@session.yaml"
+   },
+   {
+    "role": "summarize",
+    "model": "ollama/qwen3.5:9b via Ollama (http://127.0.0.1:11434, no_think, timeout 180 s) role llm.roles.summarize_entity",
+    "calls": "sleep: 1 per entity that gets a summary",
+    "prompt": "src/memspine/prompts/defaults/summarize_entity.yaml"
+   },
+   {
+    "role": "sufficiency",
+    "model": "ollama/qwen3.5:9b via Ollama (http://127.0.0.1:11434, no_think, timeout 180 s) role llm.roles.sufficiency",
+    "calls": "read: at most 1 sufficiency judgement + 1 rewrite per read, only when the obligation check is not answerable; target <= 1 deep call per read",
+    "prompt": "src/memspine/prompts/defaults/sufficiency.yaml and sufficiency@missing.yaml"
+   },
+   {
+    "role": "reranker",
+    "model": "jinaai/jina-reranker-v3.5 (0.6B listwise, cuda, trust_remote_code)",
+    "calls": "1 forward pass per read over at most 64 documents (pool is about 20 to 30 plus protected extras)",
+    "prompt": "none"
+   }
+  ],
+  "storage": "GC build; read writes nothing; gate calibration cached in memory",
+  "cost": "per read: 1 extra jina pass for the gate, 0-2 model calls for deep (target <= 1), plus the one-off 20-probe calibration per namespace; queue estimate 200 min for sets f and o",
+  "inputs": "OP-Bench (set o) to show abstention gains; on LoCoMo it is a non-inferiority check",
+  "outputs": "abstention on off-topic questions, extra evidence on incomplete ones, trust-banded rendering",
+  "failure_modes": [
+   "Reference v2-S02-i2 is itself a built-graph arm: effects are measured on 60 questions over 3 conversations (sample) because ingest + sleep dominate cost.",
+   "Needs the sleep build to succeed on every conversation (LLM extraction by a 9B model); an empty graph makes the screen inert.",
+   "Two of the six flags are inert in this harness by code (timeview_v2 without an as-of bound, neighbours_v2 in replay mode); trust_rendering has nothing to band on uniform-trust LoCoMo records. The bundle therefore mostly measures gate_v2 + deep_v2.",
+   "OP-Bench focus has no paired reference of the same engine arm (audit 35).",
+   "deep_v2 calls on a J/GC store without keyed facts can fire on most reads."
+  ],
+  "tests": [
+   "tests/unit/wiring/test_rw_d_gate_deep.py",
+   "tests/unit/wiring/test_rw_c_compose.py",
+   "tests/unit/wiring/test_rw_e_time_entity_neighbours.py",
+   "tests/unit/lib/test_lib_25_render_trust.py",
+   "tests/combinations/test_profiles_v2.py"
+  ],
+  "mermaid": "flowchart LR\n  T[time view allow-list inert] --> R[GC read path]\n  R --> D[deep extension obligations]\n  D --> X[trust render]\n  X --> G[gate_v2 calibrated]\n  G --> O[context or abstain]"
+ }
+]
