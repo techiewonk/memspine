@@ -143,6 +143,11 @@ class WorkersConfig(BaseModel):
     #: (consolidate → … → decay → prune) on that interval. None (default) keeps
     #: v0.1 behavior — the cycle runs only on an explicit ``Engine.sleep()``.
     sleep_interval_seconds: float | None = None
+    #: F-04 (W-13, ER-06): the durable outbox. Off (default): window calls queue in memory and
+    #: are lost on stop, exactly as before. On: every window job is a row in the ``outbox``
+    #: tables first, an inline runner drains it after each write and at start (leftovers), and a
+    #: stop persists what it could not finish. Model calls never run inside a namespace lock.
+    outbox: bool = False
 
 
 class DecisionConfig(BaseModel):

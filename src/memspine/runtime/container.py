@@ -49,6 +49,7 @@ from memspine.core.registry import SERVICE_EXTRAS, dependency_closure, missing_s
 from memspine.derive.pipeline.stages.context import PipelineContext
 from memspine.derive.pipeline.stages.table import PIPELINES
 from memspine.exceptions import ConfigError, MissingServiceError
+from memspine.ingest import windows as _ingest_windows
 from memspine.memories.semantic.entities import EntityExtractor, LLMEntityExtractor
 from memspine.memories.semantic.write_pipeline import (
     ExtractEdges,
@@ -67,6 +68,8 @@ from memspine.models.registry import LLM_PROVIDERS, build_embedder, llm_provider
 from memspine.observability.logging import get_logger
 from memspine.plugins import enable as enable_plugins
 from memspine.prompts.registry import PromptRegistry
+from memspine.runtime.outbox import SqlJobStore, memory_engine, sqlite_engine
+from memspine.runtime.runner import InlineRunner as OutboxRunner
 from memspine.services.graph.base import GraphStore
 from memspine.services.graph.sqlite_adjacency import SQLiteAdjacencyGraph
 from memspine.services.lexical.base import LexicalStore
@@ -87,6 +90,7 @@ __all__ = [
     "JobInfo",
     "JobState",
     "MemScope",
+    "OutboxHandle",
     "RequestInfo",
     "RequestState",
     "SemanticExtractor",
@@ -99,6 +103,7 @@ __all__ = [
     "lexical_projector_name",
     "lexical_variant",
     "make_container",
+    "make_outbox_runner",
     "memory_policy",
     "request_scope",
 ]
@@ -763,6 +768,52 @@ def build_runner(config: MemspineConfig, hooks: WiringHooks, _caps: Capabilities
     )
 
 
+@dataclass(frozen=True)
+class OutboxHandle:
+    """F-04: the durable outbox runner, or None when ``workers.outbox`` is off."""
+
+    runner: OutboxRunner | None
+
+
+def make_outbox_runner(
+    config: MemspineConfig,
+    wiring_client: SQLiteClient | None,
+    pg_client: PostgresClient | None = None,
+    commit_lock: Callable[[str], Any] | None = None,
+) -> OutboxRunner:
+    """Build the outbox store on the storage database and an inline runner over it.
+
+    SQLite file: a sync engine on the same file (revision ``f04_outbox`` made the tables).
+    ``:memory:``: a private in-process database (nothing outlives the process anyway). Postgres:
+    a sync psycopg engine on the storage URL; the SQL is the same."""
+    if config.storage.backend == "postgres":
+        from sqlalchemy import create_engine
+
+        if pg_client is None:
+            raise ConfigError("workers.outbox on postgres needs the postgres client")
+        engine = create_engine(pg_client._url)  # the client's normalised psycopg URL
+    elif wiring_client is None or wiring_client.is_memory:
+        engine = memory_engine()
+    else:
+        engine = sqlite_engine(wiring_client.path, wiring_client.sync_creator)
+    return OutboxRunner(SqlJobStore(engine), commit_lock=commit_lock)
+
+
+def build_outbox(config: MemspineConfig, wiring: Wiring, _storage: SqlStorage) -> OutboxHandle:
+    """Provider: the runner when ``workers.outbox`` is on (after storage, so the schema exists)."""
+    if not config.workers.outbox:
+        return OutboxHandle(None)
+    return OutboxHandle(make_outbox_runner(config, wiring.client, wiring.pg))
+
+
+def _window_outbox(eng: Any, config: MemspineConfig) -> OutboxRunner:
+    """The factory ``ingest.windows`` calls for ``workers.outbox`` (it cannot import runtime)."""
+    return make_outbox_runner(config, eng._client, eng._pg, eng._namespace_lock)
+
+
+_ingest_windows.register_outbox_factory(_window_outbox)
+
+
 # ── JOB and REQUEST providers ────────────────────────────────────────────────────────────
 
 
@@ -798,6 +849,7 @@ def _provider() -> Provider:
     p.provide(build_extractor, provides=SemanticExtractor)
     p.provide(build_write_pipeline, provides=SemanticWritePipeline)
     p.provide(build_runner, provides=TaskRunner)
+    p.provide(build_outbox, provides=OutboxHandle)
     p.provide(build_job_state, scope=MemScope.JOB, provides=JobState)
     p.provide(build_request_state, scope=MemScope.REQUEST, provides=RequestState)
     return p

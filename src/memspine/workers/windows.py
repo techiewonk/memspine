@@ -54,12 +54,16 @@ from memspine.prompts.models import (
     WindowPayload,
     fact_guard,
 )
+from memspine.runtime.runner import InlineRunner, StageHandler
+from memspine.schemas.durable.common import OwnerScope
 from memspine.store.events import fingerprint_payload
 from memspine.store.records import MemoryRecord, RecordStatus
 
 __all__ = [
     "SECTION_MODES",
+    "WINDOW_STAGE",
     "PromptWindowExtractor",
+    "WindowCallFailed",
     "WindowExtractor",
     "WindowPipeline",
     "build_transcript",
@@ -79,6 +83,10 @@ SECTION_MODES: dict[str, tuple[str, ...]] = {
     "all": ("facts", "edges", "episode"),
 }
 
+#: F-04: the outbox stage (and read-barrier capability) of the window pipeline.
+WINDOW_STAGE = "window"
+#: F-04: the tenant of a window job's ``OwnerScope`` (the namespace is the owner).
+_TENANT = "default"
 _LINE_CHARS = 2000
 #: ``stop()`` waits this long for the window call in hand before cancelling it.
 _STOP_GRACE_S = 5.0
@@ -307,6 +315,24 @@ def validate_episode(raw: object, count: int) -> EpisodeOutcome | None:
 # --- the manager ----------------------------------------------------------------------------
 
 
+class WindowCallFailed(RuntimeError):
+    """Every model call of a window failed (outbox mode): the offset becomes a hole and is
+    retried within the per-hole budget instead of being dropped."""
+
+
+@dataclass
+class _Prepared:
+    """Output of the lock-free phase of one window (F-04): validated inputs for the commit."""
+
+    job: _Job
+    records: list[MemoryRecord]
+    merged: dict[str, Any]
+    line_texts: list[str]
+    window_id: str
+    groups: int
+    failed: bool
+
+
 @dataclass
 class _Job:
     namespace: str
@@ -351,6 +377,7 @@ class WindowPipeline:
         split: str = "auto",
         asynchronous: bool = True,
         on_session_closed: SessionClosedFn | None = None,
+        outbox: InlineRunner | None = None,
     ) -> None:
         self.settings = settings
         self.sections = tuple(sections)
@@ -373,6 +400,17 @@ class WindowPipeline:
         self._auto_split = False
         self._keys_by_record: dict[str, set[str]] = {}
         self._stopped = False
+        #: F-04 (``workers.outbox``): the durable queue and its runner; None = in-memory deque.
+        self._outbox = outbox
+        self._recover_task: asyncio.Task[Any] | None = None
+        self._staged: list[tuple[str, dict[str, Any]]] = []
+        self._persist_lock = asyncio.Lock()
+        self._recovered = outbox is None
+        if outbox is not None:
+            outbox.register(
+                WINDOW_STAGE,
+                StageHandler(prepare=self._outbox_prepare, commit=self._outbox_commit),
+            )
         #: (namespace, session) -> what the session-closed hook returned (the last 100).
         self.closed_results: dict[tuple[str, str], object] = {}
 
@@ -398,6 +436,7 @@ class WindowPipeline:
             return
         if record.status is not RecordStatus.ACTIVATED:
             return
+        self._recover_in_background()
         ns = record.namespace
         store = self._store(ns)
         vector: list[float] | None = None
@@ -426,21 +465,65 @@ class WindowPipeline:
         if session is not None:
             store.session_windows.setdefault(session, 0)
         self._arm_idle(ns, store)
+        await self._persist_staged()
+
+    def _scope(self, ns: str) -> OwnerScope:
+        return OwnerScope(tenant=_TENANT, owner=ns)
 
     def _enqueue(self, ns: str, store: _Store, window: Window) -> None:
-        job = _Job(ns, window=window, members=frozenset(window.record_ids))
-        store.queue.append(job)
+        if self._outbox is not None:
+            self._staged.append(
+                (
+                    ns,
+                    {
+                        "kind": "window",
+                        "session": window.session,
+                        "reason": window.reason,
+                        "record_ids": window.record_ids,
+                    },
+                )
+            )
+        else:
+            job = _Job(ns, window=window, members=frozenset(window.record_ids))
+            store.queue.append(job)
         self._counts["windows"] += 1
         self._reasons[window.reason] += 1
         if window.session is not None:
             store.session_windows[window.session] += 1
-        if self._async:
+        if self._async and self._outbox is None:
             self._ensure_worker(ns, store)
 
     def _enqueue_closed(self, ns: str, store: _Store, session: str) -> None:
-        store.queue.append(_Job(ns, closed_session=session))
-        if self._async:
+        if self._outbox is not None:
+            self._staged.append(
+                (
+                    ns,
+                    {
+                        "kind": "closed",
+                        "session": session,
+                        # the count travels with the item: the in-memory tally dies with the process
+                        "windows": store.session_windows.pop(session, 0),
+                    },
+                )
+            )
+        else:
+            store.queue.append(_Job(ns, closed_session=session))
+        if self._async and self._outbox is None:
             self._ensure_worker(ns, store)
+
+    async def _persist_staged(self) -> None:
+        """Outbox mode: write the items ``_enqueue`` staged (in order), then wake the workers.
+        Staging keeps the segmenter code synchronous and in its old order; the database write
+        happens here, off the event loop (``InlineRunner.enqueue``)."""
+        if self._outbox is None or not self._staged:
+            return
+        async with self._persist_lock:
+            staged, self._staged = self._staged, []
+            for ns, payload in staged:
+                await self._outbox.enqueue(self._scope(ns), WINDOW_STAGE, payload)
+        if self._async and not self._stopped:
+            for ns in dict.fromkeys(n for n, _ in staged):
+                self._ensure_worker(ns, self._store(ns))
 
     # -- timers and workers ---------------------------------------------------------------
 
@@ -462,6 +545,7 @@ class WindowPipeline:
         window = store.segmenter.close("idle")
         if window is not None:
             self._enqueue(ns, store, window)
+            await self._persist_staged()
 
     def _ensure_worker(self, ns: str, store: _Store) -> None:
         if store.worker is not None and not store.worker.done():
@@ -469,6 +553,9 @@ class WindowPipeline:
         store.worker = asyncio.get_running_loop().create_task(self._drain(ns, store))
 
     async def _drain(self, ns: str, store: _Store) -> None:
+        if self._outbox is not None:
+            await self._outbox.drain(self._scope(ns))
+            return
         async with store.run_lock:
             while store.queue and not self._stopped:
                 job = store.queue.popleft()
@@ -489,6 +576,8 @@ class WindowPipeline:
     async def flush(self, namespace: str | None = None, *, final: bool = True) -> dict[str, Any]:
         """Process every closed window now. ``final`` also closes the open ones (and fires the
         session-closed hook for the sessions still open): the end of a stream or a batch."""
+        if self._outbox is not None:
+            await self._await_recovery()
         names = [namespace] if namespace is not None else list(self._stores)
         for ns in names:
             store = self._stores.get(ns)
@@ -504,9 +593,12 @@ class WindowPipeline:
                 if store.session is not None:
                     self._enqueue_closed(ns, store, store.session)
                     store.session = None
+                await self._persist_staged()
             if store.worker is not None and not store.worker.done():
                 await asyncio.shield(store.worker)
             await self._drain(ns, store)
+        if self._outbox is not None and namespace is None:
+            await self._outbox.drain()  # leftovers of namespaces not seen since start
         return self.stats()
 
     async def close_session(self, namespace: str, session_id: str | None = None) -> dict[str, Any]:
@@ -528,6 +620,7 @@ class WindowPipeline:
             store.session = None
         before = self._counts["sessions_closed"]
         self._enqueue_closed(namespace, store, session)
+        await self._persist_staged()
         if store.worker is not None and not store.worker.done():
             await asyncio.shield(store.worker)
         await self._drain(namespace, store)
@@ -538,9 +631,13 @@ class WindowPipeline:
             "hook": self.closed_results.get((namespace, session)),
         }
 
-    async def _session_closed(self, ns: str, store: _Store, session: str) -> None:
+    async def _session_closed(
+        self, ns: str, store: _Store, session: str, windows: int | None = None
+    ) -> None:
         info = SessionClosed(
-            namespace=ns, session_id=session, windows=store.session_windows.pop(session, 0)
+            namespace=ns,
+            session_id=session,
+            windows=store.session_windows.pop(session, 0) if windows is None else windows,
         )
         self._counts["sessions_closed"] += 1
         if self._on_closed is not None:
@@ -551,6 +648,14 @@ class WindowPipeline:
     async def stop(self) -> None:
         """Cancel timers and workers. Windows still queued are abandoned (counted)."""
         self._stopped = True
+        if self._outbox is not None:
+            # ER-10: bounded drain. The offset in hand finishes (or its job is released after the
+            # grace); everything else stays in the outbox and resumes at the next start.
+            if self._recover_task is not None and not self._recover_task.done():
+                self._recover_task.cancel()
+                with contextlib.suppress(asyncio.CancelledError, Exception):
+                    await self._recover_task
+            await self._outbox.stop(_STOP_GRACE_S)
         for store in self._stores.values():
             if store.idle is not None:
                 store.idle.cancel()
@@ -564,6 +669,89 @@ class WindowPipeline:
                         await store.worker
             self._counts["jobs_abandoned"] += sum(1 for j in store.queue if j.window is not None)
             store.queue.clear()
+        if self._outbox is not None:
+            self._counts["jobs_persisted"] += self._outbox.depth()
+            self._outbox.close()
+
+    # -- outbox (F-04) ----------------------------------------------------------------------
+
+    def _recover_in_background(self) -> None:
+        """First write of a process: resume leftovers of the last run (async mode only; in batch
+        mode ``flush`` drains everything, as for a fresh queue)."""
+        if self._recovered or self._outbox is None:
+            return
+        self._recovered = True
+        if self._async:
+            self._recover_task = asyncio.get_running_loop().create_task(self._outbox.start())
+
+    async def _await_recovery(self) -> None:
+        self._recovered = True
+        task = self._recover_task
+        if task is not None and not task.done():
+            await asyncio.shield(task)
+
+    async def readiness(
+        self,
+        namespace: str,
+        capabilities: Sequence[str] = (WINDOW_STAGE,),
+        timeout: float = 0.0,  # noqa: ASYNC109 - the barrier budget
+    ) -> Any:
+        """Read barrier over the outbox (see ``InlineRunner.wait``); None when it is off."""
+        if self._outbox is None:
+            return None
+        await self._await_recovery()
+        return await self._outbox.wait(self._scope(namespace), list(capabilities), timeout)
+
+    def _forget_in_item(self, payload: dict[str, Any], record_id: str) -> dict[str, Any] | None:
+        """A queued item loses a forgotten turn; an item left with no turn becomes a no-op."""
+        ids = payload.get("record_ids")
+        if payload.get("kind") != "window" or not isinstance(ids, list) or record_id not in ids:
+            return None
+        self._counts["turns_dropped_forget"] += 1
+        kept = [r for r in ids if r != record_id]
+        if not kept:
+            self._counts["windows_cancelled_forget"] += 1
+            return {**payload, "kind": "empty", "record_ids": []}
+        return {**payload, "record_ids": kept}
+
+    async def _outbox_prepare(self, scope: OwnerScope, offset: int, payload: dict[str, Any]) -> Any:
+        """Outbox handler, phase 1 (no lock held): the window's model calls, or the session
+        hook (call 2, a model call in waiting)."""
+        ns = scope.owner
+        store = self._store(ns)
+        kind = payload.get("kind")
+        if kind == "closed":
+            return ("closed", payload)
+        if kind != "window":
+            return None
+        window = Window(
+            turns=[WindowTurn(record_id=r, text="", tokens=1) for r in payload["record_ids"]],
+            reason=str(payload.get("reason", "")),
+            session=payload.get("session"),
+        )
+        job = _Job(ns, window=window, members=frozenset(window.record_ids))
+        store.inflight = job  # a forget during the call cancels it
+        try:
+            prepared = await self._prepare_job(ns, job, strict=True)
+        except BaseException:
+            store.inflight = None
+            raise
+        return ("window", prepared)
+
+    async def _outbox_commit(self, scope: OwnerScope, offset: int, prepared: Any) -> None:
+        """Outbox handler, phase 2: the deposits (each locks the namespace itself)."""
+        if prepared is None:
+            return
+        ns = scope.owner
+        store = self._store(ns)
+        kind, body = prepared
+        try:
+            if kind == "closed":
+                await self._session_closed(ns, store, body["session"], int(body.get("windows", 0)))
+            elif body is not None:
+                await self._commit_job(ns, store, body)
+        finally:
+            store.inflight = None
 
     # -- forget -----------------------------------------------------------------------------
 
@@ -573,6 +761,11 @@ class WindowPipeline:
         window whose call is running is cancelled (its reply may restate the turn); pending
         call-1 edges that cite or cover it are dropped; cached replies for windows that held it
         are deleted."""
+        if self._outbox is not None:
+            await self._persist_staged()  # an item still staged is as queued as one stored
+            await self._outbox.rewrite_pending(
+                self._scope(namespace), WINDOW_STAGE, lambda p: self._forget_in_item(p, record_id)
+            )
         store = self._stores.get(namespace)
         if store is not None:
             if store.segmenter.discard(record_id):
@@ -693,14 +886,21 @@ class WindowPipeline:
         return live
 
     async def _run_job(self, ns: str, store: _Store, job: _Job) -> None:
+        prepared = await self._prepare_job(ns, job)
+        if prepared is not None:
+            await self._commit_job(ns, store, prepared)
+
+    async def _prepare_job(self, ns: str, job: _Job, *, strict: bool = False) -> _Prepared | None:
+        """The lock-free half of one window: live turns, then the model calls. ``strict`` (outbox
+        mode) raises :class:`WindowCallFailed` when every call failed, so the offset is a hole."""
         window = job.window
         assert window is not None
         if job.cancelled:
-            return
+            return None
         records = await self._live_turns(window)
         if not records:
             self._counts["windows_empty"] += 1
-            return
+            return None
         member_ids = [r.record_id for r in records]
         window_id = fingerprint_payload({"ns": ns, "turns": member_ids})[:12]
         transcript, line_texts, people = build_transcript(records)
@@ -732,11 +932,24 @@ class WindowPipeline:
         if job.cancelled:
             self._counts["windows_cancelled_forget"] += 1
             await self._purge_window_cache(member_ids)
-            return
+            return None
+        if strict and failed and not merged:
+            self._note_outcome(True, len(groups))
+            raise WindowCallFailed(f"all {len(groups)} window call(s) failed")
+        return _Prepared(job, records, merged, line_texts, window_id, len(groups), failed)
+
+    async def _commit_job(self, ns: str, store: _Store, prepared: _Prepared) -> None:
+        """The deposit half: each deposit takes the namespace lock itself (``_write_locked``)."""
         broken = await self._deposit_sections(
-            ns, store, job, records, merged, line_texts, window_id
+            ns,
+            store,
+            prepared.job,
+            prepared.records,
+            prepared.merged,
+            prepared.line_texts,
+            prepared.window_id,
         )
-        self._note_outcome(failed or broken, len(groups))
+        self._note_outcome(prepared.failed or broken, prepared.groups)
 
     async def _purge_window_cache(self, member_ids: Sequence[str]) -> None:
         if self._cache is None:
@@ -955,6 +1168,10 @@ class WindowPipeline:
             "sessions_closed": c["sessions_closed"],
             "queued": sum(len(s.queue) for s in self._stores.values()),
         }
+        if self._outbox is not None:
+            out["queued"] += self._outbox.depth()
+            out["outbox"] = True
+            out["jobs_persisted"] = c["jobs_persisted"]
         topic = {
             ns: {"pairs": s.segmenter.pairs, "level": s.segmenter.topic_level}
             for ns, s in self._stores.items()

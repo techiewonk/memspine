@@ -475,6 +475,7 @@
   "workers": {
    "broker_url": "redis://localhost:6379/0",
    "dbos_system_database_url": null,
+   "outbox": false,
    "runner": "inline",
    "sleep_interval_seconds": null
   },
@@ -495,7 +496,7 @@
    "window_topic_k": 2.0
   }
  },
- "json_schema_sha256": "c75f89b9de2184d98e794bedba74c0570daa83b56b0cad9fe8713219e43518cf",
+ "json_schema_sha256": "551787dbb25e69bec52dea27bc70aefd218c26cdcf43e9dd8087d4cafc156a43",
  "preset:chat_roles": {
   "audit": {
    "actions": false,
@@ -1003,6 +1004,7 @@
   "workers": {
    "broker_url": "redis://localhost:6379/0",
    "dbos_system_database_url": null,
+   "outbox": false,
    "runner": "inline",
    "sleep_interval_seconds": null
   },
@@ -1526,6 +1528,7 @@
   "workers": {
    "broker_url": "redis://localhost:6379/0",
    "dbos_system_database_url": null,
+   "outbox": false,
    "runner": "inline",
    "sleep_interval_seconds": null
   },
@@ -2049,6 +2052,7 @@
   "workers": {
    "broker_url": "redis://localhost:6379/0",
    "dbos_system_database_url": null,
+   "outbox": false,
    "runner": "inline",
    "sleep_interval_seconds": null
   },
@@ -2572,6 +2576,7 @@
   "workers": {
    "broker_url": "redis://localhost:6379/0",
    "dbos_system_database_url": null,
+   "outbox": false,
    "runner": "inline",
    "sleep_interval_seconds": null
   },
@@ -3095,6 +3100,7 @@
   "workers": {
    "broker_url": "redis://localhost:6379/0",
    "dbos_system_database_url": null,
+   "outbox": false,
    "runner": "inline",
    "sleep_interval_seconds": null
   },
@@ -3618,6 +3624,7 @@
   "workers": {
    "broker_url": "redis://localhost:6379/0",
    "dbos_system_database_url": null,
+   "outbox": false,
    "runner": "inline",
    "sleep_interval_seconds": null
   },
@@ -4141,6 +4148,7 @@
   "workers": {
    "broker_url": "redis://localhost:6379/0",
    "dbos_system_database_url": null,
+   "outbox": false,
    "runner": "inline",
    "sleep_interval_seconds": null
   },
@@ -4664,6 +4672,7 @@
   "workers": {
    "broker_url": "redis://localhost:6379/0",
    "dbos_system_database_url": null,
+   "outbox": false,
    "runner": "inline",
    "sleep_interval_seconds": null
   },
@@ -5187,6 +5196,7 @@
   "workers": {
    "broker_url": "redis://localhost:6379/0",
    "dbos_system_database_url": null,
+   "outbox": false,
    "runner": "inline",
    "sleep_interval_seconds": null
   },
@@ -5719,6 +5729,7 @@
   "workers": {
    "broker_url": "redis://localhost:6379/0",
    "dbos_system_database_url": null,
+   "outbox": false,
    "runner": "inline",
    "sleep_interval_seconds": null
   },
@@ -6247,6 +6258,7 @@
   "workers": {
    "broker_url": "redis://localhost:6379/0",
    "dbos_system_database_url": null,
+   "outbox": false,
    "runner": "inline",
    "sleep_interval_seconds": null
   },
@@ -6756,6 +6768,7 @@
   "workers": {
    "broker_url": "redis://localhost:6379/0",
    "dbos_system_database_url": null,
+   "outbox": false,
    "runner": "inline",
    "sleep_interval_seconds": null
   },
@@ -7287,6 +7300,7 @@
   "workers": {
    "broker_url": "redis://localhost:6379/0",
    "dbos_system_database_url": null,
+   "outbox": false,
    "runner": "inline",
    "sleep_interval_seconds": null
   },
@@ -7814,6 +7828,7 @@
   "workers": {
    "broker_url": "redis://localhost:6379/0",
    "dbos_system_database_url": null,
+   "outbox": false,
    "runner": "dbos",
    "sleep_interval_seconds": null
   },
@@ -8345,6 +8360,7 @@
   "workers": {
    "broker_url": "redis://localhost:6379/0",
    "dbos_system_database_url": null,
+   "outbox": false,
    "runner": "inline",
    "sleep_interval_seconds": null
   },
@@ -8868,6 +8884,7 @@
   "workers": {
    "broker_url": "redis://localhost:6379/0",
    "dbos_system_database_url": null,
+   "outbox": false,
    "runner": "inline",
    "sleep_interval_seconds": null
   },
@@ -9392,6 +9409,7 @@
   "workers": {
    "broker_url": "redis://localhost:6379/0",
    "dbos_system_database_url": null,
+   "outbox": false,
    "runner": "dbos",
    "sleep_interval_seconds": null
   },
@@ -9917,6 +9935,7 @@
   "workers": {
    "broker_url": "redis://localhost:6379/0",
    "dbos_system_database_url": null,
+   "outbox": false,
    "runner": "inline",
    "sleep_interval_seconds": null
   },
