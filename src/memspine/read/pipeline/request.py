@@ -8,8 +8,13 @@ import time
 from collections.abc import (
     Sequence,
 )
+from contextvars import ContextVar
+from dataclasses import dataclass
+from datetime import datetime
 from typing import Any
 
+from memspine.compose.pack import estimate_tokens
+from memspine.config import constants
 from memspine.models.encoders.query.shape import (
     is_aggregation,
     is_count,
@@ -33,11 +38,18 @@ from memspine.read.contract import (
     merge_contract,
     parse_contract,
 )
+from memspine.read.contract_rules import TypedContract, render_header
+from memspine.read.contract_rules import build_contract as build_typed_contract
 from memspine.read.pipeline.state import (
     _FORENSICS,
     ReadResult,
 )
+from memspine.read.router_rules import LayerState, QueryDesc, RoutePlan, ServiceState
+from memspine.read.router_rules import route as route_rules
+from memspine.read.tiers import ReadConfig as TiersReadConfig
+from memspine.read.tiers import Tier, choose_tier, normalise_request
 from memspine.schemas.durable.common import OwnerScope
+from memspine.schemas.public.read import ReadRequest
 from memspine.store.events import EventKind
 from memspine.store.records import (
     MemoryRecord,
@@ -338,3 +350,250 @@ def _cache_put(eng: Any, key: Any, result: ReadResult) -> None:
     cache = _read_cache(eng)
     if cache is not None and key is not None:
         cache.put(key, _copy_result(result))
+
+# ---------------------------------------------------------------------------------------------
+# R3-01 / R3-02 / R3-03 wiring (flag-off by default): request normalisation and tier choice
+# (LIB-47), the typed contract and its header (LIB-16), the rule router (LIB-23).
+# ---------------------------------------------------------------------------------------------
+
+
+@dataclass(frozen=True, slots=True)
+class ReadPlanState:
+    """What the v2 request stage decided for one read."""
+
+    request: ReadRequest | None = None
+    tier: Tier | None = None
+    contract: TypedContract | None = None
+    route: RoutePlan | None = None
+    #: optional legs the router left out: ``_search`` does not run them (``read.router_rules``).
+    legs_off: frozenset[str] = frozenset()
+
+
+#: The wiring state of the read in progress (None: no v2 flag is on, or outside ``Engine.read``).
+_READ_PLAN: ContextVar[ReadPlanState | None] = ContextVar("memspine_read_plan", default=None)
+
+
+def current_plan() -> ReadPlanState | None:
+    """The v2 plan of the read running in this task, for later stages (tier, route, contract)."""
+    return _READ_PLAN.get()
+
+
+def v2_flags_on(read: Any) -> bool:
+    return bool(read.tiers_v2 or read.contract_rules or read.router_rules)
+
+
+def typed_contract(eng: Any, query: str) -> TypedContract:
+    """LIB-16 rules contract of ``query``, cached per question text (bounded)."""
+    cache: dict[str, TypedContract] = eng.__dict__.setdefault("_typed_contract_cache", {})
+    hit = cache.get(query)
+    if hit is None:
+        hit = build_typed_contract(query)
+        if len(cache) >= 512:
+            cache.clear()
+        cache[query] = hit
+    return hit
+
+
+_SHAPE_MAP = {"single": "lookup", "join": "join", "as_of": "as_of", "history": "temporal"}
+
+
+def query_desc_of(contract: TypedContract) -> QueryDesc:
+    """Project the typed contract onto the router's question description."""
+    view = contract.time_view
+    if contract.shape == "list_count":
+        shape = "count" if contract.answer_type == "count" else "list"
+    elif contract.shape in _SHAPE_MAP:
+        shape = _SHAPE_MAP[contract.shape]
+    elif contract.personal is False and contract.shape in ("unknown", "latest"):
+        shape = "generic"
+    else:
+        shape = "lookup"
+    time_view = view.kind if view.kind in ("history", "as_of") else "current"
+    return QueryDesc(
+        shape=shape,  # type: ignore[arg-type]
+        has_time_scope=view.kind in ("range", "history", "as_of"),
+        time_view=time_view,  # type: ignore[arg-type]
+        named_subjects=tuple(contract.targets),
+        many_cardinality=contract.cardinality == "many",
+        personal=bool(contract.personal),
+        language=contract.language if contract.language != "unknown" else None,
+    )
+
+
+def _layer_of(record: MemoryRecord) -> str | None:
+    """Best-effort layer of a stored record (the store has no layer field yet)."""
+    if constants.LEAD_TAG in record.tags or record.source.channel in ("lead", "persona"):
+        return None
+    mtype = record.memory_type
+    if mtype == "episodic":
+        return "L0"
+    if mtype in ("profile", "preference") or constants.PROFILE_TAG in record.tags:
+        return "L5"
+    return "L1"
+
+
+def _services(eng: Any, read: Any) -> ServiceState:
+    return ServiceState(
+        embedder=eng._embedder is not None,
+        lexical_index=bool(eng._lexical is not None and read.hybrid),
+        reranker=read.rerank != "off" and not getattr(eng, "_rerank_unavailable", False),
+        graph_store=eng._graph is not None,
+        worker_model=bool(eng._llm is not None and "plan" in getattr(eng._llm, "roles", ())),
+    )
+
+
+async def layer_state(eng: Any, ns: str, read: Any) -> LayerState:
+    """Adapter: what the store actually has populated, as a :class:`LayerState`.
+
+    L0 = episodic raw turns, L1 = other stored records (facts), L2 = distinct sessions
+    (``group_id``) of the raw turns, L3 = graph store (count = records, an upper bound),
+    L5 = profile / preference records. Services come from the live engine."""
+    counts: dict[str, int] = {}
+    sessions: set[str] = set()
+    for rec in await eng._records(ns):
+        layer = _layer_of(rec)
+        if layer is None:
+            continue
+        counts[layer] = counts.get(layer, 0) + 1
+        if layer == "L0" and rec.group_id:
+            sessions.add(rec.group_id)
+    enabled: set[str] = {"L0", "L1"}
+    if sessions:
+        counts["L2"] = len(sessions)
+        enabled.add("L2")
+    if eng._graph is not None:
+        counts["L3"] = counts.get("L0", 0) + counts.get("L1", 0)
+        enabled.add("L3")
+    if counts.get("L5"):
+        enabled.add("L5")
+    return LayerState(
+        enabled=frozenset(enabled),  # type: ignore[arg-type]
+        counts=counts,  # type: ignore[arg-type]
+        services=_services(eng, read),
+    )
+
+
+async def plan_read(
+    eng: Any,
+    query: str,
+    ns: str,
+    *,
+    viewer: str | None,
+    budget_tokens: int,
+    as_of: Any = None,
+) -> tuple[str, ReadPlanState]:
+    """Entry of a read under any of ``read.tiers_v2`` / ``contract_rules`` / ``router_rules``.
+
+    Returns the (possibly normalised) query and the plan, which :func:`current_plan` serves
+    to the later stages. The caller does not call this with all three flags off."""
+    read = eng._config().read
+    request: ReadRequest | None = None
+    tier: Tier | None = None
+    cfg = TiersReadConfig(default_depth=read.tiers_v2_depth)
+    if read.tiers_v2:
+        fields: dict[str, Any] = {
+            "query": query,
+            "scope": OwnerScope(tenant=ns, owner=viewer or ns),
+            "viewer": viewer,
+            "budget_tokens": budget_tokens if budget_tokens > 0 else None,
+        }
+        if isinstance(as_of, datetime) and as_of.tzinfo is not None:
+            fields["as_of_valid"] = as_of
+        request = normalise_request(fields, viewer, cfg)
+        tap.event(
+            "read.request.normalised",
+            namespace=ns,
+            viewer=viewer,
+            depth=request.depth,
+            budget_tokens=request.budget_tokens,
+            query_changed=request.query != query,
+        )
+        query = request.query
+    contract = typed_contract(eng, query)
+    tap.event(
+        "read.contract.built",
+        shape=contract.shape,
+        answer_type=contract.answer_type,
+        time_view=contract.time_view.kind,
+        personal=contract.personal,
+        cardinality=contract.cardinality,
+        n_targets=len(contract.targets),
+        language=contract.language,
+        unknown=list(contract.unknown),
+    )
+    layers: LayerState | None = None
+    if read.router_rules:
+        layers = await layer_state(eng, ns, read)
+    if request is not None:
+        chosen = choose_tier(
+            request, contract, layers or LayerState(services=_services(eng, read)), cfg
+        )
+        tier = chosen
+        tap.event(
+            "read.tier.chosen",
+            tier=chosen.name,
+            degraded_from=chosen.degraded_from,
+            max_generative_calls=chosen.max_generative_calls,
+            max_rerank_pool=chosen.max_rerank_pool,
+            slo_p95_ms=chosen.slo_p95_ms,
+        )
+    route: RoutePlan | None = None
+    legs_off: frozenset[str] = frozenset()
+    if layers is not None:
+        route = route_rules(
+            query_desc_of(contract), layers, tier.name if tier is not None else "standard"
+        )
+        planned = set(route.leg_names())
+        legs_off = frozenset(n for n in ("entity", "graph", "episode") if n not in planned)
+        tap.event(
+            "read.router.plan",
+            tier=route.tier,
+            legs_run=list(route.leg_names()),
+            legs_skipped=[{"leg": s.name, "reason": s.reason} for s in route.skipped],
+            legs_suppressed=sorted(legs_off),
+            rerank=route.rerank.enabled,
+            list_mode=route.list_mode,
+            missing_services=list(route.missing_services),
+        )
+    state = ReadPlanState(request, tier, contract, route, legs_off)
+    if (fx := _FORENSICS.get()) is not None:
+        fx["read_plan"] = {
+            "tier": tier.name if tier else None,
+            "legs": list(route.leg_names()) if route else None,
+            "legs_off": sorted(legs_off),
+        }
+    return query, state
+
+
+def legs_off() -> frozenset[str]:
+    """Optional legs (``entity``, ``graph``, ``episode``) the router suppressed for this read."""
+    plan = _READ_PLAN.get()
+    return plan.legs_off if plan is not None else frozenset()
+
+
+def add_typed_header(eng: Any, query: str, ns: str, context: Any) -> Any:
+    """``read.contract_rules``: one ``[contract] ...`` lead line from the LIB-16 contract,
+    inserted before the evidence like the A03 header (which stays available on its own flag).
+    A failure keeps the context as it was."""
+    try:
+        plan = _READ_PLAN.get()
+        contract = plan.contract if plan and plan.contract else typed_contract(eng, query)
+        line = render_header(contract)
+        if not line:
+            return context
+        records = list(context.records)
+        evid = [
+            r
+            for r in records
+            if constants.LEAD_TAG not in r.tags and r.source.channel not in ("lead", "persona")
+        ]
+        if not evid:
+            return context
+        records.insert(0, eng._lead_record(ns, line, evid))
+        context.records = records
+        context.boundary_index += 1
+        context.tokens_used += estimate_tokens(line)
+        tap.event("read.contract.header", chars=len(line), header=tap.content(line))
+    except Exception as exc:  # an enhancer, never a gate
+        _log.warning("read.contract_rules_header_failed", error=str(exc))
+    return context

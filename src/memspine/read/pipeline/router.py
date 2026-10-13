@@ -443,7 +443,10 @@ async def _search(
     persp_qp: QuestionPerspective | None = None
     if read_persp.perspective_mode != "off" or read_persp.speaker_vote_mode == "perspective":
         persp_qp = await eng._question_perspective(ns, query)
-    graph_leg: list[LegHit] | None = None if eng._config().read.graph_leg else []
+    off_legs = read_request.legs_off()  # R3-03 (read.router_rules): empty when the flag is off
+    graph_leg: list[LegHit] | None = (
+        None if eng._config().read.graph_leg and "graph" not in off_legs else []
+    )
     # GP-9 (read.graph_communities): community summaries this query may read.
     community_gate: list[str] | None = None
     protected: dict[str, str] = {}  # I75a: record id -> leg whose top-N it belongs to
@@ -482,13 +485,13 @@ async def _search(
         if graph_leg:
             extra_legs = [*extra_legs, graph_leg]
         read_now = eng._config().read
-        if read_now.cohesion_leg or read_now.entity_expand_leg:
+        if (read_now.cohesion_leg or read_now.entity_expand_leg) and "entity" not in off_legs:
             extra_legs += await eng._anchor_legs(ns, vector_hits, lexical_hits, fetch_k)
-        if read_now.graph_node_search:
+        if read_now.graph_node_search and "graph" not in off_legs:
             extra_legs += await eng._graph_node_legs(ns, query, query_vector, fetch_k)
         if read_now.maxsim_leg:
             extra_legs += await eng._maxsim_leg(ns, query_vector, vector_hits, lexical_hits)
-        if read_now.session_leg:
+        if read_now.session_leg and "episode" not in off_legs:
             extra_legs += await eng._session_leg(ns, query_vector, fetch_k)
         if (
             persp_qp is not None
@@ -963,6 +966,79 @@ async def read(
     session_id = ledger_id if ledger_id is not None else session_id  # I9
     if focal_entity:  # G-11: an extra graph seed for this read
         _FOCAL_ENTITY.set(focal_entity)
+    plan_token = None
+    if read_request.v2_flags_on(eng._config().read):  # R3-01/02/03, flag-off: skipped
+        query, plan_state = await read_request.plan_read(
+            eng,
+            query,
+            validate_namespace(namespace),
+            viewer=viewer,
+            budget_tokens=budget_tokens,
+            as_of=as_of,
+        )
+        plan_token = read_request._READ_PLAN.set(plan_state)
+    try:
+        return await _read_planned(
+            eng,
+            query,
+            namespace,
+            mode,
+            budget_tokens,
+            top_k,
+            replay_window,
+            compose_pool,
+            session_id,
+            sessions,
+            roles,
+            memory_types,
+            tags_any,
+            purpose,
+            valid_from_after,
+            valid_from_before,
+            valid_to_after,
+            valid_to_before,
+            recorded_after,
+            recorded_before,
+            date_filter_mode,
+            as_of,
+            viewer,
+            include_passive=include_passive,
+            focal_entity=focal_entity,
+        )
+    finally:
+        if plan_token is not None:
+            read_request._READ_PLAN.reset(plan_token)
+
+
+async def _read_planned(
+    eng: Any,
+    query: str,
+    namespace: str,
+    mode: str | None,
+    budget_tokens: int,
+    top_k: int,
+    replay_window: int,
+    compose_pool: int,
+    session_id: str | None,
+    sessions: Sequence[str] | None,
+    roles: Sequence[str] | None,
+    memory_types: Sequence[str] | None,
+    tags_any: Sequence[str] | None,
+    purpose: str | None,
+    valid_from_after: DateBound | None,
+    valid_from_before: DateBound | None,
+    valid_to_after: DateBound | None,
+    valid_to_before: DateBound | None,
+    recorded_after: DateBound | None,
+    recorded_before: DateBound | None,
+    date_filter_mode: str,
+    as_of: DateBound | None,
+    viewer: str | None,
+    *,
+    include_passive: bool = False,
+    focal_entity: str | None = None,
+) -> ReadResult:
+    """:meth:`read` after the v2 request stage (R3-01/02/03); the body of the read."""
     if as_of is not None:
         moment = to_utc(as_of) + timedelta(microseconds=1)
         valid_from_before = valid_from_before if valid_from_before is not None else moment
@@ -1017,6 +1093,13 @@ async def read(
                 compose_pool,
                 session_id,
             )
+            if eng._config().read.contract_rules:  # R3-02: the typed [contract] header
+                result = ReadResult(
+                    result.mode,
+                    read_request.add_typed_header(
+                        eng, query, validate_namespace(namespace), result.context
+                    ),
+                )
             result = ReadResult(result.mode, eng._consent_context(result.context))
             read_request._cache_put(eng, cache_key, result)
         if outer:

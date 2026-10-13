@@ -1077,6 +1077,29 @@ class ReadConfig(BaseModel):
     #: with ``asyncio.gather``. Result order is the sequential order. Off: sequential.
     parallel_legs: bool = False
 
+    #: R3-01 (LIB-47, R-01/R-02, ER-29): the v2 read entry. On: the question is NFKC-normalised
+    #: (whitespace collapsed), the viewer is bound to the principal (``viewer``), and a depth tier
+    #: (fast / standard / deep, with its generative-call and rerank-pool caps) is chosen from
+    #: ``tiers_v2_depth`` and the typed contract; the tier is recorded (wiretap, forensics) and
+    #: served to later stages. Off (default): the read entry is unchanged.
+    tiers_v2: bool = False
+    #: R3-01: the default depth under ``tiers_v2``; ``auto`` picks deep only for join / list /
+    #: history shapes when a worker model is bound, else the first allowed tier (fast).
+    tiers_v2_depth: Literal["auto", "fast", "standard", "deep"] = "fast"
+    #: R3-02 (LIB-16, R-03): build the typed query contract by rules (answer type, shape, time view,
+    #: scope, targets, attributes; unknown fields stay unknown) and render its ``[contract] ...``
+    #: header as the first lead line of the context. Independent of ``query_contract`` (the A03
+    #: arm, screened +15/-7 HOLD), which stays available; with both on both headers appear.
+    #: Off (default): unchanged.
+    contract_rules: bool = False
+    #: R3-03 (LIB-23, R-04/R-05): the rule router. On: the legs come from a ``RoutePlan`` over the
+    #: layers the store actually has populated (L0 turns, L1 facts, L2 sessions, L3 graph, L5
+    #: profile); the optional entity / graph / episode legs that the plan leaves out or skips
+    #: (layer empty or disabled, service missing, not asked for by a rule) do not run, even when
+    #: their own flag is on, and every skip is recorded. Core legs (vector, lexical, temporal)
+    #: are unchanged. LLM rewrites stay deep-tier only. Off (default): unchanged.
+    router_rules: bool = False
+
     @model_validator(mode="after")
     def _header_shares_leave_room(self) -> ReadConfig:
         """A-9: the active read headers' shares must leave budget for the read itself."""
