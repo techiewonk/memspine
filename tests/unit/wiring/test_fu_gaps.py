@@ -412,3 +412,86 @@ async def test_live_walks_match_the_stepwise_walk() -> None:
     finally:
         await ex.run("clear", {})
         await ex.close()
+
+
+# --- 7. lease expiry by the database clock on Postgres ----------------------------------------
+class _Row:
+    def __init__(self, row: Any) -> None:
+        self._row = row
+
+    def fetchone(self) -> Any:
+        return self._row
+
+
+class _PgStub:
+    """Stands in for a psycopg connection: answers the database clock and nothing else."""
+
+    def __init__(self, now: float) -> None:
+        self.now = now
+        self.sql: list[str] = []
+
+    def execute(self, sql: str, params: Any = ()) -> Any:
+        self.sql.append(sql)
+        assert "clock_timestamp" in sql
+        return _Row((self.now,))
+
+
+def test_postgres_store_judges_lease_time_by_the_database_clock() -> None:
+    from memspine.derive.job import LeaseStore
+
+    store = LeaseStore.__new__(LeaseStore)  # no connection: only the clock choice is under test
+    store.clock = lambda: 1_000.0  # this host's (skewed) clock
+    store._pg = True
+    store._db_time = True
+    con = _PgStub(5_000.0)  # the database says it is much later
+    assert store._lease_now(con) == 5_000.0 and con.sql
+
+
+def test_sqlite_and_injected_clocks_are_unchanged() -> None:
+    from memspine.derive.job import LeaseStore
+
+    sq = LeaseStore(":memory:", clock=lambda: 42.0)
+    assert sq._db_time is False and sq._lease_now(None) == 42.0
+    assert sq.lease_state("nobody") == (None, None)  # SQLite: the caller's clock applies
+    pg = LeaseStore.__new__(LeaseStore)
+    pg.clock, pg._pg = (lambda: 7.0), True
+    pg._db_time = False  # a PG store with an injected clock (the existing tests) keeps it
+    assert pg._lease_now(None) == 7.0
+
+
+def test_default_postgres_store_uses_the_database_clock(monkeypatch: pytest.MonkeyPatch) -> None:
+    import memspine.derive.job as job
+
+    monkeypatch.setattr(job.LeaseStore, "_conn", lambda self: _NoConn())
+    default = job.LeaseStore("postgresql://u@h/db")
+    injected = job.LeaseStore("postgresql://u@h/db", clock=lambda: 1.0)
+    assert default._db_time is True and injected._db_time is False
+
+
+class _NoConn:
+    def __enter__(self) -> Any:
+        return self
+
+    def __exit__(self, *_: Any) -> None:
+        return None
+
+    def executescript(self, _: str) -> None:
+        return None
+
+
+@pytest.mark.skipif(
+    not os.environ.get("MEMSPINE_TEST_PG_URL"), reason="Postgres leases: set MEMSPINE_TEST_PG_URL"
+)
+def test_live_pg_lease_expiry_ignores_a_skewed_process_clock() -> None:
+    from memspine.derive.job import LeaseStore
+
+    url = os.environ["MEMSPINE_TEST_PG_URL"]
+    ns = f"fu-skew-{os.getpid()}"
+    fast = LeaseStore(url)  # default: the database clock
+    slow = LeaseStore(url)
+    fast.clock = lambda: 10**10  # a host whose clock is far ahead must not matter
+    slow.clock = lambda: 0.0
+    lease = fast.claim(ns, "p1", "job-1", 60.0)
+    assert lease is not None
+    assert slow.claim(ns, "p2", "job-2", 60.0) is None  # still live by the database's time
+    assert fast.release(lease)
