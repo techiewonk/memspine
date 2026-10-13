@@ -9,9 +9,9 @@ Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summarie
 |---|---|
 | Not started | 24 |
 | Ready | 0 |
-| In progress | 5 |
+| In progress | 4 |
 | Blocked | 0 |
-| Needs measurement | 50 |
+| Needs measurement | 51 |
 | Done | 82 |
 | Dropped | 1 |
 
@@ -118,7 +118,7 @@ Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summarie
 | F-16b | Event upcasters and migration by replay of the retained log (limited rebuild advertised) | L0 L1 L3 L4 L5 ctx scope | D K_C | M-01, M-26, G-23 | ER-27, ER-33 | F-16a | migration | S2 foundations (serial: Alembic) | `src/memspine/store/lineage.py` +6 | v1 log replays byte-stably | **Done** | Upcasters + memspine migrate replay (offline, byte-stable); limited rebuild advertised |
 | F-16c | Stable memory scope in every key (session as provenance); viewer required on every multi-party read, bound to the authenticated principal | L0 L1 L3 L4 L5 ctx scope | D R | M-05, G-12 | ER-13, ER-29 | F-16a | behaviour | S2 foundations (serial: Alembic) | `src/memspine/store/lineage.py` +6 | Isolation probes | **Needs measurement** | isolation.scope_keys_v2 / viewer_required flag-off; isolation probes pass; I19 leakage screen pending |
 | F-16d | Storage-profile contract; Postgres server profile and its Alembic tree | L0 L1 L3 L4 L5 ctx scope | R | M-04 | - | F-16b | behaviour | S2 foundations (serial: Alembic) | `src/memspine/store/lineage.py` +6 | Both profiles pass the store contract tests | **Needs measurement** | storage.profile embedded|server; PG alembic tree (parity on SQLite); PG contract skipped here (no server) - needs MEMSPINE_TEST_PG_URL run |
-| F-16e | Neo4j graph adapter fed through the outbox | L3 | R | M-18 | - | F-16d, F-04 | behaviour | S2 foundations (serial: Alembic) | `src/memspine/store/lineage.py` +6 | Graph contract on Neo4j | **In progress** | Sonnet agent: Neo4j adapter via outbox (fake driver contract; live if MEMSPINE_TEST_NEO4J_URL) |
+| F-16e | Neo4j graph adapter fed through the outbox | L3 | R | M-18 | - | F-16d, F-04 | behaviour | S2 foundations (serial: Alembic) | `src/memspine/store/lineage.py` +6 | Graph contract on Neo4j | **Needs measurement** | graph.neo4j_outbox mirror flag-off; fake-driver contract passes; live Neo4j untested (no driver/server here) |
 | F-16f | Isolation, erasure and rebuild matrix on both profiles | L0 L1 L3 L4 L5 ctx scope | K_C | M-25 | ER-05, ER-30 | F-16e, F-16c | behaviour | S2 foundations (serial: Alembic) | `src/memspine/store/lineage.py` +6 | Matrix green on embedded and server | **Not started** |  |
 | EX-1a | Embedded milestone: one synthetic end-to-end workload survives restart and erasure | L0 L1 L4 L5 ctx scope | D K_C K_P R C G | G-01 | ER-05 | F-16c, F-16b, F-02c, F-03 | measure | S2 foundations (serial: Alembic) | - | Restart, erasure and replay on the embedded profile; not a server release | **Done** | 5/5 steps pass with 11 foundation flags on; findings F1 (participants off leaks derived facts in multi-party), F2 hidden dependants keep text until re-derive, F3 parent id kept, F4 verify_forget not v2-aware |
 | EX-1 | Phase 1 exit (server milestone): raw-only read non-inferior; golden; replay NO CHANGE | L0 L1 L4 L5 ctx scope | D K_C K_P R C G | G-01 | ER-05 | F-16f, EX-1a, P0-03 | measure | S2 foundations (serial: Alembic) | - | ROADMAP Phase 1 exit gate | **Not started** |  |
