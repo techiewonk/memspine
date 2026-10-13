@@ -171,7 +171,7 @@ async def test_lineage_edges_through_the_door() -> None:
             eng._require_started()._client.engine, [rec.record_id]
         )
         assert {e.parent for e in edges[rec.record_id]} == set(rec.source.parents)
-        assert any(t.startswith("layer:") for t in rec.tags)
+        assert rec.layer == "L3"
     finally:
         await eng.stop()
 
