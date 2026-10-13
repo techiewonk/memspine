@@ -24,6 +24,7 @@ from memspine.workers.runner import TaskRunner
 _log = get_logger(__name__)
 
 __all__ = [
+    "PATTERN_OBSERVATIONS_STAGE",
     "HISTORIES_STAGE",
     "PREDICT_CALIBRATE_STAGE",
     "PROJECT_FACTS_STAGE",
@@ -31,6 +32,7 @@ __all__ = [
     "RETENTION_STAGE",
     "RULE_EDGES_STAGE",
     "SLEEP_CYCLE_ORDER",
+    "STANDING_ANSWERS_STAGE",
     "run_sleep_cycle",
 ]
 
@@ -79,6 +81,12 @@ RULE_EDGES_STAGE = "rule_edges"
 PROJECT_FACTS_STAGE = "project_facts"
 
 
+#: O4-05 (``offline.patterns_v2``) and O4-08 (``offline.standing_v2``): run right after
+#: ``reflect_profile``, in that order, and only when their flag is on (default cycle unchanged).
+PATTERN_OBSERVATIONS_STAGE = "pattern_observations"
+STANDING_ANSWERS_STAGE = "standing_answers"
+
+
 #: O4-03: runs after ``extract_graph``/``rule_edges`` (the fresh facts are folded before summaries
 #: read them), only when ``offline.reconcile_v2`` is on, so the default cycle is unchanged.
 RECONCILE_STAGE = "reconcile"
@@ -106,6 +114,13 @@ async def run_sleep_cycle(runner: TaskRunner, ctx: PipelineContext) -> dict[str,
     if rule_edges_options(ctx.config) is not None:
         at = order.index("extract_graph") + 1
         order = (*order[:at], RULE_EDGES_STAGE, *order[at:])
+    if ctx.config.offline.patterns_v2:
+        at = order.index("reflect_profile") + 1
+        order = (*order[:at], PATTERN_OBSERVATIONS_STAGE, *order[at:])
+    if ctx.config.offline.standing_v2:
+        after = PATTERN_OBSERVATIONS_STAGE if ctx.config.offline.patterns_v2 else "reflect_profile"
+        at = order.index(after) + 1
+        order = (*order[:at], STANDING_ANSWERS_STAGE, *order[at:])
     if ctx.config.offline.reconcile_v2 or ctx.config.offline.histories_v2:
         at = order.index(RULE_EDGES_STAGE if RULE_EDGES_STAGE in order else "extract_graph") + 1
         extra = tuple(

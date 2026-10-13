@@ -18,6 +18,7 @@ from memspine.derive.pipeline.stages.entity_summaries import (
     entity_summary_name,
     entity_summary_node,
 )
+from memspine.derive.pipeline.stages.standing import standing_block
 from memspine.exceptions import StorageError
 from memspine.models.encoders.query.perspective import Subject, record_view
 from memspine.models.encoders.query.shape import (
@@ -338,6 +339,10 @@ async def _lead_section(
         block = await eng._standing_block(ns)
         if block is not None:
             candidates.append((standing, block[0]))
+    if read_cfg.standing_v2:  # O4-08: precomputed standing answers
+        answers_block = await standing_block(eng, ns, scored)
+        if answers_block is not None:
+            candidates.append((standing, answers_block))
     if read_cfg.topic_timelines:
         candidates.extend((timelines, b) for b in await eng._timeline_blocks(ns, scored))
     for target, record in candidates:

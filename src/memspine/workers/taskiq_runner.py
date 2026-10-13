@@ -79,18 +79,20 @@ PIPELINE_PRIORITIES: dict[str, int] = {
     "project_facts": 4,  # E01: right after mine_facts (opt-in stage)
     "anticipate": 5,  # H8: cues right after their session is consolidated
     "reflect_profile": 6,  # H14: profile insights right after their session
-    "extract_graph": 7,  # C2: LLM edges before communities form over them
-    "rule_edges": 8,  # W12: rule edges right after the LLM ones (opt-in stage)
-    "reconcile": 9,  # O4-03: contradiction sweep after the edges (opt-in)
-    "histories": 10,  # O4-04: near-duplicates and value histories (opt-in)
-    "summarize_entities": 11,  # GP-6: entity summaries over the fresh facts
-    "reorganize": 12,
-    "session_lifecycle": 13,  # #53: idle sessions -> PASSIVE, before the decay sweep
-    "decay_sweep": 14,
-    "compress": 15,
-    "sleep_compute": 16,
-    "retention_expire": 17,  # #48: expiry is housekeeping, never urgent
-    "event_log_prune": 18,
+    "pattern_observations": 7,  # O4-05: opt-in L4 observations over the fresh facts
+    "standing_answers": 8,  # O4-08: opt-in L5 standing answers after the observations
+    "extract_graph": 9,  # C2: LLM edges before communities form over them
+    "rule_edges": 10,  # W12: rule edges right after the LLM ones (opt-in stage)
+    "reconcile": 11,  # O4-03: contradiction sweep after the edges (opt-in)
+    "histories": 12,  # O4-04: near-duplicates and value histories (opt-in)
+    "summarize_entities": 13,  # GP-6: entity summaries over the fresh facts
+    "reorganize": 14,
+    "session_lifecycle": 15,  # #53: idle sessions -> PASSIVE, before the decay sweep
+    "decay_sweep": 16,
+    "compress": 17,
+    "sleep_compute": 18,
+    "retention_expire": 19,  # #48: expiry is housekeeping, never urgent
+    "event_log_prune": 20,
 }
 
 #: Labels outside the known pipeline set (deployment-registered pipelines,
