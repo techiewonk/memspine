@@ -15,16 +15,13 @@ from memspine import Engine
 from memspine.compose.compression import CompressionPolicy
 from memspine.config import constants
 from memspine.core.policies.conflict import ConflictPolicy, ConflictVerdict
+from memspine.derive.pipeline.stages.anticipate import anticipate
+from memspine.derive.pipeline.stages.consolidate import consolidate
+from memspine.derive.pipeline.stages.mining import _fact_date, mine_facts
+from memspine.derive.pipeline.stages.reflect import reflect_profile
 from memspine.prompts.models import AnticipatedCue, ExtractedFact
 from memspine.store.events import EventKind, MemoryEvent
 from memspine.store.records import MemoryRecord, RecordStatus, SourceInfo
-from memspine.derive.pipeline.stages.context import (
-    _fact_date,
-    anticipate,
-    consolidate,
-    mine_facts,
-    reflect_profile,
-)
 
 T0 = datetime(2023, 5, 8, 13, 0, tzinfo=UTC)
 TURNS = [

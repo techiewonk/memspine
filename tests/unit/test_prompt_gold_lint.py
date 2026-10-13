@@ -266,8 +266,11 @@ def test_inline_allowlist_has_no_stale_entries() -> None:
 
 
 def test_inline_scan_covers_the_pipelines_module() -> None:
-    text = (SRC / "workers" / "pipelines.py").read_text(encoding="utf-8")
-    assert lint.inline_strings(text), "expected inline prompt text in pipelines.py"
+    stages = sorted((SRC / "derive" / "pipeline" / "stages").glob("*.py"))
+    texts = [path.read_text(encoding="utf-8") for path in stages]
+    assert any(lint.inline_strings(text) for text in texts), (
+        "expected inline prompt text in the derive stages"
+    )
 
 
 def test_seeded_leak_in_a_partial_is_caught(tmp_path: Path) -> None:

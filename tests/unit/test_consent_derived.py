@@ -14,6 +14,7 @@ import pytest
 
 from memspine import Engine
 from memspine.config import constants
+from memspine.derive.pipeline.stages.entity_summaries import entity_summary_name, summarize_entities
 from memspine.prompts.models import ExtractedFact
 from memspine.store.records import MemoryRecord, PiiTier, RecordStatus, SourceInfo
 from memspine.trust.privacy import (
@@ -24,7 +25,6 @@ from memspine.trust.privacy import (
     purpose_allows,
     read_scope,
 )
-from memspine.derive.pipeline.stages.context import entity_summary_name, summarize_entities
 
 T0 = datetime(2023, 5, 8, 13, 0, tzinfo=UTC)
 

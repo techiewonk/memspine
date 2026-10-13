@@ -41,6 +41,8 @@ from memspine.core.window import (
     WindowTurn,
     estimate_tokens,
 )
+from memspine.derive.pipeline.stages.context import SessionClosed, WindowEdgeBatch
+from memspine.derive.pipeline.stages.mining import _fact_date
 from memspine.models.providers.llm.base import LLMService
 from memspine.models.providers.llm.structured import structured_call
 from memspine.observability.logging import get_logger
@@ -54,11 +56,6 @@ from memspine.prompts.models import (
 )
 from memspine.store.events import fingerprint_payload
 from memspine.store.records import MemoryRecord, RecordStatus
-from memspine.derive.pipeline.stages.context import (
-    SessionClosed,
-    WindowEdgeBatch,
-    _fact_date,
-)
 
 __all__ = [
     "SECTION_MODES",

@@ -1,6 +1,6 @@
 """Consolidation policy (M2): triggers + session-summary decisions.
 
-Pure decision logic for the consolidate pipeline (workers/pipelines.py):
+Pure decision logic for the consolidate pipeline (derive/pipeline/stages):
 which trigger fires, which detected sessions deserve a summary, and how the
 deterministic extractive fallback summarizes when no LLM role is bound —
 deterministic-first (N6): same episodic log ⇒ same summaries, with the LLM

@@ -47,9 +47,12 @@ from memspine.config import constants
 from memspine.config.loader import ResolvedConfig, default_template, load_config
 from memspine.config.schema import MemspineConfig
 from memspine.core.registry import SERVICE_EXTRAS, dependency_closure, missing_services
+from memspine.derive.pipeline.stages.context import PipelineContext
+from memspine.derive.pipeline.stages.table import PIPELINES
 from memspine.exceptions import ConfigError, MissingServiceError
 from memspine.memories.semantic.entities import EntityExtractor, LLMEntityExtractor
 from memspine.memories.semantic.write_pipeline import (
+    ExtractEdges,
     GraphWritePipeline,
     WritePipeline,
     cardinality_map,
@@ -76,7 +79,6 @@ from memspine.services.storage.sqlite.engine import SQLiteStorage
 from memspine.services.vector.base import VectorStore
 from memspine.store.registry import GRAPH_STORES, LEXICAL_INDEXES, VECTOR_STORES
 from memspine.workers.inline import InlineRunner
-from memspine.derive.pipeline.stages.context import PIPELINES, ExtractEdges, PipelineContext
 from memspine.workers.runner import TaskRunner
 
 __all__ = [

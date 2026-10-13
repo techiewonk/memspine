@@ -12,10 +12,11 @@ import pytest
 
 from memspine.clients.sqlite import SQLiteClient
 from memspine.config.loader import load_config
+from memspine.derive.pipeline.stages.context import PipelineContext
+from memspine.derive.pipeline.stages.table import PIPELINES
 from memspine.exceptions import MemspineError, MissingServiceError
 from memspine.services.storage.sqlite.engine import SQLiteStorage
 from memspine.store.events import EventLogMode
-from memspine.derive.pipeline.stages.context import PIPELINES, PipelineContext
 from memspine.workers.schedule import SLEEP_CYCLE_ORDER, run_sleep_cycle
 from memspine.workers.taskiq_runner import (
     CONSUMER_GROUP,
@@ -68,7 +69,7 @@ def test_stream_key_is_per_scope() -> None:
 
 
 def test_priority_labels_mirror_the_pipeline_set() -> None:
-    """D-42 §3: the label set must never drift from workers.pipelines.PIPELINES."""
+    """D-42 §3: the label set must never drift from stages.table.PIPELINES."""
     assert set(PIPELINE_PRIORITIES) == set(PIPELINES)
     # Watches beat housekeeping; pruning goes last; priorities are distinct.
     assert PIPELINE_PRIORITIES["check_watches"] < PIPELINE_PRIORITIES["consolidate"]

@@ -6,7 +6,7 @@ lifecycle. Reinforcement is already event-sourced — RETRIEVE events advance
 ``scoring.last_accessed_at`` through the projector — so an accessed record
 naturally climbs back toward HOT without any special-case code here.
 
-The decay *sweep* (workers/pipelines.py) turns tier changes into
+The decay *sweep* (derive/pipeline/stages) turns tier changes into
 DECAY_TRANSITION events through the write door; this module never does I/O.
 """
 

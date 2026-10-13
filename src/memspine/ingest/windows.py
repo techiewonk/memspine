@@ -12,6 +12,8 @@ from typing import Any
 from memspine.config import constants
 from memspine.config.schema import MemspineConfig
 from memspine.core.window import WindowSettings
+from memspine.derive.pipeline.stages.close import session_close
+from memspine.derive.pipeline.stages.context import SessionClosed
 from memspine.exceptions import (
     ConfigError,
 )
@@ -28,10 +30,6 @@ from memspine.store.records import (
     SourceInfo,
 )
 from memspine.store.scope import validate_namespace
-from memspine.derive.pipeline.stages.context import (
-    SessionClosed,
-    session_close,
-)
 from memspine.workers.windows import SECTION_MODES, PromptWindowExtractor, WindowPipeline
 
 _log = get_logger(__name__)

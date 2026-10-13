@@ -13,10 +13,8 @@ Startup follows plan §4 (Phase-0 scope — runners join in Phase 1):
 from __future__ import annotations
 
 import asyncio
-import re
 import secrets
 import threading
-import unicodedata
 from collections.abc import (
     AsyncIterator,
     Awaitable,
@@ -27,7 +25,6 @@ from collections.abc import (
     Sequence,
 )
 from contextlib import asynccontextmanager, contextmanager
-from contextvars import ContextVar
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -62,11 +59,9 @@ from memspine.config.loader import ResolvedConfig
 from memspine.config.schema import FirewallConfig, MemspineConfig
 from memspine.core.correction import Correction
 from memspine.core.escaping import escape_markers
-from memspine.core.event_date import SAID_PREFIX, happened_tag
 from memspine.core.fact_chain import (
     fact_projection_on,
 )
-from memspine.core.fact_views import view_tags
 from memspine.core.forget_request import forget_target
 from memspine.core.integrity import IntegrityPolicy
 from memspine.core.owner_check import (
@@ -81,8 +76,24 @@ from memspine.core.read_filters import (
     DateBound,
 )
 from memspine.core.relevance_probes import Calibration
-from memspine.core.rule_miner import mine_rules
 from memspine.core.vetting import VetFlag, draft_sentences, vet_sentences
+from memspine.derive.pipeline import builders as derive_builders
+from memspine.derive.pipeline import graph as derive_graph
+from memspine.derive.pipeline import integrate as derive_integrate
+from memspine.derive.pipeline import scheduler as derive_scheduler
+from memspine.derive.pipeline.integrate import _REPLACED_CONTENTS, _fact_value
+from memspine.derive.pipeline.stages.context import (
+    CalibrateEpisode,
+    FindEntities,
+    PipelineContext,
+    PredictEpisode,
+    SessionClosed,
+    Summarize,
+    SummarizeEntities,
+    SummarizeIncremental,
+)
+from memspine.derive.pipeline.stages.index import DERIVED_STAGES, stage_marker
+from memspine.derive.pipeline.stages.table import PIPELINES
 from memspine.exceptions import (
     ConfigError,
     ConflictError,
@@ -107,7 +118,6 @@ from memspine.memories.associative.entities import (
     canonical_entity,
     entity_node_id,
 )
-from memspine.memories.associative.evolution import propose_links
 from memspine.memories.associative.projector import GraphProjector
 from memspine.memories.associative.resolution import ResolveBatch
 from memspine.memories.associative.store import AssociativeMemory
@@ -127,7 +137,6 @@ from memspine.memories.procedural.lessons import (
     should_retire,
     source_signature,
 )
-from memspine.memories.procedural.prompt_registry import prompt_version_records
 from memspine.memories.procedural.skills import (
     ProceduralMemory,
     make_skill_record,
@@ -151,8 +160,7 @@ from memspine.memories.reflective.reflections import ReflectiveMemory
 from memspine.memories.resource.store import ResourceMemory
 from memspine.memories.semantic.store import SemanticMemory
 from memspine.memories.semantic.write_pipeline import (
-    EdgeContext,
-    extraction_rounds,
+    ExtractEdges,
 )
 from memspine.memories.shared.grants import Grant, SharedMemory
 from memspine.memories.shared.subscriptions import make_subscription_record
@@ -165,7 +173,6 @@ from memspine.models.encoders.query import QueryEncoder
 from memspine.models.encoders.query.perspective import (
     PerspectiveOptions,
     QuestionPerspective,
-    inherit_perspective_tags,
 )
 from memspine.models.encoders.query.shape import (
     content_words,
@@ -175,18 +182,15 @@ from memspine.models.encoders.query.temporal_query import (
     NamedLeg,
     forget_mentions,
 )
-from memspine.models.encoders.query.temporal_resolve import resolve
 from memspine.models.providers.decision.decider import Decider, build_decider
 from memspine.models.providers.llm import structured as _structured
 from memspine.models.providers.llm.base import LLMRouter, LLMService
-from memspine.models.providers.llm.structured import structured_call
 from memspine.models.providers.llm.tier_gate import WITHHELD_MARKER, is_local_provider
 from memspine.models.providers.rerank.base import Reranker
 from memspine.models.providers.rerank.factory import RerankSettings, build_reranker, rerank_modes
 from memspine.observability.logging import (
     EVENT_FEEDBACK,
     EVENT_FORGET,
-    EVENT_LINK,
     EVENT_REBUILD,
     EVENT_RETRIEVE,
     EVENT_WRITE,
@@ -194,20 +198,6 @@ from memspine.observability.logging import (
 )
 from memspine.observability.timers import StepTimers, timed
 from memspine.prompts.models import (
-    AnticipatedCue,
-    AnticipatedCues,
-    AssertionOut,
-    AssertionsOut,
-    ConflictVerdictOut,
-    EntityMatches,
-    EntitySummaries,
-    ExtractedEdge,
-    ExtractedEdges,
-    ExtractedFact,
-    ExtractedFacts,
-    FactClasses,
-    FactDates,
-    Insights,
     ReadPlan,
 )
 from memspine.prompts.registry import PromptRegistry
@@ -228,7 +218,6 @@ from memspine.read.pipeline.state import (
     _FORENSICS,
     _READ_SNAPSHOT,
     _TAINT_ARCHIVED_TAG,
-    CUE_TAG,
     ReadResult,
 )
 from memspine.read.pipeline.timeview import (
@@ -293,25 +282,9 @@ from memspine.trust.privacy import (
     verify_audit_chain,
 )
 from memspine.workers.list_cards import (
-    LIST_CARD_KEY_PREFIX,
     LabelClasses,
     ListCard,
     fact_statement,
-)
-from memspine.derive.pipeline.stages.context import (
-    DERIVED_STAGES,
-    PIPELINES,
-    CalibrateEpisode,
-    ExtractEdges,
-    FindEntities,
-    PipelineContext,
-    PredictEpisode,
-    SessionClosed,
-    Summarize,
-    SummarizeEntities,
-    SummarizeIncremental,
-    resolve_mode,
-    stage_marker,
 )
 from memspine.workers.runner import TaskRunner
 from memspine.workers.schedule import run_sleep_cycle
@@ -323,34 +296,6 @@ __all__ = ["Engine"]
 
 #: #3: tag on a held record an operator rejected (archived, never releasable).
 _QUARANTINE_REJECTED_TAG = "quarantine_rejected"
-
-
-#: A thousands separator between digit groups ("1,000", "1_000").
-_FACT_THOUSANDS = re.compile(r"(?<=\d)[,_](?=\d{3}(?!\d))")
-#: Tokens of a fact value: a number (sign and decimal point kept, the sign only
-#: where no word precedes it), a word, or any other single character.
-_FACT_TOKEN = re.compile(r"(?<![^\W_])[-+]?\d+(?:\.\d+)*|[^\W_]+|\S")
-#: Symbols that change a value's meaning and so stay as tokens.
-_FACT_SYMBOLS = frozenset("%+#")
-
-
-def _fact_value(content: str) -> str:
-    """#3: a fact's value for corroboration: NFKC-folded, case-folded and
-    whitespace-normalised, with thousands separators dropped and plain
-    punctuation ignored. Signs, decimal points, percent, currency symbols and
-    ``+``/``#`` are kept, so "-500" differs from "500", "C++" from "C", "$100"
-    from "€100" and "3.5" from "3 5". Paraphrases do not match."""
-    text = unicodedata.normalize("NFKC", content).casefold().replace("\u2212", "-")
-    text = _FACT_THOUSANDS.sub("", text)
-    tokens = [
-        token
-        for token in _FACT_TOKEN.findall(text)
-        if len(token) > 1
-        or token.isalnum()
-        or token in _FACT_SYMBOLS
-        or unicodedata.category(token) == "Sc"
-    ]
-    return " ".join(tokens)
 
 
 def _taint_archive_delta(record: MemoryRecord) -> dict[str, object]:
@@ -399,14 +344,6 @@ def search_forensics() -> Iterator[dict[str, Any]]:
         yield sink
     finally:
         _FORENSICS.reset(token)
-
-
-#: #30: contents of the engine's own list cards a re-derived card replaces. A new card
-#: repeats its predecessor's prefix by construction, so those (and only those) are
-#: left out of the MINJA bridge-prefix comparison of that one write.
-_REPLACED_CONTENTS: ContextVar[frozenset[str]] = ContextVar(
-    "memspine_replaced_contents", default=frozenset()
-)
 
 
 _T = TypeVar("_T")
@@ -1005,43 +942,9 @@ class Engine:
         longer live (forgotten, archived, quarantined) when the cue is about to be
         written skips the cue (audited) instead of raising.
         """
-        storage = self._require_started()
-        ns = validate_namespace(namespace)
-        target = await storage.get_record(record_id)
-        if require_live and (target is None or target.namespace != ns):
-            await self._derived_parents_gone(ns, [record_id], "anticipate")
-            return []
-        if target is None or target.namespace != ns:
-            raise MemspineError(f"cue target {record_id!r} not found in namespace {ns!r}")
-        # R2-4: cue text is LLM- or caller-authored, so the default role is the
-        # non-privileged "assistant" (never "system"): the firewall's instruction
-        # and protected-key checks apply to it in full.
-        base = source or SourceInfo(role="assistant", channel="anticipation")
-        # R2-11: a cue on an assistant claim is itself only an assistant claim.
-        claim = ["assistant_claim"] if "assistant_claim" in target.tags else []
-        written: list[MemoryRecord] = []
-        for cue in cues:
-            record = MemoryRecord(
-                namespace=ns,
-                memory_type="semantic",
-                content=cue,
-                source=base.model_copy(update={"parents": [record_id]}),
-                tags=list(dict.fromkeys([CUE_TAG, *extra_tags, *claim])),
-            )
-            cap = [target.trust]
-            integrity_cap = await self._parent_trust_cap(ns, [record_id])
-            if integrity_cap:
-                cap = [*cap, *integrity_cap]
-            async with self._write_locks.setdefault(ns, asyncio.Lock()):
-                if require_live and await self._derived_parents_gone(ns, [record_id], "anticipate"):
-                    break  # I72: the target was forgotten while the cues were authored
-                written.append(
-                    await self._write_locked(storage, ns, record, "semantic", actor, cap)
-                )
-        if self._config().read.query_encoder != "none":
-            for cue_record in written:
-                self._encoder().observe(cue_record)  # #61: the write-time index
-        return written
+        return await derive_integrate.add_cues(
+            self, record_id, cues, namespace, source, actor, extra_tags, require_live=require_live
+        )
 
     async def principal_reputation(self, principal: str) -> float:
         """B7: trust multiplier in (0, 1] for ``principal``, from the event log.
@@ -6233,9 +6136,9 @@ class Engine:
         source: SourceInfo | None = None,
     ) -> MemoryRecord:
         """Write a reflection derived from existing records (M13.7); see :meth:`_reflect`."""
-        written = await self._reflect(content, source_record_ids, namespace, actor, source)
-        assert written is not None  # require_live is off
-        return written
+        return await derive_graph.reflect(
+            self, content, source_record_ids, namespace, actor, source
+        )
 
     async def _reflect(
         self,
@@ -6247,39 +6150,9 @@ class Engine:
         *,
         require_live: bool = False,
     ) -> MemoryRecord | None:
-        """Write a reflection derived from existing records (M13.7).
-
-        ``require_live`` (I72, the sleep-cycle deposit): when any evidence record is
-        no longer live under the namespace lock the reflection is skipped (audited)
-        and None is returned.
-
-
-        Depth is computed from the fetched parents and hard-capped at 2;
-        quarantined/deleted parents and parents outside ``namespace`` are
-        refused (no laundering, no tenant crossing — E1). Reflection content
-        is caller-authored, so it carries the caller's role (never a blanket
-        "system") and its trust is capped at the least-trusted parent.
-        """
-        self._require_started()
-        if self._reflective is None:
-            raise MemspineError(
-                "reflective memory not enabled — set memories.reflective.enabled: true"
-            )
-        ns = validate_namespace(namespace)
-        views = await self._parent_trust_cap(ns, source_record_ids)
-        async with self._write_locks.setdefault(ns, asyncio.Lock()):
-            if require_live and await self._derived_parents_gone(
-                ns, source_record_ids, "reflect_profile"
-            ):
-                return None
-            return await self._reflective.reflect(
-                ns,
-                content,
-                source_record_ids,
-                source=source or SourceInfo(role=actor, channel="reflection"),
-                parent_views=views,
-                cap_trust=self._integrity().deposit_trust,
-            )
+        return await derive_graph._reflect(
+            self, content, source_record_ids, namespace, actor, source, require_live=require_live
+        )
 
     # ── associative verbs (P6: M13.6 / D-40 / ADR-015) ───────────────────────
 
@@ -6294,16 +6167,7 @@ class Engine:
         """Link two records (M13.6): a budget-checked LINK event through the
         door (ADR-015); the graph projection materializes the edge. Both
         records must live in ``namespace`` — cross-namespace links refused."""
-        self._require_started()
-        if self._associative is None:
-            raise MemspineError(
-                "associative memory not enabled — set memories.associative.enabled: true"
-            )
-        ns = validate_namespace(namespace)
-        # Same one-writer-per-namespace unit as write(): the budget read and
-        # the LINK append must not interleave with a concurrent linker.
-        async with self._write_locks.setdefault(ns, asyncio.Lock()):
-            await self._associative.link(ns, src_id, dst_id, rel=rel, weight=weight)
+        return await derive_graph.associate(self, src_id, dst_id, namespace, rel, weight)
 
     async def related(
         self,
@@ -6316,15 +6180,7 @@ class Engine:
         ``strategy`` (E1: ``ppr`` default | ``bfs`` | ``rrf``) overrides
         ``memories.associative.policies.related.strategy``. Same E1 gate as
         ``search``: only ACTIVATED, never quarantined, never cross-namespace."""
-        self._require_started()
-        if self._associative is None:
-            raise MemspineError(
-                "associative memory not enabled — set memories.associative.enabled: true"
-            )
-        ns = validate_namespace(namespace)
-        return self._inflate_all(
-            await self._associative.related(ns, record_id, k=k, strategy=strategy), ns
-        )
+        return await derive_graph.related(self, record_id, namespace, k, strategy)
 
     # ── prospective + shared verbs (P7: M13.8 / R2 / ADR-016) ────────────────
 
@@ -6716,79 +6572,12 @@ class Engine:
         return self._shared
 
     async def _evolve_links(self, ns: str, record: MemoryRecord) -> None:
-        """Bounded A-MEM hook (D-42/ADR-015): after a non-quarantined semantic/
-        episodic write, propose links to the vector neighbourhood. Best-effort:
-        a failure is logged loudly (never raised) — an auto-link must not fail
-        the write it decorates."""
-        if (
-            self._associative is None
-            or record.quarantined
-            or record.memory_type not in ("semantic", "episodic")
-        ):
-            return
-        assert self._graph is not None and self._storage is not None
-        if self._embedder is None or self._vector is None:
-            return
-        try:
-            [vector] = await self._embedder.embed([record.content])
-            hits = await self._vector.query(
-                ns, vector, embedder_id=self._embedder.embedder_id, top_k=constants.SEARCH_TOP_K
-            )
-            created = await propose_links(
-                namespace=ns,
-                record=record,
-                hits=hits,
-                storage=self._storage,
-                graph=self._graph,
-                append_event=self._append_and_project,
-            )
-            if created:
-                _log.info(
-                    EVENT_LINK,
-                    namespace=ns,
-                    record_id=record.record_id,
-                    links=created,
-                    reason="evolution",
-                )
-        except Exception as exc:
-            _log.warning(
-                "associative.evolution_failed",
-                namespace=ns,
-                record_id=record.record_id,
-                error=str(exc),
-                error_kind=exc.__class__.__name__,
-                exc_info=True,
-            )
+        return await derive_graph._evolve_links(self, ns, record)
 
     async def sync_prompt_versions(self, namespace: str = "default") -> list[MemoryRecord]:
         """D-43 §4: record each resolved prompt version as a procedural record
         (reference only — the definition lives in prompts/). Idempotent."""
-        self._require_started()
-        if self._procedural is None or self._prompts is None:
-            raise MemspineError(
-                "prompt-version sync needs procedural memory enabled and prompts loaded"
-            )
-        ns = validate_namespace(namespace)
-        # Same one-writer-per-namespace unit as every other write verb: the
-        # read-diff-append sequence below must not interleave with itself
-        # (double-sync duplicating versions) or with corroboration's
-        # read-modify-write. Firewall exemption: content is deterministic,
-        # system-generated reference strings — see ADR-014.
-        async with self._write_locks.setdefault(ns, asyncio.Lock()):
-            existing = await self._procedural.list(ns, kind="prompt")
-            fresh = prompt_version_records(ns, self._prompts, existing)
-            for record in fresh:
-                await self._append_and_project(
-                    MemoryEvent(
-                        kind=EventKind.WRITE,
-                        namespace=ns,
-                        actor="system",
-                        payload={"record": record.model_dump(mode="json")},
-                    )
-                )
-        if fresh:
-            _log.info(EVENT_WRITE, namespace=ns, prompt_versions=len(fresh))
-        return fresh
+        return await derive_scheduler.sync_prompt_versions(self, namespace)
 
     def model_calls(self) -> dict[str, int]:
         """LLM calls this engine has made since ``start()``, per role (read and
@@ -6869,45 +6658,10 @@ class Engine:
     async def sleep(self) -> dict[str, dict[str, object]]:
         """Run the maintenance sleep cycle now (M2/E7): consolidate → decay →
         compress → prune. All steps are idempotent; P3 gives them teeth."""
-        self._require_started()
-        assert self._runner is not None
-        if self._windows is not None:
-            # W1: call 1 first, so call 3 (extract_graph) sees this cycle's window edges. In
-            # live (async) mode the open window is left to its idle timer; in batch mode
-            # nothing else would ever close it.
-            await self._windows.flush(final=not self._windows.asynchronous)
-        stats = await run_sleep_cycle(self._runner, self._pipeline_ctx())
-        self._passive_sessions.clear()  # #53: the cycle may have passivated sessions
-        degraded = {
-            name: stage
-            for name, stage in stats.items()
-            if stage.get("status") in ("error", "partial")
-        }
-        if degraded:
-            # Callers rarely inspect the stats dict — degradation must be loud.
-            _log.warning("memory.sleep_degraded", failures=degraded)
-        return stats
+        return await derive_scheduler.sleep(self)
 
     def _inflate_all(self, records: list[MemoryRecord], namespace: str) -> list[MemoryRecord]:
-        """Inflate cold-tier content, skipping (loudly) any corrupt row rather
-        than failing the entire read (blast-radius containment).
-
-        Quarantined rows are NOT filtered here by design: ``retrieve(include_held=True)``
-        is the operator listing/audit surface, so held content stays inspectable.
-        Model-facing paths (``search``/``assemble``/timeline/sessions) apply
-        the E1 quarantine gate themselves — never feed ``retrieve()`` output
-        to a context window."""
-        inflated: list[MemoryRecord] = []
-        for record in records:
-            if record.status is RecordStatus.DELETED:
-                continue
-            try:
-                inflated.append(self._inflate.inflate(record))
-            except StorageError:
-                _log.warning(
-                    "memory.inflate_failed", namespace=namespace, record_id=record.record_id
-                )
-        return inflated
+        return derive_scheduler._inflate_all(self, records, namespace)
 
     async def rebuild(self) -> dict[str, int]:
         """Rebuild every projector from seq 0 (D0.1). Raises off-window (D-45)."""
@@ -7283,53 +7037,10 @@ class Engine:
         )
 
     def _build_entity_summarizer(self) -> SummarizeEntities | None:
-        """GP-6 (#17): the batched entity summariser, when a ``summarize_entity``
-        (else ``summarize``) LLM role is bound and entity summaries are on."""
-        if self._llm is None or self._prompts is None or self._associative is None:
-            return None
-        policies = self._memory_policy(self._config(), "associative")
-        if not policies.get("entity_summaries"):
-            return None
-        role = next((r for r in ("summarize_entity", "summarize") if r in self._llm.roles), None)
-        if role is None:
-            return None
-        llm = self._llm.for_role(role)
-        prompt = self._prompts.for_role("summarize_entity")
-
-        async def summarize(items: list[tuple[str, list[str]]]) -> dict[int, str]:
-            blocks = []
-            for i, (name, lines) in enumerate(items, start=1):
-                body = "\n".join(f"- {escape_markers(line)}" for line in lines)
-                blocks.append(f"[{i}] {escape_markers(name)}\n{body}")
-            result = await structured_call(
-                llm, prompt, {"entities": "\n".join(blocks)}, EntitySummaries
-            )
-            return {s.index: s.summary for s in result.summaries if s.summary.strip()}
-
-        return summarize
+        return derive_builders._build_entity_summarizer(self)
 
     def _build_entity_resolver(self) -> ResolveBatch | None:
-        """GP-7 (#18): the batched resolver (``resolve_entity@batch``), when a
-        ``resolve_entity`` LLM role is bound and ``extract_graph.resolve: llm``."""
-        if self._llm is None or self._prompts is None or "resolve_entity" not in self._llm.roles:
-            return None
-        policy = self._memory_policy(self._config(), "semantic").get("extract_graph")
-        if not isinstance(policy, dict) or policy.get("resolve") != "llm":
-            return None
-        llm = self._llm.for_role("resolve_entity")
-        prompt = self._prompts.select("resolve_entity", condition="batch")
-
-        async def resolve(items: list[tuple[str, list[str]]]) -> dict[int, str]:
-            lines = [
-                f"[{i}] {escape_markers(name)} (candidates: "
-                + "; ".join(escape_markers(c) for c in candidates)
-                + ")"
-                for i, (name, candidates) in enumerate(items, start=1)
-            ]
-            result = await structured_call(llm, prompt, {"names": "\n".join(lines)}, EntityMatches)
-            return {m.index: m.match for m in result.matches}
-
-        return resolve
+        return derive_builders._build_entity_resolver(self)
 
     #: G24: the decision planner's options, label -> (read mode, description). Plain
     #: labels with cue-word descriptions; tuned offline on a frozen LoCoMo set
@@ -7374,77 +7085,19 @@ class Engine:
         return await read_request._query_rewrite_probes(self, query)
 
     def _build_summarize(self) -> Summarize | None:
-        """The consolidation summarizer (M2): only when a ``summarize`` LLM role
-        is bound; pipelines fall back to the deterministic extractive path."""
-        if self._llm is None or self._prompts is None or "summarize" not in self._llm.roles:
-            return None
-        llm = self._llm.for_role("summarize")
-        prompt = self._prompts.for_role("summarize")
-
-        async def summarize(content: str) -> str:
-            return await llm.chat(prompt.render({"content": content}))
-
-        return summarize
+        return derive_builders._build_summarize(self)
 
     def _build_summarize_incremental(self) -> SummarizeIncremental | None:
-        """#56: the ``summarize@incremental`` update, only when
-        ``consolidation.session_summary.incremental`` is on and a ``summarize``
-        LLM role is bound (one call: previous summary + only the new turns)."""
-        options = self._consolidation_option("session_summary", None)
-        if not (isinstance(options, dict) and options.get("incremental")):
-            return None
-        if self._llm is None or self._prompts is None or "summarize" not in self._llm.roles:
-            return None
-        llm = self._llm.for_role("summarize")
-        prompt = self._prompts.select("summarize", condition="incremental")
-
-        async def update(previous: str, content: str) -> str:
-            return await llm.chat(prompt.render({"previous": previous, "content": content}))
-
-        return update
+        return derive_builders._build_summarize_incremental(self)
 
     def _predict_calibrate_role(self, role: str) -> str | None:
-        """#62: the LLM role a predict-calibrate call runs on (falls back to
-        ``extract``), only when ``consolidation.predict_calibrate`` is on."""
-        if not self._consolidation_option("predict_calibrate", False):
-            return None
-        if self._llm is None or self._prompts is None:
-            return None
-        return next((r for r in (role, "extract") if r in self._llm.roles), None)
+        return derive_builders._predict_calibrate_role(self, role)
 
     def _build_episode_predictor(self) -> PredictEpisode | None:
-        """#62: predict an episode's facts from stored memory (``predict_episode``)."""
-        role = self._predict_calibrate_role("predict_episode")
-        if role is None or self._llm is None or self._prompts is None:
-            return None
-        llm = self._llm.for_role(role)
-        prompt = self._prompts.select("predict_episode")
-
-        async def predict(cue: str, date: str, knowledge: list[str]) -> str:
-            return await llm.chat(prompt.render({"cue": cue, "date": date, "knowledge": knowledge}))
-
-        return predict
+        return derive_builders._build_episode_predictor(self)
 
     def _build_calibrator(self) -> CalibrateEpisode | None:
-        """#62: diff a prediction against the transcript (``calibrate``)."""
-        role = self._predict_calibrate_role("calibrate")
-        if role is None or self._llm is None or self._prompts is None:
-            return None
-        llm = self._llm.for_role(role)
-        prompt = self._prompts.select("calibrate")
-
-        async def calibrate(
-            prediction: str, content: str, knowledge: list[str]
-        ) -> list[ExtractedFact]:
-            context: dict[str, object] = {
-                "prediction": prediction,
-                "content": content,
-                "knowledge": knowledge,
-            }
-            result = await structured_call(llm, prompt, context, ExtractedFacts)
-            return list(result.facts)
-
-        return calibrate
+        return derive_builders._build_calibrator(self)
 
     async def _deposit_surprise_fact(
         self,
@@ -7459,42 +7112,18 @@ class Engine:
         kind: str | None = None,
         **_views: Any,
     ) -> MemoryRecord | None:
-        """#62: one predict-calibrate surprise through the write door.
-
-        Like a mined fact (C6'): LLM-authored, so the non-privileged ``assistant``
-        role; trust capped at the least-trusted turn; an event drops its attribute
-        so it is ADDed beside the person's other events. Tagged ``surprise_fact``
-        and ``calibrated:<session key>`` (the stage's legacy done check)."""
-        storage = self._require_started()
-        ns = validate_namespace(namespace)
-        sources = [r for r in [await storage.get_record(p) for p in parents] if r is not None]
-        tags = [constants.SURPRISE_FACT_TAG, f"calibrated:{session_key}"]
-        if kind is not None:
-            tags.append(f"kind:{kind}")
-            if kind != "state" and f"{entity}.{attribute}" not in (
-                self._config().firewall.protected_keys
-            ):
-                attribute = None
-        if sources and all("assistant_claim" in r.tags for r in sources):
-            tags.append("assistant_claim")  # R2-11
-        record = MemoryRecord(
-            namespace=ns,
-            memory_type="semantic",
-            content=text,
-            source=SourceInfo(role="assistant", channel="calibration", parents=list(parents)),
-            entity=entity,
-            attribute=attribute,
-            valid_from=valid_from,
-            tags=tags,
+        return await derive_integrate._deposit_surprise_fact(
+            self,
+            namespace,
+            text,
+            entity,
+            attribute,
+            parents,
+            valid_from,
+            session_key,
+            kind=kind,
+            **_views,
         )
-        cap = [min(r.trust for r in sources)] if sources else None
-        integrity_cap = await self._parent_trust_cap(ns, parents)
-        if integrity_cap:
-            cap = [*(cap or []), *integrity_cap]
-        async with self._write_locks.setdefault(ns, asyncio.Lock()):
-            if await self._derived_parents_gone(ns, parents, "predict_calibrate"):  # I72
-                return None
-            return await self._write_locked(storage, ns, record, "semantic", "system", cap)
 
     async def _relevance_filter(
         self, query: str, candidates: list[tuple[MemoryRecord, float]]
@@ -7502,145 +7131,30 @@ class Engine:
         return await read_gate._relevance_filter(self, query, candidates)
 
     def _build_reflector(self) -> Any:
-        """H14: the profile reflector, when a ``reflect`` role and reflective memory exist."""
-        if (
-            self._llm is None
-            or self._prompts is None
-            or "reflect" not in self._llm.roles
-            or self._reflective is None
-        ):
-            return None
-        llm = self._llm.for_role("reflect")
-        prompt = self._prompts.select("reflect")
-
-        async def reflect(episodes: list[str]) -> list[tuple[str, list[int]]]:
-            result = await structured_call(llm, prompt, {"episodes": episodes}, Insights)
-            return [(i.insight, list(i.evidence)) for i in result.insights]
-
-        return reflect
+        return derive_builders._build_reflector(self)
 
     async def _deposit_profile_reflection(
         self, namespace: str, content: str, evidence_ids: list[str], session_key: str
     ) -> MemoryRecord | None:
-        """H14: a profile insight through the governed ``reflect`` door."""
-        # R2-4: the insight is LLM-authored: non-privileged role, trust capped.
-        return await self._reflect(
-            content,
-            evidence_ids,
-            namespace=namespace,
-            actor="system",
-            source=SourceInfo(
-                role="assistant", channel="reflection", message_id=f"reflected:{session_key}"
-            ),
-            require_live=True,
+        return await derive_integrate._deposit_profile_reflection(
+            self, namespace, content, evidence_ids, session_key
         )
 
     def _build_anticipator(self) -> Any:
-        """H8: the anticipator, when an ``anticipate`` (or ``extract``) LLM role is bound."""
-        if self._llm is None or self._prompts is None:
-            return None
-        role = next((r for r in ("anticipate", "extract") if r in self._llm.roles), None)
-        if role is None:
-            return None
-        llm = self._llm.for_role(role)
-        prompt = self._prompts.select("anticipate")
-
-        async def anticipate(content: str) -> list[AnticipatedCue]:
-            result = await structured_call(llm, prompt, {"content": content}, AnticipatedCues)
-            return list(result.cues)
-
-        return anticipate
+        return derive_builders._build_anticipator(self)
 
     async def _deposit_anticipated_cues(
         self, namespace: str, record_id: str, cues: list[str], session_key: str
     ) -> list[MemoryRecord]:
-        """H8: anticipated cues through the governed ``add_cues`` door (system source)."""
-        return await self.add_cues(
-            record_id,
-            cues,
-            namespace=namespace,
-            source=SourceInfo(role="assistant", channel="anticipation"),
-            actor="system",
-            extra_tags=[f"anticipated:{session_key}"],
-            require_live=True,
+        return await derive_integrate._deposit_anticipated_cues(
+            self, namespace, record_id, cues, session_key
         )
 
     def _build_assertion_projector(self) -> Any:
-        """E01 write-time arm: the ``extract@assertions`` caller of the ``project_facts``
-        stage, only when ``memories.semantic.policies.fact_projection`` is ``on`` and an
-        ``extract`` LLM role is bound. A bad value is a config error."""
-        try:
-            on = fact_projection_on(self._memory_policy(self._config(), "semantic"))
-        except ValueError as exc:
-            raise ConfigError(str(exc)) from exc
-        if not on or self._llm is None or self._prompts is None:
-            return None
-        if "extract" not in self._llm.roles:
-            return None
-        llm = self._llm.for_role("extract")
-        prompt = self._prompts.select("extract", condition="assertions")
-
-        async def project(content: str) -> list[AssertionOut]:
-            out = await structured_call(
-                llm, prompt, {"question": "(none)", "content": content}, AssertionsOut
-            )
-            return list(out.assertions)
-
-        return project
+        return derive_builders._build_assertion_projector(self)
 
     def _build_fact_miner(self) -> Any:
-        """C6': the atomic-fact miner, only when an ``extract`` LLM role is bound.
-
-        W5 (``consolidation.miner: rules``): the rule miner instead, no model."""
-        if self._consolidation_option("miner", "llm") == "rules":
-
-            async def mine_by_rules(content: str) -> list[ExtractedFact]:
-                return mine_rules(content)
-
-            return mine_by_rules
-        if self._llm is None or self._prompts is None or "extract" not in self._llm.roles:
-            return None
-        llm = self._llm.for_role("extract")
-        # H2: the session variant (no pronouns, absolute dates, one fact each) when
-        # shipped; the base extract prompt otherwise. #27: ``consolidation.mine_prompt``
-        # picks another session variant, whose token budget becomes the output cap.
-        variant = str(self._consolidation_option("mine_prompt", "session"))
-        if variant == "session" and self._consolidation_option("mine_multiview", False):
-            variant = "session4"  # #28: the default prompt asks for no view fields
-        prompt = self._prompts.select("extract", condition=variant)
-        options: dict[str, Any] = {}
-        if variant != "session" and prompt.token_budget:
-            options["max_tokens"] = prompt.token_budget
-
-        async def mine(content: str) -> list[ExtractedFact]:
-            result = await structured_call(
-                llm, prompt, {"content": content}, ExtractedFacts, **options
-            )
-            return list(result.facts)
-
-        if not self._consolidation_option("mining_cache", False) or self._cache is None:
-            return mine
-        # E1 (plan v3.2, F7): deterministic mining. Temperature 0 and one cached reply
-        # per (model, prompt, variant, transcript), so re-ingesting the same history
-        # yields the same facts (LoCoMo L5: two runs of one mining arm differed).
-        options["temperature"] = 0.0
-        role = self._config().llm.roles.get("extract")
-        model = role.model if role is not None else ""
-        version = str(getattr(prompt, "version", "")) + "/" + str(getattr(prompt, "name", ""))
-        cache = self._cache
-
-        async def mine_cached(content: str) -> list[ExtractedFact]:
-            key = "mine:" + fingerprint_payload(
-                {"model": model, "prompt": version, "variant": variant, "content": content}
-            )
-            hit = await cache.get(key)
-            if hit is not None:
-                return ExtractedFacts.model_validate_json(hit).facts
-            facts = await mine(content)
-            await cache.set(key, ExtractedFacts(facts=facts).model_dump_json().encode())
-            return facts
-
-        return mine_cached
+        return derive_builders._build_fact_miner(self)
 
     def _consolidation_option(self, name: str, default: Any) -> Any:
         """One ``memories.episodic.policies.consolidation`` option as configured."""
@@ -7648,27 +7162,7 @@ class Engine:
         return options.get(name, default) if isinstance(options, dict) else default
 
     def _build_fact_dater(self) -> Any:
-        """#29: the batched ``extract@dates`` call for mined facts with no date, only
-        when ``consolidation.mine_event_dates_llm`` is on and an ``extract`` role is
-        bound. Returns ``{fact index: date}`` for the facts the model could date."""
-        if (
-            not self._consolidation_option("mine_event_dates_llm", False)
-            or self._llm is None
-            or self._prompts is None
-            or "extract" not in self._llm.roles
-        ):
-            return None
-        llm = self._llm.for_role("extract")
-        prompt = self._prompts.select("extract", condition="dates")
-
-        async def date_facts(transcript: str, facts: list[str]) -> dict[int, str]:
-            numbered = "\n".join(f"[{i}] {fact}" for i, fact in enumerate(facts, 1))
-            result = await structured_call(
-                llm, prompt, {"content": transcript, "facts": numbered}, FactDates
-            )
-            return {d.index: d.date for d in result.dates if d.date}
-
-        return date_facts
+        return derive_builders._build_fact_dater(self)
 
     async def _deposit_mined_fact(
         self,
@@ -7689,333 +7183,54 @@ class Engine:
         extra_tags: Sequence[str] = (),
         require_live: Sequence[str] = (),
     ) -> MemoryRecord | None:
-        """C6': one mined fact through the write door (firewall, ladder, MTI).
-
-        E01: ``extra_tags`` ride along (the write-time projection tags its facts
-        ``fact_projection`` / ``projected:<session>``); nothing else about the path changes.
-
-        W1: ``require_live`` are more record ids (the other turns of the window the fact was
-        read from) that must still be live under the lock, besides the parents; one gone
-        and the fact is not written (I72). They are checked, not recorded as parents.
-
-        #28: ``persons`` / ``location`` / ``topic`` (``consolidation.mine_multiview``)
-        are tagged ``person:<name>``, ``loc:<place>``, ``topic:<class>`` (normalised,
-        :func:`~memspine.core.fact_views.view_tags`); the statement is kept as mined.
-
-        #29: ``happened`` (the fact's happened date) is tagged ``happened:<date>``,
-        and ``said`` (the day its relative phrases were resolved against) ``said:<date>``,
-        so a read resolves them against that day, not the moved ``valid_from``.
-
-        G1a: ``kind="event"`` drops the attribute, so the fact is ADDed beside the
-        person's other events instead of superseding them; ``kind="state"`` keeps
-        the (entity, attribute) key. The kind is tagged ``kind:<kind>``. None
-        (an unclassified caller) keeps the attribute as given.
-
-        Trust is capped at the least-trusted source turn even with integrity
-        off, exactly like a consolidation summary: derived content is never
-        more trusted than what it was derived from (E1).
-        """
-        storage = self._require_started()
-        ns = validate_namespace(namespace)
-        sources = [r for r in [await storage.get_record(p) for p in parents] if r is not None]
-        planned = attribute == "plans"  # G33: before an event's attribute is dropped
-        tags = ["atomic_fact", f"mined:{session_key}"]
-        if happened:
-            tags.append(happened_tag(happened))
-            if said:
-                tags.append(f"{SAID_PREFIX}{said}")
-        tags.extend(t for t in view_tags(persons or [], location, topic) if t not in tags)
-        tags.extend(t for t in extra_tags if t not in tags)
-        if kind is not None:
-            tags.append(f"kind:{kind}")
-            protected = self._config().firewall.protected_keys
-            if kind != "state" and f"{entity}.{attribute}" not in protected:
-                # A protected (entity, attribute) key keeps its attribute whatever
-                # the miner called it, so "kind: event" cannot dodge the check.
-                attribute = None
-        if sources and all("assistant_claim" in r.tags for r in sources):
-            # R2-11: a fact mined only from assistant turns stays an assistant claim.
-            tags.append("assistant_claim")
-        if sources and self._perspective_options().on:
-            # I55: the fact is about what its source turn(s) are about, so the conflict
-            # perspective_key (subject / scope / polarity) works on it too.
-            tags.extend(t for t in inherit_perspective_tags(sources) if t not in tags)
-        record = MemoryRecord(
-            namespace=ns,
-            memory_type="semantic",
-            content=text,
-            # R2-4: LLM-authored, so the non-privileged "assistant" role: the
-            # protected-key, size and instruction checks apply (a "system" role
-            # skipped them, and could even corroborate quarantined records).
-            source=SourceInfo(role="assistant", channel="mining", parents=list(parents)),
-            entity=entity,
-            attribute=attribute,
-            valid_from=valid_from,
-            tags=tags,
+        return await derive_integrate._deposit_mined_fact(
+            self,
+            namespace,
+            text,
+            entity,
+            attribute,
+            parents,
+            valid_from,
+            session_key,
+            kind=kind,
+            happened=happened,
+            said=said,
+            persons=persons,
+            location=location,
+            topic=topic,
+            extra_tags=extra_tags,
+            require_live=require_live,
         )
-        cap = [min(r.trust for r in sources)] if sources else None
-        integrity_cap = await self._parent_trust_cap(ns, parents)
-        if integrity_cap:
-            cap = [*(cap or []), *integrity_cap]
-        async with self._write_locks.setdefault(ns, asyncio.Lock()):
-            site = "window_extract" if require_live else "mine_facts"
-            if await self._derived_parents_gone(ns, [*parents, *require_live], site):  # I72
-                return None
-            written = await self._write_locked(storage, ns, record, "semantic", "system", cap)
-        if planned and self._consolidation_option("auto_watch", False):
-            await self._auto_watch(ns, written, sources)
-        return written
 
     async def _auto_watch(
         self, ns: str, plan: MemoryRecord, sources: list[MemoryRecord]
     ) -> MemoryRecord | None:
-        """G33 (plan v3.2, ``consolidation.auto_watch``): a mined plan whose source turn
-        names a future time ("next week", "in two months", "on 3 June") becomes a
-        prospective watch due then (H1 rules against the turn's own date). Needs the
-        prospective memory type; a plan without a resolvable future date gets none."""
-        if self._prospective is None or plan.quarantined:
-            return None
-        for source in sources:
-            said = source.valid_from
-            for found in resolve(source.content, said, week=self._config().read.relative_week):
-                due = datetime(found.first.year, found.first.month, found.first.day, tzinfo=UTC)
-                if due.date() > said.date():
-                    return await self.watch(plan.content, namespace=ns, due_at=due, actor="system")
-        return None
+        return await derive_integrate._auto_watch(self, ns, plan, sources)
 
     def _build_class_labeller(self) -> LabelClasses | None:
-        """#30: the per-person ``extract@classes`` call of the list-card step, only
-        when ``consolidation.list_cards`` is on and an ``extract`` role is bound."""
-        if (
-            not self._consolidation_option("list_cards", False)
-            or self._llm is None
-            or self._prompts is None
-            or "extract" not in self._llm.roles
-        ):
-            return None
-        llm = self._llm.for_role("extract")
-        prompt = self._prompts.select("extract", condition="classes")
-
-        async def label_classes(person: str, facts: list[str]) -> dict[int, str]:
-            numbered = "\n".join(f"[{i}] {fact}" for i, fact in enumerate(facts, 1))
-            result = await structured_call(llm, prompt, {"facts": numbered}, FactClasses)
-            return {c.index: c.label for c in result.classes if c.label}
-
-        return label_classes
+        return derive_builders._build_class_labeller(self)
 
     async def _deposit_list_card(
         self, namespace: str, card: ListCard | None, replaces: list[str]
     ) -> MemoryRecord | None:
-        """#30: archive the cards ``card`` replaces, then write it through the door.
-
-        Under the namespace lock, a card whose facts are no longer all live (a forget
-        raced the step) is not written and nothing is archived: the next cycle
-        re-derives it. The card is LLM-free derived content with the non-privileged
-        ``assistant`` role, its trust capped at its least trusted fact (E1) and, under
-        integrity, at the facts' view trust. ``card=None`` only archives.
-        """
-        storage = self._require_started()
-        ns = validate_namespace(namespace)
-        async with self._write_locks.setdefault(ns, asyncio.Lock()):
-            sources: list[MemoryRecord] = []
-            if card is not None:
-                for parent_id in card.parents:
-                    parent = await storage.get_record(parent_id)
-                    if (
-                        parent is None
-                        or parent.namespace != ns
-                        or parent.status is not RecordStatus.ACTIVATED
-                        or parent.quarantined
-                    ):
-                        await self._derived_parents_gone(ns, card.parents, "list_cards")  # I72
-                        return None
-                    sources.append(parent)
-            for record_id in replaces:
-                old = await storage.get_record(record_id)
-                if (
-                    old is None
-                    or constants.LIST_CARD_TAG not in old.tags
-                    or old.status is not RecordStatus.ACTIVATED
-                ):
-                    continue
-                await self._append_and_project(
-                    MemoryEvent(
-                        kind=EventKind.DECAY_TRANSITION,
-                        namespace=ns,
-                        actor="system",
-                        payload={
-                            "record_id": record_id,
-                            "set": {
-                                "status": RecordStatus.ARCHIVED.value,
-                                "superseded_at": datetime.now(UTC).isoformat(),
-                            },
-                            "transition": "list_card->superseded",
-                            "reason": "list_card_rederived",
-                        },
-                    )
-                )
-            if card is None:
-                return None
-            record = MemoryRecord(
-                namespace=ns,
-                memory_type="semantic",
-                content=card.text,
-                source=SourceInfo(
-                    role="assistant", channel="list_card", parents=list(card.parents)
-                ),
-                entity=card.person,
-                attribute=None,
-                valid_from=card.valid_from,
-                tags=list(card.tags),
-            )
-            if sources and all("assistant_claim" in r.tags for r in sources):
-                record.tags.append("assistant_claim")  # R2-11: every fact is a claim
-            cap = [min(r.trust for r in sources)] if sources else None
-            integrity_cap = await self._parent_trust_cap(ns, card.parents)
-            if integrity_cap:
-                cap = [*(cap or []), *integrity_cap]
-            # Every earlier version of this group's card (any status) repeats its prefix.
-            group = {t for t in card.tags if t.startswith(LIST_CARD_KEY_PREFIX)}
-            replaced = frozenset(
-                r.content
-                for r in await storage.list_records(ns, "semantic")
-                if constants.LIST_CARD_TAG in r.tags and group & set(r.tags)
-            )
-            token = _REPLACED_CONTENTS.set(replaced)
-            try:
-                return await self._write_locked(storage, ns, record, "semantic", "system", cap)
-            finally:
-                _REPLACED_CONTENTS.reset(token)
+        return await derive_integrate._deposit_list_card(self, namespace, card, replaces)
 
     async def _write_extracted_fact(
         self, record: MemoryRecord, trust_cap: list[float]
     ) -> MemoryRecord:
-        """C2: one ``extract_graph`` fact through the semantic door (lock held by the
-        pipeline): firewall (N2) with the source's trust as cap (plus the MTI parent
-        view under integrity), M5 dedup and the M4 ladder, so a background ``state``
-        edge supersedes the older value exactly like a write-time (C3) one."""
-        storage = self._require_started()
-        cap = list(trust_cap)
-        integrity_cap = await self._parent_trust_cap(record.namespace, record.source.parents)
-        if integrity_cap:
-            cap.extend(integrity_cap)
-        return await self._write_locked(
-            storage, record.namespace, record, "semantic", "system", cap
-        )
+        return await derive_integrate._write_extracted_fact(self, record, trust_cap)
 
     def _edge_extract_callable(self, max_rounds: int, condition: str | None = None) -> ExtractEdges:
-        """The shared reflexion-merged ``extract_edges`` callable (C2 async +
-        C3 sync). Caller guarantees the ``extract_edges`` role is bound.
-
-        ``condition="session"`` (#20) selects ``extract_edges@session``: the content
-        is a numbered session transcript, the context may carry the allowed entity
-        names, and the rounds merge each edge's ``episode_indices``."""
-        assert self._llm is not None and self._prompts is not None
-        llm = self._llm.for_role("extract_edges")
-        prompt = (
-            self._prompts.for_role("extract_edges")
-            if condition is None
-            else self._prompts.select("extract_edges", condition=condition)
-        )
-        rounds = max(1, max_rounds)
-        graph_opts = self._memory_policy(self._config(), "semantic").get("extract_graph")
-        graph_opts = graph_opts if isinstance(graph_opts, dict) else {}
-        ontology_entities = [str(t) for t in graph_opts.get("entity_types") or ()]
-        ontology_rels = [str(t) for t in graph_opts.get("relation_types") or ()]
-
-        async def extract_edges(
-            content: str, context: EdgeContext | None = None, /
-        ) -> list[ExtractedEdge]:
-            # GR-4: reference time, earlier episodes and known entity names ride
-            # along; every key is always supplied (the prompt renders strictly).
-            ctx = context or EdgeContext()
-            variables: dict[str, object] = {
-                "content": content,
-                "reference_time": ctx.reference_time.isoformat() if ctx.reference_time else "",
-                "previous_episodes": list(ctx.previous),
-                "entities": list(ctx.entities),
-                # G-8 / G-5 / G-6: the writer's hint and the declared ontology.
-                "hint": ctx.hint,
-                "entity_types": list(ontology_entities),
-                "relation_types": list(ontology_rels),
-            }
-            if condition is not None:
-                variables["allowed_entities"] = list(ctx.allowed_entities)
-            merged: dict[tuple[str, str, str], ExtractedEdge] = {}
-            for _ in range(rounds):
-                result = await structured_call(llm, prompt, variables, ExtractedEdges)
-                for edge in result.edges:
-                    key = (edge.src_entity, edge.rel, edge.dst_entity)
-                    if key in merged and condition is not None:
-                        cited = [*merged[key].episode_indices, *edge.episode_indices]
-                        edge = edge.model_copy(
-                            update={"episode_indices": list(dict.fromkeys(cited))}
-                        )
-                    merged[key] = edge
-            return list(merged.values())
-
-        return extract_edges
+        return derive_builders._edge_extract_callable(self, max_rounds, condition)
 
     def _build_edge_extractor(self, config: MemspineConfig) -> ExtractEdges | None:
-        """C2 graphiti-style edge extractor for the ``extract_graph`` pipeline.
-
-        Active only when ``memories.semantic.policies.extract_graph`` is truthy
-        AND an ``extract_edges`` LLM role is bound — otherwise None, so the
-        pipeline self-skips and ``profile="simple"`` is unchanged."""
-        policy = self._memory_policy(config, "semantic").get("extract_graph")
-        if not policy:
-            return None
-        if isinstance(policy, dict):
-            resolve_mode(policy)  # GP-7: an unknown ``resolve`` fails at start, not mid-sweep
-        if self._llm is None or self._prompts is None or "extract_edges" not in self._llm.roles:
-            return None
-        # #32: write.reflexion=false drops the extra rounds (one call per source).
-        return self._edge_extract_callable(
-            extraction_rounds(self._memory_policy(config, "semantic"))
-        )
+        return derive_builders._build_edge_extractor(self, config)
 
     def _build_session_edge_extractor(self, config: MemspineConfig) -> ExtractEdges | None:
-        """#20: the session-level extractor for ``extract_graph.granularity: session``.
-
-        Built only when that option is set on an active extract_graph policy (an
-        ``extract_edges`` role bound); otherwise None and extraction stays per
-        record. An unknown granularity is a config error."""
-        policy = self._memory_policy(config, "semantic").get("extract_graph")
-        opts = policy if isinstance(policy, dict) else {}
-        granularity = opts.get("granularity", "record")
-        if granularity not in ("record", "session"):
-            raise ConfigError(
-                "memories.semantic.policies.extract_graph.granularity must be "
-                f"record|session, got {granularity!r}"
-            )
-        if granularity != "session" or self._build_edge_extractor(config) is None:
-            return None
-        return self._edge_extract_callable(int(opts.get("max_rounds", 1)), condition="session")
+        return derive_builders._build_session_edge_extractor(self, config)
 
     def _build_edge_adjudicator(self) -> Callable[[str, str, str, str], Awaitable[str]] | None:
-        """G-2: the ``invalidate_edge`` prompt as a callable, when that role is bound."""
-        if self._llm is None or self._prompts is None or "invalidate_edge" not in self._llm.roles:
-            return None
-        llm = self._llm.for_role("invalidate_edge")
-        prompt = self._prompts.for_role("invalidate_edge")
-
-        async def adjudicate(
-            existing: str, existing_from: str, incoming: str, incoming_from: str
-        ) -> str:
-            result = await structured_call(
-                llm,
-                prompt,
-                {
-                    "existing_fact": existing,
-                    "existing_valid_from": existing_from,
-                    "incoming_fact": incoming,
-                    "incoming_valid_from": incoming_from,
-                },
-                ConflictVerdictOut,
-            )
-            return str(result.verdict)
-
-        return adjudicate
+        return derive_builders._build_edge_adjudicator(self)
 
     def _entity_finder(self) -> FindEntities | None:
         """#20: the decision provider's ``entities`` hook (GLiNER2), or None."""

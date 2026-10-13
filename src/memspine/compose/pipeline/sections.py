@@ -14,6 +14,10 @@ from memspine.core.escaping import escape_markers
 from memspine.core.event_date import happened_of
 from memspine.core.profile_pack import pack_profile, render_packed_profile
 from memspine.core.read_filters import active_date_filter
+from memspine.derive.pipeline.stages.entity_summaries import (
+    entity_summary_name,
+    entity_summary_node,
+)
 from memspine.exceptions import StorageError
 from memspine.models.encoders.query.perspective import Subject, record_view
 from memspine.models.encoders.query.shape import (
@@ -47,7 +51,6 @@ from memspine.read.pipeline.state import _TAINT_ARCHIVED_TAG, CUE_TAG
 from memspine.store.records import MemoryRecord, RecordStatus, SourceInfo, chrono_key
 from memspine.store.scope import grant_allows
 from memspine.trust.privacy import inherited_consent, inherited_pii
-from memspine.derive.pipeline.stages.context import entity_summary_name, entity_summary_node
 
 _log = get_logger(__name__)
 

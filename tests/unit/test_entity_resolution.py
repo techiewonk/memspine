@@ -14,6 +14,8 @@ from typing import Any
 import pytest
 
 from memspine import Engine
+from memspine.derive.pipeline.stages.extract_graph import extract_graph, resolve_mode
+from memspine.derive.pipeline.stages.index import ENTITY_RESOLVED_MARKER, SessionIndex
 from memspine.exceptions import ConfigError
 from memspine.memories.associative.resolution import (
     EntityResolver,
@@ -23,12 +25,6 @@ from memspine.memories.associative.resolution import (
 )
 from memspine.prompts.models import ExtractedEdge
 from memspine.store.records import MemoryRecord, SourceInfo
-from memspine.derive.pipeline.stages.context import (
-    ENTITY_RESOLVED_MARKER,
-    SessionIndex,
-    extract_graph,
-    resolve_mode,
-)
 
 T0 = datetime(2023, 5, 1, tzinfo=UTC)
 
