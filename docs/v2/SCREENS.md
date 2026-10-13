@@ -308,3 +308,9 @@ used for the episode leg (session close gives L2 more cheaply); add it as a vari
 `python evals/gen_b5_arms.py --check` and `pytest evals/tests/test_b5_arms.py evals/tests/test_v2_arms.py` (CPU only, no models): all 21 arms equal
 the generator output and pass `validate_engine_config` (so no unknown key); every row's arm file exists and its reference resolves to a
 queue row of the same kind. The queue runner itself was not run, not even with `--dry-run`.
+
+## Resume 2026-10-13 19:29 (GPU released)
+
+- S16 `read.rerank_v2`: 0/0 on the 80-item sample (no answer changed) and the behavioural gate flagged **INV-FILLER** — marked `iterate`; investigate the filler invariant before any focus run.
+- S17 `read.exact_budget`: 0/0 — inert on the J arm as the audit predicted (needs mined facts / a tight budget); marked `iterate`, re-screened in B7 by FU-REQS.
+- 20:06: queue restarted at commit 410a4707 (includes FU-TEMPORAL) without the screens the audit found inert as configured (S18, S21–S24, S27, S46). Order: S19, S20, S25, S26, B3 (S28), B4 (S29), B5 (S30–S45, S47–S50). The inert screens return in B7 once their arms are fixed.
