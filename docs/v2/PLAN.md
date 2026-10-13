@@ -9,9 +9,9 @@ Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summarie
 |---|---|
 | Not started | 46 |
 | Ready | 0 |
-| In progress | 13 |
+| In progress | 12 |
 | Blocked | 0 |
-| Needs measurement | 25 |
+| Needs measurement | 26 |
 | Done | 77 |
 | Dropped | 1 |
 
@@ -110,7 +110,7 @@ Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summarie
 | F-02a | Record envelope: layer field, type tag, provenance class, axes, fingerprint; Alembic and upcaster | L0 L1 L3 L4 L5 ctx scope | D K_C R | M-02, M-03, M-06, M-07, M-08, P-12 | ER-03, ER-14, ER-32 | F-01, MOD-01 | migration | S2 foundations (serial: Alembic) | `src/memspine/store/envelope.py` +4 | Replay byte-stable; upcaster round-trips; golden unchanged | **Done** | Envelope fields on MemoryRecord (layer, type_tag, provenance_class, axes, fingerprint, schema_version), 0007 migration + backfill, store/envelope.py, store/layers.py (F-02a) |
 | F-02b | Tri-temporal times with precision; LayerRegistry (template-enabled and populated layers) | L0 L1 L3 L4 ctx | D K_C | M-10, M-02 | ER-03, ER-18 | F-02a | migration | S2 foundations (serial: Alembic) | `src/memspine/store/envelope.py` +4 | Golden unchanged; registry reports layers per namespace | **In progress** | Foundations: agent running |
 | F-02c | Edge compiler and link projection from assertions (graph ON by default with a worker model) | L1 L3 | D R | M-16 | ER-20 | F-02b, LIB-35 | behaviour | S2 foundations (serial: Alembic) | `src/memspine/store/envelope.py` +4 | GC arm screen before the default counts in results | **Not started** | I-7: L3 on by default |
-| F-03 | Model upgrades: versioned vector spaces, selective re-derivation | - | K_C | P-25 | - | F-02a | behaviour | S2 foundations (serial: Alembic) | - | Shadow index switch test | **In progress** | Foundations: agent running |
+| F-03 | Model upgrades: versioned vector spaces, selective re-derivation | - | K_C | P-25 | - | F-02a | behaviour | S2 foundations (serial: Alembic) | - | Shadow index switch test | **Needs measurement** | VersionedSpaceStore, shadow reembed + switch, stale_derivations/rederive plan; flag off (3a78b6e1); parity screen queued |
 | F-04 | Durable outbox and inline runner, read barrier; model calls outside namespace locks | L0 L1 L3 ctx | D K_C | W-02, W-10, W-13, W-25, G-19, P-21 | ER-06, ER-07, ER-09 | F-02b, LIB-07, LIB-26 | behaviour | S2 foundations (serial: Alembic) | `src/memspine/runtime/**` +7 | Fault-injection tests; golden unchanged with barrier | **In progress** | Foundations: durable outbox + inline runner (agent running, parallel with F-02a) |
 | RT-01 | Taskiq transport over the outbox: in-memory broker (library), external broker + worker entry point (server) | L0 L1 L3 ctx | D K_C | G-19, W-13 | ER-06 | F-04 | behaviour | S2 foundations (serial: Alembic) | `src/memspine/runtime/**` +7 | Crash tests with both brokers; unfinished rows re-sent on start | **Not started** | Owner 2026-10-13: outbox = truth, taskiq = transport |
 | RT-02 | Executors, priority classes, global model semaphore, backpressure (coalesce, never drop) | L0 L1 ctx | D K_C R | P-20, W-25, P-21 | ER-08, ER-10, ER-39 | RT-01 | behaviour | S2 foundations (serial: Alembic) | `src/memspine/runtime/**` +7 | Load test: reads keep p95 under background load; no dropped work | **Not started** | Async core; GPU encoders micro-batched in dedicated executors |

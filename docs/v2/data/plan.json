@@ -3734,8 +3734,8 @@
    ],
    "kind": "behaviour",
    "gate": "Shadow index switch test",
-   "status": "In progress",
-   "note": "Foundations: agent running",
+   "status": "Needs measurement",
+   "note": "VersionedSpaceStore, shadow reembed + switch, stale_derivations/rederive plan; flag off (3a78b6e1); parity screen queued",
    "layers": [],
    "operators": [
     "K_C"

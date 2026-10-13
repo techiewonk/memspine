@@ -179,7 +179,7 @@ WP = [
      "migration", "Golden unchanged; registry reports layers per namespace", "In progress", "Foundations: agent running"),
     ("F-02c", 1, "Edge compiler and link projection from assertions (graph ON by default with a worker model)", ["M-16"], ["F-02b", "LIB-35"], "behaviour", "GC arm screen before the default counts in results", "Not started", "I-7: L3 on by default"),
     ("F-03", 1, "Model upgrades: versioned vector spaces, selective re-derivation", ["P-25"], ["F-02a"], "behaviour",
-     "Shadow index switch test", "In progress", "Foundations: agent running"),
+     "Shadow index switch test", "Needs measurement", "VersionedSpaceStore, shadow reembed + switch, stale_derivations/rederive plan; flag off (3a78b6e1); parity screen queued"),
     ("F-04", 1, "Durable outbox and inline runner, read barrier; model calls outside namespace locks",
      ["W-02", "W-10", "W-13", "W-25", "G-19", "P-21"], ["F-02b", "LIB-07", "LIB-26"], "behaviour",
      "Fault-injection tests; golden unchanged with barrier", "In progress", "Foundations: durable outbox + inline runner (agent running, parallel with F-02a)"),
