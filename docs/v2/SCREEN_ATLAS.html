@@ -87,6 +87,20 @@ details.scr>summary::-webkit-details-marker{display:none}
 .hcell .hv{font:600 16px var(--f-display);font-variant-numeric:tabular-nums}
 .up{color:var(--good)} .dn{color:var(--bad)} .flat{color:var(--muted)}
 .note{font-size:14px;color:var(--muted)}
+.flow{list-style:none;margin:0;padding:0;display:grid;gap:0;counter-reset:st}
+.flow li{position:relative;padding:8px 0 8px 40px;border-left:2px solid var(--line);margin-left:14px;min-width:0}
+.flow li::before{counter-increment:st;content:counter(st);position:absolute;left:-14px;top:7px;width:26px;height:26px;border-radius:50%;background:var(--panel);border:2px solid var(--accent);color:var(--accent);font:600 12px/22px var(--f-mono);text-align:center}
+.flow li:last-child{border-left-color:transparent}
+.flow .k{font:600 10.5px/1 var(--f-mono);text-transform:uppercase;letter-spacing:.05em;padding:3px 6px;border-radius:4px;margin-right:6px;background:var(--neutral-soft);color:var(--muted)}
+.flow .k.llm{background:var(--warn-soft);color:var(--warn)} .flow .k.algorithm{background:var(--accent-soft);color:var(--accent)} .flow .k.storage{background:var(--good-soft);color:var(--good)}
+.flow .src{display:block;font:12px var(--f-mono);color:var(--muted);overflow-wrap:anywhere}
+.tags{display:flex;flex-wrap:wrap;gap:6px}
+.tag2{font:500 12.5px var(--f-body);border:1px solid var(--line);border-radius:6px;padding:3px 8px;background:var(--bg)}
+.int{display:grid;gap:12px;border-top:1px dashed var(--line);padding-top:12px}
+.int h4{font:600 13px var(--f-mono);text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin:0}
+.mtab{width:100%;font-size:13.5px}
+.rec{display:flex;flex-wrap:wrap;gap:8px}
+.rec .hcell{min-width:120px}
 .count{font:500 13px var(--f-mono);color:var(--muted)}
 .callout{border:1px solid var(--accent);background:var(--accent-soft);border-radius:10px;padding:16px 18px;display:grid;gap:8px}
 ol.plan{margin:0;padding-left:22px;display:grid;gap:8px}
@@ -150,6 +164,18 @@ flowchart LR
   </div>
 </section>
 
+<section id="reference-flows">
+  <div class="eyebrow">1b · The reference flows every screen is compared against</div>
+  <h2>Reference internals: read, write, sleep</h2>
+  <p>Traced from the code on the <code>restructure</code> branch. Each step names the function it runs, whether it is an algorithm, a library, a model call or a storage step. Screens below show only what they change on top of these.</p>
+  <div class="tabsbar filters" role="tablist" aria-label="Reference flow">
+    <button class="chip" data-ref="REF-J" aria-pressed="true">Read path (REF-J)</button>
+    <button class="chip" data-ref="REF-WRITE" aria-pressed="false">Write path (REF-WRITE)</button>
+    <button class="chip" data-ref="REF-SLEEP" aria-pressed="false">Sleep cycle (REF-SLEEP)</button>
+  </div>
+  <div class="panel" id="refBox"><p class="note">Loading the traced internals…</p></div>
+</section>
+
 <!-- 2. HOW A SCREEN WORKS -->
 <section id="method">
   <div class="eyebrow">2 · How a screen is run</div>
@@ -168,7 +194,7 @@ flowchart LR
       <ul class="tight">
         <li><b>PROMOTE</b>: must beat the reference. <b>NONINF</b>: must not lose. <b>PARITY</b>: answers must not change. <b>REPORT</b>: describe only.</li>
         <li>Samples are 60 LoCoMo questions (GC) or 80 (J), plus 60 OP-Bench where set. Each row shows questions gained / lost against the reference.</li>
-        <li><b>Noise:</b> GC runs re-run the extraction model, which moves about ±5 answers per 60 on its own. A result of +6/−5 is noise; a planned reference-vs-reference run will measure it exactly.</li>
+        <li><b>No run-to-run noise:</b> two reference runs on the same commit gave identical answers on all 80 questions, so every flip is caused by the screen. The real limit is that random samples hold only 13–15 wrong questions; targeted slices (wrong questions of one class plus correct controls) now test whether a screen fixes what it aims at.</li>
       </ul>
     </div>
   </div>
@@ -311,16 +337,16 @@ const S=[
 ["S28","D","Graph key v2","graph.key_v2","GC","iterate","+4/−4 (0)","New graph node key (tenant + owner + normalised name).","K graph.",["0","0","0","0","0"],"Noise; keep for isolation, not accuracy."],
 ["S29","X","Restructure parity","none (public API adapter)","J","pass","0/0 (parity holds)","Confirms the restructured engine gives the old engine's answers.","—",["0","0","0","0","0"],"Pass."],
 ["S30","R","Graph search leg","read.graph_leg_v2 + edge compiler","GC","iterate","+6/−5 (+1.67)","Follows one link from the question's entities and keeps what two or more of them reach.","R leg over compiled edges.",["+0.5 to +2 (multi-hop)","0","0","+0.5","+0.5"],"Within noise; decided by the read-v2-graph bundle."],
-["S31","R","Episode search leg","read.episode_leg_v2","GC","iterate","+5/−6 (−1.67)","Searches session summaries / episodes and lifts hits to their turns.","R leg (L2).",["0 to +1","0","0","0","+1"],"Within noise; bundle decides."],
+["S31","R","Episode search leg","read.episode_leg_v2","GC","queued","+5/−6 on first run, but the eval never closed sessions so no episodes existed; re-queued after FX-EVAL","Searches session summaries / episodes and lifts hits to their turns.","R leg (L2).",["0 to +1","0","0","0","+1"],"Within noise; bundle decides."],
 ["S32","R","Entity search leg","read.entity_leg_v2","GC","iterate","+4/−6 (−3.33)","Entity leg on a run where the graph exists.","R leg.",["0 to +1","0","0","0","0"],"Within noise; bundle decides."],
-["S33","K","Session close","offline.session_close_v2","GC","queued","running","At session end, one model call writes a summary and episodes with citations.","K → store (L2).",["+0.5 to +1.5","0","+0.5","0","+1"],"Run (in queue)."],
+["S33","K","Session close","offline.session_close_v2","GC","queued","re-queued: inert until FX-EVAL made the eval close each session","At session end, one model call writes a summary and episodes with citations.","K → store (L2).",["+0.5 to +1.5","0","+0.5","0","+1"],"Run (in queue)."],
 ["S34","K","Standing answers","offline.standing_v2 + read.standing_v2","GC","queued","queued","Keeps a current answer for frequently asked state questions (\"where does Ilse live now\").","K builds, C injects.",["+0.5 to +1","0","+1","+1 to +2","0"],"Run."],
-["S35","K","Patterns","offline.patterns_v2","GC","queued","queued","Finds recurring behaviour across sessions (\"usually runs on Sundays\").","K → store (L4).",["0 to +1","0","+1 to +2","0","0"],"Run."],
+["S35","K","Patterns","offline.patterns_v2","GC","queued","re-queued: patterns now run after graph extraction (FX-EVAL)","Finds recurring behaviour across sessions (\"usually runs on Sundays\").","K → store (L4).",["0 to +1","0","+1 to +2","0","0"],"Run."],
 ["S36","R","Tiers (sleep run)","read.tiers_v2","GC","deferred","deferred","Re-test of S10 with derived layers present.","R.",["0 to +1","0","0","0","0"],"Deferred to bundle."],
 ["S37","R","Router (sleep run)","read.router_rules","GC","deferred","deferred","Re-test of S12 with derived layers present.","R.",["0 to +1","0","0","0","0"],"Deferred to bundle."],
 ["S38","R","v2 legs alone","read.legs_v2","GC","queued","queued","The v2 leg registry on its own; old temporal rules now ported, so mostly lexical score scale changes.","R legs.",["0 ± 1","0","0","0","0"],"Run: checks the new path is safe."],
 ["S39","K","Edge compiler alone","graph.edge_compiler_v2","GC","deferred","deferred","Compiles typed graph edges from facts without the reading leg.","K.",["0","0","0","0","0"],"Deferred: covered by S30."],
-["S40","K","Communities","offline.communities_v2","GC","queued","queued","Clusters entities and writes one summary per community for broad questions.","K → store.",["0 to +1","0","0","0","+0.5"],"Run."],
+["S40","K","Communities","offline.communities_v2","GC","queued","re-queued: summarise model now bound (FX-EVAL)","Clusters entities and writes one summary per community for broad questions.","K → store.",["0 to +1","0","0","0","+0.5"],"Run."],
 ["S41","K","Reconcile","offline.reconcile_v2","GC","queued","queued","Sweeps contradictions and decides which value stands.","K.",["0","0","0","+1 to +3","0"],"Run; main value on MAB-CR."],
 ["S42","K","Value histories","offline.histories_v2","GC","queued","queued","Merges near-duplicates and keeps the history of a changing value.","K.",["0 to +0.5","0","0","+1 to +2","0"],"Run."],
 ["S43","D","Window-facts reference","reference only","GC","deferred","deferred","Reference for the single write screens.","—",["—","","","",""],"Deferred with the write singles."],
@@ -345,7 +371,7 @@ const S=[
 ["S64","B","Bundle: offline-v2","profile offline-v2","GC","queued","queued","All new sleep jobs.","K.",["0 to +2","0","+1 to +2","+1 to +3","+1"],"Run."],
 ["S65","B","Bundle: trust-v2","profile trust-v2","GC","queued","queued","Scope, viewer, consent, erasure, audit, firewall.","T.",["0 (may refuse reads)","0","0","0","0"],"Report; the real test is the safety suite."],
 ["S66","B","Bundle: run-v2","profile run-v2","GC","queued","queued","Outbox, scheduler, cost ledger, caches, parallel legs.","X.",["0 (parity)","0","0","0","0"],"Parity; enable if it holds."],
-["S67","R","Reranker with wider pool","read.rerank_v2_search_pool=30","J","queued","queued","Reranks 30 candidates instead of 5, then cuts back.","R rerank.",["+0.5 to +2","+1","0","0","+0.5"],"Run."]
+["S67","R","Reranker with wider pool","read.rerank_v2_search_pool=30","J","queued","held: the eval read path ignored the key; FX-READPATH is wiring it into Engine.read","Reranks 30 candidates instead of 5, then cuts back.","R rerank.",["+0.5 to +2","+1","0","0","+0.5"],"Run."]
 ];
 const STATUS={promote:"Promote",pass:"Pass",iterate:"Iterate",drop:"Dropped",queued:"Queued",deferred:"Deferred",skipped:"Skipped"};
 const LAYER={R:"Retrieve",C:"Compose",D:"Deposit",K:"Sleep",T:"Trust",X:"Runtime",B:"Bundle"};
@@ -356,6 +382,41 @@ const measured=S.filter(r=>["promote","pass","iterate","drop"].includes(r[5])&&!
 document.getElementById("resultsBody").innerHTML=measured.map(r=>{
   const m=r[6].match(/([+−-]?\d+\/[−-]\d+|\+\d+\/−\d+)/);const gl=r[6];
   return `<tr><td class="mono">${r[0]}</td><td>${esc(r[2])}<br><span class="note mono">${esc(r[3])}</span></td><td>${r[4]==="GC"?"LoCoMo 60":"LoCoMo 80"}${/OP-Bench/.test(r[6])?" · OP-Bench 60":""}</td><td class="num">${esc(gl.split(" (")[0])}</td><td class="num">${esc((gl.match(/\(([^)]*)\)/)||["",""])[1])}</td><td><span class="pill s-${r[5]}">${STATUS[r[5]]}</span></td></tr>`}).join("");
+// traced internals (docs/v2/data/screen_internals_*.json) + LoCoMo recoverable bounds (docs/v2/LOCOMO_PROBLEM_MAP.md)
+let INT={}, REC={};
+function list(a){return (a&&a.length)?`<div class="tags">${a.map(x=>`<span class="tag2">${esc(x)}</span>`).join("")}</div>`:`<span class="note">none</span>`}
+function flowHTML(steps){return `<ol class="flow">${(steps||[]).map(s=>`<li><span class="k ${esc(s.kind||"")}">${esc(s.kind||"step")}</span>${esc(s.what)}<span class="src">${esc(s.code||"")}</span></li>`).join("")}</ol>`}
+function modelsHTML(m){if(!m||!m.length)return `<span class="note">none</span>`;
+  return `<div class="tablewrap"><table class="mtab"><thead><tr><th>Role</th><th>Model</th><th>Calls</th><th>Prompt</th></tr></thead><tbody>${m.map(x=>`<tr><td>${esc(x.role)}</td><td>${esc(x.model)}</td><td>${esc(x.calls)}</td><td class="mono">${esc(x.prompt||"")}</td></tr>`).join("")}</tbody></table></div>`}
+function internalsHTML(t){
+  return `<div class="int">
+    <dl class="kv">
+      <dt>Settings</dt><dd class="mono">${esc(Object.entries(t.settings||{}).map(([k,v])=>k+"="+JSON.stringify(v)).join("  ·  ")||"—")}</dd>
+      <dt>Runs when</dt><dd>${esc(t.trigger||"")}</dd>
+      <dt>Needs to exist</dt><dd>${esc(t.inputs||"")}</dd>
+      <dt>Changes</dt><dd>${esc(t.outputs||"")}</dd>
+      <dt>Storage</dt><dd>${esc(t.storage||"")}</dd>
+      <dt>Cost</dt><dd>${esc(t.cost||"")}</dd>
+    </dl>
+    <h4>Complete flow</h4>${flowHTML(t.steps)}
+    <h4>Algorithms</h4>${list(t.algorithms)}
+    <h4>Libraries</h4>${list(t.libraries)}
+    <h4>Models and calls</h4>${modelsHTML(t.models)}
+    <h4>Known gaps</h4>${list(t.failure_modes)}
+    <h4>Tests</h4>${list(t.tests)}
+  </div>`}
+function intBlock(id){const t=INT[id];if(!t)return "";return `<details><summary class="eyebrow" style="cursor:pointer">Internals: flow, algorithms, libraries, models</summary>${internalsHTML(t)}</details>`}
+function recBlock(id){const r=REC[id];if(!r)return "";
+  return `<div><div class="note" style="margin-bottom:6px">LoCoMo wrong questions this screen targets (clean-jina-full, 287 wrong). Bounds and capture are hypotheses.</div>
+  <div class="rec"><div class="hcell"><span class="bn">Upper bound</span><span class="hv">${esc(r.ub)}</span></div><div class="hcell"><span class="bn">If 30%</span><span class="hv up">${esc(r.p30)}</span></div><div class="hcell"><span class="bn">If 60%</span><span class="hv up">${esc(r.p60)}</span></div><div class="hcell"><span class="bn">+ secondary</span><span class="hv">${esc(r.sec)}</span></div></div>
+  <div class="note" style="margin-top:6px">Target classes: ${esc(r.classes)}</div></div>`}
+function showRef(id){const t=INT[id];const box=document.getElementById("refBox");
+  if(!t){box.innerHTML=`<p class="note">Not traced.</p>`;return}
+  box.innerHTML=`<h3 style="margin-bottom:8px">${esc(id)}</h3>${internalsHTML(t)}`}
+document.querySelectorAll("[data-ref]").forEach(b=>b.addEventListener("click",()=>{
+  document.querySelectorAll("[data-ref]").forEach(x=>x.setAttribute("aria-pressed",String(x===b)));showRef(b.dataset.ref)}));
+fetch(location.protocol==="file:"?"data/screen_atlas_internals.json":"internals.json").then(r=>r.json()).then(d=>{INT=d.internals||{};REC=d.recover||{};render();showRef("REF-J")})
+  .catch(()=>{document.getElementById("refBox").innerHTML=`<p class="note">The internals file did not load.</p>`});
 // catalogue
 const state={layer:"all",status:"all",q:""};
 function render(){
@@ -376,6 +437,8 @@ function render(){
         <div class="note" style="margin-bottom:6px">Hypothesised effect in accuracy points (not measured)</div>
         <div class="hyp">${BENCH.map((b,i)=>`<div class="hcell"><span class="bn">${b}</span><span class="hv ${cls(r[9][i])}">${esc(r[9][i]||"0")}</span></div>`).join("")}</div>
       </div>
+      ${recBlock(r[0])}
+      ${intBlock(r[0])}
     </div>
   </details>`).join("");
 }
