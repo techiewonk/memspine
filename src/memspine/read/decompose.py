@@ -7,8 +7,8 @@ This module only decides *whether* and *how* to split:
 - an entity is a known participant (speaker or record entity) that the question names as a
   whole word, in order of appearance;
 - the question is multi-entity when two or more entities are named and a join word links
-  them (both / and / either / or / compare / same / each / common / versus / than / before / after) or the
-  question has the "who ... more" form;
+  them (both / and / either / or / compare / same / each / common / versus / than / before /
+  after) or the question has the "who ... more" form;
 - each sub-question is the question with the other entities removed and the predicate kept;
 - the combine operator is read from the surface words (intersection, union, compare, count,
   before-after).
