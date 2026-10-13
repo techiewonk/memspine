@@ -88,9 +88,15 @@
    "tag_assistant_claims": false
   },
   "graph": {
+   "backend": "auto",
    "edge_compiler_v2": false,
    "entity_embeddings": false,
    "key_v2": false,
+   "neo4j_database": "neo4j",
+   "neo4j_outbox": false,
+   "neo4j_password_env": "MEMSPINE_NEO4J_PASSWORD",
+   "neo4j_url_env": "MEMSPINE_NEO4J_URL",
+   "neo4j_user_env": "MEMSPINE_NEO4J_USER",
    "provider": "auto"
   },
   "ingest": {
@@ -594,7 +600,7 @@
    "window_topic_k": 2.0
   }
  },
- "json_schema_sha256": "aba4e5d0c8d66a5938fb20a6a4350b4db8105861b0c4d5c7ae47a9a171c900bc",
+ "json_schema_sha256": "878a3a359a395fde8efaa6736c95402f37b09e7327dd24e92a8d083f06fa1333",
  "preset:chat_roles": {
   "audit": {
    "actions": false,
@@ -686,9 +692,15 @@
    "tag_assistant_claims": false
   },
   "graph": {
+   "backend": "auto",
    "edge_compiler_v2": false,
    "entity_embeddings": false,
    "key_v2": false,
+   "neo4j_database": "neo4j",
+   "neo4j_outbox": false,
+   "neo4j_password_env": "MEMSPINE_NEO4J_PASSWORD",
+   "neo4j_url_env": "MEMSPINE_NEO4J_URL",
+   "neo4j_user_env": "MEMSPINE_NEO4J_USER",
    "provider": "auto"
   },
   "ingest": {
@@ -1310,9 +1322,15 @@
    "tag_assistant_claims": false
   },
   "graph": {
+   "backend": "auto",
    "edge_compiler_v2": false,
    "entity_embeddings": false,
    "key_v2": false,
+   "neo4j_database": "neo4j",
+   "neo4j_outbox": false,
+   "neo4j_password_env": "MEMSPINE_NEO4J_PASSWORD",
+   "neo4j_url_env": "MEMSPINE_NEO4J_URL",
+   "neo4j_user_env": "MEMSPINE_NEO4J_USER",
    "provider": "auto"
   },
   "ingest": {
@@ -1932,9 +1950,15 @@
    "tag_assistant_claims": false
   },
   "graph": {
+   "backend": "auto",
    "edge_compiler_v2": false,
    "entity_embeddings": false,
    "key_v2": false,
+   "neo4j_database": "neo4j",
+   "neo4j_outbox": false,
+   "neo4j_password_env": "MEMSPINE_NEO4J_PASSWORD",
+   "neo4j_url_env": "MEMSPINE_NEO4J_URL",
+   "neo4j_user_env": "MEMSPINE_NEO4J_USER",
    "provider": "auto"
   },
   "ingest": {
@@ -2554,9 +2578,15 @@
    "tag_assistant_claims": false
   },
   "graph": {
+   "backend": "auto",
    "edge_compiler_v2": false,
    "entity_embeddings": false,
    "key_v2": false,
+   "neo4j_database": "neo4j",
+   "neo4j_outbox": false,
+   "neo4j_password_env": "MEMSPINE_NEO4J_PASSWORD",
+   "neo4j_url_env": "MEMSPINE_NEO4J_URL",
+   "neo4j_user_env": "MEMSPINE_NEO4J_USER",
    "provider": "auto"
   },
   "ingest": {
@@ -3176,9 +3206,15 @@
    "tag_assistant_claims": false
   },
   "graph": {
+   "backend": "auto",
    "edge_compiler_v2": false,
    "entity_embeddings": false,
    "key_v2": false,
+   "neo4j_database": "neo4j",
+   "neo4j_outbox": false,
+   "neo4j_password_env": "MEMSPINE_NEO4J_PASSWORD",
+   "neo4j_url_env": "MEMSPINE_NEO4J_URL",
+   "neo4j_user_env": "MEMSPINE_NEO4J_USER",
    "provider": "auto"
   },
   "ingest": {
@@ -3798,9 +3834,15 @@
    "tag_assistant_claims": false
   },
   "graph": {
+   "backend": "auto",
    "edge_compiler_v2": false,
    "entity_embeddings": false,
    "key_v2": false,
+   "neo4j_database": "neo4j",
+   "neo4j_outbox": false,
+   "neo4j_password_env": "MEMSPINE_NEO4J_PASSWORD",
+   "neo4j_url_env": "MEMSPINE_NEO4J_URL",
+   "neo4j_user_env": "MEMSPINE_NEO4J_USER",
    "provider": "auto"
   },
   "ingest": {
@@ -4420,9 +4462,15 @@
    "tag_assistant_claims": false
   },
   "graph": {
+   "backend": "auto",
    "edge_compiler_v2": false,
    "entity_embeddings": false,
    "key_v2": false,
+   "neo4j_database": "neo4j",
+   "neo4j_outbox": false,
+   "neo4j_password_env": "MEMSPINE_NEO4J_PASSWORD",
+   "neo4j_url_env": "MEMSPINE_NEO4J_URL",
+   "neo4j_user_env": "MEMSPINE_NEO4J_USER",
    "provider": "auto"
   },
   "ingest": {
@@ -5042,9 +5090,15 @@
    "tag_assistant_claims": false
   },
   "graph": {
+   "backend": "auto",
    "edge_compiler_v2": false,
    "entity_embeddings": false,
    "key_v2": false,
+   "neo4j_database": "neo4j",
+   "neo4j_outbox": false,
+   "neo4j_password_env": "MEMSPINE_NEO4J_PASSWORD",
+   "neo4j_url_env": "MEMSPINE_NEO4J_URL",
+   "neo4j_user_env": "MEMSPINE_NEO4J_USER",
    "provider": "auto"
   },
   "ingest": {
@@ -5664,9 +5718,15 @@
    "tag_assistant_claims": false
   },
   "graph": {
+   "backend": "auto",
    "edge_compiler_v2": false,
    "entity_embeddings": false,
    "key_v2": false,
+   "neo4j_database": "neo4j",
+   "neo4j_outbox": false,
+   "neo4j_password_env": "MEMSPINE_NEO4J_PASSWORD",
+   "neo4j_url_env": "MEMSPINE_NEO4J_URL",
+   "neo4j_user_env": "MEMSPINE_NEO4J_USER",
    "provider": "auto"
   },
   "ingest": {
@@ -6286,9 +6346,15 @@
    "tag_assistant_claims": false
   },
   "graph": {
+   "backend": "auto",
    "edge_compiler_v2": false,
    "entity_embeddings": false,
    "key_v2": false,
+   "neo4j_database": "neo4j",
+   "neo4j_outbox": false,
+   "neo4j_password_env": "MEMSPINE_NEO4J_PASSWORD",
+   "neo4j_url_env": "MEMSPINE_NEO4J_URL",
+   "neo4j_user_env": "MEMSPINE_NEO4J_USER",
    "provider": "sqlite_adjacency"
   },
   "ingest": {
@@ -6917,9 +6983,15 @@
    "tag_assistant_claims": false
   },
   "graph": {
+   "backend": "auto",
    "edge_compiler_v2": false,
    "entity_embeddings": false,
    "key_v2": false,
+   "neo4j_database": "neo4j",
+   "neo4j_outbox": false,
+   "neo4j_password_env": "MEMSPINE_NEO4J_PASSWORD",
+   "neo4j_url_env": "MEMSPINE_NEO4J_URL",
+   "neo4j_user_env": "MEMSPINE_NEO4J_USER",
    "provider": "auto"
   },
   "ingest": {
@@ -7544,9 +7616,15 @@
    "tag_assistant_claims": false
   },
   "graph": {
+   "backend": "auto",
    "edge_compiler_v2": false,
    "entity_embeddings": false,
    "key_v2": false,
+   "neo4j_database": "neo4j",
+   "neo4j_outbox": false,
+   "neo4j_password_env": "MEMSPINE_NEO4J_PASSWORD",
+   "neo4j_url_env": "MEMSPINE_NEO4J_URL",
+   "neo4j_user_env": "MEMSPINE_NEO4J_USER",
    "provider": "auto"
   },
   "ingest": {
@@ -8152,9 +8230,15 @@
    "tag_assistant_claims": false
   },
   "graph": {
+   "backend": "auto",
    "edge_compiler_v2": false,
    "entity_embeddings": true,
    "key_v2": false,
+   "neo4j_database": "neo4j",
+   "neo4j_outbox": false,
+   "neo4j_password_env": "MEMSPINE_NEO4J_PASSWORD",
+   "neo4j_url_env": "MEMSPINE_NEO4J_URL",
+   "neo4j_user_env": "MEMSPINE_NEO4J_USER",
    "provider": "auto"
   },
   "ingest": {
@@ -8782,9 +8866,15 @@
    "tag_assistant_claims": false
   },
   "graph": {
+   "backend": "auto",
    "edge_compiler_v2": false,
    "entity_embeddings": false,
    "key_v2": false,
+   "neo4j_database": "neo4j",
+   "neo4j_outbox": false,
+   "neo4j_password_env": "MEMSPINE_NEO4J_PASSWORD",
+   "neo4j_url_env": "MEMSPINE_NEO4J_URL",
+   "neo4j_user_env": "MEMSPINE_NEO4J_USER",
    "provider": "auto"
   },
   "ingest": {
@@ -9408,9 +9498,15 @@
    "tag_assistant_claims": false
   },
   "graph": {
+   "backend": "auto",
    "edge_compiler_v2": false,
    "entity_embeddings": false,
    "key_v2": false,
+   "neo4j_database": "neo4j",
+   "neo4j_outbox": false,
+   "neo4j_password_env": "MEMSPINE_NEO4J_PASSWORD",
+   "neo4j_url_env": "MEMSPINE_NEO4J_URL",
+   "neo4j_user_env": "MEMSPINE_NEO4J_USER",
    "provider": "auto"
   },
   "ingest": {
@@ -10038,9 +10134,15 @@
    "tag_assistant_claims": true
   },
   "graph": {
+   "backend": "auto",
    "edge_compiler_v2": false,
    "entity_embeddings": false,
    "key_v2": false,
+   "neo4j_database": "neo4j",
+   "neo4j_outbox": false,
+   "neo4j_password_env": "MEMSPINE_NEO4J_PASSWORD",
+   "neo4j_url_env": "MEMSPINE_NEO4J_URL",
+   "neo4j_user_env": "MEMSPINE_NEO4J_USER",
    "provider": "auto"
   },
   "ingest": {
@@ -10660,9 +10762,15 @@
    "tag_assistant_claims": false
   },
   "graph": {
+   "backend": "auto",
    "edge_compiler_v2": false,
    "entity_embeddings": false,
    "key_v2": false,
+   "neo4j_database": "neo4j",
+   "neo4j_outbox": false,
+   "neo4j_password_env": "MEMSPINE_NEO4J_PASSWORD",
+   "neo4j_url_env": "MEMSPINE_NEO4J_URL",
+   "neo4j_user_env": "MEMSPINE_NEO4J_USER",
    "provider": "auto"
   },
   "ingest": {
@@ -11283,9 +11391,15 @@
    "tag_assistant_claims": false
   },
   "graph": {
+   "backend": "auto",
    "edge_compiler_v2": false,
    "entity_embeddings": false,
    "key_v2": false,
+   "neo4j_database": "neo4j",
+   "neo4j_outbox": false,
+   "neo4j_password_env": "MEMSPINE_NEO4J_PASSWORD",
+   "neo4j_url_env": "MEMSPINE_NEO4J_URL",
+   "neo4j_user_env": "MEMSPINE_NEO4J_USER",
    "provider": "auto"
   },
   "ingest": {

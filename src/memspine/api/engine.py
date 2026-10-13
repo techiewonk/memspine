@@ -85,6 +85,7 @@ from memspine.derive.pipeline.stages.context import (
     SummarizeEntities,
     SummarizeIncremental,
 )
+from memspine.derive.pipeline.stages.edge_compiler_v2 import COMPILED as _EDGE_COMPILED
 from memspine.derive.pipeline.stages.table import PIPELINES
 from memspine.derive.scheduler import DerivationScheduler
 from memspine.economy.slo import timed_read
@@ -188,6 +189,7 @@ from memspine.runtime.container import (
     Capabilities,
     DecisionState,
     EngineSpec,
+    Neo4jProjection,
     SemanticExtractor,
     SemanticWritePipeline,
     Wiring,
@@ -195,7 +197,9 @@ from memspine.runtime.container import (
     client_is_memory,
     lexical_projector_name,
     make_container,
+    make_neo4j_projection,
     memory_policy,
+    neo4j_outbox_on,
 )
 from memspine.schemas.durable import OwnerScope
 from memspine.schemas.durable.erasure import RetentionBoundary
@@ -305,6 +309,7 @@ class Engine:
         self._vector: VectorStore | None = None
         self._lexical: LexicalStore | None = None
         self._graph: GraphStore | None = None
+        self._neo4j: Neo4jProjection | None = None  # F-16e: graph.neo4j_outbox
         self._llm: LLMRouter | None = None
         self._working: WorkingMemory | None = None
         self._semantic: SemanticMemory | None = None
@@ -630,6 +635,23 @@ class Engine:
                     else None,
                 )
             )
+        graph_entities = (
+            EntityPolicy.from_policy(self._memory_policy(config, "associative").get("entity_nodes"))
+            if self._associative is not None
+            else None
+        )
+        if neo4j_outbox_on(config):  # F-16e: Neo4j mirror of the graph, fed through the outbox
+            if self._graph is None:
+                raise ConfigError("graph.neo4j_outbox needs memories.associative (a graph)")
+            self._neo4j = make_neo4j_projection(
+                config,
+                self._client,
+                self._pg,
+                self._namespace_lock,
+                graph_entities,
+                _EDGE_COMPILED,
+            )
+            self._projectors.append(self._neo4j.projector)
 
         # Background runner seam (D-16): inline default, dbos durable [dbos].
         self._runner = await container.get(TaskRunner)
@@ -638,6 +660,8 @@ class Engine:
 
         # 5.(minimal)/6. catch-up from high-water marks; rolling mode prunes on
         # boot via the pipeline (continuous scheduling joins the P3 sleep cycle).
+        if self._neo4j is not None:
+            await self._neo4j.runner.start()  # F-16e: resume queued graph work from the watermark
         await catch_up(self._storage, list(self._projectors))
         if config.event_log.mode is EventLogMode.ROLLING:
             stats = await self._runner.run("event_log_prune", self._pipeline_ctx())
@@ -738,6 +762,9 @@ class Engine:
             await derive_sched.stop()
         if self._windows is not None:
             await self._windows.stop()  # window workers and idle timers, before the storage goes
+        if self._neo4j is not None:
+            neo4j, self._neo4j = self._neo4j, None
+            await neo4j.close()  # F-16e: bounded drain, then the store handle
         if self._runner is not None:
             await self._runner.close()
         if self._storage is not None:
