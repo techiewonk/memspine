@@ -392,6 +392,7 @@
       "batch_max_age_s": 30.0,
       "batch_max_tokens": 3000,
       "batch_max_windows": 8,
+      "envelope_v2": false,
       "feedback_operators": [],
       "feedback_v2": false,
       "inferred": "off",

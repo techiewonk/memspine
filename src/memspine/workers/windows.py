@@ -44,10 +44,21 @@ from memspine.core.window import (
 )
 from memspine.derive.backpressure import BackpressureRejected
 from memspine.derive.call_batcher import BatchItem, CallBatcher
+from memspine.derive.compile import WindowLine
+from memspine.derive.envelope_compiler import EnvelopeCompiler, storage_kind
+from memspine.derive.failure_ledger import FailureLedger
+from memspine.derive.items import (
+    ItemsOutcome,
+    ItemValidator,
+    RepairAsk,
+    parse_reply,
+    process_items,
+)
 from memspine.derive.pipeline.stages.context import SessionClosed, WindowEdgeBatch
 from memspine.derive.pipeline.stages.mining import _fact_date
-from memspine.economy import ledger as _costs
 from memspine.derive.segmenter import SegmentationSettings, StreamSegmenter
+from memspine.economy import ledger as _costs
+from memspine.exceptions import LLMError
 from memspine.models.concurrency import Priority, priority_scope
 from memspine.models.providers.llm.base import LLMService
 from memspine.models.providers.llm.structured import structured_call
@@ -61,6 +72,7 @@ from memspine.prompts.models import (
     WindowPayload,
     fact_guard,
 )
+from memspine.prompts.structured import STRUCTURED_VERSION, extraction_messages
 from memspine.schemas.durable.common import OwnerScope
 from memspine.store.events import fingerprint_payload
 from memspine.store.records import MemoryRecord, RecordStatus
@@ -117,10 +129,17 @@ class WindowExtractor(Protocol):
 class PromptWindowExtractor:
     """:class:`WindowExtractor` over the ``window_extract`` prompt and a structured call."""
 
-    def __init__(self, llm: LLMService, prompt: Prompt, model: str = "") -> None:
+    def __init__(
+        self, llm: LLMService, prompt: Prompt, model: str = "", *, items: bool = False
+    ) -> None:
         self._llm = llm
         self._prompt = prompt
+        #: W2-06a (``write.envelope_v2``): the ``facts`` section is an ``ItemV1`` list from the
+        #: ``structured`` prompt, returned raw (each item is validated alone by the pipeline).
+        self._items = items
         self.identity = f"{model}|{prompt.prompt_version}"
+        if items:
+            self.identity += f"|items{STRUCTURED_VERSION}"
 
     async def __call__(
         self, sections: Sequence[str], variables: Mapping[str, object]
@@ -128,6 +147,29 @@ class PromptWindowExtractor:
         options: dict[str, Any] = {"temperature": 0.0}
         if self._prompt.token_budget:
             options["max_tokens"] = self._prompt.token_budget
+        if self._items and "facts" in sections:
+            result: dict[str, Any] = {}
+            reply = await self._llm.chat(
+                extraction_messages(
+                    str(variables.get("content", "")),
+                    str(variables.get("participants", "")),
+                    int(variables["turn_count"]) if "turn_count" in variables else None,  # type: ignore[call-overload]
+                ),
+                **options,
+            )
+            parsed = parse_reply(reply)
+            if parsed is None:
+                raise LLMError("structured items reply failed validation: not a JSON list")
+            result["facts"] = parsed
+            rest = [name for name in sections if name != "facts"]
+            if rest:
+                result.update(await self._legacy(rest, variables, options))
+            return result
+        return await self._legacy(sections, variables, options)
+
+    async def _legacy(
+        self, sections: Sequence[str], variables: Mapping[str, object], options: dict[str, Any]
+    ) -> Mapping[str, Any]:
         out = await structured_call(
             self._llm,
             self._prompt,
@@ -352,7 +394,7 @@ def split_batch_section(
         if not isinstance(item, dict):
             parts[0].append(item)
             continue
-        keys = [k for k in ("turns", "episode_indices") if k in item]
+        keys = [k for k in ("turns", "episode_indices", "lines") if k in item]
         cited = [n for k in keys for n in _int_lines(item[k])]
         owners = {w for n in cited if (w := window_of(n)) is not None}
         if len(owners) > 1:
@@ -384,6 +426,16 @@ def _cost_scope(namespace: str, layer: str) -> contextlib.AbstractContextManager
 class WindowCallFailed(RuntimeError):
     """Every model call of a window failed (outbox mode): the offset becomes a hole and is
     retried within the per-hole budget instead of being dropped."""
+
+
+@dataclass
+class EnvelopeWrite:
+    """W2-06a (``write.envelope_v2``): what the pipeline needs to validate and compile items."""
+
+    compiler: EnvelopeCompiler
+    validator: ItemValidator
+    repair: RepairAsk
+    ledger: FailureLedger
 
 
 @dataclass
@@ -452,6 +504,7 @@ class WindowPipeline:
         outbox: Any | None = None,  # runtime.runner.InlineRunner; untyped (workers is below runtime)
         segmentation: SegmentationSettings | None = None,
         clock: Callable[[], float] = time.time,
+        envelope: EnvelopeWrite | None = None,
     ) -> None:
         self.settings = settings
         self.sections = tuple(sections)
@@ -470,6 +523,7 @@ class WindowPipeline:
         self._reasons: Counter[str] = Counter()
         self._calls_by_layer: Counter[str] = Counter()
         self._dropped_by_layer: Counter[str] = Counter()
+        self._dead_by_code: Counter[str] = Counter()
         self._recent: deque[bool] = deque(maxlen=constants.WINDOW_SPLIT_RECENT)
         self._auto_split = False
         self._keys_by_record: dict[str, set[str]] = {}
@@ -477,6 +531,8 @@ class WindowPipeline:
         #: F-04 (``workers.outbox``): the durable queue and its runner; None = in-memory deque.
         self._outbox = outbox
         self._recover_task: asyncio.Task[Any] | None = None
+        #: W2-06a: only present with ``write.envelope_v2``.
+        self._env = envelope if "facts" in self.sections else None
         self._staged: list[tuple[str, dict[str, Any]]] = []
         self._persist_retry: asyncio.Task[None] | None = None  # RT-02 backpressure retry
         self._persist_lock = asyncio.Lock()
@@ -499,6 +555,11 @@ class WindowPipeline:
             outbox.register(WINDOW_STAGE, prepare=self._outbox_prepare, commit=self._outbox_commit)
         #: (namespace, session) -> what the session-closed hook returned (the last 100).
         self.closed_results: dict[tuple[str, str], object] = {}
+
+    @property
+    def failure_ledger(self) -> FailureLedger | None:
+        """The dead-letter list (``write.envelope_v2``), else None."""
+        return self._env.ledger if self._env is not None else None
 
     @property
     def asynchronous(self) -> bool:
@@ -842,6 +903,8 @@ class WindowPipeline:
         if self._outbox is not None:
             self._counts["jobs_persisted"] += self._outbox.depth()
             self._outbox.close()
+        if self._env is not None:
+            self._env.ledger.close()
 
     # -- outbox (F-04) ----------------------------------------------------------------------
 
@@ -1161,6 +1224,7 @@ class WindowPipeline:
                 first_line=spans[w][0] + 1,
                 turns=len(records),
             )
+            await self._compile_items(ns, job, records, per_window[w], window_id)
             if job.cancelled:
                 self._counts["windows_cancelled_forget"] += 1
                 await self._purge_window_cache(member_ids)
@@ -1408,7 +1472,64 @@ class WindowPipeline:
         if strict and failed and not merged:
             self._note_outcome(True, len(groups))
             raise WindowCallFailed(f"all {len(groups)} window call(s) failed")
+        await self._compile_items(ns, job, records, merged, window_id)
+        if job.cancelled:
+            self._counts["windows_cancelled_forget"] += 1
+            await self._purge_window_cache(member_ids)
+            return None
         return _Prepared(job, records, merged, line_texts, window_id, len(groups), failed)
+
+    async def _compile_items(
+        self,
+        ns: str,
+        job: _Job,
+        records: list[MemoryRecord],
+        merged: dict[str, Any],
+        window_id: str,
+    ) -> None:
+        """``write.envelope_v2``: validate each ``facts`` item alone, repair the invalid with at
+        most one re-ask, dead-letter what is still invalid and compile the rest into envelopes. The
+        result replaces the raw list in ``merged``. Lock-free (it makes the repair model call). A
+        section that is not a list is left alone: it fails closed like any malformed section."""
+        env = self._env
+        raw = merged.get("facts", _MISSING)
+        if env is None or raw is _MISSING or not isinstance(raw, list) or job.cancelled:
+            return
+        transcript, texts, people = build_transcript(records)
+        lines = {
+            n: WindowLine(
+                turn_id=rec.record_id,
+                source_id=rec.record_id,  # evidence names the turn record: parents come from it
+                source_version=1,
+                seg_index=int(fingerprint_payload({"r": rec.record_id})[:6], 16),
+                role=rec.source.role or "user",
+                speaker=rec.axes.speaker or _speaker_label(rec),
+                source_at=rec.source_at or rec.valid_from,
+                tz=rec.source_tz,
+                content=text,
+            )
+            for n, (rec, text) in enumerate(zip(records, texts, strict=True), 1)
+        }
+        ctx = env.compiler.context(
+            self._scope(ns),
+            window_id,
+            lines,
+            session_id=job.window.session if job.window is not None else None,
+            source_time=records[0].valid_from,
+        )
+        base = extraction_messages(transcript, ", ".join(people), len(records))
+        with _cost_scope(ns, "facts"):
+            outcome = await process_items(
+                raw,
+                ctx,
+                validator=env.validator,
+                repair=env.repair,
+                ledger=env.ledger,
+                base_messages=base,
+                ns=ns,
+                window_id=window_id,
+            )
+        merged["facts"] = outcome
 
     async def _run_groups(
         self,
@@ -1435,6 +1556,11 @@ class WindowPipeline:
                 for section in group:
                     self._dropped_by_layer[section] += 1
                     self._counts["sections_dropped"] += 1
+                if self._env is not None and "facts" in group:
+                    self._env.ledger.record(
+                        ns, window_id, -1, kind, detail="facts call", retry_allowed=True,
+                        kind="window",
+                    )
                 _log.warning("window.call_failed", namespace=ns, kind=kind, error=str(exc)[:200])
                 tap.event(
                     "write.extract.rejected" if kind == "parse_failures" else "write.extract.failed",
@@ -1498,7 +1624,26 @@ class WindowPipeline:
                 continue
             if job.cancelled:
                 break
-            if section == "facts":
+            if section == "facts" and isinstance(raw, ItemsOutcome):
+                self._counts["facts_returned"] += raw.returned
+                self._counts["items_valid"] += raw.valid
+                self._counts["items_repaired"] += raw.repaired
+                self._counts["items_dead"] += raw.dead
+                self._counts["items_duplicate"] += raw.duplicates
+                self._counts["repair_calls"] += raw.repair_calls
+                self._counts["facts_invalid"] += raw.dead
+                for code, n in raw.dead_by_code.items():
+                    self._dead_by_code[code] += n
+                tap.event(
+                    "write.extract.facts",
+                    returned=raw.returned,
+                    accepted=len(raw.envelopes),
+                    invalid=raw.dead,
+                    repaired=raw.repaired,
+                    envelope_v2=True,
+                )
+                await self._store_envelopes(ns, job, records, raw, window_id, member_ids)
+            elif section == "facts":
                 outcome = validate_facts(raw, line_texts)
                 if outcome is None:
                     self._drop(section)
@@ -1633,6 +1778,78 @@ class WindowPipeline:
                 parents=len(parents),
             )
 
+    async def _store_envelopes(
+        self,
+        ns: str,
+        job: _Job,
+        records: list[MemoryRecord],
+        outcome: ItemsOutcome,
+        window_id: str,
+        member_ids: list[str],
+    ) -> None:
+        """Deposit the compiled envelopes through the mined-fact door (the firewall, the trust cap
+        and the liveness check all apply). Parents are the records the evidence names."""
+        if self._deposit_fact is None:
+            return
+        by_id = {r.record_id: r for r in records}
+        latest = records[-1].valid_from
+        for env in outcome.envelopes:
+            if job.cancelled:
+                return
+            parents = list(dict.fromkeys(e.turn.source_id for e in env.evidence))
+            parents = [p for p in parents if p in by_id]
+            speakers = {
+                t
+                for p in parents
+                for t in by_id[p].tags
+                if t.startswith("spk:") and t != "spk:"
+            }
+            tags = ["window_fact", f"window:{window_id}", "envelope_v2", f"src:{env.src_class}"]
+            if len(speakers) == 1:
+                tags.append(next(iter(speakers)))
+            start = env.time.event.start if env.time.event is not None else None
+            happened = _fact_date(start.text, latest) if start is not None and start.text else None
+            said = env.time.source_time
+            when = happened or said or records[0].valid_from
+            entity = env.subject.surface if env.subject is not None else env.speaker
+            try:
+                stored = await self._deposit_fact(
+                    ns,
+                    env.text,
+                    entity or None,
+                    env.attribute or None,
+                    parents,
+                    when,
+                    f"win:{window_id}",
+                    kind=storage_kind(env.kind),
+                    happened=happened.date().isoformat() if happened is not None else None,
+                    said=said.date().isoformat() if happened is not None and said else None,
+                    extra_tags=tags,
+                    require_live=member_ids,
+                    trust_cap=env.assessment.source_trust,
+                )
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:  # one bad fact must not lose the rest
+                self._counts["facts_deposit_errors"] += 1
+                tap.event(
+                    "write.extract.rejected", reason="fact_deposit_error", error=type(exc).__name__
+                )
+                _log.warning("window.fact_deposit_failed", error=str(exc)[:200])
+                continue
+            if stored is None:
+                self._counts["facts_skipped_parent_gone"] += 1
+                tap.event("write.extract.rejected", reason="parent_gone", layer="facts")
+                job.cancelled = True
+                return
+            self._counts["facts_deposited"] += 1
+            tap.event(
+                "write.extract.deposit",
+                id=getattr(stored, "record_id", None),
+                layer="facts",
+                parents=len(parents),
+            )
+
     async def _store_episode(
         self,
         ns: str,
@@ -1727,6 +1944,18 @@ class WindowPipeline:
             out["windows_per_call"] = (
                 round(c["windows_processed"] / c["calls"], 3) if c["calls"] else None
             )
+        if self._env is not None:  # W2-06a: only present with write.envelope_v2
+            out["envelope_v2"] = True
+            out["items_valid"] = c["items_valid"]
+            out["items_repaired"] = c["items_repaired"]
+            out["items_dead"] = c["items_dead"]
+            out["items_dropped"] = c["items_dead"] + c["items_duplicate"]
+            out["items_duplicate"] = c["items_duplicate"]
+            out["repair_calls"] = c["repair_calls"]
+            out["items_dead_by_code"] = dict(self._dead_by_code)
+            out["dead_letters"] = self._env.ledger.count()
+            out["kinds"] = len(self._env.compiler.kinds)
+            out["kinds_capped"] = self._env.compiler.kinds.capped
         if c["windows_deferred_backpressure"]:  # RT-02: only present once backpressure bit
             out["deferred_backpressure"] = c["windows_deferred_backpressure"]
         if c["windows_deferred_budget"]:  # W2-12: only present once a budget paused work
@@ -1745,6 +1974,7 @@ class WindowPipeline:
             self._reasons.clear()
             self._calls_by_layer.clear()
             self._dropped_by_layer.clear()
+            self._dead_by_code.clear()
         return out
 
 

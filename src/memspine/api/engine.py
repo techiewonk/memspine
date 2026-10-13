@@ -5139,6 +5139,7 @@ class Engine:
         topic: str | None = None,
         extra_tags: Sequence[str] = (),
         require_live: Sequence[str] = (),
+        trust_cap: float | None = None,
     ) -> MemoryRecord | None:
         return await derive_integrate._deposit_mined_fact(
             self,
@@ -5157,6 +5158,7 @@ class Engine:
             topic=topic,
             extra_tags=extra_tags,
             require_live=require_live,
+            trust_cap=trust_cap,
         )
 
     async def _auto_watch(
