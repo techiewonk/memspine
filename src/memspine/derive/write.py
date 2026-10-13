@@ -8,12 +8,11 @@ lesson) goes through :func:`write_derived`. With ``write.lineage_table`` off it 
   when known, G-08); a derived record with no parent at all is refused (``derive.lineage.refused``);
 * the parents' trusts join the trust cap, so the stored trust is at most the least-trusted parent
   (POL-2, ``trust.horizon.deposit_trust``);
-* the record is tagged ``layer:<label>`` and ``deriv:<fingerprint>``;
+* the record carries the typed envelope fields ``layer`` and ``fingerprint.derivation``;
 * one lineage edge per parent is written after the record, with its role (support / binding /
   context ...), optional evidence span and pinned parent version (``derive.lineage.write``).
 
-TODO(F-02a): ``layer`` and the derivation fingerprint are tags until the record-envelope columns
-land; switch them to the typed fields then.
+F-02a: ``layer`` and the derivation fingerprint are the typed record-envelope fields (no tags).
 """
 
 from __future__ import annotations
@@ -27,6 +26,7 @@ from memspine.schemas.durable.evidence import Span
 from memspine.schemas.durable.lineage import LINEAGE_ROLES, LineageEdge
 from memspine.store import lineage as lineage_store
 from memspine.store.events import fingerprint_payload
+from memspine.store.layers import LAYERS, derive_layer
 from memspine.store.records import MemoryRecord
 from memspine.trust.horizon import deposit_trust
 
@@ -78,15 +78,16 @@ async def write_derived(
     parent_records = [r for r in [await storage.get_record(p) for p in pids] if r is not None]
     cap = list(trust_cap or [])
     cap.extend(r.trust for r in parent_records)
-    layer_label = layer or memory_type
+    layer_label = layer if layer in LAYERS else derive_layer(memory_type, record.source.channel)
     fp = fingerprint_payload(
         {"site": site, "channel": record.source.channel, "layer": layer_label}
     )[:16]
-    tags = list(record.tags)
-    for tag in (f"layer:{layer_label}", f"deriv:{fp}"):
-        if tag not in tags:
-            tags.append(tag)
-    record = record.model_copy(update={"tags": tags})
+    record = record.model_copy(
+        update={
+            "layer": layer_label,
+            "fingerprint": record.fingerprint.model_copy(update={"derivation": fp}),
+        }
+    )
 
     written = await eng._write_locked(storage, ns, record, memory_type, actor, cap or None)
 
