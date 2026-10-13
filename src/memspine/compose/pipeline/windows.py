@@ -22,6 +22,7 @@ from memspine.core.read_filters import (
     record_scope,
     to_utc,
 )
+from memspine.derive.prepass import is_filler as _is_filler
 from memspine.exceptions import MemspineError
 from memspine.models.encoders.query.shape import (
     core_terms,
@@ -33,6 +34,7 @@ from memspine.models.encoders.query.shape import (
 from memspine.models.encoders.query.temporal_query import LegHit
 from memspine.observability import tap
 from memspine.read import neighbours as nb
+from memspine.read.pipeline.request import tier_pool
 from memspine.read.pipeline.state import (
     _FOCAL_ENTITY,
     _FORENSICS,
@@ -198,6 +200,16 @@ async def _assemble_core(
     if _LIST_MODE.get():  # B1: a list question draws a wider pool
         pool = max(pool, eng._config().read.list_pool)
     want = top_k * pool
+    # FU-RRPOOL (read.rerank_v2_search_pool): the read path widens through the same key as
+    # search(); _search fetches max(want, pool) before rerank_v2 and cuts back to ``want``.
+    # 0 = off; a pool <= want changes nothing, so candidate_pool is never widened twice.
+    rr_pool = eng._config().read.rerank_v2_search_pool
+    if eng._config().read.tiers_v2 and (
+        eng._config().read.rerank_v2 or eng._config().read.rerank != "off"
+    ):
+        # FX-READPATH (R3-01 / R-13): the chosen tier sets the rerank pool (fast 32, standard 48,
+        # deep 64), so ``tiers_v2`` now reaches the retrieval it was specified to govern.
+        rr_pool = max(rr_pool, tier_pool())
     _RERANKED.set(False)
     _RAW_SCORES.set({} if eng._config().read.abstain_on_raw else None)
     if eng._config().read.statement_probe and (said := statement_form(query)):
@@ -225,6 +237,7 @@ async def _assemble_core(
             hide=hide,
             probes=probes,
             fused_legs=legs,
+            search_pool=rr_pool,
         )
         if eng._config().read.prf_expansion:
             # N03 (plan v3.2): words the first-round top hits share and the
@@ -241,6 +254,7 @@ async def _assemble_core(
                     hide=hide,
                     probes=probes,
                     fused_legs=legs,
+                    search_pool=rr_pool,
                 )
         read_now = eng._config().read
         if (
@@ -263,6 +277,7 @@ async def _assemble_core(
                     hide=hide,
                     probes=probes,
                     fused_legs=legs,
+                    search_pool=rr_pool,
                 )
                 scored = scored[:want]
         if read_now.bridge_hop and scored and await eng._bridge_fires(query, read_now, scored):
@@ -288,6 +303,7 @@ async def _assemble_core(
                     hide=hide,
                     probes=probes,
                     fused_legs=legs,
+                    search_pool=rr_pool,
                 )
         if eng._config().read.cluster_expand and scored:
             # N06 (plan v3.2): the vector neighbourhoods of the top hits (across
@@ -303,6 +319,7 @@ async def _assemble_core(
                 hide=hide,
                 probes=probes,
                 fused_legs=legs,
+                search_pool=rr_pool,
             )
         # W19 (read.raw_turn_floor): a derived record (mined fact, card, summary)
         # takes a search slot a raw turn would have had, and in replay each lost
@@ -324,6 +341,7 @@ async def _assemble_core(
                     hide=hide,
                     probes=probes,
                     fused_legs=legs,
+                    search_pool=rr_pool,
                 )
         cap = eng._config().read.session_cap
         if cap is not None:
@@ -817,6 +835,7 @@ async def _window_turns(
         -1: int(read_cfg.replay_window_tokens_before * factor),
         1: int(read_cfg.replay_window_tokens_after * factor),
     }
+    pre: dict[str, MemoryRecord | None] = {}  # neighbours fetched while sizing the window
     if single:
         order = [at]
     elif by_tokens:
@@ -826,7 +845,24 @@ async def _window_turns(
         if factor < 1.0:
             before = max(1 if before else 0, round(before * factor))
             after = max(1 if after else 0, round(after * factor))
-        span = range(max(0, at - before), min(len(ids), at + after + 1))
+        if read_cfg.neighbours_v2:
+            # FX-READPATH (R3-10 in replay): filler neighbours (greetings, "ok", "haha") do not
+            # take a window slot; the reach stretches over them, by at most as many turns
+            # again as the side's quota. Off: the fixed -before/+after span below.
+            span = []
+            for step, quota in ((-1, before), (1, after)):
+                taken_n, reach, i = 0, 0, at + step
+                while 0 <= i < len(ids) and taken_n < quota and reach < 2 * quota:
+                    reach += 1
+                    turn_i = await eng._replay_neighbour(ids[i], ns)
+                    pre[ids[i]] = turn_i
+                    if turn_i is None or not _is_filler(turn_i.content):
+                        span.append(i)
+                        taken_n += 1
+                    i += step
+            span.append(at)
+        else:
+            span = range(max(0, at - before), min(len(ids), at + after + 1))
         order = sorted(span, key=lambda i: (i != at, abs(i - at), i))
     spent = {-1: 0, 1: 0}
     closed: set[int] = set()
@@ -847,7 +883,7 @@ async def _window_turns(
             continue
         turn = hit if hit is not None and rid == hit.record_id else None
         if turn is None:
-            turn = await eng._replay_neighbour(rid, ns)
+            turn = pre[rid] if rid in pre else await eng._replay_neighbour(rid, ns)
         if turn is None:
             if fx is not None:
                 skipped[rid] = "not visible (gates: status, quarantine, consent, scope)"

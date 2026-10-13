@@ -437,7 +437,7 @@ async def _search(
         raise ValueError(f"top_k must be >= 1, got {top_k}")
     ns = validate_namespace(namespace)
     final_k = top_k
-    if search_pool > top_k and eng._config().read.rerank_v2:
+    if search_pool > top_k and (eng._config().read.rerank_v2 or eng._config().read.tiers_v2):
         # FU-RRPOOL: the reranker sees a wider pool; the cut back to ``final_k`` follows it.
         top_k = search_pool
     if eng._config().read.freshness_v2:  # O4-01b (O-06): staleness metadata, optional raw fallback

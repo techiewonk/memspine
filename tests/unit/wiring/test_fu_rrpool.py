@@ -104,7 +104,8 @@ async def test_flag_off_matches_default() -> None:
     assert outs[0] == outs[1]
 
 
-async def test_assemble_is_not_widened_by_the_key(_lexical_reranker: list[int]) -> None:
+async def test_assemble_honours_the_key(_lexical_reranker: list[int]) -> None:
+    # FX-READPATH: assemble / read widen through the same key; key off = unchanged.
     sizes = []
     for pool in (0, 20):
         eng = _engine(rerank_v2=True, rerank_v2_search_pool=pool)
@@ -116,4 +117,5 @@ async def test_assemble_is_not_widened_by_the_key(_lexical_reranker: list[int]) 
             sizes.append(list(_lexical_reranker))
         finally:
             await eng.stop()
-    assert sizes[0] == sizes[1] and sizes[0]
+    assert sizes[0] and max(sizes[0]) <= 2
+    assert max(sizes[1]) > max(sizes[0])

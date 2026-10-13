@@ -246,8 +246,11 @@ class ReadConfig(BaseModel):
     #: FU-RRPOOL (INV-FILLER): ``search()`` fetched only ``top_k`` candidates, so ``rerank_v2``
     #: could only reorder those; filler turns pushed the evidence out and it never came back.
     #: > 0 (needs ``rerank_v2``): ``search`` fetches ``max(top_k, rerank_v2_search_pool)``,
-    #: reranks them, then cuts to ``top_k``. ``assemble`` is not touched (it widens through
-    #: ``candidate_pool``). 0 (default) = off. Capped by ``rerank_v2_pool`` at the reranker.
+    #: reranks them, then cuts to ``top_k``. FX-READPATH: ``assemble`` / ``read`` (replay
+    #: included) honour it too: the assembly search fetches ``max(top_k x candidate_pool, N)``
+    #: before the rerank and cuts back to ``top_k x candidate_pool`` (never widened twice:
+    #: a pool <= that count changes nothing). 0 (default) = off. Capped by ``rerank_v2_pool`` at
+    #: the reranker.
     rerank_v2_search_pool: int = Field(default=0, ge=0, le=256)
     #: G-10 (Graphiti MMR): None = off; a lambda in [0, 1] reorders the final hits by
     #: maximal marginal relevance on embeddings (1 = relevance only, 0 = diversity only).
@@ -894,6 +897,11 @@ class ReadConfig(BaseModel):
     #: R3-10 (LIB-24, retrieve step 15): neighbour windows after rerank through
     #: ``read.neighbours.expand``: budget-aware, viewer-checked, overlapping windows merged.
     #: Replaces the G2c compose expansion (turn windows only). Off: unchanged.
+    #: FX-READPATH: in replay mode (the harness read; ``_window_turns``) the flag means the
+    #: adaptive window: pure filler neighbours (greetings, acknowledgements, emoji only;
+    #: ``derive.prepass.is_filler``) take no window slot, and the reach stretches over them by
+    #: at most as many turns again as the side's quota (-2/+4 by default); the hit, the gates,
+    #: the budget and ``seen`` are unchanged. See docs/v2/RETIRED.md (neighbours_v2 in replay).
     neighbours_v2: bool = False
     #: N63 (EverMemOS multi-query, by rules): the question rewritten as a statement
     #: ("When did Ana go camping?" -> "Ana go camping") joins the search as a probe.
@@ -1197,7 +1205,10 @@ class ReadConfig(BaseModel):
     #: (whitespace collapsed), the viewer is bound to the principal (``viewer``), and a depth tier
     #: (fast / standard / deep, with its generative-call and rerank-pool caps) is chosen from
     #: ``tiers_v2_depth`` and the typed contract; the tier is recorded (wiretap, forensics) and
-    #: served to later stages. Off (default): the read entry is unchanged.
+    #: served to later stages. FX-READPATH: the tier is consumed: with a reranker active the
+    #: assembly search fetches at least the tier's rerank pool (fast 32 / standard 48 / deep 64)
+    #: before the rerank, and ``deep_v2`` runs its model calls only in a tier that allows
+    #: generative calls (deep). Off (default): the read entry is unchanged.
     tiers_v2: bool = False
     #: R3-01: the default depth under ``tiers_v2``; ``auto`` picks deep only for join / list /
     #: history shapes when a worker model is bound, else the first allowed tier (fast).

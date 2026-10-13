@@ -467,8 +467,8 @@
    },
    {
     "n": 4,
-    "what": "The normalised query replaces the query text for the rest of the read; ReadPlanState(request, tier, contract, route=None, legs_off=empty) is put in a ContextVar. No later stage reads the tier's pool size, call caps or SLO: only the normalised text is consumed.",
-    "code": "src/memspine/read/pipeline/request.py:379-391 ; router.py:1034-1047",
+    "what": "FX-READPATH: the tier is now consumed. (1) Pool: with a reranker active (rerank_v2 or a legacy rerank) _assemble_core fetches at least the tier's max_rerank_pool (fast 32, standard 48, deep 64) before the rerank and cuts back to the count it cuts to today. (2) Call caps: deep_v2 runs its sufficiency and rewrite calls only when the tier allows generative calls (deep); the obligations rule check still runs and the stop reason is tier_no_generative_calls. Design basis: R-13 (tier sets the pool) and R-01 (tier contents, call caps) in docs/v2/areas/read.md; option picked: consume the tier, not a cost-only screen. The p95 SLO (R-25) is a CI latency job and is not enforced at runtime.",
+    "code": "src/memspine/compose/pipeline/windows.py (_assemble_core: tier_pool) ; read/pipeline/request.py (tier_pool, tier_allows_generative) ; read/pipeline/deep.py (_deep_extend)",
     "kind": "rule"
    }
   ],
@@ -488,19 +488,20 @@
    }
   ],
   "storage": "none (ContextVar plan, wiretap events only)",
-  "cost": "no model call, microseconds; tier fields unused downstream",
-  "inputs": "nothing; works on any store",
-  "outputs": "the same query text (NFKC and whitespace-collapsed) and unchanged retrieval",
+  "cost": "no read-side model call; the rerank sees up to the tier's pool (32 on fast) instead of want, so slightly more reranker work",
+  "inputs": "a reranker in the arm (rerank_v2 or legacy rerank); works on any store",
+  "outputs": "query text as before, plus a wider rerank pool (fast 32, or 48 under tiers_v2_depth=standard) wherever top_k x candidate_pool is smaller",
   "failure_modes": [
-   "Inert by design today: sample forensics 0/0/0 of 80 (fused, final, context identical). The tier's pool size, call caps and slo_p95_ms are computed but not consumed by any stage.",
-   "SCREENS.md said J arms build no derived layers 'so there is nothing to tier'; the code shows the tier is only logged even where layers exist (re-screen S36 on GC will most likely be 0/0 as well)."
+   "FX-READPATH: no longer inert by design. The effect is the tier's rerank pool where it exceeds top_k x candidate_pool (on the J arm fast=32 vs 20 to 30, so the difference is small by default; set tiers_v2_depth=standard for 48 to see it). The deep_v2 gating by tier shows only in an arm that also sets deep_v2.",
+   "The earlier 0/0/0 of 80 sample forensics no longer apply; re-run them."
   ],
   "tests": [
    "tests/unit/lib/test_lib_47_tiers.py",
    "tests/unit/wiring/test_rw_a_read_entry.py",
-   "tests/unit/wiring/test_md_01_model_tiers.py"
+   "tests/unit/wiring/test_md_01_model_tiers.py",
+   "tests/unit/wiring/test_fx_readpath.py"
   ],
-  "mermaid": "flowchart LR\n  Q[question] --> N[normalise request NFKC]\n  N --> T[choose tier fast]\n  T --> L[log plan in ContextVar]\n  N --> R[normal read path]"
+  "mermaid": "flowchart LR\n  Q[question] --> N[normalise request NFKC]\n  N --> T[choose tier]\n  T --> P[tier rerank pool: fetch wider before rerank]\n  T --> G[deep_v2 only if tier allows generative calls]"
  },
  {
   "id": "S11",
@@ -1038,7 +1039,7 @@
    "read.neighbours_v2": true
   },
   "stage": "C",
-  "trigger": "inside the compose read mode only (_compose via _expand_neighbours); NOT reached in replay mode",
+  "trigger": "compose read mode (library expansion) and, since FX-READPATH, replay mode (adaptive window in _window_turns)",
   "steps": [
    {
     "n": 1,
@@ -1060,8 +1061,8 @@
    },
    {
     "n": 4,
-    "what": "What replay does instead: _read_routed builds windows with _window_turns (hit first, neighbours nearest first, 2 before and 4 after, token-bounded by len//4+1), so the v2 neighbour library never replaces it in the harness arms.",
-    "code": "src/memspine/compose/pipeline/windows.py:792 (_window_turns) ; src/memspine/read/pipeline/router.py:1380",
+    "what": "Replay (FX-READPATH): the library is not called, because replay already de-duplicates, gates and budgets. With neighbours_v2 on, _window_turns (turn unit) skips pure filler neighbours (derive.prepass.is_filler) without charging a window slot and stretches the reach over them by at most the side's quota again (-2/+4 default, so at most -4/+8 turns inspected). Hit, gates, budget and seen are unchanged. Off: fixed span.",
+    "code": "src/memspine/compose/pipeline/windows.py (_window_turns, neighbours_v2 branch) ; docs/v2/RETIRED.md",
     "kind": "rule"
    }
   ],
@@ -1081,17 +1082,18 @@
   ],
   "storage": "reads neighbouring turn records through the replay gates",
   "cost": "no model call",
-  "inputs": "compose read mode (aggregation questions) or an explicit mode compose",
-  "outputs": "in replay mode: nothing. In compose mode: windows from the library instead of the G2c loop",
+  "inputs": "compose read mode (library windows), or the replay read (adaptive filler-skipping window)",
+  "outputs": "in replay mode: windows whose slots go to content turns rather than greetings and acknowledgements. In compose mode: windows from the library instead of the G2c loop",
   "failure_modes": [
-   "Inert in the LoCoMo/replay harness by construction: the flag is read only inside the compose-mode neighbour expansion, so the replay read never consults it (this is stronger than 'no effect observed'). The comment in config also says it conflicts with replay_window_* (audit 31).",
-   "Needs a compose-mode screen or removal from the replay bundle S63."
+   "Resolved by FX-READPATH: the flag now shapes the replay window, so the LoCoMo/replay harness is no longer blind to it. The effect exists only where a hit's neighbours contain filler (LoCoMo has many short acknowledgements); the extra reach adds at most as many turns again as the quota, bounded by the token budget.",
+   "In compose mode the library expansion still conflicts with replay_window_* (audit 31)."
   ],
   "tests": [
    "tests/unit/lib/test_lib_24_neighbours.py",
-   "tests/unit/wiring/test_rw_e_time_entity_neighbours.py"
+   "tests/unit/wiring/test_rw_e_time_entity_neighbours.py",
+   "tests/unit/wiring/test_fx_readpath.py"
   ],
-  "mermaid": "flowchart LR\n  M{read mode} -- replay --> W[_window_turns unchanged]\n  M -- compose --> N[neighbours_v2 library]\n  N --> X[windows merged and budgeted]"
+  "mermaid": "flowchart LR\n  M{read mode} -- replay --> W[_window_turns: skip filler neighbours, stretch reach]\n  M -- compose --> N[neighbours_v2 library]\n  N --> X[windows merged and budgeted]"
  },
  {
   "id": "S20",
@@ -1876,8 +1878,8 @@
    },
    {
     "n": 3,
-    "what": "The tier is stored in the ContextVar plan and logged (read.tier.chosen); no stage reads pool size, call cap or SLO from it. Only the normalised query text changes (almost never for LoCoMo questions).",
-    "code": "src/memspine/read/pipeline/request.py:379-391",
+    "what": "FX-READPATH: the tier is now consumed. (1) Pool: with a reranker active (rerank_v2 or a legacy rerank) _assemble_core fetches at least the tier's max_rerank_pool (fast 32, standard 48, deep 64) before the rerank and cuts back to the count it cuts to today. (2) Call caps: deep_v2 runs its sufficiency and rewrite calls only when the tier allows generative calls (deep); the obligations rule check still runs and the stop reason is tier_no_generative_calls. Design basis: R-13 (tier sets the pool) and R-01 (tier contents, call caps) in docs/v2/areas/read.md; option picked: consume the tier, not a cost-only screen. The p95 SLO (R-25) is a CI latency job and is not enforced at runtime.",
+    "code": "src/memspine/compose/pipeline/windows.py (_assemble_core: tier_pool) ; read/pipeline/request.py (tier_pool, tier_allows_generative) ; read/pipeline/deep.py (_deep_extend)",
     "kind": "rule"
    },
    {
@@ -1915,17 +1917,18 @@
    }
   ],
   "storage": "none beyond the GC build",
-  "cost": "no read-side model call; queue estimate 150 min (dominated by the GC build)",
+  "cost": "no read-side model call; the rerank sees up to the tier's pool (32 on fast) instead of want, so slightly more reranker work",
   "inputs": "the GC build (for the arm), though tiers_v2 itself needs nothing",
-  "outputs": "unchanged retrieval; identical context expected",
+  "outputs": "query text as before, plus a wider rerank pool (fast 32, or 48 under tiers_v2_depth=standard) wherever top_k x candidate_pool is smaller",
   "failure_modes": [
    "Reference v2-S02-i2 is itself a built-graph arm: effects are measured on 60 questions over 3 conversations (sample) because ingest + sleep dominate cost.",
    "Needs the sleep build to succeed on every conversation (LLM extraction by a 9B model); an empty graph makes the screen inert.",
-   "By code the tier is logged but not consumed, so 0/0/0 is expected even on GC (the S10 note that J had 'nothing to tier' does not explain it)."
+   "FX-READPATH: the tier is consumed now (rerank pool 32 on fast, deep_v2 gating by tier), so the GC re-screen can differ from the baseline through the pool; with tiers_v2_depth=fast the difference is small."
   ],
   "tests": [
    "tests/unit/lib/test_lib_47_tiers.py",
-   "tests/unit/wiring/test_rw_a_read_entry.py"
+   "tests/unit/wiring/test_rw_a_read_entry.py",
+   "tests/unit/wiring/test_fx_readpath.py"
   ],
   "mermaid": "flowchart LR\n  Q[question] --> N[normalise]\n  N --> T[tier fast logged only]\n  N --> R[GC read path unchanged]"
  },
@@ -2296,7 +2299,7 @@
   "inputs": "a binding budget (provided by the reserve)",
   "outputs": "a possibly fuller 1024-token selection than S52",
   "failure_modes": [
-   "Counter is the chars/4 estimate (no reader_tokenizer set), so the gain comes from skip-and-continue and from counting headers, not from true tokenisation.",
+   "Counter stays the chars/4 estimate: the reader is ollama qwen3.5:9b and no Qwen3.5 tokenizer is in the local Hugging Face cache (checked 2026-10-13: only Qwen3, Qwen3-Embedding and Qwen3-Reranker snapshots are cached; Qwen3.5 uses a different vocabulary, so a Qwen3 tokenizer would be a labelled approximation, not the reader's tokens). read.reader_tokenizer is therefore left unset in S52 and S53 (gen_b7_arms.py) and the gain comes from skip-and-continue and from counting headers, not from true tokenisation. To make it exact, cache the Qwen3.5 tokenizer once and set read.reader_tokenizer to hf:<repo> in gen_b7_arms.py.",
    "Neighbour windows still use len//4+1; the replay stage can fill what assembly left."
   ],
   "tests": [
@@ -2464,7 +2467,7 @@
    "reference": "v2-S15-i2 (J + lift_before_rerank)"
   },
   "stage": "R",
-  "trigger": "per Engine.search call (FU-RRPOOL); not exercised by Engine.read",
+  "trigger": "per Engine.search call and, since FX-READPATH, per Engine.read / assemble (replay included): both fetch through _assemble_core",
   "steps": [
    {
     "n": 1,
@@ -2480,14 +2483,14 @@
    },
    {
     "n": 3,
-    "what": "read.rerank_v2_search_pool=30: _search(search_pool=30) fetches max(top_k, 30) candidates, reranks them and cuts back to final_k at the end. router.search() passes this setting; _assemble_core (the read path) calls _search WITHOUT it, so in Engine.read it has no effect: the read path already fetches top_k x candidate_pool (20 or 30).",
-    "code": "src/memspine/read/pipeline/router.py:286 (search passes search_pool), :442 (top_k = search_pool), :943 (cut to final_k) ; compose/pipeline/windows.py:208 (no search_pool)",
+    "what": "read.rerank_v2_search_pool=30: _search(search_pool=30) fetches max(top_k, 30) candidates, reranks them and cuts back to final_k at the end. router.search() passes it; since FX-READPATH _assemble_core passes it too: the assembly search fetches max(want, 30) where want = top_k x candidate_pool (and the same for its widened re-searches), reranks, then cuts back to want. A pool <= want changes nothing, so candidate_pool is never widened twice.",
+    "code": "src/memspine/read/pipeline/router.py:286 (search), :442 (top_k = search_pool), :943 (cut to final_k) ; compose/pipeline/windows.py (_assemble_core: rr_pool passed as search_pool)",
     "kind": "rule"
    },
    {
     "n": 4,
-    "what": "Net effect in the replay harness: the arm equals S16 on top of S15 (rerank_v2 on a J pool); the pool-widening part is exercised only through Engine.search / h.recall.",
-    "code": "src/memspine/read/pipeline/rerank.py:183",
+    "what": "Net effect in the replay harness: the arm is no longer S16 on top of S15: the reranker now sees up to 30 candidates instead of want (20 to 30 on the J arm, so the widening is real only where want < 30, for example a smaller top_k or candidate_pool, or a larger N).",
+    "code": "src/memspine/read/pipeline/rerank.py:183 ; tests/unit/wiring/test_fx_readpath.py",
     "kind": "rule"
    }
   ],
@@ -2508,19 +2511,21 @@
    }
   ],
   "storage": "none",
-  "cost": "search path: rerank over up to 30 documents instead of top_k (still one pass, window 64)",
+  "cost": "rerank over up to max(want, 30) documents instead of want (still one pass, window 64)",
   "inputs": "rerank_v2 (validated by requires.py)",
-  "outputs": "in search(): a reranker pool wide enough to see evidence the fused order would have cut",
+  "outputs": "a reranker pool wide enough to see evidence the fused order would have cut, in search() and in the read/assemble path",
   "failure_modes": [
-   "Written for INV-FILLER (filler turns outrank the evidence in the fused pool): it cures search() but not the read path used by the harness, so the S16 INV-FILLER signal is not addressed here; the read path needs candidate_pool/protect changes instead.",
-   "Result will reproduce S16, not test FU-RRPOOL, unless the arm drives search()."
+   "On the J arm want = top_k x candidate_pool is already 20 to 30, so the gain exists only where want < N (use a smaller top_k or candidate_pool in the arm, or a larger N such as 40, to differ from S16).",
+   "INV-FILLER may still need candidate_pool/protect changes if the filler outranks the evidence even in the wider pool.",
+   "Resolved by FX-READPATH: the read path used by the harness now honours the key (it did not before); tests/unit/wiring/test_fx_readpath.py proves the rerank pool widens in Engine.read replay and is unchanged with the key off."
   ],
   "tests": [
    "tests/unit/wiring/test_fu_rrpool.py",
    "evals/tests/test_fu_rrpool_arm.py",
-   "tests/unit/config/test_requires.py"
+   "tests/unit/config/test_requires.py",
+   "tests/unit/wiring/test_fx_readpath.py"
   ],
-  "mermaid": "flowchart LR\n  S[search call top_k] --> W[fetch max top_k 30]\n  W --> R[rerank_v2 jina]\n  R --> C[cut to top_k]\n  RD[read path] -. does not pass pool .-> R"
+  "mermaid": "flowchart LR\n  S[search or read call] --> W[fetch max want 30]\n  W --> R[rerank_v2 jina]\n  R --> C[cut back to want]"
  },
  {
   "id": "S60",
@@ -2679,8 +2684,8 @@
    },
    {
     "n": 4,
-    "what": "neighbours_v2: only used by the compose-mode neighbour expansion; replay reads never consult it, so it is inert in this harness.",
-    "code": "src/memspine/compose/pipeline/windows.py:650, :558",
+    "what": "neighbours_v2: in replay (the harness read) it makes the replay window adaptive: filler neighbours take no slot and the reach stretches over them (FX-READPATH); the library path stays in compose mode.",
+    "code": "src/memspine/compose/pipeline/windows.py (_window_turns) ; docs/v2/RETIRED.md",
     "kind": "rule"
    },
    {
@@ -2750,7 +2755,7 @@
   "failure_modes": [
    "Reference v2-S02-i2 is itself a built-graph arm: effects are measured on 60 questions over 3 conversations (sample) because ingest + sleep dominate cost.",
    "Needs the sleep build to succeed on every conversation (LLM extraction by a 9B model); an empty graph makes the screen inert.",
-   "Two of the six flags are inert in this harness by code (timeview_v2 without an as-of bound, neighbours_v2 in replay mode); trust_rendering has nothing to band on uniform-trust LoCoMo records. The bundle therefore mostly measures gate_v2 + deep_v2.",
+   "One of the six flags is inert in this harness by code (timeview_v2 without an as-of bound); trust_rendering has nothing to band on uniform-trust LoCoMo records. neighbours_v2 now acts in replay (filler-skipping window, FX-READPATH). The bundle therefore measures gate_v2 + deep_v2 + the adaptive window.",
    "OP-Bench focus has no paired reference of the same engine arm (audit 35).",
    "deep_v2 calls on a J/GC store without keyed facts can fire on most reads."
   ],
@@ -2759,7 +2764,8 @@
    "tests/unit/wiring/test_rw_c_compose.py",
    "tests/unit/wiring/test_rw_e_time_entity_neighbours.py",
    "tests/unit/lib/test_lib_25_render_trust.py",
-   "tests/combinations/test_profiles_v2.py"
+   "tests/combinations/test_profiles_v2.py",
+   "tests/unit/wiring/test_fx_readpath.py"
   ],
   "mermaid": "flowchart LR\n  T[time view allow-list inert] --> R[GC read path]\n  R --> D[deep extension obligations]\n  D --> X[trust render]\n  X --> G[gate_v2 calibrated]\n  G --> O[context or abstain]"
  }

@@ -34,6 +34,10 @@ TIGHT = {"read": {"reply_reserve_tokens": 3072}}
 B7: dict[str, tuple[str, dict]] = {
     # S17 re-armed: a reference and an arm that share the tight budget; only exact_budget differs
     "tightbudget": (J_BASE, TIGHT),
+    # read.reader_tokenizer stays unset: the reader is qwen3.5:9b and no Qwen3.5 tokenizer is in the local HF cache
+    # (checked 2026-10-13; Qwen3 snapshots only, a different vocabulary). exact_budget therefore counts with the
+    # labelled chars/4 estimate (accounting=estimated) and the gain is skip-and-continue + header counting.
+    # To make it exact: cache the tokenizer once, then add "reader_tokenizer": "hf:<repo>" to S52 and S53 here.
     "exactbudget": (J_BASE, {"read": {"reply_reserve_tokens": 3072, "exact_budget": True}}),
     # S18 re-armed on mined facts with source turns (window facts), where a bundle is more than the fact itself
     "bundles": (WF_BASE, {"read": {"evidence_bundles": True}}),
