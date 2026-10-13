@@ -137,6 +137,10 @@ class C01Config:
     item_ids: tuple[str, ...] | None = None
     #: Question-level filter (``--query-ids``): ``item_id/query_id`` pairs; None = all questions.
     query_ids: tuple[str, ...] | None = None
+    #: RUNBOOK2: id of the sample slice (``slice_id`` key of the ``--query-ids @file`` JSON). When set, the manifest
+    #: records it as ``slice_id`` and hashes ``query_ids`` into ``slice_hash`` (old focus slices leave it None, so their
+    #: comparability keys are unchanged).
+    query_slice_id: str | None = None
     #: G2b: bind every engine LLM role of the memspine arm to this model family
     #: (``none`` | ``bedrock-qwen3``). Explicit ``llm.roles`` in ``memspine_config`` win.
     memspine_llm: str = "none"
@@ -1050,6 +1054,7 @@ async def run_c0_1(
             "paid_services": [f"{k}:{m}" for k, m in paid_services(config)],
             # screening (listed only when on, so other runs keep their labels)
             **({"retrieval_only": True} if config.retrieval_only else {}),
+            **({"slice": config.query_slice_id} if config.query_slice_id else {}),
             **({"trace_full": True} if config.trace_full else {}),
             **(
                 {"call_cache": {"dir": config.cache_dir, "cache_reader": config.cache_reader}}
@@ -1059,6 +1064,7 @@ async def run_c0_1(
         },
         extra_limits={
             "item_ids": list(config.item_ids) if config.item_ids else None,
+            **({"slice_query_ids": list(config.query_ids)} if config.query_slice_id and config.query_ids else {}),
             **({"query_ids_n": len(config.query_ids)} if config.query_ids else {}),
         },
         retrieval_only=config.retrieval_only,

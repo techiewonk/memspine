@@ -289,13 +289,14 @@ class EvalRunner:
         if not models["worker"] and isinstance(extract, dict):
             models["worker"] = extract.get("model")
         item_ids = (self.config.extra_limits or {}).get("item_ids")
+        sample_ids = (self.config.extra_limits or {}).get("slice_query_ids")  # RUNBOOK2 sample slices
         identity = build_identity(
             flags=flags,
             prompts=prompts,
             models={k: (str(v) if v else None) for k, v in models.items()},
             dataset_id=info.dataset_id,
             slice_id=(self.config.labels or {}).get("slice") or (f"items:{len(item_ids)}" if item_ids else None),
-            slice_ids=item_ids or None,
+            slice_ids=item_ids or sample_ids or None,
         )
         # the dataset adapter already hashed its bytes; do not read the files again
         identity["datasets"]["files"] = {str(info.source_path): info.content_sha256}

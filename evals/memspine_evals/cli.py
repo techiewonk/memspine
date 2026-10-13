@@ -106,6 +106,17 @@ def parse_item_ids(value: str | None) -> tuple[str, ...] | None:
     return tuple(ln.strip() for ln in text.splitlines() if ln.strip())
 
 
+def parse_query_slice_id(value: str | None) -> str | None:
+    """RUNBOOK2: the ``slice_id`` of a sample-slice file given as ``--query-ids @file`` (None for any other form)."""
+    if not value or not value.startswith("@"):
+        return None
+    text = Path(value[1:]).read_text(encoding="utf-8")
+    if not text.lstrip().startswith("{"):
+        return None
+    sid = json.loads(text).get("slice_id")
+    return str(sid) if sid else None
+
+
 def parse_query_ids(value: str | None) -> tuple[str, ...] | None:
     """``--query-ids``: comma list, or ``@path`` (focus-slice JSON object with ``query_ids``,
     a JSON list, or one ``item_id/query_id`` per line). Entries are ``item_id/query_id``."""
@@ -339,6 +350,7 @@ def cmd_c0_1(args: argparse.Namespace) -> int:
         only_systems=tuple(args.only_systems.split(",")) if args.only_systems else None,
         item_ids=parse_item_ids(args.item_ids),
         query_ids=parse_query_ids(args.query_ids),
+        query_slice_id=parse_query_slice_id(args.query_ids),
         categories=resolve_categories(args) if args.dataset == "locomo" else None,
         naive_dense_same_embedder=args.naive_dense_same_embedder,
         matched_budget_tokens=args.matched_budget_tokens,
