@@ -586,6 +586,8 @@
    "transport_broker": "memory"
   },
   "write": {
+   "asset_describe_timeout_s": 3.0,
+   "asset_describer": "off",
    "feedback_operators": [],
    "feedback_v2": false,
    "inferred": "off",
@@ -606,7 +608,7 @@
    "window_topic_k": 2.0
   }
  },
- "json_schema_sha256": "76ed28242d74f1b0a7330f98c72769d858dfdb636590135e1ba0f4c767c88156",
+ "json_schema_sha256": "8dcf0151c1ab3579516e8993e1e2b259aa622cb0f762e96ff8688c6c64d32609",
  "preset:chat_roles": {
   "audit": {
    "actions": false,
@@ -1225,6 +1227,8 @@
    "transport_broker": "memory"
   },
   "write": {
+   "asset_describe_timeout_s": 3.0,
+   "asset_describer": "off",
    "feedback_operators": [],
    "feedback_v2": false,
    "inferred": "off",
@@ -1859,6 +1863,8 @@
    "transport_broker": "memory"
   },
   "write": {
+   "asset_describe_timeout_s": 3.0,
+   "asset_describer": "off",
    "feedback_operators": [],
    "feedback_v2": false,
    "inferred": "off",
@@ -2493,6 +2499,8 @@
    "transport_broker": "memory"
   },
   "write": {
+   "asset_describe_timeout_s": 3.0,
+   "asset_describer": "off",
    "feedback_operators": [],
    "feedback_v2": false,
    "inferred": "off",
@@ -3127,6 +3135,8 @@
    "transport_broker": "memory"
   },
   "write": {
+   "asset_describe_timeout_s": 3.0,
+   "asset_describer": "off",
    "feedback_operators": [],
    "feedback_v2": false,
    "inferred": "off",
@@ -3761,6 +3771,8 @@
    "transport_broker": "memory"
   },
   "write": {
+   "asset_describe_timeout_s": 3.0,
+   "asset_describer": "off",
    "feedback_operators": [],
    "feedback_v2": false,
    "inferred": "off",
@@ -4395,6 +4407,8 @@
    "transport_broker": "memory"
   },
   "write": {
+   "asset_describe_timeout_s": 3.0,
+   "asset_describer": "off",
    "feedback_operators": [],
    "feedback_v2": false,
    "inferred": "off",
@@ -5029,6 +5043,8 @@
    "transport_broker": "memory"
   },
   "write": {
+   "asset_describe_timeout_s": 3.0,
+   "asset_describer": "off",
    "feedback_operators": [],
    "feedback_v2": false,
    "inferred": "off",
@@ -5663,6 +5679,8 @@
    "transport_broker": "memory"
   },
   "write": {
+   "asset_describe_timeout_s": 3.0,
+   "asset_describer": "off",
    "feedback_operators": [],
    "feedback_v2": false,
    "inferred": "off",
@@ -6297,6 +6315,8 @@
    "transport_broker": "memory"
   },
   "write": {
+   "asset_describe_timeout_s": 3.0,
+   "asset_describer": "off",
    "feedback_operators": [],
    "feedback_v2": false,
    "inferred": "off",
@@ -6940,6 +6960,8 @@
    "transport_broker": "memory"
   },
   "write": {
+   "asset_describe_timeout_s": 3.0,
+   "asset_describer": "off",
    "feedback_operators": [],
    "feedback_v2": false,
    "inferred": "off",
@@ -7579,6 +7601,8 @@
    "transport_broker": "memory"
   },
   "write": {
+   "asset_describe_timeout_s": 3.0,
+   "asset_describer": "off",
    "feedback_operators": [],
    "feedback_v2": false,
    "inferred": "off",
@@ -8199,6 +8223,8 @@
    "transport_broker": "memory"
   },
   "write": {
+   "asset_describe_timeout_s": 3.0,
+   "asset_describer": "off",
    "feedback_operators": [],
    "feedback_v2": false,
    "inferred": "off",
@@ -8841,6 +8867,8 @@
    "transport_broker": "memory"
   },
   "write": {
+   "asset_describe_timeout_s": 3.0,
+   "asset_describer": "off",
    "feedback_operators": [],
    "feedback_v2": false,
    "inferred": "off",
@@ -9479,6 +9507,8 @@
    "transport_broker": "memory"
   },
   "write": {
+   "asset_describe_timeout_s": 3.0,
+   "asset_describer": "off",
    "feedback_operators": [],
    "feedback_v2": false,
    "inferred": "off",
@@ -10121,6 +10151,8 @@
    "transport_broker": "memory"
   },
   "write": {
+   "asset_describe_timeout_s": 3.0,
+   "asset_describer": "off",
    "feedback_operators": [],
    "feedback_v2": false,
    "inferred": "off",
@@ -10755,6 +10787,8 @@
    "transport_broker": "memory"
   },
   "write": {
+   "asset_describe_timeout_s": 3.0,
+   "asset_describer": "off",
    "feedback_operators": [],
    "feedback_v2": false,
    "inferred": "off",
@@ -11390,6 +11424,8 @@
    "transport_broker": "memory"
   },
   "write": {
+   "asset_describe_timeout_s": 3.0,
+   "asset_describer": "off",
    "feedback_operators": [],
    "feedback_v2": false,
    "inferred": "off",
@@ -12026,6 +12062,8 @@
    "transport_broker": "memory"
   },
   "write": {
+   "asset_describe_timeout_s": 3.0,
+   "asset_describer": "off",
    "feedback_operators": [],
    "feedback_v2": false,
    "inferred": "off",

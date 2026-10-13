@@ -56,7 +56,7 @@ from memspine.observability import tap
 from memspine.schemas.public import QuotaExceeded, WaitResult
 from memspine.schemas.public.errors import QuotaExceededError
 from memspine.schemas.public.receipt import CAPABILITIES, Readiness, Receipt
-from memspine.schemas.steps.shared import Scope, Segment, SourceEnvelope
+from memspine.schemas.steps.shared import AssetRef, Scope, Segment, SourceEnvelope
 from memspine.store.records import MemoryRecord, PiiTier, RecordStatus
 from memspine.store.scope import validate_namespace
 
@@ -444,6 +444,8 @@ class IntakeGateway:
     async def _apply(self, payload: dict[str, Any], *, resume: bool) -> dict[str, str]:
         if payload["adapter"] == "messages":
             return await self._apply_messages(payload, resume)
+        if payload["adapter"] == "asset":
+            return await self._apply_asset(payload, resume)
         return await self._apply_document(payload, resume)
 
     async def _apply_messages(self, p: dict[str, Any], resume: bool) -> dict[str, str]:
@@ -546,6 +548,45 @@ class IntakeGateway:
                 [landed[f["wid"]] for f in fresh if f["wid"] in landed],
                 version=p["version"],
             )
+        return landed
+
+    async def _apply_asset(self, p: dict[str, Any], resume: bool) -> dict[str, str]:
+        """W2-11: an ``asset`` envelope. The record is the REFERENCE (hash, URI, mime, size; never
+        the bytes). Under ``write.asset_describer: ingest`` the description follows as a derived record."""
+        from memspine.ingest import asset_describer as ad
+
+        eng = self.eng
+        ns = p["namespace"]
+        a = p["args"]
+        fresh = p["fresh"]
+        landed: dict[str, str] = {}
+        if resume:
+            landed = await self._scan_landed(ns, "resource", [f["wid"] for f in fresh])
+        todo = [(f["i"], f["wid"], f["text"]) for f in fresh if f["wid"] not in landed]
+        info = ad.AssetInfo(**a["asset"])
+        if todo:
+            async with eng._write_locks.setdefault(ns, asyncio.Lock()):
+                recs = await eng._resource.ingest_chunks(
+                    ns,
+                    info.uri,
+                    todo,
+                    version=p["version"],
+                    pii_tier=PiiTier(a["pii_tier"]),
+                    actor=a["actor"],
+                    extra_tags=ad.asset_tags(info),
+                )
+            landed.update({w: r.record_id for w, r in recs.items()})
+            tap.event("write.asset.stored", assets=len(recs), hash=info.hash, mime=info.mime)
+        if eng._config().write.asset_describer == "ingest":
+            storage = eng._require_started()
+            for rid in landed.values():
+                rec = await storage.get_record(rid)
+                if rec is None:
+                    continue
+                try:
+                    await ad.describe_and_deposit(eng, ns, rec, trigger="ingest")
+                except Exception as exc:
+                    tap.event("write.asset.failed", asset=rid, error=type(exc).__name__)
         return landed
 
     async def _result(
@@ -776,3 +817,81 @@ async def ingest(
             if rec is not None:
                 out.append(rec)
     return out
+
+
+async def ingest_asset(
+    eng: Any,
+    path_or_uri: str | Path,
+    namespace: str = "default",
+    *,
+    mime: str | None = None,
+    size: int | None = None,
+    content_hash: str | None = None,
+    alt_text: str | None = None,
+    pii_tier: PiiTier = PiiTier.NONE,
+) -> MemoryRecord | None:
+    """W2-11: store an asset reference (``asset`` envelope; ``write.asset_describer`` must not be
+    ``off``, ``write.intake_v2`` must be on). The same asset (content hash) in a namespace is stored
+    once. Returns the asset record, or None when it was already stored."""
+    from memspine.exceptions import ConfigError
+    from memspine.ingest import asset_describer as ad
+
+    cfg = eng._config().write
+    if cfg.asset_describer == "off":
+        raise ConfigError("ingest_asset needs write.asset_describer: ingest | on_read")
+    if not cfg.intake_v2:
+        raise ConfigError("ingest_asset goes through the intake gateway: set write.intake_v2")
+    ns = validate_namespace(namespace)
+    info = await asyncio.to_thread(
+        ad.asset_info_from_file,
+        path_or_uri,
+        mime=mime,
+        size=size,
+        content_hash=content_hash,
+        alt_text=alt_text,
+    )
+    env = SourceEnvelope(
+        source_id=f"asset:{info.hash}",
+        kind="asset",
+        scope=_scope_of(ns, None, "user"),
+        segments=[
+            Segment(
+                seg_index=0,
+                role="document",
+                content=ad.reference_text(info),
+                assets=[
+                    AssetRef(
+                        asset_id=info.hash[:16],
+                        hash=info.hash,
+                        mime=info.mime,
+                        url_or_path=info.uri,
+                    )
+                ],
+            )
+        ],
+    )
+    gw = gateway_of(eng)
+    res = await gw.submit(
+        env,
+        ns,
+        "asset",
+        {
+            "chunks": [ad.reference_text(info)],
+            "path": info.uri,
+            "pii_tier": PiiTier(pii_tier).value,
+            "actor": "user",
+            "asset": {
+                "hash": info.hash,
+                "uri": info.uri,
+                "mime": info.mime,
+                "size": info.size,
+                "alt_text": info.alt_text,
+                "meta": dict(info.meta),
+            },
+        },
+    )
+    storage = eng._require_started()
+    for rid in res.record_ids:
+        if rid in gw.last_new:
+            return await storage.get_record(rid)
+    return None

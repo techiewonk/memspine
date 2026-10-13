@@ -81,6 +81,20 @@ class WriteConfig(BaseModel):
     #: (default): the old write path, unchanged.
     intake_v2: bool = False
 
+    #: W2-11 (W-23): the asset describer. ``off`` (default, the BD-8 hold): ``ingest_asset`` is refused
+    #: and nothing else changes. ``ingest``: ``Engine.ingest_asset`` stores the asset reference (content
+    #: hash + path/URI, never the bytes) as a record and, right away, a description as a derived record
+    #: (parent: the asset record, trust capped, through ``derive/write.py``). ``on_read``: the reference
+    #: is stored without a description; ``Engine.search`` describes a returned asset record that has none,
+    #: once (the description is a record, so it is cached), waiting at most ``asset_describe_timeout_s``.
+    #: The describer is the optional LLM role ``describe_asset`` (vision-capable model, a MD-01 tier);
+    #: with none bound it writes a metadata-only description (filename, mime, size, alt text, EXIF) and
+    #: makes no model call. Needs ``write.intake_v2``. Taps ``write.asset.*``.
+    asset_describer: Literal["off", "ingest", "on_read"] = "off"
+    #: W2-11: longest an ``on_read`` read waits for descriptions; past it the read returns without them
+    #: and the work continues in the background (queued, one task per asset).
+    asset_describe_timeout_s: float = Field(default=3.0, gt=0)
+
     #: O4-11 (LIB-44, O-25): explicit feedback only. ``True``: ``Engine.feedback`` refuses any
     #: channel that is not a deliberate one (``user_message``, ``ui_control``, ``operator_edit``,
     #: ``api``; silence, dwell, regeneration and classifier signals are refused), checks who may

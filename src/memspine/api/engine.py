@@ -95,7 +95,9 @@ from memspine.exceptions import (
     MemspineError,
     StorageError,
 )
+from memspine.ingest import asset_describer
 from memspine.ingest import assets as ingest_assets
+from memspine.ingest import gateway as ingest_gateway
 from memspine.ingest import windows as ingest_windows
 from memspine.ingest import write as ingest_write
 from memspine.ingest.write import (
@@ -791,6 +793,7 @@ class Engine:
         if self._derive_sched is not None:  # O4-01a: cancel timers and jobs (cycles stay open)
             derive_sched, self._derive_sched = self._derive_sched, None
             await derive_sched.stop()
+        await asset_describer.shutdown(self)  # W2-11: queued on_read descriptions
         if self._windows is not None:
             await self._windows.stop()  # window workers and idle timers, before the storage goes
         if self._neo4j is not None:
@@ -1864,7 +1867,7 @@ class Engine:
         the ``top_k`` cut (each leg looks over the whole namespace), so a filter never
         costs recall. No bound: unchanged.
         """
-        return await read_router.search(
+        hits = await read_router.search(
             self,
             query,
             namespace,
@@ -1889,6 +1892,9 @@ class Engine:
             date_filter_mode=date_filter_mode,
             viewer=viewer,
         )
+        if self._config().write.asset_describer == "on_read":  # W2-11: describe on first read
+            hits = await asset_describer.on_read(self, namespace, hits)
+        return hits
 
     async def _date_allowed(self, ns: str) -> tuple[set[str], int] | None:
         return await read_timeview._date_allowed(self, ns)
@@ -3931,6 +3937,28 @@ class Engine:
     ) -> list[MemoryRecord]:
         """Ingest a document (D-29): extract → chunk → resource records."""
         return await handle.ingest(self, path, namespace, pii_tier)
+
+    async def ingest_asset(
+        self,
+        path_or_uri: str | Path,
+        namespace: str = "default",
+        *,
+        mime: str | None = None,
+        size: int | None = None,
+        content_hash: str | None = None,
+        alt_text: str | None = None,
+    ) -> MemoryRecord | None:
+        """W2-11: store an image/attachment REFERENCE (hash + path/URI, no bytes) and, per
+        ``write.asset_describer``, describe it at ingest or on first read. Refused while ``off``."""
+        return await ingest_gateway.ingest_asset(
+            self,
+            path_or_uri,
+            namespace,
+            mime=mime,
+            size=size,
+            content_hash=content_hash,
+            alt_text=alt_text,
+        )
 
     # ── procedural + reflective verbs (P5: M13.4 / M13.7 / E6) ───────────────
 

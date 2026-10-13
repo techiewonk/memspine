@@ -378,6 +378,8 @@
       "v2": false
     },
     "write": {
+      "asset_describe_timeout_s": 3.0,
+      "asset_describer": "off",
       "feedback_operators": [],
       "feedback_v2": false,
       "inferred": "off",

@@ -91,6 +91,7 @@ def test_every_shipped_prompt_renders_with_plausible_context() -> None:
             "nonce": "abc123",
         },
         "anticipate": {"content": "[1] [2026-01-02] Alice: I am allergic to nuts"},
+        "describe_asset": {"filename": "a.png", "mime": "image/png", "size": 1, "alt_text": "x"},
         "judge": {
             "existing_content": "a",
             "existing_valid_from": "2026-01-01",
