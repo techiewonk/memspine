@@ -7,12 +7,12 @@ Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summarie
 
 | Status | Count |
 |---|---|
-| Not started | 89 |
+| Not started | 88 |
 | Ready | 0 |
 | In progress | 0 |
 | Blocked | 1 |
 | Needs measurement | 3 |
-| Done | 66 |
+| Done | 67 |
 | Dropped | 0 |
 
 ## Phase 0: settle and prepare
@@ -93,7 +93,7 @@ Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summarie
 | MOD-02 | Typed registries + entry points (discovery is not enablement: pinned capability manifest) | L0 L1 L4 L5 ctx scope | D K_C K_P R C | G-16 | ER-03, ER-33, ER-34 | F-06, MOD-01 | api | S1 split (serial) | `src/memspine/*/registry.py` | Built-ins register at import; entry-point plug-in test; golden unchanged | **Done** | Registry[T] + entry points, pinned enable, duplicate/lifetime errors, plugins: config; unit 5871, evals 1435, golden, 14 contracts (c5226f1) |
 | F-07 | Config split and flag registry (per-area flag modules) | L0 L1 L4 L5 ctx scope | D R C | G-21, G-22 | - | MOD-02 | move | S1 split (serial) | `src/memspine/config/schema/**` +2 | Same YAML keys; every default flag has evidence | **Done** | S7: config/schema/ package (10 area modules, identical classes), config/flags.py registry (198), retired-key errors; template/preset dumps identical (5098e5a) |
 | F-08 | Wiring out of the engine into a dishka container (app, job, request scopes) | L0 L1 L4 L5 ctx scope | D K_C K_P R C | G-16 | ER-03, ER-10, ER-34 | F-07 | api | S1 split (serial) | `src/memspine/runtime/container.py` +1 | Golden | **Done** | S8: runtime/container.py dishka providers (APP/JOB/REQUEST), 17 builders moved, engine -450 lines; unit 5905, evals 1435, golden, 14 contracts (b2824d6) |
-| F-09 | Write path out of the engine | L0 L1 L5 | D | W-01, W-09 | - | F-08, LIB-13, LIB-14, LIB-29, LIB-30 | move | S1 split (serial) | `src/memspine/ingest/**` +1 | Golden | **Not started** | S9 |
+| F-09 | Write path out of the engine | L0 L1 L5 | D | W-01, W-09 | - | F-08, LIB-13, LIB-14, LIB-29, LIB-30 | move | S1 split (serial) | `src/memspine/ingest/**` +1 | Golden | **Done** | S9: 49 units to ingest/{write,assets,windows,timeparse}.py, engine 14675->13497, thin delegations; unit 5905, evals 1435, golden, 14 contracts (d6cb48c) |
 | F-10a | Read path out: legs, fusion, rerank | L0 L1 L3 | R | R-05 | - | F-09, LIB-10, LIB-11, LIB-12, LIB-15, LIB-16, LIB-19, LIB-22, LIB-23, LIB-24, LIB-34, LIB-43, LIB-45, LIB-47 | move | S1 split (serial) | `src/memspine/read/**` +1 | Golden byte-identical hit order | **Not started** | S10 |
 | F-10b | Read path out: lift, gates, filters | L0 L1 L3 | R | R-05 | - | F-10a, LIB-11, LIB-12 | move | S1 split (serial) | `src/memspine/read/**` +1 | Golden byte-identical hit order | **Not started** | S10 |
 | F-11 | Compose out of the engine | ctx | C | R-20 | - | F-10b, LIB-06, LIB-25 | move | S1 split (serial) | `src/memspine/compose/**` +1 | Golden context hash identical | **Not started** | S11 |

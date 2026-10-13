@@ -2982,8 +2982,8 @@
    ],
    "kind": "move",
    "gate": "Golden",
-   "status": "Not started",
-   "note": "S9",
+   "status": "Done",
+   "note": "S9: 49 units to ingest/{write,assets,windows,timeparse}.py, engine 14675->13497, thin delegations; unit 5905, evals 1435, golden, 14 contracts (d6cb48c)",
    "layers": [
     "L0",
     "L1",
