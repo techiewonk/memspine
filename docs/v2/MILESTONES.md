@@ -96,3 +96,11 @@ Bugs found on Postgres and fixed: the shared table metadata typed `simhash` as `
 Postgres; `sqlite/schema.py` is now `BigInteger`, SQLite DDL unchanged); the test conftest scrubbed
 `MEMSPINE_TEST_*` DSNs with the other `MEMSPINE_*` variables (so every live cell silently skipped); the lineage
 contract test relied on SQLite continuing a transaction after an `IntegrityError` (now a SAVEPOINT).
+
+## Final CPU gate, 2026-10-13 (all non-GPU work merged)
+
+Run on `restructure` after W2-06c and owner-bound handles, serial, nothing else running:
+`tests/unit` 6944 passed / 29 skipped / 0 failed · `evals/tests` 1548 passed / 14 skipped · golden 1 passed ·
+`tests/e2e -m milestone` 32 passed / 30 skipped (server cells skip without `MEMSPINE_TEST_PG_URL`; they passed live in the EX-1 run) ·
+import-linter 14 kept / 0 broken · single Alembic head (sqlite and Postgres trees).
+Remaining work needs the GPU: the 71 "Needs measurement" screens (resume list in `docs/v2/SCREENS.md`), EX-2..EX-5, T5-07, R6-01, R6-02.
