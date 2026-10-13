@@ -189,10 +189,10 @@ async def test_close_order_matches_the_engine_stop(monkeypatch: pytest.MonkeyPat
     c = make_container(_SPEC)
     wiring = await c.get(Wiring)
     # populate every slot, in scrambled order: the finaliser fixes the sequence
-    for name in ("cashews", "ladybug", "kuzu", "lance", "pg", "client"):
+    for name in ("cashews", "ladybug", "lance", "pg", "client"):
         setattr(wiring, name, Closer(name))
     await c.close()
-    assert order == ["client", "pg", "lance", "kuzu", "ladybug", "cashews"]
+    assert order == ["client", "pg", "lance", "ladybug", "cashews"]
 
 
 async def test_closing_the_container_closes_the_real_client() -> None:

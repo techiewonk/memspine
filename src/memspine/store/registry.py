@@ -27,9 +27,7 @@ GRAPH_STORES: Registry[StoreFactory | None] = Registry("graph_stores")
 VECTOR_STORES.register("lance", None)
 
 LEXICAL_INDEXES.register("tantivy", None)
-LEXICAL_INDEXES.register("opensearch", None)  # stub: always raises MissingServiceError
 
 GRAPH_STORES.register("sqlite_adjacency", None)
-GRAPH_STORES.register("kuzu", None)
 GRAPH_STORES.register("ladybug", None)
 GRAPH_STORES.register("neo4j", None)  # stub: always raises MissingServiceError

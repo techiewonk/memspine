@@ -77,8 +77,7 @@ async def test_ladybug_provider_without_package_fails_actionably_naming_the_extr
 ) -> None:
     # ladybug is now a real, installable adapter (D-26) — force the
     # missing-package path deterministically so this test holds whether or
-    # not [graph] happens to be installed in the running environment (mirrors
-    # the kuzu-client determinism trick in test_stubs.py).
+    # not [graph] happens to be installed in the running environment.
     monkeypatch.setitem(sys.modules, "ladybug", None)
     eng = _engine(
         graph={"provider": "ladybug"},

@@ -166,12 +166,3 @@ async def test_pre_kb1_database_is_altered_and_backfilled(tmp_path: object) -> N
         assert {(e.src, e.dst) for e in await store.edge_list("ns/a")} == {("a", "b"), ("a", "c")}
     finally:
         await client.close()
-
-
-async def test_kuzu_store_is_a_deprecated_alias() -> None:
-    """ADR-034: the Kùzu store is the LadybugDB adapter and warns on construction."""
-    from memspine.services.graph.kuzu import KuzuGraphStore
-
-    with pytest.warns(DeprecationWarning, match="archived on 2025-10-10"):
-        store = KuzuGraphStore(LadybugClient(":memory:"))  # type: ignore[arg-type]
-    assert isinstance(store, LadybugGraphStore)

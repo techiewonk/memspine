@@ -184,35 +184,8 @@ async def test_bridge_gate_follows_the_decider_and_records_it() -> None:
         await eng.stop()
 
 
-async def test_relevance_gate_injects_nothing_when_sure() -> None:
-    eng = _engine(decider="opendecider", relevance_gate="decider", decider_min_confidence=0.6)
-    fake = FakeDecider({"relevance": ("irrelevant", 0.97)})
-    eng.set_decider(fake)
-    await eng.start()
-    try:
-        await _seed(eng)
-        with search_forensics() as stages:
-            out = await eng.read("Write me a poem about autumn", namespace="a", mode="replay")
-        assert out.context.abstained and not out.context.records
-        assert stages["decisions"][0]["final"] == "irrelevant"
-        task, question, context = fake.calls[0]
-        assert task == "relevance" and "poem" in question and "Caroline" in (context or "")
-        # not sure: memories are still injected
-        fake.answers["relevance"] = ("irrelevant", 0.55)
-        out = await eng.read("Write me a poem about autumn", namespace="a", mode="replay")
-        assert out.context.records
-        # relevant: injected
-        fake.answers["relevance"] = ("relevant", 0.99)
-        out = await eng.read("Where did Caroline move from?", namespace="a", mode="replay")
-        assert out.context.records
-    finally:
-        await eng.stop()
-
-
 async def test_a_failing_decider_falls_back_to_the_heuristic() -> None:
-    eng = _engine(
-        list_mode=True, decider="opendecider", decider_tasks=["list_mode"], relevance_gate="decider"
-    )
+    eng = _engine(list_mode=True, decider="opendecider", decider_tasks=["list_mode"])
     eng.set_decider(BoomDecider())
     await eng.start()
     try:
@@ -234,18 +207,14 @@ async def test_the_decider_sees_no_gold_or_category() -> None:
         bridge_hop=True,
         decider="opendecider",
         decider_tasks=["list_mode", "bridge_hop"],
-        relevance_gate="decider",
-        relevance_gate_bypass="none",
     )
-    fake = FakeDecider(
-        {"list_mode": ("single", 0.9), "bridge_hop": ("hop", 0.9), "relevance": ("relevant", 0.9)}
-    )
+    fake = FakeDecider({"list_mode": ("single", 0.9), "bridge_hop": ("hop", 0.9)})
     eng.set_decider(fake)
     await eng.start()
     try:
         await _seed(eng)
         await eng.read("Where did Caroline move from?", namespace="a", mode="replay")
-        assert {c[0] for c in fake.calls} == {"list_mode", "bridge_hop", "relevance"}
+        assert {c[0] for c in fake.calls} == {"list_mode", "bridge_hop"}
         texts = " ".join(f"{q} {c or ''}" for _, q, c in fake.calls).lower()
         assert "gold" not in texts and "category" not in texts
     finally:

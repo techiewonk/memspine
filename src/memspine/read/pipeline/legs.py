@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import math
 import re
 from collections.abc import (
@@ -32,9 +31,6 @@ from memspine.core.read_filters import (
 )
 from memspine.core.rule_edges import BECAUSE_REL
 from memspine.core.ties import settle_ties
-from memspine.exceptions import (
-    MissingServiceError,
-)
 from memspine.memories.associative.entities import (
     MENTIONS_REL,
     is_entity_node,
@@ -513,53 +509,6 @@ async def _maxsim_leg(
         return [leg] if leg else []
     except Exception as exc:  # an enhancer, never a gate
         _log.warning("read.maxsim_leg_failed", namespace=ns, error=str(exc))
-        return []
-
-
-async def _word_vector_leg(eng: Any, ns: str, query: str, fetch_k: int) -> list[list[LegHit]]:
-    """Word-vector leg (``read.word_vector_leg``): every live record of ``ns`` ranked by
-    the cosine of pooled static word vectors with the query. Vectors are cached per
-    (record, content); a missing provider skip-logs once and the leg stays empty, so
-    retrieval never fails because of it."""
-    read = eng._config().read
-    try:
-        if eng._word_vectors is None:
-            if eng._word_vectors_unavailable:
-                return []
-            from memspine.models.encoders.embedding.word_vectors import WordVectorEncoder
-
-            eng._word_vectors = WordVectorEncoder(read.word_vector_provider, read.word_vector_model)
-        encoder = eng._word_vectors
-        storage = eng._require_started()
-        records = [r for r in await storage.list_records(ns) if not r.quarantined]
-        cache = eng._word_vector_cache
-        missing = [r for r in records if (r.record_id, r.content) not in cache]
-        if missing:
-            vectors = await asyncio.to_thread(encoder.encode, [r.content for r in missing])
-            if len(cache) + len(missing) > constants.MAXSIM_CACHE_MAX:
-                cache.clear()
-            for r, v in zip(missing, vectors, strict=True):
-                cache[(r.record_id, r.content)] = v
-        [q] = await asyncio.to_thread(encoder.encode, [query])
-        scored = sorted(
-            (
-                (
-                    sum(a * b for a, b in zip(q, cache[(r.record_id, r.content)], strict=False)),
-                    r.record_id,
-                )
-                for r in records
-                if (r.record_id, r.content) in cache
-            ),
-            key=lambda pair: -pair[0],
-        )[: read.word_vector_top_k or fetch_k]
-        leg = NamedLeg("word_vector", [LegHit(rid, score) for score, rid in scored])
-        return [leg] if leg else []
-    except MissingServiceError as exc:
-        eng._word_vectors_unavailable = True
-        _log.info("read.word_vector_leg_unavailable", error=str(exc))
-        return []
-    except Exception as exc:  # an enhancer, never a gate
-        _log.warning("read.word_vector_leg_failed", namespace=ns, error=str(exc))
         return []
 
 

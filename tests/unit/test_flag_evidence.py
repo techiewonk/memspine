@@ -10,7 +10,7 @@ import re
 
 import pytest
 
-from memspine.config import flags
+from memspine.config import flags, schema
 
 # a commit hash or an ADR id counts as evidence; so does a named run id ("run <id>")
 _EVIDENCE_REF = re.compile(r"\b(?:[0-9a-f]{7,40}|ADR-\d{3}|run[ _][\w.-]+)\b", re.IGNORECASE)
@@ -92,8 +92,34 @@ def test_retired_flag_names_its_replacement(monkeypatch):
         load_config(template="base", overrides={"read": {"gone": 1}})
 
 
-def test_no_retired_flags_yet():
-    assert flags.RETIRED == {}
+def test_retired_keys_are_gone_from_the_schema():
+    live = set(flags.registry())
+    assert not set(flags.RETIRED) & live
+    for dotted in flags.RETIRED:
+        section, _, name = dotted.partition(".")
+        fields = type(getattr(schema.MemspineConfig(), section)).model_fields
+        assert name not in fields, dotted
+
+
+@pytest.mark.parametrize("key", sorted(flags.RETIRED))
+def test_every_retired_key_fails_loudly_in_yaml(key):
+    from memspine.config.loader import load_config
+    from memspine.exceptions import ConfigError
+
+    section, _, name = key.partition(".")
+    with pytest.raises(ConfigError, match=rf"{key}.*retired"):
+        load_config(template="base", overrides={section: {name: "off"}})
+
+
+@pytest.mark.parametrize("item", sorted(flags.RETIRED_VALUES))
+def test_every_retired_value_fails_loudly_in_yaml(item):
+    from memspine.config.loader import load_config
+    from memspine.exceptions import ConfigError
+
+    key, _, value = item.partition("=")
+    section, _, name = key.partition(".")
+    with pytest.raises(ConfigError, match="retired"):
+        load_config(template="base", overrides={section: {name: value}})
 
 
 def test_discovery_finds_known_flags():

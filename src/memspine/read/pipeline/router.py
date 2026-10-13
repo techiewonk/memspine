@@ -351,9 +351,8 @@ async def _search(
     # Hybrid recall (E8/D-25): fetch a wider candidate window per leg so a
     # record ranked just outside a single leg's top_k, but strong when the two
     # legs combine, can still enter the fused top_k.
-    # The word-vector leg is a second fused leg like BM25, so it widens the window the
-    # same way; without this, ``hybrid: false`` + word vectors cut the vector leg to top_k.
-    wide = use_hybrid or eng._config().read.word_vector_leg or eng._config().read.session_leg
+    # The session leg is a second fused leg like BM25, so it widens the window the same way.
+    wide = use_hybrid or eng._config().read.session_leg
     base_fetch = top_k * constants.LEXICAL_FETCH_MULTIPLIER if wide else top_k
     allowed = await eng._date_allowed(ns)
     if allowed is not None:
@@ -423,8 +422,6 @@ async def _search(
             extra_legs += await eng._graph_node_legs(ns, query, query_vector, fetch_k)
         if read_now.maxsim_leg:
             extra_legs += await eng._maxsim_leg(ns, query_vector, vector_hits, lexical_hits)
-        if read_now.word_vector_leg:
-            extra_legs += await eng._word_vector_leg(ns, query, fetch_k)
         if read_now.session_leg:
             extra_legs += await eng._session_leg(ns, query_vector, fetch_k)
         if (
@@ -992,8 +989,6 @@ async def _read(
         result = await eng._agentic_extend(
             query, ns, result, routed_budget, hide=hide, session_id=session_id
         )
-    if eng._config().read.fact_chain == "read_time":  # E01: opt-in, read-time only
-        result = await eng._fact_chain_extend(query, ns, result, routed_budget)
     if eng._config().read.event_ledger == "on":  # A02: opt-in, read-time only
         result = await eng._event_ledger_extend(query, ns, result, routed_budget)
     headers = eng._count_section(ns, query, result.context, count_share, headers)

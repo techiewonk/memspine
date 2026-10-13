@@ -4,7 +4,7 @@ LadybugDB (PyPI: ``ladybug``, import ``ladybug``, pinned ``>=0.21,<0.22``) is
 the maintained, MIT-licensed fork of Kùzu; Kùzu itself was archived upstream on
 2025-10-10. The fork kept Kùzu's embedded-Cypher Python API (``Database``/
 ``Connection``, synchronous client, the same DDL dialect), so this client
-mirrors :class:`~memspine.clients.kuzu.KuzuClient` (deprecated, ADR-034).
+is the one embedded-graph client (the Kùzu client was removed, ADR-034).
 
 Owns the embedded ``ladybug.Database`` + ``ladybug.Connection``; the graph
 service receives this client injected and never connects itself (D-22).
