@@ -94,7 +94,7 @@ async def test_router_rules_suppresses_unrouted_optional_legs() -> None:
 async def test_layer_state_counts_what_the_store_has() -> None:
     eng = await _engine(router_rules=True)
     try:
-        layers = await rq.layer_state(eng, "a", eng._config().read)
+        layers = await rq.layer_state(eng, "a", eng.config.read)
     finally:
         await eng.stop()
     assert layers.is_populated("L1") and not layers.is_populated("L5")

@@ -127,7 +127,7 @@ async def test_focal_entity_seeds_the_graph_and_does_not_leak(tmp_path: Path) ->
     eng._graph_seeds = spy  # type: ignore[method-assign]
     try:
         await eng.write("Luna is a grey cat", namespace="u", entity="Luna", attribute="pet")
-        eng._config().read.graph_leg = True  # type: ignore[misc]
+        eng.config.read.graph_leg = True  # type: ignore[misc]
         await eng.search("what about her?", namespace="u", focal_entity="Luna")
         after = _FOCAL_ENTITY.get()
     finally:

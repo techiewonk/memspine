@@ -376,7 +376,7 @@ async def test_not_an_event_question_does_not_fire(monkeypatch: pytest.MonkeyPat
         with search_forensics() as stages:
             await _read(eng, "What does Ana's sister bake?")
         assert stub.prompts == [] and stages["event_ledger"]["stop"] == "not_triggered"
-        eng._config().read.event_ledger_trigger = "always"
+        eng.config.read.event_ledger_trigger = "always"
         with search_forensics() as stages:
             await _read(eng, "What does Ana's sister bake?")
         assert len(stub.prompts) == 1

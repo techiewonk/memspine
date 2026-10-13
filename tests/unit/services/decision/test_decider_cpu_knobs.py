@@ -84,7 +84,7 @@ async def test_engine_passes_every_knob_to_build_decider(monkeypatch: pytest.Mon
         )
     ]
     assert eng._decider_adapter() is a  # cached while the knobs are unchanged
-    eng._config().read.decider_dtype = "float32"  # a changed knob rebuilds the adapter
+    eng.config.read.decider_dtype = "float32"  # a changed knob rebuilds the adapter
     assert eng._decider_adapter() is not a and len(seen) == 2
     await eng.stop()
 

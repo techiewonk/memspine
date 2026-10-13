@@ -177,7 +177,7 @@ async def test_attach_is_bounded_logged_and_namespace_safe() -> None:
         best: set[str] = set()
         with search_forensics() as fx:
             used = await eng._attach_antecedents(
-                "a", hits, chosen, seen, best, 0, 10_000, eng._config().read
+                "a", hits, chosen, seen, best, 0, 10_000, eng.config.read
             )
         assert [e["outcome"] for e in fx["reference_edges"]] == ["attached", "over_cap"]
         assert len(chosen) == 1 and chosen[0].record_id == recs[0].record_id and used > 0
@@ -186,13 +186,13 @@ async def test_attach_is_bounded_logged_and_namespace_safe() -> None:
         # a budget too small for the antecedent: logged, nothing attached
         chosen2: list[Any] = []
         with search_forensics() as fx2:
-            await eng._attach_antecedents("a", hits, chosen2, set(), set(), 0, 1, eng._config().read)
+            await eng._attach_antecedents("a", hits, chosen2, set(), set(), 0, 1, eng.config.read)
         assert chosen2 == [] and fx2["reference_edges"][0]["outcome"] == "over_budget"
 
         # another namespace's id is never attached
         with search_forensics() as fx3:
             chosen3: list[Any] = []
-            await eng._attach_antecedents("b", hits, chosen3, set(), set(), 0, 10_000, eng._config().read)
+            await eng._attach_antecedents("b", hits, chosen3, set(), set(), 0, 10_000, eng.config.read)
         assert chosen3 == [] and {e["outcome"] for e in fx3["reference_edges"]} == {"missing"}
     finally:
         await eng.stop()
