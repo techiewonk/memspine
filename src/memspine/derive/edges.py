@@ -44,6 +44,7 @@ from typing import Any, Literal
 from memspine.derive.integrate import record_id
 from memspine.schemas.durable.assertion import AssertionEnvelope
 from memspine.schemas.durable.assessment import is_tentative
+from memspine.store import keys
 
 __all__ = [
     "GraphDelta",
@@ -138,8 +139,8 @@ def assertion_node_id(env: AssertionEnvelope) -> str:
 
 def _edge_key(kind: str, label: str, src: str, dst: str, env: AssertionEnvelope) -> str:
     """Kind + endpoints + occurrence (A-B-A: a returning value has a new occurrence, hence a new key)."""
-    return _digest(
-        "ge", [kind, label, src, dst, env.occurrence_id, env.scope.tenant, env.scope.owner]
+    return keys.edge_key(
+        kind, label, src, dst, env.occurrence_id, env.scope.tenant, env.scope.owner
     )
 
 

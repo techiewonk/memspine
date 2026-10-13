@@ -116,6 +116,11 @@ class GraphConfig(BaseModel):
     #: into the graph store's entity index: LadybugDB keeps them in a FLOAT[] column with
     #: its native HNSW vector index and FTS index; sqlite_adjacency in node properties.
     entity_embeddings: bool = False
+    #: F-01 (M-17 B, W-20 C): graph key format v2 for ``extract_graph`` edges: the key adds the edge
+    #: kind and an occurrence (the cited source records), so A -> B -> A writes a new occurrence
+    #: instead of being swallowed as a duplicate of the closed A; old keys stay valid as aliases.
+    #: Off: today's ``(namespace, src, rel, dst)`` key, byte-identical.
+    key_v2: bool = False
 
 
 class CacheConfig(BaseModel):

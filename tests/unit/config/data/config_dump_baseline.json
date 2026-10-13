@@ -82,6 +82,7 @@
   },
   "graph": {
    "entity_embeddings": false,
+   "key_v2": false,
    "provider": "auto"
   },
   "ingest": {
@@ -449,7 +450,7 @@
    "window_topic_k": 2.0
   }
  },
- "json_schema_sha256": "4e2902d4cf98ffa3dfde39fefdf9b5216666b32338af7d4b7cbb9849ff870cae",
+ "json_schema_sha256": "e0f0cce309e6d554d35e7bd492b667a1d5fcb17c18cf7e521503e80d78ad7fa6",
  "preset:chat_roles": {
   "audit": {
    "actions": false,
@@ -535,6 +536,7 @@
   },
   "graph": {
    "entity_embeddings": false,
+   "key_v2": false,
    "provider": "auto"
   },
   "ingest": {
@@ -1014,6 +1016,7 @@
   },
   "graph": {
    "entity_embeddings": false,
+   "key_v2": false,
    "provider": "auto"
   },
   "ingest": {
@@ -1491,6 +1494,7 @@
   },
   "graph": {
    "entity_embeddings": false,
+   "key_v2": false,
    "provider": "auto"
   },
   "ingest": {
@@ -1968,6 +1972,7 @@
   },
   "graph": {
    "entity_embeddings": false,
+   "key_v2": false,
    "provider": "auto"
   },
   "ingest": {
@@ -2445,6 +2450,7 @@
   },
   "graph": {
    "entity_embeddings": false,
+   "key_v2": false,
    "provider": "auto"
   },
   "ingest": {
@@ -2922,6 +2928,7 @@
   },
   "graph": {
    "entity_embeddings": false,
+   "key_v2": false,
    "provider": "auto"
   },
   "ingest": {
@@ -3399,6 +3406,7 @@
   },
   "graph": {
    "entity_embeddings": false,
+   "key_v2": false,
    "provider": "auto"
   },
   "ingest": {
@@ -3876,6 +3884,7 @@
   },
   "graph": {
    "entity_embeddings": false,
+   "key_v2": false,
    "provider": "auto"
   },
   "ingest": {
@@ -4353,6 +4362,7 @@
   },
   "graph": {
    "entity_embeddings": false,
+   "key_v2": false,
    "provider": "auto"
   },
   "ingest": {
@@ -4830,6 +4840,7 @@
   },
   "graph": {
    "entity_embeddings": false,
+   "key_v2": false,
    "provider": "sqlite_adjacency"
   },
   "ingest": {
@@ -5316,6 +5327,7 @@
   },
   "graph": {
    "entity_embeddings": false,
+   "key_v2": false,
    "provider": "auto"
   },
   "ingest": {
@@ -5798,6 +5810,7 @@
   },
   "graph": {
    "entity_embeddings": false,
+   "key_v2": false,
    "provider": "auto"
   },
   "ingest": {
@@ -6261,6 +6274,7 @@
   },
   "graph": {
    "entity_embeddings": true,
+   "key_v2": false,
    "provider": "auto"
   },
   "ingest": {
@@ -6746,6 +6760,7 @@
   },
   "graph": {
    "entity_embeddings": false,
+   "key_v2": false,
    "provider": "auto"
   },
   "ingest": {
@@ -7227,6 +7242,7 @@
   },
   "graph": {
    "entity_embeddings": false,
+   "key_v2": false,
    "provider": "auto"
   },
   "ingest": {
@@ -7712,6 +7728,7 @@
   },
   "graph": {
    "entity_embeddings": false,
+   "key_v2": false,
    "provider": "auto"
   },
   "ingest": {
@@ -8189,6 +8206,7 @@
   },
   "graph": {
    "entity_embeddings": false,
+   "key_v2": false,
    "provider": "auto"
   },
   "ingest": {
@@ -8667,6 +8685,7 @@
   },
   "graph": {
    "entity_embeddings": false,
+   "key_v2": false,
    "provider": "auto"
   },
   "ingest": {
