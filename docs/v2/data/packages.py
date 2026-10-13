@@ -200,7 +200,7 @@ WP = [
     ("EX-1a", 1, "Embedded milestone: one synthetic end-to-end workload survives restart and erasure", ["G-01"],
      ["F-16c", "F-16b", "F-02c", "F-03"], "measure", "Restart, erasure and replay on the embedded profile; not a server release", "Done", "5/5 steps pass; FX-EX1A merged: F1 fixed (multi-party participants+inherit under viewer_required), F4 verify_forget v2-aware, F2 privacy.erasure_redact_hidden; F3 noted"),
     ("EX-1", 1, "Phase 1 exit (server milestone): raw-only read non-inferior; golden; replay NO CHANGE", ["G-01"], ["F-16f", "EX-1a", "P0-03"], "measure",
-     "ROADMAP Phase 1 exit gate", "Not started", ""),
+     "ROADMAP Phase 1 exit gate", "In progress", "Sonnet agent: server profile via local Docker Postgres(pgvector)+Neo4j; CPU only (GPU reserved by owner)"),
     # ---- Phase 2: write path and models ----
     ("W2-01", 2, "Source envelope intake, receipt, idempotency, re-ingest", ["W-01", "W-02", "W-03", "W-24"], ["EX-1a", "LIB-30"], "behaviour",
      "Write p95 at most 250 ms; idempotent retries; receipt never claims an unavailable capability; crash tests at every commit/projector boundary", "Needs measurement", "write.intake_v2 flag-off; idempotent retries, crash-tested commit order, honest receipts, re-ingest versioning; double-send screen pending"),

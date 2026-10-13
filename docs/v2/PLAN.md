@@ -7,9 +7,9 @@ Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summarie
 
 | Status | Count |
 |---|---|
-| Not started | 15 |
+| Not started | 14 |
 | Ready | 0 |
-| In progress | 1 |
+| In progress | 2 |
 | Blocked | 0 |
 | Needs measurement | 62 |
 | Done | 83 |
@@ -121,7 +121,7 @@ Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summarie
 | F-16e | Neo4j graph adapter fed through the outbox | L3 | R | M-18 | - | F-16d, F-04 | behaviour | S2 foundations (serial: Alembic) | `src/memspine/store/lineage.py` +6 | Graph contract on Neo4j | **Needs measurement** | graph.neo4j_outbox mirror flag-off; fake-driver contract passes; live Neo4j untested (no driver/server here) |
 | F-16f | Isolation, erasure and rebuild matrix on both profiles | L0 L1 L3 L4 L5 ctx scope | K_C | M-25 | ER-05, ER-30 | F-16e, F-16c | behaviour | S2 foundations (serial: Alembic) | `src/memspine/store/lineage.py` +6 | Matrix green on embedded and server | **Needs measurement** | matrix 26 pass on embedded (incl. neo4j fake) after G1 fix; 14 server cells skip until MEMSPINE_TEST_PG_URL run |
 | EX-1a | Embedded milestone: one synthetic end-to-end workload survives restart and erasure | L0 L1 L4 L5 ctx scope | D K_C K_P R C G | G-01 | ER-05 | F-16c, F-16b, F-02c, F-03 | measure | S2 foundations (serial: Alembic) | - | Restart, erasure and replay on the embedded profile; not a server release | **Done** | 5/5 steps pass; FX-EX1A merged: F1 fixed (multi-party participants+inherit under viewer_required), F4 verify_forget v2-aware, F2 privacy.erasure_redact_hidden; F3 noted |
-| EX-1 | Phase 1 exit (server milestone): raw-only read non-inferior; golden; replay NO CHANGE | L0 L1 L4 L5 ctx scope | D K_C K_P R C G | G-01 | ER-05 | F-16f, EX-1a, P0-03 | measure | S2 foundations (serial: Alembic) | - | ROADMAP Phase 1 exit gate | **Not started** |  |
+| EX-1 | Phase 1 exit (server milestone): raw-only read non-inferior; golden; replay NO CHANGE | L0 L1 L4 L5 ctx scope | D K_C K_P R C G | G-01 | ER-05 | F-16f, EX-1a, P0-03 | measure | S2 foundations (serial: Alembic) | - | ROADMAP Phase 1 exit gate | **In progress** | Sonnet agent: server profile via local Docker Postgres(pgvector)+Neo4j; CPU only (GPU reserved by owner) |
 
 ## Phase 2: write path and models
 
