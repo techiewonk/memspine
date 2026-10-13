@@ -2688,8 +2688,8 @@
    ],
    "kind": "infra",
    "gate": "Off by default; ids+scores, text opt-in; gap report lists per-request gaps",
-   "status": "Not started",
-   "note": "Owner 2026-10-13",
+   "status": "In progress",
+   "note": "Swarm 2026-10-13: wiring flag-off (agent running)",
    "layers": [
     "L0",
     "L1",
@@ -3281,8 +3281,8 @@
    ],
    "kind": "api",
    "gate": "Golden",
-   "status": "Not started",
-   "note": "S13; no aliases",
+   "status": "In progress",
+   "note": "Swarm 2026-10-13: wiring flag-off (agent running)",
    "layers": [
     "L0",
     "L1",
@@ -3541,8 +3541,8 @@
    ],
    "kind": "behaviour",
    "gate": "A-B-A returns to A; same-day events stay two; replay idempotent; built flag-off, then GC arm screen",
-   "status": "Not started",
-   "note": "S1; G-W50",
+   "status": "In progress",
+   "note": "Swarm 2026-10-13: wiring flag-off (agent running)",
    "layers": [
     "L0",
     "L1",
@@ -5159,8 +5159,8 @@
    ],
    "kind": "behaviour",
    "gate": "Fast tier zero generative calls; embed/rerank cost reported separately; p95 SLO",
-   "status": "Not started",
-   "note": "",
+   "status": "In progress",
+   "note": "Swarm 2026-10-13: wiring flag-off (agent running)",
    "layers": [
     "L0",
     "L1",
@@ -5199,8 +5199,8 @@
    ],
    "kind": "behaviour",
    "gate": "A03 full set and blind",
-   "status": "Not started",
-   "note": "Waits for P0-07",
+   "status": "In progress",
+   "note": "Swarm 2026-10-13: wiring flag-off (agent running)",
    "layers": [
     "ctx"
    ],
@@ -5238,8 +5238,8 @@
    ],
    "kind": "behaviour",
    "gate": "Focus non-inferior",
-   "status": "Not started",
-   "note": "",
+   "status": "In progress",
+   "note": "Swarm 2026-10-13: wiring flag-off (agent running)",
    "layers": [
     "ctx"
    ],
@@ -5311,8 +5311,8 @@
    ],
    "kind": "behaviour",
    "gate": "Own focus and blind screen",
-   "status": "Not started",
-   "note": "",
+   "status": "In progress",
+   "note": "Swarm 2026-10-13: wiring flag-off (agent running)",
    "layers": [
     "L1",
     "L3"
@@ -5418,8 +5418,8 @@
    ],
    "kind": "behaviour",
    "gate": "Source-family pool non-inferior to per-leg pool",
-   "status": "Not started",
-   "note": "",
+   "status": "In progress",
+   "note": "Swarm 2026-10-13: wiring flag-off (agent running)",
    "layers": [
     "L0",
     "L1"
@@ -5459,8 +5459,8 @@
    ],
    "kind": "behaviour",
    "gate": "Matches the 81.4% reference; boosts off until screened",
-   "status": "Not started",
-   "note": "Q5, Q6",
+   "status": "In progress",
+   "note": "Swarm 2026-10-13: wiring flag-off (agent running)",
    "layers": [
     "L0",
     "L1",
@@ -5502,8 +5502,8 @@
    ],
    "kind": "behaviour",
    "gate": "Focus non-inferior",
-   "status": "Not started",
-   "note": "",
+   "status": "In progress",
+   "note": "Swarm 2026-10-13: wiring flag-off (agent running)",
    "layers": [
     "L0",
     "L1",
@@ -5541,8 +5541,8 @@
    ],
    "kind": "behaviour",
    "gate": "Exact-tokenizer, multilingual and long-token tests; estimated mode labelled",
-   "status": "Not started",
-   "note": "ER-24; no quality screen needed",
+   "status": "In progress",
+   "note": "Swarm 2026-10-13: wiring flag-off (agent running)",
    "layers": [
     "ctx"
    ],
@@ -5576,8 +5576,8 @@
    ],
    "kind": "behaviour",
    "gate": "Equal-budget screen; adaptive bundle selection gets a separate quality screen (ER-24)",
-   "status": "Not started",
-   "note": "",
+   "status": "In progress",
+   "note": "Swarm 2026-10-13: wiring flag-off (agent running)",
    "layers": [
     "ctx"
    ],
@@ -5611,8 +5611,8 @@
    ],
    "kind": "behaviour",
    "gate": "Focus non-inferior",
-   "status": "Not started",
-   "note": "",
+   "status": "In progress",
+   "note": "Swarm 2026-10-13: wiring flag-off (agent running)",
    "layers": [
     "L0"
    ],
@@ -5645,8 +5645,8 @@
    ],
    "kind": "behaviour",
    "gate": "OP-Bench up; no recall loss on MAB-CR, ConvoMem, LoCoMo",
-   "status": "Not started",
-   "note": "",
+   "status": "In progress",
+   "note": "Swarm 2026-10-13: wiring flag-off (agent running)",
    "layers": [
     "L1",
     "ctx"
@@ -5684,8 +5684,8 @@
    ],
    "kind": "behaviour",
    "gate": "f-suff: net beyond band, no category loss, at most 2x wall time",
-   "status": "Not started",
-   "note": "",
+   "status": "In progress",
+   "note": "Swarm 2026-10-13: wiring flag-off (agent running)",
    "layers": [
     "L0",
     "ctx"
@@ -5723,8 +5723,8 @@
    ],
    "kind": "behaviour",
    "gate": "Separate arm; never mixed in headline",
-   "status": "Not started",
-   "note": "",
+   "status": "In progress",
+   "note": "Swarm 2026-10-13: wiring flag-off (agent running)",
    "layers": [
     "L0"
    ],
@@ -5758,8 +5758,8 @@
    ],
    "kind": "behaviour",
    "gate": "Temporal and MAB-CR non-inferior",
-   "status": "Not started",
-   "note": "",
+   "status": "In progress",
+   "note": "Swarm 2026-10-13: wiring flag-off (agent running)",
    "layers": [
     "L0",
     "L1"
@@ -5796,8 +5796,8 @@
    ],
    "kind": "behaviour",
    "gate": "Unseen intersections, durations and enumerations improve at fixed reader/token budgets; no more unsupported answers",
-   "status": "Not started",
-   "note": "ER-19",
+   "status": "In progress",
+   "note": "Swarm 2026-10-13: wiring flag-off (agent running)",
    "layers": [
     "L0",
     "ctx"
@@ -5838,8 +5838,8 @@
    ],
    "kind": "infra",
    "gate": "p95 SLO tests in CI; caching (result/context caches disabled until ER-31 keys and use-time admission tests pass)",
-   "status": "Not started",
-   "note": "Last in the read lane",
+   "status": "In progress",
+   "note": "Swarm 2026-10-13: wiring flag-off (agent running)",
    "layers": [
     "L0",
     "L1",
@@ -6518,8 +6518,8 @@
    ],
    "kind": "behaviour",
    "gate": "Count wrapped blocks; QA non-inferior",
-   "status": "Not started",
-   "note": "",
+   "status": "In progress",
+   "note": "Swarm 2026-10-13: wiring flag-off (agent running)",
    "layers": [
     "L0",
     "L1",
