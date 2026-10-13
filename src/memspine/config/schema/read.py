@@ -854,6 +854,21 @@ class ReadConfig(BaseModel):
     #: R3-05c: score carry-over of the lift: a turn scores ``episode_score * carry ** hops``
     #: (best episode wins when several lift the same turn).
     episode_lift_carry: float = Field(default=0.9, gt=0.0, le=1.0)
+    #: R3-05b (R-09, ``read.legs.graph`` ``OneHopConvergent``): the graph one-hop leg. From the
+    #: query's entities (and the entities of the best base hits) it walks one hop over the
+    #: compiled, non-tentative edges (``graph.edge_compiler_v2``) and keeps the nodes reached from
+    #: at least ``graph_leg_min_seeds`` seeds; the records on the connecting edges are lifted to
+    #: their evidence turns through lineage. Family ``structured``, layer L3 (empty with
+    #: ``no_records:L3`` when L3 is not populated). Needs ``legs_v2``. Off: unchanged.
+    graph_leg_v2: bool = False
+    #: R3-05b: how many distinct seeds must reach a node for it to count as convergent.
+    graph_leg_min_seeds: int = Field(default=2, ge=1)
+    #: R3-05b: how many of the best base hits add their entity as a seed (0 = query entities only).
+    graph_leg_seed_hits: int = Field(default=3, ge=0)
+    #: R3-05b: the most evidence turns one reached record lifts to.
+    graph_leg_lift_max_turns: int = Field(default=8, ge=1)
+    #: R3-05b: score carry of the lift to evidence turns (``score * carry ** hops``).
+    graph_leg_carry: float = Field(default=0.9, gt=0.0, le=1.0)
     #: R3-14 (LIB-22, R-24, S6-3): as-of reads through the three-valued time view: ``true_at``
     #: judges event time (valid_from/valid_to), ``known_at`` recorded time, undecidable
     #: records are kept (flagged) rather than dropped. Applies to the read's date allow-list

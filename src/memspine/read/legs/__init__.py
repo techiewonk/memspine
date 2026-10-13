@@ -18,6 +18,7 @@ from memspine.read.legs.core import (
     run_legs,
 )
 from memspine.read.legs.episode import EpisodeLeg, carry_score, with_episode_leg
+from memspine.read.legs.graph import HopEdge, OneHopConvergent, one_hop, with_graph_leg
 from memspine.read.legs.lexical import (
     Bm25Scorer,
     LexicalLeg,
@@ -36,12 +37,14 @@ __all__ = [
     "EpisodeLeg",
     "Family",
     "Hit",
+    "HopEdge",
     "Leg",
     "LegContext",
     "LegOutput",
     "LegRegistry",
     "LexicalLeg",
     "LexicalScorer",
+    "OneHopConvergent",
     "TemporalLeg",
     "TimeWindow",
     "Tokeniser",
@@ -51,9 +54,11 @@ __all__ = [
     "event_intervals",
     "make_scorer",
     "make_tokeniser",
+    "one_hop",
     "register_scorer",
     "run_legs",
     "with_episode_leg",
+    "with_graph_leg",
 ]
 
 

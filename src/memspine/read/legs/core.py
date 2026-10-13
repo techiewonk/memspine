@@ -83,6 +83,11 @@ class LegContext:
     #: R3-05c: which layers hold live records (``store.layer_registry.LayerRegistry``); ``None``
     #: means "read it off ``records``"
     layer_registry: Any | None = None
+    #: R3-05b: the compiled graph edges (``read.legs.graph.HopEdge``) and the seed entity node ids
+    #: the graph one-hop leg walks from; ``graph_min_seeds`` seeds make a node convergent
+    graph_edges: Sequence[Any] = ()
+    graph_seeds: Sequence[str] = ()
+    graph_min_seeds: int = 2
 
     def records_for(self, layers: Sequence[str]) -> list[MemoryRecord]:
         wanted = set(layers)
