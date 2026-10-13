@@ -778,6 +778,8 @@ def build_prompts(config: MemspineConfig) -> PromptRegistry:
         overrides=config.prompts.overrides,
         partials=config.prompts.partials,
         selection=config.prompts.selection,
+        layout_v2=config.prompts.layout_v2,
+        layout_partials=config.prompts.layout_partials,
     )
 
 

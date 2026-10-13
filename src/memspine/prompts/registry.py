@@ -18,12 +18,17 @@ from memspine.exceptions import ConfigError
 from memspine.models.encoders.query.shape import is_inference, is_temporal
 from memspine.plugins import Registry
 from memspine.prompts.base import Prompt
-from memspine.prompts.env import build_environment, partials_fingerprint
-from memspine.prompts.loader import load_default_pack
+from memspine.prompts.env import (
+    build_environment,
+    partials_fingerprint,
+    referenced_partial_sources,
+)
+from memspine.prompts.loader import load_default_pack, load_v2_pack
 from memspine.prompts.models import OUTPUT_MODELS
 
 __all__ = [
     "BY_SHAPE_SUFFIX",
+    "LAYOUT_PARTIALS",
     "PROMPT_SETS",
     "QUESTION_SHAPES",
     "PromptRegistry",
@@ -35,6 +40,9 @@ __all__ = [
 #: the engine always resolves ``default`` and behaviour is unchanged).
 PROMPT_SETS: Registry[Callable[[], list[Prompt]]] = Registry("prompt_sets")
 PROMPT_SETS.register("default", load_default_pack)
+
+#: W2-07: the layout-v2 partials, each switchable on its own (``prompts.layout_partials``).
+LAYOUT_PARTIALS = ("same_language", "coarse_date")
 
 #: C2: ``prompts.selection.<role>_by_shape`` maps a question shape to the ``condition``
 #: of ``<role>`` used for questions of that shape (``chat_by_shape: {temporal: infer}``).
@@ -63,7 +71,19 @@ class PromptRegistry:
         partials: dict[str, str] | None = None,
         selection: dict[str, dict[str, str]] | None = None,
         extra_prompts: Iterable[Prompt] | None = None,
+        layout_v2: bool = False,
+        layout_partials: Iterable[str] = LAYOUT_PARTIALS,
     ) -> None:
+        # W2-07 (``prompts.layout_v2``): the v2 write prompts replace their v1 ids and a
+        # partial left out of ``layout_partials`` renders empty (screened one by one).
+        self._layout_v2 = layout_v2
+        keep = set(layout_partials)
+        self._layout_on: tuple[str, ...] = tuple(n for n in LAYOUT_PARTIALS if n in keep)
+        partials = dict(partials or {})
+        if layout_v2:
+            for name in LAYOUT_PARTIALS:
+                if name not in keep:
+                    partials.setdefault(f"{name}.j2", "")
         # One environment per registry (B1): its loader consults the config
         # ``prompts.partials`` overrides before the shipped ``_partials/`` dir.
         self._env: Environment = build_environment(partials)
@@ -93,6 +113,9 @@ class PromptRegistry:
         self._prompts: dict[str, Prompt] = {}
         for prompt in PROMPT_SETS.get("default")():
             self._prompts[prompt.id] = self._bind(prompt)
+        if layout_v2:
+            for prompt in load_v2_pack():
+                self._prompts[prompt.id] = self._bind(prompt, layout=True)
         for prompt in extra_prompts or ():  # programmatic/test-only variants
             self._prompts[prompt.id] = self._bind(prompt)
         self._overridden: set[str] = set()
@@ -110,13 +133,22 @@ class PromptRegistry:
                         f"(known: {', '.join(sorted(c for c in known if c))})"
                     )
 
-    def _bind(self, prompt: Prompt) -> Prompt:
+    def _bind(self, prompt: Prompt, *, layout: bool | None = None) -> Prompt:
         """Attach this registry's Jinja environment and fold the digest of the
         partials the prompt includes into its ``prompt_version`` (B1) — so a
         partial edit invalidates E3 caches and shifts E1 provenance."""
         fp = partials_fingerprint(self._env, prompt.system, prompt.body)
         prompt._env = self._env
         prompt._version_suffix = f"+{fp}" if fp else ""
+        if layout is None:  # an override of a v2 prompt stays v2
+            old = self._prompts.get(prompt.id)
+            layout = old is not None and old._layout_partials is not None
+        if layout:
+            used = {
+                n.removesuffix(".j2")
+                for n in referenced_partial_sources(self._env, prompt.system, prompt.body)
+            }
+            prompt._layout_partials = tuple(n for n in self._layout_on if n in used)
         return prompt
 
     def _apply_override(self, prompt_id: str, raw: dict[str, Any]) -> None:
