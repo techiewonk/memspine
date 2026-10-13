@@ -148,7 +148,7 @@ WP = [
     ("MOD-02", 1, "Typed registries + entry points (discovery is not enablement: pinned capability manifest)", ["G-16"], ["F-06", "MOD-01"], "api",
      "Built-ins register at import; entry-point plug-in test; golden unchanged", "Done", "Registry[T] + entry points, pinned enable, duplicate/lifetime errors, plugins: config; unit 5871, evals 1435, golden, 14 contracts (c5226f1)"),
     ("F-07", 1, "Config split and flag registry (per-area flag modules)", ["G-21", "G-22"], ["MOD-02"], "move",
-     "Same YAML keys; every default flag has evidence", "Not started", "S7"),
+     "Same YAML keys; every default flag has evidence", "Done", "S7: config/schema/ package (10 area modules, identical classes), config/flags.py registry (198), retired-key errors; template/preset dumps identical (5098e5a)"),
     ("F-08", 1, "Wiring out of the engine into a dishka container (app, job, request scopes)", ["G-16"], ["F-07"], "api", "Golden", "Not started", "S8"),
     ("F-09", 1, "Write path out of the engine", ["W-01", "W-09"], ["F-08", "LIB-13", "LIB-14", "LIB-29", "LIB-30"], "move", "Golden", "Not started", "S9"),
     ("F-10a", 1, "Read path out: legs, fusion, rerank", ["R-05"], ["F-09", "LIB-10", "LIB-11", "LIB-12", "LIB-15", "LIB-16", "LIB-19", "LIB-22", "LIB-23", "LIB-24", "LIB-34", "LIB-43", "LIB-45", "LIB-47"], "move", "Golden byte-identical hit order", "Not started", "S10"),

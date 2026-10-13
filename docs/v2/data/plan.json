@@ -2883,8 +2883,8 @@
    ],
    "kind": "move",
    "gate": "Same YAML keys; every default flag has evidence",
-   "status": "Not started",
-   "note": "S7",
+   "status": "Done",
+   "note": "S7: config/schema/ package (10 area modules, identical classes), config/flags.py registry (198), retired-key errors; template/preset dumps identical (5098e5a)",
    "layers": [
     "L0",
     "L1",

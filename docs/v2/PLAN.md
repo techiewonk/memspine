@@ -7,12 +7,12 @@ Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summarie
 
 | Status | Count |
 |---|---|
-| Not started | 91 |
+| Not started | 90 |
 | Ready | 0 |
 | In progress | 0 |
 | Blocked | 1 |
 | Needs measurement | 3 |
-| Done | 64 |
+| Done | 65 |
 | Dropped | 0 |
 
 ## Phase 0: settle and prepare
@@ -91,7 +91,7 @@ Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summarie
 | F-05 | Package skeleton; move store and trust leaves | L0 L1 L4 L5 ctx scope | D K_C K_P R C | G-16 | - | P0-04, X-00, X-01, X-02 | move | S1 split (serial) | `src/memspine/store/records.py` +23 | Both suites and golden green; no old import paths | **Done** | S5: 11 modules moved, codemod_move.py; unit 3343, evals 1435, golden, 14 contracts kept (afb3d16) |
 | F-06 | Move read, compose and models leaves | L0 L1 L4 L5 ctx scope | D K_C K_P R C | G-16 | - | F-05 | move | S1 split (serial) | `src/memspine/read/contract.py` +34 | Same as F-05 | **Done** | S6: 10 modules + 6 packages moved (query helpers to models/encoders/query); unit 4400, evals 1435, golden, 14 contracts (7ba2427) |
 | MOD-02 | Typed registries + entry points (discovery is not enablement: pinned capability manifest) | L0 L1 L4 L5 ctx scope | D K_C K_P R C | G-16 | ER-03, ER-33, ER-34 | F-06, MOD-01 | api | S1 split (serial) | `src/memspine/*/registry.py` | Built-ins register at import; entry-point plug-in test; golden unchanged | **Done** | Registry[T] + entry points, pinned enable, duplicate/lifetime errors, plugins: config; unit 5871, evals 1435, golden, 14 contracts (c5226f1) |
-| F-07 | Config split and flag registry (per-area flag modules) | L0 L1 L4 L5 ctx scope | D R C | G-21, G-22 | - | MOD-02 | move | S1 split (serial) | `src/memspine/config/schema/**` +2 | Same YAML keys; every default flag has evidence | **Not started** | S7 |
+| F-07 | Config split and flag registry (per-area flag modules) | L0 L1 L4 L5 ctx scope | D R C | G-21, G-22 | - | MOD-02 | move | S1 split (serial) | `src/memspine/config/schema/**` +2 | Same YAML keys; every default flag has evidence | **Done** | S7: config/schema/ package (10 area modules, identical classes), config/flags.py registry (198), retired-key errors; template/preset dumps identical (5098e5a) |
 | F-08 | Wiring out of the engine into a dishka container (app, job, request scopes) | L0 L1 L4 L5 ctx scope | D K_C K_P R C | G-16 | ER-03, ER-10, ER-34 | F-07 | api | S1 split (serial) | `src/memspine/runtime/container.py` +1 | Golden | **Not started** | S8 |
 | F-09 | Write path out of the engine | L0 L1 L5 | D | W-01, W-09 | - | F-08, LIB-13, LIB-14, LIB-29, LIB-30 | move | S1 split (serial) | `src/memspine/ingest/**` +1 | Golden | **Not started** | S9 |
 | F-10a | Read path out: legs, fusion, rerank | L0 L1 L3 | R | R-05 | - | F-09, LIB-10, LIB-11, LIB-12, LIB-15, LIB-16, LIB-19, LIB-22, LIB-23, LIB-24, LIB-34, LIB-43, LIB-45, LIB-47 | move | S1 split (serial) | `src/memspine/read/**` +1 | Golden byte-identical hit order | **Not started** | S10 |
