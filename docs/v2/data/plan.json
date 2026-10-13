@@ -3334,8 +3334,8 @@
    ],
    "kind": "move",
    "gate": "Golden; stage order unchanged",
-   "status": "Not started",
-   "note": "S15 part 1",
+   "status": "Done",
+   "note": "S15: workers/pipelines.py split into derive/pipeline/stages (18 modules, same order) + 34 engine units; merged with F-12, fact helpers deduplicated; unit 5905, evals 1435, golden, 14 contracts (26f586f)",
    "layers": [
     "L0",
     "L1",
