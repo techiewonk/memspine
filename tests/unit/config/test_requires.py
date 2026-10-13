@@ -142,6 +142,7 @@ def test_each_requirement_raises_naming_the_missing_key_and_holds_when_met(key: 
 #: "needs <flag>" rows of USAGE.md that are not flag prerequisites (extras, env, data, or
 #: behaviour that degrades safely), or that stay a comment for a stated reason.
 EXEMPT: dict[str, str] = {
+    "write.learned_persist": "persists kinds (envelope_v2) OR pre-pass aliases (prepass); either alone is valid",
     "write.window_extract": "needs an LLM role; checked at engine start (D-10)",
     "read.asset_evidence": "already a root validator (_asset_keys_agree)",
     "write.asset_describer": "intake_v2 declared; the 'ingest' value is also covered above",
