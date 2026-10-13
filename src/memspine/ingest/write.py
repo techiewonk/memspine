@@ -53,6 +53,7 @@ from memspine.models.encoders.query.temporal_query import (
     is_recommendation,
     speaker_of,
 )
+from memspine.observability import tap
 from memspine.observability.logging import (
     EVENT_WRITE,
     get_logger,
@@ -103,6 +104,11 @@ _RECALL_MARKERS = (
 
 #: #44: ordering of PII tiers, least to most sensitive.
 _PII_RANK = {PiiTier.NONE: 0, PiiTier.LOW: 1, PiiTier.HIGH: 2, PiiTier.REGULATED: 3}
+
+
+def _codes(reasons: Sequence[str]) -> list[str]:
+    """WT-02: firewall reasons reduced to short codes (``size_anomaly(9>5)`` -> ``size_anomaly``)."""
+    return [r.split("(", 1)[0] for r in reasons]
 
 
 def _screen_text(text: str, fw: FirewallConfig) -> tuple[str, list[str]]:
@@ -324,6 +330,15 @@ async def write(
     ``owner_shared``), stored as ``participant:<name>`` / ``visibility:<v>`` tags. They
     matter only to a read with ``viewer=``; the namespace stays the isolation boundary.
     """
+    if tap.enabled():
+        tap.event(
+            "write.received",
+            memory_type=memory_type,
+            actor=actor,
+            chars=len(content),
+            has_entity=entity is not None,
+            reply=reply_to is not None,
+        )
     wt = eng._write_timers  # I73: None (the default) costs one attribute read
     t_validation = perf_counter() if wt is not None else 0.0
     session_id = ledger_id if ledger_id is not None else session_id  # I9
@@ -502,6 +517,13 @@ async def write_messages(
     lexical index commits and the projector checkpoints happen once per
     call instead of once per turn."""
     contents = eng._depositable_contents(messages)
+    tap.event(
+        "write.messages.received",
+        turns=len(messages),
+        depositable=len(contents),
+        session=session_id,
+        channel=channel,
+    )
     await eng._prewarm_embeddings(contents)
     batch = await eng._prefetch_neighbours(validate_namespace(namespace), contents)
     if batch is None:
@@ -599,6 +621,7 @@ async def _write_turns(
             ) from exc
         reply_to = _reply_target(turn, i, written_at)
         if role in fw.skip_message_roles:
+            tap.event("write.turn.skipped", reason="role", role=role, turn=i)
             continue  # H21: system/tool text is not memory
         if fw.skip_injected_recall and _looks_like_recall(content):
             # H21: recalled memory echoed back is not new evidence. R2-11:
@@ -606,6 +629,7 @@ async def _write_turns(
             # fingerprint, not content) so a genuine turn that merely
             # quotes a marker can be found and re-ingested.
             _log.info("memory.skip_injected_recall", namespace=namespace)
+            tap.event("write.turn.skipped", reason="injected_recall", turn=i)
             eng._require_started()
             await eng._append_and_project(
                 MemoryEvent(
@@ -699,6 +723,7 @@ def _localize(eng: Any, value: datetime) -> datetime:
     if value.tzinfo is not None:
         return value
     name = eng._config().read.naive_timezone
+    tap.event("write.time.parsed", anchored=True, unknown_tz=True, assumed=name)
     if not eng._naive_warned:
         eng._naive_warned = True
         _log.warning(
@@ -840,14 +865,34 @@ async def _write_locked_ex(
             record_id=record.record_id,
             reasons=verdict.reasons,
         )
+        tap.event("write.quarantine", id=record.record_id, reasons=_codes(verdict.reasons))
         if (
             eng._procedural is not None
             and record.attribute != "lesson"
             and eng._procedural_policy().get("quarantine_lesson")
         ):
             await eng._quarantine_lesson(storage, ns, record, verdict.reasons)  # N24
+        _tap_deposit(record, memory_type, "quarantined")
         return record, "quarantined"
-    return await eng._write_screened(storage, ns, record, memory_type, actor)
+    written, action = await eng._write_screened(storage, ns, record, memory_type, actor)
+    _tap_deposit(written, memory_type, action)
+    return written, action
+
+
+def _tap_deposit(record: MemoryRecord, memory_type: str, action: str) -> None:
+    """WT-02: the door's outcome (added / merged / updated / superseded / rejected / quarantined)."""
+    if not tap.enabled():
+        return
+    tap.event(
+        "write.deposit",
+        id=record.record_id,
+        memory_type=memory_type,
+        action=action,
+        trust=record.trust,
+        parents=len(record.source.parents),
+    )
+    if action == "rejected":
+        tap.event("write.rejected", id=record.record_id, reason="write_door")
 
 
 async def _screen_derived(
@@ -904,6 +949,17 @@ async def _screen_write(
         # N1 ablation arm: trust scoring only — no flags, anomaly or quarantine.
         verdict = FirewallVerdict(trust=eng._firewall.policy.trust_at_write(record.source))
     record = verdict.apply(record)
+    if tap.enabled():
+        tap.event(
+            "write.firewall.verdict",
+            id=record.record_id,
+            firewall=fw.enabled,
+            trust=verdict.trust,
+            quarantine=verdict.quarantine,
+            anomalous=verdict.anomalous,
+            instruction_flag=verdict.instruction_flag,
+            reasons=_codes(verdict.reasons),
+        )
     hearsay_cap = fw.hearsay_trust_cap
     if (
         hearsay_cap is not None
@@ -1145,6 +1201,15 @@ async def _write_screened(
     actor: str,
 ) -> tuple[MemoryRecord, str]:
     """The door after an admitting firewall verdict: cue, semantic or plain WRITE."""
+    if tap.enabled():
+        route = (
+            "cue"
+            if CUE_TAG in record.tags
+            else "semantic_pipeline"
+            if memory_type == "semantic" and eng._semantic is not None
+            else "plain"
+        )
+        tap.event("write.route", id=record.record_id, memory_type=memory_type, route=route)
     if CUE_TAG in record.tags:
         # R2-1: a cue is a retrieval key, not a fact. It skips dedup, entity
         # extraction and the M4 ladder (an extracted key would let the cue

@@ -9,12 +9,14 @@ JSON parser ships now.
 
 from __future__ import annotations
 
+import time
 from typing import Any, Protocol, runtime_checkable
 
 from json_repair import repair_json
 
 from memspine.config.constants import TOKEN_ESTIMATE_CHARS_PER_TOKEN
 from memspine.exceptions import ConfigError
+from memspine.observability import tap
 from memspine.observability.logging import get_logger
 from memspine.observability.usage import UsageLedger
 
@@ -86,7 +88,10 @@ class _Counted:
 
     async def chat(self, messages: list[dict[str, str]], **options: Any) -> str:
         self._counts[self._role] = self._counts.get(self._role, 0) + 1
-        reply = await self._inner.chat(messages, **options)
+        if tap.enabled():
+            reply = await self._tapped_chat(messages, options)
+        else:
+            reply = await self._inner.chat(messages, **options)
         # Chars/4 estimate, used only for providers that report no usage of their own.
         est_in = sum(len(str(m.get("content", ""))) for m in messages) // _CHARS_PER_TOKEN
         est_out = len(reply) // _CHARS_PER_TOKEN
@@ -116,6 +121,37 @@ class _Counted:
                 output_tokens=tokens_out,
                 estimated=reported is None,
             )
+        return reply
+
+    async def _tapped_chat(self, messages: list[dict[str, str]], options: dict[str, Any]) -> str:
+        """WT-02: one ``model.call`` event per LLM call (role, model, tokens, duration, outcome)."""
+        t0 = time.perf_counter()
+        model = str(getattr(self._inner, "model", None) or self._inner.provider_id)
+        try:
+            reply = await self._inner.chat(messages, **options)
+        except BaseException as exc:
+            timed_out = isinstance(exc, TimeoutError) or isinstance(exc.__cause__, TimeoutError)
+            tap.event(
+                "model.call",
+                role=self._role,
+                model=model,
+                outcome="timeout" if timed_out else "error",
+                error=type(exc).__name__,
+                duration_ms=round((time.perf_counter() - t0) * 1000.0, 3),
+            )
+            raise
+        usage = _reported_usage(self._inner)
+        est_in = sum(len(str(m.get("content", ""))) for m in messages) // _CHARS_PER_TOKEN
+        tap.event(
+            "model.call",
+            role=self._role,
+            model=model,
+            outcome="ok",
+            prompt_tokens=usage[0] if usage else est_in,
+            completion_tokens=usage[1] if usage else len(reply) // _CHARS_PER_TOKEN,
+            tokens_estimated=usage is None,
+            duration_ms=round((time.perf_counter() - t0) * 1000.0, 3),
+        )
         return reply
 
     def __getattr__(self, name: str) -> Any:

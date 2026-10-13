@@ -37,6 +37,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any, Protocol
 
+from memspine.observability import tap
 from memspine.schemas.durable import MemoryEvent, OwnerScope, Provenance
 from memspine.schemas.public import QuotaExceeded, Readiness, Receipt, WaitResult
 from memspine.schemas.public.receipt import CAPABILITIES, ReadinessState
@@ -392,8 +393,25 @@ class IntakeBook:
         configured = _configured(capabilities)
         skey = scope_key(env.scope)
         if env.kind == "document":
-            return self._document(env, skey, configured, quota_check, now)
-        return self._stream(env, skey, configured, quota_check, now)
+            out = self._document(env, skey, configured, quota_check, now)
+        else:
+            out = self._stream(env, skey, configured, quota_check, now)
+        if tap.enabled():
+            if isinstance(out, QuotaExceeded):
+                tap.event("write.intake.rejected", reason="quota", kind=env.kind)
+            else:
+                tap.event(
+                    "write.intake.received",
+                    kind=env.kind,
+                    source_id=env.source_id,
+                    segments=len(env.segments),
+                    version=out.receipt.source_version,
+                    replayed=out.replayed,
+                    noop=out.noop,
+                    new_events=len(out.events),
+                    intent_id=out.receipt.intent_id,
+                )
+        return out
 
     def readiness(
         self, intent_id: str, progress: Mapping[str, ReadinessState] | None = None
