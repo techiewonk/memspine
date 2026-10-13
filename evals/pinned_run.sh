@@ -94,7 +94,10 @@ if [ "$action" = "build" ]; then
     pyargs=(); [ "$pyver" = "default" ] || pyargs=(--python "$pyver")
     # shellcheck disable=SC2086  # $extras is a flag list on purpose
     if UV_PROJECT_ENVIRONMENT="$(cygpath -w "$venv" 2>/dev/null || echo "$venv")" \
-         uv sync --frozen --project "$(cygpath -w "$wt" 2>/dev/null || echo "$wt")" "${pyargs[@]}" $extras; then
+         uv sync --frozen --project "$(cygpath -w "$wt" 2>/dev/null || echo "$wt")" "${pyargs[@]}" $extras \
+       && { [ "$torch_spec" = "none" ] || { echo "pinned_run: installing $torch_spec ${torch_index:+from $torch_index}"; \
+              uv pip install --python "$(venv_bin "$venv")/python.exe" --reinstall-package torch --no-deps \
+                ${torch_index:+--index-url "$torch_index"} "$torch_spec"; }; }; then
       printf '%s\n' "$rev" > "$venv/.ready"
     else
       rm -rf "$venv"; echo "pinned_run: venv build failed" >&2; exit 1
