@@ -3,8 +3,9 @@
 Keys carry the *identity of the producer*, not just the content:
 
 - embeddings — ``emb:{embedder_id}:{xxh64(content)}`` (model swap invalidates),
-- extraction — ``ext:{prompt_version}:{xxh64(content)}`` (a prompt upgrade
-  cleanly invalidates, D-43/N7 — prompt provenance as a cache key).
+- extraction — ``ext:{model_id}:{prompt_version}:{xxh64(content)}`` (a prompt upgrade
+  cleanly invalidates, D-43/N7 — prompt provenance as a cache key; R3-15: the model id is
+  part of the key too, a model swap on the same prompt used to serve the old model's facts).
 """
 
 from __future__ import annotations
@@ -121,8 +122,16 @@ class CachedExtractor:
         version = getattr(self._inner, "prompt_version", None)
         return str(version) if version is not None else None
 
+    @property
+    def model_id(self) -> str:
+        """The producer's model id (R3-15). An inner without one is identified by its class, so two
+        different producers never share a bucket."""
+        mid = getattr(self._inner, "model_id", None)
+        return str(mid) if mid else type(self._inner).__qualname__
+
     def _key(self, content: str) -> str:
-        return f"ext:{self.prompt_version}:{xxhash.xxh64_hexdigest(content.encode())}"
+        digest = xxhash.xxh64_hexdigest(content.encode())
+        return f"ext:{self.model_id}:{self.prompt_version}:{digest}"
 
     async def forget(self, content: str) -> None:
         """#43 erasure: drop the cached extraction of ``content`` (it holds the

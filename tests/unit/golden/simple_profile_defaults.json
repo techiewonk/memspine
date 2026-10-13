@@ -77,6 +77,11 @@
       "bridge_hop_weak_threshold": 0.4,
       "bundle_fact_share": 0.6,
       "bundle_pool_factor": 2.0,
+      "cache": {
+        "enabled": false,
+        "max_entries": 256,
+        "ttl_seconds": null
+      },
       "candidate_pool": 1,
       "cards": "off",
       "cards_budget_share": 0.25,
@@ -140,6 +145,8 @@
       "external_max_calls": 20,
       "external_max_results": 3,
       "external_provider": "none",
+      "external_v2": false,
+      "external_v2_budget_tokens": 300,
       "facts_to_sources": false,
       "focused_excerpt": false,
       "fusion": "rrf",
@@ -186,6 +193,7 @@
       "obligations": false,
       "order_by_time_for_ordering": false,
       "owner_check": "off",
+      "parallel_legs": false,
       "person_time_leg_k": 10,
       "perspective_as_of_subject": false,
       "perspective_asker": null,
