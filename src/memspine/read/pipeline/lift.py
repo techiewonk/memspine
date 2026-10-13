@@ -1,15 +1,16 @@
+# ruff: noqa: E501
 """Read path: lift moved out of the engine (F-10b)."""
 
 from __future__ import annotations
 
 import re
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import replace
 from datetime import datetime
 from typing import Any
 
 from memspine.core.owner_check import store_vocab
-from memspine.core.read_filters import active_as_of
+from memspine.core.read_filters import active_as_of, active_date_filter, active_record_scope
 from memspine.models.encoders.query.perspective import (
     PerspectiveOptions,
     QuestionPerspective,
@@ -26,9 +27,13 @@ from memspine.models.encoders.query.perspective import (
 )
 from memspine.models.encoders.query.shape import is_personal
 from memspine.models.encoders.query.temporal_query import SPEAKER_PREFIX, LegHit, NamedLeg
+from memspine.observability import tap
 from memspine.observability.logging import get_logger
+from memspine.read import lift as liblift
 from memspine.read.lead import query_names
+from memspine.read.lift import Candidate, Dropped, LiftPolicy
 from memspine.read.pipeline.state import _FORENSICS
+from memspine.schemas.durable.lineage import LineageEdge
 from memspine.store.records import MemoryRecord, RecordStatus
 
 _log = get_logger(__name__)
@@ -246,3 +251,147 @@ async def _applies_to_person(eng: Any, ns: str, query: str) -> bool:
         if names & known:
             return True
     return False
+
+
+# --- R3-08: lift derived hits to source turns before the rerank (LIB-11)
+# ----------------------------
+
+
+def _is_derived(record: MemoryRecord) -> bool:
+    """A derived record: mined or consolidated from parents (``source.parents``), not itself a
+    turn."""
+    return bool(record.source.parents) and record.memory_type != "episodic"
+
+
+async def lineage_from_records(
+    eng: Any, derived: Sequence[MemoryRecord], max_depth: int
+) -> tuple[dict[str, list[LineageEdge]], dict[str, MemoryRecord]]:
+    """The LIB-11 lineage input from today's record links (adapter; there is no lineage table yet,
+F-16a).
+
+    A derived record points at its source turns through ``record.source.parents``. Each parent becomes
+    one ``support`` edge (child -> parent). A parent that is itself derived (parents of its own) is
+    followed up to ``max_depth`` levels. Returns ``(lineage, records)``: child id -> edges, and every
+    parent record fetched. A parent that no longer exists yields an edge but no record: the library
+    then treats it as a root, and the visibility check rejects it, which drops the derived hit (POL-2).
+    """
+    storage = eng._require_started()
+    lineage: dict[str, list[LineageEdge]] = {}
+    fetched: dict[str, MemoryRecord] = {}
+    frontier = list(derived)
+    for _ in range(max_depth):
+        nxt: list[MemoryRecord] = []
+        for rec in frontier:
+            if rec.record_id in lineage:
+                continue
+            edges = [
+                LineageEdge(child=rec.record_id, parent=pid, role="support")
+                for pid in dict.fromkeys(rec.source.parents)
+                if pid != rec.record_id
+            ]
+            lineage[rec.record_id] = edges
+            for edge in edges:
+                if edge.parent in fetched:
+                    continue
+                parent = await storage.get_record(edge.parent)
+                if parent is None:
+                    continue
+                fetched[edge.parent] = parent
+                if _is_derived(parent):
+                    nxt.append(parent)
+        frontier = nxt
+    return lineage, fetched
+
+
+async def lift_stage(
+    eng: Any,
+    ns: str,
+    candidates: list[tuple[MemoryRecord, float]],
+    protected: dict[str, str],
+    *,
+    group_id: str | None,
+    tags: list[str] | None,
+    memory_type: str | None,
+    hide: Callable[[MemoryRecord], bool] | None,
+    max_turns: int,
+) -> list[tuple[MemoryRecord, float]]:
+    """R3-08 (``read.lift_before_rerank``): lift, re-admit, dedupe, cap; the rerank runs after this.
+
+    Derived hits are replaced by their visible source turns (a lifted turn inherits the hit's rank
+    and relevance). Every lifted turn passes the read gates again (status, quarantine, consent,
+    trust, the date/scope filters, the header ``hide``). The pool is capped at its incoming size, protected hits
+    first. Returns ``(record, relevance)`` pairs in prior order.
+    """
+    derived = [rec for rec, _ in candidates if _is_derived(rec)]
+    if not derived:
+        return candidates
+    max_depth = LiftPolicy().max_depth
+    lineage, fetched = await lineage_from_records(eng, derived, max_depth)
+    turn_ids = list(
+        dict.fromkeys(e.parent for edges in lineage.values() for e in edges if e.parent not in lineage)
+    )
+    records: dict[str, MemoryRecord] = {rec.record_id: rec for rec, _ in candidates}
+    visible: set[str] = set(records)
+    if turn_ids:
+        gated = await eng._gate_hits(ns, [(tid, 0.0) for tid in turn_ids], group_id, tags, memory_type)
+        date_filter = active_date_filter()
+        scope = active_record_scope()
+        for rec, _ in gated:
+            if date_filter is not None and not date_filter.matches(rec):
+                continue
+            if scope is not None and not scope.matches(rec):
+                continue
+            if hide is not None and hide(rec):
+                continue
+            records.setdefault(rec.record_id, rec)
+            visible.add(rec.record_id)
+    pol = LiftPolicy(is_turn=lambda rid: rid in fetched and fetched[rid].memory_type == "episodic")
+    lib_in = [
+        Candidate(
+            record_id=rec.record_id,
+            kind="fact" if _is_derived(rec) else "turn",
+            rank=float(i),
+            prior_score=score,
+            protected=rec.record_id in protected,
+            family=protected.get(rec.record_id),
+        )
+        for i, (rec, score) in enumerate(candidates)
+    ]
+    dropped: list[Dropped] = []
+    lifted = liblift.lift(
+        lib_in,
+        lineage,
+        lambda rid: rid in visible,
+        max_turns_per_hit=max_turns,
+        policy=pol,
+        dropped=dropped,
+    )
+    admitted: list[Candidate] = []
+    for c in lifted:  # ER-22: every expansion is admitted again
+        if c.record_id in visible:
+            admitted.append(c)
+        else:
+            dropped.append(Dropped(c.record_id, "not_visible_at_readmit", "readmit"))
+    deduped = liblift.dedupe(admitted)
+    capped = liblift.cap(deduped, len(candidates))
+    kept = {c.record_id for c in capped}
+    dropped.extend(Dropped(c.record_id, "over_cap", "cap") for c in deduped if c.record_id not in kept)
+    if tap.enabled():
+        tap.event(
+            "read.lift.stage",
+            n_in=len(candidates),
+            derived=len(derived),
+            lifted=[c.record_id for c in capped if c.lifted],
+            out=[c.record_id for c in capped],
+            dropped=[{"id": d.record_id, "reason": d.reason, "stage": d.stage} for d in dropped],
+        )
+    if (fx := _FORENSICS.get()) is not None:
+        fx["lift"] = {
+            "lifted": [c.record_id for c in capped if c.lifted],
+            "dropped": [(d.record_id, d.reason) for d in dropped],
+        }
+    return [
+        (records[c.record_id], c.prior_score if c.prior_score is not None else 0.0)
+        for c in capped
+        if c.record_id in records
+    ]
