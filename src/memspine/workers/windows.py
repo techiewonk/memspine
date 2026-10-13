@@ -622,6 +622,8 @@ class EnvelopeWrite:
     stages: tuple[EnvelopeStage, ...] = ()
     #: W2-06c (``write.online_extractor_v2``): report the stage list and notes in the window stats
     report_stages: bool = False
+    #: FU-GAPS (``write.learned_persist``): the learned kind and alias registries, logged and reloaded
+    learned: Any = None
 
 
 @dataclass
@@ -1757,6 +1759,8 @@ class WindowPipeline:
         pre = self._prepass
         if pre is None:
             return None
+        if self._env is not None and self._env.learned is not None:
+            await self._env.learned.load()  # the logged aliases feed the hints
         self._counts["prepass_checked"] += 1
         hints = await pre.ahints(records)
         if tap.enabled():
@@ -1807,6 +1811,8 @@ class WindowPipeline:
         raw = merged.get("facts", _MISSING)
         if env is None or raw is _MISSING or not isinstance(raw, list) or job.cancelled:
             return
+        if env.learned is not None:
+            await env.learned.load()
         transcript, texts, people = build_transcript(records)
         lines = {
             n: WindowLine(
@@ -1849,6 +1855,8 @@ class WindowPipeline:
             outcome.notes.update(stage_ctx.notes)
             self._stage_notes.update(stage_ctx.notes)  # W2-06c: reach the window stats
         merged["facts"] = outcome
+        if env.learned is not None:
+            await env.learned.flush(ns)
 
     async def _run_groups(
         self,

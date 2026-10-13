@@ -161,3 +161,53 @@ async def test_contest_marks_the_older_peer_too(monkeypatch: pytest.MonkeyPatch)
 async def test_flag_off_leaves_the_old_peer_untouched(monkeypatch: pytest.MonkeyPatch) -> None:
     rows = await _contest_run(monkeypatch, False)
     assert not any("disputed" in r.tags for r in rows)
+
+
+# --- 4. learned registries survive a restart --------------------------------------------------
+async def _learn_run(
+    monkeypatch: pytest.MonkeyPatch, path: Any, persist: bool, *, coin: bool
+) -> tuple[list[str], list[str]]:
+    from test_w2_06a_envelope import ItemLLM, _engine
+    from test_window_write import _send, _turns
+
+    llm = ItemLLM()
+    if coin:
+        llm.mutations[0] = lambda item: {**item, "kind": "hobby"}
+    eng = await _engine(
+        monkeypatch, llm, path, prepass="rules", learned_persist=persist
+    )
+    try:
+        await _send(eng, "a", "s1", _turns("trip", 3))
+        await eng.flush_windows()
+        env = eng._windows._env  # type: ignore[union-attr]
+        return list(env.compiler.kinds.kinds), eng._windows._prepass.known_aliases()  # type: ignore[union-attr]
+    finally:
+        await eng.stop()
+
+
+async def test_learned_kinds_and_aliases_survive_a_restart(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Any
+) -> None:
+    path = tmp_path / "m.db"
+    kinds1, aliases1 = await _learn_run(monkeypatch, path, True, coin=True)
+    assert "hobby" in kinds1 and aliases1
+    # restart: this run coins nothing, so anything it knows came from the log
+    kinds2, aliases2 = await _learn_run(monkeypatch, path, True, coin=False)
+    assert "hobby" in kinds2
+    assert set(aliases1) <= set(aliases2)
+
+
+async def test_flag_off_forgets_on_restart(monkeypatch: pytest.MonkeyPatch, tmp_path: Any) -> None:
+    path = tmp_path / "m.db"
+    await _learn_run(monkeypatch, path, False, coin=True)
+    kinds2, _ = await _learn_run(monkeypatch, path, False, coin=False)
+    assert "hobby" not in kinds2
+
+
+def test_kind_registry_restore_respects_the_cap() -> None:
+    from memspine.derive.envelope_compiler import KindRegistry
+
+    reg = KindRegistry(cap=3, known=("a",))  # "other" is always there
+    assert reg.restore(["b", "c", "d"]) == 1
+    assert "d" not in reg.kinds and reg.drain_new() == []
+    assert reg("x") == "other" and reg.drain_new() == []

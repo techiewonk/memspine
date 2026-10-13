@@ -63,6 +63,7 @@ class KindRegistry:
         self._kinds.setdefault(FALLBACK_KIND, None)
         self.capped = 0
         self.added = 0
+        self._fresh: list[str] = []  # FU-GAPS: kinds registered since the last drain
 
     def __call__(self, kind: str) -> str | None:
         if kind in self._kinds:
@@ -70,9 +71,25 @@ class KindRegistry:
         if len(self._kinds) < self.cap:
             self._kinds[kind] = None
             self.added += 1
+            self._fresh.append(kind)
             return kind
         self.capped += 1
         return FALLBACK_KIND
+
+    def drain_new(self) -> list[str]:
+        """Kinds registered since the last drain (what the learned-state log has not seen)."""
+        out, self._fresh = self._fresh, []
+        return out
+
+    def restore(self, kinds: Sequence[str]) -> int:
+        """Re-register logged kinds at start (not queued again); returns how many were added."""
+        n = 0
+        for kind in kinds:
+            k = normalise_kind(kind)
+            if k and k not in self._kinds and len(self._kinds) < self.cap:
+                self._kinds[k] = None
+                n += 1
+        return n
 
     def __len__(self) -> int:
         return len(self._kinds)

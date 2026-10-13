@@ -413,6 +413,7 @@
       "integration_cardinality": {},
       "integration_decide_unhinted": false,
       "integration_v2": false,
+      "learned_persist": false,
       "lineage_table": false,
       "online_extractor_v2": false,
       "participants": "off",

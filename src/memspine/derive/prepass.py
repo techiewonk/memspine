@@ -392,6 +392,7 @@ class Prepass:
         self._gliner = gliner
         self._aliases = aliases
         self._learned: dict[str, None] = {}
+        self._fresh: list[str] = []  # FU-GAPS: aliases learned since the last drain
         self._cache: OrderedDict[tuple[str, ...], Hints] = OrderedDict()
         self._cache_size = cache_size
         self.skipped = 0
@@ -403,8 +404,23 @@ class Prepass:
     def learn(self, names: Iterable[str]) -> None:
         """Remember entity surfaces the pipeline deposited (the 'known aliases' of later windows)."""
         for n in names:
-            if n and len(n) > 1:
-                self._learned.setdefault(n, None)
+            if n and len(n) > 1 and n not in self._learned:
+                self._learned[n] = None
+                self._fresh.append(n)
+
+    def drain_new(self) -> list[str]:
+        """Aliases learned since the last drain (what the learned-state log has not seen)."""
+        out, self._fresh = self._fresh, []
+        return out
+
+    def restore(self, names: Iterable[str]) -> int:
+        """Re-learn logged aliases at start (not queued again); returns how many were added."""
+        n = 0
+        for name in names:
+            if name and len(name) > 1 and name not in self._learned:
+                self._learned[name] = None
+                n += 1
+        return n
 
     def known_aliases(self) -> list[str]:
         extra = list(self._aliases()) if self._aliases is not None else []

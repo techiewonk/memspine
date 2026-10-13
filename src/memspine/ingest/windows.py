@@ -292,6 +292,13 @@ def _envelope_write(eng: Any, config: MemspineConfig) -> EnvelopeWrite:
         path = str(Path(data_dir) / "memspine") if data_dir else ":memory:"
     ledger_path = ":memory:" if path == ":memory:" else f"{path}.deadletters.sqlite"
     compiler = EnvelopeCompiler(prompt_hash=f"{STRUCTURED_PROMPT_ID}@{STRUCTURED_VERSION}")
+    learned = None
+    if config.write.learned_persist:  # FU-GAPS: the kind set and the aliases survive a restart
+        from memspine.derive.learned_state import LearnedState
+
+        learned = LearnedState(
+            lambda: eng._storage, kinds=compiler.kinds, prepass=_prepass(eng, config)
+        )
     return EnvelopeWrite(
         compiler=compiler,
         validator=ItemValidator(compiler),
@@ -299,6 +306,7 @@ def _envelope_write(eng: Any, config: MemspineConfig) -> EnvelopeWrite:
         ledger=FailureLedger(ledger_path),
         stages=_envelope_stages(eng, config),
         report_stages=config.write.online_extractor_v2,
+        learned=learned,
     )
 
 
