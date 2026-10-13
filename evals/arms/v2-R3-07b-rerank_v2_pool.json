@@ -26,7 +26,7 @@
     "rerank_floor": "skip",
     "lift_before_rerank": true,
     "rerank_v2": true,
-    "rerank_v2_search_pool": 30
+    "rerank_v2_search_pool": 40
   },
   "embedding": {
     "provider": "st",

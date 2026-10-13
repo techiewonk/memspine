@@ -25,7 +25,7 @@ def _arm(name: str) -> dict:
 
 def test_arm_is_r3_07_plus_the_pool_and_validates() -> None:
     base, arm = _arm("v2-R3-07-rerank_v2"), _arm("v2-R3-07b-rerank_v2_pool")
-    assert arm["read"].pop("rerank_v2_search_pool") == 30
+    assert arm["read"].pop("rerank_v2_search_pool") == 40
     assert arm == base
     validate_engine_config(_arm("v2-R3-07b-rerank_v2_pool"))
 
