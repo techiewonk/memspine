@@ -30,6 +30,8 @@ from memspine.models.encoders.query.shape import (
     statement_form,
 )
 from memspine.models.encoders.query.temporal_query import LegHit
+from memspine.observability import tap
+from memspine.read import neighbours as nb
 from memspine.read.pipeline.state import (
     _FOCAL_ENTITY,
     _FORENSICS,
@@ -635,6 +637,10 @@ async def _expand_neighbours(
     tie). A neighbour passes the same gates and decoration as in replay mode;
     one that does not fit the budget is skipped. Returns the new token count.
     """
+    if eng._config().read.neighbours_v2:
+        return await _expand_neighbours_v2(
+            eng, ns, chosen, session_ids, window, budget_tokens, used
+        )
     seen = {r.record_id for r in chosen}
     factor = eng._budget_factor(budget_tokens)
     for hit in list(chosen):
@@ -655,6 +661,106 @@ async def _expand_neighbours(
             chosen.append(turn)
             seen.add(rid)
             used += cost
+    return used
+
+
+class _CharCounter:
+    """The pipeline's own token estimate (chars // 4 + 1), as a LIB-24 counter."""
+
+    name = "estimate:chars/4+1"
+    accounting = "estimated"
+
+    def count(self, text: str) -> int:
+        return len(text) // 4 + 1
+
+
+async def _expand_neighbours_v2(
+    eng: Any,
+    ns: str,
+    chosen: list[MemoryRecord],
+    session_ids: dict[str, list[str]],
+    window: int,
+    budget_tokens: int,
+    used: int,
+) -> int:
+    """R3-10 (``read.neighbours_v2``, LIB-24): neighbour windows through the library.
+
+    The chosen turns are the reranked hits (best first). Every turn inside a hit's reach is
+    prefetched through ``eng._replay_neighbour`` (the viewer, consent, status and date
+    gates), so the library's visibility predicate is exactly "the gates let it through".
+    The neighbour share is what is left of ``budget_tokens``; neighbours join ``chosen``
+    window by window, hit-adjacent turns nearest first within a window's conversation order."""
+    factor = eng._budget_factor(budget_tokens)
+    before, after = eng._window_sides(window)
+    if factor < 1.0:
+        before = max(1 if before else 0, round(before * factor))
+        after = max(1 if after else 0, round(after * factor))
+    hits_in: list[nb.Hit] = []
+    convs: dict[str, list[str]] = {}
+    visible: dict[str, MemoryRecord] = {r.record_id: r for r in chosen}
+    probed: set[str] = set()
+    for rank, hit in enumerate(chosen):
+        ids = session_ids.get(hit.record_id)
+        if not ids:
+            continue
+        conv = ids[0]
+        at = ids.index(hit.record_id)
+        hits_in.append(nb.Hit(hit.record_id, conv, 1.0 / (1 + rank)))
+        for i in range(max(0, at - before), min(len(ids), at + after + 1)):
+            rid = ids[i]
+            if rid in visible or rid in probed:
+                continue
+            probed.add(rid)
+            turn = await eng._replay_neighbour(rid, ns)
+            if turn is not None:
+                visible[rid] = turn
+        convs.setdefault(conv, ids)
+    index = {
+        c: [nb.Turn(rid, c, visible[rid].content if rid in visible else "") for rid in ids]
+        for c, ids in convs.items()
+    }
+    windows = nb.expand(
+        hits_in,
+        index,
+        lambda t: t.turn_id in visible,
+        before=before,
+        after=after,
+        budget=max(0, budget_tokens - used),
+        counter=_CharCounter(),
+    )
+    seen = {r.record_id for r in chosen}
+    added = 0
+    for w in windows:
+        for rid in w.neighbour_ids:
+            if rid in seen:
+                continue
+            turn = visible[rid]
+            chosen.append(turn)
+            seen.add(rid)
+            used += len(turn.content) // 4 + 1
+            added += 1
+    if tap.enabled():
+        skipped: dict[str, int] = {}
+        for w in windows:
+            for sk in w.skipped:
+                skipped[sk.reason] = skipped.get(sk.reason, 0) + 1
+        tap.event(
+            "compose.neighbours",
+            windows=len(windows),
+            merged=sum(len(w.anchor_ids) - 1 for w in windows),
+            added=added,
+            skipped=skipped,
+            tokens=sum(w.neighbour_tokens for w in windows),
+        )
+    if (fx := _FORENSICS.get()) is not None:
+        for w in windows:
+            fx.setdefault("window", []).append(
+                {
+                    "anchor": w.anchor_id,
+                    "neighbours": list(w.neighbour_ids),
+                    "skipped": {sk.turn_id: sk.reason for sk in w.skipped},
+                }
+            )
     return used
 
 

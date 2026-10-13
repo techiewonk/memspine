@@ -961,6 +961,9 @@ in the schema — or if the schema gains a key not documented here.
 | `read.section_captions` | `false` | C7: when read headers lead the context, the retrieved part gets its own caption (`RETRIEVED_CAPTION`), so the reader sees which part is which. |
 | `read.short_query_lexical_weight` | `None` | N33: the BM25 leg's RRF weight for a question of at most `SHORT_QUERY_WORDS` (5) content words. |
 | `read.entity_leg` | `false` | N59: an RRF leg of raw turns that name the question's proper nouns and years, beyond the conversation's speakers. Ranked by names matched, then content words shared, then time order. |
+| `read.entity_leg_v2` | `false` | R3-05a: entity leg over resolved entity ids (associative entity index) with the Mem0 boost (max over matched entities, capped at 0.5) and hub damping; joins fusion as `entity_v2`. |
+| `read.timeview_v2` | `false` | R3-14: as-of reads through the three-valued time view (event time for true-at, recorded time for known-at); undecidable records are kept and flagged, not dropped. |
+| `read.neighbours_v2` | `false` | R3-10: neighbour windows after rerank via the neighbours library: budget-aware, viewer-checked, overlapping windows merged; replaces the G2c expansion. |
 | `read.statement_probe` | `false` | N63: the question rewritten as a statement by rules ("When did Ana go camping?" becomes "Ana go camping") joins the search as one more probe (vector + BM25). |
 | `read.speaker_probe` | `false` | N40: when the question names a speaker, "Name: <core terms>" (the stored-turn form) joins the search as a vector probe. |
 | `read.recency_leg` | `false` | N16 (ADR-059): a recency-only leg (newest records first) joins the fusion as an extra leg, for tasks where the latest behaviour matters most. |
