@@ -157,6 +157,8 @@ sample_run() {  # sample_run <arm> <run-id> <loc|opb> <slice> <n> <kind> [catego
   local arm=$1 rid=$2 set=$3 sl=$4 n=$5 kind=$6 cats=${7:-} fl="$J" of="$OPBF" cx=()
   [ "$kind" = GC ] && { fl="$J $B"; of="$OPBF $B"; }
   [ -n "$cats" ] && cx=(--categories "$cats")  # slice-map column 6 'categories=5': LoCoMo category-5 (adversarial) slices; absent = run.sh default 1,2,3,4
+  # category 5: the right answer IS a refusal, so the refusal retry (re-ask after a refusal) is dropped for both arm and reference
+  [ "$cats" = 5 ] && fl="${fl//--retry-refusal/}"
   if [ "$set" = loc ]; then
     pr run.sh --arm "$arm" --run-id "$rid" --mode qa --topk 10 "${cx[@]}" --query-ids "@$sl" --questions "$n" --forensics --batch-turns 32 --flags "$fl" --force
   else
@@ -185,7 +187,8 @@ ensure_ref() {  # ensure_ref <set> <slice> [categories]: REFARM/REFKIND already 
 slices_for() {  # slices_for <screen> <set> <kind> <default slice>: one "slice path[TAB]categories" per line (FAIL-SLICE: evals/v2_slice_map.tsv; categories from column 6 'categories=5', empty when absent)
   local f="${V2_SLICE_MAP-$here/v2_slice_map.tsv}" out=""
   if [ -n "$f" ] && [ -f "$f" ]; then
-    out="$(awk -F'	' -v id="$1" -v s="$2" -v k="$3" '{gsub(//,"")} /^#/||NF<3{next} $1==id&&$2==s{p=$3; if(k=="GC"&&$4!="")p=$4; c=""; if($6 ~ /^categories=/)c=substr($6,12); print p "	" c}' "$f")"
+    out="$(awk -F'	' -v id="$1" -v s="$2" -v k="$3" '{gsub(/
+/,"")} /^#/||NF<3{next} $1==id&&$2==s{p=$3; if(k=="GC"&&$4!="")p=$4; c=""; if($6 ~ /^categories=/)c=substr($6,12); print p "	" c}' "$f")"
   fi
   if [ -n "$out" ]; then printf '%s
 ' "$out"; else printf '%s
