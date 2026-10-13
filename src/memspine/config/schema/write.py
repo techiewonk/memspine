@@ -216,6 +216,13 @@ class WriteConfig(BaseModel):
     #: a fact. Tap ``write.prepass.*``. ``off`` (default): unchanged.
     prepass: Literal["off", "rules", "gliner"] = "off"
 
+    #: FU-GAPS (needs ``write.envelope_v2``): persist the in-memory learned registries as MARKER
+    #: events and reload them at start, so a restart does not forget them: the W2-06a open kind set
+    #: (kinds the model coined, up to the cap) and, with ``write.prepass``, the W2-13 learned
+    #: aliases. Markers ``learned.kind`` and ``learned.alias``. ``False`` (default): the registries
+    #: live in memory only, unchanged.
+    learned_persist: bool = False
+
     #: F-16a (M-09, G-08, POL-2): the lineage table and the single derived-write door. ``True``:
     #: every derived record written through ``derive/write.py`` gets one lineage edge per parent
     #: (``support`` unless the site names a role), its trust capped at the least-trusted parent, a

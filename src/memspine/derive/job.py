@@ -17,6 +17,14 @@ same tables and the same SQL run through psycopg3, so processes on different hos
 either: the few SQLite-only spellings are translated by :func:`pg_sql`, and every transaction takes
 one advisory lock, the counterpart of the SQLite ``BEGIN IMMEDIATE`` writer lock.
 
+Clock skew (FU-GAPS). Lease expiry is compared against a clock. On SQLite (one host) that is the
+process clock. On Postgres, processes on different hosts would each judge expiry by their own clock,
+so a fast host could take a live lease over; there the store reads the DATABASE clock
+(``clock_timestamp()``, inside the claim or heartbeat transaction) for every lease time it writes
+or compares, and :meth:`LeaseStore.lease_state` hands the same clock to a waiting scheduler. An
+injected ``clock`` (tests) always wins. The outbox job book (``runtime.jobs``) keeps its own
+injected clock; it is not part of this change.
+
 ``derive`` may not import ``runtime``: this module reuses the *concepts* of
 ``runtime/outbox.py`` and ``runtime/jobs.py`` (lease, epoch, watermark, fence log) and shares
 only ``memspine.schemas`` value types with them.
@@ -172,10 +180,11 @@ class LeaseStore:
     """Persisted lease, cycle, watermark and trigger-state tables (SQLite file, or ``:memory:``;
     a Postgres DSN keeps them in the storage database, shared by every process on it)."""
 
-    def __init__(self, path: str = ":memory:", *, clock: Clock = time.time) -> None:
+    def __init__(self, path: str = ":memory:", *, clock: Clock | None = None) -> None:
         self.path = path
-        self.clock = clock
+        self.clock: Clock = clock or time.time
         self._pg = is_pg_url(path)
+        self._db_time = self._pg and clock is None  # FU-GAPS: lease times come from the database
         self._shared: sqlite3.Connection | None = None
         if path == ":memory:":
             self._shared = sqlite3.connect(":memory:", isolation_level=None)
@@ -237,6 +246,26 @@ class LeaseStore:
             (self.clock(), lease.ns, op, lease.epoch, None if cur is None else int(cur[0])),
         )
 
+    def _lease_now(self, con: Any) -> float:
+        """The time lease expiry is judged by: the database clock on Postgres (no host skew), else
+        this process's clock."""
+        if self._db_time:
+            row = con.execute("SELECT EXTRACT(EPOCH FROM clock_timestamp())").fetchone()
+            return float(row[0])
+        return self.clock()
+
+    def lease_state(self, ns: str) -> tuple[NamespaceLease | None, float | None]:
+        """The namespace lease and the database's current time in one round trip (None on SQLite,
+        where the caller's own clock is the right one)."""
+        with self._conn() as con:
+            r = con.execute(
+                "SELECT ns, owner, epoch, job_id, lease_until, heartbeat_at "
+                "FROM sleep_lease WHERE ns=?",
+                (ns,),
+            ).fetchone()
+            now = self._lease_now(con) if self._db_time else None
+        return (None if r is None else NamespaceLease(*r)), now
+
     @staticmethod
     def _current(con: Any, lease: NamespaceLease) -> bool:
         r = con.execute("SELECT epoch FROM sleep_lease WHERE ns=?", (lease.ns,)).fetchone()
@@ -254,8 +283,8 @@ class LeaseStore:
 
     def claim(self, ns: str, owner: str, job_id: str, ttl: float) -> NamespaceLease | None:
         """Take the namespace lease if it is absent or expired; every takeover bumps the epoch."""
-        now = self.clock()
         with self._tx() as con:
+            now = self._lease_now(con)
             r = con.execute(
                 "SELECT epoch, lease_until FROM sleep_lease WHERE ns=?", (ns,)
             ).fetchone()
@@ -272,8 +301,8 @@ class LeaseStore:
         return NamespaceLease(ns, owner, epoch, job_id, now + ttl, now)
 
     def heartbeat(self, lease: NamespaceLease, ttl: float) -> NamespaceLease | None:
-        now = self.clock()
         with self._tx() as con:
+            now = self._lease_now(con)
             cur = con.execute(
                 "UPDATE sleep_lease SET lease_until=?, heartbeat_at=? WHERE ns=? AND epoch=?",
                 (now + ttl, now, lease.ns, lease.epoch),

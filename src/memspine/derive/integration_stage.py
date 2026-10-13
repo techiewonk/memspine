@@ -309,6 +309,8 @@ def _annotate(
     extras = {**env.extras, "integrate_outcome": v.outcome}
     if v.target is not None:
         extras["integrate_target"] = v.target
+    if v.op == "contest" and v.affected:
+        extras["integrate_affected"] = list(v.affected)  # FU-GAPS: every peer the contest touches
     ctx.notes[f"integrate_{v.op}"] += 1
     tap.event(
         "write.integrate.decision",

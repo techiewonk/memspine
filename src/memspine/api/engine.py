@@ -211,7 +211,7 @@ from memspine.runtime.container import (
     memory_policy,
     neo4j_outbox_on,
 )
-from memspine.schemas.durable import OwnerScope
+from memspine.schemas.durable import AssertionEnvelope, OwnerScope
 from memspine.schemas.durable.erasure import RetentionBoundary
 from memspine.services.graph.base import GraphStore
 from memspine.services.lexical.base import LexicalHit, LexicalStore
@@ -3320,6 +3320,18 @@ class Engine:
             return None
         return record
 
+    async def get_envelope(
+        self, record_id: str, namespace: str = "default"
+    ) -> AssertionEnvelope | None:
+        """FU-GAPS: the compiled assertion envelope a window fact was written from (time axes,
+        evidence roles, integration verdict), or None when the record has none (it was not
+        written under ``write.envelope_v2``, or does not exist in ``namespace``). Same scope rules
+        as :meth:`get_record`."""
+        record = await self.get_record(record_id, namespace)
+        if record is None or record.fingerprint.envelope is None:
+            return None
+        return AssertionEnvelope.model_validate(record.fingerprint.envelope)
+
     @scope_guard.viewer_guarded("list_records")
     async def list_records(
         self, namespace: str = "default", memory_type: str | None = None
@@ -5280,6 +5292,7 @@ class Engine:
         extra_tags: Sequence[str] = (),
         require_live: Sequence[str] = (),
         trust_cap: float | None = None,
+        envelope: dict[str, Any] | None = None,
     ) -> MemoryRecord | None:
         return await derive_integrate._deposit_mined_fact(
             self,
@@ -5299,6 +5312,7 @@ class Engine:
             extra_tags=extra_tags,
             require_live=require_live,
             trust_cap=trust_cap,
+            envelope=envelope,
         )
 
     async def _auto_watch(

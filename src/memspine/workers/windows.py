@@ -93,6 +93,7 @@ from memspine.prompts.structured import (
     window_messages,
     window_schema,
 )
+from memspine.schemas.durable import AssertionEnvelope
 from memspine.schemas.durable.common import OwnerScope
 from memspine.store.events import fingerprint_payload
 from memspine.store.records import MemoryRecord, RecordStatus
@@ -167,6 +168,8 @@ class PromptWindowExtractor:
         self._partial = partial or default_partial
         self._use_schema = use_schema
         self._schema_rejected = False
+        #: FU-GAPS: whole-reply repair re-asks made by the one-call path.
+        self.reparse_calls = 0
         self._prompt = prompt
         #: W2-06a (``write.envelope_v2``): the ``facts`` section is an ``ItemV1`` list from the
         #: ``structured`` prompt, returned raw (each item is validated alone by the pipeline).
@@ -245,7 +248,28 @@ class PromptWindowExtractor:
             self._schema_rejected = True
             tap.event("write.prompt.v2", sections=list(sections), schema_mode="rejected")
             reply = await self._llm.chat(messages, **options)
-        data = _parse_window_reply(reply, sections)
+        data = _salvage_sections(_parse_window_reply(reply, sections), sections)
+        if data is None:
+            # FU-GAPS: the whole reply is unusable: ONE repair re-ask (the reply is echoed back,
+            # the model resends it as the JSON object) before the window's sections are dropped.
+            self.reparse_calls += 1
+            tap.event("write.prompt.v2", sections=list(sections), reparse=True)
+            retry = [
+                *messages,
+                {"role": "assistant", "content": reply[:4000]},
+                {
+                    "role": "user",
+                    "content": "That reply was not a valid JSON object. Reply again with ONLY the "
+                    f"JSON object with the keys: {', '.join(sections)}.",
+                },
+            ]
+            try:
+                again = await self._llm.chat(
+                    retry, **options, **({} if self._schema_rejected else extra)
+                )
+            except LLMError:
+                again = ""
+            data = _salvage_sections(_parse_window_reply(again, sections), sections)
         if data is None:
             raise LLMError("structured window reply failed validation: not a JSON object")
         return {name: data[name] for name in sections if name in data}
@@ -284,6 +308,27 @@ def _parse_window_reply(reply: str, sections: Sequence[str]) -> dict[str, Any] |
     return data if isinstance(data, dict) and data else None
 
 
+def _salvage_sections(
+    data: dict[str, Any] | None, sections: Sequence[str]
+) -> dict[str, Any] | None:
+    """FU-GAPS: keep the sections of a parsed reply that are present; a malformed one stays in
+    place so the writer fails THAT section closed (``_drop``) and keeps its siblings. A list
+    wrapped in an object under its own name is unwrapped. None when no requested section is
+    present (the caller re-asks once)."""
+    if data is None:
+        return None
+    out: dict[str, Any] = {}
+    for name in sections:
+        if name not in data:
+            continue
+        value = data[name]
+        wrapped = isinstance(value, dict) and isinstance(value.get(name), list)
+        if name in ("facts", "edges") and wrapped:
+            value = value[name]  # type: ignore[index]
+        out[name] = value
+    return out or None
+
+
 #: ``(namespace, text, entity, attribute, parents, valid_from, session_key, **views)``: the
 #: engine's mined-fact door (:class:`~memspine.derive.pipeline.stages.context.DepositFact`).
 DepositFactFn = Callable[..., Awaitable[object]]
@@ -292,6 +337,9 @@ DepositEpisodeFn = Callable[..., Awaitable[object]]
 #: ``(namespace, session_id, info)``: the session-closed hook (call 2 interface).
 SessionClosedFn = Callable[[SessionClosed], Awaitable[object]]
 GetRecord = Callable[[str], Awaitable[MemoryRecord | None]]
+#: ``(namespace, record_id)``: tag a live record ``disputed`` through a normal tag-update event;
+#: True when the tag was added (FU-GAPS).
+MarkDisputedFn = Callable[[str, str], Awaitable[bool]]
 Embed = Callable[[list[str]], Awaitable[list[list[float]]]]
 
 
@@ -574,6 +622,8 @@ class EnvelopeWrite:
     stages: tuple[EnvelopeStage, ...] = ()
     #: W2-06c (``write.online_extractor_v2``): report the stage list and notes in the window stats
     report_stages: bool = False
+    #: FU-GAPS (``write.learned_persist``): the learned kind and alias registries, logged and reloaded
+    learned: Any = None
 
 
 @dataclass
@@ -648,6 +698,7 @@ class WindowPipeline:
         envelope: EnvelopeWrite | None = None,
         context_builder: PromptContextBuilder | None = None,
         prepass: Any = None,
+        mark_disputed: MarkDisputedFn | None = None,
     ) -> None:
         #: W2-06b (``write.prompt_v2``): one call per window or batch, NEW / CONTEXT / KNOWN.
         self._ctx = context_builder
@@ -661,6 +712,8 @@ class WindowPipeline:
         self._get = get_record
         self._deposit_fact = deposit_fact
         self._deposit_episode = deposit_episode
+        #: FU-GAPS (``write.integration_v2``): marks the older live peer of a contest ``disputed``.
+        self._mark_disputed = mark_disputed
         self._embed = embed
         self._lock = lock or (lambda _ns: nullcontext())
         self._cache = cache if use_cache else None
@@ -1295,8 +1348,14 @@ class WindowPipeline:
                     "write.window.skipped", reason="no_live_turns", turns=len(job.window.turns)
                 )
                 continue
-            if await self._prepass_skips(records):
+            verdict = await self._prepass_verdict(records)
+            if verdict == "skip":
                 out[i] = self._skipped(job, records, ns)
+                continue
+            if verdict == "episode_only":  # FU-GAPS: a quiet window still gets its episode
+                out[i] = await self._prepare_records(
+                    ns, job, records, strict=strict, episode_only=True
+                )
                 continue
             live.append((i, job, records))
         if len(live) == 1:
@@ -1620,14 +1679,23 @@ class WindowPipeline:
         return await self._prepare_records(ns, job, records, strict=strict)
 
     async def _prepare_records(
-        self, ns: str, job: _Job, records: list[MemoryRecord], *, strict: bool
+        self,
+        ns: str,
+        job: _Job,
+        records: list[MemoryRecord],
+        *,
+        strict: bool,
+        episode_only: bool = False,
     ) -> _Prepared | None:
         """The model calls of one window whose live turns are known (``_prepare_job`` and the
         single-window case of a batch)."""
         window = job.window
         assert window is not None
-        if await self._prepass_skips(records):
-            return self._skipped(job, records, ns)
+        if not episode_only:
+            verdict = await self._prepass_verdict(records)
+            if verdict == "skip":
+                return self._skipped(job, records, ns)
+            episode_only = verdict == "episode_only"
         member_ids = [r.record_id for r in records]
         window_id = fingerprint_payload({"ns": ns, "turns": member_ids})[:12]
         transcript, line_texts, people = build_transcript(records)
@@ -1648,7 +1716,7 @@ class WindowPipeline:
             tokens=window.tokens,
             groups=len(self._groups()),
         )
-        groups = self._groups()
+        groups = [("episode",)] if episode_only else self._groups()
         merged, failed = await self._run_groups(
             ns, groups, variables, transcript, member_ids, window_id
         )
@@ -1683,12 +1751,16 @@ class WindowPipeline:
         if windows:
             out["windows"] = windows
         return out
-    async def _prepass_skips(self, records: list[MemoryRecord]) -> bool:
-        """W2-13: True when the pre-pass found nothing extractable (filler) in this window. Never
-        with the ``episode`` section on (the episode of a quiet window is still wanted)."""
+    async def _prepass_verdict(self, records: list[MemoryRecord]) -> str | None:
+        """W2-13: ``"skip"`` when the pre-pass found nothing extractable (filler) in this window.
+        With the ``episode`` section on the episode of a quiet window is still wanted, so the
+        verdict is ``"episode_only"`` (FU-GAPS): the facts and edges part is dropped from the
+        call and only the episode is asked for. None when the window goes through in full."""
         pre = self._prepass
-        if pre is None or "episode" in self.sections:
-            return False
+        if pre is None:
+            return None
+        if self._env is not None and self._env.learned is not None:
+            await self._env.learned.load()  # the logged aliases feed the hints
         self._counts["prepass_checked"] += 1
         hints = await pre.ahints(records)
         if tap.enabled():
@@ -1700,7 +1772,14 @@ class WindowPipeline:
                 numbers=len(hints.numbers),
                 skipped=hints.nothing_extractable,
             )
-        return bool(hints.nothing_extractable)
+        if not hints.nothing_extractable:
+            return None
+        if "episode" in self.sections:
+            if len(self.sections) == 1:  # nothing to trim
+                return None
+            self._counts["windows_prepass_episode_only"] += 1
+            return "episode_only"
+        return "skip"
 
     def _skipped(self, job: _Job, records: list[MemoryRecord], ns: str) -> _Prepared:
         """A window whose extraction call was skipped: nothing to deposit, no call, no cache."""
@@ -1732,6 +1811,8 @@ class WindowPipeline:
         raw = merged.get("facts", _MISSING)
         if env is None or raw is _MISSING or not isinstance(raw, list) or job.cancelled:
             return
+        if env.learned is not None:
+            await env.learned.load()
         transcript, texts, people = build_transcript(records)
         lines = {
             n: WindowLine(
@@ -1774,6 +1855,8 @@ class WindowPipeline:
             outcome.notes.update(stage_ctx.notes)
             self._stage_notes.update(stage_ctx.notes)  # W2-06c: reach the window stats
         merged["facts"] = outcome
+        if env.learned is not None:
+            await env.learned.flush(ns)
 
     async def _run_groups(
         self,
@@ -2085,6 +2168,7 @@ class WindowPipeline:
                     extra_tags=tags,
                     require_live=member_ids,
                     trust_cap=env.assessment.source_trust,
+                    envelope=env.model_dump(mode="json"),
                 )
             except asyncio.CancelledError:
                 raise
@@ -2107,6 +2191,27 @@ class WindowPipeline:
                 layer="facts",
                 parents=len(parents),
             )
+            await self._dispute_peers(ns, env, getattr(stored, "record_id", None))
+
+    async def _dispute_peers(self, ns: str, env: AssertionEnvelope, new_id: str | None) -> None:
+        """FU-GAPS: a contest keeps both values live, so the older peer carries ``disputed`` too
+        (the new record got the tag at deposit). Only with ``write.integration_v2``."""
+        if self._mark_disputed is None or env.verdict is None or env.verdict.op != "contest":
+            return
+        peers = env.extras.get("integrate_affected") or []
+        for peer in dict.fromkeys(str(p) for p in peers):
+            if peer == new_id:
+                continue
+            try:
+                done = await self._mark_disputed(ns, peer)
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:  # the new record is stored; a peer mark must not lose the rest
+                _log.warning("window.dispute_peer_failed", error=str(exc)[:200])
+                continue
+            if done:
+                self._counts["contest_peers_marked"] += 1
+                tap.event("write.integrate.peer_disputed", id=peer, new=new_id)
 
     async def _store_episode(
         self,
@@ -2224,6 +2329,8 @@ class WindowPipeline:
             out["windows_prepass_checked"] = c["prepass_checked"]
             out["windows_prepass_skipped"] = c["windows_prepass_skipped"]
             out["turns_prepass_skipped"] = c["turns_prepass_skipped"]
+            if c["windows_prepass_episode_only"]:
+                out["windows_prepass_episode_only"] = c["windows_prepass_episode_only"]
         if c["windows_deferred_backpressure"]:  # RT-02: only present once backpressure bit
             out["deferred_backpressure"] = c["windows_deferred_backpressure"]
         if c["windows_deferred_budget"]:  # W2-12: only present once a budget paused work

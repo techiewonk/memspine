@@ -16,7 +16,7 @@ from memspine.models.encoders.query.perspective import inherit_perspective_tags
 from memspine.models.encoders.query.temporal_resolve import resolve
 from memspine.observability import tap
 from memspine.store.events import EventKind, MemoryEvent
-from memspine.store.records import MemoryRecord, RecordStatus, SourceInfo
+from memspine.store.records import MemoryRecord, RecordFingerprint, RecordStatus, SourceInfo
 from memspine.store.scope import validate_namespace
 from memspine.workers.list_cards import LIST_CARD_KEY_PREFIX, ListCard
 
@@ -212,8 +212,12 @@ async def _deposit_mined_fact(
     extra_tags: Sequence[str] = (),
     require_live: Sequence[str] = (),
     trust_cap: float | None = None,
+    envelope: dict[str, Any] | None = None,
 ) -> MemoryRecord | None:
     """C6': one mined fact through the write door (firewall, ladder, MTI).
+
+    FU-GAPS: ``envelope`` (``write.envelope_v2``) is the compiled envelope as JSON; it is kept in
+    the record's fingerprint blob (``fingerprint.envelope``), no migration.
 
     W2-06a: ``trust_cap`` (envelope v2) is the envelope's system-set source trust; it joins the
     parents' cap, so a stored fact is never more trusted than its cited line's role allows.
@@ -279,6 +283,7 @@ async def _deposit_mined_fact(
         attribute=attribute,
         valid_from=valid_from,
         tags=tags,
+        **({"fingerprint": RecordFingerprint(envelope=envelope)} if envelope is not None else {}),
     )
     cap = [min(r.trust for r in sources)] if sources else None
     integrity_cap = await eng._parent_trust_cap(ns, parents)

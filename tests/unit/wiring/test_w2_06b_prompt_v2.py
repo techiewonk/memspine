@@ -225,7 +225,7 @@ async def test_malformed_items_dropped_no_worse_than_w2_06a(monkeypatch: pytest.
 async def test_unparseable_reply_fails_closed_and_is_counted(monkeypatch: pytest.MonkeyPatch) -> None:
     class Bad(WindowLLM):
         async def chat(self, messages: list[dict[str, str]], **options: Any) -> str:
-            if "NEW:\n" in messages[-1]["content"]:
+            if "NEW:\n" in messages[-1]["content"] or "not a valid JSON object" in messages[-1]["content"]:
                 self.requests.append((messages, options))
                 return "I cannot do that"
             return await super().chat(messages, **options)

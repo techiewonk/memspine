@@ -181,8 +181,9 @@ class DerivationScheduler:
             await asyncio.wait_for(local._done.wait(), timeout)
             return
         while True:  # held by another process: poll the lease row
-            lease = self.store.get_lease(handle.ns)
-            if lease is None or lease.lease_until <= self.clock():
+            lease, db_now = self.store.lease_state(handle.ns)
+            # FU-GAPS: on Postgres the lease expires by the database clock, not this host's
+            if lease is None or lease.lease_until <= (self.clock() if db_now is None else db_now):
                 return
             if deadline is not None and self.clock() >= deadline:
                 raise TimeoutError

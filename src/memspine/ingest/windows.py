@@ -207,7 +207,38 @@ def _build_windows(eng: Any, config: MemspineConfig) -> WindowPipeline | None:
         envelope=envelope,
         context_builder=context_builder,
         prepass=_prepass(eng, config),
+        mark_disputed=_mark_disputed(eng) if config.write.integration_v2 else None,
     )
+
+
+def _mark_disputed(eng: Any) -> Any:
+    """FU-GAPS: the tag-update door for the older side of a contest (replays like any event)."""
+
+    async def mark(namespace: str, record_id: str) -> bool:
+        record = await eng._storage.get_record(record_id)
+        if (
+            record is None
+            or record.namespace != namespace
+            or record.status is not RecordStatus.ACTIVATED
+            or "disputed" in record.tags
+        ):
+            return False
+        await eng._append_and_project(
+            MemoryEvent(
+                kind=EventKind.DECAY_TRANSITION,
+                namespace=namespace,
+                actor="system",
+                payload={
+                    "record_id": record_id,
+                    "set": {"tags_add": ["disputed"]},
+                    "transition": "fact->integration_contest",
+                    "reason": "integration_contest",
+                },
+            )
+        )
+        return True
+
+    return mark
 
 
 #: W2-06b: the entity list is rebuilt from the graph every this many windows (it is a scan).
@@ -261,6 +292,13 @@ def _envelope_write(eng: Any, config: MemspineConfig) -> EnvelopeWrite:
         path = str(Path(data_dir) / "memspine") if data_dir else ":memory:"
     ledger_path = ":memory:" if path == ":memory:" else f"{path}.deadletters.sqlite"
     compiler = EnvelopeCompiler(prompt_hash=f"{STRUCTURED_PROMPT_ID}@{STRUCTURED_VERSION}")
+    learned = None
+    if config.write.learned_persist:  # FU-GAPS: the kind set and the aliases survive a restart
+        from memspine.derive.learned_state import LearnedState
+
+        learned = LearnedState(
+            lambda: eng._storage, kinds=compiler.kinds, prepass=_prepass(eng, config)
+        )
     return EnvelopeWrite(
         compiler=compiler,
         validator=ItemValidator(compiler),
@@ -268,6 +306,7 @@ def _envelope_write(eng: Any, config: MemspineConfig) -> EnvelopeWrite:
         ledger=FailureLedger(ledger_path),
         stages=_envelope_stages(eng, config),
         report_stages=config.write.online_extractor_v2,
+        learned=learned,
     )
 
 
