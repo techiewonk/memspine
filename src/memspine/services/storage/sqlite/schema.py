@@ -116,12 +116,26 @@ memory_records = Table(
     # through an index.
     Column("session_key", String),
     Column("source_role", String),
+    # F-02a (migration 0006): the record envelope. ``layer`` L0..L5 (M-02), ``type_tag`` (M-03),
+    # ``provenance_class`` (M-07), the speaker / addressee / asker axes as indexed columns and the
+    # subject list as an orjson blob (M-08), the content + derivation fingerprint as an orjson blob
+    # (P-12), and the record's own ``schema_version`` (M-26). All nullable but ``schema_version``.
+    Column("layer", String),
+    Column("type_tag", String),
+    Column("provenance_class", String),
+    Column("spk", String),
+    Column("addr", String),
+    Column("ask", String),
+    Column("sub", LargeBinary),
+    Column("fingerprint", LargeBinary),
+    Column("schema_version", Integer, nullable=False, server_default="1"),
     Index("ix_memory_records_ns_type", "namespace", "memory_type"),
     Index("ix_memory_records_fingerprint", "content_fingerprint"),
     Index("ix_memory_records_fact_key", "namespace", "entity", "attribute"),
     Index("ix_memory_records_tier", "tier"),
     Index("ix_memory_records_ns_group", "namespace", "group_id"),
     Index("ix_memory_records_ns_session", "namespace", "session_key"),
+    Index("ix_memory_records_ns_layer", "namespace", "layer"),
 )
 
 # Zero-dep graph fallback (P6, D-26): adjacency lists for associative memory,
