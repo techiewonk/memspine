@@ -27,3 +27,4 @@ S25	B2	R3-15	v2-R3-15-cache-enabled	f-jref2-i2	PARITY	f	-	J	20	read.cache.enable
 S26	B2	R3-15	v2-R3-15-parallel_legs	f-jref2-i2	PARITY	f	-	J	20	read.parallel_legs
 S27	B2	T5-02	v2-T5-02-trust_rendering	f-jref2-i2	NONINF	fo	-	J	40	read.trust_rendering
 S28	B3	F-01	v2-F-01-key_v2	v2-S02-i2	NONINF	f	S02	GC	150	graph.key_v2
+S29	B4	F-13c	scr-pool-protect-jina	f-jref2-i2	PARITY	f	-	J	7	(none: eval adapter on the public API; reference built on the pre-port commit)

@@ -222,7 +222,7 @@ async def test_engine_session_extractor_uses_the_session_prompt() -> None:
             "    fact: Caroline lives in Denver\n    kind: state\n    episode_indices: [3]\n"
         )
         eng._llm = _StubLLM(chat)  # type: ignore[attr-defined]
-        extract = eng._build_session_edge_extractor(eng._config())  # type: ignore[attr-defined]
+        extract = eng._build_session_edge_extractor(eng.config)  # type: ignore[attr-defined]
         assert extract is not None
         edges = await extract(
             "[1] [2023-05-01] hi\n[3] [2023-05-01] Caroline moved to Denver",

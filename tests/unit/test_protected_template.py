@@ -14,7 +14,7 @@ async def test_protected_template_loads_with_the_protections_on() -> None:
     )
     await eng.start()
     try:
-        cfg = eng._config()
+        cfg = eng.config
     finally:
         await eng.stop()
     assert cfg.integrity.implicit_parents == "turn"

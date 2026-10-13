@@ -339,7 +339,6 @@ class MemspineSystem:
     async def _build_engine(self) -> Any:
         try:
             import memspine
-            from memspine.api.engine import Engine
         except ImportError as exc:  # pragma: no cover - needs the engine installed
             raise RuntimeError(
                 "MemspineSystem needs the memspine package — run `uv sync --all-extras` "
@@ -373,13 +372,19 @@ class MemspineSystem:
         profile_on = str(overrides.get("data_profile", "off")).strip().lower() != "off"
         if profile_on and self._shape and "data_shape" not in overrides:
             overrides["data_shape"] = dict(self._shape)
-        engine = Engine(template=self.template, **overrides)
-        await engine.start()
+        engine = await memspine.open(template=self.template, **overrides)
         if profile_on and self._perspective_auto:
             # a preset may have switched the perspective layer on: send speaker and role too
-            policy = engine._memory_policy(engine._config(), "episodic").get("perspective")
+            policy = engine._memory_policy(engine.config, "episodic").get("perspective")
             self._perspective_metadata = bool(policy)
         return engine
+
+    @property
+    def _memory(self) -> Any:
+        """The scoped handle of this conversation (``namespace`` = the item id's store)."""
+        from memspine import Memory
+
+        return Memory(self._engine, self.namespace)
 
     def _calls(self) -> int | None:
         """Total model calls the engine has made (None when it cannot say)."""
@@ -673,7 +678,7 @@ class MemspineSystem:
         before = self._calls()
         usage_before = self._usage()
         prompts_before = self._prompt_usage()
-        stats = await self._engine.sleep()
+        stats = await self._memory.sleep()
         await self._write_derived_trace()  # --trace-full: what the sleep cycle derived
         after = self._calls()
         meta: dict[str, Any] = {"sleep": {name: dict(stage) for name, stage in stats.items()}}
@@ -1013,9 +1018,8 @@ class MemspineSystem:
 
         with search_forensics() as stages, asker_scope(self._asker):
             if self._read_mode:
-                result = await self._engine.read(
+                result = await self._memory.read(
                     text,
-                    namespace=self.namespace,
                     mode=self._read_mode,
                     budget_tokens=budget_tokens,
                     top_k=top_k,
@@ -1023,9 +1027,8 @@ class MemspineSystem:
                 )
                 assembled = result.context
             else:
-                assembled = await self._engine.assemble(
+                assembled = await self._memory.compose(
                     text,
-                    namespace=self.namespace,
                     budget_tokens=budget_tokens,
                     top_k=top_k,
                     **as_of,

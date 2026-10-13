@@ -141,6 +141,7 @@ least certain: its only measured run was a failing extractor.
 | S26 | B2 | R3-15 | `read.parallel_legs` | `v2-R3-15-parallel_legs` | `f-jref2-i2` | focus | NO CHANGE (answers identical) |  | 20 | queued |
 | S27 | B2 | T5-02 | `read.trust_rendering` | `v2-T5-02-trust_rendering` | `f-jref2-i2` | focus > OP-Bench dev | not REJECT (non-inferior) |  | 40 | queued |
 | S28 | B3 | F-01 | `graph.key_v2` | `v2-F-01-key_v2` | `v2-S02-i2` | focus | not REJECT (non-inferior) | S02 | 150 | queued |
+| S29 | B4 | F-13c | `(none: eval adapter on the public API)` | `scr-pool-protect-jina` | pre-port sample reference | sample (focus) | PARITY: NO CHANGE (answers identical) |  | 7 | queued |
 
 Notes per row:
 
@@ -209,3 +210,20 @@ R6-01 (freeze the configuration, one sealed blind run per set; do it after every
 5. Flag shapes: arm files are regenerated from the merged config schema after the wiring branches merge.
 6. Unnamed flags: rows are added as W2/O4/T5 wiring lands.
 7. Queue commit: the queue is re-pinned after all wiring branches merge.
+
+## F-13c parity check (S29)
+
+F-13c moved `memspine_system.py` onto the public API (`memspine.open`, a scoped `Memory` handle for read/compose/sleep). The
+claim is "no behaviour change", so S29 runs the reference arm `scr-pool-protect-jina` on the new commit and compares it with a
+sample reference built on the commit before the port (`7ddd111`). The expected paired-gate verdict is NO CHANGE (identical
+answers); anything else is flagged. CPU parity is already covered by `evals/tests/test_adapter_parity.py` (hash embedder,
+synthetic dataset, snapshot from the base commit). Run order, GPU:
+
+1. Build the reference on the pre-port commit: `MODE=sample bash evals/run_v2_queue.sh --only S25 --commit 7ddd111`
+   (any row whose reference arm is `scr-pool-protect-jina` builds `smp-ref-scr-pool-protect-jina-7ddd111<...>-<slice>`; the
+   run id uses the first 8 characters of the commit).
+2. Run the parity row on the F-13c commit with the reference pinned to the old one:
+   `SMP_REF_COMMIT=<8-char pre-port commit> MODE=sample bash evals/run_v2_queue.sh --only S29 --commit <F-13c commit>`.
+   `SMP_REF_COMMIT` makes the runner reuse the pre-built reference and fail loudly if it is missing, instead of rebuilding it
+   on the new commit (which would compare the new code with itself).
+Dry run first: `PINNED_DRY_RUN=1 SMP_REF_COMMIT=7ddd1119 MODE=sample bash evals/run_v2_queue.sh --only S29`.

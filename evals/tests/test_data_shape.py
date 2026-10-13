@@ -82,7 +82,7 @@ def test_auto_profile_changes_the_engine_config_per_item() -> None:
         system = MemspineSystem(template="base", config={**_HASH, "data_profile": "auto"})
         system.declare_shape(shape)
         await system.reset("item")
-        read = system._engine._config().read
+        read = system._engine.config.read
         out = (read.temporal_leg, read.render, system._perspective_metadata)
         await system.close()
         return out

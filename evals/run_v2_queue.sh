@@ -164,7 +164,14 @@ sample_run() {  # sample_run <arm> <run-id> <loc|opb> <slice> <n> <kind>
 ensure_ref() {  # ensure_ref <set> <slice>: REFARM/REFKIND already set -> REFRUN (built once per ref arm + commit + slice)
   local set=$1 sl=$2 sid sn
   sid="$(slice_field "$sl" slice_id)"; sn="$(slice_field "$sl" n)"
-  REFRUN="smp-ref-${REFARM}-${commit:0:8}-${sid}"
+  REFRUN="smp-ref-${REFARM}-${SMP_REF_COMMIT:-${commit:0:8}}-${sid}"
+  if [ -n "${SMP_REF_COMMIT:-}" ]; then  # cross-commit parity (S29): the reference must already exist, never rebuilt here
+    if [ -f "runs/${REFRUN}--memspine/results.jsonl" ] && [ "$(cat "runs/${REFRUN}.STATUS" 2>/dev/null)" = ok ]; then
+      say "reference $REFRUN (pre-built at SMP_REF_COMMIT) reused"; return 0
+    fi
+    [ -n "$dry" ] && { say "[dry] reference $REFRUN must be pre-built at SMP_REF_COMMIT=$SMP_REF_COMMIT"; return 0; }
+    say "reference $REFRUN missing: build it first with --commit $SMP_REF_COMMIT (see docs/v2/SCREENS.md, S29)"; return 1
+  fi
   if [ -f "runs/${REFRUN}--memspine/results.jsonl" ] && [ "$(cat "runs/${REFRUN}.STATUS" 2>/dev/null)" = ok ]; then
     say "reference $REFRUN cached (reused)"; return 0
   fi
