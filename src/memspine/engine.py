@@ -13,10 +13,7 @@ Startup follows plan §4 (Phase-0 scope — runners join in Phase 1):
 from __future__ import annotations
 
 import asyncio
-import re
-import secrets
 import threading
-import unicodedata
 from collections.abc import (
     AsyncIterator,
     Awaitable,
@@ -27,8 +24,6 @@ from collections.abc import (
     Sequence,
 )
 from contextlib import asynccontextmanager, contextmanager
-from contextvars import ContextVar
-from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any, ClassVar, Self, TypeVar
@@ -67,7 +62,6 @@ from memspine.core.fact_chain import (
     fact_projection_on,
 )
 from memspine.core.fact_views import view_tags
-from memspine.core.forget_request import forget_target
 from memspine.core.integrity import IntegrityPolicy
 from memspine.core.owner_check import (
     InjectionLog,
@@ -82,12 +76,11 @@ from memspine.core.read_filters import (
 )
 from memspine.core.relevance_probes import Calibration
 from memspine.core.rule_miner import mine_rules
-from memspine.core.vetting import VetFlag, draft_sentences, vet_sentences
+from memspine.core.vetting import VetFlag
 from memspine.exceptions import (
     ConfigError,
     ConflictError,
     MemspineError,
-    RollbackUnavailableError,
     StorageError,
 )
 from memspine.ingest import assets as ingest_assets
@@ -102,10 +95,7 @@ from memspine.ingest.write import (
     _screen_text,
 )
 from memspine.memories.associative.entities import (
-    ENTITY_PREFIX,
     EntityPolicy,
-    canonical_entity,
-    entity_node_id,
 )
 from memspine.memories.associative.evolution import propose_links
 from memspine.memories.associative.projector import GraphProjector
@@ -116,37 +106,21 @@ from memspine.memories.episodic.sessions import Session
 from memspine.memories.episodic.store import EpisodicMemory
 from memspine.memories.procedural.knn import Exemplar, knn_vote, render_table
 from memspine.memories.procedural.lessons import (
-    OutcomeReceipt,
     action_signature,
     failures_dominate,
-    lesson_key,
-    lesson_text,
     outcome_rank,
-    quarantine_lesson_key,
-    quarantine_lesson_text,
-    should_retire,
-    source_signature,
 )
 from memspine.memories.procedural.prompt_registry import prompt_version_records
 from memspine.memories.procedural.skills import (
     ProceduralMemory,
-    make_skill_record,
-    stage_status,
 )
 from memspine.memories.procedural.task_state import (
-    Subgoal,
     TaskState,
-    update_subgoal,
 )
 from memspine.memories.procedural.trajectory import (
     TrajectoryStep,
-    observation_diff,
-    step_index,
-    step_text,
-    trajectory_manifest,
-    window_indices,
 )
-from memspine.memories.prospective.watches import ProspectiveMemory, make_watch_record
+from memspine.memories.prospective.watches import ProspectiveMemory
 from memspine.memories.reflective.reflections import ReflectiveMemory
 from memspine.memories.resource.store import ResourceMemory
 from memspine.memories.semantic.store import SemanticMemory
@@ -155,9 +129,11 @@ from memspine.memories.semantic.write_pipeline import (
     extraction_rounds,
 )
 from memspine.memories.shared.grants import Grant, SharedMemory
-from memspine.memories.shared.subscriptions import make_subscription_record
 from memspine.memories.working.manager import DEFAULT_PAGE_SIZE, WorkingMemory
-from memspine.memories.working.persona import make_persona_record
+from memspine.memory.pipeline import procedural as memory_procedural
+from memspine.memory.pipeline import prospective as memory_prospective
+from memspine.memory.pipeline import shared as memory_shared
+from memspine.memory.pipeline import working as memory_working
 from memspine.models.cache.base import KVCache
 from memspine.models.cache.semantic import CachedExtractor
 from memspine.models.encoders.embedding.base import EmbeddingService, embed_queries
@@ -173,19 +149,16 @@ from memspine.models.encoders.query.shape import (
 from memspine.models.encoders.query.temporal_query import (
     LegHit,
     NamedLeg,
-    forget_mentions,
 )
 from memspine.models.encoders.query.temporal_resolve import resolve
 from memspine.models.providers.decision.decider import Decider, build_decider
 from memspine.models.providers.llm import structured as _structured
 from memspine.models.providers.llm.base import LLMRouter, LLMService
 from memspine.models.providers.llm.structured import structured_call
-from memspine.models.providers.llm.tier_gate import WITHHELD_MARKER, is_local_provider
 from memspine.models.providers.rerank.base import Reranker
 from memspine.models.providers.rerank.factory import RerankSettings, build_reranker, rerank_modes
 from memspine.observability.logging import (
     EVENT_FEEDBACK,
-    EVENT_FORGET,
     EVENT_LINK,
     EVENT_REBUILD,
     EVENT_RETRIEVE,
@@ -227,7 +200,6 @@ from memspine.read.pipeline.fusion import _cosine, _jaccard
 from memspine.read.pipeline.state import (
     _FORENSICS,
     _READ_SNAPSHOT,
-    _TAINT_ARCHIVED_TAG,
     CUE_TAG,
     ReadResult,
 )
@@ -259,38 +231,39 @@ from memspine.services.vector.projector import VectorProjector
 from memspine.store.events import EventKind, EventLogMode, MemoryEvent, fingerprint_payload
 from memspine.store.projections.projector import Projector
 from memspine.store.records import (
-    ArchivedVersion,
     MemoryRecord,
     PiiTier,
     RecordStatus,
-    SkillStage,
     SourceInfo,
     chrono_key,
-    new_record_id,
 )
 from memspine.store.replay import catch_up
 from memspine.store.replay import rebuild as replay_rebuild
 from memspine.store.scope import grant_allows, validate_namespace
-from memspine.trust.audit import IntegrityReport, TaintReport, trace_taint, verify_events
-from memspine.trust.erasure import redact_record, retained_fields
+from memspine.trust.audit import IntegrityReport, TaintReport
+from memspine.trust.erasure import redact_record
 from memspine.trust.firewall import Firewall, FirewallSignals, FirewallVerdict, QueryHistory
+from memspine.trust.pipeline import audit as trust_audit
+from memspine.trust.pipeline import consent as trust_consent
+from memspine.trust.pipeline import erasure as trust_erasure
+from memspine.trust.pipeline import firewall as trust_firewall
+from memspine.trust.pipeline import horizon as trust_horizon
+from memspine.trust.pipeline import privacy as trust_privacy
+from memspine.trust.pipeline import quarantine as trust_quarantine
+from memspine.trust.pipeline.quarantine import _taint_archive_delta
+from memspine.trust.pipeline.state import (
+    _REPLACED_CONTENTS,
+    AuthorizeDecision,
+    _as_options_dict,
+)
 from memspine.trust.privacy import (
-    AUDIT_GENESIS,
-    AUDIT_KINDS,
     AuditChainReport,
-    chain_digest,
     current_principal,
-    current_purpose,
     export_line,
     export_record,
-    inherited_consent,
-    inherited_pii,
-    matching_class,
     payload_mentions,
     pii_rank,
-    purpose_allows,
     read_scope,
-    verify_audit_chain,
 )
 from memspine.workers.list_cards import (
     LIST_CARD_KEY_PREFIX,
@@ -321,61 +294,6 @@ from memspine.workers.windows import WindowPipeline
 __all__ = ["Engine"]
 
 
-#: #3: tag on a held record an operator rejected (archived, never releasable).
-_QUARANTINE_REJECTED_TAG = "quarantine_rejected"
-
-
-#: A thousands separator between digit groups ("1,000", "1_000").
-_FACT_THOUSANDS = re.compile(r"(?<=\d)[,_](?=\d{3}(?!\d))")
-#: Tokens of a fact value: a number (sign and decimal point kept, the sign only
-#: where no word precedes it), a word, or any other single character.
-_FACT_TOKEN = re.compile(r"(?<![^\W_])[-+]?\d+(?:\.\d+)*|[^\W_]+|\S")
-#: Symbols that change a value's meaning and so stay as tokens.
-_FACT_SYMBOLS = frozenset("%+#")
-
-
-def _fact_value(content: str) -> str:
-    """#3: a fact's value for corroboration: NFKC-folded, case-folded and
-    whitespace-normalised, with thousands separators dropped and plain
-    punctuation ignored. Signs, decimal points, percent, currency symbols and
-    ``+``/``#`` are kept, so "-500" differs from "500", "C++" from "C", "$100"
-    from "€100" and "3.5" from "3 5". Paraphrases do not match."""
-    text = unicodedata.normalize("NFKC", content).casefold().replace("\u2212", "-")
-    text = _FACT_THOUSANDS.sub("", text)
-    tokens = [
-        token
-        for token in _FACT_TOKEN.findall(text)
-        if len(token) > 1
-        or token.isalnum()
-        or token in _FACT_SYMBOLS
-        or unicodedata.category(token) == "Sc"
-    ]
-    return " ".join(tokens)
-
-
-def _taint_archive_delta(record: MemoryRecord) -> dict[str, object]:
-    """Rollback/repair archive patch. An open interval is closed at its start, so
-    an archived poison never stays the M4 incumbent (``find_active_fact`` keys
-    on ``valid_to IS NULL``) and never reads as "current" (R2-9). The record is
-    also tagged :data:`_TAINT_ARCHIVED_TAG` (N3)."""
-    change: dict[str, object] = {"status": RecordStatus.ARCHIVED.value}
-    if _TAINT_ARCHIVED_TAG not in record.tags:  # N3: durable, outlives the log
-        change["tags_add"] = [_TAINT_ARCHIVED_TAG]  # B-8: add-only, never replaces
-    if record.valid_to is None:
-        change["valid_to"] = record.valid_from.isoformat()
-    return change
-
-
-@dataclass(frozen=True)
-class AuthorizeDecision:
-    """``Engine.authorize`` result (B6): decision, weakest evidence trust, why."""
-
-    allowed: bool
-    min_trust: float
-    weakest_id: str | None
-    reason: str
-
-
 _log = get_logger(__name__)
 
 
@@ -401,28 +319,10 @@ def search_forensics() -> Iterator[dict[str, Any]]:
         _FORENSICS.reset(token)
 
 
-#: #30: contents of the engine's own list cards a re-derived card replaces. A new card
-#: repeats its predecessor's prefix by construction, so those (and only those) are
-#: left out of the MINJA bridge-prefix comparison of that one write.
-_REPLACED_CONTENTS: ContextVar[frozenset[str]] = ContextVar(
-    "memspine_replaced_contents", default=frozenset()
-)
-
-
 _T = TypeVar("_T")
 
 #: Services the Phase-0 engine always constructs (core install, D-03).
 _CORE_SERVICES = frozenset({"storage", "secrets"})
-
-#: Roles whose writes may corroborate a quarantined record out of quarantine
-#: (E1). Excludes assistant/tool — the indirect-injection authorship surface.
-_CORROBORATION_ROLES = frozenset({"operator", "system", "user"})
-
-
-def _as_options_dict(raw: Any) -> dict[str, object] | None:
-    """Policy sub-blocks arrive as plain config dicts; anything else is a typo
-    the policy's own extra='forbid' validation will surface."""
-    return dict(raw) if isinstance(raw, dict) else None
 
 
 class Engine:
@@ -1052,38 +952,7 @@ class Engine:
         Beta prior, the mean is ``(1 + good) / (2 + good + bad)``, and the
         multiplier is ``min(1, 2 * mean)``: 1.0 for a new or clean principal.
         """
-        storage = self._require_started()
-        owned: set[str] = set()
-        seeds: set[str] = set()
-        after = 0
-        while True:
-            events = await storage.read_events(after_seq=after, limit=1000)
-            if not events:
-                break
-            for event in events:
-                payload = event.payload or {}
-                if event.kind is EventKind.WRITE:
-                    rec = payload.get("record") or {}
-                    if (rec.get("source") or {}).get("principal") == principal:
-                        owned.add(str(rec.get("record_id")))
-                elif event.kind is EventKind.DECAY_TRANSITION:
-                    target = str(payload.get("record_id", ""))
-                    if str(payload.get("reason", "")) == f"taint_rollback:{target}":
-                        seeds.add(target)
-            after = max(e.seq for e in events if e.seq is not None)
-        if not owned:
-            return 1.0
-        bad = 0
-        for record_id in owned:
-            if record_id in seeds:
-                bad += 1
-                continue
-            current = await storage.get_record(record_id)
-            if current is not None and current.quarantined:
-                bad += 1
-        good = len(owned) - bad
-        mean = (1 + good) / (2 + good + bad)
-        return min(1.0, 2.0 * mean)
+        return await trust_firewall.principal_reputation(self, principal)
 
     async def retract(
         self,
@@ -1102,16 +971,8 @@ class Engine:
         kept as a closed record, so history shows when and why it ended. The
         trust gate still applies: a markedly less trusted source cannot retract.
         """
-        text = f"RETRACTED {entity}.{attribute}" + (f": {reason}" if reason else "")
-        return await self.write(
-            text,
-            namespace=namespace,
-            memory_type="semantic",
-            source=source,
-            entity=entity,
-            attribute=attribute,
-            tags=["retract"],
-            valid_from=valid_from,
+        return await trust_firewall.retract(
+            self, entity, attribute, namespace, reason, source, valid_from
         )
 
     async def send(
@@ -1136,38 +997,17 @@ class Engine:
         so messaging cannot create reachability the grant graph does not have.
         Paper A's complete-mediation assumption (A1) then covers messages too.
         """
-        session_id = ledger_id if ledger_id is not None else session_id  # I9
-        storage = self._require_started()
-        sender = validate_namespace(from_namespace)
-        receiver = validate_namespace(to_namespace)
-        shared = self._require_shared()
-        grants = await shared.grants_to(receiver)
-        if sender not in grants:
-            raise ConflictError(f"no grant {sender!r} -> {receiver!r}: messages follow grant edges")
-        implicit = self._consume_reads(sender, session_id)
-        parents = list(dict.fromkeys([*(derived_from or []), *implicit]))
-        source = SourceInfo(role=actor, channel="message", principal=principal, parents=parents)
-        record = MemoryRecord(
-            namespace=receiver,
-            memory_type="episodic",
-            content=content,
-            source=source,
-            tags=["message", f"from:{sender}"],
+        return await trust_firewall.send(
+            self,
+            content,
+            from_namespace,
+            to_namespace,
+            derived_from,
+            session_id,
+            ledger_id,
+            actor,
+            principal,
         )
-        policy = self._integrity()
-        base = self._firewall.policy.trust_at_write(source)
-        sender_views = await self._parent_trust_cap(sender, parents) or []
-        sender_views = [*sender_views, *implicit.values()]
-        at_sender = min([base, *sender_views])
-        crossed = (
-            policy.view_trust(at_sender, sender, receiver)
-            if policy.enabled
-            else min(at_sender, constants.TRUST_RETRIEVED_CAP)
-        )
-        async with self._write_locks.setdefault(receiver, asyncio.Lock()):
-            return await self._write_locked(
-                storage, receiver, record, "episodic", actor, trust_cap=[crossed]
-            )
 
     async def approve(
         self,
@@ -1183,45 +1023,13 @@ class Engine:
         ``field`` set to ``value``), optionally until ``valid_until``. Only operator or
         user approvals count in :meth:`authorize`; a newer approval on the same key
         supersedes the older one through the conflict ladder."""
-        if actor not in ("user", "operator"):
-            raise ValueError("only a user or an operator can approve")
-        return await self.write(
-            f"{subject} {field}: {value}",
-            namespace=namespace,
-            memory_type="semantic",
-            entity=subject,
-            attribute=f"approval:{field}",
-            source=SourceInfo(role=actor, channel="approval"),
-            valid_from=self._clock(),
-            tags=[constants.APPROVAL_TAG]
-            + (
-                [f"{constants.APPROVAL_UNTIL_PREFIX}{valid_until.isoformat()}"]
-                if valid_until
-                else []
-            ),
+        return await trust_firewall.approve(
+            self, subject, field, value, namespace, valid_until=valid_until, actor=actor
         )
 
     async def _approved(self, ns: str, subject: str, field: str, value: str) -> bool:
         """G29: a live, exactly matching approval exists for (subject, field, value)."""
-        now = self._clock()
-        for record in await self._records(ns, "semantic"):
-            if (
-                constants.APPROVAL_TAG in record.tags
-                and record.status is RecordStatus.ACTIVATED
-                and not record.quarantined
-                and record.source.role in ("user", "operator")
-                and record.entity == subject
-                and record.attribute == f"approval:{field}"
-                and record.content.split(":", 1)[-1].strip() == value.strip()
-                and record.valid_from <= now
-                and all(
-                    now < datetime.fromisoformat(t[len(constants.APPROVAL_UNTIL_PREFIX) :])
-                    for t in record.tags
-                    if t.startswith(constants.APPROVAL_UNTIL_PREFIX)
-                )
-            ):
-                return True
-        return False
+        return await trust_firewall._approved(self, ns, subject, field, value)
 
     async def authorize(
         self,
@@ -1245,45 +1053,8 @@ class Engine:
         by an operator or the user, and valid now. Deny by default; a remembered
         instruction or a similar value is never an approval.
         """
-        storage = self._require_started()
-        ns = validate_namespace(namespace)
-        if approval is not None and not await self._approved(ns, *approval):
-            return AuthorizeDecision(False, 0.0, None, "no matching approval")
-        grants: Mapping[str, frozenset[str] | None] = (
-            await self._shared.grants_to(ns) if self._shared is not None else {}
-        )
-        policy = self._integrity()
-        if not evidence_ids:
-            return AuthorizeDecision(False, 0.0, None, "no evidence")
-        weakest: tuple[float, str] | None = None
-        for evidence_id in evidence_ids:
-            record = await storage.get_record(evidence_id)
-            if (
-                record is None
-                or record.quarantined
-                or record.status is not RecordStatus.ACTIVATED
-                or not grant_allows(ns, record.namespace, record.memory_type, grants)
-            ):
-                return AuthorizeDecision(False, 0.0, evidence_id, "evidence unreadable or held")
-            effective = await self.effective_trust(record.record_id)
-            view = (
-                policy.view_trust(effective, record.namespace, ns)
-                if policy.enabled
-                else (
-                    effective
-                    if record.namespace == ns
-                    else min(effective, constants.TRUST_RETRIEVED_CAP)
-                )
-            )
-            if weakest is None or view < weakest[0]:
-                weakest = (view, evidence_id)
-        assert weakest is not None
-        allowed = weakest[0] >= threshold
-        return AuthorizeDecision(
-            allowed,
-            weakest[0],
-            weakest[1],
-            "ok" if allowed else f"weakest evidence trust {weakest[0]:.3f} < {threshold}",
+        return await trust_firewall.authorize(
+            self, evidence_ids, namespace, threshold, approval=approval
         )
 
     def end_session(self, namespace: str = "default", session_id: str | None = None) -> None:
@@ -1363,9 +1134,7 @@ class Engine:
         self, reader: str, cache: dict[str, Mapping[str, frozenset[str] | None]]
     ) -> Mapping[str, frozenset[str] | None]:
         """``reader``'s live grants, read once per caller-held ``cache``."""
-        if reader not in cache:
-            cache[reader] = await self._shared.grants_to(reader) if self._shared is not None else {}
-        return cache[reader]
+        return await memory_shared._grants_cached(self, reader, cache)
 
     async def _probe_legs(
         self,
@@ -1845,37 +1614,10 @@ class Engine:
         Scanned incrementally: the last sequence number seen is kept per storage
         instance, so repeated reads only read new events.
         """
-        storage = self._require_started()
-        state: tuple[Any, list[int], set[str]] | None = getattr(self, "_taint_scan", None)
-        if state is None or state[0] is not storage:
-            state = (storage, [0], set[str]())
-            self._taint_scan = state
-        _, cursor, ids = state
-        while True:
-            events = await storage.read_events(after_seq=cursor[0], limit=1000)
-            if not events:
-                break
-            for event in events:
-                payload = event.payload or {}
-                if event.kind is EventKind.DECAY_TRANSITION:
-                    target = str(payload.get("record_id", ""))
-                    reason = str(payload.get("reason", ""))
-                    if reason.startswith(("taint_rollback:", "taint_repair:")):
-                        ids.add(target)
-                    elif (payload.get("set") or {}).get("status") == RecordStatus.ACTIVATED.value:
-                        ids.discard(target)
-                elif event.kind is EventKind.WRITE:
-                    rec = payload.get("record") or {}
-                    if rec.get("status") == RecordStatus.ACTIVATED.value:
-                        ids.discard(str(rec.get("record_id", "")))
-            seqs = [e.seq for e in events if e.seq is not None]
-            if not seqs:
-                break
-            cursor[0] = max(seqs)
-        return ids
+        return await trust_quarantine._taint_archived_ids(self)
 
     def _integrity(self) -> IntegrityPolicy:
-        return IntegrityPolicy.from_config(self._config().integrity)
+        return trust_firewall._integrity(self)
 
     async def _parent_trust_cap(self, ns: str, parents: Sequence[str]) -> list[float] | None:
         """View trusts of ``parents`` for a writer in ``ns`` (MTI-D input).
@@ -1885,29 +1627,7 @@ class Engine:
         not live, or outside every grant) counts as 0.0: a caller must not be
         able to raise trust by naming records it never saw.
         """
-        policy = self._integrity()
-        if not policy.enabled or not parents:
-            return None
-        storage = self._require_started()
-        grants: Mapping[str, frozenset[str] | None] = (
-            await self._shared.grants_to(ns) if self._shared is not None else {}
-        )
-        views: list[float] = []
-        for parent_id in parents:
-            parent = await storage.get_record(parent_id)
-            if (
-                parent is None
-                or parent.quarantined
-                # R5-1: an archived or forgotten parent is not live evidence; it
-                # counts like an unreadable one (as in effective_trust).
-                or parent.status in (RecordStatus.ARCHIVED, RecordStatus.DELETED)
-                or not grant_allows(ns, parent.namespace, parent.memory_type, grants)
-            ):
-                _log.warning("memory.integrity_unreadable_parent", namespace=ns, parent=parent_id)
-                views.append(0.0)
-                continue
-            views.append(policy.view_trust(parent.trust, parent.namespace, ns))
-        return views
+        return await trust_firewall._parent_trust_cap(self, ns, parents)
 
     async def write_messages(
         self,
@@ -3380,43 +3100,7 @@ class Engine:
         stable prefix stays stable instead of accumulating contradictory
         personas that paging can never evict.
         """
-        storage = self._require_started()
-        ns = validate_namespace(namespace)
-        existing = [
-            record
-            for record in await storage.list_records(ns, "working")
-            if record.source.channel == "persona" and record.status is not RecordStatus.DELETED
-        ]
-        if existing:
-            existing.sort(key=lambda record: record.recorded_at)
-            prior = existing[0]
-            record = prior.model_copy(
-                update={
-                    "content": text,
-                    "content_fingerprint": fingerprint_payload({"content": text}),
-                    "version": prior.version + 1,
-                    "history": [
-                        *prior.history,
-                        ArchivedVersion(
-                            version=prior.version,
-                            content=prior.content,
-                            archived_at=datetime.now(UTC),
-                            reason="persona_update",
-                        ),
-                    ],
-                }
-            )
-        else:
-            record = make_persona_record(ns, text)
-        event = MemoryEvent(
-            kind=EventKind.WRITE,
-            namespace=ns,
-            actor="system",
-            payload={"record": record.model_dump(mode="json")},
-        )
-        await self._append_and_project(event)
-        _log.info(EVENT_WRITE, namespace=ns, record_id=record.record_id, persona=True)
-        return record
+        return await memory_working.set_persona(self, namespace, text)
 
     async def forget(
         self,
@@ -3448,17 +3132,9 @@ class Engine:
         ``actor`` and ``reason`` (#49) are recorded in a ``memory.audit`` event
         under ``audit.actions``.
         """
-        storage = self._require_started()
-        ns = validate_namespace(namespace)
-        # Same per-namespace lock as write(): a hard delete's read-hold-check-
-        # redact sequence must not interleave with a concurrent write or its
-        # corroboration read-modify-write on the same record.
-        async with self._write_locks.setdefault(ns, asyncio.Lock()):
-            ids = [record_id]
-            if hard if cascade is None else cascade:
-                ids.extend(await self._descendants(storage, ns, [record_id]))
-            await self._forget_many(storage, ns, ids, hard)
-        await self._audit_action("forget", ns, ids, actor=actor, reason=reason, hard=hard)
+        return await trust_erasure.forget(
+            self, record_id, namespace, hard, cascade, actor=actor, reason=reason
+        )
 
     async def erase_subject(
         self,
@@ -3477,20 +3153,9 @@ class Engine:
         id in the community-partition history. ``actor`` and ``reason`` go into a
         ``memory.audit`` event under ``audit.actions`` (record ids only, never the
         subject's name). Returns the erased record ids."""
-        storage = self._require_started()
-        ns = validate_namespace(namespace)
-        wanted = subject.casefold()
-        async with self._write_locks.setdefault(ns, asyncio.Lock()):
-            seeds = [
-                r.record_id
-                for r in await storage.list_records(ns)
-                if (r.entity is not None and r.entity.casefold() == wanted)
-                or r.source.principal == subject
-            ]
-            ids = [*seeds, *await self._descendants(storage, ns, seeds)]
-            await self._forget_many(storage, ns, ids, hard=True, subject_names=[subject])
-        await self._audit_action("erase_subject", ns, ids, actor=actor, reason=reason)
-        return ids
+        return await trust_erasure.erase_subject(
+            self, subject, namespace, actor=actor, reason=reason
+        )
 
     async def erase_namespace(
         self, namespace: str, *, actor: str = "user", reason: str | None = None
@@ -3500,16 +3165,7 @@ class Engine:
         refuses the whole call before anything is touched. ``actor`` and
         ``reason`` go into a ``memory.audit`` event under ``audit.actions``.
         Returns the ids."""
-        storage = self._require_started()
-        ns = validate_namespace(namespace)
-        async with self._write_locks.setdefault(ns, asyncio.Lock()):
-            ids = [r.record_id for r in await storage.list_records(ns)]
-            await self._forget_many(storage, ns, ids, hard=True)
-            drop = getattr(self._vector, "drop_namespace", None)
-            if drop is not None:  # I4: per-namespace tables: the user's table goes too
-                await drop(ns)
-        await self._audit_action("erase_namespace", ns, ids, actor=actor, reason=reason)
-        return ids
+        return await trust_erasure.erase_namespace(self, namespace, actor=actor, reason=reason)
 
     async def _descendants(self, storage: SqlStorage, ns: str, seeds: Sequence[str]) -> list[str]:
         """Every record of ``ns`` derived from ``seeds``, transitively, in discovery
@@ -3519,60 +3175,14 @@ class Engine:
         before they carried parents, from the ``member_record_ids`` their WRITE
         (``consolidation``/``reflection``) and CONSOLIDATE events name. A summary
         of a forgotten member is forgotten with it (cascade), never re-derived."""
-        members_of = await self._log_derivations(storage, ns)
-        seen = set(seeds)
-        found: list[str] = []
-        frontier = list(seeds)
-        while frontier:
-            children = [c.record_id for c in await storage.list_children(ns, frontier)]
-            children += [child for parent in frontier for child in members_of.get(parent, ())]
-            frontier = [c for c in dict.fromkeys(children) if c not in seen]
-            seen.update(frontier)
-            found.extend(frontier)
-        present: list[str] = []
-        for record_id in found:
-            record = await storage.get_record(record_id)
-            if record is not None and record.namespace == ns:
-                present.append(record_id)
-        return present
+        return await trust_erasure._descendants(self, storage, ns, seeds)
 
     @staticmethod
     async def _log_derivations(storage: SqlStorage, ns: str) -> dict[str, list[str]]:
         """parent id -> ids of the records of ``ns`` whose log events name it: in
         a WRITE snapshot's ``source.parents`` or a ``member_record_ids`` list
         (one pass over the log)."""
-        children: dict[str, list[str]] = {}
-
-        def link(members: object, child: object) -> None:
-            if isinstance(members, list) and isinstance(child, str) and child:
-                for member in members:
-                    children.setdefault(str(member), []).append(child)
-
-        after = 0
-        while True:
-            batch = await storage.read_events(after_seq=after)
-            if not batch:
-                return children
-            for event in batch:
-                if event.namespace != ns:
-                    continue
-                payload = event.payload or {}
-                if event.kind is EventKind.WRITE:
-                    snapshot = payload.get("record")
-                    child = snapshot.get("record_id") if isinstance(snapshot, dict) else None
-                    source = snapshot.get("source") if isinstance(snapshot, dict) else None
-                    if isinstance(source, dict):
-                        # The log keeps lineage after the row is gone, so the walk
-                        # crosses an already-erased intermediate record.
-                        link(source.get("parents"), child)
-                    for key in ("consolidation", "reflection"):
-                        derivation = payload.get(key)
-                        if isinstance(derivation, dict):
-                            link(derivation.get("member_record_ids"), child)
-                elif event.kind is EventKind.CONSOLIDATE:
-                    link(payload.get("member_record_ids"), payload.get("summary_record_id"))
-            assert batch[-1].seq is not None
-            after = batch[-1].seq
+        return await trust_erasure._log_derivations(storage, ns)
 
     async def _forget_many(
         self,
@@ -3588,42 +3198,9 @@ class Engine:
         caches are purged and the WAL checkpointed. The same pass renames, in the
         community-partition markers, the entity node ids of ``subject_names`` and
         of the erased records' entities that no longer have a graph edge."""
-        ids = list(dict.fromkeys(record_ids))
-        if not ids:
-            return
-        records: list[MemoryRecord | None] = []
-        for rid in ids:
-            records.append(await self._forget_target(storage, ns, rid, hard))
-        texts = [t for r in records if r is not None for t in self._erasable_texts(r)]
-        for rid in ids:
-            await self._forget_locked(storage, ns, rid, hard, redact=False)
-        if not hard:
-            return
-        names = [*subject_names, *(r.entity for r in records if r is not None and r.entity)]
-        renames = await self._erased_entity_nodes(ns, names, forced=subject_names)
-        redacted = (
-            await storage.redact_event_payloads(ids, node_renames=renames)
-            if renames
-            else await storage.redact_event_payloads(ids)
+        return await trust_erasure._forget_many(
+            self, storage, ns, record_ids, hard, subject_names=subject_names
         )
-        # D-18: the hard-delete cascade escalates to alert severity.
-        _log.error(
-            EVENT_FORGET,
-            namespace=ns,
-            record_id=ids[0],
-            hard=True,
-            cascaded=len(ids) - 1,
-            redacted=len(redacted),
-        )
-        await self._purge_caches(texts)
-        # The vector delete only marks rows deleted; the purge drops their bytes
-        # and the older table versions that still return them (verify_forget
-        # reports vector history unproven when it did not run).
-        purge = getattr(self._vector, "purge_deleted", None)
-        if callable(purge) and not await purge():
-            _log.warning("memory.forget_vector_purge_incomplete", namespace=ns, record_id=ids[0])
-        if self._client is not None:
-            await self._client.checkpoint()
 
     async def _erased_entity_nodes(
         self, ns: str, names: Sequence[str], *, forced: Sequence[str] = ()
@@ -3632,155 +3209,38 @@ class Engine:
         markers store node ids, which spell the name). A name in ``forced`` (the
         erased subject) is always renamed; another only once its node has no edge
         left (no live record mentions it). Empty without a graph store."""
-        if self._graph is None:
-            return {}
-        forced_keys = {canonical_entity(n) for n in forced}
-        renames: dict[str, str] = {}
-        for name in dict.fromkeys(names):
-            canonical = canonical_entity(name)
-            node = entity_node_id(ns, canonical)
-            if not canonical or node in renames:
-                continue
-            if canonical not in forced_keys and await self._graph.edges_of(node):
-                continue
-            renames[node] = f"{ENTITY_PREFIX}{ns}:#erased-{secrets.token_hex(8)}"
-        return renames
+        return await trust_erasure._erased_entity_nodes(self, ns, names, forced=forced)
 
     async def _forget_target(
         self, storage: SqlStorage, ns: str, record_id: str, hard: bool
     ) -> MemoryRecord | None:
         """The record to forget after the scope and legal-hold checks; None when
         a hard forget finds no row (an idempotent retry of the log redaction)."""
-        record = await storage.get_record(record_id)
-        # SEC-C2/ADR-018: forget is scoped to the caller's namespace. A grantee
-        # who learned a foreign record_id via shared_search must not be able to
-        # delete the grantor's data by passing its own namespace.
-        #
-        # - A record that EXISTS in another namespace ALWAYS raises the ADR-014
-        #   anti-oracle error (same shape as _require_watch) and is NOT touched
-        #   — this closes the IDOR for both soft and hard paths.
-        # - A record ABSENT from the read model: the SOFT path raises the SAME
-        #   anti-oracle error (missing and foreign are indistinguishable, so a
-        #   leaked id is no existence oracle). The HARD path instead proceeds as
-        #   an idempotent no-op: a hard delete removes the row during projection,
-        #   but its LOG redaction may still need a retry after a mid-operation
-        #   failure (M7 durability) — a second hard forget of the now-absent row
-        #   must complete the erasure, never raise.
-        if record is None:
-            if not hard:
-                raise ConflictError(f"no such record {record_id!r} in namespace {ns!r}")
-            return None
-        if record.namespace != ns:
-            raise ConflictError(f"no such record {record_id!r} in namespace {ns!r}")
-        if hard:
-            retention = RetentionPolicy.bind(
-                _as_options_dict(
-                    self._memory_policy(self._config(), record.memory_type).get("retention")
-                )
-            )
-            if retention.on_legal_hold(record):
-                raise MemspineError(
-                    f"record {record_id} is under legal hold — hard delete refused (M7)"
-                )
-        return record
+        return await trust_erasure._forget_target(self, storage, ns, record_id, hard)
 
     def _erasable_texts(self, record: MemoryRecord) -> list[str]:
         """The texts of ``record`` a cache may be keyed on: its (inflated) content
         and every archived version."""
-        texts = [h.content for h in record.history if h.content]
-        try:
-            texts.append(self._inflate.inflate(record).content)
-        except StorageError:
-            texts.append(record.content)
-        return [t for t in dict.fromkeys(texts) if t]
+        return trust_erasure._erasable_texts(self, record)
 
     async def _purge_caches(self, texts: Sequence[str]) -> None:
         """#43: drop the embedding and extraction cache entries of erased texts, and
         the read-side caches keyed by text (N60 sentence vectors, N30 date spans)."""
-        erased = set(texts)
-        for key in [k for k in self._sentence_vectors if k[1] in erased]:
-            del self._sentence_vectors[key]
-        forget_mentions(erased)
-        forget_embedding = getattr(self._embedder, "forget", None)
-        for text in texts:
-            if callable(forget_embedding):
-                await forget_embedding(text)
-            if self._cached_extractor is not None:
-                await self._cached_extractor.forget(text)
+        return await trust_erasure._purge_caches(self, texts)
 
     async def _forget_locked(
         self, storage: SqlStorage, ns: str, record_id: str, hard: bool, *, redact: bool = True
     ) -> None:
         """Forget one record (lock held): FORGET event, log redaction when
         ``redact`` and hard, and the memory types' delete hooks."""
-        await self._forget_target(storage, ns, record_id, hard)
-        await self._append_and_project(
-            MemoryEvent(
-                kind=EventKind.FORGET,
-                namespace=ns,
-                actor="user",
-                payload={"record_id": record_id, "hard": hard},
-            )
-        )
-        if hard and redact:
-            redacted = await storage.redact_event_payloads(record_id)
-            # D-18: the hard-delete cascade escalates to alert severity.
-            _log.error(
-                EVENT_FORGET, namespace=ns, record_id=record_id, hard=True, redacted=len(redacted)
-            )
-        # M7 delete hooks: every enabled memory type drops derived state that
-        # references the record (e.g. the semantic LSH cache stops probing it).
-        for memory in (
-            self._working,
-            self._semantic,
-            self._episodic,
-            self._resource,
-            self._procedural,
-            self._reflective,
-            self._associative,
-            self._prospective,
-            self._shared,
-        ):
-            if memory is not None:
-                await memory.on_forget(ns, record_id)
-        if self._windows is not None:
-            # W1: leaves its open window, cancels queued / running windows that held it,
-            # drops pending call-1 edges that cite it and purges cached replies (lock held).
-            await self._windows.on_forget(ns, record_id)
-        _log.info(EVENT_FORGET, namespace=ns, record_id=record_id)
+        return await trust_erasure._forget_locked(self, storage, ns, record_id, hard, redact=redact)
 
     async def vet(self, draft: str, namespace: str = "default") -> list[VetFlag]:
         """G26 (plan v3.2, TWIST): check a draft reply against the namespace's current
         keyed facts. Each draft sentence that names a fact's entity and attribute but
         not its current value, or negates the current value, is flagged with that
         fact and up to three superseded values (its history). Read-only, no model."""
-        ns = validate_namespace(namespace)
-        records = await self._records(ns, "semantic")
-        current = [
-            r
-            for r in records
-            if r.status is RecordStatus.ACTIVATED
-            and not r.quarantined
-            and r.entity
-            and r.attribute
-            and r.valid_to is None
-        ]
-        history: dict[str, list[str]] = {}
-        for fact in current:
-            past = sorted(
-                (
-                    r
-                    for r in records
-                    if r.entity == fact.entity
-                    and r.attribute == fact.attribute
-                    and r.record_id != fact.record_id
-                    and r.status is RecordStatus.ARCHIVED
-                ),
-                key=lambda r: r.valid_from,
-                reverse=True,
-            )
-            history[fact.record_id] = [r.content for r in past[:3]]
-        return vet_sentences(draft_sentences(draft), current, history)
+        return await trust_firewall.vet(self, draft, namespace)
 
     async def rating_profile(self, namespace: str = "default") -> dict[str, dict[str, float]]:
         """G12 (plan v3.2, LaMP / MemoryCD): the user's behaviour profile from logged
@@ -3949,47 +3409,7 @@ class Engine:
         Read-only: nothing is forgotten here. The caller confirms the candidates and
         calls :meth:`forget` (``hard=True`` for erasure), so a false detection never
         deletes a memory."""
-        ns = validate_namespace(namespace)
-        storage = self._require_started()
-        out: list[dict[str, object]] = []
-        for request in await storage.list_records(ns, "episodic"):
-            if constants.FORGET_REQUEST_TAG not in request.tags:
-                continue
-            target = forget_target(request.content) or request.content
-            # Lexical first: an earlier live record holding most of what the request
-            # names (M6 demo: the vector search alone missed the original turn).
-            wanted = content_words(target)
-            lexical = sorted(
-                (
-                    r
-                    for r in await self._records(ns)
-                    if r.status is RecordStatus.ACTIVATED
-                    and not r.quarantined
-                    and r.record_id != request.record_id
-                    and constants.FORGET_REQUEST_TAG not in r.tags
-                    and r.valid_from <= request.valid_from
-                    and wanted
-                    and len(wanted & content_words(r.content)) / len(wanted)
-                    >= constants.FORGET_MATCH_SHARE
-                ),
-                key=lambda r: (
-                    -len(wanted & content_words(r.content)),
-                    r.memory_type != "episodic",
-                ),
-            )
-            hits = await self.search(target, namespace=ns, top_k=top_k + 1)
-            ranked = [r.record_id for r in lexical] + [
-                r.record_id
-                for r, _ in hits
-                if r.record_id != request.record_id
-                and constants.FORGET_REQUEST_TAG not in r.tags
-                and r.valid_from <= request.valid_from
-            ]
-            candidates = list(dict.fromkeys(ranked))[:top_k]
-            out.append(
-                {"request_id": request.record_id, "target": target, "candidates": candidates}
-            )
-        return out
+        return await trust_erasure.forget_requests(self, namespace, top_k)
 
     async def verify_forget(
         self, record_id: str, namespace: str = "default", *, probe: str | None = None
@@ -4013,86 +3433,7 @@ class Engine:
         erasure state of a namespace it does not own. (Post-hard-delete the row
         is absent, which is the normal verify path and proceeds.)
         """
-        storage = self._require_started()
-        existing = await storage.get_record(record_id)
-        if existing is not None and existing.namespace != namespace:
-            raise ConflictError(f"no such record {record_id!r} in namespace {namespace!r}")
-        record_absent = existing is None
-        vector_absent: bool | None = None
-        exists = getattr(self._vector, "exists", None)
-        if callable(exists):
-            vector_absent = not await exists(record_id)
-        # A deleted vector can survive in older table versions until purged.
-        # None => the backend cannot prove its history clean (unproven).
-        vector_history_absent: bool | None = None
-        history_absent = getattr(self._vector, "history_absent", None)
-        if callable(history_absent):
-            vector_history_absent = await history_absent(record_id)
-        # The Tantivy lexical index holds raw content when hybrid is on, so
-        # erasure is not proven until it too is inspected. None => no lexical store
-        # is owned (hybrid off) — nothing to erase, so it cannot block ``clean``.
-        lexical_absent: bool | None = None
-        if self._lexical is not None:
-            lexical_absent = not await self._lexical.exists(record_id)
-        descendants = await self._descendants(storage, validate_namespace(namespace), [record_id])
-        log_verifiable = storage.can_rebuild  # ephemeral persists nothing to prove
-        retained: set[str] = set()
-        after = 0
-        while log_verifiable:
-            batch = await storage.read_events(after_seq=after)
-            if not batch:
-                break
-            for event in batch:
-                retained |= retained_fields(event.payload, record_id)
-            assert batch[-1].seq is not None
-            after = batch[-1].seq
-        log_clean = not retained
-        # W14 (plan v3.2): erasure proven on RECALL, not only on the stores: the
-        # erased text, searched for, must bring back no record holding it or a
-        # near-duplicate (a copy, a derived summary, a re-statement) in this namespace.
-        residual: list[str] | None = None
-        if probe is not None and probe.strip():
-            wanted = content_words(probe)
-            residual = []
-            for hit, _ in await self.search(
-                probe, namespace=namespace, top_k=constants.RESIDUAL_PROBE_TOP_K
-            ):
-                words = content_words(hit.content)
-                overlap = len(wanted & words) / max(1, len(wanted))
-                if probe.strip().lower() in hit.content.lower() or (
-                    wanted and overlap >= constants.RESIDUAL_PROBE_OVERLAP
-                ):
-                    residual.append(hit.record_id)
-        clean = (
-            record_absent
-            and log_verifiable
-            and log_clean
-            and not residual
-            and not descendants
-            and vector_absent is True
-            and vector_history_absent is True
-            and lexical_absent is not False  # True (absent) or None (no store) both pass
-        )
-        return {
-            "record_id": record_id,
-            "record_absent": record_absent,
-            "vector_absent": vector_absent,  # None => backend cannot prove it
-            "vector_history_absent": vector_history_absent,  # None => unproven
-            "lexical_absent": lexical_absent,  # None => no lexical store owned
-            # Tantivy drops a deleted document's terms from its inverted index only
-            # when its segment is merged, which the engine cannot force: the
-            # document (and its id) is gone, but its terms can linger on disk.
-            "residual_risks": ["lexical_terms_until_segment_merge"]
-            if self._lexical is not None
-            else [],
-            "log_verifiable": log_verifiable,
-            "log_redacted": log_clean,
-            "log_retained_fields": sorted(retained),
-            "descendants_remaining": descendants,
-            # W14: records the probe still recalls (None: no probe given).
-            "residual_recall": residual,
-            "clean": clean,
-        }
+        return await trust_erasure.verify_forget(self, record_id, namespace, probe=probe)
 
     # ── data-subject rights + audit (#46-#50) ─────────────────────────────────
 
@@ -4109,7 +3450,7 @@ class Engine:
 
     def _consent_ok(self, record: MemoryRecord) -> bool:
         """#50: whether the current read's purpose may see ``record``."""
-        return purpose_allows(record, current_purpose(), self._config().consent)
+        return trust_consent._consent_ok(self, record)
 
     def _consent_context(self, context: AssembledContext) -> AssembledContext:
         """#50: drop records an assembled context may not carry for this purpose.
@@ -4140,35 +3481,13 @@ class Engine:
 
     async def _audit_head_hash(self) -> str:
         """The current chain head, loaded once from the log (the last audit event)."""
-        if self._audit_head is None:
-            storage = self._require_started()
-            head = AUDIT_GENESIS
-            after = 0
-            while True:
-                batch = await storage.read_events(after_seq=after, limit=1000)
-                if not batch:
-                    break
-                for event in batch:
-                    chain = event.payload.get("chain")
-                    if event.kind in AUDIT_KINDS and isinstance(chain, dict):
-                        head = str(chain.get("hash", head))
-                after = max(e.seq for e in batch if e.seq is not None)
-            self._audit_head = head
-        return self._audit_head
+        return await trust_audit._audit_head_hash(self)
 
     async def _append_audit(
         self, kind: EventKind, ns: str, actor: str, body: dict[str, object]
     ) -> None:
         """#49: append one chained audit event (serialized, so the chain is linear)."""
-        async with self._audit_lock:
-            prev = await self._audit_head_hash()
-            payload: dict[str, object] = {**body, "at": self._clock().isoformat()}
-            digest = chain_digest(prev, kind.value, ns, actor, payload)
-            payload["chain"] = {"prev": prev, "hash": digest}
-            await self._append_and_project(
-                MemoryEvent(kind=kind, namespace=ns, actor=actor, payload=payload)
-            )
-            self._audit_head = digest
+        return await trust_audit._append_audit(self, kind, ns, actor, body)
 
     async def bulk_read_alerts(
         self,
@@ -4181,50 +3500,13 @@ class Engine:
         than ``max_records`` distinct records of ``namespace`` (an extraction pattern:
         membership inference or scraping by repeated queries). Built from the
         ``READ_AUDIT`` events, so it needs ``audit.reads``; read-only."""
-        ns = validate_namespace(namespace)
-        since = self._clock() - window
-        seen: dict[str, set[str]] = {}
-        reads: dict[str, int] = {}
-        storage = self._require_started()
-        after = 0
-        while True:
-            batch = await storage.read_events(after_seq=after, limit=1000)
-            if not batch:
-                break
-            for event in batch:
-                if event.kind is not EventKind.READ_AUDIT or event.namespace != ns:
-                    continue
-                at = event.payload.get("at")
-                if isinstance(at, str) and datetime.fromisoformat(at) < since:
-                    continue
-                who = str(event.payload.get("principal") or "anonymous")
-                seen.setdefault(who, set()).update(
-                    str(r) for r in event.payload.get("record_ids") or []
-                )
-                reads[who] = reads.get(who, 0) + 1
-            after = max(e.seq for e in batch if e.seq is not None)
-        return [
-            {"principal": who, "distinct_records": len(ids), "reads": reads[who]}
-            for who, ids in sorted(seen.items())
-            if len(ids) > max_records
-        ]
+        return await trust_audit.bulk_read_alerts(
+            self, namespace, window=window, max_records=max_records
+        )
 
     async def _audit_read(self, verb: str, namespace: str, record_ids: Sequence[str]) -> None:
         """#49: a READ_AUDIT event for one read verb (``audit.reads`` only)."""
-        if not self._config().audit.reads:
-            return
-        principal = current_principal() or "anonymous"
-        await self._append_audit(
-            EventKind.READ_AUDIT,
-            validate_namespace(namespace),
-            principal,
-            {
-                "verb": verb,
-                "principal": principal,
-                "purpose": current_purpose(),
-                "record_ids": list(record_ids),
-            },
-        )
+        return await trust_audit._audit_read(self, verb, namespace, record_ids)
 
     async def _audit_action(
         self,
@@ -4237,20 +3519,8 @@ class Engine:
         **extra: object,
     ) -> None:
         """#49: an AUDIT event for a governance action (``audit.actions`` only)."""
-        if not self._config().audit.actions:
-            return
-        await self._append_audit(
-            EventKind.AUDIT,
-            ns,
-            actor,
-            {
-                "action": action,
-                "actor": actor,
-                "principal": current_principal(),
-                "reason": reason,
-                "record_ids": list(record_ids),
-                **extra,
-            },
+        return await trust_audit._audit_action(
+            self, action, ns, record_ids, actor=actor, reason=reason, **extra
         )
 
     async def verify_audit_chain(self) -> AuditChainReport:
@@ -4260,21 +3530,11 @@ class Engine:
         event's hash; an edited, inserted or removed audit event breaks a link.
         A rolling log anchors at its oldest surviving audit event; an ephemeral
         log persists nothing, so its report covers no events."""
-        storage = self._require_started()
-        events: list[MemoryEvent] = []
-        after = 0
-        while True:
-            batch = await storage.read_events(after_seq=after, limit=1000)
-            if not batch:
-                break
-            events.extend(e for e in batch if e.kind in AUDIT_KINDS)
-            after = max(e.seq for e in batch if e.seq is not None)
-        anchored = self._config().event_log.mode is EventLogMode.FULL
-        return verify_audit_chain(events, anchored=anchored)
+        return await trust_audit.verify_audit_chain(self)
 
     async def audit_chain_ok(self) -> bool:
         """#49: True when the audit hash chain verifies (see :meth:`verify_audit_chain`)."""
-        return (await self.verify_audit_chain()).ok
+        return await trust_audit.audit_chain_ok(self)
 
     async def export(
         self,
@@ -4425,57 +3685,11 @@ class Engine:
         and so is one any of whose descendants would be; the rest go through
         :meth:`forget` (``hard=True``, cascading), each with an audit reason naming
         the class. No classes configured: nothing runs."""
-        storage = self._require_started()
-        classes = self._config().retention.classes
-        if not classes:
-            return {"status": "skipped", "reason": "no retention.classes"}
-        clock = now or self._clock()
-        expired: list[str] = []
-        held = 0
-        errors: list[str] = []
-        for ns in await storage.list_namespaces():
-            for record in await storage.list_records(ns):
-                if record.record_id in expired:
-                    continue
-                cls = matching_class(record, classes)
-                if cls is None or (record.memory_type == "shared" and cls.memory_type is None):
-                    continue
-                if clock - record.recorded_at < timedelta(days=cls.ttl_days):
-                    continue
-                group = [record]
-                for child_id in await self._descendants(storage, ns, [record.record_id]):
-                    child = await storage.get_record(child_id)
-                    if child is not None:
-                        group.append(child)
-                if not all(self._retention(r).may_delete(r) for r in group):
-                    held += 1
-                    continue
-                try:
-                    await self.forget(
-                        record.record_id,
-                        namespace=ns,
-                        hard=True,
-                        actor="system",
-                        reason=f"retention:{cls.namespace}/{cls.memory_type or '*'}"
-                        f"/{cls.ttl_days:g}d",
-                    )
-                except (MemspineError, ConflictError) as exc:
-                    errors.append(f"{record.record_id}: {exc}")
-                    continue
-                expired.extend(r.record_id for r in group)
-        stats: dict[str, object] = {"status": "partial" if errors else "ok"}
-        stats.update({"expired": len(expired), "held": held})
-        if errors:
-            stats["errors"] = errors
-        return stats
+        return await trust_horizon.expire_retention(self, now)
 
     def _retention(self, record: MemoryRecord) -> RetentionPolicy:
         """The ``retention`` policy bound for ``record``'s memory type."""
-        return RetentionPolicy.bind(
-            _as_options_dict(
-                self._memory_policy(self._config(), record.memory_type).get("retention")
-            )
-        )
+        return trust_horizon._retention(self, record)
 
     async def _withheld_texts(self) -> list[str]:
         """#50: texts of records above ``consent.remote_llm_max_tier`` (every namespace)."""
@@ -4503,18 +3717,7 @@ class Engine:
         above the tier (a lead block or derived record carries its parts' highest
         tier) shows :data:`WITHHELD_MARKER` instead of its text, before the prompt
         is rendered; the provider-boundary text match stays as the backstop."""
-        config = self._config()
-        limit = config.consent.remote_llm_max_tier
-        role_config = config.llm.roles.get(role)
-        if limit is None or role_config is None:
-            return list(records)
-        if is_local_provider(role_config.model, role_config.api_base, config.consent.local_hosts):
-            return list(records)
-        cap = pii_rank(limit)
-        return [
-            r.model_copy(update={"content": WITHHELD_MARKER}) if pii_rank(r.pii_tier) > cap else r
-            for r in records
-        ]
+        return trust_privacy._remote_view(self, role, records)
 
     async def audit_taint(
         self, record_id: str, namespace: str = "default", cross_namespace: bool = False
@@ -4531,14 +3734,7 @@ class Engine:
         namespaces that EXPOSE events show received tainted content. It reveals
         descendants outside ``namespace``, so it is an operator-level call.
         """
-        storage = self._require_started()
-        ns = validate_namespace(namespace)
-        report = await trace_taint(storage, record_id, follow_parents=cross_namespace)
-        record = await storage.get_record(record_id)
-        seed_ns = record.namespace if record is not None else report.origin_namespace
-        if seed_ns != ns:
-            raise ConflictError(f"no such record {record_id!r} in namespace {ns!r}")
-        return report
+        return await trust_quarantine.audit_taint(self, record_id, namespace, cross_namespace)
 
     async def quarantine(
         self,
@@ -4556,36 +3752,7 @@ class Engine:
         Namespace-scoped like ``forget``: a foreign or missing id raises the same
         ``ConflictError`` (no existence oracle). Idempotent on a held record.
         """
-        storage = self._require_started()
-        ns = validate_namespace(namespace)
-        async with self._write_locks.setdefault(ns, asyncio.Lock()):
-            record = await storage.get_record(record_id)
-            if record is None or record.namespace != ns:
-                raise ConflictError(f"no such record {record_id!r} in namespace {ns!r}")
-            if record.quarantined and record.status is RecordStatus.QUARANTINED:
-                return record
-            # B-2: only a live record can be held. A forgotten (DELETED) or
-            # archived (incl. taint-archived) record would otherwise be revived
-            # through quarantine -> corroboration; it raises the same error as a
-            # missing id, so the call is not an existence oracle.
-            if record.status not in (RecordStatus.ACTIVATED, RecordStatus.RESOLVING):
-                raise ConflictError(f"no such record {record_id!r} in namespace {ns!r}")
-            await self._append_and_project(
-                MemoryEvent(
-                    kind=EventKind.DECAY_TRANSITION,
-                    namespace=ns,
-                    actor=actor,
-                    payload={
-                        "record_id": record_id,
-                        "set": {"quarantined": True, "status": RecordStatus.QUARANTINED.value},
-                        "transition": f"{record.status.value}->quarantined",
-                        "reason": reason,
-                    },
-                )
-            )
-            updated = await storage.get_record(record_id)
-            assert updated is not None
-            return updated
+        return await trust_quarantine.quarantine(self, record_id, namespace, reason, actor)
 
     async def rollback_taint(
         self,
@@ -4615,76 +3782,14 @@ class Engine:
         ``memory.rollback_beyond_window``, archives the seed alone (its ``valid_to``
         closed) and returns its id under ``"untraced"``.
         """
-        storage = self._require_started()
-        report = await self.audit_taint(record_id, namespace, cross_namespace=True)
-        untraced = await self._lineage_window(report, "rollback_taint", strict)
-        archived: list[str] = []
-        review: list[str] = []
-        targets = [(record_id, "seed"), *report.descendants.items()]
-        for target_id, proof in targets:
-            if proof.startswith("merged@"):
-                review.append(target_id)
-                continue
-            if proof.startswith("superseded_by_taint@"):
-                continue  # displaced, not derived: restored below
-            record = await storage.get_record(target_id)
-            if record is None or record.status in (RecordStatus.ARCHIVED, RecordStatus.DELETED):
-                continue
-            await self._append_and_project(
-                MemoryEvent(
-                    kind=EventKind.DECAY_TRANSITION,
-                    namespace=record.namespace,
-                    actor=actor,
-                    payload={
-                        "record_id": target_id,
-                        "set": _taint_archive_delta(record),
-                        "transition": f"{record.status.value}->archived",
-                        "reason": f"taint_rollback:{record_id}",
-                    },
-                )
-            )
-            archived.append(target_id)
-        restored = await self._undo_displacement(record_id, report, archived, actor)
-        _log.warning(
-            "memory.taint_rollback",
-            namespace=namespace,
-            seed=record_id,
-            archived=len(archived),
-            restored=len(restored),
-            review=len(review),
+        return await trust_quarantine.rollback_taint(
+            self, record_id, namespace, actor, strict=strict
         )
-        result = {"archived": archived, "restored": restored, "review": review}
-        if untraced:
-            result["untraced"] = [record_id]
-        return result
 
     async def _lineage_window(self, report: TaintReport, verb: str, strict: bool) -> bool:
         """#64: True when the log no longer holds the seed's origin WRITE, so the
         taint walk saw none of its descendants. Raises with ``strict``; else warns."""
-        if report.origin_seq is not None:
-            return False
-        storage = self._require_started()
-        mode = storage.mode.value
-        detail = (
-            "the event log does not hold this record's origin WRITE "
-            f"(event_log.mode={mode}: "
-            + (
-                "events are never persisted"
-                if storage.mode is EventLogMode.EPHEMERAL
-                else "pruned or never logged"
-            )
-            + "); its descendants cannot be traced (D-45, ADR-011)"
-        )
-        if strict:
-            raise RollbackUnavailableError(f"{verb} {report.record_id!r}: {detail}")
-        _log.warning(
-            "memory.rollback_beyond_window",
-            verb=verb,
-            record_id=report.record_id,
-            event_log_mode=mode,
-            detail=detail + "; falling back to archiving the seed alone (valid_to closed)",
-        )
-        return True
+        return await trust_quarantine._lineage_window(self, report, verb, strict)
 
     async def _undo_displacement(
         self, seed: str, report: TaintReport, removed: Sequence[str], actor: str
@@ -4697,70 +3802,7 @@ class Engine:
         2. On every key a removed record sat on, the ``disputed`` tag is cleared
            when no live contender is left (the contest was the poison's).
         """
-        storage = self._require_started()
-        restored: list[str] = []
-        for target_id, proof in report.descendants.items():
-            if not proof.startswith("superseded_by_taint@"):
-                continue
-            rec = await storage.get_record(target_id)
-            if (
-                rec is None
-                or rec.status is not RecordStatus.ARCHIVED
-                or rec.quarantined
-                or rec.entity is None
-                or rec.attribute is None
-            ):
-                continue
-            holder = await storage.find_active_fact(rec.namespace, rec.entity, rec.attribute)
-            if holder is not None and holder.status is RecordStatus.ACTIVATED:
-                continue
-            await self._append_and_project(
-                MemoryEvent(
-                    kind=EventKind.DECAY_TRANSITION,
-                    namespace=rec.namespace,
-                    actor=actor,
-                    payload={
-                        "record_id": target_id,
-                        "set": {
-                            "status": RecordStatus.ACTIVATED.value,
-                            "valid_to": None,
-                            "superseded_at": None,
-                            "evolve_to": None,
-                        },
-                        "transition": "archived->activated",
-                        "reason": f"taint_restore:{seed}",
-                    },
-                )
-            )
-            restored.append(target_id)
-        keys: set[tuple[str, str, str]] = set()
-        for rid in removed:
-            rec = await storage.get_record(rid)
-            if rec is not None and rec.memory_type == "semantic" and rec.entity and rec.attribute:
-                keys.add((rec.namespace, rec.entity, rec.attribute))
-        for ns, entity, attribute in sorted(keys):
-            live = [
-                r
-                for r in await storage.list_records(ns, "semantic")
-                if r.entity == entity
-                and r.attribute == attribute
-                and r.status is RecordStatus.ACTIVATED
-                and not r.quarantined
-                and "disputed" in r.tags
-            ]
-            if any(r.valid_to is not None for r in live):
-                continue  # a clean contender still disputes the key
-            for r in live:
-                cleared = r.model_copy(update={"tags": [t for t in r.tags if t != "disputed"]})
-                await self._append_and_project(
-                    MemoryEvent(
-                        kind=EventKind.WRITE,
-                        namespace=ns,
-                        actor=actor,
-                        payload={"record": cleared.model_dump(mode="json")},
-                    )
-                )
-        return restored
+        return await trust_quarantine._undo_displacement(self, seed, report, removed, actor)
 
     async def verify_integrity(
         self, key: bytes | None = None, expected_head: str | None = None
@@ -4774,22 +3816,7 @@ class Engine:
         to detect any later rewrite of history. Without ``key`` the head is only
         meaningful against such an external anchor.
         """
-        storage = self._require_started()
-        events: list[MemoryEvent] = []
-        after = 0
-        while True:
-            batch = await storage.read_events(after_seq=after, limit=1000)
-            if not batch:
-                break
-            events.extend(batch)
-            after = max(event.seq for event in batch if event.seq is not None)
-        policy = self._integrity()
-        view = (
-            policy.view_trust
-            if policy.enabled
-            else (lambda t, g, r: t if g == r else min(t, constants.TRUST_RETRIEVED_CAP))
-        )
-        return verify_events(events, view, key=key, expected_head=expected_head)
+        return await trust_quarantine.verify_integrity(self, key, expected_head)
 
     async def repair_taint(
         self,
@@ -5029,17 +4056,7 @@ class Engine:
         and reflections get the SAME anomaly context as Engine.write — a
         context-free assess would silently disable the embedding-outlier and
         MINJA defenses on exactly the RAG-poisoning surface."""
-        verdict = await self._assess_write(record)
-        if verdict.quarantine:
-            # Same loud signal as _write_locked — a quarantined ingest chunk or
-            # reflection must never look like a normal write in the logs.
-            _log.warning(
-                "memory.quarantined",
-                namespace=record.namespace,
-                record_id=record.record_id,
-                reasons=verdict.reasons,
-            )
-        return verdict.apply(record)
+        return await trust_firewall._gated_assess(self, record)
 
     async def _corroborate(self, namespace: str, incoming: MemoryRecord) -> None:
         """E1 promotion path: a trusted write that independently asserts what a
@@ -5053,153 +4070,22 @@ class Engine:
         floor, an attacker confined to retrieved/web/tool input cannot
         corroborate at all.
         """
-        # Only genuinely privileged roles corroborate: operator/system/user.
-        # assistant/tool (LLM- or tool-authored, the indirect-injection surface)
-        # are excluded even on internal channels — an injection-influenced
-        # assistant must not vote poison out of quarantine (empirically found).
-        if (
-            incoming.trust < constants.TRUST_DEFAULT
-            or incoming.quarantined
-            or incoming.source.role not in _CORROBORATION_ROLES
-        ):
-            return
-        storage = self._require_started()
-        integrity = self._integrity()
-        for held in await storage.list_quarantined(namespace):
-            if not held.quarantined or held.status is not RecordStatus.QUARANTINED:
-                continue
-            # Independence: a record cannot corroborate itself, and neither can
-            # a write from the identical source signature (same role+channel+
-            # message) — that is a replay, not an independent second opinion.
-            if incoming.record_id == held.record_id:
-                continue
-            if (
-                incoming.source.role == held.source.role
-                and incoming.source.channel == held.source.channel
-                and incoming.source.message_id == held.source.message_id
-            ):
-                continue
-            same_content = held.content_fingerprint == incoming.content_fingerprint
-            # (entity, attribute) keys are only comparable within one memory
-            # type — a semantic fact keyed ("release", "skill") must never
-            # corroborate a quarantined *procedural* skill of the same name.
-            # B-1: an attribute-less record (a mined event fact) has no key, so
-            # only a content-fingerprint match corroborates it; otherwise any
-            # trusted write about the same person would count (None == None).
-            # #3: a key match alone is not agreement. Two writes on the same key
-            # with different values contradict each other; only a write that
-            # states the same VALUE corroborates.
-            same_fact = (
-                held.memory_type == incoming.memory_type
-                and held.entity is not None
-                and held.attribute is not None
-                and held.entity == incoming.entity
-                and held.attribute == incoming.attribute
-                and _fact_value(held.content) == _fact_value(incoming.content)
-            )
-            if not (same_content or same_fact):
-                continue
-            principal_bound = integrity.enabled and integrity.principal_bound_corroboration
-            if principal_bound and not await self._independent_principal(held, incoming):
-                continue
-            by_roots = integrity.corroboration_roots
-            if by_roots and not await self._independent_roots(held, incoming):
-                continue
-            count = held.corroborations + 1
-            change: dict[str, object] = {"corroborations": count}
-            promoted = self._firewall.policy.may_promote(
-                held.model_copy(update={"corroborations": count})
-            )
-            if promoted:
-                change.update(await self._release_change(namespace, held))
-            payload: dict[str, object] = {
-                "record_id": held.record_id,
-                "set": change,
-                "transition": "quarantined->activated" if promoted else "corroborated",
-                "reason": "quarantine_promoted" if promoted else "corroborated",
-            }
-            if principal_bound:
-                # Durable record of who vouched: the next corroborator is checked
-                # against it (replay-safe, no in-memory state).
-                payload["principal"] = incoming.source.principal
-            if by_roots:
-                # W13: the roots that vouched, so the next corroborator is checked;
-                # N25: and its wording, so a near-copy of it does not vouch again.
-                payload["roots"] = sorted(await self._lineage_roots(incoming))
-                payload["words"] = sorted(content_words(incoming.content))
-            await self._append_and_project(
-                MemoryEvent(
-                    kind=EventKind.DECAY_TRANSITION,
-                    namespace=namespace,
-                    actor="system",
-                    payload=payload,
-                )
-            )
-            _log.info(
-                "memory.quarantine_promoted" if promoted else "memory.corroborated",
-                namespace=namespace,
-                record_id=held.record_id,
-                corroborations=count,
-            )
+        return await trust_firewall._corroborate(self, namespace, incoming)
 
     async def _release_change(self, namespace: str, held: MemoryRecord) -> dict[str, object]:
         """The lifecycle delta that lifts ``held`` out of quarantine (corroboration
         promotion or an operator approval)."""
-        storage = self._require_started()
-        change: dict[str, object] = {"quarantined": False}
-        if held.memory_type == "procedural" and held.skill_stage is not None:
-            # M13.4: release only lifts the quarantine; it must never skip the
-            # ladder. The record resumes the status its stage implies (RESOLVING
-            # pre-active), and still has to be promoted through verified + the
-            # dry-run gate to surface.
-            change["status"] = stage_status(held.skill_stage).value
-        elif held.memory_type == "semantic":
-            # If the corroborators themselves established an active fact on the
-            # same key, the released record joins the history as its corroborated
-            # predecessor, never a second active fact.
-            incumbent = None
-            if held.entity is not None and held.attribute is not None:
-                incumbent = await storage.find_active_fact(namespace, held.entity, held.attribute)
-            if incumbent is not None and incumbent.record_id != held.record_id:
-                change["status"] = RecordStatus.ARCHIVED.value
-                change["evolve_to"] = incumbent.record_id
-                # Clamp so a held record newer than the incumbent never gets an
-                # inverted (valid_to < valid_from) interval.
-                close_at = max(held.valid_from, incumbent.valid_from)
-                change["valid_to"] = close_at.isoformat()
-            else:
-                change["status"] = RecordStatus.ACTIVATED.value
-        else:
-            # Non-fact types (episodic, prospective watches, ...): the
-            # single-active-fact invariant is semantic-only (ADR-016); a semantic
-            # incumbent must never archive e.g. a watch that merely reuses the key
-            # columns as its watched target.
-            change["status"] = RecordStatus.ACTIVATED.value
-        return change
+        return await trust_firewall._release_change(self, namespace, held)
 
     async def list_quarantined(self, namespace: str = "default") -> list[MemoryRecord]:
         """#3: the records of ``namespace`` the firewall (or an operator) is holding,
         oldest first: the review queue for :meth:`approve_quarantined` and
         :meth:`reject_quarantined`."""
-        storage = self._require_started()
-        ns = validate_namespace(namespace)
-        held = [
-            r for r in await storage.list_quarantined(ns) if r.status is RecordStatus.QUARANTINED
-        ]
-        held.sort(key=lambda r: (r.recorded_at, r.record_id))
-        return self._inflate_all(held, ns)
+        return await trust_quarantine.list_quarantined(self, namespace)
 
     async def _held_record(self, ns: str, record_id: str) -> MemoryRecord:
         """A record of ``ns`` currently held in quarantine, or the anti-oracle error."""
-        record = await self._require_started().get_record(record_id)
-        if (
-            record is None
-            or record.namespace != ns
-            or not record.quarantined
-            or record.status is not RecordStatus.QUARANTINED
-        ):
-            raise ConflictError(f"no quarantined record {record_id!r} in namespace {ns!r}")
-        return record
+        return await trust_quarantine._held_record(self, ns, record_id)
 
     async def approve_quarantined(
         self,
@@ -5220,37 +4106,9 @@ class Engine:
         knows it. A reviewer whose principal (or actor) is the held record's
         ``source.principal`` is refused with ``ConflictError``: an author cannot
         release its own held write."""
-        ns = validate_namespace(namespace)
-        async with self._write_locks.setdefault(ns, asyncio.Lock()):
-            held = await self._held_record(ns, record_id)
-            author = held.source.principal
-            if author is not None and author in (principal, actor):
-                raise ConflictError(
-                    f"record {record_id!r} was written by {author!r}, who cannot approve it"
-                )
-            change = await self._release_change(ns, held)
-            await self._append_and_project(
-                MemoryEvent(
-                    kind=EventKind.DECAY_TRANSITION,
-                    namespace=ns,
-                    actor=actor,
-                    payload={
-                        "record_id": record_id,
-                        "set": change,
-                        "transition": "quarantined->released",
-                        "reason": reason,
-                    },
-                )
-            )
-            _log.warning(
-                "memory.quarantine_approved", namespace=ns, record_id=record_id, actor=actor
-            )
-            updated = await self._require_started().get_record(record_id)
-            assert updated is not None
-        await self._audit_action(
-            "approve_quarantined", ns, [record_id], actor=actor, reason=reason, principal=principal
+        return await trust_quarantine.approve_quarantined(
+            self, record_id, namespace, actor, reason, principal
         )
-        return updated
 
     async def reject_quarantined(
         self,
@@ -5265,35 +4123,7 @@ class Engine:
         ``quarantine_rejected``, so no later corroboration can release it and the
         audit trail keeps it; ``forget(hard=True)`` erases it. A missing, foreign
         or not-held id raises ``ConflictError``."""
-        ns = validate_namespace(namespace)
-        async with self._write_locks.setdefault(ns, asyncio.Lock()):
-            held = await self._held_record(ns, record_id)
-            change: dict[str, object] = {
-                "status": RecordStatus.ARCHIVED.value,
-                "tags_add": [_QUARANTINE_REJECTED_TAG],
-            }
-            if held.valid_to is None:
-                change["valid_to"] = held.valid_from.isoformat()
-            await self._append_and_project(
-                MemoryEvent(
-                    kind=EventKind.DECAY_TRANSITION,
-                    namespace=ns,
-                    actor=actor,
-                    payload={
-                        "record_id": record_id,
-                        "set": change,
-                        "transition": "quarantined->rejected",
-                        "reason": reason,
-                    },
-                )
-            )
-            _log.warning(
-                "memory.quarantine_rejected", namespace=ns, record_id=record_id, actor=actor
-            )
-            updated = await self._require_started().get_record(record_id)
-            assert updated is not None
-        await self._audit_action("reject_quarantined", ns, [record_id], actor=actor, reason=reason)
-        return updated
+        return await trust_quarantine.reject_quarantined(self, record_id, namespace, actor, reason)
 
     async def feedback(
         self,
@@ -5432,16 +4262,7 @@ class Engine:
     ) -> MemoryRecord:
         """Store a skill at ``draft`` (M13.4). It must climb the ladder —
         staged → verified → dry-run-gated active — before it is ever offered."""
-        return await self._write_procedural(
-            make_skill_record(
-                validate_namespace(namespace),
-                name,
-                content,
-                kind="skill",
-                source=source or SourceInfo(role=actor),
-            ),
-            actor,
-        )
+        return await memory_procedural.add_skill(self, content, name, namespace, actor, source)
 
     async def record_plan(
         self,
@@ -5457,26 +4278,10 @@ class Engine:
         held out of every retrieval surface — like E1 quarantine — until they
         are promoted through ``verified`` and the dry-run gate into ``active``.
         """
-        return await self._write_procedural(
-            make_skill_record(
-                validate_namespace(namespace),
-                task,
-                content,
-                kind="plan",
-                source=source or SourceInfo(role=actor),
-            ),
-            actor,
-        )
+        return await memory_procedural.record_plan(self, task, content, namespace, actor, source)
 
     async def _write_procedural(self, record: MemoryRecord, actor: str) -> MemoryRecord:
-        storage = self._require_started()
-        if self._procedural is None:
-            raise MemspineError(
-                "procedural memory not enabled — set memories.procedural.enabled: true"
-            )
-        ns = record.namespace
-        async with self._write_locks.setdefault(ns, asyncio.Lock()):
-            return await self._write_locked(storage, ns, record, "procedural", actor)
+        return await memory_procedural._write_procedural(self, record, actor)
 
     async def promote_skill(
         self,
@@ -5486,27 +4291,11 @@ class Engine:
     ) -> MemoryRecord:
         """One legal step up draft→staged→verified→active; verified→active
         requires ``dry_run_passed=True`` (M13.4)."""
-        self._require_started()
-        if self._procedural is None:
-            raise MemspineError(
-                "procedural memory not enabled — set memories.procedural.enabled: true"
-            )
-        ns = validate_namespace(namespace)
-        async with self._write_locks.setdefault(ns, asyncio.Lock()):
-            return await self._procedural.promote(
-                record_id, namespace=ns, dry_run_passed=dry_run_passed
-            )
+        return await memory_procedural.promote_skill(self, record_id, namespace, dry_run_passed)
 
     async def deprecate_skill(self, record_id: str, namespace: str = "default") -> MemoryRecord:
         """Retire a skill/plan (terminal, M13.4)."""
-        self._require_started()
-        if self._procedural is None:
-            raise MemspineError(
-                "procedural memory not enabled — set memories.procedural.enabled: true"
-            )
-        ns = validate_namespace(namespace)
-        async with self._write_locks.setdefault(ns, asyncio.Lock()):
-            return await self._procedural.deprecate(record_id, namespace=ns)
+        return await memory_procedural.deprecate_skill(self, record_id, namespace)
 
     async def skills(
         self,
@@ -5515,15 +4304,7 @@ class Engine:
         usable_only: bool = True,
     ) -> list[MemoryRecord]:
         """Procedural records; by default only the usable (ACTIVE) set (M13.4)."""
-        self._require_started()
-        if self._procedural is None:
-            raise MemspineError(
-                "procedural memory not enabled — set memories.procedural.enabled: true"
-            )
-        ns = validate_namespace(namespace)
-        return self._inflate_all(
-            await self._procedural.list(ns, kind=kind, usable_only=usable_only), ns
-        )
+        return await memory_procedural.skills(self, namespace, kind, usable_only)
 
     async def recall_plan(
         self,
@@ -5591,35 +4372,20 @@ class Engine:
 
     def _procedural_policy(self) -> dict[str, Any]:
         """``memories.procedural.policies`` as configured (empty when unset)."""
-        return self._memory_policy(self._config(), "procedural")
+        return memory_procedural._procedural_policy(self)
 
     def _require_procedural(self) -> ProceduralMemory:
-        self._require_started()
-        if self._procedural is None:
-            raise MemspineError(
-                "procedural memory not enabled — set memories.procedural.enabled: true"
-            )
-        return self._procedural
+        return memory_procedural._require_procedural(self)
 
     @staticmethod
     def _is_live_advisory(record: MemoryRecord, kind: str) -> bool:
         """A lesson / exemplar that is still offered: advisory stage, held status
         (out of ordinary search), never quarantined, not retired."""
-        return (
-            record.attribute == kind
-            and record.skill_stage is SkillStage.ADVISORY
-            and record.status is RecordStatus.RESOLVING
-            and not record.quarantined
-        )
+        return memory_procedural._is_live_advisory(record, kind)
 
     async def _append_feedback(self, ns: str, record_id: str, signal: str, note: str = "") -> None:
         """N28: one FEEDBACK event (caller holds the namespace write lock)."""
-        payload: dict[str, object] = {"record_id": record_id, "signal": signal}
-        if note:
-            payload["content"] = note[: constants.FEEDBACK_NOTE_MAX_CHARS]
-        await self._append_and_project(
-            MemoryEvent(kind=EventKind.FEEDBACK, namespace=ns, actor="system", payload=payload)
-        )
+        return await memory_procedural._append_feedback(self, ns, record_id, signal, note)
 
     async def record_outcome(
         self,
@@ -5653,63 +4419,27 @@ class Engine:
         a repeat note to it instead of a new row. Returns the lesson (new or
         repeated) or None when ``lesson`` is false.
         """
-        procedural = self._require_procedural()
-        receipt = OutcomeReceipt(
-            task=task,
-            outcome=outcome,  # type: ignore[arg-type]  # validated by the receipt
+        return await memory_procedural.record_outcome(
+            self,
+            task,
+            outcome,
+            namespace,
             action=action,
             error=error,
             next_action=next_action,
             reward=reward,
             tool=tool,
+            used_ids=used_ids,
+            derived_from=derived_from,
+            lesson=lesson,
+            actor=actor,
         )
-        ns = validate_namespace(namespace)
-        storage = self._require_started()
-        signal = "like" if receipt.outcome == "success" else "dislike"
-        auto_verify = bool(self._procedural_policy().get("auto_verify_on_reward"))
-        async with self._write_locks.setdefault(ns, asyncio.Lock()):
-            for record_id in dict.fromkeys(used_ids):
-                used = await storage.get_record(record_id)
-                if used is None or used.namespace != ns or used.memory_type != "procedural":
-                    raise ConflictError(f"no such procedural record {record_id!r} in {ns!r}")
-                await self._append_feedback(ns, record_id, signal)
-                if (
-                    auto_verify
-                    and reward is not None
-                    and reward >= constants.OUTCOME_AUTO_VERIFY_REWARD
-                    and used.attribute == "plan"
-                    and used.skill_stage is SkillStage.STAGED
-                    and not used.quarantined
-                ):
-                    await procedural.promote(record_id, namespace=ns)
-        if not lesson:
-            return None
-        key = f"{constants.LESSON_KEY_TAG_PREFIX}{lesson_key(receipt)}"
-        trust_cap = await self._parent_trust_cap(ns, list(derived_from))
-        async with self._write_locks.setdefault(ns, asyncio.Lock()):
-            repeat = await self._repeat_lesson(storage, ns, key, f"repeat:{receipt.outcome}")
-            if repeat is not None:
-                return repeat
-            record = make_skill_record(
-                ns,
-                receipt.task.strip(),
-                lesson_text(receipt),
-                kind="lesson",
-                source=SourceInfo(role=actor, channel="lesson", parents=list(derived_from)),
-            ).model_copy(update={"tags": [constants.LESSON_TAG, key, f"outcome:{outcome}"]})
-            return await self._write_locked(
-                storage, ns, record, "procedural", actor, trust_cap=trust_cap
-            )
 
     async def _repeat_lesson(
         self, storage: SqlStorage, ns: str, key_tag: str, note: str
     ) -> MemoryRecord | None:
         """N28: the live lesson carrying ``key_tag`` with one more repeat note, or None."""
-        for existing in await storage.list_records(ns, "procedural"):
-            if key_tag in existing.tags and self._is_live_advisory(existing, "lesson"):
-                await self._append_feedback(ns, existing.record_id, "note", note)
-                return await storage.get_record(existing.record_id)
-        return None
+        return await memory_procedural._repeat_lesson(self, storage, ns, key_tag, note)
 
     async def _quarantine_lesson(
         self, storage: SqlStorage, ns: str, held: MemoryRecord, reasons: list[str]
@@ -5718,17 +4448,7 @@ class Engine:
         verdict becomes an advisory lesson naming the source, the reasons and the
         content hash, never the held text. Repeats from one source signature add
         notes (N28). The caller holds the namespace write lock."""
-        key = f"{constants.LESSON_KEY_TAG_PREFIX}{quarantine_lesson_key(held, reasons)}"
-        if await self._repeat_lesson(storage, ns, key, "repeat:quarantine") is not None:
-            return
-        record = make_skill_record(
-            ns,
-            f"content held from {source_signature(held)}",
-            quarantine_lesson_text(held, reasons),
-            kind="lesson",
-            source=SourceInfo(role="system", channel="firewall"),
-        ).model_copy(update={"tags": [constants.LESSON_TAG, key, "outcome:quarantine"]})
-        await self._write_locked(storage, ns, record, "procedural", "system")
+        return await memory_procedural._quarantine_lesson(self, storage, ns, held, reasons)
 
     async def _similar_advisory(
         self, ns: str, query: str, kind: str, min_similarity: float
@@ -5761,25 +4481,7 @@ class Engine:
         """W17a: the live lessons whose task trigger is most similar to ``task``,
         ranked by ``cos x (1 + helpful) / (1 + harmful)`` (N28), at most ``k``.
         Each returned lesson's use rides the log as a RETRIEVE."""
-        self._require_procedural()
-        ns = validate_namespace(namespace)
-        scored = [
-            (record, outcome_rank(sim, record.scoring.likes, record.scoring.dislikes))
-            for record, sim in await self._similar_advisory(ns, task, "lesson", min_similarity)
-            if not failures_dominate(record.scoring.likes, record.scoring.dislikes)
-        ]
-        scored.sort(key=lambda pair: (-pair[1], pair[0].recorded_at))
-        top = scored[: max(0, k)]
-        if top:
-            await self._append_and_project(
-                MemoryEvent(
-                    kind=EventKind.RETRIEVE,
-                    namespace=ns,
-                    actor="system",
-                    payload={"record_ids": [r.record_id for r, _ in top]},
-                )
-            )
-        return [(self._inflate.inflate(r), s) for r, s in top]
+        return await memory_procedural.recall_lessons(self, task, namespace, k, min_similarity)
 
     async def recall_plans(
         self,
@@ -5850,23 +4552,7 @@ class Engine:
         """N28: retire (deprecate, terminal) plans and lessons whose failures
         dominate, or that were used at least ``OUTCOME_RETIRE_MIN_USED`` times with
         a helpful share below ``OUTCOME_RETIRE_MIN_RATIO``. Returns retired ids."""
-        procedural = self._require_procedural()
-        ns = validate_namespace(namespace)
-        retired: list[str] = []
-        async with self._write_locks.setdefault(ns, asyncio.Lock()):
-            for record in await procedural.list(ns):
-                if record.attribute not in ("plan", "lesson") or record.skill_stage in (
-                    None,
-                    SkillStage.DEPRECATED,
-                ):
-                    continue
-                score = record.scoring
-                if failures_dominate(score.likes, score.dislikes) or should_retire(
-                    score.likes, score.access_count
-                ):
-                    await procedural.deprecate(record.record_id, namespace=ns)
-                    retired.append(record.record_id)
-        return retired
+        return await memory_procedural.prune_experience(self, namespace)
 
     async def record_trajectory(
         self,
@@ -5887,50 +4573,17 @@ class Engine:
         deterministic manifest of :func:`trajectory_manifest`. Returns the head
         first, then the steps; pass the step ids as ``derived_from`` of the plan or
         lesson the run produced."""
-        self._require_started()
-        if self._episodic is None:
-            raise MemspineError("episodic memory not enabled — set memories.episodic.enabled: true")
-        parsed = [
-            step
-            if isinstance(step, TrajectoryStep)
-            else TrajectoryStep(
-                action=step["action"], page=step.get("page"), observation=step.get("observation")
-            )
-            for step in steps
-        ]
-        if not parsed:
-            raise ConflictError("a trajectory needs at least one step")
-        group = trajectory_id or f"trajectory:{new_record_id()}"
-        source = SourceInfo(role=actor, channel="trajectory")
-        head = await self.write(
-            trajectory_manifest(goal, parsed, outcome, reward=reward, start=start),
-            namespace=namespace,
-            memory_type="episodic",
-            source=source,
+        return await memory_procedural.record_trajectory(
+            self,
+            goal,
+            steps,
+            outcome,
+            namespace,
+            reward=reward,
+            trajectory_id=trajectory_id,
+            start=start,
             actor=actor,
-            group_id=group,
-            tags=[constants.TRAJECTORY_HEAD_TAG],
         )
-        records = [head]
-        previous: str | None = None
-        for index, step in enumerate(parsed):
-            diff = observation_diff(previous, step.observation)
-            previous = step.observation if step.observation is not None else previous
-            records.append(
-                await self.write(
-                    step_text(index, step, diff),
-                    namespace=namespace,
-                    memory_type="episodic",
-                    source=source,
-                    actor=actor,
-                    group_id=group,
-                    tags=[
-                        constants.TRAJECTORY_STEP_TAG,
-                        f"{constants.TRAJECTORY_STEP_PREFIX}{index}",
-                    ],
-                )
-            )
-        return records
 
     async def trajectory_window(
         self,
@@ -5942,82 +4595,17 @@ class Engine:
         """N27: the steps around a trajectory hit (a step: within ``radius``; the
         head: the first steps), inside its group only, at most ``cap`` states, in
         step order. A record outside any trajectory gives an empty list."""
-        storage = self._require_started()
-        ns = validate_namespace(namespace)
-        hit = await storage.get_record(record_id)
-        if hit is None or hit.namespace != ns or hit.group_id is None:
-            return []
-        is_head = constants.TRAJECTORY_HEAD_TAG in hit.tags
-        if not is_head and constants.TRAJECTORY_STEP_TAG not in hit.tags:
-            return []
-        steps: dict[int, MemoryRecord] = {}
-        for record in await storage.list_records(ns, "episodic", hit.group_id):
-            index = step_index(record.tags)
-            if (
-                index is not None
-                and constants.TRAJECTORY_STEP_TAG in record.tags
-                and record.status is RecordStatus.ACTIVATED
-                and not record.quarantined
-            ):
-                steps[index] = record
-        wanted = window_indices(
-            list(steps), None if is_head else step_index(hit.tags), radius=radius, cap=cap
-        )
-        return self._inflate_all([steps[i] for i in wanted], ns)
+        return await memory_procedural.trajectory_window(self, record_id, namespace, radius, cap)
 
     async def _task_state_record(self, ns: str, task_id: str) -> MemoryRecord | None:
-        storage = self._require_started()
-        for record in await storage.list_records(ns, "working", task_id):
-            if (
-                record.source.channel == constants.TASK_STATE_CHANNEL
-                and record.status is not RecordStatus.DELETED
-            ):
-                return record
-        return None
+        return await memory_procedural._task_state_record(self, ns, task_id)
 
     async def _put_task_state(
         self, ns: str, state: TaskState, prior: MemoryRecord | None, reason: str
     ) -> MemoryRecord:
         """Keyed supersede in place (the persona pattern): one stable record per
         task, the prior state archived to its history, every version on the log."""
-        text = state.model_dump_json()
-        if prior is not None:
-            record = prior.model_copy(
-                update={
-                    "content": text,
-                    "content_fingerprint": fingerprint_payload({"content": text}),
-                    "version": prior.version + 1,
-                    "history": [
-                        *prior.history,
-                        ArchivedVersion(
-                            version=prior.version,
-                            content=prior.content,
-                            archived_at=datetime.now(UTC),
-                            reason=reason,
-                        ),
-                    ],
-                }
-            )
-        else:
-            record = MemoryRecord(
-                namespace=ns,
-                memory_type="working",
-                content=text,
-                entity=state.task_id,
-                attribute="state",
-                group_id=state.task_id,
-                source=SourceInfo(role="system", channel=constants.TASK_STATE_CHANNEL),
-            )
-        await self._append_and_project(
-            MemoryEvent(
-                kind=EventKind.WRITE,
-                namespace=ns,
-                actor="system",
-                payload={"record": record.model_dump(mode="json")},
-            )
-        )
-        _log.info(EVENT_WRITE, namespace=ns, record_id=record.record_id, task_state=True)
-        return record
+        return await memory_procedural._put_task_state(self, ns, state, prior, reason)
 
     async def set_task_state(
         self,
@@ -6034,29 +4622,19 @@ class Engine:
         working memory (channel ``task_state``, ``group_id`` = ``task_id``); with
         ``memories.procedural.policies.task_state`` a read whose ``session_id`` is
         the task pins it right after the persona."""
-        self._require_started()
-        ns = validate_namespace(namespace)
-        state = TaskState(
-            task_id=task_id,
-            goal=goal,
-            constraints=list(constraints),
-            subgoals=[
-                Subgoal(id=item)
-                if isinstance(item, str)
-                else Subgoal(id=item["id"], description=item.get("description", ""))
-                for item in subgoals
-            ],
+        return await memory_procedural.set_task_state(
+            self,
+            task_id,
+            goal,
+            namespace,
+            subgoals=subgoals,
+            constraints=constraints,
             budget_left=budget_left,
         )
-        async with self._write_locks.setdefault(ns, asyncio.Lock()):
-            prior = await self._task_state_record(ns, task_id)
-            await self._put_task_state(ns, state, prior, "task_state_reset")
-        return state
 
     async def task_state(self, task_id: str, namespace: str = "default") -> TaskState | None:
         """W17e: the current state of ``task_id`` (None when never opened)."""
-        record = await self._task_state_record(validate_namespace(namespace), task_id)
-        return None if record is None else TaskState.model_validate_json(record.content)
+        return await memory_procedural.task_state(self, task_id, namespace)
 
     async def update_subgoal(
         self,
@@ -6071,53 +4649,28 @@ class Engine:
     ) -> TaskState:
         """W17e: move one subgoal to ``pending`` / ``done`` / ``failed`` (a keyed
         supersede of the task state). ``done`` requires ``receipt_id``."""
-        if status not in ("pending", "done", "failed"):
-            raise ConflictError(f"subgoal status must be pending, done or failed, got {status!r}")
-        ns = validate_namespace(namespace)
-        async with self._write_locks.setdefault(ns, asyncio.Lock()):
-            prior = await self._task_state_record(ns, task_id)
-            if prior is None:
-                raise ConflictError(f"no task state {task_id!r} in namespace {ns!r}")
-            state = update_subgoal(
-                TaskState.model_validate_json(prior.content),
-                subgoal_id,
-                status,  # type: ignore[arg-type]  # checked above
-                at=datetime.now(UTC),
-                receipt_id=receipt_id,
-                result=result,
-            )
-            if budget_left is not None:
-                state = state.model_copy(update={"budget_left": budget_left})
-            await self._put_task_state(ns, state, prior, f"subgoal:{subgoal_id}->{status}")
-        return state
+        return await memory_procedural.update_subgoal(
+            self,
+            task_id,
+            subgoal_id,
+            status,
+            namespace,
+            receipt_id=receipt_id,
+            result=result,
+            budget_left=budget_left,
+        )
 
     async def close_task(self, task_id: str, namespace: str = "default") -> TaskState:
         """W17e: close the task (an explicit done, or a fired prospective watch):
         the state stays on the log but is no longer pinned in reads."""
-        ns = validate_namespace(namespace)
-        async with self._write_locks.setdefault(ns, asyncio.Lock()):
-            prior = await self._task_state_record(ns, task_id)
-            if prior is None:
-                raise ConflictError(f"no task state {task_id!r} in namespace {ns!r}")
-            state = TaskState.model_validate_json(prior.content).model_copy(update={"closed": True})
-            await self._put_task_state(ns, state, prior, "task_closed")
-        return state
+        return await memory_procedural.close_task(self, task_id, namespace)
 
     async def task_search(
         self, task_id: str, query: str, namespace: str = "default", top_k: int = 10
     ) -> list[tuple[MemoryRecord, float]]:
         """W17e: a read scoped to the task first (``group_id`` = ``task_id``), then
         filled from the whole namespace (MemoryArena: all@10 = 0 unscoped)."""
-        scoped = await self.search(query, namespace=namespace, top_k=top_k, group_id=task_id)
-        if len(scoped) >= top_k:
-            return scoped[:top_k]
-        seen = {record.record_id for record, _ in scoped}
-        rest = [
-            pair
-            for pair in await self.search(query, namespace=namespace, top_k=top_k)
-            if pair[0].record_id not in seen
-        ]
-        return [*scoped, *rest][:top_k]
+        return await memory_procedural.task_search(self, task_id, query, namespace, top_k)
 
     async def add_exemplar(
         self,
@@ -6129,14 +4682,7 @@ class Engine:
     ) -> MemoryRecord:
         """W17f: store a labelled exemplar (``kind="mapping"``, advisory stage) in
         the mapping group ``group``, through the firewall like any write."""
-        record = make_skill_record(
-            validate_namespace(namespace),
-            label,
-            text,
-            kind="mapping",
-            source=SourceInfo(role=actor, channel="mapping"),
-        ).model_copy(update={"group_id": f"mapping:{group}"})
-        return await self._write_procedural(record, actor)
+        return await memory_procedural.add_exemplar(self, text, label, namespace, group, actor)
 
     async def classify(
         self,
@@ -6188,32 +4734,9 @@ class Engine:
         contradiction) releases it from quarantine; ``disputed`` (authoritative
         support and a contradiction) and ``pending_evidence`` leave it held.
         Supporters outside the namespace, held or not live count for nothing."""
-        storage = self._require_started()
-        ns = validate_namespace(namespace)
-        await self._held_record(ns, record_id)
-        policy = self._firewall.policy
-        tiers: list[int | None] = []
-        for support_id in supporting_ids:
-            support = await storage.get_record(support_id)
-            if (
-                support is not None
-                and support.namespace == ns
-                and support.status is RecordStatus.ACTIVATED
-                and not support.quarantined
-            ):
-                tiers.append(policy.source_tier(support))
-        contradicted = False
-        for other_id in contradicting_ids:
-            other = await storage.get_record(other_id)
-            if other is not None and other.namespace == ns and not other.quarantined:
-                contradicted = True
-        verdict = policy.evidence_verdict(tiers, contradicted)
-        if verdict == "promote":
-            await self.approve_quarantined(
-                record_id, namespace=ns, actor="system", reason="evidence_promoted"
-            )
-        _log.info("memory.evidence_review", namespace=ns, record_id=record_id, verdict=verdict)
-        return verdict
+        return await trust_firewall.review_evidence(
+            self, record_id, supporting_ids, contradicting_ids, namespace
+        )
 
     async def _apply_correction(
         self,
@@ -6347,37 +4870,9 @@ class Engine:
         gate (E1) — instruction-shaped watch content is quarantined and can
         never fire.
         """
-        storage = self._require_started()
-        self._require_prospective()  # enablement check — the write rides the normal door
-        ns = validate_namespace(namespace)
-        record = make_watch_record(
-            ns,
-            content,
-            due_at=due_at,
-            entity=entity,
-            attribute=attribute,
-            source=source or SourceInfo(role=actor),
+        return await memory_prospective.watch(
+            self, content, namespace, due_at, entity, attribute, actor, source
         )
-        # SF-1/ADR-018: an invalidation (target) watch reads M4 CONFLICT events
-        # to fire; in ephemeral mode nothing is persisted to read, so it can
-        # never fire. This is documented in ADR-016 but was runtime-silent —
-        # warn once (the engine knows the mode; the pure builder does not).
-        if (
-            due_at is None
-            and entity is not None
-            and not self._ephemeral_watch_warned
-            and self._config().event_log.mode is EventLogMode.EPHEMERAL
-        ):
-            self._ephemeral_watch_warned = True
-            _log.warning(
-                "prospective.ephemeral_invalidation_never_fires",
-                namespace=ns,
-                detail="event_log.mode=ephemeral persists no CONFLICT events — "
-                "invalidation (target) watches can never fire (ADR-016); "
-                "due-time watches are unaffected",
-            )
-        async with self._write_locks.setdefault(ns, asyncio.Lock()):
-            return await self._write_locked(storage, ns, record, "prospective", actor)
 
     async def due(
         self, namespace: str = "default", now: datetime | None = None
@@ -6387,27 +4882,12 @@ class Engine:
         a fired watch stays here until ``acknowledge_watch`` archives it.
         ``now`` defaults to the current UTC instant; pass it explicitly to
         own time (tests always should)."""
-        self._require_started()
-        prospective = self._require_prospective()
-        ns = validate_namespace(namespace)
-        if now is None:
-            now = datetime.now(UTC)
-        elif now.tzinfo is None:
-            # COR-1/ADR-018: watch due times are tz-aware (make_watch_record
-            # rejects naive). Comparing an aware valid_from to a naive `now`
-            # raises deep in the trigger — reject it loudly at the boundary.
-            raise ConflictError("now must be timezone-aware (naive datetimes are ambiguous)")
-        fired = await prospective.pending(ns, now)
-        return self._inflate_all(fired, ns)
+        return await memory_prospective.due(self, namespace, now)
 
     async def acknowledge_watch(self, record_id: str, namespace: str = "default") -> MemoryRecord:
         """Acknowledge a fired watch: archived via a delta event
         (``reason="watch_fired"``), idempotent (M13.8)."""
-        self._require_started()
-        prospective = self._require_prospective()
-        ns = validate_namespace(namespace)
-        async with self._write_locks.setdefault(ns, asyncio.Lock()):
-            return await prospective.acknowledge(record_id, namespace=ns)
+        return await memory_prospective.acknowledge_watch(self, record_id, namespace)
 
     async def grant(
         self,
@@ -6421,29 +4901,7 @@ class Engine:
         (D0.1); enforcement lives in ``core.namespace.grant_allows``. Grant
         content is engine-built canonical JSON — the stated firewall
         exemption shared with prompt sync (ADR-014 §2/ADR-016)."""
-        self._require_started()
-        shared = self._require_shared()
-        grantor = validate_namespace(namespace)
-        grantee = validate_namespace(to_namespace)
-        # Write lock on the GRANTOR namespace: the read-diff-append unit must
-        # not interleave with a concurrent grant/revoke or forget cascade.
-        async with self._write_locks.setdefault(grantor, asyncio.Lock()):
-            record = await shared.grant(
-                grantor,
-                grantee,
-                memory_types=memory_types,
-                source=SourceInfo(role=actor, channel="grant"),
-            )
-        await self._audit_action(
-            "grant",
-            grantor,
-            [record.record_id],
-            actor=actor,
-            reason=None,
-            grantee=grantee,
-            memory_types=sorted(memory_types) if memory_types is not None else None,
-        )
-        return record
+        return await memory_shared.grant(self, to_namespace, namespace, memory_types, actor)
 
     async def revoke(
         self, to_namespace: str, namespace: str = "default", *, actor: str = "user"
@@ -6452,16 +4910,7 @@ class Engine:
         grant record is archived via a delta event; raises when no grant is
         live (a typo'd grantee must not read as success). ``actor`` goes into a
         ``memory.audit`` event under ``audit.actions``."""
-        self._require_started()
-        shared = self._require_shared()
-        grantor = validate_namespace(namespace)
-        grantee = validate_namespace(to_namespace)
-        async with self._write_locks.setdefault(grantor, asyncio.Lock()):
-            record = await shared.revoke(grantor, grantee)
-        await self._audit_action(
-            "revoke", grantor, [record.record_id], actor=actor, reason=None, grantee=grantee
-        )
-        return record
+        return await memory_shared.revoke(self, to_namespace, namespace, actor=actor)
 
     async def shared_search(
         self,
@@ -6476,14 +4925,9 @@ class Engine:
 
         ``purpose`` (#50): the read's purpose, checked under ``consent.enforce``
         for own and foreign records alike."""
-        session_id = ledger_id if ledger_id is not None else session_id  # I9
-        with read_scope(purpose) as outer:
-            results = await self._shared_search(query, namespace, top_k, session_id)
-            results = [pair for pair in results if self._consent_ok(pair[0])]
-            if outer:
-                ids = [r.record_id for r, _ in results]
-                await self._audit_read("shared_search", namespace, ids)
-        return results
+        return await memory_shared.shared_search(
+            self, query, namespace, top_k, session_id, ledger_id, purpose
+        )
 
     async def _shared_search(
         self,
@@ -6603,56 +5047,26 @@ class Engine:
         it enters through the firewall gate like any write. Pull-based: feed
         ``record.content`` to ``shared_search`` yourself; push delivery is
         deferred to the taskiq build."""
-        storage = self._require_started()
-        self._require_shared()
-        ns = validate_namespace(namespace)
-        record = make_subscription_record(ns, query, source=source or SourceInfo(role=actor))
-        async with self._write_locks.setdefault(ns, asyncio.Lock()):
-            return await self._write_locked(storage, ns, record, "shared", actor)
+        return await memory_shared.subscribe(self, query, namespace, actor, source)
 
     async def subscriptions(self, namespace: str = "default") -> list[MemoryRecord]:
         """Live standing-query records in ``namespace`` (ADR-016)."""
-        self._require_started()
-        shared = self._require_shared()
-        ns = validate_namespace(namespace)
-        return self._inflate_all(await shared.subscriptions(ns), ns)
+        return await memory_shared.subscriptions(self, namespace)
 
     async def grants_from(self, namespace: str = "default") -> list[Grant]:
         """The live grants ``namespace`` has issued (operator listing surface,
         R2/ADR-016). Scoped to the grantor — a caller lists only its OWN
         grants, never another namespace's."""
-        self._require_started()
-        shared = self._require_shared()
-        grantor = validate_namespace(namespace)
-        return await shared.grants_from(grantor)
+        return await memory_shared.grants_from(self, namespace)
 
     def _require_prospective(self) -> ProspectiveMemory:
-        if self._prospective is None:
-            raise MemspineError(
-                "prospective memory not enabled — set memories.prospective.enabled: true"
-            )
-        return self._prospective
+        return memory_prospective._require_prospective(self)
 
     async def _lineage_roots(self, record: MemoryRecord) -> frozenset[str]:
         """W13: the records at the top of ``record``'s ``source.parents`` lineage (a
         record with no parents is its own root). Parents no longer stored count as
         roots under their id. Bounded walk (cycles and depth guarded)."""
-        storage = self._require_started()
-        roots: set[str] = set()
-        seen: set[str] = set()
-        frontier: list[tuple[str, list[str]]] = [(record.record_id, list(record.source.parents))]
-        while frontier and len(seen) < constants.LINEAGE_ROOTS_MAX_NODES:
-            rid, parents = frontier.pop()
-            if rid in seen:
-                continue
-            seen.add(rid)
-            if not parents:
-                roots.add(rid)
-                continue
-            for pid in parents:
-                parent = await storage.get_record(pid)
-                frontier.append((pid, list(parent.source.parents) if parent else []))
-        return frozenset(roots)
+        return await trust_quarantine._lineage_roots(self, record)
 
     async def _independent_roots(self, held: MemoryRecord, incoming: MemoryRecord) -> bool:
         """W13 (plan v3.2, ``integrity.corroboration_roots``): the corroborator's
@@ -6692,28 +5106,10 @@ class Engine:
         ``held`` — so k promotions need k distinct principals, not k sessions
         (Paper A, Prop. 4b). Earlier corroborators are read from the log.
         """
-        principal = incoming.source.principal
-        if principal is None or principal == held.source.principal:
-            return False
-        storage = self._require_started()
-        after = 0
-        while True:
-            events = await storage.read_events(after_seq=after, limit=1000)
-            if not events:
-                return True
-            for event in events:
-                if (
-                    event.kind is EventKind.DECAY_TRANSITION
-                    and event.payload.get("record_id") == held.record_id
-                    and event.payload.get("principal") == principal
-                ):
-                    return False
-            after = max(event.seq for event in events if event.seq is not None)
+        return await trust_quarantine._independent_principal(self, held, incoming)
 
     def _require_shared(self) -> SharedMemory:
-        if self._shared is None:
-            raise MemspineError("shared memory not enabled — set memories.shared.enabled: true")
-        return self._shared
+        return memory_shared._require_shared(self)
 
     async def _evolve_links(self, ns: str, record: MemoryRecord) -> None:
         """Bounded A-MEM hook (D-42/ADR-015): after a non-quarantined semantic/
@@ -7072,45 +5468,7 @@ class Engine:
         parents in the record's own namespace count (a foreign id is no oracle).
         The event is returned unchanged when nothing changes, so logs without
         tagged or PII-tiered parents stay byte-identical."""
-        if event.kind is not EventKind.WRITE or self._storage is None:
-            return event
-        snapshot = event.payload.get("record")
-        if not isinstance(snapshot, dict):
-            return event
-        source = snapshot.get("source")
-        raw_parents = source.get("parents") if isinstance(source, dict) else None
-        if not raw_parents or not isinstance(raw_parents, list):
-            return event
-        own_id = snapshot.get("record_id")
-        parents: list[MemoryRecord] = []
-        for parent_id in dict.fromkeys(str(p) for p in raw_parents):
-            if parent_id == own_id:
-                continue
-            parent = await self._storage.get_record(parent_id)
-            if parent is not None and parent.namespace == snapshot.get("namespace"):
-                parents.append(parent)
-        if not parents:
-            return event
-        own_tags = [str(t) for t in snapshot.get("consent_tags") or []]
-        own_tier = str(snapshot.get("pii_tier") or PiiTier.NONE.value)
-        tag_sets: list[Sequence[str]] = [p.consent_tags for p in parents]
-        if own_tags:
-            tag_sets.append(own_tags)
-        tags = inherited_consent(tag_sets, self._config().consent.untagged)
-        tier = inherited_pii([own_tier, *(p.pii_tier for p in parents)]).value
-        if set(tags) == set(own_tags) and tier == own_tier:
-            return event
-        payload = {
-            **event.payload,
-            "record": {
-                **snapshot,
-                "consent_tags": tags if set(tags) != set(own_tags) else own_tags,
-                "pii_tier": tier,
-            },
-        }
-        return event.model_copy(
-            update={"payload": payload, "fingerprint": fingerprint_payload(payload)}
-        )
+        return await trust_firewall._inherit_governance(self, event)
 
     @asynccontextmanager
     async def _projection_batch(self) -> AsyncIterator[None]:
@@ -7170,24 +5528,7 @@ class Engine:
         content, so the deposit is skipped, never written. The skip is logged and,
         under ``audit.actions``, recorded as a ``derived_deposit_skipped`` audit event
         naming the site and the vanished parent ids (ids only, never content)."""
-        storage = self._require_started()
-        gone: list[str] = []
-        for parent_id in dict.fromkeys(parents):
-            parent = await storage.get_record(parent_id)
-            if parent is None or parent.status is not RecordStatus.ACTIVATED or parent.quarantined:
-                gone.append(parent_id)
-        if not gone:
-            return False
-        _log.warning("memory.derived_deposit_skipped", namespace=namespace, site=site, gone=gone)
-        await self._audit_action(
-            "derived_deposit_skipped",
-            namespace,
-            gone,
-            actor="system",
-            reason="parent_not_live",
-            site=site,
-        )
-        return True
+        return await trust_erasure._derived_parents_gone(self, namespace, parents, site)
 
     def _pipeline_ctx(self) -> PipelineContext:
         assert self._storage is not None and self._resolved is not None

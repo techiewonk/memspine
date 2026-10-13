@@ -40,6 +40,9 @@ _CLOCK_MODULES = (
     "memspine.core.policies.decay",
     "memspine.engine",
     "memspine.read.pipeline.legs",
+    "memspine.memory.pipeline.procedural",
+    "memspine.memory.pipeline.prospective",
+    "memspine.memory.pipeline.working",
     "memspine.workers.pipelines",
 )
 
