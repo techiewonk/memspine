@@ -78,6 +78,8 @@ async def _run_session_stage(
     produced = 0
     errors: list[str] = []
     for (namespace, key), member_ids in list(index.sessions.items()):
+        if ctx.scope_namespace is not None and namespace != ctx.scope_namespace:
+            continue  # FU-SLEEP: a scoped sleep job touches only its own namespace
         state = index.state(stage, namespace, key)
         if state is True:
             continue

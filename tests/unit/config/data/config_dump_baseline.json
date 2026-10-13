@@ -36,6 +36,7 @@
   },
   "economy": {
    "budget": null,
+   "ledger_persist": false,
    "ledger_v2": false
   },
   "embedding": {
@@ -231,6 +232,7 @@
    "sleep_manual_only": false,
    "sleep_min_gap_minutes": 60.0,
    "sleep_min_turns": 20,
+   "sleep_scoped": false,
    "sleep_v2": false,
    "standing_idle_after": 5,
    "standing_max_answers": 50,
@@ -655,7 +657,7 @@
    "window_topic_k": 2.0
   }
  },
- "json_schema_sha256": "7b179c79d3f58e9d60ae89381be425893d9c605c1c1b9d52374ff7ac9726f79f",
+ "json_schema_sha256": "daa2131bf5695312359c72f3f7dce7556300afe9b54d610caee6925f820a195b",
  "preset:chat_roles": {
   "audit": {
    "actions": false,
@@ -693,6 +695,7 @@
   },
   "economy": {
    "budget": null,
+   "ledger_persist": false,
    "ledger_v2": false
   },
   "embedding": {
@@ -909,6 +912,7 @@
    "sleep_manual_only": false,
    "sleep_min_gap_minutes": 60.0,
    "sleep_min_turns": 20,
+   "sleep_scoped": false,
    "sleep_v2": false,
    "standing_idle_after": 5,
    "standing_max_answers": 50,
@@ -1380,6 +1384,7 @@
   },
   "economy": {
    "budget": null,
+   "ledger_persist": false,
    "ledger_v2": false
   },
   "embedding": {
@@ -1592,6 +1597,7 @@
    "sleep_manual_only": false,
    "sleep_min_gap_minutes": 60.0,
    "sleep_min_turns": 20,
+   "sleep_scoped": false,
    "sleep_v2": false,
    "standing_idle_after": 5,
    "standing_max_answers": 50,
@@ -2063,6 +2069,7 @@
   },
   "economy": {
    "budget": null,
+   "ledger_persist": false,
    "ledger_v2": false
   },
   "embedding": {
@@ -2275,6 +2282,7 @@
    "sleep_manual_only": false,
    "sleep_min_gap_minutes": 60.0,
    "sleep_min_turns": 20,
+   "sleep_scoped": false,
    "sleep_v2": false,
    "standing_idle_after": 5,
    "standing_max_answers": 50,
@@ -2746,6 +2754,7 @@
   },
   "economy": {
    "budget": null,
+   "ledger_persist": false,
    "ledger_v2": false
   },
   "embedding": {
@@ -2958,6 +2967,7 @@
    "sleep_manual_only": false,
    "sleep_min_gap_minutes": 60.0,
    "sleep_min_turns": 20,
+   "sleep_scoped": false,
    "sleep_v2": false,
    "standing_idle_after": 5,
    "standing_max_answers": 50,
@@ -3429,6 +3439,7 @@
   },
   "economy": {
    "budget": null,
+   "ledger_persist": false,
    "ledger_v2": false
   },
   "embedding": {
@@ -3641,6 +3652,7 @@
    "sleep_manual_only": false,
    "sleep_min_gap_minutes": 60.0,
    "sleep_min_turns": 20,
+   "sleep_scoped": false,
    "sleep_v2": false,
    "standing_idle_after": 5,
    "standing_max_answers": 50,
@@ -4112,6 +4124,7 @@
   },
   "economy": {
    "budget": null,
+   "ledger_persist": false,
    "ledger_v2": false
   },
   "embedding": {
@@ -4324,6 +4337,7 @@
    "sleep_manual_only": false,
    "sleep_min_gap_minutes": 60.0,
    "sleep_min_turns": 20,
+   "sleep_scoped": false,
    "sleep_v2": false,
    "standing_idle_after": 5,
    "standing_max_answers": 50,
@@ -4795,6 +4809,7 @@
   },
   "economy": {
    "budget": null,
+   "ledger_persist": false,
    "ledger_v2": false
   },
   "embedding": {
@@ -5007,6 +5022,7 @@
    "sleep_manual_only": false,
    "sleep_min_gap_minutes": 60.0,
    "sleep_min_turns": 20,
+   "sleep_scoped": false,
    "sleep_v2": false,
    "standing_idle_after": 5,
    "standing_max_answers": 50,
@@ -5478,6 +5494,7 @@
   },
   "economy": {
    "budget": null,
+   "ledger_persist": false,
    "ledger_v2": false
   },
   "embedding": {
@@ -5690,6 +5707,7 @@
    "sleep_manual_only": false,
    "sleep_min_gap_minutes": 60.0,
    "sleep_min_turns": 20,
+   "sleep_scoped": false,
    "sleep_v2": false,
    "standing_idle_after": 5,
    "standing_max_answers": 50,
@@ -6161,6 +6179,7 @@
   },
   "economy": {
    "budget": null,
+   "ledger_persist": false,
    "ledger_v2": false
   },
   "embedding": {
@@ -6373,6 +6392,7 @@
    "sleep_manual_only": false,
    "sleep_min_gap_minutes": 60.0,
    "sleep_min_turns": 20,
+   "sleep_scoped": false,
    "sleep_v2": false,
    "standing_idle_after": 5,
    "standing_max_answers": 50,
@@ -6844,6 +6864,7 @@
   },
   "economy": {
    "budget": null,
+   "ledger_persist": false,
    "ledger_v2": false
   },
   "embedding": {
@@ -7063,6 +7084,7 @@
    "sleep_manual_only": false,
    "sleep_min_gap_minutes": 60.0,
    "sleep_min_turns": 20,
+   "sleep_scoped": false,
    "sleep_v2": false,
    "standing_idle_after": 5,
    "standing_max_answers": 50,
@@ -7536,6 +7558,7 @@
   },
   "economy": {
    "budget": null,
+   "ledger_persist": false,
    "ledger_v2": false
   },
   "embedding": {
@@ -7753,6 +7776,7 @@
    "sleep_manual_only": false,
    "sleep_min_gap_minutes": 60.0,
    "sleep_min_turns": 20,
+   "sleep_scoped": false,
    "sleep_v2": false,
    "standing_idle_after": 5,
    "standing_max_answers": 50,
@@ -8224,6 +8248,7 @@
   },
   "economy": {
    "budget": null,
+   "ledger_persist": false,
    "ledger_v2": false
   },
   "embedding": {
@@ -8432,6 +8457,7 @@
    "sleep_manual_only": false,
    "sleep_min_gap_minutes": 60.0,
    "sleep_min_turns": 20,
+   "sleep_scoped": false,
    "sleep_v2": false,
    "standing_idle_after": 5,
    "standing_max_answers": 50,
@@ -8893,6 +8919,7 @@
   },
   "economy": {
    "budget": null,
+   "ledger_persist": false,
    "ledger_v2": false
   },
   "embedding": {
@@ -9113,6 +9140,7 @@
    "sleep_manual_only": false,
    "sleep_min_gap_minutes": 60.0,
    "sleep_min_turns": 20,
+   "sleep_scoped": false,
    "sleep_v2": false,
    "standing_idle_after": 5,
    "standing_max_answers": 50,
@@ -9584,6 +9612,7 @@
   },
   "economy": {
    "budget": null,
+   "ledger_persist": false,
    "ledger_v2": false
   },
   "embedding": {
@@ -9800,6 +9829,7 @@
    "sleep_manual_only": false,
    "sleep_min_gap_minutes": 60.0,
    "sleep_min_turns": 20,
+   "sleep_scoped": false,
    "sleep_v2": false,
    "standing_idle_after": 5,
    "standing_max_answers": 50,
@@ -10271,6 +10301,7 @@
   },
   "economy": {
    "budget": null,
+   "ledger_persist": false,
    "ledger_v2": false
   },
   "embedding": {
@@ -10491,6 +10522,7 @@
    "sleep_manual_only": false,
    "sleep_min_gap_minutes": 60.0,
    "sleep_min_turns": 20,
+   "sleep_scoped": false,
    "sleep_v2": false,
    "standing_idle_after": 5,
    "standing_max_answers": 50,
@@ -10962,6 +10994,7 @@
   },
   "economy": {
    "budget": null,
+   "ledger_persist": false,
    "ledger_v2": false
   },
   "embedding": {
@@ -11174,6 +11207,7 @@
    "sleep_manual_only": false,
    "sleep_min_gap_minutes": 60.0,
    "sleep_min_turns": 20,
+   "sleep_scoped": false,
    "sleep_v2": false,
    "standing_idle_after": 5,
    "standing_max_answers": 50,
@@ -11645,6 +11679,7 @@
   },
   "economy": {
    "budget": null,
+   "ledger_persist": false,
    "ledger_v2": false
   },
   "embedding": {
@@ -11858,6 +11893,7 @@
    "sleep_manual_only": false,
    "sleep_min_gap_minutes": 60.0,
    "sleep_min_turns": 20,
+   "sleep_scoped": false,
    "sleep_v2": false,
    "standing_idle_after": 5,
    "standing_max_answers": 50,
@@ -12329,6 +12365,7 @@
   },
   "economy": {
    "budget": null,
+   "ledger_persist": false,
    "ledger_v2": false
   },
   "embedding": {
@@ -12543,6 +12580,7 @@
    "sleep_manual_only": false,
    "sleep_min_gap_minutes": 60.0,
    "sleep_min_turns": 20,
+   "sleep_scoped": false,
    "sleep_v2": false,
    "standing_idle_after": 5,
    "standing_max_answers": 50,

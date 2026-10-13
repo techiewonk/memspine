@@ -319,6 +319,18 @@ class PipelineContext:
     #: (``offline.communities_v2`` / ``offline.decay_v2``). None (bare contexts) => screened and
     #: appended raw.
     write_summary: WriteSummary | None = None
+    #: FU-SLEEP (``offline.sleep_scoped``): the one namespace a sleep job sweeps. None (default) =>
+    #: every stage sweeps every namespace, as before. See :func:`sweep_namespaces`.
+    scope_namespace: str | None = None
+
+
+async def sweep_namespaces(ctx: PipelineContext) -> list[str]:
+    """The namespaces a namespace-sweeping stage visits: all of them, or only the job's own when
+    ``ctx.scope_namespace`` is set (FU-SLEEP). A scope with no records yields an empty sweep."""
+    found = await ctx.storage.list_namespaces()
+    if ctx.scope_namespace is None:
+        return found
+    return [ns for ns in found if ns == ctx.scope_namespace]
 
 
 async def _parents_gone(

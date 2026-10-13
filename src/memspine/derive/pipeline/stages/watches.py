@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 from memspine.derive.pipeline import advisory
-from memspine.derive.pipeline.stages.context import PipelineContext, _sweep_stats
+from memspine.derive.pipeline.stages.context import PipelineContext, _sweep_stats, sweep_namespaces
 from memspine.memories.prospective.triggers import due_watches, invalidation_watches
 from memspine.observability.logging import get_logger
 from memspine.store.events import EventKind, EventLogMode, MemoryEvent
@@ -37,7 +37,7 @@ async def check_watches(ctx: PipelineContext) -> dict[str, object]:
     fired_total = 0
     errors: list[str] = []
     conflicts_by_ns: dict[str, list[MemoryEvent]] | None = None  # lazy: one log scan
-    for namespace in await ctx.storage.list_namespaces():
+    for namespace in await sweep_namespaces(ctx):
         try:
             watches = await ctx.storage.list_records(namespace, "prospective")
             if not watches:
@@ -95,7 +95,7 @@ async def _advisory_v2(ctx: PipelineContext, now: datetime, stats: dict[str, obj
     procedural_on = advisory.procedural_v2_on(ctx.config)
     if not (prospective_on or procedural_on):
         return
-    namespaces = await ctx.storage.list_namespaces()
+    namespaces = await sweep_namespaces(ctx)
     if prospective_on:
         try:
             totals = await advisory.prospective_sweep(ctx.storage, namespaces, now)

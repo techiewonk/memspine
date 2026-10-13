@@ -12,9 +12,14 @@
   ``cancel()``.
 
 The store is a small SQLite file (stdlib ``sqlite3``, one short transaction per call), so two
-processes on one database never overlap. ``derive`` may not import ``runtime``: this module reuses
-the *concepts* of ``runtime/outbox.py`` and ``runtime/jobs.py`` (lease, epoch, watermark, fence
-log) and shares only ``memspine.schemas`` value types with them.
+processes on one database never overlap. On the Postgres backend (``storage.url``; FU-SLEEP) the
+same tables and the same SQL run through psycopg3, so processes on different hosts never overlap
+either: the few SQLite-only spellings are translated by :func:`pg_sql`, and every transaction takes
+one advisory lock, the counterpart of the SQLite ``BEGIN IMMEDIATE`` writer lock.
+
+``derive`` may not import ``runtime``: this module reuses the *concepts* of
+``runtime/outbox.py`` and ``runtime/jobs.py`` (lease, epoch, watermark, fence log) and shares
+only ``memspine.schemas`` value types with them.
 """
 
 from __future__ import annotations
@@ -25,9 +30,10 @@ import sqlite3
 import time
 from collections.abc import Awaitable, Callable, Iterator, Sequence
 from dataclasses import dataclass, field
+from typing import Any
 
 from memspine.derive.budget import DerivationBudget, is_model_stage
-from memspine.exceptions import MemspineError
+from memspine.exceptions import MemspineError, StorageError
 from memspine.observability import tap
 from memspine.schemas.public import JobHandle
 from memspine.schemas.public.receipt import JobState
@@ -41,6 +47,8 @@ __all__ = [
     "SleepHandle",
     "SleepJobError",
     "StageWatermark",
+    "is_pg_url",
+    "pg_sql",
 ]
 
 Clock = Callable[[], float]  # seconds since the epoch
@@ -96,12 +104,78 @@ CREATE TABLE IF NOT EXISTS sleep_fence_log (
 """
 
 
+#: Advisory-lock key every Postgres transaction of the store takes (the ``BEGIN IMMEDIATE`` role).
+_PG_LOCK_KEY = 0x4D535053
+
+
+def is_pg_url(path: str) -> bool:
+    return path.startswith(("postgresql://", "postgres://", "postgresql+psycopg://"))
+
+
+def pg_sql(sql: str) -> str:
+    """The SQLite spelling of one store statement in Postgres: ``?`` placeholders, ``INSERT OR
+    REPLACE`` / ``INSERT OR IGNORE`` as ``ON CONFLICT``, ``MAX(a, b)`` as ``GREATEST``, and the
+    schema types ``REAL`` / ``AUTOINCREMENT``."""
+    out = sql
+    if "INSERT OR REPLACE INTO sleep_watermark" in out:  # the only REPLACE
+        out = out.replace("INSERT OR REPLACE INTO", "INSERT INTO") + (
+            " ON CONFLICT (ns, kind, cycle, stage) DO UPDATE "
+            "SET seq=EXCLUDED.seq, done_at=EXCLUDED.done_at"
+        )
+    elif "INSERT OR IGNORE INTO" in out:
+        out = out.replace("INSERT OR IGNORE INTO", "INSERT INTO") + " ON CONFLICT DO NOTHING"
+    out = out.replace("MAX(pending,1)", "GREATEST(pending,1)")
+    out = out.replace("INTEGER PRIMARY KEY AUTOINCREMENT", "BIGSERIAL PRIMARY KEY")
+    out = out.replace(" REAL", " DOUBLE PRECISION")
+    return out.replace("?", "%s")
+
+
+class _PgConn:
+    """A psycopg3 connection offering the few ``sqlite3.Connection`` calls the store makes."""
+
+    def __init__(self, url: str) -> None:
+        try:
+            import psycopg
+        except ImportError as exc:
+            raise StorageError("Postgres sleep leases need the [postgres] extra (psycopg)") from exc
+        dsn = url.replace("postgresql+psycopg://", "postgresql://", 1)
+        self._c = psycopg.connect(dsn, autocommit=True)
+        self.in_transaction = False
+
+    def execute(self, sql: str, params: Sequence[object] = ()) -> Any:
+        head = sql.strip().upper()
+        if head == "BEGIN IMMEDIATE":
+            self._c.execute("BEGIN")
+            self._c.execute("SELECT pg_advisory_xact_lock(%s)", (_PG_LOCK_KEY,))
+            self.in_transaction = True
+            return None
+        if head in ("COMMIT", "ROLLBACK"):
+            self.in_transaction = False
+        return self._c.execute(pg_sql(sql), tuple(params))
+
+    def executescript(self, script: str) -> None:
+        self.execute("BEGIN IMMEDIATE")  # concurrent CREATE ... IF NOT EXISTS must not race
+        try:
+            for stmt in script.split(";"):
+                if stmt.strip():
+                    self.execute(stmt)
+        except BaseException:
+            self.execute("ROLLBACK")
+            raise
+        self.execute("COMMIT")
+
+    def close(self) -> None:
+        self._c.close()
+
+
 class LeaseStore:
-    """Persisted lease, cycle, watermark and trigger-state tables (SQLite file, or ``:memory:``)."""
+    """Persisted lease, cycle, watermark and trigger-state tables (SQLite file, or ``:memory:``;
+    a Postgres DSN keeps them in the storage database, shared by every process on it)."""
 
     def __init__(self, path: str = ":memory:", *, clock: Clock = time.time) -> None:
         self.path = path
         self.clock = clock
+        self._pg = is_pg_url(path)
         self._shared: sqlite3.Connection | None = None
         if path == ":memory:":
             self._shared = sqlite3.connect(":memory:", isolation_level=None)
@@ -110,9 +184,16 @@ class LeaseStore:
 
     # ---------------------------------------------------------------- plumbing
     @contextlib.contextmanager
-    def _conn(self) -> Iterator[sqlite3.Connection]:
+    def _conn(self) -> Iterator[Any]:
         if self._shared is not None:
             yield self._shared
+            return
+        if self._pg:
+            pg = _PgConn(self.path)
+            try:
+                yield pg
+            finally:
+                pg.close()
             return
         con = sqlite3.connect(self.path, timeout=10.0, isolation_level=None)
         try:
@@ -126,7 +207,7 @@ class LeaseStore:
             self._shared = None
 
     @contextlib.contextmanager
-    def _tx(self) -> Iterator[sqlite3.Connection]:
+    def _tx(self) -> Iterator[Any]:
         """One ``BEGIN IMMEDIATE`` transaction (cross-process writer lock)."""
         with self._conn() as con:
             con.execute("BEGIN IMMEDIATE")
@@ -148,7 +229,7 @@ class LeaseStore:
             (str(r[0]), str(r[1]), int(r[2]), None if r[3] is None else int(r[3])) for r in rows
         ]
 
-    def _refuse(self, con: sqlite3.Connection, lease: NamespaceLease, op: str) -> None:
+    def _refuse(self, con: Any, lease: NamespaceLease, op: str) -> None:
         cur = con.execute("SELECT epoch FROM sleep_lease WHERE ns=?", (lease.ns,)).fetchone()
         con.execute(
             "INSERT INTO sleep_fence_log (at, ns, op, presented_epoch, current_epoch) "
@@ -157,7 +238,7 @@ class LeaseStore:
         )
 
     @staticmethod
-    def _current(con: sqlite3.Connection, lease: NamespaceLease) -> bool:
+    def _current(con: Any, lease: NamespaceLease) -> bool:
         r = con.execute("SELECT epoch FROM sleep_lease WHERE ns=?", (lease.ns,)).fetchone()
         return r is not None and int(r[0]) == lease.epoch
 

@@ -7,7 +7,12 @@ from collections import Counter
 from datetime import UTC, datetime
 
 from memspine.config import constants
-from memspine.derive.pipeline.stages.context import PipelineContext, _local_screen, _policy_options
+from memspine.derive.pipeline.stages.context import (
+    PipelineContext,
+    _local_screen,
+    _policy_options,
+    sweep_namespaces,
+)
 from memspine.derive.pipeline.stages.index import (
     ENTITY_RESOLVED_MARKER,
     GRAPH_EXTRACTED_MARKER,
@@ -427,7 +432,7 @@ async def extract_graph(ctx: PipelineContext) -> dict[str, object]:
     index = ctx.session_index
     await index.refresh(ctx.storage)
     already = 0
-    for namespace in await ctx.storage.list_namespaces():
+    for namespace in await sweep_namespaces(ctx):
         async with ctx.lock(namespace):
             # (src, rel, dst) key -> the fact record already written for it (GR-9).
             existing: dict[str, MemoryRecord] = {}

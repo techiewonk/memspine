@@ -35,7 +35,7 @@ from memspine.derive.histories import (
     value_history,
 )
 from memspine.derive.integrate import CardinalityRegistry
-from memspine.derive.pipeline.stages.context import PipelineContext
+from memspine.derive.pipeline.stages.context import PipelineContext, sweep_namespaces
 from memspine.derive.pipeline.stages.envelope_adapter import is_fact, key_of, to_envelope
 from memspine.observability import tap
 from memspine.observability.logging import get_logger
@@ -79,7 +79,7 @@ async def histories(ctx: PipelineContext) -> dict[str, object]:
     now = datetime.now(UTC)
     totals: Counter[str] = Counter()
     errors: list[str] = []
-    for namespace in await ctx.storage.list_namespaces():
+    for namespace in await sweep_namespaces(ctx):
         try:
             async with ctx.lock(namespace):
                 totals.update(await _histories_one(ctx, namespace, now))

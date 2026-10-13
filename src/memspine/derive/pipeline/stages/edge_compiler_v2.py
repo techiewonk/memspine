@@ -33,7 +33,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from memspine.derive.edges import GraphDelta, GraphEdge, GraphNode, compile_edges
-from memspine.derive.pipeline.stages.context import PipelineContext
+from memspine.derive.pipeline.stages.context import PipelineContext, sweep_namespaces
 from memspine.derive.pipeline.stages.envelope_adapter import is_fact
 from memspine.memories.associative.entities import (
     EntityPolicy,
@@ -458,7 +458,7 @@ async def compile_graph_edges(ctx: PipelineContext) -> dict[str, object]:
     compiler = EdgeCompiler(scoped=bool(ctx.config.isolation.scope_keys_v2))
     totals: Counter[str] = Counter()
     errors: list[str] = []
-    for namespace in await ctx.storage.list_namespaces():
+    for namespace in await sweep_namespaces(ctx):
         try:
             async with ctx.lock(namespace):
                 totals.update(await _compile_one(ctx, namespace, compiler))

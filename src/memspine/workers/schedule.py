@@ -190,19 +190,20 @@ async def _run_sleep_stage(
     """Run one named stage (one line per stage, so a silent stall names its stage; WT-02 trace)."""
     _log.info("sleep.stage", stage=name)
     ledger = _costs.installed()  # W2-12 (economy.ledger_v2); None = the original path
-    if ledger is not None and ledger.budget_exhausted(_costs.SLEEP_POOL):
+    pool = ctx.scope_namespace or _costs.SLEEP_POOL  # FU-SLEEP: a scoped job has its own pool
+    if ledger is not None and ledger.budget_exhausted(pool):
         # W-26 D / O-05: the sleep budget is spent. The stage is not run; its work stays
         # dirty (every stage reads the store, so the next cycle picks it up), counted here.
         assert ledger.budget is not None
-        ledger.budget.note_paused(_costs.SLEEP_POOL)
+        ledger.budget.note_paused(pool)
         return {"status": "deferred_budget", "underived": True}
     if not tap.enabled():
-        with _stage_cost(ledger, name):
+        with _stage_cost(ledger, name, pool):
             return await runner.run(name, ctx)
     with tap.request("job", stage=name):  # WT-02: one child trace per stage
         tap.event("job.stage.start", stage=name)
         try:
-            with _stage_cost(ledger, name):
+            with _stage_cost(ledger, name, pool):
                 stat = await runner.run(name, ctx)
         except BaseException as exc:
             tap.event("job.stage.end", stage=name, status="raised", error=type(exc).__name__)
@@ -218,12 +219,15 @@ async def run_sleep_cycle(runner: TaskRunner, ctx: PipelineContext) -> dict[str,
     return stats
 
 
-def _stage_cost(ledger: _costs.WriteCostLedger | None, name: str) -> AbstractContextManager[None]:
-    """W2-12: attribute a sleep stage's model calls to it (engine-wide: namespace ``"-"``, the
-    ``SLEEP_POOL`` budget key); a null context without a ledger."""
+def _stage_cost(
+    ledger: _costs.WriteCostLedger | None, name: str, pool: str = _costs.SLEEP_POOL
+) -> AbstractContextManager[None]:
+    """W2-12: attribute a sleep stage's model calls to it. Engine-wide stages: namespace ``"-"``
+    (the ``SLEEP_POOL`` budget key); a namespace-scoped job (FU-SLEEP): its own namespace.
+    A null context without a ledger."""
     if ledger is None:
         return nullcontext()
-    return _costs.cost_scope(namespace=_costs.SLEEP_POOL, layer=name, stage=name)
+    return _costs.cost_scope(namespace=pool, layer=name, stage=name)
 
 
 def _stage_fields(name: str, stat: dict[str, object]) -> dict[str, object]:

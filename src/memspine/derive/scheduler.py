@@ -36,7 +36,7 @@ from memspine.models.concurrency import Priority, priority_scope
 from memspine.observability import tap
 from memspine.observability.logging import get_logger
 
-__all__ = ["ALL_NAMESPACES", "DerivationScheduler", "in_derive_job"]
+__all__ = ["ALL_NAMESPACES", "DerivationScheduler", "in_derive_job", "job_namespace"]
 
 _log = get_logger(__name__)
 
@@ -47,6 +47,18 @@ ALL_NAMESPACES = "*"
 _IN_JOB: contextvars.ContextVar[bool] = contextvars.ContextVar(
     "memspine_in_derive_job", default=False
 )
+
+
+_JOB_NS: contextvars.ContextVar[str | None] = contextvars.ContextVar(
+    "memspine_derive_job_ns", default=None
+)
+
+
+def job_namespace() -> str | None:
+    """The namespace of the sleep job whose task is running, or None outside a job or in an
+    engine-wide (``*``) job (FU-SLEEP: what ``offline.sleep_scoped`` scopes the stages to)."""
+    ns = _JOB_NS.get()
+    return None if ns == ALL_NAMESPACES else ns
 
 
 def in_derive_job() -> bool:
@@ -126,6 +138,7 @@ class DerivationScheduler:
             budget=self.budget,
         )
         token = _IN_JOB.set(True)
+        ns_token = _JOB_NS.set(handle.ns)
         try:
             handle._running()
             scope = (
@@ -141,6 +154,7 @@ class DerivationScheduler:
             raise
         finally:
             _IN_JOB.reset(token)
+            _JOB_NS.reset(ns_token)
         handle._set(outcome)
         if outcome.state == "succeeded" and not maint:
             self._rearm(handle.ns)
