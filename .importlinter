@@ -59,7 +59,7 @@ forbidden_modules =
     memspine.prompts
     memspine.config
     memspine.observability
-    memspine.engine
+    memspine.api.engine
 allow_indirect_imports = True
 
 [importlinter:contract:store-below-pipelines]
@@ -109,9 +109,8 @@ forbidden_modules =
     memspine.api
 allow_indirect_imports = True
 
-; "No module imports engine except api and tests." The facade is `memspine.engine` today
-; and `memspine.api.engine` afterwards. The root package (memspine/__init__.py, which
-; re-exports Engine) and memspine.api are the only allowed importers; the sources below
+; "No module imports engine except api and tests." The facade is `memspine.api.engine`. The root
+; package (memspine/__init__.py, which re-exports Engine) and memspine.api are the only allowed importers; the sources below
 ; are therefore every other top-level package (target and v1).
 [importlinter:contract:engine-only-from-api]
 name = Only memspine.api (and the root package) import the engine facade
@@ -137,7 +136,6 @@ source_modules =
     memspine.read
     memspine.compose
 forbidden_modules =
-    memspine.engine
     memspine.api.engine
 allow_indirect_imports = True
 
@@ -152,7 +150,7 @@ type = forbidden
 source_modules =
     memspine.core
 forbidden_modules =
-    memspine.engine
+    memspine.api.engine
     memspine.protocols
     memspine.workers
     memspine.memories
@@ -167,7 +165,7 @@ type = forbidden
 source_modules =
     memspine.clients
 forbidden_modules =
-    memspine.engine
+    memspine.api.engine
     memspine.protocols
     memspine.workers
     memspine.memories
@@ -182,7 +180,7 @@ type = forbidden
 source_modules =
     memspine.services
 forbidden_modules =
-    memspine.engine
+    memspine.api.engine
     memspine.protocols
     memspine.workers
     memspine.memories
@@ -195,7 +193,7 @@ type = forbidden
 source_modules =
     memspine.memories
 forbidden_modules =
-    memspine.engine
+    memspine.api.engine
     memspine.protocols
     memspine.workers
     memspine.cli
@@ -207,7 +205,7 @@ type = forbidden
 source_modules =
     memspine.workers
 forbidden_modules =
-    memspine.engine
+    memspine.api.engine
     memspine.protocols
     memspine.cli
 allow_indirect_imports = True
@@ -220,7 +218,7 @@ source_modules =
     memspine.prompts
     memspine.observability
 forbidden_modules =
-    memspine.engine
+    memspine.api.engine
     memspine.protocols
     memspine.workers
     memspine.memories
@@ -233,7 +231,7 @@ allow_indirect_imports = True
 name = v1 engine never imports protocols or cli
 type = forbidden
 source_modules =
-    memspine.engine
+    memspine.api.engine
 forbidden_modules =
     memspine.protocols
     memspine.cli

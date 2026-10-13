@@ -56,7 +56,7 @@ FROZEN_NOW = datetime(2026, 1, 1, tzinfo=UTC)
 _CLOCK_MODULES = (
     "memspine.core.policies.scoring",
     "memspine.core.policies.decay",
-    "memspine.engine",
+    "memspine.api.engine",
     "memspine.memory.pipeline.procedural",
     "memspine.memory.pipeline.prospective",
     "memspine.memory.pipeline.working",

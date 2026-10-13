@@ -5,7 +5,6 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
-import pytest
 from memspine_evals.cli import build_parser
 from memspine_evals.contracts import ReaderAnswer
 from memspine_evals.defect_diagnosis import (

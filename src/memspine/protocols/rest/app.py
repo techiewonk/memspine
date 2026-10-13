@@ -37,9 +37,9 @@ import orjson
 from fastapi import Depends, FastAPI, Header, HTTPException, Request, Response
 from fastapi.responses import JSONResponse
 
+from memspine.api.engine import Engine
 from memspine.config import constants
 from memspine.config.schema import RestConfig, RestRateLimitConfig
-from memspine.engine import Engine
 from memspine.exceptions import ConflictError, MemspineError, MissingServiceError
 from memspine.observability.logging import get_logger
 from memspine.protocols.rest.auth import (

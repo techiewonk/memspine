@@ -11,7 +11,7 @@ import pytest
 from memspine import Engine
 from memspine.config import constants
 from memspine.core.reference_edges import antecedent_kind, reference_kinds
-from memspine.engine import search_forensics
+from memspine.observability.trace import search_forensics
 
 T0 = datetime(2023, 5, 8, 13, 0, tzinfo=UTC)
 

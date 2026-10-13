@@ -12,7 +12,6 @@ import pytest
 
 from memspine import Engine
 from memspine.config.schema import ReadConfig
-from memspine.engine import search_forensics
 from memspine.models.encoders.query.shape import is_set_question, is_set_question_wide
 from memspine.models.encoders.query.temporal_query import (
     LegHit,
@@ -20,6 +19,7 @@ from memspine.models.encoders.query.temporal_query import (
     comparison_speaker_legs,
     has_bridge_cue,
 )
+from memspine.observability.trace import search_forensics
 from memspine.read.pipeline.state import _RERANK_SUPPORT
 from memspine.store.records import MemoryRecord
 

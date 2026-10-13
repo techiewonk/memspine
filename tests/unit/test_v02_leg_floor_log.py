@@ -8,7 +8,7 @@ import pytest
 
 from memspine import Engine
 from memspine.core import trace_sink
-from memspine.engine import search_forensics
+from memspine.observability.trace import search_forensics
 
 
 def _engine(**read: Any) -> Engine:

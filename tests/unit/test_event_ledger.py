@@ -21,9 +21,9 @@ from memspine.core.event_ledger import (
     render_ledger,
     validate_events,
 )
-from memspine.engine import search_forensics
 from memspine.models.providers.llm import structured
 from memspine.models.providers.llm.base import LLMRouter, LLMService
+from memspine.observability.trace import search_forensics
 
 T0 = datetime(2023, 5, 1, 9, 0, tzinfo=UTC)
 

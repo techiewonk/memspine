@@ -34,7 +34,7 @@ async def test_probe_exercises_the_list_bridge_session_and_rerank_paths() -> Non
     """Guards against a vacuous pass: the legs the probe claims to cover really ran."""
     from memspine_evals import leakage as lk
 
-    from memspine.engine import search_forensics
+    from memspine.observability.trace import search_forensics
 
     lk._register_reranker()
     eng = lk._make_engine(CONFIGS["rerank_bridge_list"])

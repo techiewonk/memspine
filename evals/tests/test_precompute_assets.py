@@ -7,6 +7,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import precompute_assets as pa
+
 from memspine.services.assets import (
     AssetAdapter,
     AssetFetchError,

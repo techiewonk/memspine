@@ -5,8 +5,8 @@ from __future__ import annotations
 from typing import Any
 
 from memspine import Engine
+from memspine.api.engine import _RECALL_MARKERS
 from memspine.config import constants
-from memspine.engine import _RECALL_MARKERS
 from memspine.store.records import SourceInfo
 
 _TOOL = SourceInfo(role="tool", channel="external")

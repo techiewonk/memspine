@@ -12,7 +12,7 @@ from memspine import Engine
 from memspine.config import constants
 from memspine.core import trace_sink
 from memspine.core.policies.conflict import ConflictPolicy, ConflictVerdict
-from memspine.engine import search_forensics
+from memspine.observability.trace import search_forensics
 from memspine.store.records import MemoryRecord, SourceInfo
 from memspine.trust.firewall import Firewall
 
