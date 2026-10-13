@@ -3749,8 +3749,8 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
    ],
    "kind": "migration",
    "gate": "Golden unchanged; registry reports layers per namespace",
-   "status": "In progress",
-   "note": "Foundations: agent running",
+   "status": "Done",
+   "note": "Tri-temporal record fields (alembic 0009) + LayerRegistry; router layer_state from registry",
    "layers": [
     "L0",
     "L1",
@@ -3931,8 +3931,8 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
    ],
    "kind": "behaviour",
    "gate": "Crash tests with both brokers; unfinished rows re-sent on start",
-   "status": "In progress",
-   "note": "Sonnet agent launched 2026-10-13 (worktree memspine-RT-01)",
+   "status": "Needs measurement",
+   "note": "workers.transport=taskiq flag-off; crash tests (memory + stub external); live Redis untested",
    "layers": [
     "L0",
     "L1",
@@ -4093,8 +4093,8 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
    ],
    "kind": "migration",
    "gate": "v1 log replays byte-stably",
-   "status": "In progress",
-   "note": "Sonnet agent launched 2026-10-13 (worktree memspine-F-16b)",
+   "status": "Done",
+   "note": "Upcasters + memspine migrate replay (offline, byte-stable); limited rebuild advertised",
    "layers": [
     "L0",
     "L1",
@@ -4148,8 +4148,8 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
    ],
    "kind": "behaviour",
    "gate": "Isolation probes",
-   "status": "In progress",
-   "note": "Sonnet agent launched 2026-10-13 (worktree memspine-F-16c)",
+   "status": "Needs measurement",
+   "note": "isolation.scope_keys_v2 / viewer_required flag-off; isolation probes pass; I19 leakage screen pending",
    "layers": [
     "L0",
     "L1",
@@ -4567,8 +4567,8 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
    ],
    "kind": "behaviour",
    "gate": "False-positive screen on the behavioural suite",
-   "status": "In progress",
-   "note": "Swarm: trust wiring flag-off (agent running)",
+   "status": "Needs measurement",
+   "note": "TW-A wired flag-off (integrity.horizon_v2 / consent.v2 / firewall.gates_v2); MINJA FP rate needs OP-Bench screen",
    "layers": [
     "L0",
     "L1",
@@ -6610,8 +6610,8 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
    ],
    "kind": "behaviour",
    "gate": "Read cost of the bound; N1 tests",
-   "status": "In progress",
-   "note": "Swarm: trust wiring flag-off (agent running)",
+   "status": "Needs measurement",
+   "note": "TW-A wired flag-off (integrity.horizon_v2 / consent.v2 / firewall.gates_v2); MINJA FP rate needs OP-Bench screen",
    "layers": [
     "scope"
    ],
@@ -6684,8 +6684,8 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
    ],
    "kind": "behaviour",
    "gate": "Remote-tier gate tests",
-   "status": "In progress",
-   "note": "Swarm: trust wiring flag-off (agent running)",
+   "status": "Needs measurement",
+   "note": "TW-A wired flag-off (integrity.horizon_v2 / consent.v2 / firewall.gates_v2); MINJA FP rate needs OP-Bench screen",
    "layers": [
     "L0",
     "L1",
