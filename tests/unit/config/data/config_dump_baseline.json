@@ -34,6 +34,10 @@
    "model": "fastino/gliner2-base-v1",
    "provider": "off"
   },
+  "economy": {
+   "budget": null,
+   "ledger_v2": false
+  },
   "embedding": {
    "api_base": null,
    "api_key": null,
@@ -602,7 +606,7 @@
    "window_topic_k": 2.0
   }
  },
- "json_schema_sha256": "9f0eaa8cde913f4923440439d295901d62c29654eb33293679fa110d5dec9d0e",
+ "json_schema_sha256": "76ed28242d74f1b0a7330f98c72769d858dfdb636590135e1ba0f4c767c88156",
  "preset:chat_roles": {
   "audit": {
    "actions": false,
@@ -637,6 +641,10 @@
   "decision": {
    "model": "fastino/gliner2-base-v1",
    "provider": "off"
+  },
+  "economy": {
+   "budget": null,
+   "ledger_v2": false
   },
   "embedding": {
    "api_base": null,
@@ -1272,6 +1280,10 @@
    "model": "fastino/gliner2-base-v1",
    "provider": "off"
   },
+  "economy": {
+   "budget": null,
+   "ledger_v2": false
+  },
   "embedding": {
    "api_base": null,
    "api_key": null,
@@ -1901,6 +1913,10 @@
   "decision": {
    "model": "fastino/gliner2-base-v1",
    "provider": "off"
+  },
+  "economy": {
+   "budget": null,
+   "ledger_v2": false
   },
   "embedding": {
    "api_base": null,
@@ -2532,6 +2548,10 @@
    "model": "fastino/gliner2-base-v1",
    "provider": "off"
   },
+  "economy": {
+   "budget": null,
+   "ledger_v2": false
+  },
   "embedding": {
    "api_base": null,
    "api_key": null,
@@ -3161,6 +3181,10 @@
   "decision": {
    "model": "fastino/gliner2-base-v1",
    "provider": "off"
+  },
+  "economy": {
+   "budget": null,
+   "ledger_v2": false
   },
   "embedding": {
    "api_base": null,
@@ -3792,6 +3816,10 @@
    "model": "fastino/gliner2-base-v1",
    "provider": "off"
   },
+  "economy": {
+   "budget": null,
+   "ledger_v2": false
+  },
   "embedding": {
    "api_base": null,
    "api_key": null,
@@ -4421,6 +4449,10 @@
   "decision": {
    "model": "fastino/gliner2-base-v1",
    "provider": "off"
+  },
+  "economy": {
+   "budget": null,
+   "ledger_v2": false
   },
   "embedding": {
    "api_base": null,
@@ -5052,6 +5084,10 @@
    "model": "fastino/gliner2-base-v1",
    "provider": "off"
   },
+  "economy": {
+   "budget": null,
+   "ledger_v2": false
+  },
   "embedding": {
    "api_base": null,
    "api_key": null,
@@ -5682,6 +5718,10 @@
    "model": "fastino/gliner2-base-v1",
    "provider": "off"
   },
+  "economy": {
+   "budget": null,
+   "ledger_v2": false
+  },
   "embedding": {
    "api_base": null,
    "api_key": null,
@@ -6311,6 +6351,10 @@
   "decision": {
    "model": "fastino/gliner2-base-v1",
    "provider": "off"
+  },
+  "economy": {
+   "budget": null,
+   "ledger_v2": false
   },
   "embedding": {
    "api_base": null,
@@ -6951,6 +6995,10 @@
    "model": "fastino/gliner2-base-v1",
    "provider": "off"
   },
+  "economy": {
+   "budget": null,
+   "ledger_v2": false
+  },
   "embedding": {
    "api_base": null,
    "api_key": null,
@@ -7586,6 +7634,10 @@
    "model": "fastino/gliner2-base-v1",
    "provider": "off"
   },
+  "economy": {
+   "budget": null,
+   "ledger_v2": false
+  },
   "embedding": {
    "api_base": null,
    "api_key": null,
@@ -8201,6 +8253,10 @@
   "decision": {
    "model": "fastino/gliner2-base-v1",
    "provider": "off"
+  },
+  "economy": {
+   "budget": null,
+   "ledger_v2": false
   },
   "embedding": {
    "api_base": null,
@@ -8840,6 +8896,10 @@
    "model": "fastino/gliner2-base-v1",
    "provider": "off"
   },
+  "economy": {
+   "budget": null,
+   "ledger_v2": false
+  },
   "embedding": {
    "api_base": null,
    "api_key": null,
@@ -9473,6 +9533,10 @@
   "decision": {
    "model": "fastino/gliner2-base-v1",
    "provider": "off"
+  },
+  "economy": {
+   "budget": null,
+   "ledger_v2": false
   },
   "embedding": {
    "api_base": null,
@@ -10112,6 +10176,10 @@
    "model": "fastino/gliner2-base-v1",
    "provider": "off"
   },
+  "economy": {
+   "budget": null,
+   "ledger_v2": false
+  },
   "embedding": {
    "api_base": null,
    "api_key": null,
@@ -10741,6 +10809,10 @@
   "decision": {
    "model": "fastino/gliner2-base-v1",
    "provider": "off"
+  },
+  "economy": {
+   "budget": null,
+   "ledger_v2": false
   },
   "embedding": {
    "api_base": null,
@@ -11372,6 +11444,10 @@
   "decision": {
    "model": "fastino/gliner2-base-v1",
    "provider": "off"
+  },
+  "economy": {
+   "budget": null,
+   "ledger_v2": false
   },
   "embedding": {
    "api_base": null,

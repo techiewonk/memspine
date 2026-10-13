@@ -88,6 +88,7 @@ from memspine.derive.pipeline.stages.context import (
 from memspine.derive.pipeline.stages.edge_compiler_v2 import COMPILED as _EDGE_COMPILED
 from memspine.derive.pipeline.stages.table import PIPELINES
 from memspine.derive.scheduler import DerivationScheduler
+from memspine.economy import ledger as _economy_ledger
 from memspine.economy.slo import timed_read
 from memspine.exceptions import (
     ConfigError,
@@ -274,6 +275,24 @@ _T = TypeVar("_T")
 _CORE_SERVICES = frozenset({"storage", "secrets"})
 
 
+def _build_cost_ledger(config: MemspineConfig) -> _economy_ledger.WriteCostLedger:
+    """W2-12: the cost ledger, with the optional budget (which needs the durable outbox, since
+    paused work is kept there, marked underived)."""
+    spec = config.economy.budget
+    if spec is None:
+        return _economy_ledger.WriteCostLedger()
+    if not config.workers.outbox:
+        raise ConfigError(
+            "economy.budget pauses derivation by parking the work in the outbox: "
+            "set workers.outbox: true (or remove economy.budget)"
+        )
+    return _economy_ledger.WriteCostLedger(
+        budget=_economy_ledger.Budget(
+            max_calls=spec.max_calls, max_tokens=spec.max_tokens, period_s=spec.period_s
+        )
+    )
+
+
 class Engine:
     """Async-first facade; thin sync wrappers on the public verbs (D-01)."""
 
@@ -372,6 +391,7 @@ class Engine:
         self._extract_session_edges: ExtractEdges | None = None
         self._runner: TaskRunner | None = None
         self._sched_v2: _scheduler_rt.Scheduler | None = None  # RT-02
+        self._cost_ledger: _economy_ledger.WriteCostLedger | None = None  # W2-12
         self._scheduler: SleepScheduler | None = None  # D1: autonomous sleep loop
         #: O4-01a: namespace jobs, leases, watermarks and triggers (``offline.sleep_v2``).
         self._derive_sched: DerivationScheduler | None = None
@@ -491,6 +511,9 @@ class Engine:
         # RT-02 (flags runtime.scheduler_v2 / runtime.model_concurrency): the shared scheduler;
         # None when both are off, and then nothing below changes.
         self._sched_v2 = _scheduler_rt.acquire(config.runtime)
+        if config.economy.ledger_v2:  # W2-12 (W-26, P-22 C): the write-side cost ledger
+            self._cost_ledger = _build_cost_ledger(config)
+            _economy_ledger.install(self._cost_ledger)
         self._embedder = await container.get(EmbeddingService)
         if self._sched_v2 is not None:
             self._embedder = self._sched_v2.wrap_embedder(self._embedder)
@@ -755,6 +778,10 @@ class Engine:
         await self._teardown()
 
     async def _teardown(self) -> None:
+        if getattr(self, "_cost_ledger", None) is not None:
+            if _economy_ledger.installed() is self._cost_ledger:
+                _economy_ledger.install(None)
+            self._cost_ledger = None
         if getattr(self, "_sched_v2", None) is not None:
             sched, self._sched_v2 = self._sched_v2, None
             await _scheduler_rt.release(sched)
@@ -4836,6 +4863,29 @@ class Engine:
         namespace's current session. Works without ``write.window_extract`` too (then only the
         stage runs, and a ``session_id`` is required)."""
         return await ingest_windows.close_session(self, namespace, session_id)
+
+    def cost_report(self, namespace: str | None = None) -> dict[str, Any]:
+        """W2-12 (``economy.ledger_v2``): model calls, tokens in/out, latency and embed calls of
+        the writes since ``start()``, in total and split per layer, stage (``window_extract``,
+        each sleep stage) and namespace; ``namespace`` filters. Engine-wide sleep stages sit under
+        namespace ``"-"``. ``budget`` is None without ``economy.budget``. ``{}`` when the flag is
+        off."""
+        ledger = self._cost_ledger
+        if ledger is None:
+            return {}
+        report = ledger.report(namespace)
+        if namespace is not None and self._windows is not None:
+            report["deferred_windows"] = self._windows.deferred_count(namespace)
+        return report
+
+    async def resume_deferred(self, namespace: str) -> int:
+        """W2-12: derive the windows a spent ``economy.budget`` paused (they were kept in the
+        outbox, marked underived). Does nothing while the budget is still spent; returns the
+        number of windows derived."""
+        self._require_started()
+        if self._windows is None:
+            return 0
+        return await self._windows.resume_deferred(namespace)
 
     def window_stats(self, *, reset: bool = False) -> dict[str, Any]:
         """G-W13 write-quality counters of the window write (``{}`` when it is off): windows and

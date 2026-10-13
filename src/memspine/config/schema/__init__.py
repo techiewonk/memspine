@@ -21,6 +21,7 @@ from memspine.config.schema.llm import (
     StructuredConfig,
     WorkersConfig,
 )
+from memspine.config.schema.economy import BudgetConfig, EconomyConfig
 from memspine.config.schema.observability import ObservabilityConfig
 from memspine.config.schema.offline import OfflineConfig
 from memspine.config.schema.privacy import (
@@ -57,6 +58,8 @@ __all__ = [
     "DataShapeConfig",
     "DecisionConfig",
     "EmbeddingConfig",
+    "BudgetConfig",
+    "EconomyConfig",
     "EncryptionConfig",
     "EventLogConfig",
     "FirewallConfig",

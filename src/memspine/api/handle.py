@@ -325,6 +325,14 @@ class Memory:
         ``SleepHandle`` under ``offline.sleep_v2``."""
         return await self._engine.sleep()
 
+    def cost_report(self) -> dict[str, Any]:
+        """Cost ledger of this scope's writes (``Engine.cost_report``; ``economy.ledger_v2``)."""
+        return self._engine.cost_report(self.namespace)
+
+    async def resume_deferred(self) -> int:
+        """Derive this scope's budget-paused windows (``Engine.resume_deferred``)."""
+        return await self._engine.resume_deferred(self.namespace)
+
     async def brief(self, **kwargs: Any) -> Any:
         """The scope's standing brief (``Engine.brief``)."""
         return await self._engine.brief(self.namespace, **self._viewer_kw(kwargs))

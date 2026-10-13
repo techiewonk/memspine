@@ -16,6 +16,7 @@ from memspine.config.schema.llm import (
     PromptsConfig,
     WorkersConfig,
 )
+from memspine.config.schema.economy import EconomyConfig
 from memspine.config.schema.observability import ObservabilityConfig
 from memspine.config.schema.offline import OfflineConfig
 from memspine.config.schema.privacy import (
@@ -85,6 +86,7 @@ class MemspineConfig(BaseModel):
     isolation: IsolationConfig = Field(default_factory=IsolationConfig)
     workers: WorkersConfig = Field(default_factory=WorkersConfig)
     runtime: RuntimeConfig = Field(default_factory=RuntimeConfig)
+    economy: EconomyConfig = Field(default_factory=EconomyConfig)
     retention: RetentionConfig = Field(default_factory=RetentionConfig)
     audit: AuditConfig = Field(default_factory=AuditConfig)
     observability: ObservabilityConfig = Field(default_factory=ObservabilityConfig)

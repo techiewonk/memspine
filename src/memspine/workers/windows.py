@@ -44,6 +44,7 @@ from memspine.core.window import (
 from memspine.derive.backpressure import BackpressureRejected
 from memspine.derive.pipeline.stages.context import SessionClosed, WindowEdgeBatch
 from memspine.derive.pipeline.stages.mining import _fact_date
+from memspine.economy import ledger as _costs
 from memspine.models.concurrency import Priority, priority_scope
 from memspine.models.providers.llm.base import LLMService
 from memspine.models.providers.llm.structured import structured_call
@@ -315,6 +316,14 @@ def validate_episode(raw: object, count: int) -> EpisodeOutcome | None:
 
 
 # --- the manager ----------------------------------------------------------------------------
+
+
+def _cost_scope(namespace: str, layer: str) -> contextlib.AbstractContextManager[None]:
+    """W2-12: attribute a window call to its namespace, layer and the ``window_extract`` stage;
+    a plain null context when no cost ledger is installed (flag off: nothing changes)."""
+    if _costs.installed() is None:
+        return nullcontext()
+    return _costs.cost_scope(namespace=namespace, layer=layer, stage="window_extract")
 
 
 class WindowCallFailed(RuntimeError):
@@ -768,6 +777,13 @@ class WindowPipeline:
             return ("closed", payload)
         if kind != "window":
             return None
+        ledger = _costs.installed()
+        if ledger is not None and ledger.budget is not None and ledger.budget_exhausted(ns):
+            # W2-12 (W-26 D): the namespace's budget is spent. No model call; the commit phase
+            # parks the item underived in the outbox, and ``resume_deferred`` derives it later.
+            ledger.budget.note_paused(ns)
+            self._counts["windows_deferred_budget"] += 1
+            return ("deferred", payload)
         window = Window(
             turns=[WindowTurn(record_id=r, text="", tokens=1) for r in payload["record_ids"]],
             reason=str(payload.get("reason", "")),
@@ -792,10 +808,32 @@ class WindowPipeline:
         try:
             if kind == "closed":
                 await self._session_closed(ns, store, body["session"], int(body.get("windows", 0)))
+            elif kind == "deferred":
+                assert self._outbox is not None
+                await self._outbox.park(scope, WINDOW_STAGE, body)
             elif body is not None:
                 await self._commit_job(ns, store, body)
         finally:
             store.inflight = None
+
+    async def resume_deferred(self, namespace: str) -> int:
+        """Derive the windows a spent budget parked (W2-12). Does nothing while the namespace's
+        budget is still spent. Returns the number of windows put back and drained."""
+        if self._outbox is None:
+            return 0
+        ledger = _costs.installed()
+        if ledger is not None and ledger.budget is not None and not ledger.budget.resume(namespace):
+            return 0
+        scope = self._scope(namespace)
+        n = await self._outbox.resume_parked(scope, WINDOW_STAGE)
+        if n:
+            await self._outbox.drain(scope)
+        return n
+
+    def deferred_count(self, namespace: str) -> int:
+        if self._outbox is None:
+            return 0
+        return int(self._outbox.parked(self._scope(namespace), WINDOW_STAGE))
 
     # -- forget -----------------------------------------------------------------------------
 
@@ -971,7 +1009,8 @@ class WindowPipeline:
         failed = False
         for group in groups:
             try:
-                raw = await self._call(group, variables, transcript, member_ids)
+                with _cost_scope(ns, "+".join(group)):
+                    raw = await self._call(group, variables, transcript, member_ids)
             except asyncio.CancelledError:
                 raise
             except Exception as exc:
@@ -1273,6 +1312,8 @@ class WindowPipeline:
         }
         if c["windows_deferred_backpressure"]:  # RT-02: only present once backpressure bit
             out["deferred_backpressure"] = c["windows_deferred_backpressure"]
+        if c["windows_deferred_budget"]:  # W2-12: only present once a budget paused work
+            out["deferred_budget"] = c["windows_deferred_budget"]
         if self._outbox is not None:
             out["queued"] += self._outbox.depth()
             out["outbox"] = True
