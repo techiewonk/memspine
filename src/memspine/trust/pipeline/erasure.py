@@ -15,6 +15,7 @@ from memspine.memories.associative.entities import ENTITY_PREFIX, canonical_enti
 from memspine.models.encoders.query.shape import content_words
 from memspine.models.encoders.query.temporal_query import forget_mentions
 from memspine.observability.logging import EVENT_FORGET, get_logger
+from memspine.scope import system_scope
 from memspine.services.storage.sql_base import SqlStorage
 from memspine.store.events import EventKind, MemoryEvent
 from memspine.store.records import MemoryRecord, RecordStatus
@@ -409,7 +410,8 @@ async def forget_requests(
                 r.memory_type != "episodic",
             ),
         )
-        hits = await eng.search(target, namespace=ns, top_k=top_k + 1)
+        with system_scope():
+            hits = await eng.search(target, namespace=ns, top_k=top_k + 1)
         ranked = [r.record_id for r in lexical] + [
             r.record_id
             for r, _ in hits
@@ -487,9 +489,11 @@ async def verify_forget(
     if probe is not None and probe.strip():
         wanted = content_words(probe)
         residual = []
-        for hit, _ in await eng.search(
-            probe, namespace=namespace, top_k=constants.RESIDUAL_PROBE_TOP_K
-        ):
+        with system_scope():
+            probe_hits = await eng.search(
+                probe, namespace=namespace, top_k=constants.RESIDUAL_PROBE_TOP_K
+            )
+        for hit, _ in probe_hits:
             words = content_words(hit.content)
             overlap = len(wanted & words) / max(1, len(wanted))
             if probe.strip().lower() in hit.content.lower() or (

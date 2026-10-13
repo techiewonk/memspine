@@ -8,6 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 from memspine.config.schema.firewall import FirewallConfig
 from memspine.config.schema.integrity import IntegrityConfig
+from memspine.config.schema.isolation import IsolationConfig
 from memspine.config.schema.llm import (
     DecisionConfig,
     EmbeddingConfig,
@@ -80,6 +81,7 @@ class MemspineConfig(BaseModel):
     decision: DecisionConfig = Field(default_factory=DecisionConfig)
     integrity: IntegrityConfig = Field(default_factory=IntegrityConfig)
     firewall: FirewallConfig = Field(default_factory=FirewallConfig)
+    isolation: IsolationConfig = Field(default_factory=IsolationConfig)
     workers: WorkersConfig = Field(default_factory=WorkersConfig)
     retention: RetentionConfig = Field(default_factory=RetentionConfig)
     audit: AuditConfig = Field(default_factory=AuditConfig)

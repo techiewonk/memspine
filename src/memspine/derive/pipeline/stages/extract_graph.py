@@ -29,6 +29,7 @@ from memspine.models.encoders.query.perspective import inherit_perspective_tags
 from memspine.observability import tap
 from memspine.observability.logging import get_logger
 from memspine.prompts.models import ExtractedEdge
+from memspine.scope import Scope
 from memspine.store import keys as graph_keys
 from memspine.store.events import EventKind, MemoryEvent, fingerprint_payload
 from memspine.store.records import MemoryRecord, RecordStatus, SourceInfo, chrono_key
@@ -246,7 +247,9 @@ def _edge_contexts(sources: list[MemoryRecord], known: list[MemoryRecord]) -> li
     return contexts
 
 
-def _edge_key(namespace: str, edge: ExtractedEdge, *, dated: bool = False) -> str:
+def _edge_key(
+    namespace: str, edge: ExtractedEdge, *, dated: bool = False, scoped: bool = False
+) -> str:
     """Idempotency key for an extracted edge: same (src, rel, dst) in a
     namespace fingerprints to the same record, so a re-run never duplicates.
 
@@ -255,6 +258,8 @@ def _edge_key(namespace: str, edge: ExtractedEdge, *, dated: bool = False) -> st
     "visited Paris in 2023" (or "ran 5 km" / "ran 10 km") stay two events instead of
     one. State edges keep (src, rel, dst): a newer state supersedes, it does not add."""
     parts: list[object] = [namespace, edge.src_entity, edge.rel, edge.dst_entity]
+    if scoped:  # F-16c / M-05 ``isolation.scope_keys_v2``: tenant + owner, never the session
+        parts[0] = list(Scope.from_namespace(namespace).identity)
     if dated and edge.kind == "event":
         day = (edge.valid_from or "")[:10]
         numbers = sorted(set(_NUMERAL.findall(edge.fact)))
@@ -397,6 +402,7 @@ async def extract_graph(ctx: PipelineContext) -> dict[str, object]:
     # G-2: a new STATE fact is checked against the subject's facts on OTHER keys.
     # F-01: graph key v2 (kind + occurrence; old keys stay aliases). Off: the v1 key.
     key_v2 = bool(ctx.config.graph.key_v2)
+    scoped_keys = bool(ctx.config.isolation.scope_keys_v2)
     contradictions = bool(opts.get("contradictions", False)) and ctx.adjudicate_edge is not None
     invalidated = 0
     raw_conf = opts.get("min_confidence", 0.0)
@@ -606,7 +612,7 @@ async def extract_graph(ctx: PipelineContext) -> dict[str, object]:
                 if allowed_rels and edge.rel.strip().lower() not in allowed_rels:
                     skipped += 1  # G-6: outside the declared ontology
                     return
-                key = _edge_key(namespace, edge, dated=dated_events)
+                key = _edge_key(namespace, edge, dated=dated_events, scoped=scoped_keys)
                 dup: MemoryRecord | None = existing.get(key)
                 ebase = ""
                 if key_v2:

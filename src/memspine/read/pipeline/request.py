@@ -50,6 +50,7 @@ from memspine.read.tiers import ReadConfig as TiersReadConfig
 from memspine.read.tiers import Tier, choose_tier, normalise_request
 from memspine.schemas.durable.common import OwnerScope
 from memspine.schemas.public.read import ReadRequest
+from memspine.scope import Scope
 from memspine.store.events import EventKind
 from memspine.store.layer_registry import LayerRegistry, LayerTemplate
 from memspine.store.records import (
@@ -268,6 +269,14 @@ def _read_cache(eng: Any) -> ReadCache[ReadResult] | None:
     return cache
 
 
+def _cache_scope(eng: Any, namespace: str) -> OwnerScope:
+    """The scope in the read-cache key. F-16c ``isolation.scope_keys_v2``: the typed tenant + owner
+    of the namespace (the session is never in a key); off: the namespace as both, as before."""
+    if eng._config().isolation.scope_keys_v2:
+        return Scope.from_namespace(namespace).to_owner_scope()
+    return OwnerScope(tenant=namespace, owner=namespace)
+
+
 def _read_cache_key(eng: Any, query: str, namespace: str, viewer: str | None, params: Any) -> Any:
     """The ER-31 key of one read; ``params`` is every argument that shapes the result."""
     config = eng._config()
@@ -283,7 +292,7 @@ def _read_cache_key(eng: Any, query: str, namespace: str, viewer: str | None, pa
     config_hash = "sha256:" + hashlib.sha256((blob + repr(params)).encode()).hexdigest()
     try:
         return read_key(
-            scope=OwnerScope(tenant=namespace, owner=namespace),
+            scope=_cache_scope(eng, namespace),
             viewer=viewer,
             query=query,
             config_hash=config_hash,

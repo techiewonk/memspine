@@ -169,6 +169,7 @@ from memspine.read.pipeline import lift as read_lift
 from memspine.read.pipeline import request as read_request
 from memspine.read.pipeline import rerank as read_rerank
 from memspine.read.pipeline import router as read_router
+from memspine.read.pipeline import scope_guard
 from memspine.read.pipeline import timeview as read_timeview
 from memspine.read.pipeline.state import (
     _READ_SNAPSHOT,
@@ -1673,6 +1674,7 @@ class Engine:
     ) -> tuple[MemoryRecord, str]:
         return await ingest_write._write_screened(self, storage, ns, record, memory_type, actor)
 
+    @scope_guard.viewer_guarded("retrieve")
     @_passive_scoped
     @tap.traced("read")
     async def retrieve(
@@ -1707,6 +1709,7 @@ class Engine:
             include_passive,
         )
 
+    @scope_guard.viewer_guarded("search", native=True)
     @_passive_scoped
     @_snapshot_scoped
     @tap.traced("read")
@@ -1863,6 +1866,7 @@ class Engine:
         """ContextPipe: the budget left once ``read.reply_reserve_tokens`` is kept free."""
         return compose_pack._reply_budget(self, budget_tokens)
 
+    @scope_guard.viewer_guarded("assemble", native=True)
     @_passive_scoped
     @_snapshot_scoped
     @tap.traced("read")
@@ -2107,6 +2111,7 @@ class Engine:
         read or written; no read path calls it."""
         return await compose_answer.verify_answer(self, question, answer, context)
 
+    @scope_guard.viewer_guarded("read", native=True)
     @_passive_scoped
     @_snapshot_scoped
     @tap.traced("read")
@@ -3091,6 +3096,7 @@ class Engine:
         selective they are. Read-only, no model."""
         return await handle.rating_profile(self, namespace)
 
+    @scope_guard.viewer_guarded("brief")
     async def brief(
         self,
         namespace: str = "default",
@@ -3110,6 +3116,29 @@ class Engine:
             self, namespace, budget_tokens, summaries=summaries, recent_turns=recent_turns
         )
 
+    @scope_guard.viewer_guarded("get_record")
+    async def get_record(self, record_id: str, namespace: str = "default") -> MemoryRecord | None:
+        """F-16c: one record by id, only from ``namespace`` (exact match). A record that lives in
+        another tenant or owner is refused (``scope.refused``, ``cross_tenant`` / ``cross_owner``)
+        and reads as missing. Status is not filtered (an archived record is returned). ``viewer=``
+        hides a record the viewer may not see; a multi-party namespace needs one under
+        ``isolation.viewer_required``."""
+        ns = validate_namespace(namespace)
+        record = await self._require_started().get_record(record_id)
+        if record is None or not scope_guard.record_in_scope("get_record", ns, record.namespace):
+            return None
+        return record
+
+    @scope_guard.viewer_guarded("list_records")
+    async def list_records(
+        self, namespace: str = "default", memory_type: str | None = None
+    ) -> list[MemoryRecord]:
+        """F-16c: every stored record of ``namespace`` (optionally one memory type), unfiltered by
+        status. The multi-party viewer rule applies like every other read verb."""
+        storage = self._require_started()
+        return await storage.list_records(validate_namespace(namespace), memory_type)
+
+    @scope_guard.viewer_guarded("namespace_stats")
     async def namespace_stats(self, namespace: str = "default") -> dict[str, Any]:
         """I5 (isolation review 2026-10-08): how big one user's memory is. Counts of
         live records by memory type and status, distinct conversations, quarantined
@@ -3117,6 +3146,7 @@ class Engine:
         Read-only; no model call."""
         return await handle.namespace_stats(self, namespace)
 
+    @scope_guard.viewer_guarded("conversation")
     async def conversation(
         self,
         namespace: str = "default",
@@ -3129,6 +3159,7 @@ class Engine:
         or untrusted turns are left out)."""
         return await handle.conversation(self, namespace, session_id, roles)
 
+    @scope_guard.viewer_guarded("session_memories")
     async def session_memories(
         self, namespace: str = "default", session_record_ids: Sequence[str] = ()
     ) -> list[MemoryRecord]:
@@ -3764,6 +3795,7 @@ class Engine:
     ) -> list[tuple[MemoryRecord, float]]:
         return await read_rerank._static_embedding_prefilter(self, query, candidates, top_k)
 
+    @scope_guard.viewer_guarded("timeline")
     async def timeline(
         self,
         namespace: str = "default",
@@ -3773,6 +3805,7 @@ class Engine:
         """Chronological episodic timeline (M13.2), optionally windowed."""
         return await read_timeview.timeline(self, namespace, start, end)
 
+    @scope_guard.viewer_guarded("sessions")
     async def sessions(
         self, namespace: str = "default", gap_minutes: int = constants.SESSION_GAP_MINUTES
     ) -> list[Session]:
@@ -4296,6 +4329,7 @@ class Engine:
         ``memory.audit`` event under ``audit.actions``."""
         return await memory_shared.revoke(self, to_namespace, namespace, actor=actor)
 
+    @scope_guard.viewer_guarded("shared_search")
     async def shared_search(
         self,
         query: str,
