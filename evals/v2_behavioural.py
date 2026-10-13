@@ -22,7 +22,7 @@ from typing import Any
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
-SECTIONS = ("read", "write", "graph")
+SECTIONS = ("read", "write", "graph", "offline")  # offline: prerequisites of read.standing_v2 etc. (FU-REQS)
 #: Keys that decide which candidates reach a reranker (INV-FILLER, R3-07). The overlay is a diff against the
 #: reference arm, so an arm that only adds ``rerank_v2`` would be gated on an engine whose pool is exactly
 #: ``top_k``: the reranker then reorders five hits and cannot recover a relevant record the filler pushed out.
