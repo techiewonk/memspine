@@ -8,7 +8,7 @@ from typing import Any
 import pytest
 
 from memspine import Engine
-from memspine.protocols.tools import (
+from memspine.api.tools import (
     AGENT_TOOL_CHANNEL,
     AgentMemoryTools,
     ToolContext,

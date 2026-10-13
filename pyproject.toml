@@ -103,7 +103,7 @@ build-backend = "hatchling.build"
 [dependency-groups]
 dev = [
     "types-pyyaml>=6.0.12.20260518",
-    # protocols/rest is dev-tested in-process (httpx ASGITransport, no server);
+    # api/rest is dev-tested in-process (httpx ASGITransport, no server);
     # taskiq stays OUT of dev — its runner is tested via fakeredis + pure fns (D-41).
     "fastapi>=0.115",
 ]

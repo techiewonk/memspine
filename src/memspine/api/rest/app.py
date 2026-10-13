@@ -1,7 +1,7 @@
 """FastAPI app over ONE Engine (D-06, ``[rest]``).
 
 #51: ``rest.auth.mode`` (``api_key`` | ``oidc_jwt``) turns on the reference auth
-middleware in :mod:`memspine.protocols.rest.auth` (ADR-041): it binds a principal
+middleware in :mod:`memspine.api.rest.auth` (ADR-041): it binds a principal
 and its allowed namespaces to each request and guards the admin routes. It is a
 reference, not a production auth plane. The rest of this note describes the
 default, ``mode: none``.
@@ -42,7 +42,7 @@ from memspine.config import constants
 from memspine.config.schema import RestConfig, RestRateLimitConfig
 from memspine.exceptions import ConflictError, MemspineError, MissingServiceError
 from memspine.observability.logging import get_logger
-from memspine.protocols.rest.auth import (
+from memspine.api.rest.auth import (
     Authenticator,
     AuthError,
     Principal,
@@ -50,7 +50,7 @@ from memspine.protocols.rest.auth import (
     is_admin_path,
     route_path,
 )
-from memspine.protocols.rest.models import (
+from memspine.api.rest.models import (
     AssembleRequest,
     AssembleResponse,
     CorrectRequest,

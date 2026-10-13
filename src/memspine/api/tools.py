@@ -1,7 +1,7 @@
 """Framework-neutral agent memory tool-set (I65).
 
 Five JSON-schema tools a model can call, plus ONE dispatcher that maps a call to an
-``Engine`` verb. REST, MCP (``protocols/mcp``) and framework adapters all go through
+``Engine`` verb. REST, MCP (``api/mcp``) and framework adapters all go through
 :meth:`AgentMemoryTools.call`, so the guards live in one place. No third-party imports.
 
 ======================  ==========================================================
