@@ -62,6 +62,7 @@ from memspine.derive.items import (
 )
 from memspine.derive.pipeline.stages.context import SessionClosed, WindowEdgeBatch
 from memspine.derive.pipeline.stages.mining import _fact_date
+from memspine.derive.temporal_stage import happened_label_for
 from memspine.derive.segmenter import SegmentationSettings, StreamSegmenter
 from memspine.economy import ledger as _costs
 from memspine.exceptions import LLMError
@@ -1839,6 +1840,14 @@ class WindowPipeline:
                 tags.append(next(iter(speakers)))
             start = env.time.event.start if env.time.event is not None else None
             happened = _fact_date(start.text, latest) if start is not None and start.text else None
+            happened_label: str | None = None
+            if start is not None and start.at is not None:
+                # W2-14: the stage anchored the time; the label carries the written precision
+                label = happened_label_for(start, env.time.event.end if env.time.event else None)
+                happened = _fact_date(label.partition("..")[0], latest) if label else None
+                happened_label = label if happened is not None else None
+            elif happened is not None:
+                happened_label = happened.date().isoformat()
             said = env.time.source_time
             when = happened or said or records[0].valid_from
             entity = env.subject.surface if env.subject is not None else env.speaker
@@ -1852,7 +1861,7 @@ class WindowPipeline:
                     when,
                     f"win:{window_id}",
                     kind=storage_kind(env.kind),
-                    happened=happened.date().isoformat() if happened is not None else None,
+                    happened=happened_label,
                     said=said.date().isoformat() if happened is not None and said else None,
                     extra_tags=tags,
                     require_live=member_ids,

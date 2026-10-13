@@ -18,6 +18,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
 from memspine.core.event_date import happened_of, label_span
 from memspine.models.encoders.query.temporal_query import query_interval
@@ -73,6 +74,16 @@ class TimeWindow:
         return min(abs((mid - lo).total_seconds()), abs((mid - hi).total_seconds())) / 86400.0
 
 
+def _happened_interval(record: MemoryRecord) -> _Interval | None:
+    label = happened_of(record)
+    days = label_span(label) if label else None
+    if days is None:
+        return None
+    first = datetime(days[0].year, days[0].month, days[0].day, tzinfo=UTC)
+    after = datetime(days[1].year, days[1].month, days[1].day, tzinfo=UTC) + timedelta(days=1)
+    return first, after
+
+
 def event_intervals(record: MemoryRecord) -> list[_Interval]:
     """The event intervals of a record (see the module docstring); instants are ``(t, t)``."""
     lo = _aware(record.valid_from)
@@ -81,13 +92,20 @@ def event_intervals(record: MemoryRecord) -> list[_Interval]:
         out.append((lo, _aware(record.valid_to)))
     else:
         out.append((lo, lo))
-    label = happened_of(record)
-    days = label_span(label) if label else None
-    if days is not None:
-        first = datetime(days[0].year, days[0].month, days[0].day, tzinfo=UTC)
-        after = datetime(days[1].year, days[1].month, days[1].day, tzinfo=UTC) + timedelta(days=1)
-        out.append((first, after))
+    happened = _happened_interval(record)
+    if happened is not None:
+        out.append(happened)
     return out
+
+
+def precision_weight(window: TimeWindow, interval: _Interval) -> float:
+    """W2-14: the share of a stated period that the window covers, in ``(0, 1]``. A day-precision
+    period inside a day window weighs 1; a year-precision period weighs about 1/365 for it."""
+    span = (interval[1] - interval[0]).total_seconds()
+    if span <= 0:
+        return 1.0
+    covered = (min(window.end, interval[1]) - max(window.start, interval[0])).total_seconds()
+    return covered / span if covered > 0 else 1.0
 
 
 class TemporalLeg:
@@ -110,14 +128,31 @@ class TemporalLeg:
         if window is None:
             return LegOutput([], "no_window")
         scored: list[tuple[float, MemoryRecord]] = []
+        weights: dict[str, float] = {}
         for r in records:
             best: float | None = None
+            happened = _happened_interval(r) if ctx.precision_aware else None
             for lo, hi in event_intervals(r):
+                if happened is not None and hi <= lo and r.valid_to is None:
+                    continue  # the instant is the moved start of the happened period, not a date
                 if window.overlaps(lo, hi):
                     d = window.distance_days(lo, hi)
                     best = d if best is None else min(best, d)
+                    w = precision_weight(window, happened) if (lo, hi) == happened else 1.0
+                    weights[r.record_id] = max(weights.get(r.record_id, 0.0), w)
             if best is not None:
                 scored.append((best, r))
-        scored.sort(key=lambda item: (item[0], chrono_key(item[1])))
-        hits = [Hit(r.record_id, 1.0 / (1.0 + d)) for d, r in scored[: ctx.fetch_k]]
+        if ctx.precision_aware:
+
+            def rank(it: tuple[float, MemoryRecord]) -> tuple[float, Any]:
+                return (-weights.get(it[1].record_id, 1.0) / (1.0 + it[0]), chrono_key(it[1]))
+
+            scored.sort(key=rank)
+            hits = [
+                Hit(r.record_id, weights.get(r.record_id, 1.0) / (1.0 + d))
+                for d, r in scored[: ctx.fetch_k]
+            ]
+        else:
+            scored.sort(key=lambda item: (item[0], chrono_key(item[1])))
+            hits = [Hit(r.record_id, 1.0 / (1.0 + d)) for d, r in scored[: ctx.fetch_k]]
         return LegOutput(hits, None if hits else "no_overlap")

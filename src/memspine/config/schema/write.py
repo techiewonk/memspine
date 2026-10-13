@@ -104,6 +104,19 @@ class WriteConfig(BaseModel):
     #: ``False`` (default): the old fact section.
     envelope_v2: bool = False
 
+    #: W2-14 (LIB-01; W-04, M-10, R-07; needs ``envelope_v2``): temporal anchoring as an envelope stage
+    #: (order 100). For each envelope it fills the event interval with its precision and basis by the
+    #: anchor ladder: (1) an explicit date in the model's time text, the cited span or the assertion
+    #: text, (2) a relative phrase ("last Tuesday", "letzte Woche", "il y a trois jours", "hace dos
+    #: semanas") resolved against the cited turn's ``source_at`` (``stamping_v2``), else the window's
+    #: nearest stamped turn, (3) with ``stamping_v2`` off only, the window ``valid_from`` as an
+    #: approximate, ``inferred`` session anchor, (4) else unknown (never "now"). Precision is never
+    #: finer than the evidence ("in 2019" is year precision, never a made-up day). ``before`` /
+    #: ``after`` / ``during`` / ``since`` / ``until`` between two assertions of the window ("the week
+    #: before her trip") are written as a typed relation with no date. The deposited ``happened:`` label
+    #: carries the written precision. ``False`` (default): the model's time text is kept as text only.
+    temporal_v2: bool = False
+
     #: F-16a (M-09, G-08, POL-2): the lineage table and the single derived-write door. ``True``:
     #: every derived record written through ``derive/write.py`` gets one lineage edge per parent
     #: (``support`` unless the site names a role), its trust capped at the least-trusted parent, a
