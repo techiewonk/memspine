@@ -112,6 +112,10 @@ async def summarize_entities(ctx: PipelineContext) -> dict[str, object]:
     sweep re-derives the summary without it. Off by default
     (``memories.associative.policies.entity_summaries``); needs the entity layer.
     """
+    if ctx.config.offline.communities_v2:  # O4-06: model call outside the lock, derived-write door
+        from memspine.derive.pipeline.stages.entity_summaries_v2 import summarize_entities_v2
+
+        return await summarize_entities_v2(ctx)
     if ctx.append_event is None:
         return {"status": "skipped", "reason": "read-only context (no write door)"}
     opts = _entity_summary_options(ctx)

@@ -146,6 +146,23 @@
    "write_timers": false
   },
   "offline": {
+   "communities_v2": false,
+   "community_hub_fraction": 0.5,
+   "community_hubs": [],
+   "community_max_entities_per_record": 8,
+   "community_max_size": 200,
+   "community_min_size": 3,
+   "community_summary_budget_tokens": 20000,
+   "decay_boundaries": [
+    0.5,
+    0.3,
+    0.15
+   ],
+   "decay_group_min_size": 2,
+   "decay_margin": 0.05,
+   "decay_multires_jobs": 0,
+   "decay_protected_kinds": [],
+   "decay_v2": false,
    "histories_v2": false,
    "near_duplicate_text": 0.8,
    "profile_allow_inferred": false,
@@ -509,7 +526,7 @@
    "window_topic_k": 2.0
   }
  },
- "json_schema_sha256": "59c41d39799a9fc0b3a1acca0933a96fe7bcb2ce9035de137b351a333e9c1cb0",
+ "json_schema_sha256": "4e48b1e89059c0e2d3e664a7adbbeee3a0efb3cf2f1dce5cbc1fc9b471ad38f0",
  "preset:chat_roles": {
   "audit": {
    "actions": false,
@@ -678,6 +695,23 @@
    "write_timers": false
   },
   "offline": {
+   "communities_v2": false,
+   "community_hub_fraction": 0.5,
+   "community_hubs": [],
+   "community_max_entities_per_record": 8,
+   "community_max_size": 200,
+   "community_min_size": 3,
+   "community_summary_budget_tokens": 20000,
+   "decay_boundaries": [
+    0.5,
+    0.3,
+    0.15
+   ],
+   "decay_group_min_size": 2,
+   "decay_margin": 0.05,
+   "decay_multires_jobs": 0,
+   "decay_protected_kinds": [],
+   "decay_v2": false,
    "histories_v2": false,
    "near_duplicate_text": 0.8,
    "profile_allow_inferred": false,
@@ -1215,6 +1249,23 @@
    "write_timers": false
   },
   "offline": {
+   "communities_v2": false,
+   "community_hub_fraction": 0.5,
+   "community_hubs": [],
+   "community_max_entities_per_record": 8,
+   "community_max_size": 200,
+   "community_min_size": 3,
+   "community_summary_budget_tokens": 20000,
+   "decay_boundaries": [
+    0.5,
+    0.3,
+    0.15
+   ],
+   "decay_group_min_size": 2,
+   "decay_margin": 0.05,
+   "decay_multires_jobs": 0,
+   "decay_protected_kinds": [],
+   "decay_v2": false,
    "histories_v2": false,
    "near_duplicate_text": 0.8,
    "profile_allow_inferred": false,
@@ -1752,6 +1803,23 @@
    "write_timers": false
   },
   "offline": {
+   "communities_v2": false,
+   "community_hub_fraction": 0.5,
+   "community_hubs": [],
+   "community_max_entities_per_record": 8,
+   "community_max_size": 200,
+   "community_min_size": 3,
+   "community_summary_budget_tokens": 20000,
+   "decay_boundaries": [
+    0.5,
+    0.3,
+    0.15
+   ],
+   "decay_group_min_size": 2,
+   "decay_margin": 0.05,
+   "decay_multires_jobs": 0,
+   "decay_protected_kinds": [],
+   "decay_v2": false,
    "histories_v2": false,
    "near_duplicate_text": 0.8,
    "profile_allow_inferred": false,
@@ -2289,6 +2357,23 @@
    "write_timers": false
   },
   "offline": {
+   "communities_v2": false,
+   "community_hub_fraction": 0.5,
+   "community_hubs": [],
+   "community_max_entities_per_record": 8,
+   "community_max_size": 200,
+   "community_min_size": 3,
+   "community_summary_budget_tokens": 20000,
+   "decay_boundaries": [
+    0.5,
+    0.3,
+    0.15
+   ],
+   "decay_group_min_size": 2,
+   "decay_margin": 0.05,
+   "decay_multires_jobs": 0,
+   "decay_protected_kinds": [],
+   "decay_v2": false,
    "histories_v2": false,
    "near_duplicate_text": 0.8,
    "profile_allow_inferred": false,
@@ -2826,6 +2911,23 @@
    "write_timers": false
   },
   "offline": {
+   "communities_v2": false,
+   "community_hub_fraction": 0.5,
+   "community_hubs": [],
+   "community_max_entities_per_record": 8,
+   "community_max_size": 200,
+   "community_min_size": 3,
+   "community_summary_budget_tokens": 20000,
+   "decay_boundaries": [
+    0.5,
+    0.3,
+    0.15
+   ],
+   "decay_group_min_size": 2,
+   "decay_margin": 0.05,
+   "decay_multires_jobs": 0,
+   "decay_protected_kinds": [],
+   "decay_v2": false,
    "histories_v2": false,
    "near_duplicate_text": 0.8,
    "profile_allow_inferred": false,
@@ -3363,6 +3465,23 @@
    "write_timers": false
   },
   "offline": {
+   "communities_v2": false,
+   "community_hub_fraction": 0.5,
+   "community_hubs": [],
+   "community_max_entities_per_record": 8,
+   "community_max_size": 200,
+   "community_min_size": 3,
+   "community_summary_budget_tokens": 20000,
+   "decay_boundaries": [
+    0.5,
+    0.3,
+    0.15
+   ],
+   "decay_group_min_size": 2,
+   "decay_margin": 0.05,
+   "decay_multires_jobs": 0,
+   "decay_protected_kinds": [],
+   "decay_v2": false,
    "histories_v2": false,
    "near_duplicate_text": 0.8,
    "profile_allow_inferred": false,
@@ -3900,6 +4019,23 @@
    "write_timers": false
   },
   "offline": {
+   "communities_v2": false,
+   "community_hub_fraction": 0.5,
+   "community_hubs": [],
+   "community_max_entities_per_record": 8,
+   "community_max_size": 200,
+   "community_min_size": 3,
+   "community_summary_budget_tokens": 20000,
+   "decay_boundaries": [
+    0.5,
+    0.3,
+    0.15
+   ],
+   "decay_group_min_size": 2,
+   "decay_margin": 0.05,
+   "decay_multires_jobs": 0,
+   "decay_protected_kinds": [],
+   "decay_v2": false,
    "histories_v2": false,
    "near_duplicate_text": 0.8,
    "profile_allow_inferred": false,
@@ -4437,6 +4573,23 @@
    "write_timers": false
   },
   "offline": {
+   "communities_v2": false,
+   "community_hub_fraction": 0.5,
+   "community_hubs": [],
+   "community_max_entities_per_record": 8,
+   "community_max_size": 200,
+   "community_min_size": 3,
+   "community_summary_budget_tokens": 20000,
+   "decay_boundaries": [
+    0.5,
+    0.3,
+    0.15
+   ],
+   "decay_group_min_size": 2,
+   "decay_margin": 0.05,
+   "decay_multires_jobs": 0,
+   "decay_protected_kinds": [],
+   "decay_v2": false,
    "histories_v2": false,
    "near_duplicate_text": 0.8,
    "profile_allow_inferred": false,
@@ -4974,6 +5127,23 @@
    "write_timers": false
   },
   "offline": {
+   "communities_v2": false,
+   "community_hub_fraction": 0.5,
+   "community_hubs": [],
+   "community_max_entities_per_record": 8,
+   "community_max_size": 200,
+   "community_min_size": 3,
+   "community_summary_budget_tokens": 20000,
+   "decay_boundaries": [
+    0.5,
+    0.3,
+    0.15
+   ],
+   "decay_group_min_size": 2,
+   "decay_margin": 0.05,
+   "decay_multires_jobs": 0,
+   "decay_protected_kinds": [],
+   "decay_v2": false,
    "histories_v2": false,
    "near_duplicate_text": 0.8,
    "profile_allow_inferred": false,
@@ -5518,6 +5688,23 @@
    "write_timers": false
   },
   "offline": {
+   "communities_v2": false,
+   "community_hub_fraction": 0.5,
+   "community_hubs": [],
+   "community_max_entities_per_record": 8,
+   "community_max_size": 200,
+   "community_min_size": 3,
+   "community_summary_budget_tokens": 20000,
+   "decay_boundaries": [
+    0.5,
+    0.3,
+    0.15
+   ],
+   "decay_group_min_size": 2,
+   "decay_margin": 0.05,
+   "decay_multires_jobs": 0,
+   "decay_protected_kinds": [],
+   "decay_v2": false,
    "histories_v2": false,
    "near_duplicate_text": 0.8,
    "profile_allow_inferred": false,
@@ -6062,6 +6249,23 @@
    "write_timers": false
   },
   "offline": {
+   "communities_v2": false,
+   "community_hub_fraction": 0.5,
+   "community_hubs": [],
+   "community_max_entities_per_record": 8,
+   "community_max_size": 200,
+   "community_min_size": 3,
+   "community_summary_budget_tokens": 20000,
+   "decay_boundaries": [
+    0.5,
+    0.3,
+    0.15
+   ],
+   "decay_group_min_size": 2,
+   "decay_margin": 0.05,
+   "decay_multires_jobs": 0,
+   "decay_protected_kinds": [],
+   "decay_v2": false,
    "histories_v2": false,
    "near_duplicate_text": 0.8,
    "profile_allow_inferred": false,
@@ -6595,6 +6799,23 @@
    "write_timers": false
   },
   "offline": {
+   "communities_v2": false,
+   "community_hub_fraction": 0.5,
+   "community_hubs": [],
+   "community_max_entities_per_record": 8,
+   "community_max_size": 200,
+   "community_min_size": 3,
+   "community_summary_budget_tokens": 20000,
+   "decay_boundaries": [
+    0.5,
+    0.3,
+    0.15
+   ],
+   "decay_group_min_size": 2,
+   "decay_margin": 0.05,
+   "decay_multires_jobs": 0,
+   "decay_protected_kinds": [],
+   "decay_v2": false,
    "histories_v2": false,
    "near_duplicate_text": 0.8,
    "profile_allow_inferred": false,
@@ -7130,6 +7351,23 @@
    "write_timers": false
   },
   "offline": {
+   "communities_v2": false,
+   "community_hub_fraction": 0.5,
+   "community_hubs": [],
+   "community_max_entities_per_record": 8,
+   "community_max_size": 200,
+   "community_min_size": 3,
+   "community_summary_budget_tokens": 20000,
+   "decay_boundaries": [
+    0.5,
+    0.3,
+    0.15
+   ],
+   "decay_group_min_size": 2,
+   "decay_margin": 0.05,
+   "decay_multires_jobs": 0,
+   "decay_protected_kinds": [],
+   "decay_v2": false,
    "histories_v2": false,
    "near_duplicate_text": 0.8,
    "profile_allow_inferred": false,
@@ -7671,6 +7909,23 @@
    "write_timers": false
   },
   "offline": {
+   "communities_v2": false,
+   "community_hub_fraction": 0.5,
+   "community_hubs": [],
+   "community_max_entities_per_record": 8,
+   "community_max_size": 200,
+   "community_min_size": 3,
+   "community_summary_budget_tokens": 20000,
+   "decay_boundaries": [
+    0.5,
+    0.3,
+    0.15
+   ],
+   "decay_group_min_size": 2,
+   "decay_margin": 0.05,
+   "decay_multires_jobs": 0,
+   "decay_protected_kinds": [],
+   "decay_v2": false,
    "histories_v2": false,
    "near_duplicate_text": 0.8,
    "profile_allow_inferred": false,
@@ -8216,6 +8471,23 @@
    "write_timers": false
   },
   "offline": {
+   "communities_v2": false,
+   "community_hub_fraction": 0.5,
+   "community_hubs": [],
+   "community_max_entities_per_record": 8,
+   "community_max_size": 200,
+   "community_min_size": 3,
+   "community_summary_budget_tokens": 20000,
+   "decay_boundaries": [
+    0.5,
+    0.3,
+    0.15
+   ],
+   "decay_group_min_size": 2,
+   "decay_margin": 0.05,
+   "decay_multires_jobs": 0,
+   "decay_protected_kinds": [],
+   "decay_v2": false,
    "histories_v2": false,
    "near_duplicate_text": 0.8,
    "profile_allow_inferred": false,
@@ -8753,6 +9025,23 @@
    "write_timers": false
   },
   "offline": {
+   "communities_v2": false,
+   "community_hub_fraction": 0.5,
+   "community_hubs": [],
+   "community_max_entities_per_record": 8,
+   "community_max_size": 200,
+   "community_min_size": 3,
+   "community_summary_budget_tokens": 20000,
+   "decay_boundaries": [
+    0.5,
+    0.3,
+    0.15
+   ],
+   "decay_group_min_size": 2,
+   "decay_margin": 0.05,
+   "decay_multires_jobs": 0,
+   "decay_protected_kinds": [],
+   "decay_v2": false,
    "histories_v2": false,
    "near_duplicate_text": 0.8,
    "profile_allow_inferred": false,
@@ -9291,6 +9580,23 @@
    "write_timers": false
   },
   "offline": {
+   "communities_v2": false,
+   "community_hub_fraction": 0.5,
+   "community_hubs": [],
+   "community_max_entities_per_record": 8,
+   "community_max_size": 200,
+   "community_min_size": 3,
+   "community_summary_budget_tokens": 20000,
+   "decay_boundaries": [
+    0.5,
+    0.3,
+    0.15
+   ],
+   "decay_group_min_size": 2,
+   "decay_margin": 0.05,
+   "decay_multires_jobs": 0,
+   "decay_protected_kinds": [],
+   "decay_v2": false,
    "histories_v2": false,
    "near_duplicate_text": 0.8,
    "profile_allow_inferred": false,
@@ -9830,6 +10136,23 @@
    "write_timers": false
   },
   "offline": {
+   "communities_v2": false,
+   "community_hub_fraction": 0.5,
+   "community_hubs": [],
+   "community_max_entities_per_record": 8,
+   "community_max_size": 200,
+   "community_min_size": 3,
+   "community_summary_budget_tokens": 20000,
+   "decay_boundaries": [
+    0.5,
+    0.3,
+    0.15
+   ],
+   "decay_group_min_size": 2,
+   "decay_margin": 0.05,
+   "decay_multires_jobs": 0,
+   "decay_protected_kinds": [],
+   "decay_v2": false,
    "histories_v2": false,
    "near_duplicate_text": 0.8,
    "profile_allow_inferred": false,
