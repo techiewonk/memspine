@@ -81,6 +81,24 @@ class LegContext:
     #: W2-14: weight happened-interval hits by the precision of their period
     #: (``read.temporal_precision_aware``)
     precision_aware: bool = False
+    #: FU-TEMPORAL: the old ``read.temporal_*`` rules, honoured by the temporal leg under
+    #: ``legs_v2``. ``temporal_rank`` is ``midpoint`` | ``overlap`` (``read.temporal_rank``);
+    #: ``temporal_soft`` fills a short leg with the nearest records outside the window
+    #: (``read.temporal_soft``); ``temporal_mentions`` lets a turn that names a date enter by
+    #: that date (``read.temporal_leg_mentions``); ``temporal_event_dates`` lets a mined fact
+    #: enter by its ``happened:`` date (``read.temporal_leg_event_dates``). Relative phrases and
+    #: yearless dates resolve only when ``reference_time`` / ``year_ref`` are set
+    #: (``read.temporal_relative`` / ``temporal_infer_year``). The library defaults keep the
+    #: event-interval leg as R3-04 shipped it.
+    temporal_rank: str = "midpoint"
+    temporal_soft: bool = False
+    temporal_mentions: bool = False
+    temporal_event_dates: bool = True
+    #: FU-TEMPORAL: the lexical leg's query text when it differs from ``query`` (speaker names
+    #: stripped, ``read.lexical_strip_names``), and ``read.lexical_dates``: index each record's date
+    #: words with its text
+    lexical_query: str | None = None
+    lexical_dates: bool = False
     #: ``None`` when no embedder is up: the vector leg then reports ``no_embedder``
     vector_search: Callable[[int], Awaitable[Sequence[Any]]] | None = None
     #: R3-05c: which layers hold live records (``store.layer_registry.LayerRegistry``); ``None``
