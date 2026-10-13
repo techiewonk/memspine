@@ -186,6 +186,7 @@
       "graph_rerank": "off",
       "graph_rerank_weight": 0.2,
       "hybrid": true,
+      "inference_mode": "off",
       "inferred_gate": "off",
       "inferred_min_support": 2,
       "language_guard": "off",

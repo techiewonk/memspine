@@ -505,6 +505,7 @@ From `docs/v2/research/R14_MASTER.md` (2026-10-14). Proposals only: none is in `
 | S87 | R14-M-7 | date_prior | fail_temporal (13 fail + matched controls from the 180) | yes |
 | S88 | R14-M-8 | duration_solve + milestones (built-off, needs a screen only) | fail_temporal date_* classes (19) + 38 unit questions | yes |
 | S89 | R14-M-9 | vote | fail_reader (40 + 25 refusal rows); guards cat5 and OP-Bench irrelevance | no |
+| S73 | R14-M-9 | `read.inference_mode=gated` (arm `v2-R14-INFER-inference_mode`, J overlay; no extra model call; with `--retry-refusal` the retry on inference questions uses the commit instruction) | fail_reader (40 + 25 refusal rows) and cat5 guard (S20); other shapes must stay byte-identical, so a diff outside inference-typed ids is a bug | yes (prompt-variant counts per slice) |
 | S90 | R14-M-10 | quote-then-answer | fail_reader (46 + 59 ids); 2x2 narrow/wide window by shape on the dev slice | no |
 | S91 | R14-M-10 | window_by_shape | fail_reader (46 + 59 ids); 2x2 narrow/wide window by shape on the dev slice | no |
 | S92 | R14-M-10 | verify_binding | fail_reader (46 + 59 ids); 2x2 narrow/wide window by shape on the dev slice | no |

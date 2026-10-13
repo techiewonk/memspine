@@ -446,6 +446,59 @@ ROUTED_QA_PROMPTS: Mapping[str, RoutedQAPrompt] = {
 }
 
 
+#: R14-M-9 / OBS-06 (``read.inference_mode = gated``): the typed commit route. The clause goes
+#: ONLY into the prompt of a question the rules contract types as inference / judgement; every
+#: other question gets the base prompt byte for byte (the blanket ``grounded_v2`` clause cost
+#: dev 86.7 -> 81.5). Generic wording, no dataset names. The last sentence keeps abstention
+#: open for an unanswerable (category 5 / irrelevance) question. Bump the version on any edit.
+INFERENCE_GATE_VERSION = "infer-gate-v1"
+INFERENCE_COMMIT_CLAUSE = (
+    "This question asks for a judgement (what would, might or is likely to be true or happen), "
+    "so answer it rather than declining: commit to the most likely answer (yes or no, or a "
+    "short phrase) and add a one-line reason that cites the memory line it rests on, using "
+    "ordinary knowledge only to link what a line says to the question. If no memory line bears "
+    "on the question at all, reply that it is not mentioned in the conversation instead of "
+    "guessing."
+)
+#: The refusal-retry instruction for the same questions (replaces the neutral one when gated).
+INFERENCE_RETRY_INSTRUCTION = (
+    "\n\nRe-read the memories. This is a judgement question: if any memory line bears on it, "
+    "commit to the most likely answer (yes or no, or a short phrase) with a one-line reason "
+    "citing that line. If no line bears on it at all, reply exactly: Not mentioned in the "
+    "conversation."
+)
+
+
+def is_inference_question(question: str) -> bool:
+    """The gate: the rules contract (``memspine.read.contract.build_contract``) types the
+    question as ``inference`` (would / likely / might / hypothetical). Pure, no model."""
+    from memspine.read.contract import build_contract
+
+    return build_contract(question).request == "inference"
+
+
+def with_inference_clause(prompt: str, clause: str = INFERENCE_COMMIT_CLAUSE) -> str:
+    """``prompt`` with ``clause`` as its own paragraph just before the paragraph that holds
+    the ``{context}`` field (the instructions stay ahead of the memories)."""
+    idx = prompt.index("{context}")
+    cut = prompt.rfind("\n\n", 0, idx)
+    if cut < 0:
+        return clause + "\n\n" + prompt
+    return prompt[:cut] + "\n\n" + clause + prompt[cut:]
+
+
+def gated_inference_prompt(base: str, name: str = "") -> RoutedQAPrompt:
+    """``read.inference_mode = gated``: ``base`` for every question, ``base`` plus the commit
+    clause for an inference question. Routed, so ``describe()`` hashes both variants and rows
+    record the variant."""
+    return RoutedQAPrompt(
+        {"plain": base, "inference": with_inference_clause(base)},
+        shape_fn=lambda q: "inference" if is_inference_question(q) else "plain",
+        router_version=INFERENCE_GATE_VERSION,
+        name=(name or "prompt") + "+infer_gate",
+    )
+
+
 class SystemQAPrompt:
     """A QA prompt with a system message and a no-context variant (OP-Bench).
 

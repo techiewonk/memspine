@@ -463,9 +463,19 @@ def check_dollar_cap(config: C01Config) -> None:
         )
 
 
+def inference_gated(config: C01Config) -> bool:
+    """R14-M-9: the engine overlay sets ``read.inference_mode = gated``."""
+    read = (memspine_engine_config(config) or {}).get("read") or {}
+    return read.get("inference_mode", "off") == "gated"
+
+
 def _retry_decider_kwargs(config: C01Config) -> dict[str, Any]:
     """I28: ``RefusalRetryReader`` kwargs for ``--decider`` (none for the default heuristic)."""
-    guard = {"guard_absent_entity": True} if config.retry_guard else {}
+    guard: dict[str, Any] = {"guard_absent_entity": True} if config.retry_guard else {}
+    if inference_gated(config):
+        from .readers import is_inference_question
+
+        guard["inference_gate"] = is_inference_question
     if config.retry_mode != "neutral":
         guard["mode"] = config.retry_mode
     if config.retry_overlap:
@@ -679,6 +689,14 @@ def build_reader_and_judge(config: C01Config) -> tuple[Reader, Judge, bool]:
     else:
         known = sorted([*QA_PROMPTS, *ROUTED_QA_PROMPTS, *SYSTEM_QA_PROMPTS])
         raise ValueError(f"unknown qa prompt {config.qa_prompt!r}; known: {known}")
+    if inference_gated(config):  # R14-M-9: commit clause for inference questions only
+        if not isinstance(qa_prompt, str):
+            raise ValueError(
+                "read.inference_mode=gated needs a fixed --qa-prompt (not routed / system)"
+            )
+        from .readers import gated_inference_prompt
+
+        qa_prompt = gated_inference_prompt(qa_prompt, config.qa_prompt)
     # #34: a reasoning prompt's reader keeps the final answer and gets room to reason.
     reasoning = config.qa_prompt in REASONING_QA_PROMPTS
     if config.bedrock:
