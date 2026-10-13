@@ -7,9 +7,9 @@ Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summarie
 
 | Status | Count |
 |---|---|
-| Not started | 33 |
+| Not started | 32 |
 | Ready | 0 |
-| In progress | 2 |
+| In progress | 3 |
 | Blocked | 0 |
 | Needs measurement | 45 |
 | Done | 81 |
@@ -120,7 +120,7 @@ Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summarie
 | F-16d | Storage-profile contract; Postgres server profile and its Alembic tree | L0 L1 L3 L4 L5 ctx scope | R | M-04 | - | F-16b | behaviour | S2 foundations (serial: Alembic) | `src/memspine/store/lineage.py` +6 | Both profiles pass the store contract tests | **In progress** | Sonnet agent launched 2026-10-13 (worktree memspine-F-16d) |
 | F-16e | Neo4j graph adapter fed through the outbox | L3 | R | M-18 | - | F-16d, F-04 | behaviour | S2 foundations (serial: Alembic) | `src/memspine/store/lineage.py` +6 | Graph contract on Neo4j | **Not started** | Q4 |
 | F-16f | Isolation, erasure and rebuild matrix on both profiles | L0 L1 L3 L4 L5 ctx scope | K_C | M-25 | ER-05, ER-30 | F-16e, F-16c | behaviour | S2 foundations (serial: Alembic) | `src/memspine/store/lineage.py` +6 | Matrix green on embedded and server | **Not started** |  |
-| EX-1a | Embedded milestone: one synthetic end-to-end workload survives restart and erasure | L0 L1 L4 L5 ctx scope | D K_C K_P R C G | G-01 | ER-05 | F-16c, F-16b, F-02c, F-03 | measure | S2 foundations (serial: Alembic) | - | Restart, erasure and replay on the embedded profile; not a server release | **Not started** | ER-05 |
+| EX-1a | Embedded milestone: one synthetic end-to-end workload survives restart and erasure | L0 L1 L4 L5 ctx scope | D K_C K_P R C G | G-01 | ER-05 | F-16c, F-16b, F-02c, F-03 | measure | S2 foundations (serial: Alembic) | - | Restart, erasure and replay on the embedded profile; not a server release | **In progress** | Sonnet agent: synthetic E2E restart/erasure/replay, all foundation flags on (model-free) |
 | EX-1 | Phase 1 exit (server milestone): raw-only read non-inferior; golden; replay NO CHANGE | L0 L1 L4 L5 ctx scope | D K_C K_P R C G | G-01 | ER-05 | F-16f, EX-1a, P0-03 | measure | S2 foundations (serial: Alembic) | - | ROADMAP Phase 1 exit gate | **Not started** |  |
 
 ## Phase 2: write path and models

@@ -198,7 +198,7 @@ WP = [
     ("F-16f", 1, "Isolation, erasure and rebuild matrix on both profiles", ["M-25"], ["F-16e", "F-16c"], "behaviour",
      "Matrix green on embedded and server", "Not started", ""),
     ("EX-1a", 1, "Embedded milestone: one synthetic end-to-end workload survives restart and erasure", ["G-01"],
-     ["F-16c", "F-16b", "F-02c", "F-03"], "measure", "Restart, erasure and replay on the embedded profile; not a server release", "Not started", "ER-05"),
+     ["F-16c", "F-16b", "F-02c", "F-03"], "measure", "Restart, erasure and replay on the embedded profile; not a server release", "In progress", "Sonnet agent: synthetic E2E restart/erasure/replay, all foundation flags on (model-free)"),
     ("EX-1", 1, "Phase 1 exit (server milestone): raw-only read non-inferior; golden; replay NO CHANGE", ["G-01"], ["F-16f", "EX-1a", "P0-03"], "measure",
      "ROADMAP Phase 1 exit gate", "Not started", ""),
     # ---- Phase 2: write path and models ----

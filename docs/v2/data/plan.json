@@ -4238,8 +4238,8 @@
    ],
    "kind": "measure",
    "gate": "Restart, erasure and replay on the embedded profile; not a server release",
-   "status": "Not started",
-   "note": "ER-05",
+   "status": "In progress",
+   "note": "Sonnet agent: synthetic E2E restart/erasure/replay, all foundation flags on (model-free)",
    "layers": [
     "L0",
     "L1",
