@@ -71,3 +71,16 @@ FU-TEMPORAL (2026-10-13). Under `read.legs_v2` the registry's `TemporalLeg` (`re
 | router `legs_off` (`read.router_rules`) | **Fixed.** It was honoured for `graph` (v1 leg and `graph_leg_v2`) and the v1 `entity` / `episode` legs but not for `episode_leg_v2` or `entity_leg_v2`. `registry_base_legs` now drops any leg named in `legs_off()` (never `vector`, which is required), and `entity_leg_v2` checks `entity` |
 
 Behaviour change to note: with `legs_v2` on and `temporal_leg` off, the temporal leg no longer runs; and relative or yearless questions resolve only under their old keys. Both match the flag-off path, which is the point of this follow-up. Revisit if a screen shows the always-anchored R3-04 behaviour is better: it would then be a new default for `temporal_relative` and `temporal_infer_year`, not a silent difference between the two paths.
+
+## `read.neighbours_v2` in replay mode (FX-READPATH, 2026-10-13)
+
+The flag was read only by the compose-mode neighbour expansion (`_expand_neighbours`), so the replay
+read the LoCoMo harness uses (`--memspine-read-mode replay`, `_window_turns`) never consulted it and
+screens S19 and the S63 bundle could not show an effect. Decision: in replay the LIB-24 library is not
+called (replay already de-duplicates, gates every neighbour, and fits the budget hit first, so the
+library would reproduce today's window). The flag instead shapes the replay window: with
+`neighbours_v2` on, `_window_turns` (turn unit) skips pure filler neighbours (`derive.prepass.is_filler`:
+greetings, "ok", "haha", emoji only) without charging a window slot, and extends the reach over them by
+at most the side's quota again (-2/+4 by default, so at most -4/+8 turns inspected). The hit, the viewer
+gates, the token budget and `seen` are unchanged; flag off keeps the fixed span. Compose mode keeps the
+library. `tokens` unit and `single` hits are not changed.

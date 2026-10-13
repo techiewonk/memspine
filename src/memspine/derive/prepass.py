@@ -46,6 +46,7 @@ __all__ = [
     "Prepass",
     "PrepassMode",
     "Span",
+    "is_filler",
     "prepass_hints",
     "prepass_stage",
     "rule_hints",
@@ -192,6 +193,11 @@ def _is_filler(text: str) -> bool:
     if len(words) > _FILLER_MAX_WORDS:
         return False
     return all(w in FILLER_VOCAB for w in words)
+
+
+def is_filler(text: str) -> bool:
+    """True when ``text`` is a pure filler turn (greeting, acknowledgement, emoji only)."""
+    return _is_filler(text)
 
 
 def _name_spans(body: str, offset: int, line: int) -> list[Span]:

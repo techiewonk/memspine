@@ -616,6 +616,22 @@ async def plan_read(
     return query, state
 
 
+def tier_pool() -> int:
+    """FX-READPATH (R-13): the rerank pool of the tier chosen for this read, else 0.
+
+    Only a read under ``read.tiers_v2`` has a tier; the assembly search fetches at least this
+    many candidates before ``rerank_v2`` (see ``windows._assemble_core``)."""
+    plan = _READ_PLAN.get()
+    return plan.tier.max_rerank_pool if plan is not None and plan.tier is not None else 0
+
+
+def tier_allows_generative() -> bool:
+    """FX-READPATH (R-01): False when the tier chosen for this read allows zero generative
+    calls (fast, standard); True for deep and for any read without a tier."""
+    plan = _READ_PLAN.get()
+    return plan is None or plan.tier is None or plan.tier.max_generative_calls > 0
+
+
 def legs_off() -> frozenset[str]:
     """Optional legs (``entity``, ``graph``, ``episode``) the router suppressed for this read."""
     plan = _READ_PLAN.get()

@@ -42,6 +42,7 @@ from memspine.read.obligations import (
     check,
     derive_obligations,
 )
+from memspine.read.pipeline.request import tier_allows_generative
 from memspine.read.pipeline.router import _reply_targets
 from memspine.read.pipeline.state import _FORENSICS, ReadResult
 from memspine.store.records import MemoryRecord
@@ -583,6 +584,12 @@ async def _deep_extend(
     if report.answerable:
         info["stop"] = "rules_met"
         tap.event("read.deep.step", rules_met=True, calls=0, holes=[], queries=[])
+        return result
+    if read.tiers_v2 and not tier_allows_generative():
+        # FX-READPATH (R-01): the chosen tier allows zero generative calls (fast, standard): the
+        # rules check above stays, the sufficiency judge and the rewrite do not run.
+        info["stop"] = "tier_no_generative_calls"
+        tap.event("read.deep.step", rules_met=False, calls=0, holes=[], queries=[])
         return result
     llm_router = eng._llm
     role = next((r for r in ("sufficiency", "plan") if llm_router and r in llm_router.roles), None)

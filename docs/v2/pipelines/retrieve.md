@@ -107,6 +107,12 @@ Output TierPolicy
   `engine.py:7531-7607`: `full` if the store fits, `compose` for aggregation, else `replay`); there is no tier.
   Decided R-01 A+B: tiers per call within config. The `full` and `compose` shapes are not in the decided design
   (see Q-R7). WP **R3-01**.
+- **Consumers wired (FX-READPATH, 2026-10-13):** the tier was chosen and logged only. Option picked: the tier
+  is consumed, not a cost-only screen. (1) pool: with `read.tiers_v2` and `read.rerank_v2` the assembly search
+  fetches at least the tier's `max_rerank_pool` (32 / 48 / 64) before the rerank, then cuts back to the count it
+  cuts to today (the R-13 "tier sets the pool"); (2) call caps: `deep_v2` runs its sufficiency and rewrite
+  calls only when the tier allows generative calls (deep); the obligations rule check still runs. Not wired: the
+  p95 SLOs (R-25, a CI latency job, not a runtime gate) and the per-tier token share.
 
 ### 2. Bind scope: namespace, viewer, purpose, time bounds
 
