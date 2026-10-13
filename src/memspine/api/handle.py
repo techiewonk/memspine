@@ -489,8 +489,9 @@ class Memory:
 
 
 def _check_owner_bound(engine: Engine, namespace: str, principal: str) -> None:
-    """``isolation.owner_bound_handles``: a single-owner handle's principal must own its namespace."""
-    if not engine._config().isolation.owner_bound_handles:
+    """``isolation.owner_bound_handles``: a single-owner handle's principal owns its namespace."""
+    isolation = getattr(engine._config(), "isolation", None)  # stub engines carry no config
+    if not getattr(isolation, "owner_bound_handles", False):
         return
     from memspine.observability import tap
     from memspine.scope import Scope, ScopeRefused
