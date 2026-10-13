@@ -1933,6 +1933,9 @@ class Engine:
         the ``top_k`` cut (each leg looks over the whole namespace), so a filter never
         costs recall. No bound: unchanged.
         """
+        wait_s = self._config().read.wait_for_pending_s
+        if wait_s > 0:  # W2-06c: bounded wait for pending outbox extraction (partial on timeout)
+            await ingest_windows.wait_for_pending(self, namespace, wait_s)
         hits = await read_router.search(
             self,
             query,

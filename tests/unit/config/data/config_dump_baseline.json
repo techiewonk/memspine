@@ -553,6 +553,7 @@
    "user_header": "off",
    "verbatim_raw_only": false,
    "view_tag_leg": false,
+   "wait_for_pending_s": 0.0,
    "window_full_hits": 10
   },
   "rest": {
@@ -644,6 +645,7 @@
    "integration_decide_unhinted": false,
    "integration_v2": false,
    "lineage_table": false,
+   "online_extractor_v2": false,
    "participants": "off",
    "prompt_context_turns": 3,
    "prompt_known_cap": 40,
@@ -670,7 +672,7 @@
    "window_topic_k": 2.0
   }
  },
- "json_schema_sha256": "1b64fb97606120fe48b65633196efc21e8fd986be0dc846645d26b261b912c03",
+ "json_schema_sha256": "944d279224a7101ba084544068a92dafb5c599ab44bd5f941c747d81de7f3881",
  "preset:chat_roles": {
   "audit": {
    "actions": false,
@@ -1256,6 +1258,7 @@
    "user_header": "off",
    "verbatim_raw_only": false,
    "view_tag_leg": false,
+   "wait_for_pending_s": 0.0,
    "window_full_hits": 10
   },
   "rest": {
@@ -1347,6 +1350,7 @@
    "integration_decide_unhinted": false,
    "integration_v2": false,
    "lineage_table": false,
+   "online_extractor_v2": false,
    "participants": "off",
    "prompt_context_turns": 3,
    "prompt_known_cap": 40,
@@ -1954,6 +1958,7 @@
    "user_header": "off",
    "verbatim_raw_only": false,
    "view_tag_leg": false,
+   "wait_for_pending_s": 0.0,
    "window_full_hits": 10
   },
   "rest": {
@@ -2045,6 +2050,7 @@
    "integration_decide_unhinted": false,
    "integration_v2": false,
    "lineage_table": false,
+   "online_extractor_v2": false,
    "participants": "off",
    "prompt_context_turns": 3,
    "prompt_known_cap": 40,
@@ -2652,6 +2658,7 @@
    "user_header": "off",
    "verbatim_raw_only": false,
    "view_tag_leg": false,
+   "wait_for_pending_s": 0.0,
    "window_full_hits": 10
   },
   "rest": {
@@ -2743,6 +2750,7 @@
    "integration_decide_unhinted": false,
    "integration_v2": false,
    "lineage_table": false,
+   "online_extractor_v2": false,
    "participants": "off",
    "prompt_context_turns": 3,
    "prompt_known_cap": 40,
@@ -3350,6 +3358,7 @@
    "user_header": "off",
    "verbatim_raw_only": false,
    "view_tag_leg": false,
+   "wait_for_pending_s": 0.0,
    "window_full_hits": 10
   },
   "rest": {
@@ -3441,6 +3450,7 @@
    "integration_decide_unhinted": false,
    "integration_v2": false,
    "lineage_table": false,
+   "online_extractor_v2": false,
    "participants": "off",
    "prompt_context_turns": 3,
    "prompt_known_cap": 40,
@@ -4048,6 +4058,7 @@
    "user_header": "off",
    "verbatim_raw_only": false,
    "view_tag_leg": false,
+   "wait_for_pending_s": 0.0,
    "window_full_hits": 10
   },
   "rest": {
@@ -4139,6 +4150,7 @@
    "integration_decide_unhinted": false,
    "integration_v2": false,
    "lineage_table": false,
+   "online_extractor_v2": false,
    "participants": "off",
    "prompt_context_turns": 3,
    "prompt_known_cap": 40,
@@ -4746,6 +4758,7 @@
    "user_header": "off",
    "verbatim_raw_only": false,
    "view_tag_leg": false,
+   "wait_for_pending_s": 0.0,
    "window_full_hits": 10
   },
   "rest": {
@@ -4837,6 +4850,7 @@
    "integration_decide_unhinted": false,
    "integration_v2": false,
    "lineage_table": false,
+   "online_extractor_v2": false,
    "participants": "off",
    "prompt_context_turns": 3,
    "prompt_known_cap": 40,
@@ -5444,6 +5458,7 @@
    "user_header": "off",
    "verbatim_raw_only": false,
    "view_tag_leg": false,
+   "wait_for_pending_s": 0.0,
    "window_full_hits": 10
   },
   "rest": {
@@ -5535,6 +5550,7 @@
    "integration_decide_unhinted": false,
    "integration_v2": false,
    "lineage_table": false,
+   "online_extractor_v2": false,
    "participants": "off",
    "prompt_context_turns": 3,
    "prompt_known_cap": 40,
@@ -6142,6 +6158,7 @@
    "user_header": "off",
    "verbatim_raw_only": false,
    "view_tag_leg": false,
+   "wait_for_pending_s": 0.0,
    "window_full_hits": 10
   },
   "rest": {
@@ -6233,6 +6250,7 @@
    "integration_decide_unhinted": false,
    "integration_v2": false,
    "lineage_table": false,
+   "online_extractor_v2": false,
    "participants": "off",
    "prompt_context_turns": 3,
    "prompt_known_cap": 40,
@@ -6840,6 +6858,7 @@
    "user_header": "off",
    "verbatim_raw_only": false,
    "view_tag_leg": false,
+   "wait_for_pending_s": 0.0,
    "window_full_hits": 10
   },
   "rest": {
@@ -6931,6 +6950,7 @@
    "integration_decide_unhinted": false,
    "integration_v2": false,
    "lineage_table": false,
+   "online_extractor_v2": false,
    "participants": "off",
    "prompt_context_turns": 3,
    "prompt_known_cap": 40,
@@ -7547,6 +7567,7 @@
    "user_header": "off",
    "verbatim_raw_only": false,
    "view_tag_leg": false,
+   "wait_for_pending_s": 0.0,
    "window_full_hits": 10
   },
   "rest": {
@@ -7638,6 +7659,7 @@
    "integration_decide_unhinted": false,
    "integration_v2": false,
    "lineage_table": false,
+   "online_extractor_v2": false,
    "participants": "off",
    "prompt_context_turns": 3,
    "prompt_known_cap": 40,
@@ -8250,6 +8272,7 @@
    "user_header": "off",
    "verbatim_raw_only": false,
    "view_tag_leg": false,
+   "wait_for_pending_s": 0.0,
    "window_full_hits": 10
   },
   "rest": {
@@ -8341,6 +8364,7 @@
    "integration_decide_unhinted": false,
    "integration_v2": false,
    "lineage_table": false,
+   "online_extractor_v2": false,
    "participants": "off",
    "prompt_context_turns": 3,
    "prompt_known_cap": 40,
@@ -8934,6 +8958,7 @@
    "user_header": "off",
    "verbatim_raw_only": false,
    "view_tag_leg": false,
+   "wait_for_pending_s": 0.0,
    "window_full_hits": 10
   },
   "rest": {
@@ -9025,6 +9050,7 @@
    "integration_decide_unhinted": false,
    "integration_v2": false,
    "lineage_table": false,
+   "online_extractor_v2": false,
    "participants": "off",
    "prompt_context_turns": 3,
    "prompt_known_cap": 40,
@@ -9640,6 +9666,7 @@
    "user_header": "off",
    "verbatim_raw_only": false,
    "view_tag_leg": false,
+   "wait_for_pending_s": 0.0,
    "window_full_hits": 10
   },
   "rest": {
@@ -9731,6 +9758,7 @@
    "integration_decide_unhinted": false,
    "integration_v2": false,
    "lineage_table": false,
+   "online_extractor_v2": false,
    "participants": "off",
    "prompt_context_turns": 3,
    "prompt_known_cap": 40,
@@ -10342,6 +10370,7 @@
    "user_header": "off",
    "verbatim_raw_only": false,
    "view_tag_leg": false,
+   "wait_for_pending_s": 0.0,
    "window_full_hits": 10
   },
   "rest": {
@@ -10433,6 +10462,7 @@
    "integration_decide_unhinted": false,
    "integration_v2": false,
    "lineage_table": false,
+   "online_extractor_v2": false,
    "participants": "off",
    "prompt_context_turns": 3,
    "prompt_known_cap": 40,
@@ -11048,6 +11078,7 @@
    "user_header": "off",
    "verbatim_raw_only": false,
    "view_tag_leg": false,
+   "wait_for_pending_s": 0.0,
    "window_full_hits": 10
   },
   "rest": {
@@ -11139,6 +11170,7 @@
    "integration_decide_unhinted": false,
    "integration_v2": false,
    "lineage_table": false,
+   "online_extractor_v2": false,
    "participants": "off",
    "prompt_context_turns": 3,
    "prompt_known_cap": 40,
@@ -11746,6 +11778,7 @@
    "user_header": "off",
    "verbatim_raw_only": false,
    "view_tag_leg": false,
+   "wait_for_pending_s": 0.0,
    "window_full_hits": 10
   },
   "rest": {
@@ -11837,6 +11870,7 @@
    "integration_decide_unhinted": false,
    "integration_v2": false,
    "lineage_table": false,
+   "online_extractor_v2": false,
    "participants": "off",
    "prompt_context_turns": 3,
    "prompt_known_cap": 40,
@@ -12445,6 +12479,7 @@
    "user_header": "off",
    "verbatim_raw_only": false,
    "view_tag_leg": false,
+   "wait_for_pending_s": 0.0,
    "window_full_hits": 10
   },
   "rest": {
@@ -12536,6 +12571,7 @@
    "integration_decide_unhinted": false,
    "integration_v2": false,
    "lineage_table": false,
+   "online_extractor_v2": false,
    "participants": "off",
    "prompt_context_turns": 3,
    "prompt_known_cap": 40,
@@ -13145,6 +13181,7 @@
    "user_header": "off",
    "verbatim_raw_only": false,
    "view_tag_leg": false,
+   "wait_for_pending_s": 0.0,
    "window_full_hits": 10
   },
   "rest": {
@@ -13236,6 +13273,7 @@
    "integration_decide_unhinted": false,
    "integration_v2": false,
    "lineage_table": false,
+   "online_extractor_v2": false,
    "participants": "off",
    "prompt_context_turns": 3,
    "prompt_known_cap": 40,

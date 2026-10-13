@@ -179,6 +179,14 @@ class WriteConfig(BaseModel):
     #: Needs ``prompt_v2``.
     prompt_schema: Literal["auto", "off"] = "auto"
 
+    #: W2-06c (W-12): ``derive.OnlineExtractor`` is the single named entry for online extraction
+    #: (turns in, envelopes out, deposited) over the outbox window stage. ``True``: the window stats
+    #: carry the stage hook list (``online_extractor``) and the per-stage drop / rewrite counters
+    #: (``envelope_stages``), and a window mode with no LLM role configured (the no-model ``core``
+    #: template) skips extraction with a warning instead of failing at start, so ingestion makes zero
+    #: model calls. ``False`` (default): the stats are unchanged and that start fails (D-10).
+    online_extractor_v2: bool = False
+
     #: F-16a (M-09, G-08, POL-2): the lineage table and the single derived-write door. ``True``:
     #: every derived record written through ``derive/write.py`` gets one lineage edge per parent
     #: (``support`` unless the site names a role), its trust capped at the least-trusted parent, a

@@ -1221,6 +1221,12 @@ class ReadConfig(BaseModel):
     #: O4-01b: raw turns the stale fallback may add to one search.
     freshness_fallback_max: int = Field(default=20, ge=1)
 
+    #: W2-06c (W-12): seconds a search waits for pending outbox extraction of its namespace
+    #: (``read.PendingBarrier``, over ``workers.outbox``) before reading. On timeout the read goes
+    #: ahead with the barrier reported ``partial`` (tap ``read.pending``); it never blocks longer than
+    #: this. ``0`` (default): off, no wait. Does nothing without ``workers.outbox``.
+    wait_for_pending_s: float = Field(default=0.0, ge=0.0, le=300.0)
+
     @model_validator(mode="after")
     def _header_shares_leave_room(self) -> ReadConfig:
         """A-9: the active read headers' shares must leave budget for the read itself."""
