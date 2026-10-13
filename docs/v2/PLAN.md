@@ -9,9 +9,9 @@ Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summarie
 |---|---|
 | Not started | 63 |
 | Ready | 0 |
-| In progress | 12 |
+| In progress | 9 |
 | Blocked | 0 |
-| Needs measurement | 13 |
+| Needs measurement | 16 |
 | Done | 74 |
 | Dropped | 0 |
 
@@ -153,9 +153,9 @@ Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summarie
 
 | Id | Work package | Layers | Ops | Decisions | Review | Depends on | Kind | Agent lane | Owns | Gate | Status | Note |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
-| R3-01 | Depth tiers and ReadRequest; evidence unit | L0 L1 L4 ctx | R C | R-01, R-02 | - | LIB-47 | behaviour | S3 read (serial) | - | Fast tier zero generative calls; embed/rerank cost reported separately; p95 SLO | **In progress** | Swarm 2026-10-13: wiring flag-off (agent running) |
-| R3-02 | Typed query contract by rules; render header | ctx | R C | R-03, R-20 | ER-19 | LIB-16, R3-01 | behaviour | S3 read (serial) | - | A03 full set and blind | **In progress** | Swarm 2026-10-13: wiring flag-off (agent running) |
-| R3-03 | Rule router reading the LayerRegistry; LLM rewrites only in deep tier | ctx | R | R-04 | - | LIB-23, R3-01 | behaviour | S3 read (serial) | - | Focus non-inferior | **In progress** | Swarm 2026-10-13: wiring flag-off (agent running) |
+| R3-01 | Depth tiers and ReadRequest; evidence unit | L0 L1 L4 ctx | R C | R-01, R-02 | - | LIB-47 | behaviour | S3 read (serial) | - | Fast tier zero generative calls; embed/rerank cost reported separately; p95 SLO | **Needs measurement** | Wired flag-off (RW-A 9ebc35c, merged with RW-F cache); screen queued |
+| R3-02 | Typed query contract by rules; render header | ctx | R C | R-03, R-20 | ER-19 | LIB-16, R3-01 | behaviour | S3 read (serial) | - | A03 full set and blind | **Needs measurement** | Wired flag-off (RW-A 9ebc35c, merged with RW-F cache); screen queued |
+| R3-03 | Rule router reading the LayerRegistry; LLM rewrites only in deep tier | ctx | R | R-04 | - | LIB-23, R3-01 | behaviour | S3 read (serial) | - | Focus non-inferior | **Needs measurement** | Wired flag-off (RW-A 9ebc35c, merged with RW-F cache); screen queued |
 | R3-04 | Core legs: vector, language-aware BM25, temporal on event intervals | L0 L1 L3 L5 | R | R-05, R-06, R-07 | - | R3-03 | behaviour | S3 read (serial) | - | Focus non-inferior; no-model template: L1 legs empty, not error | **Not started** |  |
 | R3-05a | Entity leg with anti-hub damping | L1 L3 | R | R-08 | - | LIB-34 | behaviour | S3 read (serial) | - | Own focus and blind screen | **In progress** | Swarm 2026-10-13: wiring flag-off (agent running) |
 | R3-05b | Graph one-hop leg (only when L3 exists) | L3 | R | R-09 | ER-19 | R3-04, F-02c, F-16e | behaviour | S3 read (serial) | - | Own focus and blind screen | **Not started** |  |

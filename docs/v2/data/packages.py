@@ -241,9 +241,9 @@ WP = [
     ("EX-2", 2, "Phase 2 exit: window arm non-inferior, grounding 95%, write p95", ["G-01"], ["W2-10", "W2-04", "W2-13"], "measure",
      "ROADMAP Phase 2 exit gate", "Not started", ""),
     # ---- Phase 3: read path (serial within the read orchestration) ----
-    ("R3-01", 3, "Depth tiers and ReadRequest; evidence unit", ["R-01", "R-02"], ["LIB-47"], "behaviour", "Fast tier zero generative calls; embed/rerank cost reported separately; p95 SLO", "In progress", "Swarm 2026-10-13: wiring flag-off (agent running)"),
-    ("R3-02", 3, "Typed query contract by rules; render header", ["R-03", "R-20"], ["LIB-16", "R3-01"], "behaviour", "A03 full set and blind", "In progress", "Swarm 2026-10-13: wiring flag-off (agent running)"),
-    ("R3-03", 3, "Rule router reading the LayerRegistry; LLM rewrites only in deep tier", ["R-04"], ["LIB-23", "R3-01"], "behaviour", "Focus non-inferior", "In progress", "Swarm 2026-10-13: wiring flag-off (agent running)"),
+    ("R3-01", 3, "Depth tiers and ReadRequest; evidence unit", ["R-01", "R-02"], ["LIB-47"], "behaviour", "Fast tier zero generative calls; embed/rerank cost reported separately; p95 SLO", "Needs measurement", "Wired flag-off (RW-A 9ebc35c, merged with RW-F cache); screen queued"),
+    ("R3-02", 3, "Typed query contract by rules; render header", ["R-03", "R-20"], ["LIB-16", "R3-01"], "behaviour", "A03 full set and blind", "Needs measurement", "Wired flag-off (RW-A 9ebc35c, merged with RW-F cache); screen queued"),
+    ("R3-03", 3, "Rule router reading the LayerRegistry; LLM rewrites only in deep tier", ["R-04"], ["LIB-23", "R3-01"], "behaviour", "Focus non-inferior", "Needs measurement", "Wired flag-off (RW-A 9ebc35c, merged with RW-F cache); screen queued"),
     ("R3-04", 3, "Core legs: vector, language-aware BM25, temporal on event intervals", ["R-05", "R-06", "R-07"], ["R3-03"], "behaviour",
      "Focus non-inferior; no-model template: L1 legs empty, not error", "Not started", ""),
     ("R3-05a", 3, "Entity leg with anti-hub damping", ["R-08"], ["LIB-34"], "behaviour", "Own focus and blind screen", "In progress", "Swarm 2026-10-13: wiring flag-off (agent running)"),
