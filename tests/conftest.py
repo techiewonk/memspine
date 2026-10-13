@@ -8,12 +8,37 @@ engine. Scrub them for the duration of each test.
 
 from __future__ import annotations
 
+import asyncio
 import os
+import sys
 from collections.abc import AsyncIterator
 
 import pytest
 
 from memspine.clients.sqlite import SQLiteClient
+
+_PG_MODULES = (
+    "test_f16d_storage_profile",
+    "test_storage_backends",
+    "test_f16f_matrix",
+    "test_ex1a_server",
+)
+
+
+@pytest.fixture
+def event_loop_policy(request: pytest.FixtureRequest) -> asyncio.AbstractEventLoopPolicy:
+    """psycopg's async mode cannot run on the Proactor loop (the Windows default).
+
+    Only the live-Postgres modules get the selector loop (a global switch would break asyncio
+    subprocesses); the default policy elsewhere and whenever no Postgres URL is exported."""
+    live = (
+        sys.platform == "win32"
+        and request.module.__name__.rsplit(".", 1)[-1] in _PG_MODULES
+        and (os.environ.get("MEMSPINE_TEST_PG_URL") or os.environ.get("MEMSPINE_TEST_POSTGRES_URL"))
+    )
+    if live:
+        return asyncio.WindowsSelectorEventLoopPolicy()  # type: ignore[attr-defined,no-any-return]
+    return asyncio.get_event_loop_policy()
 
 
 @pytest.fixture(autouse=True)
@@ -33,7 +58,9 @@ def _pin_pre_adr032_default(
 @pytest.fixture(autouse=True)
 def _scrub_memspine_env(monkeypatch: pytest.MonkeyPatch) -> None:
     for key in list(os.environ):
-        if key.startswith("MEMSPINE_"):
+        # MEMSPINE_TEST_* are live-server DSNs for the opt-in server cells; they are
+        # not engine config (the Engine reads MEMSPINE_<SECTION>__<KEY>), keep them.
+        if key.startswith("MEMSPINE_") and not key.startswith("MEMSPINE_TEST_"):
             monkeypatch.delenv(key, raising=False)
 
 

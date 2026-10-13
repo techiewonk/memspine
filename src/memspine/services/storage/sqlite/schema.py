@@ -8,6 +8,7 @@ stay additive. The initial Alembic migration mirrors this metadata exactly.
 from __future__ import annotations
 
 from sqlalchemy import (
+    BigInteger,
     Boolean,
     Column,
     Float,
@@ -97,7 +98,9 @@ memory_records = Table(
     Column("instruction_flag", Boolean, nullable=False),
     # E1 quarantine promotion counter (migration 0005).
     Column("corroborations", Integer, nullable=False, server_default="0"),
-    Column("simhash", Integer),
+    # 64-bit signed simhash: BigInteger so the shared metadata binds it as int8 on Postgres
+    # (an Integer bind overflows there); SQLite stores both as INTEGER, DDL is unchanged.
+    Column("simhash", BigInteger),
     Column("minhash_sig", LargeBinary),
     # M3 decay tier + M6/D-32 cold-tier compressed content (migration 0004).
     Column("tier", String, nullable=False, server_default="hot"),
