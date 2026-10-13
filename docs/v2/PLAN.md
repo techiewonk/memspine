@@ -7,9 +7,9 @@ Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summarie
 
 | Status | Count |
 |---|---|
-| Not started | 58 |
+| Not started | 48 |
 | Ready | 0 |
-| In progress | 4 |
+| In progress | 14 |
 | Blocked | 0 |
 | Needs measurement | 23 |
 | Done | 76 |
@@ -180,16 +180,16 @@ Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summarie
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
 | O4-01a | Non-blocking sleep handles, triggers ((N AND M) OR context C, gap K), namespace jobs, leases, watermarks, daily maintenance | L0 L1 L3 L4 L5 ctx | K_C K_P | O-01, O-02, O-03 | ER-07, ER-26 | EX-1a, F-15 | behaviour | offline | - | Restart and lock fault tests; off by default | **Not started** |  |
 | O4-01b | Background budget and freshness (covers_seq; read-side freshness) | L0 L1 L3 L4 ctx | K_C K_P R | O-05, O-06 | ER-09, ER-26 | O4-01a, F-16a, LIB-26 | behaviour | offline | - | Deferred work counted, never dropped | **Not started** |  |
-| O4-02 | Call 2 at session close: summary, stitched episode, profile ops (L2, opt-in) | L0 L1 ctx | K_C K_P | O-07, O-08, O-09, M-14 | ER-26 | O4-01a, F-16a, LIB-40 | behaviour | offline | - | G-C9-style screen; golden unchanged with flag off | **Not started** | f-gc9 +15 before the thinking fix |
-| O4-03 | Reconcile backlog, staged entity resolution, contradictions | L1 L3 | K_C | O-10, O-11, O-12 | - | O4-01a, W2-09, X-05, LIB-37 | behaviour | offline | - | Contradiction-recall set; MAB-CR non-inferior | **Not started** |  |
-| O4-04 | Near-duplicate merge and value histories | L1 L4 | K_C | O-13, O-14, M-13 | ER-17 | O4-03, W2-10, LIB-20 | behaviour | offline | - | Zero wrong numeric merges; MAB-CR token check | **Not started** |  |
-| O4-05 | Pattern observations (opt-in L4) | L1 L4 | K_C | O-15, M-13 | ER-28 | O4-04, F-16a, LIB-31 | behaviour | offline | - | OP-Bench, PrefEval, MAB-CR non-inferior; sleep calls within budget | **Not started** | Q3 |
-| O4-06 | Entity summaries and communities (opt-in) | L1 L3 L4 | K_C | O-16, O-17, M-19 | - | O4-03, F-16a, LIB-36 | behaviour | offline | - | Global-question workload | **Not started** |  |
-| O4-07 | Profile card, guarded operations, reflection (opt-in) | L1 L4 ctx | K_P | O-18, O-19, O-20, M-20 | ER-28 | O4-02, F-16a, LIB-39 | behaviour | offline | - | OP-Bench and PrefEval up; hand audit at least 90% | **Not started** |  |
-| O4-08 | Standing answers (opt-in) | L1 L4 | K_P | O-21 | ER-28 | O4-04, F-16a, LIB-32 | behaviour | offline | - | Refresh on watermark; cited sources | **Not started** |  |
-| O4-09 | Decay tiers, compression, multi-resolution text (K_C, opt-in) | L0 L1 ctx | K_C C | O-22, M-22, P-16 | - | O4-01b, LIB-33 | behaviour | offline | - | Context tokens down at no QA loss | **Not started** |  |
-| O4-10 | Prospective and procedural memory (advisory, opt-in) | L5 | K_C | O-23, O-24 | - | O4-01a, LIB-28 | behaviour | offline | - | Off by default | **Not started** |  |
-| O4-11 | Explicit feedback only; observer views (multi-agent) | L1 L4 L5 scope | K_C K_P R | O-25, O-26, M-24 | - | O4-03, LIB-44 | behaviour | offline | - | Multi-agent template tests | **Not started** |  |
+| O4-02 | Call 2 at session close: summary, stitched episode, profile ops (L2, opt-in) | L0 L1 ctx | K_C K_P | O-07, O-08, O-09, M-14 | ER-26 | LIB-40, F-16a | behaviour | offline | - | G-C9-style screen; golden unchanged with flag off | **In progress** | Swarm: offline wiring flag-off (agent running) |
+| O4-03 | Reconcile backlog, staged entity resolution, contradictions | L1 L3 | K_C | O-10, O-11, O-12 | - | LIB-37, F-16a | behaviour | offline | - | Contradiction-recall set; MAB-CR non-inferior | **In progress** | Swarm: offline wiring flag-off (agent running) |
+| O4-04 | Near-duplicate merge and value histories | L1 L4 | K_C | O-13, O-14, M-13 | ER-17 | LIB-20, O4-03 | behaviour | offline | - | Zero wrong numeric merges; MAB-CR token check | **In progress** | Swarm: offline wiring flag-off (agent running) |
+| O4-05 | Pattern observations (opt-in L4) | L1 L4 | K_C | O-15, M-13 | ER-28 | LIB-31, F-16a | behaviour | offline | - | OP-Bench, PrefEval, MAB-CR non-inferior; sleep calls within budget | **In progress** | Swarm: offline wiring flag-off (agent running) |
+| O4-06 | Entity summaries and communities (opt-in) | L1 L3 L4 | K_C | O-16, O-17, M-19 | - | LIB-36, F-16a | behaviour | offline | - | Global-question workload | **In progress** | Swarm: offline wiring flag-off (agent running) |
+| O4-07 | Profile card, guarded operations, reflection (opt-in) | L1 L4 ctx | K_P | O-18, O-19, O-20, M-20 | ER-28 | LIB-39, O4-02 | behaviour | offline | - | OP-Bench and PrefEval up; hand audit at least 90% | **In progress** | Swarm: offline wiring flag-off (agent running) |
+| O4-08 | Standing answers (opt-in) | L1 L4 | K_P | O-21 | ER-28 | LIB-32, F-16a | behaviour | offline | - | Refresh on watermark; cited sources | **In progress** | Swarm: offline wiring flag-off (agent running) |
+| O4-09 | Decay tiers, compression, multi-resolution text (K_C, opt-in) | L0 L1 ctx | K_C C | O-22, M-22, P-16 | - | LIB-33, F-16a | behaviour | offline | - | Context tokens down at no QA loss | **In progress** | Swarm: offline wiring flag-off (agent running) |
+| O4-10 | Prospective and procedural memory (advisory, opt-in) | L5 | K_C | O-23, O-24 | - | LIB-28, F-16a | behaviour | offline | - | Off by default | **In progress** | Swarm: offline wiring flag-off (agent running) |
+| O4-11 | Explicit feedback only; observer views (multi-agent) | L1 L4 L5 scope | K_C K_P R | O-25, O-26, M-24 | - | LIB-44, F-16a | behaviour | offline | - | Multi-agent template tests | **In progress** | Swarm: offline wiring flag-off (agent running) |
 | EX-4 | Phase 4 exit: OP-Bench and PrefEval up, no LoCoMo loss, sleep at most 0.2 calls per turn | L0 L1 L4 L5 ctx scope | D K_C K_P R C G | G-01 | - | O4-07, O4-05, O4-06, O4-09 | measure | exit | - | ROADMAP Phase 4 exit gate | **Not started** |  |
 
 ## Phase 5: trust, API, operations

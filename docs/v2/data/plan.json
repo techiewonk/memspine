@@ -6054,14 +6054,13 @@
     "M-14"
    ],
    "depends_on": [
-    "O4-01a",
-    "F-16a",
-    "LIB-40"
+    "LIB-40",
+    "F-16a"
    ],
    "kind": "behaviour",
    "gate": "G-C9-style screen; golden unchanged with flag off",
-   "status": "Not started",
-   "note": "f-gc9 +15 before the thinking fix",
+   "status": "In progress",
+   "note": "Swarm: offline wiring flag-off (agent running)",
    "layers": [
     "L0",
     "L1",
@@ -6100,15 +6099,13 @@
     "O-12"
    ],
    "depends_on": [
-    "O4-01a",
-    "W2-09",
-    "X-05",
-    "LIB-37"
+    "LIB-37",
+    "F-16a"
    ],
    "kind": "behaviour",
    "gate": "Contradiction-recall set; MAB-CR non-inferior",
-   "status": "Not started",
-   "note": "",
+   "status": "In progress",
+   "note": "Swarm: offline wiring flag-off (agent running)",
    "layers": [
     "L1",
     "L3"
@@ -6141,14 +6138,13 @@
     "M-13"
    ],
    "depends_on": [
-    "O4-03",
-    "W2-10",
-    "LIB-20"
+    "LIB-20",
+    "O4-03"
    ],
    "kind": "behaviour",
    "gate": "Zero wrong numeric merges; MAB-CR token check",
-   "status": "Not started",
-   "note": "",
+   "status": "In progress",
+   "note": "Swarm: offline wiring flag-off (agent running)",
    "layers": [
     "L1",
     "L4"
@@ -6181,14 +6177,13 @@
     "M-13"
    ],
    "depends_on": [
-    "O4-04",
-    "F-16a",
-    "LIB-31"
+    "LIB-31",
+    "F-16a"
    ],
    "kind": "behaviour",
    "gate": "OP-Bench, PrefEval, MAB-CR non-inferior; sleep calls within budget",
-   "status": "Not started",
-   "note": "Q3",
+   "status": "In progress",
+   "note": "Swarm: offline wiring flag-off (agent running)",
    "layers": [
     "L1",
     "L4"
@@ -6221,14 +6216,13 @@
     "M-19"
    ],
    "depends_on": [
-    "O4-03",
-    "F-16a",
-    "LIB-36"
+    "LIB-36",
+    "F-16a"
    ],
    "kind": "behaviour",
    "gate": "Global-question workload",
-   "status": "Not started",
-   "note": "",
+   "status": "In progress",
+   "note": "Swarm: offline wiring flag-off (agent running)",
    "layers": [
     "L1",
     "L3",
@@ -6264,14 +6258,13 @@
     "M-20"
    ],
    "depends_on": [
-    "O4-02",
-    "F-16a",
-    "LIB-39"
+    "LIB-39",
+    "O4-02"
    ],
    "kind": "behaviour",
    "gate": "OP-Bench and PrefEval up; hand audit at least 90%",
-   "status": "Not started",
-   "note": "",
+   "status": "In progress",
+   "note": "Swarm: offline wiring flag-off (agent running)",
    "layers": [
     "L1",
     "L4",
@@ -6307,14 +6300,13 @@
     "O-21"
    ],
    "depends_on": [
-    "O4-04",
-    "F-16a",
-    "LIB-32"
+    "LIB-32",
+    "F-16a"
    ],
    "kind": "behaviour",
    "gate": "Refresh on watermark; cited sources",
-   "status": "Not started",
-   "note": "",
+   "status": "In progress",
+   "note": "Swarm: offline wiring flag-off (agent running)",
    "layers": [
     "L1",
     "L4"
@@ -6343,13 +6335,13 @@
     "P-16"
    ],
    "depends_on": [
-    "O4-01b",
-    "LIB-33"
+    "LIB-33",
+    "F-16a"
    ],
    "kind": "behaviour",
    "gate": "Context tokens down at no QA loss",
-   "status": "Not started",
-   "note": "",
+   "status": "In progress",
+   "note": "Swarm: offline wiring flag-off (agent running)",
    "layers": [
     "L0",
     "L1",
@@ -6384,13 +6376,13 @@
     "O-24"
    ],
    "depends_on": [
-    "O4-01a",
-    "LIB-28"
+    "LIB-28",
+    "F-16a"
    ],
    "kind": "behaviour",
    "gate": "Off by default",
-   "status": "Not started",
-   "note": "",
+   "status": "In progress",
+   "note": "Swarm: offline wiring flag-off (agent running)",
    "layers": [
     "L5"
    ],
@@ -6421,13 +6413,13 @@
     "M-24"
    ],
    "depends_on": [
-    "O4-03",
-    "LIB-44"
+    "LIB-44",
+    "F-16a"
    ],
    "kind": "behaviour",
    "gate": "Multi-agent template tests",
-   "status": "Not started",
-   "note": "",
+   "status": "In progress",
+   "note": "Swarm: offline wiring flag-off (agent running)",
    "layers": [
     "L1",
     "L4",
