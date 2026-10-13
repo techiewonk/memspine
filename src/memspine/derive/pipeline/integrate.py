@@ -416,3 +416,39 @@ async def _write_extracted_fact(
         trust_cap=cap,
         site="extract_graph",
     )
+
+
+async def _write_offline_summary(
+    eng: Any,
+    namespace: str,
+    record: MemoryRecord,
+    parents: Sequence[str],
+    layer: str,
+    site: str,
+    trust_cap: list[float],
+) -> MemoryRecord:
+    """O4-06 / O4-09: one community, entity or multi-resolution summary through the derived-write
+    door (lock held by the stage): lineage and trust cap with ``write.lineage_table``, firewall
+    screening, and the integrity parent view under ``integrity.enabled``.
+
+    The door type is ``"summary"``, not ``"semantic"``: the record stays a semantic record, but it
+    takes the plain WRITE route. The semantic pipeline would dedup-merge a summary into a member it
+    restates and run the fact ladder on it; consolidation summaries skip both today."""
+    storage = eng._require_started()
+    cap = list(trust_cap)
+    integrity_cap = await eng._parent_trust_cap(namespace, list(parents))
+    if integrity_cap:
+        cap.extend(integrity_cap)
+    return await write_derived(
+        eng,
+        storage,
+        namespace,
+        record,
+        "summary",
+        "system",
+        parents=list(parents),
+        layer=layer,
+        trust_cap=cap,
+        site=site,
+    )
+

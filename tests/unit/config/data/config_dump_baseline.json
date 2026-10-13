@@ -144,6 +144,25 @@
    },
    "write_timers": false
   },
+  "offline": {
+   "communities_v2": false,
+   "community_hub_fraction": 0.5,
+   "community_hubs": [],
+   "community_max_entities_per_record": 8,
+   "community_max_size": 200,
+   "community_min_size": 3,
+   "community_summary_budget_tokens": 20000,
+   "decay_boundaries": [
+    0.5,
+    0.3,
+    0.15
+   ],
+   "decay_group_min_size": 2,
+   "decay_margin": 0.05,
+   "decay_multires_jobs": 0,
+   "decay_protected_kinds": [],
+   "decay_v2": false
+  },
   "plugins": [],
   "profile": "simple",
   "prompts": {
@@ -496,7 +515,7 @@
    "window_topic_k": 2.0
   }
  },
- "json_schema_sha256": "ce68927475ecf9a62b6a968a2c8b0c1802b0333388bee003be7637fd3cf46094",
+ "json_schema_sha256": "2134f6ff56f297e0b75ee750df3ae94884bc3b0d98b2b933d8bd25513c03ff0f",
  "preset:chat_roles": {
   "audit": {
    "actions": false,
@@ -662,6 +681,25 @@
     "sink": "jsonl"
    },
    "write_timers": false
+  },
+  "offline": {
+   "communities_v2": false,
+   "community_hub_fraction": 0.5,
+   "community_hubs": [],
+   "community_max_entities_per_record": 8,
+   "community_max_size": 200,
+   "community_min_size": 3,
+   "community_summary_budget_tokens": 20000,
+   "decay_boundaries": [
+    0.5,
+    0.3,
+    0.15
+   ],
+   "decay_group_min_size": 2,
+   "decay_margin": 0.05,
+   "decay_multires_jobs": 0,
+   "decay_protected_kinds": [],
+   "decay_v2": false
   },
   "plugins": [],
   "profile": "simple",
@@ -1187,6 +1225,25 @@
    },
    "write_timers": false
   },
+  "offline": {
+   "communities_v2": false,
+   "community_hub_fraction": 0.5,
+   "community_hubs": [],
+   "community_max_entities_per_record": 8,
+   "community_max_size": 200,
+   "community_min_size": 3,
+   "community_summary_budget_tokens": 20000,
+   "decay_boundaries": [
+    0.5,
+    0.3,
+    0.15
+   ],
+   "decay_group_min_size": 2,
+   "decay_margin": 0.05,
+   "decay_multires_jobs": 0,
+   "decay_protected_kinds": [],
+   "decay_v2": false
+  },
   "plugins": [],
   "profile": "simple",
   "prompts": {
@@ -1710,6 +1767,25 @@
     "sink": "jsonl"
    },
    "write_timers": false
+  },
+  "offline": {
+   "communities_v2": false,
+   "community_hub_fraction": 0.5,
+   "community_hubs": [],
+   "community_max_entities_per_record": 8,
+   "community_max_size": 200,
+   "community_min_size": 3,
+   "community_summary_budget_tokens": 20000,
+   "decay_boundaries": [
+    0.5,
+    0.3,
+    0.15
+   ],
+   "decay_group_min_size": 2,
+   "decay_margin": 0.05,
+   "decay_multires_jobs": 0,
+   "decay_protected_kinds": [],
+   "decay_v2": false
   },
   "plugins": [],
   "profile": "simple",
@@ -2235,6 +2311,25 @@
    },
    "write_timers": false
   },
+  "offline": {
+   "communities_v2": false,
+   "community_hub_fraction": 0.5,
+   "community_hubs": [],
+   "community_max_entities_per_record": 8,
+   "community_max_size": 200,
+   "community_min_size": 3,
+   "community_summary_budget_tokens": 20000,
+   "decay_boundaries": [
+    0.5,
+    0.3,
+    0.15
+   ],
+   "decay_group_min_size": 2,
+   "decay_margin": 0.05,
+   "decay_multires_jobs": 0,
+   "decay_protected_kinds": [],
+   "decay_v2": false
+  },
   "plugins": [],
   "profile": "simple",
   "prompts": {
@@ -2758,6 +2853,25 @@
     "sink": "jsonl"
    },
    "write_timers": false
+  },
+  "offline": {
+   "communities_v2": false,
+   "community_hub_fraction": 0.5,
+   "community_hubs": [],
+   "community_max_entities_per_record": 8,
+   "community_max_size": 200,
+   "community_min_size": 3,
+   "community_summary_budget_tokens": 20000,
+   "decay_boundaries": [
+    0.5,
+    0.3,
+    0.15
+   ],
+   "decay_group_min_size": 2,
+   "decay_margin": 0.05,
+   "decay_multires_jobs": 0,
+   "decay_protected_kinds": [],
+   "decay_v2": false
   },
   "plugins": [],
   "profile": "simple",
@@ -3283,6 +3397,25 @@
    },
    "write_timers": false
   },
+  "offline": {
+   "communities_v2": false,
+   "community_hub_fraction": 0.5,
+   "community_hubs": [],
+   "community_max_entities_per_record": 8,
+   "community_max_size": 200,
+   "community_min_size": 3,
+   "community_summary_budget_tokens": 20000,
+   "decay_boundaries": [
+    0.5,
+    0.3,
+    0.15
+   ],
+   "decay_group_min_size": 2,
+   "decay_margin": 0.05,
+   "decay_multires_jobs": 0,
+   "decay_protected_kinds": [],
+   "decay_v2": false
+  },
   "plugins": [],
   "profile": "simple",
   "prompts": {
@@ -3806,6 +3939,25 @@
     "sink": "jsonl"
    },
    "write_timers": false
+  },
+  "offline": {
+   "communities_v2": false,
+   "community_hub_fraction": 0.5,
+   "community_hubs": [],
+   "community_max_entities_per_record": 8,
+   "community_max_size": 200,
+   "community_min_size": 3,
+   "community_summary_budget_tokens": 20000,
+   "decay_boundaries": [
+    0.5,
+    0.3,
+    0.15
+   ],
+   "decay_group_min_size": 2,
+   "decay_margin": 0.05,
+   "decay_multires_jobs": 0,
+   "decay_protected_kinds": [],
+   "decay_v2": false
   },
   "plugins": [],
   "profile": "simple",
@@ -4331,6 +4483,25 @@
    },
    "write_timers": false
   },
+  "offline": {
+   "communities_v2": false,
+   "community_hub_fraction": 0.5,
+   "community_hubs": [],
+   "community_max_entities_per_record": 8,
+   "community_max_size": 200,
+   "community_min_size": 3,
+   "community_summary_budget_tokens": 20000,
+   "decay_boundaries": [
+    0.5,
+    0.3,
+    0.15
+   ],
+   "decay_group_min_size": 2,
+   "decay_margin": 0.05,
+   "decay_multires_jobs": 0,
+   "decay_protected_kinds": [],
+   "decay_v2": false
+  },
   "plugins": [],
   "profile": "assistant",
   "prompts": {
@@ -4854,6 +5025,25 @@
     "sink": "jsonl"
    },
    "write_timers": false
+  },
+  "offline": {
+   "communities_v2": false,
+   "community_hub_fraction": 0.5,
+   "community_hubs": [],
+   "community_max_entities_per_record": 8,
+   "community_max_size": 200,
+   "community_min_size": 3,
+   "community_summary_budget_tokens": 20000,
+   "decay_boundaries": [
+    0.5,
+    0.3,
+    0.15
+   ],
+   "decay_group_min_size": 2,
+   "decay_margin": 0.05,
+   "decay_multires_jobs": 0,
+   "decay_protected_kinds": [],
+   "decay_v2": false
   },
   "plugins": [],
   "profile": "simple",
@@ -5386,6 +5576,25 @@
    },
    "write_timers": false
   },
+  "offline": {
+   "communities_v2": false,
+   "community_hub_fraction": 0.5,
+   "community_hubs": [],
+   "community_max_entities_per_record": 8,
+   "community_max_size": 200,
+   "community_min_size": 3,
+   "community_summary_budget_tokens": 20000,
+   "decay_boundaries": [
+    0.5,
+    0.3,
+    0.15
+   ],
+   "decay_group_min_size": 2,
+   "decay_margin": 0.05,
+   "decay_multires_jobs": 0,
+   "decay_protected_kinds": [],
+   "decay_v2": false
+  },
   "plugins": [],
   "profile": "benchmark",
   "prompts": {
@@ -5917,6 +6126,25 @@
    },
    "write_timers": false
   },
+  "offline": {
+   "communities_v2": false,
+   "community_hub_fraction": 0.5,
+   "community_hubs": [],
+   "community_max_entities_per_record": 8,
+   "community_max_size": 200,
+   "community_min_size": 3,
+   "community_summary_budget_tokens": 20000,
+   "decay_boundaries": [
+    0.5,
+    0.3,
+    0.15
+   ],
+   "decay_group_min_size": 2,
+   "decay_margin": 0.05,
+   "decay_multires_jobs": 0,
+   "decay_protected_kinds": [],
+   "decay_v2": false
+  },
   "plugins": [],
   "profile": "coding",
   "prompts": {
@@ -6436,6 +6664,25 @@
     "sink": "jsonl"
    },
    "write_timers": false
+  },
+  "offline": {
+   "communities_v2": false,
+   "community_hub_fraction": 0.5,
+   "community_hubs": [],
+   "community_max_entities_per_record": 8,
+   "community_max_size": 200,
+   "community_min_size": 3,
+   "community_summary_budget_tokens": 20000,
+   "decay_boundaries": [
+    0.5,
+    0.3,
+    0.15
+   ],
+   "decay_group_min_size": 2,
+   "decay_margin": 0.05,
+   "decay_multires_jobs": 0,
+   "decay_protected_kinds": [],
+   "decay_v2": false
   },
   "plugins": [],
   "profile": "core",
@@ -6958,6 +7205,25 @@
     "sink": "jsonl"
    },
    "write_timers": false
+  },
+  "offline": {
+   "communities_v2": false,
+   "community_hub_fraction": 0.5,
+   "community_hubs": [],
+   "community_max_entities_per_record": 8,
+   "community_max_size": 200,
+   "community_min_size": 3,
+   "community_summary_budget_tokens": 20000,
+   "decay_boundaries": [
+    0.5,
+    0.3,
+    0.15
+   ],
+   "decay_group_min_size": 2,
+   "decay_margin": 0.05,
+   "decay_multires_jobs": 0,
+   "decay_protected_kinds": [],
+   "decay_v2": false
   },
   "plugins": [],
   "profile": "graph",
@@ -7486,6 +7752,25 @@
     "sink": "jsonl"
    },
    "write_timers": false
+  },
+  "offline": {
+   "communities_v2": false,
+   "community_hub_fraction": 0.5,
+   "community_hubs": [],
+   "community_max_entities_per_record": 8,
+   "community_max_size": 200,
+   "community_min_size": 3,
+   "community_summary_budget_tokens": 20000,
+   "decay_boundaries": [
+    0.5,
+    0.3,
+    0.15
+   ],
+   "decay_group_min_size": 2,
+   "decay_margin": 0.05,
+   "decay_multires_jobs": 0,
+   "decay_protected_kinds": [],
+   "decay_v2": false
   },
   "plugins": [],
   "profile": "multi_agent",
@@ -8019,6 +8304,25 @@
    },
    "write_timers": false
   },
+  "offline": {
+   "communities_v2": false,
+   "community_hub_fraction": 0.5,
+   "community_hubs": [],
+   "community_max_entities_per_record": 8,
+   "community_max_size": 200,
+   "community_min_size": 3,
+   "community_summary_budget_tokens": 20000,
+   "decay_boundaries": [
+    0.5,
+    0.3,
+    0.15
+   ],
+   "decay_group_min_size": 2,
+   "decay_margin": 0.05,
+   "decay_multires_jobs": 0,
+   "decay_protected_kinds": [],
+   "decay_v2": false
+  },
   "plugins": [],
   "profile": "personal",
   "prompts": {
@@ -8542,6 +8846,25 @@
     "sink": "jsonl"
    },
    "write_timers": false
+  },
+  "offline": {
+   "communities_v2": false,
+   "community_hub_fraction": 0.5,
+   "community_hubs": [],
+   "community_max_entities_per_record": 8,
+   "community_max_size": 200,
+   "community_min_size": 3,
+   "community_summary_budget_tokens": 20000,
+   "decay_boundaries": [
+    0.5,
+    0.3,
+    0.15
+   ],
+   "decay_group_min_size": 2,
+   "decay_margin": 0.05,
+   "decay_multires_jobs": 0,
+   "decay_protected_kinds": [],
+   "decay_v2": false
   },
   "plugins": [],
   "profile": "protected",
@@ -9068,6 +9391,25 @@
    },
    "write_timers": false
   },
+  "offline": {
+   "communities_v2": false,
+   "community_hub_fraction": 0.5,
+   "community_hubs": [],
+   "community_max_entities_per_record": 8,
+   "community_max_size": 200,
+   "community_min_size": 3,
+   "community_summary_budget_tokens": 20000,
+   "decay_boundaries": [
+    0.5,
+    0.3,
+    0.15
+   ],
+   "decay_group_min_size": 2,
+   "decay_margin": 0.05,
+   "decay_multires_jobs": 0,
+   "decay_protected_kinds": [],
+   "decay_v2": false
+  },
   "plugins": [],
   "profile": "regulated_financial",
   "prompts": {
@@ -9593,6 +9935,25 @@
     "sink": "jsonl"
    },
    "write_timers": false
+  },
+  "offline": {
+   "communities_v2": false,
+   "community_hub_fraction": 0.5,
+   "community_hubs": [],
+   "community_max_entities_per_record": 8,
+   "community_max_size": 200,
+   "community_min_size": 3,
+   "community_summary_budget_tokens": 20000,
+   "decay_boundaries": [
+    0.5,
+    0.3,
+    0.15
+   ],
+   "decay_group_min_size": 2,
+   "decay_margin": 0.05,
+   "decay_multires_jobs": 0,
+   "decay_protected_kinds": [],
+   "decay_v2": false
   },
   "plugins": [],
   "profile": "voice",

@@ -52,6 +52,14 @@ AppendEvent = Callable[[MemoryEvent], Awaitable[None]]
 WriteDerivedFact = Callable[[MemoryRecord, list[float]], Awaitable[MemoryRecord]]
 
 
+#: Offline wiring (O4-06, O4-09): the derived-write door for a summary record, called with the
+#: namespace lock held: (namespace, record, parent ids, layer label, site, parent trust cap) -> the
+#: stored record (lineage and trust cap with ``write.lineage_table``, firewall screening always).
+WriteSummary = Callable[
+    [str, MemoryRecord, Sequence[str], str, str, list[float]], Awaitable[MemoryRecord]
+]
+
+
 Summarize = Callable[[str], Awaitable[str]]
 
 
@@ -273,6 +281,10 @@ class PipelineContext:
     window_edges: WindowEdges | None = None
     #: W1 (call 2 interface): the session-closed handler. None => the stub.
     close_session: SessionCloseHandler | None = None
+    #: O4-06 / O4-09: the derived-write door for community, entity and multi-resolution summaries
+    #: (``offline.communities_v2`` / ``offline.decay_v2``). None (bare contexts) => screened and
+    #: appended raw.
+    write_summary: WriteSummary | None = None
 
 
 async def _parents_gone(
