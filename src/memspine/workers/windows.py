@@ -167,6 +167,8 @@ class PromptWindowExtractor:
         self._partial = partial or default_partial
         self._use_schema = use_schema
         self._schema_rejected = False
+        #: FU-GAPS: whole-reply repair re-asks made by the one-call path.
+        self.reparse_calls = 0
         self._prompt = prompt
         #: W2-06a (``write.envelope_v2``): the ``facts`` section is an ``ItemV1`` list from the
         #: ``structured`` prompt, returned raw (each item is validated alone by the pipeline).
@@ -245,7 +247,28 @@ class PromptWindowExtractor:
             self._schema_rejected = True
             tap.event("write.prompt.v2", sections=list(sections), schema_mode="rejected")
             reply = await self._llm.chat(messages, **options)
-        data = _parse_window_reply(reply, sections)
+        data = _salvage_sections(_parse_window_reply(reply, sections), sections)
+        if data is None:
+            # FU-GAPS: the whole reply is unusable: ONE repair re-ask (the reply is echoed back,
+            # the model resends it as the JSON object) before the window's sections are dropped.
+            self.reparse_calls += 1
+            tap.event("write.prompt.v2", sections=list(sections), reparse=True)
+            retry = [
+                *messages,
+                {"role": "assistant", "content": reply[:4000]},
+                {
+                    "role": "user",
+                    "content": "That reply was not a valid JSON object. Reply again with ONLY the "
+                    f"JSON object with the keys: {', '.join(sections)}.",
+                },
+            ]
+            try:
+                again = await self._llm.chat(
+                    retry, **options, **({} if self._schema_rejected else extra)
+                )
+            except LLMError:
+                again = ""
+            data = _salvage_sections(_parse_window_reply(again, sections), sections)
         if data is None:
             raise LLMError("structured window reply failed validation: not a JSON object")
         return {name: data[name] for name in sections if name in data}
@@ -282,6 +305,27 @@ def _parse_window_reply(reply: str, sections: Sequence[str]) -> dict[str, Any] |
     if isinstance(data, list) and tuple(sections) == ("facts",):
         return {"facts": data}
     return data if isinstance(data, dict) and data else None
+
+
+def _salvage_sections(
+    data: dict[str, Any] | None, sections: Sequence[str]
+) -> dict[str, Any] | None:
+    """FU-GAPS: keep the sections of a parsed reply that are present; a malformed one stays in
+    place so the writer fails THAT section closed (``_drop``) and keeps its siblings. A list
+    wrapped in an object under its own name is unwrapped. None when no requested section is
+    present (the caller re-asks once)."""
+    if data is None:
+        return None
+    out: dict[str, Any] = {}
+    for name in sections:
+        if name not in data:
+            continue
+        value = data[name]
+        wrapped = isinstance(value, dict) and isinstance(value.get(name), list)
+        if name in ("facts", "edges") and wrapped:
+            value = value[name]  # type: ignore[index]
+        out[name] = value
+    return out or None
 
 
 #: ``(namespace, text, entity, attribute, parents, valid_from, session_key, **views)``: the
