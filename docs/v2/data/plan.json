@@ -2929,8 +2929,8 @@
    ],
    "kind": "api",
    "gate": "Golden",
-   "status": "Not started",
-   "note": "S8",
+   "status": "Done",
+   "note": "S8: runtime/container.py dishka providers (APP/JOB/REQUEST), 17 builders moved, engine -450 lines; unit 5905, evals 1435, golden, 14 contracts (b2824d6)",
    "layers": [
     "L0",
     "L1",
