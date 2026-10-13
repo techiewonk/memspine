@@ -8,7 +8,7 @@ simple-profile defaults and the read goldens are unchanged. Experiments that use
 reproducible from the pinned commit before F-14a (`6562cc5`); the screen rounds, run ids and verdicts
 are in `evals/analysis/GAP_REGISTER.md`.
 
-Commit: the F-14a commit on `wp/F-14a` (hash in the last row of the table).
+Commit: `bbf0280` on `wp/F-14a` (all rows below).
 
 ## Retired
 
