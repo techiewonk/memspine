@@ -142,6 +142,24 @@ class WriteConfig(BaseModel):
     #: clock; the record is still flagged ``unknown``). ``None``: ``read.naive_timezone``.
     stamp_default_tz: str | None = None
 
+    #: W2-03 (LIB-13; W-06, W-09, I-8): role policy, echo guard and routing. ``True``: raw storage
+    #: keeps every role (a system or tool turn is written, tagged ``derive_use:excluded`` /
+    #: ``evidence``, instead of skipped); derivation (window extraction, session-close input) drops
+    #: system turns and echoes and treats assistant text as a proposal (class
+    #: ``assistant_proposed``, trust never above user-stated) and tool text as evidence. A turn
+    #: that carries a recall marker (the engine's own wrappers or ``wrap_recall``) or overlaps the
+    #: session's last read above ``echo_threshold`` is tagged ``echo`` / ``echo_of:<id>`` and is
+    #: never re-derived as a new fact; a user restatement is an ``assent_candidate``, not support.
+    #: With ``write.intake_v2``, a turn that carries ``entity`` + ``attribute`` (or ``memory_type``
+    #: skill / plan) is also written as a typed record with the raw turn as its parent; unkeyed
+    #: turns stay raw. Taps ``write.role.*``, ``write.echo.*``, ``write.route.*``. ``False``
+    #: (default): unchanged.
+    role_policy_v2: bool = False
+    #: W2-03: with ``role_policy_v2``, the shingle overlap (max of Jaccard and containment of the
+    #: memory in the turn) at or above which a turn counts as an echo of a memory the last read
+    #: returned.
+    echo_threshold: float = Field(default=0.6, gt=0.0, le=1.0)
+
     #: O4-11 (LIB-44, O-25): explicit feedback only. ``True``: ``Engine.feedback`` refuses any
     #: channel that is not a deliberate one (``user_message``, ``ui_control``, ``operator_edit``,
     #: ``api``; silence, dwell, regeneration and classifier signals are refused), checks who may

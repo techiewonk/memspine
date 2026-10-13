@@ -42,12 +42,13 @@ from memspine.core.window import (
     WindowTurn,
     estimate_tokens,
 )
+from memspine.derive import role_filter
 from memspine.derive.backpressure import BackpressureRejected
 from memspine.derive.call_batcher import BatchItem, CallBatcher
 from memspine.derive.pipeline.stages.context import SessionClosed, WindowEdgeBatch
 from memspine.derive.pipeline.stages.mining import _fact_date
-from memspine.economy import ledger as _costs
 from memspine.derive.segmenter import SegmentationSettings, StreamSegmenter
+from memspine.economy import ledger as _costs
 from memspine.models.concurrency import Priority, priority_scope
 from memspine.models.providers.llm.base import LLMService
 from memspine.models.providers.llm.structured import structured_call
@@ -452,7 +453,9 @@ class WindowPipeline:
         outbox: Any | None = None,  # runtime.runner.InlineRunner; untyped (workers is below runtime)
         segmentation: SegmentationSettings | None = None,
         clock: Callable[[], float] = time.time,
+        role_policy: bool = False,
     ) -> None:
+        self._role_policy = role_policy  # W2-03: write.role_policy_v2
         self.settings = settings
         self.sections = tuple(sections)
         self._extract = extractor
@@ -1350,6 +1353,12 @@ class WindowPipeline:
             ):
                 self._counts["turns_excluded"] += 1
                 continue
+            if self._role_policy:  # W2-03: system turns and echoes are raw only
+                why = role_filter.block_reason(record.tags)
+                if why is not None:
+                    self._counts[f"turns_excluded_{why}"] += 1
+                    tap.event("write.role.derive_skip", reason=why, id=record.record_id)
+                    continue
             live.append(record)
         return live
 
@@ -1592,6 +1601,11 @@ class WindowPipeline:
                 if t.startswith("spk:") and t != "spk:"
             }
             tags = ["window_fact", f"window:{window_id}"]
+            if self._role_policy:  # W2-03: a fact no user line backs is marked
+                basis = role_filter.basis_of(records[n - 1].tags for n in lines)
+                if basis in ("evidence", "proposal"):
+                    tags.append(f"{constants.ROLE_USE_TAG_PREFIX}{basis}")
+                    tap.event("write.role.fact_basis", basis=basis, parents=len(lines))
             if len(speakers) == 1:
                 tags.append(next(iter(speakers)))
             when = _fact_date(fact.date, latest) or start

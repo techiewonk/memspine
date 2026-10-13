@@ -42,6 +42,7 @@ from memspine.derive.budget import COVERS_SEQ
 from memspine.exceptions import (
     ConflictError,
 )
+from memspine.ingest import role_wiring
 from memspine.ingest.stamping import (
     ASSENT_TAG_PREFIX,
     PENDING_STAMP,
@@ -427,6 +428,9 @@ async def write(
     pending_stamp = PENDING_STAMP.get()
     if pending_stamp is not None and memory_type == "episodic":  # W2-02: write.stamping_v2
         record = apply_stamp(record, pending_stamp)
+    pending_role = role_wiring.PENDING_ROLE.get()
+    if pending_role is not None and memory_type == "episodic":  # W2-03: write.role_policy_v2
+        record = role_wiring.apply_role(record, pending_role)
     trust_cap = await eng._parent_trust_cap(ns, record.source.parents)
     if trust_cap is not None and parent_weights:
         # B1 weighted lineage: a parent of weight w contributes
@@ -661,6 +665,7 @@ async def _write_turns(
         if await _participants_mode(eng, namespace) == "session"
         else []
     )
+    role_policy_v2 = eng._config().write.role_policy_v2  # W2-03
     conv_stamper = None
     if eng._config().write.stamping_v2:  # W2-02
         conv_stamper = ConversationStamper(
@@ -680,10 +685,15 @@ async def _write_turns(
                 f"messages[{i}] must be a mapping with 'role' and 'content' keys"
             ) from exc
         reply_to = _reply_target(turn, i, written_at)
-        if role in fw.skip_message_roles:
+        role_dec = (
+            role_wiring.decide(eng, validate_namespace(namespace), session_id, role, content)
+            if role_policy_v2
+            else None
+        )  # W2-03: raw keeps every role; derivation reads the tags
+        if role in fw.skip_message_roles and role_dec is None:
             tap.event("write.turn.skipped", reason="role", role=role, turn=i)
             continue  # H21: system/tool text is not memory
-        if fw.skip_injected_recall and _looks_like_recall(content):
+        if fw.skip_injected_recall and role_dec is None and _looks_like_recall(content):
             # H21: recalled memory echoed back is not new evidence. R2-11:
             # never silently: a MARKER event traces what was dropped (by
             # fingerprint, not content) so a genuine turn that merely
@@ -708,6 +718,8 @@ async def _write_turns(
             )
             continue
         turn_tags = list(tags or [])
+        if role_dec is not None:
+            turn_tags.extend(role_dec.tags)
         if eng._perspective_options().on:  # I39: explicit participants ride as tags
             who = turn.get("speaker") or turn.get("name")
             to = turn.get("addressee")
@@ -757,6 +769,7 @@ async def _write_turns(
         if conv_stamper is not None:  # W2-02: three clocks, axes, participants, provenance class
             pending = _stamp_turn(eng, conv_stamper, i, turn, role, content, bool(session_speakers))
         pending_token = PENDING_STAMP.set(pending) if pending is not None else None
+        role_token = role_wiring.PENDING_ROLE.set(role_dec) if role_dec is not None else None
         try:
             record = await eng.write(
                 content,
@@ -778,6 +791,8 @@ async def _write_turns(
         finally:
             if pending_token is not None:
                 PENDING_STAMP.reset(pending_token)
+            if role_token is not None:
+                role_wiring.PENDING_ROLE.reset(role_token)
         if conv_stamper is not None:
             conv_stamper.clear_proposal()
             if role == "assistant" and not record.quarantined:

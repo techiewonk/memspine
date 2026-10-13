@@ -156,6 +156,7 @@ def _build_windows(eng: Any, config: MemspineConfig) -> WindowPipeline | None:
         on_session_closed=eng._window_session_closed,
         outbox=outbox,
         segmentation=_segmentation(config),
+        role_policy=config.write.role_policy_v2,
     )
 
 

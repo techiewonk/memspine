@@ -41,8 +41,11 @@ from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncEngine
 
+from memspine.config import constants
+from memspine.derive import role_filter
 from memspine.derive.intent import DerivationIntent
 from memspine.ingest import intake_store as store
+from memspine.ingest import role_wiring
 from memspine.ingest import write as ingest_write
 from memspine.ingest.intake import (
     IntakeBook,
@@ -52,12 +55,13 @@ from memspine.ingest.intake import (
     validate_envelope,
     write_id,
 )
+from memspine.memories.procedural.skills import make_skill_record
 from memspine.observability import tap
 from memspine.schemas.public import QuotaExceeded, WaitResult
 from memspine.schemas.public.errors import QuotaExceededError
 from memspine.schemas.public.receipt import CAPABILITIES, Readiness, Receipt
 from memspine.schemas.steps.shared import AssetRef, Scope, Segment, SourceEnvelope
-from memspine.store.records import MemoryRecord, PiiTier, RecordStatus
+from memspine.store.records import MemoryRecord, PiiTier, RecordStatus, SourceInfo
 from memspine.store.scope import validate_namespace
 
 __all__ = [
@@ -239,6 +243,14 @@ def _progress(intent_id: str, current: Readiness, progress: Mapping[str, Any]) -
 
 def _turn_json(turn: Mapping[str, Any]) -> dict[str, Any]:
     return json.loads(json.dumps(dict(turn), default=str))
+
+
+def _name_of(turn: Mapping[str, Any], text: str) -> str:
+    for key in ("name", "entity"):
+        v = turn.get(key)
+        if isinstance(v, str) and v.strip():
+            return v.strip()
+    return " ".join(text.split()[:6]) or "unnamed"
 
 
 def _with_wid(turn: Mapping[str, Any], wid: str) -> dict[str, Any]:
@@ -513,7 +525,94 @@ class IntakeGateway:
                 )
             finally:
                 ingest_write.INTAKE_LANDED.reset(token)
+        if eng._config().write.role_policy_v2:  # W2-03: keyed turns also get a typed record
+            await self._route_typed(p, fresh, {**landed, **sink})
         return {**landed, **sink}
+
+    async def _route_typed(
+        self, p: dict[str, Any], fresh: list[dict[str, Any]], raw_ids: dict[str, str]
+    ) -> None:
+        """W-09: a keyed entity/attribute turn, a skill or a plan is also written as a typed record whose
+        parent is its raw turn (``derived_from``). Unkeyed turns stay raw. Best effort: the raw write is
+        durable, so a typed failure is counted and tapped, never raised. Idempotent on resume: the typed
+        record carries the turn's write id, and one that already landed is not written twice."""
+        eng = self.eng
+        ns = p["namespace"]
+        a = p["args"]
+        router = role_wiring.TypeRouter()
+        routed = [(f, router.route(f["turn"])) for f in fresh]
+        keyed = [(f, r) for f, r in routed if r.typed]
+        tap.event(
+            "write.route.decision",
+            turns=len(routed),
+            keyed=len(keyed),
+            unkeyed=len(routed) - len(keyed),
+        )
+        metrics = role_wiring.metrics_of(eng)
+        metrics["route.unkeyed"] += len(routed) - len(keyed)
+        if not keyed:
+            return
+        storage = eng._require_started()
+        done: dict[str, str] = {}
+        for kind in {r.typed for _, r in keyed if r.typed}:
+            done.update(await self._scan_landed(ns, kind, [f["wid"] for f, _ in keyed]))
+        for f, r in keyed:
+            assert r.typed is not None
+            wid = f["wid"]
+            if wid in done:
+                continue
+            raw_id = raw_ids.get(wid)
+            raw = await storage.get_record(raw_id) if raw_id else None
+            if raw is None or raw.quarantined or role_filter.block_reason(raw.tags) is not None:
+                metrics["route.skipped"] += 1
+                tap.event("write.route.skipped", reason="raw_unusable", type=r.typed, wid=wid)
+                continue
+            try:
+                tags = [f"{ingest_write.IDEM_TAG_PREFIX}{wid}", constants.ROUTED_TAG]
+                if r.typed in ("skill", "plan"):  # procedural: kind rides as the attribute
+                    name = _name_of(f["turn"], r.text or raw.content)
+                    rec = make_skill_record(
+                        ns,
+                        name,
+                        r.text or raw.content,
+                        kind=r.typed,  # type: ignore[arg-type]
+                        source=SourceInfo(
+                            role=raw.source.role,
+                            channel=a["channel"],
+                            message_id=a["session_id"],
+                            parents=[raw.record_id],
+                        ),
+                    )
+                    rec = rec.model_copy(update={"tags": tags})
+                    typed = await eng._write_procedural(rec, a["actor"])
+                else:
+                    typed = await eng.write(
+                        r.text or raw.content,
+                        namespace=ns,
+                        memory_type=r.typed,
+                        source=SourceInfo(
+                            role=raw.source.role, channel=a["channel"], message_id=a["session_id"]
+                        ),
+                        actor=a["actor"],
+                        entity=r.entity,
+                        attribute=r.attribute,
+                        group_id=a["group_id"],
+                        tags=tags,
+                        derived_from=[raw.record_id],
+                        valid_from=raw.valid_from,
+                    )
+            except Exception as exc:  # the raw turn is already durable
+                metrics["route.failed"] += 1
+                tap.event("write.route.failed", type=r.typed, wid=wid, error=type(exc).__name__)
+                continue
+            metrics[f"route.{r.typed}"] += 1
+            tap.event(
+                "write.route.typed",
+                type=r.typed,
+                reason=r.reason,
+                id=typed.record_id,
+                parent=raw.record_id,
+            )
 
     async def _apply_document(self, p: dict[str, Any], resume: bool) -> dict[str, str]:
         eng = self.eng

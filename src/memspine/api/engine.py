@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import asyncio
 import threading
+from collections import Counter
 from collections.abc import (
     AsyncIterator,
     Awaitable,
@@ -417,6 +418,9 @@ class Engine:
         #: B0 ``turn`` mode: ledgers a write has used since their last read. The
         #: next read on such a key starts a fresh turn (R4-1).
         self._ledger_written: set[tuple[str, str]] = set()
+        #: W2-03 (write.role_policy_v2): the session's last read for the echo guard, and its counters
+        self._last_read: dict[tuple[str, str], list[tuple[str, str, str]]] = {}
+        self._role_metrics: Counter[str] = Counter()
         self._sync_loop: asyncio.AbstractEventLoop | None = None
         self._sync_thread: threading.Thread | None = None
         #: #49: the audit hash chain head (None = not loaded from the log yet).
