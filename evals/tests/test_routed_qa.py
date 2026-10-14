@@ -35,9 +35,9 @@ from memspine_evals.readers import (
 from memspine_evals.runner import EvalRunner, RunConfig
 from memspine_evals.systems import VerbatimSystem
 
-TEMPORAL = "When did Caroline go to the LGBTQ support group?"
-INFERENCE = "Would Caroline pursue writing as a career?"
-PLAIN = "What is Caroline's identity?"
+TEMPORAL = "When did Ilse go to the LGBTQ support group?"
+INFERENCE = "Would Ilse pursue writing as a career?"
+PLAIN = "What is Ilse's identity?"
 _FMT = {"context": "[2023-05-08] x", "question_date": "unknown"}
 
 
@@ -46,13 +46,13 @@ _FMT = {"context": "[2023-05-08] x", "question_date": "unknown"}
     [
         (TEMPORAL, "temporal"),
         ("How many weeks ago did Ana move?", "temporal"),
-        ("When would Melanie likely go camping?", "temporal"),
+        ("When would Bram likely go camping?", "temporal"),
         (INFERENCE, "inference"),
-        ("What might John's financial status be?", "inference"),
-        ("Is it likely that Nate has friends besides Joanna?", "inference"),
-        ("Could Melanie be a member of the LGBTQ community?", "inference"),
+        ("What might Tomasz's financial status be?", "inference"),
+        ("Is it likely that Pieter has friends besides Femke?", "inference"),
+        ("Could Bram be a member of the LGBTQ community?", "inference"),
         (PLAIN, "plain"),
-        ("How many children does Melanie have?", "plain"),
+        ("How many children does Bram have?", "plain"),
     ],
 )
 def test_routing_decision(question: str, shape: str) -> None:

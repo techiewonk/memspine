@@ -83,12 +83,12 @@ def test_prefs_prompt_follows_silently_and_not_on_unrelated() -> None:
 @pytest.mark.parametrize(
     ("question", "variant"),
     [
-        ("Would Caroline likely have Dr. Seuss books on her bookshelf?", "infer"),
-        ("What might John's financial status be?", "infer"),
-        ("Is it likely that Nate has friends besides Joanna?", "infer"),
+        ("Would Ilse likely have Dr. Seuss books on her bookshelf?", "infer"),
+        ("What might Tomasz's financial status be?", "infer"),
+        ("Is it likely that Pieter has friends besides Femke?", "infer"),
         ("When would Ana likely visit Paris?", "plain"),  # a date question stays plain
-        ("How many hikes has Joanna been on?", "list"),
-        ("What activities does Melanie partake in?", "list"),
+        ("How many hikes has Femke been on?", "list"),
+        ("What activities does Bram partake in?", "list"),
         ("What pet does Ana have?", "plain"),
     ],
 )
@@ -134,7 +134,7 @@ class _Reader:
         return ReaderAnswer(text=self.replies.pop(0) if self.replies else "Not mentioned.", model_calls=1)
 
 
-CTX = "[2023-05-25] Caroline: I went hiking in Denver last Friday"
+CTX = "[2023-05-25] Ilse: I went hiking in Denver last Friday"
 
 
 def _ask(reader: RefusalRetryReader, question: str, context: str = CTX) -> ReaderAnswer:
@@ -144,14 +144,14 @@ def _ask(reader: RefusalRetryReader, question: str, context: str = CTX) -> Reade
 def test_retry_is_capped_at_one_and_discards_a_second_refusal() -> None:
     assert MAX_RETRIES == 1
     inner = _Reader("Not mentioned.", "Still not mentioned.", "Denver")
-    out = _ask(RefusalRetryReader(inner), "Where did Caroline hike?")
+    out = _ask(RefusalRetryReader(inner), "Where did Ilse hike?")
     assert inner.calls == 2 and out.text == "Not mentioned."  # never a third ask
     assert out.extra_meta["retry_accepted"] is False
 
 
 def test_no_retry_on_empty_context() -> None:
     inner = _Reader("Not mentioned.")
-    out = _ask(RefusalRetryReader(inner), "Where did Caroline hike?", context="  ")
+    out = _ask(RefusalRetryReader(inner), "Where did Ilse hike?", context="  ")
     assert inner.calls == 1 and out.text == "Not mentioned."
 
 
@@ -161,29 +161,29 @@ def test_default_reader_id_and_behaviour_unchanged_by_the_guard_option() -> None
     assert "retry_guard_absent_entity" not in off.describe()
     inner = _Reader("Not mentioned.", "Rome")
     # an absent entity is still retried when the guard is off
-    assert _ask(RefusalRetryReader(inner), "What did Melanie say about Rome?").text == "Rome"
+    assert _ask(RefusalRetryReader(inner), "What did Bram say about Rome?").text == "Rome"
     assert inner.calls == 2
 
 
 def test_guard_skips_a_question_about_an_entity_absent_from_the_context() -> None:
     inner = _Reader("Not mentioned.", "Rome")
     guarded = RefusalRetryReader(inner, guard_absent_entity=True)
-    out = _ask(guarded, "What did Melanie say about hiking?")
+    out = _ask(guarded, "What did Bram say about hiking?")
     assert inner.calls == 1 and out.text == "Not mentioned." and guarded.skipped == 1 and guarded.retried == 0
     assert "retry_skipped" in out.extra_meta
     assert guarded.reader_id.endswith("-entityguard")
     assert guarded.describe()["retry_guard_absent_entity"] is True
     # a present entity is retried as before
     inner2 = _Reader("Not mentioned.", "Denver")
-    assert _ask(RefusalRetryReader(inner2, guard_absent_entity=True), "Where did Caroline hike?").text == "Denver"
+    assert _ask(RefusalRetryReader(inner2, guard_absent_entity=True), "Where did Ilse hike?").text == "Denver"
     assert inner2.calls == 2
 
 
 @pytest.mark.parametrize(
     ("question", "names"),
     [
-        ("What did Caroline's friend say?", ["Caroline"]),
-        ("When did Jon and Gina go to Paris in May?", ["Jon", "Gina", "Paris"]),
+        ("What did Ilse's friend say?", ["Ilse"]),
+        ("When did Noor and Mirel go to Paris in May?", ["Noor", "Mirel", "Paris"]),
         ("What is the weather like?", []),
         ("Which Friday was it?", []),
     ],
@@ -193,11 +193,11 @@ def test_named_entities(question: str, names: list[str]) -> None:
 
 
 def test_names_absent_entity_uses_only_question_and_context() -> None:
-    assert names_absent_entity("What did Melanie say?", CTX)
-    assert not names_absent_entity("Where did Caroline go?", CTX)
+    assert names_absent_entity("What did Bram say?", CTX)
+    assert not names_absent_entity("Where did Ilse go?", CTX)
     # one known person is enough: a world-knowledge question about a stored person stays retryable
-    assert not names_absent_entity("Would Caroline enjoy Vivaldi?", CTX)
-    assert names_absent_entity("What did Melanie and Vivaldi say?", CTX)
+    assert not names_absent_entity("Would Ilse enjoy Vivaldi?", CTX)
+    assert names_absent_entity("What did Bram and Vivaldi say?", CTX)
     assert not names_absent_entity("what is the plan?", CTX)
     assert "gold" not in refusal.names_absent_entity.__code__.co_varnames
 
@@ -280,18 +280,27 @@ def test_judge_agreement_perfect_and_degraded(tmp_path: Path) -> None:
 
 
 def test_judge_agreement_run_matches_only_identical_answers(tmp_path: Path) -> None:
-    from judge_agreement import main
+    from judge_agreement import answer_hash, main
 
-    rows = _cal()
+    # an invented calibration set: the committed form holds ids, labels and an answer hash only
+    answers = {f"conv-9/{i}-1": f"Bram bought {i} loaves of rye bread." for i in range(6)}
+    rows = [
+        {"id": key, "item": "conv-9", "qid": key.split("/")[1], "category": "single-hop",
+         "kind": "paraphrase", "human_verdict": "CORRECT", "borderline": False, "reason": "invented",
+         "source_judge_label": "CORRECT", "answer_sha256": answer_hash(ans)}
+        for key, ans in answers.items()
+    ]
+    cal = tmp_path / "cal.jsonl"
+    cal.write_text(chr(10).join(json.dumps(r) for r in rows), encoding="utf-8")
     run = tmp_path / "r--memspine" / "report"
     run.mkdir(parents=True)
     lines = []
-    for i, r in enumerate(rows):
-        answer = r["answer"] if i % 2 == 0 else r["answer"] + " (different)"
-        lines.append(json.dumps({"item": r["item"], "qid": r["qid"], "answer": answer,
-                                 "correct": r["human_verdict"] == "CORRECT"}))
-    (run / "per_question.jsonl").write_text("\n".join(lines), encoding="utf-8")
-    assert main(["--run", "r", "--runs-dir", str(tmp_path), "--json"]) == 0
+    for i, (key, ans) in enumerate(answers.items()):
+        item, qid = key.split("/")
+        answer = ans if i % 2 == 0 else ans + " (different)"
+        lines.append(json.dumps({"item": item, "qid": qid, "answer": answer, "correct": True}))
+    (run / "per_question.jsonl").write_text(chr(10).join(lines), encoding="utf-8")
+    assert main(["--set", str(cal), "--run", "r", "--runs-dir", str(tmp_path), "--json"]) == 0
 
 
 # ---- C9 paired comparison -----------------------------------------------------------------------------

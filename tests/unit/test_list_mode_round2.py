@@ -55,11 +55,11 @@ async def _seed(eng: Engine, lines: list[str]) -> None:
 @pytest.mark.parametrize(
     "question",
     [
-        "How did Gina promote her clothes store?",
-        "How has Melanie supported her community?",
-        "How does Tim relax after work?",
-        "What gifts did Caroline buy?",
-        "Which hobbies does Tim enjoy?",  # already a base hit: stays a hit
+        "How did Mirel promote her clothes store?",
+        "How has Bram supported her community?",
+        "How does Sven relax after work?",
+        "What gifts did Ilse buy?",
+        "Which hobbies does Sven enjoy?",  # already a base hit: stays a hit
     ],
 )
 def test_wide_trigger_fires(question: str) -> None:
@@ -69,12 +69,12 @@ def test_wide_trigger_fires(question: str) -> None:
 @pytest.mark.parametrize(
     "question",
     [
-        "When did Melanie go camping?",
-        "How many kids does Melanie have?",
-        "How did Melanie feel after the race?",
-        "Did Melanie go to the park?",
-        "What is Melanie's job?",
-        "Where did Tim travel last summer?",
+        "When did Bram go camping?",
+        "How many kids does Bram have?",
+        "How did Bram feel after the race?",
+        "Did Bram go to the park?",
+        "What is Bram's job?",
+        "Where did Sven travel last summer?",
     ],
 )
 def test_wide_trigger_stays_quiet(question: str) -> None:
@@ -82,9 +82,9 @@ def test_wide_trigger_stays_quiet(question: str) -> None:
 
 
 def test_wide_trigger_is_a_superset_of_the_base_trigger() -> None:
-    for q in ("What activities does Melanie partake in?", "What kind of books does Tim write?"):
+    for q in ("What activities does Bram partake in?", "What kind of books does Sven write?"):
         assert is_set_question(q) and is_set_question_wide(q)
-    assert not is_set_question("How did Gina promote her clothes store?")
+    assert not is_set_question("How did Mirel promote her clothes store?")
 
 
 def test_wide_trigger_precision_over_locomo(capsys: pytest.CaptureFixture[str]) -> None:
@@ -110,8 +110,8 @@ def test_wide_trigger_precision_over_locomo(capsys: pytest.CaptureFixture[str]) 
 
 
 async def test_engine_uses_wide_trigger_only_when_selected() -> None:
-    lines = ["Gina: I gave out flyers for the store", "Tim: I read a book"]
-    question = "How did Gina promote her clothes store?"
+    lines = ["Mirel: I gave out flyers for the store", "Sven: I read a book"]
+    question = "How did Mirel promote her clothes store?"
     for trigger, expect in (("set_question", False), ("set_question_wide", True)):
         eng = _engine(list_mode=True, list_trigger=trigger)
         await eng.start()
@@ -130,19 +130,19 @@ async def test_engine_uses_wide_trigger_only_when_selected() -> None:
 
 def test_comparison_legs_one_per_named_speaker() -> None:
     recs = [
-        _rec("Melanie: I love camping"),
-        _rec("Caroline: I love painting"),
-        _rec("Melanie: pottery"),
-        _rec("Caroline: marches"),
+        _rec("Bram: I love camping"),
+        _rec("Ilse: I love painting"),
+        _rec("Bram: pottery"),
+        _rec("Ilse: marches"),
     ]
     hits = [LegHit(r.record_id, 1.0 - i / 10) for i, r in enumerate(recs)]
-    out = comparison_speaker_legs("What do Caroline and Melanie both like?", recs, hits, 5)
-    assert [n for n, _ in out] == ["caroline", "melanie"]  # order of mention
+    out = comparison_speaker_legs("What do Ilse and Bram both like?", recs, hits, 5)
+    assert [n for n, _ in out] == ["ilse", "bram"]  # order of mention
     assert [h.record_id for h in out[0][1]] == [recs[1].record_id, recs[3].record_id]
     assert [h.record_id for h in out[1][1]] == [recs[0].record_id, recs[2].record_id]
     # no cue, or one speaker: nothing
-    assert comparison_speaker_legs("What do Caroline and Melanie like?", recs, hits) == []
-    assert comparison_speaker_legs("What do they both like, Melanie?", recs, hits) == []
+    assert comparison_speaker_legs("What do Ilse and Bram like?", recs, hits) == []
+    assert comparison_speaker_legs("What do they both like, Bram?", recs, hits) == []
 
 
 async def test_two_speaker_comparison_fires_two_votes() -> None:
@@ -152,15 +152,15 @@ async def test_two_speaker_comparison_fires_two_votes() -> None:
         await _seed(
             eng,
             [
-                "Melanie: I love camping with the kids",
-                "Caroline: I joined a march for equality",
-                "Melanie: We went swimming at the beach",
-                "Caroline: Our support group meets weekly",
+                "Bram: I love camping with the kids",
+                "Ilse: I joined a march for equality",
+                "Bram: We went swimming at the beach",
+                "Ilse: Our support group meets weekly",
             ],
         )
         with search_forensics() as stages:
             await eng.read(
-                "What do Melanie and Caroline both like?", namespace="a", mode="replay", top_k=3
+                "What do Bram and Ilse both like?", namespace="a", mode="replay", top_k=3
             )
         legs = dict(stages.get("extra_legs", []))
         assert "speaker_vote_a" in legs and "speaker_vote_b" in legs
@@ -169,7 +169,7 @@ async def test_two_speaker_comparison_fires_two_votes() -> None:
             rid: (await eng._require_started().get_record(rid)).content
             for rid, _ in legs["speaker_vote_a"]
         }
-        assert all(c.startswith("Melanie:") for c in recs.values())
+        assert all(c.startswith("Bram:") for c in recs.values())
     finally:
         await eng.stop()
 
@@ -179,10 +179,10 @@ async def test_two_speaker_comparison_fires_two_votes() -> None:
 
 def test_bridge_phrases_skip_question_words() -> None:
     texts = [
-        "Caroline: I moved from my home country four years ago, so adoption agencies matter to me",
-        "Caroline: The adoption agencies helped a lot",
+        "Ilse: I moved from my home country four years ago, so adoption agencies matter to me",
+        "Ilse: The adoption agencies helped a lot",
     ]
-    got = bridge_phrases("Where did Caroline move from?", texts)
+    got = bridge_phrases("Where did Ilse move from?", texts)
     assert "home country" in got
     assert "adoption agencies" in got  # 'adoption' is in the question, so only ...
     assert len(got) <= 3
@@ -200,14 +200,14 @@ async def test_bridge_hop_adds_leg_and_records_phrases() -> None:
         await _seed(
             eng,
             [
-                "Caroline: I moved from my home country years ago",
-                "Tim: unrelated chatter about football",
-                "Caroline: Life in my home country was very different",
-                "Mel: pottery class",
+                "Ilse: I moved from my home country years ago",
+                "Sven: unrelated chatter about football",
+                "Ilse: Life in my home country was very different",
+                "Tom: pottery class",
             ],
         )
         with search_forensics() as stages:
-            await eng.read("Where did Caroline move from?", namespace="a", mode="replay", top_k=2)
+            await eng.read("Where did Ilse move from?", namespace="a", mode="replay", top_k=2)
         assert "home country" in stages["bridge_phrases"]
         assert "bridge" in dict(stages["extra_legs"])
     finally:
@@ -218,9 +218,9 @@ async def test_bridge_hop_off_by_default() -> None:
     eng = _engine()
     await eng.start()
     try:
-        await _seed(eng, ["Caroline: I moved from my home country years ago", "Tim: hi"])
+        await _seed(eng, ["Ilse: I moved from my home country years ago", "Sven: hi"])
         with search_forensics() as stages:
-            await eng.read("Where did Caroline move from?", namespace="a", mode="replay", top_k=2)
+            await eng.read("Where did Ilse move from?", namespace="a", mode="replay", top_k=2)
         assert "bridge_phrases" not in stages
         assert "bridge" not in dict(stages.get("extra_legs", []))
     finally:
@@ -231,13 +231,13 @@ async def test_bridge_hop_fails_soft(monkeypatch: pytest.MonkeyPatch) -> None:
     eng = _engine(bridge_hop=True)
     await eng.start()
     try:
-        await _seed(eng, ["Caroline: I moved from my home country years ago", "Tim: hi"])
+        await _seed(eng, ["Ilse: I moved from my home country years ago", "Sven: hi"])
 
         def boom(*_: Any, **__: Any) -> Any:
             raise RuntimeError("boom")
 
         monkeypatch.setattr("memspine.read.pipeline.legs.bridge_phrases", boom)
-        out = await eng.read("Where did Caroline move from?", namespace="a", mode="replay")
+        out = await eng.read("Where did Ilse move from?", namespace="a", mode="replay")
         assert out.context.records
     finally:
         await eng.stop()
@@ -249,13 +249,13 @@ async def test_bridge_hop_fails_soft(monkeypatch: pytest.MonkeyPatch) -> None:
 @pytest.mark.parametrize(
     "question",
     [
-        "Where did Caroline move from 4 years ago?",
-        "Would Caroline want to move back to her home country soon?",
-        "What did John do in his hometown?",
-        "How does Gina describe the studio that Jon has opened?",
-        "When is Melanie's daughter's birthday?",
-        "What is the book that Mel recommended?",
-        "What is the city where Tim grew up?",
+        "Where did Ilse move from 4 years ago?",
+        "Would Ilse want to move back to her home country soon?",
+        "What did Tomasz do in his hometown?",
+        "How does Mirel describe the studio that Noor has opened?",
+        "When is Bram's daughter's birthday?",
+        "What is the book that Tom recommended?",
+        "What is the city where Sven grew up?",
     ],
 )
 def test_bridge_cue_fires(question: str) -> None:
@@ -265,12 +265,12 @@ def test_bridge_cue_fires(question: str) -> None:
 @pytest.mark.parametrize(
     "question",
     [
-        "How many children does Melanie have?",
-        "What do Melanie's family give her?",
-        "What did Jon say about Gina's progress with her store?",
-        "How long did it take for Jon to open his studio?",
-        "When did Caroline and Melanie go to a pride festival together?",
-        "What does Melanie do to destress?",
+        "How many children does Bram have?",
+        "What do Bram's family give her?",
+        "What did Noor say about Mirel's progress with her store?",
+        "How long did it take for Noor to open his studio?",
+        "When did Ilse and Bram go to a pride festival together?",
+        "What does Bram do to destress?",
     ],
 )
 def test_bridge_cue_does_not_fire(question: str) -> None:
@@ -288,7 +288,7 @@ def test_bridge_cue_on_dev_questions_is_rare() -> None:
 
 
 def test_bridge_gate_modes() -> None:
-    cue_q, plain_q = "Where did Caroline move from?", "How many children does Melanie have?"
+    cue_q, plain_q = "Where did Ilse move from?", "How many children does Bram have?"
 
     def gate(mode: str, question: str, support: float | None) -> tuple[bool, str]:
         read = ReadConfig(bridge_hop=True, bridge_hop_gate=mode)
@@ -314,13 +314,13 @@ async def test_bridge_gate_skips_in_engine_and_records() -> None:
     eng = _engine(bridge_hop=True, bridge_hop_gate="cue")
     await eng.start()
     try:
-        await _seed(eng, ["Caroline: I moved from my home country years ago", "Tim: hi"])
+        await _seed(eng, ["Ilse: I moved from my home country years ago", "Sven: hi"])
         with search_forensics() as stages:
-            await eng.read("How many pets does Tim have?", namespace="a", mode="replay")
+            await eng.read("How many pets does Sven have?", namespace="a", mode="replay")
         assert stages["bridge_gate"] == "skipped"
         assert "bridge_phrases" not in stages
         with search_forensics() as stages:
-            await eng.read("Where did Caroline move from?", namespace="a", mode="replay")
+            await eng.read("Where did Ilse move from?", namespace="a", mode="replay")
         assert stages["bridge_gate"] == "cue"
         assert "bridge_phrases" in stages
     finally:

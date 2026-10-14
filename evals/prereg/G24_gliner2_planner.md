@@ -65,3 +65,7 @@ on data it was not tuned on.
   informative part is the remainder (replay-cue and retrieve items), which the results report
   separately.
 - n = 49 held out; one run; one machine. A difference of a few questions is noise.
+
+## Amendment 2026-10-14 (LIC-FIX): text-free set
+
+The frozen set no longer stores the question strings (benchmark text must not be committed). Each item keeps its id, category, mode, rule and split (all unchanged) plus `question_sha256`, the SHA-256 of the UTF-8 question text. `gliner2_planner_eval.load_fixture()` re-hydrates `question` from the local `locomo10.json` (`data/` or `MEMSPINE_LOCOMO_PATH`) and refuses a question whose hash differs. The registration is otherwise unchanged; the file hash of the set differs from the 2026-10-06 version because of this edit only. The original is kept in the gitignored `evals/runs/_analysis/legacy_text/`.

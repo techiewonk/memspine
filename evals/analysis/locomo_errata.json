@@ -3,7 +3,7 @@
  "dataset": "locomo10.json",
  "dataset_sha256_prefix": "79fa87e90f040813",
  "created": "2026-10-10",
- "note": "Questions whose LoCoMo gold contradicts the transcript, or that need the image. Found while hand-reading 148 read failures of one run, so this list is incomplete (an estimated 16-24 more exist among unread wrong answers). Report accuracy with and without these. No corpus text is stored here. 2026-10-10: added tag evidence_label_error (gold answer is right but a labelled evidence turn does not support it; correct turn id in the reason), from B2_EVIDENCE_AUDIT.md. 2026-10-10 (R2-5): four more evidence_label_error entries from the stable-failure review (0-70, 1-43, 0-151, 1-48); none changes the with/without-errata accuracy, which drops only gold_error and needs_image. 2026-10-10 (I62): five new entries of three new classes. premise_error (question premise contradicts the transcript, gold still right), bad_evidence_id (malformed evidence id, QA unaffected), cat5_answerable (a cat-5 question the transcript answers, abstention gold wrong). Reviewed and rejected: 1-63 (question says May 23, the acceptance is mentioned on 27 May as 'just got accepted'; the transcript does not date the acceptance, so nothing is contradicted). None of the new tags is excluded by default (DEFAULT_EXCLUDE_TAGS is unchanged); `forensics_report.py --errata-extended` also drops premise_error and cat5_answerable (non-borderline), reported as a second column.",
+ "note": "Questions whose LoCoMo gold contradicts the transcript, or that need the image. Found while hand-reading 148 read failures of one run, so this list is incomplete (an estimated 16-24 more exist among unread wrong answers). Report accuracy with and without these. No corpus text is stored here. 2026-10-10: added tag evidence_label_error (gold answer is right but a labelled evidence turn does not support it; correct turn id in the reason), from B2_EVIDENCE_AUDIT.md. 2026-10-10 (R2-5): four more evidence_label_error entries from the stable-failure review (0-70, 1-43, 0-151, 1-48); none changes the with/without-errata accuracy, which drops only gold_error and needs_image. 2026-10-10 (I62): five new entries of three new classes. premise_error (question premise contradicts the transcript, gold still right), bad_evidence_id (malformed evidence id, QA unaffected), cat5_answerable (a cat-5 question the transcript answers, abstention gold wrong). Reviewed and rejected: 1-63 (question says May 23, the acceptance is mentioned on 27 May as 'just got accepted'; the transcript does not date the acceptance, so nothing is contradicted). None of the new tags is excluded by default (DEFAULT_EXCLUDE_TAGS is unchanged); `forensics_report.py --errata-extended` also drops premise_error and cat5_answerable (non-borderline), reported as a second column. Licence 2026-10-14: quoted dataset text removed from reasons; turn ids kept.",
  "entries": [
   {
    "item": "conv-26",
@@ -194,7 +194,7 @@
    "qid": "0-23",
    "tag": "needs_image",
    "borderline": false,
-   "reason": "evidence only in the image, not in the text",
+   "reason": "one gold title appears only in the photo (D7:8), not in text or caption",
    "source": "READER_GAPS_FORENSIC.md section 5"
   },
   {
@@ -354,7 +354,7 @@
    "qid": "0-70",
    "tag": "evidence_label_error",
    "borderline": false,
-   "reason": "gold evidence D15:13 ('Did you see that band?') is not a transgender event; the conference in the gold answer is D5:13 ('I'm going to a transgender conference this month'). The listed answer is also narrow (the transcript has other LGBTQ events). System answer lists poetry reading and conference but adds LGBTQ events, so it is still judged wrong",
+   "reason": "gold evidence D15:13 is not a transgender event; the conference in the gold answer is D5:13. The listed answer is also narrow (the transcript has other LGBTQ events). The system answer lists the poetry reading and the conference but adds LGBTQ events, so it is still judged wrong",
    "source": "R2-5 review 2026-10-10"
   },
   {
@@ -402,7 +402,7 @@
    "qid": "0-184",
    "tag": "cat5_answerable",
    "borderline": false,
-   "reason": "cat 5, adversarial answer 'clarinet and violin' (Melanie's instruments), but Caroline says 'Guitar's mostly my thing' (D15:19) and 'I started playing acoustic guitar about five years ago' (D15:21); she is also 'just learning the piano' (D5:5). The question is answerable from the transcript, so an abstention gold is wrong",
+   "reason": "cat 5, the adversarial answer names another speaker's instruments, but the questioned speaker states her own instruments in D15:19, D15:21 and D5:5. The question is answerable from the transcript, so an abstention gold is wrong",
    "source": "I62 review 2026-10-10"
   },
   {
@@ -410,7 +410,7 @@
    "qid": "0-186",
    "tag": "cat5_answerable",
    "borderline": true,
-   "reason": "cat 5, adversarial answer 'Ed Sheeran' (Melanie, D15:28). Caroline names '\"Brave\" by Sara Bareilles has a lot of significance for me' (D15:23) when asked for a song with deep meaning; she never says she is a 'fan' of an artist, so this is answerable only by a loose reading",
+   "reason": "cat 5, the adversarial answer is an artist named in D15:28 by the other speaker. The questioned speaker names a song with deep significance in D15:23 and never says she is a fan of an artist, so this is answerable only by a loose reading",
    "source": "I62 review 2026-10-10"
   },
   {
@@ -418,7 +418,7 @@
    "qid": "3-244",
    "tag": "cat5_answerable",
    "borderline": false,
-   "reason": "cat 5, adversarial answer 'her turtles' (Nate's, D24:3). Joanna says of the stuffed animal dog 'Tilly helps me stay focused and brings me so much joy' (D24:8) and 'she's always with me while I write' (D24:4). The question is answerable from the transcript",
+   "reason": "cat 5, the adversarial answer is a different speaker's pets (D24:3). The questioned speaker says in D24:8 and D24:4 that the stuffed animal dog helps her focus and stays with her while she writes. The question is answerable from the transcript",
    "source": "I62 review 2026-10-10"
   }
  ],

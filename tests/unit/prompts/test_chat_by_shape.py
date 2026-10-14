@@ -29,9 +29,9 @@ _ROUTED = {"temporal": "temporal", "inference": "inference"}
         ("How long ago did Ana adopt the dog?", "temporal"),
         ("When would Ana likely visit Paris?", "temporal"),  # a date question wins
         (INFERENCE, "inference"),
-        ("Is it likely that Nate has friends besides Joanna?", "inference"),
-        ("What might John's financial status be?", "inference"),
-        ("Could Melanie be a member of the LGBTQ community?", "inference"),
+        ("Is it likely that Pieter has friends besides Femke?", "inference"),
+        ("What might Tomasz's financial status be?", "inference"),
+        ("Could Bram be a member of the LGBTQ community?", "inference"),
         (PLAIN, None),
         ("What did Ana say about the hike", None),  # no question mark: not inference
         ("Ana couldn't come", None),

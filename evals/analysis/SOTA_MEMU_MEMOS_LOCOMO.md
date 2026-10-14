@@ -126,7 +126,7 @@ paired with a "friend of the user" system role and with memories that are alread
 ### Why MemU scores 26.87 on fully irrelevant and 18.5 on memory-sycophancy (top 3)
 1. **It cannot abstain on content.** The only gate is an LLM that fires RETRIEVE for anything that feels personal;
    after that, cosine top-5 returns five items per query with no floor (`vector.py:14-45`). The paper itself measures
-   "fully irrelevant questions still receive low-similarity memories" (`research_results.json`, rq2 "Over-retrieval").
+   "[omitted]" (`research_results.json`, rq2 "Over-retrieval").
    Example: an election question got five lifestyle facts (kids, island home, "small wins"), and the answer
    mentioned the user's kids (paper fig. 21, answer scored 0.5).
 2. **The stored unit is a de-contextualised trait statement, and duplicates are not removed.** "The user finds nature

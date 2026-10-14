@@ -21,6 +21,7 @@ kappa (the judge is binary) and reported as the credit rate.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import re
 import sys
@@ -29,14 +30,36 @@ from pathlib import Path
 from typing import Any
 
 DEFAULT_SET = Path(__file__).parent / "analysis" / "judge_calibration_dev.jsonl"
+#: Licence: the committed set holds ids, labels and an answer hash only. The text-bearing copy
+#: (question, gold, answer) lives in this gitignored sidecar, written by build_judge_calibration.py.
+FULL_SET = Path(__file__).parent / "runs" / "_analysis" / "judge_calibration_dev.full.jsonl"
 
 
 def _norm(text: str | None) -> str:
     return re.sub(r"\s+", " ", (text or "").strip().lower())
 
 
-def load_set(path: Path) -> list[dict[str, Any]]:
-    return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+def answer_hash(text: str | None) -> str:
+    return hashlib.sha256(_norm(text).encode("utf-8")).hexdigest()
+
+
+def load_set(path: Path, full: Path | None = FULL_SET) -> list[dict[str, Any]]:
+    """The calibration rows. When the local text-bearing sidecar ``full`` exists, ``question`` /
+    ``gold`` / ``answer`` are merged in by id (the committed file carries ids, labels and
+    ``answer_sha256`` only); otherwise those fields are absent (see :func:`has_text`)."""
+    rows = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+    if full is not None and Path(full).exists():
+        text = {d["id"]: d for d in (json.loads(x) for x in Path(full).read_text(encoding="utf-8").splitlines() if x.strip())}
+        for r in rows:
+            src = text.get(r["id"])
+            if src and answer_hash(src.get("answer")) == r.get("answer_sha256", answer_hash(src.get("answer"))):
+                for k in ("question", "gold", "answer"):
+                    r.setdefault(k, src[k])
+    return rows
+
+
+def has_text(rows: list[dict[str, Any]]) -> bool:
+    return bool(rows) and all("question" in r and "gold" in r and "answer" in r for r in rows)
 
 
 def run_labels(run_dir: Path) -> dict[str, tuple[str, str]]:
@@ -117,7 +140,7 @@ def with_conventions(rows: list[dict[str, Any]], judged: dict[str, str]) -> dict
         check_conventions_v3,
     )
 
-    rows = [r for r in rows if r["id"] in judged]
+    rows = [r for r in rows if r["id"] in judged and "answer" in r]
     credited: dict[str, str] = {}
     layered = dict(judged)
     alone = {r["id"]: "WRONG" for r in rows}
@@ -203,7 +226,7 @@ def main(argv: list[str] | None = None) -> int:
         judged: dict[str, str] = {}
         for r in rows:
             hit = got.get(r["id"])
-            if hit and _norm(hit[1]) == _norm(r["answer"]):
+            if hit and answer_hash(hit[1]) == (r.get("answer_sha256") or answer_hash(r.get("answer"))):
                 judged[r["id"]] = hit[0]
             else:
                 unmatched += 1

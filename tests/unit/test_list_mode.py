@@ -37,11 +37,11 @@ def _rec(text: str, tags: list[str] | None = None) -> MemoryRecord:
 @pytest.mark.parametrize(
     "question",
     [
-        "What activities does Melanie partake in?",
-        "What do Melanie's kids like?",
-        "What events has Caroline participated in to help children?",
-        "What kind of fiction stories does Tim write?",
-        "Which books has Tim read?",
+        "What activities does Bram partake in?",
+        "What do Bram's kids like?",
+        "What events has Ilse participated in to help children?",
+        "What kind of fiction stories does Sven write?",
+        "Which books has Sven read?",
     ],
 )
 def test_is_set_question_true(question: str) -> None:
@@ -51,12 +51,12 @@ def test_is_set_question_true(question: str) -> None:
 @pytest.mark.parametrize(
     "question",
     [
-        "When did Melanie go camping?",
-        "How many kids does Melanie have?",
-        "Did Melanie go to the park?",
-        "What book did Melanie read from Caroline's suggestion?",
-        "What is Melanie's job?",
-        "Where did Tim travel last summer?",
+        "When did Bram go camping?",
+        "How many kids does Bram have?",
+        "Did Bram go to the park?",
+        "What book did Bram read from Ilse's suggestion?",
+        "What is Bram's job?",
+        "Where did Sven travel last summer?",
     ],
 )
 def test_is_set_question_false(question: str) -> None:
@@ -68,32 +68,32 @@ def test_is_set_question_false(question: str) -> None:
 
 def test_speaker_vector_leg_keeps_only_the_named_speaker_in_vector_order() -> None:
     recs = [
-        _rec("Melanie: I went camping"),
-        _rec("Caroline: I went to a march"),
-        _rec("Melanie: pottery today"),
-        _rec("Melanie: more camping"),
+        _rec("Bram: I went camping"),
+        _rec("Ilse: I went to a march"),
+        _rec("Bram: pottery today"),
+        _rec("Bram: more camping"),
     ]
     hits = [LegHit(r.record_id, 1.0 - i / 10) for i, r in enumerate(recs)]
-    out = speaker_vector_leg("What does Melanie's family do?", recs, hits, top_k=2)
+    out = speaker_vector_leg("What does Bram's family do?", recs, hits, top_k=2)
     assert [h.record_id for h in out] == [recs[0].record_id, recs[2].record_id]
     assert [h.score for h in out] == [1.0, 0.8]  # the vector scores are kept
 
 
 def test_speaker_vector_leg_uses_tag_when_present() -> None:
     tagged = _rec("no prefix here", ["speaker:melanie"])
-    other = _rec("Caroline: hi")
+    other = _rec("Ilse: hi")
     hits = [LegHit(other.record_id, 0.9), LegHit(tagged.record_id, 0.8)]
     out = speaker_vector_leg("what does melanie like", [tagged, other], hits)
     assert [h.record_id for h in out] == [tagged.record_id]
 
 
 def test_speaker_vector_leg_needs_exactly_one_speaker() -> None:
-    recs = [_rec("Melanie: a"), _rec("Caroline: b")]
+    recs = [_rec("Bram: a"), _rec("Ilse: b")]
     hits = [LegHit(r.record_id, 1.0) for r in recs]
-    assert speaker_vector_leg("What do Melanie and Caroline like?", recs, hits) == []
+    assert speaker_vector_leg("What do Bram and Ilse like?", recs, hits) == []
     assert speaker_vector_leg("What do people like?", recs, hits) == []
     untagged = [_rec("untagged text"), _rec("more untagged text")]
-    assert speaker_vector_leg("What does Melanie like?", untagged, hits) == []
+    assert speaker_vector_leg("What does Bram like?", untagged, hits) == []
 
 
 # -- engine ----------------------------------------------------------------------------
@@ -101,12 +101,12 @@ def test_speaker_vector_leg_needs_exactly_one_speaker() -> None:
 
 async def _two_speakers(eng: Engine) -> None:
     lines = [
-        "Melanie: I love camping with the kids",
-        "Caroline: I joined a march for equality",
-        "Melanie: We went swimming at the beach",
-        "Caroline: Our support group meets weekly",
-        "Melanie: Pottery class was great today",
-        "Caroline: I painted a sunrise",
+        "Bram: I love camping with the kids",
+        "Ilse: I joined a march for equality",
+        "Bram: We went swimming at the beach",
+        "Ilse: Our support group meets weekly",
+        "Bram: Pottery class was great today",
+        "Ilse: I painted a sunrise",
     ]
     for i, text in enumerate(lines):
         await eng.write(
@@ -128,10 +128,10 @@ async def test_leg_fires_for_set_question_naming_one_speaker() -> None:
     await eng.start()
     try:
         await _two_speakers(eng)
-        got = await _vote_contents(eng, "What activities does Melanie do?")
+        got = await _vote_contents(eng, "What activities does Bram do?")
         assert got is not None
-        assert len(got) == 3  # every Melanie turn
-        assert all(c.startswith("Melanie:") for c in got)  # and no Caroline turn
+        assert len(got) == 3  # every Bram turn
+        assert all(c.startswith("Bram:") for c in got)  # and no Ilse turn
     finally:
         await eng.stop()
 
@@ -144,9 +144,9 @@ async def test_leg_silent_without_trigger_or_with_two_speakers_or_when_off() -> 
     try:
         await _two_speakers(on)
         await _two_speakers(off)
-        assert await _vote_contents(on, "When did Melanie go camping?") is None  # no trigger
-        assert await _vote_contents(on, "What activities do Melanie and Caroline do?") is None
-        assert await _vote_contents(off, "What activities does Melanie do?") is None  # off
+        assert await _vote_contents(on, "When did Bram go camping?") is None  # no trigger
+        assert await _vote_contents(on, "What activities do Bram and Ilse do?") is None
+        assert await _vote_contents(off, "What activities does Bram do?") is None  # off
     finally:
         await on.stop()
         await off.stop()
@@ -162,7 +162,7 @@ async def test_leg_failure_is_soft(monkeypatch: pytest.MonkeyPatch) -> None:
             raise RuntimeError("boom")
 
         monkeypatch.setattr("memspine.read.pipeline.legs.speaker_vector_leg", boom)
-        out = await eng.read("What activities does Melanie do?", namespace="a", mode="replay")
+        out = await eng.read("What activities does Bram do?", namespace="a", mode="replay")
         assert out.context.records  # the read still answers
     finally:
         await eng.stop()
@@ -181,7 +181,7 @@ async def test_deep_vector_fetch_for_the_vote() -> None:
             return await orig(ns, vec, k)
 
         eng._vector_leg = spy  # type: ignore[method-assign]
-        await eng.read("What activities does Melanie do?", namespace="a", mode="replay")
+        await eng.read("What activities does Bram do?", namespace="a", mode="replay")
         assert max(depths) >= 50
     finally:
         await eng.stop()
@@ -199,7 +199,7 @@ async def _sessions(eng: Engine, monkeypatch: pytest.MonkeyPatch, n: int = 30) -
             words = " ".join(f"tok{j}x{i}x{k}" for k in range(6))
             turns.append(
                 await eng.write(
-                    f"Tim: {words}",
+                    f"Sven: {words}",
                     namespace="a",
                     memory_type="episodic",
                     valid_from=T0 + timedelta(days=j, minutes=i),
@@ -235,7 +235,7 @@ async def test_tiered_windows_only_on_the_first_hits(monkeypatch: pytest.MonkeyP
     await eng.start()
     try:
         sessions = await _sessions(eng, monkeypatch)
-        got = {r.record_id for r in await _read(eng, "What activities does Tim do?")}
+        got = {r.record_id for r in await _read(eng, "What activities does Sven do?")}
         for j, turns in enumerate(sessions):
             ids = [t.record_id for t in turns]
             if j < 10:
@@ -252,7 +252,7 @@ async def test_window_full_hits_none_keeps_every_window(monkeypatch: pytest.Monk
     await eng.start()
     try:
         sessions = await _sessions(eng, monkeypatch)
-        got = {r.record_id for r in await _read(eng, "What activities does Tim do?")}
+        got = {r.record_id for r in await _read(eng, "What activities does Sven do?")}
         assert len(got) == 30 * 5  # the +-2 window around each of 30 hits
         assert {t.record_id for t in sessions[29][1:6]} <= got
     finally:
@@ -266,9 +266,9 @@ async def test_off_or_untriggered_reads_are_identical(monkeypatch: pytest.Monkey
     await on.start()
     try:
         await _sessions(off, monkeypatch)
-        base = await _read(off, "What activities does Tim do?")
+        base = await _read(off, "What activities does Sven do?")
         await _sessions(on, monkeypatch)
-        not_fired = await _read(on, "When did Tim go camping?")  # not a set question
+        not_fired = await _read(on, "When did Sven go camping?")  # not a set question
         assert len(base) == len(not_fired) == 10 * 5
         assert [r.content for r in base] == [r.content for r in not_fired]
     finally:

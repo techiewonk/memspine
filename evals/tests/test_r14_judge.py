@@ -9,7 +9,7 @@ from typing import Any
 
 import pytest
 import r14_rescore
-from judge_agreement import load_set, with_conventions
+from judge_agreement import has_text, load_set, with_conventions
 from memspine_evals.cli import build_parser
 from memspine_evals.datasets.locomo import LoCoMoDataset, parse_evidence_ids
 from memspine_evals.experiments import C01Config
@@ -106,6 +106,8 @@ def test_v3_keeps_v2_credits_and_names() -> None:
 
 def test_v3_calibration_set_has_no_false_positive() -> None:
     rows = load_set(CALIBRATION)
+    if not has_text(rows):
+        pytest.skip("calibration text is local only (evals/runs/_analysis); see judge_agreement.FULL_SET")
     judged = {r["id"]: r["source_judge_label"] for r in rows}
     res = with_conventions(rows, judged)["v3"]
     assert res["false_positives"] == 0 and res["false_positives_beyond_v2"] == 0

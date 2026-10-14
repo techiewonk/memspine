@@ -1,13 +1,15 @@
 """I13: build the offline judge-calibration set from an existing finished run.
 
     python evals/build_judge_calibration.py [--run qa-full-qs-eq06-fix] [--runs-dir evals/runs]
-        [--out evals/analysis/judge_calibration_dev.jsonl]
+        [--out evals/analysis/judge_calibration_dev.jsonl] [--full-out evals/runs/_analysis/judge_calibration_dev.full.jsonl]
 
 The set holds 45 development-conversation items (conv-26 / 30 / 41 / 42 only; never a held-out
 conversation) whose answers were read by hand against the gold: correct paraphrases, wrong but
 plausible answers, refusals and partial lists. Each row stores the question, gold, the run's answer
 text, the HUMAN verdict (CORRECT / PARTIAL / WRONG) with the reason, and the judge verdict the
-source run recorded. No model call. Re-running regenerates the same file; the labels live in
+source run recorded. Licence: the committed ``--out`` file drops ``question`` / ``gold`` / ``answer``
+(it keeps ids, labels and ``answer_sha256``); the text-bearing copy goes to the gitignored
+``--full-out``, which ``judge_agreement.load_set`` merges back in. No model call. Re-running regenerates the same file; the labels live in
 ``LABELS`` below, so a change to a label is a visible diff.
 
 Verdicts. CORRECT: the answer states the gold fact(s) (a list: every gold item, extras allowed; a
@@ -20,7 +22,9 @@ second reader could make the other way; the agreement script reports it with and
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
+import re
 from pathlib import Path
 
 DEV_ITEMS = ("conv-26", "conv-30", "conv-41", "conv-42")
@@ -107,13 +111,28 @@ def build(run_dir: Path) -> list[dict]:
     return out
 
 
+def _text_free(row: dict) -> dict:
+    """The committed form of a row: no dataset text, the answer as a hash."""
+    out = {k: v for k, v in row.items() if k not in ("question", "gold", "answer")}
+    norm = re.sub(r"\s+", " ", (row["answer"] or "").strip().lower())
+    out["answer_sha256"] = hashlib.sha256(norm.encode("utf-8")).hexdigest()
+    return out
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--run", default="qa-full-qs-eq06-fix")
     ap.add_argument("--runs-dir", default=str(Path(__file__).parent / "runs"))
     ap.add_argument("--out", default=str(Path(__file__).parent / "analysis" / "judge_calibration_dev.jsonl"))
+    ap.add_argument(
+        "--full-out",
+        default=str(Path(__file__).parent / "runs" / "_analysis" / "judge_calibration_dev.full.jsonl"),
+    )
     args = ap.parse_args(argv)
     rows = build(Path(args.runs_dir) / f"{args.run}--memspine")
+    Path(args.full_out).parent.mkdir(parents=True, exist_ok=True)
+    Path(args.full_out).write_text("\n".join(json.dumps(r, ensure_ascii=False) for r in rows) + "\n", encoding="utf-8")
+    rows = [_text_free(r) for r in rows]
     Path(args.out).write_text("\n".join(json.dumps(r, ensure_ascii=False) for r in rows) + "\n", encoding="utf-8")
     kinds: dict[str, int] = {}
     for r in rows:
