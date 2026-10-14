@@ -288,7 +288,7 @@ def test_installer_dry_run_preserves_keys(tmp_path: Path, capsys: pytest.Capture
     before = cfg.read_text(encoding="utf-8")
     assert inst.main(["--dry-run", "--config", str(cfg), "--apply-desktop"]) == 0
     out = capsys.readouterr().out
-    assert "memspine-studio" in out and "claude mcp add --scope user" in out and "memspine-restructure" in out
+    assert "memspine-studio" in out and "claude mcp add memspine-studio --scope user" in out and "memspine-restructure" in out
     assert cfg.read_text(encoding="utf-8") == before and not list(tmp_path.glob("*.bak-*"))
 
     assert inst.main(["--apply-desktop", "--config", str(cfg)]) == 0
