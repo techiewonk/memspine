@@ -423,23 +423,31 @@ class StudioAPI:
         eff = self._effective_cfg() if self.session is not None else self.base_cfg
         keys = []
         for k in entry.get("keys") or []:
-            k = dict(k)
-            key = k.get("key")
-            if key:
-                k["value"] = _get_path(eff, key, k.get("value", k.get("default")))
-                k["overridden"] = key in self.overrides
-            keys.append(k)
-        out = {"stage_id": stage, "name": reg[stage].get("phase", ""), "keys": keys,
+            key = k.get("key") or ""
+            row = {"key": key, "value": _get_path(eff, key, k.get("default")) if not key.startswith("cli:") else k.get("default"),
+                   "default": k.get("default"), "type": k.get("type"), "description": k.get("description"), "effect": k.get("effect"),
+                   "rebuild": bool(k.get("rebuild")), "rebuild_scope": k.get("rebuild_scope") or None,
+                   "screens": list(k.get("screen_ids") or []), "overridden": key in self.overrides,
+                   "settable": not key.startswith("cli:")}
+            for extra in ("choices", "range"):
+                if extra in k:
+                    row[extra] = k[extra]
+            keys.append(row)
+        out = {"stage_id": stage, "name": reg[stage].get("phase", ""), "file_function": entry.get("file_function"), "keys": keys,
                "prompts": entry.get("prompts") or [], "models": entry.get("models") or []}
         if not entry:
             out["note"] = "no parameter catalogue for this stage (docs/v2/data/stage_params.json is built by TI-8)"
         return out
 
     # ---- config and overrides
+    def _key_catalogue(self) -> dict[str, dict[str, Any]]:
+        return {k["key"]: k for s in self._param_catalogue().values() for k in (s.get("keys") or []) if k.get("key")}
+
     def studio_config(self, prefix: str | None = None, diff: bool = False) -> list[dict[str, Any]]:
         if self.session is None and not self.base_cfg:
             raise StudioError("no open session: call studio_open first", "no_session")
         base, eff = _flatten(self.base_cfg), _flatten(self._effective_cfg())
+        cat = self._key_catalogue()
         rows = []
         for key in sorted(set(base) | set(eff)):
             if prefix and not key.startswith(prefix):
@@ -447,12 +455,14 @@ class StudioAPI:
             changed = eff.get(key) != base.get(key) or key not in base
             if diff and not changed:
                 continue
-            rows.append({"key": key, "value": eff.get(key), "default": base.get(key),
+            rows.append({"key": key, "value": eff.get(key), "default": cat[key].get("default") if key in cat else base.get(key),
                          "source": "override" if key in self.overrides or key.startswith("prompts.overrides.") else "arm"})
         return _jsonable(rows)
 
     def _is_live(self, key: str) -> bool:
-        return key.startswith("read.") and self.mode in ("offline", "replay")
+        """A read-path key that needs no index rebuild applies live (engine rebuilt from arm + overrides, writes replayed)."""
+        spec = self._key_catalogue().get(key)
+        return key.startswith("read.") and not (spec or {}).get("rebuild") and self.mode in ("offline", "replay")
 
     def _apply_change(self, key: str) -> str:
         """Rebuild after a config change when the key is read-path (live); otherwise mark the session stale."""
@@ -470,8 +480,9 @@ class StudioAPI:
             raise StudioError(f"bad key {key!r}")
         value = _coerce(value)
         old = self._effective_cfg().get(key.split(".")[0]) if "." not in key else _get_path(self._effective_cfg(), key)
-        cat = {k["key"]: k for s in self._param_catalogue().values() for k in (s.get("keys") or []) if k.get("key")}
-        spec = cat.get(key)
+        spec = self._key_catalogue().get(key)
+        if key.startswith("cli:"):
+            return {"ok": False, "applied": None, "old": old, "new": value, "error": "cli: entries are run flags, not config keys"}
         if spec:
             err = self._validate(spec, value)
             if err:
@@ -494,18 +505,25 @@ class StudioAPI:
     @staticmethod
     def _validate(spec: Mapping[str, Any], value: Any) -> str | None:
         choices = spec.get("choices")
-        if choices and value not in choices:
+        vals = value if isinstance(value, list) else [value]
+        if choices and any(v not in choices for v in vals):
             return f"value {value!r} not in choices {choices}"
         rng = spec.get("range")
-        if isinstance(rng, Sequence) and len(rng) == 2 and isinstance(value, int | float) and not isinstance(value, bool):
-            lo, hi = rng
-            if (lo is not None and value < lo) or (hi is not None and value > hi):
-                return f"value {value!r} outside range {list(rng)}"
+        if isinstance(rng, Mapping) and isinstance(value, int | float) and not isinstance(value, bool):
+            for op, ok in (("ge", lambda v, b: v >= b), ("gt", lambda v, b: v > b), ("le", lambda v, b: v <= b), ("lt", lambda v, b: v < b)):
+                if op in rng and not ok(value, rng[op]):
+                    return f"value {value!r} violates {op} {rng[op]}"
         typ = str(spec.get("type") or "")
-        checks = {"bool": bool, "boolean": bool, "int": int, "integer": int, "float": (int, float), "number": (int, float), "str": str, "string": str}
-        want = checks.get(typ)
-        if want and (not isinstance(value, want) or (want is not bool and isinstance(value, bool))):
-            return f"expected {typ}, got {type(value).__name__}"
+        base = {p.strip() for p in typ.replace("Optional[", "").split("|")}
+        if value is None:
+            return None if ("None" in base or "Optional" in typ) else f"{typ} does not accept null"
+        simple = {"bool": bool, "int": int, "float": (int, float), "str": str}
+        if base and base <= set(simple) | {"None"}:
+            allowed = tuple(t for b in base if b in simple for t in (simple[b] if isinstance(simple[b], tuple) else (simple[b],)))
+            if isinstance(value, bool) and bool not in allowed:
+                return f"expected {typ}, got bool"
+            if not isinstance(value, allowed):
+                return f"expected {typ}, got {type(value).__name__}"
         return None
 
     def studio_unset(self, key: str) -> dict[str, Any]:
