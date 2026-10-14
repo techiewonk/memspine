@@ -298,7 +298,7 @@
    },
    {
     "n": 8,
-    "what": "list_cards (#30): group the live EVENT facts of each namespace by (person, topic class) and write one derived card per group, e.g. 'Melanie - activities: pottery class (2023-05), ...'. Grouping and rendering are deterministic; only facts with no topic/attribute class get one extract@classes call per person batch (cached as a list_classes marker). A card is re-derived only when its member fingerprint changes (old card archived).",
+    "what": "list_cards (#30): group the live EVENT facts of each namespace by (person, topic class) and write one derived card per group, e.g. 'Bram - activities: pottery class (2023-05), ...'. Grouping and rendering are deterministic; only facts with no topic/attribute class get one extract@classes call per person batch (cached as a list_classes marker). A card is re-derived only when its member fingerprint changes (old card archived).",
     "code": "src/memspine/workers/list_cards.py:derive_list_cards; src/memspine/derive/pipeline/stages/mining.py:mine_facts (218-222)",
     "kind": "algorithm"
    }

@@ -7,7 +7,7 @@
 
 ## Context
 
-Temporal questions ("what did Melanie do in May 2023?") are answered from the
+Temporal questions ("what did Bram do in May 2023?") are answered from the
 semantic ranking alone, which has no notion of a period: a record from the right
 month that is not among the most similar texts never reaches the context. Two
 absorbed items address this: caller-supplied date filters on `search()` / `read()`

@@ -8,7 +8,7 @@
 
 ## Context
 
-LoCoMo multi-hop (cat 1) fails mostly on list and count questions ("What activities does Melanie
+LoCoMo multi-hop (cat 1) fails mostly on list and count questions ("What activities does Bram
 partake in?"): 23% of the wrong answers had only part of the gold evidence in context. The items
 sit in event facts mined from different sessions, and K=10 retrieval cannot cover all of them.
 Nothing aggregated them.

@@ -523,7 +523,7 @@ PROFILE_CARD_MARKER = "profile_card_v2"
 LIST_CARD_MIN_ITEMS = 2
 LIST_CARD_MAX_ITEMS = 25
 LIST_CARD_ITEM_MAX_CHARS = 80
-#: #30: miner attributes too generic to name a list class ("Melanie event: ..."); a
+#: #30: miner attributes too generic to name a list class ("Bram event: ..."); a
 #: fact with one of these and no ``topic:`` tag gets its class from the LLM labeller.
 LIST_CARD_GENERIC_CLASSES = frozenset(
     {

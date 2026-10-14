@@ -36,7 +36,7 @@ derived stages):
    `PREDICT_CALIBRATE_COVERED`, 0.8) and, for a fact that is not a `state` and has a date, that
    statement happened on an overlapping date (its `happened:` label, else the day of its
    `valid_from`). The same event on another date is a new occurrence and is stored, so count and
-   list questions ("how many times did Melanie go camping?") keep every occurrence. A predicted line
+   list questions ("how many times did Bram go camping?") keep every occurrence. A predicted line
    never suppresses storage: a correct guess about a fact memory does not hold is stored.
 5. **Prompt inputs.** Every input (cue, known statements, prediction lines, transcript turns) has
    its whitespace collapsed to one line and the engine's markers escaped (`escape_markers`), so a

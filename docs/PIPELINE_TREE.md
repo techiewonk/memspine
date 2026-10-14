@@ -311,7 +311,7 @@ runner then truncate_to_budget(text, 4096) FROM THE TAIL (heuristic 4 chars/toke
 * Config: `embedding.query_instruction`, `embedding.query_prompt_name`, `embedding.document_prompt_name`.
 * Docs are embedded bare (`embed`, `st_local.py:84`). Only the question side carries the instruction: asymmetric, correct for Qwen3-Embedding.
 * gap?: the question is embedded as one string; there is no query expansion in our arm (all probes off). Speaker names in the question
-  ("Caroline") are part of the vector query but ALSO appear in nearly every stored turn ("Caroline: ..."), so they carry little signal.
+  ("Ilse") are part of the vector query but ALSO appear in nearly every stored turn ("Ilse: ..."), so they carry little signal.
 
 ### 2.2 Candidate fetch size and widening
 
