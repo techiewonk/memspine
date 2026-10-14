@@ -469,16 +469,24 @@ def check_dollar_cap(config: C01Config) -> None:
 def inference_gated(config: C01Config) -> bool:
     """R14-M-9: the engine overlay sets ``read.inference_mode = gated``."""
     read = (memspine_engine_config(config) or {}).get("read") or {}
-    return read.get("inference_mode", "off") == "gated"
+    return read.get("inference_mode", "off") in ("gated", "gated_v2")
+
+
+def inference_gated_v2(config: C01Config) -> bool:
+    """R14-INFER2: the engine overlay sets ``read.inference_mode = gated_v2`` (widened shape)."""
+    read = (memspine_engine_config(config) or {}).get("read") or {}
+    return read.get("inference_mode", "off") == "gated_v2"
 
 
 def _retry_decider_kwargs(config: C01Config) -> dict[str, Any]:
     """I28: ``RefusalRetryReader`` kwargs for ``--decider`` (none for the default heuristic)."""
     guard: dict[str, Any] = {"guard_absent_entity": True} if config.retry_guard else {}
     if inference_gated(config):
-        from .readers import is_inference_question
+        from .readers import is_inference_question, is_inference_question_v2
 
-        guard["inference_gate"] = is_inference_question
+        guard["inference_gate"] = (
+            is_inference_question_v2 if inference_gated_v2(config) else is_inference_question
+        )
     if config.retry_mode != "neutral":
         guard["mode"] = config.retry_mode
     if config.retry_overlap:
@@ -699,11 +707,11 @@ def build_reader_and_judge(config: C01Config) -> tuple[Reader, Judge, bool]:
     if inference_gated(config):  # R14-M-9: commit clause for inference questions only
         if not isinstance(qa_prompt, str):
             raise ValueError(
-                "read.inference_mode=gated needs a fixed --qa-prompt (not routed / system)"
+                "read.inference_mode=gated / gated_v2 needs a fixed --qa-prompt (not routed / system)"
             )
         from .readers import gated_inference_prompt
 
-        qa_prompt = gated_inference_prompt(qa_prompt, config.qa_prompt)
+        qa_prompt = gated_inference_prompt(qa_prompt, config.qa_prompt, v2=inference_gated_v2(config))
     # #34: a reasoning prompt's reader keeps the final answer and gets room to reason.
     reasoning = config.qa_prompt in REASONING_QA_PROMPTS
     if config.bedrock:

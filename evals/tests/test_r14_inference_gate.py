@@ -175,3 +175,112 @@ def test_arm_is_reference_plus_the_flag_only() -> None:
     assert arm["read"].pop("inference_mode") == "gated"
     assert arm == base
     validate_engine_config(json.loads((arms / "v2-R14-INFER-inference_mode.json").read_text(encoding="utf-8")))
+
+
+# ---------------------------------------------------------------- R14-INFER2: gated_v2 (widened shape)
+from memspine_evals.experiments import inference_gated_v2  # noqa: E402
+from memspine_evals.readers import (  # noqa: E402
+    INFERENCE_GATE_VERSION_V2,
+    inference_shape,
+    is_inference_question_v2,
+)
+
+V2_FIRES = [
+    "Do you think Ilse would stay in the city?",
+    "Is it possible that Bram quit the choir?",
+    "What kind of person is Noor?",
+    "Would Tomasz be considered a morning person?",
+    "What would Ilse think of the new rule?",
+    "What does Bram value most in a friend?",
+    "If the bakery closed, Noor would move away, right?",
+    "Based on her hobbies, what shop would Ilse like?",
+    "Does Tomasz live near a river or a hill?",
+    "Which job is Bram probably suited to?",
+    "Wouldn't Noor prefer tea?",
+]
+V2_QUIET = [
+    "When did Ilse start the choir?",
+    "Where did Bram go last week?",
+    "Who gave Noor the lamp?",
+    "How many cats does Tomasz have?",
+    "How long did Ilse take to finish the quilt?",
+    "What did Bram say would help the garden?",
+    "Which year did Noor open the shop?",
+    "What is Tomasz's favourite colour?",
+    "Did Ilse visit the museum in May?",
+    "",
+]
+
+
+@pytest.mark.parametrize("q", V2_FIRES)
+def test_shape_fires_on_widened_judgement_questions(q: str) -> None:
+    fires, why = inference_shape(q)
+    assert fires and why and is_inference_question_v2(q)
+
+
+@pytest.mark.parametrize("q", V2_QUIET)
+def test_shape_keeps_factual_questions_plain(q: str) -> None:
+    assert inference_shape(q) == (False, "")
+
+
+@pytest.mark.parametrize("q", INFER)
+def test_shape_is_a_superset_of_the_contract_gate(q: str) -> None:
+    assert inference_shape(q)[0]
+
+
+def test_v2_prompt_gates_on_the_widened_shape_and_v1_is_unchanged() -> None:
+    v2 = gated_inference_prompt(GROUNDED_GENERIC_QA_PROMPT, "g", v2=True)
+    v1 = gated_inference_prompt(GROUNDED_GENERIC_QA_PROMPT, "g")
+    assert v2.router_version == INFERENCE_GATE_VERSION_V2 != v1.router_version
+    q = "What kind of person is Noor?"
+    assert prompt_variant(v2, q) == "inference" and INFERENCE_COMMIT_CLAUSE in v2.format(context="c", question=q)
+    assert prompt_variant(v1, q) == "plain"
+    for q in OTHER:
+        assert prompt_variant(v2, q) == "plain"
+    assert v1.router_version == INFERENCE_GATE_VERSION
+
+
+def test_v2_keeps_the_cat5_abstention_wording() -> None:
+    full = gated_inference_prompt(GROUNDED_GENERIC_QA_PROMPT, v2=True).format(context="x", question=V2_FIRES[0])
+    assert "not mentioned" in INFERENCE_COMMIT_CLAUSE.lower() and "Not mentioned in the conversation" in full
+
+
+def test_v2_retry_route_uses_the_widened_gate() -> None:
+    q = "What kind of person is Noor?"
+    inner = _Reader("Not mentioned.", "Warm and generous, per the line about the lamp.")
+    out = _ask(RefusalRetryReader(inner, inference_gate=is_inference_question_v2), q)
+    assert inner.questions[1].endswith(INFERENCE_RETRY_INSTRUCTION) and out.extra_meta["retry_inference"] is True
+    old = _Reader("Not mentioned.", "x")
+    _ask(RefusalRetryReader(old, inference_gate=is_inference_question), q)  # v1 gate: neutral retry
+    assert old.questions[1].endswith(RETRY_INSTRUCTION_NEUTRAL)
+    plain = _Reader("Not mentioned.", "Denver")
+    _ask(RefusalRetryReader(plain, inference_gate=is_inference_question_v2), OTHER[0])
+    assert plain.questions[1].endswith(RETRY_INSTRUCTION_NEUTRAL)
+
+
+def test_v2_flag_wiring() -> None:
+    cfg = C01Config(mode="qa", qa_prompt="grounded_generic", memspine_config={"read": {"inference_mode": "gated_v2"}})
+    assert inference_gated(cfg) and inference_gated_v2(cfg)
+    reader, _, _ = build_reader_and_judge(cfg)
+    assert reader.prompt.router_version == INFERENCE_GATE_VERSION_V2
+    v1 = C01Config(mode="qa", qa_prompt="grounded_generic", memspine_config={"read": {"inference_mode": "gated"}})
+    assert inference_gated(v1) and not inference_gated_v2(v1)
+    off = C01Config(mode="qa", qa_prompt="grounded_generic", memspine_config={"read": {"inference_mode": "off"}})
+    assert not inference_gated_v2(off)
+    reader, _, _ = build_reader_and_judge(off)
+    assert reader.prompt == QA_PROMPTS["grounded_generic"]
+
+
+def test_v2_arm_is_reference_plus_the_flag_only() -> None:
+    import json
+    from pathlib import Path
+
+    from memspine_evals.rehearsal import validate_engine_config
+
+    arms = Path(__file__).resolve().parents[1] / "arms"
+    path = arms / "v2-R14-INFER2-inference_mode_v2.json"
+    arm = json.loads(path.read_text(encoding="utf-8"))
+    base = json.loads((arms / "scr-pool-protect-jina.json").read_text(encoding="utf-8"))
+    assert arm["read"].pop("inference_mode") == "gated_v2"
+    assert arm == base
+    validate_engine_config(json.loads(path.read_text(encoding="utf-8")))

@@ -65,3 +65,5 @@ S87	loc	analysis/fail_slice_fail_temporal_s20261013.json	analysis/fail_slice_fai
 S87	loc	analysis/fail_slice_fail_mix_120_s20261013.json	analysis/fail_slice_fail_mix_120_s20261013_c3.json	fail_mix_120; arm v2-R14-DATEPRIOR-date_prior; targets (secondary only)
 S69	loc	analysis/fail_slice_fail_retrieval_s20261013.json	analysis/fail_slice_fail_retrieval_s20261013_c3.json	fail_retrieval; arm v2-R14-INDEXVIEW-index_view; targets (secondary only)
 S69	loc	analysis/fail_slice_fail_mix_120_s20261013.json	analysis/fail_slice_fail_mix_120_s20261013_c3.json	fail_mix_120; arm v2-R14-INDEXVIEW-index_view; targets (secondary only)
+S74	loc	analysis/sample_slice_loc_cat5_s20261013.json	analysis/sample_slice_loc_cat5_s20261013_c3.json	cat5 (adversarial, abstention); arm v2-R14-INFER2-inference_mode_v2; does the arm still refuse what was never said	categories=5
+S74	loc	analysis/fail_slice_fail_reader_s20261013.json	analysis/fail_slice_fail_reader_s20261013_c3.json	fail_reader; arm v2-R14-INFER2-inference_mode_v2; targets (secondary only)

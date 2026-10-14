@@ -76,3 +76,4 @@ S79	B10	R14-LISTCOV	v2-R14-M-1-list_cov	f-jref2-i2	NONINF	f	-	J	40	read.list_mod
 S82	B10	R14-DATEPRIOR	v2-R14-DATEPRIOR-pool_protect_8	f-jref2-i2	NONINF	f	-	J	30	read.pool_protect_per_leg=8
 S87	B10	R14-DATEPRIOR	v2-R14-DATEPRIOR-date_prior	f-jref2-i2	NONINF	f	-	J	30	read.date_prior
 S69	B10	R14-INDEXVIEW	v2-R14-INDEXVIEW-index_view	f-jref2-i2	NONINF	f	-	J	40	write.index_view
+S74	B10	R14-INFER2	v2-R14-INFER2-inference_mode_v2	f-jref2-i2	NONINF	f	-	J	40	read.inference_mode

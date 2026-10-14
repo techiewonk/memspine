@@ -699,7 +699,7 @@
    "window_topic_k": 2.0
   }
  },
- "json_schema_sha256": "68cfdcaf22b93ec33546fd4d2bd8a90d87e38ae8a66dc4ae6a353edc89caf2c3",
+ "json_schema_sha256": "e4312b619781584e51ebce587a223dede9495861743da4ccb6b1aeb33ddacac1",
  "preset:chat_roles": {
   "audit": {
    "actions": false,
