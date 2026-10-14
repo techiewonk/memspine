@@ -39,6 +39,7 @@ from typing import Any, Protocol
 
 import orjson
 
+from memspine.observability.logging import get_logger
 from memspine.services.graph.base import (
     GraphEdge,
     GraphNode,
@@ -52,6 +53,8 @@ from memspine.services.graph.base import (
 
 __all__ = ["CypherClient", "LadybugGraphStore"]
 
+
+_log = get_logger(__name__)
 
 class CypherClient(Protocol):
     """What the adapter needs from its client: one embedded connection (D-24)."""
@@ -147,6 +150,7 @@ class LadybugGraphStore:
         self._client = client
         self._ready = False
         self._entity_dim: int | None = None  # GR-3: EntityVec table created
+        self._fts_ok: bool | None = None  # FTS extension loaded (None = not tried yet)
         self._lock = asyncio.Lock()
 
     async def _execute(
@@ -379,8 +383,7 @@ class LadybugGraphStore:
             if dim != self._entity_dim:
                 raise ValueError(f"entity vector dim {dim} != table dim {self._entity_dim}")
             return
-        for ext in ("FTS",):
-            await self._execute(f"LOAD {ext}", {})
+        await self._load_fts()
         await self._execute(
             "CREATE NODE TABLE IF NOT EXISTS EntityVec(node_id STRING, namespace STRING, "
             f"text STRING, emb FLOAT[{int(dim)}], PRIMARY KEY (node_id))",
@@ -390,19 +393,43 @@ class LadybugGraphStore:
         # process at random on Windows (2 of 5 probe runs, 2026-10-08). The entity
         # search ranks by exact ``array_cosine_similarity`` inside the namespace
         # instead (stable, exact; entity counts per namespace are small).
-        for ddl in ("CALL CREATE_FTS_INDEX('EntityVec', 'entity_fts_idx', ['text'])",):
-            try:
-                await self._execute(ddl, {})
-            except Exception as exc:  # already present on a reopened database
-                if "already exists" not in str(exc).lower():
-                    raise
+        if self._fts_ok:
+            for ddl in ("CALL CREATE_FTS_INDEX('EntityVec', 'entity_fts_idx', ['text'])",):
+                try:
+                    await self._execute(ddl, {})
+                except Exception as exc:  # already present on a reopened database
+                    if "already exists" not in str(exc).lower():
+                        raise
         self._entity_dim = dim
+
+    async def _load_fts(self) -> bool:
+        """Load LadybugDB's official FTS extension, installing it on first use.
+
+        A fresh environment has the extension unloaded and uninstalled; ``LOAD`` alone then
+        fails and every entity embedding write failed with it (all GC eval runs up to
+        2026-10-15). ``INSTALL`` downloads it once into the user's extension directory. If
+        that is impossible (offline), entity search runs without the FTS leg (vector only)
+        instead of failing the write.
+        """
+        if self._fts_ok is not None:
+            return self._fts_ok
+        try:
+            await self._execute("LOAD FTS", {})
+            self._fts_ok = True
+        except Exception:
+            try:
+                await self._execute("INSTALL FTS", {})
+                await self._execute("LOAD FTS", {})
+                self._fts_ok = True
+            except Exception as exc:  # offline or blocked: degrade, never fail the write
+                _log.warning("graph.fts_unavailable", error=str(exc)[:200])
+                self._fts_ok = False
+        return self._fts_ok
 
     async def _discover_entity_table(self) -> bool:
         """GR-3: a reopened database already holding ``EntityVec`` (dim from a row)."""
         try:
-            for ext in ("FTS",):
-                await self._execute(f"LOAD {ext}", {})
+            await self._load_fts()
             rows = await self._execute("MATCH (v:EntityVec) RETURN size(v.emb) LIMIT 1", {})
         except Exception:
             return False
@@ -458,7 +485,7 @@ class LadybugGraphStore:
             by_vector = [str(r[0]) for r in rows][:pool]
         by_text: list[str] = []
         terms = " ".join(sorted(entity_terms(text or "")))
-        if terms and "'" not in namespace:
+        if terms and self._fts_ok and "'" not in namespace:
             # Literals only: LadybugDB 0.21.2 crashes the process when a
             # ``QUERY_FTS_INDEX`` statement carries any parameter (probed 2026-10-08).
             # The text is reduced to [a-z0-9] word tokens; the namespace grammar
