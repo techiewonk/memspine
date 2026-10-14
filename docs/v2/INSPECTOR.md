@@ -87,13 +87,24 @@ Commands (Enter alone is `turn`):
 | Command | Does |
 |---|---|
 | `turn [n]` | write the next turn(s) and print the stages it went through: stamp and role, record and index (`store.index.record`: vector, lexical, graph, edges), window membership and extraction (`write.window.members`, `write.extract.io`), envelope stages (`write.envelope.trace`, one line per envelope: `occ <id> compile:added temporal:kept grounding:dropped ...`), deposits and the conflict ladder, links |
+| `turn <turn_id>`, `turns D1:1-D1:6`, `turns D1:3,D2:5` | write the selected dataset turns, out of order if you like (a warning says when the order differs from the dataset or from what is already written); a turn already written is skipped |
+| `skip [n]`, `goto <turn_id>` | move the cursor without writing |
+| `say <Speaker>: <text> [@YYYY-MM-DD[ HH:MM]] [#session]` | write a custom message, not from the dataset: id `U<n>`, session = the last written turn's (or `#id`), time = the last turn's time + 1 minute (never the wall clock). `say <<` then lines then a lone `.` writes several |
+| `interaction [n]` | write the next n interactions: a turn plus the run of turns right after it by the next speaker (user message + assistant reply); stages per turn, then a combined summary |
 | `session` | write the rest of the current session, then close its windows and the session (call 2) |
+| `session <n>`, `session <id>[,<id>]`, `sessions D1-D3` | the next n sessions, or the named ones (all their unwritten turns), each followed by window flush and session close |
 | `sleep` | write any remaining turns, then run the sleep cycle and print it stage by stage (`job.stage.start`, `job.stage.item` per output, `job.stage.end`) |
 | `ask <qid\|text>` | one read: plan, each leg's top-k with gold turns marked `*`, fusion, cuts, pool, rerank components, headers, the packed context, then reader and judge when `--reader-model` is given; `ask` alone lists the questions |
+| `ask q1,q3,q7`, `ask all`, `ask cat:<n>`, `asks <file>` | several reads (a file: one question per line, an id or free text), then a SUMMARY TABLE: qid, category, gold turns found/total, first losing stage, answer correct (or gold text in context when there is no reader) |
+| `ask <text> \| gold: <answer> \| turns: D1:3,D2:5` | an ad hoc question with its own gold to check against; kept in the bundle as a custom question |
+| `brief on\|off`, `ask ... --brief` | one line per question instead of the full detail |
+| `status` | what has been written (turns, custom turns, sessions open or closed, windows, records), the cursor, tuning overrides |
+| `reset`, `load <file.json>` | a fresh engine with the same arm (overrides kept), nothing written; or load a conversation in the `demo_conversation.json` shape in place of the dataset item |
 | `show <rid\|window_id\|occ\|turn_id>` | one object: record fields and envelope, a window with its envelopes, or an envelope's journey |
 | `links <rid\|turn_id>` | lineage parents and children, supersede chain, graph edges |
 | `diff` | the store delta since the last diff: new records, status changes, edge count |
-| `save` | write the inspect bundle to `<out>/<run_id>--bundle/`, run the checks and print their summary |
+| `save` | write the inspect bundle to `<out>/<run_id>--bundle/` (custom turns and questions carry `custom: true`; `tuning.jsonl` when you tuned), run the checks and print their summary |
+| `config`, `set`, `unset`, `params`, `prompt`, `rerun`, `sweep`, `export` | tuning; see [Tuning](#tuning) |
 | `quit` | leave |
 
 Example (demo data, offline), abridged:
@@ -128,6 +139,125 @@ step> save
 
 Step mode flushes closed windows after every turn (an eval run flushes before a question and at build), so
 the windows of a stepped session are cut at the same places but their calls happen earlier.
+
+## Manual testing recipes
+
+The owner's four needs, as commands (demo data, `--offline`; type them at the `step>` prompt or put them in a `--script` file).
+Everything lands in the run folder, so `save` plus `build_inspector.py` show custom messages and questions too.
+
+| Need | Command(s) |
+|---|---|
+| 1. one or many messages, then check | `say Bram: I adopted a hedgehog called Spike. @2024-03-02 10:30`; several: `say <<` / lines / `.`; dataset turns: `turn D1:3`, `turns D1:1-D1:6`, `turns D1:3,D2:5`; then `status`, `show U1`, `diff` |
+| 2. one or many interactions, then check | `interaction` (one), `interaction 3` (three); `status`, `diff` |
+| 3. one or many sessions, then check | `session` (rest of this one), `session 2` (next two), `session D2`, `sessions D1-D3`; `status`, `diff` |
+| 4. retrieve one / several / any | one: `ask q1` or `ask Where does Bram live?`; several: `ask q1,q3,q7`, `ask cat:list`, `asks questions.txt`; any: `ask all`, or free text with its own gold: `ask Who has a hedgehog? \| gold: Bram \| turns: U1` |
+
+A custom message and a question about it:
+
+```
+step> say Bram: I adopted a hedgehog called Spike. @2024-03-02 10:30
+--- say: U1  session D1  Bram  [2024-03-02 10:30]  (custom) ------------------
+  text: I adopted a hedgehog called Spike.
+  deposit: records=1 model_calls=0 ids=['5ecc60f4-...']
+step> say <<
+Ilse: Spike sounds adorable, where did you find him?
+Bram: At the shelter in Utrecht near the station.
+.
+--- say: U2  session D1  Ilse  [2024-03-02 10:31]  (custom) -------------------
+--- say: U3  session D1  Bram  [2024-03-02 10:32]  (custom) -------------------
+--- summary: 2 custom messages -------------------------------------------------
+step> ask Who has a hedgehog? | gold: Bram | turns: U1
+--- ask adhoc-1 [adhoc]: Who has a hedgehog? -----------------------------------
+  gold: Bram   gold turns: ['U1']
+  lexical top6/6: 1:U1*(4.338) ...
+  gold turns in context: ['U1'] of ['U1']
+```
+
+Selected turns, an interaction, then a summary table:
+
+```
+step> turns D1:6,D1:4
+  warning: the selection is not in dataset order; writing it as given
+step> interaction
+--- summary: interaction D1:1 (Bram) -> D1:2 (Ilse) ----------------------------
+  turns=2 records=2 model_calls=0
+  events by stage: stamp / role=16, record / index=2
+step> ask q1,q5,q7
+--- SUMMARY TABLE (3 question(s)) ----------------------------------------------
+  qid  category    gold found  first losing stage  answer correct
+  ---  ----------  ----------  ------------------  ---------------------
+  q1   single_hop  1/1         -                   gold text in ctx: yes
+  q5   nickname    1/2         not written (1)     gold text in ctx: yes
+  q7   supersede   1/2         not written (1)     gold text in ctx: yes
+```
+
+"First losing stage" is `not written (n)` when a gold turn was never written, else the first stage of the gold
+path that dropped it (`recall`, `fusion`, `gate`, `rerank`, `assembly`), the same logic as the bundle's gold path.
+`reset` starts over without leaving the session; `load <file.json>` swaps the conversation.
+
+## Tuning
+
+Step mode is also for tuning every step by hand before a benchmark run. All of it works offline on the demo.
+Every `set`, `unset`, `prompt`, `rerun`, `sweep` and `export` appends a row to `tuning.jsonl`
+(`ts, command, key, old, new, effect`), which `save` copies into the bundle for the viewer.
+
+| Command | Does |
+|---|---|
+| `config [prefix]`, `config diff` | the effective engine config with each value's default and source (`default`, `arm`, `template`, `override`); `diff` shows only values that differ from the defaults |
+| `set <key>=<value>`, `unset <key>` | a live override, validated by the config schema (pydantic); the value is JSON (`0.9`, `true`, `[1,2]`) or a string. Keys the engine reads per call are applied to the running engine (the scoring, assembly and compression policies are re-bound). A key a stage binds at start (`embedding`, `storage`, `llm`, `memories`, and the `write.*` keys `stage_params.json` marks `rebuild`) is recorded and the reply says so: `reset` rebuilds the engine with the override kept |
+| `params <stage-id\|name\|prefix>` | the keys that affect a stage with current value, default, choices or range, description, plus the stage's prompts and model roles, from `docs/v2/data/stage_params.json`; without that file, a prefix match on the config schema |
+| `prompt list`, `prompt show <id>` | the registry prompts plus the code-constant ones (`structured`, `structured.window`, `structured.repair`) and `reader.qa` |
+| `prompt edit <id> <file>`, `prompt reset <id>` | override a prompt for this session. A registry prompt (`window_extract`, `extract_edges`, `summarize`, `plan*`, `sufficiency` ...) is changed in place: the file is the body, or the shipped format (`system:` front matter, `---`, body). A code constant is replaced in the model call (the file is the whole system text; `structured.repair` is the user message with `{n}` and `{problems}`); `reader.qa` is the reader's QA prompt (needs `--reader-model`) |
+| `rerun window <window_id> [--commit]` | run extraction and the envelope stages again for one window with the current params and prompts, in a scratch copy (extraction cache off, events kept out of the bundle), and print the diff against the original run: items added, removed, changed, stage status changes, integration verdict changes. `--commit` deposits the result (a second copy: `reset` to clean up) |
+| `rerun ask <qid\|text>` | a read again with the current params, diffed against that question's previous run: gold ranks per leg, fusion, pool, rerank, final, packed context lines, first losing stage, answer |
+| `sweep <key> <v1,v2,...> ask <q1,q2\|all\|cat:n>` | the reads once per value, then a table of value x gold found / first losing stage / correct; read-side keys only (`read.*`, and not ones needing a rebuild); the key is restored afterwards. A write-side key is refused with a hint to use `rerun window` |
+| `export arm <name>` | write the original arm plus the overrides to `evals/arms/<name>.json` (validated with `validate_engine_config`; registry prompt edits go in as `prompts.overrides`, all edits also as files in `evals/arms/<name>.prompts/`) and print the diff against the base arm, ready for the GPU queue |
+
+Offline, the stub extractor reads one directive from the system prompt so a prompt edit has a visible effect: a line
+`[stub: min_len=N]` sets the shortest line it turns into an item (default 24).
+
+Recipes (demo, offline):
+
+```
+step> session D1
+step> ask q1
+step> set read.assembly.relative_floor=0.9
+  read.assembly.relative_floor: 0.3 -> 0.9   applied to the running engine
+step> rerun ask q1
+  gold found                               1/1                   1/1
+  tokens                                   109                    76   <== changed
+  packed context: -1 line(s), +0 line(s)
+    - [2024-03-02] Ilse: Congratulations! Are you still working at the bakery?
+step> sweep read.assembly.relative_floor 0.1,0.5,0.9 ask q1,q7
+  read.assembly.relative_floor  gold found  first losing stage  correct
+  ----------------------------  ----------  ------------------  -------
+  0.1                           2/3         not written (1):1   1/2
+step> sweep write.window_extract off,facts ask q1
+sweep refused: 'write.window_extract' is not a read-side key (read.*). ... use `set write.window_extract=<value>` then `rerun window <window_id>`
+step> params fusion
+--- params C16: Fusion ---------------------------------------------------------
+  read.fusion = rrf  default rrf  type Literal['rrf', 'minmax']  choices ["rrf", "minmax"]
+step> export arm my-screen
+  diff vs the base arm (demo): 1 value(s)
+    read.assembly.relative_floor: (absent) -> 0.9
+```
+
+Edit an extraction prompt and see what changes in one window:
+
+```
+step> prompt show structured.window            # copy the text to a file, change it
+step> prompt edit structured.window my_window_prompt.txt
+step> rerun window 17158af3c87c
+--- rerun window 17158af3c87c: 10 turn(s)  (scratch: nothing deposited) -------
+  items before 8, after 1: +0 added, -7 removed, ~0 changed, =1 same
+  - Bram: I finally moved to Utrecht last week.
+  ...
+step> prompt reset structured.window
+```
+
+The window ids are in the `window <id>` lines that `session` and `turn` print. Integration verdicts in a rerun are
+judged against the live store, which already holds the window's first run, so a verdict change on an unchanged item is
+expected; compare the items and the stage statuses first.
 
 ## Registry
 

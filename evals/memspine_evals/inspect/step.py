@@ -1,4 +1,4 @@
-# ruff: noqa: E501
+# ruff: noqa: E501, ASYNC240
 """TI-5: the Trace Inspector step mode, a terminal REPL over an in-process engine.
 
     python -m memspine_evals.inspect step --data <locomo json | demo> --item <id> --arm <name | path.json>
@@ -14,15 +14,26 @@ viewer open.
 
 Commands (Enter = ``turn``)::
 
-    turn [n]        write the next turn(s): stamp/role, record/index, window, envelope, deposit, links
-    session         the rest of the current session, then its windows and session close
-    sleep           the sleep cycle, stage by stage (job.stage.item per stage)
-    ask <qid|text>  one read: plan, each leg (gold marked), fusion, cuts, pool, rerank, headers, context
-    show <rid|window_id|occ|turn_id>   one object
-    links <rid>     lineage parents and children, graph edges
-    diff            the store delta since the last step
-    save            write the inspect bundle (records, links, windows, envelopes, questions, checks)
-    quit
+  write
+    turn [n] | turn <turn_id> | turns D1:1-D1:6 | turns D1:3,D2:5   dataset turns (out of order allowed, with a warning)
+    skip [n] | goto <turn_id>        move the cursor without writing
+    say <Speaker>: <text> [@YYYY-MM-DD[ HH:MM]] [#session]   a custom message (turn id U<n>); `say <<` ... `.` = several
+    interaction [n]                  a turn plus the reply (the next speaker's turn[s]), n times
+    session [n|id[,id]] | sessions D1-D3   sessions (rest of the current one, the next n, or named), windows flushed and closed
+    sleep                            the sleep cycle, stage by stage
+  read
+    ask <qid|text>                   one read; `ask q1,q3,q7` | `ask all` | `ask cat:<n>` | `asks <file>` add a SUMMARY TABLE
+    ask <text> | gold: <answer> | turns: D1:3,D2:5   an ad hoc question with a gold to check against
+    brief on|off                     one line per question instead of the full detail (or `--brief` on one ask)
+  inspect
+    status | show <rid|window_id|occ|turn_id> | links <rid> | diff
+    save                             write the inspect bundle (custom turns and questions flagged `custom`)
+    reset | load <file.json>         start over with the same arm | load a custom conversation
+  tuning
+    config [prefix|diff] | set <key>=<value> | unset <key> | params <stage-id|name>
+    prompt list|show <id>|edit <id> <file>|reset <id>
+    rerun window <window_id> [--commit] | rerun ask <qid|text> | sweep <key> <v1,v2> ask <targets> | export arm <name>
+  quit
 
 Models. ``--offline``: hash embedder, no reranker, a stub LLM (no network, no GPU). ``--replay-cache``:
 engine-role completions and embeddings are served from the recorded ``call_cache.py`` entries
@@ -52,7 +63,8 @@ from pathlib import Path
 from typing import Any, TextIO
 
 from ..contracts import Turn
-from .assemble import assemble, load_dataset
+from .assemble import assemble, gold_path, load_dataset
+from .step_tune import TuneMixin
 
 __all__ = ["StepSession", "main", "resolve_arm"]
 
@@ -272,7 +284,7 @@ def _ok(flag: Any) -> str:
 
 
 # ------------------------------------------------------------------------------------------ the session
-class StepSession:
+class StepSession(TuneMixin):
     """One item stepped through an engine; every command returns after printing."""
 
     def __init__(
@@ -305,6 +317,7 @@ class StepSession:
         self.arm_name, cfg = resolve_arm(arm) if config_override is None else (str(arm), dict(config_override))
         self.mode = "live" if live else "replay" if replay_cache else "offline" if offline else "arm"
         self.notes: list[str] = []
+        arm_cfg_orig = copy.deepcopy(cfg)
         if self.mode in ("offline", "replay"):
             cfg, self.notes = offline_config(cfg)
         self.cfg = cfg
@@ -319,20 +332,36 @@ class StepSession:
         self.base_url = base_url
         self.cache_dir = Path(cache_dir) if cache_dir else None
         self.stream = stream or sys.stdout
-        self.next_turn = 0
-        self.slept = False
         self.sink = _Collect()
         self.mark = 0
         self.system: Any = None
         self._stack = contextlib.ExitStack()
         self._env: dict[str, str | None] = {}
         self._cache: Any = None
-        self._seen: dict[str, tuple[Any, str]] = {}
-        self._edges_seen = 0
-        self._asked: list[dict[str, Any]] = []
         self._adhoc = 0
         self.saved = False
         self.check_errors: list[str] = []
+        self.base_dataset = dataset
+        self._arm_cfg_orig = copy.deepcopy(arm_cfg_orig)
+        self._reset_state()
+        self.brief = False
+        self._mute = False
+        self._block: list[str] | None = None
+        self.custom_questions: dict[str, dict[str, Any]] = {}
+        self._init_tuning(cfg)
+
+    def _reset_state(self) -> None:
+        """Everything a fresh engine starts without: what was written, closed and asked."""
+        self.next_turn = 0
+        self.slept = False
+        self.written: list[dict[str, Any]] = []
+        self.written_ids: set[str] = set()
+        self.closed_sessions: set[str] = set()
+        self._custom_n = 0
+        self._asked = []
+        self._seen = {}
+        self._edges_seen = 0
+        self._last_read: dict[str, dict[str, Any]] = {}
 
     # ---- paths
     @property
@@ -349,6 +378,8 @@ class StepSession:
 
     # ---- output
     def w(self, text: str = "") -> None:
+        if self._mute:
+            return
         data = text + "\n"
         try:
             self.stream.write(data)
@@ -367,15 +398,28 @@ class StepSession:
     # ---- lifecycle
     async def start(self) -> None:
         self._stack.callback(_quiet_logs())
-        for d in (self.d_mem, self.d_fx, self.d_trace):
-            if d.exists():
-                shutil.rmtree(d)
         self.out.mkdir(parents=True, exist_ok=True)
         for key, val in (("MEMSPINE_FORENSICS_DIR", str(self.d_fx)), ("MEMSPINE_INSPECT", "1"),
                          ("MEMSPINE_INSPECT_CONTENT", "1")):
             self._env[key] = os.environ.get(key)
             os.environ[key] = val
         self._install_transport()
+        self._install_prompt_hook()
+        await self._boot()
+        self.head(f"step: item {self.item} | arm {self.arm_name} | mode {self.mode}")
+        self.w(f"turns {len(self.turns)} in {len({t['session'] for t in self.turns})} session(s), "
+               f"{len(self.questions)} question(s); run folder {self.out / self.run_id}--*")
+        for n in self.notes:
+            self.w(f"note: {n}")
+        if self.mode == "replay":
+            self.w(f"replay cache: {self.cache_dir}" + (" (misses go live)" if self.mode == "replay" and self._cache.live else
+                                                         " (misses are stubbed and listed)"))
+
+    async def _boot(self) -> None:
+        """A fresh engine, run folders and tap sink for the current item and config."""
+        for d in (self.d_mem, self.d_fx, self.d_trace):
+            if d.exists():
+                shutil.rmtree(d)
         from ..systems.memspine_system import MemspineSystem
 
         self.system = MemspineSystem(
@@ -394,16 +438,12 @@ class StepSession:
 
         if not tap.enabled():
             raise RuntimeError("the tap did not start; observability.inspect needs observability.tap")
+        self.sink = _Collect()
+        self.mark = 0
         tap.add_sink(self.sink)
         self._write_manifest()
-        self.head(f"step: item {self.item} | arm {self.arm_name} | mode {self.mode}")
-        self.w(f"turns {len(self.turns)} in {len({t['session'] for t in self.turns})} session(s), "
-               f"{len(self.questions)} question(s); run folder {self.out / self.run_id}--*")
-        for n in self.notes:
-            self.w(f"note: {n}")
-        if self.mode == "replay":
-            self.w(f"replay cache: {self.cache_dir}" + (" (misses go live)" if self.mode == "replay" and self._cache.live else
-                                                         " (misses are stubbed and listed)"))
+        self._shipped = {}
+        self._apply_prompt_overrides_live()
 
     async def close(self) -> None:
         if self.system is not None:
@@ -654,42 +694,238 @@ class StepSession:
                 self.w(f"      -> record {last['record_id']}")
 
     # ---- commands: write
-    async def cmd_turn(self, count: int = 1) -> None:
-        for _ in range(count):
-            if self.next_turn >= len(self.turns):
-                self.w("no more turns")
-                return
-            t = self.turns[self.next_turn]
+    def _advance(self) -> None:
+        """Move the cursor past turns already written."""
+        while self.next_turn < len(self.turns) and self.turns[self.next_turn]["turn_id"] in self.written_ids:
             self.next_turn += 1
-            turn = Turn(turn_id=t["turn_id"], session_id=t["session"], speaker=t["speaker"], text=t["text"],
-                        timestamp=t.get("ts"))
-            self.head(f"turn {self.next_turn}/{len(self.turns)}: {turn.turn_id}  session {turn.session_id}  "
-                      f"{turn.speaker}  [{t.get('ts')}]")
-            self.w(f"  text: {_short(turn.text, 160)}")
-            dep = await self.system.insert(turn)
-            dep2 = await self.system._flush_windows(final=False)
-            rows = self._take()
-            self.w(f"  deposit: records={dep.n_records} model_calls={dep.model_calls + (dep2.model_calls if dep2 else 0)} "
-                   f"ids={[str(i) for i in dep.record_ids]}")
-            self._sections(rows, WRITE_SECTIONS)
-            self._drift_note()
+
+    def _index_of(self, turn_id: str) -> int | None:
+        for i, t in enumerate(self.turns):
+            if t["turn_id"] == turn_id:
+                return i
+        return None
+
+    async def _insert(self, t: dict[str, Any]) -> Any:
+        """Write one turn dict through the engine and remember it."""
+        turn = Turn(turn_id=t["turn_id"], session_id=t["session"], speaker=t["speaker"], text=t["text"],
+                    timestamp=t.get("ts"))
+        dep = await self.system.insert(turn)
+        self.written.append(t)
+        self.written_ids.add(t["turn_id"])
+        self.slept = False
+        self._advance()
+        return dep
+
+    async def _write_turn(self, t: dict[str, Any], label: str) -> dict[str, Any]:
+        """One turn with its stages printed; returns ``{turn_id, records, calls, rows}``."""
+        self.head(f"{label}: {t['turn_id']}  session {t['session']}  {t['speaker']}  [{t.get('ts')}]"
+                  + ("  (custom)" if t.get("custom") else ""))
+        self.w(f"  text: {_short(t['text'], 160)}")
+        dep = await self._insert(t)
+        dep2 = await self.system._flush_windows(final=False)
+        rows = self._take()
+        calls = dep.model_calls + (dep2.model_calls if dep2 else 0)
+        self.w(f"  deposit: records={dep.n_records} model_calls={calls} ids={[str(i) for i in dep.record_ids]}")
+        self._sections(rows, WRITE_SECTIONS)
+        self._drift_note()
+        return {"turn_id": t["turn_id"], "speaker": t["speaker"], "records": dep.n_records, "calls": calls, "rows": rows}
 
     def _drift_note(self) -> None:
         if self._cache is not None and self._cache.misses:
             self.w(f"  replay cache misses so far: {len(self._cache.misses)}")
 
-    async def cmd_session(self) -> None:
-        if self.next_turn >= len(self.turns):
-            self.w("no more turns")
-            return
-        session = self.turns[self.next_turn]["session"]
-        n = 0
-        while self.next_turn < len(self.turns) and self.turns[self.next_turn]["session"] == session:
+    def _summary(self, title: str, parts: list[dict[str, Any]]) -> None:
+        counts: dict[str, int] = {}
+        for p in parts:
+            for r in p["rows"]:
+                for name, prefixes in WRITE_SECTIONS:
+                    if _matches(r["event"], prefixes):
+                        key = name.split(" (")[0]
+                        counts[key] = counts.get(key, 0) + 1
+                        break
+        self.head(f"summary: {title}")
+        self.w(f"  turns={len(parts)} records={sum(p['records'] for p in parts)} "
+               f"model_calls={sum(p['calls'] for p in parts)}")
+        self.w("  events by stage: " + (", ".join(f"{k}={v}" for k, v in counts.items()) or "(none)"))
+
+    def _order_warning(self, picked: list[int]) -> None:
+        if picked != sorted(picked):
+            self.w("  warning: the selection is not in dataset order; writing it as given")
+        done = [i for t in self.written if (i := self._index_of(t["turn_id"])) is not None]
+        late = [self.turns[i]["turn_id"] for i in picked if done and i < max(done)]
+        if late:
+            self.w(f"  warning: {late} come before turns already written (order differs from the dataset)")
+
+    async def cmd_turn(self, count: int = 1) -> None:
+        self._advance()
+        parts = []
+        for _ in range(count):
+            self._advance()
+            if self.next_turn >= len(self.turns):
+                self.w("no more turns")
+                break
             t = self.turns[self.next_turn]
+            parts.append(await self._write_turn(t, f"turn {self.next_turn + 1}/{len(self.turns)}"))
+        if len(parts) > 1:
+            self._summary(f"{len(parts)} turns", parts)
+
+    def _resolve_turns(self, spec: str) -> list[int] | None:
+        """``D1:3``, ``D1:3-D1:6``, ``D1:3,D2:5`` or a mix -> dataset indices (None = a bad token)."""
+        out: list[int] = []
+        for part in [p.strip() for p in spec.split(",") if p.strip()]:
+            i = self._index_of(part)
+            if i is not None:
+                out.append(i)
+                continue
+            for pos in [k for k, c in enumerate(part) if c == "-"]:
+                lo, hi = self._index_of(part[:pos]), self._index_of(part[pos + 1:])
+                if lo is not None and hi is not None:
+                    if lo > hi:
+                        self.w(f"  warning: {part} runs backwards; writing {self.turns[hi]['turn_id']}..{self.turns[lo]['turn_id']}")
+                        lo, hi = hi, lo
+                    out.extend(range(lo, hi + 1))
+                    break
+            else:
+                self.w(f"unknown turn {part!r} (turn ids look like {self.turns[0]['turn_id']})")
+                return None
+        return out
+
+    async def cmd_turns(self, spec: str) -> None:
+        if not spec:
+            self.w("usage: turns D1:1-D1:6 | turns D1:3,D2:5 | turn <turn_id>")
+            return
+        picked = self._resolve_turns(spec)
+        if picked is None:
+            return
+        fresh: list[int] = []
+        for i in picked:
+            tid = self.turns[i]["turn_id"]
+            if tid in self.written_ids or i in fresh:
+                self.w(f"  {tid} is already written (skipped; `reset` starts over)")
+            else:
+                fresh.append(i)
+        self._order_warning(fresh)
+        parts = [await self._write_turn(self.turns[i], f"turn {i + 1}/{len(self.turns)}") for i in fresh]
+        if len(parts) > 1:
+            self._summary(f"{len(parts)} selected turns", parts)
+
+    async def cmd_skip(self, n: int = 1) -> None:
+        moved = []
+        for _ in range(n):
+            self._advance()
+            if self.next_turn >= len(self.turns):
+                break
+            moved.append(self.turns[self.next_turn]["turn_id"])
             self.next_turn += 1
+        self.w(f"skipped (not written): {moved}; cursor at " + self._cursor_text())
+
+    def _cursor_text(self) -> str:
+        self._advance()
+        return (f"{self.turns[self.next_turn]['turn_id']} ({self.next_turn}/{len(self.turns)})"
+                if self.next_turn < len(self.turns) else f"end ({len(self.turns)}/{len(self.turns)})")
+
+    async def cmd_goto(self, arg: str) -> None:
+        i = self._index_of(arg)
+        if i is None:
+            self.w(f"unknown turn {arg!r}")
+            return
+        self.next_turn = i
+        self.w(f"cursor moved to {arg} (nothing written)" + ("; note: it is already written" if arg in self.written_ids else ""))
+
+    async def cmd_interaction(self, n: int = 1) -> None:
+        """One interaction = a turn plus the run of turns right after it by the next (different) speaker."""
+        for k in range(n):
+            self._advance()
+            if self.next_turn >= len(self.turns):
+                self.w("no more turns")
+                return
+            i = self.next_turn
+            group = [self.turns[i]]
+            j = i + 1
+            replier = None
+            while (j < len(self.turns) and self.turns[j]["session"] == group[0]["session"]
+                   and self.turns[j]["turn_id"] not in self.written_ids
+                   and self.turns[j]["speaker"] != group[0]["speaker"]
+                   and replier in (None, self.turns[j]["speaker"])):
+                replier = self.turns[j]["speaker"]
+                group.append(self.turns[j])
+                j += 1
+            if len(group) == 1:
+                self.w("  note: no reply follows this turn in its session (the interaction is one turn)")
+            parts = [await self._write_turn(t, f"interaction {k + 1}/{n} turn {(self._index_of(t['turn_id']) or 0) + 1}")
+                     for t in group]
+            self._summary("interaction " + " -> ".join(f"{t['turn_id']} ({t['speaker']})" for t in group), parts)
+
+    # ---- custom messages
+    @staticmethod
+    def _parse_ts(text: str | None) -> Any:
+        from datetime import datetime
+
+        for fmt in ("%Y-%m-%d %H:%M", "%Y-%m-%dT%H:%M", "%Y-%m-%d"):
+            try:
+                return datetime.strptime(str(text), fmt)
+            except ValueError:
+                continue
+        return None
+
+    def _default_ts(self) -> str:
+        from datetime import timedelta
+
+        last = self.written[-1].get("ts") if self.written else (self.turns[0].get("ts") if self.turns else None)
+        dt = self._parse_ts(last)
+        if dt is None:
+            return str(last) if last else "2024-01-01 00:00"
+        return (dt + timedelta(minutes=1)).strftime("%Y-%m-%d %H:%M")
+
+    def parse_say(self, line: str) -> dict[str, Any] | None:
+        """``Speaker: text [@YYYY-MM-DD[ HH:MM]] [#session]`` -> a custom turn spec (id assigned at write)."""
+        import re
+
+        text = line.strip()
+        ts = sess = None
+        for _ in range(2):
+            m = re.search(r"\s+@(\d{4}-\d{2}-\d{2}(?:[ T]\d{2}:\d{2})?)\s*$", text)
+            if m and ts is None:
+                ts, text = m.group(1).replace("T", " "), text[: m.start()]
+                continue
+            m = re.search(r"\s+#(\S+)\s*$", text)
+            if m and sess is None:
+                sess, text = m.group(1), text[: m.start()]
+        speaker, sep, said = text.partition(":")
+        if not sep or not speaker.strip() or not said.strip():
+            self.w("usage: say <Speaker>: <text> [@YYYY-MM-DD[ HH:MM]] [#session]")
+            return None
+        return {"speaker": speaker.strip(), "text": said.strip(), "ts": ts, "session": sess}
+
+    async def cmd_say(self, lines: list[str]) -> None:
+        parts = []
+        for line in lines:
+            spec = self.parse_say(line)
+            if spec is None:
+                continue
+            self._custom_n += 1
+            tid = f"U{self._custom_n}"
+            while tid in self.written_ids or self._index_of(tid) is not None:
+                self._custom_n += 1
+                tid = f"U{self._custom_n}"
+            last_session = self.written[-1]["session"] if self.written else (self.turns[0]["session"] if self.turns else "custom")
+            t = {"item": self.item, "session": spec["session"] or last_session, "turn_id": tid,
+                 "speaker": spec["speaker"], "ts": spec["ts"] or self._default_ts(), "text": spec["text"], "custom": True}
+            parts.append(await self._write_turn(t, "say"))
+        if len(parts) > 1:
+            self._summary(f"{len(parts)} custom messages", parts)
+
+    # ---- sessions
+    def _session_ids(self) -> list[str]:
+        return list(OrderedDict.fromkeys(t["session"] for t in self.turns))
+
+    async def _write_session(self, session: str, turns: list[dict[str, Any]]) -> dict[str, Any]:
+        n = 0
+        for t in turns:
+            if t["turn_id"] in self.written_ids:
+                continue
+            await self._insert(t)
             n += 1
-            await self.system.insert(Turn(turn_id=t["turn_id"], session_id=t["session"], speaker=t["speaker"],
-                                          text=t["text"], timestamp=t.get("ts")))
         self.head(f"session {session}: wrote {n} turn(s); closing windows and the session")
         await self.system._flush_windows(final=False)
         if self.system._windows_on():
@@ -698,9 +934,106 @@ class StepSession:
             closed = await self.system._close_sessions()
             if closed:
                 self.w(f"  session close: {_short(closed, 200)}")
+        self.closed_sessions.add(session)
         rows = self._take()
         self._sections(rows, WRITE_SECTIONS)
         self._drift_note()
+        return {"session": session, "turns": n, "records": sum(1 for r in rows if r["event"] == "store.index.record"),
+                "calls": 0, "rows": rows}
+
+    async def cmd_session(self, arg: str = "") -> None:
+        """No argument: the rest of the current session. ``N``: that many sessions from the cursor.
+        An id (or ``id1,id2``): those sessions, in the order given."""
+        self._advance()
+        ids = self._session_ids()
+        done: list[dict[str, Any]] = []
+        known = set(ids) | {t["session"] for t in self.written}
+        if arg and all(x.strip() in known for x in arg.split(",")):
+            for sid in [x.strip() for x in arg.split(",")]:
+                done.append(await self._write_session(sid, [t for t in self.turns if t["session"] == sid]))
+        else:
+            if arg and not arg.isdigit():
+                self.w(f"unknown session {arg!r} (known: {', '.join(ids)})")
+                return
+            for _ in range(int(arg) if arg else 1):
+                self._advance()
+                if self.next_turn >= len(self.turns):
+                    self.w("no more turns")
+                    break
+                sid = self.turns[self.next_turn]["session"]
+                done.append(await self._write_session(sid, [t for t in self.turns[self.next_turn:] if t["session"] == sid]))
+        if len(done) > 1:
+            self.head("summary: sessions")
+            for d in done:
+                self.w(f"  {d['session']}: turns={d['turns']} records={d['records']}")
+
+    async def cmd_sessions(self, spec: str) -> None:
+        ids = self._session_ids()
+        picked: list[str] = []
+        for part in [p.strip() for p in spec.split(",") if p.strip()]:
+            if part in ids:
+                picked.append(part)
+                continue
+            for pos in [k for k, c in enumerate(part) if c == "-"]:
+                lo, hi = part[:pos], part[pos + 1:]
+                if lo in ids and hi in ids:
+                    a, b = sorted((ids.index(lo), ids.index(hi)))
+                    picked.extend(ids[a:b + 1])
+                    break
+            else:
+                self.w(f"unknown session {part!r} (known: {', '.join(ids)})")
+                return
+        if not picked:
+            self.w("usage: sessions D1-D3 | sessions D1,D3")
+            return
+        await self.cmd_session(",".join(picked))
+
+    async def cmd_status(self) -> None:
+        recs = await self._records()
+        sessions: OrderedDict[str, int] = OrderedDict()
+        for t in self.written:
+            sessions[t["session"]] = sessions.get(t["session"], 0) + 1
+        windows = {r.get("window_id") for r in self.sink.rows if r["event"] == "write.window.members" and r.get("window_id")}
+        self.head("status")
+        self.w(f"  item {self.item} | arm {self.arm_name} | mode {self.mode}")
+        self.w(f"  written: {len(self.written)} turn(s) ({sum(1 for t in self.written if t.get('custom'))} custom) of "
+               f"{len(self.turns)} in the dataset; cursor at {self._cursor_text()}")
+        for sid, n in sessions.items():
+            self.w(f"  session {sid}: {n} turn(s) written, " + ("closed" if sid in self.closed_sessions else "open"))
+        self.w(f"  windows formed: {len(windows)}; open sessions: "
+               f"{[s for s in sessions if s not in self.closed_sessions] or 'none'}; slept: {_ok(self.slept)}")
+        self.w(f"  records in the store: {len(recs)}; questions asked: {len({r['query_id'] for r in self._asked})} "
+               f"of {len(self.questions)}")
+        if self.overrides or self.prompt_overrides:
+            self.w(f"  tuning: {len(self.overrides)} override(s), {len(self.prompt_overrides)} prompt override(s)")
+
+    async def cmd_reset(self) -> None:
+        if self.system is not None:
+            with contextlib.suppress(Exception):
+                await self.system.close()
+        self._reset_state()
+        await self._boot()
+        self.head("reset: fresh engine, same arm" + (f" with {len(self.overrides)} override(s) kept" if self.overrides else ""))
+        self.w(f"  nothing written; cursor at {self._cursor_text()}")
+
+    async def cmd_load(self, path: str) -> None:
+        if not path or not Path(path).exists():
+            self.w(f"usage: load <file.json> (same shape as demo_conversation.json); not found: {path!r}")
+            return
+        ds = load_dataset(path)
+        item = next(iter(ds))
+        self.item = item
+        self.turns = list(ds[item]["turns"])
+        self.questions = dict(ds[item]["questions"])
+        self.custom_questions = {}
+        self.run_id = f"step-{self.arm_name}-{item}"
+        if self.system is not None:
+            with contextlib.suppress(Exception):
+                await self.system.close()
+        self._reset_state()
+        await self._boot()
+        self.head(f"load: item {item}")
+        self.w(f"  turns {len(self.turns)} in {len(self._session_ids())} session(s), {len(self.questions)} question(s)")
 
     async def cmd_sleep(self) -> None:
         for d in (self.d_fx / "inspect",):
@@ -744,20 +1077,123 @@ class StepSession:
 
     # ---- commands: read
     def _find_question(self, arg: str) -> tuple[str, dict[str, Any]]:
+        """A question id, the text of a known question, or free text (``text | gold: A | turns: D1:3,D2:5``).
+        Free text becomes a custom question, kept for the bundle."""
         if arg in self.questions:
             return arg, self.questions[arg]
+        text, gold, turns = arg, None, []
+        if "|" in arg:
+            text, *tail = [x.strip() for x in arg.split("|")]
+            for part in tail:
+                key, _, val = part.partition(":")
+                if key.strip().lower() == "gold":
+                    gold = val.strip() or None
+                elif key.strip().lower() in ("turns", "gold_turns"):
+                    turns = [x.strip() for x in val.split(",") if x.strip()]
         for qid, q in self.questions.items():
-            if q.get("question", "").strip().lower() == arg.strip().lower():
+            if q.get("question", "").strip().lower() == text.strip().lower():
+                if gold is not None or turns:
+                    q.update({"gold": gold if gold is not None else q.get("gold"), "gold_turns": turns or q.get("gold_turns")})
                 return qid, q
         self._adhoc += 1
-        return f"adhoc-{self._adhoc}", {"question": arg, "gold": None, "category": "adhoc", "gold_turns": []}
+        qid = f"adhoc-{self._adhoc}"
+        while qid in self.questions:
+            self._adhoc += 1
+            qid = f"adhoc-{self._adhoc}"
+        q = {"question": text, "gold": gold, "category": "adhoc", "gold_turns": turns, "custom": True}
+        self.questions[qid] = q
+        return qid, q
+
+    def _targets(self, arg: str) -> list[tuple[str, dict[str, Any]]] | None:
+        """``q1,q3`` | ``all`` | ``cat:<n>`` | free text -> the questions to ask (None = nothing matched)."""
+        low = arg.strip().lower()
+        if low == "all":
+            return list(self.questions.items())
+        if low.startswith("cat:"):
+            want = low[4:].strip()
+            found = [(k, q) for k, q in self.questions.items()
+                     if str(q.get("category")).lower() in (want, f"cat{want}", want.removeprefix("cat"))]
+            if not found:
+                cats = sorted({str(q.get("category")) for q in self.questions.values()})
+                self.w(f"no question in category {want!r} (categories: {', '.join(cats)})")
+                return None
+            return found
+        toks = [x.strip() for x in arg.split(",") if x.strip()]
+        if len(toks) > 1 and all(x in self.questions for x in toks):
+            return [(x, self.questions[x]) for x in toks]
+        return [self._find_question(arg)]
 
     async def cmd_ask(self, arg: str) -> None:
+        brief = self.brief
+        for flag in ("--brief", "--full"):
+            if arg.endswith(flag):
+                arg, brief = arg[: -len(flag)].strip(), flag == "--brief"
         if not arg:
             for qid, q in self.questions.items():
                 self.w(f"  {qid}  [{q.get('category')}] {_short(q.get('question'), 100)}")
             return
-        qid, q = self._find_question(arg)
+        targets = self._targets(arg)
+        if not targets:
+            return
+        await self._ask_many(targets, brief)
+
+    async def cmd_asks(self, path: str) -> None:
+        brief = self.brief
+        if path.endswith("--brief"):
+            path, brief = path[:-7].strip(), True
+        if not path or not Path(path).exists():
+            self.w(f"usage: asks <file> (one question per line: an id, free text, or `text | gold: A | turns: D1:3`); not found: {path!r}")
+            return
+        targets = []
+        for line in Path(path).read_text(encoding="utf-8").splitlines():
+            if line.strip() and not line.strip().startswith("#"):
+                targets.append(self._find_question(line.strip()))
+        await self._ask_many(targets, brief)
+
+    async def _ask_many(self, targets: list[tuple[str, dict[str, Any]]], brief: bool) -> None:
+        results = []
+        for qid, q in targets:
+            if brief:
+                self._mute = True
+                try:
+                    res = await self._ask_one(qid, q)
+                finally:
+                    self._mute = False
+                self.w("  " + self._brief_line(res))
+            else:
+                res = await self._ask_one(qid, q)
+            results.append(res)
+        if len(results) > 1:
+            self._ask_table(results)
+
+    def _brief_line(self, r: dict[str, Any]) -> str:
+        return (f"{r['qid']} [{r['category']}] gold {r['found']}/{r['total']} lost_at={r['lost']} answer={r['correct']} "
+                f"| {_short(r['question'], 60)}")
+
+    def _ask_table(self, results: list[dict[str, Any]]) -> None:
+        self.head(f"SUMMARY TABLE ({len(results)} question(s))")
+        rows = [("qid", "category", "gold found", "first losing stage", "answer correct")]
+        rows += [(r["qid"], str(r["category"]), f"{r['found']}/{r['total']}", str(r["lost"]), str(r["correct"])) for r in results]
+        widths = [max(len(row[i]) for row in rows) for i in range(5)]
+        for k, row in enumerate(rows):
+            self.w("  " + "  ".join(c.ljust(widths[i]) for i, c in enumerate(row)))
+            if k == 0:
+                self.w("  " + "  ".join("-" * w for w in widths))
+        with_gold = [r for r in results if r["total"]]
+        if with_gold:
+            full = sum(1 for r in with_gold if r["found"] == r["total"])
+            self.w(f"  gold fully in context: {full}/{len(with_gold)}")
+
+    def _lost_stage(self, gold_turns: Sequence[str], fx: Mapping[str, Any] | None, got: set[str]) -> str:
+        if not gold_turns:
+            return "-"
+        unwritten = [g for g in gold_turns if g not in self.written_ids]
+        if unwritten:
+            return f"not written ({len(unwritten)})"
+        _rows, loss = gold_path(list(gold_turns), dict(fx) if fx else None, {}, got)
+        return loss or "-"
+
+    async def _ask_one(self, qid: str, q: dict[str, Any]) -> dict[str, Any]:
         gold_turns = list(q.get("gold_turns") or [])
         self.head(f"ask {qid} [{q.get('category')}]: {q['question']}")
         self.w(f"  gold: {_short(q.get('gold'), 100)}   gold turns: {gold_turns}")
@@ -787,6 +1223,19 @@ class StepSession:
         answer, verdict = await self._reader_and_judge(q, ctx)
         self._record_question(qid, q, ctx, fx, answer, verdict)
         self._drift_note()
+        score = (verdict or {}).get("score")
+        if score is not None:
+            correct = "yes" if score >= 1 else "no"
+        elif in_ctx is not None:
+            correct = f"gold text in ctx: {_ok(in_ctx)}"
+        else:
+            correct = "-"
+        res = {"qid": qid, "category": q.get("category"), "question": q["question"], "gold": q.get("gold"),
+               "gold_turns": gold_turns, "found": sum(1 for g in gold_turns if g in got), "total": len(gold_turns),
+               "lost": self._lost_stage(gold_turns, fx, set(got)), "correct": correct, "got": got, "fx": fx,
+               "context": ctx.text, "answer": answer, "verdict": verdict, "tokens": ctx.tokens}
+        self._last_read[qid] = res
+        return res
 
     def _last_forensics(self, qid: str) -> dict[str, Any] | None:
         path = self.d_fx / "forensics.jsonl"
@@ -867,7 +1316,8 @@ class StepSession:
         from ..judge import JudgeScale, LLMJudge
         from ..readers import OpenAICompatReader
 
-        reader = OpenAICompatReader(self.reader_model, base_url=self.base_url)
+        edited = (self.prompt_overrides.get("reader.qa") or {}).get("body")
+        reader = OpenAICompatReader(self.reader_model, base_url=self.base_url, **({"prompt": edited} if edited else {}))
         try:
             ans = await reader.answer(q["question"], ctx.text)
         except Exception as exc:
@@ -896,6 +1346,8 @@ class StepSession:
                "status": "completed" if answer is not None else "retrieval_only",
                "type_label": q.get("category"), "context_tokens": ctx.tokens,
                "retrieved_ids": [e.turn_id for e in ctx.evidence], "meta": {"judge_raw": (verdict or {}).get("raw")}}
+        if q.get("custom"):
+            row["custom"] = True
         reads = {"run_id": self.run_id, "item_id": self.item, "query_id": qid, "question": q["question"],
                  "gold": q.get("gold"), "context_text": ctx.text, "context_tokens": ctx.tokens,
                  "answer": answer, "reader_raw": answer, "reader_calls": [], "judge_calls": [],
@@ -1039,9 +1491,14 @@ class StepSession:
         bundle = self.out / f"{self.run_id}--bundle"
         if bundle.exists():
             shutil.rmtree(bundle)
-        raw = _as_dataset_json(self.item, self.turns, self.questions)
+        self._dedupe_results()
+        raw = _as_dataset_json(self.item, self.written, self.questions)
         man = assemble(self.d_mem, bundle, raw, content=True)
         self.saved = True
+        if self.tuning_log:  # the tuning history rides in the bundle for the viewer
+            (bundle / "tuning.jsonl").write_text(
+                "".join(json.dumps(r, default=str, ensure_ascii=False) + chr(10) for r in self.tuning_log), encoding="utf-8")
+            man.setdefault("counts", {})["tuning"] = len(self.tuning_log)
         self.head("saved")
         self.w(f"  bundle: {bundle}")
         self.w(f"  counts: {man.get('counts')}")
@@ -1060,22 +1517,77 @@ class StepSession:
             for m in self._cache.misses[:10]:
                 self.w(f"    {m}")
 
+    def _dedupe_results(self) -> None:
+        """A question asked twice keeps its last row, so the bundle has one row per question."""
+        for path in (self.d_mem / "results.jsonl", self.d_trace / "reads.jsonl"):
+            if not path.exists():
+                continue
+            keep: dict[str, str] = {}
+            order: list[str] = []
+            for line in path.read_text(encoding="utf-8").splitlines():
+                if not line.strip():
+                    continue
+                row = json.loads(line)
+                key = f"{row.get('query_id')}" if row.get("query_id") is not None and row.get("kind") != "manifest" else f"_{len(order)}"
+                if key not in keep:
+                    order.append(key)
+                keep[key] = line
+            path.write_text("\n".join(keep[k] for k in order) + "\n", encoding="utf-8")
+
     # ---- the loop
     async def execute(self, line: str) -> bool:
         """Run one command line; False = quit."""
+        if self._block is not None:  # inside a `say <<` block
+            if line.strip() == ".":
+                lines, self._block = self._block, None
+                await self.cmd_say(lines)
+            elif line.strip():
+                self._block.append(line)
+            return True
         line = line.strip()
         if line.startswith("#"):
             return True
         cmd, _, arg = line.partition(" ")
         cmd, arg = cmd.lower(), arg.strip()
         if cmd in ("", "turn", "t", "n", "next"):
-            await self.cmd_turn(int(arg) if arg.isdigit() else 1)
+            if arg.isdigit() or not arg:
+                await self.cmd_turn(int(arg) if arg else 1)
+            else:
+                await self.cmd_turns(arg)
+        elif cmd == "turns":
+            await self.cmd_turns(arg)
+        elif cmd == "skip":
+            await self.cmd_skip(int(arg) if arg.isdigit() else 1)
+        elif cmd == "goto":
+            await self.cmd_goto(arg)
+        elif cmd == "say":
+            if arg.replace(" ", "") == "<<":
+                self._block = []
+            else:
+                await self.cmd_say([arg])
+        elif cmd == "interaction":
+            await self.cmd_interaction(int(arg) if arg.isdigit() else 1)
         elif cmd == "session":
-            await self.cmd_session()
+            await self.cmd_session(arg)
+        elif cmd == "sessions":
+            await self.cmd_sessions(arg)
         elif cmd == "sleep":
             await self.cmd_sleep()
         elif cmd == "ask":
             await self.cmd_ask(arg)
+        elif cmd == "asks":
+            await self.cmd_asks(arg)
+        elif cmd == "brief":
+            self.brief = arg.lower() not in ("off", "0", "no")
+            self.w(f"brief {'on' if self.brief else 'off'}: asks print one line per question")
+        elif cmd == "status":
+            await self.cmd_status()
+        elif cmd == "reset":
+            await self.cmd_reset()
+        elif cmd == "load":
+            await self.cmd_load(arg)
+        elif cmd in self.TUNE_COMMANDS:
+            await self.tune_command(cmd, arg)
         elif cmd == "show":
             await self.cmd_show(arg)
         elif cmd == "links":
@@ -1141,10 +1653,13 @@ def _offline_window_reply(messages: Sequence[Mapping[str, Any]]) -> str | None:
     user = str(messages[-1].get("content", "")) if messages else ""
     if not system.startswith("You turn numbered conversation lines into memory items"):
         return None
+    # offline tuning hook: a `[stub: min_len=N]` line in an edited system prompt moves the length threshold
+    directive = re.search(r"\[stub: min_len=(\d+)\]", system)
+    min_len = int(directive.group(1)) if directive else 24
     items = []
     for m in re.finditer(r"^\[(\d+)\] (?:\[[\d-]+\] )?([^:\n]{1,40}): (.+)$", user, re.M):
         n, who, said = int(m.group(1)), m.group(2).strip(), m.group(3).strip()
-        if len(said) < 24 or not re.search(r"[A-Z0-9]", said[1:]):
+        if len(said) < min_len or not re.search(r"[A-Z0-9]", said[1:]):
             continue
         items.append({"s": who, "r": "said", "o": said[:60], "text": f"{who}: {said}", "kind": "state",
                       "mode": "asserted", "neg": False, "when": None, "until": None, "lines": [n],
@@ -1157,9 +1672,13 @@ def _as_dataset_json(item: str, turns: Sequence[Mapping[str, Any]], questions: M
     sessions: dict[str, dict[str, Any]] = OrderedDict()
     for t in turns:
         s = sessions.setdefault(t["session"], {"session_id": t["session"], "date": t.get("ts"), "turns": []})
-        s["turns"].append({"turn_id": t["turn_id"], "speaker": t["speaker"], "text": t["text"]})
+        row = {"turn_id": t["turn_id"], "speaker": t["speaker"], "text": t["text"], "ts": t.get("ts")}
+        if t.get("custom"):
+            row["custom"] = True
+        s["turns"].append(row)
     qs = [{"query_id": qid, "category": q.get("category"), "question": q.get("question"), "gold": q.get("gold"),
-           "gold_turns": list(q.get("gold_turns") or [])} for qid, q in questions.items()]
+           "gold_turns": list(q.get("gold_turns") or []), **({"custom": True} if q.get("custom") else {})}
+          for qid, q in questions.items()]
     return {"conversation_id": item, "sessions": list(sessions.values()), "questions": qs}
 
 
