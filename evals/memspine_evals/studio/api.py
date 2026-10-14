@@ -143,17 +143,22 @@ class StudioAPI:
         self.arm = ""
         self.mode = "offline"
         self.cache_dir: str | None = None
-        self.base_cfg: dict[str, Any] = {}
-        self.overrides: dict[str, Any] = {}
-        self.prompt_overrides: dict[str, str] = {}
+        self.arm_cfg: dict[str, Any] = {}
         self.wlog: list[dict[str, Any]] = []
-        self.written: list[str] = []
+        self.custom_q: dict[str, dict[str, Any]] = {}
         self.stale: list[str] = []
         self.last_asks: dict[str, dict[str, Any]] = {}
         self.last_verify: dict[str, Any] | None = None
         self._baselines: dict[str, dict[str, Any]] = {}
         self._sink = io.StringIO()
-        self._custom = 0
+
+    @property
+    def overrides(self) -> dict[str, Any]:
+        return self.session.overrides if self.session is not None else {}
+
+    @property
+    def prompt_overrides(self) -> dict[str, Any]:
+        return self.session.prompt_overrides if self.session is not None else {}
 
     # ---- plumbing
     def run(self, coro: Any) -> Any:
@@ -230,13 +235,7 @@ class StudioAPI:
             raise StudioError("no open session: call studio_open first", "no_session")
         return self.session
 
-    def _effective_cfg(self, overrides: Mapping[str, Any] | None = None, prompts: Mapping[str, str] | None = None) -> dict[str, Any]:
-        cfg = copy.deepcopy(self.base_cfg)
-        for k, v in (self.overrides if overrides is None else overrides).items():
-            _set_path(cfg, k, copy.deepcopy(v))
-        for pid, text in (self.prompt_overrides if prompts is None else prompts).items():
-            _set_path(cfg, f"prompts.overrides.{pid}.body", text)
-        return cfg
+
 
     def _load_data(self, data: str | Path | Mapping[str, Any] | None) -> tuple[str, dict[str, dict[str, Any]]]:
         from ..inspect.assemble import load_dataset
@@ -257,13 +256,16 @@ class StudioAPI:
             raise StudioError(f"data not found: {spec}")
         return spec, load_dataset(spec)
 
-    async def _start_session(self, replay: bool) -> None:
+    async def _start_session(self, replay: bool, carry: tuple[Any, Any, Any] | None = None, overrides_off: bool = False) -> None:
+        """A fresh StepSession on the open item. ``carry`` = (overrides, prompt_overrides, base dump) of the session it replaces."""
         from ..inspect import step
 
+        if carry is None and self.session is not None:
+            s0 = self.session
+            carry = (dict(s0.overrides), copy.deepcopy(s0.prompt_overrides), s0._base_dump)
         if self.session is not None:
             await self.session.close()
             self.session = None
-        cfg = self._effective_cfg()
         kw: dict[str, Any] = {}
         if self.mode == "offline":
             kw["offline"] = True
@@ -278,18 +280,22 @@ class StudioAPI:
         else:
             raise StudioError(f"mode must be offline, replay or live (got {self.mode!r})")
         self._sink = io.StringIO()
-        self.session = step.StepSession(
-            self.ds, self.item, self.arm, out=self.out, stream=self._sink, config_override=cfg,
+        s = step.StepSession(
+            self.ds, self.item, self.arm, out=self.out, stream=self._sink, config_override=copy.deepcopy(self.arm_cfg),
             run_id=f"studio-{re.sub(r'[^A-Za-z0-9_.-]', '_', self.arm)}-{self.item}", **kw)
-        await self.session.start()
-        self.written = []
-        self._custom = 0
+        s.arms_dir = self.arms_dir
+        s.questions.update(copy.deepcopy(self.custom_q))
+        if carry is not None and not overrides_off:
+            s.overrides, s.prompt_overrides, s._base_dump = dict(carry[0]), copy.deepcopy(carry[1]), carry[2]
+            s.cfg = s._compose_cfg()
+        await s.start()
+        self.session = s
         self._sink.seek(0)
         self._sink.truncate()
         if replay:
             log, self.wlog = self.wlog, []
             for op in log:
-                await self._apply_op(op, collect=False)
+                await self._apply_op(op)
             self.wlog = log
 
     # ---- status
@@ -304,14 +310,12 @@ class StudioAPI:
     async def _counts(self) -> dict[str, Any]:
         s = self.session
         recs = len(await s._records())
-        turns = s.turns
-        sessions = list(OrderedDict.fromkeys(t["session"] for t in turns))
-        written = set(self.written)
-        wsess = list(OrderedDict.fromkeys(t["session"] for t in turns if t["turn_id"] in written))
-        wins = getattr(getattr(s.system, "_pending_windows", None), "__len__", lambda: None)()
-        return {"turns_total": len(turns), "turns_written": len(self.written), "sessions_total": len(sessions),
-                "sessions_written": len(wsess), "windows_open": wins, "records": recs, "questions": len(s.questions),
-                "slept": bool(s.slept)}
+        wsess = list(OrderedDict.fromkeys(x["session"] for x in s.written))
+        windows = {r.get("window_id") for r in s.sink.rows if r["event"] == "write.window.members" and r.get("window_id")}
+        return {"turns_total": len(s.turns), "turns_written": len(s.written), "turns_custom": sum(1 for x in s.written if x.get("custom")),
+                "sessions_total": len(s._session_ids()), "sessions_written": len(wsess),
+                "sessions_closed": len(s.closed_sessions), "windows_open": len([x for x in wsess if x not in s.closed_sessions]),
+                "windows_formed": len(windows), "records": recs, "questions": len(s.questions), "slept": bool(s.slept)}
 
     def studio_status(self) -> dict[str, Any]:
         out: dict[str, Any] = {
@@ -323,10 +327,11 @@ class StudioAPI:
         }
         if self.session is not None:
             s = self.session
-            nxt = next((t for t in s.turns if t["turn_id"] not in set(self.written)), None)
+            nxt = next((t for t in s.turns if t["turn_id"] not in s.written_ids), None)
             out["cursor"] = {"next_turn_id": nxt["turn_id"] if nxt else None, "session": nxt["session"] if nxt else None}
             out["counts"] = self.run(self._counts())
             out["notes"] = list(s.notes)
+            out["questions"] = [{"qid": q, "category": v.get("category"), "question": v.get("question")} for q, v in s.questions.items()]
         return out
 
     # ---- session lifecycle
@@ -349,38 +354,49 @@ class StudioAPI:
         name, cfg = resolve_arm(arm)
         self.data_spec, self.ds, self.item, self.arm, self.mode = spec, ds, item, name, mode
         self.cache_dir = cache_dir
-        self.base_cfg, self.overrides, self.prompt_overrides = cfg, {}, {}
-        self.wlog, self.stale, self.last_asks, self.last_verify, self._baselines = [], [], {}, None, {}
-        self.run(self._start_session(replay=False))
+        self.arm_cfg = cfg
+        self.wlog, self.stale, self.last_asks, self.last_verify, self._baselines, self.custom_q = [], [], {}, None, {}, {}
+        self.run(self._start_session(replay=False, carry=({}, {}, None)))
         return self.studio_status()
 
     def studio_reset(self, keep_overrides: bool = False, replay: bool = False) -> dict[str, Any]:
-        self._need()
+        s = self._need()
         if not keep_overrides:
-            self.overrides, self.prompt_overrides = {}, {}
-        if not replay:
+            s.overrides.clear()
+            s.prompt_overrides.clear()
+            s.cfg = s._compose_cfg()
+        self.run(s.cmd_reset())
+        s.questions.update(copy.deepcopy(self.custom_q))
+        self.stale, self.last_asks, self.last_verify = [], {}, None
+        if replay:
+            self.run(self._replay())
+        else:
             self.wlog = []
-        self.stale = []
-        self.last_asks = {}
-        self.last_verify = None
-        self.run(self._start_session(replay=replay))
         return self.studio_status()
 
     def studio_load_conversation(self, json: Any = None, **kw: Any) -> dict[str, Any]:  # noqa: A002 - the contract's field name
+        import json as _json
+
         conv = json if json is not None else kw.get("conversation")
         if isinstance(conv, str):
-            import json as _json
-
             conv = _json.loads(conv)
         if not isinstance(conv, Mapping):
             raise StudioError("json must be a conversation object in the demo shape (conversation_id, sessions, questions)")
-        if self.session is None:
-            raise StudioError("no open session: call studio_open first (it fixes the arm and mode)", "no_session")
+        s = self._need()
         _, ds = self._load_data(dict(conv))
-        self.data_spec, self.ds, self.item = "inline", ds, next(iter(ds))
-        self.wlog, self.stale, self.last_asks, self.last_verify, self._baselines = [], [], {}, None, {}
-        self.run(self._start_session(replay=False))
+        path = self.out / "inline_conversation.json"
+        self.out.mkdir(parents=True, exist_ok=True)
+        path.write_text(_json.dumps(conv, ensure_ascii=False), encoding="utf-8")
+        self.run(s.cmd_load(str(path)))
+        self.data_spec, self.ds, self.item = "inline", ds, s.item
+        self.wlog, self.stale, self.last_asks, self.last_verify, self._baselines, self.custom_q = [], [], {}, None, {}, {}
         return self.studio_status()
+
+    async def _replay(self) -> None:
+        log, self.wlog = self.wlog, []
+        for op in log:
+            await self._apply_op(op)
+        self.wlog = log
 
     # ---- stages and parameters
     def _inventory_rows(self) -> dict[str, str]:
@@ -420,7 +436,7 @@ class StudioAPI:
         if stage not in reg:
             raise StudioError(f"unknown stage {stage!r}")
         entry = self._param_catalogue().get(stage) or {}
-        eff = self._effective_cfg() if self.session is not None else self.base_cfg
+        eff = self.session._effective() if self.session is not None else {}
         keys = []
         for k in entry.get("keys") or []:
             key = k.get("key") or ""
@@ -444,63 +460,84 @@ class StudioAPI:
         return {k["key"]: k for s in self._param_catalogue().values() for k in (s.get("keys") or []) if k.get("key")}
 
     def studio_config(self, prefix: str | None = None, diff: bool = False) -> list[dict[str, Any]]:
-        if self.session is None and not self.base_cfg:
-            raise StudioError("no open session: call studio_open first", "no_session")
-        base, eff = _flatten(self.base_cfg), _flatten(self._effective_cfg())
-        cat = self._key_catalogue()
+        from ..inspect.step_tune import flatten
+
+        s = self._need()
+        eff, dflt = flatten(s._effective()), flatten(s._defaults())
         rows = []
-        for key in sorted(set(base) | set(eff)):
+        for key in sorted(eff):
             if prefix and not key.startswith(prefix):
                 continue
-            changed = eff.get(key) != base.get(key) or key not in base
-            if diff and not changed:
+            value, default = eff[key], dflt.get(key)
+            if diff and value == default:
                 continue
-            rows.append({"key": key, "value": eff.get(key), "default": cat[key].get("default") if key in cat else base.get(key),
-                         "source": "override" if key in self.overrides or key.startswith("prompts.overrides.") else "arm"})
+            rows.append({"key": key, "value": value, "default": default, "source": s._source(key, value, default)})
         return _jsonable(rows)
 
-    def _is_live(self, key: str) -> bool:
-        """A read-path key that needs no index rebuild applies live (engine rebuilt from arm + overrides, writes replayed)."""
-        spec = self._key_catalogue().get(key)
-        return key.startswith("read.") and not (spec or {}).get("rebuild") and self.mode in ("offline", "replay")
+    #: read-path sections the session rebinds on every set (scoring / assembly / compression policy objects)
+    PER_CALL = ("read.assembly.", "read.scoring.", "read.compression.")
 
-    def _apply_change(self, key: str) -> str:
-        """Rebuild after a config change when the key is read-path (live); otherwise mark the session stale."""
-        if self._is_live(key):
-            self.run(self._start_session(replay=True))
-            self.stale = []
-            return "live"
-        if key not in self.stale:
-            self.stale.append(key)
-        return "needs_reset"
+    def _classify(self, key: str, value: Any) -> tuple[str, str]:
+        """(applied, note) after a set the session accepted. live_verified only when the running engine's config
+        shows the new value AND the key is one the session rebinds per call; everything else accepted without a
+        rebuild is live_unverified (it may be bound at engine start)."""
+        s = self.session
+        if s._needs_rebuild(key):
+            return "needs_reset", "changes what is written or indexed: run studio_reset (keep_overrides, replay) to rebuild"
+        seen = _get_path(s._effective(), key, "__absent__")
+        shows = json.dumps(seen, sort_keys=True, default=str) == json.dumps(value, sort_keys=True, default=str)
+        if shows and key.startswith(self.PER_CALL):
+            return "live_verified", "the engine's live config shows the value and the policy object was rebound"
+        why = "the engine config shows the value" if shows else "the engine config does not show the value yet"
+        return "live_unverified", f"{why}, but this key may be bound at engine start: confirm with studio_rerun_ask (or pass probe=true), else studio_reset"
 
-    def studio_set(self, key: str, value: Any) -> dict[str, Any]:
-        self._need()
+    def _probe(self, key: str) -> dict[str, Any] | None:
+        """Re-ask the last asked question and compare with its previous answer: a change is proof the key is live."""
+        if not self.last_asks:
+            return None
+        qid = next(reversed(self.last_asks))
+        before = self.last_asks[qid]
+        after = self.run(self._ask_one(qid, "full"))
+        self.last_asks[qid] = after
+        diff = self._diff_asks(before, after)
+        return {"qid": qid, "changed": diff["changed"], "diff": _jsonable(diff)}
+
+    def studio_set(self, key: str, value: Any, probe: bool = False) -> dict[str, Any]:
+        s = self._need()
         if not isinstance(key, str) or not key or key.startswith(".") or key.endswith("."):
             raise StudioError(f"bad key {key!r}")
-        value = _coerce(value)
-        old = self._effective_cfg().get(key.split(".")[0]) if "." not in key else _get_path(self._effective_cfg(), key)
-        spec = self._key_catalogue().get(key)
         if key.startswith("cli:"):
-            return {"ok": False, "applied": None, "old": old, "new": value, "error": "cli: entries are run flags, not config keys"}
+            return {"ok": False, "applied": None, "old": None, "new": value, "error": "cli: entries are run flags, not config keys"}
+        value = _coerce(value)
+        old = _get_path(s._effective(), key)
+        spec = self._key_catalogue().get(key)
         if spec:
             err = self._validate(spec, value)
             if err:
                 return {"ok": False, "applied": None, "old": old, "new": value, "error": err}
-        prev = self.overrides.get(key, "__none__")
-        self.overrides[key] = value
-        try:
-            applied = self._apply_change(key)
-        except Exception as exc:
-            if prev == "__none__":
-                self.overrides.pop(key, None)
+        _, err = s._validated(key, value)
+        if err:
+            return {"ok": False, "applied": None, "old": old, "new": value, "error": err}
+        if not self.run(s._set_value(key, value, command="set", quiet=True)):
+            return {"ok": False, "applied": None, "old": old, "new": value, "error": "refused by the session"}
+        applied, note = self._classify(key, value)
+        out: dict[str, Any] = {"ok": True, "applied": applied, "old": old, "new": value, "note": note}
+        if applied == "needs_reset":
+            if key not in self.stale:
+                self.stale.append(key)
+        elif probe:
+            pr = self._probe(key)
+            out["probe"] = pr
+            if pr is None:
+                out["note"] += " (probe skipped: ask a question first)"
+            elif pr["changed"]:
+                out["applied"] = "live_verified"
+                out["note"] = "an earlier answer changed after this set: the key is live"
             else:
-                self.overrides[key] = prev
-            with contextlib.suppress(Exception):
-                self.run(self._start_session(replay=True))  # the failed rebuild left no engine; restore the last good one
-            return {"ok": False, "applied": None, "old": old, "new": value, "error": f"{type(exc).__name__}: {exc}"}
-        self.last_verify = None if self.last_verify is None else {**self.last_verify, "stale": True}
-        return {"ok": True, "applied": applied, "old": old, "new": value}
+                out["note"] += " (probe: the last question did not change; the key may not matter for it)"
+        if self.last_verify is not None:
+            self.last_verify = {**self.last_verify, "stale": True}
+        return _jsonable(out)
 
     @staticmethod
     def _validate(spec: Mapping[str, Any], value: Any) -> str | None:
@@ -527,73 +564,99 @@ class StudioAPI:
         return None
 
     def studio_unset(self, key: str) -> dict[str, Any]:
-        self._need()
-        if key not in self.overrides:
-            return {"ok": True, "applied": "none", "old": _get_path(self._effective_cfg(), key), "new": _get_path(self._effective_cfg(), key),
-                    "error": None}
-        old = self.overrides.pop(key)
-        applied = self._apply_change(key)
-        self.last_verify = None if self.last_verify is None else {**self.last_verify, "stale": True}
-        return {"ok": True, "applied": applied, "old": old, "new": _get_path(self._effective_cfg(), key)}
+        s = self._need()
+        if key not in s.overrides:
+            cur = _get_path(s._effective(), key)
+            return {"ok": True, "applied": "none", "old": cur, "new": cur, "error": None}
+        old = s.overrides[key]
+        self.run(s.cmd_unset(key))
+        new = _get_path(s._base_dump or {}, key)
+        applied, note = self._classify(key, new)
+        if applied == "needs_reset" and key not in self.stale:
+            self.stale.append(key)
+        if self.last_verify is not None:
+            self.last_verify = {**self.last_verify, "stale": True}
+        return _jsonable({"ok": True, "applied": applied, "old": old, "new": new, "note": note})
 
     # ---- prompts
-    def _registry(self, overrides: Mapping[str, Any] | None = None) -> Any:
-        from memspine.prompts.registry import PromptRegistry
+    def _prompt_kind(self, pid: str) -> str:
+        from ..inspect.step_tune import CODE_PROMPTS, READER_PROMPT
 
-        pcfg = dict(self.base_cfg.get("prompts") or {})
-        ov = {k: dict(v) for k, v in (pcfg.get("overrides") or {}).items()}
-        for pid, text in (self.prompt_overrides if overrides is None else overrides).items():
-            ov.setdefault(pid, {})["body"] = text
-        return PromptRegistry(overrides=ov or None, partials=pcfg.get("partials"), selection=pcfg.get("selection"),
-                              layout_v2=bool(pcfg.get("layout_v2")))
+        return "code" if pid in CODE_PROMPTS else "reader" if pid == READER_PROMPT else "registry"
+
+    def _shipped_text(self, pid: str) -> tuple[str, str | None]:
+        """(text as shipped, system) for any prompt id."""
+        s = self.session
+        kind = self._prompt_kind(pid)
+        if kind == "code":
+            return s._code_prompt_text(pid), None
+        if kind == "reader":
+            return s._reader_prompt(), None
+        p = s._registry().get(pid)
+        sh = s._shipped.get(pid)
+        return (sh["body"] if sh else p.body), (sh["system"] if sh else p.system)
 
     def studio_prompts(self) -> list[dict[str, Any]]:
-        reg = self._registry()
-        return [{"prompt_id": p.id, "role": p.role, "version": p.version, "overridden": p.id in reg._overridden or p.id in self.prompt_overrides}
-                for p in sorted(reg._prompts.values(), key=lambda p: p.id)]
+        s = self._need()
+        return [{"prompt_id": pid, "role": role, "version": ver, "overridden": pid in s.prompt_overrides} for pid, role, ver in s._prompt_ids()]
 
     def studio_prompt_show(self, prompt_id: str, rendered: bool = False) -> dict[str, Any]:
-        reg = self._registry()
-        try:
-            p = reg.get(prompt_id)
-        except Exception as exc:
-            raise StudioError(f"unknown prompt {prompt_id!r}") from exc
-        out: dict[str, Any] = {"prompt_id": prompt_id, "role": p.role, "version": p.version, "system": p.system, "text": p.body,
-                               "overridden": prompt_id in self.prompt_overrides}
+        s = self._need()
+        if not s._known_prompt(prompt_id):
+            raise StudioError(f"unknown prompt {prompt_id!r}")
+        kind = self._prompt_kind(prompt_id)
+        ed = s.prompt_overrides.get(prompt_id)
+        body, system = self._shipped_text(prompt_id)
+        if ed:
+            if kind == "registry":
+                body, system = ed.get("body", body), ed.get("system", system)
+            else:
+                body = ed.get("system") or ed.get("body") or body
+        row = next((r for r in s._prompt_ids() if r[0] == prompt_id), (prompt_id, kind, ""))
+        out: dict[str, Any] = {"prompt_id": prompt_id, "role": row[1], "version": row[2], "kind": kind, "system": system, "text": body,
+                               "overridden": bool(ed)}
         if rendered:
-            ex = None
-            if self.session is not None:
-                for r in reversed(self.session.sink.rows):
-                    pr = r.get("prompt") if isinstance(r.get("prompt"), dict) else {}
-                    if r["event"] == "write.extract.io" and (pr.get("id") or r.get("prompt_id")) == prompt_id and r.get("prompt_text"):
-                        ex = r["prompt_text"]
-                        break
-            out["rendered_example"] = ex
+            seen = [r for r in s.sink.rows if r["event"] == "write.extract.io" and r.get("prompt_text")]
+            out["rendered_example"] = seen[-1]["prompt_text"] if seen and prompt_id in ("structured.window", "window_extract", "structured") else None
         return out
 
     def studio_prompt_set(self, prompt_id: str, text: str) -> dict[str, Any]:
-        self._need()
-        reg = self._registry({})
-        try:
-            base = reg.get(prompt_id)
-        except Exception as exc:
+        s = self._need()
+        if not s._known_prompt(prompt_id):
             return {"ok": False, "diff": "", "error": f"unknown prompt {prompt_id!r}"}
+        kind = self._prompt_kind(prompt_id)
+        old_body, _ = self._shipped_text(prompt_id)
+        prev = s.prompt_overrides.get(prompt_id)
+        if kind == "code":
+            new = {"system": text.rstrip("\n")}
+        elif kind == "reader":
+            new = {"body": text.rstrip("\n")}
+        else:
+            new = s._parse_registry_edit(text)
+        s.prompt_overrides[prompt_id] = new
         try:
-            self._registry({**self.prompt_overrides, prompt_id: text})
+            s._apply_prompt_overrides_live()
         except Exception as exc:
+            if prev is None:
+                s.prompt_overrides.pop(prompt_id, None)
+            else:
+                s.prompt_overrides[prompt_id] = prev
             return {"ok": False, "diff": "", "error": f"{type(exc).__name__}: {exc}"}
-        self.prompt_overrides[prompt_id] = text
-        if prompt_id not in self.stale:
-            self.stale.append(f"prompts.overrides.{prompt_id}")
-        diff = "".join(difflib.unified_diff(base.body.splitlines(True), text.splitlines(True), "default", "override"))
-        return {"ok": True, "diff": diff, "applied": "needs_reset"}
+        s._log_tuning("prompt edit", prompt_id, "(edited)" if prev else "(shipped)", f"{len(text)} chars", "applied to the running engine")
+        diff = "".join(difflib.unified_diff(old_body.splitlines(True), text.splitlines(True), "shipped", "override"))
+        if self.last_verify is not None:
+            self.last_verify = {**self.last_verify, "stale": True}
+        return {"ok": True, "diff": diff, "applied": "live_verified",
+                "note": "used by the next model call of this role; records already written keep their old extraction (studio_rerun_window shows the effect)"}
 
     def studio_prompt_reset(self, prompt_id: str) -> dict[str, Any]:
-        self._need()
-        had = self.prompt_overrides.pop(prompt_id, None) is not None
+        s = self._need()
+        had = prompt_id in s.prompt_overrides
         if had:
-            self.stale.append(f"prompts.overrides.{prompt_id}")
-        return {"ok": True, "was_overridden": had, "applied": "needs_reset" if had else "none"}
+            self.run(s._prompt_reset(prompt_id))
+            if self.last_verify is not None:
+                self.last_verify = {**self.last_verify, "stale": True}
+        return {"ok": True, "was_overridden": had}
 
     # ---- write path
     def _group_write(self, rows: list[dict[str, Any]]) -> dict[str, Any]:
@@ -637,23 +700,17 @@ class StudioAPI:
                 out[k] = v[:MAX_ROWS] + [{"event": "truncated", "n": len(v) - MAX_ROWS}]
         return _jsonable(out)
 
-    async def _insert_turn(self, t: Mapping[str, Any], custom: bool) -> dict[str, Any]:
-        from ..contracts import Turn
-
+    async def _write_one(self, t: Mapping[str, Any], custom: bool) -> dict[str, Any]:
         s = self.session
-        turn = Turn(turn_id=t["turn_id"], session_id=t["session"], speaker=t["speaker"], text=t["text"], timestamp=t.get("ts"))
-        dep = await s.system.insert(turn)
-        dep2 = await s.system._flush_windows(final=False)
-        rows = s._take()
-        self.written.append(t["turn_id"])
+        r = await s._write_turn(dict(t), "say" if custom else "turn")
+        groups = self._group_write(r["rows"])
         return {"turn_id": t["turn_id"], "custom": custom, "session": t["session"], "speaker": t["speaker"], "text": t["text"],
-                "records": dep.n_records, "record_ids": [str(i) for i in dep.record_ids],
-                "model_calls": dep.model_calls + (dep2.model_calls if dep2 else 0), "stages": self._group_write(rows)}
+                "records": r["records"], "record_ids": [x["rid"] for x in groups["record"]], "model_calls": r["calls"], "stages": groups}
 
     def _pick_turns(self, spec: Mapping[str, Any]) -> list[dict[str, Any]]:
         s = self.session
         by_id = {t["turn_id"]: t for t in s.turns}
-        done = set(self.written)
+        done = s.written_ids
         mode = spec.get("mode")
         if mode == "turns":
             if spec.get("ids"):
@@ -685,36 +742,45 @@ class StudioAPI:
             return [t for t in s.turns if t["turn_id"] not in done][: 2 * n]
         raise StudioError(f"unknown write mode {mode!r} (say | turns | interaction | session)")
 
-    async def _apply_op(self, op: Mapping[str, Any], collect: bool = True) -> dict[str, Any]:
+    async def _apply_op(self, op: dict[str, Any]) -> dict[str, Any]:
         s = self.session
         kind = op["op"]
         if kind == "say":
-            turns = []
+            turns, resolved = [], []
             for m in op["messages"]:
-                sid = m.get("session") or (s.turns[-1]["session"] if s.turns else "S-custom")
-                ts = m.get("ts") or next((t.get("ts") for t in reversed(s.turns) if t["session"] == sid), None)
-                self._custom += 1
-                t = {"item": self.item, "session": sid, "turn_id": m.get("turn_id") or f"custom:{self._custom}",
-                     "speaker": str(m.get("speaker") or "user"), "ts": ts, "text": str(m["text"])}
-                s.turns.append(t)
-                turns.append(await self._insert_turn(t, True))
+                tid = m.get("turn_id")
+                if not tid:
+                    s._custom_n += 1
+                    tid = f"U{s._custom_n}"
+                    while tid in s.written_ids or s._index_of(tid) is not None:
+                        s._custom_n += 1
+                        tid = f"U{s._custom_n}"
+                sid = m.get("session") or (s.written[-1]["session"] if s.written else (s.turns[0]["session"] if s.turns else "custom"))
+                t = {"item": self.item, "session": sid, "turn_id": tid, "speaker": str(m.get("speaker") or "user"),
+                     "ts": m.get("ts") or s._default_ts(), "text": str(m["text"]), "custom": True}
+                resolved.append({"speaker": t["speaker"], "text": t["text"], "ts": t["ts"], "session": sid, "turn_id": tid})
+                turns.append(await self._write_one(t, True))
+            op["messages"] = resolved  # a replay writes the same ids
             return {"turns": turns, "summary": self._wsummary(turns)}
         if kind == "turns":
-            turns = [await self._insert_turn(t, bool(t.get("custom"))) for t in op["turns"]]
+            turns = [await self._write_one(t, bool(t.get("custom"))) for t in op["turns"]]
             return {"turns": turns, "summary": self._wsummary(turns)}
         if kind == "session":
             sid = op["session"]
-            todo = [t for t in s.turns if t["session"] == sid and t["turn_id"] not in set(self.written)]
-            turns = [await self._insert_turn(t, False) for t in todo]
-            await s.system._flush_windows(final=False)
-            closed = None
-            if s.system._windows_on():
-                await s.system._flush_windows(final=True)
-            else:
-                closed = await s.system._close_sessions()
-            tail = self._group_write(s._take())
+            todo = [t for t in s.turns if t["session"] == sid and t["turn_id"] not in s.written_ids]
+            res = await s._write_session(sid, [t for t in s.turns if t["session"] == sid])
+            ids = {t["turn_id"] for t in todo}
+            by_turn: dict[str, list[dict[str, Any]]] = {}
+            tail = []
+            for row in res["rows"]:
+                (by_turn.setdefault(row.get("turn_id"), []) if row.get("turn_id") in ids else tail).append(row)
+            turns = []
+            for t in todo:
+                groups = self._group_write(by_turn.get(t["turn_id"], []))
+                turns.append({"turn_id": t["turn_id"], "custom": False, "session": sid, "speaker": t["speaker"], "text": t["text"],
+                              "records": len(groups["record"]), "record_ids": [x["rid"] for x in groups["record"]], "model_calls": None, "stages": groups})
             summary = self._wsummary(turns)
-            summary.update({"session": sid, "session_close": tail, "closed": _jsonable(closed)})
+            summary.update({"session": sid, "session_close": self._group_write(tail)})
             return {"turns": turns, "summary": summary}
         if kind == "sleep":
             return await self._do_sleep()
@@ -722,7 +788,7 @@ class StudioAPI:
 
     @staticmethod
     def _wsummary(turns: list[dict[str, Any]]) -> dict[str, Any]:
-        return {"turns": len(turns), "records": sum(t["records"] for t in turns), "model_calls": sum(t["model_calls"] for t in turns)}
+        return {"turns": len(turns), "records": sum(t["records"] for t in turns), "model_calls": sum(t["model_calls"] or 0 for t in turns)}
 
     def studio_write(self, mode: str, messages: list[Mapping[str, Any]] | None = None, ids: list[str] | None = None,
                      range: Any = None, n: int | None = None, session: Any = None) -> dict[str, Any]:  # noqa: A002
@@ -733,51 +799,43 @@ class StudioAPI:
                 raise StudioError("mode=say needs messages[{speaker, text, ts?, session?}]")
             op = {"op": "say", "messages": [dict(m) for m in messages]}
             res = self.run(self._apply_op(op))
-            # custom turns carry their assigned ids in the log, so a replay writes the same ids
-            op["messages"] = [{**m, "turn_id": t["turn_id"], "session": t["session"], "ts": next((x.get("ts") for x in s.turns if x["turn_id"] == t["turn_id"]), None)}
-                              for m, t in zip(op["messages"], res["turns"], strict=True)]
             self.wlog.append(op)
         elif mode in ("turns", "interaction"):
             picked = self._pick_turns(spec)
             if not picked:
                 raise StudioError("no turns left to write for that selection")
-            res = self.run(self._apply_op({"op": "turns", "turns": picked}))
-            self.wlog.append({"op": "turns", "turns": picked})
+            op = {"op": "turns", "turns": picked}
+            res = self.run(self._apply_op(op))
+            self.wlog.append(op)
         elif mode == "session":
-            sessions = list(OrderedDict.fromkeys(t["session"] for t in s.turns))
-            wanted: list[str]
+            sessions = s._session_ids()
             if ids:
                 wanted = [str(i) for i in ids]
-            elif isinstance(session, int) or (n is not None):
-                k = int(session if session is not None else n)
-                if not 1 <= k <= len(sessions):
-                    raise StudioError(f"session n must be 1..{len(sessions)}")
-                wanted = [sessions[k - 1]]
-            elif isinstance(session, str):
+            elif isinstance(session, str) and session in sessions:
                 wanted = [session]
             else:
-                done = set(self.written)
-                nxt = next((t["session"] for t in s.turns if t["turn_id"] not in done), None)
+                k = int(session if isinstance(session, int) else (n or 1))
+                nxt = next((t["session"] for t in s.turns if t["turn_id"] not in s.written_ids), None)
                 if nxt is None:
                     raise StudioError("no turns left to write")
-                wanted = [nxt]
+                wanted = sessions[sessions.index(nxt): sessions.index(nxt) + max(k, 1)]
             unknown = [w for w in wanted if w not in sessions]
             if unknown:
                 raise StudioError(f"unknown session id(s): {unknown} (sessions: {sessions})")
-            allres: dict[str, Any] = {"turns": [], "summary": {"turns": 0, "records": 0, "model_calls": 0, "sessions": []}}
+            res = {"turns": [], "summary": {"turns": 0, "records": 0, "model_calls": 0, "sessions": []}}
             for sid in wanted:
                 op = {"op": "session", "session": sid}
-                res = self.run(self._apply_op(op))
+                part = self.run(self._apply_op(op))
                 self.wlog.append(op)
-                allres["turns"] += res["turns"]
-                for k in ("turns", "records", "model_calls"):
-                    allres["summary"][k] += res["summary"][k]
-                allres["summary"]["sessions"].append({"session": sid, "close": res["summary"].get("session_close"), "closed": res["summary"].get("closed")})
-            res = allres
+                res["turns"] += part["turns"]
+                for k2 in ("turns", "records", "model_calls"):
+                    res["summary"][k2] += part["summary"][k2]
+                res["summary"]["sessions"].append({"session": sid, "close": part["summary"].get("session_close")})
         else:
             raise StudioError(f"unknown write mode {mode!r} (say | turns | interaction | session)")
         res["summary"]["replay_cache_misses"] = len(s._cache.misses) if getattr(s, "_cache", None) is not None else 0
-        self.last_verify = None if self.last_verify is None else {**self.last_verify, "stale": True}
+        if self.last_verify is not None:
+            self.last_verify = {**self.last_verify, "stale": True}
         return _jsonable(res)
 
     async def _do_sleep(self) -> dict[str, Any]:
@@ -837,9 +895,59 @@ class StudioAPI:
             if not text:
                 raise StudioError("a question object needs text")
             s._adhoc += 1
-            return f"adhoc-{s._adhoc}", {"question": text, "gold": spec.get("gold"), "category": spec.get("category", "adhoc"),
-                                         "gold_turns": [str(g) for g in spec.get("turns") or spec.get("gold_turns") or []]}
-        return s._find_question(str(spec))
+            qid = f"adhoc-{s._adhoc}"
+            while qid in s.questions:
+                s._adhoc += 1
+                qid = f"adhoc-{s._adhoc}"
+            q = {"question": text, "gold": spec.get("gold"), "category": spec.get("category", "adhoc"), "custom": True,
+                 "gold_turns": [str(g) for g in spec.get("turns") or spec.get("gold_turns") or []]}
+            s.questions[qid] = q
+        else:
+            qid, q = s._find_question(str(spec))
+        if q.get("custom"):
+            self.custom_q[qid] = q
+        return qid, q
+
+    def _expand(self, spec: Any) -> list[Any]:
+        """A question set: qids / texts / {text, gold, turns} in a list, or one string: a qid, ``all``, ``cat:<n>``
+        (LoCoMo category n), ``<category>[:count]``, or a slice name (a json in evals/analysis or a path)."""
+        s = self.session
+        qs = s.questions
+        if spec in (None, "", "all"):
+            return list(qs)
+        if isinstance(spec, Mapping):
+            return [spec]
+        if isinstance(spec, list | tuple):
+            return [x for x in spec]
+        if not isinstance(spec, str):
+            raise StudioError("questions must be a list, a qid, a slice name, 'all', 'cat:<n>' or '<category>[:n]'")
+        if spec in qs:
+            return [spec]
+        low = spec.strip().lower()
+        if low.startswith("cat:"):
+            want = low[4:].strip()
+            found = [k for k, q in qs.items() if str(q.get("category")).lower() in (want, f"cat{want}", want.removeprefix("cat"))]
+            if not found:
+                raise StudioError(f"no question in category {want!r}")
+            return found
+        for cand in (Path(spec), EVALS / "analysis" / spec, EVALS / "analysis" / f"{spec}.json"):
+            try:
+                ok = cand.is_file()
+            except OSError:
+                ok = False
+            if ok:
+                raw = json.loads(cand.read_text(encoding="utf-8"))
+                ids = list(raw.get("query_ids") or []) or list(raw.get("category") or {})
+                out = [i.split("/", 1)[1] if "/" in i else i for i in ids if "/" not in i or i.split("/", 1)[0] == self.item]
+                out = [i for i in out if i in qs]
+                if not out:
+                    raise StudioError(f"slice {spec!r} has no questions for item {self.item!r}")
+                return out
+        cat, _, num = spec.partition(":")
+        pool = [k for k, q in qs.items() if str(q.get("category")) == cat]
+        if pool:
+            return pool[: int(num)] if num.isdigit() else pool
+        return [spec]
 
     @staticmethod
     def _gold_path(stage_turns: Mapping[str, list[str] | None], gold: Sequence[str]) -> tuple[list[dict[str, Any]], str | None]:
@@ -910,25 +1018,23 @@ class StudioAPI:
             "headers": headers, "packed": [{"turn": e.turn_id, "gold": e.turn_id in gold} for e in ctx.evidence],
             "context": ctx.text[:400] if brief else ctx.text, "context_tokens": ctx.tokens, "truncated": bool(ctx.truncated),
             "answer": answer, "verdict": verdict, "gold_in_context": in_ctx, "gold_path": gpath, "first_losing_stage": losing, "ms": round(ms),
+            "funnel": [{"stage": p["stage"], "n": p["n"], "gold_present": len(p["present"]), "gold_total": len(gold)} for p in gpath],
             "_stage_turns": stage_turns,
         }
         return res
 
     def studio_ask(self, questions: Any, detail: str = "full") -> dict[str, Any]:
-        s = self._need()
-        if isinstance(questions, str | Mapping):
-            questions = [questions]
-        if not questions:
-            raise StudioError("questions is empty: pass qids, question text, or {text, gold, turns}")
+        self._need()
+        specs = self._expand(questions)
+        if not specs:
+            raise StudioError("questions is empty: pass qids, question text, {text, gold, turns}, a slice name, 'all' or 'cat:<n>'")
         results = []
-        for spec in questions:
+        for spec in specs:
             res = self.run(self._ask_one(spec, detail))
             self.last_asks[res["qid"]] = res
             results.append({k: v for k, v in res.items() if k != "_stage_turns"})
         summary = [{"qid": r["qid"], "gold_in_context": r["gold_in_context"], "first_losing_stage": r["first_losing_stage"],
                     "correct": self._correct(r)} for r in results]
-        if s.questions and not detail == "brief":
-            pass
         return _jsonable({"results": results, "summary": summary})
 
     @staticmethod
@@ -940,21 +1046,79 @@ class StudioAPI:
 
     # ---- reruns
     def studio_rerun_window(self, window_id: str, commit: bool = False) -> dict[str, Any]:
-        s = self._need()
-        fn = getattr(s, "cmd_rerun_window", None)
-        if fn is None:
-            raise StudioNotImplemented(
-                "studio_rerun_window needs StepSession.cmd_rerun_window (package TI-5b, branch wp/TI-5b); "
-                "until it is merged, change the prompt or a write key, then studio_reset(keep_overrides=true, replay=true) and compare with studio_show")
-        raise StudioNotImplemented("studio_rerun_window: TI-5b is merged but its structured result is not wired yet")
+        self._need()
+        return self.run(self._rerun_window(window_id, bool(commit)))
+
+    async def _rerun_window(self, window_id: str, commit: bool) -> dict[str, Any]:
+        from types import SimpleNamespace
+
+        from memspine.observability import tap
+        from memspine.workers import windows as W
+
+        s = self.session
+        members = next((r for r in s.sink.rows if r["event"] == "write.window.members" and r.get("window_id") == window_id
+                        and r.get("member_record_ids")), None)
+        if members is None:
+            ids = sorted({str(r.get("window_id")) for r in s.sink.rows if r["event"] == "write.window.members" and r.get("window_id")})
+            raise StudioError(f"no window {window_id!r} (windows so far: {', '.join(ids) or 'none'})", "not_found")
+        pipe = getattr(s.system._engine, "_windows", None)
+        if pipe is None:
+            raise StudioError("this arm has no window write (write.window_extract is off)")
+        before = s._window_view(s._window_rows(s.sink.rows, window_id))
+        recs = {str(r.record_id): r for r in await s._records()}
+        ids = [str(x) for x in members["member_record_ids"]]
+        records = [recs[i] for i in ids if i in recs]
+        if not records:
+            raise StudioError("the window's records are gone from the store")
+        scratch = type(s.sink)()
+        job = W._Job(namespace=self.item, window=SimpleNamespace(session=members.get("session"), turns=[SimpleNamespace(record_id=i) for i in ids],
+                                                                 reason="rerun", tokens=0))
+        saved = (tap._SINK, list(tap._EXTRA_SINKS), pipe._cache)
+        tap._SINK, tap._EXTRA_SINKS[:] = None, [scratch]
+        pipe._cache = None
+        prepared = None
+        try:
+            with s.system._scope(phase="rerun", window_id=window_id), tap.request("write", rerun=True):
+                prepared = await pipe._prepare_records(self.item, job, records, strict=False)
+                if commit and prepared is not None:
+                    await pipe._commit_job(self.item, pipe._store(self.item), prepared)
+        finally:
+            tap._SINK = saved[0]
+            tap._EXTRA_SINKS[:] = saved[1]
+            pipe._cache = saved[2]
+        after = s._window_view(scratch.rows)
+
+        def by_text(view: dict[str, dict[str, Any]]) -> dict[str, tuple[str, dict[str, Any]]]:
+            return {" ".join(str(v["text"] or k).lower().split()): (k, v) for k, v in view.items()}
+
+        b, a = by_text(before), by_text(after)
+        added = [a[t][1]["text"] for t in a if t not in b]
+        removed = [b[t][1]["text"] for t in b if t not in a]
+        changed, stage_changes, verdict_changes = [], [], []
+        for t in a:
+            if t in b:
+                vb, va = b[t][1], a[t][1]
+                delta = s._stage_delta(vb, va)
+                if delta or vb["integrate"] != va["integrate"]:
+                    changed.append(va["text"])
+                for st, (x, y) in delta.items():
+                    stage_changes.append({"text": va["text"], "stage": st, "before": x, "after": y})
+                if vb["integrate"] != va["integrate"]:
+                    verdict_changes.append({"text": va["text"], "before": vb["integrate"], "after": va["integrate"]})
+        io_rows = [_clean(r) for r in scratch.rows if r["event"] == "write.extract.io"][:1]
+        s._log_tuning("rerun window", window_id, f"{len(before)} envelope(s)", f"{len(after)} envelope(s)",
+                      f"added {len(added)}, removed {len(removed)}, changed {len(changed)}" + ("; committed" if commit else ""))
+        return _jsonable({"window_id": window_id, "turns": len(records), "committed": commit, "produced": prepared is not None,
+                          "diff": {"items_before": len(before), "items_after": len(after), "items_added": added, "items_removed": removed,
+                                   "items_changed": changed, "stage_changes": stage_changes, "verdict_changes": verdict_changes},
+                          "extract_io": io_rows[0] if io_rows else None,
+                          "note": "integration is judged against the live store, which already holds this window's first run"})
 
     def studio_rerun_ask(self, q: Any) -> dict[str, Any]:
         self._need()
         qid, _ = self._question(q)
         before = self.last_asks.get(qid)
-        if before is None:
-            before = None
-        after = self.run(self._ask_one(q if isinstance(q, Mapping) else qid, "full"))
+        after = self.run(self._ask_one(qid, "full"))
         self.last_asks[qid] = after
         diff = self._diff_asks(before, after)
         strip = lambda r: None if r is None else {k: v for k, v in r.items() if k != "_stage_turns"}  # noqa: E731
@@ -982,12 +1146,11 @@ class StudioAPI:
                 "changed": bool(ap ^ bp) or bool(stage_changes) or before.get("answer") != after.get("answer")}
 
     def studio_sweep(self, key: str, values: list[Any], questions: Any) -> dict[str, Any]:
-        self._need()
+        s = self._need()
         if not values:
             raise StudioError("values is empty")
-        if isinstance(questions, str | Mapping):
-            questions = [questions]
-        original = self.overrides.get(key, "__none__")
+        specs = self._expand(questions)
+        original = s.overrides.get(key, "__none__")
         table = []
         try:
             for value in values:
@@ -995,23 +1158,30 @@ class StudioAPI:
                 if not res.get("ok"):
                     table.append({"value": value, "error": res.get("error")})
                     continue
-                if res["applied"] != "live":
-                    table.append({"value": value, "error": "not a live key: write-path sweeps need studio_reset(replay=true) per value; use studio_set + studio_reset"})
+                if res["applied"] == "needs_reset":
+                    table.append({"value": value, "applied": "needs_reset",
+                                  "error": "a write-path key: sweep it with studio_set + studio_reset(replay=true) + studio_ask per value"})
                     continue
                 rows = []
-                for spec in questions:
+                for spec in specs:
                     r = self.run(self._ask_one(spec, "brief"))
-                    rows.append({"qid": r["qid"], "gold_found": r["gold_in_context"], "first_losing_stage": r["first_losing_stage"], "correct": self._correct(r)})
+                    rows.append({"qid": r["qid"], "gold_found": r["gold_in_context"], "first_losing_stage": r["first_losing_stage"], "correct": self._correct(r),
+                                 "packed": [p["turn"] for p in r["packed"]]})
                 found = [x["gold_found"] for x in rows if x["gold_found"] is not None]
                 corr = [x["correct"] for x in rows if x["correct"] is not None]
-                table.append({"value": value, "gold_found": sum(found), "n": len(rows), "first_losing_stage": [x["first_losing_stage"] for x in rows],
+                table.append({"value": value, "applied": res["applied"], "gold_found": sum(found), "n": len(rows),
+                              "first_losing_stage": [x["first_losing_stage"] for x in rows],
                               "correct": sum(corr) if corr else None, "per_question": rows})
+            packs = {json.dumps([x["packed"] for x in r.get("per_question", [])]) for r in table if "per_question" in r}
+            note = None
+            if len(packs) == 1 and len(table) > 1:
+                note = "every value gave the same packed context: the key may be bound at engine start (applied is live_unverified) or irrelevant to these questions"
         finally:
             if original == "__none__":
                 self.studio_unset(key)
             else:
                 self.studio_set(key, original)
-        return _jsonable({"key": key, "table": table})
+        return _jsonable({"key": key, "table": table, "note": note})
 
     # ---- inspection
     def studio_show(self, id: str) -> dict[str, Any]:  # noqa: A002
@@ -1089,19 +1259,24 @@ class StudioAPI:
 
     # ---- export / screen
     def studio_export_arm(self, name: str) -> dict[str, Any]:
-        self._need()
+        s = self._need()
         if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,60}", name or ""):
             raise StudioError("name must be letters, digits, '_', '.', '-' (max 60)")
         from ..inspect import step
 
         arms = self.arms_dir or step.ARMS_DIR
-        arms.mkdir(parents=True, exist_ok=True)
-        cfg = self._effective_cfg()
+        s.arms_dir = arms
+        self._sink.seek(0)
+        self._sink.truncate()
+        self.run(s._export_arm(f"studio-{name}"))
         path = arms / f"studio-{name}.json"
-        path.write_text(json.dumps(cfg, indent=1, ensure_ascii=False, sort_keys=False) + "\n", encoding="utf-8")
-        base, eff = _flatten(self.base_cfg), _flatten(cfg)
+        if not path.is_file():
+            raise StudioError(self._sink.getvalue().strip().splitlines()[-1] if self._sink.getvalue().strip() else "export failed")
+        cfg = json.loads(path.read_text(encoding="utf-8"))
+        base, eff = _flatten(self.arm_cfg), _flatten(cfg)
         diff = [{"key": k, "old": base.get(k), "new": eff.get(k)} for k in sorted(set(base) | set(eff)) if base.get(k) != eff.get(k)]
-        return _jsonable({"path": str(path), "arm": f"studio-{name}", "diff_vs_base": diff, "base_arm": self.arm})
+        files = sorted(str(p) for p in (arms / f"studio-{name}.prompts").glob("*")) if (arms / f"studio-{name}.prompts").is_dir() else []
+        return _jsonable({"path": str(path), "arm": f"studio-{name}", "diff_vs_base": diff, "base_arm": self.arm, "prompt_files": files})
 
     def _verify_passed(self) -> tuple[bool, str]:
         v = self.last_verify
@@ -1166,45 +1341,13 @@ class StudioAPI:
         return {"log": logs[-1].name if logs else None, "tail": tail, "ledger_rows": rows, "gpu": self._gpu_state()}
 
     # ---- verify (TS-3)
-    @staticmethod
-    def _parse_questions(spec: Any, questions: Mapping[str, Mapping[str, Any]], item: str) -> list[str]:
-        if spec in (None, "", "all"):
-            return list(questions)
-        if isinstance(spec, list | tuple):
-            out = [str(x) for x in spec]
-        elif isinstance(spec, str):
-            out = []
-            slice_file = None
-            for cand in (Path(spec), EVALS / "analysis" / spec, EVALS / "analysis" / f"{spec}.json"):
-                if cand.is_file():
-                    slice_file = cand
-                    break
-            if slice_file is not None:
-                raw = json.loads(slice_file.read_text(encoding="utf-8"))
-                ids = list(raw.get("query_ids") or []) or [k for k in (raw.get("category") or {})]
-                out = [i.split("/", 1)[1] if "/" in i and i.split("/", 1)[0] == item else i for i in ids if "/" not in i or i.split("/", 1)[0] == item]
-            else:
-                cat, _, num = spec.partition(":")
-                pool = [q for q, v in questions.items() if str(v.get("category")) == cat]
-                out = pool[: int(num)] if num.isdigit() else pool
-        else:
-            raise StudioError("questions must be a list of ids, a slice name, or '<category>[:n]'")
-        missing = [q for q in out if q not in questions]
-        if missing:
-            raise StudioError(f"unknown question id(s): {missing[:5]}")
+    def _verify_qids(self, spec: Any) -> list[str]:
+        out = [self._question(sp)[0] for sp in self._expand(spec)]
         if not out:
             raise StudioError(f"no questions matched {spec!r}")
         return out
 
-    def _dedupe_logs(self) -> None:
-        s = self.session
-        for path, key in ((s.d_mem / "results.jsonl", "query_id"), (s.d_trace / "reads.jsonl", "query_id")):
-            if not path.is_file():
-                continue
-            lines = [json.loads(x) for x in path.read_text(encoding="utf-8").splitlines() if x.strip()]
-            last = {r.get(key): i for i, r in enumerate(lines) if r.get("kind", "result") == "result" or "kind" not in r}
-            keep = [r for i, r in enumerate(lines) if r.get("kind") == "manifest" or last.get(r.get(key)) == i]
-            path.write_text("".join(json.dumps(r, default=str) + "\n" for r in keep), encoding="utf-8")
+
 
     def _funnel(self, results: Mapping[str, Mapping[str, Any]], questions: Mapping[str, Mapping[str, Any]]) -> dict[str, dict[str, int]]:
         out: dict[str, dict[str, int]] = {}
@@ -1226,28 +1369,46 @@ class StudioAPI:
             out[qid] = await self._ask_one(qid, "brief")
         return out
 
-    def _baseline_key(self, qids: list[str]) -> str:
-        return _digest([self.data_spec, self.item, self.arm, self.base_cfg, self.mode, self.wlog, qids])
+    def _baseline_key(self, qids: list[str], arm: str | None) -> str:
+        return _digest([self.data_spec, self.item, arm or self.arm, self.arm_cfg, self.mode, self.wlog, qids, {q: self.custom_q[q] for q in qids if q in self.custom_q}])
 
-    def _baseline(self, qids: list[str]) -> dict[str, dict[str, Any]]:
-        key = self._baseline_key(qids)
+    def _baseline(self, qids: list[str], arm: str | None = None) -> dict[str, dict[str, Any]]:
+        """Answers to ``qids`` with no overrides (or under another arm): cached by writes + questions + arm."""
+        key = self._baseline_key(qids, arm)
         if key in self._baselines:
             return self._baselines[key]
         disk = self.out / "baseline_cache" / f"{key}.json"
         if disk.is_file():
-            data = json.loads(disk.read_text(encoding="utf-8"))
-            self._baselines[key] = data
-            return data
-        # sequential: the engine patches process-wide state, so only one session lives at a time
-        saved = (dict(self.overrides), dict(self.prompt_overrides), list(self.stale))
-        self.overrides, self.prompt_overrides = {}, {}
-        try:
-            self.run(self._start_session(replay=True))
-            res = self.run(self._ask_all(qids))
-            data = {q: {k: v for k, v in r.items()} for q, r in res.items()}
-        finally:
-            self.overrides, self.prompt_overrides, self.stale = saved[0], saved[1], saved[2]
-            self.run(self._start_session(replay=True))
+            self._baselines[key] = json.loads(disk.read_text(encoding="utf-8"))
+            return self._baselines[key]
+        s = self.session
+        saved = (dict(s.overrides), copy.deepcopy(s.prompt_overrides), s._base_dump)
+        in_place = arm is None and not s.prompt_overrides and not any(s._needs_rebuild(k) for k in s.overrides)
+        if in_place:
+            # every override is a live read-path key: revert them in the running engine, ask, put them back
+            log = s._log_tuning
+            s._log_tuning = lambda *a, **k: None
+            try:
+                for k in list(saved[0]):
+                    self.run(s.cmd_unset(k))
+                data = self.run(self._ask_all(qids))
+            finally:
+                for k, v in saved[0].items():
+                    self.run(s._set_value(k, v, command="set", quiet=True))
+                s._log_tuning = log
+        else:
+            # a separate session (the engine patches process-wide state, so they never overlap), then the user's again
+            saved_cfg = self.arm_cfg
+            if arm is not None:
+                from ..inspect.step import resolve_arm
+
+                self.arm_cfg = resolve_arm(arm)[1]
+            try:
+                self.run(self._start_session(replay=True, carry=({}, {}, None)))
+                data = self.run(self._ask_all(qids))
+            finally:
+                self.arm_cfg = saved_cfg
+                self.run(self._start_session(replay=True, carry=saved))
         self._baselines[key] = _jsonable(data)
         disk.parent.mkdir(parents=True, exist_ok=True)
         disk.write_text(json.dumps(self._baselines[key], ensure_ascii=False), encoding="utf-8")
@@ -1255,27 +1416,23 @@ class StudioAPI:
 
     def studio_verify(self, questions: Any = None, baseline: Any = True) -> dict[str, Any]:
         s = self._need()
-        qids = self._parse_questions(questions, s.questions, self.item)
+        qids = self._verify_qids(questions)
         if self.stale:
-            self.run(self._start_session(replay=True))
-            s = self.session
+            self.run(s.cmd_reset())
+            s.questions.update(copy.deepcopy(self.custom_q))
+            self.run(self._replay())
             self.stale = []
         no_overrides = not self.overrides and not self.prompt_overrides
         base: dict[str, dict[str, Any]] | None = None
-        if baseline and not no_overrides:
-            base = self._baseline(qids)
+        other_arm = baseline if isinstance(baseline, str) and baseline not in ("", "true", "false") else None
+        if baseline and (not no_overrides or other_arm):
+            base = self._baseline(qids, other_arm)
             s = self.session
         current = self.run(self._ask_all(qids))
         # checks on a saved bundle of what this session did
-        self._dedupe_logs()
         self._sink.seek(0)
         self._sink.truncate()
-        all_turns, done = s.turns, set(self.written)
-        s.turns = [t for t in all_turns if t["turn_id"] in done]  # the bundle covers what was written, not the whole conversation
-        try:
-            self.run(s.cmd_save())
-        finally:
-            s.turns = all_turns
+        self.run(s.cmd_save())
         from ..inspect import checks
 
         bundle = s.out / f"{s.run_id}--bundle"
@@ -1309,7 +1466,7 @@ class StudioAPI:
         funnel = [{"stage": st, "n": cur_f[st]["n"], "survive": cur_f[st]["survive"], "baseline_survive": base_f[st]["survive"]} for st in FUNNEL]
         passed = not errors and counts["broken"] <= counts["fixed"]
         out = {
-            "passed": passed, "questions": qids, "baseline": "none (no overrides)" if base is None else "cached run without overrides",
+            "passed": passed, "questions": qids, "baseline": "none (no overrides)" if base is None else (f"cached run under arm {other_arm}" if other_arm else "cached run without overrides"),
             "checks": {"errors": len(errors), "warnings": len(warnings), "failing": failing, "n": len(results), "bundle": str(bundle)},
             "counts": counts, "funnel": funnel, "per_question": per_q,
         }

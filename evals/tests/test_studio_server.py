@@ -130,6 +130,11 @@ def test_tuning_loop(client: Client) -> None:
 
     ws = client.ok("studio_write", mode="session", n=1)
     assert ws["summary"]["turns"] == 10
+    wids = sorted({e["window_id"] for e in ws["summary"]["sessions"][0]["close"]["window"] if e.get("window_id")})
+    assert wids
+    rw = client.ok("studio_rerun_window", window_id=wids[0])
+    assert rw["committed"] is False and {"items_added", "items_removed", "items_changed", "stage_changes", "verdict_changes"} <= set(rw["diff"])
+    assert client.tool("studio_rerun_window", window_id="nope")["isError"]
     client.ok("studio_write", mode="turns", ids=["D2:1", "D2:2"])
     client.ok("studio_write", mode="interaction", n=1)
     client.ok("studio_write", mode="session", n=3)
@@ -144,6 +149,12 @@ def test_tuning_loop(client: Client) -> None:
     assert {"plan", "legs", "fused", "cuts", "pool", "rerank", "headers", "answer", "verdict"} <= set(r7)
     assert any(x["gold"] for x in r7["legs"]["vector"]) or any(x["gold"] for x in r7["legs"]["lexical"])
     assert {x["qid"] for x in ask["summary"]} == {"q1", "q7"}
+    assert r7["funnel"] and {"stage", "n", "gold_present", "gold_total"} <= set(r7["funnel"][0])
+    qs = client.ok("studio_status")["questions"]
+    assert len(qs) == 8 and {"qid", "category", "question"} <= set(qs[0])
+    cat = client.ok("studio_ask", questions="cat:list", detail="brief")
+    assert cat["results"] and client.ok("studio_ask", questions="list", detail="brief")["results"][0]["qid"] == "q2"
+    assert len(client.ok("studio_ask", questions="all", detail="brief")["results"]) >= 8
     adhoc = client.ok("studio_ask", questions=[{"text": "Where does Bram live?", "gold": "Utrecht", "turns": ["D1:1"]}])
     assert adhoc["results"][0]["qid"].startswith("adhoc-")
 
@@ -153,11 +164,19 @@ def test_tuning_loop(client: Client) -> None:
     assert links["rid"] == shown["rid"] and "supersede_chain" in links
 
     cfg = client.tool("studio_config", diff=True)
-    assert json.loads(cfg["content"][0]["text"]) == []
+    assert all(r["source"] != "override" for r in json.loads(cfg["content"][0]["text"]))  # diff = against the engine defaults
     sset = client.ok("studio_set", key="read.replay_window_before", value=0)
-    assert sset["ok"] and sset["applied"] == "live" and sset["old"] == 1 and sset["new"] == 0
+    assert sset["ok"] and sset["applied"] == "live_unverified" and sset["old"] == 1 and sset["new"] == 0 and "studio_rerun_ask" in sset["note"]
+    keys = [r["key"] for r in json.loads(client.tool("studio_config", prefix="read.assembly.")["content"][0]["text"])]
+    assert keys
+    ver = client.ok("studio_set", key="read.assembly.relative_floor", value=0.2)
+    assert ver["ok"] and ver["applied"] == "live_verified", ver
+    assert client.ok("studio_unset", key="read.assembly.relative_floor")["ok"]
+    rb = client.ok("studio_set", key="read.replay_window_after", value="1", probe=True)
+    assert rb["ok"] and rb["applied"] in ("live_unverified", "live_verified") and rb["probe"] is not None
+    assert client.ok("studio_unset", key="read.replay_window_after")["ok"]
     diff_rows = json.loads(client.tool("studio_config", diff=True)["content"][0]["text"])
-    assert [r["key"] for r in diff_rows] == ["read.replay_window_before"] and diff_rows[0]["source"] == "override"
+    assert [r["key"] for r in diff_rows if r["source"] == "override"] == ["read.replay_window_before"]
     bad = client.ok("studio_set", key="read.no_such_key_at_all", value=1)
     assert bad["ok"] is False and bad["error"]
     after_bad = client.ok("studio_status")

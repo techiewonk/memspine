@@ -23,7 +23,7 @@ Run it by hand to check: `python -m memspine_evals.studio.server [--data demo|PA
 ## Using it from the desktop app
 
 1. Ask Claude to open a session: `studio_open` with `data: "demo"`, `mode: "offline"` (hash embedder, stub model, no network, no GPU). For LoCoMo use `data: "locomo"` (or a path) with `mode: "replay"` and a recorded `cache_dir`, or `live`.
-2. Write: `studio_write` with `say` (your own messages), `turns` (ids, a range or n), `interaction` (n exchanges, 2 turns each) or `session` (n or ids). Each turn comes back grouped by stage: stamp, record, index, window, extract, envelopes, deposits, links.
+2. Write: `studio_write` with `say` (your own messages), `turns` (ids, a range or n), `interaction` (n exchanges, 2 turns each) or `session` (n = the next n sessions from the cursor, or ids). Each turn comes back grouped by stage: stamp, record, index, window, extract, envelopes, deposits, links.
 3. Ask: `studio_ask`. The result shows each leg with gold marked, fusion, cuts, pool, rerank, headers, the packed context, and `first_losing_stage`: the first stage where a gold turn drops out.
 4. Change a knob: `studio_params` (stage) lists the keys with type, choices, range, rebuild scope and the screens that test them. `studio_set` applies it; `studio_rerun_ask` shows before, after and the diff. `studio_sweep` tries several values on a question set.
 5. Verify: `studio_verify` (see below), then `studio_export_arm`, then `studio_screen` for a sample screen.
@@ -33,22 +33,25 @@ Writes are not annotated read-only, so the desktop app may ask you to confirm ea
 
 ### How changes apply
 
-- **Live:** a `read.*` key with no index rebuild (catalogue `rebuild: false`) applies at once: the engine is rebuilt from arm + overrides and the recorded writes are replayed. In `live` mode (real endpoints) replay costs model calls, so such keys are treated as `needs_reset`.
-- **needs_reset:** anything that changes what is written or indexed (write keys, index-scope keys, prompts). Call `studio_reset` with `keep_overrides: true` and `replay: true` to rewrite the same turns under the new setting, or write fresh turns.
-- **Rejected keys:** the engine validates the config. A bad key returns `ok: false` with the error and the session is restored.
-- **Offline caveat:** `offline` swaps the embedder for the hash embedder and turns the reranker off, whatever the arm says.
+The server uses the step session's own tuning (`step_tune.py`, package TI-5b): a set is applied to the running engine without a rebuild when the catalogue says no index rebuild is needed. `studio_set` never claims more than it has confirmed. `applied` is one of:
+
+- **`live_verified`:** the engine's live config object shows the new value AND the key is one the session rebinds on every set (`read.assembly.*`, `read.scoring.*`, `read.compression.*`). With `probe: true`, a change in the last asked question's answer also verifies the key.
+- **`live_unverified`:** accepted, and the engine config may show it, but the key may be bound when the engine starts (TI-5b saw `rrf_k`, fusion, replay-window keys and `candidate_pool` do nothing on the demo). Confirm with `studio_rerun_ask` (compare before and after) or `studio_set` with `probe: true`; if nothing changes, `studio_reset`. `studio_sweep` notes when every value gave the same packed context.
+- **`needs_reset`:** the catalogue marks the key as needing a rebuild (write and index scope). Call `studio_reset` with `keep_overrides: true` and `replay: true` to rewrite the same turns under the new setting.
+
+Prompts (registry prompts, the code-constant prompts and `reader.qa`) apply to the next model call of that role, so `studio_prompt_set` returns `live_verified`. Records already written keep their old extraction: use `studio_rerun_window` to see what the new prompt would extract. A rejected key returns `ok: false` with the schema error and changes nothing. `offline` swaps the embedder for the hash embedder and turns the reranker off, whatever the arm says.
 
 ### Verify (TS-3)
 
 `studio_verify(questions, baseline)` runs, in this order:
 
-1. If the baseline for these questions is not cached, it closes the session, rebuilds it with no overrides, replays the writes, asks the questions and caches the answers (memory plus `<out>/baseline_cache/`), then restores your session.
+1. If the baseline for these questions is not cached, it is computed and cached (memory plus `<out>/baseline_cache/`). When every override is a live read-path key, the overrides are reverted in the running engine, the questions asked, and the overrides put back. Otherwise (a write-path key or a prompt edit) a separate session is built with no overrides, the writes are replayed, and your session is rebuilt afterwards. `baseline: "<arm>"` compares with that arm instead.
 2. It asks the same questions under the current overrides.
 3. It saves a bundle of what the session wrote and runs the `inspect.checks` invariants over it.
 
 It returns `checks {errors, warnings, failing[]}`, `counts {fixed, broken, unchanged}`, a `funnel` (per stage, how many questions keep all their gold turns, with the baseline beside it) and `per_question`. A question is correct when the judge scored it, else when all its gold turns are in the packed context. `passed` means 0 check errors and `broken <= fixed`. Any later write, `set`, `unset` or prompt change makes the verify stale.
 
-`questions` takes a list of ids, a slice name (a json in `evals/analysis/` or a path; its query ids for the open item), or `<category>[:n]`. Default: all questions of the item.
+`questions` (also for `studio_ask` and `studio_sweep`) takes a list of ids, texts or `{text, gold, turns}`; or one string: a qid, `all`, `cat:<n>` (category n), `<category>[:count]`, or a slice name (a json in `evals/analysis/` or a path; its query ids for the open item). Default for verify: all questions of the item.
 
 ## Tool reference
 
@@ -56,21 +59,21 @@ Read-only tools are annotated `readOnlyHint`. Results are structured JSON; `stru
 
 | Tool | Read-only | Input | Output |
 |---|---|---|---|
-| `studio_status` | yes | – | open, session, arm, data, item, mode, cursor, counts, overrides, prompt_overrides, stale, last_verify, gpu |
+| `studio_status` | yes | – | questions[{qid, category, question}], open, session, arm, data, item, mode, cursor, counts, overrides, prompt_overrides, stale, last_verify, gpu |
 | `studio_open` | no | data, item, arm, mode, cache_dir? | status |
 | `studio_reset` | no | keep_overrides, replay? | status |
 | `studio_load_conversation` | no | json | status |
 | `studio_stages` | yes | – | `[{stage_id, name, path, file_function, events[], gap, n_params}]` (86 stages; path write/sleep/read) |
 | `studio_params` | yes | stage | `{stage_id, keys[{key, value, default, type, choices/range, description, effect, rebuild, rebuild_scope, screens[]}], prompts[], models[]}` from `docs/v2/data/stage_params.json` |
 | `studio_config` | yes | prefix?, diff? | `[{key, value, default, source}]` |
-| `studio_set` / `studio_unset` | no | key, value / key | `{ok, applied: live/needs_reset, old, new, error?}` |
+| `studio_set` / `studio_unset` | no | key, value, probe? / key | `{ok, applied: live_verified/live_unverified/needs_reset, old, new, note, error?}` |
 | `studio_prompts` | yes | – | `[{prompt_id, role, version, overridden}]` |
 | `studio_prompt_show` | yes | prompt_id, rendered? | `{prompt_id, text, system, rendered_example?}` |
 | `studio_prompt_set` / `studio_prompt_reset` | no | prompt_id, text / prompt_id | `{ok, diff}` / `{ok}` |
 | `studio_write` | no | mode + messages / ids / range / n / session | `{turns[{turn_id, custom, stages{...}}], summary}` |
 | `studio_sleep` | no | – | `{stages[{stage, items[], end}], pre, model_calls}` |
 | `studio_ask` | no | questions, detail | `{results[{qid, plan, legs, fused, cuts, pool, rerank, headers, packed, context, answer, verdict, gold_path[], first_losing_stage}], summary[]}` |
-| `studio_rerun_window` | no | window_id, commit? | needs TI-5b (see below) |
+| `studio_rerun_window` | no | window_id, commit? | `{diff{items_added, items_removed, items_changed, stage_changes[], verdict_changes[]}, extract_io}`; scratch unless `commit` |
 | `studio_rerun_ask` | no | q | `{before, after, diff}` |
 | `studio_sweep` | no | key, values[], questions | `{table[{value, gold_found, first_losing_stage, correct}]}` (live keys) |
 | `studio_show` | yes | id | a record, window or envelope occurrence |
@@ -93,6 +96,6 @@ Read-only tools are annotated `readOnlyHint`. Results are structured JSON; `stru
 
 ## Known gaps
 
-- `studio_rerun_window` needs the window re-run of package TI-5b (`StepSession` tuning commands). Until it is wired it returns `not_implemented`; the workaround is a prompt or write-key change, `studio_reset(keep_overrides, replay)`, then `studio_show` on the new window.
-- `studio_sweep` covers live keys only; sweep a write-path key with `studio_set`, `studio_reset(replay)` and `studio_ask` per value.
-- `windows_open` in the status counts is not exposed by the engine yet and reads `null`.
+- `studio_sweep` covers keys that apply without a rebuild; sweep a write-path key with `studio_set`, `studio_reset(replay)` and `studio_ask` per value.
+- The REPL's `skip`, `goto` and `asks` table have no tool of their own: `studio_ask` with `all`, `cat:<n>` or a list covers the table, and `studio_write` with `ids` or `range` covers skip and goto.
+- A rerun of one window is integrated against the live store, which already holds that window's first run, so verdict changes can include coexist noise.
