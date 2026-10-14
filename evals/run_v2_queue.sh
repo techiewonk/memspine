@@ -61,6 +61,9 @@ SLICE_OPB="${SAMPLE_SLICE_OPB:-analysis/sample_slice_opb_60_s20261013.json}"
 if [ -z "$dry" ]; then mkdir -p "$logdir"; touch "$STATE"; fi
 J="--qa-prompt grounded --retry-refusal --judge-guards --judge-date-check"
 B="--memspine-build-sleep --max-model-calls 4000"
+# full LoCoMo (1540 q) and the blind sets on a GC arm: reader + judge + retry (about 3 per question) plus the engine
+# roles of the sleep build exceed the 4000 cap of the 437-question focus runs, so those sets carry a larger cap
+BF="--memspine-build-sleep --max-model-calls 12000"
 OPBD="--dataset op_bench --data data/opbench_src"
 OPB="$OPBD --questions 331"
 OPBF="--item-ids conv-26:Caroline,conv-30:Jon,conv-41:John,conv-42:Joanna"
@@ -109,6 +112,7 @@ run_set() {  # run_set <id> <arm> <ref> <kind> <setcode>   -> sets VERDICT
       pr run.sh --arm "$arm" --run-id "v2-$id-opb" --mode qa --topk 10 $OPB --batch-turns 32 --flags "$of" --force || { VERDICT=RUN_FAILED; return; }
       pr v2_py.sh eval_focus.py "v2-$id-opb" --opb > "$out" 2>&1 || true ;;
     F)
+      [ "$kind" = GC ] && fl="$J $BF"
       pr run.sh --arm "$arm" --run-id "v2-$id-t2" --mode qa --topk 10 --items 1 --max-queries 2 --forensics --batch-turns 32 --flags "$fl" --force || { VERDICT=CHECK_FAILED; return; }
       pr run.sh --arm "$arm" --run-id "v2-$id-full" --mode qa --topk 10 --forensics --batch-turns 32 --flags "$fl" --force || { VERDICT=RUN_FAILED; return; }
       pr v2_py.sh eval_paired.py "v2-$id-full" --ref clean-jina-full --ledger-screen "$id" --ledger-arm "$arm" $LED > "$out" 2>&1 || true ;;
@@ -123,7 +127,9 @@ run_set() {  # run_set <id> <arm> <ref> <kind> <setcode>   -> sets VERDICT
         say "$id: blind reference runs for $BLIND_REF are built once (lazy, about 65 min) if missing"
         pr run_blind_validation.sh "$BLIND_REF" --topk 10 || { VERDICT=RUN_FAILED; return; }
       fi
-      pr run_blind_validation.sh "$arm" --topk 10 --force || { VERDICT=RUN_FAILED; return; }
+      # a GC arm needs its sleep build (and a call cap) on the blind sets too; the J reference above is built without it
+      if [ "$kind" = GC ]; then BLIND_FLAGS="$BF" pr run_blind_validation.sh "$arm" --topk 10 --force || { VERDICT=RUN_FAILED; return; }
+      else pr run_blind_validation.sh "$arm" --topk 10 --force || { VERDICT=RUN_FAILED; return; }; fi
       if [ -n "$reexpose" ]; then
         pr v2_py.sh eval_blind.py "$arm" --ref "$BLIND_REF" --mab-data "$MAB" --reexpose "$reexpose" > "$out" 2>&1 || true
       else

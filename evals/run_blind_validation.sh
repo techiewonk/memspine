@@ -7,6 +7,9 @@
 # BLIND - validation only, never inspect per-question failures for design. Nothing is tuned on
 # these slices; read only the aggregate output of eval_blind.py. (Do not open the run files.)
 #
+# BLIND_FLAGS (env, default empty = unchanged): extra run.sh flags for every run, e.g. a GC arm passes
+#   BLIND_FLAGS="--memspine-build-sleep --max-model-calls 10000" (the sleep stage and a call cap above the questions*3+200 default).
+#
 # Order: 2-question checks first (run ids bv-<arm>-{mab,cm}-chk), then the full slices
 # (bv-<arm>-mab, bv-<arm>-cm). A failed check stops the queue before any full run. Needs the
 # Ollama reader/judge (qa mode) like any run.sh QA run; never start it while another GPU run is live.
@@ -36,7 +39,7 @@ for f in "$mab_split" "$cm_split"; do [ -f "$f" ] || { echo "missing frozen slic
 run() {  # run <run-id> <dataset> <data> <questions> <extra flags> [max-queries-per-item]
   local id=$1 ds=$2 data=$3 q=$4 flags=$5 mq=${6:+--max-queries $6}
   bash run.sh $mq --arm "$arm" --run-id "$id" --mode qa --topk "$topk" --dataset "$ds" \
-    --data "$data" --questions "$q" --flags "$flags" $force
+    --data "$data" --questions "$q" --flags "$flags ${BLIND_FLAGS:-}" $force
 }
 
 # 2-question checks: the first two ids of each slice (item filter by id, 1 question per item).
