@@ -1,0 +1,253 @@
+{
+ "conversation_id": "demo-1",
+ "note": "invented demo conversation (Bram, Ilse, Noor, Tomasz); no benchmark text",
+ "sessions": [
+  {
+   "session_id": "D1",
+   "date": "2024-03-02",
+   "turns": [
+    {
+     "turn_id": "D1:1",
+     "speaker": "Bram",
+     "text": "I finally moved to Utrecht last week."
+    },
+    {
+     "turn_id": "D1:2",
+     "speaker": "Ilse",
+     "text": "Congratulations! Are you still working at the bakery?"
+    },
+    {
+     "turn_id": "D1:3",
+     "speaker": "Bram",
+     "text": "Yes, I bake sourdough at Korenbloem every morning."
+    },
+    {
+     "turn_id": "D1:4",
+     "speaker": "Ilse",
+     "text": "I started cello lessons with Noor's teacher."
+    },
+    {
+     "turn_id": "D1:5",
+     "speaker": "Bram",
+     "text": "Noor? Our friend Noor, the one we call Nono?"
+    },
+    {
+     "turn_id": "D1:6",
+     "speaker": "Ilse",
+     "text": "That's the one. Nono recommended the teacher."
+    },
+    {
+     "turn_id": "D1:7",
+     "speaker": "Bram",
+     "text": "Tomasz asked me to join the Sunday hike with the climbing club."
+    },
+    {
+     "turn_id": "D1:8",
+     "speaker": "Ilse",
+     "text": "Which Sunday?"
+    },
+    {
+     "turn_id": "D1:9",
+     "speaker": "Bram",
+     "text": "The twelfth of May, if the weather holds."
+    },
+    {
+     "turn_id": "D1:10",
+     "speaker": "Ilse",
+     "text": "She said the forecast looks fine."
+    }
+   ]
+  },
+  {
+   "session_id": "D2",
+   "date": "2024-04-20",
+   "turns": [
+    {
+     "turn_id": "D2:1",
+     "speaker": "Noor",
+     "text": "Hi both, Nono here with news: I adopted a greyhound called Pepper."
+    },
+    {
+     "turn_id": "D2:2",
+     "speaker": "Bram",
+     "text": "Pepper is a great name! I adopted nothing, but I bought a bicycle."
+    },
+    {
+     "turn_id": "D2:3",
+     "speaker": "Ilse",
+     "text": "Bram bought a red bicycle at the market on Vrijdag."
+    },
+    {
+     "turn_id": "D2:4",
+     "speaker": "Noor",
+     "text": "Ilse, how is the cello going?"
+    },
+    {
+     "turn_id": "D2:5",
+     "speaker": "Ilse",
+     "text": "I play Bach suites now and I practise every evening."
+    },
+    {
+     "turn_id": "D2:6",
+     "speaker": "Tomasz",
+     "text": "Bram, correction on the hike: it is the nineteenth of May, not the twelfth."
+    },
+    {
+     "turn_id": "D2:7",
+     "speaker": "Bram",
+     "text": "Thanks Tomasz, nineteenth then."
+    },
+    {
+     "turn_id": "D2:8",
+     "speaker": "Tomasz",
+     "text": "Also I now run the bakery on Mondays, so ask me about shifts."
+    },
+    {
+     "turn_id": "D2:9",
+     "speaker": "Noor",
+     "text": "He loved it."
+    },
+    {
+     "turn_id": "D2:10",
+     "speaker": "Ilse",
+     "text": "Noor, bring Pepper to the hike if she is allowed."
+    }
+   ]
+  },
+  {
+   "session_id": "D3",
+   "date": "2024-06-08",
+   "turns": [
+    {
+     "turn_id": "D3:1",
+     "speaker": "Bram",
+     "text": "The hike was wonderful, we reached the ridge by noon."
+    },
+    {
+     "turn_id": "D3:2",
+     "speaker": "Ilse",
+     "text": "I left the bakery job and now I teach cello at a school."
+    },
+    {
+     "turn_id": "D3:3",
+     "speaker": "Noor",
+     "text": "Ilse changed jobs? I thought she was a translator."
+    },
+    {
+     "turn_id": "D3:4",
+     "speaker": "Ilse",
+     "text": "I was a translator until January, then I moved to teaching."
+    },
+    {
+     "turn_id": "D3:5",
+     "speaker": "Bram",
+     "text": "I quit the bakery too. I now work at a cycle shop called Spaakwerk."
+    },
+    {
+     "turn_id": "D3:6",
+     "speaker": "Tomasz",
+     "text": "Sad to lose you, Bram. Who will bake the sourdough?"
+    },
+    {
+     "turn_id": "D3:7",
+     "speaker": "Bram",
+     "text": "Tomasz, Noor offered to cover the sourdough."
+    },
+    {
+     "turn_id": "D3:8",
+     "speaker": "Noor",
+     "text": "Pepper met a hedgehog in the garden yesterday."
+    },
+    {
+     "turn_id": "D3:9",
+     "speaker": "Ilse",
+     "text": "We are all meeting at Noor's on the fifteenth of June."
+    },
+    {
+     "turn_id": "D3:10",
+     "speaker": "Tomasz",
+     "text": "I will bring the rye bread."
+    }
+   ]
+  }
+ ],
+ "questions": [
+  {
+   "query_id": "q1",
+   "category": "single_hop",
+   "question": "Where does Bram live?",
+   "gold": "Utrecht",
+   "gold_turns": [
+    "D1:1"
+   ]
+  },
+  {
+   "query_id": "q2",
+   "category": "list",
+   "question": "Which pets or animals are named in the conversation?",
+   "gold": "Pepper the greyhound, a hedgehog",
+   "gold_turns": [
+    "D2:1",
+    "D3:8"
+   ]
+  },
+  {
+   "query_id": "q3",
+   "category": "temporal",
+   "question": "On which date was the hike held after the correction?",
+   "gold": "the nineteenth of May 2024",
+   "gold_turns": [
+    "D1:7",
+    "D2:6"
+   ]
+  },
+  {
+   "query_id": "q4",
+   "category": "two_person",
+   "question": "What do Bram and Ilse both do for a living now?",
+   "gold": "Bram works at a cycle shop; Ilse teaches cello",
+   "gold_turns": [
+    "D3:2",
+    "D3:5"
+   ]
+  },
+  {
+   "query_id": "q5",
+   "category": "nickname",
+   "question": "Who is Nono?",
+   "gold": "Noor",
+   "gold_turns": [
+    "D1:5",
+    "D2:1"
+   ]
+  },
+  {
+   "query_id": "q6",
+   "category": "pronoun",
+   "question": "Who said the forecast looks fine?",
+   "gold": "Noor (unclear from pronoun-only turn)",
+   "gold_turns": [
+    "D1:10"
+   ]
+  },
+  {
+   "query_id": "q7",
+   "category": "supersede",
+   "question": "Where does Bram work now?",
+   "gold": "at the cycle shop Spaakwerk, no longer the bakery",
+   "gold_turns": [
+    "D1:3",
+    "D3:5"
+   ]
+  },
+  {
+   "query_id": "q8",
+   "category": "temporal",
+   "question": "What was Ilse's job before she taught cello?",
+   "gold": "translator",
+   "gold_turns": [
+    "D3:4"
+   ]
+  }
+ ]
+}
