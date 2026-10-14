@@ -83,7 +83,7 @@ def test_prefs_prompt_follows_silently_and_not_on_unrelated() -> None:
 @pytest.mark.parametrize(
     ("question", "variant"),
     [
-        ("Would Ilse likely have Dr. Seuss books on her bookshelf?", "infer"),
+        ("Would Ilse likely own atlases on her desk?", "infer"),
         ("What might Tomasz's financial status be?", "infer"),
         ("Is it likely that Pieter has friends besides Femke?", "infer"),
         ("When would Ana likely visit Paris?", "plain"),  # a date question stays plain

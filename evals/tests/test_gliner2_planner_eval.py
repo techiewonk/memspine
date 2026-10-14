@@ -29,14 +29,14 @@ def _module():  # type: ignore[no-untyped-def]
 @pytest.mark.parametrize(
     ("question", "mode", "rule"),
     [
-        ("How many children does Melanie have?", "compose", "is_count"),
-        ("What books has Melanie read?", "compose", "is_aggregation"),
+        ("How many children does Bram have?", "compose", "is_count"),
+        ("What books has Bram read?", "compose", "is_aggregation"),
         ("How many months passed between the trips?", "retrieve", "temporal_fact"),
-        ("What was the first concert Caroline went to?", "replay", "is_ordering"),
+        ("What was the first concert Noor went to?", "replay", "is_ordering"),
         ("Why did Jon open a dance studio?", "replay", "replay_cue"),
-        ("How did Melanie feel after the race?", "replay", "replay_cue"),
-        ("When did Caroline go to the support group?", "retrieve", "temporal_fact"),
-        ("Where did Melanie move from?", "retrieve", "default"),
+        ("How did Bram feel after the race?", "replay", "replay_cue"),
+        ("When did Noor go to the support group?", "retrieve", "temporal_fact"),
+        ("Where did Bram move from?", "retrieve", "default"),
     ],
 )
 def test_label_rules(question: str, mode: str, rule: str) -> None:

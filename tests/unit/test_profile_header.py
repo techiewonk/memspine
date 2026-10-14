@@ -34,10 +34,10 @@ async def _seed(eng: Engine) -> list[str]:
     ids = []
     for i, text in enumerate(
         [
-            "Caroline: I go to church every Sunday with my family",
-            "Melanie: I painted a sunset at the lake last week",
-            "Caroline: my faith helped me through the hard year",
-            "Melanie: we went camping with the kids again",
+            "Noor: I go to church every Sunday with my family",
+            "Bram: I painted a sunset at the lake last week",
+            "Noor: my faith helped me through the hard year",
+            "Bram: we went camping with the kids again",
         ]
     ):
         rec = await eng.write(
@@ -45,10 +45,10 @@ async def _seed(eng: Engine) -> list[str]:
         )
         ids.append(rec.record_id)
     await eng._deposit_profile_reflection(
-        "a", "Caroline is religious and values her church community", [ids[0], ids[2]], "s1"
+        "a", "Noor is religious and values her church community", [ids[0], ids[2]], "s1"
     )
     await eng._deposit_profile_reflection(
-        "a", "Melanie loves painting and outdoor family trips", [ids[1], ids[3]], "s1"
+        "a", "Bram loves painting and outdoor family trips", [ids[1], ids[3]], "s1"
     )
     return ids
 
@@ -58,21 +58,21 @@ def _profile(records: list[Any]) -> list[Any]:
 
 
 def test_query_names() -> None:
-    assert query_names("Would Caroline be considered religious?") == ["Caroline"]
-    assert query_names("What might John's financial status be?") == ["John"]
+    assert query_names("Would Noor be considered religious?") == ["Noor"]
+    assert query_names("What might Tomasz's financial status be?") == ["Tomasz"]
     assert query_names("what does she like") == []
 
 
 @pytest.mark.parametrize(
     ("query", "expected"),
     [
-        ("Tell me what Caroline likes", ["Caroline"]),
-        ("Give me Melanie's hobbies", ["Melanie"]),
+        ("Tell me what Noor likes", ["Noor"]),
+        ("Give me Bram's hobbies", ["Bram"]),
         ("Yes, and what about Jon?", ["Jon"]),
-        ("No. When did Gina move?", ["Gina"]),
-        ("I'm curious what Caroline paints", ["Caroline"]),
+        ("No. When did Ilse move?", ["Ilse"]),
+        ("I'm curious what Noor paints", ["Noor"]),
         ("Please list what Dave bought", ["Dave"]),
-        ("Caroline said what to Caroline's sister?", ["Caroline"]),
+        ("Noor said what to Noor's sister?", ["Noor"]),
         ("Summarize everything", []),
         ("Describe the trip", []),
     ],
@@ -94,7 +94,7 @@ async def test_about_block_names_the_person_and_fits(mode: str) -> None:
     try:
         await _seed(eng)
         out = await eng.read(
-            "Would Caroline be considered religious?",
+            "Would Noor be considered religious?",
             namespace="a",
             mode=mode,
             top_k=2,
@@ -103,13 +103,13 @@ async def test_about_block_names_the_person_and_fits(mode: str) -> None:
         [header] = _profile(out.context.records)
         assert out.context.records[out.context.boundary_index] is header
         assert header.content.startswith(constants.PROFILE_MARKER)
-        assert "about Caroline" in header.content
-        assert "Caroline is religious" in header.content
-        assert "Melanie loves painting" not in header.content  # names Caroline only
+        assert "about Noor" in header.content
+        assert "Noor is religious" in header.content
+        assert "Bram loves painting" not in header.content  # names Noor only
         assert estimate_tokens(header.content) <= int(400 * 0.15)
         # The shown insight is not repeated in the main part.
         rest = " ".join(r.content for r in out.context.records if r is not header)
-        assert "Caroline is religious" not in rest
+        assert "Noor is religious" not in rest
     finally:
         await eng.stop()
 
@@ -124,7 +124,7 @@ async def test_without_a_name_the_most_relevant_insights_are_used() -> None:
         )
         [header] = _profile(out.context.records)
         assert " about " not in header.content.splitlines()[0]
-        assert "Melanie loves painting" in header.content
+        assert "Bram loves painting" in header.content
     finally:
         await eng.stop()
 
@@ -136,8 +136,8 @@ async def test_profile_follows_the_cards_header() -> None:
         ids = await _seed(eng)
         await eng._deposit_mined_fact(
             "a",
-            "Caroline event: Caroline goes to church every Sunday",
-            "Caroline",
+            "Noor event: Noor goes to church every Sunday",
+            "Noor",
             "event",
             ids,
             T0,
@@ -145,7 +145,7 @@ async def test_profile_follows_the_cards_header() -> None:
             kind="event",
         )
         out = await eng.read(
-            "Would Caroline be considered religious?",
+            "Would Noor be considered religious?",
             namespace="a",
             mode="retrieve",
             budget_tokens=600,
@@ -166,16 +166,16 @@ async def test_quarantined_insight_never_shows() -> None:
         await _seed(eng)
         storage = eng._require_started()
         [insight] = [
-            r for r in await storage.list_records("a", "reflective") if "Caroline" in r.content
+            r for r in await storage.list_records("a", "reflective") if "Noor" in r.content
         ]
         await eng.quarantine(insight.record_id, namespace="a")
         out = await eng.read(
-            "Would Caroline be considered religious?",
+            "Would Noor be considered religious?",
             namespace="a",
             mode="retrieve",
             budget_tokens=400,
         )
-        assert all("Caroline is religious" not in h.content for h in _profile(out.context.records))
+        assert all("Noor is religious" not in h.content for h in _profile(out.context.records))
     finally:
         await eng.stop()
 
@@ -186,7 +186,7 @@ async def test_off_is_byte_identical(mode: str) -> None:
     await eng.start()
     try:
         await _seed(eng)
-        query = "Would Caroline be considered religious?"
+        query = "Would Noor be considered religious?"
         out = await eng.read(query, namespace="a", mode=mode, top_k=2, budget_tokens=400)
         plain = await eng._read_routed(query, "a", mode, eng._reply_budget(400), 2, 2, 3)
         assert [(r.record_id, r.content) for r in out.context.records] == [

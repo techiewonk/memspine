@@ -370,7 +370,7 @@
    "qid": "0-151",
    "tag": "evidence_label_error",
    "borderline": true,
-   "reason": "gold 'nature walk or hike' rests on the photo in D18:15 (caption: a woman and a child walking on a trail), which the labelled turn D18:17 ('we just did it yesterday ... relax after the road trip') refers to; D18:15 is missing from the evidence list. D18:15 was in the context and the reader still answered camping (D18:19 mentions camping trips), so the system is also wrong",
+   "reason": "gold 'nature walk or hike' rests on the photo in D18:15 (caption: a family outdoors, omitted), which the labelled turn D18:17 ('we just did it yesterday ... relax after the road trip') refers to; D18:15 is missing from the evidence list. D18:15 was in the context and the reader still answered camping (D18:19 mentions camping trips), so the system is also wrong",
    "source": "R2-5 review 2026-10-10"
   },
   {

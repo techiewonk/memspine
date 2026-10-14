@@ -16,7 +16,7 @@ from memspine.core.rule_edges import (
 
 
 def test_strip_speaker() -> None:
-    assert strip_speaker("Caroline: I moved") == "I moved"
+    assert strip_speaker("Noor: I moved") == "I moved"
     assert strip_speaker("no speaker here") == "no speaker here"
 
 
@@ -74,8 +74,8 @@ def test_effect_clause_links_from_the_earlier_turn() -> None:
 
 def test_answer_to_a_why_question_is_its_cause() -> None:
     turns = [
-        ("q", "Mel: That agency looks great! What made you pick it?"),
-        ("a", "Caroline: They support LGBTQ+ folks with adoption."),
+        ("q", "Mel: That firm looks solid! Why did you choose it?"),
+        ("a", "Noor: They support LGBTQ+ folks with adoption."),
         ("x", "Mel: Lovely."),
     ]
     links = causal_links(turns)
@@ -107,10 +107,10 @@ def test_lookback_and_min_overlap_bound_the_search() -> None:
 @pytest.mark.parametrize(
     ("query", "expected"),
     [
-        ("Why did Caroline choose the agency?", True),
+        ("Why did Noor choose the agency?", True),
         ("What made Jon start a dance studio?", True),
         ("How come she moved?", True),
-        ("When did Caroline move?", False),
+        ("When did Noor move?", False),
     ],
 )
 def test_is_why_question(query: str, expected: bool) -> None:
@@ -118,11 +118,11 @@ def test_is_why_question(query: str, expected: bool) -> None:
 
 
 def test_kinship_relations() -> None:
-    text = "Caroline: My sister Ana visited, and Bob, my boss, called. Tia is my mentor."
+    text = "Noor: My sister Ana visited, and Bob, my boss, called. Tia is my mentor."
     assert kinship_relations(text) == [
-        KinshipRelation("Ana", "sister", "caroline"),
-        KinshipRelation("Bob", "boss", "caroline"),
-        KinshipRelation("Tia", "mentor", "caroline"),
+        KinshipRelation("Ana", "sister", "noor"),
+        KinshipRelation("Bob", "boss", "noor"),
+        KinshipRelation("Tia", "mentor", "noor"),
     ]
 
 

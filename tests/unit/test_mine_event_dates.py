@@ -17,9 +17,9 @@ from memspine.prompts.models import ExtractedFact
 
 T0 = datetime(2023, 5, 8, 13, 0, tzinfo=UTC)  # a Monday
 TURNS = [
-    "Melanie: I went camping with the kids last Friday",
-    "Caroline: that is great, how was it",
-    "Melanie: lovely, and I signed up for a pottery class",
+    "Bram: I went camping with the kids last Friday",
+    "Noor: that is great, how was it",
+    "Bram: lovely, and I signed up for a pottery class",
 ]
 
 
@@ -60,21 +60,21 @@ def _mined() -> list[ExtractedFact]:
     return [
         # The miner left the relative phrase in: the rules resolve it (Fri 2023-05-05).
         ExtractedFact(
-            entity="Melanie",
+            entity="Bram",
             attribute="camping",
-            value="Melanie went camping with her kids last Friday",
+            value="Bram went camping with her kids last Friday",
             turns=[1, 2],
         ),
         # Cited, dated by the miner, no phrase: the miner's date is the happened date.
         ExtractedFact(
-            entity="Melanie",
+            entity="Bram",
             attribute="pottery",
-            value="Melanie signed up for a pottery class",
+            value="Bram signed up for a pottery class",
             date="2023-05-08",
             turns=[3],
         ),
         # Uncited and undated: no happened date; parents stay the whole session.
-        ExtractedFact(entity="Caroline", attribute="mood", value="Caroline was supportive"),
+        ExtractedFact(entity="Noor", attribute="mood", value="Noor was supportive"),
     ]
 
 
@@ -95,14 +95,14 @@ async def test_event_dates_and_cited_turns(monkeypatch: pytest.MonkeyPatch) -> N
         assert seen[0].splitlines()[0] == f"[1] [2023-05-08] {TURNS[0]}"
         assert seen[0].splitlines()[2] == f"[3] [2023-05-08] {TURNS[2]}"
         facts = await _facts(eng)
-        camping = facts["Melanie camping"]
+        camping = facts["Bram camping"]
         assert "happened:2023-05-05" in camping.tags
         assert camping.valid_from == datetime(2023, 5, 5, tzinfo=UTC)  # rule-resolved
         assert camping.source.parents == ids[:2]
-        pottery = facts["Melanie pottery"]
+        pottery = facts["Bram pottery"]
         assert "happened:2023-05-08" in pottery.tags
         assert pottery.source.parents == [ids[2]]
-        mood = facts["Caroline mood"]
+        mood = facts["Noor mood"]
         assert not any(t.startswith("happened:") for t in mood.tags)
         assert mood.source.parents == ids
         assert mood.valid_from == T0
@@ -131,7 +131,7 @@ async def test_options_off_keep_transcript_parents_and_tags(
         facts = await _facts(eng)
         assert all(f.source.parents == ids for f in facts.values())
         assert not any(t.startswith("happened:") for f in facts.values() for t in f.tags)
-        assert facts["Melanie camping"].valid_from == T0
+        assert facts["Bram camping"].valid_from == T0
     finally:
         await eng.stop()
 
@@ -153,14 +153,14 @@ async def test_relative_week_applies_to_mined_dates(monkeypatch: pytest.MonkeyPa
     )
 
     async def fake_mine(text: str) -> list[ExtractedFact]:
-        return [ExtractedFact(entity="Melanie", attribute="trip", value="Melanie hiked last week")]
+        return [ExtractedFact(entity="Bram", attribute="trip", value="Bram hiked last week")]
 
     monkeypatch.setattr(eng, "_build_fact_miner", lambda: fake_mine)
     await eng.start()
     try:
         await _write_session(eng)
         await eng.sleep()
-        fact = (await _facts(eng))["Melanie trip"]
+        fact = (await _facts(eng))["Bram trip"]
         assert "happened:2023-05-01..2023-05-07" in fact.tags
         assert fact.valid_from == datetime(2023, 5, 1, tzinfo=UTC)
     finally:
@@ -189,9 +189,9 @@ class _Extract:
             return self.dates_reply
         return (
             "facts:\n"
-            "  - {entity: Melanie, attribute: camping, value: Melanie went camping last Friday}\n"
-            "  - {entity: Melanie, attribute: pottery, value: Melanie joined a pottery class}\n"
-            "  - {entity: Caroline, attribute: mood, value: Caroline was supportive}\n"
+            "  - {entity: Bram, attribute: camping, value: Bram went camping last Friday}\n"
+            "  - {entity: Bram, attribute: pottery, value: Bram joined a pottery class}\n"
+            "  - {entity: Noor, attribute: mood, value: Noor was supportive}\n"
         )
 
 
@@ -215,14 +215,14 @@ async def test_llm_fill_dates_only_the_undated_facts(monkeypatch: pytest.MonkeyP
         [_, dating] = stub.calls
         user = dating[-1]["content"]
         # Only the two facts no rule dated, numbered in the batch.
-        assert "[1] Melanie joined a pottery class" in user
-        assert "[2] Caroline was supportive" in user
+        assert "[1] Bram joined a pottery class" in user
+        assert "[2] Noor was supportive" in user
         assert "camping" not in user.split("facts:", 1)[1]
         facts = await _facts(eng)
-        assert "happened:2023-05-05" in facts["Melanie camping"].tags  # rules, not the LLM
-        assert "happened:2023-04-30" in facts["Melanie pottery"].tags  # the LLM fill
-        assert facts["Melanie pottery"].valid_from == T0  # an LLM date is a tag only
-        assert not any(t.startswith("happened:") for t in facts["Caroline mood"].tags)
+        assert "happened:2023-05-05" in facts["Bram camping"].tags  # rules, not the LLM
+        assert "happened:2023-04-30" in facts["Bram pottery"].tags  # the LLM fill
+        assert facts["Bram pottery"].valid_from == T0  # an LLM date is a tag only
+        assert not any(t.startswith("happened:") for t in facts["Noor mood"].tags)
     finally:
         await eng.stop()
 
@@ -236,8 +236,8 @@ async def test_llm_fill_failure_leaves_facts_undated(monkeypatch: pytest.MonkeyP
         stats = await eng.sleep()
         assert stats["mine_facts"]["facts"] == 3
         facts = await _facts(eng)
-        assert "happened:2023-05-05" in facts["Melanie camping"].tags
-        assert not any(t.startswith("happened:") for t in facts["Melanie pottery"].tags)
+        assert "happened:2023-05-05" in facts["Bram camping"].tags
+        assert not any(t.startswith("happened:") for t in facts["Bram pottery"].tags)
     finally:
         await eng.stop()
 
@@ -330,7 +330,7 @@ async def test_happened_fact_is_not_shifted_twice_at_read(
     against a ``valid_from`` already moved to the event day."""
     from memspine.read.lead import event_day
 
-    turns = [(T0, "Melanie: I went camping yesterday, and hiked last week")]
+    turns = [(T0, "Bram: I went camping yesterday, and hiked last week")]
     mined = [
         ExtractedFact(
             entity="Mel", attribute="camp", value="Mel went camping yesterday", turns=[1]

@@ -20,8 +20,8 @@ from memspine.store.records import MemoryRecord, SourceInfo
 @pytest.mark.parametrize(
     "question",
     [
-        "How many tops have I bought from H&M so far?",
-        "What is the total number of episodes I have watched?",
+        "How many shirts have I bought from Zara so far?",
+        "What is the total number of films I have seen?",
         "How many bikes do I own?",
         "How much have I spent on groceries?",
         "List all the books she read.",
@@ -29,7 +29,7 @@ from memspine.store.records import MemoryRecord, SourceInfo
         "What gifts did Ilse buy?",
         "What kind of books does Bram read?",
         "I read a lot lately. How many books have I finished?",
-        "What is the order of the three trips I took?",
+        "What is the order of the four hikes I did?",
     ],
 )
 def test_intent_fires(question: str) -> None:
@@ -39,15 +39,15 @@ def test_intent_fires(question: str) -> None:
 @pytest.mark.parametrize(
     "question",
     [
-        "What type of camera lens did I purchase most recently?",
+        "What type of desk lamp did I order most recently?",
         "What kind of car did I buy last?",
         "When did Bram sign up for a pottery class?",
         "Why did Noor shut down his bank account?",
-        "How many days ago did I harvest my first herbs?",
+        "How many days ago did I pick my first tomatoes?",
         "What does Femke love most about having turtles?",
         "What is her favourite dish?",
         "Is Oscar Bram's pet?",
-        "Can you remind me of the name of the last venue you recommended in the list of venues?",
+        "Could you tell me the name of the last cafe you suggested in the list of cafes?",
     ],
 )
 def test_intent_quiet(question: str) -> None:

@@ -40,8 +40,8 @@ CALIBRATION = Path(__file__).resolve().parents[1] / "analysis" / "judge_calibrat
         # containment with extra detail; a third-person pronoun in the gold is not content
         (
             "What setback did Bram face?",
-            "He got hurt and had to take a break from rowing.",
-            "In the spring Bram got hurt and had to take a break from rowing.",
+            "He hurt his wrist and paused his rowing.",
+            "In the spring Bram hurt his wrist and paused his rowing.",
             "contained",
         ),
         ("Which event did Noor run?", "charity relay race", "Noor ran a charity relay race in late May.", "contained"),

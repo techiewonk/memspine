@@ -1,6 +1,6 @@
 """#30 (SimpleMem synthesis): person-level list cards over mined event facts.
 
-A list question ("What activities does Melanie partake in?") needs every item, and
+A list question ("Which hobbies does Bram enjoy?") needs every item, and
 the items sit in event facts mined from different sessions. This step, run after
 ``mine_facts`` when ``consolidation.list_cards`` is on, groups the live EVENT facts
 of each namespace by (person, class) and keeps one derived card per group::

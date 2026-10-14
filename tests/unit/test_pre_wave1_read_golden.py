@@ -45,41 +45,41 @@ T0 = datetime(2023, 5, 1, 9, 0, tzinfo=UTC)
 
 #: (text, day offset)
 TURNS = [
-    ("Melanie: I went camping with the kids last weekend", 0),
-    ("Caroline: I started a new painting of a lake sunset", 3),
-    ("Melanie: we ran a charity race for mental health in May", 9),
-    ("Caroline: I joined a support group last Tuesday", 33),
-    ("Melanie: the kids loved the pottery class yesterday", 40),
-    ("Caroline: I am researching adoption agencies this month", 62),
+    ("Bram: I went camping with the kids last weekend", 0),
+    ("Noor: I started a new painting of a lake sunset", 3),
+    ("Bram: we ran a book fair for the school library in May", 9),
+    ("Noor: I joined a support group last Tuesday", 33),
+    ("Bram: the kids loved the pottery class yesterday", 40),
+    ("Noor: I am researching adoption agencies this month", 62),
 ]
 
 #: (entity, attribute, text, day offset, tags); the last two are mined facts.
 FACTS = [
-    ("Melanie", "hobby", "Melanie hobby: pottery and painting", 41, ["person:melanie"]),
-    ("Caroline", "plan", "Caroline plan: adopt a child", 63, []),
-    ("Melanie", "event", "Melanie event: charity race in May 2023", 10, ["person:melanie"]),
+    ("Bram", "hobby", "Bram hobby: pottery and painting", 41, ["person:bram"]),
+    ("Noor", "plan", "Noor plan: adopt a child", 63, []),
+    ("Bram", "event", "Bram event: book fair in May 2023", 10, ["person:bram"]),
     (
-        "Melanie",
+        "Bram",
         "event",
-        "Melanie event: pottery class yesterday",
+        "Bram event: pottery class yesterday",
         39,
         ["atomic_fact", "kind:event", "happened:2023-06-09"],
     ),
     (
-        "Caroline",
+        "Noor",
         "event",
-        "Caroline event: joined a support group last Tuesday",
+        "Noor event: joined a support group last Tuesday",
         30,
         ["atomic_fact", "happened:2023-05-30"],
     ),
 ]
 
 QUERIES = [
-    "What activities does Melanie do?",
-    "When did Caroline join the support group?",
-    "What did Melanie do in May 2023?",
-    "How many times did Melanie go camping?",
-    "When did Melanie's kids go to the pottery class?",
+    "What activities does Bram do?",
+    "When did Noor join the support group?",
+    "What did Bram do in May 2023?",
+    "How many times did Bram go camping?",
+    "When did Bram's kids go to the pottery class?",
 ]
 
 #: Read configs covered (cards stay off in all of them).
@@ -192,8 +192,8 @@ async def test_core_defaults_match_the_pre_wave1_golden() -> None:
 #: The one rendering #29 removes: the legacy happened-tagged fact (``valid_from`` on
 #: its happened day, no ``said:`` tag) is no longer resolved against ``valid_from``.
 _DROPPED_ANNOTATION = (
-    "Melanie event: pottery class yesterday [= Thu 2023-06-08]",
-    "Melanie event: pottery class yesterday",
+    "Bram event: pottery class yesterday [= Thu 2023-06-08]",
+    "Bram event: pottery class yesterday",
 )
 
 

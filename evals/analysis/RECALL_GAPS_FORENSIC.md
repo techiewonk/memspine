@@ -128,32 +128,32 @@ Rank notation: `vec 14 (cos 0.60)` = rank and cosine in the logged vector top-30
 
 #### H. Category-to-instance gap: 164 lost turns (95 recall, 69 fusion), all multi-hop
 
-MEASURED. The question asks for a set ("What kind of hobbies does Evan pursue?", "[omitted]") and each gold turn names one member of the set. 52% of such gold turns are lost. Median full-conversation vector rank of the recall-lost ones is 110 (conversations have 300-700 turns); only 23 of 95 are within rank 60. In 87 of 164 cases (53%) another gold turn of the same question *is* a hit: the query reaches one or two instances and not the rest. Worst questions: "What kind of hobbies does Evan pursue?" (8 gold turns), "What things has Nate recommended to Joanna?" (6), "[omitted]" (7), "What new hobbies did Sam consider trying?" (10).
+MEASURED. The question asks for a set ("[omitted]?", "[omitted]") and each gold turn names one member of the set. 52% of such gold turns are lost. Median full-conversation vector rank of the recall-lost ones is 110 (conversations have 300-700 turns); only 23 of 95 are within rank 60. In 87 of 164 cases (53%) another gold turn of the same question *is* a hit: the query reaches one or two instances and not the rest. Worst questions: "[omitted]?" (8 gold turns), "What things has Nate recommended to Joanna?" (6), "[omitted]" (7), "[omitted]?" (10).
 
 - **conv-44 5-35** (multi-hop, lost at recall, 3 gold turns). Q: "What are the names of Andrew's dogs?" Gold answer: "Toby, Scout, Buddy".
   - gold D28:8 (session 28): "[omitted]"
   - ranks: vec ~72 (cos 0.51; 30th = 0.56); BM25 ~610; in no leg top-30.
   - out-ranked by: "[omitted]"; "[omitted]".
-- **conv-50 9-29** (multi-hop, lost at recall, 4 gold turns). Q: "What are Dave's hobbies other than fixing cars?" Gold answer: "[omitted]".
+- **conv-50 9-29** (multi-hop, lost at recall, 4 gold turns). Q: "[omitted]?" Gold answer: "[omitted]".
   - gold D8:8 (session 8): "[omitted]"
   - ranks: vec ~182 (cos 0.47; 30th = 0.58); BM25 ~289; in no leg top-30.
   - out-ranked by: "[omitted]"; "[omitted]".
-- **conv-42 3-30** (multi-hop, lost at recall, 4 gold turns). Q: "What kind of writings does Joanna do?" Gold answer: "Screenplays,books, online blog posts, journal".
+- **conv-42 3-30** (multi-hop, lost at recall, 4 gold turns). Q: "[omitted]?" Gold answer: "[omitted]".
   - gold D2:3 (session 2): "[omitted]"
   - ranks: vec ~37 (cos 0.54; 30th = 0.55); BM25 ~194; in no leg top-30.
   - out-ranked by: "[omitted]"; "[omitted]".
-- **conv-26 0-61** (multi-hop, lost at fusion, 2 gold turns). Q: "What musical artists/bands has Melanie seen?" Gold answer: "Summer Sounds, Matt Patterson".
+- **conv-26 0-61** (multi-hop, lost at fusion, 2 gold turns). Q: "[omitted]?" Gold answer: "Summer Sounds, Matt Patterson".
   - gold D11:3 (session 11): "[omitted]"
   - ranks: vec 14 (cos 0.51); BM25 ~52; own RRF 0.41 vs 10th fused 0.48.
   - out-ranked by: "[omitted]"; "Melanie: Cool! What type of music do you play?".
-- **conv-49 8-50** (multi-hop, lost at fusion, 8 gold turns). Q: "What kind of hobbies does Evan pursue?" Gold answer: "[omitted]".
+- **conv-49 8-50** (multi-hop, lost at fusion, 8 gold turns). Q: "[omitted]?" Gold answer: "[omitted]".
   - gold D8:30 (session 8): "[omitted]"
   - ranks: vec 4 (cos 0.64); BM25 ~266; own RRF 0.48 vs 10th fused 0.48.
-  - out-ranked by: "Evan: What other hobbies have you found for yourself?"; "[omitted]".
+  - out-ranked by: "Evan: [omitted]?"; "[omitted]".
 
 #### N. Answer not literally in the gold turn: 112 lost turns (64 recall, 48 fusion), 109 multi-hop
 
-MEASURED + judgement. None of the gold-answer tokens occurs in the turn or its caption (lost-rate 35% of such turns). Three sub-types are mixed here and cannot be separated mechanically: (a) the turn implies the answer in other words ("lost a friend" for a family-members-who-died question), (b) the answer lives in the *previous* turn and the gold turn is its reply ("Thanks! The turtles might be small..."), (c) the gold label is only weakly related (e.g. a pottery question whose gold turn is "I appreciate our friendship too, Caroline"; a 'How long did it take Jon to open his studio' question whose gold is "[omitted]"). I did not hand-label these, so the share of type (c) is not quantified; it is visibly non-trivial in the examples below. This is the part of the problem that retrieval engineering reaches least.
+MEASURED + judgement. None of the gold-answer tokens occurs in the turn or its caption (lost-rate 35% of such turns). Three sub-types are mixed here and cannot be separated mechanically: (a) the turn implies the answer in other words ("lost a friend" for a family-members-who-died question), (b) the answer lives in the *previous* turn and the gold turn is its reply ("Thanks! The turtles might be small..."), (c) the gold label is only weakly related (e.g. a pottery question whose gold turn is "[omitted]"; a 'How long did it take Jon to open his studio' question whose gold is "[omitted]"). I did not hand-label these, so the share of type (c) is not quantified; it is visibly non-trivial in the examples below. This is the part of the problem that retrieval engineering reaches least.
 
 - **conv-49 8-11** (multi-hop, lost at recall, 19 gold turns). Q: "[omitted]" Gold answer: "Weight problem".
   - gold D16:3 (session 16): "[omitted]"
@@ -163,11 +163,11 @@ MEASURED + judgement. None of the gold-answer tokens occurs in the turn or its c
   - gold D23:3 (session 23): "[omitted]"
   - ranks: vec ~82 (cos 0.46; 30th = 0.50); BM25 ~74; in no leg top-30.
   - out-ranked by: "[omitted]"; "[omitted]".
-- **conv-48 7-19** (multi-hop, lost at recall, 2 gold turns). Q: "How many times has Jolene been to France?" Gold answer: "two times".
+- **conv-48 7-19** (multi-hop, lost at recall, 2 gold turns). Q: "[omitted]?" Gold answer: "two times".
   - gold D1:8 (session 1): "[omitted]"
   - ranks: vec ~57 (cos 0.49; 30th = 0.51); BM25 ~261; in no leg top-30.
   - out-ranked by: "[omitted]"; "[omitted]".
-- **conv-26 0-7** (multi-hop, lost at fusion, 2 gold turns). Q: "What is Caroline's relationship status?" Gold answer: "Single".
+- **conv-26 0-7** (multi-hop, lost at fusion, 2 gold turns). Q: "[omitted]?" Gold answer: "Single".
   - gold D3:13 (session 3): "[omitted]"
   - ranks: vec 26 (cos 0.53); BM25 ~382; own RRF 0.35 vs 10th fused 0.48.
   - out-ranked by: "[omitted]"; "[omitted]".
@@ -183,8 +183,8 @@ MEASURED. Of 197 open-domain gold turns 96 are lost (49%), 83% of the lost ones 
 - **conv-44 5-53** (open-domain, lost at recall, 4 gold turns). Q: "[omitted]" Gold answer: "[omitted]".
   - gold D3:1 (session 3): "[omitted]"
   - ranks: vec ~138 (cos 0.47; 30th = 0.56); BM25 ~60; in no leg top-30.
-  - out-ranked by: "Andrew: No, no pets right now. But I do love animals."; "[omitted]".
-- **conv-48 7-36** (open-domain, lost at recall, 10 gold turns). Q: "How old is Jolene?" Gold answer: "likely no more than 30; since she's in school".
+  - out-ranked by: "Andrew: [omitted]."; "[omitted]".
+- **conv-48 7-36** (open-domain, lost at recall, 10 gold turns). Q: "How old is Jolene?" Gold answer: "[omitted]".
   - gold D24:2 (session 24): "[omitted]"
   - ranks: vec ~332 (cos 0.45; 30th = 0.60); BM25 ~132; in no leg top-30.
   - out-ranked by: "Jolene: How old is Luna?"; "Jolene: How did you two meet?".
@@ -192,7 +192,7 @@ MEASURED. Of 197 open-domain gold turns 96 are lost (49%), 83% of the lost ones 
   - gold D7:4 (session 7): "[omitted]"
   - ranks: vec 17 (cos 0.65); BM25 ~59; own RRF 0.40 vs 10th fused 0.48.
   - out-ranked by: "[omitted]"; "[omitted]".
-- **conv-26 0-59** (open-domain, lost at fusion, 2 gold turns). Q: "Would Caroline be considered religious?" Gold answer: "Somewhat, but not extremely religious".
+- **conv-26 0-59** (open-domain, lost at fusion, 2 gold turns). Q: "[omitted]?" Gold answer: "[omitted]".
   - gold D14:19 (session 14): "[omitted]"
   - ranks: vec 12 (cos 0.47); BM25 ~305; own RRF 0.42 vs 10th fused 0.48.
   - out-ranked by: "[omitted]"; "[omitted]".
@@ -201,7 +201,7 @@ MEASURED. Of 197 open-domain gold turns 96 are lost (49%), 83% of the lost ones 
 
 MEASURED. Only 43 of 374 temporal gold turns are lost (11%), the best category after single-hop. The loss is concentrated in questions that name an explicit date or month (18 of 57 such gold turns lost = 32%, vs 8% when the question has no explicit date): the gold turn is a relative statement ("Yesterday I met artists in Boston" said on 4 Oct) whose own text has no date, so a date in the question has nothing to match; 26 of the 43 lost turns contain a relative-time phrase. Only 187 questions had a temporal leg in the fix run (the leg fires only for absolute dates). Several lost turns are the second or third gold turn of a comparison question ("Which pet did Jolene adopt first": 21 of 43 belong to 2+ gold questions).
 
-- **conv-50 9-57** (temporal, lost at recall, 1 gold turn). Q: "Which hobby did Dave pick up in October 2023?" Gold answer: "photography".
+- **conv-50 9-57** (temporal, lost at recall, 1 gold turn). Q: "[omitted]?" Gold answer: "photography".
   - gold D27:2 (session 27): "[omitted]"
   - ranks: vec ~63 (cos 0.50; 30th = 0.52); BM25 ~457; in no leg top-30.
   - out-ranked by: "[omitted]"; "[omitted]".
@@ -226,7 +226,7 @@ MEASURED. These turns do share a content word with the question, so they are the
   - gold D30:5 (session 30): "[omitted]"
   - ranks: vec ~201 (cos 0.43; 30th = 0.50); BM25 ~100; in no leg top-30.
   - out-ranked by: "[omitted]"; "[omitted]".
-- **conv-44 5-15** (multi-hop, lost at recall, 2 gold turns). Q: "[omitted]" Gold answer: "Not being able to find pet friendly spots.".
+- **conv-44 5-15** (multi-hop, lost at recall, 2 gold turns). Q: "[omitted]" Gold answer: "[omitted].".
   - gold D7:8 (session 7): "[omitted]"
   - ranks: vec ~139 (cos 0.52; 30th = 0.58); BM25 ~197; in no leg top-30.
   - out-ranked by: "[omitted]"; "[omitted]".
@@ -258,9 +258,9 @@ MEASURED. The question shares only a stem with the turn (research / researching,
 
 #### P. Single-hop paraphrase gap: 12 lost turns
 
-MEASURED. Rare: only 12 single-hop-style gold turns are lost this way ("What injury did Evan suffer from in August 2023?" -> "Twisted my knee last Friday": the question word 'injury' never appears, the embedding finds other injury turns first).
+MEASURED. Rare: only 12 single-hop-style gold turns are lost this way ("[omitted]?" -> "Twisted my knee last Friday": the question word 'injury' never appears, the embedding finds other injury turns first).
 
-- **conv-49 8-110** (single-hop, lost at recall, 1 gold turn). Q: "What injury did Evan suffer from in August 2023?" Gold answer: "Twisted knee".
+- **conv-49 8-110** (single-hop, lost at recall, 1 gold turn). Q: "[omitted]?" Gold answer: "Twisted knee".
   - gold D9:2 (session 9): "[omitted]"
   - ranks: vec ~41 (cos 0.48; 30th = 0.50); BM25 ~425; in no leg top-30.
   - out-ranked by: "[omitted]"; "[omitted]".
@@ -268,10 +268,10 @@ MEASURED. Rare: only 12 single-hop-style gold turns are lost this way ("What inj
   - gold D1:5 (session 1): "[omitted]"
   - ranks: vec ~189 (cos 0.42; 30th = 0.50); BM25 ~353; in no leg top-30.
   - out-ranked by: "[omitted]"; "[omitted]".
-- **conv-42 3-122** (single-hop, lost at fusion, 1 gold turn). Q: "What did Nate do for Joanna on 25 May, 2022?" Gold answer: "get her a stuffed animal".
+- **conv-42 3-122** (single-hop, lost at fusion, 1 gold turn). Q: "[omitted]?" Gold answer: "get her a stuffed animal".
   - gold D13:9 (session 13): "[omitted]"
   - ranks: vec ~93 (cos 0.65; 30th = 0.69); BM25 ~69; own RRF 0.29 vs 10th fused 0.32.
-  - out-ranked by: "[omitted]"; "Nate: Can't wait to see it, Joanna! I'm here to support you.".
+  - out-ranked by: "[omitted]"; "Nate: [omitted].".
 
 ### 2.4 Recall-lost turns: how far outside the legs are they?
 
@@ -620,11 +620,11 @@ Columns: `st` R = lost at recall (in no leg top-30), F = lost at fusion. `vec` /
 
 | # | q | cat | cause | st | vec | bm25 | margin | question | gold turn | out-ranked by (top fused non-gold) |
 |---|---|---|---|---|---|---|---|---|---|---|
-| 1 | 26 0-7 | mh | H | R | ~86 | ~343 | -0.04 | What is Caroline'[omitted]'[omitted]'[omitted]'ve come so far, but there's more to do. Yo… |
-| 2 | 26 0-11 | mh | H | R | ~245 | ~34 | -0.11 | Where did Caroline move from 4 years ago? | D4:3: Caroline: [omitted]aroline: [omitted]… |
-| 3 | 26 0-15 | mh | H | R | ~136 | ~290 | -0.07 | What activities does Melanie partake in? | D1:12: Melanie: [omitted]… | Melanie: [omitted] … |
-| 4 | 26 0-15 | mh | H | R | ~36 | ~228 | -0.00 | What activities does Melanie partake in? | D1:18: Melanie: [omitted]… | Melanie: [omitted] … |
-| 5 | 26 0-15 | mh | H | R | ~61 | ~94 | -0.03 | What activities does Melanie partake in? | D9:1: Melanie: [omitted]… | Melanie: [omitted] … |
+| 1 | 26 0-7 | mh | H | R | ~86 | ~343 | -0.04 | What is Caroline'[omitted]'[omitted]'[omitted][omitted]… |
+| 2 | 26 0-11 | mh | H | R | ~245 | ~34 | -0.11 | [omitted]? | D4:3: Caroline: [omitted]aroline: [omitted]… |
+| 3 | 26 0-15 | mh | H | R | ~136 | ~290 | -0.07 | [omitted]? | D1:12: Melanie: [omitted]… | Melanie: [omitted] … |
+| 4 | 26 0-15 | mh | H | R | ~36 | ~228 | -0.00 | [omitted]? | D1:18: Melanie: [omitted]… | Melanie: [omitted] … |
+| 5 | 26 0-15 | mh | H | R | ~61 | ~94 | -0.03 | [omitted]? | D9:1: Melanie: [omitted]… | Melanie: [omitted] … |
 | 6 | 26 0-19 | mh | H | F | 7 | ~329 | 0.46/0.47 | What do Melanie'[omitted]'ll do… |
 | 7 | 26 0-24 | mh | H | F | 17 | ~363 | 0.40/0.47 | What does Melanie do to destress? | D5:4: Melanie: Wow, Caroline! That'[omitted]'s like the… | Melanie: [omitted]… |
 | 8 | 26 0-32 | mh | H | R | ~43 | ~314 | -0.03 | [omitted]? | D8:17: Caroline: [omitted]… | Melanie: [omitted]… |
@@ -632,14 +632,14 @@ Columns: `st` R = lost at recall (in no leg top-30), F = lost at fusion. `vec` /
 | 10 | 26 0-38 | mh | H | F | 29 | ~178 | 0.34/0.48 | [omitted]? | D6:4: Melanie: [omitted] … | Melanie: [omitted] … |
 | 11 | 26 0-38 | mh | H | R | ~122 | ~152 | -0.07 | [omitted]? | D8:6: Melanie: [omitted] … | Melanie: [omitted] … |
 | 12 | 26 0-38 | mh | H | R | ~31 | ~44 | -0.00 | [omitted]? | D9:1: Melanie: [omitted]… | Melanie: [omitted] … |
-| 13 | 26 0-61 | mh | H | F | 14 | ~52 | 0.41/0.48 | What musical artists/bands has Melanie seen? | D11:3: Melanie: [omitted]… | Melanie: [omitted]? … |
-| 14 | 26 0-66 | mh | H | F | 23 | ~106 | 0.37/0.47 | What does Melanie do with her family on hikes? | D16:4: Melanie: [omitted]… | Melanie: [omitted] … |
-| 15 | 30 1-3 | mh | H | F | 23 | ~294 | 0.37/0.48 | What do Jon and Gina both have in common? | D1:2: Jon: [omitted]'[omitted]'s make a difference and show 'em what we got. We … |
-| 16 | 30 1-3 | mh | H | R | ~147 | ~99 | -0.09 | What do Jon and Gina both have in common? | D1:3: Gina: [omitted]… | Gina: Yeah Jon! Let'[omitted]'em what we got. We … |
-| 17 | 30 1-3 | mh | H | R | ~202 | ~242 | -0.14 | What do Jon and Gina both have in common? | D1:4: Jon: Sorry to hear that! I'[omitted]'cause I'[omitted]'d b… | Gina: Yeah Jon! Let'[omitted]'em what we got. We … |
-| 18 | 30 1-3 | mh | H | F | ~162 | 5 | 0.47/0.48 | What do Jon and Gina both have in common? | D2:1: Gina: [omitted]… | Gina: Yeah Jon! Let'[omitted]'em what we got. We … |
+| 13 | 26 0-61 | mh | H | F | 14 | ~52 | 0.41/0.48 | [omitted]? | D11:3: Melanie: [omitted]… | Melanie: [omitted]? … |
+| 14 | 26 0-66 | mh | H | F | 23 | ~106 | 0.37/0.47 | [omitted]? | D16:4: Melanie: [omitted]… | Melanie: [omitted] … |
+| 15 | 30 1-3 | mh | H | F | 23 | ~294 | 0.37/0.48 | [omitted]? | D1:2: Jon: [omitted]'[omitted][omitted] … |
+| 16 | 30 1-3 | mh | H | R | ~147 | ~99 | -0.09 | [omitted]? | D1:3: Gina: [omitted]… | Gina: Yeah Jon! Let'[omitted]'em what we got. We … |
+| 17 | 30 1-3 | mh | H | R | ~202 | ~242 | -0.14 | [omitted]? | D1:4: Jon: Sorry to hear that! I'[omitted]'cause I'[omitted]'d b… | Gina: Yeah Jon! Let'[omitted]'em what we got. We … |
+| 18 | 30 1-3 | mh | H | F | ~162 | 5 | 0.47/0.48 | [omitted]? | D2:1: Gina: [omitted]… | Gina: Yeah Jon! Let'[omitted]'em what we got. We … |
 | 19 | 30 1-17 | mh | H | F | 21 | ~126 | 0.38/0.72 | [omitted]? | D6:8: Gina: [omitted]… | Gina: [omitted]… |
-| 20 | 30 1-23 | mh | H | F | 27 | ~59 | 0.35/0.49 | How did Gina promote her clothes store? | D13:4: Gina: [omitted] … | Gina: [omitted]… |
+| 20 | 30 1-23 | mh | H | F | 27 | ~59 | 0.35/0.49 | [omitted]? | D13:4: Gina: [omitted] … | Gina: [omitted]… |
 | 21 | 41 2-3 | mh | H | F | 26 | ~610 | 0.35/0.49 | [omitted]? | D2:1: Maria: [omitted]… | Maria: [omitted]… |
 | 22 | 41 2-3 | mh | H | R | ~206 | ~497 | -0.09 | [omitted]? | D3:5: John: [omitted]… | Maria: [omitted]… |
 | 23 | 41 2-6 | mh | H | F | 11 | ~328 | 0.43/0.48 | Where has Maria made friends? | D14:10: Maria: [omitted]… | John: [omitted]… |
@@ -647,35 +647,35 @@ Columns: `st` R = lost at recall (in no leg top-30), F = lost at fusion. `vec` /
 | 25 | 41 2-6 | mh | H | R | ~405 | ~456 | -0.14 | Where has Maria made friends? | D2:1: Maria: [omitted]… | John: [omitted]… |
 | 26 | 41 2-11 | mh | H | R | ~57 | ~557 | -0.03 | [omitted]? | D21:19: Maria: [omitted]… | Maria: [omitted] … |
 | 27 | 41 2-11 | mh | H | R | ~118 | ~74 | -0.08 | [omitted]? | D6:5: Maria: [omitted]… | Maria: [omitted] … |
-| 28 | 41 2-15 | mh | H | F | 7 | ~457 | 0.46/0.46 | What writing classes has Maria taken? | D9:1: Maria: [omitted]… | Maria: Looks fun! What other classes have you done? |
-| 29 | 41 2-25 | mh | H | F | 5 | ~260 | 0.47/0.48 | What European countries has Maria been to? | D8:15: Maria: [omitted]… | Maria: [omitted]… |
+| 28 | 41 2-15 | mh | H | F | 7 | ~457 | 0.46/0.46 | [omitted]? | D9:1: Maria: [omitted]… | Maria: [omitted]? |
+| 29 | 41 2-25 | mh | H | F | 5 | ~260 | 0.47/0.48 | [omitted]? | D8:15: Maria: [omitted]… | Maria: [omitted]… |
 | 30 | 41 2-28 | mh | H | R | ~50 | ~556 | -0.02 | [omitted]? | D12:5: John: [omitted]… | John: [omitted] … |
 | 31 | 41 2-28 | mh | H | R | ~146 | ~285 | -0.06 | [omitted]? | D9:8: John: [omitted]… | John: [omitted] … |
-| 32 | 41 2-32 | mh | H | F | 5 | ~180 | 0.47/0.48 | [omitted]? | D18:2: John: Hey Maria, thanks for your kind words. It'[omitted]'m finding some comfort in the … | John: [omitted]… |
-| 33 | 41 2-35 | mh | H | F | 9 | ~517 | 0.44/0.48 | What states has Maria vacationed at? | D18:3: Maria: [omitted]… | Maria: [omitted] … |
+| 32 | 41 2-32 | mh | H | F | 5 | ~180 | 0.47/0.48 | [omitted]? | D18:2: John: [omitted][omitted]'m finding some comfort in the … | John: [omitted]… |
+| 33 | 41 2-35 | mh | H | F | 9 | ~517 | 0.44/0.48 | [omitted]? | D18:3: Maria: [omitted]… | Maria: [omitted] … |
 | 34 | 41 2-40 | mh | H | R | ~120 | ~536 | -0.05 | What are the names of John'[omitted]'s birthday… | Maria: [omitted]… |
 | 35 | 41 2-47 | mh | H | R | ~33 | ~561 | -0.01 | What exercises has John done? | D10:1: John: Hey Maria, I'[omitted]'s … | Maria: [omitted]… |
 | 36 | 41 2-47 | mh | H | F | 8 | ~214 | 0.45/0.46 | What exercises has John done? | D1:4: John: Woah, Maria, that sounds cool! I'[omitted]'s giving me so much energy. | Maria: [omitted]… |
-| 37 | 41 2-57 | mh | H | F | 12 | ~64 | 0.42/0.48 | What causes has John done events for? | D6:12: John: [omitted]… | Maria: [omitted]… |
-| 38 | 42 3-1 | mh | H | R | ~470 | ~203 | -0.22 | What kind of interests do Joanna and Nate share? | D10:9: Joanna: [omitted]… | Nate: [omitted]… |
-| 39 | 42 3-1 | mh | H | R | ~53 | ~440 | -0.02 | What kind of interests do Joanna and Nate share? | D4:9: Nate: [omitted]. | Nate: [omitted]… |
+| 37 | 41 2-57 | mh | H | F | 12 | ~64 | 0.42/0.48 | [omitted]? | D6:12: John: [omitted]… | Maria: [omitted]… |
+| 38 | 42 3-1 | mh | H | R | ~470 | ~203 | -0.22 | [omitted]? | D10:9: Joanna: [omitted]… | Nate: [omitted]… |
+| 39 | 42 3-1 | mh | H | R | ~53 | ~440 | -0.02 | [omitted]? | D4:9: Nate: [omitted]. | Nate: [omitted]… |
 | 40 | 42 3-5 | mh | H | F | 23 | ~409 | 0.37/0.47 | What are Joanna's hobbies? | D2:25: Joanna: [omitted]… | Nate: [omitted]. |
 | 41 | 42 3-11 | mh | H | F | 13 | ~250 | 0.42/0.47 | What is Joanna allergic to? | D4:4: Joanna: [omitted]… | Joanna: [omitted]… |
-| 42 | 42 3-27 | mh | H | F | 6 | ~207 | 0.46/0.48 | What places has Joanna submitted her work to? | D2:7: Joanna: [omitted] - … | Joanna: [omitted]… |
-| 43 | 42 3-30 | mh | H | F | 17 | ~213 | 0.40/0.48 | What kind of writings does Joanna do? | D17:14: Joanna: [omitted]! [image: a photo of a… | Joanna: [omitted]… |
-| 44 | 42 3-30 | mh | H | R | ~37 | ~194 | -0.01 | What kind of writings does Joanna do? | D2:3: Joanna: [omitted]… | Joanna: [omitted]… |
-| 45 | 42 3-34 | mh | H | R | ~229 | ~519 | -0.12 | [omitted]? | D3:17: Joanna: I just watched "[omitted]" and it was amazing! It'[omitted]'m so glad you're excited. I've never really t… |
-| 46 | 42 3-42 | mh | H | F | 21 | ~263 | 0.38/0.47 | What movies have both Joanna and Nate seen? | D10:1: Joanna: [omitted] "[omitted]" Tr… | Joanna: [omitted]… |
-| 47 | 42 3-42 | mh | H | R | ~242 | ~242 | -0.14 | What movies have both Joanna and Nate seen? | D22:8: Nate: I watched "[omitted]" [omitted]… | Joanna: [omitted]… |
+| 42 | 42 3-27 | mh | H | F | 6 | ~207 | 0.46/0.48 | [omitted]? | D2:7: Joanna: [omitted] - … | Joanna: [omitted]… |
+| 43 | 42 3-30 | mh | H | F | 17 | ~213 | 0.40/0.48 | [omitted]? | D17:14: Joanna: [omitted]! [image: a photo of a… | Joanna: [omitted]… |
+| 44 | 42 3-30 | mh | H | R | ~37 | ~194 | -0.01 | [omitted]? | D2:3: Joanna: [omitted]… | Joanna: [omitted]… |
+| 45 | 42 3-34 | mh | H | R | ~229 | ~519 | -0.12 | [omitted]? | D3:17: Joanna: I just watched "[omitted]" and it was amazing! It'[omitted][omitted]… |
+| 46 | 42 3-42 | mh | H | F | 21 | ~263 | 0.38/0.47 | [omitted]? | D10:1: Joanna: [omitted] "[omitted]" Tr… | Joanna: [omitted]… |
+| 47 | 42 3-42 | mh | H | R | ~242 | ~242 | -0.14 | [omitted]? | D22:8: Nate: I watched "[omitted]" [omitted]… | Joanna: [omitted]… |
 | 48 | 42 3-50 | mh | H | F | 10 | ~327 | 0.44/0.47 | [omitted]? | D13:9: Nate: [omitted]! [image: a photo of a stuffed… | Nate: [omitted]… |
-| 49 | 42 3-56 | mh | H | R | ~205 | ~340 | -0.08 | What animal do both Nate and Joanna like? | D5:6: Nate: I'[omitted]'[omitted]… | Joanna: [omitted] … |
-| 50 | 42 3-58 | mh | H | R | ~568 | ~517 | -0.29 | What things has Nate reccomended to Joanna? | D10:11: Joanna: [omitted]… | Joanna: [omitted] … |
-| 51 | 42 3-58 | mh | H | R | ~356 | ~615 | -0.20 | What things has Nate reccomended to Joanna? | D9:12: Nate: [omitted]… | Joanna: [omitted] … |
-| 52 | 42 3-58 | mh | H | R | ~371 | ~51 | -0.20 | What things has Nate reccomended to Joanna? | D9:14: Nate: [omitted]! [image… | Joanna: [omitted] … |
+| 49 | 42 3-56 | mh | H | R | ~205 | ~340 | -0.08 | [omitted]? | D5:6: Nate: I'[omitted]'[omitted]… | Joanna: [omitted] … |
+| 50 | 42 3-58 | mh | H | R | ~568 | ~517 | -0.29 | [omitted]? | D10:11: Joanna: [omitted]… | Joanna: [omitted] … |
+| 51 | 42 3-58 | mh | H | R | ~356 | ~615 | -0.20 | [omitted]? | D9:12: Nate: [omitted]… | Joanna: [omitted] … |
+| 52 | 42 3-58 | mh | H | R | ~371 | ~51 | -0.20 | [omitted]? | D9:14: Nate: [omitted]! [image… | Joanna: [omitted] … |
 | 53 | 42 3-63 | mh | H | R | ~69 | ~447 | -0.05 | What video games does Nate play? | D27:1: Nate: [omitted]… | Nate: [omitted]. |
-| 54 | 42 3-70 | mh | H | F | 9 | ~490 | 0.44/0.47 | What activities does Nate do with his turtles? | D25:23: Nate: Yeah, it'[omitted]'m not sure I'll ever understand why watching my… |
+| 54 | 42 3-70 | mh | H | F | 9 | ~490 | 0.44/0.47 | [omitted]? | D25:23: Nate: Yeah, it'[omitted][omitted]… |
 | 55 | 42 3-74 | mh | H | R | ~416 | ~515 | -0.24 | [omitted]? | D15:14: Nate: [omitted]… | Nate: [omitted]! |
-| 56 | 42 3-74 | mh | H | R | ~271 | ~526 | -0.17 | [omitted]? | D19:15: Nate: Good idea! How about this series? [image: a photo of a stack of books sitting on top of a woo… | Nate: [omitted]! |
+| 56 | 42 3-74 | mh | H | R | ~271 | ~526 | -0.17 | [omitted]? | D19:15: Nate: Good idea! How about this series? [image: [omitted]… | Nate: [omitted]! |
 | 57 | 42 3-74 | mh | H | R | ~534 | ~123 | -0.28 | [omitted]? | D23:26: Joanna: [omitted]… | Nate: [omitted]! |
 | 58 | 42 3-74 | mh | H | R | ~521 | ~428 | -0.27 | [omitted]? | D3:17: Joanna: I just watched "[omitted]" [omitted]… | Nate: [omitted]! |
 | 59 | 42 3-81 | mh | H | F | 22 | ~401 | 0.37/0.49 | What recipes has Joanna made? | D19:8: Joanna: [omitted]… | Joanna: [omitted]… |
@@ -685,22 +685,22 @@ Columns: `st` R = lost at recall (in no leg top-30), F = lost at fusion. `vec` /
 | 63 | 42 3-83 | mh | H | R | ~127 | ~129 | -0.05 | [omitted]? | D18:8: Nate: [omitted] … | Nate: [omitted]. |
 | 64 | 43 4-2 | mh | H | F | 5 | ~298 | 0.47/0.48 | What items does John collect? | D27:20: John: [omitted] … | John: [omitted] … |
 | 65 | 43 4-4 | mh | H | R | ~50 | ~123 | -0.06 | What books has Tim read? | D1:14: Tim: It'[omitted]'re f… | Tim: [omitted]… |
-| 66 | 43 4-7 | mh | H | F | 14 | ~202 | 0.41/0.47 | Which geographical locations has Tim been to? | D14:16: Tim: [omitted]… | John: [omitted]… |
-| 67 | 43 4-7 | mh | H | R | ~61 | ~525 | -0.03 | Which geographical locations has Tim been to? | D3:2: Tim: [omitted]… | John: [omitted]… |
-| 68 | 43 4-11 | mh | H | R | ~96 | ~385 | -0.06 | What sports does John like besides basketball? | D3:25: John: [omitted]… | Tim: [omitted]… |
+| 66 | 43 4-7 | mh | H | F | 14 | ~202 | 0.41/0.47 | [omitted]? | D14:16: Tim: [omitted]… | John: [omitted]… |
+| 67 | 43 4-7 | mh | H | R | ~61 | ~525 | -0.03 | [omitted]? | D3:2: Tim: [omitted]… | John: [omitted]… |
+| 68 | 43 4-11 | mh | H | R | ~96 | ~385 | -0.06 | [omitted]? | D3:25: John: [omitted]… | Tim: [omitted]… |
 | 69 | 43 4-14 | mh | H | R | ~36 | ~481 | -0.01 | What kind of writing does Tim do? | D2:1: Tim: [omitted]… | Tim: [omitted]… |
-| 70 | 43 4-25 | mh | H | F | 28 | ~155 | 0.35/0.48 | [omitted]? | D7:7: John: You'[omitted]'s awesome to see how sports can unite people. B… |
-| 71 | 43 4-25 | mh | H | R | ~261 | ~235 | -0.11 | [omitted]? | D7:9: John: [omitted]'[omitted]'s awesome to see how sports can unite people. B… |
-| 72 | 43 4-35 | mh | H | F | 5 | ~333 | 0.47/0.48 | What outdoor activities does John enjoy? | D12:6: John: [omitted]… | John: [omitted] … |
+| 70 | 43 4-25 | mh | H | F | 28 | ~155 | 0.35/0.48 | [omitted]? | D7:7: John: You'[omitted][omitted]… |
+| 71 | 43 4-25 | mh | H | R | ~261 | ~235 | -0.11 | [omitted]? | D7:9: John: [omitted]'[omitted][omitted]… |
+| 72 | 43 4-35 | mh | H | F | 5 | ~333 | 0.47/0.48 | [omitted]? | D12:6: John: [omitted]… | John: [omitted] … |
 | 73 | 43 4-38 | mh | H | R | ~49 | ~155 | -0.03 | [omitted]? | D13:1: Tim: Hey John! It'[omitted]'[omitted]… |
 | 74 | 43 4-38 | mh | H | F | 25 | ~440 | 0.36/0.46 | [omitted]? | D18:1: Tim: Hey John! Hope you'[omitted]'[omitted]… |
-| 75 | 43 4-41 | mh | H | F | 11 | ~287 | 0.43/0.49 | What kind of fiction stories does Tim write? | D15:3: Tim: [omitted]im: [omitted]… |
-| 76 | 43 4-41 | mh | H | R | ~85 | ~526 | -0.07 | What kind of fiction stories does Tim write? | D16:1: Tim: Hey John, long time no see! Hope you'[omitted]'s happ… | Tim: [omitted]… |
+| 75 | 43 4-41 | mh | H | F | 11 | ~287 | 0.43/0.49 | [omitted]? | D15:3: Tim: [omitted]im: [omitted]… |
+| 76 | 43 4-41 | mh | H | R | ~85 | ~526 | -0.07 | [omitted]? | D16:1: Tim: Hey John, long time no see! Hope you'[omitted]'s happ… | Tim: [omitted]… |
 | 77 | 43 4-52 | mh | H | R | ~159 | ~322 | -0.12 | [omitted]? | D20:2: John: [omitted]… | John: [omitted]… |
 | 78 | 43 4-61 | mh | H | R | ~37 | ~363 | -0.02 | What books has John read? | D17:9: John: [omitted]… | John: [omitted]… |
-| 79 | 43 4-65 | mh | H | R | ~45 | ~412 | -0.02 | What fantasy movies does Tim like? | D8:16: Tim: Yeah, "[omitted]" is special to me. It was the first movie from… | Tim: That'[omitted]'s something special about being… |
+| 79 | 43 4-65 | mh | H | R | ~45 | ~412 | -0.02 | What fantasy movies does Tim like? | D8:16: Tim: Yeah, "[omitted]" [omitted]|[omitted]: That'[omitted]'s something special about being… |
 | 80 | 44 5-2 | mh | H | F | 17 | ~301 | 0.40/0.48 | [omitted]? | D13:1: Andrew: [omitted]… | Andrew: [omitted]… |
-| 81 | 44 5-2 | mh | H | F | 22 | ~107 | 0.37/0.48 | [omitted]? | D19:15: Andrew: [omitted]'[omitted]'s it going? Since we last talked, a few new t… |
+| 81 | 44 5-2 | mh | H | F | 22 | ~107 | 0.37/0.48 | [omitted]? | D19:15: Andrew: [omitted]'[omitted][omitted]… |
 | 82 | 44 5-3 | mh | H | F | 27 | ~499 | 0.35/0.48 | [omitted] … | D13:1: Andrew: [omitted]… | Audrey: [omitted]… |
 | 83 | 44 5-3 | mh | H | R | ~69 | ~140 | -0.03 | [omitted] … | D4:2: Andrew: [omitted]… | Audrey: [omitted]… |
 | 84 | 44 5-12 | mh | H | R | ~65 | ~78 | -0.05 | [omitted]? | D17:1: Andrew: [omitted]ndrew: [omitted]… |
@@ -708,11 +708,11 @@ Columns: `st` R = lost at recall (in no leg top-30), F = lost at fusion. `vec` /
 | 86 | 44 5-18 | mh | H | F | 23 | ~262 | 0.37/0.49 | Where did Audrey get Pixie from? | D11:4: Audrey: [omitted]… | Audrey: [omitted] … |
 | 87 | 44 5-23 | mh | H | R | ~33 | ~179 | -0.00 | [omitted]? | D2:12: Andrew: [omitted]. | Andrew: [omitted] … |
 | 88 | 44 5-23 | mh | H | R | ~209 | ~156 | -0.14 | [omitted]? | D5:3: Andrew: [omitted] … | Andrew: [omitted] … |
-| 89 | 44 5-23 | mh | H | F | 30 | ~446 | 0.34/0.50 | [omitted]? | D5:5: Andrew: [omitted]'[omitted]'s doing great in his new home. Still getting used … |
-| 90 | 44 5-23 | mh | H | R | ~221 | ~453 | -0.14 | [omitted]? | D5:7: Andrew: I'[omitted]'s doing great in his new home. Still getting used … |
+| 89 | 44 5-23 | mh | H | F | 30 | ~446 | 0.34/0.50 | [omitted]? | D5:5: Andrew: [omitted]'[omitted][omitted] … |
+| 90 | 44 5-23 | mh | H | R | ~221 | ~453 | -0.14 | [omitted]? | D5:7: Andrew: I'[omitted][omitted] … |
 | 91 | 44 5-35 | mh | H | F | 12 | ~292 | 0.42/0.48 | What are the names of Andrew'[omitted]'s a bundle of … | Andrew: Thanks, I think that'[omitted]'ll take good ca… |
 | 92 | 44 5-35 | mh | H | R | ~72 | ~610 | -0.05 | What are the names of Andrew'[omitted]'Scout'[omitted]'s what I need to hear. I'll take good ca… |
-| 93 | 44 5-39 | mh | H | R | ~227 | ~352 | -0.16 | What did Audrey get wtih having so many dogs? | D2:15: Audrey: You'll love them! They'[omitted]'t get bored at all. [imag… |
+| 93 | 44 5-39 | mh | H | R | ~227 | ~352 | -0.16 | [omitted]? | D2:15: Audrey: You'll love them! They'[omitted]'t get bored at all. [imag… |
 | 94 | 44 5-49 | mh | H | F | 17 | ~408 | 0.40/0.48 | What does Audrey view her pets as? | D23:18: Audrey: I think i'[omitted]'t imagine my life without them - my … | Audrey: [omitted]… |
 | 95 | 44 5-50 | mh | H | R | ~141 | ~71 | -0.07 | [omitted]? | D17:4: Audrey: [omitted]… | Audrey: [omitted].… |
 | 96 | 44 5-51 | mh | H | R | ~108 | ~279 | -0.05 | [omitted]? | D18:10: Audrey: [omitted]… | Audrey: [omitted]… |
@@ -722,11 +722,11 @@ Columns: `st` R = lost at recall (in no leg top-30), F = lost at fusion. `vec` /
 | 100 | 47 6-5 | mh | H | R | ~110 | ~314 | -0.07 | What are John and James'[omitted]'[omitted]… | John: [omitted]? |
 | 101 | 47 6-8 | mh | H | R | ~50 | ~429 | -0.04 | How many pets does James have? | D1:12: James: [omitted],… | James: [omitted]… |
 | 102 | 47 6-8 | mh | H | F | 14 | ~169 | 0.41/0.48 | How many pets does James have? | D5:1: James: [omitted]… | James: [omitted]… |
-| 103 | 47 6-27 | mh | H | F | 16 | ~107 | 0.40/0.48 | What kind of classes has James joined? | D13:6: James: [omitted] … | James: [omitted]… |
+| 103 | 47 6-27 | mh | H | F | 16 | ~107 | 0.40/0.48 | [omitted]? | D13:6: James: [omitted] … | James: [omitted]… |
 | 104 | 47 6-38 | mh | H | R | ~72 | ~35 | -0.03 | What happened to John'[omitted]'[omitted]'[omitted]'m super stoke… |
 | 105 | 47 6-40 | mh | H | R | ~47 | ~311 | -0.04 | What kind of tricks do James'[omitted]'s… | James: [omitted]… |
 | 106 | 47 6-40 | mh | H | F | 28 | ~184 | 0.35/0.48 | What kind of tricks do James'[omitted]'[omitted]! [image… | James: [omitted]… |
-| 107 | 47 6-40 | mh | H | F | 26 | ~162 | 0.35/0.48 | What kind of tricks do James's pets know? | D17:16: James: [omitted]… | James: [omitted]… |
+| 107 | 47 6-40 | mh | H | F | 26 | ~162 | 0.35/0.48 | [omitted]? | D17:16: James: [omitted]… | James: [omitted]… |
 | 108 | 47 6-56 | mh | H | F | 5 | ~157 | 0.47/0.71 | Which of James'[omitted]'[omitted]… | James: [omitted]… |
 | 109 | 48 7-13 | mh | H | F | 12 | ~377 | 0.42/0.49 | What places give Deborah peace? | D19:17: Deborah: [omitted]'[omitted]'[omitted]… |
 | 110 | 48 7-14 | mh | H | F | 12 | ~133 | 0.42/0.49 | What were Deborah's mother'[omitted]'[omitted]… |
@@ -737,51 +737,51 @@ Columns: `st` R = lost at recall (in no leg top-30), F = lost at fusion. `vec` /
 | 115 | 48 7-84 | mh | H | F | 22 | ~531 | 0.37/0.73 | [omitted]? | D4:5: Jolene: [omitted]… | Jolene: [omitted]… |
 | 116 | 48 7-86 | mh | H | R | ~185 | ~75 | -0.08 | What gifts has Deborah received? | D23:22: Deborah: [omitted]… | Deborah: [omitted]… |
 | 117 | 48 7-88 | mh | H | R | ~66 | ~220 | -0.07 | [omitted]? | D12:1: Deborah: [omitted]… | Deborah: [omitted]… |
-| 118 | 48 7-88 | mh | H | R | ~279 | ~523 | -0.17 | [omitted]? | D15:1: Deborah: [omitted]'[omitted]'ve been focusing on teaching yoga an… |
-| 119 | 48 7-88 | mh | H | R | ~90 | ~187 | -0.08 | [omitted]? | D28:11: Deborah: That beach is super special to me. It'[omitted]'ve been focusing on teaching yoga an… |
-| 120 | 48 7-88 | mh | H | R | ~126 | ~218 | -0.11 | [omitted]? | D29:1: Deborah: Hey Jolene, I'[omitted]'ve been focusing on teaching yoga an… |
-| 121 | 49 8-7 | mh | H | F | 20 | ~361 | 0.38/0.49 | What new hobbies did Sam consider trying? | D10:8: Sam: Wow Evan, that'[omitted]'s catch up soon and … |
-| 122 | 49 8-7 | mh | H | F | 3 | ~261 | 0.48/0.49 | What new hobbies did Sam consider trying? | D20:6: Sam: I used to love hiking, but it'[omitted]'s catch up soon and … |
-| 123 | 49 8-7 | mh | H | R | ~97 | ~127 | -0.05 | What new hobbies did Sam consider trying? | D7:2: Sam: [omitted].… | Evan: [omitted] … |
-| 124 | 49 8-7 | mh | H | R | ~240 | ~370 | -0.10 | What new hobbies did Sam consider trying? | D7:4: Sam: The cooking class has been great, I'[omitted]'s catch up soon and … |
-| 125 | 49 8-7 | mh | H | R | ~154 | ~118 | -0.07 | What new hobbies did Sam consider trying? | D7:6: Sam: [omitted]… | Evan: [omitted] … |
+| 118 | 48 7-88 | mh | H | R | ~279 | ~523 | -0.17 | [omitted]? | D15:1: Deborah: [omitted]'[omitted][omitted]… |
+| 119 | 48 7-88 | mh | H | R | ~90 | ~187 | -0.08 | [omitted]? | D28:11: Deborah: That beach is super special to me. It'[omitted][omitted]… |
+| 120 | 48 7-88 | mh | H | R | ~126 | ~218 | -0.11 | [omitted]? | D29:1: Deborah: Hey Jolene, I'[omitted][omitted]… |
+| 121 | 49 8-7 | mh | H | F | 20 | ~361 | 0.38/0.49 | [omitted]? | D10:8: Sam: Wow Evan, that'[omitted]'s catch up soon and … |
+| 122 | 49 8-7 | mh | H | F | 3 | ~261 | 0.48/0.49 | [omitted]? | D20:6: Sam: I used to love hiking, but it'[omitted]'s catch up soon and … |
+| 123 | 49 8-7 | mh | H | R | ~97 | ~127 | -0.05 | [omitted]? | D7:2: Sam: [omitted].… | Evan: [omitted] … |
+| 124 | 49 8-7 | mh | H | R | ~240 | ~370 | -0.10 | [omitted]? | D7:4: Sam: The cooking class has been great, I'[omitted]'s catch up soon and … |
+| 125 | 49 8-7 | mh | H | R | ~154 | ~118 | -0.07 | [omitted]? | D7:6: Sam: [omitted]… | Evan: [omitted] … |
 | 126 | 49 8-14 | mh | H | R | ~44 | ~285 | -0.02 | What is Evan'[omitted]'s ma… | Evan: [omitted]… |
 | 127 | 49 8-21 | mh | H | F | 18 | ~72 | 0.39/0.48 | [omitted]… | D23:3: Evan: [omitted]… | Sam: [omitted]? |
 | 128 | 49 8-32 | mh | H | F | 6 | ~62 | 0.46/0.47 | [omitted]? | D21:20: Evan: [omitted]'[omitted]'m doing my b… |
-| 129 | 49 8-37 | mh | H | F | 29 | ~123 | 0.34/0.73 | [omitted]… | D18:6: Sam: Exactly, it'[omitted]'s great to hear! Feeling more energized after me… |
+| 129 | 49 8-37 | mh | H | F | 29 | ~123 | 0.34/0.73 | [omitted]… | D18:6: Sam: Exactly, it'[omitted][omitted]… |
 | 130 | 49 8-37 | mh | H | F | 3 | ~148 | 0.48/0.73 | [omitted]… | D8:1: Sam: Hey Evan, some big news: I'[omitted]'m determined. [… | Evan: [omitted]… |
 | 131 | 49 8-42 | mh | H | F | 19 | ~71 | 0.39/0.77 | How did Evan get into painting? | D1:14: Evan: Yep, it'[omitted]'s alwa… |
 | 132 | 49 8-42 | mh | H | F | 23 | 29 | 0.71/0.77 | How did Evan get into painting? | D1:16: Evan: [omitted]! | Sam: [omitted]… |
-| 133 | 49 8-48 | mh | H | R | ~75 | ~136 | -0.06 | [omitted]? | D21:9: Sam: Wish I could feel the same about love, but I'[omitted]'[omitted] … |
-| 134 | 49 8-50 | mh | H | R | ~81 | ~252 | -0.04 | What kind of hobbies does Evan pursue? | D1:6: Evan: [omitted]! | Evan: What other hobbies have you found for yourself? |
-| 135 | 49 8-50 | mh | H | R | ~60 | ~355 | -0.03 | What kind of hobbies does Evan pursue? | D25:10: Evan: [omitted].… | Evan: What other hobbies have you found for yourself? |
-| 136 | 49 8-50 | mh | H | R | ~188 | ~83 | -0.08 | What kind of hobbies does Evan pursue? | D25:8: Evan: [omitted]… | Evan: What other hobbies have you found for yourself? |
-| 137 | 49 8-50 | mh | H | F | 9 | ~209 | 0.44/0.48 | What kind of hobbies does Evan pursue? | D6:1: Evan: [omitted]… | Evan: What other hobbies have you found for yourself? |
-| 138 | 49 8-50 | mh | H | F | 4 | ~266 | 0.48/0.48 | What kind of hobbies does Evan pursue? | D8:30: Evan: [omitted]. | Evan: What other hobbies have you found for yourself? |
-| 139 | 49 8-50 | mh | H | R | ~152 | ~381 | -0.07 | What kind of hobbies does Evan pursue? | D9:6: Evan: [omitted]… | Evan: What other hobbies have you found for yourself? |
+| 133 | 49 8-48 | mh | H | R | ~75 | ~136 | -0.06 | [omitted]? | D21:9: Sam: [omitted][omitted]'[omitted] … |
+| 134 | 49 8-50 | mh | H | R | ~81 | ~252 | -0.04 | [omitted]? | D1:6: Evan: [omitted]! | Evan: [omitted]? |
+| 135 | 49 8-50 | mh | H | R | ~60 | ~355 | -0.03 | [omitted]? | D25:10: Evan: [omitted].… | Evan: [omitted]? |
+| 136 | 49 8-50 | mh | H | R | ~188 | ~83 | -0.08 | [omitted]? | D25:8: Evan: [omitted]… | Evan: [omitted]? |
+| 137 | 49 8-50 | mh | H | F | 9 | ~209 | 0.44/0.48 | [omitted]? | D6:1: Evan: [omitted]… | Evan: [omitted]? |
+| 138 | 49 8-50 | mh | H | F | 4 | ~266 | 0.48/0.48 | [omitted]? | D8:30: Evan: [omitted]. | Evan: [omitted]? |
+| 139 | 49 8-50 | mh | H | R | ~152 | ~381 | -0.07 | [omitted]? | D9:6: Evan: [omitted]… | Evan: [omitted]? |
 | 140 | 49 8-54 | mh | H | R | ~98 | ~415 | -0.06 | [omitted]? | D9:2: Evan: [omitted]'[omitted]'[omitted] … |
-| 141 | 49 8-62 | mh | H | R | ~109 | ~272 | -0.06 | What health scares did Sam and Evan experience? | D14:2: Evan: [omitted]… | Sam: [omitted]… |
+| 141 | 49 8-62 | mh | H | R | ~109 | ~272 | -0.06 | [omitted]? | D14:2: Evan: [omitted]… | Sam: [omitted]… |
 | 142 | 49 8-64 | mh | H | F | 16 | ~41 | 0.40/0.50 | [omitted]? | D14:1: Sam: [omitted]… | Sam: [omitted]… |
 | 143 | 49 8-72 | mh | H | R | ~60 | ~172 | -0.01 | [omitted]? | D22:1: Sam: [omitted]… | Evan: [omitted]. |
 | 144 | 49 8-77 | mh | H | R | ~72 | ~285 | -0.03 | [omitted]? | D23:15: Evan: [omitted]… | Evan: [omitted]… |
 | 145 | 49 8-77 | mh | H | F | 16 | ~135 | 0.40/0.47 | [omitted]? | D23:23: Evan: [omitted]… | Evan: [omitted]… |
 | 146 | 49 8-77 | mh | H | R | ~126 | ~155 | -0.05 | [omitted]? | D23:25: Evan: We'[omitted]'re really exc… | Evan: [omitted]… |
 | 147 | 49 8-77 | mh | H | R | ~316 | ~456 | -0.13 | [omitted]? | D24:9: Evan: [omitted]. … | Evan: [omitted]… |
-| 148 | 50 9-3 | mh | H | R | ~193 | ~322 | -0.10 | Which bands has Dave enjoyed listening to? | D23:9: Dave: The Fireworks headlined the festival. | Calvin: [omitted]? |
-| 149 | 50 9-19 | mh | H | R | ~270 | ~209 | -0.17 | [omitted]? | D12:7: Calvin: Aww, that'[omitted]'m actually going to Tokyo next month after the … |
+| 148 | 50 9-3 | mh | H | R | ~193 | ~322 | -0.10 | [omitted]? | D23:9: Dave: [omitted]. | Calvin: [omitted]? |
+| 149 | 50 9-19 | mh | H | R | ~270 | ~209 | -0.17 | [omitted]? | D12:7: Calvin: Aww, that'[omitted][omitted] … |
 | 150 | 50 9-23 | mh | H | R | ~91 | ~176 | -0.03 | What is Dave's main passion? | D3:12: Dave: [omitted]… | Dave: [omitted]… |
 | 151 | 50 9-23 | mh | H | F | 7 | ~290 | 0.46/0.48 | What is Dave'[omitted]'s a step towards my other … | Dave: [omitted]… |
 | 152 | 50 9-23 | mh | H | R | ~160 | ~309 | -0.05 | What is Dave'[omitted]'[omitted]… | Dave: [omitted]… |
 | 153 | 50 9-29 | mh | H | R | ~139 | ~37 | -0.09 | What are Dave'[omitted]'s cool that you'[omitted]'ve been getti… | Calvin: [omitted]… |
 | 154 | 50 9-29 | mh | H | R | ~334 | ~77 | -0.17 | What are Dave'[omitted]'[omitted]… | Calvin: [omitted]… |
-| 155 | 50 9-29 | mh | H | R | ~221 | ~282 | -0.12 | What are Dave's hobbies other than fixing cars? | D5:9: Dave: [omitted]… | Calvin: [omitted]… |
+| 155 | 50 9-29 | mh | H | R | ~221 | ~282 | -0.12 | [omitted]? | D5:9: Dave: [omitted]… | Calvin: [omitted]… |
 | 156 | 50 9-29 | mh | H | R | ~182 | ~289 | -0.11 | What are Dave'[omitted]'[omitted]… | Calvin: [omitted]… |
-| 157 | 50 9-45 | mh | H | F | 19 | ~495 | 0.39/0.48 | What shared activities do Dave and Calvin have? | D21:3: Calvin: [omitted]… | Calvin: [omitted]… |
-| 158 | 50 9-45 | mh | H | R | ~270 | ~485 | -0.11 | What shared activities do Dave and Calvin have? | D21:4: Dave: [omitted]… | Calvin: [omitted]… |
+| 157 | 50 9-45 | mh | H | F | 19 | ~495 | 0.39/0.48 | [omitted]? | D21:3: Calvin: [omitted]… | Calvin: [omitted]… |
+| 158 | 50 9-45 | mh | H | R | ~270 | ~485 | -0.11 | [omitted]? | D21:4: Dave: [omitted]… | Calvin: [omitted]… |
 | 159 | 50 9-46 | mh | H | R | ~116 | ~333 | -0.04 | What is Dave'[omitted]'s therapeutic to… | Dave: [omitted]… |
 | 160 | 50 9-46 | mh | H | R | ~73 | ~95 | -0.02 | What is Dave'[omitted]'s been my goal since I was a kid and it'[omitted]'m passionate about. Doing… |
-| 161 | 50 9-56 | mh | H | R | ~32 | ~68 | -0.00 | Which cities did Dave travel to in 2023? | D14:1: Dave: Hey Cal, how'[omitted]'t wait to see y… |
-| 162 | 50 9-56 | mh | H | F | 11 | ~44 | 0.29/0.33 | Which cities did Dave travel to in 2023? | D26:2: Dave: [omitted]… | Dave: [omitted]… |
+| 161 | 50 9-56 | mh | H | R | ~32 | ~68 | -0.00 | [omitted]? | D14:1: Dave: Hey Cal, how'[omitted]'t wait to see y… |
+| 162 | 50 9-56 | mh | H | F | 11 | ~44 | 0.29/0.33 | [omitted]? | D26:2: Dave: [omitted]… | Dave: [omitted]… |
 | 163 | 50 9-58 | mh | H | F | 13 | ~218 | 0.42/0.46 | Which events in Dave'[omitted]'ve alway… |
 | 164 | 50 9-58 | mh | H | F | 9 | ~548 | 0.44/0.46 | Which events in Dave'[omitted]'ve alway… |
 | 165 | 26 0-7 | mh | N | F | 26 | ~382 | 0.35/0.48 | What is Caroline'[omitted]'m really lucky to have them. They'[omitted]'ve known th… | Melanie: Wow, Caroline. We'[omitted]'s more to do. Yo… |
@@ -789,110 +789,110 @@ Columns: `st` R = lost at recall (in no leg top-30), F = lost at fusion. `vec` /
 | 167 | 26 0-37 | mh | N | F | 20 | ~184 | 0.38/0.47 | What did Melanie paint recently? | D9:17: Melanie: [omitted]… | Melanie: [omitted] … |
 | 168 | 26 0-38 | mh | N | F | 17 | ~308 | 0.40/0.48 | [omitted]? | D3:14: Melanie: [omitted]. [image: a photo of a man an… | Melanie: [omitted] … |
 | 169 | 26 0-38 | mh | N | R | ~89 | ~137 | -0.06 | [omitted]? | D8:4: Melanie: [omitted]… | Melanie: [omitted] … |
-| 170 | 26 0-40 | mh | N | F | ~39 | 15 | 0.27/0.56 | [omitted]? | D6:16: Melanie: [omitted]'[omitted]' faces so happy at the beach was the best! We… |
+| 170 | 26 0-40 | mh | N | F | ~39 | 15 | 0.27/0.56 | [omitted]? | D6:16: Melanie: [omitted]'[omitted]' [omitted]… |
 | 171 | 26 0-43 | mh | N | R | ~178 | ~161 | -0.13 | What kind of art does Caroline make? | D11:12: Caroline: [omitted]… | Caroline: [omitted] … |
-| 172 | 26 0-47 | mh | N | F | ~50 | 5 | 0.47/0.48 | [omitted]? | D12:1: Caroline: Hey Mel! How're ya doin'[omitted]'s face light up when they saw the support … |
-| 173 | 26 0-48 | mh | N | R | ~207 | ~364 | -0.14 | [omitted]? | D12:14: Melanie: I appreciate our friendship too, Caroline. You'[omitted]'s been super busy here. So much since we ta… |
-| 174 | 26 0-75 | mh | N | R | ~103 | ~310 | -0.06 | How many children does Melanie have? | D18:1: Melanie: [omitted] … | Caroline: [omitted]… |
+| 172 | 26 0-47 | mh | N | F | ~50 | 5 | 0.47/0.48 | [omitted]? | D12:1: Caroline: Hey Mel! How're ya doin'[omitted][omitted] … |
+| 173 | 26 0-48 | mh | N | R | ~207 | ~364 | -0.14 | [omitted]? | D12:14: Melanie: [omitted][omitted][omitted]… |
+| 174 | 26 0-75 | mh | N | R | ~103 | ~310 | -0.06 | [omitted]? | D18:1: Melanie: [omitted] … | Caroline: [omitted]… |
 | 175 | 30 1-27 | mh | N | R | ~36 | ~312 | -0.01 | [omitted]? | D14:14: Gina: Way to go, Jon! Don'[omitted]'s a pic from … | Gina: [omitted]… |
-| 176 | 30 1-31 | mh | N | R | ~42 | ~348 | -0.03 | How long did it take for Jon to open his studio? | D15:13: Jon: [omitted]! [image: a photo of a man… | Gina: [omitted]… |
-| 177 | 30 1-31 | mh | N | F | ~32 | 30 | 0.34/0.48 | How long did it take for Jon to open his studio? | D1:2: Jon: [omitted] … | Gina: [omitted]… |
-| 178 | 30 1-44 | sh | N | R | ~273 | ~189 | -0.25 | [omitted]? | D1:26: Jon: Yeah, they'[omitted]'ve been practicing hard and will defin… | Jon: [omitted]… |
+| 176 | 30 1-31 | mh | N | R | ~42 | ~348 | -0.03 | [omitted]? | D15:13: Jon: [omitted]! [image: a photo of a man… | Gina: [omitted]… |
+| 177 | 30 1-31 | mh | N | F | ~32 | 30 | 0.34/0.48 | [omitted]? | D1:2: Jon: [omitted] … | Gina: [omitted]… |
+| 178 | 30 1-44 | sh | N | R | ~273 | ~189 | -0.25 | [omitted]? | D1:26: Jon: Yeah, they'[omitted][omitted]… | Jon: [omitted]… |
 | 179 | 41 2-32 | mh | N | R | ~229 | ~230 | -0.09 | [omitted]? | D16:2: Maria: Hey John! Cool that it'[omitted]'m busy … | John: [omitted]… |
 | 180 | 41 2-44 | mh | N | R | ~412 | ~543 | -0.15 | [omitted]? | D28:5: John: [omitted]… | Maria: [omitted]… |
 | 181 | 41 2-49 | mh | N | R | ~617 | - | -0.32 | [omitted]? | D25:19: John: Yeah, it'[omitted]'[omitted]… |
-| 182 | 42 3-1 | mh | N | R | ~220 | ~104 | -0.10 | What kind of interests do Joanna and Nate share? | D20:2: Joanna: [omitted]'[omitted]'m a big fan of them and thought it would be a fun… |
-| 183 | 42 3-1 | mh | N | R | ~175 | ~190 | -0.07 | What kind of interests do Joanna and Nate share? | D3:4: Nate: [omitted]… | Nate: [omitted]… |
-| 184 | 42 3-51 | mh | N | R | ~32 | ~142 | -0.00 | When did Nate get Tilly for Joanna? | D24:2: Joanna: [omitted]… | Nate: Glad to hear it! What made you name her Tilly? |
+| 182 | 42 3-1 | mh | N | R | ~220 | ~104 | -0.10 | [omitted]? | D20:2: Joanna: [omitted]'[omitted][omitted]… |
+| 183 | 42 3-1 | mh | N | R | ~175 | ~190 | -0.07 | [omitted]? | D3:4: Nate: [omitted]… | Nate: [omitted]… |
+| 184 | 42 3-51 | mh | N | R | ~32 | ~142 | -0.00 | When did Nate get Tilly for Joanna? | D24:2: Joanna: [omitted]… | Nate: [omitted]? |
 | 185 | 42 3-55 | mh | N | R | ~78 | ~241 | -0.02 | What is Joanna inspired by? | D4:6: Joanna: [omitted]. | Nate: [omitted]… |
 | 186 | 42 3-55 | mh | N | F | ~90 | 28 | 0.35/0.47 | What is Joanna inspired by? | D7:6: Joanna: [omitted]… | Nate: [omitted]… |
-| 187 | 42 3-56 | mh | N | R | ~101 | ~241 | -0.04 | What animal do both Nate and Joanna like? | D26:9: Joanna: [omitted]… | Joanna: [omitted] … |
-| 188 | 42 3-58 | mh | N | R | ~364 | ~596 | -0.20 | What things has Nate reccomended to Joanna? | D2:14: Nate: [omitted] … | Joanna: [omitted] … |
-| 189 | 42 3-59 | mh | N | F | 9 | ~493 | 0.44/0.71 | What does Joanna do to remember happy memories? | D15:9: Joanna: [omitted]. [image: … | Joanna: [omitted]… |
-| 190 | 42 3-61 | mh | N | F | 22 | ~533 | 0.37/0.48 | What mediums does Nate use to play games? | D22:2: Nate: [omitted]… | Nate: [omitted]… |
-| 191 | 42 3-62 | mh | N | F | 18 | ~232 | 0.39/0.48 | How many letters has Joanna recieved? | D14:1: Joanna: [omitted]… | Joanna: Awww! How long have you had them? |
-| 192 | 42 3-62 | mh | N | F | 5 | ~426 | 0.47/0.48 | How many letters has Joanna recieved? | D18:5: Joanna: [omitted] … | Joanna: Awww! How long have you had them? |
+| 187 | 42 3-56 | mh | N | R | ~101 | ~241 | -0.04 | [omitted]? | D26:9: Joanna: [omitted]… | Joanna: [omitted] … |
+| 188 | 42 3-58 | mh | N | R | ~364 | ~596 | -0.20 | [omitted]? | D2:14: Nate: [omitted] … | Joanna: [omitted] … |
+| 189 | 42 3-59 | mh | N | F | 9 | ~493 | 0.44/0.71 | [omitted]? | D15:9: Joanna: [omitted]. [image: … | Joanna: [omitted]… |
+| 190 | 42 3-61 | mh | N | F | 22 | ~533 | 0.37/0.48 | [omitted]? | D22:2: Nate: [omitted]… | Nate: [omitted]… |
+| 191 | 42 3-62 | mh | N | F | 18 | ~232 | 0.39/0.48 | [omitted]? | D14:1: Joanna: [omitted]… | Joanna: Awww! How long have you had them? |
+| 192 | 42 3-62 | mh | N | F | 5 | ~426 | 0.47/0.48 | [omitted]? | D18:5: Joanna: [omitted] … | Joanna: Awww! How long have you had them? |
 | 193 | 42 3-67 | mh | N | R | ~43 | ~178 | -0.02 | What pets does Nate have? | D28:23: Nate: [omitted]… | Nate: [omitted]… |
 | 194 | 42 3-67 | mh | N | R | ~57 | ~118 | -0.04 | What pets does Nate have? | D8:3: Nate: [omitted] … | Nate: [omitted]… |
 | 195 | 42 3-69 | mh | N | R | ~59 | ~106 | -0.05 | How many turtles does Nate have? | D8:3: Nate: [omitted] … | Nate: [omitted]… |
-| 196 | 42 3-70 | mh | N | F | 14 | ~478 | 0.41/0.47 | What activities does Nate do with his turtles? | D25:21: Nate: [omitted]'[omitted]'m not sure I'll ever understand why watching my… |
+| 196 | 42 3-70 | mh | N | F | 14 | ~478 | 0.41/0.47 | [omitted]? | D25:21: Nate: [omitted]'[omitted][omitted]… |
 | 197 | 42 3-74 | mh | N | R | ~529 | ~94 | -0.28 | [omitted]? | D15:15: Joanna: [omitted]ate: [omitted]! |
 | 198 | 42 3-74 | mh | N | R | ~305 | ~76 | -0.19 | [omitted]? | D19:16: Joanna: [omitted]! | Nate: [omitted]! |
 | 199 | 42 3-78 | mh | N | F | 14 | ~70 | 0.41/0.82 | [omitted]? | D19:1: Nate: [omitted] … | Nate: [omitted]… |
-| 200 | 42 3-79 | mh | N | R | ~63 | ~118 | -0.05 | How many screenplays has Joanna written? | D12:13: Nate: [omitted]? | Joanna: [omitted]… |
-| 201 | 42 3-79 | mh | N | R | ~130 | ~394 | -0.10 | How many screenplays has Joanna written? | D12:14: Joanna: Yep! I chose to write about this because it'[omitted]'s about loss, identity, a… | Joanna: [omitted]… |
-| 202 | 42 3-79 | mh | N | F | 13 | ~416 | 0.42/0.48 | How many screenplays has Joanna written? | D5:1: Joanna: [omitted]. … | Joanna: [omitted]… |
+| 200 | 42 3-79 | mh | N | R | ~63 | ~118 | -0.05 | [omitted]? | D12:13: Nate: [omitted]? | Joanna: [omitted]… |
+| 201 | 42 3-79 | mh | N | R | ~130 | ~394 | -0.10 | [omitted]? | D12:14: Joanna: [omitted][omitted]'s about loss, identity, a… | Joanna: [omitted]… |
+| 202 | 42 3-79 | mh | N | F | 13 | ~416 | 0.42/0.48 | [omitted]? | D5:1: Joanna: [omitted]. … | Joanna: [omitted]… |
 | 203 | 42 3-80 | mh | N | F | 8 | ~52 | 0.45/0.48 | How many tournaments has Nate won? | D17:1: Nate: [omitted]… | Nate: [omitted]… |
 | 204 | 42 3-80 | mh | N | F | 11 | ~41 | 0.43/0.48 | How many tournaments has Nate won? | D22:2: Nate: [omitted]… | Nate: [omitted]… |
-| 205 | 42 3-134 | sh | N | R | ~291 | ~297 | -0.19 | What recipe Nate offer to share with Joanna? | D16:10: Nate: [omitted]? | Nate: [omitted]… |
-| 206 | 43 4-11 | mh | N | F | 19 | ~96 | 0.39/0.48 | What sports does John like besides basketball? | D1:7: John: [omitted]! [image: a … | Tim: [omitted]… |
-| 207 | 43 4-11 | mh | N | F | 26 | ~160 | 0.35/0.48 | What sports does John like besides basketball? | D2:14: John: [omitted]… | Tim: [omitted]… |
-| 208 | 43 4-11 | mh | N | R | ~205 | ~196 | -0.12 | What sports does John like besides basketball? | D3:1: John: [omitted]… | Tim: [omitted]… |
-| 209 | 43 4-17 | mh | N | R | ~52 | ~72 | -0.03 | How many games has John mentioned winning? | D22:4: John: [omitted]… | John: [omitted] … |
-| 210 | 43 4-17 | mh | N | R | ~32 | ~394 | -0.01 | How many games has John mentioned winning? | D3:3: John: [omitted]… | John: [omitted] … |
-| 211 | 43 4-17 | mh | N | F | 11 | ~441 | 0.43/0.48 | How many games has John mentioned winning? | D5:2: John: [omitted]… | John: [omitted] … |
-| 212 | 43 4-18 | mh | N | R | ~45 | ~161 | -0.03 | What authors has Tim read books from? | D1:14: Tim: It'[omitted]'re f… | Tim: [omitted]… |
-| 213 | 43 4-18 | mh | N | R | ~31 | ~378 | -0.00 | What authors has Tim read books from? | D26:36: Tim: I'[omitted]'s coming out called "[omitted]". It's b… | Tim: [omitted]… |
-| 214 | 43 4-26 | mh | N | F | 29 | ~84 | 0.34/0.49 | Which TV series does Tim mention watching? | D17:1: John: Hey Tim! Great to chat again. So much has happened! | Tim: [omitted] -… |
-| 215 | 43 4-26 | mh | N | R | ~209 | - | -0.09 | Which TV series does Tim mention watching? | D17:11: John: Yeah, I saw "That"! It'[omitted]'s a great … | Tim: [omitted] -… |
+| 205 | 42 3-134 | sh | N | R | ~291 | ~297 | -0.19 | [omitted]? | D16:10: Nate: [omitted]? | Nate: [omitted]… |
+| 206 | 43 4-11 | mh | N | F | 19 | ~96 | 0.39/0.48 | [omitted]? | D1:7: John: [omitted]! [image: a … | Tim: [omitted]… |
+| 207 | 43 4-11 | mh | N | F | 26 | ~160 | 0.35/0.48 | [omitted]? | D2:14: John: [omitted]… | Tim: [omitted]… |
+| 208 | 43 4-11 | mh | N | R | ~205 | ~196 | -0.12 | [omitted]? | D3:1: John: [omitted]… | Tim: [omitted]… |
+| 209 | 43 4-17 | mh | N | R | ~52 | ~72 | -0.03 | [omitted]? | D22:4: John: [omitted]… | John: [omitted] … |
+| 210 | 43 4-17 | mh | N | R | ~32 | ~394 | -0.01 | [omitted]? | D3:3: John: [omitted]… | John: [omitted] … |
+| 211 | 43 4-17 | mh | N | F | 11 | ~441 | 0.43/0.48 | [omitted]? | D5:2: John: [omitted]… | John: [omitted] … |
+| 212 | 43 4-18 | mh | N | R | ~45 | ~161 | -0.03 | [omitted]? | D1:14: Tim: It'[omitted]'re f… | Tim: [omitted]… |
+| 213 | 43 4-18 | mh | N | R | ~31 | ~378 | -0.00 | [omitted]? | D26:36: Tim: I'[omitted]'s coming out called "[omitted]". It's b… | Tim: [omitted]… |
+| 214 | 43 4-26 | mh | N | F | 29 | ~84 | 0.34/0.49 | [omitted]? | D17:1: John: [omitted]! | Tim: [omitted] -… |
+| 215 | 43 4-26 | mh | N | R | ~209 | - | -0.09 | [omitted]? | D17:11: John: Yeah, I saw "That"! It'[omitted]'s a great … | Tim: [omitted] -… |
 | 216 | 43 4-30 | mh | N | F | 11 | ~229 | 0.43/0.48 | Which cities has John been to? | D27:36: John: Yeah! That'[omitted]'[omitted]. … | Tim: [omitted]… |
-| 217 | 43 4-49 | mh | N | F | 9 | ~73 | 0.44/0.47 | How many times has John injured his ankle? | D18:2: John: Hey Tim! That'[omitted]'s been a tough week for me with… | John: [omitted]… |
+| 217 | 43 4-49 | mh | N | F | 9 | ~73 | 0.44/0.47 | [omitted]? | D18:2: John: Hey Tim! That'[omitted]'s been a tough week for me with… | John: [omitted]… |
 | 218 | 43 4-50 | mh | N | F | ~54 | 30 | 0.34/0.50 | [omitted]? | D18:2: John: Hey Tim! That'[omitted]'s been a tough week for me with… | John: [omitted]… |
 | 219 | 43 4-65 | mh | N | F | 23 | ~380 | 0.37/0.48 | What fantasy movies does Tim like? | D26:28: Tim: [omitted]'[omitted]'[omitted]… |
 | 220 | 43 4-65 | mh | N | R | ~58 | ~400 | -0.05 | What fantasy movies does Tim like? | D8:18: Tim: [omitted]'[omitted]'[omitted]… |
-| 221 | 44 5-2 | mh | N | F | 30 | ~45 | 0.34/0.48 | [omitted]? | D23:1: Andrew: Hey Audrey, it'[omitted]'s it going? Since we last talked, a few new t… |
+| 221 | 44 5-2 | mh | N | F | 30 | ~45 | 0.34/0.48 | [omitted]? | D23:1: Andrew: Hey Audrey, it'[omitted][omitted]… |
 | 222 | 44 5-3 | mh | N | R | ~82 | ~74 | -0.04 | [omitted] … | D23:3: Andrew: Friday night'[omitted]'m planning to check out… | Audrey: [omitted]… |
 | 223 | 44 5-3 | mh | N | F | 14 | ~68 | 0.41/0.48 | [omitted] … | D6:1: Andrew: [omitted] … | Audrey: [omitted]… |
 | 224 | 44 5-17 | mh | N | F | 5 | ~76 | 0.47/0.48 | [omitted]? | D24:13: Audrey: I can'[omitted]'s gonna be awesome! | Audrey: It'[omitted]'s going great. We're… |
-| 225 | 44 5-24 | mh | N | R | ~91 | ~197 | -0.05 | Did Audrey and Andrew grow up with a pet dog? | D13:10: Audrey: [omitted]… | Audrey: [omitted]… |
-| 226 | 44 5-24 | mh | N | R | ~86 | ~37 | -0.04 | Did Audrey and Andrew grow up with a pet dog? | D2:16: Andrew: It'[omitted]'s a photo of my family… | Audrey: [omitted]… |
-| 227 | 44 5-26 | mh | N | R | ~55 | ~304 | -0.04 | What is the biggest stressor in Andrew'[omitted]'[omitted]'[omitted]'[omitted]… |
-| 228 | 44 5-27 | mh | N | F | 5 | ~371 | 0.47/0.49 | How does Andrew feel about his current work? | D10:16: Andrew: Thanks! I'[omitted]'m stil… | Audrey: [omitted]… |
-| 229 | 44 5-27 | mh | N | F | 4 | ~49 | 0.48/0.49 | How does Andrew feel about his current work? | D12:3: Andrew: [omitted]… | Audrey: [omitted]… |
+| 225 | 44 5-24 | mh | N | R | ~91 | ~197 | -0.05 | [omitted]? | D13:10: Audrey: [omitted]… | Audrey: [omitted]… |
+| 226 | 44 5-24 | mh | N | R | ~86 | ~37 | -0.04 | [omitted]? | D2:16: Andrew: It'[omitted]'s a photo of my family… | Audrey: [omitted]… |
+| 227 | 44 5-26 | mh | N | R | ~55 | ~304 | -0.04 | [omitted][omitted]'[omitted]'[omitted]'[omitted]… |
+| 228 | 44 5-27 | mh | N | F | 5 | ~371 | 0.47/0.49 | [omitted]? | D10:16: Andrew: Thanks! I'[omitted]'m stil… | Audrey: [omitted]… |
+| 229 | 44 5-27 | mh | N | F | 4 | ~49 | 0.48/0.49 | [omitted]? | D12:3: Andrew: [omitted]… | Audrey: [omitted]… |
 | 230 | 44 5-31 | mh | N | R | ~235 | ~366 | -0.16 | What has Andrew done with his dogs? | D14:27: Andrew: [omitted]! | Andrew: Thanks, I think that'[omitted]'ll take good ca… |
 | 231 | 44 5-56 | mh | N | R | ~41 | ~74 | -0.01 | [omitted]? | D28:12: Andrew: [omitted] … | Andrew: [omitted]… |
 | 232 | 44 5-60 | mh | N | R | ~30 | ~175 | -0.00 | How many dogs does Andrew have? | D12:1: Andrew: [omitted]'[omitted]'s been amazing hav… |
 | 233 | 44 5-60 | mh | N | F | 15 | ~476 | 0.41/0.47 | How many dogs does Andrew have? | D24:2: Andrew: [omitted]'[omitted]'s been amazing hav… |
 | 234 | 44 5-60 | mh | N | F | 27 | ~487 | 0.35/0.47 | How many dogs does Andrew have? | D28:6: Andrew: No, we haven'[omitted]'s been amazing hav… |
 | 235 | 47 6-3 | mh | N | R | ~129 | ~667 | -0.07 | Do both James and John have pets? | D1:12: James: [omitted],… | John: [omitted]… |
-| 236 | 47 6-24 | mh | N | R | ~135 | ~424 | -0.11 | What kind of games has James tried to develop? | D13:7: John: [omitted]… | John: [omitted]? |
-| 237 | 47 6-24 | mh | N | R | ~41 | ~194 | -0.01 | What kind of games has James tried to develop? | D27:2: James: [omitted]… | John: [omitted]? |
-| 238 | 48 7-19 | mh | N | R | ~57 | ~261 | -0.02 | How many times has Jolene been to France? | D1:8: Jolene: [omitted]… | Jolene: [omitted]… |
-| 239 | 48 7-82 | mh | N | F | 28 | ~322 | 0.35/0.47 | [omitted]? | D2:11: Deborah: This is one of the places where I do it. [image: a photo of a living room with a televisio… | Deborah: [omitted]… |
+| 236 | 47 6-24 | mh | N | R | ~135 | ~424 | -0.11 | [omitted]? | D13:7: John: [omitted]… | John: [omitted]? |
+| 237 | 47 6-24 | mh | N | R | ~41 | ~194 | -0.01 | [omitted]? | D27:2: James: [omitted]… | John: [omitted]? |
+| 238 | 48 7-19 | mh | N | R | ~57 | ~261 | -0.02 | [omitted]? | D1:8: Jolene: [omitted]… | Jolene: [omitted]… |
+| 239 | 48 7-82 | mh | N | F | 28 | ~322 | 0.35/0.47 | [omitted]? | D2:11: Deborah: [omitted]. [image: [omitted]… | Deborah: [omitted]… |
 | 240 | 48 7-86 | mh | N | R | ~95 | ~343 | -0.04 | What gifts has Deborah received? | D23:20: Deborah: [omitted]… | Deborah: [omitted]… |
-| 241 | 48 7-188 | sh | N | R | ~196 | ~46 | -0.13 | [omitted]? | D29:27: Deborah: It's okay, maybe we can try it together sometime! | Deborah: [omitted]… |
-| 242 | 49 8-7 | mh | N | F | 7 | ~348 | 0.46/0.49 | What new hobbies did Sam consider trying? | D21:19: Sam: I do sketch occasionally, but I haven'[omitted]'ll… | Evan: [omitted] … |
+| 241 | 48 7-188 | sh | N | R | ~196 | ~46 | -0.13 | [omitted]? | D29:27: Deborah: [omitted]! | Deborah: [omitted]… |
+| 242 | 49 8-7 | mh | N | F | 7 | ~348 | 0.46/0.49 | [omitted]? | D21:19: Sam: [omitted][omitted]'ll… | Evan: [omitted] … |
 | 243 | 49 8-11 | mh | N | R | ~149 | ~417 | -0.13 | [omitted]? | D10:6: Sam: It'[omitted]'s tough w… |
 | 244 | 49 8-11 | mh | N | R | ~135 | ~81 | -0.12 | [omitted]? | D13:2: Sam: Hey Evan! It'[omitted]'s tough w… |
 | 245 | 49 8-11 | mh | N | F | 8 | ~61 | 0.45/0.48 | [omitted]? | D14:1: Sam: Hey Evan! I'[omitted]'s tough w… |
 | 246 | 49 8-11 | mh | N | F | 23 | ~77 | 0.37/0.48 | [omitted]? | D15:1: Sam: Morning, Evan. I'[omitted]'s tough. My fami… | Evan: [omitted]… |
-| 247 | 49 8-11 | mh | N | R | ~44 | ~105 | -0.03 | [omitted]? | D16:3: Sam: Thanks, Evan! Appreciate your support. It'[omitted]'s tough w… |
-| 248 | 49 8-11 | mh | N | R | ~45 | ~268 | -0.03 | [omitted]? | D24:12: Sam: Thanks, Evan! Haven'[omitted]'s probably a good idea to get some advi… | Evan: [omitted]… |
+| 247 | 49 8-11 | mh | N | R | ~44 | ~105 | -0.03 | [omitted]? | D16:3: Sam: [omitted][omitted]'s tough w… |
+| 248 | 49 8-11 | mh | N | R | ~45 | ~268 | -0.03 | [omitted]? | D24:12: Sam: Thanks, Evan! Haven'[omitted][omitted]… | Evan: [omitted]… |
 | 249 | 49 8-11 | mh | N | F | 19 | ~435 | 0.39/0.48 | [omitted]? | D24:14: Sam: I'[omitted]'s tough w… |
 | 250 | 49 8-11 | mh | N | F | 17 | ~397 | 0.40/0.48 | [omitted]? | D24:20: Sam: [omitted]. | Evan: [omitted]… |
 | 251 | 49 8-11 | mh | N | F | ~90 | 10 | 0.44/0.48 | [omitted]? | D25:3: Sam: [omitted]'[omitted]'s tough w… |
 | 252 | 49 8-11 | mh | N | R | ~408 | ~176 | -0.26 | [omitted]? | D5:5: Evan: [omitted]'[omitted]'s tough w… |
 | 253 | 49 8-11 | mh | N | R | ~112 | ~43 | -0.10 | [omitted]? | D6:2: Sam: [omitted]… | Evan: [omitted]… |
 | 254 | 49 8-11 | mh | N | F | 30 | ~450 | 0.34/0.48 | [omitted]? | D8:1: Sam: Hey Evan, some big news: I'[omitted]'m determined. [… | Evan: [omitted]… |
-| 255 | 49 8-14 | mh | N | R | ~34 | ~446 | -0.00 | What is Evan'[omitted]'s great to hear! Feeling more energized after me… |
+| 255 | 49 8-14 | mh | N | R | ~34 | ~446 | -0.00 | What is Evan'[omitted][omitted]… |
 | 256 | 49 8-28 | mh | N | R | ~183 | ~242 | -0.09 | [omitted]? | D11:7: Sam: [omitted]van: [omitted]… |
 | 257 | 49 8-36 | mh | N | R | ~164 | ~207 | -0.07 | [omitted]? | D23:26: Sam: [omitted]… | Evan: [omitted] … |
-| 258 | 49 8-44 | mh | N | R | ~45 | ~36 | -0.05 | What kind of subjects does Evan enjoy painting? | D20:13: Evan: [omitted] … | Sam: [omitted]? |
+| 258 | 49 8-44 | mh | N | R | ~45 | ~36 | -0.05 | [omitted]? | D20:13: Evan: [omitted] … | Sam: [omitted]? |
 | 259 | 49 8-49 | mh | N | F | 11 | ~67 | 0.43/0.47 | Who was injured in Evan'[omitted]'[omitted]… | Sam: That'[omitted]'s the s… |
 | 260 | 49 8-49 | mh | N | R | ~38 | ~395 | -0.02 | Who was injured in Evan'[omitted]'[omitted]… |
-| 261 | 49 8-49 | mh | N | R | ~364 | ~284 | -0.18 | Who was injured in Evan'[omitted]'s hard seeing someone we care about hurt. Look af… | Sam: That'[omitted]'s the s… |
+| 261 | 49 8-49 | mh | N | R | ~364 | ~284 | -0.18 | Who was injured in Evan'[omitted][omitted]… | Sam: That'[omitted]'s the s… |
 | 262 | 49 8-49 | mh | N | F | 8 | ~39 | 0.45/0.47 | Who was injured in Evan'[omitted]'[omitted]… |
 | 263 | 49 8-49 | mh | N | R | ~197 | ~200 | -0.09 | Who was injured in Evan'[omitted]'ve hit a sore spot l… | Sam: That'[omitted]'s the s… |
-| 264 | 49 8-50 | mh | N | R | ~363 | ~163 | -0.14 | What kind of hobbies does Evan pursue? | D4:8: Evan: [omitted]… | Evan: What other hobbies have you found for yourself? |
+| 264 | 49 8-50 | mh | N | R | ~363 | ~163 | -0.14 | [omitted]? | D4:8: Evan: [omitted]… | Evan: [omitted]? |
 | 265 | 49 8-54 | mh | N | R | ~31 | ~422 | -0.00 | [omitted]? | D11:2: Evan: Hey Sam! That'[omitted]'[omitted] … |
 | 266 | 49 8-64 | mh | N | R | ~34 | ~83 | -0.01 | [omitted]? | D7:2: Sam: [omitted].… | Sam: [omitted]… |
 | 267 | 49 8-81 | mh | N | F | ~74 | 9 | 0.44/0.80 | What is a stress reliever for Evan? | D8:18: Evan: [omitted]… | Evan: [omitted]… |
 | 268 | 49 8-82 | mh | N | R | ~221 | ~51 | -0.08 | What is a stress reliever for Sam? | D16:17: Sam: [omitted]… | Evan: [omitted], … |
 | 269 | 50 9-11 | mh | N | F | ~102 | 7 | 0.46/0.48 | What mishaps has Calvin run into? | D6:1: Calvin: [omitted]. | Calvin: [omitted]… |
 | 270 | 50 9-24 | mh | N | F | 12 | ~43 | 0.42/0.48 | Can Dave work with engines? | D20:1: Dave: [omitted]… | Dave: [omitted]… |
-| 271 | 50 9-30 | mh | N | R | ~87 | ~245 | -0.04 | What kind of music does Dave listen to? | D2:10: Dave: [omitted]… | Dave: [omitted]… |
+| 271 | 50 9-30 | mh | N | R | ~87 | ~245 | -0.04 | [omitted]? | D2:10: Dave: [omitted]… | Dave: [omitted]… |
 | 272 | 50 9-59 | mh | N | F | 11 | ~389 | 0.43/0.47 | How many Ferraris does Calvin own? | D2:1: Calvin: [omitted]… | Dave: [omitted]… |
-| 273 | 50 9-63 | mh | N | R | ~221 | ~159 | -0.09 | What style of guitars does Calvin own? | D16:4: Calvin: [omitted] … | Calvin: [omitted]! |
+| 273 | 50 9-63 | mh | N | R | ~221 | ~159 | -0.09 | [omitted]? | D16:4: Calvin: [omitted] … | Calvin: [omitted]! |
 | 274 | 50 9-66 | mh | N | F | 16 | ~93 | 0.40/0.48 | Do all of Dave'[omitted]'[omitted]'[omitted]'s a pic of the car I'm r… |
 | 275 | 50 9-66 | mh | N | F | 10 | ~128 | 0.44/0.48 | Do all of Dave'[omitted]'s a pic of the car I'm r… |
 | 276 | 50 9-66 | mh | N | F | 7 | ~161 | 0.46/0.48 | Do all of Dave'[omitted]'s a pic of the car I'm r… |
@@ -900,24 +900,24 @@ Columns: `st` R = lost at recall (in no leg top-30), F = lost at fusion. `vec` /
 | 278 | 26 0-42 | od | I | F | 11 | ~187 | 0.43/0.47 | [omitted]… | D10:12: Melanie: [omitted]… | Melanie: Thanks, Caroline. It'[omitted]'m doi… |
 | 279 | 26 0-42 | od | I | R | ~109 | ~156 | -0.05 | [omitted]… | D10:14: Melanie: I'[omitted]'s still a work in progress, but I'm doi… |
 | 280 | 26 0-50 | od | I | R | ~104 | ~112 | -0.04 | What would Caroline'[omitted]'re ya doin'[omitted]'[omitted]… |
-| 281 | 26 0-59 | od | I | F | 12 | ~305 | 0.42/0.48 | Would Caroline be considered religious? | D14:19: Caroline: [omitted]… | Melanie: [omitted] … |
-| 282 | 26 0-69 | od | I | R | ~65 | ~147 | -0.02 | [omitted]? | D13:16: Melanie: Wow, Caroline! That'[omitted]'ll start thinking about what we can do. |
-| 283 | 26 0-69 | od | I | F | 17 | ~59 | 0.40/0.48 | [omitted]? | D7:4: Melanie: Wow, Caroline. We'[omitted]'s more to do. Your drive to help is awesome! W… | Melanie: [omitted]. |
-| 284 | 41 2-8 | od | I | R | ~81 | ~258 | -0.02 | What might John'[omitted]'s definitely isn'[omitted]'t. We really need to do som… | Maria: Glad I could help, John. What's up next for you? |
-| 285 | 41 2-41 | od | I | R | ~182 | ~71 | -0.06 | Does John live close to a beach or the mountains? | D22:15: John: [omitted] … | John: [omitted]… |
-| 286 | 41 2-45 | od | I | R | ~157 | ~291 | -0.06 | Would John be open to moving to another country? | D24:3: John: [omitted]… | Maria: [omitted]… |
-| 287 | 41 2-45 | od | I | R | ~290 | ~338 | -0.09 | Would John be open to moving to another country? | D7:2: John: Hey Maria! Wanted to let you know that I'[omitted]'s been a wild ride, b… | Maria: [omitted]… |
+| 281 | 26 0-59 | od | I | F | 12 | ~305 | 0.42/0.48 | [omitted]? | D14:19: Caroline: [omitted]… | Melanie: [omitted] … |
+| 282 | 26 0-69 | od | I | R | ~65 | ~147 | -0.02 | [omitted]? | D13:16: Melanie: Wow, Caroline! That'[omitted][omitted]. |
+| 283 | 26 0-69 | od | I | F | 17 | ~59 | 0.40/0.48 | [omitted]? | D7:4: Melanie: Wow, Caroline. We'[omitted][omitted]… | Melanie: [omitted]. |
+| 284 | 41 2-8 | od | I | R | ~81 | ~258 | -0.02 | What might John'[omitted]'s definitely isn'[omitted]'t. We really need to do som… | Maria: [omitted]? |
+| 285 | 41 2-41 | od | I | R | ~182 | ~71 | -0.06 | [omitted]? | D22:15: John: [omitted] … | John: [omitted]… |
+| 286 | 41 2-45 | od | I | R | ~157 | ~291 | -0.06 | [omitted]? | D24:3: John: [omitted]… | Maria: [omitted]… |
+| 287 | 41 2-45 | od | I | R | ~290 | ~338 | -0.09 | [omitted]? | D7:2: John: [omitted][omitted]'s been a wild ride, b… | Maria: [omitted]… |
 | 288 | 41 2-50 | od | I | R | ~397 | ~484 | -0.12 | What attributes describe John? | D26:6: John: [omitted], … | Maria: [omitted]… |
 | 289 | 41 2-50 | od | I | R | ~93 | ~453 | -0.03 | What attributes describe John? | D2:14: John: [omitted]'[omitted]'s really cool seeing you ma… |
 | 290 | 41 2-50 | od | I | R | ~392 | ~545 | -0.12 | What attributes describe John? | D3:5: John: [omitted]… | Maria: [omitted]… |
 | 291 | 41 2-50 | od | I | R | ~481 | ~235 | -0.15 | What attributes describe John? | D4:6: John: [omitted] … | Maria: [omitted]… |
-| 292 | 41 2-64 | od | I | R | ~327 | ~377 | -0.13 | What job might Maria pursue in the future? | D11:10: Maria: [omitted]… | Maria: I bet! What are your plans for the future? |
-| 293 | 41 2-64 | od | I | R | ~177 | ~295 | -0.07 | What job might Maria pursue in the future? | D27:4: Maria: [omitted]… | Maria: I bet! What are your plans for the future? |
-| 294 | 41 2-64 | od | I | R | ~281 | ~132 | -0.11 | What job might Maria pursue in the future? | D32:14: Maria: [omitted]… | Maria: I bet! What are your plans for the future? |
-| 295 | 41 2-64 | od | I | R | ~96 | ~243 | -0.04 | What job might Maria pursue in the future? | D5:8: Maria: [omitted]… | Maria: I bet! What are your plans for the future? |
+| 292 | 41 2-64 | od | I | R | ~327 | ~377 | -0.13 | [omitted]? | D11:10: Maria: [omitted]… | Maria: [omitted]? |
+| 293 | 41 2-64 | od | I | R | ~177 | ~295 | -0.07 | [omitted]? | D27:4: Maria: [omitted]… | Maria: [omitted]? |
+| 294 | 41 2-64 | od | I | R | ~281 | ~132 | -0.11 | [omitted]? | D32:14: Maria: [omitted]… | Maria: [omitted]? |
+| 295 | 41 2-64 | od | I | R | ~96 | ~243 | -0.04 | [omitted]? | D5:8: Maria: [omitted]… | Maria: [omitted]? |
 | 296 | 42 3-0 | od | I | R | ~374 | ~602 | -0.19 | [omitted]? | D1:7: Nate: [omitted]… | Nate: [omitted]… |
-| 297 | 42 3-14 | od | I | R | ~184 | ~66 | -0.10 | What nickname does Nate use for Joanna? | D7:1: Nate: [omitted]! | Nate: [omitted]! |
-| 298 | 42 3-66 | od | I | R | ~143 | ~118 | -0.09 | [omitted]? | D19:3: Nate: I'[omitted]'m super proud of what I accomplished.… | Nate: [omitted]… |
+| 297 | 42 3-14 | od | I | R | ~184 | ~66 | -0.10 | [omitted]? | D7:1: Nate: [omitted]! | Nate: [omitted]! |
+| 298 | 42 3-66 | od | I | R | ~143 | ~118 | -0.09 | [omitted]? | D19:3: Nate: I'[omitted][omitted].… | Nate: [omitted]… |
 | 299 | 42 3-66 | od | I | R | ~444 | ~353 | -0.23 | [omitted]? | D25:19: Nate: [omitted]. [image: a… | Nate: [omitted]… |
 | 300 | 42 3-66 | od | I | R | ~328 | ~475 | -0.15 | [omitted]? | D28:25: Nate: [omitted] … | Nate: [omitted]… |
 | 301 | 42 3-66 | od | I | R | ~417 | ~347 | -0.20 | [omitted]? | D5:8: Nate: [omitted]… | Nate: [omitted]… |
@@ -925,48 +925,48 @@ Columns: `st` R = lost at recall (in no leg top-30), F = lost at fusion. `vec` /
 | 303 | 42 3-68 | od | I | F | 28 | ~475 | 0.35/0.47 | How many hikes has Joanna been on? | D7:6: Joanna: [omitted]… | Joanna: [omitted]… |
 | 304 | 42 3-87 | od | I | F | 7 | ~469 | 0.46/0.48 | What state did Nate visit? | D29:6: Nate: [omitted]… | Nate: [omitted]… |
 | 305 | 43 4-3 | od | I | R | ~59 | ~106 | -0.04 | [omitted]? | D1:14: Tim: It'[omitted]'re f… | John: [omitted]… |
-| 306 | 43 4-3 | od | I | R | ~307 | ~284 | -0.16 | [omitted]? | D1:16: Tim: Thanks! We'[omitted]'s awesome to see how sports can unite people. B… |
+| 306 | 43 4-3 | od | I | R | ~307 | ~284 | -0.16 | [omitted]? | D1:16: Tim: Thanks! We'[omitted][omitted]… |
 | 307 | 43 4-3 | od | I | R | ~95 | ~668 | -0.07 | [omitted]? | D1:18: Tim: [omitted]… | John: [omitted]… |
-| 308 | 43 4-5 | od | I | R | ~156 | ~184 | -0.08 | Based on Tim'[omitted]'s an awesome book collection! It's cool to escap… |
+| 308 | 43 4-5 | od | I | R | ~156 | ~184 | -0.08 | Based on Tim'[omitted][omitted]… |
 | 309 | 43 4-19 | od | I | R | ~43 | ~167 | -0.02 | [omitted]… | D3:13: John: [omitted]'[omitted]'[omitted] … |
 | 310 | 43 4-19 | od | I | R | ~195 | ~254 | -0.09 | [omitted]… | D3:15: John: [omitted]'[omitted]'[omitted] … |
-| 311 | 43 4-34 | od | I | F | 17 | ~136 | 0.40/0.48 | What could John do after his basketball career? | D26:1: John: Hey Tim! Great to hear from you. My week'[omitted]'s awesome! I could stop by there after my season. |
-| 312 | 43 4-34 | od | I | R | ~117 | ~291 | -0.09 | What could John do after his basketball career? | D27:26: John: He'[omitted]'s why he eventually becomes king. | John: [omitted]. |
+| 311 | 43 4-34 | od | I | F | 17 | ~136 | 0.40/0.48 | [omitted]? | D26:1: John: [omitted][omitted][omitted]. |
+| 312 | 43 4-34 | od | I | R | ~117 | ~291 | -0.09 | [omitted]? | D27:26: John: He'[omitted]'s why he eventually becomes king. | John: [omitted]. |
 | 313 | 43 4-53 | od | I | R | ~79 | ~326 | -0.06 | [omitted]? | D20:2: John: [omitted]… | John: [omitted]… |
 | 314 | 43 4-67 | od | I | R | ~53 | ~294 | -0.02 | [omitted]? | D15:3: Tim: [omitted]im: [omitted] … |
-| 315 | 43 4-67 | od | I | R | ~252 | ~336 | -0.13 | [omitted]? | D4:1: Tim: Hey John! How'[omitted]'m writing articles about fantasy nov… | Tim: [omitted] … |
+| 315 | 43 4-67 | od | I | R | ~252 | ~336 | -0.13 | [omitted]? | D4:1: Tim: Hey John! How'[omitted][omitted]… | Tim: [omitted] … |
 | 316 | 43 4-67 | od | I | R | ~70 | ~213 | -0.05 | [omitted]? | D6:6: Tim: [omitted]'[omitted]'[omitted] … |
-| 317 | 44 5-19 | od | I | R | ~120 | ~200 | -0.08 | [omitted]… | D10:12: Andrew: Lately I'[omitted]'t hike. I'[omitted]'t wait to see their happy face! This was my dog … |
-| 318 | 44 5-19 | od | I | R | ~62 | ~343 | -0.03 | [omitted]… | D12:1: Andrew: [omitted]'[omitted]'t wait to see their happy face! This was my dog … |
+| 317 | 44 5-19 | od | I | R | ~120 | ~200 | -0.08 | [omitted]… | D10:12: Andrew: Lately I'[omitted]'t hike. I'[omitted][omitted] … |
+| 318 | 44 5-19 | od | I | R | ~62 | ~343 | -0.03 | [omitted]… | D12:1: Andrew: [omitted]'[omitted][omitted] … |
 | 319 | 44 5-33 | od | I | R | ~171 | ~311 | -0.10 | [omitted]… | D21:5: Andrew: Haven'[omitted]'s hard to find open spaces in… | Andrew: [omitted] … |
 | 320 | 44 5-43 | od | I | R | ~305 | ~667 | -0.12 | [omitted]? | D11:9: Andrew: [omitted]'[omitted]'s t… | Audrey: [omitted]… |
 | 321 | 44 5-44 | od | I | R | ~124 | ~155 | -0.06 | [omitted]… | D11:9: Andrew: [omitted]'[omitted]'s t… | Audrey: [omitted]… |
-| 322 | 44 5-52 | od | I | F | 22 | ~180 | 0.37/0.48 | [omitted]… | D1:14: Andrew: I'[omitted]'s really peaceful and calming. It's nice to … |
+| 322 | 44 5-52 | od | I | F | 22 | ~180 | 0.37/0.48 | [omitted]… | D1:14: Andrew: I'[omitted][omitted] … |
 | 323 | 44 5-52 | od | I | R | ~285 | ~262 | -0.13 | [omitted]… | D20:5: Andrew: [omitted]? | Andrew: Yeah do that! It'[omitted]'s nice to … |
-| 324 | 44 5-52 | od | I | R | ~153 | ~225 | -0.08 | [omitted]… | D23:1: Andrew: Hey Audrey, it'[omitted]'s really peaceful and calming. It's nice to … |
-| 325 | 44 5-53 | od | I | F | ~51 | 20 | 0.38/0.50 | [omitted]… | D2:18: Andrew: [omitted]… | Andrew: No, no pets right now. But I do love animals. |
-| 326 | 44 5-53 | od | I | R | ~138 | ~60 | -0.09 | [omitted]… | D3:1: Andrew: [omitted]… | Andrew: No, no pets right now. But I do love animals. |
-| 327 | 44 5-53 | od | I | R | ~34 | ~95 | -0.00 | [omitted]… | D5:7: Andrew: [omitted]… | Andrew: No, no pets right now. But I do love animals. |
-| 328 | 44 5-53 | od | I | R | ~82 | ~80 | -0.05 | [omitted]… | D8:27: Andrew: Agreed! It'[omitted]'m in … | Andrew: No, no pets right now. But I do love animals. |
+| 324 | 44 5-52 | od | I | R | ~153 | ~225 | -0.08 | [omitted]… | D23:1: Andrew: Hey Audrey, it'[omitted][omitted] … |
+| 325 | 44 5-53 | od | I | F | ~51 | 20 | 0.38/0.50 | [omitted]… | D2:18: Andrew: [omitted]… | Andrew: [omitted]. |
+| 326 | 44 5-53 | od | I | R | ~138 | ~60 | -0.09 | [omitted]… | D3:1: Andrew: [omitted]… | Andrew: [omitted]. |
+| 327 | 44 5-53 | od | I | R | ~34 | ~95 | -0.00 | [omitted]… | D5:7: Andrew: [omitted]… | Andrew: [omitted]. |
+| 328 | 44 5-53 | od | I | R | ~82 | ~80 | -0.05 | [omitted]… | D8:27: Andrew: Agreed! It'[omitted]'m in … | Andrew: [omitted]. |
 | 329 | 47 6-6 | od | I | R | ~77 | ~60 | -0.03 | Does James live in Connecticut? | D5:1: James: [omitted]… | James: [omitted] … |
 | 330 | 47 6-19 | od | I | R | ~104 | ~223 | -0.04 | [omitted]? | D9:16: James: [omitted]. | James: [omitted] … |
 | 331 | 47 6-33 | od | I | R | ~505 | ~667 | -0.18 | Did John and James study together? | D17:13: John: Your support means a lot to me. You'[omitted]'[omitted]… |
-| 332 | 48 7-11 | od | I | R | ~196 | ~336 | -0.08 | Is Deborah married? | D19:11: Deborah: [omitted]'[omitted]'s wonderful! How long have you been married? |
-| 333 | 48 7-23 | od | I | R | ~416 | ~173 | -0.21 | Why did Jolene sometimes put off doing yoga? | D2:30: Jolene: We are planning to play "[omitted]" next Saturday. | Jolene: [omitted]… |
-| 334 | 48 7-23 | od | I | R | ~129 | ~189 | -0.08 | Why did Jolene sometimes put off doing yoga? | D3:11: Jolene: [omitted]. | Jolene: [omitted]… |
-| 335 | 48 7-36 | od | I | R | ~178 | ~456 | -0.07 | How old is Jolene? | D13:5: Jolene: I'[omitted]'s been a great opportunity to test my sk… | Jolene: How old is Luna? |
+| 332 | 48 7-11 | od | I | R | ~196 | ~336 | -0.08 | Is Deborah married? | D19:11: Deborah: [omitted]'[omitted][omitted]? |
+| 333 | 48 7-23 | od | I | R | ~416 | ~173 | -0.21 | [omitted]? | D2:30: Jolene: We are planning to play "[omitted]" next Saturday. | Jolene: [omitted]… |
+| 334 | 48 7-23 | od | I | R | ~129 | ~189 | -0.08 | [omitted]? | D3:11: Jolene: [omitted]. | Jolene: [omitted]… |
+| 335 | 48 7-36 | od | I | R | ~178 | ~456 | -0.07 | How old is Jolene? | D13:5: Jolene: I'[omitted][omitted]… | Jolene: How old is Luna? |
 | 336 | 48 7-36 | od | I | R | ~326 | ~171 | -0.15 | How old is Jolene? | D21:6: Jolene: [omitted]… | Jolene: How old is Luna? |
 | 337 | 48 7-36 | od | I | R | ~255 | ~481 | -0.10 | How old is Jolene? | D21:8: Jolene: [omitted]… | Jolene: How old is Luna? |
 | 338 | 48 7-36 | od | I | R | ~184 | ~318 | -0.07 | How old is Jolene? | D22:14: Jolene: [omitted]… | Jolene: How old is Luna? |
 | 339 | 48 7-36 | od | I | R | ~378 | ~191 | -0.21 | How old is Jolene? | D22:6: Jolene: [omitted]… | Jolene: How old is Luna? |
-| 340 | 48 7-36 | od | I | R | ~58 | ~455 | -0.02 | How old is Jolene? | D24:14: Jolene: Got a lot of finals coming up this month, so I'[omitted]'s been quite … | Jolene: How old is Luna? |
+| 340 | 48 7-36 | od | I | R | ~58 | ~455 | -0.02 | How old is Jolene? | D24:14: Jolene: [omitted][omitted]'s been quite … | Jolene: How old is Luna? |
 | 341 | 48 7-36 | od | I | R | ~332 | ~132 | -0.15 | How old is Jolene? | D24:2: Jolene: [omitted]… | Jolene: How old is Luna? |
 | 342 | 48 7-36 | od | I | R | ~288 | ~255 | -0.11 | How old is Jolene? | D25:5: Jolene: [omitted]. | Jolene: How old is Luna? |
 | 343 | 48 7-36 | od | I | R | ~478 | ~442 | -0.34 | How old is Jolene? | D26:6: Jolene: [omitted]… | Jolene: How old is Luna? |
 | 344 | 48 7-36 | od | I | R | ~375 | ~101 | -0.20 | How old is Jolene? | D8:2: Jolene: [omitted]… | Jolene: How old is Luna? |
 | 345 | 49 8-10 | od | I | R | ~273 | ~450 | -0.13 | [omitted]… | D19:1: Evan: Hey Sam, hope you'[omitted]'re doing great. I just got… |
 | 346 | 49 8-10 | od | I | R | ~71 | ~47 | -0.04 | [omitted]… | D19:3: Evan: So excited and a bit nervous! It'[omitted]'m really l… | Evan: [omitted]… |
-| 347 | 49 8-19 | od | I | R | ~324 | ~330 | -0.20 | [omitted]… | D14:12: Evan: [omitted]'[omitted]'m here for ya. Life can be tough sometimes, bu… |
+| 347 | 49 8-19 | od | I | R | ~324 | ~330 | -0.20 | [omitted]… | D14:12: Evan: [omitted]'[omitted][omitted]… |
 | 348 | 49 8-19 | od | I | R | ~224 | ~340 | -0.12 | [omitted]… | D22:1: Sam: [omitted]… | Sam: [omitted]… |
 | 349 | 49 8-19 | od | I | R | ~360 | ~392 | -0.23 | [omitted]… | D3:10: Sam: Yeah, you'[omitted]'[omitted]. | Sam: [omitted]… |
 | 350 | 49 8-19 | od | I | R | ~107 | ~213 | -0.05 | [omitted]… | D3:15: Evan: Sure Sam, I'[omitted]'s get together and I'[omitted]'… | Sam: [omitted]… |
@@ -981,14 +981,14 @@ Columns: `st` R = lost at recall (in no leg top-30), F = lost at fusion. `vec` /
 | 359 | 49 8-20 | od | I | R | ~320 | ~111 | -0.18 | [omitted]… | D8:7: Sam: Sure, I'[omitted]'[omitted] … | Evan: [omitted]… |
 | 360 | 49 8-20 | od | I | R | ~268 | ~347 | -0.15 | [omitted]… | D8:8: Evan: [omitted]! | Evan: [omitted]… |
 | 361 | 49 8-20 | od | I | R | ~43 | ~47 | -0.03 | [omitted]… | D9:1: Sam: [omitted]… | Evan: [omitted]… |
-| 362 | 49 8-43 | od | I | F | 5 | ~331 | 0.47/0.48 | How often does Sam get health checkups? | D2:6: Sam: [omitted]… | Evan: [omitted]… |
-| 363 | 49 8-43 | od | I | R | ~116 | ~83 | -0.06 | How often does Sam get health checkups? | D7:2: Sam: [omitted].… | Evan: [omitted]… |
+| 362 | 49 8-43 | od | I | F | 5 | ~331 | 0.47/0.48 | [omitted]? | D2:6: Sam: [omitted]… | Evan: [omitted]… |
+| 363 | 49 8-43 | od | I | R | ~116 | ~83 | -0.06 | [omitted]? | D7:2: Sam: [omitted].… | Evan: [omitted]… |
 | 364 | 49 8-51 | od | I | R | ~35 | ~148 | -0.00 | [omitted] … | D14:1: Sam: Hey Evan! I'[omitted]'s tough w… |
 | 365 | 49 8-51 | od | I | R | ~64 | ~120 | -0.04 | [omitted] … | D14:2: Evan: [omitted]… | Evan: [omitted]… |
 | 366 | 49 8-51 | od | I | R | ~141 | ~475 | -0.10 | [omitted] … | D4:2: Evan: Hey Sam, sorry about that. Don'[omitted]'s work on it together. | Evan: [omitted]… |
 | 367 | 49 8-51 | od | I | R | ~70 | ~260 | -0.05 | [omitted] … | D4:6: Evan: [omitted]… | Evan: [omitted]… |
-| 368 | 50 9-4 | od | I | R | ~257 | ~133 | -0.12 | Which country do Calvin and Dave want to meet in? | D3:10: Dave: Sounds like an amazing plan, Cal! I can'[omitted]'ll show you around … | Calvin: [omitted] … |
-| 369 | 50 9-4 | od | I | F | 27 | ~244 | 0.35/0.48 | Which country do Calvin and Dave want to meet in? | D3:9: Calvin: Thanks, Dave! I'[omitted]'re … |
+| 368 | 50 9-4 | od | I | R | ~257 | ~133 | -0.12 | [omitted]? | D3:10: Dave: [omitted][omitted]'ll show you around … | Calvin: [omitted] … |
+| 369 | 50 9-4 | od | I | F | 27 | ~244 | 0.35/0.48 | [omitted]? | D3:9: Calvin: Thanks, Dave! I'[omitted]'re … |
 | 370 | 50 9-37 | od | I | F | 17 | ~401 | 0.40/0.47 | Does Calvin love music tours? | D16:2: Calvin: [omitted]… | Dave: [omitted]… |
 | 371 | 50 9-37 | od | I | F | 23 | ~366 | 0.37/0.47 | Does Calvin love music tours? | D18:7: Calvin: [omitted]'[omitted]'m sure y… |
 | 372 | 50 9-37 | od | I | F | 16 | ~399 | 0.40/0.47 | Does Calvin love music tours? | D7:1: Calvin: [omitted] … | Dave: [omitted]… |
@@ -996,15 +996,15 @@ Columns: `st` R = lost at recall (in no leg top-30), F = lost at fusion. `vec` /
 | 374 | 30 1-38 | tp | T | F | ~51 | 1 | 0.50/0.73 | [omitted]? | D19:6: Gina: [omitted]… | Gina: [omitted]… |
 | 375 | 41 2-10 | tp | T | R | ~177 | ~400 | -0.06 | When did Maria meet Jean? | D7:1: Maria: Hey John, how'[omitted]'s been happening late… | John: [omitted]… |
 | 376 | 42 3-22 | tp | T | F | ~32 | 6 | 0.46/0.49 | [omitted]? | D12:13: Nate: [omitted]? | Joanna: [omitted]… |
-| 377 | 42 3-22 | tp | T | R | ~172 | ~415 | -0.12 | [omitted]? | D12:14: Joanna: Yep! I chose to write about this because it'[omitted]'s about loss, identity, a… | Joanna: [omitted]… |
-| 378 | 42 3-57 | tp | T | F | 6 | ~25 | 0.46/0.49 | When did Joanna plan to go over to Nate'[omitted]'ll come over tomorrow if that's fine. [image: a photo of a bo… | Nate: [omitted]… |
+| 377 | 42 3-22 | tp | T | R | ~172 | ~415 | -0.12 | [omitted]? | D12:14: Joanna: [omitted][omitted]'s about loss, identity, a… | Joanna: [omitted]… |
+| 378 | 42 3-57 | tp | T | F | 6 | ~25 | 0.46/0.49 | [omitted][omitted]'ll come over tomorrow if that's fine. [image: a photo of a bo… | Nate: [omitted]… |
 | 379 | 43 4-20 | tp | T | R | ~201 | ~84 | -0.10 | [omitted]? | D5:2: John: [omitted]… | John: [omitted]… |
 | 380 | 43 4-24 | tp | T | F | 17 | ~46 | 0.26/0.33 | [omitted]? | D7:1: John: [omitted] … | Tim: [omitted] … |
 | 381 | 43 4-45 | tp | T | F | 12 | ~83 | 0.42/0.47 | [omitted]? | D18:1: Tim: Hey John! Hope you'[omitted]'[omitted]… |
-| 382 | 43 4-55 | tp | T | F | 12 | ~154 | 0.42/0.47 | When did John start playing professionally? | D1:3: John: [omitted]! | John: [omitted] … |
+| 382 | 43 4-55 | tp | T | F | 12 | ~154 | 0.42/0.47 | [omitted]? | D1:3: John: [omitted]! | John: [omitted] … |
 | 383 | 44 5-0 | tp | T | F | 19 | ~519 | 0.39/0.48 | [omitted]? | D1:7: Audrey: I'[omitted]'t live without… | Audrey: [omitted] … |
-| 384 | 44 5-8 | tp | T | F | ~85 | 12 | 0.28/0.33 | Did Andrew have a pet dog during March 2023? | D2:8: Andrew: [omitted]ndrew: No, no pets right now. But I do love animals. |
-| 385 | 44 5-16 | tp | T | R | ~36 | ~52 | -0.01 | When is Andrew going to go hiking with Audrey? | D11:7: Andrew: Yeah definitely ! I'[omitted]'s do it next mon… | Audrey: [omitted]… |
+| 384 | 44 5-8 | tp | T | F | ~85 | 12 | 0.28/0.33 | [omitted]? | D2:8: Andrew: [omitted]ndrew: [omitted]. |
+| 385 | 44 5-16 | tp | T | R | ~36 | ~52 | -0.01 | [omitted]? | D11:7: Andrew: Yeah definitely ! I'[omitted]'s do it next mon… | Audrey: [omitted]… |
 | 386 | 44 5-22 | tp | T | F | 4 | ~31 | 0.32/0.49 | [omitted]? | D14:1: Andrew: Hey, Audrey! I can'[omitted]'… | Andrew: [omitted]… |
 | 387 | 44 5-45 | tp | T | F | 24 | ~105 | 0.36/0.47 | [omitted]? | D12:1: Andrew: [omitted] … | Andrew: [omitted]… |
 | 388 | 44 5-45 | tp | T | F | 13 | ~52 | 0.42/0.47 | [omitted]? | D24:2: Andrew: [omitted]… | Andrew: [omitted]… |
@@ -1012,61 +1012,61 @@ Columns: `st` R = lost at recall (in no leg top-30), F = lost at fusion. `vec` /
 | 390 | 44 5-46 | tp | T | F | 16 | ~106 | 0.27/0.33 | [omitted]? | D12:1: Andrew: [omitted] … | Andrew: [omitted]… |
 | 391 | 44 5-46 | tp | T | F | 8 | ~51 | 0.30/0.33 | [omitted]? | D24:2: Andrew: [omitted]… | Andrew: [omitted]… |
 | 392 | 44 5-47 | tp | T | F | 12 | ~537 | 0.42/0.46 | [omitted] | D24:2: Andrew: [omitted]'[omitted]'s been amazing hav… |
-| 393 | 44 5-55 | tp | T | R | ~49 | ~369 | -0.02 | When did Andrew make his dogs a fun indoor area? | D28:12: Andrew: [omitted] … | Andrew: [omitted]… |
-| 394 | 47 6-11 | tp | T | R | ~164 | ~526 | -0.06 | How was John feeling on April 10, 2022? | D6:7: John: That'[omitted]'s like the virtual world is con… | John: [omitted]… |
+| 393 | 44 5-55 | tp | T | R | ~49 | ~369 | -0.02 | [omitted]? | D28:12: Andrew: [omitted] … | Andrew: [omitted]… |
+| 394 | 47 6-11 | tp | T | R | ~164 | ~526 | -0.06 | [omitted]? | D6:7: John: That'[omitted]'s like the virtual world is con… | John: [omitted]… |
 | 395 | 47 6-32 | tp | T | F | 26 | ~192 | 0.24/0.31 | Where was James at on July 12, 2022? | D16:9: James: [omitted]… | James: [omitted]… |
 | 396 | 47 6-53 | tp | T | F | 13 | ~43 | 0.42/0.48 | [omitted]? | D27:2: James: [omitted]… | James: [omitted]… |
-| 397 | 48 7-43 | tp | T | F | 8 | ~177 | 0.45/0.48 | When did Deborah go for a bicycle ride with Anna? | D12:1: Deborah: [omitted]… | Deborah: [omitted]… |
+| 397 | 48 7-43 | tp | T | F | 8 | ~177 | 0.45/0.48 | [omitted]? | D12:1: Deborah: [omitted]… | Deborah: [omitted]… |
 | 398 | 48 7-46 | tp | T | F | 5 | ~32 | 0.47/0.48 | [omitted]… | D12:10: Jolene: Just so you know, I'[omitted]'s been tough but also real… | Jolene: [omitted]… |
-| 399 | 48 7-50 | tp | T | F | 21 | ~289 | 0.38/0.48 | Which year did Jolene start practicing yoga? | D13:17: Jolene: I'[omitted]'ve had a real positive eff… | Jolene: [omitted]… |
+| 399 | 48 7-50 | tp | T | F | 21 | ~289 | 0.38/0.48 | [omitted]? | D13:17: Jolene: I'[omitted]'ve had a real positive eff… | Jolene: [omitted]… |
 | 400 | 48 7-52 | tp | T | F | 11 | ~86 | 0.43/0.48 | [omitted]? | D16:2: Jolene: [omitted]'[omitted]'s happened! On Friday I had… |
 | 401 | 48 7-54 | tp | T | F | 4 | ~215 | 0.48/0.77 | [omitted]? | D16:6: Jolene: [omitted]. | Jolene: [omitted] … |
-| 402 | 48 7-54 | tp | T | R | ~99 | ~165 | -0.04 | [omitted]? | D2:28: Jolene: Even as a child I learned to play on my own. | Jolene: [omitted] … |
-| 403 | 48 7-55 | tp | T | R | ~183 | ~192 | -0.07 | [omitted]? | D2:28: Jolene: Even as a child I learned to play on my own. | Jolene: [omitted] … |
+| 402 | 48 7-54 | tp | T | R | ~99 | ~165 | -0.04 | [omitted]? | D2:28: Jolene: [omitted]. | Jolene: [omitted] … |
+| 403 | 48 7-55 | tp | T | R | ~183 | ~192 | -0.07 | [omitted]? | D2:28: Jolene: [omitted]. | Jolene: [omitted] … |
 | 404 | 48 7-78 | tp | T | R | ~328 | ~335 | -0.14 | [omitted]? | D2:1: Deborah: [omitted]'[omitted]'s me and my partner at one … |
 | 405 | 49 8-22 | tp | T | F | 6 | ~379 | 0.46/0.48 | When Evan did meet his future wife? | D5:1: Evan: [omitted] -… | Sam: [omitted]? |
 | 406 | 49 8-25 | tp | T | R | ~392 | ~77 | -0.24 | [omitted]? | D5:6: Sam: [omitted] … | Evan: [omitted]… |
 | 407 | 49 8-25 | tp | T | F | 2 | ~208 | 0.49/0.73 | [omitted]? | D5:7: Evan: [omitted]… | Evan: [omitted]… |
 | 408 | 49 8-70 | tp | T | F | 6 | ~80 | 0.46/0.48 | [omitted]? | D5:1: Evan: [omitted] -… | Evan: [omitted]… |
-| 409 | 50 9-10 | tp | T | F | ~43 | 4 | 0.48/0.74 | When did Calvin's place get flooded in Tokyo? | D6:3: Calvin: [omitted]… | Dave: [omitted]… |
-| 410 | 50 9-27 | tp | T | R | ~70 | ~97 | -0.04 | Which city was Calvin visiting in August 2023? | D16:6: Calvin: [omitted]… | Calvin: [omitted] … |
+| 409 | 50 9-10 | tp | T | F | ~43 | 4 | 0.48/0.74 | [omitted]? | D6:3: Calvin: [omitted]… | Dave: [omitted]… |
+| 410 | 50 9-27 | tp | T | R | ~70 | ~97 | -0.04 | [omitted]? | D16:6: Calvin: [omitted]… | Calvin: [omitted] … |
 | 411 | 50 9-31 | tp | T | F | ~31 | ~38 | 0.33/0.33 | [omitted]? | D14:1: Dave: [omitted] … | Dave: [omitted]… |
 | 412 | 50 9-31 | tp | T | R | ~91 | ~532 | -0.03 | [omitted]? | D17:1: Dave: [omitted]… | Dave: [omitted]… |
 | 413 | 50 9-48 | tp | T | R | ~36 | ~64 | -0.00 | [omitted]? | D22:1: Dave: [omitted]… | Dave: [omitted]… |
-| 414 | 50 9-57 | tp | T | R | ~63 | ~457 | -0.02 | Which hobby did Dave pick up in October 2023? | D27:2: Dave: Hey Calvin! That's cool that you'[omitted]'ve been getti… | Dave: [omitted]… |
+| 414 | 50 9-57 | tp | T | R | ~63 | ~457 | -0.02 | [omitted]? | D27:2: Dave: Hey Calvin! That's cool that you'[omitted]'ve been getti… | Dave: [omitted]… |
 | 415 | 50 9-68 | tp | T | F | 8 | ~134 | 0.45/0.50 | [omitted]? | D28:20: Dave: [omitted]… | Dave: [omitted]… |
 | 416 | 26 0-19 | mh | O | F | 22 | ~135 | 0.37/0.47 | What do Melanie'[omitted]'ll do… |
 | 417 | 26 0-34 | mh | O | F | ~36 | 29 | 0.34/0.48 | [omitted]? | D9:2: Caroline: [omitted]… | Melanie: Wow, Caroline. We'[omitted]'s more to do. Yo… |
 | 418 | 26 0-43 | mh | O | R | ~33 | ~77 | -0.00 | What kind of art does Caroline make? | D11:8: Caroline: [omitted] … | Caroline: [omitted] … |
 | 419 | 26 0-43 | mh | O | F | ~34 | 26 | 0.35/0.49 | What kind of art does Caroline make? | D9:14: Caroline: [omitted]. [image: a photography of a pain… | Caroline: [omitted] … |
 | 420 | 26 0-149 | sh | O | F | ~63 | 26 | 0.35/0.48 | What do Melanie'[omitted]'[omitted]… | Melanie: [omitted]. … |
-| 421 | 30 1-23 | mh | O | F | 19 | ~49 | 0.39/0.49 | How did Gina promote her clothes store? | D8:4: Gina: [omitted] … | Gina: [omitted]… |
+| 421 | 30 1-23 | mh | O | F | 19 | ~49 | 0.39/0.49 | [omitted]? | D8:4: Gina: [omitted] … | Gina: [omitted]… |
 | 422 | 30 1-45 | sh | O | F | ~98 | 5 | 0.47/0.48 | [omitted]? | D1:28: Jon: Yeah, awesome! Glad to be part of it. | Jon: [omitted]… |
 | 423 | 41 2-11 | mh | O | F | ~77 | 3 | 0.48/0.49 | [omitted]? | D7:5: Maria: [omitted] … | Maria: [omitted] … |
-| 424 | 41 2-30 | mh | O | F | ~31 | 4 | 0.48/0.48 | What shelters does Maria volunteer at? | D2:1: Maria: [omitted]… | Maria: [omitted]… |
+| 424 | 41 2-30 | mh | O | F | ~31 | 4 | 0.48/0.48 | [omitted]? | D2:1: Maria: [omitted]… | Maria: [omitted]… |
 | 425 | 41 2-42 | mh | O | F | ~141 | 10 | 0.44/0.48 | What area was hit by a flood? | D14:21: John: [omitted]… | John: [omitted]… |
 | 426 | 41 2-84 | sh | O | F | ~29 | 1 | 0.33/0.48 | [omitted]? | D10:10: Maria: [omitted]… | Maria: [omitted]… |
 | 427 | 42 3-55 | mh | O | F | ~128 | 27 | 0.35/0.47 | What is Joanna inspired by? | D26:3: Joanna: [omitted]… | Nate: [omitted]… |
 | 428 | 42 3-55 | mh | O | F | ~322 | 8 | 0.45/0.47 | What is Joanna inspired by? | D26:7: Joanna: [omitted]… | Nate: [omitted]… |
-| 429 | 42 3-70 | mh | O | F | 18 | ~37 | 0.39/0.47 | What activities does Nate do with his turtles? | D28:31: Nate: Sounds good. Well I'[omitted]'re rea… | Nate: [omitted]… |
+| 429 | 42 3-70 | mh | O | F | 18 | ~37 | 0.39/0.47 | [omitted]? | D28:31: Nate: Sounds good. Well I'[omitted]'re rea… | Nate: [omitted]… |
 | 430 | 42 3-81 | mh | O | R | ~36 | ~68 | -0.01 | What recipes has Joanna made? | D21:17: Joanna: Hey Nate! Here'[omitted]'[omitted]… | Joanna: [omitted]… |
 | 431 | 43 4-4 | mh | O | F | ~62 | 13 | 0.42/0.49 | What books has Tim read? | D6:8: Tim: Thanks! "[omitte[omitted]… | Tim: [omitted]… |
 | 432 | 43 4-13 | mh | O | F | 26 | ~38 | 0.35/0.48 | What does Tim do to escape reality? | D3:30: Tim: [omitted]. … | Tim: [omitted]… |
 | 433 | 43 4-14 | mh | O | F | 13 | ~36 | 0.42/0.48 | What kind of writing does Tim do? | D15:3: Tim: [omitted]im: [omitted]… |
-| 434 | 43 4-50 | mh | O | F | 3 | ~38 | 0.48/0.50 | [omitted]? | D19:20: John: I recently finished rereading "[omitted]" - it was really inspiring. It made me think aga… | John: [omitted]… |
+| 434 | 43 4-50 | mh | O | F | 3 | ~38 | 0.48/0.50 | [omitted]? | D19:20: John: I recently finished rereading "[omitted]" - [omitted]… | John: [omitted]… |
 | 435 | 44 5-2 | mh | O | F | 11 | ~53 | 0.43/0.48 | [omitted]? | D25:1: Andrew: [omitted] … | Andrew: [omitted]… |
 | 436 | 44 5-9 | mh | O | F | 5 | ~53 | 0.47/0.48 | [omitted]… | D6:2: Audrey: [omitted]'[omitted]'m busy taking ca… |
 | 437 | 44 5-12 | mh | O | F | 19 | ~103 | 0.39/0.48 | [omitted]? | D14:1: Andrew: Hey, Audrey! I can'[omitted]'… | Andrew: [omitted]… |
 | 438 | 44 5-15 | mh | O | R | ~139 | ~197 | -0.07 | [omitted]? | D7:8: Andrew: I'[omitted]'[omitted]… | Audrey: [omitted]… |
-| 439 | 44 5-26 | mh | O | F | 19 | ~102 | 0.39/0.48 | What is the biggest stressor in Andrew'[omitted]'re doing good! So I'[omitted]'[omitted]… |
+| 439 | 44 5-26 | mh | O | F | 19 | ~102 | 0.39/0.48 | [omitted][omitted]'re doing good! So I'[omitted]'[omitted]… |
 | 440 | 44 5-40 | mh | O | F | 6 | ~261 | 0.46/0.50 | [omitted]? | D14:2: Audrey: [omitted]… | Audrey: [omitted] … |
 | 441 | 44 5-42 | mh | O | F | ~56 | 12 | 0.42/0.48 | [omitted]? | D26:5: Audrey: [omitted]… | Audrey: [omitted] … |
 | 442 | 44 5-49 | mh | O | F | 8 | ~65 | 0.45/0.48 | What does Audrey view her pets as? | D15:15: Audrey: Yep, pets are family. It'[omitted]'s a photo of m… | Audrey: [omitted]… |
 | 443 | 44 5-54 | mh | O | R | ~56 | ~413 | -0.03 | [omitted]? | D13:8: Audrey: [omitted].… | Audrey: [omitted]… |
 | 444 | 44 5-54 | mh | O | R | ~74 | ~32 | -0.06 | [omitted]? | D27:12: Audrey: [omitted]… | Audrey: [omitted]… |
 | 445 | 44 5-54 | mh | O | F | 14 | ~34 | 0.41/0.48 | [omitted]? | D4:21: Audrey: [omitted]… | Audrey: [omitted]… |
-| 446 | 47 6-5 | mh | O | F | ~152 | 26 | 0.35/0.46 | What are John and James' favorite games? | D3:11: John: [omitted]… | John: [omitted]? |
-| 447 | 47 6-24 | mh | O | R | ~189 | ~46 | -0.13 | What kind of games has James tried to develop? | D1:4: James: [omitted]… | John: [omitted]? |
+| 446 | 47 6-5 | mh | O | F | ~152 | 26 | 0.35/0.46 | [omitted]? | D3:11: John: [omitted]… | John: [omitted]? |
+| 447 | 47 6-24 | mh | O | R | ~189 | ~46 | -0.13 | [omitted]? | D1:4: James: [omitted]… | John: [omitted]? |
 | 448 | 47 6-51 | mh | O | R | ~132 | ~71 | -0.10 | [omitted] … | D5:4: John: I'[omitted]'s kinda like getting tran… | James: [omitted] … |
 | 449 | 47 6-51 | mh | O | R | ~60 | ~245 | -0.05 | [omitted] … | D8:20: John: Awesome that you have them! I'[omitted]'s cool. Are you playing any… | James: [omitted] … |
 | 450 | 47 6-75 | sh | O | F | 23 | ~54 | 0.24/0.54 | [omitted]? | D4:16: James: I'[omitted]'s intense! Check… | John: [omitted]… |
@@ -1081,62 +1081,62 @@ Columns: `st` R = lost at recall (in no leg top-30), F = lost at fusion. `vec` /
 | 459 | 48 7-140 | sh | O | F | 5 | ~74 | 0.47/0.48 | [omitted]? | D15:10: Jolene: Yeah, we love playing "[omitted]" together! It'[omitted]'s compe… | Jolene: [omitted]… |
 | 460 | 48 7-158 | sh | O | F | ~72 | 8 | 0.45/0.47 | [omitted]… | D21:6: Jolene: [omitted]… | Jolene: [omitted]… |
 | 461 | 48 7-179 | sh | O | R | ~467 | ~34 | -0.25 | [omitted]? | D27:12: Deborah: [omitted]! … | Jolene: [omitted]. |
-| 462 | 49 8-7 | mh | O | F | 9 | ~55 | 0.44/0.49 | What new hobbies did Sam consider trying? | D2:10: Sam: Thanks, Evan. Like you said, I'[omitted]'ve been thinki… | Evan: [omitted] … |
+| 462 | 49 8-7 | mh | O | F | 9 | ~55 | 0.44/0.49 | [omitted]? | D2:10: Sam: Thanks, Evan. Like you said, I'[omitted]'ve been thinki… | Evan: [omitted] … |
 | 463 | 49 8-11 | mh | O | F | 5 | ~97 | 0.47/0.48 | [omitted]? | D12:1: Sam: Hey Evan, hope you'[omitted]'s been bothering me la… | Evan: [omitted]… |
 | 464 | 49 8-11 | mh | O | R | ~41 | ~110 | -0.02 | [omitted]? | D25:1: Sam: [omitted]'[omitted]'s tough w… |
 | 465 | 49 8-42 | mh | O | F | ~113 | 1 | 0.50/0.77 | How did Evan get into painting? | D1:15: Sam: Wow, that'[omitted]'s alwa… |
-| 466 | 49 8-55 | mh | O | F | ~238 | 11 | 0.43/0.47 | [omitted]? | D14:2: Evan: [omitted]… | Evan: Ready for an adventure? Where will you go? |
-| 467 | 49 8-62 | mh | O | F | 23 | ~46 | 0.37/0.50 | What health scares did Sam and Evan experience? | D14:1: Sam: Hey Evan! I'[omitted]'m doing my b… |
+| 466 | 49 8-55 | mh | O | F | ~238 | 11 | 0.43/0.47 | [omitted]? | D14:2: Evan: [omitted]… | Evan: [omitted]? |
+| 467 | 49 8-62 | mh | O | F | 23 | ~46 | 0.37/0.50 | [omitted]? | D14:1: Sam: Hey Evan! I'[omitted]'m doing my b… |
 | 468 | 49 8-90 | sh | O | F | ~186 | 3 | 0.48/0.49 | [omitted]… | D3:5: Evan: [omitted]… | Evan: [omitted]… |
-| 469 | 50 9-6 | mh | O | F | 12 | ~55 | 0.42/0.50 | Which types of cars does Dave like the most? | D3:12: Dave: [omitted]… | Calvin: [omitted]… |
+| 469 | 50 9-6 | mh | O | F | 12 | ~55 | 0.42/0.50 | [omitted]? | D3:12: Dave: [omitted]… | Calvin: [omitted]… |
 | 470 | 50 9-20 | mh | O | F | 20 | ~45 | 0.38/0.46 | Who inspired Dave'[omitted]'ve alway… |
 | 471 | 50 9-20 | mh | O | F | 10 | ~173 | 0.44/0.46 | Who inspired Dave'[omitted]'ve alway… |
-| 472 | 50 9-30 | mh | O | F | 25 | ~48 | 0.36/0.47 | What kind of music does Dave listen to? | D10:11: Dave: Nope, never been to Japan but I'[omitted]'ve heard it's full of vibes, good … | Dave: [omitted]… |
+| 472 | 50 9-30 | mh | O | F | 25 | ~48 | 0.36/0.47 | [omitted]? | D10:11: Dave: Nope, never been to Japan but I'[omitted]'ve heard it's full of vibes, good … | Dave: [omitted]… |
 | 473 | 50 9-97 | sh | O | F | 19 | ~44 | 0.39/0.48 | [omitted]? | D13:11: Dave: Thanks, Calvin! It'[omitted]'[omitted]… |
-| 474 | 50 9-118 | sh | O | F | ~34 | 6 | 0.46/0.49 | What do Calvin and Dave use to reach their goals? | D21:15: Calvin: [omitted]… | Dave: [omitted] … |
+| 474 | 50 9-118 | sh | O | F | ~34 | 6 | 0.46/0.49 | [omitted]? | D21:15: Calvin: [omitted]… | Dave: [omitted] … |
 | 475 | 50 9-120 | sh | O | R | ~43 | ~45 | -0.02 | [omitted]? | D22:5: Dave: Thanks Calvin! I'[omitted]'s not just a hobby, it'[omitted]'[omitted]… |
 | 476 | 50 9-124 | sh | O | F | 16 | ~72 | 0.40/0.47 | [omitted]… | D23:11: Dave: [omitted],… | Calvin: [omitted]… |
 | 477 | 50 9-152 | sh | O | R | ~201 | ~100 | -0.07 | What new item did Dave buy recently? | D30:5: Dave: [omitted]… | Calvin: [omitted]… |
-| 478 | 50 9-154 | sh | O | F | 7 | ~53 | 0.46/0.77 | What event did Calvin attend in Boston? | D30:2: Calvin: Hey Dave, it'[omitted]'t wait to see your pics. I went to a fancy gala … | Calvin: Yeah, for sure! I'[omitted]'m in Boston. See you… |
+| 478 | 50 9-154 | sh | O | F | 7 | ~53 | 0.46/0.77 | [omitted]? | D30:2: Calvin: Hey Dave, it'[omitted][omitted] … | Calvin: Yeah, for sure! I'[omitted]'m in Boston. See you… |
 | 479 | 26 0-3 | mh | M | F | 9 | ~188 | 0.44/0.49 | What did Caroline research? | D2:8: Caroline: Researching adoption agencies — it'[omitted]'[omitted]… |
 | 480 | 26 0-18 | mh | M | F | 17 | ~225 | 0.40/0.47 | Where has Melanie camped? | D6:16: Melanie: [omitted]elanie: [omitted] … |
 | 481 | 26 0-37 | mh | M | F | 7 | ~212 | 0.46/0.47 | What did Melanie paint recently? | D8:6: Melanie: [omitted]'[omitted]'s … |
 | 482 | 26 0-51 | mh | M | F | 10 | ~217 | 0.44/0.48 | What has Melanie painted? | D8:6: Melanie: [omitted]'[omitted]'s special to… |
-| 483 | 26 0-60 | mh | M | F | 8 | ~208 | 0.45/0.46 | What instruments does Melanie play? | D2:5: Melanie: [omitted] … | Caroline: [omitted]? |
+| 483 | 26 0-60 | mh | M | F | 8 | ~208 | 0.45/0.46 | [omitted]? | D2:5: Melanie: [omitted] … | Caroline: [omitted]? |
 | 484 | 26 0-150 | sh | M | F | 19 | ~176 | 0.39/0.48 | [omitted]? | D18:13: Melanie: Thanks, Caroline. They'[omitted]'[omitted]… |
-| 485 | 41 2-30 | mh | M | F | 15 | ~98 | 0.41/0.48 | What shelters does Maria volunteer at? | D17:12: Maria: John, that'[omitted]'t… |
+| 485 | 41 2-30 | mh | M | F | 15 | ~98 | 0.41/0.48 | [omitted]? | D17:12: Maria: John, that'[omitted]'t… |
 | 486 | 41 2-37 | mh | M | F | 12 | ~144 | 0.42/0.50 | [omitted]? | D24:1: John: [omitted]'[omitted]'[omitted] … |
 | 487 | 41 2-107 | sh | M | F | ~233 | ~538 | 0.28/0.32 | [omitted]? | D17:12: Maria: [omitted]… | Maria: [omitted]… |
-| 488 | 42 3-27 | mh | M | F | 15 | ~170 | 0.41/0.48 | What places has Joanna submitted her work to? | D16:1: Joanna: [omitted]… | Joanna: [omitted]… |
+| 488 | 42 3-27 | mh | M | F | 15 | ~170 | 0.41/0.48 | [omitted]? | D16:1: Joanna: [omitted]… | Joanna: [omitted]… |
 | 489 | 42 3-55 | mh | M | F | ~43 | 18 | 0.39/0.47 | What is Joanna inspired by? | D11:11: Joanna: [omitted]… | Nate: [omitted]… |
-| 490 | 42 3-58 | mh | M | R | ~314 | ~622 | -0.18 | What things has Nate reccomended to Joanna? | D19:17: Nate: [omitted]… | Joanna: [omitted] … |
-| 491 | 42 3-58 | mh | M | R | ~521 | ~623 | -0.26 | What things has Nate reccomended to Joanna? | D27:23: Nate: Yep! I'[omitted]'s b… | Joanna: [omitted] … |
+| 490 | 42 3-58 | mh | M | R | ~314 | ~622 | -0.18 | [omitted]? | D19:17: Nate: [omitted]… | Joanna: [omitted] … |
+| 491 | 42 3-58 | mh | M | R | ~521 | ~623 | -0.26 | [omitted]? | D27:23: Nate: Yep! I'[omitted]'s b… | Joanna: [omitted] … |
 | 492 | 43 4-4 | mh | M | F | 24 | ~343 | 0.36/0.49 | What books has Tim read? | D26:36: Tim: I'[omitted]'s coming out called "[omitted]". It's b… | Tim: [omitted]… |
-| 493 | 43 4-9 | mh | M | F | 20 | ~103 | 0.38/0.48 | Which endorsement deals has John been offered? | D25:2: John: [omitted]… | John: [omitted]… |
+| 493 | 43 4-9 | mh | M | F | 20 | ~103 | 0.38/0.48 | [omitted]? | D25:2: John: [omitted]… | John: [omitted]… |
 | 494 | 44 5-9 | mh | M | R | ~43 | ~250 | -0.01 | [omitted]… | D16:6: Audrey: [omitted]… | Audrey: [omitted]… |
-| 495 | 44 5-14 | mh | M | F | 15 | ~70 | 0.41/0.75 | [omitted]? | D9:20: Andrew: Haven'[omitted]'s up? Missed chatting with ya! Check it out,… |
-| 496 | 44 5-35 | mh | M | R | ~77 | ~396 | -0.05 | What are the names of Andrew'[omitted]'s my buddy and I hope him and Toby become buddies! | Andrew: Thanks, I think that'[omitted]'ll take good ca… |
+| 495 | 44 5-14 | mh | M | F | 15 | ~70 | 0.41/0.75 | [omitted]? | D9:20: Andrew: Haven'[omitted][omitted],… |
+| 496 | 44 5-35 | mh | M | R | ~77 | ~396 | -0.05 | What are the names of Andrew'[omitted][omitted]! | Andrew: Thanks, I think that'[omitted]'ll take good ca… |
 | 497 | 44 5-42 | mh | M | R | ~78 | ~313 | -0.03 | [omitted]? | D6:4: Audrey: [omitted]… | Audrey: [omitted] … |
 | 498 | 47 6-8 | mh | M | R | ~31 | ~433 | -0.01 | How many pets does James have? | D1:14: James: [omitted] … | James: [omitted]… |
 | 499 | 47 6-9 | mh | M | F | 12 | ~365 | 0.42/0.74 | What are the names of James's dogs? | D5:1: James: [omitted]… | James: [omitted]… |
 | 500 | 47 6-51 | mh | M | R | ~225 | ~254 | -0.15 | [omitted] … | D19:7: John: I'[omitted]'[omitted]… | James: [omitted] … |
 | 501 | 47 6-54 | mh | M | F | 17 | ~286 | 0.40/0.48 | [omitted]? | D27:1: John: [omitted]… | James: [omitted]… |
-| 502 | 48 7-1 | mh | M | F | 12 | ~429 | 0.42/0.83 | [omitted]? | D6:4: Deborah: [omitted]'[omitted]'s my old home. I go there now and then for my mom, who … |
+| 502 | 48 7-1 | mh | M | F | 12 | ~429 | 0.42/0.83 | [omitted]? | D6:4: Deborah: [omitted]'[omitted][omitted] … |
 | 503 | 48 7-84 | mh | M | F | 2 | ~192 | 0.49/0.73 | [omitted]? | D17:10: Jolene: [omitted]… | Jolene: [omitted]… |
-| 504 | 49 8-26 | mh | M | R | ~85 | ~258 | -0.05 | What motivates Evan to take care of his health? | D5:13: Evan: I'[omitted]'s pretty cool! [image: a p… | Evan: [omitted]… |
+| 504 | 49 8-26 | mh | M | R | ~85 | ~258 | -0.05 | [omitted]? | D5:13: Evan: I'[omitted]'s pretty cool! [image: a p… | Evan: [omitted]… |
 | 505 | 50 9-5 | mh | M | R | ~81 | ~265 | -0.03 | What are Dave'[omitted]'[omitted]… | Calvin: [omitted]… |
-| 506 | 26 0-4 | mh | P | R | ~189 | ~353 | -0.08 | What is Caroline'[omitted]'ve come so far, but there's more to do. Yo… |
+| 506 | 26 0-4 | mh | P | R | ~189 | ~353 | -0.08 | What is Caroline'[omitted][omitted]… |
 | 507 | 30 1-60 | sh | P | F | 8 | ~85 | 0.45/0.48 | What does Jon'[omitted]'s been tough, but I'[omitted]'[omitted]? |
-| 508 | 30 1-75 | sh | P | F | 22 | ~297 | 0.37/0.49 | [omitted]? | D15:12: Gina: I'[omitted]'[omitted]… | Gina: Can't wait for tomorrow's grand opening! |
-| 509 | 42 3-122 | sh | P | F | ~93 | ~69 | 0.29/0.32 | What did Nate do for Joanna on 25 May, 2022? | D13:9: Nate: [omitted]! [image: a photo of a stuffed… | Joanna: [omitted] … |
+| 508 | 30 1-75 | sh | P | F | 22 | ~297 | 0.37/0.49 | [omitted]? | D15:12: Gina: I'[omitted]'[omitted]… | Gina: [omitted]! |
+| 509 | 42 3-122 | sh | P | F | ~93 | ~69 | 0.29/0.32 | [omitted]? | D13:9: Nate: [omitted]! [image: a photo of a stuffed… | Joanna: [omitted] … |
 | 510 | 42 3-135 | sh | P | R | ~147 | ~409 | -0.08 | [omitted]? | D16:11: Joanna: Awesome! I'[omitted]'t wait! | Nate: [omitted]… |
 | 511 | 42 3-151 | sh | P | R | ~212 | ~381 | -0.10 | [omitted]? | D19:9: Nate: [omitted]? | Joanna: [omitted]… |
 | 512 | 42 3-173 | sh | P | R | ~58 | ~228 | -0.04 | [omitted]? | D24:13: Nate: [omitted]'[omitted]'t give up, … |
-| 513 | 42 3-195 | sh | P | F | ~210 | 12 | 0.42/0.47 | [omitted]'[omitted]'[omitted]… | Nate: Can't wait to see it, Joanna! I'm here to support you. |
+| 513 | 42 3-195 | sh | P | F | ~210 | 12 | 0.42/0.47 | [omitted]'[omitted]'[omitted]… | Nate: [omitted]. |
 | 514 | 48 7-121 | sh | P | F | ~167 | ~227 | 0.27/0.33 | [omitted]? | D9:14: Jolene: I'[omitted]'s a lot to manage and I'… | Jolene: [omitted]? |
-| 515 | 49 8-110 | sh | P | R | ~41 | ~425 | -0.02 | What injury did Evan suffer from in August 2023? | D9:2: Evan: [omitted]'[omitted]'s up? It's been a few days since we talked. How h… |
+| 515 | 49 8-110 | sh | P | R | ~41 | ~425 | -0.02 | [omitted]? | D9:2: Evan: [omitted]'[omitted][omitted]… |
 | 516 | 50 9-79 | sh | P | F | 7 | ~489 | 0.46/0.48 | [omitted]? | D5:11: Dave: [omitted]… | Calvin: [omitted]… |
-| 517 | 50 9-119 | sh | P | F | 20 | ~280 | 0.38/0.87 | What does working on cars represent for Dave? | D22:5: Dave: Thanks Calvin! I'[omitted]'s not just a hobby, it'[omitted]'m passionate about. Doing… |
+| 517 | 50 9-119 | sh | P | F | 20 | ~280 | 0.38/0.87 | [omitted]? | D22:5: Dave: Thanks Calvin! I'[omitted]'s not just a hobby, it'[omitted]'m passionate about. Doing… |
 
 ## Appendix B. Method notes and caveats
 

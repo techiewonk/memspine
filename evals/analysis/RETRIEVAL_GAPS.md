@@ -102,51 +102,51 @@ Within the 210, the hit set is also redundant by construction: the 10 hits span 
 Format: question || gold answer; missing turn id (session, date), cosine rank in conversation (v), BM25 rank (b), fused rank (f), window distance to nearest hit (d).
 
 **A near-window (window too small)**
-- Q1276 (cat1, miss, 8 gold turns) "What kind of hobbies does Evan pursue?" || painting, hiking, ...: D1:14 "[omitted]" v10, f22, d4. The painting hit is four turns away; the turn itself says nothing without its neighbours.
+- Q1276 (cat1, miss, 8 gold turns) "[omitted]?" || painting, hiking, ...: D1:14 "[omitted]" v10, f22, d4. The painting hit is four turns away; the turn itself says nothing without its neighbours.
 - Q1209 (cat4, miss) "[omitted]" || had plans: D26:15 "[omitted]" v83, d4. The question turn is in context, the reply is 4 turns later.
 - Q1055 (cat1, partial) "[omitted]": D2:30 "[omitted]" v71, d4.
-- Q446 (cat1, partial) "What mediums does Nate use to play games?" || Gamecube, PC, Playstation: D27:21 image turn, d4.
+- Q446 (cat1, partial) "[omitted]?" || Gamecube, PC, Playstation: D27:21 image turn, d4.
 - Q917 (cat2, miss) "Where was James at on July 12, 2022?" || Toronto: D16:9 (9 July) d4, f57.
 
 **B cut-off (in a leg top-30, outside fused top-10)**
 - Q35 (cat2, miss) "When did Melanie go camping in July?" || two weekends before 17 July: D9:1 "[omitted]" v11, b37, f18.
-- Q1536 (cat4, miss) "What event did Calvin attend in Boston?" || fancy gala: D30:2 "I went to a fancy gala in Boston yesterday" v7, b53, f17. A single-hop question lost only to the cut.
+- Q1536 (cat4, miss) "[omitted]?" || fancy gala: D30:2 "[omitted]" v7, b53, f17. A single-hop question lost only to the cut.
 - Q764 (cat1, miss, 4 gold turns) "[omitted]": D25:1 "[omitted]" v11, b53, f24.
 - Q941 (cat1, partial) "[omitted]" || mother, sister: D28:19 "[omitted]" v5, f14. Cosine rank 5 but fused rank 14: BM25 buried it (b157) because the turn says "mother" not "family members", and RRF punishes the disagreement.
-- Q1275 (cat1, partial, 5 of 6 missing) "Who was injured in Evan's family?": D7:9 "His ankle is getting better, but still sore" v8, f17.
+- Q1275 (cat1, partial, 5 of 6 missing) "Who was injured in Evan's family?": D7:9 "[omitted]" v8, f17.
 
 **C1 image-caption**
 - Q765 (cat1, partial) "[omitted]": D23:3 "[omitted]" v82, b74.
 - Q443 (cat1, miss, 6 gold turns) "What things has Nate recommended to Joanna?": D27:23 "[omitted]" [image] v522.
-- Q1123 (cat1, partial) "What activities does Deborah pursue besides yoga?": D12:1 "Had a blast biking nearby ... Checked out an art show ... [image]" v66, b220.
+- Q1123 (cat1, partial) "[omitted] yoga?": D12:1 "Had a blast biking nearby ... Checked out an art show ... [image]" v66, b220.
 - Q587 (cat3, miss) "[omitted]" || C. S. Lewis: D1:14 (Harry Potter fan chat + image) v59. Open-domain; the evidence is oblique.
 - Q451 (cat3, miss) "[omitted]" || animal keeper with turtles: D25:19 "[omitted]" v444. The caption-only turn gives no lexical link.
 
 **C2 short/anaphoric (rare)**
-- Q1385 (cat1, partial) "Which bands has Dave enjoyed listening to?" || Aerosmith, The Fireworks: D23:9 "The Fireworks headlined the festival." v193.
+- Q1385 (cat1, partial) "[omitted]?" || Aerosmith, The Fireworks: D23:9 "[omitted]." v193.
 - Q785 (cat1, miss) "What problems did Andrew face before he adopted Toby?": D2:12 "[omitted]" v33.
-- Q1223 (cat4, miss) "[omitted]" || Surfing: D29:27 "It's okay, maybe we can try it together sometime!" v196. The previous turn names surfing.
+- Q1223 (cat4, miss) "[omitted]" || Surfing: D29:27 "[omitted]!" v196. The previous turn names surfing.
 - Q887 (cat1, partial) "[omitted]": D1:36 "[omitted]" v161.
 
 **C3 no anchor**
-- Q441 (cat1, miss) "What animal do both Nate and Joanna like?" || turtles: D26:9 "[omitted]" v101 (the turtle noun is in the neighbouring turn).
-- Q786 (cat1, miss) "Did Audrey and Andrew grow up with a pet dog?": D13:10 "[omitted]" v91 (the dog is "Max").
+- Q441 (cat1, miss) "[omitted]?" || turtles: D26:9 "[omitted]" v101 (the turtle noun is in the neighbouring turn).
+- Q786 (cat1, miss) "[omitted]?": D13:10 "[omitted]" v91 (the dog is "Max").
 - Q781 (cat3, miss) "[omitted]" || cook dog treats: D10:12 "I've been getting into cooking more" v120.
 - Q818 (cat1, partial) "[omitted]" || No: D28:12 "[omitted]" v41.
 - Q587 (cat3): D1:18 "walking into a Harry Potter movie!" v96.
 
 **C4 date-dependent**
-- Q1425 (cat2, miss) "Which city was Calvin at on October 3, 2023?" || Boston: D21:1 (session dated 4 Oct) "[omitted]". "Yesterday" resolves to 3 Oct, but the record's event time is 4 Oct and the text has no date. v72, b70.
+- Q1425 (cat2, miss) "[omitted]?" || Boston: D21:1 (session dated 4 Oct) "[omitted]". "Yesterday" resolves to 3 Oct, but the record's event time is 4 Oct and the text has no date. v72, b70.
 - Q886 (cat2, miss) "[omitted]" || bowling: D1:26 (session 17 March) "yesterday I went bowling". v84, b372.
-- Q1413 (cat2, partial) "[omitted]" || San Francisco: D17:1 (2 Sept) "yesterday I came back from San Francisco".
+- Q1413 (cat2, partial) "[omitted]" || San Francisco: D17:1 (2 Sept) "[omitted]".
 - Q243 (cat2, miss) "When did Maria meet Jean?" || 24 Feb 2023: D7:1 (25 Feb) relative phrase in a long turn. v177.
 
 **C5 enumeration (>= 4 gold turns)**
-- Q155 (cat1, miss, 4 turns) "What do Jon and Gina both have in common?": D1:4 "I'm starting a dance studio" v202.
+- Q155 (cat1, miss, 4 turns) "[omitted]?": D1:4 "I'm starting a dance studio" v202.
 - Q645 (cat1, partial, 4 of 6 missing) "What books has John read?": D17:9 "[omitted]" v37 (no title in the turn).
 - Q459 (cat1, partial, 6 of 7 missing) "[omitted]": D15:14 cork board remark, v416.
 - Q280 (cat1, partial) "What exercises has John done?": D10:1 "started a weekend yoga class" v33.
-- Q1071 (cat3, miss, 10 of 10 missing) "How old is Jolene?" || likely no more than 30; she is in school: D8:2 "a lot going on with my studies and exams" v374.
+- Q1071 (cat3, miss, 10 of 10 missing) "How old is Jolene?" || likely no more than 30; she is in school: D8:2 "[omitted]" v374.
 
 Examples are listed at the missing-turn level (a question can appear under several classes; its question-level class is the hardest). Appendix A lists all 210 questions with every missing gold turn.
 
@@ -307,10 +307,10 @@ Column codes: class A, B, C1-C5 as in 2.2; `v` = cosine rank of the gold turn am
 | Q# | cat | outcome | question | missing gold turns: id [class, vector rank, bm25 rank, fused rank] | gold present |
 |---|---|---|---|---|---|
 | 3 | 1 | miss | What did Caroline research? | D2:8 [B,v8,b186,f19] | 0/1 |
-| 7 | 1 | miss | What is Caroline's relationship status? | D3:13 [B,v29,b382,f54], D2:14 [A,v86,b342,f-] | 0/2 |
-| 11 | 1 | partial | Where did Caroline move from 4 years ago? | D4:3 [C3,v245,b34,f-] | 1/2 |
+| 7 | 1 | miss | [omitted]? | D3:13 [B,v29,b382,f54], D2:14 [A,v86,b342,f-] | 0/2 |
+| 11 | 1 | partial | [omitted]? | D4:3 [C3,v245,b34,f-] | 1/2 |
 | 14 | 3 | partial | [omitted]... | D3:5 [B,v71,b11,f16] | 1/2 |
-| 15 | 1 | partial | What activities does Melanie partake in? | D9:1 [C5,v61,b94,f-], D1:12 [C1,v136,b286,f-], D1:18 [C5,v36,b227,f-] | 1/4 |
+| 15 | 1 | partial | [omitted]? | D9:1 [C5,v61,b94,f-], D1:12 [C1,v136,b286,f-], D1:18 [C5,v36,b227,f-] | 1/4 |
 | 19 | 1 | miss | What do Melanie's kids like? | D6:6 [B,v7,b328,f14], D4:8 [B,v22,b135,f43] | 0/2 |
 | 34 | 1 | miss | [omitted]? | D9:2 [B,v36,b29,f53], D3:3 [C3,v251,b138,f-] | 0/2 |
 | 35 | 2 | miss | When did Melanie go camping in July? | D9:1 [B,v11,b37,f18] | 0/1 |
@@ -320,13 +320,13 @@ Column codes: class A, B, C1-C5 as in 2.2; `v` = cosine rank of the gold turn am
 | 42 | 3 | miss | [omitted]? | D10:12 [B,v11,b187,f22], D10:14 [C1,v109,b156,f-] | 0/2 |
 | 48 | 1 | partial | [omitted]? | D12:14 [C3,v207,b365,f-] | 2/3 |
 | 51 | 1 | partial | What has Melanie painted? | D8:6 [B,v9,b213,f18] | 2/3 |
-| 61 | 1 | partial | What musical artists/bands has Melanie seen? | D11:3 [B,v11,b53,f25] | 1/2 |
-| 64 | 3 | miss | Would Melanie likely enjoy the song "[omitted]" by Vivaldi? | D15:28 [A,v7,b305,f15] | 0/1 |
+| 61 | 1 | partial | [omitted]? | D11:3 [B,v11,b53,f25] | 1/2 |
+| 64 | 3 | miss | [omitted] "[omitted]" by Vivaldi? | D15:28 [A,v7,b305,f15] | 0/1 |
 | 69 | 3 | miss | [omitted]? | D16:18 [A,v236,b243,f-], D13:16 [C3,v65,b148,f-], D7:4 [B,v14,b58,f29] | 0/3 |
-| 75 | 1 | partial | How many children does Melanie have? | D18:1 [C1,v101,b310,f-] | 1/2 |
-| 155 | 1 | miss | What do Jon and Gina both have in common? | D1:2 [B,v23,b292,f40], D1:3 [C5,v147,b99,f-], D1:4 [C5,v202,b242,f-], D2:1 [B,v162,b7,f17] | 0/4 |
+| 75 | 1 | partial | [omitted]? | D18:1 [C1,v101,b310,f-] | 1/2 |
+| 155 | 1 | miss | [omitted]? | D1:2 [B,v23,b292,f40], D1:3 [C5,v147,b99,f-], D1:4 [C5,v202,b242,f-], D2:1 [B,v162,b7,f17] | 0/4 |
 | 169 | 1 | partial | [omitted]? | D6:8 [B,v19,b126,f33] | 1/2 |
-| 183 | 1 | miss | How long did it take for Jon to open his studio? | D1:2 [B,v32,b30,f56], D15:13 [C1,v42,b349,f-] | 0/2 |
+| 183 | 1 | miss | [omitted]? | D1:2 [B,v32,b30,f56], D15:13 [C1,v42,b349,f-] | 0/2 |
 | 190 | 2 | miss | [omitted]? | D19:6 [B,v51,b1,f11] | 0/1 |
 | 197 | 4 | miss | [omitted]? | D1:28 [B,v98,b5,f13] | 0/1 |
 | 208 | 4 | miss | [omitted]? | D6:15 [A,v237,b115,f-], D6:16 [A,v73,b149,f-] | 0/2 |
@@ -335,45 +335,45 @@ Column codes: class A, B, C1-C5 as in 2.2; `v` = cosine rank of the gold turn am
 | 227 | 4 | miss | [omitted]? | D15:12 [B,v21,b297,f39] | 0/1 |
 | 236 | 1 | miss | [omitted]? | D3:5 [C3,v206,b497,f-], D2:1 [B,v26,b609,f47] | 0/2 |
 | 239 | 1 | partial | Where has Maria made friends? | D2:1 [C5,v405,b447,f-], D19:1 [C5,v79,b500,f-], D14:10 [B,v12,b333,f24] | 1/4 |
-| 241 | 3 | miss | What might John's financial status be? | D5:5 [C3,v81,b253,f-] | 0/1 |
+| 241 | 3 | miss | [omitted]? | D5:5 [C3,v81,b253,f-] | 0/1 |
 | 243 | 2 | miss | When did Maria meet Jean? | D7:1 [C4,v177,b394,f-] | 0/1 |
 | 244 | 1 | miss | [omitted]? | D7:5 [B,v77,b2,f10], D6:5 [A,v118,b74,f-], D27:8 [A,v191,b326,f-], D21:19 [C5,v57,b561,f-] | 0/4 |
-| 248 | 1 | partial | What writing classes has Maria taken? | D9:1 [A,v7,b451,f11] | 1/2 |
-| 258 | 1 | partial | What European countries has Maria been to? | D8:15 [B,v5,b260,f11] | 1/2 |
-| 263 | 1 | partial | What shelters does Maria volunteer at? | D2:1 [B,v31,b4,f11], D17:12 [B,v16,b99,f30] | 1/3 |
-| 268 | 1 | partial | What states has Maria vacationed at? | D18:3 [B,v9,b518,f19] | 1/2 |
-| 273 | 1 | partial | What are the names of John's children? | D22:7 [C3,v120,b536,f-] | 1/2 |
-| 274 | 3 | miss | Does John live close to a beach or the mountains? | D22:15 [C1,v182,b71,f-] | 0/1 |
+| 248 | 1 | partial | [omitted]? | D9:1 [A,v7,b451,f11] | 1/2 |
+| 258 | 1 | partial | [omitted]? | D8:15 [B,v5,b260,f11] | 1/2 |
+| 263 | 1 | partial | [omitted]? | D2:1 [B,v31,b4,f11], D17:12 [B,v16,b99,f30] | 1/3 |
+| 268 | 1 | partial | [omitted]? | D18:3 [B,v9,b518,f19] | 1/2 |
+| 273 | 1 | partial | [omitted]? | D22:7 [C3,v120,b536,f-] | 1/2 |
+| 274 | 3 | miss | [omitted]? | D22:15 [C1,v182,b71,f-] | 0/1 |
 | 275 | 1 | partial | What area was hit by a flood? | D14:21 [B,v141,b10,f18] | 1/2 |
-| 278 | 3 | miss | Would John be open to moving to another country? | D24:3 [C3,v157,b291,f-], D7:2 [C1,v290,b338,f-] | 0/2 |
+| 278 | 3 | miss | [omitted]? | D24:3 [C3,v157,b291,f-], D7:2 [C1,v290,b338,f-] | 0/2 |
 | 280 | 1 | partial | What exercises has John done? | D10:1 [C5,v33,b561,f-], D1:4 [B,v8,b209,f14] | 2/4 |
 | 282 | 1 | partial | [omitted]? | D25:19 [C3,v617,b-,f-] | 1/2 |
-| 297 | 3 | miss | What job might Maria pursue in the future? | D32:14 [C1,v281,b132,f-], D5:8 [C5,v96,b243,f-], D11:10 [C5,v327,b377,f-], D27:4 [C5,v177,b296,f-] | 0/4 |
+| 297 | 3 | miss | [omitted]? | D32:14 [C1,v281,b132,f-], D5:8 [C5,v96,b243,f-], D11:10 [C5,v327,b377,f-], D27:4 [C5,v177,b296,f-] | 0/4 |
 | 307 | 4 | miss | [omitted]? | D5:10 [A,v10,b28,f16] | 0/1 |
 | 317 | 4 | miss | [omitted]? | D10:10 [B,v29,b1,f3] | 0/1 |
 | 340 | 4 | miss | [omitted]? | D17:12 [C3,v233,b540,f-] | 0/1 |
 | 347 | 4 | miss | [omitted]... | D19:12 [A,v6,b109,f12] | 0/1 |
 | 366 | 4 | miss | [omitted]? | D27:9 [A,v78,b32,f-] | 0/1 |
-| 386 | 1 | partial | What kind of interests do Joanna and Nate share? | D3:4 [C1,v175,b190,f-], D4:9 [C5,v53,b438,f-], D10:9 [C1,v470,b203,f-], D20:2 [A,v220,b104,f-] | 3/7 |
+| 386 | 1 | partial | [omitted]? | D3:4 [C1,v175,b190,f-], D4:9 [C5,v53,b438,f-], D10:9 [C1,v470,b203,f-], D20:2 [A,v220,b104,f-] | 3/7 |
 | 390 | 1 | partial | What are Joanna's hobbies? | D2:25 [B,v26,b406,f51] | 1/2 |
 | 396 | 1 | partial | What is Joanna allergic to? | D4:4 [B,v14,b248,f22] | 2/3 |
-| 399 | 3 | miss | What nickname does Nate use for Joanna? | D7:1 [C3,v184,b65,f-] | 0/1 |
-| 402 | 2 | miss | What movie did Joanna watch on 1 May, 2022? | D10:1 [C4,v31,b438,f-] | 0/1 |
+| 399 | 3 | miss | [omitted]? | D7:1 [C3,v184,b65,f-] | 0/1 |
+| 402 | 2 | miss | [omitted]? | D10:1 [C4,v31,b438,f-] | 0/1 |
 | 407 | 2 | miss | [omitted]? | D12:13 [B,v32,b6,f16], D12:14 [C3,v172,b415,f-] | 0/2 |
 | 408 | 1 | partial | [omitted]? | D2:7 [A,v19,b136,f33] | 4/5 |
-| 412 | 1 | miss | What places has Joanna submitted her work to? | D2:7 [B,v7,b207,f16], D16:1 [B,v10,b170,f21] | 0/2 |
+| 412 | 1 | miss | [omitted]? | D2:7 [B,v7,b207,f16], D16:1 [B,v10,b170,f21] | 0/2 |
 | 419 | 1 | partial | [omitted]? | D3:17 [C3,v229,b517,f-], D19:16 [A,v285,b90,f-] | 1/3 |
-| 427 | 1 | partial | What movies have both Joanna and Nate seen? | D10:1 [B,v22,b263,f42], D22:8 [C3,v242,b242,f-] | 1/3 |
+| 427 | 1 | partial | [omitted]? | D10:1 [B,v22,b263,f42], D22:8 [C3,v242,b242,f-] | 1/3 |
 | 436 | 1 | partial | When did Nate get Tilly for Joanna? | D24:2 [A,v32,b142,f-] | 1/2 |
-| 441 | 1 | miss | What animal do both Nate and Joanna like? | D5:6 [C1,v205,b338,f-], D26:9 [C3,v101,b241,f-] | 0/2 |
+| 441 | 1 | miss | [omitted]? | D5:6 [C1,v205,b338,f-], D26:9 [C3,v101,b241,f-] | 0/2 |
 | 442 | 2 | miss | [omitted]? | D26:19 [B,v6,b25,f4] | 0/1 |
-| 443 | 1 | miss | What things has Nate reccomended to Joanna? | D2:14 [C5,v364,b593,f-], D9:12 [C1,v356,b615,f-], D9:14 [C1,v372,b51,f-], D10:11 [C5,v567,b517,f-], D19:17 [C1,v314,b622,f-], D27:23 [C1,v522,b623,f-] | 0/6 |
-| 444 | 1 | partial | What does Joanna do to remember happy memories? | D15:9 [B,v10,b493,f20] | 1/2 |
-| 446 | 1 | partial | What mediums does Nate use to play games? | D22:2 [A,v23,b533,f40], D27:21 [A,v45,b186,f-] | 1/3 |
-| 447 | 1 | miss | How many letters has Joanna recieved? | D14:1 [B,v19,b234,f37], D18:5 [B,v5,b426,f12] | 0/2 |
+| 443 | 1 | miss | [omitted]? | D2:14 [C5,v364,b593,f-], D9:12 [C1,v356,b615,f-], D9:14 [C1,v372,b51,f-], D10:11 [C5,v567,b517,f-], D19:17 [C1,v314,b622,f-], D27:23 [C1,v522,b623,f-] | 0/6 |
+| 444 | 1 | partial | [omitted]? | D15:9 [B,v10,b493,f20] | 1/2 |
+| 446 | 1 | partial | [omitted]? | D22:2 [A,v23,b533,f40], D27:21 [A,v45,b186,f-] | 1/3 |
+| 447 | 1 | miss | [omitted]? | D14:1 [B,v19,b234,f37], D18:5 [B,v5,b426,f12] | 0/2 |
 | 451 | 3 | miss | [omitted]? | D5:8 [C5,v417,b341,f-], D19:3 [C1,v144,b118,f-], D25:19 [C1,v444,b353,f-], D28:25 [C1,v329,b476,f-] | 0/4 |
 | 453 | 3 | partial | How many hikes has Joanna been on? | D7:6 [B,v28,b473,f54], D28:22 [B,v9,b163,f17] | 2/4 |
-| 455 | 1 | miss | What activities does Nate do with his turtles? | D25:21 [B,v14,b479,f26], D25:23 [A,v10,b490,f19], D28:31 [B,v18,b37,f32] | 0/3 |
+| 455 | 1 | miss | [omitted]? | D25:21 [B,v14,b479,f26], D25:23 [A,v10,b490,f19], D28:31 [B,v18,b37,f32] | 0/3 |
 | 459 | 1 | partial | [omitted]? | D3:17 [C5,v521,b425,f-], D15:14 [C5,v416,b518,f-], D15:15 [C5,v529,b95,f-], D19:15 [C1,v271,b530,f-], D19:16 [C5,v305,b76,f-], D23:26 [C1,v534,b123,f-] | 1/7 |
 | 460 | 1 | partial | What are Nate's favorite desserts? | D3:12 [A,v5,b428,f14] | 3/4 |
 | 463 | 1 | partial | [omitted]? | D19:1 [B,v14,b70,f22] | 8/9 |
@@ -382,8 +382,8 @@ Column codes: class A, B, C1-C5 as in 2.2; `v` = cosine rank of the gold turn am
 | 468 | 1 | partial | [omitted]? | D18:8 [C1,v127,b129,f-] | 2/3 |
 | 472 | 3 | miss | What state did Nate visit? | D29:6 [B,v7,b469,f15] | 0/1 |
 | 505 | 4 | miss | [omitted]... | D11:16 [A,v24,b473,f42] | 0/1 |
-| 507 | 4 | miss | What did Nate do for Joanna on 25 May, 2022? | D13:9 [A,v94,b69,f-] | 0/1 |
-| 519 | 4 | miss | What recipe Nate offer to share with Joanna? | D16:10 [C3,v291,b297,f-] | 0/1 |
+| 507 | 4 | miss | [omitted]? | D13:9 [A,v94,b69,f-] | 0/1 |
+| 519 | 4 | miss | [omitted]? | D16:10 [C3,v291,b297,f-] | 0/1 |
 | 536 | 4 | miss | [omitted]? | D19:9 [C3,v212,b388,f-] | 0/1 |
 | 558 | 4 | miss | [omitted]? | D24:13 [A,v58,b229,f-] | 0/1 |
 | 580 | 4 | miss | [omitted]? | D28:29 [B,v210,b20,f40] | 0/1 |
@@ -392,27 +392,27 @@ Column codes: class A, B, C1-C5 as in 2.2; `v` = cosine rank of the gold turn am
 | 587 | 3 | miss | [omitted]? | D1:14 [C1,v59,b106,f-], D1:16 [C3,v307,b284,f-], D1:18 [C3,v96,b668,f-] | 0/3 |
 | 588 | 1 | partial | What books has Tim read? | D1:14 [C1,v50,b123,f-], D6:8 [B,v62,b13,f29], D26:36 [B,v24,b346,f45], D22:13 [A,v14,b49,f30] | 3/7 |
 | 589 | 3 | miss | [omitted] ... | D2:9 [A,v155,b184,f-] | 0/1 |
-| 591 | 1 | partial | Which geographical locations has Tim been to? | D3:2 [C1,v61,b525,f-], D14:16 [B,v14,b204,f26] | 1/3 |
-| 595 | 1 | miss | What sports does John like besides basketball? | D1:7 [B,v20,b96,f37], D2:14 [B,v27,b160,f47], D3:1 [C1,v205,b196,f-], D3:25 [C1,v96,b381,f-] | 0/4 |
-| 601 | 1 | partial | How many games has John mentioned winning? | D3:3 [C1,v32,b391,f-], D5:2 [B,v11,b441,f24], D22:4 [C1,v52,b72,f-] | 2/5 |
-| 602 | 1 | partial | What authors has Tim read books from? | D1:14 [C1,v45,b161,f-], D26:36 [C5,v31,b380,f-] | 4/6 |
+| 591 | 1 | partial | [omitted]? | D3:2 [C1,v61,b525,f-], D14:16 [B,v14,b204,f26] | 1/3 |
+| 595 | 1 | miss | [omitted]? | D1:7 [B,v20,b96,f37], D2:14 [B,v27,b160,f47], D3:1 [C1,v205,b196,f-], D3:25 [C1,v96,b381,f-] | 0/4 |
+| 601 | 1 | partial | [omitted]? | D3:3 [C1,v32,b391,f-], D5:2 [B,v11,b441,f24], D22:4 [C1,v52,b72,f-] | 2/5 |
+| 602 | 1 | partial | [omitted]? | D1:14 [C1,v45,b161,f-], D26:36 [C5,v31,b380,f-] | 4/6 |
 | 603 | 3 | partial | [omitted] ... | D3:13 [C3,v43,b167,f-], D3:15 [C1,v195,b254,f-] | 1/3 |
 | 604 | 2 | partial | [omitted]? | D5:2 [C4,v201,b84,f-] | 3/4 |
 | 608 | 2 | partial | [omitted]? | D7:1 [B,v16,b46,f33] | 2/3 |
 | 609 | 1 | partial | [omitted]? | D7:7 [B,v28,b155,f52], D7:9 [C5,v261,b232,f-] | 2/4 |
 | 614 | 1 | partial | Which cities has John been to? | D27:36 [B,v11,b230,f21] | 3/4 |
-| 618 | 3 | partial | What could John do after his basketball career? | D26:1 [B,v18,b137,f33], D27:26 [C3,v117,b292,f-] | 1/3 |
-| 619 | 1 | partial | What outdoor activities does John enjoy? | D12:6 [B,v5,b336,f12] | 1/2 |
+| 618 | 3 | partial | [omitted]? | D26:1 [B,v18,b137,f33], D27:26 [C3,v117,b292,f-] | 1/3 |
+| 619 | 1 | partial | [omitted]? | D12:6 [B,v5,b336,f12] | 1/2 |
 | 622 | 1 | partial | [omitted]? | D13:1 [C3,v49,b155,f-], D18:1 [B,v23,b440,f43] | 1/3 |
-| 625 | 1 | miss | What kind of fiction stories does Tim write? | D15:3 [B,v11,b287,f21], D16:1 [C3,v85,b526,f-] | 0/2 |
+| 625 | 1 | miss | [omitted]? | D15:3 [B,v11,b287,f21], D16:1 [C3,v85,b526,f-] | 0/2 |
 | 629 | 2 | miss | [omitted]? | D18:1 [B,v12,b83,f21] | 0/1 |
-| 633 | 1 | partial | How many times has John injured his ankle? | D18:2 [B,v8,b73,f15] | 1/2 |
+| 633 | 1 | partial | [omitted]? | D18:2 [B,v8,b73,f15] | 1/2 |
 | 634 | 1 | miss | [omitted]? | D19:20 [B,v3,b38,f11], D18:2 [B,v54,b30,f51] | 0/2 |
 | 637 | 3 | partial | [omitted]? | D20:2 [C1,v79,b327,f-] | 1/2 |
 | 645 | 1 | partial | What books has John read? | D4:10 [A,v26,b215,f37], D17:9 [C5,v37,b366,f-] | 4/6 |
 | 651 | 3 | partial | [omitted]? | D4:1 [C5,v252,b336,f-], D6:6 [C1,v70,b213,f-], D15:3 [C5,v51,b294,f-] | 1/4 |
 | 691 | 4 | miss | [omitted]? | D11:10 [A,v84,b13,f25] | 0/1 |
-| 702 | 4 | miss | What did John's team win at the end of the season? | D13:8 [B,v9,b381,f18] | 0/1 |
+| 702 | 4 | miss | [omitted]? | D13:8 [B,v9,b381,f18] | 0/1 |
 | 762 | 2 | miss | [omitted]? | D1:7 [B,v19,b518,f35] | 0/1 |
 | 764 | 1 | miss | [omitted]? | D13:1 [B,v18,b301,f35], D23:1 [B,v30,b45,f56], D25:1 [B,v11,b53,f24], D19:15 [A,v23,b107,f42] | 0/4 |
 | 765 | 1 | partial | [omitted]... | D4:2 [C1,v69,b140,f-], D6:1 [B,v14,b68,f25], D13:1 [B,v28,b499,f47], D23:3 [C1,v82,b74,f-] | 4/8 |
@@ -424,7 +424,7 @@ Column codes: class A, B, C1-C5 as in 2.2; `v` = cosine rank of the gold turn am
 | 782 | 3 | partial | [omitted]? | D10:23 [A,v16,b264,f30] | 1/2 |
 | 784 | 2 | miss | [omitted]? | D14:1 [B,v4,b31,f12] | 0/1 |
 | 785 | 1 | miss | [omitted]? | D2:12 [C2,v33,b177,f-], D5:3 [C5,v209,b156,f-], D5:5 [B,v30,b443,f51], D5:7 [C5,v221,b453,f-] | 0/4 |
-| 786 | 1 | miss | Did Audrey and Andrew grow up with a pet dog? | D2:16 [C1,v85,b37,f-], D13:10 [C3,v91,b197,f-] | 0/2 |
+| 786 | 1 | miss | [omitted]? | D2:16 [C1,v85,b37,f-], D13:10 [C3,v91,b197,f-] | 0/2 |
 | 793 | 1 | miss | What has Andrew done with his dogs? | D14:27 [C3,v235,b370,f-], D24:8 [A,v150,b448,f-] | 0/2 |
 | 795 | 3 | partial | [omitted]... | D21:5 [C3,v171,b311,f-] | 2/3 |
 | 797 | 1 | miss | What are the names of Andrew's dogs? | D12:1 [B,v13,b292,f26], D24:6 [C3,v77,b396,f-], D28:8 [C3,v72,b611,f-] | 0/3 |
@@ -434,17 +434,17 @@ Column codes: class A, B, C1-C5 as in 2.2; `v` = cosine rank of the gold turn am
 | 808 | 2 | miss | [omitted]? | D12:1 [B,v16,b106,f30], D24:2 [B,v8,b51,f16] | 0/2 |
 | 814 | 3 | partial | [omitted]... | D20:5 [C5,v284,b262,f-], D23:1 [C1,v154,b225,f-], D1:14 [A,v23,b179,f41] | 1/4 |
 | 815 | 3 | miss | [omitted]... | D2:18 [B,v52,b22,f39], D3:1 [C5,v140,b60,f-], D5:7 [A,v36,b95,f-], D8:27 [C5,v86,b80,f-] | 0/4 |
-| 817 | 2 | miss | When did Andrew make his dogs a fun indoor area? | D28:12 [C4,v52,b369,f-] | 0/1 |
+| 817 | 2 | miss | [omitted]? | D28:12 [C4,v52,b369,f-] | 0/1 |
 | 818 | 1 | partial | [omitted]? | D28:12 [C3,v41,b74,f-] | 1/2 |
 | 867 | 4 | miss | [omitted]? | D23:14 [B,v5,b309,f13] | 0/1 |
 | 886 | 2 | miss | [omitted]? | D1:26 [C4,v84,b372,f-] | 0/1 |
 | 887 | 1 | partial | [omitted]? | D1:36 [C2,v161,b582,f-], D21:15 [A,v28,b373,f54] | 2/4 |
-| 890 | 1 | miss | What are John and James' favorite games? | D3:11 [B,v152,b26,f49], D4:16 [C1,v110,b314,f-] | 0/2 |
+| 890 | 1 | miss | [omitted]? | D3:11 [B,v152,b26,f49], D4:16 [C1,v110,b314,f-] | 0/2 |
 | 891 | 3 | miss | Does James live in Connecticut? | D5:1 [C1,v77,b60,f-] | 0/1 |
-| 896 | 2 | miss | How was John feeling on April 10, 2022? | D6:7 [C4,v164,b526,f-] | 0/1 |
+| 896 | 2 | miss | [omitted]? | D6:7 [C4,v164,b526,f-] | 0/1 |
 | 904 | 3 | miss | [omitted]? | D9:16 [C3,v104,b217,f-] | 0/1 |
-| 909 | 1 | miss | What kind of games has James tried to develop? | D13:7 [C3,v135,b424,f-], D1:4 [C3,v189,b46,f-], D27:2 [C1,v41,b194,f-] | 0/3 |
-| 912 | 1 | partial | What kind of classes has James joined? | D13:6 [B,v15,b107,f29] | 1/2 |
+| 909 | 1 | miss | [omitted]? | D13:7 [C3,v135,b424,f-], D1:4 [C3,v189,b46,f-], D27:2 [C1,v41,b194,f-] | 0/3 |
+| 912 | 1 | partial | [omitted]? | D13:6 [B,v15,b107,f29] | 1/2 |
 | 917 | 2 | miss | Where was James at on July 12, 2022? | D16:9 [A,v30,b193,f57] | 0/1 |
 | 918 | 3 | miss | Did John and James study together? | D17:13 [C1,v490,b667,f-] | 0/1 |
 | 936 | 1 | partial | [omitted]... | D5:4 [C1,v132,b71,f-], D19:7 [A,v225,b254,f-], D8:20 [C5,v60,b245,f-] | 3/6 |
@@ -454,14 +454,14 @@ Column codes: class A, B, C1-C5 as in 2.2; `v` = cosine rank of the gold turn am
 | 962 | 4 | miss | [omitted]... | D4:12 [A,v23,b251,f43] | 0/1 |
 | 1036 | 1 | partial | [omitted]? | D6:4 [B,v12,b429,f18] | 2/3 |
 | 1041 | 1 | partial | [omitted]? | D1:9 [A,v21,b31,f40] | 1/2 |
-| 1054 | 1 | partial | How many times has Jolene been to France? | D1:8 [C1,v57,b261,f-] | 1/2 |
+| 1054 | 1 | partial | [omitted]? | D1:8 [C1,v57,b261,f-] | 1/2 |
 | 1055 | 1 | partial | [omitted]? | D2:30 [A,v71,b436,f-], D20:1 [B,v15,b551,f30], D15:10 [A,v19,b31,f37], D19:10 [A,v14,b56,f28] | 1/5 |
-| 1058 | 3 | miss | Why did Jolene sometimes put off doing yoga? | D3:11 [C3,v129,b176,f-], D2:30 [C3,v415,b167,f-] | 0/2 |
+| 1058 | 3 | miss | [omitted]? | D3:11 [C3,v129,b176,f-], D2:30 [C3,v415,b167,f-] | 0/2 |
 | 1071 | 3 | miss | How old is Jolene? | D8:2 [C5,v374,b100,f-], D13:5 [C1,v258,b456,f-], D21:6 [C5,v329,b171,f-], D21:8 [C5,v254,b481,f-], D22:6 [C5,v378,b191,f-], D22:14 [C5,v183,b320,f-], D24:2 [C5,v332,b132,f-], D24:14 [C5,v56,b455,f-], D25:5 [C2,v288,b261,f-], D26:6 [C5,v478,b442,f-] | 0/10 |
-| 1078 | 2 | miss | When did Deborah go for a bicycle ride with Anna? | D12:1 [B,v8,b177,f15] | 0/1 |
+| 1078 | 2 | miss | [omitted]? | D12:1 [B,v8,b177,f15] | 0/1 |
 | 1081 | 2 | partial | [omitted]... | D12:10 [B,v4,b32,f11] | 2/3 |
 | 1083 | 3 | miss | [omitted]? | D13:15 [A,v39,b389,f-] | 0/1 |
-| 1085 | 2 | miss | Which year did Jolene start practicing yoga? | D13:17 [B,v18,b293,f34] | 0/1 |
+| 1085 | 2 | miss | [omitted]? | D13:17 [B,v18,b293,f34] | 0/1 |
 | 1087 | 2 | miss | [omitted]? | D16:2 [B,v11,b86,f21] | 0/1 |
 | 1090 | 2 | partial | [omitted]? | D2:28 [C3,v183,b188,f-] | 2/3 |
 | 1113 | 2 | miss | [omitted]? | D2:1 [C4,v328,b335,f-] | 0/1 |
@@ -475,44 +475,44 @@ Column codes: class A, B, C1-C5 as in 2.2; `v` = cosine rank of the gold turn am
 | 1209 | 4 | miss | [omitted]... | D26:15 [A,v83,b176,f-] | 0/1 |
 | 1214 | 4 | miss | [omitted]? | D27:12 [C1,v467,b34,f-] | 0/1 |
 | 1223 | 4 | miss | [omitted]? | D29:27 [C2,v196,b46,f-] | 0/1 |
-| 1233 | 1 | partial | What new hobbies did Sam consider trying? | D2:10 [B,v9,b55,f18], D10:8 [B,v17,b363,f30], D20:6 [B,v3,b267,f11], D7:2 [C5,v97,b127,f-], D7:4 [C1,v240,b366,f-], D7:6 [C5,v153,b117,f-], D21:19 [B,v7,b349,f14] | 3/10 |
+| 1233 | 1 | partial | [omitted]? | D2:10 [B,v9,b55,f18], D10:8 [B,v17,b363,f30], D20:6 [B,v3,b267,f11], D7:2 [C5,v97,b127,f-], D7:4 [C1,v240,b366,f-], D7:6 [C5,v153,b117,f-], D21:19 [B,v7,b349,f14] | 3/10 |
 | 1240 | 1 | partial | What is Evan's favorite food? | D5:5 [C1,v44,b285,f-], D22:12 [A,v34,b447,f-] | 2/4 |
 | 1244 | 1 | partial | [omitted]? | D3:5 [A,v274,b119,f-], D22:14 [A,v35,b104,f-], D24:15 [A,v5,b156,f12] | 2/5 |
 | 1246 | 3 | partial | [omitted]... | D3:5 [A,v197,b16,f30], D4:10 [A,v100,b69,f-], D14:12 [A,v346,b211,f-], D5:9 [C1,v59,b40,f-], D7:12 [B,v307,b25,f45], D8:1 [B,v17,b281,f31], D8:5 [C5,v357,b437,f-], D8:7 [C1,v320,b111,f-], D8:8 [C5,v268,b347,f-], D8:12 [C5,v150,b307,f-], D9:1 [C5,v43,b47,f-] | 6/17 |
 | 1248 | 2 | miss | When Evan did meet his future wife? | D5:1 [B,v5,b379,f11] | 0/1 |
 | 1251 | 2 | miss | [omitted]? | D5:6 [C3,v392,b77,f-], D5:7 [B,v3,b207,f14] | 0/2 |
-| 1252 | 1 | partial | What motivates Evan to take care of his health? | D5:11 [A,v131,b392,f-], D5:13 [A,v85,b258,f-] | 1/3 |
+| 1252 | 1 | partial | [omitted]? | D5:11 [A,v131,b392,f-], D5:13 [A,v85,b258,f-] | 1/3 |
 | 1258 | 1 | partial | [omitted]? | D21:20 [B,v6,b62,f12] | 1/2 |
 | 1262 | 1 | partial | [omitted]? | D23:26 [C1,v164,b207,f-] | 2/3 |
 | 1263 | 1 | partial | [omitted]? | D8:1 [A,v3,b148,f13], D18:6 [B,v30,b123,f49] | 5/7 |
-| 1269 | 3 | partial | How often does Sam get health checkups? | D2:6 [B,v4,b328,f12], D7:2 [C3,v117,b83,f-] | 1/3 |
+| 1269 | 3 | partial | [omitted]? | D2:6 [B,v4,b328,f12], D7:2 [C3,v117,b83,f-] | 1/3 |
 | 1275 | 1 | partial | Who was injured in Evan's family? | D7:9 [B,v8,b39,f17], D7:10 [C5,v364,b284,f-], D9:2 [C5,v197,b200,f-], D11:2 [B,v10,b67,f21], D11:3 [C5,v38,b396,f-] | 1/6 |
-| 1276 | 1 | miss | What kind of hobbies does Evan pursue? | D1:14 [A,v10,b91,f22], D1:6 [A,v81,b248,f-], D4:8 [C1,v363,b163,f-], D6:1 [B,v7,b209,f16], D8:30 [B,v4,b264,f12], D9:6 [C5,v153,b376,f-], D25:8 [C1,v187,b83,f-], D25:10 [C5,v60,b358,f-] | 0/8 |
+| 1276 | 1 | miss | [omitted]? | D1:14 [A,v10,b91,f22], D1:6 [A,v81,b248,f-], D4:8 [C1,v363,b163,f-], D6:1 [B,v7,b209,f16], D8:30 [B,v4,b264,f12], D9:6 [C5,v153,b376,f-], D25:8 [C1,v187,b83,f-], D25:10 [C5,v60,b358,f-] | 0/8 |
 | 1277 | 3 | miss | [omitted]... | D4:2 [C5,v141,b472,f-], D4:6 [C1,v70,b260,f-], D14:1 [C5,v35,b148,f-], D14:2 [C5,v65,b120,f-] | 0/4 |
 | 1281 | 1 | partial | [omitted]? | D14:2 [B,v238,b11,f21] | 1/2 |
-| 1288 | 1 | partial | What health scares did Sam and Evan experience? | D14:1 [B,v23,b46,f39], D14:2 [C5,v108,b272,f-] | 2/4 |
+| 1288 | 1 | partial | [omitted]? | D14:1 [B,v23,b46,f39], D14:2 [C5,v108,b272,f-] | 2/4 |
 | 1290 | 1 | partial | [omitted]? | D7:2 [C5,v34,b83,f-], D14:1 [B,v16,b41,f29] | 2/4 |
 | 1296 | 2 | partial | [omitted]? | D5:1 [B,v6,b80,f12] | 1/2 |
 | 1303 | 1 | miss | [omitted]? | D23:15 [C5,v72,b285,f-], D23:23 [B,v16,b135,f31], D23:25 [C5,v127,b155,f-], D24:9 [C5,v316,b456,f-] | 0/4 |
 | 1308 | 1 | partial | What is a stress reliever for Sam? | D16:17 [C5,v221,b51,f-] | 5/6 |
 | 1316 | 4 | miss | [omitted]... | D3:5 [B,v184,b3,f13] | 0/1 |
-| 1336 | 4 | miss | What injury did Evan suffer from in August 2023? | D9:2 [C3,v41,b424,f-] | 0/1 |
-| 1385 | 1 | partial | Which bands has Dave enjoyed listening to? | D23:9 [C2,v193,b323,f-] | 1/2 |
-| 1392 | 2 | miss | When did Calvin's place get flooded in Tokyo? | D6:3 [B,v43,b4,f18] | 0/1 |
+| 1336 | 4 | miss | [omitted]? | D9:2 [C3,v41,b424,f-] | 0/1 |
+| 1385 | 1 | partial | [omitted]? | D23:9 [C2,v193,b323,f-] | 1/2 |
+| 1392 | 2 | miss | [omitted]? | D6:3 [B,v43,b4,f18] | 0/1 |
 | 1393 | 1 | partial | What mishaps has Calvin run into? | D6:1 [B,v102,b7,f15] | 1/2 |
-| 1409 | 2 | miss | Which city was Calvin visiting in August 2023? | D16:6 [A,v70,b97,f-] | 0/1 |
-| 1411 | 1 | miss | What are Dave's hobbies other than fixing cars? | D5:9 [C5,v221,b279,f-], D5:11 [C5,v333,b77,f-], D8:8 [C5,v181,b287,f-], D27:2 [C5,v139,b37,f-] | 0/4 |
+| 1409 | 2 | miss | [omitted]? | D16:6 [A,v70,b97,f-] | 0/1 |
+| 1411 | 1 | miss | [omitted]? | D5:9 [C5,v221,b279,f-], D5:11 [C5,v333,b77,f-], D8:8 [C5,v181,b287,f-], D27:2 [C5,v139,b37,f-] | 0/4 |
 | 1413 | 2 | partial | [omitted]? | D17:1 [C4,v91,b532,f-] | 1/2 |
-| 1425 | 2 | miss | Which city was Calvin at on October 3, 2023? | D21:1 [C4,v72,b70,f-] | 0/1 |
-| 1427 | 1 | miss | What shared activities do Dave and Calvin have? | D21:3 [B,v19,b495,f34], D21:4 [C3,v270,b485,f-] | 0/2 |
-| 1438 | 1 | miss | Which cities did Dave travel to in 2023? | D14:1 [C3,v32,b68,f-], D26:2 [B,v11,b44,f20] | 0/2 |
-| 1439 | 2 | miss | Which hobby did Dave pick up in October 2023? | D27:2 [C4,v63,b456,f-] | 0/1 |
+| 1425 | 2 | miss | [omitted]? | D21:1 [C4,v72,b70,f-] | 0/1 |
+| 1427 | 1 | miss | [omitted]? | D21:3 [B,v19,b495,f34], D21:4 [C3,v270,b485,f-] | 0/2 |
+| 1438 | 1 | miss | [omitted]? | D14:1 [C3,v32,b68,f-], D26:2 [B,v11,b44,f20] | 0/2 |
+| 1439 | 2 | miss | [omitted]? | D27:2 [C4,v63,b456,f-] | 0/1 |
 | 1441 | 1 | partial | How many Ferraris does Calvin own? | D2:1 [B,v10,b389,f20] | 1/2 |
-| 1445 | 1 | partial | What style of guitars does Calvin own? | D16:4 [C5,v221,b158,f-] | 3/4 |
+| 1445 | 1 | partial | [omitted]? | D16:4 [C5,v221,b158,f-] | 3/4 |
 | 1448 | 1 | partial | [omitted]? | D27:10 [B,v8,b161,f15], D13:7 [B,v16,b93,f29], D20:1 [B,v11,b128,f20] | 1/4 |
 | 1450 | 2 | miss | [omitted]? | D28:20 [B,v8,b134,f19] | 0/1 |
 | 1461 | 4 | miss | [omitted]? | D5:11 [B,v7,b487,f15] | 0/1 |
 | 1479 | 4 | miss | [omitted]? | D13:11 [B,v19,b44,f31] | 0/1 |
 | 1502 | 4 | miss | [omitted]? | D22:5 [C3,v43,b45,f-] | 0/1 |
 | 1534 | 4 | miss | What new item did Dave buy recently? | D30:5 [C1,v201,b100,f-] | 0/1 |
-| 1536 | 4 | miss | What event did Calvin attend in Boston? | D30:2 [B,v7,b53,f17] | 0/1 |
+| 1536 | 4 | miss | [omitted]? | D30:2 [B,v7,b53,f17] | 0/1 |

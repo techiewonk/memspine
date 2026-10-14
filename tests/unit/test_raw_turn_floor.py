@@ -14,24 +14,24 @@ from memspine.store import records as records_module
 T0 = datetime(2023, 5, 1, 9, 0, tzinfo=UTC)
 
 TURNS = [
-    "Melanie: I went camping with the kids last weekend",
-    "Caroline: I started a new painting of a lake sunset",
-    "Melanie: we ran a charity race for mental health in May",
-    "Melanie: I went camping at the beach again with the family",
-    "Caroline: I joined a support group last Tuesday",
-    "Melanie: the kids loved the pottery class yesterday",
-    "Caroline: camping is not for me, I prefer museums",
-    "Melanie: we bought a new tent for camping trips",
+    "Bram: I went camping with the kids last weekend",
+    "Noor: I started a new painting of a lake sunset",
+    "Bram: we ran a book fair for the school library in May",
+    "Bram: I went camping at the beach again with the family",
+    "Noor: I joined a support group last Tuesday",
+    "Bram: the kids loved the pottery class yesterday",
+    "Noor: camping is not for me, I prefer museums",
+    "Bram: we bought a new tent for camping trips",
 ]
 
 #: Mined facts that echo the camping turns, so they outrank them in the search.
 MINED = [
-    ("Melanie event: went camping with the kids", 0),
-    ("Melanie event: went camping at the beach with the family", 3),
-    ("Melanie event: bought a new tent for camping", 7),
+    ("Bram event: went camping with the kids", 0),
+    ("Bram event: went camping at the beach with the family", 3),
+    ("Bram event: bought a new tent for camping", 7),
 ]
 
-QUERY = "Where did Melanie go camping with the family?"
+QUERY = "Where did Bram go camping with the family?"
 
 
 @pytest.fixture(autouse=True)
@@ -68,13 +68,13 @@ async def _raw_turns(*, mined: bool, mode: str, **read: Any) -> list[str]:
                 await eng._deposit_mined_fact(
                     "a",
                     text,
-                    "Melanie",
+                    "Bram",
                     "event",
                     [ids[parent]],
                     T0 + timedelta(minutes=parent, seconds=30),
                     "s1",
                     kind="event",
-                    persons=["Melanie"],
+                    persons=["Bram"],
                 )
         if mode == "assemble":
             records = (

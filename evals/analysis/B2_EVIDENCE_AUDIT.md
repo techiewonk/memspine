@@ -45,7 +45,7 @@ this one is literally present and counts as VALID.
 - Negation: 5-56 ("No" cannot be literal), 6-3 ("do both have pets? No").
 
 ### WEAK-LABEL (19), with the better turn where named
-0-37 D9:17 (finished "another painting like our last one"; sunset is in D8:6 / D1:12);
+0-37 D9:17 ([omitted]"; sunset is in D8:6 / D1:12);
 0-43 D11:12 (the painting is of a woman, "abstract" is in D17:13, which was in context);
 1-44 D1:26 (Jon's reply; what Gina said is D1:25);
 2-32 D16:2 (Maria's reply; John's hiking photo is D16:1);
@@ -124,7 +124,7 @@ The better design is a one-sentence hypothetical *turn*, not the answer. I wrote
 | question | hypothetical turn | gold-turn ranks, question -> hypothesis |
 |---|---|---|
 | 5-60 How many dogs does Andrew have? | "Andrew: I just adopted another puppy from a shelter, so now I have more dogs at home." | D12:1 31->8, D24:2 16->1, D28:6 29->4 |
-| 3-79 How many screenplays has Joanna written? | "Joanna: I finished my second script, and now I have written a third one." | D5:1 12->8, D12:13 64->17, D12:14 137->278 |
+| 3-79 [omitted]? | "Joanna: I finished my second script, and now I have written a third one." | D5:1 12->8, D12:13 64->17, D12:14 137->278 |
 | 5-2 Indoor activities with his girlfriend | "Andrew: My girlfriend and I played board games and went to a wine tasting, and we volunteered at a pet shelter." | D23:1 30->2, D25:1 9->3, D13:1 17->1 |
 | 4-18 Which authors has Tim read | "Tim: I love reading fantasy like Harry Potter, Game of Thrones and Patrick Rothfuss." | D1:14 46->26, D4:7 63->4, D5:15 19->3 |
 | 3-62 How many letters has Joanna received? | "Joanna: I got a letter in the mail, someone wrote to me." | D14:1 18->32, D18:5 5->2 |

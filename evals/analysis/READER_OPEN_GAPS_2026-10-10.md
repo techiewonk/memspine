@@ -52,9 +52,9 @@ are correct and 10 wrong; five quotes:
 | id | question | gold | final answer | what the clause changes |
 |---|---|---|---|---|
 | conv-26/0-22 | [omitted] | "No, it is not mentioned that Caroline has Dr. Seuss books; she specifically lists classics ..." | commit to the likely answer (Yes) from the collecting-classics line instead of treating absence as No |
-| conv-26/0-59 | Would Caroline be considered religious? | Somewhat, but not extremely religious | "No, Caroline would not be considered religious; she identifies as LGBTQ+ ..." (the baseline refused) | still committed and wrong; the clause asks for a one-line reason, which may expose the nuance, but this one is a judgement call |
+| conv-26/0-59 | [omitted]|[omitted] | "No, Caroline would not be considered religious; she identifies as LGBTQ+ ..." (the baseline refused) | still committed and wrong; the clause asks for a one-line reason, which may expose the nuance, but this one is a judgement call |
 | conv-41/2-17 | What might John's degree be in? | [omitted] | "likely in a field related to education or public policy" | already commits; the reason line should name policy-making; likely stays partial |
-| conv-41/2-45 | Would John be open to moving to another country? | [omitted] | "The memories do not mention whether John would be open to moving ..." | the exact failure: a refusal on a would-question; the clause forbids it and asks for a likely No with the goals as reason (retrieval also missed the goals line, so it may not be reachable) |
+| conv-41/2-45 | [omitted]? | [omitted] | "The memories do not mention whether John would be open to moving ..." | the exact failure: a refusal on a would-question; the clause forbids it and asks for a likely No with the goals as reason (retrieval also missed the goals line, so it may not be reachable) |
 | conv-42/3-12 | [omitted]? | asthma | "... The text does not specify the underlying medical condition ..." | refusal on a "might"; with general knowledge bridge the reader may say "possibly asthma" (allergy with puffy, itchy face); unverified |
 
 Others of the 10: `0-2` and `0-69` (partial: committed, incomplete), `2-8`, `2-64`, `3-66` (retrieval misses: the clause cannot

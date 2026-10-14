@@ -35,36 +35,36 @@ T0 = datetime(2023, 5, 1, 9, 0, tzinfo=UTC)
 
 #: (text, day offset)
 TURNS = [
-    ("Melanie: I went camping with the kids last weekend", 0),
-    ("Caroline: I started a new painting of a lake sunset", 3),
-    ("Melanie: we ran a charity race for mental health in May", 9),
-    ("Melanie: I went camping at the beach again with the family", 20),
-    ("Caroline: I joined a support group last Tuesday", 33),
-    ("Melanie: the kids loved the pottery class yesterday", 40),
-    ("Caroline: I am researching adoption agencies this month", 62),
+    ("Bram: I went camping with the kids last weekend", 0),
+    ("Noor: I started a new painting of a lake sunset", 3),
+    ("Bram: we ran a book fair for the school library in May", 9),
+    ("Bram: I went camping at the beach again with the family", 20),
+    ("Noor: I joined a support group last Tuesday", 33),
+    ("Bram: the kids loved the pottery class yesterday", 40),
+    ("Noor: I am researching adoption agencies this month", 62),
 ]
 
 #: (text, entity, parent turn indexes, day offset, happened, said)
 MINED = [
-    ("Melanie event: went camping with the kids", "Melanie", [0], 0, "2023-04-29", "2023-05-01"),
-    ("Melanie event: ran a charity race for mental health", "Melanie", [2], 9, None, None),
-    ("Melanie event: went camping at the beach", "Melanie", [3], 20, None, None),
-    ("Caroline event: joined a support group", "Caroline", [4], 33, "2023-05-30", "2023-06-03"),
-    ("Melanie event: took the kids to a pottery class", "Melanie", [5], 40, "2023-06-09", None),
+    ("Bram event: went camping with the kids", "Bram", [0], 0, "2023-04-29", "2023-05-01"),
+    ("Bram event: ran a book fair for the school library", "Bram", [2], 9, None, None),
+    ("Bram event: went camping at the beach", "Bram", [3], 20, None, None),
+    ("Noor event: joined a support group", "Noor", [4], 33, "2023-05-30", "2023-06-03"),
+    ("Bram event: took the kids to a pottery class", "Bram", [5], 40, "2023-06-09", None),
 ]
 
 #: (insight, parent turn indexes)
 INSIGHTS = [
-    ("Melanie loves camping and outdoor family trips", [0, 3]),
-    ("Caroline is creative and is planning to adopt", [1, 6]),
+    ("Bram loves camping and outdoor family trips", [0, 3]),
+    ("Noor is creative and is planning to adopt", [1, 6]),
 ]
 
 QUERIES = [
-    "What does Melanie like to do?",
-    "What activities has Melanie done?",
-    "How many times did Melanie go camping?",
-    "When did Caroline join the support group?",
-    "What did Melanie do in May 2023?",
+    "What does Bram like to do?",
+    "What activities has Bram done?",
+    "How many times did Bram go camping?",
+    "When did Noor join the support group?",
+    "What did Bram do in May 2023?",
 ]
 
 #: Read configs covered: the defaults and the existing lead blocks switched on.
@@ -126,16 +126,16 @@ async def seed(eng: Engine, ns: str = "a") -> None:
             persons=[entity],
         )
         facts.append(fact)
-    melanie = [f for f in facts if f.entity == "Melanie"][:3]
+    bram = [f for f in facts if f.entity == "Bram"][:3]
     await eng._deposit_list_card(
         ns,
         ListCard(
-            person="Melanie",
+            person="Bram",
             label="activities",
-            text="Melanie — activities: camping (2023-05); charity race (2023-05)",
-            parents=sorted(f.record_id for f in melanie),
-            valid_from=max(f.valid_from for f in melanie),
-            tags=[constants.LIST_CARD_TAG, "atomic_fact", "person:melanie", "topic:activity"],
+            text="Bram — activities: camping (2023-05); book fair (2023-05)",
+            parents=sorted(f.record_id for f in bram),
+            valid_from=max(f.valid_from for f in bram),
+            tags=[constants.LIST_CARD_TAG, "atomic_fact", "person:bram", "topic:activity"],
         ),
         [],
     )

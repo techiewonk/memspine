@@ -222,7 +222,7 @@ def is_set_question(question: str) -> bool:
 
 
 #: R2-3 (``read.list_trigger="set_question_wide"``): "How did/has/does X <verb> ..." where the
-#: verb names a many-way activity ("How did Gina promote her clothes store?").
+#: verb names a many-way activity ("How did Ilse advertise her bakery?").
 _HOW_MULTI = re.compile(
     r"^\s*how\s+(?:did|has|have|does|do|can|could|would|will)\s+(?:[\w'-]+\s+){1,3}?"
     r"(?:promote|celebrate|support|help|spend|keep|cope|deal|manage|raise|express|show|use|"
@@ -313,8 +313,8 @@ def is_intent_list(question: str) -> bool:
     Fires on an explicit aggregation cue (count, total, "so far", "all the", "each", "both",
     "in common", "list"), on a plural answer head ("What gifts did X buy?"), on
     "what kind/type of X" and on an enumerating conjunction. The weak cues (plural head,
-    kind/type) do not fire when the question asks for one item by recency or rank ("What type
-    of camera lens did I purchase most recently?"). Language-light: punctuation and short
+    kind/type) do not fire when the question asks for one item by recency or rank ("Which
+    kind of lamp did I order most recently?"). Language-light: punctuation and short
     function words only; a non-English question simply does not fire."""
     question = _focus_sentence(question)
     if _INTENT_STRONG.search(question) or _INTENT_CONJ.search(question):

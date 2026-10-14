@@ -1,252 +1,252 @@
 {
-  "read|auto|How many times did Melanie go camping?": {
+  "read|auto|How many times did Bram go camping?": {
     "abstained": false,
     "contents": [
-      "Melanie: I went camping with the kids last weekend",
-      "Melanie: we ran a charity race for mental health in May",
-      "Melanie event: charity race in May 2023",
-      "Melanie: the kids loved the pottery class yesterday",
-      "Melanie hobby: pottery and painting",
-      "Caroline plan: adopt a child"
-    ],
-    "mode": "compose",
-    "tokens_used": 67
-  },
-  "read|auto|What activities does Melanie do?": {
-    "abstained": false,
-    "contents": [
-      "Melanie: I went camping with the kids last weekend",
-      "Melanie: we ran a charity race for mental health in May",
-      "Melanie event: charity race in May 2023",
-      "Melanie: the kids loved the pottery class yesterday",
-      "Melanie hobby: pottery and painting",
-      "Caroline plan: adopt a child"
-    ],
-    "mode": "compose",
-    "tokens_used": 67
-  },
-  "read|auto|What did Melanie do in May 2023?": {
-    "abstained": false,
-    "contents": [
-      "Melanie event: charity race in May 2023",
-      "Melanie hobby: pottery and painting",
-      "Melanie: we ran a charity race for mental health in May"
-    ],
-    "mode": "replay",
-    "tokens_used": 33
-  },
-  "read|auto|When did Caroline join the support group?": {
-    "abstained": false,
-    "contents": [
-      "Caroline: I joined a support group last Tuesday",
-      "Melanie: the kids loved the pottery class yesterday",
-      "Caroline: I am researching adoption agencies this month"
-    ],
-    "mode": "replay",
-    "tokens_used": 39
-  },
-  "read|compose|How many times did Melanie go camping?": {
-    "abstained": false,
-    "contents": [
-      "Melanie: I went camping with the kids last weekend",
-      "Melanie: we ran a charity race for mental health in May",
-      "Melanie event: charity race in May 2023",
-      "Melanie: the kids loved the pottery class yesterday",
-      "Melanie hobby: pottery and painting",
-      "Caroline plan: adopt a child"
-    ],
-    "mode": "compose",
-    "tokens_used": 67
-  },
-  "read|compose|What activities does Melanie do?": {
-    "abstained": false,
-    "contents": [
-      "Melanie: I went camping with the kids last weekend",
-      "Melanie: we ran a charity race for mental health in May",
-      "Melanie event: charity race in May 2023",
-      "Melanie: the kids loved the pottery class yesterday",
-      "Melanie hobby: pottery and painting",
-      "Caroline plan: adopt a child"
-    ],
-    "mode": "compose",
-    "tokens_used": 67
-  },
-  "read|compose|What did Melanie do in May 2023?": {
-    "abstained": false,
-    "contents": [
-      "Melanie: I went camping with the kids last weekend",
-      "Melanie: we ran a charity race for mental health in May",
-      "Melanie event: charity race in May 2023",
-      "Melanie: the kids loved the pottery class yesterday",
-      "Melanie hobby: pottery and painting",
-      "Caroline plan: adopt a child"
-    ],
-    "mode": "compose",
-    "tokens_used": 67
-  },
-  "read|compose|When did Caroline join the support group?": {
-    "abstained": false,
-    "contents": [
-      "Melanie: I went camping with the kids last weekend",
-      "Caroline: I joined a support group last Tuesday",
-      "Melanie: the kids loved the pottery class yesterday",
-      "Melanie hobby: pottery and painting",
-      "Caroline: I am researching adoption agencies this month",
-      "Caroline plan: adopt a child"
+      "Bram: I went camping with the kids last weekend",
+      "Noor: I started a new painting of a lake sunset",
+      "Bram: we ran a book fair for the school library in May",
+      "Bram event: book fair in May 2023",
+      "Bram: the kids loved the pottery class yesterday",
+      "Bram hobby: pottery and painting"
     ],
     "mode": "compose",
     "tokens_used": 69
   },
-  "read|replay|How many times did Melanie go camping?": {
+  "read|auto|What activities does Bram do?": {
     "abstained": false,
     "contents": [
-      "Melanie hobby: pottery and painting",
-      "Melanie event: charity race in May 2023",
-      "Melanie: I went camping with the kids last weekend"
+      "Bram: I went camping with the kids last weekend",
+      "Bram: we ran a book fair for the school library in May",
+      "Bram event: book fair in May 2023",
+      "Noor: I joined a support group last Tuesday",
+      "Bram: the kids loved the pottery class yesterday",
+      "Bram hobby: pottery and painting"
+    ],
+    "mode": "compose",
+    "tokens_used": 68
+  },
+  "read|auto|What did Bram do in May 2023?": {
+    "abstained": false,
+    "contents": [
+      "Bram event: book fair in May 2023",
+      "Bram hobby: pottery and painting",
+      "Bram: we ran a book fair for the school library in May"
     ],
     "mode": "replay",
     "tokens_used": 32
   },
-  "read|replay|What activities does Melanie do?": {
+  "read|auto|When did Noor join the support group?": {
     "abstained": false,
     "contents": [
-      "Melanie event: charity race in May 2023",
-      "Melanie hobby: pottery and painting",
-      "Melanie: I went camping with the kids last weekend"
+      "Noor: I joined a support group last Tuesday",
+      "Bram: the kids loved the pottery class yesterday",
+      "Noor: I am researching adoption agencies this month"
+    ],
+    "mode": "replay",
+    "tokens_used": 37
+  },
+  "read|compose|How many times did Bram go camping?": {
+    "abstained": false,
+    "contents": [
+      "Bram: I went camping with the kids last weekend",
+      "Noor: I started a new painting of a lake sunset",
+      "Bram: we ran a book fair for the school library in May",
+      "Bram event: book fair in May 2023",
+      "Bram: the kids loved the pottery class yesterday",
+      "Bram hobby: pottery and painting"
+    ],
+    "mode": "compose",
+    "tokens_used": 69
+  },
+  "read|compose|What activities does Bram do?": {
+    "abstained": false,
+    "contents": [
+      "Bram: I went camping with the kids last weekend",
+      "Bram: we ran a book fair for the school library in May",
+      "Bram event: book fair in May 2023",
+      "Noor: I joined a support group last Tuesday",
+      "Bram: the kids loved the pottery class yesterday",
+      "Bram hobby: pottery and painting"
+    ],
+    "mode": "compose",
+    "tokens_used": 68
+  },
+  "read|compose|What did Bram do in May 2023?": {
+    "abstained": false,
+    "contents": [
+      "Bram: I went camping with the kids last weekend",
+      "Bram: we ran a book fair for the school library in May",
+      "Bram event: book fair in May 2023",
+      "Bram: the kids loved the pottery class yesterday",
+      "Bram hobby: pottery and painting",
+      "Noor: I am researching adoption agencies this month"
+    ],
+    "mode": "compose",
+    "tokens_used": 70
+  },
+  "read|compose|When did Noor join the support group?": {
+    "abstained": false,
+    "contents": [
+      "Bram: I went camping with the kids last weekend",
+      "Noor: I started a new painting of a lake sunset",
+      "Noor: I joined a support group last Tuesday",
+      "Bram: the kids loved the pottery class yesterday",
+      "Noor: I am researching adoption agencies this month",
+      "Noor plan: adopt a child"
+    ],
+    "mode": "compose",
+    "tokens_used": 68
+  },
+  "read|replay|How many times did Bram go camping?": {
+    "abstained": false,
+    "contents": [
+      "Bram hobby: pottery and painting",
+      "Bram event: book fair in May 2023",
+      "Bram: I went camping with the kids last weekend"
+    ],
+    "mode": "replay",
+    "tokens_used": 30
+  },
+  "read|replay|What activities does Bram do?": {
+    "abstained": false,
+    "contents": [
+      "Bram event: book fair in May 2023",
+      "Bram hobby: pottery and painting",
+      "Bram: I went camping with the kids last weekend"
+    ],
+    "mode": "replay",
+    "tokens_used": 30
+  },
+  "read|replay|What did Bram do in May 2023?": {
+    "abstained": false,
+    "contents": [
+      "Bram event: book fair in May 2023",
+      "Bram hobby: pottery and painting",
+      "Bram: we ran a book fair for the school library in May"
     ],
     "mode": "replay",
     "tokens_used": 32
   },
-  "read|replay|What did Melanie do in May 2023?": {
+  "read|replay|When did Noor join the support group?": {
     "abstained": false,
     "contents": [
-      "Melanie event: charity race in May 2023",
-      "Melanie hobby: pottery and painting",
-      "Melanie: we ran a charity race for mental health in May"
+      "Noor: I joined a support group last Tuesday",
+      "Bram: the kids loved the pottery class yesterday",
+      "Noor: I am researching adoption agencies this month"
     ],
     "mode": "replay",
-    "tokens_used": 33
+    "tokens_used": 37
   },
-  "read|replay|When did Caroline join the support group?": {
+  "read|retrieve|How many times did Bram go camping?": {
     "abstained": false,
     "contents": [
-      "Caroline: I joined a support group last Tuesday",
-      "Melanie: the kids loved the pottery class yesterday",
-      "Caroline: I am researching adoption agencies this month"
+      "Bram hobby: pottery and painting",
+      "Bram event: book fair in May 2023",
+      "Bram: I went camping with the kids last weekend"
     ],
-    "mode": "replay",
-    "tokens_used": 39
+    "mode": "retrieve",
+    "tokens_used": 30
   },
-  "read|retrieve|How many times did Melanie go camping?": {
+  "read|retrieve|What activities does Bram do?": {
     "abstained": false,
     "contents": [
-      "Melanie hobby: pottery and painting",
-      "Melanie event: charity race in May 2023",
-      "Melanie: I went camping with the kids last weekend"
+      "Bram event: book fair in May 2023",
+      "Bram hobby: pottery and painting",
+      "Bram: I went camping with the kids last weekend"
+    ],
+    "mode": "retrieve",
+    "tokens_used": 30
+  },
+  "read|retrieve|What did Bram do in May 2023?": {
+    "abstained": false,
+    "contents": [
+      "Bram event: book fair in May 2023",
+      "Bram hobby: pottery and painting",
+      "Bram: we ran a book fair for the school library in May"
     ],
     "mode": "retrieve",
     "tokens_used": 32
   },
-  "read|retrieve|What activities does Melanie do?": {
+  "read|retrieve|When did Noor join the support group?": {
     "abstained": false,
     "contents": [
-      "Melanie event: charity race in May 2023",
-      "Melanie hobby: pottery and painting",
-      "Melanie: I went camping with the kids last weekend"
+      "Bram: the kids loved the pottery class yesterday",
+      "Noor: I joined a support group last Tuesday",
+      "Noor: I am researching adoption agencies this month"
     ],
     "mode": "retrieve",
-    "tokens_used": 32
+    "tokens_used": 37
   },
-  "read|retrieve|What did Melanie do in May 2023?": {
-    "abstained": false,
-    "contents": [
-      "Melanie event: charity race in May 2023",
-      "Melanie hobby: pottery and painting",
-      "Melanie: we ran a charity race for mental health in May"
-    ],
-    "mode": "retrieve",
-    "tokens_used": 33
-  },
-  "read|retrieve|When did Caroline join the support group?": {
-    "abstained": false,
-    "contents": [
-      "Melanie: the kids loved the pottery class yesterday",
-      "Caroline: I joined a support group last Tuesday",
-      "Caroline: I am researching adoption agencies this month"
-    ],
-    "mode": "retrieve",
-    "tokens_used": 39
-  },
-  "search|How many times did Melanie go camping?": [
+  "search|How many times did Bram go camping?": [
     [
-      "Melanie hobby: pottery and painting",
+      "Bram hobby: pottery and painting",
       0.664
     ],
     [
-      "Melanie event: charity race in May 2023",
+      "Bram event: book fair in May 2023",
       0.6587
     ],
     [
-      "Melanie: I went camping with the kids last weekend",
+      "Bram: I went camping with the kids last weekend",
       0.6564
     ],
     [
-      "Melanie: the kids loved the pottery class yesterday",
-      0.6417
+      "Bram: the kids loved the pottery class yesterday",
+      0.6439
     ]
   ],
-  "search|What activities does Melanie do?": [
+  "search|What activities does Bram do?": [
     [
-      "Melanie event: charity race in May 2023",
+      "Bram event: book fair in May 2023",
       0.6613
     ],
     [
-      "Melanie: I went camping with the kids last weekend",
+      "Bram hobby: pottery and painting",
+      0.6517
+    ],
+    [
+      "Bram: I went camping with the kids last weekend",
       0.651
     ],
     [
-      "Melanie hobby: pottery and painting",
-      0.6495
-    ],
-    [
-      "Melanie: the kids loved the pottery class yesterday",
-      0.6465
+      "Bram: the kids loved the pottery class yesterday",
+      0.6487
     ]
   ],
-  "search|What did Melanie do in May 2023?": [
+  "search|What did Bram do in May 2023?": [
     [
-      "Melanie event: charity race in May 2023",
+      "Bram event: book fair in May 2023",
       0.6667
     ],
     [
-      "Melanie: we ran a charity race for mental health in May",
+      "Bram: we ran a book fair for the school library in May",
       0.6562
     ],
     [
-      "Melanie hobby: pottery and painting",
+      "Bram hobby: pottery and painting",
       0.6511
     ],
     [
-      "Melanie: I went camping with the kids last weekend",
+      "Bram: I went camping with the kids last weekend",
       0.6438
     ]
   ],
-  "search|When did Caroline join the support group?": [
+  "search|When did Noor join the support group?": [
     [
-      "Melanie: the kids loved the pottery class yesterday",
+      "Bram: the kids loved the pottery class yesterday",
       0.6613
     ],
     [
-      "Caroline: I joined a support group last Tuesday",
+      "Noor: I joined a support group last Tuesday",
       0.6589
     ],
     [
-      "Caroline: I am researching adoption agencies this month",
-      0.6511
+      "Noor: I am researching adoption agencies this month",
+      0.6487
     ],
     [
-      "Melanie: I went camping with the kids last weekend",
-      0.6487
+      "Noor plan: adopt a child",
+      0.6486
     ]
   ]
 }

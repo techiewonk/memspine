@@ -17,7 +17,7 @@ from memspine_evals.readers import QA_PROMPTS
 CTX_MONTHS = (
     "[2023-07-11] Lars: Hey! meet Toby, my puppy. He is a bundle of joy.\n"
     "[2023-07-11] Odile: Toby looks so adorable!\n"
-    "[2023-08-04] Lars: Gotta take Toby out for a small hike.\n"
+    "[2023-08-04] Lars: Time to walk Toby along the canal.\n"
     "[2023-10-19] Lars: I named him Buddy because he is my buddy.\n"
     "[2023-10-19] Odile: Nice! Buddy seems happy."
 )
@@ -103,7 +103,7 @@ def test_missing_second_event_and_unnamed_events_fail_closed() -> None:
     )
     assert sol is None and meta["decision"] == "abstain:event2_event_not_found"
     sol, meta = solve_duration(
-        "How many months lapsed between his first and second doctor's appointment?", CTX_MONTHS
+        "How many months lapsed between his first and second dentist visit?", CTX_MONTHS
     )
     assert sol is None and meta["decision"].startswith("abstain:event")
 

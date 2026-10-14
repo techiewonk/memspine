@@ -52,8 +52,8 @@ def test_question_shape(question: str, shape: str) -> None:
 
 
 def test_named_terms_skip_question_words_months_and_speakers() -> None:
-    q = "When did Caroline go to the LGBTQ support group in May 2023?"
-    assert named_terms(q, exclude=["caroline"]) == ["lgbtq", "2023"]
+    q = "When did Noor go to the LGBTQ support group in May 2023?"
+    assert named_terms(q, exclude=["noor"]) == ["lgbtq", "2023"]
 
 
 def _rec(content: str, minutes: int = 0) -> MemoryRecord:

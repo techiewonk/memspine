@@ -250,7 +250,7 @@ async def test_bridge_hop_fails_soft(monkeypatch: pytest.MonkeyPatch) -> None:
     "question",
     [
         "Where did Ilse move from 4 years ago?",
-        "Would Ilse want to move back to her home country soon?",
+        "Would Ilse like to return to her native town this year?",
         "What did Tomasz do in his hometown?",
         "How does Mirel describe the studio that Noor has opened?",
         "When is Bram's daughter's birthday?",

@@ -26,8 +26,8 @@ CTX = (
     "[2023-05-01] Nate: I won my first tournament today\n"
     "[2023-05-20] Nate: I won another tournament, a regional one\n"
     "[2023-05-21] Nate: that regional tournament win was great\n"
-    "[2023-07-15] Caroline: I went hiking last Friday [= 2023-07-14]\n"
-    "[2023-07-15] Caroline: I started pottery yesterday"
+    "[2023-07-15] Noor: I went hiking last Friday [= 2023-07-14]\n"
+    "[2023-07-15] Noor: I started pottery yesterday"
 )
 
 
@@ -179,7 +179,7 @@ async def test_scripted_reader_composes() -> None:
 
 
 def test_repair_relative_phrase_against_the_line_date() -> None:
-    q = "When did Caroline go hiking?"
+    q = "When did Noor go hiking?"
     fixed = repair_date_answer(q, "She went hiking last Friday.", CTX)
     assert fixed is not None
     text, meta = fixed
@@ -188,10 +188,10 @@ def test_repair_relative_phrase_against_the_line_date() -> None:
 
 
 def test_repair_yesterday_and_bare_weekday() -> None:
-    text, meta = repair_date_answer("When did Caroline start pottery?", "Yesterday.", CTX)  # type: ignore[misc]
+    text, meta = repair_date_answer("When did Noor start pottery?", "Yesterday.", CTX)  # type: ignore[misc]
     assert "2023-07-14" in text and meta["rule"] == "relative_phrase"
-    ctx = "[2023-07-15] Caroline: we went hiking on Friday with the kids"
-    text, meta = repair_date_answer("When did Caroline go hiking?", "On Friday.", ctx)  # type: ignore[misc]
+    ctx = "[2023-07-15] Noor: we went hiking on Friday with the kids"
+    text, meta = repair_date_answer("When did Noor go hiking?", "On Friday.", ctx)  # type: ignore[misc]
     assert "2023-07-14" in text and meta["rule"] == "bare_weekday"
 
 
@@ -226,7 +226,7 @@ def test_repair_fails_closed(question: str, answer: str, context: str) -> None:
 async def test_date_repair_reader_costs_no_call_and_keeps_original_in_meta() -> None:
     inner = FakeReader("She went hiking last Friday.")
     reader = DateRepairReader(inner)
-    out = await reader.answer("When did Caroline go hiking?", CTX)
+    out = await reader.answer("When did Noor go hiking?", CTX)
     assert "2023-07-14" in out.text and out.model_calls == 1 and inner.n == 1
     assert out.extra_meta["date_repair"]["original"] == "She went hiking last Friday."
     assert reader.repaired == 1 and reader.describe()["date_repair"] == "v1"
@@ -283,8 +283,8 @@ def test_conventions_credit(question: str, gold: str, answer: str, rule: str) ->
         ("What?", "Poetry reading, conference", "A conference."),
         ("What?", "the beach", "She went to the lake."),
         # false positives found while reading the credits over 119 runs (regression cases)
-        ("Pets?", "Two cats and a dog", "Melanie has a dog named Oliver and a cat named Bailey."),
-        ("Setback?", "She got hurt and had to take a break from pottery.", "She got hurt, so she broke."),
+        ("Pets?", "Two cats and a dog", "Bram has a dog named Oliver and a cat named Bailey."),
+        ("Setback?", "She hurt her wrist and paused her weaving classes.", "She got hurt, so she broke."),
         ("Which?", "blueberries and coconut milk", "The ingredients (in addition to blueberries, coconut milk) are walnuts."),
         ("Symbols?", "Rainbow flag, transgender symbol", "Her symbols: a necklace, a bowl. She mentioned the transgender community and a flag she saw at a very long march in the city centre last year."),
     ],

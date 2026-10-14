@@ -241,8 +241,8 @@ def test_cross_host_redirect_is_refused() -> None:
 @pytest.mark.parametrize(
     "question",
     [
-        "What is the title of the book Melanie showed?",
-        "Which painting did Caroline share?",
+        "What is the title of the book Bram showed?",
+        "Which painting did Noor share?",
         "What does the sign in the photo say?",
         "Where is the beach in the picture?",
         "What kind of flower is in the image?",
@@ -255,10 +255,10 @@ def test_visual_questions_fire(question: str) -> None:
 @pytest.mark.parametrize(
     "question",
     [
-        "When did Caroline go to the support group?",
-        "How many children does Melanie have?",
-        "Would Caroline enjoy classical music?",
-        "Did John move to Seattle?",
+        "When did Noor go to the support group?",
+        "How many children does Bram have?",
+        "Would Noor enjoy classical music?",
+        "Did Tomasz move to Seattle?",
     ],
 )
 def test_text_questions_do_not_fire(question: str) -> None:

@@ -47,7 +47,7 @@ def test_generic_instruction_arm() -> None:
 
 
 def test_detector_and_support() -> None:
-    assert asserts_past_event("Do you remember when I told you about my trip to Lisbon?")
+    assert asserts_past_event("Do you recall the day I mentioned my trip to Lisbon?")
     assert asserts_past_event("Remember the time we discussed the garden plans?")
     assert not asserts_past_event("What is my favourite colour?")
     assert event_supported("Do you remember my trip to Lisbon?", "[2024-01-02] My trip to Lisbon was fun")
