@@ -46,10 +46,11 @@ def build_entry(root: str, python: str, allow_gpu: bool = False, cwd: bool = Fal
 
 
 def claude_add_command(entry: dict) -> list[str]:
-    cmd = ["claude", "mcp", "add", "--scope", "user", "--transport", "stdio"]
+    # the name goes before the options: ``-e`` is variadic and would swallow it otherwise
+    cmd = ["claude", "mcp", "add", NAME, "--scope", "user", "--transport", "stdio"]
     for k, v in entry.get("env", {}).items():
-        cmd += ["--env", f"{k}={v}"]
-    return cmd + [NAME, "--", entry["command"], *entry["args"]]
+        cmd += ["-e", f"{k}={v}"]
+    return cmd + ["--", entry["command"], *entry["args"]]
 
 
 def render(cfg: dict) -> str:
@@ -96,7 +97,8 @@ def apply_desktop(path: Path, entry: dict) -> str:
         path.parent.mkdir(parents=True, exist_ok=True)
         note = "no earlier file, created"
     path.write_text(new_text, encoding="utf-8", newline="\n")
-    return f"{state}d mcpServers.{NAME} in {path} ({note}); restart the Claude desktop app"
+    verb = {"add": "added", "update": "updated"}.get(state, state)
+    return f"{verb} mcpServers.{NAME} in {path} ({note}); restart the Claude desktop app"
 
 
 def apply_claude_code(entry: dict) -> int:
