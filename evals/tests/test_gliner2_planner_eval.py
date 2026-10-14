@@ -49,7 +49,10 @@ def test_frozen_set_matches_its_registration() -> None:
     assert len(items) == 100 and len({it["id"] for it in items}) == 100
     assert Counter(it["mode"] for it in items) == Counter(mod.PER_MODE)
     assert Counter(it["split"] for it in items) == {"tune": 51, "heldout": 49}
-    # No relabelling: every frozen label is still what the registered rules give.
+    # No relabelling: every frozen label is still what the registered rules give. The question
+    # text is not committed (licence); it is re-hydrated from the local LoCoMo file.
+    if not mod.has_questions(items):
+        pytest.skip("locomo10.json not on disk: the frozen set holds ids and hashes only")
     for it in items:
         assert mod.label(it["question"]) == (it["mode"], it["rule"])
 
@@ -112,7 +115,10 @@ def test_examples_are_passed_to_the_schema() -> None:
 def test_procedure_selects_on_tune_and_applies_the_rule() -> None:
     mod = _module()
     setups = [mod.CURRENT, *(s for s in mod.SETUPS if s.name in ("D", "D + rules first"))]
-    outcome = mod.procedure(_KeywordModel(), mod.load_fixture(), setups)
+    items = mod.load_fixture()
+    if not mod.has_questions(items):
+        pytest.skip("locomo10.json not on disk: the frozen set holds ids and hashes only")
+    outcome = mod.procedure(_KeywordModel(), items, setups)
     assert [s.split for s in outcome.tune] == ["tune"] * (2 + len(setups))
     assert {s.split for s in outcome.heldout} == {"heldout"}
     tune = {s.name: s for s in outcome.tune}

@@ -25,9 +25,9 @@ from memspine.store.records import MemoryRecord, SourceInfo
         "How many bikes do I own?",
         "How much have I spent on groceries?",
         "List all the books she read.",
-        "What do Jon and Gina have in common?",
-        "What gifts did Caroline buy?",
-        "What kind of books does Melanie read?",
+        "What do Noor and Mirel have in common?",
+        "What gifts did Ilse buy?",
+        "What kind of books does Bram read?",
         "I read a lot lately. How many books have I finished?",
         "What is the order of the three trips I took?",
     ],
@@ -41,12 +41,12 @@ def test_intent_fires(question: str) -> None:
     [
         "What type of camera lens did I purchase most recently?",
         "What kind of car did I buy last?",
-        "When did Melanie sign up for a pottery class?",
-        "Why did Jon shut down his bank account?",
+        "When did Bram sign up for a pottery class?",
+        "Why did Noor shut down his bank account?",
         "How many days ago did I harvest my first herbs?",
-        "What does Joanna love most about having turtles?",
+        "What does Femke love most about having turtles?",
         "What is her favourite dish?",
-        "Is Oscar Melanie's pet?",
+        "Is Oscar Bram's pet?",
         "Can you remind me of the name of the last venue you recommended in the list of venues?",
     ],
 )
@@ -85,21 +85,21 @@ def test_question_subject() -> None:
     assert question_subject("What did you recommend for my trip?") is None  # mixed
     assert question_subject("What did you recommend?") == "assistant"
     assert question_subject("What pets does she have?") is None
-    assert question_subject("What pets does Caroline have?") is None
+    assert question_subject("What pets does Ilse have?") is None
 
 
 def test_two_named_speakers_vote_by_name() -> None:
     recs = [
-        _rec("Caroline: I adopted a cat."),
-        _rec("Melanie: I painted a lake."),
-        _rec("Caroline: My dog is old."),
+        _rec("Ilse: I adopted a cat."),
+        _rec("Bram: I painted a lake."),
+        _rec("Ilse: My dog is old."),
     ]
     hits = [LegHit(r.record_id, 1.0 - i / 10) for i, r in enumerate(recs)]
     expected = [recs[0].record_id, recs[2].record_id]
-    assert _ids(subject_vector_leg("What pets does Caroline have?", recs, hits)) == expected
+    assert _ids(subject_vector_leg("What pets does Ilse have?", recs, hits)) == expected
     # same as the name mode where a speaker is named
-    assert subject_vector_leg("What pets does Caroline have?", recs, hits) == speaker_vector_leg(
-        "What pets does Caroline have?", recs, hits
+    assert subject_vector_leg("What pets does Ilse have?", recs, hits) == speaker_vector_leg(
+        "What pets does Ilse have?", recs, hits
     )
     # a pronoun is unresolved: no vote; "I" in a two-named-speaker chat (every role=user): none
     assert subject_vector_leg("What pets does she have?", recs, hits) == []

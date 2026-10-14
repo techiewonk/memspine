@@ -28,7 +28,7 @@ def test_defaults_are_off_and_unchanged() -> None:
 
 
 def test_past_weekday_resolves_to_the_friday_before_the_line_date() -> None:
-    out = wk("I won my fourth video game tournament on Friday! It was awesome.")
+    out = wk("Bram won his third chess league round on Friday! It was a tight one.")
     assert "on Friday [= the Friday before 2022-07-10 (Fri 2022-07-08)]!" in out
 
 

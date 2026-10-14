@@ -15,11 +15,11 @@ from memspine_evals.duration_solve import (
 from memspine_evals.readers import QA_PROMPTS
 
 CTX_MONTHS = (
-    "[2023-07-11] Andrew: Hey! meet Toby, my puppy. He is a bundle of joy.\n"
-    "[2023-07-11] Audrey: Toby looks so adorable!\n"
-    "[2023-08-04] Andrew: Gotta take Toby out for a small hike.\n"
-    "[2023-10-19] Andrew: I named him Buddy because he is my buddy.\n"
-    "[2023-10-19] Audrey: Nice! Buddy seems happy."
+    "[2023-07-11] Lars: Hey! meet Toby, my puppy. He is a bundle of joy.\n"
+    "[2023-07-11] Odile: Toby looks so adorable!\n"
+    "[2023-08-04] Lars: Gotta take Toby out for a small hike.\n"
+    "[2023-10-19] Lars: I named him Buddy because he is my buddy.\n"
+    "[2023-10-19] Odile: Nice! Buddy seems happy."
 )
 
 
@@ -46,7 +46,7 @@ def run(coro: Any) -> Any:
 
 
 def test_months_between_two_named_events() -> None:
-    q = "How many months passed between Andrew adopting Toby and Buddy?"
+    q = "How many months passed between Lars adopting Toby and Buddy?"
     sol, meta = solve_duration(q, CTX_MONTHS)
     assert sol is not None and meta["decision"] == "solved"
     assert (sol.unit, sol.n, sol.days) == ("month", 3, 100)  # 11 Jul -> 19 Oct
@@ -56,8 +56,8 @@ def test_months_between_two_named_events() -> None:
 
 def test_days_with_a_relative_phrase_endpoint() -> None:
     ctx = (
-        "[2023-08-11] Maria: I got a puppy two weeks ago! Her name is Coco.\n"
-        "[2023-08-25] Maria: Her name is Shadow, a new puppy."
+        "[2023-08-11] Elke: I got a puppy two weeks ago! Her name is Coco.\n"
+        "[2023-08-25] Elke: Her name is Shadow, a new puppy."
     )
     sol, meta = solve_duration("How many days passed between Coco and Shadow?", ctx)
     assert sol is not None
@@ -68,10 +68,10 @@ def test_days_with_a_relative_phrase_endpoint() -> None:
 
 def test_years_between_absolute_dates() -> None:
     ctx = (
-        "[2023-01-05] Sam: I started college on 3 September 2019, so excited.\n"
-        "[2023-01-06] Sam: I graduated from college on 1 June 2023? no, planning"
+        "[2023-01-05] Kees: I started college on 3 September 2019, so excited.\n"
+        "[2023-01-06] Kees: I graduated from college on 1 June 2023? no, planning"
     )
-    sol, _ = solve_duration("How many years between Sam's college start and graduation?", ctx)
+    sol, _ = solve_duration("How many years between Kees's college start and graduation?", ctx)
     assert sol is None  # clause without a capitalised event name: fail closed
 
 
@@ -87,19 +87,19 @@ def test_years_for_named_events() -> None:
 
 def test_ambiguous_event_fails_closed() -> None:
     ctx = (
-        "[2023-07-11] Andrew: meet Toby, my puppy. We adopted him today.\n"
-        "[2023-09-30] Andrew: We adopted Toby after a long search, finally official.\n"
-        "[2023-10-19] Andrew: I named him Buddy and adopted him."
+        "[2023-07-11] Lars: meet Toby, my puppy. We adopted him today.\n"
+        "[2023-09-30] Lars: We adopted Toby after a long search, finally official.\n"
+        "[2023-10-19] Lars: I named him Buddy and adopted him."
     )  # two adoption lines for Toby more than a week apart
     sol, meta = solve_duration(
-        "How many months passed between Andrew adopting Toby and Buddy?", ctx
+        "How many months passed between Lars adopting Toby and Buddy?", ctx
     )
     assert sol is None and meta["decision"] == "abstain:event1_event_lines_disagree"
 
 
 def test_missing_second_event_and_unnamed_events_fail_closed() -> None:
     sol, meta = solve_duration(
-        "How many months passed between Andrew adopting Toby and Zorro?", CTX_MONTHS
+        "How many months passed between Lars adopting Toby and Zorro?", CTX_MONTHS
     )
     assert sol is None and meta["decision"] == "abstain:event2_event_not_found"
     sol, meta = solve_duration(
@@ -109,8 +109,8 @@ def test_missing_second_event_and_unnamed_events_fail_closed() -> None:
 
 
 def test_not_a_duration_question_leaves_no_record() -> None:
-    assert solve_duration("When did Andrew adopt Toby?", CTX_MONTHS) == (None, {})
-    assert solve_duration("Where was John between August 11 and August 15?", CTX_MONTHS) == (
+    assert solve_duration("When did Lars adopt Toby?", CTX_MONTHS) == (None, {})
+    assert solve_duration("Where was Tomasz between August 11 and August 15?", CTX_MONTHS) == (
         None,
         {},
     )
@@ -137,7 +137,7 @@ def test_elapsed_since_with_as_of_month() -> None:
 )
 def test_reader_answer_check(answer: str, verdict: str) -> None:
     sol, _ = solve_duration(
-        "How many months passed between Andrew adopting Toby and Buddy?", CTX_MONTHS
+        "How many months passed between Lars adopting Toby and Buddy?", CTX_MONTHS
     )
     assert sol is not None and check_answer(sol, answer)[0] == verdict
 
@@ -145,7 +145,7 @@ def test_reader_answer_check(answer: str, verdict: str) -> None:
 def test_rewrite_mode_replaces_a_wrong_number_and_records_the_decision() -> None:
     inner = Fake("4 months")
     reader = DurationSolveReader(inner, "rewrite")
-    q = "How many months passed between Andrew adopting Toby and Buddy?"
+    q = "How many months passed between Lars adopting Toby and Buddy?"
     out = run(reader.answer(q, CTX_MONTHS))
     assert out.text.startswith("About 3 months") and "2023-07-11" in out.text
     meta = out.extra_meta["duration_solve"]
@@ -155,10 +155,10 @@ def test_rewrite_mode_replaces_a_wrong_number_and_records_the_decision() -> None
 
 
 def test_rewrite_mode_keeps_an_agreeing_answer_and_abstains_quietly() -> None:
-    q = "How many months passed between Andrew adopting Toby and Buddy?"
+    q = "How many months passed between Lars adopting Toby and Buddy?"
     ok = run(DurationSolveReader(Fake("3 months"), "rewrite").answer(q, CTX_MONTHS))
     assert ok.text == "3 months" and ok.extra_meta["duration_solve"]["decision"] == "agrees"
-    q2 = "How many months passed between Andrew adopting Toby and Zorro?"
+    q2 = "How many months passed between Lars adopting Toby and Zorro?"
     ab = run(DurationSolveReader(Fake("5 months"), "rewrite").answer(q2, CTX_MONTHS))
     assert ab.text == "5 months" and ab.extra_meta["duration_solve"]["decision"].startswith(
         "abstain"
@@ -170,7 +170,7 @@ def test_rewrite_mode_keeps_an_agreeing_answer_and_abstains_quietly() -> None:
 
 
 def test_rewrite_replaces_a_refusal() -> None:
-    q = "How many months passed between Andrew adopting Toby and Buddy?"
+    q = "How many months passed between Lars adopting Toby and Buddy?"
     out = run(DurationSolveReader(Fake("Not mentioned."), "rewrite").answer(q, CTX_MONTHS))
     assert out.text.startswith("About 3 months")
 
@@ -178,7 +178,7 @@ def test_rewrite_replaces_a_refusal() -> None:
 def test_hint_mode_prepends_one_line_and_keeps_the_reader_answer() -> None:
     inner = Fake("3 months, I think")
     reader = DurationSolveReader(inner, "hint")
-    q = "How many months passed between Andrew adopting Toby and Buddy?"
+    q = "How many months passed between Lars adopting Toby and Buddy?"
     out = run(reader.answer(q, CTX_MONTHS))
     assert out.text == "3 months, I think"
     assert inner.seen[0].endswith(CTX_MONTHS) and inner.seen[0].startswith("Computed by calendar")

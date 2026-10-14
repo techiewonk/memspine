@@ -58,3 +58,6 @@ Thumbs.db
 # docs/v2/data holds plan sources and generated plan data (not run data)
 !docs/v2/data/
 !tests/unit/config/data/
+
+# Licence: no archives with dataset content under docs/
+docs/**/*.zip

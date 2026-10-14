@@ -191,8 +191,8 @@ By gold count, a1 + tier takes fully covered questions from 42 to 56 of 73 (2 go
 of 35 (5+). Expected effect on the whole benchmark: +4 to +8 judged-correct questions of 1,540 (+0.3 to +0.5 point),
 before any non-list effect. Three of the dev questions named in `DEV_GAP_REASONING`: "What activities does Melanie
 partake in?" (4 gold) 1 -> 1 gold turn in context with a1 + tier, 2 with the lexicon legs; "What events has Caroline
-participated in to help children?" (2 gold) 0 -> 1; "What activities has Melanie done with her family?" (6 gold) 0 -> 2
-(a1 + tier), 4 (with lexicon legs). One regression is visible ("What transgender-specific events has Caroline attended?",
+participated in to help children?" (2 gold) 0 -> 1; "[omitted]?" (6 gold) 0 -> 2
+(a1 + tier), 4 (with lexicon legs). One regression is visible ("[omitted]",
 2 -> 1 gold turns).
 
 Caveats: the trigger regex and the lexicon were written after reading examples from all ten conversations, so the
@@ -273,7 +273,7 @@ multi-hop, 5 temporal). a1 + tier on those 183 (MEASURED-SIM):
    case and possessive ("Melanie's kids"); records without tags -> empty; (b) `is_set_question`: positives from the
    examples ("What activities does Melanie partake in?", "What do Melanie's kids like?", "What events has Caroline
    participated in to help children?", "What kind of fiction stories does Tim write?"), negatives ("When did ...",
-   "How many ...", "Did ...", "What book did Melanie read from Caroline's suggestion?" should not fire on the singular
+   "How many ...", "Did ...", "[omitted]" should not fire on the singular
    past-tense form); (c) tier assembly: 30 candidates, windows only on ranks 1-10, singles beyond, budget cap respected,
    `window_full_hits: None` identical to today; (d) off = byte-identical context on a fixture; (e) integration on a toy
    two-speaker conversation where the instance turns share no words with the question.

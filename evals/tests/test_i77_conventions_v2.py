@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from judge_agreement import load_set, with_conventions
+from judge_agreement import has_text, load_set, with_conventions
 from memspine_evals.cli import build_parser
 from memspine_evals.experiments import C01Config
 from memspine_evals.judge import GuardedJudge, JudgeScale, Verdict
@@ -105,7 +105,10 @@ def test_alias_table_is_small_generic_and_symmetric() -> None:
     assert len(flat) == len(set(flat))  # an alias belongs to exactly one group
     assert all(a == a.lower() and len(g) >= 2 for g in ALIAS_GROUPS for a in g)
     # no dataset answer: no alias is, by itself, the gold of a calibration row
-    golds = {r["gold"].lower().strip(" .") for r in load_set(CALIBRATION)}
+    rows = load_set(CALIBRATION)
+    if not has_text(rows):
+        pytest.skip("calibration text is local only (evals/runs/_analysis); see judge_agreement.FULL_SET")
+    golds = {r["gold"].lower().strip(" .") for r in rows}
     assert not golds & set(flat)
 
 
@@ -160,6 +163,8 @@ def test_cli_flag_and_config_default() -> None:
 
 def test_calibration_set_agreement_does_not_move_and_no_false_positive() -> None:
     rows = load_set(CALIBRATION)
+    if not has_text(rows):
+        pytest.skip("calibration text is local only (evals/runs/_analysis); see judge_agreement.FULL_SET")
     judged = {r["id"]: r["source_judge_label"] for r in rows}
     res = with_conventions(rows, judged)["v2"]
     base = with_conventions(rows, judged)["judge_alone"]

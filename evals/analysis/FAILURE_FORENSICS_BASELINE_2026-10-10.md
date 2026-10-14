@@ -83,16 +83,16 @@ Not in any screen: lever 2, 7, the I9 chunked rerank, the I6 token window; lever
 
 ## 4. Examples per class (dev corpus, short)
 
-- (b) recall, 3-74 "What recommendations has Nate received from Joanna?" (7 gold turns, all in no leg; answer: Joanna "offered to get new book recommendations ... the specific titles ... are not listed"). 2-40 "names of John's children": one of two gold turns recalled; answer names only Kyle.
+- (b) recall, 3-74 "[omitted]" (7 gold turns, all in no leg; answer: Joanna "offered to get new book recommendations ... the specific titles ... are not listed"). 2-40 "names of John's children": one of two gold turns recalled; answer names only Kyle.
 - (c) fusion, 2-35 "What states has Maria vacationed at?" gold Oregon, Florida; the Oregon turn had vector rank 9 and no lexical hit and was cut at the fused top-10; answer "Florida and California". 0-3 "What did Caroline research?" gold "Adoption agencies": vector rank 9, cut; answer "career options, counseling".
 - (d) refusal, 3-43 "How long did it take Joanna to finish her book?" gold four months; both gold turns in context; answer "The memories do not state the specific duration". 0-71: "does not mention a specific book" although D7:11 and D17:10 are in context.
-- (d) inference, 0-22 Dr. Seuss: gold "Yes, since she collects classic children's books"; answer "No, ... she does not mention Dr. Seuss". 3-12: gold asthma; answer picks "lactose intolerant".
+- (d) inference, 0-22 Dr. Seuss: gold "[omitted]"; answer "No, ... she does not mention Dr. Seuss". 3-12: gold asthma; answer picks "lactose intolerant".
 - (d) count, 3-80 gold seven tournaments, answer "at least five"; 3-19 gold twice, answer "at least three" (one event listed under two dates).
 - (d) date, 3-31: gold "The Friday before 10 July, 2022"; answer "Friday, 2022-07-10" (10 July 2022 is a Sunday). 3-41 gold 5 October, answer "Friday, 2022-09-09".
 - (d) detail, 1-49 gold "cozy and comfortable", answer "a cool oasis"; 3-60 gold Nintendo Switch (inferred from Xenoblade 2), answer "an Xbox".
 - (e) judge, 3-183 gold "Xenoblade Chronicles", answer "Xeonoblade Chronicles" (typo); 2-120 gold "Flood", answer "A flood affected John's old area ..."; 0-24 gold "Running, pottery", answer lists both plus other true items.
 - (f) 0-5 "Sunday before 25 May" contradicts the transcript; 3-24 gold date ambiguous.
-- Cat 5, wrong owner (39): 0-181 "What did Melanie make for a local church?" -> "Melanie made a stained glass window" (the turn is Caroline's: "I made this stained glass window ..."); 2-174 "What does John say she feels when doing upside-down yoga poses?" -> "She feels free and light" (Maria's line). Retrieval worked; the reader attributed.
+- Cat 5, wrong owner (39): 0-181 "What did Melanie make for a local church?" -> "Melanie made a stained glass window" (the turn is Caroline'[omitted]'s line). Retrieval worked; the reader attributed.
 - Cat 5, near-match (10): 2-185 "What happened to Maria's job in August 2023?" -> "Nothing happened ... she was still working" (John lost his job); 3-216 "filling Nate used in May 2022" -> "mixed berry" (Joanna's cake has strawberry filling).
 - Cat 5, entity (1): 0-179 "Where did Oscar hide his bone once?" -> "in Melanie's slipper" (the dog is Oliver).
 

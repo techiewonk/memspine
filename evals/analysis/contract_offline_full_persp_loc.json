@@ -130,51 +130,15 @@
   }
  },
  "wrong_examples": {
-  "soft_unnamed": [
-   {
-    "q": "Where did Caroline move from 4 years ago?",
-    "a": "Caroline moved from her home country 4 years ago.",
-    "gold": "Sweden"
-   },
-   {
-    "q": "What book recommendations has Joanna given to Nate?",
-    "a": "No book recommendations have been given by Joanna to Nate in the memories.",
-    "gold": "\"Little Women\",'A Court of Thorns andRoses'."
-   },
-   {
-    "q": "Where was John between August 11 and August 15 2023?",
-    "a": "John was on a trip (away from his team) between August 11 and August 15, 2023, as he mentions meeting back up with his t",
-    "gold": "Chicago"
-   },
-   {
-    "q": "What kind of game did John have a career-high in assists in?",
-    "a": "John had a career-high in assists in a big game against his rival.",
-    "gold": "basketball"
-   },
-   {
-    "q": "What kind of places have Andrew and his girlfriend checked out around the city?",
-    "a": "Andrew and his girlfriend have checked out a new cafe scene, a sushi spot, and a new cafe in town.",
-    "gold": "cafes, new places to eat, open space for hikes, pet shelter, wine tasting event,"
-   },
-   {
-    "q": "Where did Andrew go during the first weekend of August 2023?",
-    "a": "Andrew went to a nature reserve during the first weekend of August 2023 (specifically the weekend of August 19, 2023).",
-    "gold": "camping with girlfriend"
-   }
-  ],
-  "soft_mixed_granularity": [
-   {
-    "q": "Which cities has John been to?",
-    "a": "Seattle, Chicago, New York City, Italy, Paris, and Ireland.",
-    "gold": "Seattle, Chicago, New York, and Paris."
-   }
-  ],
-  "count_list_mismatch": [
-   {
-    "q": "How many pets will Andrew have, as of December 2023?",
-    "a": "Andrew will have 4 pets as of December 2023.\n\n**Reasoning:**\n1.  **Toby**: Mentioned as Andrew's dog in August 2023 ([20",
-    "gold": "three"
-   }
-  ]
- }
+  "soft_unnamed": {
+   "n_examples": 6
+  },
+  "soft_mixed_granularity": {
+   "n_examples": 1
+  },
+  "count_list_mismatch": {
+   "n_examples": 1
+  }
+ },
+ "text": "example question/answer/gold strings removed (licence); original in gitignored evals/runs/_analysis/legacy_text/"
 }
