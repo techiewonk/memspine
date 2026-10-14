@@ -945,6 +945,14 @@ class ReadConfig(BaseModel):
     #: stays, with its replay window. The 4K budget was not binding on LoCoMo (about
     #: 1.7K tokens used); slots were. Off: byte-identical.
     raw_turn_floor: bool = False
+    #: GTEMP (docs/v2/GTEMP.md): a derived record (graph edge fact, summary) without a happened
+    #: date is shown with its best source turn's date, not the session-close or extraction
+    #: date; on a temporal-shaped question a derived record that still has no date is dropped.
+    #: Projection only. Off: byte-identical.
+    derived_dates: bool = False
+    #: GTEMP: > 0 keeps at most this many derived records in a replay read and places them after
+    #: the turn evidence (persona and lead blocks stay in front). 0 = off.
+    derived_cap: int = Field(default=0, ge=0)
     #: F5 (plan v3.2): a verbatim question (``is_verbatim``: "what did X say about
     #: ...", "exact words") gets no read header (cards, profile, graph facts, entity
     #: summaries) and, with ``cards: header``, no mined fact either: it reads raw

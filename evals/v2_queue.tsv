@@ -81,3 +81,4 @@ S70	B10	R14-IVFIX	v2-R14-IVFIX-index_view_anaphoric	f-jref2-i2	NONINF	f	-	J	40	w
 P2REF	B11	PICK2	scr-gc3-graph-jina	clean-jina-full	REPORT	F	-	GC	190	(GC reference full run for attribution: S02 on all 1540, no PICK2 flags; compare P2 against it with eval_paired.py)
 P2	B11	PICK2	v2-PICK2-winners	clean-jina-full	PROMOTE	Fob	-	GC	300	read.legs_v2+read.episode_leg_v2+read.standing_v2+read.tiers_v2+read.gate_v2+read.trust_rendering+read.decompose_v2+read.pool_protect_per_leg=8+offline.session_close_v2+offline.standing_v2+offline.histories_v2 (winners on the S02 graph base)
 P2IV	B11	PICK2	v2-PICK2-winners-iv	clean-jina-full	PROMOTE	Fob	-	GC	300	P2 + write.index_view + write.index_view_carry=anaphoric (S70)
+G1	B11	GTEMP	v2-GTEMP-graph-fixed	v2-S02-i2	NONINF	f	S02	GC	150	read.raw_turn_floor+read.derived_dates+read.derived_cap=3 (GC graph base temporal fix; slices fail_temporal + fail_mix_120)

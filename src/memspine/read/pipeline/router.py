@@ -76,6 +76,7 @@ from memspine.read.pipeline.fusion import (
     fuse_families,
 )
 from memspine.read.pipeline.legs import registry_base_legs
+from memspine.read.pipeline.derived import place_derived
 from memspine.read.pipeline.lift import lift_stage
 from memspine.read.pipeline.rerank import (
     _static_prefilter,
@@ -1617,6 +1618,8 @@ async def _read_routed(
         turns = [r for r in turns if r.record_id in best_window] + [
             r for r in turns if r.record_id not in best_window
         ]
+    if read_cfg.derived_cap > 0:  # GTEMP: derived records capped and after the turns
+        stable, turns = place_derived(stable, turns, read_cfg.derived_cap)
     return ReadResult(
         "replay",
         eng._render(

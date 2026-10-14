@@ -69,3 +69,5 @@ S74	loc	analysis/sample_slice_loc_cat5_s20261013.json	analysis/sample_slice_loc_
 S74	loc	analysis/fail_slice_fail_reader_s20261013.json	analysis/fail_slice_fail_reader_s20261013_c3.json	fail_reader; arm v2-R14-INFER2-inference_mode_v2; targets (secondary only)
 S70	loc	analysis/fail_slice_fail_retrieval_s20261013.json	analysis/fail_slice_fail_retrieval_s20261013_c3.json	fail_retrieval; arm v2-R14-IVFIX-index_view_anaphoric; targets (secondary only)
 S70	loc	analysis/fail_slice_fail_mix_120_s20261013.json	analysis/fail_slice_fail_mix_120_s20261013_c3.json	fail_mix_120; arm v2-R14-IVFIX-index_view_anaphoric; targets (secondary only)
+G1	loc	analysis/fail_slice_fail_temporal_s20261013.json	analysis/fail_slice_fail_temporal_s20261013_c3.json	fail_temporal; arm v2-GTEMP-graph-fixed; targets (secondary only)
+G1	loc	analysis/fail_slice_fail_mix_120_s20261013.json	analysis/fail_slice_fail_mix_120_s20261013_c3.json	fail_mix_120; arm v2-GTEMP-graph-fixed; targets (secondary only)
