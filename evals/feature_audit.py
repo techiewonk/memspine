@@ -574,11 +574,11 @@ async def check_c3_temporal_and_metadata_legs() -> bool:
             namespace="a", memory_type="episodic", content=content, valid_from=when, entity=entity
         )
 
-    may = rec("mid may", datetime(2023, 5, 16, tzinfo=UTC), entity="Caroline")
+    may = rec("mid may", datetime(2023, 5, 16, tzinfo=UTC), entity="Noor")
     june = rec("june", datetime(2023, 6, 3, tzinfo=UTC), entity="Carol")
     pure = [h.record_id for h in temporal_leg("what happened in May 2023", [may, june], 5)] == [
         may.record_id
-    ] and [h.record_id for h in metadata_leg("Where did Caroline move?", [may, june], 5)] == [
+    ] and [h.record_id for h in metadata_leg("Where did Noor move?", [may, june], 5)] == [
         may.record_id
     ]
     found = []
@@ -610,20 +610,20 @@ async def check_c4_current_state_and_retract() -> bool:
     await eng.start()
     try:
         await eng.write(
-            "Caroline lives in Boston",
+            "Noor lives in Boston",
             namespace="a",
-            entity="caroline",
+            entity="noor",
             attribute="city",
             valid_from=datetime(2023, 1, 5, tzinfo=UTC),
         )
         await eng.write(
-            "Caroline lives in Seattle",
+            "Noor lives in Seattle",
             namespace="a",
-            entity="caroline",
+            entity="noor",
             attribute="city",
             valid_from=datetime(2023, 6, 1, tzinfo=UTC),
         )
-        ctx = await eng.assemble("where does Caroline live", namespace="a")
+        ctx = await eng.assemble("where does Noor live", namespace="a")
         view = any(
             r.content.startswith("CURRENT (since 2023-06-01)") and "HISTORY" in r.content
             for r in ctx.records
@@ -745,12 +745,12 @@ def check_cached_tokens() -> bool:
 # -- LLM stages on a stub router (C6', H2, H8, H14, H17, P4, MODEL-CALLS, BUILD-HOOK) ------
 
 _MINED = json.dumps(
-    {"facts": [{"entity": "caroline", "attribute": "career goal", "value": "counselor"}]}
+    {"facts": [{"entity": "noor", "attribute": "career goal", "value": "counselor"}]}
 )
 _SESSION = [
-    "Caroline: I went to the support group yesterday",
-    "Melanie: that is great, how was it",
-    "Caroline: it was inspiring, I want to be a counselor",
+    "Noor: I went to the support group yesterday",
+    "Bram: that is great, how was it",
+    "Noor: it was inspiring, I want to be a counselor",
 ]
 
 
@@ -891,7 +891,7 @@ async def check_h17_relevance_filter() -> bool:
 async def check_p4_query_rewrites() -> bool:
     calls = []
     for on in (True, False):
-        stub = _Stub("query_rewrite", "1. Melanie seaside trips\n2. Melanie ocean visits")
+        stub = _Stub("query_rewrite", "1. Bram seaside trips\n2. Bram ocean visits")
         eng = await _stubbed(
             {"query_rewrite": stub},
             memories={"episodic": {"enabled": True}},
@@ -899,13 +899,13 @@ async def check_p4_query_rewrites() -> bool:
         )
         try:
             await eng.write(
-                "Melanie visited the seaside",
+                "Bram visited the seaside",
                 namespace="a",
                 memory_type="episodic",
                 valid_from=datetime(2023, 5, 1, tzinfo=UTC),
             )
             out = await eng.read(
-                "How many times did Melanie go to the beach?",
+                "How many times did Bram go to the beach?",
                 namespace="a",
                 mode="compose",
                 top_k=2,
@@ -970,7 +970,7 @@ async def check_h1_relative_dates() -> bool:
         await eng.start()
         try:
             rec = await eng.write(
-                "Caroline went to the support group last Friday",
+                "Noor went to the support group last Friday",
                 namespace="a",
                 valid_from=datetime(2023, 7, 15, tzinfo=UTC),
             )
@@ -979,8 +979,8 @@ async def check_h1_relative_dates() -> bool:
         finally:
             await eng.stop()
     return pure and lines == [
-        "Caroline went to the support group last Friday [= Fri 2023-07-14]",
-        "Caroline went to the support group last Friday",
+        "Noor went to the support group last Friday [= Fri 2023-07-14]",
+        "Noor went to the support group last Friday",
     ]
 
 
@@ -993,14 +993,14 @@ async def check_h3_compose() -> bool:
             day = T0 + timedelta(days=d)
             await _turns(eng, [f"chit chat {i} " + "blah " * 20 for i in range(6)], day)
             rec = await eng.write(
-                "Melanie went to the beach with her kids",
+                "Bram went to the beach with her kids",
                 namespace="a",
                 memory_type="episodic",
                 valid_from=day + timedelta(minutes=30),
             )
             ids.append(rec.record_id)
         out = await eng.read(
-            "How many times has Melanie gone to the beach?",
+            "How many times has Bram gone to the beach?",
             namespace="a",
             mode="auto",
             top_k=2,
@@ -1157,9 +1157,9 @@ async def check_h13_core_terms_leg() -> bool:
         eng = _engine_kw(memories={"semantic": {"enabled": True}}, read={"core_terms_leg": on})
         await eng.start()
         try:
-            await eng.write("Melanie went to the beach with her kids", namespace="a")
+            await eng.write("Bram went to the beach with her kids", namespace="a")
             built = await eng._metadata_legs(
-                "a", "How many times has Melanie gone to the beach?", 10
+                "a", "How many times has Bram gone to the beach?", 10
             )
             legs.append(len(built))
         finally:
@@ -1200,9 +1200,9 @@ async def check_h16_time_order() -> bool:
             # distinct relevance, so score order (20, 3, 11) is NOT time order: equal
             # scores now tie-break by event time, which would hide the feature
             texts = {
-                20: "What is the latest book Melanie read: the latest book Melanie read",
-                3: "Melanie read a new book",
-                11: "Melanie went hiking",
+                20: "What is the latest book Bram read: the latest book Bram read",
+                3: "Bram read a new book",
+                11: "Bram went hiking",
             }
             for day in (20, 3, 11):
                 await eng.write(
@@ -1211,7 +1211,7 @@ async def check_h16_time_order() -> bool:
                     memory_type="episodic",
                     valid_from=datetime(2023, 5, day, tzinfo=UTC),
                 )
-            ctx = await eng.assemble("What is the latest book Melanie read?", namespace="a")
+            ctx = await eng.assemble("What is the latest book Bram read?", namespace="a")
             lines = [r.content for r in ctx.records]
             orders.append(lines == sorted(lines))
         finally:
@@ -1311,21 +1311,21 @@ async def check_h20_superseded_excluded() -> bool:
     await eng.start()
     try:
         old = await eng.write(
-            "Caroline lives in Boston",
+            "Noor lives in Boston",
             namespace="a",
-            entity="caroline",
+            entity="noor",
             attribute="city",
             valid_from=datetime(2023, 1, 5, tzinfo=UTC),
         )
         new = await eng.write(
-            "Caroline lives in Seattle",
+            "Noor lives in Seattle",
             namespace="a",
-            entity="caroline",
+            entity="noor",
             attribute="city",
             valid_from=datetime(2023, 6, 1, tzinfo=UTC),
         )
         stored = await eng._require_started().get_record(old.record_id)
-        hits = await eng.search("Caroline lives in Boston", namespace="a", top_k=5)
+        hits = await eng.search("Noor lives in Boston", namespace="a", top_k=5)
         ids = [r.record_id for r, _ in hits]
         return (
             stored is not None
@@ -1384,9 +1384,9 @@ async def check_h22_gap_markers() -> bool:
         try:
             for when in (datetime(2023, 5, 1, tzinfo=UTC), datetime(2023, 5, 22, tzinfo=UTC)):
                 await eng.write(
-                    "Melanie went hiking", namespace="a", memory_type="episodic", valid_from=when
+                    "Bram went hiking", namespace="a", memory_type="episodic", valid_from=when
                 )
-            ctx = await eng.assemble("when did Melanie first go hiking", namespace="a")
+            ctx = await eng.assemble("when did Bram first go hiking", namespace="a")
             seconds.append(ctx.records[1].content.startswith("[3 weeks later]"))
         finally:
             await eng.stop()
@@ -1406,9 +1406,9 @@ def check_h23_dedupe() -> bool:
         )
 
     pairs = [
-        (rec("Melanie went to the beach with her kids on Sunday", 1), 0.9),
-        (rec("Melanie went to the beach with her kids on Sunday!", 2), 0.85),
-        (rec("Caroline painted a sunrise", 3), 0.5),
+        (rec("Bram went to the beach with her kids on Sunday", 1), 0.9),
+        (rec("Bram went to the beach with her kids on Sunday!", 2), 0.85),
+        (rec("Noor painted a sunrise", 3), 0.5),
     ]
     on = AssemblyPolicy.bind({"dedupe_jaccard": 0.8, "mmr_lambda": 1.0}).assemble(pairs, 500)
     off = AssemblyPolicy.bind({"mmr_lambda": 1.0}).assemble(pairs, 500)

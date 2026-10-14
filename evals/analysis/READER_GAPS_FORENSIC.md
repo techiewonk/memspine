@@ -63,7 +63,7 @@ Rank distribution of the gold line [M]: for the 130 rows with a ranked gold turn
 - `conv-47/6-59` gold "On the night of October 30 to 31, 2022"; answer "Last night (Sunday, 2022-10-30)" WRONG.
 - `conv-48/7-81` gold "in October 2023"; answer "They have not yet agreed on a specific date; Jolene proposed planning for next month (October 2023)" WRONG (hedge plus gold).
 - `conv-50/9-60`, `conv-49/8-154`, `conv-41/2-142`, `conv-26/0-135`, `conv-42/3-167`, `conv-26/0-70`, `conv-50/9-64` (answer contains the gold fact plus extra items, extra detail, a hedge or a paraphrase).
-Borderline (5): `conv-26/0-2` (counseling vs "psychology, counseling certification"), `conv-42/3-148` ("fun and rewarding" vs "happy to share"), `conv-43/4-113` ("Minnesota Wolves" vs "The Wolves"), `conv-48/7-101` ("2022" vs "a year ago"), `conv-50/9-1` (mansion and luxury sports car vs "mansion in Japan, Ferrari 488 GTB").
+Borderline (5): `conv-26/0-2` (counseling vs "[omitted]"), `conv-42/3-148` ("fun and rewarding" vs "happy to share"), `conv-43/4-113` ("Minnesota Wolves" vs "The Wolves"), `conv-48/7-101` ("2022" vs "a year ago"), `conv-50/9-1` (mansion and luxury sports car vs "mansion in Japan, Ferrari 488 GTB").
 
 **INF (23): 12 world-knowledge lookups, 11 hypothetical or "likely".**
 - World: `conv-42/3-73` Fort Wayne to Indiana ("Not mentioned", retry fired and did not help; the question also says 2021 where the line is 2022); `conv-47/6-16` UNO and `6-17` Mafia (the reader quotes the description and says the name is not given); `conv-48/7-75` Exploding Kittens; `conv-49/8-57` Lake Tahoe, answer "Nevada" (gold California); `conv-43/4-70` Star Wars filming locations in Ireland; `conv-47/6-35` answer "Nuuk" where gold is "Greenland" (the baseline's longer answer said both and was credited).
@@ -88,7 +88,7 @@ Borderline (5): `conv-26/0-2` (counseling vs "psychology, counseling certificati
 **LIST (10).** `conv-42/3-52` three vs two; `conv-47/6-20` "at least three" vs two (retry fired, first answer said four); `conv-50/9-47` three vs two; `conv-42/3-53` once vs twice (the first walk is only in a caption); `conv-47/6-22` beneficiaries: answer omits "homeless" (regression, the baseline listed all three); `conv-49/8-69` omits "partner gets pregnant" (regression); `conv-49/8-78` "told his extended family" only (regression); `conv-44/5-21` only agility classes; `conv-42/3-75` two of four desserts; `conv-47/6-26` countries, adds Japan.
 
 **IMG (8)**: caption is in the context line, answer is wrong. `conv-49/8-106` "forest scene" (answer: "watercolors"); `conv-49/8-108` "sunsets over the ocean" (answer: "Landscapes"); `conv-49/8-109` caption shows skis, answer "Kayaking" (regression); `conv-49/8-144`; `conv-50/9-115` "a shiny orange car" (answer: mansion into a recording studio); `conv-49/8-104`, `conv-44/5-119`, `conv-43/4-152`.
-**IMGX (3)**: `conv-42/3-91` "dragons" (no text or caption contains it; the question's evidence turn `D9:14` only says "this series ... adventures, magic, and great characters"), `conv-42/3-92` "red and purple lighting" (caption says "a gaming room with a computer and a gaming chair"), `conv-26/0-23` (the book title appears on a cover in the photo).
+**IMGX (3)**: `conv-42/3-91` "dragons" (no text or caption contains it; the question's evidence turn `D9:14` only says "this [omitted]"), `conv-42/3-92` "red and purple lighting" (caption says "[omitted]"), `conv-26/0-23` (the book title appears on a cover in the photo).
 
 **REF (4).** `conv-48/7-44` denies because the friend is not named Anna (gold 9 April 2023); `conv-49/8-67` "plan it for next month [= 2023-12]" not linked to the beach; `conv-50/9-40` retry fabricated "Classic rock" where `D20:8` says Tupac and Dr. Dre; `conv-26/0-49` (denies "together", the line `D12:15` says "We had a blast last year [= 2022] at the Pride fest").
 **HOP (4).** `conv-26/0-71` (two lines, "Becoming Nicole" and "that book you recommended"); `conv-42/3-41` tart caption plus "Yesterday" line; `conv-42/3-23`; `conv-48/7-77` (answer Rio, gold Phuket).
@@ -233,10 +233,10 @@ Proxy checks [M]: a token-recall >= 0.5 rule gives 79.4% on the fixed run (judge
 | 5 | conv-42/3-24 (borderline) | temp | gold "The weekend after 3 June 2022"; line says "two weekends later" than the hiking trip | `D14:20` |
 | 6 | conv-43/4-6 | temp | gold June 2023; the 40-point game was "last week" of a 16 July line | `D3:1` `[= 2023-07-09..2023-07-15]` |
 | 7 | conv-43/4-60 | temp | gold "December 11, 2023"; event was the Friday before | `D23:3` `[= Fri 2023-12-08]` |
-| 8 | conv-43/4-86 | single | "What did John share with the person he skyped"; Tim skyped | `D5:1` speaker Tim |
+| 8 | conv-43/4-86 | single | "[omitted]"; Tim skyped | `D5:1` speaker Tim |
 | 9 | conv-43/4-135 | single | "How does Tim stay motivated"; gold is John's line | `D18:6` speaker John; Tim's own line gives the 25/5 method |
 | 10 | conv-43/4-136 | single | "What did Tim say about his injury"; it is John's | `D18:10` speaker John |
-| 11 | conv-43/4-164 | single | "What language does Tim know besides German"; John knows Spanish | `D27:6` speaker John |
+| 11 | conv-43/4-164 | single | "[omitted]"; John knows Spanish | `D27:6` speaker John |
 | 12 | conv-43/4-165 | single | "What book did Tim get in Italy"; John got it | `D27:4` speaker John |
 | 13 | conv-43/4-166 | single | "John's favourite book series"; the line is Tim's | `D27:19` speaker Tim |
 | 14 | conv-44/5-4 | temp | gold "week of April 3rd to 9th"; line dated 16 Apr 2023 says "last week" = 04-09..04-15 | `D3:18` `[= 2023-04-09..2023-04-15]` |
@@ -246,7 +246,7 @@ Proxy checks [M]: a token-recall >= 0.5 rule gives 79.4% on the fixed run (judge
 | 18 | conv-49/8-24 | temp | "significant event in Sam's life"; gold is Evan's (met a Canadian woman) | `D5:1` speaker Evan |
 | 19 | conv-49/8-74 | temp | gold "Thursday before December 17, 2023"; line says Tuesday | `D20:3` `[= Tue 2023-12-12]` |
 | 20 | conv-49/8-80 | temp | gold "January 9, 2023"; line is dated 10 Jan **2024** | `D24:3` |
-| 21 | conv-50/9-137 | single | "When did Calvin first get interested in cars"; line is Dave's | `D26:6` speaker Dave |
+| 21 | conv-50/9-137 | single | "[omitted]"; line is Dave's | `D26:6` speaker Dave |
 
 In most of the 21 the reader's answer is right relative to the transcript, or it correctly refuses (from reading the answers; not every row individually re-verified). Four of the 21 were credited in the baseline (`conv-43/4-166` by a refusal; `conv-44/5-4`, `conv-42/3-24` and `conv-47/6-72` by lenient matching), which is why they count as "regressions".
 
@@ -311,36 +311,36 @@ Columns: # = row order in `per_question.jsonl` among read_fail; b = baseline sta
 
 | # | question id | cat | class | b | R | question | gold |
 |---|---|---|---|---|---|---|---|
-| 0 | conv-26/0-2 | cat3 | JFN? | c |  | [omitted]? | Psychology, counseling certification |
+| 0 | conv-26/0-2 | cat3 | JFN? | c |  | [omitted]? | [omitted] |
 | 1 | conv-26/0-5 | cat2 | GOLD | f |  | When did Melanie run a charity race? | The sunday before 25 May 2023 |
-| 2 | conv-26/0-22 | cat3 | INF | f | R | [omitted]? | Yes, since she collects classic children |
-| 3 | conv-26/0-23 | cat1 | IMGX | f |  | What books has Melanie read? | "Nothing is Impossible", "Charlotte's We |
+| 2 | conv-26/0-22 | cat3 | INF | f | R | [omitted]? | [omitted] |
+| 3 | conv-26/0-23 | cat1 | IMGX | f |  | What books has Melanie read? | "[omitted] |
 | 4 | conv-26/0-33 | cat2 | DIST | f |  | [omitted]? | The week before 3 July 2023 |
-| 5 | conv-26/0-41 | cat2 | JFN | c |  | When did Caroline join a new activist group? | The Tuesday before 20 July 2023 |
+| 5 | conv-26/0-41 | cat2 | JFN | c |  | [omitted]? | The Tuesday before 20 July 2023 |
 | 6 | conv-26/0-49 | cat2 | REF | f |  | [omitted]? | 2022 |
-| 7 | conv-26/0-68 | cat2 | DARITH | c |  | How long has Melanie been practicing art? | Since 2016 |
+| 7 | conv-26/0-68 | cat2 | DARITH | c |  | [omitted]? | Since 2016 |
 | 8 | conv-26/0-70 | cat1 | JFN | c |  | [omitted]? | Poetry reading, conference |
 | 9 | conv-26/0-71 | cat1 | HOP | f | R | [omitted]? | "Becoming Nicole" |
 | 10 | conv-26/0-94 | cat4 | GOLD | f | R | [omitted]? | art and self-expression |
-| 11 | conv-26/0-135 | cat4 | JFN | f |  | What setback did Melanie face in October 2023? | She got hurt and had to take a break fro |
-| 12 | conv-26/0-138 | cat4 | DET | c |  | [omitted] | An abstract painting with blue streaks o |
-| 13 | conv-26/0-147 | cat4 | DET | f |  | How did Melanie feel after the accident? | Grateful and thankful for her family |
-| 14 | conv-26/0-151 | cat4 | DET | f |  | What did Melanie do after the road trip to relax? | Went on a nature walk or hike |
-| 15 | conv-30/1-9 | cat1 | GOLD | f |  | Which city have both Jean and John visited? | Rome |
+| 11 | conv-26/0-135 | cat4 | JFN | f |  | [omitted]|[omitted] |
+| 12 | conv-26/0-138 | cat4 | DET | c |  | [omitted] | [omitted] |
+| 13 | conv-26/0-147 | cat4 | DET | f |  | [omitted]|[omitted] |
+| 14 | conv-26/0-151 | cat4 | DET | f |  | [omitted]? | Went on a nature walk or hike |
+| 15 | conv-30/1-9 | cat1 | GOLD | f |  | [omitted]? | Rome |
 | 16 | conv-30/1-14 | cat2 | DIST | c |  | [omitted]? | April, 2023 |
 | 17 | conv-30/1-20 | cat2 | DIST | c |  | [omitted]? | 27 May, 2023 |
-| 18 | conv-30/1-43 | cat4 | DIST | c |  | What do the dancers in the photo represent? | They are performing at the festival |
-| 19 | conv-41/2-17 | cat3 | INF | f |  | What might John's degree be in? | Political science, Public administration |
+| 18 | conv-30/1-43 | cat4 | DIST | c |  | [omitted]|[omitted] |
+| 19 | conv-41/2-17 | cat3 | INF | f |  | What might John's degree be in? | [omitted] |
 | 20 | conv-41/2-63 | cat2 | DARITH | f |  | [omitted]? | two weeks |
 | 21 | conv-41/2-69 | cat4 | GOLD | f |  | [omitted]? | old car |
-| 22 | conv-41/2-85 | cat4 | DIST | f |  | What event did John volunteer at last weekend? | career fair at a local school |
-| 23 | conv-41/2-99 | cat4 | DET | f |  | [omitted]? | share stories and make connections |
+| 22 | conv-41/2-85 | cat4 | DIST | f |  | [omitted]? | career fair at a local school |
+| 23 | conv-41/2-99 | cat4 | DET | f |  | [omitted]? | [omitted] |
 | 24 | conv-41/2-142 | cat4 | JFN | c |  | [omitted] | a medal for volunteering |
 | 25 | conv-42/3-4 | cat3 | INF | f |  | What pets wouldn'[omitted]'t h |
-| 26 | conv-42/3-7 | cat2 | JFN | f |  | When did Joanna finish her first screenplay? | The Friday before 23January, 2022 |
+| 26 | conv-42/3-7 | cat2 | JFN | f |  | [omitted]? | The Friday before 23January, 2022 |
 | 27 | conv-42/3-12 | cat3 | INF | f | R | [omitted]? | asthma |
 | 28 | conv-42/3-20 | cat2 | DANC | f | R | When did Nate adopt Max? | May 2022 |
-| 29 | conv-42/3-23 | cat1 | HOP | o |  | [omitted]? | first screenplay on drama and romance, t |
+| 29 | conv-42/3-23 | cat1 | HOP | o |  | [omitted]? | [omitted] |
 | 30 | conv-42/3-24 | cat2 | GOLD? | c |  | When is Nate hosting a gaming party? | The weekend after 3June, 2022. |
 | 31 | conv-42/3-26 | cat2 | DIST | f |  | When did Nate win his third tourney? | The week before 3June, 2022 |
 | 32 | conv-42/3-41 | cat2 | HOP | f |  | [omitted]? | 5 October, 2022 |
@@ -350,57 +350,57 @@ Columns: # = row order in `per_question.jsonl` among read_fail; b = baseline sta
 | 36 | conv-42/3-52 | cat1 | LIST | f |  | [omitted]? | two |
 | 37 | conv-42/3-53 | cat1 | LIST | f |  | [omitted]? | Twice. |
 | 38 | conv-42/3-54 | cat2 | DIST | c |  | [omitted]? | The Sunday before 25October, 2022. |
-| 39 | conv-42/3-64 | cat2 | JFN | c |  | When did Nate win a big Valorant tourney? | The Saturday before 7November, 2022 |
-| 40 | conv-42/3-73 | cat3 | INF | f | R | What state did Joanna visit in summer 2021? | Indiana |
-| 41 | conv-42/3-75 | cat1 | LIST | o |  | What are Nate's favorite desserts? | coconut milk icecream, dairy-free chocol |
-| 42 | conv-42/3-91 | cat4 | IMGX | f | R | What is Nate's favorite book series about? | dragons |
+| 39 | conv-42/3-64 | cat2 | JFN | c |  | [omitted]|[omitted] |
+| 40 | conv-42/3-73 | cat3 | INF | f | R | [omitted]? | Indiana |
+| 41 | conv-42/3-75 | cat1 | LIST | o |  | What are Nate's favorite desserts? | [omitted] |
+| 42 | conv-42/3-91 | cat4 | IMGX | f | R | [omitted]? | dragons |
 | 43 | conv-42/3-92 | cat4 | IMGX | c | R | [omitted]? | red and purple lighting |
 | 44 | conv-42/3-95 | cat4 | JFN | f |  | What is Nate's favorite video game? | Xenoblade Chronicles |
-| 45 | conv-42/3-113 | cat4 | DET | f |  | What is Nate's favorite genre of movies? | Fantasy and sci-fi |
+| 45 | conv-42/3-113 | cat4 | DET | f |  | [omitted]? | Fantasy and sci-fi |
 | 46 | conv-42/3-143 | cat4 | DET | c |  | [omitted]  | Touched |
 | 47 | conv-42/3-148 | cat4 | JFN? | f |  | [omitted]  | Happy to share |
-| 48 | conv-42/3-167 | cat4 | JFN | c |  | [omitted]? | couch for multiple people, fluffy blanke |
+| 48 | conv-42/3-167 | cat4 | JFN | c |  | [omitted]? | [omitted] |
 | 49 | conv-42/3-183 | cat4 | JFN | f |  | [omitted] | "Xenoblade Chronicles" |
 | 50 | conv-43/4-6 | cat2 | GOLD | f |  | [omitted]? | June 2023 |
 | 51 | conv-43/4-8 | cat3 | INF | f | R | [omitted] | Under Armour |
-| 52 | conv-43/4-15 | cat3 | INF | f |  | Who is Anthony? | likely John's friend, colleague or famil |
+| 52 | conv-43/4-15 | cat3 | INF | f |  | Who is Anthony? | [omitted] |
 | 53 | conv-43/4-16 | cat2 | DARITH | c |  | [omitted] | three weeks |
 | 54 | conv-43/4-32 | cat3 | INF | f | R | [omitted] | California or Florida |
 | 55 | conv-43/4-40 | cat2 | INF | f | R | [omitted]? | Yes |
-| 56 | conv-43/4-48 | cat1 | DANC | f |  | When did John get an ankle injury in 2023? | around November 16, 2023 |
+| 56 | conv-43/4-48 | cat1 | DANC | f |  | [omitted]? | around November 16, 2023 |
 | 57 | conv-43/4-51 | cat3 | INF | f |  | [omitted]? | Hatha Yoga |
 | 58 | conv-43/4-60 | cat2 | GOLD | f |  | [omitted]? | December 11, 2023 |
-| 59 | conv-43/4-66 | cat3 | INF | f | R | What is a Star Wars book that Tim might enjoy? | Star Wars: Jedi Apprentice by Judy Blund |
-| 60 | conv-43/4-70 | cat3 | INF | f | R | [omitted]  | Skellig Michael, Malin Head, Loop Head,  |
-| 61 | conv-43/4-76 | cat4 | DIST | f |  | [omitted]  | MinaLima's creation from the Harry Potte |
+| 59 | conv-43/4-66 | cat3 | INF | f | R | [omitted]|[omitted] |
+| 60 | conv-43/4-70 | cat3 | INF | f | R | [omitted]  | [omitted],  |
+| 61 | conv-43/4-76 | cat4 | DIST | f |  | [omitted]  | [omitted] |
 | 62 | conv-43/4-86 | cat4 | GOLD | f |  | [omitted]? | Characters from Harry Potter |
 | 63 | conv-43/4-106 | cat4 | DIST | f |  | [omitted]? | a new city |
-| 64 | conv-43/4-113 | cat4 | JFN? | f | R | Which basketball team does Tim support? | The Wolves |
+| 64 | conv-43/4-113 | cat4 | JFN? | f | R | [omitted]? | The Wolves |
 | 65 | conv-43/4-117 | cat4 | DET | f |  | [omitted]? | facing tough opponents |
 | 66 | conv-43/4-135 | cat4 | GOLD | f |  | [omitted]? | Visualizing goals and success |
 | 67 | conv-43/4-136 | cat4 | GOLD | f | R | [omitted]? | The doctor said it's not too serious |
-| 68 | conv-43/4-151 | cat4 | DET | f |  | [omitted] | Academic achievements and sports success |
+| 68 | conv-43/4-151 | cat4 | DET | f |  | [omitted] | [omitted] |
 | 69 | conv-43/4-152 | cat4 | IMG | f |  | [omitted]? | basketball |
-| 70 | conv-43/4-164 | cat4 | GOLD | f |  | What language does Tim know besides German? | Spanish |
+| 70 | conv-43/4-164 | cat4 | GOLD | f |  | [omitted]? | Spanish |
 | 71 | conv-43/4-165 | cat4 | GOLD | f | R | [omitted]? | a cooking book |
 | 72 | conv-43/4-166 | cat4 | GOLD | c |  | What is John's favorite book series? | Harry Potter |
-| 73 | conv-44/5-4 | cat2 | GOLD | c |  | When did Audrey make muffins for herself? | The week of April 3rd to 9th |
+| 73 | conv-44/5-4 | cat2 | GOLD | c |  | [omitted]? | The week of April 3rd to 9th |
 | 74 | conv-44/5-7 | cat2 | DARITH | f |  | [omitted] | three years |
-| 75 | conv-44/5-21 | cat1 | LIST | c |  | [omitted]? | Positive reinforcement training class fo |
-| 76 | conv-44/5-37 | cat2 | DIST | f |  | When did Audrey get into an accident in the park? | between October 19 and 24, 2023 |
-| 77 | conv-44/5-41 | cat1 | CONF | f |  | What are the breeds of Audrey's dogs? | Mongrel mixed with Lab for Pepper and Pa |
+| 75 | conv-44/5-21 | cat1 | LIST | c |  | [[omitted]|[omitted] |
+| 76 | conv-44/5-37 | cat2 | DIST | f |  | [omitted]? | between October 19 and 24, 2023 |
+| 77 | conv-44/5-41 | cat1 | CONF | f |  | What are the breeds of Audrey's dogs? | [omitted] |
 | 78 | conv-44/5-59 | cat2 | DARITH | f |  | [omitted] | 4 months |
-| 79 | conv-44/5-72 | cat4 | DET | f |  | [omitted]  | To have pets learn how to behave in a po |
+| 79 | conv-44/5-72 | cat4 | DET | f |  | [omitted]  | [omitted] |
 | 80 | conv-44/5-79 | cat4 | DIST | f |  | [omitted] | Chicken Pot Pie |
-| 81 | conv-44/5-108 | cat4 | DET | c |  | [omitted]? | They definitely prefer nice, sunny days  |
-| 82 | conv-44/5-119 | cat4 | IMG | c |  | [omitted]? | photography of a basket full of stuffed  |
-| 83 | conv-47/6-0 | cat3 | INF | f | R | What are John's suspected health problems? | Obesity |
+| 81 | conv-44/5-108 | cat4 | DET | c |  | [[omitted]|[omitted]  |
+| 82 | conv-44/5-119 | cat4 | IMG | c |  | [omitted]? | [omitted]  |
+| 83 | conv-47/6-0 | cat3 | INF | f | R | [omitted]? | Obesity |
 | 84 | conv-47/6-4 | cat2 | DARITH | f | R | [omitted]? | February 2022 |
 | 85 | conv-47/6-16 | cat3 | INF | f | R | [omitted] | UNO |
 | 86 | conv-47/6-17 | cat3 | INF | f | R | [omitted] | Mafia |
 | 87 | conv-47/6-20 | cat1 | LIST | f | R | [omitted]? | two |
 | 88 | conv-47/6-22 | cat1 | LIST | c |  | [omitted]'[omitted]'s hos |
-| 89 | conv-47/6-26 | cat1 | LIST | c |  | Which countries has James visited? | Italy, Mexico, Turkey, Canada, Greenland |
+| 89 | conv-47/6-26 | cat1 | LIST | c |  | Which countries has James visited? | [omitted] |
 | 90 | conv-47/6-31 | cat2 | GOLD | f |  | [omitted]? | 19 days |
 | 91 | conv-47/6-35 | cat3 | INF | c |  | [omitted]? | Greenland |
 | 92 | conv-47/6-39 | cat2 | DARITH | f |  | When did John start his job in IT? | 2019 |
@@ -410,52 +410,52 @@ Columns: # = row order in `per_question.jsonl` among read_fail; b = baseline sta
 | 96 | conv-47/6-72 | cat4 | GOLD? | c |  | [omitted]? | Drums |
 | 97 | conv-47/6-112 | cat4 | DET | f |  | What aspect of "[omitted]" does John find immersive? | shaping the world with choices |
 | 98 | conv-47/6-147 | cat4 | DET | f |  | [omitted]? | Control with a gamepad and timing |
-| 99 | conv-48/7-37 | cat2 | JFN | c |  | When did Jolene take Seraphim to the park? | Sunday before 2 March, 2023 |
-| 100 | conv-48/7-44 | cat2 | REF | f | R | When did Deborah go to an art show with Anna? | on 9 April, 2023 |
+| 99 | conv-48/7-37 | cat2 | JFN | c |  | [omitted]? | Sunday before 2 March, 2023 |
+| 100 | conv-48/7-44 | cat2 | REF | f | R | [omitted]? | on 9 April, 2023 |
 | 101 | conv-48/7-70 | cat3 | INF | c | R | [omitted] | likely yes |
-| 102 | conv-48/7-71 | cat2 | DANC | f |  | When did Deborah go to a community meetup? | last week of August 2023 |
-| 103 | conv-48/7-75 | cat3 | INF | f | R | What card game is Deborah talking about? | Exploding Kittens |
+| 102 | conv-48/7-71 | cat2 | DANC | f |  | [omitted]? | last week of August 2023 |
+| 103 | conv-48/7-75 | cat3 | INF | f | R | [omitted]? | Exploding Kittens |
 | 104 | conv-48/7-77 | cat1 | HOP | f |  | [omitted]? | Phuket |
 | 105 | conv-48/7-81 | cat2 | JFN | f |  | [omitted]? | in October 2023 |
-| 106 | conv-48/7-87 | cat1 | INF | f |  | Which countries has Deborah traveled to? | Thailand, Brazil |
+| 106 | conv-48/7-87 | cat1 | INF | f |  | [omitted]? | Thailand, Brazil |
 | 107 | conv-48/7-101 | cat4 | JFN? | c |  | When did Jolene buy her pet snake? | A year ago |
 | 108 | conv-48/7-115 | cat4 | DET | c |  | [omitted] | spending time with loved ones |
-| 109 | conv-48/7-134 | cat4 | DARITH | f |  | For how long has Jolene had Seraphim as a pet? | one year |
+| 109 | conv-48/7-134 | cat4 | DARITH | f |  | [omitted]? | one year |
 | 110 | conv-48/7-151 | cat4 | DET | c |  | [omitted] | video games |
 | 111 | conv-48/7-174 | cat4 | GOLD | o | R | [omitted] | Jolene already had plans |
-| 112 | conv-49/8-24 | cat2 | GOLD | f |  | [omitted] | He fell in love with a Canadian woman |
+| 112 | conv-49/8-24 | cat2 | GOLD | f |  | [omitted] | [omitted] |
 | 113 | conv-49/8-39 | cat2 | DARITH | f |  | How many months lapsed between Sam'[omitted]'s appoint | three months |
 | 114 | conv-49/8-57 | cat3 | INF | f |  | [omitted]? | California |
 | 115 | conv-49/8-67 | cat2 | REF | f | R | [omitted]? | December, 2023 |
-| 116 | conv-49/8-69 | cat1 | LIST | c |  | [omitted] | his partner gets pregnant and they get m |
+| 116 | conv-49/8-69 | cat1 | LIST | c |  | [omitted] | [omitted] |
 | 117 | conv-49/8-74 | cat2 | GOLD | f |  | When did Evan's son fall off his bike? | Thursday before December 17, 2023. |
-| 118 | conv-49/8-78 | cat1 | LIST | c |  | Who did Evan tell about his marriage? | To Sam, to his friends from work, and to |
+| 118 | conv-49/8-78 | cat1 | LIST | c |  | [omitted]|[omitted] |
 | 119 | conv-49/8-80 | cat2 | GOLD | f |  | [omitted]? | January 9, 2023 |
-| 120 | conv-49/8-104 | cat4 | IMG | c |  | [omitted]? | bowl of spinach, avocado, and strawberri |
+| 120 | conv-49/8-104 | cat4 | IMG | c |  | [omitted]? | [omitted] |
 | 121 | conv-49/8-106 | cat4 | IMG | f |  | [omitted] | forest scene |
 | 122 | conv-49/8-108 | cat4 | IMG | f |  | [omitted]? | sunsets over the ocean |
 | 123 | conv-49/8-109 | cat4 | IMG | c |  | [omitted]? | skiing |
 | 124 | conv-49/8-115 | cat4 | DIST | c |  | [omitted] | Watercolor painting |
-| 125 | conv-49/8-144 | cat4 | IMG | f |  | [omitted]? | a photo of a man standing on a rock look |
-| 126 | conv-49/8-154 | cat4 | JFN | c |  | Why did Evan apologize to his partner? | for a drunken night |
-| 127 | conv-50/9-1 | cat1 | JFN? | f |  | What items did Calvin buy in March 2023? | mansion in Japan, luxury car Ferrari 488 |
-| 128 | conv-50/9-7 | cat3 | INF | f | R | Does Dave's shop employ a lot of people? | Yes |
-| 129 | conv-50/9-8 | cat2 | DIST | c |  | When did Dave start his car maintenance shop? | May 1, 2023 |
-| 130 | conv-50/9-13 | cat3 | INF | f | R | [omitted]? | Yes; because he enjoys the rush of perfo |
+| 125 | conv-49/8-144 | cat4 | IMG | f |  | [omitted]? | [omitted] |
+| 126 | conv-49/8-154 | cat4 | JFN | c |  | [omitted]|[omitted] |
+| 127 | conv-50/9-1 | cat1 | JFN? | f |  | [omitted]|[omitted] |
+| 128 | conv-50/9-7 | cat3 | INF | f | R | [omitted]? | Yes |
+| 129 | conv-50/9-8 | cat2 | DIST | c |  | [omitted]? | May 1, 2023 |
+| 130 | conv-50/9-13 | cat3 | INF | f | R | [omitted]? | [omitted] |
 | 131 | conv-50/9-17 | cat2 | JFN | c |  | When did Calvin have a car incident? | on the Friday before 21 June, 2023 |
 | 132 | conv-50/9-25 | cat2 | JFN | c |  | [omitted]? | on the Friday before 22 August, 2023 |
 | 133 | conv-50/9-40 | cat1 | REF | f | R | [omitted]? | Tupac and Dr. Dre |
-| 134 | conv-50/9-47 | cat1 | LIST | f |  | How many car shows has Dave attended? | two |
+| 134 | conv-50/9-47 | cat1 | LIST | f |  | [omitted]? | two |
 | 135 | conv-50/9-53 | cat1 | DIST | c |  | Who supports Calvin in tough times? | friends and team |
-| 136 | conv-50/9-54 | cat1 | DIST | f |  | [omitted]? | Calvin stays connected to the creative p |
-| 137 | conv-50/9-60 | cat1 | JFN | c |  | [omitted]? | gold chain, custom-made guitar with an o |
-| 138 | conv-50/9-61 | cat2 | DARITH | f | R | How long did Dave's work on the Ford Mustang take? | nearly two months |
+| 136 | conv-50/9-54 | cat1 | DIST | f |  | [omitted]? | [omitted] |
+| 137 | conv-50/9-60 | cat1 | JFN | c |  | [omitted]? | [omitted] |
+| 138 | conv-50/9-61 | cat2 | DARITH | f | R | [omitted]? | nearly two months |
 | 139 | conv-50/9-62 | cat2 | DARITH | c | R | [omitted]? | two weeks |
-| 140 | conv-50/9-64 | cat1 | JFN | c |  | [omitted]? | weekly visits to local parks, countrysid |
+| 140 | conv-50/9-64 | cat1 | JFN | c |  | [omitted]? | [omitted] |
 | 141 | conv-50/9-91 | cat4 | INF | f |  | [omitted]? | Ferrari |
 | 142 | conv-50/9-96 | cat4 | DET | c |  | [omitted]? | classic muscle car |
-| 143 | conv-50/9-109 | cat4 | DIST | f |  | What is Calvin excited about after the tour? | exploring and growing his brand |
-| 144 | conv-50/9-113 | cat4 | DET | f |  | [omitted]? | feeling the wind blowing through his hai |
-| 145 | conv-50/9-115 | cat4 | IMG | f |  | What project did Calvin work on to chill out? | A shiny orange car |
+| 143 | conv-50/9-109 | cat4 | DIST | f |  | [omitted]? | exploring and growing his brand |
+| 144 | conv-50/9-113 | cat4 | DET | f |  | [omitted]? | [omitted] |
+| 145 | conv-50/9-115 | cat4 | IMG | f |  | [omitted]? | A shiny orange car |
 | 146 | conv-50/9-127 | cat4 | JFN | f |  | [omitted] | Shinjuku |
-| 147 | conv-50/9-137 | cat4 | GOLD | f | R | When did Calvin first get interested in cars? | at an early age |
+| 147 | conv-50/9-137 | cat4 | GOLD | f | R | [omitted]? | at an early age |

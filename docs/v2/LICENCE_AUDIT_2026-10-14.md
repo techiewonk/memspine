@@ -99,3 +99,11 @@ LoCoMo speaker names were replaced by invented names in config field description
 3. Re-write test inputs that are verbatim questions (2.2), and decide on names still present in tests, `evals/analysis`, `docs/ECOSYSTEM_PROMPTS.md`, `docs/*_ENGINE*.html`, `docs/combined-memory-locomo-eval-v4/` and `src/` comments (the remaining 40-odd hits in `src/memspine` outside config are code comments and regex tests; they were out of this package's step 2 scope).
 4. History decision (section 3).
 5. Re-run the scan for BEAM and TOFU if they enter scope.
+
+## LIC-FIX2 (30 to 39 character fragments)
+
+- The guard `tests/unit/test_no_dataset_text.py` now compares 30-character runs (index window 24, stride 6) and the tree is clean at that threshold against the local datasets (`data/`, `evals/data/`).
+- Test inputs in about 35 test and script files were rewritten with invented names and predicates (same shapes: counts, dates, lists, nicknames, pronouns). The three read goldens (`routed_read_off`, `wave3_read_off`, `pre_wave1_read`) were regenerated from the new inputs with their documented flags (`pre_wave1_read` against d6dccc5, as its test requires), and `adapter_parity_snapshot.json` with `--write`; none was edited by hand.
+- Quoted fragments in `evals/analysis/*.md` and one errata caption were replaced by `[omitted]`.
+- `mab_gold.py` and `test_mab_gold.py` hold only relation sentence frames with `{s}`/`{o}` placeholders and are clean at 30 characters; no re-hydration needed.
+- Residual, handled in the guard rather than the tree: `GENERIC` lists generic fragments (weekday runs, import lines, licence boilerplate, public paper titles) that are cut from a line before comparison, and the generated HTML listing `docs/combined-memory-locomo-eval-v4/docs/COMBINED_MEMORY_ENGINE_AND_LOCOMO.html` is in `ALLOW` (only code fragments match at 30 characters).

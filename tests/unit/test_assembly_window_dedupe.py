@@ -54,8 +54,8 @@ def test_exact_dedupe_keeps_best_and_records_the_drop() -> None:
 
 
 def test_jaccard_dedupe_threshold_and_keep_earliest() -> None:
-    late = _rec("Melanie painted a lake sunrise last summer", 30)
-    early = _rec("Melanie painted a lake sunrise last summer too", 1)
+    late = _rec("Bram painted a lake sunrise last summer", 30)
+    early = _rec("Bram painted a lake sunrise last summer too", 1)
     other = _rec("Caleb bought a red truck yesterday", 2)
     scored = [(late, 0.9), (other, 0.5), (early, 0.4)]
     out, dropped = dedupe_scored(scored, "jaccard", threshold=0.8, keep="earliest")
@@ -260,10 +260,10 @@ def test_profile_line_gate_off_always_true() -> None:
 @pytest.mark.parametrize(
     ("query", "line", "expected"),
     [
-        ("What music does Caroline like?", "Caroline likes jazz music", True),
-        ("What is the capital of France?", "Caroline likes jazz music", False),
-        ("Where does Caroline live?", "Caroline likes jazz music", False),  # a name alone
-        ("", "Caroline likes jazz music", True),  # session start: no question, no gate
+        ("What music does Noor like?", "Noor likes jazz music", True),
+        ("What is the capital of France?", "Noor likes jazz music", False),
+        ("Where does Noor live?", "Noor likes jazz music", False),  # a name alone
+        ("", "Noor likes jazz music", True),  # session start: no question, no gate
     ],
 )
 def test_profile_line_gate_overlap(query: str, line: str, expected: bool) -> None:

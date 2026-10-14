@@ -37,46 +37,46 @@ ARMS = ("scr-gc2-facts-jina", "scr-gc3-graph-jina", "scr-gc9-summary-jina", "scr
 
 SESSIONS = [
     ("1:56 pm on 8 May, 2023", [
-        ("Caroline", "I went to the LGBTQ support group yesterday and it was inspiring."),
-        ("Melanie", "That sounds great, Caroline. How are you feeling about it?"),
-        ("Caroline", "Hopeful. I want to become a counselor and I recently moved to Denver."),
-        ("Melanie", "Denver is lovely. I started pottery classes last week."),
-        ("Caroline", "Pottery sounds fun. Do you make bowls or vases?"),
-        ("Melanie", "Mostly bowls. I also finished reading Charlotte's Web with my kids."),
-        ("Caroline", "Nice. I love the mountains near Denver, I hike there on weekends."),
-        ("Melanie", "We should hike together sometime."),
+        ("Noor", "I went to the chess club yesterday and it was lively."),
+        ("Bram", "That sounds great, Noor. How are you feeling about it?"),
+        ("Noor", "Hopeful. I want to become a counselor and I recently moved to Denver."),
+        ("Bram", "Denver is lovely. I started pottery classes last week."),
+        ("Noor", "Pottery sounds fun. Do you make bowls or vases?"),
+        ("Bram", "Mostly bowls. I also finished reading Charlotte's Web with my kids."),
+        ("Noor", "Nice. I love the mountains near Denver, I hike there on weekends."),
+        ("Bram", "We should hike together sometime."),
     ]),
     ("3:10 pm on 20 May, 2023", [
-        ("Melanie", "I painted a sunrise over the lake on Sunday."),
-        ("Caroline", "Beautiful. I adopted a dog named Biscuit last week."),
-        ("Melanie", "Biscuit is a great name. Did you take him to the park?"),
-        ("Caroline", "Yes, we went hiking in the mountains near Denver again."),
-        ("Melanie", "My kids and I went camping at the beach in June last year."),
-        ("Caroline", "Camping sounds relaxing. Are you planning to camp this summer?"),
-        ("Melanie", "Yes, in July. I also signed up for a painting workshop."),
-        ("Caroline", "Great. I joined a counseling certificate program in Denver."),
+        ("Bram", "I painted a sunrise over the lake on Sunday."),
+        ("Noor", "Beautiful. I adopted a dog named Biscuit last week."),
+        ("Bram", "Biscuit is a great name. Did you take him to the park?"),
+        ("Noor", "Yes, we went hiking in the mountains near Denver again."),
+        ("Bram", "My kids and I went camping at the beach in June last year."),
+        ("Noor", "Camping sounds relaxing. Are you planning to camp this summer?"),
+        ("Bram", "Yes, in July. I also signed up for a painting workshop."),
+        ("Noor", "Great. I joined a counseling certificate program in Denver."),
     ]),
     ("10:00 am on 2 June, 2023", [
-        ("Caroline", "My counseling program starts next month and I am nervous."),
-        ("Melanie", "You will do well. I sold my first bowl at a pottery fair."),
-        ("Caroline", "Congratulations, Melanie. Which fair was it?"),
-        ("Melanie", "The Riverside Pottery Fair on Saturday."),
-        ("Caroline", "I will visit the next one. Biscuit loves the river."),
-        ("Melanie", "Bring him along. I read The Hobbit to my kids last night."),
-        ("Caroline", "I read Charlotte's Web as a child, a great book."),
-        ("Melanie", "It is. Let us plan a camping trip with the kids."),
+        ("Noor", "My counseling program starts next month and I am nervous."),
+        ("Bram", "You will do well. I sold my first bowl at a pottery fair."),
+        ("Noor", "Congratulations, Bram. Which fair was it?"),
+        ("Bram", "The Riverside Pottery Fair on Saturday."),
+        ("Noor", "I will visit the next one. Biscuit loves the river."),
+        ("Bram", "Bring him along. I read The Hobbit to my kids last night."),
+        ("Noor", "I read Charlotte's Web as a child, a great book."),
+        ("Bram", "It is. Let us plan a camping trip with the kids."),
     ]),
 ]
 QA = [
-    ("Where did Caroline move to?", "Denver", ["D1:3"], 4),
-    ("What books has Melanie read?", "Charlotte's Web, The Hobbit", ["D1:6", "D3:6"], 1),
-    ("When did Melanie sell her first bowl?", "2 June 2023", ["D3:2"], 2),
-    ("What is the name of Caroline's dog?", "Biscuit", ["D2:2"], 4),
+    ("Where did Noor move to?", "Denver", ["D1:3"], 4),
+    ("What books has Bram read?", "Charlotte's Web, The Hobbit", ["D1:6", "D3:6"], 1),
+    ("When did Bram sell her first bowl?", "2 June 2023", ["D3:2"], 2),
+    ("What is the name of Noor's dog?", "Biscuit", ["D2:2"], 4),
 ]
 
 
 def synthetic_locomo(path: Path) -> None:
-    conv: dict[str, Any] = {"speaker_a": "Caroline", "speaker_b": "Melanie"}
+    conv: dict[str, Any] = {"speaker_a": "Noor", "speaker_b": "Bram"}
     for k, (stamp, turns) in enumerate(SESSIONS, start=1):
         conv[f"session_{k}_date_time"] = stamp
         conv[f"session_{k}"] = [

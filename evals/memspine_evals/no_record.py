@@ -1,6 +1,6 @@
 """I32: a "no record" signal for memory-level sycophancy (opt-in ``--no-record-hint``).
 
-A user may assert a past event that never happened ("do you remember when I told you about my
+A user may assert a past event that never happened ("do you recall the day I mentioned my
 trip to Lisbon?"). A reader shown unrelated memories tends to play along. When the question
 asserts a past event and nothing retrieved supports it, this wrapper tells the reader that no
 matching memory was found, so it can say so.

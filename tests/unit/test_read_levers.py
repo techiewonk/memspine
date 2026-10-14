@@ -64,15 +64,15 @@ async def test_relative_week_mode_in_the_assembled_context(week: str | None, exp
 
 async def _seed_cards(eng: Engine) -> None:
     turn = await eng.write(
-        "Melanie: I went camping with the kids last Friday",
+        "Bram: I went camping with the kids last Friday",
         namespace="a",
         memory_type="episodic",
         valid_from=T0 + timedelta(days=1),  # said Monday 2023-05-08
     )
     await eng._deposit_mined_fact(
         "a",
-        "Melanie camping: Melanie went camping with her kids",
-        "Melanie",
+        "Bram camping: Bram went camping with her kids",
+        "Bram",
         "camping",
         [turn.record_id],
         datetime(2023, 5, 5, tzinfo=UTC),
@@ -88,9 +88,9 @@ async def test_cards_event_date_renders_said_and_happened(on: bool) -> None:
     await eng.start()
     try:
         await _seed_cards(eng)
-        out = await eng.read("Melanie camping", namespace="a", mode="retrieve", budget_tokens=400)
+        out = await eng.read("Bram camping", namespace="a", mode="retrieve", budget_tokens=400)
         [header] = [r for r in out.context.records if constants.CARDS_TAG in r.tags]
-        line = "Melanie: Melanie went camping with her kids"
+        line = "Bram: Bram went camping with her kids"
         if on:
             assert f"[said 2023-05-08 · happened 2023-05-05] {line}" in header.content
         else:
@@ -227,35 +227,35 @@ def _mention(text: str, day: int, session: str) -> tuple[MemoryRecord, str]:
 
 def test_count_dedupe_merges_one_event_said_on_two_days() -> None:
     mentions = [
-        _mention("Melanie: we went to the beach today", 0, "s1"),
-        _mention("Melanie: we went to the beach yesterday, so fun", 1, "s2"),
-        _mention("Melanie: we went to the beach again today", 9, "s3"),
+        _mention("Bram: we went to the beach today", 0, "s1"),
+        _mention("Bram: we went to the beach yesterday, so fun", 1, "s2"),
+        _mention("Bram: we went to the beach again today", 9, "s3"),
     ]
     assert len(distinct_occurrences(mentions)) == 3  # unchanged default
     days = {r.record_id: event_day(t, r.valid_from) for r, t in mentions}
     kept = distinct_occurrences(mentions, event_days=days)
     assert [t for _, t in kept] == [
-        "Melanie: we went to the beach today",
-        "Melanie: we went to the beach again today",
+        "Bram: we went to the beach today",
+        "Bram: we went to the beach again today",
     ]
 
 
 def test_count_dedupe_keeps_distinct_events_on_one_day() -> None:
     """Same event day but little word overlap: two occurrences."""
     mentions = [
-        _mention("Melanie: we went to the beach today", 0, "s1"),
-        _mention("Caroline: yesterday I painted a lake sunset in my studio", 1, "s2"),
+        _mention("Bram: we went to the beach today", 0, "s1"),
+        _mention("Noor: yesterday I painted a lake sunset in my studio", 1, "s2"),
     ]
     days = {r.record_id: event_day(t, r.valid_from) for r, t in mentions}
     assert len(distinct_occurrences(mentions, event_days=days)) == 2
 
 
 async def test_count_dedupe_in_the_occurrences_block() -> None:
-    query = "How many times has Melanie gone to the beach?"
+    query = "How many times has Bram gone to the beach?"
     turns = [
-        ("Melanie: we went to the beach today with the kids", 0, "s1"),
-        ("Melanie: we went to the beach yesterday with the kids", 1, "s2"),
-        ("Melanie: back at the beach again this morning", 9, "s3"),
+        ("Bram: we went to the beach today with the kids", 0, "s1"),
+        ("Bram: we went to the beach yesterday with the kids", 1, "s2"),
+        ("Bram: back at the beach again this morning", 9, "s3"),
     ]
     blocks = {}
     for dedupe in (False, True):

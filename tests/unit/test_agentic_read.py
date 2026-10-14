@@ -78,11 +78,11 @@ def _engine(**read: Any) -> Engine:
     )
 
 
-QUESTION = "What do Caroline and Melanie both like?"
+QUESTION = "What do Noor and Bram both like?"
 TEXTS = [
-    "Melanie: I love the pottery class",
-    "Melanie: pottery keeps me calm",
-    "Caroline: I paint lakes",
+    "Bram: I love the pottery class",
+    "Bram: pottery keeps me calm",
+    "Noor: I paint lakes",
     "we slept in a tent trip in the woods",
 ]
 
@@ -380,7 +380,7 @@ async def test_quarantined_records_never_enter(monkeypatch: pytest.MonkeyPatch) 
 async def test_person_time_search_runs_through_the_read_path(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    reply = "action: search_person_time\nperson: Caroline\ntime: \nwhy: the second person"
+    reply = "action: search_person_time\nperson: Noor\ntime: \nwhy: the second person"
     _with_roles(monkeypatch, {"sufficiency": _Stub(reply, ANSWER_READY)})
     eng = _engine(agentic=True, agentic_trigger="always")
     await eng.start()
@@ -391,7 +391,7 @@ async def test_person_time_search_runs_through_the_read_path(
                 QUESTION, namespace="a", mode="retrieve", top_k=1, budget_tokens=400
             )
         row = stages["agentic_steps"][0]
-        assert row["action"] == "search_person_time" and row["person"] == "Caroline"
+        assert row["action"] == "search_person_time" and row["person"] == "Noor"
         assert ids[TEXTS[2]] in [r.record_id for r in out.context.records]
     finally:
         await eng.stop()
@@ -410,7 +410,7 @@ async def test_multi_hop_trigger_only_fires_on_multi_hop_questions(
     try:
         await _seed(eng)
         with search_forensics() as stages:
-            await _read(eng, "What does Melanie like?")
+            await _read(eng, "What does Bram like?")
         assert _calls(eng) == 0 and stages["agentic"]["stop"] == "not_triggered"
         with search_forensics() as stages:
             await _read(eng)
@@ -425,7 +425,7 @@ async def test_always_trigger_fires_on_a_plain_question(monkeypatch: pytest.Monk
     await eng.start()
     try:
         await _seed(eng)
-        await _read(eng, "What does Melanie like?")
+        await _read(eng, "What does Bram like?")
         assert _calls(eng) == 1
     finally:
         await eng.stop()
@@ -444,7 +444,7 @@ async def test_decider_trigger_follows_the_decider(monkeypatch: pytest.MonkeyPat
     await eng.start()
     try:
         await _seed(eng)
-        await _read(eng, "What does Melanie like?")  # the heuristic says enough; the decider wins
+        await _read(eng, "What does Bram like?")  # the heuristic says enough; the decider wins
         assert _calls(eng) == 1 and fake.calls[0][0] == "needs_more_evidence"
         fake.label = "enough"
         await _read(eng)  # multi-hop by the heuristic; the decider says enough
@@ -461,7 +461,7 @@ async def test_decider_trigger_without_a_decider_uses_the_heuristic(
     await eng.start()
     try:
         await _seed(eng)
-        await _read(eng, "What does Melanie like?")
+        await _read(eng, "What does Bram like?")
         assert _calls(eng) == 0
         await _read(eng)
         assert _calls(eng) == 1
@@ -475,12 +475,12 @@ async def test_decider_trigger_without_a_decider_uses_the_heuristic(
 @pytest.mark.parametrize(
     ("question", "expected"),
     [
-        ("What do Caroline and Melanie both like?", True),
-        ("Did Caroline move before Melanie started pottery?", True),
-        ("What is Caroline's sister's job?", True),
-        ("Where did Caroline move from 4 years ago?", True),  # bridge cue
-        ("What does Melanie like?", False),
-        ("When did Melanie go camping in June?", False),
+        ("What do Noor and Bram both like?", True),
+        ("Did Noor move before Bram started pottery?", True),
+        ("What is Noor's sister's job?", True),
+        ("Where did Noor move from 4 years ago?", True),  # bridge cue
+        ("What does Bram like?", False),
+        ("When did Bram go camping in June?", False),
         ("How many pets does she have?", False),
     ],
 )
@@ -495,7 +495,7 @@ def test_heuristic_decider_has_the_task() -> None:
     async def go() -> tuple[str, str]:
         return (
             (await h.decide("needs_more_evidence", QUESTION)).label,
-            (await h.decide("needs_more_evidence", "What does Melanie like?")).label,
+            (await h.decide("needs_more_evidence", "What does Bram like?")).label,
         )
 
     import asyncio

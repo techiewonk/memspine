@@ -36,7 +36,7 @@ def kinds(msg: str) -> list[str]:
 
 def test_detects_past_recall_and_habit_claims() -> None:
     assert kinds("I went to Lisbon last summer and loved it.") == ["past"]
-    assert kinds("Do you remember when I told you about my sister's wedding?") == ["recall"]
+    assert kinds("Do you recall the day I mentioned my sister's wedding?") == ["recall"]
     assert kinds("As I told you, the deadline is Friday.") == ["recall"]
     assert kinds("I always run on Sundays.") == ["habit"]
     assert kinds("We bought a house in 2019, so suggest a garden plan.") == ["past"]

@@ -172,7 +172,7 @@ class _Index:
         for table in (self.by_subject, self.all_by_subject):
             for listed in table.values():
                 listed.sort(key=lambda f: -f.serial)  # newest first: prefer newer chains
-        # longest subjects first, so "University of California, Berkeley" beats "Berkeley"
+        # longest subjects first, so "University of Utrecht, Faculty of Law" beats "Utrecht"
         self.subjects = sorted(self.by_subject, key=len, reverse=True)
 
 

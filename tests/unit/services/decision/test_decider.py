@@ -58,7 +58,7 @@ def _engine(**read: Any) -> Engine:
 
 async def _seed(eng: Engine) -> None:
     for i, text in enumerate(
-        ["Caroline: I moved from my home country years ago", "Tim: football on Sunday"]
+        ["Noor: I moved from my home country years ago", "Tim: football on Sunday"]
     ):
         await eng.write(
             text, namespace="a", memory_type="episodic", valid_from=T0 + timedelta(minutes=i)
@@ -90,7 +90,7 @@ async def test_default_engine_never_consults_a_decider() -> None:
     try:
         await _seed(eng)
         with search_forensics() as stages:
-            out = await eng.read("Where did Caroline move from?", namespace="a", mode="replay")
+            out = await eng.read("Where did Noor move from?", namespace="a", mode="replay")
         assert fake.calls == []
         assert "decisions" not in stages
         assert out.context.records and not out.context.abstained
@@ -103,10 +103,10 @@ async def test_default_engine_never_consults_a_decider() -> None:
 
 async def test_heuristic_adapter_wraps_existing_rules() -> None:
     h = HeuristicDecider()
-    assert (await h.decide("list_mode", "What activities does Melanie do?")).label == "set"
-    assert (await h.decide("list_mode", "When did Melanie go camping?")).label == "single"
+    assert (await h.decide("list_mode", "What activities does Bram do?")).label == "set"
+    assert (await h.decide("list_mode", "When did Bram go camping?")).label == "single"
     assert (
-        await h.decide("bridge_hop", "Where did Caroline move from 4 years ago?")
+        await h.decide("bridge_hop", "Where did Noor move from 4 years ago?")
     ).label == "hop"
     assert (await h.decide("temporal_intent", "When did she travel?")).label == "temporal"
     assert (await h.decide("relevance", "hi", "- x")).label == "relevant"
@@ -140,10 +140,10 @@ async def test_list_mode_follows_the_decider() -> None:
         assert not eng._list_mode_fires("Tell me about the weekend")
         assert await eng._list_fires("Tell me about the weekend") is True
         fake.answers["list_mode"] = ("single", 0.9)
-        assert await eng._list_fires("What activities does Melanie do?") is False
+        assert await eng._list_fires("What activities does Bram do?") is False
         # unsure: the regex answer stands
         fake.answers["list_mode"] = ("single", 0.55)
-        assert await eng._list_fires("What activities does Melanie do?") is True
+        assert await eng._list_fires("What activities does Bram do?") is True
     finally:
         await eng.stop()
 
@@ -154,7 +154,7 @@ async def test_list_mode_off_never_asks_the_decider() -> None:
     eng.set_decider(fake)
     await eng.start()
     try:
-        assert await eng._list_fires("What activities does Melanie do?") is False
+        assert await eng._list_fires("What activities does Bram do?") is False
         assert fake.calls == []
     finally:
         await eng.stop()
@@ -168,7 +168,7 @@ async def test_bridge_gate_follows_the_decider_and_records_it() -> None:
     try:
         await _seed(eng)
         with search_forensics() as stages:
-            await eng.read("Where did Caroline move from?", namespace="a", mode="replay", top_k=2)
+            await eng.read("Where did Noor move from?", namespace="a", mode="replay", top_k=2)
         assert stages["bridge_gate"] == "skipped"
         assert "bridge_phrases" not in stages
         entry = stages["decisions"][0]
@@ -177,7 +177,7 @@ async def test_bridge_gate_follows_the_decider_and_records_it() -> None:
         assert entry["heuristic"] == "hop"  # the cue regex would have fired
         fake.answers["bridge_hop"] = ("hop", 0.95)
         with search_forensics() as stages:
-            await eng.read("Where did Caroline move from?", namespace="a", mode="replay", top_k=2)
+            await eng.read("Where did Noor move from?", namespace="a", mode="replay", top_k=2)
         assert stages["bridge_gate"] == "decider"
         assert "home country" in stages["bridge_phrases"]
     finally:
@@ -190,9 +190,9 @@ async def test_a_failing_decider_falls_back_to_the_heuristic() -> None:
     await eng.start()
     try:
         await _seed(eng)
-        assert await eng._list_fires("What activities does Melanie do?") is True
+        assert await eng._list_fires("What activities does Bram do?") is True
         with search_forensics() as stages:
-            out = await eng.read("Where did Caroline move from?", namespace="a", mode="replay")
+            out = await eng.read("Where did Noor move from?", namespace="a", mode="replay")
         assert out.context.records
         assert stages["decisions"][0]["error"] == "model unavailable"
         assert stages["decisions"][0]["used"] is False
@@ -213,7 +213,7 @@ async def test_the_decider_sees_no_gold_or_category() -> None:
     await eng.start()
     try:
         await _seed(eng)
-        await eng.read("Where did Caroline move from?", namespace="a", mode="replay")
+        await eng.read("Where did Noor move from?", namespace="a", mode="replay")
         assert {c[0] for c in fake.calls} == {"list_mode", "bridge_hop"}
         texts = " ".join(f"{q} {c or ''}" for _, q, c in fake.calls).lower()
         assert "gold" not in texts and "category" not in texts
@@ -251,7 +251,7 @@ async def test_opendecider_adapter_convention(
 ) -> None:
     model, loads = fake_nano
     a = OpenDeciderDecider("m", "cpu")
-    d1 = await a.decide("relevance", "Write me a poem", "- Caroline moved")
+    d1 = await a.decide("relevance", "Write me a poem", "- Noor moved")
     d2 = await a.decide("list_mode", "What hobbies does Tim have?")
     assert (d1.label, round(d1.confidence or 0, 2)) == ("irrelevant", 0.9)
     assert d2.label == "set" and d2.adapter == "opendecider" and d2.task == "list_mode"

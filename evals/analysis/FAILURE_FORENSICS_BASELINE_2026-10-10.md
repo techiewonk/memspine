@@ -84,7 +84,7 @@ Not in any screen: lever 2, 7, the I9 chunked rerank, the I6 token window; lever
 ## 4. Examples per class (dev corpus, short)
 
 - (b) recall, 3-74 "[omitted]" (7 gold turns, all in no leg; answer: Joanna "offered to get new book recommendations ... the specific titles ... are not listed"). 2-40 "names of John's children": one of two gold turns recalled; answer names only Kyle.
-- (c) fusion, 2-35 "What states has Maria vacationed at?" gold Oregon, Florida; the Oregon turn had vector rank 9 and no lexical hit and was cut at the fused top-10; answer "Florida and California". 0-3 "What did Caroline research?" gold "Adoption agencies": vector rank 9, cut; answer "career options, counseling".
+- (c) fusion, 2-35 "[omitted]?" gold Oregon, Florida; the Oregon turn had vector rank 9 and no lexical hit and was cut at the fused top-10; answer "Florida and California". 0-3 "What did Caroline research?" gold "Adoption agencies": vector rank 9, cut; answer "career options, counseling".
 - (d) refusal, 3-43 "How long did it take Joanna to finish her book?" gold four months; both gold turns in context; answer "The memories do not state the specific duration". 0-71: "does not mention a specific book" although D7:11 and D17:10 are in context.
 - (d) inference, 0-22 Dr. Seuss: gold "[omitted]"; answer "No, ... she does not mention Dr. Seuss". 3-12: gold asthma; answer picks "lactose intolerant".
 - (d) count, 3-80 gold seven tournaments, answer "at least five"; 3-19 gold twice, answer "at least three" (one event listed under two dates).
@@ -92,8 +92,8 @@ Not in any screen: lever 2, 7, the I9 chunked rerank, the I6 token window; lever
 - (d) detail, 1-49 gold "cozy and comfortable", answer "a cool oasis"; 3-60 gold Nintendo Switch (inferred from Xenoblade 2), answer "an Xbox".
 - (e) judge, 3-183 gold "Xenoblade Chronicles", answer "Xeonoblade Chronicles" (typo); 2-120 gold "Flood", answer "A flood affected John's old area ..."; 0-24 gold "Running, pottery", answer lists both plus other true items.
 - (f) 0-5 "Sunday before 25 May" contradicts the transcript; 3-24 gold date ambiguous.
-- Cat 5, wrong owner (39): 0-181 "What did Melanie make for a local church?" -> "Melanie made a stained glass window" (the turn is Caroline'[omitted]'s line). Retrieval worked; the reader attributed.
-- Cat 5, near-match (10): 2-185 "What happened to Maria's job in August 2023?" -> "Nothing happened ... she was still working" (John lost his job); 3-216 "filling Nate used in May 2022" -> "mixed berry" (Joanna's cake has strawberry filling).
+- Cat 5, wrong owner (39): 0-181 "[omitted]?" -> "Melanie made a stained glass window" (the turn is Caroline'[omitted]'s line). Retrieval worked; the reader attributed.
+- Cat 5, near-match (10): 2-185 "[omitted]?" -> "Nothing happened ... she was still working" (John lost his job); 3-216 "filling Nate used in May 2022" -> "mixed berry" (Joanna's cake has strawberry filling).
 - Cat 5, entity (1): 0-179 "Where did Oscar hide his bone once?" -> "in Melanie's slipper" (the dog is Oliver).
 
 Cat 5 why-classes: for 49 of 53 the asked event belongs to someone else or to a neighbouring event (39 the other speaker's fact, 10 another event of the named person), the name is absent from the store in 1, and 3 are answerable by the transcript (dataset noise: 0-184 guitar, 0-186 "Brave", 3-244 Tilly).

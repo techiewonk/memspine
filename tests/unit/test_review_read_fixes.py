@@ -281,7 +281,7 @@ async def _beach_sessions(eng: Engine) -> list[str]:
         day = T0 + timedelta(days=d)
         await _turns(eng, [f"chit chat {i} " + "blah " * 20 for i in range(6)], day)
         rec = await eng.write(
-            "Melanie went to the beach with her kids",
+            "Bram went to the beach with her kids",
             namespace="a",
             memory_type="episodic",
             valid_from=day + timedelta(minutes=30),
@@ -296,7 +296,7 @@ async def test_compose_mode_gets_the_dated_render_and_gap_markers() -> None:
     try:
         await _beach_sessions(eng)
         out = await eng.read(
-            "How many times has Melanie gone to the beach?",
+            "How many times has Bram gone to the beach?",
             namespace="a",
             mode="auto",
             top_k=2,
@@ -316,7 +316,7 @@ async def test_compose_mode_abstains_like_assembly() -> None:
     try:
         await _beach_sessions(eng)
         out = await eng.read(
-            "How many times has Melanie gone to the beach?",
+            "How many times has Bram gone to the beach?",
             namespace="a",
             mode="compose",
             top_k=2,
@@ -436,12 +436,12 @@ async def test_unretrieved_persona_does_not_stop_an_off_topic_query_abstaining()
 @pytest.mark.parametrize(
     "q",
     [
-        "How much did John's new car cost?",
-        "When did Caroline and Melanie first meet each other?",
-        "What does John do every morning?",
-        "Which of the books did Melanie like best?",
-        "What was the first of the events Caroline attended?",
-        "Where did Melanie keep her books?",
+        "How much did Tomasz's new car cost?",
+        "When did Noor and Bram first meet each other?",
+        "What does Tomasz do every morning?",
+        "Which of the books did Bram like best?",
+        "What was the first of the events Noor attended?",
+        "Where did Bram keep her books?",
     ],
 )
 def test_single_fact_questions_are_not_aggregation(q: str) -> None:
@@ -451,10 +451,10 @@ def test_single_fact_questions_are_not_aggregation(q: str) -> None:
 @pytest.mark.parametrize(
     "q",
     [
-        "How much money has John spent on games in total?",
-        "What kinds of music does Melanie like?",
-        "Which events has Caroline attended?",
-        "Name each country Caroline has visited.",
+        "How much money has Tomasz spent on games in total?",
+        "What kinds of music does Bram like?",
+        "Which events has Noor attended?",
+        "Name each country Noor has visited.",
     ],
 )
 def test_aggregation_questions_still_route_to_compose(q: str) -> None:
@@ -463,14 +463,14 @@ def test_aggregation_questions_still_route_to_compose(q: str) -> None:
 
 @pytest.mark.parametrize(
     "q",
-    ["What was the last book Melanie read?", "Where was Melanie's last trip?"],
+    ["What was the last book Bram read?", "Where was Bram's last trip?"],
 )
 def test_last_is_an_ordering_cue(q: str) -> None:
     assert is_ordering(q)
 
 
 @pytest.mark.parametrize(
-    "q", ["What did Melanie do last weekend?", "Where did John go last summer?"]
+    "q", ["What did Bram do last weekend?", "Where did Tomasz go last summer?"]
 )
 def test_last_as_a_relative_date_is_not_ordering(q: str) -> None:
     assert not is_ordering(q)
@@ -487,20 +487,20 @@ async def test_history_dates_resolve_against_their_own_event_time() -> None:
     await eng.start()
     try:
         await eng.write(
-            "Caroline moved to Boston last Friday",
+            "Noor moved to Boston last Friday",
             namespace="a",
-            entity="caroline",
+            entity="noor",
             attribute="city",
             valid_from=datetime(2023, 1, 14, tzinfo=UTC),
         )
         await eng.write(
-            "Caroline moved to Seattle",
+            "Noor moved to Seattle",
             namespace="a",
-            entity="caroline",
+            entity="noor",
             attribute="city",
             valid_from=datetime(2023, 7, 15, tzinfo=UTC),
         )
-        ctx = await eng.assemble("where does Caroline live", namespace="a")
+        ctx = await eng.assemble("where does Noor live", namespace="a")
         [line] = [r.content for r in ctx.records if "Seattle" in r.content]
         assert "Boston last Friday [= Fri 2023-01-13]" in line
     finally:
@@ -551,7 +551,7 @@ async def test_replay_segments_only_the_sessions_holding_a_hit(
 def test_latest_slots_respect_dedupe() -> None:
     policy = AssemblyPolicy.bind({"theta_abstain": 0.0, "latest_slots": 3, "dedupe_jaccard": 0.8})
     dups = [
-        (_rec("Melanie went hiking on the trail", when=T0 + timedelta(days=d)), 0.5)
+        (_rec("Bram went hiking on the trail", when=T0 + timedelta(days=d)), 0.5)
         for d in range(3)
     ]
     ctx = policy.assemble(dups, budget_tokens=1000)

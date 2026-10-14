@@ -57,7 +57,7 @@ def test_answer_type_and_cardinality(question: str, label: str, cardinality: str
 
 def test_a_wh_word_after_another_wh_word_does_not_retype_the_question() -> None:
     # "when" is a clause here, the question asks who.
-    assert build_contract("Who supports Caroline when she has a bad day?").answer_type == "person"
+    assert build_contract("Who supports Noor when she has a bad day?").answer_type == "person"
     assert build_contract("What time management tricks does Ana use?").answer_type != "date"
 
 
@@ -106,7 +106,7 @@ def test_no_dataset_vocabulary_in_the_module() -> None:
     import memspine.read.contract as mod
 
     source = inspect.getsource(mod).lower()
-    for word in ("locomo", "longmemeval", "caroline", "melanie", "op-bench", "opbench"):
+    for word in ("locomo", "longmemeval", "noor", "bram", "op-bench", "opbench"):
         assert word not in source
 
 

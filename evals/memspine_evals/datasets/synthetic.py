@@ -26,7 +26,7 @@ FACTS = [
 ]
 
 FILLER = [
-    "The weather has been unpredictable this week.",
+    "The ferry timetable has been erratic this week.",
     "I finally finished that book you recommended.",
     "Work is busy but nothing unusual.",
     "We watched a documentary about deep-sea vents.",

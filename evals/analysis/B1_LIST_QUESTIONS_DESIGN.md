@@ -25,7 +25,7 @@ do/like/attend/play/...", minus when/how many/yes-no openers; plus exactly one s
 | existing `query_shape.is_aggregation or is_count` | 146 | 78 (39%) | multi-hop 104, single-hop 29, temporal 10, open-domain 3 |
 
 Precision of `is_list_q` against L is 40%; most of the other fires are single-hop questions of the same shape ("What
-pets does Melanie have?", "What games does Jolene recommend for Deborah?"). That false-fire population is the
+pets does Melanie have?", "[omitted]?"). That false-fire population is the
 side-effect risk in section 4.
 
 **Baseline coverage today** (MEASURED from the log; "context" = hits plus window):
@@ -271,8 +271,8 @@ multi-hop, 5 temporal). a1 + tier on those 183 (MEASURED-SIM):
    them (the B12 lesson); everything off = byte-identical.
 5. Tests: (a) `speaker_vector_leg`: one name -> only that speaker's hits in vector order; two names / none -> empty;
    case and possessive ("Melanie's kids"); records without tags -> empty; (b) `is_set_question`: positives from the
-   examples ("What activities does Melanie partake in?", "What do Melanie's kids like?", "What events has Caroline
-   participated in to help children?", "What kind of fiction stories does Tim write?"), negatives ("When did ...",
+   examples ("[omitted]?", "What do Melanie's kids like?", "What events has Caroline
+   participated in to help children?", "[omitted]?"), negatives ("When did ...",
    "How many ...", "Did ...", "[omitted]" should not fire on the singular
    past-tense form); (c) tier assembly: 30 candidates, windows only on ranks 1-10, singles beyond, budget cap respected,
    `window_full_hits: None` identical to today; (d) off = byte-identical context on a fixture; (e) integration on a toy
