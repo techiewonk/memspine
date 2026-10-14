@@ -25,6 +25,7 @@ from memspine.models.encoders.query.shape import (
     rule_read_mode,
 )
 from memspine.models.providers.llm.structured import structured_call
+from memspine.observability import inspect as insp
 from memspine.observability import tap
 from memspine.observability.logging import get_logger
 from memspine.prompts.models import (
@@ -229,10 +230,12 @@ async def _llm_read_plan(eng: Any, query: str) -> ReadPlan | None:
     """
     if eng._llm is None or eng._prompts is None or "plan" not in eng._llm.roles:
         _log.warning("read.planner_unbound", planner="llm", role="plan")
+        if insp.inspect_enabled():
+            insp.planner_io(role="plan", version=None, outcome="unbound", query=query)
         return None
     try:
         version = eng._config().read.planner_version
-        return await structured_call(
+        plan = await structured_call(
             eng._llm.for_role("plan"),
             # #35: plan@v2 also writes evidence-seeking subqueries for lookups;
             # #36: plan@v3 also names the persons and the time expression.
@@ -240,8 +243,15 @@ async def _llm_read_plan(eng: Any, query: str) -> ReadPlan | None:
             {"query": query},
             ReadPlan,
         )
+        if insp.inspect_enabled():
+            insp.planner_io(
+                role="plan", version=version, outcome="ok", query=query, plan=plan.model_dump()
+            )
+        return plan
     except Exception as exc:
         _log.warning("read.planner_failed", planner="llm", error=str(exc))
+        if insp.inspect_enabled():
+            insp.planner_io(role="plan", version=None, outcome=type(exc).__name__, query=query)
         return None
 
 
@@ -261,9 +271,18 @@ async def _query_rewrite_probes(eng: Any, query: str) -> list[str]:
         text = await eng._llm.for_role("query_rewrite").chat(prompt.render({"query": query}))
     except Exception as exc:
         _log.warning("read.query_rewrite_failed", error=str(exc))
+        if insp.inspect_enabled():
+            insp.planner_io(
+                role="query_rewrite", version="compose", outcome=type(exc).__name__, query=query
+            )
         return []
     lines = [line.strip(" -*0123456789.\t") for line in text.splitlines()]
-    return [line for line in lines if line and line.lower() != query.lower()][:2]
+    probes = [line for line in lines if line and line.lower() != query.lower()][:2]
+    if insp.inspect_enabled():
+        insp.planner_io(
+            role="query_rewrite", version="compose", outcome="ok", query=query, plan=probes
+        )
+    return probes
 
 
 # --- R3-15 / LIB-19: read-result cache (ER-31 B: off until enabled; POL-1: revalidate every hit)

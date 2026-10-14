@@ -35,6 +35,7 @@ from memspine.derive.backpressure import (
 )
 from memspine.economy.slo import SloLedger
 from memspine.models.concurrency import Priority, priority_scope
+from memspine.observability import inspect as insp
 from memspine.observability import tap
 from memspine.observability.logging import get_logger
 from memspine.runtime.freshness import read_barrier
@@ -422,19 +423,36 @@ class InlineRunner:
         if payload is None:  # pruned or never written: nothing to do, not an error
             return
         if self._backpressure is None and self._ledger is None:  # flag off: the original path
-            await self._phases(handler, scope, offset, payload)
+            await self._phases(handler, scope, offset, payload, stage)
             return
         with priority_scope(Priority.DERIVE):  # RT-02: background derive work
-            await self._phases(handler, scope, offset, payload)
+            await self._phases(handler, scope, offset, payload, stage)
         if self._ledger is not None:
             queued_at = self.store.item_created_at(scope, stage, offset)
             if queued_at is not None:
                 self._ledger.record_lag(max(0.0, (self.clock() - queued_at).total_seconds()))
 
     async def _phases(
-        self, handler: StageHandler, scope: OwnerScope, offset: int, payload: dict[str, Any]
+        self,
+        handler: StageHandler,
+        scope: OwnerScope,
+        offset: int,
+        payload: dict[str, Any],
+        stage: str = "",
     ) -> None:
+        if insp.inspect_enabled():  # TI-1 (F17): prepare and commit run inside a job request
+            with tap.request("job", stage=f"outbox_{stage}", offset=offset):
+                with tap.span("runtime.outbox.prepare", stage=stage, offset=offset):
+                    prepared = await handler.prepare(scope, offset, payload)
+                with tap.span("runtime.outbox.commit_item", stage=stage, offset=offset):
+                    await self._commit(handler, scope, offset, prepared)
+            return
         prepared = await handler.prepare(scope, offset, payload)
+        await self._commit(handler, scope, offset, prepared)
+
+    async def _commit(
+        self, handler: StageHandler, scope: OwnerScope, offset: int, prepared: Any
+    ) -> None:
         if handler.commit_locked and self._commit_lock is not None:
             async with self._commit_lock(scope.owner):
                 await handler.commit(scope, offset, prepared)

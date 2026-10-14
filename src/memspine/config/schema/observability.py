@@ -54,11 +54,22 @@ class ObservabilityConfig(BaseModel):
       stage (runs, errors, items, dropped, deferred, p50 / p95) in ``memspine.ops.ledger``;
       ``Engine.ops_report()`` merges it with the SLO and write-cost ledgers. Off: nothing is timed.
     - ``otel``: see :class:`OtelConfig`.
+    - ``inspect`` (TI-1, Trace Inspector): extra wiretap events that follow one turn or question
+      through every stage (per-record projector writes, window membership and extraction I/O,
+      envelope lifecycle, ladder decisions, window edges, sleep per-item outputs, headers, rerank
+      components, planner I/O, retrieve write-back) plus the ``inspect_scope`` correlation keys the
+      harness sets. Needs the wiretap: ``Engine.start`` switches it on (jsonl sink) when
+      ``observability.tap.enabled`` is off. Off: no event is built and behaviour is unchanged.
+    - ``inspect_content`` (TI-1): also keep text payloads (rendered prompts, raw replies, index
+      text, planner I/O) in the inspect events, truncated at 20000 characters and redacted. Off:
+      ids, hashes, counts and decisions only.
     """
 
     model_config = ConfigDict(extra="forbid")
 
     write_timers: bool = False
     ops_ledger: bool = False
+    inspect: bool = False
+    inspect_content: bool = False
     otel: OtelConfig = Field(default_factory=OtelConfig)
     tap: TapConfig = Field(default_factory=TapConfig)

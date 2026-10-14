@@ -64,6 +64,7 @@ from memspine.models.encoders.query.temporal_query import (
     is_recommendation,
     speaker_of,
 )
+from memspine.observability import inspect as insp
 from memspine.observability import tap
 from memspine.observability.logging import (
     EVENT_WRITE,
@@ -814,6 +815,15 @@ async def _write_turns(
             await eng._apply_correction(record.namespace, record, correction, records)
         records.append(record)
         written_at[i] = record.record_id
+        if insp.inspect_enabled():  # TI-1: message index -> rid (the pre-record events' join)
+            insp.turn_bound(
+                rid=record.record_id,
+                index=i,
+                session=session_id,
+                speaker=_speaker_of(turn),
+                quarantined=bool(record.quarantined),
+                wid=str(turn["_idem"]) if "_idem" in turn else None,
+            )
         if "_idem" in turn:  # W2-01: tell the intake gateway which record this write id became
             sink = INTAKE_LANDED.get()
             if sink is not None:

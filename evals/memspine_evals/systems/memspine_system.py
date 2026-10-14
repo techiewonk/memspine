@@ -228,8 +228,20 @@ class MemspineSystem:
         context_order: str = "chrono",
         perspective_metadata: bool | None = None,
         stamp_timezone: str = "UTC",
+        inspect: bool | None = None,
+        inspect_content: bool = True,
     ) -> None:
         self.system_id = system_id
+        #: TI-1 (Trace Inspector): the engine runs with ``observability.inspect`` and the tap writes
+        #: jsonl into ``<forensics dir>/tap/``; every FX key, ``cuts`` and ``window`` are kept in
+        #: ``forensics.jsonl``; each turn write / query runs inside ``inspect_scope``. None = on
+        #: exactly when ``MEMSPINE_INSPECT=1``.
+        if inspect is None:
+            import os
+
+            inspect = os.environ.get("MEMSPINE_INSPECT") == "1"
+        self._inspect = bool(inspect)
+        self._inspect_content = bool(inspect_content)
         #: F5: the zone the dataset's naive wall-clock stamps are read in (IANA name).
         self._zone = stamp_zone(stamp_timezone)
         if context_order not in CONTEXT_ORDERS:
@@ -363,6 +375,19 @@ class MemspineSystem:
         if self._trace_dir:  # --trace-full: per-step write timings (I73), timing only
             observability = dict(overrides.get("observability") or {})
             overrides["observability"] = {**observability, "write_timers": True}
+        if self._inspect:  # TI-1: inspect events into the tap jsonl sink next to the forensics logs
+            observability = dict(overrides.get("observability") or {})
+            tap_cfg = dict(observability.get("tap") or {})
+            tap_dir = self._log_dirs()[0] if self._log_dirs() else "runs/_tap"
+            tap_cfg.setdefault("enabled", True)
+            tap_cfg.setdefault("sink", "jsonl")
+            tap_cfg.setdefault("dir", str(Path(tap_dir) / "tap"))
+            overrides["observability"] = {
+                **observability,
+                "inspect": True,
+                "inspect_content": self._inspect_content,
+                "tap": tap_cfg,
+            }
         # Questions must be independent: with access recording on, every search
         # refreshes last_accessed_at, so records retrieved for early questions
         # rank higher (recency) for later ones. Off unless a run asks for it.
@@ -491,6 +516,16 @@ class MemspineSystem:
         dirs = [os.environ.get("MEMSPINE_FORENSICS_DIR"), self._trace_dir]
         return [d for i, d in enumerate(dirs) if d and d not in dirs[:i]]
 
+    def _scope(self, **keys: Any) -> Any:
+        """TI-1: ``inspect_scope(run_id, item, **keys)`` when inspecting; a null context otherwise."""
+        import contextlib
+
+        if not self._inspect:
+            return contextlib.nullcontext()
+        from memspine.observability.inspect import inspect_scope
+
+        return inspect_scope(run_id=self._run_id, item=getattr(self, "_item_id", None), **keys)
+
     def set_query_id(self, query_id: str) -> None:
         """D7: the id of the question about to be asked (forensics rows carry it)."""
         self._query_id = query_id
@@ -598,7 +633,10 @@ class MemspineSystem:
         before = self._calls()
         usage_before = self._usage()
         prompts_before = self._prompt_usage()
-        with self._write_scope() as write_events:
+        turn_keys: dict[str, Any] = {"turn_id": turns[0].turn_id, "session": session_id}
+        if len(turns) > 1:
+            turn_keys["turn_ids"] = [t.turn_id for t in turns]
+        with self._scope(**turn_keys), self._write_scope() as write_events:
             records = await self._engine_write(turns, texts, session_id)
         self._write_events = write_events
         ids: list[str] = []
@@ -693,7 +731,8 @@ class MemspineSystem:
         before = self._calls()
         usage_before = self._usage()
         prompts_before = self._prompt_usage()
-        stats = await self._await_sleep(await self._memory.sleep())
+        with self._scope(phase="sleep"):
+            stats = await self._await_sleep(await self._memory.sleep())
         await self._write_derived_trace()  # --trace-full: what the sleep cycle derived
         after = self._calls()
         meta: dict[str, Any] = {"sleep": {name: dict(stage) for name, stage in stats.items()}}
@@ -736,7 +775,8 @@ class MemspineSystem:
         out: dict[str, Any] = {}
         for sid in sorted(self._sessions):
             try:
-                out[sid] = await close(self.namespace, sid)
+                with self._scope(phase="session_close", session=sid):
+                    out[sid] = await close(self.namespace, sid)
             except Exception as exc:
                 out[sid] = {"status": "error", "reason": f"{type(exc).__name__}: {exc}"}
         return out
@@ -771,7 +811,8 @@ class MemspineSystem:
         before = self._calls()
         usage_before = self._usage()
         prompts_before = self._prompt_usage()
-        stats = dict(await flush(self.namespace, final=final))
+        with self._scope(phase="flush_windows"):
+            stats = dict(await flush(self.namespace, final=final))
         after = self._calls()
         meta: dict[str, Any] = {"window_extract": stats}
         engine_llm = self._usage_delta(usage_before, self._usage())
@@ -1037,10 +1078,34 @@ class MemspineSystem:
                     "n_records": len(getattr(assembled, "records", []) or []),
                 },
             }
+        if self._inspect:
+            # TI-1 (gap F10): the default row drops 15 FX keys, and ``cuts`` / ``window`` exist only
+            # under --trace-full. Inspect keeps all of them, with rids mapped to dataset turns.
+            origin = self._origin
+
+            def as_turn(rid: Any) -> str:
+                return origin.get(str(rid), str(rid))
+
+            row["inspect"] = {
+                "fx": {k: _jsonable(v) for k, v in stages.items() if k not in ("cuts", "window")},
+                "cuts": [{**c, "turn": as_turn(c["id"])} for c in stages.get("cuts", [])],
+                "window": [
+                    {
+                        "anchor": as_turn(w["anchor"]),
+                        "neighbours": [as_turn(n) for n in w["neighbours"]],
+                        "skipped": {as_turn(k): v for k, v in w["skipped"].items()},
+                    }
+                    for w in stages.get("window", [])
+                ],
+                "context_rids": [
+                    {"rid": str(r.record_id), "turn": as_turn(r.record_id)}
+                    for r in getattr(assembled, "records", []) or []
+                ],
+            }
         out = Path(directory)
         out.mkdir(parents=True, exist_ok=True)
         with (out / "forensics.jsonl").open("a", encoding="utf-8") as fh:
-            fh.write(json.dumps(row) + "\n")
+            fh.write(json.dumps(row, default=str if self._inspect else None) + "\n")
 
     async def query(self, text: str, budget_tokens: int, top_k: int) -> RetrievedContext:
         if self._engine is None:
@@ -1070,7 +1135,9 @@ class MemspineSystem:
         from memspine.observability.trace import search_forensics
         from memspine.models.encoders.query.perspective import asker_scope
 
-        with search_forensics() as stages, asker_scope(self._asker):
+        with search_forensics() as stages, asker_scope(self._asker), self._scope(
+            query_id=self._query_id
+        ):
             if self._read_mode:
                 result = await self._memory.read(
                     text,

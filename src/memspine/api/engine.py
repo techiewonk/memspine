@@ -158,6 +158,7 @@ from memspine.models.providers.decision.decider import Decider, build_decider
 from memspine.models.providers.llm.base import LLMRouter, LLMService
 from memspine.models.providers.rerank.base import Reranker
 from memspine.models.providers.rerank.factory import RerankSettings, build_reranker, rerank_modes
+from memspine.observability import inspect as inspect_obs
 from memspine.observability import tap
 from memspine.observability.logging import (
     EVENT_REBUILD,
@@ -770,12 +771,23 @@ class Engine:
         if config.observability.ops_ledger:  # T5-06: per-stage ops ledger, off by default
             self._ops_ledger = _ops.OpsLedger()
             _ops.install(self._ops_ledger)
-        if config.observability.tap.enabled or config.observability.otel.enabled:
+        obs = config.observability
+        inspect_obs.configure(obs.inspect, obs.inspect_content)  # TI-1: off unless asked
+        if obs.tap.enabled or obs.otel.enabled or obs.inspect:
             # WT-01: debugging wiretap, off by default. T5-06: the OTel exporter is a second sink
             # on the tap; without a tap config it runs on a sink-less, content-free tap.
-            tap_cfg = config.observability.tap
+            tap_cfg = obs.tap
             if not tap_cfg.enabled:
-                tap_cfg = tap_cfg.model_copy(update={"enabled": True, "sink": "none"})
+                # TI-1: inspect needs a sink of its own (the configured jsonl); OTel alone none
+                sink = tap_cfg.sink if obs.inspect else "none"
+                tap_cfg = tap_cfg.model_copy(update={"enabled": True, "sink": sink})
+            if obs.inspect and obs.inspect_content:  # TI-1: text payloads need the content opt-in
+                tap_cfg = tap_cfg.model_copy(
+                    update={
+                        "content": True,
+                        "max_content_chars": max(tap_cfg.max_content_chars, 20000),
+                    }
+                )
             tap.configure(tap_cfg)
             self._tap_owner = True
             if self._otel is not None:
@@ -4863,6 +4875,12 @@ class Engine:
                 batch[projector.name] = appended.seq  # checkpointed at the flush
             else:
                 await self._storage.set_offset(projector.name, appended.seq)
+        if inspect_obs.inspect_enabled():  # TI-1: per-record index membership, sleep per-item notes
+            if appended.kind is EventKind.WRITE:
+                inspect_obs.index_record(
+                    appended, self._projectors, getattr(self._embedder, "embedder_id", None)
+                )
+            inspect_obs.note_event(appended)
         if self._query_encoder is not None:
             self._evict_from_encoder(event)
 

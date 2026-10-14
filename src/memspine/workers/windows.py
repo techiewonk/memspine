@@ -73,6 +73,7 @@ from memspine.models.concurrency import Priority, priority_scope
 from memspine.models.providers.llm.base import LLMService, lenient_json
 from memspine.models.providers.llm.capabilities import schema_options
 from memspine.models.providers.llm.structured import structured_call
+from memspine.observability import inspect as insp
 from memspine.observability import tap
 from memspine.observability.logging import get_logger
 from memspine.ops import ledger as _ops
@@ -190,14 +191,14 @@ class PromptWindowExtractor:
             return await self._unified_call(sections, variables, options)
         if self._items and "facts" in sections:
             result: dict[str, Any] = {}
-            reply = await self._llm.chat(
-                extraction_messages(
-                    str(variables.get("content", "")),
-                    str(variables.get("participants", "")),
-                    int(variables["turn_count"]) if "turn_count" in variables else None,  # type: ignore[call-overload]
-                ),
-                **options,
+            items_messages = extraction_messages(
+                str(variables.get("content", "")),
+                str(variables.get("participants", "")),
+                int(variables["turn_count"]) if "turn_count" in variables else None,  # type: ignore[call-overload]
             )
+            reply = await self._llm.chat(items_messages, **options)
+            if insp.io_active():  # TI-1: what the model saw and said
+                _note_io(items_messages, reply)
             parsed = parse_reply(reply)
             if parsed is None:
                 raise LLMError("structured items reply failed validation: not a JSON list")
@@ -248,6 +249,8 @@ class PromptWindowExtractor:
             self._schema_rejected = True
             tap.event("write.prompt.v2", sections=list(sections), schema_mode="rejected")
             reply = await self._llm.chat(messages, **options)
+        if insp.io_active():  # TI-1: what the model saw and said
+            _note_io(messages, reply)
         data = _salvage_sections(_parse_window_reply(reply, sections), sections)
         if data is None:
             # FU-GAPS: the whole reply is unusable: ONE repair re-ask (the reply is echoed back,
@@ -269,6 +272,8 @@ class PromptWindowExtractor:
                 )
             except LLMError:
                 again = ""
+            if insp.io_active():
+                insp.io_note(reparse=True, reply_retry=insp.ic(again))
             data = _salvage_sections(_parse_window_reply(again, sections), sections)
         if data is None:
             raise LLMError("structured window reply failed validation: not a JSON object")
@@ -289,6 +294,26 @@ class PromptWindowExtractor:
 
 
 _SCHEMA_REJECTED = re.compile(r"schema|response_format|grammar|format|unsupported", re.I)
+
+
+def _excluded(window: Window | None, member_ids: Sequence[str]) -> list[str]:
+    """TI-1: the window's turns that were not live members (quarantined, role-blocked ...)."""
+    if window is None:
+        return []
+    live = set(member_ids)
+    return [t.record_id for t in window.turns if t.record_id not in live]
+
+
+def _note_io(messages: Sequence[Mapping[str, str]], reply: str) -> None:
+    """TI-1: hand the rendered prompt and the raw reply of this model call to the window call
+    that is capturing them (``write.extract.io``)."""
+    rendered = "\n".join(f"[{m.get('role', '')}] {m.get('content', '')}" for m in messages)
+    insp.io_note(
+        prompt_hash=insp.digest(rendered),
+        prompt=insp.ic(rendered),
+        reply=insp.ic(reply),
+        reply_chars=len(reply),
+    )
 
 
 def _parse_window_reply(reply: str, sections: Sequence[str]) -> dict[str, Any] | None:
@@ -1347,6 +1372,14 @@ class WindowPipeline:
                 tap.event(
                     "write.window.skipped", reason="no_live_turns", turns=len(job.window.turns)
                 )
+                if insp.inspect_enabled():
+                    self._members_event(
+                        ns,
+                        job.window,
+                        [t.record_id for t in job.window.turns],
+                        "skipped",
+                        reason="no_live_turns",
+                    )
                 continue
             verdict = await self._prepass_verdict(records)
             if verdict == "skip":
@@ -1410,6 +1443,16 @@ class WindowPipeline:
         )
         if strict and failed and not merged_all:
             tap.event("write.batch.failed", id=batch_id, windows=len(live))
+            if insp.inspect_enabled():
+                for _i, failed_job, failed_records in live:
+                    self._members_event(
+                        ns,
+                        failed_job.window,
+                        [r.record_id for r in failed_records],
+                        "failed",
+                        batch=batch_id,
+                        reason="batch_call_failed",
+                    )
             raise WindowCallFailed("the batched window call failed")
         per_window: list[dict[str, Any]] = [{} for _ in live]
         for section, raw in merged_all.items():
@@ -1453,7 +1496,20 @@ class WindowPipeline:
                 first_line=spans[w][0] + 1,
                 turns=len(records),
             )
-            await self._compile_items(ns, job, records, per_window[w], window_id)
+            if insp.inspect_enabled():
+                self._members_event(
+                    ns,
+                    job.window,
+                    member_ids,
+                    "failed" if window_failed else "planned",
+                    window_id=window_id,
+                    batch=batch_id,
+                    reason="batch_call_failed" if window_failed else None,
+                    prepass="full" if self._prepass else None,
+                    excluded=_excluded(job.window, member_ids),
+                )
+            with insp.inspect_scope(window_id=window_id):
+                await self._compile_items(ns, job, records, per_window[w], window_id)
             if job.cancelled:
                 self._counts["windows_cancelled_forget"] += 1
                 await self._purge_window_cache(member_ids)
@@ -1560,6 +1616,8 @@ class WindowPipeline:
         if store is None or not store.pending:
             return []
         out, store.pending = store.pending, []
+        if insp.inspect_enabled():
+            insp.edges_consumed([(b.window_id, len(b.edges)) for b in out])
         return out
 
     # -- one window -------------------------------------------------------------------------
@@ -1595,6 +1653,7 @@ class WindowPipeline:
         variables: Mapping[str, object],
         transcript: str,
         member_ids: Sequence[str],
+        window_id: str = "",
     ) -> Mapping[str, Any]:
         key = ""
         if self._cache is not None:
@@ -1621,14 +1680,58 @@ class WindowPipeline:
                 self._counts["cache_hits"] += 1
                 tap.event("write.extract.call", sections=list(group), cached=True, outcome="ok")
                 cached: Mapping[str, Any] = json.loads(hit)
+                if insp.inspect_enabled():  # TI-1: a cache hit has no prompt or reply to show
+                    insp.extract_io(
+                        window_id=window_id,
+                        sections=group,
+                        cached=True,
+                        prompt_id=self._extract.identity,
+                        transcript=transcript,
+                        member_ids=member_ids,
+                        captured={},
+                        parsed=cached,
+                    )
                 return cached
         self._counts["calls"] += 1
         if len(group) < len(self.sections):
             self._counts["split_calls"] += 1
         for section in group:
             self._calls_by_layer[section] += 1
-        with tap.span("write.extract.call", sections=list(group), cached=False):
-            raw = await self._extract(group, variables)
+        if insp.inspect_enabled():  # TI-1: capture the rendered prompt and the raw reply
+            captured: dict[str, Any]
+            started = time.perf_counter()
+            with insp.io_capture() as captured, tap.span(
+                "write.extract.call", sections=list(group), cached=False
+            ):
+                try:
+                    raw = await self._extract(group, variables)
+                except BaseException as exc:
+                    insp.extract_io(
+                        window_id=window_id,
+                        sections=group,
+                        cached=False,
+                        prompt_id=self._extract.identity,
+                        transcript=transcript,
+                        member_ids=member_ids,
+                        captured=captured,
+                        parsed=None,
+                        failed=type(exc).__name__,
+                    )
+                    raise
+            insp.extract_io(
+                window_id=window_id,
+                sections=group,
+                cached=False,
+                prompt_id=self._extract.identity,
+                transcript=transcript,
+                member_ids=member_ids,
+                captured=captured,
+                parsed=raw,
+                ms=round((time.perf_counter() - started) * 1000.0, 1),
+            )
+        else:
+            with tap.span("write.extract.call", sections=list(group), cached=False):
+                raw = await self._extract(group, variables)
         if self._cache is not None and key:
             try:
                 await self._cache.set(key, json.dumps(dict(raw), default=str).encode())
@@ -1664,6 +1767,32 @@ class WindowPipeline:
         if prepared is not None:
             await self._commit_job(ns, store, prepared)
 
+    def _members_event(
+        self,
+        ns: str,
+        window: Window | None,
+        member_ids: Sequence[str],
+        status: str,
+        *,
+        window_id: str | None = None,
+        reason: str | None = None,
+        prepass: str | None = None,
+        excluded: Sequence[str] = (),
+        batch: str | None = None,
+    ) -> None:
+        """TI-1 (write.window.members): who is in this window and what became of it."""
+        insp.window_members(
+            window_id=window_id or fingerprint_payload({"ns": ns, "turns": list(member_ids)})[:12],
+            member_ids=member_ids,
+            status=status,
+            reason=reason,
+            cut_reason=window.reason if window is not None else None,
+            prepass=prepass,
+            excluded=excluded,
+            batch=batch,
+            session=window.session if window is not None else None,
+        )
+
     async def _prepare_job(self, ns: str, job: _Job, *, strict: bool = False) -> _Prepared | None:
         """The lock-free half of one window: live turns, then the model calls. ``strict`` (outbox
         mode) raises :class:`WindowCallFailed` when every call failed, so the offset is a hole."""
@@ -1675,6 +1804,14 @@ class WindowPipeline:
         if not records:
             self._counts["windows_empty"] += 1
             tap.event("write.window.skipped", reason="no_live_turns", turns=len(window.turns))
+            if insp.inspect_enabled():
+                self._members_event(
+                    ns,
+                    window,
+                    [t.record_id for t in window.turns],
+                    "skipped",
+                    reason="no_live_turns",
+                )
             return None
         return await self._prepare_records(ns, job, records, strict=strict)
 
@@ -1717,21 +1854,46 @@ class WindowPipeline:
             groups=len(self._groups()),
         )
         groups = [("episode",)] if episode_only else self._groups()
-        merged, failed = await self._run_groups(
-            ns, groups, variables, transcript, member_ids, window_id
-        )
-        if job.cancelled:
-            self._counts["windows_cancelled_forget"] += 1
-            await self._purge_window_cache(member_ids)
-            return None
-        if strict and failed and not merged:
-            self._note_outcome(True, len(groups))
-            raise WindowCallFailed(f"all {len(groups)} window call(s) failed")
-        await self._compile_items(ns, job, records, merged, window_id)
-        if job.cancelled:
-            self._counts["windows_cancelled_forget"] += 1
-            await self._purge_window_cache(member_ids)
-            return None
+        inspecting = insp.inspect_enabled()
+        if inspecting:
+            self._members_event(
+                ns,
+                window,
+                member_ids,
+                "planned",
+                window_id=window_id,
+                prepass="episode_only" if episode_only else ("full" if self._prepass else None),
+                excluded=_excluded(window, member_ids),
+            )
+        with insp.inspect_scope(window_id=window_id):
+            merged, failed = await self._run_groups(
+                ns, groups, variables, transcript, member_ids, window_id
+            )
+            if job.cancelled:
+                self._counts["windows_cancelled_forget"] += 1
+                await self._purge_window_cache(member_ids)
+                if inspecting:
+                    self._members_event(
+                        ns, window, member_ids, "cancelled", window_id=window_id, reason="forget"
+                    )
+                return None
+            if inspecting and failed:
+                self._members_event(
+                    ns,
+                    window,
+                    member_ids,
+                    "failed",
+                    window_id=window_id,
+                    reason="some_calls_failed" if merged else "all_calls_failed",
+                )
+            if strict and failed and not merged:
+                self._note_outcome(True, len(groups))
+                raise WindowCallFailed(f"all {len(groups)} window call(s) failed")
+            await self._compile_items(ns, job, records, merged, window_id)
+            if job.cancelled:
+                self._counts["windows_cancelled_forget"] += 1
+                await self._purge_window_cache(member_ids)
+                return None
         return _Prepared(job, records, merged, line_texts, window_id, len(groups), failed)
 
     async def _with_prompt_context(
@@ -1793,6 +1955,17 @@ class WindowPipeline:
             id=window_id,
             turns=len(records),
         )
+        if insp.inspect_enabled():
+            self._members_event(
+                ns,
+                job.window,
+                member_ids,
+                "skipped",
+                window_id=window_id,
+                reason="prepass_nothing_extractable",
+                prepass="skip",
+                excluded=_excluded(job.window, member_ids),
+            )
         return _Prepared(job, records, {}, [], window_id, 0, False)
 
     async def _compile_items(
@@ -1847,6 +2020,8 @@ class WindowPipeline:
                 ns=ns,
                 window_id=window_id,
             )
+        if insp.inspect_enabled():  # TI-1: every compiled envelope enters the lifecycle here
+            insp.envelope_stage_trace("compile", window_id, {}, outcome.envelopes)
         if env.stages:
             stage_ctx = EnvelopeStageContext(
                 namespace=ns, window_id=window_id, lines=lines, records=records, compile_ctx=ctx
@@ -1873,7 +2048,7 @@ class WindowPipeline:
         for group in groups:
             try:
                 with _cost_scope(ns, "+".join(group)):
-                    raw = await self._call(group, variables, transcript, member_ids)
+                    raw = await self._call(group, variables, transcript, member_ids, window_id)
             except asyncio.CancelledError:
                 raise
             except Exception as exc:
@@ -1903,15 +2078,16 @@ class WindowPipeline:
 
     async def _commit_job(self, ns: str, store: _Store, prepared: _Prepared) -> None:
         """The deposit half: each deposit takes the namespace lock itself (``_write_locked``)."""
-        broken = await self._deposit_sections(
-            ns,
-            store,
-            prepared.job,
-            prepared.records,
-            prepared.merged,
-            prepared.line_texts,
-            prepared.window_id,
-        )
+        with insp.inspect_scope(window_id=prepared.window_id):  # TI-1: keys on every deposit event
+            broken = await self._deposit_sections(
+                ns,
+                store,
+                prepared.job,
+                prepared.records,
+                prepared.merged,
+                prepared.line_texts,
+                prepared.window_id,
+            )
         self._note_outcome(prepared.failed or broken, prepared.groups)
 
     async def _purge_window_cache(self, member_ids: Sequence[str]) -> None:
@@ -2015,9 +2191,19 @@ class WindowPipeline:
                 )
                 store.pending.append(batch)
                 self._counts["edges_pending"] += len(batch.edges)
+                evicted: str | None = None
                 while len(store.pending) > constants.WINDOW_PENDING_EDGES_MAX:
-                    store.pending.pop(0)
+                    gone = store.pending.pop(0)
+                    evicted = gone.window_id
                     self._counts["edge_batches_dropped"] += 1
+                if insp.inspect_enabled():
+                    insp.edges_pending(
+                        window_id=window_id,
+                        edges=len(batch.edges),
+                        covered=member_ids,
+                        queued_batches=len(store.pending),
+                        evicted=evicted,
+                    )
             elif section == "episode":
                 ep_out = validate_episode(raw, count)
                 if ep_out is None:
@@ -2177,11 +2363,19 @@ class WindowPipeline:
                 tap.event(
                     "write.extract.rejected", reason="fact_deposit_error", error=type(exc).__name__
                 )
+                if insp.inspect_enabled():
+                    insp.envelope_deposit(
+                        window_id, env, rid=None, status="dropped", reason="deposit_error"
+                    )
                 _log.warning("window.fact_deposit_failed", error=str(exc)[:200])
                 continue
             if stored is None:
                 self._counts["facts_skipped_parent_gone"] += 1
                 tap.event("write.extract.rejected", reason="parent_gone", layer="facts")
+                if insp.inspect_enabled():
+                    insp.envelope_deposit(
+                        window_id, env, rid=None, status="dropped", reason="parent_gone"
+                    )
                 job.cancelled = True
                 return
             self._counts["facts_deposited"] += 1
@@ -2191,6 +2385,10 @@ class WindowPipeline:
                 layer="facts",
                 parents=len(parents),
             )
+            if insp.inspect_enabled():  # TI-1: occ -> rid; sets env.record_id in memory
+                insp.envelope_deposit(
+                    window_id, env, rid=getattr(stored, "record_id", None), status="kept"
+                )
             await self._dispute_peers(ns, env, getattr(stored, "record_id", None))
 
     async def _dispute_peers(self, ns: str, env: AssertionEnvelope, new_id: str | None) -> None:

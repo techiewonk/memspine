@@ -83,6 +83,9 @@ _EXTRA_SINKS: list[TapSink] = []  # T5-06: sinks next to the configured one (OTe
 _SINK_LOCK = threading.Lock()
 _CUR: ContextVar[RequestTrace | None] = ContextVar("memspine_tap_request", default=None)
 _ERRORS = 0  # sink failures swallowed (never raised into the engine)
+#: TI-1 (``observability.inspect``): correlation keys merged into every event (run_id, item,
+#: turn_id, query_id, window_id ...). Set only by ``inspect.inspect_scope``; None otherwise.
+_SCOPE: ContextVar[Mapping[str, Any] | None] = ContextVar("memspine_tap_scope", default=None)
 
 
 class TapConfigError(RuntimeError):
@@ -263,6 +266,9 @@ def current() -> RequestTrace | None:
 
 
 def _append(trace: RequestTrace, stage: str, fields: Mapping[str, Any]) -> None:
+    scope = _SCOPE.get()
+    if scope:  # TI-1: correlation keys; an event's own field of the same name wins
+        fields = {**scope, **fields}
     with trace._lock:
         trace.events.append(
             TapEvent(

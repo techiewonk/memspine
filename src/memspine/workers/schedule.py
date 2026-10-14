@@ -20,6 +20,7 @@ from memspine.derive.pipeline.stages.context import PipelineContext
 from memspine.derive.pipeline.stages.mining import projection_on
 from memspine.derive.pipeline.stages.rule_edges import rule_edges_options
 from memspine.economy import ledger as _costs
+from memspine.observability import inspect as insp
 from memspine.observability import tap
 from memspine.observability.logging import get_logger
 from memspine.ops import ledger as _ops
@@ -221,7 +222,7 @@ async def _run_sleep_stage(
     if not tap.enabled():
         with _stage_cost(ledger, name, pool):
             return await runner.run(name, ctx)
-    with tap.request("job", stage=name):  # WT-02: one child trace per stage
+    with tap.request("job", stage=name), insp.sleep_stage(name):  # WT-02: one child trace per stage
         tap.event("job.stage.start", stage=name)
         try:
             with _stage_cost(ledger, name, pool):

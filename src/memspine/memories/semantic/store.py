@@ -26,6 +26,7 @@ from memspine.memories.base import BaseMemory
 from memspine.memories.semantic.entities import EntityExtractor
 from memspine.memories.semantic.write_pipeline import EDGE_CHANNEL, ScreenDerived, WritePipeline
 from memspine.models.encoders.embedding.base import EmbeddingService
+from memspine.observability import inspect as insp
 from memspine.observability.logging import EVENT_CONFLICT, EVENT_MERGE, get_logger
 from memspine.services.storage.base import StorageService
 from memspine.store.events import EventKind, MemoryEvent
@@ -184,7 +185,15 @@ class SemanticMemory(BaseMemory):
                 "conflict", record_id=record.record_id, incumbent=duplicate.record_id,
                 verdict="merge", rule="duplicate_lsh_cosine", key=[record.entity, record.attribute],
             )  # fmt: skip
-            return await self._merge(duplicate, record)
+            result = await self._merge(duplicate, record)
+            if insp.inspect_enabled():  # TI-1: the dedup rung as a first-class event
+                insp.ladder_event(
+                    rid=record.record_id, incumbent=duplicate.record_id, verdict="merge",
+                    rule="duplicate_lsh_cosine", action=result.action,
+                    entity=record.entity, attribute=record.attribute,
+                    trust_incoming=record.trust, trust_incumbent=duplicate.trust,
+                )  # fmt: skip
+            return result
 
         # M13.3: entity resolution BEFORE conflict detection. The prompt that
         # produced the keying lands in provenance (D-43/E1 audit trail).
@@ -227,6 +236,15 @@ class SemanticMemory(BaseMemory):
             else "unkeyed_record", key=[record.entity, record.attribute],
         )  # fmt: skip
         await self._write_through(index, record)
+        if insp.inspect_enabled():
+            insp.ladder_event(
+                rid=record.record_id, incumbent=None, verdict="add",
+                rule="no_incumbent"
+                if record.entity is not None and record.attribute is not None
+                else "unkeyed_record",
+                action="added", entity=record.entity, attribute=record.attribute,
+                trust_incoming=record.trust,
+            )  # fmt: skip
         return SemanticWriteResult(record=record, action="added")
 
     async def _incumbent_for_subject(
@@ -357,7 +375,15 @@ class SemanticMemory(BaseMemory):
             and self._conflict.same_endpoints(incoming, existing)
             and not self._conflict.trust_gated(incoming, existing)
         ):
-            return await self._merge(existing, incoming)
+            merged = await self._merge(existing, incoming)
+            if insp.inspect_enabled():
+                insp.ladder_event(
+                    rid=incoming.record_id, incumbent=existing.record_id, verdict="merge",
+                    rule="same_endpoints_restated", action=merged.action,
+                    entity=incoming.entity, attribute=incoming.attribute,
+                    trust_incoming=incoming.trust, trust_incumbent=existing.trust,
+                )  # fmt: skip
+            return merged
         decide = getattr(self._conflict, "decide", None)
         if decide is not None:
             verdict, rule = decide(incoming, existing)
@@ -456,6 +482,13 @@ class SemanticMemory(BaseMemory):
             await self._write_through(index, backfilled)
             result = SemanticWriteResult(record=backfilled, action="added")
 
+        if insp.inspect_enabled():
+            insp.ladder_event(
+                rid=incoming.record_id, incumbent=existing.record_id, verdict=verdict.value,
+                rule=rule, action=result.action, entity=incoming.entity,
+                attribute=incoming.attribute, trust_incoming=incoming.trust,
+                trust_incumbent=existing.trust,
+            )  # fmt: skip
         await self._append_event(
             MemoryEvent(
                 kind=EventKind.CONFLICT,
