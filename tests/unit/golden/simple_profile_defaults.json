@@ -140,6 +140,8 @@
       "dedupe_threshold": 0.9,
       "deep_v2": false,
       "default_mode": "auto",
+      "derived_cap": 0,
+      "derived_dates": false,
       "entity_check": "off",
       "entity_expand_leg": false,
       "entity_leg": false,

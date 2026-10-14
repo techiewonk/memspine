@@ -34,6 +34,7 @@ from memspine.models.encoders.query.shape import (
 from memspine.models.encoders.query.temporal_query import LegHit
 from memspine.observability import tap
 from memspine.read import neighbours as nb
+from memspine.read.pipeline.derived import redate_derived
 from memspine.read.pipeline.request import tier_pool
 from memspine.read.pipeline.state import (
     _FOCAL_ENTITY,
@@ -414,6 +415,8 @@ async def _assemble_core(
     if not shared and (read_cfg.topic_timelines or read_cfg.standing_instructions):
         standing, timelines = await eng._lead_section(ns, scored, budget_tokens)
     lead_cost = sum(tok(r.content) for r in [*standing, *timelines])
+    if read_cfg.derived_dates and scored:
+        scored = await redate_derived(eng, ns, query, scored)  # GTEMP
     scored = await eng._decorate(ns, scored, hide=hide)
     gist_after = read_cfg.gist_after
     if gist_after is not None and not is_verbatim(query):

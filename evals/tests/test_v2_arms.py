@@ -144,6 +144,12 @@ def test_arm_validates(name: str) -> None:
         assert set(extra) == allowed, sorted(set(extra) ^ allowed)
         validate_engine_config(arm)  # strict requires: legs_v2 under episode_leg_v2, offline.standing_v2 under read.standing_v2
         return
+    if name == "v2-GTEMP-graph-fixed":
+        # GTEMP (docs/v2/GTEMP.md): the S02 graph base plus the three merged temporal-fix flags
+        extra = _diff_paths(arm, _load("scr-gc3-graph-jina"))
+        assert set(extra) == {"read.raw_turn_floor", "read.derived_dates", "read.derived_cap"}, extra
+        validate_engine_config(arm)
+        return
     flags = [f for f in PENDING_FLAGS if _has(arm, f)]
     assert flags, "a v2 arm must switch on at least one named flag"
     # the arm is the reference arm (or the GC base) plus flags only: nothing else differs

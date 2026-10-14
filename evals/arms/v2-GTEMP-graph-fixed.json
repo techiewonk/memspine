@@ -1,0 +1,92 @@
+{
+ "read": {
+  "record_access": false,
+  "scoring": {
+   "recency_weight": 0.0,
+   "importance_weight": 0.0,
+   "utility_weight": 0.0
+  },
+  "resolve_relative_dates": true,
+  "order_by_time_for_ordering": true,
+  "assembly": {
+   "relative_floor": 0.3
+  },
+  "replay_window_before": 2,
+  "replay_window_after": 4,
+  "relative_dates_anchored": true,
+  "temporal_leg_mentions": true,
+  "candidate_pool": 2,
+  "list_mode": true,
+  "perspective_mode": "subject_weight",
+  "pool_protect_per_leg": 3,
+  "rerank": "jina",
+  "rerank_model": "jinaai/jina-reranker-v3.5",
+  "rerank_device": "cuda",
+  "rerank_keep": 10,
+  "rerank_floor": "skip",
+  "graph_leg": true,
+  "graph_leg_k": 10,
+  "graph_depth": 2,
+  "graph_node_search": true,
+  "entity_summaries": true,
+  "raw_turn_floor": true,
+  "derived_dates": true,
+  "derived_cap": 3
+ },
+ "embedding": {
+  "provider": "st",
+  "model": "Qwen/Qwen3-Embedding-0.6B",
+  "dim": 1024,
+  "device": "cuda",
+  "dtype": "bfloat16",
+  "query_instruction": "Instruct: Given a question about a user's past conversations, retrieve memories that answer it\nQuery: "
+ },
+ "storage": {
+  "path": "tempdir"
+ },
+ "memories": {
+  "episodic": {
+   "policies": {
+    "perspective": "heuristic"
+   }
+  },
+  "semantic": {
+   "enabled": true,
+   "policies": {
+    "extract_graph": {
+     "granularity": "session",
+     "resolve": "rules"
+    }
+   }
+  },
+  "associative": {
+   "enabled": true,
+   "policies": {
+    "entity_nodes": true,
+    "entity_summaries": true
+   }
+  }
+ },
+ "graph": {
+  "entity_embeddings": true
+ },
+ "llm": {
+  "roles": {
+   "extract_edges": {
+    "model": "ollama/qwen3.5:9b",
+    "api_base": "http://127.0.0.1:11434",
+    "timeout_seconds": 180.0,
+    "no_think": true
+   },
+   "summarize_entity": {
+    "model": "ollama/qwen3.5:9b",
+    "api_base": "http://127.0.0.1:11434",
+    "timeout_seconds": 180.0,
+    "no_think": true
+   }
+  },
+  "structured": {
+   "retry_on_error": true
+  }
+ }
+}
