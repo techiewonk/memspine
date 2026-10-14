@@ -661,6 +661,7 @@ class MemspineSystem:
             )
         if self._engine is not None:
             await self._write_derived_trace()
+            await self._inspect_snapshot("post_ingest")
         close_calls = 0
         if self._engine is not None:
             # FX-EVAL: call 2 per ingested session, before the sleep so its L2 records exist for reads
@@ -695,6 +696,7 @@ class MemspineSystem:
         prompts_before = self._prompt_usage()
         stats = await self._await_sleep(await self._memory.sleep())
         await self._write_derived_trace()  # --trace-full: what the sleep cycle derived
+        await self._inspect_snapshot("post_sleep")
         after = self._calls()
         meta: dict[str, Any] = {"sleep": {name: dict(stage) for name, stage in stats.items()}}
         if flushed.meta.get("session_close"):
@@ -907,6 +909,39 @@ class MemspineSystem:
                     e for i, e in enumerate(events) if i not in used
                 ]
             _append_jsonl(Path(self._trace_dir) / "write_trace.jsonl", rows)
+
+    async def _inspect_snapshot(self, phase: str) -> None:
+        """TI-2 (``MEMSPINE_INSPECT=1`` or ``--inspect``): dump the store (records, links, sleep
+        markers) to ``<forensics dir>/inspect/``. Read-only; a failure is logged, never raised.
+        ``MEMSPINE_INSPECT_CONTENT=0`` leaves the text out."""
+        import os
+
+        if os.environ.get("MEMSPINE_INSPECT") != "1" or self._engine is None:
+            return
+        from pathlib import Path
+
+        dirs = self._log_dirs()
+        fallback = Path("runs/_analysis/inspect") / str(self._run_id or "run")
+        target = Path(dirs[0]) / "inspect" if dirs else fallback
+        try:
+            from ..inspect.snapshot import dump_snapshot
+
+            await dump_snapshot(
+                self._engine,
+                self.namespace,
+                target,
+                phase,
+                origin_map=self._origin,
+                content=os.environ.get("MEMSPINE_INSPECT_CONTENT", "1") != "0",
+                run_id=self._run_id,
+                item=getattr(self, "_item_id", None),
+            )
+        except Exception as exc:  # the inspector must never break a run
+            import warnings
+
+            warnings.warn(
+                f"inspect snapshot ({phase}) failed: {type(exc).__name__}: {exc}", stacklevel=2
+            )
 
     async def _write_derived_trace(self) -> None:
         """--trace-full: records in the store that no source turn produced (mined facts, cards,

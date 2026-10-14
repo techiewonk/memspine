@@ -314,6 +314,10 @@ def cmd_c0_1(args: argparse.Namespace) -> int:
             file=sys.stderr,
             flush=True,
         )
+    if getattr(args, "inspect", False):  # TI-2: the memspine system dumps store snapshots
+        import os
+
+        os.environ["MEMSPINE_INSPECT"] = "1"
     apply_opbench_protocol(args)
     if args.warn_localhost:  # E1: the host name 'localhost' can add ~2 s per connection on Windows
         from .netcheck import warn_localhost
@@ -983,6 +987,14 @@ def build_parser() -> argparse.ArgumentParser:
         "post-step call and the judge prompt and raw reply (row meta.trace_full); with "
         "MEMSPINE_FORENSICS_DIR the memspine adapter also writes write_trace.jsonl and extra "
         "read-path fields. Off by default (size); scoring is unchanged",
+    )
+    c01.add_argument(
+        "--inspect",
+        action="store_true",
+        help="Trace Inspector (TI-2): the memspine system dumps records.jsonl, links.jsonl and "
+        "sleep.jsonl after ingest and after sleep to <MEMSPINE_FORENSICS_DIR or trace dir>/"
+        "inspect/ (same as MEMSPINE_INSPECT=1; MEMSPINE_INSPECT_CONTENT=0 leaves the text "
+        "out). Read-only; scoring is unchanged",
     )
     c01.add_argument(
         "--retrieval-only",
