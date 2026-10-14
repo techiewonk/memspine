@@ -112,3 +112,28 @@ sets are validation only: one exposure per arm, aggregates only, no per-question
   S34 fail_list -1. Read the F category split for cat3 and list questions first.
 * `gate_v2` on the GC arm uses the jina rerank score as in the screen; calibration probes run once per namespace at the first read.
 * PrefEval has no run set in the queue; it needs one added before the adoption rule can use it as written.
+
+## PICK3 (J winners)
+
+P2REF (the GC reference: graph base `scr-gc3-graph-jina`, no PICK2 flags, full LoCoMo) scored 79.35%, against 81.36% for the J reference
+`clean-jina-full`. The loss is in cat2 temporal (76.3 vs 83.2, +8/-30 paired). Same-commit J references reproduce `clean-jina-full`
+exactly, so the difference is the graph base itself, not drift: it costs about 2 points on full LoCoMo. It was invisible in screening
+because every GC screen was measured against the GC base, never against J.
+
+PICK2 and PICK2-IV stack their winners on that base, so they inherit the loss; they could only win by out-gaining it. PICK3 switches the
+base. `evals/arms/v2-PICK3-j.json` is the J reference `scr-pool-protect-jina` plus ONLY the winners that were screened on J:
+
+| Screen | Key | Value |
+|---|---|---|
+| S20 | `read.gate_v2` | true |
+| S82 | `read.pool_protect_per_leg` | 8 (J reference: 3) |
+| S10 | `read.tiers_v2` | true |
+| S57 | `read.trust_rendering` | true |
+| S77 | `read.decompose_v2` | true |
+| S70 | `write.index_view`, `write.index_view_carry` | true, `anaphoric` |
+
+Left out as GC-only: `legs_v2`, `episode_leg_v2`, session close (S31/S38), standing (S34), histories (S42), and the graph itself. No
+prerequisite beyond these keys is needed: none of the seven appears in `requires.py`, and `validate_engine_config` (strict requires)
+passes. The model-free behavioural gate reports `behavioural: OK`. PICK3 needs no sleep build, so the queue row is kind J (`P3J`, B11,
+PROMOTE, sets Fob, about 260 min). Compare it with `clean-jina-full` (`eval_paired.py`); the attribution question P2REF answered for the
+GC base is answered here by the J reference itself. The adoption rule above applies unchanged. Interactions are untested, as for PICK2.
