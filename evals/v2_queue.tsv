@@ -78,3 +78,6 @@ S87	B10	R14-DATEPRIOR	v2-R14-DATEPRIOR-date_prior	f-jref2-i2	NONINF	f	-	J	30	rea
 S69	B10	R14-INDEXVIEW	v2-R14-INDEXVIEW-index_view	f-jref2-i2	NONINF	f	-	J	40	write.index_view
 S74	B10	R14-INFER2	v2-R14-INFER2-inference_mode_v2	f-jref2-i2	NONINF	f	-	J	40	read.inference_mode
 S70	B10	R14-IVFIX	v2-R14-IVFIX-index_view_anaphoric	f-jref2-i2	NONINF	f	-	J	40	write.index_view+write.index_view_carry
+P2REF	B11	PICK2	scr-gc3-graph-jina	clean-jina-full	REPORT	F	-	GC	190	(GC reference full run for attribution: S02 on all 1540, no PICK2 flags; compare P2 against it with eval_paired.py)
+P2	B11	PICK2	v2-PICK2-winners	clean-jina-full	PROMOTE	Fob	-	GC	300	read.legs_v2+read.episode_leg_v2+read.standing_v2+read.tiers_v2+read.gate_v2+read.trust_rendering+read.decompose_v2+read.pool_protect_per_leg=8+offline.session_close_v2+offline.standing_v2+offline.histories_v2 (winners on the S02 graph base)
+P2IV	B11	PICK2	v2-PICK2-winners-iv	clean-jina-full	PROMOTE	Fob	-	GC	300	P2 + write.index_view + write.index_view_carry=anaphoric (S70)

@@ -34,6 +34,16 @@ PENDING_FLAGS = (
 )
 
 
+#: v2-PICK2-winners (S02 graph base + the screened winners; see docs/v2/PICK2.md)
+PICK2_KEYS = {
+    "read.legs_v2", "read.episode_leg_v2", "read.standing_v2", "read.tiers_v2", "read.gate_v2",
+    "read.trust_rendering", "read.decompose_v2", "read.pool_protect_per_leg",
+    "offline.session_close_v2", "offline.standing_v2", "offline.histories_v2",
+    "llm.roles.session_close.model", "llm.roles.session_close.api_base",
+    "llm.roles.session_close.timeout_seconds", "llm.roles.session_close.no_think",
+}
+
+
 def _load(name: str) -> dict:
     return json.loads((ARMS / f"{name}.json").read_text(encoding="utf-8"))
 
@@ -111,6 +121,14 @@ def test_arm_validates(name: str) -> None:
     arm = _load(name)
     if not name.startswith("v2-"):
         validate_engine_config(arm)  # existing arms are fully wired
+        return
+    if name.startswith("v2-PICK2"):
+        # the combined winners arm: the S02 graph base plus exactly the screened winners, and every prerequisite holds
+        base = _load("scr-gc3-graph-jina")
+        extra = _diff_paths(arm, base)
+        allowed = PICK2_KEYS | ({"write.index_view", "write.index_view_carry"} if name.endswith("-iv") else set())
+        assert set(extra) == allowed, sorted(set(extra) ^ allowed)
+        validate_engine_config(arm)  # strict requires: legs_v2 under episode_leg_v2, offline.standing_v2 under read.standing_v2
         return
     flags = [f for f in PENDING_FLAGS if _has(arm, f)]
     assert flags, "a v2 arm must switch on at least one named flag"
