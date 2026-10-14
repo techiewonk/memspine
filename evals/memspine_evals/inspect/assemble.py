@@ -132,9 +132,11 @@ def load_dataset(dataset: Any) -> dict[str, dict]:
         if "sessions" in sample:  # the demo fixture shape: sessions[{session_id, date, turns}], questions[...]
             item = str(sample.get("conversation_id", index))
             turns = [{"item": item, "session": s["session_id"], "turn_id": str(t["turn_id"]), "speaker": str(t.get("speaker", "unknown")),
-                      "ts": s.get("date"), "text": str(t.get("text", ""))} for s in sample["sessions"] for t in s["turns"]]
+                      "ts": t.get("ts") or s.get("date"), "text": str(t.get("text", "")),
+                      **({"custom": True} if t.get("custom") else {})} for s in sample["sessions"] for t in s["turns"]]
             qs = {str(q.get("query_id", i)): {"question": q.get("question", ""), "gold": q.get("gold"), "category": q.get("category"),
-                                              "gold_turns": [str(g) for g in q.get("gold_turns") or []], "distractor_turns": []}
+                                              "gold_turns": [str(g) for g in q.get("gold_turns") or []], "distractor_turns": [],
+                                              **({"custom": True} if q.get("custom") else {})}
                   for i, q in enumerate(sample.get("questions") or [])}
             out[item] = {"turns": turns, "questions": qs}
             continue
@@ -351,7 +353,7 @@ def _build_one(run: str | Path, dataset: Any = None) -> dict[str, Any]:
     run_ids = {r.get("run_id") for r in results}
     man_row = next((r for r in results_all if r.get("kind") not in ("result", "summary", "cost") and "system" in r), {})
     summary_row = next((r for r in results_all if r.get("kind") == "summary"), {})
-    ingest = [r for r in load_jsonl(_first(dirs, ["ingest.jsonl"])) if r.get("run_id") is None or r.get("run_id") in run_ids]
+    ingest = [r for r in load_jsonl(_first(dirs, ["ingest.jsonl"])) if r.get("run_id") is None or not run_ids or r.get("run_id") in run_ids]
     fx = load_jsonl(_first(dirs, ["forensics.jsonl", "forensics.jsonl.gz"]))
     reads = load_jsonl(_first(dirs, ["reads.jsonl", "reads.jsonl.gz"]))
     wtrace = load_jsonl(_first(dirs, ["write_trace.jsonl"]))
@@ -468,6 +470,8 @@ def _build_one(run: str | Path, dataset: Any = None) -> dict[str, Any]:
     # ---- turns
     if ds:
         run_items = {r.get("item") for r in ingest} | {r["item_id"] for r in results}
+        if not run_items:  # nothing asked yet and no ingest rows: the dataset items
+            run_items = set(ds)
         base_turns = [t for it, d in ds.items() if it in run_items for t in d["turns"]]
     else:
         base_turns = [{"item": r.get("item"), "session": r.get("session"), "turn_id": r["turn"],
@@ -510,6 +514,8 @@ def _build_one(run: str | Path, dataset: Any = None) -> dict[str, Any]:
             "window_ids": turn_windows.get(key, []),
             "deposit": dep.get("delta_t"), "deposit_latency_ms": dep.get("latency_ms"),
         }
+        if t.get("custom"):
+            row["custom"] = True  # written by the step mode `say`, not part of the dataset
         turns.append(row)
 
     # ---- records
@@ -646,6 +652,7 @@ def _build_one(run: str | Path, dataset: Any = None) -> dict[str, Any]:
             "run_id": run_id, "item": item, "query_id": qid, "category": CAT.get(r.get("type_label"), r.get("type_label") or dq.get("category")),
             "question": r.get("question") or dq.get("question"), "gold": r.get("gold", dq.get("gold")),
             "gold_turns": gold_turns, "mode": mode, "has_stage_log": f is not None,
+            **({"custom": True} if dq.get("custom") or r.get("custom") else {}),
             "plan": {"contract": tf.get("contract") or qa_f.get("qa_shape"), "tier": tf.get("tier"),
                      "route": qa_f.get("rule_read_mode") or tf.get("route"),
                      "list_mode": bool(flags.get("is_set_question") or flags.get("is_intent_list")),
