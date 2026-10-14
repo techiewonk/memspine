@@ -401,7 +401,7 @@ async def test_read_side_events(monkeypatch) -> None:
         llm={"roles": {"window_extract": {"model": "fake/window"}, "plan": {"model": "fake/plan"}}},
     )
     try:
-        for i, msg in enumerate(_msgs(4)):
+        for _i, msg in enumerate(_msgs(4)):
             await eng.write_messages([msg], namespace="a", session_id="s1", group_id="s1")
         with insp.inspect_scope(query_id="Q9"):
             await eng.search("What did Bram say about the orchid?", namespace="a", top_k=3)
@@ -447,7 +447,7 @@ async def test_outbox_prepare_and_commit_run_in_a_job_request(monkeypatch, tmp_p
         workers={"outbox": True},
     )
     try:
-        for i, msg in enumerate(_msgs(3)):
+        for _i, msg in enumerate(_msgs(3)):
             await eng.write_messages([msg], namespace="a", session_id="s1", group_id="s1")
         await eng.flush_windows()
     finally:

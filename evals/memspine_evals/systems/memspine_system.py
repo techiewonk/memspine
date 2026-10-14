@@ -517,7 +517,7 @@ class MemspineSystem:
         return [d for i, d in enumerate(dirs) if d and d not in dirs[:i]]
 
     def _scope(self, **keys: Any) -> Any:
-        """TI-1: ``inspect_scope(run_id, item, **keys)`` when inspecting; a null context otherwise."""
+        """TI-1: ``inspect_scope(run_id, item, **keys)`` when inspecting; else a null context."""
         import contextlib
 
         if not self._inspect:

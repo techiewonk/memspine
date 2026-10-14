@@ -587,11 +587,12 @@ def headers_event(headers: Sequence[Any]) -> None:
     items = []
     for pos, header in enumerate(headers):
         tags = [t for t in header.tags if isinstance(t, str)]
+        kind = next((t for t in tags if t != "lead"), tags[0] if tags else "header")
         items.append(
             {
                 "pos": pos,
                 "rid": header.record_id,
-                "kind": idsafe(next((t for t in tags if t != "lead"), tags[0] if tags else "header")),
+                "kind": idsafe(kind),
                 "source_ids": list(header.source.parents)[:50],
                 "n_sources": len(header.source.parents),
                 "chars": len(header.content),

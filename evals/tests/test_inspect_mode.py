@@ -36,7 +36,10 @@ def _turns() -> list[Turn]:
 
 
 def _jsonl(path: Path) -> list[dict]:
-    return [json.loads(line) for p in sorted(path.glob("*.jsonl")) for line in p.read_text("utf-8").splitlines()]
+    rows: list[dict] = []
+    for p in sorted(path.glob("*.jsonl")):
+        rows += [json.loads(line) for line in p.read_text("utf-8").splitlines()]
+    return rows
 
 
 def _events(tap_dir: Path) -> list[dict]:
