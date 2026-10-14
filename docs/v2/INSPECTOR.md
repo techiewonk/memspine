@@ -1,7 +1,6 @@
 # Trace Inspector: runbook (draft)
 
-Draft written with TI-6. TI-7 completes it once the recorder (TI-1), dumper (TI-2), assembler (TI-3),
-HTML viewer (TI-4) and step mode (TI-5) have landed. Plan: [`TRACE_INSPECTOR_PLAN.md`](TRACE_INSPECTOR_PLAN.md);
+How to record, view, step and check a run, and the rule for adding a stage. Plan: [`TRACE_INSPECTOR_PLAN.md`](TRACE_INSPECTOR_PLAN.md);
 stage list: [`PIPELINE_STAGE_INVENTORY.md`](PIPELINE_STAGE_INVENTORY.md).
 
 This page contains no dataset text. Bundles that hold real text live only under the gitignored
@@ -33,21 +32,110 @@ Field names are fixed by section 1 of the plan; fields may be added, never renam
 
 ## View
 
-The local HTML viewer (TI-4) opens a bundle in six views: Conversation, Window, Record and links graph,
-Question, Compare and Checks. It is self-contained and makes no network calls. A demo page can be built
-from the invented demo conversation, `evals/memspine_evals/inspect/demo_conversation.json`.
+Build the page from a bundle, or straight from a run folder:
 
-To be completed by TI-7 with the exact build command and a per-view description tied to the stage
-catalogue.
+```
+python evals/build_inspector.py evals/runs/_analysis/inspect/<run>/                  # an assembled bundle
+python evals/build_inspector.py --run <run> --data <locomo.json|demo> [--compare <run2>] [--out DIR]
+python evals/build_inspector.py --demo                                              # the invented conversation
+```
+
+The output is one self-contained `index.html` in the bundle folder (inline JS and CSS, data embedded, no
+network call). Six views; each one reads the bundle files named below and shows the stages of the catalogue
+(`PIPELINE_STAGE_INVENTORY.md`, ids in brackets):
+
+| View | Reads | Shows | Stages |
+|---|---|---|---|
+| Conversation | `turns`, `records`, `windows` | every turn with its stored record, flags (skipped, quarantined, not indexed, dropped) and the window it fell in | A1-A14, A15 |
+| Window | `windows`, `envelopes` | member turns, rendered prompt, raw reply, parsed sections; each envelope's journey through stages 100-500 with the drops and reasons highlighted | A15-A23 |
+| Record and links | `records`, `links`, `sleep` | one record with parents, children, graph neighbours, supersede chain and value history (inline SVG force layout) | A24-A28, B2-B14 |
+| Question | `questions` | a waterfall: plan, each leg (gold turns marked), fusion, cuts, pool, rerank, headers and pack, window, context, reader, judge; a candidate-count funnel with the first losing stage named | C1-C34 |
+| Compare | `compare.json` | the same turn or question under two runs, side by side, differences highlighted | all |
+| Checks | `checks` | the invariant failures, filterable, each linked to its turn, window or question | all |
+
+A stage whose events are still missing shows as empty in its view. The list of such stages is
+`docs/v2/data/stage_trace_registry.json` (entries with `"gap": true`), so a blank panel can be told apart from a
+bug.
 
 ## Step
 
-The step mode (TI-5) runs an engine in-process with the inspect hooks on and pauses after each stage,
-for one turn, one session, one sleep or one question. It appends to a bundle as it goes, so a stepped
-session opens in the viewer. `--replay-cache` serves model calls from the recorded call cache so no
-model is needed.
+Step mode runs one conversation through an engine in-process, one stage at a time, with the inspect hooks on.
+It builds the arm's engine through the same harness code as an eval run (`MemspineSystem`: same config, models
+and write path), taps the inspect events into memory, and prints what each step produced, grouped by stage.
+Every step also appends to a run folder, so a stepped session can be saved, checked and opened in the viewer.
 
-To be completed by TI-7 with the command reference.
+```
+python -m memspine_evals.inspect step --data <locomo json | demo> --item <id> --arm <name | path.json>
+    [--offline] [--replay-cache --cache-dir DIR [--live]] [--out DIR] [--script FILE]
+    [--reader-model M [--judge-model M] [--base-url URL]] [--budget N] [--top-k N] [--pause] [--wide]
+```
+
+- `--arm` is an `evals/arms` name (`scr-gc3-graph-jina`, `scr-b8-write-v2`), a path to an arm json, or `demo`
+  (a small CPU arm with the write-v2 stages on, for the invented conversation).
+- `--offline` swaps the heavy parts: hash embedder, no reranker, a stub LLM (no network, no GPU).
+- `--replay-cache --cache-dir DIR` serves engine-role completions and embeddings from a recorded `call_cache.py`
+  store. A cache miss is listed and answered by the stub (or hash embedder) and is never stored; with `--live` it
+  goes to the arm's real endpoint. An arm that embeds with a local model (`st`) cannot be replayed from the cache
+  (those vectors are not cached); replay and offline use the hash embedder and print a note.
+- `--out DIR` is the run-folder root (default `runs/_analysis/inspect/step`, gitignored: real runs hold benchmark
+  text). `--script FILE` runs the commands of a file, one per line, and exits (for tests and CI).
+- `--pause` waits for Enter between printed stages; `--wide` prints full prompts, replies, contexts and event
+  lists instead of the first lines.
+
+Commands (Enter alone is `turn`):
+
+| Command | Does |
+|---|---|
+| `turn [n]` | write the next turn(s) and print the stages it went through: stamp and role, record and index (`store.index.record`: vector, lexical, graph, edges), window membership and extraction (`write.window.members`, `write.extract.io`), envelope stages (`write.envelope.trace`, one line per envelope: `occ <id> compile:added temporal:kept grounding:dropped ...`), deposits and the conflict ladder, links |
+| `session` | write the rest of the current session, then close its windows and the session (call 2) |
+| `sleep` | write any remaining turns, then run the sleep cycle and print it stage by stage (`job.stage.start`, `job.stage.item` per output, `job.stage.end`) |
+| `ask <qid\|text>` | one read: plan, each leg's top-k with gold turns marked `*`, fusion, cuts, pool, rerank components, headers, the packed context, then reader and judge when `--reader-model` is given; `ask` alone lists the questions |
+| `show <rid\|window_id\|occ\|turn_id>` | one object: record fields and envelope, a window with its envelopes, or an envelope's journey |
+| `links <rid\|turn_id>` | lineage parents and children, supersede chain, graph edges |
+| `diff` | the store delta since the last diff: new records, status changes, edge count |
+| `save` | write the inspect bundle to `<out>/<run_id>--bundle/`, run the checks and print their summary |
+| `quit` | leave |
+
+Example (demo data, offline), abridged:
+
+```
+$ python -m memspine_evals.inspect step --data demo --arm demo --offline --script cmds.txt
+--- step: item demo-1 | arm demo | mode offline -----------------------------
+step> turn 3
+--- turn 1/30: D1:1  session D1  Bram  [2024-03-02] ------------------------
+--- stamp / role -----------------------------------------------------------
+  write.role.turn  role=user derive_use=stated src_class=user_stated trust_cap=0.7
+  write.firewall.verdict  id=4fc13b4e-... trust=0.7 quarantine=false
+--- record / index (store.index.record) ------------------------------------
+  index  rid=4fc13b4e-... turn=D1:1 vector=yes lexical=yes graph_node=yes edges=0 text_len=43
+step> session
+--- window membership / extraction -----------------------------------------
+  window 6ad363d78068 session=D1 cut=flush prepass=off
+    members: turns ['D1:1', ... 'D1:10']  records 10
+  extract.io window=6ad363d78068 model=stub/window tokens={'prompt': 855, 'completion': 704, ...}
+--- envelope stages (write.envelope.trace) ---------------------------------
+  occ oc_d784... [6ad363d78068] compile:added temporal:rewritten(time) grounding:rewritten(checks) integration:rewritten(verdict) deposit:kept
+      -> record 2504e300-...
+  occ oc_b516... [6ad363d78068] compile:added temporal:kept grounding:dropped
+step> ask q1
+--- legs (gold marked *) ---------------------------------------------------
+  lexical top10/21: 1:D2:7(1.117) 2:D1:1*(1.007) ...
+--- packed context ---------------------------------------------------------
+  gold turns in context: ['D1:1'] of ['D1:1']
+step> save
+  checks: 597 rows, 0 error(s), 0 warning(s)
+```
+
+Step mode flushes closed windows after every turn (an eval run flushes before a question and at build), so
+the windows of a stepped session are cut at the same places but their calls happen earlier.
+
+## Registry
+
+`docs/v2/data/stage_trace_registry.json` maps every stage of the catalogue (A1-A28, B0-B17, C1-C34) to the tap
+events that trace it, lists the envelope stages (`ingest/windows.py:_envelope_stages`) and the sleep stages
+(`workers/schedule.py`) against their catalogue ids, and marks stages that still lack events with
+`"gap": true` and the inventory gap number (F1-F17). `harness: true` stages live in the evals logs, not the tap.
+`tests/unit/observability/test_stage_trace_coverage.py` checks it against the source.
 
 ## Checks
 
@@ -101,12 +189,21 @@ The stage catalogue (`PIPELINE_STAGE_INVENTORY.md`) is the list of phases the in
 **Rule: every new stage emits its trace event, or the change is not done.** A stage that is added to
 the write, sleep or read path must:
 
-1. emit a tap event that carries the correlation keys (run, item, and turn or query) and ids for what
-   it read and wrote, with free text only through the opt-in content channel;
-2. be listed in the stage catalogue with its event name and join ids;
-3. appear in the bundle (a new file or new fields on an existing row; never a renamed field);
-4. have an invariant in the checks if it has one worth keeping.
+1. emit a tap event that carries the correlation keys (run, item, and turn or query; use
+   `inspect_scope` at the entry point and `observability.inspect` helpers) and ids for what it read and
+   wrote, with free text only through the opt-in content channel (`inspect.ic(...)`);
+2. be listed in the stage catalogue (`PIPELINE_STAGE_INVENTORY.md`) with its event name and join ids;
+3. be added to `docs/v2/data/stage_trace_registry.json`: a row under `stages` with the event names that
+   trace it. A new envelope stage also goes under `envelope_stages`, a new sleep stage under `sleep_stages`.
+   A stage that cannot emit yet is registered with `"gap": true` and the F-number of its gap, so it shows
+   up on the list;
+4. appear in the bundle (a new file or new fields on an existing row; never a renamed field) and in the
+   assembler (`assemble.py`) and, if it has an invariant worth keeping, in the checks.
 
-A test will enforce this by matching the stage list against the registered trace events and failing
-when a stage has no event. That test is not written yet; until it lands, reviewers check the rule by
-hand.
+The test `tests/unit/observability/test_stage_trace_coverage.py` enforces this and fails when:
+
+- an inventory row has no registry entry (or the registry has a row the inventory lacks);
+- a registered event name is not emitted by any `tap.event` / `tap.span` / `tap.request` call in `src`;
+- an envelope stage built in `ingest/windows.py:_envelope_stages`, or a sleep stage in
+  `workers/schedule.py` (`SLEEP_CYCLE_ORDER` and the `*_STAGE` constants), has no registry entry;
+- a stage has neither events nor a listed gap.

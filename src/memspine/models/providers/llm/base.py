@@ -18,6 +18,7 @@ from memspine.config.constants import TOKEN_ESTIMATE_CHARS_PER_TOKEN
 from memspine.economy import ledger as _costs
 from memspine.exceptions import ConfigError
 from memspine.models.concurrency import model_slot
+from memspine.observability import inspect as insp
 from memspine.observability import tap
 from memspine.observability.logging import get_logger
 from memspine.observability.usage import UsageLedger
@@ -176,6 +177,12 @@ class _Counted:
             raise
         usage = _reported_usage(self._inner)
         est_in = sum(len(str(m.get("content", ""))) for m in messages) // _CHARS_PER_TOKEN
+        if insp.io_active():  # TI-1: tokens of the extraction call being captured
+            insp.io_tokens(
+                usage[0] if usage else est_in,
+                usage[1] if usage else len(reply) // _CHARS_PER_TOKEN,
+                usage is None,
+            )
         tap.event(
             "model.call",
             role=self._role,

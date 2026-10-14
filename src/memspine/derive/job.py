@@ -42,6 +42,7 @@ from typing import Any
 
 from memspine.derive.budget import DerivationBudget, is_model_stage
 from memspine.exceptions import MemspineError, StorageError
+from memspine.observability import inspect as insp
 from memspine.observability import tap
 from memspine.schemas.public import JobHandle
 from memspine.schemas.public.receipt import JobState
@@ -645,7 +646,8 @@ class NamespaceJob:
                     total=row.get("total", 1),
                 )
                 continue
-            out.stats[stage] = await self.run_stage(stage)
+            with insp.sleep_cycle(cycle):  # TI-1: job.stage.item carries the cycle number
+                out.stats[stage] = await self.run_stage(stage)
             if self.budget is not None:
                 spent = self.budget.charge(self.ns, out.stats[stage])
                 tap.event(

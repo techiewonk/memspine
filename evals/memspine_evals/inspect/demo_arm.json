@@ -1,0 +1,16 @@
+{
+ "embedding": {"provider": "hash"},
+ "storage": {"path": "tempdir"},
+ "read": {"rerank": "off", "record_access": false, "list_mode": true, "replay_window_before": 1, "replay_window_after": 1},
+ "memories": {
+  "episodic": {"enabled": true},
+  "semantic": {"enabled": true, "policies": {"extract_graph": {"resolve": "rules"}}},
+  "associative": {"enabled": true, "policies": {"entity_nodes": true}}
+ },
+ "write": {
+  "window_extract": "facts", "window_async": false, "segmentation_v2": true, "envelope_v2": true,
+  "prompt_v2": true, "stamping_v2": true, "role_policy_v2": true, "temporal_v2": true,
+  "grounding_v2": true, "integration_v2": true, "lineage_table": true
+ },
+ "llm": {"roles": {"window_extract": {"model": "stub/window"}}}
+}

@@ -190,6 +190,15 @@ def _norm_event(r: dict) -> dict:
     return flat
 
 
+def _flatten_trace(row: dict) -> list[dict]:
+    """A tap ``jsonl`` sink line is a whole request trace (``events`` and nested ``children``);
+    expand it to one flat row per event, children after the parent's own events."""
+    out = [{"stage": e.get("stage"), "fields": e.get("fields") or {}} for e in row.get("events") or []]
+    for child in row.get("children") or []:
+        out += _flatten_trace(child)
+    return out
+
+
 def load_tap(dirs: list[Path]) -> list[dict]:
     events: list[dict] = []
     seen: set[Path] = set()
@@ -201,7 +210,11 @@ def load_tap(dirs: list[Path]) -> list[dict]:
             if p in seen or p.suffix not in (".jsonl", ".gz"):
                 continue
             seen.add(p)
-            events += [_norm_event(r) for r in load_jsonl(p)]
+            for r in load_jsonl(p):
+                if isinstance(r.get("events"), list):  # the sink's own format: one trace per line
+                    events += [_norm_event(e) for e in _flatten_trace(r)]
+                else:
+                    events.append(_norm_event(r))
     for i, e in enumerate(events):
         e["_seq"] = i
     return events
@@ -349,7 +362,7 @@ def _build_one(run: str | Path, dataset: Any = None) -> dict[str, Any]:
     checks = load_jsonl(_first(insp + dirs, ["checks.jsonl"]))
     fx_by_q = _join_forensics(results, fx)
 
-    ing_by = {(r.get("item"), r["turn"]): r for r in ingest}
+    ing_by = {(r.get("item"), r["turn"]): r for r in ingest if "turn" in r}  # window_stats rows have none
     wt_by = {(r.get("item"), r["turn"]): r for r in wtrace if "turn" in r}
     dep_by = {(r.get("item_id"), r.get("turn_id")): r for r in trace if r.get("kind") == "deposit"}
     reads_by = {(r.get("item_id"), r.get("query_id")): r for r in reads}
@@ -388,7 +401,11 @@ def _build_one(run: str | Path, dataset: Any = None) -> dict[str, Any]:
         w["member_turns"] = [str(t) for t in turns]
         w["member_record_ids"] = rids
         w["cut_reason"] = e.get("cut_reason")
-        w["prepass"] = e.get("prepass")
+        pre = e.get("prepass")  # the engine emits the verdict as a plain string
+        w["prepass"] = {"verdict": pre} if isinstance(pre, str) else pre
+        for extra in ("status", "reason"):  # additive: planned | skipped | failed | cancelled
+            if e.get(extra) is not None:
+                w[extra] = e[extra]
     for e in ev["write.extract.io"]:
         wid = e.get("window_id")
         if wid is None:
@@ -406,7 +423,11 @@ def _build_one(run: str | Path, dataset: Any = None) -> dict[str, Any]:
             if k_src in e and k_dst not in call:
                 call[k_dst] = e[k_src]
         w["call"] = call
-        w["sections"] = e.get("sections")
+        sec = e.get("sections")
+        if isinstance(sec, list):  # the engine lists the requested sections; counts ride in parsed_counts
+            counts = e.get("parsed_counts") if isinstance(e.get("parsed_counts"), dict) else {}
+            sec = {k: int(counts.get(k) or 0) for k in ("facts", "edges", "episode")}
+        w["sections"] = sec
         if e.get("items") is not None:
             w["items"] = e["items"]
     envelopes: list[dict] = []

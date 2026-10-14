@@ -25,7 +25,7 @@ from collections.abc import Callable, Iterable
 FILES = ("turns", "windows", "envelopes", "records", "links", "sleep", "questions")
 SESSION_END_CUTS = {"session_end", "session", "end_of_session", "session_close"}
 SKIPPED_WINDOW = {"skip", "skipped", "no_extract"}
-BASE_CHANNELS = {None, "", "verbatim", "turn", "raw"}
+BASE_CHANNELS = {None, "", "verbatim", "turn", "raw", "messages"}  # "messages" = the engine's raw turn channel
 DEAD_STATUS = {"deleted", "erased", "purged"}
 WALL_CLOCK_KEYS = ("run_started_at", "run_time", "created_at", "started_at", "run_date")
 FIRST_N = 10
@@ -209,7 +209,9 @@ def _turn_in_lexical_index(b: Bundle):
 # ----------------------------------------------------------------------------------------------
 
 def _window_skipped(w: dict) -> bool:
-    return (str((w.get("prepass") or {}).get("verdict", "")).lower() in SKIPPED_WINDOW
+    pre = w.get("prepass") or {}
+    verdict = pre.get("verdict", "") if isinstance(pre, dict) else pre
+    return (str(verdict).lower() in SKIPPED_WINDOW
             or str(w.get("status", "")).lower() in SKIPPED_WINDOW)
 
 
@@ -417,7 +419,8 @@ def _no_wall_clock(b: Bundle):
         if not _is_derived(r):
             continue
         rid = f"{r.get('phase', '')}:{r.get('record_id')}"
-        hits = [k for k in ("valid_from", "recorded_at", "created_at", "recorded") if str(r.get(k) or "")[:10] == run]
+        # event time only: recorded_at / created_at are transaction time and are the run date by design
+        hits = [k for k in ("valid_from", "source_at") if str(r.get(k) or "")[:10] == run]
         if not hits:
             yield _it(r), rid, True, "no run-time stamp"
             continue

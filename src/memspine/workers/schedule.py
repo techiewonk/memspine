@@ -236,8 +236,9 @@ async def _run_sleep_stage(
 
 async def run_sleep_cycle(runner: TaskRunner, ctx: PipelineContext) -> dict[str, dict[str, object]]:
     stats: dict[str, dict[str, object]] = {}
-    for name in sleep_stage_order(ctx):
-        stats[name] = await run_sleep_stage(runner, ctx, name)
+    with insp.sleep_cycle(None, ctx.scope_namespace or "-"):  # TI-1: the inline path counts cycles
+        for name in sleep_stage_order(ctx):
+            stats[name] = await run_sleep_stage(runner, ctx, name)
     return stats
 
 
