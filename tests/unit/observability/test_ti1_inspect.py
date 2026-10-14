@@ -303,6 +303,12 @@ async def test_window_extraction_and_edges_and_sleep_items(monkeypatch) -> None:
     assert items and all(f["stage"] for f in items)
     assert any(f.get("output_ids") and f.get("channel") for f in items)
     assert {"consolidate", "extract_graph"} <= {f["stage"] for f in items}
+    # TI-5 follow-ups: the cycle number rides on every item, the extraction call has token counts,
+    # and a consolidate item (payload session_key + base session_key) no longer fails the stage
+    assert all(isinstance(f["cycle"], int) and f["cycle"] >= 1 for f in items)
+    assert io[0]["tokens"] and io[0]["tokens"]["prompt"] > 0 and io[0]["tokens"]["completion"] > 0
+    ends = {f["stage"]: f for f in _fields("job.stage.end")}
+    assert ends["consolidate"]["status"] != "partial" and not ends["consolidate"].get("failed")
     assert any(f.get("event") == "memory.link" and f.get("src") for f in items)
 
 

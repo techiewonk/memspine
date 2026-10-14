@@ -52,11 +52,13 @@ __all__ = [
     "io_active",
     "io_capture",
     "io_note",
+    "io_tokens",
     "ladder_event",
     "note_event",
     "planner_io",
     "rerank_components",
     "retrieve_writeback",
+    "sleep_cycle",
     "sleep_item",
     "sleep_stage",
     "turn_bound",
@@ -71,6 +73,9 @@ _STAGE: ContextVar[str | None] = ContextVar("memspine_inspect_stage", default=No
 _ITEM: ContextVar[dict[str, Any] | None] = ContextVar("memspine_inspect_item", default=None)
 #: capture slot for the extraction call's rendered prompt and raw reply (see :func:`io_capture`)
 _IO: ContextVar[dict[str, Any] | None] = ContextVar("memspine_inspect_io", default=None)
+#: the sleep cycle number the running stage belongs to (set by the sleep job, or counted inline)
+_CYCLE: ContextVar[int | None] = ContextVar("memspine_inspect_cycle", default=None)
+_INLINE_CYCLES: dict[str, int] = {}
 
 
 def configure(on: bool, content: bool = False) -> None:
@@ -172,6 +177,38 @@ def sleep_stage(name: str) -> Iterator[None]:
 
 
 @contextmanager
+def sleep_cycle(cycle: int | None, namespace: str | None = None) -> Iterator[None]:
+    """Mark the sleep cycle whose stages run inside the block (``cycle`` on ``job.stage.item``).
+    ``cycle=None`` with a ``namespace``: the inline sleep path, which keeps no cycle table, counts
+    its own (one per call) unless an enclosing job already set the cycle."""
+    if not inspect_enabled():
+        yield
+        return
+    if cycle is None:
+        if namespace is None or _CYCLE.get() is not None:
+            yield
+            return
+        cycle = _INLINE_CYCLES[namespace] = _INLINE_CYCLES.get(namespace, 0) + 1
+    token = _CYCLE.set(int(cycle))
+    try:
+        yield
+    finally:
+        _CYCLE.reset(token)
+
+
+def io_tokens(prompt: int, completion: int, estimated: bool) -> None:
+    """Add one model call's token counts to the extraction call being captured (a window call that
+    re-asks adds up). A no-op outside :func:`io_capture`."""
+    slot = _IO.get()
+    if slot is None:
+        return
+    cur = slot.setdefault("tokens", {"prompt": 0, "completion": 0, "estimated": estimated})
+    cur["prompt"] += int(prompt)
+    cur["completion"] += int(completion)
+    cur["estimated"] = bool(cur["estimated"] and estimated)
+
+
+@contextmanager
 def sleep_item(
     session_key: str | None = None, input_ids: Sequence[str] | None = None, **extra: Any
 ) -> Iterator[None]:
@@ -199,7 +236,7 @@ def note_event(event: Any, *, rid: str | None = None) -> None:
     payload = getattr(event, "payload", None) or {}
     item = _ITEM.get() or {}
     base: dict[str, Any] = {
-        "cycle": None,
+        "cycle": _CYCLE.get(),
         "calls": None,
         "tokens": None,
         "status": "ok",
@@ -244,6 +281,7 @@ def note_event(event: Any, *, rid: str | None = None) -> None:
             reason=payload.get("reason"),
         )
     elif kind == "memory.consolidate":
+        base["session_key"] = payload.get("session_key") or base["session_key"]
         tap.event(
             "job.stage.item",
             **base,
@@ -251,16 +289,15 @@ def note_event(event: Any, *, rid: str | None = None) -> None:
             members=list(payload.get("member_record_ids") or [])[:50],
             n_members=len(payload.get("member_record_ids") or []),
             superseded=list(payload.get("superseded_summary_ids") or [])[:20],
-            session_key=payload.get("session_key") or base["session_key"],
         )
     elif kind == "memory.marker":
+        base["session_key"] = payload.get("session_key") or base["session_key"]
         tap.event(
             "job.stage.item",
             **base,
             marker=payload.get("marker"),
             marker_stage=payload.get("stage"),
             members_fp=payload.get("members_fp"),
-            session_key=payload.get("session_key") or base["session_key"],
         )
 
 
@@ -379,7 +416,7 @@ def extract_io(
         prompt_id=idsafe(prompt_id),
         model=idsafe(str(prompt_id).split("|")[0]),
         ms=ms,
-        tokens=None,
+        tokens=captured.get("tokens"),
         items=counts.get("facts"),
         prompt_hash=captured.get("prompt_hash") or digest(transcript),
         transcript_hash=digest(transcript),
@@ -457,7 +494,8 @@ def envelope_stage_trace(
     ``rewritten`` (with ``fields_changed``), ``added`` or ``dropped`` (with ``reason``: the notes
     the stage counted while it ran)."""
     seen: set[str] = set()
-    reason = ",".join(sorted(reasons)) or None
+    # "+" joins the notes: the tap guard takes ids (letters, digits, . : / + = -), not commas
+    reason = ("+".join(sorted(reasons)) or None) and "+".join(sorted(reasons))[:120]
     for env in after:
         occ = env.occurrence_id
         seen.add(occ)
