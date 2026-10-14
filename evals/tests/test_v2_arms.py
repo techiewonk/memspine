@@ -28,6 +28,9 @@ PENDING_FLAGS = (
     "read.trust_rendering", "read.gate_v2", "read.deep_v2", "read.obligations", "read.timeview_v2",
     "read.entity_leg_v2", "read.neighbours_v2", "read.cache.enabled", "read.parallel_legs",
     "read.external_v2", "graph.key_v2", "read.rerank_v2_search_pool",
+    # R14 builds (S69-S87)
+    "read.inference_mode", "read.decompose_v2", "read.list_mode_trigger_v2", "read.coverage_select",
+    "read.pool_protect_per_leg", "read.date_prior", "write.index_view",
 )
 
 
@@ -98,7 +101,8 @@ def test_queue_is_well_formed() -> None:
 
 
 def test_every_pending_flag_has_a_screen() -> None:
-    queued = {r["flag"] for r in ROWS}
+    # a flag column may name several flags joined by '+' and may carry a value ('key=8')
+    queued = {f.split("=")[0] for r in ROWS for f in r["flag"].split("+")}
     assert set(PENDING_FLAGS) <= queued, sorted(set(PENDING_FLAGS) - queued)
 
 

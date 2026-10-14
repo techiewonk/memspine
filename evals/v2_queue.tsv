@@ -70,3 +70,9 @@ S64	B8	profile	scr-b8-offline-v2	v2-S02-i2	NONINF	f	S02	GC	230	profile offline-v
 S65	B8	profile	scr-b8-trust-v2	v2-S02-i2	REPORT	f	S02	GC	160	profile trust-v2 (viewer_required may refuse eval reads: then RUN_FAILED is the finding; real test is the behavioural suite and N1)
 S66	B8	profile	scr-b8-run-v2	v2-S02-i2	PARITY	f	S02	GC	150	profile run-v2 (NO CHANGE expected on answers; latency and cost only)
 S67	B9	FU-RRPOOL	v2-R3-07b-rerank_v2_pool	v2-S15-i2	NONINF	fo	S15	J	63	read.rerank_v2_search_pool
+S73	B10	R14-INFER	v2-R14-INFER-inference_mode	f-jref2-i2	NONINF	f	-	J	40	read.inference_mode
+S77	B10	R14-DECOMP	v2-R14-M12-decompose_v2	f-jref2-i2	NONINF	f	-	J	40	read.decompose_v2
+S79	B10	R14-LISTCOV	v2-R14-M-1-list_cov	f-jref2-i2	NONINF	f	-	J	40	read.list_mode_trigger_v2+read.coverage_select
+S82	B10	R14-DATEPRIOR	v2-R14-DATEPRIOR-pool_protect_8	f-jref2-i2	NONINF	f	-	J	30	read.pool_protect_per_leg=8
+S87	B10	R14-DATEPRIOR	v2-R14-DATEPRIOR-date_prior	f-jref2-i2	NONINF	f	-	J	30	read.date_prior
+S69	B10	R14-INDEXVIEW	v2-R14-INDEXVIEW-index_view	f-jref2-i2	NONINF	f	-	J	40	write.index_view

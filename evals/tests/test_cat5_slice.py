@@ -97,7 +97,7 @@ def test_committed_cat5_slices_match_the_dataset_when_available():
 def test_map_rows_for_the_relevance_screens():
     rows = [ln.split("\t") for ln in (EVALS / "v2_slice_map.tsv").read_text(encoding="utf-8").splitlines() if ln and not ln.startswith("#")]
     cat5 = {r[0]: r for r in rows if len(r) > 5}
-    assert set(cat5) == set(bts.CAT5_SCREENS) == {"S20", "S55", "S63"}
+    assert set(cat5) == set(bts.CAT5_SCREENS) == {"S20", "S55", "S63", "S73"}
     for r in cat5.values():
         assert r[5] == "categories=5" and r[2].endswith("sample_slice_loc_cat5_s20261013.json") and r[3].endswith("_c3.json")
     assert all(len(r) == 5 for r in rows if r[0] not in cat5 or r[2].startswith("analysis/fail_slice"))  # other rows: no sixth column
