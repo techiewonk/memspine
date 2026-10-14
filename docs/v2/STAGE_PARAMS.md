@@ -781,7 +781,7 @@ Models:
 | `read.cards` | `off` | off \\| header | `header` opens the volatile context of every read mode and `assemble` with a `FACTS` block of the mined atomic facts relevant to the query, one `[said YYYY-MM-DD] Entity: fact` line each (the date of  | - | - |
 | `read.cards_budget_share` | `0.25` | float gt 0.0, le 1.0 | The share of the budget the cards header may use. | - | - |
 | `read.cards_event_date` | `false` | bool | #29: a card whose mined fact carries a happened date (`consolidation.mine_event_dates`) different from the day it was said renders `[said d1 · happened d2]`. | - | - |
-| `read.cards_include_edges` | `false` | bool | After the cards header, a `GRAPH FACTS` block of the edge facts (`rel:`-tagged records) the graph walk reaches from the entities the query names, live and superseded, one `[2023-05-01 → present] Melan | - | - |
+| `read.cards_include_edges` | `false` | bool | After the cards header, a `GRAPH FACTS` block of the edge facts (`rel:`-tagged records) the graph walk reaches from the entities the query names, live and superseded, one `[2023-05-01 → present] Bram  | - | - |
 | `read.cards_only_aggregate` | `false` | bool | Addendum: with `read.cards: header`, the cards header (mined facts and #30 list cards) is built only for list and count questions (`query_shape.is_aggregation` / `is_count`). | - | - |
 | `read.cards_skip_hides_facts` | `false` | bool | Addendum: with `read.cards: header` and `read.cards_skip_temporal` (`cards_temporal: skip`), a date question that skips the cards header also gets every mined fact hidden from its read, so it reads ra | - | - |
 | `read.cards_skip_temporal` | `false` | bool | Skip the cards header for date/time questions (`when ...`, `how long ago ...`), so the H1-resolved raw turns answer them; the miner's own dates on cards cost temporal accuracy in the 2026-10-05 smoke  | - | - |
@@ -1236,7 +1236,7 @@ end of `_search`
 | `read.latest_wins_min_overlap` | `0.5` | float gt 0.0, le 1.0 | Overlap coefficient (shared content words / the smaller set) at which two raw turns by one speaker count as one topic for `latest_wins`. | - | - |
 | `read.naive_timezone` | `UTC` | str | The IANA zone a naive datetime (`valid_from` or a message `timestamp` without an offset) is read in. | - | - |
 | `read.order_by_time_for_ordering` | `false` | bool | For ordering questions ("first", "latest", "most recent", …) the assembled records are presented in event-time order rather than score order. | - | - |
-| `read.perspective_marker` | `false` | bool | Show `[about: Caroline's cousin]` before a record whose subject differs from its speaker (stored content unchanged). | - | - |
+| `read.perspective_marker` | `false` | bool | Show `[about: Ilse's cousin]` before a record whose subject differs from its speaker (stored content unchanged). | - | - |
 | `read.present_order` | `relevance` | relevance \\| recorded \\| recorded_if_shared_key | Presentation order of the retrieved records: `relevance` (score), `recorded` (time order), `recorded_if_shared_key` (time order only when two records share entity + attribute, so the newer value reads | - | - |
 | `read.query_contract_use` | `["header"]` | header \\| rerank | Where a built contract goes. | - | - |
 | `read.reader_tokenizer` | `null` | str \| None | Reader tokenizer, resolved offline only (`hf:<name>` cached tokenizer, `tiktoken:<name>` cached encoding, or a bare name); unresolvable: chars/4 estimate, reported as `accounting=estimated`. | - | - |

@@ -72,7 +72,7 @@ the penalty is skipped. `read.speaker_vote_mode=perspective` makes the I5 vote t
 (I5 `subject` mode is its special case). Forensics: `search_forensics()["perspective"]` and the
 `perspective` leg in `extra_legs`.
 
-Render: `read.perspective_marker` prefixes `[about: Caroline's cousin]` only where the subject differs
+Render: `read.perspective_marker` prefixes `[about: Ilse's cousin]` only where the subject differs
 from the speaker, and `[past plan]` where `due_to` is before the as-of / clock date. Content is stored
 unchanged.
 

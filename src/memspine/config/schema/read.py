@@ -745,12 +745,12 @@ class ReadConfig(BaseModel):
             "subject", "modality", "polarity", "scope", "sensitivity", "hearsay", "certainty", "ack"
         ]
     ] = Field(default_factory=lambda: ["subject"])
-    #: I39: show ``[about: Caroline's cousin]`` before a record whose subject differs from its
+    #: I39: show ``[about: Ilse's cousin]`` before a record whose subject differs from its
     #: speaker (the stored content is unchanged). Off: unchanged.
     perspective_marker: bool = False
     #: I59: the read-side owner check, after retrieval and before the reader. Each context line
     #: is judged against the person the question names (``core/owner_check``). ``mark`` = prefix
-    #: ``[Melanie, about Melanie]`` (speaker, subject) on every tagged line; ``note`` = when NO
+    #: ``[Bram, about Bram]`` (speaker, subject) on every tagged line; ``note`` = when NO
     #: line is about the named person and some line is about someone else, add one reader note
     #: ("none of the memories describe X doing this; the matching memories are about Y"); ``both``
     #: = both. Never drops a line; a question naming two people keeps both. Needs the tags of
