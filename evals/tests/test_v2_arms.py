@@ -44,6 +44,13 @@ PICK2_KEYS = {
 }
 
 
+#: v2-PICK3-j (J reference + only the J-screened winners; see docs/v2/PICK2.md, "PICK3 (J winners)")
+PICK3_KEYS = {
+    "read.pool_protect_per_leg", "read.tiers_v2", "read.gate_v2", "read.trust_rendering", "read.decompose_v2",
+    "write.index_view", "write.index_view_carry",
+}
+
+
 def _load(name: str) -> dict:
     return json.loads((ARMS / f"{name}.json").read_text(encoding="utf-8"))
 
@@ -121,6 +128,13 @@ def test_arm_validates(name: str) -> None:
     arm = _load(name)
     if not name.startswith("v2-"):
         validate_engine_config(arm)  # existing arms are fully wired
+        return
+    if name.startswith("v2-PICK3"):
+        # J-based winners: the J reference plus exactly the J-screened winners, no GC-only item
+        extra = _diff_paths(arm, _load(BASE))
+        assert set(extra) == PICK3_KEYS, sorted(set(extra) ^ PICK3_KEYS)
+        assert arm["read"]["pool_protect_per_leg"] == 8 and arm["write"]["index_view_carry"] == "anaphoric"
+        validate_engine_config(arm)
         return
     if name.startswith("v2-PICK2"):
         # the combined winners arm: the S02 graph base plus exactly the screened winners, and every prerequisite holds
