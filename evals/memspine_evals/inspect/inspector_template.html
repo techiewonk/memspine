@@ -1,0 +1,427 @@
+<!doctype html>
+<html lang="en" data-theme="auto">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Trace Inspector</title>
+<style>
+:root{--bg:#fafaf8;--fg:#1d1d1b;--mut:#6b6b66;--card:#fff;--line:#dcdcd4;--acc:#2a5db0;--ok:#2f7d4a;--bad:#b3362d;--warn:#a8741a;--gold:#c79a00;--chip:#eef0f4}
+@media (prefers-color-scheme:dark){:root[data-theme=auto]{--bg:#16171a;--fg:#e6e6e1;--mut:#9a9a93;--card:#1f2024;--line:#35363c;--acc:#7aa7ee;--ok:#5fc07f;--bad:#ef7a70;--warn:#e0b050;--gold:#e6bd33;--chip:#2a2c33}}
+:root[data-theme=dark]{--bg:#16171a;--fg:#e6e6e1;--mut:#9a9a93;--card:#1f2024;--line:#35363c;--acc:#7aa7ee;--ok:#5fc07f;--bad:#ef7a70;--warn:#e0b050;--gold:#e6bd33;--chip:#2a2c33}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.45 system-ui,Segoe UI,Roboto,sans-serif}
+header{position:sticky;top:0;z-index:5;background:var(--card);border-bottom:1px solid var(--line);padding:6px 10px;display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+header h1{font-size:15px;margin:0 8px 0 0}
+nav{display:flex;flex-wrap:wrap;gap:4px}
+nav a,button,select,input{font:inherit;color:inherit}
+nav a{padding:4px 10px;border:1px solid var(--line);border-radius:6px;text-decoration:none;background:var(--chip)}
+nav a.on{background:var(--acc);color:#fff;border-color:var(--acc)}
+button,select,input{background:var(--card);border:1px solid var(--line);border-radius:6px;padding:3px 8px}
+button{cursor:pointer}
+a{color:var(--acc)}
+:focus-visible{outline:2px solid var(--acc);outline-offset:1px}
+main{padding:10px;max-width:1300px;margin:0 auto}
+section.view{display:none}section.view.on{display:block}
+.card{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:8px 10px;margin:8px 0}
+.mut{color:var(--mut)}.ok{color:var(--ok)}.bad{color:var(--bad)}.warn{color:var(--warn)}
+.chip{display:inline-block;border:1px solid var(--line);background:var(--chip);border-radius:12px;padding:0 8px;margin:1px 2px;font-size:12px;cursor:pointer}
+.chip.on{border-color:var(--acc)}.chip.drop{border-color:var(--bad);color:var(--bad)}.chip.none{opacity:.5}
+.turn{border-bottom:1px solid var(--line);padding:4px 0}
+.turn .hd{display:flex;gap:6px;flex-wrap:wrap;align-items:baseline}
+.tid{font-family:ui-monospace,Consolas,monospace;font-size:12px;color:var(--mut)}
+.spk{font-weight:600}
+.detail{margin:4px 0 4px 12px;padding:6px 8px;background:var(--chip);border-radius:6px;font-size:13px;overflow:auto}
+table{border-collapse:collapse;width:100%}th,td{border:1px solid var(--line);padding:2px 6px;text-align:left;vertical-align:top;font-size:13px}
+th{background:var(--chip)}
+td.kept{background:color-mix(in srgb,var(--ok) 18%,transparent)}td.dropped{background:color-mix(in srgb,var(--bad) 28%,transparent);font-weight:600}
+td.rewritten{background:color-mix(in srgb,var(--warn) 25%,transparent)}td.added{background:color-mix(in srgb,var(--acc) 20%,transparent)}
+pre{white-space:pre-wrap;word-break:break-word;margin:2px 0;font:12px/1.4 ui-monospace,Consolas,monospace}
+.kv{display:grid;grid-template-columns:max-content 1fr;gap:1px 10px}.kv b{color:var(--mut);font-weight:500}
+.cand{display:inline-block;font:12px ui-monospace,Consolas,monospace;border:1px solid var(--line);border-radius:4px;padding:0 5px;margin:1px;background:var(--card)}
+.cand.gold{border-color:var(--gold);background:color-mix(in srgb,var(--gold) 22%,transparent)}
+.bar{height:14px;background:var(--acc);border-radius:3px;min-width:2px}
+.badge{display:inline-block;border-radius:4px;padding:0 6px;font-size:12px;color:#fff;background:var(--mut)}.badge.bad{background:var(--bad);color:#fff}.badge.ok{background:var(--ok);color:#fff}
+details>summary{cursor:pointer;font-weight:600}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+svg text{font:11px system-ui;fill:var(--fg)}svg .n{cursor:pointer}
+@media(max-width:700px){.cols{grid-template-columns:1fr}main{padding:6px}th,td{font-size:12px}}
+</style>
+</head>
+<body>
+<header>
+<h1>Trace Inspector <span class="mut" id="runid"></span></h1>
+<nav id="tabs" aria-label="Views">
+<a href="#conversation" data-v="conversation">1 Conversation</a>
+<a href="#window" data-v="window">2 Window</a>
+<a href="#record" data-v="record">3 Record &amp; links</a>
+<a href="#question" data-v="question">4 Question</a>
+<a href="#compare" data-v="compare">5 Compare</a>
+<a href="#checks" data-v="checks">6 Checks</a>
+</nav>
+<label class="mut">item <select id="item"></select></label>
+<button id="theme" title="toggle theme (t)">theme</button>
+<span class="mut" style="font-size:12px">keys: 1-6 views, j/k move, / filter, t theme</span>
+</header>
+<main>
+<section class="view" id="view-conversation" aria-label="Conversation"></section>
+<section class="view" id="view-window" aria-label="Window"></section>
+<section class="view" id="view-record" aria-label="Record and links"></section>
+<section class="view" id="view-question" aria-label="Question"></section>
+<section class="view" id="view-compare" aria-label="Compare"></section>
+<section class="view" id="view-checks" aria-label="Checks"></section>
+</main>
+<script type="application/json" id="data">__DATA__</script>
+<script>
+"use strict";
+const D = JSON.parse(document.getElementById('data').textContent);
+const $ = (s, r = document) => r.querySelector(s);
+function el(tag, a, ...kids) {
+  const e = document.createElement(tag);
+  if (a) for (const [k, v] of Object.entries(a)) {
+    if (v == null || v === false) continue;
+    if (k === 'class') e.className = v;
+    else if (k.startsWith('on')) e.addEventListener(k.slice(2), v);
+    else if (k === 'text') e.textContent = v;
+    else e.setAttribute(k, v === true ? '' : v);
+  }
+  for (const c of kids.flat(Infinity)) { if (c == null || c === false) continue; e.append(c.nodeType ? c : document.createTextNode(String(c))); }
+  return e;
+}
+const NOTEXT = '(text not in bundle)';
+const txt = (v) => (v == null || v === '') ? NOTEXT : String(v);
+const link = (label, hash, cls) => el('a', { href: '#' + hash, class: cls, 'data-nav': '1' }, label);
+const recL = (id) => id ? link(id, 'record/' + encodeURIComponent(id)) : '-';
+const turnL = (item, t) => link(t, 'conversation/' + encodeURIComponent(item) + '/' + encodeURIComponent(t));
+const fmt = (v) => v == null ? '-' : (typeof v === 'object' ? JSON.stringify(v) : String(v));
+
+// ---------------------------------------------------------------- indexes
+const M = D.manifest || {};
+$('#runid').textContent = M.run_id ? '· ' + M.run_id : '';
+const items = [...new Set([...D.turns.map(t => t.item), ...D.questions.map(q => q.item)])];
+const turnKey = (i, t) => i + '|' + t;
+const byTurn = new Map(D.turns.map(t => [turnKey(t.item, t.turn_id), t]));
+const recs = new Map();
+for (const r of D.records) { if (!recs.has(r.record_id)) recs.set(r.record_id, []); recs.get(r.record_id).push(r); }
+const recOf = (id) => { const a = recs.get(id); return a ? (a.find(r => r.phase === 'post_sleep') || a[a.length - 1]) : null; };
+const winById = new Map(D.windows.map(w => [w.window_id, w]));
+const envByWin = new Map(), envByRec = new Map(), envByOcc = new Map();
+for (const e of D.envelopes) {
+  (envByWin.get(e.window_id) || envByWin.set(e.window_id, []).get(e.window_id)).push(e);
+  (envByOcc.get(e.occ) || envByOcc.set(e.occ, []).get(e.occ)).push(e);
+  if (e.record_id) (envByRec.get(e.record_id) || envByRec.set(e.record_id, []).get(e.record_id)).push(e);
+}
+const linksOut = new Map(), linksIn = new Map();
+for (const l of D.links) {
+  (linksOut.get(l.src) || linksOut.set(l.src, []).get(l.src)).push(l);
+  (linksIn.get(l.dst) || linksIn.set(l.dst, []).get(l.dst)).push(l);
+}
+const sleepByRec = new Map();
+for (const s of D.sleep) for (const id of [...(s.input_ids || []), ...(s.output_ids || [])]) (sleepByRec.get(id) || sleepByRec.set(id, []).get(id)).push(s);
+const qByKey = new Map(D.questions.map(q => [q.item + '|' + q.query_id, q]));
+const turnOfRec = new Map();
+for (const t of D.turns) { if (t.record_id) turnOfRec.set(t.record_id, t); }
+let curItem = items[0];
+
+// ---------------------------------------------------------------- widgets
+function kv(obj) {
+  const g = el('div', { class: 'kv' });
+  for (const [k, v] of Object.entries(obj || {})) {
+    if (v === undefined) continue;
+    g.append(el('b', null, k), el('span', null, (k.endsWith('record_id') || k === 'rid') && typeof v === 'string' ? recL(v) : (typeof v === 'object' && v !== null ? el('pre', null, JSON.stringify(v, null, 1)) : fmt(v))));
+  }
+  return g;
+}
+function chip(label, cls, build) {
+  const wrap = { open: false, box: null };
+  const b = el('button', { class: 'chip ' + (cls || ''), 'aria-expanded': 'false', type: 'button' }, label);
+  b.addEventListener('click', () => {
+    wrap.open = !wrap.open; b.classList.toggle('on', wrap.open); b.setAttribute('aria-expanded', wrap.open);
+    if (wrap.open) { wrap.box = el('div', { class: 'detail' }, build()); b.closest('.turn').append(wrap.box); } else if (wrap.box) wrap.box.remove();
+  });
+  return b;
+}
+function cands(list, gold, cap = 40) {
+  const box = el('div');
+  const show = (n) => {
+    box.textContent = '';
+    (list || []).slice(0, n).forEach(c => box.append(el('span', { class: 'cand' + (gold.has(c.turn) ? ' gold' : ''), title: 'rid ' + (c.rid || '-') + ' score ' + (c.score ?? c.raw ?? '')}, (gold.has(c.turn) ? '★' : '') + '#' + (c.rank ?? '') + ' ' + c.turn)));
+    if ((list || []).length > n) box.append(el('button', { onclick: () => show(1e9) }, 'show all ' + list.length));
+    if (!(list || []).length) box.append(el('span', { class: 'mut' }, 'empty'));
+  };
+  show(cap); return box;
+}
+function table(head, rows) {
+  return el('table', null, el('tr', null, head.map(h => el('th', null, h))), rows.map(r => el('tr', null, r.map(c => c && c.nodeType && c.tagName === 'TD' ? c : el('td', null, c)))));
+}
+function pageHead(title, extra) { return el('div', { class: 'row' }, el('h2', { style: 'margin:4px 0' }, title), extra); }
+function picker(label, options, current, onchange) {
+  const s = el('select', { 'aria-label': label }, options.map(o => el('option', { value: o.value, selected: o.value === current }, o.label)));
+  s.addEventListener('change', () => onchange(s.value)); return s;
+}
+function filterBox(onq) { const i = el('input', { type: 'search', placeholder: 'filter (/)', 'data-filter': '1' }); i.addEventListener('input', () => onq(i.value.toLowerCase())); return i; }
+
+// ---------------------------------------------------------------- 1 conversation
+function envsOfTurn(t) {
+  const seen = new Map();
+  const ids = new Set([...(t.derived_record_ids || []), t.record_id].filter(Boolean));
+  for (const id of ids) for (const e of envByRec.get(id) || []) seen.set(e.seq ?? JSON.stringify(e), e);
+  for (const r of D.records) { /* parent_turns based lookup is done lazily below */ break; }
+  for (const id of t.derived_record_ids || []) { const r = recOf(id); if (r && r.envelope && r.envelope.occ != null) for (const e of envByOcc.get(r.envelope.occ) || []) seen.set(e.seq ?? JSON.stringify(e), e); }
+  for (const w of t.window_ids || []) for (const e of envByWin.get(w) || []) if (e.status === 'dropped') seen.set(e.seq ?? JSON.stringify(e), e);
+  return [...seen.values()];
+}
+function renderTurn(t) {
+  const ids = [t.record_id, ...(t.derived_record_ids || [])].filter(Boolean);
+  const links = ids.flatMap(i => [...(linksOut.get(i) || []), ...(linksIn.get(i) || [])]);
+  const sl = ids.flatMap(i => sleepByRec.get(i) || []);
+  const envs = envsOfTurn(t);
+  const dropped = envs.filter(e => e.status === 'dropped');
+  const fw = t.firewall || {};
+  const ix = t.indexed || {};
+  const row = el('div', { class: 'turn', id: 't-' + t.turn_id.replace(/[^\w]/g, '_'), tabindex: '-1' });
+  row.append(el('div', { class: 'hd' }, el('span', { class: 'tid' }, t.turn_id), el('span', { class: 'spk' }, t.speaker || ''), el('span', null, txt(t.text))));
+  const strip = el('div');
+  strip.append(
+    chip(t.record_id ? 'stored ' + t.record_id : 'not stored', t.record_id ? '' : 'drop', () => el('div', null, kv({ record_id: t.record_id, stored_text: t.index_text, text_identical: t.text_identical, stamp: t.stamp, role: t.role, route: t.route, deposit_action: t.deposit_action }))),
+    chip('firewall ' + (fw.quarantined ? 'QUARANTINED' : 'ok'), fw.quarantined ? 'drop' : '', () => kv(fw)),
+    chip('indexed ' + [ix.vector ? 'v' : '', ix.lexical ? 'l' : '', ix.graph_node ? 'g' : ''].join('') , (ix.vector || ix.lexical) ? '' : 'none', () => kv(ix)),
+    chip('windows ' + (t.window_ids || []).length, (t.window_ids || []).length ? '' : 'none', () => el('div', null, (t.window_ids || []).map(w => link(w, 'window/' + encodeURIComponent(w))))),
+    chip('envelopes ' + envs.length + (dropped.length ? ' (' + dropped.length + ' dropped)' : ''), dropped.length ? 'drop' : (envs.length ? '' : 'none'), () => table(['occ', 'stage', 'status', 'reason'], envs.map(e => [fmt(e.occ), e.stage, e.status, fmt(e.reason)]))),
+    chip('deposited ' + (t.derived_record_ids || []).length, (t.derived_record_ids || []).length ? '' : 'none', () => el('div', null, (t.derived_record_ids || []).map(i => el('div', null, recL(i), ' ', (recOf(i) || {}).content || '')), kv({ deposit: t.deposit }))),
+    chip('links ' + links.length, links.length ? '' : 'none', () => table(['kind', 'src', 'rel', 'dst', 'by'], links.map(l => [l.kind, recL(l.src), l.rel, recL(l.dst), l.created_by]))),
+    chip('sleep ' + sl.length, sl.length ? '' : 'none', () => table(['stage', 'cycle', 'session', 'in', 'out'], sl.map(s => [s.stage, fmt(s.cycle), s.session_key, (s.input_ids || []).length, (s.output_ids || []).join(', ')]))));
+  row.append(strip);
+  return row;
+}
+function viewConversation(arg) {
+  const v = $('#view-conversation'); v.textContent = '';
+  const ts = D.turns.filter(t => t.item === curItem);
+  if (!ts.length) { v.append(el('p', { class: 'mut' }, 'No turns in this bundle for this item.')); return; }
+  let q = '';
+  const sessions = [...new Set(ts.map(t => t.session))];
+  const host = el('div');
+  const draw = () => {
+    host.textContent = '';
+    sessions.forEach((s, si) => {
+      const st = ts.filter(t => t.session === s && (!q || (t.text || '').toLowerCase().includes(q) || t.turn_id.toLowerCase().includes(q)));
+      if (!st.length) return;
+      const wantOpen = (arg && arg[1] && st.some(t => t.turn_id === arg[1])) || si === 0 || !!q;
+      const d = el('details', { class: 'card' }, el('summary', null, s + ' · ' + (st[0].ts || '') + ' · ' + st.length + ' turns'));
+      const body = el('div'); d.append(body);
+      let done = false;
+      const fill = () => {
+        if (done) return; done = true;
+        const CH = 60; let n = 0;
+        const more = el('button', { onclick: () => next() }, 'more');
+        const next = () => { st.slice(n, n + CH).forEach(t => body.insertBefore(renderTurn(t), more)); n += CH; if (n >= st.length) more.remove(); };
+        body.append(more); next();
+      };
+      d.addEventListener('toggle', () => { if (d.open) fill(); });
+      if (wantOpen) { d.open = true; fill(); }
+      host.append(d);
+    });
+  };
+  v.append(pageHead('Conversation ' + curItem + ' (' + ts.length + ' turns)', filterBox(x => { q = x; draw(); })), host);
+  draw();
+  if (arg && arg[1]) { const e = document.getElementById('t-' + arg[1].replace(/[^\w]/g, '_')); if (e) { e.scrollIntoView({ block: 'center' }); e.style.outline = '2px solid var(--acc)'; } }
+}
+
+// ---------------------------------------------------------------- 2 window
+function viewWindow(arg) {
+  const v = $('#view-window'); v.textContent = '';
+  const ws = D.windows.filter(w => !w.item || w.item === curItem);
+  if (!ws.length) { v.append(pageHead('Window'), el('p', { class: 'mut' }, 'No extraction windows in this bundle (a verbatim reference arm has none, or the tap was not recorded).')); return; }
+  const w = winById.get(arg && arg[0]) || ws[0];
+  v.append(pageHead('Window', picker('window', ws.map(x => ({ value: x.window_id, label: x.window_id + ' · ' + (x.member_turns || []).length + ' turns' })), w.window_id, id => { location.hash = 'window/' + encodeURIComponent(id); })));
+  const c = w.call || {};
+  v.append(el('div', { class: 'card' }, kv({ session: w.session, cut_reason: w.cut_reason, prepass: w.prepass, prompt: w.prompt, model: c.model, cached: c.cached, tokens: c.tokens, ms: c.ms, sections: w.sections, items: w.items })));
+  v.append(el('div', { class: 'card' }, el('b', null, 'Members '), (w.member_turns || []).map(t => [turnL(w.item || curItem, t), ' ']),
+    (w.member_turns || []).map(t => { const tt = byTurn.get(turnKey(w.item || curItem, t)); return tt ? el('div', null, el('span', { class: 'tid' }, t + ' '), el('span', { class: 'spk' }, (tt.speaker || '') + ': '), txt(tt.text)) : null; })));
+  v.append(el('details', { class: 'card' }, el('summary', null, 'Rendered prompt'), el('pre', null, txt(c.prompt_text))), el('details', { class: 'card' }, el('summary', null, 'Raw reply'), el('pre', null, txt(c.reply_text))));
+  const envs = envByWin.get(w.window_id) || [];
+  const occs = [...new Set(envs.map(e => e.occ))];
+  const stages = [...new Set(envs.map(e => String(e.stage)))].sort((a, b) => stageNum(a) - stageNum(b));
+  const rows = occs.map(o => {
+    const es = envs.filter(e => e.occ === o);
+    const rid = (es.find(e => e.record_id) || {}).record_id;
+    return [fmt(o), ...stages.map(s => { const e = es.find(x => String(x.stage) === s); return e ? el('td', { class: e.status, title: [e.reason, (e.fields_changed || []).join(',')].filter(Boolean).join(' | ') }, e.status + (e.reason ? ' · ' + e.reason : '')) : el('td', { class: 'mut' }, '·'); }), rid ? recL(rid) : el('span', { class: 'bad' }, 'not deposited')];
+  });
+  v.append(el('div', { class: 'card' }, el('b', null, 'Envelope journey (compile, 100..500, deposit)'), envs.length ? table(['occ', ...stages, 'record'], rows) : el('p', { class: 'mut' }, 'no envelope events')));
+}
+const stageNum = (s) => s === 'compile' ? -1 : s === 'deposit' ? 9999 : (parseInt(s, 10) || 0);
+
+// ---------------------------------------------------------------- 3 record & links
+function neighbourhood(id) {
+  const nodes = new Map(); const edges = [];
+  const add = (nid, kind) => { if (!nodes.has(nid)) nodes.set(nid, { id: nid, kind, x: 0, y: 0, vx: 0, vy: 0 }); };
+  add(id, 'center');
+  const r0 = recOf(id);
+  for (const p of (r0 && r0.parents) || []) { add(p, 'parent'); edges.push([p, id, 'parent']); }
+  if (r0 && r0.evolve_to) { add(r0.evolve_to, 'supersede'); edges.push([id, r0.evolve_to, 'evolve_to']); }
+  for (const l of linksOut.get(id) || []) { add(l.dst, l.rel === 'supersede' ? 'supersede' : (l.kind === 'graph' || l.kind === 'mentions') ? 'graph' : 'child'); edges.push([id, l.dst, l.rel || l.kind]); }
+  for (const l of linksIn.get(id) || []) { add(l.src, l.rel === 'supersede' ? 'supersede' : (l.kind === 'graph' || l.kind === 'mentions') ? 'graph' : 'parent'); edges.push([l.src, id, l.rel || l.kind]); }
+  for (const [rid, rs] of recs) { if (rs.some(r => (r.parents || []).includes(id) || r.evolve_to === id) && nodes.size < 40) { add(rid, 'child'); edges.push([id, rid, 'derived']); } }
+  return { nodes: [...nodes.values()].slice(0, 40), edges };
+}
+function forceSvg(id) {
+  const { nodes, edges } = neighbourhood(id);
+  const W = 640, H = 380; const idx = new Map(nodes.map(n => [n.id, n]));
+  nodes.forEach((n, i) => { const a = i * 2.4; n.x = W / 2 + Math.cos(a) * 60 * (i ? 1 : 0); n.y = H / 2 + Math.sin(a) * 60 * (i ? 1 : 0); });
+  const es = edges.filter(e => idx.has(e[0]) && idx.has(e[1]));
+  for (let it = 0; it < 260; it++) {
+    for (const a of nodes) for (const b of nodes) { if (a === b) continue; let dx = a.x - b.x, dy = a.y - b.y, d2 = dx * dx + dy * dy + 0.01, f = 2600 / d2, d = Math.sqrt(d2); a.vx += dx / d * f; a.vy += dy / d * f; }
+    for (const [s, t] of es) { const a = idx.get(s), b = idx.get(t); const dx = b.x - a.x, dy = b.y - a.y, d = Math.sqrt(dx * dx + dy * dy) + 0.01, f = (d - 90) * 0.02; a.vx += dx / d * f; a.vy += dy / d * f; b.vx -= dx / d * f; b.vy -= dy / d * f; }
+    for (const n of nodes) { n.vx += (W / 2 - n.x) * 0.002; n.vy += (H / 2 - n.y) * 0.002; n.x = Math.min(W - 30, Math.max(30, n.x + n.vx * 0.5)); n.y = Math.min(H - 14, Math.max(14, n.y + n.vy * 0.5)); n.vx *= 0.6; n.vy *= 0.6; }
+  }
+  const NS = 'http://www.w3.org/2000/svg';
+  const mk = (t, a) => { const e = document.createElementNS(NS, t); for (const [k, v] of Object.entries(a || {})) e.setAttribute(k, v); return e; };
+  const svg = mk('svg', { viewBox: `0 0 ${W} ${H}`, width: '100%', role: 'img', 'aria-label': 'record neighbourhood' });
+  const col = { center: 'var(--acc)', parent: 'var(--ok)', child: 'var(--warn)', graph: 'var(--mut)', supersede: 'var(--bad)' };
+  for (const [s, t, rel] of es) { const a = idx.get(s), b = idx.get(t); svg.append(mk('line', { x1: a.x, y1: a.y, x2: b.x, y2: b.y, stroke: 'var(--line)', 'stroke-width': 1.5 })); const tx = mk('text', { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2, 'text-anchor': 'middle' }); tx.textContent = rel; tx.style.opacity = .6; svg.append(tx); }
+  for (const n of nodes) { const g = mk('g', { class: 'n', tabindex: '0', role: 'link' }); g.append(mk('circle', { cx: n.x, cy: n.y, r: n.kind === 'center' ? 9 : 6, fill: col[n.kind] })); const t = mk('text', { x: n.x + 9, y: n.y + 4 }); t.textContent = n.id; g.append(t); const go = () => { location.hash = 'record/' + encodeURIComponent(n.id); }; g.addEventListener('click', go); g.addEventListener('keydown', e => { if (e.key === 'Enter') go(); }); svg.append(g); }
+  return svg;
+}
+function viewRecord(arg) {
+  const v = $('#view-record'); v.textContent = '';
+  const ids = [...recs.keys()].filter(i => { const r = recOf(i); return !r.item || r.item === curItem; });
+  if (!ids.length) { v.append(pageHead('Record & links'), el('p', { class: 'mut' }, 'No records in this bundle.')); return; }
+  const id = arg && arg[0] && recs.has(arg[0]) ? arg[0] : ids[0];
+  const sel = el('select', { 'aria-label': 'record' }, ids.slice(0, 3000).map(i => el('option', { value: i, selected: i === id }, i + ' · ' + String((recOf(i).content || '')).slice(0, 50))));
+  sel.addEventListener('change', () => { location.hash = 'record/' + encodeURIComponent(sel.value); });
+  v.append(pageHead('Record & links', sel));
+  const hist = recs.get(id);
+  const r = recOf(id);
+  v.append(el('div', { class: 'card' }, el('b', null, 'Snapshots'), hist.map(h => el('div', { class: 'detail' }, el('b', null, h.phase), kv({ memory_type: h.memory_type, layer: h.layer, channel: h.channel, content: txt(h.content), tags: h.tags, entity: h.entity, attribute: h.attribute, value: h.value, status: h.status, valid_from: h.valid_from, valid_to: h.valid_to, evolve_to: h.evolve_to, trust: h.trust, parents: h.parents, parent_turns: h.parent_turns, envelope: h.envelope })))));
+  v.append(el('div', { class: 'card' }, el('b', null, 'Neighbourhood '), el('span', { class: 'mut' }, 'center blue · parents green · children amber · graph grey · supersede red'), forceSvg(id)));
+  // supersede chain
+  const chain = [id]; let cur = r, guard = 0;
+  while (cur && cur.evolve_to && guard++ < 20) { chain.push(cur.evolve_to); cur = recOf(cur.evolve_to); }
+  let back = r; guard = 0; const pre = [];
+  const prev = (x) => (linksIn.get(x) || []).find(l => l.rel === 'supersede');
+  for (let p = prev(id); p && guard++ < 20; p = prev(p.src)) pre.unshift(p.src);
+  const full = [...pre, ...chain.filter(x => x !== id || true)];
+  v.append(el('div', { class: 'card' }, el('b', null, 'Supersede chain / value history'), table(['record', 'status', 'valid_from', 'valid_to', 'content'], [...new Set(full)].map(x => { const rr = recOf(x) || {}; return [recL(x), fmt(rr.status), fmt(rr.valid_from), fmt(rr.valid_to), txt(rr.content)]; }))));
+  const ts = (r.parent_turns || []).concat(turnOfRec.has(id) ? [turnOfRec.get(id).turn_id] : []);
+  v.append(el('div', { class: 'card' }, el('b', null, 'Source turns '), [...new Set(ts)].map(t => [turnL(r.item || curItem, t), ' ']), el('div', null, el('b', null, 'Envelope events'), table(['occ', 'stage', 'status', 'reason'], (envByRec.get(id) || (r.envelope && envByOcc.get(r.envelope.occ)) || []).map(e => [fmt(e.occ), e.stage, e.status, fmt(e.reason)]))), el('div', null, el('b', null, 'Sleep items'), table(['stage', 'cycle', 'session', 'marker'], (sleepByRec.get(id) || []).map(s => [s.stage, fmt(s.cycle), s.session_key, fmt(s.marker)])))));
+  const allL = [...(linksOut.get(id) || []), ...(linksIn.get(id) || [])];
+  v.append(el('div', { class: 'card' }, el('b', null, 'Links (' + allL.length + ')'), table(['kind', 'src', 'rel', 'dst', 'by', 'phase'], allL.map(l => [l.kind, recL(l.src), l.rel, recL(l.dst), fmt(l.created_by), fmt(l.phase)]))));
+}
+
+// ---------------------------------------------------------------- 4 question
+function viewQuestion(arg) {
+  const v = $('#view-question'); v.textContent = '';
+  const qs = D.questions.filter(q => q.item === curItem);
+  if (!qs.length) { v.append(pageHead('Question'), el('p', { class: 'mut' }, 'No questions.')); return; }
+  const q = qByKey.get(curItem + '|' + (arg && arg[0])) || qs[0];
+  const sel = picker('question', qs.map(x => ({ value: x.query_id, label: (x.correct ? '✓ ' : '✗ ') + x.query_id + ' ' + (x.category || '') + ' · ' + String(x.question || '').slice(0, 60) })), q.query_id, id => { location.hash = 'question/' + encodeURIComponent(id); });
+  v.append(pageHead('Question', sel));
+  const gold = new Set(q.gold_turns || []);
+  v.append(el('div', { class: 'card' }, el('div', null, el('span', { class: 'badge ' + (q.correct ? 'ok' : 'bad') }, q.correct ? 'correct' : 'wrong'), ' ', el('span', { class: 'badge' }, q.category || ''), ' ', q.first_losing_stage ? el('span', { class: 'badge bad' }, 'first losing stage: ' + q.first_losing_stage) : null), el('p', null, el('b', null, 'Q: '), txt(q.question)), el('p', null, el('b', null, 'Gold: '), txt(q.gold), ' · turns ', [...gold].map(t => [turnL(q.item, t), ' ']))));
+  // funnel
+  const mx = Math.max(1, ...(q.funnel || []).map(f => f.n));
+  v.append(el('div', { class: 'card' }, el('b', null, 'Candidate funnel (gold survival)'), (q.funnel || []).length ? table(['stage', 'candidates', '', 'gold present'], q.funnel.map(f => [f.stage, f.n, el('td', null, el('div', { class: 'bar', style: `width:${Math.round(f.n / mx * 100)}%` })), el('td', { class: f.gold_present < f.gold_total ? 'bad' : 'ok' }, f.gold_present + ' / ' + f.gold_total)])) : el('p', { class: 'mut' }, 'no stage log for this question (results-level attribution only)')));
+  v.append(el('div', { class: 'card' }, el('b', null, 'Gold path'), table(['turn', 'last stage reached', 'lost at', 'rescued from', 'in context'], (q.gold_path || []).map(g => [turnL(q.item, g.turn), g.last_stage_reached, fmt(g.lost_at), fmt(g.rescued_from), g.in_context ? 'yes' : 'no']))));
+  const sec = (title, ...body) => el('details', { class: 'card', open: true }, el('summary', null, title), body);
+  v.append(sec('1 Plan', kv({ contract: q.plan && q.plan.contract, tier: q.plan && q.plan.tier, route: q.plan && q.plan.route, list_mode: q.plan && q.plan.list_mode, decompose: q.plan && q.plan.decompose, flags: q.plan && q.plan.flags, perspective: q.plan && q.plan.perspective, planner_io: q.plan && q.plan.planner_io })));
+  v.append(sec('2 Legs', Object.entries(q.legs || {}).map(([n, l]) => el('div', null, el('b', null, n + ' (' + l.length + ') '), cands(l, gold)))));
+  v.append(sec('3 Fusion', cands(q.fused, gold), q.date_prior ? kv({ date_prior: q.date_prior }) : null, q.protected ? kv({ protected: q.protected }) : null));
+  v.append(sec('4 Cuts', (q.cuts || []).length ? table(['rid', 'turn', 'reason', 'stage', 'keep'], q.cuts.map(c => [recL(c.rid), fmt(c.turn), c.reason, c.stage, fmt(c.keep)])) : el('span', { class: 'mut' }, 'none'), q.gate ? kv({ gate: q.gate }) : null));
+  v.append(sec('5 Pool', cands(q.pool, gold)));
+  v.append(sec('6 Rerank (' + (q.reranker || 'none') + ')', (q.rerank || []).length ? table(['rank', 'turn', 'raw', 'rel', 'rec', 'imp', 'trust'], q.rerank.map(r => { const c = r.composite || {}; return [fmt(r.rank), el('td', { class: gold.has(r.turn) ? 'warn' : '' }, (gold.has(r.turn) ? '★ ' : '') + r.turn), fmt(r.raw), fmt(c.rel), fmt(c.rec), fmt(c.imp), fmt(c.trust)]; })) : el('span', { class: 'mut' }, 'no rerank'), el('div', null, el('b', null, 'final '), cands(q.final, gold))));
+  v.append(sec('7 Headers & pack', (q.headers || []).length ? table(['rid', 'kind', 'source ids'], q.headers.map(h => [recL(h.rid), h.kind, (h.source_ids || []).join(', ')])) : el('span', { class: 'mut' }, 'no headers'), table(['rid', 'turn', 'tokens', 'reason'], (q.packed || []).map(p => [recL(p.rid), el('td', { class: gold.has(p.turn) ? 'warn' : '' }, (gold.has(p.turn) ? '★ ' : '') + p.turn), fmt(p.tokens), p.reason])), kv({ assembled: q.assembled })));
+  v.append(sec('8 Window expansion', (q.window_added || []).length ? el('div', null, q.window_added.map(t => el('span', { class: 'cand' + (gold.has(t) ? ' gold' : '') }, t))) : el('span', { class: 'mut' }, 'nothing added by neighbour expansion'), q.deep ? kv({ deep: q.deep }) : null));
+  v.append(sec('9 Context (' + (q.context_tokens ?? '?') + ' tokens)', el('pre', null, txt(q.context_text))));
+  const rd = q.reader || {};
+  v.append(sec('10 Reader', el('details', null, el('summary', null, 'prompt'), el('pre', null, txt(rd.prompt))), el('div', null, el('b', null, 'answer: '), txt(q.answer)), q.retry ? kv({ retry: q.retry }) : null, (rd.calls || []).length > 1 ? el('div', { class: 'mut' }, (rd.calls || []).length + ' reader calls') : null));
+  v.append(sec('11 Judge', kv({ score: q.judge && q.judge.score, raw: q.judge && q.judge.raw, conventions: q.judge && q.judge.conventions })));
+}
+
+// ---------------------------------------------------------------- 5 compare
+function viewCompare() {
+  const v = $('#view-compare'); v.textContent = '';
+  const C = D.compare;
+  if (!C) { v.append(pageHead('Compare'), el('p', { class: 'mut' }, 'This bundle has no comparison. Build with --compare <run2> to align two runs by turn_id and query_id.')); return; }
+  v.append(pageHead('Compare ' + C.a + ' (A) vs ' + C.b + ' (B)'));
+  v.append(el('div', { class: 'card' }, kv(Object.assign({ turns: C.summary.turns, turns_differing: C.summary.turns_differing }, C.summary.questions))));
+  let f = 'all';
+  const host = el('div');
+  const draw = () => {
+    host.textContent = '';
+    const rows = C.questions.filter(q => q.item === curItem && (f === 'all' || q.delta === f || (f === 'stage' && q.stage_changed)));
+    host.append(table(['question', 'cat', 'A', 'B', 'delta', 'A first loss', 'B first loss', 'gold survival A → B (final / context)'], rows.map(q => {
+      const sv = (x) => x && x.survival ? (x.survival.final ?? '-') + '/' + (x.survival.context ?? '-') : '-';
+      return [link(q.query_id + ' ' + String(q.question || '').slice(0, 50), 'question/' + encodeURIComponent(q.query_id)), fmt(q.category), q.a ? (q.a.correct ? '✓' : '✗') : '-', q.b ? (q.b.correct ? '✓' : '✗') : '-', el('td', { class: q.delta === 'fixed' ? 'ok' : q.delta === 'regressed' ? 'bad' : '' }, q.delta), fmt(q.a && q.a.first_losing_stage), fmt(q.b && q.b.first_losing_stage), sv(q.a) + ' → ' + sv(q.b)];
+    })));
+    const ts = C.turns.filter(t => t.item === curItem && t.differs.length);
+    host.append(el('details', { class: 'card' }, el('summary', null, 'Turns that differ (' + ts.length + ')'), table(['turn', 'differs', 'A', 'B'], ts.slice(0, 400).map(t => [turnL(t.item, t.turn_id), t.differs.join(', '), fmt(t.a), fmt(t.b)]))));
+  };
+  v.append(el('div', { class: 'row' }, el('label', null, 'show ', picker('filter', ['all', 'fixed', 'regressed', 'both_right', 'both_wrong', 'stage'].map(x => ({ value: x, label: x })), 'all', x => { f = x; draw(); }))), host);
+  draw();
+}
+
+// ---------------------------------------------------------------- 6 checks
+function viewChecks() {
+  const v = $('#view-checks'); v.textContent = '';
+  const cs = D.checks || [];
+  if (!cs.length) { v.append(pageHead('Checks'), el('p', { class: 'mut' }, 'No checks.jsonl in this bundle (written by the TI-6 invariants run).')); return; }
+  let q = '', only = 'fail';
+  const host = el('div');
+  const isFail = (c) => c.ok === false || c.status === 'fail';
+  const target = (c) => {
+    const it = c.item || curItem;
+    if (c.scope === 'turn') return turnL(it, c.id);
+    if (c.scope === 'window') return link(c.id, 'window/' + encodeURIComponent(c.id));
+    if (c.scope === 'record') return recL(c.id);
+    if (c.scope === 'question') return link(c.id, 'question/' + encodeURIComponent(c.id));
+    if (c.scope === 'envelope') { const e = D.envelopes.find(x => String(x.occ) === String(c.id)); return e ? link('occ ' + c.id, 'window/' + encodeURIComponent(e.window_id)) : fmt(c.id); }
+    return fmt(c.id);
+  };
+  const draw = () => {
+    host.textContent = '';
+    const rows = cs.filter(c => (only === 'all' || (only === 'fail') === isFail(c)) && (!q || JSON.stringify(c).toLowerCase().includes(q)));
+    host.append(el('p', { class: 'mut' }, rows.length + ' of ' + cs.length + ' · failing: ' + cs.filter(isFail).length), table(['check', 'scope', 'item', 'target', 'level', 'status', 'ok', 'detail'], rows.slice(0, 1000).map(c => [c.check_id, c.scope, fmt(c.item), target(c), fmt(c.level), fmt(c.status), el('td', { class: isFail(c) ? 'bad' : 'ok' }, isFail(c) ? 'FAIL' : 'ok'), fmt(c.detail)])));
+  };
+  v.append(el('div', { class: 'row' }, el('h2', { style: 'margin:4px 0' }, 'Checks'), picker('which', [{ value: 'fail', label: 'failing' }, { value: 'pass', label: 'passing' }, { value: 'all', label: 'all' }], 'fail', x => { only = x; draw(); }), filterBox(x => { q = x; draw(); })), host);
+  draw();
+}
+
+// ---------------------------------------------------------------- router
+const VIEWS = { conversation: viewConversation, window: viewWindow, record: viewRecord, question: viewQuestion, compare: viewCompare, checks: viewChecks };
+const ORDER = Object.keys(VIEWS);
+function route() {
+  const parts = decodeURIComponent(location.hash.slice(1)).split('/');
+  let name = ORDER.includes(parts[0]) ? parts[0] : 'conversation';
+  let arg = parts.slice(1);
+  if (name === 'conversation' && arg.length === 2) { curItem = arg[0]; arg = [arg[0], arg[1]]; }
+  else if (name === 'conversation') arg = [curItem, arg[0]];
+  $('#item').value = curItem;
+  document.querySelectorAll('section.view').forEach(s => s.classList.toggle('on', s.id === 'view-' + name));
+  document.querySelectorAll('#tabs a').forEach(a => a.classList.toggle('on', a.dataset.v === name));
+  VIEWS[name](arg);
+  window.scrollTo(0, 0);
+  if (name === 'conversation' && arg[1]) { const e = document.getElementById('t-' + arg[1].replace(/[^\w]/g, '_')); if (e) e.scrollIntoView({ block: 'center' }); }
+}
+$('#item').append(...items.map(i => el('option', { value: i }, i)));
+$('#item').addEventListener('change', e => { curItem = e.target.value; route(); });
+window.addEventListener('hashchange', route);
+const th = $('#theme');
+th.addEventListener('click', () => { const r = document.documentElement; const cur = r.dataset.theme; r.dataset.theme = cur === 'dark' ? 'light' : 'dark'; });
+document.addEventListener('keydown', e => {
+  if (e.target.matches('input,select,textarea')) { if (e.key === 'Escape') e.target.blur(); return; }
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  const n = parseInt(e.key, 10);
+  if (n >= 1 && n <= 6) { location.hash = ORDER[n - 1]; return; }
+  if (e.key === 't') { th.click(); return; }
+  if (e.key === '/') { const f = document.querySelector('.view.on [data-filter]'); if (f) { e.preventDefault(); f.focus(); } return; }
+  if (e.key === 'j' || e.key === 'k') {
+    const els = [...document.querySelectorAll('.view.on .turn, .view.on [data-nav]')].filter(x => x.offsetParent);
+    const i = els.indexOf(document.activeElement.closest('.turn') || document.activeElement);
+    const nx = els[Math.max(0, Math.min(els.length - 1, i + (e.key === 'j' ? 1 : -1)))];
+    if (nx) { if (!nx.hasAttribute('tabindex') && nx.tagName !== 'A') nx.setAttribute('tabindex', '-1'); nx.focus(); nx.scrollIntoView({ block: 'nearest' }); }
+  }
+});
+route();
+</script>
+</body>
+</html>
