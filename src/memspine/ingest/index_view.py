@@ -23,8 +23,10 @@ from datetime import date, datetime, timedelta
 __all__ = [
     "PENDING_INDEX_PREFIX",
     "build_index_prefix",
+    "carries_previous",
     "compose_index_text",
     "elliptical_score",
+    "is_phatic",
     "plan_prefixes",
     "resolve_relative",
 ]
@@ -184,6 +186,19 @@ _ELLIPTICAL_STARTS = frozenset(
         "both",
     ]
 )
+#: words that make a reply point back at the previous turn (a pronoun, a deictic, an assent answer)
+_ANAPHORIC_CUES = frozenset(
+    ["it", "that", "this", "those", "these", "they", "them", "he", "she", "him", "her", "one",
+     "there", "same", "yes", "yeah", "yep", "yup", "no", "nope", "nah", "sure", "exactly",
+     "absolutely", "definitely", "either", "neither", "both"]
+)  # fmt: skip
+#: a reply made only of these answers the previous turn ("yes", "no, that one") and is not phatic
+_ANSWER_WORDS = frozenset(
+    ["yes", "yeah", "yep", "yup", "no", "nope", "nah", "sure", "exactly", "absolutely", "definitely",
+     "right", "true", "agreed", "indeed", "that", "this", "it", "one", "too", "so", "same", "those",
+     "these", "them", "both", "either", "neither", "not", "is", "was", "are", "were", "does", "did"]
+)  # fmt: skip
+_CARRY_MODES = ("anaphoric", "elliptical")
 _PLURALS = {
     "we": "all", "us": "all", "our": "all", "ours": "all", "ourselves": "all",
     "they": "others", "them": "others", "their": "others",
@@ -307,6 +322,41 @@ def elliptical_score(text: str, *, max_words: int = 8) -> int:
     return score
 
 
+def is_phatic(text: str) -> bool:
+    """True for a turn that only keeps the conversation going: greeting, thanks, acknowledgement,
+    laughter, emoji or punctuation only, or a closed-vocabulary pleasantry ("that sounds lovely").
+    A bare answer ("yes", "no, that one") is NOT phatic: it points back at the previous turn."""
+    from memspine.derive.prepass import is_filler
+
+    if not is_filler(text):
+        return False
+    words = [w.lower() for w in _words(text)]
+    return not (words and all(w in _ANSWER_WORDS for w in words))
+
+
+def carries_previous(
+    text: str, *, mode: str = "anaphoric", max_words: int = 8, threshold: int = 2
+) -> bool:
+    """Whether a turn inherits the content words of the turn before it.
+
+    ``"elliptical"``: the old rule, ``elliptical_score >= threshold`` (shortness alone can
+    trigger it). ``"anaphoric"``: a phatic turn never carries; otherwise the turn must be short,
+    must point back (a pronoun / deictic / assent word opens it or sits in its first three words)
+    and must carry no content word of its own (fewer than two, no name after the first word),
+    so a short remark with its own subject ("that sounds lovely, do you have a teacher?") is left
+    alone."""
+    if mode == "elliptical":
+        return elliptical_score(text, max_words=max_words) >= threshold
+    words = _words(text)
+    if not words or len(words) > max_words or is_phatic(text):
+        return False
+    if not any(w.lower() in _ANAPHORIC_CUES for w in words[:3]):
+        return False
+    if len(_content_words(text)) >= 2:
+        return False
+    return not [w for w in words[1:] if w[:1].isupper()]
+
+
 def _unique(words: Sequence[str]) -> list[str]:
     seen: set[str] = set()
     out: list[str] = []
@@ -329,6 +379,7 @@ def build_index_prefix(
     max_extra_tokens: int = 48,
     elliptical_threshold: int = 2,
     elliptical_max_words: int = 8,
+    carry: str = "anaphoric",
 ) -> str:
     """The words prepended to a turn's content to form its index text ("" when there is nothing to
     add). ``stamp`` is the turn's own event time (None: no date tokens). The result is cut to
@@ -351,9 +402,8 @@ def build_index_prefix(
         if names:
             head.append("with " + " ".join(_unique(names)))
     tail: list[str] = []
-    if (
-        prev_content
-        and elliptical_score(content, max_words=elliptical_max_words) >= elliptical_threshold
+    if prev_content and carries_previous(
+        content, mode=carry, max_words=elliptical_max_words, threshold=elliptical_threshold
     ):
         words = _unique(_content_words(prev_content))
         if prev_speaker and prev_speaker.strip().lower() != speaker.strip().lower():
@@ -381,6 +431,7 @@ def plan_prefixes(
     max_extra_tokens: int,
     elliptical_threshold: int,
     elliptical_max_words: int,
+    carry: str = "anaphoric",
 ) -> list[str]:
     """One prefix per turn of a call, aligned with ``turns``. The previous turn is the previous
     one in the call (any role), so a reply sees what it answers."""
@@ -406,6 +457,7 @@ def plan_prefixes(
                 max_extra_tokens=max_extra_tokens,
                 elliptical_threshold=elliptical_threshold,
                 elliptical_max_words=elliptical_max_words,
+                carry=carry,
             )
         )
         prev_content, prev_speaker = content, speaker

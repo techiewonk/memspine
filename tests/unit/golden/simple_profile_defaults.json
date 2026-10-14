@@ -416,6 +416,7 @@
       "ground_adjudicator": "lexical",
       "grounding_v2": false,
       "index_view": false,
+      "index_view_carry": "anaphoric",
       "index_view_elliptical_max_words": 8,
       "index_view_elliptical_threshold": 2,
       "index_view_max_extra_tokens": 48,

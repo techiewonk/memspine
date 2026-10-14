@@ -91,6 +91,7 @@ SCREEN_OVERRIDES: dict[str, tuple[str, ...]] = {
     "S74": ("fail_reader",),  # read.inference_mode=gated_v2 (widened shape); cat-5 row is CAT5_SCREENS
     "S77": ("fail_list", MIX), "S79": ("fail_list", MIX),
     "S82": ("fail_fusion", MIX), "S87": ("fail_temporal", MIX), "S69": ("fail_retrieval", MIX),
+    "S70": ("fail_retrieval", MIX),  # R14-IVFIX: S69 with the anaphoric carry rule
 }
 # S20-CAT5: screens whose arm gates or abstains on irrelevant evidence also run on the LoCoMo category-5 (adversarial)
 # slices of make_cat5_slice.py. The row carries a sixth column ``categories=5`` that the queue turns into ``--categories 5``
