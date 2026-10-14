@@ -1,0 +1,806 @@
+{
+ "_doc": "Hand-curated overrides for scripts/build_stage_params.py. set_key_stages REPLACES the scan result for matching keys (fnmatch patterns, applied in order, later wins); key_to_stages adds; remove_key_stage removes a stage from a key unless it is the key's last stage; cross_cutting keys are listed as unattributed with the reason (read by every stage or at engine start); unattributed gives reasons for keys the scan cannot place. prompt_to_stages: first matching pattern (on the prompt id) wins; extra_prompts lists prompts defined in code, not in prompts/defaults.",
+ "set_key_stages": {
+  "write.window_*": [
+   "A15"
+  ],
+  "write.window_split": [
+   "A19"
+  ],
+  "write.window_cache": [
+   "A19"
+  ],
+  "write.window_extract": [
+   "A19",
+   "A22",
+   "A23",
+   "A26"
+  ],
+  "write.segment*": [
+   "A15"
+  ],
+  "write.batch_max_*": [
+   "A15",
+   "A19"
+  ],
+  "write.prompt_v2": [
+   "A18",
+   "A19"
+  ],
+  "write.prompt_schema": [
+   "A19"
+  ],
+  "write.prompt_context_turns": [
+   "A18"
+  ],
+  "write.prompt_known_cap": [
+   "A18"
+  ],
+  "write.prepass": [
+   "A17",
+   "A21f"
+  ],
+  "write.learned_persist": [
+   "A17",
+   "A21d"
+  ],
+  "write.online_extractor_v2": [
+   "A19"
+  ],
+  "write.envelope_v2": [
+   "A20",
+   "A21"
+  ],
+  "write.temporal_v2": [
+   "A21a"
+  ],
+  "write.ground*": [
+   "A21b"
+  ],
+  "write.coverage_*": [
+   "A21c"
+  ],
+  "write.coverage_v2": [
+   "A21c"
+  ],
+  "write.resolve*": [
+   "A21d"
+  ],
+  "write.integration_*": [
+   "A21e"
+  ],
+  "write.lineage_table": [
+   "A24"
+  ],
+  "write.inferred*": [
+   "A24"
+  ],
+  "write.participants": [
+   "A7"
+  ],
+  "write.sensitivity": [
+   "A11"
+  ],
+  "write.stamp*": [
+   "A7"
+  ],
+  "write.role_policy_v2": [
+   "A6"
+  ],
+  "write.echo_threshold": [
+   "A6"
+  ],
+  "write.intake_v2": [
+   "A2"
+  ],
+  "write.index_view*": [
+   "A9"
+  ],
+  "write.asset*": [
+   "A8"
+  ],
+  "ingest.asset*": [
+   "A8"
+  ],
+  "write.feedback_*": [
+   "A8"
+  ],
+  "firewall.enabled": [
+   "A11"
+  ],
+  "firewall.max_content_chars": [
+   "A11"
+  ],
+  "firewall.gates_v2": [
+   "A11",
+   "C18"
+  ],
+  "firewall.skip_*": [
+   "A5"
+  ],
+  "firewall.tag_assistant_claims": [
+   "A8"
+  ],
+  "firewall.signals.query_anomaly*": [
+   "C2"
+  ],
+  "workers.outbox": [
+   "A15"
+  ],
+  "storage.*": [
+   "A12"
+  ],
+  "vector.*": [
+   "A13",
+   "C8"
+  ],
+  "embedding.*": [
+   "A13",
+   "C7"
+  ],
+  "embedding.batch_size": [
+   "A4"
+  ],
+  "event_log.mode": [
+   "A12"
+  ],
+  "event_log.compress": [
+   "B16"
+  ],
+  "event_log.retention_days": [
+   "B16"
+  ],
+  "graph.backend": [
+   "A28"
+  ],
+  "graph.provider": [
+   "A28"
+  ],
+  "graph.neo4j_*": [
+   "A28"
+  ],
+  "graph.entity_embeddings": [
+   "B9",
+   "A28"
+  ],
+  "offline.budget_*": [
+   "B17"
+  ],
+  "economy.*": [
+   "B17"
+  ],
+  "offline.communit*": [
+   "B14",
+   "B13"
+  ],
+  "offline.decay_*": [
+   "B16"
+  ],
+  "offline.histories_v2": [
+   "B10"
+  ],
+  "offline.reconcile_v2": [
+   "B10"
+  ],
+  "offline.near_duplicate_text": [
+   "B10"
+  ],
+  "offline.patterns_*": [
+   "B11"
+  ],
+  "offline.standing_*": [
+   "B11"
+  ],
+  "offline.profile_*": [
+   "B8"
+  ],
+  "offline.session_close_*": [
+   "B4"
+  ],
+  "offline.sleep_*": [
+   "B0"
+  ],
+  "offline.sleep_lease_ttl_seconds": [
+   "B1"
+  ],
+  "offline.sleep_v2": [
+   "B1"
+  ],
+  "workers.runner": [
+   "B0"
+  ],
+  "workers.sleep_interval_seconds": [
+   "B0"
+  ],
+  "workers.transport*": [
+   "B0"
+  ],
+  "workers.broker_url": [
+   "B0"
+  ],
+  "workers.dbos_system_database_url": [
+   "B0"
+  ],
+  "retention.*": [
+   "B5"
+  ],
+  "privacy.*": [
+   "B5"
+  ],
+  "decision.*": [
+   "C5"
+  ],
+  "read.rerank*": [
+   "C20"
+  ],
+  "read.skip_rerank_for_ordering": [
+   "C20"
+  ],
+  "read.scoring": [
+   "C20"
+  ],
+  "read.static_prefilter": [
+   "C19"
+  ],
+  "read.static_embedding_prefilter": [
+   "C19"
+  ],
+  "read.rerank_balanced": [
+   "C19"
+  ],
+  "read.decider*": [
+   "C5"
+  ],
+  "read.external*": [
+   "C29"
+  ],
+  "read.assembly": [
+   "C23"
+  ],
+  "read.compression": [
+   "C23"
+  ],
+  "read.cache.*": [
+   "C3"
+  ],
+  "read.hybrid": [
+   "C8",
+   "C9"
+  ],
+  "read.lexical_provider": [
+   "C9",
+   "A13"
+  ],
+  "read.lexical_analyzer": [
+   "C9",
+   "A13"
+  ],
+  "read.exact_budget": [
+   "C23",
+   "C25"
+  ],
+  "read.reader_tokenizer": [
+   "C23",
+   "C25"
+  ],
+  "read.agentic": [
+   "C27"
+  ],
+  "read.event_ledger": [
+   "C27"
+  ],
+  "read.default_mode": [
+   "C5"
+  ],
+  "read.compose_rewrites": [
+   "C26"
+  ],
+  "read.current_state_view": [
+   "C25"
+  ],
+  "read.list_trigger": [
+   "C5"
+  ],
+  "read.timeview_v2": [
+   "C18"
+  ],
+  "read.inference_mode": [
+   "C2",
+   "C32"
+  ],
+  "read.wait_for_pending_s": [
+   "C1"
+  ],
+  "read.render": [
+   "C25"
+  ],
+  "read.inferred_*": [
+   "C18"
+  ],
+  "read.naive_timezone": [
+   "C25"
+  ],
+  "read.reference_edges": [
+   "C24"
+  ],
+  "read.reference_short_words": [
+   "C24"
+  ],
+  "read.session_sequence": [
+   "C24"
+  ],
+  "read.role_aware": [
+   "C11"
+  ],
+  "read.sensitivity_gate": [
+   "C18"
+  ],
+  "read.skip_defaulted_dates": [
+   "C25"
+  ],
+  "read.anticipatory_cues": [
+   "C18"
+  ],
+  "read.lift_before_rerank": [
+   "C19"
+  ],
+  "read.lift_max_turns": [
+   "C19"
+  ],
+  "read.causal_walk": [
+   "C19"
+  ],
+  "read.relevance_filter": [
+   "C19"
+  ],
+  "read.graph_rerank": [
+   "C19"
+  ],
+  "read.mmr_lambda": [
+   "C21"
+  ],
+  "read.coverage_select": [
+   "C21"
+  ],
+  "read.coverage_session_penalty": [
+   "C21"
+  ],
+  "read.record_access": [
+   "C22"
+  ],
+  "read.date_prior": [
+   "C17"
+  ],
+  "read.query_contract": [
+   "C2"
+  ],
+  "read.query_contract_use": [
+   "C2",
+   "C25"
+  ],
+  "read.list_mode": [
+   "C5"
+  ],
+  "read.maxsim_leg": [
+   "C15"
+  ],
+  "read.perspective_leg": [
+   "C11"
+  ],
+  "read.session_leg": [
+   "C14"
+  ],
+  "read.graph_leg": [
+   "C13"
+  ],
+  "read.graph_node_search": [
+   "C13"
+  ],
+  "read.graph_communities": [
+   "C13"
+  ],
+  "read.cohesion_leg": [
+   "C15"
+  ],
+  "read.tiers_v2": [
+   "C2"
+  ],
+  "read.parallel_legs": [
+   "C6"
+  ],
+  "read.legs_v2": [
+   "C6"
+  ],
+  "read.reinjection_*": [
+   "C23"
+  ],
+  "read.perspective_asker": [
+   "C11"
+  ],
+  "read.freshness_v2": [
+   "C15"
+  ],
+  "read.pool_protect_*": [
+   "C17"
+  ],
+  "read.candidate_pool": [
+   "C16"
+  ],
+  "read.rrf_k": [
+   "C16"
+  ],
+  "read.leg_min_scores": [
+   "C16"
+  ],
+  "read.trust_rendering": [
+   "C25"
+  ],
+  "read.entity_check": [
+   "C29"
+  ],
+  "read.owner_check": [
+   "C29"
+  ],
+  "read.user_header": [
+   "C25"
+  ],
+  "integrity.trust_weighted_ranking": [
+   "C20"
+  ],
+  "integrity.claims_only_below": [
+   "C25"
+  ],
+  "integrity.untrusted_wrap_below": [
+   "C25"
+  ],
+  "integrity.derivation_decay": [
+   "A24"
+  ],
+  "integrity.implicit_parents": [
+   "C22"
+  ],
+  "integrity.live_reevaluation": [
+   "C18"
+  ],
+  "integrity.corroboration_roots": [
+   "A14"
+  ],
+  "integrity.principal_bound_corroboration": [
+   "A14"
+  ],
+  "integrity.principal_reputation": [
+   "A14"
+  ],
+  "integrity.verification_bonus": [
+   "A14"
+  ],
+  "integrity.merge_reinforcement_gate": [
+   "A25"
+  ],
+  "integrity.admission_threshold": [
+   "C18"
+  ],
+  "integrity.attenuation": [
+   "C18"
+  ],
+  "integrity.edge_kappa": [
+   "C18"
+  ],
+  "integrity.grant_horizon": [
+   "C18"
+  ],
+  "integrity.horizon_v2": [
+   "C18"
+  ],
+  "integrity.kappa": [
+   "C18"
+  ],
+  "audit.*": [
+   "C30"
+  ],
+  "consent.enforce": [
+   "C30"
+  ],
+  "consent.untagged": [
+   "C30"
+  ],
+  "consent.v2": [
+   "A11",
+   "C30"
+  ],
+  "models.rerank": [
+   "C20"
+  ],
+  "read.contract_rules": [
+   "C2"
+  ],
+  "read.language_guard": [
+   "C2"
+  ],
+  "read.bridge_hop*": [
+   "C6"
+  ],
+  "read.core_terms_leg": [
+   "C15"
+  ],
+  "read.metadata_leg": [
+   "C15"
+  ],
+  "read.sentence_leg": [
+   "C15"
+  ],
+  "read.recency_leg": [
+   "C15"
+  ],
+  "read.view_tag_leg": [
+   "C15"
+  ],
+  "read.subject_leg": [
+   "C15"
+  ],
+  "read.speaker_probe": [
+   "C15"
+  ],
+  "read.person_time_leg_k": [
+   "C15"
+  ],
+  "read.list_vote_*": [
+   "C15"
+  ],
+  "read.speaker_vote_mode": [
+   "C15"
+  ],
+  "read.query_encoder": [
+   "C15"
+  ],
+  "read.entity_leg": [
+   "C12"
+  ],
+  "read.entity_leg_v2": [
+   "C12"
+  ],
+  "read.entity_expand_leg": [
+   "C12"
+  ],
+  "read.graph_depth": [
+   "C13"
+  ],
+  "read.graph_min_trust": [
+   "C13"
+  ],
+  "read.graph_rerank_weight": [
+   "C19"
+  ],
+  "read.leg_weights*": [
+   "C16"
+  ],
+  "read.temporal_*": [
+   "C10"
+  ],
+  "read.lexical_language": [
+   "C9"
+  ],
+  "read.lexical_namespace_languages": [
+   "C9"
+  ],
+  "read.episode_*": [
+   "C14"
+  ],
+  "read.relative_week": [
+   "C25"
+  ],
+  "read.perspective_axes": [
+   "C11"
+  ],
+  "read.perspective_mode": [
+   "C11"
+  ],
+  "read.perspective_marker": [
+   "C25"
+  ],
+  "read.completeness_check": [
+   "C26"
+  ],
+  "read.relevance_safety_net": [
+   "C28"
+  ],
+  "read.dedupe*": [
+   "C23"
+  ],
+  "read.cards_when_weak": [
+   "C4"
+  ],
+  "read.cards_skip_hides_facts": [
+   "C4"
+  ],
+  "read.count_budget_share": [
+   "C4"
+  ],
+  "read.count_timeline": [
+   "C4"
+  ],
+  "read.resolve_relative_dates": [
+   "C25"
+  ],
+  "read.standing_instructions": [
+   "C4"
+  ],
+  "data_shape.language": [
+   "A6"
+  ]
+ },
+ "key_to_stages": {},
+ "remove_key_stage": {
+  "read.*": [
+   "C7"
+  ]
+ },
+ "cross_cutting": {
+  "isolation.*": "cross-cutting: scope and viewer isolation is enforced at every read and write door, not in one stage",
+  "integrity.enabled": "cross-cutting master switch for the trust model (A11, A14, C18, C20, C25)",
+  "cache.*": "generic cache backend (memory, lmdb, redis) shared by the embedding and read-result caches; no single stage owns it",
+  "consent.local_hosts": "cross-cutting: egress policy for every remote model call",
+  "consent.remote_llm_max_tier": "cross-cutting: egress policy for every remote model call",
+  "data_shape.*": "profile selector: resolves to preset keys at config load, no stage reads it",
+  "data_profile": "profile selector: resolves to preset keys at config load, no stage reads it",
+  "profile": "config template name, read at config load only",
+  "strict_services": "engine start-up check (missing service raises or skips), not a stage knob",
+  "plugins": "plug-in pinning at engine start, not a stage knob",
+  "memories.*": "per-memory-type enablement and policy overrides, resolved at engine start",
+  "namespaces.*": "per-namespace policy overrides, resolved at engine start",
+  "llm.roles.*": "role binding (model, endpoint, timeout, no_think): applies to every LLM stage that uses the role; see each stage's prompts and models lists",
+  "models.*": "model planning at engine start (tiers, GPU placement, pins); applies to every stage that uses a model role",
+  "prompts.*": "prompt layout and override selection: applies to every engine prompt, see each stage's prompts list",
+  "observability.*": "wiretap, ops ledger, timers and inspect switches: they observe every stage, they do not change one",
+  "rest.*": "REST server (auth, rate limit): outside the memory pipeline",
+  "runtime.*": "scheduler, backpressure and concurrency budgets: apply to the whole engine, not to one stage",
+  "storage.encryption.*": "at-rest encryption of the SQLite file: applies to every stage that persists",
+  "storage.profile": "embedded vs server storage preset: applies to every stage that persists",
+  "vector.isolation": "cross-cutting: vector-store namespace isolation",
+  "vector.namespace_index": "vector-store layout, shared by A13 and every vector leg"
+ },
+ "unattributed": {},
+ "prompt_to_stages": {
+  "window_extract*": [
+   "A19",
+   "A20"
+  ],
+  "structured.window": [
+   "A19"
+  ],
+  "structured.repair": [
+   "A20"
+  ],
+  "structured": [
+   "A19"
+  ],
+  "session_close": [
+   "B4"
+  ],
+  "extract_edges*": [
+   "B9"
+  ],
+  "resolve_entity*": [
+   "B9"
+  ],
+  "invalidate_edge": [
+   "B9"
+  ],
+  "extract*": [
+   "B7"
+  ],
+  "judge*": [
+   "A25"
+  ],
+  "dedupe": [
+   "A25"
+  ],
+  "chat*": [
+   "C32"
+  ],
+  "consolidate": [
+   "B6"
+  ],
+  "summarize_entity": [
+   "B13"
+  ],
+  "summarize*": [
+   "B14",
+   "B16"
+  ],
+  "subcluster": [
+   "B14"
+  ],
+  "query_rewrite@compose": [
+   "C26"
+  ],
+  "query_rewrite*": [
+   "C6"
+  ],
+  "reflect": [
+   "B8"
+  ],
+  "firewall_flag": [
+   "A11"
+  ],
+  "anticipate": [
+   "B7"
+  ],
+  "predict_episode": [
+   "B7"
+  ],
+  "calibrate": [
+   "B7"
+  ],
+  "relevance": [
+   "C28"
+  ],
+  "plan*": [
+   "C5"
+  ],
+  "sufficiency@agentic": [
+   "C27"
+  ],
+  "sufficiency@missing": [
+   "C26"
+  ],
+  "sufficiency": [
+   "C26",
+   "C27"
+  ],
+  "verify_answer": [
+   "C33"
+  ],
+  "describe_asset": [
+   "A8"
+  ]
+ },
+ "cli_to_stage": {},
+ "cli_effect": {
+  "--decider-backend": "Inference backend (torch or onnx) of the opendecider model that picks the read mode.",
+  "--decider-device": "Device the opendecider model runs on (cpu, cuda, mps, auto).",
+  "--decider-dtype": "Weight dtype of the opendecider model (float32 or bfloat16).",
+  "--decider-min-confidence": "Below this confidence the decider defers to the heuristic mode choice.",
+  "--decider-model": "Checkpoint of the opendecider model used when --decider opendecider.",
+  "--decider-workers": "Number of decider worker processes.",
+  "--top-k": "Records the memory system returns per question (retrieval depth handed to the budget).",
+  "--base-url": "OpenAI-compatible endpoint serving the reader (and judge) model.",
+  "--reader-model": "Model that answers the question from the retrieved context.",
+  "--judge-model": "Model that grades the answer; unset falls back to the reader model.",
+  "--dataset": "Which benchmark to run.",
+  "--max-model-calls": "Hard cap on reader and judge calls in one run (stops the run when reached).",
+  "--mode": "retrieval = score retrieval only, qa = also run reader and judge.",
+  "--note": "Free-text note stored in the run manifest.",
+  "--out": "Output directory for run artefacts.",
+  "--output": "Output file of the sub-command.",
+  "--run-id": "Name of the run directory; unset derives one from the clock.",
+  "--seed": "Seed for sampling and stratification.",
+  "--with-memspine": "Include the MemSpine system among the systems under test."
+ },
+ "extra_prompts": [
+  {
+   "prompt_id": "structured.window",
+   "role": "window_extract",
+   "file": "src/memspine/prompts/structured.py",
+   "version": "1"
+  },
+  {
+   "prompt_id": "structured",
+   "role": "extract",
+   "file": "src/memspine/prompts/structured.py",
+   "version": "1"
+  },
+  {
+   "prompt_id": "structured.repair",
+   "role": "extract",
+   "file": "src/memspine/prompts/structured.py",
+   "version": "1"
+  },
+  {
+   "prompt_id": "session_close",
+   "role": "session_close",
+   "file": "src/memspine/derive/session_close.py",
+   "version": "inline"
+  }
+ ]
+}
