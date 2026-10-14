@@ -316,6 +316,12 @@ class WriteConfig(BaseModel):
     #: R14-INDEXVIEW: rules (of 3: short, pronoun/assent start, no content noun) a turn must meet to
     #: be treated as elliptical.
     index_view_elliptical_threshold: int = Field(default=2, ge=1, le=3)
+    #: R14-IVFIX: which turns inherit the previous turn's words. ``"anaphoric"`` (default): a
+    #: phatic turn (greeting, thanks, laughter, emoji, pleasantry) never does, and a turn must point
+    #: back (pronoun / deictic / assent word in its first three words), be short and have no content
+    #: word of its own. ``"elliptical"``: the R14-INDEXVIEW rule (shortness alone can trigger it),
+    #: kept for comparability with screen S69.
+    index_view_carry: Literal["anaphoric", "elliptical"] = "anaphoric"
 
     #: O4-11 (LIB-44, O-25): explicit feedback only. ``True``: ``Engine.feedback`` refuses any
     #: channel that is not a deliberate one (``user_message``, ``ui_control``, ``operator_edit``,

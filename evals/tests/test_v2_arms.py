@@ -30,7 +30,7 @@ PENDING_FLAGS = (
     "read.external_v2", "graph.key_v2", "read.rerank_v2_search_pool",
     # R14 builds (S69-S87)
     "read.inference_mode", "read.decompose_v2", "read.list_mode_trigger_v2", "read.coverage_select",
-    "read.pool_protect_per_leg", "read.date_prior", "write.index_view",
+    "read.pool_protect_per_leg", "read.date_prior", "write.index_view", "write.index_view_carry",
 )
 
 

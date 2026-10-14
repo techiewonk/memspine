@@ -1,32 +1,36 @@
 {
  "note": "counts only; LoCoMo cat 1-4 gold turns with zero stemmed content-word overlap with the question, speaker first names excluded from both sides (they are in every question)",
  "variants": {
-  "full": "speaker + session date/month/weekday + resolved relative dates + participants + previous-turn words if elliptical",
+  "full": "speaker + session date/month/weekday + resolved relative dates + participants + previous-turn words if anaphoric (write.index_view_carry)",
   "no_prev_turn": "full without the previous-turn words",
   "no_date_words": "full without any date words (undated)",
   "date_words_only": "session date, month, weekday and resolved relative dates only",
-  "prev_turn_only": "previous-turn words of elliptical turns only"
+  "prev_turn_only": "previous-turn words of anaphoric turns only (R14-IVFIX carry rule)",
+  "full_elliptical": "full with the R14-INDEXVIEW elliptical carry rule (screen S69)",
+  "prev_turn_only_elliptical": "previous-turn words under the R14-INDEXVIEW elliptical rule only"
  },
  "counts": {
   "all": {
    "lexical_zero_gold_turns": 782,
-   "gain_full": 58,
+   "gain_full": 57,
    "gain_no_prev_turn": 57,
    "gain_date_words_only": 57,
-   "gain_no_date_words": 1,
-   "gain_prev_turn_only": 1
+   "gain_full_elliptical": 58,
+   "gain_prev_turn_only_elliptical": 1
   },
   "R14-M-4": {
    "lexical_zero_gold_turns": 184,
    "gain_full": 8,
    "gain_no_prev_turn": 8,
-   "gain_date_words_only": 8
+   "gain_date_words_only": 8,
+   "gain_full_elliptical": 8
   },
   "R14-M-5": {
    "lexical_zero_gold_turns": 69,
    "gain_full": 4,
    "gain_no_prev_turn": 4,
-   "gain_date_words_only": 4
+   "gain_date_words_only": 4,
+   "gain_full_elliptical": 4
   }
  }
 }

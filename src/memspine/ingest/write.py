@@ -861,6 +861,7 @@ def _index_view_prefixes(
         max_extra_tokens=wcfg.index_view_max_extra_tokens,
         elliptical_threshold=wcfg.index_view_elliptical_threshold,
         elliptical_max_words=wcfg.index_view_elliptical_max_words,
+        carry=wcfg.index_view_carry,
     )
     tap.event(
         "write.index_view.plan",

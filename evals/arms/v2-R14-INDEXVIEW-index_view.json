@@ -44,6 +44,7 @@
   }
  },
  "write": {
-  "index_view": true
+  "index_view": true,
+  "index_view_carry": "elliptical"
  }
 }

@@ -63,7 +63,10 @@ def main() -> None:
         if it["id"] in ("R14-M-4", "R14-M-5")
     }
     convs = json.loads(DATA.read_text(encoding="utf-8"))
-    variants = ("full", "no_prev_turn", "no_date_words", "date_words_only", "prev_turn_only")
+    variants = (
+        "full", "no_prev_turn", "no_date_words", "date_words_only", "prev_turn_only",
+        "full_elliptical", "prev_turn_only_elliptical",
+    )  # the last two use the R14-INDEXVIEW carry rule (R14-IVFIX: the others use "anaphoric")
     tally: dict[str, dict[str, int]] = {}
 
     def bump(group: str, key: str, n: int = 1) -> None:
@@ -101,12 +104,13 @@ def main() -> None:
                         bump(g, "lexical_zero_gold_turns")
                     for v in variants:
                         prefix = build_index_prefix(
-                            speaker="" if v in ("date_words_only", "prev_turn_only") else spk,
-                            stamp=None if v in ("no_date_words", "prev_turn_only") else when,
+                            speaker="" if v in ("date_words_only", "prev_turn_only", "prev_turn_only_elliptical") else spk,
+                            stamp=None if v in ("no_date_words", "prev_turn_only", "prev_turn_only_elliptical") else when,
                             content=text,
                             prev_content=None if v in ("no_prev_turn", "date_words_only") else prev_text,
                             prev_speaker=None if v in ("date_words_only", "prev_turn_only") else prev_spk,
-                            participants=[] if v in ("date_words_only", "prev_turn_only") else names,
+                            participants=[] if v in ("date_words_only", "prev_turn_only", "prev_turn_only_elliptical") else names,
+                            carry="elliptical" if v.endswith("_elliptical") else "anaphoric",
                         )
                         gained = bool(q & (content(f"{prefix} {text}") - name_toks))
                         for g in groups:
@@ -116,11 +120,13 @@ def main() -> None:
     out = {
         "note": "counts only; LoCoMo cat 1-4 gold turns with zero stemmed content-word overlap with the question, speaker first names excluded from both sides (they are in every question)",
         "variants": {
-            "full": "speaker + session date/month/weekday + resolved relative dates + participants + previous-turn words if elliptical",
+            "full": "speaker + session date/month/weekday + resolved relative dates + participants + previous-turn words if anaphoric (write.index_view_carry)",
             "no_prev_turn": "full without the previous-turn words",
             "no_date_words": "full without any date words (undated)",
             "date_words_only": "session date, month, weekday and resolved relative dates only",
-            "prev_turn_only": "previous-turn words of elliptical turns only",
+            "prev_turn_only": "previous-turn words of anaphoric turns only (R14-IVFIX carry rule)",
+            "full_elliptical": "full with the R14-INDEXVIEW elliptical carry rule (screen S69)",
+            "prev_turn_only_elliptical": "previous-turn words under the R14-INDEXVIEW elliptical rule only",
         },
         "counts": tally,
     }
