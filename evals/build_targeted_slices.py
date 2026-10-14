@@ -88,13 +88,14 @@ SCREEN_OVERRIDES: dict[str, tuple[str, ...]] = {
     "S20": (MIX,),  # the relevance gate must not break correct category 1-4 answers; its category-5 row is CAT5_SCREENS
     # R14 builds (docs/v2/research/R14_MASTER.md): primary family plus the mix as the guard
     "S73": ("fail_reader",),  # read.inference_mode; its category-5 row is CAT5_SCREENS (must still abstain)
+    "S74": ("fail_reader",),  # read.inference_mode=gated_v2 (widened shape); cat-5 row is CAT5_SCREENS
     "S77": ("fail_list", MIX), "S79": ("fail_list", MIX),
     "S82": ("fail_fusion", MIX), "S87": ("fail_temporal", MIX), "S69": ("fail_retrieval", MIX),
 }
 # S20-CAT5: screens whose arm gates or abstains on irrelevant evidence also run on the LoCoMo category-5 (adversarial)
 # slices of make_cat5_slice.py. The row carries a sixth column ``categories=5`` that the queue turns into ``--categories 5``
 # (the reference run uses the same categories and a distinct cached name). S20 = read.gate_v2; the S55 / S63 arms contain it.
-CAT5_SCREENS = ("S20", "S55", "S63", "S73")  # S73: the gated inference clause must not commit on cat 5
+CAT5_SCREENS = ("S20", "S55", "S63", "S73", "S74")  # S73/S74: the gated inference clause must not commit on cat 5
 CAT5_SLICE = "analysis/sample_slice_loc_cat5_s{seed}.json"
 CAT5_SLICE_C3 = "analysis/sample_slice_loc_cat5_s{seed}_c3.json"
 CAT5_COLUMN = "categories=5"

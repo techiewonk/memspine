@@ -1269,8 +1269,11 @@ class ReadConfig(BaseModel):
     #: by abstaining). The refusal retry (``--retry-refusal``) uses the same clause on those
     #: questions instead of the neutral retry. Rules only, no extra model call. Consumed by the
     #: eval reader (``memspine_evals.readers``); the engine read path is untouched. Off (default):
-    #: prompts and retry unchanged.
-    inference_mode: Literal["off", "gated"] = "off"
+    #: prompts and retry unchanged. ``gated_v2`` (R14-INFER2) = the same route with a widened,
+    #: generic English judgement shape (``inference_shape``: would / might / likely / "do you think"
+    #: / "what kind of person" / counterfactual "if ... would", with a factual-opener negative
+    #: list) in place of the contract check alone; the refusal retry uses the same widened gate.
+    inference_mode: Literal["off", "gated", "gated_v2"] = "off"
     #: R3-03 (LIB-23, R-04/R-05): the rule router. On: the legs come from a ``RoutePlan`` over the
     #: layers the store actually has populated (L0 turns, L1 facts, L2 sessions, L3 graph, L5
     #: profile); the optional entity / graph / episode legs that the plan leaves out or skips

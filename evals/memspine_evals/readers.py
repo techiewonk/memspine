@@ -17,6 +17,8 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
 
+from memspine.core.language import english_only
+
 from . import trace_full
 from .contracts import ReaderAnswer
 from .legacy_prompts import (
@@ -477,6 +479,73 @@ def is_inference_question(question: str) -> bool:
     return build_contract(question).request == "inference"
 
 
+#: R14-INFER2 (``read.inference_mode = gated_v2``): the widened, generic judgement shape. English
+#: rules (``english_only``), no dataset terms. ``gated`` keeps the contract check alone.
+INFERENCE_GATE_VERSION_V2 = "infer-gate-v2"
+#: A factual opener: the answer is a stated date / place / person / count / quote. These
+#: suppress the weak modal signals ("what did X say would help"), never the explicit phrases.
+_FACTUAL_OPEN = re.compile(
+    r"^\s*(?:(?:in|on|at|during|by|since|from|for)\s+(?:which|what)\s+(?:year|month|day|date|week)|"
+    r"when|where|who|whom|whose|how (?:many|much|long|old|often|far)|what (?:did|was|were|is the date)|"
+    r"which (?:date|year|month|day)|what (?:date|year|month|day|time)|what has|"
+    r"(?:did|was|were|has|have|had)\s+\S+)\b",
+    re.I,
+)
+_STRONG_INFER = re.compile(
+    r"\b(?:do you think|is it possible|likely|unlikely|probably|possibly|perhaps|presumably|"
+    r"(?:what|which)\s+(?:kind|type|sort)\s+of\s+(?:person|people|character|personality|individual)|"
+    r"would\s+(?:[\w'.-]+\s+){1,4}be\s+(?:considered|seen|regarded|described|called|thought)|"
+    r"(?:what|how)\s+(?:does|do)\s+(?:[\w'.-]+\s+){1,4}(?:value|believe|prefer|consider)|"
+    r"(?:what|how)\s+(?:would|might)\s+(?:[\w'.-]+\s+){1,4}(?:think|feel|prefer|enjoy|like|want|"
+    r"react|respond|say|do|choose|consider|value|believe)|"
+    r"(?:what|which)\s+(?:[\w'.-]+\s+){0,3}might)\b",
+    re.I,
+)
+_COUNTERFACTUAL = re.compile(r"\bif\b[^?]{2,}?\b(?:would|might|could|will)\b", re.I)
+_MODAL_WEAK = re.compile(r"\b(?:would(?:n['’]t| not)?|might|could(?:n['’]t)?)\b", re.I)
+_MODAL_OPEN = re.compile(r"^\s*(?:would|wouldn['’]t|could|couldn['’]t|might|should)\b", re.I)
+#: A present-tense yes/no question (is / are / does / do / can): a state or a disposition, which a
+#: single memory line rarely states outright. Past-tense openers (did / was / has) stay factual.
+_YESNO_PRESENT = re.compile(r"^\s*(?:is|are|does|do|can)\s+\S+", re.I)
+_BASED_ON = re.compile(r"^\s*(?:based on|given|considering|judging by)\b[^?]{3,}?,\s*", re.I)
+
+
+@english_only((False, ""))
+def inference_shape(question: str) -> tuple[bool, str]:
+    """R14-INFER2: does ``question`` ask for a judgement (would / might / likely / hypothetical /
+    disposition) rather than a stated fact? ``(fires, reason)``; reason is a stable label.
+    A factual opener (when / where / who / how many / what did ...) vetoes everything except an
+    explicit judgement phrase. Otherwise the signals are the rules contract
+    (``build_contract(q).request == "inference"``, the ``gated`` gate), a counterfactual "if ... would", a
+    sentence-initial modal, a "based on ..." lead, any other would / might / could, a present-tense yes/no opener.
+    Pure, no model call."""
+    if not isinstance(question, str) or not question.strip():
+        return False, ""
+    factual = bool(_FACTUAL_OPEN.search(question))
+    if _STRONG_INFER.search(question):
+        return True, "phrase"
+    if factual:  # the negative list also vetoes the contract ("in May", "what did X say would ...")
+        return False, ""
+    if is_inference_question(question):
+        return True, "contract"
+    if _COUNTERFACTUAL.search(question):
+        return True, "counterfactual"
+    if _MODAL_OPEN.search(question):
+        return True, "modal_open"
+    if _BASED_ON.search(question):
+        return True, "based_on"
+    if _MODAL_WEAK.search(question):
+        return True, "modal"
+    if _YESNO_PRESENT.search(question):
+        return True, "yesno_present"
+    return False, ""
+
+
+def is_inference_question_v2(question: str) -> bool:
+    """The ``gated_v2`` gate (and retry gate): :func:`inference_shape` fires."""
+    return inference_shape(question)[0]
+
+
 def with_inference_clause(prompt: str, clause: str = INFERENCE_COMMIT_CLAUSE) -> str:
     """``prompt`` with ``clause`` as its own paragraph just before the paragraph that holds
     the ``{context}`` field (the instructions stay ahead of the memories)."""
@@ -487,15 +556,16 @@ def with_inference_clause(prompt: str, clause: str = INFERENCE_COMMIT_CLAUSE) ->
     return prompt[:cut] + "\n\n" + clause + prompt[cut:]
 
 
-def gated_inference_prompt(base: str, name: str = "") -> RoutedQAPrompt:
-    """``read.inference_mode = gated``: ``base`` for every question, ``base`` plus the commit
-    clause for an inference question. Routed, so ``describe()`` hashes both variants and rows
-    record the variant."""
+def gated_inference_prompt(base: str, name: str = "", *, v2: bool = False) -> RoutedQAPrompt:
+    """``read.inference_mode = gated`` (``v2``: ``gated_v2``): ``base`` for every question, ``base``
+    plus the commit clause for an inference question (v2: the widened :func:`inference_shape`).
+    Routed, so ``describe()`` hashes both variants and rows record the variant."""
+    gate = is_inference_question_v2 if v2 else is_inference_question
     return RoutedQAPrompt(
         {"plain": base, "inference": with_inference_clause(base)},
-        shape_fn=lambda q: "inference" if is_inference_question(q) else "plain",
-        router_version=INFERENCE_GATE_VERSION,
-        name=(name or "prompt") + "+infer_gate",
+        shape_fn=lambda q: "inference" if gate(q) else "plain",
+        router_version=INFERENCE_GATE_VERSION_V2 if v2 else INFERENCE_GATE_VERSION,
+        name=(name or "prompt") + ("+infer_gate_v2" if v2 else "+infer_gate"),
     )
 
 
