@@ -8,6 +8,7 @@ from memspine.compose.compression import CompressionPolicy
 from memspine.derive import role_filter
 from memspine.derive.pipeline.stages.context import PipelineContext, live_record
 from memspine.derive.pipeline.stages.index import _members_fp, stage_marker
+from memspine.observability import inspect as insp
 from memspine.observability import tap
 from memspine.store.events import EventLogMode
 from memspine.store.records import MemoryRecord, RecordStatus, chrono_key
@@ -91,7 +92,8 @@ async def _run_session_stage(
             members = []  # the same turns were already processed under another key
         if members:
             try:
-                count, deposit_errors = await work(namespace, key, members)
+                with insp.sleep_item(key, [m.record_id for m in members]):  # TI-1: per-item notes
+                    count, deposit_errors = await work(namespace, key, members)
             except Exception as exc:  # LLM is an enhancer, never a gate: retry next cycle
                 errors.append(f"{namespace}:{key}: {exc}")
                 continue

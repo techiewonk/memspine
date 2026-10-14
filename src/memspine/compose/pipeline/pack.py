@@ -22,6 +22,7 @@ from memspine.models.encoders.query.shape import (
     is_temporal,
     is_verbatim,
 )
+from memspine.observability import inspect as insp
 from memspine.observability import tap
 from memspine.observability.logging import get_logger
 from memspine.read.lead import count_terms, query_names
@@ -282,6 +283,8 @@ async def _read_headers(
         about = await eng._entity_summary_section(ns, query, allowance - eng._headers_cost(shared))
         if about is not None:
             headers.insert(len(shared), about)
+    if insp.inspect_enabled():  # TI-1: which header blocks the reader sees, from which records
+        insp.headers_event(headers)
     return headers
 
 

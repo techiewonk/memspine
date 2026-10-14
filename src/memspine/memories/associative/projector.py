@@ -68,9 +68,12 @@ class GraphProjector(Projector):
         #: GR-3 (``graph.entity_embeddings``): embeds entity names into the graph
         #: store's entity index (native HNSW + FTS on LadybugDB).
         self._embed = embed
+        #: TI-1: edges the last WRITE added (mentions + derived_from); read by the inspect hook
+        self.last_edges = 0
 
     async def apply(self, event: MemoryEvent) -> None:
         if event.kind is EventKind.WRITE:
+            self.last_edges = 0
             record = MemoryRecord.model_validate(event.payload["record"])
             await self._store.upsert_node(
                 record.record_id,
@@ -111,6 +114,7 @@ class GraphProjector(Projector):
                         {"weight": 1.0, "reason": key},
                         namespace=record.namespace,
                     )
+                    self.last_edges += 1
         elif event.kind is EventKind.LINK:
             payload = event.payload
             properties: dict[str, object] = {
@@ -189,6 +193,7 @@ class GraphProjector(Projector):
                 {"weight": weight, "reason": "entity"},
                 namespace=record.namespace,
             )
+        self.last_edges += len(wanted)
         for node_id in stale:
             # The port has no single-edge delete: a weight-0 tombstone (ADR-015).
             await self._store.upsert_edge(

@@ -25,6 +25,7 @@ from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
+from memspine.observability import inspect as insp
 from memspine.observability import tap
 from memspine.schemas.durable.assertion import AssertionEnvelope
 
@@ -70,7 +71,14 @@ async def run_envelope_stages(
     out = envelopes
     for stage in sorted(stages, key=lambda s: s.order):
         before = len(out)
+        inspecting = insp.inspect_enabled()
+        if inspecting:  # TI-1: snapshot to diff per envelope after the stage
+            snap = insp.envelope_snapshot(out)
+            notes_before = Counter(ctx.notes)
         out = await stage.run(out, ctx)
+        if inspecting:
+            reasons = [k for k, v in ctx.notes.items() if v > notes_before.get(k, 0)]
+            insp.envelope_stage_trace(stage.name, ctx.window_id, snap, out, reasons)
         if tap.enabled():
             tap.event(
                 "write.envelope.stage",

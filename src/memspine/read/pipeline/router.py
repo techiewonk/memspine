@@ -48,6 +48,7 @@ from memspine.models.encoders.query.temporal_query import (
     NamedLeg,
 )
 from memspine.models.providers.rerank.base import concat_background, gated_rerank
+from memspine.observability import inspect as insp
 from memspine.observability import tap
 from memspine.observability.logging import (
     EVENT_RETRIEVE,
@@ -988,6 +989,11 @@ async def _search(
         (record, eng._scoring.composite_score(record, relevance=relevance))
         for record, relevance in candidates
     ]
+    rel_of = (
+        {record.record_id: relevance for record, relevance in candidates}
+        if insp.inspect_enabled()
+        else {}
+    )
     integrity = eng._integrity()
     if integrity.enabled and integrity.live_reevaluation:
         live = []
@@ -1005,6 +1011,26 @@ async def _search(
         ]
         _cut_missing(_pre, scored, "integrity_admission_theta")
     scored = rank_pairs(scored)
+    if rel_of:  # TI-1: per-candidate score parts, in the order they were ranked
+        insp.rerank_components(
+            [
+                {
+                    "rid": record.record_id,
+                    "rank": rank,
+                    **{
+                        k: round(v, 6)
+                        for k, v in eng._scoring.components(
+                            record, relevance=rel_of.get(record.record_id, 0.0)
+                        ).items()
+                    },
+                    "trust": round(float(record.trust), 6),
+                    "score": round(float(score), 6),
+                }
+                for rank, (record, score) in enumerate(scored, 1)
+            ],
+            reranked=reranked,
+            mode=getattr(getattr(eng._scoring, "options", None), "mode", None),
+        )
     mmr_lambda = eng._config().read.mmr_lambda
     if mmr_lambda is not None and len(scored) > 2:
         # G-10 (Graphiti MMR): diversity among near-duplicate hits, on embeddings.
@@ -1042,6 +1068,14 @@ async def _search(
         fx["final"] = [(record.record_id, score) for record, score in scored]
     _log.info(EVENT_RETRIEVE, namespace=ns, query=True, count=len(scored))
     eng._record_reads(ns, session_id, scored)
+    if insp.inspect_enabled():  # TI-1: what this search touched (RETRIEVE event, read ledger)
+        policy = eng._integrity()
+        insp.retrieve_writeback(
+            rids=[record.record_id for record, _ in scored],
+            access_event=bool(scored and eng._config().read.record_access),
+            ledger=bool(policy.enabled and policy.implicit_parents != "off" and scored),
+            session=session_id,
+        )
     return scored
 
 

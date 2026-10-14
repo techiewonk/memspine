@@ -53,6 +53,28 @@ class ScoringPolicy(BindablePolicy):
     name: ClassVar[str] = "scoring"
     Options: ClassVar[type[PolicyOptions]] = ScoringOptions
 
+    def components(
+        self, record: MemoryRecord, relevance: float = 0.0, now: datetime | None = None
+    ) -> dict[str, float]:
+        """TI-1: the parts :meth:`composite_score` blends for ``record`` (relevance as given,
+        recency, importance, utility) and the weights in force. Read-only; nothing uses it
+        unless ``observability.inspect`` is on."""
+        options = self.options
+        assert isinstance(options, ScoringOptions)
+        now = now or datetime.now(UTC)
+        anchor = record.scoring.last_accessed_at or record.recorded_at
+        age_days = max(0.0, (now - anchor).total_seconds() / 86400.0)
+        return {
+            "rel": float(relevance),
+            "rec": 0.5 ** (age_days / options.recency_half_life_days),
+            "imp": float(record.scoring.importance),
+            "util": float(utility_of(record)),
+            "w_rel": options.relevance_weight,
+            "w_rec": options.recency_weight,
+            "w_imp": options.importance_weight,
+            "w_util": options.utility_weight,
+        }
+
     def composite_score(
         self,
         record: MemoryRecord,
