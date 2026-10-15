@@ -40,14 +40,16 @@ from memspine.store.records import MemoryRecord, SourceInfo
 def test_both_trees_have_a_single_head() -> None:
     sqlite_dir = Path(sqlite_migrations.__file__).parent / "alembic"
     assert len(ScriptDirectory(str(sqlite_dir)).get_heads()) == 1
-    assert pg_migrations.heads() == ["pg_w202_stamping"]
+    # LF-E (MF-08) added the layer backfill revision
+    assert pg_migrations.heads() == ["pg_lf_e_layer_backfill"]
 
 
 def test_postgres_tree_mirrors_the_sqlite_revision_count() -> None:
     def count(tree: Path) -> int:
         return len(list(ScriptDirectory(str(tree)).walk_revisions()))
 
-    assert count(EMBEDDED.migration_tree) == count(SERVER.migration_tree) == 10
+    # LF-E: sqlite 0011 mirrors pg0011
+    assert count(EMBEDDED.migration_tree) == count(SERVER.migration_tree) == 11
 
 
 def _family(col_type: Any) -> str:
