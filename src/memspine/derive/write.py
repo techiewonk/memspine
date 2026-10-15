@@ -45,7 +45,7 @@ async def write_derived(
     storage: Any,
     ns: str,
     record: MemoryRecord,
-    memory_type: str,
+    route: str,
     actor: str,
     *,
     parents: Sequence[str] | None = None,
@@ -56,6 +56,10 @@ async def write_derived(
     site: str = "derive",
 ) -> MemoryRecord:
     """Write one derived record. See the module docstring for flag-on behaviour.
+
+    ``route`` is the write-ROUTE name handed to ``eng._write_locked`` ("semantic" runs the semantic
+    pipeline, "summary" the plain WRITE route). It is not the memory type: the layer comes from
+    ``record.memory_type`` and ``record.source.channel`` (NEW-03). Callers pass it positionally.
 
     ``roles`` maps a parent id to its lineage role (default ``support``); ``spans`` maps a parent id
     to the evidence span in that parent. The caller holds the namespace write lock, as before.
@@ -76,7 +80,7 @@ async def write_derived(
             reasons.append(f"consent_{denied}")
     if not reasons:
         return await _write_derived(
-            eng, storage, ns, record, memory_type, actor,
+            eng, storage, ns, record, route, actor,
             parents, roles, spans, layer, trust_cap, site,
         )  # fmt: skip
     if tap.enabled():
@@ -84,7 +88,7 @@ async def write_derived(
     token = gates_v2.GATE_HOLD.set((record.record_id, tuple(reasons)))
     try:
         return await _write_derived(
-            eng, storage, ns, record, memory_type, actor,
+            eng, storage, ns, record, route, actor,
             parents, roles, spans, layer, trust_cap, site,
         )  # fmt: skip
     finally:
@@ -118,7 +122,7 @@ async def _write_derived(
     storage: Any,
     ns: str,
     record: MemoryRecord,
-    memory_type: str,
+    route: str,
     actor: str,
     parents: Sequence[str] | None,
     roles: Mapping[str, str] | None,
@@ -127,8 +131,11 @@ async def _write_derived(
     trust_cap: list[float] | None,
     site: str,
 ) -> MemoryRecord:
+    # MF-04: the layer is stamped before the lineage-off early return, so lineage on/off agree.
+    # (Flag off stays otherwise untouched: no derivation fingerprint, no edges.)
     if not eng._config().write.lineage_table:
-        return await eng._write_locked(storage, ns, record, memory_type, actor, trust_cap)
+        record = record.model_copy(update={"layer": _resolve_layer(record, layer)})
+        return await eng._write_locked(storage, ns, record, route, actor, trust_cap)
 
     pids = [p for p in dict.fromkeys(parents if parents is not None else record.source.parents)]
     pids = [p for p in pids if p != record.record_id]
@@ -148,10 +155,10 @@ async def _write_derived(
     parent_records = [r for r in [await storage.get_record(p) for p in pids] if r is not None]
     cap = list(trust_cap or [])
     cap.extend(r.trust for r in parent_records)
-    record = stamp_derived(record, memory_type, site, layer)
+    record = stamp_derived(record, route=route, site=site, layer=layer)
     layer_label = record.layer
 
-    written = await eng._write_locked(storage, ns, record, memory_type, actor, cap or None)
+    written = await eng._write_locked(storage, ns, record, route, actor, cap or None)
 
     # POL-2 safety net: the firewall path caps through ``cap``; never leave a record above it.
     cap_value = deposit_trust(1.0, [min(cap)]) if cap else 1.0
@@ -164,14 +171,36 @@ async def _write_derived(
     )
 
 
+def _resolve_layer(record: MemoryRecord, layer: str | None) -> str:
+    """The layer a derived record sits on: the explicit ``layer`` (must be one of ``LAYERS``,
+    MF-03: no silent fallback), else the representation map over ``record.memory_type`` and
+    ``record.source.channel`` (MF-01)."""
+    if layer is None:
+        return derive_layer(record.memory_type, record.source.channel)
+    if layer not in LAYERS:
+        raise ValueError(f"unknown layer {layer!r}; expected one of {LAYERS}")
+    return layer
+
+
 def stamp_derived(
-    record: MemoryRecord, memory_type: str, site: str, layer: str | None = None
+    record: MemoryRecord,
+    route: str | None = None,
+    site: str = "derive",
+    layer: str | None = None,
 ) -> MemoryRecord:
-    """The envelope fields the door sets: ``layer`` and ``fingerprint.derivation``."""
-    layer_label = layer if layer in LAYERS else derive_layer(memory_type, record.source.channel)
-    fp = fingerprint_payload(
-        {"site": site, "channel": record.source.channel, "layer": layer_label}
-    )[:16]
+    """The envelope fields the door sets: ``layer`` and ``fingerprint.derivation``.
+
+    ``route`` is the write-route name (informational; kept so positional callers
+    ``stamp_derived(record, "summary", site)`` still work). The memory type is
+    ``record.memory_type``.
+
+    NEW-02 compat note: the derivation fingerprint no longer hashes the layer label (only site and
+    channel), so relabelling a layer never changes the fingerprint of identical content. Records
+    written after this change carry a different ``fingerprint.derivation`` than the same content
+    written before it; stored values are not rewritten.
+    """
+    layer_label = _resolve_layer(record, layer)
+    fp = fingerprint_payload({"site": site, "channel": record.source.channel})[:16]
     return record.model_copy(
         update={
             "layer": layer_label,

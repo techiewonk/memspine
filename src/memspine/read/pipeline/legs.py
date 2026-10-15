@@ -370,7 +370,10 @@ async def registry_base_legs(
         from memspine.store.layer_registry import LayerRegistry, LayerTemplate
 
         ctx.layer_registry = LayerRegistry.of(
-            ns, LayerTemplate(), await eng._require_started().layer_counts(ns)
+            ns,
+            LayerTemplate(),
+            await eng._require_started().layer_counts(ns),
+            selected=[*(["L2"] if episode_on else []), *(["L3"] if graph_on else [])],
         )
     if episode_on:
         # R3-05c: the episode leg (L2) joins
@@ -453,6 +456,8 @@ async def _graph_hop_leg(
         ]
     ctx.graph_seeds = seeds
     ctx.graph_edges = edges
+    if ctx.layer_registry is not None:  # MF-14: compiled edges are L3's non-record artefacts
+        ctx.layer_registry = ctx.layer_registry.with_artifacts("L3", len(edges))
     ctx.graph_min_seeds = read.graph_leg_min_seeds
     out = (await lib.run_legs(lib.with_graph_leg(lib.REGISTRY), ["graph"], ctx))["graph"]
     if not out.hits:

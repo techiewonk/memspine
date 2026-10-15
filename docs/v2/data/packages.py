@@ -303,6 +303,14 @@ WP = [
     ("T5-07", 5, "N1 attack and utility run with enforcement on", ["G-07", "G-06"], ["T5-01", "W2-04"], "measure", "Attack/utility frontier", "Not started", ""),
     ("EX-5", 5, "Phase 5 exit: behavioural suite, N1, isolation and erasure on both profiles", ["G-01"],
      ["T5-01", "T5-02", "T5-03", "T5-04", "T5-05", "T5-06", "T5-07"], "measure", "ROADMAP Phase 5 exit gate", "Not started", ""),
+    # ---- Layer-fix packages (2026-10-15) ----
+    ("LF-A", 1, "One layer contract for the derived-write door (MF-01..04, NEW-02, NEW-03)", [], [], "behaviour", "Owner manual test, then contract tests", "In progress", "PR #5 (layer-contract), awaiting owner manual test; bug list docs/v2/MEMORY_LAYER_BUG_LIST_2026-10-15.md"),
+    ("LF-B", 1, "Graph leg gates on usable edges; registry reports configured/available/populated/selected (MF-07, MF-14)", [], [], "behaviour", "Owner manual test, then contract tests", "In progress", "PR #5 (layer-contract), awaiting owner manual test; bug list docs/v2/MEMORY_LAYER_BUG_LIST_2026-10-15.md"),
+    ("LF-C", 1, "Single fact-eligibility policy for derived views (MF-10, NEW-01)", [], [], "behaviour", "Owner manual test, then contract tests", "In progress", "PR #5 (layer-contract), awaiting owner manual test; bug list docs/v2/MEMORY_LAYER_BUG_LIST_2026-10-15.md"),
+    ("LF-D", 1, "Episode leg kind filter, adaptive widening, narrow lineage lift (MF-06, MF-11, MF-12)", [], [], "behaviour", "Owner manual test, then contract tests", "In progress", "PR #5 (layer-contract), awaiting owner manual test; bug list docs/v2/MEMORY_LAYER_BUG_LIST_2026-10-15.md"),
+    ("LF-E", 1, "Layer always persisted; events v3 upcaster; pg layer backfill (MF-05, MF-08, MF-09)", [], [], "migration", "Owner manual test, then contract tests", "In progress", "PR #5 (layer-contract), awaiting owner manual test; bug list docs/v2/MEMORY_LAYER_BUG_LIST_2026-10-15.md"),
+    ("LF-F", 1, "Profile-card header consumer, L5 standing leg naming (MF-13)", [], [], "behaviour", "Owner manual test, then contract tests", "In progress", "PR #5 (layer-contract), awaiting owner manual test; bug list docs/v2/MEMORY_LAYER_BUG_LIST_2026-10-15.md"),
+    ("LF-G", 1, "Layer contract tests and memory-type eval plan (MF-15, MF-16)", [], [], "infra", "Owner manual test, then contract tests", "In progress", "PR #5 (layer-contract), awaiting owner manual test; bug list docs/v2/MEMORY_LAYER_BUG_LIST_2026-10-15.md"),
     # ---- Phase 6: release and paper ----
     ("R6-01", 6, "Freeze configuration; sealed blind runs; loop metrics", ["G-05", "G-26"], ["EX-1", "EX-2", "EX-3", "EX-4", "EX-5", "T5-04", "P0-02", "P0-03", "P0-08", "MOD-01", "X-01"], "measure",
      "One sealed blind run per set; loop metrics on scripted episodes; erasure contract re-run", "Not started", ""),
