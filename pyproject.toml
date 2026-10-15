@@ -87,6 +87,7 @@ dev = [
     "deepeval>=1.5",            # eval assertions, not shipped (D-35)
     "mkdocs-material>=9.5",
     "mkdocstrings[python]>=0.26",
+    "tzdata; sys_platform == 'win32'",  # zoneinfo has no system tz database on Windows (tests use Europe/Berlin)
 ]
 
 [project.scripts]

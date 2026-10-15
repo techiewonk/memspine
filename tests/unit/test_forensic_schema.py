@@ -73,6 +73,7 @@ def report() -> Any:
 
 
 def test_report_rows_validate_against_schema(tmp_path: Path, report: Any) -> None:
+    pytest.importorskip("nltk")  # official LoCoMo F1 needs it; not in the dev env
     data = tmp_path / "locomo.json"
     data.write_text(json.dumps(LOCOMO), encoding="utf-8")
 

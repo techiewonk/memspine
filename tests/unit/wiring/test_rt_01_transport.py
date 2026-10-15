@@ -13,6 +13,9 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+
+pytest.importorskip("taskiq")  # the taskiq extra is not in the dev env (D-41)
+
 from taskiq import InMemoryBroker
 from taskiq.abc.broker import AsyncBroker
 from taskiq.message import BrokerMessage
