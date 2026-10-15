@@ -408,7 +408,24 @@
      "rebuild": true,
      "rebuild_scope": "ingest",
      "screen_ids": [
-      "S69"
+      "S69",
+      "S70"
+     ]
+    },
+    {
+     "key": "write.index_view_carry",
+     "default": "anaphoric",
+     "type": "Literal['anaphoric', 'elliptical']",
+     "description": "R14-IVFIX. With `write.index_view`: which turns inherit the previous turn's content words. `\"anaphoric\"` (default): never a phatic turn (greeting, thanks, laughter, emoji or punctuation only, closed-vocabulary pleasantry such as \"that sounds lovely\"); otherwise the turn must be short (`index_view_elliptical_max_words`), have a pronoun, deictic or assent word in its first three words, and carry fewer than two content words and no name of its own. A bare answer (\"yes\", \"no, that one\") still carries. `\"elliptical\"`: the R14-INDEXVIEW rule (shortness alone can trigger it), kept for comparability with screen S69. Reason: with `elliptical`, inserting unrelated turns changed what an elliptical turn inherited and moved evidence out of the top 5 (behavioural case INV-FILLER). Date and speaker words are not affected.",
+     "effect": "With `write.index_view`: which turns inherit the previous turn's content words.",
+     "rebuild": true,
+     "rebuild_scope": "ingest",
+     "screen_ids": [
+      "S70"
+     ],
+     "choices": [
+      "anaphoric",
+      "elliptical"
      ]
     },
     {
@@ -3592,17 +3609,19 @@
     {
      "key": "read.inference_mode",
      "default": "off",
-     "type": "Literal['off', 'gated']",
-     "description": "R14-M-9 / OBS-06 (typed commit route): `gated` = the eval reader prompt gets a versioned commit-with-cited-reason clause (`infer-gate-v1`) only for a question the rules contract (`read.contract.build_contract`, `request == inference`: would / likely / might / hypothetical) types as a judgement; other shapes keep the unchanged prompt, and the clause still allows \"not mentioned\" when no memory line bears on the question. With `--retry-refusal`, the retry on those questions uses the same commit instruction instead of the neutral one. Rules only, no extra model call; needs a fixed `--qa-prompt` (not routed / system). Off: unchanged.",
+     "type": "Literal['off', 'gated', 'gated_v2']",
+     "description": "R14-M-9 / OBS-06 (typed commit route): `gated` = the eval reader prompt gets a versioned commit-with-cited-reason clause (`infer-gate-v1`) only for a question the rules contract (`read.contract.build_contract`, `request == inference`: would / likely / might / hypothetical) types as a judgement; other shapes keep the unchanged prompt, and the clause still allows \"not mentioned\" when no memory line bears on the question. With `--retry-refusal`, the retry on those questions uses the same commit instruction instead of the neutral one. Rules only, no extra model call; needs a fixed `--qa-prompt` (not routed / system). R14-INFER2: `gated_v2` = the same route with a widened, generic English judgement gate (`inference_shape`: would / might / could, likely / probably, \"do you think\", \"what kind of person\", counterfactual \"if ... would\", \"based on ...\", present-tense yes/no openers; factual openers when / where / who / how many / what did suppress the weak modal signals), used for both the prompt clause and the refusal retry; `gated` is unchanged. Off: unchanged.",
      "effect": "`gated` = the eval reader prompt gets a versioned commit-with-cited-reason clause (`infer-gate-v1`) only for a question the rules contract (`read.contract.build_contract`, `request == inference`: would / likely / might / hypothetical) types",
      "rebuild": false,
      "rebuild_scope": "",
      "screen_ids": [
-      "S73"
+      "S73",
+      "S74"
      ],
      "choices": [
       "off",
-      "gated"
+      "gated",
+      "gated_v2"
      ]
     },
     {
@@ -4509,6 +4528,19 @@
      ]
     },
     {
+     "key": "read.derived_cap",
+     "default": 0,
+     "type": "int",
+     "description": "",
+     "effect": "",
+     "rebuild": false,
+     "rebuild_scope": "",
+     "screen_ids": [],
+     "range": {
+      "ge": 0
+     }
+    },
+    {
      "key": "read.evidence_first",
      "default": false,
      "type": "bool",
@@ -4800,6 +4832,16 @@
       "gt": 0.0,
       "le": 1.0
      }
+    },
+    {
+     "key": "read.derived_dates",
+     "default": false,
+     "type": "bool",
+     "description": "",
+     "effect": "",
+     "rebuild": false,
+     "rebuild_scope": "",
+     "screen_ids": []
     },
     {
      "key": "read.evidence_bundles",
@@ -6097,6 +6139,35 @@
      "range": {
       "ge": 1,
       "le": 10
+     }
+    },
+    {
+     "key": "read.derived_lift",
+     "default": "off",
+     "type": "Literal['off', 'evidence', 'evidence+match']",
+     "description": "",
+     "effect": "",
+     "rebuild": false,
+     "rebuild_scope": "",
+     "screen_ids": [],
+     "choices": [
+      "off",
+      "evidence",
+      "evidence+match"
+     ]
+    },
+    {
+     "key": "read.derived_lift_max_parents",
+     "default": 3,
+     "type": "int",
+     "description": "",
+     "effect": "",
+     "rebuild": false,
+     "rebuild_scope": "",
+     "screen_ids": [],
+     "range": {
+      "ge": 1,
+      "le": 8
      }
     },
     {
@@ -8513,17 +8584,19 @@
     {
      "key": "read.inference_mode",
      "default": "off",
-     "type": "Literal['off', 'gated']",
-     "description": "R14-M-9 / OBS-06 (typed commit route): `gated` = the eval reader prompt gets a versioned commit-with-cited-reason clause (`infer-gate-v1`) only for a question the rules contract (`read.contract.build_contract`, `request == inference`: would / likely / might / hypothetical) types as a judgement; other shapes keep the unchanged prompt, and the clause still allows \"not mentioned\" when no memory line bears on the question. With `--retry-refusal`, the retry on those questions uses the same commit instruction instead of the neutral one. Rules only, no extra model call; needs a fixed `--qa-prompt` (not routed / system). Off: unchanged.",
+     "type": "Literal['off', 'gated', 'gated_v2']",
+     "description": "R14-M-9 / OBS-06 (typed commit route): `gated` = the eval reader prompt gets a versioned commit-with-cited-reason clause (`infer-gate-v1`) only for a question the rules contract (`read.contract.build_contract`, `request == inference`: would / likely / might / hypothetical) types as a judgement; other shapes keep the unchanged prompt, and the clause still allows \"not mentioned\" when no memory line bears on the question. With `--retry-refusal`, the retry on those questions uses the same commit instruction instead of the neutral one. Rules only, no extra model call; needs a fixed `--qa-prompt` (not routed / system). R14-INFER2: `gated_v2` = the same route with a widened, generic English judgement gate (`inference_shape`: would / might / could, likely / probably, \"do you think\", \"what kind of person\", counterfactual \"if ... would\", \"based on ...\", present-tense yes/no openers; factual openers when / where / who / how many / what did suppress the weak modal signals), used for both the prompt clause and the refusal retry; `gated` is unchanged. Off: unchanged.",
      "effect": "`gated` = the eval reader prompt gets a versioned commit-with-cited-reason clause (`infer-gate-v1`) only for a question the rules contract (`read.contract.build_contract`, `request == inference`: would / likely / might / hypothetical) types",
      "rebuild": false,
      "rebuild_scope": "",
      "screen_ids": [
-      "S73"
+      "S73",
+      "S74"
      ],
      "choices": [
       "off",
-      "gated"
+      "gated",
+      "gated_v2"
      ]
     }
    ],
@@ -9669,5 +9742,5 @@
   "vector.namespace_index": "vector-store layout, shared by A13 and every vector leg"
  },
  "unattributed_count": 93,
- "schema_key_count": 605
+ "schema_key_count": 610
 }
