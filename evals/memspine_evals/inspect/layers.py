@@ -1,3 +1,4 @@
+# ruff: noqa: E501
 """Layer view of a saved step-mode bundle: what each memory layer holds and where it came from.
 
     python -m memspine_evals.inspect.layers <bundle-dir>                 # L0..L5 table, both phases
