@@ -32,6 +32,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from memspine.derive.edges import GraphDelta, GraphEdge, GraphNode, compile_edges
+from memspine.derive.fact_policy import FactPurpose
 from memspine.derive.pipeline.stages.context import PipelineContext, live_records, sweep_namespaces
 from memspine.derive.pipeline.stages.envelope_adapter import is_fact
 from memspine.memories.associative.entities import (
@@ -104,7 +105,7 @@ class EdgeCompiler:
 
     def eligible(self, record: MemoryRecord) -> bool:
         """A semantic fact with a subject entity, live or superseded with a successor."""
-        return bool(record.entity) and is_fact(record, include_history=True)
+        return is_fact(record, include_history=True, purpose=FactPurpose.EDGES)
 
     def envelope(self, record: MemoryRecord) -> AssertionEnvelope:
         """The enriched assertion envelope of ``record`` (the F-02a envelope plus code-resolved roles)."""

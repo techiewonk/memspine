@@ -26,6 +26,7 @@ from collections.abc import Iterable
 from dataclasses import replace
 from datetime import UTC, datetime
 
+from memspine.derive.fact_policy import FactPurpose
 from memspine.derive.histories import (
     DupThresholds,
     ValueHistory,
@@ -61,7 +62,12 @@ __all__ = ["build_value_history", "histories"]
 def build_value_history(records: Iterable[MemoryRecord], namespace: str) -> ValueHistory:
     """Pure: the value histories of a namespace's keyed facts (live and superseded). Every keyed
     attribute is cardinality ``one``, as the write-time conflict ladder assumes."""
-    facts = [r for r in records if is_fact(r, include_history=True) and key_of(r) is not None]
+    facts = [
+        r
+        for r in records
+        if is_fact(r, include_history=True, purpose=FactPurpose.HISTORIES_VALUE)
+        and key_of(r) is not None
+    ]
     envelopes = [to_envelope(r, namespace, include_history=True) for r in facts]
     registry = CardinalityRegistry()
     for e in envelopes:
@@ -95,7 +101,9 @@ async def _histories_one(ctx: PipelineContext, namespace: str, now: datetime) ->
     assert ctx.append_event is not None
     records = await live_records(ctx, namespace, "semantic")
     by_id = {r.record_id: r for r in records}
-    live = [r for r in records if is_fact(r)]
+    # NEW-01: only keyed evidence facts are near-duplicate candidates; a summary/view is never merged
+    # or archived against a restated fact (policy: derive.fact_policy)
+    live = [r for r in records if is_fact(r, purpose=FactPurpose.HISTORIES_MERGE)]
     envelopes = [to_envelope(r, namespace) for r in live]
     thresholds = DupThresholds(text=ctx.config.offline.near_duplicate_text)
     scan = scan_near_duplicates(envelopes, thresholds=thresholds)

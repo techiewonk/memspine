@@ -38,6 +38,7 @@ from memspine.services.storage.sqlite.schema import (
     projector_offsets,
 )
 from memspine.store.events import EventKind, EventLogMode, MemoryEvent, canonical_payload
+from memspine.store.layer_classify import classify_stored_layer
 from memspine.store.records import MemoryRecord
 from memspine.trust.erasure import redact_record, scrub_partition_nodes
 
@@ -399,20 +400,29 @@ class SqlStorage(ServiceAdapter):
 
     async def layer_counts(self, namespace: str) -> dict[str, int]:
         """F-02b: live (activated / resolving, not quarantined) records of ``namespace`` by layer
-        (one grouped query). A row with no stored layer counts as ``L0``."""
-        layer = func.coalesce(memory_records.c.layer, "L0")
-        stmt = (
-            select(layer, func.count())
-            .where(
-                memory_records.c.namespace == namespace,
-                memory_records.c.status.in_(("activated", "resolving")),
-                memory_records.c.quarantined.is_(False),
-            )
-            .group_by(layer)
+        (one grouped query). MF-09: a row with no stored layer (legacy rows) counts on the layer it
+        hydrates to, by the same :func:`classify_stored_layer` that record hydration uses."""
+        live = (
+            memory_records.c.namespace == namespace,
+            memory_records.c.status.in_(("activated", "resolving")),
+            memory_records.c.quarantined.is_(False),
+        )
+        stored = (
+            select(memory_records.c.layer, func.count())
+            .where(*live, memory_records.c.layer.is_not(None))
+            .group_by(memory_records.c.layer)
+        )
+        legacy = select(memory_records.c.memory_type, memory_records.c.source).where(
+            *live, memory_records.c.layer.is_(None)
         )
         async with self._client.engine.connect() as conn:
-            rows = (await conn.execute(stmt)).all()
-        return {str(row[0]): int(row[1]) for row in rows}
+            rows = (await conn.execute(stored)).all()
+            legacy_rows = (await conn.execute(legacy)).all()
+        counts: dict[str, int] = {str(row[0]): int(row[1]) for row in rows}
+        for memory_type, source in legacy_rows:
+            layer = classify_stored_layer(str(memory_type or ""), source)
+            counts[layer] = counts.get(layer, 0) + 1
+        return counts
 
     async def count_quarantined(self, namespace: str) -> int:
         """How many rows of ``namespace`` carry the quarantine flag (#63: the
@@ -635,9 +645,16 @@ class SqlStorage(ServiceAdapter):
     def _envelope_fields(row: Any) -> dict[str, Any]:
         """F-02a: the stored envelope columns; a NULL one is left out, so the record derives it."""
         out: dict[str, Any] = {"schema_version": row["schema_version"] or 1}
-        for key in ("layer", "type_tag", "provenance_class"):
+        for key in ("type_tag", "provenance_class"):
             if row[key] is not None:
                 out[key] = row[key]
+        # MF-09: a NULL layer is classified by the one shared function (``layer_classify``), as
+        # ``layer_counts`` and the Postgres backfill do.
+        out["layer"] = (
+            row["layer"]
+            if row["layer"] is not None
+            else classify_stored_layer(str(row["memory_type"] or ""), row["source"])
+        )
         axes = {"speaker": row["spk"], "addressee": row["addr"], "asker": row["ask"]}
         if row["sub"] is not None or any(v is not None for v in axes.values()):
             axes["subject"] = orjson.loads(row["sub"]) if row["sub"] is not None else []

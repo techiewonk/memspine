@@ -518,7 +518,7 @@ async def _deposit_session_record(
             "system",
             parents=parent_ids,
             roles={extends: "version_of"} if extends else None,
-            layer="episode" if kind == "episode" else "summary",
+            layer="L2",  # MF-01: both close legs (episode, summary) are L2
             trust_cap=cap,
             site="session_close",
         )

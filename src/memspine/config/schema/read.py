@@ -595,6 +595,17 @@ class ReadConfig(BaseModel):
     #: each, in a fixed section order. Independent of ``profile_header``. Off:
     #: byte-identical.
     profile_header_packing: bool = False
+    #: MF-13: a header block rendered from the profile CARD (``offline.profile_card_v2``, stored in
+    #: ``profile_card_v2`` event-log markers): the latest card entries (latest wins per attribute),
+    #: one dated line each with its source record ids and last-confirmed day, within
+    #: ``profile_card_header_budget`` tokens (never more than half the read budget). Entries last
+    #: confirmed over ``profile_card_max_age_days`` days ago (0 = no bound), and entries whose
+    #: source records are all forgotten or not live, do not render. Independent of the reflective
+    #: ``profile_header`` (L4) and of the standing answers (L5). Needs ``offline.profile_card_v2``
+    #: to have written a card; with none, nothing renders. Off: byte-identical.
+    profile_card_header: bool = False
+    profile_card_header_budget: int = Field(default=200, ge=1)
+    profile_card_max_age_days: int = Field(default=365, ge=0)
     profile_header_budget: int = Field(default=300, ge=1)
     #: ADR-055 question-shape gates on the replay read path (all off by default).
     #: A1: a ``replay`` read of a list or count question (``query_shape.is_aggregation``

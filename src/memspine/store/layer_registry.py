@@ -11,12 +11,20 @@ Two separate facts, kept apart because the router (R-Q1) needs both:
 
 The registry is a snapshot value: build it with :meth:`LayerRegistry.load` (reads one grouped count) or
 :meth:`LayerRegistry.of` (from counts you already have). It imports no engine code.
+
+MF-14: "populated" is not "usable". Four states are kept apart:
+
+* **configured**: the template switches the layer on (flag / producer / store).
+* **available**: the layer can serve a read: configured, or it holds records, or it holds non-record
+  artefacts (``artifacts``: L3 compiled graph edges, L5 profile markers).
+* **populated**: live records carry the layer (``counts``). Unchanged; the L2 / episode gate uses it.
+* **selected**: the router chose the layer for this read (``selected``; empty until the read sets it).
 """
 
 from __future__ import annotations
 
-from collections.abc import Mapping
-from dataclasses import dataclass, field
+from collections.abc import Iterable, Mapping
+from dataclasses import dataclass, field, replace
 from typing import Any
 
 from memspine.store.layers import LAYERS
@@ -65,13 +73,41 @@ class LayerRegistry:
     namespace: str
     template: LayerTemplate = field(default_factory=LayerTemplate)
     counts: Mapping[str, int] = field(default_factory=dict)
+    #: non-record artefacts per layer (L3: compiled graph edges; L5: profile markers); MF-14
+    artifacts: Mapping[str, int] = field(default_factory=dict)
+    #: layers the router selected for this read; MF-14
+    selected: frozenset[str] = frozenset()
 
     @classmethod
     def of(
-        cls, namespace: str, template: LayerTemplate, counts: Mapping[str, int] | None = None
+        cls,
+        namespace: str,
+        template: LayerTemplate,
+        counts: Mapping[str, int] | None = None,
+        *,
+        artifacts: Mapping[str, int] | None = None,
+        selected: Iterable[str] = (),
     ) -> LayerRegistry:
         known = {k: int(v) for k, v in (counts or {}).items() if k in LAYERS and int(v) > 0}
-        return cls(namespace=namespace, template=template, counts=known)
+        arts = {k: int(v) for k, v in (artifacts or {}).items() if k in LAYERS and int(v) > 0}
+        return cls(
+            namespace=namespace,
+            template=template,
+            counts=known,
+            artifacts=arts,
+            selected=frozenset(layer for layer in selected if layer in LAYERS),
+        )
+
+    def with_artifacts(self, layer: str, n: int) -> LayerRegistry:
+        """A copy with ``n`` non-record artefacts recorded for ``layer`` (``n <= 0`` clears it)."""
+        arts = {k: v for k, v in self.artifacts.items() if k != layer}
+        if layer in LAYERS and int(n) > 0:
+            arts[layer] = int(n)
+        return replace(self, artifacts=arts)
+
+    def with_selected(self, layers: Iterable[str]) -> LayerRegistry:
+        """A copy with the router-selected layers set."""
+        return replace(self, selected=frozenset(x for x in layers if x in LAYERS))
 
     @classmethod
     async def load(cls, storage: Any, namespace: str, template: LayerTemplate) -> LayerRegistry:
@@ -83,6 +119,24 @@ class LayerRegistry:
 
     def is_populated(self, layer: str) -> bool:
         return self.count(layer) > 0
+
+    def artifact_count(self, layer: str) -> int:
+        """Non-record artefacts of the layer (graph edges for L3, profile markers for L5)."""
+        return max(0, int(self.artifacts.get(layer, 0)))
+
+    def has_artifacts(self, layer: str) -> bool:
+        return self.artifact_count(layer) > 0
+
+    def is_configured(self, layer: str) -> bool:
+        """Switched on by the template alone (L0 always)."""
+        return layer == "L0" or layer in self.template.enabled
+
+    def is_available(self, layer: str) -> bool:
+        """Can serve a read: configured, or holds records, or holds non-record artefacts."""
+        return self.is_configured(layer) or self.is_populated(layer) or self.has_artifacts(layer)
+
+    def is_selected(self, layer: str) -> bool:
+        return layer in self.selected
 
     def is_enabled(self, layer: str) -> bool:
         """On by the template, or evidently on because the layer holds records."""
@@ -97,8 +151,17 @@ class LayerRegistry:
         return frozenset(layer for layer in LAYERS if self.is_populated(layer))
 
     def report(self) -> dict[str, dict[str, Any]]:
-        """``{layer: {"enabled": bool, "count": int}}`` for every layer, L0..L5."""
+        """Per layer L0..L5: ``enabled`` / ``count`` (as before) plus ``configured``, ``available``,
+        ``populated``, ``artifacts`` and ``selected`` (MF-14)."""
         return {
-            layer: {"enabled": self.is_enabled(layer), "count": self.count(layer)}
+            layer: {
+                "enabled": self.is_enabled(layer),
+                "count": self.count(layer),
+                "configured": self.is_configured(layer),
+                "available": self.is_available(layer),
+                "populated": self.is_populated(layer),
+                "artifacts": self.artifact_count(layer),
+                "selected": self.is_selected(layer),
+            }
             for layer in LAYERS
         }

@@ -12,6 +12,7 @@ from collections.abc import Iterable, Sequence
 from datetime import UTC, datetime
 
 from memspine.core.event_date import happened_of, label_start
+from memspine.derive.fact_policy import DERIVED_VIEW_CHANNELS, FactPurpose, is_evidence_fact
 from memspine.derive.resolve import normalise_name
 from memspine.schemas.durable.assertion import AssertionEnvelope, Mention
 from memspine.schemas.durable.assessment import Assessment, Support
@@ -38,17 +39,8 @@ OBSERVATION_CHANNEL = "observation"
 STANDING_CHANNEL = "standing"
 
 #: Channels whose records are derived views, never inputs of a later derivation (no feedback loop).
-DERIVED_CHANNELS = frozenset(
-    {
-        OBSERVATION_CHANNEL,
-        STANDING_CHANNEL,
-        "list_card",
-        "consolidation",
-        "reflection",
-        "anticipation",
-        "entity_summary",
-    }
-)
+#: Alias of the single policy list (``derive.fact_policy``, MF-10); do not edit here.
+DERIVED_CHANNELS = DERIVED_VIEW_CHANNELS
 
 _PREFERENCE_WORDS = {
     "preference": "preference",
@@ -73,16 +65,10 @@ def _aware(t: datetime) -> datetime:
     return t if t.tzinfo is not None else t.replace(tzinfo=UTC)
 
 
-def is_input_fact(r: MemoryRecord) -> bool:
-    """A stored fact the offline libraries may read: semantic, keyed by an entity, not a derived view."""
-    return (
-        r.memory_type == "semantic"
-        and bool(r.entity)
-        and not r.quarantined
-        and not r.instruction_flag
-        and r.source.channel not in DERIVED_CHANNELS
-        and "anticipatory_cue" not in r.tags
-    )
+def is_input_fact(r: MemoryRecord, purpose: FactPurpose = FactPurpose.PATTERNS) -> bool:
+    """A stored fact the offline libraries may read: semantic, keyed by an entity, not a derived view.
+    Thin wrapper over :func:`memspine.derive.fact_policy.is_evidence_fact` (the single policy, MF-10)."""
+    return is_evidence_fact(r, purpose)
 
 
 def split_statement(record: MemoryRecord) -> tuple[str, str]:

@@ -11,9 +11,12 @@ what                                                        layer
 episodic turn, resource, working, shared (grants)           L0
 semantic, mined / calibrated / user-written fact            L1
 semantic, session summary (``consolidation``), window       L2
-episode (``window_episode``), ``anticipation``
+episode (``window_episode``), ``anticipation``,
+``session_close``, ``multires``
 semantic, graph-derived (``extract_graph``, ``rule_edges``, L3
-``reorganize`` community summary, ``entity_summary``)
+``reorganize`` / ``community_summary``, ``entity_summary``)
+semantic, ``observation`` channel                           L4
+semantic, ``standing`` channel                              L5
 reflective (observations, reflections)                      L4
 procedural, prospective (standing answers, plans)           L5
 ==========================================================  =====
@@ -60,6 +63,11 @@ _CHANNEL_LAYER: dict[str, str] = {
     "consolidation": "L2",
     "window_episode": "L2",  # constants.WINDOW_EPISODE_CHANNEL
     "anticipation": "L2",
+    "session_close": "L2",  # constants.SESSION_CLOSE_CHANNEL (MF-01): episode and summary legs
+    "multires": "L2",  # multi-resolution summaries
+    "community_summary": "L3",
+    "observation": "L4",  # observation channel written through the semantic door
+    "standing": "L5",  # standing answers
     "extract_graph": "L3",
     "rule_edges": "L3",
     "reorganize": "L3",
@@ -98,6 +106,8 @@ _ROLE_CLASS: dict[str, str] = {
 
 def derive_layer(memory_type: str, channel: str = "") -> Layer:
     """The layer a record of ``memory_type`` written through ``channel`` sits on."""
+    # ``memory_type`` is a real MEMORY TYPE (``record.memory_type``), never a write-route name such
+    # as the door's "summary" (NEW-03): a route name is not in ``_TYPE_LAYER`` and fell to L0.
     if memory_type == "semantic" and channel in _CHANNEL_LAYER:
         return _CHANNEL_LAYER[channel]  # type: ignore[return-value]
     return _TYPE_LAYER.get(memory_type, "L0")  # type: ignore[return-value]

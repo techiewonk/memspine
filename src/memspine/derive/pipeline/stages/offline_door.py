@@ -66,7 +66,7 @@ def stamp_summary(ctx: PipelineContext, record: MemoryRecord, site: str) -> Memo
         return record
     from memspine.derive.write import stamp_derived
 
-    return stamp_derived(record, "summary", site)
+    return stamp_derived(record, route="summary", site=site)
 
 
 async def link_summary(

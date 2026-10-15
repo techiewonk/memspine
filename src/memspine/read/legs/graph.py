@@ -9,8 +9,9 @@ the seeds). The leg returns the records on the edges joining a seed to a converg
 by how many of the seeds converge (``k / n_seeds``, in ``(0, 1]``). The read pipeline then lifts
 those fact records to their evidence turns through lineage (``read.pipeline.lift``).
 
-The leg is empty with ``no_records:L3`` when the namespace holds no L3 record, and with a reason
-(``no_seeds``, ``no_edges``, ``no_convergence``) otherwise; it never raises for that. One
+The leg is empty with a reason (``no_edges`` when no compiled edge has a live supporting record,
+``no_seeds``, ``no_convergence``); readiness comes from the edges, not from L3 records (MF-07). It
+never raises for that. One
 ``read.graph_hop`` wiretap event reports seeds, reached nodes, convergent nodes and the tentative
 edges dropped (ids and counts only).
 """
@@ -100,18 +101,14 @@ class OneHopConvergent:
     layers = GRAPH_LAYERS
 
     async def run(self, ctx: LegContext) -> LegOutput:
-        reg = ctx.layer_registry
-        if reg is not None:
-            if not reg.is_populated("L3"):
-                return LegOutput([], "no_records:L3")
-        elif not ctx.records_for(self.layers):
-            return LegOutput([], "no_records:L3")
+        # MF-07: readiness is usable compiled edges with a live supporting record, not L3 records
+        # (edges are projected over L1 facts, so L3 can hold no record of its own).
+        live = {r.record_id for r in ctx.records}
+        if not any(e.record_id in live for e in ctx.graph_edges):
+            return LegOutput([], "no_edges")
         seeds = list(dict.fromkeys(ctx.graph_seeds))
         if not seeds:
             return LegOutput([], "no_seeds")
-        if not ctx.graph_edges:
-            return LegOutput([], "no_edges")
-        live = {r.record_id for r in ctx.records}
         res = one_hop(seeds, ctx.graph_edges, min_seeds=ctx.graph_min_seeds, admit_record=live)
         if tap.enabled():
             tap.event(

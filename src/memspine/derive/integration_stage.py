@@ -40,6 +40,7 @@ from dataclasses import dataclass
 from memspine.config.constants import TRUST_DEFAULT
 from memspine.derive.envelope_compiler import storage_kind
 from memspine.derive.envelope_stages import EnvelopeStage, EnvelopeStageContext
+from memspine.derive.fact_policy import FactPurpose
 from memspine.derive.integrate import (
     Cardinality,
     CardinalityRegistry,
@@ -222,7 +223,7 @@ def _live_index(
     """(casefolded entity, normalised attribute) -> projected live facts, entity id set to the key."""
     idx: dict[tuple[str, str], list[AssertionEnvelope]] = defaultdict(list)
     for r in records:
-        if not is_fact(r) or r.valid_to is not None:
+        if not is_fact(r, purpose=FactPurpose.INTEGRATION) or r.valid_to is not None:
             continue  # a closed interval is history and never competes
         if "integ_rung:time" in r.tags or "integ_rung:tentative" in r.tags:
             continue  # a coexisting past or tentative value never competes either

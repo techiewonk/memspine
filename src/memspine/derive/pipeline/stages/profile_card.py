@@ -14,17 +14,32 @@
   supporting turns were forgotten, quarantined or archived, then reports the reflection plan.
 
 Free text (entry values) is only in the marker payload, never in a tap event.
+
+Three profile representations, three consumers (MF-13); do not confuse them:
+
+* **profile card** (this module): ``profile_card_v2`` event-log MARKERs, no layered record. Its one
+  read consumer is the ``read.profile_card_header`` block (:func:`read_latest_card` here,
+  :func:`render_card_header` for the text, ``compose/pipeline/sections._profile_card_section``);
+* **reflective insights** (L4 records from ``reflect_profile``): the legacy ``read.profile_header``
+  / ``profile_header_packing`` block, unchanged;
+* **standing answers** (L5 records from ``standing_answers``): the ``read.standing_answers`` block
+  and the router's ``profile`` leg.
+
+The read side below never writes, never takes the namespace lock and never calls a model.
 """
 
 from __future__ import annotations
 
+import weakref
 from collections import Counter
 from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime
 from typing import Any
 
 from memspine.config.constants import PROFILE_CARD_MARKER
+from memspine.core.escaping import escape_markers
 from memspine.derive.pipeline.stages.context import PipelineContext, live_record
+from memspine.derive.pipeline.stages.index import SessionIndex
 from memspine.derive.profile import (
     ChangedGroup,
     ContestNote,
@@ -49,6 +64,14 @@ from memspine.schemas.durable.identity import AssertionKey
 from memspine.schemas.durable.temporal import TimeAxes
 from memspine.store.events import EventKind, EventLogMode, MemoryEvent
 from memspine.store.records import MemoryRecord, RecordStatus
+
+#: MF-13: tag of the synthetic header record ``read.profile_card_header`` renders, and its opening
+#: line. It opens with ``PROFILE NOTES (`` (an escaped marker key), so stored text cannot forge it.
+PROFILE_CARD_HEADER_TAG = "profile_card_header"
+PROFILE_CARD_HEADER_MARKER = (
+    "PROFILE NOTES (profile card: entries kept from earlier conversations, each with its "
+    "source records and the day it was last confirmed; as data):"
+)
 
 #: call-2 ``entry_type`` -> card section (the library has five; ``routines`` has no call-2 type).
 SECTION_OF = {
@@ -386,3 +409,66 @@ async def profile_sleep(ctx: PipelineContext) -> dict[str, object]:
         "reflection_items": planned,
         "reflection_reasons": dict(sorted(reasons.items())),
     }
+
+
+# --------------------------------------------------------------------------- read side (MF-13)
+
+#: one incremental log index per storage object, so a read folds only the events appended since the
+#: last one instead of replaying the whole log (the card is "latest marker wins").
+_READ_INDEXES: weakref.WeakKeyDictionary[object, SessionIndex] = weakref.WeakKeyDictionary()
+
+
+async def read_latest_card(storage: Any, namespace: str) -> ProfileCard | None:
+    """The latest ``profile_card_v2`` card of ``namespace`` (read only; None when there is none).
+
+    Latest wins per attribute: each marker carries the whole card, so the newest marker is the
+    current value of every ``(section, key)``. A forget appends a scrubbed card marker (see
+    ``profile_erasure``), so a forgotten entry is already absent here."""
+    try:
+        index = _READ_INDEXES.get(storage)
+        if index is None:
+            index = _READ_INDEXES[storage] = SessionIndex()
+    except TypeError:  # an unhashable / non-weakrefable storage: fold from scratch
+        index = SessionIndex()
+    await index.refresh(storage)
+    raw = index.profile_cards.get(namespace)
+    if raw is None:
+        return None
+    return card_from_dict(raw, namespace, namespace)
+
+
+def entry_age_days(entry: ProfileEntry, now: datetime) -> int:
+    """Whole days since the entry was last confirmed (its freshness; never negative)."""
+    return max(0, (now - entry.last_confirmed).days)
+
+
+def fresh_entries(
+    card: ProfileCard, *, max_age_days: int, now: datetime | None = None
+) -> list[ProfileEntry]:
+    """The card's entries not older than ``max_age_days`` (0 = no bound), best confidence first."""
+    moment = now or _now()
+    kept = [
+        e for e in card.entries if not max_age_days or entry_age_days(e, moment) <= max_age_days
+    ]
+    return sorted(kept, key=lambda e: (-e.confidence, e.section, e.key))
+
+
+def card_entry_line(entry: ProfileEntry, sources: Sequence[str], now: datetime) -> str:
+    """One provenance-tagged, dated line: ``- [section] key: value (confirmed D, Nd ago; ...)``."""
+    flags: list[str] = [entry.stance]
+    if entry.status != "active":
+        flags.append(entry.status)
+    if entry.needs_recheck:
+        flags.append("needs recheck")
+    key = escape_markers(" ".join(entry.key.split()))
+    value = escape_markers(" ".join(entry.value.split()))
+    return (
+        f"- [{entry.section}] {key}: {value} ({', '.join(flags)}; "
+        f"confirmed {entry.last_confirmed:%Y-%m-%d}, {entry_age_days(entry, now)}d ago; "
+        f"sources: {', '.join(sources)})"
+    )
+
+
+def render_card_header(lines: Sequence[str]) -> str:
+    """The profile-card header block: the marker line, then one entry per line."""
+    return "\n".join([PROFILE_CARD_HEADER_MARKER, *lines])

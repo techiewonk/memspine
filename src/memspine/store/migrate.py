@@ -11,8 +11,9 @@ derived layer that replay does not regenerate (vectors, lexical index, graph, mo
 a log that a rolling window already pruned, or an ephemeral one, is refused with a clear error.
 
 Event versions: every kind is at v1 except ``memory.write`` (and the legacy full-snapshot
-``memory.decay_transition``), whose v2 payload carries the record envelope fields (``layer``,
-``type_tag``, ``provenance_class``) explicitly instead of leaving them to be re-derived.
+``memory.decay_transition``). Their v2 payload carries the record envelope fields (``layer``,
+``type_tag``, ``provenance_class``) explicitly instead of leaving them to be re-derived; v3 (LF-E, MF-05)
+moves a record written by a derived-layer producer back onto the layer its channel proves.
 """
 
 from __future__ import annotations
@@ -36,6 +37,7 @@ from memspine.schemas.versioning import (
 from memspine.services.storage.projector import RecordProjector
 from memspine.services.storage.sql_base import SqlStorage
 from memspine.store.events import EventKind, MemoryEvent
+from memspine.store.layer_classify import LAYER_UPCAST_VERSION, corrected_layer
 from memspine.store.layers import derive_layer, derive_provenance_class
 from memspine.store.replay import catch_up
 
@@ -63,7 +65,7 @@ NOT_REBUILT_LAYERS: dict[str, str] = {
 }
 
 #: Latest event schema version per kind; absent kinds are at 1.
-_LATEST: dict[EventKind, int] = {EventKind.WRITE: 2, EventKind.DECAY_TRANSITION: 2}
+_LATEST: dict[EventKind, int] = {EventKind.WRITE: 3, EventKind.DECAY_TRANSITION: 3}
 CURRENT_EVENT_VERSION = max(_LATEST.values())
 
 
@@ -94,13 +96,51 @@ def _upcast_snapshot_payload(payload: dict[str, Any]) -> dict[str, Any]:
     return out
 
 
+def _upcast_producer_layer(payload: dict[str, Any]) -> dict[str, Any]:
+    """v2 -> v3 (LF-E, MF-05): put a producer's record back on the layer its channel proves.
+
+    A record whose ``source.channel`` is a derived-layer producer (``layer_classify.PRODUCER_LAYER``:
+    session_close, consolidation, multires -> L2; entity_summary, community_summary, reorganize -> L3;
+    observation -> L4; standing -> L5) and whose stored layer is missing, L0 or L1 gets the producer's
+    layer. Anything else, every other L0 record included, is untouched. Pure and deterministic, so a
+    re-run on the same log gives the same result; each correction is reported on the ``migrate.layer_fix``
+    tap with the version name :data:`LAYER_UPCAST_VERSION`.
+
+    Rollback: the source log is never written (G-23), so the correction exists only in the migrated copy.
+    To undo it, delete the migrated store and keep using the source, or re-migrate with the v2 -> v3
+    registration removed (``_LATEST`` back to 2). The ``migrate.layer_fix`` events list every record that
+    changed (``was`` and ``now``), so the change can also be reversed record by record."""
+    record = payload.get("record")
+    if not isinstance(record, dict):
+        return dict(payload)
+    source = record.get("source")
+    channel = source.get("channel") if isinstance(source, dict) else None
+    fixed = corrected_layer(record.get("layer"), channel)
+    if fixed is None:
+        return dict(payload)
+    tap.event(
+        "migrate.layer_fix",
+        version=LAYER_UPCAST_VERSION,
+        record_id=str(record.get("record_id", "")),
+        channel=str(channel),
+        was=str(record.get("layer")),
+        now=fixed,
+    )
+    out = dict(payload)
+    out["record"] = {**record, "layer": fixed}
+    return out
+
+
 def ensure_event_upcasters() -> None:
     """Register the event upcasters once (idempotent; survives a registry reset in tests)."""
     for kind in EventKind:
         declare_kind(event_kind_id(kind), _LATEST.get(kind, 1))
     for kind in (EventKind.WRITE, EventKind.DECAY_TRANSITION):
-        if 1 not in registered_versions(event_kind_id(kind)):
+        registered = registered_versions(event_kind_id(kind))
+        if 1 not in registered:
             upcaster(event_kind_id(kind), 1)(_upcast_snapshot_payload)
+        if 2 not in registered:
+            upcaster(event_kind_id(kind), 2)(_upcast_producer_layer)
 
 
 class V1Upcaster:

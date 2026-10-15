@@ -649,12 +649,14 @@ async def test_idle_timer_closes_the_open_window(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Any
 ) -> None:
     llm = FakeWindowLLM()
+    # 0.5 s, not 0.1 s: on a slow CI runner the gap between the three turns of one send passed
+    # 0.1 s, so the timer (correctly) closed the window early and the test saw {"idle": 2}
     eng = await _engine(
-        monkeypatch, llm, window_async=True, window_idle_s=0.1, path=tmp_path / "idle.db"
+        monkeypatch, llm, window_async=True, window_idle_s=0.5, path=tmp_path / "idle.db"
     )
     try:
         await _send(eng, "a", "s1", _turns("trip", 3))
-        for _ in range(100):
+        for _ in range(200):
             if len(await _facts(eng)) == 3:
                 break
             await asyncio.sleep(0.05)

@@ -1,7 +1,7 @@
 # MemSpine restructure plan: work packages and status
 
 Generated from `data/build_plan.py` (the source of truth for rows); status is also kept on the live tracker page and synced back here.
-162 packages cover all 155 decisions. Kinds: **move** = pure restructure (tests and CPU golden), **migration** = persisted schema change (upcaster and replay-equivalence tests), **api** = new contract or lifetime (contract tests), **behaviour** = needs a GPU screen through the paired gate, **measure** = a run, **infra** = tooling.
+169 packages cover all 155 decisions. Kinds: **move** = pure restructure (tests and CPU golden), **migration** = persisted schema change (upcaster and replay-equivalence tests), **api** = new contract or lifetime (contract tests), **behaviour** = needs a GPU screen through the paired gate, **measure** = a run, **infra** = tooling.
 
 Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summaries, L3 graph, L4 observations and profile, L5 standing answers, procedures and plans; ctx = working context. Ops are the loop operators (D deposit, K_C consolidate, K_P personalise, R retrieve, C compose, G generate). Each package is one task for one agent (Sonnet); packages in a `serial` lane run one at a time, different lanes may run in parallel once their dependencies are Done. Owns = first owned path and the count of further patterns (full list in the ownership table at the end; `OWNS` in `data/packages.py`).
 
@@ -9,7 +9,7 @@ Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summarie
 |---|---|
 | Not started | 7 |
 | Ready | 0 |
-| In progress | 0 |
+| In progress | 7 |
 | Blocked | 0 |
 | Needs measurement | 71 |
 | Done | 83 |
@@ -122,6 +122,13 @@ Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summarie
 | F-16f | Isolation, erasure and rebuild matrix on both profiles | L0 L1 L3 L4 L5 ctx scope | K_C | M-25 | ER-05, ER-30 | F-16e, F-16c | behaviour | S2 foundations (serial: Alembic) | `src/memspine/store/lineage.py` +6 | Matrix green on embedded and server | **Needs measurement** | matrix 26 pass on embedded (incl. neo4j fake) after G1 fix; 14 server cells skip until MEMSPINE_TEST_PG_URL run |
 | EX-1a | Embedded milestone: one synthetic end-to-end workload survives restart and erasure | L0 L1 L4 L5 ctx scope | D K_C K_P R C G | G-01 | ER-05 | F-16c, F-16b, F-02c, F-03 | measure | S2 foundations (serial: Alembic) | - | Restart, erasure and replay on the embedded profile; not a server release | **Done** | 5/5 steps pass; FX-EX1A merged: F1 fixed (multi-party participants+inherit under viewer_required), F4 verify_forget v2-aware, F2 privacy.erasure_redact_hidden; F3 noted |
 | EX-1 | Phase 1 exit (server milestone): raw-only read non-inferior; golden; replay NO CHANGE | L0 L1 L4 L5 ctx scope | D K_C K_P R C G | G-01 | ER-05 | F-16f, EX-1a, P0-03 | measure | S2 foundations (serial: Alembic) | - | ROADMAP Phase 1 exit gate | **Needs measurement** | Server profile live on Docker PG+Neo4j: F-16d contract, F-16f 12/14 server cells (2 replay skip by design), EX-1a server steps 1-4 pass; simhash BigInteger fix; raw-only read non-inferiority deferred to GPU |
+| LF-A | One layer contract for the derived-write door (MF-01..04, NEW-02, NEW-03) | - | - |  | - | - | behaviour | other | - | Owner manual test, then contract tests | **In progress** | PR #5 (layer-contract), awaiting owner manual test; bug list docs/v2/MEMORY_LAYER_BUG_LIST_2026-10-15.md |
+| LF-B | Graph leg gates on usable edges; registry reports configured/available/populated/selected (MF-07, MF-14) | - | - |  | - | - | behaviour | other | - | Owner manual test, then contract tests | **In progress** | PR #5 (layer-contract), awaiting owner manual test; bug list docs/v2/MEMORY_LAYER_BUG_LIST_2026-10-15.md |
+| LF-C | Single fact-eligibility policy for derived views (MF-10, NEW-01) | - | - |  | - | - | behaviour | other | - | Owner manual test, then contract tests | **In progress** | PR #5 (layer-contract), awaiting owner manual test; bug list docs/v2/MEMORY_LAYER_BUG_LIST_2026-10-15.md |
+| LF-D | Episode leg kind filter, adaptive widening, narrow lineage lift (MF-06, MF-11, MF-12) | - | - |  | - | - | behaviour | other | - | Owner manual test, then contract tests | **In progress** | PR #5 (layer-contract), awaiting owner manual test; bug list docs/v2/MEMORY_LAYER_BUG_LIST_2026-10-15.md |
+| LF-E | Layer always persisted; events v3 upcaster; pg layer backfill (MF-05, MF-08, MF-09) | - | - |  | - | - | migration | other | - | Owner manual test, then contract tests | **In progress** | PR #5 (layer-contract), awaiting owner manual test; bug list docs/v2/MEMORY_LAYER_BUG_LIST_2026-10-15.md |
+| LF-F | Profile-card header consumer, L5 standing leg naming (MF-13) | - | - |  | - | - | behaviour | other | - | Owner manual test, then contract tests | **In progress** | PR #5 (layer-contract), awaiting owner manual test; bug list docs/v2/MEMORY_LAYER_BUG_LIST_2026-10-15.md |
+| LF-G | Layer contract tests and memory-type eval plan (MF-15, MF-16) | - | - |  | - | - | infra | other | - | Owner manual test, then contract tests | **In progress** | PR #5 (layer-contract), awaiting owner manual test; bug list docs/v2/MEMORY_LAYER_BUG_LIST_2026-10-15.md |
 
 ## Phase 2: write path and models
 
@@ -306,4 +313,4 @@ Files each package may write (glob patterns, repo-relative; includes removal and
 | F-16e | `src/memspine/store/lineage.py`<br>`src/memspine/store/migrate.py`<br>`src/memspine/store/profiles.py`<br>`src/memspine/store/backends/postgres/**`<br>`src/memspine/store/backends/neo4j/**`<br>`src/memspine/derive/write.py`<br>`src/memspine/services/graph/neo4j.py` |
 | F-16f | `src/memspine/store/lineage.py`<br>`src/memspine/store/migrate.py`<br>`src/memspine/store/profiles.py`<br>`src/memspine/store/backends/postgres/**`<br>`src/memspine/store/backends/neo4j/**`<br>`src/memspine/derive/write.py`<br>`src/memspine/services/graph/neo4j.py` |
 
-No ownership yet (cannot be briefed): 68 packages.
+No ownership yet (cannot be briefed): 75 packages.

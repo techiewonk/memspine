@@ -15,6 +15,15 @@ Decided rules this module encodes:
 * Entity, graph, episode and profile legs run only when a rule switches them on and their layer
   exists and is populated (layer policy). The graph leg needs L3 and a graph store; the episode
   leg needs L2; the profile leg needs L5.
+* MF-13, the three profile representations (the name "profile" is not one thing):
+
+  - the router's ``profile`` leg is the **standing-answer** leg: it needs L5 records (the
+    ``standing_answers`` stage deposits); it does not read cards or reflective insights;
+  - the **reflective** header (``read.profile_header`` / ``profile_header_packing``) renders L4
+    reflective records (``reflect_profile`` insights) and is not a routed leg;
+  - the **profile card** (``offline.profile_card_v2``) lives in ``profile_card_v2`` event-log
+    MARKERs, not in layered records, so no layer gate can see it; its only consumer is the
+    ``read.profile_card_header`` header block (``compose/pipeline/sections.py``).
 * A leg runs only when its layer is enabled **and** populated, and its service is installed.
   Otherwise it is listed in ``skipped`` with a reason code.
 * Shapes drive legs: temporal/as-of -> temporal window plus the matching time view; join ->
@@ -276,7 +285,7 @@ def route(
     if q.shape == "generic":
         fire("shape.generic", "generic question: no personal profile leg")
     elif q.personal or q.standing_answer:
-        want["profile"] = "personal question or standing answer"
+        want["profile"] = "personal question or standing answer: L5 standing-answer leg"
         fire("shape.profile", want["profile"])
 
     # --- budgets -------------------------------------------------------------------
@@ -320,7 +329,11 @@ def route(
     for name in LEG_ORDER:
         if name not in want:
             if name == "profile" and q.shape == "generic":
-                skip(name, "generic_query", "generic question needs no personal profile")
+                skip(
+                    name,
+                    "generic_query",
+                    "generic question needs no personal (standing-answer) profile leg",
+                )
             else:
                 skipped.append(
                     SkippedLeg(name=name, reason="not_routed", detail="no rule asked for it")

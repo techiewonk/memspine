@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping, Sequence
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 from memspine.compose.pack import AssembledContext, estimate_tokens
@@ -17,6 +17,14 @@ from memspine.core.read_filters import active_date_filter
 from memspine.derive.pipeline.stages.entity_summaries import (
     entity_summary_name,
     entity_summary_node,
+)
+from memspine.derive.pipeline.stages.profile_card import (
+    PROFILE_CARD_HEADER_MARKER,
+    PROFILE_CARD_HEADER_TAG,
+    card_entry_line,
+    fresh_entries,
+    read_latest_card,
+    render_card_header,
 )
 from memspine.derive.pipeline.stages.standing import standing_block
 from memspine.exceptions import StorageError
@@ -904,6 +912,68 @@ async def _profile_section(
         return None
     block = eng._lead_record(ns, render_profile(names if about else [], kept), kept)
     return block.model_copy(update={"tags": [constants.LEAD_TAG, constants.PROFILE_TAG]})  # type: ignore[no-any-return]  # CI-GREEN: pre-existing typing debt
+
+
+async def _profile_card_section(
+    eng: Any, ns: str, query: str, budget_tokens: int
+) -> MemoryRecord | None:
+    """MF-13 (``read.profile_card_header``): the profile-card header, or None.
+
+    The consumer of the marker-backed card (``offline.profile_card_v2``): the latest
+    ``profile_card_v2`` marker of the namespace (latest wins per attribute), minus entries last
+    confirmed more than ``read.profile_card_max_age_days`` ago (0 = no bound). An entry is shown
+    only while at least one of its source records is still live (present, activated, not
+    quarantined, through the same live view as any context record), so a forgotten turn cannot
+    keep a card line alive; its line cites only the live source ids. Lines are kept best
+    confidence first while the block fits ``read.profile_card_header_budget`` tokens (never more
+    than :data:`constants.PROFILE_PACK_MAX_SHARE` of the read budget), then shown in section
+    order. The block is a synthetic record whose parents are the cited sources, so its trust,
+    consent and PII tier are the strictest of them; unlike other lead blocks the read below still
+    shows its parents. Independent of the legacy reflective header (:func:`_profile_section`),
+    which is unchanged.
+    """
+    read_cfg = eng._config().read
+    if not read_cfg.profile_card_header:
+        return None
+    if read_cfg.profile_skip_temporal and is_temporal(query):
+        return None  # same date-question gate as the other profile headers
+    if read_cfg.profile_scope_gate and not await eng._applies_to_person(ns, query):
+        return None
+    allowance = min(
+        read_cfg.profile_card_header_budget,
+        int(budget_tokens * constants.PROFILE_PACK_MAX_SHARE),
+    )
+    if allowance <= estimate_tokens(PROFILE_CARD_HEADER_MARKER):
+        return None
+    storage = eng._require_started()
+    card = await read_latest_card(storage, ns)
+    if card is None or not card.entries:
+        return None
+    now = datetime.now(UTC)
+    entries = fresh_entries(card, max_age_days=read_cfg.profile_card_max_age_days, now=now)
+    shown: list[tuple[Any, str, list[MemoryRecord]]] = []
+    for entry in entries:
+        live: list[MemoryRecord] = []
+        for rid in entry.support_ids:
+            record = await storage.get_record(rid)
+            if record is None or record.namespace != ns:
+                continue
+            view = await eng._live_view(record)
+            if view is not None:
+                live.append(view)
+        if not live:
+            continue  # every source forgotten, hidden or refused: the entry does not render
+        line = card_entry_line(entry, [r.record_id for r in live], now)
+        trial = [*shown, (entry, line, live)]
+        if estimate_tokens(render_card_header([t[1] for t in trial])) <= allowance:
+            shown = trial
+    if not shown:
+        return None
+    order = {"identity": 0, "preferences": 1, "relationships": 2, "constraints": 3, "routines": 4}
+    shown.sort(key=lambda t: (order.get(t[0].section, 9), t[0].key))
+    parents = list({r.record_id: r for t in shown for r in t[2]}.values())
+    block: MemoryRecord = eng._lead_record(ns, render_card_header([t[1] for t in shown]), parents)
+    return block.model_copy(update={"tags": [constants.LEAD_TAG, PROFILE_CARD_HEADER_TAG]})
 
 
 async def _packed_profile_section(

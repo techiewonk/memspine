@@ -309,6 +309,32 @@ async def lineage_from_records(
     return lineage, fetched
 
 
+def _narrow_episode_lineage(
+    lineage: dict[str, list[LineageEdge]], roots: Sequence[str]
+) -> dict[str, list[LineageEdge]]:
+    """MF-06: the narrowest lineage of an episode hit.
+
+    A session-close episode lists the turns it cites (``support`` edges); a stitched extension
+    also names the stub it extends (``version_of``), whose own turns would widen the lift to turns
+    the extension does not cite. When an episode has ``support`` edges, only those are walked;
+    an episode with none keeps whatever edges it has. Entries unreachable afterwards are dropped,
+    so the lift never sees the stub's turns.
+    """
+    narrowed: dict[str, list[LineageEdge]] = {}
+    for rid, edges in lineage.items():
+        support = [e for e in edges if e.role == "support"]
+        narrowed[rid] = support if support and rid in roots else edges
+    reach: set[str] = set()
+    stack = [r for r in roots if r in narrowed]
+    while stack:
+        rid = stack.pop()
+        if rid in reach:
+            continue
+        reach.add(rid)
+        stack.extend(e.parent for e in narrowed[rid] if e.parent in narrowed)
+    return {rid: edges for rid, edges in narrowed.items() if rid in reach}
+
+
 async def lift_episode_hits(
     eng: Any,
     ns: str,
@@ -336,6 +362,7 @@ async def lift_episode_hits(
     if not recs:
         return []
     lineage, fetched = await lineage_from_records(eng, recs, LiftPolicy().max_depth)
+    lineage = _narrow_episode_lineage(lineage, [r.record_id for r in recs])
     turn_ids = list(
         dict.fromkeys(
             e.parent for edges in lineage.values() for e in edges if e.parent not in lineage
