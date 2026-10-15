@@ -88,3 +88,5 @@ P2REF2	B11	PICK2	scr-gc3-graph-jina	clean-jina-full	REPORT	F	-	GC	190	(GC refere
 P2F	B11	PICK2	v2-PICK2-winners	clean-jina-full	PROMOTE	Fob	-	GC	300	read.legs_v2+read.episode_leg_v2+read.standing_v2+read.tiers_v2+read.gate_v2+read.trust_rendering+read.decompose_v2+read.pool_protect_per_leg=8+offline.session_close_v2+offline.standing_v2+offline.histories_v2 (winners on the S02 graph base)
 G2	B11	GLIFT	v2-GLIFT-graph-lift	v2-S02-i2	NONINF	f	S02	GC	150	read.derived_lift=evidence+match (GC graph base; derived hits only find turns; slices fail_temporal + fail_mix_120; decisive test is a full run vs clean-jina-full)
 G3	B11	GLIFT	v2-GLIFT-pick3-graph-lift	v2-S02-i2	NONINF	f	S02	GC	170	read.derived_lift=evidence+match (v2-PICK3-j winners + the GC graph sleep build; does a lift-only graph add on the adopted default; slices fail_temporal + fail_mix_120 + fail_retrieval)
+G2F	B11	GLIFT	v2-GLIFT-graph-lift	clean-jina-full	REPORT	F	-	GC	190	read.derived_lift
+G3F	B11	GLIFT	v2-GLIFT-pick3-graph-lift	clean-jina-full	PROMOTE	Fob	-	GC	300	read.derived_lift
