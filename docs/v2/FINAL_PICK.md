@@ -35,7 +35,7 @@ Judge-error band (R14): the raw LoCoMo numbers carry about ±1 point of judge er
 | P2: winners on the GC base (`v2-PICK2-winners`) | 82.08%, net +11 | REJECT: cat2 −10 below its band. Same FTS bug (3,369 errors). |
 | G1: GTEMP temporal fix | On a working graph: mix 64 vs 66, temporal 8 vs 10 | Parked. It does not help once FTS works. |
 
-With FTS working, the graph base beats the J reference on the GC slices: mix 66 vs 60, temporal 10 vs 7. P2REF2 (working graph base, full) and P2F (winners on the working graph, full + OP-Bench + blind) are queued to find out whether the graph returns as the default.
+With FTS working, the graph base beat the J reference on the GC slices (mix 66 vs 60, temporal 10 vs 7), but not on full LoCoMo. See "Graph follow-up" below: P2F was cancelled, and P2REF2, G2F and G5F settled the question.
 
 ## What changes for users
 
