@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """Identity helpers (schema session 3). All ids are system-authored (S2-1); the model never writes them.
 
 Five distinct identities (ER-13): write (retry) id, mention id, assertion key, occurrence id, record id.

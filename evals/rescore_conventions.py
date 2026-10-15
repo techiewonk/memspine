@@ -22,7 +22,7 @@ HERE = Path(__file__).parent
 sys.path[:] = [p for p in sys.path if Path(p or ".").resolve() != HERE.resolve()]
 sys.path.append(str(HERE))
 
-from memspine_evals.judge_conventions import check_conventions, check_conventions_v2  # noqa: E402
+from memspine_evals.judge_conventions import check_conventions, check_conventions_v2
 
 
 def main() -> None:
@@ -61,7 +61,9 @@ def main() -> None:
             f"{100 * (before + len(credited)) / n:.1f}% ({len(credited)} of {n} credited)"
         )
         for r, hit in credited:
-            print(f"   {r['item_id']}/{r['query_id']} [{hit.rule}]: gold {r['gold']!r} | answer {r['answer'][:90]!r}")
+            print(
+                f"   {r['item_id']}/{r['query_id']} [{hit.rule}]: gold {r['gold']!r} | answer {r['answer'][:90]!r}"
+            )
         print(
             f"   v2 (third column): {100 * (before + len(credited2)) / n:.1f}% "
             f"({len(credited2)} credited, {len(credited2) - len(credited)} more than v1)"
@@ -69,7 +71,9 @@ def main() -> None:
         v1_ids = {(r["item_id"], r["query_id"]) for r, _ in credited}
         for r, hit in credited2:
             if (r["item_id"], r["query_id"]) not in v1_ids:
-                print(f"   NEW {r['item_id']}/{r['query_id']} [{hit.rule}]: gold {r['gold']!r} | answer {r['answer'][:90]!r}")
+                print(
+                    f"   NEW {r['item_id']}/{r['query_id']} [{hit.rule}]: gold {r['gold']!r} | answer {r['answer'][:90]!r}"
+                )
         if args.write:
             path.write_text("\n".join(json.dumps(r) for r in rows) + "\n", encoding="utf-8")
 

@@ -74,7 +74,9 @@ async def test_no_think_on_ollama_sends_think_false(monkeypatch: pytest.MonkeyPa
     the adapter also sends Ollama's own ``think=False``; other providers never get the key."""
     seen = _capture(monkeypatch, "ok")
     await LiteLLMLLM("ollama/qwen3.5:9b").chat([{"role": "user", "content": "q"}])
-    await LiteLLMLLM("ollama_chat/qwen3.5:9b", no_think=True).chat([{"role": "user", "content": "q"}])
+    await LiteLLMLLM("ollama_chat/qwen3.5:9b", no_think=True).chat(
+        [{"role": "user", "content": "q"}]
+    )
     await LiteLLMLLM("ollama/qwen3.5:9b", no_think=False).chat([{"role": "user", "content": "q"}])
     await LiteLLMLLM(QWEN).chat([{"role": "user", "content": "q"}])
     assert seen[0]["think"] is False and seen[1]["think"] is False

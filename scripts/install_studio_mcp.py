@@ -39,7 +39,11 @@ def desktop_config_path() -> Path:
 def build_entry(root: str, python: str, allow_gpu: bool = False, cwd: bool = False) -> dict:
     root = root.rstrip("/\\")
     args = ["-m", "memspine_evals.studio.server"] + (["--allow-gpu"] if allow_gpu else [])
-    entry: dict = {"command": python, "args": args, "env": {"PYTHONPATH": os.pathsep.join([f"{root}/src", f"{root}/evals"])}}
+    entry: dict = {
+        "command": python,
+        "args": args,
+        "env": {"PYTHONPATH": os.pathsep.join([f"{root}/src", f"{root}/evals"])},
+    }
     if cwd:
         entry["cwd"] = f"{root}/evals"
     return entry
@@ -66,7 +70,9 @@ def load_config(path: Path) -> tuple[dict, str]:
     try:
         cfg = json.loads(text)
     except ValueError as exc:
-        raise SystemExit(f"{path} is not valid JSON ({exc}); fix it by hand, nothing was changed") from exc
+        raise SystemExit(
+            f"{path} is not valid JSON ({exc}); fix it by hand, nothing was changed"
+        ) from exc
     if not isinstance(cfg, dict):
         raise SystemExit(f"{path}: top level is not an object; nothing was changed")
     return cfg, text
@@ -80,7 +86,11 @@ def plan(path: Path, entry: dict) -> tuple[dict, str, str, str]:
         raise SystemExit(f"{path}: mcpServers is not an object; nothing was changed")
     new = dict(cfg)
     new["mcpServers"] = dict(servers or {})
-    state = "unchanged" if new["mcpServers"].get(NAME) == entry else ("update" if NAME in new["mcpServers"] else "add")
+    state = (
+        "unchanged"
+        if new["mcpServers"].get(NAME) == entry
+        else ("update" if NAME in new["mcpServers"] else "add")
+    )
     new["mcpServers"][NAME] = entry
     return new, old_text, render(new), state
 
@@ -104,38 +114,77 @@ def apply_desktop(path: Path, entry: dict) -> str:
 def apply_claude_code(entry: dict) -> int:
     exe = shutil.which("claude")
     if not exe:
-        print("claude CLI not found on PATH; run the printed `claude mcp add` command yourself", file=sys.stderr)
+        print(
+            "claude CLI not found on PATH; run the printed `claude mcp add` command yourself",
+            file=sys.stderr,
+        )
         return 1
-    have = subprocess.run([exe, "mcp", "get", NAME], capture_output=True, text=True, check=False)  # noqa: S603
+    have = subprocess.run([exe, "mcp", "get", NAME], capture_output=True, text=True, check=False)
     if have.returncode == 0:
-        subprocess.run([exe, "mcp", "remove", "--scope", "user", NAME], capture_output=True, text=True, check=False)  # noqa: S603
+        subprocess.run(
+            [exe, "mcp", "remove", "--scope", "user", NAME],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
     cmd = claude_add_command(entry)
     cmd[0] = exe
-    done = subprocess.run(cmd, capture_output=True, text=True, check=False)  # noqa: S603
+    done = subprocess.run(cmd, capture_output=True, text=True, check=False)
     print((done.stdout + done.stderr).strip())
     return done.returncode
 
 
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    ap.add_argument("--dry-run", action="store_true", help="print the desktop config diff and the claude command; change nothing")
-    ap.add_argument("--apply-desktop", action="store_true", help="edit the desktop app config (backup first)")
-    ap.add_argument("--apply-claude-code", action="store_true", help="run `claude mcp add --scope user ...`")
-    ap.add_argument("--config", help="desktop config path (default %%APPDATA%%/Claude/claude_desktop_config.json)")
-    ap.add_argument("--root", default=DEFAULT_ROOT, help="the MAIN restructure checkout the server runs from")
+    ap.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="print the desktop config diff and the claude command; change nothing",
+    )
+    ap.add_argument(
+        "--apply-desktop", action="store_true", help="edit the desktop app config (backup first)"
+    )
+    ap.add_argument(
+        "--apply-claude-code", action="store_true", help="run `claude mcp add --scope user ...`"
+    )
+    ap.add_argument(
+        "--config",
+        help="desktop config path (default %%APPDATA%%/Claude/claude_desktop_config.json)",
+    )
+    ap.add_argument(
+        "--root", default=DEFAULT_ROOT, help="the MAIN restructure checkout the server runs from"
+    )
     ap.add_argument("--python", default=DEFAULT_PYTHON, help="python of the shared venv")
-    ap.add_argument("--allow-gpu", action="store_true", help="start the server with --allow-gpu (studio_screen may then launch the queue)")
-    ap.add_argument("--cwd", action="store_true", help="also write a cwd key (the desktop app may ignore it)")
+    ap.add_argument(
+        "--allow-gpu",
+        action="store_true",
+        help="start the server with --allow-gpu (studio_screen may then launch the queue)",
+    )
+    ap.add_argument(
+        "--cwd", action="store_true", help="also write a cwd key (the desktop app may ignore it)"
+    )
     a = ap.parse_args(argv)
 
     path = Path(a.config) if a.config else desktop_config_path()
     entry = build_entry(a.root, a.python, a.allow_gpu, a.cwd)
     _, old_text, new_text, state = plan(path, entry)
-    print(f"desktop config: {path} ({'exists' if path.exists() else 'absent'}); mcpServers.{NAME}: {state}")
+    print(
+        f"desktop config: {path} ({'exists' if path.exists() else 'absent'}); mcpServers.{NAME}: {state}"
+    )
     print("entry:", json.dumps(entry, indent=2))
-    print("\nClaude Code (user scope):\n  " + " ".join(shlex.quote(c) for c in claude_add_command(entry)))
+    print(
+        "\nClaude Code (user scope):\n  "
+        + " ".join(shlex.quote(c) for c in claude_add_command(entry))
+    )
     if state != "unchanged":
-        diff = "".join(difflib.unified_diff(old_text.splitlines(True), new_text.splitlines(True), f"{path.name} (current)", f"{path.name} (new)"))
+        diff = "".join(
+            difflib.unified_diff(
+                old_text.splitlines(True),
+                new_text.splitlines(True),
+                f"{path.name} (current)",
+                f"{path.name} (new)",
+            )
+        )
         print("\ndiff:\n" + (diff or "(new file)\n" + new_text))
     rc = 0
     if a.apply_desktop and not a.dry_run:

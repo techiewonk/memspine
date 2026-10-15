@@ -7,6 +7,7 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from memspine.config.requires import check_requires
+from memspine.config.schema.economy import EconomyConfig
 from memspine.config.schema.firewall import FirewallConfig
 from memspine.config.schema.integrity import IntegrityConfig
 from memspine.config.schema.isolation import IsolationConfig
@@ -18,7 +19,6 @@ from memspine.config.schema.llm import (
     PromptsConfig,
     WorkersConfig,
 )
-from memspine.config.schema.economy import EconomyConfig
 from memspine.config.schema.observability import ObservabilityConfig
 from memspine.config.schema.offline import OfflineConfig
 from memspine.config.schema.privacy import (

@@ -50,7 +50,9 @@ class EnvelopeStageContext:
     notes: Counter[str] = field(default_factory=Counter)
 
 
-StageFn = Callable[[list[AssertionEnvelope], EnvelopeStageContext], Awaitable[list[AssertionEnvelope]]]
+StageFn = Callable[
+    [list[AssertionEnvelope], EnvelopeStageContext], Awaitable[list[AssertionEnvelope]]
+]
 
 
 @dataclass(frozen=True)

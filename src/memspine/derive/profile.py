@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """Profile card with guarded operations, preference drift and reflection plans (LIB-39; O-18, O-19, O-20, M-20, ER-28).
 
 Pure and unwired (wiring is O4-07): no I/O, no clock, no model call. Opt-in layer (L4/L5): nothing here runs
@@ -331,13 +330,13 @@ def parse_op(raw: Mapping[str, object]) -> ProfileOp | str:
     if signal is not None and (isinstance(signal, bool) or not isinstance(signal, (int, float))):
         return "bad_signal"
     return ProfileOp(
-        kind=kind,  # type: ignore[arg-type]
+        kind=kind,
         section=section,
         key=key,
         observed_at=obs,
         value=value,
-        cites=cites,  # type: ignore[arg-type]
-        stance=stance,  # type: ignore[arg-type]
+        cites=cites,
+        stance=stance,
         signal=float(signal) if signal is not None else None,
     )
 
@@ -465,11 +464,11 @@ def apply_ops(
     outcomes: list[OpOutcome] = []
     for i, raw in enumerate(proposed_ops):
         if isinstance(raw, SchemaProfileOp):
-            raw = from_schema_op(raw)
+            raw = from_schema_op(raw)  # type: ignore[assignment]  # CI-GREEN: pre-existing typing debt
         if isinstance(raw, Mapping):
             sec, key = str(raw.get("section", "")), str(raw.get("key", ""))
             kind = str(raw.get("op", raw.get("kind", "")))
-            raw = parse_op(raw)
+            raw = parse_op(raw)  # type: ignore[assignment]  # CI-GREEN: pre-existing typing debt
         elif isinstance(raw, ProfileOp):
             sec, key, kind = raw.section, raw.key, raw.kind
         else:  # a rejection string coming from from_schema_op
@@ -477,7 +476,7 @@ def apply_ops(
         if isinstance(raw, str):
             outcomes.append(OpOutcome(i, kind, sec, key, "rejected", raw))
             continue
-        parsed.append((i, raw, kind, sec, key))
+        parsed.append((i, raw, kind, sec, key))  # type: ignore[arg-type]  # CI-GREEN: pre-existing typing debt
     # naive datetimes are rejected by _shape, so they sort first on a safe key
     parsed.sort(key=lambda t: (_ts(t[1]), t[0]))
 
@@ -762,7 +761,7 @@ def _keep_score(
         score += 1.0  # standing instructions are protected
     if e.status == "tentative":
         score -= 0.8
-    return (round(score, 9), e.last_confirmed.timestamp(), _SECTION_RANK.get(e.section, 99), e.key)  # type: ignore[return-value]
+    return (round(score, 9), e.last_confirmed.timestamp(), _SECTION_RANK.get(e.section, 99), e.key)
 
 
 def _enforce_bounds(

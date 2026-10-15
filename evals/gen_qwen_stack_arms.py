@@ -41,7 +41,11 @@ EMBEDDERS = {
     },
 }
 RERANKERS = {
-    "rjina": {"rerank": "jina", "rerank_model": "jinaai/jina-reranker-v3.5", "rerank_device": "cuda"},
+    "rjina": {
+        "rerank": "jina",
+        "rerank_model": "jinaai/jina-reranker-v3.5",
+        "rerank_device": "cuda",
+    },
     "roff": {"rerank": "off"},
     "rbge": {"rerank": "fastembed", "rerank_model": "BAAI/bge-reranker-base"},
     "rq06": {

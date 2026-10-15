@@ -14,14 +14,14 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 
 __all__ = [
+    "FILLER_TURNS",
+    "PARAPHRASES",
+    "RENAME_MAP",
+    "STORY_A",
     "Session",
     "Story",
-    "FILLER_TURNS",
-    "STORY_A",
-    "RENAME_MAP",
     "rename",
     "rename_story",
-    "PARAPHRASES",
 ]
 
 RENAME_MAP: dict[str, str] = {"Ilse": "Aiko", "Bram": "Cato"}
@@ -50,7 +50,10 @@ STORY_A = Story(
             "s1",
             "2024-03-04T18:00:00+00:00",
             (
-                ("user", "Ilse here. I just moved to Utrecht and I rent a small flat near the canal."),
+                (
+                    "user",
+                    "Ilse here. I just moved to Utrecht and I rent a small flat near the canal.",
+                ),
                 ("assistant", "Congratulations on the move. How are you settling in?"),
                 ("user", "Ilse likes it. I planted tomatoes, basil and chives on the balcony."),
             ),
@@ -59,7 +62,10 @@ STORY_A = Story(
             "s2",
             "2024-06-10T09:30:00+00:00",
             (
-                ("user", "Update from Ilse: I moved again, and now I live in Rotterdam near the harbour."),
+                (
+                    "user",
+                    "Update from Ilse: I moved again, and now I live in Rotterdam near the harbour.",
+                ),
                 ("assistant", "Rotterdam is lively. Is the balcony garden coming along?"),
                 ("user", "Yes, the tomatoes are ripe. Next week Ilse visits a sister in Leiden."),
             ),

@@ -22,7 +22,9 @@ PROTOCOL = RunProtocol(protocol_id="smoke", budget_tokens=400, top_k=5, seed=11)
 def do_run(system, tmp_path: Path, run_id: str, **cfg):
     dataset = SyntheticDataset(n_items=2, turns_per_item=12, facts_per_item=2)
     reader = ScriptedReader({q.text: (q.gold or "") for it in dataset.items() for q in it.queries})
-    config = RunConfig(run_id=run_id, protocol=PROTOCOL, out_dir=tmp_path, expect_model_calls=False, **cfg)
+    config = RunConfig(
+        run_id=run_id, protocol=PROTOCOL, out_dir=tmp_path, expect_model_calls=False, **cfg
+    )
     asyncio.run(EvalRunner(dataset, system, reader, ExactMatchJudge(), config).run())
     return tmp_path / run_id
 
@@ -54,16 +56,22 @@ def test_flags_differ_between_arms_but_comparability_key_does_not(tmp_path: Path
 
 def test_cost_is_a_trailing_record_and_old_readers_still_work(tmp_path: Path) -> None:
     out = do_run(VerbatimSystem(), tmp_path, "c")
-    lines = [json.loads(x) for x in (out / "results.jsonl").read_text(encoding="utf-8").splitlines()]
+    lines = [
+        json.loads(x) for x in (out / "results.jsonl").read_text(encoding="utf-8").splitlines()
+    ]
     assert lines[0]["kind"] == "manifest" and lines[-1]["kind"] == "cost"
     assert [x["kind"] for x in lines].count("summary") == 1
     cost = lines[-1]
     assert cost["duration_s"] is not None and cost["latency_p50_s"] is not None
     assert cost["tokens"]["reader"]["prompt"] >= 0
     assert cost["rerank_calls"] is None  # no reranker configured: unknown, not zero
-    manifest, rows, summary = read_run(out / "results.jsonl")  # unchanged reader ignores the new kind
+    manifest, rows, summary = read_run(
+        out / "results.jsonl"
+    )  # unchanged reader ignores the new kind
     assert rows and summary is not None
     assert manifest["identity"]["cost"]["duration_s"] is None  # line 1 is never rewritten
     sj = json.loads((out / "summary.json").read_text(encoding="utf-8"))
     assert sj["manifest"]["identity"]["cost"]["duration_s"] == cost["duration_s"]
-    assert comparability_key(manifest) == comparability_key({**manifest, "identity": sj["manifest"]["identity"]})
+    assert comparability_key(manifest) == comparability_key(
+        {**manifest, "identity": sj["manifest"]["identity"]}
+    )

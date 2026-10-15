@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """Migration by replay of the retained event log (F-16b; M-01, M-26, G-23, ER-27 C, ER-33).
 
 The v1 event log stays the truth. :class:`V1Upcaster` lifts each stored event to the current event

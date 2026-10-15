@@ -64,8 +64,13 @@ class ArmId:
     identity_status: str  # "identity" | "git-only" | "none"
 
     def as_dict(self) -> dict[str, Any]:
-        return {"run_id": self.run_id, "commit": self.commit, "flags_hash": self.flags_hash,
-                "signature": self.signature, "identity_status": self.identity_status}
+        return {
+            "run_id": self.run_id,
+            "commit": self.commit,
+            "flags_hash": self.flags_hash,
+            "signature": self.signature,
+            "identity_status": self.identity_status,
+        }
 
 
 def arm_id(run_id: str, manifest: Mapping[str, Any] | None) -> ArmId:
@@ -83,12 +88,17 @@ def read_ledger(ledger: Path) -> list[dict[str, Any]]:
     path = Path(ledger)
     if not path.exists():
         return []
-    return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+    return [
+        json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()
+    ]
 
 
 def prior_exposures(ledger: Path, set_id: str, arm: ArmId) -> list[dict[str, Any]]:
-    return [e for e in read_ledger(ledger)
-            if e.get("set_id") == set_id and (e.get("arm") or {}).get("signature") == arm.signature]
+    return [
+        e
+        for e in read_ledger(ledger)
+        if e.get("set_id") == set_id and (e.get("arm") or {}).get("signature") == arm.signature
+    ]
 
 
 def check(ledger: Path, set_id: str, arm: ArmId, reexpose: str | None = None) -> int:
@@ -98,7 +108,7 @@ def check(ledger: Path, set_id: str, arm: ArmId, reexpose: str | None = None) ->
     if n and not (reexpose or "").strip():
         raise SealRefused(
             f"sealed blind set '{set_id}' was already scored for arm {arm.signature} ({n}x, see {ledger}); "
-            "a second look needs --reexpose \"<reason>\", which is recorded"
+            'a second look needs --reexpose "<reason>", which is recorded'
         )
     return n
 

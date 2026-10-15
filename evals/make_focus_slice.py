@@ -27,7 +27,9 @@ SEED = 20261011
 
 def locomo_correct(d: dict) -> bool:
     sc = d.get("score_date_checked", d.get("score"))
-    return float(sc or 0) >= 1 and d["status"] == "completed" and bool((d.get("answer") or "").strip())
+    return (
+        float(sc or 0) >= 1 and d["status"] == "completed" and bool((d.get("answer") or "").strip())
+    )
 
 
 def read_results(path: Path) -> list[dict]:
@@ -110,7 +112,9 @@ def build_opb(runs: Path, ref: str, n_control: int) -> dict:
         "hash": digest(fail, control),
         "fail": fail,
         "control": control,
-        "baseline_score": {f"{item_of[q]}/{q}": s for q, s in per.items() if f"{item_of[q]}/{q}" in sel},
+        "baseline_score": {
+            f"{item_of[q]}/{q}": s for q, s in per.items() if f"{item_of[q]}/{q}" in sel
+        },
         "query_ids": [q for q in order if q in sel],
     }
 

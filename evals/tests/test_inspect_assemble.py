@@ -11,9 +11,9 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from build_inspector import build, build_demo, embed  # noqa: E402
-from memspine_evals.inspect.assemble import assemble, gold_path, load_dataset, main  # noqa: E402
-from memspine_evals.inspect.demo_run import make_demo_run  # noqa: E402
+from build_inspector import build, build_demo, embed
+from memspine_evals.inspect.assemble import assemble, gold_path, load_dataset, main
+from memspine_evals.inspect.demo_run import make_demo_run
 
 REACHED = {"none", "leg", "fused", "pool", "rerank", "packed"}
 
@@ -46,7 +46,11 @@ def test_bundle_files_and_manifest(v2):
     out, man = v2
     for n in ("turns", "windows", "envelopes", "records", "links", "sleep", "questions", "checks"):
         assert (out / f"{n}.jsonl").exists()
-    assert man["counts"]["turns"] == 30 and man["counts"]["windows"] == 9 and man["counts"]["questions"] == 8
+    assert (
+        man["counts"]["turns"] == 30
+        and man["counts"]["windows"] == 9
+        and man["counts"]["questions"] == 8
+    )
     assert re.fullmatch(r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ", man["run_started_at"])
     assert man["tap_events"]["write.envelope.trace"] > 100
 
@@ -55,7 +59,10 @@ def test_turns_join_ingest_deposit_and_windows(v2):
     out, _ = v2
     t = {r["turn_id"]: r for r in rows(out / "turns.jsonl")}
     assert t["D1:1"]["record_id"] == "rec-1" and t["D1:1"]["window_ids"] == ["win-1-1"]
-    assert t["D1:4"]["derived_record_ids"] == ["fct-1", "fct-2"]  # deposit delta of the window's last turn
+    assert t["D1:4"]["derived_record_ids"] == [
+        "fct-1",
+        "fct-2",
+    ]  # deposit delta of the window's last turn
     skipped = [r for r in t.values() if r["deposit_action"] == "skipped"]
     assert len(skipped) == 1 and skipped[0]["record_id"] is None
     assert t["D1:1"]["indexed"]["source"] == "tap" and t["D1:1"]["firewall"]["quarantined"] is False
@@ -77,7 +84,9 @@ def test_windows_envelopes_records_links(v2):
     recs = rows(out / "records.jsonl")
     assert {r["phase"] for r in recs} == {"post_ingest", "post_sleep"}
     links = rows(out / "links.jsonl")
-    assert any(k["rel"] == "supersede" and k["src"] == "fct-2" and k["dst"] == "fct-13" for k in links)
+    assert any(
+        k["rel"] == "supersede" and k["src"] == "fct-2" and k["dst"] == "fct-13" for k in links
+    )
     assert {"lineage", "mentions", "typed", "reply"} <= {k["kind"] for k in links}
     assert len(rows(out / "sleep.jsonl")) == 6 and len(rows(out / "checks.jsonl")) == 4
 
@@ -86,20 +95,32 @@ def test_questions_gold_path_and_funnel(v2):
     out, _ = v2
     q = {r["query_id"]: r for r in rows(out / "questions.jsonl")}
     assert q["q4"]["correct"] and q["q4"]["gold_turns"] == ["D3:2", "D3:5"]
-    assert all(g["last_stage_reached"] in REACHED and "turn" in g for r in q.values() for g in r["gold_path"])
+    assert all(
+        g["last_stage_reached"] in REACHED and "turn" in g
+        for r in q.values()
+        for g in r["gold_path"]
+    )
     rescued = [g for g in q["q4"]["gold_path"] if g["rescued_from"]]
     assert rescued and rescued[0]["turn"] == "D3:5" and rescued[0]["last_stage_reached"] == "packed"
     assert q["q8"]["first_losing_stage"] == "reader" and not q["q8"]["correct"]
     assert q["q6"]["headers"] and q["q6"]["rerank"][0]["composite"]["rel"] > 0
     assert q["q6"]["reader"]["calls"][0]["prompt"] and q["q6"]["context_text"]
-    assert [f["stage"] for f in q["q2"]["funnel"]] == ["recall", "fusion", "pool", "final", "context"]
+    assert [f["stage"] for f in q["q2"]["funnel"]] == [
+        "recall",
+        "fusion",
+        "pool",
+        "final",
+        "context",
+    ]
 
 
 def test_ref_arm_falls_back_without_tap_snapshots(runs, tmp_path):
     _t, ref, _ = runs
     man = assemble(ref, tmp_path, "demo")
     assert man["counts"]["windows"] == 0 and man["counts"]["envelopes"] == 0
-    assert man["counts"]["records"] == 30 and man["counts"]["sleep"] == 3  # records from ingest rows, sleep from tap
+    assert (
+        man["counts"]["records"] == 30 and man["counts"]["sleep"] == 3
+    )  # records from ingest rows, sleep from tap
     q = {r["query_id"]: r for r in rows(tmp_path / "questions.jsonl")}
     stages = {k: v["first_losing_stage"] for k, v in q.items()}
     assert stages["q2"] == "recall" and stages["q4"] == "fusion" and stages["q6"] == "rerank"
@@ -110,7 +131,15 @@ def test_ref_arm_falls_back_without_tap_snapshots(runs, tmp_path):
 
 
 def test_gold_path_unit_matches_forensics_report_order():
-    f = {"vector": [{"r": 1, "turn": "a"}], "lexical": [], "extra_legs": {}, "fused": [], "pool": [], "rerank_scores": [], "final": []}
+    f = {
+        "vector": [{"r": 1, "turn": "a"}],
+        "lexical": [],
+        "extra_legs": {},
+        "fused": [],
+        "pool": [],
+        "rerank_scores": [],
+        "final": [],
+    }
     gp, loss = gold_path(["a", "b"], f, {"a": {"written": True}, "b": {"written": False}}, set())
     assert [g["lost_at"] for g in gp] == ["fusion", "ingest"] and loss == "ingest"
     assert [g["last_stage_reached"] for g in gp] == ["leg", "none"]

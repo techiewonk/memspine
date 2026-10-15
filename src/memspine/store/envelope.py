@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """Mapping between the stored MemoryRecord and the durable AssertionEnvelope (F-02a, M-06).
 
 ``to_envelope`` is lossless: whatever the envelope cannot express is carried in ``extras`` as one JSON
@@ -89,16 +88,16 @@ def _time_axes(record: MemoryRecord, recorded: datetime) -> TimeAxes:
             precision = "instant"
         start = TemporalRef(
             at=start_at,
-            precision=precision,  # type: ignore[arg-type]
+            precision=precision,
             approximate=record.event_approximate,
-            basis=basis,  # type: ignore[arg-type]
+            basis=basis,
             anchor=source_at if basis == "source_time" else None,
         )
         end: TemporalRef | None = None
         if record.valid_to is not None and _aware(record.valid_to) >= start_at:
             end = TemporalRef(
                 at=_aware(record.valid_to),
-                precision=precision,  # type: ignore[arg-type]
+                precision=precision,
                 approximate=record.event_approximate,
                 basis="inferred",
             )
@@ -173,7 +172,7 @@ def to_envelope(record: MemoryRecord) -> AssertionEnvelope:
             support=Support(independent=record.corroborations),
             binding="bound",
             modality="asserted",
-            time_precision=time.event_precision,
+            time_precision=time.event_precision,  # type: ignore[arg-type]  # CI-GREEN: pre-existing typing debt
         ),
         src_class=record.provenance_class,
         parents=parents,

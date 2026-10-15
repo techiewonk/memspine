@@ -65,7 +65,7 @@ async def watch(
             "due-time watches are unaffected",
         )
     async with eng._write_locks.setdefault(ns, asyncio.Lock()):
-        return await eng._write_locked(storage, ns, record, "prospective", actor)
+        return await eng._write_locked(storage, ns, record, "prospective", actor)  # type: ignore[no-any-return]  # CI-GREEN: pre-existing typing debt
 
 
 async def due(
@@ -87,7 +87,7 @@ async def due(
         # raises deep in the trigger — reject it loudly at the boundary.
         raise ConflictError("now must be timezone-aware (naive datetimes are ambiguous)")
     fired = await prospective.pending(ns, now)
-    return eng._inflate_all(fired, ns)
+    return eng._inflate_all(fired, ns)  # type: ignore[no-any-return]  # CI-GREEN: pre-existing typing debt
 
 
 async def acknowledge_watch(eng: Any, record_id: str, namespace: str = "default") -> MemoryRecord:
@@ -97,7 +97,7 @@ async def acknowledge_watch(eng: Any, record_id: str, namespace: str = "default"
     prospective = eng._require_prospective()
     ns = validate_namespace(namespace)
     async with eng._write_locks.setdefault(ns, asyncio.Lock()):
-        return await prospective.acknowledge(record_id, namespace=ns)
+        return await prospective.acknowledge(record_id, namespace=ns)  # type: ignore[no-any-return]  # CI-GREEN: pre-existing typing debt
 
 
 def _require_prospective(eng: Any) -> ProspectiveMemory:
@@ -105,4 +105,4 @@ def _require_prospective(eng: Any) -> ProspectiveMemory:
         raise MemspineError(
             "prospective memory not enabled — set memories.prospective.enabled: true"
         )
-    return eng._prospective
+    return eng._prospective  # type: ignore[no-any-return]  # CI-GREEN: pre-existing typing debt

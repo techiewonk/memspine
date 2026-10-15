@@ -88,8 +88,6 @@ def protect_ids(
     boosted: Mapping[str, float], leg_rank: Mapping[str, tuple[str, int]]
 ) -> dict[str, str]:
     """Boosted ids that some leg ranks within the depth, strongest boost first, capped."""
-    eligible = [
-        rid for rid in boosted if rid in leg_rank and leg_rank[rid][1] <= PROTECT_LEG_DEPTH
-    ]
+    eligible = [rid for rid in boosted if rid in leg_rank and leg_rank[rid][1] <= PROTECT_LEG_DEPTH]
     eligible.sort(key=lambda rid: (-boosted[rid], leg_rank[rid][1]))
     return {rid: "date_prior" for rid in eligible[:PROTECT_MAX]}

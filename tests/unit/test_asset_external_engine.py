@@ -32,8 +32,7 @@ TURNS = [
     {
         "role": "user",
         "content": (
-            "Melanie: Look at this, my favourite bedtime read lately "
-            "[image: a photo of a book]"
+            "Melanie: Look at this, my favourite bedtime read lately [image: a photo of a book]"
         ),
         "turn_id": "D1:2",
         "attachments": [

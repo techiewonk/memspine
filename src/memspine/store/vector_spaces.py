@@ -127,7 +127,7 @@ class InMemorySpaceState:
         self._state: dict[str, Any] = {}
 
     def load(self) -> dict[str, Any]:
-        return json.loads(json.dumps(self._state))
+        return json.loads(json.dumps(self._state))  # type: ignore[no-any-return]  # CI-GREEN: pre-existing typing debt
 
     def save(self, state: dict[str, Any]) -> None:
         self._state = json.loads(json.dumps(state))

@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """Quotas checked before acceptance (LIB-07, schema session 9, ER-08).
 
 Pure: stdlib and ``memspine.schemas`` only; the clock is injected. A rejected request produces a typed

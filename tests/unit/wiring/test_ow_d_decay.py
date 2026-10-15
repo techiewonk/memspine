@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """OW-D / O4-09: activation tiers and multi-resolution compression (``offline.decay_v2``), model-free."""
 
 from __future__ import annotations

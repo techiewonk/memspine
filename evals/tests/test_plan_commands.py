@@ -10,8 +10,26 @@ from pathlib import Path
 EVALS = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(EVALS))
 
-import plan_commands  # noqa: E402
-from memspine_evals.cli import build_parser  # noqa: E402
+import plan_commands
+import pytest
+from memspine_evals.cli import build_parser
+
+
+class _OfflineTextEmbedding:
+    """Stands in for fastembed's TextEmbedding: building systems must not download a model."""
+
+    def __init__(self, *args: object, **kwargs: object) -> None:
+        pass
+
+    def embed(self, texts: list[str]) -> list[list[float]]:
+        return [[0.0] for _ in texts]
+
+
+@pytest.fixture(autouse=True)
+def _no_model_download(monkeypatch: pytest.MonkeyPatch) -> None:
+    """These tests check which systems the harness builds, not what they embed (CI has no network)."""
+    fastembed = pytest.importorskip("fastembed")
+    monkeypatch.setattr(fastembed, "TextEmbedding", _OfflineTextEmbedding)
 
 
 def test_every_plan_arm_yields_a_parseable_command() -> None:

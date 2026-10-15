@@ -2570,6 +2570,7 @@ dev = [
     { name = "pytest-asyncio" },
     { name = "pytest-cov" },
     { name = "ruff" },
+    { name = "tzdata", marker = "sys_platform == 'win32'" },
 ]
 encrypt = [
     { name = "sqlcipher3" },
@@ -2719,6 +2720,7 @@ requires-dist = [
     { name = "transformers", marker = "extra == 'decider'", specifier = ">=5.0" },
     { name = "transformers", marker = "extra == 'st'", specifier = ">=4.51" },
     { name = "typer", specifier = ">=0.12" },
+    { name = "tzdata", marker = "sys_platform == 'win32' and extra == 'dev'" },
     { name = "uvicorn", marker = "extra == 'rest'", specifier = ">=0.32" },
     { name = "weaviate-client", marker = "extra == 'weaviate'", specifier = ">=4.9" },
     { name = "xxhash", specifier = ">=3.5" },

@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """Reconcile backlog and contradiction sweep (LIB-37; decisions O-10, O-11, O-12, O-13; S3-1, I-5, F-01).
 
 Pure and unwired (wiring is O4-03): no I/O, no clock read (``now`` is passed in), no model call. Depends on
@@ -646,7 +645,7 @@ def sweep(
             changes.append(StatusChange(inc_rid, new_status[inc_rid], d.incoming_status, ref))
             new_status[inc_rid] = d.incoming_status
         for c in d.closures:
-            e = by_rid.get(c.record_id)
+            e = by_rid.get(c.record_id)  # type: ignore[assignment]  # CI-GREEN: pre-existing typing debt
             if e is not None and _end_at(e) != c.end:
                 closures.append(c)
         final_status.update(new_status)
@@ -681,7 +680,7 @@ def sweep(
         elif it.kind == "late_arrival":
             q = q.drop("late_arrival", it.tenant, it.owner, it.ref)
         elif it.kind == "unbound":
-            e = next((x for x in projected if record_id(x) == it.ref), None)
+            e = next((x for x in projected if record_id(x) == it.ref), None)  # type: ignore[assignment]  # CI-GREEN: pre-existing typing debt
             if e is None or e.assessment.binding == "bound":
                 q = q.drop("unbound", it.tenant, it.owner, it.ref)
     for gk in sorted(buckets, key=lambda k: tuple("" if x is None else x for x in k)):

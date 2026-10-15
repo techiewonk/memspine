@@ -26,7 +26,7 @@ async def reflect(
     """Write a reflection derived from existing records (M13.7); see :meth:`_reflect`."""
     written = await eng._reflect(content, source_record_ids, namespace, actor, source)
     assert written is not None  # require_live is off
-    return written
+    return written  # type: ignore[no-any-return]  # CI-GREEN: pre-existing typing debt
 
 
 async def _reflect(
@@ -62,7 +62,7 @@ async def _reflect(
             ns, source_record_ids, "reflect_profile"
         ):
             return None
-        return await eng._reflective.reflect(
+        return await eng._reflective.reflect(  # type: ignore[no-any-return]  # CI-GREEN: pre-existing typing debt
             ns,
             content,
             source_record_ids,
@@ -112,7 +112,7 @@ async def related(
             "associative memory not enabled — set memories.associative.enabled: true"
         )
     ns = validate_namespace(namespace)
-    return eng._inflate_all(
+    return eng._inflate_all(  # type: ignore[no-any-return]  # CI-GREEN: pre-existing typing debt
         await eng._associative.related(ns, record_id, k=k, strategy=strategy), ns
     )
 

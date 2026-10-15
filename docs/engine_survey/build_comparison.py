@@ -17,14 +17,44 @@ from pathlib import Path
 HERE = Path(__file__).parent
 OUT = Path(sys.argv[1]) if len(sys.argv) > 1 else HERE / "engine_comparison.html"
 
-ORDER = ["memspine", "combined", "memos", "memu", "mnemon", "honcho", "memmachine", "hindsight", "mirix",
-         "cognee", "memori", "nemori", "lightmem", "mem0", "evermemos"]
-STATUS = {"Y": ("yes", "Has it"), "O": ("off", "Built, off"), "P": ("part", "Partial"), "N": ("no", "Not present")}
+ORDER = [
+    "memspine",
+    "combined",
+    "memos",
+    "memu",
+    "mnemon",
+    "honcho",
+    "memmachine",
+    "hindsight",
+    "mirix",
+    "cognee",
+    "memori",
+    "nemori",
+    "lightmem",
+    "mem0",
+    "evermemos",
+]
+STATUS = {
+    "Y": ("yes", "Has it"),
+    "O": ("off", "Built, off"),
+    "P": ("part", "Partial"),
+    "N": ("no", "Not present"),
+}
 LAYER_NAMES = {
-    "raw": "Raw turns", "segment": "Segmentation", "episode": "Episode narrative", "facts": "Atomic facts",
-    "graph": "Entity graph", "bitemporal": "Bi-temporal validity", "session_summary": "Session summary",
-    "entity_summary": "Entity summary", "profile": "Profile", "prospective": "Prospective / foresight",
-    "procedural": "Procedural", "reflection": "Reflection", "shared": "Shared memory", "firewall": "Write firewall",
+    "raw": "Raw turns",
+    "segment": "Segmentation",
+    "episode": "Episode narrative",
+    "facts": "Atomic facts",
+    "graph": "Entity graph",
+    "bitemporal": "Bi-temporal validity",
+    "session_summary": "Session summary",
+    "entity_summary": "Entity summary",
+    "profile": "Profile",
+    "prospective": "Prospective / foresight",
+    "procedural": "Procedural",
+    "reflection": "Reflection",
+    "shared": "Shared memory",
+    "firewall": "Write firewall",
     "provenance": "Provenance + trust",
 }
 
@@ -83,18 +113,26 @@ def main():
     phases = parse_spec()
     engines = load()
     slugs = [e["slug"] for e in engines]
-    synth = json.loads((HERE / "synthesis.json").read_text(encoding="utf-8")) if (HERE / "synthesis.json").exists() else None
+    synth = (
+        json.loads((HERE / "synthesis.json").read_text(encoding="utf-8"))
+        if (HERE / "synthesis.json").exists()
+        else None
+    )
 
     def thead(first="Parameter"):
         cells = "".join(
             f'<th scope="col" class="eng" data-e="{esc(e["slug"])}"><span class="ename">{esc(e["name"])}</span>'
-            f'<span class="esub">LoCoMo {esc(best_score(e))}</span></th>' for e in engines)
+            f'<span class="esub">LoCoMo {esc(best_score(e))}</span></th>'
+            for e in engines
+        )
         return f'<tr><th scope="col" class="param">{esc(first)}</th>{cells}</tr>'
 
     tiles = "".join(
         f'<label class="etile" data-e="{esc(e["slug"])}"><input type="checkbox" class="etoggle" value="{esc(e["slug"])}" checked>'
         f'<span class="tname">{esc(e["name"])}</span><span class="tscore">{esc(best_score(e))}</span>'
-        f'<span class="tline">{esc(e.get("one_line", ""))}</span></label>' for e in engines)
+        f'<span class="tline">{esc(e.get("one_line", ""))}</span></label>'
+        for e in engines
+    )
 
     layer_rows = []
     for lid, lname in LAYER_NAMES.items():
@@ -102,33 +140,47 @@ def main():
         for e in engines:
             st = (e.get("layers") or {}).get(lid, "")
             cls, label = STATUS.get(st, ("unk", "Not recorded"))
-            cells.append(f'<td class="dotcell" data-e="{esc(e["slug"])}"><span class="dot {cls}" role="img" aria-label="{esc(label)}" title="{esc(e["name"])}: {esc(label)}"></span></td>')
-        layer_rows.append(f'<tr><th scope="row" class="param">{esc(lname)}</th>{"".join(cells)}</tr>')
+            cells.append(
+                f'<td class="dotcell" data-e="{esc(e["slug"])}"><span class="dot {cls}" role="img" aria-label="{esc(label)}" title="{esc(e["name"])}: {esc(label)}"></span></td>'
+            )
+        layer_rows.append(
+            f'<tr><th scope="row" class="param">{esc(lname)}</th>{"".join(cells)}</tr>'
+        )
 
     nav, sections = [], []
     for i, ph in enumerate(phases, 1):
-        nav.append(f'<a href="#{ph["id"]}" class="navchip"><span class="num">{i:02d}</span>{esc(ph["title"])}</a>')
+        nav.append(
+            f'<a href="#{ph["id"]}" class="navchip"><span class="num">{i:02d}</span>{esc(ph["title"])}</a>'
+        )
         body = []
         for rid, rname in ph["rows"]:
             cells = []
             for e in engines:
                 c = (e.get("rows") or {}).get(rid) or {}
                 ev = c.get("e", "")
-                evh = f'<span class="ev">{esc(ev)}</span>' if ev and ev != "see engine document" else ""
-                cells.append(f'<td data-e="{esc(e["slug"])}" data-s="{esc(c.get("s", ""))}">{chip(c.get("s", ""))}'
-                             f'<span class="txt">{esc(c.get("t", "not recorded"))}</span>{evh}</td>')
+                evh = (
+                    f'<span class="ev">{esc(ev)}</span>'
+                    if ev and ev != "see engine document"
+                    else ""
+                )
+                cells.append(
+                    f'<td data-e="{esc(e["slug"])}" data-s="{esc(c.get("s", ""))}">{chip(c.get("s", ""))}'
+                    f'<span class="txt">{esc(c.get("t", "not recorded"))}</span>{evh}</td>'
+                )
             body.append(f'<tr><th scope="row" class="param">{esc(rname)}</th>{"".join(cells)}</tr>')
         sections.append(
             f'<section class="phase" id="{ph["id"]}"><div class="phead"><span class="pnum">Phase {i:02d}</span>'
             f'<h2>{esc(ph["title"])}</h2></div><div class="tablewrap"><table class="cmp"><thead>{thead()}</thead>'
-            f'<tbody>{"".join(body)}</tbody></table></div></section>')
+            f"<tbody>{''.join(body)}</tbody></table></div></section>"
+        )
 
     locomo_rows = []
     for e in engines:
         for x in e.get("locomo") or []:
             locomo_rows.append(
                 f'<tr data-e="{esc(e["slug"])}"><th scope="row" class="param">{esc(e["name"])}</th><td class="num">{esc(x.get("score"))}</td>'
-                f'<td>{esc(x.get("who"))}</td><td>{esc(x.get("protocol"))}</td><td class="ev">{esc(x.get("source"))}</td></tr>')
+                f'<td>{esc(x.get("who"))}</td><td>{esc(x.get("protocol"))}</td><td class="ev">{esc(x.get("source"))}</td></tr>'
+            )
 
     def cardlist(key):
         out = []
@@ -136,8 +188,10 @@ def main():
             v = e.get(key) or {}
             if not v.get("t"):
                 continue
-            out.append(f'<article class="ecard" data-e="{esc(e["slug"])}"><h3>{esc(e["name"])}</h3><p>{esc(v["t"])}</p>'
-                       f'<p class="ev">{esc(v.get("e", ""))}</p></article>')
+            out.append(
+                f'<article class="ecard" data-e="{esc(e["slug"])}"><h3>{esc(e["name"])}</h3><p>{esc(v["t"])}</p>'
+                f'<p class="ev">{esc(v.get("e", ""))}</p></article>'
+            )
         return "".join(out)
 
     extras = []
@@ -145,43 +199,61 @@ def main():
     for e in engines:
         for x in e.get("extras") or []:
             extras.append((phase_title.get(x.get("phase"), x.get("phase", "")), e, x))
-    extras.sort(key=lambda t: ([p["title"] for p in phases].index(t[0]) if t[0] in phase_title.values() else 99))
+    extras.sort(
+        key=lambda t: (
+            [p["title"] for p in phases].index(t[0]) if t[0] in phase_title.values() else 99
+        )
+    )
     extra_rows = "".join(
         f'<tr data-e="{esc(e["slug"])}"><td>{esc(ph)}</td><th scope="row" class="param">{esc(e["name"])}</th>'
-        f'<td><b>{esc(x.get("param"))}</b> {esc(x.get("t"))}</td><td class="ev">{esc(x.get("e"))}</td></tr>' for ph, e, x in extras)
+        f'<td><b>{esc(x.get("param"))}</b> {esc(x.get("t"))}</td><td class="ev">{esc(x.get("e"))}</td></tr>'
+        for ph, e, x in extras
+    )
 
     specs = "".join(
         f'<article class="ecard" data-e="{esc(e["slug"])}"><h3>{esc(e["name"])}</h3><ul>'
-        + "".join(f'<li><b>{esc(s.get("name"))}</b> {esc(s.get("t"))}<span class="ev">{esc(s.get("phase", ""))} · {esc(s.get("e", ""))}</span></li>'
-                  for s in e["specialities"]) + "</ul></article>"
-        for e in engines if e.get("specialities"))
+        + "".join(
+            f'<li><b>{esc(s.get("name"))}</b> {esc(s.get("t"))}<span class="ev">{esc(s.get("phase", ""))} · {esc(s.get("e", ""))}</span></li>'
+            for s in e["specialities"]
+        )
+        + "</ul></article>"
+        for e in engines
+        if e.get("specialities")
+    )
 
     def vstamp(e):
         v = e.get("verification") or {}
         if not v:
             return '<p class="ev">Second-pass verification: not yet run</p>'
-        return (f'<p class="ev">Verified {esc(v.get("date", ""))} at {esc(v.get("commit", ""))}: {esc(v.get("rows_checked", ""))} rows checked, '
-                f'{len(v.get("corrections") or [])} corrected, {len(v.get("added") or [])} added, {len(v.get("unverified") or [])} unverified</p>')
+        return (
+            f'<p class="ev">Verified {esc(v.get("date", ""))} at {esc(v.get("commit", ""))}: {esc(v.get("rows_checked", ""))} rows checked, '
+            f"{len(v.get('corrections') or [])} corrected, {len(v.get('added') or [])} added, {len(v.get('unverified') or [])} unverified</p>"
+        )
 
     verify_rows = "".join(
         f'<tr data-e="{esc(e["slug"])}"><th scope="row" class="param">{esc(e["name"])}</th>'
-        f'<td>{esc((e.get("verification") or {}).get("commit", "-"))}</td>'
-        f'<td>{"<br>".join(esc(c) for c in (e.get("verification") or {}).get("corrections") or []) or "-"}</td>'
-        f'<td>{"<br>".join(esc(c) for c in (e.get("verification") or {}).get("added") or []) or "-"}</td>'
-        f'<td>{"<br>".join(esc(c) for c in (e.get("verification") or {}).get("unverified") or []) or "-"}</td></tr>'
-        for e in engines)
+        f"<td>{esc((e.get('verification') or {}).get('commit', '-'))}</td>"
+        f"<td>{'<br>'.join(esc(c) for c in (e.get('verification') or {}).get('corrections') or []) or '-'}</td>"
+        f"<td>{'<br>'.join(esc(c) for c in (e.get('verification') or {}).get('added') or []) or '-'}</td>"
+        f"<td>{'<br>'.join(esc(c) for c in (e.get('verification') or {}).get('unverified') or []) or '-'}</td></tr>"
+        for e in engines
+    )
 
     progress = "".join(
         f'<article class="ecard" data-e="{esc(e["slug"])}"><h3>{esc(e["name"])}</h3><ul>'
-        + "".join(f"<li>{esc(p)}</li>" for p in e["in_progress"]) + "</ul></article>"
-        for e in engines if e.get("in_progress"))
+        + "".join(f"<li>{esc(p)}</li>" for p in e["in_progress"])
+        + "</ul></article>"
+        for e in engines
+        if e.get("in_progress")
+    )
 
     keep = "".join(
         f'<article class="ecard" data-e="{esc(e["slug"])}"><h3>{esc(e["name"])}</h3><p class="ev">{esc(e.get("repo", ""))}'
-        f'{(" @ " + esc(e["commit"])) if e.get("commit") else ""}</p>{vstamp(e)}'
-        f'<h4>Keep or learn</h4><ul>{"".join(f"<li>{esc(k)}</li>" for k in e.get("keep") or [])}</ul>'
+        f"{(' @ ' + esc(e['commit'])) if e.get('commit') else ''}</p>{vstamp(e)}"
+        f"<h4>Keep or learn</h4><ul>{''.join(f'<li>{esc(k)}</li>' for k in e.get('keep') or [])}</ul>"
         f'<h4>Avoid</h4><ul class="neg">{"".join(f"<li>{esc(k)}</li>" for k in e.get("avoid") or [])}</ul></article>'
-        for e in engines)
+        for e in engines
+    )
 
     synth_html = ""
     if synth:
@@ -191,19 +263,42 @@ def main():
             table = ""
             if b.get("table"):
                 hdr = "".join(f"<th scope='col'>{esc(h)}</th>" for h in b["table"][0])
-                rows = "".join("<tr>" + "".join(f"<td>{esc(c)}</td>" for c in r) + "</tr>" for r in b["table"][1:])
+                rows = "".join(
+                    "<tr>" + "".join(f"<td>{esc(c)}</td>" for c in r) + "</tr>"
+                    for r in b["table"][1:]
+                )
                 table = f'<div class="tablewrap"><table class="plain"><thead><tr>{hdr}</tr></thead><tbody>{rows}</tbody></table></div>'
-            blocks.append(f'<div class="sblock"><h3>{esc(b.get("title"))}</h3>{f"<p>{esc(b["text"])}</p>" if b.get("text") else ""}'
-                          f'{f"<ul>{items}</ul>" if items else ""}{table}</div>')
-        synth_html = (f'<section class="phase" id="decision"><div class="phead"><span class="pnum">Decision</span>'
-                      f'<h2>{esc(synth.get("title", "What MemSpine should build"))}</h2><p class="pintro">{esc(synth.get("intro", ""))}</p></div>'
-                      f'{"".join(blocks)}</section>')
+            blocks.append(
+                f'<div class="sblock"><h3>{esc(b.get("title"))}</h3>{f"<p>{esc(b['text'])}</p>" if b.get("text") else ""}'
+                f"{f'<ul>{items}</ul>' if items else ''}{table}</div>"
+            )
+        synth_html = (
+            f'<section class="phase" id="decision"><div class="phead"><span class="pnum">Decision</span>'
+            f'<h2>{esc(synth.get("title", "What MemSpine should build"))}</h2><p class="pintro">{esc(synth.get("intro", ""))}</p></div>'
+            f"{''.join(blocks)}</section>"
+        )
 
     page = PAGE.format(
-        css=CSS, n=len(engines), tiles=tiles, layer_head=thead("Layer"), layer_rows="".join(layer_rows),
-        nav="".join(nav), sections="".join(sections), locomo_rows="".join(locomo_rows),
-        tokens=cardlist("token_economy"), speed=cardlist("speed"), extra_rows=extra_rows, progress=progress,
-        keep=keep, synth=synth_html, specs=specs, verify_rows=verify_rows, js=JS, decision_nav='<a href="#decision" class="navchip"><span class="num">··</span>Decision</a>' if synth else "",
+        css=CSS,
+        n=len(engines),
+        tiles=tiles,
+        layer_head=thead("Layer"),
+        layer_rows="".join(layer_rows),
+        nav="".join(nav),
+        sections="".join(sections),
+        locomo_rows="".join(locomo_rows),
+        tokens=cardlist("token_economy"),
+        speed=cardlist("speed"),
+        extra_rows=extra_rows,
+        progress=progress,
+        keep=keep,
+        synth=synth_html,
+        specs=specs,
+        verify_rows=verify_rows,
+        js=JS,
+        decision_nav='<a href="#decision" class="navchip"><span class="num">··</span>Decision</a>'
+        if synth
+        else "",
     )
     OUT.write_text(page, encoding="utf-8")
     print(f"wrote {OUT} ({len(page):,} bytes, {len(engines)} engines: {', '.join(slugs)})")

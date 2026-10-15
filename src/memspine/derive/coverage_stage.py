@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """W2-15 (W-17, W-15; LIB-17): coverage check and ONE targeted re-extraction (``write.coverage_v2``).
 
 An envelope stage at order 250 (see ``derive/envelope_stages.py``), after grounding (200). After the

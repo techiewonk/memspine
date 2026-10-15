@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """W2-13 (P-23, ``write.prepass``): the local pre-pass as hints. Model-free: stub window LLM,
 hash embedder, invented names only. GLiNER2 is not installed in CI; its adapter test is skipped
 with a reason and a stub finder exercises the same code path."""
@@ -108,7 +107,9 @@ def test_hints_shape_names_dates_numbers_known() -> None:
     surfaces = [s.text for s in h.entities]
     assert "Bram Koster" in surfaces and "Vorstad" in surfaces and "Noor" in surfaces
     assert h.known == ("Noor",)
-    assert any("14 March" in s.text for s in h.dates) and any(s.text == "yesterday" for s in h.dates)
+    assert any("14 March" in s.text for s in h.dates) and any(
+        s.text == "yesterday" for s in h.dates
+    )
     assert any(s.text == "3" for s in h.numbers)
     # spans index into the turn content, on the right line
     for s in h.entities + h.dates + h.numbers:
@@ -136,7 +137,9 @@ def test_filler_needs_every_word_in_the_closed_vocabulary() -> None:
 
 
 # --- the skip ------------------------------------------------------------------------------------
-async def _run_stub(monkeypatch: pytest.MonkeyPatch, prepass: str) -> tuple[FakeWindowLLM, dict[str, Any], list[str]]:
+async def _run_stub(
+    monkeypatch: pytest.MonkeyPatch, prepass: str
+) -> tuple[FakeWindowLLM, dict[str, Any], list[str]]:
     llm = FakeWindowLLM()
     eng = await legacy_engine(monkeypatch, llm, window_max_turns=3, prepass=prepass)
     try:
@@ -226,7 +229,11 @@ async def test_stage_flags_unseen_names_and_never_adds_or_drops(
             "a",
             "s1",
             [
-                {"role": "user", "content": f"Ilse: I planted {x} bulbs", "timestamp": (T0 + timedelta(minutes=k)).isoformat()}
+                {
+                    "role": "user",
+                    "content": f"Ilse: I planted {x} bulbs",
+                    "timestamp": (T0 + timedelta(minutes=k)).isoformat(),
+                }
                 for k, x in enumerate(["red", "blue", "white"])
             ],
         )
@@ -248,22 +255,55 @@ async def test_stage_direct_flags_only() -> None:
     compiler = EnvelopeCompiler(clock=lambda: T0)
     lines = {
         1: WindowLine(
-            turn_id="t1", source_id="t1", source_version=1, seg_index=1, role="user",
-            speaker="Ilse", source_at=T0, tz="UTC", content="Ilse: I met Bram",
+            turn_id="t1",
+            source_id="t1",
+            source_version=1,
+            seg_index=1,
+            role="user",
+            speaker="Ilse",
+            source_at=T0,
+            tz="UTC",
+            content="Ilse: I met Bram",
         )
     }
     ctx = compiler.context(OwnerScope(tenant="default", owner="a"), "w1", lines)
     validator = ItemValidator(compiler)
     items = [
-        {"s": "Ilse", "r": "met", "o": "Bram", "text": "Ilse met Bram", "kind": "event", "mode": "asserted", "neg": False, "lines": [1], "span": "met Bram"},
-        {"s": "Zorvak", "r": "met", "o": "Bram", "text": "Zorvak met Bram", "kind": "event", "mode": "asserted", "neg": False, "lines": [1], "span": "met Bram"},
+        {
+            "s": "Ilse",
+            "r": "met",
+            "o": "Bram",
+            "text": "Ilse met Bram",
+            "kind": "event",
+            "mode": "asserted",
+            "neg": False,
+            "lines": [1],
+            "span": "met Bram",
+        },
+        {
+            "s": "Zorvak",
+            "r": "met",
+            "o": "Bram",
+            "text": "Zorvak met Bram",
+            "kind": "event",
+            "mode": "asserted",
+            "neg": False,
+            "lines": [1],
+            "span": "met Bram",
+        },
     ]
     envs = list(validator.validate(items, ctx).envelopes)
     assert len(envs) == 2
     pre = Prepass("rules")
     stage = prepass_stage(pre)
     assert stage.order == 500
-    sctx = EnvelopeStageContext(namespace="a", window_id="w1", lines=lines, records=recs("Ilse: I met Bram"), compile_ctx=ctx)
+    sctx = EnvelopeStageContext(
+        namespace="a",
+        window_id="w1",
+        lines=lines,
+        records=recs("Ilse: I met Bram"),
+        compile_ctx=ctx,
+    )
     out = await stage.run(envs, sctx)
     assert len(out) == len(envs)
     flagged = [e for e in out if e.extras.get("prepass_unseen")]

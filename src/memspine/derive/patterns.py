@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """LIB-31: rule-based pattern observations from assertions and value histories (O4-05, opt-in L4).
 
 Pure and model-free. An :class:`Observation` is a derived L4 candidate about a *pattern* (never a single fact):

@@ -1,4 +1,3 @@
-# ruff: noqa: E501, ASYNC240
 """TI-5: the Trace Inspector step mode, a terminal REPL over an in-process engine.
 
     python -m memspine_evals.inspect step --data <locomo json | demo> --item <id> --arm <name | path.json>
@@ -77,26 +76,64 @@ WRITE_SECTIONS: tuple[tuple[str, tuple[str, ...]], ...] = (
     (
         "stamp / role",
         (
-            "write.received", "write.messages.received", "write.intake.", "write.turn.", "write.stamp.",
-            "write.role.", "write.echo.", "write.time.", "write.index_view.", "write.firewall.",
-            "write.quarantine", "write.route", "write.deposit", "write.rejected", "write.asset",
+            "write.received",
+            "write.messages.received",
+            "write.intake.",
+            "write.turn.",
+            "write.stamp.",
+            "write.role.",
+            "write.echo.",
+            "write.time.",
+            "write.index_view.",
+            "write.firewall.",
+            "write.quarantine",
+            "write.route",
+            "write.deposit",
+            "write.rejected",
+            "write.asset",
         ),
     ),
     ("record / index (store.index.record)", ("store.index.record",)),
     (
         "window membership / extraction",
-        ("write.segment.", "write.window.", "write.prepass.window", "write.prompt.", "prompt.render",
-         "write.extract.call", "write.extract.io", "write.batch."),
+        (
+            "write.segment.",
+            "write.window.",
+            "write.prepass.window",
+            "write.prompt.",
+            "prompt.render",
+            "write.extract.call",
+            "write.extract.io",
+            "write.batch.",
+        ),
     ),
     (
         "envelope stages (write.envelope.trace)",
-        ("write.item.", "write.envelope.", "write.temporal", "write.ground.", "write.coverage.",
-         "write.resolve.", "write.integrate.decision", "write.integrate.stage", "write.prepass.unseen"),
+        (
+            "write.item.",
+            "write.envelope.",
+            "write.temporal",
+            "write.ground.",
+            "write.coverage.",
+            "write.resolve.",
+            "write.integrate.decision",
+            "write.integrate.stage",
+            "write.prepass.unseen",
+        ),
     ),
     (
         "deposits / ladder",
-        ("write.extract.deposit", "write.integrate.ladder", "write.extract.facts", "write.extract.edges",
-         "write.extract.episode", "write.extract.rejected", "derive.", "trust.gate", "write.learned."),
+        (
+            "write.extract.deposit",
+            "write.integrate.ladder",
+            "write.extract.facts",
+            "write.extract.edges",
+            "write.extract.episode",
+            "write.extract.rejected",
+            "derive.",
+            "trust.gate",
+            "write.learned.",
+        ),
     ),
     ("links", ("write.edges.", "graph.", "write.integrate.peer")),
 )
@@ -104,11 +141,24 @@ WRITE_SECTIONS: tuple[tuple[str, tuple[str, ...]], ...] = (
 READ_SECTIONS: tuple[tuple[str, tuple[str, ...]], ...] = (
     (
         "plan",
-        ("read.request.", "read.contract.", "read.tier.", "read.router.", "read.planner.", "read.list_trigger",
-         "read.decompose", "read.cache", "read.legs.parallel", "scope."),
+        (
+            "read.request.",
+            "read.contract.",
+            "read.tier.",
+            "read.router.",
+            "read.planner.",
+            "read.list_trigger",
+            "read.decompose",
+            "read.cache",
+            "read.legs.parallel",
+            "scope.",
+        ),
     ),
     ("legs", ("read.leg", "read.graph_hop", "read.lift", "read.freshness", "read.external")),
-    ("fusion / gates", ("read.fusion.", "read.date_prior", "read.gate.", "read.deep.", "read.obligations")),
+    (
+        "fusion / gates",
+        ("read.fusion.", "read.date_prior", "read.gate.", "read.deep.", "read.obligations"),
+    ),
     (
         "rerank",
         ("read.rerank", "models.rerank", "read.coverage_select"),
@@ -119,7 +169,20 @@ READ_SECTIONS: tuple[tuple[str, tuple[str, ...]], ...] = (
 RUN_CAP = 3
 
 #: keys every inspect event carries; not repeated on each printed line
-_CORRELATION = frozenset({"run_id", "item", "query_id", "request", "_seq", "_req", "event", "turn_id", "session", "phase"})
+_CORRELATION = frozenset(
+    {
+        "run_id",
+        "item",
+        "query_id",
+        "request",
+        "_seq",
+        "_req",
+        "event",
+        "turn_id",
+        "session",
+        "phase",
+    }
+)
 
 
 # ------------------------------------------------------------------------------------------------ arms
@@ -137,7 +200,9 @@ def resolve_arm(arm: str | Path) -> tuple[str, dict[str, Any]]:
     return p.stem, json.loads(p.read_text(encoding="utf-8"))
 
 
-def offline_config(cfg: Mapping[str, Any], *, keep_models: bool = False) -> tuple[dict[str, Any], list[str]]:
+def offline_config(
+    cfg: Mapping[str, Any], *, keep_models: bool = False
+) -> tuple[dict[str, Any], list[str]]:
     """The arm config with the heavy parts swapped for local ones; returns ``(config, notes)``."""
     out = copy.deepcopy(dict(cfg))
     notes: list[str] = []
@@ -197,17 +262,29 @@ def _make_replay(cache_dir: Path, live: bool) -> Any:
 
         async def acompletion(self, **kwargs: Any) -> Any:
             if not self.cacheable(kwargs):
-                self.misses.append({"kind": "chat", "why": "uncacheable", "model": kwargs.get("model")})
+                self.misses.append(
+                    {"kind": "chat", "why": "uncacheable", "model": kwargs.get("model")}
+                )
                 return await self._inner_completion(**kwargs)
-            hit = self._db.execute("SELECT 1 FROM chat WHERE key = ?", (chat_key(kwargs),)).fetchone()
+            hit = self._db.execute(
+                "SELECT 1 FROM chat WHERE key = ?", (chat_key(kwargs),)
+            ).fetchone()
             if hit is not None or self.live:
                 if hit is None:
-                    self.misses.append({"kind": "chat", "why": "miss (live)", "model": kwargs.get("model")})
+                    self.misses.append(
+                        {"kind": "chat", "why": "miss (live)", "model": kwargs.get("model")}
+                    )
                 return await super().acompletion(**kwargs)
             self.stats.chat_misses += 1
             last = (kwargs.get("messages") or [{}])[-1].get("content", "")
-            self.misses.append({"kind": "chat", "why": "miss (stubbed)", "model": kwargs.get("model"),
-                                "tail": str(last)[:80]})
+            self.misses.append(
+                {
+                    "kind": "chat",
+                    "why": "miss (stubbed)",
+                    "model": kwargs.get("model"),
+                    "tail": str(last)[:80],
+                }
+            )
             return await self._inner_completion(**kwargs)
 
         async def aembedding(self, **kwargs: Any) -> Any:
@@ -215,13 +292,23 @@ def _make_replay(cache_dir: Path, live: bool) -> Any:
             texts = [inputs] if isinstance(inputs, str) else [str(t) for t in inputs]
             model = str(kwargs.get("model") or "")
             absent = [
-                t for t in texts
-                if self._db.execute("SELECT 1 FROM embed WHERE key = ?",
-                                    (embed_key(model, t, kwargs.get("input_type"), kwargs.get("dimensions")),)).fetchone() is None
+                t
+                for t in texts
+                if self._db.execute(
+                    "SELECT 1 FROM embed WHERE key = ?",
+                    (embed_key(model, t, kwargs.get("input_type"), kwargs.get("dimensions")),),
+                ).fetchone()
+                is None
             ]
             if absent:
-                self.misses.append({"kind": "embed", "why": "miss (live)" if self.live else "miss (hashed)",
-                                    "model": model, "n": len(absent)})
+                self.misses.append(
+                    {
+                        "kind": "embed",
+                        "why": "miss (live)" if self.live else "miss (hashed)",
+                        "model": model,
+                        "n": len(absent),
+                    }
+                )
             if absent and not self.live:
                 # serve the hits and hash the rest, without storing either
                 return await _hash_embedding(self, kwargs, texts, model)
@@ -230,7 +317,9 @@ def _make_replay(cache_dir: Path, live: bool) -> Any:
     return ReplayCache()
 
 
-async def _hash_embedding(cache: Any, kwargs: Mapping[str, Any], texts: list[str], model: str) -> Any:
+async def _hash_embedding(
+    cache: Any, kwargs: Mapping[str, Any], texts: list[str], model: str
+) -> Any:
     from types import SimpleNamespace
 
     from ..call_cache import _bytes_vector, embed_key
@@ -255,7 +344,9 @@ async def _hash_embedding(cache: Any, kwargs: Mapping[str, Any], texts: list[str
             norm = sum(x * x for x in raw) ** 0.5 or 1.0
             vectors[i] = [x / norm for x in raw]
     data = [{"embedding": v, "index": i, "object": "embedding"} for i, v in enumerate(vectors)]
-    return SimpleNamespace(data=data, usage=SimpleNamespace(prompt_tokens=0, total_tokens=0), model=model)
+    return SimpleNamespace(
+        data=data, usage=SimpleNamespace(prompt_tokens=0, total_tokens=0), model=model
+    )
 
 
 # ------------------------------------------------------------------------------------------ formatting
@@ -314,8 +405,12 @@ class StepSession(TuneMixin):
         self.item = item
         self.turns: list[dict[str, Any]] = list(dataset[item]["turns"])
         self.questions: dict[str, dict[str, Any]] = dict(dataset[item]["questions"])
-        self.arm_name, cfg = resolve_arm(arm) if config_override is None else (str(arm), dict(config_override))
-        self.mode = "live" if live else "replay" if replay_cache else "offline" if offline else "arm"
+        self.arm_name, cfg = (
+            resolve_arm(arm) if config_override is None else (str(arm), dict(config_override))
+        )
+        self.mode = (
+            "live" if live else "replay" if replay_cache else "offline" if offline else "arm"
+        )
         self.notes: list[str] = []
         arm_cfg_orig = copy.deepcopy(cfg)
         if self.mode in ("offline", "replay"):
@@ -399,21 +494,32 @@ class StepSession(TuneMixin):
     async def start(self) -> None:
         self._stack.callback(_quiet_logs())
         self.out.mkdir(parents=True, exist_ok=True)
-        for key, val in (("MEMSPINE_FORENSICS_DIR", str(self.d_fx)), ("MEMSPINE_INSPECT", "1"),
-                         ("MEMSPINE_INSPECT_CONTENT", "1")):
+        for key, val in (
+            ("MEMSPINE_FORENSICS_DIR", str(self.d_fx)),
+            ("MEMSPINE_INSPECT", "1"),
+            ("MEMSPINE_INSPECT_CONTENT", "1"),
+        ):
             self._env[key] = os.environ.get(key)
             os.environ[key] = val
         self._install_transport()
         self._install_prompt_hook()
         await self._boot()
         self.head(f"step: item {self.item} | arm {self.arm_name} | mode {self.mode}")
-        self.w(f"turns {len(self.turns)} in {len({t['session'] for t in self.turns})} session(s), "
-               f"{len(self.questions)} question(s); run folder {self.out / self.run_id}--*")
+        self.w(
+            f"turns {len(self.turns)} in {len({t['session'] for t in self.turns})} session(s), "
+            f"{len(self.questions)} question(s); run folder {self.out / self.run_id}--*"
+        )
         for n in self.notes:
             self.w(f"note: {n}")
         if self.mode == "replay":
-            self.w(f"replay cache: {self.cache_dir}" + (" (misses go live)" if self.mode == "replay" and self._cache.live else
-                                                         " (misses are stubbed and listed)"))
+            self.w(
+                f"replay cache: {self.cache_dir}"
+                + (
+                    " (misses go live)"
+                    if self.mode == "replay" and self._cache.live
+                    else " (misses are stubbed and listed)"
+                )
+            )
 
     async def _boot(self) -> None:
         """A fresh engine, run folders and tap sink for the current item and config."""
@@ -437,7 +543,9 @@ class StepSession(TuneMixin):
         from memspine.observability import tap
 
         if not tap.enabled():
-            raise RuntimeError("the tap did not start; observability.inspect needs observability.tap")
+            raise RuntimeError(
+                "the tap did not start; observability.inspect needs observability.tap"
+            )
         self.sink = _Collect()
         self.mark = 0
         tap.add_sink(self.sink)
@@ -480,11 +588,16 @@ class StepSession(TuneMixin):
             from types import SimpleNamespace
 
             msg = SimpleNamespace(content=reply, role="assistant")
-            usage = SimpleNamespace(prompt_tokens=len(json.dumps(kwargs.get("messages"))) // 4,
-                                    completion_tokens=len(reply) // 4,
-                                    total_tokens=0)
-            return SimpleNamespace(choices=[SimpleNamespace(message=msg, finish_reason="stop", index=0)],
-                                   usage=usage, model=kwargs.get("model"))
+            usage = SimpleNamespace(
+                prompt_tokens=len(json.dumps(kwargs.get("messages"))) // 4,
+                completion_tokens=len(reply) // 4,
+                total_tokens=0,
+            )
+            return SimpleNamespace(
+                choices=[SimpleNamespace(message=msg, finish_reason="stop", index=0)],
+                usage=usage,
+                model=kwargs.get("model"),
+            )
 
         litellm.acompletion = window_aware
         if self.mode == "replay":
@@ -510,34 +623,60 @@ class StepSession(TuneMixin):
 
     def _write_manifest(self) -> None:
         self.d_mem.mkdir(parents=True, exist_ok=True)
-        cfg_hash = hashlib.sha256(json.dumps(self.cfg, sort_keys=True, default=str).encode()).hexdigest()[:12]
-        row = {"kind": "manifest", "run_id": self.run_id,
-               "system": {"system_id": f"step-{self.arm_name}", "config_hash": cfg_hash},
-               "reader": {"model": self.reader_model}, "judge": {"model": self.judge_model},
-               "labels": {"arms": [self.arm_name], "mode": self.mode, "step": True},
-               "code": {}, "dataset": {"revision_id": self.item},
-               "created_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
+        cfg_hash = hashlib.sha256(
+            json.dumps(self.cfg, sort_keys=True, default=str).encode()
+        ).hexdigest()[:12]
+        row = {
+            "kind": "manifest",
+            "run_id": self.run_id,
+            "system": {"system_id": f"step-{self.arm_name}", "config_hash": cfg_hash},
+            "reader": {"model": self.reader_model},
+            "judge": {"model": self.judge_model},
+            "labels": {"arms": [self.arm_name], "mode": self.mode, "step": True},
+            "code": {},
+            "dataset": {"revision_id": self.item},
+            "created_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        }
         with (self.d_mem / "results.jsonl").open("a", encoding="utf-8") as fh:
             fh.write(json.dumps(row) + "\n")
 
     # ---- event slices
     def _take(self) -> list[dict[str, Any]]:
-        rows = self.sink.rows[self.mark:]
+        rows = self.sink.rows[self.mark :]
         self.mark = len(self.sink.rows)
         return rows
 
-    def _sections(self, rows: list[dict[str, Any]], sections: Sequence[tuple[str, tuple[str, ...]]]) -> None:
+    def _sections(
+        self, rows: list[dict[str, Any]], sections: Sequence[tuple[str, tuple[str, ...]]]
+    ) -> None:
         used: set[int] = set()
-        derived = ("write.firewall.", "write.route", "write.deposit", "write.rejected", "write.quarantine")
+        derived = (
+            "write.firewall.",
+            "write.route",
+            "write.deposit",
+            "write.rejected",
+            "write.quarantine",
+        )
         for title, prefixes in sections:
             part = [
-                r for r in rows
+                r
+                for r in rows
                 if r["_seq"] not in used
                 and (
                     # a derived record's door events (they carry a window id) belong with the deposits
-                    (title.startswith("deposits") and r.get("window_id") and r["event"].startswith(derived))
-                    or (not (r.get("window_id") and r["event"].startswith(derived) and not title.startswith("deposits"))
-                        and _matches(r["event"], prefixes))
+                    (
+                        title.startswith("deposits")
+                        and r.get("window_id")
+                        and r["event"].startswith(derived)
+                    )
+                    or (
+                        not (
+                            r.get("window_id")
+                            and r["event"].startswith(derived)
+                            and not title.startswith("deposits")
+                        )
+                        and _matches(r["event"], prefixes)
+                    )
                 )
             ]
             if not part:
@@ -546,7 +685,11 @@ class StepSession(TuneMixin):
             self.head(title)
             self._print_group(part, compact=title.startswith("stamp"))
             self._pause()
-        rest = [r for r in rows if r["_seq"] not in used and not r["event"].startswith(("model.call", "economy."))]
+        rest = [
+            r
+            for r in rows
+            if r["_seq"] not in used and not r["event"].startswith(("model.call", "economy."))
+        ]
         if rest:
             self.head("other events")
             self._print_group(rest)
@@ -606,11 +749,23 @@ class StepSession(TuneMixin):
         keep: list[dict[str, Any]] = []
         for r in rows:
             tid = r.get("turn_id")
-            if not tid or not r["event"].startswith(("write.received", "write.messages", "write.role.turn", "write.stamp.",
-                                                      "write.turn.bound", "write.firewall.", "write.route", "write.deposit")):
+            if not tid or not r["event"].startswith(
+                (
+                    "write.received",
+                    "write.messages",
+                    "write.role.turn",
+                    "write.stamp.",
+                    "write.turn.bound",
+                    "write.firewall.",
+                    "write.route",
+                    "write.deposit",
+                )
+            ):
                 keep.append(r)
                 continue
-            d = per.setdefault(str(tid), {"event": "write.turn.summary", "turn_id": tid, "_seq": r["_seq"]})
+            d = per.setdefault(
+                str(tid), {"event": "write.turn.summary", "turn_id": tid, "_seq": r["_seq"]}
+            )
             for k in ("role", "src_class", "trust", "quarantine", "action", "precision", "route"):
                 if r.get(k) is not None:
                     d[k] = r[k]
@@ -620,33 +775,43 @@ class StepSession(TuneMixin):
 
     # ---- specific printers
     def _p_write_turn_summary(self, r: dict[str, Any]) -> None:
-        self.w(f"  turn {r.get('turn_id')} rid={r.get('rid')} role={r.get('role')} src={r.get('src_class')} "
-               f"trust={r.get('trust')} quarantine={r.get('quarantine')} route={r.get('route')} action={r.get('action')}")
+        self.w(
+            f"  turn {r.get('turn_id')} rid={r.get('rid')} role={r.get('role')} src={r.get('src_class')} "
+            f"trust={r.get('trust')} quarantine={r.get('quarantine')} route={r.get('route')} action={r.get('action')}"
+        )
 
     def _p_store_index_record(self, r: dict[str, Any]) -> None:
         edges = r.get("edges") or []
         n_edges = edges if isinstance(edges, int) else len(edges)
         edges = edges if isinstance(edges, list) else []
-        self.w(f"  index  rid={r.get('record_id') or r.get('rid')} turn={r.get('turn_id')} vector={_ok(r.get('vector'))} "
-               f"lexical={_ok(r.get('lexical'))} graph_node={_ok(r.get('graph_node'))} "
-               f"projectors={r.get('projectors')} edges={n_edges} text_len={r.get('index_text_len')}")
+        self.w(
+            f"  index  rid={r.get('record_id') or r.get('rid')} turn={r.get('turn_id')} vector={_ok(r.get('vector'))} "
+            f"lexical={_ok(r.get('lexical'))} graph_node={_ok(r.get('graph_node'))} "
+            f"projectors={r.get('projectors')} edges={n_edges} text_len={r.get('index_text_len')}"
+        )
         for e in edges[:8]:
             if isinstance(e, dict):
-                self.w(f"    edge {e.get('kind')}: {e.get('src')} -> {e.get('dst')} ({e.get('rel')})")
+                self.w(
+                    f"    edge {e.get('kind')}: {e.get('src')} -> {e.get('dst')} ({e.get('rel')})"
+                )
 
     def _p_write_window_members(self, r: dict[str, Any]) -> None:
         pre = r.get("prepass") or {}
-        self.w(f"  window {r.get('window_id')} session={r.get('session')} cut={r.get('cut_reason')} "
-               f"prepass={pre.get('verdict') if isinstance(pre, dict) else pre}")
+        self.w(
+            f"  window {r.get('window_id')} session={r.get('session')} cut={r.get('cut_reason')} "
+            f"prepass={pre.get('verdict') if isinstance(pre, dict) else pre}"
+        )
         rids = r.get("member_record_ids") or []
         turns = r.get("member_turns") or [self.system._origin.get(str(x)) for x in rids]
         self.w(f"    members: turns {[t for t in turns if t]}  records {len(rids)}")
 
     def _p_write_extract_io(self, r: dict[str, Any]) -> None:
         pr = r.get("prompt") if isinstance(r.get("prompt"), dict) else {}
-        self.w(f"  extract.io window={r.get('window_id')} prompt={pr.get('id') or r.get('prompt_id')} "
-               f"hash={pr.get('hash') or r.get('prompt_hash')} "
-               f"model={r.get('model')} cached={r.get('cached')} tokens={r.get('tokens')} ms={r.get('ms')}")
+        self.w(
+            f"  extract.io window={r.get('window_id')} prompt={pr.get('id') or r.get('prompt_id')} "
+            f"hash={pr.get('hash') or r.get('prompt_hash')} "
+            f"model={r.get('model')} cached={r.get('cached')} tokens={r.get('tokens')} ms={r.get('ms')}"
+        )
         self.w(f"    sections: {r.get('sections')}")
         limit = 1200 if self.wide else 240
         for label, key in (("prompt", "prompt_text"), ("reply ", "reply_text")):
@@ -656,9 +821,11 @@ class StepSession(TuneMixin):
 
     def _p_job_stage_item(self, r: dict[str, Any]) -> None:
         ins, outs = r.get("input_ids") or [], r.get("output_ids") or []
-        self.w(f"    item stage={r.get('stage')} cycle={r.get('cycle')} session={r.get('session_key')} "
-               f"in={len(ins)} out={len(outs)} calls={r.get('calls')} tokens={r.get('tokens')} "
-               f"status={r.get('status')}" + (f" out_ids={_short(outs, 60)}" if outs else ""))
+        self.w(
+            f"    item stage={r.get('stage')} cycle={r.get('cycle')} session={r.get('session_key')} "
+            f"in={len(ins)} out={len(outs)} calls={r.get('calls')} tokens={r.get('tokens')} "
+            f"status={r.get('status')}" + (f" out_ids={_short(outs, 60)}" if outs else "")
+        )
 
     def _p_write_integrate_ladder(self, r: dict[str, Any]) -> None:
         self.w(f"  ladder  {_kv(r)}")
@@ -683,7 +850,9 @@ class StepSession(TuneMixin):
                     val = r.get(key)
                     if not val:
                         continue
-                    if isinstance(val, dict) and not any(v not in (None, "", [], {}) for v in val.values()):
+                    if isinstance(val, dict) and not any(
+                        v not in (None, "", [], {}) for v in val.values()
+                    ):
                         continue
                     text = json.dumps(val, sort_keys=True, default=str)
                     if shown.get(key) != text:
@@ -696,7 +865,10 @@ class StepSession(TuneMixin):
     # ---- commands: write
     def _advance(self) -> None:
         """Move the cursor past turns already written."""
-        while self.next_turn < len(self.turns) and self.turns[self.next_turn]["turn_id"] in self.written_ids:
+        while (
+            self.next_turn < len(self.turns)
+            and self.turns[self.next_turn]["turn_id"] in self.written_ids
+        ):
             self.next_turn += 1
 
     def _index_of(self, turn_id: str) -> int | None:
@@ -707,8 +879,13 @@ class StepSession(TuneMixin):
 
     async def _insert(self, t: dict[str, Any]) -> Any:
         """Write one turn dict through the engine and remember it."""
-        turn = Turn(turn_id=t["turn_id"], session_id=t["session"], speaker=t["speaker"], text=t["text"],
-                    timestamp=t.get("ts"))
+        turn = Turn(
+            turn_id=t["turn_id"],
+            session_id=t["session"],
+            speaker=t["speaker"],
+            text=t["text"],
+            timestamp=t.get("ts"),
+        )
         dep = await self.system.insert(turn)
         self.written.append(t)
         self.written_ids.add(t["turn_id"])
@@ -718,17 +895,27 @@ class StepSession(TuneMixin):
 
     async def _write_turn(self, t: dict[str, Any], label: str) -> dict[str, Any]:
         """One turn with its stages printed; returns ``{turn_id, records, calls, rows}``."""
-        self.head(f"{label}: {t['turn_id']}  session {t['session']}  {t['speaker']}  [{t.get('ts')}]"
-                  + ("  (custom)" if t.get("custom") else ""))
+        self.head(
+            f"{label}: {t['turn_id']}  session {t['session']}  {t['speaker']}  [{t.get('ts')}]"
+            + ("  (custom)" if t.get("custom") else "")
+        )
         self.w(f"  text: {_short(t['text'], 160)}")
         dep = await self._insert(t)
         dep2 = await self.system._flush_windows(final=False)
         rows = self._take()
         calls = dep.model_calls + (dep2.model_calls if dep2 else 0)
-        self.w(f"  deposit: records={dep.n_records} model_calls={calls} ids={[str(i) for i in dep.record_ids]}")
+        self.w(
+            f"  deposit: records={dep.n_records} model_calls={calls} ids={[str(i) for i in dep.record_ids]}"
+        )
         self._sections(rows, WRITE_SECTIONS)
         self._drift_note()
-        return {"turn_id": t["turn_id"], "speaker": t["speaker"], "records": dep.n_records, "calls": calls, "rows": rows}
+        return {
+            "turn_id": t["turn_id"],
+            "speaker": t["speaker"],
+            "records": dep.n_records,
+            "calls": calls,
+            "rows": rows,
+        }
 
     def _drift_note(self) -> None:
         if self._cache is not None and self._cache.misses:
@@ -744,9 +931,13 @@ class StepSession(TuneMixin):
                         counts[key] = counts.get(key, 0) + 1
                         break
         self.head(f"summary: {title}")
-        self.w(f"  turns={len(parts)} records={sum(p['records'] for p in parts)} "
-               f"model_calls={sum(p['calls'] for p in parts)}")
-        self.w("  events by stage: " + (", ".join(f"{k}={v}" for k, v in counts.items()) or "(none)"))
+        self.w(
+            f"  turns={len(parts)} records={sum(p['records'] for p in parts)} "
+            f"model_calls={sum(p['calls'] for p in parts)}"
+        )
+        self.w(
+            "  events by stage: " + (", ".join(f"{k}={v}" for k, v in counts.items()) or "(none)")
+        )
 
     def _order_warning(self, picked: list[int]) -> None:
         if picked != sorted(picked):
@@ -754,7 +945,9 @@ class StepSession(TuneMixin):
         done = [i for t in self.written if (i := self._index_of(t["turn_id"])) is not None]
         late = [self.turns[i]["turn_id"] for i in picked if done and i < max(done)]
         if late:
-            self.w(f"  warning: {late} come before turns already written (order differs from the dataset)")
+            self.w(
+                f"  warning: {late} come before turns already written (order differs from the dataset)"
+            )
 
     async def cmd_turn(self, count: int = 1) -> None:
         self._advance()
@@ -778,10 +971,12 @@ class StepSession(TuneMixin):
                 out.append(i)
                 continue
             for pos in [k for k, c in enumerate(part) if c == "-"]:
-                lo, hi = self._index_of(part[:pos]), self._index_of(part[pos + 1:])
+                lo, hi = self._index_of(part[:pos]), self._index_of(part[pos + 1 :])
                 if lo is not None and hi is not None:
                     if lo > hi:
-                        self.w(f"  warning: {part} runs backwards; writing {self.turns[hi]['turn_id']}..{self.turns[lo]['turn_id']}")
+                        self.w(
+                            f"  warning: {part} runs backwards; writing {self.turns[hi]['turn_id']}..{self.turns[lo]['turn_id']}"
+                        )
                         lo, hi = hi, lo
                     out.extend(range(lo, hi + 1))
                     break
@@ -805,7 +1000,9 @@ class StepSession(TuneMixin):
             else:
                 fresh.append(i)
         self._order_warning(fresh)
-        parts = [await self._write_turn(self.turns[i], f"turn {i + 1}/{len(self.turns)}") for i in fresh]
+        parts = [
+            await self._write_turn(self.turns[i], f"turn {i + 1}/{len(self.turns)}") for i in fresh
+        ]
         if len(parts) > 1:
             self._summary(f"{len(parts)} selected turns", parts)
 
@@ -821,8 +1018,11 @@ class StepSession(TuneMixin):
 
     def _cursor_text(self) -> str:
         self._advance()
-        return (f"{self.turns[self.next_turn]['turn_id']} ({self.next_turn}/{len(self.turns)})"
-                if self.next_turn < len(self.turns) else f"end ({len(self.turns)}/{len(self.turns)})")
+        return (
+            f"{self.turns[self.next_turn]['turn_id']} ({self.next_turn}/{len(self.turns)})"
+            if self.next_turn < len(self.turns)
+            else f"end ({len(self.turns)}/{len(self.turns)})"
+        )
 
     async def cmd_goto(self, arg: str) -> None:
         i = self._index_of(arg)
@@ -830,7 +1030,10 @@ class StepSession(TuneMixin):
             self.w(f"unknown turn {arg!r}")
             return
         self.next_turn = i
-        self.w(f"cursor moved to {arg} (nothing written)" + ("; note: it is already written" if arg in self.written_ids else ""))
+        self.w(
+            f"cursor moved to {arg} (nothing written)"
+            + ("; note: it is already written" if arg in self.written_ids else "")
+        )
 
     async def cmd_interaction(self, n: int = 1) -> None:
         """One interaction = a turn plus the run of turns right after it by the next (different) speaker."""
@@ -843,18 +1046,30 @@ class StepSession(TuneMixin):
             group = [self.turns[i]]
             j = i + 1
             replier = None
-            while (j < len(self.turns) and self.turns[j]["session"] == group[0]["session"]
-                   and self.turns[j]["turn_id"] not in self.written_ids
-                   and self.turns[j]["speaker"] != group[0]["speaker"]
-                   and replier in (None, self.turns[j]["speaker"])):
+            while (
+                j < len(self.turns)
+                and self.turns[j]["session"] == group[0]["session"]
+                and self.turns[j]["turn_id"] not in self.written_ids
+                and self.turns[j]["speaker"] != group[0]["speaker"]
+                and replier in (None, self.turns[j]["speaker"])
+            ):
                 replier = self.turns[j]["speaker"]
                 group.append(self.turns[j])
                 j += 1
             if len(group) == 1:
-                self.w("  note: no reply follows this turn in its session (the interaction is one turn)")
-            parts = [await self._write_turn(t, f"interaction {k + 1}/{n} turn {(self._index_of(t['turn_id']) or 0) + 1}")
-                     for t in group]
-            self._summary("interaction " + " -> ".join(f"{t['turn_id']} ({t['speaker']})" for t in group), parts)
+                self.w(
+                    "  note: no reply follows this turn in its session (the interaction is one turn)"
+                )
+            parts = [
+                await self._write_turn(
+                    t, f"interaction {k + 1}/{n} turn {(self._index_of(t['turn_id']) or 0) + 1}"
+                )
+                for t in group
+            ]
+            self._summary(
+                "interaction " + " -> ".join(f"{t['turn_id']} ({t['speaker']})" for t in group),
+                parts,
+            )
 
     # ---- custom messages
     @staticmethod
@@ -871,7 +1086,11 @@ class StepSession(TuneMixin):
     def _default_ts(self) -> str:
         from datetime import timedelta
 
-        last = self.written[-1].get("ts") if self.written else (self.turns[0].get("ts") if self.turns else None)
+        last = (
+            self.written[-1].get("ts")
+            if self.written
+            else (self.turns[0].get("ts") if self.turns else None)
+        )
         dt = self._parse_ts(last)
         if dt is None:
             return str(last) if last else "2024-01-01 00:00"
@@ -908,9 +1127,20 @@ class StepSession(TuneMixin):
             while tid in self.written_ids or self._index_of(tid) is not None:
                 self._custom_n += 1
                 tid = f"U{self._custom_n}"
-            last_session = self.written[-1]["session"] if self.written else (self.turns[0]["session"] if self.turns else "custom")
-            t = {"item": self.item, "session": spec["session"] or last_session, "turn_id": tid,
-                 "speaker": spec["speaker"], "ts": spec["ts"] or self._default_ts(), "text": spec["text"], "custom": True}
+            last_session = (
+                self.written[-1]["session"]
+                if self.written
+                else (self.turns[0]["session"] if self.turns else "custom")
+            )
+            t = {
+                "item": self.item,
+                "session": spec["session"] or last_session,
+                "turn_id": tid,
+                "speaker": spec["speaker"],
+                "ts": spec["ts"] or self._default_ts(),
+                "text": spec["text"],
+                "custom": True,
+            }
             parts.append(await self._write_turn(t, "say"))
         if len(parts) > 1:
             self._summary(f"{len(parts)} custom messages", parts)
@@ -938,8 +1168,13 @@ class StepSession(TuneMixin):
         rows = self._take()
         self._sections(rows, WRITE_SECTIONS)
         self._drift_note()
-        return {"session": session, "turns": n, "records": sum(1 for r in rows if r["event"] == "store.index.record"),
-                "calls": 0, "rows": rows}
+        return {
+            "session": session,
+            "turns": n,
+            "records": sum(1 for r in rows if r["event"] == "store.index.record"),
+            "calls": 0,
+            "rows": rows,
+        }
 
     async def cmd_session(self, arg: str = "") -> None:
         """No argument: the rest of the current session. ``N``: that many sessions from the cursor.
@@ -950,7 +1185,9 @@ class StepSession(TuneMixin):
         known = set(ids) | {t["session"] for t in self.written}
         if arg and all(x.strip() in known for x in arg.split(",")):
             for sid in [x.strip() for x in arg.split(",")]:
-                done.append(await self._write_session(sid, [t for t in self.turns if t["session"] == sid]))
+                done.append(
+                    await self._write_session(sid, [t for t in self.turns if t["session"] == sid])
+                )
         else:
             if arg and not arg.isdigit():
                 self.w(f"unknown session {arg!r} (known: {', '.join(ids)})")
@@ -961,7 +1198,11 @@ class StepSession(TuneMixin):
                     self.w("no more turns")
                     break
                 sid = self.turns[self.next_turn]["session"]
-                done.append(await self._write_session(sid, [t for t in self.turns[self.next_turn:] if t["session"] == sid]))
+                done.append(
+                    await self._write_session(
+                        sid, [t for t in self.turns[self.next_turn :] if t["session"] == sid]
+                    )
+                )
         if len(done) > 1:
             self.head("summary: sessions")
             for d in done:
@@ -975,10 +1216,10 @@ class StepSession(TuneMixin):
                 picked.append(part)
                 continue
             for pos in [k for k, c in enumerate(part) if c == "-"]:
-                lo, hi = part[:pos], part[pos + 1:]
+                lo, hi = part[:pos], part[pos + 1 :]
                 if lo in ids and hi in ids:
                     a, b = sorted((ids.index(lo), ids.index(hi)))
-                    picked.extend(ids[a:b + 1])
+                    picked.extend(ids[a : b + 1])
                     break
             else:
                 self.w(f"unknown session {part!r} (known: {', '.join(ids)})")
@@ -993,19 +1234,34 @@ class StepSession(TuneMixin):
         sessions: OrderedDict[str, int] = OrderedDict()
         for t in self.written:
             sessions[t["session"]] = sessions.get(t["session"], 0) + 1
-        windows = {r.get("window_id") for r in self.sink.rows if r["event"] == "write.window.members" and r.get("window_id")}
+        windows = {
+            r.get("window_id")
+            for r in self.sink.rows
+            if r["event"] == "write.window.members" and r.get("window_id")
+        }
         self.head("status")
         self.w(f"  item {self.item} | arm {self.arm_name} | mode {self.mode}")
-        self.w(f"  written: {len(self.written)} turn(s) ({sum(1 for t in self.written if t.get('custom'))} custom) of "
-               f"{len(self.turns)} in the dataset; cursor at {self._cursor_text()}")
+        self.w(
+            f"  written: {len(self.written)} turn(s) ({sum(1 for t in self.written if t.get('custom'))} custom) of "
+            f"{len(self.turns)} in the dataset; cursor at {self._cursor_text()}"
+        )
         for sid, n in sessions.items():
-            self.w(f"  session {sid}: {n} turn(s) written, " + ("closed" if sid in self.closed_sessions else "open"))
-        self.w(f"  windows formed: {len(windows)}; open sessions: "
-               f"{[s for s in sessions if s not in self.closed_sessions] or 'none'}; slept: {_ok(self.slept)}")
-        self.w(f"  records in the store: {len(recs)}; questions asked: {len({r['query_id'] for r in self._asked})} "
-               f"of {len(self.questions)}")
+            self.w(
+                f"  session {sid}: {n} turn(s) written, "
+                + ("closed" if sid in self.closed_sessions else "open")
+            )
+        self.w(
+            f"  windows formed: {len(windows)}; open sessions: "
+            f"{[s for s in sessions if s not in self.closed_sessions] or 'none'}; slept: {_ok(self.slept)}"
+        )
+        self.w(
+            f"  records in the store: {len(recs)}; questions asked: {len({r['query_id'] for r in self._asked})} "
+            f"of {len(self.questions)}"
+        )
         if self.overrides or self.prompt_overrides:
-            self.w(f"  tuning: {len(self.overrides)} override(s), {len(self.prompt_overrides)} prompt override(s)")
+            self.w(
+                f"  tuning: {len(self.overrides)} override(s), {len(self.prompt_overrides)} prompt override(s)"
+            )
 
     async def cmd_reset(self) -> None:
         if self.system is not None:
@@ -1013,12 +1269,17 @@ class StepSession(TuneMixin):
                 await self.system.close()
         self._reset_state()
         await self._boot()
-        self.head("reset: fresh engine, same arm" + (f" with {len(self.overrides)} override(s) kept" if self.overrides else ""))
+        self.head(
+            "reset: fresh engine, same arm"
+            + (f" with {len(self.overrides)} override(s) kept" if self.overrides else "")
+        )
         self.w(f"  nothing written; cursor at {self._cursor_text()}")
 
     async def cmd_load(self, path: str) -> None:
         if not path or not Path(path).exists():
-            self.w(f"usage: load <file.json> (same shape as demo_conversation.json); not found: {path!r}")
+            self.w(
+                f"usage: load <file.json> (same shape as demo_conversation.json); not found: {path!r}"
+            )
             return
         ds = load_dataset(path)
         item = next(iter(ds))
@@ -1033,7 +1294,9 @@ class StepSession(TuneMixin):
         self._reset_state()
         await self._boot()
         self.head(f"load: item {item}")
-        self.w(f"  turns {len(self.turns)} in {len(self._session_ids())} session(s), {len(self.questions)} question(s)")
+        self.w(
+            f"  turns {len(self.turns)} in {len(self._session_ids())} session(s), {len(self.questions)} question(s)"
+        )
 
     async def cmd_sleep(self) -> None:
         for d in (self.d_fx / "inspect",):
@@ -1050,8 +1313,14 @@ class StepSession(TuneMixin):
         pre = [r for r in rows if not r["event"].startswith(("job.", "economy.", "model."))]
         if pre:
             self._sections(pre, WRITE_SECTIONS)
-        jobs = [r for r in rows if r["event"].startswith(("job.", "economy.", "model.call", "graph.compile", "derive.graph"))
-                or r["event"].startswith("trust.")]
+        jobs = [
+            r
+            for r in rows
+            if r["event"].startswith(
+                ("job.", "economy.", "model.call", "graph.compile", "derive.graph")
+            )
+            or r["event"].startswith("trust.")
+        ]
         current: str | None = None
         for r in jobs:
             ev = r["event"]
@@ -1093,14 +1362,25 @@ class StepSession(TuneMixin):
         for qid, q in self.questions.items():
             if q.get("question", "").strip().lower() == text.strip().lower():
                 if gold is not None or turns:
-                    q.update({"gold": gold if gold is not None else q.get("gold"), "gold_turns": turns or q.get("gold_turns")})
+                    q.update(
+                        {
+                            "gold": gold if gold is not None else q.get("gold"),
+                            "gold_turns": turns or q.get("gold_turns"),
+                        }
+                    )
                 return qid, q
         self._adhoc += 1
         qid = f"adhoc-{self._adhoc}"
         while qid in self.questions:
             self._adhoc += 1
             qid = f"adhoc-{self._adhoc}"
-        q = {"question": text, "gold": gold, "category": "adhoc", "gold_turns": turns, "custom": True}
+        q = {
+            "question": text,
+            "gold": gold,
+            "category": "adhoc",
+            "gold_turns": turns,
+            "custom": True,
+        }
         self.questions[qid] = q
         return qid, q
 
@@ -1111,8 +1391,11 @@ class StepSession(TuneMixin):
             return list(self.questions.items())
         if low.startswith("cat:"):
             want = low[4:].strip()
-            found = [(k, q) for k, q in self.questions.items()
-                     if str(q.get("category")).lower() in (want, f"cat{want}", want.removeprefix("cat"))]
+            found = [
+                (k, q)
+                for k, q in self.questions.items()
+                if str(q.get("category")).lower() in (want, f"cat{want}", want.removeprefix("cat"))
+            ]
             if not found:
                 cats = sorted({str(q.get("category")) for q in self.questions.values()})
                 self.w(f"no question in category {want!r} (categories: {', '.join(cats)})")
@@ -1142,7 +1425,9 @@ class StepSession(TuneMixin):
         if path.endswith("--brief"):
             path, brief = path[:-7].strip(), True
         if not path or not Path(path).exists():
-            self.w(f"usage: asks <file> (one question per line: an id, free text, or `text | gold: A | turns: D1:3`); not found: {path!r}")
+            self.w(
+                f"usage: asks <file> (one question per line: an id, free text, or `text | gold: A | turns: D1:3`); not found: {path!r}"
+            )
             return
         targets = []
         for line in Path(path).read_text(encoding="utf-8").splitlines():
@@ -1167,13 +1452,24 @@ class StepSession(TuneMixin):
             self._ask_table(results)
 
     def _brief_line(self, r: dict[str, Any]) -> str:
-        return (f"{r['qid']} [{r['category']}] gold {r['found']}/{r['total']} lost_at={r['lost']} answer={r['correct']} "
-                f"| {_short(r['question'], 60)}")
+        return (
+            f"{r['qid']} [{r['category']}] gold {r['found']}/{r['total']} lost_at={r['lost']} answer={r['correct']} "
+            f"| {_short(r['question'], 60)}"
+        )
 
     def _ask_table(self, results: list[dict[str, Any]]) -> None:
         self.head(f"SUMMARY TABLE ({len(results)} question(s))")
         rows = [("qid", "category", "gold found", "first losing stage", "answer correct")]
-        rows += [(r["qid"], str(r["category"]), f"{r['found']}/{r['total']}", str(r["lost"]), str(r["correct"])) for r in results]
+        rows += [
+            (
+                r["qid"],
+                str(r["category"]),
+                f"{r['found']}/{r['total']}",
+                str(r["lost"]),
+                str(r["correct"]),
+            )
+            for r in results
+        ]
         widths = [max(len(row[i]) for row in rows) for i in range(5)]
         for k, row in enumerate(rows):
             self.w("  " + "  ".join(c.ljust(widths[i]) for i, c in enumerate(row)))
@@ -1184,7 +1480,9 @@ class StepSession(TuneMixin):
             full = sum(1 for r in with_gold if r["found"] == r["total"])
             self.w(f"  gold fully in context: {full}/{len(with_gold)}")
 
-    def _lost_stage(self, gold_turns: Sequence[str], fx: Mapping[str, Any] | None, got: set[str]) -> str:
+    def _lost_stage(
+        self, gold_turns: Sequence[str], fx: Mapping[str, Any] | None, got: set[str]
+    ) -> str:
         if not gold_turns:
             return "-"
         unwritten = [g for g in gold_turns if g not in self.written_ids]
@@ -1206,7 +1504,9 @@ class StepSession(TuneMixin):
         fx = self._last_forensics(qid)
         self._print_read(rows, fx, gold_turns)
         self.head("packed context")
-        self.w(f"  tokens={ctx.tokens} truncated={ctx.truncated} evidence={len(ctx.evidence)} ({ms:.0f} ms)")
+        self.w(
+            f"  tokens={ctx.tokens} truncated={ctx.truncated} evidence={len(ctx.evidence)} ({ms:.0f} ms)"
+        )
         got = [e.turn_id for e in ctx.evidence]
         for line in ctx.text.splitlines()[: (200 if self.wide else 40)]:
             self.w("  | " + _short(line, 200))
@@ -1230,10 +1530,23 @@ class StepSession(TuneMixin):
             correct = f"gold text in ctx: {_ok(in_ctx)}"
         else:
             correct = "-"
-        res = {"qid": qid, "category": q.get("category"), "question": q["question"], "gold": q.get("gold"),
-               "gold_turns": gold_turns, "found": sum(1 for g in gold_turns if g in got), "total": len(gold_turns),
-               "lost": self._lost_stage(gold_turns, fx, set(got)), "correct": correct, "got": got, "fx": fx,
-               "context": ctx.text, "answer": answer, "verdict": verdict, "tokens": ctx.tokens}
+        res = {
+            "qid": qid,
+            "category": q.get("category"),
+            "question": q["question"],
+            "gold": q.get("gold"),
+            "gold_turns": gold_turns,
+            "found": sum(1 for g in gold_turns if g in got),
+            "total": len(gold_turns),
+            "lost": self._lost_stage(gold_turns, fx, set(got)),
+            "correct": correct,
+            "got": got,
+            "fx": fx,
+            "context": ctx.text,
+            "answer": answer,
+            "verdict": verdict,
+            "tokens": ctx.tokens,
+        }
         self._last_read[qid] = res
         return res
 
@@ -1256,12 +1569,20 @@ class StepSession(TuneMixin):
             turn = it.get("turn") or it.get("id")
             mark = "*" if turn in gold else ""
             sc = it.get("score")
-            pieces.append(f"{it.get('r', '')}:{turn}{mark}" + (f"({sc:.3f})" if isinstance(sc, int | float) else ""))
-        miss = [g for g in gold if g not in {(i.get('turn') or i.get('id')) for i in items}]
-        self.w(f"  {name} top{min(limit, len(items))}/{len(items)}: " + " ".join(pieces)
-               + (f"   gold absent: {miss}" if gold and miss else ""))
+            pieces.append(
+                f"{it.get('r', '')}:{turn}{mark}"
+                + (f"({sc:.3f})" if isinstance(sc, int | float) else "")
+            )
+        miss = [g for g in gold if g not in {(i.get("turn") or i.get("id")) for i in items}]
+        self.w(
+            f"  {name} top{min(limit, len(items))}/{len(items)}: "
+            + " ".join(pieces)
+            + (f"   gold absent: {miss}" if gold and miss else "")
+        )
 
-    def _print_read(self, rows: list[dict[str, Any]], fx: dict[str, Any] | None, gold: Sequence[str]) -> None:
+    def _print_read(
+        self, rows: list[dict[str, Any]], fx: dict[str, Any] | None, gold: Sequence[str]
+    ) -> None:
         plan = [r for r in rows if _matches(r["event"], READ_SECTIONS[0][1])]
         if plan:
             self.head("plan")
@@ -1280,8 +1601,10 @@ class StepSession(TuneMixin):
             self._ranked("fused  ", fx.get("fused"), gold)
             tf = fx.get("trace_full") or {}
             for cut in (tf.get("cuts") or [])[:20]:
-                self.w(f"  cut {cut.get('turn') or cut.get('id')}: {cut.get('reason')}"
-                       + (" <== GOLD" if (cut.get("turn") or cut.get("id")) in gold else ""))
+                self.w(
+                    f"  cut {cut.get('turn') or cut.get('id')}: {cut.get('reason')}"
+                    + (" <== GOLD" if (cut.get("turn") or cut.get("id")) in gold else "")
+                )
             self._ranked("pool   ", fx.get("pool"), gold, 12)
         mid = [r for r in rows if _matches(r["event"], READ_SECTIONS[2][1])]
         if mid:
@@ -1294,7 +1617,9 @@ class StepSession(TuneMixin):
                 self._ranked("final  ", fx.get("final"), gold)
             comps = [r for r in rer if r["event"] == "read.rerank.components"]
             for c in comps:
-                self.w(f"  components reranked={c.get('reranked')} mode={c.get('mode')} n={c.get('n')}")
+                self.w(
+                    f"  components reranked={c.get('reranked')} mode={c.get('mode')} n={c.get('n')}"
+                )
                 for it in (c.get("items") or [])[:12]:
                     turn = self.system._origin.get(str(it.get("rid")))
                     self.w("    " + (f"turn={turn} " if turn else "") + _kv(it, n=40))
@@ -1308,7 +1633,9 @@ class StepSession(TuneMixin):
             for wnd in fx["trace_full"]["window"][:10]:
                 self.w(f"  anchor {wnd.get('anchor')} neighbours {wnd.get('neighbours')}")
 
-    async def _reader_and_judge(self, q: Mapping[str, Any], ctx: Any) -> tuple[str | None, dict[str, Any] | None]:
+    async def _reader_and_judge(
+        self, q: Mapping[str, Any], ctx: Any
+    ) -> tuple[str | None, dict[str, Any] | None]:
         self.head("reader / judge")
         if not self.reader_model:
             self.w("  (no reader: pass --reader-model [--judge-model] [--base-url])")
@@ -1317,7 +1644,9 @@ class StepSession(TuneMixin):
         from ..readers import OpenAICompatReader
 
         edited = (self.prompt_overrides.get("reader.qa") or {}).get("body")
-        reader = OpenAICompatReader(self.reader_model, base_url=self.base_url, **({"prompt": edited} if edited else {}))
+        reader = OpenAICompatReader(
+            self.reader_model, base_url=self.base_url, **({"prompt": edited} if edited else {})
+        )
         try:
             ans = await reader.answer(q["question"], ctx.text)
         except Exception as exc:
@@ -1327,9 +1656,14 @@ class StepSession(TuneMixin):
         self.w(f"  answer: {_short(answer, 200)}")
         verdict = None
         if q.get("gold") not in (None, ""):
-            judge_reader = OpenAICompatReader(self.judge_model or self.reader_model, base_url=self.base_url)
-            judge = LLMJudge(chat=judge_reader.chat, model=self.judge_model or self.reader_model,
-                             scale=JudgeScale.BINARY)
+            judge_reader = OpenAICompatReader(
+                self.judge_model or self.reader_model, base_url=self.base_url
+            )
+            judge = LLMJudge(
+                chat=judge_reader.chat,
+                model=self.judge_model or self.reader_model,
+                scale=JudgeScale.BINARY,
+            )
             try:
                 v = await judge.score(q["question"], answer, str(q["gold"]))
                 verdict = {"score": v.score, "raw": v.raw}
@@ -1338,20 +1672,47 @@ class StepSession(TuneMixin):
                 self.w(f"  judge unavailable: {type(exc).__name__}: {_short(str(exc), 120)}")
         return answer, verdict
 
-    def _record_question(self, qid: str, q: Mapping[str, Any], ctx: Any, fx: Mapping[str, Any] | None,
-                         answer: str | None, verdict: Mapping[str, Any] | None) -> None:
+    def _record_question(
+        self,
+        qid: str,
+        q: Mapping[str, Any],
+        ctx: Any,
+        fx: Mapping[str, Any] | None,
+        answer: str | None,
+        verdict: Mapping[str, Any] | None,
+    ) -> None:
         score = (verdict or {}).get("score")
-        row = {"kind": "result", "run_id": self.run_id, "item_id": self.item, "query_id": qid,
-               "question": q["question"], "gold": q.get("gold"), "answer": answer, "score": score,
-               "status": "completed" if answer is not None else "retrieval_only",
-               "type_label": q.get("category"), "context_tokens": ctx.tokens,
-               "retrieved_ids": [e.turn_id for e in ctx.evidence], "meta": {"judge_raw": (verdict or {}).get("raw")}}
+        row = {
+            "kind": "result",
+            "run_id": self.run_id,
+            "item_id": self.item,
+            "query_id": qid,
+            "question": q["question"],
+            "gold": q.get("gold"),
+            "answer": answer,
+            "score": score,
+            "status": "completed" if answer is not None else "retrieval_only",
+            "type_label": q.get("category"),
+            "context_tokens": ctx.tokens,
+            "retrieved_ids": [e.turn_id for e in ctx.evidence],
+            "meta": {"judge_raw": (verdict or {}).get("raw")},
+        }
         if q.get("custom"):
             row["custom"] = True
-        reads = {"run_id": self.run_id, "item_id": self.item, "query_id": qid, "question": q["question"],
-                 "gold": q.get("gold"), "context_text": ctx.text, "context_tokens": ctx.tokens,
-                 "answer": answer, "reader_raw": answer, "reader_calls": [], "judge_calls": [],
-                 "verdict": dict(verdict or {})}
+        reads = {
+            "run_id": self.run_id,
+            "item_id": self.item,
+            "query_id": qid,
+            "question": q["question"],
+            "gold": q.get("gold"),
+            "context_text": ctx.text,
+            "context_tokens": ctx.tokens,
+            "answer": answer,
+            "reader_raw": answer,
+            "reader_calls": [],
+            "judge_calls": [],
+            "verdict": dict(verdict or {}),
+        }
         self.d_mem.mkdir(parents=True, exist_ok=True)
         self.d_trace.mkdir(parents=True, exist_ok=True)
         with (self.d_mem / "results.jsonl").open("a", encoding="utf-8") as fh:
@@ -1374,13 +1735,17 @@ class StepSession(TuneMixin):
         self.head(f"diff: {len(new)} new, {len(changed)} status change(s), {len(now)} total")
         for k in new[: (len(new) if self.wide else 25)]:
             r = by_id[k]
-            self.w(f"  + {k} {r.memory_type}/{r.layer} {r.source.channel} status={now[k][0]} "
-                   f"trust={r.trust} {_short(r.content, 90)}")
+            self.w(
+                f"  + {k} {r.memory_type}/{r.layer} {r.source.channel} status={now[k][0]} "
+                f"trust={r.trust} {_short(r.content, 90)}"
+            )
         if len(new) > 25 and not self.wide:
             self.w(f"  ... {len(new) - 25} more new records (--wide prints all)")
         for k in changed:
             r = by_id[k]
-            self.w(f"  ~ {k} {self._seen[k][0]} -> {now[k][0]} evolve_to={r.evolve_to} valid_to={r.valid_to}")
+            self.w(
+                f"  ~ {k} {self._seen[k][0]} -> {now[k][0]} evolve_to={r.evolve_to} valid_to={r.valid_to}"
+            )
         edges = await self._edge_count()
         if edges is not None:
             self.w(f"  graph edges: {edges} ({edges - self._edges_seen:+d})")
@@ -1412,13 +1777,30 @@ class StepSession(TuneMixin):
         events = self.sink.rows
         if rid in recs:
             r = recs[rid]
-            self.head(f"record {rid}" + (f"  (turn {self.system._origin[rid]})" if rid in self.system._origin else ""))
-            for k in ("memory_type", "layer", "status", "trust", "quarantined", "valid_from", "valid_to", "evolve_to",
-                      "tags", "entity", "attribute", "group_id"):
+            self.head(
+                f"record {rid}"
+                + (f"  (turn {self.system._origin[rid]})" if rid in self.system._origin else "")
+            )
+            for k in (
+                "memory_type",
+                "layer",
+                "status",
+                "trust",
+                "quarantined",
+                "valid_from",
+                "valid_to",
+                "evolve_to",
+                "tags",
+                "entity",
+                "attribute",
+                "group_id",
+            ):
                 v = getattr(r, k, None)
                 if v not in (None, [], ()):
                     self.w(f"  {k}: {_short(v, 120)}")
-            self.w(f"  channel: {r.source.channel}  role: {r.source.role}  parents: {[str(p) for p in r.source.parents]}")
+            self.w(
+                f"  channel: {r.source.channel}  role: {r.source.role}  parents: {[str(p) for p in r.source.parents]}"
+            )
             self.w(f"  content: {_short(r.content, 400)}")
             try:
                 env = await self.system._engine.get_envelope(rid, self.item)
@@ -1486,8 +1868,16 @@ class StepSession(TuneMixin):
         if not self.slept:  # sleep() writes its own two snapshots; otherwise take one now
             if inspect_dir.exists():
                 shutil.rmtree(inspect_dir)
-            await dump_snapshot(self.system._engine, self.item, inspect_dir, "post_ingest",
-                                origin_map=self.system._origin, content=True, run_id=self.run_id, item=self.item)
+            await dump_snapshot(
+                self.system._engine,
+                self.item,
+                inspect_dir,
+                "post_ingest",
+                origin_map=self.system._origin,
+                content=True,
+                run_id=self.run_id,
+                item=self.item,
+            )
         bundle = self.out / f"{self.run_id}--bundle"
         if bundle.exists():
             shutil.rmtree(bundle)
@@ -1497,7 +1887,12 @@ class StepSession(TuneMixin):
         self.saved = True
         if self.tuning_log:  # the tuning history rides in the bundle for the viewer
             (bundle / "tuning.jsonl").write_text(
-                "".join(json.dumps(r, default=str, ensure_ascii=False) + chr(10) for r in self.tuning_log), encoding="utf-8")
+                "".join(
+                    json.dumps(r, default=str, ensure_ascii=False) + chr(10)
+                    for r in self.tuning_log
+                ),
+                encoding="utf-8",
+            )
             man.setdefault("counts", {})["tuning"] = len(self.tuning_log)
         self.head("saved")
         self.w(f"  bundle: {bundle}")
@@ -1508,7 +1903,9 @@ class StepSession(TuneMixin):
             results = checks.run_checks(bundle)
             nerr = sum(1 for r in results if r.status == "fail" and r.level == "error")
             nwarn = sum(1 for r in results if r.status == "fail" and r.level == "warn")
-            self.check_errors = [f"{r.check_id}:{r.id}" for r in results if r.status == "fail" and r.level == "error"]
+            self.check_errors = [
+                f"{r.check_id}:{r.id}" for r in results if r.status == "fail" and r.level == "error"
+            ]
             self.w(f"  checks: {len(results)} rows, {nerr} error(s), {nwarn} warning(s)")
         except Exception as exc:  # the checks API is TI-6's; a mismatch must not fail a save
             self.w(f"  checks not run: {type(exc).__name__}: {_short(str(exc), 100)}")
@@ -1528,7 +1925,11 @@ class StepSession(TuneMixin):
                 if not line.strip():
                     continue
                 row = json.loads(line)
-                key = f"{row.get('query_id')}" if row.get("query_id") is not None and row.get("kind") != "manifest" else f"_{len(order)}"
+                key = (
+                    f"{row.get('query_id')}"
+                    if row.get("query_id") is not None and row.get("kind") != "manifest"
+                    else f"_{len(order)}"
+                )
                 if key not in keep:
                     order.append(key)
                 keep[key] = line
@@ -1615,7 +2016,9 @@ class StepSession(TuneMixin):
             else:
                 while True:
                     try:
-                        line = await asyncio.get_running_loop().run_in_executor(None, input, "\nstep> ")
+                        line = await asyncio.get_running_loop().run_in_executor(
+                            None, input, "\nstep> "
+                        )
                     except EOFError:
                         break
                     if not await self.execute(line):
@@ -1661,40 +2064,92 @@ def _offline_window_reply(messages: Sequence[Mapping[str, Any]]) -> str | None:
         n, who, said = int(m.group(1)), m.group(2).strip(), m.group(3).strip()
         if len(said) < min_len or not re.search(r"[A-Z0-9]", said[1:]):
             continue
-        items.append({"s": who, "r": "said", "o": said[:60], "text": f"{who}: {said}", "kind": "state",
-                      "mode": "asserted", "neg": False, "when": None, "until": None, "lines": [n],
-                      "span": said, "speaker": who})
+        items.append(
+            {
+                "s": who,
+                "r": "said",
+                "o": said[:60],
+                "text": f"{who}: {said}",
+                "kind": "state",
+                "mode": "asserted",
+                "neg": False,
+                "when": None,
+                "until": None,
+                "lines": [n],
+                "span": said,
+                "speaker": who,
+            }
+        )
     return json.dumps({"facts": items, "edges": [], "episode": None})
 
 
-def _as_dataset_json(item: str, turns: Sequence[Mapping[str, Any]], questions: Mapping[str, Mapping[str, Any]]) -> dict[str, Any]:
+def _as_dataset_json(
+    item: str, turns: Sequence[Mapping[str, Any]], questions: Mapping[str, Mapping[str, Any]]
+) -> dict[str, Any]:
     """The demo-shaped json (sessions + questions) that ``load_dataset`` reads back."""
     sessions: dict[str, dict[str, Any]] = OrderedDict()
     for t in turns:
-        s = sessions.setdefault(t["session"], {"session_id": t["session"], "date": t.get("ts"), "turns": []})
-        row = {"turn_id": t["turn_id"], "speaker": t["speaker"], "text": t["text"], "ts": t.get("ts")}
+        s = sessions.setdefault(
+            t["session"], {"session_id": t["session"], "date": t.get("ts"), "turns": []}
+        )
+        row = {
+            "turn_id": t["turn_id"],
+            "speaker": t["speaker"],
+            "text": t["text"],
+            "ts": t.get("ts"),
+        }
         if t.get("custom"):
             row["custom"] = True
         s["turns"].append(row)
-    qs = [{"query_id": qid, "category": q.get("category"), "question": q.get("question"), "gold": q.get("gold"),
-           "gold_turns": list(q.get("gold_turns") or []), **({"custom": True} if q.get("custom") else {})}
-          for qid, q in questions.items()]
+    qs = [
+        {
+            "query_id": qid,
+            "category": q.get("category"),
+            "question": q.get("question"),
+            "gold": q.get("gold"),
+            "gold_turns": list(q.get("gold_turns") or []),
+            **({"custom": True} if q.get("custom") else {}),
+        }
+        for qid, q in questions.items()
+    ]
     return {"conversation_id": item, "sessions": list(sessions.values()), "questions": qs}
 
 
 # ------------------------------------------------------------------------------------------------ CLI
 def build_parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(prog="python -m memspine_evals.inspect step", description=__doc__.split("\n")[0])
-    p.add_argument("--data", required=True, help="LoCoMo-shaped json, or 'demo' (the invented fixture)")
+    p = argparse.ArgumentParser(
+        prog="python -m memspine_evals.inspect step", description=__doc__.split("\n")[0]
+    )
+    p.add_argument(
+        "--data", required=True, help="LoCoMo-shaped json, or 'demo' (the invented fixture)"
+    )
     p.add_argument("--item", help="conversation id (default: the first item)")
-    p.add_argument("--arm", required=True, help="evals/arms name (scr-gc3-graph-jina, scr-b8-write-v2) or a json path")
-    p.add_argument("--out", default=str(DEFAULT_OUT), help="run folder root (gitignored under evals/runs/_analysis/)")
-    p.add_argument("--offline", action="store_true", help="hash embedder, no reranker, stub LLM (no network)")
-    p.add_argument("--replay-cache", action="store_true", help="serve model calls from a recorded call cache")
-    p.add_argument("--cache-dir", help="the call cache directory (llm_cache.sqlite) for --replay-cache")
-    p.add_argument("--live", action="store_true", help="send what the cache lacks to the arm's real endpoints")
+    p.add_argument(
+        "--arm",
+        required=True,
+        help="evals/arms name (scr-gc3-graph-jina, scr-b8-write-v2) or a json path",
+    )
+    p.add_argument(
+        "--out",
+        default=str(DEFAULT_OUT),
+        help="run folder root (gitignored under evals/runs/_analysis/)",
+    )
+    p.add_argument(
+        "--offline", action="store_true", help="hash embedder, no reranker, stub LLM (no network)"
+    )
+    p.add_argument(
+        "--replay-cache", action="store_true", help="serve model calls from a recorded call cache"
+    )
+    p.add_argument(
+        "--cache-dir", help="the call cache directory (llm_cache.sqlite) for --replay-cache"
+    )
+    p.add_argument(
+        "--live", action="store_true", help="send what the cache lacks to the arm's real endpoints"
+    )
     p.add_argument("--script", help="run the commands of this file (one per line) and exit")
-    p.add_argument("--reader-model", help="answer asked questions with this model (OpenAI-compatible)")
+    p.add_argument(
+        "--reader-model", help="answer asked questions with this model (OpenAI-compatible)"
+    )
     p.add_argument("--judge-model", help="judge model (default: the reader model)")
     p.add_argument("--base-url", default="http://127.0.0.1:11434/v1")
     p.add_argument("--budget", type=int, default=4096)
@@ -1713,9 +2168,21 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.script:
         script = Path(args.script).read_text(encoding="utf-8").splitlines()
     session = StepSession(
-        ds, item, args.arm, out=args.out, offline=args.offline, replay_cache=args.replay_cache,
-        cache_dir=args.cache_dir, live=args.live, reader_model=args.reader_model, judge_model=args.judge_model,
-        base_url=args.base_url, budget=args.budget, top_k=args.top_k, pause=args.pause, wide=args.wide,
+        ds,
+        item,
+        args.arm,
+        out=args.out,
+        offline=args.offline,
+        replay_cache=args.replay_cache,
+        cache_dir=args.cache_dir,
+        live=args.live,
+        reader_model=args.reader_model,
+        judge_model=args.judge_model,
+        base_url=args.base_url,
+        budget=args.budget,
+        top_k=args.top_k,
+        pause=args.pause,
+        wide=args.wide,
         run_id=args.run_id,
     )
     asyncio.run(session.run(script))

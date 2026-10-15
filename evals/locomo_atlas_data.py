@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """ATLAS-TURNS: pure data builders for the LoCoMo atlas conversation viewer and full per-question detail.
 
 No I/O beyond what the caller hands in, no model call, no network. The output carries dataset text, so the caller may only
@@ -54,9 +53,15 @@ def build_conversations(raw: list[dict]) -> dict[str, dict]:
                 if t.get("query"):
                     row["iq"] = t["query"]
                 turns.append(row)
-            sessions.append({"s": n, "date": conv.get(f"session_{n}_date_time", ""), "turns": turns})
+            sessions.append(
+                {"s": n, "date": conv.get(f"session_{n}_date_time", ""), "turns": turns}
+            )
         sessions.sort(key=lambda s: s["s"])
-        out[c["sample_id"]] = {"speakers": [conv.get("speaker_a", ""), conv.get("speaker_b", "")], "sessions": sessions, "ctxtext": {}}
+        out[c["sample_id"]] = {
+            "speakers": [conv.get("speaker_a", ""), conv.get("speaker_b", "")],
+            "sessions": sessions,
+            "ctxtext": {},
+        }
     return out
 
 
@@ -79,7 +84,9 @@ def qa_index(raw: list[dict]) -> dict[tuple[str, str], dict]:
     return out
 
 
-def build_context(forensics: Iterable[dict], results: dict[tuple[str, str], dict], convs: dict[str, dict]) -> dict[tuple[str, str], dict]:
+def build_context(
+    forensics: Iterable[dict], results: dict[tuple[str, str], dict], convs: dict[str, dict]
+) -> dict[tuple[str, str], dict]:
     """Per question the ordered ids of the turns in the reader context, with the source used.
 
     ``forensics`` rows carry ``context_records`` (``{turn, text}`` in rendered order). The rendered text differs from the raw
@@ -112,10 +119,20 @@ def judge_fields(res: dict | None) -> dict:
     if not res:
         return {"judge_raw": None, "judge_prompt": None, "score": None}
     meta = res.get("meta") or {}
-    return {"judge_raw": meta.get("judge_raw"), "judge_prompt": meta.get("judge_prompt_id"), "score": res.get("score")}
+    return {
+        "judge_raw": meta.get("judge_raw"),
+        "judge_prompt": meta.get("judge_prompt_id"),
+        "score": res.get("score"),
+    }
 
 
-def enrich_rows(rows: list[dict], convs: dict[str, dict], qa: dict[tuple[str, str], dict], results: dict, ctx: dict) -> dict:
+def enrich_rows(
+    rows: list[dict],
+    convs: dict[str, dict],
+    qa: dict[tuple[str, str], dict],
+    results: dict,
+    ctx: dict,
+) -> dict:
     """Add evidence, judge, reader context and gold-turn speaker/date to the table rows (in place). Returns coverage counts."""
     idx = turn_index(convs)
     stats = collections.Counter()
@@ -124,8 +141,25 @@ def enrich_rows(rows: list[dict], convs: dict[str, dict], qa: dict[tuple[str, st
         evidence = parse_evidence((qa.get(k) or {}).get("evidence"))
         have = {g["turn"] for g in r["gold_turns"]}
         for tid in evidence:
-            if tid not in have:  # evidence the forensics gold list does not carry: shown with no ranks
-                r["gold_turns"].append({"turn": tid, "ts": None, "in_context": False, "lost_at": None, "vector": None, "lexical": None, "extra": {}, "fused": None, "pool": None, "rerank": None, "final": None, "text": None})
+            if (
+                tid not in have
+            ):  # evidence the forensics gold list does not carry: shown with no ranks
+                r["gold_turns"].append(
+                    {
+                        "turn": tid,
+                        "ts": None,
+                        "in_context": False,
+                        "lost_at": None,
+                        "vector": None,
+                        "lexical": None,
+                        "extra": {},
+                        "fused": None,
+                        "pool": None,
+                        "rerank": None,
+                        "final": None,
+                        "text": None,
+                    }
+                )
                 stats["gold_added_from_dataset"] += 1
         c = ctx.get(k)
         r["ctx"] = c["ids"] if c else []
@@ -150,7 +184,9 @@ def enrich_rows(rows: list[dict], convs: dict[str, dict], qa: dict[tuple[str, st
     return dict(stats)
 
 
-def screen_flips(ref: dict[tuple[str, str], tuple[float, str]], run: dict[tuple[str, str], tuple[float, str]]) -> list[dict]:
+def screen_flips(
+    ref: dict[tuple[str, str], tuple[float, str]], run: dict[tuple[str, str], tuple[float, str]]
+) -> list[dict]:
     """Questions whose score differs between ``ref`` and ``run`` (each ``{key: (score, answer)}``)."""
     out = []
     for k, (s, a) in run.items():
@@ -158,7 +194,17 @@ def screen_flips(ref: dict[tuple[str, str], tuple[float, str]], run: dict[tuple[
             continue
         rs, ra = ref[k]
         if s != rs:
-            out.append({"item": k[0], "qid": k[1], "ref_score": rs, "ref_answer": ra, "score": s, "answer": a, "kind": "gain" if s > rs else "loss"})
+            out.append(
+                {
+                    "item": k[0],
+                    "qid": k[1],
+                    "ref_score": rs,
+                    "ref_answer": ra,
+                    "score": s,
+                    "answer": a,
+                    "kind": "gain" if s > rs else "loss",
+                }
+            )
     return out
 
 
@@ -168,4 +214,9 @@ def attach_flips(rows: list[dict], run_info: dict, flips: list[dict]) -> None:
     for f in flips:
         r = by.get((f["item"], f["qid"]))
         if r is not None:
-            r["screen_flips"].append({**{k: run_info[k] for k in ("screen", "run", "ref", "mode")}, **{k: f[k] for k in ("ref_score", "ref_answer", "score", "answer", "kind")}})
+            r["screen_flips"].append(
+                {
+                    **{k: run_info[k] for k in ("screen", "run", "ref", "mode")},
+                    **{k: f[k] for k in ("ref_score", "ref_answer", "score", "answer", "kind")},
+                }
+            )

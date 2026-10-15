@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """Export determinism, committed-export gate, step coverage, import boundary."""
 
 from __future__ import annotations

@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """TI-7: every pipeline stage has a registered trace event, and every registered event is emitted.
 
 ``docs/v2/data/stage_trace_registry.json`` maps each stage of ``docs/v2/PIPELINE_STAGE_INVENTORY.md``

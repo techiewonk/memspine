@@ -1,4 +1,4 @@
-# ruff: noqa: E501, RUF001
+# ruff: noqa: RUF001
 """Deterministic grounding rule checks (LIB-03, W-17).
 
 Decides whether an extracted assertion is supported by the turns it cites, *before* any model

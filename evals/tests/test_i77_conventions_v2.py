@@ -107,7 +107,9 @@ def test_alias_table_is_small_generic_and_symmetric() -> None:
     # no dataset answer: no alias is, by itself, the gold of a calibration row
     rows = load_set(CALIBRATION)
     if not has_text(rows):
-        pytest.skip("calibration text is local only (evals/runs/_analysis); see judge_agreement.FULL_SET")
+        pytest.skip(
+            "calibration text is local only (evals/runs/_analysis); see judge_agreement.FULL_SET"
+        )
     golds = {r["gold"].lower().strip(" .") for r in rows}
     assert not golds & set(flat)
 
@@ -139,7 +141,11 @@ async def test_third_column_keeps_score_and_v1_column() -> None:
     assert v.meta["score_conventions_v2"] == 1.0 and v.meta["convention_v2"] == "date_format"
     assert judge.spec.params["conventions_v2"] == CONVENTIONS_V2_VERSION
     ok = await GuardedJudge(_Inner(1.0), conventions_v2=True).score("q", "x", "y")
-    assert ok.score == 1.0 and ok.meta["score_conventions_v2"] == 1.0 and "convention_v2" not in ok.meta
+    assert (
+        ok.score == 1.0
+        and ok.meta["score_conventions_v2"] == 1.0
+        and "convention_v2" not in ok.meta
+    )
 
 
 async def test_v2_alone_has_no_v1_column_and_off_is_unchanged() -> None:
@@ -164,12 +170,16 @@ def test_cli_flag_and_config_default() -> None:
 def test_calibration_set_agreement_does_not_move_and_no_false_positive() -> None:
     rows = load_set(CALIBRATION)
     if not has_text(rows):
-        pytest.skip("calibration text is local only (evals/runs/_analysis); see judge_agreement.FULL_SET")
+        pytest.skip(
+            "calibration text is local only (evals/runs/_analysis); see judge_agreement.FULL_SET"
+        )
     judged = {r["id"]: r["source_judge_label"] for r in rows}
     res = with_conventions(rows, judged)["v2"]
     base = with_conventions(rows, judged)["judge_alone"]
     assert res["false_positives"] == 0 and res["false_positives_beyond_v1"] == 0
     for sub in ("all", "without_borderline"):
-        assert res["judge_or_conventions_v2"][sub]["false_positives"] <= base[sub]["false_positives"]
+        assert (
+            res["judge_or_conventions_v2"][sub]["false_positives"] <= base[sub]["false_positives"]
+        )
         assert res["judge_or_conventions_v2"][sub]["agreement"] >= base[sub]["agreement"]
     json.dumps(res)  # serialisable for --json

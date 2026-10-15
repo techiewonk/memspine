@@ -11,8 +11,9 @@ from __future__ import annotations
 
 import asyncio
 
-from memspine import Engine
 from memspine.core.records import SourceInfo
+
+from memspine import Engine
 
 
 async def main() -> None:

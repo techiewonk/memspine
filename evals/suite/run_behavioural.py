@@ -16,8 +16,9 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent))
 
-from memspine_evals.behavioural import run_behavioural  # noqa: E402
-from suite.gate import BASELINE_PATH  # noqa: E402
+from memspine_evals.behavioural import run_behavioural
+
+from suite.gate import BASELINE_PATH
 
 
 def _quiet() -> None:

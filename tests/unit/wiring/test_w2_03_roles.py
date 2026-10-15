@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """W2-03: role policy, echo guard and routing (LIB-13 wired). ``write.role_policy_v2``, default OFF.
 
 Model-free: the fake window LLM of ``test_window_write`` and the hash embedder. All text is invented

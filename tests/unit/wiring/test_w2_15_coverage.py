@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """W2-15: coverage check and ONE targeted re-extraction (``write.coverage_v2``, envelope-stage order
 250). Model-free: envelopes are built through the real compiler from hand-written lines (invented
 names, domains used nowhere else), then one end-to-end window runs with ``write.envelope_v2`` + the
@@ -134,7 +133,14 @@ def test_flag_off_registers_nothing_and_on_registers_one_stage_at_250_after_grou
     off = MemspineConfig()
     assert off.write.coverage_v2 is False and off.write.coverage_threshold == 0.8
     assert _envelope_stages(SimpleNamespace(), off) == ()
-    on = MemspineConfig(write={"window_extract": "facts", "envelope_v2": True, "grounding_v2": True, "coverage_v2": True})
+    on = MemspineConfig(
+        write={
+            "window_extract": "facts",
+            "envelope_v2": True,
+            "grounding_v2": True,
+            "coverage_v2": True,
+        }
+    )
     eng = SimpleNamespace(
         _llm=SimpleNamespace(for_role=lambda r: Stub()), _prompts=SimpleNamespace(partial=None)
     )

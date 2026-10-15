@@ -81,9 +81,7 @@ class SentenceTransformersEmbedding:
         model.max_seq_length = min(model.max_seq_length or 8192, 8192)
         return model
 
-    async def embed(
-        self, texts: list[str], *, prompt_name: str | None = None
-    ) -> list[list[float]]:
+    async def embed(self, texts: list[str], *, prompt_name: str | None = None) -> list[list[float]]:
         model = await self._ensure_model()
         prompt_name = prompt_name or self._document_prompt_name
 

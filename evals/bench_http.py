@@ -29,7 +29,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
-__all__ = ["measure", "resolve_order", "summarise", "main"]
+__all__ = ["main", "measure", "resolve_order", "summarise"]
 
 
 def resolve_order(host: str, port: int) -> list[str]:
@@ -92,16 +92,26 @@ def summarise(runs: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--base", default="http://127.0.0.1:11434", help="scheme and port are taken from here")
+    ap = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    ap.add_argument(
+        "--base", default="http://127.0.0.1:11434", help="scheme and port are taken from here"
+    )
     ap.add_argument("--path", default="/api/version")
     ap.add_argument("--n", type=int, default=20)
     ap.add_argument("--hosts", nargs="+", default=["localhost", "127.0.0.1"])
     ap.add_argument("--timeout", type=float, default=5.0)
-    ap.add_argument("--fail-ratio", type=float, default=None,
-                    help="exit 1 when the slowest host's mean exceeds this multiple of the fastest")
+    ap.add_argument(
+        "--fail-ratio",
+        type=float,
+        default=None,
+        help="exit 1 when the slowest host's mean exceeds this multiple of the fastest",
+    )
     ap.add_argument("--json", action="store_true")
-    ap.add_argument("--log", action="store_true", help="append the result to evals/runs/_logs/bench_http.jsonl")
+    ap.add_argument(
+        "--log", action="store_true", help="append the result to evals/runs/_logs/bench_http.jsonl"
+    )
     args = ap.parse_args(argv)
     parsed = urlparse(args.base)
     port = parsed.port or (443 if parsed.scheme == "https" else 80)
@@ -121,8 +131,10 @@ def main(argv: list[str] | None = None) -> int:
     else:
         print(f"{args.base}{args.path}  n={args.n} (fresh connection per request)")
         for h in result["hosts"]:
-            print(f"  {h['host']:<12} mean {h['mean_ms']} ms  p50 {h['p50_ms']}  p95 {h['p95_ms']}  "
-                  f"max {h['max_ms']}  failures {h['failures']}  resolves: {', '.join(h['addresses'])}")
+            print(
+                f"  {h['host']:<12} mean {h['mean_ms']} ms  p50 {h['p50_ms']}  p95 {h['p95_ms']}  "
+                f"max {h['max_ms']}  failures {h['failures']}  resolves: {', '.join(h['addresses'])}"
+            )
         print(f"  slowest / fastest mean: {result['ratio_slowest_to_fastest']}")
     ratio = result["ratio_slowest_to_fastest"]
     if args.fail_ratio is not None and ratio is not None and ratio > args.fail_ratio:

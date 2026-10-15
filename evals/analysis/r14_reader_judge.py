@@ -17,7 +17,6 @@ import datetime as dt
 import json
 import re
 import sys
-from collections import Counter, defaultdict
 from pathlib import Path
 
 HERE = Path(__file__).resolve()
@@ -30,25 +29,126 @@ OUT_LOCAL.mkdir(parents=True, exist_ok=True)
 
 sys.path.insert(0, str(WT / "evals"))
 sys.path.insert(0, str(WT / "src"))
-from memspine_evals.judge_conventions import (  # noqa: E402
+from memspine_evals.judge_conventions import (
     check_conventions,
     check_conventions_v2,
     gold_items,
 )
-from memspine_evals.refusal import is_refusal  # noqa: E402
+from memspine_evals.refusal import is_refusal
 
 STOP = set(
-    "the a an of to in on at and or for with by from as is was were that this it its his her their my our "
-    "be been being has have had he she they them we you i me do does did what which who whom when where why how "
-    "not no yes about after before into over than then there so but if also very just would could should will "
-    "can may might up out one s t".split()
+    [
+        "the",
+        "a",
+        "an",
+        "of",
+        "to",
+        "in",
+        "on",
+        "at",
+        "and",
+        "or",
+        "for",
+        "with",
+        "by",
+        "from",
+        "as",
+        "is",
+        "was",
+        "were",
+        "that",
+        "this",
+        "it",
+        "its",
+        "his",
+        "her",
+        "their",
+        "my",
+        "our",
+        "be",
+        "been",
+        "being",
+        "has",
+        "have",
+        "had",
+        "he",
+        "she",
+        "they",
+        "them",
+        "we",
+        "you",
+        "i",
+        "me",
+        "do",
+        "does",
+        "did",
+        "what",
+        "which",
+        "who",
+        "whom",
+        "when",
+        "where",
+        "why",
+        "how",
+        "not",
+        "no",
+        "yes",
+        "about",
+        "after",
+        "before",
+        "into",
+        "over",
+        "than",
+        "then",
+        "there",
+        "so",
+        "but",
+        "if",
+        "also",
+        "very",
+        "just",
+        "would",
+        "could",
+        "should",
+        "will",
+        "can",
+        "may",
+        "might",
+        "up",
+        "out",
+        "one",
+        "s",
+        "t",
+    ]
 )
 MONTHS = {m.lower(): i for i, m in enumerate(calendar.month_name) if m}
 MONTHS.update({m.lower(): i for i, m in enumerate(calendar.month_abbr) if m})
 MONTHS["sept"] = 9
 WD = {d.lower(): i for i, d in enumerate(calendar.day_name)}
-NUMW = {w: i for i, w in enumerate(
-    "zero one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen".split())}
+NUMW = {
+    w: i
+    for i, w in enumerate(
+        [
+            "zero",
+            "one",
+            "two",
+            "three",
+            "four",
+            "five",
+            "six",
+            "seven",
+            "eight",
+            "nine",
+            "ten",
+            "eleven",
+            "twelve",
+            "thirteen",
+            "fourteen",
+            "fifteen",
+            "sixteen",
+        ]
+    )
+}
 NUMW.update({"once": 1, "twice": 2, "thrice": 3})
 
 
@@ -75,10 +175,19 @@ def norm(s: str) -> str:
 MON_RE = "|".join(sorted(MONTHS, key=len, reverse=True))
 DATE_PATTERNS = [
     (re.compile(r"(\d{4})-(\d{2})-(\d{2})"), lambda m: (int(m[1]), int(m[2]), int(m[3]))),
-    (re.compile(rf"\b(\d{{1,2}})(?:st|nd|rd|th)?\s+(?:of\s+)?({MON_RE})\b\.?,?\s*(\d{{4}})?", re.I),
-     lambda m: (int(m[3]) if m[3] else None, MONTHS[m[2].lower()], int(m[1]))),
-    (re.compile(rf"\b({MON_RE})\b\.?\s+(\d{{1,2}})(?:st|nd|rd|th)?\b(?!\s*(?:years?|months?|weeks?|days?))(?:,?\s*(\d{{4}}))?", re.I),
-     lambda m: (int(m[3]) if m[3] else None, MONTHS[m[1].lower()], int(m[2]))),
+    (
+        re.compile(
+            rf"\b(\d{{1,2}})(?:st|nd|rd|th)?\s+(?:of\s+)?({MON_RE})\b\.?,?\s*(\d{{4}})?", re.I
+        ),
+        lambda m: (int(m[3]) if m[3] else None, MONTHS[m[2].lower()], int(m[1])),
+    ),
+    (
+        re.compile(
+            rf"\b({MON_RE})\b\.?\s+(\d{{1,2}})(?:st|nd|rd|th)?\b(?!\s*(?:years?|months?|weeks?|days?))(?:,?\s*(\d{{4}}))?",
+            re.I,
+        ),
+        lambda m: (int(m[3]) if m[3] else None, MONTHS[m[1].lower()], int(m[2])),
+    ),
 ]
 
 
@@ -160,7 +269,9 @@ def gold_dayset(gold: str) -> tuple[str, set[dt.date] | None]:
     if re.fullmatch(r"\s*(in\s+)?(\d{4})\s*", low):
         y = int(re.search(r"\d{4}", low)[0])
         return "year", {dt.date(y, 1, 1) + dt.timedelta(days=k) for k in range(365)}
-    if re.search(r"\b(ago|last|next|since|yesterday|tomorrow|week|month|year)s?\b", low) and not re.search(r"\d", low):
+    if re.search(
+        r"\b(ago|last|next|since|yesterday|tomorrow|week|month|year)s?\b", low
+    ) and not re.search(r"\d", low):
         return "rel_other", None
     if re.search(rf"\b({MON_RE})\b", low) and re.search(r"\d", low):
         return "date_other", None
@@ -171,14 +282,38 @@ def answer_dates(ans: str) -> list[dt.date]:
     return [d for d in (to_date(t) for t in days_in(ans)) if d]
 
 
-NEG = re.compile(r"\b(not|never|no|none|cannot|can't|didn't|did not|doesn't|isn't|wasn't|unknown|unclear)\b", re.I)
-HEDGE = re.compile(r"\b(or|either|possibly|perhaps|maybe|might|may have|probably|likely|approximately|around|about|roughly|at least)\b", re.I)
+NEG = re.compile(
+    r"\b(not|never|no|none|cannot|can't|didn't|did not|doesn't|isn't|wasn't|unknown|unclear)\b",
+    re.I,
+)
+HEDGE = re.compile(
+    r"\b(or|either|possibly|perhaps|maybe|might|may have|probably|likely|approximately|around|about|roughly|at least)\b",
+    re.I,
+)
 Q_SHAPES = [
-    ("how_long", re.compile(r"\bhow long\b|\bhow many (days|weeks|months|years|hours|minutes)\b", re.I)),
+    (
+        "how_long",
+        re.compile(r"\bhow long\b|\bhow many (days|weeks|months|years|hours|minutes)\b", re.I),
+    ),
     ("how_many", re.compile(r"\bhow many\b|\bhow often\b|\bhow much\b", re.I)),
-    ("when", re.compile(r"\bwhen\b|\bwhat (year|month|day|date)\b|\bwhich (year|month|day)\b|\bwhat time\b", re.I)),
-    ("yesno", re.compile(r"^\s*(would|is|are|was|were|did|does|do|can|could|will|has|have|had)\b", re.I)),
-    ("list", re.compile(r"\bwhat (are|were)\b.*\b(s)\b|\b(which|what) .* (activities|books|places|things|items|hobbies|games|pets|countries|events|foods|movies)\b|\blist\b|\ball\b", re.I)),
+    (
+        "when",
+        re.compile(
+            r"\bwhen\b|\bwhat (year|month|day|date)\b|\bwhich (year|month|day)\b|\bwhat time\b",
+            re.I,
+        ),
+    ),
+    (
+        "yesno",
+        re.compile(r"^\s*(would|is|are|was|were|did|does|do|can|could|will|has|have|had)\b", re.I),
+    ),
+    (
+        "list",
+        re.compile(
+            r"\bwhat (are|were)\b.*\b(s)\b|\b(which|what) .* (activities|books|places|things|items|hobbies|games|pets|countries|events|foods|movies)\b|\blist\b|\ball\b",
+            re.I,
+        ),
+    ),
     ("who", re.compile(r"^\s*who\b", re.I)),
     ("where", re.compile(r"^\s*where\b|\bwhich (city|country|state|place)\b", re.I)),
     ("why", re.compile(r"^\s*why\b|\bhow (did|does|do|has|have|would)\b", re.I)),
@@ -210,7 +345,12 @@ def gold_type(gold: str) -> str:
         return kind
     if low in {"yes", "no"} or re.match(r"^(yes|no)\b[,.]?", low):
         return "yesno"
-    if re.fullmatch(r"(about |around |approximately )?(\d+|" + "|".join(NUMW) + r")( times| days| weeks| months| years| hours)?", low):
+    if re.fullmatch(
+        r"(about |around |approximately )?(\d+|"
+        + "|".join(NUMW)
+        + r")( times| days| weeks| months| years| hours)?",
+        low,
+    ):
         return "number"
     if re.search(r"\b\d+\s*(days?|weeks?|months?|years?)\b", low):
         return "duration"
@@ -228,13 +368,14 @@ def bins(x, edges):
     return len(edges)
 
 
-
 # ---------------------------------------------------------------- hand labels (ids only)
 # One annotator (the R14 DEEP-READ pass) read all 287 WRONG verdicts and, for CORRECT verdicts, every row
 # the deterministic rules flagged (193 rows) plus a random 70 unflagged ones. Tiers: clear = any grader
 # accepts/rejects; likely = most graders; borderline = a coin flip. Keys are "<conv>/<qid>".
 def _k(spec: str) -> set[str]:
-    return {f"conv-{c}/{q}" for c, qs in (x.split(":") for x in spec.split(";")) for q in qs.split(",")}
+    return {
+        f"conv-{c}/{q}" for c, qs in (x.split(":") for x in spec.split(";")) for q in qs.split(",")
+    }
 
 
 HAND_FN = {
@@ -243,11 +384,20 @@ HAND_FN = {
     "borderline": set(),  # filled below (conversation ids differ per entry)
 }
 HAND_FN["borderline"] = {
-    "conv-30/1-17", "conv-42/3-134", "conv-42/3-148", "conv-48/7-8", "conv-49/8-154", "conv-49/8-18",
-    "conv-49/8-37", "conv-49/8-54", "conv-50/9-1",
+    "conv-30/1-17",
+    "conv-42/3-134",
+    "conv-42/3-148",
+    "conv-48/7-8",
+    "conv-49/8-154",
+    "conv-49/8-18",
+    "conv-49/8-37",
+    "conv-49/8-54",
+    "conv-50/9-1",
 }
 HAND_FP = {
-    "clear": _k("26:0-23,0-60,0-78;41:2-30,2-32,2-36,2-6;42:3-46,3-59,3-63,3-75;43:4-65,4-52;47:6-40;49:8-7,8-50;50:9-30"),
+    "clear": _k(
+        "26:0-23,0-60,0-78;41:2-30,2-32,2-36,2-6;42:3-46,3-59,3-63,3-75;43:4-65,4-52;47:6-40;49:8-7,8-50;50:9-30"
+    ),
     "likely": _k("43:4-4,4-9,4-62;50:9-5;48:7-59;44:5-9;42:3-83,3-11,3-88;26:0-2;41:2-91;47:6-38"),
     "borderline": _k("48:7-74,7-99,7-85;42:3-8;26:0-147"),
 }
@@ -259,13 +409,30 @@ HAND_GOLD_CANDIDATE = {
 }
 # 18-row hand check of the 'distractor' source heuristic (True = the answer really draws on a non-gold line)
 HAND_DISTRACTOR_CHECK = {
-    "conv-49/8-104": True, "conv-42/3-169": True, "conv-50/9-115": True, "conv-42/3-19": False,
-    "conv-48/7-44": False, "conv-43/4-76": True, "conv-30/1-17": True, "conv-43/4-128": True,
-    "conv-41/2-85": True, "conv-47/6-64": False, "conv-43/4-106": True, "conv-47/6-17": False,
-    "conv-48/7-178": True, "conv-26/0-151": True, "conv-47/6-147": False, "conv-30/1-57": True,
-    "conv-50/9-56": True, "conv-50/9-109": True,
+    "conv-49/8-104": True,
+    "conv-42/3-169": True,
+    "conv-50/9-115": True,
+    "conv-42/3-19": False,
+    "conv-48/7-44": False,
+    "conv-43/4-76": True,
+    "conv-30/1-17": True,
+    "conv-43/4-128": True,
+    "conv-41/2-85": True,
+    "conv-47/6-64": False,
+    "conv-43/4-106": True,
+    "conv-47/6-17": False,
+    "conv-48/7-178": True,
+    "conv-26/0-151": True,
+    "conv-47/6-147": False,
+    "conv-30/1-57": True,
+    "conv-50/9-56": True,
+    "conv-50/9-109": True,
 }
-HAND_SIBLING_EVIDENCE = {"conv-30/1-17", "conv-30/1-57", "conv-48/7-178"}  # answer is valid text from another turn; gold is one of several
+HAND_SIBLING_EVIDENCE = {
+    "conv-30/1-17",
+    "conv-30/1-57",
+    "conv-48/7-178",
+}  # answer is valid text from another turn; gold is one of several
 
 
 def hand_tier(key: str, table: dict) -> str:
@@ -280,7 +447,7 @@ def main() -> None:
     data = json.loads(DATA.read_text(encoding="utf8"))
     conv = {}
     for k, it in enumerate(data):
-        cid = f"conv-{k+0}"
+        cid = f"conv-{k + 0}"
     # item id mapping from results: conv-26 etc come from sample_id
     by_id = {it["sample_id"]: it for it in data}
     turns: dict[str, dict[str, dict]] = {}
@@ -297,26 +464,42 @@ def main() -> None:
         for i, q in enumerate(it["qa"]):
             qa[(sid, f"{list(by_id).index(sid)}-{i}")] = q
 
-    res = [json.loads(line) for line in (RUN.parent / "clean-jina-full--memspine/results.jsonl").open(encoding="utf8")]
+    res = [
+        json.loads(line)
+        for line in (RUN.parent / "clean-jina-full--memspine/results.jsonl").open(encoding="utf8")
+    ]
     res = [r for r in res if r.get("kind") == "result"]
     forn = {}
     for line in (RUN.parent / "clean-jina-full--forensics/forensics.jsonl").open(encoding="utf8"):
         d = json.loads(line)
         forn[d["query_id"]] = d
     labels = {}
-    for line in (WT / "evals/analysis/locomo_problem_labels_clean_jina_full.txt").read_text(encoding="utf8").splitlines():
+    for line in (
+        (WT / "evals/analysis/locomo_problem_labels_clean_jina_full.txt")
+        .read_text(encoding="utf8")
+        .splitlines()
+    ):
         if line.startswith("#") or not line.strip() or line.startswith("qid"):
             continue
         p = line.split()
         labels[(p[0], p[1])] = (p[2], p[3] if len(p) > 3 else "")
     errata = {}
-    for e in json.loads((WT / "evals/analysis/locomo_errata.json").read_text(encoding="utf8"))["entries"]:
+    for e in json.loads((WT / "evals/analysis/locomo_errata.json").read_text(encoding="utf8"))[
+        "entries"
+    ]:
         errata.setdefault((e["item"], e["qid"]), []).append(e["tag"])
 
     # other runs for judge-consistency and stable-failure
     other = {}
-    for rn in ["full-persp-loc", "r7-multprot-full", "r7-post-full", "r7-protect-full", "qa-full-qs-eq06-fix",
-               "qa-full-qs-eq06-rjina", "qa-full-qs-ejina-rjina"]:
+    for rn in [
+        "full-persp-loc",
+        "r7-multprot-full",
+        "r7-post-full",
+        "r7-protect-full",
+        "qa-full-qs-eq06-fix",
+        "qa-full-qs-eq06-rjina",
+        "qa-full-qs-ejina-rjina",
+    ]:
         p = RUN.parent / f"{rn}--memspine/results.jsonl"
         if not p.exists():
             continue
@@ -324,7 +507,8 @@ def main() -> None:
             d = json.loads(line)
             if d.get("kind") == "result":
                 other.setdefault((d["item_id"], d["query_id"]), []).append(
-                    (rn, d["score"], d["answer"], (d.get("meta") or {}).get("judge_prompt_id")))
+                    (rn, d["score"], d["answer"], (d.get("meta") or {}).get("judge_prompt_id"))
+                )
 
     rows = []
     for r in res:
@@ -377,7 +561,9 @@ def main() -> None:
         n_nov = len(novel)
         nov_gold = sum(1 for w in novel if w in gold_turn_tokens)
         nov_dist = sum(1 for w in novel if w not in gold_turn_tokens and w in nongold_ctx_tokens)
-        nov_none = sum(1 for w in novel if w not in gold_turn_tokens and w not in nongold_ctx_tokens)
+        nov_none = sum(
+            1 for w in novel if w not in gold_turn_tokens and w not in nongold_ctx_tokens
+        )
         refusal = bool(is_refusal(ans))
         if refusal:
             src = "refusal"
@@ -399,7 +585,9 @@ def main() -> None:
         ev_spk = {T[e]["speaker"] for e in ev_valid}
         spk_mismatch = bool(len(named) == 1 and ev_spk and named[0] not in ev_spk)
         ans_named = [s for s in spk if re.search(r"\b" + re.escape(s) + r"\b", ans)]
-        wrong_spk_answer = bool((not correct) and len(named) == 1 and ans_named and named[0] not in ans_named)
+        wrong_spk_answer = bool(
+            (not correct) and len(named) == 1 and ans_named and named[0] not in ans_named
+        )
         # captions
         cap_gold = [e for e in ev_valid if T[e].get("blip_caption")]
         cap_only = False
@@ -417,7 +605,11 @@ def main() -> None:
         kind, dset = gold_dayset(gold)
         adates = answer_dates(ans)
         a_refusal = refusal
-        a_neg = bool(NEG.search(ans[:80])) and not re.search(r"\bno\b", gold.lower()) and gtype != "yesno"
+        a_neg = (
+            bool(NEG.search(ans[:80]))
+            and not re.search(r"\bno\b", gold.lower())
+            and gtype != "yesno"
+        )
         if not correct:
             if dset and adates and not a_refusal:
                 if adates[0] in dset and kind in ("abs_day", "weekday_rel"):
@@ -432,11 +624,35 @@ def main() -> None:
                     fn.append("month_year_match")
             ng = norm(gold)
             na = norm(ans)
-            if ng and len(ng.split()) >= 1 and re.search(r"\b" + re.escape(ng) + r"\b", na) and not a_refusal and not a_neg and a_words <= 45 and kind == "none":
+            if (
+                ng
+                and len(ng.split()) >= 1
+                and re.search(r"\b" + re.escape(ng) + r"\b", na)
+                and not a_refusal
+                and not a_neg
+                and a_words <= 45
+                and kind == "none"
+            ):
                 fn.append("gold_contained")
-            if gold_recall is not None and gold_recall >= 0.8 and len(gt) >= 2 and not a_refusal and not a_neg and a_words <= 45 and kind == "none":
+            if (
+                gold_recall is not None
+                and gold_recall >= 0.8
+                and len(gt) >= 2
+                and not a_refusal
+                and not a_neg
+                and a_words <= 45
+                and kind == "none"
+            ):
                 fn.append("token_recall_ge08")
-            if at and gt and at <= gt and len(at) >= 1 and gtype in ("phrase", "short_entity") and not a_refusal and not a_neg:
+            if (
+                at
+                and gt
+                and at <= gt
+                and len(at) >= 1
+                and gtype in ("phrase", "short_entity")
+                and not a_refusal
+                and not a_neg
+            ):
                 fn.append("answer_subset_of_gold")
             try:
                 if check_conventions(question, ans, gold):
@@ -446,19 +662,29 @@ def main() -> None:
             except Exception:
                 pass
             gn, an = numerals(gold), numerals(ans)
-            if gtype == "number" and gn and an and gn[0] in an[:3] and not re.search(r"at least|more than|over|fewer|less than", ans.lower()):
+            if (
+                gtype == "number"
+                and gn
+                and an
+                and gn[0] in an[:3]
+                and not re.search(r"at least|more than|over|fewer|less than", ans.lower())
+            ):
                 fn.append("number_in_answer")
         else:
             gi = gold_items(gold)
             if len(gi) >= 2 or gtype == "list":
-                items = gi if len(gi) >= 2 else [x.strip() for x in re.split(r",|\band\b", gold) if x.strip()]
+                items = (
+                    gi
+                    if len(gi) >= 2
+                    else [x.strip() for x in re.split(r",|\band\b", gold) if x.strip()]
+                )
                 have = 0
                 for it in items:
                     ct = set(content(it))
                     if ct and len(ct & at) / len(ct) >= 0.6:
                         have += 1
                 if items and have < len(items):
-                    fp.append(f"list_item_missing")
+                    fp.append("list_item_missing")
                     if have / len(items) <= 0.5:
                         fp.append("list_half_or_less")
             if dset and kind in ("abs_day", "weekday_rel"):
@@ -475,53 +701,107 @@ def main() -> None:
                 fp.append("number_mismatch")
             if gtype == "number" and gn and an and gn[0] in an and len(set(an)) >= 3:
                 fp.append("number_among_many")
-            if gold_recall is not None and gold_recall < 0.34 and len(gt) >= 2 and kind == "none" and not (an and gn and gn[0] in an):
+            if (
+                gold_recall is not None
+                and gold_recall < 0.34
+                and len(gt) >= 2
+                and kind == "none"
+                and not (an and gn and gn[0] in an)
+            ):
                 fp.append("low_gold_recall")
             if a_refusal:
                 fp.append("refusal_credited")
-            if HEDGE.search(ans) and re.search(r"\b(or|either)\b", ans.lower()) and gold_recall is not None and gtype in ("short_entity", "phrase", "list"):
+            if (
+                HEDGE.search(ans)
+                and re.search(r"\b(or|either)\b", ans.lower())
+                and gold_recall is not None
+                and gtype in ("short_entity", "phrase", "list")
+            ):
                 fp.append("hedged_or")
             if a_words >= 60:
                 fp.append("long_answer")
             if gtype == "yesno":
                 gy = gold.lower().strip().startswith("yes")
-                ay = ans.lower().strip().startswith("no") if gy else ans.lower().strip().startswith("yes")
+                ay = (
+                    ans.lower().strip().startswith("no")
+                    if gy
+                    else ans.lower().strip().startswith("yes")
+                )
                 if ay:
                     fp.append("polarity_mismatch")
         # judge noise across runs: same normalised answer, different verdicts
         oth = other.get((sid, qid), [])
-        same_ans_diff = [(rn, s) for rn, s, a, jp in oth if norm(a) == norm(ans) and (s == 1.0) != correct]
+        same_ans_diff = [
+            (rn, s) for rn, s, a, jp in oth if norm(a) == norm(ans) and (s == 1.0) != correct
+        ]
         runs_wrong = sum(1 for _, s, _, _ in oth if s != 1.0) + (0 if correct else 1)
         runs_n = len(oth) + 1
-        rows.append(dict(
-            item=sid, qid=qid, cat=r["type_label"], correct=int(correct), stage=lab[0] if not correct else "",
-            rclass=lab[1] if not correct else "", stage_d=int(stage_d),
-            n_ev=len(ev), n_ev_valid=len(ev_valid), n_ev_sessions=n_sess, bad_ev_ids=len(ev) - len(ev_valid),
-            n_ctx=n_ctx, ctx_tokens=r["context_tokens"], gold_in_ctx_n=len(gin), all_gold_in_ctx=int(all_in),
-            any_gold_in_ctx=int(any_in), gold_pos_first=None if pos_first is None else round(pos_first, 3),
-            gold_pos_last=None if pos_last is None else round(pos_last, 3), gold_from_end=from_end,
-            gold_best_final_rank=gold_best_rank,
-            gold_type=gtype, q_shape=shape, ans_words=a_words, gold_words=g_words,
-            len_ratio=round(a_words / max(g_words, 1), 2), refusal=int(refusal),
-            gold_recall=None if gold_recall is None else round(gold_recall, 3),
-            ans_precision=None if ans_prec is None else round(ans_prec, 3),
-            novel_n=n_nov, novel_in_gold_turn=nov_gold, novel_in_distractor=nov_dist, novel_ungrounded=nov_none,
-            answer_source=src, speaker_mismatch_gold=int(spk_mismatch), wrong_speaker_answer=int(wrong_spk_answer),
-            caption_gold=int(bool(cap_gold)), caption_only_gold=int(cap_only),
-            errata_tags=";".join(errata.get((sid, qid), [])),
-            fn_flags=";".join(fn), fp_flags=";".join(fp), runs_n=runs_n, runs_wrong=runs_wrong,
-            same_answer_other_verdict=len(same_ans_diff),
-            retried=int("retry_answer" in (r.get("meta") or {})),
-            hand_fn=hand_tier(f"{sid}/{qid}", HAND_FN), hand_fp=hand_tier(f"{sid}/{qid}", HAND_FP),
-            hand_gold_candidate=int(f"{sid}/{qid}" in HAND_GOLD_CANDIDATE),
-            hand_distractor=("" if f"{sid}/{qid}" not in HAND_DISTRACTOR_CHECK else int(HAND_DISTRACTOR_CHECK[f"{sid}/{qid}"])),
-            hand_sibling_evidence=int(f"{sid}/{qid}" in HAND_SIBLING_EVIDENCE),
-            _question=question, _gold=gold, _answer=ans,
-        ))
+        rows.append(
+            dict(
+                item=sid,
+                qid=qid,
+                cat=r["type_label"],
+                correct=int(correct),
+                stage=lab[0] if not correct else "",
+                rclass=lab[1] if not correct else "",
+                stage_d=int(stage_d),
+                n_ev=len(ev),
+                n_ev_valid=len(ev_valid),
+                n_ev_sessions=n_sess,
+                bad_ev_ids=len(ev) - len(ev_valid),
+                n_ctx=n_ctx,
+                ctx_tokens=r["context_tokens"],
+                gold_in_ctx_n=len(gin),
+                all_gold_in_ctx=int(all_in),
+                any_gold_in_ctx=int(any_in),
+                gold_pos_first=None if pos_first is None else round(pos_first, 3),
+                gold_pos_last=None if pos_last is None else round(pos_last, 3),
+                gold_from_end=from_end,
+                gold_best_final_rank=gold_best_rank,
+                gold_type=gtype,
+                q_shape=shape,
+                ans_words=a_words,
+                gold_words=g_words,
+                len_ratio=round(a_words / max(g_words, 1), 2),
+                refusal=int(refusal),
+                gold_recall=None if gold_recall is None else round(gold_recall, 3),
+                ans_precision=None if ans_prec is None else round(ans_prec, 3),
+                novel_n=n_nov,
+                novel_in_gold_turn=nov_gold,
+                novel_in_distractor=nov_dist,
+                novel_ungrounded=nov_none,
+                answer_source=src,
+                speaker_mismatch_gold=int(spk_mismatch),
+                wrong_speaker_answer=int(wrong_spk_answer),
+                caption_gold=int(bool(cap_gold)),
+                caption_only_gold=int(cap_only),
+                errata_tags=";".join(errata.get((sid, qid), [])),
+                fn_flags=";".join(fn),
+                fp_flags=";".join(fp),
+                runs_n=runs_n,
+                runs_wrong=runs_wrong,
+                same_answer_other_verdict=len(same_ans_diff),
+                retried=int("retry_answer" in (r.get("meta") or {})),
+                hand_fn=hand_tier(f"{sid}/{qid}", HAND_FN),
+                hand_fp=hand_tier(f"{sid}/{qid}", HAND_FP),
+                hand_gold_candidate=int(f"{sid}/{qid}" in HAND_GOLD_CANDIDATE),
+                hand_distractor=(
+                    ""
+                    if f"{sid}/{qid}" not in HAND_DISTRACTOR_CHECK
+                    else int(HAND_DISTRACTOR_CHECK[f"{sid}/{qid}"])
+                ),
+                hand_sibling_evidence=int(f"{sid}/{qid}" in HAND_SIBLING_EVIDENCE),
+                _question=question,
+                _gold=gold,
+                _answer=ans,
+            )
+        )
 
     # ---------------- write
     cols = [c for c in rows[0] if not c.startswith("_")]
-    with (WT / "evals/analysis/r14_reader_judge_features.csv").open("w", newline="", encoding="utf8") as fh:
+    with (WT / "evals/analysis/r14_reader_judge_features.csv").open(
+        "w", newline="", encoding="utf8"
+    ) as fh:
         w = csv.DictWriter(fh, fieldnames=cols)
         w.writeheader()
         for r in rows:

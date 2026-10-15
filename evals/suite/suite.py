@@ -13,13 +13,18 @@ from pathlib import Path
 from typing import Any
 
 import yaml
-
 from memspine_evals.datasets.registry import REGISTRY, DatasetEntry
 
 HERE = Path(__file__).resolve().parent
 SUITE_PATH = HERE / "suite.yaml"
 ROLES = ("dev", "blind", "behavioural")
-REQUIRED = {"locomo": "dev", "op_bench": "dev", "memoryagentbench": "blind", "convomem": "blind", "prefeval": "blind"}
+REQUIRED = {
+    "locomo": "dev",
+    "op_bench": "dev",
+    "memoryagentbench": "blind",
+    "convomem": "blind",
+    "prefeval": "blind",
+}
 FIELDS = ("id", "role", "slice", "metric", "judge", "pass_rule")
 EXCLUDED = ("longmemeval",)
 DETERMINISTIC_JUDGES = ("exact-match", "contains", "alias-contains")
@@ -69,7 +74,9 @@ def _mentions_excluded(value: Any) -> bool:
     return any(x in flat for x in EXCLUDED)
 
 
-def load_suite(path: Path | str = SUITE_PATH, registry: Mapping[str, DatasetEntry] = REGISTRY) -> Suite:
+def load_suite(
+    path: Path | str = SUITE_PATH, registry: Mapping[str, DatasetEntry] = REGISTRY
+) -> Suite:
     raw = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
     if not isinstance(raw, dict) or not isinstance(raw.get("entries"), list):
         raise SuiteError("suite file needs an 'entries' list")
@@ -77,7 +84,9 @@ def load_suite(path: Path | str = SUITE_PATH, registry: Mapping[str, DatasetEntr
     for item in raw["entries"]:
         for key, val in item.items():
             if _mentions_excluded(val):
-                raise SuiteError(f"LongMemEval is excluded from the suite (entry {item.get('id')!r}, field {key!r})")
+                raise SuiteError(
+                    f"LongMemEval is excluded from the suite (entry {item.get('id')!r}, field {key!r})"
+                )
         missing = [f for f in FIELDS if not item.get(f)]
         if missing:
             raise SuiteError(f"entry {item.get('id')!r} lacks {missing}")
@@ -89,16 +98,26 @@ def load_suite(path: Path | str = SUITE_PATH, registry: Mapping[str, DatasetEntr
                 raise SuiteError("the behavioural entry is dataset-free (dataset: null)")
         else:
             if ds not in registry:
-                raise SuiteError(f"entry {item['id']!r}: dataset {ds!r} is not in the dataset registry")
+                raise SuiteError(
+                    f"entry {item['id']!r}: dataset {ds!r} is not in the dataset registry"
+                )
             if registry[ds].status != "adapted":
-                raise SuiteError(f"entry {item['id']!r}: dataset {ds!r} has no adapter (status {registry[ds].status})")
+                raise SuiteError(
+                    f"entry {item['id']!r}: dataset {ds!r} has no adapter (status {registry[ds].status})"
+                )
         allowed = {NO_JUDGE} if item["role"] == "behavioural" else known_judge_ids()
         if item["judge"] not in allowed:
             raise SuiteError(f"entry {item['id']!r}: unknown judge id {item['judge']!r}")
         entries.append(
             SuiteEntry(
-                item["id"], ds, item["role"], str(item["slice"]), item["metric"], item["judge"],
-                item["pass_rule"], tuple(item.get("categories") or ()),
+                item["id"],
+                ds,
+                item["role"],
+                str(item["slice"]),
+                item["metric"],
+                item["judge"],
+                item["pass_rule"],
+                tuple(item.get("categories") or ()),
             )
         )
     ids = [e.id for e in entries]

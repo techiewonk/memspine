@@ -1,4 +1,3 @@
-# ruff: noqa: E501, RUF001
 """LIB-38: the Memory Firewall at three gates (insert, derive, read), base and extended signals."""
 
 from __future__ import annotations

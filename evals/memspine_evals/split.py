@@ -139,7 +139,9 @@ def split_ids(
     elif n_dev is not None:
         groups = sorted({group(u) for u in units}, key=lambda g: _rank(g, seed or 0))
         if not 0 < n_dev < len(groups):
-            raise ValueError(f"n_dev={n_dev} must leave a non-empty dev and held-out of {len(groups)} groups")
+            raise ValueError(
+                f"n_dev={n_dev} must leave a non-empty dev and held-out of {len(groups)} groups"
+            )
         dev_groups = set(groups[:n_dev])
     else:
         raise ValueError("give dev ids or n_dev")

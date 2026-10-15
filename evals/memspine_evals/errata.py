@@ -78,7 +78,9 @@ def validate_errata_file(path: Path | str, *, dataset: str | None = None) -> dic
     """Raise ``ErrataError`` on a malformed file; return counts per tag otherwise."""
     payload = _read(path)
     if dataset is not None and payload.get("dataset") not in (None, dataset):
-        raise ErrataError(f"{path}: file is for dataset {payload.get('dataset')!r}, not {dataset!r}")
+        raise ErrataError(
+            f"{path}: file is for dataset {payload.get('dataset')!r}, not {dataset!r}"
+        )
     counts: dict[str, int] = {}
     for e in payload["entries"]:
         _entry_key(e)
@@ -104,12 +106,20 @@ def load_errata(
         return {}
     payload = _read(path)
     if dataset is not None and payload.get("dataset") not in (None, dataset, f"{dataset}.json"):
-        raise ErrataError(f"{path}: file is for dataset {payload.get('dataset')!r}, not {dataset!r}")
+        raise ErrataError(
+            f"{path}: file is for dataset {payload.get('dataset')!r}, not {dataset!r}"
+        )
     prefix = payload.get("dataset_sha256_prefix")
-    if content_sha256 and prefix and not content_sha256.startswith(str(prefix).removeprefix("sha256:")):
+    if (
+        content_sha256
+        and prefix
+        and not content_sha256.startswith(str(prefix).removeprefix("sha256:"))
+    ):
         raise ErrataError(f"{path}: made for data {prefix}, this run used {content_sha256[:12]}")
-    tags = tuple(exclude_tags) if exclude_tags is not None else tuple(
-        payload.get("exclude_tags") or DEFAULT_EXCLUDE_TAGS
+    tags = (
+        tuple(exclude_tags)
+        if exclude_tags is not None
+        else tuple(payload.get("exclude_tags") or DEFAULT_EXCLUDE_TAGS)
     )
     out: dict[tuple[str, str], dict[str, Any]] = {}
     for e in payload["entries"]:
@@ -136,7 +146,9 @@ def partition(
     dropped: list[Mapping[str, Any]] = []
     for r in rows:
         e = errata.get((str(r[item_key]), str(r[query_key])))
-        (dropped if e is not None and (include_borderline or not e["borderline"]) else kept).append(r)
+        (dropped if e is not None and (include_borderline or not e["borderline"]) else kept).append(
+            r
+        )
     return kept, dropped
 
 

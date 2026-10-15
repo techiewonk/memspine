@@ -78,7 +78,21 @@ def repair_question(question: str, previous: str, defects_text: str, type_line: 
 _NUMBER_WORDS = {
     w: i
     for i, w in enumerate(
-        ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve"]
+        [
+            "zero",
+            "one",
+            "two",
+            "three",
+            "four",
+            "five",
+            "six",
+            "seven",
+            "eight",
+            "nine",
+            "ten",
+            "eleven",
+            "twelve",
+        ]
     )
 }
 _STATED = re.compile(rf"\b(\d+|{'|'.join(_NUMBER_WORDS)})\b", re.I)
@@ -220,7 +234,9 @@ class SlotVerifyReader:
                 abstained=True,
             )
             if not found.defects:
-                meta["outcome"] = "skipped_abstention"  # no evidence line: an evidence-based unknown
+                meta["outcome"] = (
+                    "skipped_abstention"  # no evidence line: an evidence-based unknown
+                )
                 meta["refusal_diagnosis"] = "no_evidence"
                 return first
             refusal_defects, refusal_evidence = found.defects, found.evidence

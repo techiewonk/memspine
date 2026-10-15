@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """Public tier: receipts, readiness, handles, errors, read surface, cost, plug-in manifest, cache key."""
 
 from __future__ import annotations

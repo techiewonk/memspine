@@ -24,18 +24,34 @@ REPO = HERE.parents[2]
 sys.path.insert(0, str(HERE))
 # Packages whose code is merged hold no files: Done, or merged and waiting only for a GPU measurement.
 RELEASED = ("Done", "Needs measurement", "Dropped")
-STATUSES = ("Not started", "Ready", "In progress", "Blocked", "Needs measurement", "Done", "Dropped")
+STATUSES = (
+    "Not started",
+    "Ready",
+    "In progress",
+    "Blocked",
+    "Needs measurement",
+    "Done",
+    "Dropped",
+)
 
 # (id, phase, title, decisions, depends_on, kind, gate, status, note)
 # kind: "move" = pure restructure (tests + CPU golden); "behaviour" = needs a GPU screen through the paired gate;
 # "measure" = a run or screen; "infra" = tooling.
-from packages import ALLOWED_SHARED, LANES, OWNS, REVIEW, WP  # noqa: E402  (the package list lives in packages.py)
-
+from packages import ALLOWED_SHARED, LANES, OWNS, REVIEW, WP
 
 #: Memory type -> layer of the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summaries, L3 graph,
 #: L4 observations and profile, L5 standing answers, procedures and plans. Working memory is context (C), shown as "ctx".
-TYPE_LAYER = {"episodic": "L0", "resource": "L0", "semantic": "L1", "associative": "L3", "reflective": "L4",
-              "procedural": "L5", "prospective": "L5", "working": "ctx", "shared": "scope"}
+TYPE_LAYER = {
+    "episodic": "L0",
+    "resource": "L0",
+    "semantic": "L1",
+    "associative": "L3",
+    "reflective": "L4",
+    "procedural": "L5",
+    "prospective": "L5",
+    "working": "ctx",
+    "shared": "scope",
+}
 OP_ORDER = ["D", "K_C", "K_P", "R", "C", "G"]
 
 
@@ -49,8 +65,16 @@ def _lane(wid: str, kind: str, files: list[str]) -> str:
     for name, members in LANES.items():
         if wid in members:
             return name
-    return {"P0": "infra", "X": "infra", "W2": "write", "O4": "offline", "MD": "models", "T5": "trust", "R6": "release",
-            "EX": "exit"}.get(wid.split("-")[0], "other")
+    return {
+        "P0": "infra",
+        "X": "infra",
+        "W2": "write",
+        "O4": "offline",
+        "MD": "models",
+        "T5": "trust",
+        "R6": "release",
+        "EX": "exit",
+    }.get(wid.split("-")[0], "other")
 
 
 def _check_acyclic(rows: list[dict]) -> None:
@@ -77,11 +101,20 @@ def _check_acyclic(rows: list[dict]) -> None:
 def repo_files() -> list[str]:
     """Existing repo files (tracked plus untracked-not-ignored), repo-relative with forward slashes."""
     try:
-        out = subprocess.run(["git", "ls-files", "-co", "--exclude-standard"], cwd=REPO, capture_output=True, text=True,
-                             check=True).stdout
+        out = subprocess.run(
+            ["git", "ls-files", "-co", "--exclude-standard"],
+            cwd=REPO,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout
         return [ln for ln in out.splitlines() if ln]
     except (OSError, subprocess.CalledProcessError):
-        return [p.relative_to(REPO).as_posix() for p in REPO.rglob("*") if p.is_file() and ".git" not in p.parts]
+        return [
+            p.relative_to(REPO).as_posix()
+            for p in REPO.rglob("*")
+            if p.is_file() and ".git" not in p.parts
+        ]
 
 
 def glob_regex(pat: str) -> re.Pattern[str]:
@@ -132,7 +165,9 @@ def patterns_overlap(a: str, b: str, files: list[str] | None = None) -> bool:
     return False
 
 
-def owns_overlap(oa: list[str], ob: list[str], files: list[str] | None = None) -> list[tuple[str, str]]:
+def owns_overlap(
+    oa: list[str], ob: list[str], files: list[str] | None = None
+) -> list[tuple[str, str]]:
     return [(a, b) for a in oa for b in ob if patterns_overlap(a, b, files)]
 
 
@@ -154,7 +189,9 @@ def serial_lane(wid: str, lanes: dict[str, set[str]] = LANES) -> str | None:
     return next((name for name, members in lanes.items() if wid in members), None)
 
 
-def concurrently_runnable(a: str, b: str, closure: dict[str, set[str]], lanes: dict[str, set[str]] = LANES) -> bool:
+def concurrently_runnable(
+    a: str, b: str, closure: dict[str, set[str]], lanes: dict[str, set[str]] = LANES
+) -> bool:
     """Neither depends on the other transitively and they are not in the same serial lane."""
     if a == b or b in closure[a] or a in closure[b]:
         return False
@@ -162,8 +199,13 @@ def concurrently_runnable(a: str, b: str, closure: dict[str, set[str]], lanes: d
     return not (la is not None and la == lb)
 
 
-def find_collisions(rows: list[dict], owns: dict[str, list[str]], allowed: list[tuple[str, str, str]],
-                    files: list[str] | None = None, lanes: dict[str, set[str]] = LANES):
+def find_collisions(
+    rows: list[dict],
+    owns: dict[str, list[str]],
+    allowed: list[tuple[str, str, str]],
+    files: list[str] | None = None,
+    lanes: dict[str, set[str]] = LANES,
+):
     """Return (collisions, allowed_hits): lists of (id_a, id_b, [(pat_a, pat_b), ...]). Done packages are skipped."""
     closure = transitive_deps(rows)
     status = {r["id"]: r["status"] for r in rows}
@@ -171,7 +213,7 @@ def find_collisions(rows: list[dict], owns: dict[str, list[str]], allowed: list[
     bad, shared = [], []
     ids = [r["id"] for r in rows if r["id"] in owns and status[r["id"]] not in RELEASED]
     for i, a in enumerate(ids):
-        for b in ids[i + 1:]:
+        for b in ids[i + 1 :]:
             if not concurrently_runnable(a, b, closure, lanes):
                 continue
             hit = owns_overlap(owns[a], owns[b], files)
@@ -206,32 +248,68 @@ def decision_anchors() -> dict[str, str]:
     return out
 
 
-def render_brief(wid: str, rows: list[dict], owns: dict[str, list[str]], titles: dict[str, str], allowed, template: str,
-                 base: str = "restructure", anchors: dict[str, str] | None = None) -> str:
+def render_brief(
+    wid: str,
+    rows: list[dict],
+    owns: dict[str, list[str]],
+    titles: dict[str, str],
+    allowed,
+    template: str,
+    base: str = "restructure",
+    anchors: dict[str, str] | None = None,
+) -> str:
     byid = {r["id"]: r for r in rows}
     r = byid[wid]
     closure = transitive_deps(rows)
     ok = {frozenset((a, b)) for a, b, _ in allowed}
     anchors = decision_anchors() if anchors is None else anchors
-    dec = "\n".join(f"- {d} {titles[d]}" + (f" ([{anchors[d].split('#')[0]}]({anchors[d]}))" if d in anchors else " (no area anchor found)")
-                    for d in r["decisions"]) or "- none"
-    deps = "\n".join(f"- {d} {byid[d]['title']}: **{byid[d]['status']}**" for d in r["depends_on"]) or "- none"
+    dec = (
+        "\n".join(
+            f"- {d} {titles[d]}"
+            + (
+                f" ([{anchors[d].split('#')[0]}]({anchors[d]}))"
+                if d in anchors
+                else " (no area anchor found)"
+            )
+            for d in r["decisions"]
+        )
+        or "- none"
+    )
+    deps = (
+        "\n".join(f"- {d} {byid[d]['title']}: **{byid[d]['status']}**" for d in r["depends_on"])
+        or "- none"
+    )
     forbid: dict[str, list[str]] = {}
     for o in rows:
         oid = o["id"]
-        if (oid == wid or o["status"] in RELEASED or oid not in owns or frozenset((wid, oid)) in ok
-                or not concurrently_runnable(wid, oid, closure)):
+        if (
+            oid == wid
+            or o["status"] in RELEASED
+            or oid not in owns
+            or frozenset((wid, oid)) in ok
+            or not concurrently_runnable(wid, oid, closure)
+        ):
             continue
         for pat in owns[oid]:
             forbid.setdefault(pat, []).append(oid)
     forbidden = "\n".join(f"- `{p}` ({', '.join(ids)})" for p, ids in sorted(forbid.items()))
-    forbidden += ("\n" if forbidden else "") + "- `evals/runs`, `data/`, the `pinned_run.sh` interface (unless listed under You own)"
+    forbidden += (
+        "\n" if forbidden else ""
+    ) + "- `evals/runs`, `data/`, the `pinned_run.sh` interface (unless listed under You own)"
     fill = {
-        "{{id}}": wid, "{{title}}": r["title"], "{{kind}}": r["kind"], "{{lane}}": r["lane"],
+        "{{id}}": wid,
+        "{{title}}": r["title"],
+        "{{kind}}": r["kind"],
+        "{{lane}}": r["lane"],
         "{{goal}}": f"<TODO goal: {r['title']}. Registry note: {r['note'] or 'none'}>",
-        "{{decisions}}": dec, "{{depends}}": deps, "{{base}}": base,
-        "{{owned}}": "\n".join(f"- `{p}`" for p in owns.get(wid, [])) + "\n- the tests for the above",
-        "{{forbidden}}": forbidden, "{{gate}}": r["gate"], "{{kind_gate}}": _KIND_GATE.get(r["kind"], ""),
+        "{{decisions}}": dec,
+        "{{depends}}": deps,
+        "{{base}}": base,
+        "{{owned}}": "\n".join(f"- `{p}`" for p in owns.get(wid, []))
+        + "\n- the tests for the above",
+        "{{forbidden}}": forbidden,
+        "{{gate}}": r["gate"],
+        "{{kind_gate}}": _KIND_GATE.get(r["kind"], ""),
         "{{review}}": ", ".join(r["review"]) or "none",
     }
     for k, v in fill.items():
@@ -253,7 +331,7 @@ def _build_rows() -> tuple[list[dict], dict[str, str]]:
         for v in json.loads(p.read_text(encoding="utf-8")):
             verify[v["id"]] = v
     rows = []
-    for (wid, phase, title, dec, dep, kind, gate, status, note) in WP:
+    for wid, phase, title, dec, dep, kind, gate, status, note in WP:
         assert status in STATUSES, (wid, status)
         for d in dec:
             assert d in titles, (wid, d)
@@ -261,13 +339,27 @@ def _build_rows() -> tuple[list[dict], dict[str, str]]:
         ops = {o for d in dec for o in verify.get(d, {}).get("operators", [])}
         locs = [loc.split(":")[0] for d in dec for loc in verify.get(d, {}).get("v1_locations", [])]
         files = sorted(set(locs), key=lambda f: (-locs.count(f), f))[:4]
-        rows.append({"id": wid, "phase": phase, "title": title, "decisions": dec, "depends_on": dep, "kind": kind,
-                     "gate": gate, "status": status, "note": note, "layers": _layers(types),
-                     "operators": [o for o in OP_ORDER if o in ops], "files": files,
-                     "owns": list(OWNS.get(wid, [])),
-                     "lane": _lane(wid, kind, files), "agent": "sonnet",
-                     "components": sorted({verify[d]["v2_component"] for d in dec if d in verify})[:4],
-                     "review": REVIEW.get(wid, [])})
+        rows.append(
+            {
+                "id": wid,
+                "phase": phase,
+                "title": title,
+                "decisions": dec,
+                "depends_on": dep,
+                "kind": kind,
+                "gate": gate,
+                "status": status,
+                "note": note,
+                "layers": _layers(types),
+                "operators": [o for o in OP_ORDER if o in ops],
+                "files": files,
+                "owns": list(OWNS.get(wid, [])),
+                "lane": _lane(wid, kind, files),
+                "agent": "sonnet",
+                "components": sorted({verify[d]["v2_component"] for d in dec if d in verify})[:4],
+                "review": REVIEW.get(wid, []),
+            }
+        )
     return rows, titles
 
 
@@ -277,22 +369,43 @@ def write_brief(wid: str, force: bool) -> int:
     if wid not in byid:
         print(f"unknown package {wid}", file=sys.stderr)
         return 2
-    problems = [f"dependency {d} is {byid[d]['status']}, not Done" for d in byid[wid]["depends_on"] if byid[d]["status"] != "Done"]
+    problems = [
+        f"dependency {d} is {byid[d]['status']}, not Done"
+        for d in byid[wid]["depends_on"]
+        if byid[d]["status"] != "Done"
+    ]
     if wid not in OWNS:
         problems.append("no OWNS entry (cannot be briefed)")
     if problems and not force:
-        print(f"refusing to brief {wid}: " + "; ".join(problems) + " (use --force)", file=sys.stderr)
+        print(
+            f"refusing to brief {wid}: " + "; ".join(problems) + " (use --force)", file=sys.stderr
+        )
         return 1
     try:
-        base = subprocess.run(["git", "rev-parse", "--short", "restructure"], cwd=REPO, capture_output=True, text=True,
-                              check=True).stdout.strip()
+        base = subprocess.run(
+            ["git", "rev-parse", "--short", "restructure"],
+            cwd=REPO,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
     except (OSError, subprocess.CalledProcessError):
         base = "HEAD"
-    text = render_brief(wid, rows, OWNS, titles, ALLOWED_SHARED,
-                        (HERE.parent / "briefs" / "TEMPLATE.md").read_text(encoding="utf-8"), base=f"`restructure` at {base}")
+    text = render_brief(
+        wid,
+        rows,
+        OWNS,
+        titles,
+        ALLOWED_SHARED,
+        (HERE.parent / "briefs" / "TEMPLATE.md").read_text(encoding="utf-8"),
+        base=f"`restructure` at {base}",
+    )
     out = HERE.parent / "briefs" / f"{wid}.md"
     out.write_text(text, encoding="utf-8")
-    print(f"wrote {out.relative_to(REPO).as_posix()}" + (f" (forced past: {'; '.join(problems)})" if problems else ""))
+    print(
+        f"wrote {out.relative_to(REPO).as_posix()}"
+        + (f" (forced past: {'; '.join(problems)})" if problems else "")
+    )
     return 0
 
 
@@ -312,42 +425,80 @@ def main() -> int:
     missing = sorted(set(titles) - covered)
     assert not missing, f"decisions without a work package: {missing}"
 
-    (HERE / "plan.json").write_text(json.dumps({"statuses": STATUSES, "packages": rows}, indent=1, ensure_ascii=False) + "\n",
-                                    encoding="utf-8")
-    phases = {0: "Phase 0: settle and prepare", 1: "Phase 1: foundations (restructure in place)", 2: "Phase 2: write path and models",
-              3: "Phase 3: read path", 4: "Phase 4: offline memory", 5: "Phase 5: trust, API, operations", 6: "Phase 6: release and paper"}
+    (HERE / "plan.json").write_text(
+        json.dumps({"statuses": STATUSES, "packages": rows}, indent=1, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+    phases = {
+        0: "Phase 0: settle and prepare",
+        1: "Phase 1: foundations (restructure in place)",
+        2: "Phase 2: write path and models",
+        3: "Phase 3: read path",
+        4: "Phase 4: offline memory",
+        5: "Phase 5: trust, API, operations",
+        6: "Phase 6: release and paper",
+    }
     from collections import Counter
+
     c = Counter(r["status"] for r in rows)
-    out = ["# MemSpine restructure plan: work packages and status", "",
-           "Generated from `data/build_plan.py` (the source of truth for rows); status is also kept on the live tracker page and synced back here.",
-           f"{len(rows)} packages cover all {len(titles)} decisions. Kinds: **move** = pure restructure (tests and CPU golden), **migration** = persisted schema change (upcaster and replay-equivalence tests), **api** = new contract or lifetime (contract tests), **behaviour** = "
-           "needs a GPU screen through the paired gate, **measure** = a run, **infra** = tooling.", "",
-           "Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summaries, L3 graph, L4 observations and "
-           "profile, L5 standing answers, procedures and plans; ctx = working context. Ops are the loop operators (D deposit, "
-           "K_C consolidate, K_P personalise, R retrieve, C compose, G generate). Each package is one task for one agent "
-           "(Sonnet); packages in a `serial` lane run one at a time, different lanes may run in parallel once their "
-           "dependencies are Done. Owns = first owned path and the count of further patterns (full list in the ownership "
-           "table at the end; `OWNS` in `data/packages.py`).", "",
-           "| Status | Count |", "|---|---|"] + [f"| {s} | {c.get(s, 0)} |" for s in STATUSES]
+    out = [
+        "# MemSpine restructure plan: work packages and status",
+        "",
+        "Generated from `data/build_plan.py` (the source of truth for rows); status is also kept on the live tracker page and synced back here.",
+        f"{len(rows)} packages cover all {len(titles)} decisions. Kinds: **move** = pure restructure (tests and CPU golden), **migration** = persisted schema change (upcaster and replay-equivalence tests), **api** = new contract or lifetime (contract tests), **behaviour** = "
+        "needs a GPU screen through the paired gate, **measure** = a run, **infra** = tooling.",
+        "",
+        "Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summaries, L3 graph, L4 observations and "
+        "profile, L5 standing answers, procedures and plans; ctx = working context. Ops are the loop operators (D deposit, "
+        "K_C consolidate, K_P personalise, R retrieve, C compose, G generate). Each package is one task for one agent "
+        "(Sonnet); packages in a `serial` lane run one at a time, different lanes may run in parallel once their "
+        "dependencies are Done. Owns = first owned path and the count of further patterns (full list in the ownership "
+        "table at the end; `OWNS` in `data/packages.py`).",
+        "",
+        "| Status | Count |",
+        "|---|---|",
+    ] + [f"| {s} | {c.get(s, 0)} |" for s in STATUSES]
     for ph in sorted(phases):
-        out += ["", f"## {phases[ph]}", "",
-                "| Id | Work package | Layers | Ops | Decisions | Review | Depends on | Kind | Agent lane | Owns | Gate | Status | Note |",
-                "|---|---|---|---|---|---|---|---|---|---|---|---|---|"]
+        out += [
+            "",
+            f"## {phases[ph]}",
+            "",
+            "| Id | Work package | Layers | Ops | Decisions | Review | Depends on | Kind | Agent lane | Owns | Gate | Status | Note |",
+            "|---|---|---|---|---|---|---|---|---|---|---|---|---|",
+        ]
         for r in rows:
             if r["phase"] == ph:
-                out.append(f"| {r['id']} | {r['title']} | {' '.join(r['layers']) or '-'} | {' '.join(r['operators']) or '-'} | "
-                           f"{', '.join(r['decisions'])} | {', '.join(r['review']) or '-'} | {', '.join(r['depends_on']) or '-'} | {r['kind']} | {r['lane']} | "
-                           f"{short_owns(r['owns'])} | {r['gate']} | **{r['status']}** | {r['note']} |")
+                out.append(
+                    f"| {r['id']} | {r['title']} | {' '.join(r['layers']) or '-'} | {' '.join(r['operators']) or '-'} | "
+                    f"{', '.join(r['decisions'])} | {', '.join(r['review']) or '-'} | {', '.join(r['depends_on']) or '-'} | {r['kind']} | {r['lane']} | "
+                    f"{short_owns(r['owns'])} | {r['gate']} | **{r['status']}** | {r['note']} |"
+                )
 
     files = repo_files()
     bad, shared = find_collisions(rows, OWNS, ALLOWED_SHARED, files)
     unowned = [r["id"] for r in rows if r["id"] not in OWNS and r["status"] != "Done"]
-    out += ["", "## Ownership", "",
-            "Files each package may write (glob patterns, repo-relative; includes removal and edit targets). Two packages that can "
-            "run at the same time must not own overlapping files (checked by `build_plan.py`; allowed exceptions are listed in "
-            "`ALLOWED_SHARED`).", "", "| Id | Owns |", "|---|---|"]
-    out += [f"| {r['id']} | {'<br>'.join('`' + p + '`' for p in r['owns'])} |" for r in rows if r["owns"]]
-    out += ["", f"No ownership yet (cannot be briefed): {len(unowned)} packages." if unowned else "All packages have ownership."]
+    out += [
+        "",
+        "## Ownership",
+        "",
+        "Files each package may write (glob patterns, repo-relative; includes removal and edit targets). Two packages that can "
+        "run at the same time must not own overlapping files (checked by `build_plan.py`; allowed exceptions are listed in "
+        "`ALLOWED_SHARED`).",
+        "",
+        "| Id | Owns |",
+        "|---|---|",
+    ]
+    out += [
+        f"| {r['id']} | {'<br>'.join('`' + p + '`' for p in r['owns'])} |"
+        for r in rows
+        if r["owns"]
+    ]
+    out += [
+        "",
+        f"No ownership yet (cannot be briefed): {len(unowned)} packages."
+        if unowned
+        else "All packages have ownership.",
+    ]
     (HERE.parent / "PLAN.md").write_text("\n".join(out) + "\n", encoding="utf-8")
     print(f"{len(rows)} packages, all {len(titles)} decisions covered; {dict(c)}")
 
@@ -355,11 +506,17 @@ def main() -> int:
         why = next(w for x, y, w in ALLOWED_SHARED if frozenset((x, y)) == frozenset((a, b)))
         print(f"allowed shared: {a} / {b} ({why}); {len(hit)} overlapping pattern pair(s)")
     if unowned:
-        print(f"WARNING: no ownership yet (cannot be briefed): {len(unowned)} packages: {', '.join(unowned)}")
+        print(
+            f"WARNING: no ownership yet (cannot be briefed): {len(unowned)} packages: {', '.join(unowned)}"
+        )
     if bad:
         print(f"COLLISIONS: {len(bad)} concurrently runnable pair(s) own overlapping files")
         for a, b, hit in bad:
-            print(f"  {a} / {b}: " + "; ".join(f"{x} ~ {y}" for x, y in hit[:4]) + (f" (+{len(hit) - 4} more)" if len(hit) > 4 else ""))
+            print(
+                f"  {a} / {b}: "
+                + "; ".join(f"{x} ~ {y}" for x, y in hit[:4])
+                + (f" (+{len(hit) - 4} more)" if len(hit) > 4 else "")
+            )
         return 1
     print("ownership check: no collisions")
     return 0
@@ -368,6 +525,10 @@ def main() -> int:
 if __name__ == "__main__":
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--brief", metavar="ID", help="write docs/v2/briefs/<ID>.md from the template")
-    ap.add_argument("--force", action="store_true", help="brief even if a dependency is not Done or OWNS is missing")
+    ap.add_argument(
+        "--force",
+        action="store_true",
+        help="brief even if a dependency is not Done or OWNS is missing",
+    )
     args = ap.parse_args()
     sys.exit(write_brief(args.brief, args.force) if args.brief else main())

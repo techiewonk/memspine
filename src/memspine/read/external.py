@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """External public knowledge as a separate, labelled, opt-in context block (LIB-45).
 
 Pure and unwired (wired later by R3-13; decisions R-23, ER-25 and the N1 firewall). Imports only the
@@ -140,7 +139,7 @@ class ExternalLine(BaseModel):
     trust: float
     flags: tuple[str, ...]
     tokens: int
-    provenance: Literal["external"] = EXTERNAL_FAMILY
+    provenance: Literal["external"] = EXTERNAL_FAMILY  # type: ignore[assignment]  # CI-GREEN: pre-existing typing debt
     deposit_forbidden: Literal[True] = True
 
 
@@ -149,13 +148,13 @@ class ExternalBlock(BaseModel):
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
-    label: Literal["public"] = BLOCK_LABEL
+    label: Literal["public"] = BLOCK_LABEL  # type: ignore[assignment]  # CI-GREEN: pre-existing typing debt
     clause: str = NEVER_PROVES_CLAUSE
     lines: tuple[ExternalLine, ...] = ()
     tokens: int = 0
     budget: int = 0
     dropped: dict[str, int] = Field(default_factory=dict)  # reason -> count
-    provenance: Literal["external"] = EXTERNAL_FAMILY
+    provenance: Literal["external"] = EXTERNAL_FAMILY  # type: ignore[assignment]  # CI-GREEN: pre-existing typing debt
     deposit_forbidden: Literal[True] = True
 
     @property

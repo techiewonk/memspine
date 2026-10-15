@@ -19,7 +19,7 @@ HERE = Path(__file__).resolve().parents[1]
 
 
 class _Handler(http.server.BaseHTTPRequestHandler):
-    def do_GET(self) -> None:  # noqa: N802
+    def do_GET(self) -> None:
         body = b'{"version":"test"}'
         self.send_response(200)
         self.send_header("Content-Length", str(len(body)))
@@ -56,7 +56,10 @@ def test_summarise_reports_ms_and_the_slowest_to_fastest_ratio() -> None:
     by_host = {h["host"]: h for h in out["hosts"]}
     assert by_host["localhost"]["mean_ms"] == 2000.0 and by_host["127.0.0.1"]["failures"] == 1
     assert out["ratio_slowest_to_fastest"] == 4.0
-    assert bench_http.summarise([{"host": "x", "times": [], "failures": 3}])["hosts"][0]["mean_ms"] is None
+    assert (
+        bench_http.summarise([{"host": "x", "times": [], "failures": 3}])["hosts"][0]["mean_ms"]
+        is None
+    )
 
 
 def test_main_json_and_fail_ratio(server: int, capsys: pytest.CaptureFixture[str]) -> None:
@@ -65,7 +68,9 @@ def test_main_json_and_fail_ratio(server: int, capsys: pytest.CaptureFixture[str
     out = json.loads(capsys.readouterr().out)
     assert code == 0 and out["hosts"][0]["n_ok"] == 3 and out["ratio_slowest_to_fastest"] is None
     # two hosts that both resolve to the loopback server: the ratio exists and is finite
-    code = bench_http.main(["--base", base, "--n", "3", "--hosts", "127.0.0.1", "127.0.0.1", "--fail-ratio", "1000"])
+    code = bench_http.main(
+        ["--base", base, "--n", "3", "--hosts", "127.0.0.1", "127.0.0.1", "--fail-ratio", "1000"]
+    )
     assert code == 0
     assert "mean" in capsys.readouterr().out
 
@@ -86,7 +91,9 @@ def test_localhost_warning_only_for_the_host_name_localhost() -> None:
 
 def test_warn_localhost_prints_to_the_given_stream() -> None:
     buf = io.StringIO()
-    got = warn_localhost([("--base-url", "http://localhost:1/v1"), ("--x", "http://127.0.0.1/v1")], buf)
+    got = warn_localhost(
+        [("--base-url", "http://localhost:1/v1"), ("--x", "http://127.0.0.1/v1")], buf
+    )
     assert len(got) == 1 and buf.getvalue().strip() == got[0] and "--base-url" in got[0]
 
 
@@ -94,11 +101,20 @@ def test_cli_flag_defaults_off_and_default_url_is_loopback_ip() -> None:
     parser = build_parser()
     a = parser.parse_args(["c0-1", "--dataset", "locomo"])
     assert a.warn_localhost is False and localhost_warning(a.base_url) is None
-    assert parser.parse_args(["c0-1", "--dataset", "locomo", "--warn-localhost"]).warn_localhost is True
+    assert (
+        parser.parse_args(["c0-1", "--dataset", "locomo", "--warn-localhost"]).warn_localhost
+        is True
+    )
 
 
 def test_ollama_env_script_lowers_the_log_level() -> None:
     text = (HERE / "ollama_env.ps1").read_text("utf-8")
     assert "OLLAMA_DEBUG           = '0'" in text and "OLLAMA_DEBUG=0" in text
-    for name in ("FLASH_ATTENTION", "KV_CACHE_TYPE", "CONTEXT_LENGTH", "NUM_PARALLEL", "KEEP_ALIVE"):
+    for name in (
+        "FLASH_ATTENTION",
+        "KV_CACHE_TYPE",
+        "CONTEXT_LENGTH",
+        "NUM_PARALLEL",
+        "KEEP_ALIVE",
+    ):
         assert f"OLLAMA_{name}" in text  # the five originals are still there

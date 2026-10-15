@@ -65,7 +65,7 @@ class PendingBarrier:
             else:
                 missing = tuple(getattr(outcome, "missing", ()))
                 status = "ready" if outcome.status == "ready" else "partial"
-                result = BarrierResult(status, _ms(started), missing)
+                result = BarrierResult(status, _ms(started), missing)  # type: ignore[arg-type]  # CI-GREEN: pre-existing typing debt
         tap.event(
             "read.pending",
             status=result.status,

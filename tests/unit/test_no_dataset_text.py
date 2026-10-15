@@ -68,8 +68,29 @@ GENERIC = (
     "weatherforecastfortomorrow",
 )
 BINARY_SUFFIXES = frozenset(
-    {".png", ".jpg", ".jpeg", ".gif", ".ico", ".pdf", ".zip", ".gz", ".parquet", ".pyc", ".woff",
-     ".woff2", ".ttf", ".whl", ".npy", ".npz", ".db", ".sqlite", ".bin", ".pt", ".safetensors"}
+    {
+        ".png",
+        ".jpg",
+        ".jpeg",
+        ".gif",
+        ".ico",
+        ".pdf",
+        ".zip",
+        ".gz",
+        ".parquet",
+        ".pyc",
+        ".woff",
+        ".woff2",
+        ".ttf",
+        ".whl",
+        ".npy",
+        ".npz",
+        ".db",
+        ".sqlite",
+        ".bin",
+        ".pt",
+        ".safetensors",
+    }
 )
 FORBIDDEN_SUFFIXES = (".zip", ".parquet", ".tar", ".tgz", ".tar.gz", ".7z", ".rar")
 
@@ -163,8 +184,7 @@ def scan_text(text: str, windows: set[str], corpus: str) -> list[int]:
                 lo = max(0, i - (WINDOW - INDEX_WINDOW))
                 # a real >= 30 run: some 30-char slice around the indexed window is in the corpus
                 if any(
-                    n[j : j + WINDOW] in corpus
-                    for j in range(lo, min(i + 1, len(n) - WINDOW + 1))
+                    n[j : j + WINDOW] in corpus for j in range(lo, min(i + 1, len(n) - WINDOW + 1))
                 ):
                     hits.append(lineno)
                     break

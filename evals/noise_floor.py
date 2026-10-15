@@ -94,14 +94,19 @@ def paired_noise(
         "legacy_band_questions": LEGACY_COEF * math.sqrt(n),
         "cluster": "item" if groups is not None else "question",
         "n_clusters": len(keys) if groups is not None else n,
-        "warning": ("fewer than 5 items: the item bootstrap is unreliable, use question resampling"
-                    if groups is not None and len(keys) < 5 else None),
+        "warning": (
+            "fewer than 5 items: the item bootstrap is unreliable, use question resampling"
+            if groups is not None and len(keys) < 5
+            else None
+        ),
         "resamples": resamples,
         "note": "noise in questions at size n' ~ coef * sqrt(n'); 95% band = 1.96x",
     }
 
 
-def load_scores(run_dirs: Sequence[Path]) -> tuple[dict[str, float], dict[str, str], dict[str, str]]:
+def load_scores(
+    run_dirs: Sequence[Path],
+) -> tuple[dict[str, float], dict[str, str], dict[str, str]]:
     """(score by key, category by key, item by key); key = ``item|query`` (query ids repeat across items)."""
     from significance import _rows, _scored  # type: ignore[import-not-found]
 
@@ -117,7 +122,9 @@ def load_scores(run_dirs: Sequence[Path]) -> tuple[dict[str, float], dict[str, s
     return score, cat, item
 
 
-def estimate(a_dirs: Sequence[Path], b_dirs: Sequence[Path], *, by_item: bool = False) -> dict[str, Any]:
+def estimate(
+    a_dirs: Sequence[Path], b_dirs: Sequence[Path], *, by_item: bool = False
+) -> dict[str, Any]:
     sa, cat, item = load_scores(a_dirs)
     sb, cat_b, item_b = load_scores(b_dirs)
     cat = {**cat_b, **cat}
@@ -133,7 +140,9 @@ def estimate(a_dirs: Sequence[Path], b_dirs: Sequence[Path], *, by_item: bool = 
         by_cat[cat.get(k, "?")].append(k)
     for c, keys in sorted(by_cat.items()):
         out["by_category"][c] = paired_noise(
-            {k: sa[k] for k in keys}, {k: sb[k] for k in keys}, groups={k: item[k] for k in keys} if by_item else None
+            {k: sa[k] for k in keys},
+            {k: sb[k] for k in keys},
+            groups={k: item[k] for k in keys} if by_item else None,
         )
     return out
 
@@ -154,15 +163,31 @@ def render(res: Mapping[str, Any]) -> str:
         "|---|---|---|---|---|---|",
     ]
     for c, v in res["by_category"].items():
-        lines.append(f"| {c} | {v['n']} | {v['flips']} | {v['coef']:.3f} | {v['band95_questions']:.1f} | {v['band95_points']:.2f} |")
+        lines.append(
+            f"| {c} | {v['n']} | {v['flips']} | {v['coef']:.3f} | {v['band95_questions']:.1f} | {v['band95_points']:.2f} |"
+        )
     return "\n".join(lines)
 
 
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--a", action="append", required=True, type=Path, help="run dir of the first run (repeat for chunks/resumes)")
-    ap.add_argument("--b", action="append", required=True, type=Path, help="run dir of the repeat run")
-    ap.add_argument("--by-item", action="store_true", help="bootstrap whole items (conversations/users), not questions")
+    ap = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    ap.add_argument(
+        "--a",
+        action="append",
+        required=True,
+        type=Path,
+        help="run dir of the first run (repeat for chunks/resumes)",
+    )
+    ap.add_argument(
+        "--b", action="append", required=True, type=Path, help="run dir of the repeat run"
+    )
+    ap.add_argument(
+        "--by-item",
+        action="store_true",
+        help="bootstrap whole items (conversations/users), not questions",
+    )
     ap.add_argument("--out", type=Path)
     args = ap.parse_args(argv)
     res = estimate(args.a, args.b, by_item=args.by_item)

@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """Explicit feedback events and multi-agent observer views (LIB-44; O-25, O-26, M-24).
 
 Pure and deterministic: no I/O, no model calls, no clock reads, no engine imports. Not wired yet

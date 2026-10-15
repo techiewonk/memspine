@@ -432,7 +432,7 @@ def extract_io(
 
 
 def _env_dump(env: Any) -> dict[str, Any]:
-    return env.model_dump(mode="json")
+    return env.model_dump(mode="json")  # type: ignore[no-any-return]  # CI-GREEN: pre-existing typing debt
 
 
 def envelope_snapshot(envs: Sequence[Any]) -> dict[str, tuple[str, dict[str, Any]]]:

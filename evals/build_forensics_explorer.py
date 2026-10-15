@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """Forensics explorer: one self-contained HTML file with every dev question, every screen, every gate.
 
     python evals/build_forensics_explorer.py [--out evals/runs/_analysis/forensics_explorer.html]
@@ -54,17 +53,17 @@ OUT_DIR = RUNS / "_analysis"
 sys.path[:] = [p for p in sys.path if Path(p or ".").resolve() != HERE]
 sys.path.append(str(HERE))
 
-import eval_screen  # noqa: E402  (scoring conventions: SUBS, OPB_BAND, ok-rule)
-from memspine_evals import judge_prompts as JP  # noqa: E402
-from memspine_evals import evidence as EV  # noqa: E402
-from memspine_evals import opbench as OB  # noqa: E402
-from memspine_evals import readers as RD  # noqa: E402
-from memspine_evals import refusal as RF  # noqa: E402
-from memspine_evals import trace_full as TF  # noqa: E402
-from memspine_evals.datasets import LoCoMoDataset  # noqa: E402
-from memspine_evals.datasets.op_bench import OPBenchDataset, persona_share  # noqa: E402
-from memspine_evals.date_check import date_equivalent  # noqa: E402
-from memspine_evals.judge_conventions import check_conventions  # noqa: E402
+import eval_screen
+from memspine_evals import evidence as EV
+from memspine_evals import judge_prompts as JP
+from memspine_evals import opbench as OB
+from memspine_evals import readers as RD
+from memspine_evals import refusal as RF
+from memspine_evals import trace_full as TF
+from memspine_evals.datasets import LoCoMoDataset
+from memspine_evals.datasets.op_bench import OPBenchDataset, persona_share
+from memspine_evals.date_check import date_equivalent
+from memspine_evals.judge_conventions import check_conventions
 
 LOC_REF, OPB_REF, OPB_BASE = "xb-loc-dev", "xb-opb-dev", "opb-base-dev"
 HELDOUT = ("conv-43", "conv-44", "conv-47", "conv-48", "conv-49", "conv-50")
@@ -456,7 +455,9 @@ def load_dev_loc():
                 adv=bool(q.meta.get("adversarial")),
                 ev=[] if q.meta.get("adversarial") else ev,
                 dv=ev if q.meta.get("adversarial") else [],
-                evv=None if view.status == "ok" else [r.to_dict() for r in view.refs if r.status != "ok"],
+                evv=None
+                if view.status == "ok"
+                else [r.to_dict() for r in view.refs if r.status != "ok"],
                 evs=view.status,
                 evr=list(view.raw),
             )

@@ -22,8 +22,6 @@ Sources:
 
 from __future__ import annotations
 
-# ruff: noqa: E501
-
 LOCOMO_PLUS_TEMPLATES: dict[str, str] = {
     "multi-hop": '\nYou are a Fact-Checking Judge.\nYour task: Compare the model\'s prediction with the reference answer (multi-hop fact QA).\n\nLabels:\n- "correct": The answer matches the reference entities (names, places, times) exactly.\n- "partial": The answer misses some details or contains minor inaccuracies but gets the main entity right.\n- "wrong": The answer is factually incorrect or hallucinates details not in the reference.\n\nReference Answer:\n{gold}\n\nModel Prediction:\n{pred}\n\nRelevant Evidence:\n{evidence}\n\nReturn your judgment strictly in JSON format:\n{{"label": "correct"|"partial"|"wrong", "reason": "<short explanation>"}}\n',
     "single-hop": '\nYou are a Fact-Checking Judge.\nYour task: Compare the model\'s prediction with the reference answer (single-hop fact QA).\n\nLabels:\n- "correct": The answer matches the reference entities exactly.\n- "partial": The answer misses some details but gets the main entity right.\n- "wrong": The answer is factually incorrect or hallucinates details not in the reference.\n\nReference Answer:\n{gold}\n\nModel Prediction:\n{pred}\n\nRelevant Evidence:\n{evidence}\n\nReturn your judgment strictly in JSON format:\n{{"label": "correct"|"partial"|"wrong", "reason": "<short explanation>"}}\n',

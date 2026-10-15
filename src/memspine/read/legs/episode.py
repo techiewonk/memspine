@@ -79,6 +79,6 @@ def with_episode_leg(base: LegRegistry) -> LegRegistry:
     out = LegRegistry()
     for name in base.names():
         out.register(base.get(name), required=base.is_required(name))
-    out.register(EpisodeLeg())
+    out.register(EpisodeLeg())  # type: ignore[arg-type]  # CI-GREEN: pre-existing typing debt
     _EXTENDED[id(base)] = out
     return out

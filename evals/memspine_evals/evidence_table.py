@@ -246,7 +246,34 @@ async def extract_rows(chat: Chat, question: str, lines: Sequence[Line]) -> Tabl
 
 _WORD = re.compile(r"[a-z0-9]+")
 _STOP = frozenset(
-    ["the", "a", "an", "his", "her", "their", "my", "our", "its", "of", "to", "in", "on", "at", "and", "or", "for", "with", "by", "from", "as", "is", "was", "were", "that", "this"]
+    [
+        "the",
+        "a",
+        "an",
+        "his",
+        "her",
+        "their",
+        "my",
+        "our",
+        "its",
+        "of",
+        "to",
+        "in",
+        "on",
+        "at",
+        "and",
+        "or",
+        "for",
+        "with",
+        "by",
+        "from",
+        "as",
+        "is",
+        "was",
+        "were",
+        "that",
+        "this",
+    ]
 )
 _WS = re.compile(r"\s+")
 
@@ -288,7 +315,20 @@ _COREF = re.compile(
     r"mentioned (?:earlier|before)|earlier|previously|that (?:one|time))\b",
     re.I,
 )
-_MONTHS = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"]
+_MONTHS = [
+    "january",
+    "february",
+    "march",
+    "april",
+    "may",
+    "june",
+    "july",
+    "august",
+    "september",
+    "october",
+    "november",
+    "december",
+]
 _YEAR = re.compile(r"\b(19|20)\d{2}\b")
 _MONTH_YEAR = re.compile(
     rf"\b({'|'.join(_MONTHS)})\b(?:\s+\d{{1,2}}(?:st|nd|rd|th)?)?,?\s*((?:19|20)\d{{2}})?", re.I
@@ -444,7 +484,21 @@ def _is_events(question: str, rows: Sequence[Row]) -> bool:
 _NUMWORDS = {
     w: i
     for i, w in enumerate(
-        ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve"]
+        [
+            "zero",
+            "one",
+            "two",
+            "three",
+            "four",
+            "five",
+            "six",
+            "seven",
+            "eight",
+            "nine",
+            "ten",
+            "eleven",
+            "twelve",
+        ]
     )
 }
 _ORD = {

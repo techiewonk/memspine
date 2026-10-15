@@ -10,7 +10,7 @@ import pytest
 pa = pytest.importorskip("pyarrow")
 pq = pytest.importorskip("pyarrow.parquet")
 
-from memspine_evals.datasets.beam import (  # noqa: E402
+from memspine_evals.datasets.beam import (
     BEAMDataset,
     contradiction_pair_recall,
     update_order,

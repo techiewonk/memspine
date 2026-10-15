@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """The stored assertion envelope (schema sessions 2-6; W-15 C, M-06).
 
 The model authors content only, with citations (S2-1). Everything else here is system-set. Unknown model

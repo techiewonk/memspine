@@ -70,7 +70,9 @@ def parse_evidence_ids(
         return list(dict.fromkeys(out))
     from ..evidence import normalise_evidence
 
-    return list(normalise_evidence(list(evidence), conversation_turn_ids(conversation)).resolved_ids)
+    return list(
+        normalise_evidence(list(evidence), conversation_turn_ids(conversation)).resolved_ids
+    )
 
 
 def _evidence_text(

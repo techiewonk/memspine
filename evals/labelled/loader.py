@@ -233,8 +233,13 @@ def load_global_questions(path: Path | None = None) -> LabelledSet[Any]:
     )
     qs = tuple(
         GlobalQuestion(
-            r["id"], r["question"], r["question_type"], tuple(r["expected_conversations"]),
-            tuple(r["answer_elements"]), r["expected_count"], r["note"],
+            r["id"],
+            r["question"],
+            r["question_type"],
+            tuple(r["expected_conversations"]),
+            tuple(r["answer_elements"]),
+            r["expected_count"],
+            r["note"],
         )  # fmt: skip
         for r in recs
         if r["kind"] == "question"

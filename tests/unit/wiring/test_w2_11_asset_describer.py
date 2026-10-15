@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """W2-11: the asset describer (W-23). ``write.asset_describer`` off | ingest | on_read, default OFF.
 
 Model-free: the hash embedder and stub describers. All text is invented (Ilse, Bram, Noor, Tomasz).

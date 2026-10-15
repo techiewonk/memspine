@@ -20,7 +20,7 @@ HERE = Path(__file__).parent
 sys.path[:] = [p for p in sys.path if Path(p or ".").resolve() != HERE.resolve()]
 sys.path.append(str(HERE))
 
-from memspine_evals.date_check import date_equivalent  # noqa: E402
+from memspine_evals.date_check import date_equivalent
 
 
 def main() -> None:

@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """W2-09: online entity resolution with pending_merge (``write.resolver_v2``; W-19, M-15).
 
 Model-free: invented names (Noor, Ilse, Bram, Tomasz), the hash embedder or a scripted vector table,

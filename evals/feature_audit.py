@@ -1158,9 +1158,7 @@ async def check_h13_core_terms_leg() -> bool:
         await eng.start()
         try:
             await eng.write("Bram went to the beach with her kids", namespace="a")
-            built = await eng._metadata_legs(
-                "a", "How many times has Bram gone to the beach?", 10
-            )
+            built = await eng._metadata_legs("a", "How many times has Bram gone to the beach?", 10)
             legs.append(len(built))
         finally:
             await eng.stop()

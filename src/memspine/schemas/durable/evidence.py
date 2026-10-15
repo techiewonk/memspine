@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """Evidence (schema session 4): roles, turn reference, span, source family."""
 
 from __future__ import annotations

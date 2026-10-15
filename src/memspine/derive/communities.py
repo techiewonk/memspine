@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """Entity communities (LIB-36): deterministic clustering over the assertion graph, plus summary job plans.
 
 Pure and deterministic: no I/O, no clock reads, no model calls. The summary text itself is a model call made

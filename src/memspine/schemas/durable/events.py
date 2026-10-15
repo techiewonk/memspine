@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """The event-log envelope (M-01, M-26). Payload shapes are per event kind and are not modelled here."""
 
 from __future__ import annotations

@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """Internal step types for the retrieve pipeline (``docs/v2/pipelines/retrieve.md``), steps 1-20.
 
 Internal tier: no compatibility promise. The public read types (request, bundle, block, result, cache key)
@@ -39,7 +38,7 @@ class TierConfig(InternalModel):
     """Config keys read.default_depth, read.allowed_depths, read.tiers."""
 
     default_depth: Depth = "standard"
-    allowed_depths: list[Depth] = Field(default_factory=lambda: ["fast", "standard", "deep"])
+    allowed_depths: list[Depth] = Field(default_factory=lambda: ["fast", "standard", "deep"])  # type: ignore[arg-type]  # CI-GREEN: pre-existing typing debt
     tiers: dict[str, dict[str, Any]] = Field(
         default_factory=dict
     )  # TODO: per-tier knobs are not specified

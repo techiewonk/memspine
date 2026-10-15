@@ -19,8 +19,34 @@ import time
 import urllib.request
 from pathlib import Path
 
-WORDS = ("Caroline Melanie painted adoption agency counselor camping lake sunrise support group charity race "
-         "pottery kids beach concert museum library vacation garden festival bakery bike friends weekend").split()
+WORDS = [
+    "Caroline",
+    "Melanie",
+    "painted",
+    "adoption",
+    "agency",
+    "counselor",
+    "camping",
+    "lake",
+    "sunrise",
+    "support",
+    "group",
+    "charity",
+    "race",
+    "pottery",
+    "kids",
+    "beach",
+    "concert",
+    "museum",
+    "library",
+    "vacation",
+    "garden",
+    "festival",
+    "bakery",
+    "bike",
+    "friends",
+    "weekend",
+]
 
 
 def make_prompt(seed: int, ctx_tokens: int) -> str:
@@ -32,19 +58,33 @@ def make_prompt(seed: int, ctx_tokens: int) -> str:
         line = f"[{day}] {rnd.choice(['Caroline', 'Melanie'])}: {text}."
         lines.append(line)
         n += len(line) // 4
-    return ("Memories:\n" + "\n".join(lines) + f"\n\nQuestion: When did Melanie go to the {rnd.choice(WORDS)}?\n"
-            "Answer in a short phrase.")
+    return (
+        "Memories:\n"
+        + "\n".join(lines)
+        + f"\n\nQuestion: When did Melanie go to the {rnd.choice(WORDS)}?\n"
+        "Answer in a short phrase."
+    )
 
 
 def call(base: str, model: str, prompt: str) -> tuple[float, int, int]:
-    body = {"model": model, "temperature": 0, "max_tokens": 64, "reasoning_effort": "none",
-            "messages": [{"role": "user", "content": prompt}]}
-    req = urllib.request.Request(f"{base}/chat/completions", json.dumps(body).encode(),
-                                 {"Content-Type": "application/json"})
+    body = {
+        "model": model,
+        "temperature": 0,
+        "max_tokens": 64,
+        "reasoning_effort": "none",
+        "messages": [{"role": "user", "content": prompt}],
+    }
+    req = urllib.request.Request(
+        f"{base}/chat/completions", json.dumps(body).encode(), {"Content-Type": "application/json"}
+    )
     t = time.perf_counter()
     d = json.load(urllib.request.urlopen(req, timeout=600))
     u = d.get("usage") or {}
-    return time.perf_counter() - t, int(u.get("prompt_tokens", 0)), int(u.get("completion_tokens", 0))
+    return (
+        time.perf_counter() - t,
+        int(u.get("prompt_tokens", 0)),
+        int(u.get("completion_tokens", 0)),
+    )
 
 
 def main() -> None:
@@ -67,11 +107,19 @@ def main() -> None:
             res = list(ex.map(lambda p: call(args.base, args.model, p), prompts))
         wall = time.perf_counter() - t
         lat = sorted(r[0] for r in res)
-        row = {"label": args.label, "model": args.model, "concurrency": c, "n": args.n, "ctx_tokens": args.ctx_tokens,
-               "wall_s": round(wall, 2), "req_per_s": round(args.n / wall, 3),
-               "lat_mean_s": round(statistics.mean(lat), 2), "lat_p95_s": round(lat[min(len(lat) - 1, int(.95 * len(lat)))], 2),
-               "prompt_tokens_mean": round(statistics.mean(r[1] for r in res)),
-               "completion_tokens_mean": round(statistics.mean(r[2] for r in res), 1)}
+        row = {
+            "label": args.label,
+            "model": args.model,
+            "concurrency": c,
+            "n": args.n,
+            "ctx_tokens": args.ctx_tokens,
+            "wall_s": round(wall, 2),
+            "req_per_s": round(args.n / wall, 3),
+            "lat_mean_s": round(statistics.mean(lat), 2),
+            "lat_p95_s": round(lat[min(len(lat) - 1, int(0.95 * len(lat)))], 2),
+            "prompt_tokens_mean": round(statistics.mean(r[1] for r in res)),
+            "completion_tokens_mean": round(statistics.mean(r[2] for r in res), 1),
+        }
         print(json.dumps(row))
         with out.open("a", encoding="utf-8") as fh:
             fh.write(json.dumps(row) + "\n")

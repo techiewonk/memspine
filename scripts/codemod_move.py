@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """Move modules and rewrite every reference (restructure codemod, reused by each move package).
 
 Usage:
@@ -67,7 +66,7 @@ def remap(name: str, moves: dict[str, str]) -> str:
     """Map a dotted name through the move list, matching the module itself or anything below a moved package."""
     for key in sorted(moves, key=len, reverse=True):
         if name == key or name.startswith(key + "."):
-            return moves[key] + name[len(key):]
+            return moves[key] + name[len(key) :]
     return name
 
 
@@ -114,7 +113,9 @@ def git_mv(root: Path, src: str, dst: str, dry: bool, report: list[str]) -> bool
         init = pdir / "__init__.py"
         if not init.exists() and not dry:
             pdir.mkdir(parents=True, exist_ok=True)
-            init.write_text('"""Package skeleton created by codemod_move.py."""\n', encoding="utf-8")
+            init.write_text(
+                '"""Package skeleton created by codemod_move.py."""\n', encoding="utf-8"
+            )
             subprocess.run(["git", "add", str(init)], cwd=root, check=True)
             report.append(f"created {init.relative_to(root).as_posix()}")
     if not dry:
@@ -141,8 +142,12 @@ def iter_files(root: Path, also: set[str]):
         yield p
 
 
-def rewrite_imports(text: str, cur: tuple[str, bool] | None, old_name: tuple[str, bool] | None,
-                    moves: dict[str, str]) -> str:
+def rewrite_imports(
+    text: str,
+    cur: tuple[str, bool] | None,
+    old_name: tuple[str, bool] | None,
+    moves: dict[str, str],
+) -> str:
     """AST-guided rewrite of ``from X import Y`` forms the dotted regex cannot reach."""
     try:
         with warnings.catch_warnings():
@@ -187,15 +192,17 @@ def rewrite_imports(text: str, cur: tuple[str, bool] | None, old_name: tuple[str
                 tgt_mod = remap(base, moves)
                 new_aliases.append((tgt_mod, a.name, a.asname))
         targets = {t for t, _, _ in new_aliases}
-        moved_any = any(
-            f"{base}.{a.name}" in moves for a in node.names
-        ) or remap(base, moves) != base
+        moved_any = (
+            any(f"{base}.{a.name}" in moves for a in node.names) or remap(base, moves) != base
+        )
         if not node.level and not moved_any:
             continue
         if node.level and not moved_any and not (old_name is not None):
             # relative import in an unmoved file that hits nothing: leave as is
             continue
-        start = offs[node.lineno - 1] + len(lines[node.lineno - 1].encode("utf-8")[: node.col_offset])
+        start = offs[node.lineno - 1] + len(
+            lines[node.lineno - 1].encode("utf-8")[: node.col_offset]
+        )
         end = offs[node.end_lineno - 1] + node.end_col_offset
         seg = raw[start:end].decode("utf-8")
         indent_line = lines[node.lineno - 1]
@@ -219,7 +226,9 @@ def rewrite_imports(text: str, cur: tuple[str, bool] | None, old_name: tuple[str
     return raw.decode("utf-8")
 
 
-def process(root: Path, moves: dict[str, str], moved_now: dict[str, str], dry: bool, also: set[str]):
+def process(
+    root: Path, moves: dict[str, str], moved_now: dict[str, str], dry: bool, also: set[str]
+):
     rx = build_dotted_regex(moves)
     inverse = {v: k for k, v in moved_now.items()}
     touched: list[Path] = []
@@ -258,7 +267,9 @@ def absolutise_relative(text: str, ctx: tuple[str, bool]) -> str:
     for node in ast.walk(tree):
         if isinstance(node, ast.ImportFrom) and node.level:
             base = resolve_relative(ctx[0], ctx[1], node.level, node.module)
-            start = offs[node.lineno - 1] + len(lines[node.lineno - 1].encode("utf-8")[: node.col_offset])
+            start = offs[node.lineno - 1] + len(
+                lines[node.lineno - 1].encode("utf-8")[: node.col_offset]
+            )
             end = offs[node.end_lineno - 1] + node.end_col_offset
             seg = raw[start:end].decode("utf-8")
             new = re.sub(r"^from\s+\S+\s+import", f"from {base} import", seg, count=1)
@@ -269,11 +280,15 @@ def absolutise_relative(text: str, ctx: tuple[str, bool]) -> str:
 
 
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     ap.add_argument("moves", type=Path)
     ap.add_argument("--root", type=Path, default=Path(__file__).resolve().parent.parent)
     ap.add_argument("--dry-run", action="store_true")
-    ap.add_argument("--also-touch", action="append", default=[], help="repo-relative path normally skipped")
+    ap.add_argument(
+        "--also-touch", action="append", default=[], help="repo-relative path normally skipped"
+    )
     args = ap.parse_args(argv)
     root = args.root.resolve()
     moves = load_moves(args.moves)
@@ -286,7 +301,9 @@ def main(argv: list[str] | None = None) -> int:
     for p in touched:
         report.append(f"rewrote {p.relative_to(root).as_posix()}")
     print("\n".join(report))
-    print(f"{len(moved_now)} moved, {len(touched)} rewritten" + (" (dry run)" if args.dry_run else ""))
+    print(
+        f"{len(moved_now)} moved, {len(touched)} rewritten" + (" (dry run)" if args.dry_run else "")
+    )
     return 0
 
 

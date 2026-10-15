@@ -1,4 +1,4 @@
-# ruff: noqa: E501, RUF001
+# ruff: noqa: RUF001
 """Typed query contract by rules, for English, German, Dutch and Spanish (LIB-16).
 
 Pure and unwired (wired later by R3-02; decisions R-03, R-20 and ER-19). Imports only the standard

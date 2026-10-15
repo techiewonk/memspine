@@ -71,14 +71,14 @@ def test_session_boundary_blocks_and_is_traced():
 
 
 def test_invisible_turn_strict_blocks_bridge():
-    vis = lambda t: t.turn_id != "t4"  # noqa: E731
+    vis = lambda t: t.turn_id != "t4"
     (w,) = run([Hit("t3", "c")], {"c": conv(8)}, vis=vis, before=1, after=3)
     assert w.member_ids == ["t2", "t3"]
     assert [(s.turn_id, s.reason) for s in w.skipped] == [("t4", "invisible")]
 
 
 def test_invisible_turn_loose_bridges_and_never_appears():
-    vis = lambda t: t.turn_id != "t4"  # noqa: E731
+    vis = lambda t: t.turn_id != "t4"
     (w,) = run(
         [Hit("t3", "c")],
         {"c": conv(8)},
@@ -92,7 +92,7 @@ def test_invisible_turn_loose_bridges_and_never_appears():
 
 
 def test_invisible_hit_gets_no_window():
-    vis = lambda t: t.turn_id != "t3"  # noqa: E731
+    vis = lambda t: t.turn_id != "t3"
     ws = run([Hit("t3", "c")], {"c": conv(8)}, vis=vis)
     assert ws == []
 

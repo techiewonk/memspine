@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """Derive stage: pattern_observations (O4-05, LIB-31; opt-in L4, ``offline.patterns_v2``)."""
 
 from __future__ import annotations

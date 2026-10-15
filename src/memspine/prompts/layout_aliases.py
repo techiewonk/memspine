@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """``prompts.layout.aliases`` (W2-06b; P-09): the KNOWN block of the window prompt, rendered compactly.
 
 One line per entity, ``Name = alias | alias``; aliases capped per entity and the block capped in

@@ -39,7 +39,9 @@ _ROLE_TRUST: dict[str, float] = {
 #: never escalate trust — ADR-018/SEC-C1). Capped, never boosted: an ingested
 #: PDF is exactly the RAG poisoning surface E1 defends. ``agent_tool`` (I65) is a
 #: model's own memory tool call: its text is model output, capped like the rest.
-_EXTERNAL_CHANNELS = frozenset({"retrieved", "web", "external", "email", "mcp", "ingest", "rest", "agent_tool"})
+_EXTERNAL_CHANNELS = frozenset(
+    {"retrieved", "web", "external", "email", "mcp", "ingest", "rest", "agent_tool"}
+)
 
 
 class TrustOptions(PolicyOptions):

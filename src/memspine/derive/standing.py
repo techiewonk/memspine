@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """Standing answers and standing instructions (LIB-32; O-21, ER-28; opt-in L5, wired later by O4-08).
 
 Pure and unwired: no I/O, no clock (sequences are injected integers), no model call. Depends on
