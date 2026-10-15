@@ -963,6 +963,18 @@ class ReadConfig(BaseModel):
     derived_lift: Literal["off", "evidence", "evidence+match"] = "off"
     #: GLIFT: at most this many source turns replace one derived hit.
     derived_lift_max_parents: int = Field(default=3, ge=1, le=8)
+    #: GTIME (docs/v2/GTIME.md): on a "when" question the derived lead blocks hurt even after the
+    #: lift (a G2F full run lost 18 net on cat2 while the final turns were the same kind as the J
+    #: run's): the "About" entity-summary block carries session dates as event dates. ``blocks``:
+    #: such a question gets no entity-summary block and no graph-facts block; the legs and the lift
+    #: are unchanged. ``blocks+legs``: it also runs without the graph leg, the graph node search
+    #: and the lift (the offline simulation says this loses gold turns; an ablation arm).
+    #: Rules only, no model call. Off: byte-identical.
+    graph_time_guard: Literal["off", "blocks", "blocks+legs"] = "off"
+    #: GTIME: which questions the guard covers. ``temporal``: ``is_temporal`` ("when", "what
+    #: date/year", "how long ago"); ``time_shaped``: also durations ("how long has"), "which year"
+    #: and a date named in the question (on those the graph helped cat4 by 4 net, so not the default).
+    graph_time_guard_shape: Literal["temporal", "time_shaped"] = "temporal"
     #: F5 (plan v3.2): a verbatim question (``is_verbatim``: "what did X say about
     #: ...", "exact words") gets no read header (cards, profile, graph facts, entity
     #: summaries) and, with ``cards: header``, no mined fact either: it reads raw

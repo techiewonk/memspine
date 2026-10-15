@@ -27,6 +27,7 @@ from memspine.observability import tap
 from memspine.observability.logging import get_logger
 from memspine.read.lead import count_terms, query_names
 from memspine.read.pipeline.state import _FORENSICS, CUE_TAG, _passive_hidden
+from memspine.read.pipeline.time_guard import blocks_guarded
 from memspine.store.records import MemoryRecord, RecordStatus
 
 _log = get_logger(__name__)
@@ -265,14 +266,15 @@ async def _read_headers(
         if header is not None:
             headers.append(header)
     read_cfg = eng._config().read
-    if read_cfg.cards_include_edges:
+    skip_derived = blocks_guarded(read_cfg, query)  # GTIME: "when" question, no derived block
+    if read_cfg.cards_include_edges and not skip_derived:
         # GP-5: the graph facts block shares the cards allowance, after the cards.
         cards = [h for h in headers if constants.CARDS_TAG in h.tags]
         allowance = int(budget_tokens * read_cfg.cards_budget_share)
         facts = await eng._graph_facts_section(ns, query, allowance - eng._headers_cost(cards))
         if facts is not None:
             headers.insert(len(cards), facts)
-    if read_cfg.entity_summaries:
+    if read_cfg.entity_summaries and not skip_derived:
         # GP-6: the "About" block shares the cards allowance, after cards and facts.
         shared = [
             h

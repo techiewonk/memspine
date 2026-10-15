@@ -159,6 +159,17 @@ def test_arm_validates(name: str) -> None:
         assert arm["read"]["pool_protect_per_leg"] == 8 and arm["write"]["index_view_carry"] == "anaphoric"
         validate_engine_config(arm)
         return
+    if name == "v2-GTIME-graph-lift-guard":
+        # GTIME (docs/v2/GTIME.md): the GLIFT graph-lift arm plus the time guard, nothing else
+        assert _diff_paths(arm, _load("v2-GLIFT-graph-lift")) == ["read.graph_time_guard"]
+        assert arm["read"]["graph_time_guard"] == "blocks"
+        validate_engine_config(arm)
+        return
+    if name == "v2-GTIME-pick3-graph-lift-guard":
+        assert _diff_paths(arm, _load("v2-GLIFT-pick3-graph-lift")) == ["read.graph_time_guard"]
+        assert arm["read"]["graph_time_guard"] == "blocks"
+        validate_engine_config(arm)
+        return
     if name == "v2-GTEMP-graph-fixed":
         # GTEMP (docs/v2/GTEMP.md): the S02 graph base plus the three merged temporal-fix flags
         extra = _diff_paths(arm, _load("scr-gc3-graph-jina"))
