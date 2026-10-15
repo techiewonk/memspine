@@ -28,6 +28,7 @@ __all__ = [
     "is_set_question",
     "is_set_question_wide",
     "is_temporal",
+    "is_time_shaped",
     "is_verbatim",
     "question_shape",
     "rule_read_mode",
@@ -171,6 +172,29 @@ _TEMPORAL = re.compile(
 def is_temporal(query: str) -> bool:
     """True when the question asks for a date or a time span ("when did ...")."""
     return bool(_TEMPORAL.search(query))
+
+
+_MONTH = (
+    r"(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?|"
+    r"sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)"
+)
+#: GTIME: a question that is about WHEN, beyond the "when ..." forms of :data:`_TEMPORAL`: a
+#: duration ("how long has ..."), "which year/month/season", or an explicit date in the question
+#: ("on 3 May 2023", "in January 2022", "before 2021").
+_TIME_SHAPED = re.compile(
+    r"\bhow long\b|\b(?:what|which) (?:year|month|season|week)\b"
+    rf"|\b{_MONTH}\.?\s+(?:\d{{1,2}}(?:st|nd|rd|th)?,?\s+)?(?:19|20)\d{{2}}\b"
+    rf"|\b\d{{1,2}}(?:st|nd|rd|th)?\s+{_MONTH}\.?,?\s+(?:19|20)\d{{2}}\b"
+    r"|\b(?:in|during|before|after|since|until|by)\s+(?:19|20)\d{2}\b",
+    re.I,
+)
+
+
+@english_only()
+def is_time_shaped(query: str) -> bool:
+    """True when the question is about when something happened: :func:`is_temporal` or a
+    duration, "which year", or an explicit date in the question (GTIME guard shape)."""
+    return bool(_TEMPORAL.search(query) or _TIME_SHAPED.search(query))
 
 
 #: A modal or "likely" ahead of the question mark: the answer is inferred, not stated.

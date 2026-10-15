@@ -194,6 +194,8 @@
       "graph_node_search": false,
       "graph_rerank": "off",
       "graph_rerank_weight": 0.2,
+      "graph_time_guard": "off",
+      "graph_time_guard_shape": "temporal",
       "hybrid": true,
       "inference_mode": "off",
       "inferred_gate": "off",

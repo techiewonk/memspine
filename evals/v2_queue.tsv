@@ -90,3 +90,5 @@ G2	B11	GLIFT	v2-GLIFT-graph-lift	v2-S02-i2	NONINF	f	S02	GC	150	read.derived_lift
 G3	B11	GLIFT	v2-GLIFT-pick3-graph-lift	v2-S02-i2	NONINF	f	S02	GC	170	read.derived_lift=evidence+match (v2-PICK3-j winners + the GC graph sleep build; does a lift-only graph add on the adopted default; slices fail_temporal + fail_mix_120 + fail_retrieval)
 G2F	B11	GLIFT	v2-GLIFT-graph-lift	clean-jina-full	REPORT	F	-	GC	190	read.derived_lift
 G3F	B11	GLIFT	v2-GLIFT-pick3-graph-lift	clean-jina-full	PROMOTE	Fob	-	GC	300	read.derived_lift
+G4F	B11	GTIME	v2-GTIME-graph-lift-guard	clean-jina-full	REPORT	F	-	GC	190	read.graph_time_guard (G2F with no entity-summary or graph-facts block on a when question; G2F lost cat2 net -19 with the same kind of final turns as J)
+G5F	B11	GTIME	v2-GTIME-pick3-graph-lift-guard	clean-jina-full	PROMOTE	Fob	-	GC	300	read.graph_time_guard (v2-PICK3-j with the GC graph build and lift, and the guard)

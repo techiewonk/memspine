@@ -9709,6 +9709,8 @@
   "prompts.overrides": "prompt layout and override selection: applies to every engine prompt, see each stage's prompts list",
   "prompts.partials": "prompt layout and override selection: applies to every engine prompt, see each stage's prompts list",
   "prompts.selection": "prompt layout and override selection: applies to every engine prompt, see each stage's prompts list",
+  "read.graph_time_guard": "no read site matched an inventory stage",
+  "read.graph_time_guard_shape": "no read site matched an inventory stage",
   "rest.auth.api_keys": "REST server (auth, rate limit): outside the memory pipeline",
   "rest.auth.jwt.admin_role": "REST server (auth, rate limit): outside the memory pipeline",
   "rest.auth.jwt.algorithms": "REST server (auth, rate limit): outside the memory pipeline",
@@ -9741,6 +9743,6 @@
   "vector.isolation": "cross-cutting: vector-store namespace isolation",
   "vector.namespace_index": "vector-store layout, shared by A13 and every vector leg"
  },
- "unattributed_count": 93,
- "schema_key_count": 610
+ "unattributed_count": 95,
+ "schema_key_count": 612
 }

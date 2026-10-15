@@ -63,6 +63,7 @@ from memspine.read.contract import (
 from memspine.read.pipeline import date_prior
 from memspine.read.pipeline import freshness as read_freshness
 from memspine.read.pipeline import request as read_request
+from memspine.read.pipeline.derived import derived_lift_stage, place_derived
 from memspine.read.pipeline.fusion import (
     _balanced_pool,
     _cut_missing,
@@ -76,7 +77,6 @@ from memspine.read.pipeline.fusion import (
     fuse_families,
 )
 from memspine.read.pipeline.legs import registry_base_legs
-from memspine.read.pipeline.derived import derived_lift_stage, place_derived
 from memspine.read.pipeline.lift import lift_stage
 from memspine.read.pipeline.rerank import (
     _static_prefilter,
@@ -93,6 +93,7 @@ from memspine.read.pipeline.state import (
     ReadResult,
     _passive_hidden,
 )
+from memspine.read.pipeline.time_guard import legs_guarded
 from memspine.services.lexical.base import minmax_fuse, rrf_fuse
 from memspine.store.events import EventKind, MemoryEvent
 from memspine.store.records import (
@@ -539,8 +540,9 @@ async def _search(
     if read_persp.perspective_mode != "off" or read_persp.speaker_vote_mode == "perspective":
         persp_qp = await eng._question_perspective(ns, query)
     off_legs = read_request.legs_off()  # R3-03 (read.router_rules): empty when the flag is off
+    no_graph = legs_guarded(read_persp, query)  # GTIME: a "when" question reads without the graph
     graph_leg: list[LegHit] | None = (
-        None if eng._config().read.graph_leg and "graph" not in off_legs else []
+        None if eng._config().read.graph_leg and "graph" not in off_legs and not no_graph else []
     )
     # GP-9 (read.graph_communities): community summaries this query may read.
     community_gate: list[str] | None = None
@@ -587,7 +589,7 @@ async def _search(
         read_now = eng._config().read
         if (read_now.cohesion_leg or read_now.entity_expand_leg) and "entity" not in off_legs:
             extra_legs += await eng._anchor_legs(ns, vector_hits, lexical_hits, fetch_k)
-        if read_now.graph_node_search and "graph" not in off_legs:
+        if read_now.graph_node_search and "graph" not in off_legs and not no_graph:
             extra_legs += await eng._graph_node_legs(ns, query, query_vector, fetch_k)
         if read_now.maxsim_leg:
             extra_legs += await eng._maxsim_leg(ns, query_vector, vector_hits, lexical_hits)
@@ -887,7 +889,7 @@ async def _search(
         _pre = _ids(candidates)
         candidates = await eng._relevance_filter(query, candidates)
         _cut_missing(_pre, candidates, "relevance_filter")
-    if candidates and read_pre.derived_lift != "off":
+    if candidates and read_pre.derived_lift != "off" and not no_graph:
         # GLIFT: derived hits only find turns; each becomes its source turns before the rerank.
         candidates = await derived_lift_stage(
             eng,
