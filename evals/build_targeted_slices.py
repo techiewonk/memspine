@@ -93,6 +93,8 @@ SCREEN_OVERRIDES: dict[str, tuple[str, ...]] = {
     "S82": ("fail_fusion", MIX), "S87": ("fail_temporal", MIX), "S69": ("fail_retrieval", MIX),
     "S70": ("fail_retrieval", MIX),  # R14-IVFIX: S69 with the anaphoric carry rule
     "G1": ("fail_temporal", MIX),  # GTEMP: GC graph base temporal regression fix (docs/v2/GTEMP.md)
+    "G2": ("fail_temporal", MIX),  # GLIFT: derived hits only find turns, on the GC graph base (docs/v2/GLIFT.md)
+    "G3": ("fail_temporal", MIX, "fail_retrieval"),  # GLIFT on v2-PICK3-j + the GC graph build
 }
 # S20-CAT5: screens whose arm gates or abstains on irrelevant evidence also run on the LoCoMo category-5 (adversarial)
 # slices of make_cat5_slice.py. The row carries a sixth column ``categories=5`` that the queue turns into ``--categories 5``

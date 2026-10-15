@@ -144,6 +144,21 @@ def test_arm_validates(name: str) -> None:
         assert set(extra) == allowed, sorted(set(extra) ^ allowed)
         validate_engine_config(arm)  # strict requires: legs_v2 under episode_leg_v2, offline.standing_v2 under read.standing_v2
         return
+    if name == "v2-GLIFT-graph-lift":
+        # GLIFT (docs/v2/GLIFT.md): the S02 graph base plus the derived lift, nothing else
+        extra = _diff_paths(arm, _load("scr-gc3-graph-jina"))
+        assert set(extra) == {"read.derived_lift"}, extra
+        assert arm["read"]["derived_lift"] == "evidence+match"
+        validate_engine_config(arm)
+        return
+    if name == "v2-GLIFT-pick3-graph-lift":
+        # GLIFT: the adopted v2-PICK3-j winners + the GC graph sleep build (the S02 delta over the J reference) + the lift
+        gc_delta = set(_diff_paths(_load("scr-gc3-graph-jina"), _load(BASE)))
+        extra = set(_diff_paths(arm, _load("v2-PICK3-j")))
+        assert extra == gc_delta | {"read.derived_lift"}, sorted(extra ^ (gc_delta | {"read.derived_lift"}))
+        assert arm["read"]["pool_protect_per_leg"] == 8 and arm["write"]["index_view_carry"] == "anaphoric"
+        validate_engine_config(arm)
+        return
     if name == "v2-GTEMP-graph-fixed":
         # GTEMP (docs/v2/GTEMP.md): the S02 graph base plus the three merged temporal-fix flags
         extra = _diff_paths(arm, _load("scr-gc3-graph-jina"))

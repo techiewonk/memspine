@@ -241,6 +241,30 @@ class LanceDBVectorStore:
             for row in rows
         ]
 
+    async def scores_for(
+        self, namespace: str, vector: list[float], embedder_id: str, record_ids: list[str]
+    ) -> dict[str, float]:
+        """GLIFT: the cosine of ``vector`` with the STORED vectors of ``record_ids`` (no embedding
+        call). A record without a stored vector is absent from the result."""
+        if not record_ids:
+            return {}
+        table = await self._ensure_table()
+        quoted = ", ".join("'" + rid.replace("'", "''") + "'" for rid in record_ids)
+
+        def _search() -> list[dict[str, Any]]:
+            # namespace grammar (core.namespace) admits no quotes; ids are escaped above.
+            result: list[dict[str, Any]] = (
+                table.search(vector)
+                .where(f"namespace = '{namespace}' AND record_id IN ({quoted})", prefilter=True)
+                .metric("cosine")
+                .limit(len(record_ids))
+                .to_list()
+            )
+            return result
+
+        rows = await asyncio.to_thread(_search)
+        return {row["record_id"]: 1.0 - float(row["_distance"]) for row in rows}
+
     async def query_many(
         self, namespace: str, vectors: list[list[float]], embedder_id: str, top_k: int = 8
     ) -> list[list[VectorHit]]:
