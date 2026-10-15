@@ -4003,6 +4003,42 @@
      }
     },
     {
+     "key": "read.profile_card_header",
+     "default": false,
+     "type": "bool",
+     "description": "MF-13: a `PROFILE NOTES (profile card` header block rendered from the profile card (`offline.profile_card_v2`; stored in `profile_card_v2` event-log markers, not in layered records): the latest card entries (latest marker wins per attribute), one line each `- [section] key: value (stance; confirmed YYYY-MM-DD, Nd ago; sources: record ids)`, escaped like any context text. An entry older than `profile_card_max_age_days`, or whose source records are all forgotten, quarantined or otherwise not live, does not render (a forgotten card does not show). The block's trust, consent and PII tier are the strictest of its cited sources; the cited turns stay readable. Independent of `profile_header` (reflective L4 insights) and of `standing_answers` (L5, the router's `profile` leg). Needs `offline.profile_card_v2`; with no card nothing renders. Same date-question and scope gates as `profile_header`. Off: byte-identical.",
+     "effect": "A `PROFILE NOTES (profile card` header block rendered from the profile card (`offline.profile_card_v2`; stored in `profile_card_v2` event-log markers, not in layered records): the latest card entries (latest marker wins per attribute), one",
+     "rebuild": false,
+     "rebuild_scope": "",
+     "screen_ids": []
+    },
+    {
+     "key": "read.profile_card_header_budget",
+     "default": 200,
+     "type": "int",
+     "description": "MF-13: the card header's token budget, never more than half the read budget.",
+     "effect": "The card header's token budget, never more than half the read budget.",
+     "rebuild": false,
+     "rebuild_scope": "",
+     "screen_ids": [],
+     "range": {
+      "ge": 1
+     }
+    },
+    {
+     "key": "read.profile_card_max_age_days",
+     "default": 365,
+     "type": "int",
+     "description": "MF-13: card entries last confirmed longer ago than this are skipped (`0` = no bound).",
+     "effect": "Card entries last confirmed longer ago than this are skipped (`0` = no bound).",
+     "rebuild": false,
+     "rebuild_scope": "",
+     "screen_ids": [],
+     "range": {
+      "ge": 0
+     }
+    },
+    {
      "key": "read.profile_header",
      "default": false,
      "type": "bool",
@@ -9744,5 +9780,5 @@
   "vector.namespace_index": "vector-store layout, shared by A13 and every vector leg"
  },
  "unattributed_count": 95,
- "schema_key_count": 612
+ "schema_key_count": 615
 }

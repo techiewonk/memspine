@@ -13,6 +13,7 @@ from memspine.config import constants
 from memspine.core import trace_sink
 from memspine.core.dedupe import dedupe_scored
 from memspine.core.read_filters import active_record_scope
+from memspine.derive.pipeline.stages.profile_card import PROFILE_CARD_HEADER_TAG
 from memspine.memories.procedural.lessons import render_lesson
 from memspine.memories.procedural.task_state import TaskState, render_task_state
 from memspine.models.encoders.query.shape import (
@@ -254,10 +255,13 @@ async def _read_headers(
     F5 (``read.verbatim_raw_only``): a verbatim question gets none."""
     if eng._config().read.verbatim_raw_only and is_verbatim(query):
         return []
+    from memspine.compose.pipeline.sections import _profile_card_section  # MF-13
+
     headers = []
     for header in (
         await eng._cards_section(ns, query, budget_tokens, session_id, strong=strong),
         await eng._profile_section(ns, query, budget_tokens, session_id),
+        await _profile_card_section(eng, ns, query, budget_tokens),
         await eng._novelty_section(ns, query, budget_tokens),
         await eng._slots_section(ns, query, budget_tokens),
         await eng._session_digest_section(ns, query, budget_tokens, session_id),
@@ -318,7 +322,13 @@ def _cap_lead_blocks(
         count_share = cap if cap > tok(constants.COUNT_MARKER) else 0
     room = cap - count_share
     kept = list(headers)
-    for tag in constants.LEAD_BLOCK_DROP_ORDER:
+    # MF-13: the profile-card block leaves right after the reflective profile block
+    drop_order = (
+        constants.PROFILE_TAG,
+        PROFILE_CARD_HEADER_TAG,
+        *constants.LEAD_BLOCK_DROP_ORDER[1:],
+    )
+    for tag in drop_order:
         for block in [h for h in reversed(kept) if tag in h.tags]:
             if eng._headers_cost(kept) <= room:
                 return kept, count_share
@@ -378,7 +388,9 @@ def _header_hide(
     shown = {
         pid
         for h in headers
-        if constants.SESSION_DIGEST_TAG not in h.tags and constants.RECENT_TAG not in h.tags
+        if constants.SESSION_DIGEST_TAG not in h.tags
+        and constants.RECENT_TAG not in h.tags
+        and PROFILE_CARD_HEADER_TAG not in h.tags  # MF-13: a card line cites turns
         for pid in h.source.parents
     }
     facts = hide_facts or (all_facts and any(constants.CARDS_TAG in h.tags for h in headers))
