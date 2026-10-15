@@ -119,7 +119,9 @@ REQUIRES: dict[str, tuple[Need, ...]] = {
     "read.episode_leg_v2": (_LEGS,),
     "read.temporal_precision_aware": (_LEGS,),
     "read.standing_v2": (Need("offline.standing_v2", why="the standing answers it leads with"),),
-    "read.profile_card_header": (Need("offline.profile_card_v2", why="the profile card it renders (MF-13)"),),
+    "read.profile_card_header": (
+        Need("offline.profile_card_v2", why="the profile card it renders (MF-13)"),
+    ),
     "read.external_v2": (
         Need(
             "read.external_evidence",

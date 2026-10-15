@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """LF-E (MF-08): backfill the record envelope on Postgres rows written before pg0007.
 
 pg0007 added ``layer``, ``type_tag``, ``provenance_class``, ``spk``, ``addr``, ``ask`` and ``sub`` without
