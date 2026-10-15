@@ -31,7 +31,7 @@ import pytest
 from memspine import Engine
 from memspine.config import constants
 from memspine.core.policies.scoring import ScoringPolicy
-from memspine.core.records import SourceInfo
+from memspine.store.records import SourceInfo
 
 
 def _engine() -> Engine:
@@ -122,7 +122,7 @@ def test_trust_cap_restores_relevance_dominance_for_untrusted_content() -> None:
     """
     from datetime import UTC, datetime
 
-    from memspine.core.records import MemoryRecord
+    from memspine.store.records import MemoryRecord
 
     now = datetime.now(UTC)
     policy = ScoringPolicy.bind({})

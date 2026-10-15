@@ -1,0 +1,7 @@
+# I3 + I10 screen arm: BEST_dev_2026-10-10 with the generic query instruction
+# (embedding.query_instruction = GENERIC_QWEN_QUERY_INSTRUCTION). The reader prompt is a CLI
+# flag, not an arm key. Run with:
+--qa-prompt grounded_generic
+# Optional, independent (I32): --no-record-hint
+# The instruction changes query embeddings: screen retrieval-only on LoCoMo 1-5 + OP-Bench
+# before any paid QA.

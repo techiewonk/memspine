@@ -1,0 +1,103 @@
+{
+ "date": "2026-10-12",
+ "answers": {
+  "Q1": {
+   "answer": "Layer field, two layers on",
+   "recommended": true,
+   "reading": "Every record has an explicit `layer` field; raw (L0) and facts (L1) are populated by default; episodes, summaries, graph, profile, observations and communities are opt-in layers.",
+   "settles": [
+    "M-02",
+    "W-12",
+    "R-09",
+    "R-10",
+    "O-08",
+    "O-16"
+   ]
+  },
+  "Q2": {
+   "answer": "Durable outbox",
+   "recommended": true,
+   "reading": "Library-first inline runner draining a durable outbox in the same store; leftover work resumes on the next open; dbos and taskiq are optional drainers.",
+   "settles": [
+    "G-19",
+    "P-21",
+    "W-02",
+    "W-10",
+    "W-13",
+    "W-25",
+    "O-01",
+    "O-02",
+    "O-03",
+    "O-10",
+    "P-25",
+    "G-12",
+    "G-14",
+    "G-17"
+   ]
+  },
+  "Q3": {
+   "answer": "Value histories plus pattern observations",
+   "recommended": false,
+   "reading": "Build the deterministic value-history view AND an observation layer for recurring patterns only (code-grouped, model-worded only for groups that changed). O-15 is reopened from 'none' to 'patterns only'; observations are an opt-in L4 layer (Q1).",
+   "settles": [
+    "M-13",
+    "O-15",
+    "O-04",
+    "O-05",
+    "O-21",
+    "R-17",
+    "M-19"
+   ]
+  },
+  "Q4": {
+   "answer": "Neo4j is the server graph",
+   "recommended": false,
+   "reading": "Embedded profile: auto Ladybug else SQL adjacency (M-18 A). Server profile: Postgres + pgvector + Postgres full text for records, Neo4j for the graph, fed only through the outbox.",
+   "settles": [
+    "M-04",
+    "M-18",
+    "W-10",
+    "G-13",
+    "M-25",
+    "M-05",
+    "R-09"
+   ]
+  },
+  "Q5": {
+   "answer": "Jina on every read if installed",
+   "recommended": true,
+   "reading": "Jina v3.5 reranks every read wherever the model is installed; the pre-run gate is a CPU-only mode; the eval harness forces it on.",
+   "settles": [
+    "R-14",
+    "P-18"
+   ]
+  },
+  "Q6": {
+   "answer": "Jina if installed, permissive fallback",
+   "recommended": true,
+   "reading": "Jina stays for research and evaluation; the library default is 'Jina if installed', with a permissively licensed reranker named as the commercial fallback (licence check is a research task).",
+   "settles": [
+    "R-14",
+    "P-17",
+    "P-18"
+   ]
+  },
+  "Q7": {
+   "answer": "Coexist unless marked",
+   "recommended": true,
+   "reading": "Undeclared attributes coexist (registry default); a new value contests the old one only when extraction marks a change; learned cardinality only as reviewable proposals.",
+   "settles": [
+    "W-22",
+    "M-12"
+   ]
+  },
+  "Q8": {
+   "answer": "Assistant exemption in the chat preset only",
+   "recommended": true,
+   "reading": "Base firewall signals on every channel, extended and semantic on top; the assistant-role exemption only in the chat data-shape preset.",
+   "settles": [
+    "G-06"
+   ]
+  }
+ }
+}

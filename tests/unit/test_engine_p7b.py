@@ -12,8 +12,8 @@ from typing import Any
 import pytest
 
 from memspine import Engine
-from memspine.core.records import SourceInfo
 from memspine.exceptions import ConfigError
+from memspine.store.records import SourceInfo
 
 
 class FakeReranker:
@@ -178,7 +178,7 @@ async def test_reranker_construction_failure_degrades_not_crashes(
     """COR-3: a reranker whose CONSTRUCTION raises (model-load OSError/RuntimeError,
     not just ImportError/MissingServiceError) must self-disable the stage — not
     crash every search()."""
-    import memspine.services.rerank.fastembed_rerank as fastembed_module
+    import memspine.models.providers.rerank.fastembed_rerank as fastembed_module
 
     class ExplodingReranker:
         def __init__(self, *args: Any, **kwargs: Any) -> None:

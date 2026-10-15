@@ -1,0 +1,25 @@
+{
+  "additionalProperties": true,
+  "properties": {
+    "applied": {
+      "title": "Applied",
+      "type": "boolean"
+    },
+    "status": {
+      "enum": [
+        "done",
+        "failed",
+        "dead",
+        "pending"
+      ],
+      "title": "Status",
+      "type": "string"
+    }
+  },
+  "required": [
+    "applied",
+    "status"
+  ],
+  "title": "InsertStep09Output",
+  "type": "object"
+}

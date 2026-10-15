@@ -72,7 +72,12 @@ def label(question: str) -> tuple[str, str]:
        replay cue fires (why / feelings / what was said).
     3. ``retrieve`` otherwise: one specific fact, including plain date questions.
     """
-    from memspine.core.query_shape import is_aggregation, is_count, is_ordering, is_temporal
+    from memspine.models.encoders.query.shape import (
+        is_aggregation,
+        is_count,
+        is_ordering,
+        is_temporal,
+    )
 
     if is_count(question):
         return "compose", "is_count"
@@ -123,14 +128,40 @@ def build(locomo: Path, out: Path = FIXTURE) -> dict[str, Any]:
         "pool_sizes": {m: len(pool[m]) for m in MODES},
         "items": items,
     }
+    # Licence: the committed set carries ids and a hash, never the question text; load_fixture
+    # re-hydrates the text from the local LoCoMo file.
+    for item in items:
+        item["question_sha256"] = hashlib.sha256(item.pop("question").encode("utf-8")).hexdigest()
+    fixture["text"] = "ids and question_sha256 only; load_fixture() re-hydrates question from the local locomo10.json"
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(fixture, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
     return fixture
 
 
 def load_fixture(path: Path = FIXTURE) -> list[dict[str, Any]]:
+    """The frozen items. ``question`` is re-hydrated from the local LoCoMo file (the committed
+    set holds ids and ``question_sha256`` only); without the dataset it is absent, see
+    :func:`has_questions`."""
     items: list[dict[str, Any]] = json.loads(path.read_text(encoding="utf-8"))["items"]
+    if all("question" in it for it in items):
+        return items
+    sys.path.insert(0, str(HERE))
+    from memspine_evals.local_dataset import locomo_questions
+
+    by_id = locomo_questions()
+    if by_id is None:
+        return items
+    for it in items:
+        conv, index = str(it["id"]).split("#")
+        question = str(by_id[(conv, index)]["question"]).strip()
+        if hashlib.sha256(question.encode("utf-8")).hexdigest() != it.get("question_sha256"):
+            raise ValueError(f"{it['id']}: local LoCoMo question does not match the frozen hash")
+        it["question"] = question
     return items
+
+
+def has_questions(items: Sequence[Mapping[str, Any]]) -> bool:
+    return all("question" in it for it in items)
 
 
 # ---------------------------------------------------------------------------------------
@@ -175,13 +206,18 @@ def rule_mode(question: str) -> str | None:
     """The engine-side rules of the hybrid (``query_shape.rule_read_mode``): compose for
     counts and sets (not durations), replay for ordering questions; None leaves the
     question to the model."""
-    from memspine.core.query_shape import rule_read_mode
+    from memspine.models.encoders.query.shape import rule_read_mode
 
     return rule_read_mode(question)
 
 
 def hint_text(question: str) -> str:
-    from memspine.core.query_shape import is_aggregation, is_count, is_ordering, is_temporal
+    from memspine.models.encoders.query.shape import (
+        is_aggregation,
+        is_count,
+        is_ordering,
+        is_temporal,
+    )
 
     tags = [
         name
@@ -223,7 +259,7 @@ def gliner2_classifier(setup: Setup, extractor: Any) -> Classifier:
 
 def rules_baseline(question: str) -> tuple[str, float | None]:
     """``read(mode="auto")`` with no planner: compose on ``is_aggregation``, else replay."""
-    from memspine.core.query_shape import is_aggregation
+    from memspine.models.encoders.query.shape import is_aggregation
 
     return ("compose" if is_aggregation(question) else "replay"), None
 
@@ -412,7 +448,7 @@ def select(tune_scores: Sequence[Score]) -> str:
 
 
 def load_model(model: str) -> Any:
-    from memspine.services.decision.gliner2_decision import gliner2_class
+    from memspine.models.providers.decision.gliner2_decision import gliner2_class
 
     return gliner2_class().from_pretrained(model)
 
@@ -500,6 +536,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(Counter((it["mode"], it["split"]) for it in fixture["items"]))
         return 0
     items = load_fixture()
+    if not has_questions(items):
+        parser.error("the frozen set holds ids only; put locomo10.json in data/ (or set MEMSPINE_LOCOMO_PATH)")
     extractor = load_model(args.model)
     if args.split == "tune":
         setups = [s for s in SETUPS if not args.setup or s.name in args.setup]

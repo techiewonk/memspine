@@ -1,0 +1,19 @@
+{
+  "additionalProperties": true,
+  "properties": {
+    "folded": {
+      "default": false,
+      "title": "Folded",
+      "type": "boolean"
+    },
+    "text": {
+      "title": "Text",
+      "type": "string"
+    }
+  },
+  "required": [
+    "text"
+  ],
+  "title": "Call2Summary",
+  "type": "object"
+}

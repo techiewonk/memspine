@@ -1,0 +1,43 @@
+{
+  "additionalProperties": true,
+  "description": "Internal step type.",
+  "properties": {
+    "cites": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Cites",
+      "type": "array"
+    },
+    "kind": {
+      "enum": [
+        "fact",
+        "value_history",
+        "profile",
+        "observation"
+      ],
+      "title": "Kind",
+      "type": "string"
+    },
+    "record_id": {
+      "title": "Record Id",
+      "type": "string"
+    },
+    "score": {
+      "default": 0.0,
+      "title": "Score",
+      "type": "number"
+    },
+    "text": {
+      "title": "Text",
+      "type": "string"
+    }
+  },
+  "required": [
+    "kind",
+    "text",
+    "record_id"
+  ],
+  "title": "NoteItem",
+  "type": "object"
+}

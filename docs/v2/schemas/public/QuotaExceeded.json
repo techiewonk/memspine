@@ -1,0 +1,52 @@
+{
+  "additionalProperties": true,
+  "description": "A write over quota is rejected before acceptance; no receipt exists for it (ER-08).",
+  "properties": {
+    "current": {
+      "minimum": 0,
+      "title": "Current",
+      "type": "number"
+    },
+    "error": {
+      "const": "quota_exceeded",
+      "default": "quota_exceeded",
+      "title": "Error",
+      "type": "string"
+    },
+    "limit": {
+      "minimum": 0,
+      "title": "Limit",
+      "type": "number"
+    },
+    "quota": {
+      "enum": [
+        "storage",
+        "queue_depth",
+        "rate"
+      ],
+      "title": "Quota",
+      "type": "string"
+    },
+    "retry_after": {
+      "anyOf": [
+        {
+          "minimum": 0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Retry After"
+    }
+  },
+  "required": [
+    "quota",
+    "limit",
+    "current"
+  ],
+  "title": "QuotaExceeded",
+  "type": "object",
+  "x-semver": "1.0.0"
+}

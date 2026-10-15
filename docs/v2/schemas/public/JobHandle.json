@@ -1,0 +1,130 @@
+{
+  "$defs": {
+    "OwnerScope": {
+      "additionalProperties": true,
+      "description": "Memory scope: tenant plus memory owner (S3-1).\n\nThe owner is a user or a shared group; every agent and session serving that owner sees the same\nentities. The session is *not* part of the scope: it is recorded as :class:`Provenance` only.",
+      "properties": {
+        "owner": {
+          "minLength": 1,
+          "title": "Owner",
+          "type": "string"
+        },
+        "owner_kind": {
+          "default": "user",
+          "enum": [
+            "user",
+            "group"
+          ],
+          "title": "Owner Kind",
+          "type": "string"
+        },
+        "tenant": {
+          "minLength": 1,
+          "title": "Tenant",
+          "type": "string"
+        }
+      },
+      "required": [
+        "tenant",
+        "owner"
+      ],
+      "title": "OwnerScope",
+      "type": "object"
+    }
+  },
+  "additionalProperties": true,
+  "description": "Handle returned by ``sleep()`` and other job-starting calls; they never block (OF-1).",
+  "properties": {
+    "coalesced_into": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Coalesced Into"
+    },
+    "created_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Created At"
+    },
+    "error": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Error"
+    },
+    "job_id": {
+      "minLength": 1,
+      "title": "Job Id",
+      "type": "string"
+    },
+    "kind": {
+      "minLength": 1,
+      "title": "Kind",
+      "type": "string"
+    },
+    "scope": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/OwnerScope"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "state": {
+      "enum": [
+        "queued",
+        "running",
+        "succeeded",
+        "failed",
+        "cancelled",
+        "coalesced"
+      ],
+      "title": "State",
+      "type": "string"
+    },
+    "target_offset": {
+      "anyOf": [
+        {
+          "minimum": -1,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Target Offset"
+    }
+  },
+  "required": [
+    "job_id",
+    "kind",
+    "state"
+  ],
+  "title": "JobHandle",
+  "type": "object",
+  "x-semver": "1.0.0"
+}

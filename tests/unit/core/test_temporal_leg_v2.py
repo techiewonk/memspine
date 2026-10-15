@@ -8,8 +8,8 @@ import pytest
 
 from memspine import Engine
 from memspine.config.schema import ReadConfig
-from memspine.core.records import MemoryRecord
-from memspine.core.temporal_query import query_interval, temporal_leg
+from memspine.models.encoders.query.temporal_query import query_interval, temporal_leg
+from memspine.store.records import MemoryRecord
 
 
 def _d(y: int, m: int, d: int) -> datetime:
@@ -93,7 +93,7 @@ def test_overlap_rank_puts_the_matching_turn_first() -> None:
 async def test_engine_passes_the_newest_record_time_as_year_ref(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    import memspine.engine as engine_module
+    import memspine.read.pipeline.legs as engine_module
 
     seen: list[dict] = []
     real = engine_module.temporal_leg
@@ -123,7 +123,7 @@ async def test_engine_passes_the_newest_record_time_as_year_ref(
 
 
 def test_mentions_find_a_turn_by_the_date_it_names() -> None:
-    from memspine.core.temporal_query import mentioned_spans
+    from memspine.models.encoders.query.temporal_query import mentioned_spans
 
     camping = _rec("Ana: I went camping yesterday", _d(2023, 5, 8))
     other = _rec("Ana: nice weather today", _d(2023, 5, 8))

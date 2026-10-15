@@ -24,7 +24,10 @@ from jinja2 import Environment
 from pydantic import BaseModel, ConfigDict, PrivateAttr
 
 from memspine.exceptions import ConfigError
+from memspine.observability import tap
 from memspine.prompts.env import default_environment
+from memspine.prompts.identity import PromptIdentity
+from memspine.prompts.layout_language import detect_language, source_text
 
 __all__ = ["Prompt", "PromptFormat", "PromptWhen", "RenderedMessages", "parse_prompt_text"]
 
@@ -68,10 +71,13 @@ class RenderedMessages(list[dict[str, str]]):
         *,
         prompt_id: str | None = None,
         prompt_version: str | None = None,
+        identity: PromptIdentity | None = None,
     ) -> None:
         super().__init__(messages or [])
         self.prompt_id = prompt_id
         self.prompt_version = prompt_version
+        #: W2-07: hash of the stable prefix; set only under ``prompts.layout_v2``.
+        self.identity = identity
 
 
 class Prompt(BaseModel):
@@ -93,6 +99,9 @@ class Prompt(BaseModel):
     #: straight from YAML still renders and versions correctly on its own.
     _env: Environment | None = PrivateAttr(default=None)
     _version_suffix: str = PrivateAttr(default="")
+    #: W2-07 (``prompts.layout_v2``): the partials the registry left switched on, or ``None``
+    #: for a v1 prompt (every render path below is then untouched).
+    _layout_partials: tuple[str, ...] | None = PrivateAttr(default=None)
 
     @property
     def prompt_version(self) -> str:
@@ -106,12 +115,36 @@ class Prompt(BaseModel):
         ``{% include %}`` names resolve against the bound partials loader. The
         result is a list tagged with this prompt's id and version (#33)."""
         env = self._env or default_environment()
+        language = "en"
+        if self._layout_partials is not None:
+            context = dict(context)
+            language = str(context.get("language") or detect_language(source_text(context)))
+            context["language"] = language
         try:
             user = env.from_string(self.body).render(**context)
             system = env.from_string(self.system).render(**context) if self.system else None
         except Exception as exc:
             raise ConfigError(f"prompt {self.prompt_version} failed to render: {exc}") from exc
-        messages = RenderedMessages(prompt_id=self.id, prompt_version=self.prompt_version)
+        identity = None
+        if self._layout_partials is not None:
+            active = tuple(
+                name
+                for name in self._layout_partials
+                if name != "same_language" or language != "en"
+            )
+            identity = PromptIdentity.of(
+                self.id, self.prompt_version, system or "", language=language, partials=active
+            )
+            tap.event(
+                "prompt.render",
+                prompt_id=self.id,
+                identity_hash=identity.identity_hash,
+                language=language,
+                partials=list(active),
+            )
+        messages = RenderedMessages(
+            prompt_id=self.id, prompt_version=self.prompt_version, identity=identity
+        )
         if system:
             messages.append({"role": "system", "content": system})
         messages.append({"role": "user", "content": user})

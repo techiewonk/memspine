@@ -1,0 +1,304 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Mem0 OSS engine - write path, read path &amp; LoCoMo evaluation</title><style>
+:root{--bg:#f5f7fb;--card:#fff;--ink:#172338;--muted:#53647d;--line:#dce3ef;--graph:#6546bc;--vector:#007e83;--history:#a6600b;--accent:#245dd8}
+*{box-sizing:border-box}html{scroll-behavior:smooth;scroll-padding-top:85px}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.7 system-ui,-apple-system,Segoe UI,sans-serif}a{color:var(--accent)}header{background:#14253f;color:#fff;padding:44px max(24px,calc((100vw - 1220px)/2))}header h1{line-height:1.2;font-size:clamp(28px,4vw,43px);margin:12px 0}header p{max-width:930px;color:#d8e5ff}.eyebrow{letter-spacing:.09em;text-transform:uppercase;font-size:12px;font-weight:700}.tags{display:flex;gap:8px;flex-wrap:wrap}.tag{display:inline-block;background:#edf1f8;padding:3px 10px;border-radius:6px;font-size:12px;font-weight:700;color:var(--ink)}header .tag{background:#293f60;color:#fff}.layout{max-width:1280px;margin:auto;display:grid;grid-template-columns:245px minmax(0,1fr);gap:30px;padding:28px}aside{align-self:start;position:sticky;top:20px;font-size:14px}aside a{display:block;color:var(--muted);padding:5px 8px;text-decoration:none;border-left:2px solid var(--line)}aside a:hover,aside a.active{border-color:var(--accent);color:var(--accent)}aside input{width:100%;padding:11px;border:1px solid var(--line);border-radius:8px;margin:0 0 15px;font:inherit}main{min-width:0}section{background:var(--card);border:1px solid var(--line);border-radius:12px;margin-bottom:22px;padding:28px}h2{font-size:26px;margin:0 0 15px;line-height:1.3}h3{font-size:19px;line-height:1.4;margin:24px 0 9px}h4{margin:12px 0 5px}p{margin:10px 0 15px}code{font-family:Consolas,monospace;font-size:.88em;background:#edf1f8;padding:2px 4px;border-radius:4px;overflow-wrap:anywhere}pre{background:#14253f;color:#e2eeff;padding:18px;border-radius:8px;overflow:auto;font-size:13px;line-height:1.6}pre code{background:none;color:inherit;padding:0;font-size:inherit}table{border-collapse:collapse;width:100%;font-size:14px;margin:14px 0}th,td{border-bottom:1px solid var(--line);padding:11px;text-align:left;vertical-align:top}th{background:#eef2f8}.table-scroll{overflow-x:auto}.callout{background:#eef4ff;border-left:4px solid var(--accent);padding:14px 18px;margin:18px 0;border-radius:0 8px 8px 0}.caution{background:#fff7e8;border-color:#c98b1d}.flow{display:flex;flex-wrap:wrap;align-items:stretch;gap:9px;margin:20px 0}.flow .node{flex:1 1 130px;border:1px solid var(--line);border-top:4px solid var(--accent);border-radius:8px;padding:12px;font-size:13px;background:#f9fbff}.flow .arrow{align-self:center;font-size:22px;color:var(--muted)}.node.graph{border-top-color:var(--graph)}.node.vector{border-top-color:var(--vector)}.node.history{border-top-color:var(--history)}.columns{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:15px}.panel{padding:18px;background:#f7f9fc;border:1px solid var(--line);border-radius:8px}.steps{counter-reset:step;padding:0;list-style:none}.steps>li{counter-increment:step;position:relative;padding:15px 12px 15px 55px;border-bottom:1px solid var(--line)}.steps>li:before{content:counter(step);position:absolute;left:8px;top:19px;width:30px;height:30px;text-align:center;background:#e9effc;color:var(--accent);border-radius:50%;font-weight:700;line-height:30px}.steps h4{margin:0 0 5px}.steps p{margin:5px 0}.source{display:block;font-size:12px;color:var(--muted);margin-top:6px}details{border:1px solid var(--line);border-radius:8px;padding:12px 16px;margin:12px 0}summary{cursor:pointer;font-weight:650}.small{font-size:13px;color:var(--muted)}button{padding:9px 14px;border:1px solid var(--line);background:#fff;border-radius:7px;color:var(--ink);cursor:pointer}.toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}footer{padding:20px;text-align:center;color:var(--muted);font-size:13px}[hidden]{display:none!important}
+@media(max-width:900px){.layout{grid-template-columns:1fr;padding:15px}aside{position:static}aside nav{display:flex;flex-wrap:wrap;gap:4px}aside a{border-left:0;border-bottom:2px solid var(--line);padding:5px}section{padding:20px}.columns{grid-template-columns:1fr}}
+@media print{body{background:#fff;font-size:11pt}header{padding:15px;background:#fff;color:#000}header p{color:#000}.layout{display:block;padding:0}aside,.toolbar{display:none}section{border:0;padding:10px 0;break-inside:auto}pre{white-space:pre-wrap;color:#000;background:#eee}a{color:#000}details{display:block}section[hidden]{display:block!important}h2,h3,h4{break-after:avoid}.flow{break-inside:avoid}}
+
+.read{color:#0b6b2e;font-weight:700}.inf{color:#a6600b;font-weight:700}td code,li code{white-space:normal}
+</style></head><body>
+<header><div class="eyebrow">Mem0 (mem0ai/mem0) 2.2.1 &middot; commit b7ad69a &middot; implementation learning guide &middot; 11 October 2026</div><h1>How Mem0 creates and retrieves memory</h1><p>Code-traced analysis of the open-source Mem0 v3 memory algorithm (ADD-only extraction, hybrid retrieval) and its published LoCoMo claims. Every statement is tagged read-in-code or inferred; the clone was read, never run.</p><div class="tags"><span class="tag">Mem0 OSS 2.2.1</span><span class="tag">ADD-only</span><span class="tag">Vector + BM25 + entity boost</span><span class="tag">No graph DB</span><span class="tag">LoCoMo 92.5 (Platform, vendor)</span></div></header>
+<div class="layout"><aside><nav><a href="#scope">1. What is established, and what still needs measurement</a><a href="#architecture">2. Components and information boundaries</a><a href="#insertion">3. Complete insertion flow</a><a href="#layers">4. Memory layers and the write-time LLM call table</a><a href="#prompts">5. The write-time prompts in detail</a><a href="#transcript">6. Transcript, scope, IDs and history</a><a href="#retrieval">7. Complete retrieval flow</a><a href="#scoring">8. Hybrid scoring internals</a><a href="#followfact">9. Follow one fact through the system</a><a href="#temporal">10. Temporal handling, updates and contradictions</a><a href="#evaluation">11. LoCoMo evaluation as published, and what it means</a><a href="#cost">12. Cost per turn and per query</a><a href="#verify">13. How to verify this engine on the target system</a><a href="#limits">14. Implementation findings and limits</a><a href="#sources">15. Code and source map</a><a href="#learn">16. What MemSpine can learn</a></nav></aside><main>
+<section id="scope">
+<h2>1. What is established, and what still needs measurement</h2>
+<p>The subject is <strong>Mem0 open-source (OSS) Python SDK 2.2.1</strong>, clone commit <code>b7ad69a</code> (7 Oct 2026, <code>pyproject.toml:7</code>), read-only. It is the "v3 memory algorithm" (April 2026): one ADD-only extraction call, then hybrid retrieval (semantic + BM25 + entity). The managed Mem0 Platform is a different product that adds graph memory, temporal reasoning and decay; its code is not in the clone, only its documentation.</p>
+<div class="callout caution"><strong>The published LoCoMo 92.5 is a Platform number, not an OSS number.</strong> The README says so itself: "Scores reflect Mem0's managed platform, which includes proprietary optimizations not available in the open-source SDK" (<code>README.md:55</code>). The clone's <code>evaluation/</code> folder is an empty git submodule (<code>.gitmodules</code> points to <code>mem0ai/memory-benchmarks</code>), so no evaluation code or result file is available to read here. All benchmark figures below are quoted from documentation and from our own earlier analysis.</div>
+<div class="table-scroll"><table><tr><th>Status</th><th>Meaning in this document</th></tr>
+<tr><td><span class="read">[read]</span></td><td>Read directly in the clone, with <code>file:line</code>. Paths are relative to the clone root (<code>mem0/...</code> is the Python package).</td></tr>
+<tr><td><span class="inf">[inferred]</span></td><td>Deduced from code structure, config defaults or documentation. Nothing was executed (the clone is untrusted and was never run or installed).</td></tr>
+<tr><td>Docs-only</td><td>Stated in <code>docs/*.mdx</code> or <code>README.md</code> but the implementing code is not in the clone (Platform features).</td></tr>
+<tr><td>Needs measurement</td><td>Real token counts, latency, cost per turn, OSS LoCoMo score under a neutral judge. Not available without running it.</td></tr></table></div>
+<h3>Headline facts</h3>
+<ul>
+<li>One LLM call per <code>add()</code> in the default (<code>infer=True</code>) path; no ADD/UPDATE/DELETE/NOOP decision call any more. <span class="read">[read]</span> <code>mem0/memory/main.py:942-971</code>; migration guide: "add() events: Returns ADD only" (<code>docs/migration/oss-v2-to-v3.mdx</code>).</li>
+<li>No graph database in OSS. The Neo4j/Memgraph integration was removed; the "entity store" is a second vector collection holding spaCy-extracted entity strings that point back to memory IDs. <span class="read">[read]</span> <code>main.py:558-580</code>, <code>docs/migration/oss-v2-to-v3.mdx</code>.</li>
+<li>No LLM call at search time. Query entities and BM25 lemmas come from spaCy; an LLM is only used if the caller opts into the LLM reranker. <span class="read">[read]</span> <code>main.py:1642-1745</code>.</li>
+<li>OSS refuses the temporal parameters: <code>add(timestamp=...)</code> and <code>search(reference_date=...)</code> raise <code>ValueError</code> ("Platform-only"). <span class="read">[read]</span> <code>main.py:817-818, 1446-1447</code>.</li>
+<li>The model asks for <code>linked_memory_ids</code> (lineage links) but the OSS code never reads them back. <span class="read">[read]</span> grep of <code>main.py</code> finds <code>linked_memory_ids</code> only in the entity-store payload code, not in the extraction-response handling (lines 973-1041).</li>
+</ul>
+</section>
+<section id="architecture">
+<h2>2. Components and information boundaries</h2>
+<div class="flow"><div class="node">Caller<br><strong>add / search</strong></div><div class="arrow">&rarr;</div><div class="node">Memory (sync) / AsyncMemory<br><strong>main.py:487 / :2193</strong></div><div class="arrow">&rarr;</div><div class="node vector">Vector store<br><strong>24 backends</strong></div><div class="arrow">&rarr;</div><div class="node graph">Entity collection<br><strong>spaCy-derived</strong></div><div class="arrow">&rarr;</div><div class="node history">SQLite<br><strong>history + messages</strong></div></div>
+<div class="diagram-scroll"><figure class="deep-figure"><figcaption><strong>Figure 1.</strong> Mem0 OSS write and read wiring (drawn from <code>Memory.__init__</code>, <code>_add_to_vector_store</code>, <code>_search_vector_store</code>).</figcaption>
+<svg viewBox="0 0 980 520" width="100%" role="img" aria-label="Mem0 OSS architecture">
+<style>.b{fill:#f9fbff;stroke:#245dd8;stroke-width:2;rx:8}.v{fill:#e6f6f6;stroke:#007e83;stroke-width:2;rx:8}.g{fill:#f0eafb;stroke:#6546bc;stroke-width:2;rx:8}.h{fill:#fdf1de;stroke:#a6600b;stroke-width:2;rx:8}.l{fill:#fde8e8;stroke:#b02a2a;stroke-width:2;rx:8}.t{font:600 13px system-ui;fill:#172338}.s{font:12px system-ui;fill:#45566f}.a{stroke:#53647d;stroke-width:1.6;fill:none;marker-end:url(#ar)}</style>
+<defs><marker id="ar" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#53647d"/></marker></defs>
+<rect class="b" x="20" y="20" width="200" height="60"/><text class="t" x="34" y="46">Memory.add(messages,</text><text class="t" x="34" y="64">user_id | agent_id | run_id)</text>
+<rect class="b" x="20" y="400" width="200" height="60"/><text class="t" x="34" y="426">Memory.search(query,</text><text class="t" x="34" y="444">filters={user_id...}, top_k)</text>
+<rect class="h" x="300" y="14" width="190" height="72"/><text class="t" x="312" y="38">SQLite history.db</text><text class="s" x="312" y="56">history (ADD/UPDATE/DELETE)</text><text class="s" x="312" y="72">messages (last 10 / scope)</text>
+<rect class="l" x="300" y="110" width="190" height="64"/><text class="t" x="312" y="134">LLM: ADDITIVE_EXTRACTION</text><text class="s" x="312" y="152">1 call, json_object, default gpt-5-mini</text><text class="s" x="312" y="167">(llms/openai.py:40)</text>
+<rect class="b" x="300" y="200" width="190" height="64"/><text class="t" x="312" y="224">Embedder</text><text class="s" x="312" y="242">text-embedding-3-small default</text><text class="s" x="312" y="257">(embeddings/openai.py:15)</text>
+<rect class="g" x="300" y="290" width="190" height="64"/><text class="t" x="312" y="314">spaCy en_core_web_sm</text><text class="s" x="312" y="332">entities (add+search), lemmas</text><text class="s" x="312" y="347">CPU, optional [nlp] extra</text>
+<rect class="v" x="620" y="110" width="320" height="110"/><text class="t" x="634" y="134">Vector store collection "mem0"</text><text class="s" x="634" y="154">dense vector + payload: data, hash, created_at,</text><text class="s" x="634" y="170">updated_at, user_id/agent_id/run_id, actor_id,</text><text class="s" x="634" y="186">role, attributed_to, text_lemmatized,</text><text class="s" x="634" y="202">+ BM25 sparse slot (Qdrant, via fastembed)</text>
+<rect class="g" x="620" y="260" width="320" height="100"/><text class="t" x="634" y="284">Entity collection "mem0_entities"</text><text class="s" x="634" y="304">payload: data (entity text), entity_type,</text><text class="s" x="634" y="320">linked_memory_ids[], scope ids; dense vector</text><text class="s" x="634" y="336">(second collection, same vector DB - not a graph DB)</text>
+<rect class="b" x="620" y="400" width="320" height="76"/><text class="t" x="634" y="424">score_and_rank (utils/scoring.py:60)</text><text class="s" x="634" y="444">(semantic + BM25 + entity boost) / max_possible</text><text class="s" x="634" y="460">optional reranker (LLM/Cohere/HF/ST/ZeroEntropy)</text>
+<path class="a" d="M120 80 L120 140 L300 142"/><path class="a" d="M395 174 L395 200"/><path class="a" d="M395 264 L395 290"/>
+<path class="a" d="M490 232 L620 160"/><path class="a" d="M490 322 L620 310"/><path class="a" d="M395 86 L395 110"/>
+<path class="a" d="M220 430 L620 430"/><path class="a" d="M780 400 L780 220"/><path class="a" d="M780 400 L780 360"/>
+</svg></figure></div>
+<h3>Stores and indexes <span class="read">[read]</span></h3>
+<div class="table-scroll"><table><tr><th>Store</th><th>Holds</th><th>Evidence</th></tr>
+<tr><td>Vector collection <code>mem0</code> (default Qdrant, local path <code>/tmp/qdrant</code>)</td><td>One point per memory: dense vector plus payload (<code>data</code>, <code>hash</code>, timestamps, scope ids, <code>actor_id</code>, <code>role</code>, <code>attributed_to</code>, <code>text_lemmatized</code>). On Qdrant a second named sparse vector <code>bm25</code> is written from <code>text_lemmatized</code>.</td><td><code>main.py:1030-1041</code>; <code>configs/vector_stores/qdrant.py:11,16</code>; <code>vector_stores/qdrant.py:188-216</code></td></tr>
+<tr><td>Entity collection <code>&lt;name&gt;_entities</code></td><td>One point per distinct entity string per scope: <code>data</code>, <code>entity_type</code> (PROPER, QUOTED, TOPIC, IDENTIFIER), <code>linked_memory_ids</code>. Lazily created in the same vector DB (shares the Qdrant client).</td><td><code>main.py:558-580, 605-648</code>; <code>utils/entity_extraction.py:13-16</code></td></tr>
+<tr><td>SQLite <code>~/.mem0/history.db</code></td><td>Table <code>history</code> (memory_id, old/new text, event, timestamps, actor, role) as an audit log; table <code>messages</code> with the last 10 raw messages per session scope.</td><td><code>memory/storage.py:108-147, 257-323</code>; <code>configs/base.py</code> (<code>history_db_path</code>)</td></tr>
+<tr><td>Graph DB</td><td><strong>None in OSS.</strong> Removed in the v3 release; Platform-only.</td><td><code>docs/migration/oss-v2-to-v3.mdx</code> (Graph memory: Removed)</td></tr>
+<tr><td>KV store / cache</td><td>None. Everything is vector payload plus SQLite.</td><td><span class="inf">[inferred]</span></td></tr></table></div>
+<h3>How the stores combine or rank at read time <span class="read">[read]</span></h3>
+<p>Three independent signals are fused <em>in Python</em>, not inside the database: a dense cosine search over the memory collection (candidate set), a BM25 sparse query over the same collection (scores only), and a similarity search over the entity collection (boosts only). <code>score_and_rank</code> sums them additively and divides by the maximum score reachable with the active signals (<code>utils/scoring.py:94-119</code>). No reciprocal-rank fusion, no learned weights. Section 8 gives the formula and a worked example.</p>
+<h3>Repository responsibility tree <span class="read">[read]</span></h3>
+<pre><code>mem0/memory/main.py         Memory + AsyncMemory: add / search / update / delete (3,378 lines)
+mem0/configs/prompts.py     all prompts (ADDITIVE_EXTRACTION_PROMPT used; several legacy prompts unused)
+mem0/memory/storage.py      SQLite history + rolling messages
+mem0/memory/utils.py        parse_messages, json cleaning, legacy graph helpers
+mem0/utils/scoring.py       BM25 sigmoid normalisation + additive score_and_rank
+mem0/utils/entity_extraction.py  spaCy entity candidates (PROPER/QUOTED/TOPIC/IDENTIFIER)
+mem0/utils/lemmatization.py      lemmas for BM25 (spaCy, parser/NER disabled)
+mem0/vector_stores/*        24 backends; qdrant.py owns dense+sparse
+mem0/reranker/*             cohere, huggingface, sentence_transformer, zero_entropy, llm
+mem0/llms, mem0/embeddings  provider factories (18 LLM providers)
+mem0/proxy/main.py          OpenAI-compatible chat proxy (uses MEMORY_ANSWER_PROMPT)
+server/                     FastAPI REST wrapper (auth, rate limit, alembic)
+mem0-ts/                    TypeScript port (separate payload key textLemmatized)
+evaluation/                 EMPTY submodule -> mem0ai/memory-benchmarks</code></pre>
+</section>
+<section id="insertion">
+<h2>3. Complete insertion flow: accepted messages to stored memory</h2>
+<p>All steps are in <code>Memory._add_to_vector_store</code> (<code>main.py:881-1220</code>); the async twin is <code>AsyncMemory._add_to_vector_store</code> (<code>:2556</code>). The code labels them "V3 phased batch pipeline" (<code>main.py:918</code>).</p>
+<ol class="steps">
+<li><h4>Validate and scope</h4><p>Reject non-<code>str/dict/list</code> messages; build metadata and effective filters from <code>user_id/agent_id/run_id</code>; refuse <code>timestamp</code>; accept <code>expiration_date</code>. <span class="read">[read]</span><span class="source">main.py:760-879</span></p></li>
+<li><h4>Phase 0: context</h4><p>Session scope string from the ids; load the last 10 stored messages from SQLite; flatten new messages to <code>role: content</code> lines. <span class="read">[read]</span><span class="source">main.py:920-923, storage.py:298</span></p></li>
+<li><h4>Phase 1: retrieve existing memories</h4><p>Embed the <em>whole flattened new-message text</em> as a query and take the top 10 existing memories in scope. They are shown to the extractor with integer ids "0".."9"; the integer-to-UUID map <code>uuid_mapping</code> is built but never used afterwards. <span class="read">[read]</span><span class="source">main.py:925-940</span></p></li>
+<li><h4>Phase 2: one LLM call</h4><p>System prompt <code>ADDITIVE_EXTRACTION_PROMPT</code> (plus <code>AGENT_CONTEXT_SUFFIX</code> when the scope has an <code>agent_id</code> and no <code>user_id</code>), user prompt built by <code>generate_additive_extraction_prompt</code>; <code>response_format=json_object</code>. An LLM failure raises <code>LLMError</code> (no silent empty result). Parsing tolerates code fences and falls back to <code>extract_json</code>. <span class="read">[read]</span><span class="source">main.py:942-986; prompts.py:468, 947, 1016</span></p></li>
+<li><h4>Phase 3: batch embed</h4><p>One <code>embed_batch</code> over the extracted texts; per-text fallback on failure. <span class="read">[read]</span><span class="source">main.py:993-1005</span></p></li>
+<li><h4>Phase 4-5: build records and hash-dedup</h4><p>MD5 of the text is compared with the hashes of the 10 retrieved neighbours and with the batch itself; matches are dropped. Surviving records get <code>text_lemmatized</code> (spaCy), <code>created_at=updated_at=now</code>, and <code>attributed_to</code> if the model supplied it. <span class="read">[read]</span><span class="source">main.py:1007-1041</span></p></li>
+<li><h4>Phase 6: persist</h4><p>One batch insert, with one-by-one fallback; if nothing persists, raise <code>VectorStoreError</code>. One batched <code>history</code> row per memory with event ADD. <span class="read">[read]</span><span class="source">main.py:1047-1098</span></p></li>
+<li><h4>Phase 7: entity linking (no LLM)</h4><p>spaCy extracts entities from each stored text; entities are deduplicated across the batch by lower-cased text; one batch embed; one <code>search_batch</code> against the entity collection; an entity is merged into an existing one if text matches exactly or cosine is at least 0.95, otherwise inserted; <code>linked_memory_ids</code> is extended. <span class="read">[read]</span><span class="source">main.py:1100-1204</span></p></li>
+<li><h4>Phase 8: save messages</h4><p>The raw messages are written to SQLite and the table is trimmed to the latest 10 per scope. <span class="read">[read]</span><span class="source">main.py:1207; storage.py:257-296</span></p></li>
+</ol>
+<h3>Other write entry points <span class="read">[read]</span></h3>
+<ul>
+<li><code>add(infer=False)</code>: no LLM; each non-system message is embedded and stored verbatim as a memory with <code>role</code> and <code>actor_id</code>. <span class="source">main.py:882-916</span></li>
+<li><code>add(memory_type="procedural_memory", agent_id=...)</code>: one LLM call with <code>PROCEDURAL_MEMORY_SYSTEM_PROMPT</code>, result stored as one memory. Marked "TODO: Remove ... in a future breaking release". <span class="source">main.py:853-864, 2007-2050</span></li>
+<li><code>update(memory_id, text)</code>: caller-supplied text; re-embed, overwrite the payload, history row UPDATE, entity links rebuilt; <strong>no LLM</strong>. <span class="source">main.py:1829-1881, 2052-2112</span></li>
+<li><code>delete(memory_id)</code>: remove point, history row DELETE (<code>is_deleted=1</code>), strip id from entity records. <span class="source">main.py:2114-2142</span></li>
+</ul>
+</section>
+<section id="layers">
+<h2>4. Memory layers, record schemas and every write-time LLM call</h2>
+<p>Mem0 OSS has <strong>one semantic layer</strong> (flat extracted facts) plus derived and auxiliary structures. There is no episodic store, no profile, no foresight or consolidation layer in OSS. <span class="read">[read]</span> A <code>MemoryType</code> enum exists but only <code>procedural_memory</code> is handled specially (<code>main.py:831-837</code>).</p>
+<div class="table-scroll"><table>
+<tr><th>Layer</th><th>Record</th><th>Write-time LLM calls</th><th>Prompt (constant)</th><th>Inline / background</th><th>Read use</th></tr>
+<tr><td>Fact memory (user and agent facts)</td><td>vector point; payload <code>data, hash, created_at, updated_at, text_lemmatized, user_id/agent_id/run_id, actor_id, role, attributed_to</code> + caller metadata</td><td><strong>1 per add()</strong> (0 if infer=False)</td><td><code>ADDITIVE_EXTRACTION_PROMPT</code> (+ <code>AGENT_CONTEXT_SUFFIX</code>)</td><td>Inline, synchronous in <code>add()</code>. Async variant for <code>AsyncMemory</code>; no queue. <span class="read">[read]</span></td><td>Dense + BM25 candidates; returned as results</td></tr>
+<tr><td>Entity index (derived)</td><td>vector point; <code>data, entity_type, linked_memory_ids, scope ids</code></td><td>0 (spaCy on CPU + embeddings)</td><td>none</td><td>Inline, after the fact insert</td><td>Entity boost during search</td></tr>
+<tr><td>History log</td><td>SQLite row per ADD / UPDATE / DELETE</td><td>0</td><td>none</td><td>Inline</td><td>Audit only (<code>history()</code>), not used in ranking</td></tr>
+<tr><td>Rolling message window</td><td>SQLite <code>messages</code>, last 10 per scope</td><td>0</td><td>none</td><td>Inline</td><td>Fed as "Last k Messages" to the next extraction call (each truncated to 300 chars)</td></tr>
+<tr><td>Procedural memory (optional)</td><td>One fact record with <code>memory_type=procedural_memory</code></td><td>1 per call, only if requested</td><td><code>PROCEDURAL_MEMORY_SYSTEM_PROMPT</code></td><td>Inline</td><td>Same as facts</td></tr>
+<tr><td>Image descriptions (optional)</td><td>Text replaces the image part before extraction</td><td>1 vision call per image, only if <code>enable_vision</code></td><td>inline instruction in <code>get_image_description</code></td><td>Inline</td><td>Becomes fact text</td></tr>
+<tr><td>Graph / relations</td><td><strong>Not in OSS</strong></td><td>(v2 had entity+relation LLM calls; removed)</td><td>(legacy)</td><td>n/a</td><td>Platform only</td></tr>
+<tr><td>Temporal metadata</td><td><strong>Not in OSS</strong>. Platform stores event date, ongoing/completed, precision, memory type via a separate pass.</td><td>Platform: "separate temporal reasoning pass" (docs only)</td><td>not in clone</td><td>Platform: may be async (docs)</td><td>Platform: ranking boost</td></tr>
+<tr><td>Consolidation / decay / summaries / profile</td><td><strong>Not in OSS</strong> (decay and "dream" are Platform docs: <code>docs/platform/features/memory-decay.mdx</code>, <code>dream.mdx</code>)</td><td>0 in clone</td><td>n/a</td><td>n/a</td><td>n/a</td></tr>
+</table></div>
+<h3>Calls per turn and per session <span class="read">[read]</span></h3>
+<p>The unit of cost is the <code>add()</code> call, not the "turn". The caller chooses whether to pass one turn or a whole session in one list. Each <code>add()</code> = <strong>1 extraction LLM call</strong>, 2 to 3 embedding requests (the neighbour-retrieval query embedding, one batch for the new facts, one batch for new entities), and 1 vector search plus 1 entity batch search. Adding a 19-turn LoCoMo session in one call is one LLM call; adding it turn by turn is 19 calls, each with an 8k-token system prompt (<span class="inf">[inferred]</span>: 33.7k characters in <code>prompts.py:468-944</code>, about 8k tokens at 4 characters per token).</p>
+<h3>Exact schema of the extractor output <span class="read">[read]</span></h3>
+<pre><code>{"memory": [
+  {"id": "0", "text": "<15-80 words, self-contained>", "attributed_to": "user" | "assistant",
+    "linked_memory_ids": ["<uuid of related existing memory>"]} ]}   (prompts.py:924-936)</code></pre>
+<p>Only <code>text</code> and <code>attributed_to</code> are consumed by the code (<code>main.py:1017-1041</code>). <code>id</code> is discarded and <code>linked_memory_ids</code> is ignored, so the cross-memory lineage the prompt asks for is lost in OSS (<span class="read">[read]</span> by grep). The only cross-memory links that survive are the entity-collection back-pointers.</p>
+</section>
+<section id="prompts">
+<h2>5. The write-time prompts in detail</h2>
+<h3>5.1 <code>ADDITIVE_EXTRACTION_PROMPT</code> (<span class="read">[read]</span> <code>configs/prompts.py:468-944</code>)</h3>
+<ul>
+<li><strong>Role.</strong> "Your sole operation is ADD: identify every piece of memorable information and produce self-contained, contextually rich factual statements." (l.472)</li>
+<li><strong>Both speakers are sources.</strong> Extract from user and assistant messages; "Attribute correctly: use 'User' for user-stated facts" (l.488). Anti-echo rule: do not re-extract what the assistant merely restates (l.574, 682). In multi-speaker data the assistant role may be a real person, and the prompt has an example (Maria/Bailey) that extracts her facts (l.572, Example 12). This was clearly tuned for LoCoMo-style two-person chat.</li>
+<li><strong>Bias to recall.</strong> "When in doubt, extract. A slightly redundant memory is far less costly than a missing one." (l.578) A checklist asks for 5-15 memories on 10+ message inputs (l.912).</li>
+<li><strong>Quality rules.</strong> Contextually rich not atomic (l.608), transitions must name old and new state ("switched from almond milk to oat milk", l.612-618), 15-80 words (l.631), proper nouns, numbers, qualifiers preserved (l.640-666), no fabrication, no implicit attributes (l.679-680).</li>
+<li><strong>Temporal anchoring.</strong> "Observation Date ... is your ONLY temporal anchor"; resolve relative expressions against it and never against Current Date (l.524-540, 634-636).</li>
+<li><strong>Inputs.</strong> Summary, Recently Extracted Memories, Existing Memories, Last k Messages, New Messages, Observation Date, Current Date, optional includes/excludes/custom instructions (l.478-549).</li>
+<li><strong>Linking.</strong> Add related existing-memory ids in <code>linked_memory_ids</code> for same entity, updated preference, continuation, contradiction (l.692-701).</li>
+<li><strong>Model.</strong> Whatever <code>config.llm</code> is; default provider OpenAI, default model <code>gpt-5-mini</code> (<code>llms/openai.py:40</code>), temperature 0.1, max_tokens 2000 (<code>configs/llms/base.py</code>) <span class="read">[read]</span>. Platform model stack is not disclosed.</li>
+</ul>
+<div class="callout caution"><strong>What the OSS code does not feed this prompt.</strong> <code>generate_additive_extraction_prompt</code> is called with only <code>existing_memories</code>, <code>new_messages</code>, <code>last_k_messages</code> and <code>custom_instructions</code> (<code>main.py:950-955</code>). So <em>Summary</em> is empty, <em>Recently Extracted Memories</em> is <code>[]</code>, and <em>Observation Date</em> defaults to <strong>today's date</strong> (<code>_resolve_dates</code>, <code>prompts.py:1007-1013</code>) because <code>timestamp</code> is refused. A benchmark that replays old conversations through OSS therefore gets relative dates resolved against the run date unless the harness puts the session date inside the message text. <span class="read">[read]</span></div>
+<h3>5.2 <code>AGENT_CONTEXT_SUFFIX</code> (<span class="read">[read]</span> <code>prompts.py:947-957</code>)</h3>
+<p>Appended when the scope has an <code>agent_id</code> and no <code>user_id</code>: "Frame memories from the agent's perspective: 'Agent was informed that [fact]'". <code>attributed_to</code> still records the true source.</p>
+<h3>5.3 <code>PROCEDURAL_MEMORY_SYSTEM_PROMPT</code> (<span class="read">[read]</span> <code>prompts.py:326</code>)</h3>
+<p>"You are a memory summarization system that records and preserves the complete interaction history between a human and an AI agent ... Every output produced by the agent must be recorded verbatim." Numbered steps with action, unmodified result and metadata. One call, stored as one record.</p>
+<h3>5.4 Prompts present but not called by the OSS add path</h3>
+<table><tr><th>Constant</th><th>Where</th><th>Status</th></tr>
+<tr><td><code>DEFAULT_UPDATE_MEMORY_PROMPT</code></td><td><code>prompts.py:176</code></td><td>"You can perform four operations: (1) add, (2) update, (3) delete, (4) no change." Not referenced from <code>main.py</code> (<span class="read">[read]</span> grep). This is the v2 ADD/UPDATE/DELETE/NONE decision call, now dead code.</td></tr>
+<tr><td><code>FACT_RETRIEVAL_PROMPT</code>, <code>USER_MEMORY_EXTRACTION_PROMPT</code>, <code>AGENT_MEMORY_EXTRACTION_PROMPT</code></td><td><code>prompts.py:15, 63, 124</code></td><td>v2 two-step fact extraction. Only referenced by helper functions in <code>memory/utils.py:15-33</code>; <code>_should_use_agent_memory_extraction</code> is defined (<code>main.py:739, 2434</code>) but never called (<span class="read">[read]</span>).</td></tr>
+<tr><td><code>MEMORY_ANSWER_PROMPT</code></td><td><code>prompts.py:4</code></td><td>Used only by the chat proxy (<code>proxy/main.py:146</code>). Not the benchmark answer prompt.</td></tr></table>
+<h3>5.5 Optional read-side LLM: <code>LLMReranker._SYSTEM_PROMPT</code> (<span class="read">[read]</span> <code>reranker/llm_reranker.py:75-86</code>)</h3>
+<p>"Given a query and a document, score how relevant the document is to the query ... Respond with only a single numerical score between 0.0 and 1.0." One LLM call <em>per candidate</em> (loop at l.124), default off.</p>
+</section>
+<section id="transcript">
+<h2>6. Transcript, scope identifiers and history</h2>
+<ul>
+<li><strong>Scope.</strong> At least one of <code>user_id</code>, <code>agent_id</code>, <code>run_id</code> is required. Writes accept them as keyword arguments; <code>search()</code>/<code>get_all()</code> take them inside <code>filters</code> and raise on top-level use. <span class="read">[read]</span> <span class="source">main.py:773-802, 1449-1475</span></li>
+<li><strong>Memory ids.</strong> Fresh UUID4 per memory. Hash is MD5 of the text. <span class="read">[read]</span> <span class="source">main.py:1022, 1030</span></li>
+<li><strong>Speaker identity.</strong> Only on the verbatim path (<code>actor_id</code> from message <code>name</code>, <code>role</code>). On the inference path the model emits one flag, <code>attributed_to</code> = user or assistant. There is no subject/about-whom field. <span class="read">[read]</span> <span class="source">main.py:899-901, 1038-1039</span></li>
+<li><strong>Raw transcript.</strong> Not retained beyond the last 10 messages per scope; the source turn is not linked to the memory (no provenance pointer, no dia_id). <span class="read">[read]</span> <span class="source">storage.py:281-296</span></li>
+<li><strong>History.</strong> The SQLite <code>history</code> table keeps old and new text with event type and timestamps; it is an audit trail and is not consulted during extraction or search. <span class="read">[read]</span></li>
+<li><strong>Expiry.</strong> <code>expiration_date</code> (YYYY-MM-DD) is stored in the payload; expired points are skipped on search/get_all unless <code>show_expired=True</code>. <span class="read">[read]</span> <span class="source">main.py:427-460, 1684</span></li>
+</ul>
+</section>
+<section id="retrieval">
+<h2>7. Complete retrieval flow</h2>
+<div class="flow"><div class="node">Validate<br><strong>filters, top_k, threshold</strong></div><div class="arrow">&rarr;</div><div class="node">spaCy<br><strong>lemmas + entities</strong></div><div class="arrow">&rarr;</div><div class="node vector">Dense search<br><strong>top max(4k,60)</strong></div><div class="arrow">&rarr;</div><div class="node vector">BM25 sparse<br><strong>same pool size</strong></div><div class="arrow">&rarr;</div><div class="node graph">Entity boost<br><strong>&le;8 entities</strong></div><div class="arrow">&rarr;</div><div class="node">Additive score<br><strong>top_k</strong></div><div class="arrow">&rarr;</div><div class="node history">Optional rerank</div></div>
+<p>Source: <code>Memory.search</code> (<code>main.py:1393-1536</code>) and <code>_search_vector_store</code> (<code>:1642-1745</code>). <span class="read">[read]</span></p>
+<table><tr><th>Stage</th><th>What happens</th><th>Evidence</th></tr>
+<tr><td>Query rewriting</td><td><strong>None.</strong> The query string is used as given; there is no history-aware reformulation and no LLM at read time. The caller (agent or benchmark) is responsible for any rewrite.</td><td><span class="read">[read]</span> <code>main.py:1648-1652</code></td></tr>
+<tr><td>Filters</td><td>Scope ids are mandatory. Metadata operators eq, ne, in, nin, gt, gte, lt, lte, contains, icontains, wildcard, AND/OR/NOT are translated by <code>_process_metadata_filters</code>.</td><td><span class="read">[read]</span> <code>main.py:1538-1640</code></td></tr>
+<tr><td>Semantic leg</td><td>One embedding; vector search for <code>max(top_k*4, 60)</code> candidates. With the default top_k=20 that is 80.</td><td><span class="read">[read]</span> <code>main.py:1654-1658</code></td></tr>
+<tr><td>Keyword leg</td><td>Query lemmatised by spaCy; BM25 sparse query over the same collection for the same pool size. Silently disabled (returns None) if the store lacks <code>keyword_search</code> or <code>fastembed</code> is missing.</td><td><span class="read">[read]</span> <code>main.py:1660-1673</code>; <code>vector_stores/qdrant.py:454-484</code>; warning at <code>main.py:543-550</code></td></tr>
+<tr><td>Entity leg</td><td>Up to 8 distinct query entities are embedded in one batch; each searches the entity collection (top 500, 4 threads); matches with similarity &ge; 0.5 boost their linked memories.</td><td><span class="read">[read]</span> <code>main.py:1747-1827</code></td></tr>
+<tr><td>Graph traversal</td><td>None. The "graph" is a one-hop entity to memory-id back-pointer list, used only as a score boost.</td><td><span class="read">[read]</span></td></tr>
+<tr><td>Candidate set</td><td>Built <strong>only from the semantic results</strong>; BM25-only or entity-only hits that are not in the dense top pool never become candidates.</td><td><span class="read">[read]</span> <code>main.py:1680-1691</code></td></tr>
+<tr><td>Threshold</td><td>Applied to the raw semantic score before combining (default 0.1).</td><td><span class="read">[read]</span> <code>utils/scoring.py:110-112</code></td></tr>
+<tr><td>Reranker</td><td>Only if <code>rerank=True</code> and a reranker is configured; failure falls back to the unreranked list. Options: Cohere, HuggingFace, SentenceTransformer, ZeroEntropy, LLM.</td><td><span class="read">[read]</span> <code>main.py:1513-1519</code>; <code>reranker/*</code></td></tr>
+<tr><td>Assembly</td><td>Returns a list of memory dicts (<code>id, memory, hash, created_at, updated_at, score</code>, promoted ids, metadata). <strong>No prompt assembly and no answer prompt in the engine</strong>: the caller formats the context and calls its own answerer.</td><td><span class="read">[read]</span> <code>main.py:1715-1745</code></td></tr></table>
+</section>
+<section id="scoring">
+<h2>8. Hybrid scoring internals</h2>
+<h3>Formula <span class="read">[read]</span> (<code>utils/scoring.py:60-139</code>)</h3>
+<pre><code>semantic  = vector-store score of the candidate (cosine for Qdrant)
+bm25      = sigmoid(steepness * (raw_bm25 - midpoint)),   (midpoint, steepness) by number of query lemmas:
+            &le;3: (5, 0.7)   4-6: (7, 0.6)   7-9: (9, 0.5)   10-15: (10, 0.5)   &gt;15: (12, 0.5)
+entity    = max over matched entities of  sim * 0.5 * 1/(1 + 0.001*(n_linked-1)^2),   sim &ge; 0.5
+max_possible = 1 + (1 if any bm25 hit in the pool) + (0.5 if any entity boost in the pool)
+combined  = min( (semantic + bm25 + entity) / max_possible , 1.0 )     only if semantic &ge; threshold</code></pre>
+<h3>Worked example <span class="inf">[inferred]</span> (illustrative numbers, formula read in code)</h3>
+<p>Query has 5 lemmas, so midpoint 7 and steepness 0.6. A candidate has cosine 0.62, raw BM25 8.0, and its entity matched with sim 0.90 and 5 linked memories. bm25 = 1/(1+e^-0.6) = 0.646; entity = 0.90 &times; 0.5 &times; 1/(1+0.001&times;16) = 0.443; max_possible = 2.5; combined = (0.62+0.646+0.443)/2.5 = 0.684.</p>
+<h3>Consequences worth knowing <span class="read">[read]</span></h3>
+<ul>
+<li>The divisor depends on whether <em>any</em> candidate has the signal, so one candidate's BM25 hit changes the normalisation of all candidates in that query.</li>
+<li>Entity boost is capped at 0.5 and fades for entities linked to many memories (quadratic penalty), which dampens hub entities such as the user's own name.</li>
+<li>The semantic threshold gates before combining, so an exact-keyword memory with cosine below 0.1 cannot be rescued.</li>
+<li>Scores are relative to the active signal set, so the same memory can score differently with and without <code>fastembed</code> or spaCy installed (the migration guide says both are optional extras).</li>
+</ul>
+</section>
+<section id="followfact">
+<h2>9. Follow one fact through the system</h2>
+<p>Example in the prompt's own style (<code>prompts.py:612-618</code>); stored text and outputs are illustrative, not captured.</p>
+<table><tr><th>Step</th><th>What happens</th></tr>
+<tr><td>Turn 1 (2025-03-01)</td><td>"I drink almond milk lattes." Extractor returns "User drinks almond milk lattes". Stored as memory A. Entity "almond milk" (TOPIC) linked to A.</td></tr>
+<tr><td>Turn 2 (2025-05-10)</td><td>"I switched to oat milk after an almond sensitivity." Neighbour search surfaces A. The prompt asks for a transition memory: "User switched from almond milk to oat milk lattes after developing an almond sensitivity". Stored as memory B. A is <strong>not</strong> modified. B's <code>linked_memory_ids</code> (pointing to A) is discarded by the code.</td></tr>
+<tr><td>Search "What does the user drink?"</td><td>A and B both score high (both contain "milk"). Nothing marks A as superseded; the ranker has no recency or validity term. The answerer must read both and infer that B is newer from the wording or from <code>created_at</code> if the caller shows it.</td></tr>
+<tr><td>Observation date risk</td><td>If both turns are replayed in one batch of historical data, both get <code>created_at = now</code> and relative dates inside the text are resolved against the run date, not 2025-03-01 / 2025-05-10 (Section 5.1 callout).</td></tr></table>
+</section>
+<section id="temporal">
+<h2>10. Temporal handling, updates and contradictions</h2>
+<div class="table-scroll"><table><tr><th>Aspect</th><th>OSS (clone)</th><th>Platform (docs only)</th></tr>
+<tr><td>Event time</td><td>Only what the extractor writes into the fact text (dates inline). No structured event-date field. <span class="read">[read]</span></td><td>Separate pass extracts when the event occurred, ongoing or completed, precision, memory type (event, state, plan, preference, relationship, absence) (<code>docs/core-concepts/memory-evaluation.mdx</code>)</td></tr>
+<tr><td>Ingestion time</td><td><code>created_at = now()</code> unless the caller puts <code>created_at</code> in metadata (<code>main.py:1035-1037</code>). <span class="read">[read]</span></td><td>Caller-settable <code>timestamp</code> (<code>docs/platform/features/timestamp.mdx</code>)</td></tr>
+<tr><td>Temporal query handling</td><td>None. <code>reference_date</code> raises ValueError. <span class="read">[read]</span></td><td>Query temporal intent classified "with no extra LLM call"; additive ranking boost (<code>docs/platform/features/temporal-reasoning.mdx</code>)</td></tr>
+<tr><td>Updates</td><td>ADD-only: "Nothing is overwritten or deleted. When information changes, both the old and new facts survive" (docs). Explicit <code>update()</code>/<code>delete()</code> by id only. <span class="read">[read]</span></td><td>Same plus feedback mechanism, decay, expiration (docs)</td></tr>
+<tr><td>Contradictions</td><td>Not detected. The prompt tells the model to link contradictions, but the link is dropped. <span class="read">[read]</span></td><td>Not described as resolved; BEAM contradiction_resolution is the weakest category (35.7 at 1M tokens, 32.5 at 10M)</td></tr>
+<tr><td>Validity intervals</td><td>None (no valid-from/valid-to). Expiry date only. <span class="read">[read]</span></td><td>none documented</td></tr></table></div>
+<p>The docs concede the cost of ADD-only: "Knowledge update (93.6) remains the hardest category for an additive, ADD-only architecture: older facts are preserved rather than overwritten, so semantically similar prior facts can still surface alongside newer ones."</p>
+</section>
+<section id="evaluation">
+<h2>11. LoCoMo evaluation as published, and what it means</h2>
+<div class="callout caution"><strong>Vendor number on the managed Platform, not independently reproduced.</strong> Independent harnesses report much lower figures for Mem0 (table below). Our own earlier analysis (<code>evals/analysis/SOTA_MEMU_MEMOS_LOCOMO.md</code> section 10) records "Every vendor number re-run in an outside harness fell by 8-68 points".</div>
+<div class="table-scroll"><table><tr><th>Source</th><th>Score</th><th>Judge / answer model</th><th>Cat 5</th><th>Vendor or independent</th></tr>
+<tr><td>Mem0 README / docs, April 2026 algorithm</td><td><strong>92.5</strong> overall (SH 91.2, MH 91.3, OD 72.7, T 92.0 per docs table); 6,956 mean tokens; p50 latency 0.88 s; top_200 retrieval</td><td>Judge and answerer not named in the docs. Our file records gpt-5 for both (<code>scraped_mem0_benchmark_2026.md</code> via SOTA doc)</td><td>No (1,540 questions)</td><td>Vendor, Platform</td></tr>
+<tr><td>Mem0's own results file</td><td><strong>91.56</strong> (1,410/1,540); 156 re-run questions merged; prompts reportedly contain LoCoMo gold answers</td><td>gpt-5 / gpt-5</td><td>No</td><td>Vendor (per <code>sota/S6d</code>, not re-read here)</td></tr>
+<tr><td>Migration guide (OSS wording)</td><td>71.4 to 91.6 LoCoMo, 67.8 to 93.4 LongMemEval</td><td>not stated</td><td>not stated</td><td>Vendor; 91.6 vs 92.5 differ between the migration guide and README</td></tr>
+<tr><td>OmniMemEval uniform harness</td><td><strong>77.68</strong> (SH 81.09, MH 76.12, T 77.15, OD 54.17); 17,395 ctx tokens</td><td>gpt-4o-mini judge, gpt-4.1-mini answers</td><td>No</td><td>Run by MemOS maker; Mem0 on cloud</td></tr>
+<tr><td>T-Mem harness</td><td>64.94 (Table 3) or 64.57 (Table 2)</td><td>Mem0 ACCURACY_PROMPT, gpt-4o-mini</td><td>No</td><td>Independent, stitched baselines</td></tr>
+<tr><td>Mem0 paper (ECAI 2025, old graph variant "Mem0g")</td><td>68.44</td><td>not stated in our files</td><td>--</td><td>Vendor paper</td></tr>
+<tr><td>LoCoMo-Refined strict judge (1,382 revised questions)</td><td><strong>48.91</strong></td><td>Qwen3-14B strict prompt</td><td>No</td><td>Independent</td></tr>
+<tr><td>D-Mem</td><td>F1 51.2</td><td>token F1, gpt-4o-mini</td><td>--</td><td>Independent metric</td></tr></table></div>
+<h3>Protocol caveats <span class="read">[read]</span>/<span class="inf">[inferred]</span></h3>
+<ul>
+<li><strong>Retrieval budget.</strong> top_200 memories per question (about 7k tokens), versus the engine default top_k=20 (<code>main.py:1397</code>). The vendor result is not the default-configuration result.</li>
+<li><strong>Category 5.</strong> Excluded (1,540 questions = categories 1-4). No published adversarial/abstention score.</li>
+<li><strong>Judge prompt.</strong> Mem0's binary <code>ACCURACY_PROMPT</code> (in <code>memory-benchmarks</code>, not in the clone) is the community default; its leniency is documented in our SOTA analysis (judge choice alone moves systems up to 18 points).</li>
+<li><strong>Evaluation code absent.</strong> <code>evaluation/</code> is an empty submodule; the answer prompt, question-time rewrite and the benchmark-side date handling cannot be inspected from this clone. The docs say "Scores carry a +/-1 point confidence interval due to judge inconsistency" and "single-pass retrieval ... no agentic loops".</li>
+<li><strong>Platform vs OSS.</strong> The README states OSS users "should expect directionally similar gains but not identical numbers". The harness supports <code>--backend oss</code>, but no OSS-only result is published in the clone.</li>
+</ul>
+</section>
+<section id="cost">
+<h2>12. Cost per turn and per query</h2>
+<div class="table-scroll"><table><tr><th>Operation</th><th>LLM calls</th><th>Embedding requests</th><th>Vector-store queries</th><th>Other</th><th>Evidence</th></tr>
+<tr><td><code>add()</code> inference path</td><td><strong>1</strong> (system prompt ~33.7k chars, about 8k tokens <span class="inf">[inferred]</span>; plus up to 10 neighbours, 10 past messages truncated to 300 chars, new messages)</td><td>1 (neighbour query) + 1 batch (facts) + 1 batch (entities)</td><td>1 search (top 10), 1 insert, 1 entity <code>list</code> (up to 10,000 rows), 1 entity <code>search_batch</code>, 1 entity insert/update</td><td>spaCy NER on every stored fact; MD5; 2 SQLite writes</td><td><span class="read">[read]</span> <code>main.py:925-1207</code></td></tr>
+<tr><td><code>add(infer=False)</code></td><td>0</td><td>1 per message</td><td>1 insert per message</td><td>history row</td><td><span class="read">[read]</span> <code>main.py:882-916</code></td></tr>
+<tr><td><code>search()</code> default</td><td><strong>0</strong></td><td>1 (query) + 1 batch (entities, if any)</td><td>2 (dense, sparse) + up to 8 entity searches</td><td>spaCy lemma and NER on the query</td><td><span class="read">[read]</span> <code>main.py:1642-1827</code></td></tr>
+<tr><td><code>search(rerank=True)</code> with LLM reranker</td><td>1 per candidate (typically up to top_k)</td><td>same</td><td>same</td><td>Cohere/HF/ST rerankers: 1 model/API call instead</td><td><span class="read">[read]</span> <code>reranker/llm_reranker.py</code></td></tr>
+<tr><td>Answering</td><td>Caller's job</td><td>--</td><td>--</td><td>Context is the list of memories; tokens depend on top_k</td><td><span class="read">[read]</span></td></tr></table></div>
+<p>Per-conversation token and dollar totals are <span class="inf">[inferred]</span> and depend on how the caller batches messages. The vendor reports ~7.0k retrieval tokens per query at top_200 and p50 latency 0.88 s on LoCoMo (README, Platform). The read path having zero LLM calls is a real structural advantage over engines that rewrite queries or run agentic retrieval.</p>
+</section>
+<section id="verify">
+<h2>13. What to check to understand and verify the engine (nothing here was executed)</h2>
+<ol>
+<li>Confirm the version: <code>pyproject.toml:7</code> should read 2.2.1 and <code>mem0/memory/main.py:918</code> should contain "V3 PHASED BATCH PIPELINE".</li>
+<li>Install the optional extras the retrieval path depends on: <code>mem0ai[nlp]</code> with <code>en_core_web_sm</code> (spaCy, Python 3.10-3.12) and <code>fastembed</code> for Qdrant BM25. Without them search silently degrades to semantic only (<code>main.py:543-550</code>; migration guide).</li>
+<li>Run <code>search(..., explain=True)</code> to see <code>semantic_score</code>, <code>bm25_score</code>, <code>entity_boost</code>, <code>max_possible_score</code> for each result (<code>scoring.py:126-135</code>).</li>
+<li>To replay historical conversations, put the session date inside the message text (the engine cannot take a timestamp) and record this as a protocol deviation.</li>
+<li>Reproduction harness: <code>github.com/mem0ai/memory-benchmarks</code> (<code>--backend oss</code>, <code>--top-k 200</code>, <code>--top-k-cutoffs 10,20,50,200</code>), per <code>docs/core-concepts/memory-evaluation.mdx</code>. Report the cutoff, judge and answer model with every number.</li>
+</ol>
+</section>
+<section id="limits">
+<h2>14. Implementation findings and limits</h2>
+<ul>
+<li><strong>Linking is requested but dropped.</strong> The prompt spends ~10 lines and Example 10 on <code>linked_memory_ids</code>; the code ignores it, and <code>uuid_mapping</code> is dead. <span class="read">[read]</span></li>
+<li><strong>Prompt and code disagree on ids.</strong> The prompt says existing ids are UUIDs (l.508-513) while the code passes "0".."9" (<code>main.py:940</code>). <span class="read">[read]</span></li>
+<li><strong>Summary and recent-memory inputs are never filled</strong> in OSS, so two of the prompt's seven inputs are always empty. <span class="read">[read]</span></li>
+<li><strong>Observation date is the run date.</strong> Historical replay needs a harness workaround. <span class="read">[read]</span></li>
+<li><strong>Candidates come only from the dense leg.</strong> A fact reachable only by keyword or entity is lost. <span class="read">[read]</span></li>
+<li><strong>Hash dedup is exact.</strong> Only identical text is dropped; near-duplicates rely on the model's own dedup against ten neighbours. <span class="read">[read]</span></li>
+<li><strong>Entity listing cost.</strong> Each add lists up to 10,000 entity rows to detect exact matches (<code>main.py:589</code>), which will not scale linearly to large scopes. <span class="inf">[inferred]</span></li>
+<li><strong>No speaker/subject model.</strong> One binary <code>attributed_to</code>; third-party facts and who-said-it are folded into text. <span class="read">[read]</span></li>
+<li><strong>Telemetry and notices.</strong> The SDK captures telemetry events and fetches a remote notices config unless disabled (<code>memory/telemetry.py</code>, <code>notices.py:20-23</code>). <span class="read">[read]</span></li>
+<li><strong>Evaluation code is absent</strong> from the clone; all published figures are unreproducible from here.</li>
+</ul>
+</section>
+<section id="sources">
+<h2>15. Code and source map</h2>
+<div class="table-scroll"><table><tr><th>Topic</th><th>File : lines</th></tr>
+<tr><td>Memory class init, stores, reranker</td><td><code>mem0/memory/main.py:487-552</code></td></tr>
+<tr><td>Entity store init, upsert, cleanup, link</td><td><code>main.py:558-728</code></td></tr>
+<tr><td>add() entry and validation</td><td><code>main.py:760-879</code></td></tr>
+<tr><td>V3 pipeline (phases 0-8)</td><td><code>main.py:918-1220</code></td></tr>
+<tr><td>search() entry, filters</td><td><code>main.py:1393-1640</code></td></tr>
+<tr><td>Hybrid search, entity boosts</td><td><code>main.py:1642-1827</code></td></tr>
+<tr><td>update / delete / history / procedural</td><td><code>main.py:1829-2142</code></td></tr>
+<tr><td>Async twin</td><td><code>main.py:2193-3911</code></td></tr>
+<tr><td>ADDITIVE_EXTRACTION_PROMPT</td><td><code>mem0/configs/prompts.py:468-944</code></td></tr>
+<tr><td>Prompt builder, date defaults</td><td><code>prompts.py:965-1060</code></td></tr>
+<tr><td>Scoring</td><td><code>mem0/utils/scoring.py:16-139</code></td></tr>
+<tr><td>Entities, lemmas, spaCy loading</td><td><code>mem0/utils/entity_extraction.py</code>, <code>lemmatization.py</code>, <code>spacy_models.py</code></td></tr>
+<tr><td>SQLite history/messages</td><td><code>mem0/memory/storage.py:108-323</code></td></tr>
+<tr><td>Qdrant dense+BM25</td><td><code>mem0/vector_stores/qdrant.py:111-216, 454-484</code></td></tr>
+<tr><td>Rerankers</td><td><code>mem0/reranker/*.py</code></td></tr>
+<tr><td>Docs claims (Platform)</td><td><code>docs/core-concepts/memory-evaluation.mdx</code>, <code>docs/migration/oss-v2-to-v3.mdx</code>, <code>docs/platform/features/temporal-reasoning.mdx</code>, <code>graph-memory.mdx</code></td></tr>
+<tr><td>Our prior analyses</td><td><code>docs/PERSPECTIVE_COMPARISON.md</code>, <code>FRAMEWORK_TOOLCALL_SURVEY.md</code> (row "Mem0 v2": single json_object call, <code>main.py:944-981</code>), <code>ECOSYSTEM_COMPARISON.md</code>, <code>evals/analysis/SOTA_MEMU_MEMOS_LOCOMO.md</code></td></tr></table></div>
+<p>Line numbers in earlier analyses (e.g. <code>main.py:944-981, 2619-2655</code>) match this commit for the sync path; the async path moved.</p>
+</section>
+<section id="learn">
+<h2>16. What MemSpine can learn from Mem0 (brief; the 4-way comparison comes later)</h2>
+<ul>
+<li><strong>Zero-LLM read path with three cheap signals.</strong> Dense + lemmatised BM25 + entity back-pointer boost, fused additively with explainable <code>score_details</code>. If MemSpine's entity leg needs an LLM or graph hop, a spaCy/GLiNER entity-to-memory-id index is a cheaper first pass. The additive formula with an adaptive divisor is trivially portable.</li>
+<li><strong>Anti-hub entity penalty.</strong> <code>1/(1+0.001(n-1)^2)</code> down-weights entities linked to many memories; a direct fix for "user name" dominating boosts.</li>
+<li><strong>Write-time dedup context.</strong> Show the extractor its top-10 neighbours and the last-10 messages; cost is one embedding and one search. Combine with MemSpine's supersede/merge so the neighbour set drives a typed integration, which Mem0 now throws away.</li>
+<li><strong>Transition-aware fact phrasing.</strong> "switched from X to Y after Z" captured in one fact is a cheap way to keep old-to-new links when no supersede machinery exists; MemSpine can use the same instruction to seed a <code>supersede</code> candidate.</li>
+<li><strong>Anti-hallucination ids.</strong> Mapping UUIDs to small integers before prompting (<code>main.py:935-940</code>); worth keeping, but unlike Mem0 actually consume the returned links.</li>
+<li><strong>Fail loudly.</strong> LLM extraction errors raise instead of returning an empty list (<code>main.py:965-971</code>); important for benchmarking honesty.</li>
+<li><strong>Counter-lesson (what to avoid).</strong> The headline 92.5 is a Platform, top_200, gpt-5 number; the same engine scores 77.7 in a neutral harness and 48.9 under a strict judge. MemSpine's reporting should always state retrieval budget, judge and reader (as the SOTA analysis already does). The OSS inability to set an observation date is the exact failure the MemSpine <code>t_as</code>/event-time design avoids.</li>
+<li><strong>Counter-lesson.</strong> Pure ADD-only with no validity model leaves contradiction handling to the reader (BEAM contradiction_resolution 35.7 / 32.5). This supports MemSpine's contest/supersede operators.</li>
+</ul>
+</section>
+</main></div><footer>Companion to COMBINED_MEMORY_ENGINE_AND_LOCOMO.html. Clone: mem0ai/mem0 @ b7ad69a (untrusted, read-only).</footer></body></html>

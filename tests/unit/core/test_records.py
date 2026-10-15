@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from memspine.core.records import MemoryRecord, PiiTier, RecordStatus
+from memspine.store.records import MemoryRecord, PiiTier, RecordStatus
 
 
 def test_record_defaults_cover_phase0_contract() -> None:

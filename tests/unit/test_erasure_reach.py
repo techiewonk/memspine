@@ -13,8 +13,8 @@ import pytest
 
 from memspine import Engine
 from memspine.config import constants
-from memspine.core.events import EventKind, MemoryEvent
-from memspine.core.records import MemoryRecord, SourceInfo
+from memspine.store.events import EventKind, MemoryEvent
+from memspine.store.records import MemoryRecord, SourceInfo
 
 SECRET = "SECRETWORD0"
 

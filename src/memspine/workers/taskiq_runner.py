@@ -5,7 +5,7 @@ D-42 §3 (the MemOS ``SchedulerRedisQueue`` pattern, adopted):
 - **per-scope stream keys** — one stream per ``(namespace-scope, task_label)``,
   built by :func:`stream_key`, so one tenant's backlog never starves another's;
 - **priority labels** mirroring the pipeline set (:data:`PIPELINE_PRIORITIES`
-  covers exactly ``workers.pipelines.PIPELINES``: check_watches / consolidate / mine_facts /
+  covers exactly ``stages.table.PIPELINES``: check_watches / consolidate / mine_facts /
   reorganize / decay_sweep / compress / sleep_compute / event_log_prune);
 - **consumer-group delivery + XAUTOCLAIM claim-recovery** — every run appends
   a durable work marker (XADD), claims it into the consumer group (XREADGROUP)
@@ -37,9 +37,9 @@ import re
 from typing import Any
 
 from memspine.config import constants
+from memspine.derive.pipeline.stages.context import Pipeline, PipelineContext
 from memspine.exceptions import MemspineError, MissingServiceError
 from memspine.observability.logging import get_logger
-from memspine.workers.pipelines import Pipeline, PipelineContext
 
 __all__ = [
     "CONSUMER_GROUP",
@@ -72,22 +72,29 @@ CONSUMER_GROUP = "memspine-workers"
 #: ``test_taskiq_runner`` asserts the two sets never drift. Watches fire first
 #: (a due reminder beats housekeeping); pruning always goes last.
 PIPELINE_PRIORITIES: dict[str, int] = {
+    "erasure_rederive": -1,  # FU-ERASE: a pending erasure beats everything (opt-in stage)
     "check_watches": 0,
     "consolidate": 1,
     "mine_facts": 2,  # C6': atomic facts right after their session is consolidated
     "predict_calibrate": 3,  # #62: right after mine_facts (opt-in stage)
-    "anticipate": 4,  # H8: cues right after their session is consolidated
-    "reflect_profile": 5,  # H14: profile insights right after their session
-    "extract_graph": 6,  # C2: LLM edges before communities form over them
-    "rule_edges": 7,  # W12: rule edges right after the LLM ones (opt-in stage)
-    "summarize_entities": 8,  # GP-6: entity summaries over the fresh facts
-    "reorganize": 9,
-    "session_lifecycle": 10,  # #53: idle sessions -> PASSIVE, before the decay sweep
-    "decay_sweep": 11,
-    "compress": 12,
-    "sleep_compute": 13,
-    "retention_expire": 14,  # #48: expiry is housekeeping, never urgent
-    "event_log_prune": 15,
+    "project_facts": 4,  # E01: right after mine_facts (opt-in stage)
+    "anticipate": 5,  # H8: cues right after their session is consolidated
+    "reflect_profile": 6,  # H14: profile insights right after their session
+    "extract_graph": 7,  # C2: LLM edges before communities form over them
+    "rule_edges": 8,  # W12: rule edges right after the LLM ones (opt-in stage)
+    "reconcile": 9,  # O4-03: contradiction sweep after the edges (opt-in)
+    "histories": 10,  # O4-04: near-duplicates and value histories (opt-in)
+    "pattern_observations": 11,  # O4-05: opt-in L4 observations over the settled facts (FX-EVAL: after the graph)
+    "standing_answers": 12,  # O4-08: opt-in L5 standing answers after the observations
+    "compile_edges": 13,  # F-02c: assertions -> graph edges once the facts settle (opt-in)
+    "summarize_entities": 14,  # GP-6: entity summaries over the fresh facts
+    "reorganize": 15,
+    "session_lifecycle": 16,  # #53: idle sessions -> PASSIVE, before the decay sweep
+    "decay_sweep": 17,
+    "compress": 18,
+    "sleep_compute": 19,
+    "retention_expire": 20,  # #48: expiry is housekeeping, never urgent
+    "event_log_prune": 21,
 }
 
 #: Labels outside the known pipeline set (deployment-registered pipelines,

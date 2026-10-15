@@ -1,0 +1,34 @@
+{
+  "additionalProperties": true,
+  "description": "A surface mention as written, with its system-assigned mention id and resolved entity (if any).",
+  "properties": {
+    "entity_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Entity Id"
+    },
+    "mention_id": {
+      "minLength": 1,
+      "title": "Mention Id",
+      "type": "string"
+    },
+    "surface": {
+      "minLength": 1,
+      "title": "Surface",
+      "type": "string"
+    }
+  },
+  "required": [
+    "surface",
+    "mention_id"
+  ],
+  "title": "Mention",
+  "type": "object"
+}

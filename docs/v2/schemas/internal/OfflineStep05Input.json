@@ -1,0 +1,23 @@
+{
+  "additionalProperties": true,
+  "description": "S2 Catch-up extraction for underived sources.",
+  "properties": {
+    "batch_tokens": {
+      "title": "Batch Tokens",
+      "type": "integer"
+    },
+    "sources": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Sources",
+      "type": "array"
+    }
+  },
+  "required": [
+    "sources",
+    "batch_tokens"
+  ],
+  "title": "OfflineStep05Input",
+  "type": "object"
+}

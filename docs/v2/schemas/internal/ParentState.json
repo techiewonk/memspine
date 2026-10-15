@@ -1,0 +1,39 @@
+{
+  "additionalProperties": true,
+  "description": "Parent record live state for gate 3 (step 18).",
+  "properties": {
+    "record_id": {
+      "title": "Record Id",
+      "type": "string"
+    },
+    "status": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Status"
+    },
+    "trust": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Trust"
+    }
+  },
+  "required": [
+    "record_id"
+  ],
+  "title": "ParentState",
+  "type": "object"
+}

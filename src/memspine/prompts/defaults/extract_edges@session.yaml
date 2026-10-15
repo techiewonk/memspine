@@ -21,7 +21,7 @@ system: >-
   (lives_in, works_at, married_to, a pet's name) and `event` for something that
   happened or one of many that hold at once (read, visited, attended, bought,
   likes); when unsure, use `event`. Be specific: keep the exact names the
-  transcript uses and never generalise ("Gamecube" stays "Gamecube", not
+  transcript uses and never generalise ("Sega Saturn" stays "Sega Saturn", not
   "console"). An edge stated on several lines is one edge listing every line.
   Resolve pronouns and relative dates ("yesterday", "last week") against each
   line's date. Extract only relationships explicitly stated; never invent edges.

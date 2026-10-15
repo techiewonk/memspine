@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-from memspine.core.records import RecordStatus
 from memspine.memories.procedural.lifecycle import SkillStage
 from memspine.memories.procedural.prompt_registry import (
     prompt_reference,
     prompt_version_records,
 )
 from memspine.prompts.registry import PromptRegistry
+from memspine.store.records import RecordStatus
 
 
 def test_records_reference_prompts_without_duplicating_bodies() -> None:

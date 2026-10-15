@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from memspine.core.redaction import find_pii, redact
+from memspine.trust.redaction import find_pii, redact
 
 
 @pytest.mark.parametrize(

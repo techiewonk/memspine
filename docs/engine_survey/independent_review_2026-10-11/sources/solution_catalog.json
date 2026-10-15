@@ -1,0 +1,510 @@
+{
+  "M01": {
+    "id": "M01",
+    "title": "Use finalized, explicit scoring contracts",
+    "problem": "The explorer reads provisional repetition scores from results.jsonl. A positive score can also coexist with a truncated answer.",
+    "proposal": "Use finalized OP-Bench per_probe scores when available; retain provisional values and their basis. Require completed, nonempty answers for answer-pass diagnostics. Keep retrieval-only, missing, pending and failed states separate. Report official OP-Bench task/person macro scores separately from pass@0.5.",
+    "regression_risk": "Changing display semantics can look like model regression; changing the benchmark formula would invalidate comparisons.",
+    "acceptance_test": "Rebuild from unchanged files: official macro must stay identical; provisional/final differences must be visible; first repetition answer must not automatically count as a final success; truncated and retrieval-only rows must not silently count as correct/incorrect answers.",
+    "code_hooks": [
+      "evals/build_forensics_explorer.py:opb_row",
+      "evals/memspine_evals/opbench.py:_repetition and final summary aggregation"
+    ],
+    "sources": [
+      "opbench",
+      "judge"
+    ],
+    "status": "PROPOSED; not implemented or validated by this audit",
+    "hypothesis": "Using finalized scores and explicit completion states will remove false diagnostic wins without changing any generated answer.",
+    "expected_signal": "Display reconciles exactly with final summaries; official macro unchanged.",
+    "reject_if": "Any official-score change caused solely by display repair, or continued provisional/final ambiguity."
+  },
+  "M02": {
+    "id": "M02",
+    "title": "Validate evidence references and isolate annotation disputes",
+    "problem": "Eight raw evidence references are malformed or unresolved. Other labels conflict with source dates, speakers or predicates.",
+    "proposal": "Add a reversible evidence-normalization view with raw and resolved IDs, missing-reference errors and adjudication status. Keep official labels immutable. Report official score and a separately versioned adjudicated diagnostic; never silently train retrieval toward a known wrong label.",
+    "regression_risk": "Overzealous repair can join different turns or reinterpret a genuinely incorrect answer as a gold error.",
+    "acceptance_test": "Every repaired reference must resolve within the same conversation; orphan/missing IDs remain unresolved. Adjudication requires an exact source span and independent review. Test wrong speaker, absent image content, dates and answer-list supersets.",
+    "code_hooks": [
+      "evals/build_forensics_explorer.py:data extraction and evidence lookup",
+      "evals/analysis/GAP_REGISTER.md"
+    ],
+    "sources": [
+      "ragchecker",
+      "judge"
+    ],
+    "status": "PROPOSED; not implemented or validated by this audit",
+    "hypothesis": "Separating source-label defects from engine errors will prevent tuning toward unsupported facts.",
+    "expected_signal": "Every evidence ID is resolved or explicitly unresolved; adjudication has an exact source span.",
+    "reject_if": "Repairs silently rewrite official labels, merge different people, or excuse unsupported answer additions."
+  },
+  "R01": {
+    "id": "R01",
+    "title": "Recover evidence through bounded, intent-specific search",
+    "problem": "A relevant instance can be absent from the logged semantic/lexical candidates, especially for lists, category-to-instance queries and multi-hop relations.",
+    "proposal": "Classify the required answer shape and unresolved relations; issue a bounded second retrieval only for missing evidence slots. Use independent lexical and semantic paths, entity aliases with provenance, and one-hop relation expansion. Stop at a fixed cost cap or when slots are supported.",
+    "regression_risk": "Query expansion introduces plausible but irrelevant facts, increases latency and can amplify a wrong entity assumption.",
+    "acceptance_test": "Measure evidence recall, answer precision and cost together. Include entity-swapped, irrelevant-memory and unanswerable controls. Compare no/single/multi retrieval at the same total budget; do not trigger on benchmark IDs or names.",
+    "code_hooks": [
+      "src/memspine/engine.py:search, query planning and bridge retrieval"
+    ],
+    "sources": [
+      "adaptive",
+      "ragchecker",
+      "selfrag"
+    ],
+    "status": "PROPOSED; not implemented or validated by this audit",
+    "hypothesis": "Searching for the unresolved relation or answer slot will recover useful evidence that whole-question retrieval misses.",
+    "expected_signal": "More source-supported slots filled at a fixed total retrieval/call budget.",
+    "reject_if": "Extra retrieval adds unrelated facts, increases unsupported claims, or fails to improve matched answer quality."
+  },
+  "R02": {
+    "id": "R02",
+    "title": "Preserve independent evidence under a fixed candidate budget",
+    "problem": "Gold evidence can enter a retrieval leg but disappear during fusion, pool cutting or reranking. The perspective leg filters vector hits and is not independent evidence.",
+    "proposal": "Reserve bounded candidate shares for independent source families; deduplicate correlated vector/perspective votes. Apply hard namespace, deletion and trust filters before admission. Rerank a fixed-size diverse pool with compact relation context. Protect evidence coverage, not every high-ranking noisy hit.",
+    "regression_risk": "Raw per-leg protection can enlarge the pool and increase cost; noisy lexical hits can displace strong semantic hits. Existing balanced selection already trades categories.",
+    "acceptance_test": "Log leg→pool→rerank→context transitions with cap metadata. Compare at fixed pool/context limits. Check single-hop, multi-hop, temporal and OP-Bench separately, with paired gains/losses. No adoption from net score alone.",
+    "code_hooks": [
+      "src/memspine/engine.py:_perspective_leg",
+      "src/memspine/engine.py:_protected_ids, _balanced_pool, pool_protect_per_leg"
+    ],
+    "sources": [
+      "ragchecker",
+      "middle"
+    ],
+    "status": "PROPOSED; not implemented or validated by this audit",
+    "hypothesis": "A bounded pool that preserves independent lexical and semantic evidence will reduce losses caused by fusion cuts.",
+    "expected_signal": "Previously dropped relevant candidates survive without growing the total pool or degrading other categories.",
+    "reject_if": "Noise displaces better evidence, correlated legs receive duplicate votes, or gains require unbounded pool growth."
+  },
+  "R03": {
+    "id": "R03",
+    "title": "Select evidence bundles and account for the real prompt budget",
+    "problem": "A hit can survive ranking but lose its antecedent, question, or source during window assembly; overlapping windows waste tokens.",
+    "proposal": "Represent minimal evidence bundles containing claim, speaker, antecedent and time anchor. Merge overlapping windows and allocate an explicit prompt budget including headers and answer reserve. Preserve source boundaries and log what was dropped. Test evidence placement instead of assuming more context helps.",
+    "regression_risk": "Extra neighbors introduce distractors or another speaker’s facts; overcompression removes a qualifier; exact provider tokenization can add overhead.",
+    "acceptance_test": "Budget-boundary tests must retain complete supported bundles or report insufficient evidence. Vary distractor count and evidence position while holding content fixed; verify context/output limits and latency.",
+    "code_hooks": [
+      "src/memspine/engine.py:_read and header reservation",
+      "src/memspine/core/policies/assembly.py"
+    ],
+    "sources": [
+      "middle",
+      "alce"
+    ],
+    "status": "PROPOSED; not implemented or validated by this audit",
+    "hypothesis": "Selecting minimal evidence bundles will improve reasoning more reliably than simply increasing context length.",
+    "expected_signal": "More complete antecedent/claim/time bundles fit the same token budget.",
+    "reject_if": "Extra neighbors cause attribution errors or compression removes dates, negation or state qualifiers."
+  },
+  "A01": {
+    "id": "A01",
+    "title": "Bind every claim to its subject, speaker and modality",
+    "problem": "A statement by one participant is assigned to another; a reply contains evidence about the question’s subject but a speaker-only filter discards it.",
+    "proposal": "Keep speaker, addressee, described subject, assertion source and modality as distinct fields. Bind extracted claims to these fields and retain original spans. Resolve short replies through a bounded dialogue edge. Use uncertainty rather than globally treating speaker=subject or accepting a name as a relevance bypass.",
+    "regression_risk": "Hard speaker filters lose statements about another participant; guessed coreference can create persistent false facts.",
+    "acceptance_test": "Swap names and speaker order; factual answers should change only with subject ownership. Test replies, quotations, pronouns, assistant-owned claims, third-party queries and same-name users. Never cross namespaces.",
+    "code_hooks": [
+      "src/memspine/core/perspective.py",
+      "src/memspine/engine.py:perspective scoring and relevance bypass"
+    ],
+    "sources": [
+      "checklist",
+      "alce",
+      "opbench"
+    ],
+    "status": "PROPOSED; not implemented or validated by this audit",
+    "hypothesis": "Explicit subject, speaker, addressee and assertion-source bindings will reduce identity and ownership mistakes.",
+    "expected_signal": "Lower wrong-person claim rate on name-swapped, reply and third-party controls.",
+    "reject_if": "Speaker filtering removes valid evidence about someone else, or coreference guesses create false personal facts."
+  },
+  "A02": {
+    "id": "A02",
+    "title": "Separate event state, identity and time",
+    "problem": "Plans, recommendations, completed events, repeated mentions and historical changes are conflated.",
+    "proposal": "Use source-backed event tuples: actor, action, object, location, event-time interval, mention time, status and provenance. Link repeated mentions only when enough identity evidence agrees. Preserve updates and contradictions; answer according to the requested time and completion predicate.",
+    "regression_risk": "Aggressive event merging undercounts; treating every mention as a distinct event overcounts; latest-only truth loses history.",
+    "acceptance_test": "Test planned→cancelled→completed transitions, two same-day events, one event mentioned on two days, conflicting reports, residence versus visit, pregnancy versus birth, and recommendation versus purchase.",
+    "code_hooks": [
+      "evals/memspine_evals/count_verify.py:_same_item",
+      "src/memspine/core/perspective.py:modality",
+      "src/memspine/engine.py:read evidence assembly"
+    ],
+    "sources": [
+      "checklist",
+      "alce"
+    ],
+    "status": "PROPOSED; not implemented or validated by this audit",
+    "hypothesis": "A source-linked event ledger with state and time will separate plans, interviews, acceptance, completion and repeated mentions.",
+    "expected_signal": "Fewer event-state/date confusions and more accurate event counts.",
+    "reject_if": "Different events merge, duplicate mentions become extra events, or historical facts disappear under latest-only logic."
+  },
+  "A03": {
+    "id": "A03",
+    "title": "Carry the requested answer type through retrieval and generation",
+    "problem": "Answers return countries for a city question, dates for a title question, or related facts that do not satisfy the requested predicate.",
+    "proposal": "Build a small typed query contract: target subject, relation, answer type, time scope and expected cardinality. Retrieve against the contract, then verify each final claim matches it. Use trusted external knowledge only when the question permits it and mark that provenance separately.",
+    "regression_risk": "A rigid classifier can misroute ambiguous questions or reject useful qualified answers.",
+    "acceptance_test": "Test cities/countries, author/composer, visits/residence, winner/participant, support/endorsement and literal versus hypothetical questions. Uncertain classification should fall back to a general evidence-grounded path.",
+    "code_hooks": [
+      "src/memspine/engine.py:query analysis and routing",
+      "evals/memspine_evals/readers.py:reader answer contract"
+    ],
+    "sources": [
+      "adaptive",
+      "checklist"
+    ],
+    "status": "PROPOSED; not implemented or validated by this audit",
+    "hypothesis": "A typed query contract will prevent related but wrong-type answers and direct retrieval toward the missing specificity.",
+    "expected_signal": "Fewer city/country, style/medium, title/date and visit/residence mismatches.",
+    "reject_if": "Ambiguous questions are forcibly misclassified or useful qualified answers are rejected."
+  },
+  "A04": {
+    "id": "A04",
+    "title": "Evaluate lists for both completeness and precision",
+    "problem": "A response may contain the gold item yet add unsupported items, or receive credit for a partial list.",
+    "proposal": "Build an evidence table with one row per candidate item, its supporting turn and predicate match. Deduplicate by entity/event identity. Return supported items and an explicit completeness qualification if coverage is uncertain. Score item recall and unsupported-item rate separately.",
+    "regression_risk": "Retrieving more candidates increases false positives; a verifier can reject legitimate paraphrases or collapse distinct items.",
+    "acceptance_test": "Test partial lists, correct supersets with irrelevant additions, similar names, repeated mentions and other-speaker items. A gain requires improved supported coverage without increased unsupported items, not mere gold-string inclusion.",
+    "code_hooks": [
+      "src/memspine/engine.py:list query planning and assembly",
+      "evals/memspine_evals/count_verify.py"
+    ],
+    "sources": [
+      "alce",
+      "ragchecker",
+      "judge"
+    ],
+    "status": "PROPOSED; not implemented or validated by this audit",
+    "hypothesis": "Enumerating supported items before answering will improve list completeness while controlling unsupported additions.",
+    "expected_signal": "Higher supported-item recall with no increase beyond the declared unsupported-item tolerance.",
+    "reject_if": "Partial answers get full credit or extra items are admitted merely because one gold item is present."
+  },
+  "A05": {
+    "id": "A05",
+    "title": "Compute dates from source-bound intervals",
+    "problem": "Relative dates, duration arithmetic and weekday annotations are inconsistent; mention time is mistaken for event time.",
+    "proposal": "Parse supported expressions into date/interval operands bound to a specific turn and event. Run fixed trusted arithmetic for differences and calendar operations. Preserve approximate intervals and unresolved ambiguity; render an exact day only when supported. Resolve conflicting weekday/date assertions explicitly.",
+    "regression_risk": "Picking an unrelated timestamp silently produces a precise wrong answer; deterministic computation cannot repair an unsupported operand.",
+    "acceptance_test": "Cover month/year boundaries, leap years, next/last weekday, vague other-day/last-week phrases, conflicting anchors, incomplete events and inclusive/exclusive duration conventions. Verify operands and precision as well as result.",
+    "code_hooks": [
+      "evals/memspine_evals/date_repair.py",
+      "evals/memspine_evals/date_check.py",
+      "src/memspine/engine.py:temporal context"
+    ],
+    "sources": [
+      "pal",
+      "checklist"
+    ],
+    "status": "PROPOSED; not implemented or validated by this audit",
+    "hypothesis": "Extracting source-bound date operands and using fixed arithmetic will reduce avoidable temporal mistakes.",
+    "expected_signal": "Correct endpoints, precision and computed intervals on boundary-date controls.",
+    "reject_if": "A wrong anchor produces confident precision, or correct elapsed time is distorted to match an erroneous gold."
+  },
+  "A06": {
+    "id": "A06",
+    "title": "Count supported events rather than mentions",
+    "problem": "Lexical/date deduplication does not establish event identity, completion or the requested predicate.",
+    "proposal": "Construct a small provenance-linked ledger for the query and count only distinct entries that satisfy the actor, action, status and time constraints. Reconcile explicit cumulative counts against the ledger; if the evidence conflicts, return a range or explain the unresolved count.",
+    "regression_risk": "Same-day token overlap can merge different events; repeated mentions on different dates can be double-counted; ordinal wins are not total participations.",
+    "acceptance_test": "Test repeated mentions, same-day separate visits, scheduled versus completed trips, winners versus entries, two participants, explicit ordinals and uncertain dates. Verify each counted item can be inspected.",
+    "code_hooks": [
+      "evals/memspine_evals/count_verify.py:_same_item and ledger construction"
+    ],
+    "sources": [
+      "pal",
+      "checklist",
+      "alce"
+    ],
+    "status": "PROPOSED; not implemented or validated by this audit",
+    "hypothesis": "Counting distinct, predicate-matching events rather than mentions will improve aggregation reliability.",
+    "expected_signal": "Every counted item has identity, state, time scope and supporting evidence.",
+    "reject_if": "Same-day events are overmerged, repeated mentions are double-counted, or planned events enter completed counts."
+  },
+  "A07": {
+    "id": "A07",
+    "title": "Recover referents without inventing multimodal evidence",
+    "problem": "This, that, we and image references need adjacent context; text captions may omit the title, place or object required by gold.",
+    "proposal": "Attach explicit reply/reference edges and bounded neighbor context. Record whether an image was actually available and what text/caption/OCR supports. If visual evidence is missing, mark the question unsupported under the text-only protocol rather than guessing a familiar place or object.",
+    "regression_risk": "Neighbor windows can bind the wrong event; image captions or OCR may be inaccurate. Adding a vision reader changes the evaluation protocol.",
+    "acceptance_test": "Test shuffled neighbors, ambiguous photos, misleading captions and missing images. Compare text-only and multimodal arms separately with fixed inputs. No credit for guessing an unobservable label.",
+    "code_hooks": [
+      "src/memspine/engine.py:replay window assembly",
+      "evals/build_forensics_explorer.py:turn rendering and image-caption fields"
+    ],
+    "sources": [
+      "ragchecker",
+      "checklist"
+    ],
+    "status": "PROPOSED; not implemented or validated by this audit",
+    "hypothesis": "Retrieving the actual referenced turn or asset will resolve pronouns and image-dependent gaps more reliably than blind retries.",
+    "expected_signal": "More verified referents and fewer unsupported visual/title/location claims.",
+    "reject_if": "Adjacent context or a lookalike image is mistaken for the source asset."
+  },
+  "A08": {
+    "id": "A08",
+    "title": "Separate supported facts, hypotheses and recommendations",
+    "problem": "Open-domain gold sometimes requires a non-unique recommendation or an unsupported inference about age, health, religion, wealth or residence.",
+    "proposal": "Label requested behavior as factual recall, grounded inference or recommendation. State a hypothesis with its uncertainty when invited; do not promote it into a stored user fact. Allow multiple evidence-consistent recommendations. For personal attributes without support, preserve unknown.",
+    "regression_risk": "Overabstention damages useful advice; optimizing one speculative gold answer encourages stereotyping and false memories.",
+    "acceptance_test": "Use paired factual/hypothetical prompts and unsupported-attribute controls. Judge support and usefulness separately. A recommendation may be useful without being a unique gold fact; it must not become asserted history.",
+    "code_hooks": [
+      "src/memspine/core/perspective.py:hedging, sensitivity and modality",
+      "reader prompts and memory write validation"
+    ],
+    "sources": [
+      "checklist",
+      "judge",
+      "alce"
+    ],
+    "status": "PROPOSED; not implemented or validated by this audit",
+    "hypothesis": "Separating recall, invited inference and recommendation will reduce both unjustified refusals and invented personal facts.",
+    "expected_signal": "Useful qualified answers improve on likely-questions while exact-ownership and sensitive-attribute controls stay grounded.",
+    "reject_if": "A plausible inference becomes asserted ownership, diagnosis, religion or autobiographical history."
+  },
+  "P01": {
+    "id": "P01",
+    "title": "Condition memory use on current intent and target subject",
+    "problem": "Generic requests receive unrelated personal facts; broad filtering also damages valid LoCoMo recall.",
+    "proposal": "Estimate whether memory can supply a required answer slot, then filter candidate claims for subject and intent relevance. Permit an empty memory context when none helps. Preserve relevant negative constraints and third-party references. Treat direct personal recall as a strong feature, not a universal name/first-person bypass.",
+    "regression_risk": "A global gate can suppress multi-hop evidence; a named-entity bypass admits irrelevant facts; a no-memory default loses personalization.",
+    "acceptance_test": "Pair generic and personal variants of the same request, including pronouns, names, third parties and multi-hop facts. Measure OP-Bench official macro plus LoCoMo paired losses, relevant-constraint retention, latency and refusal rate.",
+    "code_hooks": [
+      "src/memspine/engine.py:calibrated_gate, gate_bypassed, relevance_gate",
+      "tests/unit/test_relevance_bypass.py",
+      "tests/unit/test_relevance_gate_calibrated.py"
+    ],
+    "sources": [
+      "opbench",
+      "adaptive",
+      "selfrag"
+    ],
+    "status": "PROPOSED; not implemented or validated by this audit",
+    "hypothesis": "Using memory only when it supports the current subject and intent will reduce irrelevant personalization while retaining useful personal recall.",
+    "expected_signal": "OP-Bench subtypes improve alongside stable matched LoCoMo performance and relevant-constraint retention.",
+    "reject_if": "A global gate suppresses needed multi-hop evidence or a name bypass admits irrelevant memories."
+  },
+  "P02": {
+    "id": "P02",
+    "title": "Reduce repeated persona insertion without chasing word diversity",
+    "problem": "The same personal themes recur across unrelated responses; different wording can hide the same irrelevant personalization.",
+    "proposal": "Track which persona claims were recently used and require a current-task reason to reuse them. Prefer the answer’s actual topic. Evaluate both repeated themes and factual usefulness, keeping essential repeated constraints such as allergies when relevant.",
+    "regression_risk": "A novelty objective can omit necessary facts or invent new ones; evaluation-wide state can leak future answers into generation.",
+    "acceptance_test": "Use chronological, per-user state only. Test recurring relevant constraints, unrelated topic sequences and identity isolation. Report official final repetition score with human/claim-level relevance checks; no tuning solely to lexical similarity.",
+    "code_hooks": [
+      "evals/memspine_evals/opbench.py:repetition scoring",
+      "reader context policy and per-session usage metadata"
+    ],
+    "sources": [
+      "opbench",
+      "checklist"
+    ],
+    "status": "PROPOSED; not implemented or validated by this audit",
+    "hypothesis": "Requiring a task-specific reason to reuse a persona claim will reduce repeated personal themes without losing important constraints.",
+    "expected_signal": "Final repetition metrics and semantic relevance improve together.",
+    "reject_if": "The model invents novelty or drops recurring relevant constraints merely to sound different."
+  },
+  "P03": {
+    "id": "P03",
+    "title": "Check assertions before agreeing with the user",
+    "problem": "The assistant accepts false remembered events or preferences and confuses conversational friendliness with factual agreement.",
+    "proposal": "Compare the user assertion with source-backed facts; distinguish confirmed, contradicted and unknown. Correct only the factual premise while answering the useful part of the request. Keep values and preferences separate from objective claims and do not invent personal history.",
+    "regression_risk": "Blanket disagreement harms legitimate preferences and corrections; absence from memory does not prove an event never happened.",
+    "acceptance_test": "Test true/false/unknown assertions with equivalent tone, supplied user corrections and value disagreements. Score factual agreement, unsupported history, helpfulness and irrelevant memory use independently.",
+    "code_hooks": [
+      "reader prompts and post-answer evidence verification",
+      "src/memspine/core/perspective.py:polarity and assertion source"
+    ],
+    "sources": [
+      "syc",
+      "opbench",
+      "alce"
+    ],
+    "status": "PROPOSED; not implemented or validated by this audit",
+    "hypothesis": "Checking whether an assertion is supported, contradicted or unknown will reduce memory-level sycophancy.",
+    "expected_signal": "Fewer false confirmations with preserved helpfulness and legitimate user corrections.",
+    "reject_if": "Absence is treated as contradiction, or the assistant becomes reflexively disagreeable."
+  },
+  "G01": {
+    "id": "G01",
+    "title": "Verify answer support before limited retries",
+    "problem": "Evidence is present but the answer is wrong, overlong, contradictory or an unjustified refusal.",
+    "proposal": "Use an answer contract with source-linked claims and a compact final response. Run a bounded check for unsupported claims, missing requested slots, operand/result consistency and completion. Retry only a diagnosed failure using the same evidence or a targeted missing-evidence request.",
+    "regression_risk": "Retries increase cost and can turn a correct abstention into a hallucination; a verifier correlated with the reader may repeat its error.",
+    "acceptance_test": "Compare first and final answers, retry reason and acceptance. Test answerable and unanswerable cases, long reasoning, arithmetic contradictions and misleading context. Require improvement in supported answers at a bounded cost.",
+    "code_hooks": [
+      "evals/memspine_evals:reader retry/refusal and output parsing",
+      "src/memspine/engine.py:read context contract"
+    ],
+    "sources": [
+      "selfrag",
+      "alce",
+      "judge"
+    ],
+    "status": "PROPOSED; not implemented or validated by this audit",
+    "hypothesis": "A bounded support/completeness/consistency check will correct wrong or contradictory answers when the necessary evidence already exists.",
+    "expected_signal": "Fewer unsupported negatives, internal contradictions and incorrect final answers, with retry cost reported.",
+    "reject_if": "A retry changes an evidence-based unknown into a guess or repeats the same unsupported reasoning."
+  },
+  "V01": {
+    "id": "V01",
+    "title": "Preserve successes and validate interacting changes",
+    "problem": "Aggregate gains hide many regressions; subset, partial, different-reader and different-protocol runs are not interchangeable.",
+    "proposal": "Freeze the baseline and run manifests; report matched gains/losses by category and conversation. Evaluate one intervention at a time, then selected 2×2 interactions. Predeclare tolerances for quality, evidence support, latency and tokens. Keep all already inspected conversations in the development/diagnostic pool and obtain fresh blind evaluation data.",
+    "regression_risk": "Picking the best screen per question overfits; repeated peeking invalidates held-out claims; zero regressions on this set does not prove universal safety.",
+    "acceptance_test": "Completed matched runs only for promotion; repeated seeds where stochastic; conversation/person-cluster uncertainty estimates; behavioral controls and independent benchmark. Roll back a feature if a protected metric exceeds its predeclared regression tolerance.",
+    "code_hooks": [
+      "evals/runs/*/results.jsonl:manifest and summary",
+      "evals/analysis/GAP_REGISTER.md",
+      "tests/unit and behavioral evaluation suite"
+    ],
+    "sources": [
+      "checklist",
+      "ragchecker",
+      "judge"
+    ],
+    "status": "PROPOSED; not implemented or validated by this audit",
+    "hypothesis": "Matched, isolated and interaction tests will distinguish general improvements from benchmark-specific churn.",
+    "expected_signal": "Completed comparisons report paired gains/losses, slice outcomes, costs and fresh-data performance.",
+    "reject_if": "Promotion relies on partial runs, best-per-question selection or already-exposed holdouts."
+  },
+  "V02": {
+    "id": "V02",
+    "title": "Make stage evidence and cost reproducible",
+    "problem": "Some decisions, bypasses, replay expansion and OP-Bench retrieval stages were never logged. Offline reconstructions cannot establish their exact cause.",
+    "proposal": "Log query contract, selected route, gate reason, per-leg cap and ranks, pool/rerank cuts, expanded context provenance, exact prompt version, token budget, retries and score basis. Redact or keep local corpus text according to dataset restrictions. Distinguish observed, reconstructed and absent fields.",
+    "regression_risk": "Verbose traces increase storage and expose sensitive data; incomplete logs can still create false causal certainty.",
+    "acceptance_test": "Replay manifests without model calls and reconcile every selected context ID and token count. Check truncation/cap flags, missing ingest provenance, failures and rejected candidates. Do not infer absent logs as a negative decision.",
+    "code_hooks": [
+      "evals/full_run_forensics.py",
+      "evals/build_forensics_explorer.py",
+      "src/memspine/engine.py:search/read forensics"
+    ],
+    "sources": [
+      "ragchecker",
+      "alce"
+    ],
+    "status": "PROPOSED; not implemented or validated by this audit",
+    "hypothesis": "Logging evidence and decision transitions will make failure attribution more reproducible.",
+    "expected_signal": "Selected IDs, dropped candidates, routes, prompts, budgets and score basis reconcile end to end.",
+    "reject_if": "Missing/capped logs are presented as proof of a causal mechanism or traces cannot reproduce the observed selection."
+  },
+  "E01": {
+    "id": "E01",
+    "title": "Extract source-linked atomic facts and relation joins",
+    "problem": "Query-directed extraction plus a rebuildable fact index will recover relation chains more efficiently than asking the reader to infer them from unrelated snippets.",
+    "proposal": "Extract atomic subject–relation–object assertions with exact source spans, modality and time. Keep raw events authoritative. Join only through resolved entities and evidenced relations; e.g. moved_from → home_country and home_country → country. Compare read-time extraction first, then a write-time projection as a separate arm. Facts are an additional retrieval path, not replacements for raw turns.",
+    "hypothesis": "Query-directed extraction plus a rebuildable fact index will recover relation chains more efficiently than asking the reader to infer them from unrelated snippets.",
+    "expected_signal": "Higher relation-slot completeness and better supported answers on renamed, unrelated domains without losing raw-evidence fallback.",
+    "reject_if": "Derived facts invent relations, lose qualifiers, survive parent deletion, cross namespaces, or increase false-positive joins.",
+    "regression_risk": "Derived facts invent relations, lose qualifiers, survive parent deletion, cross namespaces, or increase false-positive joins.",
+    "acceptance_test": "Use home-country/origin, employer/location, author/book, medication/instruction and project/milestone examples with ambiguous entities and missing links. Check source reconstruction and deletion propagation.",
+    "code_hooks": [
+      "Existing fact mining, semantic facts and fact views; Engine search/read; event-sourced derived projections."
+    ],
+    "sources": [
+      "ircot",
+      "alce"
+    ],
+    "status": "PROPOSED refinement of existing families; not implemented or validated"
+  },
+  "E02": {
+    "id": "E02",
+    "title": "Run a bounded loop driven by missing evidence",
+    "problem": "An action loop that selects a tool for a specific unresolved slot will outperform blind answer retries at a comparable total cost.",
+    "proposal": "After each evidence assessment, choose one action: memory search, relation expansion, neighbor lookup, asset inspection, public-knowledge lookup, deterministic calculation, answer or qualified stop. Each action names the missing slot. Stop on sufficiency, exhausted budget, repeated action, no new useful evidence or an unresolved contradiction. Build on the existing agentic read rather than introducing another unbounded loop.",
+    "hypothesis": "An action loop that selects a tool for a specific unresolved slot will outperform blind answer retries at a comparable total cost.",
+    "expected_signal": "More evidence-backed recoveries per extra call; fewer repeated queries and guessed retry answers.",
+    "reject_if": "Retries merely change wording, reach a favorable judge result without new support, or exceed the declared latency/call budget.",
+    "regression_risk": "Retries merely change wording, reach a favorable judge result without new support, or exceed the declared latency/call budget.",
+    "acceptance_test": "Compare single-pass, current agentic read and slot-driven loop with the same model and total caps. Include failed tools, duplicates, misleading observations and answerable-without-tools controls.",
+    "code_hooks": [
+      "core/agentic.py, Engine._agentic_extend, sufficiency@agentic prompt/model; capability ports for optional tools."
+    ],
+    "sources": [
+      "react",
+      "ircot",
+      "crag"
+    ],
+    "status": "PROPOSED refinement of existing families; not implemented or validated"
+  },
+  "E03": {
+    "id": "E03",
+    "title": "Join personal evidence with verified public knowledge",
+    "problem": "Separating personal facts from public knowledge will let the engine answer invited likelihood questions without treating non-mention as a negative.",
+    "proposal": "For a likely/recommendation question, retrieve the personal premise and identify the missing public relation. Use a trusted cached knowledge source or a web provider only when needed and permitted. Search generic public terms, not the private conversation. Cite external knowledge separately; return a qualified inference and do not persist it as a personal fact.",
+    "hypothesis": "Separating personal facts from public knowledge will let the engine answer invited likelihood questions without treating non-mention as a negative.",
+    "expected_signal": "More useful supported inferences, while factual ownership questions still require personal evidence.",
+    "reject_if": "Web evidence is used to prove a private event or possession, personal data is unnecessarily sent in searches, or sensitive attributes are inferred from stereotypes.",
+    "regression_risk": "Web evidence is used to prove a private event or possession, personal data is unnecessarily sent in searches, or sensitive attributes are inferred from stereotypes.",
+    "acceptance_test": "Pair likely-enjoy/classical-music with actually-listened/ownership questions; test negative preferences, unknown preferences and public-source disagreement. Keep web-enabled evaluation separate from memory-only results.",
+    "code_hooks": [
+      "Optional external-evidence port at orchestration boundary; provenance-aware answer contract; existing memory relevance routing."
+    ],
+    "sources": [
+      "crag",
+      "adaptive"
+    ],
+    "status": "PROPOSED refinement of existing families; not implemented or validated"
+  },
+  "E04": {
+    "id": "E04",
+    "title": "Resolve image evidence using the original asset",
+    "problem": "Original-asset OCR or vision will recover entity labels omitted by generic captions, enabling reliable joins between visual identity and textual event time.",
+    "proposal": "Preserve attachment identity, source turn, original URI, content hash, availability and modality. Fetch only the referenced asset through a controlled adapter, run OCR/vision as needed, validate the extracted title/object and attach its exact support. Join the identified object to the turn’s event and date. Cache by content hash. Treat captions, search hints and OCR outputs as different evidence types.",
+    "hypothesis": "Original-asset OCR or vision will recover entity labels omitted by generic captions, enabling reliable joins between visual identity and textual event time.",
+    "expected_signal": "Higher verified image-dependent answer coverage; unrelated text-only queries incur no image calls.",
+    "reject_if": "The tool substitutes a web lookalike, uses the dataset search hint as truth, or guesses a title from a generic caption. A failed download must remain explicit.",
+    "regression_risk": "The tool substitutes a web lookalike, uses the dataset search hint as truth, or guesses a title from a generic caption. A failed download must remain explicit.",
+    "acceptance_test": "Cover missing/expired URLs, mismatched MIME, excessive asset size, misleading captions, low-confidence OCR, ambiguous titles and unavailable vision providers. Separate text-only and multimodal arms.",
+    "code_hooks": [
+      "Dataset attachment preservation, ingestion adapters, optional vision/OCR evidence service, raw-turn provenance."
+    ],
+    "sources": [
+      "colpali",
+      "alce"
+    ],
+    "status": "PROPOSED refinement of existing families; not implemented or validated"
+  },
+  "E05": {
+    "id": "E05",
+    "title": "Extract and reconcile temporal milestones before calculating",
+    "problem": "LLM extraction of two or more source-supported milestones, followed by deterministic computation, will improve durations and event dates without depending on memorized benchmark answers.",
+    "proposal": "Extract candidate start, transition and end milestones with actor, event predicate, status, source date, event-time interval and exact span. Search again only for missing or conflicting operands. Validate the chosen endpoints, then calculate with an explicit elapsed-time convention. Use as many facts as needed within budget, not a hardcoded two/three-fact rule.",
+    "hypothesis": "LLM extraction of two or more source-supported milestones, followed by deterministic computation, will improve durations and event dates without depending on memorized benchmark answers.",
+    "expected_signal": "Correct start/end identity, chronology and precision before the final numerical score improves.",
+    "reject_if": "Interview becomes acceptance, scheduled opening becomes confirmed completion, a vague just becomes an exact event timestamp, or inclusive month labels replace elapsed duration silently.",
+    "regression_risk": "Interview becomes acceptance, scheduled opening becomes confirmed completion, a vague just becomes an exact event timestamp, or inclusive month labels replace elapsed duration silently.",
+    "acceptance_test": "Use project, travel, employment and education milestones; same-date distinct events; rescheduling; cancellation; approximate endpoints; conflicting reports; leap/month/year boundaries.",
+    "code_hooks": [
+      "Existing date_check/date_repair/count verifier plus source-bound extraction in the read layer; fixed trusted temporal operations."
+    ],
+    "sources": [
+      "pal",
+      "checklist"
+    ],
+    "status": "PROPOSED refinement of existing families; not implemented or validated"
+  },
+  "E06": {
+    "id": "E06",
+    "title": "Verify a claim ledger and select a precision-matched answer",
+    "problem": "Verifying each candidate claim and the final answer against an evidence ledger will reduce missing specificity, unsupported negatives and internal contradictions.",
+    "proposal": "For each answer slot record supported value, source, certainty, temporal precision and unresolved alternatives. Verify that the final answer answers the requested type, contains all justified list items, and does not contradict its own explanation. Retry the specific defect only; request evidence rather than force an answer when support is missing.",
+    "hypothesis": "Verifying each candidate claim and the final answer against an evidence ledger will reduce missing specificity, unsupported negatives and internal contradictions.",
+    "expected_signal": "Fewer cases that mention the right year but finish with unknown; fewer broad-medium answers when a supported style exists; better list precision/recall.",
+    "reject_if": "A correlated verifier rubber-stamps the first model, overwrites justified uncertainty, or approves unsupported extra list items.",
+    "regression_risk": "A correlated verifier rubber-stamps the first model, overwrites justified uncertainty, or approves unsupported extra list items.",
+    "acceptance_test": "Test supported coarse dates, explicit negatives versus non-mention, correct explanations with wrong final values, conflicting source claims, partial lists and correct-but-irrelevant details.",
+    "code_hooks": [
+      "Reader output contract and bounded verification; evidence slots from the orchestration layer; evaluator claim-level diagnostics."
+    ],
+    "sources": [
+      "alce",
+      "selfrag",
+      "judge"
+    ],
+    "status": "PROPOSED refinement of existing families; not implemented or validated"
+  }
+}

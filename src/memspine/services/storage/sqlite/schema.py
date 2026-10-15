@@ -8,6 +8,7 @@ stay additive. The initial Alembic migration mirrors this metadata exactly.
 from __future__ import annotations
 
 from sqlalchemy import (
+    BigInteger,
     Boolean,
     Column,
     Float,
@@ -22,6 +23,7 @@ from sqlalchemy import (
 __all__ = [
     "graph_edges",
     "graph_nodes",
+    "lineage",
     "memory_events",
     "memory_records",
     "metadata",
@@ -96,7 +98,9 @@ memory_records = Table(
     Column("instruction_flag", Boolean, nullable=False),
     # E1 quarantine promotion counter (migration 0005).
     Column("corroborations", Integer, nullable=False, server_default="0"),
-    Column("simhash", Integer),
+    # 64-bit signed simhash: BigInteger so the shared metadata binds it as int8 on Postgres
+    # (an Integer bind overflows there); SQLite stores both as INTEGER, DDL is unchanged.
+    Column("simhash", BigInteger),
     Column("minhash_sig", LargeBinary),
     # M3 decay tier + M6/D-32 cold-tier compressed content (migration 0004).
     Column("tier", String, nullable=False, server_default="hot"),
@@ -116,12 +120,38 @@ memory_records = Table(
     # through an index.
     Column("session_key", String),
     Column("source_role", String),
+    # F-02a (migration 0006): the record envelope. ``layer`` L0..L5 (M-02), ``type_tag`` (M-03),
+    # ``provenance_class`` (M-07), the speaker / addressee / asker axes as indexed columns and the
+    # subject list as an orjson blob (M-08), the content + derivation fingerprint as an orjson blob
+    # (P-12), and the record's own ``schema_version`` (M-26). All nullable but ``schema_version``.
+    Column("layer", String),
+    Column("type_tag", String),
+    Column("provenance_class", String),
+    Column("spk", String),
+    Column("addr", String),
+    Column("ask", String),
+    Column("sub", LargeBinary),
+    Column("fingerprint", LargeBinary),
+    Column("schema_version", Integer, nullable=False, server_default="1"),
+    # F-02b (migration 0008): tri-temporal. ``source_at`` (when said, iso) plus the precision of
+    # it, and the precision / approximate flag / basis of the event interval (valid_from..valid_to).
+    # All nullable: NULL = not known (a date is never invented).
+    Column("source_at", String),
+    Column("source_precision", String),
+    Column("event_precision", String),
+    Column("event_approximate", Integer),
+    Column("event_basis", String),
+    # W2-02 (migration 0010): the zone the source time was said in, and the participants list
+    # (orjson blob, speaker first). NULL = not stamped.
+    Column("source_tz", String),
+    Column("participants", LargeBinary),
     Index("ix_memory_records_ns_type", "namespace", "memory_type"),
     Index("ix_memory_records_fingerprint", "content_fingerprint"),
     Index("ix_memory_records_fact_key", "namespace", "entity", "attribute"),
     Index("ix_memory_records_tier", "tier"),
     Index("ix_memory_records_ns_group", "namespace", "group_id"),
     Index("ix_memory_records_ns_session", "namespace", "session_key"),
+    Index("ix_memory_records_ns_layer", "namespace", "layer"),
 )
 
 # Zero-dep graph fallback (P6, D-26): adjacency lists for associative memory,
@@ -161,6 +191,26 @@ graph_edges = Table(
     Index("ix_graph_edges_dst", "dst"),
     Index("ix_graph_edges_ns_src_weight", "namespace", "src", "weight"),
     Index("ix_graph_edges_ns_dst_weight", "namespace", "dst", "weight"),
+)
+
+# F-16a (M-09, migration 0006): the lineage DAG, one row per (child, parent, role). Written only
+# when ``write.lineage_table`` is on; ``created_seq`` is the insertion order. ``span`` and
+# ``derivation`` are JSON text (the LineageEdge span / Fingerprint), ``source_version`` pins the
+# parent version the child was derived from.
+lineage = Table(
+    "lineage",
+    metadata,
+    Column("created_seq", Integer, primary_key=True, autoincrement=True),
+    Column("child_id", String, nullable=False),
+    Column("parent_id", String, nullable=False),
+    Column("role", String, nullable=False),
+    Column("namespace", String),
+    Column("span", String),
+    Column("source_version", Integer),
+    Column("source_family", String),
+    Column("derivation", String),
+    Index("uq_lineage_edge", "child_id", "parent_id", "role", unique=True),
+    Index("ix_lineage_parent", "parent_id"),
 )
 
 # NOTE(ADR-021/ADR-025): ``memory_embeddings`` (the removed SQLite brute-force

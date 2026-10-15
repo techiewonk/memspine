@@ -12,19 +12,16 @@ from typing import Any
 import pytest
 
 from memspine import Engine
+from memspine.compose.compression import CompressionPolicy
 from memspine.config import constants
-from memspine.core.events import EventKind, MemoryEvent
-from memspine.core.policies.compression import CompressionPolicy
 from memspine.core.policies.conflict import ConflictPolicy, ConflictVerdict
-from memspine.core.records import MemoryRecord, RecordStatus, SourceInfo
+from memspine.derive.pipeline.stages.anticipate import anticipate
+from memspine.derive.pipeline.stages.consolidate import consolidate
+from memspine.derive.pipeline.stages.mining import _fact_date, mine_facts
+from memspine.derive.pipeline.stages.reflect import reflect_profile
 from memspine.prompts.models import AnticipatedCue, ExtractedFact
-from memspine.workers.pipelines import (
-    _fact_date,
-    anticipate,
-    consolidate,
-    mine_facts,
-    reflect_profile,
-)
+from memspine.store.events import EventKind, MemoryEvent
+from memspine.store.records import MemoryRecord, RecordStatus, SourceInfo
 
 T0 = datetime(2023, 5, 8, 13, 0, tzinfo=UTC)
 TURNS = [
@@ -226,7 +223,8 @@ async def test_r2_2_reflect_on_evidence_deleted_mid_stage_does_not_raise() -> No
         turns.extend(await _session(eng))
         await consolidate(eng._pipeline_ctx())
         stats = await reflect_profile(eng._pipeline_ctx())
-        assert stats["status"] == "partial" and stats["insights"] == 1
+        # I72: a reflection whose evidence vanished is skipped (audited), not an error.
+        assert stats["status"] == "ok" and stats["insights"] == 1 and stats["errors"] == []
         refl = await eng.retrieve(namespace="a", memory_type="reflective")
         assert [r.content for r in refl] == ["Ana is a nurse"]
     finally:

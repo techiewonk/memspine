@@ -18,7 +18,7 @@ from dataclasses import dataclass
 from typing import Protocol, runtime_checkable
 
 from memspine.config.constants import RRF_K
-from memspine.core.records import MemoryRecord
+from memspine.store.records import MemoryRecord
 
 __all__ = ["LexicalHit", "LexicalStore", "RankedHit", "minmax_fuse", "rrf_fuse"]
 

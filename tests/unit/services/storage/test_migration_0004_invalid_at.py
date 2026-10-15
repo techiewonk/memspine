@@ -10,9 +10,9 @@ from alembic import command
 from sqlalchemy import create_engine, inspect
 
 from memspine.clients.sqlite import SQLiteClient
-from memspine.core.records import MemoryRecord
 from memspine.services.storage.sqlite.engine import SQLiteStorage
 from memspine.services.storage.sqlite.migrations import alembic_config, upgrade_to_head
+from memspine.store.records import MemoryRecord
 
 
 def _columns(db: Path) -> set[str]:

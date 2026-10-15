@@ -14,13 +14,14 @@ import pytest
 from memspine import Engine
 from memspine.config.schema import MemspineConfig
 from memspine.exceptions import ConfigError
-from memspine.services.embedding.base import EmbedderManifest
+from memspine.models.encoders.embedding.base import EmbedderManifest
+from memspine.runtime.container import rescore_settings
 
 _HAS_MODEL2VEC = importlib.util.find_spec("model2vec") is not None
 
 
 class _FakeEmbedder:
-    """Minimal embedder carrying only a manifest — for _rescore_settings."""
+    """Minimal embedder carrying only a manifest — for rescore_settings."""
 
     def __init__(self, manifest: EmbedderManifest) -> None:
         self._manifest = manifest
@@ -41,7 +42,7 @@ def make_engine(**read: object) -> Engine:
     )
 
 
-# ── _rescore_settings: manifest-driven with an explicit config override ───────
+# ── rescore_settings (runtime.container): manifest-driven with an explicit config override ───────
 
 
 def test_rescore_settings_manifest_driven_and_override() -> None:
@@ -50,32 +51,32 @@ def test_rescore_settings_manifest_driven_and_override() -> None:
 
     # auto reads the manifest: default (None) -> inactive.
     eng._embedder = _FakeEmbedder(EmbedderManifest("x", 4))  # type: ignore[assignment]
-    assert eng._rescore_settings(config) == (None, None)
+    assert rescore_settings(config, eng._embedder) == (None, None)
 
     # auto reads a declared int8 + matryoshka (smallest prefix dim chosen).
     eng._embedder = _FakeEmbedder(  # type: ignore[assignment]
         EmbedderManifest("x", 8, matryoshka_dims=(4, 8), quantization="int8")
     )
-    assert eng._rescore_settings(config) == ("int8", 4)
+    assert rescore_settings(config, eng._embedder) == ("int8", 4)
 
     # explicit override forces a scheme even when the manifest declares none.
     forced = MemspineConfig(vector={"quantization": "binary"})
     eng._embedder = _FakeEmbedder(EmbedderManifest("x", 4))  # type: ignore[assignment]
-    assert eng._rescore_settings(forced) == ("binary", None)
+    assert rescore_settings(forced, eng._embedder) == ("binary", None)
 
     # explicit "none" forces OFF even when the manifest declares int8.
     off = MemspineConfig(vector={"quantization": "none"})
     eng._embedder = _FakeEmbedder(  # type: ignore[assignment]
         EmbedderManifest("x", 4, quantization="int8")
     )
-    assert eng._rescore_settings(off) == (None, None)
+    assert rescore_settings(off, eng._embedder) == (None, None)
 
 
 def test_rescore_settings_rejects_unknown_override() -> None:
     eng = Engine(dotenv_path=None, storage={"path": ":memory:"})
     eng._embedder = _FakeEmbedder(EmbedderManifest("x", 4))  # type: ignore[assignment]
     with pytest.raises(ConfigError):
-        eng._rescore_settings(MemspineConfig(vector={"quantization": "bogus"}))
+        rescore_settings(MemspineConfig(vector={"quantization": "bogus"}), eng._embedder)
 
 
 # ── default OFF: exact query() path, rescore inactive ─────────────────────────

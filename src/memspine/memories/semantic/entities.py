@@ -17,11 +17,11 @@ import asyncio
 from typing import Any, Protocol, runtime_checkable
 
 from memspine.exceptions import MissingServiceError
+from memspine.models.providers.llm.base import LLMService
+from memspine.models.providers.llm.structured import structured_call
 from memspine.observability.logging import get_logger
 from memspine.prompts.base import Prompt
 from memspine.prompts.models import ExtractedFact, ExtractedFacts
-from memspine.services.llm.base import LLMService
-from memspine.services.llm.structured import structured_call
 
 __all__ = ["EntityExtractor", "GlinerEntityExtractor", "LLMEntityExtractor"]
 
@@ -54,6 +54,12 @@ class LLMEntityExtractor:
     @property
     def prompt_version(self) -> str:
         return self._prompt.prompt_version
+
+    @property
+    def model_id(self) -> str:
+        """The producer's identity for the extraction cache key (R3-15): a model swap must not
+        serve facts another model extracted."""
+        return str(getattr(self._llm, "provider_id", type(self._llm).__name__))
 
     async def extract(self, content: str) -> list[ExtractedFact]:
         result = await structured_call(

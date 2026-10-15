@@ -1,0 +1,41 @@
+{
+  "additionalProperties": true,
+  "properties": {
+    "from_tier": {
+      "enum": [
+        "hot",
+        "warm",
+        "cold",
+        "dormant"
+      ],
+      "title": "From Tier",
+      "type": "string"
+    },
+    "reason": {
+      "default": "idle",
+      "title": "Reason",
+      "type": "string"
+    },
+    "record_id": {
+      "title": "Record Id",
+      "type": "string"
+    },
+    "to_tier": {
+      "enum": [
+        "hot",
+        "warm",
+        "cold",
+        "dormant"
+      ],
+      "title": "To Tier",
+      "type": "string"
+    }
+  },
+  "required": [
+    "record_id",
+    "from_tier",
+    "to_tier"
+  ],
+  "title": "TierTransition",
+  "type": "object"
+}

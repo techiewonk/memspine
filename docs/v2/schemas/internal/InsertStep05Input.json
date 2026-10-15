@@ -1,0 +1,148 @@
+{
+  "$defs": {
+    "StampedSegment": {
+      "additionalProperties": true,
+      "description": "A segment after steps 3-4 (clock and axes).",
+      "properties": {
+        "addr": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Addr"
+        },
+        "base_trust": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Base Trust"
+        },
+        "content": {
+          "title": "Content",
+          "type": "string"
+        },
+        "participants": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Participants",
+          "type": "array"
+        },
+        "recorded_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Recorded At"
+        },
+        "role": {
+          "enum": [
+            "user",
+            "assistant",
+            "tool",
+            "system",
+            "operator",
+            "document"
+          ],
+          "title": "Role",
+          "type": "string"
+        },
+        "seg_index": {
+          "title": "Seg Index",
+          "type": "integer"
+        },
+        "source_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source At"
+        },
+        "source_tz": {
+          "default": "unknown",
+          "title": "Source Tz",
+          "type": "string"
+        },
+        "spk": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Spk"
+        },
+        "src_class": {
+          "anyOf": [
+            {
+              "enum": [
+                "user_stated",
+                "assistant_proposed",
+                "user_confirmed",
+                "tool",
+                "document",
+                "external",
+                "derived"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Src Class"
+        },
+        "tz_unknown": {
+          "default": false,
+          "title": "Tz Unknown",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "seg_index",
+        "role",
+        "content"
+      ],
+      "title": "StampedSegment",
+      "type": "object"
+    }
+  },
+  "additionalProperties": true,
+  "properties": {
+    "segment": {
+      "$ref": "#/$defs/StampedSegment"
+    }
+  },
+  "required": [
+    "segment"
+  ],
+  "title": "InsertStep05Input",
+  "type": "object"
+}

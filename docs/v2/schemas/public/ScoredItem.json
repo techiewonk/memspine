@@ -1,0 +1,34 @@
+{
+  "additionalProperties": true,
+  "description": "A hit with its score. An item that was not scored is marked ``scored=False`` with ``score=None``;\nit never carries a placeholder score of 0 (R-Q4).",
+  "properties": {
+    "record_id": {
+      "minLength": 1,
+      "title": "Record Id",
+      "type": "string"
+    },
+    "score": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Score"
+    },
+    "scored": {
+      "default": true,
+      "title": "Scored",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "record_id"
+  ],
+  "title": "ScoredItem",
+  "type": "object",
+  "x-semver": "1.0.0"
+}

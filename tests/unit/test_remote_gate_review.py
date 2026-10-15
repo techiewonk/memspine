@@ -11,10 +11,10 @@ from typing import Any
 import orjson
 
 from memspine import Engine
-from memspine.core.policies.assembly import AssembledContext
-from memspine.core.records import MemoryRecord, PiiTier
-from memspine.services.llm import tier_gate
-from memspine.services.llm.tier_gate import WITHHELD_MARKER, TierGatedLLM
+from memspine.compose.pack import AssembledContext
+from memspine.models.providers.llm import tier_gate
+from memspine.models.providers.llm.tier_gate import WITHHELD_MARKER, TierGatedLLM
+from memspine.store.records import MemoryRecord, PiiTier
 
 SECRET = "Diagnosis: HIV positive.\nStarted ART in March."
 

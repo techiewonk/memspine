@@ -9,15 +9,15 @@ The PII tier set at ingest propagates to every chunk (M7).
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Sequence
 from pathlib import Path
 from typing import ClassVar, Protocol
 
-from memspine.core.events import EventKind, MemoryEvent
-from memspine.core.records import MemoryRecord, PiiTier, SourceInfo
 from memspine.memories.base import BaseMemory
 from memspine.memories.resource.extraction import chunk_text, extract_text
 from memspine.observability.logging import get_logger
+from memspine.store.events import EventKind, MemoryEvent
+from memspine.store.records import MemoryRecord, PiiTier, SourceInfo
 
 __all__ = ["ResourceMemory"]
 
@@ -134,3 +134,47 @@ class ResourceMemory(BaseMemory):
             skipped_existing=skipped,
         )
         return records
+
+    async def ingest_chunks(
+        self,
+        namespace: str,
+        path: str | Path,
+        chunks: Sequence[tuple[int, str, str]],
+        *,
+        version: int = 1,
+        pii_tier: PiiTier = PiiTier.NONE,
+        actor: str = "user",
+        extra_tags: Sequence[str] = (),
+    ) -> dict[str, MemoryRecord]:
+        """W2-01: write the given ``(chunk index, intake write id, text)`` chunks, one WRITE event
+        each, through the same firewall gate as :meth:`ingest`. Idempotency is the intake gateway's
+        job (it passes only chunks that are new), so there is no ``already`` scan here. Each record
+        carries ``idem:<write id>`` (restart recovery) and ``srcver:<version>`` tags. Returns write
+        id -> record, in the order given."""
+        out: dict[str, MemoryRecord] = {}
+        for index, wid, text in chunks:
+            record = MemoryRecord(
+                namespace=namespace,
+                memory_type="resource",
+                content=text,
+                pii_tier=pii_tier,
+                tags=[f"idem:{wid}", f"srcver:{version}", *extra_tags],
+                source=SourceInfo(
+                    role=actor,
+                    channel="ingest",
+                    doc_path=str(path),
+                    message_id=f"chunk:{index}",
+                ),
+            )
+            if self._assess is not None:
+                record = await self._assess(record)
+            await self._append_event(
+                MemoryEvent(
+                    kind=EventKind.WRITE,
+                    namespace=namespace,
+                    actor=actor,
+                    payload={"record": record.model_dump(mode="json")},
+                )
+            )
+            out[wid] = record
+        return out

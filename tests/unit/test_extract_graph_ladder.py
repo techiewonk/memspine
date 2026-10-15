@@ -16,9 +16,9 @@ import pytest
 
 from memspine import Engine
 from memspine.config import constants
-from memspine.core.records import MemoryRecord, RecordStatus
+from memspine.derive.pipeline.stages.extract_graph import extract_graph
 from memspine.prompts.models import ExtractedEdge
-from memspine.workers.pipelines import extract_graph
+from memspine.store.records import MemoryRecord, RecordStatus
 
 T0 = datetime(2023, 5, 1, tzinfo=UTC)
 

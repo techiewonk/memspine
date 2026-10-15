@@ -7,7 +7,7 @@ from datetime import UTC, datetime, timedelta
 import pytest
 
 from memspine import Engine
-from memspine.core.records import SourceInfo
+from memspine.store.records import SourceInfo
 
 T0 = datetime(2023, 5, 7, 10, 0, tzinfo=UTC)
 
@@ -128,14 +128,14 @@ async def test_compose_spreads_over_sessions_for_aggregation() -> None:
         for d in days:
             await _session(eng, [f"chit chat {i} " + "blah " * 20 for i in range(6)], d)
             rec = await eng.write(
-                "Melanie went to the beach with her kids",
+                "Bram went to the beach with her kids",
                 namespace="a",
                 memory_type="episodic",
                 valid_from=d + timedelta(minutes=30),
             )
             ids.append(rec.record_id)
         out = await eng.read(
-            "How many times has Melanie gone to the beach?",
+            "How many times has Bram gone to the beach?",
             namespace="a",
             mode="auto",
             top_k=2,

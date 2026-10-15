@@ -1,0 +1,49 @@
+{
+  "additionalProperties": true,
+  "description": "One enabled plug-in. Discovery is not enablement (ER-34): a plug-in is used only when listed in\nconfig under ``plugins:`` with its name and a version pin; a hash pin is optional.",
+  "properties": {
+    "hash": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Hash"
+    },
+    "lifetime": {
+      "enum": [
+        "app",
+        "job",
+        "request"
+      ],
+      "title": "Lifetime",
+      "type": "string"
+    },
+    "name": {
+      "title": "Name",
+      "type": "string"
+    },
+    "slot": {
+      "minLength": 1,
+      "title": "Slot",
+      "type": "string"
+    },
+    "version": {
+      "title": "Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "name",
+    "version",
+    "slot",
+    "lifetime"
+  ],
+  "title": "CapabilityManifest",
+  "type": "object",
+  "x-semver": "1.0.0"
+}

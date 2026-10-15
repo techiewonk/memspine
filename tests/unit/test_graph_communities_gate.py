@@ -14,8 +14,8 @@ from typing import Any
 import pytest
 
 from memspine import Engine
-from memspine.core.records import MemoryRecord, RecordStatus
-from memspine.workers.pipelines import reorganize
+from memspine.derive.pipeline.stages.communities import reorganize
+from memspine.store.records import MemoryRecord, RecordStatus
 
 MELANIE = [
     ("Melanie read Dune", "Dune"),

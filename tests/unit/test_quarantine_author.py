@@ -8,8 +8,8 @@ from typing import Any
 import pytest
 
 from memspine import Engine
-from memspine.core.records import SourceInfo
 from memspine.exceptions import ConflictError
+from memspine.store.records import SourceInfo
 
 
 def _engine(**extra: Any) -> Engine:

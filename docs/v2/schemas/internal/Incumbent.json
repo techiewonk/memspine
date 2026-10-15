@@ -1,0 +1,39 @@
+{
+  "additionalProperties": true,
+  "description": "An existing assertion on the key (step 21).",
+  "properties": {
+    "assertion_id": {
+      "title": "Assertion Id",
+      "type": "string"
+    },
+    "record_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Record Id"
+    },
+    "trust": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Trust"
+    }
+  },
+  "required": [
+    "assertion_id"
+  ],
+  "title": "Incumbent",
+  "type": "object"
+}

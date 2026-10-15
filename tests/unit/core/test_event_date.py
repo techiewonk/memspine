@@ -16,8 +16,8 @@ from memspine.core.event_date import (
     resolve_happened,
     said_differs,
 )
-from memspine.core.lead import card_line, event_day
-from memspine.core.records import MemoryRecord
+from memspine.read.lead import card_line, event_day
+from memspine.store.records import MemoryRecord
 
 MON = date(2023, 5, 8)
 

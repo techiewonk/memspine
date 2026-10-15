@@ -29,10 +29,10 @@ Verify = Callable[[str, str, str], Awaitable[Mapping[str, Any]]]
 def chat_verifier(chat: Callable[..., Awaitable[str]]) -> tuple[Verify, str]:
     """A verifier over a bare ``async (prompt, system=None) -> str`` chat callable, and
     the ``prompt_version`` of the memspine ``verify_answer`` prompt it renders."""
-    from memspine.core.answer import numbered_context, verification
+    from memspine.compose.answer import numbered_context, verification
+    from memspine.models.providers.llm.structured import structured_call
     from memspine.prompts.models import AnswerVerdictOut
     from memspine.prompts.registry import PromptRegistry
-    from memspine.services.llm.structured import structured_call
 
     prompt = PromptRegistry().get("verify_answer")
 
@@ -110,4 +110,5 @@ def _with_call(
         finish_reason=first.finish_reason,
         raw_text=first.raw_text,
         prompt_variant=first.prompt_variant,
+        extra_meta=first.extra_meta,
     )

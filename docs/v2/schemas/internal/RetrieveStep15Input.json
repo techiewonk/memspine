@@ -1,0 +1,256 @@
+{
+  "$defs": {
+    "DateFilter": {
+      "additionalProperties": true,
+      "description": "Explicit valid/recorded bounds.(time).",
+      "properties": {
+        "recorded_from": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Recorded From"
+        },
+        "recorded_to": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Recorded To"
+        },
+        "valid_from": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Valid From"
+        },
+        "valid_to": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Valid To"
+        }
+      },
+      "title": "DateFilter",
+      "type": "object"
+    },
+    "RankedList": {
+      "additionalProperties": true,
+      "properties": {
+        "hits": {
+          "items": {
+            "$ref": "#/$defs/ScoredHit"
+          },
+          "title": "Hits",
+          "type": "array"
+        }
+      },
+      "title": "RankedList",
+      "type": "object"
+    },
+    "ReadScope": {
+      "additionalProperties": true,
+      "properties": {
+        "as_of_known": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "As Of Known"
+        },
+        "as_of_valid": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "As Of Valid"
+        },
+        "date_filter": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DateFilter"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "multi_party": {
+          "title": "Multi Party",
+          "type": "boolean"
+        },
+        "namespace": {
+          "title": "Namespace",
+          "type": "string"
+        },
+        "purpose": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Purpose"
+        },
+        "sensitivity_bar": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sensitivity Bar"
+        },
+        "viewer": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Viewer"
+        },
+        "viewer_rule": {
+          "enum": [
+            "full",
+            "viewer"
+          ],
+          "title": "Viewer Rule",
+          "type": "string"
+        }
+      },
+      "required": [
+        "namespace",
+        "multi_party",
+        "viewer_rule"
+      ],
+      "title": "ReadScope",
+      "type": "object"
+    },
+    "ScoredHit": {
+      "additionalProperties": true,
+      "description": "Internal step type.",
+      "properties": {
+        "boosts": {
+          "default": 1.0,
+          "title": "Boosts",
+          "type": "number"
+        },
+        "fused_score": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Fused Score"
+        },
+        "record_id": {
+          "title": "Record Id",
+          "type": "string"
+        },
+        "rerank_raw": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Rerank Raw"
+        },
+        "score": {
+          "title": "Score",
+          "type": "number"
+        },
+        "source_rank": {
+          "default": 0,
+          "title": "Source Rank",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "record_id",
+        "score"
+      ],
+      "title": "ScoredHit",
+      "type": "object"
+    }
+  },
+  "additionalProperties": true,
+  "description": "Neighbour windows.",
+  "properties": {
+    "ranked": {
+      "$ref": "#/$defs/RankedList"
+    },
+    "scope": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ReadScope"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    }
+  },
+  "required": [
+    "ranked"
+  ],
+  "title": "RetrieveStep15Input",
+  "type": "object"
+}

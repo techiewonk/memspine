@@ -1,0 +1,156 @@
+"""Reranker factory (E8, D-51): a registry mapping a rerank mode to a lazy
+constructor, so "multiple support" is one registry entry — not an engine
+if/elif. Each spec imports its adapter INSIDE the thunk (nothing heavy loads at
+module import), and construction failures swallow to ``None`` so an unavailable
+reranker degrades to vector order exactly as before (COR-3/ADR-018).
+
+``rerank_modes()`` is the single source the engine's startup validator reads, so
+a config typo fails fast at start while the valid set stays in lock-step with
+the registry — including any deployment-registered provider (``register_reranker``).
+"""
+
+from __future__ import annotations
+
+from collections.abc import Callable
+from dataclasses import dataclass
+
+from memspine.exceptions import MissingServiceError
+from memspine.models.providers.rerank.base import Reranker
+from memspine.models.registry import RERANKERS
+from memspine.observability.logging import get_logger
+
+__all__ = [
+    "RerankSettings",
+    "build_reranker",
+    "register_reranker",
+    "rerank_modes",
+]
+
+_log = get_logger(__name__)
+
+
+@dataclass(frozen=True)
+class RerankSettings:
+    """The resolved rerank config a spec needs (from ``read.rerank*``)."""
+
+    mode: str
+    model: str | None = None
+    api_base: str | None = None
+    api_key: str | None = None
+    aws_region: str | None = None
+    #: N12 (plan v3.2): the task instruction of an instruction-conditioned reranker
+    #: (``qwen3``); None keeps its default memory instruction.
+    instruction: str | None = None
+    #: ``qwen3``: torch device and bitsandbytes quantisation ("4bit" | "8bit").
+    device: str | None = None
+    quant: str | None = None
+    #: I9 (opt-in): documents longer than this many characters are scored in
+    #: overlapping windows and take the max window score. None = unchanged.
+    chunk_chars: int | None = None
+    chunk_overlap: int = 0
+
+
+#: A spec lazily constructs one Reranker from settings (imports its adapter here).
+RerankSpec = Callable[[RerankSettings], Reranker]
+
+
+def _build_fastembed(settings: RerankSettings) -> Reranker:
+    from memspine.models.providers.rerank.fastembed_rerank import FastembedReranker
+
+    # FastembedReranker takes a required str with a default model; pass through
+    # only when configured, else let it pick its default.
+    return FastembedReranker(settings.model) if settings.model else FastembedReranker()
+
+
+def _build_flashrank(settings: RerankSettings) -> Reranker:
+    from memspine.models.providers.rerank.flashrank_rerank import FlashrankReranker
+
+    return FlashrankReranker(settings.model)
+
+
+def _build_litellm(settings: RerankSettings) -> Reranker:
+    if not settings.model:
+        # A misconfigured cloud rerank must degrade like any unavailable adapter
+        # (caught below → skip-log, sticky), not crash retrieval; name the fix.
+        raise MissingServiceError(
+            "services.rerank.litellm (set read.rerank_model)", extra="litellm"
+        )
+    from memspine.models.providers.rerank.litellm_rerank import LiteLLMReranker
+
+    return LiteLLMReranker(
+        settings.model,
+        api_base=settings.api_base,
+        api_key=settings.api_key,
+        aws_region=settings.aws_region,
+    )
+
+
+def _build_qwen3(settings: RerankSettings) -> Reranker:
+    from memspine.models.providers.rerank.qwen3_rerank import (
+        DEFAULT_INSTRUCTION,
+        DEFAULT_MODEL,
+        Qwen3Reranker,
+    )
+
+    return Qwen3Reranker(
+        settings.model or DEFAULT_MODEL,
+        instruction=settings.instruction or DEFAULT_INSTRUCTION,
+        device=settings.device,
+        quant=settings.quant,
+    )
+
+
+def _build_jina(settings: RerankSettings) -> Reranker:
+    from memspine.models.providers.rerank.jina_rerank import DEFAULT_MODEL, JinaReranker
+
+    return JinaReranker(settings.model or DEFAULT_MODEL, device=settings.device)
+
+
+#: The typed registry (MOD-02) lives in ``memspine.models.registry``; built-ins register here.
+_REGISTRY = RERANKERS
+RERANKERS.register("fastembed", _build_fastembed)  # in-core (rides fastembed D-08)
+RERANKERS.register("flashrank", _build_flashrank)  # [rerank]
+RERANKERS.register("litellm", _build_litellm)  # [litellm] — Cohere/Voyage/Jina/Bedrock
+RERANKERS.register("qwen3", _build_qwen3)  # [st] — Qwen3-Reranker (transformers + torch), G5a
+RERANKERS.register("jina", _build_jina)  # [st] — Jina listwise reranker (custom code, CC-BY-NC)
+
+
+def register_reranker(mode: str, spec: RerankSpec) -> None:
+    """Deployment seam (D-17 spirit): add a custom reranker without editing core.
+    The shipped registry stays curated; new torch backends (e.g. an ``[st]``
+    sentence-transformers cross-encoder) register here."""
+    _REGISTRY.register(mode, spec, builtin=False, replace=True)
+
+
+def rerank_modes() -> tuple[str, ...]:
+    """The valid ``read.rerank`` values — ``off`` plus every registered provider.
+    The ONE source for the engine's startup validation, so the check can never
+    drift from what ``build_reranker`` actually supports (the A1 bug's root)."""
+    return ("off", *_REGISTRY.names())
+
+
+def build_reranker(settings: RerankSettings) -> Reranker | None:
+    """Construct the reranker for ``settings.mode``, or ``None`` for ``off`` /
+    any unavailable adapter. ANY construction failure (ImportError,
+    MissingServiceError, OSError model-download, weight-load ValueError/Runtime)
+    swallows to ``None`` + one info log — the sticky skip the engine applied
+    before, so retrieval degrades to vector order and never crashes."""
+    if settings.mode == "off":
+        return None
+    spec = _REGISTRY.find(settings.mode)
+    if spec is None:
+        return None  # unknown mode is rejected by startup validation; be safe
+    try:
+        built = spec(settings)
+        if settings.chunk_chars:
+            from memspine.models.providers.rerank.chunking import ChunkMaxReranker
+
+            built = ChunkMaxReranker(built, settings.chunk_chars, settings.chunk_overlap)
+        return built
+    except Exception as exc:
+        _log.info(
+            "rerank.unavailable",
+            provider=settings.mode,
+            detail=f"E8 rerank stage skipped — {exc}",
+        )
+        return None

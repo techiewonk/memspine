@@ -13,12 +13,14 @@ need none of them, could not be run either.
 from __future__ import annotations
 
 import dataclasses
+import logging
 import re
-from collections.abc import Mapping
-from datetime import UTC, datetime
+from collections.abc import Mapping, Sequence
+from datetime import UTC, datetime, tzinfo
 from pathlib import Path
 from typing import Any
 
+from .. import trace_full
 from ..contracts import DepositResult, Evidence, RetrievedContext, Turn
 from ..tokens import HeuristicTokenCounter, TokenCounter
 
@@ -54,25 +56,170 @@ def engine_version() -> str:
         return "not-installed"
 
 
-def parse_turn_time(stamp: str | None) -> datetime | None:
-    """Benchmark session stamps -> aware datetime (None if absent or unknown format)."""
+_NAIVE_WARNED: set[str] = set()
+
+
+def stamp_zone(name: str) -> tzinfo:
+    """F5: an IANA zone name -> tzinfo (``UTC`` needs no tz database)."""
+    if name.upper() == "UTC":
+        return UTC
+    from zoneinfo import ZoneInfo
+
+    return ZoneInfo(name)
+
+
+def _note_naive(zone: tzinfo) -> None:
+    """F5: benchmark stamps ("1:56 pm on 8 May, 2023") carry no offset. They are read in
+    ``zone`` (default UTC, so a stamp is stored as written); say so once per zone."""
+    key = str(zone)
+    if key not in _NAIVE_WARNED:
+        _NAIVE_WARNED.add(key)
+        logging.getLogger(__name__).warning(
+            "dataset timestamps are naive wall-clock times; reading them in %s (no conversion). "
+            "Pass --stamp-timezone <IANA name> if the dataset states its zone.",
+            key,
+        )
+
+
+def parse_turn_time(stamp: str | None, zone: tzinfo = UTC) -> datetime | None:
+    """Benchmark session stamps -> aware datetime (None if absent or unknown format).
+    A stamp without an offset is read in ``zone`` (F5; default UTC, with a one-time warning)."""
     if not stamp:
         return None
     text = re.sub(r"\s+", " ", stamp.strip())
     for fmt in _DATE_FORMATS:
         try:
-            return datetime.strptime(text, fmt).replace(tzinfo=UTC)
+            parsed = datetime.strptime(text, fmt)
         except ValueError:
             continue
+        _note_naive(zone)
+        return parsed.replace(tzinfo=zone)
     try:
         parsed = datetime.fromisoformat(text)
     except ValueError:
         return None
-    return parsed if parsed.tzinfo else parsed.replace(tzinfo=UTC)
+    if parsed.tzinfo:
+        return parsed
+    _note_naive(zone)
+    return parsed.replace(tzinfo=zone)
+
+
+def parse_turn_stamp(turn: Turn, zone: tzinfo = UTC) -> datetime | None:
+    """F3 [INJ-3]: the turn's event time. A missing stamp is None; a non-empty stamp that
+    :func:`parse_turn_time` cannot read is an error, not a silent fall back to "now"."""
+    stamp = turn.timestamp
+    parsed = parse_turn_time(stamp, zone)
+    if parsed is None and stamp and str(stamp).strip():
+        raise ValueError(
+            f"turn {turn.turn_id!r} (session {turn.session_id!r}) has an unparseable timestamp "
+            f"{stamp!r}; add its format to _DATE_FORMATS (it would be stored as 'now')"
+        )
+    return parsed
+
+
+_DATE_ONLY = re.compile(r"^\s*\d{4}-\d{2}-\d{2}\s*$")
+
+
+def stamp_source_time(turn: Turn, parsed: datetime | None) -> Any:
+    """The value the stamping stage reads as the message's source time.
+
+    A date-only stamp ("2024-03-02") is passed as the original string so ``write.stamping_v2`` keeps
+    ``precision=day``; the parsed datetime (midnight) would read as an exact instant
+    (``precision=second``). Anything with a time of day passes the parsed datetime."""
+    raw = turn.timestamp
+    if isinstance(raw, str) and _DATE_ONLY.match(raw):
+        return raw.strip()
+    return parsed
+
+
+#: D7 [INJ-6]: the forensic logs ``MEMSPINE_FORENSICS_DIR`` collects.
+FORENSIC_LOGS = ("forensics.jsonl", "ingest.jsonl", "write_trace.jsonl")
+
+
+def prepare_forensics_dir(directory: str, environ: Mapping[str, str] | None = None) -> None:
+    """D7 [INJ-6]: refuse to append to a forensics directory that already holds logs, unless
+    ``MEMSPINE_FORENSICS_OVERWRITE=1`` (then the old logs are removed)."""
+    import os
+
+    env = os.environ if environ is None else environ
+    existing = [name for name in FORENSIC_LOGS if (Path(directory) / name).exists()]
+    if not existing:
+        return
+    if env.get("MEMSPINE_FORENSICS_OVERWRITE") == "1":
+        for name in existing:
+            (Path(directory) / name).unlink()
+        return
+    raise RuntimeError(
+        f"MEMSPINE_FORENSICS_DIR={directory!r} already contains {', '.join(existing)}; a second "
+        "run would append to them and mix two runs. Use a fresh directory, or set "
+        "MEMSPINE_FORENSICS_OVERWRITE=1 to delete the old logs."
+    )
 
 
 #: ``storage.path`` sentinel: one fresh file-backed store per item (see ``_build_engine``).
 TEMPDIR_STORAGE = "tempdir"
+
+
+#: C1: how context lines that are final search hits are marked for the reader.
+MARK_HITS_MODES = ("off", "star", "rank")
+
+
+def hit_rank_map(stages: Mapping[str, Any]) -> dict[str, int]:
+    """record_id -> 1-based rank of each final search hit (``stages["final"]``)."""
+    return {str(rid): i + 1 for i, (rid, _score) in enumerate(stages.get("final", []))}
+
+
+def mark_hit_line(line: str, rank: int | None, mode: str) -> str:
+    """Prefix a rendered context line when it is search hit ``rank`` (None = neighbour)."""
+    if rank is None or mode == "off":
+        return line
+    if mode == "star":
+        return f"* {line}"
+    if mode == "rank":
+        return f"[hit {rank}] {line}"
+    raise ValueError(f"unknown mark_hits mode {mode!r}")
+
+
+#: R2-4: how the rendered context lines are ordered.
+CONTEXT_ORDERS = ("chrono", "hits_first", "hit_blocks")
+#: Separator line between the ranked hits and the rest (``hits_first``).
+OTHER_LINES_HEADER = "Other related conversation:"
+
+
+def order_context(
+    record_ids: Sequence[str], ranks: Mapping[str, int], order: str
+) -> list[int | str]:
+    """Order the context lines; entries are indices into ``record_ids`` or a literal line.
+
+    ``chrono`` (and any order without hit ranks) keeps the engine's order. ``hits_first``:
+    the hits in rank order, a header line, then the other lines in engine order.
+    ``hit_blocks``: per hit in rank order its block (the hit plus the non-hit lines nearest
+    to it in the context, ties to the higher rank, engine order inside the block), blocks
+    separated by a blank line; every line appears once. Non-hit lines in a context with no
+    hit stay in engine order.
+    """
+    if order not in CONTEXT_ORDERS:
+        raise ValueError(f"unknown context_order {order!r}")
+    n = len(record_ids)
+    hits = sorted(
+        (i for i in range(n) if record_ids[i] in ranks), key=lambda i: ranks[record_ids[i]]
+    )
+    if order == "chrono" or not hits:
+        return list(range(n))
+    rest = [i for i in range(n) if record_ids[i] not in ranks]
+    if order == "hits_first":
+        return [*hits, *([OTHER_LINES_HEADER, *rest] if rest else [])]
+    blocks: dict[int, list[int]] = {h: [h] for h in hits}
+    for i in rest:
+        # nearest hit by position; hits is rank-ordered so min() breaks ties by rank
+        owner = min(hits, key=lambda h: abs(h - i))
+        blocks[owner].append(i)
+    out: list[int | str] = []
+    for h in hits:
+        if out:
+            out.append("")
+        out.extend(sorted(blocks[h]))
+    return out
 
 
 class MemspineSystem:
@@ -92,8 +239,37 @@ class MemspineSystem:
         sleep_calls_per_session: int = 1,
         batch_turns: int = 1,
         as_of_question_date: bool = False,
+        mark_hits: str = "off",
+        context_order: str = "chrono",
+        perspective_metadata: bool | None = None,
+        stamp_timezone: str = "UTC",
+        inspect: bool | None = None,
+        inspect_content: bool = True,
     ) -> None:
         self.system_id = system_id
+        #: TI-1 (Trace Inspector): the engine runs with ``observability.inspect`` and the tap writes
+        #: jsonl into ``<forensics dir>/tap/``; every FX key, ``cuts`` and ``window`` are kept in
+        #: ``forensics.jsonl``; each turn write / query runs inside ``inspect_scope``. None = on
+        #: exactly when ``MEMSPINE_INSPECT=1``.
+        if inspect is None:
+            import os
+
+            inspect = os.environ.get("MEMSPINE_INSPECT") == "1"
+        self._inspect = bool(inspect)
+        self._inspect_content = bool(inspect_content)
+        #: F5: the zone the dataset's naive wall-clock stamps are read in (IANA name).
+        self._zone = stamp_zone(stamp_timezone)
+        if context_order not in CONTEXT_ORDERS:
+            raise ValueError(
+                f"context_order must be one of {CONTEXT_ORDERS}, got {context_order!r}"
+            )
+        #: R2-4: line order of the rendered context (chrono | hits_first | hit_blocks).
+        self._context_order = context_order
+        if mark_hits not in MARK_HITS_MODES:
+            raise ValueError(f"mark_hits must be one of {MARK_HITS_MODES}, got {mark_hits!r}")
+        #: C1: mark the lines that are final search hits (``star`` | ``rank``); the
+        #: neighbour-window lines stay unmarked. ``off`` renders as before.
+        self._mark_hits = mark_hits
         #: N34: read as of each question's date (LongMemEval ``question_date``), so a
         #: turn recorded after the question was asked is never retrieved.
         self._as_of_question_date = as_of_question_date
@@ -104,6 +280,23 @@ class MemspineSystem:
         self.template = template
         self.namespace = namespace
         self.config = dict(config or {})
+        #: I5 / I39: send each turn's speaker (a LoCoMo participant name) and chat role
+        #: (``user`` / ``assistant``) to ``write_messages`` as message metadata, and the
+        #: asker (``persona`` / ``asker`` in a question's meta) to the read. The stored
+        #: text is the same either way. None = on exactly when the config enables the
+        #: perspective layer (``memories.episodic.policies.perspective``), so default runs
+        #: write what they always wrote.
+        policies = ((self.config.get("memories") or {}).get("episodic") or {}).get("policies") or {}
+        self._perspective_metadata = (
+            bool(policies.get("perspective"))
+            if perspective_metadata is None
+            else bool(perspective_metadata)
+        )
+        #: I25: left to the config (and so to a data profile's presets) unless set explicitly.
+        self._perspective_auto = perspective_metadata is None
+        self._shape: dict[str, Any] = {}
+        self._asker: str | None = None
+        self._read_session: str | None = None
         self._counter = counter or HeuristicTokenCounter()
         self._record_deposit_calls = record_deposit_calls
         self._dated = dated
@@ -128,6 +321,13 @@ class MemspineSystem:
         #: call (one batched embedding). 1 = one call per turn, the original path.
         self.batch_turns = max(1, int(batch_turns))
         self._buffer: list[Turn] = []
+        #: D7: ids the runner hands over; written into every forensic log row
+        self._run_id: str | None = None
+        self._query_id: str | None = None
+        self._forensics_ready = False
+        #: ``--trace-full``: the run's trace folder (None: off). Set by the runner.
+        self._trace_dir: str | None = None
+        self._trace_ready = False
 
     def describe(self) -> Mapping[str, Any]:
         return {
@@ -145,13 +345,27 @@ class MemspineSystem:
             # Listed only when on, so default runs keep their config hash.
             **({"batch_turns": self.batch_turns} if self.batch_turns > 1 else {}),
             **({"as_of_question_date": True} if self._as_of_question_date else {}),
+            **(
+                {"data_shape": self._shape}
+                if self._shape and self.config.get("data_profile")
+                else {}
+            ),
+            **({"mark_hits": self._mark_hits} if self._mark_hits != "off" else {}),
+            **({"context_order": self._context_order} if self._context_order != "chrono" else {}),
             "token_counter": dict(self._counter.describe()),
         }
+
+    def declare_shape(self, shape: Any) -> None:
+        """I25: the data shape of the item about to be loaded (``DataShape`` or mapping).
+
+        Used only when the config sets ``data_profile``; it becomes the engine's
+        ``data_shape``, from which ``data_profile: auto`` picks presets. A ``data_shape``
+        already in the config is the deployer's and is never replaced."""
+        self._shape = shape.to_dict() if hasattr(shape, "to_dict") else dict(shape or {})
 
     async def _build_engine(self) -> Any:
         try:
             import memspine
-            from memspine.engine import Engine
         except ImportError as exc:  # pragma: no cover - needs the engine installed
             raise RuntimeError(
                 "MemspineSystem needs the memspine package — run `uv sync --all-extras` "
@@ -173,20 +387,62 @@ class MemspineSystem:
         # Never load a .env: the harness passes only what a run needs (a repo .env
         # can hold unrelated secrets, and a benchmark must not depend on it).
         overrides.setdefault("dotenv_path", None)
+        if self._trace_dir:  # --trace-full: per-step write timings (I73), timing only
+            observability = dict(overrides.get("observability") or {})
+            overrides["observability"] = {**observability, "write_timers": True}
+        if self._inspect:  # TI-1: inspect events into the tap jsonl sink next to the forensics logs
+            observability = dict(overrides.get("observability") or {})
+            tap_cfg = dict(observability.get("tap") or {})
+            tap_dir = self._log_dirs()[0] if self._log_dirs() else "runs/_tap"
+            tap_cfg.setdefault("enabled", True)
+            tap_cfg.setdefault("sink", "jsonl")
+            tap_cfg.setdefault("dir", str(Path(tap_dir) / "tap"))
+            overrides["observability"] = {
+                **observability,
+                "inspect": True,
+                "inspect_content": self._inspect_content,
+                "tap": tap_cfg,
+            }
         # Questions must be independent: with access recording on, every search
         # refreshes last_accessed_at, so records retrieved for early questions
         # rank higher (recency) for later ones. Off unless a run asks for it.
         read = dict(overrides.get("read") or {})
         read.setdefault("record_access", False)
         overrides["read"] = read
-        engine = Engine(template=self.template, **overrides)
-        await engine.start()
+        profile_on = str(overrides.get("data_profile", "off")).strip().lower() != "off"
+        if profile_on and self._shape and "data_shape" not in overrides:
+            overrides["data_shape"] = dict(self._shape)
+        engine = await memspine.open(template=self.template, **overrides)
+        if profile_on and self._perspective_auto:
+            # a preset may have switched the perspective layer on: send speaker and role too
+            policy = engine._memory_policy(engine.config, "episodic").get("perspective")
+            self._perspective_metadata = bool(policy)
         return engine
+
+    @property
+    def _memory(self) -> Any:
+        """The scoped handle of this conversation (``namespace`` = the item id's store)."""
+        from memspine import Memory
+
+        return Memory(self._engine, self.namespace)
 
     def _calls(self) -> int | None:
         """Total model calls the engine has made (None when it cannot say)."""
         counts = getattr(self._engine, "model_calls", None)
         return sum(counts().values()) if callable(counts) else None
+
+    def _port_counts(self) -> dict[str, int]:
+        """E03 / E04: network calls (public-knowledge searches and image downloads) and vision
+        calls the engine has made so far; empty for an engine without the ports."""
+        out: dict[str, int] = {}
+        asset = getattr(self._engine, "asset_stats", None)
+        external = getattr(self._engine, "external_stats", None)
+        a = dict(asset()) if callable(asset) else {}
+        e = dict(external()) if callable(external) else {}
+        if a or e:
+            out["network_calls"] = int(a.get("fetches", 0)) + int(e.get("network_calls", 0))
+            out["vision_calls"] = int(a.get("vision_calls", 0))
+        return out
 
     def _rerank_stats(self) -> dict[str, Any] | None:
         """``Engine.rerank_stats()`` (C-5), None for an engine without it."""
@@ -248,7 +504,49 @@ class MemspineSystem:
                 delta[key] = {"prompt_id": now.get("prompt_id"), "roles": now.get("roles"), **diff}
         return delta
 
+    def begin_run(self, run_id: str) -> None:
+        """D7 [INJ-6]: the runner announces the run before anything is ingested. Fails fast
+        when the forensics directory already holds another run's logs."""
+        import os
+
+        self._run_id = run_id
+        directory = os.environ.get("MEMSPINE_FORENSICS_DIR")
+        if directory and not self._forensics_ready:
+            prepare_forensics_dir(directory)
+            self._forensics_ready = True
+        if self._trace_dir and not self._trace_ready:
+            prepare_forensics_dir(self._trace_dir)
+            self._trace_ready = True
+
+    def set_trace_dir(self, path: str | None) -> None:
+        """``--trace-full``: the runner names the run's trace folder before anything is ingested.
+        Turns on the per-record write trace, the extra read-path fields and the engine's
+        write timers (``observability.write_timers``)."""
+        self._trace_dir = str(path) if path else None
+
+    def _log_dirs(self) -> list[str]:
+        """Where per-record / per-question logs go: the forensics dir and the trace folder."""
+        import os
+
+        dirs = [os.environ.get("MEMSPINE_FORENSICS_DIR"), self._trace_dir]
+        return [d for i, d in enumerate(dirs) if d and d not in dirs[:i]]
+
+    def _scope(self, **keys: Any) -> Any:
+        """TI-1: ``inspect_scope(run_id, item, **keys)`` when inspecting; else a null context."""
+        import contextlib
+
+        if not self._inspect:
+            return contextlib.nullcontext()
+        from memspine.observability.inspect import inspect_scope
+
+        return inspect_scope(run_id=self._run_id, item=getattr(self, "_item_id", None), **keys)
+
+    def set_query_id(self, query_id: str) -> None:
+        """D7: the id of the question about to be asked (forensics rows carry it)."""
+        self._query_id = query_id
+
     async def reset(self, item_id: str) -> None:
+        self._item_id = item_id
         await self.close()
         self._origin = {}
         self._sessions = set()
@@ -273,6 +571,27 @@ class MemspineSystem:
             return DepositResult(meta={"buffered": len(self._buffer)})
         return _merge_deposits(results)
 
+    def _message(self, turn: Turn, text: str) -> dict[str, Any]:
+        """One ``write_messages`` entry. Default: role ``user`` for every turn (the stored
+        content carries the speaker name). With perspective metadata: ``speaker`` = the
+        turn's speaker, and the chat role when the speaker is ``user`` / ``assistant``."""
+        message: dict[str, Any]
+        if not self._perspective_metadata:
+            message = {"role": "user", "content": text}
+        else:
+            who = str(turn.speaker or "").strip()
+            role = who.lower() if who.lower() in ("user", "assistant") else "user"
+            message = {"role": role, "content": text}
+            if who:
+                message["speaker"] = who
+        # E04: with ``ingest.assets: on`` the turn's attachment identity (original URI, source
+        # caption, source turn id) goes to the engine; otherwise the message is as before.
+        attachments = turn.meta.get("attachments") if turn.meta else None
+        if attachments and (self.config.get("ingest") or {}).get("assets") == "on":
+            message["attachments"] = [dict(a) for a in attachments]
+            message["turn_id"] = turn.turn_id
+        return message
+
     async def flush(self) -> DepositResult:
         """Write the buffered turns (G9). The runner calls it before every query
         and before ``build``; ``query`` and ``build`` also call it themselves, so
@@ -282,9 +601,51 @@ class MemspineSystem:
         turns, self._buffer = self._buffer, []
         return await self._deposit(turns)
 
+    def _write_scope(self) -> Any:
+        """``--trace-full``: capture the engine's write-side events (firewall signals and
+        verdict, conflict-ladder rule) of the write inside the block; a no-op otherwise."""
+        import contextlib
+
+        from memspine.core import trace_sink
+
+        return trace_sink.write_forensics() if self._trace_dir else contextlib.nullcontext([])
+
+    async def _engine_write(
+        self, turns: list[Turn], texts: list[str], session_id: str
+    ) -> list[Any]:
+        if len(turns) == 1:
+            one: dict[str, Any] = self._message(turns[0], texts[0])
+            stamp = parse_turn_stamp(turns[0], self._zone)
+            if stamp is not None:
+                # the stamping stage (write.stamping_v2) reads the source time from the message, as in the
+                # batch path below; valid_from alone left single-turn writes undated (precision unknown)
+                one["timestamp"] = stamp_source_time(turns[0], stamp)
+            records = await self._engine.write_messages(
+                [one],
+                namespace=self.namespace,
+                session_id=session_id,
+                group_id=session_id,
+                valid_from=stamp,
+            )
+        else:
+            messages: list[dict[str, Any]] = []
+            for turn, text in zip(turns, texts, strict=True):
+                message: dict[str, Any] = self._message(turn, text)
+                stamp = parse_turn_stamp(turn, self._zone)
+                if stamp is not None:
+                    message["timestamp"] = stamp_source_time(turn, stamp)
+                messages.append(message)
+            records = await self._engine.write_messages(
+                messages,
+                namespace=self.namespace,
+                session_id=session_id,
+                group_id=session_id,
+            )
+        return list(records)
+
     async def _deposit(self, turns: list[Turn]) -> DepositResult:
         """One ``write_messages`` call for turns of ONE session."""
-        # The speaker NAME is content ("Caroline: ..."), not a provenance role:
+        # The speaker NAME is content ("Ana: ..."), not a provenance role:
         # passing it as the role dropped names from the stored text and gave
         # every speaker an unknown-role trust. The session stamp becomes the
         # record's event time (valid_from), so dated questions are answerable.
@@ -293,34 +654,22 @@ class MemspineSystem:
         before = self._calls()
         usage_before = self._usage()
         prompts_before = self._prompt_usage()
-        if len(turns) == 1:
-            records = await self._engine.write_messages(
-                [{"role": "user", "content": texts[0]}],
-                namespace=self.namespace,
-                session_id=session_id,
-                group_id=session_id,
-                valid_from=parse_turn_time(turns[0].timestamp),
-            )
-        else:
-            messages: list[dict[str, Any]] = []
-            for turn, text in zip(turns, texts, strict=True):
-                message: dict[str, Any] = {"role": "user", "content": text}
-                stamp = parse_turn_time(turn.timestamp)
-                if stamp is not None:
-                    message["timestamp"] = stamp
-                messages.append(message)
-            records = await self._engine.write_messages(
-                messages,
-                namespace=self.namespace,
-                session_id=session_id,
-                group_id=session_id,
-            )
+        turn_keys: dict[str, Any] = {"turn_id": turns[0].turn_id, "session": session_id}
+        if len(turns) > 1:
+            turn_keys["turn_ids"] = [t.turn_id for t in turns]
+        with self._scope(**turn_keys), self._write_scope() as write_events:
+            records = await self._engine_write(turns, texts, session_id)
+        self._write_events = write_events
         ids: list[str] = []
         for record, turn_id in _align(records, turns, texts):
             record_id = str(record.record_id)
             self._origin[record_id] = turn_id
             ids.append(record_id)
+        self._write_ingest_log(records, turns, texts)
         meta: dict[str, Any] = {}
+        n_quarantined = sum(1 for record in records if getattr(record, "quarantined", False))
+        if n_quarantined:
+            meta["n_quarantined"] = n_quarantined
         if len(turns) > 1:
             meta["batched_turns"] = [turn.turn_id for turn in turns]
         services = self._embed_services(texts)
@@ -360,6 +709,33 @@ class MemspineSystem:
         the synthesise (K) bucket; queries pinned mid-stream run before it.
         """
         flushed = await self.flush()
+        windows = await self._flush_windows(final=True)
+        if windows is not None:  # W1: call 1 of the window write, billed with the write cost
+            flushed = DepositResult(
+                n_records=flushed.n_records,
+                record_ids=flushed.record_ids,
+                latency_ms=flushed.latency_ms,
+                model_calls=flushed.model_calls + windows.model_calls,
+                meta={**flushed.meta, **windows.meta},
+            )
+        if self._engine is not None:
+            await self._write_derived_trace()
+            await self._inspect_snapshot("post_ingest")
+        close_calls = 0
+        if self._engine is not None:
+            # FX-EVAL: call 2 per ingested session, before the sleep so its L2 records exist for reads
+            c0 = self._calls()
+            closed = await self._close_sessions()
+            c1 = self._calls()
+            close_calls = c1 - c0 if c0 is not None and c1 is not None else 0
+            if closed:
+                flushed = DepositResult(
+                    n_records=flushed.n_records,
+                    record_ids=flushed.record_ids,
+                    latency_ms=flushed.latency_ms,
+                    model_calls=flushed.model_calls + close_calls,
+                    meta={**flushed.meta, "session_close": closed},
+                )
         if not self._build_sleep or self._engine is None:
             return flushed
         estimate = self.sleep_calls_per_session * max(len(self._sessions), 1)
@@ -377,15 +753,26 @@ class MemspineSystem:
         before = self._calls()
         usage_before = self._usage()
         prompts_before = self._prompt_usage()
-        stats = await self._engine.sleep()
+        with self._scope(phase="sleep"):
+            stats = await self._await_sleep(await self._memory.sleep())
+        await self._write_derived_trace()  # --trace-full: what the sleep cycle derived
+        await self._inspect_snapshot("post_sleep")
         after = self._calls()
         meta: dict[str, Any] = {"sleep": {name: dict(stage) for name, stage in stats.items()}}
+        if flushed.meta.get("session_close"):
+            meta["session_close"] = flushed.meta["session_close"]
         engine_llm = self._usage_delta(usage_before, self._usage())
         if engine_llm:
             meta["engine_llm"] = engine_llm
         engine_prompts = self._prompt_delta(prompts_before, self._prompt_usage())
         if engine_prompts:
             meta["engine_prompts"] = engine_prompts
+        if windows is not None:  # W1: the window calls ran just before the sleep; keep them
+            meta["window_extract"] = windows.meta.get("window_extract", {})
+            for key in ("engine_llm", "engine_prompts"):
+                meta[key] = _merge_usage(windows.meta.get(key), meta.get(key))
+                if not meta[key]:
+                    del meta[key]
         if before is None or after is None:
             # R3-10: unknown is not zero; the ledger must not report a free sleep.
             meta["cost_observable"] = False
@@ -393,11 +780,388 @@ class MemspineSystem:
             return DepositResult(model_calls=0, meta=meta)
         return DepositResult(model_calls=after - before + flushed.model_calls, meta=meta)
 
+    async def _close_sessions(self) -> dict[str, Any]:
+        """FX-EVAL: with ``offline.session_close_v2`` on, fire the session-close stage (call 2:
+        summary, L2 episodes, profile ops) once per ingested session, before the build sleep.
+
+        The eval adapter never ran it: the stage is not in the sleep cycle and only the window
+        machinery or ``Engine.close_session`` fires it. With ``write.window_extract`` on, the final
+        window flush already fired it for every open session, so this is skipped. The stage is
+        idempotent (a done marker per session), so a repeat is a cheap no-op. A failure is
+        recorded, never raised: the model is an enhancer."""
+        offline = self.config.get("offline") or {}
+        if self._engine is None or not offline.get("session_close_v2") or self._windows_on():
+            return {}
+        close = getattr(self._engine, "close_session", None)
+        if not callable(close):
+            return {}
+        out: dict[str, Any] = {}
+        for sid in sorted(self._sessions):
+            try:
+                with self._scope(phase="session_close", session=sid):
+                    out[sid] = await close(self.namespace, sid)
+            except Exception as exc:
+                out[sid] = {"status": "error", "reason": f"{type(exc).__name__}: {exc}"}
+        return out
+
+    @staticmethod
+    async def _await_sleep(result: Any) -> dict[str, Any]:
+        """FX-EVAL: ``offline.sleep_v2`` makes ``sleep()`` return a ``SleepHandle`` at once; wait
+        for the cycle and use its stage stats. A plain stats dict passes through."""
+        wait = getattr(result, "wait", None)
+        if callable(wait) and not isinstance(result, dict):
+            return dict(await wait())
+        return result
+
+    def _windows_on(self) -> bool:
+        """``write.window_extract`` is set in the arm (the engine has the window write)."""
+        write = self.config.get("write") or {}
+        return bool(self._engine is not None and write.get("window_extract", "off") != "off")
+
+    async def _flush_windows(self, *, final: bool) -> DepositResult | None:
+        """W1 (``write.window_extract``): run the window calls (call 1) the ingest queued.
+
+        Before a mid-stream query only the closed windows run (``final=False``); at ``build``
+        the open ones too. The model calls ride on the result (write cost); the G-W13 write
+        counters (windows, calls per layer, parse failures, sections dropped, facts dropped as
+        ungrounded, windows per session) land in ``meta["window_extract"]`` and as one
+        ``window_stats`` row of ``ingest.jsonl``. None when the arm has no window write."""
+        if not self._windows_on():
+            return None
+        flush = getattr(self._engine, "flush_windows", None)
+        if not callable(flush):
+            return None
+        before = self._calls()
+        usage_before = self._usage()
+        prompts_before = self._prompt_usage()
+        with self._scope(phase="flush_windows"):
+            stats = dict(await flush(self.namespace, final=final))
+        after = self._calls()
+        meta: dict[str, Any] = {"window_extract": stats}
+        engine_llm = self._usage_delta(usage_before, self._usage())
+        if engine_llm:
+            meta["engine_llm"] = engine_llm
+        engine_prompts = self._prompt_delta(prompts_before, self._prompt_usage())
+        if engine_prompts:
+            meta["engine_prompts"] = engine_prompts
+        from ..cost import cost_block
+
+        write_cost = cost_block(self._engine, self.namespace)  # W2-12: {} unless economy.ledger_v2
+        if write_cost:
+            meta["write_cost"] = write_cost
+        self._write_window_log(stats, final=final)
+        if before is None or after is None:
+            meta["cost_observable"] = False
+            return DepositResult(model_calls=0, meta=meta)
+        return DepositResult(model_calls=after - before, meta=meta)
+
+    def _write_window_log(self, stats: Mapping[str, Any], *, final: bool) -> None:
+        """One ``window_stats`` row in ``ingest.jsonl`` (the write-quality counters so far)."""
+        import json
+        from pathlib import Path
+
+        row = {
+            "kind": "window_stats",
+            "run_id": self._run_id,
+            "item": getattr(self, "_item_id", None),
+            "final": final,
+            **stats,
+        }
+        for directory in self._log_dirs():
+            out = Path(directory)
+            out.mkdir(parents=True, exist_ok=True)
+            with (out / "ingest.jsonl").open("a", encoding="utf-8") as fh:
+                fh.write(json.dumps(row, default=str) + "\n")
+
     def set_query_meta(self, meta: Mapping[str, Any]) -> None:
         """N34: the runner hands each question's metadata over before ``query``."""
         self._question_as_of = (
-            parse_question_date(meta.get("question_date")) if self._as_of_question_date else None
+            parse_question_date(meta.get("question_date"), self._zone)
+            if self._as_of_question_date
+            else None
         )
+        asker = meta.get("asker") or meta.get("persona")
+        read_cfg = self.config.get("read") or {}
+        wants_asker = (
+            self._perspective_metadata
+            or read_cfg.get("user_header") == "on"
+            or read_cfg.get("owner_check", "off") != "off"
+        )
+        self._asker = str(asker) if asker and wants_asker else None
+        #: I64: the session a re-injection penalty counts in: the question's own session id,
+        #: else the persona / asker (one OP-Bench persona = one conversation); LoCoMo has
+        #: neither, so the penalty never applies there.
+        sid = meta.get("session_id") or asker
+        self._read_session = (
+            str(sid) if sid and float(read_cfg.get("reinjection_penalty") or 0.0) > 0.0 else None
+        )
+
+    def _write_ingest_log(self, records: list[Any], turns: list[Turn], texts: list[str]) -> None:
+        """Injection audit (``MEMSPINE_FORENSICS_DIR``): one line per record written.
+
+        Records the source turn next to what the engine stored: content fidelity, the event time
+        it was filed under (``valid_from``), grouping and type, so a later miss can be traced back
+        to a write-side defect (dropped or merged turn, wrong date, altered text).
+        """
+        import json
+        from pathlib import Path
+
+        directories = self._log_dirs()
+        if not directories:
+            return
+        by_turn = {turn_id: record for record, turn_id in _align(records, turns, texts)}
+        # I73: the batch's per-step write timings (observability.write_timers), taken as a
+        # delta and carried on the batch's first line only; absent when the timers are off.
+        taker = getattr(self._engine, "write_timers", None)
+        timers = taker(reset=True) if callable(taker) else {}
+        lines = []
+        for position, (turn, text) in enumerate(zip(turns, texts, strict=True)):
+            record = by_turn.get(turn.turn_id)
+            stored = getattr(record, "content", None)
+            valid_from = getattr(record, "valid_from", None)
+            lines.append(
+                json.dumps(
+                    {
+                        "run_id": self._run_id,
+                        "item": getattr(self, "_item_id", None),
+                        "turn": turn.turn_id,
+                        "session": turn.session_id,
+                        "speaker": turn.speaker,
+                        "source_timestamp": turn.timestamp,
+                        "source_text": text,
+                        "written": record is not None,
+                        "record_id": str(record.record_id) if record is not None else None,
+                        "stored_text": stored,
+                        "text_identical": stored == text if stored is not None else None,
+                        "valid_from": valid_from.isoformat() if valid_from else None,
+                        "memory_type": str(getattr(record, "memory_type", None)),
+                        "group_id": getattr(record, "group_id", None),
+                        "session_id": getattr(record, "session_id", None),
+                        "batch_size": len(turns),
+                        # F2 [INJ-2]: what the firewall did with the record
+                        "quarantined": getattr(record, "quarantined", None),
+                        "trust": getattr(record, "trust", None),
+                        "status": _enum_value(getattr(record, "status", None)),
+                        **({"write_timers": timers} if timers and position == 0 else {}),
+                    }
+                )
+            )
+        for directory in directories:
+            out = Path(directory)
+            out.mkdir(parents=True, exist_ok=True)
+            with (out / "ingest.jsonl").open("a", encoding="utf-8") as fh:
+                fh.writelines(line + "\n" for line in lines)
+        if self._trace_dir:
+            # --trace-full: the stored record's tags / firewall stamp + deterministic signals
+            rows = []
+            events = list(getattr(self, "_write_events", None) or [])
+            used: set[int] = set()
+            for turn, text in zip(turns, texts, strict=True):
+                row = trace_full.write_trace_row(by_turn.get(turn.turn_id), turn.turn_id, text)
+                row.update(run_id=self._run_id, item=getattr(self, "_item_id", None))
+                rid = row.get("record_id")
+                mine = [i for i, e in enumerate(events) if rid and e.get("record_id") == rid]
+                used.update(mine)
+                row["engine_events"] = [events[i] for i in mine]
+                if timers and turn is turns[0]:
+                    row["write_timers"] = timers
+                rows.append(row)
+            if rows:
+                rows[0]["engine_events_unmatched"] = [
+                    e for i, e in enumerate(events) if i not in used
+                ]
+            _append_jsonl(Path(self._trace_dir) / "write_trace.jsonl", rows)
+
+    async def _inspect_snapshot(self, phase: str) -> None:
+        """TI-2 (``MEMSPINE_INSPECT=1`` or ``--inspect``): dump the store (records, links, sleep
+        markers) to ``<forensics dir>/inspect/``. Read-only; a failure is logged, never raised.
+        ``MEMSPINE_INSPECT_CONTENT=0`` leaves the text out."""
+        import os
+
+        if os.environ.get("MEMSPINE_INSPECT") != "1" or self._engine is None:
+            return
+        from pathlib import Path
+
+        dirs = self._log_dirs()
+        fallback = Path("runs/_analysis/inspect") / str(self._run_id or "run")
+        target = Path(dirs[0]) / "inspect" if dirs else fallback
+        try:
+            from ..inspect.snapshot import dump_snapshot
+
+            await dump_snapshot(
+                self._engine,
+                self.namespace,
+                target,
+                phase,
+                origin_map=self._origin,
+                content=os.environ.get("MEMSPINE_INSPECT_CONTENT", "1") != "0",
+                run_id=self._run_id,
+                item=getattr(self, "_item_id", None),
+            )
+        except Exception as exc:  # the inspector must never break a run
+            import warnings
+
+            warnings.warn(
+                f"inspect snapshot ({phase}) failed: {type(exc).__name__}: {exc}", stacklevel=2
+            )
+
+    async def _write_derived_trace(self) -> None:
+        """--trace-full: records in the store that no source turn produced (mined facts, cards,
+        summaries) with their parents; one ``derived`` line each, appended to write_trace.jsonl.
+        Called before and after the sleep cycle; ids already written are not repeated."""
+        from pathlib import Path
+
+        directory = self._trace_dir
+        if not directory or self._engine is None:
+            return
+        seen = getattr(self, "_derived_seen", None)
+        if seen is None:
+            seen = self._derived_seen = set()
+        try:
+            records = await self._engine._storage.list_records(self.namespace)
+        except Exception:  # an engine whose storage is not reachable from here
+            return
+        rows = []
+        for record in records:
+            rid = str(record.record_id)
+            if rid in self._origin or rid in seen:
+                continue
+            seen.add(rid)
+            row = trace_full.derived_row(record, self._origin)
+            row.update(run_id=self._run_id, item=getattr(self, "_item_id", None))
+            rows.append(row)
+        _append_jsonl(Path(directory) / "write_trace.jsonl", rows)
+
+    def _write_forensics(
+        self, directory: str, query: str, stages: dict[str, Any], assembled: Any
+    ) -> None:
+        """One JSON line per question: every retrieval stage, ranked, with turn ids.
+
+        Scores are the engine's own (RRF-normalised for fusion, raw cross-encoder for the
+        reranker). ``turn`` is the dataset turn a record was written from; offline joining with
+        the gold evidence (``evals/forensics_report.py``) names the stage that lost it.
+        """
+        import json
+        from pathlib import Path
+
+        def rank(pairs: list[tuple[Any, float]]) -> list[dict[str, Any]]:
+            return [
+                {
+                    "r": i + 1,
+                    "turn": self._origin.get(str(rid), str(rid)),
+                    "score": round(float(s), 5),
+                }
+                for i, (rid, s) in enumerate(pairs)
+            ]
+
+        row = {
+            "run_id": self._run_id,
+            "query_id": self._query_id,
+            "item": getattr(self, "_item_id", None),
+            "namespace": self.namespace,
+            "query": query,
+            "vector": rank(stages.get("vector", [])),
+            "lexical": rank(stages.get("lexical", [])),
+            "extra_legs": {name: rank(hits) for name, hits in stages.get("extra_legs", [])},
+            "fused": rank(stages.get("fused", [])),
+            "pool": rank(stages.get("pool", [])),
+            "reranker": stages.get("reranker"),
+            # I24: trigger decisions the engine records (absent when the path did not run)
+            **{k: stages[k] for k in (
+                "bridge_gate",
+                "bridge_phrases",
+                "decider",
+                # I74: the read-path decider decisions and the relevance-gate info
+                "decisions",
+                "relevance_calibration",
+                "relevance_bypass",
+                # I67: the agentic read's steps (action, query, new ids, calls, seconds)
+                "agentic",
+                "agentic_steps",
+            )
+            if k in stages},
+            "rerank_scores": rank(stages.get("rerank_scores", [])),
+            "final": rank(stages.get("final", [])),
+            "context_records": [
+                {"turn": self._origin.get(str(r.record_id), str(r.record_id)), "text": r.content}
+                for r in getattr(assembled, "records", [])
+            ],
+            "context_tokens": getattr(assembled, "tokens_used", None),
+        }
+        if self._trace_dir and str(Path(directory)) == str(Path(self._trace_dir)):
+            # --trace-full: the read-path facts the sink holds but the default row drops
+            row["trace_full"] = {
+                "query_analysis": trace_full.query_analysis(query),
+                **{
+                    k: _jsonable(stages[k])
+                    for k in ("perspective", "read_overlay", "abstain_on_raw", "dedupe_dropped")
+                    if k in stages
+                },
+                "records": [
+                    {
+                        "turn": self._origin.get(str(r.record_id), str(r.record_id)),
+                        "record_id": str(r.record_id),
+                        "tags": list(getattr(r, "tags", []) or []),
+                        "valid_from": trace_full._iso(getattr(r, "valid_from", None)),
+                        "trust": getattr(r, "trust", None),
+                        "memory_type": str(getattr(r, "memory_type", None)),
+                    }
+                    for r in getattr(assembled, "records", []) or []
+                ],
+                "final_not_in_context": [
+                    e["turn"]
+                    for e in row["final"]
+                    if e["turn"] not in {c["turn"] for c in row["context_records"]}
+                ],
+                "cuts": [
+                    {**c, "turn": self._origin.get(str(c["id"]), str(c["id"]))}
+                    for c in stages.get("cuts", [])
+                ],
+                "window": [
+                    {
+                        "anchor": self._origin.get(str(w["anchor"]), str(w["anchor"])),
+                        "neighbours": [self._origin.get(str(n), str(n)) for n in w["neighbours"]],
+                        "skipped": {
+                            self._origin.get(str(k), str(k)): v for k, v in w["skipped"].items()
+                        },
+                    }
+                    for w in stages.get("window", [])
+                ],
+                "assembled": {
+                    "abstained": getattr(assembled, "abstained", None),
+                    "tokens_used": getattr(assembled, "tokens_used", None),
+                    "boundary_index": getattr(assembled, "boundary_index", None),
+                    "n_records": len(getattr(assembled, "records", []) or []),
+                },
+            }
+        if self._inspect:
+            # TI-1 (gap F10): the default row drops 15 FX keys, and ``cuts`` / ``window`` exist only
+            # under --trace-full. Inspect keeps all of them, with rids mapped to dataset turns.
+            origin = self._origin
+
+            def as_turn(rid: Any) -> str:
+                return origin.get(str(rid), str(rid))
+
+            row["inspect"] = {
+                "fx": {k: _jsonable(v) for k, v in stages.items() if k not in ("cuts", "window")},
+                "cuts": [{**c, "turn": as_turn(c["id"])} for c in stages.get("cuts", [])],
+                "window": [
+                    {
+                        "anchor": as_turn(w["anchor"]),
+                        "neighbours": [as_turn(n) for n in w["neighbours"]],
+                        "skipped": {as_turn(k): v for k, v in w["skipped"].items()},
+                    }
+                    for w in stages.get("window", [])
+                ],
+                "context_rids": [
+                    {"rid": str(r.record_id), "turn": as_turn(r.record_id)}
+                    for r in getattr(assembled, "records", []) or []
+                ],
+            }
+        out = Path(directory)
+        out.mkdir(parents=True, exist_ok=True)
+        with (out / "forensics.jsonl").open("a", encoding="utf-8") as fh:
+            fh.write(json.dumps(row, default=str if self._inspect else None) + "\n")
 
     async def query(self, text: str, budget_tokens: int, top_k: int) -> RetrievedContext:
         if self._engine is None:
@@ -405,25 +1169,49 @@ class MemspineSystem:
         # A no-op when the runner already flushed; otherwise its write cost is
         # carried in this query's cost so the run total stays complete.
         flushed = await self.flush()
+        windows = await self._flush_windows(final=False)
+        if windows is not None and windows.model_calls:
+            flushed = DepositResult(
+                n_records=flushed.n_records,
+                record_ids=flushed.record_ids,
+                latency_ms=flushed.latency_ms,
+                model_calls=flushed.model_calls + windows.model_calls,
+                meta=flushed.meta,
+            )
         before = self._calls()
         usage_before = self._usage()
         prompts_before = self._prompt_usage()
         rerank_before = self._rerank_stats()
+        ports_before = self._port_counts()
         as_of = {"as_of": self._question_as_of} if self._question_as_of is not None else {}
-        if self._read_mode:
-            result = await self._engine.read(
-                text,
-                namespace=self.namespace,
-                mode=self._read_mode,
-                budget_tokens=budget_tokens,
-                top_k=top_k,
-                **as_of,
-            )
-            assembled = result.context
-        else:
-            assembled = await self._engine.assemble(
-                text, namespace=self.namespace, budget_tokens=budget_tokens, top_k=top_k, **as_of
-            )
+        if self._read_session:
+            as_of = {**as_of, "session_id": self._read_session}
+
+        log_dirs = self._log_dirs()
+        from memspine.observability.trace import search_forensics
+        from memspine.models.encoders.query.perspective import asker_scope
+
+        with search_forensics() as stages, asker_scope(self._asker), self._scope(
+            query_id=self._query_id
+        ):
+            if self._read_mode:
+                result = await self._memory.read(
+                    text,
+                    mode=self._read_mode,
+                    budget_tokens=budget_tokens,
+                    top_k=top_k,
+                    **as_of,
+                )
+                assembled = result.context
+            else:
+                assembled = await self._memory.compose(
+                    text,
+                    budget_tokens=budget_tokens,
+                    top_k=top_k,
+                    **as_of,
+                )
+        for log_dir in log_dirs:
+            self._write_forensics(log_dir, text, stages, assembled)
         after = self._calls()
         engine_llm = self._usage_delta(usage_before, self._usage())
         engine_prompts = self._prompt_delta(prompts_before, self._prompt_usage())
@@ -434,14 +1222,35 @@ class MemspineSystem:
         lines: list[str] = []
         evidence: list[Evidence] = []
         offset = 0
-        for rank, record in enumerate(assembled.records):
+        # D1: the final search hits' ranks always travel with the evidence (meta["hit_rank"],
+        # None = neighbour line) so a replay-mode context can be truncated by hit rank.
+        all_hit_ranks = hit_rank_map(stages) if "final" in stages else None
+        hit_ranks = all_hit_ranks if self._mark_hits != "off" and all_hit_ranks else {}
+        records = list(assembled.records)
+        # R2-4: line order. Entries are record indices, or literal separator lines that carry
+        # no evidence; spans below are offsets in the final text, whatever the order.
+        entries = order_context(
+            [str(r.record_id) for r in records], all_hit_ranks or {}, self._context_order
+        )
+        for entry in entries:
+            if isinstance(entry, str):
+                lines.append(entry)
+                offset += len(entry) + 1
+                continue
+            rank = entry
+            record = records[rank]
             # Dated rendering: absolute event dates next to every retrieved line
             # (the single largest temporal-question lever in the literature).
             when = getattr(record, "valid_from", None)
-            prefix = f"[{when:%Y-%m-%d}] " if self._dated and when is not None else ""
-            line = f"{prefix}{record.content}"
-            lines.append(line)
+            undated = "ts_defaulted" in (getattr(record, "tags", None) or ())  # I7
+            prefix = (
+                f"[{when:%Y-%m-%d}] " if self._dated and when is not None and not undated else ""
+            )
             record_id = str(record.record_id)
+            line = mark_hit_line(
+                f"{prefix}{record.content}", hit_ranks.get(record_id), self._mark_hits
+            )
+            lines.append(line)
             evidence.append(
                 Evidence(
                     turn_id=self._origin.get(record_id, record_id),
@@ -449,6 +1258,11 @@ class MemspineSystem:
                     meta={
                         "memory_type": getattr(record, "memory_type", None),
                         "unit_id": record_id,
+                        **(
+                            {"hit_rank": all_hit_ranks.get(record_id)}
+                            if all_hit_ranks is not None
+                            else {}
+                        ),
                         "span": (offset, offset + len(line)),
                     },
                 )
@@ -478,6 +1292,7 @@ class MemspineSystem:
                     else {}
                 ),
                 "n_records": len(evidence),
+                **({"n_marked_hits": len(hit_ranks)} if self._mark_hits != "off" else {}),
                 "read_mode": self._read_mode or "assemble",
                 "ranked": self._read_mode is None,
                 **({"flushed_records": flushed.n_records} if flushed.n_records else {}),
@@ -487,6 +1302,11 @@ class MemspineSystem:
                 **({"engine_prompts": engine_prompts} if engine_prompts else {}),
                 **rerank_meta,
                 **({"engine_services": services} if services else {}),
+                **{
+                    k: v - ports_before.get(k, 0)
+                    for k, v in self._port_counts().items()
+                    if v - ports_before.get(k, 0)
+                },
             },
         )
 
@@ -518,6 +1338,48 @@ class MemspineSystem:
 
             shutil.rmtree(tempdir, ignore_errors=True)
             self._tempdir = None
+
+
+def _merge_usage(
+    first: Mapping[str, Mapping[str, Any]] | None, second: Mapping[str, Mapping[str, Any]] | None
+) -> dict[str, dict[str, Any]]:
+    """Two per-role (or per-prompt) usage deltas as one: the integer fields add up."""
+    merged: dict[str, dict[str, Any]] = {k: dict(v) for k, v in (first or {}).items()}
+    for key, entry in (second or {}).items():
+        into = merged.setdefault(key, {k: v for k, v in entry.items() if not isinstance(v, int)})
+        for field, value in entry.items():
+            if isinstance(value, int) and not isinstance(value, bool):
+                into[field] = int(into.get(field, 0)) + value
+    return merged
+
+
+def _append_jsonl(path: Path, rows: list[dict[str, Any]]) -> None:
+    import json
+
+    if rows:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("a", encoding="utf-8") as fh:
+            fh.writelines(json.dumps(r, default=str) + chr(10) for r in rows)
+
+
+def _jsonable(value: Any) -> Any:
+    """Plain JSON data for a forensics sink value (tuples, enums, dataclasses)."""
+    import dataclasses
+
+    if dataclasses.is_dataclass(value) and not isinstance(value, type):
+        return _jsonable(dataclasses.asdict(value))
+    if isinstance(value, dict):
+        return {str(k): _jsonable(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple, set, frozenset)):
+        return [_jsonable(v) for v in value]
+    if isinstance(value, (str, int, float, bool)) or value is None:
+        return value
+    return _enum_value(value) if hasattr(value, "value") else str(value)
+
+
+def _enum_value(value: Any) -> Any:
+    """An enum member's value (``RecordStatus.ACTIVATED`` -> ``"activated"``), else as is."""
+    return getattr(value, "value", value)
 
 
 def _align(records: list[Any], turns: list[Turn], texts: list[str]) -> list[tuple[Any, str]]:
@@ -554,6 +1416,8 @@ def _merge_deposits(results: list[DepositResult]) -> DepositResult:
         for key, value in result.meta.items():
             if key == "batched_turns":
                 meta.setdefault(key, []).extend(value)
+            elif key == "n_quarantined":
+                meta[key] = int(meta.get(key, 0)) + int(value)
             elif key == "engine_services":
                 services = meta.setdefault(key, {})
                 for name, units in value.items():
@@ -576,17 +1440,21 @@ def _merge_deposits(results: list[DepositResult]) -> DepositResult:
     )
 
 
-def parse_question_date(value: Any) -> datetime | None:
-    """N34: LongMemEval's ``question_date`` ("2023/05/30 (Tue) 23:40") as UTC, else None."""
+def parse_question_date(value: Any, zone: tzinfo = UTC) -> datetime | None:
+    """N34: LongMemEval's ``question_date`` ("2023/05/30 (Tue) 23:40") in ``zone`` (default
+    UTC, the zone the turn stamps are read in), else None."""
     import re
 
     if not value:
         return None
     m = re.match(
-        r"\s*(\d{4})/(\d{1,2})/(\d{1,2})(?:\s*\(\w+\))?(?:\s+(\d{1,2}):(\d{2}))?", str(value)
+        r"\s*(\d{4})[/-](\d{1,2})[/-](\d{1,2})(?:\s*\(\w+\))?(?:[ T]+(\d{1,2}):(\d{2}))?",
+        str(value),
     )
     if not m:
+        # I8: a question date in an unknown format must not silently drop the anchor.
+        logging.getLogger(__name__).warning("unparseable question_date %r: no as-of anchor", value)
         return None
     y, mo, d = int(m[1]), int(m[2]), int(m[3])
     hh, mm = int(m[4] or 23), int(m[5] or 59)
-    return datetime(y, mo, d, hh, mm, tzinfo=UTC)
+    return datetime(y, mo, d, hh, mm, tzinfo=zone)

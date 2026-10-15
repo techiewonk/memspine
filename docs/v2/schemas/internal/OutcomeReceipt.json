@@ -1,0 +1,20 @@
+{
+  "additionalProperties": true,
+  "description": "Exists at ``memories/procedural/lessons.py:52``; spec lists no fields.",
+  "properties": {
+    "lesson_key": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Lesson Key"
+    }
+  },
+  "title": "OutcomeReceipt",
+  "type": "object"
+}

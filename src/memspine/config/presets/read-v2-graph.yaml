@@ -1,0 +1,24 @@
+# FU-REQS profile: read-v2-core plus compiled edges, the graph / entity / episode legs and the
+# session-close episodes they read. Question: do compiled edges and episodes help multi-hop and
+# temporal questions? Reference: S02. Replaces S13, S30-S33, S39. Needs a bound session_close role.
+read:
+  legs_v2: true
+  family_fusion: true
+  lift_before_rerank: true
+  rerank_v2: true
+  exact_budget: true
+  contract_rules: true
+  router_rules: true
+  tiers_v2: true
+  entity_leg_v2: true
+  graph_leg_v2: true
+  episode_leg_v2: true
+graph:
+  edge_compiler_v2: true
+offline:
+  session_close_v2: true
+memories:
+  semantic:
+    enabled: true
+  associative:
+    enabled: true

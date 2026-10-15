@@ -82,7 +82,7 @@ REGISTRY: dict[str, DatasetEntry] = {
             "github yulinlp/OP-Bench @ 17c7efd",
             "no licence chosen; run locally only",
             "op_bench:OPBenchDataset",
-            "retrieval proxies only: persona-turn injection rate, context repetition",
+            "official judge (opbench.py) plus retrieval proxies (injection, repetition)",
         ),
         DatasetEntry(
             "perltqa",

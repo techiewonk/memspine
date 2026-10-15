@@ -1,0 +1,24 @@
+{
+  "actor": "system",
+  "event_id": "evt-100",
+  "fingerprint": "fp-1",
+  "kind": "memory.write",
+  "payload": {
+    "record_id": "rec-1"
+  },
+  "provenance": {
+    "agent_id": null,
+    "principal": null,
+    "session_id": "sess-3",
+    "source_id": null,
+    "source_version": null
+  },
+  "schema_version": 1,
+  "scope": {
+    "owner": "owner-1",
+    "owner_kind": "user",
+    "tenant": "tenant-a"
+  },
+  "seq": 7,
+  "ts": "2026-03-01T09:31:00Z"
+}

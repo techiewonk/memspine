@@ -1,0 +1,838 @@
+{
+ "turns": {
+  "total": 5882,
+  "backref": 64,
+  "caption": 1226,
+  "deictic": 390,
+  "followup_question": 63,
+  "incomplete": 726,
+  "incomplete_strict": 642,
+  "plural_pron": 103,
+  "pron3_no_antecedent": 346,
+  "reaction_open": 1860,
+  "relative_time": 555,
+  "short_form": 74,
+  "very_short": 230,
+  "we_pron": 1010
+ },
+ "sessions_with_short_form": 42,
+ "sessions_total": 272,
+ "windows": {
+  "w6_stride6": {
+   "windows": 1095,
+   "windows_with_incomplete_turn": 452
+  },
+  "w4_stride3": {
+   "windows": 1958,
+   "windows_with_incomplete_turn": 623
+  },
+  "w4_stride4": {
+   "windows": 1571,
+   "windows_with_incomplete_turn": 497
+  }
+ },
+ "turns_per_session_mean": 21.6,
+ "turn_words_mean": 22.7,
+ "questions": {
+  "total": 1540,
+  "wrong": 287
+ },
+ "predicates": {
+  "multi_entity_both_names": {
+   "all": 149,
+   "wrong": 48,
+   "wrong_by_class": {
+    "list_aggregation_generic": 11,
+    "wrong_detail": 10,
+    "open_domain_inference_retrieval": 7,
+    "fusion_loss_lexical_only": 4,
+    "refusal_premise_denial": 3,
+    "gold_error": 2,
+    "implicit_or_paraphrased_gold": 2,
+    "vocabulary_mismatch_recall": 2,
+    "inference_open_domain": 2,
+    "multi_evidence_recall": 1,
+    "fusion_loss_vector_only": 1,
+    "lexical_outranked_recall": 1,
+    "image_caption_misuse": 1,
+    "fusion_loss_two_leg_crowded": 1
+   },
+   "wrong_by_category": {
+    "single-hop": 21,
+    "multi-hop": 16,
+    "open-domain": 9,
+    "temporal": 2
+   }
+  },
+  "multi_entity_setop_words": {
+   "all": 82,
+   "wrong": 22,
+   "wrong_by_class": {
+    "wrong_detail": 4,
+    "list_aggregation_generic": 3,
+    "gold_error": 2,
+    "implicit_or_paraphrased_gold": 2,
+    "open_domain_inference_retrieval": 2,
+    "refusal_premise_denial": 1,
+    "fusion_loss_lexical_only": 1,
+    "vocabulary_mismatch_recall": 1,
+    "lexical_outranked_recall": 1,
+    "count_wrong": 1,
+    "date_duration_arithmetic": 1,
+    "distractor_line": 1,
+    "list_incomplete": 1,
+    "image_caption_misuse": 1
+   },
+   "wrong_by_category": {
+    "single-hop": 11,
+    "multi-hop": 7,
+    "temporal": 2,
+    "open-domain": 2
+   }
+  },
+  "multi_entity_any": {
+   "all": 195,
+   "wrong": 55,
+   "wrong_by_class": {
+    "wrong_detail": 11,
+    "list_aggregation_generic": 11,
+    "open_domain_inference_retrieval": 7,
+    "fusion_loss_lexical_only": 4,
+    "gold_error": 4,
+    "refusal_premise_denial": 3,
+    "implicit_or_paraphrased_gold": 2,
+    "vocabulary_mismatch_recall": 2,
+    "inference_open_domain": 2,
+    "multi_evidence_recall": 1,
+    "fusion_loss_vector_only": 1,
+    "lexical_outranked_recall": 1,
+    "count_wrong": 1,
+    "date_duration_arithmetic": 1,
+    "distractor_line": 1,
+    "list_incomplete": 1,
+    "image_caption_misuse": 1,
+    "fusion_loss_two_leg_crowded": 1
+   },
+   "wrong_by_category": {
+    "single-hop": 25,
+    "multi-hop": 18,
+    "open-domain": 9,
+    "temporal": 3
+   }
+  },
+  "comparison_words": {
+   "all": 44,
+   "wrong": 9,
+   "wrong_by_class": {
+    "temporal_evidence_missing": 3,
+    "date_duration_arithmetic": 2,
+    "fusion_loss_vector_only": 1,
+    "inference_open_domain": 1,
+    "image_caption_misuse": 1,
+    "gold_error": 1
+   },
+   "wrong_by_category": {
+    "temporal": 5,
+    "single-hop": 2,
+    "multi-hop": 1,
+    "open-domain": 1
+   }
+  },
+  "count_question": {
+   "all": 37,
+   "wrong": 21,
+   "wrong_by_class": {
+    "count_wrong": 9,
+    "list_aggregation_generic": 4,
+    "date_duration_arithmetic": 4,
+    "open_domain_inference_retrieval": 1,
+    "rerank_keep_cut": 1,
+    "temporal_evidence_missing": 1,
+    "gold_error": 1
+   },
+   "wrong_by_category": {
+    "multi-hop": 14,
+    "temporal": 6,
+    "open-domain": 1
+   }
+  },
+  "attribute_lookup_question": {
+   "all": 331,
+   "wrong": 60,
+   "wrong_by_class": {
+    "open_domain_inference_retrieval": 10,
+    "list_aggregation_generic": 7,
+    "wrong_detail": 7,
+    "inference_open_domain": 6,
+    "list_incomplete": 5,
+    "temporal_evidence_missing": 5,
+    "gold_error": 4,
+    "date_duration_arithmetic": 3,
+    "fusion_loss_lexical_only": 2,
+    "refusal_premise_denial": 2,
+    "vocabulary_mismatch_recall": 2,
+    "count_wrong": 2,
+    "rerank_keep_cut": 1,
+    "image_caption_misuse": 1,
+    "lexical_outranked_recall": 1,
+    "multi_evidence_recall": 1,
+    "relative_date_gold_vs_judge": 1
+   },
+   "wrong_by_category": {
+    "multi-hop": 21,
+    "open-domain": 16,
+    "single-hop": 12,
+    "temporal": 11
+   }
+  },
+  "inference_stem_question": {
+   "all": 71,
+   "wrong": 28,
+   "wrong_by_class": {
+    "open_domain_inference_retrieval": 15,
+    "inference_open_domain": 10,
+    "list_aggregation_generic": 1,
+    "no_gold_resolvable": 1,
+    "gold_error": 1
+   },
+   "wrong_by_category": {
+    "open-domain": 26,
+    "multi-hop": 1,
+    "single-hop": 1
+   }
+  },
+  "open_domain_category": {
+   "all": 96,
+   "wrong": 55,
+   "wrong_by_class": {
+    "open_domain_inference_retrieval": 28,
+    "inference_open_domain": 26,
+    "no_gold_resolvable": 1
+   },
+   "wrong_by_category": {
+    "open-domain": 55
+   }
+  },
+  "open_domain_refusal_answer": {
+   "all": 15,
+   "wrong": 14,
+   "wrong_by_class": {
+    "inference_open_domain": 8,
+    "open_domain_inference_retrieval": 5,
+    "no_gold_resolvable": 1
+   },
+   "wrong_by_category": {
+    "open-domain": 14
+   }
+  },
+  "any_category_refusal_answer": {
+   "all": 31,
+   "wrong": 28,
+   "wrong_by_class": {
+    "inference_open_domain": 8,
+    "open_domain_inference_retrieval": 5,
+    "refusal_premise_denial": 4,
+    "temporal_evidence_missing": 4,
+    "gold_error": 3,
+    "fusion_loss_vector_only": 2,
+    "fusion_loss_lexical_only": 1,
+    "no_gold_resolvable": 1
+   },
+   "wrong_by_category": {
+    "open-domain": 14,
+    "temporal": 6,
+    "single-hop": 5,
+    "multi-hop": 3
+   }
+  },
+  "gold_has_caption_turn": {
+   "all": 700,
+   "wrong": 169,
+   "wrong_by_class": {
+    "list_aggregation_generic": 29,
+    "wrong_detail": 28,
+    "open_domain_inference_retrieval": 20,
+    "inference_open_domain": 11,
+    "list_incomplete": 10,
+    "gold_error": 10,
+    "refusal_premise_denial": 8,
+    "count_wrong": 7,
+    "date_duration_arithmetic": 6,
+    "temporal_evidence_missing": 6,
+    "image_caption_misuse": 6,
+    "fusion_loss_lexical_only": 5,
+    "judge_false_negative": 4,
+    "multi_evidence_recall": 4,
+    "fusion_loss_vector_only": 4,
+    "date_wrong_event": 3,
+    "rerank_keep_cut": 2,
+    "lexical_outranked_recall": 2,
+    "vocabulary_mismatch_recall": 2,
+    "distractor_line": 1,
+    "speaker_confusion": 1
+   },
+   "wrong_by_category": {
+    "multi-hop": 72,
+    "single-hop": 39,
+    "open-domain": 31,
+    "temporal": 27
+   }
+  },
+  "prev_turn_carries_question_terms": {
+   "all": 150,
+   "wrong": 13,
+   "wrong_by_class": {
+    "wrong_detail": 3,
+    "list_aggregation_generic": 3,
+    "list_incomplete": 2,
+    "gold_error": 1,
+    "rerank_keep_cut": 1,
+    "fusion_loss_lexical_only": 1,
+    "distractor_line": 1,
+    "inference_open_domain": 1
+   },
+   "wrong_by_category": {
+    "single-hop": 7,
+    "multi-hop": 5,
+    "open-domain": 1
+   }
+  },
+  "state_change_wording": {
+   "all": 30,
+   "wrong": 3,
+   "wrong_by_class": {
+    "judge_false_negative": 1,
+    "inference_open_domain": 1,
+    "wrong_detail": 1
+   },
+   "wrong_by_category": {
+    "single-hop": 2,
+    "open-domain": 1
+   }
+  },
+  "gold_caption_decisive_for_question": {
+   "all": 55,
+   "wrong": 16,
+   "wrong_by_class": {
+    "open_domain_inference_retrieval": 4,
+    "list_aggregation_generic": 3,
+    "gold_error": 2,
+    "list_incomplete": 2,
+    "date_wrong_event": 1,
+    "rerank_keep_cut": 1,
+    "wrong_detail": 1,
+    "lexical_outranked_recall": 1,
+    "multi_evidence_recall": 1
+   },
+   "wrong_by_category": {
+    "multi-hop": 6,
+    "single-hop": 4,
+    "open-domain": 4,
+    "temporal": 2
+   }
+  },
+  "gold_turn_incomplete_strict": {
+   "all": 96,
+   "wrong": 21,
+   "wrong_by_class": {
+    "list_aggregation_generic": 5,
+    "implicit_or_paraphrased_gold": 2,
+    "open_domain_inference_retrieval": 2,
+    "temporal_evidence_missing": 2,
+    "wrong_detail": 2,
+    "judge_false_negative": 1,
+    "list_incomplete": 1,
+    "multi_evidence_recall": 1,
+    "rerank_keep_cut": 1,
+    "inference_open_domain": 1,
+    "vocabulary_mismatch_recall": 1,
+    "count_wrong": 1,
+    "fusion_loss_lexical_only": 1
+   },
+   "wrong_by_category": {
+    "multi-hop": 12,
+    "single-hop": 4,
+    "open-domain": 3,
+    "temporal": 2
+   }
+  },
+  "gold_turn_incomplete_by_rule": {
+   "all": 98,
+   "wrong": 21,
+   "wrong_by_class": {
+    "list_aggregation_generic": 5,
+    "implicit_or_paraphrased_gold": 2,
+    "open_domain_inference_retrieval": 2,
+    "temporal_evidence_missing": 2,
+    "wrong_detail": 2,
+    "judge_false_negative": 1,
+    "list_incomplete": 1,
+    "multi_evidence_recall": 1,
+    "rerank_keep_cut": 1,
+    "inference_open_domain": 1,
+    "vocabulary_mismatch_recall": 1,
+    "count_wrong": 1,
+    "fusion_loss_lexical_only": 1
+   },
+   "wrong_by_category": {
+    "multi-hop": 12,
+    "single-hop": 4,
+    "open-domain": 3,
+    "temporal": 2
+   }
+  },
+  "gold_turn_followup_or_reaction": {
+   "all": 204,
+   "wrong": 52,
+   "wrong_by_class": {
+    "list_aggregation_generic": 17,
+    "open_domain_inference_retrieval": 8,
+    "wrong_detail": 5,
+    "list_incomplete": 4,
+    "judge_false_negative": 2,
+    "implicit_or_paraphrased_gold": 2,
+    "inference_open_domain": 2,
+    "gold_error": 2,
+    "multi_evidence_recall": 2,
+    "refusal_premise_denial": 1,
+    "fusion_loss_lexical_only": 1,
+    "fusion_loss_vector_only": 1,
+    "distractor_line": 1,
+    "temporal_evidence_missing": 1,
+    "rerank_keep_cut": 1,
+    "vocabulary_mismatch_recall": 1,
+    "speaker_confusion": 1
+   },
+   "wrong_by_category": {
+    "multi-hop": 30,
+    "open-domain": 10,
+    "single-hop": 9,
+    "temporal": 3
+   }
+  },
+  "gold_turn_pronoun_no_antecedent": {
+   "all": 100,
+   "wrong": 18,
+   "wrong_by_class": {
+    "wrong_detail": 3,
+    "fusion_loss_lexical_only": 2,
+    "inference_open_domain": 2,
+    "implicit_or_paraphrased_gold": 2,
+    "list_aggregation_generic": 2,
+    "temporal_evidence_missing": 2,
+    "list_incomplete": 1,
+    "vocabulary_mismatch_recall": 1,
+    "open_domain_inference_retrieval": 1,
+    "count_wrong": 1,
+    "gold_error": 1
+   },
+   "wrong_by_category": {
+    "multi-hop": 8,
+    "single-hop": 4,
+    "open-domain": 3,
+    "temporal": 3
+   }
+  },
+  "gold_turn_plural_pronoun": {
+   "all": 27,
+   "wrong": 2,
+   "wrong_by_class": {
+    "list_incomplete": 1,
+    "wrong_detail": 1
+   },
+   "wrong_by_category": {
+    "multi-hop": 2
+   }
+  },
+  "gold_turn_relative_time": {
+   "all": 637,
+   "wrong": 149,
+   "wrong_by_class": {
+    "list_aggregation_generic": 26,
+    "wrong_detail": 18,
+    "open_domain_inference_retrieval": 15,
+    "temporal_evidence_missing": 11,
+    "gold_error": 10,
+    "refusal_premise_denial": 9,
+    "inference_open_domain": 8,
+    "count_wrong": 8,
+    "date_duration_arithmetic": 8,
+    "list_incomplete": 8,
+    "fusion_loss_lexical_only": 6,
+    "date_wrong_event": 5,
+    "fusion_loss_vector_only": 3,
+    "image_caption_misuse": 3,
+    "judge_false_negative": 2,
+    "implicit_or_paraphrased_gold": 2,
+    "vocabulary_mismatch_recall": 2,
+    "multi_evidence_recall": 1,
+    "rerank_keep_cut": 1,
+    "date_offset_small": 1,
+    "relative_date_gold_vs_judge": 1,
+    "lexical_outranked_recall": 1
+   },
+   "wrong_by_category": {
+    "multi-hop": 61,
+    "temporal": 40,
+    "single-hop": 25,
+    "open-domain": 23
+   }
+  },
+  "gold_turn_backreference": {
+   "all": 54,
+   "wrong": 17,
+   "wrong_by_class": {
+    "date_duration_arithmetic": 4,
+    "list_aggregation_generic": 3,
+    "fusion_loss_lexical_only": 2,
+    "open_domain_inference_retrieval": 2,
+    "wrong_detail": 2,
+    "refusal_premise_denial": 1,
+    "fusion_loss_vector_only": 1,
+    "gold_error": 1,
+    "temporal_evidence_missing": 1
+   },
+   "wrong_by_category": {
+    "multi-hop": 8,
+    "temporal": 5,
+    "single-hop": 2,
+    "open-domain": 2
+   }
+  },
+  "gold_in_session_with_short_form": {
+   "all": 289,
+   "wrong": 54,
+   "wrong_by_class": {
+    "wrong_detail": 11,
+    "list_aggregation_generic": 9,
+    "inference_open_domain": 5,
+    "fusion_loss_lexical_only": 4,
+    "refusal_premise_denial": 4,
+    "open_domain_inference_retrieval": 4,
+    "date_duration_arithmetic": 4,
+    "list_incomplete": 3,
+    "judge_false_negative": 2,
+    "temporal_evidence_missing": 2,
+    "distractor_line": 2,
+    "gold_error": 1,
+    "date_offset_small": 1,
+    "relative_date_gold_vs_judge": 1,
+    "count_wrong": 1
+   },
+   "wrong_by_category": {
+    "multi-hop": 22,
+    "single-hop": 13,
+    "temporal": 10,
+    "open-domain": 9
+   }
+  },
+  "gold_turn_with_short_form": {
+   "all": 35,
+   "wrong": 9,
+   "wrong_by_class": {
+    "wrong_detail": 4,
+    "date_duration_arithmetic": 2,
+    "list_aggregation_generic": 1,
+    "inference_open_domain": 1,
+    "open_domain_inference_retrieval": 1
+   },
+   "wrong_by_category": {
+    "multi-hop": 4,
+    "open-domain": 2,
+    "temporal": 2,
+    "single-hop": 1
+   }
+  },
+  "zero_content_overlap_question_gold": {
+   "all": 271,
+   "wrong": 81,
+   "wrong_by_class": {
+    "open_domain_inference_retrieval": 17,
+    "list_aggregation_generic": 10,
+    "wrong_detail": 8,
+    "temporal_evidence_missing": 7,
+    "inference_open_domain": 7,
+    "gold_error": 4,
+    "list_incomplete": 4,
+    "date_wrong_event": 3,
+    "fusion_loss_lexical_only": 3,
+    "fusion_loss_vector_only": 3,
+    "judge_false_negative": 2,
+    "distractor_line": 2,
+    "implicit_or_paraphrased_gold": 2,
+    "multi_evidence_recall": 2,
+    "vocabulary_mismatch_recall": 2,
+    "refusal_premise_denial": 2,
+    "count_wrong": 1,
+    "date_offset_small": 1,
+    "relative_date_gold_vs_judge": 1
+   },
+   "wrong_by_category": {
+    "open-domain": 24,
+    "single-hop": 24,
+    "multi-hop": 19,
+    "temporal": 14
+   }
+  },
+  "le1_content_overlap_question_gold": {
+   "all": 761,
+   "wrong": 180,
+   "wrong_by_class": {
+    "list_aggregation_generic": 31,
+    "open_domain_inference_retrieval": 23,
+    "wrong_detail": 20,
+    "inference_open_domain": 16,
+    "temporal_evidence_missing": 13,
+    "list_incomplete": 10,
+    "gold_error": 10,
+    "refusal_premise_denial": 9,
+    "fusion_loss_lexical_only": 7,
+    "date_wrong_event": 5,
+    "fusion_loss_vector_only": 5,
+    "count_wrong": 5,
+    "date_duration_arithmetic": 5,
+    "vocabulary_mismatch_recall": 4,
+    "judge_false_negative": 3,
+    "implicit_or_paraphrased_gold": 3,
+    "multi_evidence_recall": 3,
+    "distractor_line": 2,
+    "lexical_outranked_recall": 2,
+    "date_offset_small": 1,
+    "relative_date_gold_vs_judge": 1,
+    "image_caption_misuse": 1,
+    "fusion_loss_two_leg_crowded": 1
+   },
+   "wrong_by_category": {
+    "multi-hop": 65,
+    "single-hop": 41,
+    "open-domain": 39,
+    "temporal": 35
+   }
+  },
+  "bm25_miss_vector_hit_MEASURED": {
+   "all": 484,
+   "wrong": 100,
+   "wrong_by_class": {
+    "list_aggregation_generic": 18,
+    "wrong_detail": 14,
+    "list_incomplete": 11,
+    "refusal_premise_denial": 10,
+    "inference_open_domain": 8,
+    "count_wrong": 7,
+    "gold_error": 6,
+    "date_duration_arithmetic": 6,
+    "open_domain_inference_retrieval": 4,
+    "temporal_evidence_missing": 4,
+    "date_wrong_event": 2,
+    "fusion_loss_vector_only": 2,
+    "rerank_keep_cut": 1,
+    "judge_false_negative": 1,
+    "multi_evidence_recall": 1,
+    "date_offset_small": 1,
+    "distractor_line": 1,
+    "fusion_loss_lexical_only": 1,
+    "image_caption_misuse": 1,
+    "speaker_confusion": 1
+   },
+   "wrong_by_category": {
+    "multi-hop": 53,
+    "temporal": 19,
+    "single-hop": 16,
+    "open-domain": 12
+   }
+  },
+  "vector_miss_bm25_hit_MEASURED": {
+   "all": 133,
+   "wrong": 35,
+   "wrong_by_class": {
+    "wrong_detail": 10,
+    "list_aggregation_generic": 7,
+    "fusion_loss_lexical_only": 4,
+    "gold_error": 3,
+    "temporal_evidence_missing": 2,
+    "rerank_keep_cut": 2,
+    "open_domain_inference_retrieval": 2,
+    "count_wrong": 1,
+    "list_incomplete": 1,
+    "date_duration_arithmetic": 1,
+    "refusal_premise_denial": 1,
+    "fusion_loss_two_leg_crowded": 1
+   },
+   "wrong_by_category": {
+    "multi-hop": 17,
+    "single-hop": 11,
+    "temporal": 5,
+    "open-domain": 2
+   }
+  },
+  "neither_leg_in_top60_MEASURED": {
+   "all": 200,
+   "wrong": 96,
+   "wrong_by_class": {
+    "list_aggregation_generic": 26,
+    "open_domain_inference_retrieval": 25,
+    "temporal_evidence_missing": 6,
+    "fusion_loss_lexical_only": 5,
+    "multi_evidence_recall": 5,
+    "wrong_detail": 4,
+    "refusal_premise_denial": 4,
+    "vocabulary_mismatch_recall": 4,
+    "implicit_or_paraphrased_gold": 3,
+    "gold_error": 3,
+    "inference_open_domain": 3,
+    "date_wrong_event": 3,
+    "lexical_outranked_recall": 2,
+    "count_wrong": 2,
+    "judge_false_negative": 1
+   },
+   "wrong_by_category": {
+    "multi-hop": 42,
+    "open-domain": 28,
+    "single-hop": 14,
+    "temporal": 12
+   }
+  },
+  "gold_spans_3plus_sessions": {
+   "all": 129,
+   "wrong": 59,
+   "wrong_by_class": {
+    "list_aggregation_generic": 26,
+    "open_domain_inference_retrieval": 12,
+    "list_incomplete": 6,
+    "wrong_detail": 5,
+    "multi_evidence_recall": 2,
+    "count_wrong": 2,
+    "date_duration_arithmetic": 2,
+    "rerank_keep_cut": 1,
+    "fusion_loss_vector_only": 1,
+    "gold_error": 1,
+    "fusion_loss_lexical_only": 1
+   },
+   "wrong_by_category": {
+    "multi-hop": 45,
+    "open-domain": 12,
+    "temporal": 2
+   }
+  },
+  "gold_3plus_turns": {
+   "all": 187,
+   "wrong": 79,
+   "wrong_by_class": {
+    "list_aggregation_generic": 28,
+    "open_domain_inference_retrieval": 15,
+    "list_incomplete": 9,
+    "wrong_detail": 8,
+    "multi_evidence_recall": 5,
+    "date_duration_arithmetic": 3,
+    "temporal_evidence_missing": 3,
+    "fusion_loss_lexical_only": 2,
+    "count_wrong": 2,
+    "rerank_keep_cut": 1,
+    "fusion_loss_vector_only": 1,
+    "refusal_premise_denial": 1,
+    "gold_error": 1
+   },
+   "wrong_by_category": {
+    "multi-hop": 56,
+    "open-domain": 15,
+    "temporal": 7,
+    "single-hop": 1
+   }
+  },
+  "temporal_category": {
+   "all": 321,
+   "wrong": 54,
+   "wrong_by_class": {
+    "temporal_evidence_missing": 14,
+    "refusal_premise_denial": 10,
+    "gold_error": 9,
+    "date_duration_arithmetic": 9,
+    "date_wrong_event": 8,
+    "wrong_detail": 2,
+    "judge_false_negative": 1,
+    "date_offset_small": 1
+   },
+   "wrong_by_category": {
+    "temporal": 54
+   }
+  },
+  "multi_hop_category": {
+   "all": 282,
+   "wrong": 94,
+   "wrong_by_class": {
+    "list_aggregation_generic": 36,
+    "wrong_detail": 14,
+    "list_incomplete": 12,
+    "count_wrong": 9,
+    "multi_evidence_recall": 5,
+    "fusion_loss_lexical_only": 4,
+    "fusion_loss_vector_only": 3,
+    "refusal_premise_denial": 2,
+    "gold_error": 2,
+    "vocabulary_mismatch_recall": 2,
+    "judge_false_negative": 1,
+    "implicit_or_paraphrased_gold": 1,
+    "rerank_keep_cut": 1,
+    "lexical_outranked_recall": 1,
+    "speaker_confusion": 1
+   },
+   "wrong_by_category": {
+    "multi-hop": 94
+   }
+  }
+ },
+ "wrong_by_class": {
+  "wrong_detail": 46,
+  "list_aggregation_generic": 37,
+  "open_domain_inference_retrieval": 28,
+  "inference_open_domain": 26,
+  "gold_error": 24,
+  "list_incomplete": 16,
+  "refusal_premise_denial": 14,
+  "temporal_evidence_missing": 14,
+  "fusion_loss_lexical_only": 12,
+  "date_duration_arithmetic": 10,
+  "count_wrong": 9,
+  "date_wrong_event": 8,
+  "judge_false_negative": 6,
+  "fusion_loss_vector_only": 6,
+  "image_caption_misuse": 6,
+  "multi_evidence_recall": 5,
+  "implicit_or_paraphrased_gold": 4,
+  "vocabulary_mismatch_recall": 4,
+  "distractor_line": 3,
+  "rerank_keep_cut": 2,
+  "lexical_outranked_recall": 2,
+  "date_offset_small": 1,
+  "relative_date_gold_vs_judge": 1,
+  "no_gold_resolvable": 1,
+  "speaker_confusion": 1,
+  "fusion_loss_two_leg_crowded": 1
+ },
+ "wrong_by_stage": {
+  "b": 68,
+  "d:det": 52,
+  "cf": 43,
+  "d:inf": 26,
+  "f": 24,
+  "d:dar": 19,
+  "d:lst": 16,
+  "d:ref": 14,
+  "d:cnt": 9,
+  "e": 7,
+  "cr": 4,
+  "d:dis": 3,
+  "x": 1,
+  "d:spk": 1
+ },
+ "combined_wrong": {
+  "incomplete_gold AND retrieval_stage(b,cf,cr)": 15,
+  "short_form_session AND retrieval_stage": 19,
+  "multi_entity AND (multi-hop OR single-hop) AND not ok": 43,
+  "open_domain AND refusal_answer": 14,
+  "open_domain AND not_refusal": 41,
+  "attr AND (single-hop OR multi-hop)": 33,
+  "temporal wrong with relative-time gold": 40,
+  "lexical: (zero_overlap OR bm25_miss_vec_hit) AND retrieval_stage": 72
+ }
+}

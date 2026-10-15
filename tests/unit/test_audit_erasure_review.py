@@ -10,10 +10,10 @@ from typing import Any
 import orjson
 
 from memspine import Engine
-from memspine.core.erasure import PARTITION_MARKER, scrub_partition_nodes
-from memspine.core.events import EventKind, MemoryEvent
-from memspine.core.records import SourceInfo
-from memspine.workers.pipelines import COMMUNITY_PARTITION_MARKER
+from memspine.derive.pipeline.stages.index import COMMUNITY_PARTITION_MARKER
+from memspine.store.events import EventKind, MemoryEvent
+from memspine.store.records import SourceInfo
+from memspine.trust.erasure import PARTITION_MARKER, scrub_partition_nodes
 
 
 def _engine(**extra: Any) -> Engine:
@@ -254,7 +254,7 @@ def _decisions(first: str, second: str, solo: str) -> list[dict[str, Any]]:
 
 
 def test_redacting_one_member_redacts_its_whole_group() -> None:
-    from memspine.core.erasure import redact_record, retained_fields
+    from memspine.trust.erasure import redact_record, retained_fields
 
     payload = {"marker": "entity_resolved", "decisions": _decisions("t1", "t2", "t3")}
     assert retained_fields(payload, "t1") == {"entity", "attribute"}
@@ -267,7 +267,7 @@ def test_redacting_one_member_redacts_its_whole_group() -> None:
 
 
 def test_retained_fields_reports_an_intact_sibling() -> None:
-    from memspine.core.erasure import retained_fields
+    from memspine.trust.erasure import retained_fields
 
     payload = {"decisions": _decisions("t1", "t2", "t3")}
     payload["decisions"][0].update(entity=None, attribute=None)  # own entry only

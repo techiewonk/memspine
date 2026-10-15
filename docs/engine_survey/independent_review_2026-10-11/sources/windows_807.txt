@@ -1,0 +1,7 @@
+807:                 )
+808:                 store.pending.append(batch)
+809:                 self._counts["edges_pending"] += len(batch.edges)
+810:                 while len(store.pending) > constants.WINDOW_PENDING_EDGES_MAX:
+811:                     store.pending.pop(0)
+812:                     self._counts["edge_batches_dropped"] += 1
+813:             elif section == "episode":

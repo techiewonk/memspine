@@ -1,0 +1,657 @@
+[
+ {
+  "id": "P-01",
+  "choice": "C",
+  "combined": "",
+  "verdict": "needs-measurement",
+  "conflicts": [],
+  "needs": "Worker-tier per-role extraction screen (RV15) before a model smaller than the 9B is the worker default",
+  "impact": {
+   "quality": "0 while both tiers bind the 9B; unknown if worker shrinks",
+   "latency": "worker 2-4x faster per window if small (estimate)",
+   "cost": "write cost down with a small worker (estimate)",
+   "risk": "grounding loss on a small worker"
+  },
+  "v1_locations": [
+   "src/memspine/config/schema.py:193",
+   "src/memspine/config/schema.py:232",
+   "src/memspine/prompts/roles.py:11"
+  ],
+  "v2_component": "models.tiers",
+  "operators": [
+   "G",
+   "D",
+   "K_C"
+  ],
+  "memory_types": [
+   "all types"
+  ]
+ },
+ {
+  "id": "P-02",
+  "choice": "D",
+  "combined": "",
+  "verdict": "ok",
+  "conflicts": [],
+  "needs": "",
+  "impact": {
+   "quality": "+ when a hosted reader is bound (estimate +2-6 on reader-bound categories)",
+   "latency": "0",
+   "cost": "0 local; + with hosted reader",
+   "risk": "raw turns never leave; reader and sufficiency context tier-gated"
+  },
+  "v1_locations": [
+   "src/memspine/services/llm/tier_gate.py:110",
+   "src/memspine/services/llm/base.py:1"
+  ],
+  "v2_component": "models.placement",
+  "operators": [
+   "G",
+   "R"
+  ],
+  "memory_types": [
+   "all types"
+  ]
+ },
+ {
+  "id": "P-03",
+  "choice": "D",
+  "combined": "",
+  "verdict": "ok",
+  "conflicts": [],
+  "needs": "",
+  "impact": {
+   "quality": "0 (no silent empty layers)",
+   "latency": "0",
+   "cost": "0",
+   "risk": "low; explicit degradation only"
+  },
+  "v1_locations": [
+   "src/memspine/engine.py:13705"
+  ],
+  "v2_component": "models.fallback",
+  "operators": [
+   "D"
+  ],
+  "memory_types": [
+   "semantic",
+   "episodic"
+  ]
+ },
+ {
+  "id": "P-04",
+  "choice": "C",
+  "combined": "",
+  "verdict": "needs-measurement",
+  "conflicts": [],
+  "needs": "Window-arm screen constrained vs prompted: items dropped down, items per window and grounding not worse beyond band",
+  "impact": {
+   "quality": "+ fewer dropped sections; risk of shorter lists",
+   "latency": "+0-2% decode (estimate)",
+   "cost": "0",
+   "risk": "strict grammar may truncate small-model lists (RV11)"
+  },
+  "v1_locations": [
+   "src/memspine/services/llm/base.py:43",
+   "src/memspine/config/schema.py:218"
+  ],
+  "v2_component": "prompts.structured",
+  "operators": [
+   "D"
+  ],
+  "memory_types": [
+   "semantic",
+   "episodic",
+   "associative"
+  ]
+ },
+ {
+  "id": "P-05",
+  "choice": "D",
+  "combined": "",
+  "verdict": "ok",
+  "conflicts": [],
+  "needs": "",
+  "impact": {
+   "quality": "+ recovers near-miss items",
+   "latency": "+ second call on a minority of windows (estimate <5%)",
+   "cost": "small +",
+   "risk": "low; re-ask forbids new items"
+  },
+  "v1_locations": [
+   "src/memspine/workers/windows.py:618",
+   "src/memspine/config/schema.py:225"
+  ],
+  "v2_component": "prompts.structured.repair",
+  "operators": [
+   "D"
+  ],
+  "memory_types": [
+   "semantic",
+   "episodic"
+  ]
+ },
+ {
+  "id": "P-06",
+  "choice": "C",
+  "combined": "",
+  "verdict": "ok",
+  "conflicts": [],
+  "needs": "",
+  "impact": {
+   "quality": "0",
+   "latency": "- output tokens 15-30% vs full-key JSON (estimate)",
+   "cost": "down",
+   "risk": "short keys less self-describing; schema compensates"
+  },
+  "v1_locations": [
+   "src/memspine/prompts/base.py:8",
+   "src/memspine/prompts/defaults/window_extract.yaml:4"
+  ],
+  "v2_component": "prompts.structured",
+  "operators": [
+   "D"
+  ],
+  "memory_types": [
+   "semantic",
+   "associative"
+  ]
+ },
+ {
+  "id": "P-07",
+  "choice": "B",
+  "combined": "",
+  "verdict": "ok",
+  "conflicts": [],
+  "needs": "",
+  "impact": {
+   "quality": "0 if P-04 holds",
+   "latency": "shorter prefix",
+   "cost": "down (-50 to -150 prompt tokens, estimate)",
+   "risk": "removes the contamination path seen in 11853ed"
+  },
+  "v1_locations": [
+   "src/memspine/prompts/defaults/window_extract.yaml:1",
+   "src/memspine/prompts/defaults/extract@session4.yaml:45",
+   "evals/memspine_evals/readers.py:1"
+  ],
+  "v2_component": "prompts.layout",
+  "operators": [
+   "D"
+  ],
+  "memory_types": [
+   "all types"
+  ]
+ },
+ {
+  "id": "P-08",
+  "choice": "C",
+  "combined": "",
+  "verdict": "ok",
+  "conflicts": [],
+  "needs": "",
+  "impact": {
+   "quality": "0",
+   "latency": "small local gain (prefill ~10%); large on hosted",
+   "cost": "hosted input tokens down 50-90% on cached prefix (estimate)",
+   "risk": "provider-specific hint code"
+  },
+  "v1_locations": [
+   "src/memspine/prompts/defaults/window_extract.yaml:1",
+   "src/memspine/services/llm/litellm_llm.py:1"
+  ],
+  "v2_component": "prompts.layout",
+  "operators": [
+   "C"
+  ],
+  "memory_types": [
+   "working"
+  ]
+ },
+ {
+  "id": "P-09",
+  "choice": "B",
+  "combined": "",
+  "verdict": "ok",
+  "conflicts": [],
+  "needs": "",
+  "impact": {
+   "quality": "+ zero invented ids",
+   "latency": "0",
+   "cost": "0",
+   "risk": "low"
+  },
+  "v1_locations": [
+   "src/memspine/workers/windows.py:172"
+  ],
+  "v2_component": "prompts.layout.aliases",
+  "operators": [
+   "D"
+  ],
+  "memory_types": [
+   "semantic",
+   "associative"
+  ]
+ },
+ {
+  "id": "P-10",
+  "choice": "B",
+  "combined": "",
+  "verdict": "needs-measurement",
+  "conflicts": [
+   "P-17"
+  ],
+  "needs": "Focus-slice paired screen: English output unchanged (RV15); depends on multilingual embedder (P-17)",
+  "impact": {
+   "quality": "+ non-English; 0 English if screen passes",
+   "latency": "0",
+   "cost": "0",
+   "risk": "silent English drift if partial misfires"
+  },
+  "v1_locations": [
+   "src/memspine/config/presets/non_english.yaml:1"
+  ],
+  "v2_component": "prompts.layout.language",
+  "operators": [
+   "D"
+  ],
+  "memory_types": [
+   "semantic",
+   "episodic"
+  ]
+ },
+ {
+  "id": "P-11",
+  "choice": "D",
+  "combined": "",
+  "verdict": "ok",
+  "conflicts": [],
+  "needs": "",
+  "impact": {
+   "quality": "+ shorter items, no silent coverage loss",
+   "latency": "rescheduled windows add a little",
+   "cost": "small +",
+   "risk": "low"
+  },
+  "v1_locations": [
+   "src/memspine/workers/windows.py:116"
+  ],
+  "v2_component": "prompts.structured",
+  "operators": [
+   "D"
+  ],
+  "memory_types": [
+   "semantic",
+   "episodic"
+  ]
+ },
+ {
+  "id": "P-12",
+  "choice": "C",
+  "combined": "Fingerprint also carries model-runtime library versions (after the 18:17 uv sync incident; the environment fix itself is G-24)",
+  "verdict": "ok",
+  "conflicts": [],
+  "needs": "",
+  "impact": {
+   "quality": "0",
+   "latency": "0",
+   "cost": "0",
+   "risk": "+ exact invalidation and reproducible runs"
+  },
+  "v1_locations": [
+   "src/memspine/prompts/registry.py:100",
+   "src/memspine/core/records.py:122",
+   "src/memspine/workers/windows.py:648"
+  ],
+  "v2_component": "provenance.fingerprint",
+  "operators": [
+   "K_C"
+  ],
+  "memory_types": [
+   "all derived types"
+  ]
+ },
+ {
+  "id": "P-13",
+  "choice": "C",
+  "combined": "Rules: blocking lint over defaults, partials and harness reader prompts; single words, capitalised tokens and quoted words vs all in-scope benchmark vocabularies; invented-name allow-list (Ilse, Bram); standing deny-list with the 11853ed words; warning lint over rendered eval prompts and overrides; contaminated runs flagged in the manifest",
+  "verdict": "ok",
+  "conflicts": [],
+  "needs": "",
+  "impact": {
+   "quality": "0 (protects result validity)",
+   "latency": "0",
+   "cost": "0",
+   "risk": "false positives to allow-list"
+  },
+  "v1_locations": [
+   "tests/unit/test_prompt_gold_lint.py:47",
+   "tests/unit/test_prompt_gold_lint.py:103",
+   "tests/unit/test_prompt_gold_lint.py:190"
+  ],
+  "v2_component": "prompts.lint",
+  "operators": [
+   "D"
+  ],
+  "memory_types": [
+   "all types"
+  ]
+ },
+ {
+  "id": "P-14",
+  "choice": "D",
+  "combined": "Adds a read-side target from R-22: deep tier at most one extra model call and one extra search",
+  "verdict": "ok",
+  "conflicts": [],
+  "needs": "",
+  "impact": {
+   "quality": "0",
+   "latency": "0",
+   "cost": "visible; online target ~0.19 calls per turn (offline estimate)",
+   "risk": "targets could push quality-losing cuts"
+  },
+  "v1_locations": [
+   "src/memspine/engine.py:13788",
+   "src/memspine/engine.py:13257"
+  ],
+  "v2_component": "economy.targets",
+  "operators": [
+   "D"
+  ],
+  "memory_types": [
+   "semantic",
+   "episodic",
+   "associative"
+  ]
+ },
+ {
+  "id": "P-15",
+  "choice": "B",
+  "combined": "Sufficiency check (R-22) is a hot-path call: thinking off; capped thinking only for background judge, resolution and reflect",
+  "verdict": "ok",
+  "conflicts": [],
+  "needs": "",
+  "impact": {
+   "quality": "0 on answers (measured 0.806 vs 0.806); background merges unmeasured",
+   "latency": "0 on hot path",
+   "cost": "0 on hot path",
+   "risk": "truncations if enabled without cap"
+  },
+  "v1_locations": [
+   "src/memspine/services/llm/litellm_llm.py:34",
+   "src/memspine/config/schema.py:211"
+  ],
+  "v2_component": "models.reasoning",
+  "operators": [
+   "G"
+  ],
+  "memory_types": [
+   "semantic",
+   "reflective"
+  ]
+ },
+ {
+  "id": "P-16",
+  "choice": "B",
+  "combined": "",
+  "verdict": "ok",
+  "conflicts": [],
+  "needs": "",
+  "impact": {
+   "quality": "0 default; risk to verbatim grounding when on",
+   "latency": "0",
+   "cost": "- tokens 20-40% on long inputs when on (estimate)",
+   "risk": "dropped detail when enabled"
+  },
+  "v1_locations": [
+   "src/memspine/core/policies/compression.py:56"
+  ],
+  "v2_component": "prompts.compress",
+  "operators": [
+   "C"
+  ],
+  "memory_types": [
+   "working",
+   "episodic"
+  ]
+ },
+ {
+  "id": "P-17",
+  "choice": "C",
+  "combined": "",
+  "verdict": "needs-measurement",
+  "conflicts": [],
+  "needs": "Free retrieval-only screen: multilingual CPU embedder vs bge-small (LoCoMo, ConvoMem)",
+  "impact": {
+   "quality": "+2.1 retrieval sufficiency on GPU profile (measured); CPU multilingual unscreened",
+   "latency": "0 at equal wall-clock (measured on GPU)",
+   "cost": "0",
+   "risk": "two vector spaces across deployments; pinned per store"
+  },
+  "v1_locations": [
+   "src/memspine/config/schema.py:94",
+   "src/memspine/engine.py:1051"
+  ],
+  "v2_component": "retrieval.encoders.embedder",
+  "operators": [
+   "R"
+  ],
+  "memory_types": [
+   "episodic",
+   "semantic"
+  ]
+ },
+ {
+  "id": "P-18",
+  "choice": "C",
+  "combined": "Standing owner decision + R-14 B: jina-reranker-v3.5 is the model; configured by default with [st]; a pre-run gate (flat score spread or pool over budget) decides when it runs in the engine; eval harness forces gate=always; hits only (R-15 A)",
+  "verdict": "ok-combined",
+  "conflicts": [
+   "R-14"
+  ],
+  "needs": "needs-owner: CC-BY-NC-4.0 weights with trust_remote_code as the default of an Apache-2.0 engine; needs-measurement: gate calibration (gated vs always on focus slice, within band)",
+  "impact": {
+   "quality": "0 in harness (always on, 81.4% reference); about -1 to -2 retrieval sufficiency only when it runs",
+   "latency": "+30-35% wall-clock only on gated reads",
+   "cost": "reader tokens -35-50% when it runs",
+   "risk": "licence of default weights; gate thresholds per store"
+  },
+  "v1_locations": [
+   "src/memspine/config/schema.py:333",
+   "src/memspine/config/schema.py:436",
+   "src/memspine/engine.py:5763",
+   "src/memspine/engine.py:11676",
+   "src/memspine/services/rerank/jina_rerank.py:1"
+  ],
+  "v2_component": "retrieval.encoders.reranker",
+  "operators": [
+   "R"
+  ],
+  "memory_types": [
+   "working"
+  ]
+ },
+ {
+  "id": "P-19",
+  "choice": "C",
+  "combined": "",
+  "verdict": "ok",
+  "conflicts": [],
+  "needs": "",
+  "impact": {
+   "quality": "0",
+   "latency": "+ no swapping; reproducible speed",
+   "cost": "0",
+   "risk": "low; avoids OOM (C11: 14B+9B+encoders exceed 16 GB)"
+  },
+  "v1_locations": [
+   "src/memspine/config/schema.py:462",
+   "src/memspine/config/schema.py:94"
+  ],
+  "v2_component": "runtime.planner",
+  "operators": [
+   "R"
+  ],
+  "memory_types": [
+   "all types"
+  ]
+ },
+ {
+  "id": "P-20",
+  "choice": "C",
+  "combined": "All in-process asyncio under G-19 A; one process per store",
+  "verdict": "ok",
+  "conflicts": [
+   "G-19"
+  ],
+  "needs": "",
+  "impact": {
+   "quality": "0",
+   "latency": "read -20-40% on multi-leg reads (estimate); multi-user write throughput up",
+   "cost": "0",
+   "risk": "DB connection pressure; per-namespace order must hold"
+  },
+  "v1_locations": [
+   "src/memspine/workers/windows.py:474",
+   "src/memspine/engine.py:2339",
+   "src/memspine/config/schema.py:130"
+  ],
+  "v2_component": "runtime.scheduler",
+  "operators": [
+   "D",
+   "R"
+  ],
+  "memory_types": [
+   "episodic",
+   "semantic"
+  ]
+ },
+ {
+  "id": "P-21",
+  "choice": "C",
+  "combined": "Deep tier (R-22 B) gets its own budget; backlog age recomputed at start from persisted underived markers",
+  "verdict": "conflict",
+  "conflicts": [
+   "G-19"
+  ],
+  "needs": "SLO assumed a durable queue; G-19 A keeps queues in memory, so a crash adds a restart tail; owner awareness, revisit if G-19 moves to B",
+  "impact": {
+   "quality": "+ freshness visible",
+   "latency": "hot path unchanged; restart tail on derived items",
+   "cost": "0",
+   "risk": "lost in-flight queue on crash, recovered by start-time scan"
+  },
+  "v1_locations": [
+   "src/memspine/workers/windows.py:492",
+   "src/memspine/workers/windows.py:515"
+  ],
+  "v2_component": "economy.slo",
+  "operators": [
+   "D"
+  ],
+  "memory_types": [
+   "working",
+   "episodic"
+  ]
+ },
+ {
+  "id": "P-22",
+  "choice": "C",
+  "combined": "Ledger keyed by M-02 explicit layer field and by tier (incl. sufficiency); deferral durable via persisted underived marks (W-26) despite G-19 A",
+  "verdict": "ok",
+  "conflicts": [],
+  "needs": "",
+  "impact": {
+   "quality": "0",
+   "latency": "0",
+   "cost": "+ bounded spend when budgets on",
+   "risk": "low; budgets off by default"
+  },
+  "v1_locations": [
+   "src/memspine/engine.py:13257",
+   "src/memspine/engine.py:13788"
+  ],
+  "v2_component": "economy.ledger",
+  "operators": [
+   "K_C"
+  ],
+  "memory_types": [
+   "all types"
+  ]
+ },
+ {
+  "id": "P-23",
+  "choice": "B",
+  "combined": "",
+  "verdict": "needs-measurement",
+  "conflicts": [],
+  "needs": "Window-arm screen with/without GLiNER2 pre-pass: grounded facts not down beyond band, calls down",
+  "impact": {
+   "quality": "0 to - (hint bias, skipped windows)",
+   "latency": "+ fewer and shorter calls",
+   "cost": "- 10-30% windows skipped (estimate)",
+   "risk": "missed facts in skipped windows"
+  },
+  "v1_locations": [
+   "src/memspine/services/decision/gliner2_decision.py:1",
+   "src/memspine/core/window.py:108"
+  ],
+  "v2_component": "write.prepass",
+  "operators": [
+   "D"
+  ],
+  "memory_types": [
+   "semantic",
+   "associative"
+  ]
+ },
+ {
+  "id": "P-24",
+  "choice": "B",
+  "combined": "",
+  "verdict": "ok",
+  "conflicts": [],
+  "needs": "",
+  "impact": {
+   "quality": "0",
+   "latency": "small + from prefix cache hits",
+   "cost": "small down",
+   "risk": "none; no KV store for forget to reach"
+  },
+  "v1_locations": [
+   "src/memspine/services/llm/llama_cpp.py:27"
+  ],
+  "v2_component": "compose.prefix",
+  "operators": [
+   "C"
+  ],
+  "memory_types": [
+   "working"
+  ]
+ },
+ {
+  "id": "P-25",
+  "choice": "C",
+  "combined": "Resumable in-process re-derivation scan (G-19 A); scope mainly facts and edges (M-02 two-layer core, O-15 A)",
+  "verdict": "ok",
+  "conflicts": [],
+  "needs": "",
+  "impact": {
+   "quality": "+ memory improves with models",
+   "latency": "0",
+   "cost": "re-derivation charged to P-22 ledger; double index during migration",
+   "risk": "low; stale results blocked by generation checks (RV07)"
+  },
+  "v1_locations": [
+   "src/memspine/engine.py:1051",
+   "src/memspine/engine.py:13357"
+  ],
+  "v2_component": "models.upgrade",
+  "operators": [
+   "K_C"
+  ],
+  "memory_types": [
+   "all derived types"
+  ]
+ }
+]

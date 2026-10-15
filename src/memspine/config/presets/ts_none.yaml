@@ -1,0 +1,12 @@
+# I25 preset: no timestamps (ConvoMem / PrefEval / LaMP shape). Every record would be filed
+# under the write clock, so a date prefix or a date leg would print/score today's date (I7).
+read:
+  render: plain
+  resolve_relative_dates: false
+  relative_dates_anchored: false
+  temporal_leg: false
+  temporal_leg_mentions: false
+  temporal_leg_event_dates: false
+  order_by_time_for_ordering: false
+  rerank_date_prefix: false
+  skip_defaulted_dates: true

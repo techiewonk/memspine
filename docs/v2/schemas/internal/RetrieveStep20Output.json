@@ -1,0 +1,227 @@
+{
+  "$defs": {
+    "CacheEntryInfo": {
+      "additionalProperties": true,
+      "description": "Step 20 cache description.(CacheKey).",
+      "properties": {
+        "cache": {
+          "title": "Cache",
+          "type": "string"
+        },
+        "hit": {
+          "title": "Hit",
+          "type": "boolean"
+        },
+        "key": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CacheKey"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "cache",
+        "hit"
+      ],
+      "title": "CacheEntryInfo",
+      "type": "object"
+    },
+    "CacheKey": {
+      "additionalProperties": true,
+      "description": "A cache entry is keyed on all of these (ER-31); caches stay off until the ER-31 tests pass.\n\nThe query is normalised on validation and ``model_ids`` is sorted and de-duplicated, so equivalent\ninputs give the same key.",
+      "properties": {
+        "config_hash": {
+          "minLength": 1,
+          "title": "Config Hash",
+          "type": "string"
+        },
+        "erasure_generation": {
+          "minimum": 0,
+          "title": "Erasure Generation",
+          "type": "integer"
+        },
+        "model_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Model Ids",
+          "type": "array"
+        },
+        "query": {
+          "title": "Query",
+          "type": "string"
+        },
+        "scope": {
+          "$ref": "#/$defs/OwnerScope"
+        },
+        "store_generation": {
+          "minimum": 0,
+          "title": "Store Generation",
+          "type": "integer"
+        },
+        "viewer": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Viewer"
+        }
+      },
+      "required": [
+        "scope",
+        "query",
+        "config_hash",
+        "store_generation",
+        "erasure_generation"
+      ],
+      "title": "CacheKey",
+      "type": "object"
+    },
+    "LegHit": {
+      "additionalProperties": true,
+      "description": "Internal step type.",
+      "properties": {
+        "record_id": {
+          "title": "Record Id",
+          "type": "string"
+        },
+        "score": {
+          "title": "Score",
+          "type": "number"
+        }
+      },
+      "required": [
+        "record_id",
+        "score"
+      ],
+      "title": "LegHit",
+      "type": "object"
+    },
+    "LegResult": {
+      "additionalProperties": true,
+      "properties": {
+        "elapsed_ms": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Elapsed Ms"
+        },
+        "leg": {
+          "$ref": "#/$defs/NamedLeg"
+        },
+        "timed_out": {
+          "default": false,
+          "title": "Timed Out",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "leg"
+      ],
+      "title": "LegResult",
+      "type": "object"
+    },
+    "NamedLeg": {
+      "additionalProperties": true,
+      "description": "Internal step type. ``list[LegHit]`` plus a name and family.",
+      "properties": {
+        "family": {
+          "enum": [
+            "dense",
+            "lexical",
+            "structured",
+            "derived"
+          ],
+          "title": "Family",
+          "type": "string"
+        },
+        "hits": {
+          "items": {
+            "$ref": "#/$defs/LegHit"
+          },
+          "title": "Hits",
+          "type": "array"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "family"
+      ],
+      "title": "NamedLeg",
+      "type": "object"
+    },
+    "OwnerScope": {
+      "additionalProperties": true,
+      "description": "Memory scope: tenant plus memory owner (S3-1).\n\nThe owner is a user or a shared group; every agent and session serving that owner sees the same\nentities. The session is *not* part of the scope: it is recorded as :class:`Provenance` only.",
+      "properties": {
+        "owner": {
+          "minLength": 1,
+          "title": "Owner",
+          "type": "string"
+        },
+        "owner_kind": {
+          "default": "user",
+          "enum": [
+            "user",
+            "group"
+          ],
+          "title": "Owner Kind",
+          "type": "string"
+        },
+        "tenant": {
+          "minLength": 1,
+          "title": "Tenant",
+          "type": "string"
+        }
+      },
+      "required": [
+        "tenant",
+        "owner"
+      ],
+      "title": "OwnerScope",
+      "type": "object"
+    }
+  },
+  "additionalProperties": true,
+  "properties": {
+    "caches": {
+      "items": {
+        "$ref": "#/$defs/CacheEntryInfo"
+      },
+      "title": "Caches",
+      "type": "array"
+    },
+    "results": {
+      "items": {
+        "$ref": "#/$defs/LegResult"
+      },
+      "title": "Results",
+      "type": "array"
+    }
+  },
+  "required": [
+    "results"
+  ],
+  "title": "RetrieveStep20Output",
+  "type": "object"
+}

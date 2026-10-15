@@ -1,0 +1,649 @@
+{
+  "slug": "hindsight",
+  "name": "Hindsight (Vectorize)",
+  "repo": "https://github.com/vectorize-io/hindsight",
+  "commit": "a9eeed7",
+  "version": "0.10.3 (hindsight-api / hindsight-api-slim, released 2026-10-08)",
+  "licence": "MIT",
+  "one_line": "Postgres/pgvector agent-memory server with three operations (retain = per-chunk LLM fact extraction into world/experience facts plus an entity/temporal/semantic/causal link graph; recall = four parallel retrieval arms fused by RRF, cross-encoder reranked and packed to a token budget with no LLM call; reflect = a tool-using agent over mental models, observations and raw facts), with background LLM consolidation of facts into evidence-backed observations.",
+  "locomo": [
+    {
+      "score": "92.0",
+      "protocol": "Vendor leaderboard 'LoComo10'. Our notes: Gemini 3.1 Pro preview reader, Gemini 2.5 Flash Lite judge told to 'be generous', about 36k context. Only the 92% figure was re-confirmed on the site this pass; reader, judge and context are not shown there.",
+      "who": "vendor",
+      "source": "https://benchmarks.hindsight.vectorize.io/ (results file locomo-hindsight/rag/locomo10.json.gz), fetched 2026-10-11"
+    },
+    {
+      "score": "89.61",
+      "protocol": "Paper Table 4: Gemini-3 Pro answer generator only; GPT-OSS-120b judge at temperature 0; categories single-hop / multi-hop / open-domain / temporal (86.17 / 70.83 / 95.12 / 83.80); recall token budget left as an unfilled '<add> tokens' placeholder in the paper",
+      "who": "vendor (paper authors are Vectorize plus Virginia Tech)",
+      "source": "arXiv:2512.12818 'Hindsight is 20/20', Table 4"
+    },
+    {
+      "score": "85.67",
+      "protocol": "Paper Table 4: GPT-OSS-120b memory backbone; answer model not named explicitly; GPT-OSS-120b judge (76.79 / 62.50 / 93.68 / 79.44)",
+      "who": "vendor",
+      "source": "arXiv:2512.12818, Table 4"
+    },
+    {
+      "score": "83.18",
+      "protocol": "Paper Table 4: GPT-OSS-20b for memory and answer; GPT-OSS-120b judge (74.11 / 64.58 / 90.96 / 76.32)",
+      "who": "vendor",
+      "source": "arXiv:2512.12818, Table 4"
+    },
+    {
+      "score": "81.99",
+      "protocol": "OmniMemEval cloud run: SH 88.98 / MH 78.84 / T 73.52 / OD 58.33, 24,683 context tokens per question (reader and judge as in our OmniMemEval notes)",
+      "who": "independent (third-party harness)",
+      "source": "our notes only; not re-verified this pass"
+    }
+  ],
+  "rows": {
+    "arch.product": {
+      "s": "",
+      "t": "Self-hostable FastAPI server plus worker (Docker, pip, Helm, embedded 'hindsight-all' with a bundled pg0 Postgres), a daemon-managed local CLI (hindsight-embed), managed Hindsight Cloud, SDKs (Python, TS, Go, CLI), an MCP server and 25+ LLM providers. Packaging: hindsight-api-slim has no local ML stack; hindsight-api = slim[all], where 'all' = local-ml (torch, sentence-transformers, flashrank, MLX) + local-onnx + embedded-db (pg0); hindsight-all(-slim) bundles the server for in-process use.",
+      "e": "README.md (Quick Start); hindsight-api/pyproject.toml:13; hindsight-api-slim/pyproject.toml:110-162; hindsight-embed/README.md; config.py:1100 DEFAULT_DATABASE_URL='pg0' [read]"
+    },
+    "arch.truth": {
+      "s": "Y",
+      "t": "Postgres is the single source of truth: documents (original text kept by default), chunks, memory_units (facts and observations share one table, distinguished by fact_type), entities, links, mental models. Raw source text is kept so documents can be re-extracted.",
+      "e": "hindsight-api-slim/hindsight_api/config.py:1718 DEFAULT_STORE_DOCUMENT_TEXT=True; alembic/versions/5a366d414dce_initial_schema.py:265-292 [read]"
+    },
+    "arch.stores": {
+      "s": "Y",
+      "t": "One relational store: PostgreSQL + pgvector (HNSW by default; pgvectorscale DiskANN, VectorChord or AlloyDB ScaNN selectable) for vectors and Postgres full-text for keywords; Oracle AI Database is supported as an alternative. A memories-store abstraction lets a store own its index (recall_unified).",
+      "e": "README.md (Docker external PostgreSQL, Oracle note); engine/search/retrieval.py:124-131; _vector_index.py:15-45; config.py:1449; engine/db/oracle.py [read]"
+    },
+    "arch.graphdb": {
+      "s": "N",
+      "t": "No graph database. The graph lives in Postgres tables: entities, unit_entities (fact-entity joins), entity_cooccurrences and memory_links (link types temporal, semantic and caused_by). Entity edges are not stored: since migration e9b2c7d1f3a4 (2026-05-26) they are derived on demand by a unit_entities self-join. Walked with SQL by the 'link_expansion' retriever.",
+      "e": "alembic/versions/e9b2c7d1f3a4_drop_entity_memory_links.py:1-16; engine/memories/pg/link_expansion.py:1-25; engine/memories/pg/entity_resolver.py:581; config.py:1544 DEFAULT_GRAPH_RETRIEVER='link_expansion' [read]"
+    },
+    "arch.scope": {
+      "s": "Y",
+      "t": "Bank = isolated store per user/agent/project (strict, no cross-bank reads). Inside a bank, tags give visibility scoping on recall/reflect (any/all/exact match, tag groups) and observation_scopes partition consolidation. Multi-tenancy by Postgres schema via a TenantExtension.",
+      "e": "README.md (Memory Banks); api/http.py:541-560 RecallRequest tags; extensions/tenant.py:54-70 [read]"
+    },
+    "write.entry": {
+      "s": "Y",
+      "t": "POST /v1/default/banks/{bank_id}/memories with items (content, context, timestamp, tags, metadata, document_id); also file retain, MCP retain tool and SDK client.retain. Internally MemoryEngine.retain_batch_async -> retain.orchestrator.retain_batch.",
+      "e": "api/http.py:10014; engine/memory_engine.py:6429; engine/retain/orchestrator.py:1421 [read]"
+    },
+    "write.receipt": {
+      "s": "Y",
+      "t": "Synchronous by default: the call waits until extraction, embedding and storage are committed ('async' defaults to false). With async=true the request is queued in a Postgres async_operations table and claimed by workers with FOR UPDATE SKIP LOCKED; large batches are auto-split into sub-batches of ~10,000 tokens. Consolidation always runs later in the background.",
+      "e": "api/http.py:1259-1263; worker/poller.py:5,492; config.py:1694 DEFAULT_RETAIN_BATCH_TOKENS=10_000 [read]"
+    },
+    "write.roles": {
+      "s": "Y",
+      "t": "Every fact is classified world vs experience (the schema calls the latter 'assistant'). 'assistant' covers only what the agent itself did or observed; user preferences, rules, corrections and constraints are 'world' even when said in conversation. The extractor is told the narrator is the bank's agent unless the caller's context names another first-person speaker, in which case those statements become world facts about that speaker.",
+      "e": "engine/retain/fact_extraction.py:171,278-279,1847-1861; docs/developer/retain.md 'Two Types of Facts' [read]"
+    },
+    "write.firewall": {
+      "s": "O",
+      "t": "Memory Defense is opt-in per bank and off by default (memory_defense=None). The open-source build implements only a 'sensitive_data' rule: 46 regex patterns (provider and cloud API keys, source-control and CI tokens, payment and messaging tokens, DB URLs with credentials, PEM private keys, JWTs, and PII limited to US SSNs and Luhn-checked card numbers) with redact or block actions, webhook and audit entries. Other detector names pass through to whichever extension is loaded; a code comment says hindsight-cloud screens cloud-only detectors, so the docs' 'prompt_injection' example is a cloud feature, not OSS.",
+      "e": "extensions/memory_defense.py:32-39 (detector dispatch), :167-236 (_REDACTION_PATTERNS), :262 apply_redaction, :336 MemoryDefenseExtension; extensions/builtin/memory_defense_regex.py:25; config.py:3488-3490; docs/developer/memory-defense/index.md [read]"
+    },
+    "write.governance": {
+      "s": "P",
+      "t": "Redaction via the opt-in Memory Defense; retain_mission narrows what is extracted; tag-scoped visibility (source text follows its document's tags); audit log (off by default); manual curation (edit, invalidate to an archive table, revert); document, memory and bank deletes; uploaded file bytes deleted after retain by default. No consent model and no TTL on memories: the retention sweep only purges operations, audit and LLM-trace rows.",
+      "e": "config.py:1660,1717,1991-1993,2025; engine/maintenance.py:249-292; engine/source_scope.py:1-12; alembic/versions/c9a1b2d3e4f5_add_invalidated_memory_units.py [read]"
+    },
+    "segment.unit": {
+      "s": "",
+      "t": "A chunk of at most 3,000 characters (DEFAULT_RETAIN_CHUNK_SIZE). Each chunk gets one extraction call; a retain item smaller than the limit is a single chunk.",
+      "e": "config.py:1643; engine/retain/fact_extraction.py:767-800 [read]"
+    },
+    "segment.rule": {
+      "s": "Y",
+      "t": "Size-based. JSON conversation arrays are cut at turn boundaries, keeping whole turns; JSONL is cut at lines; plain text uses recursive separators; image-bearing text has its own budget (1,500 chars per image, at most 8 attachments per chunk). No topic or episode boundary detection.",
+      "e": "engine/retain/fact_extraction.py:881-935 _iter_conversation_chunks, :985, :600; config.py:1683,1686 [read]"
+    },
+    "segment.measured": {
+      "s": "N",
+      "t": "No published per-LoCoMo chunk or call counts found. Inferred: a LoCoMo session (~22 turns) is typically 1-2 chunks of 3,000 chars, so about 300-550 chunks for 272 sessions.",
+      "e": "not found [inferred]"
+    },
+    "extract.calls": {
+      "s": "Y",
+      "t": "One structured-output LLM call per chunk (temperature 0.1, up to 64k completion tokens), with an auto-split retry if output overflows. Optional provider Batch API for async retain (off by default). The 'chunks' mode makes no LLM call.",
+      "e": "engine/retain/fact_extraction.py:2013 _extract_facts_from_chunk, :2499 _extract_facts_with_auto_split; config.py:250,1642,1701 [read]"
+    },
+    "extract.facts": {
+      "s": "Y",
+      "t": "Narrative atomic facts with what/when/where/who/why fields, combined into one fact text. The paper's design is to keep context (e.g. a whole decision) in one fact rather than fragments. Modes: concise (default), verbose, verbatim, custom, chunks.",
+      "e": "engine/retain/fact_extraction.py:161-170,261-306; config.py:1658; docs/developer/retain.md [read]"
+    },
+    "extract.episode": {
+      "s": "N",
+      "t": "No separate episode narrative or session summary record; narrative context is folded into each fact. The source chunk can be returned with include.chunks.",
+      "e": "not found; api/http.py:483 ChunkIncludeOptions [read]"
+    },
+    "extract.dates": {
+      "s": "Y",
+      "t": "The event date of each item is put into the extraction prompt (weekday plus ISO), and the model returns occurred_start/occurred_end ISO timestamps and a 'when' text for events, so relative dates are resolved at write time. A fallback infers a date from the fact text.",
+      "e": "engine/retain/fact_extraction.py:1833-1838,276-277,89 _infer_temporal_date [read]"
+    },
+    "extract.neighbours": {
+      "s": "N",
+      "t": "The extractor sees only the chunk, chunk index, event date, context, metadata and mission; no existing memories are shown. Neighbour-aware reconciliation happens later in consolidation, where related observations are recalled for each batch of new facts.",
+      "e": "engine/retain/fact_extraction.py:1815-1906 _build_user_message; engine/consolidation/consolidator.py:3112 [read]"
+    },
+    "extract.failure": {
+      "s": "Y",
+      "t": "Output-overflow auto-split of the chunk, schema 'shape repair' retry, LLM retries with backoff, degenerate facts rejected, a per-document 'no_facts' outcome metric, and async tasks retried up to 3 times. Documents can be reprocessed with no re-upload.",
+      "e": "engine/retain/fact_extraction.py:319,1975,2499; engine/retain/types.py:468; config.py:1876; docs/developer/retain.md (reprocess) [read]"
+    },
+    "graph.entities": {
+      "s": "Y",
+      "t": "Entities are a field of the same extraction call (people, organisations, places, products, concepts), plus optional controlled-vocabulary key:value entity labels that resolve by exact match only.",
+      "e": "engine/retain/fact_extraction.py:281; engine/retain/entity_labels.py; docs/developer/retain.md 'Entity Labels' [read]"
+    },
+    "graph.resolution": {
+      "s": "Y",
+      "t": "Rule-based, no LLM: pg_trgm candidate lookup (threshold 0.3, up to 200 candidates). A candidate must pass a trigram merge floor of 0.3 and a word-by-word compatibility check; identical trigram sets (case or decoration variants) score 1.0, otherwise score = 0.5 x SequenceMatcher name similarity + 0.3 x selectivity-weighted co-occurrence overlap + 0.2 x temporal proximity (7-day decay); merge at >= 0.6 (rounded). In-batch trigram merge at 0.5.",
+      "e": "engine/memories/pg/entity_resolver.py:1289-1347; config.py:1695-1700,1851,1858,1869 [read]"
+    },
+    "graph.edges": {
+      "s": "Y",
+      "t": "Untyped links between facts, not subject-predicate-object triples. Stored in memory_links: temporal (within 24 h, weight max(0.3, 1 - gap/24h)), semantic (kNN top 50 at cosine >= 0.7) and caused_by (the LLM emits fact-index causal relations in the extraction call; on by default; legacy causes/enables/prevents kept only on import). Entity links (shared entity) are computed at query time from unit_entities, not stored.",
+      "e": "engine/memories/pg/links.py:461,547,581; engine/causal_links.py:1-18; alembic/versions/e9b2c7d1f3a4_drop_entity_memory_links.py; config.py:1323,1644; engine/retain/fact_extraction.py:218-260 [read]"
+    },
+    "graph.communities": {
+      "s": "N",
+      "t": "No community detection or clustering. Observation scopes and mental models play the grouping role.",
+      "e": "not found [read]"
+    },
+    "time.fields": {
+      "s": "P",
+      "t": "Per fact: event_date (required), occurred_start, occurred_end (event time), mentioned_at (when told), created_at, updated_at and edited_at (last manual edit). That is event-time vs learned-time, but there are no valid_from/valid_to fields; invalidation is manual and moves the row to an archive table with invalidated_at and a reason. Observations carry history (50 entries by default).",
+      "e": "alembic/versions/5a366d414dce_initial_schema.py:274-286; alembic/versions/c9a1b2d3e4f5_add_invalidated_memory_units.py:1-26; config.py:1727,1753; docs/developer/retain.md 'Understanding Time' [read]"
+    },
+    "time.update": {
+      "s": "Y",
+      "t": "Raw facts are append-only on the automatic path. Contradictions are handled at the observation layer: a consolidation LLM call per batch of up to 8 new facts emits creates/updates/deletes over related observations. The rules are prefer update, one observation per facet, cascade a state change to every affected observation, preserve history ('previously X, now Y'), delete only when superseded, and never do arithmetic. A user can also curate a raw fact (edit, invalidate or revert); an edit re-embeds it, drops its derived observations and links, and re-consolidates.",
+      "e": "engine/consolidation/prompts.py:37-55,109-172; engine/consolidation/consolidator.py:709-766; engine/memory_engine.py:11916-11945; config.py:1759 [read]"
+    },
+    "time.dedup": {
+      "s": "P",
+      "t": "No fact-level dedup at write; only chunk-hash delta retain skips unchanged chunks when a document is re-upserted. Observations are deduped: a new or updated observation at cosine >= 0.97 against its top-5 neighbours triggers an LLM merge/keep adjudication (Postgres only), within the same tag scope.",
+      "e": "engine/retain/orchestrator.py:3647,3666 _try_delta_retain; engine/consolidation/consolidator.py:151-207,282; config.py:1764 [read]"
+    },
+    "derive.session": {
+      "s": "N",
+      "t": "No session summaries.",
+      "e": "not found [read]"
+    },
+    "derive.profile": {
+      "s": "O",
+      "t": "No built-in user profile. The equivalent is a mental model: a user-defined standing question (e.g. 'What are this user's preferences?') whose answer reflect writes, stores and refreshes in the background after consolidation; reading it is a DB read with no LLM call.",
+      "e": "README.md 'Mental Models'; engine/consolidation/consolidator.py:2207 _trigger_mental_model_refreshes; engine/mental_model_refresh.py; config.py:2021 [read]"
+    },
+    "derive.entity": {
+      "s": "N",
+      "t": "The paper's entity-summary 'observation network' has been removed. Recall still returns an entities map, but with empty observation lists; the code comment says 'summaries now live in mental models'. The term 'observation' now names consolidated beliefs.",
+      "e": "engine/memory_engine.py:10549-10556; alembic/versions/t5o6p7q8r9s0_rename_mental_models_to_observations.py (2026-01-26) [read]"
+    },
+    "derive.background": {
+      "s": "Y",
+      "t": "Auto-consolidation after every retain, delete or update (on by default), run by Postgres-queue workers (10 slots, 500 ms poll); a 300 s reconcile loop; mental-model refresh ticks; graph and vector-index maintenance jobs; webhooks on consolidation.completed.",
+      "e": "config.py:1725-1726,1873-1879,2010,2021,2104; engine/consolidation/consolidator.py:1469 run_consolidation_job [read]"
+    },
+    "derive.forget": {
+      "s": "N",
+      "t": "No decay or forgetting of memories. Recency is only a ranking boost: linear over 365 days to a 0.1 floor (so -8% to +10%), with exponential (90-day half-life) or none as options. An observation cap per scope is unlimited by default. The paper's opinion confidence (reinforce +a, weaken -a, contradict -2a) is gone with the opinion network.",
+      "e": "engine/search/reranking.py:35-78,300; config.py:1350-1351,1782; alembic/versions/g2h3i4j5k6l7_remove_opinion_fact_type.py [read]"
+    },
+    "index.embed": {
+      "s": "Y",
+      "t": "Local BAAI/bge-small-en-v1.5 (384-d) by default; an ONNX multilingual-e5-small option; hosted options (OpenAI text-embedding-3-small, Gemini, Cohere, TEI, LiteLLM and others).",
+      "e": "config.py:1222-1226,1243,1282 [read]"
+    },
+    "index.lexical": {
+      "s": "Y",
+      "t": "Default 'native' Postgres tsvector + ts_rank_cd (TF-IDF style, not true BM25). Pluggable vchord_bm25, pg_textsearch, PGroonga or ParadeDB pg_search for real BM25 and CJK tokenisers.",
+      "e": "config.py:1474,1480; docs/developer/retrieval.md 'Keyword Search' [read]"
+    },
+    "index.vector": {
+      "s": "Y",
+      "t": "pgvector HNSW by default (DiskANN, VectorChord or ScaNN selectable). ef_search stays at a fixed 200, but hnsw.iterative_scan (pgvector 0.8+, on by default) lets the scan resume until the query's LIMIT is met, bounded by 4,000 scanned tuples. There is also a vector-index health job, and Oracle vector on the Oracle backend.",
+      "e": "config.py:1447-1463; engine/memories/postgres.py:287-291; _vector_index.py:36-45; engine/vector_index_health.py [read]; docs/developer/retrieval.md:366 (outdated) [doc]"
+    },
+    "read.rewrite": {
+      "s": "N",
+      "t": "No query rewriting or HyDE on recall. The reflect agent writes its own sub-queries as tool arguments.",
+      "e": "engine/memory_engine.py:8804-8812 recall pipeline [read]"
+    },
+    "read.analysis": {
+      "s": "Y",
+      "t": "Non-LLM query analysis: a dateparser-based analyser (with a Chinese period table) extracts a temporal window from the query, relative to query_timestamp. An optional transformer analyser exists. The query is capped at 500 tokens.",
+      "e": "engine/search/temporal_extraction.py:64-76; engine/query_analyzer.py:277,473; engine/chinese_temporal_periods.py; config.py:1600 [read]"
+    },
+    "read.legs": {
+      "s": "Y",
+      "t": "TEMPR: four arms per fact type run in parallel: semantic (cosine >= 0.3), keyword, graph (link expansion from semantic seeds) and temporal (only when a window is found). Arm depth is set by the budget: low 100, mid 300, high 1000 candidates (adaptive mode optional).",
+      "e": "engine/search/retrieval.py:100-230; config.py:1320-1322,1956-1965 [read]"
+    },
+    "read.temporal": {
+      "s": "Y",
+      "t": "Window overlap on occurred/mentioned dates. Candidates inside the window are chosen by semantic relevance (min 0.1), not recency, then spread through links. A temporal-proximity boost is applied at rerank. Callers may pass an explicit temporal_window.",
+      "e": "engine/search/retrieval.py:159-199; config.py:1322; docs/developer/retrieval.md 'Temporal Search' [read]"
+    },
+    "read.traversal": {
+      "s": "Y",
+      "t": "One-hop link expansion from up to 20 semantic seeds (cosine >= 0.3): graph_score = tanh(0.5 x shared entities) + semantic link weight + causal link weight, summed in [0, 3] so convergent signals win; at most 200 targets per entity and a 10 s timeout that drops the entity leg. Temporal links are not used by this arm (only by temporal-arm spreading). No multi-hop walk.",
+      "e": "engine/memories/pg/link_expansion.py:1-25,232-266; config.py:1321,1544,1607-1608 [read]"
+    },
+    "rank.fusion": {
+      "s": "Y",
+      "t": "Reciprocal rank fusion with k = 60, equal weights by default; optional per-arm strategy boosts and a per-source cap; an interleave alternative exists.",
+      "e": "engine/search/fusion.py:8,29,112; engine/search/recall_boost.py:127 [read]"
+    },
+    "rank.rerank": {
+      "s": "Y",
+      "t": "Cross-encoder on the top 300 RRF candidates: local ms-marco-MiniLM-L-6-v2 by default (Cohere, ZeroEntropy, Jina, TEI and others optional; 'rrf' and 'interleave' modes bypass it). Then final = sigmoid(CE) x recency (-8% to +10%) x temporal proximity (+/-10%, neutral for non-temporal queries) x proof count (0 to +5%, observations only). A passthrough reranker seeds the base score from RRF rank so boosts cannot turn ranking into a recency sort. The docstring mentions MMR diversity (lambda 0.5), but no MMR code exists.",
+      "e": "config.py:1284-1286,1315; engine/search/reranking.py:35-37,174-303,436-449; engine/memory_engine.py:738,9261 [read]"
+    },
+    "rank.gate": {
+      "s": "P",
+      "t": "Similarity floors only (semantic 0.3, graph seed 0.3, temporal 0.1, optional caller min_scores). No abstain or relevance gate: the token packer always returns at least the top fact if anything matched.",
+      "e": "config.py:1320-1322; api/http.py:560; engine/fact_budget.py:1-20 [read]"
+    },
+    "rank.agentic": {
+      "s": "Y",
+      "t": "reflect is a tool-calling agent: search_mental_models, read_mental_models, search_observations, recall (TEMPR), expand and done. Up to 10 iterations, a 100k context cap, a 300 s wall timeout and temperature 0.9. It must gather evidence before answering, cites only retrieved IDs, and verifies stale observations against raw facts. Disposition (skepticism/literalism/empathy 1-5), a mission and hard directives shape it (the paper calls this CARA; the name is absent from code).",
+      "e": "engine/reflect/tools_schema.py:18-202; engine/reflect/agent.py:532,1193,1416; config.py:251,1913,1926-1927 [read]; docs/developer/reflect.mdx [doc]"
+    },
+    "answer.shape": {
+      "s": "",
+      "t": "Recall returns a ranked list of facts and observations (text, type, entities, occurred/mentioned dates, document/chunk ids, tags, scores) plus an optional entities map, raw chunks and source facts. prefer_observations drops raw facts already covered by a returned observation. The caller writes the answer prompt; reflect returns text plus based_on citations.",
+      "e": "engine/memory_engine.py:10504-10530; api/http.py:476-489,517-525 [read]"
+    },
+    "answer.size": {
+      "s": "",
+      "t": "Recall max_tokens defaults to 4,096 tokens of fact text (metadata not counted) plus 500 for entities (entities are on by default but now carry empty observation lists); chunks (8,192 tokens) and source facts (4,096 tokens) are off unless asked. Internal recall uses 2,048 + 1,000 chunk tokens. Benchmark runs: about 36k (vendor LoCoMo, from our notes) and 24,683 (OmniMemEval, from our notes).",
+      "e": "api/http.py:456,462,468-472,528; config.py:1937-1939 [read]; benchmark figures from our notes, not re-verified"
+    },
+    "answer.prompt": {
+      "s": "",
+      "t": "No answer prompt in recall. Reflect has its own system prompt (disposition, mission, directives). LoCoMo answer and judge prompts live in the external AMB repo (vectorize-io/agent-memory-benchmark), not in this repo; the in-repo eval judge defaults to gemini-2.5-flash, should differ from the model under test (fixtures warn, not enforced), and re-asks a 'not met' verdict at higher temperature, upholding it only on majority.",
+      "e": "engine/reflect/prompts.py; hindsight-system-evals/hindsight_system_evals/amb.py:1-20; hindsight-system-evals/hindsight_system_evals/judge.py:1-12,47-50 [read]"
+    },
+    "eval.best": {
+      "s": "",
+      "t": "92.0 on the vendor leaderboard (LoComo10); 89.61 in the paper (Gemini-3 Pro answerer, GPT-OSS-120b judge).",
+      "e": "benchmarks.hindsight.vectorize.io; arXiv:2512.12818 Table 4 [doc]"
+    },
+    "eval.outside": {
+      "s": "P",
+      "t": "The README says Virginia Tech's Sanghani Center and The Washington Post independently reproduced the numbers (VT authors are co-authors of the paper). The OmniMemEval cloud run, 81.99 at 24.7k context, is about 10 points below the vendor figure.",
+      "e": "README.md 'Memory Performance & Accuracy' [doc]; OmniMemEval figure from our notes"
+    },
+    "eval.models": {
+      "s": "",
+      "t": "Paper: answerers GPT-OSS-20b / GPT-OSS-120b / Gemini-3 Pro; judge GPT-OSS-120b at temperature 0. Vendor site per our notes: Gemini 3.1 Pro preview reader with a Gemini 2.5 Flash Lite 'be generous' judge (the site itself does not name models).",
+      "e": "arXiv:2512.12818 Table 4 [doc]; benchmarks site [doc]"
+    },
+    "eval.rigour": {
+      "s": "P",
+      "t": "Category split is published, but the paper's LoCoMo token budget is an unfilled '<add> tokens' placeholder and the question count is not stated. The leaderboard omits reader, judge and context. A lenient judge and a strong reader inflate the 92. AMB is pinned to 'main', so harness drift is possible (the repo prints the resolved commit).",
+      "e": "arXiv:2512.12818 (LoCoMo setup section); hindsight-system-evals/AMB_REF [read]"
+    },
+    "cost.write": {
+      "s": "",
+      "t": "Inferred for 272 sessions / 5,882 turns: about 300-550 extraction calls (one per 3,000-char chunk), plus consolidation at one call per 8 new facts (likely several hundred), plus dedup adjudications for near-duplicate observations and any mental-model refreshes. Entity resolution and links make no LLM calls. Prompt caching of the fixed system prefix is on by default.",
+      "e": "config.py:1643,1702,1759; engine/retain/fact_extraction.py:2082 [read]; totals [inferred]"
+    },
+    "cost.read": {
+      "s": "",
+      "t": "recall: 0 LLM calls (one query embedding, SQL arms, local cross-encoder). reflect: 1-10 LLM tool-loop calls plus optional structured-output or length-rewrite calls.",
+      "e": "engine/memory_engine.py:8804-8812; config.py:1913 [read]"
+    },
+    "cost.where": {
+      "s": "",
+      "t": "Embeddings and reranker run locally by default (CPU, GPU or MPS). The LLM is hosted by default (OpenAI) but any of 25+ providers works, including fully local llama.cpp, Ollama or LM Studio. Vendor guidance: the small gpt-oss-20b is enough for extraction.",
+      "e": "config.py:1102,1222,1284; docs/developer/performance.md [read]"
+    },
+    "trust.provenance": {
+      "s": "P",
+      "t": "Facts carry document_id, chunk_id, context, metadata and source attachments. Observations carry source_memory_ids (GIN-indexed), a proof_count and history; reflect returns based_on citations restricted to retrieved IDs and scrubs UUIDs it was never shown, and mental models prune citations whose facts were invalidated or deleted. There is no trust score or source-class field. The docs' 'exact quotes' per observation were not found in code.",
+      "e": "alembic/versions/a2b3c4d5e6f8_add_gin_index_source_memory_ids.py; engine/memory_engine.py:10512-10528; engine/reflect/presentation.py:20-30; engine/reflect/retractions.py:1-20 [read]; docs/developer/observations.mdx:14,32 (quotes) [doc]"
+    },
+    "trust.erasure": {
+      "s": "Y",
+      "t": "Deleting a document, memory or bank cascades to derived observations, and the surviving source facts are reset for re-consolidation. A per-memory endpoint clears the observations derived from it. The FK cascades from documents to memory_units.",
+      "e": "engine/memory_engine.py:10751,11031,11377; alembic/versions/5a366d414dce_initial_schema.py:287-291; docs/developer/observations.mdx 'Observation Lifecycle' [read]"
+    },
+    "trust.auth": {
+      "s": "O",
+      "t": "Default DefaultTenantExtension: no authentication, single schema. ApiKeyTenantExtension (a shared bearer key) or a custom extension is opt-in; MCP passes the API key through.",
+      "e": "extensions/builtin/tenant.py:8-30,44; extensions/tenant.py:54-70; api/mcp.py:72 [read]"
+    },
+    "trust.sharing": {
+      "s": "P",
+      "t": "Sharing is by bank (several agents can write to one bank), tags and tag-scoped observations, per-scope consolidation strategies (e.g. company-wide scopes with a stricter mission), bank aliases, and export/import/clone. Agents in one bank have no per-agent trust or write isolation.",
+      "e": "docs/developer/observations.mdx 'Consolidation Strategies'; engine/memory_engine.py:7719-7827; engine/bank_aliases.py [read]"
+    }
+  },
+  "layers": {
+    "raw": "Y",
+    "segment": "P",
+    "episode": "N",
+    "facts": "Y",
+    "graph": "Y",
+    "bitemporal": "P",
+    "session_summary": "N",
+    "entity_summary": "N",
+    "profile": "O",
+    "prospective": "N",
+    "procedural": "N",
+    "reflection": "Y",
+    "shared": "P",
+    "firewall": "O",
+    "provenance": "P"
+  },
+  "extras": [
+    {
+      "phase": "derive",
+      "param": "mental models / knowledge pages",
+      "t": "Standing questions whose reflect-written answers are stored and refreshed after consolidation (50-entry history). They are read with no LLM call and the reflect agent checks them first. Knowledge pages expose them as a folder wiki projectable to markdown.",
+      "e": "README.md; engine/mental_model_refresh.py; config.py:1728,1752 [read]"
+    },
+    {
+      "phase": "derive",
+      "param": "observation scopes + consolidation strategies",
+      "t": "Consolidation runs per tag scope, one LLM call per scope. A per-scope mission and observation cap let one bank keep private detail for a user scope and generalised trends for a company scope.",
+      "e": "docs/developer/observations.mdx; engine/consolidation/consolidator.py:1016-1121 [read]"
+    },
+    {
+      "phase": "rank",
+      "param": "disposition + directives",
+      "t": "Bank-level traits (skepticism, literalism, empathy 1-5) and a mission shape reflect; directives are hard tag-scoped rules applied in reflect.",
+      "e": "docs/developer/reflect.mdx; config.py:1969; engine/directives/ [read]"
+    },
+    {
+      "phase": "write",
+      "param": "retain_mission / extraction modes",
+      "t": "A per-bank natural-language mission is injected into the variable user turn (so the cached system prefix stays bank-agnostic). Modes are concise / verbose / verbatim / custom / chunks (no LLM).",
+      "e": "engine/retain/fact_extraction.py:1770,1815-1830; config.py:1658-1661 [read]"
+    },
+    {
+      "phase": "write",
+      "param": "multimodal inline attachments",
+      "t": "Images and files sit inline with text in retain content; a separate vision model slot is used only for chunks that carry attachments. Facts keep links to the attachment they came from, and observations inherit them.",
+      "e": "engine/retain/attachment_content.py; config.py:1670-1686; docs/developer/retain.md [read]"
+    },
+    {
+      "phase": "write",
+      "param": "delta retain",
+      "t": "Re-upserting a document re-extracts only chunks whose hash changed; unchanged chunks keep their facts, entities and links.",
+      "e": "engine/retain/orchestrator.py:3647-3666 [read]"
+    },
+    {
+      "phase": "arch",
+      "param": "MCP server + LLM wrapper + 50+ integrations",
+      "t": "Built-in MCP server (multi-bank or single-bank tool sets, tolerant of extra tool arguments), a two-line LLM wrapper, and 55 integration folders (coding agents, agent frameworks, no-code tools).",
+      "e": "api/mcp.py:114-207; hindsight-integrations/ (55 folders); README.md 'Adding Hindsight to Your Agent' [read]"
+    },
+    {
+      "phase": "index",
+      "param": "pluggable BM25 backends",
+      "t": "Five lexical backends, selectable per deployment, including ParadeDB pg_search for true BM25 on Citus and jieba tokenisation.",
+      "e": "docs/developer/retrieval.md; config.py:1474-1482 [read]"
+    },
+    {
+      "phase": "read",
+      "param": "token-denominated recall budget",
+      "t": "Callers ask for max_tokens, not top-k. Packing is in rank order and an oversized fact skips only itself. Search depth (budget low/mid/high) is a separate, independent knob.",
+      "e": "engine/fact_budget.py:1-20; docs/developer/retrieval.md 'Token Budget Management' [read]"
+    },
+    {
+      "phase": "speed",
+      "param": "admission control + per-operation LLM caps",
+      "t": "Per-core in-flight admission limits for recall, reflect and retain; a global LLM concurrency of 32 with per-operation caps so background consolidation cannot starve live reads.",
+      "e": "config.py:1178,1577-1598; docs/developer/performance.md [read]"
+    },
+    {
+      "phase": "write",
+      "param": "retain folding at claim time",
+      "t": "Several queued appends to one document (for example 50 buffered turns) are folded into one execution when a worker claims them (up to 16 peers), so the document is re-read and re-processed once; each submission keeps its own operation id.",
+      "e": "engine/retain/fold.py:1-37 [read]"
+    },
+    {
+      "phase": "write",
+      "param": "embedding coalescer",
+      "t": "Per-chunk embedding calls from the streaming retain fan-out are merged into batched backend requests with no timer, so a lone caller pays no extra latency.",
+      "e": "engine/retain/embedding_coalescer.py:1-17 [read]"
+    },
+    {
+      "phase": "write",
+      "param": "multi-LLM routing per operation",
+      "t": "Each operation (retain, reflect, consolidation, mental-model refresh) can have N LLM members with failover, weighted round-robin, or (retain only) per-item routing by metadata.",
+      "e": "engine/multi_llm.py:1-25; config.py:163,402,427,441,461 [read]"
+    },
+    {
+      "phase": "write",
+      "param": "dry-run extraction + prompt preview",
+      "t": "An endpoint runs extraction without storing; a prompt preview renders the exact system and user messages an operation would send, block by block, from the same builders.",
+      "e": "api/http.py:5889; engine/prompt_preview.py:1-21 [read]"
+    },
+    {
+      "phase": "write",
+      "param": "file retain",
+      "t": "Files are converted to markdown (markitdown: pdf, docx, pptx, xlsx) before extraction and the bytes are deleted after retain by default.",
+      "e": "hindsight-api-slim/pyproject.toml:84; config.py:1717 [read]"
+    },
+    {
+      "phase": "time",
+      "param": "curation: edit / invalidate / revert",
+      "t": "A raw fact can be edited (re-embedded, observations rebuilt) or invalidated: the row moves to an invalidated_memory_units archive, so hot-path queries need no state predicate; revert restores it with its entities and causal links.",
+      "e": "engine/memory_engine.py:11916-11945; alembic/versions/c9a1b2d3e4f5_add_invalidated_memory_units.py; engine/causal_links.py:22-30 [read]"
+    },
+    {
+      "phase": "index",
+      "param": "IDF-aware BM25 term cap",
+      "t": "Long queries on the native tsvector backend keep only the 16 most selective terms, ranked by document frequency read for free from pg_stats, to stop OR-query fan-out timeouts.",
+      "e": "engine/search/bm25_term_selection.py:1-30,82; config.py:1328-1339 [read]"
+    },
+    {
+      "phase": "read",
+      "param": "temporal coverage buckets",
+      "t": "The temporal arm takes 60 in-window ANN candidates by similarity, then picks 10 entry points round-robin across 8 time buckets so the whole window is represented, before spreading along links.",
+      "e": "engine/memories/pg/recall.py:309-371,445-520 [read]"
+    },
+    {
+      "phase": "read",
+      "param": "dateparser speed-up",
+      "t": "A behaviour-identical rewrite of dateparser's language detection caches locale character sets and hoists the timezone strip; the code says detection was about 98% of dateparser's search time.",
+      "e": "engine/temporal_language_detection.py:1-25 [read]"
+    },
+    {
+      "phase": "read",
+      "param": "fuzzy tag resolution + source scope",
+      "t": "Tag-group leaves can match bank tags by trigram similarity (typo tolerant); returned source text follows its document's tags, not the fact's, so a tag-scoped reader cannot see the rest of a document.",
+      "e": "api/http.py:554-559; engine/source_scope.py:1-12 [read]"
+    },
+    {
+      "phase": "rank",
+      "param": "reflect prompt compaction",
+      "t": "Inside reflect, ids become short aliases (f1, o1, p1, c1), timestamps are cut to the minute, constant fields dropped, and items already shown are listed by alias; near the context cap the oldest tool results are blanked for the model only.",
+      "e": "engine/reflect/presentation.py:1-35; engine/reflect/agent.py:1230-1242 [read]"
+    },
+    {
+      "phase": "derive",
+      "param": "structured mental-model delta refresh",
+      "t": "Optional delta mode: a mental model is stored as sections and blocks, the LLM emits edit operations, and untouched blocks are copied verbatim; citations to facts that no longer exist are pruned on refresh. Default mode is full.",
+      "e": "engine/reflect/structured_doc.py:1-20; engine/reflect/delta_ops.py:1-25; engine/reflect/retractions.py:1-20; api/http.py:3190-3191; engine/memory_engine.py:17360-17385 [read]"
+    },
+    {
+      "phase": "derive",
+      "param": "queued graph maintenance after deletes",
+      "t": "Deletes enqueue the units that lost a neighbour and entities that may be orphaned; a worker tops up links and prunes entities from those queues instead of sweeping the bank.",
+      "e": "engine/graph_maintenance.py:1-25 [read]"
+    },
+    {
+      "phase": "cost",
+      "param": "provider prompt caching everywhere",
+      "t": "Anthropic cache_control breakpoints, a Gemini CachedContent manager (55-minute TTL) for the reflect loop, and cache-affinity hints for OpenAI-compatible hosts (xAI conversation id, OpenAI prompt_cache_key).",
+      "e": "engine/providers/anthropic_llm.py:67-82; engine/providers/gemini_cache.py:1-48; engine/cache_affinity.py:1-24; config.py:1702,1925 [read]"
+    },
+    {
+      "phase": "cost",
+      "param": "per-bank cost attribution",
+      "t": "Opt-in: the bank id is sent as the OpenAI 'user' field so gateways (OpenRouter, LiteLLM, Helicone) can bill per bank.",
+      "e": "engine/bank_attribution.py:1-12 [read]"
+    },
+    {
+      "phase": "speed",
+      "param": "per-operation DB connection budget",
+      "t": "Each recall may hold at most 4 pool connections, so its parallel arms cannot drain the pool.",
+      "e": "engine/db_budget.py:1-40; config.py:1599 [read]"
+    },
+    {
+      "phase": "eval",
+      "param": "refresh-cost eval",
+      "t": "An in-repo eval measures LLM calls and input, cached and output tokens per knowledge-page refresh on a frozen, committed bank so runs are comparable.",
+      "e": "hindsight-system-evals/hindsight_system_evals/refresh_cost.py:1-25 [read]"
+    }
+  ],
+  "token_economy": {
+    "t": "Small context is achieved mainly by (1) token-denominated recall: rank-ordered packing to max_tokens (default 4,096; doc recommends 2,048 for chatbots), metadata free; (2) consolidation: many raw facts collapse into one evidence-backed observation, with prefer_observations dropping the raw facts an observation already covers; (3) mental models: precomputed answers read with no retrieval or LLM; (4) narrative facts that carry who/when/where/why so fewer facts answer a question; (5) chunks and source facts off by default; (6) recall has no LLM call at all; (7) provider prompt caching of a bank-agnostic system prefix (missions sit in the user turn), with Anthropic, Gemini and OpenAI/xAI cache wiring; (8) reflect prompt compaction (short id aliases, minute timestamps, already-shown items by alias, oldest tool results blanked near the cap); (9) an IDF-aware cap of 16 keyword terms. Measured context per LoCoMo question is about 36k on the vendor run and 24,683 on OmniMemEval (both from our notes), far above the 4k default, so the headline scores use a much larger budget than the default.",
+    "e": "engine/fact_budget.py; api/http.py:517-528; config.py:1702,1925,1937-1939; docs/developer/retrieval.md [read]; engine/reflect/presentation.py; engine/cache_affinity.py; engine/search/bm25_term_selection.py [read]"
+  },
+  "speed": {
+    "t": "Read-optimised by design: all LLM work happens at write or in the background. Recall runs four SQL arms in parallel per fact type (4 DB connections per recall), with no LLM; vendor latency is 100-600 ms recall (CPU reranker is the bottleneck; length-bucket batching is 36-54% faster; FP16 on MPS 27-36% faster), 800-3,000 ms reflect, and 500-2,000 ms per retain batch. Writes can be async (Postgres queue, SKIP LOCKED workers, auto-split into sub-batches of ~10k tokens processed concurrently), use the provider Batch API, an embedding coalescer, and consolidation of 8 facts per call with configurable parallelism. Further: queued retains to one document are folded at claim time (up to 16), each recall has a 4-connection budget, the ANN scan resumes iteratively, dateparser's language detector is rewritten, and length-bucket batching and FP16 for the local reranker are opt-in.",
+    "e": "docs/developer/performance.md [doc]; config.py:1293,1599,1694,1701,1759,1765; engine/retain/embedding_coalescer.py; worker/poller.py [read]; engine/retain/fold.py; engine/db_budget.py; engine/temporal_language_detection.py; config.py:1292-1293,1455 [read]"
+  },
+  "keep": [
+    "Recall has no LLM: four cheap parallel arms (vector, lexical, one-hop link graph, dateparser temporal window) + RRF k=60 + a small local cross-encoder over 300 candidates, then bounded multiplicative boosts (recency, temporal proximity, proof count; at most about +27% / -17% combined).",
+    "Budget the context in tokens, not top-k, and keep 'search depth' as a separate knob; pack in rank order so one long item cannot evict shorter ones.",
+    "Layered read hierarchy for synthesis: mental models (precomputed, no LLM) then observations (consolidated, with proof counts and staleness flags) then raw facts as ground truth, with prefer_observations deduplicating by provenance.",
+    "Do contradiction handling in background consolidation over observations (create/update/delete with history, 'never compute numbers', cascade state changes) and keep raw facts append-only, so the write path stays a single extraction call per chunk.",
+    "Speaker-based world/experience routing at extraction, driven by caller context, and the event date in every extraction prompt so relative dates resolve at write time."
+  ],
+  "avoid": [
+    "Benchmark opacity: the 92 LoCoMo leaderboard names no reader, judge or context; the paper's LoCoMo token budget is a literal '<add> tokens' placeholder; the vendor run reportedly uses a ~36k context and a 'be generous' judge, against a 4k default; an outside harness gets 81.99.",
+    "Architecture drift from the paper: opinion rows were deleted in 2026-01 and the opinion fact type and confidence column dropped in 2026-04; the entity-summary 'observation' network was replaced by mental models, so the four-network claim describes neither the current code nor the old one.",
+    "The write firewall is only secrets/PII regex and off by default; no injection or poisoning defence in OSS, no auth by default, and no per-writer trust on shared banks.",
+    "No automatic fact-level dedup or invalidation at write and no forgetting: raw facts grow without bound (only manual curation retires them), and correctness of 'current state' depends on the asynchronous consolidation having caught up (reflect must re-verify stale observations)."
+  ],
+  "in_progress": [
+    "PR #5382 feat/fast-reflect (open, updated 2026-10-09, +1326/-83): reflect_mode=fast, where one small LLM call rewrites the request into one query (or exits early), pages/observations/facts are searched in parallel, and a TypeSafe decision model makes the in-between choices (gh pr view).",
+    "PR #5284 feat/decision-reranker (open, updated 2026-10-09, +1379/-59): a TypeSafe decision-model reranker ranks the whole pool in one judgement, skips the recency/temporal/proof boosts, and takes per-bank plain-words reranker_instructions (gh pr view).",
+    "PR #5130 fix/coding-agents-lean-injection (open, updated 2026-10-02): send the full tool guide once and a short reminder after, to cut injected tokens for coding agents (gh pr list).",
+    "PR #5466 feat/integration-user-agents (open, 2026-10-09): every integration sends its own User-Agent (gh pr list).",
+    "Recent main: 8caa109 refuses tag-scoped callers on whole-bank operations (2026-10-09); d29b842 removes the openclaw agent-sdk package and agent_knowledge_* tools; ddc660b applies one consolidation response as one store batch with actions prepared concurrently (2026-10-07); a77c1f3 runs worker startup recovery in the background; ca4da5f defers a lost append race; v0.10.3 released 2026-10-08 (eb6df49).",
+    "Blog PRs #4092 'What We Got Wrong About Agent Memory', #4091 'CLAUDE.md Doesn't Scale', #4087 and #3836 'Tuning Recall: Hindsight's Four Retrieval Arms' are open and may document further design changes (gh pr list)."
+  ],
+  "specialities": [
+    {
+      "name": "LLM-free recall with bounded boosts",
+      "t": "Recall runs vector, keyword, one-hop graph and temporal arms in parallel per fact type, fuses by RRF and reranks with a small local cross-encoder; recency, temporal proximity and proof count can only nudge the score multiplicatively (about +27% / -17%), never override relevance.",
+      "e": "engine/memory_engine.py:8804-8812; engine/search/fusion.py:29; engine/search/reranking.py:174-303 [read]",
+      "phase": "rank"
+    },
+    {
+      "name": "Drift-proof structured mental models",
+      "t": "In delta mode a mental model is a tree of sections and blocks; the refresh LLM emits operations against ids and untouched blocks are copied byte for byte, so prose drift on unchanged content is structurally impossible. Citations whose facts were invalidated or deleted are pruned.",
+      "e": "engine/reflect/structured_doc.py:1-20; engine/reflect/delta_ops.py:1-25; engine/reflect/retractions.py:1-20 [read]",
+      "phase": "derive"
+    },
+    {
+      "name": "Reflect prompt compaction",
+      "t": "Each reflect replaces UUIDs with short aliases, trims timestamps to the minute, drops constant fields and lists already-seen items by alias, then resolves aliases back before anything is stored; UUIDs the model was never shown are scrubbed as unverified.",
+      "e": "engine/reflect/presentation.py:1-60 [read]",
+      "phase": "rank"
+    },
+    {
+      "name": "Bank-agnostic cached system prefix",
+      "t": "Retain and consolidation missions go into the variable user turn, so one provider-side cached system prefix serves every bank; caching is wired per provider (Anthropic breakpoints, Gemini CachedContent, OpenAI/xAI affinity hints).",
+      "e": "engine/retain/fact_extraction.py:1825-1830; engine/prompt_preview.py:4-9; engine/cache_affinity.py:1-24; config.py:1702 [read]",
+      "phase": "cost"
+    },
+    {
+      "name": "Consolidation rules for state change",
+      "t": "Observation consolidation is told to keep one facet per observation, cascade a state change to every affected observation, keep history, delete only when superseded and never compute numbers; near-duplicates at cosine >= 0.97 get a separate one-by-one LLM verdict.",
+      "e": "engine/consolidation/prompts.py:37-55; engine/consolidation/consolidator.py:151-207,282; config.py:1764 [read]",
+      "phase": "time"
+    },
+    {
+      "name": "Temporal arm by similarity with window coverage",
+      "t": "Temporal retrieval ranks in-window facts by similarity, not recency, and spreads entry points across 8 time buckets so a single dense date cannot crowd out the rest of the window.",
+      "e": "engine/memories/pg/recall.py:309-371,445-463 [read]",
+      "phase": "read"
+    },
+    {
+      "name": "IDF-aware keyword cap from pg_stats",
+      "t": "Long keyword queries keep the 16 rarest terms using document frequencies that Postgres ANALYZE already maintains, with no new index or table.",
+      "e": "engine/search/bm25_term_selection.py:1-30; config.py:1328-1339 [read]",
+      "phase": "index"
+    },
+    {
+      "name": "Retain folding at claim time",
+      "t": "Queued appends to one document are folded into a single execution under the claim lock without rewriting payloads, so buffered bursts cost one re-read and one extraction pass; correctness does not depend on it.",
+      "e": "engine/retain/fold.py:1-37 [read]",
+      "phase": "write"
+    }
+  ],
+  "verification": {
+    "date": "2026-10-11",
+    "commit": "a9eeed7",
+    "rows_checked": 57,
+    "corrections": [
+      "arch.product: was 'hindsight-api = slim[all] adds the local-ml extra' -> now 'all' = local-ml + local-onnx + embedded-db; evidence range corrected to slim pyproject.toml:110-162",
+      "arch.stores: was pgvector HNSW only -> now also lists the selectable vector backends (pgvectorscale DiskANN, VectorChord, ScaNN)",
+      "arch.graphdb: was 'memory_links with link types entity/temporal/semantic/caused_by' -> now entity rows were dropped from memory_links on 2026-05-26 and entity edges are computed at query time from unit_entities",
+      "write.roles: added that user preferences/rules/corrections are routed to 'world' (fact_extraction.py:278-279), which the earlier text omitted",
+      "write.firewall: was '45 regex patterns' with evidence on memory_defense_regex.py:25 (the class, not the list) -> now 46 patterns at memory_defense.py:167-236, PII limited to US SSN and Luhn-checked cards, injection detection identified as cloud-only per memory_defense.py:32-39",
+      "write.governance: evidence was maintenance.py:165-256 -> now :249-292 (_run_retention/_purge_expired); text now also notes curation invalidation, the source-scope rule and file deletion after retain",
+      "graph.resolution: was a bare weighted score -> now adds the 0.3 trigram merge floor, the token-compatibility gate and the identical-trigram shortcut that precede the score",
+      "graph.edges: was 'four link kinds' with entity links implied stored -> now entity links are query-time only (stored entity rows dropped 2026-05-26); legacy causal types noted",
+      "time.fields: added edited_at and the archive's invalidated_at/invalidation_reason (migration c9a1b2d3e4f5, 2026-06-03), previously missing",
+      "time.update: was 'raw facts are append-only' with no manual path -> now notes the curation API (update_memory_unit, invalidated_memory_units archive, revert)",
+      "derive.forget: was 'linear over 365 days, plus or minus 10%' -> now -8% to +10% (0.1 floor, alpha 0.2), plus the exponential/none options",
+      "index.vector: was 'ef_search sized to the recall budget, capped at 1000' (a docs claim) -> now code shows a fixed ef_search 200 with iterative scan resuming to LIMIT and max_scan_tuples 4,000",
+      "read.traversal: was 'multi-hop depth not documented' -> now code shows one hop from 20 seeds, temporal links excluded, entity leg dropped on timeout",
+      "rank.rerank: was 'recency(+/-10%) and proof count(+/-5%)' -> now recency -8%/+10% and proof count 0/+5% (never a penalty); reranking modes and passthrough seeding added",
+      "answer.size: added the opt-in chunk (8,192) and source-fact (4,096) budgets and that the entity budget carries empty observation lists",
+      "answer.prompt: was 'must differ from the model under test' -> now fixtures only warn; added the majority re-ask rule",
+      "trust.provenance: was 'observations carry ... quotes' tagged [read] -> quotes appear only in docs/developer/observations.mdx:14,32, not in code; added UUID scrub and retraction pruning",
+      "keep[0]: was 'at most +27% / -23% combined' -> now about +27% / -17% (recency floor 0.92, temporal 0.90, proof count never below 1.0)",
+      "avoid[1]: was 'opinion network deleted in 2026-04' -> now rows deleted 2026-01-15 (i4d5e6f7g8h9), fact type and confidence_score dropped 2026-04-02 (g2h3i4j5k6l7)",
+      "avoid[3]: was 'no fact-level invalidation' -> now 'no automatic' invalidation, since manual curation can invalidate facts",
+      "extras 'MCP server + 30+ integrations': was '30+' -> now 55 integration folders counted in hindsight-integrations/",
+      "extras 'admission control': evidence lacked the global LLM cap line -> now config.py:1178 (DEFAULT_LLM_MAX_CONCURRENT = 32)"
+    ],
+    "added": [
+      "extra (write): retain folding at claim time",
+      "extra (write): embedding coalescer",
+      "extra (write): multi-LLM routing per operation",
+      "extra (write): dry-run extraction + prompt preview",
+      "extra (write): file retain",
+      "extra (time): curation: edit / invalidate / revert",
+      "extra (index): IDF-aware BM25 term cap",
+      "extra (read): temporal coverage buckets",
+      "extra (read): dateparser speed-up",
+      "extra (read): fuzzy tag resolution + source scope",
+      "extra (rank): reflect prompt compaction",
+      "extra (derive): structured mental-model delta refresh",
+      "extra (derive): queued graph maintenance after deletes",
+      "extra (cost): provider prompt caching everywhere",
+      "extra (cost): per-bank cost attribution",
+      "extra (speed): per-operation DB connection budget",
+      "extra (eval): refresh-cost eval",
+      "specialities: 8 entries, all confirmed in code [read]",
+      "token_economy: reflect compaction, cache wiring and BM25 term cap",
+      "speed: folding, connection budget, iterative scan, dateparser rewrite",
+      "in_progress refreshed from gh (4 open feature PRs, 4 blog PRs, recent main commits)"
+    ],
+    "unverified": [
+      "Vendor leaderboard 92.0: reader, judge, ~36k context and the 'be generous' judge come from our notes; neither clone (hindsight a9eeed7, hindsight-benchmarks 55c51f1) contains the LoCoMo results file or those settings.",
+      "OmniMemEval 81.99 at 24,683 tokens per question: our notes only.",
+      "Paper Table 4 figures (89.61 / 85.67 / 83.18) were not re-read this pass.",
+      "README claim that Virginia Tech and The Washington Post reproduced the numbers: doc only.",
+      "Observation 'exact quotes' (docs/developer/observations.mdx) and the 'prompt_injection' detector (memory-defense docs): not in OSS code.",
+      "Latency figures (recall 100-600 ms, reflect 800-3,000 ms, retain 500-2,000 ms per batch, reranker FP16 27-36% and bucketing 36-54%): docs/developer/performance.md only.",
+      "segment.measured and cost.write call totals remain inferred, not measured."
+    ]
+  }
+}

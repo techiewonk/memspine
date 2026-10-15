@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 from memspine import Engine
-from memspine.core.events import EventKind
+from memspine.derive.pipeline.stages.extract_graph import extract_graph
+from memspine.derive.pipeline.stages.index import GRAPH_EXTRACTED_MARKER
 from memspine.prompts.models import ExtractedEdge
-from memspine.workers.pipelines import GRAPH_EXTRACTED_MARKER, extract_graph
+from memspine.store.events import EventKind
 
 
 async def test_hard_forget_redacts_the_graph_extracted_fingerprint() -> None:

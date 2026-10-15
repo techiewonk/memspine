@@ -1,0 +1,20 @@
+{
+  "additionalProperties": true,
+  "description": "Internal step type.",
+  "properties": {
+    "record_id": {
+      "title": "Record Id",
+      "type": "string"
+    },
+    "score": {
+      "title": "Score",
+      "type": "number"
+    }
+  },
+  "required": [
+    "record_id",
+    "score"
+  ],
+  "title": "LegHit",
+  "type": "object"
+}

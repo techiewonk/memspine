@@ -1,0 +1,426 @@
+{
+ "schema": "locomo_errata/v1",
+ "dataset": "locomo10.json",
+ "dataset_sha256_prefix": "79fa87e90f040813",
+ "created": "2026-10-10",
+ "note": "Questions whose LoCoMo gold contradicts the transcript, or that need the image. Found while hand-reading 148 read failures of one run, so this list is incomplete (an estimated 16-24 more exist among unread wrong answers). Report accuracy with and without these. No corpus text is stored here. 2026-10-10: added tag evidence_label_error (gold answer is right but a labelled evidence turn does not support it; correct turn id in the reason), from B2_EVIDENCE_AUDIT.md. 2026-10-10 (R2-5): four more evidence_label_error entries from the stable-failure review (0-70, 1-43, 0-151, 1-48); none changes the with/without-errata accuracy, which drops only gold_error and needs_image. 2026-10-10 (I62): five new entries of three new classes. premise_error (question premise contradicts the transcript, gold still right), bad_evidence_id (malformed evidence id, QA unaffected), cat5_answerable (a cat-5 question the transcript answers, abstention gold wrong). Reviewed and rejected: 1-63 (question says May 23, the acceptance is mentioned on 27 May as 'just got accepted'; the transcript does not date the acceptance, so nothing is contradicted). None of the new tags is excluded by default (DEFAULT_EXCLUDE_TAGS is unchanged); `forensics_report.py --errata-extended` also drops premise_error and cat5_answerable (non-borderline), reported as a second column. Licence 2026-10-14: quoted dataset text removed from reasons; turn ids kept.",
+ "entries": [
+  {
+   "item": "conv-26",
+   "qid": "0-5",
+   "tag": "gold_error",
+   "borderline": false,
+   "reason": "gold weekday contradicts transcript (Saturday)",
+   "source": "READER_GAPS_FORENSIC.md section 5"
+  },
+  {
+   "item": "conv-26",
+   "qid": "0-94",
+   "tag": "gold_error",
+   "borderline": false,
+   "reason": "question names wrong speaker",
+   "source": "READER_GAPS_FORENSIC.md section 5"
+  },
+  {
+   "item": "conv-30",
+   "qid": "1-9",
+   "tag": "gold_error",
+   "borderline": false,
+   "reason": "question names wrong people",
+   "source": "READER_GAPS_FORENSIC.md section 5"
+  },
+  {
+   "item": "conv-41",
+   "qid": "2-69",
+   "tag": "gold_error",
+   "borderline": false,
+   "reason": "question year contradicts transcript",
+   "source": "READER_GAPS_FORENSIC.md section 5"
+  },
+  {
+   "item": "conv-42",
+   "qid": "3-24",
+   "tag": "gold_error",
+   "borderline": true,
+   "reason": "gold date ambiguous vs transcript",
+   "source": "READER_GAPS_FORENSIC.md section 5"
+  },
+  {
+   "item": "conv-43",
+   "qid": "4-6",
+   "tag": "gold_error",
+   "borderline": false,
+   "reason": "gold month contradicts transcript",
+   "source": "READER_GAPS_FORENSIC.md section 5"
+  },
+  {
+   "item": "conv-43",
+   "qid": "4-60",
+   "tag": "gold_error",
+   "borderline": false,
+   "reason": "gold date contradicts transcript",
+   "source": "READER_GAPS_FORENSIC.md section 5"
+  },
+  {
+   "item": "conv-43",
+   "qid": "4-86",
+   "tag": "gold_error",
+   "borderline": false,
+   "reason": "question names wrong speaker",
+   "source": "READER_GAPS_FORENSIC.md section 5"
+  },
+  {
+   "item": "conv-43",
+   "qid": "4-135",
+   "tag": "gold_error",
+   "borderline": false,
+   "reason": "gold is the other speaker's line",
+   "source": "READER_GAPS_FORENSIC.md section 5"
+  },
+  {
+   "item": "conv-43",
+   "qid": "4-136",
+   "tag": "gold_error",
+   "borderline": false,
+   "reason": "question names wrong speaker",
+   "source": "READER_GAPS_FORENSIC.md section 5"
+  },
+  {
+   "item": "conv-43",
+   "qid": "4-164",
+   "tag": "gold_error",
+   "borderline": false,
+   "reason": "question names wrong speaker",
+   "source": "READER_GAPS_FORENSIC.md section 5"
+  },
+  {
+   "item": "conv-43",
+   "qid": "4-165",
+   "tag": "gold_error",
+   "borderline": false,
+   "reason": "question names wrong speaker",
+   "source": "READER_GAPS_FORENSIC.md section 5"
+  },
+  {
+   "item": "conv-43",
+   "qid": "4-166",
+   "tag": "gold_error",
+   "borderline": false,
+   "reason": "question names wrong speaker",
+   "source": "READER_GAPS_FORENSIC.md section 5"
+  },
+  {
+   "item": "conv-44",
+   "qid": "5-4",
+   "tag": "gold_error",
+   "borderline": false,
+   "reason": "gold week contradicts transcript",
+   "source": "READER_GAPS_FORENSIC.md section 5"
+  },
+  {
+   "item": "conv-47",
+   "qid": "6-31",
+   "tag": "gold_error",
+   "borderline": false,
+   "reason": "gold duration contradicts transcript",
+   "source": "READER_GAPS_FORENSIC.md section 5"
+  },
+  {
+   "item": "conv-47",
+   "qid": "6-72",
+   "tag": "gold_error",
+   "borderline": true,
+   "reason": "gold attributes the other speaker's line",
+   "source": "READER_GAPS_FORENSIC.md section 5"
+  },
+  {
+   "item": "conv-48",
+   "qid": "7-174",
+   "tag": "gold_error",
+   "borderline": false,
+   "reason": "question names wrong speaker",
+   "source": "READER_GAPS_FORENSIC.md section 5"
+  },
+  {
+   "item": "conv-49",
+   "qid": "8-24",
+   "tag": "gold_error",
+   "borderline": false,
+   "reason": "question names wrong speaker",
+   "source": "READER_GAPS_FORENSIC.md section 5"
+  },
+  {
+   "item": "conv-49",
+   "qid": "8-74",
+   "tag": "gold_error",
+   "borderline": false,
+   "reason": "gold weekday contradicts transcript",
+   "source": "READER_GAPS_FORENSIC.md section 5"
+  },
+  {
+   "item": "conv-49",
+   "qid": "8-80",
+   "tag": "gold_error",
+   "borderline": false,
+   "reason": "gold year contradicts transcript",
+   "source": "READER_GAPS_FORENSIC.md section 5"
+  },
+  {
+   "item": "conv-50",
+   "qid": "9-137",
+   "tag": "gold_error",
+   "borderline": false,
+   "reason": "question names wrong speaker",
+   "source": "READER_GAPS_FORENSIC.md section 5"
+  },
+  {
+   "item": "conv-42",
+   "qid": "3-91",
+   "tag": "needs_image",
+   "borderline": false,
+   "reason": "evidence only in the image, not in the text",
+   "source": "READER_GAPS_FORENSIC.md section 5"
+  },
+  {
+   "item": "conv-42",
+   "qid": "3-92",
+   "tag": "needs_image",
+   "borderline": false,
+   "reason": "evidence only in the image, not in the text",
+   "source": "READER_GAPS_FORENSIC.md section 5"
+  },
+  {
+   "item": "conv-26",
+   "qid": "0-23",
+   "tag": "needs_image",
+   "borderline": false,
+   "reason": "one gold title appears only in the photo (D7:8), not in text or caption",
+   "source": "READER_GAPS_FORENSIC.md section 5"
+  },
+  {
+   "item": "conv-30",
+   "qid": "1-57",
+   "tag": "gold_error",
+   "borderline": false,
+   "reason": "question attributes the advice to Gina; the gold line (D7:5) is Jon's",
+   "source": "dev reasoning 2026-10-10"
+  },
+  {
+   "item": "conv-26",
+   "qid": "0-23",
+   "tag": "needs_image",
+   "borderline": false,
+   "reason": "one gold title appears only in the photo (D7:8), not in text or caption",
+   "source": "dev reasoning 2026-10-10"
+  },
+  {
+   "item": "conv-30",
+   "qid": "1-44",
+   "tag": "evidence_label_error",
+   "borderline": false,
+   "reason": "gold turn D1:26 is the other speaker's reply; the statement the question asks about (Gina) is D1:25",
+   "source": "B2_EVIDENCE_AUDIT.md"
+  },
+  {
+   "item": "conv-41",
+   "qid": "2-32",
+   "tag": "evidence_label_error",
+   "borderline": false,
+   "reason": "gold turn D16:2 is the reply; John's hiking photo with workmates is D16:1",
+   "source": "B2_EVIDENCE_AUDIT.md"
+  },
+  {
+   "item": "conv-41",
+   "qid": "2-49",
+   "tag": "evidence_label_error",
+   "borderline": false,
+   "reason": "D25:19 does not mention food; the cakes are in D25:20 (D26:1 only says baked)",
+   "source": "B2_EVIDENCE_AUDIT.md"
+  },
+  {
+   "item": "conv-41",
+   "qid": "2-44",
+   "tag": "evidence_label_error",
+   "borderline": true,
+   "reason": "D28:5 (John, job news) does not concern Maria and church friends",
+   "source": "B2_EVIDENCE_AUDIT.md"
+  },
+  {
+   "item": "conv-42",
+   "qid": "3-69",
+   "tag": "evidence_label_error",
+   "borderline": false,
+   "reason": "D8:3 is unrelated to turtles; \"tank big enough for three\" is D28:25",
+   "source": "B2_EVIDENCE_AUDIT.md"
+  },
+  {
+   "item": "conv-42",
+   "qid": "3-67",
+   "tag": "evidence_label_error",
+   "borderline": true,
+   "reason": "D8:3 is unrelated to pets",
+   "source": "B2_EVIDENCE_AUDIT.md"
+  },
+  {
+   "item": "conv-42",
+   "qid": "3-51",
+   "tag": "evidence_label_error",
+   "borderline": true,
+   "reason": "D24:2 (recipe talk) unrelated to Tilly; D13:9 is the supporting turn",
+   "source": "B2_EVIDENCE_AUDIT.md"
+  },
+  {
+   "item": "conv-43",
+   "qid": "4-11",
+   "tag": "evidence_label_error",
+   "borderline": false,
+   "reason": "D1:7, D2:14, D3:1 are basketball only; the only supporting turns are D3:25 / D3:27 (surfing)",
+   "source": "B2_EVIDENCE_AUDIT.md"
+  },
+  {
+   "item": "conv-44",
+   "qid": "5-26",
+   "tag": "evidence_label_error",
+   "borderline": true,
+   "reason": "D10:16 is cooking as stress relief; work stress is D12:3",
+   "source": "B2_EVIDENCE_AUDIT.md"
+  },
+  {
+   "item": "conv-44",
+   "qid": "5-27",
+   "tag": "evidence_label_error",
+   "borderline": true,
+   "reason": "D10:16 is cooking as stress relief; work stress is D12:3",
+   "source": "B2_EVIDENCE_AUDIT.md"
+  },
+  {
+   "item": "conv-48",
+   "qid": "7-82",
+   "tag": "evidence_label_error",
+   "borderline": false,
+   "reason": "D2:11 is the image reply; the location (her old home) is D2:13",
+   "source": "B2_EVIDENCE_AUDIT.md"
+  },
+  {
+   "item": "conv-48",
+   "qid": "7-86",
+   "tag": "evidence_label_error",
+   "borderline": false,
+   "reason": "D23:20 is the photo post; the quote from a friend is D23:22",
+   "source": "B2_EVIDENCE_AUDIT.md"
+  },
+  {
+   "item": "conv-49",
+   "qid": "8-14",
+   "tag": "evidence_label_error",
+   "borderline": true,
+   "reason": "D22:12 is Evan sharing cookies; ginger snaps as favourite is D5:5",
+   "source": "B2_EVIDENCE_AUDIT.md"
+  },
+  {
+   "item": "conv-49",
+   "qid": "8-91",
+   "tag": "evidence_label_error",
+   "borderline": true,
+   "reason": "D11:7 is a reply about watercolor painting, not about writing",
+   "source": "B2_EVIDENCE_AUDIT.md"
+  },
+  {
+   "item": "conv-50",
+   "qid": "9-11",
+   "tag": "evidence_label_error",
+   "borderline": false,
+   "reason": "D6:1 is a greeting; the flooding incident is D6:3",
+   "source": "B2_EVIDENCE_AUDIT.md"
+  },
+  {
+   "item": "conv-26",
+   "qid": "0-48",
+   "tag": "evidence_label_error",
+   "borderline": true,
+   "reason": "D12:14 (friendship thanks) does not mention pottery",
+   "source": "B2_EVIDENCE_AUDIT.md"
+  },
+  {
+   "item": "conv-49",
+   "qid": "8-54",
+   "tag": "gold_error",
+   "borderline": true,
+   "reason": "gold lists \"twisted ankle\" twice while the transcript has a twisted knee (D9:2, D11:2)",
+   "source": "B2_EVIDENCE_AUDIT.md"
+  },
+  {
+   "item": "conv-26",
+   "qid": "0-70",
+   "tag": "evidence_label_error",
+   "borderline": false,
+   "reason": "gold evidence D15:13 is not a transgender event; the conference in the gold answer is D5:13. The listed answer is also narrow (the transcript has other LGBTQ events). The system answer lists the poetry reading and the conference but adds LGBTQ events, so it is still judged wrong",
+   "source": "R2-5 review 2026-10-10"
+  },
+  {
+   "item": "conv-30",
+   "qid": "1-43",
+   "tag": "evidence_label_error",
+   "borderline": true,
+   "reason": "gold turn D1:25 is Gina's question; the answer 'performing at the festival' is Jon's reply D1:26, and the photo is D1:24. The question 'the dancers in the photo' is ambiguous (several dancer photos in the conversation); the system picked a different photo (still a real system error)",
+   "source": "R2-5 review 2026-10-10"
+  },
+  {
+   "item": "conv-26",
+   "qid": "0-151",
+   "tag": "evidence_label_error",
+   "borderline": true,
+   "reason": "gold 'nature walk or hike' rests on the photo in D18:15 (caption: a family outdoors, omitted), which the labelled turn D18:17 ('we just did it yesterday ... relax after the road trip') refers to; D18:15 is missing from the evidence list. D18:15 was in the context and the reader still answered camping (D18:19 mentions camping trips), so the system is also wrong",
+   "source": "R2-5 review 2026-10-10"
+  },
+  {
+   "item": "conv-30",
+   "qid": "1-48",
+   "tag": "evidence_label_error",
+   "borderline": true,
+   "reason": "gold 'the space, furniture, and decor' needs D3:5 and D3:6 (furniture and decor); labelled D3:4 only says 'the space I designed'. System answered the hoodie line (D16:3), a real reader error",
+   "source": "R2-5 review 2026-10-10"
+  },
+  {
+   "item": "conv-41",
+   "qid": "2-68",
+   "tag": "premise_error",
+   "borderline": false,
+   "reason": "question says December 2023; 'Just started doing aerial yoga' is D1:3 of 17 December 2022 and the conversation ends in August 2023, so December 2023 never occurs. The gold 'aerial yoga' is still right, so a reader that answers it is graded fairly (same class as the gold_error 2-69)",
+   "source": "I62 review 2026-10-10"
+  },
+  {
+   "item": "conv-42",
+   "qid": "3-88",
+   "tag": "bad_evidence_id",
+   "borderline": false,
+   "reason": "evidence list is [D1:18, 'D', D1:20]: 'D' is not a turn id (probably a truncated D1:19 or D1:16, where the film is described). Gold answer is right; only R@k / R_all@k over the labelled turns is affected (the unmatched id can never be retrieved)",
+   "source": "I62 review 2026-10-10"
+  },
+  {
+   "item": "conv-26",
+   "qid": "0-184",
+   "tag": "cat5_answerable",
+   "borderline": false,
+   "reason": "cat 5, the adversarial answer names another speaker's instruments, but the questioned speaker states her own instruments in D15:19, D15:21 and D5:5. The question is answerable from the transcript, so an abstention gold is wrong",
+   "source": "I62 review 2026-10-10"
+  },
+  {
+   "item": "conv-26",
+   "qid": "0-186",
+   "tag": "cat5_answerable",
+   "borderline": true,
+   "reason": "cat 5, the adversarial answer is an artist named in D15:28 by the other speaker. The questioned speaker names a song with deep significance in D15:23 and never says she is a fan of an artist, so this is answerable only by a loose reading",
+   "source": "I62 review 2026-10-10"
+  },
+  {
+   "item": "conv-42",
+   "qid": "3-244",
+   "tag": "cat5_answerable",
+   "borderline": false,
+   "reason": "cat 5, the adversarial answer is a different speaker's pets (D24:3). The questioned speaker says in D24:8 and D24:4 that the stuffed animal dog helps her focus and stays with her while she writes. The question is answerable from the transcript",
+   "source": "I62 review 2026-10-10"
+  }
+ ],
+ "updated": "2026-10-10"
+}

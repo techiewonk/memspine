@@ -23,7 +23,7 @@ the benchmark card, not vendored; check against the pinned commit before publish
 
 :func:`firewall_rates` returns TPR per positive group and FPR per negative group for a
 detector (default: the engine's ``instruction_shaped``; ``"extended"`` adds W2's
-``extended_instruction_shaped``), imported read-only from ``memspine.core.firewall``.
+``extended_instruction_shaped``), imported read-only from ``memspine.trust.firewall``.
 
 :class:`ASBDataset` also exposes the samples as harness items for a retrieval-level
 poison measure: one ``EvalItem`` per agent whose history is its normal tools plus its
@@ -120,7 +120,7 @@ def asb_samples(root: str | Path, variants: Iterable[str] | None = None) -> list
 def load_detector(name: str = "base") -> Callable[[str], bool]:
     """The engine's content screen: ``"base"`` (``instruction_shaped``) or ``"extended"``
     (base or W2 ``extended_instruction_shaped``). Read-only import of the engine."""
-    from memspine.core import firewall
+    from memspine.trust import firewall
 
     if name == "base":
         return firewall.instruction_shaped

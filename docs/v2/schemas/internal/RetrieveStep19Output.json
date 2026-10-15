@@ -1,0 +1,364 @@
+{
+  "$defs": {
+    "ContextBlock": {
+      "additionalProperties": true,
+      "description": "A typed section of the context. ``accounting`` says how ``tokens`` was counted: exactly with the\nreader model's tokenizer (headers and reserves included), or estimated when none was available.",
+      "properties": {
+        "accounting": {
+          "default": "estimated",
+          "enum": [
+            "exact",
+            "estimated"
+          ],
+          "title": "Accounting",
+          "type": "string"
+        },
+        "cap": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cap"
+        },
+        "kind": {
+          "enum": [
+            "contract",
+            "profile",
+            "raw",
+            "notes",
+            "public"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "lines": {
+          "items": {
+            "$ref": "#/$defs/RenderedLine"
+          },
+          "title": "Lines",
+          "type": "array"
+        },
+        "tokenizer": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Tokenizer"
+        },
+        "tokens": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Tokens",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "title": "ContextBlock",
+      "type": "object"
+    },
+    "ReadResult": {
+      "additionalProperties": true,
+      "description": "The answer to a read. ``partial`` with ``missing_capabilities`` marks a read issued before every\nneeded capability was ready (S7). ``contract`` and ``trace`` are diagnostic and carry no compatibility\npromise beyond being JSON objects.",
+      "properties": {
+        "abstained": {
+          "default": false,
+          "title": "Abstained",
+          "type": "boolean"
+        },
+        "accounting": {
+          "default": "estimated",
+          "enum": [
+            "exact",
+            "estimated"
+          ],
+          "title": "Accounting",
+          "type": "string"
+        },
+        "aliases": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Aliases",
+          "type": "object"
+        },
+        "blocks": {
+          "items": {
+            "$ref": "#/$defs/ContextBlock"
+          },
+          "title": "Blocks",
+          "type": "array"
+        },
+        "boundary_index": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Boundary Index"
+        },
+        "contract": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Contract"
+        },
+        "depth": {
+          "anyOf": [
+            {
+              "enum": [
+                "fast",
+                "standard",
+                "deep"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Depth"
+        },
+        "erasure_generation": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Erasure Generation"
+        },
+        "items": {
+          "items": {
+            "$ref": "#/$defs/ScoredItem"
+          },
+          "title": "Items",
+          "type": "array"
+        },
+        "missing_capabilities": {
+          "items": {
+            "enum": [
+              "raw_search",
+              "facts",
+              "graph",
+              "summaries",
+              "profile"
+            ],
+            "type": "string"
+          },
+          "title": "Missing Capabilities",
+          "type": "array"
+        },
+        "partial": {
+          "default": false,
+          "title": "Partial",
+          "type": "boolean"
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reason"
+        },
+        "revalidated": {
+          "default": false,
+          "title": "Revalidated",
+          "type": "boolean"
+        },
+        "store_generation": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Store Generation"
+        },
+        "tokens_used": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Tokens Used",
+          "type": "integer"
+        },
+        "trace": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Trace"
+        }
+      },
+      "title": "ReadResult",
+      "type": "object"
+    },
+    "RenderedLine": {
+      "additionalProperties": true,
+      "description": "One rendered line of a context block. ``alias`` is the citation handle (\"[3]\").",
+      "properties": {
+        "alias": {
+          "minLength": 1,
+          "title": "Alias",
+          "type": "string"
+        },
+        "date": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Date"
+        },
+        "modality": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Modality"
+        },
+        "record_id": {
+          "minLength": 1,
+          "title": "Record Id",
+          "type": "string"
+        },
+        "speaker": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Speaker"
+        },
+        "text": {
+          "title": "Text",
+          "type": "string"
+        },
+        "wrapped": {
+          "default": "none",
+          "enum": [
+            "none",
+            "untrusted",
+            "instruction",
+            "claim"
+          ],
+          "title": "Wrapped",
+          "type": "string"
+        }
+      },
+      "required": [
+        "alias",
+        "record_id",
+        "text"
+      ],
+      "title": "RenderedLine",
+      "type": "object"
+    },
+    "ScoredItem": {
+      "additionalProperties": true,
+      "description": "A hit with its score. An item that was not scored is marked ``scored=False`` with ``score=None``;\nit never carries a placeholder score of 0 (R-Q4).",
+      "properties": {
+        "record_id": {
+          "minLength": 1,
+          "title": "Record Id",
+          "type": "string"
+        },
+        "score": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Score"
+        },
+        "scored": {
+          "default": true,
+          "title": "Scored",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "record_id"
+      ],
+      "title": "ScoredItem",
+      "type": "object"
+    }
+  },
+  "additionalProperties": true,
+  "properties": {
+    "dropped_after_revalidation": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Dropped After Revalidation",
+      "type": "array"
+    },
+    "result": {
+      "$ref": "#/$defs/ReadResult"
+    }
+  },
+  "required": [
+    "result"
+  ],
+  "title": "RetrieveStep19Output",
+  "type": "object"
+}

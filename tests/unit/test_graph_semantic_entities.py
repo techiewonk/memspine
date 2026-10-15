@@ -112,7 +112,7 @@ async def test_turn_mentions_let_the_graph_reach_raw_turns(tmp_path: Path, provi
 
 async def test_focal_entity_seeds_the_graph_and_does_not_leak(tmp_path: Path) -> None:
     """G-11: ``focal_entity=`` adds a graph seed for one read only."""
-    from memspine.engine import _FOCAL_ENTITY
+    from memspine.read.pipeline.state import _FOCAL_ENTITY
 
     eng = _engine(tmp_path, "sqlite_adjacency")
     await eng.start()
@@ -127,7 +127,7 @@ async def test_focal_entity_seeds_the_graph_and_does_not_leak(tmp_path: Path) ->
     eng._graph_seeds = spy  # type: ignore[method-assign]
     try:
         await eng.write("Luna is a grey cat", namespace="u", entity="Luna", attribute="pet")
-        eng._config().read.graph_leg = True  # type: ignore[misc]
+        eng.config.read.graph_leg = True  # type: ignore[misc]
         await eng.search("what about her?", namespace="u", focal_entity="Luna")
         after = _FOCAL_ENTITY.get()
     finally:

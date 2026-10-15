@@ -188,6 +188,29 @@ RUBRIC_BINARY_PROMPT = (
     'Respond with JSON only: {{"label": "CORRECT"}} or {{"label": "WRONG"}}'
 )
 
+#: Guarded rubric (``--judge-guards``): the rubric above plus two rules from the reader-gap
+#: analysis (``analysis/READER_GAPS.md``): LoCoMo's gold is often a relative phrasing
+#: ("The Friday before 12 April 2021") the 9B judge marked wrong against an equivalent date,
+#: and hedged answers that contain the gold fact were marked wrong. The original rubric
+#: stays reachable as ``--judge-prompt rubric``.
+RUBRIC_GUARDED_BINARY_PROMPT = (
+    "Your task is to label an answer to a question as CORRECT or WRONG, given a gold (reference) "
+    "answer.\n"
+    "Rules:\n"
+    "- CORRECT only if the answer states the same fact as the gold answer. Wording may differ, "
+    "and a longer answer is fine if it contains the gold fact, including when it adds hedging "
+    '("probably", "it seems", "around") or extra detail, as long as it does not contradict the '
+    "gold fact. For dates, the same day, month or year as the gold (at the gold's precision) is "
+    'CORRECT, including relative forms that resolve to it: a gold such as "the Friday before '
+    '12 April 2021" is the same as "9 April 2021" (and the reverse), and "the week before 20 July '
+    '2021" is the same as a date in that week.\n'
+    "- WRONG if the answer gives a different fact, or says it does not know, cannot tell, or that "
+    "the information is not available, unless the gold answer itself says the information is not "
+    "available. An empty answer is WRONG.\n\n"
+    "Question: {question}\nGold answer: {gold}\nAnswer to label: {answer}\n\n"
+    'Respond with JSON only: {{"label": "CORRECT"}} or {{"label": "WRONG"}}'
+)
+
 #: LoCoMo-Plus binary judge (T-Mem-style: the question is included). ``gold`` carries the
 #: earlier cue dialogue; the reply is correct only if it explicitly acknowledges or adapts to
 #: the constraint the cue established.
@@ -356,3 +379,131 @@ def recall_over_units(
     gold = set(gold_ids)
     hit = gold <= covered if require_all else bool(gold & covered)
     return 1.0 if hit else 0.0
+
+
+class GuardedJudge:
+    """``--judge-guards``: an empty or whitespace answer is WRONG without a judge call.
+
+    Everything else passes through to ``inner`` (a 9B judge credited empty answers). The
+    guard covers ``score`` and ``score_query``; ``handles_abstention`` and the other
+    attributes of the inner judge stay readable.
+    """
+
+    def __init__(
+        self,
+        inner: Any,
+        *,
+        date_check: bool = False,
+        empty_guard: bool = True,
+        conventions: bool = False,
+        conventions_v2: bool = False,
+        conventions_v3: bool = False,
+    ) -> None:
+        self.inner = inner
+        #: I58: record, next to the unchanged LLM verdict, whether a deterministic convention
+        #: (numeral, typo, list superset: ``judge_conventions.py``) would credit a wrong
+        #: verdict. ``score`` itself is never changed: the run has two columns.
+        self.conventions = conventions and inner.spec.scale is JudgeScale.BINARY
+        #: I77: the same, with the v2 rules (date format, unit, ordinal, alias) as a THIRD
+        #: column (``score_conventions_v2`` / ``convention_v2``); v1 and ``score`` unchanged.
+        self.conventions_v2 = conventions_v2 and inner.spec.scale is JudgeScale.BINARY
+        #: R14-M-17: the v3 rules as a further column (``score_conventions_v3`` / ``convention_v3``).
+        self.conventions_v3 = conventions_v3 and inner.spec.scale is JudgeScale.BINARY
+        #: gap A2: credit a single-day date match deterministically (``date_check.py``)
+        self.date_check = date_check
+        if date_check:  # I12: fail at construction, not silently per answer
+            from memspine_evals.date_check import require_parser
+
+            require_parser()
+        self.empty_guard = empty_guard
+        self.spec = JudgeSpec(
+            judge_id=inner.spec.judge_id,
+            scale=inner.spec.scale,
+            model=inner.spec.model,
+            prompt_id=inner.spec.prompt_id,
+            prompt_hash=inner.spec.prompt_hash,
+            makes_model_calls=inner.spec.makes_model_calls,
+            params={
+                **dict(inner.spec.params),
+                "empty_answer_guard": empty_guard,
+                **({"date_check": "date_check/v1"} if date_check else {}),
+                **({"conventions": "conventions/v1"} if self.conventions else {}),
+                **({"conventions_v2": "conventions/v2"} if self.conventions_v2 else {}),
+                **({"conventions_v3": "conventions/v3"} if self.conventions_v3 else {}),
+            },
+        )
+        self.handles_abstention = getattr(inner, "handles_abstention", False)
+        if hasattr(inner, "score_query"):
+            self.score_query = self._score_query  # runner probes for it with getattr
+
+    def _empty(self) -> Verdict:
+        return Verdict(
+            score=0.0, scale=self.spec.scale, meta={"guard": "empty_answer", "skipped": "empty"}
+        )
+
+    def _dated(self, gold: str | None, answer: str) -> Verdict | None:
+        if not self.date_check:
+            return None
+        from memspine_evals.date_check import date_equivalent
+
+        if date_equivalent(gold, answer):
+            return Verdict(score=1.0, scale=self.spec.scale, meta={"guard": "date_equivalent"})
+        return None
+
+    def _with_conventions(
+        self, verdict: Verdict, question: str, answer: str, gold: str | None
+    ) -> Verdict:
+        """``verdict`` with ``score_conventions`` (and the rule) in its meta; ``score`` unchanged."""
+        if not (self.conventions or self.conventions_v2 or self.conventions_v3):
+            return verdict
+        from memspine_evals.judge_conventions import (
+            check_conventions,
+            check_conventions_v2,
+            check_conventions_v3,
+        )
+
+        meta = dict(verdict.meta)
+        if self.conventions:
+            rule = None if verdict.score >= 1.0 else check_conventions(question, answer, gold)
+            meta["score_conventions"] = 1.0 if (verdict.score >= 1.0 or rule is not None) else 0.0
+            if rule is not None:
+                meta["convention"] = rule.rule
+        if self.conventions_v2:
+            rule2 = None if verdict.score >= 1.0 else check_conventions_v2(question, answer, gold)
+            meta["score_conventions_v2"] = 1.0 if (verdict.score >= 1.0 or rule2 is not None) else 0.0
+            if rule2 is not None:
+                meta["convention_v2"] = rule2.rule
+        if self.conventions_v3:
+            rule3 = None if verdict.score >= 1.0 else check_conventions_v3(question, answer, gold)
+            meta["score_conventions_v3"] = 1.0 if (verdict.score >= 1.0 or rule3 is not None) else 0.0
+            if rule3 is not None:
+                meta["convention_v3"] = rule3.rule
+        return Verdict(
+            score=verdict.score,
+            scale=verdict.scale,
+            raw=verdict.raw,
+            latency_ms=verdict.latency_ms,
+            model_calls=verdict.model_calls,
+            meta=meta,
+        )
+
+    async def score(self, question: str, answer: str, gold: str | None) -> Verdict:
+        if self.empty_guard and not answer.strip():
+            return self._empty()
+        dated = self._dated(gold, answer)
+        if dated is not None:
+            return self._with_conventions(dated, question, answer, gold)
+        verdict = await self.inner.score(question, answer, gold)
+        return self._with_conventions(verdict, question, answer, gold)
+
+    async def _score_query(self, query: Any, answer: str) -> Verdict:
+        if self.empty_guard and not answer.strip():
+            return self._empty()
+        gold = getattr(query, "gold", None)
+        dated = self._dated(gold, answer)
+        if dated is not None:
+            return self._with_conventions(dated, getattr(query, "text", ""), answer, gold)
+        verdict = await self.inner.score_query(query, answer)
+        if getattr(query, "meta", {}) and query.meta.get("abstention"):
+            return verdict  # an abstention gold is a refusal: no convention applies
+        return self._with_conventions(verdict, getattr(query, "text", ""), answer, gold)

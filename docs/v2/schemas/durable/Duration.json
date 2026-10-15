@@ -1,0 +1,43 @@
+{
+  "additionalProperties": true,
+  "description": "A length of time: value plus unit, with an anchor when one is known (S6-4).",
+  "properties": {
+    "anchor": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Anchor"
+    },
+    "unit": {
+      "enum": [
+        "second",
+        "minute",
+        "hour",
+        "day",
+        "week",
+        "month",
+        "year"
+      ],
+      "title": "Unit",
+      "type": "string"
+    },
+    "value": {
+      "exclusiveMinimum": 0,
+      "title": "Value",
+      "type": "number"
+    }
+  },
+  "required": [
+    "value",
+    "unit"
+  ],
+  "title": "Duration",
+  "type": "object"
+}

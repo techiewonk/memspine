@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-from memspine.core.namespace import grant_allows, is_within, parent, validate_namespace
 from memspine.exceptions import NamespaceError
+from memspine.store.scope import grant_allows, is_within, parent, validate_namespace
 
 
 def test_normalizes_slashes() -> None:

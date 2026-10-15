@@ -2,20 +2,20 @@
 
 from __future__ import annotations
 
+from memspine.models.providers.llm.structured import _parse_payload
 from memspine.prompts.base import PromptFormat
 from memspine.prompts.models import ExtractedFacts
-from memspine.services.llm.structured import _parse_payload
 
 # Shape seen from Qwen3-32B on LoCoMo (pilot, 2026-10-03): strict YAML rejects
 # line 3 ("mapping values are not allowed here").
 REPLY = """```yaml
 facts:
-  - entity: Caroline
+  - entity: Noor
     attribute: book_recommendation
-    value: Caroline recommended "Becoming Nicole": a true story about a trans girl.
+    value: Noor recommended "Becoming Nicole": a true story about a trans girl.
     date: 2023-07-12
     confidence: 0.9
-  - entity: Melanie
+  - entity: Bram
     attribute: hobby
     value: pottery
     date: ""
@@ -27,8 +27,8 @@ def test_unquoted_colon_value_is_salvaged() -> None:
     payload = _parse_payload(REPLY, PromptFormat.YAML)
     facts = ExtractedFacts.model_validate(payload)
     assert len(facts.facts) == 2
-    assert facts.facts[0].value.startswith('Caroline recommended "Becoming Nicole": a true')
-    assert facts.facts[1].entity == "Melanie"
+    assert facts.facts[0].value.startswith('Noor recommended "Becoming Nicole": a true')
+    assert facts.facts[1].entity == "Bram"
 
 
 def test_valid_yaml_is_unchanged() -> None:

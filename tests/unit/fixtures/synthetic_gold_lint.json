@@ -1,0 +1,12 @@
+[
+  {
+    "sample_id": "synthetic-1",
+    "conversation": {"speaker_a": "Zephyrine", "speaker_b": "Quillon"},
+    "qa": [
+      {"question": "Where did Zephyrine take the ferry?", "answer": "Marmalade Bridge Harbour", "category": 1},
+      {"question": "When did Quillon plant the orchard?", "answer": "The fortnight before 3 March 2099", "category": 2},
+      {"question": "What is Quillon's job?", "answer": "Single", "category": 1},
+      {"question": "What did Zephyrine read?", "answer": "running", "category": 1}
+    ]
+  }
+]

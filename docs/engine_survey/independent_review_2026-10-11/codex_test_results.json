@@ -1,0 +1,6 @@
+{
+  "command": ".venv/Scripts/python.exe -m pytest -q -p no:deepeval tests/unit/test_window_write.py tests/unit/core/policies/test_assembly.py tests/unit/test_extract_graph_ladder.py --disable-warnings",
+  "exit_code": 0,
+  "passed_test_progress_marks": 47,
+  "scope": "Existing fake-LLM/local tests, no real model calls or benchmark reruns"
+}

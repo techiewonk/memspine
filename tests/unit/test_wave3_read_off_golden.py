@@ -30,26 +30,26 @@ T0 = datetime(2023, 5, 1, 9, 0, tzinfo=UTC)
 
 #: (speaker, text, day offset)
 TURNS = [
-    ("Melanie", "Melanie: I went camping with the kids last weekend", 0),
-    ("Caroline", "Caroline: I started a new painting of a lake sunset", 3),
-    ("Melanie", "Melanie: we ran a charity race for mental health in May", 9),
-    ("Caroline", "Caroline: I joined a support group last Tuesday", 33),
-    ("Melanie", "Melanie: the kids loved the pottery class yesterday", 40),
-    ("Caroline", "Caroline: I am researching adoption agencies this month", 62),
+    ("Bram", "Bram: I went camping with the kids last weekend", 0),
+    ("Noor", "Noor: I started a new painting of a lake sunset", 3),
+    ("Bram", "Bram: we ran a book fair for the school library in May", 9),
+    ("Noor", "Noor: I joined a support group last Tuesday", 33),
+    ("Bram", "Bram: the kids loved the pottery class yesterday", 40),
+    ("Noor", "Noor: I am researching adoption agencies this month", 62),
 ]
 
 #: (entity, attribute, text, day offset, tags)
 FACTS = [
-    ("Melanie", "hobby", "Melanie hobby: pottery and painting", 41, ["person:melanie"]),
-    ("Caroline", "plan", "Caroline plan: adopt a child", 63, []),
-    ("Melanie", "event", "Melanie event: charity race in May 2023", 10, ["person:melanie"]),
+    ("Bram", "hobby", "Bram hobby: pottery and painting", 41, ["person:bram"]),
+    ("Noor", "plan", "Noor plan: adopt a child", 63, []),
+    ("Bram", "event", "Bram event: book fair in May 2023", 10, ["person:bram"]),
 ]
 
 QUERIES = [
-    "What activities does Melanie do?",
-    "When did Caroline join the support group?",
-    "What did Melanie do in May 2023?",
-    "How many times did Melanie go camping?",
+    "What activities does Bram do?",
+    "When did Noor join the support group?",
+    "What did Bram do in May 2023?",
+    "How many times did Bram go camping?",
 ]
 
 
@@ -101,7 +101,7 @@ def _fixed_ids(monkeypatch: pytest.MonkeyPatch) -> None:
     """Record ids break score ties: make them a fixed sequence, so runs compare."""
     import uuid
 
-    from memspine.core import records
+    from memspine.store import records
 
     counter = iter(range(1, 1_000_000))
     monkeypatch.setattr(records, "uuid4", lambda: uuid.UUID(int=next(counter)))
@@ -113,8 +113,8 @@ def _fixed_now(monkeypatch: pytest.MonkeyPatch) -> None:
 
     Recency decays with the real time between write and search, so a search score
     on a 4-decimal rounding boundary (0.6465 / 0.6464) flipped from run to run."""
-    from memspine.core import records
     from memspine.core.policies import scoring
+    from memspine.store import records
 
     frozen = datetime(2023, 7, 15, 12, 0, tzinfo=UTC)
 

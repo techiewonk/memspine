@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from memspine.core.records import MemoryRecord
-from memspine.core.temporal_query import metadata_leg, query_interval, temporal_leg
+from memspine.models.encoders.query.temporal_query import metadata_leg, query_interval, temporal_leg
+from memspine.store.records import MemoryRecord
 
 
 def _d(y: int, m: int, d: int) -> datetime:

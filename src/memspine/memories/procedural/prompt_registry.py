@@ -14,8 +14,8 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing import Protocol
 
-from memspine.core.records import MemoryRecord, RecordStatus, SourceInfo
 from memspine.memories.procedural.lifecycle import SkillStage
+from memspine.store.records import MemoryRecord, RecordStatus, SourceInfo
 
 __all__ = ["prompt_reference", "prompt_version_records"]
 

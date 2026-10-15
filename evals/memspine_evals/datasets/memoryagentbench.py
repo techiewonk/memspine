@@ -25,6 +25,7 @@ Reading parquet needs ``pyarrow`` (an eval-only dependency, imported lazily).
 
 from __future__ import annotations
 
+import os
 import re
 from collections.abc import Iterator
 from datetime import UTC, datetime, timedelta
@@ -136,6 +137,8 @@ class MemoryAgentBenchDataset:
                         meta=q_meta,
                     )
                 )
+            if os.environ.get("MEMSPINE_EVAL_MAX_QUERIES"):  # debugging: first N questions per item
+                queries = queries[: int(os.environ["MEMSPINE_EVAL_MAX_QUERIES"])]
             if history and queries:
                 label = queries[0].type_label or f"row{row_index}"
                 yield EvalItem(item_id=label, history=tuple(history), queries=tuple(queries))

@@ -1,0 +1,312 @@
+{
+  "$defs": {
+    "BlockCaps": {
+      "additionalProperties": true,
+      "properties": {
+        "notes": {
+          "title": "Notes",
+          "type": "integer"
+        },
+        "profile": {
+          "title": "Profile",
+          "type": "integer"
+        },
+        "public": {
+          "title": "Public",
+          "type": "integer"
+        },
+        "raw": {
+          "title": "Raw",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "raw",
+        "notes",
+        "profile",
+        "public"
+      ],
+      "title": "BlockCaps",
+      "type": "object"
+    },
+    "ContextBlock": {
+      "additionalProperties": true,
+      "description": "A typed section of the context. ``accounting`` says how ``tokens`` was counted: exactly with the\nreader model's tokenizer (headers and reserves included), or estimated when none was available.",
+      "properties": {
+        "accounting": {
+          "default": "estimated",
+          "enum": [
+            "exact",
+            "estimated"
+          ],
+          "title": "Accounting",
+          "type": "string"
+        },
+        "cap": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cap"
+        },
+        "kind": {
+          "enum": [
+            "contract",
+            "profile",
+            "raw",
+            "notes",
+            "public"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "lines": {
+          "items": {
+            "$ref": "#/$defs/RenderedLine"
+          },
+          "title": "Lines",
+          "type": "array"
+        },
+        "tokenizer": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Tokenizer"
+        },
+        "tokens": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Tokens",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "title": "ContextBlock",
+      "type": "object"
+    },
+    "NeighbourWindow": {
+      "additionalProperties": true,
+      "description": "The spec's retrieve-side ``Window``; renamed because insert.md defines a different ``Window``.",
+      "properties": {
+        "anchor_id": {
+          "title": "Anchor Id",
+          "type": "string"
+        },
+        "member_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Member Ids",
+          "type": "array"
+        },
+        "score": {
+          "title": "Score",
+          "type": "number"
+        },
+        "tokens": {
+          "title": "Tokens",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "anchor_id",
+        "member_ids",
+        "score",
+        "tokens"
+      ],
+      "title": "NeighbourWindow",
+      "type": "object"
+    },
+    "NoteItem": {
+      "additionalProperties": true,
+      "description": "Internal step type.",
+      "properties": {
+        "cites": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Cites",
+          "type": "array"
+        },
+        "kind": {
+          "enum": [
+            "fact",
+            "value_history",
+            "profile",
+            "observation"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "record_id": {
+          "title": "Record Id",
+          "type": "string"
+        },
+        "score": {
+          "default": 0.0,
+          "title": "Score",
+          "type": "number"
+        },
+        "text": {
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "text",
+        "record_id"
+      ],
+      "title": "NoteItem",
+      "type": "object"
+    },
+    "RenderedLine": {
+      "additionalProperties": true,
+      "description": "One rendered line of a context block. ``alias`` is the citation handle (\"[3]\").",
+      "properties": {
+        "alias": {
+          "minLength": 1,
+          "title": "Alias",
+          "type": "string"
+        },
+        "date": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Date"
+        },
+        "modality": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Modality"
+        },
+        "record_id": {
+          "minLength": 1,
+          "title": "Record Id",
+          "type": "string"
+        },
+        "speaker": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Speaker"
+        },
+        "text": {
+          "title": "Text",
+          "type": "string"
+        },
+        "wrapped": {
+          "default": "none",
+          "enum": [
+            "none",
+            "untrusted",
+            "instruction",
+            "claim"
+          ],
+          "title": "Wrapped",
+          "type": "string"
+        }
+      },
+      "required": [
+        "alias",
+        "record_id",
+        "text"
+      ],
+      "title": "RenderedLine",
+      "type": "object"
+    }
+  },
+  "additionalProperties": true,
+  "description": "Pack under the budget.",
+  "properties": {
+    "block_caps": {
+      "$ref": "#/$defs/BlockCaps"
+    },
+    "budget_tokens": {
+      "title": "Budget Tokens",
+      "type": "integer"
+    },
+    "notes": {
+      "items": {
+        "$ref": "#/$defs/NoteItem"
+      },
+      "title": "Notes",
+      "type": "array"
+    },
+    "public_block": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ContextBlock"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "reply_reserve": {
+      "default": 0,
+      "title": "Reply Reserve",
+      "type": "integer"
+    },
+    "tokenizer": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Tokenizer"
+    },
+    "windows": {
+      "items": {
+        "$ref": "#/$defs/NeighbourWindow"
+      },
+      "title": "Windows",
+      "type": "array"
+    }
+  },
+  "required": [
+    "windows",
+    "budget_tokens",
+    "block_caps"
+  ],
+  "title": "RetrieveStep16Input",
+  "type": "object"
+}

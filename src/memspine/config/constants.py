@@ -493,13 +493,37 @@ MINED_FACT_FUTURE_SLACK_DAYS = 366
 MULTIVIEW_MAX_PERSONS = 8
 MULTIVIEW_FIELD_MAX_CHARS = 80
 
+#: W1 (adaptive-window write, ``write.window_extract``). The topic-shift test needs enough
+#: consecutive-turn similarities for the standard deviation to mean something: the standard
+#: error of a sample sd is about ``sd / sqrt(2 (n - 1))``, 16% at n = 20 (the usual rule of
+#: thumb for a stable spread). Before that many pairs only the turn / token / session / idle
+#: boundaries apply.
+WINDOW_TOPIC_MIN_PAIRS = 20
+#: A topic shift never closes a window of fewer turns than this (a one-turn window has no
+#: context to extract from).
+WINDOW_TOPIC_MIN_TURNS = 2
+#: ``window_split: auto`` splits a window's call into two (facts + edges / episode) once this
+#: share of the last ``WINDOW_SPLIT_RECENT`` calls failed to parse, and not before that many.
+WINDOW_SPLIT_FAIL_RATE = 0.25
+WINDOW_SPLIT_RECENT = 8
+#: Pending call-1 edges kept per namespace for the sleep stage (an unconsumed backlog is
+#: capped, oldest dropped and counted); one narrative is cut at this many characters.
+WINDOW_PENDING_EDGES_MAX = 5000
+WINDOW_EPISODE_MAX_CHARS = 4000
+#: Channel of an episode fragment record (a derived, inferred record).
+WINDOW_EPISODE_CHANNEL = "window_episode"
+#: O4-02: channel of a session summary / stitched episode written by call 2 at session close.
+SESSION_CLOSE_CHANNEL = "session_close"
+#: O4-07: MARKER payload name of the profile card state of one namespace (latest wins).
+PROFILE_CARD_MARKER = "profile_card_v2"
+
 #: #30 (person-level list cards): a (person, class) group needs at least this many
 #: event facts to get a card; a card lists at most the newest ``MAX_ITEMS`` of them
 #: (the rest are counted), each statement cut to ``ITEM_MAX_CHARS``.
 LIST_CARD_MIN_ITEMS = 2
 LIST_CARD_MAX_ITEMS = 25
 LIST_CARD_ITEM_MAX_CHARS = 80
-#: #30: miner attributes too generic to name a list class ("Melanie event: ..."); a
+#: #30: miner attributes too generic to name a list class ("Bram event: ..."); a
 #: fact with one of these and no ``topic:`` tag gets its class from the LLM labeller.
 LIST_CARD_GENERIC_CLASSES = frozenset(
     {
@@ -576,6 +600,13 @@ CAUSAL_WALK_DECAY = 0.9
 #: G27 (``write(reply_to=)``, ADR-061): the tag prefix naming the record a turn
 #: answers, and the rel of the LINK written beside it (associative memory on).
 REPLY_TO_PREFIX = "reply_to:"
+
+# W2-03 (``write.role_policy_v2``): tags a raw turn carries so derivation can tell what it may use.
+ROLE_USE_TAG_PREFIX = "derive_use:"  # derive_use:stated|proposal|evidence|excluded
+ECHO_TAG = "echo"  # the turn repeats memory text the engine injected or the last read returned
+ECHO_OF_PREFIX = "echo_of:"  # echo_of:<memory id>
+ASSENT_CANDIDATE_TAG = "assent_candidate"  # a user turn that restates a shown memory
+ROUTED_TAG = "routed"  # a typed record the TypeRouter wrote from a keyed turn
 REPLY_TO_REL = "reply_to"
 
 #: W13 (``integrity.corroboration_roots``): the most lineage records one root walk
@@ -629,6 +660,30 @@ FEEDBACK_NOTE_MAX_CHARS = 2000
 #: #38 (read.completeness_check): the most missing-information queries one
 #: completeness round adds to a compose read as extra probes.
 COMPLETENESS_MAX_QUERIES = 3
+#: I67 (read.agentic): the evidence view the action step sees is cut to this many tokens
+#: (estimated) and each line to this many characters; an LLM-written search query is cut
+#: to :data:`AGENTIC_QUERY_CHARS`.
+AGENTIC_VIEW_TOKENS = 800
+AGENTIC_LINE_CHARS = 240
+AGENTIC_QUERY_CHARS = 200
+#: A02 (read.event_ledger: on): evidence lines shown to the one extraction call (each cut to
+#: ``EVENT_LEDGER_LINE_CHARS``), mentions kept from it, events shown, and the block's share of
+#: the routed read budget (a block that does not fit loses its last events, then is left out).
+EVENT_LEDGER_MAX_LINES = 24
+EVENT_LEDGER_LINE_CHARS = 400
+EVENT_LEDGER_MAX_MENTIONS = 30
+EVENT_LEDGER_MAX_EVENTS = 12
+EVENT_LEDGER_BLOCK_SHARE = 0.15
+EVENT_LEDGER_TAG = "event_ledger"
+EVENT_LEDGER_MARKER = (
+    "EVENT LEDGER (events and plans found in the lines above, each with its status and the "
+    "time of the event as distinct from the time it was mentioned; a repeated mention is one "
+    "event only where a line says so; the raw lines are authoritative):"
+)
+#: E01 (memories.semantic.policies.fact_projection: on): tag of a projected assertion and the
+#: per-session done-marker prefix; assertions kept from the one extraction call.
+FACT_PROJECTION_TAG = "fact_projection"
+FACT_PROJECTION_MAX_ASSERTIONS = 40
 #: #40 (read.profile_header_packing): the packed profile header's header line (it
 #: opens with :data:`PROFILE_MARKER`, so stored text cannot forge it and an echoed
 #: block is recognised as recalled memory), the section labels in their fixed order,
@@ -708,6 +763,9 @@ TRAJECTORY_WINDOW_CAP = 20
 #: the corrected assistant claim; least share of the negated span's words a target
 #: fact must hold.
 CORRECTION_TAG = "correction"
+#: I7: set at write time (``read.skip_defaulted_dates``) on a record whose event time was NOT
+#: supplied by the source (``valid_from`` defaulted to the write clock). Date renders skip it.
+UNDATED_TAG = "ts_defaulted"
 CORRECTION_LOOKBACK_TURNS = 5
 CORRECTION_MIN_OVERLAP = 0.5
 #: W17e: the working-memory channel of a task-state record.
@@ -728,6 +786,15 @@ DOCTYPE_TAG_PREFIX = "doctype:"
 #: N64: the BGE v1.5 retrieval query instruction (BAAI model card, "for s2p retrieval
 #: ... add an instruction to the query"). Used as ``embedding.query_instruction``.
 BGE_QUERY_INSTRUCTION = "Represent this sentence for searching relevant passages: "
+
+#: I10: a task-neutral Qwen3-Embedding query instruction for requests, preference queries and
+#: descriptions as well as questions (the common one names "a question about a user's past
+#: conversations"). Opt-in via ``embedding.query_instruction``; it changes the query embedding,
+#: so any arm that sets it must be screened (retrieval-only) before it is trusted.
+GENERIC_QWEN_QUERY_INSTRUCTION = (
+    "Instruct: Given a user message, retrieve memories that are relevant to responding to it\n"
+    "Query: "
+)
 
 #: N44 (gaps plan 2026-10-08, Dakera soft date proximity): a soft temporal span widens
 #: by one span length, and by at least this many days (a one-day span by 3 days).

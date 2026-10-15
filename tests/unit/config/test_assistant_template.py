@@ -23,7 +23,7 @@ async def test_assistant_template_settings() -> None:
     eng = _engine("assistant")
     await eng.start()
     try:
-        read = eng._config().read
+        read = eng.config.read
         assert read.resolve_relative_dates and read.order_by_time_for_ordering
         assert read.record_access is False
         assert read.default_mode == "replay"
@@ -59,18 +59,18 @@ async def test_core_template_is_bare_and_base_has_the_advantages() -> None:
     core = _engine("core")
     await core.start()
     try:
-        assert core._config().read.default_mode == "auto"
+        assert core.config.read.default_mode == "auto"
         assert "computed from" not in core.chat_messages("hi")[0]["content"]
     finally:
         await core.stop()
     base = _engine("base")
     await base.start()
     try:
-        read = base._config().read
+        read = base.config.read
         assert base.describe()["profile"] == "simple"
         assert read.default_mode == "replay" and read.resolve_relative_dates
         assert "computed from the line's own date" in base.chat_messages("hi")[0]["content"]
-        conflict = base._config().memories["semantic"].policies["conflict"]
+        conflict = base.config.memories["semantic"].policies["conflict"]
         assert conflict["contest_lower_trust"] is True
     finally:
         await base.stop()
@@ -83,7 +83,7 @@ async def test_engine_without_a_template_uses_assistant() -> None:
     await eng.start()
     try:
         assert eng.describe()["profile"] == "assistant"
-        assert eng._config().read.default_mode == "replay"
+        assert eng.config.read.default_mode == "replay"
     finally:
         await eng.stop()
     simple = _engine("base")
@@ -109,7 +109,7 @@ async def test_profile_simple_without_a_template_is_base(where: str) -> None:
     await eng.start()
     try:
         expected = load_config(template="base", overrides=common).config
-        got = eng._config()
+        got = eng.config
         assert got.read == expected.read
         assert got.memories == expected.memories
         assert got.prompts == expected.prompts

@@ -52,6 +52,10 @@ CONVOMEM_OFFICIAL_METRIC = {
 }
 
 
+#: Evidence-type directory whose questions have no answer in the history (gold = a refusal).
+ABSTENTION_TYPE = "abstention_evidence"
+
+
 def official_metric(evidence_type: str) -> str:
     """The README's metric for an evidence type; ``"unspecified"`` when it names none."""
     return CONVOMEM_OFFICIAL_METRIC.get(evidence_type, "unspecified")
@@ -158,7 +162,13 @@ class ConvoMemDataset:
                         gold=str(item.get("answer", "")),
                         gold_turn_ids=tuple(gold_ids),
                         type_label=f"{etype}/{k}",
-                        meta={"benchmark": "convomem", "official_metric": official_metric(etype)},
+                        meta={
+                            "benchmark": "convomem",
+                            "official_metric": official_metric(etype),
+                            # the gold of an abstention item is a refusal sentence: route it to
+                            # the abstention judge, as LoCoMo cat 5 is (blind-validation wiring)
+                            **({"abstention": True} if etype == ABSTENTION_TYPE else {}),
+                        },
                     ),
                 ),
                 meta={"filler": len(chosen), "person": item.get("personId")},

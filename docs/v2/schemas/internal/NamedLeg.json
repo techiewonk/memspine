@@ -1,0 +1,55 @@
+{
+  "$defs": {
+    "LegHit": {
+      "additionalProperties": true,
+      "description": "Internal step type.",
+      "properties": {
+        "record_id": {
+          "title": "Record Id",
+          "type": "string"
+        },
+        "score": {
+          "title": "Score",
+          "type": "number"
+        }
+      },
+      "required": [
+        "record_id",
+        "score"
+      ],
+      "title": "LegHit",
+      "type": "object"
+    }
+  },
+  "additionalProperties": true,
+  "description": "Internal step type. ``list[LegHit]`` plus a name and family.",
+  "properties": {
+    "family": {
+      "enum": [
+        "dense",
+        "lexical",
+        "structured",
+        "derived"
+      ],
+      "title": "Family",
+      "type": "string"
+    },
+    "hits": {
+      "items": {
+        "$ref": "#/$defs/LegHit"
+      },
+      "title": "Hits",
+      "type": "array"
+    },
+    "name": {
+      "title": "Name",
+      "type": "string"
+    }
+  },
+  "required": [
+    "name",
+    "family"
+  ],
+  "title": "NamedLeg",
+  "type": "object"
+}

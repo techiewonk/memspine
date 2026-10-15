@@ -1,0 +1,364 @@
+{
+  "aborted": false,
+  "abort_reason": null,
+  "abort_message": null,
+  "manifest": {
+    "run_id": "qs-ebgeb-roff-bt32--memspine",
+    "dataset": {
+      "dataset_id": "locomo",
+      "revision_id": "sha256:79fa87e90f040813",
+      "licence": "see LoCoMo release (check before publishing a number)",
+      "source_path": "..\\data\\locomo10.json",
+      "content_sha256": "79fa87e90f04081343b8c8debecb80a9a6842b76a7aa537dc9fdf651ea698ff4",
+      "n_items": 10,
+      "n_queries": 1986,
+      "subset": "full",
+      "notes": "cat5-gold=abstention-v1: cat 5 gold is the refusal 'Not mentioned in the conversation', never adversarial_answer; cat 5 has no R@k gold"
+    },
+    "system": {
+      "system_id": "memspine",
+      "version": "0.0.1",
+      "config": {
+        "system_id": "memspine",
+        "version": "0.0.1",
+        "kind": "engine",
+        "template": "base",
+        "namespace": "eval",
+        "config": {
+          "read": {
+            "record_access": false,
+            "scoring": {
+              "recency_weight": 0.0,
+              "importance_weight": 0.0,
+              "utility_weight": 0.0
+            },
+            "resolve_relative_dates": true,
+            "order_by_time_for_ordering": true,
+            "assembly": {
+              "relative_floor": 0.3
+            },
+            "rerank": "off"
+          },
+          "embedding": {
+            "provider": "fastembed",
+            "model": "BAAI/bge-base-en-v1.5"
+          },
+          "storage": {
+            "path": "tempdir"
+          }
+        },
+        "record_access": false,
+        "dated_rendering": true,
+        "read_mode": "replay",
+        "build_sleep": false,
+        "sleep_calls_per_session": 1,
+        "batch_turns": 32,
+        "token_counter": {
+          "counter_id": "heuristic-chars4",
+          "chars_per_token": 4.0
+        }
+      },
+      "config_hash": "56e75bbea2d5aa3b43928fb494a719ab3cae2969bce8a018a049c24b06d576a6"
+    },
+    "reader": {
+      "reader_id": "skipped:retrieval-only",
+      "model": "none",
+      "makes_model_calls": false,
+      "params": {
+        "reader_id": "skipped:retrieval-only",
+        "model": "none",
+        "generation": "skipped"
+      }
+    },
+    "judge": {
+      "judge_id": "skipped:retrieval-only",
+      "scale": "binary",
+      "model": null,
+      "prompt_id": null,
+      "prompt_hash": null,
+      "makes_model_calls": false,
+      "params": {
+        "score": "ev_all (gold evidence fully in context); 0 without gold"
+      }
+    },
+    "protocol": {
+      "protocol_id": "c0-1-retrieval-only",
+      "budget_tokens": 4096,
+      "top_k": 10,
+      "seed": 11,
+      "recall_ks": [
+        1,
+        5,
+        10
+      ],
+      "notes": "C0-1 verbatim-baseline gate; identical protocol across arms; harness-protocol=r3-2026-10-02"
+    },
+    "token_counter": {
+      "counter_id": "heuristic-chars4",
+      "chars_per_token": 4.0
+    },
+    "code": {
+      "memspine_git": "314bbe7",
+      "evals_version": "0.2.0"
+    },
+    "env": {
+      "python": "3.13.5",
+      "platform": "Windows-11-10.0.26340-SP0"
+    },
+    "created_at": "2026-10-09T05:31:50+00:00",
+    "harness": "memspine-evals",
+    "harness_version": "0.2.0",
+    "labels": {
+      "experiment": "C0-1",
+      "question": "does verbatim storage beat extraction on our own harness",
+      "mode": "retrieval-only",
+      "dense": false,
+      "hybrid": false,
+      "categories": "all",
+      "qa_prompt": null,
+      "judge_prompt": null,
+      "arms": [
+        "memspine"
+      ],
+      "naive_dense_same_embedder": false,
+      "matched_budget_tokens": null,
+      "memspine_llm": "none",
+      "engine_llm_models": [],
+      "prices_per_mtok": {
+        "bedrock/converse/qwen.qwen3-32b-v1:0": [
+          0.16,
+          0.62
+        ]
+      },
+      "service_prices": {},
+      "paid_services": [],
+      "retrieval_only": true
+    },
+    "limits": {
+      "max_items": null,
+      "max_queries_per_item": null,
+      "max_model_calls": 0,
+      "max_usd": null,
+      "expect_model_calls": false,
+      "fail_fast": false,
+      "item_ids": null,
+      "model_call_cap_scope": "per-arm",
+      "provider_budget_scope": "shared-by-caller"
+    },
+    "admissible_d16": false,
+    "missing_protocol_fields": [
+      "reader.model"
+    ],
+    "makes_model_calls": false
+  },
+  "summary": {
+    "run_id": "qs-ebgeb-roff-bt32--memspine",
+    "n_queries": 1986,
+    "n_errors": 0,
+    "n_scheduled": 1986,
+    "n_truncated": 0,
+    "n_unattempted": 0,
+    "score_mean": 0.5921,
+    "score_mean_measured": 0.5921,
+    "score_ci95": [
+      0.5677,
+      0.6157
+    ],
+    "score_scale": "binary",
+    "failure_score": 0.0,
+    "cost_accounting_complete": true,
+    "by_type": {
+      "cat1": 0.266,
+      "cat2": 0.8536,
+      "cat3": 0.3542,
+      "cat4": 0.9429,
+      "cat5": 0.0
+    },
+    "recall": {},
+    "context_tokens": {
+      "n": 1986,
+      "mean": 1522.501,
+      "p50": 1519.0,
+      "p95": 2017.5,
+      "max": 2510.0
+    },
+    "latency_retrieve_ms": {
+      "n": 1986,
+      "mean": 392.1557,
+      "p50": 356.502,
+      "p95": 579.521,
+      "max": 1076.328
+    },
+    "latency_answer_ms": {
+      "n": 1986,
+      "mean": 0.0,
+      "p50": 0.0,
+      "p95": 0.0,
+      "max": 0.0
+    },
+    "model_calls": 0,
+    "cost_usd": 0.0,
+    "cost_per_cycle_usd": 0.0,
+    "stages": {
+      "R": {
+        "tokens_prompt": 0,
+        "tokens_completion": 0,
+        "calls": 0,
+        "latency_ms": 778821.18,
+        "cost_usd": 0.0
+      },
+      "C": {
+        "tokens_prompt": 3023687,
+        "tokens_completion": 0,
+        "calls": 0,
+        "latency_ms": 0.0,
+        "cost_usd": 0.0
+      },
+      "G": {
+        "tokens_prompt": 0,
+        "tokens_completion": 0,
+        "calls": 0,
+        "latency_ms": 0.0,
+        "cost_usd": 0.0
+      },
+      "D": {
+        "tokens_prompt": 0,
+        "tokens_completion": 0,
+        "calls": 0,
+        "latency_ms": 1919568.885,
+        "cost_usd": 0.0
+      },
+      "K": {
+        "tokens_prompt": 0,
+        "tokens_completion": 0,
+        "calls": 0,
+        "latency_ms": 0.074,
+        "cost_usd": 0.0
+      },
+      "complete": true
+    },
+    "admissible_d16": false,
+    "missing_protocol_fields": [
+      "reader.model"
+    ],
+    "by_type_n": {
+      "cat1": {
+        "scored": 282,
+        "errors": 0,
+        "unattempted": 0
+      },
+      "cat2": {
+        "scored": 321,
+        "errors": 0,
+        "unattempted": 0
+      },
+      "cat3": {
+        "scored": 96,
+        "errors": 0,
+        "unattempted": 0
+      },
+      "cat4": {
+        "scored": 841,
+        "errors": 0,
+        "unattempted": 0
+      },
+      "cat5": {
+        "scored": 446,
+        "errors": 0,
+        "unattempted": 0
+      }
+    }
+  },
+  "score_matrix_row": {
+    "system": "memspine",
+    "dataset": "locomo",
+    "score": 0.5921,
+    "n": 1986,
+    "judge_model": "none",
+    "judge_scale": "binary",
+    "backbone": "none",
+    "subset": "full",
+    "data_revision": "sha256:79fa87e90f040813",
+    "tokens_per_query": 4096,
+    "evidence_class": "harness-run",
+    "admissible_d16": "no",
+    "run_id": "qs-ebgeb-roff-bt32--memspine",
+    "note": "reader.model"
+  },
+  "judge_model_calls": 0,
+  "loop_model_calls": 0,
+  "engine_llm_usage": {},
+  "engine_prompt_usage": {},
+  "engine_services": {},
+  "rerank": {
+    "mode": "off",
+    "queries": 1986,
+    "reranked": 0,
+    "calls": 0,
+    "failures": 0,
+    "configured": false,
+    "rerank_unavailable": false
+  },
+  "rerank_unavailable": false,
+  "spend": {
+    "calls": 0,
+    "engine_calls": 0,
+    "max_calls": 4611686018427387904,
+    "max_usd": null,
+    "tokens": {},
+    "cached_input_tokens": {},
+    "services": {},
+    "services_usd": 0,
+    "usd": 0
+  },
+  "coverage": {
+    "all": {
+      "n": 1986,
+      "n_with_evidence": 1536,
+      "ev_all": 0.765625,
+      "ev_any": 0.897786,
+      "ev_frac": 0.829306,
+      "context_tokens": 1522.501007
+    },
+    "cat1": {
+      "n": 282,
+      "n_with_evidence": 282,
+      "ev_all": 0.265957,
+      "ev_any": 0.847518,
+      "ev_frac": 0.549427,
+      "context_tokens": 1622.478723
+    },
+    "cat2": {
+      "n": 321,
+      "n_with_evidence": 321,
+      "ev_all": 0.853583,
+      "ev_any": 0.900312,
+      "ev_frac": 0.877985,
+      "context_tokens": 1538.866044
+    },
+    "cat3": {
+      "n": 96,
+      "n_with_evidence": 92,
+      "ev_all": 0.369565,
+      "ev_any": 0.608696,
+      "ev_frac": 0.464223,
+      "context_tokens": 1525.46875
+    },
+    "cat4": {
+      "n": 841,
+      "n_with_evidence": 841,
+      "ev_all": 0.942925,
+      "ev_any": 0.945303,
+      "ev_frac": 0.944511,
+      "context_tokens": 1488.869203
+    },
+    "cat5": {
+      "n": 446,
+      "n_with_evidence": 0,
+      "ev_all": null,
+      "ev_any": null,
+      "ev_frac": null,
+      "context_tokens": 1510.286996
+    }
+  }
+}

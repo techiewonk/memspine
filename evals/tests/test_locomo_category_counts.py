@@ -17,7 +17,7 @@ from memspine_evals.datasets.locomo import LoCoMoDataset
 DATA = Path(__file__).resolve().parents[1] / "data" / "locomo10.json"
 COUNTS = {"cat1": 282, "cat2": 321, "cat3": 96, "cat4": 841, "cat5": 446}
 EXAMPLE = {  # one question per category, from the dataset itself
-    "cat2": "When did Caroline go to the LGBTQ support group?",
+    "cat2": "When did Noor go to the LGBTQ support group?",
 }
 
 

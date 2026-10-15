@@ -8,12 +8,12 @@ import pytest
 from assoc_helpers import EventLog, FakeStorage
 
 from memspine.config.constants import LINK_BUDGET
-from memspine.core.events import EventKind, MemoryEvent
-from memspine.core.records import MemoryRecord, RecordStatus
 from memspine.exceptions import ConflictError
 from memspine.memories.associative.links import link_event
 from memspine.memories.associative.store import AssociativeMemory
 from memspine.services.graph.sqlite_adjacency import SQLiteAdjacencyGraph
+from memspine.store.events import EventKind, MemoryEvent
+from memspine.store.records import MemoryRecord, RecordStatus
 
 
 @pytest.fixture

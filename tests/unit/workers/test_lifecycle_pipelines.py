@@ -14,11 +14,13 @@ import pytest
 
 from memspine.clients.sqlite import SQLiteClient
 from memspine.config.loader import load_config
-from memspine.core.events import EventKind, MemoryEvent
-from memspine.core.records import MemoryRecord, RecordStatus
+from memspine.derive.pipeline.stages.consolidate import consolidate
+from memspine.derive.pipeline.stages.context import PipelineContext
+from memspine.derive.pipeline.stages.maintenance import compress, decay_sweep
 from memspine.services.storage.projector import RecordProjector
 from memspine.services.storage.sqlite.engine import SQLiteStorage
-from memspine.workers.pipelines import PipelineContext, compress, consolidate, decay_sweep
+from memspine.store.events import EventKind, MemoryEvent
+from memspine.store.records import MemoryRecord, RecordStatus
 
 NOW = datetime.now(UTC)
 
@@ -201,7 +203,7 @@ async def test_decay_then_compress_then_rebuild_round_trips() -> None:
 
     # A read verb on top of raw storage (the pipeline harness has no Engine):
     # inflation must restore the original bytes exactly.
-    from memspine.core.policies.compression import CompressionPolicy
+    from memspine.compose.compression import CompressionPolicy
 
     inflated = CompressionPolicy.bind().inflate(record)
     assert inflated.content == content

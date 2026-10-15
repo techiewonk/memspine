@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from memspine.core.events import EventKind, MemoryEvent
-from memspine.core.records import MemoryRecord
 from memspine.services.storage.projector import RecordProjector
+from memspine.store.events import EventKind, MemoryEvent
+from memspine.store.records import MemoryRecord
 
 
 class MemoryStore:

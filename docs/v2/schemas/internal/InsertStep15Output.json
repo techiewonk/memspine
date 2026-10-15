@@ -1,0 +1,412 @@
+{
+  "$defs": {
+    "FailureRecord": {
+      "additionalProperties": true,
+      "description": "Internal step type.",
+      "properties": {
+        "attempts": {
+          "default": 0,
+          "title": "Attempts",
+          "type": "integer"
+        },
+        "batch_id": {
+          "title": "Batch Id",
+          "type": "string"
+        },
+        "failure_class": {
+          "enum": [
+            "raised",
+            "malformed",
+            "valid_empty",
+            "truncated",
+            "size_skip",
+            "partial_commit",
+            "invented_alias"
+          ],
+          "title": "Failure Class",
+          "type": "string"
+        },
+        "item_index": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Item Index"
+        },
+        "retry_allowed": {
+          "default": false,
+          "title": "Retry Allowed",
+          "type": "boolean"
+        },
+        "row_id": {
+          "title": "Row Id",
+          "type": "string"
+        },
+        "validator_errors": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Validator Errors",
+          "type": "array"
+        }
+      },
+      "required": [
+        "row_id",
+        "batch_id",
+        "failure_class"
+      ],
+      "title": "FailureRecord",
+      "type": "object"
+    },
+    "ItemV1": {
+      "additionalProperties": true,
+      "description": "Model-output wire schema, compact keys (W-15 B, P-06).\n\nSession 2 fixed the split (the model authors content only, with citations); the compact keys below are\nnot frozen. The compiler maps ``mode`` and ``neg`` onto the session-5 ``modality`` (asserted, negated,\nhypothetical, planned, reported, question). The kind set is open (S2-3), so\n``kind`` is a plain string here and the closed ``state|event|fact`` check belongs to the compiler.\nReserved system names (``reserved.py``) in model output are rejected by the compiler, not here.",
+      "properties": {
+        "kind": {
+          "title": "Kind",
+          "type": "string"
+        },
+        "lines": {
+          "items": {
+            "type": "integer"
+          },
+          "title": "Lines",
+          "type": "array"
+        },
+        "mode": {
+          "enum": [
+            "asserted",
+            "planned",
+            "hoped",
+            "asked",
+            "hedged"
+          ],
+          "title": "Mode",
+          "type": "string"
+        },
+        "neg": {
+          "title": "Neg",
+          "type": "boolean"
+        },
+        "o": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "O"
+        },
+        "r": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "R"
+        },
+        "reported_speaker": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reported Speaker"
+        },
+        "s": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "S"
+        },
+        "source": {
+          "anyOf": [
+            {
+              "enum": [
+                "user_stated",
+                "assistant_proposed",
+                "user_confirmed",
+                "tool"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source"
+        },
+        "span": {
+          "title": "Span",
+          "type": "string"
+        },
+        "speaker": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Speaker"
+        },
+        "text": {
+          "title": "Text",
+          "type": "string"
+        },
+        "until": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Until"
+        },
+        "when": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "When"
+        }
+      },
+      "required": [
+        "text",
+        "kind",
+        "mode",
+        "neg",
+        "lines",
+        "span"
+      ],
+      "title": "ItemV1",
+      "type": "object"
+    },
+    "ValidItem": {
+      "additionalProperties": true,
+      "description": "A valid ItemV1 with its batch block (step 15 output).",
+      "properties": {
+        "block": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Block"
+        },
+        "item": {
+          "$ref": "#/$defs/ItemV1"
+        }
+      },
+      "required": [
+        "item"
+      ],
+      "title": "ValidItem",
+      "type": "object"
+    },
+    "Window": {
+      "additionalProperties": true,
+      "description": "Segmentation window (W-11). Internal step type.",
+      "properties": {
+        "reason": {
+          "enum": [
+            "topic",
+            "turns",
+            "tokens",
+            "time_gap",
+            "calendar_day",
+            "session_end",
+            "idle",
+            "flush",
+            "truncation"
+          ],
+          "title": "Reason",
+          "type": "string"
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Session"
+        },
+        "source_versions": {
+          "items": {
+            "type": "integer"
+          },
+          "title": "Source Versions",
+          "type": "array"
+        },
+        "tokens": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Tokens"
+        },
+        "turns": {
+          "items": {
+            "$ref": "#/$defs/WindowTurn"
+          },
+          "title": "Turns",
+          "type": "array"
+        },
+        "window_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Window Id"
+        }
+      },
+      "required": [
+        "reason"
+      ],
+      "title": "Window",
+      "type": "object"
+    },
+    "WindowTurn": {
+      "additionalProperties": true,
+      "description": "Internal step type.",
+      "properties": {
+        "record_id": {
+          "title": "Record Id",
+          "type": "string"
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Session"
+        },
+        "source_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source At"
+        },
+        "source_version": {
+          "title": "Source Version",
+          "type": "integer"
+        },
+        "tokens": {
+          "title": "Tokens",
+          "type": "integer"
+        },
+        "vector": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Vector"
+        }
+      },
+      "required": [
+        "record_id",
+        "source_version",
+        "tokens"
+      ],
+      "title": "WindowTurn",
+      "type": "object"
+    }
+  },
+  "additionalProperties": true,
+  "properties": {
+    "failures": {
+      "items": {
+        "$ref": "#/$defs/FailureRecord"
+      },
+      "title": "Failures",
+      "type": "array"
+    },
+    "items": {
+      "items": {
+        "$ref": "#/$defs/ValidItem"
+      },
+      "title": "Items",
+      "type": "array"
+    },
+    "rescheduled": {
+      "items": {
+        "$ref": "#/$defs/Window"
+      },
+      "title": "Rescheduled",
+      "type": "array"
+    }
+  },
+  "title": "InsertStep15Output",
+  "type": "object"
+}

@@ -38,9 +38,10 @@ from __future__ import annotations
 from enum import StrEnum
 from typing import ClassVar
 
+from memspine.core.inference import INFERRED_TAG
 from memspine.core.policies.base import BindablePolicy, PolicyOptions
-from memspine.core.query_shape import content_words
-from memspine.core.records import MemoryRecord
+from memspine.models.encoders.query.shape import content_words
+from memspine.store.records import MemoryRecord
 
 __all__ = ["ConflictPolicy", "ConflictVerdict"]
 
@@ -74,6 +75,23 @@ class ConflictOptions(PolicyOptions):
     #: fact's ("Jon works at the bank" after "Jon works as a teller at the city bank")
     #: is a restatement: NOOP instead of superseding the richer fact. Off: unchanged.
     merge_containment: bool = False
+    #: I55 (perspective layer): the conflict key also carries the subject, scope and polarity
+    #: tags (``sub:`` / ``scope:`` / ``pol:``). Two same-key statements about different
+    #: subjects or of different scope (an event vs a standing preference) coexist (ADD); a
+    #: polarity flip on the same subject and scope is a CONTEST (both kept, tagged disputed)
+    #: unless trust or time already decides it as the ladder does. Records without those tags
+    #: behave as before. Off: unchanged.
+    perspective_key: bool = False
+    #: I48: an engine-inferred fact (``src:inferred``) never changes a stated one on the same
+    #: key (NOOP), and a stated fact supersedes an inferred one whatever their event times.
+    #: Off: unchanged.
+    inferred_defers: bool = False
+
+    #: W2-10 (``write.integration_v2``, set by the engine): an older statement that arrives after
+    #: a newer one on the same key (R4 historical backfill) is archived as history (``evolve_to``
+    #: the current fact) instead of staying active with a closed interval, so a reverse-order
+    #: ingest ends in the same live state as a forward one (INV-ORDER-SWAP). Off: unchanged.
+    integration_v2: bool = False
 
 
 class ConflictPolicy(BindablePolicy):
@@ -86,6 +104,31 @@ class ConflictPolicy(BindablePolicy):
         options = self.options
         assert isinstance(options, ConflictOptions)
         return options.interval_order
+
+    @property
+    def integration_v2(self) -> bool:
+        """W2-10: whether a late-arriving older value is archived as history (see the option)."""
+        options = self.options
+        assert isinstance(options, ConflictOptions)
+        return options.integration_v2
+
+    @property
+    def perspective_key(self) -> bool:
+        """I55: whether the key also carries subject and scope (``sub:`` / ``scope:`` tags)."""
+        options = self.options
+        assert isinstance(options, ConflictOptions)
+        return options.perspective_key
+
+    @staticmethod
+    def coexists(incoming: MemoryRecord, existing: MemoryRecord) -> bool:
+        """I55: two same-key statements about different subjects, or of different scope
+        (an event vs a standing preference), both hold: neither supersedes the other."""
+        for prefix in ("sub:", "scope:"):
+            a = {t for t in incoming.tags if t.startswith(prefix)}
+            b = {t for t in existing.tags if t.startswith(prefix)}
+            if a and b and a != b:
+                return True
+        return False
 
     @staticmethod
     def same_endpoints(incoming: MemoryRecord, existing: MemoryRecord) -> bool:
@@ -109,12 +152,18 @@ class ConflictPolicy(BindablePolicy):
         return incoming.trust < existing.trust - options.trust_margin
 
     def resolve(self, incoming: MemoryRecord, existing: MemoryRecord) -> ConflictVerdict:
+        return self.decide(incoming, existing)[0]
+
+    def decide(
+        self, incoming: MemoryRecord, existing: MemoryRecord
+    ) -> tuple[ConflictVerdict, str]:
+        """:meth:`resolve` plus the rung that fired (for the write forensics)."""
         options = self.options
         assert isinstance(options, ConflictOptions)
 
         # R0 — identical statement: nothing to do.
         if incoming.content_fingerprint == existing.content_fingerprint:
-            return ConflictVerdict.NOOP
+            return ConflictVerdict.NOOP, "R0_identical_statement"
 
         # B-1: an attribute-less record has no (entity, attribute) key, so two
         # such records about one entity are independent facts, not a conflict.
@@ -125,34 +174,55 @@ class ConflictPolicy(BindablePolicy):
             and incoming.attribute == existing.attribute
         )
         if not same_key:
-            return ConflictVerdict.ADD  # independent facts coexist
+            return ConflictVerdict.ADD, "B1_no_fact_key"  # independent facts coexist
+        if options.perspective_key and self.coexists(incoming, existing):
+            # another subject / scope: both hold
+            return ConflictVerdict.ADD, "I55_other_subject_or_scope"
+
+        # W2-10 (``write.integration_v2``): the write-path ladder decided that this value contests
+        # the current one (a coexisting value is stored without the key, so never gets here).
+        if "integ:contest" in incoming.tags:
+            return ConflictVerdict.CONTEST, "W2-10_integration_contest"
+
+        # I48 — stated beats inferred: an inference never overrides a statement.
+        if options.inferred_defers:
+            inc_inf = INFERRED_TAG in incoming.tags
+            if inc_inf and INFERRED_TAG not in existing.tags:
+                return ConflictVerdict.NOOP, "I48_inferred_never_overrides_stated"
+            if not inc_inf and INFERRED_TAG in existing.tags and "retract" not in incoming.tags:
+                return ConflictVerdict.UPDATE, "I48_stated_beats_inferred"
 
         # R1 — trust gate (E1): markedly less-trusted writes cannot displace
         # the current fact; the store records the rejection as a CONFLICT event.
         if self.trust_gated(incoming, existing):
-            return ConflictVerdict.NOOP
+            return ConflictVerdict.NOOP, "R1_trust_gate"
 
+        if options.perspective_key:
+            pol_in = {t for t in incoming.tags if t.startswith("pol:")}
+            pol_ex = {t for t in existing.tags if t.startswith("pol:")}
+            if pol_in and pol_ex and pol_in != pol_ex and len(pol_in) == len(pol_ex) == 1:
+                return ConflictVerdict.CONTEST, "I55_polarity_flip"  # a polarity flip on one key
         # R1' — lower-trust contest (opt-in): inside the margin, but less trusted
         # than the current fact, so it may neither supersede nor retract it.
         if options.contest_lower_trust and incoming.trust < existing.trust - 1e-9:
-            return ConflictVerdict.CONTEST
+            return ConflictVerdict.CONTEST, "R1p_lower_trust_contest"
 
         # R2' — explicit retraction (FORK-A6): a trust-gated write tagged
         # ``retract`` on the same key ends the fact with NO successor. Tag-based,
         # so the rung is deterministic; no LLM decides what a negation is.
         if "retract" in incoming.tags:
-            return ConflictVerdict.INVALIDATE
+            return ConflictVerdict.INVALIDATE, "R2p_explicit_retraction"
 
         # W6 merge (opt-in): a restatement adds no new value.
         if options.merge_containment:
             mine = content_words(incoming.content)
             if mine and mine <= content_words(existing.content):
-                return ConflictVerdict.NOOP
+                return ConflictVerdict.NOOP, "W6_merge_containment"
 
         # Graphiti overlap rule: an incoming statement whose validity interval is
         # closed and ended before the current fact began cannot contradict it.
         if incoming.valid_to is not None and incoming.valid_to <= existing.valid_from:
-            return ConflictVerdict.ADD
+            return ConflictVerdict.ADD, "graphiti_interval_ended_before_current"
 
         # R2'' — contest (H9, opt-in): nothing orders the two statements.
         if options.contest_ties:
@@ -161,15 +231,15 @@ class ConflictPolicy(BindablePolicy):
                 gap <= options.contest_window_seconds
                 and abs(incoming.trust - existing.trust) <= options.contest_trust_margin
             ):
-                return ConflictVerdict.CONTEST
+                return ConflictVerdict.CONTEST, "R2pp_contest_tie"
 
         # R3 — temporal: the biased-newer statement supersedes the current one.
         incoming_newer = incoming.valid_from >= existing.valid_from
         if options.bias == "oldest":
             incoming_newer = not incoming_newer
         if incoming_newer:
-            return ConflictVerdict.UPDATE
+            return ConflictVerdict.UPDATE, "R3_newer_supersedes"
 
         # R4 — historical backfill: keep the current fact, add the older one
         # with closed validity (the store sets valid_to = existing.valid_from).
-        return ConflictVerdict.ADD
+        return ConflictVerdict.ADD, "R4_historical_backfill"

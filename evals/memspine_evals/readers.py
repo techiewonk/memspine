@@ -12,10 +12,21 @@ from __future__ import annotations
 import hashlib
 import re
 import time
+import weakref
 from collections.abc import Mapping
+from dataclasses import dataclass
 from typing import Any
 
+from memspine.core.language import english_only
+
+from . import trace_full
 from .contracts import ReaderAnswer
+from .legacy_prompts import (
+    GROUNDED_DETAIL_LEGACY_QA_PROMPT,
+    GROUNDED_LEGACY_QA_PROMPT,
+    without_example_dates,
+)
+from .timing import extract_server_timing
 from .tokens import HeuristicTokenCounter, TokenCounter
 from .vendor_judges import EVERMEMOS_COT_QA_PROMPT
 
@@ -29,7 +40,7 @@ DEFAULT_QA_PROMPT = (
 #: to compute relative times from the line's own date and to answer briefly.
 DATED_QA_PROMPT = (
     "Answer the question using only the context below. Each line starts with the date it "
-    'was said, and phrases like "last Friday [= Fri 2023-07-14]" show the absolute date. '
+    'was said, and phrases like "last Friday [= Fri 2021-03-12]" show the absolute date. '
     "When a question asks when something happened, give the date it happened, computed from "
     "the line's date, not the date of the conversation. Answer in one short sentence. If the "
     "context does not contain the answer, say you do not know.\n\n"
@@ -117,7 +128,7 @@ DATED2_QA_PROMPT = DATED_QA_PROMPT.replace(
 #: blanket refusal clause ("Not mentioned" only when nothing bears on the question).
 DATED3_QA_PROMPT = (
     "Answer the question using only the context below. Each line starts with the date it "
-    'was said, and phrases like "last Friday [= Fri 2023-07-14]" show the absolute date. '
+    'was said, and phrases like "last Friday [= Fri 2021-03-12]" show the absolute date. '
     "A date in brackets is when it was said; the event may be earlier. A bracketed [= ...] "
     'after a relative phrase, or the "happened" date of a [said ... \u00b7 happened ...] '
     "line, is when the event happened: when a question asks when something happened, give "
@@ -125,7 +136,7 @@ DATED3_QA_PROMPT = (
     'date in the style the question asks: a year for "which year", a month for "which '
     "month\", a day otherwise; relative to the line's date when the context gives no more "
     '("the week before 2024-03-14"). Use the specific detail from the context, quoting its '
-    'words (a name, a title, a phrase such as "magical") rather than paraphrasing it. For a '
+    'words (a name, a title, a phrase such as "whimsical") rather than paraphrasing it. For a '
     '"how many" question, merge repeated mentions of the same event (the same thing on the '
     "same date) and count distinct events. First write one or two short sentences of "
     "reasoning that point at the context lines you use. Then write a final line that starts "
@@ -133,6 +144,132 @@ DATED3_QA_PROMPT = (
     'the question, answer "Not mentioned".\n\n'
     "Context:\n{context}\n\nQuestion: {question}\nReasoning:"
 )
+
+#: Grounded prompt (reader-gap fix, ``analysis/READER_GAPS.md``): explains the line dates and
+#: the ``[= date]`` annotations, asks for the best-supported short answer, and keeps "not
+#: mentioned" for questions nothing in the memories bears on (the default prompt's blanket
+#: "say you do not know" drew 92 of 182 refusals with the gold evidence in context).
+#: Clean grounded prompt: the legacy text with placeholders where the example dates were (the
+#: legacy prompt quoted a LoCoMo gold answer; see ``legacy_prompts.py`` and the CHANGELOG).
+GROUNDED_QA_PROMPT = without_example_dates(GROUNDED_LEGACY_QA_PROMPT)
+
+
+
+
+#: I3: a prompt for any memory benchmark (no dataset wording). Answers from the memories, treats
+#: them as optional context, lets the newest statement win a conflict unless the question is
+#: about the past, resolves relative dates against each line's own date and the question date,
+#: and refuses with the neutral I1 string when the memories lack the answer.
+GROUNDED_GENERIC_QA_PROMPT = (
+    "Respond to the user's message using the memories below, which are notes from earlier "
+    "conversations. Each line may start with [YYYY-MM-DD], the date it was said. Treat the "
+    "memories as optional context: use a memory only when it bears on the request, and do not "
+    "bring in personal details that are unrelated to it. When two statements conflict, prefer "
+    "the most recent one unless the question asks about the past. Resolve relative times "
+    "(yesterday, last week) against the date of the line they appear in; if a question date is "
+    "given, resolve times in the question against it. If the memories do not contain the "
+    "answer, reply exactly: Not mentioned in the conversation. Never invent specifics "
+    "(names, dates, numbers) the memories do not state. Keep the answer short.\n\n"
+    "Memories:\n{context}\n\nQuestion date: {question_date}\n"
+    "Message: {question}\nAnswer:"
+)
+
+#: B3 / C4 / R2-6 (open-domain inference). "Would X ...", "Is it likely ...", "What might ..."
+#: questions were refused or answered too literally (a "Would <person> likely have <item>?"
+#: question answered "not mentioned"; a "Would <person> be open to moving?" question refused).
+#: Generic wording, no dataset names. Unanswerable FACTUAL questions keep the refusal string.
+INFER_CLAUSE = (
+    "If the message asks whether something would, might or is likely to be true, or what "
+    "someone might do or be, do not refuse: give the most likely answer (yes or no, or a short "
+    "phrase) and a one-line reason that cites what the memories show about the person, using "
+    "ordinary knowledge to bridge a gap. Reply that it is not mentioned only for a factual "
+    "question (a name, date, number or place) whose answer the memories do not state. "
+)
+#: C9 (regressions from the grounded prompt with a bigger window): the short answer dropped the
+#: specific detail, and a larger window brought in other lines about the same topic.
+DETAIL_CLAUSE = (
+    "Keep the specific detail the question asks for (names, objects, places, numbers) instead of "
+    "a general description. When the memories mention similar events on several dates, use the "
+    "line that matches every detail in the question (who, what, when). "
+)
+#: C6 (incomplete lists and counts). Differs from ``grounded_detail``'s list sentence in three
+#: ways: it covers EVERY line (not just matches found), merges repeats of one item, and counts
+#: the merged set.
+LIST_CLAUSE = (
+    "If the message asks for several items or for how many, go through every memory line, "
+    "collect each distinct item found anywhere in them, merge repeated mentions of the same "
+    "item, list them all, and give the count of that merged list when a number is asked. Do "
+    "not stop at the first item and do not add items the memories do not state. "
+)
+#: I18 (preference following). A request is answered as an assistant would, using the stored
+#: preferences silently, and only the ones that relate to the request.
+PREFERENCE_CLAUSE = (
+    "If the message is a request for help, advice or a recommendation, answer it as a helpful "
+    "assistant would. When the memories record the user's preferences, dislikes, constraints "
+    "or habits that bear on the request, follow them in your answer without announcing or "
+    "quoting them; never apply a preference to a request it is unrelated to. "
+)
+_GENERIC_TAIL = "Keep the answer short."
+assert _GENERIC_TAIL in GROUNDED_GENERIC_QA_PROMPT
+GROUNDED_GENERIC_INFER_QA_PROMPT = GROUNDED_GENERIC_QA_PROMPT.replace(
+    _GENERIC_TAIL, INFER_CLAUSE + DETAIL_CLAUSE + _GENERIC_TAIL
+)
+GROUNDED_GENERIC_LIST_QA_PROMPT = GROUNDED_GENERIC_QA_PROMPT.replace(
+    _GENERIC_TAIL, LIST_CLAUSE + _GENERIC_TAIL
+)
+#: A request is not a question the memories must answer, so the exact-refusal sentence is limited
+#: to questions; the length rule is replaced (advice needs more than a phrase).
+GROUNDED_GENERIC_PREFS_QA_PROMPT = GROUNDED_GENERIC_QA_PROMPT.replace(
+    "If the memories do not contain the answer, reply exactly: Not mentioned in the "
+    "conversation.",
+    "If the message is a question whose answer the memories do not contain, reply exactly: "
+    "Not mentioned in the conversation.",
+).replace(_GENERIC_TAIL, PREFERENCE_CLAUSE)
+assert GROUNDED_GENERIC_PREFS_QA_PROMPT.count("Not mentioned") == 1
+assert PREFERENCE_CLAUSE in GROUNDED_GENERIC_PREFS_QA_PROMPT
+
+#: Dev reasoning 2026-10-10: ``grounded`` plus three rules from the read failures of the
+#: development conversations - references to earlier lines ("that book you recommended",
+#: "we did it yesterday"), photo captions as evidence, and yes/no inference questions answered
+#: with general knowledge. Keeps the short answer (``grounded_detail``'s longer answers broke
+#: single-hop questions).
+GROUNDED_V2_QA_PROMPT = GROUNDED_QA_PROMPT.replace(
+    "Give a short, direct answer. ",
+    'A memory may refer back to something said earlier ("that book you recommended", "we '
+    'did it yesterday", a photo): find the earlier line it refers to and use its details. '
+    "Text in [image: ...] describes a photo shared in that line and counts as evidence. For "
+    'questions like "would X likely..." or "is X...", answer yes or no from what the '
+    "memories show together with general knowledge, then give the reason in a few words. "
+    "Give a short, direct answer. ",
+)
+assert GROUNDED_V2_QA_PROMPT != GROUNDED_QA_PROMPT
+
+#: ``grounded_v2`` minus its yes/no rule, which made the reader open "when"/"what" answers with
+#: "No, ..." (dev screen 2026-10-10: 81.5% vs 86.7%, 5 gained / 17 lost). Keeps the
+#: earlier-line reference rule and captions as evidence.
+GROUNDED_V3_QA_PROMPT = GROUNDED_QA_PROMPT.replace(
+    "Give a short, direct answer. ",
+    'A memory may refer back to something said earlier ("that book you recommended", "we '
+    'did it yesterday", a photo): find the earlier line it refers to and use its details. '
+    "Text in [image: ...] describes a photo shared in that line and counts as evidence. "
+    "Give a short, direct answer. ",
+)
+
+#: R2-4: ``grounded`` plus one sentence for ``--memspine-context-order hits_first|hit_blocks``
+#: (the first lines are the most relevant memories).
+GROUNDED_ORDERED_QA_PROMPT = GROUNDED_QA_PROMPT.replace(
+    "Give a short, direct answer. ",
+    "The first lines are the memories retrieved as most relevant to the question, most "
+    "relevant first. Give a short, direct answer. ",
+)
+assert GROUNDED_ORDERED_QA_PROMPT != GROUNDED_QA_PROMPT
+
+#: C2: ``grounded`` plus the hit-marker legend (``--memspine-mark-hits``), a one-sentence
+#: answer that keeps the specific detail, and exhaustive lists for multi-item questions.
+GROUNDED_DETAIL_QA_PROMPT = without_example_dates(GROUNDED_DETAIL_LEGACY_QA_PROMPT)
+
+GROUNDED_NODATE_QA_PROMPT = GROUNDED_QA_PROMPT  # alias: kept so earlier --qa-prompt names resolve
+GROUNDED_DETAIL_NODATE_QA_PROMPT = GROUNDED_DETAIL_QA_PROMPT  # alias, as above
 
 #: N46 (MemMachine answer clause, our wording): ``dated`` plus "a plan the context
 #: states counts as done unless the context says it did not happen". QA only (paid).
@@ -155,6 +292,17 @@ DATED_NOABSTAIN_QA_PROMPT = DATED_QA_PROMPT.replace(
 #: "STEP 7: FINAL ANSWER" section, which :func:`final_answer` reads. QA only (paid). The text
 #: lives in ``vendor_judges.py`` (vendor texts kept verbatim, long lines allowed).
 
+#: I29: the reader prompt for an EMPTY context (``--no-memory-prompt``): the relevance gate
+#: (``read.relevance_gate``) or abstention returned nothing, so the reader answers from the
+#: question alone and does not invent memories. Off by default (an empty context still renders
+#: the chosen QA prompt with an empty ``Memories:`` block, as before).
+NO_MEMORY_QA_PROMPT = (
+    "No stored memories are relevant to this message. Answer it from general knowledge if "
+    "you can. If it asks about the user's or another person's personal history that you were "
+    "not told, say you do not know. Answer in one short sentence.\n\n"
+    "Question: {question}\nAnswer:"
+)
+
 QA_PROMPTS = {
     "mab_fc": MAB_FC_QA_PROMPT,
     "question_dated": QUESTION_DATED_QA_PROMPT,
@@ -164,6 +312,19 @@ QA_PROMPTS = {
     "dated2": DATED2_QA_PROMPT,
     "dated_infer": DATED_INFER_QA_PROMPT,
     "dated3": DATED3_QA_PROMPT,
+    "grounded": GROUNDED_QA_PROMPT,
+    "grounded_detail": GROUNDED_DETAIL_QA_PROMPT,
+    "grounded_legacy": GROUNDED_LEGACY_QA_PROMPT,
+    "grounded_detail_legacy": GROUNDED_DETAIL_LEGACY_QA_PROMPT,
+    "grounded_nodate": GROUNDED_NODATE_QA_PROMPT,
+    "grounded_detail_nodate": GROUNDED_DETAIL_NODATE_QA_PROMPT,
+    "grounded_ordered": GROUNDED_ORDERED_QA_PROMPT,
+    "grounded_v2": GROUNDED_V2_QA_PROMPT,
+    "grounded_v3": GROUNDED_V3_QA_PROMPT,
+    "grounded_generic": GROUNDED_GENERIC_QA_PROMPT,
+    "grounded_generic_infer": GROUNDED_GENERIC_INFER_QA_PROMPT,
+    "grounded_generic_list": GROUNDED_GENERIC_LIST_QA_PROMPT,
+    "grounded_generic_prefs": GROUNDED_GENERIC_PREFS_QA_PROMPT,
     "abstain": ABSTAIN_QA_PROMPT,
     "converse": CONVERSE_QA_PROMPT,
     "dated_planned": DATED_PLANNED_QA_PROMPT,
@@ -172,7 +333,7 @@ QA_PROMPTS = {
 }
 
 #: C1 / H11: the ``routed`` QA prompt picks one of three variants per question by its
-#: shape (``memspine.core.query_shape``). The infer arm gained only on temporal questions
+#: shape (``memspine.models.encoders.query.shape``). The infer arm gained only on temporal questions
 #: (+1.3, others -0.3) and dated3's terse answers and conditional refusal cost -3.3, so:
 #: every variant keeps ``dated``'s one-sentence answer, the temporal one adds the
 #: relative-date inference and a date format, the inference one drops the refusal.
@@ -199,7 +360,7 @@ def qa_shape(question: str) -> str:
     """The ``routed`` variant for ``question``: ``temporal`` when it asks for a date or a
     span, else ``inference`` for a "would / likely / might / could ...?" question, else
     ``plain``. Temporal wins ("When would ...?" is a date question)."""
-    from memspine.core.query_shape import is_inference, is_temporal
+    from memspine.models.encoders.query.shape import is_inference, is_temporal
 
     if is_temporal(question):
         return "temporal"
@@ -214,11 +375,21 @@ class RoutedQAPrompt:
 
     name = "routed"
 
-    def __init__(self, variants: Mapping[str, str] = ROUTED_QA_VARIANTS) -> None:
+    def __init__(
+        self,
+        variants: Mapping[str, str] = ROUTED_QA_VARIANTS,
+        *,
+        shape_fn: Any = None,
+        router_version: str = QA_ROUTER_VERSION,
+        name: str = "routed",
+    ) -> None:
         self.variants = dict(variants)
+        self.shape_fn = qa_shape if shape_fn is None else shape_fn
+        self.router_version = router_version
+        self.name = name
 
     def variant_for(self, question: str) -> str:
-        return qa_shape(question)
+        return self.shape_fn(question)
 
     def format(self, *, context: str, question: str, question_date: str = "unknown") -> str:
         return self.variants[self.variant_for(question)].format(
@@ -231,21 +402,234 @@ class RoutedQAPrompt:
         hashes = {k: hashlib.sha256(v.encode()).hexdigest() for k, v in self.variants.items()}
         joined = "\n".join(f"{k}={hashes[k]}" for k in sorted(hashes))
         return {
-            "prompt_sha256": hashlib.sha256(f"{QA_ROUTER_VERSION}\n{joined}".encode()).hexdigest(),
+            "prompt_sha256": hashlib.sha256(f"{self.router_version}\n{joined}".encode()).hexdigest(),
             "qa_prompt": self.name,
-            "qa_router": QA_ROUTER_VERSION,
+            "qa_router": self.router_version,
             "prompt_variants_sha256": hashes,
         }
 
 
 #: Per-question QA prompts, selectable by ``--qa-prompt`` next to :data:`QA_PROMPTS`.
-ROUTED_QA_PROMPTS: Mapping[str, RoutedQAPrompt] = {"routed": RoutedQAPrompt()}
+def generic_qa_shape(question: str) -> str:
+    """The ``routed_generic`` variant: ``infer`` for a would / likely / might question,
+    ``list`` for a count or list question, else ``plain`` (dates stay with the plain generic
+    prompt, which already resolves them). Rules only, no model."""
+    from memspine.models.encoders.query.shape import (
+        is_aggregation,
+        is_count,
+        is_inference,
+        is_temporal,
+    )
+
+    if is_temporal(question):
+        return "plain"
+    if is_inference(question):
+        return "infer"
+    if is_count(question) or is_aggregation(question):
+        return "list"
+    return "plain"
 
 
-def prompt_describe(prompt: str | RoutedQAPrompt) -> dict[str, Any]:
+ROUTED_GENERIC_VARIANTS: Mapping[str, str] = {
+    "plain": GROUNDED_GENERIC_QA_PROMPT,
+    "infer": GROUNDED_GENERIC_INFER_QA_PROMPT,
+    "list": GROUNDED_GENERIC_LIST_QA_PROMPT,
+}
+ROUTED_GENERIC_ROUTER_VERSION = "generic-shape-v1"
+
+ROUTED_QA_PROMPTS: Mapping[str, RoutedQAPrompt] = {
+    "routed": RoutedQAPrompt(),
+    "routed_generic": RoutedQAPrompt(
+        ROUTED_GENERIC_VARIANTS,
+        shape_fn=generic_qa_shape,
+        router_version=ROUTED_GENERIC_ROUTER_VERSION,
+        name="routed_generic",
+    ),
+}
+
+
+#: R14-M-9 / OBS-06 (``read.inference_mode = gated``): the typed commit route. The clause goes
+#: ONLY into the prompt of a question the rules contract types as inference / judgement; every
+#: other question gets the base prompt byte for byte (the blanket ``grounded_v2`` clause cost
+#: dev 86.7 -> 81.5). Generic wording, no dataset names. The last sentence keeps abstention
+#: open for an unanswerable (category 5 / irrelevance) question. Bump the version on any edit.
+INFERENCE_GATE_VERSION = "infer-gate-v1"
+INFERENCE_COMMIT_CLAUSE = (
+    "This question asks for a judgement (what would, might or is likely to be true or happen), "
+    "so answer it rather than declining: commit to the most likely answer (yes or no, or a "
+    "short phrase) and add a one-line reason that cites the memory line it rests on, using "
+    "ordinary knowledge only to link what a line says to the question. If no memory line bears "
+    "on the question at all, reply that it is not mentioned in the conversation instead of "
+    "guessing."
+)
+#: The refusal-retry instruction for the same questions (replaces the neutral one when gated).
+INFERENCE_RETRY_INSTRUCTION = (
+    "\n\nRe-read the memories. This is a judgement question: if any memory line bears on it, "
+    "commit to the most likely answer (yes or no, or a short phrase) with a one-line reason "
+    "citing that line. If no line bears on it at all, reply exactly: Not mentioned in the "
+    "conversation."
+)
+
+
+def is_inference_question(question: str) -> bool:
+    """The gate: the rules contract (``memspine.read.contract.build_contract``) types the
+    question as ``inference`` (would / likely / might / hypothetical). Pure, no model."""
+    from memspine.read.contract import build_contract
+
+    return build_contract(question).request == "inference"
+
+
+#: R14-INFER2 (``read.inference_mode = gated_v2``): the widened, generic judgement shape. English
+#: rules (``english_only``), no dataset terms. ``gated`` keeps the contract check alone.
+INFERENCE_GATE_VERSION_V2 = "infer-gate-v2"
+#: A factual opener: the answer is a stated date / place / person / count / quote. These
+#: suppress the weak modal signals ("what did X say would help"), never the explicit phrases.
+_FACTUAL_OPEN = re.compile(
+    r"^\s*(?:(?:in|on|at|during|by|since|from|for)\s+(?:which|what)\s+(?:year|month|day|date|week)|"
+    r"when|where|who|whom|whose|how (?:many|much|long|old|often|far)|what (?:did|was|were|is the date)|"
+    r"which (?:date|year|month|day)|what (?:date|year|month|day|time)|what has|"
+    r"(?:did|was|were|has|have|had)\s+\S+)\b",
+    re.I,
+)
+_STRONG_INFER = re.compile(
+    r"\b(?:do you think|is it possible|likely|unlikely|probably|possibly|perhaps|presumably|"
+    r"(?:what|which)\s+(?:kind|type|sort)\s+of\s+(?:person|people|character|personality|individual)|"
+    r"would\s+(?:[\w'.-]+\s+){1,4}be\s+(?:considered|seen|regarded|described|called|thought)|"
+    r"(?:what|how)\s+(?:does|do)\s+(?:[\w'.-]+\s+){1,4}(?:value|believe|prefer|consider)|"
+    r"(?:what|how)\s+(?:would|might)\s+(?:[\w'.-]+\s+){1,4}(?:think|feel|prefer|enjoy|like|want|"
+    r"react|respond|say|do|choose|consider|value|believe)|"
+    r"(?:what|which)\s+(?:[\w'.-]+\s+){0,3}might)\b",
+    re.I,
+)
+_COUNTERFACTUAL = re.compile(r"\bif\b[^?]{2,}?\b(?:would|might|could|will)\b", re.I)
+_MODAL_WEAK = re.compile(r"\b(?:would(?:n['’]t| not)?|might|could(?:n['’]t)?)\b", re.I)
+_MODAL_OPEN = re.compile(r"^\s*(?:would|wouldn['’]t|could|couldn['’]t|might|should)\b", re.I)
+#: A present-tense yes/no question (is / are / does / do / can): a state or a disposition, which a
+#: single memory line rarely states outright. Past-tense openers (did / was / has) stay factual.
+_YESNO_PRESENT = re.compile(r"^\s*(?:is|are|does|do|can)\s+\S+", re.I)
+_BASED_ON = re.compile(r"^\s*(?:based on|given|considering|judging by)\b[^?]{3,}?,\s*", re.I)
+
+
+@english_only((False, ""))
+def inference_shape(question: str) -> tuple[bool, str]:
+    """R14-INFER2: does ``question`` ask for a judgement (would / might / likely / hypothetical /
+    disposition) rather than a stated fact? ``(fires, reason)``; reason is a stable label.
+    A factual opener (when / where / who / how many / what did ...) vetoes everything except an
+    explicit judgement phrase. Otherwise the signals are the rules contract
+    (``build_contract(q).request == "inference"``, the ``gated`` gate), a counterfactual "if ... would", a
+    sentence-initial modal, a "based on ..." lead, any other would / might / could, a present-tense yes/no opener.
+    Pure, no model call."""
+    if not isinstance(question, str) or not question.strip():
+        return False, ""
+    factual = bool(_FACTUAL_OPEN.search(question))
+    if _STRONG_INFER.search(question):
+        return True, "phrase"
+    if factual:  # the negative list also vetoes the contract ("in May", "what did X say would ...")
+        return False, ""
+    if is_inference_question(question):
+        return True, "contract"
+    if _COUNTERFACTUAL.search(question):
+        return True, "counterfactual"
+    if _MODAL_OPEN.search(question):
+        return True, "modal_open"
+    if _BASED_ON.search(question):
+        return True, "based_on"
+    if _MODAL_WEAK.search(question):
+        return True, "modal"
+    if _YESNO_PRESENT.search(question):
+        return True, "yesno_present"
+    return False, ""
+
+
+def is_inference_question_v2(question: str) -> bool:
+    """The ``gated_v2`` gate (and retry gate): :func:`inference_shape` fires."""
+    return inference_shape(question)[0]
+
+
+def with_inference_clause(prompt: str, clause: str = INFERENCE_COMMIT_CLAUSE) -> str:
+    """``prompt`` with ``clause`` as its own paragraph just before the paragraph that holds
+    the ``{context}`` field (the instructions stay ahead of the memories)."""
+    idx = prompt.index("{context}")
+    cut = prompt.rfind("\n\n", 0, idx)
+    if cut < 0:
+        return clause + "\n\n" + prompt
+    return prompt[:cut] + "\n\n" + clause + prompt[cut:]
+
+
+def gated_inference_prompt(base: str, name: str = "", *, v2: bool = False) -> RoutedQAPrompt:
+    """``read.inference_mode = gated`` (``v2``: ``gated_v2``): ``base`` for every question, ``base``
+    plus the commit clause for an inference question (v2: the widened :func:`inference_shape`).
+    Routed, so ``describe()`` hashes both variants and rows record the variant."""
+    gate = is_inference_question_v2 if v2 else is_inference_question
+    return RoutedQAPrompt(
+        {"plain": base, "inference": with_inference_clause(base)},
+        shape_fn=lambda q: "inference" if gate(q) else "plain",
+        router_version=INFERENCE_GATE_VERSION_V2 if v2 else INFERENCE_GATE_VERSION,
+        name=(name or "prompt") + ("+infer_gate_v2" if v2 else "+infer_gate"),
+    )
+
+
+class SystemQAPrompt:
+    """A QA prompt with a system message and a no-context variant (OP-Bench).
+
+    Duck-types ``str.format`` for the readers (``format(context=, question=)`` renders the
+    user message); a reader that finds a ``system`` attribute sends it as the system message.
+    An empty context renders ``without_context``, as the official generation code does.
+    """
+
+    def __init__(self, name: str, system: str, with_context: str, without_context: str) -> None:
+        self.name = name
+        self.system = system
+        self.with_context = with_context
+        self.without_context = without_context
+
+    def format(self, *, context: str, question: str, question_date: str = "unknown") -> str:
+        if context.strip():
+            return self.with_context.format(memory=context, question=question)
+        return self.without_context.format(question=question)
+
+    def describe(self) -> dict[str, Any]:
+        def sha(text: str) -> str:
+            return hashlib.sha256(text.encode()).hexdigest()
+
+        joined = "\n".join([self.system, self.with_context, self.without_context])
+        return {
+            "prompt_sha256": sha(joined),
+            "qa_prompt": self.name,
+            "system_prompt_sha256": sha(self.system),
+        }
+
+
+#: OP-Bench's memory-augmented assistant (github yulinlp/OP-Bench @ 17c7efd,
+#: ``src/opbench/prompts.py`` ``ANSWER_SYSTEM_PROMPT`` / ``ANSWER_USER_PROMPT_WITH_MEMORY`` /
+#: ``ANSWER_USER_PROMPT_WITHOUT_MEMORY``; the wording of the paper's appendix prompt). Our
+#: retrieved memories take the place of the official memory block. The official frame also
+#: titles the block "Memories for user <name>:"; the reader is not told the persona, so the
+#: speaker names in each memory line carry that. Docs: ``analysis/OPBENCH_PROTOCOL.md``.
+OPBENCH_ASSISTANT_PROMPT = SystemQAPrompt(
+    "opbench_assistant",
+    system=(
+        "You are a communication expert with outstanding communication habits. Throughout the "
+        "conversation, you should embody the role of a friend of the user."
+    ),
+    with_context=(
+        "Reply in a natural, spoken tone. When relevant, appropriately incorporate the user's "
+        "memory and personality information to make the response personalized and engaging.\n"
+        "Memory:\n{memory}\nUser's Latest Input:\n{question}\n"
+    ),
+    without_context="Reply in a natural, spoken tone.\nUser's Latest Input:\n{question}\n",
+)
+
+#: Prompts with a system message, selectable by ``--qa-prompt`` (not in :data:`QA_PROMPTS`:
+#: those are plain strings other code hashes and scans).
+SYSTEM_QA_PROMPTS: Mapping[str, SystemQAPrompt] = {"opbench_assistant": OPBENCH_ASSISTANT_PROMPT}
+
+
+def prompt_describe(prompt: str | RoutedQAPrompt | SystemQAPrompt) -> dict[str, Any]:
     """A reader's prompt keys for ``describe()``: ``prompt_sha256`` alone for a fixed
-    prompt (unchanged), the routed keys for a :class:`RoutedQAPrompt`."""
-    if isinstance(prompt, RoutedQAPrompt):
+    prompt (unchanged), the routed keys for a :class:`RoutedQAPrompt`, the system-prompt keys
+    for a :class:`SystemQAPrompt`."""
+    if isinstance(prompt, (RoutedQAPrompt, SystemQAPrompt)):
         return prompt.describe()
     return {"prompt_sha256": hashlib.sha256(prompt.encode()).hexdigest()}
 
@@ -313,7 +697,7 @@ def final_answer(text: str) -> str:
     """#34: the first non-empty line after the last ``Answer:`` marker, ``<think>``
     blocks (closed or cut off) dropped; a reply without the marker comes back whole
     (stripped), only dangling markers give the reply before the first one, and a lone
-    marker gives "". Same code as ``memspine.core.answer.final_answer`` (kept here so the
+    marker gives "". Same code as ``memspine.compose.answer.final_answer`` (kept here so the
     harness core stays stdlib-only)."""
     cleaned = _THINK.sub("", text)
     if "</think>" in cleaned.lower():  # an unclosed block: keep what follows its end
@@ -397,6 +781,105 @@ class ScriptedReader:
         )
 
 
+def thinking_off(model: str, *, reader: bool = False) -> dict[str, Any]:
+    """Request body fields that switch reasoning off for models that think by default.
+
+    Qwen3.5 dropped the ``/no_think`` soft switch (appending it leaves the answer empty
+    while the model keeps reasoning); an OpenAI-compatible endpoint turns thinking off
+    with ``reasoning_effort: "none"`` (verified on Ollama /v1, 2026-10-09). Qwen3 (no
+    ``.5``) keeps its own switch and is untouched.
+    """
+    import os
+
+    # think-mode comparison runs: only the reader (the model under test) may think;
+    # the judge always answers without reasoning so the comparison isolates the reader.
+    if reader and os.environ.get("MEMSPINE_EVAL_THINK") == "on":
+        return {}
+    name = model.lower()
+    if "qwen3.5" in name or "qwen3.6" in name:
+        return {"reasoning_effort": "none"}
+    return {}
+
+
+@dataclass(frozen=True, slots=True)
+class SamplerConfig:
+    """A8 [SRV-2]: the sampler a request asks for, sent explicitly on every reader and judge
+    call. Ollama otherwise applies its own model defaults (``presence_penalty`` 1.5 for
+    Qwen3.5), which the harness silently inherited before. ``seed`` None = not sent."""
+
+    presence_penalty: float = 0.0
+    frequency_penalty: float = 0.0
+    top_p: float = 1.0
+    seed: int | None = None
+
+    def payload(self) -> dict[str, Any]:
+        out: dict[str, Any] = {
+            "presence_penalty": self.presence_penalty,
+            "frequency_penalty": self.frequency_penalty,
+            "top_p": self.top_p,
+        }
+        if self.seed is not None:
+            out["seed"] = self.seed
+        return out
+
+    def describe(self) -> dict[str, Any]:
+        return self.payload()
+
+
+class ServerContextExceeded(RuntimeError):
+    """D2 [HAR-3]: a call filled the server's context window (``--strict-ctx``)."""
+
+
+class CtxGuard:
+    """D2 [HAR-3]: flags calls whose prompt + completion tokens reach the server's context
+    window (minus a margin of 8), where the server truncates silently. One guard is shared by
+    the reader and the judge of an arm; the runner drains it after each stage."""
+
+    MARGIN = 8
+
+    def __init__(self, server_ctx: int = 8192, strict: bool = False) -> None:
+        self.server_ctx = int(server_ctx)
+        self.strict = strict
+        #: calls flagged so far, by role
+        self.suspected: dict[str, int] = {"reader": 0, "judge": 0}
+        self._pending: list[str] = []
+
+    def describe(self) -> dict[str, Any]:
+        return {"server_ctx": self.server_ctx, "strict_ctx": self.strict}
+
+    def check(self, prompt_tokens: int, completion_tokens: int, role: str) -> bool:
+        """True (and counted) when the call reached the window; raises under ``strict``."""
+        if self.server_ctx <= 0 or prompt_tokens + completion_tokens <= 0:
+            return False  # no usage reported: cannot tell
+        if prompt_tokens + completion_tokens < self.server_ctx - self.MARGIN:
+            return False
+        self.suspected[role] = self.suspected.get(role, 0) + 1
+        self._pending.append(role)
+        if self.strict:
+            raise ServerContextExceeded(
+                f"{role} call used {prompt_tokens}+{completion_tokens} tokens against a server "
+                f"context of {self.server_ctx}: the server may have truncated the prompt"
+            )
+        return True
+
+    def consume(self) -> list[str]:
+        """Roles flagged since the last call to ``consume`` (and forget them)."""
+        out, self._pending = self._pending, []
+        return out
+
+
+def find_guard(reader: Any) -> CtxGuard | None:
+    """The :class:`CtxGuard` of a reader, through wrapper readers (``.inner``)."""
+    seen = 0
+    while reader is not None and seen < 8:
+        guard = getattr(reader, "guard", None)
+        if isinstance(guard, CtxGuard):
+            return guard
+        reader = getattr(reader, "inner", None)
+        seen += 1
+    return None
+
+
 class OpenAICompatReader:
     """Any OpenAI-compatible ``/v1/chat/completions`` endpoint.
 
@@ -410,14 +893,17 @@ class OpenAICompatReader:
     def __init__(
         self,
         model: str,
-        base_url: str = "http://localhost:11434/v1",
+        base_url: str = "http://127.0.0.1:11434/v1",
         api_key: str = "not-needed",
         temperature: float = 0.0,
         max_tokens: int = 512,
         timeout: float = 120.0,
-        prompt: str | RoutedQAPrompt = DEFAULT_QA_PROMPT,
+        prompt: str | RoutedQAPrompt | SystemQAPrompt = DEFAULT_QA_PROMPT,
         reader_id: str | None = None,
         extract_answer: bool = False,
+        sampler: SamplerConfig | None = None,
+        guard: CtxGuard | None = None,
+        empty_context_prompt: str | None = None,
     ) -> None:
         try:
             import httpx
@@ -431,8 +917,18 @@ class OpenAICompatReader:
         self.max_tokens = max_tokens
         self.timeout = timeout
         self.prompt = prompt
+        import os
+
+        if os.environ.get("MEMSPINE_EVAL_THINK") == "on":
+            # reasoning tokens count against max_tokens: leave room for the answer
+            self.max_tokens = max(self.max_tokens, 4096)
+            self.timeout = max(self.timeout, 600.0)
         #: #34: keep only the final answer of a reasoning prompt (:func:`final_answer`).
         self.extract_answer = extract_answer
+        self.sampler = sampler or SamplerConfig()
+        self.guard = guard
+        #: I29: used instead of ``prompt`` when the retrieved context is empty (None: never).
+        self.empty_context_prompt = empty_context_prompt
         self._headers = {"Authorization": f"Bearer {api_key}"}
 
     def describe(self) -> Mapping[str, Any]:
@@ -442,7 +938,9 @@ class OpenAICompatReader:
             "base_url": self.base_url,
             "temperature": self.temperature,
             "max_tokens": self.max_tokens,
+            "sampler": self.sampler.describe(),
             **prompt_describe(self.prompt),
+            **({"empty_context_prompt": True} if self.empty_context_prompt else {}),
             **(
                 {"extract_answer": True, "answer_extractor": ANSWER_EXTRACTOR_VERSION}
                 if self.extract_answer
@@ -453,72 +951,127 @@ class OpenAICompatReader:
     async def answer(
         self, question: str, context: str, question_date: str | None = None
     ) -> ReaderAnswer:
+        if self.empty_context_prompt and not context.strip():
+            content = self.empty_context_prompt.format(
+                context="", question=question, question_date=question_date or "unknown"
+            )
+        else:
+            content = self.prompt.format(
+                context=context, question=question, question_date=question_date or "unknown"
+            )
+        messages = [{"role": "user", "content": content}]
+        system = getattr(self.prompt, "system", None)  # SystemQAPrompt only (OP-Bench)
+        if system:
+            messages.insert(0, {"role": "system", "content": system})
         payload = {
             "model": self.model,
             "temperature": self.temperature,
             "max_tokens": self.max_tokens,
-            "messages": [
-                {
-                    "role": "user",
-                    "content": self.prompt.format(
-                        context=context,
-                        question=question,
-                        question_date=question_date or "unknown",
-                    ),
-                }
-            ],
+            **self.sampler.payload(),
+            **thinking_off(self.model, reader=True),
+            "messages": messages,
         }
         started = time.perf_counter()
-        async with self._httpx.AsyncClient(timeout=self.timeout) as client:
-            response = await client.post(
-                f"{self.base_url}/chat/completions", json=payload, headers=self._headers
-            )
-            response.raise_for_status()
-            body = response.json()
+        client = _shared_client(self._httpx, self.timeout)
+        response = await client.post(
+            f"{self.base_url}/chat/completions", json=payload, headers=self._headers
+        )
+        response.raise_for_status()
+        body = response.json()
         latency = (time.perf_counter() - started) * 1000
         usage = body.get("usage") or {}
         choice = body["choices"][0]
         finish = str(choice.get("finish_reason") or "")
         text = choice["message"]["content"].strip()
+        trace_full.record(  # --trace-full: the exact prompt and the raw reply
+            "reader", model=self.model, system=system, prompt=content, reply=text, finish=finish
+        )
+        prompt_tokens = int(usage.get("prompt_tokens", 0))
+        completion_tokens = int(usage.get("completion_tokens", 0))
+        if self.guard is not None:
+            self.guard.check(prompt_tokens, completion_tokens, "reader")
         return ReaderAnswer(
             text=final_answer(text) if self.extract_answer else text,
             raw_text=text if self.extract_answer else None,
-            prompt_tokens=int(usage.get("prompt_tokens", 0)),
-            completion_tokens=int(usage.get("completion_tokens", 0)),
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
             latency_ms=latency,
             model_calls=1,
             truncated=finish == "length",
             finish_reason=finish,
             prompt_variant=prompt_variant(self.prompt, question),
+            # D5: server-side timings, when the endpoint returns them (Ollama's /v1 does not)
+            extra_meta=(
+                {"server_timing": timing} if (timing := extract_server_timing(body)) else {}
+            ),
         )
+
+
+#: loop -> {(httpx module, timeout): client}. Weak on the loop so an entry dies with its loop;
+#: keying by ``id()`` let a recycled address hand a new loop or fake module a stale client.
+_CLIENTS: weakref.WeakKeyDictionary[Any, dict[tuple[Any, float], Any]] = weakref.WeakKeyDictionary()
+
+
+def _shared_client(httpx: Any, timeout: float) -> Any:
+    """One pooled ``httpx.AsyncClient`` per event loop and timeout.
+
+    A new client per call paid ~130 ms of connection and TLS-context setup on every reader
+    and judge request (measured on Windows, 2026-10-09: 0.67 s of model time per call), so
+    one QA question spent ~0.25 s just opening clients. Keyed by the running loop because an
+    AsyncClient is bound to the loop that first uses it.
+    """
+    import asyncio
+
+    per_loop = _CLIENTS.setdefault(asyncio.get_running_loop(), {})
+    key = (httpx, float(timeout))
+    client = per_loop.get(key)
+    if client is None or getattr(client, "is_closed", False):
+        client = per_loop[key] = httpx.AsyncClient(timeout=timeout)
+    return client
 
 
 def openai_compat_chat(
     model: str,
-    base_url: str = "http://localhost:11434/v1",
+    base_url: str = "http://127.0.0.1:11434/v1",
     api_key: str = "not-needed",
     temperature: float = 0.0,
     timeout: float = 120.0,
+    sampler: SamplerConfig | None = None,
+    guard: CtxGuard | None = None,
 ) -> Any:
     """A bare ``async (prompt) -> str`` callable, for ``LLMJudge``."""
     import httpx
+
+    sampler = sampler or SamplerConfig()
 
     async def chat(prompt: str, system: str | None = None) -> str:
         messages = [{"role": "user", "content": prompt}]
         if system is not None:
             messages.insert(0, {"role": "system", "content": system})
-        async with httpx.AsyncClient(timeout=timeout) as client:
-            response = await client.post(
-                f"{base_url.rstrip('/')}/chat/completions",
-                json={
-                    "model": model,
-                    "temperature": temperature,
-                    "messages": messages,
-                },
-                headers={"Authorization": f"Bearer {api_key}"},
+        client = _shared_client(httpx, timeout)
+        response = await client.post(
+            f"{base_url.rstrip('/')}/chat/completions",
+            json={
+                "model": model,
+                "temperature": temperature,
+                **sampler.payload(),
+                **thinking_off(model),
+                "messages": messages,
+            },
+            headers={"Authorization": f"Bearer {api_key}"},
+        )
+        response.raise_for_status()
+        body = response.json()
+        if (timing := extract_server_timing(body)) is not None:
+            chat.server_timings.append(timing)  # type: ignore[attr-defined]
+        if guard is not None:
+            usage = body.get("usage") or {}
+            guard.check(
+                int(usage.get("prompt_tokens", 0)), int(usage.get("completion_tokens", 0)), "judge"
             )
-            response.raise_for_status()
-            return str(response.json()["choices"][0]["message"]["content"])
+        reply = str(body["choices"][0]["message"]["content"])
+        trace_full.record("llm", model=model, system=system, prompt=prompt, reply=reply)
+        return reply
 
     # R3-11: the judge records these in its spec.
     chat.params = {  # type: ignore[attr-defined]
@@ -526,5 +1079,8 @@ def openai_compat_chat(
         "base_url": base_url,
         "temperature": temperature,
         "max_tokens": None,
+        "sampler": sampler.describe(),
     }
+    chat.guard = guard  # type: ignore[attr-defined]
+    chat.server_timings = []  # type: ignore[attr-defined]  # D5: per-call server timings
     return chat

@@ -1,0 +1,27 @@
+{
+  "erased_at": "2026-04-02T12:00:00Z",
+  "erasure_generation": 2,
+  "ids": {
+    "entity_ids": [],
+    "event_ids": [
+      "evt-100"
+    ],
+    "record_ids": [
+      "rec-1"
+    ],
+    "source_ids": [
+      "src-1"
+    ]
+  },
+  "manifest_id": "er-1",
+  "purge_job_id": "job-9",
+  "purge_state": "running",
+  "reason_code": "user_request",
+  "requested_by": "principal-1",
+  "schema_version": 1,
+  "scope": {
+    "owner": "owner-1",
+    "owner_kind": "user",
+    "tenant": "tenant-a"
+  }
+}

@@ -14,8 +14,6 @@ from collections.abc import Awaitable, Callable, Collection, Sequence
 from typing import Any, ClassVar, Protocol
 
 from memspine.config.constants import LINK_BUDGET, SEARCH_TOP_K
-from memspine.core.events import EventKind, MemoryEvent
-from memspine.core.records import MemoryRecord, RecordStatus
 from memspine.exceptions import ConfigError, ConflictError
 from memspine.memories.associative import links as link_rules
 from memspine.memories.associative.entities import (
@@ -26,11 +24,13 @@ from memspine.memories.associative.entities import (
 )
 from memspine.memories.associative.ppr import local_push_ppr, personalized_pagerank
 from memspine.memories.base import BaseMemory
+from memspine.models.encoders.embedding.base import EmbeddingService
 from memspine.observability.logging import EVENT_LINK, EVENT_RETRIEVE, get_logger
-from memspine.services.embedding.base import EmbeddingService
 from memspine.services.graph.base import GraphEdge, GraphStore, capped_neighbors
 from memspine.services.lexical.base import LexicalHit, rrf_fuse
 from memspine.services.vector.base import VectorStore
+from memspine.store.events import EventKind, MemoryEvent
+from memspine.store.records import MemoryRecord, RecordStatus
 
 __all__ = ["AssociativeMemory"]
 
@@ -269,6 +269,22 @@ class AssociativeMemory(BaseMemory):
             if edge.dst not in nodes:
                 nodes.append(edge.dst)
         return index
+
+    async def entity_mentions(self, namespace: str) -> dict[str, list[str]]:
+        """R3-05a: entity node id -> the records with a live ``mentions`` edge to it
+        in ``namespace`` (edge order, no duplicates). Unfiltered: the caller gates."""
+        out: dict[str, list[str]] = {}
+        for edge in await self._graph.edge_list(namespace):
+            if (
+                edge.rel_type != MENTIONS_REL
+                or edge.weight <= 0
+                or not _entity_in(edge.dst, namespace)
+            ):
+                continue
+            rows = out.setdefault(edge.dst, [])
+            if edge.src not in rows:
+                rows.append(edge.src)
+        return out
 
     async def entities_of(self, namespace: str, record_ids: Sequence[str]) -> list[str]:
         """The entity nodes the records mention (live edges), in record order."""

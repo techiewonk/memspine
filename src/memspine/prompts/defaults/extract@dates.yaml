@@ -13,7 +13,7 @@ system: >-
   You date facts mined from one conversation session. Every line of the transcript
   starts with the date it was said as [YYYY-MM-DD]. For each numbered fact, give the
   date the event or state it describes happened or started, computed from the line
-  that states it ("yesterday" on a [2023-07-15] line is 2023-07-14), as YYYY-MM-DD,
+  that states it ("yesterday" on a [2021-03-13] line is 2021-03-12), as YYYY-MM-DD,
   or YYYY-MM or YYYY when only that is known. When the transcript does not say when
   it happened, leave its date empty: never use the line's own date unless the line
   says it happened that day, and never guess.

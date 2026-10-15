@@ -1,0 +1,52 @@
+{
+  "additionalProperties": true,
+  "properties": {
+    "effective_from": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Effective From"
+    },
+    "effective_to": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Effective To"
+    },
+    "record_id": {
+      "title": "Record Id",
+      "type": "string"
+    },
+    "source_dates": {
+      "items": {
+        "format": "date-time",
+        "type": "string"
+      },
+      "title": "Source Dates",
+      "type": "array"
+    },
+    "value": {
+      "title": "Value"
+    }
+  },
+  "required": [
+    "value",
+    "record_id"
+  ],
+  "title": "ValueSpan",
+  "type": "object"
+}

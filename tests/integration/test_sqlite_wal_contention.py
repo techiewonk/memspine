@@ -14,9 +14,9 @@ import asyncio
 import sqlite3
 
 from memspine.clients.sqlite import SQLiteClient
-from memspine.core.events import EventKind, MemoryEvent
-from memspine.core.records import MemoryRecord
 from memspine.services.storage.sqlite.engine import SQLiteStorage
+from memspine.store.events import EventKind, MemoryEvent
+from memspine.store.records import MemoryRecord
 
 _PER_WRITER = 25
 

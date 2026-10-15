@@ -1,0 +1,126 @@
+{
+  "$defs": {
+    "NamespaceTriggerState": {
+      "additionalProperties": true,
+      "description": "Internal step type.",
+      "properties": {
+        "deferred_units": {
+          "default": 0,
+          "title": "Deferred Units",
+          "type": "integer"
+        },
+        "deposits_since_run": {
+          "title": "Deposits Since Run",
+          "type": "integer"
+        },
+        "last_deposit_at": {
+          "format": "date-time",
+          "title": "Last Deposit At",
+          "type": "string"
+        },
+        "last_reconcile_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Last Reconcile At"
+        },
+        "last_run_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Last Run At"
+        },
+        "ns": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Ns"
+        }
+      },
+      "required": [
+        "deposits_since_run",
+        "last_deposit_at"
+      ],
+      "title": "NamespaceTriggerState",
+      "type": "object"
+    },
+    "TriggerDecision": {
+      "additionalProperties": true,
+      "properties": {
+        "fire": {
+          "title": "Fire",
+          "type": "boolean"
+        },
+        "job_kind": {
+          "enum": [
+            "full",
+            "reconcile_only",
+            "rederive",
+            "none"
+          ],
+          "title": "Job Kind",
+          "type": "string"
+        },
+        "next_check_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Next Check At"
+        },
+        "reason": {
+          "title": "Reason",
+          "type": "string"
+        }
+      },
+      "required": [
+        "fire",
+        "job_kind",
+        "reason"
+      ],
+      "title": "TriggerDecision",
+      "type": "object"
+    }
+  },
+  "additionalProperties": true,
+  "properties": {
+    "decision": {
+      "$ref": "#/$defs/TriggerDecision"
+    },
+    "state": {
+      "$ref": "#/$defs/NamespaceTriggerState"
+    }
+  },
+  "required": [
+    "decision",
+    "state"
+  ],
+  "title": "OfflineStep01Output",
+  "type": "object"
+}

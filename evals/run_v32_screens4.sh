@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
+# NOTE: superseded by evals/run.sh (ENV-3: `env -u` is a silent no-op under Git Bash on Windows; credentials are now cleared with `unset`).
 # Plan v3.2 free screens, batch 4 (local embedder, retrieval-only, $0).
 cd "D:/mem/memory research/memspine/evals"
+unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN
 run() { # name config budget [extra flags]
-  PYTHONPATH="D:/mem/memory research/_wt_screens/src" env -u AWS_ACCESS_KEY_ID -u AWS_SECRET_ACCESS_KEY -u AWS_SESSION_TOKEN HF_HUB_OFFLINE=1 \
+  PYTHONPATH="D:/mem/memory research/_wt_screens/src" HF_HUB_OFFLINE=1 \
     ../.venv/Scripts/python.exe -m memspine_evals c0-1 --dataset locomo --path data/locomo10.json \
     --categories all --with-memspine --only-systems memspine --memspine-read-mode replay \
     --memspine-config "$(cat arms/$2.json)" --retrieval-only --max-model-calls 0 \

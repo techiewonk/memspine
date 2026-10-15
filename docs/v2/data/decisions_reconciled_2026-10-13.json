@@ -1,0 +1,300 @@
+{
+  "version": 1,
+  "review_date": "2026-10-13",
+  "exported_at": "2026-10-12T20:04:04.945Z",
+  "status": "all 40 findings and both cross-decision policies have owner choices (2026-10-13)",
+  "decisions": [
+    {
+      "id": "ER-01",
+      "title": "One authoritative decision view",
+      "choice": "B",
+      "notes": "",
+      "updated_at": "2026-10-12T19:58:23.226Z"
+    },
+    {
+      "id": "ER-02",
+      "title": "Enforce prerequisites in the DAG",
+      "choice": "B",
+      "notes": "",
+      "updated_at": "2026-10-12T19:58:34.483Z"
+    },
+    {
+      "id": "ER-03",
+      "title": "Separate moves, migrations and behaviour",
+      "choice": "B",
+      "notes": "",
+      "updated_at": "2026-10-12T19:58:37.573Z"
+    },
+    {
+      "id": "ER-04",
+      "title": "Owned files and integration collisions",
+      "choice": "B",
+      "notes": "",
+      "updated_at": "2026-10-12T19:58:52.395Z"
+    },
+    {
+      "id": "ER-05",
+      "title": "Deliver a small end-to-end slice first",
+      "choice": "B",
+      "notes": "",
+      "updated_at": "2026-10-12T19:59:08.843Z"
+    },
+    {
+      "id": "ER-06",
+      "title": "Atomic commit and write readiness",
+      "choice": "A",
+      "notes": "Durable acceptance is the default: commit authoritative SQL data and outbox intents atomically, then return per-capability readiness. Callers may explicitly wait for required raw indexes or derived memory/graph through bounded barriers with timeout and readiness reporting.",
+      "updated_at": "2026-10-12T20:07:47.373807+00:00",
+      "decision_status": "Selected by user for planning",
+      "decision_source": "User instruction: for these select your suggetions"
+    },
+    {
+      "id": "ER-07",
+      "title": "Fence expired workers",
+      "choice": "B",
+      "notes": "Owner answer 2026-10-13 (second set); see DECISION_AMENDMENTS_2026-10-13b.md",
+      "updated_at": "2026-10-13"
+    },
+    {
+      "id": "ER-08",
+      "title": "Bound overload honestly",
+      "choice": "B",
+      "notes": "Owner answer 2026-10-13 (second set); see DECISION_AMENDMENTS_2026-10-13b.md",
+      "updated_at": "2026-10-13"
+    },
+    {
+      "id": "ER-09",
+      "title": "Projection order, holes and freshness",
+      "choice": "B",
+      "notes": "Owner answer 2026-10-13 (second set); see DECISION_AMENDMENTS_2026-10-13b.md",
+      "updated_at": "2026-10-13"
+    },
+    {
+      "id": "ER-10",
+      "title": "Cancellation, shutdown and fairness",
+      "choice": "B",
+      "notes": "Owner answer 2026-10-13 (second set); see DECISION_AMENDMENTS_2026-10-13b.md",
+      "updated_at": "2026-10-13"
+    },
+    {
+      "id": "ER-11",
+      "title": "Cite cross-turn bindings",
+      "choice": "B",
+      "notes": "Owner answer 2026-10-13 (second set); see DECISION_AMENDMENTS_2026-10-13b.md",
+      "updated_at": "2026-10-13"
+    },
+    {
+      "id": "ER-12",
+      "title": "Recover missed information selectively",
+      "choice": "B",
+      "notes": "Owner answer 2026-10-13 (second set); see DECISION_AMENDMENTS_2026-10-13b.md",
+      "updated_at": "2026-10-13"
+    },
+    {
+      "id": "ER-13",
+      "title": "Identity across sessions and occurrences",
+      "choice": "B",
+      "notes": "Owner answer 2026-10-13 (second set); see DECISION_AMENDMENTS_2026-10-13b.md",
+      "updated_at": "2026-10-13"
+    },
+    {
+      "id": "ER-14",
+      "title": "Keep uncertainty multidimensional",
+      "choice": "B",
+      "notes": "Owner answer 2026-10-13 (second set); see DECISION_AMENDMENTS_2026-10-13b.md",
+      "updated_at": "2026-10-13"
+    },
+    {
+      "id": "ER-15",
+      "title": "Bound repairs and truncation recovery",
+      "choice": "B",
+      "notes": "Owner answer 2026-10-13 (second set); see DECISION_AMENDMENTS_2026-10-13b.md",
+      "updated_at": "2026-10-13"
+    },
+    {
+      "id": "ER-16",
+      "title": "Prompt economy without losing semantics",
+      "choice": "B",
+      "notes": "",
+      "updated_at": "2026-10-12T20:00:09.497Z"
+    },
+    {
+      "id": "ER-17",
+      "title": "Independent support and change semantics",
+      "choice": "B",
+      "notes": "",
+      "updated_at": "2026-10-12T20:00:11.724Z"
+    },
+    {
+      "id": "ER-18",
+      "title": "Separate temporal anchors from event dates",
+      "choice": "B",
+      "notes": "",
+      "updated_at": "2026-10-12T20:00:15.154Z"
+    },
+    {
+      "id": "ER-19",
+      "title": "Query evidence sets for joins and durations",
+      "choice": "B",
+      "notes": "",
+      "updated_at": "2026-10-12T20:00:31.526Z"
+    },
+    {
+      "id": "ER-20",
+      "title": "Graph as a supported projection",
+      "choice": "B",
+      "notes": "",
+      "updated_at": "2026-10-12T20:00:34.068Z"
+    },
+    {
+      "id": "ER-21",
+      "title": "Lift, admit, cap, rerank",
+      "choice": "B",
+      "notes": "",
+      "updated_at": "2026-10-12T20:00:35.733Z"
+    },
+    {
+      "id": "ER-22",
+      "title": "Admission must survive every expansion",
+      "choice": "B",
+      "notes": "",
+      "updated_at": "2026-10-12T20:00:37.961Z"
+    },
+    {
+      "id": "ER-23",
+      "title": "Relevance scores and abstention",
+      "choice": "B",
+      "notes": "",
+      "updated_at": "2026-10-12T20:00:42.191Z"
+    },
+    {
+      "id": "ER-24",
+      "title": "Exact budget and complete evidence bundles",
+      "choice": "custom",
+      "notes": "C + A: adaptive complete evidence bundles under an exact reader-tokenizer budget, including rendered headers, citations and configured reserves. Estimated accounting is an explicitly labelled fallback and must not claim a hard token guarantee.",
+      "updated_at": "2026-10-12T20:07:47.373807+00:00",
+      "decision_status": "Selected by user for planning",
+      "decision_source": "User instruction: for these select your suggetions"
+    },
+    {
+      "id": "ER-25",
+      "title": "Separate public knowledge and assets",
+      "choice": "B",
+      "notes": "",
+      "updated_at": "2026-10-12T20:01:20.434Z"
+    },
+    {
+      "id": "ER-26",
+      "title": "Snapshot jobs and coalesced follow-ups",
+      "choice": "B",
+      "notes": "",
+      "updated_at": "2026-10-12T20:01:24.642Z"
+    },
+    {
+      "id": "ER-27",
+      "title": "Dependency-aware maintenance and pruning",
+      "choice": "C",
+      "notes": "",
+      "updated_at": "2026-10-12T20:01:53.803Z"
+    },
+    {
+      "id": "ER-28",
+      "title": "Profiles, observations and standing answers",
+      "choice": "B",
+      "notes": "",
+      "updated_at": "2026-10-12T20:01:58.664Z"
+    },
+    {
+      "id": "ER-29",
+      "title": "Unknown visibility is not shared",
+      "choice": "C",
+      "notes": "",
+      "updated_at": "2026-10-12T20:02:07.409Z"
+    },
+    {
+      "id": "ER-30",
+      "title": "Erasure, caches and model outputs",
+      "choice": "B",
+      "notes": "",
+      "updated_at": "2026-10-12T20:02:12.622Z"
+    },
+    {
+      "id": "ER-31",
+      "title": "Read snapshots and cache keys",
+      "choice": "B",
+      "notes": "Result/context caches include effective scope and viewer/purpose, time view, policy/model versions, record versions and invalidation generations. Recheck admission at use; keep result/context caching disabled until this contract is implemented. Embedding-cache keys separately include encoder/config identity.",
+      "updated_at": "2026-10-12T20:07:47.373807+00:00",
+      "decision_status": "Selected by user for planning",
+      "decision_source": "User instruction: for these select your suggetions"
+    },
+    {
+      "id": "ER-32",
+      "title": "Model output is not the storage schema",
+      "choice": "B",
+      "notes": "",
+      "updated_at": "2026-10-12T20:02:54.473Z"
+    },
+    {
+      "id": "ER-33",
+      "title": "Avoid versioning every temporary object as public API",
+      "choice": "B",
+      "notes": "",
+      "updated_at": "2026-10-12T20:03:09.720Z"
+    },
+    {
+      "id": "ER-34",
+      "title": "Plugin reproducibility and lifecycle",
+      "choice": "B",
+      "notes": "",
+      "updated_at": "2026-10-12T20:03:11.760Z"
+    },
+    {
+      "id": "ER-35",
+      "title": "One frozen baseline and comparability contract",
+      "choice": "B",
+      "notes": "",
+      "updated_at": "2026-10-12T20:03:17.798Z"
+    },
+    {
+      "id": "ER-36",
+      "title": "Protect the blind sets across repeated decisions",
+      "choice": "B",
+      "notes": "",
+      "updated_at": "2026-10-12T20:03:46.539Z"
+    },
+    {
+      "id": "ER-37",
+      "title": "Measure the whole causal chain",
+      "choice": "B",
+      "notes": "",
+      "updated_at": "2026-10-12T20:03:49.622Z"
+    },
+    {
+      "id": "ER-38",
+      "title": "Gold lint with provenance, not just token overlap",
+      "choice": "B",
+      "notes": "",
+      "updated_at": "2026-10-12T20:03:51.512Z"
+    },
+    {
+      "id": "ER-39",
+      "title": "Performance and model-call accounting",
+      "choice": "B",
+      "notes": "",
+      "updated_at": "2026-10-12T20:03:56.237Z"
+    },
+    {
+      "id": "ER-40",
+      "title": "Keep optional features unless evidence supports retirement",
+      "choice": "B",
+      "notes": "",
+      "updated_at": "2026-10-12T20:04:00.925Z"
+    }
+  ],
+  "reconciled_at": "2026-10-12T20:07:47.373807+00:00",
+  "original_export_sha256": "031b346cde58ba7505bfcf17c9b4eb85b7359fd4e4139d3b7f17d4e7ec4e9aef",
+  "policies": {
+    "POL-1 in-flight erasure": "revalidate generation and permissions before returning",
+    "POL-2 derived visibility": "lineage-aware admission"
+  }
+}

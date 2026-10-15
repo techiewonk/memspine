@@ -1,0 +1,385 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>EverOS (EverMemOS) engine: write path, read path and LoCoMo evaluation</title>
+<style>
+:root{--bg:#f5f7fb;--card:#fff;--ink:#172338;--muted:#53647d;--line:#dce3ef;--graph:#6546bc;--vector:#007e83;--history:#a6600b;--accent:#245dd8}
+*{box-sizing:border-box}html{scroll-behavior:smooth;scroll-padding-top:85px}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.7 system-ui,-apple-system,Segoe UI,sans-serif}a{color:var(--accent)}header{background:#14253f;color:#fff;padding:44px max(24px,calc((100vw - 1220px)/2))}header h1{line-height:1.2;font-size:clamp(28px,4vw,43px);margin:12px 0}header p{max-width:930px;color:#d8e5ff}.eyebrow{letter-spacing:.09em;text-transform:uppercase;font-size:12px;font-weight:700}.tags{display:flex;gap:8px;flex-wrap:wrap}.tag{display:inline-block;background:#edf1f8;padding:3px 10px;border-radius:6px;font-size:12px;font-weight:700;color:var(--ink)}header .tag{background:#293f60;color:#fff}.layout{max-width:1280px;margin:auto;display:grid;grid-template-columns:245px minmax(0,1fr);gap:30px;padding:28px}aside{align-self:start;position:sticky;top:20px;font-size:14px}aside a{display:block;color:var(--muted);padding:5px 8px;text-decoration:none;border-left:2px solid var(--line)}aside a:hover,aside a.active{border-color:var(--accent);color:var(--accent)}aside input{width:100%;padding:11px;border:1px solid var(--line);border-radius:8px;margin:0 0 15px;font:inherit}main{min-width:0}section{background:var(--card);border:1px solid var(--line);border-radius:12px;margin-bottom:22px;padding:28px}h2{font-size:26px;margin:0 0 15px;line-height:1.3}h3{font-size:19px;line-height:1.4;margin:24px 0 9px}h4{margin:12px 0 5px}p{margin:10px 0 15px}code{font-family:Consolas,monospace;font-size:.88em;background:#edf1f8;padding:2px 4px;border-radius:4px;overflow-wrap:anywhere}pre{background:#14253f;color:#e2eeff;padding:18px;border-radius:8px;overflow:auto;font-size:13px;line-height:1.6}pre code{background:none;color:inherit;padding:0;font-size:inherit}table{border-collapse:collapse;width:100%;font-size:14px;margin:14px 0}th,td{border-bottom:1px solid var(--line);padding:11px;text-align:left;vertical-align:top}th{background:#eef2f8}.table-scroll{overflow-x:auto}.callout{background:#eef4ff;border-left:4px solid var(--accent);padding:14px 18px;margin:18px 0;border-radius:0 8px 8px 0}.caution{background:#fff7e8;border-color:#c98b1d}.flow{display:flex;flex-wrap:wrap;align-items:stretch;gap:9px;margin:20px 0}.flow .node{flex:1 1 130px;border:1px solid var(--line);border-top:4px solid var(--accent);border-radius:8px;padding:12px;font-size:13px;background:#f9fbff}.flow .arrow{align-self:center;font-size:22px;color:var(--muted)}.node.graph{border-top-color:var(--graph)}.node.vector{border-top-color:var(--vector)}.node.history{border-top-color:var(--history)}.columns{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:15px}.panel{padding:18px;background:#f7f9fc;border:1px solid var(--line);border-radius:8px}.steps{counter-reset:step;padding:0;list-style:none}.steps>li{counter-increment:step;position:relative;padding:15px 12px 15px 55px;border-bottom:1px solid var(--line)}.steps>li:before{content:counter(step);position:absolute;left:8px;top:19px;width:30px;height:30px;text-align:center;background:#e9effc;color:var(--accent);border-radius:50%;font-weight:700;line-height:30px}.steps h4{margin:0 0 5px}.steps p{margin:5px 0}.source{display:block;font-size:12px;color:var(--muted);margin-top:6px}details{border:1px solid var(--line);border-radius:8px;padding:12px 16px;margin:12px 0}summary{cursor:pointer;font-weight:650}.small{font-size:13px;color:var(--muted)}button{padding:9px 14px;border:1px solid var(--line);background:#fff;border-radius:7px;color:var(--ink);cursor:pointer}.toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}footer{padding:20px;text-align:center;color:var(--muted);font-size:13px}[hidden]{display:none!important}
+@media(max-width:900px){.layout{grid-template-columns:1fr;padding:15px}aside{position:static}aside nav{display:flex;flex-wrap:wrap;gap:4px}aside a{border-left:0;border-bottom:2px solid var(--line);padding:5px}section{padding:20px}.columns{grid-template-columns:1fr}}
+@media print{body{background:#fff;font-size:11pt}header{padding:15px;background:#fff;color:#000}header p{color:#000}.layout{display:block;padding:0}aside,.toolbar{display:none}section{border:0;padding:10px 0;break-inside:auto}pre{white-space:pre-wrap;color:#000;background:#eee}a{color:#000}details{display:block}section[hidden]{display:block!important}h2,h3,h4{break-after:avoid}.flow{break-inside:avoid}}
+
+
+.tagR{display:inline-block;background:#e3f4ea;color:#14663a;border-radius:4px;padding:0 6px;font-size:11px;font-weight:700;margin-right:4px}
+.tagI{display:inline-block;background:#fff0d6;color:#8a5200;border-radius:4px;padding:0 6px;font-size:11px;font-weight:700;margin-right:4px}
+.tagX{display:inline-block;background:#fde7e7;color:#8b1a1a;border-radius:4px;padding:0 6px;font-size:11px;font-weight:700;margin-right:4px}
+.mono{font-family:Consolas,monospace;font-size:.88em}
+svg text{font-family:system-ui,sans-serif}
+</style>
+</head>
+<body>
+<header>
+<div class="eyebrow">Peer engine study . code-traced from clones . 11 October 2026</div>
+<h1>EverOS (EverMemOS): how it creates, stores and retrieves memory, and what its LoCoMo score means</h1>
+<p>Engine repo <code>EverMind-AI/EverOS @ fcd41b5</code> (chassis) and <code>EverMind-AI/EverAlgo @ 7746a87</code> (algorithms and prompts). Read only: no code was run or installed. Each claim is tagged read (seen in the code), external (read in EverAlgo, version may differ from the pinned wheels) or inferred.</p>
+<div class="tags"><span class="tag">md + SQLite + LanceDB</span><span class="tag">episode-centric</span><span class="tag">no graph store</span><span class="tag">LLM decider retrieval</span><span class="tag">vendor LoCoMo 94.42</span></div>
+</header>
+<div class="layout">
+<aside><nav>
+<a href="#scope">1. What is established, and what still needs measurement</a>
+<a href="#architecture">2. Components and information boundaries</a>
+<a href="#insertion">3. Complete insertion flow: accepted message to stored memory</a>
+<a href="#layers">4. Memory layers: record, write path, and every write-time LLM call</a>
+<a href="#indexing">5. Index creation: cascade and embeddings (the vector half)</a>
+<a href="#transcript">6. Transcript, buffering, IDs, and historical ingestion</a>
+<a href="#retrieval">7. Complete retrieval flow</a>
+<a href="#internals">8. Retrieval internals by method</a>
+<a href="#temporal">9. Temporal handling, updates and contradictions</a>
+<a href="#onefact">10. Follow one fact through the system</a>
+<a href="#locomo">11. LoCoMo evaluation as published</a>
+<a href="#cost">12. Cost per turn and per query</a>
+<a href="#sourcemap">13. Code and source map</a>
+<a href="#limits">14. Implementation findings and current limits</a>
+<a href="#learn">15. What MemSpine can learn</a>
+</nav></aside>
+<main>
+<section id="scope">
+<h2>1. What is established, and what still needs measurement</h2>
+
+<p>The subject is <strong>EverOS</strong> (formerly EverMemOS), the open-source memory engine from EverMind. Package name <code>everos</code>, Apache-2.0, clone at <code>EverOS @ fcd41b5</code> (2026-10-10), CHANGELOG head 1.4.1 (2026-09-24). Its tagline in code is a "md-first memory extraction framework": <strong>Markdown files are the source of truth</strong>, SQLite holds state and queues, LanceDB (or Milvus) is a rebuildable vector plus BM25 index (<code>CLAUDE.md</code> "Storage three-piece set"; <code>docs/how-memory-works.md:26-39</code>).</p>
+<div class="callout caution"><strong>Two code bases.</strong> The repository <code>EverOS</code> is only the chassis: HTTP API, buffering, storage, scheduling, search orchestration. Every extraction algorithm (boundary detection, episode, atomic-fact, foresight, profile, reflection, rank fusion, agentic retrieval) and its prompts live in a separate library, <strong>EverAlgo</strong> (<code>github.com/EverMind-AI/EverAlgo</code>), consumed as <code>everalgo-*</code> PyPI wheels (<code>pyproject.toml:90-109</code>, <code>docs/architecture.md:216-235</code>). Earlier memspine notes (<code>ECOSYSTEM_PROMPTS.md</code> "OPAQUE-PROMPT NOTICE", <code>S6d</code>) record these wheels as closed. <strong>That is out of date: EverAlgo is public</strong> (shallow-cloned for this document, HEAD <code>7746a87</code>, 2026-09-16, read only, never installed). Prompts quoted below are read from that repo.</div>
+<div class="callout caution"><strong>Version skew.</strong> EverOS pins <code>everalgo-user-memory==0.4.0</code>, <code>-agent-memory==0.4.0</code>, <code>-rank==0.4.1</code>, <code>-boundary==0.2.1</code> (<code>pyproject.toml:91-109</code>). EverAlgo HEAD is user-memory <code>0.8.0rc9</code>, boundary <code>0.3.0</code>. The prompt text I quote is HEAD. Behaviour that the EverAlgo CHANGELOG dates after 0.4.0 (model-written <code>summary</code> plus the summary-compress call, 0.5.0; profile prompt rewrite, 0.7.0) may not exist in the wheels EverOS actually installs. These items are marked below.</div>
+<div class="table-scroll"><table><tr><th>Status</th><th>Meaning</th></tr>
+<tr><td><span class="tagR">read</span> Verified by code reading</td><td>Chassis behaviour in <code>EverOS/src/everos</code>: buffer, session lock, dispatch, OME strategy wiring, cascade handlers, LanceDB schemas, search manager, heap-expand, llm_multiround loop, benchmark harness, default config values.</td></tr>
+<tr><td><span class="tagX">external</span> Read in the EverAlgo repo, version may differ</td><td>Prompt text and per-extractor LLM-call counts (boundary, episode, atomic fact, foresight, profile, reflect, sufficiency, multi-query, decider-adjacent). Pinned wheels are older than HEAD.</td></tr>
+<tr><td><span class="tagI">inferred</span> Inferred</td><td>Cost totals, duplicate-call consequences, and anything about the cloud product. Marked where used.</td></tr>
+<tr><td>Not verified</td><td>No engine code was run. No LoCoMo number in this document was reproduced. Vendor numbers are quoted with their stated protocol (section 12).</td></tr></table></div>
+<p>Sources outside the clone: <code>memspine/evals/analysis/SOTA_MEMU_MEMOS_LOCOMO.md</code> (LoCoMo table, judges, caveats), <code>memory-research/paper_spine/evaluation/sota/S6d_EVERMEMOS_MEM0_ZEP_BYTEROVER.md</code> (history harness at <code>933f818</code>), <code>memspine/docs/ECOSYSTEM_COMPARISON.md</code> section 3.15.4 and <code>ECOSYSTEM_PROMPTS.md:29294-29320</code>. Abbreviation: <code>EO</code> = EverOS repo path, <code>EA</code> = EverAlgo repo path.</p>
+
+</section>
+<section id="architecture">
+<h2>2. Components and information boundaries</h2>
+
+<div class="flow"><div class="node">Client<br><strong>user_id / agent_id + session_id + app/project</strong></div><div class="arrow">-></div><div class="node vector">FastAPI<br><strong>/add /flush /search /get /knowledge</strong></div><div class="arrow">-></div><div class="node history">service layer<br><strong>memorize / search / get / knowledge</strong></div><div class="arrow">-></div><div class="node graph">md + SQLite + LanceDB<br><strong>no graph store</strong></div></div>
+
+<figure class="deep-figure"><figcaption><strong>Figure 1. Write and read architecture (from code)</strong></figcaption>
+<div class="diagram-scroll"><svg viewBox="0 0 1180 560" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="EverOS architecture">
+<defs><marker id="a" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#53647d"/></marker></defs>
+<g font-size="13" fill="#172338">
+<rect x="10" y="20" width="150" height="54" rx="8" fill="#eef4ff" stroke="#245dd8"/><text x="25" y="42" class="node-label">POST /memory/add</text><text x="25" y="62" font-size="11">messages, session_id</text>
+<rect x="10" y="100" width="150" height="40" rx="8" fill="#eef4ff" stroke="#245dd8"/><text x="25" y="125" class="node-label">POST /memory/flush</text>
+<rect x="215" y="20" width="190" height="120" rx="8" fill="#fff7e8" stroke="#c98b1d"/><text x="228" y="42" class="node-label">SQLite unprocessed_buffer</text><text x="228" y="62" font-size="11">per (session, app, project)</text><text x="228" y="82" font-size="11">LLM 1: boundary (batch)</text><text x="228" y="102" font-size="11">tail kept; cells -> memcell row</text><text x="228" y="122" font-size="11">per-session lock, 360 s</text>
+<rect x="460" y="20" width="210" height="64" rx="8" fill="#e9fbf0" stroke="#14663a"/><text x="473" y="42" class="node-label">UserMemoryPipeline (inline)</text><text x="473" y="62" font-size="11">LLM 2: episode per cell</text><text x="473" y="78" font-size="11">md written before return</text>
+<rect x="460" y="100" width="210" height="40" rx="8" fill="#f3eefc" stroke="#6546bc"/><text x="473" y="125" class="node-label">AgentMemoryPipeline (agent mode)</text>
+<rect x="725" y="20" width="440" height="180" rx="8" fill="#f3eefc" stroke="#6546bc"/><text x="738" y="42" class="node-label">OME: Offline Memory Engine (in-process, async, retry 2)</text>
+<text x="738" y="64" font-size="12">EpisodeExtracted -> extract_atomic_facts (LLM 3, per owner copy)</text>
+<text x="738" y="82" font-size="12">EpisodeExtracted -> trigger_profile_clustering (embedding only)</text>
+<text x="738" y="100" font-size="12">ProfileClusterUpdated -> extract_user_profile (LLM 4: INIT / update-ops)</text>
+<text x="738" y="118" font-size="12">UserPipelineStarted -> extract_foresight (LLM, DISABLED by default)</text>
+<text x="738" y="136" font-size="12">AgentPipelineStarted -> extract_agent_case -> skill clustering -> skill</text>
+<text x="738" y="154" font-size="12">cron Mon 02:00 -> reflect_episodes (LLM merge, DISABLED by default)</text>
+<text x="738" y="176" font-size="11" fill="#53647d">state: .index/sqlite/ome.db, scheduler: ome.aps.db</text>
+<rect x="10" y="250" width="330" height="150" rx="8" fill="#e9fbf0" stroke="#14663a"/><text x="25" y="272" class="node-label">Markdown tree (source of truth)</text>
+<text x="25" y="294" font-size="12">users/ID/user.md  (profile, rewrite)</text><text x="25" y="312" font-size="12">users/ID/episodes/episode-DATE.md</text><text x="25" y="330" font-size="12">users/ID/.atomic_facts/..  .foresights/..</text><text x="25" y="348" font-size="12">agents/ID/.cases/..  skills/NAME/SKILL.md</text><text x="25" y="366" font-size="12">knowledge/CAT/DOC/ (docs, topics)</text><text x="25" y="386" font-size="11" fill="#53647d">atomic write: tmp + fsync + rename</text>
+<rect x="400" y="250" width="270" height="150" rx="8" fill="#fff7e8" stroke="#c98b1d"/><text x="415" y="272" class="node-label">Cascade daemon (watchdog + scan 30 s)</text><text x="415" y="294" font-size="12">md_change_state queue (SQLite)</text><text x="415" y="312" font-size="12">entry diff by content_sha256</text><text x="415" y="330" font-size="12">embed changed entries only</text><text x="415" y="348" font-size="12">episode: 2 embeds (body, subject)</text><text x="415" y="366" font-size="12">fact: 1 embed; BM25 tokens</text><text x="415" y="386" font-size="11" fill="#53647d">eventual consistency, ~10-15 s under load</text>
+<rect x="725" y="250" width="440" height="150" rx="8" fill="#e6f6f6" stroke="#007e83"/><text x="738" y="272" class="node-label">LanceDB tables (one per kind, 1024-d vectors)</text><text x="738" y="294" font-size="12">episode: vector, subject_vector, episode_tokens (BM25)</text><text x="738" y="312" font-size="12">atomic_fact: vector, fact_tokens (BM25), parent_id</text><text x="738" y="330" font-size="12">foresight, user_profile (KV), agent_case, agent_skill</text><text x="738" y="348" font-size="12">knowledge_topic;  deprecated_by soft-delete column</text><text x="738" y="366" font-size="12">SQLite: memcell, cluster, cluster_member, reports</text><text x="738" y="386" font-size="11" fill="#53647d">Milvus optional backend (config [index])</text>
+<rect x="10" y="450" width="190" height="90" rx="8" fill="#eef4ff" stroke="#245dd8"/><text x="25" y="472" class="node-label">POST /memory/search</text><text x="25" y="492" font-size="11">method: keyword | vector | hybrid</text><text x="25" y="508" font-size="11">agentic | llm_multiround (default hybrid)</text><text x="25" y="524" font-size="11">filters DSL, top_k, include_profile</text>
+<rect x="250" y="450" width="250" height="90" rx="8" fill="#e6f6f6" stroke="#007e83"/><text x="265" y="472" class="node-label">Recall legs (per sub-query)</text><text x="265" y="492" font-size="11">BM25 over episode_tokens (OR mode)</text><text x="265" y="508" font-size="11">cosine ANN over body vector</text><text x="265" y="524" font-size="11">atomic facts attached by parent_id</text>
+<rect x="550" y="450" width="290" height="90" rx="8" fill="#f3eefc" stroke="#6546bc"/><text x="565" y="472" class="node-label">Fusion and selection</text><text x="565" y="492" font-size="11">hybrid: RRF + LR calibration + heap-expand</text><text x="565" y="508" font-size="11">agentic: sufficiency + multi-query + CE rerank</text><text x="565" y="524" font-size="11">llm_multiround: RRF blocks + LLM decider</text>
+<rect x="890" y="450" width="275" height="90" rx="8" fill="#fff7e8" stroke="#c98b1d"/><text x="905" y="472" class="node-label">Answer (outside the engine)</text><text x="905" y="492" font-size="11">engine returns episodes (+ facts, profile)</text><text x="905" y="508" font-size="11">no answer prompt in the engine;</text><text x="905" y="524" font-size="11">benchmarks/adapters/locomo.py has one</text>
+</g>
+<g stroke="#53647d" stroke-width="2" fill="none" marker-end="url(#a)">
+<path d="M160 47 L215 60"/><path d="M160 120 L215 110"/><path d="M405 60 L460 52"/><path d="M405 100 L460 118"/><path d="M670 52 L725 70"/><path d="M670 118 L725 110"/>
+<path d="M560 84 L190 250"/><path d="M830 200 L250 250"/><path d="M340 325 L400 325"/><path d="M670 325 L725 325"/>
+<path d="M200 495 L250 495"/><path d="M500 495 L550 495"/><path d="M840 495 L890 495"/><path d="M900 400 L560 450" stroke-dasharray="5 4"/>
+</g></svg></div></figure>
+
+<div class="columns"><div class="panel"><h3>Stores and indexes</h3>
+<ul>
+<li><strong>Markdown + YAML frontmatter</strong>: the memory content itself. <span class="tagR">read</span> <code>docs/how-memory-works.md:29-33</code>. Daily-log files per kind, one <code>user.md</code> per user, a directory per skill.</li>
+<li><strong>SQLite</strong> (<code>system.db</code>, <code>ome.db</code>, <code>ome.aps.db</code>): unprocessed buffer, <code>memcell</code> ledger, <code>cluster</code> tables, cascade queue <code>md_change_state</code>, OME run records and counters, reflection reports. <span class="tagR">read</span> <code>docs/how-memory-works.md:75-79</code>.</li>
+<li><strong>LanceDB</strong> (default; <code>[index] backend = "lancedb"</code>, <code>default.toml:56-58</code>) or <strong>Milvus</strong> (remote only): vector ANN, BM25 (Tantivy), scalar filters in one engine. 1024-d vectors (<code>EO/src/everos/infra/persistence/lancedb/tables/episode.py:17</code>), embedding model default <code>Qwen/Qwen3-Embedding-4B</code> via DeepInfra (<code>default.toml:128-138</code>).</li>
+<li><strong>No graph database.</strong> Relations are only <code>parent_id</code> pointers (fact -> episode -> memcell) and SQLite cluster membership. <span class="tagR">read</span></li></ul></div>
+<div class="panel"><h3>How the stores combine at read time</h3>
+<ul>
+<li>Search reads only LanceDB (never the md or SQLite) except for the in-flight session buffer, which is returned verbatim when a <code>session_id</code> filter is given (<span class="tagR">read</span> <code>EO/src/everos/memory/search/manager.py:285-304</code>).</li>
+<li>Within LanceDB, the unit retrieved is the <strong>episode</strong>. Atomic facts are a second table used (a) to attach scored facts under episodes in the HYBRID path, (b) as MaxSim children in AGENTIC.</li>
+<li>BM25 and vector scores are fused by RRF (k = 60 in hybrid and llm_multiround; k = 40 in agentic), then optionally LR-calibrated (section 8). No per-source weights are configurable at the API.</li>
+<li>Profile is a KV lookup by owner: no ranking, one row, returned whole when <code>include_profile=true</code> (<span class="tagR">read</span> <code>EO/src/everos/memory/search/recall/profile.py:1-12</code>).</li></ul></div></div>
+<h3>Layers (DDD) and the everalgo boundary</h3>
+<p><span class="tagR">read</span> <code>entrypoints -> service -> memory -> infra</code>, enforced by import-linter (<code>docs/architecture.md:29-61</code>). Cross-cutting <code>component/</code> (llm, embedding, rerank, tokenizer), <code>core/</code>, <code>config/</code>. EverAlgo is "stateless, no I/O, no prompts inline" per the architecture note (<code>docs/architecture.md:229-233</code>); EverOS only injects prompt overrides for two slots (<code>config/prompt_slots/boundary_detection.yaml</code> and <code>episode_extract.yaml</code>), both shipped empty and disabled, so the EverAlgo defaults run (<code>EO/src/everos/service/_boundary.py:159</code>, <code>memory/extract/pipeline/user_memory.py:102</code>; <span class="tagX">external</span> confirmed by <code>ECOSYSTEM_PROMPTS.md:29298-29299</code>).</p>
+<h3>Detailed repository and responsibility tree</h3>
+<pre><code>EverOS/src/everos/
+  service/memorize.py        181-299  /add, /flush use case: ingest -> boundary -> dual pipeline; OME registration 115-175
+  service/_boundary.py       119-221  buffer merge, LLM boundary, memcell ledger, tail persistence
+  service/_session_lock.py            per-session asyncio lock
+  memory/extract/pipeline/user_memory.py     episode extraction + per-sender md fan-out + event emit
+  memory/extract/pipeline/agent_memory.py    emits AgentPipelineStarted only
+  memory/strategies/         OME strategies: extract_atomic_facts / extract_foresight / extract_user_profile /
+                             trigger_profile_clustering / reflect_episodes / extract_agent_case / extract_agent_skill / trigger_skill_clustering
+  memory/reflection/orchestrator.py          Select -> Merge -> Re-extract -> Deprecate (1096 lines)
+  memory/cascade/            md watcher + queue + handlers per kind (embedding happens here)
+  memory/search/manager.py   SearchManager; recall/{episode,atomic_fact,profile,...}.py; hierarchy.py (heap_expand)
+  memory/search/agentic.py   cluster-scoped MaxSim + sufficiency + multi-query + cross-encoder
+  memory/search/llm_multiround.py            decider loop (the LoCoMo-published method)
+  infra/ome/                 in-process event/cron/counter strategy engine over SQLite + APScheduler
+  infra/persistence/{markdown,sqlite,lancedb,milvus}/
+  service/knowledge.py       1423 lines: document parse -> topic tree (separate from conversational memory)
+EverAlgo/packages/ (EA)      everalgo-boundary, -user-memory, -agent-memory, -rank, -clustering, -knowledge, -parser, -core</code></pre>
+
+</section>
+<section id="insertion">
+<h2>3. Complete insertion flow: accepted message to stored memory</h2>
+
+<ol class="steps">
+<li><h4>Receive messages</h4><p><code>POST /api/v2/memory/add</code> with <code>session_id</code> and messages (<code>sender_id</code>, <code>sender_name</code>, <code>role</code>, <code>timestamp</code>, <code>content[]</code>). <code>POST /memory/flush</code> forces the boundary (<code>is_final=True</code>). Routes: <code>EO/src/everos/entrypoints/api/routes/memorize.py:182,201</code>. <span class="tagR">read</span></p></li>
+<li><h4>Serialise per session</h4><p><code>memorize()</code> takes a per-<code>session_id</code> lock around the whole read-merge-boundary-write cycle, under an <code>asyncio.timeout</code> of 360 s (<code>service/memorize.py:229-237</code>, <code>default.toml:191</code>). <span class="tagR">read</span></p></li>
+<li><h4>Ingest and normalise</h4><p><code>ingest_process</code> maps content items to a canonical message (<code>memory/extract/ingest/service.py</code>); multimodal items need the optional parser extra and a separate LLM (<code>default.toml:114-126</code>). <span class="tagR">read</span></p></li>
+<li><h4>Optional defer</h4><p><code>defer_extraction=True</code> only appends to <code>unprocessed_buffer</code> and returns (<code>memorize.py:250-255</code>, <code>_boundary.py:96-116</code>): zero LLM calls until a later <code>/flush</code>. <span class="tagR">read</span></p></li>
+<li><h4>Buffer merge and the user-anchor gate</h4><p>Fresh messages are merged with the buffer (dedupe by <code>message_id</code>, sort by timestamp). In chat mode tool rows are dropped. If the batch has no <code>role=user</code> message and is not final, it waits in the buffer with no LLM call (<code>_boundary.py:146-149,227-233,442-450</code>). <span class="tagR">read</span></p></li>
+<li><h4>LLM boundary detection (call 1)</h4><p>One batch call over the buffer decides all episode boundaries; the trailing segment stays in the buffer as <em>tail</em> unless <code>is_final</code>. A hard split applies at 65,536 tokens or 500 messages (<code>default.toml:156-159</code>). On <code>ValueError</code> (bad JSON) it retries up to 3 times (<code>_boundary.py:239-287</code>). <span class="tagR">read</span> Mode default is <code>agent</code> (<code>default.toml:167</code>), which uses <code>AgentBoundaryDetector</code>, a filter-detect-remap wrapper over the same chat primitive (<span class="tagX">external</span> <code>EA/packages/everalgo-agent-memory/.../boundary.py:1-60</code>).</p></li>
+<li><h4>Persist memcell ledger</h4><p>Each cell gets id <code>mc_&lt;12 hex&gt;</code> and one SQLite <code>memcell</code> row with the full cell as JSON (<code>_boundary.py:177-199,522-524</code>). This row is the long-term replay source for profile extraction. <span class="tagR">read</span></p></li>
+<li><h4>Dispatch pipelines concurrently</h4><p><code>UserMemoryPipeline.run</code> (always) and <code>AgentMemoryPipeline.run</code> (agent mode) run under <code>asyncio.gather</code> (<code>memorize.py:278-299</code>). The user pipeline first emits <code>UserPipelineStarted</code> per cell, then extracts episodes. <span class="tagR">read</span></p></li>
+<li><h4>Episode LLM call (call 2) and md write</h4><p>One generic episode call per cell (<code>sender_id=None</code>, the "cheaper" whole-cell template), retried up to 2 times plus a final attempt (<code>user_memory.py:41,105-137,296-317</code>). The result is copied <em>md-only</em> to every <code>role=user</code> sender in the cell (<code>user_memory.py:140-178</code>) and one <code>EpisodeExtracted</code> event is emitted per copy (<code>:179-191</code>). <span class="tagR">read</span> The call to <code>/add</code> returns after the episode md is on disk.</p></li>
+<li><h4>Background fan-out</h4><p>OME strategies subscribed to those events run asynchronously (section 4): atomic facts, clustering, profile, (foresight, off), (agent cases). The cascade daemon turns each md write into embedded LanceDB rows (section 5). <span class="tagR">read</span></p></li>
+</ol>
+<div class="callout"><strong>Return value.</strong> <code>MemorizeResult(message_count, status)</code> with status <code>accumulated</code> or <code>extracted</code> (<code>memorize.py:59-63,302-309</code>). It reflects only the boundary and episode step. Atomic facts, profile and cascade indexing lag the response; a search right after <code>/flush</code> can miss them (<code>docs/how-memory-works.md:249-274</code>). <span class="tagR">read</span></div>
+
+</section>
+<section id="layers">
+<h2>4. Memory layers: record, write path, and every write-time LLM call</h2>
+
+<p>EverOS has <strong>eight business kinds</strong> (<code>docs/how-memory-works.md:149-163</code>) plus two internal structures (MemCell, clusters). The table is the answer to "which LLM calls fire when one turn is stored". Prompts are in EverAlgo, so their text is <span class="tagX">external</span>.</p>
+
+<div class="table-scroll"><table>
+<tr><th>Layer</th><th>Record</th><th>Write-time LLM calls</th><th>Prompt (constant, file)</th><th>Inline / background</th><th>Read use</th></tr>
+<tr><td><strong>L0 MemCell (segment)</strong></td><td>SQLite <code>memcell</code> row: cell JSON, message ids, sender ids, timestamp (<code>_boundary.py:497-519</code>)</td><td>1 batch boundary call per /add or /flush that reaches the detector; up to 3 attempts on parse error; 0 when deferred</td><td><code>BATCH_BOUNDARY_DETECT_PROMPT_EN</code> <code>EA/.../everalgo-boundary/.../prompts/en/chat.py:11</code>; override slot <code>boundary_detection.yaml</code> (empty)</td><td>Inline, under session lock</td><td>Not searched. Source for profile and foresight. Unclosed tail is returned by search as <code>unprocessed_messages</code> when a session filter is set</td></tr>
+<tr><td><strong>L1 Episode</strong></td><td>md entry (Subject / Summary / Content) + LanceDB <code>episode</code> row with <code>vector</code>, <code>subject_vector</code>, <code>episode_tokens</code>, <code>parent_id</code> = memcell (<code>tables/episode.py</code>)</td><td>1 call per cell (generic template). +0..1 summary-compress call if summary wider than 400 units (HEAD only). Per-sender copies are md-only, no extra LLM</td><td><code>EPISODE_GENERATION_PROMPT</code> + <code>DEFAULT_CUSTOM_INSTRUCTIONS</code> <code>EA/.../user-memory/.../prompts/en/episode.py:42-126</code>; <code>SUMMARY_COMPRESS_PROMPT</code></td><td>Inline (md on disk before /add returns); embeddings in cascade (background)</td><td>The retrieved unit in every method; its text is the answer context</td></tr>
+<tr><td><strong>L2 Atomic fact</strong></td><td>md entry + LanceDB <code>atomic_fact</code> row (<code>fact</code>, <code>fact_tokens</code>, <code>vector</code>, <code>parent_id</code> = episode entry id)</td><td>1 call per <code>EpisodeExtracted</code> event, which is <strong>per user-sender copy</strong>, so N calls per cell for N user speakers on identical text (<span class="tagI">inferred</span>)</td><td><code>ATOMIC_FACT_FROM_TEXT_PROMPT_EN</code> <code>EA/.../prompts/en/atomic_fact_from_text.py:128</code></td><td>Background OME, <code>Immediate</code>, max_retries 2</td><td>HYBRID: facts compete with episodes in heap-expand; AGENTIC: MaxSim children; LLM_MULTIROUND: not injected</td></tr>
+<tr><td><strong>L3 Foresight</strong></td><td>md entry (content, evidence, start_time, end_time, duration_days) + LanceDB <code>foresight</code></td><td>1 call per user sender per cell, <strong>disabled by default</strong> (<code>extract_foresight.py:76-82</code>, <code>default_ome.toml:34-37</code>)</td><td><code>FORESIGHT_GENERATION_PROMPT</code> <code>EA/.../prompts/en/foresight.py:12</code></td><td>Background OME</td><td><strong>None</strong>: "no search route surfaces foresights" (<code>extract_foresight.py:14-19</code>)</td></tr>
+<tr><td><strong>L4 Profile</strong></td><td><code>users/ID/user.md</code> frontmatter: summary, <code>explicit_info[]</code>, <code>implicit_traits[]</code>, <code>profile_timestamp_ms</code>; LanceDB <code>user_profile</code> KV row</td><td>1 call per <code>EpisodeExtracted</code> (pipeline source) per owner (interval = 1): INIT, or UPDATE emitting add/update/delete/none ops. +1 compact call when total items &gt; 60. +1 regroup call per category &gt; 8 items (<span class="tagX">external</span>)</td><td><code>PROFILE_INITIAL_EXTRACTION_PROMPT</code>, <code>PROFILE_UPDATE_PROMPT</code> (<code>EA/.../prompts/en/profile.py:124</code>), <code>PROFILE_COMPACT_PROMPT</code>, <code>PROFILE_REGROUP_PROMPT</code></td><td>Background OME, per-owner partition lock</td><td><code>include_profile=true</code> returns the whole profile, unranked. Benchmark config sets it false (<code>configs/locomo.toml</code>)</td></tr>
+<tr><td><strong>L5 Cluster (topic grouping)</strong></td><td>SQLite cluster: centroid, count, last_ts, member episode entry ids (<code>trigger_profile_clustering.py:96-103</code>)</td><td><strong>0 LLM</strong>; 1 embedding call per episode; cosine threshold 0.65, 7-day window (<code>default.toml:198-199</code>)</td><td>None (<code>cluster_by_geometry</code>)</td><td>Background OME</td><td>AGENTIC "cluster_scoped" retrieval; profile memcell selection; reflection input</td></tr>
+<tr><td><strong>L6 Reflected episode</strong></td><td>Episode with <code>parent_type=cluster</code>; originals get <code>deprecated_by</code> and are excluded from search (<code>filters.py:67</code>)</td><td>1 merge call per cluster (max 10 clusters per owner per run, <code>orchestrator.py:38</code>), then 1 atomic-fact call for the merged episode. <strong>Disabled by default</strong> (<code>reflect_episodes.py:54</code>)</td><td><code>REFLECT_EPISODE_PROMPT</code> / <code>REFLECT_EPISODE_UPDATE_PROMPT</code> <code>EA/.../prompts/en/reflect.py:22,45</code></td><td>Cron, Monday 02:00</td><td>Merged narrative replaces fragments in search</td></tr>
+<tr><td><strong>Agent case</strong></td><td>md <code>.cases/agent_case-DATE.md</code> + LanceDB row, quality score</td><td>0-3 calls per agent memcell: structural skip first; a tool-round threshold (20) routes big trajectories straight to extraction; otherwise 1 filter call; then pre-compress (if long), then 1 case-extract call (<span class="tagX">external</span> <code>case.py:54,195,308-346,621-735</code>). Skipped when no assistant sender (<code>extract_agent_case.py</code>)</td><td><code>AGENT_CASE_FILTER_PROMPT</code>, <code>AGENT_CASE_COMPRESS_PROMPT</code> <code>EA/.../agent_memory/prompts/</code></td><td>Background OME (agent mode only)</td><td>AgentCaseRecaller, owner_type = agent</td></tr>
+<tr><td><strong>Agent skill</strong></td><td><code>skills/skill_NAME/SKILL.md</code> (+ references/, scripts/)</td><td>1 extract call per updated cluster (success or failure prompt) + 1 maturity-score call (<span class="tagX">external</span> <code>skill.py:219-223</code>, <code>skill_ops.py:183,241</code>)</td><td><code>AGENT_SKILL_SUCCESS_EXTRACT_PROMPT</code>, <code>AGENT_SKILL_FAILURE_EXTRACT_PROMPT</code>, <code>AGENT_SKILL_MATURITY_SCORE_PROMPT</code></td><td>Background OME</td><td>AgentSkillRecaller; cross-encoder reranked</td></tr>
+<tr><td><strong>Knowledge doc / topic</strong></td><td>Tree under <code>knowledge/CAT/DOC/</code>; topics in LanceDB + SQLite</td><td>Document-level pipeline: classify, topic-tree extract, split, merge (<span class="tagX">external</span> 6 prompt files in <code>EA/.../everalgo-knowledge/.../prompts/en/</code>). Call counts depend on document size; not read in detail</td><td><code>topic_tree_extract.py</code>, <code>topic_merge.py</code>, <code>topic_split.py</code>, <code>category_classify.py</code>, <code>content_merge.py</code>, <code>uncovered_assign.py</code></td><td>Inline on the knowledge API call</td><td>Separate <code>/knowledge/search</code> (recall 200, rerank 50, MMR-like lambda 0.1; <code>default.toml:177-183</code>)</td></tr>
+</table></div>
+
+<h3>Prompt excerpts (short, <span class="tagX">external</span> HEAD text)</h3>
+<table><tr><th>Call</th><th>Instruction (abridged)</th><th>Output contract</th></tr>
+<tr><td>Boundary</td><td>"find all natural episode boundaries ... Your core principle is <em>default to merging, split cautiously</em>." Splits on cross-day (highest priority), substantive topic change, task completion plus new topic, gap over 4 h plus new topic. Never on greetings or pauses under 4 h. (<code>prompts/en/chat.py:14,23-34</code>)</td><td><code>{reasoning, boundaries:[int], should_wait}</code></td></tr>
+<tr><td>Episode</td><td>"convert the following conversation into an episodic memory". Resolve relative time to <em>"original expression (absolute date or range)"</em> using each message's own timestamp; clock times must carry a <code>UTC</code> label; use names not pronouns; preserve numbers, frequencies. (<code>prompts/en/episode.py:62-117</code>)</td><td><code>{user_language, title, content, summary}</code>; summary &le; ~50 words and is capped at 400 width units, repaired by 1 extra call or truncation (<code>episode.py:35-39,206-259</code>, HEAD)</td></tr>
+<tr><td>Atomic fact</td><td>"Each entry ... must express exactly one coherent unit of meaning"; resolve relative times against TIME and append the absolute date in parentheses; third person; resolve pronouns. (<code>atomic_fact_from_text.py:128-170</code>)</td><td><code>{atomic_facts:{time, atomic_fact:[str]}}</code>, then each string becomes one <code>AtomicFact(owner_id=None, content, timestamp)</code> (<code>atomic_fact.py:213-229</code>)</td></tr>
+<tr><td>Foresight</td><td>"predict the specific impacts that a user's latest MemCell event might have on their future personal behaviors" up to 10 predictions, each with time window and evidence (<code>prompts/en/foresight.py:12-40</code>)</td><td><code>{foresights:[{content, evidence, start_time, end_time, duration_days}]}</code></td></tr>
+<tr><td>Profile update</td><td>"decide which operations to apply to the stored profile": <strong>update / add / delete / none</strong>. A profile is "a portrait of a person, not a log of what happened". Delete when the person negates it, it has expired, or a new statement contradicts it outright. (<code>prompts/en/profile.py:124-158</code>)</td><td><code>{operations:[{action, type: explicit_info|implicit_traits, index?, data}], update_note}</code></td></tr>
+<tr><td>Reflect</td><td>"Merge them into a single coherent narrative ... Resolves contradictions by keeping the latest state ... Removes redundant information". Update variant: "Correct any statements that are now outdated". (<code>prompts/en/reflect.py:22-60</code>)</td><td><code>{content, summary, title}</code></td></tr></table>
+<h3>Per-layer write stages</h3>
+<div class="columns">
+<div class="panel"><h4>Episode (L1)</h4><p><span class="tagR">read</span> Record = md entry with inline fields <code>owner_id, session_id, timestamp, parent_type=memcell, parent_id, sender_ids</code> and sections <code>Subject, Summary, Content</code> (<code>user_memory.py:239-293</code>). Cascade parses the entry, embeds <code>Content</code> and <code>Subject</code> concurrently, tokenises <code>Content + Subject</code> for BM25, and upserts the row keyed by <code>content_sha256</code> (<code>cascade/handlers/episode.py:56-123</code>). Timestamp = cell timestamp = last message's time (<code>boundary/chat.py:354</code>).</p></div>
+<div class="panel"><h4>Atomic fact (L2)</h4><p><span class="tagR">read</span> Input is the <em>episode text</em>, not raw turns: <code>aextract_from_text(event.episode_text, timestamp=event.episode_timestamp_ms)</code> (<code>extract_atomic_facts.py:47-50</code>). All facts for one event are appended in one batched write with <code>parent_type=episode</code> (<code>:62-107</code>). Facts are therefore a derivative of the LLM-written narrative: an episode omission is never recovered at the fact level.</p></div>
+<div class="panel"><h4>Profile (L4)</h4><p><span class="tagR">read</span> Trigger path A (embedding available): <code>ProfileClusterUpdated</code> after geometry clustering; path B (no embedding): directly on <code>EpisodeExtracted</code> (<code>extract_user_profile.py:102-125,212-218</code>). Input is the raw memcell payloads from SQLite for clusters fresher than the stored profile (<code>:128-209,306-320</code>). Throttle constant <code>PROFILE_EXTRACTION_INTERVAL = 1</code> (<code>:74</code>), i.e. every episode triggers a profile call per owner.</p></div>
+<div class="panel"><h4>Cluster and reflection</h4><p><span class="tagR">read</span> Each new episode is embedded again (a second embedding call, separate from cascade) as a size-1 cluster and merged into the nearest existing cluster by cosine 0.65 within 7 days (<code>trigger_profile_clustering.py:84-128</code>). Reflection (off by default) merges multi-member clusters, writes one merged episode, re-runs atomic facts, then soft-deprecates the originals in md and LanceDB (<code>reflection/orchestrator.py:1-10,642-816</code>).</p></div></div>
+<div class="callout caution"><strong>Duplicate work on multi-speaker input (<span class="tagI">inferred</span> from <span class="tagR">read</span> code paths).</strong> The generic episode is generated once, but <code>EpisodeExtracted</code> is emitted once per <code>role=user</code> sender in the cell (<code>user_memory.py:140-191</code>) and <code>extract_atomic_facts</code> and <code>trigger_profile_clustering</code> run on each event. In LoCoMo every message is sent as <code>role=user</code> with its own <code>sender_id</code> (<code>benchmarks/run.py:1403-1411</code>), so each cell gives two identical episode copies, two atomic-fact LLM calls on identical text, and two profile calls per cell if profile is enabled. S6d counted "facts 1 per episode"; the code path suggests 2 per cell for two-speaker input.</div>
+
+</section>
+<section id="indexing">
+<h2>5. Index creation: cascade and embeddings (the vector half)</h2>
+
+<ol class="steps">
+<li><h4>Watch</h4><p><span class="tagR">read</span> <code>watchdog</code> FS events, 500 ms debounce; plus a full scan every 30 s as a safety net (<code>default.toml:217</code>, <code>docs/architecture.md:143-155</code>). The benchmark disables the watcher and relies on the scanner (<code>configs/locomo.toml</code> <code>EVEROS_DISABLE_CASCADE_WATCHER</code>).</p></li>
+<li><h4>Queue</h4><p><span class="tagR">read</span> Each change is a row in SQLite <code>md_change_state</code>; the queue is durable and replayed after a crash.</p></li>
+<li><h4>Entry diff and embed</h4><p><span class="tagR">read</span> A handler per kind parses entries, hashes the content-bearing fields (<code>content_sha256</code>) and re-embeds only changed entries. Embedding is a soft dependency: without it, <code>vector</code> and <code>subject_vector</code> are <code>None</code> and the row is BM25/scalar-searchable only (<code>handlers/episode.py:30-33</code>).</p></li>
+<li><h4>BM25 tokens</h4><p><span class="tagR">read</span> Tokenisation is done in the app layer (jieba for CJK) and stored as a space-joined <code>*_tokens</code> column; the LanceDB FTS index runs on that column with a whitespace tokenizer. Queries are OR-mode: each term is a SHOULD clause (<code>recall/episode.py:56-72</code>).</p></li>
+<li><h4>Vector index</h4><p><span class="tagR">read</span> IVF_FLAT index only after 2,000 rows (<code>default.toml:52-54</code>); below that a query scans the column.</p></li>
+</ol>
+<p>Embedding calls per stored cell (<span class="tagI">inferred</span> from the handlers): 2 per episode copy (body + subject), 1 per atomic fact, 1 for the clustering embed per episode copy, plus 1 per query at read time. Embedding and reranker default to DeepInfra-hosted Qwen3-Embedding-4B and Qwen3-Reranker-4B (<code>default.toml:128-154</code>).</p>
+
+</section>
+<section id="transcript">
+<h2>6. Transcript, buffering, IDs, and historical ingestion</h2>
+
+<h3>What is stored verbatim</h3>
+<p><span class="tagR">read</span> Raw turns are held only in the SQLite <code>unprocessed_buffer</code> until a cell closes, then in the <code>memcell.payload_json</code> ledger as the full cell (<code>_boundary.py:497-519</code>). Search never reads the ledger; it exists to feed profile extraction (<code>extract_user_profile.py:306-311</code>) and OME replay. The searchable memory is the LLM-written episode text and the fact sentences. There is no verbatim-turn retrieval leg.</p>
+<h3>Identifiers and scope</h3>
+<p><span class="tagR">read</span> Partition key <code>(app_id, project_id)</code> then owner. Episode id <code>&lt;owner&gt;_ep_&lt;YYYYMMDD&gt;_&lt;NNNN&gt;</code>, fact id <code>af_&lt;date&gt;_&lt;n&gt;</code>, memcell <code>mc_&lt;hex&gt;</code> (<code>tables/episode.py:31-37</code>, <code>_boundary.py:522</code>). Every query predicate always includes owner, owner_type, app, project, and (for users) <code>deprecated_by IS NULL</code> (<code>search/filters.py:60-72</code>). Allowed request filters: <code>session_id, parent_type, parent_id, timestamp, sender_id</code> with AND/OR (<code>filters.py:33-39</code>).</p>
+<h3>Historical ingestion (how the benchmark loads LoCoMo)</h3>
+<ol class="steps">
+<li><h4>One EverOS server per conversation shard</h4><p><span class="tagR">read</span> <code>servers = 10</code>, each with its own store root (<code>configs/locomo.toml</code>, <code>run.py:4473-4482</code>).</p></li>
+<li><h4>Per session: add in batches of 50, then flush</h4><p><span class="tagR">read</span> <code>run_add_phase</code> posts each LoCoMo session as its own <code>session_id</code> (<code>locomo_conv&lt;i&gt;_s&lt;n&gt;</code>), messages with the real session timestamp, all as <code>role: "user"</code> and <code>sender_id = &lt;speaker&gt;_conv&lt;i&gt;</code>, then calls flush (<code>run.py:1370-1420</code>). A failing batch is counted and skipped, not raised.</p></li>
+<li><h4>Wait for drain</h4><p><span class="tagR">read</span> Polls cascade queue and OME run records until both are empty (<code>run.py:863-1030</code>, <code>cascade_timeout = 7200</code>). Image-only turns are skipped and captions dropped (stated in S6d; not re-checked here).</p></li>
+</ol>
+<p>Production default is the same API with <code>mode = "agent"</code>; switching mode needs a process restart (<code>default.toml:161-167</code>).</p>
+
+</section>
+<section id="retrieval">
+<h2>7. Complete retrieval flow</h2>
+
+<ol class="steps">
+<li><h4>Request</h4><p><span class="tagR">read</span> <code>POST /api/v2/memory/search</code>: <code>query, user_id | agent_id, method, top_k, filters, radius, min_score, include_profile, enable_llm_rerank</code>. Default <code>method = hybrid</code>, <code>top_k = -1</code> (cap) (<code>search/dto.py:93-107</code>). Five methods: <code>keyword, vector, hybrid, agentic, llm_multiround</code> (<code>dto.py:31-50</code>).</p></li>
+<li><h4>Compile filters and validate components</h4><p><span class="tagR">read</span> Malformed filters give 422 before provider checks. Embedding is required for vector/hybrid/agentic/llm_multiround; rerank provider for agentic and agent-hybrid; LLM for agentic and llm_multiround; llm_multiround is user memory only (<code>manager.py:214-221,831-941</code>).</p></li>
+<li><h4>Fan out by owner type</h4><p><span class="tagR">read</span> User: <code>asyncio.gather(episodes, profile, unprocessed)</code>. Agent: cases + skills + unprocessed (<code>manager.py:223-243</code>).</p></li>
+<li><h4>Run the chosen episode method</h4><p><span class="tagR">read</span> See section 8. There is <strong>no query rewriting in hybrid</strong>; rewriting exists only in agentic (multi-query) and llm_multiround (decider sub-queries).</p></li>
+<li><h4>Shape and return</h4><p><span class="tagR">read</span> Episodes (subject, summary, episode text, timestamp in display timezone, parent ids) with optional nested <code>atomic_facts</code> (HYBRID only), profile, unprocessed buffer. Calibrated scores for HYBRID/AGENTIC are in [0,1] and emitted as recall-quality telemetry (<code>manager.py:139-154,256-281</code>). The engine returns structured items; <strong>it contains no answer prompt</strong>.</p></li>
+<li><h4>Answer (caller)</h4><p><span class="tagR">read</span> Only the benchmark harness answers: <code>benchmarks/run.py:1661-1690</code> renders each episode as <code>"{subject}: {episode}\n---"</code> under <code>CONTEXT_TEMPLATE</code> ("Episodes memories for conversation between A and B"), then the 7-step chain-of-thought <code>ANSWER_PROMPT</code> (<code>adapters/locomo.py:96-165</code>). Profile is omitted unless explicitly enabled.</p></li>
+</ol>
+
+</section>
+<section id="internals">
+<h2>8. Retrieval internals by method</h2>
+
+<h3>8.1 HYBRID (API default): sparse + dense, RRF, LR calibration, heap-expand</h3>
+<ol class="steps">
+<li><h4>Parallel recall</h4><p><span class="tagR">read</span> BM25 over <code>episode_tokens</code> and cosine ANN over <code>vector</code>, pool size from <code>top_k x multiplier</code> (<code>manager.py:429-431,805-822</code>).</p></li>
+<li><h4>Dual fusion</h4><p><span class="tagR">read</span> <code>lr(dense, sparse)</code> gives a calibrated per-episode score; <code>rrf(sparse, dense, k=60)</code> gives the expansion order (<code>search/hierarchy.py:84-89</code>; <span class="tagX">external</span> functions in <code>EA/.../everalgo-rank/.../fusion.py:27,46</code>).</p></li>
+<li><h4>Fact attachment</h4><p><span class="tagR">read</span> <code>facts_for_episodes</code> fetches up to <code>max(2*top_k, 20)</code> facts per episode by <code>parent_id IN (...)</code>, supporting both new (episode entry id) and old (memcell id) parents (<code>manager.py:439-446</code>, <code>recall/atomic_fact.py:1-14</code>).</p></li>
+<li><h4>Heap-expand with global competition</h4><p><span class="tagR">read</span> Episodes seed a top-N set. A heap ordered by RRF pops episodes; for each, up to 3 facts are LR-scored (<code>cosine_to_lr_score</code> against the parent's BM25) and enter the top-N if they beat its minimum. If any fact of an episode enters, the episode itself is evicted from the set. Loop stops after 10 consecutive no-change rounds (<code>hierarchy.py:48-193</code>). Result: a mixed list of facts and episodes under one score.</p></li>
+<li><h4>Reshape and floor</h4><p><span class="tagR">read</span> <code>reshape_hybrid_output</code> nests facts under parent episodes; optional <code>min_score</code> floor (<code>manager.py:454-457</code>). No LLM and no cross-encoder: <code>enable_llm_rerank</code> is ignored on this path (module docstring, <code>manager.py:11-14</code>).</p></li>
+</ol>
+<h3>8.2 AGENTIC: cluster-scoped MaxSim with sufficiency check</h3>
+<p><span class="tagR">read</span> Pipeline "1:1 with the everalgo benchmark" (<code>search/agentic.py:1-14</code>): fact MaxSim (dense + sparse) -> hybrid_full -> <strong>cluster_scoped</strong> expansion -> <strong>agentic</strong>. Constants: 50 dense, 50 sparse, RRF k = 40, round-1 top 50 reranked to 10, round-2 cap 40, multi-query count 3 (<code>agentic.py:55-70</code>). Cross-encoder = Qwen3-Reranker with the instruction "Determine if the passage contains specific facts, entities (names, dates, locations), or details that directly answer the question" (<code>agentic.py:72-76</code>). Round 2 fires only if an LLM <strong>sufficiency check</strong> says the round-1 documents are insufficient (<span class="tagX">external</span> <code>SUFFICIENCY_CHECK_PROMPT_EN</code>: checks entities, attributes, and dates of each document against the query), and then an LLM <strong>multi-query</strong> call writes 2-3 queries in three styles: keyword, natural question, hypothetical statement (HyDE) (<span class="tagX">external</span> <code>MULTI_QUERY_PROMPT_EN</code>, strategies pivot / temporal calculation / concept expansion / constraint relaxation). Query-time LLM cost: 1 sufficiency call, plus 1 multi-query call when insufficient.</p>
+<h3>8.3 LLM_MULTIROUND: the method behind the published LoCoMo number</h3>
+<p><span class="tagR">read</span> <code>benchmarks/configs/locomo.toml</code> sets <code>methods = "llm_multiround"</code>, <code>top_k = 20</code>. The loop (<code>search/llm_multiround.py:1-45,679-902</code>):</p>
+<ol class="steps">
+<li><h4>Round 0: one block</h4><p>Embed the question; BM25 and vector recall (50 each, <code>_SEED_CANDIDATES</code>), fuse with RRF (k = 60), keep top 50 as one block labelled "original question".</p></li>
+<li><h4>Decider LLM call</h4><p>The decider sees the QUESTION, CORE SO FAR (items already pinned, tagged with the sub-query that found them) and CANDIDATES THIS ROUND with one global index across blocks. It returns <code>{"core":[idx...],"next_queries":[...]}</code>. Instruction highlights: "favour RECALL over minimality"; a needed fact "is often an INCIDENTAL detail inside an episode about a DIFFERENT topic"; stop only when "the question is a SINGLE, self-contained fact AND the core you already hold answers it unambiguously" (<code>llm_multiround.py:213-296</code>). By default the decider reads each episode's <code>summary</code>; the LoCoMo config switches on <code>EVEROS_LLMMR_DECIDER_FULL_TEXT=1</code> so it reads the full episode text (<code>configs/locomo.toml</code> <code>[retrieval_env]</code>; <code>_decider_text</code> at <code>llm_multiround.py:589-602</code>).</p></li>
+<li><h4>Follow-up rounds</h4><p>Up to 3 follow-up sub-queries (<code>max_subqueries</code>) per round; each is recalled and RRF-fused <strong>independently</strong> (top 20 per sub-query) so a specialist hit is not diluted by consensus (<code>default.toml:101-112</code>). Stop when the decider returns no queries, when one follow-up round adds no new core (<code>no_new_core_patience = 1</code>), or at <code>max_rounds = 3</code>.</p></li>
+<li><h4>Finalise</h4><p>Top-k = core first (hard guarantee), then each sub-query's top non-core candidate, then fill by <strong>max</strong> RRF score across sub-queries (<code>_finalize_injection</code>, <code>llm_multiround.py:904-1030</code>). No cross-encoder: the module header states the CE "was measured net-negative".</p></li>
+<li><h4>Failure mode</h4><p>On 3 failed decider attempts (<code>retries = 3</code>, backoff doubling from 0.5 s) it falls back to the top 3 fused candidates as core and stops, logging an error, not raising (<code>llm_multiround.py:360-400</code>). A wrong decider model/endpoint pairing silently degrades to this fallback (comment at <code>default.toml:89-92</code>). Any published number must therefore state how many decider calls failed.</p></li>
+</ol>
+<h3>8.4 KEYWORD and VECTOR</h3>
+<p><span class="tagR">read</span> Single-route recall, no fusion, no facts (<code>manager.py:405-426</code>). VECTOR routes through <code>_maxsim_atomic_recall</code> (episodes ranked via their facts).</p>
+
+</section>
+<section id="temporal">
+<h2>9. Temporal handling, updates and contradictions</h2>
+
+<table><tr><th>Aspect</th><th>Behaviour</th><th>Evidence</th></tr>
+<tr><td>Event time vs ingestion time</td><td>The episode prompt resolves relative expressions at write time using <strong>each message's own timestamp</strong>, in the dual format "last Friday (2023-05-12)", with UTC labels; atomic facts append resolved dates in parentheses. The resolved dates live in the text, so BM25 and embeddings can match them. <span class="tagX">external</span></td><td><code>prompts/en/episode.py:71-78</code>, <code>atomic_fact_from_text.py:150-157</code></td></tr>
+<tr><td>Stored timestamps</td><td>One <code>timestamp</code> per row (the cell's last-message time). No separate valid-from / valid-to, no mention-vs-event split in the schema. Foresight alone has <code>start_time / end_time / duration_days</code>.</td><td><code>tables/episode.py:40</code>, <code>extract_foresight.py:141-155</code>; <span class="tagR">read</span></td></tr>
+<tr><td>Query-time temporal reasoning</td><td>No date parser or time-window boost in retrieval. Filters accept a <code>timestamp</code> range. The sufficiency prompt asks the LLM to check document dates against relative-time queries; multi-query has a "temporal calculation" strategy. Everything else is left to the answer model with episode timestamps and the 7-step prompt's "TIME REFERENCE CALCULATION" step.</td><td><code>filters.py:33-39</code>; <span class="tagX">external</span> <code>sufficiency.py</code>, <code>multi_query.py</code>; <code>adapters/locomo.py</code> STEP 4</td></tr>
+<tr><td>Facts: update / supersede</td><td><strong>None at write time.</strong> New episodes and facts are appended; there is no ADD/UPDATE/DELETE/NOOP decision against existing facts and no duplicate check. Contradictions persist side by side until reflection.</td><td><span class="tagR">read</span> <code>extract_atomic_facts.py:44-85</code> (append only)</td></tr>
+<tr><td>Reflection (consolidation)</td><td>Optional weekly merge of a cluster's episodes: "Resolves contradictions by keeping the latest state". Originals soft-deprecated (<code>deprecated_by</code>) and removed from search. The docs warn each run is "a lossy LLM re-merge" and recommend at most weekly.</td><td><span class="tagR">read</span> <code>docs/reflection.md:1-10</code>, <code>default_ome.toml:52-57</code>; prompt <span class="tagX">external</span></td></tr>
+<tr><td>Profile: update / delete</td><td>The only place with explicit ADD / UPDATE / DELETE / none semantics. Stale or contradicted items are deleted; ops carry an observation date and an older batch cannot overwrite a newer item (<span class="tagX">external</span> <code>profile.py:951,1105-1140</code>).</td><td><span class="tagX">external</span> <code>prompts/en/profile.py:124-158</code></td></tr>
+<tr><td>Forgetting / decay</td><td>None. No TTL, no importance, no decay tiers (<code>ECOSYSTEM_COMPARISON.md</code> 3.15.4 "no decay/forget tiers"; consistent with the code read).</td><td><span class="tagR">read</span></td></tr></table>
+
+</section>
+<section id="onefact">
+<h2>10. Follow one fact through the system</h2>
+
+<p>Illustrative, not a captured run. Two LoCoMo-style speakers, session dated 2023-05-08: Caroline writes "I went to a support group yesterday".</p>
+<table><tr><th>Stage</th><th>What happens</th></tr>
+<tr><td>/add + /flush</td><td>Messages enter <code>unprocessed_buffer</code> with their timestamps. Flush forces <code>is_final</code>; one boundary call returns any splits; the whole remainder becomes a MemCell row.</td></tr>
+<tr><td>Episode (LLM)</td><td>"Caroline attended a support group yesterday (2023-05-07)." inside a third-person narrative with a title and a short summary. Written to <code>episode-2023-05-08.md</code> for each user sender (identical copies).</td></tr>
+<tr><td>Atomic fact (LLM, background)</td><td>"Caroline attended a support group yesterday (May 7, 2023)." as a separate sentence row with <code>parent_id</code> = the episode entry.</td></tr>
+<tr><td>Cascade</td><td>Embeds the episode body and subject, tokenises for BM25; embeds the fact.</td></tr>
+<tr><td>Question "When did Caroline go to the support group?"</td><td>llm_multiround: round 0 recall; decider reads full episode text, pins the episode, returns no sub-queries; top-20 injected. Answer model reads the dated narrative and performs STEP 4 time calculation. If the date had been written only as "yesterday" without resolution, nothing downstream resolves it (<span class="tagI">inferred</span>).</td></tr>
+<tr><td>Failure points</td><td>(a) boundary splits the fact from its context; (b) the episode summarisation drops the detail; (c) the decider rejects an episode whose headline topic differs; (d) a later contradictory statement is stored as a separate episode with no linkage.</td></tr></table>
+
+</section>
+<section id="locomo">
+<h2>11. LoCoMo evaluation as published</h2>
+
+<div class="callout caution"><strong>Read the protocol before the number.</strong> Every EverOS figure below is vendor-run. The only third-party-harness run in the memspine notes is MemTensor's OmniMemEval, which is itself an interested party (it owns MemOS).</div>
+<div class="table-scroll"><table>
+<tr><th>Number</th><th>Source</th><th>Question set</th><th>Answer model</th><th>Judge</th><th>Context</th><th>Run by</th></tr>
+<tr><td><strong>94.42</strong></td><td><code>EO/benchmarks/README.md:100</code> <span class="tagR">read</span></td><td>1,540 (cat 5 dropped)</td><td><code>openai/gpt-4.1-mini</code></td><td>config says <code>gpt-4o-mini</code>, 1 run, per-question verdict (<code>configs/locomo.toml</code> [judge])</td><td>llm_multiround top-20 episodes, decider <code>deepseek-v4-flash-0731</code></td><td>Vendor</td></tr>
+<tr><td>92.32</td><td>Nov-2025 README at <code>933f818</code> (via S6d)</td><td>1,540</td><td>gpt-4.1-mini, 7-step CoT</td><td>gpt-4o-mini x3, majority</td><td>top-10 episodes, ~2.3K tokens</td><td>Vendor</td></tr>
+<tr><td>93.05 (SH 96.67, MH 91.84, T 89.72, OD 76.04)</td><td>arXiv 2601.02163 v2 (via S6d, SOTA doc line 353)</td><td>1,540</td><td>gpt-4.1-mini</td><td>gpt-4o-mini x3</td><td>"top-10 MemScenes, 10 episodes"</td><td>Vendor (paper)</td></tr>
+<tr><td>82.75 (SH 86.80, MH 77.78, T 84.11, OD 57.29)</td><td>OmniMemEval, EverOS (cloud) (SOTA doc line 325)</td><td>1,540</td><td>gpt-4.1-mini</td><td>gpt-4o-mini</td><td>8,559 tokens</td><td>MemTensor (competitor harness, cloud API, not the OSS engine)</td></tr>
+<tr><td>58.25</td><td>LoCoMo-Refined strict judge (SOTA doc line 380)</td><td>1,382 revised Q</td><td>Qwen3-14B</td><td>strict prompt</td><td>-</td><td>Independent</td></tr>
+<tr><td>(Zep) 85.22 vs own 75.14</td><td>S6d: Zep on the EverMemOS harness</td><td>1,540</td><td>gpt-4.1-mini</td><td>-</td><td>-</td><td>Shows how harness choice moves a system by ~10 points</td></tr></table></div>
+<h3>Protocol facts read in the clone</h3>
+<ul>
+<li><span class="tagR">read</span> <strong>Category 5 is dropped</strong> at load time: 446 adversarial questions excluded, 1,540 of 1,986 graded (282 multi-hop + 321 temporal + 96 open-domain + 841 single-hop). The adapter spells out cat1 = multi-hop, cat4 = single-hop (<code>adapters/locomo.py:35,18-26</code>; <code>configs/locomo.toml:1-2</code>). The 2,432 figure in the config comment does not match the 1,986 in the adapter comment.</li>
+<li><span class="tagR">read</span> <strong>Only speaker_a's partition is queried</strong> (<code>eval_owner = "speaker_a"</code>, <code>config_hybrid.toml</code>), but ingestion files each message under its own speaker (<code>adapters/locomo.py:62-70</code>). Episode copies exist under both owners; the queried owner holds copies of all cells in which either speaker (both being <code>role=user</code>) appears.</li>
+<li><span class="tagR">read</span> <strong>Answer prompt is long and pro-inference</strong>: 7 steps, "perform logical inference ... Do not dismiss reasonable inferences as speculation", state confidence levels, never omit names, answer up to 32,768 tokens (<code>adapters/locomo.py:96-165</code>; <code>configs/locomo.toml</code> [answer]). S6d notes competitors in the history harness got shorter prompts (Mem0: "less than 5-6 words").</li>
+<li><span class="tagR">read</span> <strong>Judge prompt is generous</strong>: "as long as it touches on the same topic as the gold answer, it should be counted as CORRECT"; for dates "the same date or time period" (<code>adapters/locomo.py:174-198</code>). Judge failures are graded WRONG, not dropped (<code>run.py:2174-2181</code>).</li>
+<li><span class="tagR">read</span> <strong>Headline aggregation</strong>: micro accuracy over all graded questions (README note); S6d records that the runner's "Max accuracy" is the best of the judge runs (<code>run.py:2431</code> computes <code>max(all_candidates)</code>) while the config now has <code>runs = 1</code>. State which is quoted.</li>
+<li><span class="tagR">read</span> <strong>Include_profile = false</strong> for the published run. Profile and foresight are not part of the published retrieval; only episodes (decider-selected) are injected. So the extra layers (profile, foresight, facts) do not contribute to the headline.</li>
+<li><span class="tagR">read</span> <strong>Internal inconsistencies to flag</strong>: the adapter comment says its prompts are "byte-identical to the ones the published 90.58% was produced with" while the README says 94.42; <code>configs/locomo.toml</code> says "Our published numbers used qwen3.6-27B" as decider while the README table names <code>deepseek-v4-flash-0731</code>. The README states a measured run-to-run noise floor of 0.91 pp on LoCoMo (<code>configs/locomo.toml</code> comment at <code>include_profile</code>).</li>
+<li><span class="tagR">read</span> <strong>Reader and extractor are the same cheap model</strong> (gpt-4.1-mini extracts every memory, <code>backbone_model</code>); the decider is a separate, stronger or different model, so the "retrieval" step contains an LLM that has read the full episode text of 50+ candidates per question.</li></ul>
+<h3>Vendor vs independent summary</h3>
+<p>Vendor-run: 94.42, 93.05, 92.32. Competitor harness: 82.75 (cloud). Strict independent judge: 58.25. The spread (58 to 94) is protocol and judge, not memory alone (SOTA doc: judge prompt alone moves systems by up to 18 points). Nothing in the clone reproduces any of these numbers without paid API keys; no result files are committed.</p>
+
+</section>
+<section id="cost">
+<h2>12. Cost per turn and per query</h2>
+
+<p>All counts below are <span class="tagR">read</span> call sites with <span class="tagI">inferred</span> totals. Tokens are not measured by the code beyond telemetry spans; I give shapes, not token totals.</p>
+<div class="table-scroll"><table><tr><th>Event</th><th>LLM calls</th><th>Embedding / rerank</th><th>Notes</th></tr>
+<tr><td><strong>/add</strong> that does not close a cell</td><td>1 boundary call (when a user message is present) per /add; 0 if deferred</td><td>0</td><td>The boundary detector re-reads the whole buffer each time; with 50-message LoCoMo batches this is repeated over the growing tail</td></tr>
+<tr><td><strong>Per closed cell</strong> (chat, 2 user speakers)</td><td>1 episode + 2 atomic-fact (one per owner copy) = <strong>3</strong>. Plus 2 profile calls if enabled (+ compact/regroup occasionally). Foresight 2 if enabled</td><td>4 embeds (2 episode copies x body+subject) + 2 fact-set embeds (1 per fact, ~5-15 facts each) + 2 cluster embeds</td><td>S6d records "boundary 1 per batch + episode 1 per MemCell + facts 1 per episode" (<span class="tagX">external</span>); this document finds the fact call multiplied by user senders</td></tr>
+<tr><td><strong>Per closed cell</strong> (chat, 1 user)</td><td>1 episode + 1 fact (+1 profile) = 2 (3 with profile)</td><td>2 + facts + 1</td><td>Typical assistant chat</td></tr>
+<tr><td><strong>Agent mode, tool trajectory</strong></td><td>+ case filter/extract/compress; + skill extract and maturity on cluster update</td><td>case/skill embeds</td><td>Skipped when no assistant sender; LoCoMo (all role=user) triggers none (<span class="tagR">read</span> <code>extract_agent_case.py</code> bail-out)</td></tr>
+<tr><td><strong>Weekly reflection</strong> (opt-in)</td><td>1 merge per multi-member cluster (&le;10 per owner) + 1 fact call each</td><td>re-embed merged episodes and centroids</td><td>"Each run is a lossy LLM merge"</td></tr>
+<tr><td><strong>Query: hybrid</strong></td><td><strong>0</strong></td><td>1 embedding; no reranker</td><td>API default</td></tr>
+<tr><td><strong>Query: agentic</strong></td><td>1 sufficiency; +1 multi-query when insufficient</td><td>1-4 query embeds + Qwen3-Reranker batches over ~50 candidates</td><td>Needs rerank provider</td></tr>
+<tr><td><strong>Query: llm_multiround</strong></td><td>1 to 3 decider calls (one per round); each prompt carries up to 50 candidates (round 0) then up to 20 per sub-query (3 sub-queries) at summary or full-episode length</td><td>1 + up to 3 query embeds per round</td><td>Prompt grows with <code>full_text=1</code> (LoCoMo config). Fallback after 3 failed attempts</td></tr>
+<tr><td><strong>Benchmark answer + judge</strong></td><td>1 answer (CoT, up to 32K output) + 1 judge (config: 1 run)</td><td>-</td><td>Outside the engine</td></tr></table></div>
+<p>Write-side dominant cost: boundary re-reads plus 3 calls per cell. Read-side dominant cost for the published method: the decider reading ~50+ full episodes per round. OmniMemEval measured 8,559 injected context tokens for the cloud EverOS (SOTA doc line 325), versus ~2.3K tokens (top-10 episodes) in the vendor's earlier harness.</p>
+
+</section>
+<section id="sourcemap">
+<h2>13. Code and source map</h2>
+
+<div class="table-scroll"><table><tr><th>Topic</th><th>File : line</th></tr>
+<tr><td>Mode default, LLM, decider, embedding, rerank, boundary limits, clustering</td><td><code>EO/src/everos/config/default.toml:68-199</code></td></tr>
+<tr><td>OME strategies disabled by default</td><td><code>config/default_ome.toml:29-57</code>; <code>strategies/extract_foresight.py:76-82</code>; <code>strategies/reflect_episodes.py:50-56</code></td></tr>
+<tr><td>/add, /flush, locking, dispatch, OME registration</td><td><code>service/memorize.py:115-299</code>; <code>entrypoints/api/routes/memorize.py:182,201</code></td></tr>
+<tr><td>Buffer, boundary, memcell ledger</td><td><code>service/_boundary.py:96-287,497-524</code></td></tr>
+<tr><td>Episode extraction, per-sender fan-out, events</td><td><code>memory/extract/pipeline/user_memory.py:73-198</code></td></tr>
+<tr><td>Atomic facts</td><td><code>memory/strategies/extract_atomic_facts.py:38-107</code></td></tr>
+<tr><td>Profile trigger chain</td><td><code>strategies/trigger_profile_clustering.py:30-148</code>; <code>strategies/extract_user_profile.py:74-375</code></td></tr>
+<tr><td>Reflection</td><td><code>memory/reflection/orchestrator.py:38,247-290,642-816</code></td></tr>
+<tr><td>Cascade handlers and embedding</td><td><code>memory/cascade/handlers/episode.py:30-123</code>, <code>atomic_fact.py</code></td></tr>
+<tr><td>LanceDB schemas</td><td><code>infra/persistence/lancedb/tables/{episode,atomic_fact,user_profile}.py</code></td></tr>
+<tr><td>Search dispatcher, validation, filters</td><td><code>memory/search/manager.py:190-281,362-486,831-941</code>; <code>search/filters.py:33-72</code>; <code>search/dto.py:31-107</code></td></tr>
+<tr><td>Heap-expand fusion</td><td><code>memory/search/hierarchy.py:48-193</code></td></tr>
+<tr><td>Agentic search</td><td><code>memory/search/agentic.py:55-110</code></td></tr>
+<tr><td>LLM multi-round decider and loop</td><td><code>memory/search/llm_multiround.py:213-402,679-1030</code></td></tr>
+<tr><td>Benchmark protocol</td><td><code>benchmarks/README.md</code>; <code>configs/locomo.toml</code>; <code>adapters/locomo.py</code>; <code>run.py:1370-1420,1661-1690,2095-2181</code></td></tr>
+<tr><td>Boundary algorithm and prompt</td><td><code>EA/packages/everalgo-boundary/src/everalgo/boundary/chat.py:78-144</code>, <code>prompts/en/chat.py:11</code></td></tr>
+<tr><td>Episode, atomic fact, foresight, profile, reflect</td><td><code>EA/packages/everalgo-user-memory/src/everalgo/user_memory/{episode,atomic_fact,foresight,profile,reflect}.py</code> and <code>prompts/en/</code></td></tr>
+<tr><td>Rank prompts and fusion</td><td><code>EA/packages/everalgo-rank/src/everalgo/rank/prompts/en/{sufficiency,multi_query,refined_query}.py</code>, <code>fusion.py</code></td></tr>
+<tr><td>Agent case / skill</td><td><code>EA/packages/everalgo-agent-memory/src/everalgo/agent_memory/{case,skill,skill_ops}.py</code></td></tr></table></div>
+
+</section>
+<section id="limits">
+<h2>14. Implementation findings and current limits</h2>
+
+<ul>
+<li><strong>No write-time conflict resolution for facts.</strong> There is no ADD/UPDATE/DELETE/NOOP step on episodes or atomic facts. Only the profile (a separate document) has update/delete ops. <span class="tagR">read</span></li>
+<li><strong>Facts derive from the LLM narrative, not raw turns.</strong> The fact extractor reads episode text. Any detail the episode LLM drops cannot be recovered. <span class="tagR">read</span> (<code>extract_atomic_facts.py:47-50</code>)</li>
+<li><strong>The published retrieval ignores most layers.</strong> The 94.42 configuration retrieves episodes only (decider-selected); profile off, foresight unused, facts not injected. <span class="tagR">read</span></li>
+<li><strong>Foresight is write-only.</strong> The repo itself says nothing reads it. <span class="tagR">read</span></li>
+<li><strong>Eventual consistency.</strong> Search reads LanceDB, which lags md by cascade time; benchmark harness must poll the queue. <span class="tagR">read</span></li>
+<li><strong>Silent degradation of the decider.</strong> A mismatched model/endpoint falls back to fixed top-3 core and reports a complete result; the code's own comment says twelve sweep arms were written up with this failure active. <span class="tagR">read</span> (<code>llm_multiround.py:360-390</code>)</li>
+<li><strong>Per-sender duplication</strong> of facts/profile calls on multi-speaker input (section 4). <span class="tagI">inferred</span></li>
+<li><strong>Unauthenticated API.</strong> No built-in auth; defaults to loopback (<code>default.toml:19-26</code>). <span class="tagR">read</span></li>
+<li><strong>Cloud product vs OSS.</strong> OmniMemEval scored the EverOS <em>cloud</em>; the OSS engine's own scores are vendor-reported. <span class="tagR">read</span> (SOTA doc)</li>
+<li><strong>Dependency on a fast-moving algorithm repo.</strong> Pinned wheels (user-memory 0.4.0) trail EverAlgo HEAD (0.8.0rc9); prompt behaviour in this document may not match an installed engine. <span class="tagX">external</span></li>
+<li><strong>Not examined:</strong> multimodal parsing details, knowledge-base pipeline call counts, Milvus backend, the Claude-Code plugin under <code>use-cases/</code> (dead for the engine per <code>ECOSYSTEM_PROMPTS.md</code>).</li></ul>
+
+</section>
+<section id="learn">
+<h2>15. What MemSpine can learn</h2>
+
+<p>Ideas that are not (or not yet) in MemSpine, briefly. The 4-way comparison is the coordinator's later job.</p>
+<table><tr><th>EverOS idea</th><th>Why it matters</th><th>Cost to MemSpine</th></tr>
+<tr><td><strong>Decider loop with per-sub-query RRF blocks and core-first assembly</strong> (<code>llm_multiround.py</code>)</td><td>Iterative evidence selection with "pin what matters, then ask for the missing aspect"; max-RRF fill preserves specialist hits; the same loop is exposed as a pluggable <code>RoundDecider</code> so a trained policy can replace the LLM. Matches MemSpine's second-round read (N04) but with an explicit core accumulator.</td><td>1-3 LLM calls per query; MemSpine's read path is 0-LLM today</td></tr>
+<tr><td><strong>Markdown as source of truth with a rebuildable index and entry-level <code>content_sha256</code> diffing</strong></td><td>Human-editable memory, git-diffable, drop-and-rebuild index, incremental re-embed.</td><td>Architectural; MemSpine is event-sourced instead (arguably stronger audit)</td></tr>
+<tr><td><strong>Fact-under-episode competition (heap-expand with LR-calibrated scores)</strong></td><td>One score space lets a precise fact outrank a long episode; parent evicted when its child wins. Already identified as N54-EZ.</td><td>Needs calibration data</td></tr>
+<tr><td><strong>Profile as add/update/delete/none ops against an indexed snapshot, with per-item observation date and a "portrait, not log" gate</strong></td><td>Strong guard against profile bloat and action-to-trait over-claiming; caps (60 items, 8 per category) plus compact and regroup passes.</td><td>Compare with MemSpine L5 profile bound</td></tr>
+<tr><td><strong>Write-time temporal normalisation inside text</strong> ("last Friday (2023-05-12)", UTC-labelled)</td><td>Makes BM25 and embeddings date-aware with no schema change. MemSpine already has H1 read-time dates.</td><td>One prompt clause</td></tr>
+<tr><td><strong>Summary width cap with a 3-tier repair</strong> (retry, compress, truncate)</td><td>Pattern for guarding model-written fields without failing the main write.</td><td>Small</td></tr>
+<tr><td><strong>Weekly offline reflection with <code>deprecated_by</code> soft-delete</strong></td><td>Cluster-scoped LLM merge that keeps the latest state; originals retained but filtered. MemSpine has consolidation; EverOS's soft-delete column is a simple model.</td><td>Warns "lossy"; needs a regression test</td></tr>
+<tr><td><strong>Foresight with start/end/duration</strong></td><td>Plan validity windows (memspine X3), though EverOS never reads them back.</td><td>Only worth it with a read use</td></tr>
+<tr><td><strong>Cautionary:</strong> no conflict handling for facts, per-sender duplicate extraction, silent decider fallback, and a benchmark with generous judge and inference-encouraging prompt.</td><td>Failure patterns for MemSpine's own harness: report decider failure counts, use a fixed judge, state max-vs-majority.</td><td>None</td></tr></table>
+
+</section>
+</main>
+</div>
+<footer>Generated for the memspine ecosystem comparison. Claims trace to file:line in the cloned repositories; vendor numbers are not reproduced.</footer>
+</body>
+</html>

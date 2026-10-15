@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Any
 
 import typer
 import yaml
@@ -23,6 +23,8 @@ prompts_app = typer.Typer(help="Inspect the prompt pack and its overrides (D-43)
 app.add_typer(prompts_app, name="prompts")
 audit_app = typer.Typer(help="Audit the event log (E1: blast-radius taint tracing).")
 app.add_typer(audit_app, name="audit")
+tap_app = typer.Typer(help="Wiretap traces (WT-01): per-request pipeline gaps, debugging only.")
+app.add_typer(tap_app, name="tap")
 
 TemplateOpt = Annotated[str | None, typer.Option("--template", "-t", help="Shipped template name")]
 FileOpt = Annotated[Path | None, typer.Option("--config", "-c", help="User config YAML path")]
@@ -77,6 +79,8 @@ def _registry(template: str | None, config_file: Path | None) -> PromptRegistry:
         overrides=resolved.config.prompts.overrides,
         partials=resolved.config.prompts.partials,
         selection=resolved.config.prompts.selection,
+        layout_v2=resolved.config.prompts.layout_v2,
+        layout_partials=resolved.config.prompts.layout_partials,
     )
 
 
@@ -181,6 +185,28 @@ def audit_taint(
     typer.echo(yaml.safe_dump(report, sort_keys=False).strip())
 
 
+@app.command("migrate")
+def migrate_cmd(
+    source: Annotated[Path, typer.Argument(help="Existing (v1) SQLite database; never written")],
+    target: Annotated[Path, typer.Argument(help="Fresh database to build by replay of the log")],
+) -> None:
+    """Migrate by replay (G-23): upcast the retained event log into a fresh store.
+
+    Limited rebuild is advertised: the report lists the derived layers replay does not rebuild.
+    """
+    import asyncio
+
+    from memspine.exceptions import RebuildUnavailableError
+    from memspine.store.migrate import migrate_sqlite
+
+    try:
+        report = asyncio.run(migrate_sqlite(str(source), str(target)))
+    except RebuildUnavailableError as exc:
+        typer.secho(f"cannot migrate: {exc}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1) from exc
+    typer.echo(yaml.safe_dump(report.as_dict(), sort_keys=False).strip())
+
+
 @app.command("forget")
 def forget_cmd(
     record_id: str,
@@ -236,6 +262,86 @@ def export_cmd(
     lines = asyncio.run(_inner())
     out.write_text("\n".join(lines) + "\n", encoding="utf-8")
     typer.echo(f"exported {len(lines) - 1} lines to {out}")
+
+
+@app.command("mcp")
+def mcp_cmd(
+    namespace: Annotated[
+        str, typer.Option("--namespace", "-n", help="Fixed tenant namespace (never model-set)")
+    ],
+    config_file: FileOpt = None,
+    template: TemplateOpt = None,
+    db: Annotated[Path | None, typer.Option("--db", help="SQLite path (overrides config)")] = None,
+    profile: Annotated[
+        str, typer.Option("--profile", help="read_only | standard | operator")
+    ] = "standard",
+    principal: Annotated[str, typer.Option("--principal", help="Writer identity")] = "mcp-agent",
+    session: Annotated[
+        str | None, typer.Option("--session", help="Session id for confirm-quote lookup")
+    ] = None,
+    session_writes: Annotated[int, typer.Option("--session-writes", min=0)] = 30,
+    turn_writes: Annotated[
+        int, typer.Option("--turn-writes", min=0, help="Burst cap; MCP has no turn signal (0=off)")
+    ] = 0,
+) -> None:
+    """Serve the agent memory tools over MCP (stdio JSON-RPC). Stdout is protocol only."""
+    import asyncio
+    import sys
+
+    from memspine import Engine
+    from memspine.api.mcp import McpServer, serve_stdio
+    from memspine.api.tools import AgentMemoryTools, ToolContext
+
+    try:
+        ctx = ToolContext(
+            namespace=namespace,
+            principal=principal,
+            session_id=session,
+            profile=profile,
+            session_write_budget=session_writes,
+            turn_write_budget=turn_writes or None,
+        )
+    except ValueError as exc:
+        typer.secho(f"invalid: {exc}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1) from exc
+    protocol_out = sys.stdout
+    sys.stdout = sys.stderr  # a stray print must never corrupt the protocol stream
+
+    async def _inner() -> None:
+        overrides: dict[str, Any] = {"storage": {"path": str(db)}} if db else {}
+        engine = Engine(template=template, user_config=config_file, **overrides)
+        await engine.start()
+        try:
+            server = McpServer(AgentMemoryTools(engine, ctx))
+            await serve_stdio(server, sys.stdin, protocol_out)
+        finally:
+            await engine.stop()
+
+    try:
+        asyncio.run(_inner())
+    except ConfigError as exc:
+        typer.secho(f"invalid: {exc}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1) from exc
+
+
+@tap_app.command("report")
+def tap_report_cmd(
+    path: Annotated[Path, typer.Argument(help="Tap directory, tap-*.jsonl file or tap.sqlite")],
+    request: Annotated[str | None, typer.Option("--request", help="Only this request id")] = None,
+    html: Annotated[Path | None, typer.Option("--html", help="Write an HTML report")] = None,
+    since: Annotated[str | None, typer.Option("--since", help="2h | 1d | ISO date")] = None,
+) -> None:
+    """List the gaps and issues of each traced request."""
+    from memspine.observability import tap_report
+
+    argv = [str(path)]
+    if request:
+        argv += ["--request", request]
+    if html:
+        argv += ["--html", str(html)]
+    if since:
+        argv += ["--since", since]
+    tap_report.main(argv)
 
 
 if __name__ == "__main__":  # pragma: no cover

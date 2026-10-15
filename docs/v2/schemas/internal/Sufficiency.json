@@ -1,0 +1,19 @@
+{
+  "additionalProperties": true,
+  "properties": {
+    "enough": {
+      "title": "Enough",
+      "type": "boolean"
+    },
+    "missing": {
+      "default": "",
+      "title": "Missing",
+      "type": "string"
+    }
+  },
+  "required": [
+    "enough"
+  ],
+  "title": "Sufficiency",
+  "type": "object"
+}

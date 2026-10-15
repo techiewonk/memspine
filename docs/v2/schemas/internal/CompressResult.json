@@ -1,0 +1,40 @@
+{
+  "additionalProperties": true,
+  "properties": {
+    "content_zstd": {
+      "anyOf": [
+        {
+          "format": "binary",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Content Zstd"
+    },
+    "record_id": {
+      "title": "Record Id",
+      "type": "string"
+    },
+    "res": {
+      "anyOf": [
+        {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Res"
+    }
+  },
+  "required": [
+    "record_id"
+  ],
+  "title": "CompressResult",
+  "type": "object"
+}

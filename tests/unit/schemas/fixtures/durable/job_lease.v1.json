@@ -1,0 +1,14 @@
+{
+  "acquired_at": "2026-03-01T09:31:00Z",
+  "epoch": 4,
+  "heartbeat_at": "2026-03-01T09:32:00Z",
+  "job_id": "job-5",
+  "lease_until": "2026-03-01T09:37:00Z",
+  "owner": "worker-1:abc",
+  "schema_version": 1,
+  "scope": {
+    "owner": "owner-1",
+    "owner_kind": "user",
+    "tenant": "tenant-a"
+  }
+}

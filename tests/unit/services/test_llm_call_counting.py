@@ -11,7 +11,7 @@ import pytest
 
 from memspine import Engine
 from memspine.config.schema import MemspineConfig
-from memspine.services.llm.base import LLMRouter, LLMService, _Counted
+from memspine.models.providers.llm.base import LLMRouter, LLMService, _Counted
 
 
 class _Stub:
@@ -65,10 +65,10 @@ async def test_model_calls_after_write_read_sleep(monkeypatch: pytest.MonkeyPatc
         "reflect": _Stub("reflect", '{"insights": []}'),
     }
 
-    async def router(self: Engine, config: MemspineConfig) -> LLMRouter:
+    async def router(config: MemspineConfig, hooks: object = None) -> LLMRouter:
         return LLMRouter(stubs)
 
-    monkeypatch.setattr(Engine, "_build_llm_router", router)
+    monkeypatch.setattr("memspine.runtime.container.build_llm_router", router)
     eng = Engine(
         template="core",
         dotenv_path=None,

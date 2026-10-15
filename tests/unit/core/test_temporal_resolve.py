@@ -6,7 +6,7 @@ from datetime import date
 
 import pytest
 
-from memspine.core.temporal_resolve import annotate, resolve
+from memspine.models.encoders.query.temporal_resolve import annotate, resolve
 
 SAT = date(2023, 7, 15)  # a Saturday
 

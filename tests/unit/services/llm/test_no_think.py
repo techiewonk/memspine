@@ -7,11 +7,11 @@ from typing import Any
 import pytest
 
 from memspine import Engine
+from memspine.models.providers.llm.base import LLMRouter
+from memspine.models.providers.llm.litellm_llm import LiteLLMLLM, strip_think
+from memspine.models.providers.llm.structured import _parse_payload
 from memspine.prompts.base import PromptFormat
 from memspine.prompts.models import ExtractedFacts
-from memspine.services.llm.base import LLMRouter
-from memspine.services.llm.litellm_llm import LiteLLMLLM, strip_think
-from memspine.services.llm.structured import _parse_payload
 
 QWEN = "bedrock/converse/qwen.qwen3-32b-v1:0"
 
@@ -67,6 +67,19 @@ async def test_no_think_suffix_added_for_qwen3_only(monkeypatch: pytest.MonkeyPa
     assert qwen_sent[0]["content"] == "be brief"
     assert gpt_sent[-1]["content"] == "second"
     assert messages[-1]["content"] == "second"  # the caller's list is not mutated
+
+
+async def test_no_think_on_ollama_sends_think_false(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Ollama ignores the /no_think suffix for Qwen3.5 (empty content after max_tokens of reasoning, 2026-10-12):
+    the adapter also sends Ollama's own ``think=False``; other providers never get the key."""
+    seen = _capture(monkeypatch, "ok")
+    await LiteLLMLLM("ollama/qwen3.5:9b").chat([{"role": "user", "content": "q"}])
+    await LiteLLMLLM("ollama_chat/qwen3.5:9b", no_think=True).chat([{"role": "user", "content": "q"}])
+    await LiteLLMLLM("ollama/qwen3.5:9b", no_think=False).chat([{"role": "user", "content": "q"}])
+    await LiteLLMLLM(QWEN).chat([{"role": "user", "content": "q"}])
+    assert seen[0]["think"] is False and seen[1]["think"] is False
+    assert "think" not in seen[2]  # thinking explicitly allowed
+    assert "think" not in seen[3]  # not an Ollama provider: the suffix alone
 
 
 async def test_no_think_explicit_override(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -210,7 +223,7 @@ def _fake_llama(monkeypatch: pytest.MonkeyPatch, reply: str) -> list[list[dict[s
 
 async def test_llama_cpp_strips_think_and_parses(monkeypatch: pytest.MonkeyPatch) -> None:
     """B-7: the in-process provider strips a think block like the LiteLLM one."""
-    from memspine.services.llm.llama_cpp import LlamaCppLLM
+    from memspine.models.providers.llm.llama_cpp import LlamaCppLLM
 
     _fake_llama(monkeypatch, "<think>x</think>facts: []")
     reply = await LlamaCppLLM(model_path="m.gguf").chat([{"role": "user", "content": "q"}])
@@ -220,7 +233,7 @@ async def test_llama_cpp_strips_think_and_parses(monkeypatch: pytest.MonkeyPatch
 
 
 async def test_llama_cpp_honours_no_think(monkeypatch: pytest.MonkeyPatch) -> None:
-    from memspine.services.llm.llama_cpp import LlamaCppLLM
+    from memspine.models.providers.llm.llama_cpp import LlamaCppLLM
 
     seen = _fake_llama(monkeypatch, "ok")
     await LlamaCppLLM(model_path="Qwen3-8B-Q4.gguf").chat([{"role": "user", "content": "q"}])
@@ -231,7 +244,7 @@ async def test_llama_cpp_honours_no_think(monkeypatch: pytest.MonkeyPatch) -> No
 
 def test_lenient_yaml_maps_nulls_to_none() -> None:
     """B-4: ``null``, ``~`` and empty values salvage as None, not strings."""
-    from memspine.services.llm.structured import _lenient_yaml_items
+    from memspine.models.providers.llm.structured import _lenient_yaml_items
 
     text = (
         "facts:\n"
@@ -253,7 +266,7 @@ def test_lenient_yaml_maps_nulls_to_none() -> None:
 
 def test_lenient_yaml_refuses_nested_lists() -> None:
     """B-4: structure under a field is not folded into text; salvage gives up."""
-    from memspine.services.llm.structured import _lenient_yaml_items
+    from memspine.models.providers.llm.structured import _lenient_yaml_items
 
     text = "facts:\n  - entity: ana\n    aliases:\n      - Annie\n      - A\n"
     assert _lenient_yaml_items(text) is None

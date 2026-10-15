@@ -83,6 +83,58 @@ def parse_service_prices(specs: list[str] | None) -> tuple[tuple[str, str, float
 DEFAULT_OUT = Path(__file__).resolve().parents[1] / "runs"
 
 
+def parse_item_ids(value: str | None) -> tuple[str, ...] | None:
+    """``--item-ids``: a comma list, or ``@path`` to a frozen split file / one-id-per-line file.
+
+    A split JSON (``dev_items``, or ``blind_items`` for the blind validation slices) is read
+    as its id list, so a run names the frozen slice instead of pasting 200 ids.
+    """
+    if not value:
+        return None
+    if not value.startswith("@"):
+        return tuple(value.split(","))
+    path = Path(value[1:])
+    text = path.read_text(encoding="utf-8")
+    if text.lstrip().startswith("{"):
+        payload = json.loads(text)
+        ids = payload.get("blind_items") or payload.get("dev_items")
+        if not ids:
+            raise SystemExit(f"--item-ids {value}: no blind_items / dev_items in the file")
+        return tuple(str(i) for i in ids)
+    if text.lstrip().startswith("["):
+        return tuple(str(i) for i in json.loads(text))
+    return tuple(ln.strip() for ln in text.splitlines() if ln.strip())
+
+
+def parse_query_slice_id(value: str | None) -> str | None:
+    """RUNBOOK2: the ``slice_id`` of a sample-slice file given as ``--query-ids @file`` (None for any other form)."""
+    if not value or not value.startswith("@"):
+        return None
+    text = Path(value[1:]).read_text(encoding="utf-8")
+    if not text.lstrip().startswith("{"):
+        return None
+    sid = json.loads(text).get("slice_id")
+    return str(sid) if sid else None
+
+
+def parse_query_ids(value: str | None) -> tuple[str, ...] | None:
+    """``--query-ids``: comma list, or ``@path`` (focus-slice JSON object with ``query_ids``,
+    a JSON list, or one ``item_id/query_id`` per line). Entries are ``item_id/query_id``."""
+    if not value:
+        return None
+    if not value.startswith("@"):
+        return tuple(value.split(","))
+    text = Path(value[1:]).read_text(encoding="utf-8")
+    if text.lstrip().startswith("{"):
+        ids = json.loads(text).get("query_ids")
+        if not ids:
+            raise SystemExit(f"--query-ids {value}: no query_ids in the file")
+        return tuple(str(i) for i in ids)
+    if text.lstrip().startswith("["):
+        return tuple(str(i) for i in json.loads(text))
+    return tuple(ln.strip() for ln in text.splitlines() if ln.strip())
+
+
 def _dataset(args: argparse.Namespace) -> DatasetAdapter:
     if args.dataset == "synthetic":
         from .datasets import SyntheticDataset
@@ -94,7 +146,10 @@ def _dataset(args: argparse.Namespace) -> DatasetAdapter:
         from .datasets import LoCoMoDataset
 
         return LoCoMoDataset(
-            args.path, revision_id=args.revision, categories=resolve_categories(args)
+            args.path,
+            revision_id=args.revision,
+            categories=resolve_categories(args),
+            repair_evidence=getattr(args, "repair_evidence", False),
         )
     if args.dataset == "convomem":
         from .datasets import ConvoMemDataset
@@ -109,6 +164,17 @@ def _dataset(args: argparse.Namespace) -> DatasetAdapter:
         from .datasets import MemoryAgentBenchDataset
 
         return MemoryAgentBenchDataset(args.path, revision_id=args.revision)
+    if args.dataset == "op_bench":
+        from .datasets import OPBenchDataset
+
+        tasks = tuple(t for t in (args.opbench_tasks or "").split(",") if t.strip())
+        return OPBenchDataset(
+            args.path,
+            revision_id=args.revision,
+            **({"tasks": tasks} if tasks else {}),
+            both_personas=args.both_personas,
+            per_task=args.opbench_per_task,
+        )
     if args.dataset == "locomo_plus":
         from .datasets import LoCoMoPlusDataset
 
@@ -120,6 +186,95 @@ def _dataset(args: argparse.Namespace) -> DatasetAdapter:
 
         return LongMemEvalDataset(args.path, revision_id=args.revision, variant=args.variant)
     raise SystemExit(f"unknown dataset {args.dataset!r}")
+
+
+def apply_opbench_protocol(args: argparse.Namespace) -> list[str]:
+    """OP-Bench runs use the official answer prompt and judge (``analysis/OPBENCH_PROTOCOL.md``).
+
+    Picks ``--qa-prompt opbench_assistant`` and ``--judge-prompt opbench`` when they are left
+    at their defaults, refuses a conflicting choice (they would grade open-ended assistant
+    replies as factual QA), and switches off the LoCoMo-only reader and judge fixes: the
+    refusal retry, the judge guards, the date check and the answer verifier. Returns the log
+    lines it printed.
+    """
+    notes: list[str] = []
+    qa = args.mode == "qa" and not args.retrieval_only
+    if args.dataset != "op_bench":
+        if args.qa_prompt == "opbench_assistant" or args.judge_prompt == "opbench":
+            raise SystemExit(
+                "--qa-prompt opbench_assistant / --judge-prompt opbench need --dataset op_bench"
+            )
+        return notes
+    if not qa:
+        return notes
+    if args.bedrock or args.protocol:
+        raise SystemExit("OP-Bench runs use the local reader and judge: no --bedrock / --protocol")
+    if args.qa_prompt == "default":
+        args.qa_prompt = "opbench_assistant"
+        notes.append("OP-Bench: --qa-prompt default -> opbench_assistant (official prompt)")
+    elif args.qa_prompt != "opbench_assistant":
+        raise SystemExit(
+            f"--qa-prompt {args.qa_prompt} is a factual-QA prompt; OP-Bench probes are "
+            "open-ended assistant requests: use opbench_assistant (or leave the default)"
+        )
+    if args.judge_prompt == "rubric":
+        args.judge_prompt = "opbench"
+        notes.append("OP-Bench: --judge-prompt rubric -> opbench (official OP-Bench judge)")
+    elif args.judge_prompt != "opbench":
+        raise SystemExit(f"--judge-prompt {args.judge_prompt} cannot grade OP-Bench; use opbench")
+    for flag in (
+        "retry_refusal",
+        "retry_guard",
+        "retry_overlap",
+        "judge_guards",
+        "judge_date_check",
+        "judge_conventions",
+        "judge_conventions_v2",
+        "judge_conventions_v3",
+        "count_verify",
+        "date_repair",
+        "duration_solve",
+        "milestones",
+        "verify_answer",
+        "verify_slots",
+        "evidence_table",
+    ):
+        if getattr(args, flag):
+            setattr(args, flag, False)
+            notes.append(
+                f"OP-Bench: --{flag.replace('_', '-')} ignored (a LoCoMo factual-QA fix; it "
+                "does not apply to open-ended assistant replies)"
+            )
+    for note in notes:
+        print(note, file=sys.stderr, flush=True)
+    return notes
+
+
+def finalize_opbench(
+    dataset: DatasetAdapter, summaries: list, out: Path, config: C01Config
+) -> None:
+    """After an OP-Bench run: the official aggregation (QA mode) and the retrieval proxies,
+    printed, written to ``<run>/opbench_summary.json`` and merged into ``summary.json``."""
+    from .opbench import aggregate, default_embedder, diagnostics, render_report, write_report
+    from .results import read_run
+
+    meta = {q.query_id: q.meta for item in dataset.items() for q in item.queries}
+    embed = None
+    for summary in summaries:
+        run_dir = out / summary.run_id
+        _, rows, _ = read_run(run_dir / "results.jsonl")
+        report: dict = {}
+        if config.mode == "qa" and not config.retrieval_only:
+            embed = embed or default_embedder(config.embedding_model)
+            report = aggregate(rows, embed)
+        report["diagnostics"] = diagnostics(rows, meta)
+        write_report(run_dir, report)
+        path = run_dir / "summary.json"
+        if path.exists():
+            payload = json.loads(path.read_text(encoding="utf-8"))
+            payload["opbench"] = {k: v for k, v in report.items() if k != "per_probe"}
+            path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+        print(f"\n{summary.run_id}\n{render_report(report)}")
 
 
 def cmd_smoke(args: argparse.Namespace) -> int:
@@ -138,6 +293,18 @@ def cmd_smoke(args: argparse.Namespace) -> int:
     return 0
 
 
+def failed_rerank_checks(out: Path, summaries: list) -> list[str]:
+    """B11: run ids whose ``summary.json`` says ``rerank_check: FAILED``."""
+    failed = []
+    for summary in summaries:
+        path = out / summary.run_id / "summary.json"
+        if not path.exists():
+            continue
+        if json.loads(path.read_text(encoding="utf-8")).get("rerank_check") == "FAILED":
+            failed.append(summary.run_id)
+    return failed
+
+
 def cmd_c0_1(args: argparse.Namespace) -> int:
     if args.cache_reader and not args.cache_dir:
         raise SystemExit("--cache-reader needs --cache-dir")
@@ -147,6 +314,21 @@ def cmd_c0_1(args: argparse.Namespace) -> int:
             file=sys.stderr,
             flush=True,
         )
+    if getattr(args, "inspect", False):  # TI-2: the memspine system dumps store snapshots
+        import os
+
+        os.environ["MEMSPINE_INSPECT"] = "1"
+    apply_opbench_protocol(args)
+    if args.warn_localhost:  # E1: the host name 'localhost' can add ~2 s per connection on Windows
+        from .netcheck import warn_localhost
+
+        warn_localhost([("--base-url", args.base_url)])
+    opbench_root = None
+    if args.dataset == "op_bench" and args.mode == "qa" and not args.retrieval_only:
+        from .opbench import load_judge_prompts, resolve_root
+
+        opbench_root = str(resolve_root(args.path))
+        load_judge_prompts(opbench_root)  # fail before any ingestion if the checkout is partial
     dataset = _dataset(args)
     config = C01Config(
         # screening runs read as the QA run would, but never generate
@@ -166,12 +348,17 @@ def cmd_c0_1(args: argparse.Namespace) -> int:
         memspine_config=json.loads(args.memspine_config) if args.memspine_config else None,
         memspine_read_mode=args.memspine_read_mode,
         memspine_as_of_question_date=args.memspine_as_of_question_date,
+        memspine_mark_hits=args.memspine_mark_hits,
+        stamp_timezone=args.stamp_timezone,
+        memspine_context_order=args.memspine_context_order,
         memspine_build_sleep=args.memspine_build_sleep,
         memspine_batch_turns=args.memspine_batch_turns,
         qa_prompt=args.qa_prompt,
         judge_prompt=args.judge_prompt,
         only_systems=tuple(args.only_systems.split(",")) if args.only_systems else None,
-        item_ids=tuple(args.item_ids.split(",")) if args.item_ids else None,
+        item_ids=parse_item_ids(args.item_ids),
+        query_ids=parse_query_ids(args.query_ids),
+        query_slice_id=parse_query_slice_id(args.query_ids),
         categories=resolve_categories(args) if args.dataset == "locomo" else None,
         naive_dense_same_embedder=args.naive_dense_same_embedder,
         matched_budget_tokens=args.matched_budget_tokens,
@@ -180,9 +367,56 @@ def cmd_c0_1(args: argparse.Namespace) -> int:
         service_prices=parse_service_prices(args.price),
         max_usd=args.max_usd,
         verify_answer=args.verify_answer,
+        retry_refusal=args.retry_refusal,
+        retry_guard=args.retry_guard,
+        retry_mode=args.retry_mode,
+        retry_overlap=args.retry_overlap,
+        no_record_hint=args.no_record_hint,
+        premise_tolerant=args.premise_tolerant,
+        refusal_match=args.refusal_match,
+        no_memory_prompt=args.no_memory_prompt,
+        decider=args.decider,
+        decider_model=args.decider_model,
+        decider_device=args.decider_device,
+        decider_min_confidence=args.decider_min_confidence,
+        decider_threads=args.decider_threads,
+        decider_backend=args.decider_backend,
+        decider_dtype=args.decider_dtype,
+        decider_workers=args.decider_workers,
+        judge_guards=args.judge_guards,
+        judge_date_check=args.judge_date_check,
+        judge_conventions=args.judge_conventions,
+        judge_conventions_v2=args.judge_conventions_v2,
+        judge_conventions_v3=args.judge_conventions_v3,
+        count_verify=args.count_verify,
+        date_repair=args.date_repair,
+        duration_solve=args.duration_solve,
+        milestones=args.milestones,
+        milestones_inclusive=args.milestones_inclusive,
+        verify_slots=args.verify_slots,
+        evidence_table=args.evidence_table,
+        assertion_check=args.assertion_check,
         retrieval_only=args.retrieval_only,
+        trace_full=args.trace_full,
         cache_dir=args.cache_dir,
         cache_reader=args.cache_reader,
+        presence_penalty=args.presence_penalty,
+        frequency_penalty=args.frequency_penalty,
+        top_p=args.top_p,
+        sampler_seed=args.sampler_seed,
+        server_ctx=args.server_ctx,
+        strict_ctx=args.strict_ctx,
+        token_count=args.token_count,
+        tokenizer_id=args.tokenizer_id,
+        capture_runtime=not args.no_runtime_capture,
+        opbench_root=opbench_root,
+        # a local Ollama is asked for its version / loaded models only when this run uses it
+        probe_server=(
+            not args.no_runtime_capture
+            and not args.bedrock
+            and not args.retrieval_only
+            and args.mode == "qa"
+        ),
     )
     if args.protocol:
         from .experiments import apply_protocol_preset
@@ -257,6 +491,18 @@ def cmd_c0_1(args: argparse.Namespace) -> int:
 
     print(table)
     print(f"\nwritten: {out_dir / 'COMPARISON.md'}")
+    if args.dataset == "op_bench":
+        finalize_opbench(dataset, summaries, Path(args.out), config)
+    failed = failed_rerank_checks(Path(args.out), summaries)
+    if failed:
+        # B11 [RET-3]: a configured reranker that never ran (or failed) voids the run
+        print(
+            f"ERROR: rerank_check FAILED for {', '.join(failed)}: the reranker is configured "
+            "but made no call or failed; the numbers are not the configured pipeline's",
+            file=sys.stderr,
+            flush=True,
+        )
+        return 3
     return 0
 
 
@@ -292,14 +538,38 @@ def build_parser() -> argparse.ArgumentParser:
             "locomo_plus",
             "longmemeval",
             "memoryagentbench",
+            "op_bench",
             "synthetic",
         ),
         required=True,
     )
+    c01.add_argument(
+        "--both-personas",
+        action="store_true",
+        help="op_bench: score both speakers of each conversation (the official default is the "
+        "first speaker only, 869 probes)",
+    )
+    c01.add_argument(
+        "--opbench-tasks",
+        default=None,
+        help="op_bench: comma list from irrelevance_easy,irrelevance_hard,sycophancy,diversity "
+        "(default all four)",
+    )
+    c01.add_argument(
+        "--opbench-per-task",
+        type=int,
+        default=None,
+        metavar="N",
+        help="op_bench rehearsals: keep only the first N probes of each task per persona",
+    )
     c01.add_argument("--per-stratum", type=int, default=20, help="ConvoMem items per stratum")
     c01.add_argument("--filler", type=int, default=0, help="ConvoMem filler conversations")
     c01.add_argument("--locomo-path", default=None, help="locomo10.json paired with LoCoMo-Plus")
-    c01.add_argument("--path", help="path to the dataset json")
+    c01.add_argument(
+        "--path",
+        help="path to the dataset json (op_bench: the OP-Bench checkout, e.g. "
+        "data/opbench_src, or its data/ folder)",
+    )
     c01.add_argument(
         "--revision",
         default="auto",
@@ -321,7 +591,14 @@ def build_parser() -> argparse.ArgumentParser:
     c01.add_argument("--items", type=int, default=None, help="cap items (pilot runs)")
     c01.add_argument("--reader-model", default="qwen3:4b")
     c01.add_argument("--judge-model", default=None)
-    c01.add_argument("--base-url", default="http://localhost:11434/v1")
+    c01.add_argument("--base-url", default="http://127.0.0.1:11434/v1")
+    c01.add_argument(
+        "--warn-localhost",
+        action="store_true",
+        help="E1: print a warning when --base-url uses the host name 'localhost' (on Windows it "
+        "can try ::1 first and add about 2 s per new connection); use 127.0.0.1. Reads the URL "
+        "only, changes nothing; evals/bench_http.py measures the cost. Off by default",
+    )
     c01.add_argument("--max-model-calls", type=int, default=None)
     c01.add_argument(
         "--bedrock", action="store_true", help="D23 Qwen3 protocol: Bedrock Qwen3 reader + judge"
@@ -343,7 +620,11 @@ def build_parser() -> argparse.ArgumentParser:
         help=(
             "QA judge on every endpoint: rubric (QA; abstention-aware), constraint "
             "(LoCoMo-Plus), alias, locomo-plus-v2 (official LoCoMo-Plus prompts), longmemeval "
-            "(anscheck templates by type), omnimemeval (official OmniMemEval LoCoMo judge)"
+            "(anscheck templates by type), omnimemeval (official OmniMemEval LoCoMo judge), "
+            "mem0-official (Mem0 paper J-score judge, CORRECT/WRONG, generous on same-topic "
+            "answers; vendored text, cannot grade cat-5 abstention), "
+            "rubric-guarded (rubric plus relative-date and hedged-answer rules), "
+            "opbench (official OP-Bench judge prompts; --dataset op_bench only)"
         ),
     )
     c01.add_argument(
@@ -354,6 +635,20 @@ def build_parser() -> argparse.ArgumentParser:
             "dated2",
             "dated_infer",
             "dated3",
+            "grounded",
+            "grounded_detail",
+            "grounded_legacy",
+            "grounded_detail_legacy",
+            "grounded_nodate",
+            "grounded_detail_nodate",
+            "grounded_ordered",
+            "grounded_v2",
+            "grounded_v3",
+            "grounded_generic",
+            "grounded_generic_infer",
+            "grounded_generic_list",
+            "grounded_generic_prefs",
+            "routed_generic",
             "dated_world",
             "abstain",
             "converse",
@@ -363,10 +658,228 @@ def build_parser() -> argparse.ArgumentParser:
             "dated_planned",
             "dated_noabstain",
             "evermemos_cot",
+            "opbench_assistant",
         ),
         default="default",
         help="QA prompt variant for every arm (H7/H12); question_dated shows the question date; "
-        "routed (C1) picks dated / a temporal / an inference variant per question",
+        "routed (C1) picks dated / a temporal / an inference variant per question; "
+        "grounded explains the line dates and [= date] annotations, no blanket refusal",
+    )
+    c01.add_argument(
+        "--retry-refusal",
+        action="store_true",
+        help="re-ask once, with a firmer instruction, when the reader refuses (or answers "
+        "empty) on a non-empty context; both answers land in the row meta, the extra call "
+        "counts against --max-model-calls; off by default",
+    )
+    c01.add_argument(
+        "--retry-guard",
+        action="store_true",
+        help="C10: with --retry-refusal, do not retry when the question names an entity the "
+        "retrieved context never mentions (an unanswerable question; a retry can only "
+        "fabricate). The retry is always capped at one re-ask on a non-empty context; off "
+        "by default",
+    )
+    c01.add_argument(
+        "--retry-mode",
+        choices=("neutral", "assertive"),
+        default="neutral",
+        help="I1: wording of the --retry-refusal instruction. neutral (default) never claims "
+        "evidence exists; assertive is the original firmer wording, kept to reproduce earlier "
+        "runs (reader id loses the -neutral suffix)",
+    )
+    c01.add_argument(
+        "--retry-overlap",
+        action="store_true",
+        help="I1: with --retry-refusal, accept the retry answer only when it shares a content "
+        "word with the retrieved context (a safety valve against a fabricated retry); off by "
+        "default",
+    )
+    c01.add_argument(
+        "--no-memory-prompt",
+        action="store_true",
+        help="I29: when the retrieved context is empty (read.relevance_gate / abstention "
+        "returned nothing) the reader gets a no-memory prompt and answers from the question "
+        "alone; off by default (the QA prompt is rendered with an empty Memories block)",
+    )
+    c01.add_argument(
+        "--stamp-timezone",
+        default="UTC",
+        metavar="IANA",
+        help="F5: the zone the dataset's naive wall-clock session stamps are read in (default "
+        "UTC: stored as written, no conversion; a one-time warning says so)",
+    )
+    c01.add_argument(
+        "--refusal-match",
+        choices=("whole", "legacy"),
+        default="whole",
+        help="I22: what counts as a refusal (--retry-refusal, date check). whole (default): the "
+        "WHOLE answer is a refusal statement; legacy: the original substring regexes, which also "
+        "matched negative facts ('There is no school on Friday', 'I did not go')",
+    )
+    c01.add_argument(
+        "--no-record-hint",
+        action="store_true",
+        help="I32: when the question recalls a past event (first-person cues) and the retrieved "
+        "context does not support it, tell the reader no matching memory was found; no extra "
+        "model call; off by default",
+    )
+    c01.add_argument(
+        "--premise-tolerant",
+        action="store_true",
+        help="I61: tell the reader to answer the part memory supports and correct a detail "
+        "(date, person, item) that differs, instead of confirming or refusing; no extra model "
+        "call; off by default. Trades against abstention: screen with the cat-5 guard slice",
+    )
+    c01.add_argument(
+        "--decider",
+        choices=("heuristic", "opendecider"),
+        default="heuristic",
+        help="I28: who decides whether an answer is a refusal (with --retry-refusal). "
+        "heuristic (default) = the is_refusal regex; opendecider = OpenDecider-nano on the "
+        "question and the answer text only (never the gold or the category), the regex "
+        "when it is unsure or fails. Needs the [decider] extra",
+    )
+    c01.add_argument("--decider-model", default="manjunathshiva/opendecider-nano")
+    c01.add_argument("--decider-device", choices=("cpu", "cuda", "mps", "auto"), default="cpu")
+    c01.add_argument("--decider-min-confidence", type=float, default=0.5)
+    c01.add_argument("--decider-threads", type=int, default=0, help="0 = physical cores")
+    c01.add_argument("--decider-backend", choices=("torch", "onnx"), default="torch")
+    c01.add_argument("--decider-dtype", choices=("float32", "bfloat16"), default="float32")
+    c01.add_argument("--decider-workers", type=int, default=1)
+    c01.add_argument(
+        "--judge-guards",
+        action="store_true",
+        help="empty answers score wrong without a judge call; with --judge-prompt rubric the "
+        "judge is the rubric-guarded variant (equivalent relative-date phrasings and hedged "
+        "answers that contain the gold fact are CORRECT); off by default",
+    )
+    c01.add_argument(
+        "--judge-date-check",
+        action="store_true",
+        help="gap A2: before the LLM judge, credit an answer whose first date is the single day "
+        "the "
+        "gold names (e.g. 'the Friday before 15 March 2021'); refusals and denials never credited",
+    )
+    c01.add_argument(
+        "--judge-conventions",
+        action="store_true",
+        help="I58: also record the verdict under the deterministic judge conventions (a number "
+        "word equals its digit, a one-letter typo in a proper noun, a list holding every gold "
+        "item plus uncontradicted extras) as score_conventions; the LLM verdict (score) is "
+        "unchanged, so every run has two columns; off by default",
+    )
+    c01.add_argument(
+        "--judge-conventions-v2",
+        action="store_true",
+        help="I77: also record the verdict under the v2 conventions (v1 plus: a date written "
+        "another way, a quantity in another unit of the same dimension, an ordinal in digits or "
+        "words, a listed everyday alias) as score_conventions_v2 / convention_v2; a third column "
+        "next to score and score_conventions, which never change; off by default",
+    )
+    c01.add_argument(
+        "--judge-conventions-v3",
+        action="store_true",
+        help="R14-M-17: also record the verdict under the v3 conventions (v2 plus: a list matched "
+        "with negation scoped to the item, a short gold contained in the answer with extra "
+        "detail, a city for a country, 'N years ago' met by a year) as score_conventions_v3 / "
+        "convention_v3; a column next to the others, which never change; off by default",
+    )
+    c01.add_argument(
+        "--repair-evidence",
+        action="store_true",
+        help="R14-M-19: LoCoMo gold turn ids through the strict evidence parser (whitespace-joined "
+        "lists, stray colon, existence check); off by default (official labels as the file holds them)",
+    )
+    c01.add_argument(
+        "--count-verify",
+        nargs="?",
+        const="two_call",
+        default="",
+        choices=("two_call", "single"),
+        help="I56: count questions (how many ...): the reader lists the distinct items with "
+        "their dates as JSON, code merges repeats and counts. two_call (default when given): "
+        "+1 reader call on count questions; single: one call that lists, then counts. "
+        "Off by default",
+    )
+    c01.add_argument(
+        "--date-repair",
+        action="store_true",
+        help="I57: for a 'when' question, resolve a relative phrase or bare weekday in the "
+        "answer, or fix a weekday that disagrees with its date, against the date of the cited "
+        "context line (core/temporal_resolve; no model call); off by default",
+    )
+    c01.add_argument(
+        "--duration-solve",
+        nargs="?",
+        const="rewrite",
+        default="",
+        choices=("rewrite", "hint"),
+        help="I76: for 'how many months between X and Y' / 'how long since X' questions, find "
+        "the two event dates in the cited lines and subtract in code (no model call). rewrite "
+        "(default when given): replace a disagreeing or refused answer; hint: put the computed "
+        "line on top of the context. Abstains when an event cannot be named; off by default",
+    )
+    c01.add_argument(
+        "--milestones",
+        nargs="?",
+        const="nearest",
+        default="",
+        choices=("nearest", "floor"),
+        help="E05: for a duration question ('how long did it take', 'after how many weeks', "
+        "'the first ... the second ...', 'how many months since'), ONE structured model call "
+        "extracts the start/end milestones (actor, event, status, source line, exact span); code "
+        "resolves their dates, validates them (status, actor, ordinal, conflicts) and computes the "
+        "elapsed time. The value is the rounding (nearest, or floor = completed units). Replaces a "
+        "disagreeing or refused answer only; fails closed; skips what --duration-solve settled; "
+        "off by default",
+    )
+    c01.add_argument(
+        "--milestones-inclusive",
+        action="store_true",
+        help="E05: count both end days of the interval (default: the start day is not counted)",
+    )
+    c01.add_argument(
+        "--verify-slots",
+        nargs="?",
+        const="strict",
+        default="",
+        choices=("strict", "soft", "diagnosed"),
+        help="E06: code-check each answer against the question's typed contract (a date for a "
+        "'when' question, a number for 'how many', a city not a country, a polarity for yes/no, "
+        "a count equal to its list) and repair a named defect with ONE extra reader call over "
+        "the same memories. An abstention is never repaired; a repair is kept only when the "
+        "defect is gone. strict (default when given): the strict checks; soft: also the noisier "
+        "unnamed-answer signals; diagnosed (G01): strict plus a retry only for a diagnosed defect "
+        "(a name no memory line contains, an a - b = c that does not hold, a duration its own "
+        "dates do not give, a refusal although a context line names the subject and the relation); "
+        "a retry answering a refusal must be supported by that line, an evidence-based unknown is "
+        "never retried, the retry cost is recorded. Off by default; not the same as "
+        "--verify-answer (#39)",
+    )
+    c01.add_argument(
+        "--evidence-table",
+        action="store_true",
+        help="A04/A06: for list and count questions, ONE structured call builds a provenance-"
+        "linked table (item, source line, exact span, actor, predicate match, status, date); "
+        "code validates every row, filters by actor / predicate / status / time scope, dedupes by "
+        "identity (a repeated activity on another day is a new event unless the text says it is "
+        "the same) and reconciles explicit running totals (range or unresolved on conflict). "
+        "Feeds --count-verify (counts the distinct rows) and --verify-slots (list completeness); "
+        "needs one of them. Off by default",
+    )
+    c01.add_argument(
+        "--assertion-check",
+        nargs="?",
+        const="rules",
+        default="",
+        choices=("rules", "llm"),
+        help="P03: when the user message asserts a past event, a recalled conversation or a habit "
+        "('I went', 'remember when', 'as I told you', 'I always'), classify it against the "
+        "retrieved memory as supported / contradicted / unknown and give the reader a precise "
+        "note (proceed / correct the premise with the memory line / say there is no record). A "
+        "preference stated now is never challenged. rules (default when given): code only; llm: "
+        "one small decider call per claim first, the rules as fallback. Off by default",
     )
     c01.add_argument(
         "--verify-answer",
@@ -393,6 +906,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
     c01.add_argument("--item-ids", default=None, help="comma list of item ids (resume a run)")
     c01.add_argument(
+        "--query-ids",
+        default=None,
+        help="question filter: comma list of item_id/query_id, or @file (focus slice JSON, JSON list, one per line)",
+    )
+    c01.add_argument(
         "--memspine-build-sleep",
         action="store_true",
         help="run Engine.sleep() after ingestion so write-time stages take part (H2/H8/H14)",
@@ -410,6 +928,21 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="memspine arm reads as of each question's date (LongMemEval question_date; "
         "N34), so turns recorded after the question are never retrieved",
+    )
+    c01.add_argument(
+        "--memspine-mark-hits",
+        choices=("off", "star", "rank"),
+        default="off",
+        help="memspine arm: mark the context lines that are final search hits for the reader "
+        "(star: '* ' prefix; rank: '[hit k] ' prefix); neighbour lines stay unmarked (C1)",
+    )
+    c01.add_argument(
+        "--memspine-context-order",
+        choices=("chrono", "hits_first", "hit_blocks"),
+        default="chrono",
+        help="memspine arm: order of the rendered context lines (R2-4). chrono: as read; "
+        "hits_first: final search hits in rank order, then the rest chronologically; "
+        "hit_blocks: each hit with its neighbour lines, blocks in rank order",
     )
     c01.add_argument(
         "--memspine-read-mode",
@@ -448,6 +981,22 @@ def build_parser() -> argparse.ArgumentParser:
         "cross it is refused and the arm stops with UNATTEMPTED rows",
     )
     c01.add_argument(
+        "--trace-full",
+        action="store_true",
+        help="log, per question, the exact reader prompt, the raw reader reply, every retry / "
+        "post-step call and the judge prompt and raw reply (row meta.trace_full); with "
+        "MEMSPINE_FORENSICS_DIR the memspine adapter also writes write_trace.jsonl and extra "
+        "read-path fields. Off by default (size); scoring is unchanged",
+    )
+    c01.add_argument(
+        "--inspect",
+        action="store_true",
+        help="Trace Inspector (TI-2): the memspine system dumps records.jsonl, links.jsonl and "
+        "sleep.jsonl after ingest and after sleep to <MEMSPINE_FORENSICS_DIR or trace dir>/"
+        "inspect/ (same as MEMSPINE_INSPECT=1; MEMSPINE_INSPECT_CONTENT=0 leaves the text "
+        "out). Read-only; scoring is unchanged",
+    )
+    c01.add_argument(
         "--retrieval-only",
         action="store_true",
         help="screening: ingest and read every question exactly as the QA run would (same "
@@ -467,6 +1016,64 @@ def build_parser() -> argparse.ArgumentParser:
         "--cache-reader",
         action="store_true",
         help="with --cache-dir: cache reader and judge completions too (temperature 0 only)",
+    )
+    c01.add_argument(
+        "--presence-penalty",
+        type=float,
+        default=0.0,
+        help="A8: sampler presence_penalty sent with every reader and judge request (default 0; "
+        "before this flag the server's own default, 1.5 for Qwen3.5 on Ollama, applied silently)",
+    )
+    c01.add_argument(
+        "--frequency-penalty",
+        type=float,
+        default=0.0,
+        help="A8: sampler frequency_penalty sent with every reader and judge request (default 0)",
+    )
+    c01.add_argument(
+        "--top-p",
+        type=float,
+        default=1.0,
+        help="A8: sampler top_p sent with every reader and judge request (default 1)",
+    )
+    c01.add_argument(
+        "--sampler-seed",
+        type=int,
+        default=None,
+        help="A8: sampler seed sent with every reader and judge request (default: --seed)",
+    )
+    c01.add_argument(
+        "--server-ctx",
+        type=int,
+        default=8192,
+        help="D2: the model server's context window in tokens; a reader/judge call with "
+        "prompt + completion tokens >= this - 8 marks the row meta "
+        "server_truncation_suspected and is counted in summary.json (default 8192)",
+    )
+    c01.add_argument(
+        "--strict-ctx",
+        action="store_true",
+        help="D2: raise (stop the run) instead of flagging when a call reaches --server-ctx",
+    )
+    c01.add_argument(
+        "--token-count",
+        choices=("heuristic", "reader"),
+        default="heuristic",
+        help="D1: heuristic (chars/4, default; old runs stay comparable) | reader (count with "
+        "the reader's tokenizer from the local HF cache, drop the lowest-ranked lines of an "
+        "over-budget context instead of cutting its tail, record engine_tokens next to "
+        "context_tokens)",
+    )
+    c01.add_argument(
+        "--tokenizer-id",
+        default=None,
+        help="D1: Hugging Face tokenizer for --token-count reader (default: the first Qwen3 "
+        "tokenizer found in the local cache; offline)",
+    )
+    c01.add_argument(
+        "--no-runtime-capture",
+        action="store_true",
+        help="D4: do not record the manifest runtime block (versions, argv, env, Ollama state)",
     )
     c01.add_argument("--run-id", default=None)
     c01.add_argument("--out", default=str(DEFAULT_OUT))

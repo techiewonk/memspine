@@ -90,7 +90,7 @@ async def laundering_chain(
     the parent is recorded but ignored (the pre-MTI laundering path); with it on,
     MTI-D caps the paraphrase at the parent's view trust.
     """
-    from memspine.core.records import SourceInfo
+    from memspine.store.records import SourceInfo
 
     names = [f"team/a{i + 1}" for i in range(n_agents)]
     engine = _engine(**({"integrity": integrity} if integrity else {}))
@@ -179,7 +179,7 @@ async def sybil_promotion(
     key-only notes no longer corroborate; restating the payload still does, so
     Prop. 4(c) holds until principal-bound corroboration (G5) is on.
     """
-    from memspine.core.records import SourceInfo
+    from memspine.store.records import SourceInfo
 
     engine = _engine()
     await engine.start()
@@ -356,7 +356,7 @@ async def scripted_propagation(
     engine_mode = enforcement == "engine"
     if engine_mode and not integrity_on:
         raise ValueError("enforcement='engine' needs integrity_on=True")
-    from memspine.core.records import SourceInfo
+    from memspine.store.records import SourceInfo
 
     rounds = rounds or n_agents
     names = [f"team/a{i}" for i in range(n_agents)]
@@ -527,7 +527,7 @@ async def _audit_and_rollback(
 ) -> None:
     """H-G4: does the log walk recover the harness's ground-truth taint and
     exposure exactly? H-9: does rollback archive all of it and nothing else?"""
-    from memspine.core.records import RecordStatus
+    from memspine.store.records import RecordStatus
 
     walk = await engine.audit_taint(seed_id, namespace=names[0], cross_namespace=True)
     found = {seed_id, *walk.descendants}
@@ -703,7 +703,7 @@ async def llm_propagation(
     engine_mode = enforcement == "engine"
     if engine_mode and not integrity_on:
         raise ValueError("enforcement='engine' needs integrity_on=True")
-    from memspine.core.records import SourceInfo
+    from memspine.store.records import SourceInfo
 
     names = [f"team/a{i}" for i in range(n_agents)]
     edges = grant_edges(topology, n_agents)

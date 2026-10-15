@@ -1,6 +1,6 @@
 """#30 (SimpleMem synthesis): person-level list cards over mined event facts.
 
-A list question ("What activities does Melanie partake in?") needs every item, and
+A list question ("Which hobbies does Bram enjoy?") needs every item, and
 the items sit in event facts mined from different sessions. This step, run after
 ``mine_facts`` when ``consolidation.list_cards`` is on, groups the live EVENT facts
 of each namespace by (person, class) and keeps one derived card per group::
@@ -29,7 +29,6 @@ from typing import TYPE_CHECKING
 
 from memspine.config import constants
 from memspine.core.event_date import happened_of
-from memspine.core.events import EventKind, MemoryEvent, fingerprint_payload
 from memspine.core.fact_views import (
     PERSON_PREFIX,
     TOPIC_PREFIX,
@@ -37,11 +36,12 @@ from memspine.core.fact_views import (
     tag_values,
     view_tags,
 )
-from memspine.core.records import MemoryRecord, RecordStatus, chrono_key
 from memspine.observability.logging import get_logger
+from memspine.store.events import EventKind, MemoryEvent, fingerprint_payload
+from memspine.store.records import MemoryRecord, RecordStatus, chrono_key
 
 if TYPE_CHECKING:
-    from memspine.workers.pipelines import PipelineContext
+    from memspine.derive.pipeline.stages.context import PipelineContext
 
 __all__ = [
     "LIST_CARD_KEY_PREFIX",
@@ -258,6 +258,12 @@ def _groups(
     return groups
 
 
+async def _sweep_namespaces(ctx: PipelineContext) -> list[str]:
+    from memspine.derive.pipeline.stages.context import sweep_namespaces  # cycle: lazy
+
+    return await sweep_namespaces(ctx)
+
+
 async def derive_list_cards(ctx: PipelineContext) -> dict[str, object]:
     """#30: keep one list card per (person, class) of live event facts, per namespace."""
     if ctx.deposit_list_card is None or ctx.append_event is None:
@@ -265,7 +271,7 @@ async def derive_list_cards(ctx: PipelineContext) -> dict[str, object]:
     await ctx.session_index.refresh(ctx.storage)
     written = kept = archived = 0
     errors: list[str] = []
-    for namespace in await ctx.storage.list_namespaces():
+    for namespace in await _sweep_namespaces(ctx):
         records = await ctx.storage.list_records(namespace, "semantic")
         facts = [r for r in records if _live_event_fact(r)]
         existing: dict[str, list[MemoryRecord]] = {}

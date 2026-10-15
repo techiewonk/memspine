@@ -1,0 +1,636 @@
+{
+ "p": "v2-G2F-full",
+ "c": "clean-jina-full",
+ "n_common": 1540,
+ "by_cat": {
+  "cat1": {
+   "n": 282,
+   "broken": 20,
+   "fixed": 25,
+   "net": 5,
+   "acc_c": 0.667,
+   "acc_p": 0.684,
+   "n_is_temporal": 10,
+   "n_time_shaped": 21,
+   "time_shaped": {
+    "broken": [
+     "8-69"
+    ],
+    "fixed": [
+     "1-31",
+     "4-48"
+    ],
+    "acc_c": 0.714,
+    "acc_p": 0.762
+   },
+   "not_time_shaped": {
+    "broken": 19,
+    "fixed": 23
+   }
+  },
+  "cat2": {
+   "n": 321,
+   "broken": 26,
+   "fixed": 7,
+   "net": -19,
+   "acc_c": 0.832,
+   "acc_p": 0.773,
+   "n_is_temporal": 264,
+   "n_time_shaped": 314,
+   "time_shaped": {
+    "broken": [
+     "0-0",
+     "0-33",
+     "0-41",
+     "1-13",
+     "2-13",
+     "2-56",
+     "2-63",
+     "3-17",
+     "3-72",
+     "4-24",
+     "4-44",
+     "4-56",
+     "5-22",
+     "6-61",
+     "6-66",
+     "7-29",
+     "7-30",
+     "7-38",
+     "7-43",
+     "7-52",
+     "7-81",
+     "8-53",
+     "9-0",
+     "9-12",
+     "9-14",
+     "9-68"
+    ],
+    "fixed": [
+     "2-10",
+     "3-44",
+     "4-16",
+     "5-47",
+     "6-32"
+    ],
+    "acc_c": 0.844,
+    "acc_p": 0.777
+   },
+   "not_time_shaped": {
+    "broken": 0,
+    "fixed": 2
+   }
+  },
+  "cat3": {
+   "n": 96,
+   "broken": 6,
+   "fixed": 8,
+   "net": 2,
+   "acc_c": 0.427,
+   "acc_p": 0.448,
+   "n_is_temporal": 0,
+   "n_time_shaped": 7,
+   "time_shaped": {
+    "broken": [],
+    "fixed": [
+     "6-30"
+    ],
+    "acc_c": 0.714,
+    "acc_p": 0.857
+   },
+   "not_time_shaped": {
+    "broken": 6,
+    "fixed": 7
+   }
+  },
+  "cat4": {
+   "n": 841,
+   "broken": 23,
+   "fixed": 24,
+   "net": 1,
+   "acc_c": 0.9,
+   "acc_p": 0.901,
+   "n_is_temporal": 30,
+   "n_time_shaped": 177,
+   "time_shaped": {
+    "broken": [
+     "1-47",
+     "2-84",
+     "4-150",
+     "5-81",
+     "7-133"
+    ],
+    "fixed": [
+     "0-135",
+     "2-68",
+     "2-133",
+     "3-103",
+     "4-174",
+     "7-108",
+     "7-134",
+     "8-104",
+     "8-110"
+    ],
+    "acc_c": 0.864,
+    "acc_p": 0.887
+   },
+   "not_time_shaped": {
+    "broken": 18,
+    "fixed": 15
+   }
+  }
+ },
+ "cat2": {
+  "n": 321,
+  "broken": 26,
+  "fixed": 7,
+  "net": -19,
+  "summary_block_in_p_context": {
+   "True": 321
+  },
+  "summary_block_in_c_context": {
+   "False": 321
+  },
+  "derived_in_final": 0,
+  "cause_counts": {
+   "gold_lost_not_in_pool": 5,
+   "gold_present_no_date_error_reader_or_judge": 11,
+   "gold_present_summary_date_not_wrong_month": 3,
+   "gold_present_wrong_date_from_summary": 1,
+   "gold_present_wrong_date_from_turns": 6
+  },
+  "cause_ids": {
+   "gold_lost_not_in_pool": [
+    "3-17",
+    "3-72",
+    "4-24",
+    "7-52",
+    "9-68"
+   ],
+   "gold_present_no_date_error_reader_or_judge": [
+    "0-0",
+    "0-41",
+    "2-56",
+    "2-63",
+    "4-44",
+    "5-22",
+    "6-61",
+    "7-29",
+    "7-81",
+    "8-53",
+    "9-14"
+   ],
+   "gold_present_summary_date_not_wrong_month": [
+    "6-66",
+    "7-38",
+    "7-43"
+   ],
+   "gold_present_wrong_date_from_summary": [
+    "9-12"
+   ],
+   "gold_present_wrong_date_from_turns": [
+    "0-33",
+    "1-13",
+    "2-13",
+    "4-56",
+    "7-30",
+    "9-0"
+   ]
+  },
+  "turns_in_p_final_not_in_c_final_by_origin_broken": {
+   "base": 52,
+   "graph": 10,
+   "lift": 40
+  },
+  "fixed_ids": [
+   "2-10",
+   "3-44",
+   "4-16",
+   "4-45",
+   "5-47",
+   "6-32",
+   "7-54"
+  ],
+  "broken_ids": [
+   "0-0",
+   "0-33",
+   "0-41",
+   "1-13",
+   "2-13",
+   "2-56",
+   "2-63",
+   "3-17",
+   "3-72",
+   "4-24",
+   "4-44",
+   "4-56",
+   "5-22",
+   "6-61",
+   "6-66",
+   "7-29",
+   "7-30",
+   "7-38",
+   "7-43",
+   "7-52",
+   "7-81",
+   "8-53",
+   "9-0",
+   "9-12",
+   "9-14",
+   "9-68"
+  ],
+  "broken_question_shape": {
+   "is_temporal": 22,
+   "time_shaped_only": 4,
+   "neither": 0
+  }
+ },
+ "net_by_cat_and_shape_vs_c": {
+  "v2-G2F-full": {
+   "cat2": {
+    "when": {
+     "n": 264,
+     "plus": 4,
+     "minus": 22
+    },
+    "other_time": {
+     "n": 50,
+     "plus": 1,
+     "minus": 4
+    },
+    "none": {
+     "n": 7,
+     "plus": 2,
+     "minus": 0
+    }
+   },
+   "cat3": {
+    "none": {
+     "n": 89,
+     "plus": 7,
+     "minus": 6
+    },
+    "other_time": {
+     "n": 7,
+     "plus": 1,
+     "minus": 0
+    }
+   },
+   "cat1": {
+    "none": {
+     "n": 261,
+     "plus": 23,
+     "minus": 19
+    },
+    "other_time": {
+     "n": 11,
+     "plus": 1,
+     "minus": 1
+    },
+    "when": {
+     "n": 10,
+     "plus": 1,
+     "minus": 0
+    }
+   },
+   "cat4": {
+    "none": {
+     "n": 664,
+     "plus": 15,
+     "minus": 18
+    },
+    "other_time": {
+     "n": 147,
+     "plus": 9,
+     "minus": 5
+    },
+    "when": {
+     "n": 30,
+     "plus": 0,
+     "minus": 0
+    }
+   }
+  }
+ },
+ "noise_reference": {
+  "note": "J-config full runs (no graph, no summaries) against the same C: run-to-run and flag-to-flag variation",
+  "v2-P3J-full": {
+   "cat2": {
+    "when": {
+     "n": 264,
+     "plus": 4,
+     "minus": 9
+    },
+    "other_time": {
+     "n": 50,
+     "plus": 3,
+     "minus": 2
+    },
+    "none": {
+     "n": 7,
+     "plus": 1,
+     "minus": 0
+    }
+   },
+   "cat3": {
+    "none": {
+     "n": 89,
+     "plus": 2,
+     "minus": 2
+    },
+    "other_time": {
+     "n": 7,
+     "plus": 0,
+     "minus": 0
+    }
+   },
+   "cat1": {
+    "none": {
+     "n": 261,
+     "plus": 25,
+     "minus": 16
+    },
+    "other_time": {
+     "n": 11,
+     "plus": 0,
+     "minus": 2
+    },
+    "when": {
+     "n": 10,
+     "plus": 0,
+     "minus": 2
+    }
+   },
+   "cat4": {
+    "none": {
+     "n": 664,
+     "plus": 13,
+     "minus": 10
+    },
+    "other_time": {
+     "n": 147,
+     "plus": 10,
+     "minus": 3
+    },
+    "when": {
+     "n": 30,
+     "plus": 0,
+     "minus": 0
+    }
+   }
+  },
+  "r7-protect-full": {
+   "cat2": {
+    "when": {
+     "n": 264,
+     "plus": 4,
+     "minus": 10
+    },
+    "other_time": {
+     "n": 50,
+     "plus": 3,
+     "minus": 3
+    },
+    "none": {
+     "n": 7,
+     "plus": 2,
+     "minus": 0
+    }
+   },
+   "cat3": {
+    "none": {
+     "n": 89,
+     "plus": 8,
+     "minus": 3
+    },
+    "other_time": {
+     "n": 7,
+     "plus": 1,
+     "minus": 0
+    }
+   },
+   "cat1": {
+    "none": {
+     "n": 261,
+     "plus": 18,
+     "minus": 14
+    },
+    "other_time": {
+     "n": 11,
+     "plus": 1,
+     "minus": 4
+    },
+    "when": {
+     "n": 10,
+     "plus": 1,
+     "minus": 0
+    }
+   },
+   "cat4": {
+    "none": {
+     "n": 664,
+     "plus": 9,
+     "minus": 12
+    },
+    "other_time": {
+     "n": 147,
+     "plus": 4,
+     "minus": 4
+    },
+    "when": {
+     "n": 30,
+     "plus": 0,
+     "minus": 0
+    }
+   }
+  },
+  "r7-post-full": {
+   "cat2": {
+    "when": {
+     "n": 264,
+     "plus": 6,
+     "minus": 10
+    },
+    "other_time": {
+     "n": 50,
+     "plus": 3,
+     "minus": 5
+    },
+    "none": {
+     "n": 7,
+     "plus": 3,
+     "minus": 0
+    }
+   },
+   "cat3": {
+    "none": {
+     "n": 89,
+     "plus": 6,
+     "minus": 4
+    },
+    "other_time": {
+     "n": 7,
+     "plus": 1,
+     "minus": 0
+    }
+   },
+   "cat1": {
+    "none": {
+     "n": 261,
+     "plus": 17,
+     "minus": 20
+    },
+    "other_time": {
+     "n": 11,
+     "plus": 1,
+     "minus": 5
+    },
+    "when": {
+     "n": 10,
+     "plus": 1,
+     "minus": 0
+    }
+   },
+   "cat4": {
+    "none": {
+     "n": 664,
+     "plus": 8,
+     "minus": 27
+    },
+    "other_time": {
+     "n": 147,
+     "plus": 4,
+     "minus": 4
+    },
+    "when": {
+     "n": 30,
+     "plus": 0,
+     "minus": 0
+    }
+   }
+  }
+ },
+ "simulation": {
+  "note": "pool candidates supplied only by the graph legs or by the lift are dropped; final = top 10 turns of P's own rerank scores; the base-leg refill is not modelled (a floor)",
+  "cat1": {
+   "n_time_shaped": 21,
+   "gold_all_in_final": {
+    "c": 12,
+    "p": 11,
+    "sim": 11
+   },
+   "gold_any_in_final": {
+    "c": 20,
+    "p": 20,
+    "sim": 20
+   },
+   "gained_by_sim": [],
+   "lost_by_sim": [],
+   "overlap_with_c_final": {
+    "p": 0.482,
+    "sim": 0.489
+   },
+   "fixed_gold_only_via_graph_or_lift": [],
+   "fixed_answer_date_only_in_summary": [
+    "1-31"
+   ]
+  },
+  "cat2": {
+   "n_time_shaped": 314,
+   "gold_all_in_final": {
+    "c": 267,
+    "p": 262,
+    "sim": 254
+   },
+   "gold_any_in_final": {
+    "c": 281,
+    "p": 275,
+    "sim": 268
+   },
+   "gained_by_sim": [],
+   "lost_by_sim": [
+    "3-32",
+    "4-46",
+    "4-55",
+    "6-1",
+    "6-32",
+    "6-61",
+    "8-68",
+    "9-43"
+   ],
+   "overlap_with_c_final": {
+    "p": 0.451,
+    "sim": 0.476
+   },
+   "fixed_gold_only_via_graph_or_lift": [
+    "6-32"
+   ],
+   "fixed_answer_date_only_in_summary": [
+    "3-44"
+   ]
+  },
+  "cat3": {
+   "n_time_shaped": 7,
+   "gold_all_in_final": {
+    "c": 5,
+    "p": 5,
+    "sim": 5
+   },
+   "gold_any_in_final": {
+    "c": 5,
+    "p": 5,
+    "sim": 6
+   },
+   "gained_by_sim": [],
+   "lost_by_sim": [],
+   "overlap_with_c_final": {
+    "p": 0.477,
+    "sim": 0.556
+   },
+   "fixed_gold_only_via_graph_or_lift": [],
+   "fixed_answer_date_only_in_summary": []
+  },
+  "cat4": {
+   "n_time_shaped": 177,
+   "gold_all_in_final": {
+    "c": 154,
+    "p": 153,
+    "sim": 151
+   },
+   "gold_any_in_final": {
+    "c": 157,
+    "p": 156,
+    "sim": 153
+   },
+   "gained_by_sim": [
+    "4-136"
+   ],
+   "lost_by_sim": [
+    "0-137",
+    "6-88",
+    "8-110"
+   ],
+   "overlap_with_c_final": {
+    "p": 0.518,
+    "sim": 0.511
+   },
+   "fixed_gold_only_via_graph_or_lift": [
+    "8-110"
+   ],
+   "fixed_answer_date_only_in_summary": []
+  }
+ },
+ "expected_recovery_cat2": {
+  "j_acc_given_gold_in_ctx": 0.866,
+  "blocks_only": {
+   "lower_summary_attributed": 4,
+   "upper_all_gold_present": 21,
+   "expected_lower": 3.5,
+   "expected_upper": 18.2
+  },
+  "blocks_plus_legs_extra": {
+   "gold_lost_in_pool_displaced": 0,
+   "expected": 0.0
+  }
+ }
+}

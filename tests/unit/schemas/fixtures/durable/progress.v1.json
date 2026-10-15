@@ -1,0 +1,27 @@
+{
+  "holes": [
+    {
+      "attempts": 2,
+      "last_error": "unparsable output",
+      "offset": 17,
+      "reason": "malformed",
+      "waived": false
+    },
+    {
+      "attempts": 3,
+      "last_error": null,
+      "offset": 30,
+      "reason": "budget_exhausted",
+      "waived": true
+    }
+  ],
+  "job_kind": "catch_up_extract",
+  "schema_version": 1,
+  "scope": {
+    "owner": "owner-1",
+    "owner_kind": "user",
+    "tenant": "tenant-a"
+  },
+  "target_offset": 50,
+  "watermark": 41
+}

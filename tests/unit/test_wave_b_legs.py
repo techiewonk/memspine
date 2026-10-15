@@ -10,9 +10,9 @@ import pytest
 
 from memspine import Engine
 from memspine.config.schema import ReadConfig
-from memspine.core.query_shape import question_shape, statement_form
-from memspine.core.records import MemoryRecord
-from memspine.core.temporal_query import entity_leg, named_terms
+from memspine.models.encoders.query.shape import question_shape, statement_form
+from memspine.models.encoders.query.temporal_query import entity_leg, named_terms
+from memspine.store.records import MemoryRecord
 
 T0 = datetime(2023, 5, 1, 9, 0, tzinfo=UTC)
 
@@ -52,8 +52,8 @@ def test_question_shape(question: str, shape: str) -> None:
 
 
 def test_named_terms_skip_question_words_months_and_speakers() -> None:
-    q = "When did Caroline go to the LGBTQ support group in May 2023?"
-    assert named_terms(q, exclude=["caroline"]) == ["lgbtq", "2023"]
+    q = "When did Noor go to the LGBTQ support group in May 2023?"
+    assert named_terms(q, exclude=["noor"]) == ["lgbtq", "2023"]
 
 
 def _rec(content: str, minutes: int = 0) -> MemoryRecord:

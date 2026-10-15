@@ -10,15 +10,18 @@ import re
 from datetime import date as _date
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from memspine.config import constants
 
 __all__ = [
     "OUTPUT_MODELS",
+    "AgenticStepOut",
     "AnswerVerdictOut",
     "AnticipatedCue",
     "AnticipatedCues",
+    "AssertionOut",
+    "AssertionsOut",
     "ConflictVerdictOut",
     "ConsolidatedFact",
     "ConsolidatedFacts",
@@ -28,6 +31,8 @@ __all__ = [
     "EntityResolutionOut",
     "EntitySummaries",
     "EntitySummary",
+    "EventOut",
+    "EventsOut",
     "ExtractedEdge",
     "ExtractedEdges",
     "ExtractedFact",
@@ -40,10 +45,15 @@ __all__ = [
     "Insights",
     "InstructionFlagOut",
     "MissingInfoOut",
+    "QueryContractOut",
     "ReadPlan",
     "RelevanceLabel",
     "RelevanceLabels",
     "SufficiencyOut",
+    "WindowEpisode",
+    "WindowFact",
+    "WindowPayload",
+    "fact_guard",
     "view_text",
 ]
 
@@ -230,7 +240,7 @@ class ExtractedFact(BaseModel):
     @field_validator("persons", mode="before")
     @classmethod
     def _person_list(cls, value: Any) -> Any:
-        """#28: ``"Melanie, Caroline"`` or a list; guarded, deduplicated, capped."""
+        """#28: ``"Ana, Ben"`` or a list; guarded, deduplicated, capped."""
         if value is None:
             return []
         items = value.split(",") if isinstance(value, str) else value
@@ -452,6 +462,40 @@ class ReadPlan(BaseModel):
         return value[:3]
 
 
+class QueryContractOut(BaseModel):
+    """A03 (``plan@contract``): the typed query contract the resolver proposes for a question
+    the rules could not type. Every field is optional text: ``core.query_contract.parse_contract``
+    validates the values against the allowed sets and falls back to the rules' own."""
+
+    answer_type: str = ""
+    subtype: str = ""
+    cardinality: str = ""
+    request: str = ""
+    relation: str = ""
+    time_scope: str = ""
+    subjects: list[str] = Field(default_factory=list)
+
+    @field_validator("answer_type", "subtype", "cardinality", "request", mode="before")
+    @classmethod
+    def _label(cls, value: Any) -> Any:
+        return "" if value is None else str(_as_text(value)).strip().lower()
+
+    @field_validator("relation", "time_scope", mode="before")
+    @classmethod
+    def _plain(cls, value: Any) -> Any:
+        text = "" if value is None else str(_as_text(value)).strip()
+        return "" if text.lower() in ("none", "null") else text
+
+    @field_validator("subjects", mode="before")
+    @classmethod
+    def _names(cls, value: Any) -> Any:
+        if value is None:
+            return []
+        if isinstance(value, str):
+            value = [value]
+        return [str(_as_text(v)).strip() for v in value if v is not None and str(v).strip()]
+
+
 class InstructionFlagOut(BaseModel):
     instruction_shaped: bool
     reason: str = ""
@@ -497,6 +541,145 @@ class SufficiencyOut(BaseModel):
 
     complete: bool
     reason: str = ""
+
+
+class AgenticStepOut(BaseModel):
+    """I67 (``sufficiency@agentic``): one action of the agentic read.
+
+    ``answer_ready``; ``search`` (needs ``query``); ``search_person_time`` (needs a
+    ``person`` and/or a ``time``). A ``search`` without a query, or a person-time search
+    with neither field, fails validation (the structured call repairs or retries once)."""
+
+    action: Literal["answer_ready", "search", "search_person_time"]
+    query: str = ""
+    person: str = ""
+    time: str = ""
+    why: str = ""
+
+    @field_validator("action", mode="before")
+    @classmethod
+    def _action_norm(cls, value: Any) -> Any:
+        if not isinstance(value, str):
+            return value
+        text = value.strip().lower().replace("-", "_").replace(" ", "_")
+        return {"done": "answer_ready", "answer": "answer_ready", "ready": "answer_ready"}.get(
+            text, text
+        )
+
+    @field_validator("query", "person", "time", "why", mode="before")
+    @classmethod
+    def _text(cls, value: Any) -> Any:
+        if value is None:
+            return ""
+        text = str(_as_text(value)).strip()
+        return "" if text.lower() in ("none", "null") else text
+
+    @model_validator(mode="after")
+    def _complete(self) -> AgenticStepOut:
+        if self.action == "search" and not self.query:
+            raise ValueError("search needs a query")
+        if self.action == "search_person_time" and not (self.person or self.time):
+            raise ValueError("search_person_time needs a person or a time")
+        return self
+
+
+class AssertionOut(BaseModel):
+    """E01 (``extract@assertions``): one subject-relation-object assertion with the exact
+    source ``span`` (a substring of numbered line ``line``), its ``modality``
+    (asserted / planned / negated / hypothetical / uncertain) and ``time`` (as written)."""
+
+    subject: str
+    relation: str
+    object: str
+    line: int = 0
+    span: str = ""
+    modality: str = "asserted"
+    time: str = ""
+
+    @field_validator("subject", "relation", "object", "span", "modality", "time", mode="before")
+    @classmethod
+    def _text(cls, value: Any) -> Any:
+        if value is None:
+            return ""
+        text = str(_as_text(value)).strip()
+        return "" if text.lower() in ("none", "null") else text
+
+    @field_validator("line", mode="before")
+    @classmethod
+    def _line(cls, value: Any) -> Any:
+        found = _positive_ints(value)
+        return found[0] if found else 0
+
+    @field_validator("modality", mode="after")
+    @classmethod
+    def _modality(cls, value: str) -> str:
+        return value.lower() or "asserted"
+
+
+class AssertionsOut(BaseModel):
+    assertions: list[AssertionOut] = Field(default_factory=list)
+
+    @field_validator("assertions", mode="before")
+    @classmethod
+    def _drop_incomplete(cls, value: Any) -> Any:
+        """A bounded list; an item missing subject, relation or object is dropped."""
+        if not isinstance(value, list):
+            return value
+        keep = [
+            v
+            for v in value
+            if isinstance(v, dict)
+            and all(str(v.get(k) or "").strip() for k in ("subject", "relation", "object"))
+        ]
+        return keep[: constants.FACT_PROJECTION_MAX_ASSERTIONS]
+
+
+class EventOut(BaseModel):
+    """A02 (``extract@events``): one event mention with its ``status`` (as the model wrote it;
+    the code normalises it), the exact source ``span``, the quoted time phrase ``when``, the
+    1-based number of an earlier entry it repeats (``same_as``, 0 = none) and the quoted
+    ``identity`` phrase that says so."""
+
+    actor: str
+    action: str
+    object: str = ""
+    status: str = ""
+    line: int = 0
+    span: str = ""
+    when: str = ""
+    same_as: int = 0
+    identity: str = ""
+
+    @field_validator("actor", "action", "object", "status", "span", "when", "identity", mode="before")
+    @classmethod
+    def _text(cls, value: Any) -> Any:
+        if value is None:
+            return ""
+        text = str(_as_text(value)).strip()
+        return "" if text.lower() in ("none", "null") else text
+
+    @field_validator("line", "same_as", mode="before")
+    @classmethod
+    def _number(cls, value: Any) -> Any:
+        found = _positive_ints(value)
+        return found[0] if found else 0
+
+
+class EventsOut(BaseModel):
+    events: list[EventOut] = Field(default_factory=list)
+
+    @field_validator("events", mode="before")
+    @classmethod
+    def _drop_incomplete(cls, value: Any) -> Any:
+        """A bounded list; an entry missing actor or action is dropped."""
+        if not isinstance(value, list):
+            return value
+        keep = [
+            v
+            for v in value
+            if isinstance(v, dict) and all(str(v.get(k) or "").strip() for k in ("actor", "action"))
+        ]
+        return keep[: constants.EVENT_LEDGER_MAX_MENTIONS]
 
 
 class MissingInfoOut(BaseModel):
@@ -545,7 +728,71 @@ class AnswerVerdictOut(BaseModel):
         return None if text.lower() in ("", "none", "null") else text
 
 
+class WindowFact(ExtractedFact):
+    """W1 (``window_extract`` facts section): an :class:`ExtractedFact` plus the verbatim
+    ``span`` of a cited line that supports it (the grounding check) and who said / who it is
+    about. ``turns`` are the 1-based line numbers of the window transcript."""
+
+    span: str = ""
+    speaker: str | None = None
+    subject: str | None = None
+
+    @field_validator("span", mode="before")
+    @classmethod
+    def _span_text(cls, value: Any) -> Any:
+        return "" if value is None else str(_as_text(value))
+
+    @field_validator("speaker", "subject", mode="before")
+    @classmethod
+    def _who(cls, value: Any) -> Any:
+        return view_text(value)
+
+
+class WindowEpisode(BaseModel):
+    """W1 (``window_extract`` episode section): what happened in this window, citing turns."""
+
+    title: str = ""
+    summary: str = ""
+    narrative: str
+    turns: list[int] = Field(default_factory=list)
+    participants: list[str] = Field(default_factory=list)
+    topics: list[str] = Field(default_factory=list)
+
+    @field_validator("title", "summary", "narrative", mode="before")
+    @classmethod
+    def _text(cls, value: Any) -> Any:
+        return "" if value is None else str(_as_text(value)).strip()
+
+    @field_validator("turns", mode="before")
+    @classmethod
+    def _line_numbers(cls, value: Any) -> Any:
+        return _positive_ints(value)
+
+    @field_validator("participants", "topics", mode="before")
+    @classmethod
+    def _texts(cls, value: Any) -> Any:
+        if value is None:
+            return []
+        items = value.split(",") if isinstance(value, str) else value
+        if not isinstance(items, list | tuple):
+            items = [items]
+        return [t for t in (view_text(i) for i in items) if t is not None]
+
+
+class WindowPayload(BaseModel):
+    """W1: the reply of one ``window_extract`` call. Every section is kept as the model wrote
+    it (``Any``) so a malformed section cannot invalidate the others: each section is
+    validated on its own afterwards (``workers/windows.py``), and fails closed alone."""
+
+    model_config = {"extra": "ignore"}
+
+    facts: Any = None
+    edges: Any = None
+    episode: Any = None
+
+
 OUTPUT_MODELS: dict[str, type[BaseModel]] = {
+    "WindowPayload": WindowPayload,
     "ExtractedFacts": ExtractedFacts,
     "FactDates": FactDates,
     "FactClasses": FactClasses,
@@ -561,7 +808,11 @@ OUTPUT_MODELS: dict[str, type[BaseModel]] = {
     "AnticipatedCues": AnticipatedCues,
     "RelevanceLabels": RelevanceLabels,
     "ReadPlan": ReadPlan,
+    "QueryContractOut": QueryContractOut,
     "SufficiencyOut": SufficiencyOut,
     "MissingInfoOut": MissingInfoOut,
     "AnswerVerdictOut": AnswerVerdictOut,
+    "AgenticStepOut": AgenticStepOut,
+    "AssertionsOut": AssertionsOut,
+    "EventsOut": EventsOut,
 }

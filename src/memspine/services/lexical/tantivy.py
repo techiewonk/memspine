@@ -6,8 +6,7 @@ transactional store. It satisfies the
 :class:`~memspine.services.lexical.base.LexicalStore` port, so the
 :class:`~memspine.services.lexical.projector.LexicalProjector` drives it
 identically and it is a fully rebuildable projection (:meth:`clear` truncates so
-a rebuild replays from seq 0). Server-scale deployments swap in the
-``[opensearch]`` provider (:mod:`memspine.services.lexical.opensearch`).
+a rebuild replays from seq 0).
 
 tantivy-py is **synchronous** — it owns an on-disk (or in-RAM) index directory,
 a schema, a single ``IndexWriter`` (holding the index-wide writer lock) and a
@@ -46,9 +45,9 @@ from memspine.config.constants import (
     TANTIVY_COMMIT_RETRIES,
     TANTIVY_WRITER_HEAP_BYTES,
 )
-from memspine.core.records import MemoryRecord
 from memspine.observability.logging import get_logger
 from memspine.services.lexical.base import LexicalHit
+from memspine.store.records import MemoryRecord
 
 if TYPE_CHECKING:
     pass
@@ -296,7 +295,7 @@ class TantivyLexical:
         content = strip_control_chars(record.content)
         if not self._date_tokens:
             return content
-        from memspine.core.temporal_query import date_words
+        from memspine.models.encoders.query.temporal_query import date_words
 
         return f"{content} {date_words(record)}"
 

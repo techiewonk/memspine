@@ -13,9 +13,9 @@ import pytest
 from memspine import Engine
 from memspine.config import constants
 from memspine.config.schema import MemspineConfig
-from memspine.core.records import MemoryRecord, RecordStatus, SourceInfo
+from memspine.models.providers.llm.base import LLMRouter, LLMService
 from memspine.prompts.models import ExtractedFact
-from memspine.services.llm.base import LLMRouter, LLMService
+from memspine.store.records import MemoryRecord, RecordStatus, SourceInfo
 from memspine.workers.list_cards import (
     class_key,
     fact_class,
@@ -341,10 +341,10 @@ class _Extract:
 def _llm_engine(monkeypatch: pytest.MonkeyPatch, stub: _Extract) -> Engine:
     stubs: dict[str, LLMService] = {"extract": stub}
 
-    async def router(self: Engine, config: MemspineConfig) -> LLMRouter:
+    async def router(config: MemspineConfig, hooks: object = None) -> LLMRouter:
         return LLMRouter(stubs)
 
-    monkeypatch.setattr(Engine, "_build_llm_router", router)
+    monkeypatch.setattr("memspine.runtime.container.build_llm_router", router)
     return _engine()
 
 

@@ -1,0 +1,284 @@
+{
+  "$defs": {
+    "Fingerprint": {
+      "additionalProperties": true,
+      "description": "Derivation fingerprint (P-12): what produced a derived item, for staleness and re-derivation.",
+      "properties": {
+        "decoding": {
+          "title": "Decoding",
+          "type": "string"
+        },
+        "input_blocks": {
+          "title": "Input Blocks",
+          "type": "string"
+        },
+        "model_id": {
+          "title": "Model Id",
+          "type": "string"
+        },
+        "prompt_hash": {
+          "title": "Prompt Hash",
+          "type": "string"
+        },
+        "quant": {
+          "title": "Quant",
+          "type": "string"
+        },
+        "runtime_libs": {
+          "title": "Runtime Libs",
+          "type": "string"
+        },
+        "schema_v": {
+          "title": "Schema V",
+          "type": "string"
+        }
+      },
+      "required": [
+        "prompt_hash",
+        "schema_v",
+        "model_id",
+        "quant",
+        "decoding",
+        "input_blocks",
+        "runtime_libs"
+      ],
+      "title": "Fingerprint",
+      "type": "object"
+    },
+    "OwnerScope": {
+      "additionalProperties": true,
+      "description": "Memory scope: tenant plus memory owner (S3-1).\n\nThe owner is a user or a shared group; every agent and session serving that owner sees the same\nentities. The session is *not* part of the scope: it is recorded as :class:`Provenance` only.",
+      "properties": {
+        "owner": {
+          "minLength": 1,
+          "title": "Owner",
+          "type": "string"
+        },
+        "owner_kind": {
+          "default": "user",
+          "enum": [
+            "user",
+            "group"
+          ],
+          "title": "Owner Kind",
+          "type": "string"
+        },
+        "tenant": {
+          "minLength": 1,
+          "title": "Tenant",
+          "type": "string"
+        }
+      },
+      "required": [
+        "tenant",
+        "owner"
+      ],
+      "title": "OwnerScope",
+      "type": "object"
+    },
+    "SourceRef": {
+      "additionalProperties": true,
+      "description": "A pinned source: id plus version.",
+      "properties": {
+        "id": {
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        },
+        "version": {
+          "minimum": 1,
+          "title": "Version",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "version"
+      ],
+      "title": "SourceRef",
+      "type": "object"
+    }
+  },
+  "additionalProperties": true,
+  "description": "One unit of derived work, claimed under a lease. The insert and offline spellings are unified.\n\n``sources`` replaces insert's ``source_id``+``source_version`` and offline's ``source_ids``/``members``;\n``scope`` replaces offline's ``namespace``. ``erasure_generation`` is the generation at enqueue (G-13).\n``epoch`` is the claim epoch of the current lease (ER-07); a commit is refused if it is stale.",
+  "properties": {
+    "attempts": {
+      "default": 0,
+      "minimum": 0,
+      "title": "Attempts",
+      "type": "integer"
+    },
+    "derivation": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Fingerprint"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "epoch": {
+      "anyOf": [
+        {
+          "minimum": 1,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Epoch"
+    },
+    "erasure_generation": {
+      "default": 0,
+      "minimum": 0,
+      "title": "Erasure Generation",
+      "type": "integer"
+    },
+    "failure_class": {
+      "anyOf": [
+        {
+          "enum": [
+            "raised",
+            "malformed",
+            "valid_empty",
+            "truncated",
+            "size_skip",
+            "partial_commit",
+            "invented_alias",
+            "budget_exhausted"
+          ],
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Failure Class"
+    },
+    "fingerprint": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Fingerprint"
+    },
+    "id": {
+      "minLength": 1,
+      "title": "Id",
+      "type": "string"
+    },
+    "kind": {
+      "enum": [
+        "projection",
+        "derivation",
+        "session_close",
+        "sleep_stage",
+        "rederive",
+        "pending_merge",
+        "asset",
+        "window",
+        "heavy_projection"
+      ],
+      "title": "Kind",
+      "type": "string"
+    },
+    "last_error": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Last Error"
+    },
+    "lease_owner": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Lease Owner"
+    },
+    "lease_until": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Lease Until"
+    },
+    "not_before": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Not Before"
+    },
+    "schema_version": {
+      "default": 1,
+      "minimum": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "scope": {
+      "$ref": "#/$defs/OwnerScope"
+    },
+    "sources": {
+      "items": {
+        "$ref": "#/$defs/SourceRef"
+      },
+      "title": "Sources",
+      "type": "array"
+    },
+    "status": {
+      "default": "pending",
+      "enum": [
+        "pending",
+        "leased",
+        "done",
+        "failed",
+        "dead",
+        "underived"
+      ],
+      "title": "Status",
+      "type": "string"
+    }
+  },
+  "required": [
+    "id",
+    "scope",
+    "kind"
+  ],
+  "title": "OutboxRow",
+  "type": "object",
+  "x-kind": "outbox_row",
+  "x-schema-version": 1
+}

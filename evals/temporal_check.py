@@ -42,7 +42,7 @@ from typing import Any
 import failure_buckets as fb
 from memspine_evals.datasets import LoCoMoDataset
 
-from memspine.core.temporal_resolve import Resolution, annotate, resolve
+from memspine.models.encoders.query.temporal_resolve import Resolution, annotate, resolve
 
 _MONTHS = {
     m: i

@@ -12,8 +12,8 @@ import re
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
 
-from memspine.core.query_shape import content_words
-from memspine.core.records import MemoryRecord
+from memspine.models.encoders.query.shape import content_words
+from memspine.store.records import MemoryRecord
 
 __all__ = ["VetFlag", "draft_sentences", "vet_sentences"]
 

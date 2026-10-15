@@ -41,7 +41,7 @@
   is `RULE_EDGE_WEIGHT` (0.5), capped by both endpoints' trust (GP-10).
   - An existing live edge is not re-sent.
   - An endpoint at its link budget (M13.6) skips the edge.
-- Each kinship triple becomes the semantic fact "Ana is Caroline's sister". It has entity `Ana`,
+- Each kinship triple becomes the semantic fact "Ana is Ilse's sister". It has entity `Ana`,
   tags `kind:event`, `rel:sister_of` and `dst:caroline`, and the turn as its parent.
   - It goes through the semantic door (`write_fact`; in bare contexts it is screened and appended),
     capped at the turn's trust.

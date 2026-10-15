@@ -1,0 +1,284 @@
+{
+  "$defs": {
+    "CallBatch": {
+      "additionalProperties": true,
+      "description": "Internal step type.",
+      "properties": {
+        "batch_id": {
+          "title": "Batch Id",
+          "type": "string"
+        },
+        "created_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Created At"
+        },
+        "prompt_hash": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Prompt Hash"
+        },
+        "tokens_in": {
+          "title": "Tokens In",
+          "type": "integer"
+        },
+        "windows": {
+          "items": {
+            "$ref": "#/$defs/Window"
+          },
+          "title": "Windows",
+          "type": "array"
+        }
+      },
+      "required": [
+        "batch_id",
+        "windows",
+        "tokens_in"
+      ],
+      "title": "CallBatch",
+      "type": "object"
+    },
+    "LiveMember": {
+      "additionalProperties": true,
+      "description": "A re-read member record for prompt assembly (step 13).",
+      "properties": {
+        "instruction_flag": {
+          "default": false,
+          "title": "Instruction Flag",
+          "type": "boolean"
+        },
+        "quarantined": {
+          "default": false,
+          "title": "Quarantined",
+          "type": "boolean"
+        },
+        "record_id": {
+          "title": "Record Id",
+          "type": "string"
+        },
+        "source_version": {
+          "title": "Source Version",
+          "type": "integer"
+        },
+        "status": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Status"
+        },
+        "text": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Text"
+        }
+      },
+      "required": [
+        "record_id",
+        "source_version"
+      ],
+      "title": "LiveMember",
+      "type": "object"
+    },
+    "Window": {
+      "additionalProperties": true,
+      "description": "Segmentation window (W-11). Internal step type.",
+      "properties": {
+        "reason": {
+          "enum": [
+            "topic",
+            "turns",
+            "tokens",
+            "time_gap",
+            "calendar_day",
+            "session_end",
+            "idle",
+            "flush",
+            "truncation"
+          ],
+          "title": "Reason",
+          "type": "string"
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Session"
+        },
+        "source_versions": {
+          "items": {
+            "type": "integer"
+          },
+          "title": "Source Versions",
+          "type": "array"
+        },
+        "tokens": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Tokens"
+        },
+        "turns": {
+          "items": {
+            "$ref": "#/$defs/WindowTurn"
+          },
+          "title": "Turns",
+          "type": "array"
+        },
+        "window_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Window Id"
+        }
+      },
+      "required": [
+        "reason"
+      ],
+      "title": "Window",
+      "type": "object"
+    },
+    "WindowTurn": {
+      "additionalProperties": true,
+      "description": "Internal step type.",
+      "properties": {
+        "record_id": {
+          "title": "Record Id",
+          "type": "string"
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Session"
+        },
+        "source_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source At"
+        },
+        "source_version": {
+          "title": "Source Version",
+          "type": "integer"
+        },
+        "tokens": {
+          "title": "Tokens",
+          "type": "integer"
+        },
+        "vector": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Vector"
+        }
+      },
+      "required": [
+        "record_id",
+        "source_version",
+        "tokens"
+      ],
+      "title": "WindowTurn",
+      "type": "object"
+    }
+  },
+  "additionalProperties": true,
+  "properties": {
+    "batch": {
+      "$ref": "#/$defs/CallBatch"
+    },
+    "context_lines": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Context Lines",
+      "type": "array"
+    },
+    "known_names": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Known Names",
+      "type": "array"
+    },
+    "live_members": {
+      "items": {
+        "$ref": "#/$defs/LiveMember"
+      },
+      "title": "Live Members",
+      "type": "array"
+    }
+  },
+  "required": [
+    "batch"
+  ],
+  "title": "InsertStep13Input",
+  "type": "object"
+}

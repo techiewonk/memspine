@@ -1,0 +1,31 @@
+{
+  "additionalProperties": true,
+  "description": "``new | support_of(<assertion id>)`` (step 20).",
+  "properties": {
+    "assertion_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Assertion Id"
+    },
+    "mode": {
+      "enum": [
+        "new",
+        "support_of"
+      ],
+      "title": "Mode",
+      "type": "string"
+    }
+  },
+  "required": [
+    "mode"
+  ],
+  "title": "AttachDecision",
+  "type": "object"
+}

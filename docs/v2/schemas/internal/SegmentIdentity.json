@@ -1,0 +1,35 @@
+{
+  "additionalProperties": true,
+  "description": "Per-segment output of step 2.(identity).",
+  "properties": {
+    "idem_key": {
+      "title": "Idem Key",
+      "type": "string"
+    },
+    "seg_index": {
+      "title": "Seg Index",
+      "type": "integer"
+    },
+    "source_version": {
+      "title": "Source Version",
+      "type": "integer"
+    },
+    "verdict": {
+      "enum": [
+        "new",
+        "retry",
+        "new_version"
+      ],
+      "title": "Verdict",
+      "type": "string"
+    }
+  },
+  "required": [
+    "seg_index",
+    "idem_key",
+    "verdict",
+    "source_version"
+  ],
+  "title": "SegmentIdentity",
+  "type": "object"
+}

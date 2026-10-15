@@ -1,0 +1,87 @@
+{
+  "item": "R14-M-9",
+  "note": "counts only; firing = the gate would add the commit clause / use the inference retry",
+  "per_category": {
+    "1": {
+      "n": 282,
+      "gated_v1": 0,
+      "gated_v2": 5,
+      "v2_only": 5,
+      "v1_only": 0,
+      "v1_rate": 0.0,
+      "v2_rate": 0.0177
+    },
+    "2": {
+      "n": 321,
+      "gated_v1": 2,
+      "gated_v2": 2,
+      "v2_only": 0,
+      "v1_only": 0,
+      "v1_rate": 0.0062,
+      "v2_rate": 0.0062
+    },
+    "3": {
+      "n": 96,
+      "gated_v1": 42,
+      "gated_v2": 54,
+      "v2_only": 12,
+      "v1_only": 0,
+      "v1_rate": 0.4375,
+      "v2_rate": 0.5625
+    },
+    "4": {
+      "n": 841,
+      "gated_v1": 14,
+      "gated_v2": 12,
+      "v2_only": 3,
+      "v1_only": 5,
+      "v1_rate": 0.0166,
+      "v2_rate": 0.0143
+    },
+    "5": {
+      "n": 446,
+      "gated_v1": 7,
+      "gated_v2": 6,
+      "v2_only": 1,
+      "v1_only": 2,
+      "v1_rate": 0.0157,
+      "v2_rate": 0.0135
+    }
+  },
+  "m9": {
+    "n": 40,
+    "v1_fires": 9,
+    "v2_fires": 13,
+    "v1_recall": 0.225,
+    "v2_recall": 0.325,
+    "by_category": {
+      "1": {
+        "n": 2,
+        "v1": 0,
+        "v2": 0
+      },
+      "2": {
+        "n": 10,
+        "v1": 0,
+        "v2": 0
+      },
+      "3": {
+        "n": 26,
+        "v1": 9,
+        "v2": 13
+      },
+      "4": {
+        "n": 2,
+        "v1": 0,
+        "v2": 0
+      }
+    }
+  },
+  "v2_fire_reasons": {
+    "phrase": 20,
+    "contract": 40,
+    "yesno_present": 17,
+    "modal": 1,
+    "based_on": 1
+  }
+}

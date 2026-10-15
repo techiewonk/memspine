@@ -1,0 +1,14 @@
+{
+  "boundary_seq": 1000,
+  "boundary_ts": "2026-01-01T00:00:00Z",
+  "lineage_kept": true,
+  "mode": "rolling",
+  "rebuild": "limited",
+  "schema_version": 1,
+  "scope": {
+    "owner": "owner-1",
+    "owner_kind": "user",
+    "tenant": "tenant-a"
+  },
+  "tombstones_kept": true
+}

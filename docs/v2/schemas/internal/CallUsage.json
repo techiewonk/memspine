@@ -1,0 +1,34 @@
+{
+  "additionalProperties": true,
+  "properties": {
+    "latency_ms": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Latency Ms"
+    },
+    "retries": {
+      "default": 0,
+      "title": "Retries",
+      "type": "integer"
+    },
+    "tokens_in": {
+      "default": 0,
+      "title": "Tokens In",
+      "type": "integer"
+    },
+    "tokens_out": {
+      "default": 0,
+      "title": "Tokens Out",
+      "type": "integer"
+    }
+  },
+  "title": "CallUsage",
+  "type": "object"
+}

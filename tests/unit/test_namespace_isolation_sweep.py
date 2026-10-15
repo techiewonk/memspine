@@ -9,7 +9,7 @@ from datetime import UTC, datetime, timedelta
 import pytest
 
 from memspine import Engine
-from memspine.core.records import SourceInfo
+from memspine.store.records import SourceInfo
 
 T0 = datetime(2023, 5, 1, 9, 0, tzinfo=UTC)
 

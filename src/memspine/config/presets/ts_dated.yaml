@@ -1,0 +1,9 @@
+# I25 preset: the source carries real per-turn timestamps (LoCoMo / LongMemEval shape).
+# The date prefix, relative-date resolution and event-time legs are meaningful here.
+read:
+  render: dated
+  resolve_relative_dates: true
+  relative_dates_anchored: true
+  temporal_leg: true
+  order_by_time_for_ordering: true
+  rerank_date_prefix: true

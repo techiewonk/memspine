@@ -1,0 +1,177 @@
+{
+  "$defs": {
+    "AliasTarget": {
+      "additionalProperties": true,
+      "description": "Alias map value ``n -> (record_id, version)``.",
+      "properties": {
+        "record_id": {
+          "title": "Record Id",
+          "type": "string"
+        },
+        "version": {
+          "title": "Version",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "record_id",
+        "version"
+      ],
+      "title": "AliasTarget",
+      "type": "object"
+    },
+    "FirewallVerdict": {
+      "additionalProperties": true,
+      "description": "Internal step type.",
+      "properties": {
+        "anomalous": {
+          "default": false,
+          "title": "Anomalous",
+          "type": "boolean"
+        },
+        "gate": {
+          "anyOf": [
+            {
+              "enum": [
+                1,
+                2,
+                3
+              ],
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Gate"
+        },
+        "instruction_flag": {
+          "default": false,
+          "title": "Instruction Flag",
+          "type": "boolean"
+        },
+        "quarantine": {
+          "default": false,
+          "title": "Quarantine",
+          "type": "boolean"
+        },
+        "reasons": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Reasons",
+          "type": "array"
+        },
+        "signals_run": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Signals Run",
+          "type": "array"
+        },
+        "trust": {
+          "title": "Trust",
+          "type": "number"
+        }
+      },
+      "required": [
+        "trust"
+      ],
+      "title": "FirewallVerdict",
+      "type": "object"
+    },
+    "RenderedPrompt": {
+      "additionalProperties": true,
+      "description": "Step 13 output.",
+      "properties": {
+        "alias_map": {
+          "additionalProperties": {
+            "$ref": "#/$defs/AliasTarget"
+          },
+          "title": "Alias Map",
+          "type": "object"
+        },
+        "context_block": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Context Block"
+        },
+        "input_blocks_hash": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Input Blocks Hash"
+        },
+        "known_line": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Known Line"
+        },
+        "prompt_hash": {
+          "title": "Prompt Hash",
+          "type": "string"
+        },
+        "system": {
+          "title": "System",
+          "type": "string"
+        },
+        "user_blocks": {
+          "items": {
+            "type": "string"
+          },
+          "title": "User Blocks",
+          "type": "array"
+        }
+      },
+      "required": [
+        "system",
+        "prompt_hash"
+      ],
+      "title": "RenderedPrompt",
+      "type": "object"
+    }
+  },
+  "additionalProperties": true,
+  "properties": {
+    "firewall_verdict": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/FirewallVerdict"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "prompt": {
+      "$ref": "#/$defs/RenderedPrompt"
+    }
+  },
+  "required": [
+    "prompt"
+  ],
+  "title": "InsertStep13Output",
+  "type": "object"
+}

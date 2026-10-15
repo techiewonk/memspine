@@ -1,0 +1,34 @@
+{
+  "additionalProperties": true,
+  "properties": {
+    "job_kind": {
+      "enum": [
+        "full",
+        "reconcile_only",
+        "rederive"
+      ],
+      "title": "Job Kind",
+      "type": "string"
+    },
+    "manual": {
+      "default": false,
+      "title": "Manual",
+      "type": "boolean"
+    },
+    "ns": {
+      "title": "Ns",
+      "type": "string"
+    },
+    "requested_by": {
+      "title": "Requested By",
+      "type": "string"
+    }
+  },
+  "required": [
+    "ns",
+    "job_kind",
+    "requested_by"
+  ],
+  "title": "JobRequest",
+  "type": "object"
+}

@@ -1,0 +1,33 @@
+{
+  "additionalProperties": true,
+  "description": "The spec's retrieve-side ``Window``; renamed because insert.md defines a different ``Window``.",
+  "properties": {
+    "anchor_id": {
+      "title": "Anchor Id",
+      "type": "string"
+    },
+    "member_ids": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Member Ids",
+      "type": "array"
+    },
+    "score": {
+      "title": "Score",
+      "type": "number"
+    },
+    "tokens": {
+      "title": "Tokens",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "anchor_id",
+    "member_ids",
+    "score",
+    "tokens"
+  ],
+  "title": "NeighbourWindow",
+  "type": "object"
+}

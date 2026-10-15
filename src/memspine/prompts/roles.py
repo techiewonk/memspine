@@ -6,7 +6,7 @@ startup that every role a feature needs resolves to an active prompt (§4.2).
 
 from __future__ import annotations
 
-__all__ = ["PROMPT_ROLES"]
+__all__ = ["CATALOGUE_ROLE", "PROMPT_ROLES", "catalogue_role"]
 
 PROMPT_ROLES: tuple[str, ...] = (
     "extract",  # entity/fact extraction (M13.3, D-28 LLM fallback)
@@ -30,4 +30,41 @@ PROMPT_ROLES: tuple[str, ...] = (
     "verify_answer",  # #39: answer verification against the context (Engine.verify_answer)
     "predict_episode",  # #62: Nemori predict step (episode from stored memory), opt-in
     "calibrate",  # #62: Nemori calibrate step (prediction vs episode -> surprise), opt-in
+    "describe_asset",  # W2-11: optional vision caption for an asset (write.asset_describer)
+    "window_extract",  # W1: call 1 of the adaptive-window write (facts / edges / episode), opt-in
 )
+
+#: MD-01 (P-01): the engine's role names mapped onto the model-tier catalogue
+#: (``memspine.models.tiers.ROLE_CATALOGUE``). Worker-tier roles read raw turns and stay local;
+#: reader roles may be hosted. A role absent here (and from the catalogue) has no tier and is left
+#: as bound.
+CATALOGUE_ROLE: dict[str, str] = {
+    "extract": "extract",
+    "window_extract": "extract",
+    "anticipate": "extract",
+    "extract_edges": "extract_edges",
+    "invalidate_edge": "extract_edges",
+    "summarize": "summarize",
+    "summarize_entity": "summarize",
+    "consolidate": "summarize",
+    "subcluster": "summarize",
+    "predict_episode": "summarize",
+    "calibrate": "summarize",
+    "session_close": "call2",
+    "resolve_entity": "resolve",
+    "dedupe": "dedupe",
+    "firewall_flag": "dedupe",
+    "sufficiency": "sufficiency",
+    "query_rewrite": "query_rewrite",
+    "relevance": "relevance",
+    "chat": "chat",
+    "verify_answer": "verify",
+    "judge": "judge",
+    "reflect": "reflect",
+    "plan": "plan",
+}
+
+
+def catalogue_role(role: str) -> str | None:
+    """The tier-catalogue role an engine role belongs to, or None when it has none."""
+    return CATALOGUE_ROLE.get(role)

@@ -21,7 +21,7 @@ system: >-
   date the fact refers to in `date` as YYYY-MM-DD (or YYYY-MM or YYYY when only that
   is known; leave it empty if no time is involved);
   (4) keep names, numbers, titles and places exactly as stated; never generalise a
-  specific detail ("a Gamecube", not "a console");
+  specific detail ("a Sega Saturn", not "a console");
   (5) never invent facts;
   (6) classify each fact as `kind: state` or `kind: event`. A state is single-valued
   and current, so a newer value replaces it: where someone lives, their job, their
@@ -37,9 +37,9 @@ system: >-
   property such as "city", "job", "hobby", "pet", "event", "plan", "preference",
   "relationship"), value (the full self-contained statement), kind (state or event),
   date, turns, confidence (0-1).
-  Example. Transcript line "[4] [2023-07-15] Ana: I went camping with the kids
-  last Friday" gives: {entity: Ana, attribute: event, value: "Ana went camping
-  with her kids on 2023-07-14", kind: event, date: 2023-07-14, turns: [4],
+  Example. Transcript line "[4] [2021-03-13] Ana: I went to the pottery fair with my sister
+  last Friday" gives: {entity: Ana, attribute: event, value: "Ana went to the pottery
+  fair with her sister on 2021-03-12", kind: event, date: 2021-03-12, turns: [4],
   confidence: 0.9}.
   {% include "no_injection.j2" %} {% include "yaml_only.j2" %}
   Emit a YAML list under the key `facts`.

@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import pytest
 
-from memspine.core.records import MemoryRecord, SourceInfo
 from memspine.exceptions import MissingServiceError
-from memspine.services.rerank.base import Reranker, concat_background
+from memspine.models.providers.rerank.base import Reranker, concat_background
+from memspine.store.records import MemoryRecord, SourceInfo
 
 
 def test_concat_background_prepends_structural_context() -> None:
@@ -43,7 +43,7 @@ def test_flashrank_adapter_names_the_extra_when_absent() -> None:
         pass
     else:  # pragma: no cover - env with the extra installed
         pytest.skip("flashrank installed — the import-gate branch is unreachable")
-    from memspine.services.rerank.flashrank_rerank import FlashrankReranker
+    from memspine.models.providers.rerank.flashrank_rerank import FlashrankReranker
 
     with pytest.raises(MissingServiceError, match=r"memspine\[rerank\]"):
         FlashrankReranker()
@@ -58,7 +58,7 @@ def test_fastembed_adapter_names_the_upgrade_remedy_when_too_old() -> None:
         pass
     else:  # pragma: no cover - fastembed new enough ships the reranker
         pytest.skip("fastembed ships TextCrossEncoder — the guard branch is unreachable")
-    from memspine.services.rerank.fastembed_rerank import FastembedReranker
+    from memspine.models.providers.rerank.fastembed_rerank import FastembedReranker
 
     with pytest.raises(MissingServiceError, match="upgrade fastembed"):
         FastembedReranker()

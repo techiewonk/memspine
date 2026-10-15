@@ -6,11 +6,11 @@ cache makes that cheap when content is unchanged).
 
 from __future__ import annotations
 
-from memspine.core.events import EventKind, MemoryEvent
-from memspine.core.projector import Projector
-from memspine.core.records import MemoryRecord
-from memspine.services.embedding.base import EmbeddingService
+from memspine.models.encoders.embedding.base import EmbeddingService
 from memspine.services.vector.base import VectorStore
+from memspine.store.events import EventKind, MemoryEvent
+from memspine.store.projections.projector import Projector
+from memspine.store.records import MemoryRecord
 
 __all__ = ["VectorProjector"]
 
@@ -25,7 +25,10 @@ class VectorProjector(Projector):
     async def apply(self, event: MemoryEvent) -> None:
         if event.kind is EventKind.WRITE:
             record = MemoryRecord.model_validate(event.payload["record"])
-            [vector] = await self._embedder.embed([record.content])
+            # R14-INDEXVIEW: an index text (write.index_view) is embedded; absent = the content
+            text = event.payload.get("index_text")
+            body = text if isinstance(text, str) and text else record.content
+            [vector] = await self._embedder.embed([body])
             await self._store.upsert(
                 record.record_id, record.namespace, self._embedder.embedder_id, vector
             )

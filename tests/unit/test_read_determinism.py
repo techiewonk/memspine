@@ -14,10 +14,10 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from memspine import Engine
-from memspine.core.records import MemoryRecord, chrono_key, record_time
 from memspine.core.ties import settle_ties
 from memspine.services.lexical.base import LexicalHit, rrf_fuse
 from memspine.services.vector.base import VectorHit
+from memspine.store.records import MemoryRecord, chrono_key, record_time
 
 #: The G8a sweep's firewall-on arm (``evals/sweep_wrapper_threshold.py``), wrapper off.
 FIREWALL_ON: dict[str, Any] = {

@@ -12,7 +12,7 @@ recovery, triggered synchronously inside ``launch()``; this module runs no
 polling loop of its own.
 
 The durable *unit* is the pipeline invocation, not its internal steps:
-:class:`~memspine.workers.pipelines.PipelineContext` holds live storage
+:class:`~memspine.derive.pipeline.stages.context.PipelineContext` holds live storage
 connections and callables (``append_event``, ``summarize``, the namespace
 lock) that cannot be serialized into DBOS's checkpoint store, so the workflow
 body cannot suspend mid-pipeline and resume from an intermediate step — only
@@ -69,9 +69,9 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+from memspine.derive.pipeline.stages.context import Pipeline, PipelineContext
 from memspine.exceptions import MissingServiceError
 from memspine.observability.logging import get_logger
-from memspine.workers.pipelines import Pipeline, PipelineContext
 
 __all__ = ["DBOSRunner", "default_system_database_url"]
 
@@ -197,7 +197,7 @@ class DBOSRunner:
         # MOMENT `DBOS.launch()` runs, and that recovery calls straight into
         # the module-level workflow function, which looks up the pipeline by
         # name in `self._pipelines` — empty until `register()` runs. Engine
-        # registers every pipeline (`workers/pipelines.PIPELINES`) before
+        # registers every pipeline (`derive.pipeline.stages.table.PIPELINES`) before
         # calling `launch()` (`_build_runner`), so recovery never races an
         # empty registry; construct-then-immediately-launch would not have
         # that guarantee.

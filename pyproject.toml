@@ -31,6 +31,7 @@ dependencies = [
     "lancedb>=0.13",           # sole vector store + native quantization (D-09, amends D-03 — ADR-021)
     "litellm>=1.50",           # unified cloud+local LLM/embedding/rerank gateway (D-33, amends D-03/D-39 — ADR-024)
     "tantivy>=0.22",           # default lexical/BM25 leg — standalone, backend-independent (D-25, amends D-03; hybrid is default-on since A3)
+    "dishka>=1.10,<2",         # dependency injection: app / job / request scopes (F-08, ARCHITECTURE section 8)
 ]
 
 [project.optional-dependencies]
@@ -45,8 +46,8 @@ graph      = ["ladybug>=0.21,<0.22"]                 # embedded Cypher graph eng
 kuzu       = ["kuzu>=0.11"]                         # deprecated alias provider (ADR-034)
 cache      = ["cashews[redis,diskcache]>=7.0"]       # unified disk + redis/valkey cache (D-09, ADR-022)
 ingest     = ["markitdown>=0.1", "chonkie>=1.0"]    # multi-format ingest + chunking (D-29)
-structured = ["instructor>=1.9"]                    # schema-validated LLM output (D-31)
 ner        = ["gliner2[local]>=1.2,<2"]                # local CPU entity extraction (D-28); [local] = torch+transformers+peft (gliner2 2.x moved them there; 2.x[local] needs transformers<5)
+decider    = ["torch>=2.4", "transformers>=5.0", "safetensors>=0.4", "huggingface-hub>=0.23"]  # I28: OpenDecider-nano inference (own port, no `opendecider` package); ~0.8 GB weights, CPU ok
 community  = ["graspologic-native>=1.3,<1.4"]        # graph community detection — Rust Leiden, MIT (D-40, ADR-043; needs numpy+scipy, no numpy ceiling)
 compress   = ["llmlingua>=0.2"]                     # assembly-time context compression (E5)
 llmlocal   = ["llama-cpp-python>=0.3"]              # in-proc open-weight inference (D-39)
@@ -54,8 +55,9 @@ opensearch = ["opensearch-py>=2.6"]                 # server-scale lexical/BM25 
 dbos       = ["dbos>=2.20,<3.0"]                     # durable worker runner (D-16); needs the SQLite system-db support (zero-infra, D-10) verified against 2.26
 taskiq     = ["taskiq>=0.11", "taskiq-redis>=1.0"]  # brokered worker runner (D-16)
 rest       = ["fastapi>=0.115", "uvicorn>=0.32"]    # REST protocol (D-06)
+otel       = ["opentelemetry-api>=1.27", "opentelemetry-sdk>=1.27"]  # optional span export (G-20, T5-06): ids/counts only, no content
 rerank     = ["flashrank>=0.2"]                      # E8 cross-encoder rerank alt (D-51)
-st         = ["transformers>=4.51", "torch>=2.4"]   # local torch rerankers: Qwen3-Reranker (G5a)
+st         = ["transformers>=4.51", "torch>=2.4", "sentence-transformers>=3", "bitsandbytes>=0.45"]   # local torch rerankers: Qwen3-Reranker (G5a)
 static     = ["model2vec>=0.3"]                      # E4 static-embedding prefilter (ADR-020)
 aws        = ["boto3>=1.35"]                         # Bedrock LLM/embeddings + Secrets (D-07/D-22)
 promptopt  = ["langmem>=0.0.20"]                     # RG-only prompt self-optimization hook (D-43)
@@ -72,7 +74,7 @@ local      = ["memspine[graph,cache,dbos,ingest,ner]"]
 prod-aws   = ["memspine[aws,taskiq,rest]"]
 # `community` (graspologic-native) declares no numpy ceiling (ADR-028/035), so it does not conflict
 # with `ingest` (numpy>=2.1) and is included in `all` — `--all-extras` is unblocked.
-all        = ["memspine[graph,cache,ingest,structured,ner,community,compress,llmlocal,opensearch,dbos,taskiq,rest,rerank,static,aws,postgres,weaviate,neo4j]"]
+all        = ["memspine[graph,cache,ingest,ner,community,compress,llmlocal,opensearch,dbos,taskiq,rest,rerank,static,aws,postgres,weaviate,neo4j]"]
 
 dev = [
     "pytest>=8.3",
@@ -80,6 +82,7 @@ dev = [
     "pytest-cov>=6.0",
     "ruff>=0.7",
     "mypy>=1.13",
+    "import-linter>=2.0",       # X-02: scripts/ci_importlinter.py (layer contracts in .importlinter)
     "fakeredis>=2.26",          # mock cache/broker in tests (D-41)
     "deepeval>=1.5",            # eval assertions, not shipped (D-35)
     "mkdocs-material>=9.5",
@@ -101,10 +104,16 @@ build-backend = "hatchling.build"
 [dependency-groups]
 dev = [
     "types-pyyaml>=6.0.12.20260518",
-    # protocols/rest is dev-tested in-process (httpx ASGITransport, no server);
+    # api/rest is dev-tested in-process (httpx ASGITransport, no server);
     # taskiq stays OUT of dev — its runner is tested via fakeredis + pure fns (D-41).
     "fastapi>=0.115",
 ]
+
+[tool.uv]
+# datasets 5.x needs huggingface-hub >= 1.31; a lock at 1.16.1 broke sentence-transformers on 2026-10-11
+constraint-dependencies = ["huggingface-hub>=1.31"]
+# huggingface-hub >= 1.31 needs click >= 8.4.2, while deepeval 4.x caps click < 8.4; deepeval runs fine on 8.5
+override-dependencies = ["click>=8.4.2"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/memspine"]
@@ -120,9 +129,11 @@ select = ["E", "F", "I", "UP", "B", "SIM", "ASYNC", "RUF"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+pythonpath = ["evals"]  # H6: evals/*.py scripts (run_chunked, ...) importable whichever conftest wins
 addopts = "-q"
 markers = [
     "shipped_default: run with the shipped Engine() default template (ADR-032), not the pinned pre-ADR default",
+    "milestone: phase-exit milestone runs (docs/v2/MILESTONES.md), model-free",
 ]
 
 [tool.mypy]

@@ -8,10 +8,10 @@ ONLY when hybrid retrieval is enabled, so rebuild() replays it and the
 
 from __future__ import annotations
 
-from memspine.core.events import EventKind, MemoryEvent
-from memspine.core.projector import Projector
-from memspine.core.records import MemoryRecord
 from memspine.services.lexical.base import LexicalStore
+from memspine.store.events import EventKind, MemoryEvent
+from memspine.store.projections.projector import Projector
+from memspine.store.records import MemoryRecord
 
 __all__ = ["LexicalProjector"]
 
@@ -28,6 +28,9 @@ class LexicalProjector(Projector):
     async def apply(self, event: MemoryEvent) -> None:
         if event.kind is EventKind.WRITE:
             record = MemoryRecord.model_validate(event.payload["record"])
+            text = event.payload.get("index_text")  # R14-INDEXVIEW: indexed in place of the content
+            if isinstance(text, str) and text:
+                record = record.model_copy(update={"content": text})
             await self._store.index(record)
         elif event.kind is EventKind.FORGET:
             # A forgotten memory must stop being retrievable via the lexical leg

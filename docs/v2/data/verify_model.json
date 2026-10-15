@@ -1,0 +1,766 @@
+[
+ {
+  "id": "M-01",
+  "choice": "E",
+  "combined": "",
+  "verdict": "ok",
+  "conflicts": [],
+  "needs": "",
+  "impact": {
+   "quality": "0",
+   "latency": "0",
+   "cost": "small (export on demand)",
+   "risk": "+ audit unchanged; edits pass the write door"
+  },
+  "v1_locations": [
+   "src/memspine/core/events.py:33",
+   "src/memspine/config/schema.py:43",
+   "src/memspine/config/schema.py:79"
+  ],
+  "v2_component": "EventLog + MarkdownExportView",
+  "operators": [
+   "D"
+  ],
+  "memory_types": [
+   "working",
+   "episodic",
+   "semantic",
+   "procedural",
+   "reflective",
+   "resource",
+   "associative",
+   "prospective",
+   "shared"
+  ]
+ },
+ {
+  "id": "M-02",
+  "choice": "D",
+  "combined": "B + D: explicit layer field L0-L5 on every record (B); base template populates only L0 raw and L1 facts (D); L2-L5 kept as opt-in template layers, not removed",
+  "verdict": "needs-owner",
+  "conflicts": [
+   "M-13",
+   "M-14",
+   "M-16",
+   "M-19",
+   "M-20",
+   "M-22",
+   "O-07",
+   "O-17",
+   "O-19",
+   "O-21"
+  ],
+  "needs": "Confirm: explicit layer field with only raw and facts populated by default, other layers opt-in rather than removed?",
+  "impact": {
+   "quality": "0 on base (estimate; matches the current base template)",
+   "latency": "0",
+   "cost": "+ no background summarisation by default",
+   "risk": "+ per-layer erasure and budgets"
+  },
+  "v1_locations": [
+   "src/memspine/core/records.py:174",
+   "src/memspine/config/templates/base.yaml:42"
+  ],
+  "v2_component": "Record.layer + Record.derivation + template layers block",
+  "operators": [
+   "D",
+   "K_C"
+  ],
+  "memory_types": [
+   "working",
+   "episodic",
+   "semantic",
+   "reflective"
+  ]
+ },
+ {
+  "id": "M-03",
+  "choice": "B",
+  "combined": "",
+  "verdict": "ok",
+  "conflicts": [],
+  "needs": "",
+  "impact": {
+   "quality": "0 to + (estimate)",
+   "latency": "0",
+   "cost": "+ fewer store-like code paths",
+   "risk": "+"
+  },
+  "v1_locations": [
+   "src/memspine/config/templates/base.yaml:42",
+   "src/memspine/core/namespace.py:56"
+  ],
+  "v2_component": "TypeRegistry (type -> layer)",
+  "operators": [
+   "D"
+  ],
+  "memory_types": [
+   "working",
+   "episodic",
+   "semantic",
+   "procedural",
+   "reflective",
+   "resource",
+   "associative",
+   "prospective",
+   "shared"
+  ]
+ },
+ {
+  "id": "M-04",
+  "choice": "C",
+  "combined": "Two profiles; note 'SQL graph to neo4j' read as: server graph default = Postgres tables, Neo4j optional server adapter applied via the outbox",
+  "verdict": "needs-owner",
+  "conflicts": [
+   "M-18"
+  ],
+  "needs": "In the server profile, should Neo4j replace the SQL graph or be an optional adapter beside a Postgres-tables default?",
+  "impact": {
+   "quality": "0 (Postgres FTS slightly weaker than Tantivy, estimate)",
+   "latency": "0; + embedded",
+   "cost": "- two projection sets to test; Neo4j adapter is new work (v1 stub)",
+   "risk": "+ one transaction and erasure surface in server profile (lost if Neo4j replaces SQL)"
+  },
+  "v1_locations": [
+   "src/memspine/config/schema.py:79",
+   "src/memspine/config/schema.py:139",
+   "src/memspine/config/schema.py:173",
+   "src/memspine/services/graph/neo4j.py:16",
+   "src/memspine/services/vector/lancedb_store.py:27"
+  ],
+  "v2_component": "StorageProfile{embedded, server}",
+  "operators": [
+   "R"
+  ],
+  "memory_types": [
+   "working",
+   "episodic",
+   "semantic",
+   "procedural",
+   "reflective",
+   "resource",
+   "associative",
+   "prospective",
+   "shared"
+  ]
+ },
+ {
+  "id": "M-05",
+  "choice": "B",
+  "combined": "",
+  "verdict": "ok",
+  "conflicts": [],
+  "needs": "",
+  "impact": {
+   "quality": "0",
+   "latency": "0",
+   "cost": "small (more columns)",
+   "risk": "++ closes key-omits-scope class (RV07, RV21)"
+  },
+  "v1_locations": [
+   "src/memspine/core/namespace.py:25",
+   "src/memspine/core/records.py:191",
+   "src/memspine/config/schema.py:170"
+  ],
+  "v2_component": "Scope value object in every key",
+  "operators": [
+   "R",
+   "D"
+  ],
+  "memory_types": [
+   "working",
+   "episodic",
+   "semantic",
+   "procedural",
+   "reflective",
+   "resource",
+   "associative",
+   "prospective",
+   "shared"
+  ]
+ },
+ {
+  "id": "M-06",
+  "choice": "B",
+  "combined": "",
+  "verdict": "ok",
+  "conflicts": [],
+  "needs": "",
+  "impact": {
+   "quality": "+ to ++ (estimate)",
+   "latency": "0",
+   "cost": "- larger rows, validation",
+   "risk": "+ unknown enums fail visibly"
+  },
+  "v1_locations": [
+   "src/memspine/core/records.py:183",
+   "src/memspine/workers/windows.py:829",
+   "src/memspine/workers/pipelines.py:1882"
+  ],
+  "v2_component": "AssertionEnvelope (v1 = G-W49 item list)",
+  "operators": [
+   "D"
+  ],
+  "memory_types": [
+   "semantic",
+   "episodic"
+  ]
+ },
+ {
+  "id": "M-07",
+  "choice": "C",
+  "combined": "",
+  "verdict": "ok",
+  "conflicts": [],
+  "needs": "",
+  "impact": {
+   "quality": "+",
+   "latency": "0",
+   "cost": "0",
+   "risk": "++ assistant proposals never become user facts without assent"
+  },
+  "v1_locations": [
+   "src/memspine/core/records.py:111",
+   "src/memspine/core/records.py:231"
+  ],
+  "v2_component": "Provenance{src_class, trust, support_count}",
+  "operators": [
+   "D"
+  ],
+  "memory_types": [
+   "semantic",
+   "episodic",
+   "shared"
+  ]
+ },
+ {
+  "id": "M-08",
+  "choice": "B",
+  "combined": "",
+  "verdict": "ok",
+  "conflicts": [],
+  "needs": "",
+  "impact": {
+   "quality": "+",
+   "latency": "+ indexed filters",
+   "cost": "0",
+   "risk": "+"
+  },
+  "v1_locations": [
+   "src/memspine/core/perspective.py:1",
+   "src/memspine/core/perspective.py:177",
+   "src/memspine/config/schema.py:914"
+  ],
+  "v2_component": "RecordAxes columns (+ participants list per W-05)",
+  "operators": [
+   "D",
+   "R"
+  ],
+  "memory_types": [
+   "episodic",
+   "semantic"
+  ]
+ },
+ {
+  "id": "M-09",
+  "choice": "C",
+  "combined": "",
+  "verdict": "ok",
+  "conflicts": [],
+  "needs": "",
+  "impact": {
+   "quality": "+",
+   "latency": "+ reverse lookup is a key read",
+   "cost": "- storage",
+   "risk": "++"
+  },
+  "v1_locations": [
+   "src/memspine/core/records.py:128",
+   "src/memspine/core/erasure.py:1"
+  ],
+  "v2_component": "LineageProjection",
+  "operators": [
+   "K_C",
+   "D"
+  ],
+  "memory_types": [
+   "working",
+   "episodic",
+   "semantic",
+   "procedural",
+   "reflective",
+   "resource",
+   "associative",
+   "prospective",
+   "shared"
+  ]
+ },
+ {
+  "id": "M-10",
+  "choice": "B",
+  "combined": "B + C: tri-temporal with precision on every record; compiled edges expose valid_at/invalid_at/created_at/expired_at mapped from the same fields",
+  "verdict": "ok-combined",
+  "conflicts": [],
+  "needs": "",
+  "impact": {
+   "quality": "++ on temporal questions (estimate)",
+   "latency": "0",
+   "cost": "0",
+   "risk": "+ coarse dates keep their precision"
+  },
+  "v1_locations": [
+   "src/memspine/core/records.py:199",
+   "src/memspine/workers/pipelines.py:2924"
+  ],
+  "v2_component": "Envelope.times + GraphProjection edge-time view",
+  "operators": [
+   "D"
+  ],
+  "memory_types": [
+   "episodic",
+   "semantic",
+   "associative"
+  ]
+ },
+ {
+  "id": "M-11",
+  "choice": "B",
+  "combined": "",
+  "verdict": "ok",
+  "conflicts": [],
+  "needs": "",
+  "impact": {
+   "quality": "+",
+   "latency": "0",
+   "cost": "0",
+   "risk": "+ audit replay"
+  },
+  "v1_locations": [
+   "src/memspine/core/read_filters.py:245",
+   "src/memspine/engine.py:1097"
+  ],
+  "v2_component": "TimeView (as_of_valid, as_of_known)",
+  "operators": [
+   "R"
+  ],
+  "memory_types": [
+   "episodic",
+   "semantic"
+  ]
+ },
+ {
+  "id": "M-12",
+  "choice": "B",
+  "combined": "",
+  "verdict": "conflict",
+  "conflicts": [
+   "W-22"
+  ],
+  "needs": "Adopt W-22 D (events/facts coexist, undeclared states contest, learned cardinality) as the registry fallback; owner only if undeclared states should coexist",
+  "impact": {
+   "quality": "+",
+   "latency": "0",
+   "cost": "0",
+   "risk": "+ lists no longer superseded by mistake"
+  },
+  "v1_locations": [
+   "src/memspine/core/query_contract.py:92",
+   "src/memspine/core/policies/conflict.py:60"
+  ],
+  "v2_component": "CardinalityRegistry",
+  "operators": [
+   "D"
+  ],
+  "memory_types": [
+   "semantic"
+  ]
+ },
+ {
+  "id": "M-13",
+  "choice": "D",
+  "combined": "Value-history half built now as a deterministic code view (= O-14 B); observation half specified but held while O-15 = A",
+  "verdict": "conflict",
+  "conflicts": [
+   "O-15",
+   "M-02",
+   "O-21"
+  ],
+  "needs": "Owner: value histories only (as O-15 A implies), or also the observation layer?",
+  "impact": {
+   "quality": "+ (estimate)",
+   "latency": "+",
+   "cost": "0 for value view; - LLM cost if observations built",
+   "risk": "+"
+  },
+  "v1_locations": [
+   "src/memspine/core/records.py:165",
+   "src/memspine/core/records.py:216"
+  ],
+  "v2_component": "ValueHistoryView (L1) + ObservationLayer (L4, held)",
+  "operators": [
+   "K_C"
+  ],
+  "memory_types": [
+   "semantic",
+   "reflective"
+  ]
+ },
+ {
+  "id": "M-14",
+  "choice": "B",
+  "combined": "",
+  "verdict": "ok",
+  "conflicts": [],
+  "needs": "",
+  "impact": {
+   "quality": "+ where enabled",
+   "latency": "0",
+   "cost": "- segmentation and summary calls (L2 opt-in)",
+   "risk": "+ exact membership cascades"
+  },
+  "v1_locations": [
+   "src/memspine/workers/windows.py:883",
+   "src/memspine/engine.py:13771"
+  ],
+  "v2_component": "Grouping records (episode, session, saga)",
+  "operators": [
+   "K_C"
+  ],
+  "memory_types": [
+   "episodic"
+  ]
+ },
+ {
+  "id": "M-15",
+  "choice": "B",
+  "combined": "",
+  "verdict": "ok",
+  "conflicts": [],
+  "needs": "",
+  "impact": {
+   "quality": "+",
+   "latency": "0",
+   "cost": "- resolution work",
+   "risk": "++ homonyms not merged; reversible merges"
+  },
+  "v1_locations": [
+   "src/memspine/memories/associative/resolution.py:1"
+  ],
+  "v2_component": "EntityRegistry + MERGE/SPLIT events",
+  "operators": [
+   "K_C"
+  ],
+  "memory_types": [
+   "associative"
+  ]
+ },
+ {
+  "id": "M-16",
+  "choice": "C",
+  "combined": "C + D: assertion envelope is truth with compiled binary edges and reified n-ary nodes; untyped links (temporal, shared-entity, similarity, extractor-marked causal) as a second projection kind feeding R-09",
+  "verdict": "ok-combined",
+  "conflicts": [],
+  "needs": "",
+  "impact": {
+   "quality": "+",
+   "latency": "0",
+   "cost": "small (links built in code)",
+   "risk": "+ one fact truth"
+  },
+  "v1_locations": [
+   "src/memspine/core/events.py:57",
+   "src/memspine/workers/pipelines.py:1882"
+  ],
+  "v2_component": "EdgeCompiler + LinkProjection",
+  "operators": [
+   "D",
+   "R"
+  ],
+  "memory_types": [
+   "associative",
+   "semantic"
+  ]
+ },
+ {
+  "id": "M-17",
+  "choice": "B",
+  "combined": "",
+  "verdict": "ok",
+  "conflicts": [],
+  "needs": "",
+  "impact": {
+   "quality": "+",
+   "latency": "0",
+   "cost": "0",
+   "risk": "+ A-B-A and same-day events fixed"
+  },
+  "v1_locations": [
+   "src/memspine/workers/pipelines.py:1882"
+  ],
+  "v2_component": "AssertionKey (versioned, aliases)",
+  "operators": [
+   "D"
+  ],
+  "memory_types": [
+   "associative",
+   "semantic"
+  ]
+ },
+ {
+  "id": "M-18",
+  "choice": "A",
+  "combined": "A for the embedded profile now; server-profile graph settled under M-04 (Postgres tables default, Neo4j optional later); keep GraphStore protocol and per-backend tests",
+  "verdict": "conflict",
+  "conflicts": [
+   "M-04"
+  ],
+  "needs": "Settled together with the M-04 owner question",
+  "impact": {
+   "quality": "0",
+   "latency": "+ embedded",
+   "cost": "+",
+   "risk": "- LadybugDB crash workarounds (no HNSW, no parameterised FTS)"
+  },
+  "v1_locations": [
+   "src/memspine/config/schema.py:186",
+   "src/memspine/services/graph/base.py:88",
+   "src/memspine/services/graph/ladybug.py:1",
+   "src/memspine/services/graph/neo4j.py:16"
+  ],
+  "v2_component": "GraphProjection",
+  "operators": [
+   "R"
+  ],
+  "memory_types": [
+   "associative"
+  ]
+ },
+ {
+  "id": "M-19",
+  "choice": "A",
+  "combined": "A + D: keep Leiden/LPA communities opt-in; add entity summaries (O-16 B) as an extra grouping kind; observation scopes only if O-15 reopens",
+  "verdict": "ok-combined",
+  "conflicts": [
+   "O-15"
+  ],
+  "needs": "Observation-scope part follows the M-13/O-15 owner answer; KB-8 calibration before any read use",
+  "impact": {
+   "quality": "unmeasured",
+   "latency": "0 (opt-in)",
+   "cost": "- summaries where enabled",
+   "risk": "0"
+  },
+  "v1_locations": [
+   "src/memspine/workers/pipelines.py:1176",
+   "src/memspine/memories/associative/communities.py:204",
+   "src/memspine/config/constants.py:94",
+   "src/memspine/workers/pipelines.py:2621"
+  ],
+  "v2_component": "GroupingKinds {community, entity_summary, observation_scope (held)}",
+  "operators": [
+   "K_C"
+  ],
+  "memory_types": [
+   "associative",
+   "reflective"
+  ]
+ },
+ {
+  "id": "M-20",
+  "choice": "B",
+  "combined": "",
+  "verdict": "ok",
+  "conflicts": [],
+  "needs": "",
+  "impact": {
+   "quality": "+ where enabled",
+   "latency": "+",
+   "cost": "0",
+   "risk": "+ cited, capped, relevance-gated"
+  },
+  "v1_locations": [
+   "src/memspine/memories/working/persona.py:17",
+   "src/memspine/config/schema.py:777",
+   "src/memspine/workers/pipelines.py:3484"
+  ],
+  "v2_component": "ProfileCard (L4)",
+  "operators": [
+   "K_P"
+  ],
+  "memory_types": [
+   "reflective",
+   "working"
+  ]
+ },
+ {
+  "id": "M-21",
+  "choice": "C",
+  "combined": "",
+  "verdict": "ok",
+  "conflicts": [],
+  "needs": "",
+  "impact": {
+   "quality": "+ on long sessions (estimate)",
+   "latency": "0",
+   "cost": "- one summarise call per eviction batch",
+   "risk": "+"
+  },
+  "v1_locations": [
+   "src/memspine/memories/working/paging.py:13"
+  ],
+  "v2_component": "WorkingMemory + RollingSummary",
+  "operators": [
+   "C"
+  ],
+  "memory_types": [
+   "working"
+  ]
+ },
+ {
+  "id": "M-22",
+  "choice": "D",
+  "combined": "",
+  "verdict": "needs-measurement",
+  "conflicts": [],
+  "needs": "Focus slice plus one frozen blind run: context tokens down at no QA loss (G-W41, G-W25)",
+  "impact": {
+   "quality": "+ (estimate)",
+   "latency": "+",
+   "cost": "+ read tokens; - write (gist and note text)",
+   "risk": "+"
+  },
+  "v1_locations": [
+   "src/memspine/core/records.py:244",
+   "src/memspine/config/schema.py:1007",
+   "src/memspine/workers/windows.py:894"
+  ],
+  "v2_component": "Record.res{gist, note, full_ptr}",
+  "operators": [
+   "C"
+  ],
+  "memory_types": [
+   "episodic",
+   "semantic"
+  ]
+ },
+ {
+  "id": "M-23",
+  "choice": "B",
+  "combined": "",
+  "verdict": "needs-measurement",
+  "conflicts": [],
+  "needs": "Retrieval-only LoCoMo + ConvoMem screen: English R@k within the noise band of bge-small; non-English probe (I23)",
+  "impact": {
+   "quality": "+ non-English; English unmeasured",
+   "latency": "0",
+   "cost": "0 (re-embed by replay on switch)",
+   "risk": "0"
+  },
+  "v1_locations": [
+   "src/memspine/config/schema.py:104",
+   "src/memspine/services/vector/lancedb_store.py:27"
+  ],
+  "v2_component": "EmbeddingProfile pinned per store",
+  "operators": [
+   "R"
+  ],
+  "memory_types": [
+   "semantic",
+   "episodic"
+  ]
+ },
+ {
+  "id": "M-24",
+  "choice": "C",
+  "combined": "",
+  "verdict": "ok",
+  "conflicts": [],
+  "needs": "",
+  "impact": {
+   "quality": "+ multi-agent",
+   "latency": "0",
+   "cost": "- extra derived views",
+   "risk": "+ views inherit trust caps"
+  },
+  "v1_locations": [
+   "src/memspine/core/namespace.py:56",
+   "src/memspine/engine.py:12911"
+  ],
+  "v2_component": "Grants + ObserverViews",
+  "operators": [
+   "R",
+   "K_C"
+  ],
+  "memory_types": [
+   "shared",
+   "reflective"
+  ]
+ },
+ {
+  "id": "M-25",
+  "choice": "B",
+  "combined": "",
+  "verdict": "ok",
+  "conflicts": [],
+  "needs": "",
+  "impact": {
+   "quality": "+ memory stays useful after erasure",
+   "latency": "0",
+   "cost": "- re-derivation",
+   "risk": "++ generation check stops stale publication"
+  },
+  "v1_locations": [
+   "src/memspine/core/erasure.py:1",
+   "src/memspine/engine.py:9657",
+   "src/memspine/engine.py:10230",
+   "src/memspine/engine.py:14409"
+  ],
+  "v2_component": "ErasureService over LineageProjection",
+  "operators": [
+   "K_C"
+  ],
+  "memory_types": [
+   "working",
+   "episodic",
+   "semantic",
+   "procedural",
+   "reflective",
+   "resource",
+   "associative",
+   "prospective",
+   "shared"
+  ]
+ },
+ {
+  "id": "M-26",
+  "choice": "B",
+  "combined": "",
+  "verdict": "ok",
+  "conflicts": [],
+  "needs": "",
+  "impact": {
+   "quality": "+",
+   "latency": "0",
+   "cost": "- upcaster tests",
+   "risk": "++ audit chain intact"
+  },
+  "v1_locations": [
+   "src/memspine/core/events.py:122"
+  ],
+  "v2_component": "Upcasters + Record.derivation",
+  "operators": [
+   "D"
+  ],
+  "memory_types": [
+   "working",
+   "episodic",
+   "semantic",
+   "procedural",
+   "reflective",
+   "resource",
+   "associative",
+   "prospective",
+   "shared"
+  ]
+ }
+]

@@ -26,11 +26,11 @@ from pathlib import Path
 import pytest
 from _contexts import CANONICAL_CONTEXTS, SAMPLE_PAYLOADS
 
+from memspine.models.providers.llm.structured import _parse_payload
 from memspine.prompts.base import PromptFormat
 from memspine.prompts.env import default_environment, partials_dir
 from memspine.prompts.models import OUTPUT_MODELS
 from memspine.prompts.registry import PromptRegistry
-from memspine.services.llm.structured import _parse_payload
 
 _GOLDENS = Path(__file__).parent / "goldens"
 _STRUCTURED = {PromptFormat.YAML, PromptFormat.JSON, PromptFormat.COD}

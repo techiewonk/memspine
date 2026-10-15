@@ -19,9 +19,9 @@ from __future__ import annotations
 
 from collections.abc import Callable, Sequence
 
+from memspine.compose.pack import estimate_tokens
 from memspine.config import constants
-from memspine.core.policies.assembly import estimate_tokens
-from memspine.core.records import MemoryRecord, chrono_key
+from memspine.store.records import MemoryRecord, chrono_key
 
 __all__ = ["pack_profile", "packed_line", "render_packed_profile"]
 

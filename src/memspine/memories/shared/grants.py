@@ -5,7 +5,7 @@ the log like everything else (D0.1):
 
 - ``namespace``   = the GRANTOR (the grant lives with what it exposes),
 - ``memory_type`` = ``"shared"`` (bookkeeping records — they never cross a
-  grant themselves, see :func:`memspine.core.namespace.grant_allows`),
+  grant themselves, see :func:`memspine.store.scope.grant_allows`),
 - ``entity``      = the grantee namespace,
 - ``attribute``   = ``"grant"``,
 - ``content``     = canonical JSON documenting the scope (human-readable AND
@@ -13,7 +13,7 @@ the log like everything else (D0.1):
   the stated firewall exemption shared with prompt sync, ADR-014 §2).
 
 Revocation archives the grant via a delta DECAY_TRANSITION (P3.1 rule); the
-enforcement decision itself lives in ``core/namespace.grant_allows`` — the
+enforcement decision itself lives in ``store/scope.grant_allows`` — the
 ONE place a cross-namespace read is allowed or refused.
 """
 
@@ -26,13 +26,13 @@ from typing import ClassVar, Protocol
 
 import orjson
 
-from memspine.core.events import EventKind, MemoryEvent, canonical_payload
-from memspine.core.records import MemoryRecord, RecordStatus, SourceInfo
 from memspine.core.registry import MEMORY_TYPES
 from memspine.exceptions import ConflictError
 from memspine.memories.base import BaseMemory
 from memspine.memories.shared.subscriptions import active_subscriptions
 from memspine.observability.logging import EVENT_DECAY_TRANSITION, EVENT_WRITE, get_logger
+from memspine.store.events import EventKind, MemoryEvent, canonical_payload
+from memspine.store.records import MemoryRecord, RecordStatus, SourceInfo
 
 __all__ = [
     "GRANT_ATTRIBUTE",
@@ -215,7 +215,7 @@ class SharedMemory(BaseMemory):
     async def grants_to(self, grantee: str) -> dict[str, frozenset[str] | None]:
         """Every namespace ``grantee`` may read from, mapped to its scope
         (``None`` = every type) — the exact mapping
-        :func:`memspine.core.namespace.grant_allows` consumes. Scopes from
+        :func:`memspine.store.scope.grant_allows` consumes. Scopes from
         multiple live grants by one grantor union (an unscoped grant wins)."""
         allowed: dict[str, frozenset[str] | None] = {}
         for namespace in await self._storage.list_namespaces():

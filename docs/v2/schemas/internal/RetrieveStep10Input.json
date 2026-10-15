@@ -1,0 +1,251 @@
+{
+  "$defs": {
+    "DateFilter": {
+      "additionalProperties": true,
+      "description": "Explicit valid/recorded bounds.(time).",
+      "properties": {
+        "recorded_from": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Recorded From"
+        },
+        "recorded_to": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Recorded To"
+        },
+        "valid_from": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Valid From"
+        },
+        "valid_to": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Valid To"
+        }
+      },
+      "title": "DateFilter",
+      "type": "object"
+    },
+    "Pool": {
+      "additionalProperties": true,
+      "properties": {
+        "entries": {
+          "items": {
+            "$ref": "#/$defs/PoolEntry"
+          },
+          "title": "Entries",
+          "type": "array"
+        },
+        "evicted": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Evicted",
+          "type": "array"
+        }
+      },
+      "title": "Pool",
+      "type": "object"
+    },
+    "PoolEntry": {
+      "additionalProperties": true,
+      "description": "Internal step type.",
+      "properties": {
+        "family": {
+          "title": "Family",
+          "type": "string"
+        },
+        "fused_score": {
+          "title": "Fused Score",
+          "type": "number"
+        },
+        "lifted_from": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Lifted From"
+        },
+        "protected": {
+          "default": false,
+          "title": "Protected",
+          "type": "boolean"
+        },
+        "record_id": {
+          "title": "Record Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "record_id",
+        "fused_score",
+        "family"
+      ],
+      "title": "PoolEntry",
+      "type": "object"
+    },
+    "ReadScope": {
+      "additionalProperties": true,
+      "properties": {
+        "as_of_known": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "As Of Known"
+        },
+        "as_of_valid": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "As Of Valid"
+        },
+        "date_filter": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DateFilter"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "multi_party": {
+          "title": "Multi Party",
+          "type": "boolean"
+        },
+        "namespace": {
+          "title": "Namespace",
+          "type": "string"
+        },
+        "purpose": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Purpose"
+        },
+        "sensitivity_bar": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sensitivity Bar"
+        },
+        "viewer": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Viewer"
+        },
+        "viewer_rule": {
+          "enum": [
+            "full",
+            "viewer"
+          ],
+          "title": "Viewer Rule",
+          "type": "string"
+        }
+      },
+      "required": [
+        "namespace",
+        "multi_party",
+        "viewer_rule"
+      ],
+      "title": "ReadScope",
+      "type": "object"
+    }
+  },
+  "additionalProperties": true,
+  "description": "Lift derived hits to source turns.",
+  "properties": {
+    "pool": {
+      "$ref": "#/$defs/Pool"
+    },
+    "scope": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ReadScope"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    }
+  },
+  "required": [
+    "pool"
+  ],
+  "title": "RetrieveStep10Input",
+  "type": "object"
+}

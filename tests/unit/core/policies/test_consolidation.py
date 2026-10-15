@@ -9,7 +9,7 @@ from memspine.core.policies.consolidation import (
     ConsolidationTrigger,
     extractive_summary,
 )
-from memspine.core.records import MemoryRecord, SourceInfo
+from memspine.store.records import MemoryRecord, SourceInfo
 
 NOW = datetime(2026, 7, 7, tzinfo=UTC)
 

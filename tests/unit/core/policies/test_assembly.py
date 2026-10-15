@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from memspine.core.policies.assembly import AssemblyPolicy
-from memspine.core.records import MemoryRecord, SourceInfo
+from memspine.compose.pack import AssemblyPolicy
+from memspine.store.records import MemoryRecord, SourceInfo
 
 
 def rec(content: str, memory_type: str = "semantic", persona: bool = False) -> MemoryRecord:

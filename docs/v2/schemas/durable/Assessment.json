@@ -1,0 +1,108 @@
+{
+  "$defs": {
+    "Support": {
+      "additionalProperties": true,
+      "description": "Independent source families, plus the ``restated`` count (S4-3).\n\n``restated`` is a stability signal used for recency and conflict tie-breaks; it is never corroboration.",
+      "properties": {
+        "families": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Families",
+          "type": "array"
+        },
+        "independent": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Independent",
+          "type": "integer"
+        },
+        "restated": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Restated",
+          "type": "integer"
+        }
+      },
+      "title": "Support",
+      "type": "object"
+    }
+  },
+  "additionalProperties": true,
+  "description": "What the system knows about how far an assertion can be believed (ER-14), as separate fields.\n\n``model_confidence_hint`` is the model's self-confidence, a hint only (S2-1): it feeds nothing in\nsupersede, graph or profile logic.",
+  "properties": {
+    "binding": {
+      "enum": [
+        "bound",
+        "partly",
+        "unbound"
+      ],
+      "title": "Binding",
+      "type": "string"
+    },
+    "modality": {
+      "enum": [
+        "asserted",
+        "negated",
+        "hypothetical",
+        "planned",
+        "reported",
+        "question"
+      ],
+      "title": "Modality",
+      "type": "string"
+    },
+    "model_confidence_hint": {
+      "anyOf": [
+        {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Model Confidence Hint"
+    },
+    "negated": {
+      "default": false,
+      "title": "Negated",
+      "type": "boolean"
+    },
+    "source_trust": {
+      "maximum": 1.0,
+      "minimum": 0.0,
+      "title": "Source Trust",
+      "type": "number"
+    },
+    "support": {
+      "$ref": "#/$defs/Support"
+    },
+    "time_precision": {
+      "default": "unknown",
+      "enum": [
+        "instant",
+        "minute",
+        "hour",
+        "day",
+        "week",
+        "month",
+        "season",
+        "year",
+        "decade",
+        "unknown"
+      ],
+      "title": "Time Precision",
+      "type": "string"
+    }
+  },
+  "required": [
+    "source_trust",
+    "binding",
+    "modality"
+  ],
+  "title": "Assessment",
+  "type": "object"
+}

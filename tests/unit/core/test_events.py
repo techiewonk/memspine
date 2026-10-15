@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from memspine.core.events import (
+from memspine.store.events import (
     EventKind,
     MemoryEvent,
     canonical_payload,

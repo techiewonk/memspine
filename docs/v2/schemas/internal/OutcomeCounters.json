@@ -1,0 +1,22 @@
+{
+  "additionalProperties": true,
+  "properties": {
+    "items_grounded": {
+      "default": 0,
+      "title": "Items Grounded",
+      "type": "integer"
+    },
+    "items_rejected": {
+      "default": 0,
+      "title": "Items Rejected",
+      "type": "integer"
+    },
+    "items_uncertain": {
+      "default": 0,
+      "title": "Items Uncertain",
+      "type": "integer"
+    }
+  },
+  "title": "OutcomeCounters",
+  "type": "object"
+}

@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 
 from memspine import Engine
-from memspine.core.answer import final_answer
+from memspine.compose.answer import final_answer
 
 
 @pytest.mark.parametrize(

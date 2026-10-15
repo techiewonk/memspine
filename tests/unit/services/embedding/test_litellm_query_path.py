@@ -8,9 +8,9 @@ from typing import Any
 
 import pytest
 
-from memspine.services.cache.semantic import CachedEmbedding
-from memspine.services.embedding.base import embed_queries
-from memspine.services.embedding.litellm_embed import LiteLLMEmbedding
+from memspine.models.cache.semantic import CachedEmbedding
+from memspine.models.encoders.embedding.base import embed_queries
+from memspine.models.encoders.embedding.litellm_embed import LiteLLMEmbedding
 
 
 @pytest.fixture
@@ -51,7 +51,7 @@ async def test_requested_dims_and_input_types(calls: list[dict[str, Any]]) -> No
 
 
 async def test_cache_keeps_query_and_document_vectors_apart(calls: list[dict[str, Any]]) -> None:
-    from memspine.services.cache.base import MemoryKV  # in-process KV
+    from memspine.models.cache.base import MemoryKV  # in-process KV
 
     emb = LiteLLMEmbedding(
         "bedrock/cohere.embed-v4:0",

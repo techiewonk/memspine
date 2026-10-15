@@ -1,0 +1,33 @@
+{
+  "additionalProperties": true,
+  "properties": {
+    "cites_windows": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Cites Windows",
+      "type": "array"
+    },
+    "text": {
+      "title": "Text",
+      "type": "string"
+    },
+    "when": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "When"
+    }
+  },
+  "required": [
+    "text"
+  ],
+  "title": "Call2Episode",
+  "type": "object"
+}

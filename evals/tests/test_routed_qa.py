@@ -35,9 +35,9 @@ from memspine_evals.readers import (
 from memspine_evals.runner import EvalRunner, RunConfig
 from memspine_evals.systems import VerbatimSystem
 
-TEMPORAL = "When did Caroline go to the LGBTQ support group?"
-INFERENCE = "Would Caroline pursue writing as a career?"
-PLAIN = "What is Caroline's identity?"
+TEMPORAL = "When did Ilse go to the LGBTQ support group?"
+INFERENCE = "Would Ilse pursue writing as a career?"
+PLAIN = "What is Ilse's identity?"
 _FMT = {"context": "[2023-05-08] x", "question_date": "unknown"}
 
 
@@ -46,13 +46,13 @@ _FMT = {"context": "[2023-05-08] x", "question_date": "unknown"}
     [
         (TEMPORAL, "temporal"),
         ("How many weeks ago did Ana move?", "temporal"),
-        ("When would Melanie likely go camping?", "temporal"),
+        ("When would Bram likely go camping?", "temporal"),
         (INFERENCE, "inference"),
-        ("What might John's financial status be?", "inference"),
-        ("Is it likely that Nate has friends besides Joanna?", "inference"),
-        ("Could Melanie be a member of the LGBTQ community?", "inference"),
+        ("What might Tomasz's financial status be?", "inference"),
+        ("Is it likely that Pieter has friends besides Femke?", "inference"),
+        ("Could Bram be a member of the LGBTQ community?", "inference"),
         (PLAIN, "plain"),
-        ("How many children does Melanie have?", "plain"),
+        ("How many children does Bram have?", "plain"),
     ],
 )
 def test_routing_decision(question: str, shape: str) -> None:
@@ -101,6 +101,19 @@ def test_existing_prompt_table_is_unchanged() -> None:
         "dated_planned",  # N46
         "dated_noabstain",  # N56
         "evermemos_cot",  # N65
+        "grounded",  # reader-gap fix
+        "grounded_detail",  # C2
+        "grounded_legacy",  # I80: the pre-2026-10-11 text, byte-identical
+        "grounded_detail_legacy",  # I80
+        "grounded_nodate",  # I79
+        "grounded_detail_nodate",  # I79
+        "grounded_ordered",  # R2-4
+        "grounded_v2",  # dev reasoning 2026-10-10
+        "grounded_v3",
+        "grounded_generic",  # I3
+        "grounded_generic_infer",  # B3 / C4 / R2-6 (+ C9 detail clause)
+        "grounded_generic_list",  # C6
+        "grounded_generic_prefs",  # I18
     }
 
 
@@ -120,6 +133,7 @@ def _old_describe(reader: Any, bedrock: bool) -> dict[str, Any]:
             "base_url": reader.base_url,
             "temperature": reader.temperature,
             "max_tokens": reader.max_tokens,
+            "sampler": reader.sampler.describe(),  # A8: explicit sampler
             "prompt_sha256": sha,
         }
     extra = {"extract_answer": True, "answer_extractor": "v3"} if reader.extract_answer else {}

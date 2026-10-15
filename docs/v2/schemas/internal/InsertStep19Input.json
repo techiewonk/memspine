@@ -1,0 +1,65 @@
+{
+  "$defs": {
+    "EntityMention": {
+      "additionalProperties": true,
+      "description": "A name to resolve (step 19 input).",
+      "properties": {
+        "co_mentioned": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Co Mentioned",
+          "type": "array"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "type_hint": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Type Hint"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "title": "EntityMention",
+      "type": "object"
+    }
+  },
+  "additionalProperties": true,
+  "properties": {
+    "mentions": {
+      "items": {
+        "$ref": "#/$defs/EntityMention"
+      },
+      "title": "Mentions",
+      "type": "array"
+    },
+    "source_trust": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Source Trust"
+    }
+  },
+  "required": [
+    "mentions"
+  ],
+  "title": "InsertStep19Input",
+  "type": "object"
+}

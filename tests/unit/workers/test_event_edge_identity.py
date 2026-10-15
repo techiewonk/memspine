@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
+from memspine.derive.pipeline.stages.extract_graph import _edge_key
 from memspine.prompts.models import ExtractedEdge
-from memspine.workers.pipelines import _edge_key
 
 
 def _edge(fact: str, day: str | None, kind: str = "event") -> ExtractedEdge:

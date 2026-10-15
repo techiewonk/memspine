@@ -11,11 +11,11 @@ from structlog.testing import capture_logs
 
 from memspine import Engine
 from memspine.config.schema import MemspineConfig
+from memspine.models.providers.llm.base import LLMRouter, LLMService
 from memspine.observability.logging import configure_logging
 from memspine.observability.usage import UNNAMED_PROMPT
 from memspine.prompts.base import RenderedMessages
 from memspine.prompts.registry import PromptRegistry
-from memspine.services.llm.base import LLMRouter, LLMService
 
 
 class _Stub:
@@ -94,10 +94,10 @@ async def test_usage_event_is_logged_at_debug() -> None:
 async def test_engine_usage_per_prompt_with_stub_llm(monkeypatch: pytest.MonkeyPatch) -> None:
     stubs: dict[str, LLMService] = {"extract": _Stub('{"facts": []}', usage=(50, 5))}
 
-    async def router(self: Engine, config: MemspineConfig) -> LLMRouter:
+    async def router(config: MemspineConfig, hooks: object = None) -> LLMRouter:
         return LLMRouter(stubs)
 
-    monkeypatch.setattr(Engine, "_build_llm_router", router)
+    monkeypatch.setattr("memspine.runtime.container.build_llm_router", router)
     eng = Engine(
         template="core",
         dotenv_path=None,

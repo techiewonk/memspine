@@ -1,0 +1,20 @@
+{
+  "additionalProperties": true,
+  "description": "Deep tier: sufficiency check and one rewrite.",
+  "properties": {
+    "query": {
+      "title": "Query",
+      "type": "string"
+    },
+    "rendered_context": {
+      "title": "Rendered Context",
+      "type": "string"
+    }
+  },
+  "required": [
+    "rendered_context",
+    "query"
+  ],
+  "title": "RetrieveStep18Input",
+  "type": "object"
+}

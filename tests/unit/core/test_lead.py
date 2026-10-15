@@ -19,7 +19,7 @@ import pytest
     ],
 )
 def test_wide_cues_catch_first_person_preferences(text: str) -> None:
-    from memspine.core.lead import is_standing_instruction
+    from memspine.read.lead import is_standing_instruction
 
     assert not is_standing_instruction(text)
     assert is_standing_instruction(text, wide=True)
@@ -34,7 +34,7 @@ def test_wide_cues_catch_first_person_preferences(text: str) -> None:
     ],
 )
 def test_wide_cues_leave_compliments_and_events_alone(text: str) -> None:
-    from memspine.core.lead import is_standing_instruction
+    from memspine.read.lead import is_standing_instruction
 
     assert not is_standing_instruction(text, wide=True)
 

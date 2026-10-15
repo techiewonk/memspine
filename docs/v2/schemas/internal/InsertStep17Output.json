@@ -1,0 +1,59 @@
+{
+  "additionalProperties": true,
+  "properties": {
+    "adjudicated": {
+      "default": false,
+      "title": "Adjudicated",
+      "type": "boolean"
+    },
+    "checks": {
+      "additionalProperties": {
+        "anyOf": [
+          {
+            "type": "boolean"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "title": "Checks",
+      "type": "object"
+    },
+    "grounding": {
+      "enum": [
+        "grounded",
+        "uncertain",
+        "rejected"
+      ],
+      "title": "Grounding",
+      "type": "string"
+    },
+    "src": {
+      "anyOf": [
+        {
+          "enum": [
+            "user_stated",
+            "assistant_proposed",
+            "user_confirmed",
+            "tool",
+            "document",
+            "external",
+            "derived"
+          ],
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Src"
+    }
+  },
+  "required": [
+    "grounding"
+  ],
+  "title": "InsertStep17Output",
+  "type": "object"
+}

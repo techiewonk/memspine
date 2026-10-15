@@ -1,0 +1,8 @@
+qs-eq06-roff rc=0 secs=1321
+qs-ebge-roff rc=0 secs=1334
+qs-eq06-rbge rc=0 secs=1745
+qs-ebge-rbge rc=0 secs=1775
+qs-eq06-rq06 rc=0 secs=1685
+qs-ebge-rq06 rc=0 secs=1782
+qs-eq06-rq4b4 rc=0 secs=3294
+qs-ebge-rq4b4 rc=0 secs=3318

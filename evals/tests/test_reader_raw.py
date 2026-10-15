@@ -147,3 +147,17 @@ def test_verifying_reader_carries_the_raw_reply() -> None:
 
     out = asyncio.run(VerifyingReader(Inner(), verify).answer("q", "ctx"))
     assert out.raw_text == REPLY
+
+
+def test_shared_client_never_serves_another_modules_client() -> None:
+    """Regression (H5): the pooled client was keyed by ``id()`` of the httpx module and the
+    loop, so a recycled address returned a stale client from an earlier test's fake."""
+    from memspine_evals.readers import _shared_client
+
+    for _ in range(300):
+        fake = type("H", (), {"AsyncClient": type("C", (), {"__init__": lambda s, **k: None})})
+
+        async def get(fake: Any = fake) -> Any:
+            return _shared_client(fake, 1.0)
+
+        assert type(asyncio.run(get())) is fake.AsyncClient

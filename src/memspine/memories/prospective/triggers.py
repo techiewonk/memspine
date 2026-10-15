@@ -25,8 +25,8 @@ from __future__ import annotations
 from collections.abc import Iterable
 from datetime import datetime
 
-from memspine.core.events import EventKind, MemoryEvent
-from memspine.core.records import MemoryRecord, RecordStatus, chrono_key
+from memspine.store.events import EventKind, MemoryEvent
+from memspine.store.records import MemoryRecord, RecordStatus, chrono_key
 
 __all__ = ["due_watches", "fired_watches", "invalidation_watches"]
 

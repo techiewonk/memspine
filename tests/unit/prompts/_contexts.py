@@ -15,6 +15,7 @@ CANONICAL_CONTEXTS: dict[str, dict[str, Any]] = {
     "extract": {
         "content": "Alice lives in Berlin and works at Acme.",
         "facts": "[1] Alice moved to Berlin",
+        "question": "Where did Alice live before Berlin?",
     },
     "relevance": {
         "question": "Where does Alice live?",
@@ -22,6 +23,12 @@ CANONICAL_CONTEXTS: dict[str, dict[str, Any]] = {
         "nonce": "0a1b2c3d4e5f",
     },
     "anticipate": {"content": "[1] [2026-01-02] Alice: I found out I am allergic to nuts"},
+    "describe_asset": {
+        "filename": "hive.png",
+        "mime": "image/png",
+        "size": 1234,
+        "alt_text": "a hive",
+    },
     "judge": {
         "existing_content": "Alice lives in Berlin",
         "existing_valid_from": "2026-01-01",
@@ -52,6 +59,8 @@ CANONICAL_CONTEXTS: dict[str, dict[str, Any]] = {
     "sufficiency": {
         "question": "What activities does Alice do?",
         "context": "- [2026-01-02] Alice: I started pottery\n- [2026-02-03] Alice: I went hiking",
+        "contract": "answer type: description; about: Alice; cardinality: many",
+        "steps": "(none)",
     },
     "verify_answer": {
         "question": "What activities does Alice do?",
@@ -74,6 +83,12 @@ CANONICAL_CONTEXTS: dict[str, dict[str, Any]] = {
             "[1] Bob Smith (candidates: Robert Smith; Bobby Tables)\n"
             "[2] Acme Corp (candidates: Acme)"
         ),
+    },
+    "window_extract": {
+        "content": "[1] [2026-01-02] Alice: I moved to Berlin last week",
+        "participants": "Alice",
+        "turn_count": 1,
+        "sections": ["facts", "edges", "episode"],
     },
     "summarize_entity": {
         "entities": (
@@ -100,8 +115,40 @@ SAMPLE_PAYLOADS: dict[str, dict[str, Any]] = {
         "entities": ["Alice"],
         "subqueries": ["Alice hobbies", "Alice sports"],
     },
+    "QueryContractOut": {
+        "answer_type": "place",
+        "subtype": "city",
+        "cardinality": "one",
+        "request": "recall",
+        "relation": "move",
+        "subjects": ["Alice"],
+    },
     "SufficiencyOut": {"complete": False, "reason": "only one activity is described"},
     "MissingInfoOut": {"queries": ["Alice hobby", "Alice weekend activity"]},
+    "AgenticStepOut": {"action": "search", "query": "Alice weekend activity", "why": "a gap"},
+    "AssertionsOut": {
+        "assertions": [
+            {
+                "subject": "Alice",
+                "relation": "lives_in",
+                "object": "Berlin",
+                "line": 1,
+                "span": "Alice lives in Berlin",
+            }
+        ]
+    },
+    "EventsOut": {
+        "events": [
+            {
+                "actor": "Alice",
+                "action": "attend the workshop",
+                "status": "planned",
+                "line": 1,
+                "span": "Alice lives in Berlin",
+                "when": "",
+            }
+        ]
+    },
     "AnswerVerdictOut": {"supported": False, "evidence": [1], "revised_answer": "Pottery"},
     "AnticipatedCues": {"cues": [{"line": 1, "cue": "What can Alice eat at the party?"}]},
     "ExtractedFacts": {
@@ -125,6 +172,20 @@ SAMPLE_PAYLOADS: dict[str, dict[str, Any]] = {
                 "confidence": 0.95,
             }
         ]
+    },
+    "WindowPayload": {
+        "facts": [
+            {
+                "entity": "Alice",
+                "attribute": "city",
+                "value": "Alice moved to Berlin last week (2025-12-26)",
+                "kind": "state",
+                "turns": [1],
+                "span": "I moved to Berlin",
+            }
+        ],
+        "edges": [],
+        "episode": {"narrative": "Alice said she moved to Berlin.", "turns": [1]},
     },
     "FactDates": {"dates": [{"index": 1, "date": "2026-01-02"}]},
     "FactClasses": {"classes": [{"index": 1, "label": "places lived"}]},

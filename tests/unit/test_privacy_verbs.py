@@ -13,10 +13,10 @@ import orjson
 import pytest
 
 from memspine import Engine
-from memspine.core.events import EventKind, MemoryEvent
-from memspine.core.privacy import principal_scope
-from memspine.core.records import PiiTier, RecordStatus
-from memspine.services.llm.tier_gate import WITHHELD_MARKER, TierGatedLLM
+from memspine.models.providers.llm.tier_gate import WITHHELD_MARKER, TierGatedLLM
+from memspine.store.events import EventKind, MemoryEvent
+from memspine.store.records import PiiTier, RecordStatus
+from memspine.trust.privacy import principal_scope
 from memspine.workers.schedule import RETENTION_STAGE
 
 

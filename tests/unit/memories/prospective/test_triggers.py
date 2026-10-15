@@ -4,13 +4,13 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 
-from memspine.core.events import EventKind, MemoryEvent
-from memspine.core.records import MemoryRecord, RecordStatus
 from memspine.memories.prospective.triggers import (
     due_watches,
     fired_watches,
     invalidation_watches,
 )
+from memspine.store.events import EventKind, MemoryEvent
+from memspine.store.records import MemoryRecord, RecordStatus
 
 NOW = datetime(2026, 7, 7, 12, 0, tzinfo=UTC)
 

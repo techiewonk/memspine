@@ -35,7 +35,14 @@ from .contracts import DatasetAdapter, Reader, SystemAdapter, sha256_text
 from .judge import DEFAULT_BINARY_PROMPT, ContainsJudge, Judge
 from .metrics import CostModel, Price
 from .provenance import RunProtocol
-from .readers import ContextOnlyReader, OpenAICompatReader, openai_compat_chat
+from .readers import (
+    NO_MEMORY_QA_PROMPT,
+    ContextOnlyReader,
+    CtxGuard,
+    OpenAICompatReader,
+    SamplerConfig,
+    openai_compat_chat,
+)
 from .results import RunSummary
 from .runner import RunConfig, run_matrix
 from .systems import (
@@ -53,7 +60,17 @@ from .systems.baselines import BudgetCappedSystem
 HARNESS_PROTOCOL_REVISION = "harness-protocol=r3-2026-10-02"
 
 #: judge choices: the alias judge (no model) plus every routed suite.
-JUDGE_CHOICES = ("rubric", "constraint", "alias", "locomo-plus-v2", "longmemeval", "omnimemeval")
+JUDGE_CHOICES = (
+    "rubric",
+    "rubric-guarded",
+    "constraint",
+    "alias",
+    "locomo-plus-v2",
+    "longmemeval",
+    "omnimemeval",
+    "mem0-official",
+    "opbench",
+)
 
 Mode = Literal["retrieval", "qa"]
 
@@ -76,7 +93,7 @@ class C01Config:
     embedding_model: str = "BAAI/bge-small-en-v1.5"
     reader_model: str = "qwen3:4b"
     judge_model: str = "qwen3:4b"
-    base_url: str = "http://localhost:11434/v1"
+    base_url: str = "http://127.0.0.1:11434/v1"
     include_memspine: bool = False
     max_items: int | None = None
     max_model_calls: int | None = None
@@ -89,6 +106,12 @@ class C01Config:
     memspine_read_mode: str | None = None
     #: N34: memspine reads as of each question's date (LongMemEval ``question_date``).
     memspine_as_of_question_date: bool = False
+    #: C1: mark final search hits in the rendered context (off | star | rank)
+    memspine_mark_hits: str = "off"
+    #: F5: the IANA zone the dataset's naive stamps are read in (default UTC = as written).
+    stamp_timezone: str = "UTC"
+    #: R2-4: context line order (chrono | hits_first | hit_blocks)
+    memspine_context_order: str = "chrono"
     #: run the engine's sleep cycle after ingestion (write-time stages: H2, H8, H14)
     memspine_build_sleep: bool = False
     #: G9: turns of one session per write_messages call (1 = one call per turn)
@@ -112,6 +135,12 @@ class C01Config:
     #: is valid because items are independent (each resets the system).
     only_systems: tuple[str, ...] | None = None
     item_ids: tuple[str, ...] | None = None
+    #: Question-level filter (``--query-ids``): ``item_id/query_id`` pairs; None = all questions.
+    query_ids: tuple[str, ...] | None = None
+    #: RUNBOOK2: id of the sample slice (``slice_id`` key of the ``--query-ids @file`` JSON). When set, the manifest
+    #: records it as ``slice_id`` and hashes ``query_ids`` into ``slice_hash`` (old focus slices leave it None, so their
+    #: comparability keys are unchanged).
+    query_slice_id: str | None = None
     #: G2b: bind every engine LLM role of the memspine arm to this model family
     #: (``none`` | ``bedrock-qwen3``). Explicit ``llm.roles`` in ``memspine_config`` win.
     memspine_llm: str = "none"
@@ -128,14 +157,126 @@ class C01Config:
     #: ``verify_answer`` prompt on the judge's backend (+1 call per question); an
     #: unsupported answer the context contradicts is replaced. Off: readers unchanged.
     verify_answer: bool = False
+    #: reader-gap fix: re-ask once, firmer, when the reader refuses (``refusal.py``).
+    retry_refusal: bool = False
+    #: C10: with ``retry_refusal``, skip the retry when the question names an entity the
+    #: retrieved context never mentions (``refusal.names_absent_entity``). Off: unchanged.
+    retry_guard: bool = False
+    #: I1: wording of the retry instruction, ``neutral`` (default; never claims evidence
+    #: exists) or ``assertive`` (the original firmer wording, to reproduce earlier runs).
+    retry_mode: str = "neutral"
+    #: I1: safety valve; accept the retry answer only when it shares a content word with the
+    #: retrieved context. Off: unchanged.
+    retry_overlap: bool = False
+    #: I32: tell the reader no memory matches an asserted past event (``no_record.py``).
+    no_record_hint: bool = False
+    #: I61: tell the reader to answer the supported part and correct a mismatched detail
+    #: instead of confirming or refusing (``premise.py``). Trades against abstention: screen
+    #: it with the cat-5 guard slice before adopting.
+    premise_tolerant: bool = False
+    #: I22: ``whole`` (default) = a refusal only when the whole answer is a refusal statement;
+    #: ``legacy`` = the original substring regexes (reproduces runs before 2026-10-10).
+    refusal_match: str = "whole"
+    #: I29: a dedicated reader prompt when the retrieved context is empty (the relevance gate
+    #: or abstention fired): answer from the question alone. Off: the QA prompt is rendered.
+    no_memory_prompt: bool = False
+    #: I28: ``opendecider`` replaces the ``is_refusal`` regex in the refusal retry (needs
+    #: ``retry_refusal``); question and answer text only. ``heuristic`` (default): unchanged.
+    decider: str = "heuristic"
+    decider_model: str = "manjunathshiva/opendecider-nano"
+    decider_device: str = "cpu"
+    decider_min_confidence: float = 0.5
+    decider_threads: int = 0  # 0 = physical cores
+    decider_backend: str = "torch"
+    decider_dtype: str = "float32"
+    decider_workers: int = 1
+    #: reader-gap fix: empty answers score wrong without a judge call, and ``rubric`` becomes
+    #: ``rubric-guarded`` (``judge.GuardedJudge``). Off: judges unchanged.
+    judge_guards: bool = False
+    #: gap A2: deterministic single-day date equivalence before the LLM judge
+    judge_date_check: bool = False
+    #: I58: record, next to the unchanged LLM verdict, the verdict under the deterministic
+    #: conventions (numeral, typo, list superset): two columns, ``score`` never changes.
+    judge_conventions: bool = False
+    #: I77: the v2 rules (date format, unit, ordinal, alias) as a third column,
+    #: ``score_conventions_v2``; ``score`` and ``score_conventions`` never change.
+    judge_conventions_v2: bool = False
+    #: R14-M-17: the v3 rules (scoped-negation list, containment, geography, relative year) as a
+    #: further column, ``score_conventions_v3``; the other columns never change.
+    judge_conventions_v3: bool = False
+    #: I56: enumerate-then-count for count questions: "" (off), ``two_call`` (+1 call on count
+    #: questions) or ``single`` (list then count in one call). See ``count_verify.py``.
+    count_verify: str = ""
+    #: I57: repair a relative or weekday date answer against the cited line's date, by code
+    #: (``date_repair.py``; no model call).
+    date_repair: bool = False
+    #: I76: solve a "how many months between X and Y" question by code from the cited lines'
+    #: dates: "" (off), ``rewrite`` (replace a disagreeing or refused answer; no model call)
+    #: or ``hint`` (a computed line on top of the context). See ``duration_solve.py``.
+    duration_solve: str = ""
+    #: E05: one structured milestone-extraction call for a duration question, then dates and the
+    #: elapsed time by code: "" (off), ``nearest`` or ``floor`` (the rounding of the computed
+    #: amount). Replaces a disagreeing or refused answer only; see ``milestones.py``.
+    milestones: str = ""
+    #: E05: count both end days of the interval (default: the start day is not counted).
+    milestones_inclusive: bool = False
+    #: E06: code-check each answer against the question's typed contract (a date for "when", a
+    #: number for "how many", a city not a country, ...) and repair a named defect with ONE
+    #: extra reader call: "" (off), ``strict`` or ``soft``. See ``slot_verify.py``.
+    verify_slots: str = ""
+    #: A04 + A06: one structured call builds a provenance-linked evidence table (item, line, span,
+    #: actor, predicate, status, date) for list/count questions; ``count_verify`` counts distinct
+    #: qualifying rows from it and ``verify_slots`` checks list completeness against it. Needs one
+    #: of them. See ``evidence_table.py``. Off: unchanged.
+    evidence_table: bool = False
+    #: P03: check a past event / habit the user asserts against the retrieved memory (supported /
+    #: contradicted / unknown) and give the reader a precise note: "" (off), ``rules`` or ``llm``
+    #: (a decider call first, the rules as fallback). See ``assertion_check.py``.
+    assertion_check: str = ""
     #: screening: ingest and read every question as the QA run would, skip the reader
     #: and the judge, record evidence coverage per question (``screen.py``)
     retrieval_only: bool = False
+    #: ``--trace-full``: log exact prompts, raw replies and the per-record write trace
+    #: (``trace_full.py``); off by default
+    trace_full: bool = False
     #: screening: a directory for the disk cache of paid embedding and engine-role
     #: completion calls (``call_cache.py``). None = no cache.
     cache_dir: str | None = None
     #: screening: also cache reader and judge completions (temperature 0 only)
     cache_reader: bool = False
+    #: A8 [SRV-2]: sampler sent explicitly with every reader and judge request. The server's
+    #: own defaults (Ollama/Qwen3.5: presence_penalty 1.5) no longer apply. ``sampler_seed``
+    #: None = the run ``seed``.
+    presence_penalty: float = 0.0
+    frequency_penalty: float = 0.0
+    top_p: float = 1.0
+    sampler_seed: int | None = None
+    #: D2 [HAR-3]: the server's context window; a call with prompt + completion tokens
+    #: within 8 of it is flagged ``server_truncation_suspected`` (``strict_ctx``: raise).
+    server_ctx: int = 8192
+    strict_ctx: bool = False
+    #: D1 [HAR-1]: ``heuristic`` (chars/4, the default, old runs stay comparable) or
+    #: ``reader`` (the reader's own tokenizer; over-budget contexts drop their lowest-ranked
+    #: lines instead of cutting the tail).
+    token_count: str = "heuristic"
+    tokenizer_id: str | None = None
+    #: D4 [HAR-5]: record the ``runtime`` block (versions, argv, env, Ollama state) in the
+    #: manifest. ``probe_server`` also asks the local Ollama for /api/version and /api/ps.
+    capture_runtime: bool = False
+    probe_server: bool = False
+    #: OP-Bench: the local checkout whose ``src/opbench/prompts.py`` holds the official judge
+    #: prompts (read at run time, never vendored); set only for ``--dataset op_bench``.
+    opbench_root: str | None = None
+
+
+def sampler_for(config: C01Config) -> SamplerConfig:
+    """A8: the run's explicit sampler (seed defaults to the run seed)."""
+    return SamplerConfig(
+        presence_penalty=config.presence_penalty,
+        frequency_penalty=config.frequency_penalty,
+        top_p=config.top_p,
+        seed=config.seed if config.sampler_seed is None else config.sampler_seed,
+    )
 
 
 #: H25: declared protocol presets. OmniMemEval (MemTensor/OmniMemEval @ 0b1ea8d) is the
@@ -325,6 +466,52 @@ def check_dollar_cap(config: C01Config) -> None:
         )
 
 
+def inference_gated(config: C01Config) -> bool:
+    """R14-M-9: the engine overlay sets ``read.inference_mode = gated``."""
+    read = (memspine_engine_config(config) or {}).get("read") or {}
+    return read.get("inference_mode", "off") in ("gated", "gated_v2")
+
+
+def inference_gated_v2(config: C01Config) -> bool:
+    """R14-INFER2: the engine overlay sets ``read.inference_mode = gated_v2`` (widened shape)."""
+    read = (memspine_engine_config(config) or {}).get("read") or {}
+    return read.get("inference_mode", "off") == "gated_v2"
+
+
+def _retry_decider_kwargs(config: C01Config) -> dict[str, Any]:
+    """I28: ``RefusalRetryReader`` kwargs for ``--decider`` (none for the default heuristic)."""
+    guard: dict[str, Any] = {"guard_absent_entity": True} if config.retry_guard else {}
+    if inference_gated(config):
+        from .readers import is_inference_question, is_inference_question_v2
+
+        guard["inference_gate"] = (
+            is_inference_question_v2 if inference_gated_v2(config) else is_inference_question
+        )
+    if config.retry_mode != "neutral":
+        guard["mode"] = config.retry_mode
+    if config.retry_overlap:
+        guard["require_context_overlap"] = True
+    match = {"refusal_match": config.refusal_match} if config.refusal_match != "whole" else {}
+    if config.decider == "heuristic":
+        return {**guard, **match}
+    from memspine.models.providers.decision.decider import build_decider
+
+    return {
+        **guard,
+        **match,
+        "decider": build_decider(
+            config.decider,
+            config.decider_model,
+            config.decider_device,
+            threads=config.decider_threads,
+            backend=config.decider_backend,
+            workers=config.decider_workers,
+            dtype=config.decider_dtype,
+        ),
+        "decider_min_confidence": config.decider_min_confidence,
+    }
+
+
 def build_systems(config: C01Config) -> list[SystemAdapter]:
     """The arms, in the order they should be read.
 
@@ -364,6 +551,9 @@ def build_systems(config: C01Config) -> list[SystemAdapter]:
                 build_sleep=config.memspine_build_sleep,
                 batch_turns=config.memspine_batch_turns,
                 as_of_question_date=config.memspine_as_of_question_date,
+                mark_hits=config.memspine_mark_hits,
+                stamp_timezone=config.stamp_timezone,
+                context_order=config.memspine_context_order,
             )
         )
     if config.only_systems:
@@ -385,6 +575,35 @@ class _ItemFilter:
         return (item for item in self._inner.items() if item.item_id in self._ids)
 
 
+class _QueryFilter:
+    """A dataset view restricted to selected questions (focus-slice screens).
+
+    ``query_ids`` entries are ``"<item_id>/<query_id>"`` (exact) or a bare ``query_id``
+    (matches in any item). Items left with no selected query are dropped, so they are never
+    ingested. Question order inside an item is preserved.
+    """
+
+    def __init__(self, inner: DatasetAdapter, query_ids: tuple[str, ...]) -> None:
+        self._inner = inner
+        self._pairs = {q for q in query_ids if "/" in q}
+        self._bare = {q for q in query_ids if "/" not in q}
+
+    def info(self) -> Any:
+        return self._inner.info()
+
+    def items(self) -> Any:
+        import dataclasses
+
+        for item in self._inner.items():
+            kept = tuple(
+                q
+                for q in item.queries
+                if f"{item.item_id}/{q.query_id}" in self._pairs or q.query_id in self._bare
+            )
+            if kept:
+                yield dataclasses.replace(item, queries=kept)
+
+
 def build_judge(config: C01Config, chat: Any, model: str, judge_id: str | None = None) -> Judge:
     """The QA-mode judge, the same choice on every endpoint (R3-4).
 
@@ -392,14 +611,56 @@ def build_judge(config: C01Config, chat: Any, model: str, judge_id: str | None =
     The one-token default prompt is never used in QA: it graded "I do not know" CORRECT.
     """
     if config.judge_prompt == "alias":
-        from .judge import AliasContainsJudge
+        from .judge import AliasContainsJudge, GuardedJudge
 
-        return AliasContainsJudge()
+        return (
+            GuardedJudge(
+                AliasContainsJudge(),
+                date_check=config.judge_date_check,
+                empty_guard=config.judge_guards,
+                conventions=config.judge_conventions,
+                conventions_v2=config.judge_conventions_v2,
+                conventions_v3=config.judge_conventions_v3,
+            )
+            if (
+                config.judge_guards
+                or config.judge_date_check
+                or config.judge_conventions
+                or config.judge_conventions_v2
+                or config.judge_conventions_v3
+            )
+            else AliasContainsJudge()
+        )
+    if config.judge_prompt == "opbench":
+        from .opbench import build_opbench_judge
+
+        if config.opbench_root is None:
+            raise ValueError("the opbench judge needs the OP-Bench checkout (opbench_root)")
+        return build_opbench_judge(chat, model, config.opbench_root, config.embedding_model)
+    from .judge import GuardedJudge
     from .judge_prompts import RoutedLLMJudge
 
-    judge = RoutedLLMJudge(chat, model=model, suite=config.judge_prompt, judge_id=judge_id)
+    suite = config.judge_prompt
+    if config.judge_guards and suite == "rubric":
+        suite = "rubric-guarded"
+    judge = RoutedLLMJudge(chat, model=model, suite=suite, judge_id=judge_id)
     if judge.spec.prompt_hash == sha256_text(DEFAULT_BINARY_PROMPT):  # pragma: no cover
         raise ValueError("the default binary judge prompt is not allowed in QA mode")
+    if (
+        config.judge_guards
+        or config.judge_date_check
+        or config.judge_conventions
+        or config.judge_conventions_v2
+        or config.judge_conventions_v3
+    ):
+        return GuardedJudge(
+            judge,
+            date_check=config.judge_date_check,
+            empty_guard=config.judge_guards,
+            conventions=config.judge_conventions,
+            conventions_v2=config.judge_conventions_v2,
+            conventions_v3=config.judge_conventions_v3,
+        )
     return judge
 
 
@@ -422,18 +683,35 @@ def build_reader_and_judge(config: C01Config) -> tuple[Reader, Judge, bool]:
         QA_PROMPTS,
         REASONING_QA_PROMPTS,
         ROUTED_QA_PROMPTS,
+        SYSTEM_QA_PROMPTS,
         RoutedQAPrompt,
+        SystemQAPrompt,
         reasoning_max_tokens,
     )
 
-    qa_prompt: str | RoutedQAPrompt
-    if config.qa_prompt in QA_PROMPTS:
+    qa_prompt: str | RoutedQAPrompt | SystemQAPrompt
+    if config.qa_prompt in SYSTEM_QA_PROMPTS:  # OP-Bench: a system message + user message
+        if config.bedrock:
+            raise ValueError(
+                f"qa prompt {config.qa_prompt!r} has a system message; the Bedrock "
+                "reader does not send one (use the local OpenAI-compatible reader)"
+            )
+        qa_prompt = SYSTEM_QA_PROMPTS[config.qa_prompt]
+    elif config.qa_prompt in QA_PROMPTS:
         qa_prompt = QA_PROMPTS[config.qa_prompt]
     elif config.qa_prompt in ROUTED_QA_PROMPTS:  # C1: one variant per question
         qa_prompt = ROUTED_QA_PROMPTS[config.qa_prompt]
     else:
-        known = sorted([*QA_PROMPTS, *ROUTED_QA_PROMPTS])
+        known = sorted([*QA_PROMPTS, *ROUTED_QA_PROMPTS, *SYSTEM_QA_PROMPTS])
         raise ValueError(f"unknown qa prompt {config.qa_prompt!r}; known: {known}")
+    if inference_gated(config):  # R14-M-9: commit clause for inference questions only
+        if not isinstance(qa_prompt, str):
+            raise ValueError(
+                "read.inference_mode=gated / gated_v2 needs a fixed --qa-prompt (not routed / system)"
+            )
+        from .readers import gated_inference_prompt
+
+        qa_prompt = gated_inference_prompt(qa_prompt, config.qa_prompt, v2=inference_gated_v2(config))
     # #34: a reasoning prompt's reader keeps the final answer and gets room to reason.
     reasoning = config.qa_prompt in REASONING_QA_PROMPTS
     if config.bedrock:
@@ -455,6 +733,12 @@ def build_reader_and_judge(config: C01Config) -> tuple[Reader, Judge, bool]:
             prompt=qa_prompt,
             extract_answer=reasoning,
         )
+        if config.retry_refusal:
+            from .refusal import RefusalRetryReader
+
+            bedrock_reader = RefusalRetryReader(  # type: ignore[assignment]
+                bedrock_reader, **_retry_decider_kwargs(config)
+            )
         judge = build_judge(
             config,
             litellm_chat(budget, model=QWEN3_32B),
@@ -462,36 +746,225 @@ def build_reader_and_judge(config: C01Config) -> tuple[Reader, Judge, bool]:
             judge_id=f"qwen3-32b-{config.judge_prompt}",
         )
         if config.verify_answer:
-            return (
-                with_verifier(
-                    bedrock_reader, litellm_chat(budget, model=QWEN3_32B, max_tokens=192)
-                ),
-                judge,
-                True,
+            bedrock_reader = with_verifier(
+                bedrock_reader, litellm_chat(budget, model=QWEN3_32B, max_tokens=192)
             )
-        return bedrock_reader, judge, True
+
+        def make_bedrock_sibling(prompt: str) -> Any:
+            return LiteLLMReader(
+                budget, model=QWEN3_32B, temperature=0.0, max_tokens=512, prompt=prompt
+            )
+
+        def make_bedrock_chat() -> Any:
+            return litellm_chat(budget, model=QWEN3_32B, max_tokens=900)
+
+        return (
+            with_post_steps(bedrock_reader, config, make_bedrock_sibling, make_bedrock_chat),
+            judge,
+            True,
+        )
     import os
 
     # Local OpenAI-compatible servers ignore the key; hosted endpoints (e.g. the
     # OmniMemEval preset) read it from the process environment, never from .env.
     api_key = os.environ.get("OPENAI_API_KEY", "not-needed")
+    sampler = sampler_for(config)
+    guard = CtxGuard(config.server_ctx, config.strict_ctx)
     reader = OpenAICompatReader(
         model=config.reader_model,
         base_url=config.base_url,
         api_key=api_key,
         prompt=qa_prompt,
         extract_answer=reasoning,
+        sampler=sampler,
+        guard=guard,
+        **({"empty_context_prompt": NO_MEMORY_QA_PROMPT} if config.no_memory_prompt else {}),
         **({"max_tokens": reasoning_max_tokens(config.qa_prompt)} if reasoning else {}),
     )
+    if config.retry_refusal:
+        from .refusal import RefusalRetryReader
+
+        reader = RefusalRetryReader(  # type: ignore[assignment]
+            reader, **_retry_decider_kwargs(config)
+        )
+    if config.no_record_hint:
+        from .no_record import NoRecordHintReader
+
+        reader = NoRecordHintReader(reader)  # type: ignore[assignment]
+    if config.assertion_check:
+        from .assertion_check import ASSERTION_CHECK_MODES, AssertionCheckReader, chat_decider
+
+        if config.assertion_check not in ASSERTION_CHECK_MODES:
+            raise ValueError(
+                f"assertion_check must be one of {ASSERTION_CHECK_MODES}, "
+                f"got {config.assertion_check!r}"
+            )
+        decider = None
+        if config.assertion_check == "llm":
+            decider = chat_decider(
+                openai_compat_chat(
+                    config.reader_model,
+                    base_url=config.base_url,
+                    api_key=api_key,
+                    sampler=sampler,
+                    guard=guard,
+                )
+            )
+        reader = AssertionCheckReader(  # type: ignore[assignment]
+            reader, config.assertion_check, decider=decider
+        )
+    if config.premise_tolerant:
+        from .premise import PremiseTolerantReader
+
+        reader = PremiseTolerantReader(reader)  # type: ignore[assignment]
     judge = build_judge(
         config,
-        openai_compat_chat(config.judge_model, base_url=config.base_url, api_key=api_key),
+        openai_compat_chat(
+            config.judge_model,
+            base_url=config.base_url,
+            api_key=api_key,
+            sampler=sampler,
+            guard=guard,
+        ),
         config.judge_model,
     )
     if config.verify_answer:
-        chat = openai_compat_chat(config.judge_model, base_url=config.base_url, api_key=api_key)
-        return with_verifier(reader, chat), judge, True
-    return reader, judge, True
+        chat = openai_compat_chat(
+            config.judge_model,
+            base_url=config.base_url,
+            api_key=api_key,
+            sampler=sampler,
+            guard=guard,
+        )
+        reader = with_verifier(reader, chat)  # type: ignore[assignment]
+
+    def make_sibling(prompt: str) -> Any:
+        """A reader like ``reader`` (model, sampler, guard) with another prompt (count_verify)."""
+        return OpenAICompatReader(
+            model=config.reader_model,
+            base_url=config.base_url,
+            api_key=api_key,
+            prompt=prompt,
+            sampler=sampler,
+            guard=guard,
+            max_tokens=512,
+        )
+
+    def make_chat() -> Any:
+        return openai_compat_chat(
+            config.reader_model,
+            base_url=config.base_url,
+            api_key=api_key,
+            sampler=sampler,
+            guard=guard,
+        )
+
+    return with_post_steps(reader, config, make_sibling, make_chat), judge, True
+
+
+def _openai_compat_labels(config: C01Config, calls: bool) -> dict[str, Any]:
+    """A8/D2: the sampler and context guard a local-endpoint QA run used, for the manifest
+    labels. Listed only for runs that call the OpenAI-compatible endpoint."""
+    if not calls or config.bedrock or config.mode != "qa" or config.retrieval_only:
+        return {}
+    return {
+        "sampler": sampler_for(config).describe(),
+        "server_ctx": config.server_ctx,
+        "strict_ctx": config.strict_ctx,
+    }
+
+
+def _capture_runtime(config: C01Config) -> dict[str, Any]:
+    if not config.capture_runtime:
+        return {}
+    from .provenance import capture_runtime
+
+    return capture_runtime(
+        base_url=config.base_url if config.probe_server else None,
+    )
+
+
+def build_token_counter(config: C01Config) -> Any:
+    """D1 [HAR-1]: the runner's token counter. ``heuristic`` (default): None, so the runner
+    builds its chars/4 counter; ``reader``: the reader tokenizer, else the heuristic with a
+    logged warning."""
+    if config.token_count == "heuristic":
+        return None
+    if config.token_count != "reader":
+        raise ValueError(f"unknown token_count {config.token_count!r}; known: heuristic, reader")
+    from .tokens import HeuristicTokenCounter, load_reader_tokenizer_counter
+
+    counter = load_reader_tokenizer_counter(config.tokenizer_id)
+    return counter if counter is not None else HeuristicTokenCounter()
+
+
+def with_post_steps(
+    reader: Any, config: C01Config, make_sibling: Any, make_chat: Any = None
+) -> Any:
+    """I56 / I57: the opt-in answer post-steps, outermost. ``--count-verify`` first (count
+    questions: enumerate, dedupe, count), then ``--date-repair`` (date questions). Neither flag:
+    ``reader`` comes back unchanged."""
+    table = None
+    if getattr(config, "evidence_table", False):
+        if not (config.count_verify or getattr(config, "verify_slots", "")):
+            raise ValueError("evidence_table feeds count_verify / verify_slots; enable one of them")
+        if make_chat is None:
+            raise ValueError("evidence_table needs a chat backend for the extraction call")
+        from .evidence_table import EvidenceTableBuilder
+
+        table = EvidenceTableBuilder(make_chat())
+    if config.count_verify:
+        from .count_verify import (
+            COUNT_VERIFY_MODES,
+            ENUMERATE_PROMPT,
+            SINGLE_PROMPT,
+            CountVerifyReader,
+        )
+
+        if config.count_verify not in COUNT_VERIFY_MODES:
+            raise ValueError(
+                f"count_verify must be one of {COUNT_VERIFY_MODES}, got {config.count_verify!r}"
+            )
+        prompt = ENUMERATE_PROMPT if config.count_verify == "two_call" else SINGLE_PROMPT
+        reader = CountVerifyReader(
+            reader,
+            None if table is not None else make_sibling(prompt),
+            config.count_verify,
+            table=table,
+        )
+    if config.date_repair:
+        from .date_repair import DateRepairReader
+
+        reader = DateRepairReader(reader)
+    mode = getattr(config, "duration_solve", "")
+    if mode:
+        from .duration_solve import DURATION_SOLVE_MODES, DurationSolveReader
+
+        if mode not in DURATION_SOLVE_MODES:
+            raise ValueError(f"duration_solve must be one of {DURATION_SOLVE_MODES}, got {mode!r}")
+        reader = DurationSolveReader(reader, mode)
+    ms_mode = getattr(config, "milestones", "")
+    if ms_mode:
+        from .milestones import ROUNDINGS, MilestoneReader
+
+        if ms_mode not in ROUNDINGS:
+            raise ValueError(f"milestones must be one of {ROUNDINGS}, got {ms_mode!r}")
+        if make_chat is None:
+            raise ValueError("milestones needs a chat backend for the extraction call")
+        reader = MilestoneReader(
+            reader,
+            make_chat(),
+            inclusive=bool(getattr(config, "milestones_inclusive", False)),
+            rounding=ms_mode,
+        )
+    slots = getattr(config, "verify_slots", "")
+    if slots:
+        from .slot_verify import SLOT_VERIFY_MODES, SlotVerifyReader
+
+        if slots not in SLOT_VERIFY_MODES:
+            raise ValueError(f"verify_slots must be one of {SLOT_VERIFY_MODES}, got {slots!r}")
+        reader = SlotVerifyReader(reader, slots, table=table)
+    return reader
 
 
 def with_verifier(reader: Any, chat: Any) -> Any:
@@ -515,6 +988,8 @@ async def run_c0_1(
     reader, judge, calls = build_reader_and_judge(config)
     if config.item_ids:
         dataset = _ItemFilter(dataset, config.item_ids)  # type: ignore[assignment]
+    if config.query_ids:
+        dataset = _QueryFilter(dataset, config.query_ids)  # type: ignore[assignment]
     n_abstention = 0 if config.retrieval_only else _abstention_queries(dataset)
     if n_abstention and not getattr(judge, "handles_abstention", False):
         raise ValueError(
@@ -568,30 +1043,80 @@ async def run_c0_1(
             "categories": list(config.categories) if config.categories is not None else "all",
             "qa_prompt": config.qa_prompt if config.mode == "qa" else None,
             **({"verify_answer": True} if config.verify_answer else {}),
+            **({"retry_refusal": True} if config.retry_refusal else {}),
+            **({"retry_guard": True} if config.retry_guard else {}),
+            **({"retry_mode": config.retry_mode} if config.retry_mode != "neutral" else {}),
+            **({"retry_overlap": True} if config.retry_overlap else {}),
+            **({"no_record_hint": True} if config.no_record_hint else {}),
+            **({"premise_tolerant": True} if config.premise_tolerant else {}),
+            **({"refusal_match": config.refusal_match} if config.refusal_match != "whole" else {}),
+            **({"no_memory_prompt": True} if config.no_memory_prompt else {}),
+            **({"stamp_timezone": config.stamp_timezone} if config.stamp_timezone != "UTC" else {}),
+            **({"decider": config.decider} if config.decider != "heuristic" else {}),
+            **({"judge_guards": True} if config.judge_guards else {}),
+            **({"judge_conventions": "conventions/v1"} if config.judge_conventions else {}),
+            **({"judge_conventions_v2": "conventions/v2"} if config.judge_conventions_v2 else {}),
+            **({"judge_conventions_v3": "conventions/v3"} if config.judge_conventions_v3 else {}),
+            **({"count_verify": config.count_verify} if config.count_verify else {}),
+            **({"date_repair": "v1"} if config.date_repair else {}),
+            **({"duration_solve": f"v1/{config.duration_solve}"} if config.duration_solve else {}),
+            **(
+                {
+                    "milestones": f"v1/{config.milestones}"
+                    + ("/inclusive" if config.milestones_inclusive else "")
+                }
+                if config.milestones
+                else {}
+            ),
+            **({"verify_slots": f"v1/{config.verify_slots}"} if config.verify_slots else {}),
+            **({"evidence_table": "v1"} if config.evidence_table else {}),
+            **(
+                {"assertion_check": f"v1/{config.assertion_check}"}
+                if config.assertion_check
+                else {}
+            ),
             "judge_prompt": config.judge_prompt if config.mode == "qa" else None,
+            **({"opbench_root": config.opbench_root} if config.opbench_root else {}),
             "arms": [s.system_id for s in systems],
             "naive_dense_same_embedder": config.naive_dense_same_embedder,
             "matched_budget_tokens": config.matched_budget_tokens,
             "memspine_llm": config.memspine_llm,
+            **_openai_compat_labels(config, calls),
             "engine_llm_models": sorted(engine_models),
             "prices_per_mtok": {m: list(p) for m, p in sorted(prices.items())},
             "service_prices": service_price_table(config),
             "paid_services": [f"{k}:{m}" for k, m in paid_services(config)],
             # screening (listed only when on, so other runs keep their labels)
             **({"retrieval_only": True} if config.retrieval_only else {}),
+            **({"slice": config.query_slice_id} if config.query_slice_id else {}),
+            **({"trace_full": True} if config.trace_full else {}),
             **(
                 {"call_cache": {"dir": config.cache_dir, "cache_reader": config.cache_reader}}
                 if config.cache_dir
                 else {}
             ),
         },
-        extra_limits={"item_ids": list(config.item_ids) if config.item_ids else None},
+        extra_limits={
+            "item_ids": list(config.item_ids) if config.item_ids else None,
+            **({"slice_query_ids": list(config.query_ids)} if config.query_slice_id and config.query_ids else {}),
+            **({"query_ids_n": len(config.query_ids)} if config.query_ids else {}),
+        },
         retrieval_only=config.retrieval_only,
+        trace_full=config.trace_full,
+        runtime=_capture_runtime(config),
+        token_count=config.token_count,
     )
+    counter = build_token_counter(config)
     factory = (lambda: build_reader_and_judge(config)[:2]) if calls else None
     if not config.cache_dir:
         return await run_matrix(
-            dataset, systems, reader, judge, run_config, reader_judge_factory=factory
+            dataset,
+            systems,
+            reader,
+            judge,
+            run_config,
+            token_counter=counter,
+            reader_judge_factory=factory,
         )
     from dataclasses import replace
 
@@ -604,6 +1129,7 @@ async def run_c0_1(
             reader,
             judge,
             replace(run_config, call_cache=cache),
+            token_counter=counter,
             reader_judge_factory=factory,
         )
 

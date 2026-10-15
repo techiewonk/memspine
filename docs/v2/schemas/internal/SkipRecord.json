@@ -1,0 +1,27 @@
+{
+  "additionalProperties": true,
+  "description": "Internal step type. The spec names the type without fields.",
+  "properties": {
+    "reason": {
+      "title": "Reason",
+      "type": "string"
+    },
+    "record_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Record Id"
+    }
+  },
+  "required": [
+    "reason"
+  ],
+  "title": "SkipRecord",
+  "type": "object"
+}

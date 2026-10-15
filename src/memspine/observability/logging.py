@@ -15,8 +15,8 @@ from typing import Any, TextIO
 
 import structlog
 
-from memspine.core.events import EventKind
-from memspine.core.redaction import redact
+from memspine.store.events import EventKind
+from memspine.trust.redaction import redact
 
 __all__ = [
     "EVENT_AUDIT",
@@ -70,7 +70,7 @@ _ERROR_MAX_CHARS = 500
 
 def redact_error(value: object) -> str:
     """Error text safe for a log line: secrets, PII and URL credentials masked
-    (:func:`memspine.core.redaction.redact`), then cut at 500 characters."""
+    (:func:`memspine.trust.redaction.redact`), then cut at 500 characters."""
     text = _URL_USERINFO.sub(r"\1***@", str(value))
     text = redact(text, pii=True)[0]
     if len(text) > _ERROR_MAX_CHARS:

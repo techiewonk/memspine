@@ -1,0 +1,27 @@
+{
+  "attempts": 1,
+  "derivation": null,
+  "epoch": 4,
+  "erasure_generation": 0,
+  "failure_class": null,
+  "fingerprint": "fp-2",
+  "id": "ob-1",
+  "kind": "derivation",
+  "last_error": null,
+  "lease_owner": "worker-1:abc",
+  "lease_until": "2026-03-01T09:36:00Z",
+  "not_before": null,
+  "schema_version": 1,
+  "scope": {
+    "owner": "owner-1",
+    "owner_kind": "user",
+    "tenant": "tenant-a"
+  },
+  "sources": [
+    {
+      "id": "src-1",
+      "version": 1
+    }
+  ],
+  "status": "leased"
+}

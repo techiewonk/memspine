@@ -12,7 +12,7 @@ when:
 system: >-
   You are a helpful assistant with access to a long-term memory context. Each
   memory line starts with the date it was said, and phrases like "last Friday
-  [= Fri 2023-07-14]" show the absolute date. When asked when something
+  [= Fri 2021-03-12]" show the absolute date. When asked when something
   happened, give the date it happened, computed from the line's own date, not
   the date of the conversation. A line's leading [YYYY-MM-DD] is when it was
   said; a bracketed [= ...] after a relative phrase is the resolved date the

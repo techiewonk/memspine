@@ -1,0 +1,1635 @@
+{
+  "$defs": {
+    "AssertionEnvelope": {
+      "additionalProperties": true,
+      "description": "One stored assertion.\n\nIdentities are separate fields (ER-13, S3): ``write_id`` (retry id of the write that produced it),\nmention ids (on :class:`Mention`), ``assertion_key``, ``occurrence_id`` and ``record_id`` (``None``\nonly until the write door assigns it). ``scope`` is tenant plus owner; the session is provenance.",
+      "properties": {
+        "assertion_key": {
+          "$ref": "#/$defs/AssertionKey"
+        },
+        "assessment": {
+          "$ref": "#/$defs/Assessment"
+        },
+        "attribute": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Attribute"
+        },
+        "change_hint": {
+          "default": false,
+          "title": "Change Hint",
+          "type": "boolean"
+        },
+        "checks": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/GroundingChecks"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "derivation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Fingerprint"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "epoch": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Epoch"
+        },
+        "erasure_generation": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Erasure Generation",
+          "type": "integer"
+        },
+        "evidence": {
+          "items": {
+            "$ref": "#/$defs/Evidence"
+          },
+          "title": "Evidence",
+          "type": "array"
+        },
+        "extras": {
+          "additionalProperties": true,
+          "title": "Extras",
+          "type": "object"
+        },
+        "graph": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Graph"
+        },
+        "grounding": {
+          "anyOf": [
+            {
+              "enum": [
+                "grounded",
+                "uncertain",
+                "rejected"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Grounding"
+        },
+        "key_aliases": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Key Aliases",
+          "type": "array"
+        },
+        "kind": {
+          "minLength": 1,
+          "title": "Kind",
+          "type": "string"
+        },
+        "object": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Mention"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "occurrence_id": {
+          "minLength": 1,
+          "title": "Occurrence Id",
+          "type": "string"
+        },
+        "parents": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Parents",
+          "type": "array"
+        },
+        "prompt_hash": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Prompt Hash"
+        },
+        "provenance": {
+          "$ref": "#/$defs/Provenance"
+        },
+        "record_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Record Id"
+        },
+        "schema_version": {
+          "default": 1,
+          "minimum": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "scope": {
+          "$ref": "#/$defs/OwnerScope"
+        },
+        "speaker": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Speaker"
+        },
+        "src_class": {
+          "enum": [
+            "user_stated",
+            "assistant_proposed",
+            "user_confirmed",
+            "tool",
+            "document",
+            "external",
+            "derived"
+          ],
+          "title": "Src Class",
+          "type": "string"
+        },
+        "status": {
+          "default": "active",
+          "enum": [
+            "active",
+            "tentative",
+            "contested",
+            "superseded",
+            "hidden"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "subject": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Mention"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "text": {
+          "minLength": 1,
+          "title": "Text",
+          "type": "string"
+        },
+        "time": {
+          "$ref": "#/$defs/TimeAxes"
+        },
+        "value": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Value"
+        },
+        "verdict": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/IntegrationVerdict"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "verified": {
+          "default": false,
+          "title": "Verified",
+          "type": "boolean"
+        },
+        "write_id": {
+          "minLength": 1,
+          "title": "Write Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "write_id",
+        "assertion_key",
+        "occurrence_id",
+        "scope",
+        "text",
+        "kind",
+        "assessment",
+        "src_class"
+      ],
+      "title": "AssertionEnvelope",
+      "type": "object"
+    },
+    "AssertionKey": {
+      "additionalProperties": true,
+      "description": "What an assertion is about: ``(src, rel, dst, kind)`` under the envelope's owner scope (M-17).\n\n``key_v`` versions the normalisation rules. The scope lives on the envelope, not here.",
+      "properties": {
+        "dst": {
+          "default": "",
+          "title": "Dst",
+          "type": "string"
+        },
+        "key_v": {
+          "default": 1,
+          "minimum": 1,
+          "title": "Key V",
+          "type": "integer"
+        },
+        "kind": {
+          "minLength": 1,
+          "title": "Kind",
+          "type": "string"
+        },
+        "rel": {
+          "minLength": 1,
+          "title": "Rel",
+          "type": "string"
+        },
+        "src": {
+          "minLength": 1,
+          "title": "Src",
+          "type": "string"
+        }
+      },
+      "required": [
+        "src",
+        "rel",
+        "kind"
+      ],
+      "title": "AssertionKey",
+      "type": "object"
+    },
+    "Assessment": {
+      "additionalProperties": true,
+      "description": "What the system knows about how far an assertion can be believed (ER-14), as separate fields.\n\n``model_confidence_hint`` is the model's self-confidence, a hint only (S2-1): it feeds nothing in\nsupersede, graph or profile logic.",
+      "properties": {
+        "binding": {
+          "enum": [
+            "bound",
+            "partly",
+            "unbound"
+          ],
+          "title": "Binding",
+          "type": "string"
+        },
+        "modality": {
+          "enum": [
+            "asserted",
+            "negated",
+            "hypothetical",
+            "planned",
+            "reported",
+            "question"
+          ],
+          "title": "Modality",
+          "type": "string"
+        },
+        "model_confidence_hint": {
+          "anyOf": [
+            {
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Model Confidence Hint"
+        },
+        "negated": {
+          "default": false,
+          "title": "Negated",
+          "type": "boolean"
+        },
+        "source_trust": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Source Trust",
+          "type": "number"
+        },
+        "support": {
+          "$ref": "#/$defs/Support"
+        },
+        "time_precision": {
+          "default": "unknown",
+          "enum": [
+            "instant",
+            "minute",
+            "hour",
+            "day",
+            "week",
+            "month",
+            "season",
+            "year",
+            "decade",
+            "unknown"
+          ],
+          "title": "Time Precision",
+          "type": "string"
+        }
+      },
+      "required": [
+        "source_trust",
+        "binding",
+        "modality"
+      ],
+      "title": "Assessment",
+      "type": "object"
+    },
+    "Duration": {
+      "additionalProperties": true,
+      "description": "A length of time: value plus unit, with an anchor when one is known (S6-4).",
+      "properties": {
+        "anchor": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Anchor"
+        },
+        "unit": {
+          "enum": [
+            "second",
+            "minute",
+            "hour",
+            "day",
+            "week",
+            "month",
+            "year"
+          ],
+          "title": "Unit",
+          "type": "string"
+        },
+        "value": {
+          "exclusiveMinimum": 0,
+          "title": "Value",
+          "type": "number"
+        }
+      },
+      "required": [
+        "value",
+        "unit"
+      ],
+      "title": "Duration",
+      "type": "object"
+    },
+    "Evidence": {
+      "additionalProperties": true,
+      "description": "One piece of evidence for an assertion.\n\n* ``support`` states the fact.\n* ``binding`` resolves a pronoun, relative date or reference (ER-11); it must be cited.\n* ``context`` is shown to the model but never counts as evidence and never raises trust.\n\n``source_family`` is the asserting principal (S4-2): speaker id, author or document, tool name, or a\nweb page's registrable domain. Derived records inherit parents' families through lineage.",
+      "properties": {
+        "role": {
+          "enum": [
+            "support",
+            "binding",
+            "context"
+          ],
+          "title": "Role",
+          "type": "string"
+        },
+        "source_family": {
+          "minLength": 1,
+          "title": "Source Family",
+          "type": "string"
+        },
+        "span": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Span"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "turn": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TurnRef"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "role",
+        "source_family"
+      ],
+      "title": "Evidence",
+      "type": "object"
+    },
+    "Fingerprint": {
+      "additionalProperties": true,
+      "description": "Derivation fingerprint (P-12): what produced a derived item, for staleness and re-derivation.",
+      "properties": {
+        "decoding": {
+          "title": "Decoding",
+          "type": "string"
+        },
+        "input_blocks": {
+          "title": "Input Blocks",
+          "type": "string"
+        },
+        "model_id": {
+          "title": "Model Id",
+          "type": "string"
+        },
+        "prompt_hash": {
+          "title": "Prompt Hash",
+          "type": "string"
+        },
+        "quant": {
+          "title": "Quant",
+          "type": "string"
+        },
+        "runtime_libs": {
+          "title": "Runtime Libs",
+          "type": "string"
+        },
+        "schema_v": {
+          "title": "Schema V",
+          "type": "string"
+        }
+      },
+      "required": [
+        "prompt_hash",
+        "schema_v",
+        "model_id",
+        "quant",
+        "decoding",
+        "input_blocks",
+        "runtime_libs"
+      ],
+      "title": "Fingerprint",
+      "type": "object"
+    },
+    "GroundingChecks": {
+      "additionalProperties": true,
+      "description": "Per-check grounding results (W-17); ``None`` = check not run.",
+      "properties": {
+        "endpoints": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Endpoints"
+        },
+        "names": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Names"
+        },
+        "numbers": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Numbers"
+        },
+        "polarity": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Polarity"
+        },
+        "span": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Span"
+        }
+      },
+      "title": "GroundingChecks",
+      "type": "object"
+    },
+    "IntegrationVerdict": {
+      "additionalProperties": true,
+      "description": "How the conflict ladder integrated this assertion (G0 operator split), set at integration.",
+      "properties": {
+        "hint": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Hint"
+        },
+        "op": {
+          "enum": [
+            "append",
+            "supersede",
+            "merge",
+            "coexist",
+            "contest",
+            "noop",
+            "defer_kc"
+          ],
+          "title": "Op",
+          "type": "string"
+        },
+        "rung": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Rung"
+        }
+      },
+      "required": [
+        "op"
+      ],
+      "title": "IntegrationVerdict",
+      "type": "object"
+    },
+    "Interval": {
+      "additionalProperties": true,
+      "description": "When something was true or happened. Either end may be open or unresolved; not both absent.",
+      "properties": {
+        "end": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TemporalRef"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "start": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TemporalRef"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "title": "Interval",
+      "type": "object"
+    },
+    "Mention": {
+      "additionalProperties": true,
+      "description": "A surface mention as written, with its system-assigned mention id and resolved entity (if any).",
+      "properties": {
+        "entity_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Entity Id"
+        },
+        "mention_id": {
+          "minLength": 1,
+          "title": "Mention Id",
+          "type": "string"
+        },
+        "surface": {
+          "minLength": 1,
+          "title": "Surface",
+          "type": "string"
+        }
+      },
+      "required": [
+        "surface",
+        "mention_id"
+      ],
+      "title": "Mention",
+      "type": "object"
+    },
+    "OwnerScope": {
+      "additionalProperties": true,
+      "description": "Memory scope: tenant plus memory owner (S3-1).\n\nThe owner is a user or a shared group; every agent and session serving that owner sees the same\nentities. The session is *not* part of the scope: it is recorded as :class:`Provenance` only.",
+      "properties": {
+        "owner": {
+          "minLength": 1,
+          "title": "Owner",
+          "type": "string"
+        },
+        "owner_kind": {
+          "default": "user",
+          "enum": [
+            "user",
+            "group"
+          ],
+          "title": "Owner Kind",
+          "type": "string"
+        },
+        "tenant": {
+          "minLength": 1,
+          "title": "Tenant",
+          "type": "string"
+        }
+      },
+      "required": [
+        "tenant",
+        "owner"
+      ],
+      "title": "OwnerScope",
+      "type": "object"
+    },
+    "Provenance": {
+      "additionalProperties": true,
+      "description": "Where a write came from. Provenance only: never part of identity or entity keys (S3-1).",
+      "properties": {
+        "agent_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Agent Id"
+        },
+        "principal": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Principal"
+        },
+        "session_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Session Id"
+        },
+        "source_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Id"
+        },
+        "source_version": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Version"
+        }
+      },
+      "title": "Provenance",
+      "type": "object"
+    },
+    "Record": {
+      "additionalProperties": true,
+      "description": "One record shape for all layers (M-02..M-10).\n\nInternal for now: the record envelope (:class:`~memspine.schemas.durable.AssertionEnvelope`) is durable,\nthe row around it becomes a durable kind with the kind registry (MOD-02).",
+      "properties": {
+        "addr": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Addr"
+        },
+        "ask": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Ask"
+        },
+        "consent_tags": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Consent Tags",
+          "type": "array"
+        },
+        "content": {
+          "title": "Content",
+          "type": "string"
+        },
+        "content_fingerprint": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Content Fingerprint"
+        },
+        "covers_seq": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Covers Seq"
+        },
+        "derivation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Fingerprint"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "derive_use": {
+          "anyOf": [
+            {
+              "enum": [
+                "proposal",
+                "evidence",
+                "stated",
+                "excluded"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Derive Use"
+        },
+        "echo": {
+          "default": false,
+          "title": "Echo",
+          "type": "boolean"
+        },
+        "envelope": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AssertionEnvelope"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "generation": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Generation"
+        },
+        "idem_key": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Idem Key"
+        },
+        "instruction_flag": {
+          "default": false,
+          "title": "Instruction Flag",
+          "type": "boolean"
+        },
+        "invalid_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Invalid At"
+        },
+        "layer": {
+          "anyOf": [
+            {
+              "enum": [
+                "L0",
+                "L1",
+                "L2",
+                "L3",
+                "L4",
+                "L5"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Layer"
+        },
+        "participants": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Participants",
+          "type": "array"
+        },
+        "pii_tier": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Pii Tier"
+        },
+        "quarantined": {
+          "default": false,
+          "title": "Quarantined",
+          "type": "boolean"
+        },
+        "record_id": {
+          "title": "Record Id",
+          "type": "string"
+        },
+        "recorded_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Recorded At"
+        },
+        "scope": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Scope"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "seg_index": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Seg Index"
+        },
+        "source_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source At"
+        },
+        "source_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Id"
+        },
+        "source_tz": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Tz"
+        },
+        "source_version": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Version"
+        },
+        "spk": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Spk"
+        },
+        "src_class": {
+          "anyOf": [
+            {
+              "enum": [
+                "user_stated",
+                "assistant_proposed",
+                "user_confirmed",
+                "tool",
+                "document",
+                "external",
+                "derived"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Src Class"
+        },
+        "status": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Status"
+        },
+        "sub": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Sub",
+          "type": "array"
+        },
+        "superseded_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Superseded At"
+        },
+        "support_count": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Support Count"
+        },
+        "trust": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Trust"
+        },
+        "type": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Type"
+        },
+        "tz_unknown": {
+          "default": false,
+          "title": "Tz Unknown",
+          "type": "boolean"
+        },
+        "valid_from": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Valid From"
+        },
+        "valid_to": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Valid To"
+        },
+        "version": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Version"
+        }
+      },
+      "required": [
+        "record_id",
+        "content"
+      ],
+      "title": "Record",
+      "type": "object"
+    },
+    "Scope": {
+      "additionalProperties": true,
+      "description": "Handle-side scope as read by the retrieve steps (tenant, user, agent, session, principal).\n\nDurable records use :class:`memspine.schemas.durable.OwnerScope` (tenant plus owner, S3-1); this is the\ncaller-facing handle shape the read path resolves into one.",
+      "properties": {
+        "agent": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Agent"
+        },
+        "principal": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Principal"
+        },
+        "purpose": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Purpose"
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Session"
+        },
+        "tenant": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Tenant"
+        },
+        "user": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "User"
+        },
+        "viewer": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Viewer"
+        }
+      },
+      "title": "Scope",
+      "type": "object"
+    },
+    "Span": {
+      "additionalProperties": true,
+      "description": "Character range inside one turn, plus the verbatim excerpt when kept.",
+      "properties": {
+        "end": {
+          "minimum": 0,
+          "title": "End",
+          "type": "integer"
+        },
+        "quote": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Quote"
+        },
+        "start": {
+          "minimum": 0,
+          "title": "Start",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "start",
+        "end"
+      ],
+      "title": "Span",
+      "type": "object"
+    },
+    "Support": {
+      "additionalProperties": true,
+      "description": "Independent source families, plus the ``restated`` count (S4-3).\n\n``restated`` is a stability signal used for recency and conflict tie-breaks; it is never corroboration.",
+      "properties": {
+        "families": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Families",
+          "type": "array"
+        },
+        "independent": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Independent",
+          "type": "integer"
+        },
+        "restated": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Restated",
+          "type": "integer"
+        }
+      },
+      "title": "Support",
+      "type": "object"
+    },
+    "TemporalRef": {
+      "additionalProperties": true,
+      "description": "One temporal value. ``at`` is the resolved instant (start of the period at ``precision``).",
+      "properties": {
+        "anchor": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Anchor"
+        },
+        "approximate": {
+          "default": false,
+          "title": "Approximate",
+          "type": "boolean"
+        },
+        "at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "At"
+        },
+        "basis": {
+          "default": "none",
+          "enum": [
+            "explicit",
+            "source_time",
+            "relation",
+            "inferred",
+            "none"
+          ],
+          "title": "Basis",
+          "type": "string"
+        },
+        "duration": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Duration"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "precision": {
+          "default": "unknown",
+          "enum": [
+            "instant",
+            "minute",
+            "hour",
+            "day",
+            "week",
+            "month",
+            "season",
+            "year",
+            "decade",
+            "unknown"
+          ],
+          "title": "Precision",
+          "type": "string"
+        },
+        "relation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TemporalRelation"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "text": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Text"
+        }
+      },
+      "title": "TemporalRef",
+      "type": "object"
+    },
+    "TemporalRelation": {
+      "additionalProperties": true,
+      "description": "A phrase like \"after X\": a typed relation to another assertion, resolved only if an anchor exists.",
+      "properties": {
+        "relation": {
+          "enum": [
+            "before",
+            "after",
+            "during"
+          ],
+          "title": "Relation",
+          "type": "string"
+        },
+        "target_assertion_id": {
+          "minLength": 1,
+          "title": "Target Assertion Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "relation",
+        "target_assertion_id"
+      ],
+      "title": "TemporalRelation",
+      "type": "object"
+    },
+    "TimeAxes": {
+      "additionalProperties": true,
+      "description": "The three times every assertion carries (S6-3).\n\n* ``event``: when it was true or happened (as-of \"what was true on X\").\n* ``source_time``: when it was said.\n* ``recorded_at``: when it was stored (``None`` only before the write door stamps it).\n\n\"What did we know on X\" uses source and recorded time.",
+      "properties": {
+        "event": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Interval"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "recorded_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Recorded At"
+        },
+        "source_time": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Time"
+        }
+      },
+      "title": "TimeAxes",
+      "type": "object"
+    },
+    "TurnRef": {
+      "additionalProperties": true,
+      "description": "A cited turn of a pinned source version.",
+      "properties": {
+        "seg_index": {
+          "minimum": 0,
+          "title": "Seg Index",
+          "type": "integer"
+        },
+        "source_id": {
+          "minLength": 1,
+          "title": "Source Id",
+          "type": "string"
+        },
+        "source_version": {
+          "minimum": 1,
+          "title": "Source Version",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "source_id",
+        "source_version",
+        "seg_index"
+      ],
+      "title": "TurnRef",
+      "type": "object"
+    }
+  },
+  "additionalProperties": true,
+  "properties": {
+    "observations": {
+      "items": {
+        "$ref": "#/$defs/Record"
+      },
+      "title": "Observations",
+      "type": "array"
+    }
+  },
+  "required": [
+    "observations"
+  ],
+  "title": "OfflineStep10Output",
+  "type": "object"
+}

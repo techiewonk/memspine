@@ -7,11 +7,11 @@ from collections.abc import Callable
 from assoc_helpers import EventLog, FakeStorage
 
 from memspine.config.constants import EVOLUTION_LINK_MIN_SIMILARITY
-from memspine.core.events import EventKind, MemoryEvent
-from memspine.core.records import MemoryRecord, RecordStatus
 from memspine.memories.associative.evolution import propose_links
 from memspine.services.graph.sqlite_adjacency import SQLiteAdjacencyGraph
 from memspine.services.vector.base import VectorHit
+from memspine.store.events import EventKind, MemoryEvent
+from memspine.store.records import MemoryRecord, RecordStatus
 
 
 def _write(record: MemoryRecord) -> MemoryEvent:

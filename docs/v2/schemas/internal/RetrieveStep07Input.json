@@ -1,0 +1,73 @@
+{
+  "$defs": {
+    "LegHit": {
+      "additionalProperties": true,
+      "description": "Internal step type.",
+      "properties": {
+        "record_id": {
+          "title": "Record Id",
+          "type": "string"
+        },
+        "score": {
+          "title": "Score",
+          "type": "number"
+        }
+      },
+      "required": [
+        "record_id",
+        "score"
+      ],
+      "title": "LegHit",
+      "type": "object"
+    },
+    "NamedLeg": {
+      "additionalProperties": true,
+      "description": "Internal step type. ``list[LegHit]`` plus a name and family.",
+      "properties": {
+        "family": {
+          "enum": [
+            "dense",
+            "lexical",
+            "structured",
+            "derived"
+          ],
+          "title": "Family",
+          "type": "string"
+        },
+        "hits": {
+          "items": {
+            "$ref": "#/$defs/LegHit"
+          },
+          "title": "Hits",
+          "type": "array"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "family"
+      ],
+      "title": "NamedLeg",
+      "type": "object"
+    }
+  },
+  "additionalProperties": true,
+  "description": "Fuse: within family, then RRF across families.",
+  "properties": {
+    "legs": {
+      "items": {
+        "$ref": "#/$defs/NamedLeg"
+      },
+      "title": "Legs",
+      "type": "array"
+    }
+  },
+  "required": [
+    "legs"
+  ],
+  "title": "RetrieveStep07Input",
+  "type": "object"
+}

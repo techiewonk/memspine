@@ -67,6 +67,96 @@ Insert is sequential, a query sees only what preceded it, and the returned conte
 the declared budget before the reader sees it — the LongMemEval-V2 precedent, cited rather than
 reinvented.
 
+## Run wrapper: `evals/run.sh`
+
+One entry point for a LoCoMo run (replaces the core of the older `run_*.sh` scripts, which are kept
+for provenance):
+
+```bash
+bash evals/run.sh --arm qs-eq06-fix --run-id qa-full-qs-eq06-fix-s152 --mode qa --topk 10     --items 1 --flags "--qa-prompt grounded --retry-refusal --judge-guards" --forensics
+bash evals/run.sh --arm local-combo-A --run-id v33-combo-A --mode retrieval --topk 10 --questions 1540
+```
+
+Required: `--arm` (an `evals/arms/<arm>.json`), `--run-id`, `--mode qa|retrieval`, `--topk`.
+Optional: `--items N`, `--max-queries N` (per-item cap), `--questions N` (expected row count, needed
+unless it can be derived from the LoCoMo categories 1-4 defaults: 1540 full, 152 for `--items 1`),
+`--flags "..."` (passed through to `c0-1`), `--forensics` (sets `MEMSPINE_FORENSICS_DIR=runs/<run-id>--forensics`),
+`--engine-src PATH` (sets `PYTHONPATH`, default `<repo>/src`), `--data`, `--categories`, `--batch-turns`, `--force`.
+Env: `PYTHON`, `READER_MODEL`, `JUDGE_MODEL`, `BASE_URL`.
+
+What it does: refuses to overwrite `runs/<run-id>*` unless `--force`; clears `AWS_*` with `unset`; caps
+`--max-model-calls` at 3 per question + 200 (0 in retrieval mode); writes the resolved command to the top of
+`runs/_logs/<run-id>.log`; writes `runs/<run-id>.STATUS` (`ok` or `failed ...`); and after the run checks that
+`results.jsonl` exists with the expected number of result rows. Exit code is non-zero on any failure.
+
+## Run-integrity flags (gap register A8, D1-D4, D7, B11, F2, F3, A10)
+
+**Default change (A8).** Every reader and judge request on the OpenAI-compatible endpoint now sends
+`presence_penalty`, `frequency_penalty`, `top_p` and `seed` explicitly. Before, only `temperature` was sent, so
+Ollama silently applied the model's own defaults (presence_penalty 1.5 for Qwen3.5). The new defaults are
+`--presence-penalty 0 --frequency-penalty 0 --top-p 1 --sampler-seed <--seed>`. Runs made before this change used
+the server's sampler and are not comparable to runs after it; the sampler is recorded in `manifest.reader.params.sampler`,
+`manifest.judge.params.sampler` and `manifest.labels.sampler`. Pass `--presence-penalty 1.5` to reproduce an old run.
+
+| flag | default | what it does |
+|---|---|---|
+| `--presence-penalty`, `--frequency-penalty`, `--top-p`, `--sampler-seed` | 0, 0, 1, run `--seed` | sampler sent with every reader and judge request (A8) |
+| `--server-ctx` | 8192 | the model server's context window. A reader or judge call with `prompt + completion >= server_ctx - 8` sets row `meta.server_truncation_suspected` (and `server_truncation_by`) and is counted in `summary.json` `server_truncation_suspected` (D2) |
+| `--strict-ctx` | off | raise (abort the run, rest UNATTEMPTED) instead of flagging (D2) |
+| `--token-count heuristic\|reader` | `heuristic` | `reader` counts context tokens with the reader's tokenizer from the local HF cache (offline; falls back to the heuristic with a logged warning), and an over-budget context drops its lowest-ranked lines instead of cutting the tail. `context_tokens` is then the reader count and `meta.engine_tokens` the engine's (D1) |
+| `--tokenizer-id` | first cached Qwen3 | tokenizer for `--token-count reader` |
+| `--no-runtime-capture` | off | skip the manifest `runtime` block (D4) |
+
+Always recorded, no flag:
+
+- **D3** with `--retry-refusal`, row `meta` keeps `first_prompt_tokens`, `first_completion_tokens`, `retry_prompt_tokens`,
+  `retry_completion_tokens` (the row's `prompt_tokens` is still the sum of both calls).
+- **D4** `manifest.runtime`: `memspine.__file__`, versions of memspine/torch/transformers/sentence-transformers/httpx/lancedb,
+  `git describe --always --dirty` of the engine's repo, argv, all `MEMSPINE_*`/`OLLAMA_*` env vars (names containing
+  KEY/TOKEN/SECRET/PASSWORD are redacted), and, for a local-Ollama QA run, `/api/version` and `/api/ps` (2 s timeout, never fails the run).
+- **D7** `forensics.jsonl` rows carry `run_id` and `query_id`, `ingest.jsonl` rows carry `run_id`; `forensics_report.py` joins on
+  `query_id` (old logs fall back to the question text). A run refuses to start if `MEMSPINE_FORENSICS_DIR` already holds
+  `forensics.jsonl` or `ingest.jsonl`, unless `MEMSPINE_FORENSICS_OVERWRITE=1` (which deletes them first).
+- **B11** `summary.json` `rerank_check`: `FAILED` when the memspine arm's config has `read.rerank` other than `off` and the engine
+  made no rerank call or any failed one (the CLI then exits 3 after writing its outputs), `ok` when it ran cleanly, `not_applicable`
+  otherwise.
+- **F2** `ingest.jsonl` rows add `quarantined`, `trust`, `status`; `summary.json` has `n_quarantined` (a warning is logged if > 0).
+- **F3** a turn with a non-empty timestamp that `parse_turn_time` cannot read raises an error instead of being stored as "now".
+- **A10** `summary.json` `summary.accuracy_ci`: accuracy with a conversation-level cluster-bootstrap 95% CI (2000 resamples by item;
+  failed rows count at the failure score, like the headline mean).
+
+### Measurement and harness additions (A4, A12, A13, D1, D5, E3, E4, F4)
+
+- **A4 `--judge-prompt mem0-official`**: the Mem0 paper's LoCoMo J-score judge (CORRECT/WRONG, generous on same-topic
+  answers). The text is the vendored `ACCURACY_PROMPT` from Backboard-io/Backboard-Locomo-Benchmark@164d45c (upstream
+  `mem0ai/mem0 evals/metrics/llm_judge.py`); it is not byte-compared with upstream, so it is `vendored`, not
+  `official-verbatim`. It cannot grade cat-5 abstention. To re-judge stored answers later, with no new reader calls:
+  `python -m memspine_evals.rejudge --run runs/<run-id>/results.jsonl --suites mem0-official --model <litellm-model-id>
+  --max-model-calls N` (add `--dry-run` first; `--suites` takes any registered suite, `--model` any LiteLLM model id).
+- **A12** `forensics_report.py` run summaries add `sufficiency_on_qa_set` (retrieval-only runs: share of the non-adversarial
+  questions with all gold in context, with `n` and `complete_qa_set` true at 1,540) and `recall_at_10_hits` (all gold in the
+  engine's final top-10 search hits before neighbour expansion; needs the stage log).
+- **A13** `--categories 5` runs the adversarial (abstention) questions with the default `rubric` judge (abstention-aware);
+  a judge that cannot grade a refusal refuses to start. `forensics_report.py` labels cat 5 `adversarial`, excludes it from
+  `n_questions`/`accuracy`/`by_category`, and reports `n_adversarial` and `adversarial.accuracy` apart (null for retrieval-only
+  runs). `summary.json` has `adversarial_split` (headline excluding cat 5 next to cat 5) when a run includes cat 5. The default
+  categories are unchanged.
+- **D1 replay mode**: with `--token-count reader`, an over-budget replay context (chronological, `ranked=False`) is cut by hit
+  rank, not by tail: the memspine adapter stamps `meta.hit_rank` (rank in the final search hits, None for neighbour lines) on
+  every evidence row; neighbours of the lowest-ranked hits go first, then the lowest-ranked hits, and what remains keeps its
+  chronological order. Without hit ranks it still falls back to the tail cut.
+- **D5** `summary.json` `latency`: reader and judge latency `p50`/`p95` (wall time, queueing at the server included),
+  `server_side_ms` (the server's own timing when the response carries `total_duration`/`timings`; Ollama's `/v1` endpoint does
+  not, so it is null there) and `concurrent_arms` (read from the `MEMSPINE_CONCURRENT_ARMS` environment variable; set it in
+  the launcher when arms share a server, otherwise null).
+- **E4/F4** `summary.json` `ingest_timing`: ingest wall seconds (deposits, flushes, build) and turns per second, per item and
+  overall. `manifest.runtime.gpu.start` and, in `summary.json`, `.end` (plus `gpu_memory`) hold GPU memory used/total in MiB
+  from `nvidia-smi` (3 s timeout; null when unavailable, never fails a run).
+- **E3** `evals/ollama_env.ps1` sets `OLLAMA_FLASH_ATTENTION=1`, `OLLAMA_KV_CACHE_TYPE=q8_0`, `OLLAMA_CONTEXT_LENGTH=8192`,
+  `OLLAMA_NUM_PARALLEL=2`, `OLLAMA_KEEP_ALIVE=-1` as user environment variables and restarts Ollama (`-NoRestart` to only set
+  them). It interrupts any run using Ollama; do not run it mid-benchmark.
+- **R2-4** `--memspine-context-order {chrono,hits_first,hit_blocks}` (default `chrono`, unchanged) reorders the memspine context: `hits_first` puts the final search hits first in rank order, then "Other related conversation:" and the rest chronologically; `hit_blocks` renders each hit with its nearest neighbour lines, blocks in rank order separated by a blank line (a shared line appears once, in the higher-ranked block). Pair with `--qa-prompt grounded_ordered`. Recorded in `describe()` only when not `chrono`.
+
 ## Run it
 
 ```bash
@@ -272,7 +362,7 @@ reads.
 - **Engine roles on Qwen3:** `c0-1 --memspine-llm bedrock-qwen3` binds every engine role (extract, extract_edges, summarize, reflect, anticipate, relevance, query_rewrite, judge, chat) of the memspine arm to Qwen3-32B in the environment's region; explicit `llm.roles` in `--memspine-config` win. Engine calls count against `--max-model-calls`. Qwen3 roles get the `/no_think` switch automatically (`llm.roles.<role>.no_think`).
 - **Dollar cap:** `--price MODEL=IN,OUT` (USD per 1M tokens, repeatable) and `--max-usd X` per arm. Reader/judge calls are refused before a call whose worst case (prompt + `max_tokens`) would cross the cap; engine spend is charged as observed and stops the next call. The arm ends with UNATTEMPTED rows. Embedding calls (Cohere) are not metered.
 - **Raw reader reply:** when a reader extracts its final answer (`extract_answer`, e.g. `--qa-prompt dated3`), the row's `answer` holds the extracted line and `meta["reader_raw"]` keeps the full reply (capped at 4000 chars, `meta["reader_raw_truncated"]: true` when cut), so a truncated list can be audited; rows of non-extracting prompts carry no such key.
-- **Routed QA prompt (C1 / H11):** `--qa-prompt routed` picks one prompt per question by its shape (`memspine.core.query_shape`): a date or span question (`is_temporal`) gets `dated` with the refusal replaced by "infer the date from the line's date and any relative phrase; say you do not know only when nothing bears on it; answer dates as DD Month YYYY (or the granularity asked)"; a "would / likely / might / could ...?" question (`is_inference`) gets `dated` with the refusal replaced by "give the most plausible answer and say 'likely'" (no refusal); every other question gets the `dated` text verbatim. All three keep `dated`'s one-sentence answer (no "very concise" wording: `dated3` lost 3.3 points). The reader's `describe()` adds `qa_prompt: routed`, `qa_router` and `prompt_variants_sha256` (one hash per variant; `prompt_sha256` hashes the three), and each row records `meta["qa_variant"]` (`plain` / `temporal` / `inference`). Every other `--qa-prompt` keeps its text, `describe()` and rows byte-identical. The engine's matching switch is `prompts.selection.chat_by_shape` (`docs/USAGE.md`).
+- **Routed QA prompt (C1 / H11):** `--qa-prompt routed` picks one prompt per question by its shape (`memspine.models.encoders.query.shape`): a date or span question (`is_temporal`) gets `dated` with the refusal replaced by "infer the date from the line's date and any relative phrase; say you do not know only when nothing bears on it; answer dates as DD Month YYYY (or the granularity asked)"; a "would / likely / might / could ...?" question (`is_inference`) gets `dated` with the refusal replaced by "give the most plausible answer and say 'likely'" (no refusal); every other question gets the `dated` text verbatim. All three keep `dated`'s one-sentence answer (no "very concise" wording: `dated3` lost 3.3 points). The reader's `describe()` adds `qa_prompt: routed`, `qa_router` and `prompt_variants_sha256` (one hash per variant; `prompt_sha256` hashes the three), and each row records `meta["qa_variant"]` (`plain` / `temporal` / `inference`). Every other `--qa-prompt` keeps its text, `describe()` and rows byte-identical. The engine's matching switch is `prompts.selection.chat_by_shape` (`docs/USAGE.md`).
 - **Rehearse before paying:** `python evals/rehearse.py --plan evals/plans/aamas_runs.json --path data/locomo10.json --price bedrock/converse/qwen.qwen3-32b-v1:0=IN,OUT` runs every planned arm on one conversation over a local stub transport (no network) and writes `PROJECTION.md` with the projected cost of the full LoCoMo cats 1–4 run.
 
 ## Screening memory-side changes (retrieval-only + disk cache)
@@ -501,10 +591,10 @@ prevent.
 
 The generation seam is the engine adapter, and it is the larger of the two. Its job:
 
-1. Load the corpus — `evals.datasets.base.load_dataset(name, path)` yields
+1. Load the corpus — `evals.legacy_datasets.base.load_dataset(name, path)` yields
    `BenchmarkSample` for either benchmark.
 2. Build or reuse each sample's memory — `BuildCache` keyed on `config.build_digest()`;
-   for LoCoMo, `evals.datasets.locomo.build_or_load_memory` already does this end to end
+   for LoCoMo, `evals.legacy_datasets.locomo.build_or_load_memory` already does this end to end
    through the real write door.
 3. Retrieve and assemble per question, honouring `config.budget`.
 4. Call the backbone named in `config.generation.backbone`.
@@ -863,3 +953,70 @@ The objective is retrieval-only coverage (`ev_all`, $0, local embedder). The rep
 (`SPINETUNE.md`, `spinetune.json`) lists every trial and the held-out and guard tests. A
 result is labelled **auto-tuned** and reported next to the hand-built baseline, never in
 place of it. A default changes only through an ADR, after U5 (two independent corpora).
+
+## Offline measurement tools (no model calls)
+
+- `python -m memspine_evals.second_view prepare --run runs/<run>--memspine/results.jsonl --out <batch.jsonl>`: Mem0-official judge prompts for a finished run (I35); `score` answers them on a GPU job, `collect` summarises. See the module docstring.
+- `python evals/make_split.py ...`: dev / held-out split by conversation / user / persona with a content hash (I15); `--check` verifies.
+- `memspine_evals/errata.py`: `errata/v1` errata files for any dataset (I14).
+- `python evals/noise_floor.py --a <run> --b <same-config repeat>`: measured noise floor (I16).
+- `python -m memspine_evals.leakage`: two-user namespace leakage probe, exit 1 on any leak (I19).
+- `forensics_report.py` now also writes abstention P/R/F1, a per-category table with cat 5, trigger fired rates and the memory-used rate (I24).
+## Paired adoption gate (focus, blind, full set)
+
+One gate (`memspine_evals/paired_gate.py`) serves three scorers; each compares an arm with a named reference run
+question by question and prints counts only.
+
+| Scorer | Set | Notes |
+|---|---|---|
+| `eval_focus.py ARM --ref REF` | focus slice (FAIL + CONTROL) | the slice-label view is informational; the verdict is the paired one |
+| `eval_blind.py ARM --ref REF` | the two blind validation sets | aggregates only, sealed one-shot (below) |
+| `eval_paired.py ARM --ref REF` | every question of a full run | categories from each row's `type_label` |
+
+Verdicts: `INCOMPLETE` (a question is missing in either run), `NO CHANGE` (nothing flipped), `PROMOTE` (net above
+0.328*sqrt(n), exact sign test p < 0.05, conversation-cluster bootstrap low > 0, no category beyond its own band),
+`REJECT`, `HOLD`, and `INCOMPARABLE`.
+
+**Manifests are enforced.** Each caller reads the manifest on the first line of each run's `results.jsonl`
+(`seal.read_manifest`) and passes both to `paired()`. If the comparability keys differ (dataset or slice, judge, reader,
+harness version, scoring) the verdict is `INCOMPARABLE` and the differing fields are listed. A run with no manifest still
+scores and prints `WARNING: manifest missing (...): comparability not verified`. An arm's own flags, commit and env never
+make a pair incomparable.
+
+**Sealed one-shot blind run (ER-36).** `eval_blind.py` scores the blind sets only when every run, every question and
+both manifests are present and comparable; otherwise it prints the reason, `INCOMPLETE` or `INCOMPARABLE`, shows no
+aggregate and records nothing. When it does score, it appends one line per set to the exposure ledger
+`<runs-dir>/_logs/blind_exposure.jsonl` (append-only; set id, slice hash, arm commit and flags hash, the manifest's
+comparability key, UTC timestamp, verdict; no question ids). An arm (commit + flags hash; `run:<id>` for a run without
+identity) may be scored on a set once. A second scoring is refused (exit 2, no output) unless
+`--reexpose "<reason>"` is passed; the reason and the number of earlier exposures are recorded. `--ledger PATH`
+overrides the ledger location.
+
+## Run manifest
+
+Every run records a `RunManifest` (`memspine_evals/provenance.py`). Its `identity` block (`memspine_evals/manifest.py`,
+`build_identity`) holds the commit, env hash and venv hash (exported by `pinned_run.sh` as `MEMSPINE_PINNED_COMMIT`,
+`MEMSPINE_ENV_HASH`, `MEMSPINE_VENV_HASH`), the effective flags and their hash, a name and content hash for every
+prompt, the reader/judge/embedder/reranker/worker model ids, dataset and slice ids with data-file hashes, and the
+harness version. An optional `cost` block (`build_cost`) adds token counts per role, embedding and rerank call counts,
+run duration and p50/p95 per-question latency; missing figures are null.
+
+`comparability_key` hashes only what two arms must share: dataset revision and content hash, slice id and hash, judge
+(model, prompt hash, scale, id), reader model, token budget and harness version. The arm's flags, commit, env and cost are left out.
+`paired(..., arm_manifest=, ref_manifest=)` returns `INCOMPARABLE` with the differing fields when both manifests are
+given and their keys differ. With a manifest missing the verdict is unchanged and `warnings` says comparability was not
+verified.
+
+The runner fills `identity` on line 1 (`Runner.build_identity`): flags are the system's `describe()`, prompts the reader's and
+judge's texts, models come from the reader, judge and engine config, the slice from the item-id filter, the data file as the
+adapter's own content hash. The `cost` block is only known after the run, so line 1 is never rewritten: a trailing
+`{"kind": "cost", ...}` record is appended after the summary line and the same block is copied into
+`summary.json` (`manifest.identity.cost`). Readers that look for `manifest`, `result` and `summary` lines skip it.
+
+`pinned_run.sh` builds each pinned commit's venv from its own `uv.lock` under `../memspine-venvs/<hash>/`
+(`PINNED_SHARED_VENV=1` keeps the shared venv, `PINNED_DRY_RUN=1` prints the plan, `PINNED_EXTRAS` sets the extras,
+default `--all-extras`).
+
+## v2 screens: sample-first (RUNBOOK2)
+
+`MODE=sample|focus|final bash run_v2_queue.sh` (default sample): small seeded stratified slices (`make_sample_slice.py`, `analysis/sample_slice_*.json`), descriptive scoring (`eval_sample.py`, no verdict), append-only ledger `runs/_logs/v2_results.tsv` (`v2_ledger.py summary|history|mark`), and a final full + sealed-blind run only for screens marked `promote_candidate`. Workflow and GPU-time estimates: `docs/v2/SCREENS.md`.

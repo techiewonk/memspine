@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from memspine.core.policies.dedup import DedupPolicy
-from memspine.core.records import MemoryRecord
+from memspine.store.records import MemoryRecord
 
 
 def rec(content: str) -> MemoryRecord:

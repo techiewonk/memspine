@@ -1,0 +1,14 @@
+{
+  "synthetic_only": true,
+  "weak_span_unsupported_fact_accepted": true,
+  "line_index_only_edge_accepted": true,
+  "plain_state_event_key_collision": true,
+  "dated_repeated_same_day_event_key_collision": true,
+  "year_precision_becomes": "2023-01-01T00:00:00+00:00",
+  "month_precision_becomes": "2023-05-01T00:00:00+00:00",
+  "packing_selected_contents": [
+    "first small item"
+  ],
+  "packing_skips_fitting_tail": true,
+  "scope": "Function-level reproductions, not end-to-end answer-quality measurements. Packing follows its current documented never-empty/stop contract."
+}

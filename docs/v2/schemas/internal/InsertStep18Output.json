@@ -1,0 +1,81 @@
+{
+  "$defs": {
+    "FirewallVerdict": {
+      "additionalProperties": true,
+      "description": "Internal step type.",
+      "properties": {
+        "anomalous": {
+          "default": false,
+          "title": "Anomalous",
+          "type": "boolean"
+        },
+        "gate": {
+          "anyOf": [
+            {
+              "enum": [
+                1,
+                2,
+                3
+              ],
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Gate"
+        },
+        "instruction_flag": {
+          "default": false,
+          "title": "Instruction Flag",
+          "type": "boolean"
+        },
+        "quarantine": {
+          "default": false,
+          "title": "Quarantine",
+          "type": "boolean"
+        },
+        "reasons": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Reasons",
+          "type": "array"
+        },
+        "signals_run": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Signals Run",
+          "type": "array"
+        },
+        "trust": {
+          "title": "Trust",
+          "type": "number"
+        }
+      },
+      "required": [
+        "trust"
+      ],
+      "title": "FirewallVerdict",
+      "type": "object"
+    }
+  },
+  "additionalProperties": true,
+  "properties": {
+    "tau": {
+      "title": "Tau",
+      "type": "number"
+    },
+    "verdict": {
+      "$ref": "#/$defs/FirewallVerdict"
+    }
+  },
+  "required": [
+    "verdict",
+    "tau"
+  ],
+  "title": "InsertStep18Output",
+  "type": "object"
+}

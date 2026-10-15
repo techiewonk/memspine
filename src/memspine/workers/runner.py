@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Protocol, runtime_checkable
 
-from memspine.workers.pipelines import Pipeline, PipelineContext
+from memspine.derive.pipeline.stages.context import Pipeline, PipelineContext
 
 __all__ = ["TaskRunner"]
 

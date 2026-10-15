@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "memspine/evals/failure_catalogue/v1",
+  "title": "Per-question failure catalogue record (one line of locomo_dev_failures.jsonl / opbench_dev_failures.jsonl)",
+  "description": "One wrong LoCoMo question (or one OP-Bench probe scoring below 0.5) with the pipeline stage that lost it, the sub-type, where the evidence was lost, the generic fix, the decision mechanism that would take it, the linked gap ids and the already-built feature (flag) that should address it. The committed LoCoMo file carries NO corpus text (question, gold and answer are null or absent); the full-text copy stays in the gitignored evals/runs/_analysis/. The OP-Bench file is never committed (no licence).",
+  "type": "object",
+  "required": ["schema_version", "dataset", "run_id", "query_id", "category", "failure_code", "failure_stage", "sub_type", "gap_ids", "generic_fix", "decision_mechanism"],
+  "properties": {
+    "schema_version": {"const": "failure_catalogue/v1"},
+    "dataset": {"enum": ["locomo", "op_bench"]},
+    "run_id": {"type": "string", "description": "e.g. xb-loc-dev, xb-opb-dev"},
+    "query_id": {"type": "string", "description": "conv-26:0-5 (LoCoMo) or conv-26:Caroline:irrelevance_easy:0 (OP-Bench)"},
+    "category": {"type": "string", "description": "LoCoMo: single-hop | multi-hop | temporal | open-domain | adversarial. OP-Bench: the type label, e.g. sycophancy/fine-grained"},
+    "failure_code": {"type": "string", "description": "short code: b, c1, c2, d-list, d-count, d-date, d-ref, d-inf, d-detail, d-distr, e, f, c5-swap, c5-near, c5-entity, c5-answerable (LoCoMo); an OP-Bench class slug"},
+    "failure_stage": {"enum": ["a", "b", "c", "d", "e", "f"], "description": "a write path, b recall (no leg), c cut by fusion/rerank/assembly, d reader, e judge, f gold/dataset error"},
+    "sub_type": {"type": "string"},
+    "evidence": {
+      "type": "array",
+      "description": "LoCoMo only: one entry per gold evidence turn",
+      "items": {
+        "type": "object",
+        "required": ["turn", "lost_at", "in_context"],
+        "properties": {
+          "turn": {"type": "string"},
+          "lost_at": {"type": "string", "description": "recall | fusion | rerank | assembly | rescued | in_context | unknown"},
+          "rank_vector": {"type": ["integer", "null"]},
+          "rank_lexical": {"type": ["integer", "null"]},
+          "rank_fused": {"type": ["integer", "null"]},
+          "rank_rerank": {"type": ["integer", "null"]},
+          "in_context": {"type": "boolean"}
+        }
+      }
+    },
+    "signals": {"type": "object", "description": "OP-Bench only: cheap automated signals (persona_share, leak_n, ref_cues, best_overlap, affirm, role_inv, context_tokens)"},
+    "generic_fix": {"type": "string"},
+    "decision_mechanism": {"type": "string", "description": "which decision point decides it: heuristic rule, OpenDecider typed question via the decider port, store-calibrated gate, perspective resolver, reranker score"},
+    "gap_ids": {"type": "array", "items": {"type": "string"}},
+    "built_feature": {"type": ["string", "null"], "description": "already-built flag/arm that should address it, with the queued screen"},
+    "fix_runtime_cost": {"type": ["string", "null"]},
+    "errata_known": {"type": ["string", "null"], "description": "tag in locomo_errata.json (gold_error, needs_image, evidence_label_error) or null"},
+    "errata_candidate": {"type": ["string", "null"], "description": "a new errata candidate found by this pass (reason), or null"},
+    "question": {"type": ["string", "null"], "description": "absent in committed files"},
+    "gold": {"type": ["string", "null"], "description": "absent in committed files"},
+    "answer": {"type": ["string", "null"], "description": "absent in committed files; truncated"}
+  },
+  "additionalProperties": false
+}

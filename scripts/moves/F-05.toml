@@ -1,0 +1,44 @@
+# F-05: store and trust leaves (docs/v2/RESTRUCTURE.md section 3). Run: python scripts/codemod_move.py scripts/moves/F-05.toml
+[[move]]
+from = "memspine.core.records"
+to = "memspine.store.records"
+
+[[move]]
+from = "memspine.core.events"
+to = "memspine.store.events"
+
+[[move]]
+from = "memspine.core.replay"
+to = "memspine.store.replay"
+
+[[move]]
+from = "memspine.core.projector"
+to = "memspine.store.projections.projector"
+
+[[move]]
+from = "memspine.core.namespace"
+to = "memspine.store.scope"
+
+[[move]]
+from = "memspine.core.visibility"
+to = "memspine.trust.visibility"
+
+[[move]]
+from = "memspine.core.firewall"
+to = "memspine.trust.firewall"
+
+[[move]]
+from = "memspine.core.audit"
+to = "memspine.trust.audit"
+
+[[move]]
+from = "memspine.core.erasure"
+to = "memspine.trust.erasure"
+
+[[move]]
+from = "memspine.core.privacy"
+to = "memspine.trust.privacy"
+
+[[move]]
+from = "memspine.core.redaction"
+to = "memspine.trust.redaction"

@@ -1,0 +1,84 @@
+{
+  "$defs": {
+    "WindowTurn": {
+      "additionalProperties": true,
+      "description": "Internal step type.",
+      "properties": {
+        "record_id": {
+          "title": "Record Id",
+          "type": "string"
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Session"
+        },
+        "source_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source At"
+        },
+        "source_version": {
+          "title": "Source Version",
+          "type": "integer"
+        },
+        "tokens": {
+          "title": "Tokens",
+          "type": "integer"
+        },
+        "vector": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Vector"
+        }
+      },
+      "required": [
+        "record_id",
+        "source_version",
+        "tokens"
+      ],
+      "title": "WindowTurn",
+      "type": "object"
+    }
+  },
+  "additionalProperties": true,
+  "properties": {
+    "turns": {
+      "items": {
+        "$ref": "#/$defs/WindowTurn"
+      },
+      "title": "Turns",
+      "type": "array"
+    }
+  },
+  "required": [
+    "turns"
+  ],
+  "title": "InsertStep11Input",
+  "type": "object"
+}

@@ -6,7 +6,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from memspine import Engine
-from memspine.core.records import RecordStatus, SourceInfo
+from memspine.store.records import RecordStatus, SourceInfo
 
 
 def _engine(**extra: Any) -> Engine:
@@ -25,23 +25,23 @@ async def test_current_state_view_shows_current_and_history() -> None:
     await eng.start()
     try:
         await eng.write(
-            "Caroline lives in Boston",
+            "Noor lives in Boston",
             namespace="a",
-            entity="caroline",
+            entity="noor",
             attribute="city",
             valid_from=datetime(2023, 1, 5, tzinfo=UTC),
         )
         await eng.write(
-            "Caroline lives in Seattle",
+            "Noor lives in Seattle",
             namespace="a",
-            entity="caroline",
+            entity="noor",
             attribute="city",
             valid_from=datetime(2023, 6, 1, tzinfo=UTC),
         )
-        ctx = await eng.assemble("where does Caroline live", namespace="a")
+        ctx = await eng.assemble("where does Noor live", namespace="a")
         [line] = [r.content for r in ctx.records if "Seattle" in r.content]
-        assert line.startswith("CURRENT (since 2023-06-01): Caroline lives in Seattle")
-        assert "HISTORY (superseded): 2023-01-05 to 2023-06-01: Caroline lives in Boston" in line
+        assert line.startswith("CURRENT (since 2023-06-01): Noor lives in Seattle")
+        assert "HISTORY (superseded): 2023-01-05 to 2023-06-01: Noor lives in Boston" in line
     finally:
         await eng.stop()
 
@@ -51,9 +51,9 @@ async def test_view_off_by_default() -> None:
     await eng.start()
     try:
         await eng.write(
-            "Caroline lives in Boston", namespace="a", entity="caroline", attribute="city"
+            "Noor lives in Boston", namespace="a", entity="noor", attribute="city"
         )
-        ctx = await eng.assemble("where does Caroline live", namespace="a")
+        ctx = await eng.assemble("where does Noor live", namespace="a")
         assert all(not r.content.startswith("CURRENT") for r in ctx.records)
     finally:
         await eng.stop()
@@ -135,8 +135,8 @@ async def test_legs_off_is_unchanged() -> None:
     eng = _engine()
     await eng.start()
     try:
-        await eng.write("note on 7 May 2023", namespace="a", entity="caroline")
-        assert await eng._metadata_legs("a", "Caroline on 7 May 2023", 10) == []
+        await eng.write("note on 7 May 2023", namespace="a", entity="noor")
+        assert await eng._metadata_legs("a", "Noor on 7 May 2023", 10) == []
     finally:
         await eng.stop()
 
@@ -149,17 +149,17 @@ async def test_resolve_relative_dates_annotates_assembled_records() -> None:
         await eng.start()
         try:
             rec = await eng.write(
-                "Caroline went to the support group last Friday",
+                "Noor went to the support group last Friday",
                 namespace="a",
                 valid_from=datetime(2023, 7, 15, tzinfo=UTC),
             )
             ctx = await eng.assemble("support group", namespace="a")
             [line] = [r.content for r in ctx.records if r.record_id == rec.record_id]
             if on:
-                assert line == "Caroline went to the support group last Friday [= Fri 2023-07-14]"
+                assert line == "Noor went to the support group last Friday [= Fri 2023-07-14]"
             else:
-                assert line == "Caroline went to the support group last Friday"
-            assert rec.content == "Caroline went to the support group last Friday"
+                assert line == "Noor went to the support group last Friday"
+            assert rec.content == "Noor went to the support group last Friday"
         finally:
             await eng.stop()
 
@@ -218,12 +218,12 @@ async def test_dated_render_and_time_order_for_ordering_questions() -> None:
     try:
         for day in (20, 3, 11):
             await eng.write(
-                f"Melanie read a new book on day {day}",
+                f"Bram read a new book on day {day}",
                 namespace="a",
                 memory_type="episodic",
                 valid_from=datetime(2023, 5, day, tzinfo=UTC),
             )
-        ctx = await eng.assemble("What is the latest book Melanie read?", namespace="a")
+        ctx = await eng.assemble("What is the latest book Bram read?", namespace="a")
         lines = [r.content for r in ctx.records]
         assert lines == sorted(lines)  # dated prefixes sort by date
         assert lines[0].startswith("[2023-05-03 Wed] ")
@@ -267,9 +267,9 @@ async def test_core_terms_leg_adds_a_lexical_probe() -> None:
         eng = _engine(read={"core_terms_leg": on})
         await eng.start()
         try:
-            await eng.write("Melanie went to the beach with her kids", namespace="a")
+            await eng.write("Bram went to the beach with her kids", namespace="a")
             legs = await eng._metadata_legs(
-                "a", "How many times has Melanie gone to the beach?", 10
+                "a", "How many times has Bram gone to the beach?", 10
             )
             assert (len(legs) == 1) is on
         finally:
@@ -323,9 +323,9 @@ async def test_gap_markers_mark_long_silences() -> None:
     try:
         for when in (datetime(2023, 5, 1, tzinfo=UTC), datetime(2023, 5, 22, tzinfo=UTC)):
             await eng.write(
-                "Melanie went hiking", namespace="a", memory_type="episodic", valid_from=when
+                "Bram went hiking", namespace="a", memory_type="episodic", valid_from=when
             )
-        ctx = await eng.assemble("when did Melanie first go hiking", namespace="a")
+        ctx = await eng.assemble("when did Bram first go hiking", namespace="a")
         lines = [r.content for r in ctx.records]
         assert lines[1].startswith("[3 weeks later] [2023-05-22")
     finally:
@@ -347,11 +347,11 @@ async def test_rerank_date_prefix_and_ordering_skip(monkeypatch) -> None:  # typ
     try:
         monkeypatch.setattr(eng, "_rerank_provider", lambda: FakeReranker())
         await eng.write(
-            "Melanie went hiking", namespace="a", valid_from=datetime(2023, 5, 1, tzinfo=UTC)
+            "Bram went hiking", namespace="a", valid_from=datetime(2023, 5, 1, tzinfo=UTC)
         )
-        await eng.search("where did Melanie go", namespace="a", top_k=2)
+        await eng.search("where did Bram go", namespace="a", top_k=2)
         assert seen and seen[0][0].startswith("[Date: 2023-05-01] ")
-        await eng.search("what did Melanie do most recently", namespace="a", top_k=2)
+        await eng.search("what did Bram do most recently", namespace="a", top_k=2)
         assert len(seen) == 1  # ordering query: reranker skipped
     finally:
         await eng.stop()

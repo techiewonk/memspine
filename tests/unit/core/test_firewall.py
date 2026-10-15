@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from memspine.core.firewall import Firewall, instruction_shaped
-from memspine.core.records import MemoryRecord, RecordStatus, SourceInfo
+from memspine.store.records import MemoryRecord, RecordStatus, SourceInfo
+from memspine.trust.firewall import Firewall, instruction_shaped
 
 
 def rec(content: str, role: str = "tool", channel: str = "retrieved") -> MemoryRecord:

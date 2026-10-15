@@ -1,0 +1,42 @@
+{
+  "additionalProperties": true,
+  "description": "Internal step type.",
+  "properties": {
+    "family": {
+      "title": "Family",
+      "type": "string"
+    },
+    "fused_score": {
+      "title": "Fused Score",
+      "type": "number"
+    },
+    "lifted_from": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Lifted From"
+    },
+    "protected": {
+      "default": false,
+      "title": "Protected",
+      "type": "boolean"
+    },
+    "record_id": {
+      "title": "Record Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "record_id",
+    "fused_score",
+    "family"
+  ],
+  "title": "PoolEntry",
+  "type": "object"
+}

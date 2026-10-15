@@ -1,0 +1,45 @@
+{
+  "additionalProperties": true,
+  "description": "Derivation fingerprint (P-12): what produced a derived item, for staleness and re-derivation.",
+  "properties": {
+    "decoding": {
+      "title": "Decoding",
+      "type": "string"
+    },
+    "input_blocks": {
+      "title": "Input Blocks",
+      "type": "string"
+    },
+    "model_id": {
+      "title": "Model Id",
+      "type": "string"
+    },
+    "prompt_hash": {
+      "title": "Prompt Hash",
+      "type": "string"
+    },
+    "quant": {
+      "title": "Quant",
+      "type": "string"
+    },
+    "runtime_libs": {
+      "title": "Runtime Libs",
+      "type": "string"
+    },
+    "schema_v": {
+      "title": "Schema V",
+      "type": "string"
+    }
+  },
+  "required": [
+    "prompt_hash",
+    "schema_v",
+    "model_id",
+    "quant",
+    "decoding",
+    "input_blocks",
+    "runtime_libs"
+  ],
+  "title": "Fingerprint",
+  "type": "object"
+}

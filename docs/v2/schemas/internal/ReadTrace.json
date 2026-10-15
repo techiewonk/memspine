@@ -1,0 +1,155 @@
+{
+  "$defs": {
+    "SkipRecord": {
+      "additionalProperties": true,
+      "description": "Internal step type. The spec names the type without fields.",
+      "properties": {
+        "reason": {
+          "title": "Reason",
+          "type": "string"
+        },
+        "record_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Record Id"
+        }
+      },
+      "required": [
+        "reason"
+      ],
+      "title": "SkipRecord",
+      "type": "object"
+    }
+  },
+  "additionalProperties": true,
+  "description": "Internal step type. Typed form of today's forensics dict.",
+  "properties": {
+    "cuts": {
+      "items": {
+        "additionalProperties": {
+          "type": "string"
+        },
+        "type": "object"
+      },
+      "title": "Cuts",
+      "type": "array"
+    },
+    "degraded_from": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Degraded From"
+    },
+    "dropped_legs": {
+      "items": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Dropped Legs",
+      "type": "array"
+    },
+    "fused": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Fused",
+      "type": "array"
+    },
+    "gate": {
+      "anyOf": [
+        {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Gate"
+    },
+    "latency_ms": {
+      "additionalProperties": {
+        "type": "number"
+      },
+      "title": "Latency Ms",
+      "type": "object"
+    },
+    "legs": {
+      "additionalProperties": {
+        "items": {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "type": "array"
+        },
+        "type": "array"
+      },
+      "title": "Legs",
+      "type": "object"
+    },
+    "model_calls": {
+      "default": 0,
+      "title": "Model Calls",
+      "type": "integer"
+    },
+    "packer_skips": {
+      "items": {
+        "$ref": "#/$defs/SkipRecord"
+      },
+      "title": "Packer Skips",
+      "type": "array"
+    },
+    "pool": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Pool",
+      "type": "array"
+    },
+    "protected": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Protected",
+      "type": "array"
+    },
+    "rerank_scores": {
+      "additionalProperties": {
+        "type": "number"
+      },
+      "title": "Rerank Scores",
+      "type": "object"
+    },
+    "windows": {
+      "items": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Windows",
+      "type": "array"
+    }
+  },
+  "title": "ReadTrace",
+  "type": "object"
+}

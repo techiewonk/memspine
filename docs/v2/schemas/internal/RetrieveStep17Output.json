@@ -1,0 +1,169 @@
+{
+  "$defs": {
+    "ContextBlock": {
+      "additionalProperties": true,
+      "description": "A typed section of the context. ``accounting`` says how ``tokens`` was counted: exactly with the\nreader model's tokenizer (headers and reserves included), or estimated when none was available.",
+      "properties": {
+        "accounting": {
+          "default": "estimated",
+          "enum": [
+            "exact",
+            "estimated"
+          ],
+          "title": "Accounting",
+          "type": "string"
+        },
+        "cap": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cap"
+        },
+        "kind": {
+          "enum": [
+            "contract",
+            "profile",
+            "raw",
+            "notes",
+            "public"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "lines": {
+          "items": {
+            "$ref": "#/$defs/RenderedLine"
+          },
+          "title": "Lines",
+          "type": "array"
+        },
+        "tokenizer": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Tokenizer"
+        },
+        "tokens": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Tokens",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "title": "ContextBlock",
+      "type": "object"
+    },
+    "RenderedLine": {
+      "additionalProperties": true,
+      "description": "One rendered line of a context block. ``alias`` is the citation handle (\"[3]\").",
+      "properties": {
+        "alias": {
+          "minLength": 1,
+          "title": "Alias",
+          "type": "string"
+        },
+        "date": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Date"
+        },
+        "modality": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Modality"
+        },
+        "record_id": {
+          "minLength": 1,
+          "title": "Record Id",
+          "type": "string"
+        },
+        "speaker": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Speaker"
+        },
+        "text": {
+          "title": "Text",
+          "type": "string"
+        },
+        "wrapped": {
+          "default": "none",
+          "enum": [
+            "none",
+            "untrusted",
+            "instruction",
+            "claim"
+          ],
+          "title": "Wrapped",
+          "type": "string"
+        }
+      },
+      "required": [
+        "alias",
+        "record_id",
+        "text"
+      ],
+      "title": "RenderedLine",
+      "type": "object"
+    }
+  },
+  "additionalProperties": true,
+  "properties": {
+    "aliases": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Aliases",
+      "type": "object"
+    },
+    "blocks": {
+      "items": {
+        "$ref": "#/$defs/ContextBlock"
+      },
+      "title": "Blocks",
+      "type": "array"
+    }
+  },
+  "required": [
+    "blocks"
+  ],
+  "title": "RetrieveStep17Output",
+  "type": "object"
+}

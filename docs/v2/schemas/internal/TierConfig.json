@@ -1,0 +1,38 @@
+{
+  "additionalProperties": true,
+  "description": "Config keys read.default_depth, read.allowed_depths, read.tiers.",
+  "properties": {
+    "allowed_depths": {
+      "items": {
+        "enum": [
+          "fast",
+          "standard",
+          "deep"
+        ],
+        "type": "string"
+      },
+      "title": "Allowed Depths",
+      "type": "array"
+    },
+    "default_depth": {
+      "default": "standard",
+      "enum": [
+        "fast",
+        "standard",
+        "deep"
+      ],
+      "title": "Default Depth",
+      "type": "string"
+    },
+    "tiers": {
+      "additionalProperties": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Tiers",
+      "type": "object"
+    }
+  },
+  "title": "TierConfig",
+  "type": "object"
+}

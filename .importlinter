@@ -1,0 +1,252 @@
+; Import-boundary contracts for memspine (restructure package P0-04).
+;
+; Source of truth for BOTH the import-linter CLI (`lint-imports`, once it is a dev
+; dependency) and tests/unit/test_import_contracts.py (an AST checker that reads this
+; file with configparser, because import-linter is not installed in every env).
+; Keep the contract syntax inside the subset the test understands:
+;   type = layers     with `layers` (one layer per line; `a | b` = independent siblings,
+;                     `a : b` = siblings that may import each other)
+;   type = forbidden  with `source_modules`, `forbidden_modules` (one dotted name per line)
+; Only direct imports are checked by the test (also function-level and TYPE_CHECKING
+; imports, which import-linter counts too).
+;
+; Target layering: docs/v2/RESTRUCTURE.md section 1 and docs/v2/ARCHITECTURE.md section 8.
+;   api -> runtime (the DI container) -> (ingest, derive, read, compose)
+;       -> (store, models, trust, prompts, memory) -> schemas
+; config, observability and errors are cross-cutting: they sit outside the layers and are
+; policed by the forbidden contracts only.
+; CI never feeds this file to lint-imports as is, because it names packages that do not
+; exist yet. scripts/ci_importlinter.py writes a filtered copy that drops every module that
+; does not exist (and any contract left without sources or targets), so a new package is
+; enforced from the commit it appears in. The AST test reads this full file.
+; Today's v1 packages (core, services, memories, workers, protocols, clients) get their
+; own transitional contracts at the bottom; delete those as the packages are moved.
+
+[importlinter]
+root_package = memspine
+include_external_packages = False
+
+; ---------------------------------------------------------------------------------------
+; Target contracts
+; ---------------------------------------------------------------------------------------
+
+[importlinter:contract:target-layers]
+name = Target layers: api above runtime above the pipelines above the foundations above schemas
+type = layers
+layers =
+    memspine.api
+    memspine.runtime
+    memspine.ingest : memspine.derive : memspine.read : memspine.compose
+    memspine.store : memspine.models : memspine.trust : memspine.prompts : memspine.memory
+    memspine.schemas
+
+[importlinter:contract:schemas-leaf]
+name = schemas is a leaf (imports only errors)
+type = forbidden
+source_modules =
+    memspine.schemas
+forbidden_modules =
+    memspine.api
+    memspine.ingest
+    memspine.derive
+    memspine.read
+    memspine.compose
+    memspine.store
+    memspine.models
+    memspine.trust
+    memspine.memory
+    memspine.runtime
+    memspine.prompts
+    memspine.config
+    memspine.observability
+    memspine.api.engine
+allow_indirect_imports = True
+
+[importlinter:contract:store-below-pipelines]
+name = store never imports read, derive, ingest, compose, api
+type = forbidden
+source_modules =
+    memspine.store
+forbidden_modules =
+    memspine.read
+    memspine.derive
+    memspine.ingest
+    memspine.compose
+    memspine.api
+allow_indirect_imports = True
+
+[importlinter:contract:read-not-derive]
+name = read never imports derive
+type = forbidden
+source_modules =
+    memspine.read
+forbidden_modules =
+    memspine.derive
+allow_indirect_imports = True
+
+[importlinter:contract:foundations-not-above]
+name = models, trust, prompts, memory never import the pipelines or api
+type = forbidden
+source_modules =
+    memspine.models
+    memspine.trust
+    memspine.prompts
+    memspine.memory
+forbidden_modules =
+    memspine.api
+    memspine.ingest
+    memspine.derive
+    memspine.read
+    memspine.compose
+allow_indirect_imports = True
+
+[importlinter:contract:runtime-not-api]
+name = runtime never imports api
+type = forbidden
+source_modules =
+    memspine.runtime
+forbidden_modules =
+    memspine.api
+allow_indirect_imports = True
+
+; "No module imports engine except api and tests." The facade is `memspine.api.engine`. The root
+; package (memspine/__init__.py, which re-exports Engine) and memspine.api are the only allowed importers; the sources below
+; are therefore every other top-level package (target and v1).
+[importlinter:contract:engine-only-from-api]
+name = Only memspine.api (and the root package) import the engine facade
+type = forbidden
+source_modules =
+    memspine.cli
+    memspine.clients
+    memspine.config
+    memspine.core
+    memspine.memories
+    memspine.observability
+    memspine.prompts
+    memspine.services
+    memspine.workers
+    memspine.schemas
+    memspine.store
+    memspine.models
+    memspine.trust
+    memspine.memory
+    memspine.runtime
+    memspine.ingest
+    memspine.derive
+    memspine.read
+    memspine.compose
+forbidden_modules =
+    memspine.api.engine
+allow_indirect_imports = True
+
+; ---------------------------------------------------------------------------------------
+; Transitional contracts for the v1 layout (true today; delete a contract when the
+; packages it names have moved). They stop new upward imports while the moves are under way.
+; ---------------------------------------------------------------------------------------
+
+[importlinter:contract:v1-core-leaf]
+name = v1 core imports no service, memory, worker, client, protocol or engine
+type = forbidden
+source_modules =
+    memspine.core
+forbidden_modules =
+    memspine.api.engine
+    memspine.api.rest
+    memspine.api.mcp
+    memspine.api.tools
+    memspine.workers
+    memspine.memories
+    memspine.services
+    memspine.clients
+    memspine.cli
+allow_indirect_imports = True
+
+[importlinter:contract:v1-clients-low]
+name = v1 clients import only config and exceptions
+type = forbidden
+source_modules =
+    memspine.clients
+forbidden_modules =
+    memspine.api.engine
+    memspine.api.rest
+    memspine.api.mcp
+    memspine.api.tools
+    memspine.workers
+    memspine.memories
+    memspine.services
+    memspine.core
+    memspine.cli
+allow_indirect_imports = True
+
+[importlinter:contract:v1-services-below-memories]
+name = v1 services never import memories, workers, protocols, engine
+type = forbidden
+source_modules =
+    memspine.services
+forbidden_modules =
+    memspine.api.engine
+    memspine.api.rest
+    memspine.api.mcp
+    memspine.api.tools
+    memspine.workers
+    memspine.memories
+    memspine.cli
+allow_indirect_imports = True
+
+[importlinter:contract:v1-memories-below-workers]
+name = v1 memories never import workers, protocols, engine
+type = forbidden
+source_modules =
+    memspine.memories
+forbidden_modules =
+    memspine.api.engine
+    memspine.api.rest
+    memspine.api.mcp
+    memspine.api.tools
+    memspine.workers
+    memspine.cli
+allow_indirect_imports = True
+
+[importlinter:contract:v1-workers-below-engine]
+name = v1 workers never import protocols, engine
+type = forbidden
+source_modules =
+    memspine.workers
+forbidden_modules =
+    memspine.api.engine
+    memspine.api.rest
+    memspine.api.mcp
+    memspine.api.tools
+    memspine.cli
+allow_indirect_imports = True
+
+[importlinter:contract:v1-support-packages]
+name = v1 config, prompts, observability import no service, memory, worker, protocol or engine
+type = forbidden
+source_modules =
+    memspine.config
+    memspine.prompts
+    memspine.observability
+forbidden_modules =
+    memspine.api.engine
+    memspine.api.rest
+    memspine.api.mcp
+    memspine.api.tools
+    memspine.workers
+    memspine.memories
+    memspine.services
+    memspine.clients
+    memspine.cli
+allow_indirect_imports = True
+
+[importlinter:contract:v1-engine-not-protocols]
+name = v1 engine never imports protocols or cli
+type = forbidden
+source_modules =
+    memspine.api.engine
+forbidden_modules =
+    memspine.api.rest
+    memspine.api.mcp
+    memspine.api.tools
+    memspine.cli
+allow_indirect_imports = True

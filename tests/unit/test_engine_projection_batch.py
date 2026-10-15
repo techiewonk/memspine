@@ -11,11 +11,11 @@ from pathlib import Path
 
 import pytest
 
-from memspine.core.records import MemoryRecord
-from memspine.core.replay import catch_up
-from memspine.engine import Engine
+from memspine.api.engine import Engine
 from memspine.services.lexical.projector import LexicalProjector
 from memspine.services.lexical.tantivy import TantivyLexical
+from memspine.store.records import MemoryRecord
+from memspine.store.replay import catch_up
 
 _TURNS = [
     {"role": "user", "content": "I adopted a beagle named Pepper last spring."},

@@ -9,7 +9,7 @@ from typing import Any
 import pytest
 
 from memspine import Engine
-from memspine.engine import _READ_SNAPSHOT
+from memspine.read.pipeline.state import _READ_SNAPSHOT
 
 T0 = datetime(2023, 5, 1, 9, 0, tzinfo=UTC)
 

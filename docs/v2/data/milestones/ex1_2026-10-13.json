@@ -1,0 +1,77 @@
+{
+  "milestone": "EX-1",
+  "date": "2026-10-13",
+  "gate": "raw-only read non-inferior; golden; replay NO CHANGE",
+  "environment": "throwaway local containers (pgvector/pgvector:pg16, neo4j:5) on loopback; hash embedder, stub LLM roles; no GPU",
+  "checks": {
+    "raw_only_read_non_inferior": {
+      "result": "deferred",
+      "reason": "needs GPU QA; GPU reserved by the owner"
+    },
+    "golden": {
+      "result": "pass",
+      "cmd": "tests/golden -m golden"
+    },
+    "replay_no_change_embedded": {
+      "result": "pass",
+      "cmd": "tests/unit/store/test_migrate.py (F-16b byte-stability) + tests/e2e/test_f16f_matrix.py embedded cells"
+    },
+    "replay_no_change_server": {
+      "result": "pass",
+      "cmd": "test_f16f_matrix.py::test_rebuild_then_read[server-embedded|server-neo4j] (Engine.rebuild then read)"
+    },
+    "f16d_store_contract_postgres": {
+      "result": "pass",
+      "cmd": "tests/unit/store/test_f16d_storage_profile.py::test_store_contract[server]"
+    },
+    "f16d_alembic_parity_postgres": {
+      "result": "pass",
+      "note": "PG tree through pg0010 matches the SQLite tree",
+      "cmd": "test_server_tree_matches_sqlite_tree_on_a_real_postgres"
+    },
+    "storage_backends_contract_postgres": {
+      "result": "pass",
+      "cmd": "tests/integration/test_storage_backends.py"
+    },
+    "f16e_neo4j_live_contract": {
+      "result": "pass",
+      "note": "live cells ran against neo4j:5, neo4j driver present"
+    },
+    "f16f_matrix_server_cells": {
+      "result": "pass",
+      "ran": 12,
+      "skipped": 2,
+      "skip_reason": "test_erase_replay_read[server-*]: migrate_sqlite replays a SQLite source (by design)"
+    },
+    "f16f_matrix_embedded_cells": {
+      "result": "pass",
+      "ran": 14
+    },
+    "ex1a_embedded": {
+      "result": "pass",
+      "cmd": "tests/e2e/test_ex1a_embedded.py -m milestone"
+    },
+    "ex1a_server": {
+      "result": "pass",
+      "steps": [
+        "step1",
+        "step2",
+        "step3",
+        "step4 (redact off/on)",
+        "server-profile-is-live"
+      ],
+      "step5": "skip by design (migrate_sqlite is SQLite-only)",
+      "cmd": "tests/e2e/test_ex1a_server.py -m milestone"
+    }
+  },
+  "bugs_fixed": [
+    "services/storage/sqlite/schema.py: simhash typed Integer in the shared metadata overflowed as int4 on Postgres (window fact deposits failed); now BigInteger, SQLite DDL unchanged",
+    "tests/conftest.py: the MEMSPINE_* env scrub also removed MEMSPINE_TEST_* DSNs, so every live cell skipped; they are now kept",
+    "tests/conftest.py: selector event loop for the live-Postgres modules on Windows (psycopg async cannot use Proactor)",
+    "tests/unit/store/test_f16d_storage_profile.py: lineage duplicate-insert now in a SAVEPOINT (Postgres aborts the transaction on IntegrityError)"
+  ],
+  "xfails": [],
+  "deferred_to_gpu": [
+    "raw_only_read_non_inferior"
+  ]
+}

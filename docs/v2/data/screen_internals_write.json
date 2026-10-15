@@ -1,0 +1,1126 @@
+[
+ {
+  "id": "REF-WRITE",
+  "settings": {},
+  "stage": "D",
+  "trigger": "per write_messages call (a batch of turns); the per-turn loop runs once per depositable turn",
+  "steps": [
+   {
+    "n": 1,
+    "what": "Entry: Engine.write_messages delegates to ingest.write.write_messages. With write.intake_v2 on it first goes through the intake gateway (envelope, write ids, receipt) which then calls write_messages_direct on the fresh turns; with it off write_messages_direct runs straight away.",
+    "code": "src/memspine/ingest/write.py:write_messages (505), write_messages_direct (561); src/memspine/api/engine.py:write_messages (1652)",
+    "kind": "rule"
+   },
+   {
+    "n": 2,
+    "what": "Depositable filter: for every turn, skip malformed turns, roles in firewall.skip_message_roles (system/tool by default) and recalled-memory echoes (firewall.skip_injected_recall), and screen the text with the firewall secret redactor, so the list of contents is exactly what will reach the door.",
+    "code": "src/memspine/ingest/write.py:_depositable_contents (904), _screen_text (129)",
+    "kind": "rule"
+   },
+   {
+    "n": 3,
+    "what": "Prewarm embeddings: if at least two distinct depositable contents exist, embed them in chunks of embedding.batch_size so the embedding cache holds every vector before the per-record work (G9). If this embedding fails the call raises before any turn is written, so a retry cannot duplicate turns.",
+    "code": "src/memspine/ingest/write.py:_prewarm_embeddings (926)",
+    "kind": "library"
+   },
+   {
+    "n": 4,
+    "what": "Neighbour prefetch (#63): when the firewall is enabled, the vector store has query_many and there are two or more distinct contents, run the firewall's nearest-neighbour query for all turns as one batched vector search and keep it in a context var for the call.",
+    "code": "src/memspine/ingest/write.py:_prefetch_neighbours (603), write_messages_direct (561)",
+    "kind": "library"
+   },
+   {
+    "n": 5,
+    "what": "Open a projection batch (_projection_batch): projectors may defer commits (the lexical index holds its Tantivy commit) and the per-projector high-water marks are checkpointed once at the end instead of once per event.",
+    "code": "src/memspine/api/engine.py:_projection_batch (4885), _flush_projections (4908)",
+    "kind": "storage"
+   },
+   {
+    "n": 6,
+    "what": "Per-turn loop _write_turns: role policy decision and the optional stamp (only when their v2 flags are on), per-turn tags (spk/addr perspective, assistant_claim, recommendation, forget-request, correction, idem, asset refs, reference edges), event-time resolution (timestamp or valid_from, session sequence). Each turn then calls Engine.write with memory_type=episodic.",
+    "code": "src/memspine/ingest/write.py:_write_turns (637), _stamp_turn (815)",
+    "kind": "rule"
+   },
+   {
+    "n": 7,
+    "what": "Engine.write builds the MemoryRecord (episodic, SourceInfo role/channel/session, tags, valid_from, pending stamp/role applied), computes the parent trust cap (integrity MTI-D), then takes the per-namespace write lock (eng._write_locks[ns]) and calls _write_locked_ex. This is the write_locked step: one writer per namespace so the firewall's context reads, the write and corroboration are one unit.",
+    "code": "src/memspine/ingest/write.py:write (298), _write_locked (968), _write_locked_ex (981)",
+    "kind": "storage"
+   },
+   {
+    "n": 8,
+    "what": "Firewall gate 1 (_screen_write): field redaction, governance tags, then the deterministic trust/anomaly/instruction assessment (embedding outlier from the prefetched neighbours, MINJA prefixes, instruction signals, size and protected-key checks), consent store check, W2-04 gate-3 hold, verdict applied to the record (trust set, quarantine flag), hearsay cap, parent trust cap, principal reputation, inferred cap.",
+    "code": "src/memspine/ingest/write.py:_screen_write (1093); src/memspine/api/ops_trust.py:_assess_write (532)",
+    "kind": "rule"
+   },
+   {
+    "n": 9,
+    "what": "Quarantine branch: a held record is appended as a WRITE event with the firewall reasons and stored inert (no dedup, no ladder, no retrieval surface), then returns. Admitted records go to _write_screened.",
+    "code": "src/memspine/ingest/write.py:_write_locked_ex (981), _write_screened (1425)",
+    "kind": "storage"
+   },
+   {
+    "n": 10,
+    "what": "Event append: a WRITE MemoryEvent with payload.record is appended to the event log through _append_and_project, which assigns the seq (the event log is the truth; every store below is a projection of it).",
+    "code": "src/memspine/api/engine.py:_append_and_project (4835); src/memspine/services/storage/sql_base.py:append_event (129)",
+    "kind": "storage"
+   },
+   {
+    "n": 11,
+    "what": "Projectors apply the event in order, inline: RecordProjector (upsert_record into the records table), VectorProjector (embed record.content through the cache, upsert the vector for the embedder id), LexicalProjector (index the record in tantivy/FTS, commit deferred to the batch flush), GraphProjector (upsert a node labelled with the memory type, plus entity mention nodes/edges when associative.entity_nodes is on). Offsets are held back until the batch flush.",
+    "code": "src/memspine/services/storage/projector.py:RecordProjector (90); src/memspine/services/vector/projector.py:VectorProjector (18); src/memspine/services/lexical/projector.py:LexicalProjector (19); src/memspine/memories/associative/projector.py:GraphProjector (57); src/memspine/api/engine.py:start (679-721)",
+    "kind": "storage"
+   },
+   {
+    "n": 12,
+    "what": "After the append: corroboration and link evolution run (_corroborate, _evolve_links); back in Engine.write the session is reopened if horizon sessions are on, the reply_to link is written, and (if write.window_extract is on and the action was added) the turn is handed to WindowPipeline.observe, which never fails the write.",
+    "code": "src/memspine/ingest/write.py:_write_screened (1425), write (298)",
+    "kind": "rule"
+   },
+   {
+    "n": 13,
+    "what": "Leave the projection batch: each projector is flushed (lexical commit), then its high-water mark is written (set_offset). The records of the call are returned.",
+    "code": "src/memspine/api/engine.py:_flush_projections (4908)",
+    "kind": "storage"
+   }
+  ],
+  "algorithms": [
+   "regex/lexicon firewall signals (instruction, MINJA prefix, size, protected key)",
+   "embedding-outlier anomaly over ANOMALY_MIN_NEIGHBOURS nearest non-held neighbours",
+   "chunked batch embedding with an embedding cache",
+   "event sourcing: append-only log plus idempotent projectors with durable high-water marks"
+  ],
+  "libraries": [
+   "external: sqlalchemy over sqlite/postgres (event log and records)",
+   "external: tantivy or FTS (lexical projector)",
+   "external: lancedb or the configured vector store (vector projector)",
+   "external: LadybugDB graph store (graph projector)",
+   "embedder (sentence-transformers Qwen3-Embedding-0.6B in the screen arms)"
+  ],
+  "models": [
+   {
+    "role": "embedder",
+    "model": "Qwen/Qwen3-Embedding-0.6B (st, cuda, bfloat16)",
+    "calls": "prewarm: ceil(unique turns / embedding.batch_size) batch calls per write_messages; then cache hits for the firewall and the vector projector; one extra call per turn for the entity/graph embeddings when graph.entity_embeddings is on",
+    "prompt": "none"
+   }
+  ],
+  "storage": "Writes: memory_events (one WRITE event per admitted or quarantined turn), records table (RecordProjector), vector table (VectorProjector), lexical index (LexicalProjector), graph nodes/edges (GraphProjector), projector offsets. Reads: vector store (firewall neighbours), namespace recent contents, record store (reply_to target, parents).",
+  "cost": "No LLM call. Embedding calls dominate: about one batched call per embedding.batch_size turns plus cache hits. One lock acquisition and one event append per turn; the lexical commit and offset writes are once per call.",
+  "inputs": "A list of {role, content[, timestamp, speaker, reply_to]} turns, a namespace, optional session_id. Embedder and vector store must be started.",
+  "outputs": "L0 episodic records (raw turns) in the event log and the four read projections; quarantined records stored inert; turns handed to the window pipeline when write.window_extract is on.",
+  "failure_modes": [
+   "Prewarm embedding failure aborts the whole call before any turn is written (by design, so retry is safe).",
+   "The per-turn firewall check is serial under the namespace lock, so a long call holds the lock turn by turn.",
+   "A crash between the event append and a projector apply is repaired by catch-up from the stored offset (applies are idempotent).",
+   "System and tool roles are skipped (not stored) unless write.role_policy_v2 is on.",
+   "Window hand-off is best effort: observe failures are logged and the write still succeeds."
+  ],
+  "tests": [
+   "tests/unit/store/test_envelope.py",
+   "tests/unit/observability/test_tap_write_derive.py",
+   "tests/unit/services/test_llm_call_counting.py",
+   "tests/unit/memories/test_session_lifecycle.py",
+   "tests/unit/store/test_lineage.py"
+  ],
+  "mermaid": "flowchart LR\n  A[write_messages] --> B[depositable filter]\n  B --> C[prewarm embeddings]\n  C --> D[neighbour prefetch]\n  D --> E[per turn Engine.write]\n  E --> F[write lock]\n  F --> G[firewall gate 1]\n  G --> H[event append]\n  H --> I[records]\n  H --> J[vectors]\n  H --> K[lexical]\n  H --> L[graph]\n  H --> M[window observe]"
+ },
+ {
+  "id": "S03",
+  "settings": {
+   "write.window_extract": "facts",
+   "write.window_async": false,
+   "write.window_cache": true,
+   "write.window_max_turns": 6,
+   "write.window_max_tokens": 1500,
+   "write.window_split": "auto",
+   "write.window_topic_k": 2.0,
+   "llm.roles.window_extract": "qwen3.5:9b (Ollama, no_think)",
+   "llm.structured.retry_on_error": true,
+   "memories.semantic.enabled": true,
+   "read.raw_turn_floor": true,
+   "read.view_tag_leg": true
+  },
+  "stage": "D",
+  "trigger": "per window of up to 6 consecutive turns of one session, at flush_windows()/close_session()/sleep() because window_async=false (the harness flushes before reads)",
+  "steps": [
+   {
+    "n": 1,
+    "what": "Raw turns land through the reference write path (REF-WRITE). After the episodic WRITE is stored, Engine.write calls WindowPipeline.observe(record, session) for every added episodic turn (quarantined or instruction-flagged turns never enter a window).",
+    "code": "src/memspine/ingest/write.py:write (298); src/memspine/workers/windows.py:observe (787)",
+    "kind": "rule"
+   },
+   {
+    "n": 2,
+    "what": "Embed the turn (used only for the topic boundary) and feed it to the per-namespace WindowSegmenter. A window closes at the first of: topic shift (cosine of consecutive turns below running mean - k*sd, k=2.0, needs WINDOW_TOPIC_MIN_PAIRS pairs and WINDOW_TOPIC_MIN_TURNS turns), 6 turns, 1500 tokens (4 chars per token), session change, idle (120 s, async only) or flush.",
+    "code": "src/memspine/core/window.py:WindowSegmenter.add (155)",
+    "kind": "algorithm"
+   },
+   {
+    "n": 3,
+    "what": "Closed windows are queued as jobs in the in-memory deque (workers.outbox is off). With write.window_async=false (eval arms) nothing runs until Engine.flush_windows(), close_session() or sleep(); then _drain pops each job and runs _run_job under an ops stage 'window_extract'.",
+    "code": "src/memspine/workers/windows.py:_enqueue (828), _drain (970), flush (1010)",
+    "kind": "rule"
+   },
+   {
+    "n": 4,
+    "what": "_prepare_job: re-read the window's turns from the store and keep only live ones (ACTIVATED, not quarantined, not instruction-flagged); an empty window is skipped. Build the numbered transcript '[n] [YYYY-MM-DD] Speaker: text', the participant list and the turn count.",
+    "code": "src/memspine/workers/windows.py:_prepare_job (1667), _live_turns (1641), build_transcript (369)",
+    "kind": "rule"
+   },
+   {
+    "n": 5,
+    "what": "ONE structured LLM call per window (sections = facts only for window_extract=facts). The call is cached by (model|prompt version|sections|transcript|participants) so a re-run on the same history is free. Prompt window_extract.yaml (JSON, token_budget 4096, temperature 0) is rendered with the sections variable and parsed into WindowPayload by structured_call (llm.structured.retry_on_error adds at most one re-prompt on a validation error).",
+    "code": "src/memspine/workers/windows.py:_call (1592), PromptWindowExtractor._legacy (277); src/memspine/prompts/defaults/window_extract.yaml; src/memspine/models/providers/llm/structured.py:structured_call",
+    "kind": "llm"
+   },
+   {
+    "n": 6,
+    "what": "Validate the facts section item by item (validate_facts): fact_guard shape check, WindowFact model, cited line numbers must exist, and the verbatim span must be a substring of a cited line (grounded()); items failing are counted invalid / uncited / ungrounded and dropped. A malformed section fails closed (dropped, counted), never discarding the other sections.",
+    "code": "src/memspine/workers/windows.py:validate_facts (404), grounded (353), _deposit_sections (1930)",
+    "kind": "rule"
+   },
+   {
+    "n": 7,
+    "what": "Deposit each accepted fact through the mined-fact door (_store_facts): text '<entity> <attribute>: <value>', parents = the cited turn records, tags window_fact, window:<id>, spk:<x> (when one speaker), role-basis tag when role policy is on; event date from fact.date (range-checked _fact_date) else window start; kind state keeps the (entity, attribute) key, kind event drops the attribute so the ladder ADDs it. Persons, location and topic become person:/loc:/topic: view tags.",
+    "code": "src/memspine/workers/windows.py:_store_facts (2044); src/memspine/derive/pipeline/integrate.py:_deposit_mined_fact (196)",
+    "kind": "storage"
+   },
+   {
+    "n": 8,
+    "what": "The mined-fact door (record source role 'assistant', channel 'mining') takes the namespace lock, re-checks that all parents and window members are still live (I72), caps trust at the least-trusted parent, then goes through write_derived -> _write_locked -> firewall gate -> semantic pipeline (dedup, entity extraction, conflict ladder) -> event append -> the four projectors. A vanished parent cancels the rest of the window.",
+    "code": "src/memspine/derive/write.py:write_derived; src/memspine/derive/pipeline/integrate.py:_deposit_mined_fact (196); src/memspine/memories/semantic/store.py:write (127)",
+    "kind": "storage"
+   }
+  ],
+  "algorithms": [
+   "Welford running mean/sd of consecutive-turn cosine similarity; topic cut at mean - 2*sd",
+   "token-count window cap (4 chars per token)",
+   "verbatim-span grounding check (substring of a cited line)",
+   "content-hash LLM reply cache"
+  ],
+  "libraries": [
+   "external: Ollama (qwen3.5:9b) through litellm",
+   "external: sentence-transformers Qwen3-Embedding-0.6B (turn embeddings for the topic boundary)",
+   "LIB-xx none: this is the v1 window extractor (W1), not a W2 library"
+  ],
+  "models": [
+   {
+    "role": "extract",
+    "model": "qwen3.5:9b via Ollama (ollama/qwen3.5:9b, http://127.0.0.1:11434, no_think=true, timeout 180 s)",
+    "calls": "1 per window (facts section only); +0 to 1 re-prompt when llm.structured.retry_on_error fires; 0 on a cache hit. Roughly 1 call per 6 turns, so about 0.17 calls per turn",
+    "prompt": "src/memspine/prompts/defaults/window_extract.yaml"
+   },
+   {
+    "role": "embedder",
+    "model": "Qwen/Qwen3-Embedding-0.6B",
+    "calls": "1 per turn (topic boundary only; cache hit when the write path already embedded the turn)",
+    "prompt": "none"
+   }
+  ],
+  "storage": "Reads raw episodic turns (get_record). Writes semantic fact records (semantic records with tags atomic_fact, mined:win:<id>, window_fact, window:<id>, kind:<k>; source.parents = cited raw turns) through the event log and all projectors; LLM replies in the engine cache (window:<hash> keys, purged when a member turn is forgotten); counters in window stats. The session-closed hook (call 2) is a stub.",
+  "cost": "One 9B-model call per window (prompt: instructions plus up to 1500 tokens of transcript, output up to 4096 tokens). Sample-run estimate in the queue: 120 min for the GC slice. Fact deposits add one embedding and four projector writes per fact.",
+  "inputs": "Raw turns written through write_messages with an extract-capable window_extract role and episodic + semantic memories enabled (config error otherwise). Needs flush_windows before reads because async is off.",
+  "outputs": "Atomic dated facts in the semantic layer, each citing its source turns; read.raw_turn_floor and read.view_tag_leg let the read use them. Raw turns stay as they were.",
+  "failure_modes": [
+   "Atlas result: dropped alone (+3/-7, -6.67); re-tested inside the write-v2 bundle (S62) with grounding.",
+   "v1 grounding is a verbatim-span substring check only; no repair re-ask, so a malformed item is lost.",
+   "A section that fails to parse is dropped for the whole window (parse_failures / call_errors counters); one window per call so one bad reply loses up to 6 turns of facts.",
+   "No time-gap or calendar-day cut: a window can span days (docs/v2/pipelines/insert.md notes this for core/window.py).",
+   "kind defaults to event when unsure, so state supersession depends on the model labelling state correctly."
+  ],
+  "tests": [
+   "tests/unit/test_window_write.py",
+   "tests/unit/prompts/test_prompts.py",
+   "tests/e2e/test_ex1a_embedded.py",
+   "tests/combinations/test_profiles_v2.py"
+  ],
+  "mermaid": "flowchart LR\n  A[raw turn stored] --> B[window segmenter]\n  B --> C[closed window queued]\n  C --> D[flush_windows]\n  D --> E[live turns + transcript]\n  E --> F[window_extract LLM call]\n  F --> G[validate facts and spans]\n  G --> H[mined fact door]\n  H --> I[semantic records + projectors]"
+ },
+ {
+  "id": "S04",
+  "settings": {
+   "memories.episodic.policies.consolidation.mine_facts": true,
+   "...consolidation.miner": "llm",
+   "...consolidation.mine_multiview": true,
+   "...consolidation.list_cards": true,
+   "...consolidation.mining_cache": true,
+   "llm.roles.extract": "qwen3.5:9b (Ollama, no_think)",
+   "llm.structured.retry_on_error": true,
+   "memories.semantic.enabled": true,
+   "read.raw_turn_floor": true,
+   "read.view_tag_leg": true
+  },
+  "stage": "K",
+  "trigger": "per sleep cycle: stage mine_facts runs right after consolidate, once per consolidated session (idempotent via a per-session stage_done marker); list_cards follows in the same stage run",
+  "steps": [
+   {
+    "n": 1,
+    "what": "Raw turns are written normally (REF-WRITE); no write-time LLM call. Turns of a session are grouped into consolidated sessions by the consolidate stage of the sleep cycle (SLEEP_CYCLE_ORDER: consolidate, mine_facts, anticipate, ...).",
+    "code": "src/memspine/workers/schedule.py:SLEEP_CYCLE_ORDER (48)",
+    "kind": "rule"
+   },
+   {
+    "n": 2,
+    "what": "mine_facts stage is skipped unless consolidation.mine_facts is on and an extract LLM role is bound (ctx.mine_facts built by _build_fact_miner). For each (namespace, session) not already marked done, the live members are read: ACTIVATED, unquarantined, role-filtered when role policy is on, chronological, gate-2 filtered when gates are on.",
+    "code": "src/memspine/derive/pipeline/stages/mining.py:mine_facts (134); src/memspine/derive/pipeline/stages/session_stage.py:_run_session_stage (52), _live_members (17)",
+    "kind": "rule"
+   },
+   {
+    "n": 3,
+    "what": "Build the miner transcript: one line per turn '[YYYY-MM-DD] text' (numbered [n] when the miner may cite evidence turns).",
+    "code": "src/memspine/derive/pipeline/stages/mining.py:_mining_transcript (57)",
+    "kind": "rule"
+   },
+   {
+    "n": 4,
+    "what": "ONE LLM call per session (per topic segment if mine_by_topic) with prompt extract@session4 (selected because mine_multiview upgrades the session variant): atomic facts with entity, attribute, value, date, kind, persons, location, topic. Temperature 0 and a cache keyed by (model, prompt version, variant, transcript) make mining deterministic and re-runs free (mining_cache).",
+    "code": "src/memspine/derive/pipeline/builders.py:_build_fact_miner (233), mine_cached (272); src/memspine/prompts/defaults/extract@session4.yaml",
+    "kind": "llm"
+   },
+   {
+    "n": 5,
+    "what": "All calls of the session run before any deposit, so a failed call retries the whole session next cycle without duplicates. Each fact's date is range-checked (_fact_date); the multi-view fields become person:/loc:/topic: tags; kind state keeps the key, kind event drops the attribute.",
+    "code": "src/memspine/derive/pipeline/stages/mining.py:mine_facts work() (160-205), _fact_date (31)",
+    "kind": "rule"
+   },
+   {
+    "n": 6,
+    "what": "Deposit each fact through the mined-fact door (firewall gate, trust cap at the least-trusted parent, I72 liveness check, semantic dedup/ladder, event append, projectors). Parents are the whole session (no evidence-turn citing unless mine_evidence_turns is on), so the fact points at every turn of its session.",
+    "code": "src/memspine/derive/pipeline/integrate.py:_deposit_mined_fact (196)",
+    "kind": "storage"
+   },
+   {
+    "n": 7,
+    "what": "Write a per-session stage_done marker (with a members fingerprint) so the session is never re-sent to the LLM, whatever the call produced.",
+    "code": "src/memspine/derive/pipeline/stages/session_stage.py:_run_session_stage (52-103)",
+    "kind": "storage"
+   },
+   {
+    "n": 8,
+    "what": "list_cards (#30): group the live EVENT facts of each namespace by (person, topic class) and write one derived card per group, e.g. 'Bram - activities: pottery class (2023-05), ...'. Grouping and rendering are deterministic; only facts with no topic/attribute class get one extract@classes call per person batch (cached as a list_classes marker). A card is re-derived only when its member fingerprint changes (old card archived).",
+    "code": "src/memspine/workers/list_cards.py:derive_list_cards; src/memspine/derive/pipeline/stages/mining.py:mine_facts (218-222)",
+    "kind": "algorithm"
+   }
+  ],
+  "algorithms": [
+   "session-level fact mining with a single prompt",
+   "deterministic group-by (person, class) list cards with member fingerprint",
+   "content-hash mining cache at temperature 0"
+  ],
+  "libraries": [
+   "external: Ollama (qwen3.5:9b) via litellm",
+   "src/memspine/derive/pipeline/stages/session_stage.py shared session runner",
+   "no W2 library"
+  ],
+  "models": [
+   {
+    "role": "extract",
+    "model": "qwen3.5:9b via Ollama (ollama/qwen3.5:9b, http://127.0.0.1:11434, no_think=true, timeout 180 s)",
+    "calls": "1 per consolidated session for mining (extract@session4); plus up to 1 extract@classes call per person batch for list cards when facts lack a class; 0 on cache hits; llm.structured.retry_on_error adds at most one re-prompt",
+    "prompt": "src/memspine/prompts/defaults/extract@session4.yaml (mining), src/memspine/prompts/defaults/extract@classes.yaml (list-card classes)"
+   }
+  ],
+  "storage": "Reads consolidated session index and raw turns. Writes semantic fact records (mined:<session> tag) and list-card records (derived, archived on change), stage_done MARKER events, and mining cache entries.",
+  "cost": "About 1 extract call per session (not per window), so far fewer calls than the window path but each call sees a whole session; queue estimate 90 min for the GC slice. Runs only inside sleep(); nothing at write time.",
+  "inputs": "Consolidated sessions (consolidate stage ran), an extract LLM role, event_log mode that persists CONSOLIDATE events (not ephemeral).",
+  "outputs": "Mined atomic facts and list-card records in the semantic layer, tagged for the person/location/topic view legs and consumed by read.view_tag_leg and read.raw_turn_floor.",
+  "failure_modes": [
+   "Atlas result: dropped (+1/-7, -10): older graph-plus-facts sleep variant.",
+   "Facts cite the whole session as parents (no per-fact evidence turns), so grounding and bundle citation are coarse.",
+   "A session whose LLM call raises is retried next cycle; a parse that returns nothing is marked done and never retried.",
+   "In event_log.mode=ephemeral the stage reports skipped (no sessions in the log).",
+   "Requires a sleep cycle: a run that never calls sleep() mines nothing."
+  ],
+  "tests": [
+   "tests/unit/prompts/test_prompts.py",
+   "tests/unit/observability/test_tap_write_derive.py",
+   "tests/unit/store/test_lineage.py",
+   "tests/combinations/test_profiles_v2.py"
+  ],
+  "mermaid": "flowchart LR\n  A[sleep cycle] --> B[consolidate sessions]\n  B --> C[mine_facts stage]\n  C --> D[session transcript]\n  D --> E[extract@session4 call]\n  E --> F[date and kind checks]\n  F --> G[mined fact door]\n  G --> H[list cards]\n  H --> I[stage_done marker]"
+ },
+ {
+  "id": "S43",
+  "settings": {
+   "write.window_extract": "facts",
+   "write.window_async": false,
+   "llm.roles.window_extract": "qwen3.5:9b (Ollama, no_think)"
+  },
+  "stage": "D",
+  "trigger": "per window of up to 6 turns, drained at flush_windows/close_session/sleep (async off). Reference arm for S44 and S45; reference gc3 = S02 plus this flag",
+  "steps": [
+   {
+    "n": 1,
+    "what": "Raw turns land through the reference write path (REF-WRITE). After the episodic WRITE is stored, Engine.write calls WindowPipeline.observe(record, session) for every added episodic turn (quarantined or instruction-flagged turns never enter a window).",
+    "code": "src/memspine/ingest/write.py:write (298); src/memspine/workers/windows.py:observe (787)",
+    "kind": "rule"
+   },
+   {
+    "n": 2,
+    "what": "Embed the turn (used only for the topic boundary) and feed it to the per-namespace WindowSegmenter. A window closes at the first of: topic shift (cosine of consecutive turns below running mean - k*sd, k=2.0, needs WINDOW_TOPIC_MIN_PAIRS pairs and WINDOW_TOPIC_MIN_TURNS turns), 6 turns, 1500 tokens (4 chars per token), session change, idle (120 s, async only) or flush.",
+    "code": "src/memspine/core/window.py:WindowSegmenter.add (155)",
+    "kind": "algorithm"
+   },
+   {
+    "n": 3,
+    "what": "Closed windows are queued as jobs in the in-memory deque (workers.outbox is off). With write.window_async=false (eval arms) nothing runs until Engine.flush_windows(), close_session() or sleep(); then _drain pops each job and runs _run_job under an ops stage 'window_extract'.",
+    "code": "src/memspine/workers/windows.py:_enqueue (828), _drain (970), flush (1010)",
+    "kind": "rule"
+   },
+   {
+    "n": 4,
+    "what": "_prepare_job: re-read the window's turns from the store and keep only live ones (ACTIVATED, not quarantined, not instruction-flagged); an empty window is skipped. Build the numbered transcript '[n] [YYYY-MM-DD] Speaker: text', the participant list and the turn count.",
+    "code": "src/memspine/workers/windows.py:_prepare_job (1667), _live_turns (1641), build_transcript (369)",
+    "kind": "rule"
+   },
+   {
+    "n": 5,
+    "what": "ONE structured LLM call per window (sections = facts only for window_extract=facts). The call is cached by (model|prompt version|sections|transcript|participants) so a re-run on the same history is free. Prompt window_extract.yaml (JSON, token_budget 4096, temperature 0) is rendered with the sections variable and parsed into WindowPayload by structured_call (llm.structured.retry_on_error adds at most one re-prompt on a validation error).",
+    "code": "src/memspine/workers/windows.py:_call (1592), PromptWindowExtractor._legacy (277); src/memspine/prompts/defaults/window_extract.yaml; src/memspine/models/providers/llm/structured.py:structured_call",
+    "kind": "llm"
+   },
+   {
+    "n": 6,
+    "what": "Validate the facts section item by item (validate_facts): fact_guard shape check, WindowFact model, cited line numbers must exist, and the verbatim span must be a substring of a cited line (grounded()); items failing are counted invalid / uncited / ungrounded and dropped. A malformed section fails closed (dropped, counted), never discarding the other sections.",
+    "code": "src/memspine/workers/windows.py:validate_facts (404), grounded (353), _deposit_sections (1930)",
+    "kind": "rule"
+   },
+   {
+    "n": 7,
+    "what": "Deposit each accepted fact through the mined-fact door (_store_facts): text '<entity> <attribute>: <value>', parents = the cited turn records, tags window_fact, window:<id>, spk:<x> (when one speaker), role-basis tag when role policy is on; event date from fact.date (range-checked _fact_date) else window start; kind state keeps the (entity, attribute) key, kind event drops the attribute so the ladder ADDs it. Persons, location and topic become person:/loc:/topic: view tags.",
+    "code": "src/memspine/workers/windows.py:_store_facts (2044); src/memspine/derive/pipeline/integrate.py:_deposit_mined_fact (196)",
+    "kind": "storage"
+   },
+   {
+    "n": 8,
+    "what": "The mined-fact door (record source role 'assistant', channel 'mining') takes the namespace lock, re-checks that all parents and window members are still live (I72), caps trust at the least-trusted parent, then goes through write_derived -> _write_locked -> firewall gate -> semantic pipeline (dedup, entity extraction, conflict ladder) -> event append -> the four projectors. A vanished parent cancels the rest of the window.",
+    "code": "src/memspine/derive/write.py:write_derived; src/memspine/derive/pipeline/integrate.py:_deposit_mined_fact (196); src/memspine/memories/semantic/store.py:write (127)",
+    "kind": "storage"
+   },
+   {
+    "n": 8,
+    "what": "Because this arm sits on gc3 (graph sleep), the mined window facts then feed the later sleep stages (extract_graph, entity summaries, communities) that run in sleep(); those stages are not part of this flag.",
+    "code": "src/memspine/workers/schedule.py:SLEEP_CYCLE_ORDER (48)",
+    "kind": "rule"
+   }
+  ],
+  "algorithms": [
+   "Welford running mean/sd topic boundary",
+   "token-count window cap",
+   "verbatim-span grounding",
+   "content-hash reply cache"
+  ],
+  "libraries": [
+   "external: Ollama qwen3.5:9b",
+   "external: sentence-transformers Qwen3-Embedding-0.6B"
+  ],
+  "models": [
+   {
+    "role": "extract",
+    "model": "qwen3.5:9b via Ollama (ollama/qwen3.5:9b, http://127.0.0.1:11434, no_think=true, timeout 180 s)",
+    "calls": "1 per window (facts only), 0 on cache hit",
+    "prompt": "src/memspine/prompts/defaults/window_extract.yaml"
+   }
+  ],
+  "storage": "Same as S03: semantic fact records via the mined-fact door; window cache entries; stats counters.",
+  "cost": "One 9B call per window on top of the gc3 sleep cost; queue estimate 150 min GC slice (S43 55 min sample run).",
+  "inputs": "Raw turns, window_extract role, semantic memory. gc3 graph settings provide the later graph stages but are unchanged from the S02 arm.",
+  "outputs": "Window-mined facts with cited parent turns (the input S44, S45 and S54 need).",
+  "failure_modes": [
+   "Same v1 extractor limits as S03 (dropped alone at -6.67).",
+   "Exists only as the reference for S44, S45 and S54; deferred in the queue because the S62 bundle covers the W2 stack."
+  ],
+  "tests": [
+   "tests/unit/test_window_write.py",
+   "tests/e2e/test_ex1a_embedded.py"
+  ],
+  "mermaid": "flowchart LR\n  A[gc3 arm] --> B[window segmenter]\n  B --> C[window_extract call]\n  C --> D[validate facts]\n  D --> E[mined fact door]\n  E --> F[sleep graph stages]"
+ },
+ {
+  "id": "S44",
+  "settings": {
+   "write.window_extract": "facts",
+   "write.envelope_v2": true,
+   "write.window_async": false,
+   "llm.roles.window_extract": "qwen3.5:9b"
+  },
+  "stage": "D",
+  "trigger": "per window, inside the same extraction job as S43 (replaces the v1 validate/deposit of the facts section)",
+  "steps": [
+   {
+    "n": 1,
+    "what": "Config check: envelope_v2 requires window_extract with a facts section (config/requires.py). _build_windows builds EnvelopeWrite: EnvelopeCompiler (prompt hash structured@1, kind registry capped at 64), ItemValidator, RepairAsk on the router-bound window_extract LLM (max_tokens 4096), a sqlite FailureLedger (dead-letter list, <path>.deadletters.sqlite), and the stage list (empty here).",
+    "code": "src/memspine/ingest/windows.py:_envelope_write (285); src/memspine/config/requires.py (92-101)",
+    "kind": "rule"
+   },
+   {
+    "n": 2,
+    "what": "Raw turns and window cutting are as S43 (REF-WRITE, WindowSegmenter, queue, _live_turns, numbered transcript).",
+    "code": "src/memspine/workers/windows.py:_prepare_records (1681)",
+    "kind": "rule"
+   },
+   {
+    "n": 3,
+    "what": "ONE call per window with the in-code 'structured' prompt (STRUCTURED_SYSTEM, constant system part; user part holds participants and numbered lines). The model must return a JSON ARRAY of ItemV1 objects in compact keys (s, r, o, text, kind, mode, neg, when, until, lines, span, source, speaker, reported_speaker, chg). A reply that is not a JSON list raises LLMError and the window's facts section is dropped.",
+    "code": "src/memspine/workers/windows.py:PromptWindowExtractor.__call__ (183); src/memspine/prompts/structured.py:STRUCTURED_SYSTEM (47), extraction_messages (76); src/memspine/workers/windows.py:parse_reply",
+    "kind": "llm"
+   },
+   {
+    "n": 4,
+    "what": "Validate each item alone (ItemValidator.validate -> compile_items): item parses as ItemV1, at least one cited line exists in the window and is a NEW (non-context) line, no reserved system field (ids, trust, scope, status), non-empty text, kind accepted by the registry. Valid items compile into AssertionEnvelopes with evidence spans, modality (asserted/planned/hoped/asked/hedged plus negation), write id and occurrence id; duplicates are dropped, not repaired.",
+    "code": "src/memspine/derive/items.py:ItemValidator.validate (102); src/memspine/derive/compile.py:compile_items (354), _compile_one (390)",
+    "kind": "rule"
+   },
+   {
+    "n": 5,
+    "what": "Repair once: the invalid repairable items go back in ONE repair call (the original messages, only the invalid items as the assistant turn, typed error codes and field paths, no new items allowed). The corrected items are validated again; fixed ones are added, the rest are dead-lettered.",
+    "code": "src/memspine/derive/items.py:RepairAsk.ask (133), process_items (189), _settle (253); src/memspine/prompts/structured.py:repair_messages (92)",
+    "kind": "llm"
+   },
+   {
+    "n": 6,
+    "what": "Dead letters: every item still invalid (or a repair call that failed) is recorded in the FailureLedger with window id, index, code, attempts and the item; a failed whole-window call is also recorded with kind=window and retry_allowed.",
+    "code": "src/memspine/derive/failure_ledger.py:FailureLedger.record (76); src/memspine/derive/items.py:process_items (189-250)",
+    "kind": "storage"
+   },
+   {
+    "n": 7,
+    "what": "Deposit each envelope through the mined-fact door (_store_envelopes): text = envelope text, entity = subject surface, tags window_fact, window:<id>, envelope_v2, src:<class>, spk:<x>; parents = the evidence source turns; trust capped by the envelope's source_trust; happened label from the compiled time text; the envelope JSON is kept in the record's fingerprint.envelope. Counters items_valid/repaired/dead are updated.",
+    "code": "src/memspine/workers/windows.py:_deposit_sections (1930), _store_envelopes (2113); src/memspine/derive/pipeline/integrate.py:_deposit_mined_fact (196)",
+    "kind": "storage"
+   }
+  ],
+  "algorithms": [
+   "per-item validation with sibling isolation",
+   "single targeted repair re-ask (P-05)",
+   "dead-letter ledger",
+   "kind registry with cap 64",
+   "deterministic write/occurrence ids (hashes)"
+  ],
+  "libraries": [
+   "LIB-05 ItemV1 to AssertionEnvelope compiler (src/memspine/derive/compile.py)",
+   "external: Ollama qwen3.5:9b",
+   "external: sqlite (failure ledger)",
+   "pydantic schemas in src/memspine/schemas/durable"
+  ],
+  "models": [
+   {
+    "role": "extract",
+    "model": "qwen3.5:9b via Ollama (ollama/qwen3.5:9b, http://127.0.0.1:11434, no_think=true, timeout 180 s)",
+    "calls": "1 per window; +1 repair call when any item is invalid and repairable (at most 1 per window); 0 on a cache hit",
+    "prompt": "in code: src/memspine/prompts/structured.py (structured and structured.repair); window_extract.yaml is not used for the facts section here"
+   }
+  ],
+  "storage": "Writes semantic fact records with the envelope in fingerprint.envelope, a dead-letter sqlite file beside the database (<path>.deadletters.sqlite, :memory: for memory DBs); reply cache; counters items_valid, items_repaired, items_dead, repair_calls.",
+  "cost": "1 call per window like S43, plus at most 1 repair call per window with invalid items. Slightly longer output than v1 (compact keys help). Queue estimate 170 min.",
+  "inputs": "S43 setup (window_extract=facts). Has no effect without a facts section.",
+  "outputs": "Facts with typed evidence (cited lines, spans, modality, negation, source class) and fewer ungrounded facts; a ledger of what was rejected and why.",
+  "failure_modes": [
+   "Envelope is stored inside the fingerprint blob, not yet a first-class column (PLAN W2-06a).",
+   "A reply that is a JSON object instead of an array fails validation for the whole window unless prompt_v2 (S62) is on.",
+   "Without grounding_v2 only the citation/span-existence checks run, not span-in-line checks beyond the compiler's.",
+   "Repair is limited to one call; items failing twice are lost (counted in dead_by_code)."
+  ],
+  "tests": [
+   "tests/unit/wiring/test_w2_06a_envelope.py",
+   "tests/unit/wiring/test_w2_06c_online_extractor.py",
+   "tests/unit/config/test_requires.py"
+  ],
+  "mermaid": "flowchart LR\n  A[closed window] --> B[structured call ItemV1 list]\n  B --> C[validate each item]\n  C --> D[one repair call]\n  C --> E[compile envelopes]\n  D --> E\n  D --> F[dead letters]\n  E --> G[mined fact door]"
+ },
+ {
+  "id": "S45",
+  "settings": {
+   "write.window_extract": "facts",
+   "write.segmentation_v2": true,
+   "write.window_async": false,
+   "llm.roles.window_extract": "qwen3.5:9b",
+   "(defaults used)": "segment_gap_s 1800, segment_calendar_day_cut false, segment_grow_tokens 400, segment_max_turns 24, batch_max_tokens 3000, batch_max_windows 8, batch_max_age_s 30"
+  },
+  "stage": "D",
+  "trigger": "per turn (segmenter) and per queue drain (batcher); the batched call runs at flush_windows/close_session/sleep with async off",
+  "steps": [
+   {
+    "n": 1,
+    "what": "Config: segmentation_v2 needs a window mode. _segmentation() maps write.segment_* and write.batch_* into SegmentationSettings; the WindowPipeline then creates a StreamSegmenter per namespace instead of the v1 WindowSegmenter, and a CallBatcher when batching is possible (batch_max_windows > 1 and batch_max_tokens > 0).",
+    "code": "src/memspine/ingest/windows.py:_segmentation (407); src/memspine/workers/windows.py:WindowPipeline.__init__ (678), _store (777)",
+    "kind": "rule"
+   },
+   {
+    "n": 2,
+    "what": "StreamSegmenter.add: session change cuts; NEW time-gap cut (previous and new turn source time more than gap_s=1800 s apart, or a calendar-day change when segment_calendar_day_cut is true; reason from LIB-14 hard_cut_reasons); topic cut as v1; token cut at window_max_tokens; adaptive turn cap: a window reaching window_max_turns (6) keeps growing while below segment_grow_tokens (400) tokens, up to segment_max_turns (24).",
+    "code": "src/memspine/derive/segmenter.py:StreamSegmenter.add (64); src/memspine/ingest/segment.py:hard_cut_reasons (138)",
+    "kind": "algorithm"
+   },
+   {
+    "n": 3,
+    "what": "Each closed window is enqueued with its token count and a queue time (tap write.segment.cut).",
+    "code": "src/memspine/workers/windows.py:_enqueue (828)",
+    "kind": "rule"
+   },
+   {
+    "n": 4,
+    "what": "Batching: _drain calls _take_batch, which asks CallBatcher.plan for ready batches. Windows of one namespace accumulate until 3000 tokens, 8 windows or 30 s of age; the last open batch is withheld unless the drain is final (flush, session end, stop). Held batches arm a wake-up timer in async mode.",
+    "code": "src/memspine/workers/windows.py:_take_batch (1266), _hold (1288); src/memspine/derive/call_batcher.py:CallBatcher.plan",
+    "kind": "algorithm"
+   },
+   {
+    "n": 5,
+    "what": "A batch of 2+ windows is prepared by _prepare_batch: windows keep separately numbered blocks ('=== window k of n ===', line numbers continue across blocks), ONE extraction call covers the batch, and each returned item is mapped back to its own window by its cited lines (split_batch_section). An item citing two windows is dropped as cross-window (counted batch_cross_window). A single ready window runs the normal path.",
+    "code": "src/memspine/workers/windows.py:_prepare_batch (1332), split_batch_section (521)",
+    "kind": "llm"
+   },
+   {
+    "n": 6,
+    "what": "The call and validation per window are as S43/S44 (this arm has envelope_v2 off, so the v1 facts validator and the legacy window_extract prompt run on the batch transcript); each window is then compiled, deposited and counted on its own.",
+    "code": "src/memspine/workers/windows.py:_drain_batch (1311), _commit_job (1904)",
+    "kind": "llm"
+   }
+  ],
+  "algorithms": [
+   "time-gap and calendar-day hard cuts",
+   "adaptive window growth by token threshold",
+   "token/count/age batching of windows into one call (CallBatcher.plan)",
+   "line-range split of a batched reply back to windows"
+  ],
+  "libraries": [
+   "LIB-14 segmentation (src/memspine/ingest/segment.py)",
+   "src/memspine/derive/call_batcher.py",
+   "external: Ollama qwen3.5:9b"
+  ],
+  "models": [
+   {
+    "role": "extract",
+    "model": "qwen3.5:9b via Ollama (ollama/qwen3.5:9b, http://127.0.0.1:11434, no_think=true, timeout 180 s)",
+    "calls": "1 per batch of up to 8 windows / 3000 tokens instead of 1 per window; stub measurement in PLAN: calls/turn 0.175 -> 0.015 on a 200-turn workload; episode sections (not used here) stay one call per window",
+    "prompt": "src/memspine/prompts/defaults/window_extract.yaml (legacy path; prompt_v2 is not on in this arm)"
+   }
+  ],
+  "storage": "Same deposits as S43; no new tables. In-memory queue and batch timers only.",
+  "cost": "Mostly a cost screen: far fewer LLM calls (target at most 1 per window, observed order of magnitude lower per turn) at the price of a longer prompt per call and the cross-window item loss. Queue estimate 170 min.",
+  "inputs": "window_extract=facts; timestamps on the turns (the gap and day cuts need source times); several windows queued before the drain (async off + flush gives full batches).",
+  "outputs": "Different window boundaries (gap/day cuts, longer windows for short turns) and fewer, larger extraction calls; the same fact records otherwise.",
+  "failure_modes": [
+   "Items that cite two windows are dropped (counted), so batching can lose facts that span a boundary.",
+   "Time-gap and day cuts do nothing for turns without timestamps.",
+   "config default segment_calendar_day_cut is false although the dataclass default is true; the arm does not set it.",
+   "Grounding inside the band is still a pending screen (PLAN W2-05); with batching a malformed batched reply loses up to 8 windows at once."
+  ],
+  "tests": [
+   "tests/unit/wiring/test_w2_05_segmentation.py",
+   "tests/unit/wiring/test_w2_06a_envelope.py"
+  ],
+  "mermaid": "flowchart LR\n  A[turn] --> B[StreamSegmenter]\n  B --> C[gap day topic token cuts]\n  C --> D[closed windows queue]\n  D --> E[CallBatcher plan]\n  E --> F[one call for the batch]\n  F --> G[split items per window]\n  G --> H[validate and deposit]"
+ },
+ {
+  "id": "S48",
+  "settings": {
+   "write.stamping_v2": true
+  },
+  "stage": "D",
+  "trigger": "per turn inside write_messages (direct path or through the intake gateway)",
+  "steps": [
+   {
+    "n": 1,
+    "what": "write_messages_direct/_write_turns builds one ConversationStamper per call: namespace, source id (session id or 'nosession'), default time zone (write.stamp_default_tz else read.naive_timezone) and the call's speakers (participants_of_call).",
+    "code": "src/memspine/ingest/write.py:_write_turns (637-680); src/memspine/ingest/stamping.py:ConversationStamper (195)",
+    "kind": "rule"
+   },
+   {
+    "n": 2,
+    "what": "For each turn _stamp_turn calls ConversationStamper.turn -> LIB-29 stamp(): clock stamp (source_at from the turn's own timestamp, never 'now'; source_tz declared by the turn or envelope else 'unknown'; a naive time with unknown zone is kept as wall clock and flagged tz_unknown, not shifted; recorded_at = engine clock; flags future_skew and out_of_order) and role stamp (spk from the speaker key or a 'Name:' prefix, addr, participants, provenance class and base trust from the role).",
+    "code": "src/memspine/ingest/write.py:_stamp_turn (815); src/memspine/ingest/stamp.py:stamp (319)",
+    "kind": "algorithm"
+   },
+   {
+    "n": 3,
+    "what": "Assent check: a user turn is compared with the assistant turn it answers (AssentChecker, multilingual). A real binding yes adds the tag assent_of:<assistant record id>; 'ok, thanks' does not. Optional v1 participant:<name> tags are added while stamp_participant_tags is 'v1'.",
+    "code": "src/memspine/ingest/write.py:_stamp_turn (815-850); src/memspine/ingest/stamping.py:assent_for (257); src/memspine/ingest/provenance.py:AssentChecker",
+    "kind": "rule"
+   },
+   {
+    "n": 4,
+    "what": "The PendingStamp rides a context var (PENDING_STAMP) into Engine.write (the signature is unchanged); apply_stamp copies source_at, source_tz, recorded_at, the typed axes (speaker, addressee, participants) and provenance class onto the episodic MemoryRecord before the firewall.",
+    "code": "src/memspine/ingest/write.py:write (298, PENDING_STAMP.get); src/memspine/ingest/stamping.py:apply_stamp (268)",
+    "kind": "storage"
+   },
+   {
+    "n": 5,
+    "what": "The note_assistant call records each admitted assistant turn so the next user turn can be checked for assent; the stamp context is cleared per turn. Later stages read the stamped times: the temporal stage no longer treats valid_from as a source time when stamping is on (trust_valid_from=False).",
+    "code": "src/memspine/ingest/write.py:_write_turns (775-790); src/memspine/ingest/windows.py:_envelope_stages (317-320)",
+    "kind": "rule"
+   }
+  ],
+  "algorithms": [
+   "time-zone parsing with DST and unknown-zone flagging",
+   "epoch-ms detection",
+   "future-skew and out-of-order flags",
+   "speaker extraction from 'Name:' prefix",
+   "assent detection against the preceding assistant proposal"
+  ],
+  "libraries": [
+   "LIB-29 stamping (src/memspine/ingest/stamp.py)",
+   "src/memspine/ingest/stamping.py (wiring)",
+   "src/memspine/ingest/provenance.py (AssentChecker)",
+   "external: zoneinfo / dateutil for zones"
+  ],
+  "models": [
+   {
+    "role": "none",
+    "model": "none",
+    "calls": "0",
+    "prompt": "none"
+   }
+  ],
+  "storage": "Adds typed fields to the raw episodic record (source_at, source_tz, recorded_at, axes spk/addr/participants, provenance class; alembic migration 0010 for sqlite and postgres) and assent_of / participant tags. No new tables.",
+  "cost": "Negligible: pure CPU string and date handling per turn; no model call and no embedding.",
+  "inputs": "Turns with a timestamp or speaker key to have any effect on clocks and axes; assistant+user turn pairs for assent tags. Reading flags only benefit later features (as-of, perspective).",
+  "outputs": "Raw turns carry three clocks and typed speaker axes; derived/read code can use source_at instead of the write clock. Expected effect on answer accuracy is small (integrity-oriented).",
+  "failure_modes": [
+   "Focus non-inferiority screen is still pending (PLAN W2-02).",
+   "Naive timestamps with no declared zone are flagged tz_unknown rather than corrected, so date answers depend on later stages.",
+   "The assent heuristics are rule-based; unusual phrasing of a yes can be missed.",
+   "Participants are stamped on the raw turn only; derived records inherit through derive/write.py."
+  ],
+  "tests": [
+   "tests/unit/wiring/test_w2_02_stamping.py",
+   "tests/unit/wiring/test_w2_03_roles.py",
+   "tests/unit/wiring/test_w2_14_temporal.py"
+  ],
+  "mermaid": "flowchart LR\n  A[turn] --> B[ConversationStamper]\n  B --> C[three clocks]\n  B --> D[speaker axes and class]\n  B --> E[assent check]\n  C --> F[apply_stamp on record]\n  D --> F\n  E --> F\n  F --> G[firewall and write]"
+ },
+ {
+  "id": "S49",
+  "settings": {
+   "write.role_policy_v2": true,
+   "(default)": "write.echo_threshold 0.6"
+  },
+  "stage": "D",
+  "trigger": "per turn at write time (decision and tags); and per window/session at derivation time (filter)",
+  "steps": [
+   {
+    "n": 1,
+    "what": "Per turn, role_wiring.decide runs before the skip checks: RolePolicy picks the rule for the role (unknown roles become 'external'), detect_echo compares the turn with the last read the session received (ids, text, source family, last 20 records) and with recall markers, and route() yields derive_use (stated / proposal / evidence / excluded), provenance class, trust ceiling and flags.",
+    "code": "src/memspine/ingest/write.py:_write_turns (700-710); src/memspine/ingest/role_wiring.py:decide (123); src/memspine/ingest/roles.py:detect_echo (246), route (304)",
+    "kind": "algorithm"
+   },
+   {
+    "n": 2,
+    "what": "Raw keeps every role: with role_policy_v2 the system/tool skip (firewall.skip_message_roles) and the injected-recall skip are bypassed, so the turn is stored and tagged derive_use:<x>, echo, echo_of:<id>, assent_candidate instead of being dropped. Metrics counters role.* and echo.* are kept on the engine.",
+    "code": "src/memspine/ingest/write.py:_write_turns (711-740); src/memspine/ingest/role_wiring.py (130-168)",
+    "kind": "rule"
+   },
+   {
+    "n": 3,
+    "what": "Engine.write applies the decision (apply_role): provenance class is set when the record has no parents and trust is only ever lowered to the role ceiling (assistant and tool never above user-stated).",
+    "code": "src/memspine/ingest/write.py:write (PENDING_ROLE); src/memspine/ingest/role_wiring.py:apply_role (171)",
+    "kind": "rule"
+   },
+   {
+    "n": 4,
+    "what": "Derivation filter: when a window is read back (_live_turns) and when a session is mined (_live_members), turns tagged echo or derive_use:excluded are skipped and counted (turns_excluded_echo / _excluded), so they are never re-derived as new facts.",
+    "code": "src/memspine/workers/windows.py:_live_turns (1641); src/memspine/derive/pipeline/stages/session_stage.py:_live_members (17); src/memspine/derive/role_filter.py:block_reason (23)",
+    "kind": "rule"
+   },
+   {
+    "n": 5,
+    "what": "Fact basis: a window fact whose cited turns include no user-stated line gets a derive_use:evidence or derive_use:proposal tag (basis_of), so assistant-only facts are labelled.",
+    "code": "src/memspine/workers/windows.py:_store_facts (2044-2065); src/memspine/derive/role_filter.py:basis_of (33)",
+    "kind": "rule"
+   },
+   {
+    "n": 6,
+    "what": "With the intake gateway also on, keyed turns (entity+attribute, or skill/plan) additionally get a typed record via TypeRouter; in this arm intake is off, so only the tagging above applies.",
+    "code": "src/memspine/ingest/gateway.py:_route_typed (532); src/memspine/ingest/role_wiring.py:TypeRouter",
+    "kind": "rule"
+   }
+  ],
+  "algorithms": [
+   "shingle overlap (max of Jaccard and containment) against the last read at echo_threshold 0.6",
+   "recall-marker matching",
+   "role to provenance class and trust ceiling table"
+  ],
+  "libraries": [
+   "LIB-13 role policy and echo guard (src/memspine/ingest/roles.py)",
+   "src/memspine/ingest/role_wiring.py",
+   "src/memspine/derive/role_filter.py"
+  ],
+  "models": [
+   {
+    "role": "none",
+    "model": "none",
+    "calls": "0",
+    "prompt": "none"
+   }
+  ],
+  "storage": "Adds tags derive_use:*, echo, echo_of:*, assent_candidate to raw turns; system and tool turns are now stored (previously skipped). Keeps the last-read memory per (namespace, session) in process memory.",
+  "cost": "Negligible CPU per turn (n-gram overlap against at most 20 recent read records). Slightly more raw rows because system/tool turns are stored.",
+  "inputs": "Needs reads in the same session to detect echoes of recalled memory (the eval harness reads at the end, so LoCoMo has almost no echoes) and turns with non-user roles to have a visible effect.",
+  "outputs": "Raw store keeps every role; derivation ignores system text and echoes and marks assistant text as proposal; fewer self-referential facts.",
+  "failure_modes": [
+   "LoCoMo has few echoes and mostly user/assistant turns, so the expected effect is near zero (queue note).",
+   "Focus screen pending (PLAN W2-03).",
+   "Echo detection depends on the engine having seen the earlier read in the same process/session; a host that does not call read first gets only the marker check.",
+   "Stored system/tool turns add rows that the read side must still filter."
+  ],
+  "tests": [
+   "tests/unit/wiring/test_w2_03_roles.py",
+   "tests/unit/test_role_aware.py",
+   "tests/unit/wiring/test_w2_02_stamping.py"
+  ],
+  "mermaid": "flowchart LR\n  A[turn] --> B[RolePolicy rule]\n  A --> C[echo guard vs last read]\n  B --> D[derive_use tags]\n  C --> D\n  D --> E[raw record kept]\n  E --> F[window and session derivation filter]\n  F --> G[facts basis tag]"
+ },
+ {
+  "id": "S50",
+  "settings": {
+   "write.intake_v2": true
+  },
+  "stage": "D",
+  "trigger": "per write_messages / write_episode / ingest call; and once at engine start (recovery of an accepted but unapplied write)",
+  "steps": [
+   {
+    "n": 1,
+    "what": "ingest.write.write_messages sees intake_v2 and hands the call to gateway.write_messages: each turn becomes a Segment (seg_index, role, speaker, source_at, content) and the call becomes one SourceEnvelope (kind conversation, source id '<session>#<batch digest>', scope from namespace/session/actor).",
+    "code": "src/memspine/ingest/write.py:write_messages (505-545); src/memspine/ingest/gateway.py:write_messages (813)",
+    "kind": "rule"
+   },
+   {
+    "n": 2,
+    "what": "IntakeGateway.submit under a per-scope lock: validate_envelope, derive write ids per segment (S3-3: idempotency key = caller id, else a hash of scope, source id, seg_index, content), load the overlay of known writes, and IntakeBook.accept decides new / retry / new_version per segment, checks quota (QuotaExceededError before accept) and builds the receipt.",
+    "code": "src/memspine/ingest/gateway.py:IntakeGateway.submit (291); src/memspine/ingest/intake.py:IntakeBook, write_id, validate_envelope",
+    "kind": "algorithm"
+   },
+   {
+    "n": 3,
+    "what": "Retry or no-op: an identical call returns the original receipt and record ids and writes nothing (pending applies are finished in-line first).",
+    "code": "src/memspine/ingest/gateway.py:submit (322-327), _resume_many (399)",
+    "kind": "rule"
+   },
+   {
+    "n": 4,
+    "what": "Ledger commit: one SQL transaction stores the intent, the receipt, per-write rows and the apply payload (the fresh turns). This is the first crash boundary; before it nothing is stored, so a retry writes everything.",
+    "code": "src/memspine/ingest/gateway.py:submit (329-345); src/memspine/ingest/intake_store.py:commit",
+    "kind": "storage"
+   },
+   {
+    "n": 5,
+    "what": "Apply: _apply_messages calls the old door write_messages_direct on the fresh turns only, each tagged idem:<write id>; the record id each write id became is collected through INTAKE_LANDED. On resume it first scans existing records by idem tag so only the missing turns are written. All of REF-WRITE (filter, prewarm, firewall, event, projectors) runs here unchanged.",
+    "code": "src/memspine/ingest/gateway.py:_apply_messages (463); src/memspine/ingest/write.py:write_messages_direct (561)",
+    "kind": "storage"
+   },
+   {
+    "n": 6,
+    "what": "Mark applied: real record ids and honest readiness (raw_search ready; facts/graph/summaries pending only if a window pipeline exists; profile unavailable) are stored with the receipt; the apply payload is dropped. Recovery at engine start (recover) finishes any intent accepted but not applied.",
+    "code": "src/memspine/ingest/gateway.py:_finish (406), recover (792); src/memspine/api/engine.py:start (786)",
+    "kind": "storage"
+   }
+  ],
+  "algorithms": [
+   "idempotency key hashing (xxh64/sha digest of scope, source, index, content)",
+   "source versioning (new / retry / new_version)",
+   "two-phase commit-then-apply with crash boundaries and idem tags for resume",
+   "quota check before accept"
+  ],
+  "libraries": [
+   "LIB-30 source envelope intake (src/memspine/ingest/intake.py)",
+   "src/memspine/ingest/intake_store.py (sqlalchemy ledger tables)",
+   "src/memspine/derive/intent.py DerivationIntent",
+   "external: sqlalchemy"
+  ],
+  "models": [
+   {
+    "role": "none",
+    "model": "none",
+    "calls": "0 (the embedding calls of the underlying write are unchanged)",
+    "prompt": "none"
+   }
+  ],
+  "storage": "New ledger tables in the engine database (intents, per-write rows, source versions, apply payloads); the usual records and events. Records carry an idem:<write id> tag.",
+  "cost": "Extra SQL transactions per call (accept, commit, mark): spec target write p95 at most 250 ms. No model calls. Queue expectation: parity with the reference.",
+  "inputs": "Any write_messages call; benefits show only on retries, re-ingest or crashes, which a single clean eval run never exercises.",
+  "outputs": "The same L0 records as the direct path plus receipts, write ids and readiness; duplicate sends become no-ops.",
+  "failure_modes": [
+   "Expected parity on an eval (no retries, no crashes), so any score change is noise or a regression to investigate.",
+   "The double-send screen is still pending (PLAN W2-01).",
+   "In-memory databases use an ephemeral ledger, so idempotency does not survive a restart there.",
+   "facts/graph readiness stays pending without the outbox barrier (the engine cannot prove it)."
+  ],
+  "tests": [
+   "tests/unit/wiring/test_w2_01_intake.py",
+   "tests/unit/wiring/test_fu_asset_on_read_verbs.py",
+   "tests/unit/config/test_requires.py"
+  ],
+  "mermaid": "flowchart LR\n  A[write_messages] --> B[SourceEnvelope]\n  B --> C[write ids and verdicts]\n  C --> D[quota and receipt]\n  D --> E[ledger commit]\n  E --> F[apply via direct write]\n  F --> G[mark applied]\n  G --> H[receipt returned]"
+ },
+ {
+  "id": "S54",
+  "settings": {
+   "read.evidence_bundles": true,
+   "write.window_extract": "facts",
+   "write.window_async": false,
+   "llm.roles.window_extract": "qwen3.5:9b",
+   "(defaults used)": "read.bundle_pool_factor 2.0, read.bundle_fact_share 0.6, read.exact_budget_max_skips 8"
+  },
+  "stage": "C",
+  "trigger": "per read, in context assembly after the ranked records are selected; depends on window-mined facts written earlier (S43 setup)",
+  "steps": [
+   {
+    "n": 1,
+    "what": "Write side is the S43 arm: window_extract=facts mines atomic facts whose parents are the cited source turns (source.parents).",
+    "code": "src/memspine/workers/windows.py:_store_facts (2044)",
+    "kind": "storage"
+   },
+   {
+    "n": 2,
+    "what": "Context assembly runs the normal selector but with budget_tokens = true_budget * bundle_pool_factor (2.0), so a wider pool is selected than will fit.",
+    "code": "src/memspine/compose/pipeline/windows.py (395-425)",
+    "kind": "rule"
+   },
+   {
+    "n": 3,
+    "what": "bundle_selected: for each assembled record tagged atomic_fact with source.parents (and not an engine block) load its eligible parent episodic turns (live view, decorated), at most _BUNDLE_TURNS=2, the ones sharing most words with the fact first (Jaccard of word sets).",
+    "code": "src/memspine/compose/pipeline/pack.py:bundle_selected (546), _source_turns (503), _BUNDLE_TURNS (34)",
+    "kind": "algorithm"
+   },
+   {
+    "n": 4,
+    "what": "Build evidence bundles: record_envelope turns the fact plus its turns into an envelope; build_bundles (LIB-06) makes one bundle per fact; shared turns are counted once.",
+    "code": "src/memspine/compose/bundles.py:build_bundles (82); src/memspine/compose/pipeline/render.py:record_envelope",
+    "kind": "library"
+   },
+   {
+    "n": 5,
+    "what": "Pack under the TRUE budget with an exact token counter: the stable prefix is charged first; fact bundles may take bundle_fact_share (0.6) of the room while other records wait (all of it if none wait); a bundle enters whole or not at all, with skip-and-continue up to exact_budget_max_skips.",
+    "code": "src/memspine/compose/bundles.py:pack (261); src/memspine/compose/pipeline/pack.py:bundle_selected (580-600)",
+    "kind": "algorithm"
+   },
+   {
+    "n": 6,
+    "what": "Fill the rest with the other records whole, in rank order; a turn already cited by an included bundle is not repeated (dropped as cited_by_bundle). Output records are re-rendered as '[alias] text' lines with the bundle tag, followed by 'support |' / 'binding |' evidence lines; the context boundary index and token use are recomputed.",
+    "code": "src/memspine/compose/pipeline/pack.py:bundle_selected (601-660), _line_record (540)",
+    "kind": "rule"
+   }
+  ],
+  "algorithms": [
+   "word-set Jaccard to rank a fact's source turns",
+   "whole-or-nothing bundle packing with skip-and-continue",
+   "fact share of room (0.6)",
+   "exact token counting"
+  ],
+  "libraries": [
+   "LIB-06 exact budget and evidence bundles (src/memspine/compose/budget.py, bundles.py)",
+   "src/memspine/compose/pipeline/pack.py",
+   "no model"
+  ],
+  "models": [
+   {
+    "role": "none",
+    "model": "none at read (the window_extract LLM only builds the mined facts at write time)",
+    "calls": "0 per read; write side 1 per window as S43",
+    "prompt": "none (write side src/memspine/prompts/defaults/window_extract.yaml)"
+   }
+  ],
+  "storage": "Reads parent turn records of the selected facts (storage.get_record per parent). Writes nothing.",
+  "cost": "Read: one record fetch per parent per fact (up to 2 turns per fact) and a wider selection pool; no model call. Replaces S18, which was inert because the J arm had no mined facts.",
+  "inputs": "Mined atomic facts that carry source.parents: only the window-facts write (S43 setup, one cited turn set per fact) provides them; with session-level mining (S04) the parents are the whole session and bundles become large; with no mined facts the flag is inert.",
+  "outputs": "Context holds selected facts together with their cited source turns instead of the fact text alone; fewer, fuller evidence units under the same token budget.",
+  "failure_modes": [
+   "Inert without mined facts that cite parent turns (S18 was inert on J).",
+   "A bundle that does not fit whole is dropped, so a tight budget can cut evidence the plain path would keep (over_budget / early_break reasons are traced).",
+   "Picks only 2 source turns per fact by word overlap; the best evidence turn can be missed.",
+   "Includes the S43 window-extract write cost and its v1 extractor limits."
+  ],
+  "tests": [
+   "tests/unit/wiring/test_rw_c_compose.py",
+   "tests/unit/test_window_write.py"
+  ],
+  "mermaid": "flowchart LR\n  A[window-mined facts] --> B[ranked pool x2 budget]\n  B --> C[load parent turns]\n  C --> D[build bundles]\n  D --> E[pack under true budget]\n  E --> F[other records fill]\n  F --> G[context with cited turns]"
+ },
+ {
+  "id": "S62",
+  "settings": {
+   "write.window_extract": "facts",
+   "write.window_async": false,
+   "write.intake_v2": true,
+   "write.stamping_v2": true,
+   "write.role_policy_v2": true,
+   "write.segmentation_v2": true,
+   "write.prompt_v2": true,
+   "write.envelope_v2": true,
+   "write.temporal_v2": true,
+   "write.grounding_v2": true,
+   "write.coverage_v2": true,
+   "write.resolver_v2": true,
+   "write.integration_v2": true,
+   "llm.roles.window_extract": "qwen3.5:9b (Ollama, no_think, timeout 180 s)",
+   "(left at default, so inert)": "write.prepass=off, prompts.layout_v2=false, write.online_extractor_v2=false, write.learned_persist=false, workers.outbox=false, write.lineage_table=false",
+   "(defaults used)": "ground_adjudicator lexical, ground_action drop, coverage_threshold 0.8, coverage_max_targets 6, coverage_context_lines 2, resolve_high 0.9, resolve_grey 0.7, prompt_known_cap 40, prompt_context_turns 3, prompt_schema auto, integration_decide_unhinted false"
+  },
+  "stage": "D",
+  "trigger": "intake/stamping/role policy per turn at write_messages; segmentation per turn; batching + extraction + stages + deposit per batch of windows at flush_windows/close_session/sleep (async off)",
+  "steps": [
+   {
+    "n": 1,
+    "what": "INTAKE (write.intake_v2). write_messages becomes a SourceEnvelope; IntakeBook assigns write ids and verdicts (new/retry/new_version), checks quota, commits the intent and apply payload in one SQL transaction, then applies the fresh turns through write_messages_direct (tagged idem:<id>) and marks the receipt applied. Crash recovery runs at start.",
+    "code": "src/memspine/ingest/gateway.py:IntakeGateway.submit (291), _apply_messages (463), _finish (406); src/memspine/ingest/write.py:write_messages (505)",
+    "kind": "storage"
+   },
+   {
+    "n": 2,
+    "what": "STAMPING (write.stamping_v2). ConversationStamper stamps each raw turn with three clocks (source_at, source_tz, recorded_at), typed speaker/addressee/participants, provenance class and an assent tag, before the firewall. Downstream, the temporal stage treats source_at as the only source clock (valid_from is no longer read as a source time).",
+    "code": "src/memspine/ingest/write.py:_stamp_turn (815); src/memspine/ingest/stamping.py:ConversationStamper (195), apply_stamp (268); src/memspine/ingest/stamp.py:stamp (319)",
+    "kind": "rule"
+   },
+   {
+    "n": 3,
+    "what": "ROLE POLICY (write.role_policy_v2). role_wiring.decide tags every raw turn (derive_use, echo, echo_of, assent_candidate), lowers trust to the role ceiling, and stores system/tool turns raw instead of skipping them. At derivation time _live_turns drops echoes and excluded turns, and facts whose cited turns include no user-stated line get a derive_use:evidence/proposal tag.",
+    "code": "src/memspine/ingest/role_wiring.py:decide (123), apply_role (171); src/memspine/workers/windows.py:_live_turns (1641), _store_facts (2044); src/memspine/derive/role_filter.py",
+    "kind": "rule"
+   },
+   {
+    "n": 4,
+    "what": "SEGMENTATION AND BATCHING (write.segmentation_v2). Each stored episodic turn is fed to a StreamSegmenter (cuts: session change, time gap 1800 s, topic shift, 1500 tokens, adaptive turn cap 6 growing to 24 while under 400 tokens). Closed windows queue; CallBatcher groups windows of one namespace into batches of at most 8 windows / 3000 tokens / 30 s age (final drains release everything). A prepass verdict (none here) could skip a window.",
+    "code": "src/memspine/workers/windows.py:observe (787), _enqueue (828), _take_batch (1266), _prepare_batch (1332); src/memspine/derive/segmenter.py:StreamSegmenter.add (64); src/memspine/derive/call_batcher.py",
+    "kind": "algorithm"
+   },
+   {
+    "n": 5,
+    "what": "PROMPT V2 (write.prompt_v2), ONE call per window or batch. PromptContextBuilder adds CONTEXT (tail of the previous window, up to 3 lines) and KNOWN (up to 40 entities already in memory from the entity records and alias table, plus resolver and pre-pass hooks). window_messages builds a constant system text (no examples; sections spec for facts; coarse_date and no_injection partials) and a user part (same_language partial for non-English input, participants, NEW, CONTEXT, KNOWN). The call asks for a JSON object {facts:[ItemV1...]}; json_schema constrained decoding is sent when the provider supports it (prompt_schema auto), and is dropped for the run if the backend rejects it. The reply is cached by (model, prompt id, sections, transcript, context, known).",
+    "code": "src/memspine/workers/windows.py:PromptWindowExtractor._unified_call (211), _with_prompt_context (1737), _call (1592); src/memspine/prompts/structured.py:window_messages (189), _window_system (177), window_schema (278); src/memspine/derive/prompt_context.py:PromptContextBuilder.build (79); src/memspine/models/providers/llm/capabilities.py:schema_options (24)",
+    "kind": "llm"
+   },
+   {
+    "n": 6,
+    "what": "ENVELOPE VALIDATE, REPAIR, DEAD LETTERS (write.envelope_v2). If the whole reply is not a usable JSON object, one reparse re-ask echoes the reply back (reparse_calls). Then _compile_items runs process_items: each ItemV1 is validated alone and compiled to an AssertionEnvelope (citations, NEW-line rule, reserved fields, kind cap 64), invalid repairable items go back in ONE repair call (structured.repair prompt), items still invalid are written to the sqlite FailureLedger (dead letters, with reason code and attempts), duplicates are dropped.",
+    "code": "src/memspine/workers/windows.py:_compile_items (1798); src/memspine/derive/items.py:process_items (189), RepairAsk.ask (133); src/memspine/derive/compile.py:compile_items (354); src/memspine/derive/failure_ledger.py:FailureLedger.record (76); src/memspine/prompts/structured.py:repair_messages (92)",
+    "kind": "llm"
+   },
+   {
+    "n": 7,
+    "what": "STAGE HOOK LIST runs in order over the window's envelopes, outside the namespace lock (run_envelope_stages sorts by order). Step 8 to 13 are its members.",
+    "code": "src/memspine/derive/envelope_stages.py:run_envelope_stages (62); src/memspine/ingest/windows.py:_envelope_stages (313)",
+    "kind": "rule"
+   },
+   {
+    "n": 8,
+    "what": "TEMPORAL, order 100 (write.temporal_v2). For every envelope fill the event interval, precision and basis by the anchor ladder: explicit date in when/until, span or text (EN/DE/FR/ES; year-only stays year precision), else relative phrase resolved against the cited turn's stamped source_at, else (stamping off only) the window valid_from as inferred/approximate, else unknown (never 'now'); typed relations (before/after/during) between assertions of the window when no date resolves. Writes time.event, assessment.time_precision and extras.temporal. No model call.",
+    "code": "src/memspine/derive/temporal_stage.py:build_stage (652); src/memspine/derive/temporal.py:anchor (704)",
+    "kind": "algorithm"
+   },
+   {
+    "n": 9,
+    "what": "GROUNDING, order 200 (write.grounding_v2). LIB-03 check_grounding locates the supporting span in the cited lines and writes offsets; rule checks (cited turns exist, numbers/units/dates/names in the span, polarity and modality, speaker matches asserter); undecided items go to the adjudicator, here the lexical-overlap fallback (ground_adjudicator=lexical, no LLM); assent check promotes assistant_proposed to user_confirmed only on a real binding yes. Unsupported/partly are dropped (ground_action=drop), counted by reason code; undecided are kept as grounding=uncertain.",
+    "code": "src/memspine/derive/grounding_stage.py:make_grounding_stage (532), build_grounding_stage (561), GroundingChecker (243), Adjudicator (163); src/memspine/derive/ground.py:check_grounding",
+    "kind": "algorithm"
+   },
+   {
+    "n": 10,
+    "what": "COVERAGE, order 250 (write.coverage_v2). LIB-17 computes coverage = informative lines cited by a kept assertion / informative lines (salience: named entity, number, date, first-person state/plan/preference, list shape; greetings and echoes excluded). If coverage < 0.8 and a line is uncited, ONE targeted re-extraction call covers only the uncited lines (up to 6 targets, 2 context lines) with the window prompt on the window_extract LLM; its items go through the compiler and the earlier stages again (temporal, grounding) and are added only if grounded; everything else is dropped and counted. Cost is booked under stage coverage_reextract.",
+    "code": "src/memspine/derive/coverage_stage.py:CoverageStage.run (204), make_coverage_stage (358); src/memspine/ingest/windows.py:_coverage_stage (335); src/memspine/derive/coverage.py",
+    "kind": "llm"
+   },
+   {
+    "n": 11,
+    "what": "RESOLVER, order 300 (write.resolver_v2). For the subject and object mention of each envelope: rule resolver (exact, alias, spelling, nickname, numeric, exonym; context conflicts keep homonyms apart), then embedding cosine against the scope's entities (>=0.9 same, 0.7 to 0.9 grey zone, below new) with a bounded vector cache. Result existing / pending_merge / new; sets subject.entity_id / object.entity_id and extras.resolve; MERGE/SPLIT are logged as marker events; never merges on its own. The resolver's entities also feed KNOWN of later prompts.",
+    "code": "src/memspine/derive/resolve_stage.py:build_resolve_stage (352), run (165); src/memspine/derive/resolve.py:OnlineResolver; src/memspine/derive/entity_registry.py:EntityRegistry; src/memspine/ingest/windows.py:_resolve_stage (390)",
+    "kind": "algorithm"
+   },
+   {
+    "n": 12,
+    "what": "INTEGRATION, order 400 (write.integration_v2). For each state envelope find live assertions on the same (subject, attribute) key in the semantic store and decide an operator with the ladder: cardinality (declared, else many), trust tier, event time (closed or open interval), negation binding, seeded by change_hint and extras transition/replaces; ops append/supersede/merge/coexist/contest/defer_kc. With no hint that a value changed (integration_decide_unhinted false) a conflicting live value is deferred to K_C instead of decided. The verdict is written on the envelope and becomes record tags (integ:<op>, disputed, retract) at deposit; a contest also tags the older peer disputed.",
+    "code": "src/memspine/derive/integration_stage.py:integration_stage (261), deposit_tags (328); src/memspine/derive/integrate.py:integrate; src/memspine/workers/windows.py:_dispute_peers (2196); src/memspine/ingest/windows.py:_integration_stage (365)",
+    "kind": "algorithm"
+   },
+   {
+    "n": 13,
+    "what": "PRE-PASS, order 500 (write.prepass). OFF in this arm (default 'off'), so neither the window skip, the KNOWN hints nor the cross-check stage is built. When on (rules or GLiNER2 on CPU), it would skip windows with nothing extractable and flag envelopes naming an entity the pre-pass never saw.",
+    "code": "src/memspine/derive/prepass.py:Prepass (371), prepass_stage (458); src/memspine/workers/windows.py:_prepass_verdict (1754); src/memspine/ingest/windows.py:_prepass (379)",
+    "kind": "algorithm"
+   },
+   {
+    "n": 14,
+    "what": "DEPOSIT. _store_envelopes deposits each surviving envelope through the mined-fact door (same lock, I72 liveness re-check, trust cap = min(parents, envelope source_trust), firewall gate 2/3, semantic ladder, event append, four projectors): tags window_fact, window:<id>, envelope_v2, src:<class>, integ:*; kind state keeps the (entity, attribute) key, event drops it; happened label from the temporal stage; envelope JSON in fingerprint.envelope. Contest peers are marked disputed. Counters and per-stage notes land in the window stats.",
+    "code": "src/memspine/workers/windows.py:_store_envelopes (2113), _commit_job (1904); src/memspine/derive/pipeline/integrate.py:_deposit_mined_fact (196); src/memspine/derive/write.py:write_derived",
+    "kind": "storage"
+   }
+  ],
+  "algorithms": [
+   "ItemV1 JSON schema validation with sibling isolation and one repair re-ask",
+   "anchor ladder for time (explicit, relative to source_at, unknown; never invented)",
+   "rule + lexical-overlap grounding with span location",
+   "coverage ratio over informative lines with budgeted single re-extraction",
+   "rule + embedding-threshold entity resolution (0.9/0.7)",
+   "cardinality/trust/time/negation integration ladder",
+   "time-gap + adaptive window segmentation, token/count/age call batching",
+   "idempotency keys with commit-then-apply"
+  ],
+  "libraries": [
+   "LIB-01 temporal anchor ladder",
+   "LIB-02 integration ladder",
+   "LIB-03 grounding rules",
+   "LIB-04 rule entity resolver",
+   "LIB-05 ItemV1 to envelope compiler",
+   "LIB-13 role policy and echo guard",
+   "LIB-14 segmentation",
+   "LIB-17 coverage",
+   "LIB-29 stamping",
+   "LIB-30 source intake",
+   "LIB-46 prompt layout partials (coarse_date, no_injection, same_language)",
+   "external: Ollama qwen3.5:9b, sentence-transformers Qwen3-Embedding-0.6B (resolver and topic boundary), sqlite (failure ledger, intake ledger)"
+  ],
+  "models": [
+   {
+    "role": "extract",
+    "model": "qwen3.5:9b via Ollama (ollama/qwen3.5:9b, http://127.0.0.1:11434, no_think=true, timeout 180 s)",
+    "calls": "Normal path: 1 per window, or 1 per batch of up to 8 windows (prompt_v2 unified call, facts section only). Extra, each at most once: +1 whole-reply reparse re-ask when the reply is not a usable JSON object; +1 schema-less retry when the backend rejects json_schema; +1 envelope repair call per window/batch with invalid repairable items; +1 coverage re-extraction per window when coverage < 0.8 (stage coverage_reextract). Typical 1; worst case about 4 per window.",
+    "prompt": "in code src/memspine/prompts/structured.py (structured.window system/user text, structured.repair); partials src/memspine/prompts/defaults/_partials/coarse_date.j2, no_injection.j2, same_language.j2; window_extract.yaml and the v2 YAML variants are not used for facts in this arm"
+   },
+   {
+    "role": "embedder",
+    "model": "Qwen/Qwen3-Embedding-0.6B",
+    "calls": "per turn (topic boundary, firewall, vector projector) plus the resolver's entity-surface embeddings (cached, bounded 1024)",
+    "prompt": "none"
+   },
+   {
+    "role": "decider",
+    "model": "none (ground_adjudicator=lexical; the LLM/decider tier is not built or enabled)",
+    "calls": "0",
+    "prompt": "none"
+   }
+  ],
+  "storage": "Intake ledger tables; raw episodic turns with stamp axes and role/echo tags; sqlite dead-letter file (<db>.deadletters.sqlite); semantic fact records with envelope in fingerprint.envelope and tags (envelope_v2, src:*, integ:*, happened:*, disputed); entity registry events (marker events entity.*); reply cache; DECAY_TRANSITION events that tag the older side of a contest disputed.",
+  "cost": "Calls per window go from 1 (S43) to roughly 1/8 to 1 plus conditional repair and coverage calls; sample-run estimate 230 min GC slice. Stages 1 to 3 and the temporal/grounding/integration stages are CPU only. PLAN figures: calls/window 1.58 in the coverage stub, stub calls/turn 0.175 to 0.015 with batching.",
+  "inputs": "Needs write.window_extract=facts with a window_extract LLM role (requires.py enforces envelope_v2 -> window facts, prompt_v2/temporal/integration/grounding/coverage/resolver -> envelope_v2). Timestamps on turns for stamping, gaps and temporal anchoring; semantic memory enabled for integration lookups. Pre-pass hints are not available (off).",
+  "outputs": "Window-mined facts as validated envelopes: cited, grounded, time-anchored with precision, entity ids resolved or pending_merge, integration verdict tags; a dead-letter ledger; raw turns with three clocks and role tags; idempotent receipts.",
+  "failure_modes": [
+   "Grounding adjudicator is lexical only: labelled set 85.5% CPU-only vs the 95% gate, non-English undecided items need an LLM adjudicator (PLAN W2-08).",
+   "Integration defers unhinted conflicts to K_C (integration_decide_unhinted false), so supersession on a clean eval depends on the sleep reconcile stage; MAB-CR screen pending.",
+   "Resolver thresholds (0.9/0.7) were calibrated on stub data; recalibrate with the production embedder (PLAN W2-09).",
+   "Coverage re-extraction recall (0.586 to 0.931) was measured on a stub; a real LLM run and its extra call cost are not yet measured (PLAN W2-15).",
+   "Pre-pass is off, so no filler-window skipping and no KNOWN hints from it.",
+   "Batching drops items that cite two windows; a failed batched call loses up to 8 windows (fail-closed, counted).",
+   "Envelope is persisted inside fingerprint.envelope, not a column.",
+   "Atlas: S03/S04 lost alone, so the bundle tests whether grounding rescues the window write; write singles S43-S45, S48-S50 are deferred and only run to bisect a regression of this bundle."
+  ],
+  "tests": [
+   "tests/unit/wiring/test_w2_01_intake.py",
+   "tests/unit/wiring/test_w2_02_stamping.py",
+   "tests/unit/wiring/test_w2_03_roles.py",
+   "tests/unit/wiring/test_w2_05_segmentation.py",
+   "tests/unit/wiring/test_w2_06a_envelope.py",
+   "tests/unit/wiring/test_w2_06b_prompt_v2.py",
+   "tests/unit/wiring/test_w2_06c_online_extractor.py",
+   "tests/unit/wiring/test_w2_06c_known_sources.py",
+   "tests/unit/wiring/test_w2_08_grounding.py",
+   "tests/unit/wiring/test_w2_09_resolve.py",
+   "tests/unit/wiring/test_w2_10_integration.py",
+   "tests/unit/wiring/test_w2_13_prepass.py",
+   "tests/unit/wiring/test_w2_14_temporal.py",
+   "tests/unit/wiring/test_w2_15_coverage.py",
+   "tests/unit/wiring/test_fu_gaps.py",
+   "tests/combinations/test_profiles_v2.py"
+  ],
+  "mermaid": "flowchart LR\n  A[intake ledger] --> B[stamp and role tags]\n  B --> C[segment and batch]\n  C --> D[one v2 prompt call]\n  D --> E[validate repair dead letters]\n  E --> F[temporal 100]\n  F --> G[grounding 200]\n  G --> H[coverage 250]\n  H --> I[resolver 300]\n  I --> J[integration 400]\n  J --> K[deposit + projectors]"
+ }
+]

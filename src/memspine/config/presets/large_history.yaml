@@ -1,0 +1,4 @@
+# I25 preset: a very long history (BEAM / LongMemEval-S haystacks). The neighbour window and
+# top_k shrink with the budget the routed read has left (I20).
+read:
+  replay_budget_scaling: true

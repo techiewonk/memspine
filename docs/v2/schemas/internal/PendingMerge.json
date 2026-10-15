@@ -1,0 +1,65 @@
+{
+  "additionalProperties": true,
+  "description": "Outbox row kind=pending_merge (W-19 B).",
+  "properties": {
+    "co_mentions": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Co Mentions",
+      "type": "array"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "entity_type": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Entity Type"
+    },
+    "evidence_line": {
+      "title": "Evidence Line",
+      "type": "string"
+    },
+    "id": {
+      "title": "Id",
+      "type": "string"
+    },
+    "mention_record_id": {
+      "title": "Mention Record Id",
+      "type": "string"
+    },
+    "name": {
+      "title": "Name",
+      "type": "string"
+    },
+    "ns": {
+      "title": "Ns",
+      "type": "string"
+    },
+    "source_trust": {
+      "title": "Source Trust",
+      "type": "number"
+    }
+  },
+  "required": [
+    "id",
+    "ns",
+    "name",
+    "mention_record_id",
+    "source_trust",
+    "evidence_line",
+    "created_at"
+  ],
+  "title": "PendingMerge",
+  "type": "object"
+}

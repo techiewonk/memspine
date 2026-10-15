@@ -8,39 +8,39 @@ from typing import Any
 import pytest
 
 from memspine import Engine
+from memspine.compose.pack import estimate_tokens
 from memspine.config import constants
 from memspine.config.schema import ReadConfig
-from memspine.core import records as records_module
 from memspine.core.event_date import label_span
-from memspine.core.lead import card_line
-from memspine.core.policies.assembly import estimate_tokens
-from memspine.core.records import MemoryRecord, SourceInfo
-from memspine.core.temporal_query import temporal_leg
+from memspine.models.encoders.query.temporal_query import temporal_leg
+from memspine.read.lead import card_line
+from memspine.store import records as records_module
+from memspine.store.records import MemoryRecord, SourceInfo
 from memspine.workers.list_cards import ListCard
 
 T0 = datetime(2023, 5, 1, 9, 0, tzinfo=UTC)
 
 TURNS = [
-    ("Melanie: I went camping with the kids last weekend", 0),
-    ("Caroline: I started a new painting of a lake sunset", 3),
-    ("Melanie: we ran a charity race for mental health in May", 9),
-    ("Melanie: I went camping at the beach again with the family", 20),
-    ("Caroline: I joined a support group last Tuesday", 33),
-    ("Melanie: the kids loved the pottery class yesterday", 40),
+    ("Bram: I went camping with the kids last weekend", 0),
+    ("Noor: I started a new painting of a lake sunset", 3),
+    ("Bram: we ran a book fair for the school library in May", 9),
+    ("Bram: I went camping at the beach again with the family", 20),
+    ("Noor: I joined a support group last Tuesday", 33),
+    ("Bram: the kids loved the pottery class yesterday", 40),
 ]
 
 #: (text, entity, parent turn index, day offset, happened, said)
 MINED = [
-    ("Melanie event: went camping with the kids", "Melanie", 0, 0, "2023-04-29", "2023-05-01"),
-    ("Melanie event: ran a charity race for mental health", "Melanie", 2, 9, None, None),
-    ("Melanie event: went camping at the beach", "Melanie", 3, 20, None, None),
-    ("Caroline event: joined a support group", "Caroline", 4, 33, "2023-05-30", "2023-06-03"),
+    ("Bram event: went camping with the kids", "Bram", 0, 0, "2023-04-29", "2023-05-01"),
+    ("Bram event: ran a book fair for the school library", "Bram", 2, 9, None, None),
+    ("Bram event: went camping at the beach", "Bram", 3, 20, None, None),
+    ("Noor event: joined a support group", "Noor", 4, 33, "2023-05-30", "2023-06-03"),
 ]
 
-AGGREGATE = "What activities has Melanie done?"
-COUNT = "How many times did Melanie go camping?"
-LOOKUP = "Where did Melanie go camping with the family?"
-TEMPORAL = "When did Caroline join the support group?"
+AGGREGATE = "What activities has Bram done?"
+COUNT = "How many times did Bram go camping?"
+LOOKUP = "Where did Bram go camping with the family?"
+TEMPORAL = "When did Noor join the support group?"
 
 
 @pytest.fixture(autouse=True)
@@ -90,25 +90,25 @@ async def _seed(eng: Engine, ns: str = "a") -> None:
                 persons=[entity],
             )
         )
-    melanie = [f for f in facts if f.entity == "Melanie"]
+    bram = [f for f in facts if f.entity == "Bram"]
     await eng._deposit_list_card(
         ns,
         ListCard(
-            person="Melanie",
+            person="Bram",
             label="activities",
-            text="Melanie — activities: camping (2023-05); charity race (2023-05); "
+            text="Bram — activities: camping (2023-05); book fair (2023-05); "
             "camping at the beach (2023-05)",
-            parents=sorted(f.record_id for f in melanie),
-            valid_from=max(f.valid_from for f in melanie),
-            tags=[constants.LIST_CARD_TAG, "atomic_fact", "person:melanie", "topic:activity"],
+            parents=sorted(f.record_id for f in bram),
+            valid_from=max(f.valid_from for f in bram),
+            tags=[constants.LIST_CARD_TAG, "atomic_fact", "person:bram", "topic:activity"],
         ),
         [],
     )
     await eng._deposit_profile_reflection(
-        ns, "Melanie loves camping and outdoor family trips", [ids[0], ids[3]], "s1"
+        ns, "Bram loves camping and outdoor family trips", [ids[0], ids[3]], "s1"
     )
     await eng._deposit_profile_reflection(
-        ns, "Caroline is creative and joined a support group", [ids[1], ids[4]], "s1"
+        ns, "Noor is creative and joined a support group", [ids[1], ids[4]], "s1"
     )
 
 
@@ -213,13 +213,13 @@ async def _cards(query: str, **read: Any) -> str:
 
 
 async def test_list_card_shown_to_a_lookup_when_the_gate_is_off() -> None:
-    assert "Melanie — activities" in await _cards(LOOKUP)
+    assert "Bram — activities" in await _cards(LOOKUP)
 
 
 @pytest.mark.parametrize(("query", "shown"), [(LOOKUP, False), (AGGREGATE, True), (COUNT, True)])
 async def test_list_cards_only_aggregate(query: str, shown: bool) -> None:
     text = await _cards(query, list_cards_only_aggregate=True)
-    assert ("Melanie — activities" in text) is shown
+    assert ("Bram — activities" in text) is shown
     if not shown:
         assert "camping" in text  # the other cards still show
 
@@ -276,7 +276,7 @@ def test_temporal_leg_event_dates_order_is_deterministic() -> None:
 
 
 async def test_engine_passes_the_event_dates_switch(monkeypatch: pytest.MonkeyPatch) -> None:
-    import memspine.engine as engine_module
+    import memspine.read.pipeline.legs as engine_module
 
     calls: list[bool] = []
     real = engine_module.temporal_leg
@@ -292,7 +292,7 @@ async def test_engine_passes_the_event_dates_switch(monkeypatch: pytest.MonkeyPa
         try:
             await _seed(eng)
             out = await eng.read(
-                "What did Melanie do on 29 April 2023?", namespace="a", mode="replay", top_k=3
+                "What did Bram do on 29 April 2023?", namespace="a", mode="replay", top_k=3
             )
             contents = " ".join(r.content for r in out.context.records)
             if on:  # the mined fact said 05-01 is found by its happened day
@@ -336,9 +336,9 @@ async def test_cards_temporal_event_dates_shows_only_happened_cards(skip: bool) 
     assert lines[1:], "the header is shown"
     for line in lines[1:]:
         assert line.startswith("[happened "), line
-    assert "[happened 2023-05-30 · said 2023-06-03] Caroline: joined a support group" in lines
-    assert "Melanie — activities" not in text  # a list card has no happened date
-    assert "charity race" not in text  # no happened date
+    assert "[happened 2023-05-30 · said 2023-06-03] Noor: joined a support group" in lines
+    assert "Bram — activities" not in text  # a list card has no happened date
+    assert "book fair" not in text  # no happened date
 
 
 async def test_cards_temporal_event_dates_leaves_other_questions_alone() -> None:
@@ -516,7 +516,7 @@ async def test_cards_only_aggregate_full_read_matches_mining_off() -> None:
     """Small namespace: ``auto``/``full`` hold every live record, minus mined facts."""
     out = await _read_all(LOOKUP, ("full",), budget=4000, cards="header", cards_only_aggregate=True)
     contents = [r.content for r in out["full"].context.records]
-    assert any("Melanie: I went camping at the beach" in c for c in contents)
+    assert any("Bram: I went camping at the beach" in c for c in contents)
     assert not _facts(out["full"])
 
 
@@ -593,7 +593,7 @@ async def test_cards_skip_hides_facts_changes_nothing_else(
 
 # -- F5 (plan v3.2): a verbatim question reads raw turns only ------------------------
 
-VERBATIM = "What did Melanie say about camping at the beach?"
+VERBATIM = "What did Bram say about camping at the beach?"
 
 
 def test_verbatim_raw_only_defaults_off() -> None:

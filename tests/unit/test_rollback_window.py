@@ -9,8 +9,8 @@ import pytest
 from structlog.testing import capture_logs
 
 from memspine import Engine
-from memspine.core.records import RecordStatus
 from memspine.exceptions import RebuildUnavailableError, RollbackUnavailableError
+from memspine.store.records import RecordStatus
 
 
 def _engine(path: str, mode: str) -> Engine:

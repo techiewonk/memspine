@@ -1,0 +1,22 @@
+{
+  "child": "rec-2",
+  "derivation": {
+    "decoding": "greedy",
+    "input_blocks": "ib-1",
+    "model_id": "model-a",
+    "prompt_hash": "ph-1",
+    "quant": "q8",
+    "runtime_libs": "rl-1",
+    "schema_v": "1"
+  },
+  "parent": "rec-1",
+  "parent_version": 1,
+  "role": "support",
+  "schema_version": 1,
+  "source_family": "speaker:alice",
+  "span": {
+    "end": 5,
+    "quote": null,
+    "start": 0
+  }
+}

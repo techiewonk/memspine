@@ -95,7 +95,7 @@ def arm_engine_config(plan: dict[str, Any], arm: dict[str, Any]) -> dict[str, An
 #: Policy blocks the engine reads directly (a flag or a small mapping) rather than
 #: through a ``BindablePolicy``; the engine validates their contents itself at start.
 RAW_POLICIES = frozenset(
-    {"entity_nodes", "entity_summaries", "extract_graph", "related", "sessions", "write"}
+    {"entity_nodes", "entity_summaries", "extract_graph", "perspective", "related", "sessions", "write"}
 )
 
 
@@ -106,11 +106,15 @@ def validate_engine_config(config: dict[str, Any]) -> None:
     are open dicts in the schema and are only bound when a pipeline first runs, so a
     misspelt key there would otherwise pass start-up silently.
     """
+    from memspine.compose.pack import AssemblyOptions
+    from memspine.config.requires import check_requires
     from memspine.config.schema import MemspineConfig
-    from memspine.core.policies.assembly import AssemblyOptions
     from memspine.core.policies.scoring import ScoringOptions
 
     parsed = MemspineConfig.model_validate(config)
+    # FU-REQS: the arm is a screen, so the soft needs count too (deep_v2 with no bound sufficiency
+    # role is rules-only with zero model calls: an arm that cannot show an effect)
+    check_requires(parsed, strict=True)
     if parsed.read.scoring:
         ScoringOptions.model_validate(parsed.read.scoring)
     if parsed.read.assembly:
@@ -122,7 +126,8 @@ def validate_engine_config(config: dict[str, Any]) -> None:
     for where, policies in blocks:
         for name, raw in policies.items():
             if name in RAW_POLICIES:
-                if not isinstance(raw, (bool, dict)):
+                # ``perspective`` also takes a mode name ("heuristic", "decider"), I39
+                if not isinstance(raw, (bool, dict) + ((str,) if name == "perspective" else ())):
                     raise ValueError(f"{where}.policies.{name}: expected true/false or a mapping")
                 continue
             model = options.get(name)

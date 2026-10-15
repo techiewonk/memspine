@@ -32,9 +32,6 @@ from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
 
-from memspine.core.events import EventKind, MemoryEvent
-from memspine.core.projector import Projector
-from memspine.core.records import MemoryRecord
 from memspine.memories.associative.entities import (
     ENTITY_LABEL,
     MENTIONS_REL,
@@ -45,6 +42,9 @@ from memspine.memories.associative.entities import (
 )
 from memspine.observability.logging import get_logger
 from memspine.services.graph.base import GraphStore
+from memspine.store.events import EventKind, MemoryEvent
+from memspine.store.projections.projector import Projector
+from memspine.store.records import MemoryRecord
 
 __all__ = ["GraphProjector"]
 
@@ -68,9 +68,12 @@ class GraphProjector(Projector):
         #: GR-3 (``graph.entity_embeddings``): embeds entity names into the graph
         #: store's entity index (native HNSW + FTS on LadybugDB).
         self._embed = embed
+        #: TI-1: edges the last WRITE added (mentions + derived_from); read by the inspect hook
+        self.last_edges = 0
 
     async def apply(self, event: MemoryEvent) -> None:
         if event.kind is EventKind.WRITE:
+            self.last_edges = 0
             record = MemoryRecord.model_validate(event.payload["record"])
             await self._store.upsert_node(
                 record.record_id,
@@ -111,6 +114,7 @@ class GraphProjector(Projector):
                         {"weight": 1.0, "reason": key},
                         namespace=record.namespace,
                     )
+                    self.last_edges += 1
         elif event.kind is EventKind.LINK:
             payload = event.payload
             properties: dict[str, object] = {
@@ -120,6 +124,18 @@ class GraphProjector(Projector):
             kind = payload.get("kind")
             if isinstance(kind, str) and kind:
                 properties["kind"] = kind
+            extra = payload.get("props")
+            if isinstance(extra, dict):  # F-02c: typed edge properties of a compiled edge
+                properties.update({str(k): v for k, v in extra.items() if k != "weight"})
+            for side in ("src_node", "dst_node"):  # F-02c: labelled nodes the compiler owns
+                node = payload.get(side)
+                if isinstance(node, dict):
+                    await self._store.upsert_node(
+                        str(payload["src" if side == "src_node" else "dst"]),
+                        labels=[str(x) for x in node.get("labels", ())],
+                        properties=dict(node.get("properties") or {}),
+                        namespace=event.namespace,
+                    )
             await self._store.upsert_edge(
                 str(payload["src"]),
                 str(payload["dst"]),
@@ -177,6 +193,7 @@ class GraphProjector(Projector):
                 {"weight": weight, "reason": "entity"},
                 namespace=record.namespace,
             )
+        self.last_edges += len(wanted)
         for node_id in stale:
             # The port has no single-edge delete: a weight-0 tombstone (ADR-015).
             await self._store.upsert_edge(

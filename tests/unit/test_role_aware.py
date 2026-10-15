@@ -8,7 +8,7 @@ import pytest
 
 from memspine import Engine
 from memspine.config.schema import ReadConfig
-from memspine.core.temporal_query import (
+from memspine.models.encoders.query.temporal_query import (
     RECOMMENDATION_TAG,
     asks_about_assistant,
     is_recommendation,

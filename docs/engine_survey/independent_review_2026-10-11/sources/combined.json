@@ -1,0 +1,567 @@
+{
+ "slug": "combined",
+ "name": "Combined (Graphiti + SimpleMem)",
+ "repo": "internal MOFSL memory server",
+ "commit": "embedded snapshot in guide v4",
+ "version": "not versioned (embedded source snapshot, 322 files)",
+ "licence": "internal; vendored graphiti_core Apache-2.0, SimpleMem model file with its own LICENSE",
+ "one_line": "Deployed FastAPI memory server that writes each turn to a Weaviate transcript, routes user turns to a Graphiti + Neo4j temporal graph and assistant turns to a SimpleMem + Weaviate fact store, and returns three separate context strings on read.",
+ "locomo": [
+  {
+   "score": "none",
+   "protocol": "No LoCoMo result exists for the combined engine. The harness (module/locomo_eval) would report local unstemmed token F1 (labelled non-official), the official LoCoMo score only when the upstream evaluation.py is supplied, a category-5 abstention rate and an optional strict 0/1 judge.",
+   "who": "-",
+   "source": "COMBINED_MEMORY_ENGINE_AND_LOCOMO.html sections 1 and 11; module/locomo_eval/metrics.py:45-91"
+  }
+ ],
+ "rows": {
+  "arch.product": {
+   "s": "",
+   "t": "One FastAPI service: session/message API, deprecated add-message, unified /memory/context (plus long-term-only and short-term-only routes), feedback, ops webhooks, a user-ingest migration runner and stats. It returns context strings only; the SimpleMem answer generator is disabled in production.",
+   "e": "read: src/main.py:357; src/api/router.py:27-46; src/api/memory/routes.py:29-370; src/services/short_term/manager.py:475-478"
+  },
+  "arch.truth": {
+   "s": "N",
+   "t": "No single source of truth. The SessionMessages transcript row is awaited first, then a best-effort fan-out to the Neo4j graph (queued) and Weaviate fact store; backend errors are swallowed and the live path has no cross-store reconciliation (only the migration reconcile job recounts stores).",
+   "e": "read: src/api/memory/session_service.py:235-264, 315-355; module/dev_mem/user_ingest/reconcile.py:1-8"
+  },
+  "arch.stores": {
+   "s": "",
+   "t": "Neo4j (Graphiti Episodic, Entity, RELATES_TO, Saga plus custom User and Thread nodes); Weaviate collections for SimpleMem entries, Sessions and SessionMessages (active and passive); PostgreSQL for developer accounts, projects and hashed API keys (and a staging ledger for migration); Valkey optional, used only by the migration queue and lock.",
+   "e": "read: src/services/long_term/manager.py:179-202; module/dev_mem/short_term/weaviate_vector_store.py:271-320; module/dev_mem/session_messages/store.py:39-60; src/api/admin/models/api_key.py; module/dev_mem/user_ingest/queue.py:1-10; src/config/valkey.py:33"
+  },
+  "arch.graphdb": {
+   "s": "Y",
+   "t": "Neo4j through a vendored graphiti_core (Neo4jDriver over a 300-connection pool, 300 s connection lifetime, liveness checks). FalkorDB, Kuzu and Neptune drivers are vendored but unused.",
+   "e": "read: src/services/long_term/manager.py:179-202; src/config/long_term.py:55-64; module/graphiti/graphiti_core/driver/"
+  },
+  "arch.scope": {
+   "s": "",
+   "t": "Project comes from the API key. Graph group_id is project_user, and graph retrieval is user-wide across sessions (the session only selects the session summary). Vector entries and the transcript are filtered by project, user and session. The assistant orphan check filters only by session and request_id.",
+   "e": "read: src/api/memory/session_service.py:60-66; module/dev_mem/long_term/zep_graphiti.py:1392-1397; module/dev_mem/short_term/weaviate_vector_store.py:510-518; module/dev_mem/session_messages/store.py:571-585"
+  },
+  "write.entry": {
+   "s": "",
+   "t": "POST /memory/sessions/{id}/messages (post_message: one role per call, client-owned request_id required). The deprecated POST /memory/add-message posts the user turn and then the assistant turn under one generated request_id. Migration enters through user_ingest and historical_ingest.",
+   "e": "read: src/api/memory/session_service.py:169-277; src/api/memory/service.py:103-121; src/api/memory/session_routes.py:96; module/dev_mem/historical_ingest.py:1-30"
+  },
+  "write.receipt": {
+   "s": "P",
+   "t": "The transcript row is awaited. The graph job is only enqueued on an in-process per-thread queue. Vector extraction runs inline on assistant turns, but failures return False and are logged only. stored_in is appended without checking return values, so it also lists 'graphiti' for assistant turns the graph silently skipped.",
+   "e": "read: src/api/memory/session_service.py:328-353; src/services/long_term/manager.py:611-614, 681-684; src/services/short_term/manager.py:322-330; module/dev_mem/short_term/weaviate_vector_store.py:471-475"
+  },
+  "write.roles": {
+   "s": "P",
+   "t": "User turns become graph episodes. Assistant turns go to the fact store only; graph ingestion of assistant turns needs INGEST_ASSISTANT_EPISODES, which is off by default. System turns are skipped. The vector manager drops the supplied speaker label (speaker is always empty), so restatements carry no attribution. Writing user turns to vectors (SIMPLEMEM_WRITE_BOTH_ROLES) applies only to a helper that post_message does not call.",
+   "e": "read: src/api/memory/session_service.py:343-353; src/services/long_term/manager.py:611-614; src/config/settings.py:258-259; src/services/short_term/manager.py:312-315, 366-374"
+  },
+  "write.firewall": {
+   "s": "N",
+   "t": "None. Content is stored as received. The only write checks are role/field validation and a 400 for an assistant turn with no prior user turn under the same request_id. 'Memories are data, not instructions' appears only in the evaluation answer prompt.",
+   "e": "read: src/api/memory/session_service.py:173-227; module/locomo_eval/runner.py:11-17"
+  },
+  "write.governance": {
+   "s": "N",
+   "t": "No redaction, consent or retention policy in the memory path. Transcript archival is tiering and is off by default. Session delete is a soft delete.",
+   "e": "read: src/config/settings.py:264-271; module/dev_mem/sessions/store.py:311-328"
+  },
+  "segment.unit": {
+   "s": "P",
+   "t": "Graph: one episode per message. Vectors: each live call builds a fresh MemoryBuilder, so the extraction unit is one assistant message. The 10-dialogue window (with up to 8 parallel workers) applies only to batch, migration and corpus ingestion.",
+   "e": "read: module/dev_mem/long_term/zep_graphiti.py:474-583; src/services/short_term/manager.py:189-206, 310-318; module/dev_mem/short_term/memory_builder.py:205-230"
+  },
+  "segment.rule": {
+   "s": "",
+   "t": "No topic or boundary detection. Batches split into fixed windows of 10 dialogues; live writes are per message.",
+   "e": "read: module/dev_mem/short_term/memory_builder.py:215-223; src/config/short_term.py:49-51"
+  },
+  "segment.measured": {
+   "s": "",
+   "t": "Not run. The harness records graph_episodes and vector_entries counts per sample, but no run output exists.",
+   "e": "read: module/locomo_eval/backend.py:99-141; doc: guide section 1"
+  },
+  "extract.calls": {
+   "s": "",
+   "t": "Per user turn (graph): 1 node extraction, 0-1 node dedupe (holdouts only), 1 edge extraction, 1 resolve call for each new edge without an exact match, 0 or more entity-summary batches, 1 session-summary update and, once at least 10 user episodes exist, 1 profile update. That is about 4-8 calls (inferred). Per assistant turn: 1 SimpleMem extraction call (up to 3 attempts).",
+   "e": "read: module/graphiti/graphiti_core/graphiti.py:930-975; module/graphiti/graphiti_core/utils/maintenance/edge_operations.py:495-562; module/graphiti/graphiti_core/utils/maintenance/node_operations.py:583; module/dev_mem/long_term/zep_graphiti.py:515-561; module/dev_mem/short_term/memory_builder.py:322-333; inferred count"
+  },
+  "extract.facts": {
+   "s": "Y",
+   "t": "SimpleMem JSON entries (lossless_restatement, keywords, timestamp, location, persons, entities, topic), written in the third person at temperature 0.1, from assistant turns only. Graphiti RELATES_TO fact strings come from user turns. Vector entries are not deduplicated at write time.",
+   "e": "read: module/dev_mem/short_term/memory_builder.py:330-331, 376-454; module/simplemem/models/memory_entry.py:13-53"
+  },
+  "extract.episode": {
+   "s": "N",
+   "t": "No narrative. A graph episode is the raw turn with a 'role(role_type): ' prefix, stored verbatim (store_raw_episode_content true).",
+   "e": "read: module/dev_mem/long_term/zep_graphiti.py:488; src/config/long_term.py:97"
+  },
+  "extract.dates": {
+   "s": "P",
+   "t": "Graphiti edge extraction returns valid_at and invalid_at relative to the episode reference_time. SimpleMem resolves relative dates against the '[timestamp]' prefix on each dialogue line; a missing entry timestamp falls back to local now() with a 'Z' appended. The session summary records only HH:MM:SS.",
+   "e": "read: module/graphiti/graphiti_core/utils/maintenance/edge_operations.py:134, 181-227; module/simplemem/models/memory_entry.py:79-82; module/dev_mem/short_term/weaviate_vector_store.py:383-389; module/dev_mem/long_term/session_summarizer.py:177, 188"
+  },
+  "extract.neighbours": {
+   "s": "P",
+   "t": "The Graphiti extractor sees the last 10 episodes in the user group (RELEVANT_SCHEMA_LIMIT 10, not limited to the saga) and resolves against candidate nodes and edges. SimpleMem's 'previous window entries' context is always empty on live calls, because a fresh builder is created per call; in parallel batches every window also starts empty.",
+   "e": "read: module/graphiti/graphiti_core/graphiti.py:895-901; module/graphiti/graphiti_core/search/search_utils.py:63; src/services/short_term/manager.py:189-192; module/dev_mem/short_term/memory_builder.py:304-308, 572-576"
+  },
+  "extract.failure": {
+   "s": "P",
+   "t": "SimpleMem makes 3 parse attempts and then returns [] (live) or raises ExtractionError (migration); a failed live batch falls back to sequential writes and returns False, which the caller ignores. Graphiti background failures are logged only (live) or raised (migration). Qwen schema echoes are repaired once; an EdgeDuplicate schema echo becomes 'no duplicates, no contradictions'. A failed summary keeps the old summary.",
+   "e": "read: module/dev_mem/short_term/memory_builder.py:322-368; src/services/short_term/manager.py:322-330; src/services/long_term/manager.py:660-670; src/clients/llm/bedrock_long_term.py:519-544; module/dev_mem/long_term/session_summarizer.py:95-103"
+  },
+  "graph.entities": {
+   "s": "Y",
+   "t": "Qwen3-235B-A22B on Bedrock, configured at temperature 0.7, one node-extraction call per user episode. A custom instruction makes any user intent towards an entity (asking about, analysing, showing interest in) an edge to extract.",
+   "e": "read: src/constants/models.py:12; src/services/long_term/manager.py:119-123; module/dev_mem/long_term/zep_graphiti.py:506-512; module/graphiti/graphiti_core/utils/maintenance/node_operations.py:63-103"
+  },
+  "graph.resolution": {
+   "s": "Y",
+   "t": "Deterministic first: exact normalised name, then MinHash (32 permutations, bands of 4) with Jaccard >= 0.9, guarded by an entropy gate (>= 1.5; names of 6+ characters or 2+ tokens). Only unresolved names go to the LLM dedupe prompt.",
+   "e": "read: module/graphiti/graphiti_core/utils/maintenance/dedup_helpers.py:31-36, 198-240; module/graphiti/graphiti_core/utils/maintenance/node_operations.py:397-447"
+  },
+  "graph.edges": {
+   "s": "Y",
+   "t": "RELATES_TO fact edges with a fact embedding, a supporting-episode list and bi-temporal fields; an exact fact match on the same endpoints appends the episode without an LLM call. Each thread is also a Saga (HAS_EPISODE and previous-episode chain), and a custom Thread-CONTAINS->Episodic link is written.",
+   "e": "read: module/graphiti/graphiti_core/utils/maintenance/edge_operations.py:515-526; module/graphiti/graphiti_core/graphiti.py:543-590; module/dev_mem/long_term/zep_graphiti.py:782-794"
+  },
+  "graph.communities": {
+   "s": "O",
+   "t": "Off by default (GRAPHITI_ENABLE_COMMUNITY_DETECTION false). When on, label propagation runs in the background once a user has 5+ entities, with a 24 h cooldown and a 10-minute timeout. Community search is on by default but finds nothing unless communities were built, and its results are never formatted into the context.",
+   "e": "read: src/config/long_term.py:77, 101-104; src/services/long_term/manager.py:764-872; module/dev_mem/long_term/zep_graphiti.py:1409, 1469-1527"
+  },
+  "time.fields": {
+   "s": "Y",
+   "t": "Graph edges carry valid_at, invalid_at, created_at and expired_at; episodes carry valid_at = reference_time (historical on migration). Vector entries have a single TEXT timestamp; transcript rows have created_at.",
+   "e": "read: module/graphiti/graphiti_core/utils/maintenance/edge_operations.py:226-227; module/graphiti/graphiti_core/graphiti.py:917-918; module/dev_mem/short_term/weaviate_vector_store.py:311; module/dev_mem/session_messages/store.py:176"
+  },
+  "time.update": {
+   "s": "Y",
+   "t": "Graph only. The resolve_edge LLM call returns duplicate_facts and contradicted_facts; code sets invalid_at from the newer edge's valid_at and stamps expired_at. Vector entries are never updated or invalidated.",
+   "e": "read: module/graphiti/graphiti_core/utils/maintenance/edge_operations.py:427-460, 557-653"
+  },
+  "time.dedup": {
+   "s": "P",
+   "t": "Graph: exact-fact fast path plus LLM duplicate detection for edges, deterministic-plus-LLM resolution for nodes. Vectors: random entry_id, no write-time dedupe; reads union by entry_id. Transcript: idempotent on a client message_id (uuid5), but an idempotent hit still re-runs the graph and vector fan-out.",
+   "e": "read: module/graphiti/graphiti_core/utils/maintenance/edge_operations.py:257-265; module/simplemem/models/memory_entry.py:19; module/dev_mem/short_term/hybrid_retriever.py:717-730; module/dev_mem/session_messages/store.py:185-192; src/api/memory/session_service.py:235-264"
+  },
+  "derive.session": {
+   "s": "Y",
+   "t": "Updated on every user turn, after the Graphiti episode finishes (sequential, despite the 'parallel' comment). Qwen3-32B does an incremental update (configured 250-word cap, topic clusters, conversation flow, numbered questions), with a full rebuild every 20 questions from up to 200 saga episodes. Stored on the Thread node and shown as [THIS SESSION SO FAR].",
+   "e": "read: module/dev_mem/long_term/zep_graphiti.py:515-535, 796-929, 1517-1520; src/config/long_term.py:110-111; module/dev_mem/long_term/session_summarizer.py:168-247"
+  },
+  "derive.profile": {
+   "s": "Y",
+   "t": "UserNode.user_summary: nothing before 10 user episodes; a full build at 10; a full rebuild every 10 episodes after that from the last 150 user episodes; incremental updates in between. Capped at 250 words, serialised by a per-user lock and shown as [USER PROFILE].",
+   "e": "read: module/dev_mem/long_term/zep_graphiti.py:537-561, 1104-1178, 1474-1477; src/config/long_term.py:112-115"
+  },
+  "derive.entity": {
+   "s": "Y",
+   "t": "Graphiti entity summaries are refreshed per episode from new edges only. The LLM is skipped when the old summary plus the new facts fits in 2,000 characters; otherwise nodes go in batches of up to 30. Node search is off by default, so entity summaries do not reach the context.",
+   "e": "read: module/graphiti/graphiti_core/utils/maintenance/node_operations.py:58, 552-611; module/graphiti/graphiti_core/graphiti.py:966-975; src/config/long_term.py:75"
+  },
+  "derive.background": {
+   "s": "P",
+   "t": "Graph writes and both summaries run on a per-thread serial asyncio queue (workers exit after 120 s idle; queue drained for up to 60 s at shutdown). Community builds and transcript archival are optional loops. No sleep-time consolidation.",
+   "e": "read: module/dev_mem/long_term/thread_queue.py:30, 139-203; src/main.py:172; src/services/archival_scheduler.py:41-47"
+  },
+  "derive.forget": {
+   "s": "N",
+   "t": "No decay or forgetting. Opt-in archival (off by default) moves transcript rows older than 30 days to a passive collection and revives them on read; that is tiering, not forgetting. The graph only invalidates contradicted edges.",
+   "e": "read: src/config/settings.py:268-271; module/dev_mem/session_messages/archival.py:30-98; module/dev_mem/session_messages/store.py:621"
+  },
+  "index.embed": {
+   "s": "",
+   "t": "Cohere embed-english-v3, 1,024-d on Bedrock, for both graph and vectors. Every call uses input_type search_document because is_query is ignored, so queries are embedded in document mode (defect). create_batch loops single-text calls.",
+   "e": "read: src/constants/models.py:19-20; src/clients/embedding/bedrock_long_term.py:139, 181-196, 222-232; src/clients/embedding/bedrock_short_term.py:74-102"
+  },
+  "index.lexical": {
+   "s": "",
+   "t": "Neo4j full-text BM25 over edges and episodes (nodes and communities when enabled). Weaviate BM25 (k1 1.2, b 0.75) only over lossless_restatement; the stored keywords array is never searched; BM25 score floor 1.0.",
+   "e": "read: module/dev_mem/short_term/weaviate_vector_store.py:227-233, 621-646; src/config/long_term.py:86-93; src/config/short_term.py:65"
+  },
+  "index.vector": {
+   "s": "",
+   "t": "Neo4j vector similarity over edge fact embeddings (and node and community embeddings). Weaviate collection with cosine distance and client-supplied vectors.",
+   "e": "read: module/dev_mem/short_term/weaviate_vector_store.py:319, 521-526; module/graphiti/graphiti_core/search/search.py:106"
+  },
+  "read.rewrite": {
+   "s": "Y",
+   "t": "History-aware reformulation, once per /context call. It reads the last 5 answered pairs from SessionMessages, drops the pending question and cuts answers to 200 characters; Qwen3-32B at temperature 0.1, 150 max tokens, 2 s timeout, falling back to the original query. Skipped when there is no answered history.",
+   "e": "read: module/dev_mem/query_context/manager.py:58-72, 107-141; module/dev_mem/query_context/reformulator.py:39-59, 111-153; src/config/query_context.py:29-40; src/api/memory/service.py:339-345"
+  },
+  "read.analysis": {
+   "s": "P",
+   "t": "Vector side only. One planner call (Qwen3-32B, temperature 0.2) extracts keywords, persons, location, entities and a time range, and writes 2-3 third-person queries, of which code keeps 2. Reflection fields are left out of the prompt when reflection is off. The graph side has no query analysis.",
+   "e": "read: module/dev_mem/short_term/hybrid_retriever.py:1019-1179"
+  },
+  "read.legs": {
+   "s": "",
+   "t": "Graph (user-wide; the same search runs twice in parallel): edges by BM25 + cosine (>= 0.6) + BFS, episodes by BM25, communities by BM25 + cosine; nodes off. Vectors (session-scoped): cosine top 5 per planned query (>= 0.5) plus BM25 top 5 on planner keywords (>= 1.0); structured search off. Transcript: last-N exchanges.",
+   "e": "read: src/config/long_term.py:66-93; module/dev_mem/long_term/zep_graphiti.py:1291-1400; src/services/long_term/manager.py:357-365; src/config/short_term.py:54-68; module/dev_mem/short_term/hybrid_retriever.py:295-323"
+  },
+  "read.temporal": {
+   "s": "P",
+   "t": "The planner resolves time expressions against the wall clock (wrong for historical data), and only structured search, which is off, uses the resulting range. The graph has no time-filtered read.",
+   "e": "read: module/dev_mem/short_term/hybrid_retriever.py:1038, 1077-1085; src/config/short_term.py:68; module/dev_mem/short_term/weaviate_vector_store.py:728-732"
+  },
+  "read.traversal": {
+   "s": "Y",
+   "t": "Graphiti BFS to a maximum depth of 3 inside edge search (enabled by GRAPHITI_ENABLE_GRAPH_TRAVERSAL, on by default).",
+   "e": "read: src/config/long_term.py:70-71; module/dev_mem/long_term/zep_graphiti.py:1317, 1334"
+  },
+  "rank.fusion": {
+   "s": "P",
+   "t": "RRF within each graph layer. Vector candidates are unioned by entry_id in arrival order with no score fusion. No fusion across stores: three strings are returned separately.",
+   "e": "read: src/config/long_term.py:87-93; module/dev_mem/short_term/hybrid_retriever.py:717-730; src/api/memory/service.py:383-390"
+  },
+  "rank.rerank": {
+   "s": "N",
+   "t": "A Cohere rerank-v3.5 client is built and passed to Graphiti, but every layer is configured for RRF. The configured MMR lambda is unused unless an MMR reranker is selected.",
+   "e": "read: src/services/long_term/manager.py:159-168; src/constants/models.py:21; src/config/long_term.py:69, 87"
+  },
+  "rank.gate": {
+   "s": "P",
+   "t": "Score floors only: graph cosine 0.6, vector cosine 0.5 and BM25 1.0. No abstain signal (an empty string looks the same as a swallowed failure); search_memory uses a placeholder relevance of 0.8. The harness answers with the abstention phrase without a model call when all blocks are empty.",
+   "e": "read: src/config/long_term.py:68; module/dev_mem/short_term/weaviate_vector_store.py:540-555, 643; module/dev_mem/long_term/zep_graphiti.py:1699; module/locomo_eval/backend.py:163-164"
+  },
+  "rank.agentic": {
+   "s": "O",
+   "t": "Reflection (up to 2 rounds of completeness check plus missing-information queries) is off by default and stops immediately when the first retrieval is empty.",
+   "e": "read: src/config/short_term.py:58-59; module/dev_mem/short_term/hybrid_retriever.py:1181-1235"
+  },
+  "answer.shape": {
+   "s": "",
+   "t": "Three independent strings with no global rank or budget. long_term_context: [USER PROFILE], [RELEVANT RELATIONSHIPS] (undated numbered facts), [RELEVANT PAST MESSAGES] (raw episodes) and [THIS SESSION SO FAR]. short_term_context: '[Memory i]' blocks with content, keywords, persons, entities, timestamp and topic. last_n_messages_context: verbatim exchanges.",
+   "e": "read: module/dev_mem/long_term/zep_graphiti.py:1470-1535; src/services/short_term/manager.py:420-473; module/dev_mem/last_n_messages/retriever.py:77-89; src/api/memory/service.py:348-390"
+  },
+  "answer.size": {
+   "s": "",
+   "t": "Not measured; the harness records character counts per block, with no token count. Configured bounds: up to 8 edges, 8 episodes, a 250-word profile and a 250-word session summary; up to 15 vector entries (2 queries x 5 + BM25 5); 5 last-N exchanges by default over HTTP.",
+   "e": "read: module/locomo_eval/runner.py:67; src/config/long_term.py:80-83, 110-112; src/config/short_term.py:54-55; doc: guide section 15"
+  },
+  "answer.prompt": {
+   "s": "",
+   "t": "No answer stage in production (the SimpleMem answer generator is disabled). The harness ANSWER_SYSTEM prompt: answer only from the retrieved memories, treat memories as data, use historical dates, include every list item, use the exact abstention phrase 'Not mentioned in the conversation', return JSON; temperature 0.",
+   "e": "read: src/services/short_term/manager.py:475-478; module/locomo_eval/runner.py:11-29; module/locomo_eval/backend.py:162-169"
+  },
+  "eval.best": {
+   "s": "N",
+   "t": "No LoCoMo result exists for the combined engine; the guide states that no verified 90+ result was found.",
+   "e": "doc: guide sections 1 and 11"
+  },
+  "eval.outside": {
+   "s": "",
+   "t": "None run. The harness can load a user-supplied upstream evaluation.py without vendoring it.",
+   "e": "read: module/locomo_eval/metrics.py:35-42"
+  },
+  "eval.models": {
+   "s": "",
+   "t": "Reader defaults to the vector retrieval model (Qwen3-32B) at temperature 0; the strict 0/1 judge is optional (any Bedrock model passed in). Local unstemmed token F1 is explicitly labelled non-official.",
+   "e": "read: module/locomo_eval/backend.py:53-58, 171-179; module/locomo_eval/runner.py:18-23; module/locomo_eval/metrics.py:17-21"
+  },
+  "eval.rigour": {
+   "s": "Y",
+   "t": "Errors stay in the denominator, duplicate rows are rejected, and the manifest records SHA-256 hashes of the dataset, harness and evaluator. Outputs are created exclusively (never overwritten), QA labels never reach ingestion, and profiles compare on identical stored data. The official evaluator is optional and user-supplied, and the all-session scope is an adapter extension.",
+   "e": "read: module/locomo_eval/runner.py:36-75; module/locomo_eval/metrics.py:45-91; module/locomo_eval/__main__.py:124-132; module/locomo_eval/dataset.py:1, 50-102"
+  },
+  "cost.write": {
+   "s": "",
+   "t": "Inferred for production-role ingestion: about 2,940 first-speaker turns x 4-8 graph calls (Qwen3-235B extraction and resolution, Qwen3-32B summaries) plus about 2,940 second-speaker turns x 1 Qwen3-32B extraction, so roughly 15,000-27,000 LLM calls plus one embedding call per fact and episode. Corpus mode sends both speakers to the graph, roughly doubling graph calls, while batching vectors per session.",
+   "e": "inferred from module/locomo_eval/backend.py:105-138 and the per-turn call counts in extract.calls"
+  },
+  "cost.read": {
+   "s": "",
+   "t": "Per /context call: 0-1 reformulation (skipped without answered history) + 1 planner call; embeddings for 2 duplicate graph searches and 2 vector queries; 1-4 extra calls if reflection is on. The harness all-session scope repeats the whole call once per session in the sample.",
+   "e": "read: src/api/memory/service.py:339-390; src/services/long_term/manager.py:357-365; module/dev_mem/short_term/hybrid_retriever.py:278-305; module/locomo_eval/backend.py:143-160"
+  },
+  "cost.where": {
+   "s": "",
+   "t": "Hosted models on AWS Bedrock (Qwen3-235B-A22B, Qwen3-32B, Cohere embed and rerank) plus self-run Neo4j, Weaviate and PostgreSQL. No local models.",
+   "e": "read: src/constants/models.py:8-21"
+  },
+  "trust.provenance": {
+   "s": "P",
+   "t": "Episodic nodes are stamped after write with project, user, session, request and message ids (indexed); graph edges keep their supporting-episode list; vector entries carry request_id. Summaries, profile and SimpleMem facts have no parent links, and no record has a trust level.",
+   "e": "read: module/dev_mem/long_term/zep_graphiti.py:587-620; src/services/long_term/manager.py:254-276; module/graphiti/graphiti_core/utils/maintenance/edge_operations.py:524-525; module/dev_mem/short_term/weaviate_vector_store.py:395"
+  },
+  "trust.erasure": {
+   "s": "N",
+   "t": "The deployed API has no erasure. Session delete only stamps deleted_at (transcript, graph and vectors stay). Graphiti delete_user and delete_thread exist only in the standalone long-term app, which the server does not mount; the project-user episode index is only groundwork for a future purge.",
+   "e": "read: src/api/memory/session_routes.py:86; module/dev_mem/sessions/store.py:311-328; module/dev_mem/long_term/main.py:29-32; src/api/router.py:27-46; src/services/long_term/manager.py:262-270"
+  },
+  "trust.auth": {
+   "s": "Y",
+   "t": "An x-api-key resolves the project. Keys are bcrypt-hashed and looked up by a 12-character prefix, with bcrypt checks run in parallel in a thread pool and a 1-hour in-process cache keyed by a SHA-256 fingerprint. Ops webhooks use a separate ops token. Session ownership is not asserted on write.",
+   "e": "read: src/api/memory/dependencies.py:22-36, 87-127; src/api/weaviate_webhooks.py:26-30; doc: guide 'Verified gaps' table"
+  },
+  "trust.sharing": {
+   "s": "N",
+   "t": "None. Isolation only, by the project_user composite id.",
+   "e": "read: src/api/memory/session_service.py:60-66"
+  }
+ },
+ "layers": {
+  "raw": "Y",
+  "segment": "P",
+  "episode": "N",
+  "facts": "Y",
+  "graph": "Y",
+  "bitemporal": "Y",
+  "session_summary": "Y",
+  "entity_summary": "Y",
+  "profile": "Y",
+  "prospective": "N",
+  "procedural": "N",
+  "reflection": "O",
+  "shared": "N",
+  "firewall": "N",
+  "provenance": "P"
+ },
+ "keep": [
+  "Graphiti bi-temporal edges with deterministic-first (MinHash + entropy gate) entity resolution and an exact-fact fast path",
+  "Session and user summaries maintained incrementally with periodic full rebuilds to stop drift",
+  "Per-thread serial write queue with waitable soft/hard deadlines and an explicit 'outcome uncertain' state",
+  "Idempotent transcript ids (uuid5 over project, session, request and message id) and pending-tail-aware history pairing",
+  "Evaluator that keeps errors in the denominator, hashes every input and never lets labels reach ingestion"
+ ],
+ "avoid": [
+  "Undated graph context, a placeholder 0.8 relevance score and the same graph search run twice per read",
+  "No fusion or budget across stores: three blocks concatenated by the caller",
+  "Queries embedded in document mode; planner resolves dates against the wall clock; graph extraction at temperature 0.7",
+  "stored_in labels overstate durability; speaker labels dropped before vector extraction; empty string on backend failure"
+ ],
+ "extras": [
+  {
+   "phase": "read",
+   "param": "History-aware reformulation",
+   "t": "Dependent follow-ups are rewritten once per /context call from up to 5 answered pairs (answers cut at 200 characters), with a 2 s timeout and fallback to the original query.",
+   "e": "read: module/dev_mem/query_context/reformulator.py:39-153; module/dev_mem/query_context/manager.py:107-141"
+  },
+  {
+   "phase": "answer",
+   "param": "Last-N verbatim replay",
+   "t": "Recent answered exchanges are returned as their own block with the in-flight question dropped. On by default over HTTP (n = 5, max 50), off by default in the service method and in the harness.",
+   "e": "read: src/api/memory/routes.py:137-144; src/api/memory/service.py:307-308; module/dev_mem/last_n_messages/retriever.py:28-89"
+  },
+  {
+   "phase": "arch",
+   "param": "Active / passive transcript archive",
+   "t": "Opt-in daily job (off by default) moves sessions with rows older than 30 days, as whole units, to a passive collection; reads fall back to passive only when active is empty and revive the session.",
+   "e": "read: module/dev_mem/session_messages/archival.py:30-98; module/dev_mem/session_messages/store.py:313-352, 379-410, 621; src/config/settings.py:268-271"
+  },
+  {
+   "phase": "write",
+   "param": "Per-thread serial storage queue",
+   "t": "One asyncio queue and worker per thread keeps graph writes in arrival order; workers exit after 120 s idle; enqueue_and_wait gives migrations a soft and a hard limit and raises QueueWaitUncertain rather than cancelling; queues are drained on shutdown.",
+   "e": "read: module/dev_mem/long_term/thread_queue.py:44-203; src/main.py:172"
+  },
+  {
+   "phase": "write",
+   "param": "Idempotent transcript and session ids",
+   "t": "Message rows use uuid5(project:session:request:message_id), so re-posts collapse; without a message_id an ordered per-role sequence keeps ask-back turns distinct. Sessions are get-or-create by uuid5, resurrect on write and are cached as verified for 30 minutes per pod.",
+   "e": "read: module/dev_mem/session_messages/store.py:150-225; module/dev_mem/sessions/store.py:64-66, 99-126; module/dev_mem/sessions/session_cache.py:24-56"
+  },
+  {
+   "phase": "write",
+   "param": "Orphan check, nudges and follow-up tracking",
+   "t": "An assistant turn with no user turn under its request_id is rejected unless flagged is_nudge. Follow-up suggestions are stored on the answer row and a later click is recorded on that answer. Like/dislike/feedback is patched onto message rows.",
+   "e": "read: src/api/memory/session_service.py:173-227, 279-303; src/api/memory/session_routes.py:144-152"
+  },
+  {
+   "phase": "graph",
+   "param": "Episodic id stamping and thread links",
+   "t": "After each episode a Cypher SET stamps project, user, session, request and message ids (3 attempts on migration, StampError if still failing). Custom range indexes on message_id and (project_id, user_id) are created, and a Thread-CONTAINS edge links each episode.",
+   "e": "read: module/dev_mem/long_term/zep_graphiti.py:587-626, 782-794; src/services/long_term/manager.py:254-276"
+  },
+  {
+   "phase": "graph",
+   "param": "Saga chaining per thread",
+   "t": "Each thread is a Graphiti Saga; the previous episode uuid is passed forward so the saga chain is built without a lookup query, and full session-summary rebuilds read episodes through HAS_EPISODE.",
+   "e": "read: module/dev_mem/long_term/zep_graphiti.py:462-505, 622-623, 871-884; module/graphiti/graphiti_core/graphiti.py:543-590"
+  },
+  {
+   "phase": "extract",
+   "param": "Intent-as-edge instruction",
+   "t": "Custom extraction instruction makes a user's action or interest towards an entity a fact edge even with no previous messages, so query history itself becomes graph knowledge.",
+   "e": "read: module/dev_mem/long_term/zep_graphiti.py:506-512"
+  },
+  {
+   "phase": "extract",
+   "param": "Qwen output repair",
+   "t": "The Bedrock client strips <think> blocks and code fences, unwraps data nested under 'properties', and on a pure schema echo sends one nudge before failing.",
+   "e": "read: src/clients/llm/bedrock_long_term.py:502-544"
+  },
+  {
+   "phase": "derive",
+   "param": "Model tiering by task",
+   "t": "Graph extraction uses Qwen3-235B-A22B while summaries, SimpleMem extraction, planning and reformulation use Qwen3-32B, from one constants file.",
+   "e": "read: src/constants/models.py:11-16; src/services/long_term/manager.py:134-141"
+  },
+  {
+   "phase": "derive",
+   "param": "Per-user profile lock",
+   "t": "Incremental and full profile updates share one asyncio lock per user, so rapid messages never overwrite a newer profile with an older read; summary tasks are awaited inside the queue worker.",
+   "e": "read: module/dev_mem/long_term/zep_graphiti.py:98-101, 641-652, 1115-1117, 1149-1151"
+  },
+  {
+   "phase": "derive",
+   "param": "Entity summaries without LLM when short",
+   "t": "Graphiti appends new edge facts to an entity summary directly when the result fits in 2,000 characters; only longer ones are summarised, in flights of 30 nodes.",
+   "e": "read: module/graphiti/graphiti_core/utils/maintenance/node_operations.py:58, 560-611"
+  },
+  {
+   "phase": "read",
+   "param": "Duplicate parallel graph searches",
+   "t": "retrieve_context runs search_memory and get_thread_context concurrently, two near-identical Graphiti searches, but only get_thread_context's formatted text reaches the API response.",
+   "e": "read: src/services/long_term/manager.py:357-428; src/api/memory/service.py:457-465"
+  },
+  {
+   "phase": "index",
+   "param": "Dedicated embedder event loop",
+   "t": "The short-term embedder runs one persistent background event loop thread hosting the aioboto3 client, so the synchronous retriever can embed without per-call loops or orphaned sessions.",
+   "e": "read: src/clients/embedding/bedrock_short_term.py:52-102"
+  },
+  {
+   "phase": "write",
+   "param": "user_ingest migration engine",
+   "t": "Moves one project's historical chat user by user into all three stores: Valkey queue and compare-and-set lock, fenced PostgreSQL ledger, 20-25 rolling slots, per-dependency outage breaker with auto-resume, 2 retries (5 s / 15 s with 20% jitter), JSONL failure backup, skip rules, reconcile and a zero-loss gate.",
+   "e": "read: module/dev_mem/user_ingest/__init__.py:1-30; module/dev_mem/user_ingest/runner.py:1-12; module/dev_mem/user_ingest/breaker.py:1-25; module/dev_mem/user_ingest/retry.py:1-30; module/dev_mem/user_ingest/reconcile.py:1-8"
+  },
+  {
+   "phase": "write",
+   "param": "Historical collection ingest",
+   "t": "Replays a migrated legacy collection into transcript (passive), graph and vectors with original timestamps; a local ledger line per fully processed row gives idempotency where graph and vectors lack id-based dedupe, and the graph queue is drained after every session.",
+   "e": "read: module/dev_mem/historical_ingest.py:1-30; src/api/weaviate_webhooks.py:352-380"
+  },
+  {
+   "phase": "trust",
+   "param": "Fast API-key verification",
+   "t": "Prefix-filtered key lookup, parallel bcrypt verification in an 8-thread pool and a 1-hour fingerprint cache that can be invalidated per key.",
+   "e": "read: src/api/memory/dependencies.py:22-56, 87-127"
+  },
+  {
+   "phase": "arch",
+   "param": "Memory stats and ops webhooks",
+   "t": "Per-project counts and 24 h / 7 d / 30 d growth across Weaviate stores; ops endpoints to create, transfer and health-check collections behind a separate ops token.",
+   "e": "read: src/api/memory_stats.py:98-104; src/api/weaviate_webhooks.py:1-30"
+  },
+  {
+   "phase": "eval",
+   "param": "locomo_eval module",
+   "t": "CLI with download, inspect, run, score and bundle. Run options: production versus corpus ingestion (both speakers as source facts), all versus latest session scope, current versus 'enhanced' retrieval profile on identical stored data, optional last-N and judge. The bundle is a hashed overlay ZIP for another system.",
+   "e": "read: module/locomo_eval/__main__.py:35-109; module/locomo_eval/backend.py:60-160"
+  }
+ ],
+ "specialities": [
+  {
+   "name": "Deterministic-first entity resolution",
+   "t": "New entity names are matched by exact normalised name, then MinHash/LSH shingles with Jaccard >= 0.9, behind an entropy gate that stops short or low-information names from fuzzy-merging. Only the unresolved remainder is sent to the LLM dedupe prompt, which keeps write calls and false merges down.",
+   "e": "read: module/graphiti/graphiti_core/utils/maintenance/dedup_helpers.py:31-36, 79-140, 198-240; module/graphiti/graphiti_core/utils/maintenance/node_operations.py:397-447",
+   "phase": "graph"
+  },
+  {
+   "name": "Bi-temporal edge invalidation with an exact-fact fast path",
+   "t": "A repeated fact on the same endpoints just gains the new episode with no model call. Otherwise one LLM call classifies duplicates and contradictions, and code (not the model) sets invalid_at and expired_at by comparing valid_at times, so history is kept rather than overwritten.",
+   "e": "read: module/graphiti/graphiti_core/utils/maintenance/edge_operations.py:427-460, 515-526, 557-653",
+   "phase": "time"
+  },
+  {
+   "name": "Drift-controlled rolling summaries",
+   "t": "Session summary and user profile are each updated incrementally per user turn, and rebuilt from raw episodes on a fixed cadence (session every 20 questions, profile every 10 episodes from the last 150), each with a hard word cap. Profile writes are serialised by a per-user lock.",
+   "e": "read: module/dev_mem/long_term/zep_graphiti.py:537-561, 796-929, 1104-1178; src/config/long_term.py:110-115",
+   "phase": "derive"
+  },
+  {
+   "name": "Per-thread serial queue with uncertain-outcome semantics",
+   "t": "Writes for a thread run strictly in order on one worker. Live callers return on enqueue, while migrations await the same job up to a soft and then a hard limit and get QueueWaitUncertain (never a cancellation), so a later precheck can decide whether to retry.",
+   "e": "read: module/dev_mem/long_term/thread_queue.py:60-137; src/services/long_term/manager.py:672-684",
+   "phase": "write"
+  },
+  {
+   "name": "Zero-loss migration runner",
+   "t": "Historical import treats a fenced PostgreSQL ledger as the record and a Valkey queue only as the scheduler. A per-dependency outage breaker pauses and auto-resumes, and a reconcile pass recounts every store against expected ids to find gaps and duplicates before a zero-loss gate passes.",
+   "e": "read: module/dev_mem/user_ingest/__init__.py:1-30; module/dev_mem/user_ingest/staging.py:1-12; module/dev_mem/user_ingest/queue.py:1-30; module/dev_mem/user_ingest/breaker.py:1-25; module/dev_mem/user_ingest/reconcile.py:1-25",
+   "phase": "write"
+  },
+  {
+   "name": "Pending-tail-aware exchange pairing",
+   "t": "Transcript rows are paired by request_id, and the trailing unanswered pair (the question being asked now) is dropped before history feeds reformulation or last-N replay. A turn therefore never sees its own question, and ask-back turns that reuse a request_id are kept.",
+   "e": "read: module/dev_mem/session_messages/pairing.py; module/dev_mem/query_context/manager.py:110-141; module/dev_mem/last_n_messages/retriever.py:28-51",
+   "phase": "read"
+  },
+  {
+   "name": "Leak-proof, denominator-honest evaluator",
+   "t": "The dataset parser hands ingestion only turns (no QA, evidence or categories). Errors stay in the denominator, duplicate rows abort scoring, local F1 is kept apart from the official metric and the judge, and every run records dataset, harness and evaluator hashes.",
+   "e": "read: module/locomo_eval/dataset.py:1-102; module/locomo_eval/runner.py:26-75; module/locomo_eval/metrics.py:12-91; module/locomo_eval/__main__.py:124-132",
+   "phase": "eval"
+  }
+ ],
+ "token_economy": {
+  "t": "No context budget or cross-store dedupe: three independently formatted blocks are concatenated by the caller, and the harness all-session mode repeats whole blocks per session (identical blocks only are dropped). Compression is per layer: session summary and profile are capped at 250 words, the planner prompt omits reflection fields when reflection is off, reformulation history cuts answers at 200 characters and caps output at 150 tokens, entity summaries skip the LLM below 2,000 characters, and per-layer limits cap graph edges and episodes at 8 each and vector entries at 15. Context size per question is not measured; the harness records only character counts.",
+  "e": "read: src/api/memory/service.py:348-390; module/locomo_eval/backend.py:150-160; src/config/long_term.py:80-83, 110-115; module/dev_mem/short_term/hybrid_retriever.py:1040-1060; module/dev_mem/query_context/reformulator.py:56; src/config/query_context.py:39; module/graphiti/graphiti_core/utils/maintenance/node_operations.py:583; module/locomo_eval/runner.py:67"
+ },
+ "speed": {
+  "t": "Write: graph work returns on enqueue (per-thread serial queue); the transcript write is awaited, and on assistant turns the SimpleMem extraction call is awaited inline. Batches run up to 8 parallel windows. Summaries run after the episode, not in parallel. Read: one reformulation (2 s timeout), then graph, vector and last-N gathered concurrently; inside the graph branch two Graphiti searches and the profile fetch run in parallel; vector queries use 3 retrieval workers. Infra: Neo4j pool of 300 with liveness checks, a shared Weaviate client, a 30-minute session-verify cache, a 1-hour auth cache, and a 1-hour user/thread existence cache. Per-stage timings are logged but no latency numbers are published.",
+  "e": "read: src/api/memory/session_service.py:235-264, 343-353; src/services/long_term/manager.py:285-300, 357-365, 681-684; module/dev_mem/long_term/zep_graphiti.py:521-524, 1392-1400; src/api/memory/service.py:382-386; src/config/short_term.py:50-51, 60-61; src/config/long_term.py:55-64; module/dev_mem/sessions/session_cache.py:24-56; src/api/memory/dependencies.py:30-31; doc: guide section 1 (latency requires the other system)"
+ },
+ "in_progress": [
+  "Live LoCoMo run planned on another system; no result yet, and the guide says a 90+ claim must name dataset hash, denominator, models, ingestion policy, scope and failures (doc: guide sections 1, 11, 13)",
+  "'enhanced' retrieval profile is an experimental preset in the harness only (top-k 10, reflection 1 round, node search on, 16 edges and episodes); production code unchanged (read: module/locomo_eval/backend.py:60-76; doc: guide section 14)",
+  "Corpus ingestion mode (both speakers as source facts) is a benchmark adapter, not production policy (read: module/locomo_eval/backend.py:113-128)",
+  "Candidate fixes listed as untested hypotheses: search_query embeddings, preserving speaker identity, event versus ingest timestamps, zero-distance handling, evidence provenance and fusion, recovery from empty first retrieval (doc: guide 'Configuration, timestamp semantics and rebuild choices' and section 15)",
+  "Deferred indexes on Episodic session_id and request_id; the project-user index is groundwork for a GDPR purge that is not built (read: src/services/long_term/manager.py:262-270)",
+  "memory_category and metadata request fields are reserved for future use (read: src/api/memory/service.py:85; src/api/memory/routes.py:147-151)"
+ ],
+ "verification": {
+  "date": "2026-10-11",
+  "commit": "embedded snapshot in guide v4",
+  "rows_checked": 57,
+  "corrections": [
+   "arch.product: was 'three memory paths' only -> now names the API surface and notes there is no production answer stage",
+   "arch.stores: Valkey was listed as a memory store -> now it is used only by the migration queue and lock; PostgreSQL also holds the migration staging ledger",
+   "write.receipt: added that SimpleMem extraction runs inline and that 'graphiti' appears in stored_in even for assistant turns the graph skipped",
+   "write.roles: 'assistant turns to vectors' kept, but the vector manager drops the speaker label, so stored facts carry no attribution; assistant graph ingestion is an opt-in flag",
+   "segment.unit: was 'vector windows of 10' -> now a live write is one message per fresh builder; windows of 10 apply only to batch, migration and corpus ingestion",
+   "extract.neighbours: was 'SimpleMem shows previous-window entries' -> now that context is always empty on live calls (fresh builder) and in parallel batches; Graphiti sees the last 10 group episodes",
+   "extract.failure: added the silent EdgeDuplicate schema-echo fallback (no duplicates, no contradictions) and live batch fallback ignored by the caller",
+   "graph.entities: added temperature 0.7 and the intent-as-edge instruction",
+   "graph.communities: was 'retrieved but not written' -> now off by default; community search runs but finds nothing unless communities were built, and results are never formatted",
+   "time.dedup: was 'vector entries deduped by id only' -> now no write-time vector dedupe (random ids); only read-time union by entry_id; transcript idempotency does not stop a repeated fan-out",
+   "derive.session: was 'updated on every user turn' -> now it runs after the episode (sequential, despite the 'parallel' comment) and full rebuilds read up to 200 saga episodes",
+   "derive.profile: was 'from 10 episodes, rebuilt every 10' -> now first build at 10 episodes, rebuilds every 10 from the last 150 episodes, incremental in between, 250-word cap, per-user lock",
+   "derive.entity: added that node search is off by default, so entity summaries never reach the context",
+   "derive.forget: P -> N; transcript archival is opt-in (off by default) tiering with revive on read, not forgetting",
+   "index.lexical: added the BM25 floor 1.0 and parameters (k1 1.2, b 0.75)",
+   "read.rewrite: added that it is skipped when there is no answered history, uses 5 pairs, a 200-character answer cut and a 2 s timeout",
+   "read.analysis: 'up to 2 semantic queries' -> the prompt asks for 2-3, code keeps 2; graph side has no analysis",
+   "read.legs: added cosine floor 0.6 on graph edges and that the graph search runs twice per read",
+   "rank.gate: N -> P; graph cosine 0.6, vector cosine 0.5 and BM25 1.0 floors act as gates, though there is no abstain signal",
+   "answer.prompt: the answer prompt is in the evaluation harness (module/locomo_eval/runner.py), not production; production has no answer stage",
+   "eval.rigour: was 'delegates to the official evaluator' -> the official evaluator is optional and user-supplied; local F1 is labelled non-official",
+   "cost.write: 20,000-25,000 -> roughly 15,000-27,000 calls (inferred from about 2,940 turns per role and per-turn counts)",
+   "cost.read: added embedding calls for the duplicate graph search, that reformulation is skipped without history, and the per-session multiplier in harness all-session scope",
+   "trust.provenance: N -> P; episodes carry stamped ids, edges keep supporting episodes, vector entries carry request_id; summaries and SimpleMem facts still have no parents",
+   "trust.erasure: P -> N; the mounted API only soft-deletes sessions; Graphiti delete routes exist only in an unmounted standalone app",
+   "trust.auth: added bcrypt hashing, prefix lookup, auth cache and that session ownership is not asserted on write",
+   "layers.provenance: N -> P (follows trust.provenance)",
+   "extras last-N: was 'optional' -> on by default over HTTP (n = 5), off in the service and harness",
+   "extras archive: added that archival is off by default and moves whole sessions"
+  ],
+  "added": [
+   "commit, version and licence fields; evidence path:line for all 57 rows (replacing 'see engine document')",
+   "extras: per-thread serial queue, idempotent transcript and session ids, orphan check / nudges / follow-up tracking, episodic id stamping, saga chaining, intent-as-edge instruction, Qwen output repair, model tiering, per-user profile lock, entity summaries without LLM, duplicate parallel graph searches, dedicated embedder loop, user_ingest migration engine, historical collection ingest, fast API-key verification, stats and ops webhooks, locomo_eval module",
+   "specialities (7): deterministic-first entity resolution, bi-temporal invalidation with exact-fact fast path, drift-controlled rolling summaries, per-thread queue with uncertain outcomes, zero-loss migration runner, pending-tail-aware pairing, leak-proof evaluator",
+   "token_economy and speed rewritten with evidence; in_progress filled from the guide's planned and experimental items",
+   "keep: added the serial queue and idempotent transcript ids; avoid: added the duplicate graph search, extraction temperature 0.7 and the dropped speaker labels"
+  ],
+  "unverified": [
+   "Per-turn graph call count (4-8) and the LoCoMo-scale write total are inferred from code paths, not measured",
+   "Whether Bedrock serves Graphiti's model_size 'small' requests with a smaller model was not traced; the custom client appears to use one configured model",
+   "Neo4j full-text and vector index definitions were taken from vendored graphiti_core defaults, not re-read line by line",
+   "user_ingest internals were checked at module-docstring and key-function level only, not every step of jobs.py and staging.py",
+   "No runtime behaviour (latency, actual stored objects, context size) can be confirmed: the snapshot was read, never run"
+  ]
+ },
+ "source_doc": "COMBINED_MEMORY_ENGINE_AND_LOCOMO.html (guide v4) and its embedded source snapshot, extracted read-only to scratchpad/clones/combined-src"
+}

@@ -1,0 +1,124 @@
+{
+  "date": "2026-10-11",
+  "head": "7a0fa68266e8ece6d46622bd37008e99fc436b42",
+  "files": [
+    {
+      "path": "docs/engine_survey/memspine.json",
+      "sha256": "158131bf14b79509a740d94acf5c7d6e573aca48e6e969e3187110c085f1fc82"
+    },
+    {
+      "path": "docs/engine_survey/combined.json",
+      "sha256": "cc9fe6da9c7255e8394d33fbf5cf4b4666aa149edf89ab4ef75d4466d95de5ec"
+    },
+    {
+      "path": "docs/engine_survey/memos.json",
+      "sha256": "5f5bc9424e85b6a7b5314a1df17be2628c38db00acf973e83d3a8deb112048d7"
+    },
+    {
+      "path": "docs/engine_survey/memu.json",
+      "sha256": "b5733d0035d51f46677626d41899c8df52ba46ce1d093482fe61948bd157d3ec"
+    },
+    {
+      "path": "docs/engine_survey/mnemon.json",
+      "sha256": "543a90f1d86e38a909a38361b3e991d0b45ba0ff73cd5acf535d4193824bc310"
+    },
+    {
+      "path": "docs/engine_survey/honcho.json",
+      "sha256": "f40e786f75d4f955a9851eb947c437a4a3b61d0e1cf062133afed798b14f2583"
+    },
+    {
+      "path": "docs/engine_survey/memmachine.json",
+      "sha256": "9b96365889f48e4bc3b846a1cff3f51e71c0d6740966b9a14b019eb1f33d6ea0"
+    },
+    {
+      "path": "docs/engine_survey/hindsight.json",
+      "sha256": "ba323a303946abe266fe6a23458e13065742da6644ed3a3d531ad16fa1db559f"
+    },
+    {
+      "path": "docs/engine_survey/mirix.json",
+      "sha256": "ef663caecaff0828574473abc825a78cfdf283fe4bc5bb2f06d9797cba794199"
+    },
+    {
+      "path": "docs/engine_survey/cognee.json",
+      "sha256": "bb88100a92401d0266b817c860702722add5026151ed4fd88ce48051c4b6aa0f"
+    },
+    {
+      "path": "docs/engine_survey/memori.json",
+      "sha256": "090f2960530e3b0216c39342479b9aa0ed5feb80df770f5c1ad10d65689c77d9"
+    },
+    {
+      "path": "docs/engine_survey/nemori.json",
+      "sha256": "d0ea84b74c9ebd3e9428284ea27c5d6b6b3e674773ede70ac9474b802df4f96e"
+    },
+    {
+      "path": "docs/engine_survey/lightmem.json",
+      "sha256": "cc2d31d0792878b32fc1d9343c4b164565acdafe175b956e0c007b0221d91e3a"
+    },
+    {
+      "path": "docs/engine_survey/mem0.json",
+      "sha256": "ef0c77f9b75b2b03b0851588a82c62bf6a309057d167c09d5c1db7bfa2fa1fe3"
+    },
+    {
+      "path": "docs/engine_survey/evermemos.json",
+      "sha256": "d75ba8ca4d67801f1b7e1fe548476954946a60f1e9abf8cfbf79246d79f8109b"
+    },
+    {
+      "path": "docs/engine_survey/gap_plan.json",
+      "sha256": "8b423f33298bfb7c6786316941f1ee1c99cbc575304021633c5d54b0b464ad02"
+    },
+    {
+      "path": "docs/engine_survey/synthesis.json",
+      "sha256": "3b6951ad6843ef7b7a0201ebe4912fd7799cd19eade141336473b23a18a3d339"
+    },
+    {
+      "path": "docs/engine_survey/prompt_matrix.json",
+      "sha256": "ced59721556b7c09431965a69bc5fbcaa6e973ba4d3ccc167e8996bd37b1b266"
+    },
+    {
+      "path": "docs/engine_survey/SPEC.md",
+      "sha256": "f4122ee5f6193b099efa5ef43cdebc4a83db4c88d014c8759102e56140c76f11"
+    },
+    {
+      "path": "src/memspine/workers/windows.py",
+      "sha256": "832ee9989fa3e1eb22d6ddddd0636191b61f83c4775756a7606afe113cec568a"
+    },
+    {
+      "path": "src/memspine/workers/pipelines.py",
+      "sha256": "30f074609d3be99101bdc88d2dca6db279bcb60e930172b9cbc3f24e9c666834"
+    },
+    {
+      "path": "src/memspine/core/policies/assembly.py",
+      "sha256": "74b6d4e3d8ac1cbddb2ec3e39e2a47670e855af49fbb8604e018c9c4e7ed508c"
+    },
+    {
+      "path": "src/memspine/prompts/defaults/window_extract.yaml",
+      "sha256": "ad2c9f050ce286b689b0896443abb18c69ec45a2d53b29b9ae8a28be3c32e90e"
+    },
+    {
+      "path": "src/memspine/config/schema.py",
+      "sha256": "d0e2c188d8133183738cb18be4a537cf45d8e02b02f5ce033c3e3c09ae70eeb5"
+    }
+  ],
+  "clone_heads": {
+    "cognee": "0ec7a9fa61c9ff04bf7e02e0d57af363a993a5e1",
+    "evermemos-everalgo": "7746a87ad5604362d19588c05ee617ed6b746d93",
+    "evermemos-everos": "fcd41b57cab6c577211120e166f801038d21b7ae",
+    "graphiti": "964bb11d1e7020e3cc67fab244268b0736b6c219",
+    "hindsight": "a9eeed77f9bce99d8f97d39a30d3281747300824",
+    "hindsight-benchmarks": "55c51f1d6e2477ee69c0a730a80b96a1596ff475",
+    "honcho": "3922af856d78ec41133916deec4d821fa9c5a92e",
+    "lightmem": "8449d574df6bae1bdf3314a1564da65e2f37e046",
+    "mem0": "b7ad69afda6b6ed030347c66d48a13e4de9dec08",
+    "memmachine": "ab96a9d16e8caef89c222c361f47086e38688bf0",
+    "memori": "574b1ea3e876f100ef82c37817d603eb7e258e59",
+    "memori_v2": "a39ad57770b443248a07eead385141c1a39ceb17",
+    "memos": "a7367d07e55db61099f7b4e2c1108bc5831a24f3",
+    "memu": "dc7bda82b1f2a6429d9d1531ebdfd08d71e4e2b1",
+    "memu-experiment": "f178ce933cce18219655a13afb3f80371afc8740",
+    "memu-v1.2.0": "a4cff91eba0ceb4213c378ddc5f0e72ec90a9a2a",
+    "mirix": "8cb06a62bbb7c478beb33dd4f2815696a72df482",
+    "mnemon": "18760c898781c24b93b2c1b5ab7216e8c86f6c83",
+    "nemori": "d2a6dff6e5481214a0be6a2d10147feccfc16244"
+  },
+  "scope": "Structural full coverage plus targeted code review; not a line-by-line certification of all repositories."
+}

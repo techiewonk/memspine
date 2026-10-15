@@ -1,0 +1,2752 @@
+{
+ "round": "R14",
+ "package": "RES-ENGINES",
+ "date": "2026-10-14",
+ "sources_note": "engine rows cite docs/engine_survey/<slug>.json#<row>; web sources by URL",
+ "engines_compared": [
+  "A-Mem",
+  "Cognee",
+  "EverOS",
+  "EverOS (benchmark)",
+  "EverOS / EverMemOS",
+  "EverOS MemCell",
+  "Graphiti",
+  "Graphiti / Zep",
+  "Graphiti / combined",
+  "Hindsight",
+  "Hindsight reflect",
+  "Honcho",
+  "Letta",
+  "Letta filesystem",
+  "Letta filesystem agent",
+  "LightMem",
+  "LightMem StructMem",
+  "LongMemEval-S (500 q)",
+  "MIRIX",
+  "MIRIX (harness)",
+  "Mastra OM",
+  "Mastra Observational Memory",
+  "Mem0",
+  "Mem0 (OSS v3)",
+  "Mem0 platform",
+  "Mem0 proxy",
+  "Mem0, Nemori, LightMem, Memori, Hindsight, Honcho",
+  "Mem0-derived (Nemori, LightMem, MemMachine, MemOS)",
+  "MemMachine",
+  "MemOS",
+  "MemOS (fine)",
+  "MemOS (reorganise)",
+  "MemSpine",
+  "MemU",
+  "Memobase",
+  "Memori",
+  "Mnemon",
+  "Mnemon / combined engine",
+  "Nemori",
+  "SimpleMem / combined engine",
+  "Supermemory",
+  "Zep",
+  "Zep (benchmark critique)",
+  "Zep open-domain result"
+ ],
+ "areas": [
+  {
+   "key": "decon",
+   "title": "1. Turn rewriting and decontextualisation at ingest",
+   "question": "Does the engine rewrite turns into standalone facts, and from what unit (turn, window, episode)?",
+   "memspine_has": "Window facts (`write.window_extract=facts`), envelope with one repair, grounding check, temporal anchoring stage W2-14, coverage re-extract W2-15, episode section (window mode `all`). Read-time `[= date]` annotation. Lift derived hits to source turns (`read.lift_before_rerank`, S15). Screens S03/S04/S43-S45/S62.",
+   "gap": "MemSpine writes facts straight from raw turns and retrieves them as competing records; the two best vendor LoCoMo systems (EverOS 93.5, Mem0 platform 92.5) retrieve a larger unit (episode, or memory plus source chunk) and use facts as keys. The window-facts arms regress on their own, so the open question is the unit that is returned, not the quality of the fact text. The replay-date defect (Mem0 OSS, Memori, Nemori facts) is a known trap that MemSpine must keep tested.",
+   "engine_table": [
+    {
+     "engine": "Mem0 (OSS v3)",
+     "approach": "ADD-only 15-80-word self-contained facts from both speakers; sees top-10 existing memories; relative dates resolved against an Observation Date, but OSS refuses a caller timestamp so replayed history is dated with the run date",
+     "where": "write",
+     "model_calls": "1 per add() batch",
+     "source": "docs/engine_survey/mem0.json#extract.facts; docs/engine_survey/mem0.json#extract.dates"
+    },
+    {
+     "engine": "Nemori",
+     "approach": "Batch LLM segmenter, then per-group third-person episode narrative with absolute dates in parentheses; then predict-calibrate extracts only the facts the prediction missed",
+     "where": "write",
+     "model_calls": "1 segment + 1 episode + 2 (predict, extract) per group",
+     "source": "docs/engine_survey/nemori.json#extract.episode; docs/engine_survey/nemori.json#extract.neighbours"
+    },
+    {
+     "engine": "EverOS / EverMemOS",
+     "approach": "Two stages: episode text per MemCell first (dual date 'last Friday (2023-05-12)'), atomic facts then extracted from the episode, stored with parent_id; the episode is the retrieved unit, facts ride along",
+     "where": "write",
+     "model_calls": "1 boundary + 1 episode + 1 facts per cell",
+     "source": "docs/engine_survey/evermemos.json#extract.episode; docs/engine_survey/evermemos.json#extract.facts"
+    },
+    {
+     "engine": "Supermemory",
+     "approach": "Session chunked into semantic blocks; atomic memories resolve ambiguous references per chunk; the original chunk stays attached and is injected on a hit",
+     "where": "write + read",
+     "model_calls": "not published",
+     "source": "https://supermemory.ai/research/longmembench (3.1, 3.4)"
+    },
+    {
+     "engine": "SimpleMem / combined engine",
+     "approach": "'Lossless restatement' per entry: third person, no pronouns, relative to ISO absolute; speaker labels discarded by the builder",
+     "where": "write",
+     "model_calls": "1 per window (live: 1 turn)",
+     "source": "evals/analysis/COMBINED_ENGINE_COMPARISON_2026-10-11.md 1.3"
+    },
+    {
+     "engine": "Hindsight",
+     "approach": "Narrative facts with what/when/where/who/why in one text; event date in the prompt, occurred_start/end returned; entities and causal links from the same call",
+     "where": "write",
+     "model_calls": "1 per chunk",
+     "source": "docs/engine_survey/hindsight.json#extract.facts"
+    },
+    {
+     "engine": "Honcho",
+     "approach": "Explicit atomic 'conclusions', pronouns resolved, peer id as subject, absolute dates from message time",
+     "where": "write (deriver)",
+     "model_calls": "1 per 512-token unit",
+     "source": "docs/engine_survey/honcho.json#extract.facts"
+    },
+    {
+     "engine": "LightMem",
+     "approach": "Standalone facts with source_id per topic segment; LoCoMo prompt separates mention time from event time; entry_type tag is lost on insert (defect)",
+     "where": "write",
+     "model_calls": "1 per buffer",
+     "source": "docs/engine_survey/lightmem.json#extract.facts; docs/engine_survey/lightmem.json#extract.episode"
+    },
+    {
+     "engine": "MemOS",
+     "approach": "Long self-contained third-person statements (key/value/tags); window summary copied into a 'background' field of each fact",
+     "where": "write",
+     "model_calls": "1 per 1,024-token window",
+     "source": "docs/engine_survey/memos.json#extract.facts; docs/engine_survey/memos.json#extract.episode"
+    },
+    {
+     "engine": "Mastra Observational Memory",
+     "approach": "Observer turns raw messages into dated, prioritised observations that REPLACE the messages; 3-6x compression",
+     "where": "write (background)",
+     "model_calls": "1 per token threshold",
+     "source": "https://mastra.ai/research/observational-memory"
+    },
+    {
+     "engine": "MIRIX",
+     "approach": "Per-batch episodic event with LLM occurred_at; harness prepends date-resolution instructions",
+     "where": "write",
+     "model_calls": "multi-agent, 1 per type per batch",
+     "source": "docs/engine_survey/mirix.json#extract.dates"
+    },
+    {
+     "engine": "MemSpine",
+     "approach": "window_extract: atomic dated facts quoting a verbatim span, rejected if uncited; window facts alone lost on LoCoMo (S03 -4, S04 -6); S62 bundle queued",
+     "where": "write",
+     "model_calls": "1 per window (target 0.2-0.3 per turn)",
+     "source": "docs/v2/SCREEN_ATLAS.html; docs/engine_survey/memspine.json#extract.facts"
+    }
+   ],
+   "items": [
+    "R14-decon-1",
+    "R14-decon-2",
+    "R14-decon-3",
+    "R14-seg-1"
+   ]
+  },
+  {
+   "key": "ent",
+   "title": "2. Entity, alias and coreference linking",
+   "question": "How are mentions linked to one identity, and where does coreference get resolved?",
+   "memspine_has": "Full ladder, rules/llm resolve modes, entity nodes with NFKC casefold ids, kin/possessive resolution against the speaker (I54), window coreference in the extractor prompt. Entity leg (S13, S32) is inert until the GC arm builds entities.",
+   "gap": "The ladder is at least as complete as any surveyed engine. The one signal MemSpine lacks that a surveyed engine uses is context overlap (shared neighbours, co-occurrence, temporal proximity) as a merge score. LoCoMo has a near-fixed cast, so the effect there is small; it matters for open-cast benchmarks (OP-Bench, MAB, BEAM).",
+   "engine_table": [
+    {
+     "engine": "Hindsight",
+     "approach": "Rule-based, no LLM: pg_trgm candidates; score = 0.5 name similarity + 0.3 selectivity-weighted co-occurrence + 0.2 temporal proximity (7-day decay); merge at >= 0.6",
+     "where": "write",
+     "model_calls": "0",
+     "source": "docs/engine_survey/hindsight.json#graph.resolution"
+    },
+    {
+     "engine": "Graphiti / Zep",
+     "approach": "Speaker always the first node; deterministic exact/fuzzy first with an entropy gate on short names; LLM dedupe only for holdouts; edge dedupe search restricted to edges between the same entity pair",
+     "where": "write",
+     "model_calls": "1 extract + LLM only for holdouts",
+     "source": "evals/analysis/COMBINED_ENGINE_COMPARISON_2026-10-11.md 1.3; https://arxiv.org/html/2501.13956 (2.2.2-2.2.3)"
+    },
+    {
+     "engine": "Mem0",
+     "approach": "spaCy mentions (no LLM); merge on exact normalised text or top-1 cosine >= 0.95; entity-to-memory back-pointers only",
+     "where": "write",
+     "model_calls": "0",
+     "source": "docs/engine_survey/mem0.json#graph.resolution"
+    },
+    {
+     "engine": "Cognee",
+     "approach": "Deterministic name-based ids merge same-name entities; fuzzy merge is an explicit memify pipeline (0.85)",
+     "where": "write / memify",
+     "model_calls": "0 (default)",
+     "source": "docs/engine_survey/cognee.json#graph.resolution"
+    },
+    {
+     "engine": "Honcho",
+     "approach": "Peers only (client-declared); aliases are free text in the peer card",
+     "where": "n/a",
+     "model_calls": "0",
+     "source": "docs/engine_survey/honcho.json#graph.resolution"
+    },
+    {
+     "engine": "Memori",
+     "approach": "sha256 of lower-cased alphanumerics; non-Latin names collapse to one empty key (defect)",
+     "where": "write",
+     "model_calls": "0 (hosted NER)",
+     "source": "docs/engine_survey/memori.json#time.dedup"
+    },
+    {
+     "engine": "Supermemory",
+     "approach": "Atomic memories resolve ambiguous references inside a chunk; no entity table described",
+     "where": "write",
+     "model_calls": "n/a",
+     "source": "https://supermemory.ai/docs/concepts/graph-memory"
+    },
+    {
+     "engine": "MemSpine",
+     "approach": "Ladder: exact, alias table, top-15 embedding candidates, entropy gate, MinHash Jaccard >= 0.9, then one resolve_entity@batch call per 50 names; trust-gap merges become contested; GLiNER2 option",
+     "where": "sleep",
+     "model_calls": "0 + 1 per 50 unresolved",
+     "source": "docs/engine_survey/memspine.json#graph.resolution"
+    }
+   ],
+   "items": [
+    "R14-ent-1"
+   ]
+  },
+  {
+   "key": "time",
+   "title": "3. Temporal normalisation: absolute dates, event time versus record time",
+   "question": "Which clocks does a record carry, and how is time used at read?",
+   "memspine_has": "Three clocks (S48), W2-14 temporal anchoring, `read.temporal_relative`/`temporal_infer_year`/`temporal_leg_event_dates` (S24/S62/S63), I79 annotator, I57 date repair, I76 duration solver, E05 milestones.",
+   "gap": "MemSpine has the richest clock set. Missing: a precision tag and an ongoing/completed status next to the event time (Mem0 platform), a referenced-date versus observation-date split in the rendered line (Mastra), and an in-window semantic selection with a proximity boost instead of a hard span filter (Hindsight).",
+   "engine_table": [
+    {
+     "engine": "Mastra OM",
+     "approach": "Every observation carries observation date, referenced date (date inside the content) and a computed relative offset; grouped under dated headings",
+     "where": "write",
+     "model_calls": "1 per threshold",
+     "source": "https://mastra.ai/research/observational-memory (Temporal anchoring)"
+    },
+    {
+     "engine": "Mem0 platform",
+     "approach": "Separate temporal pass reads each new memory with its source conversation and date: event time, ongoing versus completed, precision, memory type (event, state, plan, preference, relationship, absence)",
+     "where": "write",
+     "model_calls": "extra pass per batch (platform only)",
+     "source": "https://docs.mem0.ai/core-concepts/memory-evaluation"
+    },
+    {
+     "engine": "Supermemory",
+     "approach": "documentDate (source authored) and eventDate (event happened) on each memory",
+     "where": "write",
+     "model_calls": "n/a",
+     "source": "https://supermemory.ai/research/longmembench 3.3"
+    },
+    {
+     "engine": "Hindsight",
+     "approach": "event_date, occurred_start/end, mentioned_at, created_at; temporal arm = window overlap, semantic choice inside the window, proximity boost +/-10% at rerank",
+     "where": "write + read",
+     "model_calls": "0 at read (dateparser)",
+     "source": "docs/engine_survey/hindsight.json#time.fields; docs/engine_survey/hindsight.json#read.temporal"
+    },
+    {
+     "engine": "Graphiti / Zep",
+     "approach": "Bi-temporal edges valid_at/invalid_at/created_at/expired_at from a reference time; the formatted context printed to the reader omits the validity dates",
+     "where": "write",
+     "model_calls": "within edge extraction",
+     "source": "evals/analysis/COMBINED_ENGINE_COMPARISON_2026-10-11.md headline 5"
+    },
+    {
+     "engine": "Cognee",
+     "approach": "Timestamp leaf nodes normalised to YYYY, YYYY-MM, YYYY-MM-DD; TEMPORAL search: one LLM call extracts a query interval, rerank by date-window overlap",
+     "where": "write + read",
+     "model_calls": "1 at read",
+     "source": "docs/engine_survey/cognee.json#read.temporal"
+    },
+    {
+     "engine": "Mnemon",
+     "approach": "Session date stored on every event and value; relative dates resolved by the reader from the conversation date",
+     "where": "write",
+     "model_calls": "0",
+     "source": "docs/engine_survey/mnemon.json#extract.dates"
+    },
+    {
+     "engine": "MIRIX",
+     "approach": "LLM occurred_at; query temporal phrase parsed by rules into a date range relative to wall-clock now (not the conversation date)",
+     "where": "read",
+     "model_calls": "1 topic call",
+     "source": "docs/engine_survey/mirix.json#read.analysis"
+    },
+    {
+     "engine": "MemOS",
+     "approach": "reference_time declared on the request but never read in the OSS tree",
+     "where": "read",
+     "model_calls": "0",
+     "source": "docs/engine_survey/memos.json#read.temporal"
+    },
+    {
+     "engine": "MemSpine",
+     "approach": "valid_from/valid_to/recorded_at/superseded_at, as_of reads, absolute-span temporal leg (relative spans opt-in), read-time [= date], duration and milestone solvers (harness)",
+     "where": "write + read",
+     "model_calls": "0 at read",
+     "source": "docs/engine_survey/memspine.json#time.fields; docs/engine_survey/memspine.json#read.temporal"
+    }
+   ],
+   "items": [
+    "R14-time-1",
+    "R14-time-2",
+    "R14-time-3"
+   ]
+  },
+  {
+   "key": "prof",
+   "title": "4. Personal profile and attributes with history",
+   "question": "Is there a per-user profile, how is it updated, and does it keep history?",
+   "memspine_has": "`offline.profile_card_v2`, `offline.standing_v2` + `read.standing_v2`, `offline.histories_v2`, `read.profile_header_packing`, persona pin.",
+   "gap": "The card is built but unread; standing answers and histories exist but are unscreened on a keyed-state arm. Only Mnemon and Memobase keep dated values; MemMachine and MIRIX destroy old values (documented defect).",
+   "engine_table": [
+    {
+     "engine": "Memobase",
+     "approach": "Profile slots topic/sub_topic/content with dates; separate event timeline with gists; buffer flush at about 1,024 tokens or 1 h idle, never in the hot path",
+     "where": "write (background)",
+     "model_calls": "1 per flush",
+     "source": "https://pypi.org/project/memobase/0.0.12 ; https://deepwiki.com/memodb-io/memobase"
+    },
+    {
+     "engine": "Honcho",
+     "approach": "Peer card per observer-observed pair; 4 prefixes (IDENTITY/ATTRIBUTE/RELATIONSHIP/INSTRUCTION), 200 chars x 40 entries, written only by the dream deduction specialist",
+     "where": "background (dream)",
+     "model_calls": "1 per dream",
+     "source": "docs/engine_survey/honcho.json#derive.profile"
+    },
+    {
+     "engine": "MemMachine",
+     "approach": "Profile features (category, tag, feature, value) over 37 fixed tags; update shows up to 50 old features and the LLM returns ADD/DELETE; consolidation once 20+ per tag; old values destroyed",
+     "where": "write (background)",
+     "model_calls": "1 per >=5 messages or 5 min",
+     "source": "docs/engine_survey/memmachine.json#extract.neighbours; docs/engine_survey/memmachine.json#time.update"
+    },
+    {
+     "engine": "EverOS",
+     "approach": "Per-owner profile (explicit_info, implicit_traits) via add/update/delete/none ops, 60-item cap; the LoCoMo run extracts it but never reads it",
+     "where": "write",
+     "model_calls": "1 per update",
+     "source": "docs/engine_survey/evermemos.json#derive.profile"
+    },
+    {
+     "engine": "Mnemon",
+     "approach": "Changeable values keyed 'thing . attribute' with dated history and a conflict flag; directives shown first",
+     "where": "consolidation",
+     "model_calls": "1 per 10,000-char batch",
+     "source": "docs/engine_survey/mnemon.json#extract.facts; docs/engine_survey/mnemon.json#time.fields"
+    },
+    {
+     "engine": "MIRIX",
+     "approach": "Core blocks human/persona (5,000 chars) rewritten by an agent, always injected",
+     "where": "write",
+     "model_calls": "1 core agent call",
+     "source": "docs/engine_survey/mirix.json#derive.profile"
+    },
+    {
+     "engine": "MemU",
+     "approach": "Agent-curated topic markdown files; no profile object in HEAD",
+     "where": "agent",
+     "model_calls": "host agent",
+     "source": "docs/engine_survey/memu.json#derive.profile"
+    },
+    {
+     "engine": "MemSpine",
+     "approach": "profile_card_v2 (no read consumer, S46 skipped), standing answers for keyed state facts (S34), value histories (S42), persona pinned",
+     "where": "sleep",
+     "model_calls": "0-1 per entity",
+     "source": "docs/engine_survey/memspine.json#derive.profile"
+    }
+   ],
+   "items": [
+    "R14-prof-1",
+    "R14-prof-2"
+   ]
+  },
+  {
+   "key": "epi",
+   "title": "5. Session, topic and episode summaries",
+   "question": "What higher-level units exist, who produces them, and what is retrieved?",
+   "memspine_has": "S01/S31/S33/S61/S64 queued; call-2 content (stitched narrative) still a stub.",
+   "gap": "Two ideas are not in MemSpine: (a) render the parent summary next to each retrieved fact; (b) a stable, dense, always-in-context log instead of retrieval, the Mastra design, which reports 84.2 (gpt-4o) to 94.9 (gpt-5-mini) on LongMemEval-S and keeps the prefix cacheable.",
+   "engine_table": [
+    {
+     "engine": "Nemori",
+     "approach": "LLM topic episodes (2-15 turns), title + narrative + event timestamp; merge of same-event episodes; top-2 episodes also expose raw turns to the reader",
+     "where": "write",
+     "model_calls": "1 per group + merge calls",
+     "source": "docs/engine_survey/nemori.json#extract.episode; docs/engine_survey/nemori.json#time.dedup"
+    },
+    {
+     "engine": "EverOS MemCell",
+     "approach": "Episode per cell; summary field (200-character slice in the pinned version); retrieved unit = episode, facts nested",
+     "where": "write",
+     "model_calls": "1 per cell",
+     "source": "docs/engine_survey/evermemos.json#extract.episode"
+    },
+    {
+     "engine": "Honcho",
+     "approach": "Rolling recursive summaries every 20 messages (<=1,500 tokens) and 60 (<=6,000); degenerate output (<35% distinct 4-grams) rejected",
+     "where": "write",
+     "model_calls": "1 per 20/60 messages",
+     "source": "docs/engine_survey/honcho.json#derive.session"
+    },
+    {
+     "engine": "MemMachine",
+     "approach": "Short-term rolling summary replaces evicted turns",
+     "where": "write",
+     "model_calls": "background worker",
+     "source": "docs/engine_survey/memmachine.json#derive.session"
+    },
+    {
+     "engine": "Memori",
+     "approach": "Rolling conversation summary, overwritten each update, attached to recalled facts through the fact-mention table",
+     "where": "write",
+     "model_calls": "hosted",
+     "source": "docs/engine_survey/memori.json#extract.episode"
+    },
+    {
+     "engine": "MemOS",
+     "approach": "120-200-word window summary copied into the 'background' of each fact; no summary node",
+     "where": "write",
+     "model_calls": "same call",
+     "source": "docs/engine_survey/memos.json#extract.episode"
+    },
+    {
+     "engine": "Graphiti",
+     "approach": "Session summary 250 words updated each user turn; full rebuild every 20; user summary from 10 episodes",
+     "where": "write",
+     "model_calls": "1 per turn",
+     "source": "evals/analysis/COMBINED_ENGINE_COMPARISON_2026-10-11.md 1.3"
+    },
+    {
+     "engine": "LightMem StructMem",
+     "approach": "Cross-event summaries over time windows from 15 related seeds, 200-350 words, in a separate collection (manual call)",
+     "where": "offline",
+     "model_calls": "1 per window",
+     "source": "docs/engine_survey/lightmem.json#derive.session"
+    },
+    {
+     "engine": "Mastra OM",
+     "approach": "No retrieval: observations replace history; Reflector condenses past a second threshold",
+     "where": "background",
+     "model_calls": "1 per threshold",
+     "source": "https://mastra.ai/research/observational-memory"
+    },
+    {
+     "engine": "MemSpine",
+     "approach": "session_close_v2: summary + episodes per closed session (>=3 turns), extractive fallback, idempotent by membership fingerprint; episode_leg_v2 lifts episode hits to member turns",
+     "where": "sleep",
+     "model_calls": "1 per session",
+     "source": "docs/engine_survey/memspine.json#derive.session"
+    }
+   ],
+   "items": [
+    "R14-epi-1",
+    "R14-epi-2",
+    "R14-epi-3"
+   ]
+  },
+  {
+   "key": "link",
+   "title": "6. Linking new facts to old ones",
+   "question": "How is a new fact connected to what is already stored (dedupe, supersede, extend, graph link)?",
+   "memspine_has": "par(m) lineage, ladder, extract_graph (sleep), neighbours_v2 (temporal neighbours only), fact chain at read (E01, opt-in).",
+   "gap": "Two gaps. (1) No LLM-free semantic/temporal link table over facts to expand from seeds (Hindsight), so multi-evidence recall depends on extract_graph LLM calls. (2) G-W4: the extractor does not see keys of earlier facts, so same-key supersession is not model-driven.",
+   "engine_table": [
+    {
+     "engine": "Mem0",
+     "approach": "Top-10 existing memories shown to the extractor; the extractor's linked_memory_ids are never read; exact-text MD5 dedupe",
+     "where": "write",
+     "model_calls": "0 extra",
+     "source": "docs/engine_survey/mem0.json#extract.neighbours"
+    },
+    {
+     "engine": "Nemori",
+     "approach": "Predict-calibrate: the episode retrieves top-10/20 existing facts; the model predicts the episode from them; extraction keeps only what the prediction missed",
+     "where": "write",
+     "model_calls": "2 calls",
+     "source": "docs/engine_survey/nemori.json#extract.neighbours"
+    },
+    {
+     "engine": "A-Mem",
+     "approach": "Per new note: LLM picks links among top-k neighbours, then 'memory evolution' rewrites the neighbours' context and tags",
+     "where": "write",
+     "model_calls": "2+ calls per note",
+     "source": "https://arxiv.org/html/2502.12110v2"
+    },
+    {
+     "engine": "Hindsight",
+     "approach": "memory_links: temporal (<=24 h, weight 1-gap/24h), semantic kNN (top 50, cos >= 0.7), caused_by from the extraction call; expansion = tanh(0.5 x shared entities) + link weights",
+     "where": "write (no extra LLM) + read",
+     "model_calls": "0 extra",
+     "source": "docs/engine_survey/hindsight.json#graph.edges; docs/engine_survey/hindsight.json#read.traversal"
+    },
+    {
+     "engine": "Supermemory",
+     "approach": "New memory linked to existing by updates / extends / derives; isLatest keeps retrieval on the current fact",
+     "where": "write",
+     "model_calls": "n/a",
+     "source": "https://supermemory.ai/docs/concepts/graph-memory"
+    },
+    {
+     "engine": "MemOS (reorganise)",
+     "approach": "CAUSE/CONDITION/RELATE/CONFLICT edges; top-5 neighbours above 0.8 LLM-judged contradictory, redundant or independent",
+     "where": "background, off by default",
+     "model_calls": "1+ per node",
+     "source": "docs/engine_survey/memos.json#graph.edges"
+    },
+    {
+     "engine": "Mnemon",
+     "approach": "Fold prompt lists existing threads and every state key with its latest value; the model reuses ids and repeats a key to record a change",
+     "where": "consolidation",
+     "model_calls": "1 per batch",
+     "source": "docs/engine_survey/mnemon.json#extract.neighbours"
+    },
+    {
+     "engine": "Graphiti",
+     "approach": "Edge candidate search restricted to the same entity pair; LLM returns duplicate and contradicted indices; deterministic interval rule invalidates",
+     "where": "write",
+     "model_calls": "1 per edge batch",
+     "source": "https://github.com/getzep/graphiti/blob/main/graphiti_core/utils/maintenance/edge_operations.py"
+    },
+    {
+     "engine": "MemSpine",
+     "approach": "Asserted LINK + lineage DAG; conflict ladder (13 rungs); entity graph in sleep; G-W4 (extractor sees earlier facts) not built",
+     "where": "write + sleep",
+     "model_calls": "0 / sleep",
+     "source": "docs/engine_survey/memspine.json#extract.neighbours"
+    }
+   ],
+   "items": [
+    "R14-link-1",
+    "R14-link-2",
+    "R14-link-3"
+   ]
+  },
+  {
+   "key": "qry",
+   "title": "7. Query rewriting, expansion and decomposition at read",
+   "question": "What happens to the question before search?",
+   "memspine_has": "`read.planner=llm`, `compose_rewrites`, `second_round`, `agentic_mode query|slot` (slot net -3 at about 8x cost), `read.deep_v2` sufficiency, typed query contract. No screen is queued for planner/rewrites ('no screen' in the problem map).",
+   "gap": "Most top engines run no rewrite on the default path; the ones that do are agentic variants whose LoCoMo gain is small (MemMachine +0.46 points for about 2x tokens). The one rewrite style MemSpine lacks and can specify exactly is a rewrite shaped like its own stored record (dated third-person fact).",
+   "engine_table": [
+    {
+     "engine": "Mnemon",
+     "approach": "Planner writes 3 searches worded as a stored record would word them plus 1 invented answering note (HyDE); a parallel need-plan lists <=3 needs, 'ALL' for count/list; the loop pages while new positives appear",
+     "where": "read",
+     "model_calls": "2 planner + judge calls",
+     "source": "docs/engine_survey/mnemon.json#read.rewrite; docs/engine_survey/mnemon.json#read.analysis"
+    },
+    {
+     "engine": "EverOS",
+     "approach": "Agentic: sufficiency call; if insufficient 2-3 queries (keyword, question, HyDE statement). LLM_MULTIROUND decider: up to 3 sub-queries x 3 rounds",
+     "where": "read, opt-in",
+     "model_calls": "1-4 calls",
+     "source": "docs/engine_survey/evermemos.json#read.rewrite"
+    },
+    {
+     "engine": "MemMachine",
+     "approach": "Agent mode: ToolSelect to SplitQuery / ChainOfQuery (<=3 rewrites after sufficiency) / direct; agent 91.69 versus memory mode 91.23 on 1,540 q, 5,566 versus 2,727 tokens/q",
+     "where": "read, opt-in",
+     "model_calls": "2-5 calls",
+     "source": "docs/engine_survey/memmachine.json#read.rewrite; docs/engine_survey/memmachine.json#eval.models"
+    },
+    {
+     "engine": "MIRIX",
+     "approach": "Forced-tool call turns the conversation into ';'-separated topics plus a temporal phrase; topics become the BM25 query",
+     "where": "read",
+     "model_calls": "1 call",
+     "source": "docs/engine_survey/mirix.json#read.rewrite"
+    },
+    {
+     "engine": "MemOS (fine)",
+     "approach": "TaskGoalParser: rephrased query, keys, tags, extra memories to embed; optional sub-query split",
+     "where": "read, opt-in",
+     "model_calls": "1+",
+     "source": "docs/engine_survey/memos.json#read.rewrite"
+    },
+    {
+     "engine": "Cognee",
+     "approach": "Rule router (no LLM); COT follow-ups; DECOMPOSITION; temporal interval call",
+     "where": "read",
+     "model_calls": "0-4",
+     "source": "docs/engine_survey/cognee.json#read.rewrite; docs/engine_survey/cognee.json#read.analysis"
+    },
+    {
+     "engine": "Graphiti / combined",
+     "approach": "Standalone reformulation from the last <=5 exchanges (unvalidated); planner emits <=2 queries + keywords; reflection optional",
+     "where": "read",
+     "model_calls": "1-2",
+     "source": "evals/analysis/COMBINED_ENGINE_COMPARISON_2026-10-11.md 1.4"
+    },
+    {
+     "engine": "Mem0, Nemori, LightMem, Memori, Hindsight, Honcho",
+     "approach": "No rewriting on the default read path",
+     "where": "-",
+     "model_calls": "0",
+     "source": "docs/engine_survey/mem0.json#read.rewrite; docs/engine_survey/nemori.json#read.rewrite; docs/engine_survey/hindsight.json#read.rewrite"
+    },
+    {
+     "engine": "MemSpine",
+     "approach": "Rules shape/contract, optional LLM planner subqueries, compose_rewrites, bridge hop, second round; all off in the 81.4 arm; read.hyde_leg proposed only",
+     "where": "read",
+     "model_calls": "0 (ref) / 1",
+     "source": "docs/engine_survey/memspine.json#read.rewrite"
+    }
+   ],
+   "items": [
+    "R14-qry-1",
+    "R14-qry-2",
+    "R14-qry-3"
+   ]
+  },
+  {
+   "key": "hop",
+   "title": "8. Multi-hop and graph traversal",
+   "question": "How does the engine reach evidence that the question does not name?",
+   "memspine_has": "graph_leg_v2/legs_v2/edge_compiler_v2 (S30, S38, S39), PPR, bridge hop, fact chain (E01), second round.",
+   "gap": "Surveyed engines do at most one hop; none shows a multi-hop gain on LoCoMo specifically. MemSpine already exceeds them in options, but they are all unscreened or inert on J runs.",
+   "engine_table": [
+    {
+     "engine": "Hindsight",
+     "approach": "One-hop link expansion from <=20 semantic seeds; <=200 targets per entity, 10 s timeout drops the leg; no multi-hop walk",
+     "where": "read",
+     "model_calls": "0",
+     "source": "docs/engine_survey/hindsight.json#read.traversal"
+    },
+    {
+     "engine": "Cognee",
+     "approach": "Graph projection around vector hits, k-hop from <=10 seeds; CONTEXT_EXTENSION; NL to Cypher",
+     "where": "read",
+     "model_calls": "0-6",
+     "source": "docs/engine_survey/cognee.json#read.traversal"
+    },
+    {
+     "engine": "Graphiti",
+     "approach": "Edges: BM25 + cosine + BFS depth 3, RRF; nodes optional; communities retrieved but not formatted",
+     "where": "read",
+     "model_calls": "0",
+     "source": "evals/analysis/COMBINED_ENGINE_COMPARISON_2026-10-11.md 1.4"
+    },
+    {
+     "engine": "MemMachine",
+     "approach": "No graph; contextual retrieval expands timeline neighbours (expand_context 3 in the LoCoMo script); CoQ/RaRag for multi-hop",
+     "where": "read",
+     "model_calls": "0 / agent",
+     "source": "docs/engine_survey/memmachine.json#read.traversal"
+    },
+    {
+     "engine": "EverOS",
+     "approach": "No graph; agentic cluster-scoped expansion",
+     "where": "read",
+     "model_calls": "opt-in",
+     "source": "docs/engine_survey/evermemos.json#read.traversal"
+    },
+    {
+     "engine": "Honcho",
+     "approach": "get_reasoning_chain walks the premise-to-conclusion DAG; no entity traversal",
+     "where": "read (agent)",
+     "model_calls": "agent loop",
+     "source": "docs/engine_survey/honcho.json#read.traversal"
+    },
+    {
+     "engine": "Mnemon",
+     "approach": "Bottom-up 'light-up' of topics and values linked to the View's records; re-read linked records (<=8)",
+     "where": "read",
+     "model_calls": "judge calls",
+     "source": "docs/engine_survey/mnemon.json#read.traversal"
+    },
+    {
+     "engine": "MemSpine",
+     "approach": "Entity BFS depth 2 (cap 3), degree 50, <=10 hits, trust-gated; PPR opt-in; bridge hop; cluster expand; all off in the reference",
+     "where": "read",
+     "model_calls": "0",
+     "source": "docs/engine_survey/memspine.json#read.traversal"
+    }
+   ],
+   "items": [
+    "R14-hop-1"
+   ]
+  },
+  {
+   "key": "ans",
+   "title": "9. Answer prompts: inference versus refusal",
+   "question": "What does the reader prompt allow when evidence is partial?",
+   "memspine_has": "`--retry-refusal`, `readers.py` variants (dated_world, dated_infer, grounded_detail, routed_generic), `--verify-answer`, verify-slots diagnosed, I80 gold-lint.",
+   "gap": "The inference-permitting vendor prompts are part of why their open-domain scores are high, and several are paired with lenient judges. MemSpine has the variants but never screened them: the two big reader classes (inference, refusal) list 'no screen'.",
+   "engine_table": [
+    {
+     "engine": "EverOS (benchmark)",
+     "approach": "7-step chain-of-thought incl. a time-calculation step; 'do not dismiss reasonable inferences'; up to 32,768 output tokens",
+     "where": "reader",
+     "model_calls": "1",
+     "source": "docs/engine_survey/evermemos.json#answer.prompt"
+    },
+    {
+     "engine": "Mem0-derived (Nemori, LightMem, MemMachine, MemOS)",
+     "approach": "Prefer the most recent memory on conflict, convert relative to absolute dates from memory timestamps, <= 5-6 words, step by step",
+     "where": "reader",
+     "model_calls": "1",
+     "source": "docs/engine_survey/nemori.json#answer.prompt; docs/engine_survey/lightmem.json#answer.prompt; docs/engine_survey/memos.json#answer.prompt"
+    },
+    {
+     "engine": "Mem0 proxy",
+     "approach": "Tells the model not to say no information was found",
+     "where": "reader",
+     "model_calls": "1",
+     "source": "docs/engine_survey/mem0.json#answer.prompt"
+    },
+    {
+     "engine": "Mnemon / combined engine",
+     "approach": "Answer from memory; exact 'not mentioned' string if unsupported; an empty context returns the abstention with no call",
+     "where": "reader",
+     "model_calls": "0-1",
+     "source": "docs/engine_survey/mnemon.json#answer.prompt; evals/analysis/COMBINED_ENGINE_COMPARISON_2026-10-11.md 1.4 (6)"
+    },
+    {
+     "engine": "Supermemory",
+     "approach": "'I don't know' if context insufficient; question date given; start from memory titles then chunks",
+     "where": "reader",
+     "model_calls": "1",
+     "source": "https://supermemory.ai/research/longmembench (Reproducing)"
+    },
+    {
+     "engine": "MIRIX (harness)",
+     "approach": "Verify, aggregate lists, stop after 2-3 searches, 'unknown' only after three failed searches, otherwise guess; LoCoMo-specific examples",
+     "where": "reader agent",
+     "model_calls": "<=6",
+     "source": "docs/engine_survey/mirix.json#answer.prompt"
+    },
+    {
+     "engine": "Letta filesystem agent",
+     "approach": "Agent decides what to search and how often over stored files; 74.0 with gpt-4o-mini",
+     "where": "agent",
+     "model_calls": "tool loop",
+     "source": "https://www.letta.com/blog/benchmarking-ai-agent-memory/"
+    },
+    {
+     "engine": "MemSpine",
+     "approach": "Clean grounded prompt (post-I80), neutral refusal retry, date repair, duration solver; reader variants dated_infer / routed_generic exist but have no screen",
+     "where": "reader (harness)",
+     "model_calls": "1-2",
+     "source": "docs/engine_survey/memspine.json#answer.prompt"
+    }
+   ],
+   "items": [
+    "R14-ans-1",
+    "R14-ans-2"
+   ]
+  },
+  {
+   "key": "mm",
+   "title": "10. Image and multimodal memory",
+   "question": "How do image turns become memory?",
+   "memspine_has": "`ingest.assets: on`, `read.asset_evidence`, `asset:<hash>` provenance, blob cache.",
+   "gap": "MemSpine resolves the original image at read time; every surveyed engine that handles images does it at ingest. A silent-drop path (Mem0) is the main pitfall.",
+   "engine_table": [
+    {
+     "engine": "Mem0",
+     "approach": "With enable_vision the LLM describes image parts before extraction; without it image turns are silently dropped",
+     "where": "write",
+     "model_calls": "+1 vision call",
+     "source": "https://docs.mem0.ai/open-source/features/multimodal-support ; docs/engine_survey/mem0.json#extract.facts"
+    },
+    {
+     "engine": "Hindsight",
+     "approach": "Images/files inline in retain content; separate vision slot only for chunks with attachments (1,500 chars per image, <=8 per chunk); facts keep a link to the attachment",
+     "where": "write",
+     "model_calls": "vision call per attachment chunk",
+     "source": "docs/engine_survey/hindsight.json#extras (multimodal inline attachments)"
+    },
+    {
+     "engine": "MemOS",
+     "approach": "Image/file/URL parsers (markitdown, vision LLM)",
+     "where": "write",
+     "model_calls": "vision call",
+     "source": "docs/engine_survey/memos.json#extras (Tool, skill and multimodal memory)"
+    },
+    {
+     "engine": "EverOS",
+     "approach": "Optional parser turns image/PDF/audio/video into text with a multimodal LLM",
+     "where": "write",
+     "model_calls": "parser calls",
+     "source": "docs/engine_survey/evermemos.json#extras (Multimodal ingest)"
+    },
+    {
+     "engine": "MIRIX",
+     "approach": "Screenshot ingestion in the paper; the accumulator is not wired into the server",
+     "where": "write",
+     "model_calls": "n/a",
+     "source": "docs/engine_survey/mirix.json#extras (multimodal / screen ingestion)"
+    },
+    {
+     "engine": "Zep (benchmark critique)",
+     "approach": "LoCoMo image questions sometimes unanswerable because the BLIP caption lacks the detail",
+     "where": "data",
+     "model_calls": "-",
+     "source": "https://blog.getzep.com/lies-damn-lies-statistics-is-mem0-really-sota-in-agent-memory"
+    },
+    {
+     "engine": "MemSpine",
+     "approach": "E04: dataset's own image URLs fetched once, hash-cached, vision port (qwen2.5vl:3b); read.asset_evidence cached/fetch; reader caption-line variant",
+     "where": "read",
+     "model_calls": "vision call at read",
+     "source": "evals/analysis/GAP_REGISTER.md E04"
+    }
+   ],
+   "items": [
+    "R14-mm-1"
+   ]
+  },
+  {
+   "key": "wk",
+   "title": "11. World-knowledge tools",
+   "question": "Do memory engines call external knowledge, and where does it enter?",
+   "memspine_has": "E03 external evidence (off), reader prompt world-knowledge clause (`dated_world`).",
+   "gap": "No surveyed engine reports a web tool in a LoCoMo run; the leading open-domain scores rely on the reader's prior. MemSpine's separation of public from private evidence matches MemOS's design.",
+   "engine_table": [
+    {
+     "engine": "MemOS",
+     "approach": "internet_search intent parsed in fine mode; web results (OuterMemory) shown in a separate block; internet leg off by default",
+     "where": "read",
+     "model_calls": "0-1",
+     "source": "docs/engine_survey/memos.json#answer.shape; docs/engine_survey/memos.json#read.legs"
+    },
+    {
+     "engine": "Cognee",
+     "approach": "Natural-language-to-Cypher and agentic tool loop with skills; no web tool on the default path",
+     "where": "read, opt-in",
+     "model_calls": "loop",
+     "source": "docs/engine_survey/cognee.json#rank.agentic"
+    },
+    {
+     "engine": "Hindsight reflect",
+     "approach": "Tool-calling agent over its own memory only (mental models, observations, recall)",
+     "where": "read, opt-in",
+     "model_calls": "<=10 iterations",
+     "source": "docs/engine_survey/hindsight.json#rank.agentic"
+    },
+    {
+     "engine": "Letta",
+     "approach": "Agent-defined tools (files, search); no fixed world tool",
+     "where": "agent",
+     "model_calls": "tool loop",
+     "source": "https://www.letta.com/blog/benchmarking-ai-agent-memory/"
+    },
+    {
+     "engine": "Zep open-domain result",
+     "approach": "Highest open-domain F1 49.56 / J 76.60 in the Mem0 paper table, from memory plus LLM prior, no web",
+     "where": "-",
+     "model_calls": "-",
+     "source": "https://arxiv.org/pdf/2504.19413 (open-domain paragraph)"
+    },
+    {
+     "engine": "MemSpine",
+     "approach": "E03: wikipedia provider (keyless), privacy filter, cache, call budget, separate [public knowledge] block that never proves a private fact; S23 skipped (no provider, network egress)",
+     "where": "read, opt-in",
+     "model_calls": "<=N",
+     "source": "evals/analysis/GAP_REGISTER.md E03"
+    }
+   ],
+   "items": [
+    "R14-wk-1"
+   ]
+  },
+  {
+   "key": "upd",
+   "title": "12. Conflict and knowledge update",
+   "question": "How are contradicted or changed facts handled, and when?",
+   "memspine_has": "Ladder with trust gate, retract tags, interval order, histories (S42), reconcile (S41), contest state, as-of reads.",
+   "gap": "MemSpine's key-scoped deterministic design avoids the whole-graph search flaw (#1728). The open risk is the optional LLM judge: Graphiti's report shows a small non-reasoning judge fails silently, and MemSpine's judge is a local 9B.",
+   "engine_table": [
+    {
+     "engine": "Mem0",
+     "approach": "Extraction is ADD-only; both versions survive; no supersession",
+     "where": "write",
+     "model_calls": "0",
+     "source": "docs/engine_survey/mem0.json#time.update"
+    },
+    {
+     "engine": "Graphiti / Zep",
+     "approach": "LLM returns contradicted indices per new edge; a deterministic rule sets invalid_at = new valid_at and expired_at = now. Known issues: a non-reasoning judge silently misses contradictions (#1666); invalidation searches the whole graph and dates retirements to ingest time (#1728)",
+     "where": "write",
+     "model_calls": "1 per edge batch",
+     "source": "https://github.com/getzep/graphiti/issues/1666 ; https://github.com/getzep/graphiti/issues/1728"
+    },
+    {
+     "engine": "Hindsight",
+     "approach": "Raw facts append-only; a consolidation LLM per batch of <=8 facts creates/updates/deletes observations: prefer update, cascade a state change, keep 'previously X, now Y'",
+     "where": "background",
+     "model_calls": "1 per batch",
+     "source": "docs/engine_survey/hindsight.json#time.update"
+    },
+    {
+     "engine": "Supermemory",
+     "approach": "updates / extends / derives relations; isLatest keeps retrieval on the current fact; its own report lists 100% on knowledge update",
+     "where": "write",
+     "model_calls": "n/a",
+     "source": "https://supermemory.ai/docs/concepts/graph-memory ; https://supermemory.ai/research/longmembench"
+    },
+    {
+     "engine": "Mnemon",
+     "approach": "Value appended with a conflict flag; at read an LLM judge withdraws 'no longer current' records (p >= 0.5) and lists them",
+     "where": "write + read",
+     "model_calls": "judge calls",
+     "source": "docs/engine_survey/mnemon.json#time.update"
+    },
+    {
+     "engine": "LightMem",
+     "approach": "Offline update queue (top 10 of 20 neighbours); LLM update/delete/ignore, hard delete",
+     "where": "offline",
+     "model_calls": "1 per entry over threshold",
+     "source": "docs/engine_survey/lightmem.json#time.update"
+    },
+    {
+     "engine": "Cognee",
+     "approach": "Opt-in 'contradicts' edge (non-destructive) and temporal resolution for declared functional relations",
+     "where": "write, opt-in",
+     "model_calls": "1 per touch",
+     "source": "docs/engine_survey/cognee.json#time.update"
+    },
+    {
+     "engine": "Honcho",
+     "approach": "Dream deduction specialist updates/deletes, old value not kept",
+     "where": "dream",
+     "model_calls": "1 per dream",
+     "source": "docs/engine_survey/honcho.json#time.update"
+    },
+    {
+     "engine": "Mastra OM",
+     "approach": "Reflector removes superseded observations",
+     "where": "background",
+     "model_calls": "1 per threshold",
+     "source": "https://mastra.ai/research/observational-memory"
+    },
+    {
+     "engine": "MemSpine",
+     "approach": "Deterministic 13-rung ladder: NOOP/ADD/UPDATE/INVALIDATE/CONTEST, 7 rungs on by default; LLM judge escalation and cross-key invalidate opt-in",
+     "where": "write",
+     "model_calls": "0 / opt-in 1",
+     "source": "docs/engine_survey/memspine.json#time.update"
+    }
+   ],
+   "items": [
+    "R14-upd-1",
+    "R14-upd-2"
+   ]
+  },
+  {
+   "key": "eval",
+   "title": "13. What each engine reports on LoCoMo and LongMemEval, and with which judge",
+   "question": "Can the numbers be compared with MemSpine's 81.4 (Qwen3.5-9B reader and judge, cat 1-4, 1,540 q)?",
+   "memspine_has": "Errata (47 entries), official F1 port (0 mismatches on 1,748 cases), mem0-official judge prompt flag, cluster-bootstrap CI, noise-floor tools, A1 same-model confound declared.",
+   "gap": "No published number shares reader, judge and question set with ours. Judges differ and several are described as lenient; the same engine moves a lot between harnesses (Zep 58-75, Mem0 77.7-92.5, Memori 41-87). MemSpine's context is the smallest of the set (672-1,571 tokens against 2.3k-36k), the one axis on which a fair claim exists.",
+   "engine_table": [
+    {
+     "engine": "MemSpine",
+     "approach": "81.4 (reference); official F1 42.0; Qwen3.5-9B Q4 as reader AND judge, thinking off; 672 tokens/q (Jina) to 1,571; errata with both headlines; cluster bootstrap",
+     "where": "local",
+     "model_calls": "-",
+     "source": "docs/engine_survey/memspine.json#eval.models; docs/engine_survey/memspine.json#answer.size"
+    },
+    {
+     "engine": "EverOS",
+     "approach": "94.42 / 93.51 / 93.05; gpt-4.1-mini reader, gpt-4o-mini judge; lenient judge ('touches on the same topic'), max over judge runs; 2,296-2,596 tokens",
+     "where": "vendor",
+     "model_calls": "-",
+     "source": "docs/engine_survey/evermemos.json#eval.rigour"
+    },
+    {
+     "engine": "MemU",
+     "approach": "92.09; gpt-4.1-mini reader, gpt-4.1 judge hard-coded, profile injected whole; v1 harness, not HEAD",
+     "where": "vendor",
+     "model_calls": "-",
+     "source": "docs/engine_survey/memu.json#eval.rigour"
+    },
+    {
+     "engine": "Mem0 platform",
+     "approach": "92.5 at top_200, 6,956 tokens; models unstated; OmniMemEval independent run 77.68",
+     "where": "vendor / independent",
+     "model_calls": "-",
+     "source": "docs/engine_survey/mem0.json#eval.rigour"
+    },
+    {
+     "engine": "Hindsight",
+     "approach": "92.0 (leaderboard, Gemini reader and a generous Gemini judge); paper 85.67-89.61 with a GPT-OSS-120b judge; about 24-36k tokens",
+     "where": "vendor",
+     "model_calls": "-",
+     "source": "docs/engine_survey/hindsight.json#eval.rigour"
+    },
+    {
+     "engine": "MemMachine",
+     "approach": "91.69 agent / 91.23 memory; gpt-4.1-mini + gpt-4o-mini judge; paid Cohere rerank",
+     "where": "vendor",
+     "model_calls": "-",
+     "source": "docs/engine_survey/memmachine.json#eval.rigour"
+    },
+    {
+     "engine": "Mnemon",
+     "approach": "91.7 standard / 89.2 without consolidation; gpt-4.1-mini; no held-out benchmark; 3,814 tokens",
+     "where": "vendor",
+     "model_calls": "-",
+     "source": "docs/engine_survey/mnemon.json#eval.rigour"
+    },
+    {
+     "engine": "Honcho",
+     "approach": "89.9; haiku-4-5 reader, judge unnamed in the blog, repo judge lenient",
+     "where": "vendor",
+     "model_calls": "-",
+     "source": "docs/engine_survey/honcho.json#eval.rigour"
+    },
+    {
+     "engine": "MemOS",
+     "approach": "88.83 OmniMemEval cloud; 75.80 T-Mem harness; 63.6 on LoCoMo-Refined with a strict Qwen3-14B judge",
+     "where": "independent + vendor",
+     "model_calls": "-",
+     "source": "docs/engine_survey/memos.json#eval.models"
+    },
+    {
+     "engine": "Cognee",
+     "approach": "83.48 OmniMemEval; vendor 90.7 on 1,762 q incl. cat 5; 32,532 tokens/q",
+     "where": "independent + vendor",
+     "model_calls": "-",
+     "source": "docs/engine_survey/cognee.json#eval.rigour"
+    },
+    {
+     "engine": "MIRIX",
+     "approach": "85.38 paper (GPT-4.1 judge); repo harness gpt-4o-mini generous judge, LoCoMo-tuned prompts",
+     "where": "vendor",
+     "model_calls": "-",
+     "source": "docs/engine_survey/mirix.json#eval.rigour"
+    },
+    {
+     "engine": "Nemori",
+     "approach": "79.4 (gpt-4.1-mini, gpt-4o-mini judge); repo harness reader = judge; 2,745 tokens",
+     "where": "vendor",
+     "model_calls": "-",
+     "source": "docs/engine_survey/nemori.json#eval.rigour"
+    },
+    {
+     "engine": "Memori",
+     "approach": "81.95 paper, 87.0 README; independent OmniMemEval 41.34",
+     "where": "vendor / independent",
+     "model_calls": "-",
+     "source": "docs/engine_survey/memori.json#eval.rigour"
+    },
+    {
+     "engine": "LightMem",
+     "approach": "71.95-72.99 with two judges reported; about 2,600 tokens",
+     "where": "vendor",
+     "model_calls": "-",
+     "source": "docs/engine_survey/lightmem.json#eval.rigour"
+    },
+    {
+     "engine": "Zep",
+     "approach": "Mem0 paper 65.99; Zep's own corrected run 75.14 +/- 0.17; zep-papers issue #5 claims 58.44",
+     "where": "vendor + third party",
+     "model_calls": "-",
+     "source": "https://blog.getzep.com/lies-damn-lies-statistics-is-mem0-really-sota-in-agent-memory ; https://github.com/getzep/zep-papers/issues/5"
+    },
+    {
+     "engine": "Letta filesystem",
+     "approach": "74.0 with gpt-4o-mini",
+     "where": "vendor",
+     "model_calls": "-",
+     "source": "https://www.letta.com/blog/benchmarking-ai-agent-memory/"
+    },
+    {
+     "engine": "LongMemEval-S (500 q)",
+     "approach": "Mastra OM 94.87 gpt-5-mini / 84.23 gpt-4o; Hindsight 91.4; Supermemory 85.2 (its report also prints 97% for gpt-4o in a table labelled Recall@20, not comparable); Zep 71.2; full context 60.2; Mem0 platform 94.4",
+     "where": "vendor",
+     "model_calls": "-",
+     "source": "https://mastra.ai/research/observational-memory ; https://supermemory.ai/research/longmembench ; https://docs.mem0.ai/core-concepts/memory-evaluation"
+    }
+   ],
+   "items": [
+    "R14-eval-1",
+    "R14-eval-2"
+   ]
+  }
+ ],
+ "items": [
+  {
+   "id": "R14-decon-1",
+   "tag": "R14",
+   "area": "decon",
+   "problem": "Derived facts are retrieved as stand-alone records and lose to raw turns; the retrieval unit and the index key are the same object. Engines that win use facts (or lossless restatements) as KEYS to a larger parent unit (episode or source chunk) and return the parent.",
+   "evidence": {
+    "count": 59,
+    "question_ids": [
+     "conv-26:0-15",
+     "conv-26:0-34",
+     "conv-26:0-75",
+     "conv-30:1-44",
+     "conv-30:1-56",
+     "conv-41:2-10",
+     "conv-41:2-40",
+     "conv-41:2-49",
+     "conv-42:3-1",
+     "conv-42:3-134",
+     "conv-42:3-135",
+     "conv-42:3-151",
+     "conv-42:3-22",
+     "conv-42:3-23",
+     "conv-42:3-30",
+     "conv-42:3-34",
+     "conv-42:3-42",
+     "conv-42:3-55",
+     "conv-42:3-58",
+     "conv-42:3-61",
+     "conv-42:3-79",
+     "conv-43:4-17",
+     "conv-43:4-18",
+     "conv-43:4-41",
+     "conv-43:4-45",
+     "conv-43:4-7",
+     "conv-44:5-0",
+     "conv-44:5-12",
+     "conv-44:5-24",
+     "conv-44:5-3",
+     "conv-44:5-39",
+     "conv-44:5-46",
+     "conv-44:5-55",
+     "conv-47:6-11",
+     "conv-47:6-2",
+     "conv-47:6-24",
+     "conv-47:6-32",
+     "conv-47:6-5",
+     "conv-47:6-51",
+     "conv-48:7-188",
+     "conv-48:7-19",
+     "conv-48:7-54",
+     "conv-48:7-55",
+     "conv-48:7-8",
+     "conv-48:7-82",
+     "conv-48:7-86",
+     "conv-48:7-88",
+     "conv-49:8-18",
+     "conv-49:8-36",
+     "conv-49:8-44",
+     "conv-49:8-45",
+     "conv-49:8-49",
+     "conv-49:8-82",
+     "conv-50:9-10",
+     "conv-50:9-27",
+     "conv-50:9-29",
+     "conv-50:9-3",
+     "conv-50:9-45",
+     "conv-50:9-48"
+    ],
+    "method": "measured: stage/class labels of clean-jina-full (evals/analysis/locomo_problem_labels_clean_jina_full.txt); classes implicit_or_paraphrased_gold, vocabulary_mismatch_recall, temporal_evidence_missing, list_aggregation_generic. These are the classes where the gold line is not found by its surface form; counts include every stage the label assigns."
+   },
+   "layer": "ingest",
+   "existing": [
+    "write.window_extract",
+    "read.lift_before_rerank (S15)",
+    "leg kind maxsim (off)",
+    "S03",
+    "S04",
+    "S43",
+    "S62"
+   ],
+   "gap": "No arm combines window facts as index keys with parent-window lift and MaxSim ranking; S03/S04 test facts as competing records and lose.",
+   "hypothesis": "Rank the parent window by max similarity over its facts (MaxSim) plus the raw window, then return the parent window with its facts as annotations; this removes the fact-versus-raw-turn competition. Expected: recover part of the implicit, vocabulary and temporal recall misses on the GC sample (hypothesis +2 to +4 net), no loss on lexical questions because the raw-window leg stays.",
+   "solutions": [
+    {
+     "name": "Facts as keys, parent lift (EverOS VECTOR method)",
+     "generic_mechanism": "Index facts; score each parent unit by the max (or heap-expanded) fact score; return the parent unit text with facts attached by parent_id.",
+     "source": "EverOS: docs/engine_survey/evermemos.json#read.legs; docs/engine_survey/evermemos.json#rank.fusion",
+     "cost": "0 extra calls at read; write cost unchanged (window_extract already runs)",
+     "risk": "EverOS's own header calls the cross-encoder net negative on hybrid episodes; test with and without the Jina rerank"
+    },
+    {
+     "name": "Contextual atomic memory plus attached source chunk (Supermemory)",
+     "generic_mechanism": "Keep the verbatim chunk beside each atomic memory and inject both on a hit.",
+     "source": "https://supermemory.ai/research/longmembench 3.1/3.4; Nemori appends raw turns of its top-2 episodes: docs/engine_survey/nemori.json#answer.shape",
+     "cost": "0 calls; more tokens (budget 4,096)",
+     "risk": "token budget; MemSpine is at 672 tokens/q so headroom exists"
+    }
+   ],
+   "test": "New GC arm: S43 window facts + `maxsim` leg + S15 lift; screen on fail_retrieval and fail_temporal slices; compare with S62. A J run is inert (needs derived layers).",
+   "priority": "H"
+  },
+  {
+   "id": "R14-decon-2",
+   "tag": "R14",
+   "area": "decon",
+   "problem": "The replay timestamp must reach the extractor for every line. Three engines silently lose it: Mem0 OSS refuses a caller timestamp and dates facts with the run date; Memori facts carry only ingest time; Nemori facts get wall-clock created_at and the reader then sees it as the fact time.",
+   "evidence": {
+    "count": 23,
+    "question_ids": [
+     "conv-26:0-35",
+     "conv-30:1-14",
+     "conv-41:2-10",
+     "conv-42:3-22",
+     "conv-42:3-26",
+     "conv-42:3-41",
+     "conv-42:3-44",
+     "conv-42:3-54",
+     "conv-43:4-45",
+     "conv-44:5-0",
+     "conv-44:5-46",
+     "conv-44:5-55",
+     "conv-47:6-11",
+     "conv-47:6-32",
+     "conv-47:6-41",
+     "conv-48:7-54",
+     "conv-48:7-55",
+     "conv-48:7-71",
+     "conv-49:8-25",
+     "conv-49:8-45",
+     "conv-50:9-10",
+     "conv-50:9-27",
+     "conv-50:9-48"
+    ],
+    "method": "measured: stage/class labels of clean-jina-full (evals/analysis/locomo_problem_labels_clean_jina_full.txt); classes temporal_evidence_missing, date_wrong_event, date_offset_small. Date-bearing wrong classes; the defect itself is a code property, so the test is a unit test, not a LoCoMo effect."
+   },
+   "layer": "ingest",
+   "existing": [
+    "write.stamping_v2 (S48)",
+    "write.temporal_v2 (W2-14)",
+    "I7",
+    "I42"
+   ],
+   "gap": "No invariant test that no derived record falls back to wall-clock time when the source turn has a session date.",
+   "hypothesis": "A property test over the write path (fake clock far from the data dates) finds zero derived records whose valid_from or rendered date equals the wall clock; any hit is a bug that costs temporal accuracy. Expected LoCoMo effect: none if clean; protects every replayed benchmark.",
+   "solutions": [
+    {
+     "name": "Fake-clock invariant test",
+     "generic_mechanism": "Run a window write with the clock set years after the data; assert valid_from, rendered date and annotations derive from the session date.",
+     "source": "Negative lessons: docs/engine_survey/mem0.json#extract.dates; docs/engine_survey/memori.json#extract.dates; docs/engine_survey/nemori.json#extract.dates",
+     "cost": "0 model calls (fake extractor)",
+     "risk": "none"
+    }
+   ],
+   "test": "Unit test in tests/ with FakeClock and a fake extractor; no GPU.",
+   "priority": "M"
+  },
+  {
+   "id": "R14-decon-3",
+   "tag": "R14",
+   "area": "decon",
+   "problem": "Restatement erases who said it. SimpleMem discards speaker labels; LightMem groups facts per speaker in the prompt; MemOS ingests each conversation once per speaker perspective so search sees both views.",
+   "evidence": {
+    "count": 4,
+    "question_ids": [
+     "conv-30:1-43",
+     "conv-48:7-108",
+     "conv-48:7-136",
+     "conv-50:9-53"
+    ],
+    "method": "measured: stage/class labels of clean-jina-full (evals/analysis/locomo_problem_labels_clean_jina_full.txt); classes speaker_confusion, distractor_line. Classes where the wrong line or wrong speaker was used (heuristic labels in the problem map)."
+   },
+   "layer": "ingest",
+   "existing": [
+    "perspective leg (I75, ref arm)",
+    "spk/sub/ask axes (I39)",
+    "I59 owner check"
+   ],
+   "gap": "R14-confirmed: MemSpine's perspective layer already covers this; the only open item is the proposed 'answer provenance check' (no key yet).",
+   "hypothesis": "R14-confirmed I59/I63. No new arm: keep the speaker in every rendered fact line and in the fact's cited span. MemOS's double-perspective ingest corresponds to our perspective leg, already in the 81.4 arm.",
+   "solutions": [
+    {
+     "name": "Per-speaker perspective ingestion (MemOS script) and grouped speaker blocks (LightMem)",
+     "generic_mechanism": "Render evidence grouped by speaker so the reader can match the question subject.",
+     "source": "docs/engine_survey/memos.json#eval.rigour; docs/engine_survey/lightmem.json#answer.shape",
+     "cost": "0",
+     "risk": "already covered"
+    }
+   ],
+   "test": "None new; reuse the speaker_confusion/distractor slice.",
+   "priority": "L"
+  },
+  {
+   "id": "R14-seg-1",
+   "tag": "R14",
+   "area": "decon",
+   "problem": "Window boundaries ignore the calendar-day or session change that the best segmenters cut on first (EverOS prompt: calendar-day change is the highest-priority split, then topic shift, task done, gap over 4 h; hard cap 65,536 tokens or 500 messages). MemSpine's topic-shift test is 'never tested across a session change'.",
+   "evidence": {
+    "count": 0,
+    "question_ids": [],
+    "method": "heuristic: measured on write logs only; no question set"
+   },
+   "layer": "ingest",
+   "existing": [
+    "write.segmentation_v2 (S45, gap/day cuts)",
+    "core/window.py Welford topic shift"
+   ],
+   "gap": "R14-confirmed S45: the cut order (session/day first, topic second) is only a screened-for-cost setting.",
+   "hypothesis": "Cutting on session change before topic shift removes cross-session windows, so every fact gets one unambiguous date; measured as fewer facts_ungrounded and fewer facts whose cited lines span two dates. Cost neutral.",
+   "solutions": [
+    {
+     "name": "Day/session-first boundary order",
+     "generic_mechanism": "Hard cut on date change; then embedding or LLM topic shift; token hard cap.",
+     "source": "docs/engine_survey/evermemos.json#segment.rule; Nemori LLM rule docs/engine_survey/nemori.json#segment.rule; Honcho token gate docs/engine_survey/honcho.json#segment.rule",
+     "cost": "0",
+     "risk": "more, smaller windows means more calls; measure calls per turn"
+    }
+   ],
+   "test": "Count cross-date windows in stored LoCoMo ingest logs (CPU) before and after S45.",
+   "priority": "M"
+  },
+  {
+   "id": "R14-ent-1",
+   "tag": "R14",
+   "area": "ent",
+   "problem": "String and embedding similarity alone merge or split entities wrongly when names are short or share a surname; co-occurrence and time proximity disambiguate without a model call.",
+   "evidence": {
+    "count": 0,
+    "question_ids": [],
+    "method": "heuristic: no LoCoMo class depends on it; effect is on call count and open-cast sets"
+   },
+   "layer": "ingest",
+   "existing": [
+    "extract_graph.resolve rules/llm",
+    "resolution.py ladder"
+   ],
+   "gap": "No context-overlap score in the rules tier; ambiguous names go straight to the LLM batch.",
+   "hypothesis": "Add a weighted co-occurrence and temporal-proximity term to the rules tier (Hindsight weights 0.5/0.3/0.2 as the starting point) and measure the fraction of names sent to the LLM batch; expected: fewer resolve_entity calls at equal merge precision on a hand-built alias fixture. No LoCoMo accuracy effect expected.",
+   "solutions": [
+    {
+     "name": "Context-weighted resolution score (Hindsight)",
+     "generic_mechanism": "score = a*name_sim + b*selectivity-weighted shared-neighbour overlap + c*time proximity; merge above a threshold.",
+     "source": "docs/engine_survey/hindsight.json#graph.resolution",
+     "cost": "0 calls",
+     "risk": "thresholds tuned on one corpus; use only as a rules-tier pre-filter"
+    }
+   ],
+   "test": "Synthetic alias fixture plus the entity logs of S02; count LLM batch calls.",
+   "priority": "L"
+  },
+  {
+   "id": "R14-time-1",
+   "tag": "R14",
+   "area": "time",
+   "problem": "A date alone does not say how precise it is or whether the state is still running; arithmetic and 'how long' questions need both.",
+   "evidence": {
+    "count": 33,
+    "question_ids": [
+     "conv-26:0-35",
+     "conv-30:1-14",
+     "conv-41:2-10",
+     "conv-42:3-22",
+     "conv-42:3-26",
+     "conv-42:3-41",
+     "conv-42:3-44",
+     "conv-42:3-54",
+     "conv-43:4-16",
+     "conv-43:4-45",
+     "conv-44:5-0",
+     "conv-44:5-34",
+     "conv-44:5-46",
+     "conv-44:5-47",
+     "conv-44:5-55",
+     "conv-44:5-59",
+     "conv-47:6-11",
+     "conv-47:6-32",
+     "conv-47:6-41",
+     "conv-47:6-62",
+     "conv-48:7-134",
+     "conv-48:7-46",
+     "conv-48:7-54",
+     "conv-48:7-55",
+     "conv-48:7-71",
+     "conv-49:8-25",
+     "conv-49:8-39",
+     "conv-49:8-45",
+     "conv-50:9-10",
+     "conv-50:9-27",
+     "conv-50:9-48",
+     "conv-50:9-61",
+     "conv-50:9-62"
+    ],
+    "method": "measured: stage/class labels of clean-jina-full (evals/analysis/locomo_problem_labels_clean_jina_full.txt); classes temporal_evidence_missing, date_wrong_event, date_duration_arithmetic, date_offset_small. Date-bearing wrong classes."
+   },
+   "layer": "ingest",
+   "existing": [
+    "write.temporal_v2",
+    "E05 milestones",
+    "I76 duration-solve"
+   ],
+   "gap": "No precision (day/week/month/season) and no status (ongoing/completed/planned) on the temporal envelope.",
+   "hypothesis": "Adding `precision` and `status` to the W2-14 envelope lets the duration solver pick floor versus nearest and say 'about'; expected to shift part of the duration-arithmetic class (hypothesis +1 to +3 net on the date slice) at 0 extra calls, because the fields come out of the existing window call.",
+   "solutions": [
+    {
+     "name": "Precision, status and type in the temporal pass (Mem0 platform)",
+     "generic_mechanism": "Extractor returns event time, precision, ongoing flag and a coarse memory type; code stores and renders them.",
+     "source": "https://docs.mem0.ai/core-concepts/memory-evaluation (Temporal Reasoning)",
+     "cost": "0 extra (same window call)",
+     "risk": "9B schema adherence; the envelope validator already repairs once"
+    },
+    {
+     "name": "Three-date line (observation, referenced, relative)",
+     "generic_mechanism": "Render the line date and the referenced date separately; keep the relative offset string.",
+     "source": "https://mastra.ai/research/observational-memory (Temporal anchoring)",
+     "cost": "0",
+     "risk": "longer lines"
+    }
+   ],
+   "test": "S62 arm with the envelope fields; compare on fail_temporal and the date_* classes.",
+   "priority": "M"
+  },
+  {
+   "id": "R14-time-2",
+   "tag": "R14",
+   "area": "time",
+   "problem": "Read-time relative phrases must be anchored to the question or reference date, not the wall clock. MIRIX parses against wall-clock now; the combined engine's planner does the same; Hindsight takes a query_timestamp.",
+   "evidence": {
+    "count": 14,
+    "question_ids": [
+     "conv-41:2-10",
+     "conv-42:3-22",
+     "conv-43:4-45",
+     "conv-44:5-0",
+     "conv-44:5-46",
+     "conv-44:5-55",
+     "conv-47:6-11",
+     "conv-47:6-32",
+     "conv-48:7-54",
+     "conv-48:7-55",
+     "conv-49:8-45",
+     "conv-50:9-10",
+     "conv-50:9-27",
+     "conv-50:9-48"
+    ],
+    "method": "measured: stage/class labels of clean-jina-full (evals/analysis/locomo_problem_labels_clean_jina_full.txt); classes temporal_evidence_missing. Same class; the defect is code-level."
+   },
+   "layer": "retrieve",
+   "existing": [
+    "I8",
+    "read.temporal_relative",
+    "--memspine-as-of-question-date"
+   ],
+   "gap": "R14-confirmed I8 (anchor never tested): no guard that the temporal parse path never calls the system clock.",
+   "hypothesis": "A static test (no datetime.now or time.time in the temporal-query and query-shape modules) plus a fake-clock test keeps relative phrases correct under replay; zero accuracy change if already clean.",
+   "solutions": [
+    {
+     "name": "Explicit reference_time on every read",
+     "generic_mechanism": "Pass question or session date into the parser; fail closed to 'unanchored' if absent.",
+     "source": "docs/engine_survey/hindsight.json#read.analysis; negative: docs/engine_survey/mirix.json#read.analysis; docs/engine_survey/memos.json#read.temporal",
+     "cost": "0",
+     "risk": "none"
+    }
+   ],
+   "test": "Unit test; no GPU.",
+   "priority": "M"
+  },
+  {
+   "id": "R14-time-3",
+   "tag": "R14",
+   "area": "time",
+   "problem": "A hard window filter drops partially matching evidence; the engines that do best choose inside the window by relevance (not recency) and then add a bounded proximity boost.",
+   "evidence": {
+    "count": 14,
+    "question_ids": [
+     "conv-41:2-10",
+     "conv-42:3-22",
+     "conv-43:4-45",
+     "conv-44:5-0",
+     "conv-44:5-46",
+     "conv-44:5-55",
+     "conv-47:6-11",
+     "conv-47:6-32",
+     "conv-48:7-54",
+     "conv-48:7-55",
+     "conv-49:8-45",
+     "conv-50:9-10",
+     "conv-50:9-27",
+     "conv-50:9-48"
+    ],
+    "method": "measured: stage/class labels of clean-jina-full (evals/analysis/locomo_problem_labels_clean_jina_full.txt); classes temporal_evidence_missing. Same class (stages cf 8, b 5, cr 1)."
+   },
+   "layer": "retrieve",
+   "existing": [
+    "temporal leg (absolute spans)",
+    "read.temporal_relative (opt-in)",
+    "S24 timeview (skipped)"
+   ],
+   "gap": "Window used as a leg; no proximity boost at rerank and no neutral-for-non-temporal rule.",
+   "hypothesis": "Add a +/-10% proximity factor to the rerank score only when a window was parsed (neutral otherwise); expected to recover part of the 8 temporal fusion cuts without hurting non-temporal questions (guard: PARITY on non-temporal items).",
+   "solutions": [
+    {
+     "name": "Window overlap plus proximity factor (Hindsight)",
+     "generic_mechanism": "final = sigmoid(CE) x recency(-8..+10%) x temporal proximity(+/-10%, neutral without a window).",
+     "source": "docs/engine_survey/hindsight.json#rank.rerank; docs/engine_survey/hindsight.json#read.temporal",
+     "cost": "0",
+     "risk": "boost size tuned on one corpus; stay within the stated +/-10%"
+    },
+    {
+     "name": "LLM interval extraction for unsure phrases (Cognee TEMPORAL)",
+     "generic_mechanism": "One call returns the interval only when rules are unsure.",
+     "source": "docs/engine_survey/cognee.json#read.temporal",
+     "cost": "<=1 call on unsure questions",
+     "risk": "9B parse errors"
+    }
+   ],
+   "test": "Screen on fail_temporal; report flips on non-temporal control items.",
+   "priority": "M"
+  },
+  {
+   "id": "R14-prof-1",
+   "tag": "R14",
+   "area": "prof",
+   "problem": "Attribute questions ('what is X's ...', 'did X ever ...') are answered from whichever raw turn ranks first; a keyed value with its dated history gives the current value and the change.",
+   "evidence": {
+    "count": 62,
+    "question_ids": [
+     "conv-26:0-142",
+     "conv-26:0-151",
+     "conv-26:0-43",
+     "conv-26:0-66",
+     "conv-30:1-17",
+     "conv-30:1-48",
+     "conv-30:1-75",
+     "conv-41:2-35",
+     "conv-41:2-85",
+     "conv-41:2-99",
+     "conv-42:3-113",
+     "conv-42:3-116",
+     "conv-42:3-148",
+     "conv-42:3-169",
+     "conv-42:3-5",
+     "conv-42:3-70",
+     "conv-43:4-106",
+     "conv-43:4-117",
+     "conv-43:4-128",
+     "conv-43:4-151",
+     "conv-43:4-169",
+     "conv-43:4-2",
+     "conv-43:4-30",
+     "conv-43:4-76",
+     "conv-44:5-16",
+     "conv-44:5-2",
+     "conv-44:5-21",
+     "conv-44:5-79",
+     "conv-44:5-89",
+     "conv-47:6-112",
+     "conv-47:6-147",
+     "conv-47:6-22",
+     "conv-47:6-26",
+     "conv-47:6-27",
+     "conv-47:6-60",
+     "conv-48:7-1",
+     "conv-48:7-115",
+     "conv-48:7-116",
+     "conv-48:7-13",
+     "conv-48:7-145",
+     "conv-48:7-151",
+     "conv-48:7-155",
+     "conv-48:7-178",
+     "conv-48:7-77",
+     "conv-48:7-87",
+     "conv-49:8-104",
+     "conv-49:8-154",
+     "conv-49:8-37",
+     "conv-49:8-62",
+     "conv-49:8-78",
+     "conv-50:9-1",
+     "conv-50:9-109",
+     "conv-50:9-110",
+     "conv-50:9-120",
+     "conv-50:9-125",
+     "conv-50:9-147",
+     "conv-50:9-54",
+     "conv-50:9-56",
+     "conv-50:9-60",
+     "conv-50:9-64",
+     "conv-50:9-67",
+     "conv-50:9-96"
+    ],
+    "method": "measured: stage/class labels of clean-jina-full (evals/analysis/locomo_problem_labels_clean_jina_full.txt); classes wrong_detail, list_incomplete. Heuristic: single-hop attribute questions are the bulk of wrong_detail (30 of its 46)."
+   },
+   "layer": "compose",
+   "existing": [
+    "offline.standing_v2 (S34)",
+    "offline.histories_v2 (S42)",
+    "offline.profile_card_v2 (S46, skipped)"
+   ],
+   "gap": "R14-confirmed: the card has no read consumer. Missing is the shape: a compact 'slot: value (date), previous value (date)' block selected by the contract subject.",
+   "hypothesis": "Render a value-history block only when the query contract names a subject and a relation matching a keyed slot (Mnemon fold model); expected: small gain on attribute and 'changed' questions, no change elsewhere; hypothesis +0 to +3 net on the 80 sample.",
+   "solutions": [
+    {
+     "name": "Keyed value plus dated history block (Mnemon)",
+     "generic_mechanism": "Facts keyed 'thing . attribute'; a revision appends a dated value and sets a conflict flag if the change was not stated.",
+     "source": "docs/engine_survey/mnemon.json#extract.facts; docs/engine_survey/mnemon.json#answer.shape",
+     "cost": "1 call per consolidation batch (sleep)",
+     "risk": "LoCoMo has few changeable values; 9B key stability"
+    },
+    {
+     "name": "Slot grammar with prefixes and character caps (Honcho)",
+     "generic_mechanism": "Bounded entry grammar so the card cannot drift or grow.",
+     "source": "docs/engine_survey/honcho.json#derive.profile",
+     "cost": "sleep only",
+     "risk": "low"
+    }
+   ],
+   "test": "S34+S46 wiring on gc3 with a read.profile_header consumer; slice: wrong_detail single-hop.",
+   "priority": "M"
+  },
+  {
+   "id": "R14-prof-2",
+   "tag": "R14",
+   "area": "prof",
+   "problem": "Destructive profile edits (MemMachine DELETE+ADD, MIRIX rewrite) leave no history, so 'what was it before' is unanswerable.",
+   "evidence": {
+    "count": 0,
+    "question_ids": [],
+    "method": "heuristic: invariant test; no LoCoMo class"
+   },
+   "layer": "ingest",
+   "existing": [
+    "supersede with superseded_at",
+    "histories_v2"
+   ],
+   "gap": "Confirmed MemSpine is ahead; keep the invariant that a profile edit supersedes, never deletes.",
+   "hypothesis": "Add a regression test: any profile or card update leaves the prior value readable with as_of; no accuracy change expected.",
+   "solutions": [
+    {
+     "name": "Supersede-not-delete invariant",
+     "generic_mechanism": "Profile operations map to the conflict-ladder verdicts.",
+     "source": "docs/engine_survey/memmachine.json#time.update; docs/engine_survey/mirix.json#time.update",
+     "cost": "0",
+     "risk": "none"
+    }
+   ],
+   "test": "Unit test.",
+   "priority": "L"
+  },
+  {
+   "id": "R14-epi-1",
+   "tag": "R14",
+   "area": "epi",
+   "problem": "A retrieved fact or turn lacks the situation it came from; engines attach it (MemOS 'background', Memori summaries linked to recalled facts, Supermemory source chunk).",
+   "evidence": {
+    "count": 60,
+    "question_ids": [
+     "conv-26:0-22",
+     "conv-26:0-59",
+     "conv-26:0-66",
+     "conv-30:1-44",
+     "conv-30:1-48",
+     "conv-41:2-10",
+     "conv-41:2-17",
+     "conv-41:2-41",
+     "conv-41:2-49",
+     "conv-42:3-12",
+     "conv-42:3-134",
+     "conv-42:3-22",
+     "conv-42:3-4",
+     "conv-42:3-5",
+     "conv-42:3-60",
+     "conv-42:3-70",
+     "conv-42:3-73",
+     "conv-42:3-85",
+     "conv-43:4-15",
+     "conv-43:4-2",
+     "conv-43:4-28",
+     "conv-43:4-30",
+     "conv-43:4-45",
+     "conv-43:4-5",
+     "conv-43:4-51",
+     "conv-43:4-66",
+     "conv-43:4-8",
+     "conv-44:5-0",
+     "conv-44:5-2",
+     "conv-44:5-46",
+     "conv-44:5-55",
+     "conv-44:5-89",
+     "conv-47:6-0",
+     "conv-47:6-11",
+     "conv-47:6-16",
+     "conv-47:6-17",
+     "conv-47:6-22",
+     "conv-47:6-26",
+     "conv-47:6-27",
+     "conv-47:6-30",
+     "conv-47:6-32",
+     "conv-47:6-35",
+     "conv-47:6-60",
+     "conv-47:6-7",
+     "conv-48:7-1",
+     "conv-48:7-155",
+     "conv-48:7-188",
+     "conv-48:7-54",
+     "conv-48:7-55",
+     "conv-48:7-70",
+     "conv-48:7-75",
+     "conv-49:8-104",
+     "conv-49:8-37",
+     "conv-49:8-45",
+     "conv-49:8-57",
+     "conv-50:9-10",
+     "conv-50:9-13",
+     "conv-50:9-27",
+     "conv-50:9-48",
+     "conv-50:9-7"
+    ],
+    "method": "measured: stage/class labels of clean-jina-full (evals/analysis/locomo_problem_labels_clean_jina_full.txt); classes implicit_or_paraphrased_gold, temporal_evidence_missing, list_incomplete, inference_open_domain. Classes where the context around the line (who, when, why) is the missing piece; heuristic grouping."
+   },
+   "layer": "compose",
+   "existing": [
+    "lineage parents par(m)",
+    "S31 episode_leg_v2 (lifts to turns)",
+    "read.profile_header_packing"
+   ],
+   "gap": "Lift goes episode to turns; the reverse (turn or fact to a one-line parent summary) is not rendered.",
+   "hypothesis": "Render at most one 25-word parent-episode line under the top-3 hits; expected to help inference and implicit questions at 60-80 extra tokens per question (we are at 672); hypothesis +1 to +3 net on the GC arm.",
+   "solutions": [
+    {
+     "name": "Fact plus parent summary line",
+     "generic_mechanism": "Join hit to par(m) to episode summary; dedupe summaries across hits (Memori dedupes).",
+     "source": "docs/engine_survey/memos.json#extract.episode; docs/engine_survey/memori.json#answer.shape",
+     "cost": "0 at read (summary built at sleep)",
+     "risk": "token budget; duplicated summaries"
+    }
+   ],
+   "test": "GC arm S33 plus a render flag; compare tokens and flips.",
+   "priority": "M"
+  },
+  {
+   "id": "R14-epi-2",
+   "tag": "R14",
+   "area": "epi",
+   "problem": "Small local models emit looping summaries; Honcho rejects outputs with <35% distinct 4-grams and keeps the previous summary.",
+   "evidence": {
+    "count": 0,
+    "question_ids": [],
+    "method": "heuristic: guard; no LoCoMo class"
+   },
+   "layer": "ingest",
+   "existing": [
+    "extractive fallback",
+    "membership fingerprint"
+   ],
+   "gap": "No repetitiveness guard on the summarize role.",
+   "hypothesis": "A distinct-4-gram floor on summary output removes degenerate summaries; expected effect: fewer bad L2 records on a 9B role, measured as rejected count.",
+   "solutions": [
+    {
+     "name": "Degeneracy guard",
+     "generic_mechanism": "distinct 4-gram ratio >= 0.35 else keep the old summary.",
+     "source": "docs/engine_survey/honcho.json#derive.session",
+     "cost": "0",
+     "risk": "none"
+    }
+   ],
+   "test": "Unit test with a looping fake output.",
+   "priority": "L"
+  },
+  {
+   "id": "R14-epi-3",
+   "tag": "R14",
+   "area": "epi",
+   "problem": "Retrieval cannot return what the query does not name. Mastra drops retrieval entirely: a dated, prioritised observation log of the whole history (3-6x compression, about 30k tokens average context on LongMemEval-S, stable prefix) beat the oracle with gpt-4o.",
+   "evidence": {
+    "count": 110,
+    "question_ids": [
+     "conv-26:0-11",
+     "conv-26:0-15",
+     "conv-26:0-34",
+     "conv-26:0-42",
+     "conv-26:0-69",
+     "conv-26:0-75",
+     "conv-30:1-23",
+     "conv-30:1-3",
+     "conv-30:1-31",
+     "conv-30:1-44",
+     "conv-30:1-56",
+     "conv-41:2-10",
+     "conv-41:2-107",
+     "conv-41:2-133",
+     "conv-41:2-40",
+     "conv-41:2-42",
+     "conv-41:2-45",
+     "conv-41:2-49",
+     "conv-41:2-64",
+     "conv-41:2-8",
+     "conv-42:3-1",
+     "conv-42:3-103",
+     "conv-42:3-122",
+     "conv-42:3-134",
+     "conv-42:3-135",
+     "conv-42:3-14",
+     "conv-42:3-151",
+     "conv-42:3-173",
+     "conv-42:3-195",
+     "conv-42:3-22",
+     "conv-42:3-23",
+     "conv-42:3-30",
+     "conv-42:3-34",
+     "conv-42:3-42",
+     "conv-42:3-55",
+     "conv-42:3-58",
+     "conv-42:3-61",
+     "conv-42:3-66",
+     "conv-42:3-68",
+     "conv-42:3-74",
+     "conv-42:3-79",
+     "conv-43:4-17",
+     "conv-43:4-18",
+     "conv-43:4-19",
+     "conv-43:4-3",
+     "conv-43:4-34",
+     "conv-43:4-38",
+     "conv-43:4-41",
+     "conv-43:4-45",
+     "conv-43:4-53",
+     "conv-43:4-67",
+     "conv-43:4-7",
+     "conv-43:4-70",
+     "conv-44:5-0",
+     "conv-44:5-12",
+     "conv-44:5-18",
+     "conv-44:5-19",
+     "conv-44:5-23",
+     "conv-44:5-24",
+     "conv-44:5-28",
+     "conv-44:5-3",
+     "conv-44:5-33",
+     "conv-44:5-39",
+     "conv-44:5-43",
+     "conv-44:5-44",
+     "conv-44:5-46",
+     "conv-44:5-52",
+     "conv-44:5-55",
+     "conv-47:6-11",
+     "conv-47:6-19",
+     "conv-47:6-2",
+     "conv-47:6-24",
+     "conv-47:6-32",
+     "conv-47:6-33",
+     "conv-47:6-5",
+     "conv-47:6-51",
+     "conv-47:6-6",
+     "conv-47:6-75",
+     "conv-48:7-121",
+     "conv-48:7-158",
+     "conv-48:7-179",
+     "conv-48:7-188",
+     "conv-48:7-19",
+     "conv-48:7-23",
+     "conv-48:7-36",
+     "conv-48:7-48",
+     "conv-48:7-54",
+     "conv-48:7-55",
+     "conv-48:7-8",
+     "conv-48:7-82",
+     "conv-48:7-86",
+     "conv-48:7-88",
+     "conv-49:8-110",
+     "conv-49:8-18",
+     "conv-49:8-20",
+     "conv-49:8-26",
+     "conv-49:8-36",
+     "conv-49:8-43",
+     "conv-49:8-44",
+     "conv-49:8-45",
+     "conv-49:8-49",
+     "conv-49:8-51",
+     "conv-49:8-81",
+     "conv-49:8-82",
+     "conv-50:9-10",
+     "conv-50:9-27",
+     "conv-50:9-29",
+     "conv-50:9-3",
+     "conv-50:9-45",
+     "conv-50:9-48"
+    ],
+    "method": "measured: stage/class labels of clean-jina-full (evals/analysis/locomo_problem_labels_clean_jina_full.txt); classes list_aggregation_generic, open_domain_inference_retrieval, temporal_evidence_missing, multi_evidence_recall, implicit_or_paraphrased_gold, vocabulary_mismatch_recall, fusion_loss_lexical_only, fusion_loss_vector_only. Recall-stage classes (b and cf): the gold line was not in the context. Upper bound only, not a capture estimate."
+   },
+   "layer": "compose",
+   "existing": [
+    "session_close_v2",
+    "standing_v2",
+    "profile_header_packing (PROFILE NOTES, budget 300)"
+   ],
+   "gap": "Nothing places a conversation-wide dated log in the context as a stable prefix; our packing is a 300-token header.",
+   "hypothesis": "A priority-tagged dated observation log capped at about 1.5-2k tokens as a stable prefix, plus normal retrieval, covers recall-stage misses where the gold is a short event line. Risk is large: Mastra shows gpt-4o loses 10 points on temporal and 27 on preference versus gpt-5-mini with the same log, so a 9B reader may not use dense logs. Treat as a screen, not an expectation.",
+   "solutions": [
+    {
+     "name": "Observer/Reflector log (Mastra OM)",
+     "generic_mechanism": "Token-threshold Observer writes dated, priority-tagged bullets with three dates; Reflector condenses past a second threshold.",
+     "source": "https://mastra.ai/research/observational-memory (Methodology)",
+     "cost": "1 observer call per threshold plus reflector calls (sleep side)",
+     "risk": "reader size; prompt budget 4,096"
+    }
+   ],
+   "test": "New GC arm 'obs-log'; slice fail_retrieval (b+cf) and the 80 sample; measure reader use by whether cited lines come from the log.",
+   "priority": "M"
+  },
+  {
+   "id": "R14-link-1",
+   "tag": "R14",
+   "area": "link",
+   "problem": "Multi-session evidence needs a hop from a seed hit to related stored items; a graph built by an LLM per session is expensive and unscreened, while a kNN + time + shared-entity link table costs only embeddings.",
+   "evidence": {
+    "count": 70,
+    "question_ids": [
+     "conv-26:0-15",
+     "conv-26:0-34",
+     "conv-26:0-42",
+     "conv-26:0-69",
+     "conv-26:0-75",
+     "conv-30:1-23",
+     "conv-30:1-56",
+     "conv-41:2-40",
+     "conv-41:2-45",
+     "conv-41:2-64",
+     "conv-41:2-8",
+     "conv-42:3-1",
+     "conv-42:3-14",
+     "conv-42:3-23",
+     "conv-42:3-30",
+     "conv-42:3-34",
+     "conv-42:3-42",
+     "conv-42:3-55",
+     "conv-42:3-58",
+     "conv-42:3-61",
+     "conv-42:3-66",
+     "conv-42:3-68",
+     "conv-42:3-74",
+     "conv-42:3-79",
+     "conv-43:4-17",
+     "conv-43:4-18",
+     "conv-43:4-19",
+     "conv-43:4-3",
+     "conv-43:4-34",
+     "conv-43:4-41",
+     "conv-43:4-53",
+     "conv-43:4-67",
+     "conv-43:4-7",
+     "conv-43:4-70",
+     "conv-44:5-12",
+     "conv-44:5-19",
+     "conv-44:5-23",
+     "conv-44:5-28",
+     "conv-44:5-3",
+     "conv-44:5-33",
+     "conv-44:5-43",
+     "conv-44:5-44",
+     "conv-44:5-52",
+     "conv-47:6-19",
+     "conv-47:6-2",
+     "conv-47:6-24",
+     "conv-47:6-33",
+     "conv-47:6-5",
+     "conv-47:6-51",
+     "conv-47:6-6",
+     "conv-48:7-19",
+     "conv-48:7-23",
+     "conv-48:7-36",
+     "conv-48:7-48",
+     "conv-48:7-8",
+     "conv-48:7-82",
+     "conv-48:7-86",
+     "conv-48:7-88",
+     "conv-49:8-18",
+     "conv-49:8-20",
+     "conv-49:8-26",
+     "conv-49:8-36",
+     "conv-49:8-43",
+     "conv-49:8-44",
+     "conv-49:8-49",
+     "conv-49:8-51",
+     "conv-49:8-82",
+     "conv-50:9-29",
+     "conv-50:9-3",
+     "conv-50:9-45"
+    ],
+    "method": "measured: stage/class labels of clean-jina-full (evals/analysis/locomo_problem_labels_clean_jina_full.txt); classes multi_evidence_recall, list_aggregation_generic, open_domain_inference_retrieval. Members of these classes (all stages; most are recall-stage b); upper bound."
+   },
+   "layer": "retrieve",
+   "existing": [
+    "read.graph_leg_v2 (needs extract_graph)",
+    "read.neighbours_v2",
+    "bridge hop (opt-in)",
+    "leg kind cluster expand (off)"
+   ],
+   "gap": "No write-time, LLM-free link table over facts/turns and no summed-signal expansion score.",
+   "hypothesis": "Precompute for each record its top semantic neighbours (cos >= 0.7, cap 50) and 24 h temporal neighbours with weights; at read expand one hop from the top-20 seeds and score tanh(0.5 x shared-entity count) + semantic + temporal weights. Expected to add a few of the multi-evidence/list recall misses on the fail_retrieval slice at zero model calls. Copy Hindsight's guards: at most 200 targets per entity and a timeout that drops the entity leg.",
+   "solutions": [
+    {
+     "name": "Link-table expansion (Hindsight)",
+     "generic_mechanism": "memory_links(src, dst, type, weight) written at ingest from embeddings and timestamps; one-hop expansion from semantic seeds, score summed in [0,3].",
+     "source": "docs/engine_survey/hindsight.json#graph.edges; docs/engine_survey/hindsight.json#read.traversal",
+     "cost": "0 model calls (embeddings exist)",
+     "risk": "kNN links duplicate the vector leg (Hindsight notes convergent signals win); the expansion must not crowd the pool (see R02 reserved slots)"
+    }
+   ],
+   "test": "CPU prototype over stored embeddings of one conversation; then a GC arm on fail_retrieval and fail_mix_120.",
+   "priority": "H"
+  },
+  {
+   "id": "R14-link-2",
+   "tag": "R14",
+   "area": "link",
+   "problem": "Without the keys of earlier facts, the extractor cannot reuse an identity, so the same state or event gets a new key at each mention; Mnemon shows only keys and latest values, so key reuse is the supersession signal.",
+   "evidence": {
+    "count": 25,
+    "question_ids": [
+     "conv-26:0-66",
+     "conv-30:1-48",
+     "conv-42:3-19",
+     "conv-42:3-49",
+     "conv-42:3-5",
+     "conv-42:3-52",
+     "conv-42:3-70",
+     "conv-42:3-80",
+     "conv-43:4-2",
+     "conv-43:4-30",
+     "conv-43:4-49",
+     "conv-44:5-17",
+     "conv-44:5-2",
+     "conv-44:5-89",
+     "conv-47:6-20",
+     "conv-47:6-22",
+     "conv-47:6-26",
+     "conv-47:6-27",
+     "conv-47:6-60",
+     "conv-48:7-1",
+     "conv-48:7-155",
+     "conv-49:8-104",
+     "conv-49:8-37",
+     "conv-50:9-47",
+     "conv-50:9-59"
+    ],
+    "method": "measured: stage/class labels of clean-jina-full (evals/analysis/locomo_problem_labels_clean_jina_full.txt); classes count_wrong, list_incomplete. Heuristic: identity-across-mentions problems."
+   },
+   "layer": "ingest",
+   "existing": [
+    "G-W4 (not built)",
+    "A06 event identity",
+    "conflict ladder fact key"
+   ],
+   "gap": "R14-confirmed G-W4. Sharpening: show keys, not texts (token-cheap), restricted to entities in the window; delta-only output as in Nemori.",
+   "hypothesis": "Adding up to 20 known keys with latest values to the window call lets the extractor repeat a key for an update; expected: fewer duplicate-key facts and more UPDATE verdicts on the ladder at about 150 prompt tokens per window; no LoCoMo accuracy claim.",
+   "solutions": [
+    {
+     "name": "Known-keys context (Mnemon)",
+     "generic_mechanism": "List existing keys (half by word overlap with the batch, half by recency) and require key repetition for updates.",
+     "source": "docs/engine_survey/mnemon.json#extract.neighbours",
+     "cost": "0 extra calls",
+     "risk": "9B may over-reuse keys; the ladder trust gate protects"
+    },
+    {
+     "name": "Predict-calibrate delta extraction (Nemori)",
+     "generic_mechanism": "Predict the window from known facts; extract only the difference from raw turns.",
+     "source": "docs/engine_survey/nemori.json#extract.neighbours",
+     "cost": "+1 call per window",
+     "risk": "cost; Nemori facts stay append-only"
+    }
+   ],
+   "test": "Count duplicate-key facts and UPDATE verdicts on gc3 write logs, before and after.",
+   "priority": "M"
+  },
+  {
+   "id": "R14-link-3",
+   "tag": "R14",
+   "area": "link",
+   "problem": "A-Mem 'memory evolution' rewrites the context and tags of neighbours when a new note arrives, so older records gain the vocabulary of later ones.",
+   "evidence": {
+    "count": 8,
+    "question_ids": [
+     "conv-30:1-44",
+     "conv-41:2-49",
+     "conv-42:3-134",
+     "conv-42:3-135",
+     "conv-42:3-151",
+     "conv-44:5-24",
+     "conv-44:5-39",
+     "conv-48:7-188"
+    ],
+    "method": "measured: stage/class labels of clean-jina-full (evals/analysis/locomo_problem_labels_clean_jina_full.txt); classes vocabulary_mismatch_recall, implicit_or_paraphrased_gold. Recall-stage vocabulary and implicit members."
+   },
+   "layer": "ingest",
+   "existing": [
+    "reconcile (S41)",
+    "view tags leg"
+   ],
+   "gap": "No neighbour-enrichment step.",
+   "hypothesis": "At sleep, for clusters touched by new facts, regenerate keywords for the oldest member; expected tiny. A-Mem reports multi-hop gains with weak models but costs 2+ calls per note, so low priority.",
+   "solutions": [
+    {
+     "name": "Memory evolution at sleep (A-Mem)",
+     "generic_mechanism": "Cluster-level batched rewrite of keywords and context instead of per note.",
+     "source": "https://arxiv.org/html/2502.12110v2",
+     "cost": "1 call per touched cluster",
+     "risk": "drift of old records; lineage must keep the original text"
+    }
+   ],
+   "test": "Not before R14-link-1.",
+   "priority": "L"
+  },
+  {
+   "id": "R14-qry-1",
+   "tag": "R14",
+   "area": "qry",
+   "problem": "The question and the stored record use different vocabulary and person; the rewrite should be in the store's own register (record-styled searches plus an answer-hypothesis note).",
+   "evidence": {
+    "count": 41,
+    "question_ids": [
+     "conv-26:0-42",
+     "conv-26:0-69",
+     "conv-30:1-23",
+     "conv-30:1-44",
+     "conv-41:2-45",
+     "conv-41:2-49",
+     "conv-41:2-64",
+     "conv-41:2-8",
+     "conv-42:3-134",
+     "conv-42:3-135",
+     "conv-42:3-14",
+     "conv-42:3-151",
+     "conv-42:3-66",
+     "conv-42:3-68",
+     "conv-42:3-74",
+     "conv-43:4-19",
+     "conv-43:4-3",
+     "conv-43:4-34",
+     "conv-43:4-53",
+     "conv-43:4-67",
+     "conv-43:4-70",
+     "conv-44:5-19",
+     "conv-44:5-23",
+     "conv-44:5-24",
+     "conv-44:5-28",
+     "conv-44:5-33",
+     "conv-44:5-39",
+     "conv-44:5-43",
+     "conv-44:5-44",
+     "conv-44:5-52",
+     "conv-47:6-19",
+     "conv-47:6-33",
+     "conv-47:6-6",
+     "conv-48:7-188",
+     "conv-48:7-23",
+     "conv-48:7-36",
+     "conv-48:7-48",
+     "conv-49:8-20",
+     "conv-49:8-26",
+     "conv-49:8-43",
+     "conv-49:8-51"
+    ],
+    "method": "measured: stage/class labels of clean-jina-full (evals/analysis/locomo_problem_labels_clean_jina_full.txt); classes implicit_or_paraphrased_gold, vocabulary_mismatch_recall, open_domain_inference_retrieval, multi_evidence_recall. Members of the four classes (mostly b/cf); upper bound."
+   },
+   "layer": "retrieve",
+   "existing": [
+    "read.planner=llm",
+    "read.compose_rewrites",
+    "read.hyde_leg (GAP)"
+   ],
+   "gap": "R14-confirmed: the HyDE leg is only proposed and no screen exists for the planner. New detail: style rewrites like the stored fact format, which MemSpine controls through window_extract output.",
+   "hypothesis": "One local-LLM call returns 3 searches phrased as a dated third-person fact plus one hypothetical answer sentence; each becomes a vector+BM25 leg in the leg-protected pool. Expected: recover a share of the recall-stage misses in the four classes (hypothesis +2 to +4 net on fail_retrieval) at 1 call per question.",
+   "solutions": [
+    {
+     "name": "Record-styled multi-search plus HyDE note (Mnemon)",
+     "generic_mechanism": "Planner writes N searches as the stored record would word them plus one answering note; per-search RRF, then pool by equal quota.",
+     "source": "docs/engine_survey/mnemon.json#read.rewrite; docs/engine_survey/mnemon.json#read.legs",
+     "cost": "1 call/q",
+     "risk": "rewrites hallucinate entities; guard with a named-entity retention check"
+    },
+    {
+     "name": "Keyword + question + HyDE trio on insufficiency (EverOS)",
+     "generic_mechanism": "Only when a sufficiency check fails.",
+     "source": "docs/engine_survey/evermemos.json#read.rewrite",
+     "cost": "1-2 calls on a fraction of q",
+     "risk": "needs the deep_v2 sufficiency role"
+    }
+   ],
+   "test": "Planner arm on the fail_retrieval slice with the leg-protected pool; PARITY check on a right-answer control.",
+   "priority": "H"
+  },
+  {
+   "id": "R14-qry-2",
+   "tag": "R14",
+   "area": "qry",
+   "problem": "List and count questions need every instance. Mnemon marks such needs ALL and keeps paging the search while new positive records appear; the stop rule is the useful part.",
+   "evidence": {
+    "count": 62,
+    "question_ids": [
+     "conv-26:0-15",
+     "conv-26:0-34",
+     "conv-26:0-66",
+     "conv-26:0-75",
+     "conv-30:1-48",
+     "conv-30:1-56",
+     "conv-41:2-40",
+     "conv-42:3-1",
+     "conv-42:3-19",
+     "conv-42:3-23",
+     "conv-42:3-30",
+     "conv-42:3-34",
+     "conv-42:3-42",
+     "conv-42:3-49",
+     "conv-42:3-5",
+     "conv-42:3-52",
+     "conv-42:3-55",
+     "conv-42:3-58",
+     "conv-42:3-61",
+     "conv-42:3-70",
+     "conv-42:3-79",
+     "conv-42:3-80",
+     "conv-43:4-17",
+     "conv-43:4-18",
+     "conv-43:4-2",
+     "conv-43:4-30",
+     "conv-43:4-41",
+     "conv-43:4-49",
+     "conv-43:4-7",
+     "conv-44:5-12",
+     "conv-44:5-17",
+     "conv-44:5-2",
+     "conv-44:5-3",
+     "conv-44:5-89",
+     "conv-47:6-2",
+     "conv-47:6-20",
+     "conv-47:6-22",
+     "conv-47:6-24",
+     "conv-47:6-26",
+     "conv-47:6-27",
+     "conv-47:6-5",
+     "conv-47:6-51",
+     "conv-47:6-60",
+     "conv-48:7-1",
+     "conv-48:7-155",
+     "conv-48:7-19",
+     "conv-48:7-8",
+     "conv-48:7-82",
+     "conv-48:7-86",
+     "conv-48:7-88",
+     "conv-49:8-104",
+     "conv-49:8-18",
+     "conv-49:8-36",
+     "conv-49:8-37",
+     "conv-49:8-44",
+     "conv-49:8-49",
+     "conv-49:8-82",
+     "conv-50:9-29",
+     "conv-50:9-3",
+     "conv-50:9-45",
+     "conv-50:9-47",
+     "conv-50:9-59"
+    ],
+    "method": "measured: stage/class labels of clean-jina-full (evals/analysis/locomo_problem_labels_clean_jina_full.txt); classes list_aggregation_generic, list_incomplete, count_wrong. List and count classes."
+   },
+   "layer": "retrieve",
+   "existing": [
+    "read.list_mode",
+    "agentic slot loop (-3 net, about 8x cost)",
+    "--count-verify"
+   ],
+   "gap": "R14-confirmed I67/E02. Sharpening: a 'page until no new positive' loop, not a free-form slot loop, bounded at 3 pages.",
+   "hypothesis": "For ALL-typed questions (contract cardinality many/count) fetch up to 3 extra pages of the main query and stop when a page adds no record the pre-judge accepts; expected cost at most 3 reranks and 0-1 extra LLM call.",
+   "solutions": [
+    {
+     "name": "ALL-need paging (Mnemon)",
+     "generic_mechanism": "Keep paging while new positives appear.",
+     "source": "docs/engine_survey/mnemon.json#rank.agentic; docs/engine_survey/mnemon.json#read.analysis",
+     "cost": "reranks + judge",
+     "risk": "Mnemon's judge is a proprietary model; ours is the 9B"
+    }
+   ],
+   "test": "fail_list slice (exists); compare with the agentic slot arm.",
+   "priority": "M"
+  },
+  {
+   "id": "R14-qry-3",
+   "tag": "R14",
+   "area": "qry",
+   "problem": "Dependent chat questions need a standalone rewrite; the combined engine returns the original on error but does not check equivalence or emptiness.",
+   "evidence": {
+    "count": 0,
+    "question_ids": [],
+    "method": "heuristic: chat benchmarks only"
+   },
+   "layer": "retrieve",
+   "existing": [
+    "compose_rewrites"
+   ],
+   "gap": "Only chat benchmarks (OP-Bench, ConvoMem, PrefEval) need it; LoCoMo questions are standalone.",
+   "hypothesis": "Rewrite only when the question contains an unresolved pronoun or deictic; validate named-entity and number retention, else keep the original. No LoCoMo effect expected.",
+   "solutions": [
+    {
+     "name": "Validated standalone reformulation",
+     "generic_mechanism": "Rewrite on trigger; fall back if entities or numbers differ.",
+     "source": "evals/analysis/COMBINED_ENGINE_COMPARISON_2026-10-11.md 1.4",
+     "cost": "<=1 call on triggered q",
+     "risk": "none"
+    }
+   ],
+   "test": "OP-Bench dev slice.",
+   "priority": "L"
+  },
+  {
+   "id": "R14-hop-1",
+   "tag": "R14",
+   "area": "hop",
+   "problem": "Agentic multi-round retrieval is the usual answer to multi-hop; the only paired vendor comparison shows a very small LoCoMo gain for roughly double the context.",
+   "evidence": {
+    "count": 42,
+    "question_ids": [
+     "conv-26:0-15",
+     "conv-26:0-34",
+     "conv-26:0-75",
+     "conv-30:1-23",
+     "conv-30:1-56",
+     "conv-41:2-40",
+     "conv-42:3-1",
+     "conv-42:3-23",
+     "conv-42:3-30",
+     "conv-42:3-34",
+     "conv-42:3-42",
+     "conv-42:3-55",
+     "conv-42:3-58",
+     "conv-42:3-61",
+     "conv-42:3-74",
+     "conv-42:3-79",
+     "conv-43:4-17",
+     "conv-43:4-18",
+     "conv-43:4-41",
+     "conv-43:4-7",
+     "conv-44:5-12",
+     "conv-44:5-23",
+     "conv-44:5-28",
+     "conv-44:5-3",
+     "conv-47:6-2",
+     "conv-47:6-24",
+     "conv-47:6-5",
+     "conv-47:6-51",
+     "conv-48:7-19",
+     "conv-48:7-8",
+     "conv-48:7-82",
+     "conv-48:7-86",
+     "conv-48:7-88",
+     "conv-49:8-18",
+     "conv-49:8-26",
+     "conv-49:8-36",
+     "conv-49:8-44",
+     "conv-49:8-49",
+     "conv-49:8-82",
+     "conv-50:9-29",
+     "conv-50:9-3",
+     "conv-50:9-45"
+    ],
+    "method": "measured: stage/class labels of clean-jina-full (evals/analysis/locomo_problem_labels_clean_jina_full.txt); classes multi_evidence_recall, list_aggregation_generic. Multi-session members; this item is R14-confirmed evidence rather than a new technique."
+   },
+   "layer": "retrieve",
+   "existing": [
+    "agentic_mode",
+    "deep_v2 (S55)",
+    "second_round"
+   ],
+   "gap": "R14-confirmed: our slot loop net -3 at about 8x cost matches MemMachine agent versus memory mode (91.69 vs 91.23; 5,566 vs 2,727 tokens/q).",
+   "hypothesis": "Do not prioritise agentic loops for LoCoMo; one-hop link expansion (R14-link-1) and one sufficiency check plus one re-search (deep_v2) are the only variants worth the cost.",
+   "solutions": [
+    {
+     "name": "Single sufficiency check plus one re-search (EverOS agentic, MemMachine CoQ capped)",
+     "generic_mechanism": "1 sufficiency call; at most one extra multi-query round.",
+     "source": "docs/engine_survey/evermemos.json#rank.agentic; docs/engine_survey/memmachine.json#rank.agentic",
+     "cost": "1-2 calls on a fraction",
+     "risk": "small gain"
+    }
+   ],
+   "test": "S55/S63 already queued.",
+   "priority": "L"
+  },
+  {
+   "id": "R14-ans-1",
+   "tag": "R14",
+   "area": "ans",
+   "problem": "When the evidence supports an inference but not a quote, a grounded prompt refuses; EverOS, Mem0 and MIRIX prompts push toward a reasoned answer, and a structured evidence-then-compute-then-answer layout helps date and inference questions.",
+   "evidence": {
+    "count": 40,
+    "question_ids": [
+     "conv-26:0-22",
+     "conv-26:0-26",
+     "conv-26:0-49",
+     "conv-26:0-59",
+     "conv-26:0-71",
+     "conv-30:1-71",
+     "conv-41:2-17",
+     "conv-41:2-31",
+     "conv-41:2-41",
+     "conv-42:3-12",
+     "conv-42:3-4",
+     "conv-42:3-43",
+     "conv-42:3-60",
+     "conv-42:3-73",
+     "conv-42:3-85",
+     "conv-43:4-113",
+     "conv-43:4-15",
+     "conv-43:4-28",
+     "conv-43:4-40",
+     "conv-43:4-48",
+     "conv-43:4-5",
+     "conv-43:4-51",
+     "conv-43:4-66",
+     "conv-43:4-8",
+     "conv-47:6-0",
+     "conv-47:6-16",
+     "conv-47:6-17",
+     "conv-47:6-30",
+     "conv-47:6-35",
+     "conv-47:6-4",
+     "conv-47:6-53",
+     "conv-47:6-64",
+     "conv-47:6-7",
+     "conv-48:7-44",
+     "conv-48:7-70",
+     "conv-48:7-75",
+     "conv-49:8-57",
+     "conv-49:8-70",
+     "conv-50:9-13",
+     "conv-50:9-7"
+    ],
+    "method": "measured: stage/class labels of clean-jina-full (evals/analysis/locomo_problem_labels_clean_jina_full.txt); classes inference_open_domain, refusal_premise_denial. Reader sub-types d:inf and d:ref."
+   },
+   "layer": "reader",
+   "existing": [
+    "readers.py routed_generic, dated_infer, dated_world",
+    "neutral retry (I1)",
+    "I80 gold-lint"
+   ],
+   "gap": "R14-confirmed: no screen. New detail: the 3-step layout (list the evidence lines with dates; compute; answer) as a prompt variant, on a thinking-off 9B.",
+   "hypothesis": "routed_generic with a 3-step layout recovers part of the reader-side inference/refusal misses without raising wrong answers on right ones (guard: PARITY on a 60-question right-answer control); hypothesis +3 to +6 net on the 40-question slice.",
+   "solutions": [
+    {
+     "name": "Seven-step CoT trimmed to three steps (EverOS)",
+     "generic_mechanism": "Evidence lines, then time arithmetic, then answer; 'do not dismiss reasonable inferences'.",
+     "source": "docs/engine_survey/evermemos.json#answer.prompt",
+     "cost": "0 extra calls; more output tokens",
+     "risk": "prompt contamination (I80): run gold-lint; same-model judge bias (A1)"
+    },
+    {
+     "name": "Larger reader (27-32B)",
+     "generic_mechanism": "Reader size, gap C11.",
+     "source": "evals/analysis/COMBINED_ENGINE_COMPARISON_2026-10-11.md headline 4 (their Qwen3-32B reader); Mastra: reader size moves OM from 84.2 to 94.9",
+     "cost": "GPU memory",
+     "risk": "blocked by GPU memory"
+    }
+   ],
+   "test": "Prompt screen on the fail_reader slice; report flips and refusal rate.",
+   "priority": "H"
+  },
+  {
+   "id": "R14-ans-2",
+   "tag": "R14",
+   "area": "ans",
+   "problem": "Abstention policy is set per engine without a shared test: exact string, 'I don't know', never abstain, guess after N searches. Category 5 (446 questions in the full set, excluded by most vendors) is where this matters and MemSpine has never measured it.",
+   "evidence": {
+    "count": 0,
+    "question_ids": [],
+    "method": "heuristic: cat 5 is not in the clean-jina-full run (1,540 q, cat 1-4)"
+   },
+   "layer": "reader",
+   "existing": [
+    "read.gate_v2 (S20)",
+    "I2 cat5 slice sample_slice_loc_cat5",
+    "I29/I74 relevance gates"
+   ],
+   "gap": "R14-confirmed I2/I29.",
+   "hypothesis": "Use a conditional abstain: empty context allowed only when the gate finds no evidence AND no named entity is present; measure cat5 correctness and category 1-4 non-regression on the same arm; S20 is expected to move cat5 (stated in the atlas).",
+   "solutions": [
+    {
+     "name": "Empty-context abstention without a model call (combined engine; Memori threshold 0.1)",
+     "generic_mechanism": "If every block is empty return the abstention string.",
+     "source": "evals/analysis/COMBINED_ENGINE_COMPARISON_2026-10-11.md 1.4 (6); docs/engine_survey/memori.json#rank.gate",
+     "cost": "0",
+     "risk": "named-entity bypass needed (I74)"
+    }
+   ],
+   "test": "sample_slice_loc_cat5 plus OP-Bench dev; S20.",
+   "priority": "M"
+  },
+  {
+   "id": "R14-mm-1",
+   "tag": "R14",
+   "area": "mm",
+   "problem": "Reading the image when asked costs a vision call on the latency path and only helps asked-about images; an ingest-time description stored once is indexed and searchable.",
+   "evidence": {
+    "count": 6,
+    "question_ids": [
+     "conv-43:4-152",
+     "conv-49:8-106",
+     "conv-49:8-108",
+     "conv-49:8-109",
+     "conv-49:8-144",
+     "conv-50:9-115"
+    ],
+    "method": "measured: stage/class labels of clean-jina-full (evals/analysis/locomo_problem_labels_clean_jina_full.txt); classes image_caption_misuse. Heuristic class H."
+   },
+   "layer": "ingest",
+   "existing": [
+    "ingest.assets",
+    "read.asset_evidence=cached",
+    "E04 precomputed cache"
+   ],
+   "gap": "Cached mode exists; there is no ingest-time derived record 'image description' with asset provenance that is embedded and searchable.",
+   "hypothesis": "Store a short vision description per image as a derived record linked to the turn (asset:<hash>), indexed by both legs; expected to fix some caption-misuse items and a share of image-related recall misses, cost one vision call per image at write.",
+   "solutions": [
+    {
+     "name": "Ingest-time image description record (Mem0 / Hindsight attachments)",
+     "generic_mechanism": "Vision model output stored as a record whose parents include the turn; cap per chunk.",
+     "source": "https://docs.mem0.ai/open-source/features/multimodal-support ; docs/engine_survey/hindsight.json#extras",
+     "cost": "1 vision call per image (once, cached)",
+     "risk": "Mem0 trap: missing vision config must record assets_skipped, never drop silently"
+    }
+   ],
+   "test": "Unit test for the skipped path; the caption-misuse slice is small, so add the image questions of the full set.",
+   "priority": "M"
+  },
+  {
+   "id": "R14-wk-1",
+   "tag": "R14",
+   "area": "wk",
+   "problem": "Open-domain questions need world knowledge to combine with a personal fact; the lever is mostly the reader's prior and the recall of the personal fact, not an external lookup.",
+   "evidence": {
+    "count": 54,
+    "question_ids": [
+     "conv-26:0-22",
+     "conv-26:0-42",
+     "conv-26:0-59",
+     "conv-26:0-69",
+     "conv-41:2-17",
+     "conv-41:2-41",
+     "conv-41:2-45",
+     "conv-41:2-64",
+     "conv-41:2-8",
+     "conv-42:3-12",
+     "conv-42:3-14",
+     "conv-42:3-4",
+     "conv-42:3-60",
+     "conv-42:3-66",
+     "conv-42:3-68",
+     "conv-42:3-73",
+     "conv-42:3-85",
+     "conv-43:4-15",
+     "conv-43:4-19",
+     "conv-43:4-28",
+     "conv-43:4-3",
+     "conv-43:4-34",
+     "conv-43:4-5",
+     "conv-43:4-51",
+     "conv-43:4-53",
+     "conv-43:4-66",
+     "conv-43:4-67",
+     "conv-43:4-70",
+     "conv-43:4-8",
+     "conv-44:5-19",
+     "conv-44:5-33",
+     "conv-44:5-43",
+     "conv-44:5-44",
+     "conv-44:5-52",
+     "conv-47:6-0",
+     "conv-47:6-16",
+     "conv-47:6-17",
+     "conv-47:6-19",
+     "conv-47:6-30",
+     "conv-47:6-33",
+     "conv-47:6-35",
+     "conv-47:6-6",
+     "conv-47:6-7",
+     "conv-48:7-23",
+     "conv-48:7-36",
+     "conv-48:7-48",
+     "conv-48:7-70",
+     "conv-48:7-75",
+     "conv-49:8-20",
+     "conv-49:8-43",
+     "conv-49:8-51",
+     "conv-49:8-57",
+     "conv-50:9-13",
+     "conv-50:9-7"
+    ],
+    "method": "measured: stage/class labels of clean-jina-full (evals/analysis/locomo_problem_labels_clean_jina_full.txt); classes inference_open_domain, open_domain_inference_retrieval. Open-domain classes (reader-stage and mixed recall-stage)."
+   },
+   "layer": "reader",
+   "existing": [
+    "E03 wikipedia",
+    "dated_world prompt",
+    "S23 skipped"
+   ],
+   "gap": "R14-confirmed: keep E03 skipped; no vendor evidence supports a tool gain.",
+   "hypothesis": "Order of effect for the open-domain misses: recall of the personal line (R14-qry-1, R14-link-1) > reader prompt/size (R14-ans-1) > external tool. The labels already split them into recall-stage and reader-stage, which checks this ordering.",
+   "solutions": [
+    {
+     "name": "Separate public-knowledge block (MemOS pattern)",
+     "generic_mechanism": "External text in its own block, never merged into private evidence.",
+     "source": "docs/engine_survey/memos.json#answer.shape",
+     "cost": "0 (already built)",
+     "risk": "egress"
+    }
+   ],
+   "test": "None new.",
+   "priority": "L"
+  },
+  {
+   "id": "R14-upd-1",
+   "tag": "R14",
+   "area": "upd",
+   "problem": "A contradiction judge that returns an empty list is indistinguishable from 'no contradiction'; on small models this silently leaves stale facts.",
+   "evidence": {
+    "count": 0,
+    "question_ids": [],
+    "method": "heuristic: no LoCoMo class; MAB Conflict_Resolution is the target set"
+   },
+   "layer": "ingest",
+   "existing": [
+    "conflict ladder LLM judge escalation (opt-in)",
+    "MAB Conflict_Resolution blind split"
+   ],
+   "gap": "No recall self-test and no judge_empty counter for the escalation path.",
+   "hypothesis": "Seed 30 known contradicting pairs through the escalation with the local 9B; if recall < 0.8 keep escalation off and rely on the deterministic rungs. Expected: a measured go/no-go for I17, which has no metric today.",
+   "solutions": [
+    {
+     "name": "Judge recall self-test plus judge_empty metric",
+     "generic_mechanism": "Seeded pairs in CI or a screen; counter of empty verdicts per call.",
+     "source": "https://github.com/getzep/graphiti/issues/1666",
+     "cost": "30 judge calls once",
+     "risk": "none"
+    }
+   ],
+   "test": "MAB-CR blind slice; unit test for the counter.",
+   "priority": "M"
+  },
+  {
+   "id": "R14-upd-2",
+   "tag": "R14",
+   "area": "upd",
+   "problem": "Read-time 'no longer current' withdrawal (Mnemon) and prefer-observations dedupe (Hindsight) both remove stale or covered records at render; MemSpine's dedupe before assembly screened INERT on LoCoMo (I31).",
+   "evidence": {
+    "count": 0,
+    "question_ids": [],
+    "method": "heuristic: LoCoMo inert (I31)"
+   },
+   "layer": "compose",
+   "existing": [
+    "I31 dedupe (inert)",
+    "read.trust_rendering"
+   ],
+   "gap": "R14-confirmed I31: inert on LoCoMo; only matters with real updates.",
+   "hypothesis": "Re-screen dedupe/prefer-consolidated on MAB-CR, not on LoCoMo.",
+   "solutions": [
+    {
+     "name": "Withdraw covered or superseded records at render",
+     "generic_mechanism": "Drop raw facts already covered by a returned consolidated record; list superseded items separately.",
+     "source": "docs/engine_survey/hindsight.json#answer.shape; docs/engine_survey/mnemon.json#answer.shape",
+     "cost": "0 (Hindsight) / judge calls (Mnemon)",
+     "risk": "Mnemon uses a proprietary judge"
+    }
+   ],
+   "test": "MAB-CR blind split.",
+   "priority": "L"
+  },
+  {
+   "id": "R14-eval-1",
+   "tag": "R14",
+   "area": "eval",
+   "problem": "Headline numbers are not comparable across judge strictness; a 9B same-model judge can be stricter or looser than gpt-4o-mini in unknown directions.",
+   "evidence": {
+    "count": 7,
+    "question_ids": [
+     "conv-26:0-135",
+     "conv-26:0-70",
+     "conv-42:3-183",
+     "conv-43:4-174",
+     "conv-43:4-55",
+     "conv-48:7-101",
+     "conv-50:9-127"
+    ],
+    "method": "measured: stage/class labels of clean-jina-full (evals/analysis/locomo_problem_labels_clean_jina_full.txt); classes judge_false_negative, relative_date_gold_vs_judge. Judge-side errors in the labelled wrong set; leniency in the other direction is unmeasured."
+   },
+   "layer": "judge",
+   "existing": [
+    "--judge-prompt mem0-official",
+    "locomo_f1.py",
+    "errata",
+    "A1/A4/A8"
+   ],
+   "gap": "R14-confirmed I35. Missing: the stored clean-jina-full predictions have not been re-judged under the other published prompts, and no leniency estimate exists.",
+   "hypothesis": "Re-judge the 1,540 stored answers under (a) the mem0-official prompt and (b) a 'touches the same topic' prompt (Nemori/EverOS style) with the local judge; the spread between (a), our strict prompt and (b) is the comparability band to print next to 81.4. Expected: (b) >= (a) >= ours by several points; the report states the three numbers and the token count.",
+   "solutions": [
+    {
+     "name": "Triple-judge band on stored predictions",
+     "generic_mechanism": "Same answers, three judge prompts; print the band, never one number.",
+     "source": "docs/engine_survey/nemori.json#eval.rigour; docs/engine_survey/evermemos.json#eval.rigour; docs/engine_survey/honcho.json#eval.rigour",
+     "cost": "3 x 1,540 local judge calls (GPU later; not run here)",
+     "risk": "same-model confound stays (A1)"
+    },
+    {
+     "name": "Token-efficiency table next to accuracy",
+     "generic_mechanism": "Report tokens per question and calls per question as in OmniMemEval.",
+     "source": "docs/engine_survey/cognee.json#answer.size; docs/engine_survey/memspine.json#answer.size",
+     "cost": "0",
+     "risk": "none"
+    }
+   ],
+   "test": "Re-judge script over results.jsonl; deltas per class.",
+   "priority": "H"
+  },
+  {
+   "id": "R14-eval-2",
+   "tag": "R14",
+   "area": "eval",
+   "problem": "Gold errors cap every engine; Cognee's vendor run excludes 143 golds, LoCoMo-Refined revised 1,382 questions, and Zep lists unusable category 5 and caption-dependent items.",
+   "evidence": {
+    "count": 25,
+    "question_ids": [
+     "conv-26:0-5",
+     "conv-30:1-57",
+     "conv-30:1-9",
+     "conv-41:2-68",
+     "conv-41:2-69",
+     "conv-42:3-24",
+     "conv-42:3-91",
+     "conv-42:3-92",
+     "conv-43:4-135",
+     "conv-43:4-136",
+     "conv-43:4-164",
+     "conv-43:4-165",
+     "conv-43:4-166",
+     "conv-43:4-6",
+     "conv-43:4-60",
+     "conv-43:4-86",
+     "conv-44:5-4",
+     "conv-47:6-31",
+     "conv-48:7-174",
+     "conv-49:8-24",
+     "conv-49:8-54",
+     "conv-49:8-74",
+     "conv-49:8-80",
+     "conv-50:9-137",
+     "conv-50:9-39"
+    ],
+    "method": "measured: stage/class labels of clean-jina-full (evals/analysis/locomo_problem_labels_clean_jina_full.txt); classes gold_error, no_gold_resolvable. Gold-error class plus malformed evidence."
+   },
+   "layer": "data",
+   "existing": [
+    "analysis/locomo_errata.json (47 entries)"
+   ],
+   "gap": "R14-confirmed. Report both headlines (already done).",
+   "hypothesis": "Keep the errata-adjusted number as secondary and never compare it against a vendor's exclusion set.",
+   "solutions": [
+    {
+     "name": "Dual headline with explicit exclusion set",
+     "generic_mechanism": "Raw and errata-adjusted, set listed by id.",
+     "source": "docs/engine_survey/cognee.json#eval.rigour; docs/engine_survey/memos.json#eval.models",
+     "cost": "0",
+     "risk": "none"
+    }
+   ],
+   "test": "None new.",
+   "priority": "L"
+  }
+ ]
+}

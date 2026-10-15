@@ -1,0 +1,43 @@
+{
+  "additionalProperties": true,
+  "properties": {
+    "fire": {
+      "title": "Fire",
+      "type": "boolean"
+    },
+    "job_kind": {
+      "enum": [
+        "full",
+        "reconcile_only",
+        "rederive",
+        "none"
+      ],
+      "title": "Job Kind",
+      "type": "string"
+    },
+    "next_check_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Next Check At"
+    },
+    "reason": {
+      "title": "Reason",
+      "type": "string"
+    }
+  },
+  "required": [
+    "fire",
+    "job_kind",
+    "reason"
+  ],
+  "title": "TriggerDecision",
+  "type": "object"
+}

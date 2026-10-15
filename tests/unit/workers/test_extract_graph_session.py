@@ -11,11 +11,12 @@ from datetime import UTC, datetime, timedelta
 
 from test_extract_graph import Harness, _make, _seed
 
-from memspine.core.events import EventKind, MemoryEvent
-from memspine.core.records import MemoryRecord
+from memspine.derive.pipeline.stages.context import PipelineContext
+from memspine.derive.pipeline.stages.extract_graph import extract_graph
 from memspine.memories.semantic.write_pipeline import EdgeContext
 from memspine.prompts.models import ExtractedEdge
-from memspine.workers.pipelines import PipelineContext, extract_graph
+from memspine.store.events import EventKind, MemoryEvent
+from memspine.store.records import MemoryRecord
 
 T0 = datetime(2023, 5, 1, 9, 0, tzinfo=UTC)
 TURNS = [
@@ -221,7 +222,7 @@ async def test_engine_session_extractor_uses_the_session_prompt() -> None:
             "    fact: Caroline lives in Denver\n    kind: state\n    episode_indices: [3]\n"
         )
         eng._llm = _StubLLM(chat)  # type: ignore[attr-defined]
-        extract = eng._build_session_edge_extractor(eng._config())  # type: ignore[attr-defined]
+        extract = eng._build_session_edge_extractor(eng.config)  # type: ignore[attr-defined]
         assert extract is not None
         edges = await extract(
             "[1] [2023-05-01] hi\n[3] [2023-05-01] Caroline moved to Denver",

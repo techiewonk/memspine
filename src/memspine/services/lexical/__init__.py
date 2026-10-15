@@ -1,5 +1,4 @@
-"""Lexical capability port (D-25): standalone Tantivy BM25 (core default),
-OpenSearch/Elasticsearch seam ([opensearch]) for server scale.
+"""Lexical capability port (D-25): standalone Tantivy BM25 (core default).
 
 The lexical index is a dedicated search index, never bolted onto the
 transactional store — so hybrid retrieval works identically on any storage

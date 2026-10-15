@@ -1,0 +1,56 @@
+{
+  "additionalProperties": true,
+  "description": "Optional explicit key for routing (step 7).",
+  "properties": {
+    "attribute": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Attribute"
+    },
+    "entity": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Entity"
+    },
+    "plan_task": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Plan Task"
+    },
+    "skill_name": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Skill Name"
+    }
+  },
+  "title": "ExplicitKey",
+  "type": "object"
+}

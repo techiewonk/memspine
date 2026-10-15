@@ -1,0 +1,183 @@
+{
+  "$defs": {
+    "OwnerScope": {
+      "additionalProperties": true,
+      "description": "Memory scope: tenant plus memory owner (S3-1).\n\nThe owner is a user or a shared group; every agent and session serving that owner sees the same\nentities. The session is *not* part of the scope: it is recorded as :class:`Provenance` only.",
+      "properties": {
+        "owner": {
+          "minLength": 1,
+          "title": "Owner",
+          "type": "string"
+        },
+        "owner_kind": {
+          "default": "user",
+          "enum": [
+            "user",
+            "group"
+          ],
+          "title": "Owner Kind",
+          "type": "string"
+        },
+        "tenant": {
+          "minLength": 1,
+          "title": "Tenant",
+          "type": "string"
+        }
+      },
+      "required": [
+        "tenant",
+        "owner"
+      ],
+      "title": "OwnerScope",
+      "type": "object"
+    }
+  },
+  "additionalProperties": true,
+  "description": "One metered call, recorded per request and per job (ER-39).\n\nGenerative calls are counted separately from embedding and rerank calls. ``purpose`` is the\nrecovery-budget bucket (extraction, recovery or coverage) when the call belongs to a derivation.",
+  "properties": {
+    "at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "At"
+    },
+    "calls": {
+      "default": 1,
+      "minimum": 0,
+      "title": "Calls",
+      "type": "integer"
+    },
+    "cost_class": {
+      "enum": [
+        "generative",
+        "embedding",
+        "rerank",
+        "tool"
+      ],
+      "title": "Cost Class",
+      "type": "string"
+    },
+    "cost_estimate": {
+      "anyOf": [
+        {
+          "minimum": 0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Cost Estimate"
+    },
+    "job_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Job Id"
+    },
+    "latency_ms": {
+      "anyOf": [
+        {
+          "minimum": 0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Latency Ms"
+    },
+    "model_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Model Id"
+    },
+    "purpose": {
+      "default": "other",
+      "enum": [
+        "extraction",
+        "recovery",
+        "coverage",
+        "read",
+        "other"
+      ],
+      "title": "Purpose",
+      "type": "string"
+    },
+    "request_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Request Id"
+    },
+    "scope": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/OwnerScope"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "tokens_in": {
+      "default": 0,
+      "minimum": 0,
+      "title": "Tokens In",
+      "type": "integer"
+    },
+    "tokens_out": {
+      "default": 0,
+      "minimum": 0,
+      "title": "Tokens Out",
+      "type": "integer"
+    },
+    "tool_name": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Tool Name"
+    }
+  },
+  "required": [
+    "cost_class"
+  ],
+  "title": "CostRecord",
+  "type": "object",
+  "x-semver": "1.0.0"
+}

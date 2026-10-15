@@ -15,7 +15,10 @@ def test_variants_format_and_differ() -> None:
         for k, v in QA_PROMPTS.items()
     }
     assert {"default", "dated", "abstain", "converse", "mab_fc", "question_dated"} <= set(rendered)
-    assert len(set(rendered.values())) == len(rendered)
+    # ``grounded_nodate`` / ``grounded_detail_nodate`` are aliases of the clean defaults
+    aliases = {"grounded_nodate", "grounded_detail_nodate"}
+    distinct = {k: v for k, v in rendered.items() if k not in aliases}
+    assert len(set(distinct.values())) == len(distinct)
     assert "Not mentioned" in rendered["abstain"]
     assert "computed from the line's date" in rendered["dated"]
     assert "larger serial number is newer" in rendered["mab_fc"]
@@ -87,7 +90,7 @@ def test_dated3_reasons_then_answers_without_a_blanket_refusal() -> None:
 def test_final_answer_matches_the_engine_extractor(reply: str, answer: str) -> None:
     from memspine_evals.readers import final_answer
 
-    from memspine.core.answer import final_answer as engine_final_answer
+    from memspine.compose.answer import final_answer as engine_final_answer
 
     assert final_answer(reply) == answer == engine_final_answer(reply)
 
@@ -204,7 +207,8 @@ def test_describe_records_the_answer_extractor_only_when_extracting(
     reader, _, _ = build_reader_and_judge(config)
     described = dict(reader.describe())
     old_keys = {"reader_id", "model", "temperature", "max_tokens", "prompt_sha256"}
-    old_keys |= {"no_think"} if bedrock else {"base_url"}
+    # A8: the local endpoint's explicit sampler is recorded in describe()
+    old_keys |= {"no_think"} if bedrock else {"base_url", "sampler"}
     if reader.extract_answer:  # type: ignore[attr-defined]
         assert described["extract_answer"] is True
         assert described["answer_extractor"] == "v3"  # N65 added the STEP 7 marker

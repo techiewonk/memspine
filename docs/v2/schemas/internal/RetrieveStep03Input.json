@@ -1,0 +1,27 @@
+{
+  "additionalProperties": true,
+  "description": "Build the typed query contract.",
+  "properties": {
+    "lang": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Lang"
+    },
+    "query": {
+      "title": "Query",
+      "type": "string"
+    }
+  },
+  "required": [
+    "query"
+  ],
+  "title": "RetrieveStep03Input",
+  "type": "object"
+}

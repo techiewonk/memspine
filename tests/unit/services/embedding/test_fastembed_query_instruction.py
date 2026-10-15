@@ -8,10 +8,10 @@ import pytest
 
 from memspine.config import constants
 from memspine.config.schema import EmbeddingConfig
-from memspine.services.cache.base import MemoryKV
-from memspine.services.cache.semantic import CachedEmbedding
-from memspine.services.embedding.base import embed_queries
-from memspine.services.embedding.fastembed_local import FastembedEmbedding
+from memspine.models.cache.base import MemoryKV
+from memspine.models.cache.semantic import CachedEmbedding
+from memspine.models.encoders.embedding.base import embed_queries
+from memspine.models.encoders.embedding.fastembed_local import FastembedEmbedding
 
 
 class _FakeModel:

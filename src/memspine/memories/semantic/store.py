@@ -19,16 +19,18 @@ from typing import ClassVar
 from datasketch import MinHashLSH
 
 from memspine.config.constants import CUE_TAG
-from memspine.core.events import EventKind, MemoryEvent
+from memspine.core import trace_sink
 from memspine.core.policies.conflict import ConflictPolicy, ConflictVerdict
 from memspine.core.policies.dedup import DedupPolicy
-from memspine.core.records import MemoryRecord, RecordStatus, chrono_key
 from memspine.memories.base import BaseMemory
 from memspine.memories.semantic.entities import EntityExtractor
 from memspine.memories.semantic.write_pipeline import EDGE_CHANNEL, ScreenDerived, WritePipeline
+from memspine.models.encoders.embedding.base import EmbeddingService
+from memspine.observability import inspect as insp
 from memspine.observability.logging import EVENT_CONFLICT, EVENT_MERGE, get_logger
-from memspine.services.embedding.base import EmbeddingService
 from memspine.services.storage.base import StorageService
+from memspine.store.events import EventKind, MemoryEvent
+from memspine.store.records import MemoryRecord, RecordStatus, chrono_key
 
 __all__ = ["SemanticMemory", "SemanticWriteResult"]
 
@@ -179,7 +181,19 @@ class SemanticMemory(BaseMemory):
         # M5 stage-1: LSH candidates; stage-2: cosine confirm via embeddings.
         duplicate = await self._confirm_duplicate(index, record)
         if duplicate is not None:
-            return await self._merge(duplicate, record)
+            trace_sink.write_note(
+                "conflict", record_id=record.record_id, incumbent=duplicate.record_id,
+                verdict="merge", rule="duplicate_lsh_cosine", key=[record.entity, record.attribute],
+            )  # fmt: skip
+            result = await self._merge(duplicate, record)
+            if insp.inspect_enabled():  # TI-1: the dedup rung as a first-class event
+                insp.ladder_event(
+                    rid=record.record_id, incumbent=duplicate.record_id, verdict="merge",
+                    rule="duplicate_lsh_cosine", action=result.action,
+                    entity=record.entity, attribute=record.attribute,
+                    trust_incoming=record.trust, trust_incumbent=duplicate.trust,
+                )  # fmt: skip
+            return result
 
         # M13.3: entity resolution BEFORE conflict detection. The prompt that
         # produced the keying lands in provenance (D-43/E1 audit trail).
@@ -211,11 +225,47 @@ class SemanticMemory(BaseMemory):
             existing = await self._storage.find_active_fact(
                 record.namespace, record.entity, record.attribute
             )
+            if existing is not None and getattr(self._conflict, "perspective_key", False):
+                existing = await self._incumbent_for_subject(record, existing)
             if existing is not None:
                 return await self._resolve_conflict(index, record, existing)
 
+        trace_sink.write_note(
+            "conflict", record_id=record.record_id, incumbent=None, verdict="add",
+            rule="no_incumbent" if record.entity is not None and record.attribute is not None
+            else "unkeyed_record", key=[record.entity, record.attribute],
+        )  # fmt: skip
         await self._write_through(index, record)
+        if insp.inspect_enabled():
+            insp.ladder_event(
+                rid=record.record_id, incumbent=None, verdict="add",
+                rule="no_incumbent"
+                if record.entity is not None and record.attribute is not None
+                else "unkeyed_record",
+                action="added", entity=record.entity, attribute=record.attribute,
+                trust_incoming=record.trust,
+            )  # fmt: skip
         return SemanticWriteResult(record=record, action="added")
+
+    async def _incumbent_for_subject(
+        self, record: MemoryRecord, existing: MemoryRecord
+    ) -> MemoryRecord | None:
+        """I55 (``conflict.perspective_key``): the active fact the incoming statement competes
+        with: the newest active record on its key with the same subject and scope. When the
+        latest active fact is about another subject / scope, look for one that is not."""
+        if not self._conflict.coexists(record, existing):
+            return existing
+        rivals = [
+            r
+            for r in await self._storage.list_records(record.namespace, "semantic")
+            if r.entity == record.entity
+            and r.attribute == record.attribute
+            and r.valid_to is None
+            and r.status is RecordStatus.ACTIVATED
+            and not r.quarantined
+            and not self._conflict.coexists(record, r)
+        ]
+        return max(rivals, key=lambda r: r.recorded_at) if rivals else None
 
     # ── stages ───────────────────────────────────────────────────────────────
 
@@ -325,8 +375,25 @@ class SemanticMemory(BaseMemory):
             and self._conflict.same_endpoints(incoming, existing)
             and not self._conflict.trust_gated(incoming, existing)
         ):
-            return await self._merge(existing, incoming)
-        verdict = self._conflict.resolve(incoming, existing)
+            merged = await self._merge(existing, incoming)
+            if insp.inspect_enabled():
+                insp.ladder_event(
+                    rid=incoming.record_id, incumbent=existing.record_id, verdict="merge",
+                    rule="same_endpoints_restated", action=merged.action,
+                    entity=incoming.entity, attribute=incoming.attribute,
+                    trust_incoming=incoming.trust, trust_incumbent=existing.trust,
+                )  # fmt: skip
+            return merged
+        decide = getattr(self._conflict, "decide", None)
+        if decide is not None:
+            verdict, rule = decide(incoming, existing)
+        else:
+            verdict, rule = self._conflict.resolve(incoming, existing), "resolve"
+        trace_sink.write_note(
+            "conflict", record_id=incoming.record_id, incumbent=existing.record_id,
+            verdict=verdict.value, rule=rule, key=[incoming.entity, incoming.attribute],
+            trust_incoming=incoming.trust, trust_incumbent=existing.trust,
+        )  # fmt: skip
         #: #19: the world-time end a superseded/retracted fact gets (None = off).
         ended = {"invalid_at": incoming.valid_from} if interval else {}
         result: SemanticWriteResult
@@ -402,9 +469,26 @@ class SemanticMemory(BaseMemory):
                         )
                     }
                 )
+            late = rule == "R4_historical_backfill"
+            if late and getattr(self._conflict, "integration_v2", False):
+                # W2-10: the older late arrival is history, not an active record
+                backfilled = backfilled.model_copy(
+                    update={
+                        "status": RecordStatus.ARCHIVED,
+                        "superseded_at": incoming.recorded_at,
+                        "evolve_to": existing.record_id,
+                    }
+                )
             await self._write_through(index, backfilled)
             result = SemanticWriteResult(record=backfilled, action="added")
 
+        if insp.inspect_enabled():
+            insp.ladder_event(
+                rid=incoming.record_id, incumbent=existing.record_id, verdict=verdict.value,
+                rule=rule, action=result.action, entity=incoming.entity,
+                attribute=incoming.attribute, trust_incoming=incoming.trust,
+                trust_incumbent=existing.trust,
+            )  # fmt: skip
         await self._append_event(
             MemoryEvent(
                 kind=EventKind.CONFLICT,

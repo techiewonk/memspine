@@ -1,0 +1,170 @@
+{
+  "$defs": {
+    "Call2Episode": {
+      "additionalProperties": true,
+      "properties": {
+        "cites_windows": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Cites Windows",
+          "type": "array"
+        },
+        "text": {
+          "title": "Text",
+          "type": "string"
+        },
+        "when": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "When"
+        }
+      },
+      "required": [
+        "text"
+      ],
+      "title": "Call2Episode",
+      "type": "object"
+    },
+    "Call2Summary": {
+      "additionalProperties": true,
+      "properties": {
+        "folded": {
+          "default": false,
+          "title": "Folded",
+          "type": "boolean"
+        },
+        "text": {
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "text"
+      ],
+      "title": "Call2Summary",
+      "type": "object"
+    },
+    "ProfileOp": {
+      "additionalProperties": true,
+      "description": "Internal step type.",
+      "properties": {
+        "cites": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Cites",
+          "type": "array"
+        },
+        "entry_type": {
+          "enum": [
+            "identity",
+            "attribute",
+            "relationship",
+            "instruction"
+          ],
+          "title": "Entry Type",
+          "type": "string"
+        },
+        "key": {
+          "title": "Key",
+          "type": "string"
+        },
+        "observed_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "title": "Observed At"
+        },
+        "op": {
+          "enum": [
+            "add",
+            "update",
+            "delete",
+            "none"
+          ],
+          "title": "Op",
+          "type": "string"
+        },
+        "stance": {
+          "enum": [
+            "stated",
+            "inferred"
+          ],
+          "title": "Stance",
+          "type": "string"
+        },
+        "value": {
+          "title": "Value",
+          "type": "string"
+        }
+      },
+      "required": [
+        "op",
+        "entry_type",
+        "key",
+        "value",
+        "observed_at",
+        "stance"
+      ],
+      "title": "ProfileOp",
+      "type": "object"
+    }
+  },
+  "additionalProperties": true,
+  "description": "Wire (model output; compiled in code). Each section optional.",
+  "properties": {
+    "episode": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Call2Episode"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "profile_ops": {
+      "anyOf": [
+        {
+          "items": {
+            "$ref": "#/$defs/ProfileOp"
+          },
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Profile Ops"
+    },
+    "summary": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Call2Summary"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    }
+  },
+  "title": "Call2Result",
+  "type": "object"
+}

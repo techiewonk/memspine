@@ -8,9 +8,9 @@ from datetime import UTC, datetime, timedelta
 import pytest
 
 from memspine import Engine
-from memspine.core.events import EventKind
 from memspine.core.policies.consolidation import ConsolidationPolicy
-from memspine.core.records import RecordStatus
+from memspine.store.events import EventKind
+from memspine.store.records import RecordStatus
 
 CLEAN = [
     "we set up the vpn for contractors",

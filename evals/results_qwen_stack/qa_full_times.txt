@@ -1,0 +1,4 @@
+qa-full-qs-eq06-roff secs=3262
+qa-full-qs-ejina-rjina secs=2900
+qa-full-qs-ebge-roff secs=3500
+QA FULL DONE

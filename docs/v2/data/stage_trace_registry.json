@@ -1,0 +1,751 @@
+{
+ "_doc": "Trace Inspector stage registry (TI-7). Maps every stage of docs/v2/PIPELINE_STAGE_INVENTORY.md to the tap events that trace it. tests/unit/observability/test_stage_trace_coverage.py checks it against src. 'gap': true lists a stage that still lacks full event coverage, with the inventory F-number; 'harness': true stages live in the evals harness logs, not the tap.",
+ "stages": {
+  "A1": {
+   "phase": "API entry",
+   "events": [
+    "write.received",
+    "write.messages.received"
+   ],
+   "gap": false
+  },
+  "A2": {
+   "phase": "Intake gateway",
+   "events": [
+    "write.intake.received",
+    "write.intake.applied",
+    "write.intake.committed",
+    "write.intake.readiness",
+    "write.intake.rejected"
+   ],
+   "gap": true,
+   "gap_ref": "F1",
+   "note": "no wid -> rid pair in events"
+  },
+  "A3": {
+   "phase": "Apply to direct write",
+   "events": [
+    "write.messages.received"
+   ],
+   "gap": false
+  },
+  "A4": {
+   "phase": "Prewarm embeddings, prefetch",
+   "events": [],
+   "gap": true,
+   "gap_ref": "F2"
+  },
+  "A5": {
+   "phase": "Turn skip filters",
+   "events": [
+    "write.turn.skipped"
+   ],
+   "gap": false
+  },
+  "A6": {
+   "phase": "Role policy and echo guard",
+   "events": [
+    "write.role.turn",
+    "write.echo.detected",
+    "write.echo.last_read"
+   ],
+   "gap": false
+  },
+  "A7": {
+   "phase": "Stamping, axes",
+   "events": [
+    "write.stamp.turn",
+    "write.stamp.assent",
+    "write.time.parsed"
+   ],
+   "gap": false
+  },
+  "A8": {
+   "phase": "Other turn tags and links",
+   "events": [
+    "write.assets.registered",
+    "write.asset.stored",
+    "write.turn.bound"
+   ],
+   "gap": false
+  },
+  "A9": {
+   "phase": "Index view",
+   "events": [
+    "write.index_view.plan",
+    "write.index_view.text"
+   ],
+   "gap": false
+  },
+  "A10": {
+   "phase": "Record build",
+   "events": [
+    "write.received",
+    "write.turn.bound"
+   ],
+   "gap": false
+  },
+  "A11": {
+   "phase": "Firewall, redaction, quarantine",
+   "events": [
+    "write.firewall.verdict",
+    "write.quarantine"
+   ],
+   "gap": false
+  },
+  "A12": {
+   "phase": "Door routing, event append",
+   "events": [
+    "write.route",
+    "write.deposit",
+    "write.rejected"
+   ],
+   "gap": false
+  },
+  "A13": {
+   "phase": "Projectors",
+   "events": [
+    "store.index.record"
+   ],
+   "gap": false
+  },
+  "A14": {
+   "phase": "Post-write hooks",
+   "events": [],
+   "gap": true,
+   "gap_ref": "A14 (inventory: none; no F-number)"
+  },
+  "A15": {
+   "phase": "Window observe and segmentation",
+   "events": [
+    "write.segment.cut",
+    "write.window.cut",
+    "write.window.planned",
+    "write.segment.gap"
+   ],
+   "gap": false
+  },
+  "A16": {
+   "phase": "Live-turn filter",
+   "events": [
+    "write.role.derive_skip",
+    "write.window.skipped"
+   ],
+   "gap": false
+  },
+  "A17": {
+   "phase": "Pre-pass",
+   "events": [
+    "write.prepass.window",
+    "write.window.skipped"
+   ],
+   "gap": false
+  },
+  "A18": {
+   "phase": "Prompt context",
+   "events": [
+    "prompt.render",
+    "write.prompt.v2"
+   ],
+   "gap": false
+  },
+  "A19": {
+   "phase": "Extraction LLM call",
+   "events": [
+    "write.extract.call",
+    "write.extract.io",
+    "write.window.members"
+   ],
+   "gap": false
+  },
+  "A20": {
+   "phase": "Item validation and repair",
+   "events": [
+    "write.item.valid",
+    "write.item.repaired",
+    "write.item.dead"
+   ],
+   "gap": false
+  },
+  "A21": {
+   "phase": "Envelope stages",
+   "events": [
+    "write.envelope.stage",
+    "write.envelope.trace"
+   ],
+   "gap": false
+  },
+  "A21a": {
+   "phase": "100 temporal",
+   "events": [
+    "write.temporal",
+    "write.envelope.trace"
+   ],
+   "gap": false
+  },
+  "A21b": {
+   "phase": "200 grounding",
+   "events": [
+    "write.ground.checked",
+    "write.ground.dropped",
+    "write.ground.summary",
+    "write.ground.assent",
+    "write.envelope.trace"
+   ],
+   "gap": false
+  },
+  "A21c": {
+   "phase": "250 coverage",
+   "events": [
+    "write.coverage.window",
+    "write.envelope.trace"
+   ],
+   "gap": false
+  },
+  "A21d": {
+   "phase": "300 resolver",
+   "events": [
+    "write.resolve.mention",
+    "write.resolve.window",
+    "write.envelope.trace"
+   ],
+   "gap": false
+  },
+  "A21e": {
+   "phase": "400 integration",
+   "events": [
+    "write.integrate.decision",
+    "write.integrate.stage",
+    "write.envelope.trace"
+   ],
+   "gap": false
+  },
+  "A21f": {
+   "phase": "500 pre-pass cross-check",
+   "events": [
+    "write.prepass.unseen",
+    "write.envelope.trace"
+   ],
+   "gap": false
+  },
+  "A22": {
+   "phase": "Section validation",
+   "events": [
+    "write.extract.facts",
+    "write.extract.edges",
+    "write.extract.episode",
+    "write.extract.rejected",
+    "write.edges.pending"
+   ],
+   "gap": true,
+   "gap_ref": "F7",
+   "note": "pending window edges are memory-only until sleep"
+  },
+  "A23": {
+   "phase": "Fact deposit",
+   "events": [
+    "write.extract.deposit",
+    "write.envelope.trace"
+   ],
+   "gap": false
+  },
+  "A24": {
+   "phase": "Derived-write door and lineage",
+   "events": [
+    "derive.gate.hold",
+    "derive.lineage.write",
+    "derive.lineage.refused",
+    "trust.gate"
+   ],
+   "gap": false
+  },
+  "A25": {
+   "phase": "Dedup and conflict ladder",
+   "events": [
+    "write.integrate.ladder",
+    "write.deposit"
+   ],
+   "gap": false
+  },
+  "A26": {
+   "phase": "Episode fragment deposit",
+   "events": [
+    "write.extract.deposit"
+   ],
+   "gap": false
+  },
+  "A27": {
+   "phase": "Typed routing",
+   "events": [
+    "write.route.decision",
+    "write.route.typed",
+    "write.route.skipped",
+    "write.route.failed"
+   ],
+   "gap": false
+  },
+  "A28": {
+   "phase": "Graph mirror",
+   "events": [
+    "graph.neo4j.apply",
+    "graph.neo4j.enqueue",
+    "store.index.record"
+   ],
+   "gap": false
+  },
+  "B0": {
+   "phase": "Trigger",
+   "events": [
+    "job.trigger"
+   ],
+   "gap": false
+  },
+  "B1": {
+   "phase": "Namespace job",
+   "events": [
+    "job.lease",
+    "job.sleep.handle",
+    "job.watermark",
+    "job.deferred",
+    "job.budget"
+   ],
+   "gap": false
+  },
+  "B2": {
+   "phase": "Stage runner",
+   "events": [
+    "job.stage.start",
+    "job.stage.end",
+    "job.stage.item"
+   ],
+   "gap": false
+  },
+  "B3": {
+   "phase": "Window flush",
+   "events": [
+    "write.window.planned",
+    "write.window.cut"
+   ],
+   "gap": false
+  },
+  "B4": {
+   "phase": "Session close (call 2)",
+   "events": [
+    "job.close.call2",
+    "job.close.idem",
+    "job.stage.item"
+   ],
+   "gap": false
+  },
+  "B5": {
+   "phase": "Retention and erasure re-derive",
+   "events": [
+    "job.retention.plan",
+    "job.retention.done",
+    "trust.erasure.plan",
+    "trust.erasure.rederive"
+   ],
+   "gap": false
+  },
+  "B6": {
+   "phase": "consolidate",
+   "events": [
+    "job.stage.item"
+   ],
+   "gap": true,
+   "gap_ref": "F8",
+   "note": "per-output notes only; no stage-specific event"
+  },
+  "B7": {
+   "phase": "mine_facts, project_facts, predict_calibrate, anticipate",
+   "events": [
+    "job.stage.item"
+   ],
+   "gap": true,
+   "gap_ref": "F8"
+  },
+  "B8": {
+   "phase": "reflect_profile, profile card",
+   "events": [
+    "job.profile.ops",
+    "job.profile.invalidate",
+    "job.stage.item"
+   ],
+   "gap": false
+  },
+  "B9": {
+   "phase": "Graph extraction",
+   "events": [
+    "derive.graph.key",
+    "write.edges.consumed",
+    "job.stage.item"
+   ],
+   "gap": false
+  },
+  "B10": {
+   "phase": "rule_edges, reconcile, histories",
+   "events": [
+    "job.reconcile.sweep",
+    "job.histories",
+    "job.stage.item"
+   ],
+   "gap": false
+  },
+  "B11": {
+   "phase": "patterns, standing answers",
+   "events": [
+    "job.patterns",
+    "job.standing"
+   ],
+   "gap": false
+  },
+  "B12": {
+   "phase": "compile_edges (v2)",
+   "events": [
+    "graph.compile.start",
+    "graph.compile.delta",
+    "graph.compile.project",
+    "graph.compile.retract"
+   ],
+   "gap": false
+  },
+  "B13": {
+   "phase": "summarize_entities",
+   "events": [
+    "job.communities.entities",
+    "job.stage.item"
+   ],
+   "gap": false
+  },
+  "B14": {
+   "phase": "reorganize (communities)",
+   "events": [
+    "job.communities",
+    "job.communities.summary"
+   ],
+   "gap": false
+  },
+  "B15": {
+   "phase": "check_watches, session_lifecycle",
+   "events": [
+    "job.prospective.sweep",
+    "job.prospective.closed",
+    "job.stage.item"
+   ],
+   "gap": false
+  },
+  "B16": {
+   "phase": "decay, compress, sleep_compute, log prune",
+   "events": [
+    "job.decay",
+    "job.decay.compress",
+    "job.retention.prune"
+   ],
+   "gap": false
+  },
+  "B17": {
+   "phase": "Cost and budget",
+   "events": [
+    "economy.cost",
+    "economy.budget",
+    "job.budget"
+   ],
+   "gap": true,
+   "gap_ref": "F16",
+   "note": "ledgers carry no turn, window or question id"
+  },
+  "C1": {
+   "phase": "API entry",
+   "events": [
+    "scope.refused",
+    "scope.filtered"
+   ],
+   "gap": false
+  },
+  "C2": {
+   "phase": "Request, contract, tier, route",
+   "events": [
+    "read.request.normalised",
+    "read.contract.built",
+    "read.tier.chosen",
+    "read.router.plan"
+   ],
+   "gap": false
+  },
+  "C3": {
+   "phase": "Scopes, cache, decompose",
+   "events": [
+    "read.cache",
+    "read.decompose"
+   ],
+   "gap": false
+  },
+  "C4": {
+   "phase": "Headers",
+   "events": [
+    "compose.headers",
+    "compose.standing"
+   ],
+   "gap": false
+  },
+  "C5": {
+   "phase": "Mode routing, planner, list trigger",
+   "events": [
+    "read.list_trigger_v2",
+    "read.planner.io"
+   ],
+   "gap": true,
+   "gap_ref": "F12",
+   "note": "decider and contract calls show only as model.call"
+  },
+  "C6": {
+   "phase": "Assemble loop",
+   "events": [
+    "read.legs.parallel"
+   ],
+   "gap": false
+  },
+  "C7": {
+   "phase": "Query embedding",
+   "events": [
+    "economy.cost"
+   ],
+   "gap": true,
+   "gap_ref": "F2"
+  },
+  "C8": {
+   "phase": "Vector leg",
+   "events": [
+    "read.leg"
+   ],
+   "gap": false
+  },
+  "C9": {
+   "phase": "BM25 leg",
+   "events": [
+    "read.leg"
+   ],
+   "gap": false
+  },
+  "C10": {
+   "phase": "Temporal leg",
+   "events": [
+    "read.leg"
+   ],
+   "gap": false
+  },
+  "C11": {
+   "phase": "Perspective",
+   "events": [],
+   "gap": true,
+   "gap_ref": "F10",
+   "note": "FX key only under trace_full"
+  },
+  "C12": {
+   "phase": "Entity leg",
+   "events": [
+    "read.leg.entity"
+   ],
+   "gap": false
+  },
+  "C13": {
+   "phase": "Graph leg",
+   "events": [
+    "read.graph_hop"
+   ],
+   "gap": false
+  },
+  "C14": {
+   "phase": "Episode/session leg and lift",
+   "events": [
+    "read.lift"
+   ],
+   "gap": false
+  },
+  "C15": {
+   "phase": "Other legs",
+   "events": [
+    "read.freshness"
+   ],
+   "gap": false
+  },
+  "C16": {
+   "phase": "Fusion",
+   "events": [
+    "read.fusion.pool"
+   ],
+   "gap": false
+  },
+  "C17": {
+   "phase": "Date prior, pool protection",
+   "events": [
+    "read.date_prior"
+   ],
+   "gap": false
+  },
+  "C18": {
+   "phase": "Gates",
+   "events": [],
+   "gap": true,
+   "gap_ref": "F10",
+   "note": "cuts only under trace_full"
+  },
+  "C19": {
+   "phase": "Post-pool refinements",
+   "events": [
+    "read.lift.stage"
+   ],
+   "gap": false
+  },
+  "C20": {
+   "phase": "Rerank, composite score",
+   "events": [
+    "read.rerank.scored",
+    "read.rerank.components",
+    "models.rerank_chain",
+    "read.rerank_v2_search_pool"
+   ],
+   "gap": false
+  },
+  "C21": {
+   "phase": "Coverage select, MMR",
+   "events": [
+    "read.coverage_select"
+   ],
+   "gap": false
+  },
+  "C22": {
+   "phase": "Access write-back, read ledger",
+   "events": [
+    "read.retrieve.writeback"
+   ],
+   "gap": true,
+   "gap_ref": "F14",
+   "note": "the implicit-parent read ledger is still invisible"
+  },
+  "C23": {
+   "phase": "Assembly and pack",
+   "events": [
+    "compose.pack.dropped",
+    "compose.bundles",
+    "compose.budget"
+   ],
+   "gap": false
+  },
+  "C24": {
+   "phase": "Replay window, neighbours",
+   "events": [
+    "compose.neighbours"
+   ],
+   "gap": false
+  },
+  "C25": {
+   "phase": "Render",
+   "events": [
+    "compose.render.bands"
+   ],
+   "gap": false
+  },
+  "C26": {
+   "phase": "Compose mode",
+   "events": [
+    "model.call"
+   ],
+   "gap": true,
+   "gap_ref": "F12"
+  },
+  "C27": {
+   "phase": "Agentic, deep_v2, obligations",
+   "events": [
+    "read.deep.step",
+    "read.obligations.report"
+   ],
+   "gap": false
+  },
+  "C28": {
+   "phase": "Relevance gate",
+   "events": [
+    "read.gate.decision"
+   ],
+   "gap": false
+  },
+  "C29": {
+   "phase": "Overlays",
+   "events": [
+    "read.external"
+   ],
+   "gap": false
+  },
+  "C30": {
+   "phase": "Typed header, consent, audit",
+   "events": [
+    "read.contract.header",
+    "trust.consent",
+    "trust.audit.append"
+   ],
+   "gap": false
+  },
+  "C31": {
+   "phase": "Harness query and truncation",
+   "events": [],
+   "gap": false,
+   "harness": true,
+   "note": "evals results.jsonl, trace.jsonl"
+  },
+  "C32": {
+   "phase": "Reader",
+   "events": [],
+   "gap": true,
+   "gap_ref": "F15",
+   "harness": true,
+   "note": "reads.jsonl only under trace_full"
+  },
+  "C33": {
+   "phase": "Reader wrappers",
+   "events": [],
+   "gap": true,
+   "gap_ref": "F15",
+   "harness": true
+  },
+  "C34": {
+   "phase": "Judge",
+   "events": [],
+   "gap": true,
+   "gap_ref": "F15",
+   "harness": true
+  }
+ },
+ "envelope_stages": {
+  "temporal": "A21a",
+  "grounding": "A21b",
+  "coverage": "A21c",
+  "resolve": "A21d",
+  "integration": "A21e",
+  "prepass": "A21f"
+ },
+ "sleep_stages": {
+  "consolidate": "B6",
+  "mine_facts": "B7",
+  "predict_calibrate": "B7",
+  "project_facts": "B7",
+  "anticipate": "B7",
+  "reflect_profile": "B8",
+  "extract_graph": "B9",
+  "rule_edges": "B10",
+  "reconcile": "B10",
+  "histories": "B10",
+  "pattern_observations": "B11",
+  "standing_answers": "B11",
+  "compile_edges": "B12",
+  "summarize_entities": "B13",
+  "reorganize": "B14",
+  "check_watches": "B15",
+  "session_lifecycle": "B15",
+  "decay_sweep": "B16",
+  "compress": "B16",
+  "sleep_compute": "B16",
+  "event_log_prune": "B16",
+  "retention_expire": "B5",
+  "erasure_rederive": "B5"
+ }
+}

@@ -1,0 +1,237 @@
+{
+  "$defs": {
+    "DerivationBudget": {
+      "additionalProperties": true,
+      "description": "Internal step type.",
+      "properties": {
+        "by_class": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "title": "By Class",
+          "type": "object"
+        },
+        "spent": {
+          "default": 0,
+          "title": "Spent",
+          "type": "integer"
+        },
+        "tokens_total": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Tokens Total"
+        }
+      },
+      "title": "DerivationBudget",
+      "type": "object"
+    },
+    "StageReport": {
+      "additionalProperties": true,
+      "description": "Internal step type.",
+      "properties": {
+        "calls": {
+          "default": 0,
+          "title": "Calls",
+          "type": "integer"
+        },
+        "deferred": {
+          "default": 0,
+          "title": "Deferred",
+          "type": "integer"
+        },
+        "errors": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Errors",
+          "type": "array"
+        },
+        "guard_rejections": {
+          "default": 0,
+          "title": "Guard Rejections",
+          "type": "integer"
+        },
+        "p50_ms": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "P50 Ms"
+        },
+        "p95_ms": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "P95 Ms"
+        },
+        "produced": {
+          "default": 0,
+          "title": "Produced",
+          "type": "integer"
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reason"
+        },
+        "retries": {
+          "default": 0,
+          "title": "Retries",
+          "type": "integer"
+        },
+        "stage": {
+          "title": "Stage",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "ok",
+            "partial",
+            "skipped",
+            "error",
+            "noop"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "tokens_cached": {
+          "default": 0,
+          "title": "Tokens Cached",
+          "type": "integer"
+        },
+        "tokens_in": {
+          "default": 0,
+          "title": "Tokens In",
+          "type": "integer"
+        },
+        "tokens_out": {
+          "default": 0,
+          "title": "Tokens Out",
+          "type": "integer"
+        },
+        "watermark_from": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Watermark From"
+        },
+        "watermark_to": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Watermark To"
+        }
+      },
+      "required": [
+        "stage",
+        "status"
+      ],
+      "title": "StageReport",
+      "type": "object"
+    }
+  },
+  "additionalProperties": true,
+  "description": "Internal step type.",
+  "properties": {
+    "budget": {
+      "$ref": "#/$defs/DerivationBudget"
+    },
+    "deferred_total": {
+      "default": 0,
+      "title": "Deferred Total",
+      "type": "integer"
+    },
+    "ended_at": {
+      "format": "date-time",
+      "title": "Ended At",
+      "type": "string"
+    },
+    "freshness": {
+      "additionalProperties": {
+        "type": "integer"
+      },
+      "title": "Freshness",
+      "type": "object"
+    },
+    "job_id": {
+      "title": "Job Id",
+      "type": "string"
+    },
+    "job_kind": {
+      "enum": [
+        "full",
+        "reconcile_only",
+        "rederive"
+      ],
+      "title": "Job Kind",
+      "type": "string"
+    },
+    "manual": {
+      "default": false,
+      "title": "Manual",
+      "type": "boolean"
+    },
+    "ns": {
+      "title": "Ns",
+      "type": "string"
+    },
+    "stages": {
+      "items": {
+        "$ref": "#/$defs/StageReport"
+      },
+      "title": "Stages",
+      "type": "array"
+    },
+    "started_at": {
+      "format": "date-time",
+      "title": "Started At",
+      "type": "string"
+    }
+  },
+  "required": [
+    "job_id",
+    "ns",
+    "job_kind",
+    "started_at",
+    "ended_at"
+  ],
+  "title": "CycleReport",
+  "type": "object"
+}

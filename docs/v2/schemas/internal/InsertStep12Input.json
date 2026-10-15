@@ -1,0 +1,216 @@
+{
+  "$defs": {
+    "BacklogState": {
+      "additionalProperties": true,
+      "description": "Step 12 backlog state.",
+      "properties": {
+        "oldest_age_ms": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Oldest Age Ms"
+        },
+        "pending_windows": {
+          "default": 0,
+          "title": "Pending Windows",
+          "type": "integer"
+        }
+      },
+      "title": "BacklogState",
+      "type": "object"
+    },
+    "LedgerBudget": {
+      "additionalProperties": true,
+      "description": "Step 12 ledger budget.",
+      "properties": {
+        "spent": {
+          "default": 0,
+          "title": "Spent",
+          "type": "integer"
+        },
+        "tokens_total": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Tokens Total"
+        }
+      },
+      "title": "LedgerBudget",
+      "type": "object"
+    },
+    "Window": {
+      "additionalProperties": true,
+      "description": "Segmentation window (W-11). Internal step type.",
+      "properties": {
+        "reason": {
+          "enum": [
+            "topic",
+            "turns",
+            "tokens",
+            "time_gap",
+            "calendar_day",
+            "session_end",
+            "idle",
+            "flush",
+            "truncation"
+          ],
+          "title": "Reason",
+          "type": "string"
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Session"
+        },
+        "source_versions": {
+          "items": {
+            "type": "integer"
+          },
+          "title": "Source Versions",
+          "type": "array"
+        },
+        "tokens": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Tokens"
+        },
+        "turns": {
+          "items": {
+            "$ref": "#/$defs/WindowTurn"
+          },
+          "title": "Turns",
+          "type": "array"
+        },
+        "window_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Window Id"
+        }
+      },
+      "required": [
+        "reason"
+      ],
+      "title": "Window",
+      "type": "object"
+    },
+    "WindowTurn": {
+      "additionalProperties": true,
+      "description": "Internal step type.",
+      "properties": {
+        "record_id": {
+          "title": "Record Id",
+          "type": "string"
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Session"
+        },
+        "source_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source At"
+        },
+        "source_version": {
+          "title": "Source Version",
+          "type": "integer"
+        },
+        "tokens": {
+          "title": "Tokens",
+          "type": "integer"
+        },
+        "vector": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Vector"
+        }
+      },
+      "required": [
+        "record_id",
+        "source_version",
+        "tokens"
+      ],
+      "title": "WindowTurn",
+      "type": "object"
+    }
+  },
+  "additionalProperties": true,
+  "properties": {
+    "backlog": {
+      "$ref": "#/$defs/BacklogState"
+    },
+    "budget": {
+      "$ref": "#/$defs/LedgerBudget"
+    },
+    "windows": {
+      "items": {
+        "$ref": "#/$defs/Window"
+      },
+      "title": "Windows",
+      "type": "array"
+    }
+  },
+  "required": [
+    "windows"
+  ],
+  "title": "InsertStep12Input",
+  "type": "object"
+}

@@ -1,0 +1,35 @@
+{
+  "additionalProperties": true,
+  "properties": {
+    "anchors": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Anchors",
+      "type": "object"
+    },
+    "collapsed": {
+      "default": false,
+      "title": "Collapsed",
+      "type": "boolean"
+    },
+    "mode": {
+      "enum": [
+        "full",
+        "incremental"
+      ],
+      "title": "Mode",
+      "type": "string"
+    },
+    "ns": {
+      "title": "Ns",
+      "type": "string"
+    }
+  },
+  "required": [
+    "ns",
+    "mode"
+  ],
+  "title": "PartitionResult",
+  "type": "object"
+}

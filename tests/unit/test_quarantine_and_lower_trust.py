@@ -8,8 +8,8 @@ import pytest
 
 from memspine import Engine
 from memspine.core.policies.conflict import ConflictPolicy, ConflictVerdict
-from memspine.core.records import MemoryRecord, RecordStatus, SourceInfo
 from memspine.exceptions import ConflictError
+from memspine.store.records import MemoryRecord, RecordStatus, SourceInfo
 
 T = datetime(2023, 5, 1, tzinfo=UTC)
 

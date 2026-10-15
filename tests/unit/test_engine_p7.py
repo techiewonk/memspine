@@ -11,8 +11,8 @@ import pytest
 
 from memspine import Engine
 from memspine.config import constants
-from memspine.core.records import RecordStatus, SourceInfo
 from memspine.exceptions import ConflictError, MemspineError
+from memspine.store.records import RecordStatus, SourceInfo
 
 NOW = datetime.now(UTC)
 

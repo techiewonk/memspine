@@ -11,10 +11,10 @@ import pytest
 
 from memspine import Engine
 from memspine.config import constants
-from memspine.core.events import EventKind
 from memspine.core.policies.scoring import ScoringPolicy, feedback_utility
-from memspine.core.records import MemoryRecord, ScoringState
 from memspine.exceptions import ConflictError, MemspineError
+from memspine.store.events import EventKind
+from memspine.store.records import MemoryRecord, ScoringState
 
 _BASE: dict[str, Any] = {
     "embedding": {"provider": "hash"},

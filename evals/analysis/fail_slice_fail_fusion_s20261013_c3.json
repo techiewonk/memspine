@@ -1,0 +1,121 @@
+{
+ "benchmark": "locomo",
+ "slice_id": "fail-fusion-s20261013-c3",
+ "conversations": [
+  "conv-41",
+  "conv-42",
+  "conv-48"
+ ],
+ "kind": "targeted",
+ "family": "fail_fusion",
+ "source_run": "clean-jina-full",
+ "seed": 20261013,
+ "stratify": "all wrong questions of the family (cap 60; class floor 3, then proportional), controls = correct questions matched on conversation x category (largest remainder, seeded), about 40% of the slice",
+ "reading_rule": "NOT an estimate of overall accuracy: read target recovered / wrong targets and controls lost / controls",
+ "n_total": 1540,
+ "n": 20,
+ "n_target": 12,
+ "n_control": 8,
+ "sizes": {
+  "cat1": 4,
+  "cat4": 16
+ },
+ "target_classes": {
+  "fusion_loss_lexical_only": 9,
+  "fusion_loss_vector_only": 1,
+  "rerank_keep_cut": 2
+ },
+ "conv_policy": "all 10 conversations allowed for the logged full run (owner 2026-10-10); build_forensics_explorer.py drops held-out conversations by default",
+ "uses_heldout_conversations": true,
+ "dev_conversations_used": [
+  "conv-41",
+  "conv-42"
+ ],
+ "heldout_conversations_used": [
+  "conv-48"
+ ],
+ "hash": "3316e3b60fbf6d38c88b90c150975b72e727fd41baebc73e9442ee23070b9a82",
+ "manifest_hash": "3316e3b60fbf6d38",
+ "category": {
+  "conv-41/2-7": "cat1",
+  "conv-41/2-42": "cat1",
+  "conv-41/2-107": "cat4",
+  "conv-41/2-121": "cat4",
+  "conv-41/2-133": "cat4",
+  "conv-42/3-51": "cat1",
+  "conv-42/3-78": "cat1",
+  "conv-42/3-95": "cat4",
+  "conv-42/3-103": "cat4",
+  "conv-42/3-122": "cat4",
+  "conv-42/3-173": "cat4",
+  "conv-42/3-178": "cat4",
+  "conv-42/3-187": "cat4",
+  "conv-42/3-189": "cat4",
+  "conv-42/3-195": "cat4",
+  "conv-48/7-121": "cat4",
+  "conv-48/7-154": "cat4",
+  "conv-48/7-158": "cat4",
+  "conv-48/7-171": "cat4",
+  "conv-48/7-179": "cat4"
+ },
+ "target_ids": [
+  "conv-41/2-42",
+  "conv-41/2-107",
+  "conv-41/2-133",
+  "conv-42/3-78",
+  "conv-42/3-95",
+  "conv-42/3-103",
+  "conv-42/3-122",
+  "conv-42/3-173",
+  "conv-42/3-195",
+  "conv-48/7-121",
+  "conv-48/7-158",
+  "conv-48/7-179"
+ ],
+ "target_class": {
+  "conv-41/2-42": "fusion_loss_lexical_only",
+  "conv-41/2-107": "fusion_loss_lexical_only",
+  "conv-41/2-133": "fusion_loss_lexical_only",
+  "conv-42/3-78": "rerank_keep_cut",
+  "conv-42/3-95": "rerank_keep_cut",
+  "conv-42/3-103": "fusion_loss_lexical_only",
+  "conv-42/3-122": "fusion_loss_lexical_only",
+  "conv-42/3-173": "fusion_loss_vector_only",
+  "conv-42/3-195": "fusion_loss_lexical_only",
+  "conv-48/7-121": "fusion_loss_lexical_only",
+  "conv-48/7-158": "fusion_loss_lexical_only",
+  "conv-48/7-179": "fusion_loss_lexical_only"
+ },
+ "control_ids": [
+  "conv-41/2-7",
+  "conv-41/2-121",
+  "conv-42/3-51",
+  "conv-42/3-178",
+  "conv-42/3-187",
+  "conv-42/3-189",
+  "conv-48/7-154",
+  "conv-48/7-171"
+ ],
+ "query_ids": [
+  "conv-41/2-7",
+  "conv-41/2-42",
+  "conv-41/2-107",
+  "conv-41/2-121",
+  "conv-41/2-133",
+  "conv-42/3-51",
+  "conv-42/3-78",
+  "conv-42/3-95",
+  "conv-42/3-103",
+  "conv-42/3-122",
+  "conv-42/3-173",
+  "conv-42/3-178",
+  "conv-42/3-187",
+  "conv-42/3-189",
+  "conv-42/3-195",
+  "conv-48/7-121",
+  "conv-48/7-154",
+  "conv-48/7-158",
+  "conv-48/7-171",
+  "conv-48/7-179"
+ ]
+}

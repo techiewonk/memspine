@@ -18,7 +18,7 @@ compression (D-45/D-32), and M7 erasure all live here unchanged.
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from datetime import UTC, datetime
 from typing import Any, Protocol
 
@@ -30,9 +30,6 @@ from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from memspine.config.constants import ZSTD_LEVEL
-from memspine.core.erasure import redact_record, scrub_partition_nodes
-from memspine.core.events import EventKind, EventLogMode, MemoryEvent, canonical_payload
-from memspine.core.records import MemoryRecord
 from memspine.exceptions import StorageError
 from memspine.services.base import CapabilityManifest, ServiceAdapter
 from memspine.services.storage.sqlite.schema import (
@@ -40,6 +37,9 @@ from memspine.services.storage.sqlite.schema import (
     memory_records,
     projector_offsets,
 )
+from memspine.store.events import EventKind, EventLogMode, MemoryEvent, canonical_payload
+from memspine.store.records import MemoryRecord
+from memspine.trust.erasure import redact_record, scrub_partition_nodes
 
 __all__ = ["SqlClient", "SqlStorage"]
 
@@ -295,6 +295,24 @@ class SqlStorage(ServiceAdapter):
             "invalid_at": _iso(record.invalid_at) if record.invalid_at else None,
             "session_key": record.source.message_id,  # I6
             "source_role": record.source.role,  # I6
+            "layer": record.layer,  # F-02a envelope
+            "type_tag": record.type_tag,
+            "provenance_class": record.provenance_class,
+            "spk": record.axes.speaker,
+            "addr": record.axes.addressee,
+            "ask": record.axes.asker,
+            "sub": orjson.dumps(record.axes.subject),
+            "fingerprint": orjson.dumps(record.fingerprint.model_dump(mode="json")),
+            "schema_version": record.schema_version,
+            "source_at": _iso(record.source_at) if record.source_at else None,  # F-02b
+            "source_precision": record.source_precision,
+            "event_precision": record.event_precision,
+            "event_approximate": 1 if record.event_approximate else None,
+            "event_basis": record.event_basis,
+            "source_tz": record.source_tz,  # W2-02
+            "participants": orjson.dumps(record.axes.participants)
+            if record.axes.participants
+            else None,
         }
         stmt = self._insert(memory_records).values(record_id=record.record_id, **values)
         stmt = stmt.on_conflict_do_update(index_elements=["record_id"], set_=values)
@@ -378,6 +396,23 @@ class SqlStorage(ServiceAdapter):
         live = [(_parse_ts(row[1]), str(row[0])) for row in rows if not row[2]]
         live.sort(key=lambda pair: pair[0])
         return [content for _, content in live[-limit:]] if limit > 0 else []
+
+    async def layer_counts(self, namespace: str) -> dict[str, int]:
+        """F-02b: live (activated / resolving, not quarantined) records of ``namespace`` by layer
+        (one grouped query). A row with no stored layer counts as ``L0``."""
+        layer = func.coalesce(memory_records.c.layer, "L0")
+        stmt = (
+            select(layer, func.count())
+            .where(
+                memory_records.c.namespace == namespace,
+                memory_records.c.status.in_(("activated", "resolving")),
+                memory_records.c.quarantined.is_(False),
+            )
+            .group_by(layer)
+        )
+        async with self._client.engine.connect() as conn:
+            rows = (await conn.execute(stmt)).all()
+        return {str(row[0]): int(row[1]) for row in rows}
 
     async def count_quarantined(self, namespace: str) -> int:
         """How many rows of ``namespace`` carry the quarantine flag (#63: the
@@ -476,7 +511,7 @@ class SqlStorage(ServiceAdapter):
         Rewrites every event payload carrying a snapshot of ``record_id`` (one
         id or several, in one pass over the log) so its identifying fields
         (content, fingerprint, fact key, tags, history; see
-        :mod:`memspine.core.erasure`) are emptied and a ``redacted`` marker
+        :mod:`memspine.trust.erasure`) are emptied and a ``redacted`` marker
         is set — the event's seq, kind, and fingerprint (of the ORIGINAL
         payload) stay, so ordering and audit chains survive while the erased
         content is unrecoverable (GDPR erasure in an append-only design).
@@ -485,7 +520,7 @@ class SqlStorage(ServiceAdapter):
 
         ``node_renames`` (old entity node id -> opaque id) also renames those
         node ids in ``community_partition`` markers in the same pass
-        (:func:`~memspine.core.erasure.scrub_partition_nodes`).
+        (:func:`~memspine.trust.erasure.scrub_partition_nodes`).
         """
         if self._mode is EventLogMode.EPHEMERAL:
             return []
@@ -519,6 +554,42 @@ class SqlStorage(ServiceAdapter):
                 )
                 redacted.append(int(mapping["seq"]))
         return redacted
+
+    async def scrub_marker_payloads(
+        self, marker: str, scrub: Callable[[dict[str, Any]], bool]
+    ) -> list[int]:
+        """FU-CLOSE: the same log-redaction pass as :meth:`redact_event_payloads`, for MARKER events
+        named ``marker`` (e.g. the ``profile_card_v2`` card, which carries entry text).
+
+        ``scrub`` mutates a decoded payload in place and returns True when it changed anything;
+        a changed payload gets the ``redacted`` flag and is rewritten, keeping seq and kind.
+        Returns the rewritten seqs."""
+        if self._mode is EventLogMode.EPHEMERAL:
+            return []
+        rewritten: list[int] = []
+        async with self._client.engine.begin() as conn:
+            rows = (await conn.execute(select(memory_events))).all()
+            for row in rows:
+                mapping = row._mapping
+                raw: bytes = mapping["payload"]
+                if mapping["compressed"]:
+                    raw = self._dctx.decompress(raw)
+                payload = orjson.loads(raw)
+                if not isinstance(payload, dict) or payload.get("marker") != marker:
+                    continue
+                if not scrub(payload):
+                    continue
+                payload["redacted"] = True
+                encoded = canonical_payload(payload)
+                if mapping["compressed"]:
+                    encoded = self._cctx.compress(encoded)
+                await conn.execute(
+                    memory_events.update()
+                    .where(memory_events.c.seq == mapping["seq"])
+                    .values(payload=encoded)
+                )
+                rewritten.append(int(mapping["seq"]))
+        return rewritten
 
     def _row_to_record(self, row: Any) -> MemoryRecord:
         return MemoryRecord.model_validate(
@@ -556,5 +627,28 @@ class SqlStorage(ServiceAdapter):
                 # NULL tags (rows written before D2) read back as an empty list.
                 "tags": orjson.loads(row["tags"]) if row["tags"] is not None else [],
                 "invalid_at": row["invalid_at"],
+                **self._envelope_fields(row),
             }
         )
+
+    @staticmethod
+    def _envelope_fields(row: Any) -> dict[str, Any]:
+        """F-02a: the stored envelope columns; a NULL one is left out, so the record derives it."""
+        out: dict[str, Any] = {"schema_version": row["schema_version"] or 1}
+        for key in ("layer", "type_tag", "provenance_class"):
+            if row[key] is not None:
+                out[key] = row[key]
+        axes = {"speaker": row["spk"], "addressee": row["addr"], "asker": row["ask"]}
+        if row["sub"] is not None or any(v is not None for v in axes.values()):
+            axes["subject"] = orjson.loads(row["sub"]) if row["sub"] is not None else []
+            if row["participants"] is not None:  # W2-02
+                axes["participants"] = orjson.loads(row["participants"])
+            out["axes"] = axes
+        if row["fingerprint"] is not None:
+            out["fingerprint"] = orjson.loads(row["fingerprint"])
+        for key in ("source_at", "source_precision", "event_precision", "event_basis", "source_tz"):
+            if row[key] is not None:
+                out[key] = row[key]
+        if row["event_approximate"]:
+            out["event_approximate"] = True
+        return out

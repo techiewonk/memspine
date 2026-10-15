@@ -1,0 +1,95 @@
+{
+  "$defs": {
+    "QueryContract": {
+      "additionalProperties": true,
+      "description": "Typed query contract (R-03). Internal step type.",
+      "properties": {
+        "answer_type": {
+          "default": "unknown",
+          "enum": [
+            "person",
+            "place",
+            "date",
+            "duration",
+            "count",
+            "quantity",
+            "title",
+            "name",
+            "yesno",
+            "choice",
+            "reason",
+            "description",
+            "entity",
+            "unknown"
+          ],
+          "title": "Answer Type",
+          "type": "string"
+        },
+        "cardinality": {
+          "default": "one",
+          "enum": [
+            "one",
+            "many",
+            "count"
+          ],
+          "title": "Cardinality",
+          "type": "string"
+        },
+        "relation": {
+          "default": "",
+          "title": "Relation",
+          "type": "string"
+        },
+        "request": {
+          "default": "recall",
+          "enum": [
+            "recall",
+            "inference",
+            "recommendation"
+          ],
+          "title": "Request",
+          "type": "string"
+        },
+        "source": {
+          "default": "rules",
+          "enum": [
+            "rules",
+            "llm"
+          ],
+          "title": "Source",
+          "type": "string"
+        },
+        "subjects": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Subjects",
+          "type": "array"
+        },
+        "subtype": {
+          "default": "",
+          "title": "Subtype",
+          "type": "string"
+        },
+        "time_scope": {
+          "default": "",
+          "title": "Time Scope",
+          "type": "string"
+        }
+      },
+      "title": "QueryContract",
+      "type": "object"
+    }
+  },
+  "additionalProperties": true,
+  "properties": {
+    "contract": {
+      "$ref": "#/$defs/QueryContract"
+    }
+  },
+  "required": [
+    "contract"
+  ],
+  "title": "RetrieveStep03Output",
+  "type": "object"
+}

@@ -19,13 +19,16 @@ to mean less than they appeared to:
 from __future__ import annotations
 
 import inspect
+import logging
 import random
 import time
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from . import trace_full
 from .call_cache import reader_scope
 from .contracts import (
     DatasetAdapter,
@@ -39,16 +42,26 @@ from .contracts import (
 )
 from .credentials import is_auth_error
 from .judge import Judge, recall_over_units, unit_ranking
+from .manifest import build_cost, build_identity
 from .metrics import CostModel, Ledger, Stage
 from .provenance import ReaderSpec, RunManifest, RunProtocol, SystemSpec
-from .readers import reader_raw_meta
+from .readers import ServerContextExceeded, find_guard, reader_raw_meta
 from .results import ResultRow, ResultWriter, RowStatus, RunSummary, aggregate
 from .screen import coverage, coverage_summary, normalise_evidence
-from .tokens import HeuristicTokenCounter, TokenCounter, truncate_to_budget
+from .shape import shape_for_item
+from .tokens import (
+    HeuristicTokenCounter,
+    TokenCounter,
+    truncate_by_hit_rank,
+    truncate_by_rank,
+    truncate_to_budget,
+)
 from .trace import DepositTrace, TraceWriter, cycle_from_context
 
 if TYPE_CHECKING:
     from .call_cache import CacheStats
+
+log = logging.getLogger(__name__)
 
 
 class ModelCallBudgetExceeded(RuntimeError):
@@ -92,6 +105,10 @@ class RunConfig:
     out_dir: Path = Path("runs")
     cost_model: CostModel = field(default_factory=CostModel)
     include_trace_content: bool = False
+    #: ``--trace-full``: write the exact reader / judge prompts and raw replies per question,
+    #: and the per-record write trace, to ``<out_dir>/<id>--trace/`` (off by default: size;
+    #: result rows and scoring are untouched, see trace_full.py)
+    trace_full: bool = False
     max_items: int | None = None
     max_queries_per_item: int | None = None
     max_model_calls: int | None = None
@@ -117,6 +134,12 @@ class RunConfig:
     #: screening: the installed :class:`~memspine_evals.call_cache.CallCache`, if any.
     #: Completions it serves are not counted as model calls and cost nothing.
     call_cache: Any = None
+    #: D4 [HAR-5]: the manifest's ``runtime`` block (versions, argv, env, server state)
+    runtime: Mapping[str, Any] = field(default_factory=dict)
+    #: D1 [HAR-1]: ``heuristic`` (default) cuts an over-budget context at the tail;
+    #: ``reader`` drops its lowest-ranked lines and records ``engine_tokens`` next to
+    #: ``context_tokens`` (counted by the runner's token counter)
+    token_count: str = "heuristic"
 
     def limits(self) -> dict[str, Any]:
         return {
@@ -136,7 +159,7 @@ def _answer_in_context(gold: str | None, text: str) -> dict[str, object]:
     retrieved context (``ans_words`` = that share). None without a usable gold."""
     if not gold:
         return {}
-    from memspine.core.query_shape import content_words
+    from memspine.models.encoders.query.shape import content_words
 
     wanted = content_words(gold)
     if not wanted:
@@ -185,6 +208,14 @@ class EvalRunner:
         }
         #: C-6: engine services observed (``meta["engine_services"]``), priced or not
         self.engine_services: dict[str, float] = {}
+        #: F2 [INJ-2]: records the engine quarantined at deposit
+        self.n_quarantined = 0
+        #: D2 [HAR-3]: the reader/judge context guard (None for stub or Bedrock readers) and
+        #: the rows / calls it flagged
+        self.guard = find_guard(reader)
+        self.server_truncation: dict[str, int] = {"rows": 0, "reader": 0, "judge": 0}
+        #: E4/F4: per item, ingest wall seconds (deposits, flushes, build) and turns deposited
+        self.ingest_wall: dict[str, dict[str, float]] = {}
         self._meter, self._own_meter = self._spend_meter()
         #: screening: the call cache's counters when this arm started (per-arm deltas)
         self._cache_start = self._cache_mark()
@@ -219,6 +250,86 @@ class EvalRunner:
             token_counter=dict(self.counter.describe()),
             labels=self.config.labels,
             limits=self.config.limits(),
+            runtime=self.config.runtime,
+            identity=self.build_identity(info),
+        )
+
+    def build_identity(self, info: Any) -> dict[str, Any]:
+        """P0-03/P0-01: the manifest's ``identity`` block. Flags are the system's ``describe()`` (the engine
+        config the CLI built, plus the harness knobs); prompts are the reader's and the judge's texts; models
+        come from the reader, the judge and the engine config; the slice is the run's item-id filter (None =
+        the whole dataset, which ``dataset.content_sha256`` already pins). Commit, env and venv hashes come
+        from the ``MEMSPINE_*`` variables ``pinned_run.sh`` exports."""
+        flags = dict(self.system.describe())
+        cfg = dict(flags.get("config") or {})
+        read = dict(cfg.get("read") or {})
+        llm = dict(cfg.get("llm") or {})
+        prompts: dict[str, str] = {}
+        reader_prompt = getattr(self.reader, "prompt", None)
+        if isinstance(reader_prompt, str):
+            prompts["reader"] = reader_prompt
+        elif reader_prompt is not None:  # routed / system prompts: hash their description
+            desc = getattr(reader_prompt, "describe", None)
+            prompts["reader"] = repr(sorted(desc().items())) if callable(desc) else repr(reader_prompt)
+        judge_prompt = getattr(self.judge, "prompt", None)
+        if isinstance(judge_prompt, str):
+            prompts["judge"] = judge_prompt
+        elif getattr(self.judge.spec, "prompt_hash", None):
+            prompts["judge"] = "sha256:" + str(self.judge.spec.prompt_hash)
+        models: dict[str, Any] = {
+            "reader": getattr(self.reader, "model", None),
+            "judge": getattr(self.judge.spec, "model", None),
+            "embedder": (cfg.get("embedding") or {}).get("model"),
+            "reranker": read.get("rerank_model"),
+            "worker": llm.get("model") or llm.get("worker_model"),
+        }
+        # Engine config shape is llm.roles.<role>.model (LLMConfig); the extract role is the worker model.
+        roles = llm.get("roles") or {}
+        extract = roles.get("extract") if isinstance(roles, dict) else None
+        if not models["worker"] and isinstance(extract, dict):
+            models["worker"] = extract.get("model")
+        item_ids = (self.config.extra_limits or {}).get("item_ids")
+        sample_ids = (self.config.extra_limits or {}).get("slice_query_ids")  # RUNBOOK2 sample slices
+        identity = build_identity(
+            flags=flags,
+            prompts=prompts,
+            models={k: (str(v) if v else None) for k, v in models.items()},
+            dataset_id=info.dataset_id,
+            slice_id=(self.config.labels or {}).get("slice") or (f"items:{len(item_ids)}" if item_ids else None),
+            slice_ids=item_ids or sample_ids or None,
+        )
+        # the dataset adapter already hashed its bytes; do not read the files again
+        identity["datasets"]["files"] = {str(info.source_path): info.content_sha256}
+        return identity
+
+    def build_cost_block(self, rows: Sequence[ResultRow], duration_s: float) -> dict[str, Any]:
+        """G-25: informational cost and latency of the run, written after it ends (a ``kind: "cost"`` record and
+        ``summary.json``). Reader tokens are summed from the rows; ``worker`` is the engine's own LLM use; a
+        figure the run cannot observe is None."""
+        scored = [r for r in rows if r.scored]
+        worker = {"prompt": 0, "completion": 0}
+        seen = False
+        for roles in self.engine_llm.values():
+            for used in roles.values():
+                seen = True
+                worker["prompt"] += int(used.get("prompt", 0) or 0)
+                worker["completion"] += int(used.get("completion", 0) or 0)
+        tokens: dict[str, dict[str, int | None]] = {
+            "reader": {
+                "prompt": sum(r.prompt_tokens for r in scored),
+                "completion": sum(r.completion_tokens for r in scored),
+            },
+        }
+        if seen:
+            tokens["worker"] = dict(worker)
+        configured = self.rerank_summary()["configured"]
+        return build_cost(
+            tokens=tokens,
+            rerank_calls=int(self.rerank["calls"]) if configured else None,
+            duration_s=round(duration_s, 3),
+            question_latencies_s=[
+                (r.latency_retrieve_ms + r.latency_answer_ms + r.latency_judge_ms) / 1000 for r in scored
+            ],
         )
 
     # -- spend ---------------------------------------------------------------
@@ -324,6 +435,17 @@ class EvalRunner:
         )
         return audit
 
+    def rerank_check(self) -> str:
+        """B11 [RET-3]: ``FAILED`` when the arm's config asks for a reranker and the engine's
+        stats show no rerank call or any failure; ``ok`` when it ran cleanly; ``not_applicable``
+        when no reranker is configured (or no question ran)."""
+        audit = self.rerank
+        engine_cfg = dict(self.system.describe().get("config") or {})
+        mode = (engine_cfg.get("read") or {}).get("rerank") or audit["mode"]
+        if mode in (None, "off") or audit["queries"] <= 0:
+            return "not_applicable"
+        return "FAILED" if audit["calls"] == 0 or audit["failures"] > 0 else "ok"
+
     def _check_spend(self, what: str) -> None:
         """Stop before ``what`` once observed spend has reached the dollar cap."""
         if self._meter is not None:
@@ -399,8 +521,34 @@ class EvalRunner:
 
     # -- run -----------------------------------------------------------------
 
+    @property
+    def trace_dir(self) -> Path | None:
+        """``runs/<id>--trace`` next to ``runs/<id>--<system>`` (None unless ``--trace-full``)."""
+        if not self.config.trace_full:
+            return None
+        base = self.config.run_id.split("--")[0]
+        return Path(self.config.out_dir) / f"{base}--trace"
+
     async def run(self) -> RunSummary:
+        try:
+            return await self._run()
+        finally:
+            if self.trace_dir is not None:
+                trace_full.finalize(self.trace_dir)
+
+    async def _run(self) -> RunSummary:
         manifest = self.build_manifest()
+        started_run = time.perf_counter()
+        if self.trace_dir is not None:
+            self.trace_dir.mkdir(parents=True, exist_ok=True)
+            set_trace_dir = getattr(self.system, "set_trace_dir", None)
+            if set_trace_dir is not None:
+                set_trace_dir(str(self.trace_dir))  # engine-side write / read trace
+        # D7 [INJ-6]: a system that writes forensic logs learns the run id (and refuses to
+        # append to another run's logs) before anything is ingested.
+        begin = getattr(self.system, "begin_run", None)
+        if begin is not None:
+            begin(self.config.run_id)
         out_dir = Path(self.config.out_dir) / self.config.run_id
         results_path = out_dir / "results.jsonl"
         trace_path = out_dir / "trace.jsonl"
@@ -457,8 +605,12 @@ class EvalRunner:
                 try:
                     summary = aggregate(manifest, rows, self.ledger)
                     writer.write_summary(summary)
+                    # line 1 (the manifest) is never rewritten: the cost is only known now, so it goes in a
+                    # trailing {"kind": "cost"} record that readers of rows and summaries skip
+                    cost = self.build_cost_block(rows, time.perf_counter() - started_run)
+                    writer.write_cost(cost)
                     self._write_summary_file(
-                        manifest, summary, aborted=crashed or aborted, rows=rows
+                        manifest, summary, aborted=crashed or aborted, rows=rows, cost=cost
                     )
                 except Exception:
                     if crashed is None:
@@ -572,6 +724,7 @@ class EvalRunner:
         summary: RunSummary,
         aborted: BaseException | None = None,
         rows: Sequence[ResultRow] = (),
+        cost: Mapping[str, Any] | None = None,
     ) -> None:
         import json
 
@@ -595,7 +748,39 @@ class EvalRunner:
             "rerank": self.rerank_summary(),
             "rerank_unavailable": self.rerank_summary()["rerank_unavailable"],
             "spend": self._meter.summary() if self._meter is not None else None,
+            # B11 [RET-3]: a configured reranker must have run, without failing
+            "rerank_check": self.rerank_check(),
+            # F2 [INJ-2]: records the firewall quarantined at deposit
+            "n_quarantined": self.n_quarantined,
         }
+        # D5/E4/F4: reader and judge latency percentiles, ingest throughput, GPU memory
+        from .timing import gpu_memory, ingest_summary, latency_block
+
+        payload["latency"] = latency_block(
+            [row.to_dict() for row in rows],
+            self._judge_server_timings(),
+        )
+        if cost is not None:  # the summary's copy of the manifest carries the finished cost block
+            payload["manifest"]["identity"] = {**(payload["manifest"].get("identity") or {}), "cost": dict(cost)}
+        payload["adversarial_split"] = _adversarial_split(rows, summary.score_scale)
+        payload["ingest_timing"] = ingest_summary(self.ingest_wall)
+        runtime_gpu = (payload["manifest"].get("runtime") or {}).get("gpu")
+        if isinstance(runtime_gpu, dict):
+            runtime_gpu["end"] = gpu_memory()
+            runtime_gpu["end_at"] = datetime.now(UTC).isoformat(timespec="seconds")
+            payload["gpu_memory"] = dict(runtime_gpu)
+        if self.guard is not None:
+            # D2 [HAR-3]: rows / calls where prompt + completion tokens reached the server window
+            payload["server_truncation_suspected"] = {
+                **self.server_truncation,
+                **self.guard.describe(),
+            }
+        if self.n_quarantined:
+            log.warning(
+                "%s: %d record(s) were quarantined at deposit (see ingest.jsonl)",
+                self.system.system_id,
+                self.n_quarantined,
+            )
         cache = self.cache_summary()
         if cache is not None:
             # screening: completions / embeddings the disk cache served at $0
@@ -610,6 +795,18 @@ class EvalRunner:
             json.dumps(payload, indent=2, ensure_ascii=False, default=str), encoding="utf-8"
         )
 
+    def _judge_server_timings(self) -> list[Any]:
+        """Server timings the judge's chat callable collected (through any wrappers)."""
+        judge: Any = self.judge
+        for _ in range(4):
+            chat = getattr(judge, "_chat", None)
+            if chat is not None:
+                return list(getattr(chat, "server_timings", None) or ())
+            judge = getattr(judge, "_inner", None)
+            if judge is None:
+                break
+        return []
+
     def _capped_queries(self, item: EvalItem) -> list[Query]:
         queries = list(item.queries)
         if self.config.max_queries_per_item is not None:
@@ -617,6 +814,9 @@ class EvalRunner:
         return queries
 
     async def _run_item(self, item: EvalItem, tracer: TraceWriter) -> list[ResultRow]:
+        declare = getattr(self.system, "declare_shape", None)
+        if callable(declare):  # I25: the item's data shape, for ``data_profile: auto``
+            declare(shape_for_item(item, self.dataset.info()))
         await self.system.reset(item.item_id)
         queries = self._capped_queries(item)
 
@@ -650,7 +850,12 @@ class EvalRunner:
             for i, query in enumerate(tail):
                 rows.append(await self._answer(item, query, len(item.history) + i, tracer))
                 done.add(query.query_id)
-        except (ModelCallBudgetExceeded, UnexpectedModelCall, ProviderCredentialError) as exc:
+        except (
+            ModelCallBudgetExceeded,
+            UnexpectedModelCall,
+            ProviderCredentialError,
+            ServerContextExceeded,
+        ) as exc:
             raise _Abort(
                 cause=exc,
                 item=item,
@@ -663,7 +868,12 @@ class EvalRunner:
         """Await ``call()``; a credential failure becomes ``ProviderCredentialError`` (C-3)."""
         try:
             return await call()
-        except (ModelCallBudgetExceeded, UnexpectedModelCall, ProviderCredentialError):
+        except (
+            ModelCallBudgetExceeded,
+            UnexpectedModelCall,
+            ProviderCredentialError,
+            ServerContextExceeded,
+        ):
             raise
         except Exception as exc:
             if is_auth_error(exc):
@@ -680,7 +890,13 @@ class EvalRunner:
             f"{self.system.system_id}.insert", lambda: self.system.insert(turn)
         )
         latency = (time.perf_counter() - started) * 1000
+        self._note_ingest(item_id, latency, turns=1)
         self._record_deposit(item_id, t, turn, deposit, latency, tracer, self._cache_since(mark))
+
+    def _note_ingest(self, item_id: str, latency_ms: float, turns: int = 0) -> None:
+        rec = self.ingest_wall.setdefault(item_id, {"turns": 0, "wall_s": 0.0})
+        rec["turns"] += turns
+        rec["wall_s"] += latency_ms / 1000
 
     async def _flush(self, item_id: str, t: int, turn: Turn, tracer: TraceWriter) -> None:
         """Optional adapter hook (G9): write turns the system has buffered. Its
@@ -695,6 +911,7 @@ class EvalRunner:
         if not deposit.n_records and not deposit.model_calls and not deposit.meta:
             return  # nothing was buffered
         latency = (time.perf_counter() - started) * 1000
+        self._note_ingest(item_id, latency)
         self._record_deposit(item_id, t, turn, deposit, latency, tracer, self._cache_since(mark))
 
     def _record_deposit(
@@ -709,6 +926,7 @@ class EvalRunner:
     ) -> None:
         served = self._served(cached)
         calls = max(deposit.model_calls - served, 0)
+        self.n_quarantined += int(deposit.meta.get("n_quarantined", 0) or 0)
         self._charge_engine(Stage.DEPOSIT, deposit.meta, served)
         self._charge_services(deposit.meta, cached)
         self._account_model_calls(calls, f"{self.system.system_id}.insert")
@@ -755,6 +973,7 @@ class EvalRunner:
         mark = self._cache_mark()
         result = await self._guard_auth(f"{self.system.system_id}.build", build)
         cached = self._cache_since(mark)
+        self._note_ingest(item_id, (time.perf_counter() - started) * 1000)
         served = self._served(cached)
         calls = max(result.model_calls - served, 0)
         self._charge_engine(Stage.SYNTHESISE, result.meta, served)
@@ -774,6 +993,8 @@ class EvalRunner:
     async def _answer(self, item: EvalItem, query: Query, t: int, tracer: TraceWriter) -> ResultRow:
         protocol = self.config.protocol
         spend_before = self._spent()
+        if self.guard is not None:
+            self.guard.consume()  # flags left by a failed earlier question belong to no row
         try:
             self._check_spend(f"{self.system.system_id}.query")
             started = time.perf_counter()
@@ -781,6 +1002,9 @@ class EvalRunner:
             set_meta = getattr(self.system, "set_query_meta", None)
             if set_meta is not None:
                 set_meta(query.meta)  # N34: e.g. the question's own date (as-of reads)
+            set_query_id = getattr(self.system, "set_query_id", None)
+            if set_query_id is not None:
+                set_query_id(query.query_id)  # D7: forensics rows join on it
             context = await self.system.query(query.text, protocol.budget_tokens, protocol.top_k)
             latency_retrieve = (time.perf_counter() - started) * 1000
             cached = self._cache_since(mark)
@@ -792,19 +1016,45 @@ class EvalRunner:
 
             # The protocol owns the budget, not the system: truncate here even
             # when the system says it already did.
-            text, tokens, truncated = truncate_to_budget(
-                context.text, protocol.budget_tokens, self.counter
-            )
-            if truncated:
-                # R3-7: evidence whose unit was cut away is not retrieved evidence.
-                context = type(context)(
-                    text=text,
-                    tokens=tokens,
-                    evidence=visible_evidence(context.evidence, len(text)),
-                    truncated=True,
-                    boundary_index=context.boundary_index,
-                    meta=context.meta,
+            engine_tokens = context.tokens
+            by_rank = self.config.token_count == "reader" and bool(context.evidence)
+            ranked_cut = None
+            if by_rank and bool(context.meta.get("ranked", True)):
+                ranked_cut = truncate_by_rank(
+                    context.text, context.evidence, protocol.budget_tokens, self.counter
                 )
+            elif by_rank:
+                # replay mode: chronological order, so rank by the final search hits
+                ranked_cut = truncate_by_hit_rank(
+                    context.text, context.evidence, protocol.budget_tokens, self.counter
+                )
+            if ranked_cut is not None:
+                # D1 [HAR-1]: whole lowest-ranked lines go, not the tail of the text.
+                text, tokens, truncated, kept = ranked_cut
+                if truncated:
+                    context = type(context)(
+                        text=text,
+                        tokens=tokens,
+                        evidence=kept,
+                        truncated=True,
+                        boundary_index=context.boundary_index,
+                        meta=context.meta,
+                    )
+            else:
+                text, tokens, truncated = truncate_to_budget(
+                    context.text, protocol.budget_tokens, self.counter
+                )
+                if truncated:
+                    # R3-7: evidence whose unit was cut away is not retrieved evidence.
+                    context = type(context)(
+                        text=text,
+                        tokens=tokens,
+                        evidence=visible_evidence(context.evidence, len(text)),
+                        truncated=True,
+                        boundary_index=context.boundary_index,
+                        meta=context.meta,
+                    )
+            reader_tokens = tokens if self.config.token_count == "reader" else None
             self.ledger.add(Stage.RETRIEVE, latency_ms=latency_retrieve, calls=query_calls)
             if context.meta.get("cost_observable") is False:
                 self.ledger.mark_unknown(
@@ -830,7 +1080,7 @@ class EvalRunner:
             # R3-6: the date the question is asked, for readers whose prompt uses it.
             question_date = query.meta.get("question_date")
             mark = self._cache_mark()
-            with reader_scope():
+            with reader_scope(), trace_full.capture(self.config.trace_full) as reader_calls:
                 if self._reader_takes_date:
                     answer = await self.reader.answer(
                         query.text,
@@ -840,6 +1090,7 @@ class EvalRunner:
                 else:
                     answer = await self.reader.answer(query.text, context.text)
             reader_served = self._served(self._cache_since(mark))
+            flagged = self.guard.consume() if self.guard is not None else []
             if self._own_meter and answer.model_calls:
                 # a reader without a provider budget is charged after the fact
                 self._meter.charge(
@@ -861,12 +1112,17 @@ class EvalRunner:
 
             score_query = getattr(self.judge, "score_query", None)
             mark = self._cache_mark()
-            with reader_scope():
+            with reader_scope(), trace_full.capture(self.config.trace_full) as judge_calls_log:
                 if score_query is not None:
                     verdict = await score_query(query, answer.text)
                 else:
                     verdict = await self.judge.score(query.text, answer.text, query.gold)
             judge_calls = max(verdict.model_calls - self._served(self._cache_since(mark)), 0)
+            flagged += self.guard.consume() if self.guard is not None else []
+            if flagged:
+                self.server_truncation["rows"] += 1
+                for who in flagged:
+                    self.server_truncation[who] = self.server_truncation.get(who, 0) + 1
             self._judge_calls += judge_calls
             self._account_model_calls(judge_calls, self.judge.spec.judge_id)
 
@@ -904,6 +1160,37 @@ class EvalRunner:
                     include_content=self.config.include_trace_content,
                 )
             )
+            if self.trace_dir is not None:
+                trace_full.write_read(
+                    self.trace_dir,
+                    dict(
+                        run_id=self.config.run_id,
+                        item_id=item.item_id,
+                        query_id=query.query_id,
+                        question=query.text,
+                        question_date=None if question_date is None else str(question_date),
+                        gold=query.gold,
+                        type_label=query.type_label,
+                        context_text=context.text,
+                        context_tokens=context.tokens,
+                        context_truncated=context.truncated,
+                        answer=answer.text,
+                        reader_raw=answer.raw_text,
+                        reader_calls=reader_calls,
+                        judge_calls=judge_calls_log,
+                        verdict=dict(
+                            score=verdict.score,
+                            scale=verdict.scale.value,
+                            raw=verdict.raw,
+                            meta={
+                                k: v
+                                for k, v in dict(verdict.meta).items()
+                                if isinstance(v, (str, int, float, bool, type(None)))
+                            },
+                        ),
+                        reader_meta=dict(answer.extra_meta),
+                    ),
+                )
             return ResultRow(
                 run_id=self.config.run_id,
                 item_id=item.item_id,
@@ -922,7 +1209,7 @@ class EvalRunner:
                 seed=protocol.seed,
                 answer_truncated=answer.truncated,
                 type_label=query.type_label,
-                context_tokens=context.tokens,
+                context_tokens=context.tokens if reader_tokens is None else reader_tokens,
                 context_truncated=context.truncated,
                 prompt_tokens=answer.prompt_tokens,
                 cached_prompt_tokens=answer.cached_prompt_tokens,
@@ -940,10 +1227,32 @@ class EvalRunner:
                         if verdict.meta.get("prompt_id")
                         else {}
                     ),
+                    **{  # I58: the second column of --judge-conventions
+                        k: verdict.meta[k]
+                        for k in (
+                            "score_conventions",
+                            "convention",
+                            "score_conventions_v2",
+                            "convention_v2",
+                            "score_conventions_v3",
+                            "convention_v3",
+                        )
+                        if k in verdict.meta
+                    },
                     **(
                         {"reranked": context.meta["reranked"]} if "reranked" in context.meta else {}
                     ),
                     **reader_raw_meta(answer.raw_text),
+                    **({"engine_tokens": engine_tokens} if reader_tokens is not None else {}),
+                    **(
+                        {
+                            "server_truncation_suspected": True,
+                            "server_truncation_by": sorted(set(flagged)),
+                        }
+                        if flagged
+                        else {}
+                    ),
+                    **dict(answer.extra_meta),
                     **(
                         {"qa_variant": answer.prompt_variant}
                         if answer.prompt_variant is not None
@@ -952,7 +1261,12 @@ class EvalRunner:
                     **self._row_spend(spend_before),
                 },
             )
-        except (ModelCallBudgetExceeded, UnexpectedModelCall, ProviderCredentialError):
+        except (
+            ModelCallBudgetExceeded,
+            UnexpectedModelCall,
+            ProviderCredentialError,
+            ServerContextExceeded,
+        ):
             raise
         except Exception as exc:
             if is_auth_error(exc):
@@ -973,6 +1287,35 @@ class EvalRunner:
                 status=RowStatus.ERROR.value,
                 error=f"{type(exc).__name__}: {exc}",
             )
+
+
+def _adversarial_split(rows: Sequence[ResultRow], scale: str) -> dict[str, Any] | None:
+    """A13: LoCoMo cat 5 (abstention) apart from the headline. None when the run has no cat-5
+    rows; otherwise the mean over the other rows next to the cat-5 mean. Failed rows count at
+    0, like the headline."""
+    from .judge import JudgeScale, to_unit_interval
+
+    adv = [r for r in rows if r.type_label == "cat5" and r.status != RowStatus.UNATTEMPTED.value]
+    if not adv:
+        return None
+    unit = JudgeScale(scale)
+
+    def mean(group: Sequence[ResultRow]) -> float | None:
+        vals = [
+            to_unit_interval(r.score, unit) if r.scored and r.error is None else 0.0 for r in group
+        ]
+        return round(sum(vals) / len(vals), 4) if vals else None
+
+    rest = [r for r in rows if r.type_label != "cat5" and r.status != RowStatus.UNATTEMPTED.value]
+    return {
+        "headline_excluding_adversarial": {"n": len(rest), "accuracy": mean(rest)},
+        "adversarial": {
+            "label": "adversarial",
+            "n": len(adv),
+            # a retrieval-only run has no answer to grade as an abstention
+            "accuracy": None if any(r.meta.get("retrieval_only") for r in adv) else mean(adv),
+        },
+    }
 
 
 async def run_matrix(
@@ -1006,6 +1349,7 @@ async def run_matrix(
             out_dir=config.out_dir,
             cost_model=config.cost_model,
             include_trace_content=config.include_trace_content,
+            trace_full=config.trace_full,
             max_items=config.max_items,
             max_queries_per_item=config.max_queries_per_item,
             max_model_calls=config.max_model_calls,
@@ -1017,6 +1361,8 @@ async def run_matrix(
             service_prices=config.service_prices,
             retrieval_only=config.retrieval_only,
             call_cache=config.call_cache,
+            runtime=config.runtime,
+            token_count=config.token_count,
             extra_limits={
                 **dict(config.extra_limits),
                 "model_call_cap_scope": "per-arm",

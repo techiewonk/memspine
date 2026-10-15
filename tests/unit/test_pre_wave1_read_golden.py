@@ -18,7 +18,12 @@ the CHANGELOG and docs/USAGE.md.
 To re-record (only against d6dccc5's source, never the current tree)::
 
     git worktree add <tmp> d6dccc5
-    PYTHONPATH=<tmp>/src MEMSPINE_UPDATE_GOLDENS=1 pytest tests/unit/test_pre_wave1_read_golden.py
+    cd <tmp>
+    MEMSPINE_UPDATE_PRE_WAVE1_GOLDEN=1 PYTHONPATH=src pytest \
+        tests/unit/test_pre_wave1_read_golden.py
+
+The generic ``MEMSPINE_UPDATE_GOLDENS=1`` deliberately does NOT re-record this file (H4,
+2026-10-10): agents refreshing other goldens on the current tree kept overwriting it.
 """
 
 from __future__ import annotations
@@ -34,47 +39,47 @@ import pytest
 from memspine import Engine
 
 GOLDEN = Path(__file__).parent / "golden" / "pre_wave1_read.json"
-_UPDATE = os.environ.get("MEMSPINE_UPDATE_GOLDENS") == "1"
+_UPDATE = os.environ.get("MEMSPINE_UPDATE_PRE_WAVE1_GOLDEN") == "1"
 
 T0 = datetime(2023, 5, 1, 9, 0, tzinfo=UTC)
 
 #: (text, day offset)
 TURNS = [
-    ("Melanie: I went camping with the kids last weekend", 0),
-    ("Caroline: I started a new painting of a lake sunset", 3),
-    ("Melanie: we ran a charity race for mental health in May", 9),
-    ("Caroline: I joined a support group last Tuesday", 33),
-    ("Melanie: the kids loved the pottery class yesterday", 40),
-    ("Caroline: I am researching adoption agencies this month", 62),
+    ("Bram: I went camping with the kids last weekend", 0),
+    ("Noor: I started a new painting of a lake sunset", 3),
+    ("Bram: we ran a book fair for the school library in May", 9),
+    ("Noor: I joined a support group last Tuesday", 33),
+    ("Bram: the kids loved the pottery class yesterday", 40),
+    ("Noor: I am researching adoption agencies this month", 62),
 ]
 
 #: (entity, attribute, text, day offset, tags); the last two are mined facts.
 FACTS = [
-    ("Melanie", "hobby", "Melanie hobby: pottery and painting", 41, ["person:melanie"]),
-    ("Caroline", "plan", "Caroline plan: adopt a child", 63, []),
-    ("Melanie", "event", "Melanie event: charity race in May 2023", 10, ["person:melanie"]),
+    ("Bram", "hobby", "Bram hobby: pottery and painting", 41, ["person:bram"]),
+    ("Noor", "plan", "Noor plan: adopt a child", 63, []),
+    ("Bram", "event", "Bram event: book fair in May 2023", 10, ["person:bram"]),
     (
-        "Melanie",
+        "Bram",
         "event",
-        "Melanie event: pottery class yesterday",
+        "Bram event: pottery class yesterday",
         39,
         ["atomic_fact", "kind:event", "happened:2023-06-09"],
     ),
     (
-        "Caroline",
+        "Noor",
         "event",
-        "Caroline event: joined a support group last Tuesday",
+        "Noor event: joined a support group last Tuesday",
         30,
         ["atomic_fact", "happened:2023-05-30"],
     ),
 ]
 
 QUERIES = [
-    "What activities does Melanie do?",
-    "When did Caroline join the support group?",
-    "What did Melanie do in May 2023?",
-    "How many times did Melanie go camping?",
-    "When did Melanie's kids go to the pottery class?",
+    "What activities does Bram do?",
+    "When did Noor join the support group?",
+    "What did Bram do in May 2023?",
+    "How many times did Bram go camping?",
+    "When did Bram's kids go to the pottery class?",
 ]
 
 #: Read configs covered (cards stay off in all of them).
@@ -89,10 +94,34 @@ def _fixed_ids(monkeypatch: pytest.MonkeyPatch) -> None:
     """Record ids break score ties: make them a fixed sequence, so runs compare."""
     import uuid
 
-    from memspine.core import records
+    from memspine.store import records
 
     counter = iter(range(1, 1_000_000))
     monkeypatch.setattr(records, "uuid4", lambda: uuid.UUID(int=next(counter)))
+
+
+def _now() -> datetime:
+    """The fake "now": the goldens must not depend on the day they are run (recency
+    scoring, ``recorded_at`` and the read-time anchor all read the wall clock).
+    ``MEMSPINE_FAKE_NOW`` (ISO datetime) overrides it, to prove the output is date-free."""
+    now = datetime.fromisoformat(os.environ.get("MEMSPINE_FAKE_NOW", "2026-01-15T12:00:00"))
+    return now if now.tzinfo else now.replace(tzinfo=UTC)
+
+
+@pytest.fixture(autouse=True)
+def _frozen_clock(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Pin the wall-clock reads on the write/read path to one fixed instant."""
+    from memspine.core.policies import scoring
+    from memspine.store import records
+
+    class _Frozen(datetime):
+        @classmethod
+        def now(cls, tz: Any = None) -> datetime:  # type: ignore[override]
+            return _now() if tz is None else _now().astimezone(tz)
+
+    monkeypatch.setattr(records, "datetime", _Frozen)
+    monkeypatch.setattr(scoring, "datetime", _Frozen)
+    monkeypatch.setattr(records, "_last_record_time", datetime.min.replace(tzinfo=UTC))
 
 
 async def _snapshot(read: dict[str, Any]) -> dict[str, Any]:
@@ -105,6 +134,7 @@ async def _snapshot(read: dict[str, Any]) -> dict[str, Any]:
         read={"record_access": False, **read},
     )
     await eng.start()
+    eng._clock = _now
     out: dict[str, Any] = {}
     try:
         for text, day in TURNS:
@@ -162,8 +192,8 @@ async def test_core_defaults_match_the_pre_wave1_golden() -> None:
 #: The one rendering #29 removes: the legacy happened-tagged fact (``valid_from`` on
 #: its happened day, no ``said:`` tag) is no longer resolved against ``valid_from``.
 _DROPPED_ANNOTATION = (
-    "Melanie event: pottery class yesterday [= Thu 2023-06-08]",
-    "Melanie event: pottery class yesterday",
+    "Bram event: pottery class yesterday [= Thu 2023-06-08]",
+    "Bram event: pottery class yesterday",
 )
 
 

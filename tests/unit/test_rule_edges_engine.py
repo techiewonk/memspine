@@ -9,7 +9,7 @@ from memspine import Engine
 from memspine.config import constants
 from memspine.config.schema import ReadConfig
 from memspine.core.rule_edges import BECAUSE_REL
-from memspine.workers.pipelines import RULE_EDGES_CHANNEL, rule_edges
+from memspine.derive.pipeline.stages.rule_edges import RULE_EDGES_CHANNEL, rule_edges
 
 T0 = datetime(2023, 5, 8, 13, 0, tzinfo=UTC)
 

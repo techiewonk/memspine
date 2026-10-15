@@ -10,31 +10,31 @@ import pytest
 from memspine import Engine
 from memspine.config import constants
 from memspine.config.schema import ReadConfig
-from memspine.core.lead import (
+from memspine.exceptions import ConfigError
+from memspine.models.encoders.query.shape import is_count
+from memspine.read.lead import (
     count_terms,
     distinct_occurrences,
     mentions_event,
     render_occurrences,
 )
-from memspine.core.query_shape import is_count
-from memspine.core.records import MemoryRecord
-from memspine.exceptions import ConfigError
+from memspine.store.records import MemoryRecord
 
 T0 = datetime(2023, 5, 7, 10, 0, tzinfo=UTC)
-QUERY = "How many times has Melanie gone to the beach?"
+QUERY = "How many times has Bram gone to the beach?"
 
 
 @pytest.mark.parametrize(
     ("query", "expected"),
     [
-        ("How many times has Melanie gone to the beach?", True),
-        ("How many pets does Caroline have?", True),
-        ("How often does John go hiking?", True),
+        ("How many times has Bram gone to the beach?", True),
+        ("How many pets does Noor have?", True),
+        ("How often does Tomasz go hiking?", True),
         ("how many concerts did Jon attend in 2023", True),
-        ("How many days ago did Gina move?", False),  # a duration: a date question
+        ("How many days ago did Ilse move?", False),  # a duration: a date question
         ("How many years has Dave worked there?", False),
-        ("When did Melanie go to the beach?", False),
-        ("What books has Melanie read?", False),
+        ("When did Bram go to the beach?", False),
+        ("What books has Bram read?", False),
     ],
 )
 def test_is_count(query: str, expected: bool) -> None:
@@ -62,29 +62,29 @@ def _rec(text: str, day: int, session: str | None, minute: int = 0) -> tuple[Mem
 
 def test_two_same_day_mentions_count_once() -> None:
     same_session = [
-        _rec("Melanie: we went to the beach today", 0, "s1"),
-        _rec("Melanie: the kids loved the beach, so much sand", 0, "s1", minute=3),
+        _rec("Bram: we went to the beach today", 0, "s1"),
+        _rec("Bram: the kids loved the beach, so much sand", 0, "s1", minute=3),
     ]
     assert len(distinct_occurrences(same_session)) == 1
     # Another session on the same day, restating the same trip: one occurrence too.
     restated = [
-        _rec("Melanie: we went to the beach today", 0, "s1"),
-        _rec("Melanie: we went to the beach today with the kids", 0, "s2"),
+        _rec("Bram: we went to the beach today", 0, "s1"),
+        _rec("Bram: we went to the beach today with the kids", 0, "s2"),
     ]
     assert len(distinct_occurrences(restated)) == 1
 
 
 def test_two_different_days_count_twice() -> None:
     mentions = [
-        _rec("Melanie: we went to the beach today", 9, "s2"),
-        _rec("Melanie: we went to the beach today", 0, "s1"),
+        _rec("Bram: we went to the beach today", 9, "s2"),
+        _rec("Bram: we went to the beach today", 0, "s1"),
     ]
     kept = distinct_occurrences(mentions)
     assert len(kept) == 2
     assert render_occurrences(kept) == (
         f"{constants.COUNT_MARKER}\n"
-        "- [said 2023-05-07] Melanie: we went to the beach today\n"
-        "- [said 2023-05-16] Melanie: we went to the beach today"
+        "- [said 2023-05-07] Bram: we went to the beach today\n"
+        "- [said 2023-05-16] Bram: we went to the beach today"
     )
 
 
@@ -108,10 +108,10 @@ def _engine(**read: Any) -> Engine:
 
 
 _TURNS = [
-    ("Melanie: we went to the beach with the kids", 0, "s1"),
-    ("Melanie: the beach was sunny and the kids built sand castles", 0, "s1"),
-    ("Melanie: back at the beach again this morning", 9, "s2"),
-    ("Caroline: I painted a sunset at the lake", 9, "s2"),
+    ("Bram: we went to the beach with the kids", 0, "s1"),
+    ("Bram: the beach was sunny and the kids built sand castles", 0, "s1"),
+    ("Bram: back at the beach again this morning", 9, "s2"),
+    ("Noor: I painted a sunset at the lake", 9, "s2"),
 ]
 
 
@@ -143,8 +143,8 @@ async def test_count_timeline_lists_distinct_dated_mentions() -> None:
             [block] = [r for r in records if constants.COUNT_TAG in r.tags]
             assert block.content == (
                 f"{constants.COUNT_MARKER}\n"
-                "- [said 2023-05-07] Melanie: we went to the beach with the kids\n"
-                "- [said 2023-05-16] Melanie: back at the beach again this morning"
+                "- [said 2023-05-07] Bram: we went to the beach with the kids\n"
+                "- [said 2023-05-16] Bram: back at the beach again this morning"
             )
             assert len(block.source.parents) == 2
             # The mentions stay in the context; the block only points at them.
@@ -161,8 +161,8 @@ async def test_count_timeline_off_is_byte_identical() -> None:
     for read, query in (
         ({}, QUERY),
         ({"count_timeline": False}, QUERY),
-        ({}, "Where did Melanie go with the kids?"),
-        ({"count_timeline": True}, "Where did Melanie go with the kids?"),
+        ({}, "Where did Bram go with the kids?"),
+        ({"count_timeline": True}, "Where did Bram go with the kids?"),
     ):
         eng = await _seeded(**read)
         try:

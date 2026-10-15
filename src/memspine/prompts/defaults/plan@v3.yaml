@@ -22,7 +22,7 @@ system: >-
   three short subqueries, each one searching for one of the facts the answer combines.
   For lookup and replay, write one or two short subqueries with the words the
   evidence itself would likely use, when they differ from the question's words: for
-  "Is Ben religious?", "Ben church" and "Ben faith"; for "What is
+  "Is Ben sporty?", "Ben fencing" and "Ben rowing"; for "What is
   Lena's job?", "Lena works as". List in persons only the people the question names
   (first names as written, no pronouns). Copy into time_expr the words of the
   question that name a date or a period ("in March 2024", "last week", "in 2022"),

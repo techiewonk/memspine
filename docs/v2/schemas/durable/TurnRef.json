@@ -1,0 +1,28 @@
+{
+  "additionalProperties": true,
+  "description": "A cited turn of a pinned source version.",
+  "properties": {
+    "seg_index": {
+      "minimum": 0,
+      "title": "Seg Index",
+      "type": "integer"
+    },
+    "source_id": {
+      "minLength": 1,
+      "title": "Source Id",
+      "type": "string"
+    },
+    "source_version": {
+      "minimum": 1,
+      "title": "Source Version",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "source_id",
+    "source_version",
+    "seg_index"
+  ],
+  "title": "TurnRef",
+  "type": "object"
+}

@@ -9,8 +9,8 @@ import pytest
 
 from memspine import Engine
 from memspine.config.schema import MemspineConfig
+from memspine.models.providers.llm.base import LLMRouter, LLMService
 from memspine.prompts.models import ReadPlan
-from memspine.services.llm.base import LLMRouter, LLMService
 
 T0 = datetime(2023, 5, 7, 10, 0, tzinfo=UTC)
 FILLER = " and then we talked for a long while about many other unrelated things" * 3
@@ -37,10 +37,10 @@ class _Plan:
 def _engine(monkeypatch: pytest.MonkeyPatch, stub: _Plan | None, **read: Any) -> Engine:
     stubs: dict[str, LLMService] = {"plan": stub} if stub is not None else {}
 
-    async def router(self: Engine, config: MemspineConfig) -> LLMRouter:
+    async def router(config: MemspineConfig, hooks: object = None) -> LLMRouter:
         return LLMRouter(stubs)
 
-    monkeypatch.setattr(Engine, "_build_llm_router", router)
+    monkeypatch.setattr("memspine.runtime.container.build_llm_router", router)
     return Engine(
         template="core",
         dotenv_path=None,

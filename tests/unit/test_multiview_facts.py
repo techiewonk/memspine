@@ -13,10 +13,10 @@ import pytest
 from memspine import Engine
 from memspine.config.schema import MemspineConfig
 from memspine.core.fact_views import normalise_view, tag_values, view_tags
-from memspine.core.records import MemoryRecord
+from memspine.models.providers.llm.base import LLMRouter, LLMService
 from memspine.prompts.models import ExtractedFact, ExtractedFacts
 from memspine.prompts.registry import PromptRegistry
-from memspine.services.llm.base import LLMRouter, LLMService
+from memspine.store.records import MemoryRecord
 
 T0 = datetime(2023, 7, 15, 9, 0, tzinfo=UTC)
 TURNS = [
@@ -148,10 +148,10 @@ async def test_miner_prompt_variant(
     stub = _Extract()
     stubs: dict[str, LLMService] = {"extract": stub}
 
-    async def router(self: Engine, config: MemspineConfig) -> LLMRouter:
+    async def router(config: MemspineConfig, hooks: object = None) -> LLMRouter:
         return LLMRouter(stubs)
 
-    monkeypatch.setattr(Engine, "_build_llm_router", router)
+    monkeypatch.setattr("memspine.runtime.container.build_llm_router", router)
     eng = _engine(**options)
     await eng.start()
     try:

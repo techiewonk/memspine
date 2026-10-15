@@ -4,8 +4,8 @@ Only the **append-only event log** (SQLite, WAL + ``busy_timeout``) supports
 concurrent writers on one file: its autoincrement primary key mints a distinct,
 gap-free ``seq`` for every append no matter who wrote it. The *derived* stores —
 LanceDB vectors, the Tantivy lexical index — are single-writer embedded indexes
-and cannot be shared by two live Engine instances at once (that is what the
-server ``opensearch`` lexical provider and a shared vector service are for). So
+and cannot be shared by two live Engine instances at once (a server-scale
+lexical provider and a shared vector service are for). So
 this test drives concurrency at the layer that actually supports it: two
 ``SQLiteStorage`` instances over the same file append events concurrently, and a
 single fresh Engine then rebuilds every record from the shared log.
@@ -26,9 +26,9 @@ import asyncio
 from typing import Any
 
 from memspine.clients.sqlite import SQLiteClient
-from memspine.core.events import EventKind, MemoryEvent
-from memspine.core.records import MemoryRecord
 from memspine.services.storage.sqlite.engine import SQLiteStorage
+from memspine.store.events import EventKind, MemoryEvent
+from memspine.store.records import MemoryRecord
 
 #: Writes per writer. Enough concurrent contention on the shared file to expose a
 #: locking/seq defect, small enough to stay fast.

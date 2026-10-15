@@ -1,0 +1,32 @@
+{
+  "additionalProperties": true,
+  "description": "Internal step type.",
+  "properties": {
+    "by_class": {
+      "additionalProperties": {
+        "type": "integer"
+      },
+      "title": "By Class",
+      "type": "object"
+    },
+    "spent": {
+      "default": 0,
+      "title": "Spent",
+      "type": "integer"
+    },
+    "tokens_total": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Tokens Total"
+    }
+  },
+  "title": "DerivationBudget",
+  "type": "object"
+}

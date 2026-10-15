@@ -1,0 +1,110 @@
+{
+  "question_count": 2399,
+  "run_question_cells": 57204,
+  "hypotheses": 25,
+  "extension_decisions": 14394,
+  "question_hypothesis_decisions": 59975,
+  "cell_extension_decisions": 343224,
+  "per_hypothesis": {
+    "M01": {
+      "not-indicated-by-current-evidence": 1536,
+      "candidate": 863
+    },
+    "M02": {
+      "not-indicated-by-current-evidence": 2323,
+      "candidate": 76
+    },
+    "R01": {
+      "not-indicated-by-current-evidence": 2079,
+      "candidate": 320
+    },
+    "R02": {
+      "not-indicated-by-current-evidence": 2337,
+      "candidate": 62
+    },
+    "R03": {
+      "not-indicated-by-current-evidence": 2338,
+      "candidate": 61
+    },
+    "A01": {
+      "not-indicated-by-current-evidence": 1507,
+      "candidate": 892
+    },
+    "A02": {
+      "candidate": 370,
+      "not-indicated-by-current-evidence": 2029
+    },
+    "A03": {
+      "not-indicated-by-current-evidence": 2243,
+      "candidate": 156
+    },
+    "A04": {
+      "not-indicated-by-current-evidence": 2113,
+      "candidate": 286
+    },
+    "A05": {
+      "candidate": 327,
+      "not-indicated-by-current-evidence": 2072
+    },
+    "A06": {
+      "not-indicated-by-current-evidence": 2359,
+      "candidate": 40
+    },
+    "A07": {
+      "not-indicated-by-current-evidence": 2367,
+      "candidate": 32
+    },
+    "A08": {
+      "not-indicated-by-current-evidence": 2294,
+      "candidate": 105
+    },
+    "P01": {
+      "not-indicated-by-current-evidence": 1540,
+      "candidate": 859
+    },
+    "P02": {
+      "not-indicated-by-current-evidence": 1949,
+      "candidate": 450
+    },
+    "P03": {
+      "not-indicated-by-current-evidence": 2199,
+      "candidate": 200
+    },
+    "G01": {
+      "not-indicated-by-current-evidence": 2254,
+      "candidate": 145
+    },
+    "V01": {
+      "candidate": 2399
+    },
+    "V02": {
+      "candidate": 2399
+    },
+    "E01": {
+      "candidate": 740,
+      "control-only": 1659
+    },
+    "E02": {
+      "control-only": 2002,
+      "candidate": 397
+    },
+    "E03": {
+      "control-only": 2290,
+      "candidate": 109
+    },
+    "E04": {
+      "control-only": 1678,
+      "candidate": 721
+    },
+    "E05": {
+      "candidate": 377,
+      "control-only": 2022
+    },
+    "E06": {
+      "control-only": 1029,
+      "candidate": 1370
+    }
+  },
+  "independent_semantic_adjudication_complete": false,
+  "scope": "Every question and saved cell in the frozen explorer audit; incomplete run coverage remains explicit"
+}

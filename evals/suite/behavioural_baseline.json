@@ -1,0 +1,26 @@
+{
+  "counts": {
+    "FAIL": 5,
+    "NOT_SUPPORTED": 0,
+    "PASS": 5
+  },
+  "details": {
+    "INV-ORDER-SWAP": "live city facts forward=['Ilse lives in Rotterdam'] reversed=['Ilse lives in Rotterdam', 'Ilse lives in Utrecht']",
+    "INV-PARAPHRASE": "city: top-1 evidence not within the paraphrase top-3",
+    "INV-RENAME-SEARCH": "teacher: top-5 set differs (5 records)",
+    "SAF-GENERIC": "20 personal record(s) in the context of generic questions",
+    "SAF-UNANSWERABLE": "confident evidence returned (10 records) for an unanswerable question; confident evidence returned (10 records) for an unanswerable question"
+  },
+  "statuses": {
+    "INV-FILLER": "PASS",
+    "INV-ORDER-SWAP": "FAIL",
+    "INV-PARAPHRASE": "FAIL",
+    "INV-RENAME-COMPOSE": "PASS",
+    "INV-RENAME-SEARCH": "FAIL",
+    "SAF-GENERIC": "FAIL",
+    "SAF-TENANT-READ": "PASS",
+    "SAF-TENANT-SEARCH": "PASS",
+    "SAF-UNANSWERABLE": "FAIL",
+    "SAF-VIEWER": "PASS"
+  }
+}

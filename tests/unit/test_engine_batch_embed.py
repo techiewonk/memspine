@@ -12,10 +12,10 @@ from typing import Any
 
 import pytest
 
+from memspine.api.engine import Engine
 from memspine.config.schema import MemspineConfig
-from memspine.engine import Engine
-from memspine.services.embedding.base import EmbeddingService
-from memspine.services.embedding.hash_local import HashEmbedding
+from memspine.models.encoders.embedding.base import EmbeddingService
+from memspine.models.encoders.embedding.hash_local import HashEmbedding
 
 _TURNS = [
     "Caroline: I went to the LGBTQ support group yesterday.",
@@ -47,10 +47,10 @@ async def _engine(
     embedding: dict[str, Any] | None = None,
     **overrides: Any,
 ) -> Engine:
-    def build(self: Engine, config: MemspineConfig) -> EmbeddingService:
+    def build(config: MemspineConfig) -> EmbeddingService:
         return spy
 
-    monkeypatch.setattr(Engine, "_build_embedder", build)
+    monkeypatch.setattr("memspine.runtime.container.make_embedder", build)
     engine = Engine(
         template="core",
         dotenv_path=None,
