@@ -41,3 +41,15 @@ With FTS working, the graph base beats the J reference on the GC slices: mix 66 
 
 - The recommended configuration is `v2-PICK3-j`. Every setting is a flag in the config schema; see `docs/USAGE.md`.
 - To reproduce, use the queue rows `P3J` (LoCoMo) and `P3JOB` (OP-Bench and blind), or `evals/run_v2_queue.sh --only P3J --mode final`.
+
+## Graph follow-up (2026-10-15): fixed, but no gain over the default
+
+| Run | Full LoCoMo | vs clean (net) | Temporal (cat2) net | Verdict |
+|---|---|---|---|---|
+| P2REF2: graph base, FTS fixed | 79.0% | −36 | −20 | REJECT. The FTS bug was not the cause. |
+| G2F: graph + `read.derived_lift` (only turns shown) | 80.6% | −12 | −20 | REJECT. The lift fixed cat1/cat3/cat4, but not temporal. |
+| G5F: v2-PICK3-j + lift-only graph + `read.graph_time_guard=blocks` | 81.9% | +9 | −5 (inside band) | HOLD. **Against v2-PICK3-j: 81.9 vs 82.1, net −3, 95% [−26, +20]: a tie.** |
+
+The graph's damage came from derived records that went into the context in place of turns, together with entity-summary ("About") blocks carrying session dates on when-questions (`docs/v2/GTEMP.md`, `GLIFT.md`, `GTIME.md`). With the lift and the time guard that damage is gone, but the graph adds nothing over v2-PICK3-j and costs a sleep build plus extraction model calls. **Decision: v2-PICK3-j stays the default. The graph remains an opt-in layer (`scr-gc3-graph-jina` + `read.derived_lift=evidence+match` + `read.graph_time_guard=blocks`).**
+
+Method lesson: GC sample slices use only the top-3 conversations (`_c3`). On those the graph base scored +6 over clean, while full LoCoMo showed −36. Graph decisions therefore need full runs.
