@@ -316,8 +316,8 @@ class MemoryRecord(BaseModel):
 
     # Record envelope (F-02a; M-02/M-03/M-06/M-07/M-08/P-12). Additive and derived when absent: a
     # record built without them gets the values the mapping in ``store.layers`` gives, so no call
-    # site changes. A dump omits a field while it equals its derivation (``_omit_derived``), so
-    # event payloads of records that never set them stay byte-identical and a replay re-derives.
+    # site changes. A dump omits a field while it equals its derivation (``_omit_derived``), except
+    # ``layer`` (MF-05): that is always written, so a replay never re-derives it.
     schema_version: int = Field(default=1, ge=1)
     layer: Layer = "L0"
     type_tag: str = ""
@@ -376,6 +376,11 @@ class MemoryRecord(BaseModel):
         if data.get("schema_version") == 1:
             del data["schema_version"]
         for key, value in self._derived_envelope().items():
+            if key == "layer":
+                # MF-05: the layer is always written, so a replay never depends on what
+                # ``derive_layer`` returns later.
+                data["layer"] = self.layer
+                continue
             if getattr(self, key) == value:
                 data.pop(key, None)
         return data
