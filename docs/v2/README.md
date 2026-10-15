@@ -1,5 +1,8 @@
 # MemSpine restructure plan ("v2")
 
+> **Testing by hand:** [MANUAL_TESTING.md](MANUAL_TESTING.md) covers ingestion phase by phase, sleep stage by stage and
+> layer by layer (CPU only, invented demo). Every other flow, one command per step: [FLOW_TESTING.md](FLOW_TESTING.md). The layer-contract fixes are in [LAYER_FIX_TESTING.md](LAYER_FIX_TESTING.md).
+
 ## Latest owner decisions and Claude handoff (2026-10-13)
 
 - [Self-contained Claude handoff and all 40 selection reviews](CLAUDE_ENHANCEMENT_HANDOFF_2026-10-13.md).

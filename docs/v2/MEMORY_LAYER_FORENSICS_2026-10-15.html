@@ -1,0 +1,467 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>MemSpine memory-layer forensic review</title><style>body{font:16px/1.55 system-ui,sans-serif;margin:0;background:#f5f7fb;color:#172334}main{padding:28px 3vw;max-width:none}h1{font-size:30px}h2{margin-top:40px}table{border-collapse:collapse;width:100%;font-size:14px;background:white;margin:20px 0}th,td{border:1px solid #d5dce5;padding:12px;vertical-align:top;text-align:left}th{background:#173952;color:white;position:sticky;top:64px}tr:nth-child(even){background:#f0f5f8}a{color:#065a9e}code{overflow-wrap:anywhere}pre{background:#e7edf3;padding:18px;overflow:auto}.bar{position:sticky;top:0;z-index:5;background:#173952;color:white;padding:12px 3vw;display:flex;gap:18px;align-items:center}input{padding:10px;width:420px;max-width:50vw;border:0;border-radius:4px}.tablewrap{overflow:auto}#register{min-width:1350px}button{padding:9px;border:1px solid white;background:transparent;color:white;cursor:pointer}@media print{.bar{display:none}th{position:static}main{padding:0}table{font-size:9px}.tablewrap{overflow:visible}}</style><div class="bar"><input aria-label="Filter findings" placeholder="Filter findings: graph, replay, P1, profile..."><span id="count">16 / 16 findings</span><button>Full screen</button></div><main><h1>Memory types and layers: deeper forensic review</h1>
+<p>Date: 2026-10-15. Checkout: <code>memspine-restructure</code>, commit <code>aac4b5705d32b42908ecd294d715b85435b6c8f7</code>.</p>
+<p>This is an independent Codex code review and targeted reproduction. It is not certification of every engine feature or of the earlier other-engine survey. No production engine code changed. No external model, GPU, production database or external service was used. The table lists all findings from this bounded trace; it does not claim that every possible defect in the repository has been found.</p>
+<h2>What was actually verified</h2>
+<table>
+<thead>
+<tr>
+<th>Evidence level</th>
+<th>Meaning</th>
+<th>Work completed</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Reproduced</td>
+<td>Executed relevant code on synthetic input</td>
+<td>Real engine session deposit, SQLite projection, event payload, rebuild, layer counts and episode leg; helper serialization; graph leg and classification predicates</td>
+</tr>
+<tr>
+<td>Code-confirmed</td>
+<td>Inspected implementation and call sites</td>
+<td>Legacy/v2 summary producers, lineage switch, registry, migrations, profile storage, fact adapters</td>
+</tr>
+<tr>
+<td>Risk / design gap</td>
+<td>Mechanism identified, consequence still needs integration or workload measurement</td>
+<td>PostgreSQL upgrade with populated older tables, profile-card read integration, feedback between derived representations, scale and retrieval quality</td>
+</tr>
+</tbody>
+</table>
+<p>Reproduction script: <a href="probe_memory_layers_2026_10_15.py">probe_memory_layers_2026_10_15.py</a>. Captured results: <a href="probe_memory_layers_2026_10_15.json">probe_memory_layers_2026_10_15.json</a>.</p>
+<p><strong>Correction to the earlier deep dive:</strong> its session-close helper probe used <code>semantic</code> as the route. The real call site uses <code>summary</code>. Actual session-close records are <strong>L1 with lineage off and L0 with lineage on</strong>, not L2. The first report is amended accordingly.</p>
+<h2>Complete findings register from this trace</h2>
+<p>Priority means recommended investigation/fix order, not measured benchmark loss. Related rows describe different consequences or controls; they are not independent bug counts.</p>
+<table>
+<thead>
+<tr>
+<th>ID / priority</th>
+<th>Finding and status</th>
+<th>Memory types / layers</th>
+<th>Evidence</th>
+<th>Practical impact and limit</th>
+<th>Recommended solution and verification</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>MF-01 / P1</td>
+<td>Session-close episodes and summaries receive the wrong layer. <strong>Reproduced</strong></td>
+<td>Semantic records representing episodic summaries; intended L2</td>
+<td><code>derive/pipeline/integrate.py:521</code>; <code>derive/write.py:171</code>; real deposit probe</td>
+<td>Lineage off produces L1; on produces L0. Both are persisted. This affects optional session-close output, not every episodic turn</td>
+<td>Pass L2 explicitly, independently of lineage. Test both kinds and both flag states through deposit, storage and read</td>
+</tr>
+<tr>
+<td>MF-02 / P1</td>
+<td>Legacy summary stamping replaces a correct constructor layer with L0. <strong>Code-confirmed + helper reproduction</strong></td>
+<td>Consolidation L2; entity/community legacy summaries L3</td>
+<td><code>derive/pipeline/stages/offline_door.py:63</code>; callers <code>consolidate.py:262</code>, <code>communities.py:564</code>, <code>entity_summaries.py:300</code></td>
+<td>Semantic consolidation starts L2; entity_summary/reorganize start L3; <code>stamp_summary</code> changes them to L0 when its lineage callback exists. Full legacy stage execution was not reproduced here</td>
+<td>Derive from the record's representation, not the plain-write route. Preserve per-producer L2/L3 distinctions; integration-test each caller</td>
+</tr>
+<tr>
+<td>MF-03 / P1</td>
+<td>Invalid layer arguments silently fall back. <strong>Reproduced</strong></td>
+<td>All derived types</td>
+<td><code>derive/write.py:167-180</code></td>
+<td><code>episode</code>/<code>summary</code> are accepted as strings but ignored as layers. A typo can silently change retrieval classification</td>
+<td>Typed layer plus runtime validation; reject invalid explicit values. Separate <code>write_route</code> from <code>memory_type</code> and <code>representation_kind</code></td>
+</tr>
+<tr>
+<td>MF-04 / P1</td>
+<td>Layer correctness depends on whether lineage storage is enabled. <strong>Code-confirmed</strong></td>
+<td>Observation L4, standing L5, community L3, multires L2</td>
+<td><code>derive/write.py:130-153</code>; <code>integrate.py:421-434</code>; v2 summary callers</td>
+<td>The early return bypasses even valid layer overrides. Generic constructors for observation, standing, community_summary and multires yield L1. The prerequisite table does not require lineage for these stages</td>
+<td>Stamp representation before the lineage branch. Keep lineage-edge persistence conditional. Test producer x lineage-on/off rather than enabling lineage merely to hide the problem</td>
+</tr>
+<tr>
+<td>MF-05 / P1</td>
+<td>Rebuild preserves explicit wrong layer labels. <strong>Reproduced</strong></td>
+<td>All persisted derived records</td>
+<td><code>store/records.py:348-393</code>; <code>services/storage/sql_base.py:298</code>; probe <code>eng.rebuild()</code></td>
+<td>Session L0 remains L0 after replay; L1 stays L1 when its layer was omitted and re-derived. Fixing a writer alone does not fix historical rows</td>
+<td>Versioned correction/upcast or audited migration keyed by producer, channel and schema. Preserve event-log integrity; compare replay and live projections. Never rewrite every L0 row</td>
+</tr>
+<tr>
+<td>MF-06 / P1</td>
+<td>Episode leg excludes mislabelled session episodes. <strong>Reproduced</strong></td>
+<td>Episodic summary / L2</td>
+<td><code>read/legs/episode.py:59-66</code>; probe</td>
+<td>Returns <code>no_records:L2</code> despite a stored session episode. General vector/lexical search may still retrieve it; this is not proof that every answer loses it</td>
+<td>Producer fix plus end-to-end episode lookup and source-turn lift. Report wrong-layer records distinctly from genuinely empty layers</td>
+</tr>
+<tr>
+<td>MF-07 / P1</td>
+<td>Graph readiness is incorrectly inferred from L3 record population. <strong>Leg reproduction; producer code traced</strong></td>
+<td>Associative edges backed by semantic L1 assertions</td>
+<td><code>read/legs/graph.py:107-117</code>; <code>derive/pipeline/stages/edge_compiler_v2.py:104-108,180-208</code></td>
+<td>Compiler accepts ordinary semantic facts and creates links, not an L3 record requirement. A leg with L1 supporting records and valid convergent edges returns <code>no_records:L3</code>; an L3 count lets the same edges yield a hit. Full compiler-to-read integration remains to test</td>
+<td>Gate on eligible compiled edges and live supporting records; track graph projection readiness separately. Do not relabel all L1 facts L3 to satisfy the gate</td>
+</tr>
+<tr>
+<td>MF-08 / P2</td>
+<td>PostgreSQL envelope migration does not backfill older populated rows. <strong>Code-confirmed conditional upgrade risk</strong></td>
+<td>Every pre-envelope type</td>
+<td><code>services/storage/postgres/alembic/versions/pg0007_record_envelope.py:22-31</code>; compare SQLite <code>0007_record_envelope.py:86-91</code></td>
+<td>PostgreSQL adds nullable columns but no matching data backfill. A fresh database is unaffected. An old populated database can retain NULL layers; no live PostgreSQL upgrade was run</td>
+<td>Backfill/upcast policy and migration fixture containing real pre-upgrade rows; verify data parity, not only DDL parity</td>
+</tr>
+<tr>
+<td>MF-09 / P2</td>
+<td>NULL-layer inventory can disagree with hydrated records. <strong>Code-confirmed</strong></td>
+<td>Semantic/reflective/procedural and other non-L0 records</td>
+<td><code>services/storage/sql_base.py:400-415,633-642</code>; <code>store/records.py:348-393</code></td>
+<td>Counts coalesce NULL to L0, whereas hydration omits NULL and derives layer from type/channel. Thus the same legacy row can count as L0 but load as L1/L4/L5</td>
+<td>One authoritative backfill/classification contract; assert grouped counts equal counts of hydrated live records after upgrades</td>
+</tr>
+<tr>
+<td>MF-10 / P2</td>
+<td>Fact eligibility predicates disagree about derived views. <strong>Reproduced predicate inconsistency; downstream risk</strong></td>
+<td>Semantic, reflective observations, standing answers, summaries</td>
+<td><code>derive/pipeline/stages/envelope_adapter.py:32-55</code>; <code>offline_common.py:41-94</code></td>
+<td><code>is_fact</code> accepts all six probed derived channels. <code>is_input_fact</code> rejects observation, standing and entity_summary but accepts keyed session_close, community_summary and multires. Some real summary producers are unkeyed, so the synthetic keyed case does not prove a current feedback loop</td>
+<td>Central representation/evidence eligibility policy with explicit exceptions. Test actual producers against reconcile, histories, graph compiler and pattern inputs; preserve source lineage and avoid counting restatements as independent support</td>
+</tr>
+<tr>
+<td>MF-11 / P2</td>
+<td>Episode selection is layer-only rather than episode-kind-aware. <strong>Code-confirmed semantic ambiguity</strong></td>
+<td>L2 episodes, consolidation summaries, anticipation cues, multires summaries</td>
+<td><code>read/legs/episode.py:36,63-66</code>; <code>store/layers.py</code> channel map</td>
+<td>Any L2 record is eligible for this leg. This can be intentional broad summary retrieval, but the name and source-lift contract imply episodes. Quality cost was not measured</td>
+<td>Choose explicitly: narrow by representation kind, or rename/document as summary-evidence leg. Test cues and non-episode summaries, including source lift and evidence rendering</td>
+</tr>
+<tr>
+<td>MF-12 / P2</td>
+<td>Episode vector retrieval filters after a global top-k search. <strong>Code-confirmed recall risk</strong></td>
+<td>Sparse L2 among many L0/L1 records</td>
+<td><code>read/legs/episode.py:72-73</code></td>
+<td>Only <code>max(4*fetch_k,50)</code> global vector hits are considered before filtering to episodes. Dense raw content can crowd all episodes out; lexical retrieval may rescue some</td>
+<td>Layer-filtered vector query where supported, otherwise bounded adaptive widening. Measure sparse-layer recall, latency and token cost before selecting limits</td>
+</tr>
+<tr>
+<td>MF-13 / P2</td>
+<td>Profile-card storage and existing profile retrieval are different representations. <strong>Code-confirmed split; integration risk</strong></td>
+<td>Profile MARKERs vs reflective L4 records and standing L5 answers</td>
+<td><code>derive/pipeline/stages/profile_card.py</code>; <code>api/engine.py:2721-2751</code>; <code>read/router_rules.py:336</code></td>
+<td>New cards are marker-backed. The legacy header describes reflective records; the router's profile label requires L5. This trace found no direct load_card consumer in read/compose. This is not proof that every personalisation path is broken</td>
+<td>Name separate consumers: profile-card block, reflective evidence, standing-answer cache. Add a card-only namespace read test with policy, freshness and erasure checks</td>
+</tr>
+<tr>
+<td>MF-14 / P2</td>
+<td>Registry reports conflate capability, population and effective activation. <strong>Code-confirmed design gap</strong></td>
+<td>All layers; especially graph and marker-backed profile</td>
+<td><code>store/layer_registry.py:38-59,89-108</code></td>
+<td>Worker/graph availability enables labels; any populated layer is treated as enabled. Counts omit links and MARKER artefacts. Reports do not prove that the intended stage or leg is running</td>
+<td>Expose configured producer, adapter availability, populated artefact count, freshness and selected read route separately; use explicit runtime configuration for execution</td>
+</tr>
+<tr>
+<td>MF-15 / P2</td>
+<td>Existing session-close tests validate content/lineage but miss the layer-to-consumer contract. <strong>Observed coverage gap</strong></td>
+<td>Session summaries, episodes and derived layers</td>
+<td><code>tests/unit/wiring/test_ow_a_close_call2_profile.py</code>; <code>test_fu_close_followups.py</code>; execution results below</td>
+<td>The targeted suite passes while real deposited episodes miss the L2 leg. Unit success alone cannot establish complete functionality</td>
+<td>Add producer-to-storage-to-replay-to-registry-to-consumer contract tests and negative controls. Keep content/idempotency/erasure tests</td>
+</tr>
+<tr>
+<td>MF-16 / P3</td>
+<td>Selected aggregate evaluation cannot validate nine memory types or the full stack. <strong>Evaluation scope limitation</strong></td>
+<td>Working, episodic, semantic, associative, reflective, procedural, prospective, shared, resource</td>
+<td><code>evals/arms/v2-PICK3-j.json</code>; <code>docs/v2/FINAL_PICK.md</code>; first deep dive</td>
+<td>Selected retrieval arm is not a full derived-stack activation. No accuracy loss or gain from these fixes was measured in this review</td>
+<td>Mechanism-specific synthetic suites, then held-out task suites and matched-budget ablations. Report enabled features and coverage with every result</td>
+</tr>
+</tbody>
+</table>
+<h2>Producer and consumer matrix</h2>
+<p>This matrix separates observed labels from intended meaning. A record's memory type is not its retrieval layer.</p>
+<table>
+<thead>
+<tr>
+<th>Producer</th>
+<th>Stored type / artefact</th>
+<th>Initial layer</th>
+<th>Lineage-enabled deposit</th>
+<th>Intended consumer / issue</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Raw conversation</td>
+<td>episodic record</td>
+<td>L0</td>
+<td>L0</td>
+<td>Timeline, raw search and source evidence</td>
+</tr>
+<tr>
+<td>Ordinary assertion</td>
+<td>semantic record</td>
+<td>L1</td>
+<td>Usually L1; channel can refine</td>
+<td>Fact search and edge compiler</td>
+</tr>
+<tr>
+<td>Session close: summary/episode</td>
+<td>semantic record</td>
+<td>L1</td>
+<td><strong>L0</strong></td>
+<td>L2 leg misses it in either flag state</td>
+</tr>
+<tr>
+<td>Legacy consolidation</td>
+<td>semantic record</td>
+<td>L2</td>
+<td><strong>L0</strong> through legacy stamper</td>
+<td>Summaries; wrong after stamping</td>
+</tr>
+<tr>
+<td>Legacy entity/reorganize summary</td>
+<td>semantic record</td>
+<td>L3</td>
+<td><strong>L0</strong> through legacy stamper</td>
+<td>Entity/community derived views</td>
+</tr>
+<tr>
+<td>V2 entity summary</td>
+<td>semantic record</td>
+<td>L3</td>
+<td>L3 explicit</td>
+<td>Correct layer in inspected path</td>
+</tr>
+<tr>
+<td>V2 community summary</td>
+<td>semantic record</td>
+<td>L1</td>
+<td>L3 explicit</td>
+<td>L1 when derived door skips stamp</td>
+</tr>
+<tr>
+<td>V2 multires summary</td>
+<td>semantic record</td>
+<td>L1</td>
+<td>L2 explicit</td>
+<td>L1 when derived door skips stamp</td>
+</tr>
+<tr>
+<td>Pattern observation</td>
+<td>semantic record</td>
+<td>L1</td>
+<td>L4 explicit</td>
+<td>L1 when derived door skips stamp</td>
+</tr>
+<tr>
+<td>Standing answer</td>
+<td>semantic record</td>
+<td>L1</td>
+<td>L5 explicit</td>
+<td>L1 when derived door skips stamp</td>
+</tr>
+<tr>
+<td>Compiled relationship</td>
+<td>LINK / graph projection</td>
+<td>Not a record layer</td>
+<td>Links, backed by fact IDs</td>
+<td>Must not require unrelated L3 record population</td>
+</tr>
+<tr>
+<td>Profile card</td>
+<td>MARKER / session state</td>
+<td>Not a record layer</td>
+<td>Marker-backed</td>
+<td>Needs explicit card consumer and inventory</td>
+</tr>
+<tr>
+<td>Reflective insight</td>
+<td>reflective record</td>
+<td>L4</td>
+<td>Depends on path</td>
+<td>Legacy profile/insight retrieval</td>
+</tr>
+<tr>
+<td>Procedure / future watch</td>
+<td>procedural / prospective record</td>
+<td>L5</td>
+<td>Depends on path</td>
+<td>Dedicated lifecycle/trigger APIs; not ordinary factual evidence</td>
+</tr>
+<tr>
+<td>Working / resource / shared bookkeeping</td>
+<td>respective record types</td>
+<td>L0</td>
+<td>Depends on path</td>
+<td>Hot context / documents / access metadata: distinct purposes despite same layer</td>
+</tr>
+</tbody>
+</table>
+<h2>Reproduced persistence results</h2>
+<table>
+<thead>
+<tr>
+<th>Session-close kind</th>
+<th>Lineage</th>
+<th>Returned</th>
+<th>SQL loaded</th>
+<th>Event payload layer</th>
+<th>After rebuild</th>
+<th>Episode leg</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>episode</td>
+<td>off</td>
+<td>L1</td>
+<td>L1</td>
+<td>omitted, derived on load</td>
+<td>L1</td>
+<td>no_records:L2</td>
+</tr>
+<tr>
+<td>summary</td>
+<td>off</td>
+<td>L1</td>
+<td>L1</td>
+<td>omitted, derived on load</td>
+<td>L1</td>
+<td>no_records:L2</td>
+</tr>
+<tr>
+<td>episode</td>
+<td>on</td>
+<td>L0</td>
+<td>L0</td>
+<td>explicit L0</td>
+<td>L0</td>
+<td>no_records:L2</td>
+</tr>
+<tr>
+<td>summary</td>
+<td>on</td>
+<td>L0</td>
+<td>L0</td>
+<td>explicit L0</td>
+<td>L0</td>
+<td>no_records:L2</td>
+</tr>
+</tbody>
+</table>
+<p>The graph reproduction constructs valid synthetic HopEdges rather than running the whole compiler pipeline. It proves the leg's population gate can reject usable L1-backed edges. It does not measure how often that condition occurs in existing runs.</p>
+<h2>Decisions and options</h2>
+<table>
+<thead>
+<tr>
+<th>Decision</th>
+<th>Recommended option</th>
+<th>Alternative / trade-off</th>
+<th>Acceptance gate</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Separate route and representation</td>
+<td>Keep plain WRITE routing for summaries; classify from record and producer contract</td>
+<td>Changing route back to semantic reintroduces the documented dedup/extension problem</td>
+<td>Extension content retained; correct layer in every flag state</td>
+</tr>
+<tr>
+<td>Layer validation</td>
+<td>Reject invalid explicit layers; typed producer-kind mapping</td>
+<td>A warning plus fallback preserves compatibility but hides mistakes</td>
+<td>Every registered producer passes; unknown input fails predictably</td>
+</tr>
+<tr>
+<td>Where to stamp</td>
+<td>Unconditional envelope stamping before optional lineage persistence</td>
+<td>Require lineage for all producers: simpler but couples unrelated semantics and storage</td>
+<td>Same representation with lineage on/off; trust and erasure remain correct</td>
+</tr>
+<tr>
+<td>Graph readiness</td>
+<td>Compiled edge/support inventory</td>
+<td>L3 sentinel row: convenient but brittle and misleading</td>
+<td>Valid L1-backed graph works; dead/hidden/tentative edges still excluded</td>
+</tr>
+<tr>
+<td>Historical correction</td>
+<td>Audited producer-specific migration/upcast with version</td>
+<td>Projection-only repair disappears on replay unless replay understands it</td>
+<td>Pre/post rebuild parity and rollback manifest</td>
+</tr>
+<tr>
+<td>Fact/view eligibility</td>
+<td>Shared explicit capability policy</td>
+<td>Additional independent deny-lists are easy to drift</td>
+<td>No summary-as-independent-support; retain deliberate graph/view features</td>
+</tr>
+<tr>
+<td>Profile integration</td>
+<td>Explicit marker-backed profile read block with provenance and budget</td>
+<td>Mirror cards into records adds synchronisation and erasure work</td>
+<td>Card-only read works; stale/erased/private support never rendered</td>
+</tr>
+<tr>
+<td>Sparse-layer retrieval</td>
+<td>Filter vector retrieval by layer/kind</td>
+<td>Adaptive widening costs more latency and still needs a bound</td>
+<td>Recall and p95 cost at 1%, 5%, 20% derived-layer density</td>
+</tr>
+<tr>
+<td>Reporting</td>
+<td>Separate enabled, available, populated, fresh and selected</td>
+<td>One enabled Boolean is compact but cannot explain missing results</td>
+<td>Studio can explain why every producer/leg ran or skipped</td>
+</tr>
+</tbody>
+</table>
+<h3>Proposed API direction, not implemented</h3>
+<pre><code class="language-python"># Illustrative design; not a drop-in patch.
+async def deposit_derived(record, *, write_route, representation, lineage_enabled):
+    layer = PRODUCER_CONTRACT[representation].layer
+    stamped = stamp_envelope(record, layer=layer)  # independent of lineage switch
+    stored = await write_record(stamped, route=write_route)
+    if lineage_enabled:
+        await persist_lineage(stored)
+    return stored
+</code></pre>
+<p><code>representation</code> should describe assertion, episode, session_summary, entity_summary, observation, standing_answer, procedure, watch, source_chunk, etc. It must not be a second ungoverned list of strings. Define producer, permitted type, layer, evidence eligibility, lineage requirements, consumers, invalidation and migration together. Keep graph links and profile markers in this inventory without pretending they are record rows.</p>
+<h2>Verification and rollout</h2>
+<table>
+<thead>
+<tr>
+<th>Stage</th>
+<th>Required checks</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1. Contract repair</td>
+<td>Invalid explicit layers; actual summary route; all producer x lineage combinations</td>
+<td>Prevent silent new misclassification</td>
+</tr>
+<tr>
+<td>2. Persistence</td>
+<td>SQL roundtrip, event serialization, rebuild, old-event upgrade</td>
+<td>Avoid live/replay disagreement</td>
+</tr>
+<tr>
+<td>3. Retrieval</td>
+<td>Episode source lift; L1-backed graph; profile-card-only reads; negative evidence controls</td>
+<td>Verify a produced memory is usable by its intended consumer</td>
+</tr>
+<tr>
+<td>4. Lifecycle</td>
+<td>Correction, erasure, expired support, hidden parent, tenant isolation, stale caches</td>
+<td>Preserve existing safety and history behaviour</td>
+</tr>
+<tr>
+<td>5. Quality/cost</td>
+<td>Held-out tasks by memory type; paired wins/losses; context tokens, write calls, p95 read time</td>
+<td>Establish benefit without overfitting the earlier examples</td>
+</tr>
+</tbody>
+</table>
+<p>Executed: <strong>49 passed</strong> across <code>test_fu_close_followups.py</code>, <code>test_ow_a_close_call2_profile.py</code>, <code>test_ow_c_patterns_standing.py</code>, <code>test_lib_23_router_rules.py</code>, with <code>-p no:deepeval -o addopts='' -q</code>. Warnings: pytest-asyncio fixture deprecation and LanceDB cleanup warning in existing erasure tests. No full-suite or model benchmark claim.</p>
+<p>The forensic script ran successfully using hash embeddings and in-memory SQLite engines. It performed four real rebuilds and serialized seven producer/stamper cases; it also exercised graph and classification predicates. PostgreSQL, full legacy-stage execution, full compiled-graph integration, and actual answer-quality effects remain unmeasured.</p>
+<p>Recommended first batch: MF-01/02/03/04 contract repair, MF-05 migration plan, MF-06/07 consumer tests. Then address classifier and profile representation contracts before expanding the number of memory layers. These fixes should be screened for regressions; no architecture can guarantee that every answer improves simultaneously.</p></main><script>const tables=[...document.querySelectorAll('table')]; const reg=tables.find(t=>t.textContent.includes('MF-01')); reg.id='register'; const rows=[...reg.tBodies[0].rows]; document.querySelector('input').addEventListener('input',e=>{const q=e.target.value.toLowerCase();for(const r of rows)r.hidden=!r.textContent.toLowerCase().includes(q);document.querySelector('#count').textContent=rows.filter(r=>!r.hidden).length+' / '+rows.length+' findings';});document.querySelector('button').onclick=()=>{if(document.fullscreenElement)document.exitFullscreen();else document.documentElement.requestFullscreen?.();};for(const t of tables){const w=document.createElement('div');w.className='tablewrap';t.before(w);w.append(t);}</script></html>

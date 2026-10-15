@@ -9,8 +9,8 @@
 <br/>
 
 [![status](https://img.shields.io/badge/status-pre--alpha-orange?style=flat-square)](#-roadmap)
-[![phase](https://img.shields.io/badge/phase-P0–P7_·_v0.2-7c3aed?style=flat-square)](#-roadmap)
-[![tests](https://img.shields.io/badge/tests-773_collected-2ea44f?style=flat-square)](#-roadmap)
+[![version](https://img.shields.io/badge/version-2.0_restructure-7c3aed?style=flat-square)](#-roadmap)
+[![layers](https://img.shields.io/badge/memory_layers-L0–L5-0ea5e9?style=flat-square)](#-memory-layers-l0l5)
 [![python](https://img.shields.io/badge/python-3.13+-3776AB?style=flat-square&logo=python&logoColor=white)](https://www.python.org/)
 [![license](https://img.shields.io/badge/license-Apache--2.0-2ea44f?style=flat-square)](./LICENSE)
 [![built with uv](https://img.shields.io/badge/built%20with-uv-DE5FE9?style=flat-square)](https://github.com/astral-sh/uv)
@@ -21,14 +21,14 @@
 
 **memspine is the memory engine where every store — vector, graph, cache, SQL storage, LLM, embedding, and secrets — is swappable by config alone, over an event-sourced, rebuildable core.** It turns raw agent interactions into a **structured, typed, self-maintaining memory** — a real write pipeline, hybrid + graph retrieval, the Memory Firewall, and background learning dynamics — behind a small, stable API. It's the *engine*, not a product: the backbone something else plugs into.
 
-[**Quickstart**](#-quickstart) · [**Features**](#-features) · [**Install**](#-install--extras) · [**How to use**](#-how-to-use) · [**Architecture**](#-architecture) · [**Roadmap**](#-roadmap)
+[**Quickstart**](#-quickstart) · [**Layers**](#-memory-layers-l0l5) · [**Test it by hand**](#-inspect-test-and-tune-by-hand) · [**Features**](#-features) · [**Install**](#-install--extras) · [**How to use**](#-how-to-use) · [**Architecture**](#-architecture) · [**Roadmap**](#-roadmap)
 
 </div>
 
 ---
 
 > [!NOTE]
-> **Status: pre-alpha, under active construction.** Phases **P0–P7 are implemented and review-passed** — event-sourced substrate, working memory + retrieval, semantic memory + prompts, episodic + lifecycle, the Memory Firewall, procedural + reflective, associative graph, and prospective + shared + REST — plus the **v0.2 enhancement program** (hybrid-retrieval default-on, Tantivy-core lexical, graphiti-style graph extraction, an autonomous learning scheduler, `group_id`/`tags` sub-scoping, configurable graph traversal, and deeper compression). **773 collected tests**, `ruff` + `mypy --strict` clean, **28 ADRs**, decision register through D-54. The blueprint in [`docs/`](./docs) is the single source of truth; see [`docs/FEATURES.md`](./docs/FEATURES.md), [`docs/USAGE.md`](./docs/USAGE.md), and the ecosystem comparison ([`ECOSYSTEM_COMPARISON.md`](./docs/ECOSYSTEM_COMPARISON.md) · [`ARCHITECTURE_FLOWS.md`](./docs/ARCHITECTURE_FLOWS.md)). Some capabilities need extras (below) and a few production swap-ins are reserved — see the [honest caveats](#-honest-caveats).
+> **Status: pre-alpha, MemSpine 2.0 restructure landed on `main`.** The v2 engine reorganises the code into `ingest / derive / read / compose / store / trust / runtime / api` (ADR-067), adds the six memory layers L0–L5 with a checked layer contract, and ships a step-by-step **inspector** and a browser **Tuning Studio**, so every phase can be run, read and tuned by hand. The adopted retrieval default is `evals/arms/v2-PICK3-j.json` ([`docs/v2/FINAL_PICK.md`](./docs/v2/FINAL_PICK.md)). There are 66 ADRs in [`docs/adr`](./docs/adr). Start with [`docs/v2/README.md`](./docs/v2/README.md), [`docs/USAGE.md`](./docs/USAGE.md) and [`docs/FEATURES.md`](./docs/FEATURES.md). Some capabilities need extras (below), and a few production swap-ins are reserved; see the [honest caveats](#-honest-caveats).
 
 ---
 
@@ -101,6 +101,47 @@ asyncio.run(main())
 ```
 
 The API is **async-first**; thin sync wrappers (`start_sync`, `write_sync`, `retrieve_sync`, `stop_sync`) exist for scripts that can't `await`. Runnable tours live in [`examples/`](./examples) — start with [`01_quickstart.py`](./examples/01_quickstart.py).
+
+---
+
+## 🧱 Memory layers (L0–L5)
+
+Every record sits on one layer. The layer comes from the record's memory type and the channel that wrote it (`store/layers.py`). It is always stored in the event log, so a rebuild never relabels history.
+
+| Layer | Holds | Written by | Read by |
+|---|---|---|---|
+| **L0** | raw turns, resources | every write (episodic) | vector + BM25 legs, replay window |
+| **L1** | facts | window extraction (`mining`), user-written semantic | vector, lexical, entity legs; graph edges are compiled over these |
+| **L2** | episodes and summaries | session close, consolidation, window episodes, multi-resolution | episode leg (`read.episode_leg_v2`), lifted back to source turns |
+| **L3** | graph-derived records | graph extraction, entity and community summaries | graph leg (`read.graph_leg_v2`, ready when compiled edges exist) |
+| **L4** | observations, reflections | patterns, reflect_profile | profile header |
+| **L5** | standing answers, procedures, plans | standing answers, profile card | standing leg, profile-card header |
+
+Every derived record keeps lineage to its parent records, and its trust is capped at the least-trusted parent. The adopted default (`v2-PICK3-j`) reads L0/L1 only. The other layers are opt-in arms; `python -m memspine_evals.memory_type_matrix <arm.json>` prints what an arm really switches on.
+
+---
+
+## 🔍 Inspect, test and tune by hand
+
+Each phase (stamping, firewall, window cut, extraction, every envelope stage, deposit, each sleep stage) and each layer can be run one at a time and read. Everything below runs on the CPU with an invented conversation (no GPU, model or network).
+
+```powershell
+cd evals
+$env:PYTHONPATH = "../src;."
+python -m memspine_evals.inspect step --data demo --arm demo --offline   # then: turn, session, sleep, save
+python -m memspine_evals.inspect.layers <bundle-dir> --layer L2         # what a layer holds, with parents
+python ../docs/v2/layer_fix_checks.py all                                # one check per layer-contract bug
+python ../docs/v2/flow_checks.py --list                                  # every flow, step by step (run from repo root, PYTHONPATH=src)
+```
+
+| Guide | For |
+|---|---|
+| [`docs/v2/FLOW_TESTING.md`](./docs/v2/FLOW_TESTING.md) | **every flow** (write, sleep, read, quarantine, forget, correct, rebuild, procedural, tasks, prospective, shared, graph, assets, views): one command per step, `--events`, `--lines` (every executed line), coverage |
+| [`docs/v2/MANUAL_TESTING.md`](./docs/v2/MANUAL_TESTING.md) | **start here**: ingestion phase by phase, sleep stage by stage, layer by layer, with the expected output |
+| [`docs/v2/INGESTION_WALKTHROUGH.md`](./docs/v2/INGESTION_WALKTHROUGH.md) | the code location and trace event of every write stage |
+| [`docs/v2/PIPELINE_STAGE_INVENTORY.md`](./docs/v2/PIPELINE_STAGE_INVENTORY.md) · [`STAGE_PARAMS.md`](./docs/v2/STAGE_PARAMS.md) | every stage id (A1–A28, B0–B17, read C…) and its knobs |
+| [`docs/v2/LAYER_FIX_TESTING.md`](./docs/v2/LAYER_FIX_TESTING.md) | the layer-contract fixes (MF-01…MF-16), one command each |
+| [`docs/v2/INSPECTOR.md`](./docs/v2/INSPECTOR.md) · [`TUNING_STUDIO.md`](./docs/v2/TUNING_STUDIO.md) | the HTML trace viewer and the browser tuning UI |
 
 ---
 
@@ -438,7 +479,7 @@ flowchart LR
 
 ## 🤝 Contributing
 
-Contributions welcome — start with [`CONTRIBUTING.md`](./CONTRIBUTING.md) and the golden rules in [`CLAUDE.md`](./CLAUDE.md).
+Contributions welcome — start with [`CONTRIBUTING.md`](./CONTRIBUTING.md) and the golden rules in [`CLAUDE.md`](./CLAUDE.md). Before changing a stage, walk it once in step mode ([`MANUAL_TESTING.md`](./docs/v2/MANUAL_TESTING.md)) and keep `save` at 0 invariant errors.
 
 ```bash
 uv sync --all-extras
