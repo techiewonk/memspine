@@ -119,10 +119,12 @@ def test_fingerprint_defaults_and_explicit_values_survive() -> None:
 
 
 def test_dump_of_a_default_record_is_unchanged() -> None:
-    """Derived envelope fields are left out of a dump: event payloads stay byte-identical."""
+    """Derived envelope fields are left out of a dump, except ``layer``: MF-05 always writes it so a
+    replay never depends on what ``derive_layer`` returns later."""
     dumped = _rec(tags=["spk:alice"]).model_dump(mode="json")
-    for key in ("layer", "type_tag", "provenance_class", "axes", "fingerprint", "schema_version"):
+    for key in ("type_tag", "provenance_class", "axes", "fingerprint", "schema_version"):
         assert key not in dumped
+    assert dumped["layer"] == "L0"
     revived = MemoryRecord.model_validate(dumped)
     assert revived.axes.speaker == "alice" and revived.layer == "L0"
 

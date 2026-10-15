@@ -479,3 +479,24 @@ async def test_check_watches_flag_off_makes_no_advisory_calls(
 
     ctx = PipelineContext(storage=storage, config=load_config().config, append_event=noop)
     assert await check_watches(ctx) == {"status": "ok", "fired": 0, "due": 0, "invalidated": 0}
+
+
+def test_plan_cues_feed_cue_reminders() -> None:
+    """F12.9: a cue-based plan carries its trigger, so ``due(cues=...)`` can match it."""
+    assert advisory.plan_cues("When Bram calls I will ask him about the invoice.") == (
+        "Bram calls",
+        None,
+    )
+    assert advisory.plan_cues("Next time I'm at the pharmacy, I'll pick up the drops.") == (
+        None,
+        "the pharmacy",
+    )
+    assert advisory.plan_cues("I will visit Ilse tomorrow.") == (None, None)
+    plan = advisory.record_assertion(
+        _rec("When Bram calls I will ask him about the invoice", PLAN_TAGS, T0)
+    )
+    assert plan is not None and plan.extras == {"event_cue": "Bram calls"}
+    fact = advisory.record_assertion(
+        _rec("When Bram called we talked", ["mod:fact", "spk:caroline"], T0)
+    )
+    assert fact is not None and fact.extras == {}

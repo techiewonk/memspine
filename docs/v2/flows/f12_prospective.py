@@ -178,8 +178,13 @@ async def reminders_flag(ctx: Ctx) -> None:
 async def cue_reminder(ctx: Ctx) -> None:
     e, ns = ctx.engine, ctx.ns
     await e.write("When Bram calls I will ask him about the invoice.", namespace=ns, memory_type="episodic", tags=["mod:plan"])
-    quiet = [r for r in await e.reminders(namespace=ns, now=D(6, 1), cues=["lunch with Ilse"]) if "invoice" in r.what]
-    hit = [r for r in await e.reminders(namespace=ns, now=D(6, 1), cues=["Bram calls"]) if "invoice" in r.what]
+    # a cue-only plan expires after ProspectiveRules.ttl_cue_only from its source time, and the write
+    # is stamped "now", so ask at the current time (not the fixed 2031 dates the timed steps use)
+    from datetime import UTC, datetime
+
+    now = datetime.now(UTC)
+    quiet = [r for r in await e.reminders(namespace=ns, now=now, cues=["lunch with Ilse"]) if "invoice" in r.what]
+    hit = [r for r in await e.reminders(namespace=ns, now=now, cues=["Bram calls"]) if "invoice" in r.what]
     ctx.show("reminders(cues=['Bram calls'])", [(r.what, r.reasons, r.details) for r in hit])
     ctx.expect("a cue that does not appear gives no reminder", [], quiet)
     ctx.check("a cue-triggered plan surfaces when its cue is in cues (cue_match)", bool(hit) and "cue_match" in hit[0].reasons)
@@ -194,5 +199,5 @@ STEPS = [
     Step("F12.6", "reminders: upcoming / in_window / overdue / expired from a stated plan", reminders_window, "api/ops_advisory.py:reminders, derive/pipeline/advisory.py:prospective_report, memory/prospective.py:due"),
     Step("F12.7", "reminders: a later statement closes a plan, a negation cancels it", reminders_resolve, "memory/prospective.py:detect_resolution"),
     Step("F12.8", "feature flags: reminders need policies.v2, watches do not", reminders_flag, "derive/pipeline/advisory.py:prospective_v2_on"),
-    Step("F12.9", "reminders: cue-triggered plan matched by cues= (FINDING)", cue_reminder, "memory/prospective.py:_cue_hit; derive/pipeline/advisory.py:record_assertion"),
+    Step("F12.9", "reminders: cue-triggered plan matched by cues= (fixed: advisory.plan_cues)", cue_reminder, "memory/prospective.py:_cue_hit; derive/pipeline/advisory.py:record_assertion"),
 ]

@@ -162,6 +162,34 @@ def _window(record: MemoryRecord) -> Interval | None:
     )
 
 
+#: F12.9: the trigger of a cue-based plan. "next time I'm at the pharmacy" is a place; "when Bram
+#: calls" an event. The clause ends at a comma, a sentence end, or the "I will" that starts the action.
+_CUE_END = (
+    r"(?=\s*(?:,|;|\.|$|\b(?:i|we)\s+(?:will|'ll|shall|should|must|need to|am going to|have to)\b))"
+)
+_LOCATION_CUE = re.compile(
+    r"\b(?:when(?:ever)?|next time|once)\s+(?:i am|i'm|we are|we're|i get|we get)\s+(?:at|to|in)\s+"
+    r"(?P<cue>(?:the\s+)?[^,;.]+?)" + _CUE_END,
+    re.IGNORECASE,
+)
+_EVENT_CUE = re.compile(
+    r"\b(?:when(?:ever)?|once|as soon as|next time|after)\s+(?P<cue>[^,;.]+?)" + _CUE_END,
+    re.IGNORECASE,
+)
+
+
+def plan_cues(text: str) -> tuple[str | None, str | None]:
+    """``(event_cue, location_cue)`` of a plan's text, or ``(None, None)`` (F12.9).
+
+    Rule-based, no model call: a place after "when/next time I'm at" is a location cue; any other
+    "when / once / as soon as / after <clause>" before the action is an event cue."""
+    loc = _LOCATION_CUE.search(text)
+    if loc:
+        return None, loc.group("cue").strip()
+    ev = _EVENT_CUE.search(text)
+    return (ev.group("cue").strip() if ev else None), None
+
+
 def record_assertion(record: MemoryRecord) -> AssertionEnvelope | None:
     """A record as the prospective library sees it (library input only; never stored).
 
@@ -186,6 +214,15 @@ def record_assertion(record: MemoryRecord) -> AssertionEnvelope | None:
     window = _window(record) if modality == "planned" else None
     time = TimeAxes(event=window, source_time=_aware(record.valid_from))
     ns = record.namespace
+    extras: dict[str, str] = {}
+    if (
+        modality == "planned"
+    ):  # F12.9: the cue the prospective library matches reminders(cues=...) on
+        event_cue, location_cue = plan_cues(record.content)
+        if event_cue:
+            extras["event_cue"] = event_cue
+        if location_cue:
+            extras["location_cue"] = location_cue
     return AssertionEnvelope(
         write_id=f"w:{record.record_id}",
         assertion_key=AssertionKey(
@@ -215,6 +252,7 @@ def record_assertion(record: MemoryRecord) -> AssertionEnvelope | None:
             negated=negated and modality == "planned",
         ),
         src_class="assistant_proposed" if record.source.role == "assistant" else "user_stated",
+        extras=extras,
     )
 
 
