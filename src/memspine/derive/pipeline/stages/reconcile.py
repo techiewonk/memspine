@@ -23,6 +23,7 @@ from collections import Counter
 from collections.abc import Iterable
 from datetime import UTC, datetime
 
+from memspine.derive.fact_policy import FactPurpose
 from memspine.derive.integrate import CardinalityRegistry, ordering_key, record_id
 from memspine.derive.pipeline.stages.context import PipelineContext, live_records, sweep_namespaces
 from memspine.derive.pipeline.stages.envelope_adapter import is_fact, key_of, to_envelope
@@ -58,7 +59,9 @@ def reconcile_namespace(
 
     Every keyed attribute is declared cardinality ``one``: that is what the write-time conflict ladder
     (M4) already assumes for an (entity, attribute) key."""
-    facts = [r for r in records if is_fact(r) and key_of(r) is not None]
+    facts = [
+        r for r in records if is_fact(r, purpose=FactPurpose.RECONCILE) and key_of(r) is not None
+    ]
     envelopes = [to_envelope(r, namespace) for r in facts]
     registry = CardinalityRegistry()
     for e in envelopes:
