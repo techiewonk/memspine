@@ -1801,8 +1801,8 @@ WP = [
         [],
         "behaviour",
         "Owner manual test, then contract tests",
-        "In progress",
-        "PR #5 (layer-contract), awaiting owner manual test; bug list docs/v2/MEMORY_LAYER_BUG_LIST_2026-10-15.md",
+        "Done",
+        "Merged in PR #5 (583674ca); suite + CI green; owner hand-tests via LAYER_FIX_TESTING.md; bug list docs/v2/MEMORY_LAYER_BUG_LIST_2026-10-15.md",
     ),
     (
         "LF-B",
@@ -1812,8 +1812,8 @@ WP = [
         [],
         "behaviour",
         "Owner manual test, then contract tests",
-        "In progress",
-        "PR #5 (layer-contract), awaiting owner manual test; bug list docs/v2/MEMORY_LAYER_BUG_LIST_2026-10-15.md",
+        "Done",
+        "Merged in PR #5 (583674ca); suite + CI green; owner hand-tests via LAYER_FIX_TESTING.md; bug list docs/v2/MEMORY_LAYER_BUG_LIST_2026-10-15.md",
     ),
     (
         "LF-C",
@@ -1823,8 +1823,8 @@ WP = [
         [],
         "behaviour",
         "Owner manual test, then contract tests",
-        "In progress",
-        "PR #5 (layer-contract), awaiting owner manual test; bug list docs/v2/MEMORY_LAYER_BUG_LIST_2026-10-15.md",
+        "Done",
+        "Merged in PR #5 (583674ca); suite + CI green; owner hand-tests via LAYER_FIX_TESTING.md; bug list docs/v2/MEMORY_LAYER_BUG_LIST_2026-10-15.md",
     ),
     (
         "LF-D",
@@ -1834,8 +1834,8 @@ WP = [
         [],
         "behaviour",
         "Owner manual test, then contract tests",
-        "In progress",
-        "PR #5 (layer-contract), awaiting owner manual test; bug list docs/v2/MEMORY_LAYER_BUG_LIST_2026-10-15.md",
+        "Done",
+        "Merged in PR #5 (583674ca); suite + CI green; owner hand-tests via LAYER_FIX_TESTING.md; bug list docs/v2/MEMORY_LAYER_BUG_LIST_2026-10-15.md",
     ),
     (
         "LF-E",
@@ -1845,8 +1845,8 @@ WP = [
         [],
         "migration",
         "Owner manual test, then contract tests",
-        "In progress",
-        "PR #5 (layer-contract), awaiting owner manual test; bug list docs/v2/MEMORY_LAYER_BUG_LIST_2026-10-15.md",
+        "Done",
+        "Merged in PR #5 (583674ca); suite + CI green; owner hand-tests via LAYER_FIX_TESTING.md; bug list docs/v2/MEMORY_LAYER_BUG_LIST_2026-10-15.md",
     ),
     (
         "LF-F",
@@ -1856,8 +1856,8 @@ WP = [
         [],
         "behaviour",
         "Owner manual test, then contract tests",
-        "In progress",
-        "PR #5 (layer-contract), awaiting owner manual test; bug list docs/v2/MEMORY_LAYER_BUG_LIST_2026-10-15.md",
+        "Done",
+        "Merged in PR #5 (583674ca); suite + CI green; owner hand-tests via LAYER_FIX_TESTING.md; bug list docs/v2/MEMORY_LAYER_BUG_LIST_2026-10-15.md",
     ),
     (
         "LF-G",
@@ -1867,8 +1867,8 @@ WP = [
         [],
         "infra",
         "Owner manual test, then contract tests",
-        "In progress",
-        "PR #5 (layer-contract), awaiting owner manual test; bug list docs/v2/MEMORY_LAYER_BUG_LIST_2026-10-15.md",
+        "Done",
+        "Merged in PR #5 (583674ca); suite + CI green; owner hand-tests via LAYER_FIX_TESTING.md; bug list docs/v2/MEMORY_LAYER_BUG_LIST_2026-10-15.md",
     ),
     # ---- Phase 6: release and paper ----
     (
