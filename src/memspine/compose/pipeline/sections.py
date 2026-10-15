@@ -972,7 +972,7 @@ async def _profile_card_section(
     order = {"identity": 0, "preferences": 1, "relationships": 2, "constraints": 3, "routines": 4}
     shown.sort(key=lambda t: (order.get(t[0].section, 9), t[0].key))
     parents = list({r.record_id: r for t in shown for r in t[2]}.values())
-    block = eng._lead_record(ns, render_card_header([t[1] for t in shown]), parents)
+    block: MemoryRecord = eng._lead_record(ns, render_card_header([t[1] for t in shown]), parents)
     return block.model_copy(update={"tags": [constants.LEAD_TAG, PROFILE_CARD_HEADER_TAG]})
 
 

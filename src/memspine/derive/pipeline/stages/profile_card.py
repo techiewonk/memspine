@@ -455,7 +455,7 @@ def fresh_entries(
 
 def card_entry_line(entry: ProfileEntry, sources: Sequence[str], now: datetime) -> str:
     """One provenance-tagged, dated line: ``- [section] key: value (confirmed D, Nd ago; ...)``."""
-    flags = [entry.stance]
+    flags: list[str] = [entry.stance]
     if entry.status != "active":
         flags.append(entry.status)
     if entry.needs_recheck:
