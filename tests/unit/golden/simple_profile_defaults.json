@@ -142,6 +142,8 @@
       "default_mode": "auto",
       "derived_cap": 0,
       "derived_dates": false,
+      "derived_lift": "off",
+      "derived_lift_max_parents": 3,
       "entity_check": "off",
       "entity_expand_leg": false,
       "entity_leg": false,

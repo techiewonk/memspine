@@ -76,7 +76,7 @@ from memspine.read.pipeline.fusion import (
     fuse_families,
 )
 from memspine.read.pipeline.legs import registry_base_legs
-from memspine.read.pipeline.derived import place_derived
+from memspine.read.pipeline.derived import derived_lift_stage, place_derived
 from memspine.read.pipeline.lift import lift_stage
 from memspine.read.pipeline.rerank import (
     _static_prefilter,
@@ -887,6 +887,22 @@ async def _search(
         _pre = _ids(candidates)
         candidates = await eng._relevance_filter(query, candidates)
         _cut_missing(_pre, candidates, "relevance_filter")
+    if candidates and read_pre.derived_lift != "off":
+        # GLIFT: derived hits only find turns; each becomes its source turns before the rerank.
+        candidates = await derived_lift_stage(
+            eng,
+            ns,
+            query,
+            query_vector,
+            candidates,
+            protected,
+            mode=read_pre.derived_lift,
+            max_parents=read_pre.derived_lift_max_parents,
+            group_id=group_id,
+            tags=tags,
+            memory_type=memory_type,
+            hide=hide,
+        )
     if candidates and read_pre.lift_before_rerank:
         # R3-08 (LIB-11): derived hits become their source turns before the rerank scores the pool.
         candidates = await lift_stage(

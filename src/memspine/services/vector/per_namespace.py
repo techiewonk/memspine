@@ -75,6 +75,11 @@ class PerNamespaceVectorStore:
     ) -> list[list[VectorHit]]:
         return await self._store(namespace).query_many(namespace, vectors, embedder_id, top_k)
 
+    async def scores_for(
+        self, namespace: str, vector: list[float], embedder_id: str, record_ids: list[str]
+    ) -> dict[str, float]:
+        return await self._store(namespace).scores_for(namespace, vector, embedder_id, record_ids)
+
     async def search_rescore(
         self, namespace: str, vector: list[float], embedder_id: str, top_k: int = 8
     ) -> list[VectorHit]:

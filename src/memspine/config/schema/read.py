@@ -953,6 +953,16 @@ class ReadConfig(BaseModel):
     #: GTEMP: > 0 keeps at most this many derived records in a replay read and places them after
     #: the turn evidence (persona and lead blocks stay in front). 0 = off.
     derived_cap: int = Field(default=0, ge=0)
+    #: GLIFT (docs/v2/GLIFT.md): derived records (graph edge facts, session and episode text,
+    #: summaries) ONLY FIND turns. At the point derived hits enter the rerank pool each is replaced
+    #: by its source turns (the narrowest lineage: envelope evidence turns, else ``source.parents``),
+    #: inheriting the hit's fused score, so a derived record never reaches the reranker or the
+    #: context. ``evidence``: the first ``derived_lift_max_parents`` of that lineage; ``evidence+match``:
+    #: when the lineage is longer, the ``derived_lift_max_parents`` parents most similar to the query
+    #: (cosine on stored vectors, no model call). Header blocks are unaffected. Off: byte-identical.
+    derived_lift: Literal["off", "evidence", "evidence+match"] = "off"
+    #: GLIFT: at most this many source turns replace one derived hit.
+    derived_lift_max_parents: int = Field(default=3, ge=1, le=8)
     #: F5 (plan v3.2): a verbatim question (``is_verbatim``: "what did X say about
     #: ...", "exact words") gets no read header (cards, profile, graph facts, entity
     #: summaries) and, with ``cards: header``, no mined fact either: it reads raw
