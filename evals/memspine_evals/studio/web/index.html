@@ -195,6 +195,19 @@ details.d>summary{cursor:pointer;color:var(--muted);font-size:.84rem;padding-blo
 (function(){
 'use strict';
 var SERVER='host:memspine-studio';
+/* LIVE-LOCAL transport: served by memspine_evals.studio.http_server on localhost. The session token comes from ?t= once,
+   is kept in memory only and is stripped from the address bar. */
+var LOCAL={token:null,ok:false};
+(function(){try{var lh=location.hostname;if(lh!=='127.0.0.1'&&lh!=='localhost')return;
+  var u=new URL(location.href),t=u.searchParams.get('t');if(!t)return;
+  LOCAL.token=t;LOCAL.ok=true;u.searchParams.delete('t');history.replaceState(null,'',u.pathname+(u.search||'')+u.hash);}catch(e){}})();
+async function localCall(tool,args){
+  var r;try{r=await fetch('/api/call',{method:'POST',headers:{'Content-Type':'application/json','X-Studio-Token':LOCAL.token},body:JSON.stringify({tool:tool,args:args||{}})});}
+  catch(e){throw {code:'lost',message:'The local studio server did not answer ('+e.message+').'};}
+  var j=null;try{j=await r.json();}catch(e){}
+  if(!j||!j.ok)throw {code:(j&&j.code)||('http_'+r.status),message:(j&&j.message)||('HTTP '+r.status)};
+  return j.payload;
+}
 var DEMO=JSON.parse(document.getElementById('demo-data').textContent);
 var TABS=[['session','Session'],['write','Write'],['sleep','Sleep'],['ask','Ask'],['stage','Stage'],['sweep','Sweep'],['verify','Verify'],['history','History'],['export','Export & Screen']];
 
@@ -292,7 +305,7 @@ function appliedPill(a){
 function appliedText(a){return a==='live_verified'?' (verified live)':a==='needs_reset'?' (needs reset)':' (accepted; confirm with Re-run a question, or reset)';}
 async function api(tool,args){
   var t0=performance.now(),data;
-  if(S.mode==='live'){data=unwrap(await S.mcp.callTool(SERVER,tool,args||{}));}
+  if(S.mode==='live'){data=unwrap(S.local?await localCall(tool,args):await S.mcp.callTool(SERVER,tool,args||{}));}
   else{await sleep(90);data=D.call(tool,args||{});}
   return {data:data,ms:Math.round(performance.now()-t0)};
 }
@@ -538,11 +551,11 @@ function setTab(t,noHash){
 /* ---------- header / banner / mode ---------- */
 function renderMode(){
   var b=$('mode-badge');b.className='badge '+(S.mode==='live'?'live':S.mode==='demo'?'demo':'boot');
-  b.textContent=S.mode==='live'?'Live':S.mode==='demo'?'Demo':'Checking';
+  b.textContent=S.mode==='live'?(S.local?'Live (local)':'Live'):S.mode==='demo'?'Demo':'Checking';
   var bn=$('banner');bn.className='banner'+(S.mode==='live'?' ok':'');
   var why={checking:'Looking for the local engine...',no_runtime:'This page is not inside a Claude viewer.',no_mcp:'This view cannot call local tools.',no_server:'The memspine-studio server is not listed for this view.',
     list_failed:'Listing local tools failed.',denied:'Local tool access was declined for this page.',needs_connect:'The local server is available. Connect it to switch to live mode.',call_failed:'The local server did not answer studio_status.',lost:'The connection to the local server was lost.'}[S.reason]||'';
-  if(S.mode==='live'){bn.replaceChildren(h('div',{class:'grow'},h('b',{},'Live: connected to '+SERVER+'. '),'Results come from the real engine on this device. Dataset text appears here only while you view it and is not stored.'));}
+  if(S.mode==='live'){bn.replaceChildren(h('div',{class:'grow'},h('b',{},'Live: connected to '+(S.local?'the local studio server on this PC':SERVER)+'. '),'Results come from the real engine on this device. Dataset text appears here only while you view it and is not stored.'));}
   else{bn.replaceChildren(h('div',{class:'grow'},h('b',{},'Demo data. '),'Open this page in the Claude desktop app with the memspine-studio server to tune the real engine.',h('small',{},'Demo controls simulate locally on an invented conversation. '+why)),
     S.mode==='demo'&&S.reason!=='no_runtime'?btn('Retry detection',{kind:'sm',onclick:function(){detect(false);}}):h('span'));}
   $('btn-connect').hidden=!(S.mode==='demo'&&(S.reason==='needs_connect'||S.reason==='call_failed'||S.reason==='lost'));
@@ -562,7 +575,17 @@ function renderApprovals(){
   var rows=used.map(function(t){var a=S.toolInfo[t];var isRo=a&&a.readOnlyHint!=null?a.readOnlyHint:!!ro[t];return {tool:t,kind:isRo?'read-only':'changes state',approval:isRo?'not expected':'may ask',page_confirm:CHANGES.indexOf(t)>=0?'yes, in page':'no'};});
   $('approvals-body').replaceChildren(table(rows,['tool','kind','approval','page_confirm'],{cell:function(c,v){return c==='tool'?h('code',{},v):v;}}));
 }
+async function detectLocal(){
+  S.connecting=true;S.local=true;S.mode='live';
+  try{var tl=await fetch('/api/tools',{headers:{'X-Studio-Token':LOCAL.token}});var tj=await tl.json();
+    if(!tj.ok)throw {code:tj.code,message:tj.message};
+    S.toolInfo={};(tj.payload||[]).forEach(function(t){if(t.annotations)S.toolInfo[t.name]=t.annotations;});
+    var res=await api('studio_status');S.status=res.data;}
+  catch(e){S.local=false;S.mode='demo';return toDemo('call_failed');}
+  S.connecting=false;S.reason='live';renderMode();await loadStages();renderHeader();resetPanelsForMode();
+}
 async function detect(gesture){
+  if(LOCAL.ok)return detectLocal();
   S.connecting=true;renderMode();
   var cl=window.claude;
   if(!cl||typeof cl.use!=='function'){return toDemo('no_runtime');}

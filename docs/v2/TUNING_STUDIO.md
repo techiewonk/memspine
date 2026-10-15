@@ -31,6 +31,28 @@ Run it by hand to check: `python -m memspine_evals.studio.server [--data demo|PA
 
 Writes are not annotated read-only, so the desktop app may ask you to confirm each one. The artifact page (TS-2) calls the same tools through `host:memspine_studio`.
 
+## Use it in a normal browser (local)
+
+The same page also runs in any browser on this PC (Chrome, Edge, Firefox), with no claude.ai involvement. A small standard-library HTTP server (`http_server.py`) serves the page and forwards calls to the same dispatch as the MCP server, so the tools, logging (`tuning.jsonl`) and safety rules are identical.
+
+```
+cd C:/Users/hembad/Documents/GitHub/memspine-restructure
+$env:PYTHONPATH = "src;evals"
+C:/Users/hembad/Documents/GitHub/memspine/.venv/Scripts/python.exe -m memspine_evals.studio.http_server --port 8765
+```
+
+It prints `Open: http://127.0.0.1:8765/?t=<token>` to stderr. Open that URL. The page reads the token once, keeps it in memory and removes it from the address bar; the badge shows **Live (local)**. Without a token (or on any other host) the page falls back to **Demo**; inside the Claude desktop app it keeps using the MCP path (**Live**).
+
+Options: `--port`, `--host`, `--token`, `--data demo|PATH|locomo`, `--out DIR`, `--arms-dir DIR`, `--logs-dir DIR`, `--allow-gpu` (same meaning as for the MCP server).
+
+Security:
+
+- **Localhost only by default.** It binds 127.0.0.1. A wildcard host (`0.0.0.0`) is always refused; any other `--host` is refused unless you also pass `--token`.
+- **Session token.** A random token is generated at every start; each `/api` call must carry the `X-Studio-Token` header (401 otherwise). Requests whose `Host` or `Origin` is not the bound address or localhost get 403 (DNS-rebinding guard).
+- **One engine, one caller.** Calls are serialised by a lock.
+- **No data leaves the machine.** The only external resource is Google Fonts (the page degrades to system fonts offline). Dataset text goes only to your own browser tab.
+- **Remote access (your choice, off by default):** over Tailscale, run `... http_server --host <tailscale-ip> --token <long-secret>` and open `http://<tailscale-ip>:8765/?t=<long-secret>`. This is plain HTTP inside your tailnet; do not expose it to the public internet.
+
 ### How changes apply
 
 The server uses the step session's own tuning (`step_tune.py`, package TI-5b): a set is applied to the running engine without a rebuild when the catalogue says no index rebuild is needed. `studio_set` never claims more than it has confirmed. `applied` is one of:
