@@ -42,7 +42,7 @@ HERE = Path(__file__).parent
 sys.path[:] = [p for p in sys.path if Path(p or ".").resolve() != HERE.resolve()]
 sys.path.append(str(HERE))
 
-from memspine_evals.judge_conventions import (  # noqa: E402
+from memspine_evals.judge_conventions import (
     check_conventions_v3,
     strict_list_ok,
 )
@@ -85,7 +85,9 @@ def score_row(row: dict[str, Any]) -> dict[str, Any]:
         hit = check_conventions_v3(question, answer, gold)
         rule = hit.rule if hit is not None else None
     v3 = ok or rule is not None
-    strict_list = None if (not binary or is_abstention(row)) else strict_list_ok(question, answer, gold)
+    strict_list = (
+        None if (not binary or is_abstention(row)) else strict_list_ok(question, answer, gold)
+    )
     strict = v3 and strict_list is not False
     return {
         "raw": ok,
@@ -101,7 +103,9 @@ def _category(row: dict[str, Any]) -> str:
 
 
 def rescore(
-    rows: list[dict[str, Any]], errata: set[tuple[str, str]], stratum: set[tuple[str, str]] | None = None
+    rows: list[dict[str, Any]],
+    errata: set[tuple[str, str]],
+    stratum: set[tuple[str, str]] | None = None,
 ) -> dict[str, Any]:
     """Counts per category (and ``all`` / ``cat1-4``) for the five columns."""
     scored = []
@@ -239,7 +243,9 @@ def _pct(k: int, n: int) -> str:
     return f"{100 * k / n:5.1f}" if n else "  n/a"
 
 
-def band_ci(scored: list[dict[str, Any]], col: str, seed: int = 11, resamples: int = 1000) -> tuple[float, float]:
+def band_ci(
+    scored: list[dict[str, Any]], col: str, seed: int = 11, resamples: int = 1000
+) -> tuple[float, float]:
     from memspine_evals.results import _bootstrap_clusters
 
     by_item: dict[str, list[float]] = defaultdict(list)
@@ -265,11 +271,17 @@ def format_table(result: dict[str, Any]) -> str:
 
 
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     ap.add_argument("runs", nargs="+", help="run dirs (or results.jsonl files)")
     ap.add_argument("--errata", default=str(DEFAULT_ERRATA))
-    ap.add_argument("--data", default=None, help="locomo10.json: adds the speaker-swap stratum (M-16)")
-    ap.add_argument("--labels", default=None, help="r14_reader_judge_features.csv: precision/recall")
+    ap.add_argument(
+        "--data", default=None, help="locomo10.json: adds the speaker-swap stratum (M-16)"
+    )
+    ap.add_argument(
+        "--labels", default=None, help="r14_reader_judge_features.csv: precision/recall"
+    )
     ap.add_argument("--out", default=None, help="dir for text-bearing listings (gitignored)")
     ap.add_argument("--json", default=None, help="write the counts-only summary here")
     args = ap.parse_args(argv)
@@ -297,8 +309,12 @@ def main(argv: list[str] | None = None) -> int:
         for s in scored:
             if s["v3_rule"]:
                 rules[s["v3_rule"]] += 1
-        print("v3 credits by rule:", dict(rules), "| strict drops (judge-correct, list item missing):",
-              sum(1 for s in scored if s["list_missing"] and s["raw"] and s["cat"] != "cat5"))
+        print(
+            "v3 credits by rule:",
+            dict(rules),
+            "| strict drops (judge-correct, list item missing):",
+            sum(1 for s in scored if s["list_missing"] and s["raw"] and s["cat"] != "cat5"),
+        )
         if "swapped" in res:
             w = res["swapped"]
             print(

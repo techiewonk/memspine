@@ -626,11 +626,7 @@ class NamespaceJob:
             if beat is None:
                 raise LeaseLost(self.ns)
             lease = beat
-            if (
-                self.budget is not None
-                and is_model_stage(stage)
-                and self.budget.exhausted(self.ns)
-            ):
+            if self.budget is not None and is_model_stage(stage) and self.budget.exhausted(self.ns):
                 if not self.store.defer_stage(lease, self.kind, cycle, stage):
                     raise LeaseLost(self.ns)
                 out.deferred.append(stage)

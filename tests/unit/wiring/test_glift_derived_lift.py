@@ -94,9 +94,12 @@ def _eng(*records: MemoryRecord, vec: _Vec | None = None, hidden: set[str] | Non
     )
 
 
-T = {i: _turn(f"t{i}", f"Ilse: note {i} about {w}") for i, w in enumerate(
-    ["the shed", "the market", "bees by the river", "a trip to Lyon", "painting the fence"], 1
-)}
+T = {
+    i: _turn(f"t{i}", f"Ilse: note {i} about {w}")
+    for i, w in enumerate(
+        ["the shed", "the market", "bees by the river", "a trip to Lyon", "painting the fence"], 1
+    )
+}
 ALL = list(T.values())
 FILL = [(_turn(f"x{i}", f"Bram: filler {i}"), 0.01) for i in range(3)]  # widen the incoming pool
 

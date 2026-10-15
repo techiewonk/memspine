@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """LIB-13: role policy, echo guard and routing for the insert path (W-06, W-09, I-8).
 
 Pure and unwired (W2-03 wires it): no I/O, no clock, no model call. Raw keeps every role for audit

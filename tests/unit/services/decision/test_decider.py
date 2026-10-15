@@ -105,9 +105,7 @@ async def test_heuristic_adapter_wraps_existing_rules() -> None:
     h = HeuristicDecider()
     assert (await h.decide("list_mode", "What activities does Bram do?")).label == "set"
     assert (await h.decide("list_mode", "When did Bram go camping?")).label == "single"
-    assert (
-        await h.decide("bridge_hop", "Where did Noor move from 4 years ago?")
-    ).label == "hop"
+    assert (await h.decide("bridge_hop", "Where did Noor move from 4 years ago?")).label == "hop"
     assert (await h.decide("temporal_intent", "When did she travel?")).label == "temporal"
     assert (await h.decide("relevance", "hi", "- x")).label == "relevant"
     assert (await h.decide("abstention", "q", "ctx")).label == "answerable"

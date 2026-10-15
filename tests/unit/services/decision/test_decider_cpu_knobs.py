@@ -119,7 +119,9 @@ def test_threads_default_to_cores_split_by_workers(
     assert d.threads * d.workers <= max(cores, d.workers) or threads > 0
 
 
-def test_physical_cores_falls_back_to_half_the_logical_cpus(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_physical_cores_falls_back_to_half_the_logical_cpus(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     monkeypatch.setitem(sys.modules, "psutil", None)  # import raises ImportError
     monkeypatch.setattr(nano.os, "cpu_count", lambda: 12)
     assert nano.physical_cores() == 6
@@ -137,13 +139,15 @@ def fake_stack(monkeypatch: pytest.MonkeyPatch) -> dict[str, list[tuple[Any, ...
     built: dict[str, list[tuple[Any, ...]]] = {"torch": [], "onnx": [], "hub": []}
 
     class FakeTorch(types.ModuleType):
-        class cuda:  # noqa: N801
+        class cuda:
             @staticmethod
             def is_available() -> bool:
                 return False
 
     for mod in ("torch", "transformers", "safetensors", "onnxruntime"):
-        monkeypatch.setitem(sys.modules, mod, FakeTorch(mod) if mod == "torch" else types.ModuleType(mod))
+        monkeypatch.setitem(
+            sys.modules, mod, FakeTorch(mod) if mod == "torch" else types.ModuleType(mod)
+        )
     hub = types.ModuleType("huggingface_hub")
     hub.hf_hub_download = lambda repo, file: built["hub"].append((repo, file)) or f"/x/{file}"  # type: ignore[attr-defined]
     monkeypatch.setitem(sys.modules, "huggingface_hub", hub)

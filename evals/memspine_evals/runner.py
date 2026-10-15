@@ -270,7 +270,9 @@ class EvalRunner:
             prompts["reader"] = reader_prompt
         elif reader_prompt is not None:  # routed / system prompts: hash their description
             desc = getattr(reader_prompt, "describe", None)
-            prompts["reader"] = repr(sorted(desc().items())) if callable(desc) else repr(reader_prompt)
+            prompts["reader"] = (
+                repr(sorted(desc().items())) if callable(desc) else repr(reader_prompt)
+            )
         judge_prompt = getattr(self.judge, "prompt", None)
         if isinstance(judge_prompt, str):
             prompts["judge"] = judge_prompt
@@ -289,13 +291,16 @@ class EvalRunner:
         if not models["worker"] and isinstance(extract, dict):
             models["worker"] = extract.get("model")
         item_ids = (self.config.extra_limits or {}).get("item_ids")
-        sample_ids = (self.config.extra_limits or {}).get("slice_query_ids")  # RUNBOOK2 sample slices
+        sample_ids = (self.config.extra_limits or {}).get(
+            "slice_query_ids"
+        )  # RUNBOOK2 sample slices
         identity = build_identity(
             flags=flags,
             prompts=prompts,
             models={k: (str(v) if v else None) for k, v in models.items()},
             dataset_id=info.dataset_id,
-            slice_id=(self.config.labels or {}).get("slice") or (f"items:{len(item_ids)}" if item_ids else None),
+            slice_id=(self.config.labels or {}).get("slice")
+            or (f"items:{len(item_ids)}" if item_ids else None),
             slice_ids=item_ids or sample_ids or None,
         )
         # the dataset adapter already hashed its bytes; do not read the files again
@@ -328,7 +333,8 @@ class EvalRunner:
             rerank_calls=int(self.rerank["calls"]) if configured else None,
             duration_s=round(duration_s, 3),
             question_latencies_s=[
-                (r.latency_retrieve_ms + r.latency_answer_ms + r.latency_judge_ms) / 1000 for r in scored
+                (r.latency_retrieve_ms + r.latency_answer_ms + r.latency_judge_ms) / 1000
+                for r in scored
             ],
         )
 
@@ -761,7 +767,10 @@ class EvalRunner:
             self._judge_server_timings(),
         )
         if cost is not None:  # the summary's copy of the manifest carries the finished cost block
-            payload["manifest"]["identity"] = {**(payload["manifest"].get("identity") or {}), "cost": dict(cost)}
+            payload["manifest"]["identity"] = {
+                **(payload["manifest"].get("identity") or {}),
+                "cost": dict(cost),
+            }
         payload["adversarial_split"] = _adversarial_split(rows, summary.score_scale)
         payload["ingest_timing"] = ingest_summary(self.ingest_wall)
         runtime_gpu = (payload["manifest"].get("runtime") or {}).get("gpu")

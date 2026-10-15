@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """GTIME diagnosis: why does a graph run with ``read.derived_lift`` still lose time questions?
 
 Reads local forensics + results of a graph run (P, default ``v2-G2F-full``), the J reference
@@ -34,7 +33,20 @@ from memspine.models.encoders.query.shape import is_temporal, is_time_shaped
 DIA = re.compile(r"^D\d+:\d+$")
 DIA_ALL = re.compile(r"D\d+:\d+")
 ISO = re.compile(r"\b\d{4}-\d{2}-\d{2}\b")
-MONTHS = "january february march april may june july august september october november december".split()
+MONTHS = [
+    "january",
+    "february",
+    "march",
+    "april",
+    "may",
+    "june",
+    "july",
+    "august",
+    "september",
+    "october",
+    "november",
+    "december",
+]
 MON = r"(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)"
 SUMMARY = "ABOUT (entity summaries"
 CATS = ("cat1", "cat2", "cat3", "cat4")
@@ -55,7 +67,9 @@ def year_months(text: str) -> set[tuple[int, int]]:
         out.add((int(y), int(m)))
     for _d, m, y in re.findall(r"\b(\d{1,2})\s+" + MON + r"\w*\.?,?\s+(\d{4})\b", text, re.I):
         out.add((int(y), _mnum(m)))
-    for m, _d, y in re.findall(r"\b" + MON + r"\w*\.?\s+(\d{1,2})(?:st|nd|rd|th)?,?\s+(\d{4})\b", text, re.I):
+    for m, _d, y in re.findall(
+        r"\b" + MON + r"\w*\.?\s+(\d{1,2})(?:st|nd|rd|th)?,?\s+(\d{4})\b", text, re.I
+    ):
         out.add((int(y), _mnum(m)))
     for m, y in re.findall(r"\b" + MON + r"\w*\s+(\d{4})\b", text, re.I):
         out.add((int(y), _mnum(m)))
@@ -93,7 +107,11 @@ def origins(f: dict) -> dict[str, str]:
 
 def simulate_final(f: dict, drop: set[str]) -> list[str]:
     """P's final top 10 turns after removing ``drop`` ids from the pool (rerank scores as logged)."""
-    scored = [(h["score"], h["turn"]) for h in f["rerank_scores"] if h["turn"] not in drop and DIA.match(h["turn"])]
+    scored = [
+        (h["score"], h["turn"])
+        for h in f["rerank_scores"]
+        if h["turn"] not in drop and DIA.match(h["turn"])
+    ]
     scored.sort(key=lambda p: -p[0])
     return [t for _s, t in scored[:10]]
 
@@ -122,11 +140,19 @@ def main() -> None:
     item_of, gold = gold_map(json.loads(Path(a.data).read_text(encoding="utf8")))
     P = {r["query_id"]: r for r in _load(runs / f"{a.p}--forensics/forensics.jsonl")}
     C = {r["query_id"]: r for r in _load(runs / f"{a.c}--forensics/forensics.jsonl")}
-    Pr = {r["query_id"]: r for r in _load(runs / f"{a.p}--memspine/results.jsonl") if r.get("kind") == "result"}
-    Cr = {r["query_id"]: r for r in _load(runs / f"{a.c}--memspine/results.jsonl") if r.get("kind") == "result"}
+    Pr = {
+        r["query_id"]: r
+        for r in _load(runs / f"{a.p}--memspine/results.jsonl")
+        if r.get("kind") == "result"
+    }
+    Cr = {
+        r["query_id"]: r
+        for r in _load(runs / f"{a.c}--memspine/results.jsonl")
+        if r.get("kind") == "result"
+    }
     qs = [q for q in Pr if q in Cr and q in P and q in C]
     cat_of = {q: Pr[q]["type_label"] for q in qs}
-    ok = lambda r, q: float(r[q]["score"]) == 1  # noqa: E731
+    ok = lambda r, q: float(r[q]["score"]) == 1
     out: dict = {"p": a.p, "c": a.c, "n_common": len(qs), "by_cat": {}, "cat2": {}}
     text_rows: list[dict] = []
 
@@ -136,16 +162,23 @@ def main() -> None:
         fx = [q for q in cq if not ok(Cr, q) and ok(Pr, q)]
         shaped = [q for q in cq if is_time_shaped(P[q]["query"])]
         out["by_cat"][cat] = {
-            "n": len(cq), "broken": len(br), "fixed": len(fx), "net": len(fx) - len(br),
-            "acc_c": rate([int(ok(Cr, q)) for q in cq]), "acc_p": rate([int(ok(Pr, q)) for q in cq]),
+            "n": len(cq),
+            "broken": len(br),
+            "fixed": len(fx),
+            "net": len(fx) - len(br),
+            "acc_c": rate([int(ok(Cr, q)) for q in cq]),
+            "acc_p": rate([int(ok(Pr, q)) for q in cq]),
             "n_is_temporal": sum(is_temporal(P[q]["query"]) for q in cq),
             "n_time_shaped": len(shaped),
             "time_shaped": {
-                "broken": [q for q in br if q in shaped], "fixed": [q for q in fx if q in shaped],
-                "acc_c": rate([int(ok(Cr, q)) for q in shaped]), "acc_p": rate([int(ok(Pr, q)) for q in shaped]),
+                "broken": [q for q in br if q in shaped],
+                "fixed": [q for q in fx if q in shaped],
+                "acc_c": rate([int(ok(Cr, q)) for q in shaped]),
+                "acc_p": rate([int(ok(Pr, q)) for q in shaped]),
             },
             "not_time_shaped": {
-                "broken": sum(q not in shaped for q in br), "fixed": sum(q not in shaped for q in fx),
+                "broken": sum(q not in shaped for q in br),
+                "fixed": sum(q not in shaped for q in fx),
             },
         }
 
@@ -167,18 +200,26 @@ def main() -> None:
         return t
 
     out["net_by_cat_and_shape_vs_c"] = {a.p: net_table(Pr)}
-    out["noise_reference"] = {"note": "J-config full runs (no graph, no summaries) against the same C: run-to-run and flag-to-flag variation"}
+    out["noise_reference"] = {
+        "note": "J-config full runs (no graph, no summaries) against the same C: run-to-run and flag-to-flag variation"
+    }
     for ref in ("v2-P3J-full", "r7-protect-full", "r7-post-full"):
         path = runs / f"{ref}--memspine/results.jsonl"
         if path.exists():
-            out["noise_reference"][ref] = net_table({r["query_id"]: r for r in _load(path) if r.get("kind") == "result"})
+            out["noise_reference"][ref] = net_table(
+                {r["query_id"]: r for r in _load(path) if r.get("kind") == "result"}
+            )
 
     # --- cat2: cause of each loss ---------------------------------------------------------
     cat2 = [q for q in qs if cat_of[q] == "cat2"]
     broken = [q for q in cat2 if ok(Cr, q) and not ok(Pr, q)]
     fixed = [q for q in cat2 if not ok(Cr, q) and ok(Pr, q)]
-    summary_in_p = Counter(any(r["text"].startswith(SUMMARY) for r in P[q]["context_records"]) for q in cat2)
-    summary_in_c = Counter(any(r["text"].startswith(SUMMARY) for r in C[q]["context_records"]) for q in cat2)
+    summary_in_p = Counter(
+        any(r["text"].startswith(SUMMARY) for r in P[q]["context_records"]) for q in cat2
+    )
+    summary_in_c = Counter(
+        any(r["text"].startswith(SUMMARY) for r in C[q]["context_records"]) for q in cat2
+    )
     causes: dict[str, list[str]] = {}
     origin_cnt: Counter = Counter()
     foreign_sess: Counter = Counter()
@@ -218,37 +259,59 @@ def main() -> None:
             origin_cnt[pool.get(t, "none")] += 1
             if t not in g:
                 foreign_sess["displacing_turns"] += 1
-        text_rows.append({
-            "qid": q, "cause": k, "query": pf["query"], "gold": Pr[q]["gold"], "p_answer": Pr[q]["answer"],
-            "c_answer": Cr[q]["answer"], "gold_turns": sorted(g), "gold_in_p_ctx": sorted(g & pctx),
-            "summary_dates": sorted(f"{y}-{m:02d}" for y, m in year_months(stext)),
-        })
+        text_rows.append(
+            {
+                "qid": q,
+                "cause": k,
+                "query": pf["query"],
+                "gold": Pr[q]["gold"],
+                "p_answer": Pr[q]["answer"],
+                "c_answer": Cr[q]["answer"],
+                "gold_turns": sorted(g),
+                "gold_in_p_ctx": sorted(g & pctx),
+                "summary_dates": sorted(f"{y}-{m:02d}" for y, m in year_months(stext)),
+            }
+        )
     out["cat2"] = {
-        "n": len(cat2), "broken": len(broken), "fixed": len(fixed), "net": len(fixed) - len(broken),
+        "n": len(cat2),
+        "broken": len(broken),
+        "fixed": len(fixed),
+        "net": len(fixed) - len(broken),
         "summary_block_in_p_context": {str(k): v for k, v in summary_in_p.items()},
         "summary_block_in_c_context": {str(k): v for k, v in summary_in_c.items()},
         "derived_in_final": sum(any(not DIA.match(h["turn"]) for h in P[q]["final"]) for q in cat2),
         "cause_counts": {k: len(v) for k, v in sorted(causes.items())},
         "cause_ids": {k: v for k, v in sorted(causes.items())},
         "turns_in_p_final_not_in_c_final_by_origin_broken": dict(origin_cnt),
-        "fixed_ids": fixed, "broken_ids": broken,
+        "fixed_ids": fixed,
+        "broken_ids": broken,
     }
 
     # --- cat2: is the loss explained by the explicit date or the relative date? -------------
     out["cat2"]["broken_question_shape"] = {
         "is_temporal": sum(is_temporal(P[q]["query"]) for q in broken),
-        "time_shaped_only": sum(is_time_shaped(P[q]["query"]) and not is_temporal(P[q]["query"]) for q in broken),
+        "time_shaped_only": sum(
+            is_time_shaped(P[q]["query"]) and not is_temporal(P[q]["query"]) for q in broken
+        ),
         "neither": sum(not is_time_shaped(P[q]["query"]) for q in broken),
     }
 
     # --- simulation: drop graph-only + lifted candidates, re-cut the final ------------------
-    sim: dict = {"note": "pool candidates supplied only by the graph legs or by the lift are dropped; final = top 10 turns of P's own rerank scores; the base-leg refill is not modelled (a floor)"}
+    sim: dict = {
+        "note": "pool candidates supplied only by the graph legs or by the lift are dropped; final = top 10 turns of P's own rerank scores; the base-leg refill is not modelled (a floor)"
+    }
     for cat in CATS:
         cq = [q for q in qs if cat_of[q] == cat and is_time_shaped(P[q]["query"])]
-        gold_in = lambda fin, q: bool(gold[q]) and gold[q] <= set(fin)  # noqa: E731
-        any_in = lambda fin, q: bool(gold[q] & set(fin))  # noqa: E731
-        rows = {"n_time_shaped": len(cq), "gold_all_in_final": {"c": 0, "p": 0, "sim": 0}, "gold_any_in_final": {"c": 0, "p": 0, "sim": 0},
-                "gained_by_sim": [], "lost_by_sim": [], "overlap_with_c_final": {"p": 0.0, "sim": 0.0}}
+        gold_in = lambda fin, q: bool(gold[q]) and gold[q] <= set(fin)
+        any_in = lambda fin, q: bool(gold[q] & set(fin))
+        rows = {
+            "n_time_shaped": len(cq),
+            "gold_all_in_final": {"c": 0, "p": 0, "sim": 0},
+            "gold_any_in_final": {"c": 0, "p": 0, "sim": 0},
+            "gained_by_sim": [],
+            "lost_by_sim": [],
+            "overlap_with_c_final": {"p": 0.0, "sim": 0.0},
+        }
         ov_p = ov_s = 0.0
         for q in cq:
             og = origins(P[q])
@@ -266,43 +329,81 @@ def main() -> None:
             cs = set(cfin)
             ov_p += len(cs & set(pfin)) / max(1, len(cs | set(pfin)))
             ov_s += len(cs & set(sfin)) / max(1, len(cs | set(sfin)))
-        rows["overlap_with_c_final"] = {"p": round(ov_p / max(1, len(cq)), 3), "sim": round(ov_s / max(1, len(cq)), 3)}
+        rows["overlap_with_c_final"] = {
+            "p": round(ov_p / max(1, len(cq)), 3),
+            "sim": round(ov_s / max(1, len(cq)), 3),
+        }
         rows["fixed_gold_only_via_graph_or_lift"] = [
-            q for q in cq
-            if not ok(Cr, q) and ok(Pr, q)
+            q
+            for q in cq
+            if not ok(Cr, q)
+            and ok(Pr, q)
             and not gold_in([h["turn"] for h in C[q]["final"]], q)
             and gold_in([h["turn"] for h in P[q]["final"] if DIA.match(h["turn"])], q)
-            and not gold_in(simulate_final(P[q], {t for t, o in origins(P[q]).items() if o in ("graph", "lift")}), q)
+            and not gold_in(
+                simulate_final(
+                    P[q], {t for t, o in origins(P[q]).items() if o in ("graph", "lift")}
+                ),
+                q,
+            )
         ]
         rows["fixed_answer_date_only_in_summary"] = [
-            q for q in cq if not ok(Cr, q) and ok(Pr, q) and summary_only_date(P[q], Pr[q]["answer"])
+            q
+            for q in cq
+            if not ok(Cr, q) and ok(Pr, q) and summary_only_date(P[q], Pr[q]["answer"])
         ]
         sim[cat] = rows
     out["simulation"] = sim
 
     # --- expected recovery (cat2) --------------------------------------------------------
-    present = [q for q in cat2 if gold[q] and gold[q] <= {r["turn"] for r in C[q]["context_records"]}]
+    present = [
+        q for q in cat2 if gold[q] and gold[q] <= {r["turn"] for r in C[q]["context_records"]}
+    ]
     r_given = rate([int(ok(Cr, q)) for q in present])
     cc = out["cat2"]["cause_counts"]
-    summ_attr = cc.get("gold_present_wrong_date_from_summary", 0) + cc.get("gold_present_summary_date_not_wrong_month", 0)
+    summ_attr = cc.get("gold_present_wrong_date_from_summary", 0) + cc.get(
+        "gold_present_summary_date_not_wrong_month", 0
+    )
     gold_present_all = sum(v for k, v in cc.items() if k.startswith("gold_present"))
     displaced = cc.get("gold_lost_in_pool_displaced", 0)
     out["expected_recovery_cat2"] = {
         "j_acc_given_gold_in_ctx": r_given,
-        "blocks_only": {"lower_summary_attributed": summ_attr, "upper_all_gold_present": gold_present_all,
-                        "expected_lower": round(summ_attr * r_given, 1), "expected_upper": round(gold_present_all * r_given, 1)},
-        "blocks_plus_legs_extra": {"gold_lost_in_pool_displaced": displaced, "expected": round(displaced * r_given, 1)},
+        "blocks_only": {
+            "lower_summary_attributed": summ_attr,
+            "upper_all_gold_present": gold_present_all,
+            "expected_lower": round(summ_attr * r_given, 1),
+            "expected_upper": round(gold_present_all * r_given, 1),
+        },
+        "blocks_plus_legs_extra": {
+            "gold_lost_in_pool_displaced": displaced,
+            "expected": round(displaced * r_given, 1),
+        },
     }
     Path(a.out).write_text(json.dumps(out, indent=1), encoding="utf8")
     if a.text_out:
         Path(a.text_out).write_text("\n".join(json.dumps(x) for x in text_rows), encoding="utf8")
     print(json.dumps({k: out[k] for k in ("by_cat",)}, indent=1)[:1800])
     print(json.dumps(out["cat2"]["cause_counts"], indent=1))
-    print(out["cat2"]["turns_in_p_final_not_in_c_final_by_origin_broken"], out["cat2"]["broken_question_shape"])
-    print(json.dumps({c: {k: v for k, v in sim[c].items() if not isinstance(v, list)} | {"gained": len(sim[c]["gained_by_sim"]), "lost": len(sim[c]["lost_by_sim"])} for c in CATS}, indent=1))
+    print(
+        out["cat2"]["turns_in_p_final_not_in_c_final_by_origin_broken"],
+        out["cat2"]["broken_question_shape"],
+    )
+    print(
+        json.dumps(
+            {
+                c: {k: v for k, v in sim[c].items() if not isinstance(v, list)}
+                | {"gained": len(sim[c]["gained_by_sim"]), "lost": len(sim[c]["lost_by_sim"])}
+                for c in CATS
+            },
+            indent=1,
+        )
+    )
     print(out["expected_recovery_cat2"])
     print(json.dumps(out["net_by_cat_and_shape_vs_c"]))
-    print({c: len(sim[c]["fixed_answer_date_only_in_summary"]) for c in CATS}, {c: len(sim[c]["fixed_gold_only_via_graph_or_lift"]) for c in CATS})
+    print(
+        {c: len(sim[c]["fixed_answer_date_only_in_summary"]) for c in CATS},
+        {c: len(sim[c]["fixed_gold_only_via_graph_or_lift"]) for c in CATS},
+    )
 
 
 if __name__ == "__main__":

@@ -471,9 +471,7 @@ class Memory:
 
     async def list_records(self, memory_type: str | None = None) -> list[MemoryRecord]:
         """All stored records of this scope, optionally of one memory type."""
-        return await self._engine.list_records(
-            self.namespace, memory_type, **self._viewer_kw({})
-        )
+        return await self._engine.list_records(self.namespace, memory_type, **self._viewer_kw({}))
 
     async def audit_action(self, action: str, record_ids: list[str], **kwargs: Any) -> None:
         """Append a chained audit event for this scope (no-op unless ``audit.actions`` is on)."""

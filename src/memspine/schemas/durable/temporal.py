@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """Time (schema session 6): three axes, precision with an approximate flag, basis, intervals, relations.
 
 Rule (S6-2): never invent a date. A date-valued :class:`TemporalRef` always says how it was obtained

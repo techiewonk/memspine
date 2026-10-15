@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """Canonical graph key functions (F-01; decisions M-17 B, W-20 C; ER-13, ER-20).
 
 One implementation of graph identity, used by the LIB-35 edge compiler (``derive/edges.py``) and by the

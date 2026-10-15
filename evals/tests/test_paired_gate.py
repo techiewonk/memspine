@@ -38,7 +38,9 @@ def test_large_spread_gain_promotes() -> None:
 def test_gain_from_one_conversation_is_held() -> None:
     ids = _ids(10, 40)
     ref = {q: False for q in ids}
-    arm = {q: q.startswith("c0/") and int(q.split("q")[-1]) < 30 for q in ids}  # 30 gains, all in one conversation
+    arm = {
+        q: q.startswith("c0/") and int(q.split("q")[-1]) < 30 for q in ids
+    }  # 30 gains, all in one conversation
     r = paired(arm, ref, ids)
     assert r.net == 30 and r.net > r.band
     assert r.verdict == "HOLD"  # the cluster bootstrap lower bound is 0

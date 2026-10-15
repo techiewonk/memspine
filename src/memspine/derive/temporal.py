@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """Temporal anchoring (LIB-01): the S6 time model as pure functions over ``memspine.schemas`` types.
 
 Pure and deterministic: no I/O, no clock reads ("now" is always an argument), no model calls. The model

@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """LIB-06: exact token budget and complete evidence bundles (R-18 step 1, ER-24)."""
 
 from __future__ import annotations

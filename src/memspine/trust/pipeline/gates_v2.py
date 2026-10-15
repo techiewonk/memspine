@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """The Memory Firewall at its gates, wired from ``trust.gates`` (W2-04, LIB-38; ``firewall.gates_v2``).
 
 Adapters only: they turn engine records into the library's inputs and its verdicts back into what the

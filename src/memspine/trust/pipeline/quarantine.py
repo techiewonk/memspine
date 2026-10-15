@@ -354,9 +354,7 @@ async def list_quarantined(eng: Any, namespace: str = "default") -> list[MemoryR
     :meth:`reject_quarantined`."""
     storage = eng._require_started()
     ns = validate_namespace(namespace)
-    held = [
-        r for r in await storage.list_quarantined(ns) if r.status is RecordStatus.QUARANTINED
-    ]
+    held = [r for r in await storage.list_quarantined(ns) if r.status is RecordStatus.QUARANTINED]
     held.sort(key=lambda r: (r.recorded_at, r.record_id))
     return eng._inflate_all(held, ns)
 
@@ -415,9 +413,7 @@ async def approve_quarantined(
                 },
             )
         )
-        _log.warning(
-            "memory.quarantine_approved", namespace=ns, record_id=record_id, actor=actor
-        )
+        _log.warning("memory.quarantine_approved", namespace=ns, record_id=record_id, actor=actor)
         updated = await eng._require_started().get_record(record_id)
         assert updated is not None
     await eng._audit_action(
@@ -461,9 +457,7 @@ async def reject_quarantined(
                 },
             )
         )
-        _log.warning(
-            "memory.quarantine_rejected", namespace=ns, record_id=record_id, actor=actor
-        )
+        _log.warning("memory.quarantine_rejected", namespace=ns, record_id=record_id, actor=actor)
         updated = await eng._require_started().get_record(record_id)
         assert updated is not None
     await eng._audit_action("reject_quarantined", ns, [record_id], actor=actor, reason=reason)

@@ -20,7 +20,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 
-from memspine_evals.inspect.assemble import FILES, assemble, load_jsonl  # noqa: E402
+from memspine_evals.inspect.assemble import FILES, assemble, load_jsonl
 
 TEMPLATE = HERE / "memspine_evals" / "inspect" / "inspector_template.html"
 ANALYSIS = HERE / "runs" / "_analysis" / "inspect"
@@ -37,7 +37,12 @@ def load_bundle(d: Path) -> dict:
 def embed(data: dict) -> str:
     s = json.dumps(data, ensure_ascii=False, separators=(",", ":"), default=str)
     bs = chr(92)
-    return s.replace("</", "<" + bs + "/").replace("<!--", "<" + bs + "!--").replace(" ", bs + "u2028").replace(" ", bs + "u2029")
+    return (
+        s.replace("</", "<" + bs + "/")
+        .replace("<!--", "<" + bs + "!--")
+        .replace(" ", bs + "u2028")
+        .replace(" ", bs + "u2029")
+    )
 
 
 def build(bundle_dir: Path, out: Path | None = None) -> Path:
@@ -66,7 +71,11 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--compare")
     ap.add_argument("--out")
     ap.add_argument("--no-content", action="store_true")
-    ap.add_argument("--demo", action="store_true", help="build evals/runs/_analysis/inspect/demo/index.html from the invented fixture")
+    ap.add_argument(
+        "--demo",
+        action="store_true",
+        help="build evals/runs/_analysis/inspect/demo/index.html from the invented fixture",
+    )
     a = ap.parse_args(argv)
     if a.demo:
         p = build_demo(Path(a.out) if a.out else None)

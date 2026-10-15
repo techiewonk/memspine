@@ -65,9 +65,14 @@ def test_stratified_sample_is_seeded_proportional():
 
 
 def test_focus_scoring_verdicts():
-    sl = {"fail": ["c/f1", "c/f2"], "control": ["c/k1", "c/k2"], "n_correct_total": 100, "n_total": 1540,
-          "category": {"c/f1": "cat1", "c/f2": "cat1", "c/k1": "cat1", "c/k2": "cat2"}}
-    row = lambda ok: {"score": 1.0 if ok else 0.0, "status": "completed", "answer": "x"}  # noqa: E731
+    sl = {
+        "fail": ["c/f1", "c/f2"],
+        "control": ["c/k1", "c/k2"],
+        "n_correct_total": 100,
+        "n_total": 1540,
+        "category": {"c/f1": "cat1", "c/f2": "cat1", "c/k1": "cat1", "c/k2": "cat2"},
+    }
+    row = lambda ok: {"score": 1.0 if ok else 0.0, "status": "completed", "answer": "x"}
     arm = {"c/f1": row(True), "c/f2": row(False), "c/k1": row(True), "c/k2": row(False)}
     r = eval_focus.score_locomo(arm, sl)
     assert (r["fixed"], r["broken"]) == (1, 1)

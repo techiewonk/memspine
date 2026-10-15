@@ -23,7 +23,11 @@ HERE = Path(__file__).parent
 
 def correct(d: dict) -> bool:
     sc = d.get("score_date_checked", d.get("score"))
-    return float(sc or 0) >= 1 and d.get("status") == "completed" and bool((d.get("answer") or "").strip())
+    return (
+        float(sc or 0) >= 1
+        and d.get("status") == "completed"
+        and bool((d.get("answer") or "").strip())
+    )
 
 
 def results_path(runs: Path, run: str) -> Path:
@@ -40,11 +44,17 @@ def load(runs: Path, run: str) -> dict[str, dict]:
 
 
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     ap.add_argument("arm")
     ap.add_argument("--ref", required=True)
     ap.add_argument("--runs-dir", type=Path, default=HERE / "runs")
-    ap.add_argument("--ledger-screen", default="", help="RUNBOOK2: also append the result to runs/_logs/v2_results.tsv")
+    ap.add_argument(
+        "--ledger-screen",
+        default="",
+        help="RUNBOOK2: also append the result to runs/_logs/v2_results.tsv",
+    )
     ap.add_argument("--ledger-mode", default="final")
     ap.add_argument("--ledger-arm", default="")
     ap.add_argument("--ledger-commit", default="")
@@ -53,16 +63,28 @@ def main(argv: list[str] | None = None) -> int:
         ap.error("--ref must name a different run than the arm")
     arm, ref = load(a.runs_dir, a.arm), load(a.runs_dir, a.ref)
     label = {q: d.get("type_label", "?") for q, d in {**ref, **arm}.items()}
-    r = paired({q: correct(d) for q, d in arm.items()}, {q: correct(d) for q, d in ref.items()},
-               sorted(set(arm) | set(ref)), category_of=label.__getitem__,
-               arm_manifest=read_manifest(results_path(a.runs_dir, a.arm)),
-               ref_manifest=read_manifest(results_path(a.runs_dir, a.ref)))
+    r = paired(
+        {q: correct(d) for q, d in arm.items()},
+        {q: correct(d) for q, d in ref.items()},
+        sorted(set(arm) | set(ref)),
+        category_of=label.__getitem__,
+        arm_manifest=read_manifest(results_path(a.runs_dir, a.arm)),
+        ref_manifest=read_manifest(results_path(a.runs_dir, a.ref)),
+    )
     for line in format_result(f"{a.arm} vs {a.ref}", r):
         print(line)
     if a.ledger_screen:
         import v2_ledger
-        v2_ledger.append_paired(r, mode=a.ledger_mode, screen=a.ledger_screen, arm=a.ledger_arm or a.arm, reference=a.ref,
-                                commit=a.ledger_commit, slice_id="full")
+
+        v2_ledger.append_paired(
+            r,
+            mode=a.ledger_mode,
+            screen=a.ledger_screen,
+            arm=a.ledger_arm or a.arm,
+            reference=a.ref,
+            commit=a.ledger_commit,
+            slice_id="full",
+        )
     print(f"verdict: {r.verdict}")
     return 0
 

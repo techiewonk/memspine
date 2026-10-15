@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """W2-06c: the W2-13 pre-pass and W2-09 resolver as KNOWN sources of the W2-06b prompt. Model-free."""
 
 from __future__ import annotations
@@ -22,7 +21,9 @@ from memspine.derive.prepass import Prepass
 from memspine.derive.prompt_context import KnownEntity, PromptContextBuilder
 
 T0 = datetime(2023, 6, 1, 9, 0, tzinfo=UTC)
-TEXT = "[1] [2023-06-01] Mira: Bram booked a trip to Kelmark.\n[2] [2023-06-01] Mira: Ilsa said hello."
+TEXT = (
+    "[1] [2023-06-01] Mira: Bram booked a trip to Kelmark.\n[2] [2023-06-01] Mira: Ilsa said hello."
+)
 
 
 class _Stage:
@@ -76,16 +77,22 @@ async def test_end_to_end_prompt_carries_prepass_names_and_resolver_aliases(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     llm = WindowLLM()
-    eng = await _engine(
-        monkeypatch, llm, prompt_v2=True, prepass="rules", resolver_v2=True
-    )
+    eng = await _engine(monkeypatch, llm, prompt_v2=True, prepass="rules", resolver_v2=True)
     try:
         reg = eng._entity_resolve_stage.registry
         reg.create(("a",), "e1", "Ilse Verhoeven")
         reg.add_alias(("a",), "e1", "Ilsa V")
         msgs = [
-            {"role": "user", "content": "Mira: Bram booked a trip to Kelmark.", "timestamp": T0.isoformat()},
-            {"role": "user", "content": "Mira: Ilse Verhoeven joined him.", "timestamp": (T0 + timedelta(minutes=1)).isoformat()},
+            {
+                "role": "user",
+                "content": "Mira: Bram booked a trip to Kelmark.",
+                "timestamp": T0.isoformat(),
+            },
+            {
+                "role": "user",
+                "content": "Mira: Ilse Verhoeven joined him.",
+                "timestamp": (T0 + timedelta(minutes=1)).isoformat(),
+            },
         ]
         await _send(eng, "a", "s1", msgs)
         await eng.flush_windows()

@@ -1067,19 +1067,22 @@ class MemspineSystem:
             "pool": rank(stages.get("pool", [])),
             "reranker": stages.get("reranker"),
             # I24: trigger decisions the engine records (absent when the path did not run)
-            **{k: stages[k] for k in (
-                "bridge_gate",
-                "bridge_phrases",
-                "decider",
-                # I74: the read-path decider decisions and the relevance-gate info
-                "decisions",
-                "relevance_calibration",
-                "relevance_bypass",
-                # I67: the agentic read's steps (action, query, new ids, calls, seconds)
-                "agentic",
-                "agentic_steps",
-            )
-            if k in stages},
+            **{
+                k: stages[k]
+                for k in (
+                    "bridge_gate",
+                    "bridge_phrases",
+                    "decider",
+                    # I74: the read-path decider decisions and the relevance-gate info
+                    "decisions",
+                    "relevance_calibration",
+                    "relevance_bypass",
+                    # I67: the agentic read's steps (action, query, new ids, calls, seconds)
+                    "agentic",
+                    "agentic_steps",
+                )
+                if k in stages
+            },
             "rerank_scores": rank(stages.get("rerank_scores", [])),
             "final": rank(stages.get("final", [])),
             "context_records": [
@@ -1188,11 +1191,13 @@ class MemspineSystem:
             as_of = {**as_of, "session_id": self._read_session}
 
         log_dirs = self._log_dirs()
-        from memspine.observability.trace import search_forensics
         from memspine.models.encoders.query.perspective import asker_scope
+        from memspine.observability.trace import search_forensics
 
-        with search_forensics() as stages, asker_scope(self._asker), self._scope(
-            query_id=self._query_id
+        with (
+            search_forensics() as stages,
+            asker_scope(self._asker),
+            self._scope(query_id=self._query_id),
         ):
             if self._read_mode:
                 result = await self._memory.read(

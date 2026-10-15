@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """LIB-16: details of the rule contract (time anchoring, language, personal flag, header). Invented names only."""
 
 from __future__ import annotations

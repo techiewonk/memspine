@@ -22,7 +22,7 @@ _EVALS = Path(__file__).resolve().parents[3] / "evals"
 if str(_EVALS) not in sys.path:
     sys.path.insert(0, str(_EVALS))
 
-from labelled.loader import load_entity_pairs  # noqa: E402
+from labelled.loader import load_entity_pairs
 
 
 def _v(

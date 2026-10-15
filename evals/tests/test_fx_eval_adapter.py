@@ -36,7 +36,9 @@ class _CloseLLM:
         return json.dumps(
             {
                 "summary": {"text": "Ilse talks about plants and trips."},
-                "episodes": [{"text": "Ilse discussed her orchid and a kayak tour.", "lines": lines}],
+                "episodes": [
+                    {"text": "Ilse discussed her orchid and a kayak tour.", "lines": lines}
+                ],
                 "profile_ops": [],
             }
         )
@@ -52,7 +54,9 @@ def _config(**offline: Any) -> dict[str, Any]:
     }
 
 
-async def _run(monkeypatch: pytest.MonkeyPatch, config: dict[str, Any]) -> tuple[Any, Any, _CloseLLM]:
+async def _run(
+    monkeypatch: pytest.MonkeyPatch, config: dict[str, Any]
+) -> tuple[Any, Any, _CloseLLM]:
     llm = _CloseLLM()
 
     async def router(cfg: Any, hooks: object = None) -> Any:
@@ -65,7 +69,9 @@ async def _run(monkeypatch: pytest.MonkeyPatch, config: dict[str, Any]) -> tuple
     await system.reset("item")
     for sid, day in (("s1", "01"), ("s2", "02")):
         for i, text in enumerate(_TEXTS):
-            await system.insert(Turn(f"{sid}-{i}", sid, "Ilse", text, timestamp=f"2023-05-{day}T10:0{i}:00"))
+            await system.insert(
+                Turn(f"{sid}-{i}", sid, "Ilse", text, timestamp=f"2023-05-{day}T10:0{i}:00")
+            )
     built = await system.build()
     return system, built, llm
 

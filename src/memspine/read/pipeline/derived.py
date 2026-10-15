@@ -98,8 +98,12 @@ def place_derived(
             front.append(rec)
     kept = derived[:cap]
     if tap.enabled():
-        tap.event("read.derived_cap", cap=cap, kept=[r.record_id for r in kept],
-                  dropped=[r.record_id for r in derived[cap:]])
+        tap.event(
+            "read.derived_cap",
+            cap=cap,
+            kept=[r.record_id for r in kept],
+            dropped=[r.record_id for r in derived[cap:]],
+        )
     return front, [*turns, *kept]
 
 

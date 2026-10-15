@@ -319,20 +319,23 @@ async def _feedback_v2(
     if target is None or target.namespace != ns or target.status is RecordStatus.DELETED:
         raise ConflictError(f"no such record {record_id!r} in namespace {ns!r}")
     kind = signal if signal in _V2_KINDS else "rating"
-    eid = "fb_" + fingerprint_payload(
-        {
-            "ns": ns,
-            "record": record_id,
-            "signal": signal,
-            "channel": channel,
-            "value": repr(new_value),
-            "text": new_text,
-            "rating": rating,
-            "turn": turn,
-            "source": source_id,
-            "note": note,
-        }
-    )[:24]
+    eid = (
+        "fb_"
+        + fingerprint_payload(
+            {
+                "ns": ns,
+                "record": record_id,
+                "signal": signal,
+                "channel": channel,
+                "value": repr(new_value),
+                "text": new_text,
+                "rating": rating,
+                "turn": turn,
+                "source": source_id,
+                "note": note,
+            }
+        )[:24]
+    )
     try:
         event = fb.FeedbackEvent(
             event_id=eid,

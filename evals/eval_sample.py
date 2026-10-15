@@ -28,12 +28,17 @@ HERE = Path(__file__).parent
 BOOT_REPS = 2000
 BOOT_SEED = 7
 OPB_TIE = 0.05  # graded OP-Bench scores closer than this are a tie (judge noise)
-SLICE_FILE = {"loc": "sample_slice_loc_80_s20261013.json", "opb": "sample_slice_opb_60_s20261013.json"}
+SLICE_FILE = {
+    "loc": "sample_slice_loc_80_s20261013.json",
+    "opb": "sample_slice_opb_60_s20261013.json",
+}
 
 
 def correct(d: dict) -> bool:
     sc = d.get("score_date_checked", d.get("score"))
-    return float(sc or 0) >= 1 and d["status"] == "completed" and bool((d.get("answer") or "").strip())
+    return (
+        float(sc or 0) >= 1 and d["status"] == "completed" and bool((d.get("answer") or "").strip())
+    )
 
 
 def read_rows(path: Path) -> dict[str, dict]:
@@ -50,8 +55,14 @@ def opb_scores(run_dir: Path, rows: dict[str, dict]) -> dict[str, float]:
     return {k: float(per[d["query_id"]]) for k, d in rows.items() if d["query_id"] in per}
 
 
-def describe(arm: dict[str, float], ref: dict[str, float], ids: list[str], cat: dict[str, str], tie: float = 0.0,
-             scale: float = 100.0) -> dict:
+def describe(
+    arm: dict[str, float],
+    ref: dict[str, float],
+    ids: list[str],
+    cat: dict[str, str],
+    tie: float = 0.0,
+    scale: float = 100.0,
+) -> dict:
     """Paired descriptive statistics over the ids present in both runs (scores are 0/1 or graded 0..1)."""
     shared = [q for q in ids if q in arm and q in ref]
     diffs = {q: arm[q] - ref[q] for q in shared}
@@ -63,15 +74,26 @@ def describe(arm: dict[str, float], ref: dict[str, float], ids: list[str], cat: 
     if n:
         rng = random.Random(BOOT_SEED)
         vals = [diffs[q] for q in shared]
-        draws = sorted(scale * sum(rng.choice(vals) for _ in range(n)) / n for _ in range(BOOT_REPS))
+        draws = sorted(
+            scale * sum(rng.choice(vals) for _ in range(n)) / n for _ in range(BOOT_REPS)
+        )
         lo, hi = draws[int(0.025 * BOOT_REPS)], draws[int(0.975 * BOOT_REPS) - 1]
     by: dict[str, list[int]] = defaultdict(lambda: [0, 0, 0])
     for q in shared:
         c = cat.get(q, "?")
         by[c][0 if q in wins else 1 if q in losses else 2] += 1
-    return {"n": n, "n_expected": len(ids), "wins": len(wins), "losses": len(losses), "ties": n - len(wins) - len(losses),
-            "net": len(wins) - len(losses), "delta": delta, "ci_low": lo, "ci_high": hi,
-            "by_category": {c: tuple(v) for c, v in sorted(by.items())}}
+    return {
+        "n": n,
+        "n_expected": len(ids),
+        "wins": len(wins),
+        "losses": len(losses),
+        "ties": n - len(wins) - len(losses),
+        "net": len(wins) - len(losses),
+        "delta": delta,
+        "ci_low": lo,
+        "ci_high": hi,
+        "by_category": {c: tuple(v) for c, v in sorted(by.items())},
+    }
 
 
 def target_report(sl: dict, arm: dict[str, float], ref: dict[str, float]) -> dict | None:
@@ -93,21 +115,36 @@ def target_report(sl: dict, arm: dict[str, float], ref: dict[str, float]) -> dic
     for q in wrong:
         by[cls.get(q, "?")][1] += 1
         by[cls.get(q, "?")][0] += q in rec
-    return {"tgt_rec": f"{len(rec)}/{len(wrong)}", "ctl_lost": f"{len(lost)}/{len(right)}", "n_rec": len(rec),
-            "n_wrong": len(wrong), "n_lost": len(lost), "n_controls": len(right),
-            "by_class": {c: tuple(v) for c, v in sorted(by.items())}}
+    return {
+        "tgt_rec": f"{len(rec)}/{len(wrong)}",
+        "ctl_lost": f"{len(lost)}/{len(right)}",
+        "n_rec": len(rec),
+        "n_wrong": len(wrong),
+        "n_lost": len(lost),
+        "n_controls": len(right),
+        "by_class": {c: tuple(v) for c, v in sorted(by.items())},
+    }
 
 
-def cost_latency(rows: dict[str, dict], ids: list[str]) -> tuple[int, float, float | None, float | None]:
+def cost_latency(
+    rows: dict[str, dict], ids: list[str]
+) -> tuple[int, float, float | None, float | None]:
     tokens, usd, lat = 0, 0.0, []
     for q in ids:
         d = rows.get(q)
         if not d:
             continue
-        tokens += int(float(d.get("prompt_tokens") or 0)) + int(float(d.get("completion_tokens") or 0))
+        tokens += int(float(d.get("prompt_tokens") or 0)) + int(
+            float(d.get("completion_tokens") or 0)
+        )
         meta = d.get("meta") or {}
         usd += float(meta.get("spend_usd") or 0) if isinstance(meta, dict) else 0.0
-        lat.append(sum(float(d.get(k) or 0) for k in ("latency_retrieve_ms", "latency_answer_ms", "latency_judge_ms")))
+        lat.append(
+            sum(
+                float(d.get(k) or 0)
+                for k in ("latency_retrieve_ms", "latency_answer_ms", "latency_judge_ms")
+            )
+        )
     return tokens, usd, percentile(lat, 50) if lat else None, percentile(lat, 95) if lat else None
 
 
@@ -132,12 +169,19 @@ def main() -> None:
     a = ap.parse_args()
     if a.arm_run == a.ref:
         ap.error("--ref must name a different run than the arm")
-    sl = json.loads((a.slice or HERE / "analysis" / SLICE_FILE[a.which]).read_text(encoding="utf-8"))
+    sl = json.loads(
+        (a.slice or HERE / "analysis" / SLICE_FILE[a.which]).read_text(encoding="utf-8")
+    )
     ids, cat = list(sl["query_ids"]), sl.get("category", {})
     arm_dir, ref_dir = a.runs_dir / f"{a.arm_run}--memspine", a.runs_dir / f"{a.ref}--memspine"
     arm_rows, ref_rows = read_rows(arm_dir / "results.jsonl"), read_rows(ref_dir / "results.jsonl")
     if a.which == "opb":
-        arm_s, ref_s, tie, unit = opb_scores(arm_dir, arm_rows), opb_scores(ref_dir, ref_rows), OPB_TIE, "points of mean score"
+        arm_s, ref_s, tie, unit = (
+            opb_scores(arm_dir, arm_rows),
+            opb_scores(ref_dir, ref_rows),
+            OPB_TIE,
+            "points of mean score",
+        )
     else:
         arm_s = {q: float(correct(d)) for q, d in arm_rows.items()}
         ref_s = {q: float(correct(d)) for q, d in ref_rows.items()}
@@ -148,36 +192,73 @@ def main() -> None:
     key = comparability_key(am) if am else ""
     tokens, usd, p50, p95 = cost_latency(arm_rows, ids)
     per_cat = ";".join(f"{c}:+{w}/-{lo}/={t}" for c, (w, lo, t) in r["by_category"].items())
-    print(f"SAMPLE {a.arm_run} vs {a.ref} ({a.which}, slice {sl['slice_id']} {sl['hash'][:10]}): DESCRIPTIVE ONLY, no verdict")
-    print(f"   n={r['n']}/{r['n_expected']}  wins {r['wins']}  losses {r['losses']}  ties {r['ties']}  net {r['net']:+d}")
-    print(f"   delta {r['delta']:+.2f} {unit}, paired bootstrap 95% [{r['ci_low']:+.2f}, {r['ci_high']:+.2f}] (a spread over the sample, not a test)")
+    print(
+        f"SAMPLE {a.arm_run} vs {a.ref} ({a.which}, slice {sl['slice_id']} {sl['hash'][:10]}): DESCRIPTIVE ONLY, no verdict"
+    )
+    print(
+        f"   n={r['n']}/{r['n_expected']}  wins {r['wins']}  losses {r['losses']}  ties {r['ties']}  net {r['net']:+d}"
+    )
+    print(
+        f"   delta {r['delta']:+.2f} {unit}, paired bootstrap 95% [{r['ci_low']:+.2f}, {r['ci_high']:+.2f}] (a spread over the sample, not a test)"
+    )
     for c, (w, lo, t) in r["by_category"].items():
         print(f"   {c:20s} +{w}/-{lo}/={t}")
     tr = target_report(sl, arm_s, ref_s)
     if tr:
-        print(f"   TARGETED SLICE ({sl.get('family', '?')}): not an estimate of overall accuracy. Read these two:")
-        print(f"   tgt_rec {tr['tgt_rec']}  (target-class questions recovered / wrong targets in the reference)")
+        print(
+            f"   TARGETED SLICE ({sl.get('family', '?')}): not an estimate of overall accuracy. Read these two:"
+        )
+        print(
+            f"   tgt_rec {tr['tgt_rec']}  (target-class questions recovered / wrong targets in the reference)"
+        )
         print(f"   ctl_lost {tr['ctl_lost']}  (controls lost / controls the reference had right)")
         for c, (g, n) in tr["by_class"].items():
             print(f"      {c:36s} recovered {g}/{n}")
-    print(f"   cost {tokens} tokens, ${usd:.4f}; latency p50 {p50 or 0:.0f} ms, p95 {p95 or 0:.0f} ms (retrieve+answer+judge)")
+    print(
+        f"   cost {tokens} tokens, ${usd:.4f}; latency p50 {p50 or 0:.0f} ms, p95 {p95 or 0:.0f} ms (retrieve+answer+judge)"
+    )
     if r["n"] < r["n_expected"]:
-        print(f"   WARNING: {r['n_expected'] - r['n']} sample questions missing from the arm or the reference run")
+        print(
+            f"   WARNING: {r['n_expected'] - r['n']} sample questions missing from the arm or the reference run"
+        )
     if diff:
-        print(f"   WARNING: manifests differ on {', '.join(diff)} (comparison is not like for like)")
+        print(
+            f"   WARNING: manifests differ on {', '.join(diff)} (comparison is not like for like)"
+        )
     elif not (am and rm):
         print("   WARNING: manifest missing: comparability not verified")
     if not a.no_ledger:
-        v2_ledger.append({
-            "mode": a.mode, "screen": a.screen, "arm": a.arm or a.arm_run, "arm_digest": file_digest(a.arm_file),
-            "reference": a.ref, "commit": a.commit, "slice_id": sl["slice_id"], "slice_hash": sl.get("manifest_hash", sl["hash"][:16]),
-            "n": r["n"], "wins": r["wins"], "losses": r["losses"], "ties": r["ties"], "net": r["net"],
-            "delta": f"{r['delta']:.3f}", "ci_low": f"{r['ci_low']:.3f}", "ci_high": f"{r['ci_high']:.3f}",
-            "per_category": per_cat, "cost": f"tokens={tokens};usd={usd:.4f}",
-            "latency_p50_ms": f"{p50 or 0:.0f}", "latency_p95_ms": f"{p95 or 0:.0f}", "comparability_key": key,
-            "tgt_rec": tr["tgt_rec"] if tr else "", "ctl_lost": tr["ctl_lost"] if tr else "",
-            "verdict": "DESCRIPTIVE", "notes": (a.notes + (" | INCOMPARABLE: " + ",".join(diff) if diff else "")).strip(" |"),
-        })
+        v2_ledger.append(
+            {
+                "mode": a.mode,
+                "screen": a.screen,
+                "arm": a.arm or a.arm_run,
+                "arm_digest": file_digest(a.arm_file),
+                "reference": a.ref,
+                "commit": a.commit,
+                "slice_id": sl["slice_id"],
+                "slice_hash": sl.get("manifest_hash", sl["hash"][:16]),
+                "n": r["n"],
+                "wins": r["wins"],
+                "losses": r["losses"],
+                "ties": r["ties"],
+                "net": r["net"],
+                "delta": f"{r['delta']:.3f}",
+                "ci_low": f"{r['ci_low']:.3f}",
+                "ci_high": f"{r['ci_high']:.3f}",
+                "per_category": per_cat,
+                "cost": f"tokens={tokens};usd={usd:.4f}",
+                "latency_p50_ms": f"{p50 or 0:.0f}",
+                "latency_p95_ms": f"{p95 or 0:.0f}",
+                "comparability_key": key,
+                "tgt_rec": tr["tgt_rec"] if tr else "",
+                "ctl_lost": tr["ctl_lost"] if tr else "",
+                "verdict": "DESCRIPTIVE",
+                "notes": (a.notes + (" | INCOMPARABLE: " + ",".join(diff) if diff else "")).strip(
+                    " |"
+                ),
+            }
+        )
         print(f"   ledger: {v2_ledger.results_path()}")
 
 

@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """FU-GAPS: the known non-GPU gaps. Model-free stubs, hash embedder."""
 
 from __future__ import annotations
@@ -74,7 +73,9 @@ async def test_whole_reply_unparseable_is_re_asked_once(monkeypatch: pytest.Monk
         await eng.stop()
 
 
-async def test_still_unparseable_after_the_re_ask_fails_closed(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_still_unparseable_after_the_re_ask_fails_closed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     llm = _FlakyOnce(2)
     eng, stats = await _run(monkeypatch, llm, n=3, window_extract="all", prompt_v2=True)
     try:
@@ -92,7 +93,12 @@ async def test_filler_window_asks_for_the_episode_only(monkeypatch: pytest.Monke
     llm = FakeWindowLLM()
     eng = await legacy_engine(monkeypatch, llm, mode="all", prepass="rules")
     try:
-        await _send(eng, "a", "s1", [{"role": "user", "content": "Ilse: Hi!"}, {"role": "user", "content": "Bram: thanks"}])
+        await _send(
+            eng,
+            "a",
+            "s1",
+            [{"role": "user", "content": "Ilse: Hi!"}, {"role": "user", "content": "Bram: thanks"}],
+        )
         stats = await eng.flush_windows()
         assert llm.calls == [["episode"]]
         assert stats["windows_prepass_skipped"] == 0
@@ -108,7 +114,12 @@ async def test_episode_only_in_the_one_call_path(monkeypatch: pytest.MonkeyPatch
     llm = WindowLLM()
     eng = await _engine_for(monkeypatch, llm)
     try:
-        await _send(eng, "a", "s1", [{"role": "user", "content": "Ilse: Hi!"}, {"role": "user", "content": "Bram: thanks"}])
+        await _send(
+            eng,
+            "a",
+            "s1",
+            [{"role": "user", "content": "Ilse: Hi!"}, {"role": "user", "content": "Bram: thanks"}],
+        )
         stats = await eng.flush_windows()
         asked = [m[-1]["content"] for m, _ in llm.requests if "NEW:\n" in m[-1]["content"]]
         assert len(asked) == 1 and "Sections: episode." in asked[0]
@@ -172,9 +183,7 @@ async def _learn_run(
     llm = ItemLLM()
     if coin:
         llm.mutations[0] = lambda item: {**item, "kind": "hobby"}
-    eng = await _engine(
-        monkeypatch, llm, path, prepass="rules", learned_persist=persist
-    )
+    eng = await _engine(monkeypatch, llm, path, prepass="rules", learned_persist=persist)
     try:
         await _send(eng, "a", "s1", _turns("trip", 3))
         await eng.flush_windows()
@@ -213,7 +222,9 @@ def test_kind_registry_restore_respects_the_cap() -> None:
 
 
 # --- 5. the compiled envelope is stored and read back ---------------------------------------
-async def test_get_envelope_reads_back_the_compiled_envelope(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_get_envelope_reads_back_the_compiled_envelope(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     from test_w2_06a_envelope import ItemLLM, _engine
     from test_window_write import _send, _turns
 
@@ -286,8 +297,13 @@ async def _graph() -> tuple[Any, Any]:
     fake = FakeNeo4j()
     g = Neo4jGraphStore(fake)
     for src, dst, w, ns in [
-        ("a", "b", 1.0, NS), ("b", "c", 0.8, NS), ("c", "d", 1.0, NS), ("a", "x", 0.0, NS),
-        ("a", "y", 1.0, NS2), ("d", "a", 0.5, NS), ("e", "f", 1.0, NS),
+        ("a", "b", 1.0, NS),
+        ("b", "c", 0.8, NS),
+        ("c", "d", 1.0, NS),
+        ("a", "x", 0.0, NS),
+        ("a", "y", 1.0, NS2),
+        ("d", "a", 0.5, NS),
+        ("e", "f", 1.0, NS),
     ]:
         await g.upsert_edge(src, dst, "related", {"weight": w}, namespace=ns)
     await g.upsert_edge("b", "z", "likes", {"weight": 1.0}, namespace=NS)
@@ -305,7 +321,9 @@ async def test_neighbors_is_one_query_and_matches_the_stepwise_walk() -> None:
             for rel in (None, "related"):
                 fake.calls.clear()
                 got = await g.neighbors("a", rel, depth, namespace=ns)
-                assert fake.calls == ["walk_nodes"], fake.calls  # one round trip, whatever the depth
+                assert fake.calls == ["walk_nodes"], (
+                    fake.calls
+                )  # one round trip, whatever the depth
                 dist, _ = await g._walk(["a"], depth, ns, None, rel)  # the per-hop loop it replaces
                 want = sorted((d, n) for n, d in dist.items() if n != "a")
                 assert [n.node_id for n in got] == [n for _, n in want], (depth, ns, rel)
@@ -398,7 +416,13 @@ async def test_live_walks_match_the_stepwise_walk() -> None:
     )
     g = Neo4jGraphStore(ex)
     try:
-        edges = [("a", "b", 1.0), ("b", "c", 0.8), ("c", "d", 1.0), ("a", "x", 0.0), ("d", "a", 0.5)]
+        edges = [
+            ("a", "b", 1.0),
+            ("b", "c", 0.8),
+            ("c", "d", 1.0),
+            ("a", "x", 0.0),
+            ("d", "a", 0.5),
+        ]
         for src, dst, w in edges:
             await g.upsert_edge(src, dst, "related", {"weight": w}, namespace="ns1")
         await g.upsert_edge("a", "y", "related", {"weight": 1.0}, namespace="ns2")

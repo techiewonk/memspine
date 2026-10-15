@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """W2-14: temporal extraction by every means (``write.temporal_v2``): anchor ladder, basis and precision,
 relations without dates. Model-free: envelopes built directly, plus one window run with the stub window LLM.
 All text is invented (Ilse, Bram, Noor, Tomasz)."""

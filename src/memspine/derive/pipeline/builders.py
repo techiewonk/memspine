@@ -460,9 +460,7 @@ def _build_close_call(eng: Any) -> Callable[[list[dict[str, str]]], Awaitable[st
     llm = eng._llm.for_role(role)
 
     async def call(messages: list[dict[str, str]]) -> str:
-        tagged = RenderedMessages(
-            messages, prompt_id="session_close", prompt_version=CALL2_SCHEMA
-        )
+        tagged = RenderedMessages(messages, prompt_id="session_close", prompt_version=CALL2_SCHEMA)
         return await llm.chat(tagged)
 
     return call

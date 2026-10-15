@@ -17,8 +17,8 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent))
 
-from memspine_evals.local_dataset import load_locomo  # noqa: E402
-from memspine_evals.readers import inference_shape, is_inference_question  # noqa: E402
+from memspine_evals.local_dataset import load_locomo
+from memspine_evals.readers import inference_shape, is_inference_question
 
 M9 = "R14-M-9"
 
@@ -27,7 +27,9 @@ def main() -> None:
     data = load_locomo()
     if data is None:
         raise SystemExit("locomo10.json not on disk (set MEMSPINE_LOCOMO_PATH)")
-    master = json.loads((HERE.parent.parent / "docs/v2/data/r14_master.json").read_text(encoding="utf-8"))
+    master = json.loads(
+        (HERE.parent.parent / "docs/v2/data/r14_master.json").read_text(encoding="utf-8")
+    )
     m9_ids = next(i["evidence"]["question_ids"] for i in master["items"] if i["id"] == M9)
     per_cat: dict[int, Counter] = {}
     reasons: Counter = Counter()
@@ -59,7 +61,11 @@ def main() -> None:
         "item": M9,
         "note": "counts only; firing = the gate would add the commit clause / use the inference retry",
         "per_category": {
-            str(k): {**dict(v), "v1_rate": round(v["gated_v1"] / v["n"], 4), "v2_rate": round(v["gated_v2"] / v["n"], 4)}
+            str(k): {
+                **dict(v),
+                "v1_rate": round(v["gated_v1"] / v["n"], 4),
+                "v2_rate": round(v["gated_v2"] / v["n"], 4),
+            }
             for k, v in sorted(per_cat.items())
         },
         "m9": {

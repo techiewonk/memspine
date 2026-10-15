@@ -17,7 +17,13 @@ import math
 from pathlib import Path
 
 RUNS = Path(__file__).parent / "runs"
-CATS = (("cat4", "single"), ("cat1", "multi"), ("cat2", "temporal"), ("cat3", "open"), ("cat5", "cat5"))
+CATS = (
+    ("cat4", "single"),
+    ("cat1", "multi"),
+    ("cat2", "temporal"),
+    ("cat3", "open"),
+    ("cat5", "cat5"),
+)
 SUBS = (
     "irrelevance_fully_irrelevant",
     "irrelevance_baiting",
@@ -37,7 +43,11 @@ def locomo(run: str) -> dict[str, tuple[bool, str]]:
         if d.get("kind") != "result":
             continue
         sc = d.get("score_date_checked", d.get("score"))
-        ok = float(sc or 0) >= 1 and d["status"] == "completed" and bool((d.get("answer") or "").strip())
+        ok = (
+            float(sc or 0) >= 1
+            and d["status"] == "completed"
+            and bool((d.get("answer") or "").strip())
+        )
         out[d["query_id"]] = (ok, d["type_label"])
     return out
 
@@ -82,7 +92,11 @@ def main() -> None:
     ap.add_argument("screen")
     ap.add_argument("--loc-ref", default="xb-loc-dev")
     ap.add_argument("--opb-ref", default="xb-opb-dev")
-    ap.add_argument("--loc-suffix", default="loc", help="LoCoMo run suffix: loc (304-q screens) or full (1,540 q)")
+    ap.add_argument(
+        "--loc-suffix",
+        default="loc",
+        help="LoCoMo run suffix: loc (304-q screens) or full (1,540 q)",
+    )
     a = ap.parse_args()
     deltas = []
     guard_ok = True
@@ -97,19 +111,27 @@ def main() -> None:
         acc_n = 100 * sum(new[q][0] for q in qs) / len(qs)
         band = 0.328 * math.sqrt(len(qs))
         net = len(gained) - len(lost)
-        print(f"LoCoMo {loc_run} vs {a.loc_ref} on {len(qs)} q: {acc_n:.1f} vs {acc_r:.1f}  +{len(gained)}/-{len(lost)} net {net:+d} (band +-{band:.1f})")
+        print(
+            f"LoCoMo {loc_run} vs {a.loc_ref} on {len(qs)} q: {acc_n:.1f} vs {acc_r:.1f}  +{len(gained)}/-{len(lost)} net {net:+d} (band +-{band:.1f})"
+        )
         for c, name in CATS:
             cq = [q for q in qs if new[q][1] == c]
             if cq:
-                print(f"   {name:8s} n={len(cq):3d} {100*sum(new[q][0] for q in cq)/len(cq):5.1f} vs {100*sum(ref[q][0] for q in cq)/len(cq):5.1f}")
+                print(
+                    f"   {name:8s} n={len(cq):3d} {100 * sum(new[q][0] for q in cq) / len(cq):5.1f} vs {100 * sum(ref[q][0] for q in cq) / len(cq):5.1f}"
+                )
         f_ref, f_new = locomo_f1(a.loc_ref), locomo_f1(loc_run)
         fq = [q for q in qs if q in f_ref and q in f_new and new[q][1] != "cat5"]
         if fq:
-            print(f"   F1 (official LoCoMo, cat 1-4, n={len(fq)}): {100*sum(f_new[q][0] for q in fq)/len(fq):.1f} vs {100*sum(f_ref[q][0] for q in fq)/len(fq):.1f}")
+            print(
+                f"   F1 (official LoCoMo, cat 1-4, n={len(fq)}): {100 * sum(f_new[q][0] for q in fq) / len(fq):.1f} vs {100 * sum(f_ref[q][0] for q in fq) / len(fq):.1f}"
+            )
             for c, name in CATS:
                 cq = [q for q in fq if new[q][1] == c]
                 if cq:
-                    print(f"      {name:8s} F1 {100*sum(f_new[q][0] for q in cq)/len(cq):5.1f} vs {100*sum(f_ref[q][0] for q in cq)/len(cq):5.1f}")
+                    print(
+                        f"      {name:8s} F1 {100 * sum(f_new[q][0] for q in cq) / len(cq):5.1f} vs {100 * sum(f_ref[q][0] for q in cq) / len(cq):5.1f}"
+                    )
         deltas.append(acc_n - acc_r)
         if net < -band:
             guard_ok = False
@@ -121,11 +143,15 @@ def main() -> None:
         print(f"OP-Bench {a.screen}-opb vs {a.opb_ref} (points, x100):")
         for k in SUBS:
             if k in ref_o and k in new_o:
-                print(f"   {k:30s} {100*new_o[k]:6.1f} vs {100*ref_o[k]:6.1f}  {100*(new_o[k]-ref_o[k]):+6.1f}")
+                print(
+                    f"   {k:30s} {100 * new_o[k]:6.1f} vs {100 * ref_o[k]:6.1f}  {100 * (new_o[k] - ref_o[k]):+6.1f}"
+                )
         key = next((k for k in ("official_overall", "overall") if k in ref_o and k in new_o), None)
         if key:
             d = 100 * (new_o[key] - ref_o[key])
-            print(f"   official overall               {100*new_o[key]:6.1f} vs {100*ref_o[key]:6.1f}  {d:+6.1f} (band +-{OPB_BAND})")
+            print(
+                f"   official overall               {100 * new_o[key]:6.1f} vs {100 * ref_o[key]:6.1f}  {d:+6.1f} (band +-{OPB_BAND})"
+            )
             deltas.append(d)
             if d < -OPB_BAND:
                 guard_ok = False
@@ -134,8 +160,14 @@ def main() -> None:
 
     if deltas:
         macro = sum(deltas) / len(deltas)
-        verdict = "ADOPT-CANDIDATE" if guard_ok and macro > 1.0 else ("REJECT (guard)" if not guard_ok else "NEUTRAL")
-        print(f"macro mean delta {macro:+.2f} pts over {len(deltas)} benchmark(s); guard {'ok' if guard_ok else 'FAILED'} -> {verdict}")
+        verdict = (
+            "ADOPT-CANDIDATE"
+            if guard_ok and macro > 1.0
+            else ("REJECT (guard)" if not guard_ok else "NEUTRAL")
+        )
+        print(
+            f"macro mean delta {macro:+.2f} pts over {len(deltas)} benchmark(s); guard {'ok' if guard_ok else 'FAILED'} -> {verdict}"
+        )
 
 
 if __name__ == "__main__":

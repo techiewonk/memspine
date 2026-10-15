@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """Strict-tier CI gate (S1-4): durable and public schemas change only with a version bump.
 
 ``docs/v2/schemas/{durable,public}/`` is the committed baseline. Each exported schema records its version

@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """TS-1/TS-3: the Tuning Studio API, structured results over the Trace Inspector step session.
 
 ``StudioAPI`` holds one :class:`~memspine_evals.inspect.step.StepSession` and exposes the tool
@@ -109,7 +108,11 @@ def _flatten(cfg: Mapping[str, Any], prefix: str = "") -> dict[str, Any]:
 def _coerce(value: Any) -> Any:
     if isinstance(value, str):
         text = value.strip()
-        if text[:1] in "[{\"" or text in ("true", "false", "null") or re.fullmatch(r"-?\d+(\.\d+)?([eE][-+]?\d+)?", text):
+        if (
+            text[:1] in '[{"'
+            or text in ("true", "false", "null")
+            or re.fullmatch(r"-?\d+(\.\d+)?([eE][-+]?\d+)?", text)
+        ):
             with contextlib.suppress(ValueError):
                 return json.loads(text)
     return value
@@ -131,7 +134,11 @@ class StudioAPI:
         self.out = Path(out) if out else DEFAULT_OUT
         self.allow_gpu = allow_gpu
         self.arms_dir = Path(arms_dir) if arms_dir else None
-        self.logs_dir = Path(logs_dir) if logs_dir else Path(os.environ.get("V2_LEDGER_DIR") or EVALS / "runs" / "_logs")
+        self.logs_dir = (
+            Path(logs_dir)
+            if logs_dir
+            else Path(os.environ.get("V2_LEDGER_DIR") or EVALS / "runs" / "_logs")
+        )
         self.launcher = launcher
         self._loop: asyncio.AbstractEventLoop | None = None
         self._log_seq = 0
@@ -172,7 +179,9 @@ class StudioAPI:
 
     def _init_log_seq(self) -> None:
         if self._log_seq == 0 and self.log_path.exists():
-            self._log_seq = sum(1 for line in self.log_path.read_text(encoding="utf-8").splitlines() if line.strip())
+            self._log_seq = sum(
+                1 for line in self.log_path.read_text(encoding="utf-8").splitlines() if line.strip()
+            )
 
     def call(self, tool: str, args: Mapping[str, Any] | None = None) -> tuple[Any, int]:
         """Dispatch ``tool`` with ``args``; returns ``(result, log_id)`` and appends a tuning.jsonl row."""
@@ -204,14 +213,50 @@ class StudioAPI:
         self._append_log(log_id, tool, args, t0, result, None)
         return result, log_id
 
-    def _append_log(self, log_id: int, tool: str, args: Mapping[str, Any], t0: float, result: Any, error: str | None) -> None:
+    def _append_log(
+        self,
+        log_id: int,
+        tool: str,
+        args: Mapping[str, Any],
+        t0: float,
+        result: Any,
+        error: str | None,
+    ) -> None:
         brief: Any = None
         if isinstance(result, dict):
-            brief = {k: (v if isinstance(v, str | int | float | bool) and len(str(v)) < 120 else f"<{type(v).__name__}>")
-                     for k, v in result.items() if k in ("ok", "applied", "passed", "queued", "refused", "reason", "mode", "path", "error", "summary", "counts")}
-        row = {"log_id": log_id, "ts": time.strftime("%Y-%m-%dT%H:%M:%S"), "tool": tool, "args": _jsonable(args),
-               "ok": error is None, "ms": round((time.perf_counter() - t0) * 1000), "result": _jsonable(brief), "error": error,
-               "session": self.session.run_id if self.session is not None else None}
+            brief = {
+                k: (
+                    v
+                    if isinstance(v, str | int | float | bool) and len(str(v)) < 120
+                    else f"<{type(v).__name__}>"
+                )
+                for k, v in result.items()
+                if k
+                in (
+                    "ok",
+                    "applied",
+                    "passed",
+                    "queued",
+                    "refused",
+                    "reason",
+                    "mode",
+                    "path",
+                    "error",
+                    "summary",
+                    "counts",
+                )
+            }
+        row = {
+            "log_id": log_id,
+            "ts": time.strftime("%Y-%m-%dT%H:%M:%S"),
+            "tool": tool,
+            "args": _jsonable(args),
+            "ok": error is None,
+            "ms": round((time.perf_counter() - t0) * 1000),
+            "result": _jsonable(brief),
+            "error": error,
+            "session": self.session.run_id if self.session is not None else None,
+        }
         try:
             self.out.mkdir(parents=True, exist_ok=True)
             with self.log_path.open("a", encoding="utf-8") as fh:
@@ -235,9 +280,9 @@ class StudioAPI:
             raise StudioError("no open session: call studio_open first", "no_session")
         return self.session
 
-
-
-    def _load_data(self, data: str | Path | Mapping[str, Any] | None) -> tuple[str, dict[str, dict[str, Any]]]:
+    def _load_data(
+        self, data: str | Path | Mapping[str, Any] | None
+    ) -> tuple[str, dict[str, dict[str, Any]]]:
         from ..inspect.assemble import load_dataset
 
         spec = data if data not in (None, "") else self.default_data
@@ -247,16 +292,24 @@ class StudioAPI:
         if spec == "demo":
             return "demo", load_dataset("demo")
         if spec == "locomo":
-            for cand in (os.environ.get("MEMSPINE_LOCOMO"), EVALS / "data" / "locomo10.json", EVALS / "data" / "locomo" / "locomo10.json",
-                         REPO / "data" / "locomo10.json"):
+            for cand in (
+                os.environ.get("MEMSPINE_LOCOMO"),
+                EVALS / "data" / "locomo10.json",
+                EVALS / "data" / "locomo" / "locomo10.json",
+                REPO / "data" / "locomo10.json",
+            ):
                 if cand and Path(cand).is_file():
                     return str(cand), load_dataset(str(cand))
-            raise StudioError("locomo data not found: pass data=<path to locomo10.json> or set MEMSPINE_LOCOMO")
+            raise StudioError(
+                "locomo data not found: pass data=<path to locomo10.json> or set MEMSPINE_LOCOMO"
+            )
         if not Path(spec).is_file():
             raise StudioError(f"data not found: {spec}")
         return spec, load_dataset(spec)
 
-    async def _start_session(self, replay: bool, carry: tuple[Any, Any, Any] | None = None, overrides_off: bool = False) -> None:
+    async def _start_session(
+        self, replay: bool, carry: tuple[Any, Any, Any] | None = None, overrides_off: bool = False
+    ) -> None:
         """A fresh StepSession on the open item. ``carry`` = (overrides, prompt_overrides, base dump) of the session it replaces."""
         from ..inspect import step
 
@@ -281,12 +334,23 @@ class StudioAPI:
             raise StudioError(f"mode must be offline, replay or live (got {self.mode!r})")
         self._sink = io.StringIO()
         s = step.StepSession(
-            self.ds, self.item, self.arm, out=self.out, stream=self._sink, config_override=copy.deepcopy(self.arm_cfg),
-            run_id=f"studio-{re.sub(r'[^A-Za-z0-9_.-]', '_', self.arm)}-{self.item}", **kw)
+            self.ds,
+            self.item,
+            self.arm,
+            out=self.out,
+            stream=self._sink,
+            config_override=copy.deepcopy(self.arm_cfg),
+            run_id=f"studio-{re.sub(r'[^A-Za-z0-9_.-]', '_', self.arm)}-{self.item}",
+            **kw,
+        )
         s.arms_dir = self.arms_dir
         s.questions.update(copy.deepcopy(self.custom_q))
         if carry is not None and not overrides_off:
-            s.overrides, s.prompt_overrides, s._base_dump = dict(carry[0]), copy.deepcopy(carry[1]), carry[2]
+            s.overrides, s.prompt_overrides, s._base_dump = (
+                dict(carry[0]),
+                copy.deepcopy(carry[1]),
+                carry[2],
+            )
             s.cfg = s._compose_cfg()
         await s.start()
         self.session = s
@@ -301,42 +365,81 @@ class StudioAPI:
     # ---- status
     def _gpu_state(self) -> dict[str, Any]:
         reserved = (self.logs_dir / "GPU_RESERVED").exists()
-        logs = sorted(self.logs_dir.glob("v2_*.log"), key=lambda p: p.stat().st_mtime) if self.logs_dir.is_dir() else []
+        logs = (
+            sorted(self.logs_dir.glob("v2_*.log"), key=lambda p: p.stat().st_mtime)
+            if self.logs_dir.is_dir()
+            else []
+        )
         latest = logs[-1] if logs else None
-        return {"allow_gpu": self.allow_gpu, "reserved": reserved,
-                "latest_log": latest.name if latest else None,
-                "latest_log_age_s": round(time.time() - latest.stat().st_mtime) if latest else None}
+        return {
+            "allow_gpu": self.allow_gpu,
+            "reserved": reserved,
+            "latest_log": latest.name if latest else None,
+            "latest_log_age_s": round(time.time() - latest.stat().st_mtime) if latest else None,
+        }
 
     async def _counts(self) -> dict[str, Any]:
         s = self.session
         recs = len(await s._records())
         wsess = list(OrderedDict.fromkeys(x["session"] for x in s.written))
-        windows = {r.get("window_id") for r in s.sink.rows if r["event"] == "write.window.members" and r.get("window_id")}
-        return {"turns_total": len(s.turns), "turns_written": len(s.written), "turns_custom": sum(1 for x in s.written if x.get("custom")),
-                "sessions_total": len(s._session_ids()), "sessions_written": len(wsess),
-                "sessions_closed": len(s.closed_sessions), "windows_open": len([x for x in wsess if x not in s.closed_sessions]),
-                "windows_formed": len(windows), "records": recs, "questions": len(s.questions), "slept": bool(s.slept)}
+        windows = {
+            r.get("window_id")
+            for r in s.sink.rows
+            if r["event"] == "write.window.members" and r.get("window_id")
+        }
+        return {
+            "turns_total": len(s.turns),
+            "turns_written": len(s.written),
+            "turns_custom": sum(1 for x in s.written if x.get("custom")),
+            "sessions_total": len(s._session_ids()),
+            "sessions_written": len(wsess),
+            "sessions_closed": len(s.closed_sessions),
+            "windows_open": len([x for x in wsess if x not in s.closed_sessions]),
+            "windows_formed": len(windows),
+            "records": recs,
+            "questions": len(s.questions),
+            "slept": bool(s.slept),
+        }
 
     def studio_status(self) -> dict[str, Any]:
         out: dict[str, Any] = {
-            "open": self.session is not None, "session": self.session.run_id if self.session else None,
-            "arm": self.arm or None, "data": self.data_spec or None, "item": self.item or None, "mode": self.mode if self.session else None,
-            "overrides": dict(self.overrides), "prompt_overrides": sorted(self.prompt_overrides),
-            "stale": list(self.stale), "last_verify": self.last_verify, "gpu": self._gpu_state(),
+            "open": self.session is not None,
+            "session": self.session.run_id if self.session else None,
+            "arm": self.arm or None,
+            "data": self.data_spec or None,
+            "item": self.item or None,
+            "mode": self.mode if self.session else None,
+            "overrides": dict(self.overrides),
+            "prompt_overrides": sorted(self.prompt_overrides),
+            "stale": list(self.stale),
+            "last_verify": self.last_verify,
+            "gpu": self._gpu_state(),
             "out": str(self.out),
         }
         if self.session is not None:
             s = self.session
             nxt = next((t for t in s.turns if t["turn_id"] not in s.written_ids), None)
-            out["cursor"] = {"next_turn_id": nxt["turn_id"] if nxt else None, "session": nxt["session"] if nxt else None}
+            out["cursor"] = {
+                "next_turn_id": nxt["turn_id"] if nxt else None,
+                "session": nxt["session"] if nxt else None,
+            }
             out["counts"] = self.run(self._counts())
             out["notes"] = list(s.notes)
-            out["questions"] = [{"qid": q, "category": v.get("category"), "question": v.get("question")} for q, v in s.questions.items()]
+            out["questions"] = [
+                {"qid": q, "category": v.get("category"), "question": v.get("question")}
+                for q, v in s.questions.items()
+            ]
         return out
 
     # ---- session lifecycle
-    def studio_open(self, data: Any = None, item: str | None = None, arm: str | None = None, mode: str = "offline",
-                    cache_dir: str | None = None) -> dict[str, Any]:
+    def studio_open(
+        self,
+        data: Any = None,
+        item: str | None = None,
+        arm: str | None = None,
+        mode: str = "offline",
+        cache_dir: str | None = None,
+    ) -> dict[str, Any]:
         spec, ds = self._load_data(data)
         if not ds:
             raise StudioError("the dataset has no items")
@@ -355,7 +458,14 @@ class StudioAPI:
         self.data_spec, self.ds, self.item, self.arm, self.mode = spec, ds, item, name, mode
         self.cache_dir = cache_dir
         self.arm_cfg = cfg
-        self.wlog, self.stale, self.last_asks, self.last_verify, self._baselines, self.custom_q = [], [], {}, None, {}, {}
+        self.wlog, self.stale, self.last_asks, self.last_verify, self._baselines, self.custom_q = (
+            [],
+            [],
+            {},
+            None,
+            {},
+            {},
+        )
         self.run(self._start_session(replay=False, carry=({}, {}, None)))
         return self.studio_status()
 
@@ -374,14 +484,16 @@ class StudioAPI:
             self.wlog = []
         return self.studio_status()
 
-    def studio_load_conversation(self, json: Any = None, **kw: Any) -> dict[str, Any]:  # noqa: A002 - the contract's field name
+    def studio_load_conversation(self, json: Any = None, **kw: Any) -> dict[str, Any]:
         import json as _json
 
         conv = json if json is not None else kw.get("conversation")
         if isinstance(conv, str):
             conv = _json.loads(conv)
         if not isinstance(conv, Mapping):
-            raise StudioError("json must be a conversation object in the demo shape (conversation_id, sessions, questions)")
+            raise StudioError(
+                "json must be a conversation object in the demo shape (conversation_id, sessions, questions)"
+            )
         s = self._need()
         _, ds = self._load_data(dict(conv))
         path = self.out / "inline_conversation.json"
@@ -389,7 +501,14 @@ class StudioAPI:
         path.write_text(_json.dumps(conv, ensure_ascii=False), encoding="utf-8")
         self.run(s.cmd_load(str(path)))
         self.data_spec, self.ds, self.item = "inline", ds, s.item
-        self.wlog, self.stale, self.last_asks, self.last_verify, self._baselines, self.custom_q = [], [], {}, None, {}, {}
+        self.wlog, self.stale, self.last_asks, self.last_verify, self._baselines, self.custom_q = (
+            [],
+            [],
+            {},
+            None,
+            {},
+            {},
+        )
         return self.studio_status()
 
     async def _replay(self) -> None:
@@ -414,7 +533,9 @@ class StudioAPI:
         raw = json.loads(STAGE_PARAMS.read_text(encoding="utf-8"))
         stages = raw.get("stages", raw) if isinstance(raw, dict) else raw
         if isinstance(stages, list):
-            return {str(s.get("stage_id") or s.get("stage")): s for s in stages if isinstance(s, dict)}
+            return {
+                str(s.get("stage_id") or s.get("stage")): s for s in stages if isinstance(s, dict)
+            }
         return {str(k): v for k, v in stages.items() if isinstance(v, dict)}
 
     def studio_stages(self) -> list[dict[str, Any]]:
@@ -426,13 +547,26 @@ class StudioAPI:
         out = []
         for sid, st in reg.items():
             keys = (cat.get(sid) or {}).get("keys") or []
-            out.append({"stage_id": sid, "name": st.get("phase", ""), "path": path.get(sid[:1], ""),
-                        "file_function": inv.get(sid), "events": list(st.get("events") or []),
-                        "gap": bool(st.get("gap")), "gap_ref": st.get("gap_ref"), "n_params": len(keys)})
+            out.append(
+                {
+                    "stage_id": sid,
+                    "name": st.get("phase", ""),
+                    "path": path.get(sid[:1], ""),
+                    "file_function": inv.get(sid),
+                    "events": list(st.get("events") or []),
+                    "gap": bool(st.get("gap")),
+                    "gap_ref": st.get("gap_ref"),
+                    "n_params": len(keys),
+                }
+            )
         return out
 
     def studio_params(self, stage: str) -> dict[str, Any]:
-        reg = json.loads(STAGE_REGISTRY.read_text(encoding="utf-8"))["stages"] if STAGE_REGISTRY.is_file() else {}
+        reg = (
+            json.loads(STAGE_REGISTRY.read_text(encoding="utf-8"))["stages"]
+            if STAGE_REGISTRY.is_file()
+            else {}
+        )
         if stage not in reg:
             raise StudioError(f"unknown stage {stage!r}")
         entry = self._param_catalogue().get(stage) or {}
@@ -440,24 +574,47 @@ class StudioAPI:
         keys = []
         for k in entry.get("keys") or []:
             key = k.get("key") or ""
-            row = {"key": key, "value": _get_path(eff, key, k.get("default")) if not key.startswith("cli:") else k.get("default"),
-                   "default": k.get("default"), "type": k.get("type"), "description": k.get("description"), "effect": k.get("effect"),
-                   "rebuild": bool(k.get("rebuild")), "rebuild_scope": k.get("rebuild_scope") or None,
-                   "screens": list(k.get("screen_ids") or []), "overridden": key in self.overrides,
-                   "settable": not key.startswith("cli:")}
+            row = {
+                "key": key,
+                "value": _get_path(eff, key, k.get("default"))
+                if not key.startswith("cli:")
+                else k.get("default"),
+                "default": k.get("default"),
+                "type": k.get("type"),
+                "description": k.get("description"),
+                "effect": k.get("effect"),
+                "rebuild": bool(k.get("rebuild")),
+                "rebuild_scope": k.get("rebuild_scope") or None,
+                "screens": list(k.get("screen_ids") or []),
+                "overridden": key in self.overrides,
+                "settable": not key.startswith("cli:"),
+            }
             for extra in ("choices", "range"):
                 if extra in k:
                     row[extra] = k[extra]
             keys.append(row)
-        out = {"stage_id": stage, "name": reg[stage].get("phase", ""), "file_function": entry.get("file_function"), "keys": keys,
-               "prompts": entry.get("prompts") or [], "models": entry.get("models") or []}
+        out = {
+            "stage_id": stage,
+            "name": reg[stage].get("phase", ""),
+            "file_function": entry.get("file_function"),
+            "keys": keys,
+            "prompts": entry.get("prompts") or [],
+            "models": entry.get("models") or [],
+        }
         if not entry:
-            out["note"] = "no parameter catalogue for this stage (docs/v2/data/stage_params.json is built by TI-8)"
+            out["note"] = (
+                "no parameter catalogue for this stage (docs/v2/data/stage_params.json is built by TI-8)"
+            )
         return out
 
     # ---- config and overrides
     def _key_catalogue(self) -> dict[str, dict[str, Any]]:
-        return {k["key"]: k for s in self._param_catalogue().values() for k in (s.get("keys") or []) if k.get("key")}
+        return {
+            k["key"]: k
+            for s in self._param_catalogue().values()
+            for k in (s.get("keys") or [])
+            if k.get("key")
+        }
 
     def studio_config(self, prefix: str | None = None, diff: bool = False) -> list[dict[str, Any]]:
         from ..inspect.step_tune import flatten
@@ -471,7 +628,14 @@ class StudioAPI:
             value, default = eff[key], dflt.get(key)
             if diff and value == default:
                 continue
-            rows.append({"key": key, "value": value, "default": default, "source": s._source(key, value, default)})
+            rows.append(
+                {
+                    "key": key,
+                    "value": value,
+                    "default": default,
+                    "source": s._source(key, value, default),
+                }
+            )
         return _jsonable(rows)
 
     #: read-path sections the session rebinds on every set (scoring / assembly / compression policy objects)
@@ -483,13 +647,28 @@ class StudioAPI:
         rebuild is live_unverified (it may be bound at engine start)."""
         s = self.session
         if s._needs_rebuild(key):
-            return "needs_reset", "changes what is written or indexed: run studio_reset (keep_overrides, replay) to rebuild"
+            return (
+                "needs_reset",
+                "changes what is written or indexed: run studio_reset (keep_overrides, replay) to rebuild",
+            )
         seen = _get_path(s._effective(), key, "__absent__")
-        shows = json.dumps(seen, sort_keys=True, default=str) == json.dumps(value, sort_keys=True, default=str)
+        shows = json.dumps(seen, sort_keys=True, default=str) == json.dumps(
+            value, sort_keys=True, default=str
+        )
         if shows and key.startswith(self.PER_CALL):
-            return "live_verified", "the engine's live config shows the value and the policy object was rebound"
-        why = "the engine config shows the value" if shows else "the engine config does not show the value yet"
-        return "live_unverified", f"{why}, but this key may be bound at engine start: confirm with studio_rerun_ask (or pass probe=true), else studio_reset"
+            return (
+                "live_verified",
+                "the engine's live config shows the value and the policy object was rebound",
+            )
+        why = (
+            "the engine config shows the value"
+            if shows
+            else "the engine config does not show the value yet"
+        )
+        return (
+            "live_unverified",
+            f"{why}, but this key may be bound at engine start: confirm with studio_rerun_ask (or pass probe=true), else studio_reset",
+        )
 
     def _probe(self, key: str) -> dict[str, Any] | None:
         """Re-ask the last asked question and compare with its previous answer: a change is proof the key is live."""
@@ -507,7 +686,13 @@ class StudioAPI:
         if not isinstance(key, str) or not key or key.startswith(".") or key.endswith("."):
             raise StudioError(f"bad key {key!r}")
         if key.startswith("cli:"):
-            return {"ok": False, "applied": None, "old": None, "new": value, "error": "cli: entries are run flags, not config keys"}
+            return {
+                "ok": False,
+                "applied": None,
+                "old": None,
+                "new": value,
+                "error": "cli: entries are run flags, not config keys",
+            }
         value = _coerce(value)
         old = _get_path(s._effective(), key)
         spec = self._key_catalogue().get(key)
@@ -519,9 +704,21 @@ class StudioAPI:
         if err:
             return {"ok": False, "applied": None, "old": old, "new": value, "error": err}
         if not self.run(s._set_value(key, value, command="set", quiet=True)):
-            return {"ok": False, "applied": None, "old": old, "new": value, "error": "refused by the session"}
+            return {
+                "ok": False,
+                "applied": None,
+                "old": old,
+                "new": value,
+                "error": "refused by the session",
+            }
         applied, note = self._classify(key, value)
-        out: dict[str, Any] = {"ok": True, "applied": applied, "old": old, "new": value, "note": note}
+        out: dict[str, Any] = {
+            "ok": True,
+            "applied": applied,
+            "old": old,
+            "new": value,
+            "note": note,
+        }
         if applied == "needs_reset":
             if key not in self.stale:
                 self.stale.append(key)
@@ -534,7 +731,9 @@ class StudioAPI:
                 out["applied"] = "live_verified"
                 out["note"] = "an earlier answer changed after this set: the key is live"
             else:
-                out["note"] += " (probe: the last question did not change; the key may not matter for it)"
+                out["note"] += (
+                    " (probe: the last question did not change; the key may not matter for it)"
+                )
         if self.last_verify is not None:
             self.last_verify = {**self.last_verify, "stale": True}
         return _jsonable(out)
@@ -546,8 +745,17 @@ class StudioAPI:
         if choices and any(v not in choices for v in vals):
             return f"value {value!r} not in choices {choices}"
         rng = spec.get("range")
-        if isinstance(rng, Mapping) and isinstance(value, int | float) and not isinstance(value, bool):
-            for op, ok in (("ge", lambda v, b: v >= b), ("gt", lambda v, b: v > b), ("le", lambda v, b: v <= b), ("lt", lambda v, b: v < b)):
+        if (
+            isinstance(rng, Mapping)
+            and isinstance(value, int | float)
+            and not isinstance(value, bool)
+        ):
+            for op, ok in (
+                ("ge", lambda v, b: v >= b),
+                ("gt", lambda v, b: v > b),
+                ("le", lambda v, b: v <= b),
+                ("lt", lambda v, b: v < b),
+            ):
                 if op in rng and not ok(value, rng[op]):
                     return f"value {value!r} violates {op} {rng[op]}"
         typ = str(spec.get("type") or "")
@@ -556,7 +764,12 @@ class StudioAPI:
             return None if ("None" in base or "Optional" in typ) else f"{typ} does not accept null"
         simple = {"bool": bool, "int": int, "float": (int, float), "str": str}
         if base and base <= set(simple) | {"None"}:
-            allowed = tuple(t for b in base if b in simple for t in (simple[b] if isinstance(simple[b], tuple) else (simple[b],)))
+            allowed = tuple(
+                t
+                for b in base
+                if b in simple
+                for t in (simple[b] if isinstance(simple[b], tuple) else (simple[b],))
+            )
             if isinstance(value, bool) and bool not in allowed:
                 return f"expected {typ}, got bool"
             if not isinstance(value, allowed):
@@ -598,7 +811,15 @@ class StudioAPI:
 
     def studio_prompts(self) -> list[dict[str, Any]]:
         s = self._need()
-        return [{"prompt_id": pid, "role": role, "version": ver, "overridden": pid in s.prompt_overrides} for pid, role, ver in s._prompt_ids()]
+        return [
+            {
+                "prompt_id": pid,
+                "role": role,
+                "version": ver,
+                "overridden": pid in s.prompt_overrides,
+            }
+            for pid, role, ver in s._prompt_ids()
+        ]
 
     def studio_prompt_show(self, prompt_id: str, rendered: bool = False) -> dict[str, Any]:
         s = self._need()
@@ -613,11 +834,24 @@ class StudioAPI:
             else:
                 body = ed.get("system") or ed.get("body") or body
         row = next((r for r in s._prompt_ids() if r[0] == prompt_id), (prompt_id, kind, ""))
-        out: dict[str, Any] = {"prompt_id": prompt_id, "role": row[1], "version": row[2], "kind": kind, "system": system, "text": body,
-                               "overridden": bool(ed)}
+        out: dict[str, Any] = {
+            "prompt_id": prompt_id,
+            "role": row[1],
+            "version": row[2],
+            "kind": kind,
+            "system": system,
+            "text": body,
+            "overridden": bool(ed),
+        }
         if rendered:
-            seen = [r for r in s.sink.rows if r["event"] == "write.extract.io" and r.get("prompt_text")]
-            out["rendered_example"] = seen[-1]["prompt_text"] if seen and prompt_id in ("structured.window", "window_extract", "structured") else None
+            seen = [
+                r for r in s.sink.rows if r["event"] == "write.extract.io" and r.get("prompt_text")
+            ]
+            out["rendered_example"] = (
+                seen[-1]["prompt_text"]
+                if seen and prompt_id in ("structured.window", "window_extract", "structured")
+                else None
+            )
         return out
 
     def studio_prompt_set(self, prompt_id: str, text: str) -> dict[str, Any]:
@@ -642,12 +876,26 @@ class StudioAPI:
             else:
                 s.prompt_overrides[prompt_id] = prev
             return {"ok": False, "diff": "", "error": f"{type(exc).__name__}: {exc}"}
-        s._log_tuning("prompt edit", prompt_id, "(edited)" if prev else "(shipped)", f"{len(text)} chars", "applied to the running engine")
-        diff = "".join(difflib.unified_diff(old_body.splitlines(True), text.splitlines(True), "shipped", "override"))
+        s._log_tuning(
+            "prompt edit",
+            prompt_id,
+            "(edited)" if prev else "(shipped)",
+            f"{len(text)} chars",
+            "applied to the running engine",
+        )
+        diff = "".join(
+            difflib.unified_diff(
+                old_body.splitlines(True), text.splitlines(True), "shipped", "override"
+            )
+        )
         if self.last_verify is not None:
             self.last_verify = {**self.last_verify, "stale": True}
-        return {"ok": True, "diff": diff, "applied": "live_verified",
-                "note": "used by the next model call of this role; records already written keep their old extraction (studio_rerun_window shows the effect)"}
+        return {
+            "ok": True,
+            "diff": diff,
+            "applied": "live_verified",
+            "note": "used by the next model call of this role; records already written keep their old extraction (studio_rerun_window shows the effect)",
+        }
 
     def studio_prompt_reset(self, prompt_id: str) -> dict[str, Any]:
         s = self._need()
@@ -666,8 +914,24 @@ class StudioAPI:
         names = list(sec)
         stamp, rec_idx, win_ext, env, dep, links = (sec[n] for n in names)
         extract_pre = ("write.prompt.", "prompt.render", "write.extract.call", "write.extract.io")
-        derived = ("write.firewall.", "write.route", "write.deposit", "write.rejected", "write.quarantine")
-        out: dict[str, Any] = {"stamp": [], "record": [], "index": [], "window": [], "extract": [], "envelopes": [], "deposits": [], "links": [], "other": []}
+        derived = (
+            "write.firewall.",
+            "write.route",
+            "write.deposit",
+            "write.rejected",
+            "write.quarantine",
+        )
+        out: dict[str, Any] = {
+            "stamp": [],
+            "record": [],
+            "index": [],
+            "window": [],
+            "extract": [],
+            "envelopes": [],
+            "deposits": [],
+            "links": [],
+            "other": [],
+        }
         idx_by_rid: dict[str, dict[str, Any]] = {}
         for r in rows:
             ev = r["event"]
@@ -704,8 +968,17 @@ class StudioAPI:
         s = self.session
         r = await s._write_turn(dict(t), "say" if custom else "turn")
         groups = self._group_write(r["rows"])
-        return {"turn_id": t["turn_id"], "custom": custom, "session": t["session"], "speaker": t["speaker"], "text": t["text"],
-                "records": r["records"], "record_ids": [x["rid"] for x in groups["record"]], "model_calls": r["calls"], "stages": groups}
+        return {
+            "turn_id": t["turn_id"],
+            "custom": custom,
+            "session": t["session"],
+            "speaker": t["speaker"],
+            "text": t["text"],
+            "records": r["records"],
+            "record_ids": [x["rid"] for x in groups["record"]],
+            "model_calls": r["calls"],
+            "stages": groups,
+        }
 
     def _pick_turns(self, spec: Mapping[str, Any]) -> list[dict[str, Any]]:
         s = self.session
@@ -722,7 +995,7 @@ class StudioAPI:
                     rng = [a, b]
                 if isinstance(rng, str) and re.fullmatch(r"\d+-\d+", rng):
                     a, b = (int(x) for x in rng.split("-"))
-                    return [t for t in s.turns[a - 1:b] if t["turn_id"] not in done]
+                    return [t for t in s.turns[a - 1 : b] if t["turn_id"] not in done]
                 if isinstance(rng, Mapping):
                     rng = [rng.get("from"), rng.get("to")]
                 a, b = rng
@@ -755,10 +1028,29 @@ class StudioAPI:
                     while tid in s.written_ids or s._index_of(tid) is not None:
                         s._custom_n += 1
                         tid = f"U{s._custom_n}"
-                sid = m.get("session") or (s.written[-1]["session"] if s.written else (s.turns[0]["session"] if s.turns else "custom"))
-                t = {"item": self.item, "session": sid, "turn_id": tid, "speaker": str(m.get("speaker") or "user"),
-                     "ts": m.get("ts") or s._default_ts(), "text": str(m["text"]), "custom": True}
-                resolved.append({"speaker": t["speaker"], "text": t["text"], "ts": t["ts"], "session": sid, "turn_id": tid})
+                sid = m.get("session") or (
+                    s.written[-1]["session"]
+                    if s.written
+                    else (s.turns[0]["session"] if s.turns else "custom")
+                )
+                t = {
+                    "item": self.item,
+                    "session": sid,
+                    "turn_id": tid,
+                    "speaker": str(m.get("speaker") or "user"),
+                    "ts": m.get("ts") or s._default_ts(),
+                    "text": str(m["text"]),
+                    "custom": True,
+                }
+                resolved.append(
+                    {
+                        "speaker": t["speaker"],
+                        "text": t["text"],
+                        "ts": t["ts"],
+                        "session": sid,
+                        "turn_id": tid,
+                    }
+                )
                 turns.append(await self._write_one(t, True))
             op["messages"] = resolved  # a replay writes the same ids
             return {"turns": turns, "summary": self._wsummary(turns)}
@@ -773,12 +1065,27 @@ class StudioAPI:
             by_turn: dict[str, list[dict[str, Any]]] = {}
             tail = []
             for row in res["rows"]:
-                (by_turn.setdefault(row.get("turn_id"), []) if row.get("turn_id") in ids else tail).append(row)
+                (
+                    by_turn.setdefault(row.get("turn_id"), [])
+                    if row.get("turn_id") in ids
+                    else tail
+                ).append(row)
             turns = []
             for t in todo:
                 groups = self._group_write(by_turn.get(t["turn_id"], []))
-                turns.append({"turn_id": t["turn_id"], "custom": False, "session": sid, "speaker": t["speaker"], "text": t["text"],
-                              "records": len(groups["record"]), "record_ids": [x["rid"] for x in groups["record"]], "model_calls": None, "stages": groups})
+                turns.append(
+                    {
+                        "turn_id": t["turn_id"],
+                        "custom": False,
+                        "session": sid,
+                        "speaker": t["speaker"],
+                        "text": t["text"],
+                        "records": len(groups["record"]),
+                        "record_ids": [x["rid"] for x in groups["record"]],
+                        "model_calls": None,
+                        "stages": groups,
+                    }
+                )
             summary = self._wsummary(turns)
             summary.update({"session": sid, "session_close": self._group_write(tail)})
             return {"turns": turns, "summary": summary}
@@ -788,10 +1095,21 @@ class StudioAPI:
 
     @staticmethod
     def _wsummary(turns: list[dict[str, Any]]) -> dict[str, Any]:
-        return {"turns": len(turns), "records": sum(t["records"] for t in turns), "model_calls": sum(t["model_calls"] or 0 for t in turns)}
+        return {
+            "turns": len(turns),
+            "records": sum(t["records"] for t in turns),
+            "model_calls": sum(t["model_calls"] or 0 for t in turns),
+        }
 
-    def studio_write(self, mode: str, messages: list[Mapping[str, Any]] | None = None, ids: list[str] | None = None,
-                     range: Any = None, n: int | None = None, session: Any = None) -> dict[str, Any]:  # noqa: A002
+    def studio_write(
+        self,
+        mode: str,
+        messages: list[Mapping[str, Any]] | None = None,
+        ids: list[str] | None = None,
+        range: Any = None,
+        n: int | None = None,
+        session: Any = None,
+    ) -> dict[str, Any]:
         s = self._need()
         spec = {"mode": mode, "ids": ids, "range": range, "n": n}
         if mode == "say":
@@ -815,14 +1133,19 @@ class StudioAPI:
                 wanted = [session]
             else:
                 k = int(session if isinstance(session, int) else (n or 1))
-                nxt = next((t["session"] for t in s.turns if t["turn_id"] not in s.written_ids), None)
+                nxt = next(
+                    (t["session"] for t in s.turns if t["turn_id"] not in s.written_ids), None
+                )
                 if nxt is None:
                     raise StudioError("no turns left to write")
-                wanted = sessions[sessions.index(nxt): sessions.index(nxt) + max(k, 1)]
+                wanted = sessions[sessions.index(nxt) : sessions.index(nxt) + max(k, 1)]
             unknown = [w for w in wanted if w not in sessions]
             if unknown:
                 raise StudioError(f"unknown session id(s): {unknown} (sessions: {sessions})")
-            res = {"turns": [], "summary": {"turns": 0, "records": 0, "model_calls": 0, "sessions": []}}
+            res = {
+                "turns": [],
+                "summary": {"turns": 0, "records": 0, "model_calls": 0, "sessions": []},
+            }
             for sid in wanted:
                 op = {"op": "session", "session": sid}
                 part = self.run(self._apply_op(op))
@@ -830,10 +1153,14 @@ class StudioAPI:
                 res["turns"] += part["turns"]
                 for k2 in ("turns", "records", "model_calls"):
                     res["summary"][k2] += part["summary"][k2]
-                res["summary"]["sessions"].append({"session": sid, "close": part["summary"].get("session_close")})
+                res["summary"]["sessions"].append(
+                    {"session": sid, "close": part["summary"].get("session_close")}
+                )
         else:
             raise StudioError(f"unknown write mode {mode!r} (say | turns | interaction | session)")
-        res["summary"]["replay_cache_misses"] = len(s._cache.misses) if getattr(s, "_cache", None) is not None else 0
+        res["summary"]["replay_cache_misses"] = (
+            len(s._cache.misses) if getattr(s, "_cache", None) is not None else 0
+        )
         if self.last_verify is not None:
             self.last_verify = {**self.last_verify, "stale": True}
         return _jsonable(res)
@@ -844,13 +1171,25 @@ class StudioAPI:
         dep = await s.system.build()
         s.slept = True
         rows = s._take()
-        pre_rows = [r for r in rows if not r["event"].startswith(("job.", "economy.", "model.", "graph.compile", "derive.graph", "trust."))]
+        pre_rows = [
+            r
+            for r in rows
+            if not r["event"].startswith(
+                ("job.", "economy.", "model.", "graph.compile", "derive.graph", "trust.")
+            )
+        ]
         stages: list[dict[str, Any]] = []
         cur: dict[str, Any] | None = None
         for r in rows:
             ev = r["event"]
             if ev == "job.stage.start":
-                cur = {"stage": r.get("stage"), "items": [], "end": None, "events": [], "start": _clean(r)}
+                cur = {
+                    "stage": r.get("stage"),
+                    "items": [],
+                    "end": None,
+                    "events": [],
+                    "start": _clean(r),
+                }
                 stages.append(cur)
             elif ev == "job.stage.item" and cur is not None:
                 cur["items"].append(_clean(r))
@@ -860,8 +1199,14 @@ class StudioAPI:
                 cur = None
             elif ev.startswith(("graph.compile", "derive.graph", "trust.")) and cur is not None:
                 cur["events"].append(_clean(r))
-        return _jsonable({"stages": stages, "pre": self._group_write(pre_rows), "model_calls": dep.model_calls,
-                          "stats": (dep.meta or {}).get("sleep") or {}})
+        return _jsonable(
+            {
+                "stages": stages,
+                "pre": self._group_write(pre_rows),
+                "model_calls": dep.model_calls,
+                "stats": (dep.meta or {}).get("sleep") or {},
+            }
+        )
 
     def studio_sleep(self) -> dict[str, Any]:
         self._need()
@@ -873,7 +1218,9 @@ class StudioAPI:
     def _origin(self) -> Mapping[str, str]:
         return getattr(self.session.system, "_origin", {}) or {}
 
-    def _items(self, items: Any, gold: Sequence[str], limit: int | None = None) -> list[dict[str, Any]]:
+    def _items(
+        self, items: Any, gold: Sequence[str], limit: int | None = None
+    ) -> list[dict[str, Any]]:
         org = self._origin()
         out = []
         for it in list(items or [])[:limit]:
@@ -899,8 +1246,13 @@ class StudioAPI:
             while qid in s.questions:
                 s._adhoc += 1
                 qid = f"adhoc-{s._adhoc}"
-            q = {"question": text, "gold": spec.get("gold"), "category": spec.get("category", "adhoc"), "custom": True,
-                 "gold_turns": [str(g) for g in spec.get("turns") or spec.get("gold_turns") or []]}
+            q = {
+                "question": text,
+                "gold": spec.get("gold"),
+                "category": spec.get("category", "adhoc"),
+                "custom": True,
+                "gold_turns": [str(g) for g in spec.get("turns") or spec.get("gold_turns") or []],
+            }
             s.questions[qid] = q
         else:
             qid, q = s._find_question(str(spec))
@@ -920,13 +1272,19 @@ class StudioAPI:
         if isinstance(spec, list | tuple):
             return [x for x in spec]
         if not isinstance(spec, str):
-            raise StudioError("questions must be a list, a qid, a slice name, 'all', 'cat:<n>' or '<category>[:n]'")
+            raise StudioError(
+                "questions must be a list, a qid, a slice name, 'all', 'cat:<n>' or '<category>[:n]'"
+            )
         if spec in qs:
             return [spec]
         low = spec.strip().lower()
         if low.startswith("cat:"):
             want = low[4:].strip()
-            found = [k for k, q in qs.items() if str(q.get("category")).lower() in (want, f"cat{want}", want.removeprefix("cat"))]
+            found = [
+                k
+                for k, q in qs.items()
+                if str(q.get("category")).lower() in (want, f"cat{want}", want.removeprefix("cat"))
+            ]
             if not found:
                 raise StudioError(f"no question in category {want!r}")
             return found
@@ -938,7 +1296,11 @@ class StudioAPI:
             if ok:
                 raw = json.loads(cand.read_text(encoding="utf-8"))
                 ids = list(raw.get("query_ids") or []) or list(raw.get("category") or {})
-                out = [i.split("/", 1)[1] if "/" in i else i for i in ids if "/" not in i or i.split("/", 1)[0] == self.item]
+                out = [
+                    i.split("/", 1)[1] if "/" in i else i
+                    for i in ids
+                    if "/" not in i or i.split("/", 1)[0] == self.item
+                ]
                 out = [i for i in out if i in qs]
                 if not out:
                     raise StudioError(f"slice {spec!r} has no questions for item {self.item!r}")
@@ -950,7 +1312,9 @@ class StudioAPI:
         return [spec]
 
     @staticmethod
-    def _gold_path(stage_turns: Mapping[str, list[str] | None], gold: Sequence[str]) -> tuple[list[dict[str, Any]], str | None]:
+    def _gold_path(
+        stage_turns: Mapping[str, list[str] | None], gold: Sequence[str]
+    ) -> tuple[list[dict[str, Any]], str | None]:
         path: list[dict[str, Any]] = []
         prev: set[str] | None = None
         losing: str | None = None
@@ -959,7 +1323,14 @@ class StudioAPI:
             if turns is None:
                 continue
             present = [g for g in gold if g in set(turns)]
-            path.append({"stage": name, "present": present, "absent": [g for g in gold if g not in present], "n": len(turns)})
+            path.append(
+                {
+                    "stage": name,
+                    "present": present,
+                    "absent": [g for g in gold if g not in present],
+                    "n": len(turns),
+                }
+            )
             here = set(present)
             if losing is None:
                 if name == "legs" and len(here) < len(gold):
@@ -984,18 +1355,34 @@ class StudioAPI:
 
         brief = detail == "brief"
         lim = 10 if brief else None
-        legs: dict[str, Any] = {"vector": self._items(fx.get("vector"), gold, lim), "lexical": self._items(fx.get("lexical"), gold, lim)}
+        legs: dict[str, Any] = {
+            "vector": self._items(fx.get("vector"), gold, lim),
+            "lexical": self._items(fx.get("lexical"), gold, lim),
+        }
         for name, leg in (fx.get("extra_legs") or {}).items():
             legs[name] = self._items(leg, gold, lim)
         tf = fx.get("trace_full") or {}
         org = self._origin()
         stage_turns: dict[str, list[str] | None] = {}
-        leg_all = [x for key in ("vector", "lexical") for x in (fx.get(key) or [])] + [x for leg in (fx.get("extra_legs") or {}).values() for x in leg]
+        leg_all = [x for key in ("vector", "lexical") for x in (fx.get(key) or [])] + [
+            x for leg in (fx.get("extra_legs") or {}).values() for x in leg
+        ]
         if leg_all:
-            stage_turns["legs"] = [org.get(str(i.get("turn") or i.get("id")), i.get("turn") or i.get("id")) for i in leg_all]
-        for name, key in (("fused", "fused"), ("pool", "pool"), ("rerank", "rerank_scores"), ("final", "final")):
+            stage_turns["legs"] = [
+                org.get(str(i.get("turn") or i.get("id")), i.get("turn") or i.get("id"))
+                for i in leg_all
+            ]
+        for name, key in (
+            ("fused", "fused"),
+            ("pool", "pool"),
+            ("rerank", "rerank_scores"),
+            ("final", "final"),
+        ):
             if fx.get(key):
-                stage_turns[name] = [org.get(str(i.get("turn") or i.get("id")), i.get("turn") or i.get("id")) for i in fx[key]]
+                stage_turns[name] = [
+                    org.get(str(i.get("turn") or i.get("id")), i.get("turn") or i.get("id"))
+                    for i in fx[key]
+                ]
         packed_turns = [e.turn_id for e in ctx.evidence]
         stage_turns["packed"] = packed_turns
         gpath, losing = self._gold_path(stage_turns, gold) if gold else ([], None)
@@ -1011,14 +1398,38 @@ class StudioAPI:
 
             in_ctx = normalise_answer(str(q["gold"])) in normalise_answer(ctx.text)
         res = {
-            "qid": qid, "question": q["question"], "category": q.get("category"), "gold": q.get("gold"), "gold_turns": gold,
-            "plan": [] if brief else plan, "legs": legs, "fused": self._items(fx.get("fused"), gold, 20 if brief else None),
-            "cuts": [] if brief else _jsonable(tf.get("cuts") or []), "pool": self._items(fx.get("pool"), gold, lim),
-            "rerank": self._items(fx.get("rerank_scores"), gold, lim), "final": self._items(fx.get("final"), gold, lim),
-            "headers": headers, "packed": [{"turn": e.turn_id, "gold": e.turn_id in gold} for e in ctx.evidence],
-            "context": ctx.text[:400] if brief else ctx.text, "context_tokens": ctx.tokens, "truncated": bool(ctx.truncated),
-            "answer": answer, "verdict": verdict, "gold_in_context": in_ctx, "gold_path": gpath, "first_losing_stage": losing, "ms": round(ms),
-            "funnel": [{"stage": p["stage"], "n": p["n"], "gold_present": len(p["present"]), "gold_total": len(gold)} for p in gpath],
+            "qid": qid,
+            "question": q["question"],
+            "category": q.get("category"),
+            "gold": q.get("gold"),
+            "gold_turns": gold,
+            "plan": [] if brief else plan,
+            "legs": legs,
+            "fused": self._items(fx.get("fused"), gold, 20 if brief else None),
+            "cuts": [] if brief else _jsonable(tf.get("cuts") or []),
+            "pool": self._items(fx.get("pool"), gold, lim),
+            "rerank": self._items(fx.get("rerank_scores"), gold, lim),
+            "final": self._items(fx.get("final"), gold, lim),
+            "headers": headers,
+            "packed": [{"turn": e.turn_id, "gold": e.turn_id in gold} for e in ctx.evidence],
+            "context": ctx.text[:400] if brief else ctx.text,
+            "context_tokens": ctx.tokens,
+            "truncated": bool(ctx.truncated),
+            "answer": answer,
+            "verdict": verdict,
+            "gold_in_context": in_ctx,
+            "gold_path": gpath,
+            "first_losing_stage": losing,
+            "ms": round(ms),
+            "funnel": [
+                {
+                    "stage": p["stage"],
+                    "n": p["n"],
+                    "gold_present": len(p["present"]),
+                    "gold_total": len(gold),
+                }
+                for p in gpath
+            ],
             "_stage_turns": stage_turns,
         }
         return res
@@ -1027,14 +1438,23 @@ class StudioAPI:
         self._need()
         specs = self._expand(questions)
         if not specs:
-            raise StudioError("questions is empty: pass qids, question text, {text, gold, turns}, a slice name, 'all' or 'cat:<n>'")
+            raise StudioError(
+                "questions is empty: pass qids, question text, {text, gold, turns}, a slice name, 'all' or 'cat:<n>'"
+            )
         results = []
         for spec in specs:
             res = self.run(self._ask_one(spec, detail))
             self.last_asks[res["qid"]] = res
             results.append({k: v for k, v in res.items() if k != "_stage_turns"})
-        summary = [{"qid": r["qid"], "gold_in_context": r["gold_in_context"], "first_losing_stage": r["first_losing_stage"],
-                    "correct": self._correct(r)} for r in results]
+        summary = [
+            {
+                "qid": r["qid"],
+                "gold_in_context": r["gold_in_context"],
+                "first_losing_stage": r["first_losing_stage"],
+                "correct": self._correct(r),
+            }
+            for r in results
+        ]
         return _jsonable({"results": results, "summary": summary})
 
     @staticmethod
@@ -1056,11 +1476,27 @@ class StudioAPI:
         from memspine.workers import windows as W
 
         s = self.session
-        members = next((r for r in s.sink.rows if r["event"] == "write.window.members" and r.get("window_id") == window_id
-                        and r.get("member_record_ids")), None)
+        members = next(
+            (
+                r
+                for r in s.sink.rows
+                if r["event"] == "write.window.members"
+                and r.get("window_id") == window_id
+                and r.get("member_record_ids")
+            ),
+            None,
+        )
         if members is None:
-            ids = sorted({str(r.get("window_id")) for r in s.sink.rows if r["event"] == "write.window.members" and r.get("window_id")})
-            raise StudioError(f"no window {window_id!r} (windows so far: {', '.join(ids) or 'none'})", "not_found")
+            ids = sorted(
+                {
+                    str(r.get("window_id"))
+                    for r in s.sink.rows
+                    if r["event"] == "write.window.members" and r.get("window_id")
+                }
+            )
+            raise StudioError(
+                f"no window {window_id!r} (windows so far: {', '.join(ids) or 'none'})", "not_found"
+            )
         pipe = getattr(s.system._engine, "_windows", None)
         if pipe is None:
             raise StudioError("this arm has no window write (write.window_extract is off)")
@@ -1071,14 +1507,24 @@ class StudioAPI:
         if not records:
             raise StudioError("the window's records are gone from the store")
         scratch = type(s.sink)()
-        job = W._Job(namespace=self.item, window=SimpleNamespace(session=members.get("session"), turns=[SimpleNamespace(record_id=i) for i in ids],
-                                                                 reason="rerun", tokens=0))
+        job = W._Job(
+            namespace=self.item,
+            window=SimpleNamespace(
+                session=members.get("session"),
+                turns=[SimpleNamespace(record_id=i) for i in ids],
+                reason="rerun",
+                tokens=0,
+            ),
+        )
         saved = (tap._SINK, list(tap._EXTRA_SINKS), pipe._cache)
         tap._SINK, tap._EXTRA_SINKS[:] = None, [scratch]
         pipe._cache = None
         prepared = None
         try:
-            with s.system._scope(phase="rerun", window_id=window_id), tap.request("write", rerun=True):
+            with (
+                s.system._scope(phase="rerun", window_id=window_id),
+                tap.request("write", rerun=True),
+            ):
                 prepared = await pipe._prepare_records(self.item, job, records, strict=False)
                 if commit and prepared is not None:
                     await pipe._commit_job(self.item, pipe._store(self.item), prepared)
@@ -1104,15 +1550,37 @@ class StudioAPI:
                 for st, (x, y) in delta.items():
                     stage_changes.append({"text": va["text"], "stage": st, "before": x, "after": y})
                 if vb["integrate"] != va["integrate"]:
-                    verdict_changes.append({"text": va["text"], "before": vb["integrate"], "after": va["integrate"]})
+                    verdict_changes.append(
+                        {"text": va["text"], "before": vb["integrate"], "after": va["integrate"]}
+                    )
         io_rows = [_clean(r) for r in scratch.rows if r["event"] == "write.extract.io"][:1]
-        s._log_tuning("rerun window", window_id, f"{len(before)} envelope(s)", f"{len(after)} envelope(s)",
-                      f"added {len(added)}, removed {len(removed)}, changed {len(changed)}" + ("; committed" if commit else ""))
-        return _jsonable({"window_id": window_id, "turns": len(records), "committed": commit, "produced": prepared is not None,
-                          "diff": {"items_before": len(before), "items_after": len(after), "items_added": added, "items_removed": removed,
-                                   "items_changed": changed, "stage_changes": stage_changes, "verdict_changes": verdict_changes},
-                          "extract_io": io_rows[0] if io_rows else None,
-                          "note": "integration is judged against the live store, which already holds this window's first run"})
+        s._log_tuning(
+            "rerun window",
+            window_id,
+            f"{len(before)} envelope(s)",
+            f"{len(after)} envelope(s)",
+            f"added {len(added)}, removed {len(removed)}, changed {len(changed)}"
+            + ("; committed" if commit else ""),
+        )
+        return _jsonable(
+            {
+                "window_id": window_id,
+                "turns": len(records),
+                "committed": commit,
+                "produced": prepared is not None,
+                "diff": {
+                    "items_before": len(before),
+                    "items_after": len(after),
+                    "items_added": added,
+                    "items_removed": removed,
+                    "items_changed": changed,
+                    "stage_changes": stage_changes,
+                    "verdict_changes": verdict_changes,
+                },
+                "extract_io": io_rows[0] if io_rows else None,
+                "note": "integration is judged against the live store, which already holds this window's first run",
+            }
+        )
 
     def studio_rerun_ask(self, q: Any) -> dict[str, Any]:
         self._need()
@@ -1121,7 +1589,7 @@ class StudioAPI:
         after = self.run(self._ask_one(qid, "full"))
         self.last_asks[qid] = after
         diff = self._diff_asks(before, after)
-        strip = lambda r: None if r is None else {k: v for k, v in r.items() if k != "_stage_turns"}  # noqa: E731
+        strip = lambda r: None if r is None else {k: v for k, v in r.items() if k != "_stage_turns"}
         return _jsonable({"qid": qid, "before": strip(before), "after": strip(after), "diff": diff})
 
     @staticmethod
@@ -1137,13 +1605,27 @@ class StudioAPI:
                 continue
             bs, as_ = set(b or []), set(a or [])
             if bs != as_ or (b or [])[:10] != (a or [])[:10]:
-                stage_changes.append({"stage": name, "added": sorted(map(str, as_ - bs)), "removed": sorted(map(str, bs - as_)),
-                                      "top10_before": [str(x) for x in (b or [])[:10]], "top10_after": [str(x) for x in (a or [])[:10]]})
-        return {"packed_added": sorted(map(str, ap - bp)), "packed_removed": sorted(map(str, bp - ap)), "stage_changes": stage_changes,
-                "first_losing_stage": [before["first_losing_stage"], after["first_losing_stage"]],
-                "gold_in_context": [before["gold_in_context"], after["gold_in_context"]],
-                "answer_changed": before.get("answer") != after.get("answer"), "verdict": [before.get("verdict"), after.get("verdict")],
-                "changed": bool(ap ^ bp) or bool(stage_changes) or before.get("answer") != after.get("answer")}
+                stage_changes.append(
+                    {
+                        "stage": name,
+                        "added": sorted(map(str, as_ - bs)),
+                        "removed": sorted(map(str, bs - as_)),
+                        "top10_before": [str(x) for x in (b or [])[:10]],
+                        "top10_after": [str(x) for x in (a or [])[:10]],
+                    }
+                )
+        return {
+            "packed_added": sorted(map(str, ap - bp)),
+            "packed_removed": sorted(map(str, bp - ap)),
+            "stage_changes": stage_changes,
+            "first_losing_stage": [before["first_losing_stage"], after["first_losing_stage"]],
+            "gold_in_context": [before["gold_in_context"], after["gold_in_context"]],
+            "answer_changed": before.get("answer") != after.get("answer"),
+            "verdict": [before.get("verdict"), after.get("verdict")],
+            "changed": bool(ap ^ bp)
+            or bool(stage_changes)
+            or before.get("answer") != after.get("answer"),
+        }
 
     def studio_sweep(self, key: str, values: list[Any], questions: Any) -> dict[str, Any]:
         s = self._need()
@@ -1159,20 +1641,44 @@ class StudioAPI:
                     table.append({"value": value, "error": res.get("error")})
                     continue
                 if res["applied"] == "needs_reset":
-                    table.append({"value": value, "applied": "needs_reset",
-                                  "error": "a write-path key: sweep it with studio_set + studio_reset(replay=true) + studio_ask per value"})
+                    table.append(
+                        {
+                            "value": value,
+                            "applied": "needs_reset",
+                            "error": "a write-path key: sweep it with studio_set + studio_reset(replay=true) + studio_ask per value",
+                        }
+                    )
                     continue
                 rows = []
                 for spec in specs:
                     r = self.run(self._ask_one(spec, "brief"))
-                    rows.append({"qid": r["qid"], "gold_found": r["gold_in_context"], "first_losing_stage": r["first_losing_stage"], "correct": self._correct(r),
-                                 "packed": [p["turn"] for p in r["packed"]]})
+                    rows.append(
+                        {
+                            "qid": r["qid"],
+                            "gold_found": r["gold_in_context"],
+                            "first_losing_stage": r["first_losing_stage"],
+                            "correct": self._correct(r),
+                            "packed": [p["turn"] for p in r["packed"]],
+                        }
+                    )
                 found = [x["gold_found"] for x in rows if x["gold_found"] is not None]
                 corr = [x["correct"] for x in rows if x["correct"] is not None]
-                table.append({"value": value, "applied": res["applied"], "gold_found": sum(found), "n": len(rows),
-                              "first_losing_stage": [x["first_losing_stage"] for x in rows],
-                              "correct": sum(corr) if corr else None, "per_question": rows})
-            packs = {json.dumps([x["packed"] for x in r.get("per_question", [])]) for r in table if "per_question" in r}
+                table.append(
+                    {
+                        "value": value,
+                        "applied": res["applied"],
+                        "gold_found": sum(found),
+                        "n": len(rows),
+                        "first_losing_stage": [x["first_losing_stage"] for x in rows],
+                        "correct": sum(corr) if corr else None,
+                        "per_question": rows,
+                    }
+                )
+            packs = {
+                json.dumps([x["packed"] for x in r.get("per_question", [])])
+                for r in table
+                if "per_question" in r
+            }
             note = None
             if len(packs) == 1 and len(table) > 1:
                 note = "every value gave the same packed context: the key may be bound at engine start (applied is live_unverified) or irrelevant to these questions"
@@ -1184,7 +1690,7 @@ class StudioAPI:
         return _jsonable({"key": key, "table": table, "note": note})
 
     # ---- inspection
-    def studio_show(self, id: str) -> dict[str, Any]:  # noqa: A002
+    def studio_show(self, id: str) -> dict[str, Any]:
         s = self._need()
         return self.run(self._show(str(id)))
 
@@ -1195,28 +1701,68 @@ class StudioAPI:
         events = s.sink.rows
         if rid in recs:
             r = recs[rid]
-            out: dict[str, Any] = {"kind": "record", "rid": rid, "turn_id": s.system._origin.get(rid)}
-            for k in ("memory_type", "layer", "status", "trust", "quarantined", "valid_from", "valid_to", "evolve_to", "tags", "entity", "attribute", "group_id"):
+            out: dict[str, Any] = {
+                "kind": "record",
+                "rid": rid,
+                "turn_id": s.system._origin.get(rid),
+            }
+            for k in (
+                "memory_type",
+                "layer",
+                "status",
+                "trust",
+                "quarantined",
+                "valid_from",
+                "valid_to",
+                "evolve_to",
+                "tags",
+                "entity",
+                "attribute",
+                "group_id",
+            ):
                 v = getattr(r, k, None)
                 if v not in (None, [], ()):
                     out[k] = getattr(v, "value", v)
-            out.update({"channel": r.source.channel, "role": r.source.role, "parents": [str(p) for p in r.source.parents], "content": r.content})
+            out.update(
+                {
+                    "channel": r.source.channel,
+                    "role": r.source.role,
+                    "parents": [str(p) for p in r.source.parents],
+                    "content": r.content,
+                }
+            )
             try:
                 env = await s.system._engine.get_envelope(rid, self.item)
                 out["envelope"] = env.model_dump(mode="json") if env is not None else None
             except Exception:
                 out["envelope"] = None
-            out["events"] = [_clean(e) for e in events if e.get("rid") == rid or e.get("record_id") == rid][:MAX_ROWS]
+            out["events"] = [
+                _clean(e) for e in events if e.get("rid") == rid or e.get("record_id") == rid
+            ][:MAX_ROWS]
             return _jsonable(out)
         win = [e for e in events if e.get("window_id") == ident]
         if win:
-            return _jsonable({"kind": "window", "window_id": ident, "events": [_clean(e) for e in win if e["event"] != "write.envelope.trace"],
-                              "envelopes": [_clean(e) for e in win if e["event"] == "write.envelope.trace"]})
+            return _jsonable(
+                {
+                    "kind": "window",
+                    "window_id": ident,
+                    "events": [_clean(e) for e in win if e["event"] != "write.envelope.trace"],
+                    "envelopes": [_clean(e) for e in win if e["event"] == "write.envelope.trace"],
+                }
+            )
         if ident.isdigit():
             occ = [e for e in events if str(e.get("occ")) == ident]
             if occ:
-                return _jsonable({"kind": "occ", "occ": ident, "envelopes": [_clean(e) for e in occ if e["event"] == "write.envelope.trace"],
-                                  "events": [_clean(e) for e in occ if e["event"] != "write.envelope.trace"]})
+                return _jsonable(
+                    {
+                        "kind": "occ",
+                        "occ": ident,
+                        "envelopes": [
+                            _clean(e) for e in occ if e["event"] == "write.envelope.trace"
+                        ],
+                        "events": [_clean(e) for e in occ if e["event"] != "write.envelope.trace"],
+                    }
+                )
         raise StudioError(f"nothing known as {ident!r}", "not_found")
 
     def studio_links(self, rid: str) -> dict[str, Any]:
@@ -1231,10 +1777,14 @@ class StudioAPI:
             raise StudioError(f"no record {token!r}", "not_found")
         r = recs[rid]
         out: dict[str, Any] = {
-            "rid": rid, "turn_id": s.system._origin.get(rid), "parents": [str(p) for p in r.source.parents],
+            "rid": rid,
+            "turn_id": s.system._origin.get(rid),
+            "parents": [str(p) for p in r.source.parents],
             "children": [k for k, x in recs.items() if rid in [str(p) for p in x.source.parents]],
             "superseded_by": str(r.evolve_to) if r.evolve_to else None,
-            "supersedes": [k for k, x in recs.items() if x.evolve_to and str(x.evolve_to) == rid], "edges": []}
+            "supersedes": [k for k, x in recs.items() if x.evolve_to and str(x.evolve_to) == rid],
+            "edges": [],
+        }
         chain, cur, seen = [], rid, set()
         while cur and cur not in seen:
             seen.add(cur)
@@ -1246,7 +1796,11 @@ class StudioAPI:
 
             engine = s.system._engine
             edges, _ = await _graph_rows(engine, engine._require_started(), self.item)
-            out["edges"] = [{"src": str(e.src), "rel": e.rel_type, "dst": str(e.dst)} for e in edges if rid in (e.src, e.dst)][:100]
+            out["edges"] = [
+                {"src": str(e.src), "rel": e.rel_type, "dst": str(e.dst)}
+                for e in edges
+                if rid in (e.src, e.dst)
+            ][:100]
         except Exception as exc:
             out["edges_error"] = type(exc).__name__
         return _jsonable(out)
@@ -1254,8 +1808,12 @@ class StudioAPI:
     def studio_history(self, limit: int = 50) -> list[dict[str, Any]]:
         if not self.log_path.exists():
             return []
-        rows = [json.loads(x) for x in self.log_path.read_text(encoding="utf-8").splitlines() if x.strip()]
-        return rows[-int(limit):] if limit else rows
+        rows = [
+            json.loads(x)
+            for x in self.log_path.read_text(encoding="utf-8").splitlines()
+            if x.strip()
+        ]
+        return rows[-int(limit) :] if limit else rows
 
     # ---- export / screen
     def studio_export_arm(self, name: str) -> dict[str, Any]:
@@ -1271,31 +1829,63 @@ class StudioAPI:
         self.run(s._export_arm(f"studio-{name}"))
         path = arms / f"studio-{name}.json"
         if not path.is_file():
-            raise StudioError(self._sink.getvalue().strip().splitlines()[-1] if self._sink.getvalue().strip() else "export failed")
+            raise StudioError(
+                self._sink.getvalue().strip().splitlines()[-1]
+                if self._sink.getvalue().strip()
+                else "export failed"
+            )
         cfg = json.loads(path.read_text(encoding="utf-8"))
         base, eff = _flatten(self.arm_cfg), _flatten(cfg)
-        diff = [{"key": k, "old": base.get(k), "new": eff.get(k)} for k in sorted(set(base) | set(eff)) if base.get(k) != eff.get(k)]
-        files = sorted(str(p) for p in (arms / f"studio-{name}.prompts").glob("*")) if (arms / f"studio-{name}.prompts").is_dir() else []
-        return _jsonable({"path": str(path), "arm": f"studio-{name}", "diff_vs_base": diff, "base_arm": self.arm, "prompt_files": files})
+        diff = [
+            {"key": k, "old": base.get(k), "new": eff.get(k)}
+            for k in sorted(set(base) | set(eff))
+            if base.get(k) != eff.get(k)
+        ]
+        files = (
+            sorted(str(p) for p in (arms / f"studio-{name}.prompts").glob("*"))
+            if (arms / f"studio-{name}.prompts").is_dir()
+            else []
+        )
+        return _jsonable(
+            {
+                "path": str(path),
+                "arm": f"studio-{name}",
+                "diff_vs_base": diff,
+                "base_arm": self.arm,
+                "prompt_files": files,
+            }
+        )
 
     def _verify_passed(self) -> tuple[bool, str]:
         v = self.last_verify
         if not v:
             return False, "no verify has run: call studio_verify first"
-        if v.get("stale") or v.get("config_digest") != _digest([self.overrides, self.prompt_overrides]):
-            return False, "the last verify is stale (config or writes changed since): run studio_verify again"
+        if v.get("stale") or v.get("config_digest") != _digest(
+            [self.overrides, self.prompt_overrides]
+        ):
+            return (
+                False,
+                "the last verify is stale (config or writes changed since): run studio_verify again",
+            )
         if not v.get("passed"):
-            return False, f"the last verify did not pass (check errors {v['checks']['errors']}, broken {v['counts']['broken']} > fixed {v['counts']['fixed']})"
+            return (
+                False,
+                f"the last verify did not pass (check errors {v['checks']['errors']}, broken {v['counts']['broken']} > fixed {v['counts']['fixed']})",
+            )
         return True, ""
 
-    def studio_screen(self, arm: str, slice: str | None = None, mode: str = "sample", screen: str | None = None) -> dict[str, Any]:  # noqa: A002
-        refuse = lambda reason: {"queued": False, "refused": True, "reason": reason}  # noqa: E731
+    def studio_screen(
+        self, arm: str, slice: str | None = None, mode: str = "sample", screen: str | None = None
+    ) -> dict[str, Any]:
+        refuse = lambda reason: {"queued": False, "refused": True, "reason": reason}
         if not self.allow_gpu:
             return refuse("server was not started with --allow-gpu")
         if (self.logs_dir / "GPU_RESERVED").exists():
             return refuse(f"GPU is reserved ({self.logs_dir / 'GPU_RESERVED'} exists)")
         if mode not in ("sample", "focus"):
-            return refuse(f"mode must be sample or focus (got {mode!r}); a final run is never launched from the studio")
+            return refuse(
+                f"mode must be sample or focus (got {mode!r}); a final run is never launched from the studio"
+            )
         ok, why = self._verify_passed()
         if not ok:
             return refuse(why)
@@ -1304,8 +1894,10 @@ class StudioAPI:
         if not arm_file.is_file():
             return refuse(f"arm {arm!r} not exported: call studio_export_arm first ({arm_file})")
         if not screen:
-            return refuse("screen (a queue row id or batch in evals/v2_queue.tsv, e.g. S01 or B1) is required: the queue runs screens, not bare arms; "
-                          f"add a row for {arm_file.stem} and pass its id")
+            return refuse(
+                "screen (a queue row id or batch in evals/v2_queue.tsv, e.g. S01 or B1) is required: the queue runs screens, not bare arms; "
+                f"add a row for {arm_file.stem} and pass its id"
+            )
         if not re.fullmatch(r"[A-Za-z0-9_,.-]+", screen):
             return refuse("screen has unexpected characters")
         est = None
@@ -1323,13 +1915,34 @@ class StudioAPI:
             if not bash:
                 return refuse("bash not found on PATH")
             cmd[0] = bash
-            proc = subprocess.Popen(cmd, cwd=str(REPO), stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)  # noqa: S603
+            proc = subprocess.Popen(
+                cmd, cwd=str(REPO), stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True
+            )
             first = (proc.stdout.readline() if proc.stdout else "").strip()
-            return {"queued": True, "eta_min": est, "screen": screen, "arm": arm_file.stem, "slice": slice, "mode": mode, "launcher": first}
-        return {"queued": True, "eta_min": est, "screen": screen, "arm": arm_file.stem, "slice": slice, "mode": mode}
+            return {
+                "queued": True,
+                "eta_min": est,
+                "screen": screen,
+                "arm": arm_file.stem,
+                "slice": slice,
+                "mode": mode,
+                "launcher": first,
+            }
+        return {
+            "queued": True,
+            "eta_min": est,
+            "screen": screen,
+            "arm": arm_file.stem,
+            "slice": slice,
+            "mode": mode,
+        }
 
     def studio_screen_status(self) -> dict[str, Any]:
-        logs = sorted(self.logs_dir.glob("v2_*.log"), key=lambda p: p.stat().st_mtime) if self.logs_dir.is_dir() else []
+        logs = (
+            sorted(self.logs_dir.glob("v2_*.log"), key=lambda p: p.stat().st_mtime)
+            if self.logs_dir.is_dir()
+            else []
+        )
         tail: list[str] = []
         if logs:
             tail = logs[-1].read_text(encoding="utf-8", errors="replace").splitlines()[-40:]
@@ -1338,7 +1951,12 @@ class StudioAPI:
         if res.is_file():
             with res.open(encoding="utf-8", newline="") as fh:
                 rows = list(csv.DictReader(fh, delimiter="\t"))[-10:]
-        return {"log": logs[-1].name if logs else None, "tail": tail, "ledger_rows": rows, "gpu": self._gpu_state()}
+        return {
+            "log": logs[-1].name if logs else None,
+            "tail": tail,
+            "ledger_rows": rows,
+            "gpu": self._gpu_state(),
+        }
 
     # ---- verify (TS-3)
     def _verify_qids(self, spec: Any) -> list[str]:
@@ -1347,14 +1965,18 @@ class StudioAPI:
             raise StudioError(f"no questions matched {spec!r}")
         return out
 
-
-
-    def _funnel(self, results: Mapping[str, Mapping[str, Any]], questions: Mapping[str, Mapping[str, Any]]) -> dict[str, dict[str, int]]:
+    def _funnel(
+        self, results: Mapping[str, Mapping[str, Any]], questions: Mapping[str, Mapping[str, Any]]
+    ) -> dict[str, dict[str, int]]:
         out: dict[str, dict[str, int]] = {}
         for name in FUNNEL:
             n = surv = 0
             for qid, res in results.items():
-                gold = questions[qid].get("gold_turns") or [] if qid in questions else res.get("gold_turns") or []
+                gold = (
+                    questions[qid].get("gold_turns") or []
+                    if qid in questions
+                    else res.get("gold_turns") or []
+                )
                 turns = res["_stage_turns"].get(name)
                 if not gold or turns is None:
                     continue
@@ -1370,7 +1992,18 @@ class StudioAPI:
         return out
 
     def _baseline_key(self, qids: list[str], arm: str | None) -> str:
-        return _digest([self.data_spec, self.item, arm or self.arm, self.arm_cfg, self.mode, self.wlog, qids, {q: self.custom_q[q] for q in qids if q in self.custom_q}])
+        return _digest(
+            [
+                self.data_spec,
+                self.item,
+                arm or self.arm,
+                self.arm_cfg,
+                self.mode,
+                self.wlog,
+                qids,
+                {q: self.custom_q[q] for q in qids if q in self.custom_q},
+            ]
+        )
 
     def _baseline(self, qids: list[str], arm: str | None = None) -> dict[str, dict[str, Any]]:
         """Answers to ``qids`` with no overrides (or under another arm): cached by writes + questions + arm."""
@@ -1383,7 +2016,11 @@ class StudioAPI:
             return self._baselines[key]
         s = self.session
         saved = (dict(s.overrides), copy.deepcopy(s.prompt_overrides), s._base_dump)
-        in_place = arm is None and not s.prompt_overrides and not any(s._needs_rebuild(k) for k in s.overrides)
+        in_place = (
+            arm is None
+            and not s.prompt_overrides
+            and not any(s._needs_rebuild(k) for k in s.overrides)
+        )
         if in_place:
             # every override is a live read-path key: revert them in the running engine, ask, put them back
             log = s._log_tuning
@@ -1424,7 +2061,11 @@ class StudioAPI:
             self.stale = []
         no_overrides = not self.overrides and not self.prompt_overrides
         base: dict[str, dict[str, Any]] | None = None
-        other_arm = baseline if isinstance(baseline, str) and baseline not in ("", "true", "false") else None
+        other_arm = (
+            baseline
+            if isinstance(baseline, str) and baseline not in ("", "true", "false")
+            else None
+        )
         if baseline and (not no_overrides or other_arm):
             base = self._baseline(qids, other_arm)
             s = self.session
@@ -1440,7 +2081,10 @@ class StudioAPI:
         fails = [r for r in results if r.status == "fail"]
         errors = [r for r in fails if r.level == "error"]
         warnings = [r for r in fails if r.level != "error"]
-        failing = [{"check_id": r.check_id, "id": r.id, "level": r.level, "detail": r.detail} for r in fails[:50]]
+        failing = [
+            {"check_id": r.check_id, "id": r.id, "level": r.level, "detail": r.detail}
+            for r in fails[:50]
+        ]
         counts = {"fixed": 0, "broken": 0, "unchanged": 0, "unknown": 0}
         per_q = []
         for qid in qids:
@@ -1457,20 +2101,58 @@ class StudioAPI:
             else:
                 state = "unchanged"
             counts[state if state != "unknown" else "unknown"] += 1
-            per_q.append({"qid": qid, "category": cur.get("category"), "state": state, "correct": c_ok, "baseline_correct": b_ok if b else None,
-                          "first_losing_stage": cur["first_losing_stage"], "baseline_first_losing_stage": b["first_losing_stage"] if b else None,
-                          "packed": [p["turn"] for p in cur["packed"]], "baseline_packed": [p["turn"] for p in b["packed"]] if b else None})
+            per_q.append(
+                {
+                    "qid": qid,
+                    "category": cur.get("category"),
+                    "state": state,
+                    "correct": c_ok,
+                    "baseline_correct": b_ok if b else None,
+                    "first_losing_stage": cur["first_losing_stage"],
+                    "baseline_first_losing_stage": b["first_losing_stage"] if b else None,
+                    "packed": [p["turn"] for p in cur["packed"]],
+                    "baseline_packed": [p["turn"] for p in b["packed"]] if b else None,
+                }
+            )
         counts["unchanged"] += counts.pop("unknown")
         cur_f = self._funnel(current, s.questions)
         base_f = self._funnel(base, s.questions) if base else cur_f
-        funnel = [{"stage": st, "n": cur_f[st]["n"], "survive": cur_f[st]["survive"], "baseline_survive": base_f[st]["survive"]} for st in FUNNEL]
+        funnel = [
+            {
+                "stage": st,
+                "n": cur_f[st]["n"],
+                "survive": cur_f[st]["survive"],
+                "baseline_survive": base_f[st]["survive"],
+            }
+            for st in FUNNEL
+        ]
         passed = not errors and counts["broken"] <= counts["fixed"]
         out = {
-            "passed": passed, "questions": qids, "baseline": "none (no overrides)" if base is None else (f"cached run under arm {other_arm}" if other_arm else "cached run without overrides"),
-            "checks": {"errors": len(errors), "warnings": len(warnings), "failing": failing, "n": len(results), "bundle": str(bundle)},
-            "counts": counts, "funnel": funnel, "per_question": per_q,
+            "passed": passed,
+            "questions": qids,
+            "baseline": "none (no overrides)"
+            if base is None
+            else (
+                f"cached run under arm {other_arm}" if other_arm else "cached run without overrides"
+            ),
+            "checks": {
+                "errors": len(errors),
+                "warnings": len(warnings),
+                "failing": failing,
+                "n": len(results),
+                "bundle": str(bundle),
+            },
+            "counts": counts,
+            "funnel": funnel,
+            "per_question": per_q,
         }
-        self.last_verify = {"passed": passed, "ts": time.strftime("%Y-%m-%dT%H:%M:%S"), "counts": counts,
-                            "checks": {"errors": len(errors), "warnings": len(warnings)}, "n_questions": len(qids), "stale": False,
-                            "config_digest": _digest([self.overrides, self.prompt_overrides])}
+        self.last_verify = {
+            "passed": passed,
+            "ts": time.strftime("%Y-%m-%dT%H:%M:%S"),
+            "counts": counts,
+            "checks": {"errors": len(errors), "warnings": len(warnings)},
+            "n_questions": len(qids),
+            "stale": False,
+            "config_digest": _digest([self.overrides, self.prompt_overrides]),
+        }
         return _jsonable(out)

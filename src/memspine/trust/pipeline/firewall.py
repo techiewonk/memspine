@@ -178,11 +178,7 @@ async def approve(
         source=SourceInfo(role=actor, channel="approval"),
         valid_from=eng._clock(),
         tags=[constants.APPROVAL_TAG]
-        + (
-            [f"{constants.APPROVAL_UNTIL_PREFIX}{valid_until.isoformat()}"]
-            if valid_until
-            else []
-        ),
+        + ([f"{constants.APPROVAL_UNTIL_PREFIX}{valid_until.isoformat()}"] if valid_until else []),
     )
 
 

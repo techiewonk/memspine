@@ -11,21 +11,29 @@ missing (or that finds no applicable row) reports ``skipped``; it never fails. R
 
 The module reads rows only; it never imports the engine and never needs a model.
 """
+
 from __future__ import annotations
 
 import argparse
 import json
 import sys
 from collections import defaultdict
+from collections.abc import Callable, Iterable
 from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
-from collections.abc import Callable, Iterable
 
 FILES = ("turns", "windows", "envelopes", "records", "links", "sleep", "questions")
 SESSION_END_CUTS = {"session_end", "session", "end_of_session", "session_close"}
 SKIPPED_WINDOW = {"skip", "skipped", "no_extract"}
-BASE_CHANNELS = {None, "", "verbatim", "turn", "raw", "messages"}  # "messages" = the engine's raw turn channel
+BASE_CHANNELS = {
+    None,
+    "",
+    "verbatim",
+    "turn",
+    "raw",
+    "messages",
+}  # "messages" = the engine's raw turn channel
 DEAD_STATUS = {"deleted", "erased", "purged"}
 WALL_CLOCK_KEYS = ("run_started_at", "run_time", "created_at", "started_at", "run_date")
 FIRST_N = 10
@@ -39,8 +47,8 @@ class CheckResult:
     ok: bool
     detail: str = ""
     item: str = "_"
-    level: str = "error"          # error | warn
-    status: str = "ok"            # ok | fail | skipped
+    level: str = "error"  # error | warn
+    status: str = "ok"  # ok | fail | skipped
 
     def row(self) -> dict:
         return asdict(self)
@@ -90,7 +98,7 @@ class _Check:
     scope: str
     needs: tuple[str, ...]
     level: str
-    fn: Callable[[Bundle], Iterable[tuple]]   # yields (item, id, ok, detail)
+    fn: Callable[[Bundle], Iterable[tuple]]  # yields (item, id, ok, detail)
 
 
 REGISTRY: dict[str, _Check] = {}
@@ -98,17 +106,20 @@ REGISTRY: dict[str, _Check] = {}
 
 def check(check_id: str, scope: str, needs: tuple[str, ...] = (), level: str = "error"):
     """Register a check. The function yields (item, id, ok, detail) per inspected object."""
+
     def deco(fn):
         if check_id in REGISTRY:
             raise ValueError(f"duplicate check id {check_id}")
         REGISTRY[check_id] = _Check(check_id, scope, needs, level, fn)
         return fn
+
     return deco
 
 
 # ----------------------------------------------------------------------------------------------
 # helpers
 # ----------------------------------------------------------------------------------------------
+
 
 def _it(row: dict) -> str:
     return str(row.get("item", "_"))
@@ -144,6 +155,7 @@ def _is_derived(r: dict) -> bool:
 # bundle
 # ----------------------------------------------------------------------------------------------
 
+
 @check("bundle_wellformed", "bundle")
 def _bundle_wellformed(b: Bundle):
     """Invariant: every line of every bundle file parses as a JSON object."""
@@ -156,6 +168,7 @@ def _bundle_wellformed(b: Bundle):
 # ----------------------------------------------------------------------------------------------
 # turns
 # ----------------------------------------------------------------------------------------------
+
 
 @check("turn_written_once", "turn", ("turns",))
 def _turn_written_once(b: Bundle):
@@ -176,7 +189,10 @@ def _turn_written_once(b: Bundle):
         rid = t.get("record_id")
         if not rid:
             fw = t.get("firewall") or {}
-            if not (fw.get("quarantined") or str(t.get("deposit_action", "")).lower() in {"dropped", "quarantined", "skipped"}):
+            if not (
+                fw.get("quarantined")
+                or str(t.get("deposit_action", "")).lower() in {"dropped", "quarantined", "skipped"}
+            ):
                 probs.append("no record_id and not quarantined/dropped")
         elif len(by_rid[(k[0], str(rid))]) > 1:
             probs.append(f"record {rid} shared by turns {by_rid[(k[0], str(rid))]}")
@@ -190,7 +206,12 @@ def _turn_in_vector_index(b: Bundle):
         if not t.get("record_id"):
             continue
         v = (t.get("indexed") or {}).get("vector")
-        yield _it(t), str(t.get("turn_id")), bool(v), "vector indexed" if v else f"indexed.vector={v!r}"
+        yield (
+            _it(t),
+            str(t.get("turn_id")),
+            bool(v),
+            "vector indexed" if v else f"indexed.vector={v!r}",
+        )
 
 
 @check("turn_in_lexical_index", "turn", ("turns",))
@@ -201,18 +222,25 @@ def _turn_in_lexical_index(b: Bundle):
         return
     for t in ts:
         v = (t.get("indexed") or {}).get("lexical")
-        yield _it(t), str(t.get("turn_id")), bool(v), "lexical indexed" if v else f"indexed.lexical={v!r}"
+        yield (
+            _it(t),
+            str(t.get("turn_id")),
+            bool(v),
+            "lexical indexed" if v else f"indexed.lexical={v!r}",
+        )
 
 
 # ----------------------------------------------------------------------------------------------
 # windows
 # ----------------------------------------------------------------------------------------------
 
+
 def _window_skipped(w: dict) -> bool:
     pre = w.get("prepass") or {}
     verdict = pre.get("verdict", "") if isinstance(pre, dict) else pre
-    return (str(verdict).lower() in SKIPPED_WINDOW
-            or str(w.get("status", "")).lower() in SKIPPED_WINDOW)
+    return (
+        str(verdict).lower() in SKIPPED_WINDOW or str(w.get("status", "")).lower() in SKIPPED_WINDOW
+    )
 
 
 @check("window_has_members", "window", ("windows",))
@@ -243,8 +271,17 @@ def _window_sections_counted(b: Bundle):
         if _window_skipped(w):
             continue
         s = w.get("sections") or {}
-        bad = [k for k in ("facts", "edges", "episode") if not isinstance(s.get(k), int) or isinstance(s.get(k), bool)]
-        yield _it(w), str(w.get("window_id")), not bad, "sections counted" if not bad else f"uncounted sections: {bad}"
+        bad = [
+            k
+            for k in ("facts", "edges", "episode")
+            if not isinstance(s.get(k), int) or isinstance(s.get(k), bool)
+        ]
+        yield (
+            _it(w),
+            str(w.get("window_id")),
+            not bad,
+            "sections counted" if not bad else f"uncounted sections: {bad}",
+        )
 
 
 @check("window_single_session_at_session_end", "window", ("windows", "turns"))
@@ -254,14 +291,24 @@ def _window_single_session(b: Bundle):
     for w in b.get("windows"):
         if str(w.get("cut_reason", "")).lower() not in SESSION_END_CUTS:
             continue
-        sess = {str(tk[(_it(w), str(m))].get("session")) for m in w.get("member_turns") or [] if (_it(w), str(m)) in tk}
+        sess = {
+            str(tk[(_it(w), str(m))].get("session"))
+            for m in w.get("member_turns") or []
+            if (_it(w), str(m)) in tk
+        }
         ok = len(sess) <= 1
-        yield _it(w), str(w.get("window_id")), ok, "one session" if ok else f"spans sessions {sorted(sess)}"
+        yield (
+            _it(w),
+            str(w.get("window_id")),
+            ok,
+            "one session" if ok else f"spans sessions {sorted(sess)}",
+        )
 
 
 # ----------------------------------------------------------------------------------------------
 # envelopes
 # ----------------------------------------------------------------------------------------------
+
 
 @check("envelope_terminal", "envelope", ("envelopes",))
 def _envelope_terminal(b: Bundle):
@@ -286,12 +333,18 @@ def _supersede_has_target(b: Bundle):
         ig = e.get("integrate") or {}
         if ig.get("op") == "supersede":
             ok = bool(ig.get("target"))
-            yield _it(e), f"{e.get('occ')}@{e.get('stage')}", ok, "target set" if ok else "supersede without target"
+            yield (
+                _it(e),
+                f"{e.get('occ')}@{e.get('stage')}",
+                ok,
+                "target set" if ok else "supersede without target",
+            )
 
 
 # ----------------------------------------------------------------------------------------------
 # records
 # ----------------------------------------------------------------------------------------------
+
 
 @check("derived_has_live_parent_and_channel", "record", ("records",))
 def _derived_parent_channel(b: Bundle):
@@ -306,8 +359,12 @@ def _derived_parent_channel(b: Bundle):
         probs = []
         if not r.get("channel"):
             probs.append("no channel")
-        live = [p for p in r.get("parents") or []
-                if (item, phase, str(p)) in recs and str(recs[(item, phase, str(p))].get("status", "")).lower() not in DEAD_STATUS]
+        live = [
+            p
+            for p in r.get("parents") or []
+            if (item, phase, str(p)) in recs
+            and str(recs[(item, phase, str(p))].get("status", "")).lower() not in DEAD_STATUS
+        ]
         live_turns = [t for t in r.get("parent_turns") or [] if (item, str(t)) in tk]
         if not live and not live_turns:
             probs.append("no live parent")
@@ -317,7 +374,9 @@ def _derived_parent_channel(b: Bundle):
 @check("no_parent_cycles", "record", ("records",))
 def _no_parent_cycles(b: Bundle):
     """Invariant: the parent relation (records[].parents) is acyclic."""
-    graph = {k: [(k[0], k[1], str(p)) for p in r.get("parents") or []] for k, r in _records(b).items()}
+    graph = {
+        k: [(k[0], k[1], str(p)) for p in r.get("parents") or []] for k, r in _records(b).items()
+    }
     color: dict = {}
     cyclic: set = set()
     for start in graph:
@@ -335,13 +394,18 @@ def _no_parent_cycles(b: Bundle):
             if nxt not in graph:
                 continue
             if color.get(nxt) == 1:
-                cyclic.update(path[path.index(nxt):])
+                cyclic.update(path[path.index(nxt) :])
             elif nxt not in color:
                 color[nxt] = 1
                 path.append(nxt)
                 stack.append(iter(graph[nxt]))
     for k in graph:
-        yield k[0], f"{k[1]}:{k[2]}", k not in cyclic, "acyclic" if k not in cyclic else "on a parent cycle"
+        yield (
+            k[0],
+            f"{k[1]}:{k[2]}",
+            k not in cyclic,
+            "acyclic" if k not in cyclic else "on a parent cycle",
+        )
 
 
 @check("supersede_target_and_time_order", "record", ("records",))
@@ -372,18 +436,29 @@ def _supersede_time(b: Bundle):
 @check("duplicate_record_content", "turn", ("records",), level="warn")
 def _dup_content(b: Bundle):
     """Invariant: one source turn does not yield two derived records (same phase) with identical normalised content."""
-    turn_of_rid = {(_it(t), str(t["record_id"])): str(t.get("turn_id")) for t in b.get("turns") if t.get("record_id")}
+    turn_of_rid = {
+        (_it(t), str(t["record_id"])): str(t.get("turn_id"))
+        for t in b.get("turns")
+        if t.get("record_id")
+    }
     groups: dict[tuple, set[str]] = defaultdict(set)
     for r in b.get("records"):
         if not r.get("content") or not _is_derived(r):
             continue
         item, rid = _it(r), str(r.get("record_id"))
-        turns = [str(t) for t in r.get("parent_turns") or []] or ([turn_of_rid[(item, rid)]] if (item, rid) in turn_of_rid else [])
+        turns = [str(t) for t in r.get("parent_turns") or []] or (
+            [turn_of_rid[(item, rid)]] if (item, rid) in turn_of_rid else []
+        )
         for t in turns:
             groups[(item, str(r.get("phase", "")), t, _norm(r["content"]))].add(rid)
     for (item, phase, t, _), rids in groups.items():
         ok = len(rids) == 1
-        yield item, f"{phase}:{t}", ok, "unique" if ok else f"duplicate content in records {sorted(rids)}"
+        yield (
+            item,
+            f"{phase}:{t}",
+            ok,
+            "unique" if ok else f"duplicate content in records {sorted(rids)}",
+        )
 
 
 @check("derived_parent_turns_in_item", "record", ("records", "turns"))
@@ -395,7 +470,12 @@ def _parent_turns_in_item(b: Bundle):
             continue
         item = _it(r)
         out = [str(t) for t in r["parent_turns"] if (item, str(t)) not in tk]
-        yield item, f"{r.get('phase', '')}:{r.get('record_id')}", not out, "in item" if not out else f"outside item: {out}"
+        yield (
+            item,
+            f"{r.get('phase', '')}:{r.get('record_id')}",
+            not out,
+            "in item" if not out else f"outside item: {out}",
+        )
 
 
 def _run_date(b: Bundle):
@@ -413,8 +493,12 @@ def _no_wall_clock(b: Bundle):
     run = _run_date(b)
     if run is None:
         return
-    ts_date = {(_it(t), str(t.get("turn_id"))): str(t.get("ts") or (t.get("stamp") or {}).get("source_at") or "")[:10]
-               for t in b.get("turns")}
+    ts_date = {
+        (_it(t), str(t.get("turn_id"))): str(
+            t.get("ts") or (t.get("stamp") or {}).get("source_at") or ""
+        )[:10]
+        for t in b.get("turns")
+    }
     for r in b.get("records"):
         if not _is_derived(r):
             continue
@@ -426,13 +510,22 @@ def _no_wall_clock(b: Bundle):
             continue
         src = {ts_date.get((_it(r), str(t)), "") for t in r.get("parent_turns") or []}
         ok = run in src
-        yield _it(r), rid, ok, ("run date equals a source turn date" if ok
-                                else f"{hits} equals run date {run}, source dates {sorted(src - {''})}")
+        yield (
+            _it(r),
+            rid,
+            ok,
+            (
+                "run date equals a source turn date"
+                if ok
+                else f"{hits} equals run date {run}, source dates {sorted(src - {''})}"
+            ),
+        )
 
 
 # ----------------------------------------------------------------------------------------------
 # links
 # ----------------------------------------------------------------------------------------------
+
 
 @check("graph_edge_endpoints_exist", "record", ("links", "records"))
 def _edge_endpoints(b: Bundle):
@@ -454,12 +547,18 @@ def _edge_endpoints(b: Bundle):
             continue
         ends = [("src", ln.get("src"))] + ([] if kind == "mentions" else [("dst", ln.get("dst"))])
         miss = [f"{k}={v}" for k, v in ends if str(v) not in known[_it(ln)]]
-        yield _it(ln), f"{kind}:{ln.get('src')}->{ln.get('dst')}#{n}", not miss, "endpoints exist" if not miss else f"missing {miss}"
+        yield (
+            _it(ln),
+            f"{kind}:{ln.get('src')}->{ln.get('dst')}#{n}",
+            not miss,
+            "endpoints exist" if not miss else f"missing {miss}",
+        )
 
 
 # ----------------------------------------------------------------------------------------------
 # sleep
 # ----------------------------------------------------------------------------------------------
+
 
 @check("sleep_idempotent", "record", ("sleep",))
 def _sleep_idempotent(b: Bundle):
@@ -474,12 +573,18 @@ def _sleep_idempotent(b: Bundle):
         if len(cycles[k]) < 2 or not isinstance(cyc, int) or cyc <= min(cycles[k]):
             continue
         out = s.get("output_ids") or []
-        yield k[0], f"{k[1]}/{k[2]}/cycle{cyc}", not out, "adds nothing" if not out else f"later cycle added {len(out)} item(s)"
+        yield (
+            k[0],
+            f"{k[1]}/{k[2]}/cycle{cyc}",
+            not out,
+            "adds nothing" if not out else f"later cycle added {len(out)} item(s)",
+        )
 
 
 # ----------------------------------------------------------------------------------------------
 # questions
 # ----------------------------------------------------------------------------------------------
+
 
 @check("question_has_plan", "question", ("questions",))
 def _q_plan(b: Bundle):
@@ -494,7 +599,12 @@ def _q_leg(b: Bundle):
     """Invariant: every question ran at least one retrieval leg."""
     for q in b.get("questions"):
         ok = bool(q.get("legs"))
-        yield _it(q), str(q.get("query_id")), ok, f"{len(q.get('legs') or {})} leg(s)" if ok else "no legs"
+        yield (
+            _it(q),
+            str(q.get("query_id")),
+            ok,
+            f"{len(q.get('legs') or {})} leg(s)" if ok else "no legs",
+        )
 
 
 @check("question_context_within_budget", "question", ("questions",))
@@ -518,6 +628,7 @@ def _gold_stage(q: dict, turn) -> str | None:
 
     def has(rows):
         return any(str((x or {}).get("turn", (x or {}).get("rid"))) == t for x in rows or [])
+
     last = "leg" if any(has(v) for v in (q.get("legs") or {}).values()) else None
     for name in ("fused", "pool", "rerank", "packed"):
         if has(q.get(name)):
@@ -552,24 +663,43 @@ def _gold_path(b: Bundle):
 # runner
 # ----------------------------------------------------------------------------------------------
 
+
 def summarise(results: list[CheckResult]) -> str:
     """Markdown summary: per item, counts per check and the first 10 failing ids."""
     errs = sum(1 for r in results if r.status == "fail" and r.level == "error")
     warns = sum(1 for r in results if r.status == "fail" and r.level == "warn")
-    lines = ["# Inspect bundle checks", "", f"Total: {errs} error failure(s), {warns} warning(s).", ""]
+    lines = [
+        "# Inspect bundle checks",
+        "",
+        f"Total: {errs} error failure(s), {warns} warning(s).",
+        "",
+    ]
     items = sorted({r.item for r in results if r.item != "_"}) or ["_"]
     for item in items:
-        lines += [f"## Item {item}", "", "| check | level | ok | fail | first failing ids |", "|---|---|---|---|---|"]
+        lines += [
+            f"## Item {item}",
+            "",
+            "| check | level | ok | fail | first failing ids |",
+            "|---|---|---|---|---|",
+        ]
         for cid in REGISTRY:
-            rows = [r for r in results if r.check_id == cid and r.item == item and r.status != "skipped"]
+            rows = [
+                r for r in results if r.check_id == cid and r.item == item and r.status != "skipped"
+            ]
             if rows:
                 bad = [r.id for r in rows if not r.ok][:FIRST_N]
-                lines.append(f"| {cid} | {REGISTRY[cid].level} | {sum(r.ok for r in rows)} | "
-                             f"{sum(not r.ok for r in rows)} | {', '.join(bad)} |")
+                lines.append(
+                    f"| {cid} | {REGISTRY[cid].level} | {sum(r.ok for r in rows)} | "
+                    f"{sum(not r.ok for r in rows)} | {', '.join(bad)} |"
+                )
         lines.append("")
     bundle_fail = [r for r in results if r.item == "_" and r.status == "fail"]
     if bundle_fail:
-        lines += ["## Bundle-level failures", ""] + [f"- {r.check_id} {r.id}: {r.detail}" for r in bundle_fail[:FIRST_N]] + [""]
+        lines += (
+            ["## Bundle-level failures", ""]
+            + [f"- {r.check_id} {r.id}: {r.detail}" for r in bundle_fail[:FIRST_N]]
+            + [""]
+        )
     skipped = [r for r in results if r.status == "skipped"]
     if skipped:
         lines += ["## Skipped", ""] + [f"- {r.check_id}: {r.detail}" for r in skipped] + [""]
@@ -583,13 +713,46 @@ def run_checks(bundle_dir, write: bool = True) -> list[CheckResult]:
     for c in REGISTRY.values():
         missing = [n for n in c.needs if b.rows.get(n) is None]
         if missing:
-            out.append(CheckResult(c.check_id, c.scope, "*", True, f"skipped: missing {', '.join(missing)}", "_", c.level, "skipped"))
+            out.append(
+                CheckResult(
+                    c.check_id,
+                    c.scope,
+                    "*",
+                    True,
+                    f"skipped: missing {', '.join(missing)}",
+                    "_",
+                    c.level,
+                    "skipped",
+                )
+            )
             continue
         n0 = len(out)
         for item, rid, ok, detail in c.fn(b):
-            out.append(CheckResult(c.check_id, c.scope, str(rid), bool(ok), detail, item, c.level, "ok" if ok else "fail"))
+            out.append(
+                CheckResult(
+                    c.check_id,
+                    c.scope,
+                    str(rid),
+                    bool(ok),
+                    detail,
+                    item,
+                    c.level,
+                    "ok" if ok else "fail",
+                )
+            )
         if len(out) == n0:
-            out.append(CheckResult(c.check_id, c.scope, "*", True, "skipped: no applicable rows", "_", c.level, "skipped"))
+            out.append(
+                CheckResult(
+                    c.check_id,
+                    c.scope,
+                    "*",
+                    True,
+                    "skipped: no applicable rows",
+                    "_",
+                    c.level,
+                    "skipped",
+                )
+            )
     if write:
         d = Path(bundle_dir)
         with (d / "checks.jsonl").open("w", encoding="utf-8", newline="\n") as f:
@@ -600,11 +763,17 @@ def run_checks(bundle_dir, write: bool = True) -> list[CheckResult]:
 
 
 def main(argv=None) -> int:
-    ap = argparse.ArgumentParser(prog="python -m memspine_evals.inspect.checks",
-                                 description="Run the TI-6 invariant checks over an inspect bundle.")
+    ap = argparse.ArgumentParser(
+        prog="python -m memspine_evals.inspect.checks",
+        description="Run the TI-6 invariant checks over an inspect bundle.",
+    )
     ap.add_argument("bundle_dir")
-    ap.add_argument("--fail-on", choices=("error", "warn", "never"), default="never",
-                    help="exit 1 when a check of this level fails (error: errors only; warn: errors or warnings)")
+    ap.add_argument(
+        "--fail-on",
+        choices=("error", "warn", "never"),
+        default="never",
+        help="exit 1 when a check of this level fails (error: errors only; warn: errors or warnings)",
+    )
     a = ap.parse_args(argv)
     d = Path(a.bundle_dir)
     if not d.is_dir():
@@ -613,8 +782,10 @@ def main(argv=None) -> int:
     res = run_checks(d)
     fails = [r for r in res if r.status == "fail"]
     e = sum(r.level == "error" for r in fails)
-    print(f"{len(res)} results: {e} error failure(s), {len(fails) - e} warning(s), "
-          f"{sum(r.status == 'skipped' for r in res)} skipped -> {d / 'checks.jsonl'}")
+    print(
+        f"{len(res)} results: {e} error failure(s), {len(fails) - e} warning(s), "
+        f"{sum(r.status == 'skipped' for r in res)} skipped -> {d / 'checks.jsonl'}"
+    )
     if a.fail_on == "error" and e:
         return 1
     if a.fail_on == "warn" and fails:

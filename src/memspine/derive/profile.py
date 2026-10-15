@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """Profile card with guarded operations, preference drift and reflection plans (LIB-39; O-18, O-19, O-20, M-20, ER-28).
 
 Pure and unwired (wiring is O4-07): no I/O, no clock, no model call. Opt-in layer (L4/L5): nothing here runs

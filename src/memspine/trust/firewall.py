@@ -357,8 +357,11 @@ class Firewall:
                 trust=trust,
                 trust_tier=self._policy.source_tier(stamped),
                 instruction_screen=(
-                    "extended" if signals.instruction_extended
-                    else "base" if signals.instruction else "off"
+                    "extended"
+                    if signals.instruction_extended
+                    else "base"
+                    if signals.instruction
+                    else "off"
                 ),
                 instruction_flag=flagged,
                 semantic_risk=semantic_risk(record.content) if signals.semantic_risk else None,

@@ -77,4 +77,3 @@ def _as_options_dict(raw: Any) -> dict[str, object] | None:
 #: ``memspine.read.pipeline.state._TAINT_ARCHIVED_TAG`` (trust is a foundation and may
 #: not import read).
 _TAINT_ARCHIVED_TAG = "taint_archived"
-

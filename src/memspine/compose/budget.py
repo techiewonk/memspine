@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """Exact token budgeting (R-18 step 1, ER-24).
 
 Pure and deterministic: no I/O, no model calls, no tokenizer import. A caller that has the reader's

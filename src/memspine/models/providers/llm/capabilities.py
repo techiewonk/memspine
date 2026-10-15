@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """Per-provider capability: can this LLM take a JSON schema for constrained decoding? (W2-06b; P-04)
 
 Never a requirement: ``schema_options`` returns ``("none", {})`` for a provider that does not declare or

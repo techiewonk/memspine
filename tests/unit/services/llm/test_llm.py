@@ -116,7 +116,9 @@ async def test_litellm_unanswered_request_times_out(monkeypatch: pytest.MonkeyPa
         await asyncio.sleep(3600)
         raise AssertionError("unreachable")
 
-    ticks = iter(range(0, 10_000, 100))  # each clock read jumps 100 s: no retry fits the total deadline
+    ticks = iter(
+        range(0, 10_000, 100)
+    )  # each clock read jumps 100 s: no retry fits the total deadline
     monkeypatch.setattr(litellm, "acompletion", never)
     monkeypatch.setattr(_retry, "_clock", lambda: float(next(ticks)))
     llm = LiteLLMLLM("ollama/test-model", timeout_seconds=0.01)

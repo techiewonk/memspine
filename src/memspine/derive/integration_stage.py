@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """W2-10 (``write.integration_v2``): the integration ladder as an envelope stage, order 400 (W-21, W-22, M-12).
 
 Built on LIB-02 (``derive/integrate.py``), which stays pure. This module adds the three W2-10 parts:
@@ -144,11 +143,15 @@ def hints_of(env: AssertionEnvelope) -> list[str]:
 class ConflictLadder:
     """Decide ⊕ for one envelope against the live assertions of its key (pure; wraps LIB-02)."""
 
-    def __init__(self, registry: CardinalityRegistry, default: DefaultVerdict | None = None) -> None:
+    def __init__(
+        self, registry: CardinalityRegistry, default: DefaultVerdict | None = None
+    ) -> None:
         self.registry = registry
         self.default = default or DefaultVerdict()
 
-    def decide(self, incoming: AssertionEnvelope, current: Sequence[AssertionEnvelope]) -> LadderVerdict:
+    def decide(
+        self, incoming: AssertionEnvelope, current: Sequence[AssertionEnvelope]
+    ) -> LadderVerdict:
         hints = hints_of(incoming)
         hint = hints[0] if hints else None
         work = incoming
@@ -187,13 +190,17 @@ class ConflictLadder:
         return decision.outcome in ("coexist", "supersede", "contest")
 
     @staticmethod
-    def _verdict(decision: IntegrationDecision, incoming: AssertionEnvelope, hint: str | None) -> LadderVerdict:
+    def _verdict(
+        decision: IntegrationDecision, incoming: AssertionEnvelope, hint: str | None
+    ) -> LadderVerdict:
         op = _OPS[decision.outcome]
         rung = _RUNG.get(decision.reason, decision.reason)
         target = decision.merge_into or (decision.affected[0] if decision.affected else None)
         if decision.outcome == "supersede" and decision.reason == "newer_trust_ok" and hint is None:
             hint = "cardinality_one" if decision.declared else None
-        return LadderVerdict(op, rung, hint, target, decision.outcome, decision.reason, decision.affected)
+        return LadderVerdict(
+            op, rung, hint, target, decision.outcome, decision.reason, decision.affected
+        )
 
 
 # --------------------------------------------------------------------------- the stage
@@ -209,7 +216,9 @@ def _subject_cf(env: AssertionEnvelope) -> str | None:
     return (s.entity_id or s.surface).strip().casefold()
 
 
-def _live_index(records: Sequence[MemoryRecord], namespace: str) -> dict[tuple[str, str], list[AssertionEnvelope]]:
+def _live_index(
+    records: Sequence[MemoryRecord], namespace: str
+) -> dict[tuple[str, str], list[AssertionEnvelope]]:
     """(casefolded entity, normalised attribute) -> projected live facts, entity id set to the key."""
     idx: dict[tuple[str, str], list[AssertionEnvelope]] = defaultdict(list)
     for r in records:
@@ -217,7 +226,9 @@ def _live_index(records: Sequence[MemoryRecord], namespace: str) -> dict[tuple[s
             continue  # a closed interval is history and never competes
         if "integ_rung:time" in r.tags or "integ_rung:tentative" in r.tags:
             continue  # a coexisting past or tentative value never competes either
-        if r.attribute is None:  # a coexisting value stored without a key keeps it in an ``attr:`` tag
+        if (
+            r.attribute is None
+        ):  # a coexisting value stored without a key keeps it in an ``attr:`` tag
             tagged = next((t[5:] for t in r.tags if t.startswith(ATTR_TAG)), None)
             if tagged is not None:
                 r = r.model_copy(update={"attribute": tagged})
@@ -228,7 +239,13 @@ def _live_index(records: Sequence[MemoryRecord], namespace: str) -> dict[tuple[s
         env = to_envelope(r, namespace)
         if env.subject is not None:
             env = env.model_copy(
-                update={"subject": Mention(surface=env.subject.surface, mention_id=env.subject.mention_id, entity_id=ent)}
+                update={
+                    "subject": Mention(
+                        surface=env.subject.surface,
+                        mention_id=env.subject.mention_id,
+                        entity_id=ent,
+                    )
+                }
             )
         idx[(ent, normalise_name(key[1]))].append(env)
     return idx
@@ -266,10 +283,14 @@ def integration_stage(
 ) -> EnvelopeStage:
     """The order-400 stage. ``list_live(namespace)`` returns the namespace's semantic records (the stage
     keeps the live facts); ``cardinality`` maps attribute -> ``one`` / ``many`` (operator-declared)."""
-    declared = {normalise_name(k): v for k, v in (cardinality or {}).items() if v in ("one", "many")}
+    declared = {
+        normalise_name(k): v for k, v in (cardinality or {}).items() if v in ("one", "many")
+    }
     dflt = default or DefaultVerdict()
 
-    async def run(envs: list[AssertionEnvelope], ctx: EnvelopeStageContext) -> list[AssertionEnvelope]:
+    async def run(
+        envs: list[AssertionEnvelope], ctx: EnvelopeStageContext
+    ) -> list[AssertionEnvelope]:
         if not envs:
             return envs
         ns = ctx.namespace
@@ -284,13 +305,18 @@ def integration_stage(
             key_s = _subject_cf(env)
             if env.attribute is None or key_s is None or storage_kind(env.kind) != "state":
                 # events, unkeyed facts and subject-less items have no key to conflict on: they coexist
-                out.append(_annotate(env, LadderVerdict("append", "no_key", None), ctx, keyed=False))
+                out.append(
+                    _annotate(env, LadderVerdict("append", "no_key", None), ctx, keyed=False)
+                )
                 continue
             if index is None:
                 index = _live_index(await list_live(ns), ns)
             gkey = (key_s, normalise_name(env.attribute))
             surface = env.subject.surface.strip().casefold() if env.subject is not None else key_s
-            stored = [*index.get(gkey, []), *(index.get((surface, gkey[1]), []) if surface != key_s else [])]
+            stored = [
+                *index.get(gkey, []),
+                *(index.get((surface, gkey[1]), []) if surface != key_s else []),
+            ]
             work = _working_copy(env, ctx, key_s)
             current = [*stored, *seen[gkey]]
             verdict = ladder.decide(work, current)

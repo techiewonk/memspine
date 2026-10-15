@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """Mapping between the stored MemoryRecord and the durable AssertionEnvelope (F-02a, M-06).
 
 ``to_envelope`` is lossless: whatever the envelope cannot express is carried in ``extras`` as one JSON

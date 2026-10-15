@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """Internal step types for the insert pipeline (``docs/v2/pipelines/insert.md``), steps 1-23.
 
 Names follow ``Insert<NN>Step...`` -> ``InsertStep<NN>Input`` / ``InsertStep<NN>Output``. Field names come

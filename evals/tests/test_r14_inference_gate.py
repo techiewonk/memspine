@@ -86,7 +86,10 @@ def test_cat5_abstention_is_still_allowed() -> None:
     mentioned' reply for the case that no memory line bears on the question."""
     low = INFERENCE_COMMIT_CLAUSE.lower()
     assert "no memory line bears" in low and "not mentioned" in low and "instead of guessing" in low
-    assert "no line bears" in INFERENCE_RETRY_INSTRUCTION and "Not mentioned" in INFERENCE_RETRY_INSTRUCTION
+    assert (
+        "no line bears" in INFERENCE_RETRY_INSTRUCTION
+        and "Not mentioned" in INFERENCE_RETRY_INSTRUCTION
+    )
     # and the gated variant still carries the base prompt's own refusal rule
     full = gated_inference_prompt(GROUNDED_GENERIC_QA_PROMPT).format(context="x", question=INFER[0])
     assert "Not mentioned in the conversation" in full
@@ -104,9 +107,13 @@ class _Reader:
     def describe(self) -> dict[str, Any]:
         return {"reader_id": self.reader_id}
 
-    async def answer(self, question: str, context: str, question_date: str | None = None) -> ReaderAnswer:
+    async def answer(
+        self, question: str, context: str, question_date: str | None = None
+    ) -> ReaderAnswer:
         self.questions.append(question)
-        return ReaderAnswer(text=self.replies.pop(0) if self.replies else "Not mentioned.", model_calls=1)
+        return ReaderAnswer(
+            text=self.replies.pop(0) if self.replies else "Not mentioned.", model_calls=1
+        )
 
 
 CTX = "[2023-05-25] Ilse: I love hiking in the Alps"
@@ -133,18 +140,26 @@ def test_retry_keeps_the_neutral_instruction_for_other_shapes_and_when_off() -> 
     reader = RefusalRetryReader(off)
     _ask(reader, INFER[0])
     assert off.questions[1].endswith(RETRY_INSTRUCTION_NEUTRAL)
-    assert reader.reader_id == "stub+retry-neutral" and "retry_inference_gate" not in reader.describe()
+    assert (
+        reader.reader_id == "stub+retry-neutral" and "retry_inference_gate" not in reader.describe()
+    )
 
 
 def test_flag_off_builds_the_plain_prompt() -> None:
-    cfg = C01Config(mode="qa", qa_prompt="grounded_generic", memspine_config={"read": {"inference_mode": "off"}})
+    cfg = C01Config(
+        mode="qa", qa_prompt="grounded_generic", memspine_config={"read": {"inference_mode": "off"}}
+    )
     assert not inference_gated(cfg)
     reader, _, _ = build_reader_and_judge(cfg)
     assert reader.prompt == QA_PROMPTS["grounded_generic"]
 
 
 def test_flag_on_builds_the_gated_prompt() -> None:
-    cfg = C01Config(mode="qa", qa_prompt="grounded_generic", memspine_config={"read": {"inference_mode": "gated"}})
+    cfg = C01Config(
+        mode="qa",
+        qa_prompt="grounded_generic",
+        memspine_config={"read": {"inference_mode": "gated"}},
+    )
     assert inference_gated(cfg)
     reader, _, _ = build_reader_and_judge(cfg)
     assert isinstance(reader.prompt, RoutedQAPrompt)
@@ -152,7 +167,9 @@ def test_flag_on_builds_the_gated_prompt() -> None:
 
 
 def test_flag_on_rejects_a_routed_prompt() -> None:
-    cfg = C01Config(mode="qa", qa_prompt="routed", memspine_config={"read": {"inference_mode": "gated"}})
+    cfg = C01Config(
+        mode="qa", qa_prompt="routed", memspine_config={"read": {"inference_mode": "gated"}}
+    )
     with pytest.raises(ValueError, match="fixed"):
         build_reader_and_judge(cfg)
 
@@ -174,12 +191,14 @@ def test_arm_is_reference_plus_the_flag_only() -> None:
     base = json.loads((arms / "scr-pool-protect-jina.json").read_text(encoding="utf-8"))
     assert arm["read"].pop("inference_mode") == "gated"
     assert arm == base
-    validate_engine_config(json.loads((arms / "v2-R14-INFER-inference_mode.json").read_text(encoding="utf-8")))
+    validate_engine_config(
+        json.loads((arms / "v2-R14-INFER-inference_mode.json").read_text(encoding="utf-8"))
+    )
 
 
 # ---------------------------------------------------------------- R14-INFER2: gated_v2 (widened shape)
-from memspine_evals.experiments import inference_gated_v2  # noqa: E402
-from memspine_evals.readers import (  # noqa: E402
+from memspine_evals.experiments import inference_gated_v2
+from memspine_evals.readers import (
     INFERENCE_GATE_VERSION_V2,
     inference_shape,
     is_inference_question_v2,
@@ -233,7 +252,9 @@ def test_v2_prompt_gates_on_the_widened_shape_and_v1_is_unchanged() -> None:
     v1 = gated_inference_prompt(GROUNDED_GENERIC_QA_PROMPT, "g")
     assert v2.router_version == INFERENCE_GATE_VERSION_V2 != v1.router_version
     q = "What kind of person is Noor?"
-    assert prompt_variant(v2, q) == "inference" and INFERENCE_COMMIT_CLAUSE in v2.format(context="c", question=q)
+    assert prompt_variant(v2, q) == "inference" and INFERENCE_COMMIT_CLAUSE in v2.format(
+        context="c", question=q
+    )
     assert prompt_variant(v1, q) == "plain"
     for q in OTHER:
         assert prompt_variant(v2, q) == "plain"
@@ -241,15 +262,23 @@ def test_v2_prompt_gates_on_the_widened_shape_and_v1_is_unchanged() -> None:
 
 
 def test_v2_keeps_the_cat5_abstention_wording() -> None:
-    full = gated_inference_prompt(GROUNDED_GENERIC_QA_PROMPT, v2=True).format(context="x", question=V2_FIRES[0])
-    assert "not mentioned" in INFERENCE_COMMIT_CLAUSE.lower() and "Not mentioned in the conversation" in full
+    full = gated_inference_prompt(GROUNDED_GENERIC_QA_PROMPT, v2=True).format(
+        context="x", question=V2_FIRES[0]
+    )
+    assert (
+        "not mentioned" in INFERENCE_COMMIT_CLAUSE.lower()
+        and "Not mentioned in the conversation" in full
+    )
 
 
 def test_v2_retry_route_uses_the_widened_gate() -> None:
     q = "What kind of person is Noor?"
     inner = _Reader("Not mentioned.", "Warm and generous, per the line about the lamp.")
     out = _ask(RefusalRetryReader(inner, inference_gate=is_inference_question_v2), q)
-    assert inner.questions[1].endswith(INFERENCE_RETRY_INSTRUCTION) and out.extra_meta["retry_inference"] is True
+    assert (
+        inner.questions[1].endswith(INFERENCE_RETRY_INSTRUCTION)
+        and out.extra_meta["retry_inference"] is True
+    )
     old = _Reader("Not mentioned.", "x")
     _ask(RefusalRetryReader(old, inference_gate=is_inference_question), q)  # v1 gate: neutral retry
     assert old.questions[1].endswith(RETRY_INSTRUCTION_NEUTRAL)
@@ -259,13 +288,23 @@ def test_v2_retry_route_uses_the_widened_gate() -> None:
 
 
 def test_v2_flag_wiring() -> None:
-    cfg = C01Config(mode="qa", qa_prompt="grounded_generic", memspine_config={"read": {"inference_mode": "gated_v2"}})
+    cfg = C01Config(
+        mode="qa",
+        qa_prompt="grounded_generic",
+        memspine_config={"read": {"inference_mode": "gated_v2"}},
+    )
     assert inference_gated(cfg) and inference_gated_v2(cfg)
     reader, _, _ = build_reader_and_judge(cfg)
     assert reader.prompt.router_version == INFERENCE_GATE_VERSION_V2
-    v1 = C01Config(mode="qa", qa_prompt="grounded_generic", memspine_config={"read": {"inference_mode": "gated"}})
+    v1 = C01Config(
+        mode="qa",
+        qa_prompt="grounded_generic",
+        memspine_config={"read": {"inference_mode": "gated"}},
+    )
     assert inference_gated(v1) and not inference_gated_v2(v1)
-    off = C01Config(mode="qa", qa_prompt="grounded_generic", memspine_config={"read": {"inference_mode": "off"}})
+    off = C01Config(
+        mode="qa", qa_prompt="grounded_generic", memspine_config={"read": {"inference_mode": "off"}}
+    )
     assert not inference_gated_v2(off)
     reader, _, _ = build_reader_and_judge(off)
     assert reader.prompt == QA_PROMPTS["grounded_generic"]

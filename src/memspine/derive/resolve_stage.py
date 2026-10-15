@@ -1,4 +1,4 @@
-# ruff: noqa: E501, RUF001
+# ruff: noqa: RUF001
 """W2-09: online entity resolution as an envelope stage (``write.resolver_v2``; W-19, M-15).
 
 Order 300 in ``derive/envelope_stages.py``. For the subject and the object mention of every envelope the

@@ -411,6 +411,7 @@ def _cache_put(eng: Any, key: Any, result: ReadResult) -> None:
     if cache is not None and key is not None:
         cache.put(key, _copy_result(result))
 
+
 # ---------------------------------------------------------------------------------------------
 # R3-01 / R3-02 / R3-03 wiring (flag-off by default): request normalisation and tier choice
 # (LIB-47), the typed contract and its header (LIB-16), the rule router (LIB-23).

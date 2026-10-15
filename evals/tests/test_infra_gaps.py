@@ -356,7 +356,9 @@ def test_forensics_rows_carry_decisions_and_gate_info(
     system = MemspineSystem()
     system.begin_run("run-B--memspine")
     stages = {
-        "decisions": [{"task": "relevance", "label": "irrelevant", "confidence": 0.9, "final": "irrelevant"}],
+        "decisions": [
+            {"task": "relevance", "label": "irrelevant", "confidence": 0.9, "final": "irrelevant"}
+        ],
         "relevance_bypass": {"mode": "named", "fired": False},
         "relevance_calibration": {"decision": "empty"},
     }

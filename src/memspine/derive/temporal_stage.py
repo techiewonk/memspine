@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """W2-14 (``write.temporal_v2``; W-04, M-10, R-07): temporal anchoring as an envelope stage, order 100.
 
 For every envelope of a window this stage fills the event interval, its precision and its basis, by

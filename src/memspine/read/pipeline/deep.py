@@ -653,9 +653,7 @@ async def _deep_extend(
                 if rec.namespace == ns and not rec.quarantined:
                     fetched.setdefault(rec.record_id, rec)
                     out.append(
-                        Candidate(
-                            item_id=rec.record_id, text=rec.content, score=1.0 / (rank + 1)
-                        )
+                        Candidate(item_id=rec.record_id, text=rec.content, score=1.0 / (rank + 1))
                     )
         return out
 

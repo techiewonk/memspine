@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """Upcaster registry for durable kinds (S1-2, M-26).
 
 ``@upcaster(kind, from_version)`` registers a pure ``dict -> dict`` function taking a payload at

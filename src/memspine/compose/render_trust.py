@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """Low-trust, tentative and contested evidence in the reader's context (G-09, T5-02 library, S5-2/S5-3).
 
 Pure and deterministic: no I/O, no model calls, no engine imports. Wired later by T5-02; nothing here is

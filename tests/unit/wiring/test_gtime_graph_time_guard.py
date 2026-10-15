@@ -53,7 +53,10 @@ def test_guard_mode_by_shape_and_mode() -> None:
 
 def _block(tag: str) -> MemoryRecord:
     return MemoryRecord(
-        record_id=tag, namespace="a", content=f"{tag} block", memory_type="semantic",
+        record_id=tag,
+        namespace="a",
+        content=f"{tag} block",
+        memory_type="semantic",
         tags=[constants.LEAD_TAG, tag],
     )
 
@@ -148,9 +151,7 @@ async def _seed(eng: Any) -> tuple[list[str], str]:
 async def test_legs_guard_skips_the_lift_on_a_when_question(
     guard: str, query: str, lifted: bool
 ) -> None:
-    eng = _engine(
-        derived_lift="evidence+match", derived_lift_max_parents=1, graph_time_guard=guard
-    )
+    eng = _engine(derived_lift="evidence+match", derived_lift_max_parents=1, graph_time_guard=guard)
     await eng.start()
     try:
         ids, fact_id = await _seed(eng)

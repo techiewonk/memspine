@@ -96,7 +96,9 @@ def test_truncated_positive_score_is_not_an_answer_pass():
 )
 def test_states_are_separate(row, state):
     assert OB.answer_state(row) == state
-    assert OB.diagnose_row(row, None)["ok"] == int(state == "complete" and (row["score"] or 0) >= 0.5)
+    assert OB.diagnose_row(row, None)["ok"] == int(
+        state == "complete" and (row["score"] or 0) >= 0.5
+    )
 
 
 def test_repetition_without_final_is_pending_not_scored():
@@ -223,8 +225,12 @@ def test_errata_candidates_and_adjudication_rules(tmp_path):
     assert [(c["qid"], c["status"]) for c in cands] == [("1-2", "unresolved"), ("1-3", "repaired")]
     path = tmp_path / "e.json"
     base = {"item": "c1", "qid": "1-2", "tag": "bad_evidence_id"}
-    good = {**base, "evidence_adjudicated": ["D1:18"], "source_span": {"turn": "D1:18", "quote": "x"},
-            "reviewed_by": "second reader"}
+    good = {
+        **base,
+        "evidence_adjudicated": ["D1:18"],
+        "source_span": {"turn": "D1:18", "quote": "x"},
+        "reviewed_by": "second reader",
+    }
     path.write_text(json.dumps({"schema": "errata/v1", "entries": [good]}), encoding="utf-8")
     adj = ER.adjudications(path)
     ER.check_adjudications(adj, known)  # passes

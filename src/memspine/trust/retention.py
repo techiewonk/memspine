@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """Retention classes, retention plans and the hash-chained audit log (LIB-41; G-14, G-15, ER-27 C, ER-30).
 
 Pure and unwired: no I/O, no clock reads (``now`` is passed in), no model calls.

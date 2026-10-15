@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """Procedural memory mechanism (O-24, package O4-10): procedures from repeated how-to assertions.
 
 Pure and deterministic: no I/O, no clock, no model calls. Opt-in and unwired (wiring is O4-10).

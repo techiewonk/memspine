@@ -4,8 +4,9 @@ from __future__ import annotations
 
 from typing import Any
 
-from memspine.economy.ledger import WriteCostLedger, cost_scope
 from memspine_evals.cost import attach_cost, cost_block, unwaived_misses
+
+from memspine.economy.ledger import WriteCostLedger, cost_scope
 
 
 class _Engine:

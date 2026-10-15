@@ -1,4 +1,4 @@
-# ruff: noqa: E501, RUF001
+# ruff: noqa: RUF001
 """I39-I46: the perspective / attribution layer. Rules only, no model (a decider may refine).
 
 A memory record belongs to ONE owner (its namespace: the hard boundary), but its content

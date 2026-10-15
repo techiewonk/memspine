@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """Integration ladder and cardinality registry (LIB-02; W-21, W-22, M-12; S5-2 and its clarifications).
 
 Pure and unwired (wiring is W2-10): no I/O, no clock, no model call. Depends on ``memspine.schemas`` only.

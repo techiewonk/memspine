@@ -123,7 +123,9 @@ def build_identity(
         raise ValueError(f"unknown model roles {unknown}; expected a subset of {MODEL_ROLES}")
     files = {str(p): sha256_file(p) for p in data_files}
     slice_hash = (
-        sha256_bytes("\n".join(sorted(set(slice_ids))).encode("utf-8"))[:16] if slice_ids is not None else None
+        sha256_bytes("\n".join(sorted(set(slice_ids))).encode("utf-8"))[:16]
+        if slice_ids is not None
+        else None
     )
     return {
         "commit": env.get("MEMSPINE_PINNED_COMMIT"),
@@ -160,7 +162,9 @@ def comparability_fields(manifest: Mapping[str, Any]) -> dict[str, Any]:
 
 def comparability_key(manifest: Mapping[str, Any]) -> str:
     """Hash of the fields two arms must share. Equal keys = comparable in a paired test."""
-    blob = json.dumps(comparability_fields(manifest), sort_keys=True, default=str, ensure_ascii=False)
+    blob = json.dumps(
+        comparability_fields(manifest), sort_keys=True, default=str, ensure_ascii=False
+    )
     return sha256_bytes(blob.encode("utf-8"))[:16]
 
 

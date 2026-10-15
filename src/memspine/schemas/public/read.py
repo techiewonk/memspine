@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """The read surface (schema session 10): request, bundles, blocks, result."""
 
 from __future__ import annotations

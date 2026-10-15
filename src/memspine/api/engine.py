@@ -795,7 +795,9 @@ class Engine:
         if config.privacy.erasure_v2:  # T5-04: erased / hidden ids, queue, purge table
             await trust_erasure_v2.load(self)
         self._started = True
-        if config.write.intake_v2:  # W2-01: finish any write the last run accepted but did not apply
+        if (
+            config.write.intake_v2
+        ):  # W2-01: finish any write the last run accepted but did not apply
             from memspine.ingest import gateway as intake_gateway
 
             await intake_gateway.recover(self)
@@ -1846,7 +1848,7 @@ class Engine:
     @timed_read  # RT-02: read p95 into the SLO ledger (a pass-through when it is off)
     async def retrieve(
         self,
-        namespace: str = 'default',
+        namespace: str = "default",
         memory_type: str | None = None,
         group_id: str | None = None,
         tags: list[str] | None = None,
@@ -1885,7 +1887,7 @@ class Engine:
     async def search(
         self,
         query: str,
-        namespace: str = 'default',
+        namespace: str = "default",
         top_k: int = constants.SEARCH_TOP_K,
         group_id: str | None = None,
         tags: list[str] | None = None,
@@ -1905,7 +1907,7 @@ class Engine:
         valid_to_before: DateBound | None = None,
         recorded_after: DateBound | None = None,
         recorded_before: DateBound | None = None,
-        date_filter_mode: str = 'and',
+        date_filter_mode: str = "and",
         viewer: str | None = None,
     ) -> list[tuple[MemoryRecord, float]]:
         """Semantic retrieval (P1 + E8 opt-in stages, D-51):
@@ -2305,7 +2307,7 @@ class Engine:
     async def read(
         self,
         query: str,
-        namespace: str = 'default',
+        namespace: str = "default",
         mode: str | None = None,
         budget_tokens: int = constants.ASSEMBLE_BUDGET_TOKENS,
         top_k: int = constants.ASSEMBLE_TOP_K,
@@ -2327,7 +2329,7 @@ class Engine:
         valid_to_before: DateBound | None = None,
         recorded_after: DateBound | None = None,
         recorded_before: DateBound | None = None,
-        date_filter_mode: str = 'and',
+        date_filter_mode: str = "and",
         as_of: DateBound | None = None,
         viewer: str | None = None,
     ) -> ReadResult:
@@ -2446,7 +2448,13 @@ class Engine:
         session_id: str | None,
     ) -> ReadResult:
         return await read_deep._agentic_extend(
-            self, query, ns, result, budget_tokens, hide=hide, session_id=session_id,
+            self,
+            query,
+            ns,
+            result,
+            budget_tokens,
+            hide=hide,
+            session_id=session_id,
         )
 
     async def _deep_extend(
@@ -2460,7 +2468,13 @@ class Engine:
         session_id: str | None,
     ) -> ReadResult:
         return await read_deep._deep_extend(
-            self, query, ns, result, budget_tokens, hide=hide, session_id=session_id,
+            self,
+            query,
+            ns,
+            result,
+            budget_tokens,
+            hide=hide,
+            session_id=session_id,
         )
 
     def _agentic_assemble(
@@ -2519,7 +2533,15 @@ class Engine:
         read_cfg: Any,
     ) -> int:
         return await read_deep._attach_antecedents(
-            self, ns, hits, chosen, seen, best_window, used, budget_tokens, read_cfg,
+            self,
+            ns,
+            hits,
+            chosen,
+            seen,
+            best_window,
+            used,
+            budget_tokens,
+            read_cfg,
         )
 
     def _list_mode_fires(self, query: str) -> bool:

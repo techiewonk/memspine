@@ -47,12 +47,23 @@ def load_set(path: Path, full: Path | None = FULL_SET) -> list[dict[str, Any]]:
     """The calibration rows. When the local text-bearing sidecar ``full`` exists, ``question`` /
     ``gold`` / ``answer`` are merged in by id (the committed file carries ids, labels and
     ``answer_sha256`` only); otherwise those fields are absent (see :func:`has_text`)."""
-    rows = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+    rows = [
+        json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()
+    ]
     if full is not None and Path(full).exists():
-        text = {d["id"]: d for d in (json.loads(x) for x in Path(full).read_text(encoding="utf-8").splitlines() if x.strip())}
+        text = {
+            d["id"]: d
+            for d in (
+                json.loads(x)
+                for x in Path(full).read_text(encoding="utf-8").splitlines()
+                if x.strip()
+            )
+        }
         for r in rows:
             src = text.get(r["id"])
-            if src and answer_hash(src.get("answer")) == r.get("answer_sha256", answer_hash(src.get("answer"))):
+            if src and answer_hash(src.get("answer")) == r.get(
+                "answer_sha256", answer_hash(src.get("answer"))
+            ):
                 for k in ("question", "gold", "answer"):
                     r.setdefault(k, src[k])
     return rows
@@ -69,14 +80,20 @@ def run_labels(run_dir: Path) -> dict[str, tuple[str, str]]:
     if report.exists():
         for line in report.read_text(encoding="utf-8").splitlines():
             r = json.loads(line)
-            out[f"{r['item']}/{r['qid']}"] = ("CORRECT" if r.get("correct") else "WRONG", r.get("answer") or "")
+            out[f"{r['item']}/{r['qid']}"] = (
+                "CORRECT" if r.get("correct") else "WRONG",
+                r.get("answer") or "",
+            )
         return out
     for line in (run_dir / "results.jsonl").read_text(encoding="utf-8").splitlines():
         r = json.loads(line)
         if r.get("kind") != "result":
             continue
         score = r.get("score")
-        out[f"{r['item_id']}/{r['query_id']}"] = ("CORRECT" if (score or 0) >= 1 else "WRONG", r.get("answer") or "")
+        out[f"{r['item_id']}/{r['query_id']}"] = (
+            "CORRECT" if (score or 0) >= 1 else "WRONG",
+            r.get("answer") or "",
+        )
     return out
 
 
@@ -94,8 +111,13 @@ def cohen_kappa(pairs: list[tuple[bool, bool]]) -> float | None:
 
 def score(rows: list[dict[str, Any]], judged: dict[str, str]) -> dict[str, Any]:
     """Agreement of ``judged`` (id -> label) with the human verdicts in ``rows``."""
+
     def block(sub: list[dict[str, Any]]) -> dict[str, Any]:
-        binary = [(r["human_verdict"] == "CORRECT", judged[r["id"]] == "CORRECT") for r in sub if r["human_verdict"] != "PARTIAL"]
+        binary = [
+            (r["human_verdict"] == "CORRECT", judged[r["id"]] == "CORRECT")
+            for r in sub
+            if r["human_verdict"] != "PARTIAL"
+        ]
         partial = [r for r in sub if r["human_verdict"] == "PARTIAL"]
         refusals = [r for r in sub if r["kind"] in ("refusal", "hedged_refusal")]
         fn = sum(h and not j for h, j in binary)
@@ -107,9 +129,17 @@ def score(rows: list[dict[str, Any]], judged: dict[str, str]) -> dict[str, Any]:
             "kappa": cohen_kappa(binary),
             "false_negatives": fn,
             "false_positives": fp,
-            "partial_credit_rate": (sum(judged[r["id"]] == "CORRECT" for r in partial) / len(partial)) if partial else None,
+            "partial_credit_rate": (
+                sum(judged[r["id"]] == "CORRECT" for r in partial) / len(partial)
+            )
+            if partial
+            else None,
             "n_partial": len(partial),
-            "refusal_credit_rate": (sum(judged[r["id"]] == "CORRECT" for r in refusals) / len(refusals)) if refusals else None,
+            "refusal_credit_rate": (
+                sum(judged[r["id"]] == "CORRECT" for r in refusals) / len(refusals)
+            )
+            if refusals
+            else None,
             "n_refusal": len(refusals),
         }
 
@@ -149,8 +179,15 @@ def with_conventions(rows: list[dict[str, Any]], judged: dict[str, str]) -> dict
         hit = check_conventions(r["question"], r["answer"], r["gold"])
         if hit is not None:
             alone[r["id"]] = "CORRECT"
-            credits.append({"id": r["id"], "rule": hit.rule, "human": r["human_verdict"],
-                            "judge": judged[r["id"]], "new": judged[r["id"]] != "CORRECT"})
+            credits.append(
+                {
+                    "id": r["id"],
+                    "rule": hit.rule,
+                    "human": r["human_verdict"],
+                    "judge": judged[r["id"]],
+                    "new": judged[r["id"]] != "CORRECT",
+                }
+            )
             if judged[r["id"]] != "CORRECT":
                 layered[r["id"]] = "CORRECT"
                 credited[r["id"]] = hit.rule
@@ -162,8 +199,15 @@ def with_conventions(rows: list[dict[str, Any]], judged: dict[str, str]) -> dict
         hit = check_conventions_v2(r["question"], r["answer"], r["gold"])
         if hit is not None and judged[r["id"]] != "CORRECT":
             layered2[r["id"]] = "CORRECT"
-            credits2.append({"id": r["id"], "rule": hit.rule, "human": r["human_verdict"],
-                             "judge": judged[r["id"]], "in_v1": r["id"] in credited})
+            credits2.append(
+                {
+                    "id": r["id"],
+                    "rule": hit.rule,
+                    "human": r["human_verdict"],
+                    "judge": judged[r["id"]],
+                    "in_v1": r["id"] in credited,
+                }
+            )
     added = [c for c in credits2 if not c["in_v1"]]
     # R14-M-17: the v3 layer, as a further separate block (v1 / v2 above are unchanged)
     in_v2 = {c["id"] for c in credits2}
@@ -173,8 +217,15 @@ def with_conventions(rows: list[dict[str, Any]], judged: dict[str, str]) -> dict
         hit = check_conventions_v3(r["question"], r["answer"], r["gold"])
         if hit is not None and judged[r["id"]] != "CORRECT":
             layered3[r["id"]] = "CORRECT"
-            credits3.append({"id": r["id"], "rule": hit.rule, "human": r["human_verdict"],
-                             "judge": judged[r["id"]], "in_v2": r["id"] in in_v2})
+            credits3.append(
+                {
+                    "id": r["id"],
+                    "rule": hit.rule,
+                    "human": r["human_verdict"],
+                    "judge": judged[r["id"]],
+                    "in_v2": r["id"] in in_v2,
+                }
+            )
     added3 = [c for c in credits3 if not c["in_v2"]]
     return {
         "v3": {
@@ -191,8 +242,8 @@ def with_conventions(rows: list[dict[str, Any]], judged: dict[str, str]) -> dict
             "false_positives": sum(c["human"] != "CORRECT" for c in credits2),
             "false_positives_beyond_v1": sum(c["human"] != "CORRECT" for c in added),
             "note": "the calibration set holds few gold dates / quantities / aliases, so zero "
-                    "false positives here bounds nothing; read the credits of real runs with "
-                    "evals/rescore_conventions.py",
+            "false positives here bounds nothing; read the credits of real runs with "
+            "evals/rescore_conventions.py",
         },
         "judge_alone": score(rows, judged),
         "judge_or_conventions": score(rows, layered),
@@ -205,19 +256,29 @@ def with_conventions(rows: list[dict[str, Any]], judged: dict[str, str]) -> dict
 
 
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     ap.add_argument("--set", default=str(DEFAULT_SET))
     src = ap.add_mutually_exclusive_group(required=True)
     src.add_argument("--run")
     src.add_argument("--labels")
-    src.add_argument("--from-set", action="store_true",
-                     help="use the judge label stored in the set (source_judge_label)")
+    src.add_argument(
+        "--from-set",
+        action="store_true",
+        help="use the judge label stored in the set (source_judge_label)",
+    )
     ap.add_argument("--runs-dir", default=str(Path(__file__).parent / "runs"))
-    ap.add_argument("--conventions", action="store_true",
-                    help="I58: also report the judge OR the deterministic convention layer "
-                    "(judge_conventions.py), next to the judge alone, and list every credit")
+    ap.add_argument(
+        "--conventions",
+        action="store_true",
+        help="I58: also report the judge OR the deterministic convention layer "
+        "(judge_conventions.py), next to the judge alone, and list every credit",
+    )
     ap.add_argument("--json", action="store_true")
-    ap.add_argument("--fail-below", type=float, default=None, help="exit 1 when kappa (all rows) is below this")
+    ap.add_argument(
+        "--fail-below", type=float, default=None, help="exit 1 when kappa (all rows) is below this"
+    )
     args = ap.parse_args(argv)
     rows = load_set(Path(args.set))
     unmatched = 0
@@ -226,7 +287,9 @@ def main(argv: list[str] | None = None) -> int:
         judged: dict[str, str] = {}
         for r in rows:
             hit = got.get(r["id"])
-            if hit and answer_hash(hit[1]) == (r.get("answer_sha256") or answer_hash(r.get("answer"))):
+            if hit and answer_hash(hit[1]) == (
+                r.get("answer_sha256") or answer_hash(r.get("answer"))
+            ):
                 judged[r["id"]] = hit[0]
             else:
                 unmatched += 1
@@ -247,15 +310,19 @@ def main(argv: list[str] | None = None) -> int:
     if args.json:
         print(json.dumps(res, indent=1))
     else:
-        print(f"calibration items {len(rows)}, compared {len(rows) - unmatched}, unmatched {unmatched}")
+        print(
+            f"calibration items {len(rows)}, compared {len(rows) - unmatched}, unmatched {unmatched}"
+        )
         for name in ("all", "without_borderline"):
             b = res[name]
             kappa = "n/a" if b["kappa"] is None else f"{b['kappa']:.2f}"
             agree = "n/a" if b["agreement"] is None else f"{b['agreement']:.1%}"
-            print(f"[{name}] n={b['n']} binary n={b['n_binary']} agreement={agree} kappa={kappa} "
-                  f"FN={b['false_negatives']} FP={b['false_positives']} "
-                  f"partial credited={b['partial_credit_rate']} (n={b['n_partial']}) "
-                  f"refusal credited={b['refusal_credit_rate']} (n={b['n_refusal']})")
+            print(
+                f"[{name}] n={b['n']} binary n={b['n_binary']} agreement={agree} kappa={kappa} "
+                f"FN={b['false_negatives']} FP={b['false_positives']} "
+                f"partial credited={b['partial_credit_rate']} (n={b['n_partial']}) "
+                f"refusal credited={b['refusal_credit_rate']} (n={b['n_refusal']})"
+            )
         for k, v in res["by_kind"].items():
             print(f"  {k:16s} n={v['n']:2d} {v['human_vs_judge']}")
     if "conventions" in res:
@@ -265,22 +332,30 @@ def main(argv: list[str] | None = None) -> int:
                 b = c[name][sub]
                 kappa = "n/a" if b["kappa"] is None else f"{b['kappa']:.3f}"
                 agree = "n/a" if b["agreement"] is None else f"{b['agreement']:.1%}"
-                print(f"[{name} / {sub}] binary n={b['n_binary']} agreement={agree} kappa={kappa} "
-                      f"FN={b['false_negatives']} FP={b['false_positives']} "
-                      f"partial credited={b['partial_credit_rate']} (n={b['n_partial']})")
+                print(
+                    f"[{name} / {sub}] binary n={b['n_binary']} agreement={agree} kappa={kappa} "
+                    f"FN={b['false_negatives']} FP={b['false_positives']} "
+                    f"partial credited={b['partial_credit_rate']} (n={b['n_partial']})"
+                )
         v2 = c["v2"]
         for sub in ("all", "without_borderline"):
             b = v2["judge_or_conventions_v2"][sub]
             agree = "n/a" if b["agreement"] is None else f"{b['agreement']:.1%}"
             kappa = "n/a" if b["kappa"] is None else f"{b['kappa']:.3f}"
-            print(f"[judge_or_conventions_v2 / {sub}] binary n={b['n_binary']} agreement={agree} "
-                  f"kappa={kappa} FN={b['false_negatives']} FP={b['false_positives']}")
-        print(f"conventions v2: {v2['new_credits']} credits over the judge, "
-              f"{len(v2['credits_beyond_v1'])} beyond v1, false positives "
-              f"{v2['false_positives']} ({v2['false_positives_beyond_v1']} beyond v1)")
-        print(f"conventions: {c['new_credits']} new credits over the judge "
-              f"({c['new_true_positives']} human CORRECT, {c['new_false_positives']} not); "
-              f"all credits: {c['credits']}")
+            print(
+                f"[judge_or_conventions_v2 / {sub}] binary n={b['n_binary']} agreement={agree} "
+                f"kappa={kappa} FN={b['false_negatives']} FP={b['false_positives']}"
+            )
+        print(
+            f"conventions v2: {v2['new_credits']} credits over the judge, "
+            f"{len(v2['credits_beyond_v1'])} beyond v1, false positives "
+            f"{v2['false_positives']} ({v2['false_positives_beyond_v1']} beyond v1)"
+        )
+        print(
+            f"conventions: {c['new_credits']} new credits over the judge "
+            f"({c['new_true_positives']} human CORRECT, {c['new_false_positives']} not); "
+            f"all credits: {c['credits']}"
+        )
     kappa_all = res["all"]["kappa"]
     if args.fail_below is not None and (kappa_all is None or kappa_all < args.fail_below):
         return 1

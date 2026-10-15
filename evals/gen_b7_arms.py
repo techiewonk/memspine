@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """Generate the B7 / B8 arm files (FU-REQS; audit 2026-10-13, findings 3-8 and section 3). Static, CPU only.
 
 B7 re-arms the B2/B5 screens that could not show an effect (S17, S18, S21, S22, S27; S23, S24 and S46 are
@@ -8,6 +7,7 @@ skipped, see SCREENS.md "B7 / B8"). B8 is one gc3 arm per flag profile; its flag
     python gen_b7_arms.py            # write arms/scr-b7-*.json and arms/scr-b8-*.json
     python gen_b7_arms.py --check    # every arm equals the generator output and passes the strict arm validator
 """
+
 from __future__ import annotations
 
 import copy
@@ -22,7 +22,12 @@ PRESETS = Path(__file__).resolve().parents[1] / "src" / "memspine" / "config" / 
 J_BASE = "scr-pool-protect-jina"  # the reference arm behind f-jref2-i2
 GC_BASE = "scr-gc3-graph-jina"  # S02
 WF_BASE = "scr-gc3-windowfacts"  # S43: gc3 + write.window_extract=facts
-ROLE = {"model": "ollama/qwen3.5:9b", "api_base": "http://127.0.0.1:11434", "timeout_seconds": 180.0, "no_think": True}
+ROLE = {
+    "model": "ollama/qwen3.5:9b",
+    "api_base": "http://127.0.0.1:11434",
+    "timeout_seconds": 180.0,
+    "no_think": True,
+}
 #: R3-12: one sufficiency check, at most one rewrite and one extra retrieval; without a bound role the deep tier
 #: is rules-only and logs ``agentic_unbound`` (audit finding 4)
 SUFF = {"llm": {"roles": {"sufficiency": ROLE}}}
@@ -43,7 +48,10 @@ B7: dict[str, tuple[str, dict]] = {
     "bundles": (WF_BASE, {"read": {"evidence_bundles": True}}),
     # S21 / S22 re-armed with the sufficiency role bound (deep_v2 needs it; obligations feed the rule check)
     "deep": (J_BASE, {"read": {"gate_v2": True, "deep_v2": True}, **SUFF}),
-    "obligations": (J_BASE, {"read": {"gate_v2": True, "deep_v2": True, "obligations": True}, **SUFF}),
+    "obligations": (
+        J_BASE,
+        {"read": {"gate_v2": True, "deep_v2": True, "obligations": True}, **SUFF},
+    ),
     # S24 prepared, row skipped: needs an as-of question set (see SCREENS.md); contract_rules emits the time view
     "timeview": (J_BASE, {"read": {"contract_rules": True, "timeview_v2": True}}),
 }
@@ -64,7 +72,11 @@ B8: dict[str, dict] = {
 def merge(a: dict, b: dict) -> dict:
     out = copy.deepcopy(a)
     for k, v in b.items():
-        out[k] = merge(out[k], v) if isinstance(v, dict) and isinstance(out.get(k), dict) else copy.deepcopy(v)
+        out[k] = (
+            merge(out[k], v)
+            if isinstance(v, dict) and isinstance(out.get(k), dict)
+            else copy.deepcopy(v)
+        )
     return out
 
 
@@ -98,8 +110,12 @@ def check() -> int:
     for name, want in targets().items():
         path = ARMS / f"{name}.json"
         try:
-            assert json.loads(path.read_text(encoding="utf-8")) == want, "file differs from the generator"
-            validate_engine_config(want)  # schema + policy blocks + every prerequisite (soft ones too)
+            assert json.loads(path.read_text(encoding="utf-8")) == want, (
+                "file differs from the generator"
+            )
+            validate_engine_config(
+                want
+            )  # schema + policy blocks + every prerequisite (soft ones too)
             print(f"ok   {path.name}")
         except Exception as exc:
             bad += 1

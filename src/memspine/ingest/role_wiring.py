@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """W2-03: wiring of LIB-13 into the write path (``write.role_policy_v2``).
 
 * :func:`decide` runs the :class:`~memspine.ingest.roles.RolePolicy` and the echo guard for one raw turn and

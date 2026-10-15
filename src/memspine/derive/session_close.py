@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """Session-close call 2: plan the input, validate the output (LIB-40, parent O4-02).
 
 Pure and unwired (wired later by O4-02). Imports only the stdlib, pydantic-free dataclasses,

@@ -16,7 +16,9 @@ REPO = Path(__file__).resolve().parents[2]
 
 
 def _load():
-    spec = importlib.util.spec_from_file_location("engine_method_map", REPO / "scripts" / "engine_method_map.py")
+    spec = importlib.util.spec_from_file_location(
+        "engine_method_map", REPO / "scripts" / "engine_method_map.py"
+    )
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     return mod

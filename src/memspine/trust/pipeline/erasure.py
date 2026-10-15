@@ -310,9 +310,7 @@ async def _forget_target(
         raise ConflictError(f"no such record {record_id!r} in namespace {ns!r}")
     if hard:
         retention = RetentionPolicy.bind(
-            _as_options_dict(
-                eng._memory_policy(eng._config(), record.memory_type).get("retention")
-            )
+            _as_options_dict(eng._memory_policy(eng._config(), record.memory_type).get("retention"))
         )
         if retention.on_legal_hold(record):
             raise MemspineError(
@@ -439,9 +437,7 @@ async def forget_requests(
             and r.valid_from <= request.valid_from
         ]
         candidates = list(dict.fromkeys(ranked))[:top_k]
-        out.append(
-            {"request_id": request.record_id, "target": target, "candidates": candidates}
-        )
+        out.append({"request_id": request.record_id, "target": target, "candidates": candidates})
     return out
 
 
@@ -547,9 +543,7 @@ async def verify_forget(
         # Tantivy drops a deleted document's terms from its inverted index only
         # when its segment is merged, which the engine cannot force: the
         # document (and its id) is gone, but its terms can linger on disk.
-        "residual_risks": ["lexical_terms_until_segment_merge"]
-        if eng._lexical is not None
-        else [],
+        "residual_risks": ["lexical_terms_until_segment_merge"] if eng._lexical is not None else [],
         "log_verifiable": log_verifiable,
         "log_redacted": log_clean,
         "log_retained_fields": sorted(retained),

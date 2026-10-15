@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """The asset describer (W2-11; W-23): one ``AssetDescriber`` port, two triggers, both off by default.
 
 ``write.asset_describer``:

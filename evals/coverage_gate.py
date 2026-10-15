@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """W2-15 gate: coverage check and targeted re-extraction on a synthetic, labelled, UNSEEN-domain set
 (CPU only, stub LLM, no GPU).
 

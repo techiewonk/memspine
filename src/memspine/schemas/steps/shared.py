@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """Shared internal-tier step types.
 
 The session-decided shared types were promoted out of this module (MOD-01 part 2): the envelope, evidence,

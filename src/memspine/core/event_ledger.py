@@ -37,9 +37,9 @@ from datetime import date, datetime, timedelta
 from memspine.models.encoders.query.temporal_resolve import resolve
 
 __all__ = [
+    "STATUSES",
     "EventMention",
     "LedgerEvent",
-    "STATUSES",
     "is_event_question",
     "link_mentions",
     "normalise_status",
@@ -99,8 +99,12 @@ _MONTHS = {
     for m in ms
 }
 _MONTH_RE = "|".join(sorted(_MONTHS, key=len, reverse=True))
-_DMY = re.compile(rf"\b(\d{{1,2}})(?:st|nd|rd|th)?\s+({_MONTH_RE})\b\.?,?(?:\s+((?:19|20)\d\d))?", re.I)
-_MDY = re.compile(rf"\b({_MONTH_RE})\b\.?\s+(\d{{1,2}})(?:st|nd|rd|th)?\b(?:,?\s+((?:19|20)\d\d))?", re.I)
+_DMY = re.compile(
+    rf"\b(\d{{1,2}})(?:st|nd|rd|th)?\s+({_MONTH_RE})\b\.?,?(?:\s+((?:19|20)\d\d))?", re.I
+)
+_MDY = re.compile(
+    rf"\b({_MONTH_RE})\b\.?\s+(\d{{1,2}})(?:st|nd|rd|th)?\b(?:,?\s+((?:19|20)\d\d))?", re.I
+)
 
 _EVENT_CUE = re.compile(
     r"\b(?:when|how (?:many times|often|long ago|long)|plan(?:ned|s)?|cancel+ed|postpone[d]?|"
@@ -132,8 +136,25 @@ _STEM = re.compile(r"(?:ing|ed|es|s)$")
 
 def _head(text: str) -> frozenset[str]:
     """The content words of an action / object, stemmed lightly, for an exact overlap test."""
-    stop = {"the", "a", "an", "to", "of", "for", "in", "on", "at", "and", "her", "his", "their", "my"}
-    return frozenset(_STEM.sub("", w) if len(w) > 4 else w for w in _fold(text).split() if w not in stop)
+    stop = {
+        "the",
+        "a",
+        "an",
+        "to",
+        "of",
+        "for",
+        "in",
+        "on",
+        "at",
+        "and",
+        "her",
+        "his",
+        "their",
+        "my",
+    }
+    return frozenset(
+        _STEM.sub("", w) if len(w) > 4 else w for w in _fold(text).split() if w not in stop
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -169,7 +190,9 @@ class LedgerEvent:
 
     @property
     def interval(self) -> tuple[date, date] | None:
-        for m in sorted(self.mentions, key=lambda m: (m.mention or date.min, m.index), reverse=True):
+        for m in sorted(
+            self.mentions, key=lambda m: (m.mention or date.min, m.index), reverse=True
+        ):
             if m.start is not None and m.end is not None:
                 return m.start, m.end
         return None
@@ -307,8 +330,10 @@ def link_mentions(
                 reason = "no_overlap"
             elif _head(prev.obj) and _head(m.obj) and not (_head(prev.obj) & _head(m.obj)):
                 reason = "other_object"
-            elif prev.status == "done" and m.status == "done" and not _intervals_compatible(
-                candidate, m
+            elif (
+                prev.status == "done"
+                and m.status == "done"
+                and not _intervals_compatible(candidate, m)
             ):
                 reason = "interval_conflict"
             else:
@@ -348,10 +373,14 @@ def render_ledger(
             when = (
                 "time unknown"
                 if iv is None
-                else f"{iv[0]:%Y-%m-%d}" if iv[0] == iv[1] else f"{iv[0]:%Y-%m-%d}..{iv[1]:%Y-%m-%d}"
+                else f"{iv[0]:%Y-%m-%d}"
+                if iv[0] == iv[1]
+                else f"{iv[0]:%Y-%m-%d}..{iv[1]:%Y-%m-%d}"
             )
             said = ", ".join(
-                f"{m.mention:%Y-%m-%d} {m.status} (L{m.line})" if m.mention else f"{m.status} (L{m.line})"
+                f"{m.mention:%Y-%m-%d} {m.status} (L{m.line})"
+                if m.mention
+                else f"{m.status} (L{m.line})"
                 for m in sorted(ev.mentions, key=lambda m: (m.mention or date.min, m.index))
             )
             obj = f" {last.obj}" if last.obj else ""

@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """LIB-47: read depth tiers, ReadRequest normalisation and the evidence unit (R-01, R-02, ER-29, ER-39).
 
 Pure and unwired (wired by R3-01). No I/O, no clock read, no model call. Imports only the standard

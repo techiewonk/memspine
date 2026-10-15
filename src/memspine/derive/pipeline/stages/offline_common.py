@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """Derive: shared adapters for the opt-in offline stages that read stored facts as assertions (OW-C).
 
 ``fact_envelope`` turns a stored semantic fact into the library input of ``derive/patterns.py`` and

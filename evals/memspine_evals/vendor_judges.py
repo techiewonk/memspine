@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """Vendor LoCoMo judge prompts for N57 (re-grade saved answers with each vendor's judge).
 
 Each text is copied from the vendor's own code or our code-traced notes of it; the

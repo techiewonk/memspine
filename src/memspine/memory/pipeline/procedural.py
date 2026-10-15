@@ -98,9 +98,7 @@ async def record_plan(
 async def _write_procedural(eng: Any, record: MemoryRecord, actor: str) -> MemoryRecord:
     storage = eng._require_started()
     if eng._procedural is None:
-        raise MemspineError(
-            "procedural memory not enabled — set memories.procedural.enabled: true"
-        )
+        raise MemspineError("procedural memory not enabled — set memories.procedural.enabled: true")
     ns = record.namespace
     async with eng._write_locks.setdefault(ns, asyncio.Lock()):
         return await eng._write_locked(storage, ns, record, "procedural", actor)
@@ -116,23 +114,17 @@ async def promote_skill(
     requires ``dry_run_passed=True`` (M13.4)."""
     eng._require_started()
     if eng._procedural is None:
-        raise MemspineError(
-            "procedural memory not enabled — set memories.procedural.enabled: true"
-        )
+        raise MemspineError("procedural memory not enabled — set memories.procedural.enabled: true")
     ns = validate_namespace(namespace)
     async with eng._write_locks.setdefault(ns, asyncio.Lock()):
-        return await eng._procedural.promote(
-            record_id, namespace=ns, dry_run_passed=dry_run_passed
-        )
+        return await eng._procedural.promote(record_id, namespace=ns, dry_run_passed=dry_run_passed)
 
 
 async def deprecate_skill(eng: Any, record_id: str, namespace: str = "default") -> MemoryRecord:
     """Retire a skill/plan (terminal, M13.4)."""
     eng._require_started()
     if eng._procedural is None:
-        raise MemspineError(
-            "procedural memory not enabled — set memories.procedural.enabled: true"
-        )
+        raise MemspineError("procedural memory not enabled — set memories.procedural.enabled: true")
     ns = validate_namespace(namespace)
     async with eng._write_locks.setdefault(ns, asyncio.Lock()):
         return await eng._procedural.deprecate(record_id, namespace=ns)
@@ -147,13 +139,9 @@ async def skills(
     """Procedural records; by default only the usable (ACTIVE) set (M13.4)."""
     eng._require_started()
     if eng._procedural is None:
-        raise MemspineError(
-            "procedural memory not enabled — set memories.procedural.enabled: true"
-        )
+        raise MemspineError("procedural memory not enabled — set memories.procedural.enabled: true")
     ns = validate_namespace(namespace)
-    return eng._inflate_all(
-        await eng._procedural.list(ns, kind=kind, usable_only=usable_only), ns
-    )
+    return eng._inflate_all(await eng._procedural.list(ns, kind=kind, usable_only=usable_only), ns)
 
 
 def _procedural_policy(eng: Any) -> dict[str, Any]:
@@ -164,9 +152,7 @@ def _procedural_policy(eng: Any) -> dict[str, Any]:
 def _require_procedural(eng: Any) -> ProceduralMemory:
     eng._require_started()
     if eng._procedural is None:
-        raise MemspineError(
-            "procedural memory not enabled — set memories.procedural.enabled: true"
-        )
+        raise MemspineError("procedural memory not enabled — set memories.procedural.enabled: true")
     return eng._procedural
 
 

@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """Background job bookkeeping (LIB-07): leases with epochs, progress, coalescing, triggers.
 
 Pure library, not wired (wiring is F-04 / RT-01 / RT-02 / O4-01a). Standard library, pydantic and

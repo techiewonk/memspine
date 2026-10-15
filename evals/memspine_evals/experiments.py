@@ -711,7 +711,9 @@ def build_reader_and_judge(config: C01Config) -> tuple[Reader, Judge, bool]:
             )
         from .readers import gated_inference_prompt
 
-        qa_prompt = gated_inference_prompt(qa_prompt, config.qa_prompt, v2=inference_gated_v2(config))
+        qa_prompt = gated_inference_prompt(
+            qa_prompt, config.qa_prompt, v2=inference_gated_v2(config)
+        )
     # #34: a reasoning prompt's reader keeps the final answer and gets room to reason.
     reasoning = config.qa_prompt in REASONING_QA_PROMPTS
     if config.bedrock:
@@ -1098,7 +1100,11 @@ async def run_c0_1(
         },
         extra_limits={
             "item_ids": list(config.item_ids) if config.item_ids else None,
-            **({"slice_query_ids": list(config.query_ids)} if config.query_slice_id and config.query_ids else {}),
+            **(
+                {"slice_query_ids": list(config.query_ids)}
+                if config.query_slice_id and config.query_ids
+                else {}
+            ),
             **({"query_ids_n": len(config.query_ids)} if config.query_ids else {}),
         },
         retrieval_only=config.retrieval_only,

@@ -716,7 +716,8 @@ class WindowPipeline:
         split: str = "auto",
         asynchronous: bool = True,
         on_session_closed: SessionClosedFn | None = None,
-        outbox: Any | None = None,  # runtime.runner.InlineRunner; untyped (workers is below runtime)
+        outbox: Any
+        | None = None,  # runtime.runner.InlineRunner; untyped (workers is below runtime)
         segmentation: SegmentationSettings | None = None,
         clock: Callable[[], float] = time.time,
         role_policy: bool = False,
@@ -1019,8 +1020,9 @@ class WindowPipeline:
                         with tap.request("job", stage="window_session_closed"):
                             await self._session_closed(ns, store, job.closed_session)
                     else:
-                        with tap.request("job", stage="window_extract"), _ops.stage(
-                            "write", "window_extract"
+                        with (
+                            tap.request("job", stage="window_extract"),
+                            _ops.stage("write", "window_extract"),
                         ):
                             await self._run_job(ns, store, job)
                 except asyncio.CancelledError:
@@ -1700,8 +1702,9 @@ class WindowPipeline:
         if insp.inspect_enabled():  # TI-1: capture the rendered prompt and the raw reply
             captured: dict[str, Any]
             started = time.perf_counter()
-            with insp.io_capture() as captured, tap.span(
-                "write.extract.call", sections=list(group), cached=False
+            with (
+                insp.io_capture() as captured,
+                tap.span("write.extract.call", sections=list(group), cached=False),
             ):
                 try:
                     raw = await self._extract(group, variables)
@@ -1913,6 +1916,7 @@ class WindowPipeline:
         if windows:
             out["windows"] = windows
         return out
+
     async def _prepass_verdict(self, records: list[MemoryRecord]) -> str | None:
         """W2-13: ``"skip"`` when the pre-pass found nothing extractable (filler) in this window.
         With the ``episode`` section on the episode of a quiet window is still wanted, so the
@@ -2060,12 +2064,19 @@ class WindowPipeline:
                     self._counts["sections_dropped"] += 1
                 if self._env is not None and "facts" in group:
                     self._env.ledger.record(
-                        ns, window_id, -1, kind, detail="facts call", retry_allowed=True,
+                        ns,
+                        window_id,
+                        -1,
+                        kind,
+                        detail="facts call",
+                        retry_allowed=True,
                         kind="window",
                     )
                 _log.warning("window.call_failed", namespace=ns, kind=kind, error=str(exc)[:200])
                 tap.event(
-                    "write.extract.rejected" if kind == "parse_failures" else "write.extract.failed",
+                    "write.extract.rejected"
+                    if kind == "parse_failures"
+                    else "write.extract.failed",
                     reason=kind,
                     sections=list(group),
                     error=type(exc).__name__,
@@ -2317,10 +2328,7 @@ class WindowPipeline:
             parents = list(dict.fromkeys(e.turn.source_id for e in env.evidence))
             parents = [p for p in parents if p in by_id]
             speakers = {
-                t
-                for p in parents
-                for t in by_id[p].tags
-                if t.startswith("spk:") and t != "spk:"
+                t for p in parents for t in by_id[p].tags if t.startswith("spk:") and t != "spk:"
             }
             tags = ["window_fact", f"window:{window_id}", "envelope_v2", f"src:{env.src_class}"]
             tags.extend(t for t in integration_deposit_tags(env) if t not in tags)  # W2-10
@@ -2443,9 +2451,7 @@ class WindowPipeline:
             job.cancelled = True
             return
         self._counts["episodes_deposited"] += 1
-        tap.event(
-            "write.extract.deposit", id=getattr(stored, "record_id", None), layer="episode"
-        )
+        tap.event("write.extract.deposit", id=getattr(stored, "record_id", None), layer="episode")
 
     # -- counters (G-W13) ----------------------------------------------------------------------
 

@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """Compile the model's extraction output (``ItemV1``) into stored ``AssertionEnvelope`` objects (LIB-05).
 
 Pure and unwired (wired later by W2-06a). Imports only the stdlib, pydantic and ``memspine.schemas``.

@@ -132,7 +132,9 @@ def build(locomo: Path, out: Path = FIXTURE) -> dict[str, Any]:
     # re-hydrates the text from the local LoCoMo file.
     for item in items:
         item["question_sha256"] = hashlib.sha256(item.pop("question").encode("utf-8")).hexdigest()
-    fixture["text"] = "ids and question_sha256 only; load_fixture() re-hydrates question from the local locomo10.json"
+    fixture["text"] = (
+        "ids and question_sha256 only; load_fixture() re-hydrates question from the local locomo10.json"
+    )
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(fixture, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
     return fixture
@@ -537,7 +539,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 0
     items = load_fixture()
     if not has_questions(items):
-        parser.error("the frozen set holds ids only; put locomo10.json in data/ (or set MEMSPINE_LOCOMO_PATH)")
+        parser.error(
+            "the frozen set holds ids only; put locomo10.json in data/ (or set MEMSPINE_LOCOMO_PATH)"
+        )
     extractor = load_model(args.model)
     if args.split == "tune":
         setups = [s for s in SETUPS if not args.setup or s.name in args.setup]

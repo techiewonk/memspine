@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """Decay tiers, compression plan and multi-resolution text plan (LIB-33; O-22, M-22, P-16; K_C).
 
 Pure and deterministic: no I/O, no clock reads (``now`` is an argument), no model calls. This module only

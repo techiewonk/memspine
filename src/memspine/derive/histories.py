@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """Near-duplicate merge and value histories for offline consolidation (LIB-20; O-13, O-14, M-13; S4-3, S5-2).
 
 Pure and unwired (wiring is O4-04): no I/O, no clock, no model call. Embeddings, if used, arrive as

@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """External public knowledge as a separate, labelled, opt-in context block (LIB-45).
 
 Pure and unwired (wired later by R3-13; decisions R-23, ER-25 and the N1 firewall). Imports only the

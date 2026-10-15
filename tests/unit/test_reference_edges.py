@@ -26,7 +26,12 @@ T0 = datetime(2023, 5, 8, 13, 0, tzinfo=UTC)
         ("Amy: Yes, in May", "bob", "amy", "short_reply"),
         ("Sounds great!", "amy", "amy", None),  # same speaker: not a reply
         ("Sounds great!", None, "amy", None),  # unknown speaker
-        ("I spent the whole afternoon repainting the old fence behind the barn", "bob", "amy", None),
+        (
+            "I spent the whole afternoon repainting the old fence behind the barn",
+            "bob",
+            "amy",
+            None,
+        ),
         ("That was so much fun", "amy", "amy", "deictic"),  # deictic needs no other speaker
         ("We should do this again some time soon", "bob", "amy", "deictic"),
         ("Those look lovely", "bob", "amy", "deictic"),
@@ -36,7 +41,9 @@ T0 = datetime(2023, 5, 8, 13, 0, tzinfo=UTC)
         ("", "bob", "amy", None),
     ],
 )
-def test_antecedent_kind(content: str, speaker: str | None, prev: str | None, kind: str | None) -> None:
+def test_antecedent_kind(
+    content: str, speaker: str | None, prev: str | None, kind: str | None
+) -> None:
     assert antecedent_kind(content, speaker, prev) == kind
 
 
@@ -57,7 +64,11 @@ def test_reference_kinds_reads_tags() -> None:
 # -- engine ------------------------------------------------------------------------------------
 
 CONVERSATION = [
-    {"role": "user", "speaker": "amy", "content": "Amy: I booked the Old Mill for the reunion dinner"},
+    {
+        "role": "user",
+        "speaker": "amy",
+        "content": "Amy: I booked the Old Mill for the reunion dinner",
+    },
     {"role": "user", "speaker": "bob", "content": "Bob: Sounds great!"},
     {"role": "user", "speaker": "bob", "content": "Bob: Filler about hiking boots and long trails"},
     {"role": "user", "speaker": "amy", "content": "Amy: Unrelated note about the garden shed roof"},
@@ -192,7 +203,9 @@ async def test_attach_is_bounded_logged_and_namespace_safe() -> None:
         # another namespace's id is never attached
         with search_forensics() as fx3:
             chosen3: list[Any] = []
-            await eng._attach_antecedents("b", hits, chosen3, set(), set(), 0, 10_000, eng.config.read)
+            await eng._attach_antecedents(
+                "b", hits, chosen3, set(), set(), 0, 10_000, eng.config.read
+            )
         assert chosen3 == [] and {e["outcome"] for e in fx3["reference_edges"]} == {"missing"}
     finally:
         await eng.stop()

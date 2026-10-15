@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """Read path: static prefilter before rerank, moved out of the engine (F-10a)."""
 
 from __future__ import annotations
@@ -168,7 +167,9 @@ async def chain_score(
                 raise ValueError(f"{len(raw)} scores for {len(documents)} documents")
         except Exception as exc:
             eng._rerank_failures += 1
-            _log.warning("rerank.failed", reranker=getattr(reranker, "reranker_id", mode), error=str(exc))
+            _log.warning(
+                "rerank.failed", reranker=getattr(reranker, "reranker_id", mode), error=str(exc)
+            )
             tried.append({"mode": mode, "outcome": "failed"})
             continue
         scores: list[float | None] = [

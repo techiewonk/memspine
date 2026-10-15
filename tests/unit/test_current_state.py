@@ -50,9 +50,7 @@ async def test_view_off_by_default() -> None:
     eng = _engine()
     await eng.start()
     try:
-        await eng.write(
-            "Noor lives in Boston", namespace="a", entity="noor", attribute="city"
-        )
+        await eng.write("Noor lives in Boston", namespace="a", entity="noor", attribute="city")
         ctx = await eng.assemble("where does Noor live", namespace="a")
         assert all(not r.content.startswith("CURRENT") for r in ctx.records)
     finally:
@@ -268,9 +266,7 @@ async def test_core_terms_leg_adds_a_lexical_probe() -> None:
         await eng.start()
         try:
             await eng.write("Bram went to the beach with her kids", namespace="a")
-            legs = await eng._metadata_legs(
-                "a", "How many times has Bram gone to the beach?", 10
-            )
+            legs = await eng._metadata_legs("a", "How many times has Bram gone to the beach?", 10)
             assert (len(legs) == 1) is on
         finally:
             await eng.stop()

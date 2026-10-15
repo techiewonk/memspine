@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """Internal step types for the retrieve pipeline (``docs/v2/pipelines/retrieve.md``), steps 1-20.
 
 Internal tier: no compatibility promise. The public read types (request, bundle, block, result, cache key)

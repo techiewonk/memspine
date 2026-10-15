@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """Lift derived hits to source turns, re-admit, dedupe, cap, THEN rerank once (ER-21 B, ER-22, POL-2).
 
 Pure and deterministic: no I/O, no model calls. The rerank function, the viewer's visibility predicate and

@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """Durable ledger for the intake gateway (W2-01; LIB-30 ``IntakeStore`` over SQL).
 
 ``IntakeBook`` (``ingest.intake``) is pure and synchronous; its state lives in an injected store. This

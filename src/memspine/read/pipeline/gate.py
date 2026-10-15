@@ -480,9 +480,7 @@ async def _gate_v2(eng: Any, query: str, result: ReadResult, ns: str | None = No
             n in r.content.casefold() for r in judged for n in folded
         )
         real = (bool(names) and (supported or mentioned)) or (bool(first) and supported)
-        decision = assess(
-            items, cal, contract=_gate_contract(query, real, supported), config=cfg
-        )
+        decision = assess(items, cal, contract=_gate_contract(query, real, supported), config=cfg)
         names = names or first
         entry.update(
             leg=leg,

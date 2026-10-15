@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """The Memory Firewall at three gates: insert, derive, read (LIB-38, W-07, G-06).
 
 Pure and deterministic: no I/O, no model calls, no clock. Not wired yet (W2-04 wires it). This is

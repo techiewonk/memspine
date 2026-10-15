@@ -562,4 +562,3 @@ async def _write_offline_summary(
         trust_cap=cap,
         site=site,
     )
-

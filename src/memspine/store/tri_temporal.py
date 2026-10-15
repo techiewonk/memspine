@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """Tri-temporal stamping (F-02b; M-10, schema session 6): when it was said, and how well the event is dated.
 
 Pure functions over primitives (no store access), shared by the write door, the Alembic backfill and

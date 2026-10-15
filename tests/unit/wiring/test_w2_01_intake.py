@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """W2-01: the intake gateway (LIB-30 wired). ``write.intake_v2``, default OFF.
 
 Model-free: the hash embedder and a stub window LLM. All text is invented (Ilse, Bram, Noor, Tomasz).

@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """Derive stage: reconcile (backlog, entity resolution, contradiction sweep) (O4-03, LIB-37).
 
 Flag ``offline.reconcile_v2`` (default off; the stage then reports ``skipped`` and the sleep cycle

@@ -1,4 +1,3 @@
-# ruff: noqa: E501, RUF001
 """LIB-01: temporal anchoring (S6). Invented names and dates only."""
 
 from __future__ import annotations

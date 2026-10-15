@@ -154,8 +154,6 @@ DATED3_QA_PROMPT = (
 GROUNDED_QA_PROMPT = without_example_dates(GROUNDED_LEGACY_QA_PROMPT)
 
 
-
-
 #: I3: a prompt for any memory benchmark (no dataset wording). Answers from the memories, treats
 #: them as optional context, lets the newest statement win a conflict unless the question is
 #: about the past, resolves relative dates against each line's own date and the question date,
@@ -220,8 +218,7 @@ GROUNDED_GENERIC_LIST_QA_PROMPT = GROUNDED_GENERIC_QA_PROMPT.replace(
 #: A request is not a question the memories must answer, so the exact-refusal sentence is limited
 #: to questions; the length rule is replaced (advice needs more than a phrase).
 GROUNDED_GENERIC_PREFS_QA_PROMPT = GROUNDED_GENERIC_QA_PROMPT.replace(
-    "If the memories do not contain the answer, reply exactly: Not mentioned in the "
-    "conversation.",
+    "If the memories do not contain the answer, reply exactly: Not mentioned in the conversation.",
     "If the message is a question whose answer the memories do not contain, reply exactly: "
     "Not mentioned in the conversation.",
 ).replace(_GENERIC_TAIL, PREFERENCE_CLAUSE)
@@ -402,7 +399,9 @@ class RoutedQAPrompt:
         hashes = {k: hashlib.sha256(v.encode()).hexdigest() for k, v in self.variants.items()}
         joined = "\n".join(f"{k}={hashes[k]}" for k in sorted(hashes))
         return {
-            "prompt_sha256": hashlib.sha256(f"{self.router_version}\n{joined}".encode()).hexdigest(),
+            "prompt_sha256": hashlib.sha256(
+                f"{self.router_version}\n{joined}".encode()
+            ).hexdigest(),
             "qa_prompt": self.name,
             "qa_router": self.router_version,
             "prompt_variants_sha256": hashes,

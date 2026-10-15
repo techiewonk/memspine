@@ -1,4 +1,4 @@
-# ruff: noqa: E501, RUF001
+# ruff: noqa: RUF001
 """Extraction coverage check and targeted re-extraction plan (LIB-17; decisions ER-12 B, ER-15; wired later by W2-15).
 
 Pure and deterministic: no I/O, no model call, no engine import. Depends on ``memspine.schemas`` and

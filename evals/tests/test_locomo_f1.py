@@ -6,7 +6,7 @@ import pytest
 
 pytest.importorskip("nltk")
 
-from memspine_evals.locomo_f1 import (  # noqa: E402
+from memspine_evals.locomo_f1 import (
     category_of,
     f1_multi,
     f1_score,
@@ -41,7 +41,10 @@ def test_category3_uses_first_part_of_gold_before_semicolon():
 
 
 def test_category5_abstention_markers():
-    assert locomo_f1("Not mentioned in the conversation", "Not mentioned in the conversation", 5) == 1.0
+    assert (
+        locomo_f1("Not mentioned in the conversation", "Not mentioned in the conversation", 5)
+        == 1.0
+    )
     assert locomo_f1("No information available.", "x", 5) == 1.0
     assert locomo_f1("She went to Paris", "x", 5) == 0.0
 

@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """Shared durable value types: owner scope (S3-1), provenance, derivation fingerprint, source refs."""
 
 from __future__ import annotations

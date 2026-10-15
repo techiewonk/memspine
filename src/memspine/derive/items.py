@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """``derive.ItemValidator`` and ``derive.RepairAsk``: per-item validation and the one repair re-ask (W2-06a).
 
 W-14 (C) and P-05 (D): validate every item the model returned on its own, keep the valid ones at once, ask

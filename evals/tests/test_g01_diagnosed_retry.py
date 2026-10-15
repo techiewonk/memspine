@@ -60,7 +60,10 @@ def first_then(first: str, fixed: str) -> Callable[[str], str]:
 
 def test_unsupported_claims_names_only_phrases_the_context_lacks() -> None:
     assert unsupported_claims("Ana moved to Lisbon.", CTX, "Where did Ana move?") == []
-    assert unsupported_claims("She went to Berlin with Carla.", CTX, "Where?") == ["Berlin", "Carla"]
+    assert unsupported_claims("She went to Berlin with Carla.", CTX, "Where?") == [
+        "Berlin",
+        "Carla",
+    ]
     assert unsupported_claims('She read "Moby Dick".', CTX, "What?") == ["Moby Dick"]
     # a longer form of a name the context holds is supported; sentence-initial words and months are free
     assert unsupported_claims("Ana, in May, chose Lisbon Portugal.", CTX, "Where?") == []
@@ -150,7 +153,9 @@ async def test_an_evidence_based_unknown_is_never_retried() -> None:
 async def test_strict_mode_still_never_touches_a_refusal() -> None:
     inner = Fake(lambda q: "Not mentioned in the conversation.")
     out = await SlotVerifyReader(inner, "strict").answer("What did Ana adopt?", CTX)
-    assert out.extra_meta["slot_verify"]["outcome"].startswith("skipped") and len(inner.questions) == 1
+    assert (
+        out.extra_meta["slot_verify"]["outcome"].startswith("skipped") and len(inner.questions) == 1
+    )
 
 
 async def test_unsupported_claim_is_retried_and_kept_only_when_fixed() -> None:
@@ -172,7 +177,10 @@ async def test_operand_result_inconsistency_is_retried() -> None:
     )
     out = await SlotVerifyReader(inner, "diagnosed").answer("How many items are left?", CTX)
     meta = out.extra_meta["slot_verify"]
-    assert meta["defects"][0]["kind"] == "operand_result_mismatch" and "is 7" in meta["defects"][0]["detail"]
+    assert (
+        meta["defects"][0]["kind"] == "operand_result_mismatch"
+        and "is 7" in meta["defects"][0]["detail"]
+    )
 
 
 async def test_clean_answers_cost_nothing_in_diagnosed_mode() -> None:

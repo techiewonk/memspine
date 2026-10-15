@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """Derive stage: histories (near-duplicate merge, value histories) (O4-04, LIB-20).
 
 Flag ``offline.histories_v2`` (default off; the stage then reports ``skipped`` and the sleep cycle

@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """Derive stage: standing_answers, and the read-side block (O4-08, LIB-32; opt-in L5).
 
 Sleep side (``offline.standing_v2``): precomputed answers for the current value of each keyed state fact,

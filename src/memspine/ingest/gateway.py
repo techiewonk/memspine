@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """Intake gateway (W2-01; W-01, W-02, W-03, W-24): the one door in front of the old write doors.
 
 ``write_messages``, ``write_episode`` and ``ingest`` become adapters (``write.intake_v2``): each call

@@ -96,7 +96,10 @@ async def test_read_dedupes_before_assembly_and_reports_it() -> None:
     )
     await eng.start()
     try:
-        for text in ["Nina keeps two cats named Pip and Moss.", "Nina keeps two cats named Pip and Moss."]:
+        for text in [
+            "Nina keeps two cats named Pip and Moss.",
+            "Nina keeps two cats named Pip and Moss.",
+        ]:
             await eng.write(text, namespace="a", memory_type="semantic")
         await eng.write("Omar plays the cello on weekends.", namespace="a", memory_type="semantic")
         with search_forensics() as sink:
@@ -122,7 +125,7 @@ class _Stub:
         self.turns = turns
         self.cfg = type("C", (), {"read": ReadConfig(**read)})()  # type: ignore[arg-type]
 
-    def _config(self):  # noqa: ANN202
+    def _config(self):
         return self.cfg
 
     async def _replay_neighbour(self, rid: str, ns: str) -> MemoryRecord | None:
@@ -200,8 +203,15 @@ async def test_scaled_turn_window_shrinks_but_keeps_one_side_turn() -> None:
     ids, turns = _session([8] * 12)
     stub = _Stub(turns, replay_budget_scaling=True, replay_budget_reference=4000)
     got = await stub._window_turns(
-        "a", ids, 6, 2, budget_tokens=10_000, used=0, seen=set(),
-        hit=turns[ids[6]], factor=0.25,
+        "a",
+        ids,
+        6,
+        2,
+        budget_tokens=10_000,
+        used=0,
+        seen=set(),
+        hit=turns[ids[6]],
+        factor=0.25,
     )
     assert [rid for rid, _, _ in got] == [ids[6], ids[5], ids[7]]
 
@@ -232,12 +242,17 @@ async def test_replay_hits_first_keeps_second_hit_under_tight_budget() -> None:
             ]
             for i, text in enumerate(lines):
                 await eng.write(
-                    text, namespace="a", memory_type="episodic",
+                    text,
+                    namespace="a",
+                    memory_type="episodic",
                     valid_from=base + timedelta(minutes=i),
                 )
             out = await eng.read(
-                "Tell me about Ruth's greyhound Biscuit", namespace="a",
-                mode="replay", budget_tokens=120, top_k=2,
+                "Tell me about Ruth's greyhound Biscuit",
+                namespace="a",
+                mode="replay",
+                budget_tokens=120,
+                top_k=2,
             )
             return [r.content for r in out.context.records]
         finally:

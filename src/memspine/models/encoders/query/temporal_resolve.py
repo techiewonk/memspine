@@ -100,7 +100,9 @@ _DURATIONS: tuple[tuple[str, re.Pattern[str]], ...] = tuple(
 _ONGOING = re.compile(r"\b(?:been|have|has|'ve|am|is|are|do|does)\b(?! to\b)", re.I)
 
 #: I79: a bare ``on <weekday>``; the plural ("on Fridays") is a habit, not a day.
-_BARE_WEEKDAY = re.compile(r"\bon (?P<wd>monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b(?!s)", re.I)
+_BARE_WEEKDAY = re.compile(
+    r"\bon (?P<wd>monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b(?!s)", re.I
+)
 _SENTENCE_END = re.compile(r"[.!?]")
 _FUTURE_CUE = re.compile(
     r"\b(?:will|won't|going to|gonna|planning|plans?|planned|about to|upcoming|soon|tomorrow"
@@ -108,9 +110,86 @@ _FUTURE_CUE = re.compile(
     r"|scheduled|booked for)\b|'ll\b",
     re.I,
 )
-_PAST_IRREGULAR = ["was", "were", "had", "did", "went", "got", "saw", "won", "made", "took", "came", "ran", "met", "bought", "gave", "found", "felt", "spent", "began", "became", "brought", "built", "caught", "chose", "drove", "fell", "flew", "heard", "held", "kept", "left", "lost", "paid", "sang", "sat", "slept", "spoke", "stood", "taught", "told", "thought", "threw", "wore", "wrote", "ate", "drank"]
+_PAST_IRREGULAR = [
+    "was",
+    "were",
+    "had",
+    "did",
+    "went",
+    "got",
+    "saw",
+    "won",
+    "made",
+    "took",
+    "came",
+    "ran",
+    "met",
+    "bought",
+    "gave",
+    "found",
+    "felt",
+    "spent",
+    "began",
+    "became",
+    "brought",
+    "built",
+    "caught",
+    "chose",
+    "drove",
+    "fell",
+    "flew",
+    "heard",
+    "held",
+    "kept",
+    "left",
+    "lost",
+    "paid",
+    "sang",
+    "sat",
+    "slept",
+    "spoke",
+    "stood",
+    "taught",
+    "told",
+    "thought",
+    "threw",
+    "wore",
+    "wrote",
+    "ate",
+    "drank",
+]
 _NOT_PAST = frozenset(
-    ["excited", "interested", "scared", "tired", "worried", "pleased", "relaxed", "thrilled", "stoked", "amazed", "surprised", "inspired", "motivated", "determined", "need", "needed", "bored", "obsessed", "addicted", "married", "blessed", "exhausted", "stressed", "devoted", "dedicated", "used", "based", "supposed", "scheduled"]
+    [
+        "excited",
+        "interested",
+        "scared",
+        "tired",
+        "worried",
+        "pleased",
+        "relaxed",
+        "thrilled",
+        "stoked",
+        "amazed",
+        "surprised",
+        "inspired",
+        "motivated",
+        "determined",
+        "need",
+        "needed",
+        "bored",
+        "obsessed",
+        "addicted",
+        "married",
+        "blessed",
+        "exhausted",
+        "stressed",
+        "devoted",
+        "dedicated",
+        "used",
+        "based",
+        "supposed",
+        "scheduled",
+    ]
 )
 _PAST_CUE = re.compile(rf"\b(?:{'|'.join(_PAST_IRREGULAR)}|(?P<ed>[a-z]{{3,}}ed))\b", re.I)
 
@@ -416,7 +495,9 @@ def _bare_weekdays(
             x = d + timedelta(days=(target - d.weekday()) % 7 or 7)
         relation = ""
         if anchored:
-            relation = f"the {m['wd'].capitalize()} {'before' if side == 'past' else 'after'} {d:%Y-%m-%d}"
+            relation = (
+                f"the {m['wd'].capitalize()} {'before' if side == 'past' else 'after'} {d:%Y-%m-%d}"
+            )
         out.append(Resolution(s, e, m["wd"], x, x, False, relation, True))
         taken.append((s, e))
     return out

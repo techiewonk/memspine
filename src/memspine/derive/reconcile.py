@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """Reconcile backlog and contradiction sweep (LIB-37; decisions O-10, O-11, O-12, O-13; S3-1, I-5, F-01).
 
 Pure and unwired (wiring is O4-03): no I/O, no clock read (``now`` is passed in), no model call. Depends on

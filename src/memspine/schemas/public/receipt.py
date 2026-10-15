@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """Receipt, readiness, wait and job handles (schema sessions 7 and 8)."""
 
 from __future__ import annotations

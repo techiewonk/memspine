@@ -22,14 +22,14 @@ _REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
-from evals.harness.accounting import (  # noqa: E402
+from evals.harness.accounting import (
     CostLedger,
     Stage,
     TokenUsage,
     frontier_row,
     percentile,
 )
-from evals.harness.config import (  # noqa: E402
+from evals.harness.config import (
     READ_SIDE_ABLATIONS,
     WRITE_SIDE_ABLATIONS,
     AblationConfig,
@@ -40,7 +40,7 @@ from evals.harness.config import (  # noqa: E402
     ModelConfig,
     RunConfig,
 )
-from evals.harness.results import (  # noqa: E402
+from evals.harness.results import (
     SCHEMA_VERSION,
     BuildRecord,
     ItemResult,
@@ -53,13 +53,13 @@ from evals.harness.results import (  # noqa: E402
     build_results,
     stage_costs_from_report,
 )
-from evals.legacy_datasets.base import (  # noqa: E402
+from evals.legacy_datasets.base import (
     LOADERS,
     BuildCache,
     IngestionStats,
     sample_namespace,
 )
-from evals.run import (  # noqa: E402
+from evals.run import (
     FRONTIER_LADDER,
     TOGGLE_SEAMS,
     SeamUnavailableError,

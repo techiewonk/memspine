@@ -56,6 +56,7 @@ __all__ = ["CypherClient", "LadybugGraphStore"]
 
 _log = get_logger(__name__)
 
+
 class CypherClient(Protocol):
     """What the adapter needs from its client: one embedded connection (D-24)."""
 

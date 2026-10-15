@@ -39,9 +39,20 @@ DATE_REPAIR_VERSION = "v1"
 
 _LINE = re.compile(r"^\s*(?:\*\s*|\[hit \d+\]\s*)?\[(\d{4}-\d{2}-\d{2})\]\s*(.*)$")
 _WEEKDAYS = ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")
-_MONTHS = (
-    "january february march april may june july august september october november december"
-).split()
+_MONTHS = [
+    "january",
+    "february",
+    "march",
+    "april",
+    "may",
+    "june",
+    "july",
+    "august",
+    "september",
+    "october",
+    "november",
+    "december",
+]
 _MON = "|".join(m for m in _MONTHS) + "|" + "|".join(m[:3] for m in _MONTHS)
 _ABS = re.compile(
     rf"\b(?P<iso>\d{{4}}-\d{{2}}-\d{{2}})\b"
@@ -53,8 +64,42 @@ _WD = "|".join(_WEEKDAYS)
 _WD_RE = re.compile(rf"\b(?P<wd>{_WD})\b", re.I)
 _DURATION_Q = re.compile(r"\bhow (?:long|many)\b", re.I)
 _STOP = frozenset(
-    "the a an of to in on at and or for with by from as is was were did do does what when "
-    "which who how where why that this it his her their".split()
+    [
+        "the",
+        "a",
+        "an",
+        "of",
+        "to",
+        "in",
+        "on",
+        "at",
+        "and",
+        "or",
+        "for",
+        "with",
+        "by",
+        "from",
+        "as",
+        "is",
+        "was",
+        "were",
+        "did",
+        "do",
+        "does",
+        "what",
+        "when",
+        "which",
+        "who",
+        "how",
+        "where",
+        "why",
+        "that",
+        "this",
+        "it",
+        "his",
+        "her",
+        "their",
+    ]
 )
 _WORD = re.compile(r"[a-z0-9]+")
 _DUMMY = date(2000, 1, 3)
@@ -94,9 +139,7 @@ def _lines(context: str) -> list[tuple[date, str]]:
     return out
 
 
-def _anchor(
-    phrase: str, question: str, answer: str, lines: list[tuple[date, str]]
-) -> date | None:
+def _anchor(phrase: str, question: str, answer: str, lines: list[tuple[date, str]]) -> date | None:
     """The date of the line the phrase was read from, or None when it cannot be told."""
     needle = phrase.lower()
     with_phrase = [(d, t) for d, t in lines if needle in t.lower()]
@@ -126,7 +169,9 @@ def _label(phrase: str, anchor: date) -> tuple[str, date, date] | None:
     return r.label, r.first, r.last
 
 
-def repair_date_answer(question: str, answer: str, context: str) -> tuple[str, dict[str, Any]] | None:
+def repair_date_answer(
+    question: str, answer: str, context: str
+) -> tuple[str, dict[str, Any]] | None:
     """``(new answer, meta)`` or None when nothing is to be repaired (see the module docstring)."""
     from memspine.models.encoders.query.shape import is_temporal
     from memspine.models.encoders.query.temporal_resolve import resolve

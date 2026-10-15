@@ -20,13 +20,92 @@ from pathlib import Path
 WT = Path(__file__).resolve().parents[2]
 DATA = Path("C:/Users/hembad/Documents/GitHub/memspine/data/locomo10.json")
 sys.path.insert(0, str(WT / "src"))
-from memspine.ingest.index_view import build_index_prefix  # noqa: E402
+from memspine.ingest.index_view import build_index_prefix
 
 STOP = set(
-    "the a an of to in on at and or for with by from as is was were that this it its his her their my our "
-    "be been being has have had he she they them we you i me do does did what which who whom when where why how "
-    "not no yes about after before into over than then there so but if also very just would could should will "
-    "can may might up out one s t".split()
+    [
+        "the",
+        "a",
+        "an",
+        "of",
+        "to",
+        "in",
+        "on",
+        "at",
+        "and",
+        "or",
+        "for",
+        "with",
+        "by",
+        "from",
+        "as",
+        "is",
+        "was",
+        "were",
+        "that",
+        "this",
+        "it",
+        "its",
+        "his",
+        "her",
+        "their",
+        "my",
+        "our",
+        "be",
+        "been",
+        "being",
+        "has",
+        "have",
+        "had",
+        "he",
+        "she",
+        "they",
+        "them",
+        "we",
+        "you",
+        "i",
+        "me",
+        "do",
+        "does",
+        "did",
+        "what",
+        "which",
+        "who",
+        "whom",
+        "when",
+        "where",
+        "why",
+        "how",
+        "not",
+        "no",
+        "yes",
+        "about",
+        "after",
+        "before",
+        "into",
+        "over",
+        "than",
+        "then",
+        "there",
+        "so",
+        "but",
+        "if",
+        "also",
+        "very",
+        "just",
+        "would",
+        "could",
+        "should",
+        "will",
+        "can",
+        "may",
+        "might",
+        "up",
+        "out",
+        "one",
+        "s",
+        "t",
+    ]
 )
 
 
@@ -64,8 +143,13 @@ def main() -> None:
     }
     convs = json.loads(DATA.read_text(encoding="utf-8"))
     variants = (
-        "full", "no_prev_turn", "no_date_words", "date_words_only", "prev_turn_only",
-        "full_elliptical", "prev_turn_only_elliptical",
+        "full",
+        "no_prev_turn",
+        "no_date_words",
+        "date_words_only",
+        "prev_turn_only",
+        "full_elliptical",
+        "prev_turn_only_elliptical",
     )  # the last two use the R14-INDEXVIEW carry rule (R14-IVFIX: the others use "anaphoric")
     tally: dict[str, dict[str, int]] = {}
 
@@ -76,7 +160,9 @@ def main() -> None:
     for ci, conv in enumerate(convs):
         c = conv["conversation"]
         names = [c["speaker_a"], c["speaker_b"]]
-        name_toks = {stem(w) for n in names for w in toks(n)}  # in every question: not evidence of a match
+        name_toks = {
+            stem(w) for n in names for w in toks(n)
+        }  # in every question: not evidence of a match
         turns: dict[str, tuple[str, str, datetime | None, str | None, str | None]] = {}
         for key in c:
             if not re.fullmatch(r"session_\d+", key):
@@ -104,12 +190,24 @@ def main() -> None:
                         bump(g, "lexical_zero_gold_turns")
                     for v in variants:
                         prefix = build_index_prefix(
-                            speaker="" if v in ("date_words_only", "prev_turn_only", "prev_turn_only_elliptical") else spk,
-                            stamp=None if v in ("no_date_words", "prev_turn_only", "prev_turn_only_elliptical") else when,
+                            speaker=""
+                            if v
+                            in ("date_words_only", "prev_turn_only", "prev_turn_only_elliptical")
+                            else spk,
+                            stamp=None
+                            if v in ("no_date_words", "prev_turn_only", "prev_turn_only_elliptical")
+                            else when,
                             content=text,
-                            prev_content=None if v in ("no_prev_turn", "date_words_only") else prev_text,
-                            prev_speaker=None if v in ("date_words_only", "prev_turn_only") else prev_spk,
-                            participants=[] if v in ("date_words_only", "prev_turn_only", "prev_turn_only_elliptical") else names,
+                            prev_content=None
+                            if v in ("no_prev_turn", "date_words_only")
+                            else prev_text,
+                            prev_speaker=None
+                            if v in ("date_words_only", "prev_turn_only")
+                            else prev_spk,
+                            participants=[]
+                            if v
+                            in ("date_words_only", "prev_turn_only", "prev_turn_only_elliptical")
+                            else names,
                             carry="elliptical" if v.endswith("_elliptical") else "anaphoric",
                         )
                         gained = bool(q & (content(f"{prefix} {text}") - name_toks))

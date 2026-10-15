@@ -791,9 +791,7 @@ async def _write_turns(
                 tags=turn_tags or None,
                 valid_from=stamp,
                 reply_to=reply_to,
-                participants=(
-                    [_speaker_of(turn), *session_speakers] if session_speakers else None
-                ),
+                participants=([_speaker_of(turn), *session_speakers] if session_speakers else None),
                 visibility=(
                     str(turn["visibility"]) if session_speakers and "visibility" in turn else None
                 ),
