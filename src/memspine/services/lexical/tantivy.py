@@ -123,6 +123,28 @@ def _commit_with_retry(writer: Any) -> None:
             time.sleep(TANTIVY_COMMIT_BACKOFF_S * (2**attempt))
 
 
+def _wait_merging_threads(writer: Any) -> None:
+    """Join the writer's merge threads at close, tolerating a writer still borrowed.
+
+    A writer call whose awaiting task was cancelled keeps running on its worker thread after the
+    store lock is released; joining then raises ``RuntimeError: Already borrowed`` (PyO3). Retry a
+    few times while that call finishes; if it is still busy, skip the join (the writer is dropped,
+    so at worst an on-disk index keeps a temp segment until the next open merges it)."""
+    import time
+
+    for attempt in range(TANTIVY_COMMIT_RETRIES):
+        try:
+            writer.wait_merging_threads()
+            return
+        except RuntimeError as exc:
+            if "already borrowed" not in str(exc).lower():
+                raise
+            if attempt == TANTIVY_COMMIT_RETRIES - 1:
+                _log.warning("lexical.close.writer_busy", attempts=attempt + 1)
+                return
+            time.sleep(TANTIVY_COMMIT_BACKOFF_S * (2**attempt))
+
+
 class TantivyLexical:
     """Tantivy-backed lexical store (D-25) — the default hybrid leg, **core**.
 
@@ -381,4 +403,4 @@ class TantivyLexical:
             writer, self._writer = self._writer, None
             # Join merge threads so an on-disk index leaves no dangling temp
             # segments (this consumes the writer — the store is done).
-            await asyncio.to_thread(writer.wait_merging_threads)
+            await asyncio.to_thread(_wait_merging_threads, writer)
