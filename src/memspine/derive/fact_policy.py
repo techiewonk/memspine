@@ -67,7 +67,9 @@ class FactPurpose(StrEnum):
 
 
 #: Channels whose semantic records are derived views or machine-built structure, not facts.
-#: Mined facts (``mining``), user/assistant messages, corrections and ingests stay facts.
+#: Mined facts (``mining``), user/assistant messages, corrections and ingests stay facts, and so do
+#: the keyed edge facts of ``extract_graph`` / ``rule_edges``: they feed the edge compiler and
+#: reconcile (listing them here left the compiler with no edges).
 DERIVED_VIEW_CHANNELS: frozenset[str] = frozenset(
     {
         "observation",
@@ -81,8 +83,6 @@ DERIVED_VIEW_CHANNELS: frozenset[str] = frozenset(
         constants.WINDOW_EPISODE_CHANNEL,
         "community_summary",
         "multires",
-        "extract_graph",
-        "rule_edges",
         "reorganize",
     }
 )

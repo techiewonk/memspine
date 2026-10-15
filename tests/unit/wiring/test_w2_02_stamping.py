@@ -347,7 +347,7 @@ def test_migration_head_and_columns(tmp_path: Path) -> None:
     from memspine.services.storage.sqlite.migrations import alembic_config, upgrade_to_head
 
     script = ScriptDirectory.from_config(alembic_config(tmp_path / "x.db"))
-    assert script.get_heads() == ["w202_stamping"]
+    assert script.get_heads() == ["lf_e_layer_backfill"]  # LF-E (MF-08) head; w202 is its parent
     rev = script.get_revision("w202_stamping")
     assert rev is not None and rev.down_revision == "f02b_tri_temporal"
     db = tmp_path / "old.db"

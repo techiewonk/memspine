@@ -221,7 +221,7 @@ async def test_migration_down_up_and_backfill(tmp_path: Path) -> None:
 
 def test_single_alembic_head() -> None:
     script = ScriptDirectory.from_config(alembic_config(Path("unused.db")))
-    assert script.get_heads() == ["w202_stamping"]
+    assert script.get_heads() == ["lf_e_layer_backfill"]  # LF-E (MF-08) layer backfill is the head
     rev = script.get_revision("f02b_tri_temporal")
     assert rev is not None and rev.down_revision == "f04_outbox"
 
@@ -247,8 +247,9 @@ def test_registry_enabled_and_populated_are_separate() -> None:
     assert reg.populated == {"L0", "L2"}
     assert reg.enabled == {"L0", "L1", "L2"}  # populated implies on
     assert reg.is_enabled("L1") and not reg.is_populated("L1")
-    assert reg.report()["L2"] == {"enabled": True, "count": 2}
-    assert reg.report()["L4"] == {"enabled": False, "count": 0}
+    # MF-14: report() also carries configured/available/artifacts/selected; keep the enabled/count checks.
+    assert (reg.report()["L2"]["enabled"], reg.report()["L2"]["count"]) == (True, 2)
+    assert (reg.report()["L4"]["enabled"], reg.report()["L4"]["count"]) == (False, 0)
 
 
 async def test_registry_counts_by_layer_per_namespace() -> None:

@@ -127,7 +127,7 @@ def test_registry_survives_reset() -> None:
     versioning.reset_registry()
     try:
         up = V1Upcaster()
-        assert up.latest(EventKind.WRITE) == 2
+        assert up.latest(EventKind.WRITE) == 3  # LF-E: layer upcaster v2 -> v3
     finally:  # restore the model declarations the reset wiped (other tests rely on them)
         versioning._UPCASTERS.update(saved[0])
         versioning._DECLARED.update(saved[1])
@@ -169,7 +169,7 @@ async def test_replay_restores_read_model_without_duplicates(tmp_path: Path) -> 
         assert records["r-bram"].scoring.likes == 1
         assert records["r-noor"].status.value == "deleted"
         events = await storage.read_events()
-        assert [e.schema_version for e in events[:3]] == [2, 2, 2]
+        assert [e.schema_version for e in events[:3]] == [3, 3, 3]  # LF-E: replay upcasts to v3
         md = MarkdownExportView(NS).render(list(records.values()))
         assert "Ilse keeps bees" in md
         assert md == MarkdownExportView(NS).render(list(reversed(list(records.values()))))

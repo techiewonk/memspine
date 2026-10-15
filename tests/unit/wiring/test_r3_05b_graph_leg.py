@@ -86,16 +86,27 @@ def _fact(rid: str, layer_channel: str = "extract_graph") -> MemoryRecord:
 
 
 async def test_no_l3_gives_an_empty_leg_with_a_reason() -> None:
+    # MF-07: readiness comes from compiled edges with a live supporting record, not from L3 records.
     edges = [lib.HopEdge("A", "X", "r1"), lib.HopEdge("B", "X", "r2")]
     out = await lib.OneHopConvergent().run(
-        _ctx([_fact("r1", "mining")], graph_seeds=["A", "B"], graph_edges=edges)
+        _ctx([_fact("r9", "mining")], graph_seeds=["A", "B"], graph_edges=edges)
     )
-    assert out.hits == [] and out.empty_reason == "no_records:L3"
+    assert out.hits == [] and out.empty_reason == "no_edges"  # no edge has a live supporting record
     reg = LayerRegistry.of(NS, LayerTemplate(), {"L0": 2, "L1": 1})
     out = await lib.OneHopConvergent().run(
-        _ctx([_fact("r1")], graph_seeds=["A", "B"], graph_edges=edges, layer_registry=reg)
+        _ctx([_fact("r1")], graph_seeds=["A", "B"], graph_edges=[], layer_registry=reg)
     )
-    assert out.empty_reason == "no_records:L3"
+    assert out.empty_reason == "no_edges"
+    # and an L3-less store whose edges are backed by live facts is NOT inert (the point of MF-07)
+    out = await lib.OneHopConvergent().run(
+        _ctx(
+            [_fact("r1", "mining"), _fact("r2", "mining")],
+            graph_seeds=["A", "B"],
+            graph_edges=edges,
+            layer_registry=reg,
+        )
+    )
+    assert [h.record_id for h in out.hits] == ["r1", "r2"]
 
 
 async def test_leg_reasons_and_hits() -> None:
@@ -226,7 +237,8 @@ async def test_no_l3_flag_on_is_an_empty_leg_not_an_error(monkeypatch: pytest.Mo
         await eng.stop()
     assert hits
     ev = next(f for f in spy.of("read.leg") if f["leg"] == "graph")
-    assert ev["count"] == 0 and ev["empty_reason"] == "no_records:L3"
+    # MF-07: no compiled edges -> "no_edges" (readiness is edges, not L3 records)
+    assert ev["count"] == 0 and ev["empty_reason"] == "no_edges"
     assert ev["family"] == "structured" and ev["layers"] == ["L3"]
     assert spy.graph_leg() == []
 

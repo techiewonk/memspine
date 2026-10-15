@@ -158,8 +158,8 @@ async def test_histories_merges_near_duplicates_but_not_numbers_or_names(tmp_pat
     try:
         storage = eng._require_started()
         mk = lambda c, t: MemoryRecord(  # noqa: E731
-            namespace=NS, memory_type="semantic", content=c, valid_from=t
-        )
+            namespace=NS, memory_type="semantic", content=c, valid_from=t, entity="Ilse"
+        )  # NEW-01: merge candidates are keyed facts (entity set)
         for rec in (
             mk("Ilse likes tomatoes and basil on the balcony", T[0]),
             mk("Ilse likes basil and tomatoes on the balcony", T[1]),
@@ -200,12 +200,14 @@ async def test_histories_writes_merge_member_lineage_when_table_on(tmp_path: Pat
             memory_type="semantic",
             content="Ilse likes tomatoes and basil",
             valid_from=T[0],
+            entity="Ilse",  # NEW-01: unkeyed records are no longer merge candidates
         )
         b = MemoryRecord(
             namespace=NS,
             memory_type="semantic",
             content="Ilse likes basil and tomatoes",
             valid_from=T[1],
+            entity="Ilse",
         )
         await storage.upsert_record(a)
         await storage.upsert_record(b)
