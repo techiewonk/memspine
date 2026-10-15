@@ -55,7 +55,9 @@ def largest_remainder(weights: dict, total: int, caps: dict | None = None) -> di
         room = sorted((k for k in weights if alloc[k] < caps[k]), key=str)
         if not room:
             break
-        k = max(room, key=lambda k: quota[k] - alloc[k])  # first of equals: sorted order, so deterministic
+        k = max(
+            room, key=lambda k: quota[k] - alloc[k]
+        )  # first of equals: sorted order, so deterministic
         alloc[k] += 1
     return alloc
 
@@ -74,7 +76,9 @@ def stratified_sample(
     if sum(floor.values()) > n:  # tiny n: spread the floor evenly instead
         floor = largest_remainder({c: 1 for c in cats}, n, caps=size)
     extra = largest_remainder(
-        {c: size[c] - floor[c] for c in cats}, n - sum(floor.values()), caps={c: size[c] - floor[c] for c in cats}
+        {c: size[c] - floor[c] for c in cats},
+        n - sum(floor.values()),
+        caps={c: size[c] - floor[c] for c in cats},
     )
     rng = random.Random(seed)
     out: list[str] = []
@@ -97,14 +101,23 @@ def read_universe(run_dir: Path, which: str) -> tuple[list[str], list[tuple[str,
         qid = f"{d['item_id']}/{d['query_id']}"
         cat = str(d.get("type_label") or "?")
         if which == "opb":
-            cat = cat.split("/", 1)[0]  # sycophancy/fact -> sycophancy: keeps the strata few and large
+            cat = cat.split("/", 1)[
+                0
+            ]  # sycophancy/fact -> sycophancy: keeps the strata few and large
         order.append(qid)
         recs.append((qid, cat, str(d["item_id"])))
     return order, recs
 
 
-def build(which: str, runs: Path, source_run: str, n: int, seed: int, min_per_category: int = 6,
-          convs: int | None = None) -> dict:
+def build(
+    which: str,
+    runs: Path,
+    source_run: str,
+    n: int,
+    seed: int,
+    min_per_category: int = 6,
+    convs: int | None = None,
+) -> dict:
     order, recs = read_universe(runs / f"{source_run}--memspine", which)
     if convs:  # engine-LLM screens are ingest-bound: restrict to K seeded conversations so only those are ingested
         keep = set(random.Random(seed).sample(sorted({c for _, _, c in recs}), convs))
@@ -139,14 +152,30 @@ def main() -> None:
     ap.add_argument("--n", type=int, default=None)
     ap.add_argument("--seed", type=int, default=SEED)
     ap.add_argument("--min-per-category", type=int, default=6)
-    ap.add_argument("--convs", type=int, default=None, help="restrict to K seeded conversations (ingest-bound screens)")
+    ap.add_argument(
+        "--convs",
+        type=int,
+        default=None,
+        help="restrict to K seeded conversations (ingest-bound screens)",
+    )
     ap.add_argument("--source-run", default=None)
     ap.add_argument("--runs-dir", type=Path, default=HERE / "runs")
     ap.add_argument("--out-dir", type=Path, default=HERE / "analysis")
     a = ap.parse_args()
-    obj = build(a.which, a.runs_dir, a.source_run or DEFAULT_SOURCE[a.which], a.n or DEFAULT_N[a.which], a.seed,
-                a.min_per_category, a.convs)
-    name = f"sample_slice_{a.which}_{obj['n']}_s{a.seed}" + (f"_c{a.convs}" if a.convs else "") + ".json"
+    obj = build(
+        a.which,
+        a.runs_dir,
+        a.source_run or DEFAULT_SOURCE[a.which],
+        a.n or DEFAULT_N[a.which],
+        a.seed,
+        a.min_per_category,
+        a.convs,
+    )
+    name = (
+        f"sample_slice_{a.which}_{obj['n']}_s{a.seed}"
+        + (f"_c{a.convs}" if a.convs else "")
+        + ".json"
+    )
     (a.out_dir / name).write_text(json.dumps(obj, indent=1) + "\n", encoding="utf-8")
     print(name, obj["n"], "of", obj["n_total"], obj["sizes"], obj["hash"][:12])
 

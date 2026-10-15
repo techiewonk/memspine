@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """Derive stage: entity communities and their summaries (O4-06, ``offline.communities_v2``).
 
 The wiring of ``memspine.derive.communities`` (LIB-36). Today's ``reorganize`` partitions the record

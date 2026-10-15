@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """Config area: offline (O4 wiring of the K_C consolidate libraries; every flag default OFF)."""
 
 from __future__ import annotations

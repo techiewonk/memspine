@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """Derive stages: activation tiers and multi-resolution compression (O4-09, ``offline.decay_v2``).
 
 The wiring of ``memspine.derive.decay`` (LIB-33), K_C opt-in:

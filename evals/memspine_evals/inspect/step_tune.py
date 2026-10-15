@@ -1,4 +1,3 @@
-# ruff: noqa: E501, ASYNC240
 """TI-5b: the tuning commands of the step mode (mixed into ``StepSession``).
 
     config [prefix] | config diff       the effective engine config, with default and source of each value
@@ -29,9 +28,26 @@ __all__ = ["TuneMixin", "flatten", "get_path", "set_path"]
 
 #: first segments whose change needs a rebuilt engine (models, stores, wiring decided at start)
 REBUILD_PREFIXES = (
-    "embedding", "storage", "vector", "cache", "graph", "llm", "memories", "namespaces", "profile", "data_profile",
-    "template", "observability", "event_log", "workers", "read.rerank", "read.rerank_model", "read.hybrid",
-    "read.static_embedding_prefilter", "read.lexical_provider", "read.lexical_analyzer",
+    "embedding",
+    "storage",
+    "vector",
+    "cache",
+    "graph",
+    "llm",
+    "memories",
+    "namespaces",
+    "profile",
+    "data_profile",
+    "template",
+    "observability",
+    "event_log",
+    "workers",
+    "read.rerank",
+    "read.rerank_model",
+    "read.hybrid",
+    "read.static_embedding_prefilter",
+    "read.lexical_provider",
+    "read.lexical_analyzer",
 )
 #: prompts that are code constants, not registry files: replaced in the model call instead
 CODE_PROMPTS = ("structured", "structured.window", "structured.repair")
@@ -108,7 +124,9 @@ class TuneMixin:
 
     # ---- state
     def _init_tuning(self, cfg: Mapping[str, Any]) -> None:
-        self.arm_cfg_orig: dict[str, Any] = copy.deepcopy(dict(getattr(self, "_arm_cfg_orig", None) or cfg))
+        self.arm_cfg_orig: dict[str, Any] = copy.deepcopy(
+            dict(getattr(self, "_arm_cfg_orig", None) or cfg)
+        )
         self.base_cfg: dict[str, Any] = copy.deepcopy(dict(cfg))
         self.overrides: dict[str, Any] = {}
         self.prompt_overrides: dict[str, dict[str, str]] = {}
@@ -125,9 +143,22 @@ class TuneMixin:
             set_path(cfg, key, copy.deepcopy(val))
         return cfg
 
-    def _log_tuning(self, command: str, key: str | None = None, old: Any = None, new: Any = None, effect: str = "") -> None:
-        row = {"ts": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "command": command, "key": key,
-               "old": old, "new": new, "effect": effect}
+    def _log_tuning(
+        self,
+        command: str,
+        key: str | None = None,
+        old: Any = None,
+        new: Any = None,
+        effect: str = "",
+    ) -> None:
+        row = {
+            "ts": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            "command": command,
+            "key": key,
+            "old": old,
+            "new": new,
+            "effect": effect,
+        }
         self.tuning_log.append(row)
         self.d_mem.mkdir(parents=True, exist_ok=True)
         with (self.d_mem / "tuning.jsonl").open("a", encoding="utf-8") as fh:
@@ -182,13 +213,17 @@ class TuneMixin:
         eff, dflt = flatten(self._effective()), flatten(self._defaults())
         rows = []
         for key in sorted(eff):
-            if prefix and not (key == prefix or key.startswith(prefix.rstrip(".") + ".") or key.startswith(prefix)):
+            if prefix and not (
+                key == prefix or key.startswith(prefix.rstrip(".") + ".") or key.startswith(prefix)
+            ):
                 continue
             value, default = eff[key], dflt.get(key, None)
             if diff_only and value == default:
                 continue
             rows.append((key, value, default, self._source(key, value, default)))
-        self.head(f"config{' diff' if diff_only else ''}{(' ' + prefix) if prefix else ''}: {len(rows)} value(s)")
+        self.head(
+            f"config{' diff' if diff_only else ''}{(' ' + prefix) if prefix else ''}: {len(rows)} value(s)"
+        )
         limit = 400 if self.wide else 120
         for key, value, default, src in rows[:limit]:
             tail = "" if value == default else f"   (default {_short(default, 40)})"
@@ -196,7 +231,9 @@ class TuneMixin:
         if len(rows) > limit:
             self.w(f"  ... {len(rows) - limit} more (config <prefix> narrows; --wide prints all)")
         if self.overrides:
-            self.w(f"  overrides: {', '.join(f'{k}={_short(v, 30)}' for k, v in self.overrides.items())}")
+            self.w(
+                f"  overrides: {', '.join(f'{k}={_short(v, 30)}' for k, v in self.overrides.items())}"
+            )
 
     # ---- set / unset
     def _validated(self, key: str, value: Any) -> tuple[Any, str | None]:
@@ -209,7 +246,9 @@ class TuneMixin:
             return None, f"no such config section {key.rsplit('.', 1)[0]!r}"
         if key.rsplit(".", 1)[-1] not in parent and not self._free_dict(key):
             near = [k for k in flatten(dump) if k.startswith(key.rsplit(".", 1)[0] + ".")][:6]
-            return None, f"unknown key {key!r}" + (f" (siblings: {', '.join(near)})" if near else "")
+            return None, f"unknown key {key!r}" + (
+                f" (siblings: {', '.join(near)})" if near else ""
+            )
         set_path(dump, key, value)
         try:
             new = MemspineConfig.model_validate(dump)
@@ -220,13 +259,18 @@ class TuneMixin:
     @staticmethod
     def _free_dict(key: str) -> bool:
         """A key inside an open dict of the schema (``read.scoring.*``, ``memories.*.policies.*``)."""
-        return key.startswith(("read.scoring.", "read.assembly.", "read.compression.", "prompts.")) or ".policies." in key
+        return (
+            key.startswith(("read.scoring.", "read.assembly.", "read.compression.", "prompts."))
+            or ".policies." in key
+        )
 
     async def cmd_set(self, arg: str) -> None:
         key, sep, raw = arg.partition("=")
         key, raw = key.strip(), raw.strip()
         if not sep or not key:
-            self.w("usage: set <dotted.key>=<value>   e.g. set read.rrf_k=30 | set read.hybrid=false")
+            self.w(
+                "usage: set <dotted.key>=<value>   e.g. set read.rrf_k=30 | set read.hybrid=false"
+            )
             return
         await self._set_value(key, parse_value(raw), command="set")
 
@@ -250,12 +294,16 @@ class TuneMixin:
             self.head(f"{command} {key}")
             self.w(f"  {key}: {_short(old, 50)} -> {_short(value, 50)}   {effect}")
             if not rebuild:
-                self.w("  (read per call keys take effect on the next `ask`; a key a stage bound at start needs `reset`)")
+                self.w(
+                    "  (read per call keys take effect on the next `ask`; a key a stage bound at start needs `reset`)"
+                )
         return True
 
     def _apply_live(self, key: str, validated: Any) -> None:
         eng = self.system._engine
-        eng._resolved.config = _replace(eng._resolved.config, key.split("."), get_path(validated, key))
+        eng._resolved.config = _replace(
+            eng._resolved.config, key.split("."), get_path(validated, key)
+        )
         if key.startswith("read.") and key.split(".")[1] in ("scoring", "assembly", "compression"):
             with contextlib.suppress(Exception):
                 from memspine.api import engine as eng_mod
@@ -266,7 +314,9 @@ class TuneMixin:
                 elif key.split(".")[1] == "assembly":
                     eng._assembly = eng_mod.AssemblyPolicy.bind(cfg.read.assembly)
                 else:
-                    eng._assembly_compression = eng_mod.CompressionPolicy.bind(eng_mod._as_options_dict(cfg.read.compression))
+                    eng._assembly_compression = eng_mod.CompressionPolicy.bind(
+                        eng_mod._as_options_dict(cfg.read.compression)
+                    )
         sys_cfg = {k: v for k, v in self.cfg.items() if k != "template"}
         with contextlib.suppress(Exception):
             self.system.config = copy.deepcopy(sys_cfg)
@@ -294,7 +344,9 @@ class TuneMixin:
     async def cmd_params(self, arg: str) -> None:
         arg = arg.strip()
         if not arg:
-            self.w("usage: params <stage-id|stage-name|key-prefix>   e.g. params B7 | params fusion | params read.rrf")
+            self.w(
+                "usage: params <stage-id|stage-name|key-prefix>   e.g. params B7 | params fusion | params read.rrf"
+            )
             return
         eff = flatten(self._effective())
         stages = self._stage_params()
@@ -305,30 +357,54 @@ class TuneMixin:
         if hit:
             for sid, st in hit.items():
                 self.head(f"params {sid}: {st.get('name')}")
-                keys = [k for k in st.get("keys", []) if not str(k.get("key", "")).startswith("cli:")]
+                keys = [
+                    k for k in st.get("keys", []) if not str(k.get("key", "")).startswith("cli:")
+                ]
                 for k in keys:
                     key = k["key"]
                     rng = k.get("choices") or k.get("range")
-                    self.w(f"  {key} = {_short(eff.get(key, '(not in the effective config)'), 40)}  default {_short(k.get('default'), 30)}"
-                           f"  type {k.get('type')}" + (f"  {'choices' if k.get('choices') else 'range'} {_short(rng, 40)}" if rng else "")
-                           + ("  [needs rebuild]" if k.get("rebuild") and k.get("rebuild_scope") != "read" else ""))
+                    self.w(
+                        f"  {key} = {_short(eff.get(key, '(not in the effective config)'), 40)}  default {_short(k.get('default'), 30)}"
+                        f"  type {k.get('type')}"
+                        + (
+                            f"  {'choices' if k.get('choices') else 'range'} {_short(rng, 40)}"
+                            if rng
+                            else ""
+                        )
+                        + (
+                            "  [needs rebuild]"
+                            if k.get("rebuild") and k.get("rebuild_scope") != "read"
+                            else ""
+                        )
+                    )
                     if k.get("description"):
                         self.w(f"      {_short(k['description'], 160)}")
                 if not keys:
                     self.w("  (no config keys listed for this stage)")
                 for pr in st.get("prompts", []):
-                    self.w(f"  prompt {pr.get('prompt_id')} (role {pr.get('role')}, v{pr.get('version')}): `prompt show {pr.get('prompt_id')}`")
+                    self.w(
+                        f"  prompt {pr.get('prompt_id')} (role {pr.get('role')}, v{pr.get('version')}): `prompt show {pr.get('prompt_id')}`"
+                    )
                 for md in st.get("models", []):
-                    self.w(f"  model role {md.get('role')} <- {md.get('source')}" + (f" (default {md['default']})" if md.get("default") else ""))
+                    self.w(
+                        f"  model role {md.get('role')} <- {md.get('source')}"
+                        + (f" (default {md['default']})" if md.get("default") else "")
+                    )
             return
         # fallback: prefix / substring match on the config schema
         dflt = flatten(self._defaults())
         keys = sorted(k for k in dflt if k.startswith(arg) or low in k.lower())
-        self.head(f"params {arg}: {len(keys)} key(s) from the config schema" + ("" if stages else " (docs/v2/data/stage_params.json not found)"))
+        self.head(
+            f"params {arg}: {len(keys)} key(s) from the config schema"
+            + ("" if stages else " (docs/v2/data/stage_params.json not found)")
+        )
         for key in keys[:80]:
             info = self._schema_info(key)
-            self.w(f"  {key} = {_short(eff.get(key), 40)}  default {_short(dflt[key], 30)}"
-                   + (f"  {info}" if info else "") + ("  [needs rebuild]" if self._needs_rebuild(key) else ""))
+            self.w(
+                f"  {key} = {_short(eff.get(key), 40)}  default {_short(dflt[key], 30)}"
+                + (f"  {info}" if info else "")
+                + ("  [needs rebuild]" if self._needs_rebuild(key) else "")
+            )
         if len(keys) > 80:
             self.w(f"  ... {len(keys) - 80} more (narrow the prefix)")
         if not keys:
@@ -354,8 +430,22 @@ class TuneMixin:
             return ""
         bits = []
         meta = [m for m in field.metadata]
-        lo = next((getattr(m, "ge", None) or getattr(m, "gt", None) for m in meta if getattr(m, "ge", None) is not None or getattr(m, "gt", None) is not None), None)
-        hi = next((getattr(m, "le", None) or getattr(m, "lt", None) for m in meta if getattr(m, "le", None) is not None or getattr(m, "lt", None) is not None), None)
+        lo = next(
+            (
+                getattr(m, "ge", None) or getattr(m, "gt", None)
+                for m in meta
+                if getattr(m, "ge", None) is not None or getattr(m, "gt", None) is not None
+            ),
+            None,
+        )
+        hi = next(
+            (
+                getattr(m, "le", None) or getattr(m, "lt", None)
+                for m in meta
+                if getattr(m, "le", None) is not None or getattr(m, "lt", None) is not None
+            ),
+            None,
+        )
         if lo is not None or hi is not None:
             bits.append(f"range [{lo}, {hi}]")
         args = getattr(field.annotation, "__args__", None)
@@ -377,12 +467,16 @@ class TuneMixin:
         if pid == "structured":
             return S.STRUCTURED_SYSTEM
         if pid == "structured.window":
-            return S.window_messages(["facts", "edges", "episode"], "[1] Speaker: text")[0]["content"]
+            return S.window_messages(["facts", "edges", "episode"], "[1] Speaker: text")[0][
+                "content"
+            ]
         # structured.repair: the final user message, with {n} and {problems}
-        return ("{n} of your items failed validation. Problems, in the same order as the items:\n{problems}\n"
-                "Reply with ONE JSON array of exactly {n} corrected items, in the same order. Fix only what the problems "
-                "name; do not add items, do not drop items, and keep every citation to a numbered line that exists. If an "
-                "item cannot be fixed from the lines, return it unchanged.")
+        return (
+            "{n} of your items failed validation. Problems, in the same order as the items:\n{problems}\n"
+            "Reply with ONE JSON array of exactly {n} corrected items, in the same order. Fix only what the problems "
+            "name; do not add items, do not drop items, and keep every citation to a numbered line that exists. If an "
+            "item cannot be fixed from the lines, return it unchanged."
+        )
 
     def _reader_prompt(self) -> str:
         from .. import readers
@@ -414,7 +508,11 @@ class TuneMixin:
             self.w("usage: prompt list | show <id> | edit <id> <file> | reset <id>")
 
     def _known_prompt(self, pid: str) -> bool:
-        return pid in CODE_PROMPTS or pid == READER_PROMPT or any(p.id == pid for p in self._registry().list())
+        return (
+            pid in CODE_PROMPTS
+            or pid == READER_PROMPT
+            or any(p.id == pid for p in self._registry().list())
+        )
 
     async def _prompt_show(self, pid: str) -> None:
         if not self._known_prompt(pid):
@@ -423,20 +521,27 @@ class TuneMixin:
         edited = self.prompt_overrides.get(pid)
         self.head(f"prompt {pid}" + (" (edited this session)" if edited else ""))
         if pid in CODE_PROMPTS:
-            self.w("  system (code constant; `prompt edit` replaces the whole text in the model call):" if pid != "structured.repair"
-                   else "  user message (placeholders {n} and {problems}):")
+            self.w(
+                "  system (code constant; `prompt edit` replaces the whole text in the model call):"
+                if pid != "structured.repair"
+                else "  user message (placeholders {n} and {problems}):"
+            )
             self.w(self._indent((edited or {}).get("system") or self._code_prompt_text(pid)))
         elif pid == READER_PROMPT:
             self.w(self._indent((edited or {}).get("body") or self._reader_prompt()))
         else:
             p = self._registry().get(pid)
-            self.w(f"  role={p.role} version={p.version} format={p.format.value} output_model={p.output_model}")
+            self.w(
+                f"  role={p.role} version={p.version} format={p.format.value} output_model={p.output_model}"
+            )
             if p.system:
                 self.w("  system:")
                 self.w(self._indent(p.system))
             self.w("  body:")
             self.w(self._indent(p.body))
-        seen = [r for r in self.sink.rows if r["event"] == "write.extract.io" and r.get("prompt_text")]
+        seen = [
+            r for r in self.sink.rows if r["event"] == "write.extract.io" and r.get("prompt_text")
+        ]
         if pid in ("structured.window", "window_extract", "structured") and seen:
             self.w("  last rendered (from write.extract.io):")
             self.w(self._indent(str(seen[-1]["prompt_text"]), 1200 if self.wide else 400))
@@ -462,10 +567,17 @@ class TuneMixin:
         else:
             self.prompt_overrides[pid] = self._parse_registry_edit(text)
         self._apply_prompt_overrides_live()
-        self._log_tuning("prompt edit", pid, "(edited)" if old else "(shipped)", f"{len(text)} chars from {Path(path).name}",
-                         "applied to the running engine; `rerun window` shows its effect")
+        self._log_tuning(
+            "prompt edit",
+            pid,
+            "(edited)" if old else "(shipped)",
+            f"{len(text)} chars from {Path(path).name}",
+            "applied to the running engine; `rerun window` shows its effect",
+        )
         self.head(f"prompt edit {pid}")
-        self.w(f"  {len(text)} chars from {path}; used by the next model call of this role (`prompt reset {pid}` undoes it)")
+        self.w(
+            f"  {len(text)} chars from {path}; used by the next model call of this role (`prompt reset {pid}` undoes it)"
+        )
 
     @staticmethod
     def _parse_registry_edit(text: str) -> dict[str, str]:
@@ -507,7 +619,9 @@ class TuneMixin:
             if pid in CODE_PROMPTS or pid == READER_PROMPT or reg is None:
                 continue
             p = reg.get(pid)
-            self._shipped.setdefault(pid, {"body": p.body, "system": p.system, "version": p.version})
+            self._shipped.setdefault(
+                pid, {"body": p.body, "system": p.system, "version": p.version}
+            )
             object.__setattr__(p, "body", ed.get("body", p.body))
             if "system" in ed:
                 object.__setattr__(p, "system", ed["system"])
@@ -540,7 +654,9 @@ class TuneMixin:
         self._prompt_hook_on = True
 
     @staticmethod
-    def _edit_messages(S: Any, msgs: list[Mapping[str, Any]], ov: Mapping[str, Mapping[str, str]]) -> list[dict[str, Any]] | None:
+    def _edit_messages(
+        S: Any, msgs: list[Mapping[str, Any]], ov: Mapping[str, Mapping[str, str]]
+    ) -> list[dict[str, Any]] | None:
         if not msgs:
             return None
         out = [dict(m) for m in msgs]
@@ -551,9 +667,17 @@ class TuneMixin:
         elif first.startswith(S.STRUCTURED_SYSTEM[:80]) and "structured" in ov:
             out[0]["content"], changed = ov["structured"]["system"], True
         last = str(out[-1].get("content", ""))
-        m = re.match(r"(\d+) of your items failed validation\. Problems, in the same order as the items:\n(.*)\nReply with ONE JSON array of exactly", last, re.S)
+        m = re.match(
+            r"(\d+) of your items failed validation\. Problems, in the same order as the items:\n(.*)\nReply with ONE JSON array of exactly",
+            last,
+            re.S,
+        )
         if m and "structured.repair" in ov:
-            out[-1]["content"] = ov["structured.repair"]["system"].replace("{n}", m.group(1)).replace("{problems}", m.group(2))
+            out[-1]["content"] = (
+                ov["structured.repair"]["system"]
+                .replace("{n}", m.group(1))
+                .replace("{problems}", m.group(2))
+            )
             changed = True
         return out if changed else None
 
@@ -567,9 +691,13 @@ class TuneMixin:
         for r in rows:
             if r["event"] != "write.envelope.trace":
                 continue
-            v = view.setdefault(str(r.get("occ")), {"text": None, "stages": {}, "integrate": None, "final": None})
+            v = view.setdefault(
+                str(r.get("occ")), {"text": None, "stages": {}, "integrate": None, "final": None}
+            )
             v["text"] = r.get("text") or v["text"]
-            v["stages"][str(r.get("stage"))] = r.get("status") + (f"({r['reason']})" if r.get("reason") else "")
+            v["stages"][str(r.get("stage"))] = r.get("status") + (
+                f"({r['reason']})" if r.get("reason") else ""
+            )
             integ = r.get("integrate")
             if isinstance(integ, dict) and any(integ.values()):
                 v["integrate"] = f"{integ.get('op')}/{integ.get('rung')}/{integ.get('outcome')}"
@@ -592,11 +720,27 @@ class TuneMixin:
         from memspine.observability import tap
         from memspine.workers import windows as W
 
-        members = next((r for r in self.sink.rows if r["event"] == "write.window.members" and r.get("window_id") == window_id
-                        and r.get("member_record_ids")), None)
+        members = next(
+            (
+                r
+                for r in self.sink.rows
+                if r["event"] == "write.window.members"
+                and r.get("window_id") == window_id
+                and r.get("member_record_ids")
+            ),
+            None,
+        )
         if members is None:
-            ids = sorted({r.get("window_id") for r in self.sink.rows if r["event"] == "write.window.members" and r.get("window_id")})
-            self.w(f"no window {window_id!r} (windows so far: {', '.join(map(str, ids)) or 'none'})")
+            ids = sorted(
+                {
+                    r.get("window_id")
+                    for r in self.sink.rows
+                    if r["event"] == "write.window.members" and r.get("window_id")
+                }
+            )
+            self.w(
+                f"no window {window_id!r} (windows so far: {', '.join(map(str, ids)) or 'none'})"
+            )
             return
         pipe = getattr(self.system._engine, "_windows", None)
         if pipe is None:
@@ -610,13 +754,23 @@ class TuneMixin:
             self.w("the window's records are gone from the store")
             return
         scratch = type(self.sink)()
-        job = W._Job(namespace=self.item, window=SimpleNamespace(session=members.get("session"), turns=[SimpleNamespace(record_id=i) for i in ids],
-                                                                reason="rerun", tokens=0))
+        job = W._Job(
+            namespace=self.item,
+            window=SimpleNamespace(
+                session=members.get("session"),
+                turns=[SimpleNamespace(record_id=i) for i in ids],
+                reason="rerun",
+                tokens=0,
+            ),
+        )
         saved = (tap._SINK, list(tap._EXTRA_SINKS), pipe._cache)
         tap._SINK, tap._EXTRA_SINKS[:] = None, [scratch]
         pipe._cache = None  # the extraction cache is keyed by content, not by the edited prompt
         try:
-            with self.system._scope(phase="rerun", window_id=window_id), tap.request("write", rerun=True):
+            with (
+                self.system._scope(phase="rerun", window_id=window_id),
+                tap.request("write", rerun=True),
+            ):
                 prepared = await pipe._prepare_records(self.item, job, records, strict=False)
                 if commit and prepared is not None:
                     await pipe._commit_job(self.item, pipe._store(self.item), prepared)
@@ -625,26 +779,44 @@ class TuneMixin:
             tap._EXTRA_SINKS[:] = saved[1]
             pipe._cache = saved[2]
         after = self._window_view(scratch.rows)
-        self.head(f"rerun window {window_id}: {len(records)} turn(s)" + ("  (--commit: deposited)" if commit else "  (scratch: nothing deposited)"))
+        self.head(
+            f"rerun window {window_id}: {len(records)} turn(s)"
+            + ("  (--commit: deposited)" if commit else "  (scratch: nothing deposited)")
+        )
         if prepared is None:
             self.w("  the window produced nothing (skipped or cancelled)")
         n_add, n_del, n_chg = self._print_window_diff(before, after)
         io = [r for r in scratch.rows if r["event"] == "write.extract.io"]
         for r in io[:1]:
-            self.w(f"  extract.io now: model={r.get('model')} tokens={r.get('tokens')} sections={r.get('sections')}")
+            self.w(
+                f"  extract.io now: model={r.get('model')} tokens={r.get('tokens')} sections={r.get('sections')}"
+            )
             self.w(f"    prompt: {_short(r.get('prompt_text'), 200)}")
         if commit:
-            self.w("  warning: --commit deposited a second copy of this window's items; `reset` starts clean")
-        self._log_tuning("rerun window", window_id, f"{len(before)} envelope(s)", f"{len(after)} envelope(s)",
-                         f"added {n_add}, removed {n_del}, changed {n_chg}" + ("; committed" if commit else ""))
+            self.w(
+                "  warning: --commit deposited a second copy of this window's items; `reset` starts clean"
+            )
+        self._log_tuning(
+            "rerun window",
+            window_id,
+            f"{len(before)} envelope(s)",
+            f"{len(after)} envelope(s)",
+            f"added {n_add}, removed {n_del}, changed {n_chg}" + ("; committed" if commit else ""),
+        )
 
     @staticmethod
     def _stage_delta(vb: Mapping[str, Any], va: Mapping[str, Any]) -> dict[str, tuple[Any, Any]]:
         """Stages both runs went through whose status differs (a scratch run never reaches ``deposit``)."""
         common = set(vb["stages"]) & set(va["stages"])
-        return {st: (vb["stages"][st], va["stages"][st]) for st in sorted(common) if vb["stages"][st] != va["stages"][st]}
+        return {
+            st: (vb["stages"][st], va["stages"][st])
+            for st in sorted(common)
+            if vb["stages"][st] != va["stages"][st]
+        }
 
-    def _print_window_diff(self, before: dict[str, dict[str, Any]], after: dict[str, dict[str, Any]]) -> tuple[int, int, int]:
+    def _print_window_diff(
+        self, before: dict[str, dict[str, Any]], after: dict[str, dict[str, Any]]
+    ) -> tuple[int, int, int]:
         def by_text(view: dict[str, dict[str, Any]]) -> dict[str, tuple[str, dict[str, Any]]]:
             return {" ".join(str(v["text"] or k).lower().split()): (k, v) for k, v in view.items()}
 
@@ -657,8 +829,10 @@ class TuneMixin:
                 (_, vb), (_, va) = b[t], a[t]
                 if self._stage_delta(vb, va) or vb["integrate"] != va["integrate"]:
                     changed.append(t)
-        self.w(f"  items before {len(before)}, after {len(after)}: +{len(added)} added, -{len(removed)} removed, ~{len(changed)} changed, "
-               f"={len(a) - len(added) - len(changed)} same")
+        self.w(
+            f"  items before {len(before)}, after {len(after)}: +{len(added)} added, -{len(removed)} removed, ~{len(changed)} changed, "
+            f"={len(a) - len(added) - len(changed)} same"
+        )
         for t in added:
             self.w(f"  + {_short(a[t][1]['text'], 100)}   stages {_short(a[t][1]['stages'], 80)}")
         for t in removed:
@@ -671,7 +845,9 @@ class TuneMixin:
             if vb["integrate"] != va["integrate"]:
                 self.w(f"      integration verdict: {vb['integrate']} -> {va['integrate']}")
         if changed or added or removed:
-            self.w("  (integration is judged against the live store, which already holds this window's first run)")
+            self.w(
+                "  (integration is judged against the live store, which already holds this window's first run)"
+            )
         return len(added), len(removed), len(changed)
 
     async def _rerun_ask(self, arg: str) -> None:
@@ -701,7 +877,10 @@ class TuneMixin:
         fx = res.get("fx") or {}
         out: dict[str, dict[str, Any]] = {}
         for g in res.get("gold_turns") or []:
-            out[g] = {name: rank_of(fx.get(name), g) for name in ("vector", "lexical", "fused", "pool", "rerank_scores", "final")}
+            out[g] = {
+                name: rank_of(fx.get(name), g)
+                for name in ("vector", "lexical", "fused", "pool", "rerank_scores", "final")
+            }
             out[g]["context"] = g in (res.get("got") or [])
         return out
 
@@ -715,10 +894,18 @@ class TuneMixin:
                 mark = "" if a == b else "   <== changed"
                 changed += a != b
                 self.w(f"  gold {g} {name:<14}{_short(b, 20):>22}{_short(a, 20):>22}{mark}")
-        for label, key in (("gold found", None), ("first losing stage", "lost"), ("answer correct", "correct"), ("tokens", "tokens")):
+        for label, key in (
+            ("gold found", None),
+            ("first losing stage", "lost"),
+            ("answer correct", "correct"),
+            ("tokens", "tokens"),
+        ):
             b = f"{prev['found']}/{prev['total']}" if key is None else prev.get(key)
             a = f"{now['found']}/{now['total']}" if key is None else now.get(key)
-            self.w(f"  {label:<22}{_short(b, 20):>22}{_short(a, 20):>22}" + ("" if a == b else "   <== changed"))
+            self.w(
+                f"  {label:<22}{_short(b, 20):>22}{_short(a, 20):>22}"
+                + ("" if a == b else "   <== changed")
+            )
         bl, al = prev.get("context", "").splitlines(), now.get("context", "").splitlines()
         gone, new = [x for x in bl if x not in al], [x for x in al if x not in bl]
         self.w(f"  packed context: -{len(gone)} line(s), +{len(new)} line(s)")
@@ -728,8 +915,10 @@ class TuneMixin:
             self.w("    + " + _short(x, 150))
         if prev.get("answer") != now.get("answer"):
             self.w(f"  answer: {_short(prev.get('answer'), 80)} -> {_short(now.get('answer'), 80)}")
-        return (f"gold {prev['found']}/{prev['total']} -> {now['found']}/{now['total']}; lost_at {prev['lost']} -> {now['lost']}; "
-                f"{changed} rank/context change(s); context -{len(gone)}/+{len(new)} lines")
+        return (
+            f"gold {prev['found']}/{prev['total']} -> {now['found']}/{now['total']}; lost_at {prev['lost']} -> {now['lost']}; "
+            f"{changed} rank/context change(s); context -{len(gone)}/+{len(new)} lines"
+        )
 
     # ---- sweep
     async def _sweep(self, arg: str) -> None:
@@ -741,8 +930,10 @@ class TuneMixin:
         key, raw_values = parts[0], parts[1]
         values = [parse_value(v.strip()) for v in raw_values.split(",") if v.strip()]
         if not key.startswith("read."):
-            self.w(f"sweep refused: {key!r} is not a read-side key (read.*). A write-side key changes what is stored: "
-                   f"use `set {key}=<value>` then `rerun window <window_id>` to see its effect on one window.")
+            self.w(
+                f"sweep refused: {key!r} is not a read-side key (read.*). A write-side key changes what is stored: "
+                f"use `set {key}=<value>` then `rerun window <window_id>` to see its effect on one window."
+            )
             return
         if self._needs_rebuild(key):
             self.w(f"sweep refused: {key!r} needs a rebuilt engine (`set` it and `reset`).")
@@ -772,7 +963,9 @@ class TuneMixin:
             new_cfg, err = self._validated(key, get_path(self._base_dump or {}, key))
             if err is None:
                 self._apply_live(key, new_cfg)
-        self.head(f"sweep {key} over {len(targets)} question(s) (no deposit changes; the key is restored)")
+        self.head(
+            f"sweep {key} over {len(targets)} question(s) (no deposit changes; the key is restored)"
+        )
         rows = [(key, "gold found", "first losing stage", "correct")]
         for value, results in table:
             tot = sum(r["total"] for r in results)
@@ -783,14 +976,30 @@ class TuneMixin:
                     lost[r["lost"]] = lost.get(r["lost"], 0) + 1
             ok = sum(1 for r in results if str(r["correct"]).endswith("yes"))
             judged = sum(1 for r in results if r["correct"] != "-")
-            rows.append((_short(value, 20), f"{found}/{tot}", ", ".join(f"{k}:{v}" for k, v in lost.items()) or "-", f"{ok}/{judged}"))
-            self._log_tuning("sweep", key, None, value, f"gold {found}/{tot}; lost_at {lost or '-'}; correct {ok}/{judged}")
+            rows.append(
+                (
+                    _short(value, 20),
+                    f"{found}/{tot}",
+                    ", ".join(f"{k}:{v}" for k, v in lost.items()) or "-",
+                    f"{ok}/{judged}",
+                )
+            )
+            self._log_tuning(
+                "sweep",
+                key,
+                None,
+                value,
+                f"gold {found}/{tot}; lost_at {lost or '-'}; correct {ok}/{judged}",
+            )
         widths = [max(len(r[i]) for r in rows) for i in range(4)]
         for k, row in enumerate(rows):
             self.w("  " + "  ".join(c.ljust(widths[i]) for i, c in enumerate(row)))
             if k == 0:
                 self.w("  " + "  ".join("-" * w for w in widths))
-        per_q = [(qid, [r["found"] for _v, rs in table for r in rs if r["qid"] == qid]) for qid, _q in targets]
+        per_q = [
+            (qid, [r["found"] for _v, rs in table for r in rs if r["qid"] == qid])
+            for qid, _q in targets
+        ]
         for qid, founds in per_q:
             self.w(f"  {qid}: gold found per value: {founds}")
 
@@ -817,10 +1026,16 @@ class TuneMixin:
                 f = pdir / f"{pid}.txt"
                 f.write_text(ed.get("system") or ed.get("body") or "", encoding="utf-8")
                 files.append(f)
-                notes.append(f"{pid}: a {'code constant' if pid != READER_PROMPT else 'harness prompt'}, saved as a file only "
-                             f"(an arm json cannot carry it)")
+                notes.append(
+                    f"{pid}: a {'code constant' if pid != READER_PROMPT else 'harness prompt'}, saved as a file only "
+                    f"(an arm json cannot carry it)"
+                )
             else:
-                set_path(cfg, f"prompts.overrides.{pid}", {k: v for k, v in ed.items() if k in ("body", "system")})
+                set_path(
+                    cfg,
+                    f"prompts.overrides.{pid}",
+                    {k: v for k, v in ed.items() if k in ("body", "system")},
+                )
                 pdir.mkdir(exist_ok=True)
                 f = pdir / f"{pid}.txt"
                 f.write_text(ed.get("body", ""), encoding="utf-8")
@@ -828,7 +1043,9 @@ class TuneMixin:
         try:
             validate_engine_config(copy.deepcopy(cfg))
         except Exception as exc:
-            self.w(f"export refused: the arm does not validate: {_short(str(exc).replace(chr(10), ' '), 300)}")
+            self.w(
+                f"export refused: the arm does not validate: {_short(str(exc).replace(chr(10), ' '), 300)}"
+            )
             return
         target = arms / f"{name}.json"
         target.write_text(json.dumps(cfg, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
@@ -838,11 +1055,15 @@ class TuneMixin:
         diffs = [k for k in sorted(set(fb) | set(fc)) if fb.get(k, _MISSING) != fc.get(k, _MISSING)]
         self.w(f"  diff vs the base arm ({self.arm_name}): {len(diffs)} value(s)")
         for k in diffs[:40]:
-            self.w(f"    {k}: {_short(fb.get(k, '(absent)'), 40)} -> {_short(fc.get(k, '(absent)'), 40)}")
+            self.w(
+                f"    {k}: {_short(fb.get(k, '(absent)'), 40)} -> {_short(fc.get(k, '(absent)'), 40)}"
+            )
         for n in notes:
             self.w(f"  note: {n}")
         if self.mode in ("offline", "replay"):
-            self.w("  note: the arm is the original one (offline swaps of embedder and reranker are not exported)")
+            self.w(
+                "  note: the arm is the original one (offline swaps of embedder and reranker are not exported)"
+            )
         self._log_tuning("export arm", name, None, str(target), f"{len(diffs)} diff value(s)")
 
     # ---- dispatch

@@ -13,6 +13,9 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+
+pytest.importorskip("taskiq")  # the taskiq extra is not in the dev env (D-41)
+
 from taskiq import InMemoryBroker
 from taskiq.abc.broker import AsyncBroker
 from taskiq.message import BrokerMessage
@@ -306,7 +309,7 @@ async def test_engine_with_the_transport_flag_gives_the_same_facts(
 ) -> None:
     import sys
 
-    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # noqa: ASYNC240
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
     from test_window_write import FakeWindowLLM, _facts, _send, _turns
 
     from memspine import Engine

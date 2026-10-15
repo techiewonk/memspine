@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """Aggregate forensics of the full logged run ``full-persp-loc`` (LoCoMo, all 10 conversations, cat 1-4).
 
     python evals/full_run_forensics.py [--out evals/runs/_analysis/full]
@@ -29,7 +28,7 @@ RUNS = HERE / "runs"
 sys.path[:] = [p for p in sys.path if Path(p or ".").resolve() != HERE]
 sys.path.append(str(HERE))
 
-from failure_buckets import parse_interval  # noqa: E402
+from failure_buckets import parse_interval
 
 RUN, FIX, DEVREF = "full-persp-loc", "qa-full-qs-eq06-fix", "xb-loc-dev"
 CATS = ["single-hop", "multi-hop", "temporal", "open-domain"]

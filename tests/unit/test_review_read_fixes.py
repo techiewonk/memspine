@@ -551,8 +551,7 @@ async def test_replay_segments_only_the_sessions_holding_a_hit(
 def test_latest_slots_respect_dedupe() -> None:
     policy = AssemblyPolicy.bind({"theta_abstain": 0.0, "latest_slots": 3, "dedupe_jaccard": 0.8})
     dups = [
-        (_rec("Bram went hiking on the trail", when=T0 + timedelta(days=d)), 0.5)
-        for d in range(3)
+        (_rec("Bram went hiking on the trail", when=T0 + timedelta(days=d)), 0.5) for d in range(3)
     ]
     ctx = policy.assemble(dups, budget_tokens=1000)
     assert len(ctx.records) == 1

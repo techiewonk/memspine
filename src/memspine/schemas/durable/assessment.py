@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """Assessment (schema session 5): five separate fields, the supersede rule, tentative handling."""
 
 from __future__ import annotations

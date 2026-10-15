@@ -124,7 +124,7 @@ async def _one(eng: Any, ctx: PipelineContext, entry: dict[str, object]) -> str:
 
     # Parents still alive: those the plan left plus the row's own, never an erased or hidden one.
     candidates = dict.fromkeys(
-        [*dep.source.parents, *map(str, entry.get("remaining_sources") or [])]
+        [*dep.source.parents, *map(str, entry.get("remaining_sources") or [])]  # type: ignore[call-overload]  # CI-GREEN: pre-existing typing debt
     )
     live: list[MemoryRecord] = []
     for pid in candidates:

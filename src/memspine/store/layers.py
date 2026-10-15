@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """Record envelope derivations (F-02a; M-02 layers, M-03 type tags, M-07 provenance class, M-08 axes).
 
 Pure functions over primitives (no ``MemoryRecord`` import), so the record model, the Alembic backfill

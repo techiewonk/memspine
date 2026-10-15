@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """W2-06b: prompt v2 and schema-constrained decoding (``write.prompt_v2``). Model-free: a stub LLM that
 records every request (messages and kwargs) and answers the one-call window prompt, the W2-06a
 ``structured`` prompt (flag off) and the repair re-ask. Hash embedder."""
@@ -63,9 +62,18 @@ class WindowLLM(ItemLLM):
             for pos, (n, text) in enumerate(lines):
                 who, said = text.split(": ", 1)
                 item: dict[str, Any] | None = {
-                    "s": who, "r": "said", "o": None, "text": f"{who} said {said}", "kind": "event",
-                    "mode": "asserted", "neg": False, "when": None, "until": None, "lines": [n],
-                    "span": said, "speaker": who,
+                    "s": who,
+                    "r": "said",
+                    "o": None,
+                    "text": f"{who} said {said}",
+                    "kind": "event",
+                    "mode": "asserted",
+                    "neg": False,
+                    "when": None,
+                    "until": None,
+                    "lines": [n],
+                    "span": said,
+                    "speaker": who,
                 }
                 if pos in self.mutations:
                     item = self.mutations[pos](item)
@@ -75,8 +83,11 @@ class WindowLLM(ItemLLM):
         if "edges" in sections:
             out["edges"] = [
                 {
-                    "src_entity": text.split(":")[0], "rel": "mentioned", "dst_entity": f"item{n}",
-                    "fact": f"{text.split(':')[0]} mentioned item{n}", "turns": [n],
+                    "src_entity": text.split(":")[0],
+                    "rel": "mentioned",
+                    "dst_entity": f"item{n}",
+                    "fact": f"{text.split(':')[0]} mentioned item{n}",
+                    "turns": [n],
                 }
                 for n, text in lines
             ]
@@ -88,8 +99,11 @@ class WindowLLM(ItemLLM):
                 got = [(int(n), t) for n, t in LINE.findall(block)]
                 eps.append(
                     {
-                        "window": k, "title": "A chat", "summary": "People chat.",
-                        "narrative": " ".join(t for _, t in got), "turns": [n for n, _ in got],
+                        "window": k,
+                        "title": "A chat",
+                        "summary": "People chat.",
+                        "narrative": " ".join(t for _, t in got),
+                        "turns": [n for n, _ in got],
                     }
                 )
             batched = "=== window" in new
@@ -151,8 +165,13 @@ async def test_one_call_per_window(monkeypatch: pytest.MonkeyPatch, mode: str) -
 async def test_one_call_per_batch_with_episodes(monkeypatch: pytest.MonkeyPatch) -> None:
     llm = WindowLLM()
     eng = await _engine(
-        monkeypatch, llm, window_extract="all", prompt_v2=True, segmentation_v2=True,
-        segment_max_turns=4, batch_max_windows=3,
+        monkeypatch,
+        llm,
+        window_extract="all",
+        prompt_v2=True,
+        segmentation_v2=True,
+        segment_max_turns=4,
+        batch_max_windows=3,
     )
     try:
         await _send(eng, "a", "s1", _turns("trip", 12))
@@ -173,10 +192,16 @@ async def test_one_call_per_batch_with_episodes(monkeypatch: pytest.MonkeyPatch)
 def test_split_batch_episodes_renumbers_and_fails_one_window_alone() -> None:
     spans = [(0, 2), (2, 3)]
     out = split_batch_episodes(
-        [{"window": 2, "narrative": "b", "turns": [3, 5]}, {"window": 1, "narrative": "a", "turns": [1]}],
+        [
+            {"window": 2, "narrative": "b", "turns": [3, 5]},
+            {"window": 1, "narrative": "a", "turns": [1]},
+        ],
         spans,
     )
-    assert out[0] == {"narrative": "a", "turns": [1]} and out[1] == {"narrative": "b", "turns": [1, 3]}
+    assert out[0] == {"narrative": "a", "turns": [1]} and out[1] == {
+        "narrative": "b",
+        "turns": [1, 3],
+    }
     only_first = split_batch_episodes([{"window": 1, "narrative": "a", "turns": [2]}], spans)
     assert only_first[0]["turns"] == [2] and only_first[1] is not only_first[0]
     positional = split_batch_episodes([{"narrative": "a"}, {"narrative": "b"}], spans)
@@ -199,7 +224,9 @@ async def test_sections_parse_into_facts_edges_and_episode(monkeypatch: pytest.M
         await eng.stop()
 
 
-async def test_malformed_items_dropped_no_worse_than_w2_06a(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_malformed_items_dropped_no_worse_than_w2_06a(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     def break_items(llm: WindowLLM) -> None:
         llm.mutations[0] = lambda item: {**item, "lines": []}
         llm.mutations[1] = lambda item: {**item, "trust": 0.99}
@@ -216,16 +243,24 @@ async def test_malformed_items_dropped_no_worse_than_w2_06a(monkeypatch: pytest.
     try:
         assert got["items_dead"] <= base["items_dead"]
         assert got["items_dropped"] <= base["items_dropped"]
-        assert got["items_valid"] + got["items_repaired"] >= base["items_valid"] + base["items_repaired"]
+        assert (
+            got["items_valid"] + got["items_repaired"]
+            >= base["items_valid"] + base["items_repaired"]
+        )
         assert len(new.repairs) <= len(old.repairs) <= 1  # at most one repair re-ask per window
     finally:
         await eng2.stop()
 
 
-async def test_unparseable_reply_fails_closed_and_is_counted(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_unparseable_reply_fails_closed_and_is_counted(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     class Bad(WindowLLM):
         async def chat(self, messages: list[dict[str, str]], **options: Any) -> str:
-            if "NEW:\n" in messages[-1]["content"] or "not a valid JSON object" in messages[-1]["content"]:
+            if (
+                "NEW:\n" in messages[-1]["content"]
+                or "not a valid JSON object" in messages[-1]["content"]
+            ):
                 self.requests.append((messages, options))
                 return "I cannot do that"
             return await super().chat(messages, **options)
@@ -354,7 +389,9 @@ def test_aliases_render_compactly() -> None:
 
 
 def test_layout_new_context_known_and_stable_system() -> None:
-    a = window_messages(("facts", "edges"), "[1] [2023-06-01] Mira: hi", "Mira", 1, known="Ilse = Ilsa")
+    a = window_messages(
+        ("facts", "edges"), "[1] [2023-06-01] Mira: hi", "Mira", 1, known="Ilse = Ilsa"
+    )
     b = window_messages(("facts", "edges"), "[1] [2023-06-02] Bram: yo", "Bram", 1, context="[x] y")
     assert a[0]["content"] == b[0]["content"]  # the system part is constant per section set
     assert a[0]["content"] != window_messages(("facts",), "", "", 1)[0]["content"]
@@ -371,7 +408,9 @@ def test_partials_still_apply() -> None:
     fr = window_messages(("facts",), "x", language="fr")[-1]["content"]
     assert default_partial("same_language") not in en
     assert fr.startswith(default_partial("same_language"))
-    off = window_messages(("facts",), "x", language="fr", partial=lambda n: "")  # layout partial switched off
+    off = window_messages(
+        ("facts",), "x", language="fr", partial=lambda n: ""
+    )  # layout partial switched off
     assert "language of the source" not in off[-1]["content"]
 
 
@@ -380,7 +419,9 @@ async def test_context_is_the_previous_windows_tail_and_the_tap_event(
 ) -> None:
     events: list[tuple[str, dict[str, Any]]] = []
     real = tap.event
-    monkeypatch.setattr(tap, "event", lambda stage, /, **f: (events.append((stage, f)), real(stage, **f))[1])
+    monkeypatch.setattr(
+        tap, "event", lambda stage, /, **f: (events.append((stage, f)), real(stage, **f))[1]
+    )
     llm = WindowLLM()
     llm.supports_json_schema = True
     eng, stats = await _run(monkeypatch, llm, n=14, window_extract="facts_graph", prompt_v2=True)

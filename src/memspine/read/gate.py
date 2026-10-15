@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """Store-calibrated relevance gate with explicit missing / conflicting evidence states (LIB-12).
 
 Pure and unwired (wired later by R3-11, decisions R-21 and ER-23). Stdlib and pydantic only; no I/O,

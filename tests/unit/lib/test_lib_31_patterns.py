@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """LIB-31: rule-based pattern observations (recurrence, frequency, trend, co-occurrence, preference)."""
 
 from __future__ import annotations

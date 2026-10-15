@@ -43,7 +43,7 @@ async def verify_answer(
         context = context.records
     if not isinstance(context, str):
         context = eng._remote_view(role, list(context))  # #50: withheld by id
-    lines, ids = numbered_context(context)
+    lines, ids = numbered_context(context)  # type: ignore[arg-type]  # CI-GREEN: pre-existing typing debt
     verdict = await structured_call(
         llm_router.for_role(role),
         eng._prompts.select("verify_answer"),

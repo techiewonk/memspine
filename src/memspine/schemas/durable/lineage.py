@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """Lineage edges (schema session 4, M-09): child/parent links with a role."""
 
 from __future__ import annotations

@@ -51,7 +51,9 @@ class _Inner:
     def describe(self) -> dict[str, Any]:
         return {"reader_id": self.reader_id}
 
-    async def answer(self, question: str, context: str, question_date: str | None = None) -> ReaderAnswer:
+    async def answer(
+        self, question: str, context: str, question_date: str | None = None
+    ) -> ReaderAnswer:
         return ReaderAnswer(text=self.replies.pop(0), model_calls=1)
 
 

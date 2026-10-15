@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """W2-10: the integration ladder as an envelope stage (``write.integration_v2``, order 400). Model-free:
 envelopes are built directly, and one end-to-end window runs with a stub window LLM and the hash embedder."""
 
@@ -61,7 +60,9 @@ def env(
 ) -> AssertionEnvelope:
     at = T0 + timedelta(days=day)
     time = TimeAxes(
-        event=Interval(start=_ref(at), end=_ref(T0 + timedelta(days=until)) if until is not None else None),
+        event=Interval(
+            start=_ref(at), end=_ref(T0 + timedelta(days=until)) if until is not None else None
+        ),
         source_time=at,
     )
     oid = occ or f"occ-{value}-{day}"
@@ -76,7 +77,13 @@ def env(
         attribute=attr,
         change_hint=change_hint,
         time=time,
-        evidence=[Evidence(role="support", turn=TurnRef(source_id=f"t-{oid}", source_version=1, seg_index=0), source_family="Ilse")],
+        evidence=[
+            Evidence(
+                role="support",
+                turn=TurnRef(source_id=f"t-{oid}", source_version=1, seg_index=0),
+                source_family="Ilse",
+            )
+        ],
         assessment=Assessment(
             source_trust=trust,
             binding=binding,  # type: ignore[arg-type]
@@ -88,7 +95,9 @@ def env(
     )
 
 
-def record(value: str, day: int, *, attr: str = "lives_in", entity: str = "Ilse", trust: float = 0.5) -> MemoryRecord:
+def record(
+    value: str, day: int, *, attr: str = "lives_in", entity: str = "Ilse", trust: float = 0.5
+) -> MemoryRecord:
     return MemoryRecord(
         namespace=NS,
         memory_type="semantic",
@@ -103,15 +112,25 @@ def record(value: str, day: int, *, attr: str = "lives_in", entity: str = "Ilse"
 
 
 def ctx() -> EnvelopeStageContext:
-    return EnvelopeStageContext(namespace=NS, window_id="w1", lines={}, records=[], compile_ctx=None)
+    return EnvelopeStageContext(
+        namespace=NS, window_id="w1", lines={}, records=[], compile_ctx=None
+    )
 
 
-async def run(envs: list[AssertionEnvelope], *, stored: list[MemoryRecord] | None = None, card: dict[str, str] | None = None, default: DefaultVerdict | None = None) -> tuple[list[AssertionEnvelope], EnvelopeStageContext]:
+async def run(
+    envs: list[AssertionEnvelope],
+    *,
+    stored: list[MemoryRecord] | None = None,
+    card: dict[str, str] | None = None,
+    default: DefaultVerdict | None = None,
+) -> tuple[list[AssertionEnvelope], EnvelopeStageContext]:
     async def live(_ns: str) -> list[MemoryRecord]:
         return list(stored or [])
 
     c = ctx()
-    stage = integration_stage(live, cardinality=card if card is not None else {"lives_in": "one"}, default=default)
+    stage = integration_stage(
+        live, cardinality=card if card is not None else {"lives_in": "one"}, default=default
+    )
     return await stage.run(envs, c), c
 
 
@@ -122,7 +141,11 @@ def ops(out: list[AssertionEnvelope]) -> list[str | None]:
 # --- flag and config --------------------------------------------------------------------------
 def test_flag_off_by_default() -> None:
     w = MemspineConfig().write
-    assert w.integration_v2 is False and w.integration_cardinality == {} and w.integration_decide_unhinted is False
+    assert (
+        w.integration_v2 is False
+        and w.integration_cardinality == {}
+        and w.integration_decide_unhinted is False
+    )
 
 
 def test_stage_order_is_400() -> None:
@@ -176,7 +199,9 @@ async def test_bound_negation_retires() -> None:
 
 async def test_cardinality_many_coexists() -> None:
     out, _ = await run(
-        [env("Biscuit", 4, attr="has_pet")], stored=[record("Mochi", 0, attr="has_pet")], card={"has_pet": "many"}
+        [env("Biscuit", 4, attr="has_pet")],
+        stored=[record("Mochi", 0, attr="has_pet")],
+        card={"has_pet": "many"},
     )
     v = out[0].verdict
     assert v is not None and v.op == "coexist" and v.rung == "cardinality"
@@ -203,13 +228,20 @@ async def test_no_hint_defers_to_kc_and_counts() -> None:
 
 
 async def test_defer_can_be_switched_off() -> None:
-    out, _ = await run([env("Rome", 5)], stored=[record("Oslo", 0)], card={}, default=DefaultVerdict(defer_without_hints=False))
+    out, _ = await run(
+        [env("Rome", 5)],
+        stored=[record("Oslo", 0)],
+        card={},
+        default=DefaultVerdict(defer_without_hints=False),
+    )
     assert ops(out) == ["coexist"]  # M-12: undeclared means many
 
 
 async def test_resolved_entity_id_groups_aliases() -> None:
     # W2-09 resolved "Ilse M." to the same entity id as the stored "Ilse"
-    out, _ = await run([env("Rome", 5, subject="Ilse M.", entity_id="ilse")], stored=[record("Oslo", 0)])
+    out, _ = await run(
+        [env("Rome", 5, subject="Ilse M.", entity_id="ilse")], stored=[record("Oslo", 0)]
+    )
     assert ops(out) == ["supersede"]
     # without the id the name is its own key: nothing to conflict with
     out, _ = await run([env("Rome", 5, subject="Ilse M.")], stored=[record("Oslo", 0)])
@@ -238,7 +270,9 @@ async def test_aba_keeps_history_and_current_value() -> None:
     # in-window: B supersedes A1, A2 supersedes B, nothing is dropped
     assert ops(out) == ["append", "supersede", "supersede"]
     assert out[1].extras["integrate_target"] == "a1" and out[2].extras["integrate_target"] == "b"
-    assert len(out) == 3  # the history is intact: every value is kept for the door to retire as history
+    assert (
+        len(out) == 3
+    )  # the history is intact: every value is kept for the door to retire as history
     assert any("oslo" in t for t in final_live([a1, b, a2]))
     assert not any("rome" in t for t in final_live([a1, b, a2]))
 
@@ -251,7 +285,10 @@ async def test_order_swap_gives_same_final_state() -> None:
     # the stage verdict for the late-arriving older value is history, not a supersede of the newer value
     out, _ = await run([c, a])
     assert out[1].verdict is not None and out[1].verdict.op == "supersede"
-    assert out[1].extras["integrate_target"] == "occ-Lima-9" or out[1].extras["integrate_target"] == "c"
+    assert (
+        out[1].extras["integrate_target"] == "occ-Lima-9"
+        or out[1].extras["integrate_target"] == "c"
+    )
 
 
 def test_ladder_is_pure_and_names_the_rung() -> None:
@@ -347,7 +384,13 @@ async def engine(monkeypatch: pytest.MonkeyPatch, llm: Any, **write: Any) -> Eng
 
 
 async def say(eng: Engine, session: str, city: str, day: int) -> None:
-    msg = [{"role": "user", "content": f"Ilse: I live in {city}", "timestamp": (T0 + timedelta(days=day)).isoformat()}]
+    msg = [
+        {
+            "role": "user",
+            "content": f"Ilse: I live in {city}",
+            "timestamp": (T0 + timedelta(days=day)).isoformat(),
+        }
+    ]
     await eng.write_messages(msg, namespace="a", session_id=session, group_id=session)
     await eng.flush_windows()
 
@@ -358,7 +401,11 @@ async def cities(eng: Engine) -> tuple[set[str], set[str]]:
         for r in await eng._require_started().list_records("a", "semantic")
         if "window_fact" in r.tags
     ]
-    live = {r.content.rsplit(" ", 1)[1] for r in rows if r.status.value == "activated" and r.valid_to is None}
+    live = {
+        r.content.rsplit(" ", 1)[1]
+        for r in rows
+        if r.status.value == "activated" and r.valid_to is None
+    }
     every = {r.content.rsplit(" ", 1)[1] for r in rows}
     return live, every
 
@@ -370,12 +417,16 @@ def test_stage_registered_only_with_the_flag() -> None:
         _storage = None
 
     assert _envelope_stages(E(), MemspineConfig()) == ()
-    cfg = MemspineConfig(write={"window_extract": "facts", "envelope_v2": True, "integration_v2": True})
+    cfg = MemspineConfig(
+        write={"window_extract": "facts", "envelope_v2": True, "integration_v2": True}
+    )
     assert [s.order for s in _envelope_stages(E(), cfg)] == [400]
 
 
 @pytest.mark.parametrize("order", [(0, 1, 2), (2, 1, 0)])
-async def test_e2e_aba_and_order_swap(monkeypatch: pytest.MonkeyPatch, order: tuple[int, ...]) -> None:
+async def test_e2e_aba_and_order_swap(
+    monkeypatch: pytest.MonkeyPatch, order: tuple[int, ...]
+) -> None:
     plan = [("s0", "Oslo", 0), ("s1", "Rome", 4), ("s2", "Oslo", 8)]
     eng = await engine(
         monkeypatch, CityLLM(), integration_v2=True, integration_cardinality={"lives_in": "one"}
@@ -385,11 +436,21 @@ async def test_e2e_aba_and_order_swap(monkeypatch: pytest.MonkeyPatch, order: tu
             s, city, day = plan[i]
             await say(eng, s, city, day)
         live, every = await cities(eng)
-        assert live == {"Oslo"}  # the current value is right whichever way round the sessions arrived
+        assert live == {
+            "Oslo"
+        }  # the current value is right whichever way round the sessions arrived
         assert every == {"Oslo", "Rome"}  # and Rome is kept as history
-        rome = [r for r in await eng._require_started().list_records("a", "semantic") if r.content.endswith("Rome")]
+        rome = [
+            r
+            for r in await eng._require_started().list_records("a", "semantic")
+            if r.content.endswith("Rome")
+        ]
         assert [r.status.value for r in rome] == ["archived"]  # retired, not deleted
-        facts = [r for r in await eng._require_started().list_records("a", "semantic") if "window_fact" in r.tags]
+        facts = [
+            r
+            for r in await eng._require_started().list_records("a", "semantic")
+            if "window_fact" in r.tags
+        ]
         assert any(t.startswith("integ:") for r in facts for t in r.tags)
 
     finally:
@@ -400,7 +461,11 @@ async def test_e2e_flag_off_has_no_integ_tags(monkeypatch: pytest.MonkeyPatch) -
     eng = await engine(monkeypatch, CityLLM())
     try:
         await say(eng, "s0", "Oslo", 0)
-        facts = [r for r in await eng._require_started().list_records("a", "semantic") if "window_fact" in r.tags]
+        facts = [
+            r
+            for r in await eng._require_started().list_records("a", "semantic")
+            if "window_fact" in r.tags
+        ]
         assert facts and not any(t.startswith("integ") for r in facts for t in r.tags)
     finally:
         await eng.stop()
@@ -444,7 +509,12 @@ def test_behavioural_inv_order_swap_passes_with_the_flag_and_fails_without(tmp_p
                 read={"rerank": "off", "record_access": False},
                 memories={"episodic": {"enabled": True}, "semantic": {"enabled": True}},
                 write=(
-                    {"integration_v2": True, "envelope_v2": True, "window_extract": "facts", "online_extractor_v2": True}
+                    {
+                        "integration_v2": True,
+                        "envelope_v2": True,
+                        "window_extract": "facts",
+                        "online_extractor_v2": True,
+                    }
                     if on
                     else {}
                 ),
@@ -454,4 +524,6 @@ def test_behavioural_inv_order_swap_passes_with_the_flag_and_fails_without(tmp_p
 
     only = {"INV-ORDER-SWAP"}
     assert run_behavioural(factory(True), only=only).results[0].status is Status.PASS
-    assert run_behavioural(factory(False), only=only).results[0].status is Status.FAIL  # the old door
+    assert (
+        run_behavioural(factory(False), only=only).results[0].status is Status.FAIL
+    )  # the old door

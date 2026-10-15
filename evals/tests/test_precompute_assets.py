@@ -89,7 +89,11 @@ def test_download_then_describe_is_resumable_and_idempotent(tmp_path: Path) -> N
 
 def test_retry_failed_refetches_only_failures(tmp_path: Path) -> None:
     f = FakeFetcher({"https://i/dead.jpg"})
-    asyncio.run(pa.precompute(pa.iter_assets(_items()), _adapter(tmp_path, f, FakeVision()), phase="download"))
+    asyncio.run(
+        pa.precompute(
+            pa.iter_assets(_items()), _adapter(tmp_path, f, FakeVision()), phase="download"
+        )
+    )
     f2 = FakeFetcher()
     r = asyncio.run(
         pa.precompute(
@@ -106,7 +110,10 @@ def test_limit_and_describe_without_download_does_nothing(tmp_path: Path) -> Non
     vision = FakeVision()
     r = asyncio.run(
         pa.precompute(
-            pa.iter_assets(_items()), _adapter(tmp_path, FakeFetcher(), vision), phase="describe", limit=2
+            pa.iter_assets(_items()),
+            _adapter(tmp_path, FakeFetcher(), vision),
+            phase="describe",
+            limit=2,
         )
     )
     assert r["images"] == 2 and r["described"] == 0 and vision.calls == 0

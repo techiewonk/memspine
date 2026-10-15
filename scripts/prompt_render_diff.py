@@ -6,7 +6,6 @@ text with the token delta (whitespace words), then shows what changes for de/fr/
 Usage: ``python scripts/prompt_render_diff.py [--full]``.
 """
 
-# ruff: noqa: E501
 from __future__ import annotations
 
 import difflib

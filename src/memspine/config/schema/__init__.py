@@ -10,6 +10,7 @@ F-07: one module per area (``storage``, ``llm``, ``read``, ``write``, ``firewall
 
 from __future__ import annotations
 
+from memspine.config.schema.economy import BudgetConfig, EconomyConfig
 from memspine.config.schema.firewall import FirewallConfig, FirewallSignalsConfig
 from memspine.config.schema.integrity import IntegrityConfig
 from memspine.config.schema.llm import (
@@ -24,7 +25,6 @@ from memspine.config.schema.llm import (
     StructuredConfig,
     WorkersConfig,
 )
-from memspine.config.schema.economy import BudgetConfig, EconomyConfig
 from memspine.config.schema.observability import ObservabilityConfig
 from memspine.config.schema.offline import OfflineConfig
 from memspine.config.schema.privacy import (
@@ -56,13 +56,13 @@ from memspine.config.schema.write import DataShapeConfig, IngestConfig, WriteCon
 
 __all__ = [
     "AuditConfig",
+    "BudgetConfig",
     "CacheConfig",
     "ConsentConfig",
     "DataShapeConfig",
     "DecisionConfig",
-    "EmbeddingConfig",
-    "BudgetConfig",
     "EconomyConfig",
+    "EmbeddingConfig",
     "EncryptionConfig",
     "EventLogConfig",
     "FirewallConfig",

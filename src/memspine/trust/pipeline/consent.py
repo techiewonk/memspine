@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """Trust: consent moved out of the engine (F-12); privacy tiers and the consent registry (T5-03).
 
 With ``consent.v2`` off, :func:`_consent_ok` is the #50 purpose gate over ``consent_tags``, untouched.

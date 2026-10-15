@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """Source families, quarantine release and the restated count (S4-2, S4-3, S4-4).
 
 Pure and deterministic: no I/O, no model calls, no engine imports. Not wired yet (W2-04 wires it).

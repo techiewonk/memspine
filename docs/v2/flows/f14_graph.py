@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """Flow 14: associative graph (associate, related), reflection, and exemplar classification."""
 
 from __future__ import annotations
@@ -6,7 +5,9 @@ from __future__ import annotations
 from flows._common import Ctx, Step
 
 NAME = "graph"
-TITLE = "Graph and derived knowledge: associate, related (ppr/bfs/rrf), reflect, add_exemplar, classify"
+TITLE = (
+    "Graph and derived knowledge: associate, related (ppr/bfs/rrf), reflect, add_exemplar, classify"
+)
 CONFIG = {
     "memories": {
         "associative": {"enabled": True},
@@ -64,8 +65,14 @@ async def related_strategies(ctx: Ctx) -> None:
         seen[strat] = [r.record_id for r in got]
         ctx.show(f"related(a, strategy={strat})", [r.content[:30] for r in got])
         ctx.check(f"{strat}: finds b", ids["b"] in seen[strat])
-        if strat == "rrf":  # rrf fuses graph ranks with similarity ranks, so an unlinked record may trail the linked ones
-            ctx.check("rrf: the linked chain outranks the unlinked z", ids["z"] not in seen[strat] or seen[strat].index(ids["z"]) > seen[strat].index(ids["b"]))
+        if (
+            strat == "rrf"
+        ):  # rrf fuses graph ranks with similarity ranks, so an unlinked record may trail the linked ones
+            ctx.check(
+                "rrf: the linked chain outranks the unlinked z",
+                ids["z"] not in seen[strat]
+                or seen[strat].index(ids["z"]) > seen[strat].index(ids["b"]),
+            )
         else:
             ctx.check(f"{strat}: excludes unlinked z", ids["z"] not in seen[strat])
     bfs1 = await e.related(ids["a"], namespace=ctx.ns, k=1, strategy="bfs")
@@ -93,15 +100,37 @@ async def related_gates(ctx: Ctx) -> None:
 async def reflect(ctx: Ctx) -> None:
     e = ctx.engine
     ids = ctx.state["ids"]
-    r = await e.reflect("Bram's ketch Marigold is tied to the Terschelling regatta scene.", [ids["a"], ids["c"]], namespace=ctx.ns)
+    r = await e.reflect(
+        "Bram's ketch Marigold is tied to the Terschelling regatta scene.",
+        [ids["a"], ids["c"]],
+        namespace=ctx.ns,
+    )
     ctx.state["refl"] = r.record_id
-    ctx.show("reflection", {"type": r.memory_type, "depth": r.reflection_depth, "parents": r.source.parents, "trust": r.trust})
+    ctx.show(
+        "reflection",
+        {
+            "type": r.memory_type,
+            "depth": r.reflection_depth,
+            "parents": r.source.parents,
+            "trust": r.trust,
+        },
+    )
     ctx.expect("memory type", "reflective", r.memory_type)
-    ctx.expect("parents are the declared sources", sorted([ids["a"], ids["c"]]), sorted(r.source.parents))
+    ctx.expect(
+        "parents are the declared sources", sorted([ids["a"], ids["c"]]), sorted(r.source.parents)
+    )
     ctx.expect("depth from raw parents", 1, r.reflection_depth)
     pa = await e.get_record(ids["a"], namespace=ctx.ns)
-    ctx.check("reflection trust is capped at the least trusted parent", r.trust <= min(pa.trust, 1.0), r.trust)
-    r2 = await e.reflect("A pattern: Bram's boat-related facts recur around harbours.", [r.record_id], namespace=ctx.ns)
+    ctx.check(
+        "reflection trust is capped at the least trusted parent",
+        r.trust <= min(pa.trust, 1.0),
+        r.trust,
+    )
+    r2 = await e.reflect(
+        "A pattern: Bram's boat-related facts recur around harbours.",
+        [r.record_id],
+        namespace=ctx.ns,
+    )
     ctx.expect("a reflection on a reflection has depth 2", 2, r2.reflection_depth)
     try:
         await e.reflect("Too deep.", [r2.record_id], namespace=ctx.ns)
@@ -138,10 +167,17 @@ async def exemplars(ctx: Ctx) -> None:
 
 async def classify(ctx: Ctx) -> None:
     e = ctx.engine
-    out = await e.classify("Please move the dentist appointment to Tuesday", namespace=ctx.ns, group="intent")
-    ctx.show("classify reschedule-like", {"label": out["label"], "margin": out["margin"], "votes": out["votes"]})
+    out = await e.classify(
+        "Please move the dentist appointment to Tuesday", namespace=ctx.ns, group="intent"
+    )
+    ctx.show(
+        "classify reschedule-like",
+        {"label": out["label"], "margin": out["margin"], "votes": out["votes"]},
+    )
     ctx.expect("label", "reschedule", out["label"])
-    out2 = await e.classify("I want to cancel the cheese club membership", namespace=ctx.ns, group="intent")
+    out2 = await e.classify(
+        "I want to cancel the cheese club membership", namespace=ctx.ns, group="intent"
+    )
     ctx.show("classify cancel-like", {"label": out2["label"], "votes": out2["votes"]})
     ctx.expect("label", "cancel", out2["label"])
     ctx.check("the voting exemplars are returned", len(out["exemplars"]) > 0)
@@ -150,11 +186,38 @@ async def classify(ctx: Ctx) -> None:
 
 
 STEPS = [
-    Step("F14.1", "associate: build an a-b-c-d chain; reject a missing target", link_chain, "derive/pipeline/graph.py:associate, memories/associative"),
-    Step("F14.2", "related (default strategy): neighbours, multi-hop, no seed, no unlinked", related_default, "derive/pipeline/graph.py:related"),
-    Step("F14.3", "related with ppr / bfs / rrf and the k bound", related_strategies, "memories/associative (strategy)"),
-    Step("F14.4", "related/associate gates: cross-namespace refused, forgotten hidden", related_gates, "derive/pipeline/graph.py"),
-    Step("F14.5", "reflect: parents, depth, trust cap, depth cap 2", reflect, "derive/pipeline/graph.py:_reflect"),
-    Step("F14.6", "add_exemplar into a mapping group", exemplars, "memories/procedural:add_exemplar"),
+    Step(
+        "F14.1",
+        "associate: build an a-b-c-d chain; reject a missing target",
+        link_chain,
+        "derive/pipeline/graph.py:associate, memories/associative",
+    ),
+    Step(
+        "F14.2",
+        "related (default strategy): neighbours, multi-hop, no seed, no unlinked",
+        related_default,
+        "derive/pipeline/graph.py:related",
+    ),
+    Step(
+        "F14.3",
+        "related with ppr / bfs / rrf and the k bound",
+        related_strategies,
+        "memories/associative (strategy)",
+    ),
+    Step(
+        "F14.4",
+        "related/associate gates: cross-namespace refused, forgotten hidden",
+        related_gates,
+        "derive/pipeline/graph.py",
+    ),
+    Step(
+        "F14.5",
+        "reflect: parents, depth, trust cap, depth cap 2",
+        reflect,
+        "derive/pipeline/graph.py:_reflect",
+    ),
+    Step(
+        "F14.6", "add_exemplar into a mapping group", exemplars, "memories/procedural:add_exemplar"
+    ),
     Step("F14.7", "classify: kNN vote over the group's exemplars", classify, "ops/memory:classify"),
 ]

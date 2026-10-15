@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """W2-08 gate: grounding of the X-05 labelled set through ``GroundingChecker`` (CPU only, no GPU).
 
     python evals/grounding_gate.py [--adjudicator lexical|decider|none]
@@ -61,7 +60,7 @@ async def run(adjudicator: str, decider=None, spans: bool = False) -> dict:
         rows.append((it, v))
     conf = Counter((it.label, v.label) for it, v in rows)
     n = len(rows)
-    keep = lambda lab: lab in ("supported", "undecided")  # noqa: E731
+    keep = lambda lab: lab in ("supported", "undecided")
     correct = sum(1 for it, v in rows if keep(v.label) == (it.label == "supported"))
     three = sum(1 for it, v in rows if v.label == it.label)
     tp = sum(1 for it, v in rows if v.label == "supported" and it.label == "supported")

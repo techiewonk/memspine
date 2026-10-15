@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """Manual checks for every engine flow, one step at a time.
 
     python docs/v2/flow_checks.py --list                      # all flows and their steps
@@ -28,7 +27,7 @@ for _stream in (sys.stdout, sys.stderr):
     with contextlib.suppress(AttributeError, ValueError):
         _stream.reconfigure(errors="replace")  # type: ignore[union-attr]
 
-from flows._common import run_steps  # noqa: E402
+from flows._common import run_steps
 
 #: flow name -> module in docs/v2/flows (each defines NAME, TITLE, STEPS and optional CONFIG)
 FLOWS = {
@@ -60,7 +59,9 @@ def main() -> int:
     ap.add_argument("--list", action="store_true")
     ap.add_argument("--events", action="store_true", help="print the wiretap events of each step")
     ap.add_argument("--lines", action="store_true", help="print every executed src/memspine line")
-    ap.add_argument("--only", help="with --lines: only files whose path contains this (e.g. trust/)")
+    ap.add_argument(
+        "--only", help="with --lines: only files whose path contains this (e.g. trust/)"
+    )
     ap.add_argument("--limit", type=int, default=300, help="with --lines: max lines per step")
     args = ap.parse_args()
 
@@ -87,10 +88,23 @@ def main() -> int:
         except ModuleNotFoundError:
             print(f"\n{name}: not written yet")
             continue
-        results += asyncio.run(run_steps(mod.NAME, mod.STEPS, args.steps, events=args.events, lines=args.lines,
-                                         only=args.only, limit=args.limit, config=getattr(mod, "CONFIG", None)))
+        results += asyncio.run(
+            run_steps(
+                mod.NAME,
+                mod.STEPS,
+                args.steps,
+                events=args.events,
+                lines=args.lines,
+                only=args.only,
+                limit=args.limit,
+                config=getattr(mod, "CONFIG", None),
+            )
+        )
     bad = sorted({sid for sid, ok in results if not ok})
-    print(f"\n{sum(ok for _, ok in results)}/{len(results)} checks passed" + (f"; failing steps: {bad}" if bad else ""))
+    print(
+        f"\n{sum(ok for _, ok in results)}/{len(results)} checks passed"
+        + (f"; failing steps: {bad}" if bad else "")
+    )
     return 1 if bad else 0
 
 

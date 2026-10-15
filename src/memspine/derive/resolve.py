@@ -1,4 +1,4 @@
-# ruff: noqa: E501, RUF001
+# ruff: noqa: RUF001
 """Rule-based entity resolver (LIB-04; decisions W-19, M-15; wired later by W2-09).
 
 Pure and deterministic: no I/O, no model call, no engine import. Depends on ``memspine.schemas`` only.

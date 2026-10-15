@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """LIB-19: read-path caches with generation-aware invalidation and POL-1 revalidation (ER-31, R-26).
 
 Pure and unwired (wired by R3-15). No I/O; the clock is injected. Caches are OFF by default: a disabled

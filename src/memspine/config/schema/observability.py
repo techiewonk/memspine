@@ -24,7 +24,7 @@ class TapConfig(BaseModel):
     max_content_chars: int = Field(default=200, ge=1, le=100_000)
     sample_rate: float = Field(default=1.0, ge=0.0, le=1.0)
     kinds: list[Literal["read", "write", "job"]] = Field(
-        default_factory=lambda: ["read", "write", "job"]
+        default_factory=lambda: ["read", "write", "job"]  # type: ignore[arg-type]  # CI-GREEN: pre-existing typing debt
     )
 
 

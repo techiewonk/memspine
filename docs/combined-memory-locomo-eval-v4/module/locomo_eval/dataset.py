@@ -1,11 +1,12 @@
 """Parse only conversation inputs; keep benchmark labels outside ingestion."""
+
 from __future__ import annotations
 
 import hashlib
 import json
 import re
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 CATEGORIES = {1: "multi_hop", 2: "temporal", 3: "open_domain", 4: "single_hop", 5: "adversarial"}
@@ -44,7 +45,7 @@ def parse_timestamp(value: str) -> datetime:
     except ValueError:
         parsed = datetime.strptime(value, "%I:%M %p on %d %B, %Y")
     # LoCoMo does not provide a timezone. Use UTC consistently; record this assumption.
-    return parsed.replace(tzinfo=timezone.utc) if parsed.tzinfo is None else parsed.astimezone(timezone.utc)
+    return parsed.replace(tzinfo=UTC) if parsed.tzinfo is None else parsed.astimezone(UTC)
 
 
 def load_dataset(path: Path) -> list[Sample]:
@@ -82,8 +83,17 @@ def load_dataset(path: Path) -> list[Sample]:
                 text = str(turn.get("text", ""))
                 if turn.get("blip_caption"):
                     text = f"{text}\n[Image caption: {turn['blip_caption']}]".strip()
-                turns.append(Turn(int(key.split("_")[1]), dia_id, turn["speaker"], text,
-                                  timestamp, role, exchange))
+                turns.append(
+                    Turn(
+                        int(key.split("_")[1]),
+                        dia_id,
+                        turn["speaker"],
+                        text,
+                        timestamp,
+                        role,
+                        exchange,
+                    )
+                )
         if not turns:
             raise ValueError(f"Sample {sample_id} has no conversation turns")
         questions = []
@@ -94,8 +104,11 @@ def load_dataset(path: Path) -> list[Sample]:
             reference = "Not mentioned in the conversation" if category == 5 else qa.get("answer")
             if reference is None or not str(reference).strip():
                 raise ValueError(f"Missing reference for {sample_id}:{qi}")
-            questions.append(Question(qi, str(qa["question"]), str(reference), category,
-                                      tuple(qa.get("evidence", []))))
+            questions.append(
+                Question(
+                    qi, str(qa["question"]), str(reference), category, tuple(qa.get("evidence", []))
+                )
+            )
         if not questions:
             raise ValueError(f"Sample {sample_id} has no questions")
         samples.append(Sample(sample_id, tuple(turns), tuple(questions)))

@@ -255,7 +255,7 @@ class InlineRunner:
             state=handle.state,
             coalesced_into=handle.coalesced_into,
         )
-        return handle
+        return handle  # type: ignore[no-any-return]  # CI-GREEN: pre-existing typing debt
 
     # ------------------------------------------------------------------ budget parking (W2-12)
     @staticmethod

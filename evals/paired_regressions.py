@@ -125,23 +125,33 @@ def main(argv: list[str] | None = None) -> int:
     args = ap.parse_args(argv)
     items = tuple(x for x in args.items.split(",") if x)
     runs = Path(args.runs_dir)
-    res = compare(load(runs / f"{args.base}--memspine", items), load(runs / f"{args.fixed}--memspine", items))
+    res = compare(
+        load(runs / f"{args.base}--memspine", items), load(runs / f"{args.fixed}--memspine", items)
+    )
     print(f"paired rows: {res['n']}  items: {', '.join(items)}")
     for cat, c in sorted(res["categories"].items()):
-        print(f"  {cat:12s} n={c['n']:4d} gained={c['gained']:3d} lost={c['lost']:3d} net={c['gained'] - c['lost']:+d}")
+        print(
+            f"  {cat:12s} n={c['n']:4d} gained={c['gained']:3d} lost={c['lost']:3d} net={c['gained'] - c['lost']:+d}"
+        )
     for name in ("lost", "gained"):
         rows = res[name]
         print(f"\n{name}: {len(rows)}")
         print("  shape:", dict(Counter(r["shape"] for r in rows)))
         if rows:
             short = sum(1 for r in rows if r["len_ratio"] < 0.8)
-            print(f"  answer shorter (<0.8x): {short}; fixed refusal: {sum(r['fixed_refusal'] for r in rows)}; "
-                  f"gold all in context: {sum(r['gold_all_in_context'] for r in rows)}")
-            print("  mean ctx lines base->fixed: "
-                  f"{sum(r['ctx_lines'][0] for r in rows) / len(rows):.1f} -> {sum(r['ctx_lines'][1] for r in rows) / len(rows):.1f}")
+            print(
+                f"  answer shorter (<0.8x): {short}; fixed refusal: {sum(r['fixed_refusal'] for r in rows)}; "
+                f"gold all in context: {sum(r['gold_all_in_context'] for r in rows)}"
+            )
+            print(
+                "  mean ctx lines base->fixed: "
+                f"{sum(r['ctx_lines'][0] for r in rows) / len(rows):.1f} -> {sum(r['ctx_lines'][1] for r in rows) / len(rows):.1f}"
+            )
         for r in rows[: args.show]:
-            print(f"   - {r['key']} [{r['shape']}] Q: {r['question']}\n       gold: {r['gold']}\n"
-                  f"       base: {r['base_answer']}\n       fixed: {r['fixed_answer']}")
+            print(
+                f"   - {r['key']} [{r['shape']}] Q: {r['question']}\n       gold: {r['gold']}\n"
+                f"       base: {r['base_answer']}\n       fixed: {r['fixed_answer']}"
+            )
     return 0
 
 

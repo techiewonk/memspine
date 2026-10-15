@@ -1,4 +1,3 @@
-# ruff: noqa: E501, RUF059
 """LIB-39: profile card, guarded operations, drift, reflection plan, invalidation."""
 
 from __future__ import annotations
@@ -700,7 +699,7 @@ def test_reflection_plan_reasons_and_order():
 
 def test_reflection_plan_uses_value_histories():
     cfg = ProfileConfig()
-    old = AssertionEnvelope  # noqa: F841
+    old = AssertionEnvelope
     a = ev("Ilse lives in Delft", "2026-01-10", attr="residence", value="Delft")
     card, _ = one(
         CARD, [op(section="identity", key="home", value="Delft", cites=[a.occurrence_id])], index(a)

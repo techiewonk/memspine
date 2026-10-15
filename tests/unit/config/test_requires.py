@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """FU-REQS: every flag prerequisite is a check (audit 2026-10-13, finding 1)."""
 
 from __future__ import annotations
@@ -102,14 +101,26 @@ def test_every_declared_key_exists() -> None:
 def test_the_registry_exposes_the_requirements() -> None:
     reg = flags.registry()
     assert reg["write.temporal_v2"].requires == ("write.envelope_v2",)
-    assert reg["write.envelope_v2"].requires == ("write.window_extract: 'facts' or 'facts_graph' or 'all'",)
+    assert reg["write.envelope_v2"].requires == (
+        "write.window_extract: 'facts' or 'facts_graph' or 'all'",
+    )
     assert reg["read.legs_v2"].requires == ()
 
 
 def test_finding_1_dependencies_are_all_declared() -> None:
-    for flag in ("temporal_v2", "integration_v2", "grounding_v2", "coverage_v2", "resolver_v2", "prompt_v2"):
+    for flag in (
+        "temporal_v2",
+        "integration_v2",
+        "grounding_v2",
+        "coverage_v2",
+        "resolver_v2",
+        "prompt_v2",
+    ):
         assert [n.path for n in REQUIRES[f"write.{flag}"]] == ["write.envelope_v2"]
-    assert [n.path for n in REQUIRES["read.graph_leg_v2"]] == ["read.legs_v2", "graph.edge_compiler_v2"]
+    assert [n.path for n in REQUIRES["read.graph_leg_v2"]] == [
+        "read.legs_v2",
+        "graph.edge_compiler_v2",
+    ]
     assert [n.path for n in REQUIRES["read.episode_leg_v2"]] == ["read.legs_v2"]
     assert [n.path for n in REQUIRES["read.standing_v2"]] == ["offline.standing_v2"]
     assert [n.path for n in REQUIRES["offline.profile_card_v2"]] == ["offline.session_close_v2"]
@@ -120,8 +131,12 @@ def _cases() -> list[tuple[str, Need]]:
     return [(key, need) for key, needs in REQUIRES.items() for need in needs]
 
 
-@pytest.mark.parametrize(("key", "need"), _cases(), ids=lambda v: v if isinstance(v, str) else v.path)
-def test_each_requirement_raises_naming_the_missing_key_and_holds_when_met(key: str, need: Need) -> None:
+@pytest.mark.parametrize(
+    ("key", "need"), _cases(), ids=lambda v: v if isinstance(v, str) else v.path
+)
+def test_each_requirement_raises_naming_the_missing_key_and_holds_when_met(
+    key: str, need: Need
+) -> None:
     raw = _nest(key, _on_value(key))
     for other in REQUIRES[key]:
         if other is not need and not other.soft:
@@ -183,11 +198,17 @@ def test_every_usage_row_that_says_needs_a_flag_is_declared_or_exempt() -> None:
         if key not in reg or key in EXEMPT:
             continue
         for ref in re.findall(r"[Nn]eeds `([a-z_.0-9]+)`", text):
-            target = ref if ref in reg else (short.get(ref, [None]) if len(short.get(ref, [])) == 1 else [None])[0]
+            target = (
+                ref
+                if ref in reg
+                else (short.get(ref, [None]) if len(short.get(ref, [])) == 1 else [None])[0]
+            )
             if target is None or reg[target].kind != "flag":
                 continue  # an extra, an env var, a mode value or an ambiguous name
             declared = {n.path for n in REQUIRES.get(key, ())}
             declared |= {a for n in REQUIRES.get(key, ()) for a in n.alt}
             if target not in declared:
-                problems.append(f"{key} says needs `{ref}` ({target}) but REQUIRES does not declare it")
+                problems.append(
+                    f"{key} says needs `{ref}` ({target}) but REQUIRES does not declare it"
+                )
     assert not problems, "\n".join(problems)

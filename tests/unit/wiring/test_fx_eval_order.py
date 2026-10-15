@@ -34,7 +34,11 @@ def test_after_extract_graph(offline: dict[str, object]) -> None:
 
 def test_after_reconcile_and_histories_and_in_order() -> None:
     order = _order(patterns_v2=True, standing_v2=True, reconcile_v2=True, histories_v2=True)
-    assert order.index("histories") < order.index("pattern_observations") < order.index("standing_answers")
+    assert (
+        order.index("histories")
+        < order.index("pattern_observations")
+        < order.index("standing_answers")
+    )
 
 
 def test_priorities_distinct_and_follow_order() -> None:

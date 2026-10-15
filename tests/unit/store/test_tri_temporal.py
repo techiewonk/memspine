@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """F-02b: tri-temporal fields (source_at, event precision / basis), the 0008 migration, the
 LayerRegistry, the timeview adapter's known_at, and the envelope time axes."""
 

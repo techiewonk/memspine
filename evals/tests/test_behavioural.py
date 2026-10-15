@@ -27,13 +27,21 @@ def report() -> BehaviouralReport:
 def test_report_is_well_formed(report: BehaviouralReport) -> None:
     assert [r.id for r in report.results] == [c.id for c in CASES]
     for r, c in zip(report.results, CASES, strict=True):
-        assert r.kind in {"invariance", "safety"} and r.relation in {"equal", "subset", "disjoint", "abstain"}
+        assert r.kind in {"invariance", "safety"} and r.relation in {
+            "equal",
+            "subset",
+            "disjoint",
+            "abstain",
+        }
         assert r.description and isinstance(r.status, Status)
         assert (r.kind, r.relation) == (c.kind, c.relation)
     counts = report.counts()
     assert sum(counts.values()) == len(CASES)
     assert report.by_kind().keys() == {"invariance", "safety"}
-    assert BehaviouralReport.from_dict(json.loads(json.dumps(report.to_dict()))).statuses() == report.statuses()
+    assert (
+        BehaviouralReport.from_dict(json.loads(json.dumps(report.to_dict()))).statuses()
+        == report.statuses()
+    )
 
 
 def test_cases_cover_the_decided_kinds() -> None:
@@ -85,7 +93,9 @@ def test_stored_baseline_covers_current_cases() -> None:
     base = json.loads(BASELINE_PATH.read_text(encoding="utf-8"))
     assert set(base["statuses"]) == {c.id for c in CASES}
     assert set(base["statuses"].values()) <= {s.value for s in Status}
-    assert base["counts"] == {s.value: list(base["statuses"].values()).count(s.value) for s in Status}
+    assert base["counts"] == {
+        s.value: list(base["statuses"].values()).count(s.value) for s in Status
+    }
 
 
 def test_cases_use_invented_names_and_rename_is_whole_word() -> None:

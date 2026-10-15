@@ -9,6 +9,7 @@ a scratch dir. Document text = the engine's `concat_background` header + the sto
 = the raw question, as the engine passes them (rerank_date_prefix and rerank_context off). `report` prints the table.
 No GPU is touched: CUDA is hidden from every model.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -49,7 +50,11 @@ def load(run: str):
     gold = {}
     for ci, conv in enumerate(json.load(open(ROOT / "data" / "locomo10.json", encoding="utf8"))):
         for qi, qa in enumerate(conv["qa"]):
-            gold[(conv["sample_id"], f"{ci}-{qi}")] = (qa["question"], qa.get("evidence", []), qa["category"])
+            gold[(conv["sample_id"], f"{ci}-{qi}")] = (
+                qa["question"],
+                qa.get("evidence", []),
+                qa["category"],
+            )
     return fx, text, gold
 
 
@@ -147,17 +152,31 @@ def cmd_report(a):
         return m(sp), m(kt), m(ov), m(rec), m(hit)
 
     ref4 = lambda k: [x["score"] for x in fx[k]["rerank_scores"]]
-    rows = [("pool order (no reranker)", lambda k: [-i for i in range(len(fx[k]["pool"]))], None),
-            ("Qwen3-Reranker-4B 4-bit (reference)", ref4, None)]
+    rows = [
+        ("pool order (no reranker)", lambda k: [-i for i in range(len(fx[k]["pool"]))], None),
+        ("Qwen3-Reranker-4B 4-bit (reference)", ref4, None),
+    ]
     for c in names:
-        rows.append((CANDS[c][0], (lambda k, c=c: data[c]["scores"][f"{k[0]}|{k[1]}"]), data[c]["pairs"] / data[c]["secs"]))
-    ceil = sum(len(set(gold[k][1]) & {p["turn"] for p in fx[k]["pool"]}) / len(gold[k][1]) for k in common) / len(common)
+        rows.append(
+            (
+                CANDS[c][0],
+                (lambda k, c=c: data[c]["scores"][f"{k[0]}|{k[1]}"]),
+                data[c]["pairs"] / data[c]["secs"],
+            )
+        )
+    ceil = sum(
+        len(set(gold[k][1]) & {p["turn"] for p in fx[k]["pool"]}) / len(gold[k][1]) for k in common
+    ) / len(common)
     print(f"pool recall (ceiling) {ceil:.3f}\n")
-    print("| Reranker | Spearman vs 4B | Kendall vs 4B | top-10 overlap | gold recall@10 | any-gold hit@10 | CPU pairs/s |")
+    print(
+        "| Reranker | Spearman vs 4B | Kendall vs 4B | top-10 overlap | gold recall@10 | any-gold hit@10 | CPU pairs/s |"
+    )
     print("|---|---|---|---|---|---|---|")
     for n, get, pps in rows:
         sp, kt, ov, rec, hit = metrics(get)
-        print(f"| {n} | {sp:.3f} | {kt:.3f} | {ov:.3f} | {rec:.3f} | {hit:.3f} | {'' if pps is None else f'{pps:.1f}'} |")
+        print(
+            f"| {n} | {sp:.3f} | {kt:.3f} | {ov:.3f} | {rec:.3f} | {hit:.3f} | {'' if pps is None else f'{pps:.1f}'} |"
+        )
     # per-category recall and paired bootstrap of recall@10 difference vs 4B
     import random as _r
 
@@ -175,10 +194,14 @@ def cmd_report(a):
     # tie-aware agreement: how many of the 4B's confident documents (P(yes) >= 0.5, at most its top 10) does the
     # candidate's top 10 contain? Plain top-10 overlap is depressed when the 4B ties many documents near 1.0.
     conf_n = [sum(1 for x in fx[k]["rerank_scores"] if x["score"] >= 0.5) for k in common]
-    print("\n4B-confident recall (share of the 4B's documents with P(yes) >= 0.5, capped at its top 10, found in the "
-          "candidate's top 10):")
-    print(f"- 4B marks >=0.5: mean {sum(conf_n) / len(conf_n):.1f} per pool, more than 10 in "
-          f"{sum(c > 10 for c in conf_n)} questions, none in {sum(c == 0 for c in conf_n)}")
+    print(
+        "\n4B-confident recall (share of the 4B's documents with P(yes) >= 0.5, capped at its top 10, found in the "
+        "candidate's top 10):"
+    )
+    print(
+        f"- 4B marks >=0.5: mean {sum(conf_n) / len(conf_n):.1f} per pool, more than 10 in "
+        f"{sum(c > 10 for c in conf_n)} questions, none in {sum(c == 0 for c in conf_n)}"
+    )
     for n, get, _ in rows:
         v = []
         for k in common:

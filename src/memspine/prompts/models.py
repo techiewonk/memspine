@@ -650,7 +650,9 @@ class EventOut(BaseModel):
     same_as: int = 0
     identity: str = ""
 
-    @field_validator("actor", "action", "object", "status", "span", "when", "identity", mode="before")
+    @field_validator(
+        "actor", "action", "object", "status", "span", "when", "identity", mode="before"
+    )
     @classmethod
     def _text(cls, value: Any) -> Any:
         if value is None:

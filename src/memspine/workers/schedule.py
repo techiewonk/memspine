@@ -187,9 +187,7 @@ def maintenance_stage_order(ctx: PipelineContext) -> tuple[str, ...]:
     return tuple(s for s in full if s in MAINTENANCE_STAGES or s == RETENTION_STAGE)
 
 
-async def run_sleep_stage(
-    runner: TaskRunner, ctx: PipelineContext, name: str
-) -> dict[str, object]:
+async def run_sleep_stage(runner: TaskRunner, ctx: PipelineContext, name: str) -> dict[str, object]:
     """Run one named stage, timed in the ops ledger when ``observability.ops_ledger`` is on
     (T5-06: runs, errors, dropped and deferred counts; a pass-through otherwise)."""
     with _ops.stage("sleep", name) as handle:

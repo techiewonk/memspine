@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """``derive.PromptContextBuilder`` (W2-06b; W-16, P-09, P-11): the NEW / CONTEXT / KNOWN parts of the
 window prompt.
 

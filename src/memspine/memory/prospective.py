@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """Prospective memory mechanism (O-23 A, package O4-10): stated plans become advisory reminders.
 
 Pure and deterministic: no I/O, no clock reads (``now`` is always a parameter), no model calls. The module

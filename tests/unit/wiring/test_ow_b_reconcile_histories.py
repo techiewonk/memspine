@@ -157,7 +157,7 @@ async def test_histories_merges_near_duplicates_but_not_numbers_or_names(tmp_pat
     await eng.start()
     try:
         storage = eng._require_started()
-        mk = lambda c, t: MemoryRecord(  # noqa: E731
+        mk = lambda c, t: MemoryRecord(
             namespace=NS, memory_type="semantic", content=c, valid_from=t, entity="Ilse"
         )  # NEW-01: merge candidates are keyed facts (entity set)
         for rec in (

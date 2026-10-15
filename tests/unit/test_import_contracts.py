@@ -115,7 +115,9 @@ def collect_imports(src: Path, root: str) -> tuple[set[str], list[tuple[str, str
                 else:
                     module = node.module or ""
                 targets = [module]
-                targets += [f"{module}.{a.name}" for a in node.names if f"{module}.{a.name}" in known]
+                targets += [
+                    f"{module}.{a.name}" for a in node.names if f"{module}.{a.name}" in known
+                ]
             for t in targets:
                 if t == root or t.startswith(root + "."):
                     edges.append((rel, mod, t))
@@ -148,9 +150,9 @@ def check(contract: Contract, edges: list[tuple[str, str, str]]) -> set[tuple[st
             if a is None or b is None:
                 continue
             (ia, ma), (ib, mb) = a, b
-            if ib < ia:  # importing a layer above
-                found.add((rel, imported))
-            elif ib == ia and ma != mb and contract.layers[ia][1]:  # independent siblings
+            if ib < ia or (
+                ib == ia and ma != mb and contract.layers[ia][1]
+            ):  # importing a layer above
                 found.add((rel, imported))
     return found
 
@@ -214,7 +216,9 @@ def synthetic(tmp_path: Path) -> Path:
         _write(src, f"memspine/{pkg}/__init__.py")
     _write(src, "memspine/__init__.py", "from memspine.api.engine import Engine\n")
     _write(src, "memspine/engine.py")
-    _write(src, "memspine/api/handle.py", "from memspine.read import x\nfrom memspine.store import y\n")
+    _write(
+        src, "memspine/api/handle.py", "from memspine.read import x\nfrom memspine.store import y\n"
+    )
     _write(src, "memspine/read/x.py", "from ..store import y\nfrom ..schemas import z\n")
     _write(src, "memspine/store/y.py", "")
     _write(src, "memspine/schemas/z.py", "")

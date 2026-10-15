@@ -9,7 +9,7 @@ import pytest
 
 pytest.importorskip("memspine")
 
-from memspine_evals.rehearsal import validate_engine_config  # noqa: E402
+from memspine_evals.rehearsal import validate_engine_config
 
 ARMS = Path(__file__).resolve().parents[1] / "arms"
 GC = ("scr-gc2-facts-jina", "scr-gc3-graph-jina", "scr-gc9-summary-jina")
@@ -52,12 +52,27 @@ def test_every_llm_role_is_local_qwen_thinking_off(name: str) -> None:
 def test_arm_keys() -> None:
     gc2, gc3, gc9 = (_load(n) for n in GC)
     cons = gc2["memories"]["episodic"]["policies"]["consolidation"]
-    assert cons["mine_facts"] and cons["miner"] == "llm" and cons["mine_multiview"] and cons["list_cards"]
-    assert gc2["read"]["view_tag_leg"] and gc2["read"]["raw_turn_floor"] and "extract" in gc2["llm"]["roles"]
-    assert gc3["read"]["graph_leg"] and gc3["read"]["graph_node_search"] and gc3["read"]["entity_summaries"]
+    assert (
+        cons["mine_facts"]
+        and cons["miner"] == "llm"
+        and cons["mine_multiview"]
+        and cons["list_cards"]
+    )
+    assert (
+        gc2["read"]["view_tag_leg"]
+        and gc2["read"]["raw_turn_floor"]
+        and "extract" in gc2["llm"]["roles"]
+    )
+    assert (
+        gc3["read"]["graph_leg"]
+        and gc3["read"]["graph_node_search"]
+        and gc3["read"]["entity_summaries"]
+    )
     assert gc3["memories"]["associative"]["policies"]["entity_nodes"] is True
     assert gc3["memories"]["semantic"]["policies"]["extract_graph"]["granularity"] == "session"
     assert gc3["graph"]["entity_embeddings"] is True and "extract_edges" in gc3["llm"]["roles"]
-    assert gc9["read"]["profile_header_packing"] and {"summarize", "reflect"} <= set(gc9["llm"]["roles"])
+    assert gc9["read"]["profile_header_packing"] and {"summarize", "reflect"} <= set(
+        gc9["llm"]["roles"]
+    )
     assert gc9["memories"]["episodic"]["policies"]["consolidation"]["reflect_profile"] is True
     assert gc9["memories"]["reflective"]["enabled"] is True

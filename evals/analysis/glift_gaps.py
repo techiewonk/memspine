@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """GLIFT gap analysis: would lifting derived hits to source turns rescue the graph run's losses?
 
 Reads local forensics + results for a graph run (P), the J reference (C) and the dataset file.
@@ -34,9 +33,61 @@ YEAR = re.compile(r"\b(?:19|20)\d{2}\b")
 WALLCLOCK = re.compile(r"\b202[56]\b")
 SPEAKER = re.compile(r"(?:^|\s)[A-Z][a-z]+: ")
 WORD = re.compile(r"[a-z0-9']+")
-STOP = set(["the", "a", "an", "of", "to", "and", "in", "on", "at", "for", "with", "is", "was", "were", "be", "been", "he", "she", "they", "it", "his", "her", "their", "that", "this", "i", "you", "we", "my", "your"])
+STOP = set(
+    [
+        "the",
+        "a",
+        "an",
+        "of",
+        "to",
+        "and",
+        "in",
+        "on",
+        "at",
+        "for",
+        "with",
+        "is",
+        "was",
+        "were",
+        "be",
+        "been",
+        "he",
+        "she",
+        "they",
+        "it",
+        "his",
+        "her",
+        "their",
+        "that",
+        "this",
+        "i",
+        "you",
+        "we",
+        "my",
+        "your",
+    ]
+)
 K = 3  # derived_lift_max_parents default
-MONTHS = {m: i for i, m in enumerate(["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"], 1)}
+MONTHS = {
+    m: i
+    for i, m in enumerate(
+        [
+            "january",
+            "february",
+            "march",
+            "april",
+            "may",
+            "june",
+            "july",
+            "august",
+            "september",
+            "october",
+            "november",
+            "december",
+        ],
+        1,
+    )
+}
 
 
 def _load(path: Path) -> list[dict]:
@@ -69,11 +120,15 @@ class Conv:
         self.sess_iso: dict[str, str] = {}
         for k, v in conv.items():
             if re.fullmatch(r"session_\d+", k):
-                m = re.search(r"(\d+):(\d+) (am|pm) on (\d+) (\w+), (\d{4})", conv.get(k + "_date_time", ""))
+                m = re.search(
+                    r"(\d+):(\d+) (am|pm) on (\d+) (\w+), (\d{4})", conv.get(k + "_date_time", "")
+                )
                 if m and m.group(5).lower() in MONTHS:
-                    self.sess_iso[k] = f"{m.group(6)}-{MONTHS[m.group(5).lower()]:02d}-{int(m.group(4)):02d}"
+                    self.sess_iso[k] = (
+                        f"{m.group(6)}-{MONTHS[m.group(5).lower()]:02d}-{int(m.group(4)):02d}"
+                    )
                 for t in v:
-                    self.turns[t["dia_id"]] = f'{t["speaker"]}: {t["text"]}'
+                    self.turns[t["dia_id"]] = f"{t['speaker']}: {t['text']}"
                     self.sess_of[t["dia_id"]] = k
         self.w = {d: words(t) for d, t in self.turns.items()}
         df: Counter = Counter()
@@ -111,17 +166,36 @@ def proxy_evidence(cv: Conv, text: str, kind: str) -> tuple[list[str], str]:
 def analyse(runs: Path, p: str, c: str, convs: dict[str, Conv]) -> dict:
     P = {r["query_id"]: r for r in _load(runs / f"{p}--forensics/forensics.jsonl")}
     C = {r["query_id"]: r for r in _load(runs / f"{c}--forensics/forensics.jsonl")}
-    Pr = {r["query_id"]: r for r in _load(runs / f"{p}--memspine/results.jsonl") if r.get("kind") == "result"}
-    Cr = {r["query_id"]: r for r in _load(runs / f"{c}--memspine/results.jsonl") if r.get("kind") == "result"}
+    Pr = {
+        r["query_id"]: r
+        for r in _load(runs / f"{p}--memspine/results.jsonl")
+        if r.get("kind") == "result"
+    }
+    Cr = {
+        r["query_id"]: r
+        for r in _load(runs / f"{c}--memspine/results.jsonl")
+        if r.get("kind") == "result"
+    }
     qs = [q for q in Pr if q in Cr and q in P and q in C]
     out: dict = {"p": p, "c": c, "n_common": len(qs), "cats": {}, "text_rows": []}
     for cat in ("cat1", "cat2", "cat3", "cat4"):
         cq = [q for q in qs if Pr[q]["type_label"] == cat]
         broken = [q for q in cq if float(Cr[q]["score"]) == 1 and float(Pr[q]["score"]) == 0]
         fixed = [q for q in cq if float(Cr[q]["score"]) == 0 and float(Pr[q]["score"]) == 1]
-        gold_ok = [q for q in cq if (g := convs[Pr[q]["item_id"]].gold.get(q)) and g <= {r["turn"] for r in C[q]["context_records"]}]
+        gold_ok = [
+            q
+            for q in cq
+            if (g := convs[Pr[q]["item_id"]].gold.get(q))
+            and g <= {r["turn"] for r in C[q]["context_records"]}
+        ]
         rate = sum(float(Cr[q]["score"]) for q in gold_ok) / max(1, len(gold_ok))
-        res: dict = {"n": len(cq), "broken_n": len(broken), "fixed_n": len(fixed), "broken": {}, "fixed": {}}
+        res: dict = {
+            "n": len(cq),
+            "broken_n": len(broken),
+            "fixed_n": len(fixed),
+            "broken": {},
+            "fixed": {},
+        }
         for tag, ids in (("broken", broken), ("fixed", fixed)):
             cause: dict[str, list[str]] = {}
             slots: Counter = Counter()
@@ -150,10 +224,19 @@ def analyse(runs: Path, p: str, c: str, convs: dict[str, Conv]) -> dict:
                     kind = derived_kind(txt) if txt else "unknown"
                     ev, how = proxy_evidence(cv, txt, kind) if txt else ([], "none")
                     chan = [n for n, s in legs.items() if h["turn"] in s]
-                    dhits.append({"rank": h["r"], "kind": kind, "channel": chan or ["fused_only"],
-                                  "proxy": how, "n_ev": len(ev), "gold_in_ev": sorted(gold & set(ev)), "ev": ev})
+                    dhits.append(
+                        {
+                            "rank": h["r"],
+                            "kind": kind,
+                            "channel": chan or ["fused_only"],
+                            "proxy": how,
+                            "n_ev": len(ev),
+                            "gold_in_ev": sorted(gold & set(ev)),
+                            "ev": ev,
+                        }
+                    )
                     kinds[kind] += 1
-                    for ch in (chan or ["fused_only"]):
+                    for ch in chan or ["fused_only"]:
                         chans[ch] += 1
                     rank_hist[h["r"]] += 1
                 n_der = len(dhits)
@@ -163,13 +246,19 @@ def analyse(runs: Path, p: str, c: str, convs: dict[str, Conv]) -> dict:
                 turn_rank = [x["turn"] for x in pf["rerank_scores"] if DIA.match(x["turn"])]
                 pool_ids = {x["turn"] for x in pf["pool"]}
                 ans = Pr[q]["answer"]
-                dtext = " ".join(text_of.get(h["turn"], "") for h in pf["final"] if not DIA.match(h["turn"]))
+                dtext = " ".join(
+                    text_of.get(h["turn"], "") for h in pf["final"] if not DIA.match(h["turn"])
+                )
                 tturn = " ".join(r["text"] for r in pf["context_records"] if DIA.match(r["turn"]))
                 foreign = (tokens(ans) & tokens(dtext)) - tokens(tturn)
                 if not (gold & cctx) and tag == "broken":
                     k = "c0_gold_absent_in_clean"
                 elif tag == "fixed":
-                    k = "fixed_gold_in_graph_ctx" if gold & ctx else "fixed_gold_absent_in_graph_ctx"
+                    k = (
+                        "fixed_gold_in_graph_ctx"
+                        if gold & ctx
+                        else "fixed_gold_absent_in_graph_ctx"
+                    )
                     if gold & ctx and dhits and not any(d["gold_in_ev"] for d in dhits):
                         k += "_derived_not_needed"
                 elif not missing:
@@ -192,21 +281,38 @@ def analyse(runs: Path, p: str, c: str, convs: dict[str, Conv]) -> dict:
                 cause.setdefault(k, []).append(q)
                 if any(d["gold_in_ev"] for d in dhits):
                     n_with_useful += 1
-                out["text_rows"].append({"qid": q, "cat": cat, "tag": tag, "cause": k, "n_derived_final": n_der,
-                                         "derived": dhits, "missing_gold": sorted(missing),
-                                         "gold": Pr[q]["gold"], "p_answer": ans, "c_answer": Cr[q]["answer"]})
+                out["text_rows"].append(
+                    {
+                        "qid": q,
+                        "cat": cat,
+                        "tag": tag,
+                        "cause": k,
+                        "n_derived_final": n_der,
+                        "derived": dhits,
+                        "missing_gold": sorted(missing),
+                        "gold": Pr[q]["gold"],
+                        "p_answer": ans,
+                        "c_answer": Cr[q]["answer"],
+                    }
+                )
             res[tag] = {
                 "cause_counts": {k: len(v) for k, v in sorted(cause.items())},
                 "cause_ids": {k: v for k, v in sorted(cause.items())},
                 "derived_slots_in_final_hist": dict(sorted(slots.items())),
-                "mean_derived_slots": round(sum(k * v for k, v in slots.items()) / max(1, len(ids)), 2),
+                "mean_derived_slots": round(
+                    sum(k * v for k, v in slots.items()) / max(1, len(ids)), 2
+                ),
                 "derived_kind_counts": dict(kinds),
                 "derived_channel_counts": dict(chans),
                 "derived_rank_hist": dict(sorted(rank_hist.items())),
                 "questions_with_gold_in_some_derived_evidence": n_with_useful,
             }
         b = res["broken"]["cause_counts"]
-        rescue_ids = b.get("i_evidence_has_gold", 0) + b.get("iii_displacement_only", 0) + b.get("iv_date_error", 0)
+        rescue_ids = (
+            b.get("i_evidence_has_gold", 0)
+            + b.get("iii_displacement_only", 0)
+            + b.get("iv_date_error", 0)
+        )
         res["clean_acc_given_gold_in_ctx"] = round(rate, 3)
         res["lift_rescue_ceiling"] = rescue_ids
         res["lift_rescue_expected"] = round(rescue_ids * rate, 1)
@@ -233,9 +339,16 @@ def main() -> None:
     convs: dict[str, Conv] = {}
     for ci, c in enumerate(data):
         cv = Conv(c)
-        cv.gold = {f"{ci}-{qi}": set(DIA_ALL.findall(" ".join(qa.get("evidence", [])))) for qi, qa in enumerate(c["qa"])}
+        cv.gold = {
+            f"{ci}-{qi}": set(DIA_ALL.findall(" ".join(qa.get("evidence", []))))
+            for qi, qa in enumerate(c["qa"])
+        }
         convs[c["sample_id"]] = cv
-    result: dict = {"note": "evidence is a text proxy: forensics carry no record->parents mapping", "k": K, "runs": {}}
+    result: dict = {
+        "note": "evidence is a text proxy: forensics carry no record->parents mapping",
+        "k": K,
+        "runs": {},
+    }
     text_rows: list[dict] = []
     for p in a.p or ["v2-P2REF-full"]:
         r = analyse(Path(a.runs), p, a.c, convs)

@@ -33,14 +33,26 @@ def test_suite_loads_and_has_the_decided_roles() -> None:
 
 def test_longmemeval_never_appears() -> None:
     s = load_suite()
-    assert all("longmemeval" not in (e.dataset or "").lower() and "longmemeval" not in e.id.lower() for e in s.entries)
+    assert all(
+        "longmemeval" not in (e.dataset or "").lower() and "longmemeval" not in e.id.lower()
+        for e in s.entries
+    )
 
 
 @pytest.mark.parametrize("name", ["longmemeval", "LongMemEval", "long_mem_eval"])
 def test_longmemeval_is_refused(tmp_path: Path, name: str) -> None:
     d = _suite_dict()
-    d["entries"].append({"id": "lme", "dataset": name, "role": "dev", "slice": "x", "metric": "m",
-                         "judge": "j", "pass_rule": "r"})
+    d["entries"].append(
+        {
+            "id": "lme",
+            "dataset": name,
+            "role": "dev",
+            "slice": "x",
+            "metric": "m",
+            "judge": "j",
+            "pass_rule": "r",
+        }
+    )
     with pytest.raises(SuiteError, match="(?i)excluded|registry"):
         load_suite(_write(tmp_path, d))
 
@@ -133,28 +145,50 @@ def test_tenant_or_viewer_fail_rejects_regardless_of_reference() -> None:
     for cid in ("SAF-TENANT-SEARCH", "SAF-TENANT-READ", "SAF-VIEWER"):
         # reference already FAILs the case: still REJECT
         r = adopt(ALL_PROMOTE, _report(**{cid: "FAIL"}), {cid: "FAIL"})
-        assert r.verdict == "REJECT" and r.reasons[0].startswith("safety failure") and cid in r.reasons[0]
+        assert (
+            r.verdict == "REJECT"
+            and r.reasons[0].startswith("safety failure")
+            and cid in r.reasons[0]
+        )
         r = adopt(ALL_PROMOTE, _report(**{cid: "FAIL"}), {cid: "PASS"})
         assert r.verdict == "REJECT"
 
 
 def test_other_safety_and_invariance_stay_regression_based() -> None:
     ref = {"SAF-GENERIC": "FAIL", "SAF-UNANSWERABLE": "PASS", "INV-RENAME-SEARCH": "FAIL"}
-    r = adopt(ALL_PROMOTE, _report(**{"SAF-GENERIC": "FAIL", "SAF-UNANSWERABLE": "PASS", "INV-RENAME-SEARCH": "FAIL"}), ref)
+    r = adopt(
+        ALL_PROMOTE,
+        _report(**{"SAF-GENERIC": "FAIL", "SAF-UNANSWERABLE": "PASS", "INV-RENAME-SEARCH": "FAIL"}),
+        ref,
+    )
     assert r.verdict == "PROMOTE"
-    r = adopt(ALL_PROMOTE, _report(**{"SAF-GENERIC": "FAIL", "SAF-UNANSWERABLE": "FAIL", "INV-RENAME-SEARCH": "FAIL"}), ref)
+    r = adopt(
+        ALL_PROMOTE,
+        _report(**{"SAF-GENERIC": "FAIL", "SAF-UNANSWERABLE": "FAIL", "INV-RENAME-SEARCH": "FAIL"}),
+        ref,
+    )
     assert r.verdict == "HOLD" and r.regressions == ["SAF-UNANSWERABLE"]
 
 
 def test_tenant_not_supported_does_not_reject() -> None:
-    assert adopt(ALL_PROMOTE, _report(**{"SAF-VIEWER": "NOT_SUPPORTED"}), {"SAF-VIEWER": "PASS"}).verdict == "PROMOTE"
+    assert (
+        adopt(
+            ALL_PROMOTE, _report(**{"SAF-VIEWER": "NOT_SUPPORTED"}), {"SAF-VIEWER": "PASS"}
+        ).verdict
+        == "PROMOTE"
+    )
 
 
 def test_judge_ids_are_real_and_unknown_ones_refused(tmp_path: Path) -> None:
     from suite.suite import known_judge_ids
 
     ids = known_judge_ids()
-    assert {"alias-contains", "qwen3-32b-rubric", "qwen3-32b-opbench", "qwen3-32b-constraint"} <= ids
+    assert {
+        "alias-contains",
+        "qwen3-32b-rubric",
+        "qwen3-32b-opbench",
+        "qwen3-32b-constraint",
+    } <= ids
     assert all(e.judge in ids for e in load_suite().entries if e.role != "behavioural")
     d = _suite_dict()
     d["entries"][0]["judge"] = "qwen3-32b-binary"

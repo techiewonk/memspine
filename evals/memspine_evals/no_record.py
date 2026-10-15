@@ -51,12 +51,61 @@ _CUES = re.compile(
 )
 _WORD = re.compile(r"[a-z0-9]{4,}")
 _STOP = frozenset(
-    (
-        "that this with from have has had were was been being they them their there then than "
-        "what when where which while would could should about into over also does did remember "
-        "recall told mentioned said asked showed sent shared when time know think still "
-        "talked spoke discussed promised recommended suggested please tell"
-    ).split()
+    [
+        "that",
+        "this",
+        "with",
+        "from",
+        "have",
+        "has",
+        "had",
+        "were",
+        "was",
+        "been",
+        "being",
+        "they",
+        "them",
+        "their",
+        "there",
+        "then",
+        "than",
+        "what",
+        "when",
+        "where",
+        "which",
+        "while",
+        "would",
+        "could",
+        "should",
+        "about",
+        "into",
+        "over",
+        "also",
+        "does",
+        "did",
+        "remember",
+        "recall",
+        "told",
+        "mentioned",
+        "said",
+        "asked",
+        "showed",
+        "sent",
+        "shared",
+        "when",
+        "time",
+        "know",
+        "think",
+        "still",
+        "talked",
+        "spoke",
+        "discussed",
+        "promised",
+        "recommended",
+        "suggested",
+        "please",
+        "tell",
+    ]
 )
 
 #: Fraction of the question's content words that must occur in the context for the asserted

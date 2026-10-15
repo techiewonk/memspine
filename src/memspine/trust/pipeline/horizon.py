@@ -59,8 +59,7 @@ async def expire_retention(eng: Any, now: datetime | None = None) -> dict[str, o
                     namespace=ns,
                     hard=True,
                     actor="system",
-                    reason=f"retention:{cls.namespace}/{cls.memory_type or '*'}"
-                    f"/{cls.ttl_days:g}d",
+                    reason=f"retention:{cls.namespace}/{cls.memory_type or '*'}/{cls.ttl_days:g}d",
                 )
             except (MemspineError, ConflictError) as exc:
                 errors.append(f"{record.record_id}: {exc}")
@@ -76,7 +75,5 @@ async def expire_retention(eng: Any, now: datetime | None = None) -> dict[str, o
 def _retention(eng: Any, record: MemoryRecord) -> RetentionPolicy:
     """The ``retention`` policy bound for ``record``'s memory type."""
     return RetentionPolicy.bind(
-        _as_options_dict(
-            eng._memory_policy(eng._config(), record.memory_type).get("retention")
-        )
+        _as_options_dict(eng._memory_policy(eng._config(), record.memory_type).get("retention"))
     )

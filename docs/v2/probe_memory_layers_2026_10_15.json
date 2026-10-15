@@ -1,0 +1,149 @@
+{
+  "session": [
+    {
+      "lineage": false,
+      "kind": "episode",
+      "returned": "L1",
+      "stored": "L1",
+      "payload_layer": "omitted",
+      "replayed": "L1",
+      "episode_leg_reason": "no_records:L2",
+      "counts": {
+        "L0": 1,
+        "L1": 1
+      }
+    },
+    {
+      "lineage": false,
+      "kind": "summary",
+      "returned": "L1",
+      "stored": "L1",
+      "payload_layer": "omitted",
+      "replayed": "L1",
+      "episode_leg_reason": "no_records:L2",
+      "counts": {
+        "L0": 1,
+        "L1": 2
+      }
+    },
+    {
+      "lineage": true,
+      "kind": "episode",
+      "returned": "L0",
+      "stored": "L0",
+      "payload_layer": "L0",
+      "replayed": "L0",
+      "episode_leg_reason": "no_records:L2",
+      "counts": {
+        "L0": 2
+      }
+    },
+    {
+      "lineage": true,
+      "kind": "summary",
+      "returned": "L0",
+      "stored": "L0",
+      "payload_layer": "L0",
+      "replayed": "L0",
+      "episode_leg_reason": "no_records:L2",
+      "counts": {
+        "L0": 3
+      }
+    }
+  ],
+  "mapping": [
+    {
+      "channel": "consolidation",
+      "initial": "L2",
+      "route": "summary",
+      "requested": null,
+      "stamped": "L0",
+      "roundtrip": "L0"
+    },
+    {
+      "channel": "entity_summary",
+      "initial": "L3",
+      "route": "summary",
+      "requested": null,
+      "stamped": "L0",
+      "roundtrip": "L0"
+    },
+    {
+      "channel": "reorganize",
+      "initial": "L3",
+      "route": "summary",
+      "requested": null,
+      "stamped": "L0",
+      "roundtrip": "L0"
+    },
+    {
+      "channel": "observation",
+      "initial": "L1",
+      "route": "semantic",
+      "requested": "L4",
+      "stamped": "L4",
+      "roundtrip": "L4"
+    },
+    {
+      "channel": "standing",
+      "initial": "L1",
+      "route": "semantic",
+      "requested": "L5",
+      "stamped": "L5",
+      "roundtrip": "L5"
+    },
+    {
+      "channel": "community_summary",
+      "initial": "L1",
+      "route": "summary",
+      "requested": "L3",
+      "stamped": "L3",
+      "roundtrip": "L3"
+    },
+    {
+      "channel": "multires",
+      "initial": "L1",
+      "route": "summary",
+      "requested": "L2",
+      "stamped": "L2",
+      "roundtrip": "L2"
+    }
+  ],
+  "graph": {
+    "l1_only_reason": "no_records:L3",
+    "with_l3_count_hits": 1,
+    "supporting_fact_layer": "L1"
+  },
+  "fact_classification": [
+    {
+      "channel": "observation",
+      "envelope_is_fact": true,
+      "offline_is_input_fact": false
+    },
+    {
+      "channel": "standing",
+      "envelope_is_fact": true,
+      "offline_is_input_fact": false
+    },
+    {
+      "channel": "session_close",
+      "envelope_is_fact": true,
+      "offline_is_input_fact": true
+    },
+    {
+      "channel": "entity_summary",
+      "envelope_is_fact": true,
+      "offline_is_input_fact": false
+    },
+    {
+      "channel": "community_summary",
+      "envelope_is_fact": true,
+      "offline_is_input_fact": true
+    },
+    {
+      "channel": "multires",
+      "envelope_is_fact": true,
+      "offline_is_input_fact": true
+    }
+  ]
+}

@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """Jobs and progress (schema session 8): outbox rows, leases with epochs, watermark plus holes."""
 
 from __future__ import annotations

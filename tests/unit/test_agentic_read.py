@@ -251,7 +251,7 @@ async def test_repeated_query_stops(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 async def test_step0_share_is_never_displaced() -> None:
-    mk = lambda text: MemoryRecord(namespace="a", memory_type="episodic", content=text)  # noqa: E731
+    mk = lambda text: MemoryRecord(namespace="a", memory_type="episodic", content=text)
     step0 = [mk("a" * 40), mk("b" * 40), mk("c" * 40)]  # 11 tokens each
     new = [mk("n" * 40), mk("m" * 40)]
     kept, added, displaced = merge_budget(step0, new, 36, share=0.5, max_new=6)
@@ -518,7 +518,7 @@ def test_agentic_step_validation() -> None:
 
 
 def test_fuse_new_dedupes_and_ranks() -> None:
-    mk = lambda i: MemoryRecord(record_id=i, namespace="a", memory_type="episodic", content=i)  # noqa: E731
+    mk = lambda i: MemoryRecord(record_id=i, namespace="a", memory_type="episodic", content=i)
     a, b, c, d = (mk(x) for x in "abcd")
     out = fuse_new([[a, b, c], [d, b]], seen={"a"}, rrf_k=60)
     assert [r.record_id for r in out] == ["b", "d", "c"]  # b is in both lists
@@ -526,7 +526,7 @@ def test_fuse_new_dedupes_and_ranks() -> None:
 
 
 def test_view_and_query_are_capped() -> None:
-    mk = lambda t: MemoryRecord(namespace="a", memory_type="episodic", content=t)  # noqa: E731
+    mk = lambda t: MemoryRecord(namespace="a", memory_type="episodic", content=t)
     view = evidence_view([mk("x " * 400)] * 50, max_tokens=60, line_chars=40)
     assert all(len(line) <= 42 for line in view.splitlines()) and len(view.splitlines()) < 50
     assert evidence_view([]) == "(none)"

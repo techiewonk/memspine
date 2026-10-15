@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """Layer view of a saved step-mode bundle: what each memory layer holds and where it came from.
 
     python -m memspine_evals.inspect.layers <bundle-dir>                 # L0..L5 table, both phases
@@ -34,14 +33,18 @@ MEANING = {
 def _rows(path: Path) -> list[dict[str, Any]]:
     if not path.exists():
         return []
-    return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+    return [
+        json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()
+    ]
 
 
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("bundle", type=Path)
     ap.add_argument("--layer", choices=LAYERS)
-    ap.add_argument("--phase", choices=("post_ingest", "post_sleep"), help="default: post_sleep if present")
+    ap.add_argument(
+        "--phase", choices=("post_ingest", "post_sleep"), help="default: post_sleep if present"
+    )
     ap.add_argument("--limit", type=int, default=20)
     args = ap.parse_args(argv)
 
@@ -76,11 +79,15 @@ def main(argv: list[str] | None = None) -> int:
     for r in mine[: args.limit]:
         ps = parents.get(r["record_id"], [])
         turns = [by_id.get(p, {}).get("turn_id") or p[:8] for p, _ in ps]
-        print(f"- {r['record_id'][:8]}  {r.get('memory_type')}/{r.get('channel')}  status={r.get('status')} "
-              f"trust={r.get('trust')}  turn={r.get('turn_id')}")
+        print(
+            f"- {r['record_id'][:8]}  {r.get('memory_type')}/{r.get('channel')}  status={r.get('status')} "
+            f"trust={r.get('trust')}  turn={r.get('turn_id')}"
+        )
         if ps:
-            print(f"    parents ({len(ps)}): {', '.join(str(t) for t in turns[:12])}"
-                  f"{' ...' if len(turns) > 12 else ''}  roles={sorted({rel for _, rel in ps})}")
+            print(
+                f"    parents ({len(ps)}): {', '.join(str(t) for t in turns[:12])}"
+                f"{' ...' if len(turns) > 12 else ''}  roles={sorted({rel for _, rel in ps})}"
+            )
         print(f"    text: {str(r.get('content') or '')[:110]}")
     if len(mine) > args.limit:
         print(f"... {len(mine) - args.limit} more (--limit)")

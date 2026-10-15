@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """W2-02 (W-05): ``AsserterSubjectCheck``: an extracted item's asserter and subject against the cited line.
 
 Pure: no I/O, no clock, no model call. Raw turns carry ``spk`` / ``addr`` (typed columns); an extracted
@@ -32,9 +31,31 @@ HARD_FLAGS = frozenset(
 _SELF = frozenset({"self", "speaker", "me", "myself", "i", "user", "i'm"})
 _FIRST_PERSON = re.compile(r"\b(?:i|i'm|i've|i'd|i'll|my|me|mine|myself)\b", re.IGNORECASE)
 _ATTRIBUTION = (
-    "said", "says", "told", "tells", "mentioned", "mentions", "thinks", "thought", "wants",
-    "wanted", "claims", "claimed", "believes", "asked", "wrote", "reports", "reported", "noted",
-    "added", "replied", "answered", "insists", "recalls", "remembers", "texted",
+    "said",
+    "says",
+    "told",
+    "tells",
+    "mentioned",
+    "mentions",
+    "thinks",
+    "thought",
+    "wants",
+    "wanted",
+    "claims",
+    "claimed",
+    "believes",
+    "asked",
+    "wrote",
+    "reports",
+    "reported",
+    "noted",
+    "added",
+    "replied",
+    "answered",
+    "insists",
+    "recalls",
+    "remembers",
+    "texted",
 )
 
 
@@ -67,7 +88,12 @@ def _norm(name: str | None, aliases: Mapping[str, str] | None = None) -> str | N
 
 
 def _mentions(text: str, name: str) -> bool:
-    return re.search(rf"(?<!\w){re.escape(name)}(?!\w)", unicodedata.normalize("NFKC", text).casefold()) is not None
+    return (
+        re.search(
+            rf"(?<!\w){re.escape(name)}(?!\w)", unicodedata.normalize("NFKC", text).casefold()
+        )
+        is not None
+    )
 
 
 def _attributes(text: str, name: str) -> bool:

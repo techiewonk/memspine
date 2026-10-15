@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """FU-REQS: the v2 flag profiles turned on together (audit 2026-10-13, finding 2).
 
 Each profile of ``src/memspine/config/presets/*-v2.yaml`` is loaded as ``data_profile``; the engine
@@ -36,7 +35,15 @@ from test_w2_06b_prompt_v2 import WindowLLM
 
 pytestmark = pytest.mark.filterwarnings("ignore:optimize:UserWarning")
 
-PROFILES = ("read-v2-core", "read-v2-graph", "read-v2-safe", "write-v2", "offline-v2", "trust-v2", "run-v2")
+PROFILES = (
+    "read-v2-core",
+    "read-v2-graph",
+    "read-v2-safe",
+    "write-v2",
+    "offline-v2",
+    "trust-v2",
+    "run-v2",
+)
 NS = "acme/ilse"
 T0 = datetime(2024, 3, 1, 9, 0, tzinfo=UTC)
 SECRET = "Quillfeather"
@@ -62,7 +69,9 @@ def test_profile_satisfies_every_requirement_and_turns_flags_on(name: str) -> No
     preset = load_preset(name)
     for key in _leaf_keys(preset):
         assert resolve_path(cfg, key) == _dig(preset, key), key
-    assert all(is_active(_dig(preset, k)) for k in _leaf_keys(preset))  # a profile only switches things on
+    assert all(
+        is_active(_dig(preset, k)) for k in _leaf_keys(preset)
+    )  # a profile only switches things on
 
 
 def _leaf_keys(node: dict[str, Any], prefix: str = "") -> list[str]:
@@ -99,7 +108,11 @@ def _overrides(name: str, db: str | Path) -> dict[str, Any]:
 
 def _turns(lines: tuple[str, ...], start: int = 0) -> list[dict[str, str]]:
     return [
-        {"role": "user", "content": text, "timestamp": (T0 + timedelta(minutes=start + i)).isoformat()}
+        {
+            "role": "user",
+            "content": text,
+            "timestamp": (T0 + timedelta(minutes=start + i)).isoformat(),
+        }
         for i, text in enumerate(lines)
     ]
 
@@ -116,7 +129,9 @@ def stub_roles(monkeypatch: pytest.MonkeyPatch) -> WindowLLM:
 
 
 @pytest.mark.parametrize("name", PROFILES)
-async def test_profile_boots_and_runs_the_cycle(name: str, tmp_path: Path, stub_roles: WindowLLM) -> None:
+async def test_profile_boots_and_runs_the_cycle(
+    name: str, tmp_path: Path, stub_roles: WindowLLM
+) -> None:
     db = tmp_path / "m.db"
     eng = await memspine.open(dotenv_path=None, **_overrides(name, db))
     try:
@@ -149,7 +164,10 @@ async def _find(mem: Any, needle: str) -> list[str]:
     ids: list[str] = []
     for hit in hits or []:
         rec = hit[0] if isinstance(hit, tuple) else hit
-        if needle in (getattr(rec, "content", "") or "") and getattr(rec, "status", None) != "deleted":
+        if (
+            needle in (getattr(rec, "content", "") or "")
+            and getattr(rec, "status", None) != "deleted"
+        ):
             ids.append(rec.record_id)
     return ids
 

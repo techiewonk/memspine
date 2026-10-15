@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """One layer classification for stored rows (LF-E: MF-05, MF-08, MF-09).
 
 Three places used to classify a row on their own: the SQLite 0007 backfill, record hydration (a NULL

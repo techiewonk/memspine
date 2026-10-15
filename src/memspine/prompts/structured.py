@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """``prompts.structured`` and ``prompts.structured.repair`` (W2-06a; W-14, W-15, P-05, P-06).
 
 The wire contract of the envelope-v2 write path (``write.envelope_v2``): the model emits a JSON list of

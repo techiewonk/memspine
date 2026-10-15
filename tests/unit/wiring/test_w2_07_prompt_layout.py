@@ -1,6 +1,5 @@
 """W2-07 (W-18, P-07, P-08, P-10): ``prompts.layout_v2`` prompt layout. Model-free."""
 
-# ruff: noqa: E501
 from __future__ import annotations
 
 import difflib
@@ -115,7 +114,7 @@ def test_english_differs_only_by_documented_moves(pid: str) -> None:
     off = PromptRegistry().get(pid).render(ctx(pid))
     on = PromptRegistry(layout_v2=True, layout_partials=[]).get(pid).render(ctx(pid))
     assert on.identity is not None and on.identity.partials == ()
-    flat = lambda s: " ".join(s.split())  # noqa: E731
+    flat = lambda s: " ".join(s.split())
     v1_all, v2_all = flat(_sys(off) + " " + _usr(off)), flat(_sys(on) + " " + _usr(on))
     removed = []
     for tag, i1, i2, _j1, _j2 in difflib.SequenceMatcher(

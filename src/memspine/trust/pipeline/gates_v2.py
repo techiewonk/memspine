@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """The Memory Firewall at its gates, wired from ``trust.gates`` (W2-04, LIB-38; ``firewall.gates_v2``).
 
 Adapters only: they turn engine records into the library's inputs and its verdicts back into what the
@@ -130,7 +129,7 @@ def signal_stack(signals: FirewallSignals, *, derive: bool = False) -> tuple[Sig
     cfg = _signal_config(signals, derive=derive)
     stack = list(build_signals(cfg))
     return tuple(
-        AnomalySignal(
+        AnomalySignal(  # type: ignore[misc]  # CI-GREEN: pre-existing typing debt
             min_neighbours=constants.ANOMALY_MIN_NEIGHBOURS,
             outlier_similarity=constants.ANOMALY_CENTROID_MIN_SIMILARITY,
             exempt_roles=cfg.anomaly_exempt_roles,

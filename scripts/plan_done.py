@@ -17,6 +17,14 @@ body = s[start:end]
 m = list(re.finditer(r'"((?:[^"\\]|\\.)*)"', body))
 # last two string literals are status and note
 st, nt = m[-2], m[-1]
-new = body[: st.start()] + f'"{status}"' + body[st.end() : nt.start()] + '"' + note.replace('"', "'") + '"' + body[nt.end() :]
+new = (
+    body[: st.start()]
+    + f'"{status}"'
+    + body[st.end() : nt.start()]
+    + '"'
+    + note.replace('"', "'")
+    + '"'
+    + body[nt.end() :]
+)
 p.write_text(s[:start] + new + s[end:], encoding="utf-8")
 print(f"{pid} -> {status}")

@@ -25,7 +25,7 @@ from typing import Any, Protocol, runtime_checkable
 from .contracts import sha256_text
 
 
-class JudgeScale(str, Enum):  # noqa: UP042 - str() must stay the member name in logs
+class JudgeScale(str, Enum):
     """The score space a judge emits. Never inferred, never defaulted."""
 
     BINARY = "binary"  # {0, 1} correctness
@@ -470,12 +470,16 @@ class GuardedJudge:
                 meta["convention"] = rule.rule
         if self.conventions_v2:
             rule2 = None if verdict.score >= 1.0 else check_conventions_v2(question, answer, gold)
-            meta["score_conventions_v2"] = 1.0 if (verdict.score >= 1.0 or rule2 is not None) else 0.0
+            meta["score_conventions_v2"] = (
+                1.0 if (verdict.score >= 1.0 or rule2 is not None) else 0.0
+            )
             if rule2 is not None:
                 meta["convention_v2"] = rule2.rule
         if self.conventions_v3:
             rule3 = None if verdict.score >= 1.0 else check_conventions_v3(question, answer, gold)
-            meta["score_conventions_v3"] = 1.0 if (verdict.score >= 1.0 or rule3 is not None) else 0.0
+            meta["score_conventions_v3"] = (
+                1.0 if (verdict.score >= 1.0 or rule3 is not None) else 0.0
+            )
             if rule3 is not None:
                 meta["convention_v3"] = rule3.rule
         return Verdict(

@@ -13,7 +13,9 @@ from test_eval_gate_wiring import _blind, manifest
 
 @pytest.fixture(autouse=True)
 def _no_real_slices(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(eval_blind, "HERE", tmp_path / "nowhere")  # slice hash -> "unknown"; no real files read
+    monkeypatch.setattr(
+        eval_blind, "HERE", tmp_path / "nowhere"
+    )  # slice hash -> "unknown"; no real files read
 
 
 def entries(runs: Path) -> list[dict]:
@@ -97,13 +99,30 @@ def test_check_and_record_api(tmp_path: Path) -> None:
     led = tmp_path / "_logs" / "l.jsonl"
     a = seal.arm_id("r", manifest())
     assert seal.check(led, "blind-mab", a) == 0
-    seal.record(led, set_id="blind-mab", slice_hash="h", arm=a, ref_run="ref", manifest=manifest(), verdict="NO CHANGE")
+    seal.record(
+        led,
+        set_id="blind-mab",
+        slice_hash="h",
+        arm=a,
+        ref_run="ref",
+        manifest=manifest(),
+        verdict="NO CHANGE",
+    )
     with pytest.raises(seal.SealRefused):
         seal.check(led, "blind-mab", a)
     assert seal.check(led, "blind-cm", a) == 0  # other set unaffected
     assert seal.check(led, "blind-mab", a, "because") == 1
-    seal.record(led, set_id="blind-mab", slice_hash="h", arm=a, ref_run="ref", manifest=None, verdict="X",
-                reexpose="because", prior=1)
+    seal.record(
+        led,
+        set_id="blind-mab",
+        slice_hash="h",
+        arm=a,
+        ref_run="ref",
+        manifest=None,
+        verdict="X",
+        reexpose="because",
+        prior=1,
+    )
     assert len(seal.read_ledger(led)) == 2  # append-only: the first line is still there
     assert seal.read_ledger(led)[0]["verdict"] == "NO CHANGE"
 

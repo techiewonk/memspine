@@ -20,17 +20,17 @@ import pytest
 
 fastapi = pytest.importorskip("fastapi")
 
-import httpx  # noqa: E402
-import pydantic  # noqa: E402
-from fastapi import FastAPI  # noqa: E402
+import httpx
+import pydantic
+from fastapi import FastAPI
 
-from memspine import Engine  # noqa: E402
-from memspine.api.rest import app as rest_app  # noqa: E402
-from memspine.api.rest import auth as rest_auth  # noqa: E402
-from memspine.api.rest import create_app  # noqa: E402
-from memspine.api.rest.auth import Authenticator, AuthError  # noqa: E402
-from memspine.config.schema import RestConfig  # noqa: E402
-from memspine.store.events import EventKind  # noqa: E402
+from memspine import Engine
+from memspine.api.rest import app as rest_app
+from memspine.api.rest import auth as rest_auth
+from memspine.api.rest import create_app
+from memspine.api.rest.auth import Authenticator, AuthError
+from memspine.config.schema import RestConfig
+from memspine.store.events import EventKind
 
 ALICE_KEY = "alice-test-key-0001"
 ADMIN_KEY = "admin-test-key-0002"

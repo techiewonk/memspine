@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """Entity registry with reversible MERGE and SPLIT events (W2-09; decisions M-15, W-19).
 
 An entity is an opaque id plus a name, a type, an alias list and a scope. The registry is keyed by a

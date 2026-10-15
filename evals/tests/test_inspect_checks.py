@@ -1,4 +1,5 @@
 """TI-6: inspect-bundle invariant checks. Hand-built tiny bundles (invented names), CPU only."""
+
 from __future__ import annotations
 
 import copy
@@ -10,7 +11,7 @@ import pytest
 
 EVALS = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(EVALS))
-from memspine_evals.inspect import checks as C  # noqa: E402
+from memspine_evals.inspect import checks as C
 
 RUN_DATE = "2026-10-14"
 
@@ -18,35 +19,109 @@ RUN_DATE = "2026-10-14"
 def good() -> dict:
     """A tiny bundle in which every check passes."""
     turns = [
-        {"item": "c1", "session": "s1", "turn_id": "T1", "speaker": "Bram", "ts": "2024-03-01T10:00:00",
-         "record_id": "r1", "indexed": {"vector": True, "lexical": True}},
-        {"item": "c1", "session": "s1", "turn_id": "T2", "speaker": "Ilse", "ts": "2024-03-01T10:01:00",
-         "record_id": "r2", "indexed": {"vector": True, "lexical": True}},
-        {"item": "c1", "session": "s2", "turn_id": "T3", "speaker": "Noor", "ts": "2024-03-08T09:00:00",
-         "record_id": "r3", "indexed": {"vector": True, "lexical": True}},
+        {
+            "item": "c1",
+            "session": "s1",
+            "turn_id": "T1",
+            "speaker": "Bram",
+            "ts": "2024-03-01T10:00:00",
+            "record_id": "r1",
+            "indexed": {"vector": True, "lexical": True},
+        },
+        {
+            "item": "c1",
+            "session": "s1",
+            "turn_id": "T2",
+            "speaker": "Ilse",
+            "ts": "2024-03-01T10:01:00",
+            "record_id": "r2",
+            "indexed": {"vector": True, "lexical": True},
+        },
+        {
+            "item": "c1",
+            "session": "s2",
+            "turn_id": "T3",
+            "speaker": "Noor",
+            "ts": "2024-03-08T09:00:00",
+            "record_id": "r3",
+            "indexed": {"vector": True, "lexical": True},
+        },
     ]
     windows = [
-        {"item": "c1", "window_id": "w1", "member_turns": ["T1", "T2"], "cut_reason": "session_end",
-         "prepass": {"verdict": "extract"}, "call": {"model": "stub", "cached": False, "tokens": 40},
-         "sections": {"facts": 1, "edges": 0, "episode": 1}},
-        {"item": "c1", "window_id": "w2", "member_turns": [], "cut_reason": "size",
-         "prepass": {"verdict": "skip"}},
+        {
+            "item": "c1",
+            "window_id": "w1",
+            "member_turns": ["T1", "T2"],
+            "cut_reason": "session_end",
+            "prepass": {"verdict": "extract"},
+            "call": {"model": "stub", "cached": False, "tokens": 40},
+            "sections": {"facts": 1, "edges": 0, "episode": 1},
+        },
+        {
+            "item": "c1",
+            "window_id": "w2",
+            "member_turns": [],
+            "cut_reason": "size",
+            "prepass": {"verdict": "skip"},
+        },
     ]
     envelopes = [
         {"item": "c1", "occ": "o1", "stage": "compile", "status": "kept"},
-        {"item": "c1", "occ": "o1", "stage": "deposit", "status": "kept", "record_id": "r4",
-         "integrate": {"op": "supersede", "target": "r5"}},
+        {
+            "item": "c1",
+            "occ": "o1",
+            "stage": "deposit",
+            "status": "kept",
+            "record_id": "r4",
+            "integrate": {"op": "supersede", "target": "r5"},
+        },
         {"item": "c1", "occ": "o2", "stage": "300", "status": "dropped", "reason": "ungrounded"},
     ]
     records = [
-        {"item": "c1", "phase": "post_ingest", "record_id": "r1", "channel": "verbatim", "content": "Bram plays cello"},
-        {"item": "c1", "phase": "post_ingest", "record_id": "r2", "channel": "verbatim", "content": "Ilse hikes"},
-        {"item": "c1", "phase": "post_ingest", "record_id": "r3", "channel": "verbatim", "content": "Noor moved"},
-        {"item": "c1", "phase": "post_ingest", "record_id": "r4", "channel": "fact", "content": "Bram plays viola",
-         "parents": ["r1"], "parent_turns": ["T1"], "valid_from": "2024-03-01T10:00:00"},
-        {"item": "c1", "phase": "post_ingest", "record_id": "r5", "channel": "fact", "content": "Bram plays cello",
-         "parents": ["r1"], "parent_turns": ["T1"], "valid_from": "2024-02-01T00:00:00",
-         "valid_to": "2024-03-01T10:00:00", "status": "superseded", "evolve_to": "r4"},
+        {
+            "item": "c1",
+            "phase": "post_ingest",
+            "record_id": "r1",
+            "channel": "verbatim",
+            "content": "Bram plays cello",
+        },
+        {
+            "item": "c1",
+            "phase": "post_ingest",
+            "record_id": "r2",
+            "channel": "verbatim",
+            "content": "Ilse hikes",
+        },
+        {
+            "item": "c1",
+            "phase": "post_ingest",
+            "record_id": "r3",
+            "channel": "verbatim",
+            "content": "Noor moved",
+        },
+        {
+            "item": "c1",
+            "phase": "post_ingest",
+            "record_id": "r4",
+            "channel": "fact",
+            "content": "Bram plays viola",
+            "parents": ["r1"],
+            "parent_turns": ["T1"],
+            "valid_from": "2024-03-01T10:00:00",
+        },
+        {
+            "item": "c1",
+            "phase": "post_ingest",
+            "record_id": "r5",
+            "channel": "fact",
+            "content": "Bram plays cello",
+            "parents": ["r1"],
+            "parent_turns": ["T1"],
+            "valid_from": "2024-02-01T00:00:00",
+            "valid_to": "2024-03-01T10:00:00",
+            "status": "superseded",
+            "evolve_to": "r4",
+        },
     ]
     links = [
         {"item": "c1", "kind": "lineage", "src": "r4", "dst": "r1"},
@@ -55,19 +130,51 @@ def good() -> dict:
         {"item": "c1", "kind": "mentions", "src": "r2", "dst": "Tomasz"},
     ]
     sleep = [
-        {"item": "c1", "stage": "consolidate", "cycle": 1, "session_key": "s1", "input_ids": ["r1"], "output_ids": ["r4"]},
-        {"item": "c1", "stage": "consolidate", "cycle": 2, "session_key": "s1", "input_ids": ["r1"], "output_ids": []},
+        {
+            "item": "c1",
+            "stage": "consolidate",
+            "cycle": 1,
+            "session_key": "s1",
+            "input_ids": ["r1"],
+            "output_ids": ["r4"],
+        },
+        {
+            "item": "c1",
+            "stage": "consolidate",
+            "cycle": 2,
+            "session_key": "s1",
+            "input_ids": ["r1"],
+            "output_ids": [],
+        },
     ]
     questions = [
-        {"item": "c1", "query_id": "q1", "plan": {"route": "hybrid"}, "gold_turns": ["T1", "T3"],
-         "legs": {"vector": [{"rid": "r1", "turn": "T1", "rank": 1}]},
-         "fused": [{"rid": "r1", "turn": "T1"}], "pool": [{"rid": "r1", "turn": "T1"}],
-         "rerank": [{"rid": "r1", "turn": "T1"}], "packed": [{"rid": "r1", "turn": "T1", "tokens": 30}],
-         "budget": 100,
-         "gold_path": [{"turn": "T1", "last_stage_reached": "packed"}, {"turn": "T3", "last_stage_reached": None}]},
+        {
+            "item": "c1",
+            "query_id": "q1",
+            "plan": {"route": "hybrid"},
+            "gold_turns": ["T1", "T3"],
+            "legs": {"vector": [{"rid": "r1", "turn": "T1", "rank": 1}]},
+            "fused": [{"rid": "r1", "turn": "T1"}],
+            "pool": [{"rid": "r1", "turn": "T1"}],
+            "rerank": [{"rid": "r1", "turn": "T1"}],
+            "packed": [{"rid": "r1", "turn": "T1", "tokens": 30}],
+            "budget": 100,
+            "gold_path": [
+                {"turn": "T1", "last_stage_reached": "packed"},
+                {"turn": "T3", "last_stage_reached": None},
+            ],
+        },
     ]
-    return {"turns": turns, "windows": windows, "envelopes": envelopes, "records": records, "links": links,
-            "sleep": sleep, "questions": questions, "manifest": {"run_started_at": RUN_DATE + "T08:00:00"}}
+    return {
+        "turns": turns,
+        "windows": windows,
+        "envelopes": envelopes,
+        "records": records,
+        "links": links,
+        "sleep": sleep,
+        "questions": questions,
+        "manifest": {"run_started_at": RUN_DATE + "T08:00:00"},
+    }
 
 
 def write(tmp_path: Path, bundle: dict) -> Path:
@@ -75,7 +182,9 @@ def write(tmp_path: Path, bundle: dict) -> Path:
         if name == "manifest":
             (tmp_path / "manifest.json").write_text(json.dumps(rows), encoding="utf-8")
         else:
-            (tmp_path / f"{name}.jsonl").write_text("\n".join(json.dumps(r) for r in rows) + "\n", encoding="utf-8")
+            (tmp_path / f"{name}.jsonl").write_text(
+                "\n".join(json.dumps(r) for r in rows) + "\n", encoding="utf-8"
+            )
     return tmp_path
 
 
@@ -90,37 +199,110 @@ def rec(b, rid, phase="post_ingest"):
     return next(r for r in b["records"] if r["record_id"] == rid and r["phase"] == phase)
 
 
-def mut_turn_twice(b): b["turns"].append(copy.deepcopy(b["turns"][0]))
-def mut_not_vector(b): b["turns"][1]["indexed"]["vector"] = False
-def mut_not_lexical(b): b["turns"][1]["indexed"]["lexical"] = False
-def mut_no_members(b): b["windows"][0]["member_turns"] = []
-def mut_no_call(b): b["windows"][0]["call"] = {}
-def mut_uncounted(b): b["windows"][0]["sections"] = {"facts": 1}
-def mut_cross_session(b): b["windows"][0]["member_turns"] = ["T2", "T3"]
-def mut_env_open(b): b["envelopes"] = [e for e in b["envelopes"] if e["stage"] != "deposit"]
-def mut_env_noreason(b): b["envelopes"][2].pop("reason")
-def mut_supersede_notarget(b): b["envelopes"][1]["integrate"] = {"op": "supersede"}
-def mut_no_parent(b): rec(b, "r4").update(parents=["gone"], parent_turns=[])
-def mut_no_channel(b): rec(b, "r4").pop("channel")
+def mut_turn_twice(b):
+    b["turns"].append(copy.deepcopy(b["turns"][0]))
+
+
+def mut_not_vector(b):
+    b["turns"][1]["indexed"]["vector"] = False
+
+
+def mut_not_lexical(b):
+    b["turns"][1]["indexed"]["lexical"] = False
+
+
+def mut_no_members(b):
+    b["windows"][0]["member_turns"] = []
+
+
+def mut_no_call(b):
+    b["windows"][0]["call"] = {}
+
+
+def mut_uncounted(b):
+    b["windows"][0]["sections"] = {"facts": 1}
+
+
+def mut_cross_session(b):
+    b["windows"][0]["member_turns"] = ["T2", "T3"]
+
+
+def mut_env_open(b):
+    b["envelopes"] = [e for e in b["envelopes"] if e["stage"] != "deposit"]
+
+
+def mut_env_noreason(b):
+    b["envelopes"][2].pop("reason")
+
+
+def mut_supersede_notarget(b):
+    b["envelopes"][1]["integrate"] = {"op": "supersede"}
+
+
+def mut_no_parent(b):
+    rec(b, "r4").update(parents=["gone"], parent_turns=[])
+
+
+def mut_no_channel(b):
+    rec(b, "r4").pop("channel")
+
+
 def mut_cycle(b):
     rec(b, "r1")["parents"] = ["r4"]
 
 
-def mut_evolve_missing(b): rec(b, "r5")["evolve_to"] = "nope"
-def mut_time_order(b): rec(b, "r4")["valid_from"] = "2024-01-01T00:00:00"
+def mut_evolve_missing(b):
+    rec(b, "r5")["evolve_to"] = "nope"
+
+
+def mut_time_order(b):
+    rec(b, "r4")["valid_from"] = "2024-01-01T00:00:00"
+
+
 def mut_dup_content(b):
-    b["records"].append({"item": "c1", "phase": "post_ingest", "record_id": "r6", "channel": "fact",
-                         "content": "  bram PLAYS viola ", "parents": ["r1"], "parent_turns": ["T1"]})
+    b["records"].append(
+        {
+            "item": "c1",
+            "phase": "post_ingest",
+            "record_id": "r6",
+            "channel": "fact",
+            "content": "  bram PLAYS viola ",
+            "parents": ["r1"],
+            "parent_turns": ["T1"],
+        }
+    )
 
 
-def mut_parent_turn_outside(b): rec(b, "r4")["parent_turns"] = ["T1", "T99"]
-def mut_wall_clock(b): rec(b, "r4")["valid_from"] = RUN_DATE + "T08:00:00"
-def mut_edge_missing(b): b["links"][1]["dst"] = "n_missing"
-def mut_sleep_not_idempotent(b): b["sleep"][1]["output_ids"] = ["r9"]
-def mut_no_plan(b): b["questions"][0]["plan"] = {}
-def mut_no_leg(b): b["questions"][0]["legs"] = {}
-def mut_over_budget(b): b["questions"][0]["budget"] = 20
-def mut_gold_path(b): b["questions"][0]["gold_path"][0]["last_stage_reached"] = "pool"
+def mut_parent_turn_outside(b):
+    rec(b, "r4")["parent_turns"] = ["T1", "T99"]
+
+
+def mut_wall_clock(b):
+    rec(b, "r4")["valid_from"] = RUN_DATE + "T08:00:00"
+
+
+def mut_edge_missing(b):
+    b["links"][1]["dst"] = "n_missing"
+
+
+def mut_sleep_not_idempotent(b):
+    b["sleep"][1]["output_ids"] = ["r9"]
+
+
+def mut_no_plan(b):
+    b["questions"][0]["plan"] = {}
+
+
+def mut_no_leg(b):
+    b["questions"][0]["legs"] = {}
+
+
+def mut_over_budget(b):
+    b["questions"][0]["budget"] = 20
+
+
+def mut_gold_path(b):
+    b["questions"][0]["gold_path"][0]["last_stage_reached"] = "pool"
 
 
 CASES = [
@@ -231,7 +413,10 @@ def test_outputs_written(tmp_path):
     b = good()
     mut_not_vector(b)
     C.run_checks(write(tmp_path, b))
-    rows = [json.loads(ln) for ln in (tmp_path / "checks.jsonl").read_text(encoding="utf-8").splitlines()]
+    rows = [
+        json.loads(ln)
+        for ln in (tmp_path / "checks.jsonl").read_text(encoding="utf-8").splitlines()
+    ]
     assert {"check_id", "scope", "id", "ok", "detail"} <= set(rows[0])
     md = (tmp_path / "checks_summary.md").read_text(encoding="utf-8")
     assert "turn_in_vector_index" in md and "T2" in md and "## Item c1" in md
@@ -239,11 +424,22 @@ def test_outputs_written(tmp_path):
 
 def test_summary_lists_first_ten_failures_only(tmp_path):
     b = good()
-    b["turns"] = [{"item": "c1", "session": "s1", "turn_id": f"X{i}", "record_id": f"q{i}",
-                   "indexed": {"vector": False}} for i in range(15)]
+    b["turns"] = [
+        {
+            "item": "c1",
+            "session": "s1",
+            "turn_id": f"X{i}",
+            "record_id": f"q{i}",
+            "indexed": {"vector": False},
+        }
+        for i in range(15)
+    ]
     C.run_checks(write(tmp_path, {"turns": b["turns"]}))
-    line = next(ln for ln in (tmp_path / "checks_summary.md").read_text(encoding="utf-8").splitlines()
-                if ln.startswith("| turn_in_vector_index"))
+    line = next(
+        ln
+        for ln in (tmp_path / "checks_summary.md").read_text(encoding="utf-8").splitlines()
+        if ln.startswith("| turn_in_vector_index")
+    )
     assert "X9" in line and "X10" not in line and "| 0 | 15 |" in line
 
 

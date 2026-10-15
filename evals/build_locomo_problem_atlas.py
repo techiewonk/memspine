@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """LOCOMO-ATLAS: per-session / per-question problem table, solution links, recoverable estimates, measured flips.
 
     python evals/build_locomo_problem_atlas.py [--run clean-jina-full] [--no-html] [--no-doc]
@@ -39,12 +38,12 @@ RUNS = HERE / "runs"
 sys.path[:] = [p for p in sys.path if Path(p or ".").resolve() != HERE]
 sys.path.append(str(HERE))
 
-import build_forensics_explorer as BFE  # noqa: E402  (assert_ignored, dumps, OUT_DIR: the existing refusal of non-ignored paths)
-import build_locomo_solution_map as SM  # noqa: E402
-import locomo_atlas_data as AD  # noqa: E402
-import locomo_problem_classes as PC  # noqa: E402
-from memspine_evals.date_check import date_equivalent  # noqa: E402
-from memspine_evals.judge_conventions import check_conventions  # noqa: E402
+import build_forensics_explorer as BFE
+import build_locomo_solution_map as SM
+import locomo_atlas_data as AD
+import locomo_problem_classes as PC
+from memspine_evals.date_check import date_equivalent
+from memspine_evals.judge_conventions import check_conventions
 
 OUT_DIR = BFE.OUT_DIR
 DATA = Path(os.environ.get("LOCOMO_DATA", REPO / "data" / "locomo10.json"))
@@ -74,8 +73,16 @@ def ensure_fx(run: str) -> Path:
         return fx
     env = dict(os.environ, PYTHONPATH=os.pathsep.join([str(REPO / "src"), str(HERE)]))
     cmd = [
-        sys.executable, str(HERE / "forensics_report.py"), "--run", str(RUNS / f"{run}--memspine"),
-        "--forensics", str(RUNS / f"{run}--forensics"), "--data", str(DATA), "--out", str(fx.parent),
+        sys.executable,
+        str(HERE / "forensics_report.py"),
+        "--run",
+        str(RUNS / f"{run}--memspine"),
+        "--forensics",
+        str(RUNS / f"{run}--forensics"),
+        "--data",
+        str(DATA),
+        "--out",
+        str(fx.parent),
     ]
     subprocess.run(cmd, check=True, env=env)
     return fx
@@ -97,14 +104,19 @@ def load_dataset() -> dict[str, dict]:
             if m and isinstance(v, list):
                 n = int(m.group(1))
                 sess[n] = {"date": conv.get(f"session_{n}_date_time", ""), "n_turns": len(v)}
-        out[c["sample_id"]] = {"speakers": (conv["speaker_a"], conv["speaker_b"]), "sessions": dict(sorted(sess.items()))}
+        out[c["sample_id"]] = {
+            "speakers": (conv["speaker_a"], conv["speaker_b"]),
+            "sessions": dict(sorted(sess.items())),
+        }
     return out
 
 
 def context_non_gold(run: str, wanted: set[tuple[str, str]]) -> dict[tuple[str, str], list[str]]:
     """Texts of context records that are not gold turns, for the wanted (item, qid) only (streams the forensics file)."""
     out: dict[tuple[str, str], list[str]] = {}
-    with open(RUNS / f"{run}--forensics" / "forensics.jsonl", encoding="utf-8", errors="replace") as fh:
+    with open(
+        RUNS / f"{run}--forensics" / "forensics.jsonl", encoding="utf-8", errors="replace"
+    ) as fh:
         for line in fh:
             if not line.strip():
                 continue
@@ -130,10 +142,16 @@ def classify_all(rows: list[dict], ds: dict, errata: dict, ctx: dict) -> list[di
             gold_texts = {(g.get("text") or "") for g in r.get("gold_turns") or []}
             non_gold = [t for t in ctx.get(k, []) if t not in gold_texts]
         res = PC.classify_row(
-            r, errata_tag=errata.get(k), convention_credit=cred, date_guard_equivalent=date_eq,
-            non_gold_context=non_gold, speakers=conv.get("speakers", ()),
+            r,
+            errata_tag=errata.get(k),
+            convention_credit=cred,
+            date_guard_equivalent=date_eq,
+            non_gold_context=non_gold,
+            speakers=conv.get("speakers", ()),
         )
-        sess = [[s, (conv.get("sessions", {}).get(s) or {}).get("date", "")] for s in PC.sessions_of(r)]
+        sess = [
+            [s, (conv.get("sessions", {}).get(s) or {}).get("date", "")] for s in PC.sessions_of(r)
+        ]
         out.append({"row": r, "cls": res, "sessions": sess, "dev": r["item"] in DEV})
     return out
 
@@ -165,7 +183,13 @@ def validate_vs_hand(ds: dict, errata: dict) -> dict:
         exact += mine == hand
         grp += mine.split(":")[0] == hand.split(":")[0]
         conf[(hand, mine)] += 1
-    return {"available": True, "n": n, "exact": exact, "group": grp, "confusion": {f"{h}>{m}": v for (h, m), v in sorted(conf.items(), key=lambda kv: -kv[1])}}
+    return {
+        "available": True,
+        "n": n,
+        "exact": exact,
+        "group": grp,
+        "confusion": {f"{h}>{m}": v for (h, m), v in sorted(conf.items(), key=lambda kv: -kv[1])},
+    }
 
 
 # ---------------------------------------------------------------------------------------------------------------------
@@ -178,7 +202,15 @@ def class_counts(cl: list[dict]) -> dict:
     cxs = collections.Counter((x["cls"]["rclass"], x["cls"]["stage"]) for x in wrong)
     cxc = collections.Counter((x["cls"]["rclass"], x["row"]["category"]) for x in wrong)
     sxc = collections.Counter((x["cls"]["stage"], x["row"]["category"]) for x in wrong)
-    return {"n": len(cl), "wrong": len(wrong), "by_class": by_cls, "by_stage": by_stage, "class_stage": cxs, "class_cat": cxc, "stage_cat": sxc}
+    return {
+        "n": len(cl),
+        "wrong": len(wrong),
+        "by_class": by_cls,
+        "by_stage": by_stage,
+        "class_stage": cxs,
+        "class_cat": cxc,
+        "stage_cat": sxc,
+    }
 
 
 def screen_estimates(smap: dict, counts: dict) -> list[dict]:
@@ -190,11 +222,23 @@ def screen_estimates(smap: dict, counts: dict) -> list[dict]:
         ub_s = sum(bc.get(c, 0) for c in t["secondary"])
         rows.append(
             {
-                "id": sid, "title": s["title"], "setting": s["setting"], "status": s["status"], "layer": s["layer"],
-                "reader_only": s["reader_only"], "bundle": sid in SM.BUNDLE_OF, "est_min": s.get("est_min"), "sets": s.get("sets"),
-                "primary": t["primary"], "secondary": t["secondary"], "solutions": t["solutions"],
-                "ub_primary": ub_p, "ub_secondary": ub_s, "ub_all": ub_p + ub_s,
-                "exp30": round(ub_p * CAPTURES[0], 1), "exp60": round(ub_p * CAPTURES[1], 1),
+                "id": sid,
+                "title": s["title"],
+                "setting": s["setting"],
+                "status": s["status"],
+                "layer": s["layer"],
+                "reader_only": s["reader_only"],
+                "bundle": sid in SM.BUNDLE_OF,
+                "est_min": s.get("est_min"),
+                "sets": s.get("sets"),
+                "primary": t["primary"],
+                "secondary": t["secondary"],
+                "solutions": t["solutions"],
+                "ub_primary": ub_p,
+                "ub_secondary": ub_s,
+                "ub_all": ub_p + ub_s,
+                "exp30": round(ub_p * CAPTURES[0], 1),
+                "exp60": round(ub_p * CAPTURES[1], 1),
                 "exp30_all": round((ub_p + ub_s) * CAPTURES[0], 1),
             }
         )
@@ -217,8 +261,19 @@ def solution_estimates(smap: dict, counts: dict) -> list[dict]:
         sec = [c for c, r in s["classes"].items() if r == "secondary"]
         ub = sum(bc.get(c, 0) for c in prim)
         out.append(
-            {"id": s["id"], "name": s["name"], "status": s["status"], "screens": s["screens"], "keys": s["keys"], "primary": prim, "secondary": sec,
-             "ub_primary": ub, "ub_secondary": sum(bc.get(c, 0) for c in sec), "exp30": round(ub * CAPTURES[0], 1), "exp60": round(ub * CAPTURES[1], 1)}
+            {
+                "id": s["id"],
+                "name": s["name"],
+                "status": s["status"],
+                "screens": s["screens"],
+                "keys": s["keys"],
+                "primary": prim,
+                "secondary": sec,
+                "ub_primary": ub,
+                "ub_secondary": sum(bc.get(c, 0) for c in sec),
+                "exp30": round(ub * CAPTURES[0], 1),
+                "exp60": round(ub * CAPTURES[1], 1),
+            }
         )
     out.sort(key=lambda r: -r["ub_primary"])
     return out
@@ -261,7 +316,10 @@ SLICE_REFS = {
     80: "smp-ref-scr-pool-protect-jina-c0a8dd8b-sample-loc-80-s20261013",
     60: "smp-ref-scr-pool-protect-jina-c0a8dd8b-sample-loc-60-s20261013-c3",
 }
-NOISE_PAIR = ("smp-ref-scr-pool-protect-jina-c0a8dd8b-sample-loc-80-s20261013", "smp-ref-scr-pool-protect-jina-410a4707-sample-loc-80-s20261013")
+NOISE_PAIR = (
+    "smp-ref-scr-pool-protect-jina-c0a8dd8b-sample-loc-80-s20261013",
+    "smp-ref-scr-pool-protect-jina-410a4707-sample-loc-80-s20261013",
+)
 DECLARED_REF = {"S28": "S02", "S30": "S02", "S31": "S02", "S32": "S02", "S33": "S02"}
 
 
@@ -275,7 +333,9 @@ def measured_flips(smap: dict, cl: list[dict]) -> dict:
     noise = sum(1 for k in a if k in b and a[k] != b[k])
     r80 = refs[SLICE_REFS[80]]
     out = {
-        "noise_flips_80_ref_pair": noise, "noise_pair_n": sum(1 for k in a if k in b), "screens": [],
+        "noise_flips_80_ref_pair": noise,
+        "noise_pair_n": sum(1 for k in a if k in b),
+        "screens": [],
         "ref_vs_full_80": sum(1 for k, v in r80.items() if k in ok_full and bool(v) != ok_full[k]),
     }
     for sid, v in samples.items():
@@ -302,38 +362,78 @@ def measured_flips(smap: dict, cl: list[dict]) -> dict:
 
         gains, losses = flips(ref_sc)
         info = {
-            "screen": sid, "run": v["run"], "n": len(sc), "ref": ref_name, "ref_correct": int(sum(ref_sc.get(k, 0) for k in sc if k in ref_sc)),
-            "screen_correct": int(sum(sc.values())), "gains": len(gains), "losses": len(losses), "net": len(gains) - len(losses),
-            "targets_primary": sorted(prim), "gains_detail": [], "losses_detail": [],
+            "screen": sid,
+            "run": v["run"],
+            "n": len(sc),
+            "ref": ref_name,
+            "ref_correct": int(sum(ref_sc.get(k, 0) for k in sc if k in ref_sc)),
+            "screen_correct": int(sum(sc.values())),
+            "gains": len(gains),
+            "losses": len(losses),
+            "net": len(gains) - len(losses),
+            "targets_primary": sorted(prim),
+            "gains_detail": [],
+            "losses_detail": [],
         }
         for k in gains:
             c = cls_of.get(k, "?")
-            info["gains_detail"].append({"item": k[0], "qid": k[1], "class": c, "was_wrong_in_full": not ok_full.get(k, True), "target": "primary" if c in prim else "secondary" if c in sec else "other"})
+            info["gains_detail"].append(
+                {
+                    "item": k[0],
+                    "qid": k[1],
+                    "class": c,
+                    "was_wrong_in_full": not ok_full.get(k, True),
+                    "target": "primary" if c in prim else "secondary" if c in sec else "other",
+                }
+            )
         for k in losses:
-            info["losses_detail"].append({"item": k[0], "qid": k[1], "class": cls_of.get(k, "?"), "was_wrong_in_full": not ok_full.get(k, True)})
+            info["losses_detail"].append(
+                {
+                    "item": k[0],
+                    "qid": k[1],
+                    "class": cls_of.get(k, "?"),
+                    "was_wrong_in_full": not ok_full.get(k, True),
+                }
+            )
         info["gains_primary"] = sum(1 for d in info["gains_detail"] if d["target"] == "primary")
         info["gains_secondary"] = sum(1 for d in info["gains_detail"] if d["target"] == "secondary")
         info["gains_other"] = sum(1 for d in info["gains_detail"] if d["target"] == "other")
-        info["gains_noise_full_correct"] = sum(1 for d in info["gains_detail"] if not d["was_wrong_in_full"])
-        info["losses_on_full_correct"] = sum(1 for d in info["losses_detail"] if not d["was_wrong_in_full"])
+        info["gains_noise_full_correct"] = sum(
+            1 for d in info["gains_detail"] if not d["was_wrong_in_full"]
+        )
+        info["losses_on_full_correct"] = sum(
+            1 for d in info["losses_detail"] if not d["was_wrong_in_full"]
+        )
         in_slice = [k for k in sc if k in cls_of and not ok_full.get(k, True)]
         info["slice_wrong_in_full"] = len(in_slice)
         info["slice_wrong_in_target"] = sum(1 for k in in_slice if cls_of[k] in prim)
         d = DECLARED_REF.get(sid)
         if d and d in scores:
             g2, l2 = flips(scores[d])
-            info["vs_declared"] = {"ref": d, "gains": len(g2), "losses": len(l2), "net": len(g2) - len(l2)}
+            info["vs_declared"] = {
+                "ref": d,
+                "gains": len(g2),
+                "losses": len(l2),
+                "net": len(g2) - len(l2),
+            }
         # verdict on "does the screen fix the class it targets"
         if not prim and not sec:
             info["fixes_target"] = "no LoCoMo class targeted"
         elif not prim:
-            info["fixes_target"] = "secondary classes only" + (" (gain seen)" if info["gains_secondary"] else "")
+            info["fixes_target"] = "secondary classes only" + (
+                " (gain seen)" if info["gains_secondary"] else ""
+            )
         elif info["slice_wrong_in_target"] == 0:
-            info["fixes_target"] = "untestable here (no wrong target-class question in the slice)" + (", flips are churn elsewhere" if info["gains"] or info["losses"] else ", inert")
+            info["fixes_target"] = (
+                "untestable here (no wrong target-class question in the slice)"
+                + (", flips are churn elsewhere" if info["gains"] or info["losses"] else ", inert")
+            )
         elif info["gains_primary"] == 0:
             info["fixes_target"] = "no" if info["gains"] or info["losses"] else "inert (no flips)"
         else:
-            info["fixes_target"] = "yes" if info["gains_primary"] > info["gains_other"] else "partly"
+            info["fixes_target"] = (
+                "yes" if info["gains_primary"] > info["gains_other"] else "partly"
+            )
         out["screens"].append(info)
     return out
 
@@ -350,18 +450,52 @@ def table_rows(cl: list[dict], smap: dict) -> list[dict]:
         for g in r.get("gold_turns") or []:
             rk = g.get("ranks") or {}
             gts.append(
-                {"turn": g["turn"], "ts": g.get("source_timestamp"), "in_context": bool(g.get("in_context")), "lost_at": g.get("lost_at"),
-                 "vector": rk.get("vector"), "lexical": rk.get("lexical"), "extra": {k: v for k, v in (rk.get("extra") or {}).items()},
-                 "fused": rk.get("fused"), "pool": rk.get("pool"), "rerank": rk.get("rerank_order"), "final": rk.get("final"),
-                 "text": g.get("text")}
+                {
+                    "turn": g["turn"],
+                    "ts": g.get("source_timestamp"),
+                    "in_context": bool(g.get("in_context")),
+                    "lost_at": g.get("lost_at"),
+                    "vector": rk.get("vector"),
+                    "lexical": rk.get("lexical"),
+                    "extra": {k: v for k, v in (rk.get("extra") or {}).items()},
+                    "fused": rk.get("fused"),
+                    "pool": rk.get("pool"),
+                    "rerank": rk.get("rerank_order"),
+                    "final": rk.get("final"),
+                    "text": g.get("text"),
+                }
             )
-        sol = [{"id": s["solution"], "relation": s["relation"], "status": s["status"], "screens": s["screens"]} for s in smap["classes"][c["rclass"]]["solutions"]]
+        sol = [
+            {
+                "id": s["solution"],
+                "relation": s["relation"],
+                "status": s["status"],
+                "screens": s["screens"],
+            }
+            for s in smap["classes"][c["rclass"]]["solutions"]
+        ]
         rows.append(
-            {"item": r["item"], "qid": r["qid"], "category": r["category"], "dev": x["dev"], "correct": bool(r["correct"]), "stage": c["stage"],
-             "rclass": c["rclass"], "heuristic": c["heuristic"], "tags": c["tags"], "question": r["question"], "gold": r["gold_answer"],
-             "answer": r["answer"], "bucket": (r.get("reader_bucket") or {}).get("bucket"), "primary_gap": r.get("primary_gap"),
-             "all_gold_in_context": all(g["in_context"] for g in gts) if gts else None, "n_gold": len(gts), "sessions": x["sessions"],
-             "gold_turns": gts, "solutions": sol}
+            {
+                "item": r["item"],
+                "qid": r["qid"],
+                "category": r["category"],
+                "dev": x["dev"],
+                "correct": bool(r["correct"]),
+                "stage": c["stage"],
+                "rclass": c["rclass"],
+                "heuristic": c["heuristic"],
+                "tags": c["tags"],
+                "question": r["question"],
+                "gold": r["gold_answer"],
+                "answer": r["answer"],
+                "bucket": (r.get("reader_bucket") or {}).get("bucket"),
+                "primary_gap": r.get("primary_gap"),
+                "all_gold_in_context": all(g["in_context"] for g in gts) if gts else None,
+                "n_gold": len(gts),
+                "sessions": x["sessions"],
+                "gold_turns": gts,
+                "solutions": sol,
+            }
         )
     return rows
 
@@ -371,7 +505,9 @@ def table_rows(cl: list[dict], smap: dict) -> list[dict]:
 # ---------------------------------------------------------------------------------------------------------------------
 def full_results(run: str) -> dict[tuple[str, str], dict]:
     out: dict[tuple[str, str], dict] = {}
-    with open(RUNS / f"{run}--memspine" / "results.jsonl", encoding="utf-8", errors="replace") as fh:
+    with open(
+        RUNS / f"{run}--memspine" / "results.jsonl", encoding="utf-8", errors="replace"
+    ) as fh:
         for line in fh:
             if '"kind": "result"' in line:
                 r = json.loads(line)
@@ -381,11 +517,17 @@ def full_results(run: str) -> dict[tuple[str, str], dict]:
 
 def forensics_context(run: str):
     """Stream the forensics file keeping only what the viewer needs (item, query_id, context_records)."""
-    with open(RUNS / f"{run}--forensics" / "forensics.jsonl", encoding="utf-8", errors="replace") as fh:
+    with open(
+        RUNS / f"{run}--forensics" / "forensics.jsonl", encoding="utf-8", errors="replace"
+    ) as fh:
         for line in fh:
             if line.strip():
                 r = json.loads(line)
-                yield {"item": r.get("item"), "query_id": r.get("query_id"), "context_records": r.get("context_records") or []}
+                yield {
+                    "item": r.get("item"),
+                    "query_id": r.get("query_id"),
+                    "context_records": r.get("context_records") or [],
+                }
 
 
 def run_answers(name: str) -> dict[tuple[str, str], tuple[float, str]]:
@@ -399,7 +541,10 @@ def run_answers(name: str) -> dict[tuple[str, str], tuple[float, str]]:
                 continue
             r = json.loads(line)
             if r.get("status") == "completed" or r.get("score") is not None:
-                out[(r["item_id"], r["query_id"])] = (float(r.get("score") or 0.0), r.get("answer") or "")
+                out[(r["item_id"], r["query_id"])] = (
+                    float(r.get("score") or 0.0),
+                    r.get("answer") or "",
+                )
     return out
 
 
@@ -429,7 +574,13 @@ def screen_run_flips(run: str, rows: list[dict]) -> list[dict]:
         fl = AD.screen_flips(ref, sc)
         meta = {"screen": sid, "run": name, "ref": ref_name, "mode": mode, "n": len(sc)}
         AD.attach_flips(rows, meta, fl)
-        info.append({**meta, "gains": sum(f["kind"] == "gain" for f in fl), "losses": sum(f["kind"] == "loss" for f in fl)})
+        info.append(
+            {
+                **meta,
+                "gains": sum(f["kind"] == "gain" for f in fl),
+                "losses": sum(f["kind"] == "loss" for f in fl),
+            }
+        )
     return info
 
 
@@ -459,8 +610,16 @@ def session_view(ds: dict, rows: list[dict]) -> dict:
         for n, s in d["sessions"].items():
             qs = [r for r in rows if r["item"] == item and any(x[0] == n for x in r["sessions"])]
             wrong = [r for r in qs if not r["correct"]]
-            ses.append({"s": n, "date": s["date"], "n_turns": s["n_turns"], "n_q": len(qs), "n_wrong": len(wrong),
-                        "classes": dict(collections.Counter(r["rclass"] for r in wrong))})
+            ses.append(
+                {
+                    "s": n,
+                    "date": s["date"],
+                    "n_turns": s["n_turns"],
+                    "n_q": len(qs),
+                    "n_wrong": len(wrong),
+                    "classes": dict(collections.Counter(r["rclass"] for r in wrong)),
+                }
+            )
         out[item] = ses
     return out
 
@@ -490,33 +649,70 @@ def pct(a: float, b: float) -> str:
     return f"{100 * a / b:.1f}" if b else "-"
 
 
-def render_md(run: str, cl: list[dict], counts: dict, smap: dict, sest: list[dict], solest: list[dict], flips: dict, val: dict) -> str:
+def render_md(
+    run: str,
+    cl: list[dict],
+    counts: dict,
+    smap: dict,
+    sest: list[dict],
+    solest: list[dict],
+    flips: dict,
+    val: dict,
+) -> str:
     n, wrong = counts["n"], counts["wrong"]
     bc, cxs, cxc = counts["by_class"], counts["class_stage"], counts["class_cat"]
     L: list[str] = []
     A = L.append
     A("# LoCoMo problem map: class x stage x category, solutions, screens (LOCOMO-ATLAS)")
     A("")
-    A(f"Generated {datetime.now():%Y-%m-%d} by `evals/build_locomo_problem_atlas.py` from existing run files only (CPU, no model call). **Text-free**: ids, codes, counts, numbers. The per-question explorer (`evals/runs/_analysis/locomo_problem_atlas.html`) and the per-question table carry dataset text and stay local and gitignored.")
+    A(
+        f"Generated {datetime.now():%Y-%m-%d} by `evals/build_locomo_problem_atlas.py` from existing run files only (CPU, no model call). **Text-free**: ids, codes, counts, numbers. The per-question explorer (`evals/runs/_analysis/locomo_problem_atlas.html`) and the per-question table carry dataset text and stay local and gitignored."
+    )
     A("")
-    A(f"- **Run used: `{run}`** (latest clean full reference, jina reranker v3.5, Qwen3.5-9B reader and judge). It has leg ranks (`{run}--forensics/forensics.jsonl`) but no `--trace` folder, so the stage codes are computed here from the logged ranks and the classifier below, not read from the hand labels of `full-persp-loc`. Hand-label agreement is checked on `full-persp-loc` (section 3).")
-    A(f"- Scope: all 10 conversations, categories 1-4 ({n} questions, {wrong} wrong = {pct(n - wrong, n)}% correct). The run has no category 5 (the manifest says `full+cat1/2/3/4`), so cat 5 is not in this map.")
-    A("- Per-question labels (text-free): `evals/analysis/locomo_problem_labels_" + run.replace("-", "_") + ".txt`; per-session counts: `evals/analysis/locomo_session_problem_counts_" + run.replace("-", "_") + ".csv`. Solution map (data): `evals/analysis/locomo_solution_map.json` (generator `evals/build_locomo_solution_map.py`).")
-    A("- All recoverable numbers are **hypotheses** (capture-rate assumptions on measured class sizes), not measurements.")
+    A(
+        f"- **Run used: `{run}`** (latest clean full reference, jina reranker v3.5, Qwen3.5-9B reader and judge). It has leg ranks (`{run}--forensics/forensics.jsonl`) but no `--trace` folder, so the stage codes are computed here from the logged ranks and the classifier below, not read from the hand labels of `full-persp-loc`. Hand-label agreement is checked on `full-persp-loc` (section 3)."
+    )
+    A(
+        f"- Scope: all 10 conversations, categories 1-4 ({n} questions, {wrong} wrong = {pct(n - wrong, n)}% correct). The run has no category 5 (the manifest says `full+cat1/2/3/4`), so cat 5 is not in this map."
+    )
+    A(
+        "- Per-question labels (text-free): `evals/analysis/locomo_problem_labels_"
+        + run.replace("-", "_")
+        + ".txt`; per-session counts: `evals/analysis/locomo_session_problem_counts_"
+        + run.replace("-", "_")
+        + ".csv`. Solution map (data): `evals/analysis/locomo_solution_map.json` (generator `evals/build_locomo_solution_map.py`)."
+    )
+    A(
+        "- All recoverable numbers are **hypotheses** (capture-rate assumptions on measured class sizes), not measurements."
+    )
     A("")
     A("## 1. Class x stage x category (wrong answers)")
     A("")
-    A("`stage` is the weakest link (a write, b recall, cf fusion/pool cut, cr rerank_keep cut, d reader sub-type, e judge/metric, f gold error). `H` marks a heuristic class (the rule reads wording or token overlap; the rule text is in the JSON map); the rest are direct tests of logged ranks, tags or flags.")
+    A(
+        "`stage` is the weakest link (a write, b recall, cf fusion/pool cut, cr rerank_keep cut, d reader sub-type, e judge/metric, f gold error). `H` marks a heuristic class (the rule reads wording or token overlap; the rule text is in the JSON map); the rest are direct tests of logged ranks, tags or flags."
+    )
     A("")
-    A("| class | H | stage(s) | single-hop | multi-hop | temporal | open-domain | total | % of wrong |")
+    A(
+        "| class | H | stage(s) | single-hop | multi-hop | temporal | open-domain | total | % of wrong |"
+    )
     A("|---|---|---|---:|---:|---:|---:|---:|---:|")
     order = sorted((c for c in bc), key=lambda c: -bc[c])
     for c in order:
-        st = ", ".join(f"{s} {v}" for (cc, s), v in sorted(cxs.items(), key=lambda kv: -kv[1]) if cc == c)
+        st = ", ".join(
+            f"{s} {v}" for (cc, s), v in sorted(cxs.items(), key=lambda kv: -kv[1]) if cc == c
+        )
         cells = [cxc.get((c, cat), 0) for cat in CATS]
-        A(f"| `{c}` | {'H' if PC.CLASSES[c]['heuristic'] else ''} | {st} | " + " | ".join(str(v) for v in cells) + f" | {bc[c]} | {pct(bc[c], wrong)} |")
+        A(
+            f"| `{c}` | {'H' if PC.CLASSES[c]['heuristic'] else ''} | {st} | "
+            + " | ".join(str(v) for v in cells)
+            + f" | {bc[c]} | {pct(bc[c], wrong)} |"
+        )
     cat_tot = [sum(v for (cc, cat), v in cxc.items() if cat == k) for k in CATS]
-    A("| **all wrong** | | | " + " | ".join(f"**{v}**" for v in cat_tot) + f" | **{wrong}** | 100 |")
+    A(
+        "| **all wrong** | | | "
+        + " | ".join(f"**{v}**" for v in cat_tot)
+        + f" | **{wrong}** | 100 |"
+    )
     A("")
     A("| stage | single-hop | multi-hop | temporal | open-domain | total |")
     A("|---|---:|---:|---:|---:|---:|")
@@ -527,47 +723,81 @@ def render_md(run: str, cl: list[dict], counts: dict, smap: dict, sest: list[dic
         if sum(cells):
             A(f"| {s} {PC.STAGE_NAME[s]} | " + " | ".join(map(str, cells)) + f" | {sum(cells)} |")
     A("")
-    tags = collections.Counter(t.split(":")[0] if t.startswith(("errata", "convention")) else t for x in cl for t in x["cls"]["tags"])
-    A("Non-exclusive tags on wrong questions: " + ", ".join(f"`{k}` {v}" for k, v in tags.most_common()) + ".")
+    tags = collections.Counter(
+        t.split(":")[0] if t.startswith(("errata", "convention")) else t
+        for x in cl
+        for t in x["cls"]["tags"]
+    )
+    A(
+        "Non-exclusive tags on wrong questions: "
+        + ", ".join(f"`{k}` {v}" for k, v in tags.most_common())
+        + "."
+    )
     A("")
-    A("Dev (conv-26/30/41/42) against held-out wrong counts: " + f"{sum(1 for x in cl if not x['row']['correct'] and x['dev'])} of {sum(1 for x in cl if x['dev'])} dev questions, {sum(1 for x in cl if not x['row']['correct'] and not x['dev'])} of {sum(1 for x in cl if not x['dev'])} held-out.")
+    A(
+        "Dev (conv-26/30/41/42) against held-out wrong counts: "
+        + f"{sum(1 for x in cl if not x['row']['correct'] and x['dev'])} of {sum(1 for x in cl if x['dev'])} dev questions, {sum(1 for x in cl if not x['row']['correct'] and not x['dev'])} of {sum(1 for x in cl if not x['dev'])} held-out."
+    )
     A("")
     A("## 2. Per conversation")
     A("")
     A("| conversation | questions | wrong | accuracy % |")
     A("|---|---:|---:|---:|")
-    for item in sorted({x['row']['item'] for x in cl}, key=lambda s: int(s.split('-')[1])):
+    for item in sorted({x["row"]["item"] for x in cl}, key=lambda s: int(s.split("-")[1])):
         sub = [x for x in cl if x["row"]["item"] == item]
         w = sum(1 for x in sub if not x["row"]["correct"])
         A(f"| {item} | {len(sub)} | {w} | {pct(len(sub) - w, len(sub))} |")
     A("")
     nd, nh = sum(1 for x in cl if x["dev"]), sum(1 for x in cl if not x["dev"])
     dv = collections.Counter(x["cls"]["rclass"] for x in cl if not x["row"]["correct"] and x["dev"])
-    hv = collections.Counter(x["cls"]["rclass"] for x in cl if not x["row"]["correct"] and not x["dev"])
-    A("Dev (conv-26/30/41/42) against held-out (the other six) per 100 questions, classes with at least 5 wrong questions:")
+    hv = collections.Counter(
+        x["cls"]["rclass"] for x in cl if not x["row"]["correct"] and not x["dev"]
+    )
+    A(
+        "Dev (conv-26/30/41/42) against held-out (the other six) per 100 questions, classes with at least 5 wrong questions:"
+    )
     A("")
     A("| class | dev wrong | dev per 100 | held-out wrong | held-out per 100 |")
     A("|---|---:|---:|---:|---:|")
     for c in order:
         if bc[c] >= 5:
-            A(f"| `{c}` | {dv.get(c, 0)} | {100 * dv.get(c, 0) / nd:.1f} | {hv.get(c, 0)} | {100 * hv.get(c, 0) / nh:.1f} |")
+            A(
+                f"| `{c}` | {dv.get(c, 0)} | {100 * dv.get(c, 0) / nd:.1f} | {hv.get(c, 0)} | {100 * hv.get(c, 0) / nh:.1f} |"
+            )
     A("")
     A("## 3. Classifier check against the hand labels")
     A("")
     if val.get("available"):
-        A(f"`full-persp-loc` has one hand-read stage code per wrong answer (`full_persp_loc_stage_labels.txt`, 302 rows). The same classifier run on that run's logged ranks agrees on {val['exact']} of {val['n']} codes exactly ({pct(val['exact'], val['n'])}%) and on {val['group']} ({pct(val['group'], val['n'])}%) at the group level (b / cf / cr / d / e / f). Largest disagreements (hand > classifier): " + ", ".join(f"`{k}` {v}" for k, v in list(val["confusion"].items()) if k.split(">")[0] != k.split(">")[1])[:900] + ".")
+        A(
+            f"`full-persp-loc` has one hand-read stage code per wrong answer (`full_persp_loc_stage_labels.txt`, 302 rows). The same classifier run on that run's logged ranks agrees on {val['exact']} of {val['n']} codes exactly ({pct(val['exact'], val['n'])}%) and on {val['group']} ({pct(val['group'], val['n'])}%) at the group level (b / cf / cr / d / e / f). Largest disagreements (hand > classifier): "
+            + ", ".join(
+                f"`{k}` {v}"
+                for k, v in list(val["confusion"].items())
+                if k.split(">")[0] != k.split(">")[1]
+            )[:900]
+            + "."
+        )
         A("")
-        A("The reader sub-types and the e/f split are where rules and a human reader differ most; those classes are marked H. Retrieval stages (b, cf, cr) are direct tests of the logged ranks and agree by construction except where a question mixes lost turns.")
+        A(
+            "The reader sub-types and the e/f split are where rules and a human reader differ most; those classes are marked H. Retrieval stages (b, cf, cr) are direct tests of the logged ranks and agree by construction except where a question mixes lost turns."
+        )
     else:
         A("(hand-label comparison not available: `fx_full-persp-loc` or the label file is missing)")
     A("")
     A("## 4. Solution map: class to solution to setting to screen")
     A("")
-    A("Status: **ref** = on in the reference config; **off** = built in the engine, off by default; **harness** = eval-harness flag or reader prompt variant; **GAP** = proposed in a forensic doc, not built. `no screen` = built but no screen id is queued for it. Doc sections for every mapping are in `locomo_solution_map.json` (`doc_refs`).")
+    A(
+        "Status: **ref** = on in the reference config; **off** = built in the engine, off by default; **harness** = eval-harness flag or reader prompt variant; **GAP** = proposed in a forensic doc, not built. `no screen` = built but no screen id is queued for it. Doc sections for every mapping are in `locomo_solution_map.json` (`doc_refs`)."
+    )
     A("")
     A("| class (wrong q) | relation | solution | status | setting keys | screens |")
     A("|---|---|---|---|---|---|")
-    short = {"in_reference": "ref", "built_off_default": "off", "built_harness_flag": "harness", "not_built": "GAP"}
+    short = {
+        "in_reference": "ref",
+        "built_off_default": "off",
+        "built_harness_flag": "harness",
+        "not_built": "GAP",
+    }
     for c in order:
         meta = smap["classes"][c]
         sl = sorted(meta["solutions"], key=lambda x: (x["relation"] != "primary", x["solution"]))
@@ -577,16 +807,26 @@ def render_md(run: str, cl: list[dict], counts: dict, smap: dict, sest: list[dic
         for i, s in enumerate(sl):
             sdef = next(x for x in smap["solutions"] if x["id"] == s["solution"])
             keys = "; ".join(f"`{k}`" for k in sdef["keys"][:3])
-            scr = ", ".join(s["screens"]) if s["screens"] else ("no screen" if s["status"] != "not_built" else "-")
-            A(f"| {'`' + c + '` (' + str(bc[c]) + ')' if i == 0 else ''} | {s['relation']} | {sdef['name']} | {short[s['status']]} | {keys} | {scr} |")
+            scr = (
+                ", ".join(s["screens"])
+                if s["screens"]
+                else ("no screen" if s["status"] != "not_built" else "-")
+            )
+            A(
+                f"| {'`' + c + '` (' + str(bc[c]) + ')' if i == 0 else ''} | {s['relation']} | {sdef['name']} | {short[s['status']]} | {keys} | {scr} |"
+            )
     A("")
     A("## 5. Recoverable-question estimate")
     A("")
-    A(f"For each screen: the **upper bound** is the number of wrong questions in the classes the screen's solutions are aimed at (primary relation); the 30% and 60% columns apply a capture assumption to that bound (hypotheses, not measurements: the sample screens in section 6 are the only evidence). `+secondary` adds the classes the screen may touch (bound only, no capture). Bundles (S60-S64) are the union of their components, so their bound is not the sum of the parts. Ranked by upper bound among screens not yet final ({', '.join(OPEN_STATUSES)}).")
+    A(
+        f"For each screen: the **upper bound** is the number of wrong questions in the classes the screen's solutions are aimed at (primary relation); the 30% and 60% columns apply a capture assumption to that bound (hypotheses, not measurements: the sample screens in section 6 are the only evidence). `+secondary` adds the classes the screen may touch (bound only, no capture). Bundles (S60-S64) are the union of their components, so their bound is not the sum of the parts. Ranked by upper bound among screens not yet final ({', '.join(OPEN_STATUSES)})."
+    )
     A("")
     A("### 5.1 Ranked open screens")
     A("")
-    A("| rank | screen | status | setting | bundle | upper bound | 30% | 60% | +secondary | sample result | est min | primary classes |")
+    A(
+        "| rank | screen | status | setting | bundle | upper bound | 30% | 60% | +secondary | sample result | est min | primary classes |"
+    )
     A("|---:|---|---|---|---|---:|---:|---:|---:|---|---:|---|")
     fl = {s["screen"]: s for s in flips["screens"]}
 
@@ -598,10 +838,16 @@ def render_md(run: str, cl: list[dict], counts: dict, smap: dict, sest: list[dic
 
     openr = [r for r in sest if r["status"] in OPEN_STATUSES and r["ub_all"] > 0]
     for i, r in enumerate(openr, 1):
-        A(f"| {i} | {r['id']} {r['title']} | {r['status']} | `{r['setting']}` | {'yes' if r['bundle'] else ''} | {r['ub_primary']} | {r['exp30']} | {r['exp60']} | {r['ub_secondary']} | {sample(r['id'])} | {r['est_min'] or ''} | {', '.join(r['primary']) or '(secondary only)'} |")
+        A(
+            f"| {i} | {r['id']} {r['title']} | {r['status']} | `{r['setting']}` | {'yes' if r['bundle'] else ''} | {r['ub_primary']} | {r['exp30']} | {r['exp60']} | {r['ub_secondary']} | {sample(r['id'])} | {r['est_min'] or ''} | {', '.join(r['primary']) or '(secondary only)'} |"
+        )
     skipped = [r for r in sest if r["status"] in OPEN_STATUSES and r["ub_all"] == 0]
     A("")
-    A("Open screens that target no wrong LoCoMo class (parity, runtime or other-benchmark screens): " + (", ".join(f"{r['id']} ({r['setting']})" for r in skipped) or "none") + ".")
+    A(
+        "Open screens that target no wrong LoCoMo class (parity, runtime or other-benchmark screens): "
+        + (", ".join(f"{r['id']} ({r['setting']})" for r in skipped) or "none")
+        + "."
+    )
     A("")
     A("### 5.2 Other screens (final status or skipped), for reference")
     A("")
@@ -609,45 +855,76 @@ def render_md(run: str, cl: list[dict], counts: dict, smap: dict, sest: list[dic
     A("|---|---|---:|---:|---:|---|")
     for r in sest:
         if r["status"] not in OPEN_STATUSES and r["ub_primary"] > 0:
-            A(f"| {r['id']} {r['title']} | {r['status']} | {r['ub_primary']} | {r['exp30']} | {r['exp60']} | {smap['screens'][r['id']]['measured']} |")
+            A(
+                f"| {r['id']} {r['title']} | {r['status']} | {r['ub_primary']} | {r['exp30']} | {r['exp60']} | {smap['screens'][r['id']]['measured']} |"
+            )
     A("")
     A("### 5.3 Per solution")
     A("")
     A("| solution | status | upper bound | 30% | 60% | screens |")
     A("|---|---|---:|---:|---:|---|")
     for r in solest:
-        A(f"| {r['id']} {r['name']} | {short[r['status']]} | {r['ub_primary']} | {r['exp30']} | {r['exp60']} | {', '.join(r['screens']) or ('no screen' if r['status'] != 'not_built' else '-')} |")
+        A(
+            f"| {r['id']} {r['name']} | {short[r['status']]} | {r['ub_primary']} | {r['exp30']} | {r['exp60']} | {', '.join(r['screens']) or ('no screen' if r['status'] != 'not_built' else '-')} |"
+        )
     A("")
     A("### 5.4 Built solutions with no queued screen (testing gap), by upper bound")
     A("")
     A("| solution | status | upper bound | 30% | 60% | primary classes |")
     A("|---|---|---:|---:|---:|---|")
     for r in solest:
-        if r["status"] in ("built_off_default", "built_harness_flag") and not r["screens"] and r["ub_primary"] > 0:
-            A(f"| {r['id']} {r['name']} | {short[r['status']]} | {r['ub_primary']} | {r['exp30']} | {r['exp60']} | {', '.join(r['primary'])} |")
+        if (
+            r["status"] in ("built_off_default", "built_harness_flag")
+            and not r["screens"]
+            and r["ub_primary"] > 0
+        ):
+            A(
+                f"| {r['id']} {r['name']} | {short[r['status']]} | {r['ub_primary']} | {r['exp30']} | {r['exp60']} | {', '.join(r['primary'])} |"
+            )
     A("")
     A("## 6. Measured flips on the sample screens (cross-check)")
     A("")
-    A(f"Each `smp-S*-loc-*` run is compared question by question with its same-slice reference rerun (`{SLICE_REFS[80]}` for the 80-question slice, `{SLICE_REFS[60]}` for the 60-question 3-conversation slice used by sleep screens). Both slices were drawn from `{run}`. Rerun noise: two reruns of the same reference (different commits) on the 80-slice differ on {flips['noise_flips_80_ref_pair']} of {flips['noise_pair_n']} questions, and the 80-slice reference differs from `{run}` on {flips['ref_vs_full_80']} of 80, so at an identical configuration the pipeline is deterministic and a flip is caused by the screen's change (it can still be reader churn on a changed context rather than a fix of the targeted class). The class of a flipped question is its class in the full run.")
+    A(
+        f"Each `smp-S*-loc-*` run is compared question by question with its same-slice reference rerun (`{SLICE_REFS[80]}` for the 80-question slice, `{SLICE_REFS[60]}` for the 60-question 3-conversation slice used by sleep screens). Both slices were drawn from `{run}`. Rerun noise: two reruns of the same reference (different commits) on the 80-slice differ on {flips['noise_flips_80_ref_pair']} of {flips['noise_pair_n']} questions, and the 80-slice reference differs from `{run}` on {flips['ref_vs_full_80']} of 80, so at an identical configuration the pipeline is deterministic and a flip is caused by the screen's change (it can still be reader churn on a changed context rather than a fix of the targeted class). The class of a flipped question is its class in the full run."
+    )
     A("")
-    A("| screen | run | n | ref | screen | +gain | -loss | net | gain in target class | gain in secondary | gain elsewhere | gain was correct in full (noise) | loss on full-correct | wrong-in-full in slice (target) | fixes its class? |")
+    A(
+        "| screen | run | n | ref | screen | +gain | -loss | net | gain in target class | gain in secondary | gain elsewhere | gain was correct in full (noise) | loss on full-correct | wrong-in-full in slice (target) | fixes its class? |"
+    )
     A("|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|")
     for s in flips["screens"]:
-        A(f"| {s['screen']} | {s['run'].replace('smp-', '')} | {s['n']} | {s['ref_correct']} | {s['screen_correct']} | {s['gains']} | {s['losses']} | {s['net']:+d} | {s['gains_primary']} | {s['gains_secondary']} | {s['gains_other']} | {s['gains_noise_full_correct']} | {s['losses_on_full_correct']} | {s['slice_wrong_in_full']} ({s['slice_wrong_in_target']}) | {s['fixes_target']} |")
+        A(
+            f"| {s['screen']} | {s['run'].replace('smp-', '')} | {s['n']} | {s['ref_correct']} | {s['screen_correct']} | {s['gains']} | {s['losses']} | {s['net']:+d} | {s['gains_primary']} | {s['gains_secondary']} | {s['gains_other']} | {s['gains_noise_full_correct']} | {s['losses_on_full_correct']} | {s['slice_wrong_in_full']} ({s['slice_wrong_in_target']}) | {s['fixes_target']} |"
+        )
     A("")
     dec = [s for s in flips["screens"] if "vs_declared" in s]
     if dec:
-        A("Screens whose declared reference is the S02 graph arm (S28, S30-S33): " + "; ".join(f"{s['screen']} vs S02 {s['vs_declared']['gains']}/-{s['vs_declared']['losses']} (net {s['vs_declared']['net']:+d})" for s in dec) + ".")
+        A(
+            "Screens whose declared reference is the S02 graph arm (S28, S30-S33): "
+            + "; ".join(
+                f"{s['screen']} vs S02 {s['vs_declared']['gains']}/-{s['vs_declared']['losses']} (net {s['vs_declared']['net']:+d})"
+                for s in dec
+            )
+            + "."
+        )
         A("")
-    A("Flipped questions by class (gains in the run's own target classes are what a screen is for):")
+    A(
+        "Flipped questions by class (gains in the run's own target classes are what a screen is for):"
+    )
     A("")
     A("| screen | gained question ids (class) | lost question ids (class) |")
     A("|---|---|---|")
     for s in flips["screens"]:
         if not s["gains"] and not s["losses"]:
             continue
-        g = ", ".join(f"{d['item'][5:]}/{d['qid']} ({d['class']})" for d in s["gains_detail"]) or "-"
-        lo = ", ".join(f"{d['item'][5:]}/{d['qid']} ({d['class']})" for d in s["losses_detail"]) or "-"
+        g = (
+            ", ".join(f"{d['item'][5:]}/{d['qid']} ({d['class']})" for d in s["gains_detail"])
+            or "-"
+        )
+        lo = (
+            ", ".join(f"{d['item'][5:]}/{d['qid']} ({d['class']})" for d in s["losses_detail"])
+            or "-"
+        )
         A(f"| {s['screen']} | {g} | {lo} |")
     A("")
     A("## 7. Biggest gaps: no solution, no built solution, or no screen")
@@ -657,29 +934,55 @@ def render_md(run: str, cl: list[dict], counts: dict, smap: dict, sest: list[dic
     gaps = sorted(smap["structural_gaps"], key=lambda g: -bc.get(g["class"], 0))
     for g in gaps:
         meta = smap["classes"][g["class"]]
-        have = "; ".join(f"{x['solution']} ({short[x['status']]}, {x['relation']})" for x in meta["solutions"]) or "-"
-        A(f"| `{g['class']}` | {bc.get(g['class'], 0)} | {g['gap'].replace('_', ' ')}: {g['detail']} | {have} |")
+        have = (
+            "; ".join(
+                f"{x['solution']} ({short[x['status']]}, {x['relation']})"
+                for x in meta["solutions"]
+            )
+            or "-"
+        )
+        A(
+            f"| `{g['class']}` | {bc.get(g['class'], 0)} | {g['gap'].replace('_', ' ')}: {g['detail']} | {have} |"
+        )
     A("")
     zero = [c for c in PC.CLASSES if c not in bc and c != "ok"]
-    A("Classes with zero wrong questions in this run: " + (", ".join(f"`{c}`" for c in zero) or "none") + ".")
+    A(
+        "Classes with zero wrong questions in this run: "
+        + (", ".join(f"`{c}`" for c in zero) or "none")
+        + "."
+    )
     A("")
     A("## 8. Method and limits")
     A("")
-    A("- Stage codes come from the logged ranks per gold turn (`forensics_report.py`): `b` no leg ranked a gold turn, `cf` found in a leg then lost at the fused pool, `cr` lost at `rerank_keep`; a question's stage is its weakest link. A reader-stage question has every gold turn in the context.")
-    A("- Rule order in `classify_row` (first match): errata, judge conventions / date guard / answer contains gold, write path, then retrieval classes by category and question shape, then reader classes by `failure_buckets` bucket and wording. Heuristic classes (H) read wording, not only ranks.")
-    A("- `judge_false_negative` and `relative_date_gold_vs_judge` are candidates found by deterministic checks (conventions v1, `date_equivalent`, gold-words-in-answer); none was re-judged.")
-    A("- Class sizes depend on one run (one seed, 9B reader) and on the heuristics; capture rates and the 30/60% columns are assumptions. A solution that is already on in the reference (status ref) cannot recover its own class again; the residual it leaves is the class count shown.")
-    A("- Overlap: a question counts once in its class but can sit in the bound of several screens; screen bounds are therefore not additive.")
+    A(
+        "- Stage codes come from the logged ranks per gold turn (`forensics_report.py`): `b` no leg ranked a gold turn, `cf` found in a leg then lost at the fused pool, `cr` lost at `rerank_keep`; a question's stage is its weakest link. A reader-stage question has every gold turn in the context."
+    )
+    A(
+        "- Rule order in `classify_row` (first match): errata, judge conventions / date guard / answer contains gold, write path, then retrieval classes by category and question shape, then reader classes by `failure_buckets` bucket and wording. Heuristic classes (H) read wording, not only ranks."
+    )
+    A(
+        "- `judge_false_negative` and `relative_date_gold_vs_judge` are candidates found by deterministic checks (conventions v1, `date_equivalent`, gold-words-in-answer); none was re-judged."
+    )
+    A(
+        "- Class sizes depend on one run (one seed, 9B reader) and on the heuristics; capture rates and the 30/60% columns are assumptions. A solution that is already on in the reference (status ref) cannot recover its own class again; the residual it leaves is the class count shown."
+    )
+    A(
+        "- Overlap: a question counts once in its class but can sit in the bound of several screens; screen bounds are therefore not additive."
+    )
     A("")
     return "\n".join(L) + "\n"
 
 
 def write_labels(path: Path, cl: list[dict]) -> None:
-    lines = ["# item qid stage rclass: one line per wrong question (ids and codes only, no dataset text)."]
+    lines = [
+        "# item qid stage rclass: one line per wrong question (ids and codes only, no dataset text)."
+    ]
     for x in cl:
         if x["row"]["correct"]:
             continue
-        lines.append(f"{x['row']['item']} {x['row']['qid']} {x['cls']['stage']} {x['cls']['rclass']}")
+        lines.append(
+            f"{x['row']['item']} {x['row']['qid']} {x['cls']['stage']} {x['cls']['rclass']}"
+        )
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
@@ -728,9 +1031,16 @@ def main() -> None:
     coverage = AD.enrich_rows(trs, convs, AD.qa_index(raw), results, ctx)
     flip_runs = screen_run_flips(a.run, trs) if not a.no_html else []
 
-    labels = Path(a.labels) if a.labels else HERE / "analysis" / f"locomo_problem_labels_{a.run.replace('-', '_')}.txt"
+    labels = (
+        Path(a.labels)
+        if a.labels
+        else HERE / "analysis" / f"locomo_problem_labels_{a.run.replace('-', '_')}.txt"
+    )
     write_labels(labels, cl)
-    write_session_csv(labels.with_name(f"locomo_session_problem_counts_{a.run.replace('-', '_')}.csv"), session_view(ds, trs))
+    write_session_csv(
+        labels.with_name(f"locomo_session_problem_counts_{a.run.replace('-', '_')}.csv"),
+        session_view(ds, trs),
+    )
     write_local(Path(a.table), "\n".join(json.dumps(r, ensure_ascii=False) for r in trs) + "\n")
 
     md = render_md(a.run, cl, counts, smap, sest, solest, flips, val)
@@ -741,14 +1051,36 @@ def main() -> None:
         from locomo_atlas_html import render_html
 
         data = {
-            "run": a.run, "generated": datetime.now().strftime("%Y-%m-%d %H:%M"), "classes": {c: {k: v for k, v in m.items() if k != "solutions"} | {"solutions": m["solutions"], "n": counts["by_class"].get(c, 0)} for c, m in smap["classes"].items()},
-            "stages": PC.STAGE_NAME, "solutions": smap["solutions"], "screens": sest, "screen_defs": smap["screens"], "q": trs, "convs": sorted(ds, key=lambda s: int(s.split("-")[1])),
-            "sessions": session_view(ds, trs), "flips": flips, "gaps": smap["structural_gaps"], "val": val, "captures": CAPTURES, "open_statuses": OPEN_STATUSES,
-            "flip_runs": flip_runs, "coverage": coverage, "ctx_note": "Reader context = forensics context_records (ids and rendered text, in the order the reader saw them).",
+            "run": a.run,
+            "generated": datetime.now().strftime("%Y-%m-%d %H:%M"),
+            "classes": {
+                c: {k: v for k, v in m.items() if k != "solutions"}
+                | {"solutions": m["solutions"], "n": counts["by_class"].get(c, 0)}
+                for c, m in smap["classes"].items()
+            },
+            "stages": PC.STAGE_NAME,
+            "solutions": smap["solutions"],
+            "screens": sest,
+            "screen_defs": smap["screens"],
+            "q": trs,
+            "convs": sorted(ds, key=lambda s: int(s.split("-")[1])),
+            "sessions": session_view(ds, trs),
+            "flips": flips,
+            "gaps": smap["structural_gaps"],
+            "val": val,
+            "captures": CAPTURES,
+            "open_statuses": OPEN_STATUSES,
+            "flip_runs": flip_runs,
+            "coverage": coverage,
+            "ctx_note": "Reader context = forensics context_records (ids and rendered text, in the order the reader saw them).",
         }
-        write_local(Path(a.out), render_html(BFE.dumps(data), {k: BFE.dumps(v) for k, v in convs.items()}))
+        write_local(
+            Path(a.out), render_html(BFE.dumps(data), {k: BFE.dumps(v) for k, v in convs.items()})
+        )
         print("coverage:", coverage, "| screen runs with flips:", len(flip_runs))
-    print(f"{a.run}: {counts['n']} questions, {counts['wrong']} wrong; classes {dict(counts['by_class'].most_common())}")
+    print(
+        f"{a.run}: {counts['n']} questions, {counts['wrong']} wrong; classes {dict(counts['by_class'].most_common())}"
+    )
     print("hand-label check:", {k: v for k, v in val.items() if k != "confusion"})
 
 

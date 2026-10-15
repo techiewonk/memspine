@@ -5,12 +5,23 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-import build_plan as bp  # noqa: E402
+import build_plan as bp
 
 
 def row(i, deps=(), status="Not started"):
-    return {"id": i, "title": f"t{i}", "depends_on": list(deps), "status": status, "kind": "move", "lane": "x", "gate": "g",
-            "note": "", "decisions": [], "review": ["ER-01"], "phase": 1}
+    return {
+        "id": i,
+        "title": f"t{i}",
+        "depends_on": list(deps),
+        "status": status,
+        "kind": "move",
+        "lane": "x",
+        "gate": "g",
+        "note": "",
+        "decisions": [],
+        "review": ["ER-01"],
+        "phase": 1,
+    }
 
 
 class Overlap(unittest.TestCase):
@@ -99,8 +110,14 @@ class RealPlan(unittest.TestCase):
         tpl = "{{forbidden}}"
         text = bp.render_brief("X-03", rows, bp.OWNS, titles, bp.ALLOWED_SHARED, tpl)
         # Any owned package still open and outside X-03's dependency chain must appear (the live set changes as work lands).
-        live = [r["id"] for r in rows if r["id"] in bp.OWNS and r["id"] != "X-03" and not r["depends_on"]
-                and r["status"] not in bp.RELEASED]
+        live = [
+            r["id"]
+            for r in rows
+            if r["id"] in bp.OWNS
+            and r["id"] != "X-03"
+            and not r["depends_on"]
+            and r["status"] not in bp.RELEASED
+        ]
         if not live:
             self.skipTest("no concurrently open owned package without dependencies")
         self.assertTrue(any(f"({pid})" in text for pid in live), text)

@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """W2-02: stamping (LIB-29 wired). ``write.stamping_v2``, default OFF.
 
 Model-free: the hash embedder. All text is invented (Ilse, Bram, Noor, Tomasz). Covers: flag off is
@@ -45,10 +44,32 @@ async def rows(eng: Engine) -> list[MemoryRecord]:
 
 
 GROUP = [
-    {"role": "user", "speaker": "Ilse", "addressee": "Bram", "content": "Bram, I moved to Oslo", "timestamp": "2026-03-01T09:00:00+09:00", "tz": "Asia/Tokyo"},
-    {"role": "user", "speaker": "Bram", "addressee": "Ilse", "content": "Noor told me about it", "timestamp": "2026-03-01T01:05:00"},
-    {"role": "assistant", "content": "Shall I note the Oslo address?", "timestamp": "2026-03-01T01:06:00"},
-    {"role": "user", "speaker": "Ilse", "content": "yes please, note it", "timestamp": "2026-03-01T01:07:00"},
+    {
+        "role": "user",
+        "speaker": "Ilse",
+        "addressee": "Bram",
+        "content": "Bram, I moved to Oslo",
+        "timestamp": "2026-03-01T09:00:00+09:00",
+        "tz": "Asia/Tokyo",
+    },
+    {
+        "role": "user",
+        "speaker": "Bram",
+        "addressee": "Ilse",
+        "content": "Noor told me about it",
+        "timestamp": "2026-03-01T01:05:00",
+    },
+    {
+        "role": "assistant",
+        "content": "Shall I note the Oslo address?",
+        "timestamp": "2026-03-01T01:06:00",
+    },
+    {
+        "role": "user",
+        "speaker": "Ilse",
+        "content": "yes please, note it",
+        "timestamp": "2026-03-01T01:07:00",
+    },
 ]
 
 
@@ -164,7 +185,13 @@ def test_role_stamper_and_helper() -> None:
     assert out.spk == "noor" and "speaker_from_prefix" in out.notes
     assert out.participants == ("bram", "noor")
     assert out.src_class == "user_stated"
-    assert participants_of_call([{"role": "user", "name": "Ilse"}, {"role": "assistant"}, {"role": "user", "speaker": "ilse"}]) == ["ilse", "assistant"]
+    assert participants_of_call(
+        [
+            {"role": "user", "name": "Ilse"},
+            {"role": "assistant"},
+            {"role": "user", "speaker": "ilse"},
+        ]
+    ) == ["ilse", "assistant"]
 
 
 async def test_axes_round_trip_through_storage(tmp_path: Path) -> None:
@@ -226,7 +253,10 @@ async def test_assent_tag_only_for_real_assent(tmp_path: Path) -> None:
             [
                 {"role": "assistant", "content": "Shall I book the hive inspection for Friday?"},
                 {"role": "user", "content": "ok, thanks"},
-                {"role": "assistant", "content": "Shall I also order three new frames for the hive?"},
+                {
+                    "role": "assistant",
+                    "content": "Shall I also order three new frames for the hive?",
+                },
                 {"role": "user", "content": "yes please, order them"},
             ],
             namespace=NS,
@@ -243,15 +273,59 @@ async def test_assent_tag_only_for_real_assent(tmp_path: Path) -> None:
 
 
 ASSENT = [
-    "yes", "Yes please", "yeah, go ahead", "sure", "sounds good", "do it", "absolutely", "that's right",
-    "sí, adelante", "claro", "de acuerdo", "oui, allez-y", "d'accord", "bien sûr", "ja, genau", "einverstanden",
-    "sim, pode ser", "va bene", "haan, bilkul", "да, конечно", "好的", "はい", "네", "نعم", "yes, order them",
+    "yes",
+    "Yes please",
+    "yeah, go ahead",
+    "sure",
+    "sounds good",
+    "do it",
+    "absolutely",
+    "that's right",
+    "sí, adelante",
+    "claro",
+    "de acuerdo",
+    "oui, allez-y",
+    "d'accord",
+    "bien sûr",
+    "ja, genau",
+    "einverstanden",
+    "sim, pode ser",
+    "va bene",
+    "haan, bilkul",
+    "да, конечно",
+    "好的",
+    "はい",
+    "네",
+    "نعم",
+    "yes, order them",
 ]
 NOT_ASSENT = [
-    "ok, thanks", "ok", "thanks", "got it", "I see", "noted", "understood", "mm", "cool", "gracias", "merci", "danke",
-    "no", "no, don't", "nope", "never mind", "nein", "non merci", "actually, that's wrong",
-    "yes, but make it Monday", "ja, aber lieber später", "sure, unless Noor objects",
-    "what time is it?", "should I?", "", "the hive is green",
+    "ok, thanks",
+    "ok",
+    "thanks",
+    "got it",
+    "I see",
+    "noted",
+    "understood",
+    "mm",
+    "cool",
+    "gracias",
+    "merci",
+    "danke",
+    "no",
+    "no, don't",
+    "nope",
+    "never mind",
+    "nein",
+    "non merci",
+    "actually, that's wrong",
+    "yes, but make it Monday",
+    "ja, aber lieber später",
+    "sure, unless Noor objects",
+    "what time is it?",
+    "should I?",
+    "",
+    "the hive is green",
     "I was thinking about bees all week, and Tomasz told me about the frames while we painted the boxes yesterday, so yes",
 ]
 
@@ -287,10 +361,16 @@ def test_source_classifier() -> None:
     c2 = sc.classify_item("assistant", assent=chk.check("ok, thanks", prop))
     assert c2.src_class == "assistant_proposed"
     # a requested user_confirmed without a confirming verdict (or without a check) is downgraded
-    d = sc.classify_item("assistant", assent=chk.check("ok, thanks", prop), requested="user_confirmed")
+    d = sc.classify_item(
+        "assistant", assent=chk.check("ok, thanks", prop), requested="user_confirmed"
+    )
     assert d.src_class == "assistant_proposed" and d.downgraded
     d2 = sc.classify_item("assistant", assent=None, requested="user_confirmed")
-    assert d2.src_class == "assistant_proposed" and d2.downgraded and "assent_check_unavailable" in d2.reasons
+    assert (
+        d2.src_class == "assistant_proposed"
+        and d2.downgraded
+        and "assent_check_unavailable" in d2.reasons
+    )
     # a user's own statement is never lowered
     assert sc.classify_item("user", requested="user_confirmed").src_class == "user_stated"
 

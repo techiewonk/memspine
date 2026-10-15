@@ -71,7 +71,7 @@ async def effective_trust(eng: Any, record_id: str) -> float:
         value = record.trust
         if not policy.enabled:
             memo[rid] = value  # pre-MTI: stored trust, held records still fail closed
-            return value
+            return value  # type: ignore[no-any-return]  # CI-GREEN: pre-existing typing debt
         reader = record.namespace
         if check_grants:
             sender = _message_sender(record)
@@ -120,7 +120,7 @@ async def effective_trust(eng: Any, record_id: str) -> float:
             if not visible:
                 value = 0.0  # past the horizon: fail closed
         memo[rid] = value
-        return value
+        return value  # type: ignore[no-any-return]  # CI-GREEN: pre-existing typing debt
 
     return await walk(record_id)
 
@@ -319,20 +319,23 @@ async def _feedback_v2(
     if target is None or target.namespace != ns or target.status is RecordStatus.DELETED:
         raise ConflictError(f"no such record {record_id!r} in namespace {ns!r}")
     kind = signal if signal in _V2_KINDS else "rating"
-    eid = "fb_" + fingerprint_payload(
-        {
-            "ns": ns,
-            "record": record_id,
-            "signal": signal,
-            "channel": channel,
-            "value": repr(new_value),
-            "text": new_text,
-            "rating": rating,
-            "turn": turn,
-            "source": source_id,
-            "note": note,
-        }
-    )[:24]
+    eid = (
+        "fb_"
+        + fingerprint_payload(
+            {
+                "ns": ns,
+                "record": record_id,
+                "signal": signal,
+                "channel": channel,
+                "value": repr(new_value),
+                "text": new_text,
+                "rating": rating,
+                "turn": turn,
+                "source": source_id,
+                "note": note,
+            }
+        )[:24]
+    )
     try:
         event = fb.FeedbackEvent(
             event_id=eid,
@@ -436,7 +439,7 @@ async def _feedback_v2(
         return written[0]
     refreshed = await storage.get_record(record_id)
     assert refreshed is not None
-    return refreshed
+    return refreshed  # type: ignore[no-any-return]  # CI-GREEN: pre-existing typing debt
 
 
 async def correction_latency(eng: Any, namespace: str = "default") -> fb.LatencyStats:
@@ -526,7 +529,7 @@ async def _legacy_feedback(
     _log.info(EVENT_FEEDBACK, namespace=ns, record_id=record_id, signal=signal)
     # #49: the signal only; the note stays in the erasable FEEDBACK event.
     await eng._audit_action("feedback", ns, [record_id], actor=actor, reason=None, signal=signal)
-    return updated
+    return updated  # type: ignore[no-any-return]  # CI-GREEN: pre-existing typing debt
 
 
 async def _assess_write(eng: Any, record: MemoryRecord) -> FirewallVerdict:
@@ -568,7 +571,7 @@ async def _assess_write(eng: Any, record: MemoryRecord) -> FirewallVerdict:
         async def nearest(top_k: int) -> list[VectorHit]:
             if batch is not None:  # #63: the batched prefetch plus the rows written since
                 return await batch.neighbours(record.content, vector, embedder, top_k)
-            return await vector_store.query(
+            return await vector_store.query(  # type: ignore[no-any-return]  # CI-GREEN: pre-existing typing debt
                 record.namespace, vector, embedder_id=embedder.embedder_id, top_k=top_k
             )
 
@@ -591,7 +594,7 @@ async def _assess_write(eng: Any, record: MemoryRecord) -> FirewallVerdict:
             recent_contents=recent_contents,
             query_anomaly=query_z,
         )
-    return eng._firewall.assess(
+    return eng._firewall.assess(  # type: ignore[no-any-return]  # CI-GREEN: pre-existing typing debt
         record,
         neighbour_similarities=neighbour_sims,
         recent_contents=recent_contents,

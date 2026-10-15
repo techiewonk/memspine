@@ -26,7 +26,16 @@ from memspine_evals.refusal import (
 )
 
 EVALS = Path(__file__).resolve().parents[1]
-BENCH_NAMES = ("locomo", "longmemeval", "op-bench", "opbench", "beam", "prefeval", "lamp", "convomem")
+BENCH_NAMES = (
+    "locomo",
+    "longmemeval",
+    "op-bench",
+    "opbench",
+    "beam",
+    "prefeval",
+    "lamp",
+    "convomem",
+)
 NEW = ("grounded_generic_infer", "grounded_generic_list", "grounded_generic_prefs")
 
 
@@ -50,9 +59,13 @@ def test_existing_prompt_ids_are_byte_identical() -> None:
 
 @pytest.mark.parametrize("name", NEW)
 def test_new_prompts_render_and_are_generic(name: str) -> None:
-    text = QA_PROMPTS[name].format(context="[2024-01-02] I moved to Oslo.", question="Q?", question_date="2024-03-01")
+    text = QA_PROMPTS[name].format(
+        context="[2024-01-02] I moved to Oslo.", question="Q?", question_date="2024-03-01"
+    )
     assert "Oslo" in text and "2024-03-01" in text and "Q?" in text
-    assert text != GROUNDED_GENERIC_QA_PROMPT.format(context="[2024-01-02] I moved to Oslo.", question="Q?", question_date="2024-03-01")
+    assert text != GROUNDED_GENERIC_QA_PROMPT.format(
+        context="[2024-01-02] I moved to Oslo.", question="Q?", question_date="2024-03-01"
+    )
     low = QA_PROMPTS[name].lower()
     assert not any(n in low for n in BENCH_NAMES)
 
@@ -63,12 +76,20 @@ def test_infer_prompt_commits_but_keeps_factual_refusal() -> None:
     assert "only for a factual question" in p
     assert "reply exactly: Not mentioned in the conversation." in p  # the factual refusal stays
     assert "specific detail" in p  # C9 detail clause rides in the same variant
-    assert p.replace(p[p.index("If the message asks whether") : p.index("Keep the answer short.")], "") == GROUNDED_GENERIC_QA_PROMPT
+    assert (
+        p.replace(p[p.index("If the message asks whether") : p.index("Keep the answer short.")], "")
+        == GROUNDED_GENERIC_QA_PROMPT
+    )
 
 
 def test_list_prompt_enumerates_every_line_dedupes_and_counts() -> None:
     p = QA_PROMPTS["grounded_generic_list"]
-    for phrase in ("every memory line", "distinct item", "merge repeated mentions", "count of that merged list"):
+    for phrase in (
+        "every memory line",
+        "distinct item",
+        "merge repeated mentions",
+        "count of that merged list",
+    ):
         assert phrase in p
     assert "list every matching item" not in p  # not grounded_detail's wording
     assert "list every matching item" in QA_PROMPTS["grounded_detail"]
@@ -76,8 +97,13 @@ def test_list_prompt_enumerates_every_line_dedupes_and_counts() -> None:
 
 def test_prefs_prompt_follows_silently_and_not_on_unrelated() -> None:
     p = QA_PROMPTS["grounded_generic_prefs"]
-    assert "without announcing or quoting them" in p and "never apply a preference to a request it is unrelated to" in p
-    assert p.count("Not mentioned") == 1 and "question whose answer the memories do not contain" in p
+    assert (
+        "without announcing or quoting them" in p
+        and "never apply a preference to a request it is unrelated to" in p
+    )
+    assert (
+        p.count("Not mentioned") == 1 and "question whose answer the memories do not contain" in p
+    )
 
 
 @pytest.mark.parametrize(
@@ -96,7 +122,9 @@ def test_generic_router(question: str, variant: str) -> None:
     assert generic_qa_shape(question) == variant
     routed = ROUTED_QA_PROMPTS["routed_generic"]
     rendered = routed.format(context="c", question=question, question_date="d")
-    assert rendered == routed.variants[variant].format(context="c", question=question, question_date="d")
+    assert rendered == routed.variants[variant].format(
+        context="c", question=question, question_date="d"
+    )
     assert routed.describe()["qa_prompt"] == "routed_generic"
     assert routed.describe()["qa_router"] == "generic-shape-v1"
 
@@ -111,7 +139,10 @@ def test_cli_accepts_new_prompts_and_retry_guard() -> None:
 
     parser = build_parser()
     for name in (*NEW, "routed_generic"):
-        assert parser.parse_args(["c0-1", "--dataset", "locomo", "--qa-prompt", name]).qa_prompt == name
+        assert (
+            parser.parse_args(["c0-1", "--dataset", "locomo", "--qa-prompt", name]).qa_prompt
+            == name
+        )
     assert parser.parse_args(["c0-1", "--dataset", "locomo", "--retry-guard"]).retry_guard is True
     assert parser.parse_args(["c0-1", "--dataset", "locomo"]).retry_guard is False
 
@@ -129,9 +160,13 @@ class _Reader:
     def describe(self) -> dict[str, Any]:
         return {"reader_id": self.reader_id}
 
-    async def answer(self, question: str, context: str, question_date: str | None = None) -> ReaderAnswer:
+    async def answer(
+        self, question: str, context: str, question_date: str | None = None
+    ) -> ReaderAnswer:
         self.calls += 1
-        return ReaderAnswer(text=self.replies.pop(0) if self.replies else "Not mentioned.", model_calls=1)
+        return ReaderAnswer(
+            text=self.replies.pop(0) if self.replies else "Not mentioned.", model_calls=1
+        )
 
 
 CTX = "[2023-05-25] Ilse: I went hiking in Denver last Friday"
@@ -169,13 +204,21 @@ def test_guard_skips_a_question_about_an_entity_absent_from_the_context() -> Non
     inner = _Reader("Not mentioned.", "Rome")
     guarded = RefusalRetryReader(inner, guard_absent_entity=True)
     out = _ask(guarded, "What did Bram say about hiking?")
-    assert inner.calls == 1 and out.text == "Not mentioned." and guarded.skipped == 1 and guarded.retried == 0
+    assert (
+        inner.calls == 1
+        and out.text == "Not mentioned."
+        and guarded.skipped == 1
+        and guarded.retried == 0
+    )
     assert "retry_skipped" in out.extra_meta
     assert guarded.reader_id.endswith("-entityguard")
     assert guarded.describe()["retry_guard_absent_entity"] is True
     # a present entity is retried as before
     inner2 = _Reader("Not mentioned.", "Denver")
-    assert _ask(RefusalRetryReader(inner2, guard_absent_entity=True), "Where did Ilse hike?").text == "Denver"
+    assert (
+        _ask(RefusalRetryReader(inner2, guard_absent_entity=True), "Where did Ilse hike?").text
+        == "Denver"
+    )
     assert inner2.calls == 2
 
 
@@ -206,17 +249,45 @@ def test_names_absent_entity_uses_only_question_and_context() -> None:
 def test_preference_adherence_block() -> None:
     from forensics_report import avoided_terms, preference_adherence_block, preference_label
 
-    assert preference_label({"type_label": "explicit/travel", "gold": "I dislike beaches"}) == "I dislike beaches"
-    assert preference_label({"meta": {"preference": "no spicy food"}, "type_label": "x"}) == "no spicy food"
+    assert (
+        preference_label({"type_label": "explicit/travel", "gold": "I dislike beaches"})
+        == "I dislike beaches"
+    )
+    assert (
+        preference_label({"meta": {"preference": "no spicy food"}, "type_label": "x"})
+        == "no spicy food"
+    )
     assert preference_label({"type_label": "temporal", "gold": "7 May 2023"}) is None
-    assert avoided_terms("I don't like spicy food, and I hate crowds.") == ["spicy", "food", "crowds"]
+    assert avoided_terms("I don't like spicy food, and I hate crowds.") == [
+        "spicy",
+        "food",
+        "crowds",
+    ]
     assert avoided_terms("I love hiking") == []
     rows = [
-        {"mode": "qa", "preference": "I don't like spicy food", "form": "explicit", "correct": True,
-         "answer": "Try a mild lentil soup.", "gold_turns": [{"in_context": True}]},
-        {"mode": "qa", "preference": "I don't like spicy food", "form": "explicit", "correct": False,
-         "answer": "As you mentioned, you dislike it, but this spicy curry is great.", "gold_turns": [{"in_context": False}]},
-        {"mode": "qa", "form": "x", "correct": True, "answer": "no preference label", "gold_turns": []},
+        {
+            "mode": "qa",
+            "preference": "I don't like spicy food",
+            "form": "explicit",
+            "correct": True,
+            "answer": "Try a mild lentil soup.",
+            "gold_turns": [{"in_context": True}],
+        },
+        {
+            "mode": "qa",
+            "preference": "I don't like spicy food",
+            "form": "explicit",
+            "correct": False,
+            "answer": "As you mentioned, you dislike it, but this spicy curry is great.",
+            "gold_turns": [{"in_context": False}],
+        },
+        {
+            "mode": "qa",
+            "form": "x",
+            "correct": True,
+            "answer": "no preference label",
+            "gold_turns": [],
+        },
     ]
     b = preference_adherence_block(rows)
     assert b["n"] == 2 and b["judged_adherence"] == 0.5
@@ -253,8 +324,12 @@ def test_calibration_set_matches_the_label_table() -> None:
     rows = {r["id"]: r for r in _cal()}
     assert set(rows) == set(LABELS)
     for key, (kind, verdict, reason, borderline) in LABELS.items():
-        assert (rows[key]["kind"], rows[key]["human_verdict"], rows[key]["reason"], rows[key]["borderline"]) == (
-            kind, verdict, reason, borderline)
+        assert (
+            rows[key]["kind"],
+            rows[key]["human_verdict"],
+            rows[key]["reason"],
+            rows[key]["borderline"],
+        ) == (kind, verdict, reason, borderline)
 
 
 def test_judge_agreement_perfect_and_degraded(tmp_path: Path) -> None:
@@ -267,14 +342,25 @@ def test_judge_agreement_perfect_and_degraded(tmp_path: Path) -> None:
     assert res["all"]["false_negatives"] == 0 and res["all"]["false_positives"] == 0
     assert res["all"]["partial_credit_rate"] == 0.0 and res["all"]["refusal_credit_rate"] == 0.0
     # a judge that credits every refusal and partial list
-    lenient = {r["id"]: ("WRONG" if r["human_verdict"] == "WRONG" and r["kind"] == "wrong_plausible" else "CORRECT") for r in rows}
+    lenient = {
+        r["id"]: (
+            "WRONG"
+            if r["human_verdict"] == "WRONG" and r["kind"] == "wrong_plausible"
+            else "CORRECT"
+        )
+        for r in rows
+    }
     res = score(rows, lenient)
     assert res["all"]["refusal_credit_rate"] == 1.0 and res["all"]["partial_credit_rate"] == 1.0
     assert res["all"]["false_positives"] >= 8
     labels = tmp_path / "labels.jsonl"
-    labels.write_text("\n".join(json.dumps({"id": i, "label": v}) for i, v in perfect.items()), encoding="utf-8")
+    labels.write_text(
+        "\n".join(json.dumps({"id": i, "label": v}) for i, v in perfect.items()), encoding="utf-8"
+    )
     assert main(["--labels", str(labels), "--json", "--fail-below", "0.9"]) == 0
-    labels.write_text("\n".join(json.dumps({"id": i, "label": "CORRECT"}) for i in perfect), encoding="utf-8")
+    labels.write_text(
+        "\n".join(json.dumps({"id": i, "label": "CORRECT"}) for i in perfect), encoding="utf-8"
+    )
     assert main(["--labels", str(labels), "--fail-below", "0.9"]) == 1
     assert cohen_kappa([]) is None and cohen_kappa([(True, True), (True, True)]) is None
 
@@ -285,9 +371,18 @@ def test_judge_agreement_run_matches_only_identical_answers(tmp_path: Path) -> N
     # an invented calibration set: the committed form holds ids, labels and an answer hash only
     answers = {f"conv-9/{i}-1": f"Bram bought {i} loaves of rye bread." for i in range(6)}
     rows = [
-        {"id": key, "item": "conv-9", "qid": key.split("/")[1], "category": "single-hop",
-         "kind": "paraphrase", "human_verdict": "CORRECT", "borderline": False, "reason": "invented",
-         "source_judge_label": "CORRECT", "answer_sha256": answer_hash(ans)}
+        {
+            "id": key,
+            "item": "conv-9",
+            "qid": key.split("/")[1],
+            "category": "single-hop",
+            "kind": "paraphrase",
+            "human_verdict": "CORRECT",
+            "borderline": False,
+            "reason": "invented",
+            "source_judge_label": "CORRECT",
+            "answer_sha256": answer_hash(ans),
+        }
         for key, ans in answers.items()
     ]
     cal = tmp_path / "cal.jsonl"
@@ -307,14 +402,31 @@ def test_judge_agreement_run_matches_only_identical_answers(tmp_path: Path) -> N
 def test_paired_regressions_compare() -> None:
     from paired_regressions import compare
 
-    def row(item: str, qid: str, correct: bool, answer: str, cat: str = "single-hop") -> dict[str, Any]:
-        return {"item": item, "qid": qid, "category": cat, "question": "What did Ana buy?", "gold_answer": "tea",
-                "answer": answer, "correct": correct, "context_text": ["a", "b"], "gold_turns": [{"in_context": True}]}
+    def row(
+        item: str, qid: str, correct: bool, answer: str, cat: str = "single-hop"
+    ) -> dict[str, Any]:
+        return {
+            "item": item,
+            "qid": qid,
+            "category": cat,
+            "question": "What did Ana buy?",
+            "gold_answer": "tea",
+            "answer": answer,
+            "correct": correct,
+            "context_text": ["a", "b"],
+            "gold_turns": [{"in_context": True}],
+        }
 
-    base = {("conv-26", "0-1"): row("conv-26", "0-1", True, "She bought some loose leaf tea at the market."),
-            ("conv-26", "0-2"): row("conv-26", "0-2", False, "x")}
-    fixed = {("conv-26", "0-1"): row("conv-26", "0-1", False, "Not mentioned."),
-             ("conv-26", "0-2"): row("conv-26", "0-2", True, "tea")}
+    base = {
+        ("conv-26", "0-1"): row(
+            "conv-26", "0-1", True, "She bought some loose leaf tea at the market."
+        ),
+        ("conv-26", "0-2"): row("conv-26", "0-2", False, "x"),
+    }
+    fixed = {
+        ("conv-26", "0-1"): row("conv-26", "0-1", False, "Not mentioned."),
+        ("conv-26", "0-2"): row("conv-26", "0-2", True, "tea"),
+    }
     res = compare(base, fixed)
     assert res["n"] == 2 and len(res["lost"]) == 1 and len(res["gained"]) == 1
     assert res["lost"][0]["fixed_refusal"] is True and res["lost"][0]["len_ratio"] < 0.5

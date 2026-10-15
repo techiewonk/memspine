@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """Derivation intent (W2-01; W-02): what a receipt promises to derive, and a status call per layer.
 
 A write receipt carries an ``intent_id``. The intent is the durable promise that the layers above the

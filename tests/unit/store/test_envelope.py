@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """F-02a: the record envelope (layer, type tag, provenance class, axes, fingerprint), its derivation
 mapping, the 0007 migration (up, down, backfill), the write path and the envelope round trip."""
 

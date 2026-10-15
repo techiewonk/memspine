@@ -154,9 +154,7 @@ class ConflictPolicy(BindablePolicy):
     def resolve(self, incoming: MemoryRecord, existing: MemoryRecord) -> ConflictVerdict:
         return self.decide(incoming, existing)[0]
 
-    def decide(
-        self, incoming: MemoryRecord, existing: MemoryRecord
-    ) -> tuple[ConflictVerdict, str]:
+    def decide(self, incoming: MemoryRecord, existing: MemoryRecord) -> tuple[ConflictVerdict, str]:
         """:meth:`resolve` plus the rung that fired (for the write forensics)."""
         options = self.options
         assert isinstance(options, ConflictOptions)

@@ -172,13 +172,17 @@ def test_other_object_does_not_link() -> None:
 
 
 def test_render_is_compact_and_bounded() -> None:
-    events, _ = _mentions([PLAN, DONE, ev(line=3, span="Rome trip got cancelled", status="cancelled")])
+    events, _ = _mentions(
+        [PLAN, DONE, ev(line=3, span="Rome trip got cancelled", status="cancelled")]
+    )
     text, shown = render_ledger(events, heading="LEDGER:", max_events=12)
     assert text.splitlines()[0] == "LEDGER:" and len(shown) == len(events) == 2
     assert "E1 [done] Ana visit Rome; event time: 2023-05-13..2023-05-14" in text
     assert "mentions: 2023-05-01 planned (L1), 2023-05-20 done (L2)" in text
     assert "E2 [cancelled]" in text and "time unknown" in text
-    short, kept = render_ledger(events, heading="LEDGER:", max_events=12, fits=lambda t: len(t) < 150)
+    short, kept = render_ledger(
+        events, heading="LEDGER:", max_events=12, fits=lambda t: len(t) < 150
+    )
     assert len(kept) < len(events) and len(short) < 150
     assert render_ledger(events, heading="x", max_events=12, fits=lambda t: False) == ("", [])
 

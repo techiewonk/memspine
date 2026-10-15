@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """Which memory types, layers, legs and producers an eval arm effectively has on (MF-16).
 
 A result row is only interpretable if it says what the arm actually ran. A flag set in an arm file

@@ -158,8 +158,11 @@ def main() -> None:
         # slots (raw_turn_floor) and the source-turn date (derived_dates), so a-type and b-type
         # questions return to the clean context; the clean arm answers a question correctly with
         # its gold in context at the measured rate below.
-        gold_ok = [q for q in qs if gold_of.get(q) and gold_of[q] <= {
-            r["turn"] for r in C[q]["context_records"]}]
+        gold_ok = [
+            q
+            for q in qs
+            if gold_of.get(q) and gold_of[q] <= {r["turn"] for r in C[q]["context_records"]}
+        ]
         rate = sum(Cr[q]["score"] for q in gold_ok) / max(1, len(gold_ok))
         n_ab = len(causes.get("a_displaced", [])) + len(causes.get("b_derived_date_led", []))
         n_c1 = len(causes.get("c1_gold_present_derived_heavy_final", []))

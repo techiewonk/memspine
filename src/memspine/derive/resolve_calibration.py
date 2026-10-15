@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """W2-09 calibration of the online resolver's thresholds on a synthetic homonym/alias set (RV17, W-19 gate).
 
 Gate: "calibrated thresholds with no homonym merges above a stated rate". The set uses invented names

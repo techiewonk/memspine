@@ -22,7 +22,9 @@ from pathlib import Path
 PRON3 = re.compile(r"\b(he|she|they|them|him|his|her|hers|their|theirs|it|its)\b", re.I)
 PLURAL = re.compile(r"\b(they|them|their|theirs|those|these)\b", re.I)
 WE = re.compile(r"\b(we|us|our|ours)\b", re.I)
-DEICTIC = re.compile(r"\b(there|then|that (?:time|day|place|one)|those days|back then|over there)\b", re.I)
+DEICTIC = re.compile(
+    r"\b(there|then|that (?:time|day|place|one)|those days|back then|over there)\b", re.I
+)
 REL_TIME = re.compile(
     r"\b(yesterday|tomorrow|tonight|today|last (?:week|weekend|month|year|night|friday|saturday|sunday|monday|"
     r"tuesday|wednesday|thursday|summer|winter|spring|fall|autumn)|next (?:week|weekend|month|year)|"
@@ -37,10 +39,17 @@ BACKREF = re.compile(
     r"class|trip|thing) (?:you|we))\b",
     re.I,
 )
-REACTION = re.compile(r"^(wow|oh|ah|yeah|yes|no|that'?s|sounds|cool|great|nice|awesome|thanks|thank you|"
-                      r"congrats|haha|lol|hmm|really|amazing|wonderful|sorry)\b", re.I)
-WH_FOLLOWUP = re.compile(r"^(what|how|why|where|who|when|any|did|do|does|was|were|is|are|can)\b", re.I)
-GREET = re.compile(r"(?i:hey|hi|hello|thanks|thank you|wow|congrats|good luck|bye|see you|dear)[, ]+([A-Z][a-z]{1,})")
+REACTION = re.compile(
+    r"^(wow|oh|ah|yeah|yes|no|that'?s|sounds|cool|great|nice|awesome|thanks|thank you|"
+    r"congrats|haha|lol|hmm|really|amazing|wonderful|sorry)\b",
+    re.I,
+)
+WH_FOLLOWUP = re.compile(
+    r"^(what|how|why|where|who|when|any|did|do|does|was|were|is|are|can)\b", re.I
+)
+GREET = re.compile(
+    r"(?i:hey|hi|hello|thanks|thank you|wow|congrats|good luck|bye|see you|dear)[, ]+([A-Z][a-z]{1,})"
+)
 ATTR_Q = re.compile(
     r"\b(job|career|profession|occupation|works? as|work(?:s|ed)? (?:at|for)|studied?|degree|major|field|"
     r"education|pets?|dogs?|cats?|kids?|children|family|married|spouse|partner|boyfriend|girlfriend|"
@@ -49,19 +58,121 @@ ATTR_Q = re.compile(
     r"allergic|diet|vegetarian|car|owns?)\b",
     re.I,
 )
-STATE_Q = re.compile(r"(?:^|\W)(used to|no longer|still|currently|now|anymore|changed?|switch(?:ed)?|new job|started|stopped|quit|latest|recent|current)(?:\W|$)", re.I)
-INFER_Q = re.compile(r"\b(would|could|might|likely|probably|prefer|enjoy|interested in|open to|consider|"
-                     r"be considered|suitable|guess)\b", re.I)
-SETOP_Q = re.compile(r"\b(both|in common|share[sd]?|same|either|neither|together|each other)\b", re.I)
-COMPARE_Q = re.compile(r"\b(more than|less than|older|younger|earlier|later|first|longer|compared|most|least)\b", re.I)
+STATE_Q = re.compile(
+    r"(?:^|\W)(used to|no longer|still|currently|now|anymore|changed?|switch(?:ed)?|new job|started|stopped|quit|latest|recent|current)(?:\W|$)",
+    re.I,
+)
+INFER_Q = re.compile(
+    r"\b(would|could|might|likely|probably|prefer|enjoy|interested in|open to|consider|"
+    r"be considered|suitable|guess)\b",
+    re.I,
+)
+SETOP_Q = re.compile(
+    r"\b(both|in common|share[sd]?|same|either|neither|together|each other)\b", re.I
+)
+COMPARE_Q = re.compile(
+    r"\b(more than|less than|older|younger|earlier|later|first|longer|compared|most|least)\b", re.I
+)
 COUNT_Q = re.compile(r"\bhow many\b", re.I)
-LIST_Q = re.compile(r"\b(what (?:are|were|activities|books|places|hobbies|kinds?|types?)|which .* (?:has|have|did)|list)\b", re.I)
-REFUSAL = re.compile(r"(not mentioned|do not know|don't know|no information|not stated|not specified|cannot (?:be )?"
-                     r"(?:determin|answer)|not (?:clear|available|provided)|unknown|isn't mentioned|is not mentioned)", re.I)
-STOP = set("a an the of in on at to for and or but is are was were be been being do does did has have had it its "
-           "this that these those with by from as about into up out over after before when what which who whom whose "
-           "how why where i you he she they we me my your his her their our not no yes can could would should will "
-           "just so than then there here also very more most some any much many".split())
+LIST_Q = re.compile(
+    r"\b(what (?:are|were|activities|books|places|hobbies|kinds?|types?)|which .* (?:has|have|did)|list)\b",
+    re.I,
+)
+REFUSAL = re.compile(
+    r"(not mentioned|do not know|don't know|no information|not stated|not specified|cannot (?:be )?"
+    r"(?:determin|answer)|not (?:clear|available|provided)|unknown|isn't mentioned|is not mentioned)",
+    re.I,
+)
+STOP = set(
+    [
+        "a",
+        "an",
+        "the",
+        "of",
+        "in",
+        "on",
+        "at",
+        "to",
+        "for",
+        "and",
+        "or",
+        "but",
+        "is",
+        "are",
+        "was",
+        "were",
+        "be",
+        "been",
+        "being",
+        "do",
+        "does",
+        "did",
+        "has",
+        "have",
+        "had",
+        "it",
+        "its",
+        "this",
+        "that",
+        "these",
+        "those",
+        "with",
+        "by",
+        "from",
+        "as",
+        "about",
+        "into",
+        "up",
+        "out",
+        "over",
+        "after",
+        "before",
+        "when",
+        "what",
+        "which",
+        "who",
+        "whom",
+        "whose",
+        "how",
+        "why",
+        "where",
+        "i",
+        "you",
+        "he",
+        "she",
+        "they",
+        "we",
+        "me",
+        "my",
+        "your",
+        "his",
+        "her",
+        "their",
+        "our",
+        "not",
+        "no",
+        "yes",
+        "can",
+        "could",
+        "would",
+        "should",
+        "will",
+        "just",
+        "so",
+        "than",
+        "then",
+        "there",
+        "here",
+        "also",
+        "very",
+        "more",
+        "most",
+        "some",
+        "any",
+        "much",
+        "many",
+    ]
+)
 
 
 def stem(w: str) -> str:
@@ -92,7 +203,12 @@ def has_named_antecedent(body: str, speakers: set[str]) -> bool:
     for i, w in enumerate(toks):
         if i == 0:
             continue
-        if w[0].isupper() and w.lower() not in {s.lower() for s in speakers} and w != "I" and not w.startswith("I'"):
+        if (
+            w[0].isupper()
+            and w.lower() not in {s.lower() for s in speakers}
+            and w != "I"
+            and not w.startswith("I'")
+        ):
             return True
     return False
 
@@ -106,7 +222,9 @@ def flags_for_turn(t: dict, speakers: set[str]) -> dict[str, bool]:
     f["deictic"] = bool(DEICTIC.search(body))
     f["very_short"] = len(words) <= 6
     f["reaction_open"] = bool(REACTION.match(body)) and len(words) <= 25
-    f["followup_question"] = body.rstrip().endswith("?") and len(words) <= 14 and bool(WH_FOLLOWUP.match(body))
+    f["followup_question"] = (
+        body.rstrip().endswith("?") and len(words) <= 14 and bool(WH_FOLLOWUP.match(body))
+    )
     f["relative_time"] = bool(REL_TIME.search(body))
     f["backref"] = bool(BACKREF.search(body))
     f["plural_pron"] = bool(PLURAL.search(body)) and not named
@@ -115,7 +233,9 @@ def flags_for_turn(t: dict, speakers: set[str]) -> dict[str, bool]:
     # decision rule for "rephrase" (observation 3), heuristic: the turn cannot be read alone.
     dep = f["pron3_no_antecedent"] or f["deictic"] or f["backref"]
     f["incomplete"] = (
-        (dep and len(words) <= 20) or f["followup_question"] or f["very_short"]
+        (dep and len(words) <= 20)
+        or f["followup_question"]
+        or f["very_short"]
         or (f["reaction_open"] and len(words) <= 8)
     )
     f["incomplete_strict"] = (dep and len(words) <= 20) or f["followup_question"] or f["very_short"]
@@ -140,7 +260,9 @@ def main() -> None:
     turn_flags: dict[tuple[str, str], dict] = {}
     turn_text: dict[tuple[str, str], str] = {}
     cap_text: dict[tuple[str, str], tuple[str, str]] = {}
-    sess_nick: dict[tuple[str, int], int] = defaultdict(int)  # (conv, session) -> n short-form vocatives
+    sess_nick: dict[tuple[str, int], int] = defaultdict(
+        int
+    )  # (conv, session) -> n short-form vocatives
     nick_turns = 0
     spk_map = {}
     for si, conv in enumerate(data):
@@ -182,7 +304,10 @@ def main() -> None:
     res["turns"] = {"total": n_turns, **{k: cnt[k] for k in sorted(cnt)}}
     res["sessions_with_short_form"] = len({k for k, v in sess_nick.items() if v})
     res["sessions_total"] = sum(
-        1 for conv in data for k, v in conv["conversation"].items() if k.startswith("session_") and isinstance(v, list)
+        1
+        for conv in data
+        for k, v in conv["conversation"].items()
+        if k.startswith("session_") and isinstance(v, list)
     )
 
     # window arithmetic (model-call counts of the proposals): windows of w turns with stride st
@@ -195,9 +320,11 @@ def main() -> None:
                 if k.startswith("session_") and isinstance(v, list):
                     i = 0
                     while i < len(v):
-                        chunk = v[i:i + w]
+                        chunk = v[i : i + w]
                         n_win += 1
-                        if any(turn_flags[(item, t["dia_id"])].get("incomplete_strict") for t in chunk):
+                        if any(
+                            turn_flags[(item, t["dia_id"])].get("incomplete_strict") for t in chunk
+                        ):
                             n_flag += 1
                         if i + w >= len(v):
                             break
@@ -245,7 +372,10 @@ def main() -> None:
             own = g.get("text") or turn_text.get((x["item"], g["turn"]), "") or ""
             prev = prev_text.get((x["item"], g["turn"]), "")
             qq2 = content(q, {s.lower() for s in sp})
-            if len(qq2 & content(prev, {s.lower() for s in sp})) >= 2 and len(qq2 & content(own, {s.lower() for s in sp})) <= 1:
+            if (
+                len(qq2 & content(prev, {s.lower() for s in sp})) >= 2
+                and len(qq2 & content(own, {s.lower() for s in sp})) <= 1
+            ):
                 carry = True
         p["prev_turn_carries_terms"] = carry
         p["state_change_q"] = bool(STATE_Q.search(q))
@@ -256,20 +386,37 @@ def main() -> None:
         p["gold_plural"] = any(f.get("plural_pron") for f in flg)
         p["gold_reltime"] = any(f.get("relative_time") for f in flg)
         p["gold_backref"] = any(f.get("backref") for f in flg)
-        p["gold_short_form_session"] = any(sess_nick.get((x["item"], sess_of(g)), 0) > 0 for g in gts if sess_of(g))
+        p["gold_short_form_session"] = any(
+            sess_nick.get((x["item"], sess_of(g)), 0) > 0 for g in gts if sess_of(g)
+        )
         p["gold_short_form_turn"] = any(f.get("short_form") for f in flg)
         # lexical mismatch: question has zero stem overlap with every gold turn (heuristic)
         qc = content(q, {s.lower() for s in sp})
-        ov = [len(qc & content(g.get("text") or turn_text.get((x["item"], g["turn"]), "") or "", {s.lower() for s in sp})) for g in gts]
+        ov = [
+            len(
+                qc
+                & content(
+                    g.get("text") or turn_text.get((x["item"], g["turn"]), "") or "",
+                    {s.lower() for s in sp},
+                )
+            )
+            for g in gts
+        ]
         p["zero_overlap_gold"] = bool(gts) and max(ov, default=0) == 0
         p["low_overlap_gold"] = bool(gts) and max(ov, default=0) <= 1
+
         # measured: BM25 missed (rank None or >10) while vector found within 10; or neither within 60
         def r(v):
             return v if isinstance(v, int) else None
+
         vs = [r(g.get("vector")) for g in gts]
         ls = [r(g.get("lexical")) for g in gts]
-        p["bm25_miss_vec_hit"] = any((v is not None and v <= 10) and (l is None or l > 10) for v, l in zip(vs, ls))
-        p["vec_miss_bm25_hit"] = any((l is not None and l <= 10) and (v is None or v > 10) for v, l in zip(vs, ls))
+        p["bm25_miss_vec_hit"] = any(
+            (v is not None and v <= 10) and (l is None or l > 10) for v, l in zip(vs, ls)
+        )
+        p["vec_miss_bm25_hit"] = any(
+            (l is not None and l <= 10) and (v is None or v > 10) for v, l in zip(vs, ls)
+        )
         p["both_miss"] = bool(gts) and any(v is None and l is None for v, l in zip(vs, ls))
         p["spans_3_sessions"] = len({sess_of(g) for g in gts}) >= 3
         p["n_gold_ge3"] = len(gts) >= 3
@@ -301,7 +448,9 @@ def main() -> None:
         "attribute_lookup_question": lambda x, p: p["attr"],
         "inference_stem_question": lambda x, p: p["infer_stem"],
         "open_domain_category": lambda x, p: x["category"] == "open-domain",
-        "open_domain_refusal_answer": lambda x, p: x["category"] == "open-domain" and p["ans_refusal"],
+        "open_domain_refusal_answer": lambda x, p: (
+            x["category"] == "open-domain" and p["ans_refusal"]
+        ),
         "any_category_refusal_answer": lambda x, p: p["ans_refusal"],
         "gold_has_caption_turn": lambda x, p: p["gold_caption"],
         "prev_turn_carries_question_terms": lambda x, p: p["prev_turn_carries_terms"],
@@ -346,14 +495,23 @@ def main() -> None:
         "multi_entity AND (multi-hop OR single-hop) AND not ok": cnt_wrong(
             lambda x, p: p["multi_entity"] and x["category"] in ("multi-hop", "single-hop")
         ),
-        "open_domain AND refusal_answer": cnt_wrong(lambda x, p: x["category"] == "open-domain" and p["ans_refusal"]),
-        "open_domain AND not_refusal": cnt_wrong(lambda x, p: x["category"] == "open-domain" and not p["ans_refusal"]),
+        "open_domain AND refusal_answer": cnt_wrong(
+            lambda x, p: x["category"] == "open-domain" and p["ans_refusal"]
+        ),
+        "open_domain AND not_refusal": cnt_wrong(
+            lambda x, p: x["category"] == "open-domain" and not p["ans_refusal"]
+        ),
         "attr AND (single-hop OR multi-hop)": cnt_wrong(
             lambda x, p: p["attr"] and x["category"] in ("single-hop", "multi-hop")
         ),
-        "temporal wrong with relative-time gold": cnt_wrong(lambda x, p: x["category"] == "temporal" and p["gold_reltime"]),
+        "temporal wrong with relative-time gold": cnt_wrong(
+            lambda x, p: x["category"] == "temporal" and p["gold_reltime"]
+        ),
         "lexical: (zero_overlap OR bm25_miss_vec_hit) AND retrieval_stage": cnt_wrong(
-            lambda x, p: (p["zero_overlap_gold"] or p["bm25_miss_vec_hit"]) and x["stage"] in ("b", "cf", "cr")
+            lambda x, p: (
+                (p["zero_overlap_gold"] or p["bm25_miss_vec_hit"])
+                and x["stage"] in ("b", "cf", "cr")
+            )
         ),
     }
 
@@ -362,12 +520,36 @@ def main() -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
     with open(out_dir / "wrong_predicates.jsonl", "w", encoding="utf-8") as fh:
         for x, p in wrong:
-            fh.write(json.dumps({"item": x["item"], "qid": x["qid"], "category": x["category"],
-                                 "rclass": x["rclass"], "stage": x["stage"], **p}) + "\n")
+            fh.write(
+                json.dumps(
+                    {
+                        "item": x["item"],
+                        "qid": x["qid"],
+                        "category": x["category"],
+                        "rclass": x["rclass"],
+                        "stage": x["stage"],
+                        **p,
+                    }
+                )
+                + "\n"
+            )
     Path(a.out).parent.mkdir(parents=True, exist_ok=True)
     Path(a.out).write_text(json.dumps(res, indent=1), encoding="utf-8")
-    print(json.dumps({k: res[k] for k in ("turns", "questions", "sessions_with_short_form", "sessions_total",
-                                           "combined_wrong")}, indent=1))
+    print(
+        json.dumps(
+            {
+                k: res[k]
+                for k in (
+                    "turns",
+                    "questions",
+                    "sessions_with_short_form",
+                    "sessions_total",
+                    "combined_wrong",
+                )
+            },
+            indent=1,
+        )
+    )
     for k, v in res["predicates"].items():
         print(f"{k:42s} all={v['all']:5d} wrong={v['wrong']:4d}")
 

@@ -20,7 +20,7 @@ HERE = Path(__file__).parent
 sys.path[:] = [p for p in sys.path if Path(p or ".").resolve() != HERE.resolve()]
 sys.path.append(str(HERE))
 
-from memspine_evals.locomo_f1 import CAT_NAMES, category_of, row_f1, summarise  # noqa: E402
+from memspine_evals.locomo_f1 import CAT_NAMES, category_of, row_f1, summarise
 
 
 def rescore(path: Path, write: bool) -> dict:
@@ -35,7 +35,11 @@ def rescore(path: Path, write: bool) -> dict:
             continue
         c = category_of(r["type_label"])
         by.setdefault(c, []).append(f1)
-        ok = float(r.get("score") or 0) >= 1 and r.get("status") == "completed" and bool((r.get("answer") or "").strip())
+        ok = (
+            float(r.get("score") or 0) >= 1
+            and r.get("status") == "completed"
+            and bool((r.get("answer") or "").strip())
+        )
         judge.setdefault(c, []).append(1.0 if ok else 0.0)
         if write:
             r["f1_locomo"] = f1
@@ -60,10 +64,14 @@ def main() -> None:
         if not (d / "results.jsonl").exists():
             d = a.runs_dir / f"{run.removesuffix('--memspine')}--memspine"
         s = rescore(d / "results.jsonl", a.write)
-        print(f"{d.name}: categories 1-4 n={s['n_1_4']}  judge {s['judge_1_4']:.1f}  F1 (official LoCoMo) {s['f1_1_4']:.1f}")
+        print(
+            f"{d.name}: categories 1-4 n={s['n_1_4']}  judge {s['judge_1_4']:.1f}  F1 (official LoCoMo) {s['f1_1_4']:.1f}"
+        )
         for c, v in s["by_category"].items():
             tag = " (abstention check, not in the 1-4 headline)" if c == 5 else ""
-            print(f"   cat{c} {CAT_NAMES[c]:11s} n={v['n']:4d}  judge {v['judge']:5.1f}  F1 {v['f1']:5.1f}{tag}")
+            print(
+                f"   cat{c} {CAT_NAMES[c]:11s} n={v['n']:4d}  judge {v['judge']:5.1f}  F1 {v['f1']:5.1f}{tag}"
+            )
 
 
 if __name__ == "__main__":

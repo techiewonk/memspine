@@ -139,7 +139,7 @@ async def test_reprojection_is_idempotent() -> None:
         assert second.get("written", 0) == 0 and second["unchanged"] == first["written"]
         assert await eng._graph.edge_count() == count
         after = await _compiled(eng)
-        key = lambda e: (e.src, e.dst, e.rel_type)  # noqa: E731
+        key = lambda e: (e.src, e.dst, e.rel_type)
         assert sorted(map(key, before)) == sorted(map(key, after))
     finally:
         await eng.stop()
@@ -240,7 +240,7 @@ async def test_stage_retires_edges_of_a_record_that_is_no_longer_an_assertion(mo
             "memspine.derive.pipeline.stages.edge_compiler_v2.retract_after_forget", _noop
         )
         await eng.forget(rec.record_id, namespace=NS)
-        mine = lambda: [  # noqa: E731
+        mine = lambda: [
             e for e in await_edges if e.weight > 0 and e.properties["record_id"] == rec.record_id
         ]
         await_edges = await _compiled(eng)

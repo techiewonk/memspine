@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """Shared harness for the per-flow manual checks (``python docs/v2/flow_checks.py ...``).
 
 Every flow module defines ``STEPS``: an ordered list of ``Step(id, title, fn)``. ``fn(ctx)`` is async,
@@ -44,7 +43,9 @@ class Ctx:
 
     engine: Any = None
     ns: str = "flowcheck"
-    state: dict[str, Any] = field(default_factory=dict)  # values a later step reuses (record ids, ...)
+    state: dict[str, Any] = field(
+        default_factory=dict
+    )  # values a later step reuses (record ids, ...)
     results: list[tuple[str, bool]] = field(default_factory=list)
     step_id: str = ""
 
@@ -136,8 +137,17 @@ class _LineTracer:
         return self
 
 
-async def run_steps(name: str, steps: Sequence[Step], pick: Sequence[str], *, events: bool,
-                    lines: bool, only: str | None, limit: int, config: dict[str, Any] | None = None) -> list[tuple[str, bool]]:
+async def run_steps(
+    name: str,
+    steps: Sequence[Step],
+    pick: Sequence[str],
+    *,
+    events: bool,
+    lines: bool,
+    only: str | None,
+    limit: int,
+    config: dict[str, Any] | None = None,
+) -> list[tuple[str, bool]]:
     """Run the flow's steps in order on ONE engine (later steps build on earlier ones); print the
     picked steps (all when ``pick`` is empty). Unpicked earlier steps still run, quietly, so a single
     step can be inspected with its preconditions in place."""

@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """TI-1: engine trace hooks behind ``observability.inspect``. Hash embedder, stub LLMs, an invented
 conversation (Bram, Ilse, Noor, Tomasz). Flag off: no new event and the stored records are the
 same; flag on: each event shows up with the ``inspect_scope`` correlation keys."""
@@ -129,7 +128,12 @@ async def _engine(
         "embedding": {"provider": "hash"},
         "read": {"rerank": "off", "record_access": True},
         "memories": {"episodic": {"enabled": True}, "semantic": {"enabled": True}},
-        "write": {"window_extract": "all", "window_async": False, "window_idle_s": 0.0, **(write or {})},
+        "write": {
+            "window_extract": "all",
+            "window_async": False,
+            "window_idle_s": 0.0,
+            **(write or {}),
+        },
         "llm": {"roles": {"window_extract": {"model": "fake/window"}}},
         "observability": {
             "inspect": inspect,
@@ -245,7 +249,11 @@ async def test_scope_keys_ride_every_event_inside_the_scope(monkeypatch) -> None
 
 
 async def test_nested_scopes_merge_and_inner_wins() -> None:
-    tap.configure(__import__("memspine.config.schema.observability", fromlist=["TapConfig"]).TapConfig(enabled=True, sink="memory"))
+    tap.configure(
+        __import__("memspine.config.schema.observability", fromlist=["TapConfig"]).TapConfig(
+            enabled=True, sink="memory"
+        )
+    )
     insp.configure(True)
     with insp.inspect_scope(run_id="r", item="a", turn_id="t1"):
         with insp.inspect_scope(item="b", window_id="w9", skipped=None):
@@ -253,7 +261,13 @@ async def test_nested_scopes_merge_and_inner_wins() -> None:
         tap.event("probe.outer", n=2)
     tap.event("probe.after", n=3)
     got = {e["stage"]: e["fields"] for e in _events()}
-    assert got["probe.nested"] == {"run_id": "r", "item": "b", "turn_id": "t1", "window_id": "w9", "n": 1}
+    assert got["probe.nested"] == {
+        "run_id": "r",
+        "item": "b",
+        "turn_id": "t1",
+        "window_id": "w9",
+        "n": 1,
+    }
     assert got["probe.outer"] == {"run_id": "r", "item": "a", "turn_id": "t1", "n": 2}
     assert got["probe.after"] == {"n": 3}
 
@@ -366,7 +380,13 @@ async def test_envelope_lifecycle_occ_to_rid(monkeypatch) -> None:
     )
     try:
         for i, city in enumerate(("Oslo", "Bergen")):
-            msg = [{"role": "user", "content": f"Ilse: I live in {city}", "timestamp": (T0 + timedelta(days=i)).isoformat()}]
+            msg = [
+                {
+                    "role": "user",
+                    "content": f"Ilse: I live in {city}",
+                    "timestamp": (T0 + timedelta(days=i)).isoformat(),
+                }
+            ]
             with insp.inspect_scope(run_id="run1", item="conv1", turn_id=f"D1:{i + 1}"):
                 await eng.write_messages(msg, namespace="a", session_id="s1", group_id="s1")
         with insp.inspect_scope(run_id="run1", item="conv1"):

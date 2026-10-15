@@ -10,9 +10,9 @@ import pytest
 
 EVALS = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(EVALS))
-import eval_blind  # noqa: E402
-import freeze_blind_slices as fbs  # noqa: E402
-from memspine_evals.cli import build_parser, parse_item_ids  # noqa: E402
+import eval_blind
+import freeze_blind_slices as fbs
+from memspine_evals.cli import build_parser, parse_item_ids
 
 MAB = EVALS / "analysis" / "blind_split_mab.json"
 CM = EVALS / "analysis" / "blind_split_convomem.json"
@@ -52,12 +52,17 @@ def test_run_sh_wires_judge_and_sampling() -> None:
     assert "needs --questions" in sh or "cannot derive the expected question count" in sh
 
 
-@pytest.mark.skipif(not (EVALS / "data" / "convomem" / "core_benchmark").exists(), reason="ConvoMem not fetched")
+@pytest.mark.skipif(
+    not (EVALS / "data" / "convomem" / "core_benchmark").exists(), reason="ConvoMem not fetched"
+)
 def test_convomem_abstention_items_use_the_abstention_judge() -> None:
     from memspine_evals.datasets import ConvoMemDataset
     from memspine_evals.judge_prompts import JUDGE_SUITES
 
-    qs = [i.queries[0] for i in ConvoMemDataset(EVALS / "data" / "convomem", "x", per_stratum=3).items()]
+    qs = [
+        i.queries[0]
+        for i in ConvoMemDataset(EVALS / "data" / "convomem", "x", per_stratum=3).items()
+    ]
     flagged = {q.type_label.split("/")[0] for q in qs if q.meta.get("abstention")}
     assert flagged == {"abstention_evidence"}
     assert JUDGE_SUITES["rubric"].handles_abstention
@@ -108,20 +113,30 @@ def _write(runs: Path, arm: str, key: str, correct: list[bool]) -> None:
     d.mkdir(parents=True)
     with (d / "results.jsonl").open("w", encoding="utf-8") as f:
         for i, ok in enumerate(correct):
-            row = {"kind": "result", "query_id": f"SECRET-{i}", "status": "completed",
-                   "answer": "SECRET-ANSWER", "score": 1.0 if ok else 0.0,
-                   "question": "SECRET-QUESTION", "gold": "SECRET-GOLD"}
+            row = {
+                "kind": "result",
+                "query_id": f"SECRET-{i}",
+                "status": "completed",
+                "answer": "SECRET-ANSWER",
+                "score": 1.0 if ok else 0.0,
+                "question": "SECRET-QUESTION",
+                "gold": "SECRET-GOLD",
+            }
             f.write(json.dumps(row) + "\n")
 
 
 def test_compare_counts() -> None:
-    mk = lambda xs: {str(i): {"status": "completed", "answer": "a", "score": float(x)} for i, x in enumerate(xs)}  # noqa: E731
+    mk = lambda xs: {
+        str(i): {"status": "completed", "answer": "a", "score": float(x)} for i, x in enumerate(xs)
+    }
     r = eval_blind.compare(mk([1, 1, 0, 0]), mk([1, 0, 1, 0]))
     assert (r["n"], r["gained"], r["lost"], r["net"]) == (4, 1, 1, 0)
     assert r["delta"] == 0 and r["guard_ok"]
     assert eval_blind.compare(mk([0] * 100), mk([1] * 100))["guard_ok"] is False
     none = eval_blind.compare({}, mk([1]))
-    assert none["n"] == 0 and none["complete"] is False  # G-E1: an empty run is incomplete, never neutral
+    assert (
+        none["n"] == 0 and none["complete"] is False
+    )  # G-E1: an empty run is incomplete, never neutral
     empty = {"0": {"status": "completed", "answer": " ", "score": 1.0}}
     assert not eval_blind.is_correct(empty["0"])
 
@@ -137,7 +152,9 @@ def test_scorer_prints_aggregates_only(tmp_path: Path, capsys: pytest.CaptureFix
         assert leaked not in out
 
 
-def test_scorer_reports_missing_and_regression(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+def test_scorer_reports_missing_and_regression(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
     _write(tmp_path, "new", "mab", [False] * 100)
     _write(tmp_path, "old", "mab", [True] * 100)
     eval_blind.main(["new", "--ref", "old", "--runs-dir", str(tmp_path)])

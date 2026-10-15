@@ -23,7 +23,7 @@ from .metrics import Ledger, summarise_floats
 from .provenance import RunManifest
 
 
-class RowStatus(str, Enum):  # noqa: UP042 - str() must stay the member name in logs
+class RowStatus(str, Enum):
     """Per-question completion status (`EVALUATION_PLAN_2026-09.md` §5).
 
     ``UNATTEMPTED`` is the one that matters and the one harnesses usually lack.

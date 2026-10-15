@@ -101,7 +101,9 @@ def paired(
     lo = hi = float(net)
     if clusters:
         rng = random.Random(BOOT_SEED)
-        draws = sorted(sum(per_cluster[rng.choice(clusters)] for _ in clusters) for _ in range(BOOT_REPS))
+        draws = sorted(
+            sum(per_cluster[rng.choice(clusters)] for _ in clusters) for _ in range(BOOT_REPS)
+        )
         lo, hi = float(draws[int(0.025 * BOOT_REPS)]), float(draws[int(0.975 * BOOT_REPS) - 1])
 
     by: dict[str, dict] = {}
@@ -115,15 +117,30 @@ def paired(
         for q in lost:
             acc[category_of(q)][2] += 1
         for c, (nc, g, lo_c) in sorted(acc.items()):
-            by[c] = {"n": nc, "gained": g, "lost": lo_c, "net": g - lo_c, "band": band(nc),
-                     "beyond_band": (g - lo_c) < -band(nc)}
+            by[c] = {
+                "n": nc,
+                "gained": g,
+                "lost": lo_c,
+                "net": g - lo_c,
+                "band": band(nc),
+                "beyond_band": (g - lo_c) < -band(nc),
+            }
 
     r = PairedResult(
-        n_expected=len(exp), n=n, missing_arm=len(miss_a), missing_ref=len(miss_r),
+        n_expected=len(exp),
+        n=n,
+        missing_arm=len(miss_a),
+        missing_ref=len(miss_r),
         acc_arm=100 * sum(arm[q] for q in shared) / n if n else 0.0,
         acc_ref=100 * sum(ref[q] for q in shared) / n if n else 0.0,
-        gained=len(gained), lost=len(lost), net=net, band=band(n),
-        p_sign=sign_test_p(len(gained), len(lost)), ci_low=lo, ci_high=hi, by_category=by,
+        gained=len(gained),
+        lost=len(lost),
+        net=net,
+        band=band(n),
+        p_sign=sign_test_p(len(gained), len(lost)),
+        ci_low=lo,
+        ci_high=hi,
+        by_category=by,
     )
     r.verdict, r.reasons = decide(r)
     if arm_manifest is not None and ref_manifest is not None:
@@ -141,7 +158,9 @@ def paired(
 
 def decide(r: PairedResult) -> tuple[str, list[str]]:
     if r.missing_arm or r.missing_ref or r.n < r.n_expected or r.n == 0:
-        return "INCOMPLETE", [f"rows missing: arm {r.missing_arm}, reference {r.missing_ref} of {r.n_expected}"]
+        return "INCOMPLETE", [
+            f"rows missing: arm {r.missing_arm}, reference {r.missing_ref} of {r.n_expected}"
+        ]
     if r.gained == 0 and r.lost == 0:
         return "NO CHANGE", ["no question flipped"]
     bad_cats = [c for c, d in r.by_category.items() if d["beyond_band"]]
@@ -158,12 +177,16 @@ def decide(r: PairedResult) -> tuple[str, list[str]]:
 
 
 def format_result(name: str, r: PairedResult) -> list[str]:
-    out = [f"{name}: n={r.n}/{r.n_expected}  arm {r.acc_arm:.1f}% vs ref {r.acc_ref:.1f}%  "
-           f"+{r.gained}/-{r.lost} net {r.net:+d} (band +-{r.band:.1f})  sign p={r.p_sign:.3f}  "
-           f"cluster 95% [{r.ci_low:+.0f}, {r.ci_high:+.0f}]"]
+    out = [
+        f"{name}: n={r.n}/{r.n_expected}  arm {r.acc_arm:.1f}% vs ref {r.acc_ref:.1f}%  "
+        f"+{r.gained}/-{r.lost} net {r.net:+d} (band +-{r.band:.1f})  sign p={r.p_sign:.3f}  "
+        f"cluster 95% [{r.ci_low:+.0f}, {r.ci_high:+.0f}]"
+    ]
     for c, d in r.by_category.items():
         flag = "  BEYOND BAND" if d["beyond_band"] else ""
-        out.append(f"   {c:6s} n={d['n']:4d} +{d['gained']}/-{d['lost']} net {d['net']:+d} (band +-{d['band']:.1f}){flag}")
+        out.append(
+            f"   {c:6s} n={d['n']:4d} +{d['gained']}/-{d['lost']} net {d['net']:+d} (band +-{d['band']:.1f}){flag}"
+        )
     out.extend(f"   WARNING: {w}" for w in r.warnings)
     out.append(f"   verdict: {r.verdict}  ({'; '.join(r.reasons)})")
     return out
