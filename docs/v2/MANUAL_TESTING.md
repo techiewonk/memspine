@@ -10,6 +10,7 @@ Related docs:
 - `STAGE_PARAMS.md`: the knobs for each stage.
 - `LAYER_FIX_TESTING.md`: one check per layer bug.
 - `TUNING_STUDIO.md`: the same work in a browser.
+- `FLOW_TESTING.md`: every engine flow (forget, quarantine, correct, rebuild, …) as one command per step, with `--events` and `--lines`.
 
 ---
 

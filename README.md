@@ -131,10 +131,12 @@ $env:PYTHONPATH = "../src;."
 python -m memspine_evals.inspect step --data demo --arm demo --offline   # then: turn, session, sleep, save
 python -m memspine_evals.inspect.layers <bundle-dir> --layer L2         # what a layer holds, with parents
 python ../docs/v2/layer_fix_checks.py all                                # one check per layer-contract bug
+python ../docs/v2/flow_checks.py --list                                  # every flow, step by step (run from repo root, PYTHONPATH=src)
 ```
 
 | Guide | For |
 |---|---|
+| [`docs/v2/FLOW_TESTING.md`](./docs/v2/FLOW_TESTING.md) | **every flow** (write, sleep, read, quarantine, forget, correct, rebuild, procedural, tasks, prospective, shared, graph, assets, views): one command per step, `--events`, `--lines` (every executed line), coverage |
 | [`docs/v2/MANUAL_TESTING.md`](./docs/v2/MANUAL_TESTING.md) | **start here**: ingestion phase by phase, sleep stage by stage, layer by layer, with the expected output |
 | [`docs/v2/INGESTION_WALKTHROUGH.md`](./docs/v2/INGESTION_WALKTHROUGH.md) | the code location and trace event of every write stage |
 | [`docs/v2/PIPELINE_STAGE_INVENTORY.md`](./docs/v2/PIPELINE_STAGE_INVENTORY.md) · [`STAGE_PARAMS.md`](./docs/v2/STAGE_PARAMS.md) | every stage id (A1–A28, B0–B17, read C…) and its knobs |
