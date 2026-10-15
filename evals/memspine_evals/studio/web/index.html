@@ -713,7 +713,9 @@ PANEL.session={build:function(){
   var stat=h('div',{class:'card',id:'sess-status'});
   var open=h('div',{class:'card'},h('h2',{},'Open a session'));
   var data=select('s-data',[['demo','demo (invented conversation)'],['locomo','locomo'],['path','custom path']],'demo'),path=input('s-path','',{ph:'path to a conversation json'}),item=input('s-item','demo-1',{ph:'item id'}),
-    arm=input('s-arm','v2',{ph:'arm name'}),mode=select('s-mode',['offline','replay','live'],'offline');
+    arm=input('s-arm','demo',{ph:'arm name'}),mode=select('s-mode',['offline','replay','live'],'offline');
+  /* the arm follows the data: demo -> the CPU demo arm, LoCoMo -> the adopted default v2-PICK3-j */
+  data.addEventListener('change',function(){if(arm.value==='demo'||arm.value==='v2-PICK3-j'||!arm.value)arm.value=data.value==='demo'?'demo':'v2-PICK3-j';});
   var slot=h('div',{class:'slot',id:'s-open-out','aria-live':'polite'});
   open.append(h('div',{class:'grid2'},field('Data','s-data',data),field('Path (custom only)','s-path',path),field('Item','s-item',item),field('Arm','s-arm',arm),field('Mode','s-mode',mode,'offline: no model calls. replay: cached calls. live: real calls.')),
     h('div',{class:'bar',style:'margin-top:10px'},btn('Open session',{id:'s-open',kind:'primary',onclick:async function(){
