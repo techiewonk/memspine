@@ -117,6 +117,21 @@ def parse_turn_stamp(turn: Turn, zone: tzinfo = UTC) -> datetime | None:
     return parsed
 
 
+_DATE_ONLY = re.compile(r"^\s*\d{4}-\d{2}-\d{2}\s*$")
+
+
+def stamp_source_time(turn: Turn, parsed: datetime | None) -> Any:
+    """The value the stamping stage reads as the message's source time.
+
+    A date-only stamp ("2024-03-02") is passed as the original string so ``write.stamping_v2`` keeps
+    ``precision=day``; the parsed datetime (midnight) would read as an exact instant
+    (``precision=second``). Anything with a time of day passes the parsed datetime."""
+    raw = turn.timestamp
+    if isinstance(raw, str) and _DATE_ONLY.match(raw):
+        return raw.strip()
+    return parsed
+
+
 #: D7 [INJ-6]: the forensic logs ``MEMSPINE_FORENSICS_DIR`` collects.
 FORENSIC_LOGS = ("forensics.jsonl", "ingest.jsonl", "write_trace.jsonl")
 
@@ -604,7 +619,7 @@ class MemspineSystem:
             if stamp is not None:
                 # the stamping stage (write.stamping_v2) reads the source time from the message, as in the
                 # batch path below; valid_from alone left single-turn writes undated (precision unknown)
-                one["timestamp"] = stamp
+                one["timestamp"] = stamp_source_time(turns[0], stamp)
             records = await self._engine.write_messages(
                 [one],
                 namespace=self.namespace,
@@ -618,7 +633,7 @@ class MemspineSystem:
                 message: dict[str, Any] = self._message(turn, text)
                 stamp = parse_turn_stamp(turn, self._zone)
                 if stamp is not None:
-                    message["timestamp"] = stamp
+                    message["timestamp"] = stamp_source_time(turn, stamp)
                 messages.append(message)
             records = await self._engine.write_messages(
                 messages,
