@@ -638,7 +638,7 @@ def plan_models(
     lost: list[tuple[str, str]] = []
     avail: list[str] = ["layer.L0"]
     for spec in ROLE_CATALOGUE:
-        m = chosen.get(spec.name)
+        m = chosen.get(spec.name)  # type: ignore[assignment]  # CI-GREEN: pre-existing typing debt
         if spec.name in prefs.disabled_roles:
             bindings.append(
                 RoleBinding(

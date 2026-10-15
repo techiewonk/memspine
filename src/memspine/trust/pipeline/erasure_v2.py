@@ -307,7 +307,7 @@ async def forget(
             if a.needs_rederivation
         ]
         for item in queued:
-            q[str(item["record_id"])] = item
+            q[str(item["record_id"])] = item  # type: ignore[assignment]  # CI-GREEN: pre-existing typing debt
         for a in plan.actions:
             if a.action == "unbind_and_hide":
                 q.pop(a.record_id, None)

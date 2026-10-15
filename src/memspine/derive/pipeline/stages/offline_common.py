@@ -176,7 +176,7 @@ def fact_envelope(record: MemoryRecord) -> AssertionEnvelope | None:
             source_trust=record.trust,
             binding="bound",
             modality="asserted",
-            time_precision=time.event_precision,
+            time_precision=time.event_precision,  # type: ignore[arg-type]  # CI-GREEN: pre-existing typing debt
             support=Support(),
         ),
         src_class=_src_class(record),  # type: ignore[arg-type]

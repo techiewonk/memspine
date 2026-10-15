@@ -371,7 +371,7 @@ def choose_tier(
     if cfg.default_depth != "auto":
         base = cfg.default_depth
     else:
-        base = next(d for d in ("fast", "standard", "deep") if d in cfg.allowed_depths)  # type: ignore[assignment]
+        base = next(d for d in ("fast", "standard", "deep") if d in cfg.allowed_depths)
     if (
         base == "deep" and not worker
     ):  # a configured deep default with no model: same rule as explicit

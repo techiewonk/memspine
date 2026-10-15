@@ -212,5 +212,17 @@ module = [
     "model2vec.*",
     "tantivy",
     "tantivy.*",
+    # heavy optional deps not installed in the dev-only CI env (imported lazily)
+    "sentence_transformers",
+    "sentence_transformers.*",
+    "transformers",
+    "transformers.*",
+    "torch",
+    "torch.*",
+    "safetensors",
+    "safetensors.*",
+    "psutil",
+    "onnxruntime",
+    "onnxruntime.*",
 ]
 ignore_missing_imports = true

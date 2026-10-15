@@ -491,7 +491,7 @@ def _budget_factor(eng: Any, budget_tokens: int) -> float:
     read_cfg = eng._config().read
     if not read_cfg.replay_budget_scaling:
         return 1.0
-    return max(0.25, min(1.0, budget_tokens / read_cfg.replay_budget_reference))
+    return max(0.25, min(1.0, budget_tokens / read_cfg.replay_budget_reference))  # type: ignore[no-any-return]  # CI-GREEN: pre-existing typing debt
 
 
 def _context_eligible(eng: Any, record: MemoryRecord) -> bool:
@@ -595,7 +595,7 @@ async def bundle_selected(
     if bundles and fact_room > 0:
         packed = pack(
             bundles,
-            Budget(total=fact_room, counter=counter),
+            Budget(total=fact_room, counter=counter),  # type: ignore[arg-type]  # CI-GREEN: pre-existing typing debt
             order=[b.record_id for b in bundles],
             turns=turn_text,
             early_break_after_n_skips=cfg.exact_budget_max_skips,

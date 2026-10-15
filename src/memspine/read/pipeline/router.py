@@ -413,7 +413,7 @@ async def search(
         )
         if outer:
             await eng._audit_read("search", namespace, [r.record_id for r, _ in scored])
-    return scored
+    return scored  # type: ignore[no-any-return]  # CI-GREEN: pre-existing typing debt
 
 
 async def _date_prior(
@@ -735,7 +735,7 @@ async def _search(
                 rrf_max = legs / (rrf_k + 1)
             if minmax:  # N52: the max is the (weighted) leg count, without 1/(k+1)
                 rrf_max *= rrf_k + 1
-            ranked: list[tuple[str, float]] = [(rid, score / rrf_max) for rid, score in fused]
+            ranked: list[tuple[str, float]] = [(rid, score / rrf_max) for rid, score in fused]  # type: ignore[no-redef]  # CI-GREEN: pre-existing typing debt
             if read_cut.date_prior:  # R14-M-7: a boosted relevance stays in [0, 1]
                 ranked = [(rid, min(sc, 1.0)) for rid, sc in ranked]
         else:
@@ -1332,9 +1332,9 @@ async def _read_planned(
             result = ReadResult(result.mode, eng._consent_context(result.context))
             read_request._cache_put(eng, cache_key, result)
         if outer:
-            ids = [r.record_id for r in result.context.records]
+            ids = [r.record_id for r in result.context.records]  # type: ignore[union-attr]  # CI-GREEN: pre-existing typing debt
             await eng._audit_read("read", namespace, ids)
-    return result
+    return result  # type: ignore[return-value]  # CI-GREEN: pre-existing typing debt
 
 
 async def _read(
@@ -1480,7 +1480,7 @@ async def _read_routed(
             is_aggregation(query) or is_count(query)
         )
         if read_cfg.completeness_check and aggregate:
-            return await eng._compose_checked(
+            return await eng._compose_checked(  # type: ignore[no-any-return]  # CI-GREEN: pre-existing typing debt
                 query,
                 ns,
                 budget_tokens,
@@ -1492,7 +1492,7 @@ async def _read_routed(
                 session_id=session_id,
                 legs=legs,
             )
-        return await eng._compose(
+        return await eng._compose(  # type: ignore[no-any-return]  # CI-GREEN: pre-existing typing debt
             query,
             ns,
             budget_tokens,

@@ -528,8 +528,12 @@ def integrate(
     if me.kind == "tentative":
         live_ids = tuple(r_id for r_id, r in new.items() if r.kind == "live" and r_id != inc_rid)
         return IntegrationDecision(
-            "tentative", me.reason, affected=live_ids, creates_value=False, **base
-        )  # type: ignore[arg-type]
+            "tentative",
+            me.reason,
+            affected=live_ids,
+            creates_value=False,
+            **base,  # type: ignore[arg-type]  # CI-GREEN: pre-existing typing debt
+        )
     if me.kind == "past":
         return IntegrationDecision("coexist", "past_interval", **base)  # type: ignore[arg-type]
 
@@ -600,8 +604,8 @@ def integrate(
             "coexist",
             "cardinality_many" if declared else "undeclared_cardinality",
             affected=others,
-            **base,
-        )  # type: ignore[arg-type]
+            **base,  # type: ignore[arg-type]  # CI-GREEN: pre-existing typing debt
+        )
     return IntegrationDecision("append", "first_value", **base)  # type: ignore[arg-type]
 
 

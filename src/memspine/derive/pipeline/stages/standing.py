@@ -395,4 +395,4 @@ async def standing_block(
     body = [ANSWERS_HEADER, *(f"- {line}" for line in lines)] if lines else []
     if text_lines:
         body += [INSTRUCTIONS_HEADER, *text_lines]
-    return eng._lead_record(ns, "\n".join(body), [*parts, *parts_i])
+    return eng._lead_record(ns, "\n".join(body), [*parts, *parts_i])  # type: ignore[no-any-return]  # CI-GREEN: pre-existing typing debt

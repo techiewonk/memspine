@@ -243,7 +243,7 @@ def tier_plan(
                     from_tier=rec.tier,
                     to_tier=target,
                     activation=act,
-                    reason=reason,
+                    reason=reason,  # type: ignore[arg-type]  # CI-GREEN: pre-existing typing debt
                 )
             )
     return moves

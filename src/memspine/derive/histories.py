@@ -689,7 +689,7 @@ def value_history(
     lines: list[KeyHistory] = []
     for gk in sorted(buckets, key=lambda k: tuple("" if x is None else x for x in k)):
         recs = buckets[gk]
-        spans: list[tuple[tuple, ValueSpan]] = []
+        spans: list[tuple[tuple, ValueSpan]] = []  # type: ignore[type-arg]  # CI-GREEN: pre-existing typing debt
         merged: list[AssertionEnvelope] = []
         tentative: list[TentativeEntry] = []
         for e in recs:

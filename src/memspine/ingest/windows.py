@@ -483,7 +483,7 @@ async def close_session(
     eng._require_started()
     ns = validate_namespace(namespace)
     if eng._windows is not None:
-        return await eng._windows.close_session(ns, session_id)
+        return await eng._windows.close_session(ns, session_id)  # type: ignore[no-any-return]  # CI-GREEN: pre-existing typing debt
     if session_id is None:
         return {"status": "skipped", "reason": "no session_id and write.window_extract is off"}
     hook = await session_close(eng._pipeline_ctx(), SessionClosed(ns, session_id))

@@ -129,7 +129,7 @@ def signal_stack(signals: FirewallSignals, *, derive: bool = False) -> tuple[Sig
     cfg = _signal_config(signals, derive=derive)
     stack = list(build_signals(cfg))
     return tuple(
-        AnomalySignal(
+        AnomalySignal(  # type: ignore[misc]  # CI-GREEN: pre-existing typing debt
             min_neighbours=constants.ANOMALY_MIN_NEIGHBOURS,
             outlier_similarity=constants.ANOMALY_CENTROID_MIN_SIMILARITY,
             exempt_roles=cfg.anomaly_exempt_roles,

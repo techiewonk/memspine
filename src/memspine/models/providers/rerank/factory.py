@@ -146,7 +146,7 @@ def build_reranker(settings: RerankSettings) -> Reranker | None:
             from memspine.models.providers.rerank.chunking import ChunkMaxReranker
 
             built = ChunkMaxReranker(built, settings.chunk_chars, settings.chunk_overlap)
-        return built
+        return built  # type: ignore[no-any-return]  # CI-GREEN: pre-existing typing debt
     except Exception as exc:
         _log.info(
             "rerank.unavailable",

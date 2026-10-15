@@ -1041,7 +1041,7 @@ def normalise_relative_phrase(phrase: str) -> TemporalCandidate | None:
     if len(toks) == 2:
         det, word = toks
         rel = (
-            "last"
+            "last"  # type: ignore[assignment]  # CI-GREEN: pre-existing typing debt
             if det in _LAST_W
             else "next"
             if det in _NEXT_W

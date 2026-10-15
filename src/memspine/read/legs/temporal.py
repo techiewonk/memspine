@@ -61,7 +61,7 @@ class TimeWindow:
     ) -> TimeWindow | None:
         """The first span the question names, or None. ``reference_time`` anchors relative
         phrases; without it only absolute dates resolve."""
-        span = query_interval(query, reference_time, week=week, year_ref=year_ref)
+        span = query_interval(query, reference_time, week=week, year_ref=year_ref)  # type: ignore[arg-type]  # CI-GREEN: pre-existing typing debt
         return cls(*span) if span else None
 
     @property

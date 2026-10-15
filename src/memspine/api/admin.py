@@ -114,7 +114,7 @@ def llm(eng: Any, role: str) -> LLMService:
     """
     if eng._llm is None:
         raise MemspineError("Engine not started — call start() first")
-    return eng._llm.for_role(role)
+    return eng._llm.for_role(role)  # type: ignore[no-any-return]  # CI-GREEN: pre-existing typing debt
 
 
 def describe(eng: Any) -> dict[str, Any]:

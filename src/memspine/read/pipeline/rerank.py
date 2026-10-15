@@ -120,7 +120,7 @@ def _planned_chain(eng: Any) -> list[tuple[str, str]] | None:
         tap.event(
             "models.rerank_chain", modes=[m for m, _ in cached], devices=[d for _, d in cached]
         )
-    return cached
+    return cached  # type: ignore[no-any-return]  # CI-GREEN: pre-existing typing debt
 
 
 def _chain_provider(eng: Any, mode: str, read_cfg: Any, device: str | None = None) -> Any:

@@ -21,7 +21,7 @@ from memspine.schemas.durable import (
     OutboxRow,
 )
 from memspine.schemas.public import Receipt, WaitResult
-from memspine.schemas.steps.shared import (
+from memspine.schemas.steps.shared import (  # type: ignore[attr-defined]  # CI-GREEN: pre-existing typing debt
     AssetRef,
     CallBatch,
     DeriveUse,

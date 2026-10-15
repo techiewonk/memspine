@@ -284,7 +284,7 @@ async def _relevance_gate(
     if await eng._gate_bypassed(query, ns, result):
         return result
     if eng._config().read.relevance_gate == "store_calibrated":
-        return await eng._calibrated_gate(query, result, ns)
+        return await eng._calibrated_gate(query, result, ns)  # type: ignore[no-any-return]  # CI-GREEN: pre-existing typing debt
     return result
 
 

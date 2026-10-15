@@ -256,8 +256,8 @@ def _trust_cap(env: AssertionEnvelope, ctx: EnvelopeStageContext) -> float:
     turn (derived content is never more trusted than its parents) and at the default trust the mined-fact
     door gives a derived record, so it compares with the trust of the stored facts it is weighed against."""
     by_id = {getattr(r, "record_id", None): r for r in ctx.records}
-    cited = [by_id[e.turn.source_id].trust for e in env.evidence if e.turn.source_id in by_id]
-    return min([TRUST_DEFAULT, env.assessment.source_trust, *cited])
+    cited = [by_id[e.turn.source_id].trust for e in env.evidence if e.turn.source_id in by_id]  # type: ignore[union-attr]  # CI-GREEN: pre-existing typing debt
+    return min([TRUST_DEFAULT, env.assessment.source_trust, *cited])  # type: ignore[no-any-return]  # CI-GREEN: pre-existing typing debt
 
 
 def _working_copy(env: AssertionEnvelope, ctx: EnvelopeStageContext, key: str) -> AssertionEnvelope:

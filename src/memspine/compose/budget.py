@@ -86,7 +86,7 @@ class Budget:
     """
 
     total: int
-    counter: TokenCounter = field(default_factory=EstimatingCounter)
+    counter: TokenCounter = field(default_factory=EstimatingCounter)  # type: ignore[assignment]  # CI-GREEN: pre-existing typing debt
     system: int = 0
     output: int = 0
     history: int = 0

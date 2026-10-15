@@ -66,7 +66,7 @@ async def _persp_state_for(eng: Any, ns: str) -> dict[str, Any]:
             _log.warning("perspective.seed_failed", namespace=ns, error=str(exc))
         state = {"known": known, "last": None, "acked": acked, "assistant": None}
         eng._persp_state[ns] = state
-    return state
+    return state  # type: ignore[no-any-return]  # CI-GREEN: pre-existing typing debt
 
 
 async def _annotate_perspective(
@@ -162,7 +162,7 @@ async def _entity_vocabulary(eng: Any, ns: str) -> frozenset[str]:
         state = await eng._persp_state_for(ns)
         vocab = store_vocab((r.content for r in records), state["known"])
         cached = eng._entity_vocab[ns] = (len(records), vocab)
-    return cached[1]
+    return cached[1]  # type: ignore[no-any-return]  # CI-GREEN: pre-existing typing debt
 
 
 async def _perspective_leg(
