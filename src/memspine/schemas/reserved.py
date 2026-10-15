@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """Reserved system-field names (SESSIONS_01_02, condition 1).
 
 The model never authors these (ER-32, S2-1). The extraction compiler (W2-06a) rejects any model output

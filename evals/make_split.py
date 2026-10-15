@@ -51,7 +51,7 @@ HERE = Path(__file__).resolve().parent
 sys.path[:] = [p for p in sys.path if Path(p or ".").resolve() != HERE]
 sys.path.append(str(HERE))
 
-from memspine_evals.split import Split, file_sha256, split_ids  # noqa: E402
+from memspine_evals.split import Split, file_sha256, split_ids
 
 
 def locomo_first_speakers(source: Path, opbench_tasks: Path | None = None) -> list[str]:
@@ -72,7 +72,9 @@ def read_units(args: argparse.Namespace) -> list[str]:
     if args.units == "locomo-first-speakers":
         if not args.source:
             raise SystemExit("--units locomo-first-speakers needs --source locomo10.json")
-        return locomo_first_speakers(Path(args.source[0]), Path(args.opbench_tasks) if args.opbench_tasks else None)
+        return locomo_first_speakers(
+            Path(args.source[0]), Path(args.opbench_tasks) if args.opbench_tasks else None
+        )
     if args.units_file:
         text = Path(args.units_file).read_text(encoding="utf-8")
         if text.lstrip().startswith("["):
@@ -107,17 +109,25 @@ def check(path: Path, source: list[str] | None) -> int:
     if source:
         actual = file_sha256(*source)
         if actual != split.content_sha256:
-            print(f"MISMATCH: split content_sha256 {split.content_sha256[:12]} != source {actual[:12]}")
+            print(
+                f"MISMATCH: split content_sha256 {split.content_sha256[:12]} != source {actual[:12]}"
+            )
             return 1
-    print(f"ok: {split.dataset_id} unit={split.unit or '?'} dev={len(split.dev_items)} "
-          f"heldout={len(split.heldout_items)} hash={'verified' if split.split_sha256 else 'none recorded'}")
+    print(
+        f"ok: {split.dataset_id} unit={split.unit or '?'} dev={len(split.dev_items)} "
+        f"heldout={len(split.heldout_items)} hash={'verified' if split.split_sha256 else 'none recorded'}"
+    )
     return 0
 
 
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     ap.add_argument("--dataset-id")
-    ap.add_argument("--unit", default="item", help="what one unit is: conversation | user | persona | ...")
+    ap.add_argument(
+        "--unit", default="item", help="what one unit is: conversation | user | persona | ..."
+    )
     ap.add_argument("--source", nargs="+", help="data file(s) hashed into content_sha256")
     ap.add_argument("--content-sha256", help="use this hash instead of hashing --source")
     ap.add_argument("--units", choices=["locomo-first-speakers"])
@@ -127,7 +137,9 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--unit-field", default="item_id")
     ap.add_argument("--dev", nargs="+")
     ap.add_argument("--n-dev", type=int)
-    ap.add_argument("--seed", type=int, default=None, help="with --n-dev (default 0); recorded null for --dev")
+    ap.add_argument(
+        "--seed", type=int, default=None, help="with --n-dev (default 0); recorded null for --dev"
+    )
     ap.add_argument("--group-regex")
     ap.add_argument("--note", default="")
     ap.add_argument("--out")
@@ -141,12 +153,20 @@ def main(argv: list[str] | None = None) -> int:
     if not sha:
         ap.error("give --source (hashed) or --content-sha256")
     split = split_ids(
-        read_units(args), dataset_id=args.dataset_id, content_sha256=sha, unit=args.unit,
-        dev=args.dev, n_dev=args.n_dev,
-        seed=None if args.dev else (args.seed or 0), group_of=_group(args.group_regex), note=args.note,
+        read_units(args),
+        dataset_id=args.dataset_id,
+        content_sha256=sha,
+        unit=args.unit,
+        dev=args.dev,
+        n_dev=args.n_dev,
+        seed=None if args.dev else (args.seed or 0),
+        group_of=_group(args.group_regex),
+        note=args.note,
     )
     path = split.save(args.out)
-    print(f"{path}: {len(split.dev_items)} dev, {len(split.heldout_items)} held-out, sha {sha[:12]}")
+    print(
+        f"{path}: {len(split.dev_items)} dev, {len(split.heldout_items)} held-out, sha {sha[:12]}"
+    )
     return 0
 
 

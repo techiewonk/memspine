@@ -74,15 +74,29 @@ def slice_hash(key: str, analysis: Path | None = None) -> str:
     return hashlib.sha256("\n".join(sorted(d.get("blind_items", []))).encode()).hexdigest()[:16]
 
 
-def compare(new: dict[str, dict], ref: dict[str, dict], arm_manifest: dict | None = None,
-            ref_manifest: dict | None = None) -> dict:
+def compare(
+    new: dict[str, dict],
+    ref: dict[str, dict],
+    arm_manifest: dict | None = None,
+    ref_manifest: dict | None = None,
+) -> dict:
     """Paired aggregate of two runs over the union of their questions. Counts and rates only."""
     expected = sorted(set(new) | set(ref))
-    pr = paired({q: is_correct(r) for q, r in new.items()}, {q: is_correct(r) for q, r in ref.items()}, expected,
-                arm_manifest=arm_manifest, ref_manifest=ref_manifest)
+    pr = paired(
+        {q: is_correct(r) for q, r in new.items()},
+        {q: is_correct(r) for q, r in ref.items()},
+        expected,
+        arm_manifest=arm_manifest,
+        ref_manifest=ref_manifest,
+    )
     if pr.verdict == "INCOMPARABLE":
-        return {"n": len(set(new) & set(ref)), "complete": False, "incomparable": pr.incomparable_fields,
-                "missing": pr.missing_arm + pr.missing_ref, "warnings": pr.warnings}
+        return {
+            "n": len(set(new) & set(ref)),
+            "complete": False,
+            "incomparable": pr.incomparable_fields,
+            "missing": pr.missing_arm + pr.missing_ref,
+            "warnings": pr.warnings,
+        }
     shared = sorted(set(new) & set(ref))
     n = len(shared)
     if not n:
@@ -115,8 +129,11 @@ def supersession(rows: dict[str, dict], mab_data: Path) -> dict:
     from memspine_evals.datasets import MemoryAgentBenchDataset
     from memspine_evals.datasets.mab_gold import supersession_order_rate
 
-    meta = {q.query_id: q.meta for it in MemoryAgentBenchDataset(mab_data, "auto").items()
-            for q in it.queries}
+    meta = {
+        q.query_id: q.meta
+        for it in MemoryAgentBenchDataset(mab_data, "auto").items()
+        for q in it.queries
+    }
     return supersession_order_rate(rows.values(), meta)
 
 
@@ -142,13 +159,17 @@ def _load_sets(arm: str, ref: str, runs: Path) -> tuple[list[dict], list[str]]:
     for key, name in DATASETS:
         paths = [run_dir(runs, x, key) / "results.jsonl" for x in (arm, ref)]
         if not all(p.exists() for p in paths):
-            problems.append(f"{name}: run missing ({', '.join(p.parent.name for p in paths if not p.exists())})")
+            problems.append(
+                f"{name}: run missing ({', '.join(p.parent.name for p in paths if not p.exists())})"
+            )
             continue
         new, ref_rows = load_rows(paths[0]), load_rows(paths[1])
         m_new, m_ref = seal.read_manifest(paths[0]), seal.read_manifest(paths[1])
         r = compare(new, ref_rows, m_new, m_ref)
         if r.get("incomparable"):
-            problems.append(f"{name}: INCOMPARABLE, manifests differ on " + "; ".join(r["incomparable"]))
+            problems.append(
+                f"{name}: INCOMPARABLE, manifests differ on " + "; ".join(r["incomparable"])
+            )
         elif not r["n"]:
             problems.append(f"{name}: no shared questions")
         elif not r["complete"]:
@@ -158,15 +179,31 @@ def _load_sets(arm: str, ref: str, runs: Path) -> tuple[list[dict], list[str]]:
 
 
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     ap.add_argument("arm")
     ap.add_argument("--ref", required=True)
     ap.add_argument("--runs-dir", default=str(HERE / "runs"))
-    ap.add_argument("--analysis-dir", default=None, help="folder of the frozen blind_split_*.json (default analysis/)")
-    ap.add_argument("--ledger", default=None, help="exposure ledger (default <runs-dir>/_logs/blind_exposure.jsonl)")
-    ap.add_argument("--reexpose", default=None, metavar="REASON",
-                    help="score an arm a second time on a sealed set; the reason is recorded in the ledger")
-    ap.add_argument("--mab-data", default=None, help="Conflict_Resolution.parquet (adds supersession order)")
+    ap.add_argument(
+        "--analysis-dir",
+        default=None,
+        help="folder of the frozen blind_split_*.json (default analysis/)",
+    )
+    ap.add_argument(
+        "--ledger",
+        default=None,
+        help="exposure ledger (default <runs-dir>/_logs/blind_exposure.jsonl)",
+    )
+    ap.add_argument(
+        "--reexpose",
+        default=None,
+        metavar="REASON",
+        help="score an arm a second time on a sealed set; the reason is recorded in the ledger",
+    )
+    ap.add_argument(
+        "--mab-data", default=None, help="Conflict_Resolution.parquet (adds supersession order)"
+    )
     a = ap.parse_args(argv)
     runs = Path(a.runs_dir)
     ledger = Path(a.ledger) if a.ledger else seal.default_ledger(runs)
@@ -196,22 +233,37 @@ def main(argv: list[str] | None = None) -> int:
             results.append(r)
             for w in dict.fromkeys(r.get("warnings", [])):
                 print(f"{s['name']}: WARNING: {w}")
-            print(f"{s['name']} {a.arm} vs {a.ref} on {r['n']} q: {r['acc_new']:.1f} vs {r['acc_ref']:.1f} "
-                  f"({r['delta']:+.1f} pts)  +{r['gained']}/-{r['lost']} net {r['net']:+d} "
-                  f"(band +-{r['band']:.1f}) guard {'ok' if r['guard_ok'] else 'FAILED'}  sign p={r['p_sign']:.3f} "
-                  f"cluster 95% [{r['ci'][0]:+.0f}, {r['ci'][1]:+.0f}]")
+            print(
+                f"{s['name']} {a.arm} vs {a.ref} on {r['n']} q: {r['acc_new']:.1f} vs {r['acc_ref']:.1f} "
+                f"({r['delta']:+.1f} pts)  +{r['gained']}/-{r['lost']} net {r['net']:+d} "
+                f"(band +-{r['band']:.1f}) guard {'ok' if r['guard_ok'] else 'FAILED'}  sign p={r['p_sign']:.3f} "
+                f"cluster 95% [{r['ci'][0]:+.0f}, {r['ci'][1]:+.0f}]"
+            )
             if s["key"] == "mab" and a.mab_data:
-                s_new, s_ref = supersession(s["new"], Path(a.mab_data)), supersession(s["ref"], Path(a.mab_data))
-                print(f"   supersession order {s_new['supersession_order']} (n={s_new['n_applicable']}) "
-                      f"vs {s_ref['supersession_order']} (n={s_ref['n_applicable']})")
+                s_new, s_ref = (
+                    supersession(s["new"], Path(a.mab_data)),
+                    supersession(s["ref"], Path(a.mab_data)),
+                )
+                print(
+                    f"   supersession order {s_new['supersession_order']} (n={s_new['n_applicable']}) "
+                    f"vs {s_ref['supersession_order']} (n={s_ref['n_applicable']})"
+                )
         verdict_text = verdict(results)
         print(f"verdict: {verdict_text}")
     finally:
         # aggregates were (or may have been) shown, so the exposure counts even if scoring then failed
         for s in sets:
-            seal.record(ledger, set_id=f"blind-{s['key']}", slice_hash=slice_hash(s["key"], analysis),
-                        arm=arm[s["key"]], ref_run=a.ref, manifest=s["m_new"], verdict=verdict_text,
-                        reexpose=a.reexpose if prior.get(s["key"]) else None, prior=prior.get(s["key"], 0))
+            seal.record(
+                ledger,
+                set_id=f"blind-{s['key']}",
+                slice_hash=slice_hash(s["key"], analysis),
+                arm=arm[s["key"]],
+                ref_run=a.ref,
+                manifest=s["m_new"],
+                verdict=verdict_text,
+                reexpose=a.reexpose if prior.get(s["key"]) else None,
+                prior=prior.get(s["key"], 0),
+            )
     return 0
 
 

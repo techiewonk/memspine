@@ -42,9 +42,9 @@ from .behavioural_cases import (
 )
 
 __all__ = [
+    "CASES",
     "BehaviouralReport",
     "CaseResult",
-    "CASES",
     "Status",
     "default_engine_factory",
     "run_behavioural",
@@ -299,14 +299,15 @@ async def _inv_order_swap(c: Ctx) -> tuple[bool, str]:
     cur: dict[str, set[str]] = {}
     for ns in ("os-fwd", "os-rev"):
         # live (not superseded) city facts the search offers as evidence
-        cur[ns] = {
-            r.content
-            for r in await c.search(ns, q)
-            if r.memory_type == "semantic"
-        }
+        cur[ns] = {r.content for r in await c.search(ns, q) if r.memory_type == "semantic"}
     want = {"Ilse lives in Rotterdam"}
     ok = cur["os-fwd"] == cur["os-rev"] == want
-    return ok, "" if ok else f"live city facts forward={sorted(cur['os-fwd'])} reversed={sorted(cur['os-rev'])}"
+    return (
+        ok,
+        ""
+        if ok
+        else f"live city facts forward={sorted(cur['os-fwd'])} reversed={sorted(cur['os-rev'])}",
+    )
 
 
 async def _inv_filler(c: Ctx) -> tuple[bool, str]:
@@ -328,7 +329,10 @@ async def _tenant_setup(c: Ctx) -> tuple[str, str]:
     a, b = "tn-a", "tn-b"
     await c.eng.write_messages(
         [
-            {"role": "user", "content": "My vault passphrase is zorblax and my allergy is quindle pollen."},
+            {
+                "role": "user",
+                "content": "My vault passphrase is zorblax and my allergy is quindle pollen.",
+            },
             {"role": "user", "content": "I booked a dentist appointment for next Tuesday at nine."},
         ],
         namespace=a,
@@ -345,7 +349,10 @@ async def _tenant_setup(c: Ctx) -> tuple[str, str]:
     await c.eng.write_messages(
         [
             {"role": "user", "content": "I repainted the shed green and bought new garden gloves."},
-            {"role": "user", "content": "The allergy clinic is closed on Tuesday so I will walk instead."},
+            {
+                "role": "user",
+                "content": "The allergy clinic is closed on Tuesday so I will walk instead.",
+            },
         ],
         namespace=b,
         session_id="tn-b-s1",
@@ -387,7 +394,11 @@ async def _saf_tenant_read(c: Ctx) -> tuple[bool, str]:
 
 
 async def _saf_viewer(c: Ctx) -> tuple[bool, str]:
-    if not (c.supports("search", "viewer") and c.supports("read", "viewer") and c.supports("write", "participants")):
+    if not (
+        c.supports("search", "viewer")
+        and c.supports("read", "viewer")
+        and c.supports("write", "participants")
+    ):
         raise NotSupported("engine has no viewer / participants support")
     ns = "vw"
     await c.eng.write(
@@ -425,7 +436,9 @@ async def _saf_unanswerable(c: Ctx) -> tuple[bool, str]:
     for q in _UNANSWERABLE:
         res = await c.read("un", q)
         if res.context.records and not res.context.abstained:
-            bad.append(f"confident evidence returned ({len(res.context.records)} records) for an unanswerable question")
+            bad.append(
+                f"confident evidence returned ({len(res.context.records)} records) for an unanswerable question"
+            )
     return not bad, "; ".join(bad)
 
 
@@ -441,20 +454,83 @@ async def _saf_generic(c: Ctx) -> tuple[bool, str]:
     for q in _GENERIC:
         res = await c.read("gp", q)
         leaked += len(res.context.records)
-    return leaked == 0, f"{leaked} personal record(s) in the context of generic questions" if leaked else ""
+    return (
+        leaked == 0,
+        f"{leaked} personal record(s) in the context of generic questions" if leaked else "",
+    )
 
 
 CASES: tuple[Case, ...] = (
-    Case("INV-RENAME-SEARCH", "invariance", "Renaming entities (Ilse->Aiko, Bram->Cato) consistently gives the same search hit structure.", "equal", _inv_rename_search),
-    Case("INV-RENAME-COMPOSE", "invariance", "Renaming entities gives the same composed context.", "equal", _inv_rename_compose),
-    Case("INV-PARAPHRASE", "invariance", "A paraphrased query keeps the original top-1 evidence within its top-3.", "subset", _inv_paraphrase),
-    Case("INV-ORDER-SWAP", "invariance", "Ingesting sessions in reverse order with explicit dates keeps the current value (latest city).", "equal", _inv_order_swap),
-    Case("INV-FILLER", "invariance", "Inserting unrelated filler turns keeps the top-2 evidence within the top-5.", "subset", _inv_filler),
-    Case("SAF-TENANT-SEARCH", "safety", "A query in tenant B never returns tenant A's records (search).", "disjoint", _saf_tenant_search),
-    Case("SAF-TENANT-READ", "safety", "A query in tenant B never returns tenant A's records (read: retrieve, compose, full).", "disjoint", _saf_tenant_read),
-    Case("SAF-VIEWER", "safety", "A viewer who was not a party to a record never sees it.", "disjoint", _saf_viewer),
-    Case("SAF-UNANSWERABLE", "safety", "An unanswerable question yields no confident evidence (abstains).", "abstain", _saf_unanswerable),
-    Case("SAF-GENERIC", "safety", "A generic knowledge question pulls no personal memory into the context.", "disjoint", _saf_generic),
+    Case(
+        "INV-RENAME-SEARCH",
+        "invariance",
+        "Renaming entities (Ilse->Aiko, Bram->Cato) consistently gives the same search hit structure.",
+        "equal",
+        _inv_rename_search,
+    ),
+    Case(
+        "INV-RENAME-COMPOSE",
+        "invariance",
+        "Renaming entities gives the same composed context.",
+        "equal",
+        _inv_rename_compose,
+    ),
+    Case(
+        "INV-PARAPHRASE",
+        "invariance",
+        "A paraphrased query keeps the original top-1 evidence within its top-3.",
+        "subset",
+        _inv_paraphrase,
+    ),
+    Case(
+        "INV-ORDER-SWAP",
+        "invariance",
+        "Ingesting sessions in reverse order with explicit dates keeps the current value (latest city).",
+        "equal",
+        _inv_order_swap,
+    ),
+    Case(
+        "INV-FILLER",
+        "invariance",
+        "Inserting unrelated filler turns keeps the top-2 evidence within the top-5.",
+        "subset",
+        _inv_filler,
+    ),
+    Case(
+        "SAF-TENANT-SEARCH",
+        "safety",
+        "A query in tenant B never returns tenant A's records (search).",
+        "disjoint",
+        _saf_tenant_search,
+    ),
+    Case(
+        "SAF-TENANT-READ",
+        "safety",
+        "A query in tenant B never returns tenant A's records (read: retrieve, compose, full).",
+        "disjoint",
+        _saf_tenant_read,
+    ),
+    Case(
+        "SAF-VIEWER",
+        "safety",
+        "A viewer who was not a party to a record never sees it.",
+        "disjoint",
+        _saf_viewer,
+    ),
+    Case(
+        "SAF-UNANSWERABLE",
+        "safety",
+        "An unanswerable question yields no confident evidence (abstains).",
+        "abstain",
+        _saf_unanswerable,
+    ),
+    Case(
+        "SAF-GENERIC",
+        "safety",
+        "A generic knowledge question pulls no personal memory into the context.",
+        "disjoint",
+        _saf_generic,
+    ),
 )
 
 

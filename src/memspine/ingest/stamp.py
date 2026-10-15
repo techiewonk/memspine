@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """LIB-29: stamping for the insert path (W-04, W-05, W-08, M-08; insert step 3 and 4).
 
 Pure and unwired (W2-02 wires it): no I/O, no clock read, no model call. ``recorded_at`` comes in as a

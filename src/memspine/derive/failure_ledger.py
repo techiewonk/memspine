@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """``derive.FailureLedger``: the persisted dead-letter list of the envelope-v2 write path (W2-06a, W-14).
 
 One row per item (or whole call) that could not be turned into an envelope even after the one repair re-ask:

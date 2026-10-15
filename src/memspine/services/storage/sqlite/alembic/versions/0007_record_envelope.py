@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """F-02a: the record envelope on memory_records (layer, type tag, provenance class, axes, fingerprint).
 
 Adds ``layer`` (M-02), ``type_tag`` (M-03), ``provenance_class`` (M-07), the ``spk`` / ``addr`` / ``ask``

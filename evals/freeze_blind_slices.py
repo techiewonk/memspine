@@ -31,7 +31,7 @@ HERE = Path(__file__).resolve().parent
 sys.path[:] = [p for p in sys.path if Path(p or ".").resolve() != HERE]
 sys.path.append(str(HERE))
 
-from memspine_evals.split import Split, split_ids  # noqa: E402
+from memspine_evals.split import Split, split_ids
 
 ANALYSIS = HERE / "analysis"
 MAB_FILE = ANALYSIS / "blind_split_mab.json"
@@ -59,7 +59,8 @@ def convomem_pick(ids_by_type: dict[str, list[str]], n: int = CONVOMEM_N) -> lis
     for i, t in enumerate(types):
         quota = base + (1 if i < extra else 0)
         ranked = sorted(
-            ids_by_type[t], key=lambda x: hashlib.sha256(f"{CONVOMEM_SALT}:{x}".encode()).hexdigest()
+            ids_by_type[t],
+            key=lambda x: hashlib.sha256(f"{CONVOMEM_SALT}:{x}".encode()).hexdigest(),
         )
         picked.extend(ranked[:quota])
     return picked
@@ -73,10 +74,27 @@ def _stamp(path: Path) -> None:
     path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
 
-def _save(ids: list[str], blind: list[str], *, dataset_id: str, unit: str, sha: str,
-          revision: str, out: Path, note: str) -> Path:
-    split = split_ids(ids, dataset_id=dataset_id, content_sha256=sha, unit=unit, dev=blind,
-                      seed=None, revision_id=revision, note=f"{BLIND_NOTE} {note}")
+def _save(
+    ids: list[str],
+    blind: list[str],
+    *,
+    dataset_id: str,
+    unit: str,
+    sha: str,
+    revision: str,
+    out: Path,
+    note: str,
+) -> Path:
+    split = split_ids(
+        ids,
+        dataset_id=dataset_id,
+        content_sha256=sha,
+        unit=unit,
+        dev=blind,
+        seed=None,
+        revision_id=revision,
+        note=f"{BLIND_NOTE} {note}",
+    )
     split.save(out)
     _stamp(out)
     return out
@@ -88,9 +106,16 @@ def cut_mab(path: Path, out: Path = MAB_FILE) -> Path:
     ds = MemoryAgentBenchDataset(path, revision_id="auto")
     info = ds.info()
     ids = [i.item_id for i in ds.items()]
-    return _save(ids, list(MAB_BLIND_ITEMS), dataset_id=info.dataset_id, unit="item (context size)",
-                 sha=info.content_sha256, revision=info.revision_id, out=out,
-                 note="6k + 32k items, sh and mh: 400 q.")
+    return _save(
+        ids,
+        list(MAB_BLIND_ITEMS),
+        dataset_id=info.dataset_id,
+        unit="item (context size)",
+        sha=info.content_sha256,
+        revision=info.revision_id,
+        out=out,
+        note="6k + 32k items, sh and mh: 400 q.",
+    )
 
 
 def cut_convomem(root: Path, out: Path = CONVOMEM_FILE) -> Path:
@@ -102,10 +127,17 @@ def cut_convomem(root: Path, out: Path = CONVOMEM_FILE) -> Path:
     for item in ds.items():
         by_type.setdefault(item.item_id.split("/")[0], []).append(item.item_id)
     ids = [i for v in by_type.values() for i in v]
-    return _save(ids, convomem_pick(by_type), dataset_id=info.dataset_id, unit="question",
-                 sha=info.content_sha256, revision=info.revision_id, out=out,
-                 note=f"{CONVOMEM_N} q stratified over evidence types by sha256 rank "
-                 f"(salt {CONVOMEM_SALT}); ids need --per-stratum 1000.")
+    return _save(
+        ids,
+        convomem_pick(by_type),
+        dataset_id=info.dataset_id,
+        unit="question",
+        sha=info.content_sha256,
+        revision=info.revision_id,
+        out=out,
+        note=f"{CONVOMEM_N} q stratified over evidence types by sha256 rank "
+        f"(salt {CONVOMEM_SALT}); ids need --per-stratum 1000.",
+    )
 
 
 def check(path: Path) -> int:
@@ -115,13 +147,17 @@ def check(path: Path) -> int:
     if not payload.get("blind") or payload.get("blind_items") != list(split.dev_items):
         print(f"{path.name}: not a consistent blind file")
         return 1
-    print(f"ok: {path.name} blind={len(split.dev_items)} rest={len(split.heldout_items)} "
-          f"sha={split.content_sha256[:12]}")
+    print(
+        f"ok: {path.name} blind={len(split.dev_items)} rest={len(split.heldout_items)} "
+        f"sha={split.content_sha256[:12]}"
+    )
     return 0
 
 
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     ap.add_argument("--mab")
     ap.add_argument("--convomem")
     ap.add_argument("--check", action="store_true")

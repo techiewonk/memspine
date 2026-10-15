@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """LIB-47: read depth tiers, ReadRequest normalisation and the evidence unit (R-01, R-02, ER-29, ER-39).
 
 Pure and unwired (wired by R3-01). No I/O, no clock read, no model call. Imports only the standard
@@ -372,7 +371,7 @@ def choose_tier(
     if cfg.default_depth != "auto":
         base = cfg.default_depth
     else:
-        base = next(d for d in ("fast", "standard", "deep") if d in cfg.allowed_depths)  # type: ignore[assignment]
+        base = next(d for d in ("fast", "standard", "deep") if d in cfg.allowed_depths)
     if (
         base == "deep" and not worker
     ):  # a configured deep default with no model: same rule as explicit

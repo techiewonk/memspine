@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """Durable tier: frozen fixtures, round trips, upcaster pass-through and the semantic invariants (ER-32)."""
 
 from __future__ import annotations

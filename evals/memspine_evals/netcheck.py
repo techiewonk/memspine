@@ -27,9 +27,7 @@ def localhost_warning(base_url: str, label: str = "--base-url") -> str | None:
     )
 
 
-def warn_localhost(
-    urls: Iterable[tuple[str, str]], stream: TextIO | None = None
-) -> list[str]:
+def warn_localhost(urls: Iterable[tuple[str, str]], stream: TextIO | None = None) -> list[str]:
     """Print (to stderr by default) and return the warnings for ``(label, url)`` pairs."""
     out = [w for label, url in urls if (w := localhost_warning(url, label))]
     for line in out:

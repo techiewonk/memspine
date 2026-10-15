@@ -91,9 +91,7 @@ def test_ambiguous_event_fails_closed() -> None:
         "[2023-09-30] Lars: We adopted Toby after a long search, finally official.\n"
         "[2023-10-19] Lars: I named him Buddy and adopted him."
     )  # two adoption lines for Toby more than a week apart
-    sol, meta = solve_duration(
-        "How many months passed between Lars adopting Toby and Buddy?", ctx
-    )
+    sol, meta = solve_duration("How many months passed between Lars adopting Toby and Buddy?", ctx)
     assert sol is None and meta["decision"] == "abstain:event1_event_lines_disagree"
 
 

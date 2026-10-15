@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """F-16b: event upcasters and migration by replay of the retained log (M-01, M-26, G-23)."""
 
 from __future__ import annotations

@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """Derive: advisory prospective and procedural memory over stored records (O4-10, LIB-28).
 
 Adapters from today's records to the pure libraries ``memory.prospective`` / ``memory.procedural``,

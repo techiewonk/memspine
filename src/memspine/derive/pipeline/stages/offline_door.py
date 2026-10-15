@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """Shared helpers of the offline-wired stages O4-06 / O4-09: the summary write door, archive, tokens."""
 
 from __future__ import annotations

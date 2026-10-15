@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """W2-06a: ItemV1 -> AssertionEnvelope compile, per-item validation, one repair re-ask, dead letters
 (``write.envelope_v2``). Model-free: a stub window LLM that answers the ``structured`` prompt and the
 ``structured.repair`` re-ask, hash embedder."""
@@ -93,7 +92,9 @@ class ItemLLM:
         shown = json.loads(messages[-2]["content"])
         if self.repair_mode == "noop":
             return json.dumps(shown)
-        lines = {text.split(": ", 1)[1]: int(n) for n, text in LINE.findall(messages[-3]["content"])}
+        lines = {
+            text.split(": ", 1)[1]: int(n) for n, text in LINE.findall(messages[-3]["content"])
+        }
         out = []
         for item in shown:
             fixed = copy.deepcopy(item)
@@ -211,7 +212,9 @@ def test_valid_items_compile_with_axes_provenance_and_evidence() -> None:
     assert not out.invalid and len(out.envelopes) == 2
     user, bot = out.envelopes
     assert user.src_class == "user_stated" and user.assessment.source_trust == pytest.approx(0.8)
-    assert bot.src_class == "assistant_proposed" and bot.assessment.source_trust == pytest.approx(0.4)
+    assert bot.src_class == "assistant_proposed" and bot.assessment.source_trust == pytest.approx(
+        0.4
+    )
     assert user.time.source_time == NOW and user.time.recorded_at == NOW
     assert [e.role for e in user.evidence] == ["support"]
     assert user.evidence[0].turn.source_id == "t1"
@@ -242,7 +245,9 @@ def test_missing_and_out_of_range_citations_are_rejected_alone() -> None:
 
 def test_a_reserved_field_invalidates_the_item_and_never_reaches_the_envelope() -> None:
     _, validator, ctx = _setup("user")
-    out = validator.validate([_item(trust=0.99), _item(user_id="u1"), _item(extra_note="kept")], ctx)
+    out = validator.validate(
+        [_item(trust=0.99), _item(user_id="u1"), _item(extra_note="kept")], ctx
+    )
     assert [x.rejection.code for x in out.invalid] == [RejectionCode.RESERVED_FIELD] * 2
     (env,) = out.envelopes
     assert env.assessment.source_trust == pytest.approx(0.8)  # system-set, not the model's
@@ -280,9 +285,13 @@ async def test_repair_carries_only_invalid_items_and_forbids_new_ones() -> None:
     sent = llm.repairs[0]
     assert out.dead == 0
     shown = json.loads(sent[-2]["content"])
-    assert len(shown) == 1 and shown[0]["text"] == "needs a citation"  # the valid sibling is not resent
+    assert (
+        len(shown) == 1 and shown[0]["text"] == "needs a citation"
+    )  # the valid sibling is not resent
     assert "Mira repotted the orchid" not in sent[-1]["content"]  # errors name codes, not text
-    assert len(out.envelopes) == 2  # the sibling plus the repaired one; the invented item is dropped
+    assert (
+        len(out.envelopes) == 2
+    )  # the sibling plus the repaired one; the invented item is dropped
 
 
 async def test_repair_failure_modes_dead_letter_the_item_and_keep_siblings() -> None:
@@ -307,7 +316,11 @@ async def test_taps_report_valid_repaired_and_dead_with_reasons(
     monkeypatch.setattr(tap, "event", lambda stage, /, **f: seen.append((stage, f)))
     llm = ItemLLM()
     _, validator, ctx = _setup("user")
-    raw = [_item(), _item(lines=[], text="fixable", span="orchid number 1"), _item(trust=1, text="x")]
+    raw = [
+        _item(),
+        _item(lines=[], text="fixable", span="orchid number 1"),
+        _item(trust=1, text="x"),
+    ]
     llm.repair_mode = "fix"
     await process_items(
         raw, ctx, validator=validator, repair=RepairAsk(llm), ledger=None,
@@ -384,7 +397,9 @@ async def test_a_bad_item_is_dropped_counted_and_its_siblings_kept(
         await _send(eng, "a", "s1", _turns("trip", 4))
         stats = await eng.flush_windows()
         assert len(await _facts(eng)) == 2  # the two valid siblings
-        assert stats["items_valid"] == 2 and stats["items_dead"] == 2 and stats["items_dropped"] == 2
+        assert (
+            stats["items_valid"] == 2 and stats["items_dead"] == 2 and stats["items_dropped"] == 2
+        )
         assert stats["items_dead_by_code"] == {"uncited": 1, "cited_turn_not_in_window": 1}
         assert stats["repair_calls"] == 1 and len(llm.repairs) == 1  # ONE re-ask for both
         assert stats["sections_dropped"] == 0

@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """TS-LOCAL: serve the Tuning Studio page and API from this machine, for any browser on this PC.
 
     python -m memspine_evals.studio.http_server [--port 8765] [--host 127.0.0.1] [--data demo|PATH|locomo]
@@ -49,7 +48,9 @@ def page_bytes() -> bytes:
 class StudioHTTPServer(ThreadingHTTPServer):
     daemon_threads = True
 
-    def __init__(self, addr: tuple[str, int], api: StudioAPI, token: str, allowed_hosts: set[str]) -> None:
+    def __init__(
+        self, addr: tuple[str, int], api: StudioAPI, token: str, allowed_hosts: set[str]
+    ) -> None:
         super().__init__(addr, _Handler)
         self.mcp = Server(api)
         self.api = api
@@ -77,7 +78,11 @@ class _Handler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def _json(self, status: int, obj: dict[str, Any]) -> None:
-        self._send(status, json.dumps(obj, ensure_ascii=False, default=str).encode("utf-8"), "application/json; charset=utf-8")
+        self._send(
+            status,
+            json.dumps(obj, ensure_ascii=False, default=str).encode("utf-8"),
+            "application/json; charset=utf-8",
+        )
 
     def _fail(self, status: int, code: str, message: str) -> None:
         self._json(status, {"ok": False, "code": code, "message": message})
@@ -91,7 +96,9 @@ class _Handler(BaseHTTPRequestHandler):
         return _host_only(urlsplit(origin).netloc) in self.server.allowed_hosts
 
     def _token_ok(self) -> bool:
-        return secrets.compare_digest(self.headers.get("X-Studio-Token", "").encode(), self.server.token.encode())
+        return secrets.compare_digest(
+            self.headers.get("X-Studio-Token", "").encode(), self.server.token.encode()
+        )
 
     def _guard(self) -> bool:
         if not self._host_ok():
@@ -135,7 +142,9 @@ class _Handler(BaseHTTPRequestHandler):
         data = res.get("structuredContent")
         if res.get("isError"):
             data = data or {}
-            return self._fail(400, str(data.get("code", "error")), str(data.get("error", "tool failed")))
+            return self._fail(
+                400, str(data.get("code", "error")), str(data.get("error", "tool failed"))
+            )
         self._json(200, {"ok": True, "payload": data})
 
     def do_PUT(self) -> None:
@@ -144,9 +153,13 @@ class _Handler(BaseHTTPRequestHandler):
     do_DELETE = do_PATCH = do_PUT
 
 
-def make_server(api: StudioAPI, host: str = "127.0.0.1", port: int = 8765, token: str | None = None) -> StudioHTTPServer:
+def make_server(
+    api: StudioAPI, host: str = "127.0.0.1", port: int = 8765, token: str | None = None
+) -> StudioHTTPServer:
     if host in ("0.0.0.0", "::", ""):
-        raise SystemExit("refusing a wildcard host: pass the specific address to --host (and --token)")
+        raise SystemExit(
+            "refusing a wildcard host: pass the specific address to --host (and --token)"
+        )
     if host.lower() not in LOCAL_NAMES and not token:
         raise SystemExit("--host other than localhost requires an explicit --token")
     allowed = set(LOCAL_NAMES) | {host.lower()}
@@ -154,19 +167,34 @@ def make_server(api: StudioAPI, host: str = "127.0.0.1", port: int = 8765, token
 
 
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(prog="python -m memspine_evals.studio.http_server", description=__doc__.split("\n")[0])
+    ap = argparse.ArgumentParser(
+        prog="python -m memspine_evals.studio.http_server", description=__doc__.split("\n")[0]
+    )
     ap.add_argument("--port", type=int, default=8765)
-    ap.add_argument("--host", default="127.0.0.1", help="default 127.0.0.1; anything else needs --token")
+    ap.add_argument(
+        "--host", default="127.0.0.1", help="default 127.0.0.1; anything else needs --token"
+    )
     ap.add_argument("--token", help="session token (default: random per start)")
     ap.add_argument("--data", default="demo", help="demo | path to a LoCoMo-shaped json | locomo")
-    ap.add_argument("--out", help="run folder root (default evals/runs/_analysis/inspect/studio, gitignored)")
+    ap.add_argument(
+        "--out", help="run folder root (default evals/runs/_analysis/inspect/studio, gitignored)"
+    )
     ap.add_argument("--allow-gpu", action="store_true")
     ap.add_argument("--arms-dir")
     ap.add_argument("--logs-dir")
     args = ap.parse_args(argv)
-    api = StudioAPI(args.data, args.out, allow_gpu=args.allow_gpu, arms_dir=args.arms_dir, logs_dir=args.logs_dir)
+    api = StudioAPI(
+        args.data,
+        args.out,
+        allow_gpu=args.allow_gpu,
+        arms_dir=args.arms_dir,
+        logs_dir=args.logs_dir,
+    )
     srv = make_server(api, args.host, args.port, args.token)
-    print(f"memspine-studio (local http) ready, out={api.out}, allow_gpu={args.allow_gpu}", file=sys.stderr)
+    print(
+        f"memspine-studio (local http) ready, out={api.out}, allow_gpu={args.allow_gpu}",
+        file=sys.stderr,
+    )
     print(f"Open: http://{args.host}:{srv.server_address[1]}/?t={srv.token}", file=sys.stderr)
     try:
         srv.serve_forever()

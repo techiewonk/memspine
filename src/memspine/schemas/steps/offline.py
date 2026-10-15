@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """Internal step types for the offline pipeline (``docs/v2/pipelines/offline.md``), steps 1-22.
 
 Step numbers are the spec heading numbers (``### 4. S1 Retention`` is ``OfflineStep04``; the sleep-stage

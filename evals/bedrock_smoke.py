@@ -15,7 +15,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 
-from memspine_evals.bedrock import (  # noqa: E402
+from memspine_evals.bedrock import (
     CallBudget,
     LiteLLMReader,
     bedrock_engine_config,

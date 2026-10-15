@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """W2-02: wiring of LIB-29 into the write path (``write.stamping_v2``).
 
 ``ClockStamper`` and ``RoleStamper`` are the two typed facades of :func:`memspine.ingest.stamp.stamp`
@@ -47,7 +46,9 @@ __all__ = [
 
 #: ``assent_of:<assistant record id>`` marks a user turn that is a real assent to that proposal.
 ASSENT_TAG_PREFIX = "assent_of:"
-_VALID_ROLES = frozenset({"user", "assistant", "tool", "system", "operator", "document", "external"})
+_VALID_ROLES = frozenset(
+    {"user", "assistant", "tool", "system", "operator", "document", "external"}
+)
 
 
 @dataclass(frozen=True)

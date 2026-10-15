@@ -34,7 +34,6 @@ Gold is read from the saved results, which is correct for a judge (not a run-tim
 from __future__ import annotations
 
 import argparse
-import asyncio
 import json
 import sys
 from collections import defaultdict
@@ -70,12 +69,21 @@ def prepare(results: Path, out: Path, *, include_cat5: bool = False) -> dict[str
     by_reason: dict[str, int] = defaultdict(int)
     out.parent.mkdir(parents=True, exist_ok=True)
     with results.open(encoding="utf-8") as src, out.open("w", encoding="utf-8") as dst:
-        dst.write(json.dumps({
-            "kind": "batch_manifest", "suite": SUITE, "prompt_hash": sha,
-            "prompt_id": prompt.prompt_id, "source": str(results), "makes_model_calls": False,
-            "suite_notes": JUDGE_SUITES[SUITE].notes,
-            "reply_format": '{"custom_id": ..., "reply": "<judge text containing {\\"label\\": \\"CORRECT|WRONG\\"}>"}',
-        }) + "\n")
+        dst.write(
+            json.dumps(
+                {
+                    "kind": "batch_manifest",
+                    "suite": SUITE,
+                    "prompt_hash": sha,
+                    "prompt_id": prompt.prompt_id,
+                    "source": str(results),
+                    "makes_model_calls": False,
+                    "suite_notes": JUDGE_SUITES[SUITE].notes,
+                    "reply_format": '{"custom_id": ..., "reply": "<judge text containing {\\"label\\": \\"CORRECT|WRONG\\"}>"}',
+                }
+            )
+            + "\n"
+        )
         for line in src:
             if not line.strip():
                 continue
@@ -93,18 +101,32 @@ def prepare(results: Path, out: Path, *, include_cat5: bool = False) -> dict[str
                 skipped += 1
                 by_reason[reason] += 1
                 continue
-            dst.write(json.dumps({
-                "kind": "judge_request",
-                "custom_id": custom_id(row),
-                "run_id": row["run_id"], "item_id": row["item_id"], "query_id": row["query_id"],
-                "type_label": row.get("type_label") or "",
-                "original_score": row.get("score"),
-                "system": prompt.system,
-                "prompt": prompt.render(row["question"], str(row["gold"]), str(row["answer"])),
-            }) + "\n")
+            dst.write(
+                json.dumps(
+                    {
+                        "kind": "judge_request",
+                        "custom_id": custom_id(row),
+                        "run_id": row["run_id"],
+                        "item_id": row["item_id"],
+                        "query_id": row["query_id"],
+                        "type_label": row.get("type_label") or "",
+                        "original_score": row.get("score"),
+                        "system": prompt.system,
+                        "prompt": prompt.render(
+                            row["question"], str(row["gold"]), str(row["answer"])
+                        ),
+                    }
+                )
+                + "\n"
+            )
             kept += 1
-    return {"requests": kept, "skipped": skipped, "skipped_by_reason": dict(by_reason),
-            "prompt_hash": sha, "out": str(out)}
+    return {
+        "requests": kept,
+        "skipped": skipped,
+        "skipped_by_reason": dict(by_reason),
+        "prompt_hash": sha,
+        "out": str(out),
+    }
 
 
 def _read_batch(path: Path) -> tuple[dict[str, Any], list[dict[str, Any]]]:
@@ -150,11 +172,19 @@ def collect(batch: Path, replies: Path, out: Path | None = None) -> dict[str, An
             except (TypeError, ValueError):
                 pass
     summary = {
-        "suite": manifest.get("suite", SUITE), "prompt_hash": manifest.get("prompt_hash"),
-        "requests": len(reqs), "missing_replies": missing, "unparsed_replies": unparsed,
-        "accuracy": {k: {"n": len(v), "mem0_official": sum(v) / len(v),
-                         "original_judge": (sum(orig[k]) / len(orig[k])) if orig[k] else None}
-                     for k, v in sorted(acc.items())},
+        "suite": manifest.get("suite", SUITE),
+        "prompt_hash": manifest.get("prompt_hash"),
+        "requests": len(reqs),
+        "missing_replies": missing,
+        "unparsed_replies": unparsed,
+        "accuracy": {
+            k: {
+                "n": len(v),
+                "mem0_official": sum(v) / len(v),
+                "original_judge": (sum(orig[k]) / len(orig[k])) if orig[k] else None,
+            }
+            for k, v in sorted(acc.items())
+        },
     }
     if out:
         out.write_text(json.dumps(summary, indent=2), encoding="utf-8")
@@ -167,19 +197,28 @@ def _score(batch: Path, out: Path, base_url: str, model: str, max_tokens: int) -
 
     done = set()
     if out.exists():
-        done = {json.loads(ln)["custom_id"] for ln in out.read_text(encoding="utf-8").splitlines() if ln.strip()}
+        done = {
+            json.loads(ln)["custom_id"]
+            for ln in out.read_text(encoding="utf-8").splitlines()
+            if ln.strip()
+        }
     _, reqs = _read_batch(batch)
     with out.open("a", encoding="utf-8") as fh:
         for req in reqs:
             if req["custom_id"] in done:
                 continue
-            messages = ([{"role": "system", "content": req["system"]}] if req.get("system") else []) + [
-                {"role": "user", "content": req["prompt"]}]
-            body = json.dumps({"model": model, "messages": messages, "temperature": 0,
-                               "max_tokens": max_tokens}).encode()
-            http = urllib.request.Request(base_url.rstrip("/") + "/chat/completions", body,
-                                          {"Content-Type": "application/json"})
-            with urllib.request.urlopen(http, timeout=300) as resp:  # noqa: S310 - operator-supplied URL
+            messages = (
+                [{"role": "system", "content": req["system"]}] if req.get("system") else []
+            ) + [{"role": "user", "content": req["prompt"]}]
+            body = json.dumps(
+                {"model": model, "messages": messages, "temperature": 0, "max_tokens": max_tokens}
+            ).encode()
+            http = urllib.request.Request(
+                base_url.rstrip("/") + "/chat/completions",
+                body,
+                {"Content-Type": "application/json"},
+            )
+            with urllib.request.urlopen(http, timeout=300) as resp:
                 text = json.loads(resp.read())["choices"][0]["message"]["content"]
             fh.write(json.dumps({"custom_id": req["custom_id"], "reply": text}) + "\n")
             fh.flush()
@@ -187,8 +226,11 @@ def _score(batch: Path, out: Path, base_url: str, model: str, max_tokens: int) -
 
 
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(prog="memspine_evals.second_view", description=__doc__,
-                                 formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap = argparse.ArgumentParser(
+        prog="memspine_evals.second_view",
+        description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     sub = ap.add_subparsers(dest="cmd", required=True)
     p = sub.add_parser("prepare", help="write the judge-prompt batch (no model call)")
     p.add_argument("--run", type=Path, required=True, help="a finished run's results.jsonl")

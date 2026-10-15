@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """Source envelope intake, receipt and readiness, write ids and re-ingest (LIB-30; W-01, W-02, W-03, W-24).
 
 Pure and unwired (wiring is W2-01): no I/O, no clock reads (``now`` is passed in), no model calls. The

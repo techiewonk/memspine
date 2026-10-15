@@ -14,7 +14,7 @@ import pytest
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "evals"))
 
-from labelled import loader as L  # noqa: E402
+from labelled import loader as L
 
 NAMES = ("grounding", "entity_pairs", "contradictions", "global_questions")
 FILES = {n: L.HERE / f"{n}.v1.jsonl" for n in NAMES}
@@ -195,7 +195,9 @@ def test_content_hash_is_stable_and_sensitive(tmp_path: Path) -> None:
     crlf.write_bytes(text.replace("\n", "\r\n").encode("utf-8"))
     assert L.content_hash(L.load_grounding(crlf)) == L.content_hash(a)
     edited = tmp_path / "g2.jsonl"
-    edited.write_text(text.replace("Ilse moved to Utrecht.", "Ilse moved to Delft."), encoding="utf-8")
+    edited.write_text(
+        text.replace("Ilse moved to Utrecht.", "Ilse moved to Delft."), encoding="utf-8"
+    )
     assert L.content_hash(L.load_grounding(edited)) != L.content_hash(a)
     hashes = {n: L.content_hash(L.LOADERS[n]()) for n in NAMES}
     assert len(set(hashes.values())) == len(NAMES)
@@ -210,7 +212,11 @@ def test_no_gold_deny_list_token_in_any_line() -> None:
             text = " ".join(line.split())
             low = text.lower()
             bad += [f"{name}:{no} gold {s!r}" for s in literals if s.lower() in low]
-            bad += [f"{name}:{no} speaker {n!r}" for n in lint.KNOWN_SPEAKERS if re.search(rf"\b{n}\b", text)]
+            bad += [
+                f"{name}:{no} speaker {n!r}"
+                for n in lint.KNOWN_SPEAKERS
+                if re.search(rf"\b{n}\b", text)
+            ]
     assert not bad, bad
 
 

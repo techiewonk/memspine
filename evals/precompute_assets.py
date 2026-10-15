@@ -33,7 +33,7 @@ for _p in (HERE, HERE.parent / "src"):
     if str(_p) not in sys.path:
         sys.path.insert(0, str(_p))
 
-from memspine.services.assets import (  # noqa: E402
+from memspine.services.assets import (
     AssetAdapter,
     AssetEntry,
     AssetRegistry,

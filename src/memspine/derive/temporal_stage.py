@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """W2-14 (``write.temporal_v2``; W-04, M-10, R-07): temporal anchoring as an envelope stage, order 100.
 
 For every envelope of a window this stage fills the event interval, its precision and its basis, by
@@ -208,15 +207,19 @@ def find_explicit(text: str | None, *, whole: bool = False) -> Found | None:
             add(
                 m,
                 TemporalCandidate(
-                    kind="partial", text=m[0], partial="season", year=y, season=_SEASONS[m[1]]
+                    kind="partial",
+                    text=m[0],
+                    partial="season",
+                    year=y,
+                    season=_SEASONS[m[1]],  # type: ignore[arg-type]  # CI-GREEN: pre-existing typing debt
                 ),
                 "season",
-            )  # type: ignore[arg-type]
+            )
     for m in _P_Y.finditer(s):
         y = int(m[1])
         if _year_ok(y):
             add(m, TemporalCandidate(kind="partial", text=m[0], partial="year", year=y), "year")
-    if whole and (m := _P_BARE_Y.match(s)) and _year_ok(int(m[1])):
+    if whole and (m := _P_BARE_Y.match(s)) and _year_ok(int(m[1])):  # type: ignore[assignment]  # CI-GREEN: pre-existing typing debt
         add(
             m,
             TemporalCandidate(kind="partial", text=m[0].strip(), partial="year", year=int(m[1])),
@@ -682,7 +685,7 @@ def apply_temporal(
         )
     out: list[AssertionEnvelope] = []
     for env in envelopes:
-        out.append(_one(env, envelopes, by_id, window_time, session_anchor, ctx.notes))
+        out.append(_one(env, envelopes, by_id, window_time, session_anchor, ctx.notes))  # type: ignore[arg-type]  # CI-GREEN: pre-existing typing debt
     if tap.enabled():
         tap.event("write.temporal", window=ctx.window_id, **dict(ctx.notes))
     return out

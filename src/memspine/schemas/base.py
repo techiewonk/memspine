@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """Tier base classes for ``memspine.schemas`` (schema session 1, S1-1..S1-4).
 
 Three compatibility tiers:

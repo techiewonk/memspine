@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """LayerRegistry (F-02b; M-02): which layers the template enables, and which are populated per namespace.
 
 Two separate facts, kept apart because the router (R-Q1) needs both:

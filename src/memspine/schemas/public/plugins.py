@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """Plug-in manifest (schema session 12) and the cache key (schema session 10)."""
 
 from __future__ import annotations

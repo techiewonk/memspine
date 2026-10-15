@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """LIB-16: typed query contract by rules. Invented names only; English, German, Dutch, Spanish."""
 
 from __future__ import annotations

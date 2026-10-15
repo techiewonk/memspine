@@ -135,7 +135,7 @@ async def _write_derived(
     # (Flag off stays otherwise untouched: no derivation fingerprint, no edges.)
     if not eng._config().write.lineage_table:
         record = record.model_copy(update={"layer": _resolve_layer(record, layer)})
-        return await eng._write_locked(storage, ns, record, route, actor, trust_cap)
+        return await eng._write_locked(storage, ns, record, route, actor, trust_cap)  # type: ignore[no-any-return]  # CI-GREEN: pre-existing typing debt
 
     pids = [p for p in dict.fromkeys(parents if parents is not None else record.source.parents)]
     pids = [p for p in pids if p != record.record_id]

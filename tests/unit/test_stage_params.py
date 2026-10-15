@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """TI-8: the stage -> parameter catalogue (docs/v2/data/stage_params.json) stays complete and current.
 
 * every config key of the schema is attributed to a stage or listed in ``unattributed`` (with a reason);

@@ -1,4 +1,4 @@
-# ruff: noqa: ASYNC109, E501
+# ruff: noqa: ASYNC109
 """W2-06c: ``derive.OnlineExtractor`` over the outbox window stage, stage notes in the window stats,
 ``read.PendingBarrier`` and the no-model template. Model-free: stub LLMs, hash embedder."""
 

@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """LIB-03: deterministic grounding rule checks (W-17). Invented names only."""
 
 from __future__ import annotations

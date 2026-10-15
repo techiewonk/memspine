@@ -1,4 +1,5 @@
 """B5/B6 queue rows (Q-B5): every arm is the generator's gc3 + flags output, validates, and every reference resolves. CPU only."""
+
 from __future__ import annotations
 
 import csv
@@ -11,12 +12,21 @@ import pytest
 pytest.importorskip("memspine")
 EVALS = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(EVALS))
-import gen_b5_arms as g  # noqa: E402
-from memspine_evals.rehearsal import validate_engine_config  # noqa: E402
+import gen_b5_arms as g
+from memspine_evals.rehearsal import validate_engine_config
 
 COLS = ["id", "batch", "pkg", "arm", "ref_run", "rule", "sets", "deps", "kind", "est_min", "flag"]
-ROWS = [dict(zip(COLS, r)) for r in csv.reader(
-    [ln for ln in (EVALS / "v2_queue.tsv").read_text(encoding="utf-8").splitlines() if ln and not ln.startswith("#")], delimiter="\t")]
+ROWS = [
+    dict(zip(COLS, r))
+    for r in csv.reader(
+        [
+            ln
+            for ln in (EVALS / "v2_queue.tsv").read_text(encoding="utf-8").splitlines()
+            if ln and not ln.startswith("#")
+        ],
+        delimiter="\t",
+    )
+]
 B5 = [r for r in ROWS if r["batch"] == "B5"]
 
 

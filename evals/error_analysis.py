@@ -292,7 +292,7 @@ def reanalyse(
         outcome_new["ALL"][o2] += 1
 
     n_gold = sum(1 for r in kept if gold.get((r["item_id"], r["query_id"])))
-    mean = lambda xs: sum(xs) / len(xs) if xs else None  # noqa: E731
+    mean = lambda xs: sum(xs) / len(xs) if xs else None
     return {
         "run": run.name,
         "kind": kind,

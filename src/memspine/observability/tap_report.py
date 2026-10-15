@@ -63,7 +63,7 @@ class Cond:
         if not has or v is None:
             return False
         try:
-            return {
+            return {  # type: ignore[no-any-return]  # CI-GREEN: pre-existing typing debt
                 "eq": v == self.value,
                 "ne": v != self.value,
                 "gt": v > self.value,

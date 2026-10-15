@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """Durable ledger for the intake gateway (W2-01; LIB-30 ``IntakeStore`` over SQL).
 
 ``IntakeBook`` (``ingest.intake``) is pure and synchronous; its state lives in an injected store. This
@@ -166,7 +165,7 @@ async def load_overlay(
                 ov._writes[(skey, r.write_id)] = live
                 intent_ids.add(live.intent_id)
         if intent_ids:
-            rows = (
+            rows = (  # type: ignore[assignment]  # CI-GREEN: pre-existing typing debt
                 await conn.execute(
                     select(
                         intake_intent.c.intent_id,

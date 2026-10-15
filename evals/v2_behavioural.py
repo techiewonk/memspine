@@ -22,7 +22,12 @@ from typing import Any
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
-SECTIONS = ("read", "write", "graph", "offline")  # offline: prerequisites of read.standing_v2 etc. (FU-REQS)
+SECTIONS = (
+    "read",
+    "write",
+    "graph",
+    "offline",
+)  # offline: prerequisites of read.standing_v2 etc. (FU-REQS)
 #: Keys that decide which candidates reach a reranker (INV-FILLER, R3-07). The overlay is a diff against the
 #: reference arm, so an arm that only adds ``rerank_v2`` would be gated on an engine whose pool is exactly
 #: ``top_k``: the reranker then reorders five hits and cannot recover a relevant record the filler pushed out.
@@ -52,12 +57,14 @@ def with_pool_shape(ov: dict[str, Any], arm: dict[str, Any]) -> dict[str, Any]:
 
 
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     ap.add_argument("arm")
     ap.add_argument("--ref", default="scr-pool-protect-jina")
     ap.add_argument("--json-out", type=Path, default=None)
     a = ap.parse_args(argv)
-    load = lambda n: json.loads((HERE / "arms" / f"{n}.json").read_text(encoding="utf-8"))  # noqa: E731
+    load = lambda n: json.loads((HERE / "arms" / f"{n}.json").read_text(encoding="utf-8"))
     arm = load(a.arm)
     ov = with_pool_shape(overlay(arm, load(a.ref)), arm)
     if ("graph" in ov or "offline" in ov) and arm.get("memories"):
@@ -75,7 +82,9 @@ def main(argv: list[str] | None = None) -> int:
             from memspine import Engine
 
             kw: dict[str, Any] = dict(
-                template="core", dotenv_path=None, storage={"path": str(storage_dir / "behavioural.db")},
+                template="core",
+                dotenv_path=None,
+                storage={"path": str(storage_dir / "behavioural.db")},
                 embedding={"provider": "hash"},
                 read={"rerank": "off", "record_access": False},
                 memories={"episodic": {"enabled": True}, "semantic": {"enabled": True}},
@@ -90,12 +99,16 @@ def main(argv: list[str] | None = None) -> int:
         _ = default_engine_factory  # the base configuration this overlay extends
         report = run_behavioural(factory)
         ref = gate.load_baseline()
-        safety = sorted(r.id for r in report.results if r.status.value == "FAIL" and r.id.startswith(gate.BLOCKING_SAFETY))
+        safety = sorted(
+            r.id
+            for r in report.results
+            if r.status.value == "FAIL" and r.id.startswith(gate.BLOCKING_SAFETY)
+        )
         regs = [c for c in gate.regressions(report, ref) if c not in safety]
         if a.json_out:
             a.json_out.parent.mkdir(parents=True, exist_ok=True)
             a.json_out.write_text(json.dumps(report.to_dict(), indent=2), encoding="utf-8")
-    except Exception as exc:  # noqa: BLE001 - the queue must see the reason, not a traceback
+    except Exception as exc:
         print(f"behavioural: ERROR {type(exc).__name__}: {exc}")
         return 1
     print("overlay:", json.dumps(ov, sort_keys=True))

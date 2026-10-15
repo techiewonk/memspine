@@ -6,8 +6,8 @@ from typing import Any
 
 from memspine import Engine
 from memspine.config.schema import ReadConfig
-from memspine.observability.trace import search_forensics
 from memspine.models.providers.rerank.jina_rerank import JinaReranker
+from memspine.observability.trace import search_forensics
 from memspine.read.pipeline.fusion import fuse_families, schema_family
 from memspine.read.pipeline.lift import lineage_from_records
 

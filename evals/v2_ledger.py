@@ -33,9 +33,32 @@ from pathlib import Path
 HERE = Path(__file__).parent
 DECISIONS = ("promote_candidate", "drop", "iterate")
 COLUMNS = (
-    "ts", "mode", "screen", "arm", "arm_digest", "reference", "commit", "slice_id", "slice_hash", "n",
-    "wins", "losses", "ties", "net", "delta", "ci_low", "ci_high", "per_category", "cost", "latency_p50_ms",
-    "latency_p95_ms", "comparability_key", "verdict", "notes", "tgt_rec", "ctl_lost",
+    "ts",
+    "mode",
+    "screen",
+    "arm",
+    "arm_digest",
+    "reference",
+    "commit",
+    "slice_id",
+    "slice_hash",
+    "n",
+    "wins",
+    "losses",
+    "ties",
+    "net",
+    "delta",
+    "ci_low",
+    "ci_high",
+    "per_category",
+    "cost",
+    "latency_p50_ms",
+    "latency_p95_ms",
+    "comparability_key",
+    "verdict",
+    "notes",
+    "tgt_rec",
+    "ctl_lost",
 )
 # tgt_rec / ctl_lost (FAIL-SLICE) are filled only for targeted slices ("recovered/wrong targets", "lost/controls"); a ledger file
 # written before they existed keeps its old header, and the two values then travel in ``notes`` (see ``append``).
@@ -68,7 +91,9 @@ def append(row: dict, path: Path | None = None) -> None:
     new = not path.exists() or path.stat().st_size == 0
     full = {"ts": datetime.now().strftime("%Y-%m-%dT%H:%M:%S"), **row}
     cols = COLUMNS
-    if not new:  # never rewrite an existing file: follow its header; columns it lacks are folded into notes
+    if (
+        not new
+    ):  # never rewrite an existing file: follow its header; columns it lacks are folded into notes
         with path.open(encoding="utf-8", newline="") as f:
             cols = tuple(f.readline().rstrip("\r\n").split("\t")) or COLUMNS
         extra = [f"{c}={full[c]}" for c in COLUMNS if c not in cols and full.get(c)]
@@ -80,17 +105,46 @@ def append(row: dict, path: Path | None = None) -> None:
         f.write("\t".join(_clean(full.get(c, "")) for c in cols) + "\n")
 
 
-def append_paired(r, *, mode: str, screen: str, arm: str, reference: str, commit: str = "", slice_id: str = "",
-                  slice_hash: str = "", arm_digest: str = "", key: str = "", notes: str = "") -> None:
+def append_paired(
+    r,
+    *,
+    mode: str,
+    screen: str,
+    arm: str,
+    reference: str,
+    commit: str = "",
+    slice_id: str = "",
+    slice_hash: str = "",
+    arm_digest: str = "",
+    key: str = "",
+    notes: str = "",
+) -> None:
     """Ledger row from a ``paired_gate.PairedResult`` (focus / full runs; the verdict is the gate's own)."""
     per = ";".join(f"{c}:+{d['gained']}/-{d['lost']}" for c, d in r.by_category.items())
-    append({
-        "mode": mode, "screen": screen, "arm": arm, "arm_digest": arm_digest, "reference": reference, "commit": commit,
-        "slice_id": slice_id, "slice_hash": slice_hash, "n": r.n, "wins": r.gained, "losses": r.lost,
-        "ties": r.n - r.gained - r.lost, "net": r.net,
-        "delta": f"{r.acc_arm - r.acc_ref:.3f}", "ci_low": f"{r.ci_low:.3f}", "ci_high": f"{r.ci_high:.3f}",
-        "per_category": per, "comparability_key": key, "verdict": r.verdict, "notes": (notes + " ci=net questions, conversation-cluster bootstrap").strip(),
-    })
+    append(
+        {
+            "mode": mode,
+            "screen": screen,
+            "arm": arm,
+            "arm_digest": arm_digest,
+            "reference": reference,
+            "commit": commit,
+            "slice_id": slice_id,
+            "slice_hash": slice_hash,
+            "n": r.n,
+            "wins": r.gained,
+            "losses": r.lost,
+            "ties": r.n - r.gained - r.lost,
+            "net": r.net,
+            "delta": f"{r.acc_arm - r.acc_ref:.3f}",
+            "ci_low": f"{r.ci_low:.3f}",
+            "ci_high": f"{r.ci_high:.3f}",
+            "per_category": per,
+            "comparability_key": key,
+            "verdict": r.verdict,
+            "notes": (notes + " ci=net questions, conversation-cluster bootstrap").strip(),
+        }
+    )
 
 
 def read(path: Path | None = None) -> list[dict]:
@@ -115,7 +169,11 @@ def decisions(path: Path | None = None) -> dict[str, dict]:
     if path.exists():
         with path.open(encoding="utf-8", newline="") as f:
             for r in csv.DictReader(f, delimiter="\t"):
-                out[r["screen"]] = {"decision": r["decision"], "note": r.get("note", ""), "ts": r["ts"]}
+                out[r["screen"]] = {
+                    "decision": r["decision"],
+                    "note": r.get("note", ""),
+                    "ts": r["ts"],
+                }
     return out
 
 
@@ -128,7 +186,9 @@ def mark(screen: str, decision: str, note: str = "", path: Path | None = None) -
     with path.open("a", encoding="utf-8", newline="") as f:
         if new:
             f.write("ts\tscreen\tdecision\tnote\n")
-        f.write(f"{datetime.now().strftime('%Y-%m-%dT%H:%M:%S')}\t{_clean(screen)}\t{decision}\t{_clean(note)}\n")
+        f.write(
+            f"{datetime.now().strftime('%Y-%m-%dT%H:%M:%S')}\t{_clean(screen)}\t{decision}\t{_clean(note)}\n"
+        )
 
 
 def promote_candidates(path: Path | None = None) -> list[str]:
@@ -147,7 +207,9 @@ def latest(rows: list[dict], mode: str | None = None) -> list[dict]:
 
 def summary(rows: list[dict], mode: str | None = None, sort: str = "net") -> list[dict]:
     """Latest per screen, best first: by net, then by the interval's lower end, then by delta."""
-    return sorted(latest(rows, mode), key=lambda r: (-_num(r, sort), -_num(r, "ci_low"), -_num(r, "delta")))
+    return sorted(
+        latest(rows, mode), key=lambda r: (-_num(r, sort), -_num(r, "ci_low"), -_num(r, "delta"))
+    )
 
 
 def history(rows: list[dict], screen: str, mode: str | None = None) -> list[dict]:
@@ -165,10 +227,16 @@ def _tgt(r: dict, key: str) -> str:
 
 def _fmt(r: dict, dec: dict[str, dict]) -> str:
     d = dec.get(r["screen"], {}).get("decision", "-")
-    tl = f" tgt_rec {_tgt(r, 'tgt_rec'):>6s} ctl_lost {_tgt(r, 'ctl_lost'):>6s}" if _tgt(r, "tgt_rec") else ""
-    return (f"{r['screen']:5s} {r['mode']:6s} {r['arm'][:34]:34s} n={r['n']:>4s} +{r['wins']}/-{r['losses']}/={r['ties']} "
-            f"net {r['net']:>4s} d {_num(r, 'delta'):+6.2f} [{_num(r, 'ci_low'):+.2f},{_num(r, 'ci_high'):+.2f}] "
-            f"{r['slice_id'][:24]:24s} {r['commit'][:7]} {d:17s} {r['ts']}{tl}")
+    tl = (
+        f" tgt_rec {_tgt(r, 'tgt_rec'):>6s} ctl_lost {_tgt(r, 'ctl_lost'):>6s}"
+        if _tgt(r, "tgt_rec")
+        else ""
+    )
+    return (
+        f"{r['screen']:5s} {r['mode']:6s} {r['arm'][:34]:34s} n={r['n']:>4s} +{r['wins']}/-{r['losses']}/={r['ties']} "
+        f"net {r['net']:>4s} d {_num(r, 'delta'):+6.2f} [{_num(r, 'ci_low'):+.2f},{_num(r, 'ci_high'):+.2f}] "
+        f"{r['slice_id'][:24]:24s} {r['commit'][:7]} {d:17s} {r['ts']}{tl}"
+    )
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -185,7 +253,10 @@ def main(argv: list[str] | None = None) -> int:
     m.add_argument("decision", choices=DECISIONS)
     m.add_argument("note", nargs="?", default="")
     sub.add_parser("decisions")
-    rc = sub.add_parser("record", help="append a verdict-only row (OP-Bench focus, blind sets: no per-question numbers)")
+    rc = sub.add_parser(
+        "record",
+        help="append a verdict-only row (OP-Bench focus, blind sets: no per-question numbers)",
+    )
     for k in ("mode", "screen", "arm", "reference", "commit", "slice_id", "verdict", "notes"):
         rc.add_argument(f"--{k.replace('_', '-')}", default="")
     a = ap.parse_args(argv)
@@ -194,7 +265,21 @@ def main(argv: list[str] | None = None) -> int:
         print(f"{a.screen}: {a.decision}")
         return 0
     if a.cmd == "record":
-        append({k: getattr(a, k) for k in ("mode", "screen", "arm", "reference", "commit", "slice_id", "verdict", "notes")})
+        append(
+            {
+                k: getattr(a, k)
+                for k in (
+                    "mode",
+                    "screen",
+                    "arm",
+                    "reference",
+                    "commit",
+                    "slice_id",
+                    "verdict",
+                    "notes",
+                )
+            }
+        )
         return 0
     if a.cmd == "decisions":
         for sc, d in sorted(decisions().items()):
@@ -207,7 +292,9 @@ def main(argv: list[str] | None = None) -> int:
     dec = decisions()
     if a.cmd == "summary":
         print("DESCRIPTIVE results; sample rows never carry a PROMOTE verdict. Best net first.")
-        print("Targeted slices (fail_*) are NOT overall accuracy: read tgt_rec (target-class recovered / wrong targets) and ctl_lost (controls lost / controls).")
+        print(
+            "Targeted slices (fail_*) are NOT overall accuracy: read tgt_rec (target-class recovered / wrong targets) and ctl_lost (controls lost / controls)."
+        )
         for r in summary(rows, a.mode, a.sort):
             print(_fmt(r, dec))
     else:

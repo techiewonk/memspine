@@ -43,7 +43,9 @@ def _stemmer():
     try:
         from nltk.stem import PorterStemmer
     except ImportError as exc:  # pragma: no cover - environment dependent
-        raise RuntimeError("official LoCoMo F1 needs nltk (PorterStemmer): pip install nltk") from exc
+        raise RuntimeError(
+            "official LoCoMo F1 needs nltk (PorterStemmer): pip install nltk"
+        ) from exc
     return PorterStemmer()
 
 

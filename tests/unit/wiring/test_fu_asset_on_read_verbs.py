@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """FU-ASSET: ``write.asset_describer: on_read`` fires from every read verb, once per asset.
 
 The hook sits in ``scope_guard.viewer_guarded`` (via ``Engine._after_read``), so it sees the output

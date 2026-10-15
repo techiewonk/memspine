@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """LIB-13: role policy, echo guard (I-8) and routing."""
 
 from __future__ import annotations

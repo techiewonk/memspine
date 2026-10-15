@@ -62,10 +62,10 @@ class _Placeholder(str):
     def __new__(cls, name: str) -> _Placeholder:
         return super().__new__(cls, f"<{name}>")
 
-    def __iter__(self) -> Iterator[_Placeholder]:  # type: ignore[override]
+    def __iter__(self) -> Iterator[_Placeholder]:
         yield _Placeholder(str(self)[1:-1] + "_item")
 
-    def __getitem__(self, key: object) -> _Placeholder:  # type: ignore[override]
+    def __getitem__(self, key: object) -> _Placeholder:
         return _Placeholder(str(self)[1:-1] + "_item")
 
     def __getattr__(self, attr: str) -> _Placeholder:

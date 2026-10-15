@@ -21,7 +21,7 @@ from enum import Enum
 from typing import Any
 
 
-class Stage(str, Enum):  # noqa: UP042 - str() must stay the member name in logs
+class Stage(str, Enum):
     """The five loop operators, used as cost and latency buckets."""
 
     RETRIEVE = "R"

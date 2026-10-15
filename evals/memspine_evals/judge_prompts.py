@@ -88,7 +88,7 @@ LOCOMO_CATEGORY_NAMES = {
 }
 
 
-class PromptStatus(str, Enum):  # noqa: UP042 - matches the other str enums in the harness
+class PromptStatus(str, Enum):
     OFFICIAL = "official-verbatim"
     VENDORED = "vendored-copy"
     MEMSPINE = "memspine"

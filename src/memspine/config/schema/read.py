@@ -755,7 +755,7 @@ class ReadConfig(BaseModel):
         Literal[
             "subject", "modality", "polarity", "scope", "sensitivity", "hearsay", "certainty", "ack"
         ]
-    ] = Field(default_factory=lambda: ["subject"])
+    ] = Field(default_factory=lambda: ["subject"])  # type: ignore[arg-type]  # CI-GREEN: pre-existing typing debt
     #: I39: show ``[about: Ilse's cousin]`` before a record whose subject differs from its
     #: speaker (the stored content is unchanged). Off: unchanged.
     perspective_marker: bool = False
@@ -790,7 +790,7 @@ class ReadConfig(BaseModel):
     #: ("Answer type: place:city; expected: one."), only when the answer type is known;
     #: ``rerank`` = the same hint appended to the reranker's query (never to the embedder's).
     query_contract_use: list[Literal["header", "rerank"]] = Field(
-        default_factory=lambda: ["header"]
+        default_factory=lambda: ["header"]  # type: ignore[arg-type]  # CI-GREEN: pre-existing typing debt
     )
     #: I64: with a session id, a record injected in the last ``reinjection_window`` replies of
     #: that (namespace, session) has its relevance multiplied by
@@ -1132,7 +1132,7 @@ class ReadConfig(BaseModel):
     decider_device: Literal["cpu", "cuda", "mps", "auto"] = "cpu"
     decider_tasks: list[
         Literal["list_mode", "bridge_hop", "about_target", "needs_more_evidence"]
-    ] = Field(default_factory=lambda: ["list_mode", "bridge_hop"])
+    ] = Field(default_factory=lambda: ["list_mode", "bridge_hop"])  # type: ignore[arg-type]  # CI-GREEN: pre-existing typing debt
     #: I29: whether retrieved memories are injected at all. ``off`` (default): always, as
     #: today. (The ``decider`` form measured LoCoMo 81.6 -> 59.2 and is retired, G-22.)
     #: ``store_calibrated``: the

@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """Derive stage: entity summaries with the model call outside the lock (O4-06, ``offline.communities_v2``).
 
 The same summaries as ``summarize_entities`` (one dated summary per entity whose membership changed;

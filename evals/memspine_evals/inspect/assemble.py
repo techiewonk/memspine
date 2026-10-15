@@ -40,7 +40,13 @@ DEMO_PATH = HERE / "demo_conversation.json"
 RUNS = EVALS / "runs"
 
 STAGE_ORDER = ["ingest", "recall", "fusion", "gate", "rerank", "assembly", "reader"]
-CAT = {"cat1": "multi-hop", "cat2": "temporal", "cat3": "open-domain", "cat4": "single-hop", "cat5": "adversarial"}
+CAT = {
+    "cat1": "multi-hop",
+    "cat2": "temporal",
+    "cat3": "open-domain",
+    "cat4": "single-hop",
+    "cat5": "adversarial",
+}
 
 #: TI-1 tap events this assembler understands, with the fields it reads (extra fields are kept).
 TAP_EVENTS = {
@@ -57,14 +63,32 @@ TAP_EVENTS = {
 }
 
 TEXT_KEYS = {
-    "text", "index_text", "content", "prompt_text", "reply_text", "context_text", "raw", "question", "gold",
-    "answer", "source_text", "stored_text", "reply", "context_lines", "known", "value",
+    "text",
+    "index_text",
+    "content",
+    "prompt_text",
+    "reply_text",
+    "context_text",
+    "raw",
+    "question",
+    "gold",
+    "answer",
+    "source_text",
+    "stored_text",
+    "reply",
+    "context_lines",
+    "known",
+    "value",
 }
 
 
 # ---------------------------------------------------------------------------------------------- io
 def _open(path: Path):
-    return gzip.open(path, "rt", encoding="utf-8") if path.suffix == ".gz" else open(path, encoding="utf-8")
+    return (
+        gzip.open(path, "rt", encoding="utf-8")
+        if path.suffix == ".gz"
+        else open(path, encoding="utf-8")
+    )
 
 
 def load_jsonl(path: Path | None) -> list[dict]:
@@ -86,7 +110,10 @@ def load_jsonl(path: Path | None) -> list[dict]:
 
 
 def write_jsonl(path: Path, rows: list[dict]) -> None:
-    path.write_text("".join(json.dumps(r, ensure_ascii=False, default=str) + "\n" for r in rows), encoding="utf-8")
+    path.write_text(
+        "".join(json.dumps(r, ensure_ascii=False, default=str) + "\n" for r in rows),
+        encoding="utf-8",
+    )
 
 
 def _first(dirs: list[Path], names: list[str]) -> Path | None:
@@ -107,7 +134,10 @@ def resolve_run(run: str | Path) -> dict[str, Any]:
     name = p.name
     base = re.sub(r"--(memspine|forensics|trace)$", "", name)
     parent = p.parent
-    cands = [parent / f"{base}--{s}" for s in ("memspine", "forensics", "trace")] + [parent / base, p]
+    cands = [parent / f"{base}--{s}" for s in ("memspine", "forensics", "trace")] + [
+        parent / base,
+        p,
+    ]
     dirs: list[Path] = []
     for c in cands:
         if c.is_dir() and c not in dirs:
@@ -129,15 +159,34 @@ def load_dataset(dataset: Any) -> dict[str, dict]:
         raw = [raw]
     out: dict[str, dict] = {}
     for index, sample in enumerate(raw):
-        if "sessions" in sample:  # the demo fixture shape: sessions[{session_id, date, turns}], questions[...]
+        if (
+            "sessions" in sample
+        ):  # the demo fixture shape: sessions[{session_id, date, turns}], questions[...]
             item = str(sample.get("conversation_id", index))
-            turns = [{"item": item, "session": s["session_id"], "turn_id": str(t["turn_id"]), "speaker": str(t.get("speaker", "unknown")),
-                      "ts": t.get("ts") or s.get("date"), "text": str(t.get("text", "")),
-                      **({"custom": True} if t.get("custom") else {})} for s in sample["sessions"] for t in s["turns"]]
-            qs = {str(q.get("query_id", i)): {"question": q.get("question", ""), "gold": q.get("gold"), "category": q.get("category"),
-                                              "gold_turns": [str(g) for g in q.get("gold_turns") or []], "distractor_turns": [],
-                                              **({"custom": True} if q.get("custom") else {})}
-                  for i, q in enumerate(sample.get("questions") or [])}
+            turns = [
+                {
+                    "item": item,
+                    "session": s["session_id"],
+                    "turn_id": str(t["turn_id"]),
+                    "speaker": str(t.get("speaker", "unknown")),
+                    "ts": t.get("ts") or s.get("date"),
+                    "text": str(t.get("text", "")),
+                    **({"custom": True} if t.get("custom") else {}),
+                }
+                for s in sample["sessions"]
+                for t in s["turns"]
+            ]
+            qs = {
+                str(q.get("query_id", i)): {
+                    "question": q.get("question", ""),
+                    "gold": q.get("gold"),
+                    "category": q.get("category"),
+                    "gold_turns": [str(g) for g in q.get("gold_turns") or []],
+                    "distractor_turns": [],
+                    **({"custom": True} if q.get("custom") else {}),
+                }
+                for i, q in enumerate(sample.get("questions") or [])
+            }
             out[item] = {"turns": turns, "questions": qs}
             continue
         conv = sample.get("conversation", {})
@@ -151,10 +200,16 @@ def load_dataset(dataset: Any) -> dict[str, dict]:
                 text = str(t.get("text", ""))
                 if t.get("blip_caption"):
                     text = f"{text} [image: {t['blip_caption']}]".strip()
-                turns.append({
-                    "item": item, "session": f"session_{number}", "turn_id": str(t.get("dia_id") or f"{key}:{pos}"),
-                    "speaker": str(t.get("speaker", "unknown")), "ts": conv.get(f"{key}_date_time"), "text": text,
-                })
+                turns.append(
+                    {
+                        "item": item,
+                        "session": f"session_{number}",
+                        "turn_id": str(t.get("dia_id") or f"{key}:{pos}"),
+                        "speaker": str(t.get("speaker", "unknown")),
+                        "ts": conv.get(f"{key}_date_time"),
+                        "text": text,
+                    }
+                )
         questions: dict[str, dict] = {}
         for qi, qa in enumerate(sample.get("qa") or []):
             cat = qa.get("category")
@@ -167,8 +222,11 @@ def load_dataset(dataset: Any) -> dict[str, dict]:
                         if m and (t := f"D{int(m.group(1))}:{int(m.group(2))}") not in gold_turns:
                             gold_turns.append(t)
             questions[f"{index}-{qi}"] = {
-                "question": str(qa.get("question", "")), "gold": qa.get("answer"), "category": f"cat{cat}",
-                "gold_turns": gold_turns, "distractor_turns": ev if cat == 5 else [],
+                "question": str(qa.get("question", "")),
+                "gold": qa.get("answer"),
+                "category": f"cat{cat}",
+                "gold_turns": gold_turns,
+                "distractor_turns": ev if cat == 5 else [],
             }
         out[item] = {"turns": turns, "questions": questions}
     return out
@@ -195,7 +253,9 @@ def _norm_event(r: dict) -> dict:
 def _flatten_trace(row: dict) -> list[dict]:
     """A tap ``jsonl`` sink line is a whole request trace (``events`` and nested ``children``);
     expand it to one flat row per event, children after the parent's own events."""
-    out = [{"stage": e.get("stage"), "fields": e.get("fields") or {}} for e in row.get("events") or []]
+    out = [
+        {"stage": e.get("stage"), "fields": e.get("fields") or {}} for e in row.get("events") or []
+    ]
     for child in row.get("children") or []:
         out += _flatten_trace(child)
     return out
@@ -238,8 +298,15 @@ def rank_of(stage: list[dict] | None, turn: str) -> int | None:
 
 
 #: lost_at -> the last stage output that still held the turn (TI-6 contract: leg/fused/pool/rerank/packed/none)
-LAST_REACHED = {None: "packed", "ingest": "none", "recall": "none", "fusion": "leg", "gate": "fused",
-                "rerank": "pool", "assembly": "rerank"}
+LAST_REACHED = {
+    None: "packed",
+    "ingest": "none",
+    "recall": "none",
+    "fusion": "leg",
+    "gate": "fused",
+    "rerank": "pool",
+    "assembly": "rerank",
+}
 
 
 def _run_started_at(created: Any, paths: list[Path | None]) -> str | None:
@@ -275,11 +342,14 @@ def gold_path(
         rescued = None
         if f is not None:
             rk = {
-                "vector": rank_of(f.get("vector"), g), "lexical": rank_of(f.get("lexical"), g),
+                "vector": rank_of(f.get("vector"), g),
+                "lexical": rank_of(f.get("lexical"), g),
                 "extra": {n: rank_of(h, g) for n, h in (f.get("extra_legs") or {}).items()},
-                "fused": rank_of(f.get("fused"), g), "pool": rank_of(f.get("pool"), g),
+                "fused": rank_of(f.get("fused"), g),
+                "pool": rank_of(f.get("pool"), g),
                 "rerank": rank_of(f.get("rerank_scores"), g) if f.get("rerank_scores") else None,
-                "final": rank_of(f.get("final"), g), "in_context": g in in_ctx,
+                "final": rank_of(f.get("final"), g),
+                "in_context": g in in_ctx,
             }
             ranks = rk
             if loss is None:
@@ -301,8 +371,16 @@ def gold_path(
         elif g not in in_ctx and loss is None:
             loss = "recall"  # results-level only: the stage is unknown, counted as retrieval
         last = LAST_REACHED[loss]
-        rows.append({"turn": g, "in_context": g in in_ctx, "lost_at": loss, "last_stage_reached": last,
-                     "rescued_from": rescued, "ranks": ranks})
+        rows.append(
+            {
+                "turn": g,
+                "in_context": g in in_ctx,
+                "lost_at": loss,
+                "last_stage_reached": last,
+                "rescued_from": rescued,
+                "ranks": ranks,
+            }
+        )
         if loss:
             losses.append(loss)
     return rows, (min(losses, key=STAGE_ORDER.index) if losses else None)
@@ -351,20 +429,36 @@ def _build_one(run: str | Path, dataset: Any = None) -> dict[str, Any]:
     results_all = load_jsonl(results_path)
     results = [r for r in results_all if r.get("kind") == "result"]
     run_ids = {r.get("run_id") for r in results}
-    man_row = next((r for r in results_all if r.get("kind") not in ("result", "summary", "cost") and "system" in r), {})
+    man_row = next(
+        (
+            r
+            for r in results_all
+            if r.get("kind") not in ("result", "summary", "cost") and "system" in r
+        ),
+        {},
+    )
     summary_row = next((r for r in results_all if r.get("kind") == "summary"), {})
-    ingest = [r for r in load_jsonl(_first(dirs, ["ingest.jsonl"])) if r.get("run_id") is None or not run_ids or r.get("run_id") in run_ids]
+    ingest = [
+        r
+        for r in load_jsonl(_first(dirs, ["ingest.jsonl"]))
+        if r.get("run_id") is None or not run_ids or r.get("run_id") in run_ids
+    ]
     fx = load_jsonl(_first(dirs, ["forensics.jsonl", "forensics.jsonl.gz"]))
     reads = load_jsonl(_first(dirs, ["reads.jsonl", "reads.jsonl.gz"]))
     wtrace = load_jsonl(_first(dirs, ["write_trace.jsonl"]))
     trace = load_jsonl(_first(dirs, ["trace.jsonl"]))
     tap = load_tap(dirs)
     insp = [d / "inspect" for d in dirs if (d / "inspect").is_dir()]
-    snap = {n: load_jsonl(_first(insp, [f"{n}.jsonl", f"{n}.jsonl.gz"])) for n in ("records", "links", "sleep", "graph_nodes")}
+    snap = {
+        n: load_jsonl(_first(insp, [f"{n}.jsonl", f"{n}.jsonl.gz"]))
+        for n in ("records", "links", "sleep", "graph_nodes")
+    }
     checks = load_jsonl(_first(insp + dirs, ["checks.jsonl"]))
     fx_by_q = _join_forensics(results, fx)
 
-    ing_by = {(r.get("item"), r["turn"]): r for r in ingest if "turn" in r}  # window_stats rows have none
+    ing_by = {
+        (r.get("item"), r["turn"]): r for r in ingest if "turn" in r
+    }  # window_stats rows have none
     wt_by = {(r.get("item"), r["turn"]): r for r in wtrace if "turn" in r}
     dep_by = {(r.get("item_id"), r.get("turn_id")): r for r in trace if r.get("kind") == "deposit"}
     reads_by = {(r.get("item_id"), r.get("query_id")): r for r in reads}
@@ -416,17 +510,27 @@ def _build_one(run: str | Path, dataset: Any = None) -> dict[str, Any]:
         pr = e.get("prompt") if isinstance(e.get("prompt"), dict) else {}
         w["item"] = w.get("item") or e.get("item")
         w["prompt"] = {
-            "id": pr.get("id") or e.get("prompt_id"), "hash": pr.get("hash") or e.get("prompt_hash"),
-            "context_lines": pr.get("context_lines", e.get("context_lines")), "known": pr.get("known", e.get("known")),
+            "id": pr.get("id") or e.get("prompt_id"),
+            "hash": pr.get("hash") or e.get("prompt_hash"),
+            "context_lines": pr.get("context_lines", e.get("context_lines")),
+            "known": pr.get("known", e.get("known")),
         }
         call = dict(e.get("call") or {})
-        for k_src, k_dst in (("model", "model"), ("cached", "cached"), ("tokens", "tokens"), ("ms", "ms"),
-                              ("prompt_text", "prompt_text"), ("reply_text", "reply_text")):
+        for k_src, k_dst in (
+            ("model", "model"),
+            ("cached", "cached"),
+            ("tokens", "tokens"),
+            ("ms", "ms"),
+            ("prompt_text", "prompt_text"),
+            ("reply_text", "reply_text"),
+        ):
             if k_src in e and k_dst not in call:
                 call[k_dst] = e[k_src]
         w["call"] = call
         sec = e.get("sections")
-        if isinstance(sec, list):  # the engine lists the requested sections; counts ride in parsed_counts
+        if isinstance(
+            sec, list
+        ):  # the engine lists the requested sections; counts ride in parsed_counts
             counts = e.get("parsed_counts") if isinstance(e.get("parsed_counts"), dict) else {}
             sec = {k: int(counts.get(k) or 0) for k in ("facts", "edges", "episode")}
         w["sections"] = sec
@@ -456,8 +560,11 @@ def _build_one(run: str | Path, dataset: Any = None) -> dict[str, Any]:
             w["items"] = {
                 "valid": len({r.get("occ") for r in rows if r.get("status") in ("kept", "added")}),
                 "repaired": len({r.get("occ") for r in rows if r.get("status") == "rewritten"}),
-                "dead": [{"occ": r.get("occ"), "stage": r.get("stage"), "reason": r.get("reason")}
-                         for r in rows if r.get("status") == "dropped"],
+                "dead": [
+                    {"occ": r.get("occ"), "stage": r.get("stage"), "reason": r.get("reason")}
+                    for r in rows
+                    if r.get("status") == "dropped"
+                ],
             }
     turn_windows: dict[tuple, list[str]] = defaultdict(list)
     for wid, w in windows.items():
@@ -474,9 +581,17 @@ def _build_one(run: str | Path, dataset: Any = None) -> dict[str, Any]:
             run_items = set(ds)
         base_turns = [t for it, d in ds.items() if it in run_items for t in d["turns"]]
     else:
-        base_turns = [{"item": r.get("item"), "session": r.get("session"), "turn_id": r["turn"],
-                       "speaker": r.get("speaker"), "ts": r.get("source_timestamp"), "text": r.get("source_text")}
-                      for r in ingest]
+        base_turns = [
+            {
+                "item": r.get("item"),
+                "session": r.get("session"),
+                "turn_id": r["turn"],
+                "speaker": r.get("speaker"),
+                "ts": r.get("source_timestamp"),
+                "text": r.get("source_text"),
+            }
+            for r in ingest
+        ]
     turns: list[dict] = []
     for t in base_turns:
         key = (t["item"], t["turn_id"])
@@ -485,34 +600,70 @@ def _build_one(run: str | Path, dataset: Any = None) -> dict[str, Any]:
         stored = wt.get("stored") or {}
         src = stored.get("source") or {}
         dep = dep_by.get(key) or {}
-        derived = [r for r in (dep.get("delta_t") or {}).get("record_ids") or [] if r != ing.get("record_id")]
+        derived = [
+            r
+            for r in (dep.get("delta_t") or {}).get("record_ids") or []
+            if r != ing.get("record_id")
+        ]
         reasons: list[str] = []
         for ee in wt.get("engine_events") or []:
             reasons += [str(x) for x in ee.get("reasons") or []]
         idx = index_by_turn.get(key) or index_by_rid.get(ing.get("record_id"))
         written = ing.get("written")
-        action = "skipped" if written is False else ("derived" if derived else ("written" if written else None))
+        action = (
+            "skipped"
+            if written is False
+            else ("derived" if derived else ("written" if written else None))
+        )
         row = {
-            "run_id": run_id, "item": t["item"], "session": t.get("session") or ing.get("session"),
-            "turn_id": t["turn_id"], "speaker": t.get("speaker"), "ts": t.get("ts"), "text": t.get("text"),
-            "record_id": ing.get("record_id"), "derived_record_ids": derived, "index_text": ing.get("stored_text"),
+            "run_id": run_id,
+            "item": t["item"],
+            "session": t.get("session") or ing.get("session"),
+            "turn_id": t["turn_id"],
+            "speaker": t.get("speaker"),
+            "ts": t.get("ts"),
+            "text": t.get("text"),
+            "record_id": ing.get("record_id"),
+            "derived_record_ids": derived,
+            "index_text": ing.get("stored_text"),
             "text_identical": ing.get("text_identical"),
-            "stamp": {"source_at": ing.get("source_timestamp") or t.get("ts"), "tz": stored.get("tz"),
-                      "spk": stored.get("spk") or t.get("speaker"), "addr": stored.get("addr"),
-                      "participants": stored.get("participants"), "src_class": src.get("role") or stored.get("src_class"),
-                      "valid_from": ing.get("valid_from") or stored.get("valid_from"),
-                      "recorded_at": stored.get("recorded_at")},
-            "role": {"derive_use": stored.get("derive_use"), "trust_cap": stored.get("trust_cap"),
-                     "echo": stored.get("echo"), "role": src.get("role"), "channel": src.get("channel")},
-            "firewall": {"trust": ing.get("trust", stored.get("trust")),
-                         "quarantined": ing.get("quarantined", stored.get("quarantined")), "reasons": reasons},
+            "stamp": {
+                "source_at": ing.get("source_timestamp") or t.get("ts"),
+                "tz": stored.get("tz"),
+                "spk": stored.get("spk") or t.get("speaker"),
+                "addr": stored.get("addr"),
+                "participants": stored.get("participants"),
+                "src_class": src.get("role") or stored.get("src_class"),
+                "valid_from": ing.get("valid_from") or stored.get("valid_from"),
+                "recorded_at": stored.get("recorded_at"),
+            },
+            "role": {
+                "derive_use": stored.get("derive_use"),
+                "trust_cap": stored.get("trust_cap"),
+                "echo": stored.get("echo"),
+                "role": src.get("role"),
+                "channel": src.get("channel"),
+            },
+            "firewall": {
+                "trust": ing.get("trust", stored.get("trust")),
+                "quarantined": ing.get("quarantined", stored.get("quarantined")),
+                "reasons": reasons,
+            },
             "route": wt.get("route") or ing.get("memory_type") or stored.get("memory_type"),
             "deposit_action": (idx or {}).get("action") or action,
-            "indexed": ({"vector": idx.get("vector"), "lexical": idx.get("lexical"), "graph_node": idx.get("graph_node"),
-                         "source": "tap"} if idx else
-                        {"vector": written, "lexical": None, "graph_node": None, "source": "inferred"}),
+            "indexed": (
+                {
+                    "vector": idx.get("vector"),
+                    "lexical": idx.get("lexical"),
+                    "graph_node": idx.get("graph_node"),
+                    "source": "tap",
+                }
+                if idx
+                else {"vector": written, "lexical": None, "graph_node": None, "source": "inferred"}
+            ),
             "window_ids": turn_windows.get(key, []),
-            "deposit": dep.get("delta_t"), "deposit_latency_ms": dep.get("latency_ms"),
+            "deposit": dep.get("delta_t"),
+            "deposit_latency_ms": dep.get("latency_ms"),
         }
         if t.get("custom"):
             row["custom"] = True  # written by the step mode `say`, not part of the dataset
@@ -529,16 +680,30 @@ def _build_one(run: str | Path, dataset: Any = None) -> dict[str, Any]:
                 continue
             st = (wt_by.get((item, turn)) or {}).get("stored") or {}
             src = st.get("source") or {}
-            records.append({
-                "run_id": run_id, "item": item, "record_id": ing["record_id"], "phase": "post_ingest",
-                "memory_type": ing.get("memory_type") or st.get("memory_type"), "layer": st.get("layer"),
-                "channel": src.get("channel"), "content": ing.get("stored_text"), "tags": st.get("tags") or [],
-                "entity": st.get("entity"), "attribute": st.get("attribute"), "value": st.get("value"),
-                "status": ing.get("status") or st.get("status"), "valid_from": ing.get("valid_from"),
-                "valid_to": st.get("valid_to"), "evolve_to": st.get("evolve_to"),
-                "trust": ing.get("trust", st.get("trust")), "parents": src.get("parents") or [],
-                "parent_turns": [turn], "envelope": None,
-            })
+            records.append(
+                {
+                    "run_id": run_id,
+                    "item": item,
+                    "record_id": ing["record_id"],
+                    "phase": "post_ingest",
+                    "memory_type": ing.get("memory_type") or st.get("memory_type"),
+                    "layer": st.get("layer"),
+                    "channel": src.get("channel"),
+                    "content": ing.get("stored_text"),
+                    "tags": st.get("tags") or [],
+                    "entity": st.get("entity"),
+                    "attribute": st.get("attribute"),
+                    "value": st.get("value"),
+                    "status": ing.get("status") or st.get("status"),
+                    "valid_from": ing.get("valid_from"),
+                    "valid_to": st.get("valid_to"),
+                    "evolve_to": st.get("evolve_to"),
+                    "trust": ing.get("trust", st.get("trust")),
+                    "parents": src.get("parents") or [],
+                    "parent_turns": [turn],
+                    "envelope": None,
+                }
+            )
     # ---- links
     links: list[dict]
     if snap["links"]:
@@ -547,39 +712,89 @@ def _build_one(run: str | Path, dataset: Any = None) -> dict[str, Any]:
         links = []
         for r in records:
             for p in r.get("parents") or []:
-                links.append({"run_id": run_id, "item": r.get("item"), "kind": "lineage", "src": p, "dst": r["record_id"],
-                              "rel": "derived_from", "props": {}, "created_by": "ingest", "phase": r.get("phase")})
+                links.append(
+                    {
+                        "run_id": run_id,
+                        "item": r.get("item"),
+                        "kind": "lineage",
+                        "src": p,
+                        "dst": r["record_id"],
+                        "rel": "derived_from",
+                        "props": {},
+                        "created_by": "ingest",
+                        "phase": r.get("phase"),
+                    }
+                )
             if r.get("evolve_to"):
-                links.append({"run_id": run_id, "item": r.get("item"), "kind": "typed", "src": r["record_id"],
-                              "dst": r["evolve_to"], "rel": "supersede", "props": {}, "created_by": "ingest",
-                              "phase": r.get("phase")})
+                links.append(
+                    {
+                        "run_id": run_id,
+                        "item": r.get("item"),
+                        "kind": "typed",
+                        "src": r["record_id"],
+                        "dst": r["evolve_to"],
+                        "rel": "supersede",
+                        "props": {},
+                        "created_by": "ingest",
+                        "phase": r.get("phase"),
+                    }
+                )
         for e in index_by_rid.values():
             for ed in _aslist(e.get("edges")):
                 if isinstance(ed, dict):
-                    links.append({"run_id": run_id, "item": e.get("item"), "kind": ed.get("kind", "graph"),
-                                  "src": ed.get("src"), "dst": ed.get("dst"), "rel": ed.get("rel"),
-                                  "props": ed.get("props", {}), "created_by": "index", "phase": "post_ingest"})
+                    links.append(
+                        {
+                            "run_id": run_id,
+                            "item": e.get("item"),
+                            "kind": ed.get("kind", "graph"),
+                            "src": ed.get("src"),
+                            "dst": ed.get("dst"),
+                            "rel": ed.get("rel"),
+                            "props": ed.get("props", {}),
+                            "created_by": "index",
+                            "phase": "post_ingest",
+                        }
+                    )
     # ---- sleep
     if snap["sleep"]:
         sleep = [dict(r, run_id=r.get("run_id", run_id)) for r in snap["sleep"]]
     else:
-        sleep = [{"run_id": run_id, "item": e.get("item"), "stage": e.get("stage"), "cycle": e.get("cycle"),
-                  "session_key": e.get("session_key"), "input_ids": _aslist(e.get("input_ids")),
-                  "output_ids": _aslist(e.get("output_ids")), "marker": e.get("marker"), "calls": e.get("calls"),
-                  "tokens": e.get("tokens"), "status": e.get("status")} for e in ev["job.stage.item"]]
+        sleep = [
+            {
+                "run_id": run_id,
+                "item": e.get("item"),
+                "stage": e.get("stage"),
+                "cycle": e.get("cycle"),
+                "session_key": e.get("session_key"),
+                "input_ids": _aslist(e.get("input_ids")),
+                "output_ids": _aslist(e.get("output_ids")),
+                "marker": e.get("marker"),
+                "calls": e.get("calls"),
+                "tokens": e.get("tokens"),
+                "status": e.get("status"),
+            }
+            for e in ev["job.stage.item"]
+        ]
 
     # ---- questions
     hdr_by_q: dict[Any, list[dict]] = defaultdict(list)
     for e in ev["compose.headers"]:
         items = e.get("headers")
-        for h in (items if isinstance(items, list) else [e]):
-            hdr_by_q[e.get("query_id")].append({"rid": h.get("rid"), "kind": h.get("kind"),
-                                                 "source_ids": _aslist(h.get("source_ids"))})
+        for h in items if isinstance(items, list) else [e]:
+            hdr_by_q[e.get("query_id")].append(
+                {
+                    "rid": h.get("rid"),
+                    "kind": h.get("kind"),
+                    "source_ids": _aslist(h.get("source_ids")),
+                }
+            )
     comp_by_q: dict[Any, dict] = defaultdict(dict)
     for e in ev["read.rerank.components"]:
-        for c in (e.get("items") if isinstance(e.get("items"), list) else [e]):
+        for c in e.get("items") if isinstance(e.get("items"), list) else [e]:
             k = c.get("rid") or c.get("turn")
-            comp_by_q[e.get("query_id")][k] = {x: c.get(x) for x in ("rel", "rec", "imp", "trust") if x in c}
+            comp_by_q[e.get("query_id")][k] = {
+                x: c.get(x) for x in ("rel", "rec", "imp", "trust") if x in c
+            }
     plan_io = {e.get("query_id"): e for e in ev["read.planner.io"]}
 
     questions: list[dict] = []
@@ -597,8 +812,12 @@ def _build_one(run: str | Path, dataset: Any = None) -> dict[str, Any]:
         in_ctx = set(retrieved)
         score = _num(r.get("score"))
         if mode == "qa":
-            correct = bool(score is not None and score >= 1.0 and r.get("status") == "completed"
-                           and (r.get("answer") or "").strip())
+            correct = bool(
+                score is not None
+                and score >= 1.0
+                and r.get("status") == "completed"
+                and (r.get("answer") or "").strip()
+            )
         else:
             correct = bool(gold_turns) and all(g in in_ctx for g in gold_turns)
         ing_item = ing_by_item.get(item, {})
@@ -612,8 +831,15 @@ def _build_one(run: str | Path, dataset: Any = None) -> dict[str, Any]:
             return turn_rid.get((_item, turn))
 
         def rows_of(stage: list[dict] | None, _item: str = item) -> list[dict]:
-            return [{"rid": turn_rid.get((_item, x["turn"])), "turn": x["turn"], "rank": x.get("r"),
-                     "score": x.get("score")} for x in stage or []]
+            return [
+                {
+                    "rid": turn_rid.get((_item, x["turn"])),
+                    "turn": x["turn"],
+                    "rank": x.get("r"),
+                    "score": x.get("score"),
+                }
+                for x in stage or []
+            ]
 
         legs: dict[str, list[dict]] = {}
         if f:
@@ -625,15 +851,31 @@ def _build_one(run: str | Path, dataset: Any = None) -> dict[str, Any]:
         rerank = []
         for x in (f or {}).get("rerank_scores") or []:
             rid = rid_of(x["turn"])
-            rerank.append({"rid": rid, "turn": x["turn"], "raw": x.get("score"), "rank": x.get("r"),
-                           "composite": comps.get(rid) or comps.get(x["turn"])})
+            rerank.append(
+                {
+                    "rid": rid,
+                    "turn": x["turn"],
+                    "raw": x.get("score"),
+                    "rank": x.get("r"),
+                    "composite": comps.get(rid) or comps.get(x["turn"]),
+                }
+            )
         qa_f = tf.get("query_analysis") or {}
         flags = qa_f.get("flags") or {}
         pio = plan_io.get(qid) or {}
         final_turns = {x["turn"] for x in (f or {}).get("final") or []}
-        packed = [{"rid": rid_of(c["turn"]), "turn": c["turn"], "tokens": c.get("tokens"),
-                   "reason": "final" if c["turn"] in final_turns else "window_neighbour"} for c in ctx_recs]
-        window_added = sorted({n for w in tf.get("window") or [] for n in w.get("neighbours") or []} - final_turns)
+        packed = [
+            {
+                "rid": rid_of(c["turn"]),
+                "turn": c["turn"],
+                "tokens": c.get("tokens"),
+                "reason": "final" if c["turn"] in final_turns else "window_neighbour",
+            }
+            for c in ctx_recs
+        ]
+        window_added = sorted(
+            {n for w in tf.get("window") or [] for n in w.get("neighbours") or []} - final_turns
+        )
         calls = rd.get("reader_calls") or []
         verdict = rd.get("verdict") or {}
         funnel = []
@@ -641,69 +883,156 @@ def _build_one(run: str | Path, dataset: Any = None) -> dict[str, Any]:
             ("recall", {x["turn"] for h in legs.values() for x in h}),
             ("fusion", {x["turn"] for x in (f or {}).get("fused") or []}),
             ("pool", {x["turn"] for x in (f or {}).get("pool") or []}),
-            ("final", final_turns), ("context", in_ctx),
+            ("final", final_turns),
+            ("context", in_ctx),
         ]
         if f:
             for name, s in stage_sets:
-                funnel.append({"stage": name, "n": len(s), "gold_present": sum(g in s for g in gold_turns),
-                               "gold_total": len(gold_turns)})
-        context_text = rd.get("context_text") or ("\n".join(c.get("text", "") for c in ctx_recs) if ctx_recs else None)
-        questions.append({
-            "run_id": run_id, "item": item, "query_id": qid, "category": CAT.get(r.get("type_label"), r.get("type_label") or dq.get("category")),
-            "question": r.get("question") or dq.get("question"), "gold": r.get("gold", dq.get("gold")),
-            "gold_turns": gold_turns, "mode": mode, "has_stage_log": f is not None,
-            **({"custom": True} if dq.get("custom") or r.get("custom") else {}),
-            "plan": {"contract": tf.get("contract") or qa_f.get("qa_shape"), "tier": tf.get("tier"),
-                     "route": qa_f.get("rule_read_mode") or tf.get("route"),
-                     "list_mode": bool(flags.get("is_set_question") or flags.get("is_intent_list")),
-                     "decompose": qa_f.get("split_intents"), "flags": flags, "perspective": tf.get("perspective"),
-                     "planner_io": ({"prompt": pio.get("prompt"), "reply": pio.get("reply"), "plan": pio.get("plan")}
-                                    if pio else None)},
-            "legs": legs, "fused": rows_of((f or {}).get("fused")),
-            "date_prior": tf.get("date_prior"), "protected": tf.get("protected"),
-            "cuts": [{"rid": c.get("id"), "turn": c.get("turn"), "reason": c.get("reason"), "stage": c.get("stage", "assembly"),
-                      "keep": c.get("keep")} for c in tf.get("cuts") or []],
-            "pool": rows_of((f or {}).get("pool")), "final": rows_of((f or {}).get("final")),
-            "reranker": (f or {}).get("reranker"), "rerank": rerank,
-            "headers": hdr_by_q.get(qid, []), "packed": packed, "window_added": window_added,
-            "window": tf.get("window"), "assembled": tf.get("assembled"),
-            "gate": {k: f[k] for k in ("decisions", "relevance_calibration", "relevance_bypass") if f and k in f} or None,
-            "deep": tf.get("deep") or tf.get("obligations"),
-            "context_text": context_text, "context_tokens": r.get("context_tokens"),
-            "reader": {"prompt": (calls[0].get("prompt") if calls else None), "raw": rd.get("reader_raw"),
-                       "calls": calls},
-            "retry": next((c for c in calls if "retry" in str(c.get("kind", ""))), None) or tf.get("retry"),
-            "answer": r.get("answer"), "status": r.get("status"),
-            "judge": {"score": score, "raw": verdict.get("raw") or meta.get("judge_raw"),
-                      "conventions": (verdict.get("meta") or {}) or meta.get("conventions")},
-            "correct": correct, "first_losing_stage": first_losing, "gold_path": gp, "funnel": funnel,
-        })
+                funnel.append(
+                    {
+                        "stage": name,
+                        "n": len(s),
+                        "gold_present": sum(g in s for g in gold_turns),
+                        "gold_total": len(gold_turns),
+                    }
+                )
+        context_text = rd.get("context_text") or (
+            "\n".join(c.get("text", "") for c in ctx_recs) if ctx_recs else None
+        )
+        questions.append(
+            {
+                "run_id": run_id,
+                "item": item,
+                "query_id": qid,
+                "category": CAT.get(r.get("type_label"), r.get("type_label") or dq.get("category")),
+                "question": r.get("question") or dq.get("question"),
+                "gold": r.get("gold", dq.get("gold")),
+                "gold_turns": gold_turns,
+                "mode": mode,
+                "has_stage_log": f is not None,
+                **({"custom": True} if dq.get("custom") or r.get("custom") else {}),
+                "plan": {
+                    "contract": tf.get("contract") or qa_f.get("qa_shape"),
+                    "tier": tf.get("tier"),
+                    "route": qa_f.get("rule_read_mode") or tf.get("route"),
+                    "list_mode": bool(flags.get("is_set_question") or flags.get("is_intent_list")),
+                    "decompose": qa_f.get("split_intents"),
+                    "flags": flags,
+                    "perspective": tf.get("perspective"),
+                    "planner_io": (
+                        {
+                            "prompt": pio.get("prompt"),
+                            "reply": pio.get("reply"),
+                            "plan": pio.get("plan"),
+                        }
+                        if pio
+                        else None
+                    ),
+                },
+                "legs": legs,
+                "fused": rows_of((f or {}).get("fused")),
+                "date_prior": tf.get("date_prior"),
+                "protected": tf.get("protected"),
+                "cuts": [
+                    {
+                        "rid": c.get("id"),
+                        "turn": c.get("turn"),
+                        "reason": c.get("reason"),
+                        "stage": c.get("stage", "assembly"),
+                        "keep": c.get("keep"),
+                    }
+                    for c in tf.get("cuts") or []
+                ],
+                "pool": rows_of((f or {}).get("pool")),
+                "final": rows_of((f or {}).get("final")),
+                "reranker": (f or {}).get("reranker"),
+                "rerank": rerank,
+                "headers": hdr_by_q.get(qid, []),
+                "packed": packed,
+                "window_added": window_added,
+                "window": tf.get("window"),
+                "assembled": tf.get("assembled"),
+                "gate": {
+                    k: f[k]
+                    for k in ("decisions", "relevance_calibration", "relevance_bypass")
+                    if f and k in f
+                }
+                or None,
+                "deep": tf.get("deep") or tf.get("obligations"),
+                "context_text": context_text,
+                "context_tokens": r.get("context_tokens"),
+                "reader": {
+                    "prompt": (calls[0].get("prompt") if calls else None),
+                    "raw": rd.get("reader_raw"),
+                    "calls": calls,
+                },
+                "retry": next((c for c in calls if "retry" in str(c.get("kind", ""))), None)
+                or tf.get("retry"),
+                "answer": r.get("answer"),
+                "status": r.get("status"),
+                "judge": {
+                    "score": score,
+                    "raw": verdict.get("raw") or meta.get("judge_raw"),
+                    "conventions": (verdict.get("meta") or {}) or meta.get("conventions"),
+                },
+                "correct": correct,
+                "first_losing_stage": first_losing,
+                "gold_path": gp,
+                "funnel": funnel,
+            }
+        )
 
     manifest = {
-        "run_id": run_id, "dirs": [d.name for d in dirs],
+        "run_id": run_id,
+        "dirs": [d.name for d in dirs],
         "system_id": (man_row.get("system") or {}).get("system_id"),
         "config_hash": (man_row.get("system") or {}).get("config_hash"),
-        "arm": (man_row.get("labels") or {}).get("arms") or (man_row.get("labels") or {}).get("experiment"),
+        "arm": (man_row.get("labels") or {}).get("arms")
+        or (man_row.get("labels") or {}).get("experiment"),
         "commit": (man_row.get("code") or {}).get("memspine_git"),
-        "models": {"reader": ((man_row.get("reader") or {}).get("model")), "judge": ((man_row.get("judge") or {}).get("model")),
-                   "engine": (man_row.get("labels") or {}).get("engine_llm_models")},
+        "models": {
+            "reader": ((man_row.get("reader") or {}).get("model")),
+            "judge": ((man_row.get("judge") or {}).get("model")),
+            "engine": (man_row.get("labels") or {}).get("engine_llm_models"),
+        },
         "dataset_revision": (man_row.get("dataset") or {}).get("revision_id"),
         "created_at": man_row.get("created_at"),
-        "run_started_at": _run_started_at(man_row.get("created_at"), [results_path, _first(dirs, ["ingest.jsonl"])]),
+        "run_started_at": _run_started_at(
+            man_row.get("created_at"), [results_path, _first(dirs, ["ingest.jsonl"])]
+        ),
         "score_mean": summary_row.get("score_mean"),
         "tap_events": {k: len(v) for k, v in ev.items()},
-        "inputs": {"ingest": len(ingest), "forensics": len(fx), "reads": len(reads), "write_trace": len(wtrace),
-                   "results": len(results), "trace": len(trace), "tap": len(tap),
-                   "snapshots": {k: len(v) for k, v in snap.items()}},
+        "inputs": {
+            "ingest": len(ingest),
+            "forensics": len(fx),
+            "reads": len(reads),
+            "write_trace": len(wtrace),
+            "results": len(results),
+            "trace": len(trace),
+            "tap": len(tap),
+            "snapshots": {k: len(v) for k, v in snap.items()},
+        },
     }
-    return {"turns": turns, "windows": list(windows.values()), "envelopes": envelopes, "records": records,
-            "links": links, "sleep": sleep, "questions": questions, "checks": checks, "manifest": manifest,
-            "graph_nodes": [dict(r, run_id=r.get("run_id", run_id)) for r in snap["graph_nodes"]]}
+    return {
+        "turns": turns,
+        "windows": list(windows.values()),
+        "envelopes": envelopes,
+        "records": records,
+        "links": links,
+        "sleep": sleep,
+        "questions": questions,
+        "checks": checks,
+        "manifest": manifest,
+        "graph_nodes": [dict(r, run_id=r.get("run_id", run_id)) for r in snap["graph_nodes"]],
+    }
 
 
 def _strip_text(o: Any) -> Any:
     if isinstance(o, dict):
-        return {k: (None if (k in TEXT_KEYS and isinstance(v, str | list)) else _strip_text(v)) for k, v in o.items()}
+        return {
+            k: (None if (k in TEXT_KEYS and isinstance(v, str | list)) else _strip_text(v))
+            for k, v in o.items()
+        }
     if isinstance(o, list):
         return [_strip_text(x) for x in o]
     return o
@@ -729,15 +1058,25 @@ def write_bundle(bundle: dict[str, Any], out_dir: Path, content: bool = True) ->
 
 # --------------------------------------------------------------------------------------- compare
 def _turn_sig(t: dict) -> dict:
-    return {"record_id": t.get("record_id"), "derived": len(t.get("derived_record_ids") or []),
-            "deposit_action": t.get("deposit_action"), "windows": len(t.get("window_ids") or []),
-            "quarantined": (t.get("firewall") or {}).get("quarantined"), "text_identical": t.get("text_identical")}
+    return {
+        "record_id": t.get("record_id"),
+        "derived": len(t.get("derived_record_ids") or []),
+        "deposit_action": t.get("deposit_action"),
+        "windows": len(t.get("window_ids") or []),
+        "quarantined": (t.get("firewall") or {}).get("quarantined"),
+        "text_identical": t.get("text_identical"),
+    }
 
 
 def _q_sig(q: dict) -> dict:
     surv = {f["stage"]: f["gold_present"] for f in q.get("funnel") or []}
-    return {"correct": q.get("correct"), "first_losing_stage": q.get("first_losing_stage"), "survival": surv,
-            "answer": q.get("answer"), "judge_score": (q.get("judge") or {}).get("score")}
+    return {
+        "correct": q.get("correct"),
+        "first_losing_stage": q.get("first_losing_stage"),
+        "survival": surv,
+        "answer": q.get("answer"),
+        "judge_score": (q.get("judge") or {}).get("score"),
+    }
 
 
 def compare_bundles(a: dict, b: dict) -> dict:
@@ -745,37 +1084,88 @@ def compare_bundles(a: dict, b: dict) -> dict:
     ta = {(t["item"], t["turn_id"]): t for t in a["turns"]}
     tb = {(t["item"], t["turn_id"]): t for t in b["turns"]}
     turns = []
-    for k in sorted(set(ta) | set(tb), key=lambda k: (str(k[0]), [int(x) for x in re.findall(r"\d+", str(k[1]))])):
+    for k in sorted(
+        set(ta) | set(tb),
+        key=lambda k: (str(k[0]), [int(x) for x in re.findall(r"\d+", str(k[1]))]),
+    ):
         sa = _turn_sig(ta[k]) if k in ta else None
         sb = _turn_sig(tb[k]) if k in tb else None
-        diff = [f for f in ("derived", "deposit_action", "windows", "quarantined") if sa and sb and sa[f] != sb[f]]
-        turns.append({"item": k[0], "turn_id": k[1], "a": sa, "b": sb, "differs": diff or (["missing"] if not (sa and sb) else [])})
+        diff = [
+            f
+            for f in ("derived", "deposit_action", "windows", "quarantined")
+            if sa and sb and sa[f] != sb[f]
+        ]
+        turns.append(
+            {
+                "item": k[0],
+                "turn_id": k[1],
+                "a": sa,
+                "b": sb,
+                "differs": diff or (["missing"] if not (sa and sb) else []),
+            }
+        )
     qa = {(q["item"], q["query_id"]): q for q in a["questions"]}
     qb = {(q["item"], q["query_id"]): q for q in b["questions"]}
     questions = []
-    for k in sorted(set(qa) | set(qb), key=lambda k: (str(k[0]), [int(x) for x in re.findall(r"\d+", str(k[1]))])):
+    for k in sorted(
+        set(qa) | set(qb),
+        key=lambda k: (str(k[0]), [int(x) for x in re.findall(r"\d+", str(k[1]))]),
+    ):
         sa = _q_sig(qa[k]) if k in qa else None
         sb = _q_sig(qb[k]) if k in qb else None
         if sa and sb:
-            delta = ("fixed" if sb["correct"] and not sa["correct"] else "regressed" if sa["correct"] and not sb["correct"]
-                     else "both_right" if sa["correct"] else "both_wrong")
+            delta = (
+                "fixed"
+                if sb["correct"] and not sa["correct"]
+                else "regressed"
+                if sa["correct"] and not sb["correct"]
+                else "both_right"
+                if sa["correct"]
+                else "both_wrong"
+            )
         else:
             delta = "missing"
         q = qa.get(k) or qb.get(k)
-        questions.append({"item": k[0], "query_id": k[1], "category": q.get("category"), "question": q.get("question"),
-                          "gold_turns": q.get("gold_turns"), "a": sa, "b": sb, "delta": delta,
-                          "stage_changed": bool(sa and sb and sa["first_losing_stage"] != sb["first_losing_stage"])})
+        questions.append(
+            {
+                "item": k[0],
+                "query_id": k[1],
+                "category": q.get("category"),
+                "question": q.get("question"),
+                "gold_turns": q.get("gold_turns"),
+                "a": sa,
+                "b": sb,
+                "delta": delta,
+                "stage_changed": bool(
+                    sa and sb and sa["first_losing_stage"] != sb["first_losing_stage"]
+                ),
+            }
+        )
     counts: dict[str, int] = defaultdict(int)
     for q in questions:
         counts[q["delta"]] += 1
-    return {"a": a["manifest"]["run_id"], "b": b["manifest"]["run_id"], "turns": turns, "questions": questions,
-            "summary": {"questions": dict(counts), "turns_differing": sum(1 for t in turns if t["differs"]),
-                        "turns": len(turns)}}
+    return {
+        "a": a["manifest"]["run_id"],
+        "b": b["manifest"]["run_id"],
+        "turns": turns,
+        "questions": questions,
+        "summary": {
+            "questions": dict(counts),
+            "turns_differing": sum(1 for t in turns if t["differs"]),
+            "turns": len(turns),
+        },
+    }
 
 
 # -------------------------------------------------------------------------------------------- API
-def assemble(run_dir: str | Path, out_dir: str | Path, dataset: Any = None, *, content: bool = True,
-             compare_with: str | Path | None = None) -> dict:
+def assemble(
+    run_dir: str | Path,
+    out_dir: str | Path,
+    dataset: Any = None,
+    *,
+    content: bool = True,
+    compare_with: str | Path | None = None,
+) -> dict:
     """Build the inspect bundle of ``run_dir`` into ``out_dir``; returns the manifest. With ``compare_with``
     the second run's bundle goes to ``out_dir/compare_B`` and ``out_dir/compare.json`` aligns the two."""
     out = Path(out_dir)
@@ -787,21 +1177,29 @@ def assemble(run_dir: str | Path, out_dir: str | Path, dataset: Any = None, *, c
         cmp = compare_bundles(a, b)
         if not content:
             cmp = _strip_text(cmp)
-        (out / "compare.json").write_text(json.dumps(cmp, ensure_ascii=False, default=str), encoding="utf-8")
+        (out / "compare.json").write_text(
+            json.dumps(cmp, ensure_ascii=False, default=str), encoding="utf-8"
+        )
         man["compare"] = {"b": b["manifest"]["run_id"], **cmp["summary"]}
         (out / "manifest.json").write_text(json.dumps(man, indent=1, default=str), encoding="utf-8")
     return man
 
 
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(prog="python -m memspine_evals.inspect.assemble", description=__doc__.split("\n")[0])
+    ap = argparse.ArgumentParser(
+        prog="python -m memspine_evals.inspect.assemble", description=__doc__.split("\n")[0]
+    )
     ap.add_argument("run", help="run id or a run directory")
     ap.add_argument("--compare", help="a second run to align against (by turn_id / query_id)")
     ap.add_argument("--data", help="LoCoMo-shaped dataset json, or 'demo'")
     ap.add_argument("--out", required=True)
-    ap.add_argument("--no-content", action="store_true", help="drop all text fields from the bundle")
+    ap.add_argument(
+        "--no-content", action="store_true", help="drop all text fields from the bundle"
+    )
     args = ap.parse_args(argv)
-    man = assemble(args.run, args.out, args.data, content=not args.no_content, compare_with=args.compare)
+    man = assemble(
+        args.run, args.out, args.data, content=not args.no_content, compare_with=args.compare
+    )
     print(f"{man['run_id']}: {man['counts']} -> {args.out}")
     return 0
 

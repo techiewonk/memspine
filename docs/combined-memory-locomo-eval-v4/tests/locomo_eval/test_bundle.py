@@ -1,21 +1,27 @@
 """Offline transfer packaging checks; no memory backends or models."""
+
 import hashlib
 import json
-from pathlib import Path
 import tempfile
 import unittest
-from unittest.mock import patch
 import zipfile
+from pathlib import Path
+from unittest.mock import patch
 
 from module.locomo_eval.__main__ import create_bundle, parser
 
 
 class BundleTests(unittest.TestCase):
     def seed(self, root):
-        names = [f"module/locomo_eval/{name}.py" for name in
-                 ("__init__", "__main__", "backend", "dataset", "metrics", "runner")]
-        names += ["tests/locomo_eval/test_combined_eval.py", "tests/locomo_eval/test_bundle.py",
-                  "docs/COMBINED_MEMORY_ENGINE_AND_LOCOMO.html"]
+        names = [
+            f"module/locomo_eval/{name}.py"
+            for name in ("__init__", "__main__", "backend", "dataset", "metrics", "runner")
+        ]
+        names += [
+            "tests/locomo_eval/test_combined_eval.py",
+            "tests/locomo_eval/test_bundle.py",
+            "docs/COMBINED_MEMORY_ENGINE_AND_LOCOMO.html",
+        ]
         for name in names:
             path = root / name
             path.parent.mkdir(parents=True, exist_ok=True)
@@ -33,8 +39,10 @@ class BundleTests(unittest.TestCase):
             create_bundle(output, root=root)
             original = output.read_bytes()
             with zipfile.ZipFile(output) as archive:
-                self.assertEqual(set(archive.namelist()), set(names) | {
-                    "LOCOMO_BUNDLE_MANIFEST.json", "LOCOMO_BUNDLE_README.txt"})
+                self.assertEqual(
+                    set(archive.namelist()),
+                    set(names) | {"LOCOMO_BUNDLE_MANIFEST.json", "LOCOMO_BUNDLE_README.txt"},
+                )
                 manifest = json.loads(archive.read("LOCOMO_BUNDLE_MANIFEST.json"))
                 self.assertFalse(manifest["standalone"])
                 for name, digest in manifest["files"].items():
@@ -54,7 +62,9 @@ class BundleTests(unittest.TestCase):
             self.assertFalse(output.exists())
 
     def test_cli_dataset_option(self):
-        args = parser().parse_args(["bundle", "--output", "transfer.zip", "--include-dataset", "data.json"])
+        args = parser().parse_args(
+            ["bundle", "--output", "transfer.zip", "--include-dataset", "data.json"]
+        )
         self.assertEqual(args.include_dataset, Path("data.json"))
 
     @patch("module.locomo_eval.__main__.git_revision", return_value="test-revision")

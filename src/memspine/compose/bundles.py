@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """Complete evidence bundles and the whole-or-nothing packer (R-18 step 1, ER-24).
 
 Pure and deterministic. A bundle is an assertion with all its support evidence, binding evidence and time

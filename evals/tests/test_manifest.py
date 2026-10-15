@@ -19,7 +19,9 @@ def _manifest(**over) -> dict:
         "reader": {"model": "m-reader"},
         "harness_version": "1.0",
         "protocol": {"budget_tokens": 4096, "top_k": 10, "seed": 1},
-        "identity": build_identity(flags={"a": 1}, slice_id="s", slice_ids=["q1", "q2"], environ={}),
+        "identity": build_identity(
+            flags={"a": 1}, slice_id="s", slice_ids=["q1", "q2"], environ={}
+        ),
     }
     m.update(over)
     return m
@@ -41,8 +43,13 @@ def test_identity_picks_up_pinned_env_and_models() -> None:
 def test_arm_flags_commit_and_cost_do_not_change_the_key() -> None:
     a = _manifest()
     b = _manifest(
-        identity={**a["identity"], "flags": {"a": 2}, "commit": "zzz", "env_hash": "q",
-                  "cost": build_cost(duration_s=9.0)}
+        identity={
+            **a["identity"],
+            "flags": {"a": 2},
+            "commit": "zzz",
+            "env_hash": "q",
+            "cost": build_cost(duration_s=9.0),
+        }
     )
     assert comparability_key(a) == comparability_key(b)
 
@@ -74,7 +81,9 @@ def _runs():
 
 def test_gate_returns_incomparable_and_lists_fields() -> None:
     ids, arm, ref = _runs()
-    r = paired(arm, ref, ids, arm_manifest=_manifest(), ref_manifest=_manifest(reader={"model": "x"}))
+    r = paired(
+        arm, ref, ids, arm_manifest=_manifest(), ref_manifest=_manifest(reader={"model": "x"})
+    )
     assert r.verdict == "INCOMPARABLE" and r.manifest_status == "incomparable"
     assert any("reader.model" in f for f in r.incomparable_fields)
 
@@ -97,6 +106,8 @@ def test_budget_differs_is_incomparable_but_top_k_and_seed_are_not() -> None:
     ids, arm, ref = _runs()
     b = _manifest(protocol={"budget_tokens": 2048, "top_k": 10, "seed": 1})
     r = paired(arm, ref, ids, arm_manifest=_manifest(), ref_manifest=b)
-    assert r.verdict == "INCOMPARABLE" and any("protocol.budget_tokens" in f for f in r.incomparable_fields)
+    assert r.verdict == "INCOMPARABLE" and any(
+        "protocol.budget_tokens" in f for f in r.incomparable_fields
+    )
     knobs = _manifest(protocol={"budget_tokens": 4096, "top_k": 3, "seed": 9})
     assert comparability_key(_manifest()) == comparability_key(knobs)

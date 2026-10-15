@@ -1,4 +1,5 @@
 """Benchmark orchestration independent of application imports and live services."""
+
 from __future__ import annotations
 
 import json
@@ -25,13 +26,25 @@ JUDGE_SYSTEM = (
 
 def answer_messages(question: str, contexts: dict[str, str]) -> list[dict]:
     # Only question and retrieved context enter generation; labels/evidence/category never do.
-    return [{"role": "system", "content": ANSWER_SYSTEM},
-            {"role": "user", "content": json.dumps({"question": question, "memories": contexts}, ensure_ascii=False)}]
+    return [
+        {"role": "system", "content": ANSWER_SYSTEM},
+        {
+            "role": "user",
+            "content": json.dumps({"question": question, "memories": contexts}, ensure_ascii=False),
+        },
+    ]
 
 
-async def run_samples(samples: list[Sample], backend, output: Path, *, profiles: list[str],
-                      memory_types: list[str], question_limit: int | None = None,
-                      judge: bool = False) -> list[dict]:
+async def run_samples(
+    samples: list[Sample],
+    backend,
+    output: Path,
+    *,
+    profiles: list[str],
+    memory_types: list[str],
+    question_limit: int | None = None,
+    judge: bool = False,
+) -> list[dict]:
     rows = []
     # Exclusive creation prevents accidental overwrite of an expensive partial run.
     output.parent.mkdir(parents=True, exist_ok=True)
@@ -45,34 +58,56 @@ async def run_samples(samples: list[Sample], backend, output: Path, *, profiles:
                 for profile in profiles:
                     backend.set_profile(profile)
                     for mode in memory_types:
-                        row = {"sample_id": sample.sample_id, "question_index": question.index,
-                               "profile": profile, "memory_type": mode,
-                               **asdict(question), "contexts": {}, "prediction": "",
-                               "error": None, "retrieval_ms": 0, "answer_ms": 0,
-                               "ingestion": ingestion, "effective_config": backend.describe()}
+                        row = {
+                            "sample_id": sample.sample_id,
+                            "question_index": question.index,
+                            "profile": profile,
+                            "memory_type": mode,
+                            **asdict(question),
+                            "contexts": {},
+                            "prediction": "",
+                            "error": None,
+                            "retrieval_ms": 0,
+                            "answer_ms": 0,
+                            "ingestion": ingestion,
+                            "effective_config": backend.describe(),
+                        }
                         started = time.perf_counter()
                         stage = "retrieval"
                         try:
-                            row["contexts"] = await backend.retrieve(sample.sample_id, question.question, mode)
+                            row["contexts"] = await backend.retrieve(
+                                sample.sample_id, question.question, mode
+                            )
                             row["retrieval_ms"] = (time.perf_counter() - started) * 1000
                             started = time.perf_counter()
                             stage = "answer"
-                            row["prediction"] = await backend.answer(answer_messages(question.question, row["contexts"]))
+                            row["prediction"] = await backend.answer(
+                                answer_messages(question.question, row["contexts"])
+                            )
                             row["answer_ms"] = (time.perf_counter() - started) * 1000
                         except Exception as exc:
                             # Failures stay in the denominator. Error text excludes credentials.
                             row["error"] = type(exc).__name__
                             row["failed_stage"] = stage
                             row[f"{stage}_ms"] = (time.perf_counter() - started) * 1000
-                        row["context_characters"] = {key: len(value) for key, value in row["contexts"].items()}
+                        row["context_characters"] = {
+                            key: len(value) for key, value in row["contexts"].items()
+                        }
                         if judge and not row["error"]:
                             try:
-                                row.update(await backend.judge(question.question, row["prediction"], question.reference))
+                                row.update(
+                                    await backend.judge(
+                                        question.question, row["prediction"], question.reference
+                                    )
+                                )
                             except Exception as exc:
                                 row["judge_error"] = type(exc).__name__
                         trace.write(json.dumps(row, ensure_ascii=False) + "\n")
                         trace.flush()
                         rows.append(row)
-                        print(f"{sample.sample_id}:{question.index} {profile}/{mode} "
-                              f"error={row['error']} retrieval={row['retrieval_ms']:.0f}ms", flush=True)
+                        print(
+                            f"{sample.sample_id}:{question.index} {profile}/{mode} "
+                            f"error={row['error']} retrieval={row['retrieval_ms']:.0f}ms",
+                            flush=True,
+                        )
     return rows

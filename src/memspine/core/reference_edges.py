@@ -37,7 +37,7 @@ REF_PREFIX = "ref:"
 ReferenceKind = str  # "short_reply" | "deictic"
 
 _SPEAKER_PREFIX = re.compile(r"^\s*[\w'-]{1,30}(?: [\w'-]{1,30})?:\s+")
-_WORD = re.compile(r"[A-Za-z0-9'’]+")
+_WORD = re.compile(r"[A-Za-z0-9'’]+")  # noqa: RUF001
 _OPENERS = frozenset({"this", "that", "these", "those", "we"})
 #: "like that", "about this", "of those": a short frame before the deictic word
 _FRAME = frozenset({"like", "about", "of", "with", "from", "for", "in", "on", "at", "by", "to"})
@@ -46,7 +46,7 @@ _FRAME_WORDS = 2
 
 def _words(content: str) -> list[str]:
     body = _SPEAKER_PREFIX.sub("", content, count=1)
-    return [w.lower().replace("’", "'") for w in _WORD.findall(body)]
+    return [w.lower().replace("’", "'") for w in _WORD.findall(body)]  # noqa: RUF001
 
 
 def _deictic(words: list[str]) -> bool:

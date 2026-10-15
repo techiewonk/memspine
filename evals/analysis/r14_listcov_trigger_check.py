@@ -24,7 +24,7 @@ from pathlib import Path
 WT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(WT / "src"))
 
-from memspine.read.list_trigger import list_signal  # noqa: E402
+from memspine.read.list_trigger import list_signal
 
 CSV = WT / "evals/analysis/r14_retrieval_features.csv"
 DEPTH = 30

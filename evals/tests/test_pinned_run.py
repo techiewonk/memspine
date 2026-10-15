@@ -11,11 +11,15 @@ import pytest
 
 SCRIPT = Path(__file__).resolve().parents[1] / "pinned_run.sh"
 BASH = shutil.which("bash")
-pytestmark = pytest.mark.skipif(BASH is None or shutil.which("git") is None, reason="needs bash and git")
+pytestmark = pytest.mark.skipif(
+    BASH is None or shutil.which("git") is None, reason="needs bash and git"
+)
 
 
 def _git(repo: Path, *a: str) -> str:
-    return subprocess.run(["git", "-C", str(repo), *a], capture_output=True, text=True, check=True).stdout.strip()
+    return subprocess.run(
+        ["git", "-C", str(repo), *a], capture_output=True, text=True, check=True
+    ).stdout.strip()
 
 
 @pytest.fixture
@@ -40,7 +44,10 @@ def _dry(repo: Path, **env: str) -> dict[str, str]:
         e.pop("PINNED_SHARED_VENV", None)
     out = subprocess.run(
         [BASH, str(repo / "evals" / "pinned_run.sh"), "HEAD", "x.sh"],
-        capture_output=True, text=True, env=e, check=True,
+        capture_output=True,
+        text=True,
+        env=e,
+        check=True,
     ).stdout
     return dict(line.strip().split("=", 1) for line in out.splitlines() if "=" in line)
 
@@ -67,7 +74,9 @@ def test_hash_follows_the_lock_and_extras_not_the_commit(repo: Path) -> None:
 
 def test_ready_venv_is_reused_and_shared_escape_hatch(repo: Path) -> None:
     d = _dry(repo)
-    venv = repo.parent / "memspine-venvs" / d["lock_hash"]  # d["venv"] is a bash-style path on Windows
+    venv = (
+        repo.parent / "memspine-venvs" / d["lock_hash"]
+    )  # d["venv"] is a bash-style path on Windows
     venv.mkdir(parents=True)
     (venv / ".ready").write_text("x")
     assert _dry(repo)["action"] == "reuse"

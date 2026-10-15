@@ -1,6 +1,6 @@
 """Rewrite ``snapshots/cpu_golden.json``. Run manually; review the diff before committing.
 
-    PYTHONPATH=src python tests/golden/regen.py
+PYTHONPATH=src python tests/golden/regen.py
 """
 
 from __future__ import annotations
@@ -13,7 +13,7 @@ from pathlib import Path
 HERE = Path(__file__).parent
 sys.path.insert(0, str(HERE))
 
-import harness  # noqa: E402
+import harness
 
 SNAPSHOT = HERE / "snapshots" / "cpu_golden.json"
 

@@ -51,9 +51,9 @@ import re
 from dataclasses import dataclass
 
 __all__ = [
+    "CONVENTIONS_V2_VERSION",
     "CONVENTIONS_VERSION",
     "ConventionResult",
-    "CONVENTIONS_V2_VERSION",
     "check_conventions",
     "check_conventions_v2",
     "edit_close",
@@ -64,8 +64,41 @@ CONVENTIONS_VERSION = "conventions/v1"
 
 _WORD = re.compile(r"[A-Za-z0-9']+")
 _STOP = frozenset(
-    "the a an of to in on at and or for with by from as is was were that this it its his her "
-    "their my our be been being has have had".split()
+    [
+        "the",
+        "a",
+        "an",
+        "of",
+        "to",
+        "in",
+        "on",
+        "at",
+        "and",
+        "or",
+        "for",
+        "with",
+        "by",
+        "from",
+        "as",
+        "is",
+        "was",
+        "were",
+        "that",
+        "this",
+        "it",
+        "its",
+        "his",
+        "her",
+        "their",
+        "my",
+        "our",
+        "be",
+        "been",
+        "being",
+        "has",
+        "have",
+        "had",
+    ]
 )
 _NEGATION = re.compile(
     r"\b(never|not|no|none|neither|nor|didn't|doesn't|wasn't|isn't|weren't|aren't|don't|"
@@ -89,12 +122,35 @@ _YEAR = re.compile(r"\b(?:19|20)\d\d\b")
 _NUMBER_WORDS = {
     w: i
     for i, w in enumerate(
-        "zero one two three four five six seven eight nine ten eleven twelve thirteen "
-        "fourteen fifteen sixteen seventeen eighteen nineteen twenty".split()
+        [
+            "zero",
+            "one",
+            "two",
+            "three",
+            "four",
+            "five",
+            "six",
+            "seven",
+            "eight",
+            "nine",
+            "ten",
+            "eleven",
+            "twelve",
+            "thirteen",
+            "fourteen",
+            "fifteen",
+            "sixteen",
+            "seventeen",
+            "eighteen",
+            "nineteen",
+            "twenty",
+        ]
     )
 }
 _NUMBER_WORDS.update({"once": 1, "twice": 2, "thrice": 3})
-_NUM_TOKEN = re.compile(r"\b(\d+|" + "|".join(sorted(_NUMBER_WORDS, key=len, reverse=True)) + r")\b", re.I)
+_NUM_TOKEN = re.compile(
+    r"\b(\d+|" + "|".join(sorted(_NUMBER_WORDS, key=len, reverse=True)) + r")\b", re.I
+)
 _PURE_NUMBER = re.compile(
     r"^\W*(\d+|" + "|".join(sorted(_NUMBER_WORDS, key=len, reverse=True)) + r")(?:\s+times?)?\W*$",
     re.I,
@@ -138,7 +194,12 @@ def edit_close(a: str, b: str) -> bool:
         diff = [i for i in range(len(a)) if a[i] != b[i]]
         if len(diff) == 1:
             return len(a) >= 7
-        return len(diff) == 2 and diff[1] == diff[0] + 1 and a[diff[0]] == b[diff[1]] and a[diff[1]] == b[diff[0]]
+        return (
+            len(diff) == 2
+            and diff[1] == diff[0] + 1
+            and a[diff[0]] == b[diff[1]]
+            and a[diff[1]] == b[diff[0]]
+        )
     short, long_ = (a, b) if len(a) < len(b) else (b, a)
     return any(long_[:i] + long_[i + 1 :] == short for i in range(len(long_)))
 
@@ -347,10 +408,39 @@ _MONTH_RE = "|".join(sorted(_MONTH_NUM, key=len, reverse=True))
 _ORDINAL_WORDS = {
     w: i
     for i, w in enumerate(
-        "first second third fourth fifth sixth seventh eighth ninth tenth eleventh twelfth "
-        "thirteenth fourteenth fifteenth sixteenth seventeenth eighteenth nineteenth twentieth "
-        "twenty-first twenty-second twenty-third twenty-fourth twenty-fifth twenty-sixth "
-        "twenty-seventh twenty-eighth twenty-ninth thirtieth thirty-first".split(),
+        [
+            "first",
+            "second",
+            "third",
+            "fourth",
+            "fifth",
+            "sixth",
+            "seventh",
+            "eighth",
+            "ninth",
+            "tenth",
+            "eleventh",
+            "twelfth",
+            "thirteenth",
+            "fourteenth",
+            "fifteenth",
+            "sixteenth",
+            "seventeenth",
+            "eighteenth",
+            "nineteenth",
+            "twentieth",
+            "twenty-first",
+            "twenty-second",
+            "twenty-third",
+            "twenty-fourth",
+            "twenty-fifth",
+            "twenty-sixth",
+            "twenty-seventh",
+            "twenty-eighth",
+            "twenty-ninth",
+            "thirtieth",
+            "thirty-first",
+        ],
         start=1,
     )
 }
@@ -451,19 +541,51 @@ def _date_rule(gold: str, answer: str) -> ConventionResult | None:
 _UNITS: dict[str, tuple[str, float]] = {}
 for _dim, _table in {
     "time": {
-        "second": 1, "sec": 1, "minute": 60, "min": 60, "hour": 3600, "hr": 3600, "day": 86400,
-        "week": 604800, "fortnight": 1209600,
+        "second": 1,
+        "sec": 1,
+        "minute": 60,
+        "min": 60,
+        "hour": 3600,
+        "hr": 3600,
+        "day": 86400,
+        "week": 604800,
+        "fortnight": 1209600,
     },
     "calendar_month": {"month": 1, "year": 12, "yr": 12, "decade": 120},
     "length": {
-        "millimetre": 0.001, "millimeter": 0.001, "mm": 0.001, "centimetre": 0.01,
-        "centimeter": 0.01, "cm": 0.01, "metre": 1, "meter": 1, "m": 1, "kilometre": 1000,
-        "kilometer": 1000, "km": 1000, "inch": 0.0254, "in": 0.0254, "foot": 0.3048, "feet": 0.3048,
-        "ft": 0.3048, "yard": 0.9144, "yd": 0.9144, "mile": 1609.344, "mi": 1609.344,
+        "millimetre": 0.001,
+        "millimeter": 0.001,
+        "mm": 0.001,
+        "centimetre": 0.01,
+        "centimeter": 0.01,
+        "cm": 0.01,
+        "metre": 1,
+        "meter": 1,
+        "m": 1,
+        "kilometre": 1000,
+        "kilometer": 1000,
+        "km": 1000,
+        "inch": 0.0254,
+        "in": 0.0254,
+        "foot": 0.3048,
+        "feet": 0.3048,
+        "ft": 0.3048,
+        "yard": 0.9144,
+        "yd": 0.9144,
+        "mile": 1609.344,
+        "mi": 1609.344,
     },
     "mass": {
-        "gram": 1, "g": 1, "kilogram": 1000, "kg": 1000, "kilo": 1000, "ounce": 28.349523125,
-        "oz": 28.349523125, "pound": 453.59237, "lb": 453.59237, "lbs": 453.59237,
+        "gram": 1,
+        "g": 1,
+        "kilogram": 1000,
+        "kg": 1000,
+        "kilo": 1000,
+        "ounce": 28.349523125,
+        "oz": 28.349523125,
+        "pound": 453.59237,
+        "lb": 453.59237,
+        "lbs": 453.59237,
     },
     "usd": {"dollar": 1, "usd": 1, "buck": 1, "cent": 0.01},
 }.items():
@@ -542,7 +664,9 @@ for _i, _group in enumerate(ALIAS_GROUPS):
     for _alias in _group:
         _ALIAS_ID[_alias] = f"aliasgroup{_i}x"
 _ALIAS_RE = re.compile(
-    r"(?<![\w.])(" + "|".join(sorted((re.escape(a) for a in _ALIAS_ID), key=len, reverse=True)) + r")(?![\w])",
+    r"(?<![\w.])("
+    + "|".join(sorted((re.escape(a) for a in _ALIAS_ID), key=len, reverse=True))
+    + r")(?![\w])",
     re.I,
 )
 _ORD_DIGIT_RE = re.compile(r"\b(\d{1,2})(?:st|nd|rd|th|d)\b", re.I)
@@ -650,7 +774,20 @@ NEG_BEFORE = 5
 NEG_AFTER = 3
 CONTAIN_MAX_TOKENS = 40
 _NEG_TOKENS = frozenset(
-    "never not no none neither nor cannot unknown unconfirmed without nobody nothing".split()
+    [
+        "never",
+        "not",
+        "no",
+        "none",
+        "neither",
+        "nor",
+        "cannot",
+        "unknown",
+        "unconfirmed",
+        "without",
+        "nobody",
+        "nothing",
+    ]
 )
 _RESTRICT = re.compile(
     r"\b(only|just|except|excluding|but not|rather than|other than|apart from|aside from)\b", re.I
@@ -658,7 +795,7 @@ _RESTRICT = re.compile(
 _UNSURE = re.compile(
     r"\b(or|either|maybe|perhaps|possibly|probably|might|unclear|uncertain|unsure)\b", re.I
 )
-_PRONOUN = frozenset("she he they her his their him them hers theirs".split())
+_PRONOUN = frozenset(["she", "he", "they", "her", "his", "their", "him", "them", "hers", "theirs"])
 _REL_YEAR = re.compile(
     r"^(?:about |around |roughly )?(?:a|an|one|two|three|four|five|\d+) years? ago\.?$", re.I
 )
@@ -667,7 +804,9 @@ _COUNTRY_Q = re.compile(r"\b(country|countries|nation|nations)\b", re.I)
 
 #: everyday geography (city -> country), lower case; used only when the question asks for a country
 CITY_COUNTRY: dict[str, str] = {
-    **dict.fromkeys(("toronto", "vancouver", "montreal", "ottawa", "calgary", "edmonton", "quebec"), "Canada"),
+    **dict.fromkeys(
+        ("toronto", "vancouver", "montreal", "ottawa", "calgary", "edmonton", "quebec"), "Canada"
+    ),
     "nuuk": "Greenland",
     **dict.fromkeys(("rome", "milan", "venice", "florence", "naples", "turin"), "Italy"),
     **dict.fromkeys(("paris", "lyon", "marseille", "nice"), "France"),
@@ -697,7 +836,8 @@ CITY_COUNTRY: dict[str, str] = {
     **dict.fromkeys(("lima", "cusco"), "Peru"),
 }
 _CITY_RE = re.compile(
-    r"\b(" + "|".join(sorted((re.escape(c) for c in CITY_COUNTRY), key=len, reverse=True)) + r")\b", re.I
+    r"\b(" + "|".join(sorted((re.escape(c) for c in CITY_COUNTRY), key=len, reverse=True)) + r")\b",
+    re.I,
 )
 
 

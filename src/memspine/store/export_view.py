@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """One-way Markdown export view of a namespace (M-01), built from the record read model.
 
 The view is deterministic (records sorted by validity start then id) and carries each record's id and

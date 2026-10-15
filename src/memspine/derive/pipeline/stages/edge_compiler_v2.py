@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """Derive stage: compile_edges (F-02c, ``graph.edge_compiler_v2``): assertions -> typed graph edges.
 
 The wiring of the edge compiler (LIB-35, ``memspine.derive.edges``) and the link projection. Off by

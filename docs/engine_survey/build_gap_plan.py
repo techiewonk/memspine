@@ -1,6 +1,6 @@
 """Build the MemSpine gap-plan page from gap_plan.json (+ prompt_matrix.json when present).
 
-    python docs/engine_survey/build_gap_plan.py <out.html>
+python docs/engine_survey/build_gap_plan.py <out.html>
 """
 
 from __future__ import annotations
@@ -12,15 +12,58 @@ from pathlib import Path
 
 HERE = Path(__file__).parent
 OUT = Path(sys.argv[1]) if len(sys.argv) > 1 else HERE / "gap_plan.html"
-ORDER = ["memspine", "combined", "memos", "memu", "mnemon", "honcho", "memmachine", "hindsight", "mirix",
-         "cognee", "memori", "nemori", "lightmem", "mem0", "evermemos"]
-NAMES = {"memspine": "MemSpine", "combined": "Combined", "memos": "MemOS", "memu": "memU", "mnemon": "Mnemon",
-         "honcho": "Honcho", "memmachine": "MemMachine", "hindsight": "Hindsight", "mirix": "MIRIX", "cognee": "Cognee",
-         "memori": "Memori", "nemori": "Nemori", "lightmem": "LightMem", "mem0": "Mem0", "evermemos": "EverMemOS"}
-AREAS = {"arch": "Architecture", "write": "Write path", "extract": "Extraction", "prompt": "Prompts", "derive": "Derived layers",
-         "time": "Time and updates", "read": "Retrieval", "rank": "Ranking", "answer": "Context", "speed": "Engineering"}
-STATUS = {"missing": ("no", "Not built"), "partial": ("part", "Partial"), "built-off": ("off", "Built, off"),
-          "by-design": ("design", "By design")}
+ORDER = [
+    "memspine",
+    "combined",
+    "memos",
+    "memu",
+    "mnemon",
+    "honcho",
+    "memmachine",
+    "hindsight",
+    "mirix",
+    "cognee",
+    "memori",
+    "nemori",
+    "lightmem",
+    "mem0",
+    "evermemos",
+]
+NAMES = {
+    "memspine": "MemSpine",
+    "combined": "Combined",
+    "memos": "MemOS",
+    "memu": "memU",
+    "mnemon": "Mnemon",
+    "honcho": "Honcho",
+    "memmachine": "MemMachine",
+    "hindsight": "Hindsight",
+    "mirix": "MIRIX",
+    "cognee": "Cognee",
+    "memori": "Memori",
+    "nemori": "Nemori",
+    "lightmem": "LightMem",
+    "mem0": "Mem0",
+    "evermemos": "EverMemOS",
+}
+AREAS = {
+    "arch": "Architecture",
+    "write": "Write path",
+    "extract": "Extraction",
+    "prompt": "Prompts",
+    "derive": "Derived layers",
+    "time": "Time and updates",
+    "read": "Retrieval",
+    "rank": "Ranking",
+    "answer": "Context",
+    "speed": "Engineering",
+}
+STATUS = {
+    "missing": ("no", "Not built"),
+    "partial": ("part", "Partial"),
+    "built-off": ("off", "Built, off"),
+    "by-design": ("design", "By design"),
+}
 
 
 def esc(s) -> str:
@@ -34,14 +77,19 @@ def main() -> None:
     gaps = plan["gaps"]
 
     counts = {k: sum(1 for g in gaps if g["status"] == k) for k in STATUS}
-    tiles = "".join(f'<div class="tile"><span class="tnum">{counts[k]}</span><span class="chip {c}">{esc(l)}</span></div>'
-                    for k, (c, l) in STATUS.items())
+    tiles = "".join(
+        f'<div class="tile"><span class="tnum">{counts[k]}</span><span class="chip {c}">{esc(l)}</span></div>'
+        for k, (c, l) in STATUS.items()
+    )
 
     def flow(title, steps):
         return f'<div class="flowcol"><h3>{esc(title)}</h3><ol>{"".join(f"<li>{esc(s)}</li>" for s in steps)}</ol></div>'
+
     fl = plan["flow"]
-    flows = (f'<div class="flowgrid">{flow("Write path today", fl["write_now"])}{flow("Write path target", fl["write_target"])}'
-             f'{flow("Read path today", fl["read_now"])}{flow("Read path target", fl["read_target"])}</div>')
+    flows = (
+        f'<div class="flowgrid">{flow("Write path today", fl["write_now"])}{flow("Write path target", fl["write_target"])}'
+        f"{flow('Read path today', fl['read_now'])}{flow('Read path target', fl['read_target'])}</div>"
+    )
 
     byid = {g["id"]: g for g in gaps}
     wave_html = []
@@ -56,24 +104,32 @@ def main() -> None:
                 f'<article class="gap" data-status="{esc(g["status"])}" data-area="{esc(g["area"])}">'
                 f'<header><span class="gid">{esc(g["id"])}</span><span class="chip {c}">{esc(l)}</span>'
                 f'<span class="area">{esc(AREAS.get(g["area"], g["area"]))}</span><span class="eff">Effort {esc(g["effort"])}</span></header>'
-                f'<h3>{esc(g["title"])}</h3>'
-                f'<dl><dt>Other engines</dt><dd>{esc(g["others"])}</dd><dt>MemSpine now</dt><dd>{esc(g["now"])}</dd>'
-                f'<dt>Why it is not there</dt><dd>{esc(g["why"])}</dd><dt>Proposal</dt><dd>{esc(g["proposal"])}</dd>'
-                f'<dt>Test gate</dt><dd>{esc(g["gate"])}</dd></dl></article>')
-        wave_html.append(f'<section class="wave" id="wave-{esc(w["wave"])}"><div class="whead"><span class="wtag">Wave {esc(w["wave"])}</span>'
-                         f'<h2>{esc(w["name"])}</h2><span class="wtime">{esc(w["time"])}</span></div><div class="gaps">{"".join(cards)}</div></section>')
+                f"<h3>{esc(g['title'])}</h3>"
+                f"<dl><dt>Other engines</dt><dd>{esc(g['others'])}</dd><dt>MemSpine now</dt><dd>{esc(g['now'])}</dd>"
+                f"<dt>Why it is not there</dt><dd>{esc(g['why'])}</dd><dt>Proposal</dt><dd>{esc(g['proposal'])}</dd>"
+                f"<dt>Test gate</dt><dd>{esc(g['gate'])}</dd></dl></article>"
+            )
+        wave_html.append(
+            f'<section class="wave" id="wave-{esc(w["wave"])}"><div class="whead"><span class="wtag">Wave {esc(w["wave"])}</span>'
+            f'<h2>{esc(w["name"])}</h2><span class="wtime">{esc(w["time"])}</span></div><div class="gaps">{"".join(cards)}</div></section>'
+        )
     planned = {i for w in plan["waves"] for i in w["items"]}
     rest = [g for g in gaps if g["id"] not in planned]
     rest_rows = "".join(
         f'<tr data-status="{esc(g["status"])}"><th scope="row">{esc(g["id"])}</th><td>{esc(g["title"])}</td>'
         f'<td><span class="chip {STATUS[g["status"]][0]}">{esc(STATUS[g["status"]][1])}</span></td><td>{esc(g["others"])}</td><td>{esc(g["why"])}</td><td>{esc(g["proposal"])}</td></tr>'
-        for g in rest)
+        for g in rest
+    )
 
     prompt_html = ""
     if pm:
         feats = pm.get("features", {})
         engs = [s for s in ORDER if s in pm.get("engines", {})]
-        head = '<tr><th scope="col" class="param">Prompt feature</th>' + "".join(f'<th scope="col" class="eng">{esc(NAMES.get(s, s))}</th>' for s in engs) + "</tr>"
+        head = (
+            '<tr><th scope="col" class="param">Prompt feature</th>'
+            + "".join(f'<th scope="col" class="eng">{esc(NAMES.get(s, s))}</th>' for s in engs)
+            + "</tr>"
+        )
         rows = []
         for fid, fname in feats.items():
             cells = []
@@ -81,31 +137,67 @@ def main() -> None:
                 sc = pm["engines"][s].get("scores", {}).get(fid, {})
                 st = sc.get("s", "")
                 cls = {"Y": "yes", "P": "part", "N": "no"}.get(st, "unk")
-                cells.append(f'<td class="dotcell"><span class="dot {cls}" title="{esc(NAMES.get(s, s))}: {esc(sc.get("t", ""))}"></span></td>')
-            rows.append(f'<tr><th scope="row" class="param"><span class="fid">{esc(fid)}</span> {esc(fname)}</th>{"".join(cells)}</tr>')
+                cells.append(
+                    f'<td class="dotcell"><span class="dot {cls}" title="{esc(NAMES.get(s, s))}: {esc(sc.get("t", ""))}"></span></td>'
+                )
+            rows.append(
+                f'<tr><th scope="row" class="param"><span class="fid">{esc(fid)}</span> {esc(fname)}</th>{"".join(cells)}</tr>'
+            )
         pg = "".join(
             f'<article class="gap"><header><span class="gid">{esc(x.get("feature"))}</span><span class="area">{esc(feats.get(x.get("feature"), ""))}</span></header>'
-            f'<dl><dt>Best examples</dt><dd>{esc("; ".join(x.get("best_examples", [])))}</dd><dt>MemSpine now</dt><dd>{esc(x.get("memspine_now"))}</dd>'
-            f'<dt>Proposal</dt><dd>{esc(x.get("proposal"))}</dd><dt>Risk</dt><dd>{esc(x.get("risk"))}</dd></dl></article>'
-            for x in pm.get("memspine_gaps", []))
-        tech = "".join(f'<li><b>{esc(NAMES.get(t.get("engine"), t.get("engine")))}: {esc(t.get("technique"))}</b> {esc(t.get("t"))} <span class="ev">{esc(t.get("e"))}</span></li>'
-                       for t in pm.get("notable_prompt_techniques", []))
-        prompt_html = (f'<section class="wave" id="prompts"><div class="whead"><span class="wtag">Prompts</span><h2>Prompt features across engines</h2></div>'
-                       f'<p class="intro">Hover a dot for the detail. Filled: has it; half: partial; grey ring: not present.</p>'
-                       f'<div class="tablewrap"><table class="matrix"><thead>{head}</thead><tbody>{"".join(rows)}</tbody></table></div>'
-                       f'<h3 class="sub">MemSpine prompt gaps and proposals</h3><div class="gaps">{pg}</div>'
-                       f'<h3 class="sub">Notable techniques in other engines</h3><ul class="tech">{tech}</ul></section>')
+            f"<dl><dt>Best examples</dt><dd>{esc('; '.join(x.get('best_examples', [])))}</dd><dt>MemSpine now</dt><dd>{esc(x.get('memspine_now'))}</dd>"
+            f"<dt>Proposal</dt><dd>{esc(x.get('proposal'))}</dd><dt>Risk</dt><dd>{esc(x.get('risk'))}</dd></dl></article>"
+            for x in pm.get("memspine_gaps", [])
+        )
+        tech = "".join(
+            f'<li><b>{esc(NAMES.get(t.get("engine"), t.get("engine")))}: {esc(t.get("technique"))}</b> {esc(t.get("t"))} <span class="ev">{esc(t.get("e"))}</span></li>'
+            for t in pm.get("notable_prompt_techniques", [])
+        )
+        prompt_html = (
+            f'<section class="wave" id="prompts"><div class="whead"><span class="wtag">Prompts</span><h2>Prompt features across engines</h2></div>'
+            f'<p class="intro">Hover a dot for the detail. Filled: has it; half: partial; grey ring: not present.</p>'
+            f'<div class="tablewrap"><table class="matrix"><thead>{head}</thead><tbody>{"".join(rows)}</tbody></table></div>'
+            f'<h3 class="sub">MemSpine prompt gaps and proposals</h3><div class="gaps">{pg}</div>'
+            f'<h3 class="sub">Notable techniques in other engines</h3><ul class="tech">{tech}</ul></section>'
+        )
 
     leads = "".join(f"<li>{esc(x)}</li>" for x in plan["leads"])
-    nav = "".join(f'<a class="navchip" href="#wave-{esc(w["wave"])}">Wave {esc(w["wave"])}</a>' for w in plan["waves"])
-    changelog = ('<section class="wave" id="changelog"><div class="whead"><span class="wtag">Log</span><h2>Change log</h2></div><ul class="leads">'
-                 + ''.join(f'<li><b>{esc(c["date"])}</b> ({esc(c["ref"])}): {esc(c["text"])}</li>' for c in plan.get('changelog', []))
-                 + '</ul></section>') if plan.get('changelog') else ''
-    page = PAGE.format(changelog=changelog, css=CSS, title=esc(plan["title"]), intro=esc(plan["intro"]), tiles=tiles, flows=flows,
-                       waves="".join(wave_html), rest_rows=rest_rows, prompts=prompt_html, leads=leads, nav=nav,
-                       pnav='<a class="navchip" href="#prompts">Prompts</a>' if pm else "", js=JS, date=esc(plan["date"]))
+    nav = "".join(
+        f'<a class="navchip" href="#wave-{esc(w["wave"])}">Wave {esc(w["wave"])}</a>'
+        for w in plan["waves"]
+    )
+    changelog = (
+        (
+            '<section class="wave" id="changelog"><div class="whead"><span class="wtag">Log</span><h2>Change log</h2></div><ul class="leads">'
+            + "".join(
+                f"<li><b>{esc(c['date'])}</b> ({esc(c['ref'])}): {esc(c['text'])}</li>"
+                for c in plan.get("changelog", [])
+            )
+            + "</ul></section>"
+        )
+        if plan.get("changelog")
+        else ""
+    )
+    page = PAGE.format(
+        changelog=changelog,
+        css=CSS,
+        title=esc(plan["title"]),
+        intro=esc(plan["intro"]),
+        tiles=tiles,
+        flows=flows,
+        waves="".join(wave_html),
+        rest_rows=rest_rows,
+        prompts=prompt_html,
+        leads=leads,
+        nav=nav,
+        pnav='<a class="navchip" href="#prompts">Prompts</a>' if pm else "",
+        js=JS,
+        date=esc(plan["date"]),
+    )
     OUT.write_text(page, encoding="utf-8")
-    print(f"wrote {OUT} ({len(page):,} bytes; {len(gaps)} gaps; prompt matrix {'yes' if pm else 'no'})")
+    print(
+        f"wrote {OUT} ({len(page):,} bytes; {len(gaps)} gaps; prompt matrix {'yes' if pm else 'no'})"
+    )
 
 
 CSS = """

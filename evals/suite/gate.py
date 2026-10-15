@@ -83,7 +83,9 @@ def adopt(
     verdicts = {k: _verdict_of(v) for k, v in paired.items()}
     missing = [i for i in suite.gate_ids() if i not in verdicts]
     if missing:
-        return Adoption("INCOMPLETE", [f"missing paired verdict for {', '.join(missing)}"], paired=verdicts)
+        return Adoption(
+            "INCOMPLETE", [f"missing paired verdict for {', '.join(missing)}"], paired=verdicts
+        )
     if behavioural is None:
         return Adoption("INCOMPLETE", ["behavioural report missing (sixth gate)"], paired=verdicts)
     if reference is None:
@@ -94,7 +96,9 @@ def adopt(
         ref = dict(reference)
     verdict, reasons = _aggregate({k: verdicts[k] for k in suite.gate_ids()})
     safety = sorted(
-        r.id for r in behavioural.results if r.status is Status.FAIL and r.id.startswith(BLOCKING_SAFETY)
+        r.id
+        for r in behavioural.results
+        if r.status is Status.FAIL and r.id.startswith(BLOCKING_SAFETY)
     )
     regs = [c for c in regressions(behavioural, ref) if c not in safety]
     if safety:

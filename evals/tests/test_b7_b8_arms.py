@@ -1,8 +1,8 @@
-# ruff: noqa: E501
 """B7 / B8 queue rows (FU-REQS): every arm is the generator's output, passes the strict arm validator
 (schema, policy blocks, every flag prerequisite including the soft ones), every reference resolves,
 every inert screen of the audit is re-armed or explicitly skipped, and every B8 arm carries its
 profile. CPU only."""
+
 from __future__ import annotations
 
 import csv
@@ -15,19 +15,23 @@ import pytest
 pytest.importorskip("memspine")
 EVALS = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(EVALS))
-import gen_b7_arms as g  # noqa: E402
-from memspine_evals.rehearsal import validate_engine_config  # noqa: E402
+import gen_b7_arms as g
+from memspine_evals.rehearsal import validate_engine_config
 
-from memspine.config.requires import check_requires  # noqa: E402
-from memspine.config.schema import MemspineConfig  # noqa: E402
-from memspine.exceptions import ConfigError  # noqa: E402
+from memspine.config.requires import check_requires
+from memspine.config.schema import MemspineConfig
+from memspine.exceptions import ConfigError
 
 COLS = ["id", "batch", "pkg", "arm", "ref_run", "rule", "sets", "deps", "kind", "est_min", "flag"]
 LINES = (EVALS / "v2_queue.tsv").read_text(encoding="utf-8").splitlines()
-ROWS = [dict(zip(COLS, r, strict=False)) for r in csv.reader(
-    [ln for ln in LINES if ln and not ln.startswith("#")], delimiter="\t")]
-SKIPS = [dict(zip(["mark", *COLS], r, strict=False)) for r in csv.reader(
-    [ln for ln in LINES if ln.startswith("#SKIP")], delimiter="\t")]
+ROWS = [
+    dict(zip(COLS, r, strict=False))
+    for r in csv.reader([ln for ln in LINES if ln and not ln.startswith("#")], delimiter="\t")
+]
+SKIPS = [
+    dict(zip(["mark", *COLS], r, strict=False))
+    for r in csv.reader([ln for ln in LINES if ln.startswith("#SKIP")], delimiter="\t")
+]
 B7 = [r for r in ROWS if r["batch"] == "B7"]
 B8 = [r for r in ROWS if r["batch"] == "B8"]
 INERT = {"S17", "S18", "S21", "S22", "S23", "S24", "S27", "S46"}  # audit findings 3-8
@@ -56,7 +60,9 @@ def test_row_resolves(row: dict) -> None:
 
 
 def test_every_inert_screen_is_rearmed_or_skipped_with_a_reason() -> None:
-    text = " ".join(r["flag"] for r in B7) + " " + " ".join(s["id"] + " " + s["flag"] for s in SKIPS)
+    text = (
+        " ".join(r["flag"] for r in B7) + " " + " ".join(s["id"] + " " + s["flag"] for s in SKIPS)
+    )
     for sid in sorted(INERT):
         assert sid in text, f"{sid} is neither replaced in B7 nor marked #SKIP"
     for s in SKIPS:

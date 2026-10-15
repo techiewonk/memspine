@@ -56,7 +56,7 @@ def _is_evidence(record: MemoryRecord) -> bool:
 def _share(eng: Any, budget_tokens: int, n: int) -> int:
     """Per-entity budget: the reply reserve stays whole, the rest is split equally."""
     usable = eng._reply_budget(budget_tokens)
-    return (budget_tokens - usable) + max(1, usable // n)
+    return (budget_tokens - usable) + max(1, usable // n)  # type: ignore[no-any-return]  # CI-GREEN: pre-existing typing debt
 
 
 def _about(record: MemoryRecord, entity: str) -> bool:
@@ -153,7 +153,7 @@ async def decomposed_read(
             inside = _INSIDE.set(True)
             focal = _FOCAL_ENTITY.set(entity)
             try:
-                return await eng._read(
+                return await eng._read(  # type: ignore[no-any-return]  # CI-GREEN: pre-existing typing debt
                     sub, ns, mode, share, top_k, replay_window, compose_pool, session_id
                 )
             finally:

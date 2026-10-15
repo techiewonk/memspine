@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """Evidence obligations: what a question type needs before the reader may answer (LIB-15, ER-19).
 
 Pure and unwired (wired later by R3-16). Stdlib and pydantic only; no I/O, no model call,

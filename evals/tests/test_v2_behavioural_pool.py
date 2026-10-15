@@ -32,7 +32,10 @@ def _overlay_for_s16() -> tuple[dict[str, Any], dict[str, Any]]:
 
 def test_pool_shape_carried_when_rerank_v2_is_on() -> None:
     ov, arm = _overlay_for_s16()
-    assert ov["read"] == {"lift_before_rerank": True, "rerank_v2": True}  # the diff alone has no pool keys
+    assert ov["read"] == {
+        "lift_before_rerank": True,
+        "rerank_v2": True,
+    }  # the diff alone has no pool keys
     carried = vb.with_pool_shape(ov, arm)
     assert carried["read"]["pool_protect_per_leg"] == 3 and carried["read"]["candidate_pool"] == 2
 
@@ -55,8 +58,11 @@ def _filler_status(read: dict[str, Any], monkeypatch: pytest.MonkeyPatch) -> Sta
 
     def factory(d: Path) -> Engine:
         return Engine(
-            template="core", dotenv_path=None, storage={"path": str(d / "b.db")},
-            embedding={"provider": "hash"}, read={"rerank": "off", "record_access": False, **read},
+            template="core",
+            dotenv_path=None,
+            storage={"path": str(d / "b.db")},
+            embedding={"provider": "hash"},
+            read={"rerank": "off", "record_access": False, **read},
             memories={"episodic": {"enabled": True}, "semantic": {"enabled": True}},
         )
 

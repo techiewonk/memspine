@@ -20,7 +20,9 @@ ARMS = Path(__file__).resolve().parents[1] / "arms"
 
 def test_grounded_generic_renders_with_question_date() -> None:
     text = QA_PROMPTS["grounded_generic"].format(
-        context="[2024-01-02] I moved to Oslo.", question="Where do I live?", question_date="2024-03-01"
+        context="[2024-01-02] I moved to Oslo.",
+        question="Where do I live?",
+        question_date="2024-03-01",
     )
     assert "2024-03-01" in text and "Where do I live?" in text and "Oslo" in text
     assert "Not mentioned in the conversation" in text
@@ -50,7 +52,9 @@ def test_detector_and_support() -> None:
     assert asserts_past_event("Do you recall the day I mentioned my trip to Lisbon?")
     assert asserts_past_event("Remember the time we discussed the garden plans?")
     assert not asserts_past_event("What is my favourite colour?")
-    assert event_supported("Do you remember my trip to Lisbon?", "[2024-01-02] My trip to Lisbon was fun")
+    assert event_supported(
+        "Do you remember my trip to Lisbon?", "[2024-01-02] My trip to Lisbon was fun"
+    )
     assert not event_supported("Do you remember my trip to Lisbon?", "[2024-01-02] I like tea")
 
 
@@ -65,7 +69,9 @@ class _Echo:
     def describe(self) -> dict[str, object]:
         return {"reader_id": "echo"}
 
-    async def answer(self, question: str, context: str, question_date: str | None = None) -> ReaderAnswer:
+    async def answer(
+        self, question: str, context: str, question_date: str | None = None
+    ) -> ReaderAnswer:
         self.seen.append(context)
         return ReaderAnswer(text="ok")
 

@@ -36,8 +36,11 @@ HERE = Path(__file__).parent
 SEED = 20261013
 CAT = 5
 C3_SOURCE = "analysis/sample_slice_loc_60_s20261013_c3.json"
-DATA_CANDIDATES = (HERE / "data" / "locomo10.json", HERE.parent / "data" / "locomo10.json",
-                   HERE.parent.parent / "memspine" / "data" / "locomo10.json")
+DATA_CANDIDATES = (
+    HERE / "data" / "locomo10.json",
+    HERE.parent / "data" / "locomo10.json",
+    HERE.parent.parent / "memspine" / "data" / "locomo10.json",
+)
 
 
 def find_data(path: Path | None = None) -> Path:
@@ -61,7 +64,9 @@ def read_universe(data: Path, cat: int = CAT) -> tuple[list[str], dict[str, str]
     return ids, conv, total
 
 
-def sample(order: list[str], conv: dict[str, str], n: int, seed: int, convs: list[str] | None = None) -> list[str]:
+def sample(
+    order: list[str], conv: dict[str, str], n: int, seed: int, convs: list[str] | None = None
+) -> list[str]:
     """Stratify by conversation (largest remainder on the cat-5 population), seeded draw inside each; dataset order out."""
     by: dict[str, list[str]] = {}
     for q in order:
@@ -76,7 +81,14 @@ def sample(order: list[str], conv: dict[str, str], n: int, seed: int, convs: lis
     return [q for q in order if q in picked]
 
 
-def build(order: list[str], conv: dict[str, str], total: int, n: int, seed: int, convs: list[str] | None = None) -> dict:
+def build(
+    order: list[str],
+    conv: dict[str, str],
+    total: int,
+    n: int,
+    seed: int,
+    convs: list[str] | None = None,
+) -> dict:
     ids = sample(order, conv, n, seed, convs)
     per_conv: dict[str, int] = {}
     for q in ids:
@@ -92,10 +104,12 @@ def build(order: list[str], conv: dict[str, str], total: int, n: int, seed: int,
         "category_labels": {"cat5": "adversarial (unanswerable; the correct answer is a refusal)"},
         "source_run": "data/locomo10.json",
         "seed": seed,
-        "stratify": ("category 5 only; conversation, largest remainder on the cat-5 population, seeded draw inside each"
-                     + ("; the three conversations of sample_slice_loc_60_s20261013_c3" if convs else "")),
+        "stratify": (
+            "category 5 only; conversation, largest remainder on the cat-5 population, seeded draw inside each"
+            + ("; the three conversations of sample_slice_loc_60_s20261013_c3" if convs else "")
+        ),
         "reading_rule": "NOT comparable with the category 1-4 slices: read wins/losses against the same-slice reference run "
-                        "(a win is a correct refusal the reference missed; a loss is a refusal the arm no longer gives)",
+        "(a win is a correct refusal the reference missed; a loss is a refusal the arm no longer gives)",
         "n_total": total,
         "n_category": len(order),
         "n": len(ids),
@@ -118,10 +132,15 @@ def main() -> None:
     a = ap.parse_args()
     order, conv, total = read_universe(find_data(a.data))
     c3 = json.loads((HERE / C3_SOURCE).read_text(encoding="utf-8"))["conversations"]
-    for suffix, obj in (("", build(order, conv, total, a.n, a.seed)), ("_c3", build(order, conv, total, a.c3_n, a.seed, c3))):
+    for suffix, obj in (
+        ("", build(order, conv, total, a.n, a.seed)),
+        ("_c3", build(order, conv, total, a.c3_n, a.seed, c3)),
+    ):
         path = a.out_dir / f"sample_slice_loc_cat5_s{a.seed}{suffix}.json"
         path.write_text(json.dumps(obj, indent=1) + "\n", encoding="utf-8", newline="\n")
-        print(f"{path.name}: n={obj['n']} of {obj['n_category']} cat-5; per conversation {obj['per_conversation']}")
+        print(
+            f"{path.name}: n={obj['n']} of {obj['n_category']} cat-5; per conversation {obj['per_conversation']}"
+        )
 
 
 if __name__ == "__main__":

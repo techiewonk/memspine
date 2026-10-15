@@ -39,12 +39,18 @@ HERE = Path(__file__).parent
 sys.path[:] = [p for p in sys.path if Path(p or ".").resolve() != HERE.resolve()]
 sys.path.append(str(HERE))
 
-from failure_buckets import _list_items, _session_date, _words, bucket_failure  # noqa: E402
-from memspine_evals.datasets import LoCoMoDataset  # noqa: E402
-from memspine_evals.evidence import normalise_evidence  # noqa: E402
-from memspine_evals.locomo_f1 import row_f1  # noqa: E402
+from failure_buckets import _list_items, _session_date, _words, bucket_failure
+from memspine_evals.datasets import LoCoMoDataset
+from memspine_evals.evidence import normalise_evidence
+from memspine_evals.locomo_f1 import row_f1
 
-CAT = {"cat1": "multi-hop", "cat2": "temporal", "cat3": "open-domain", "cat4": "single-hop", "cat5": "adversarial"}
+CAT = {
+    "cat1": "multi-hop",
+    "cat2": "temporal",
+    "cat3": "open-domain",
+    "cat4": "single-hop",
+    "cat5": "adversarial",
+}
 CATS = ["single-hop", "multi-hop", "temporal", "open-domain"]
 STAGE_ORDER = ["ingest", "recall", "fusion", "gate", "rerank", "assembly", "reader"]
 HYPOTHESES = {
@@ -84,7 +90,7 @@ def list_recall(question: str, gold: str | None, answer: str | None) -> tuple[in
 
     def present(w: str) -> bool:
         stem = w[: max(3, min(5, len(w)))]
-        return any(a.startswith(stem) or w.startswith(a[:5]) and len(a) >= 3 for a in words)
+        return any(a.startswith(stem) or (w.startswith(a[:5]) and len(a) >= 3) for a in words)
 
     found = sum(1 for item in items if _words(item) and all(present(w) for w in _words(item)))
     return found, len(items)
@@ -104,7 +110,9 @@ def rank_of(stage: list[dict], turn: str) -> int | None:
 def load_jsonl(path: Path) -> list[dict]:
     if not path.exists():
         return []
-    return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+    return [
+        json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()
+    ]
 
 
 def as_list(v) -> list[str]:
@@ -166,22 +174,33 @@ def build(args) -> None:
     run_dir = Path(args.run)
     run_id = run_dir.name.removesuffix("--memspine")
 
-    ds = LoCoMoDataset(args.data, revision_id="auto", categories=(1, 2, 3, 4, 5))  # cat 5 is reported apart (A13)
+    ds = LoCoMoDataset(
+        args.data, revision_id="auto", categories=(1, 2, 3, 4, 5)
+    )  # cat 5 is reported apart (A13)
     turn_info: dict[tuple[str, str], dict] = {}
     gold_by_q: dict[tuple[str, str], list[str]] = {}
-    evidence_by_q: dict[tuple[str, str], object] = {}  # M02: reversible view next to the official label
+    evidence_by_q: dict[
+        tuple[str, str], object
+    ] = {}  # M02: reversible view next to the official label
     for item in ds.items():
         known = {t.turn_id for t in item.history}
         for t in item.history:
-            turn_info[(item.item_id, t.turn_id)] = {"text": f"{t.speaker}: {t.text}", "ts": t.timestamp}
+            turn_info[(item.item_id, t.turn_id)] = {
+                "text": f"{t.speaker}: {t.text}",
+                "ts": t.timestamp,
+            }
         for q in item.queries:
             gold_by_q[(item.item_id, q.query_id)] = gold_turns(list(q.gold_turn_ids))
-            evidence_by_q[(item.item_id, q.query_id)] = normalise_evidence(list(q.gold_turn_ids), known)
+            evidence_by_q[(item.item_id, q.query_id)] = normalise_evidence(
+                list(q.gold_turn_ids), known
+            )
 
     results = [r for r in load_jsonl(run_dir / "results.jsonl") if r.get("kind") == "result"]
     manifest = {}
     if (run_dir / "summary.json").exists():
-        manifest = json.loads((run_dir / "summary.json").read_text(encoding="utf-8")).get("manifest", {})
+        manifest = json.loads((run_dir / "summary.json").read_text(encoding="utf-8")).get(
+            "manifest", {}
+        )
     fxdir = Path(args.forensics) if args.forensics else None
     fx = load_jsonl(fxdir / "forensics.jsonl") if fxdir else []
     ingest = load_jsonl(fxdir / "ingest.jsonl") if fxdir else []
@@ -200,35 +219,66 @@ def build(args) -> None:
         key = (r["item_id"], r["query_id"])
         gold_ids = gold_by_q.get(key, [])
         f = fx_by_q.get(key)
-        retrieved = [c["turn"] for c in f["context_records"]] if f else as_list(r.get("retrieved_ids"))
+        retrieved = (
+            [c["turn"] for c in f["context_records"]] if f else as_list(r.get("retrieved_ids"))
+        )
         in_ctx = set(retrieved)
         answer = r.get("answer")
         score = num(r.get("score"))
         if mode == "qa":
-            correct = score is not None and score >= 1.0 and r.get("status") == "completed" and bool((answer or "").strip())
+            correct = (
+                score is not None
+                and score >= 1.0
+                and r.get("status") == "completed"
+                and bool((answer or "").strip())
+            )
         else:
             correct = bool(gold_ids) and all(g in in_ctx for g in gold_ids)
         ev_view = evidence_by_q.get(key)
         evidence = None
         if ev_view is not None and ev_view.status != "ok":
             adj = list(ev_view.resolved_ids)
-            evidence = {"status": ev_view.status, "raw": list(ev_view.raw), "resolved": adj,
-                        "unresolved": list(ev_view.unresolved_tokens),
-                        "adjudicated_correct": (all(g in in_ctx for g in adj) if adj else None)
-                        if mode == "retrieval" else None}
+            evidence = {
+                "status": ev_view.status,
+                "raw": list(ev_view.raw),
+                "resolved": adj,
+                "unresolved": list(ev_view.unresolved_tokens),
+                "adjudicated_correct": (all(g in in_ctx for g in adj) if adj else None)
+                if mode == "retrieval"
+                else None,
+            }
         entry = {
-            "schema_version": "forensic_question/v1", "run_id": run_id, "mode": mode,
-            "item": r["item_id"], "qid": r["query_id"], "category": CAT.get(r.get("type_label"), "other"),
-            "question": r["question"], "gold_answer": r.get("gold"), "answer": answer if mode == "qa" else None,
-            "status": r.get("status"), "judge_score": score if mode == "qa" else None,
-            "judge_raw": meta.get("judge_raw"), "correct": correct, "has_stage_log": f is not None,
-            "f1_locomo": row_f1(r) if mode == "qa" else None,  # G-C7: official LoCoMo F1 (0..1), beside the judge
-            "context_tokens": num(r.get("context_tokens")), "latency_retrieve_ms": num(r.get("latency_retrieve_ms")),
-            "latency_answer_ms": num(r.get("latency_answer_ms")), "retrieved_turns": retrieved,
+            "schema_version": "forensic_question/v1",
+            "run_id": run_id,
+            "mode": mode,
+            "item": r["item_id"],
+            "qid": r["query_id"],
+            "category": CAT.get(r.get("type_label"), "other"),
+            "question": r["question"],
+            "gold_answer": r.get("gold"),
+            "answer": answer if mode == "qa" else None,
+            "status": r.get("status"),
+            "judge_score": score if mode == "qa" else None,
+            "judge_raw": meta.get("judge_raw"),
+            "correct": correct,
+            "has_stage_log": f is not None,
+            "f1_locomo": row_f1(r)
+            if mode == "qa"
+            else None,  # G-C7: official LoCoMo F1 (0..1), beside the judge
+            "context_tokens": num(r.get("context_tokens")),
+            "latency_retrieve_ms": num(r.get("latency_retrieve_ms")),
+            "latency_answer_ms": num(r.get("latency_answer_ms")),
+            "retrieved_turns": retrieved,
             "list_recall": None,
             "evidence": evidence,
-            "gold_turns": [], "flags": [], "primary_gap": None, "reader_bucket": None,
-            "stages": None, "gate": None, "top_non_gold": None, "context_text": None,
+            "gold_turns": [],
+            "flags": [],
+            "primary_gap": None,
+            "reader_bucket": None,
+            "stages": None,
+            "gate": None,
+            "top_non_gold": None,
+            "context_text": None,
         }
         lr = list_recall(r["question"], r.get("gold"), answer) if mode == "qa" else None
         if lr is not None:
@@ -240,13 +290,25 @@ def build(args) -> None:
         losses: list[str] = []
         for g in gold_ids:
             info = turn_info.get((r["item_id"], g), {})
-            gt = {"turn": g, "text": info.get("text"), "source_timestamp": info.get("ts"),
-                  "in_context": g in in_ctx, "ingest": None, "ranks": None, "lost_at": None, "rescued_from": None}
+            gt = {
+                "turn": g,
+                "text": info.get("text"),
+                "source_timestamp": info.get("ts"),
+                "in_context": g in in_ctx,
+                "ingest": None,
+                "ranks": None,
+                "lost_at": None,
+                "rescued_from": None,
+            }
             loss = None
             i = ing.get((r["item_id"], g))
             if i is not None:
-                gt["ingest"] = {"written": bool(i["written"]), "text_identical": i.get("text_identical"),
-                                "valid_from": i.get("valid_from"), "record_id": i.get("record_id")}
+                gt["ingest"] = {
+                    "written": bool(i["written"]),
+                    "text_identical": i.get("text_identical"),
+                    "valid_from": i.get("valid_from"),
+                    "record_id": i.get("record_id"),
+                }
                 for extra in ("quarantined", "trust", "status"):  # F2 [INJ-2]
                     if i.get(extra) is not None:
                         gt["ingest"][extra] = i[extra]
@@ -261,16 +323,26 @@ def build(args) -> None:
                 if i.get("valid_from") and sd and i["valid_from"][:10] != sd.isoformat():
                     entry["flags"].append(f"ingest:date_mismatch:{g}")
             if f is not None:
-                rk = {"vector": rank_of(f["vector"], g), "lexical": rank_of(f["lexical"], g),
-                      "extra": {n: rank_of(h, g) for n, h in f["extra_legs"].items()},
-                      "fused": rank_of(f["fused"], g), "pool": rank_of(f["pool"], g),
-                      "rerank": rank_of(f["rerank_scores"], g) if f["rerank_scores"] else None,
-                      "rerank_order": None, "rerank_score": None,
-                      "final": rank_of(f["final"], g), "in_context": g in in_ctx}
+                rk = {
+                    "vector": rank_of(f["vector"], g),
+                    "lexical": rank_of(f["lexical"], g),
+                    "extra": {n: rank_of(h, g) for n, h in f["extra_legs"].items()},
+                    "fused": rank_of(f["fused"], g),
+                    "pool": rank_of(f["pool"], g),
+                    "rerank": rank_of(f["rerank_scores"], g) if f["rerank_scores"] else None,
+                    "rerank_order": None,
+                    "rerank_score": None,
+                    "final": rank_of(f["final"], g),
+                    "in_context": g in in_ctx,
+                }
                 if f["rerank_scores"]:
                     srt = sorted(f["rerank_scores"], key=lambda x: -x["score"])
-                    rk["rerank_order"] = next((k + 1 for k, x in enumerate(srt) if x["turn"] == g), None)
-                    rk["rerank_score"] = next((x["score"] for x in f["rerank_scores"] if x["turn"] == g), None)
+                    rk["rerank_order"] = next(
+                        (k + 1 for k, x in enumerate(srt) if x["turn"] == g), None
+                    )
+                    rk["rerank_score"] = next(
+                        (x["score"] for x in f["rerank_scores"] if x["turn"] == g), None
+                    )
                 gt["ranks"] = rk
                 if loss is None:
                     any_leg = rk["vector"] or rk["lexical"] or any(v for v in rk["extra"].values())
@@ -316,20 +388,51 @@ def build(args) -> None:
             if mode == "qa":
                 bucket, detail = bucket_failure(r["question"], str(r.get("gold")), answer or "")
                 entry["reader_bucket"] = {"bucket": bucket, "detail": detail}
-        if mode == "qa" and not correct and (answer or "").strip() and str(r.get("gold", "")).strip().lower() in (answer or "").lower():
+        if (
+            mode == "qa"
+            and not correct
+            and (answer or "").strip()
+            and str(r.get("gold", "")).strip().lower() in (answer or "").lower()
+        ):
             entry["flags"].append("judge:answer_contains_gold")
-        if mode == "qa" and r.get("status") == "completed" and not (answer or "").strip() and (score or 0) >= 1:
+        if (
+            mode == "qa"
+            and r.get("status") == "completed"
+            and not (answer or "").strip()
+            and (score or 0) >= 1
+        ):
             entry["flags"].append("judge:credited_empty_answer")
         if f is not None:
-            entry["stages"] = {k: f[k] for k in ("vector", "lexical", "extra_legs", "fused", "pool", "reranker",
-                                                  "rerank_scores", "final")}
+            entry["stages"] = {
+                k: f[k]
+                for k in (
+                    "vector",
+                    "lexical",
+                    "extra_legs",
+                    "fused",
+                    "pool",
+                    "reranker",
+                    "rerank_scores",
+                    "final",
+                )
+            }
             # I74: the read-path decisions and relevance-gate info (absent when none ran)
-            gate = {k: f[k] for k in ("decisions", "relevance_calibration", "relevance_bypass") if k in f}
+            gate = {
+                k: f[k]
+                for k in ("decisions", "relevance_calibration", "relevance_bypass")
+                if k in f
+            }
             entry["gate"] = gate or None
             entry["top_non_gold"] = [
-                {"turn": x["turn"], "rank": x["r"], "score": x["score"],
-                 "text": (turn_info.get((r["item_id"], x["turn"])) or {}).get("text")}
-                for x in f["final"] if x["turn"] not in gold_ids][:5]
+                {
+                    "turn": x["turn"],
+                    "rank": x["r"],
+                    "score": x["score"],
+                    "text": (turn_info.get((r["item_id"], x["turn"])) or {}).get("text"),
+                }
+                for x in f["final"]
+                if x["turn"] not in gold_ids
+            ][:5]
             entry["context_text"] = [c["text"] for c in f["context_records"]]
         pref = preference_label(r)  # I18: from the benchmark gold, never from the run
         if pref:
@@ -342,22 +445,31 @@ def build(args) -> None:
         {}
         if no_errata
         else load_errata(
-            getattr(args, "errata", DEFAULT_ERRATA), extended=getattr(args, "errata_extended", False)
+            getattr(args, "errata", DEFAULT_ERRATA),
+            extended=getattr(args, "errata_extended", False),
         )
     )
     verdict = {(e["item"], e["qid"]): e["correct"] for e in rows}
-    fx_joined = [dict(f, **({"_correct": verdict[k]} if k in verdict else {})) for k, f in fx_by_q.items()]
+    fx_joined = [
+        dict(f, **({"_correct": verdict[k]} if k in verdict else {})) for k, f in fx_by_q.items()
+    ]
     summary = summarise(run_id, rows, manifest, ingest, turn_info, errata, fx_joined)
     validate(rows, summary)
-    (out / "per_question.jsonl").write_text("\n".join(json.dumps(e) for e in rows), encoding="utf-8")
+    (out / "per_question.jsonl").write_text(
+        "\n".join(json.dumps(e) for e in rows), encoding="utf-8"
+    )
     (out / "run_summary.json").write_text(json.dumps(summary, indent=1), encoding="utf-8")
     write_markdown(out, rows, args.only_wrong_md)
     write_gap_md(out, summary)
-    print(f"{run_id}: {summary['n_questions']} questions (+{summary['n_adversarial']} adversarial), accuracy {summary['accuracy']:.1%}, F1 (official LoCoMo) {(summary.get('f1_locomo') or 0):.1%}, stage log={summary['has_stage_log']} -> {out}")
+    print(
+        f"{run_id}: {summary['n_questions']} questions (+{summary['n_adversarial']} adversarial), accuracy {summary['accuracy']:.1%}, F1 (official LoCoMo) {(summary.get('f1_locomo') or 0):.1%}, stage log={summary['has_stage_log']} -> {out}"
+    )
     if summary["errata"]:
         e = summary["errata"]["strict"]
-        print(f"  excluding errata: {e['n']} questions ({e['n_excluded']} excluded), "
-              f"accuracy {e['accuracy']:.1%}")
+        print(
+            f"  excluding errata: {e['n']} questions ({e['n_excluded']} excluded), "
+            f"accuracy {e['accuracy']:.1%}"
+        )
 
 
 #: A12: the non-adversarial LoCoMo question set (categories 1-4) every headline is over.
@@ -424,12 +536,18 @@ def evidence_block(rows: list[dict]) -> dict:
     for r in bad:
         by_status[r["evidence"]["status"]] = by_status.get(r["evidence"]["status"], 0) + 1
     retr = [r for r in bad if r["mode"] == "retrieval"]
-    return {"version": "evidence/v1", "n_questions": len(rows), "n_flagged": len(bad),
-            "by_status": by_status,
-            "retrieval_only": {"n": len(retr),
-                               "official_correct": sum(1 for r in retr if r["correct"]),
-                               "adjudicated_correct": sum(1 for r in retr if r["evidence"]["adjudicated_correct"])},
-            "items": [{"item": r["item"], "qid": r["qid"], **r["evidence"]} for r in bad]}
+    return {
+        "version": "evidence/v1",
+        "n_questions": len(rows),
+        "n_flagged": len(bad),
+        "by_status": by_status,
+        "retrieval_only": {
+            "n": len(retr),
+            "official_correct": sum(1 for r in retr if r["correct"]),
+            "adjudicated_correct": sum(1 for r in retr if r["evidence"]["adjudicated_correct"]),
+        },
+        "items": [{"item": r["item"], "qid": r["qid"], **r["evidence"]} for r in bad],
+    }
 
 
 def conventions_block(rows: list[dict]) -> dict | None:
@@ -447,8 +565,9 @@ def conventions_block(rows: list[dict]) -> dict | None:
             continue
         hit = check_conventions(r["question"], r["answer"], r.get("gold_answer"))
         if hit is not None:
-            credits.append({"item": r["item"], "qid": r["qid"], "category": r["category"],
-                            "rule": hit.rule})
+            credits.append(
+                {"item": r["item"], "qid": r["qid"], "category": r["category"], "rule": hit.rule}
+            )
     n = len(rows)
     base = sum(r["correct"] for r in rows)
     by_cat = {}
@@ -456,16 +575,26 @@ def conventions_block(rows: list[dict]) -> dict | None:
         sub = [r for r in rows if r["category"] == c]
         if sub:
             extra = sum(1 for x in credits if x["category"] == c)
-            by_cat[c] = {"n": len(sub), "judge": sum(r["correct"] for r in sub) / len(sub),
-                         "judge_or_conventions": (sum(r["correct"] for r in sub) + extra) / len(sub)}
-    return {"version": "conventions/v1", "n": n, "judge": base / n,
-            "judge_or_conventions": (base + len(credits)) / n, "n_credits": len(credits),
-            "credits": credits, "by_category": by_cat}
+            by_cat[c] = {
+                "n": len(sub),
+                "judge": sum(r["correct"] for r in sub) / len(sub),
+                "judge_or_conventions": (sum(r["correct"] for r in sub) + extra) / len(sub),
+            }
+    return {
+        "version": "conventions/v1",
+        "n": n,
+        "judge": base / n,
+        "judge_or_conventions": (base + len(credits)) / n,
+        "n_credits": len(credits),
+        "credits": credits,
+        "by_category": by_cat,
+    }
 
 
 def errata_block(rows: list[dict], errata: dict[tuple[str, str], dict]) -> dict:
     """A5: accuracy over the categories 1-4 rows with and without the errata questions.
     ``strict`` drops confirmed errata only; ``incl_borderline`` also drops the borderline ones."""
+
     def acc(sub: list[dict]) -> float | None:
         return (sum(r["correct"] for r in sub) / len(sub)) if sub else None
 
@@ -486,13 +615,20 @@ def errata_block(rows: list[dict], errata: dict[tuple[str, str], dict]) -> dict:
             return out
 
         return {
-            "n": len(kept), "n_excluded": len(rows) - len(kept), "accuracy": acc(kept),
+            "n": len(kept),
+            "n_excluded": len(rows) - len(kept),
+            "accuracy": acc(kept),
             "by_category": by_cat(kept),
         }
 
-    return {"tags_excluded": sorted({e["tag"] for e in errata.values()}) or list(ERRATA_EXCLUDE_TAGS), "n_errata_entries": len(errata),
-            "overall_accuracy": acc(rows), "n": len(rows),
-            "strict": variant(False), "incl_borderline": variant(True)}
+    return {
+        "tags_excluded": sorted({e["tag"] for e in errata.values()}) or list(ERRATA_EXCLUDE_TAGS),
+        "n_errata_entries": len(errata),
+        "overall_accuracy": acc(rows),
+        "n": len(rows),
+        "strict": variant(False),
+        "incl_borderline": variant(True),
+    }
 
 
 def _prf(tp: int, fp: int, fn: int) -> dict:
@@ -514,8 +650,11 @@ def abstention_block(all_rows: list[dict]) -> dict | None:
     """
     from memspine_evals.refusal import is_refusal
 
-    qa = [r for r in all_rows if r["mode"] == "qa" and r.get("status") == "completed"
-          and r.get("answer") is not None]
+    qa = [
+        r
+        for r in all_rows
+        if r["mode"] == "qa" and r.get("status") == "completed" and r.get("answer") is not None
+    ]
     if not qa or not any(r["category"] == ADVERSARIAL for r in qa):
         return None
     tp = fp = fn = tn = 0
@@ -528,7 +667,9 @@ def abstention_block(all_rows: list[dict]) -> dict | None:
         tn += (not refused) and not should
     out = _prf(tp, fp, fn)
     out.update(
-        n=len(qa), n_should_refuse=tp + fn, n_answerable=fp + tn,
+        n=len(qa),
+        n_should_refuse=tp + fn,
+        n_answerable=fp + tn,
         answer_rate_when_answerable=tn / (fp + tn) if fp + tn else None,
         false_refusal_rate=fp / (fp + tn) if fp + tn else None,
         note="positive = refused (is_refusal on the answer text); cat 5 should refuse, cats 1-4 should answer",
@@ -553,8 +694,11 @@ def by_category_all(all_rows: list[dict]) -> dict:
             continue
         answered = [r for r in sub if r["mode"] == "qa" and r.get("answer") is not None]
         out[c] = {
-            "n": len(sub), "accuracy": sum(r["correct"] for r in sub) / len(sub),
-            "refusal_rate": (sum(is_refusal(r["answer"]) for r in answered) / len(answered)) if answered else None,
+            "n": len(sub),
+            "accuracy": sum(r["correct"] for r in sub) / len(sub),
+            "refusal_rate": (sum(is_refusal(r["answer"]) for r in answered) / len(answered))
+            if answered
+            else None,
             "f1_locomo": _mean_f1(sub),
         }
     return out
@@ -577,9 +721,53 @@ _AVOID = re.compile(
     re.IGNORECASE,
 )
 _PREF_STOP = frozenset(
-    "i a an the and or to of in on for with my me is am are be it that this as at by from so "
-    "do not no but you your we our they very really absolutely like enjoy eat want drink any "
-    "anything".split()
+    [
+        "i",
+        "a",
+        "an",
+        "the",
+        "and",
+        "or",
+        "to",
+        "of",
+        "in",
+        "on",
+        "for",
+        "with",
+        "my",
+        "me",
+        "is",
+        "am",
+        "are",
+        "be",
+        "it",
+        "that",
+        "this",
+        "as",
+        "at",
+        "by",
+        "from",
+        "so",
+        "do",
+        "not",
+        "no",
+        "but",
+        "you",
+        "your",
+        "we",
+        "our",
+        "they",
+        "very",
+        "really",
+        "absolutely",
+        "like",
+        "enjoy",
+        "eat",
+        "want",
+        "drink",
+        "any",
+        "anything",
+    ]
 )
 
 
@@ -630,25 +818,40 @@ def preference_adherence_block(all_rows: list[dict]) -> dict | None:
         constrained = [(r, avoided_terms(r["preference"])) for r in answered]
         constrained = [(r, t) for r, t in constrained if t]
         violated = [
-            r for r, terms in constrained
+            r
+            for r, terms in constrained
             if any(re.search(rf"\b{re.escape(t)}", r["answer"].lower()) for t in terms)
         ]
         return {
             "n": len(sub),
             "judged_adherence": sum(bool(r["correct"]) for r in sub) / len(sub),
             "preference_turn_in_context": (
-                sum(all(g.get("in_context") for g in r["gold_turns"]) for r in with_turns) / len(with_turns)
-                if with_turns else None),
-            "announced_rate": (sum(bool(_ANNOUNCE.search(r["answer"])) for r in answered) / len(answered)
-                               if answered else None),
+                sum(all(g.get("in_context") for g in r["gold_turns"]) for r in with_turns)
+                / len(with_turns)
+                if with_turns
+                else None
+            ),
+            "announced_rate": (
+                sum(bool(_ANNOUNCE.search(r["answer"])) for r in answered) / len(answered)
+                if answered
+                else None
+            ),
             "n_constrained": len(constrained),
             "violation_proxy": (len(violated) / len(constrained)) if constrained else None,
         }
 
-    forms = sorted({str(r.get("form") or r.get("type_label") or "all").split("/", 1)[0] for r in pref_rows})
+    forms = sorted(
+        {str(r.get("form") or r.get("type_label") or "all").split("/", 1)[0] for r in pref_rows}
+    )
     out = block(pref_rows)
     out["by_form"] = {
-        f: block([r for r in pref_rows if str(r.get("form") or r.get("type_label") or "all").split("/", 1)[0] == f])
+        f: block(
+            [
+                r
+                for r in pref_rows
+                if str(r.get("form") or r.get("type_label") or "all").split("/", 1)[0] == f
+            ]
+        )
         for f in forms
     }
     return out
@@ -663,9 +866,15 @@ def memory_used_block(all_rows: list[dict]) -> dict | None:
         return bool(r.get("retrieved_turns")) or bool(r.get("context_tokens"))
 
     cats = sorted({r["category"] for r in all_rows})
-    return {"n": len(all_rows), "rate": sum(used(r) for r in all_rows) / len(all_rows),
-            "by_category": {c: sum(used(r) for r in all_rows if r["category"] == c)
-                            / sum(1 for r in all_rows if r["category"] == c) for c in cats}}
+    return {
+        "n": len(all_rows),
+        "rate": sum(used(r) for r in all_rows) / len(all_rows),
+        "by_category": {
+            c: sum(used(r) for r in all_rows if r["category"] == c)
+            / sum(1 for r in all_rows if r["category"] == c)
+            for c in cats
+        },
+    }
 
 
 def trigger_block(fx_rows: list[dict]) -> dict | None:
@@ -685,11 +894,20 @@ def trigger_block(fx_rows: list[dict]) -> dict | None:
         for name, hits in (f.get("extra_legs") or {}).items():
             if hits:
                 legs[name] += 1
-    list_n = sum(1 for f in fx_rows if any(k.startswith("speaker_vote") and v for k, v in (f.get("extra_legs") or {}).items()))
+    list_n = sum(
+        1
+        for f in fx_rows
+        if any(k.startswith("speaker_vote") and v for k, v in (f.get("extra_legs") or {}).items())
+    )
     gates = Counter(str(f["bridge_gate"]) for f in fx_rows if f.get("bridge_gate") is not None)
     bridge_fired = sum(1 for f in fx_rows if (f.get("extra_legs") or {}).get("bridge"))
-    deciders = Counter(json.dumps(f["decider"], sort_keys=True) if not isinstance(f["decider"], str)
-                       else f["decider"] for f in fx_rows if f.get("decider") is not None)
+    deciders = Counter(
+        json.dumps(f["decider"], sort_keys=True)
+        if not isinstance(f["decider"], str)
+        else f["decider"]
+        for f in fx_rows
+        if f.get("decider") is not None
+    )
     reranked = sum(1 for f in fx_rows if f.get("rerank_scores"))
 
     def row(count: int) -> dict:
@@ -698,41 +916,75 @@ def trigger_block(fx_rows: list[dict]) -> dict | None:
     out: dict = {
         "n": n,
         "list_mode": row(list_n),
-        "bridge_hop": {**row(bridge_fired), "gate_logged": bool(gates),
-                       "gate_decisions": dict(gates)},
+        "bridge_hop": {
+            **row(bridge_fired),
+            "gate_logged": bool(gates),
+            "gate_decisions": dict(gates),
+        },
         "rerank": row(reranked),
         "legs": {k: row(v) for k, v in sorted(legs.items())},
         "decider": {"logged": bool(deciders), "decisions": dict(deciders)},
     }
     if any("_correct" in f for f in fx_rows):
+
         def acc(flag) -> dict:
             on = [bool(f["_correct"]) for f in fx_rows if "_correct" in f and flag(f)]
             off = [bool(f["_correct"]) for f in fx_rows if "_correct" in f and not flag(f)]
-            return {"accuracy_fired": (sum(on) / len(on)) if on else None, "n_fired": len(on),
-                    "accuracy_not_fired": (sum(off) / len(off)) if off else None, "n_not_fired": len(off)}
-        out["list_mode"].update(acc(lambda f: any(k.startswith("speaker_vote") and v for k, v in (f.get("extra_legs") or {}).items())))
+            return {
+                "accuracy_fired": (sum(on) / len(on)) if on else None,
+                "n_fired": len(on),
+                "accuracy_not_fired": (sum(off) / len(off)) if off else None,
+                "n_not_fired": len(off),
+            }
+
+        out["list_mode"].update(
+            acc(
+                lambda f: any(
+                    k.startswith("speaker_vote") and v
+                    for k, v in (f.get("extra_legs") or {}).items()
+                )
+            )
+        )
         out["bridge_hop"].update(acc(lambda f: bool((f.get("extra_legs") or {}).get("bridge"))))
     return out
 
 
-def summarise(run_id: str, rows: list[dict], manifest: dict, ingest: list[dict], turn_info: dict,
-              errata: dict[tuple[str, str], dict] | None = None, fx_rows: list[dict] | None = None) -> dict:
+def summarise(
+    run_id: str,
+    rows: list[dict],
+    manifest: dict,
+    ingest: list[dict],
+    turn_info: dict,
+    errata: dict[tuple[str, str], dict] | None = None,
+    fx_rows: list[dict] | None = None,
+) -> dict:
     all_rows = rows
     rows = [r for r in all_rows if r["category"] != ADVERSARIAL]  # headline: categories 1-4 only
     adv = [r for r in all_rows if r["category"] == ADVERSARIAL]
-    sysconf = ((manifest.get("system") or {}).get("config") or {})
+    sysconf = (manifest.get("system") or {}).get("config") or {}
     cfg = sysconf.get("config") or {}
-    reader = (manifest.get("reader") or {})
-    judge = (manifest.get("judge") or {})
-    s: dict = {"schema_version": "forensic_run/v1", "run_id": run_id,
-               "mode": (rows or all_rows)[0]["mode"] if all_rows else "qa", "has_stage_log": any(r["has_stage_log"] for r in rows),
-               "generated_at": datetime.now(UTC).isoformat(timespec="seconds"), "config": cfg or None,
-               "models": {"embedder": (cfg.get("embedding") or {}).get("model", "BAAI/bge-small-en-v1.5 (default)"),
-                          "reranker": (cfg.get("read") or {}).get("rerank_model") or (cfg.get("read") or {}).get("rerank", "off"),
-                          "reader": reader.get("model") or reader.get("reader_id"),
-                          "judge": judge.get("model") or judge.get("judge_id")},
-               "wall_clock_s": None, "n_questions": len(rows),
-               "accuracy": (sum(r["correct"] for r in rows) / len(rows)) if rows else 0.0}
+    reader = manifest.get("reader") or {}
+    judge = manifest.get("judge") or {}
+    s: dict = {
+        "schema_version": "forensic_run/v1",
+        "run_id": run_id,
+        "mode": (rows or all_rows)[0]["mode"] if all_rows else "qa",
+        "has_stage_log": any(r["has_stage_log"] for r in rows),
+        "generated_at": datetime.now(UTC).isoformat(timespec="seconds"),
+        "config": cfg or None,
+        "models": {
+            "embedder": (cfg.get("embedding") or {}).get(
+                "model", "BAAI/bge-small-en-v1.5 (default)"
+            ),
+            "reranker": (cfg.get("read") or {}).get("rerank_model")
+            or (cfg.get("read") or {}).get("rerank", "off"),
+            "reader": reader.get("model") or reader.get("reader_id"),
+            "judge": judge.get("model") or judge.get("judge_id"),
+        },
+        "wall_clock_s": None,
+        "n_questions": len(rows),
+        "accuracy": (sum(r["correct"] for r in rows) / len(rows)) if rows else 0.0,
+    }
     s["errata"] = errata_block(rows, errata) if errata else None
     s["conventions"] = conventions_block(rows)  # I58: second column
     s["evidence"] = evidence_block(all_rows)  # M02: official label untouched, diagnostic beside it
@@ -745,31 +997,56 @@ def summarise(run_id: str, rows: list[dict], manifest: dict, ingest: list[dict],
     s["triggers"] = trigger_block(fx_rows or [])
     s["recall_at_10_hits"] = recall_at_10_hits(rows)
     s["sufficiency_on_qa_set"] = (
-        {"n": len(rows), "value": sum(r["correct"] for r in rows) / len(rows),
-         "complete_qa_set": len(rows) == QA_SET_SIZE}
-        if s["mode"] == "retrieval" and rows else None
+        {
+            "n": len(rows),
+            "value": sum(r["correct"] for r in rows) / len(rows),
+            "complete_qa_set": len(rows) == QA_SET_SIZE,
+        }
+        if s["mode"] == "retrieval" and rows
+        else None
     )
     s["f1_locomo"] = _mean_f1(rows)  # G-C7: categories 1-4 headline, next to "accuracy"
-    s["by_category"] = {c: {"n": len(sub), "accuracy": sum(r["correct"] for r in sub) / len(sub),
-                            "f1_locomo": _mean_f1(sub)}
-                        for c in CATS if (sub := [r for r in rows if r["category"] == c])}
+    s["by_category"] = {
+        c: {
+            "n": len(sub),
+            "accuracy": sum(r["correct"] for r in sub) / len(sub),
+            "f1_locomo": _mean_f1(sub),
+        }
+        for c in CATS
+        if (sub := [r for r in rows if r["category"] == c])
+    }
     s["outcome_classes"] = dict(Counter(r["outcome_class"] for r in rows))
     wrong = [r for r in rows if not r["correct"]]
     s["primary_gaps"] = {g: sum(1 for r in wrong if r["primary_gap"] == g) for g in STAGE_ORDER}
-    s["primary_gaps_by_category"] = {c: {g: sum(1 for r in wrong if r["category"] == c and r["primary_gap"] == g)
-                                         for g in STAGE_ORDER} for c in CATS}
+    s["primary_gaps_by_category"] = {
+        c: {
+            g: sum(1 for r in wrong if r["category"] == c and r["primary_gap"] == g)
+            for g in STAGE_ORDER
+        }
+        for c in CATS
+    }
     staged = [r for r in rows if r["has_stage_log"] and r["gold_turns"]]
     if staged:
-        tests = {"any_leg": lambda k: k["vector"] or k["lexical"] or any(k["extra"].values()),
-                 "fused": lambda k: k["fused"], "pool": lambda k: k["pool"], "final": lambda k: k["final"],
-                 "in_context": lambda k: k["in_context"]}
+        tests = {
+            "any_leg": lambda k: k["vector"] or k["lexical"] or any(k["extra"].values()),
+            "fused": lambda k: k["fused"],
+            "pool": lambda k: k["pool"],
+            "final": lambda k: k["final"],
+            "in_context": lambda k: k["in_context"],
+        }
         s["funnel"] = {}
         for c in CATS + ["ALL"]:
             sub = [r for r in staged if c == "ALL" or r["category"] == c]
             if sub:
-                s["funnel"][c] = {"n": len(sub), **{name: sum(all(fn(g["ranks"]) for g in r["gold_turns"]) for r in sub) / len(sub)
-                                                    for name, fn in tests.items()},
-                                  "correct": sum(r["correct"] for r in sub) / len(sub)}
+                s["funnel"][c] = {
+                    "n": len(sub),
+                    **{
+                        name: sum(all(fn(g["ranks"]) for g in r["gold_turns"]) for r in sub)
+                        / len(sub)
+                        for name, fn in tests.items()
+                    },
+                    "correct": sum(r["correct"] for r in sub) / len(sub),
+                }
     else:
         s["funnel"] = None
     s["oracle"] = {}
@@ -778,36 +1055,66 @@ def summarise(run_id: str, rows: list[dict], manifest: dict, ingest: list[dict],
         full = [r for r in sub if all(g["in_context"] for g in r["gold_turns"])]
         rest = [r for r in sub if r not in full]
         if sub:
-            s["oracle"][c] = {"n_all_gold_in_context": len(full),
-                              "acc_all_gold_in_context": (sum(r["correct"] for r in full) / len(full)) if full else None,
-                              "n_missing_gold": len(rest),
-                              "acc_missing_gold": (sum(r["correct"] for r in rest) / len(rest)) if rest else None}
-    combos = Counter(tuple(sorted({":".join(f.split(":")[:2]) for f in r["flags"]})) for r in wrong if len(r["flags"]) > 1)
+            s["oracle"][c] = {
+                "n_all_gold_in_context": len(full),
+                "acc_all_gold_in_context": (sum(r["correct"] for r in full) / len(full))
+                if full
+                else None,
+                "n_missing_gold": len(rest),
+                "acc_missing_gold": (sum(r["correct"] for r in rest) / len(rest)) if rest else None,
+            }
+    combos = Counter(
+        tuple(sorted({":".join(f.split(":")[:2]) for f in r["flags"]}))
+        for r in wrong
+        if len(r["flags"]) > 1
+    )
     s["cascades"] = [{"flags": list(k), "count": v} for k, v in combos.most_common(25)]
-    s["reader_buckets"] = dict(Counter(r["reader_bucket"]["bucket"] for r in wrong if r["reader_bucket"]))
+    s["reader_buckets"] = dict(
+        Counter(r["reader_bucket"]["bucket"] for r in wrong if r["reader_bucket"])
+    )
     toks = [r["context_tokens"] for r in rows if r["context_tokens"]]
     lat = sorted(r["latency_answer_ms"] for r in rows if r["latency_answer_ms"])
     s["context_tokens_mean"] = statistics.mean(toks) if toks else None
     s["latency_answer_p50_ms"] = lat[len(lat) // 2] if lat else None
-    s["latency_answer_p95_ms"] = lat[min(len(lat) - 1, int(.95 * len(lat)))] if lat else None
+    s["latency_answer_p95_ms"] = lat[min(len(lat) - 1, int(0.95 * len(lat)))] if lat else None
     if ingest:
-        mism = sum(1 for r in ingest if r.get("valid_from") and (sd := session_day((turn_info.get((r.get("item"), r["turn"])) or {}).get("ts")))
-                   and r["valid_from"][:10] != sd.isoformat())
-        s["injection"] = {"turns": len(ingest), "written": sum(r["written"] for r in ingest),
-                          "text_altered": sum(1 for r in ingest if r["written"] and r.get("text_identical") is False),
-                          "no_date": sum(1 for r in ingest if r["written"] and not r.get("valid_from")),
-                          "date_mismatch": mism,
-                          "memory_types": dict(Counter(r.get("memory_type") for r in ingest)),
-                          "batch_sizes": dict(Counter(str(r.get("batch_size")) for r in ingest))}
+        mism = sum(
+            1
+            for r in ingest
+            if r.get("valid_from")
+            and (sd := session_day((turn_info.get((r.get("item"), r["turn"])) or {}).get("ts")))
+            and r["valid_from"][:10] != sd.isoformat()
+        )
+        s["injection"] = {
+            "turns": len(ingest),
+            "written": sum(r["written"] for r in ingest),
+            "text_altered": sum(
+                1 for r in ingest if r["written"] and r.get("text_identical") is False
+            ),
+            "no_date": sum(1 for r in ingest if r["written"] and not r.get("valid_from")),
+            "date_mismatch": mism,
+            "memory_types": dict(Counter(r.get("memory_type") for r in ingest)),
+            "batch_sizes": dict(Counter(str(r.get("batch_size")) for r in ingest)),
+        }
     else:
         s["injection"] = None
     lists = [r for r in rows if r.get("list_recall")]
-    s["list_questions"] = {
-        "n": len(lists),
-        "mean_recall": (sum(r["list_recall"]["recall"] for r in lists) / len(lists)) if lists else None,
-        "judged_correct_partial_list": sum(1 for r in lists if r["correct"] and r["list_recall"]["recall"] < 1),
-        "judged_wrong_complete_list": sum(1 for r in lists if not r["correct"] and r["list_recall"]["recall"] == 1),
-    } if lists else None
+    s["list_questions"] = (
+        {
+            "n": len(lists),
+            "mean_recall": (sum(r["list_recall"]["recall"] for r in lists) / len(lists))
+            if lists
+            else None,
+            "judged_correct_partial_list": sum(
+                1 for r in lists if r["correct"] and r["list_recall"]["recall"] < 1
+            ),
+            "judged_wrong_complete_list": sum(
+                1 for r in lists if not r["correct"] and r["list_recall"]["recall"] == 1
+            ),
+        }
+        if lists
+        else None
+    )
     s["fix_hypotheses"] = HYPOTHESES
     return s
 
@@ -818,13 +1125,17 @@ def validate(rows: list[dict], summary: dict) -> None:
     except ImportError:
         print("jsonschema not installed: schema validation skipped")
         return
-    qs = json.loads((HERE / "schemas" / "forensic_question.schema.json").read_text(encoding="utf-8"))
+    qs = json.loads(
+        (HERE / "schemas" / "forensic_question.schema.json").read_text(encoding="utf-8")
+    )
     rs = json.loads((HERE / "schemas" / "forensic_run.schema.json").read_text(encoding="utf-8"))
     v = jsonschema.Draft202012Validator(qs)
     for e in rows:
         errs = list(v.iter_errors(e))
         if errs:
-            raise SystemExit(f"schema error in {e['item']}/{e['qid']}: {errs[0].message} at {list(errs[0].path)}")
+            raise SystemExit(
+                f"schema error in {e['item']}/{e['qid']}: {errs[0].message} at {list(errs[0].path)}"
+            )
     jsonschema.validate(summary, rs)
 
 
@@ -833,102 +1144,176 @@ def write_markdown(out: Path, rows: list[dict], only_wrong: bool) -> None:
     for e in rows:
         if only_wrong and e["correct"]:
             continue
-        verdict = "CORRECT" if e["correct"] else f"WRONG - {e['outcome_class']} - primary gap: {e['primary_gap']}"
-        L += [f"## {e['item']} / {e['qid']} - {e['category']} - {verdict}", f"- **Q:** {e['question']}",
-              f"- **Gold:** {e['gold_answer']}  |  **Answer:** {e['answer']!r}  |  judge={e['judge_score']} status={e['status']}"]
+        verdict = (
+            "CORRECT"
+            if e["correct"]
+            else f"WRONG - {e['outcome_class']} - primary gap: {e['primary_gap']}"
+        )
+        L += [
+            f"## {e['item']} / {e['qid']} - {e['category']} - {verdict}",
+            f"- **Q:** {e['question']}",
+            f"- **Gold:** {e['gold_answer']}  |  **Answer:** {e['answer']!r}  |  judge={e['judge_score']} status={e['status']}",
+        ]
         if e["reader_bucket"]:
-            L.append(f"- **Reader failure type:** {e['reader_bucket']['bucket']} ({e['reader_bucket']['detail']})")
+            L.append(
+                f"- **Reader failure type:** {e['reader_bucket']['bucket']} ({e['reader_bucket']['detail']})"
+            )
         if e["flags"]:
             L.append(f"- **All flags (cascade):** {', '.join(e['flags'])}")
         for g in e["gold_turns"]:
-            L.append(f"- **Gold evidence {g['turn']}** (session {g['source_timestamp']}), in context={g['in_context']}: {g['text']}")
+            L.append(
+                f"- **Gold evidence {g['turn']}** (session {g['source_timestamp']}), in context={g['in_context']}: {g['text']}"
+            )
             if g["ingest"]:
-                L.append(f"  - injection: written={g['ingest']['written']} text_identical={g['ingest']['text_identical']} valid_from={g['ingest']['valid_from']}")
+                L.append(
+                    f"  - injection: written={g['ingest']['written']} text_identical={g['ingest']['text_identical']} valid_from={g['ingest']['valid_from']}"
+                )
             if g["ranks"]:
                 k = g["ranks"]
-                L.append(f"  - ranks: vector={k['vector']} bm25={k['lexical']} extra={k['extra']} fused={k['fused']} pool={k['pool']} "
-                         f"rerank_order={k['rerank_order']} (score {k['rerank_score']}) final={k['final']} -> lost_at {g['lost_at']}"
-                         + (f" (rescued by expansion from {g['rescued_from']})" if g["rescued_from"] else ""))
+                L.append(
+                    f"  - ranks: vector={k['vector']} bm25={k['lexical']} extra={k['extra']} fused={k['fused']} pool={k['pool']} "
+                    f"rerank_order={k['rerank_order']} (score {k['rerank_score']}) final={k['final']} -> lost_at {g['lost_at']}"
+                    + (
+                        f" (rescued by expansion from {g['rescued_from']})"
+                        if g["rescued_from"]
+                        else ""
+                    )
+                )
         if e["top_non_gold"] and not e["correct"]:
             L.append("- **What ranked instead:**")
-            L += [f"  - #{x['rank']} {x['turn']}: {(x['text'] or '')[:160]}" for x in e["top_non_gold"][:3]]
+            L += [
+                f"  - #{x['rank']} {x['turn']}: {(x['text'] or '')[:160]}"
+                for x in e["top_non_gold"][:3]
+            ]
         L.append("")
     (out / "per_question.md").write_text("\n".join(L), encoding="utf-8")
 
 
 def write_gap_md(out: Path, s: dict) -> None:
-    pc = lambda x: "n/a" if x is None else f"{100 * x:.1f}%"  # noqa: E731
-    L = [f"# Gap summary - {s['run_id']}\n", f"- mode {s['mode']}, stage log {s['has_stage_log']}, "
-         f"{s['n_questions']} questions, accuracy {pc(s['accuracy'])}", f"- models: {s['models']}\n",
-         "| Category | n | accuracy | F1 (official LoCoMo) |", "|---|---|---|---|"]
-    L += [f"| {c} | {v['n']} | {pc(v['accuracy'])} | {pc(v.get('f1_locomo'))} |" for c, v in s["by_category"].items()]
+    pc = lambda x: "n/a" if x is None else f"{100 * x:.1f}%"
+    L = [
+        f"# Gap summary - {s['run_id']}\n",
+        f"- mode {s['mode']}, stage log {s['has_stage_log']}, "
+        f"{s['n_questions']} questions, accuracy {pc(s['accuracy'])}",
+        f"- models: {s['models']}\n",
+        "| Category | n | accuracy | F1 (official LoCoMo) |",
+        "|---|---|---|---|",
+    ]
+    L += [
+        f"| {c} | {v['n']} | {pc(v['accuracy'])} | {pc(v.get('f1_locomo'))} |"
+        for c, v in s["by_category"].items()
+    ]
     L += [f"| all 1-4 | {s['n_questions']} | {pc(s['accuracy'])} | {pc(s.get('f1_locomo'))} |"]
     er = s.get("errata")
     if er:
         st, ib = er["strict"], er["incl_borderline"]
-        L += [f"\n## Excluding errata ({', '.join(er['tags_excluded'])})",
-              "| Category | n | excluded | accuracy |", "|---|---|---|---|",
-              f"| overall (with errata) | {er['n']} | 0 | {pc(er['overall_accuracy'])} |",
-              f"| overall (excluding errata) | {st['n']} | {st['n_excluded']} | "
-              f"{pc(st['accuracy'])} |",
-              *[f"| {c} | {v['n']} | {v['n_excluded']} | {pc(v['accuracy'])} |"
-                for c, v in st["by_category"].items()],
-              f"\n- also excluding borderline entries: n={ib['n']} ({ib['n_excluded']} excluded), "
-              f"accuracy {pc(ib['accuracy'])}"]
+        L += [
+            f"\n## Excluding errata ({', '.join(er['tags_excluded'])})",
+            "| Category | n | excluded | accuracy |",
+            "|---|---|---|---|",
+            f"| overall (with errata) | {er['n']} | 0 | {pc(er['overall_accuracy'])} |",
+            f"| overall (excluding errata) | {st['n']} | {st['n_excluded']} | "
+            f"{pc(st['accuracy'])} |",
+            *[
+                f"| {c} | {v['n']} | {v['n_excluded']} | {pc(v['accuracy'])} |"
+                for c, v in st["by_category"].items()
+            ],
+            f"\n- also excluding borderline entries: n={ib['n']} ({ib['n_excluded']} excluded), "
+            f"accuracy {pc(ib['accuracy'])}",
+        ]
     cv = s.get("conventions")
     if cv:
-        L += [f"\n## Judge conventions, I58 ({cv['version']}; the LLM verdict is unchanged)",
-              "| Category | n | judge | judge or conventions |", "|---|---|---|---|",
-              f"| overall | {cv['n']} | {pc(cv['judge'])} | {pc(cv['judge_or_conventions'])} |",
-              *[f"| {c} | {v['n']} | {pc(v['judge'])} | {pc(v['judge_or_conventions'])} |"
-                for c, v in cv['by_category'].items()],
-              f"\n- {cv['n_credits']} credits: " + ", ".join(
-                  f"{x['item']}/{x['qid']} ({x['rule']})" for x in cv['credits'])]
+        L += [
+            f"\n## Judge conventions, I58 ({cv['version']}; the LLM verdict is unchanged)",
+            "| Category | n | judge | judge or conventions |",
+            "|---|---|---|---|",
+            f"| overall | {cv['n']} | {pc(cv['judge'])} | {pc(cv['judge_or_conventions'])} |",
+            *[
+                f"| {c} | {v['n']} | {pc(v['judge'])} | {pc(v['judge_or_conventions'])} |"
+                for c, v in cv["by_category"].items()
+            ],
+            f"\n- {cv['n_credits']} credits: "
+            + ", ".join(f"{x['item']}/{x['qid']} ({x['rule']})" for x in cv["credits"]),
+        ]
     adv = s.get("adversarial")
     if adv:
-        L += [f"\n- adversarial (cat 5, apart from the headline): n={adv['n']}, accuracy {pc(adv['accuracy'])}"]
+        L += [
+            f"\n- adversarial (cat 5, apart from the headline): n={adv['n']}, accuracy {pc(adv['accuracy'])}"
+        ]
     if s.get("by_category_all"):
-        L += ["\n## Per category, including cat 5 (adversarial)", "| Category | n | judge accuracy | refusal rate | F1 (official LoCoMo) |",
-              "|---|---|---|---|---|",
-              *[f"| {c} | {v['n']} | {pc(v['accuracy'])} | {pc(v['refusal_rate'])} | {pc(v.get('f1_locomo'))} |"
-                for c, v in s["by_category_all"].items()]]
+        L += [
+            "\n## Per category, including cat 5 (adversarial)",
+            "| Category | n | judge accuracy | refusal rate | F1 (official LoCoMo) |",
+            "|---|---|---|---|---|",
+            *[
+                f"| {c} | {v['n']} | {pc(v['accuracy'])} | {pc(v['refusal_rate'])} | {pc(v.get('f1_locomo'))} |"
+                for c, v in s["by_category_all"].items()
+            ],
+        ]
     ab = s.get("abstention")
     if ab:
-        L += ["\n## Abstention (refused = positive; cat 5 should refuse, cats 1-4 should answer)",
-              f"- precision {pc(ab['precision'])}, recall {pc(ab['recall'])}, F1 {pc(ab['f1'])} "
-              f"(tp {ab['tp']}, fp {ab['fp']}, fn {ab['fn']})",
-              f"- answers when answerable: {pc(ab['answer_rate_when_answerable'])} "
-              f"(false refusal rate {pc(ab['false_refusal_rate'])}, n={ab['n_answerable']})"]
+        L += [
+            "\n## Abstention (refused = positive; cat 5 should refuse, cats 1-4 should answer)",
+            f"- precision {pc(ab['precision'])}, recall {pc(ab['recall'])}, F1 {pc(ab['f1'])} "
+            f"(tp {ab['tp']}, fp {ab['fp']}, fn {ab['fn']})",
+            f"- answers when answerable: {pc(ab['answer_rate_when_answerable'])} "
+            f"(false refusal rate {pc(ab['false_refusal_rate'])}, n={ab['n_answerable']})",
+        ]
     mu = s.get("memory_used")
     if mu:
-        L += [f"\n- memory used (non-empty context): {pc(mu['rate'])} of {mu['n']} queries; "
-              + ", ".join(f"{c} {pc(v)}" for c, v in mu["by_category"].items())]
+        L += [
+            f"\n- memory used (non-empty context): {pc(mu['rate'])} of {mu['n']} queries; "
+            + ", ".join(f"{c} {pc(v)}" for c, v in mu["by_category"].items())
+        ]
     tr = s.get("triggers")
     if tr:
-        L += [f"\n## Trigger fired rates (n={tr['n']} forensics rows)", "| trigger | fired | rate | acc fired | acc not fired |",
-              "|---|---|---|---|---|"]
+        L += [
+            f"\n## Trigger fired rates (n={tr['n']} forensics rows)",
+            "| trigger | fired | rate | acc fired | acc not fired |",
+            "|---|---|---|---|---|",
+        ]
         for name in ("list_mode", "bridge_hop", "rerank"):
             v = tr[name]
-            L.append(f"| {name} | {v['fired']} | {pc(v['rate'])} | {pc(v.get('accuracy_fired'))} | "
-                     f"{pc(v.get('accuracy_not_fired'))} |")
+            L.append(
+                f"| {name} | {v['fired']} | {pc(v['rate'])} | {pc(v.get('accuracy_fired'))} | "
+                f"{pc(v.get('accuracy_not_fired'))} |"
+            )
         L += [f"| leg:{k} | {v['fired']} | {pc(v['rate'])} | | |" for k, v in tr["legs"].items()]
-        L += [f"- bridge gate decisions: {tr['bridge_hop']['gate_decisions'] or 'not logged in this run'}",
-              f"- decider decisions: {tr['decider']['decisions'] or 'not logged in this run'}"]
+        L += [
+            f"- bridge gate decisions: {tr['bridge_hop']['gate_decisions'] or 'not logged in this run'}",
+            f"- decider decisions: {tr['decider']['decisions'] or 'not logged in this run'}",
+        ]
     if s.get("sufficiency_on_qa_set"):
         suff = s["sufficiency_on_qa_set"]
         L += [f"- sufficiency on the QA set: {pc(suff['value'])} (n={suff['n']})"]
     if s.get("recall_at_10_hits"):
         r10 = s["recall_at_10_hits"]
         L += [f"- recall@10 (all gold in final top-10 hits): {pc(r10['value'])} (n={r10['n']})"]
-    L += ["\n## Outcome classes", *[f"- {k}: {v}" for k, v in s["outcome_classes"].items()],
-          "\n## Primary gap (wrong questions)", *[f"- {k}: {v}" for k, v in s["primary_gaps"].items()]]
+    L += [
+        "\n## Outcome classes",
+        *[f"- {k}: {v}" for k, v in s["outcome_classes"].items()],
+        "\n## Primary gap (wrong questions)",
+        *[f"- {k}: {v}" for k, v in s["primary_gaps"].items()],
+    ]
     if s["funnel"]:
-        L += ["\n## Funnel (all gold survives)", "| Category | n | any leg | fused | pool | final | in context | correct |",
-              "|---|---|---|---|---|---|---|---|"]
-        L += [f"| {c} | {v['n']} | {pc(v['any_leg'])} | {pc(v['fused'])} | {pc(v['pool'])} | {pc(v['final'])} | "
-              f"{pc(v['in_context'])} | {pc(v['correct'])} |" for c, v in s["funnel"].items()]
-    L += ["\n## Oracle", *[f"- {c}: acc with all gold in context {pc(v['acc_all_gold_in_context'])} (n={v['n_all_gold_in_context']}), "
-                            f"without {pc(v['acc_missing_gold'])} (n={v['n_missing_gold']})" for c, v in s["oracle"].items()]]
+        L += [
+            "\n## Funnel (all gold survives)",
+            "| Category | n | any leg | fused | pool | final | in context | correct |",
+            "|---|---|---|---|---|---|---|---|",
+        ]
+        L += [
+            f"| {c} | {v['n']} | {pc(v['any_leg'])} | {pc(v['fused'])} | {pc(v['pool'])} | {pc(v['final'])} | "
+            f"{pc(v['in_context'])} | {pc(v['correct'])} |"
+            for c, v in s["funnel"].items()
+        ]
+    L += [
+        "\n## Oracle",
+        *[
+            f"- {c}: acc with all gold in context {pc(v['acc_all_gold_in_context'])} (n={v['n_all_gold_in_context']}), "
+            f"without {pc(v['acc_missing_gold'])} (n={v['n_missing_gold']})"
+            for c, v in s["oracle"].items()
+        ],
+    ]
     L += ["\n## Cascades", *[f"- {c['count']} x {' + '.join(c['flags'])}" for c in s["cascades"]]]
     L += ["\n## Reader failure types", *[f"- {k}: {v}" for k, v in s["reader_buckets"].items()]]
     if s["injection"]:
@@ -944,9 +1329,15 @@ if __name__ == "__main__":
     ap.add_argument("--data", required=True)
     ap.add_argument("--out", required=True)
     ap.add_argument("--only-wrong-md", action="store_true")
-    ap.add_argument("--errata", default=str(DEFAULT_ERRATA),
-                    help="A5: locomo_errata.json (gold_error, needs_image dropped)")
+    ap.add_argument(
+        "--errata",
+        default=str(DEFAULT_ERRATA),
+        help="A5: locomo_errata.json (gold_error, needs_image dropped)",
+    )
     ap.add_argument("--no-errata", action="store_true")
-    ap.add_argument("--errata-extended", action="store_true",
-                    help="I62: also drop premise_error and cat5_answerable questions")
+    ap.add_argument(
+        "--errata-extended",
+        action="store_true",
+        help="I62: also drop premise_error and cat5_answerable questions",
+    )
     build(ap.parse_args())

@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """W2-08 (W-17, W-08): grounding stage over a window's assertion envelopes (``write.grounding_v2``).
 
 An envelope stage at order 200 (see ``derive/envelope_stages.py``). For each compiled assertion:

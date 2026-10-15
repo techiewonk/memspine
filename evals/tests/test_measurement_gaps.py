@@ -400,11 +400,18 @@ def _qrow(item: str, qid: str, category: str, correct: bool) -> dict:
 
 def test_errata_block_reports_both_headlines(tmp_path) -> None:
     path = tmp_path / "errata.json"
-    path.write_text(json.dumps({"entries": [
-        {"item": "c", "qid": "0-1", "tag": "gold_error", "borderline": False},
-        {"item": "c", "qid": "0-2", "tag": "needs_image", "borderline": True},
-        {"item": "c", "qid": "0-3", "tag": "evidence_label_error", "borderline": False},
-    ]}), encoding="utf-8")
+    path.write_text(
+        json.dumps(
+            {
+                "entries": [
+                    {"item": "c", "qid": "0-1", "tag": "gold_error", "borderline": False},
+                    {"item": "c", "qid": "0-2", "tag": "needs_image", "borderline": True},
+                    {"item": "c", "qid": "0-3", "tag": "evidence_label_error", "borderline": False},
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
     errata = fr.load_errata(path)
     assert set(errata) == {("c", "0-1"), ("c", "0-2")}  # a right answer with a wrong label is kept
     rows = [

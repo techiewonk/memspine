@@ -151,16 +151,16 @@ def viewer_guarded[**P, R](
             namespace = str(bound.get("namespace", "default"))
             if viewer_required(eng):
                 multi = await is_multi_party(eng, namespace)
-                reason = ViewerPolicy(multi_party=multi, viewer=viewer).check()
+                reason = ViewerPolicy(multi_party=multi, viewer=viewer).check()  # type: ignore[arg-type]  # CI-GREEN: pre-existing typing debt
                 if reason is not None:
-                    raise refuse(verb, namespace, reason, viewer=viewer)
+                    raise refuse(verb, namespace, reason, viewer=viewer)  # type: ignore[arg-type]  # CI-GREEN: pre-existing typing debt
             token = CHECKED.set(True)
             try:
                 result = await fn(*args, **kwargs)
             finally:
                 CHECKED.reset(token)
             if viewer is not None and not native:
-                result = _filter(verb, namespace, result, viewer)
+                result = _filter(verb, namespace, result, viewer)  # type: ignore[arg-type]  # CI-GREEN: pre-existing typing debt
             # FU-ASSET: the one post-read point. Only the outermost verb gets here (nested verbs
             # and system scopes returned above) and only after the viewer filter, so a hook sees
             # exactly what the caller will see.

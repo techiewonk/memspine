@@ -13,8 +13,8 @@ from typing import Any
 from memspine import Engine
 from memspine.ingest.index_view import (
     build_index_prefix,
-    compose_index_text,
     carries_previous,
+    compose_index_text,
     elliptical_score,
     is_phatic,
     resolve_relative,
@@ -178,8 +178,12 @@ def test_phatic_turns_get_no_carry() -> None:
         assert is_phatic(text), text
         assert not carries_previous(text), text
         prefix = build_index_prefix(
-            speaker="Bram", stamp=None, content=text, prev_content="Ilse bakes sourdough on Sundays",
-            prev_speaker="Ilse", participants=["Ilse", "Bram"],
+            speaker="Bram",
+            stamp=None,
+            content=text,
+            prev_content="Ilse bakes sourdough on Sundays",
+            prev_speaker="Ilse",
+            participants=["Ilse", "Bram"],
         )
         assert "re:" not in prefix and "sourdough" not in prefix
 
@@ -189,8 +193,12 @@ def test_anaphoric_short_replies_still_carry() -> None:
         assert not is_phatic(text) or text == "Yes.", text
         assert carries_previous(text), text
     prefix = build_index_prefix(
-        speaker="Bram", stamp=None, content="Yes, that one!", prev_content="Did Ilse bake the sourdough?",
-        prev_speaker="Ilse", participants=[],
+        speaker="Bram",
+        stamp=None,
+        content="Yes, that one!",
+        prev_content="Did Ilse bake the sourdough?",
+        prev_speaker="Ilse",
+        participants=[],
     )
     assert "re:" in prefix and "sourdough" in prefix
 
@@ -201,15 +209,35 @@ def test_shortness_alone_or_own_content_does_not_carry() -> None:
     assert carries_previous(own, mode="elliptical")
     assert not carries_previous(own)
     assert not carries_previous("Bake the sourdough tomorrow")  # short, no anaphoric cue
-    assert not carries_previous("Yes, the cello lessons start on Thursday at nine")  # too long, content
+    assert not carries_previous(
+        "Yes, the cello lessons start on Thursday at nine"
+    )  # too long, content
 
 
 def test_inv_filler_shape_unrelated_turns_do_not_change_the_prefix_of_a_content_turn() -> None:
     kw = dict(speaker="user", stamp=datetime(2024, 8, 20, 19), participants=[])
     reply = "That sounds lovely. Do you have a teacher?"
-    plain = build_index_prefix(content=reply, prev_content="Ilse is learning the cello", prev_speaker="user", **kw)
-    with_filler = build_index_prefix(content=reply, prev_content="The weather report says drizzle", prev_speaker="user", **kw)
-    assert plain == with_filler  # no carry, so what sits before the turn cannot leak into its index text
-    old_a = build_index_prefix(content=reply, prev_content="Ilse is learning the cello", prev_speaker="user", carry="elliptical", **kw)
-    old_b = build_index_prefix(content=reply, prev_content="The weather report says drizzle", prev_speaker="user", carry="elliptical", **kw)
+    plain = build_index_prefix(
+        content=reply, prev_content="Ilse is learning the cello", prev_speaker="user", **kw
+    )
+    with_filler = build_index_prefix(
+        content=reply, prev_content="The weather report says drizzle", prev_speaker="user", **kw
+    )
+    assert (
+        plain == with_filler
+    )  # no carry, so what sits before the turn cannot leak into its index text
+    old_a = build_index_prefix(
+        content=reply,
+        prev_content="Ilse is learning the cello",
+        prev_speaker="user",
+        carry="elliptical",
+        **kw,
+    )
+    old_b = build_index_prefix(
+        content=reply,
+        prev_content="The weather report says drizzle",
+        prev_speaker="user",
+        carry="elliptical",
+        **kw,
+    )
     assert old_a != old_b  # the S69 rule: the prefix depends on the neighbour

@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """Deterministic root-cause classes for wrong LoCoMo answers (LOCOMO-ATLAS).
 
     from locomo_problem_classes import classify_row, CLASSES
@@ -29,7 +28,13 @@ import re
 # Class registry. id -> label, stage group, source in the forensic docs, deterministic rule, heuristic flag.
 # ---------------------------------------------------------------------------------------------------------------------
 CLASSES: dict[str, dict] = {
-    "ok": {"label": "correct", "group": "ok", "doc": "-", "rule": "judge_score == 1", "heuristic": False},
+    "ok": {
+        "label": "correct",
+        "group": "ok",
+        "doc": "-",
+        "rule": "judge_score == 1",
+        "heuristic": False,
+    },
     "gold_error": {
         "label": "Gold or dataset error (errata)",
         "group": "metric",
@@ -256,17 +261,129 @@ STAGE_OF_CLASS = {
     "wrong_detail": "d:det",
 }
 
-CAT_NAME = {"cat1": "multi-hop", "cat2": "temporal", "cat3": "open-domain", "cat4": "single-hop", "cat5": "adversarial"}
+CAT_NAME = {
+    "cat1": "multi-hop",
+    "cat2": "temporal",
+    "cat3": "open-domain",
+    "cat4": "single-hop",
+    "cat5": "adversarial",
+}
 
 # ---------------------------------------------------------------------------------------------------------------------
 # Text features
 # ---------------------------------------------------------------------------------------------------------------------
 _STOP = frozenset(
-    ["a", "an", "the", "of", "to", "in", "on", "at", "for", "and", "or", "but", "is", "are", "was", "were", "be", "been", "being", "do", "does", "did", "has", "have", "had", "will", "would", "can", "could", "should", "may", "might", "must", "i", "you", "he", "she", "it", "we", "they", "them", "his", "her", "its", "their", "my", "your", "our", "me", "him", "us", "this", "that", "these", "those", "what", "which", "who", "whom", "whose", "when", "where", "why", "how", "with", "from", "by", "as", "about", "into", "than", "then", "so", "not", "no", "yes", "if", "just", "also", "very", "there", "here", "up", "out", "over", "after", "before", "again", "more", "most", "some", "any", "each", "both", "other", "such", "only", "own", "same", "too", "s", "t"]
+    [
+        "a",
+        "an",
+        "the",
+        "of",
+        "to",
+        "in",
+        "on",
+        "at",
+        "for",
+        "and",
+        "or",
+        "but",
+        "is",
+        "are",
+        "was",
+        "were",
+        "be",
+        "been",
+        "being",
+        "do",
+        "does",
+        "did",
+        "has",
+        "have",
+        "had",
+        "will",
+        "would",
+        "can",
+        "could",
+        "should",
+        "may",
+        "might",
+        "must",
+        "i",
+        "you",
+        "he",
+        "she",
+        "it",
+        "we",
+        "they",
+        "them",
+        "his",
+        "her",
+        "its",
+        "their",
+        "my",
+        "your",
+        "our",
+        "me",
+        "him",
+        "us",
+        "this",
+        "that",
+        "these",
+        "those",
+        "what",
+        "which",
+        "who",
+        "whom",
+        "whose",
+        "when",
+        "where",
+        "why",
+        "how",
+        "with",
+        "from",
+        "by",
+        "as",
+        "about",
+        "into",
+        "than",
+        "then",
+        "so",
+        "not",
+        "no",
+        "yes",
+        "if",
+        "just",
+        "also",
+        "very",
+        "there",
+        "here",
+        "up",
+        "out",
+        "over",
+        "after",
+        "before",
+        "again",
+        "more",
+        "most",
+        "some",
+        "any",
+        "each",
+        "both",
+        "other",
+        "such",
+        "only",
+        "own",
+        "same",
+        "too",
+        "s",
+        "t",
+    ]
 )
 _WORD = re.compile(r"[a-z0-9]+")
 _CAPTION = re.compile(r"\[image:[^\]]*\]", re.I)
-_DUR = re.compile(r"\bhow (long|many (days?|weeks?|months?|years?|hours?|minutes?))\b|\bhow much time\b|\bhow old\b", re.I)
+_DUR = re.compile(
+    r"\bhow (long|many (days?|weeks?|months?|years?|hours?|minutes?))\b|\bhow much time\b|\bhow old\b",
+    re.I,
+)
 _HOWMANY = re.compile(r"^\s*how many\b", re.I)
 _LIST_NOUN = re.compile(
     r"\b(activities|events|hobbies|books|items|places|things|kinds|types|games|movies|films|songs|bands|artists|pets|"
@@ -276,17 +393,41 @@ _LIST_NOUN = re.compile(
 )
 _LIST_Q = re.compile(r"^\s*(what|which|who)\b", re.I)
 _KIND_OF = re.compile(r"\bwhat (kind|kinds|type|types|sort|sorts) of\b", re.I)
-_WHAT_DO = re.compile(r"^\s*what (do|does|did|has|have|is|are)\b.*\b(do|like|enjoy|attend|play|read|watch|visit|collect|own|use|make|paint|buy|eat|participate|partake|practice|study)\b", re.I)
+_WHAT_DO = re.compile(
+    r"^\s*what (do|does|did|has|have|is|are)\b.*\b(do|like|enjoy|attend|play|read|watch|visit|collect|own|use|make|paint|buy|eat|participate|partake|practice|study)\b",
+    re.I,
+)
 _REL_GOLD = re.compile(
     r"\b(week|weekend|weekday|month|year|years|months|days|day)\b.*\b(before|after|ago|earlier|later|prior|following)\b|"
     r"\b(before|after|around|since|last|next|early|late|mid)\b.*\b(\d{4}|january|february|march|april|may|june|july|august|"
     r"september|october|november|december|week|weekend|month|year)\b|\b\d+ (years?|months?|weeks?|days?) ago\b",
     re.I,
 )
-_PURE_AGO = re.compile(r"^\s*(about\s+|around\s+)?(a|an|one|two|three|four|five|six|seven|eight|nine|ten|\d+)\s+(year|month|week|day)s?\s+ago\s*\.?\s*$", re.I)
-_ABS_DATE = re.compile(r"\b(19|20)\d{2}\b|\b(january|february|march|april|may|june|july|august|september|october|november|december)\b", re.I)
-_NEG = re.compile(r"\b(not|never|no|none|cannot|can't|didn't|doesn't|wasn't|isn't|neither)\b|n't", re.I)
-_MONTHS = ("january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december")
+_PURE_AGO = re.compile(
+    r"^\s*(about\s+|around\s+)?(a|an|one|two|three|four|five|six|seven|eight|nine|ten|\d+)\s+(year|month|week|day)s?\s+ago\s*\.?\s*$",
+    re.I,
+)
+_ABS_DATE = re.compile(
+    r"\b(19|20)\d{2}\b|\b(january|february|march|april|may|june|july|august|september|october|november|december)\b",
+    re.I,
+)
+_NEG = re.compile(
+    r"\b(not|never|no|none|cannot|can't|didn't|doesn't|wasn't|isn't|neither)\b|n't", re.I
+)
+_MONTHS = (
+    "january",
+    "february",
+    "march",
+    "april",
+    "may",
+    "june",
+    "july",
+    "august",
+    "september",
+    "october",
+    "november",
+    "december",
+)
 
 
 def stem(w: str) -> str:
@@ -298,7 +439,11 @@ def stem(w: str) -> str:
 
 
 def content_words(text: str, drop: frozenset = frozenset()) -> list[str]:
-    return [w for w in _WORD.findall((text or "").lower()) if w not in _STOP and w not in drop and len(w) > 1]
+    return [
+        w
+        for w in _WORD.findall((text or "").lower())
+        if w not in _STOP and w not in drop and len(w) > 1
+    ]
 
 
 def asks_duration(q: str) -> bool:
@@ -337,9 +482,20 @@ def relative_gold(gold: str) -> bool:
     g = (gold or "").lower()
     if not g:
         return False
-    if re.search(r"\b\d{1,2}\s+(" + "|".join(_MONTHS) + r")\s+\d{4}\b|\b(" + "|".join(_MONTHS) + r")\s+\d{1,2},?\s+\d{4}\b", g) and not _REL_GOLD.search(g.split(",")[0]):
+    if re.search(
+        r"\b\d{1,2}\s+("
+        + "|".join(_MONTHS)
+        + r")\s+\d{4}\b|\b("
+        + "|".join(_MONTHS)
+        + r")\s+\d{1,2},?\s+\d{4}\b",
+        g,
+    ) and not _REL_GOLD.search(g.split(",")[0]):
         return False
-    return bool(_REL_GOLD.search(g)) or bool(re.fullmatch(r"\s*(in\s+)?(" + "|".join(_MONTHS) + r")?\s*\d{4}\s*", g)) or bool(re.search(r"\bago\b", g))
+    return (
+        bool(_REL_GOLD.search(g))
+        or bool(re.fullmatch(r"\s*(in\s+)?(" + "|".join(_MONTHS) + r")?\s*\d{4}\s*", g))
+        or bool(re.search(r"\bago\b", g))
+    )
 
 
 def named_speakers(question: str, names: tuple[str, ...]) -> list[str]:
@@ -359,7 +515,11 @@ def _parse_gap_days(detail: str | None) -> int | None:
 # Row classifier
 # ---------------------------------------------------------------------------------------------------------------------
 def _lost_turns(row: dict) -> list[dict]:
-    return [g for g in row.get("gold_turns") or [] if g.get("lost_at") in ("recall", "fusion", "rerank", "assembly", "ingest")]
+    return [
+        g
+        for g in row.get("gold_turns") or []
+        if g.get("lost_at") in ("recall", "fusion", "rerank", "assembly", "ingest")
+    ]
 
 
 def leg_set(ranks: dict) -> set[str]:
@@ -410,7 +570,11 @@ def classify_row(
     if row.get("correct"):
         return _out("ok", "ok", tags)
     cat = row.get("category") or ""
-    question, gold, answer = row.get("question") or "", row.get("gold_answer") or "", row.get("answer") or ""
+    question, gold, answer = (
+        row.get("question") or "",
+        row.get("gold_answer") or "",
+        row.get("answer") or "",
+    )
     gts = row.get("gold_turns") or []
     gap = row.get("primary_gap")
     bucket = (row.get("reader_bucket") or {}).get("bucket")
@@ -456,7 +620,10 @@ def classify_row(
         stage = {"recall": "b", "fusion": "cf", "rerank": "cr", "assembly": "ca"}[gap]
         if any(g.get("lost_at") == "fusion" for g in lost) and gap == "recall":
             tags.append("also_fusion_lost")
-        if any((best_leg_rank(g.get("ranks") or {}) or 999) <= 10 and g.get("lost_at") == "fusion" for g in lost):
+        if any(
+            (best_leg_rank(g.get("ranks") or {}) or 999) <= 10 and g.get("lost_at") == "fusion"
+            for g in lost
+        ):
             tags.append("leg_top10_cut")
         if nsess >= 3:
             tags.append("spans_3plus_sessions")
@@ -484,13 +651,21 @@ def classify_row(
                 return _out(stage, "fusion_loss_lexical_only", tags)
             if any({"vector", "lexical"} <= s for s in legsets):
                 return _out(stage, "fusion_loss_two_leg_crowded", tags)
-            return _out(stage, "fusion_loss_vector_only" if any("vector" in s for s in legsets) else "fusion_loss_lexical_only", tags)
+            return _out(
+                stage,
+                "fusion_loss_vector_only"
+                if any("vector" in s for s in legsets)
+                else "fusion_loss_lexical_only",
+                tags,
+            )
         # recall
         if len(gts) >= 3 or nsess >= 3:
             return _out(stage, "multi_evidence_recall", tags)
         qset = set(stem(w) for w in content_words(question, frozenset(n.lower() for n in speakers)))
         miss = [g for g in lost if g.get("lost_at") == "recall"] or lost
-        if miss and all(not (qset & set(stem(w) for w in content_words(g.get("text") or ""))) for g in miss):
+        if miss and all(
+            not (qset & set(stem(w) for w in content_words(g.get("text") or ""))) for g in miss
+        ):
             return _out(stage, "vocabulary_mismatch_recall", tags)
         return _out(stage, "lexical_outranked_recall", tags)
 
@@ -513,7 +688,11 @@ def classify_row(
     ans_tok = set(stem(w) for w in content_words(gold))
     caps = " ".join(" ".join(_CAPTION.findall(g.get("text") or "")) for g in gts)
     plain = " ".join(_CAPTION.sub(" ", g.get("text") or "") for g in gts)
-    if ans_tok and (ans_tok & set(stem(w) for w in content_words(caps))) and not (ans_tok & set(stem(w) for w in content_words(plain))):
+    if (
+        ans_tok
+        and (ans_tok & set(stem(w) for w in content_words(caps)))
+        and not (ans_tok & set(stem(w) for w in content_words(plain)))
+    ):
         return _out("d:det", "image_caption_misuse", tags)
     names = [n for n in speakers if n]
     if len(names) == 2:
@@ -535,4 +714,10 @@ def classify_row(
 
 def _out(stage: str, rclass: str, tags: list[str]) -> dict:
     c = CLASSES[rclass]
-    return {"stage": stage, "rclass": rclass, "tags": tags, "heuristic": c["heuristic"], "rule": c["rule"]}
+    return {
+        "stage": stage,
+        "rclass": rclass,
+        "tags": tags,
+        "heuristic": c["heuristic"],
+        "rule": c["rule"],
+    }

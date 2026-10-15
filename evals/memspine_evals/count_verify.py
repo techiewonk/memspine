@@ -57,7 +57,7 @@ _LIST_HEAD = (
     "through every line. Give one entry per distinct item or event: if the same item or event "
     "is mentioned on several lines, list it once, with the date of the earliest line. Give each "
     "item a short name that identifies it (who, what). Do not add items the memories do not "
-    "state. Use an empty date (\"\") when the line has no date. "
+    'state. Use an empty date ("") when the line has no date. '
 )
 #: Two-call mode, second call: JSON only.
 ENUMERATE_PROMPT = (
@@ -79,7 +79,34 @@ _FENCE = re.compile(r"```(?:json)?", re.I)
 _MODEL_COUNT = re.compile(r"\bcount\s*[:=]\s*(\d+)", re.I)
 _WORD = re.compile(r"[a-z0-9]+")
 _STOP = frozenset(
-    ["the", "a", "an", "his", "her", "their", "my", "our", "its", "of", "to", "in", "on", "at", "and", "or", "for", "with", "by", "from", "as", "is", "was", "were", "that", "this"]
+    [
+        "the",
+        "a",
+        "an",
+        "his",
+        "her",
+        "their",
+        "my",
+        "our",
+        "its",
+        "of",
+        "to",
+        "in",
+        "on",
+        "at",
+        "and",
+        "or",
+        "for",
+        "with",
+        "by",
+        "from",
+        "as",
+        "is",
+        "was",
+        "were",
+        "that",
+        "this",
+    ]
 )
 _EVENT_COUNT = re.compile(r"\bhow (?:many times|often)\b", re.I)
 
@@ -96,7 +123,9 @@ def _json_candidates(text: str) -> list[Any]:
     found: list[Any] = []
     pos = 0
     while pos < len(cleaned):
-        start = min((i for i in (cleaned.find("{", pos), cleaned.find("[", pos)) if i >= 0), default=-1)
+        start = min(
+            (i for i in (cleaned.find("{", pos), cleaned.find("[", pos)) if i >= 0), default=-1
+        )
         if start < 0:
             break
         try:
@@ -122,9 +151,7 @@ def parse_listing(text: str, context: str = "") -> tuple[list[ListedItem], int |
             if isinstance(entry, str):
                 name, date = entry, ""
             elif isinstance(entry, dict):
-                name = str(
-                    entry.get("item") or entry.get("name") or entry.get("event") or ""
-                )
+                name = str(entry.get("item") or entry.get("name") or entry.get("event") or "")
                 date = str(entry.get("date") or "")
             else:
                 continue
@@ -153,7 +180,9 @@ def _content(name: str) -> frozenset[str]:
     return frozenset(out)
 
 
-def _same_item(a: ListedItem, ca: frozenset[str], b: ListedItem, cb: frozenset[str], events: bool) -> bool:
+def _same_item(
+    a: ListedItem, ca: frozenset[str], b: ListedItem, cb: frozenset[str], events: bool
+) -> bool:
     if not ca or not cb:
         return a.item.strip().lower() == b.item.strip().lower()
     if ca == cb:  # identical normalised strings

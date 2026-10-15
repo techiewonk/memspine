@@ -1,4 +1,5 @@
 """Explicit metrics: local token F1, optional official evaluator, separate judge."""
+
 from __future__ import annotations
 
 import importlib.util
@@ -53,8 +54,15 @@ def score_rows(rows: list[dict], official=None) -> dict:
         if row["category"] == 5:
             row["abstention_pass"] = int(not row.get("error") and is_abstention(row["prediction"]))
     if official:
-        upstream = [dict(answer=r["reference"], prediction=r["prediction"] if not r.get("error") else "",
-                         category=r["category"], evidence=list(r.get("evidence", []))) for r in rows]
+        upstream = [
+            dict(
+                answer=r["reference"],
+                prediction=r["prediction"] if not r.get("error") else "",
+                category=r["category"],
+                evidence=list(r.get("evidence", [])),
+            )
+            for r in rows
+        ]
         scores, _, _ = official(upstream)
         if len(scores) != len(rows):
             raise ValueError("Official evaluator returned the wrong number of scores")
@@ -66,26 +74,42 @@ def score_rows(rows: list[dict], official=None) -> dict:
         answerable = [r for r in selected if r["category"] != 5]
         adversarial = [r for r in selected if r["category"] == 5]
         group = {
-            "count": len(selected), "answerable_count": len(answerable),
+            "count": len(selected),
+            "answerable_count": len(answerable),
             "error_count": sum(bool(r.get("error")) for r in selected),
             "empty_context_count": sum(not any(r.get("contexts", {}).values()) for r in selected),
-            "token_f1_categories_1_4_pct": 100 * mean(r["token_f1"] for r in answerable) if answerable else None,
-            "adversarial_abstention_pct": 100 * mean(r["abstention_pass"] for r in adversarial) if adversarial else None,
+            "token_f1_categories_1_4_pct": 100 * mean(r["token_f1"] for r in answerable)
+            if answerable
+            else None,
+            "adversarial_abstention_pct": 100 * mean(r["abstention_pass"] for r in adversarial)
+            if adversarial
+            else None,
             "mean_retrieval_ms": mean(r.get("retrieval_ms", 0) for r in selected),
             "mean_answer_ms": mean(r.get("answer_ms", 0) for r in selected),
             "by_category": {},
         }
         for category in sorted({r["category"] for r in selected}):
             category_rows = [r for r in selected if r["category"] == category]
-            stats = {"count": len(category_rows), "token_f1_pct": 100 * mean(r["token_f1"] for r in category_rows)}
+            stats = {
+                "count": len(category_rows),
+                "token_f1_pct": 100 * mean(r["token_f1"] for r in category_rows),
+            }
             if official:
-                stats["official_locomo_score_pct"] = 100 * mean(r["official_locomo_score"] for r in category_rows)
+                stats["official_locomo_score_pct"] = 100 * mean(
+                    r["official_locomo_score"] for r in category_rows
+                )
             group["by_category"][str(category)] = stats
         if official:
-            group["official_locomo_categories_1_4_pct"] = 100 * mean(r["official_locomo_score"] for r in answerable) if answerable else None
+            group["official_locomo_categories_1_4_pct"] = (
+                100 * mean(r["official_locomo_score"] for r in answerable) if answerable else None
+            )
         judged = [r for r in selected if r.get("judge_score") is not None]
         group["judge_count"] = len(judged)
         group["judge_error_count"] = sum(bool(r.get("judge_error")) for r in selected)
-        group["strict_judge_pass_pct"] = 100 * sum(r.get("judge_score", 0) or 0 for r in selected) / len(selected) if judged else None
+        group["strict_judge_pass_pct"] = (
+            100 * sum(r.get("judge_score", 0) or 0 for r in selected) / len(selected)
+            if judged
+            else None
+        )
         groups[f"{profile}/{mode}"] = group
     return groups

@@ -1,4 +1,4 @@
-# ruff: noqa: E501, SIM905
+# ruff: noqa: SIM905
 """W2-13 (P-23, ``write.prepass``): a small local pre-pass over a window's raw turns, as hints.
 
 It runs BEFORE the extraction call and produces :class:`Hints`: candidate entities with spans, dates,
@@ -481,15 +481,16 @@ def prepass_stage(prepass: Prepass) -> EnvelopeStage:
             if unseen:
                 ctx.notes["prepass_unseen_entity"] += 1
                 if tap.enabled():
-                    tap.event(
-                        "write.prepass.unseen", window=ctx.window_id, n=len(unseen)
-                    )
+                    tap.event("write.prepass.unseen", window=ctx.window_id, n=len(unseen))
                 env = env.model_copy(update={"extras": {**env.extras, "prepass_unseen": unseen}})
             out.append(env)
         if hints.nothing_extractable and envelopes:
             ctx.notes["prepass_filler_with_facts"] += len(envelopes)
         prepass.learn(
-            m.surface for e in out for m in (e.subject, e.object) if m is not None and _checkable(m.surface)
+            m.surface
+            for e in out
+            for m in (e.subject, e.object)
+            if m is not None and _checkable(m.surface)
         )
         return out
 

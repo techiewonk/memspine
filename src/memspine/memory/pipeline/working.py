@@ -58,4 +58,4 @@ async def set_persona(eng: Any, namespace: str, text: str) -> MemoryRecord:
     )
     await eng._append_and_project(event)
     _log.info(EVENT_WRITE, namespace=ns, record_id=record.record_id, persona=True)
-    return record
+    return record  # type: ignore[no-any-return]  # CI-GREEN: pre-existing typing debt

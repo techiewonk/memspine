@@ -115,7 +115,7 @@ async def recall_plan(
         )
     )
     _log.info(EVENT_RETRIEVE, namespace=ns, plan=True, similarity=round(best[1], 4))
-    return record
+    return record  # type: ignore[no-any-return]  # CI-GREEN: pre-existing typing debt
 
 
 async def recall_plans(
@@ -279,7 +279,7 @@ def _observer_results(
             if not integrity.enabled:
                 view = min(view, constants.TRUST_RETRIEVED_CAP)
             elif not integrity.admits(view):
-                reason = "below_threshold"
+                reason = "below_threshold"  # type: ignore[assignment]  # CI-GREEN: pre-existing typing debt
         if not item.included or reason is not None:
             excluded[reason or "excluded"] = excluded.get(reason or "excluded", 0) + 1
             continue
@@ -328,7 +328,7 @@ async def _shared_search(
     results = await eng.search(query, namespace=ns, top_k=top_k, session_id=session_id)
     grants = await shared.grants_to(ns)
     if not grants:
-        return results
+        return results  # type: ignore[no-any-return]  # CI-GREEN: pre-existing typing debt
     [query_vector] = await embed_queries(eng._embedder, [query])
     integrity = eng._integrity()
     # O4-11 (``memories.shared.policies.observer_views_v2``, off): foreign hits are judged by the

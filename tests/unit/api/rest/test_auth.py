@@ -11,14 +11,14 @@ import pytest
 
 fastapi = pytest.importorskip("fastapi")
 
-import httpx  # noqa: E402
+import httpx
 
-from memspine import Engine  # noqa: E402
-from memspine.api.rest import create_app  # noqa: E402
-from memspine.api.rest.auth import RateLimiter  # noqa: E402
-from memspine.config.schema import RestConfig  # noqa: E402
-from memspine.exceptions import ConfigError  # noqa: E402
-from memspine.store.events import EventKind  # noqa: E402
+from memspine import Engine
+from memspine.api.rest import create_app
+from memspine.api.rest.auth import RateLimiter
+from memspine.config.schema import RestConfig
+from memspine.exceptions import ConfigError
+from memspine.store.events import EventKind
 
 _ISS_AUD = {"issuer": "https://issuer.test", "audience": "memspine-test"}
 

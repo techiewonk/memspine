@@ -38,7 +38,10 @@ def union_hunks(path: Path) -> None:
                 seen.add(line)
         return "".join(out)
 
-    path.write_text(re.sub(r"<<<<<<< [^\n]*\n(.*?)=======\n(.*?)>>>>>>> [^\n]*\n", fix, s, flags=re.S), encoding="utf-8")
+    path.write_text(
+        re.sub(r"<<<<<<< [^\n]*\n(.*?)=======\n(.*?)>>>>>>> [^\n]*\n", fix, s, flags=re.S),
+        encoding="utf-8",
+    )
 
 
 def main() -> int:
@@ -57,9 +60,22 @@ def main() -> int:
         else:
             unresolved.append(f)
     env = dict(os.environ, PYTHONPATH=str(ROOT / "src"))
-    (ROOT / BASELINE).write_text(run(PY, "scripts/dump_config_baseline.py", env=env).stdout, encoding="utf-8")
-    run(PY, "-m", "pytest", "tests/unit/test_simple_profile_golden.py", "-q", "-p", "no:cacheprovider", "-o", "addopts=",
-        check=False, env=dict(env, MEMSPINE_UPDATE_GOLDENS="1"))
+    (ROOT / BASELINE).write_text(
+        run(PY, "scripts/dump_config_baseline.py", env=env).stdout, encoding="utf-8"
+    )
+    run(
+        PY,
+        "-m",
+        "pytest",
+        "tests/unit/test_simple_profile_golden.py",
+        "-q",
+        "-p",
+        "no:cacheprovider",
+        "-o",
+        "addopts=",
+        check=False,
+        env=dict(env, MEMSPINE_UPDATE_GOLDENS="1"),
+    )
     if unresolved:
         print("UNRESOLVED:", unresolved)
         return 2

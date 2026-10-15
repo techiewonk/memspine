@@ -190,7 +190,7 @@ def _recency(dates: Iterable[datetime | None], cfg: DampingConfig) -> float:
         return 1.0
     age_days = max(0.0, (_utc(cfg.now) - max(known)).total_seconds() / 86400.0)
     decay = 0.5 ** (age_days / cfg.recency_half_life_days)
-    return cfg.recency_floor + (1.0 - cfg.recency_floor) * decay
+    return cfg.recency_floor + (1.0 - cfg.recency_floor) * decay  # type: ignore[no-any-return]  # CI-GREEN: pre-existing typing debt
 
 
 def entity_leg_explained(

@@ -76,8 +76,8 @@ def page(summary: dict, rows: list[dict]) -> str:
     data = json.dumps({"summary": summary, "rows": rows}).replace("</", "<\\/")
     title = f"{summary['run_id']} forensics"
     return f"""<!doctype html><html lang=en><head><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1">
-<title>{html.escape(title)}</title><style>{CSS}</style></head><body><header><h1>{html.escape(summary['run_id'])}</h1>
-<div class=mut>{summary['n_questions']} questions · accuracy {100 * summary['accuracy']:.1f}% · stage log: {summary['has_stage_log']} · <a href="index.html">all runs</a></div>
+<title>{html.escape(title)}</title><style>{CSS}</style></head><body><header><h1>{html.escape(summary["run_id"])}</h1>
+<div class=mut>{summary["n_questions"]} questions · accuracy {100 * summary["accuracy"]:.1f}% · stage log: {summary["has_stage_log"]} · <a href="index.html">all runs</a></div>
 <div class=tabs style="margin-top:8px"><button data-t=o onclick="tab('o')">Overview</button><button data-t=q onclick="tab('q')">Questions (step by step)</button></div></header>
 <main id=view></main><script>const DATA={data};{PAGE_JS}</script></body></html>"""
 
@@ -90,18 +90,25 @@ def index(summaries: list[dict]) -> str:
         rows.append(
             f"<tr><td><a href='{html.escape(s['run_id'])}.html'>{html.escape(s['run_id'])}</a></td><td>{s['mode']}</td>"
             f"<td>{'yes' if s['has_stage_log'] else 'no'}</td><td>{s['n_questions']}</td><td><b>{100 * s['accuracy']:.1f}</b></td>"
-            + "".join(f"<td>{100 * cat[c]['accuracy']:.1f}</td>" if c in cat else "<td></td>" for c in
-                      ("single-hop", "multi-hop", "temporal", "open-domain"))
+            + "".join(
+                f"<td>{100 * cat[c]['accuracy']:.1f}</td>" if c in cat else "<td></td>"
+                for c in ("single-hop", "multi-hop", "temporal", "open-domain")
+            )
             + f"<td>{(s['context_tokens_mean'] or 0):.0f}</td>"
             + f"<td>{html.escape(str(s['models'].get('embedder')))}</td><td>{html.escape(str(s['models'].get('reranker')))}</td>"
-            + "".join(f"<td>{g.get(k, 0)}</td>" for k in ("recall", "fusion", "rerank", "assembly", "reader")) + "</tr>")
+            + "".join(
+                f"<td>{g.get(k, 0)}</td>"
+                for k in ("recall", "fusion", "rerank", "assembly", "reader")
+            )
+            + "</tr>"
+        )
     return f"""<!doctype html><html lang=en><head><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1">
 <title>MemSpine run index</title><style>{CSS}</style></head><body><header><h1>MemSpine evaluation runs</h1>
 <div class=mut>QA runs: accuracy = LLM-judge correct with a non-empty answer. Retrieval runs: accuracy = all gold evidence in context.
 Gap columns count wrong questions by primary gap (runs without a stage log attribute every evidence miss to recall).</div></header>
 <main><div class="card" style="overflow:auto"><table><tr><th>run</th><th>mode</th><th>stage log</th><th>n</th><th>overall</th><th>single-hop</th>
 <th>multi-hop</th><th>temporal</th><th>open-domain</th><th>ctx tok</th><th>embedder</th><th>reranker</th><th>recall</th><th>fusion</th>
-<th>rerank</th><th>assembly</th><th>reader</th></tr>{''.join(rows)}</table></div></main></body></html>"""
+<th>rerank</th><th>assembly</th><th>reader</th></tr>{"".join(rows)}</table></div></main></body></html>"""
 
 
 def rebuild(runs_dir: Path) -> None:
@@ -109,13 +116,25 @@ def rebuild(runs_dir: Path) -> None:
         if not (run / "results.jsonl").exists():
             continue
         run_id = run.name.removesuffix("--memspine")
-        cmd = [sys.executable, str(HERE / "forensics_report.py"), "--run", str(run), "--data", str(DATA),
-               "--out", str(run / "report")]
+        cmd = [
+            sys.executable,
+            str(HERE / "forensics_report.py"),
+            "--run",
+            str(run),
+            "--data",
+            str(DATA),
+            "--out",
+            str(run / "report"),
+        ]
         fx = runs_dir / f"{run_id}--forensics"
         if fx.exists():
             cmd += ["--forensics", str(fx)]
         res = subprocess.run(cmd, capture_output=True, text=True)
-        print((res.stdout or res.stderr).strip().splitlines()[-1] if (res.stdout or res.stderr) else run_id)
+        print(
+            (res.stdout or res.stderr).strip().splitlines()[-1]
+            if (res.stdout or res.stderr)
+            else run_id
+        )
 
 
 def main() -> None:
@@ -131,7 +150,11 @@ def main() -> None:
     summaries = []
     for rep in sorted(runs_dir.glob("*--memspine/report/run_summary.json")):
         s = json.loads(rep.read_text(encoding="utf-8"))
-        rows = [json.loads(line) for line in (rep.parent / "per_question.jsonl").read_text(encoding="utf-8").splitlines() if line]
+        rows = [
+            json.loads(line)
+            for line in (rep.parent / "per_question.jsonl").read_text(encoding="utf-8").splitlines()
+            if line
+        ]
         (out / f"{s['run_id']}.html").write_text(page(s, rows), encoding="utf-8")
         summaries.append(s)
     (out / "index.html").write_text(index(summaries), encoding="utf-8")

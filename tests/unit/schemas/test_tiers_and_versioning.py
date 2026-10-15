@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """Tier base classes, extra-field round trips, upcaster registry, reserved names."""
 
 from __future__ import annotations

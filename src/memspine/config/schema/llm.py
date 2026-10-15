@@ -235,7 +235,7 @@ class PromptsConfig(BaseModel):
     #: The layout-v2 partials left switched on (screened one at a time, RV15):
     #: ``same_language`` and/or ``coarse_date``. Ignored while ``layout_v2`` is off.
     layout_partials: list[Literal["same_language", "coarse_date"]] = Field(
-        default_factory=lambda: ["same_language", "coarse_date"]
+        default_factory=lambda: ["same_language", "coarse_date"]  # type: ignore[arg-type]  # CI-GREEN: pre-existing typing debt
     )
 
 

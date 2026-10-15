@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """JSON Schema export (S1-4): ``python -m memspine.schemas export <outdir>``.
 
 Layout: ``<outdir>/{durable,public,internal}/<Name>.json`` plus ``<outdir>/index.json``. Output is

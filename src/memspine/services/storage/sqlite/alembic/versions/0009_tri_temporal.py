@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """F-02b: tri-temporal times with precision on memory_records (M-10).
 
 Adds ``source_at`` (when it was said) and ``source_precision``, plus ``event_precision`` /
@@ -104,9 +103,7 @@ def upgrade() -> None:
                 event = ("instant", "explicit")
         if parents and (channel == _WINDOW_EPISODE or "window_fact" in tags):
             starts = [valid_from[p][:10] for p in parents if p in valid_from]
-            if channel == _WINDOW_EPISODE or (
-                starts and valid_from[record_id][:10] == min(starts)
-            ):
+            if channel == _WINDOW_EPISODE or (starts and valid_from[record_id][:10] == min(starts)):
                 event = ("day", "inferred")
             else:
                 event = ("day", "explicit")

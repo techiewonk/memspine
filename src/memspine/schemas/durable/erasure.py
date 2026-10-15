@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """Erasure and retention (schema session 11): manifest without content, retained-history boundary."""
 
 from __future__ import annotations

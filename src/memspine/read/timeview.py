@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """Time view and two-axis as-of reads (LIB-22; decisions R-24, M-11, S6-3).
 
 Pure and unwired (wired later by R3-14). Standard library, pydantic and ``memspine.schemas`` only (no other memspine layer; no I/O, no clock read ("now" is never needed), no model call.

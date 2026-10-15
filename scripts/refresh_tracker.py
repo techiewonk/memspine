@@ -17,7 +17,11 @@ ap = argparse.ArgumentParser()
 ap.add_argument("--shared-dir", default=None)
 args = ap.parse_args()
 
-subprocess.run([sys.executable, str(ROOT / "docs/v2/data/build_plan.py")], check=True, stdout=subprocess.DEVNULL)
+subprocess.run(
+    [sys.executable, str(ROOT / "docs/v2/data/build_plan.py")],
+    check=True,
+    stdout=subprocess.DEVNULL,
+)
 plan = (ROOT / "docs/v2/data/plan.json").read_text(encoding="utf-8")
 
 page = ROOT / "docs/v2/tracker.html"

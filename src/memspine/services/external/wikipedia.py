@@ -112,10 +112,9 @@ class WikipediaProvider:
             text = clean_snippet((page or {}).get("extract"), 500)
             if not text:
                 continue
-            url = (
-                (((page or {}).get("content_urls") or {}).get("desktop") or {}).get("page")
-                or f"https://en.wikipedia.org/wiki/{slug}"
-            )
+            url = (((page or {}).get("content_urls") or {}).get("desktop") or {}).get(
+                "page"
+            ) or f"https://en.wikipedia.org/wiki/{slug}"
             out.append(
                 ExternalSnippet(
                     title=clean_snippet((page or {}).get("title") or title, 120),

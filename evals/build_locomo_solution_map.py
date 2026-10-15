@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """Generator of ``analysis/locomo_solution_map.json``: root-cause class -> solution -> setting keys -> screens.
 
     python evals/build_locomo_solution_map.py [--out evals/analysis/locomo_solution_map.json] [--check]
@@ -35,7 +34,7 @@ REPO = HERE.parent
 sys.path[:] = [p for p in sys.path if Path(p or ".").resolve() != HERE]
 sys.path.append(str(HERE))
 
-from locomo_problem_classes import CLASSES  # noqa: E402
+from locomo_problem_classes import CLASSES
 
 STATUSES = ("in_reference", "built_off_default", "built_harness_flag", "not_built")
 RELATIONS = ("primary", "secondary")
@@ -88,11 +87,18 @@ SOLUTIONS: list[dict] = [
         "SOL-POOLPROT",
         "Reserve pool slots for the top of every leg (leg-protected pool)",
         "in_reference",
-        ["read.pool_protect_per_leg (=3 in clean-jina-full)", "read.pool_protect_mode: per_leg|source_family"],
+        [
+            "read.pool_protect_per_leg (=3 in clean-jina-full)",
+            "read.pool_protect_mode: per_leg|source_family",
+        ],
         ["P0-02", "R3-06"],
         ["S05", "S09"],
         [ref(D_FULL, "s5 lever 1; s2.3(c)"), ref(D_GAP, "I75; R02")],
-        {"fusion_loss_vector_only": P, "fusion_loss_lexical_only": P, "fusion_loss_two_leg_crowded": P},
+        {
+            "fusion_loss_vector_only": P,
+            "fusion_loss_lexical_only": P,
+            "fusion_loss_two_leg_crowded": P,
+        },
         "per_leg=3 is on in the reference; source_family mode (R02) is built, unscreened. S05 is a parity run, not a gain test.",
     ),
     sol(
@@ -103,7 +109,12 @@ SOLUTIONS: list[dict] = [
         ["R3-06"],
         ["S14", "S51", "S60", "S61"],
         [ref(D_ATLAS, "S14, S51"), ref(D_RECALL, "s3 (RRF loses items a leg ranked high)")],
-        {"fusion_loss_vector_only": P, "fusion_loss_lexical_only": P, "fusion_loss_two_leg_crowded": P, "lexical_outranked_recall": S2},
+        {
+            "fusion_loss_vector_only": P,
+            "fusion_loss_lexical_only": P,
+            "fusion_loss_two_leg_crowded": P,
+            "lexical_outranked_recall": S2,
+        },
         "S14 sample +4/-1; S51 is the 437-question focus confirmation.",
     ),
     sol(
@@ -114,7 +125,13 @@ SOLUTIONS: list[dict] = [
         ["R3-07", "FU-RRPOOL"],
         ["S16", "S67", "S60", "S61"],
         [ref(D_RECALL, "s8 H2 (rerank a pool of 30)"), ref(D_FULL, "s5 lever 4")],
-        {"rerank_keep_cut": P, "fusion_loss_vector_only": S2, "fusion_loss_two_leg_crowded": S2, "list_aggregation_generic": S2, "lexical_outranked_recall": S2},
+        {
+            "rerank_keep_cut": P,
+            "fusion_loss_vector_only": S2,
+            "fusion_loss_two_leg_crowded": S2,
+            "list_aggregation_generic": S2,
+            "lexical_outranked_recall": S2,
+        },
     ),
     sol(
         "SOL-RERANKKEEP",
@@ -135,7 +152,12 @@ SOLUTIONS: list[dict] = [
         [],
         [],
         [ref(D_RECALL, "s8 H1"), ref(D_FULL, "s5 lever 4")],
-        {"list_aggregation_generic": P, "fusion_loss_vector_only": S2, "fusion_loss_two_leg_crowded": S2, "implicit_or_paraphrased_gold": S2},
+        {
+            "list_aggregation_generic": P,
+            "fusion_loss_vector_only": S2,
+            "fusion_loss_two_leg_crowded": S2,
+            "implicit_or_paraphrased_gold": S2,
+        },
         "Window-by-rank is new code; the pool key exists. No v2 screen queued.",
     ),
     sol(
@@ -176,11 +198,22 @@ SOLUTIONS: list[dict] = [
         "SOL-GRAPH",
         "Graph extraction in sleep plus one-hop graph / entity legs",
         "built_off_default",
-        ["read.graph_leg_v2", "read.entity_leg_v2", "graph.edge_compiler_v2", "graph.key_v2", "consolidation (gc3 arm)"],
+        [
+            "read.graph_leg_v2",
+            "read.entity_leg_v2",
+            "graph.edge_compiler_v2",
+            "graph.key_v2",
+            "consolidation (gc3 arm)",
+        ],
         ["F-02c", "R3-05a", "R3-05b"],
         ["S02", "S13", "S28", "S30", "S32", "S39", "S61"],
         [ref(D_ATLAS, "S02, S30, S32"), ref(D_RECALL, "s4 (multi-hop evidence structure)")],
-        {"multi_evidence_recall": P, "implicit_or_paraphrased_gold": S2, "list_aggregation_generic": S2, "vocabulary_mismatch_recall": S2},
+        {
+            "multi_evidence_recall": P,
+            "implicit_or_paraphrased_gold": S2,
+            "list_aggregation_generic": S2,
+            "vocabulary_mismatch_recall": S2,
+        },
         "S02 sample +5/-1 (the base for every sleep screen); S30 +6/-5 within noise.",
     ),
     sol(
@@ -191,18 +224,34 @@ SOLUTIONS: list[dict] = [
         ["O4-02", "R3-05c"],
         ["S01", "S31", "S33", "S61", "S64"],
         [ref(D_ATLAS, "S01, S31, S33"), ref(D_RECALL, "s8 N (implicit answer)")],
-        {"implicit_or_paraphrased_gold": P, "multi_evidence_recall": S2, "vocabulary_mismatch_recall": S2, "temporal_evidence_missing": S2},
+        {
+            "implicit_or_paraphrased_gold": P,
+            "multi_evidence_recall": S2,
+            "vocabulary_mismatch_recall": S2,
+            "temporal_evidence_missing": S2,
+        },
         "S01 sample +3/-1.",
     ),
     sol(
         "SOL-WINDOWFACTS",
         "Write-time fact extraction (window_extract, write-v2 stack incl. temporal stage W2-14)",
         "built_off_default",
-        ["write.window_extract=facts", "write.envelope_v2", "write.temporal_v2", "write.stamping_v2", "write.segmentation_v2"],
+        [
+            "write.window_extract=facts",
+            "write.envelope_v2",
+            "write.temporal_v2",
+            "write.stamping_v2",
+            "write.segmentation_v2",
+        ],
         ["W2-06a", "W2-14", "W2-05", "W2-02"],
         ["S03", "S04", "S43", "S44", "S45", "S48", "S62"],
         [ref(D_ATLAS, "S03, S44, S48, S62"), ref(D_PLAN, "W2-14")],
-        {"implicit_or_paraphrased_gold": S2, "list_aggregation_generic": S2, "temporal_evidence_missing": S2, "date_offset_small": S2},
+        {
+            "implicit_or_paraphrased_gold": S2,
+            "list_aggregation_generic": S2,
+            "temporal_evidence_missing": S2,
+            "date_offset_small": S2,
+        },
         "S03 sample +3/-7 and S04 +1/-7: single window-facts screens lose; the W2 stack is retested as the S62 bundle.",
     ),
     sol(
@@ -213,18 +262,33 @@ SOLUTIONS: list[dict] = [
         [],
         [],
         [ref(D_RECALL, "s8 H3, N3, I2"), ref(D_B1, "s2 (H3 planner)")],
-        {"list_aggregation_generic": P, "multi_evidence_recall": P, "vocabulary_mismatch_recall": P, "implicit_or_paraphrased_gold": S2, "open_domain_inference_retrieval": S2},
+        {
+            "list_aggregation_generic": P,
+            "multi_evidence_recall": P,
+            "vocabulary_mismatch_recall": P,
+            "implicit_or_paraphrased_gold": S2,
+            "open_domain_inference_retrieval": S2,
+        },
         "Planner and rewrites exist; true HyDE (answer hypothesis as a leg) is not built. No v2 screen queued.",
     ),
     sol(
         "SOL-AGENTIC",
         "Bounded second-pass retrieval for missing evidence (agentic query/slot, second_round, fact chain)",
         "built_off_default",
-        ["read.agentic_mode=query|slot", "read.second_round", "read.fact_chain", "read.event_ledger"],
+        [
+            "read.agentic_mode=query|slot",
+            "read.second_round",
+            "read.fact_chain",
+            "read.event_ledger",
+        ],
         [],
         [],
         [ref(D_GAP, "R01; E01; E02"), ref(D_FULL, "s5 lever 3")],
-        {"multi_evidence_recall": P, "list_aggregation_generic": P, "open_domain_inference_retrieval": S2},
+        {
+            "multi_evidence_recall": P,
+            "list_aggregation_generic": P,
+            "open_domain_inference_retrieval": S2,
+        },
         "Built 2026-10-11 as opt-in, unscreened; none of its keys has a v2 screen id.",
     ),
     sol(
@@ -235,7 +299,12 @@ SOLUTIONS: list[dict] = [
         ["R3-12"],
         ["S55", "S63"],
         [ref(D_ATLAS, "S55"), ref(D_FULL, "s5 lever 3")],
-        {"multi_evidence_recall": P, "open_domain_inference_retrieval": S2, "inference_open_domain": S2, "refusal_premise_denial": S2},
+        {
+            "multi_evidence_recall": P,
+            "open_domain_inference_retrieval": S2,
+            "inference_open_domain": S2,
+            "refusal_premise_denial": S2,
+        },
         "Needs the bound sufficiency role (S55 reports extra calls per read).",
     ),
     sol(
@@ -257,18 +326,33 @@ SOLUTIONS: list[dict] = [
         ["P0-07", "R3-02"],
         ["S06", "S11", "S60"],
         [ref(D_GAP, "A03"), ref(D_ATLAS, "S06, S11")],
-        {"list_incomplete": P, "count_wrong": P, "list_aggregation_generic": S2, "date_duration_arithmetic": S2},
+        {
+            "list_incomplete": P,
+            "count_wrong": P,
+            "list_aggregation_generic": S2,
+            "date_duration_arithmetic": S2,
+        },
         "S06 sample +1/-0; P0-07 full-set run was stopped partway.",
     ),
     sol(
         "SOL-STANDING",
         "Derived list memory: standing answers, patterns, communities",
         "built_off_default",
-        ["offline.standing_v2", "offline.patterns_v2", "offline.communities_v2", "read.standing_v2"],
+        [
+            "offline.standing_v2",
+            "offline.patterns_v2",
+            "offline.communities_v2",
+            "read.standing_v2",
+        ],
         ["O4-08", "O4-05", "O4-06"],
         ["S34", "S35", "S40", "S64"],
         [ref(D_RECALL, "s8 H4 (derived list memory)"), ref(D_ATLAS, "S34, S35, S40")],
-        {"list_aggregation_generic": P, "list_incomplete": S2, "count_wrong": S2, "multi_evidence_recall": S2},
+        {
+            "list_aggregation_generic": P,
+            "list_incomplete": S2,
+            "count_wrong": S2,
+            "multi_evidence_recall": S2,
+        },
     ),
     sol(
         "SOL-OBLIG",
@@ -278,7 +362,12 @@ SOLUTIONS: list[dict] = [
         ["R3-16"],
         ["S56", "S63"],
         [ref(D_ATLAS, "S56"), ref(D_GAP, "R3-16 in docs/v2/data/packages.py")],
-        {"list_incomplete": P, "count_wrong": P, "date_duration_arithmetic": S2, "list_aggregation_generic": S2},
+        {
+            "list_incomplete": P,
+            "count_wrong": P,
+            "date_duration_arithmetic": S2,
+            "list_aggregation_generic": S2,
+        },
     ),
     sol(
         "SOL-COUNT",
@@ -296,7 +385,13 @@ SOLUTIONS: list[dict] = [
         "SOL-TEMPLEG",
         "Temporal leg on relative / partial dates and event intervals",
         "built_off_default",
-        ["read.temporal_relative", "read.temporal_infer_year", "read.temporal_leg_event_dates", "read.temporal_leg_mentions (on)", "read.timeview_v2"],
+        [
+            "read.temporal_relative",
+            "read.temporal_infer_year",
+            "read.temporal_leg_event_dates",
+            "read.temporal_leg_mentions (on)",
+            "read.timeview_v2",
+        ],
         ["R3-04", "R3-14", "W2-14"],
         ["S24", "S62", "S63"],
         [ref(D_RECALL, "s8 T1-T4"), ref(D_FULL, "s4.1")],
@@ -307,7 +402,11 @@ SOLUTIONS: list[dict] = [
         "SOL-RELANCHOR",
         "Resolve relative phrases against the session date (annotation) and repair the gaps",
         "in_reference",
-        ["read.resolve_relative_dates (on)", "read.relative_dates_anchored (on)", "I79 annotator (bare weekday, 'the weekend', 'N units now')"],
+        [
+            "read.resolve_relative_dates (on)",
+            "read.relative_dates_anchored (on)",
+            "I79 annotator (bare weekday, 'the weekend', 'N units now')",
+        ],
         ["W2-14", "LIB-01"],
         ["S62"],
         [ref(D_FULL, "s4.1 (annotation coverage 186 of 189)"), ref(D_GAP, "I79; A05")],
@@ -334,7 +433,13 @@ SOLUTIONS: list[dict] = [
         [],
         [],
         [ref(D_READER, "s7 INF, DET, IMG"), ref(D_OPEN, "s1")],
-        {"inference_open_domain": P, "wrong_detail": P, "image_caption_misuse": P, "refusal_premise_denial": P, "list_incomplete": S2},
+        {
+            "inference_open_domain": P,
+            "wrong_detail": P,
+            "image_caption_misuse": P,
+            "refusal_premise_denial": P,
+            "list_incomplete": S2,
+        },
         "Prompt-only changes have had the wrong sign before (ADR-054: grounded prompt lost 14 LIST/DET/IMG rows).",
     ),
     sol(
@@ -345,7 +450,12 @@ SOLUTIONS: list[dict] = [
         [],
         [],
         [ref(D_GAP, "G01; E06"), ref(D_READER, "s7 DIST")],
-        {"distractor_line": P, "wrong_detail": S2, "refusal_premise_denial": S2, "date_wrong_event": S2},
+        {
+            "distractor_line": P,
+            "wrong_detail": S2,
+            "refusal_premise_denial": S2,
+            "date_wrong_event": S2,
+        },
         "Costs one extra reader call on fired questions.",
     ),
     sol(
@@ -367,14 +477,24 @@ SOLUTIONS: list[dict] = [
         ["R3-10", "R3-09a", "R3-09b"],
         ["S19", "S52", "S53", "S54", "S63"],
         [ref(D_GAP, "R03"), ref(D_ATLAS, "S19, S53, S54")],
-        {"wrong_detail": S2, "distractor_line": S2, "list_incomplete": S2, "multi_evidence_recall": S2},
+        {
+            "wrong_detail": S2,
+            "distractor_line": S2,
+            "list_incomplete": S2,
+            "multi_evidence_recall": S2,
+        },
         "S19 measured inert on the 80-question sample; S53 needs a binding budget (S52 reference); S54 runs on mined facts that cite their turns.",
     ),
     sol(
         "SOL-PERSPECTIVE",
         "Perspective policy (subject-weight) and perspective-leg weight",
         "in_reference",
-        ["read.perspective_mode=subject_weight (on)", "read.perspective_leg", "read.perspective_weight", "read.leg_weights"],
+        [
+            "read.perspective_mode=subject_weight (on)",
+            "read.perspective_leg",
+            "read.perspective_weight",
+            "read.leg_weights",
+        ],
         [],
         [],
         [ref(D_FULL, "s3 (perspective trade-off), s5 lever 1 (half-weight voter)")],
@@ -397,7 +517,10 @@ SOLUTIONS: list[dict] = [
         "SOL-DATEGUARD",
         "Deterministic judge pre-checks: date guard and judge conventions (I58)",
         "in_reference",
-        ["judge date guard (date_equivalent)", "judge_conventions v1 (list_superset, typo, numeral)"],
+        [
+            "judge date guard (date_equivalent)",
+            "judge_conventions v1 (list_superset, typo, numeral)",
+        ],
         [],
         [],
         [ref(D_FULL, "s2.3(e); s1 (85 verdicts from the guard)"), ref(D_READER, "s4.5, s7 JFN A")],
@@ -446,7 +569,12 @@ SOLUTIONS: list[dict] = [
         [],
         [],
         [ref(D_FULL, "s5 lever 9 (C11 blocked by GPU memory)"), ref(D_READER, "s7 INF B")],
-        {"inference_open_domain": P, "wrong_detail": S2, "distractor_line": S2, "refusal_premise_denial": S2},
+        {
+            "inference_open_domain": P,
+            "wrong_detail": S2,
+            "distractor_line": S2,
+            "refusal_premise_denial": S2,
+        },
         "Blocked by GPU memory; no screen id.",
     ),
     sol(
@@ -473,7 +601,19 @@ NO_SOLUTION_NEEDED = {
 # ---------------------------------------------------------------------------------------------------------------------
 # Screen catalogue
 # ---------------------------------------------------------------------------------------------------------------------
-HEADERS = ["id", "layer", "title", "setting", "kind", "status", "measured", "what", "flow", "hyp", "reco"]
+HEADERS = [
+    "id",
+    "layer",
+    "title",
+    "setting",
+    "kind",
+    "status",
+    "measured",
+    "what",
+    "flow",
+    "hyp",
+    "reco",
+]
 BUNDLE_OF = {
     "S60": ["S11", "S12", "S14", "S15", "S16", "S17", "S36", "S37", "S38"],
     "S61": ["S13", "S30", "S31", "S32", "S33", "S39"],
@@ -509,7 +649,16 @@ def load_screens(atlas: Path | None = None, queue: Path | None = None) -> dict[s
                 continue
             c = line.split("\t")
             if len(c) >= 10 and c[0] in out:
-                out[c[0]].update({"batch": c[1], "package": c[2], "arm": c[3], "sets": c[6], "queue_kind": c[8], "est_min": int(c[9]) if c[9].isdigit() else None})
+                out[c[0]].update(
+                    {
+                        "batch": c[1],
+                        "package": c[2],
+                        "arm": c[3],
+                        "sets": c[6],
+                        "queue_kind": c[8],
+                        "est_min": int(c[9]) if c[9].isdigit() else None,
+                    }
+                )
     for b, comps in BUNDLE_OF.items():
         if b in out:
             out[b]["bundle_of"] = comps
@@ -522,8 +671,17 @@ def build_map(screens: dict[str, dict] | None = None) -> dict:
     class_to_sols: dict[str, list[dict]] = {c: [] for c in CLASSES}
     for s in sols:
         for c, rel in s["classes"].items():
-            class_to_sols[c].append({"solution": s["id"], "relation": rel, "status": s["status"], "screens": s["screens"]})
-    screen_targets: dict[str, dict] = {sid: {"primary": [], "secondary": [], "solutions": []} for sid in screens}
+            class_to_sols[c].append(
+                {
+                    "solution": s["id"],
+                    "relation": rel,
+                    "status": s["status"],
+                    "screens": s["screens"],
+                }
+            )
+    screen_targets: dict[str, dict] = {
+        sid: {"primary": [], "secondary": [], "solutions": []} for sid in screens
+    }
     for s in sols:
         for sid in s["screens"]:
             if sid not in screen_targets:
@@ -542,16 +700,38 @@ def build_map(screens: dict[str, dict] | None = None) -> dict:
         sl = class_to_sols[c]
         prim = [x for x in sl if x["relation"] == "primary"]
         if not sl:
-            structural_gaps.append({"class": c, "gap": "no_solution", "detail": "no solution is mapped to this class"})
+            structural_gaps.append(
+                {"class": c, "gap": "no_solution", "detail": "no solution is mapped to this class"}
+            )
             continue
         built = [x for x in prim if x["status"] != "not_built"]
         if not built:
-            structural_gaps.append({"class": c, "gap": "no_built_primary_solution", "detail": "only proposed (not built) solutions are aimed at this class"})
+            structural_gaps.append(
+                {
+                    "class": c,
+                    "gap": "no_built_primary_solution",
+                    "detail": "only proposed (not built) solutions are aimed at this class",
+                }
+            )
             continue
-        if not any(x["screens"] for x in prim if x["status"] != "not_built") and not any(x["status"] == "in_reference" for x in prim):
-            structural_gaps.append({"class": c, "gap": "no_screen_for_built_solution", "detail": "built primary solutions exist but none has a v2 screen id"})
+        if not any(x["screens"] for x in prim if x["status"] != "not_built") and not any(
+            x["status"] == "in_reference" for x in prim
+        ):
+            structural_gaps.append(
+                {
+                    "class": c,
+                    "gap": "no_screen_for_built_solution",
+                    "detail": "built primary solutions exist but none has a v2 screen id",
+                }
+            )
         elif all(x["status"] == "in_reference" for x in prim):
-            structural_gaps.append({"class": c, "gap": "reference_already_has_it", "detail": "the only primary solutions are already on in the reference; the residual needs a new idea"})
+            structural_gaps.append(
+                {
+                    "class": c,
+                    "gap": "reference_already_has_it",
+                    "detail": "the only primary solutions are already on in the reference; the residual needs a new idea",
+                }
+            )
     return {
         "schema": SCHEMA,
         "note": "Text-free: ids, setting keys, package ids, screen ids, doc sections. Generated by evals/build_locomo_solution_map.py; hypotheses, not measurements.",
@@ -559,7 +739,8 @@ def build_map(screens: dict[str, dict] | None = None) -> dict:
         "statuses": list(STATUSES),
         "relations": list(RELATIONS),
         "classes": {
-            c: {k: v for k, v in meta.items()} | {"solutions": class_to_sols[c], "no_solution_needed": NO_SOLUTION_NEEDED.get(c)}
+            c: {k: v for k, v in meta.items()}
+            | {"solutions": class_to_sols[c], "no_solution_needed": NO_SOLUTION_NEEDED.get(c)}
             for c, meta in CLASSES.items()
         },
         "solutions": sols,
@@ -615,7 +796,9 @@ def main() -> None:
     if errs:
         raise SystemExit("solution map invalid:\n  " + "\n  ".join(errs))
     if a.check:
-        print(f"ok: {len(m['solutions'])} solutions, {len(m['classes'])} classes, {len(m['screens'])} screens")
+        print(
+            f"ok: {len(m['solutions'])} solutions, {len(m['classes'])} classes, {len(m['screens'])} screens"
+        )
         return
     # R14 additions are maintained by hand (sourced from docs/v2/data/r14_master.json); keep them across rebuilds
     out = Path(a.out)
@@ -624,7 +807,9 @@ def main() -> None:
         if "r14_additions" in prev:
             m["r14_additions"] = prev["r14_additions"]
     out.write_text(json.dumps(m, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
-    print(f"wrote {a.out}: {len(m['solutions'])} solutions, {len(m['classes'])} classes, {len(m['screens'])} screens, {len(m['structural_gaps'])} structural gaps")
+    print(
+        f"wrote {a.out}: {len(m['solutions'])} solutions, {len(m['classes'])} classes, {len(m['screens'])} screens, {len(m['structural_gaps'])} structural gaps"
+    )
 
 
 if __name__ == "__main__":

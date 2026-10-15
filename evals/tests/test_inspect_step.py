@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """TI-5: the step-mode REPL on the invented demo conversation (offline: hash embedder, stub LLM)."""
 
 from __future__ import annotations
@@ -81,7 +80,9 @@ def test_saved_bundle_passes_the_checks(transcript: tuple[str, Path]) -> None:
     results = checks.run_checks(bundle)
     errors = [r for r in results if r.status == "fail" and r.level == "error"]
     assert not errors, [(r.check_id, r.id, r.detail) for r in errors[:5]]
-    qs = [json.loads(x) for x in (bundle / "questions.jsonl").read_text(encoding="utf-8").splitlines()]
+    qs = [
+        json.loads(x) for x in (bundle / "questions.jsonl").read_text(encoding="utf-8").splitlines()
+    ]
     assert {q["query_id"] for q in qs} == {"q1", "adhoc-1"} or len(qs) == 2
 
 
@@ -108,7 +109,12 @@ def test_replay_cache_serves_hits_and_lists_misses(tmp_path: Path) -> None:
     seed = CallCache(tmp_path)
     seed._db.execute(
         "INSERT INTO embed VALUES (?, ?, ?, ?)",
-        (embed_key("m", "known", None, None), "m", __import__("array").array("d", [1.0, 0.0]).tobytes(), 0.0),
+        (
+            embed_key("m", "known", None, None),
+            "m",
+            __import__("array").array("d", [1.0, 0.0]).tobytes(),
+            0.0,
+        ),
     )
     seed.close()
     cache = step._make_replay(tmp_path, live=False)
@@ -121,7 +127,9 @@ def test_replay_cache_serves_hits_and_lists_misses(tmp_path: Path) -> None:
     hit, miss = asyncio.run(go())
     cache.close()
     assert hit[0]["embedding"] == [1.0, 0.0]
-    assert miss[1]["embedding"] == [1.0, 0.0] and len(miss[0]["embedding"]) == 2  # missed text: hashed, same dim
+    assert (
+        miss[1]["embedding"] == [1.0, 0.0] and len(miss[0]["embedding"]) == 2
+    )  # missed text: hashed, same dim
     assert cache.misses == [{"kind": "embed", "why": "miss (hashed)", "model": "m", "n": 1}]
     # nothing was stored for the miss
     again = CallCache(tmp_path)
@@ -134,7 +142,9 @@ def test_replay_cache_serves_hits_and_lists_misses(tmp_path: Path) -> None:
 def _drive(tmp_path: Path, fn, **kw) -> tuple[str, step.StepSession]:
     """Run ``fn(session)`` (a coroutine) against a started session; returns the transcript."""
     buf = io.StringIO()
-    session = step.StepSession(load_dataset("demo"), "demo-1", "demo", out=tmp_path, offline=True, stream=buf, **kw)
+    session = step.StepSession(
+        load_dataset("demo"), "demo-1", "demo", out=tmp_path, offline=True, stream=buf, **kw
+    )
 
     async def go() -> None:
         await session.start()
@@ -160,7 +170,10 @@ def manual(tmp_path_factory: pytest.TempPathFactory) -> tuple[str, step.StepSess
     """Messages, selections, interactions, sessions, asks: one engine run."""
     out = tmp_path_factory.mktemp("manual")
     asks = out / "asks.txt"
-    asks.write_text("# one per line\nq3\nWhere did Bram adopt Spike? | gold: the shelter | turns: U2\n", encoding="utf-8")
+    asks.write_text(
+        "# one per line\nq3\nWhere did Bram adopt Spike? | gold: the shelter | turns: U2\n",
+        encoding="utf-8",
+    )
     script = [
         # requirement 1: one and many messages
         "say Bram: I adopted a hedgehog called Spike. @2024-03-02 10:30",
@@ -216,7 +229,9 @@ def test_turn_selection_order_skip_goto_status(manual: tuple[str, step.StepSessi
     assert "--- status" in text and "custom) of 30 in the dataset" in text
 
 
-def test_interaction_writes_turn_and_reply_with_summary(manual: tuple[str, step.StepSession]) -> None:
+def test_interaction_writes_turn_and_reply_with_summary(
+    manual: tuple[str, step.StepSession],
+) -> None:
     text, _ = manual
     assert text.count("--- summary: interaction ") == 2
     assert "--- summary: interaction D2:1 (Noor)" in text
@@ -232,8 +247,15 @@ def test_sessions_range_and_rest_of_session(manual: tuple[str, step.StepSession]
 def test_ask_summary_table_and_brief(manual: tuple[str, step.StepSession]) -> None:
     text, _ = manual
     assert text.count("--- SUMMARY TABLE") >= 3
-    assert "qid  category" in text and "gold found" in text and "first losing stage" in text and "answer correct" in text
-    assert "--- SUMMARY TABLE (9 question(s))" in text or "--- SUMMARY TABLE (8 question(s))" in text  # ask all
+    assert (
+        "qid  category" in text
+        and "gold found" in text
+        and "first losing stage" in text
+        and "answer correct" in text
+    )
+    assert (
+        "--- SUMMARY TABLE (9 question(s))" in text or "--- SUMMARY TABLE (8 question(s))" in text
+    )  # ask all
     assert "] gold " in text and "lost_at=" in text  # brief lines
     assert "gold turns in context: ['U1'] of ['U1']" in text  # a custom turn as gold
 
@@ -254,13 +276,41 @@ def test_saved_bundle_flags_custom_and_passes_checks(manual: tuple[str, step.Ste
 
 def test_reset_clears_the_store_and_load_replaces_the_conversation(tmp_path: Path) -> None:
     other = tmp_path / "other.json"
-    other.write_text(json.dumps({
-        "conversation_id": "mini",
-        "sessions": [{"session_id": "S1", "date": "2024-05-01", "turns": [
-            {"turn_id": "S1:1", "speaker": "Noor", "text": "I bought a violin from Tomasz yesterday."},
-            {"turn_id": "S1:2", "speaker": "Ilse", "text": "Which one did you pick, Noor?"}]}],
-        "questions": [{"query_id": "m1", "category": "single_hop", "question": "What did Noor buy?", "gold": "a violin",
-                       "gold_turns": ["S1:1"]}]}), encoding="utf-8")
+    other.write_text(
+        json.dumps(
+            {
+                "conversation_id": "mini",
+                "sessions": [
+                    {
+                        "session_id": "S1",
+                        "date": "2024-05-01",
+                        "turns": [
+                            {
+                                "turn_id": "S1:1",
+                                "speaker": "Noor",
+                                "text": "I bought a violin from Tomasz yesterday.",
+                            },
+                            {
+                                "turn_id": "S1:2",
+                                "speaker": "Ilse",
+                                "text": "Which one did you pick, Noor?",
+                            },
+                        ],
+                    }
+                ],
+                "questions": [
+                    {
+                        "query_id": "m1",
+                        "category": "single_hop",
+                        "question": "What did Noor buy?",
+                        "gold": "a violin",
+                        "gold_turns": ["S1:1"],
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
 
     async def go(s: step.StepSession) -> None:
         await s.execute("say Bram: I keep a hedgehog named Spike in the garden.")
@@ -281,10 +331,29 @@ def test_reset_clears_the_store_and_load_replaces_the_conversation(tmp_path: Pat
 
 
 # ---- tuning
-STAGE_PARAMS = {"stages": {"B7": {"name": "Fusion", "keys": [
-    {"key": "read.fusion", "default": "rrf", "type": "str", "choices": ["rrf", "minmax"], "description": "how the legs merge"},
-    {"key": "read.assembly.relative_floor", "default": None, "type": "float", "range": [0, 1], "description": "drop weak hits"},
-]}}}
+STAGE_PARAMS = {
+    "stages": {
+        "B7": {
+            "name": "Fusion",
+            "keys": [
+                {
+                    "key": "read.fusion",
+                    "default": "rrf",
+                    "type": "str",
+                    "choices": ["rrf", "minmax"],
+                    "description": "how the legs merge",
+                },
+                {
+                    "key": "read.assembly.relative_floor",
+                    "default": None,
+                    "type": "float",
+                    "range": [0, 1],
+                    "description": "drop weak hits",
+                },
+            ],
+        }
+    }
+}
 
 
 def test_tuning_set_unset_params_config_sweep_export(tmp_path: Path) -> None:
@@ -319,16 +388,27 @@ def test_tuning_set_unset_params_config_sweep_export(tmp_path: Path) -> None:
     text, session = _drive(tmp_path / "run", go)
     assert "read.assembly.relative_floor = 0.3" in text
     assert "--- config diff:" in text and "(default" in text
-    assert "--- params B7: Fusion" in text and 'choices ["rrf", "minmax"]' in text and "range [0, 1]" in text
+    assert (
+        "--- params B7: Fusion" in text
+        and 'choices ["rrf", "minmax"]' in text
+        and "range [0, 1]" in text
+    )
     assert "read.assembly.relative_floor: 0.3 -> 0.9   applied to the running engine" in text
     assert "set refused: " in text and "unknown key 'read.nonsense'" in text
     assert "needs a rebuild: run `reset`" in text
     assert "packed context: -" in text and "<== changed" in text
     assert "--- sweep read.assembly.relative_floor over 2 question(s)" in text
-    assert "sweep refused: 'write.window_extract' is not a read-side key" in text and "rerun window" in text
+    assert (
+        "sweep refused: 'write.window_extract' is not a read-side key" in text
+        and "rerun window" in text
+    )
     arm = json.loads((arms / "tuned.json").read_text(encoding="utf-8"))
-    assert arm["read"]["assembly"]["relative_floor"] == 0.5 and arm["embedding"] == {"provider": "hash"}
-    assert "--- export arm tuned" in text and "read.assembly.relative_floor: (absent) -> 0.5" in text
+    assert arm["read"]["assembly"]["relative_floor"] == 0.5 and arm["embedding"] == {
+        "provider": "hash"
+    }
+    assert (
+        "--- export arm tuned" in text and "read.assembly.relative_floor: (absent) -> 0.5" in text
+    )
     from memspine_evals.rehearsal import validate_engine_config
 
     validate_engine_config(arm)
@@ -354,14 +434,21 @@ def test_prompt_edit_rerun_window_diff_and_reset(tmp_path: Path) -> None:
 
     edit = tmp_path / "window_prompt.txt"
     # the shipped text plus the offline stub's threshold directive: shorter lines are no longer extracted
-    edit.write_text(structured.window_messages(["facts", "edges", "episode"], "[1] X: y")[0]["content"]
-                    + "\n[stub: min_len=60]", encoding="utf-8")
+    edit.write_text(
+        structured.window_messages(["facts", "edges", "episode"], "[1] X: y")[0]["content"]
+        + "\n[stub: min_len=60]",
+        encoding="utf-8",
+    )
     body = tmp_path / "extract_body.txt"
     body.write_text("Extract facts from: {{ content }}", encoding="utf-8")
 
     async def go(s: step.StepSession) -> None:
         await s.execute("session D1")
-        wid = next(r["window_id"] for r in s.sink.rows if r["event"] == "write.window.members" and r.get("member_record_ids"))
+        wid = next(
+            r["window_id"]
+            for r in s.sink.rows
+            if r["event"] == "write.window.members" and r.get("member_record_ids")
+        )
         n_records = len(await s._records())
         await s.execute("prompt list")
         await s.execute("prompt show structured.window")

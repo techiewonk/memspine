@@ -51,14 +51,99 @@ _WORD = re.compile(r"[A-Za-z0-9À-ɏ]+")
 _CAP_RUN = re.compile(r"[A-Z][\w'’-]*(?:\s+[A-Z][\w'’-]*)*")
 _QUOTED = re.compile(r"[\"“]([^\"”]{2,60})[\"”]")
 _MONTHS = frozenset(
-    "january february march april may june july august september october november december "
-    "jan feb mar apr jun jul aug sep sept oct nov dec monday tuesday wednesday thursday friday "
-    "saturday sunday mon tue tues wed thu thur thurs fri sat sun".split()
+    [
+        "january",
+        "february",
+        "march",
+        "april",
+        "may",
+        "june",
+        "july",
+        "august",
+        "september",
+        "october",
+        "november",
+        "december",
+        "jan",
+        "feb",
+        "mar",
+        "apr",
+        "jun",
+        "jul",
+        "aug",
+        "sep",
+        "sept",
+        "oct",
+        "nov",
+        "dec",
+        "monday",
+        "tuesday",
+        "wednesday",
+        "thursday",
+        "friday",
+        "saturday",
+        "sunday",
+        "mon",
+        "tue",
+        "tues",
+        "wed",
+        "thu",
+        "thur",
+        "thurs",
+        "fri",
+        "sat",
+        "sun",
+    ]
 )
 _STOP = frozenset(
-    "the a an of to in on at and or for with by from as is was were that this it its his her "
-    "their my our be been being has have had not no yes did does do who what when where which "
-    "how why".split()
+    [
+        "the",
+        "a",
+        "an",
+        "of",
+        "to",
+        "in",
+        "on",
+        "at",
+        "and",
+        "or",
+        "for",
+        "with",
+        "by",
+        "from",
+        "as",
+        "is",
+        "was",
+        "were",
+        "that",
+        "this",
+        "it",
+        "its",
+        "his",
+        "her",
+        "their",
+        "my",
+        "our",
+        "be",
+        "been",
+        "being",
+        "has",
+        "have",
+        "had",
+        "not",
+        "no",
+        "yes",
+        "did",
+        "does",
+        "do",
+        "who",
+        "what",
+        "when",
+        "where",
+        "which",
+        "how",
+        "why",
+    ]
 )
 _SENTENCE_END = ".?!:\n*#"
 
@@ -109,7 +194,21 @@ _STATED_DURATION = re.compile(
 _NUM_WORDS = {
     w: i
     for i, w in enumerate(
-        "zero one two three four five six seven eight nine ten eleven twelve".split()
+        [
+            "zero",
+            "one",
+            "two",
+            "three",
+            "four",
+            "five",
+            "six",
+            "seven",
+            "eight",
+            "nine",
+            "ten",
+            "eleven",
+            "twelve",
+        ]
     )
 }
 _NUM_WORDS.update({"a": 1, "an": 1})
@@ -238,7 +337,9 @@ def diagnose(
         out.defects.append(
             Defect(
                 "unsupported_claim",
-                "the answer names " + ", ".join(repr(b) for b in bad[:4]) + " which no memory line contains",
+                "the answer names "
+                + ", ".join(repr(b) for b in bad[:4])
+                + " which no memory line contains",
             )
         )
     sentence = arithmetic_mismatch(answer) or arithmetic_mismatch(explanation)

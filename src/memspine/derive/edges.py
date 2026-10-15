@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """Edge compiler: assertion envelopes -> graph delta (LIB-35; M-16, M-17, ER-20, S5-3).
 
 The envelope is truth; the graph is a projection compiled from it by code, never by the model. For every

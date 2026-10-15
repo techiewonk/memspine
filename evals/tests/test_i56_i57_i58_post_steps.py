@@ -47,7 +47,9 @@ class FakeReader:
     def describe(self) -> dict[str, Any]:
         return {"reader_id": self.reader_id}
 
-    async def answer(self, question: str, context: str, question_date: str | None = None) -> ReaderAnswer:
+    async def answer(
+        self, question: str, context: str, question_date: str | None = None
+    ) -> ReaderAnswer:
         self.n += 1
         return ReaderAnswer(
             text=self.text,
@@ -104,7 +106,10 @@ def test_dedupe_events_vs_things() -> None:
 
 
 def test_render() -> None:
-    assert render_count_answer([ListedItem("a", "2023-05-01"), ListedItem("b")]) == "2: a (2023-05-01); b"
+    assert (
+        render_count_answer([ListedItem("a", "2023-05-01"), ListedItem("b")])
+        == "2: a (2023-05-01); b"
+    )
 
 
 async def test_two_call_counts_in_code_and_costs_one_extra_call() -> None:
@@ -198,10 +203,14 @@ def test_repair_yesterday_and_bare_weekday() -> None:
 def test_repair_weekday_that_disagrees_with_its_date() -> None:
     # 10 July 2022 is a Sunday; the line is dated 2022-07-10, so the weekday names the event
     ctx = "[2022-07-10] Nate: I won my fourth tournament last Friday"
-    text, meta = repair_date_answer("When did Nate win his fourth tournament?", "Friday, 2022-07-10", ctx)  # type: ignore[misc]
+    text, meta = repair_date_answer(
+        "When did Nate win his fourth tournament?", "Friday, 2022-07-10", ctx
+    )  # type: ignore[misc]
     assert "2022-07-08" in text and meta["rule"] == "weekday_vs_line_date"
     # a date that is no line's date wins; the weekday name is fixed
-    text, meta = repair_date_answer("When was the party?", "Friday, 2022-07-10", "[2022-07-12] x: party")  # type: ignore[misc]
+    text, meta = repair_date_answer(
+        "When was the party?", "Friday, 2022-07-10", "[2022-07-12] x: party"
+    )  # type: ignore[misc]
     assert text == "Sunday, 2022-07-10" and meta["rule"] == "weekday_fixed"
 
 
@@ -216,7 +225,11 @@ def test_repair_weekday_that_disagrees_with_its_date() -> None:
         ("When did she hike?", "The week before 9 June 2023", CTX),  # absolute date present
         ("When did she hike?", "last Friday or yesterday", CTX),  # two phrases: ambiguous
         # tie between two lines of different dates that both hold the phrase
-        ("When did Bob hike?", "last Friday", "[2023-07-15] Bob: hiked last Friday\n[2023-07-22] Bob: hiked last Friday"),
+        (
+            "When did Bob hike?",
+            "last Friday",
+            "[2023-07-15] Bob: hiked last Friday\n[2023-07-22] Bob: hiked last Friday",
+        ),
     ],
 )
 def test_repair_fails_closed(question: str, answer: str, context: str) -> None:
@@ -254,7 +267,12 @@ def test_edit_close() -> None:
         ("How many times?", "twice", "2: a (2023-05-01); b (2023-06-02)", "numeral"),
         ("How long?", "four months", "It took her 4 months.", "numeral"),
         ("What game?", "Xenoblade Chronicles", "Xeonoblade Chronicles", "typo"),
-        ("What does she do?", "Running, pottery", "She runs... running, painting, pottery and reading.", "list_superset"),
+        (
+            "What does she do?",
+            "Running, pottery",
+            "She runs... running, painting, pottery and reading.",
+            "list_superset",
+        ),
         ("Where?", "Paris, Rome", "Jon visited Paris, Rome and Berlin.", "list_superset"),
         ("Pets?", "cats, dogs", "She has two cats, three dogs and a horse.", "list_superset"),
     ],
@@ -284,9 +302,21 @@ def test_conventions_credit(question: str, gold: str, answer: str, rule: str) ->
         ("What?", "the beach", "She went to the lake."),
         # false positives found while reading the credits over 119 runs (regression cases)
         ("Pets?", "Two cats and a dog", "Bram has a dog named Oliver and a cat named Bailey."),
-        ("Setback?", "She hurt her wrist and paused her weaving classes.", "She got hurt, so she broke."),
-        ("Which?", "blueberries and coconut milk", "The ingredients (in addition to blueberries, coconut milk) are walnuts."),
-        ("Symbols?", "Rainbow flag, transgender symbol", "Her symbols: a necklace, a bowl. She mentioned the transgender community and a flag she saw at a very long march in the city centre last year."),
+        (
+            "Setback?",
+            "She hurt her wrist and paused her weaving classes.",
+            "She got hurt, so she broke.",
+        ),
+        (
+            "Which?",
+            "blueberries and coconut milk",
+            "The ingredients (in addition to blueberries, coconut milk) are walnuts.",
+        ),
+        (
+            "Symbols?",
+            "Rainbow flag, transgender symbol",
+            "Her symbols: a necklace, a bowl. She mentioned the transgender community and a flag she saw at a very long march in the city centre last year.",
+        ),
     ],
 )
 def test_conventions_do_not_credit(question: str, gold: str, answer: str) -> None:
@@ -335,7 +365,11 @@ def test_errata_new_classes_are_in_the_file_and_not_default_excluded() -> None:
 
     path = Path(__file__).resolve().parents[1] / "analysis" / "locomo_errata.json"
     payload = json.loads(path.read_text(encoding="utf-8"))
-    new = {(e["item"], e["qid"]): e for e in payload["entries"] if e.get("source") == "I62 review 2026-10-10"}
+    new = {
+        (e["item"], e["qid"]): e
+        for e in payload["entries"]
+        if e.get("source") == "I62 review 2026-10-10"
+    }
     assert set(new) == {
         ("conv-41", "2-68"),
         ("conv-42", "3-88"),
@@ -343,10 +377,16 @@ def test_errata_new_classes_are_in_the_file_and_not_default_excluded() -> None:
         ("conv-26", "0-186"),
         ("conv-42", "3-244"),
     }
-    assert {e["tag"] for e in new.values()} == {"premise_error", "bad_evidence_id", "cat5_answerable"}
+    assert {e["tag"] for e in new.values()} == {
+        "premise_error",
+        "bad_evidence_id",
+        "cat5_answerable",
+    }
     default = load_errata(path)
     assert not set(new) & set(default)  # defaults unchanged
-    extended = load_errata(path, exclude_tags=(*DEFAULT_EXCLUDE_TAGS, "premise_error", "cat5_answerable"))
+    extended = load_errata(
+        path, exclude_tags=(*DEFAULT_EXCLUDE_TAGS, "premise_error", "cat5_answerable")
+    )
     assert ("conv-26", "0-184") in extended and ("conv-42", "3-88") not in extended
 
 
@@ -368,7 +408,9 @@ def test_with_post_steps_wiring() -> None:
     wrapped = with_post_steps(base, on, sibling)
     assert built == [SINGLE_PROMPT]
     assert wrapped.reader_id == "fake+count-single+daterepair"
-    two = with_post_steps(base, SimpleNamespace(count_verify="two_call", date_repair=False), sibling)
+    two = with_post_steps(
+        base, SimpleNamespace(count_verify="two_call", date_repair=False), sibling
+    )
     assert built[-1] == ENUMERATE_PROMPT and two.mode == "two_call"
     with pytest.raises(ValueError):
         with_post_steps(base, SimpleNamespace(count_verify="nope", date_repair=False), sibling)

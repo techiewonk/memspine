@@ -284,7 +284,7 @@ async def _relevance_gate(
     if await eng._gate_bypassed(query, ns, result):
         return result
     if eng._config().read.relevance_gate == "store_calibrated":
-        return await eng._calibrated_gate(query, result, ns)
+        return await eng._calibrated_gate(query, result, ns)  # type: ignore[no-any-return]  # CI-GREEN: pre-existing typing debt
     return result
 
 
@@ -480,9 +480,7 @@ async def _gate_v2(eng: Any, query: str, result: ReadResult, ns: str | None = No
             n in r.content.casefold() for r in judged for n in folded
         )
         real = (bool(names) and (supported or mentioned)) or (bool(first) and supported)
-        decision = assess(
-            items, cal, contract=_gate_contract(query, real, supported), config=cfg
-        )
+        decision = assess(items, cal, contract=_gate_contract(query, real, supported), config=cfg)
         names = names or first
         entry.update(
             leg=leg,

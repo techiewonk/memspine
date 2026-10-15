@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """HTML template of the LoCoMo problem atlas (LOCAL ONLY: the page carries dataset text, see build_locomo_problem_atlas.py).
 
 ``render_html(data_json)`` returns one self-contained page: no network, no external script or font. The data object is
@@ -185,5 +184,8 @@ draw();
 
 def render_html(data_json: str, conv_blobs: dict[str, str] | None = None) -> str:
     """``conv_blobs``: ``{item: json}``; one ``<script type=application/json id=cv-<item>>`` per conversation, parsed lazily."""
-    tags = "\n".join(f'<script id="cv-{k}" type="application/json">{v}</script>' for k, v in (conv_blobs or {}).items())
+    tags = "\n".join(
+        f'<script id="cv-{k}" type="application/json">{v}</script>'
+        for k, v in (conv_blobs or {}).items()
+    )
     return PAGE.replace("__CONVS__", tags).replace("__DATA__", data_json)

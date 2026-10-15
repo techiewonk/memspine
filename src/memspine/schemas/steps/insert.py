@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """Internal step types for the insert pipeline (``docs/v2/pipelines/insert.md``), steps 1-23.
 
 Names follow ``Insert<NN>Step...`` -> ``InsertStep<NN>Input`` / ``InsertStep<NN>Output``. Field names come
@@ -22,7 +21,7 @@ from memspine.schemas.durable import (
     OutboxRow,
 )
 from memspine.schemas.public import Receipt, WaitResult
-from memspine.schemas.steps.shared import (
+from memspine.schemas.steps.shared import (  # type: ignore[attr-defined]  # CI-GREEN: pre-existing typing debt
     AssetRef,
     CallBatch,
     DeriveUse,

@@ -1,4 +1,4 @@
-# ruff: noqa: E501, RUF001
+# ruff: noqa: RUF001
 """W2-02 (W-08): provenance class at write: ``SourceClassifier`` and ``AssentChecker``.
 
 Pure: no I/O, no clock, no model call. Two stages, as decided in W-08:
@@ -55,46 +55,230 @@ class _Frozen(BaseModel):
 # Phrases are matched on a normalised string (NFKC, casefold, punctuation -> space, word boundaries).
 _ASSENT = (
     # en
-    "yes", "yeah", "yep", "yup", "sure", "absolutely", "definitely", "certainly", "agreed",
-    "i agree", "correct", "exactly", "that s right", "that is right", "that s correct",
-    "go ahead", "do it", "please do", "sounds good", "sounds great", "works for me",
-    "that works", "let s do it", "let s go", "i confirm", "confirmed", "book it", "yes please",
-    "of course", "by all means", "i d like that", "i would like that", "go for it",
+    "yes",
+    "yeah",
+    "yep",
+    "yup",
+    "sure",
+    "absolutely",
+    "definitely",
+    "certainly",
+    "agreed",
+    "i agree",
+    "correct",
+    "exactly",
+    "that s right",
+    "that is right",
+    "that s correct",
+    "go ahead",
+    "do it",
+    "please do",
+    "sounds good",
+    "sounds great",
+    "works for me",
+    "that works",
+    "let s do it",
+    "let s go",
+    "i confirm",
+    "confirmed",
+    "book it",
+    "yes please",
+    "of course",
+    "by all means",
+    "i d like that",
+    "i would like that",
+    "go for it",
     # es / pt / it
-    "sí", "claro", "de acuerdo", "perfecto", "exacto", "adelante", "vale", "por supuesto",
-    "sim", "exato", "combinado", "pode ser", "com certeza", "certo", "va bene", "certo che si",
-    "esatto", "perfetto", "d accordo", "andiamo",
+    "sí",
+    "claro",
+    "de acuerdo",
+    "perfecto",
+    "exacto",
+    "adelante",
+    "vale",
+    "por supuesto",
+    "sim",
+    "exato",
+    "combinado",
+    "pode ser",
+    "com certeza",
+    "certo",
+    "va bene",
+    "certo che si",
+    "esatto",
+    "perfetto",
+    "d accordo",
+    "andiamo",
     # fr
-    "oui", "d accord", "exactement", "bien sûr", "bien sur", "parfait", "allez y", "volontiers",
-    "tout à fait", "c est ça", "c est bon",
+    "oui",
+    "d accord",
+    "exactement",
+    "bien sûr",
+    "bien sur",
+    "parfait",
+    "allez y",
+    "volontiers",
+    "tout à fait",
+    "c est ça",
+    "c est bon",
     # de
-    "ja", "genau", "richtig", "einverstanden", "klar", "in ordnung", "mach das", "gerne",
-    "stimmt", "natürlich", "sehr gern",
+    "ja",
+    "genau",
+    "richtig",
+    "einverstanden",
+    "klar",
+    "in ordnung",
+    "mach das",
+    "gerne",
+    "stimmt",
+    "natürlich",
+    "sehr gern",
     # hi (romanised)
-    "haan", "haanji", "han ji", "theek hai", "thik hai", "bilkul", "sahi hai", "zaroor",
+    "haan",
+    "haanji",
+    "han ji",
+    "theek hai",
+    "thik hai",
+    "bilkul",
+    "sahi hai",
+    "zaroor",
     # ru
-    "да", "конечно", "согласен", "согласна", "хорошо давайте", "давайте", "точно",
+    "да",
+    "конечно",
+    "согласен",
+    "согласна",
+    "хорошо давайте",
+    "давайте",
+    "точно",
     # cjk / ko / ar (substring match, no spaces in these scripts)
-    "是的", "好的", "没错", "對", "对的", "可以", "同意", "はい", "そうです", "お願いします", "ええ",
-    "네", "예", "맞아요", "좋아요", "نعم", "أجل", "بالتأكيد", "موافق",
+    "是的",
+    "好的",
+    "没错",
+    "對",
+    "对的",
+    "可以",
+    "同意",
+    "はい",
+    "そうです",
+    "お願いします",
+    "ええ",
+    "네",
+    "예",
+    "맞아요",
+    "좋아요",
+    "نعم",
+    "أجل",
+    "بالتأكيد",
+    "موافق",
 )
 _ACK = (
-    "ok", "okay", "k", "kk", "thanks", "thank you", "thx", "ty", "cheers", "got it", "i see",
-    "noted", "understood", "alright", "all right", "mm", "mmm", "hmm", "cool", "nice", "great",
-    "fine", "interesting", "right", "i understand", "no problem", "no worries",
-    "gracias", "entendido", "obrigado", "obrigada", "grazie", "merci", "compris", "danke",
-    "verstanden", "dhanyavad", "shukriya", "samajh gaya", "спасибо", "понятно",
-    "谢谢", "謝謝", "明白", "了解", "ありがとう", "わかりました", "감사합니다", "알겠습니다",
-    "شكرا", "حسنا",
+    "ok",
+    "okay",
+    "k",
+    "kk",
+    "thanks",
+    "thank you",
+    "thx",
+    "ty",
+    "cheers",
+    "got it",
+    "i see",
+    "noted",
+    "understood",
+    "alright",
+    "all right",
+    "mm",
+    "mmm",
+    "hmm",
+    "cool",
+    "nice",
+    "great",
+    "fine",
+    "interesting",
+    "right",
+    "i understand",
+    "no problem",
+    "no worries",
+    "gracias",
+    "entendido",
+    "obrigado",
+    "obrigada",
+    "grazie",
+    "merci",
+    "compris",
+    "danke",
+    "verstanden",
+    "dhanyavad",
+    "shukriya",
+    "samajh gaya",
+    "спасибо",
+    "понятно",
+    "谢谢",
+    "謝謝",
+    "明白",
+    "了解",
+    "ありがとう",
+    "わかりました",
+    "감사합니다",
+    "알겠습니다",
+    "شكرا",
+    "حسنا",
 )
 _NEGATIVE = (
-    "no", "nope", "nah", "not", "never", "don t", "do not", "dont", "never mind", "nevermind",
-    "wrong", "incorrect", "stop", "cancel", "disagree", "i disagree", "not really", "no thanks",
-    "no thank you", "non", "nein", "nao", "não", "nahi", "нет", "不要", "不", "いいえ", "아니요", "아니", "لا",
+    "no",
+    "nope",
+    "nah",
+    "not",
+    "never",
+    "don t",
+    "do not",
+    "dont",
+    "never mind",
+    "nevermind",
+    "wrong",
+    "incorrect",
+    "stop",
+    "cancel",
+    "disagree",
+    "i disagree",
+    "not really",
+    "no thanks",
+    "no thank you",
+    "non",
+    "nein",
+    "nao",
+    "não",
+    "nahi",
+    "нет",
+    "不要",
+    "不",
+    "いいえ",
+    "아니요",
+    "아니",
+    "لا",
 )
 _CONDITIONAL = (
-    "but", "however", "except", "instead", "rather", "unless", "only if", "provided", "although",
-    "pero", "sino", "mais", "aber", "porém", "mas", "però", "но", "但是", "でも", "しかし", "하지만",
+    "but",
+    "however",
+    "except",
+    "instead",
+    "rather",
+    "unless",
+    "only if",
+    "provided",
+    "although",
+    "pero",
+    "sino",
+    "mais",
+    "aber",
+    "porém",
+    "mas",
+    "però",
+    "но",
+    "但是",
+    "でも",
+    "しかし",
+    "하지만",
 )
 _NOT_REFUSAL = ("no problem", "no worries", "no doubt", "not bad", "no issue")
 _UNSPACED = re.compile(r"[぀-ヿ㐀-鿿가-힯؀-ۿ]")
@@ -159,19 +343,42 @@ class AssentChecker:
         neg = [h for h in _has(norm, raw, _NEGATIVE) if h not in {"not", "no"} or not no_refusal]
         # "not" / "no" inside an assent phrase's neighbourhood: a leading negation is a refusal
         first = tokens[0] if tokens else ""
-        leading_neg = first in {"no", "nope", "nah", "non", "nein", "nao", "não", "nahi", "нет", "never", "not", "stop", "cancel"} and not no_refusal
+        leading_neg = (
+            first
+            in {
+                "no",
+                "nope",
+                "nah",
+                "non",
+                "nein",
+                "nao",
+                "não",
+                "nahi",
+                "нет",
+                "never",
+                "not",
+                "stop",
+                "cancel",
+            }
+            and not no_refusal
+        )
         assent = _has(norm, raw, _ASSENT)
         # drop an assent hit that is merely the second half of a refusal ("not right", "don't agree")
         if assent and neg and not leading_neg:
             before_neg = any(
-                re.search(rf"(?:^| )(?:not|don t|dont|do not|never|nicht|pas) (?:\w+ ){{0,1}}{re.escape(_norm(a).strip())}(?: |$)", norm)
+                re.search(
+                    rf"(?:^| )(?:not|don t|dont|do not|never|nicht|pas) (?:\w+ ){{0,1}}{re.escape(_norm(a).strip())}(?: |$)",
+                    norm,
+                )
                 for a in assent
                 if not _UNSPACED.search(a)
             )
             if before_neg:
                 assent = []
         if leading_neg and not assent:
-            return AssentVerdict(kind="rejection", matched=tuple(neg), reasons=("leading_negation",))
+            return AssentVerdict(
+                kind="rejection", matched=tuple(neg), reasons=("leading_negation",)
+            )
         if leading_neg:
             return AssentVerdict(
                 kind="rejection", matched=tuple(neg), reasons=("leading_negation_with_assent_word",)
@@ -186,18 +393,32 @@ class AssentChecker:
                 )
             # a question that opens with an assent word ("yes?") is still a question mark on a one-word line
             if asked and len(tokens) <= 1:
-                return AssentVerdict(kind="question", matched=tuple(assent), reasons=("bare_question",))
+                return AssentVerdict(
+                    kind="question", matched=tuple(assent), reasons=("bare_question",)
+                )
             # an assent marker buried deep in a long line is not an answer to the proposal
             cjk = bool(_UNSPACED.search(raw))
-            pos = min((tokens.index(w) for w in assent[0].split() if w in tokens), default=0) if not cjk else 0
-            if not cjk and pos > self.config.lead_tokens and len(tokens) > self.config.direct_reply_tokens:
-                return AssentVerdict(kind="none", matched=tuple(assent), reasons=("assent_word_not_leading",))
+            pos = (
+                min((tokens.index(w) for w in assent[0].split() if w in tokens), default=0)
+                if not cjk
+                else 0
+            )
+            if (
+                not cjk
+                and pos > self.config.lead_tokens
+                and len(tokens) > self.config.direct_reply_tokens
+            ):
+                return AssentVerdict(
+                    kind="none", matched=tuple(assent), reasons=("assent_word_not_leading",)
+                )
             overlap = self._overlap(norm, proposal) if proposal else 0.0
             direct = len(tokens) <= self.config.direct_reply_tokens or (cjk and len(raw) <= 24)
             binds = bool(proposal and proposal.strip()) and (
                 direct or overlap >= self.config.bind_overlap
             )
-            reasons = ("assent",) + (() if binds else ("no_proposal" if not proposal else "not_bound",))
+            reasons = ("assent",) + (
+                () if binds else ("no_proposal" if not proposal else "not_bound",)
+            )
             return AssentVerdict(
                 kind="assent", binds=binds, matched=tuple(assent), overlap=overlap, reasons=reasons
             )
@@ -274,7 +495,9 @@ class SourceClassifier:
                 downgraded=True,
                 reasons=(
                     *base.reasons,
-                    "user_confirmed_without_assent" if assent is not None else "assent_check_unavailable",
+                    "user_confirmed_without_assent"
+                    if assent is not None
+                    else "assent_check_unavailable",
                 ),
             )
         return base
