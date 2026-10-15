@@ -301,7 +301,11 @@ async def test_graph_leg_stays_empty_without_edges_or_seeds() -> None:
     fact = MemoryRecord(namespace=NS, memory_type="semantic", content="Bram lives in Faro")
     base = {"query": "q", "namespace": NS, "fetch_k": 5, "records": [fact]}
     reg = LayerRegistry.of(NS, LayerTemplate(), {"L1": 1})
-    no_seeds = await OneHopConvergent().run(LegContext(**base, layer_registry=reg))
+    # readiness is checked first (MF-07: usable edges), then seeds
+    edges = [HopEdge("bram", "faro", fact.record_id)]
+    no_seeds = await OneHopConvergent().run(
+        LegContext(**base, graph_edges=edges, layer_registry=reg)
+    )
     assert no_seeds.hits == [] and no_seeds.empty_reason == "no_seeds"
     no_edges = await OneHopConvergent().run(
         LegContext(**base, graph_seeds=["bram"], layer_registry=reg)
