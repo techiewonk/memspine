@@ -20,6 +20,7 @@ from typing import Any
 from memspine.config import constants
 from memspine.core.escaping import escape_markers
 from memspine.derive import standing as lib
+from memspine.derive.fact_policy import FactPurpose
 from memspine.derive.histories import value_history
 from memspine.derive.pipeline.stages.context import (
     PipelineContext,
@@ -69,7 +70,7 @@ def _live_hash(records: list[MemoryRecord], subject: str, attribute: str) -> str
         r.record_id
         for r in records
         if r.status in (RecordStatus.ACTIVATED, RecordStatus.RESOLVING)
-        and is_input_fact(r)
+        and is_input_fact(r, FactPurpose.STANDING)
         and "kind:state" in r.tags
         and normalise_name(r.entity or "") == subject
         and normalise_name(split_statement(r)[0]) == attribute
@@ -135,7 +136,9 @@ def _state_envelopes(records: list[MemoryRecord]) -> list[Any]:
     return [
         e
         for r in records
-        if is_input_fact(r) and "kind:state" in r.tags and (e := fact_envelope(r)) is not None
+        if is_input_fact(r, FactPurpose.STANDING)
+        and "kind:state" in r.tags
+        and (e := fact_envelope(r)) is not None
     ]
 
 

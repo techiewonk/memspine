@@ -13,14 +13,14 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from memspine.config import constants
+from memspine.derive.fact_policy import FactPurpose, is_evidence_fact
 from memspine.schemas.durable.assertion import AssertionEnvelope, AssertionStatus, Mention
 from memspine.schemas.durable.assessment import Assessment
 from memspine.schemas.durable.common import OwnerScope, SrcClass
 from memspine.schemas.durable.evidence import Evidence, TurnRef
 from memspine.schemas.durable.identity import AssertionKey
 from memspine.schemas.durable.temporal import Interval, TemporalRef, TimeAxes
-from memspine.store.records import MemoryRecord, RecordStatus
+from memspine.store.records import MemoryRecord
 
 __all__ = ["FACT_KIND", "OWNER", "is_fact", "key_of", "to_envelope"]
 
@@ -29,30 +29,18 @@ FACT_KIND = "fact"
 
 #: Tags that make a perspective part of the fact key (I55): another subject or scope coexists.
 _KEY_TAG_PREFIXES = ("sub:", "scope:")
-#: Channels whose records are not facts about the world (summaries, cues, cards, profile blocks).
-_NON_FACT_CHANNELS = frozenset({"consolidation", "anticipation", "list_card", "reflection"})
-_NON_FACT_TAGS = frozenset(
-    {constants.CUE_TAG, constants.LIST_CARD_TAG, "taint_archived", "quarantine_rejected"}
-)
 
 
-def is_fact(record: MemoryRecord, *, include_history: bool = False) -> bool:
+def is_fact(
+    record: MemoryRecord,
+    *,
+    include_history: bool = False,
+    purpose: FactPurpose = FactPurpose.ANY,
+) -> bool:
     """A semantic fact the offline libraries may read: live (or, with ``include_history``, archived
-    with a successor), not held, not a derived summary/cue/card, with some content."""
-    if record.memory_type != "semantic" or not record.content.strip():
-        return False
-    if record.quarantined or record.instruction_flag:
-        return False
-    if record.source.channel in _NON_FACT_CHANNELS or _NON_FACT_TAGS & set(record.tags):
-        return False
-    if record.status is RecordStatus.ACTIVATED:
-        return True
-    return (
-        include_history
-        and record.status is RecordStatus.ARCHIVED
-        and record.evolve_to is not None
-        and "taint_archived" not in record.tags
-    )
+    with a successor), not held, not a derived view, with some content. Thin wrapper over
+    :func:`memspine.derive.fact_policy.is_evidence_fact` (the single policy, MF-10)."""
+    return is_evidence_fact(record, purpose, include_history=include_history)
 
 
 def key_of(record: MemoryRecord) -> tuple[str, str] | None:
