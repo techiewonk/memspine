@@ -599,12 +599,18 @@ class MemspineSystem:
         self, turns: list[Turn], texts: list[str], session_id: str
     ) -> list[Any]:
         if len(turns) == 1:
+            one: dict[str, Any] = self._message(turns[0], texts[0])
+            stamp = parse_turn_stamp(turns[0], self._zone)
+            if stamp is not None:
+                # the stamping stage (write.stamping_v2) reads the source time from the message, as in the
+                # batch path below; valid_from alone left single-turn writes undated (precision unknown)
+                one["timestamp"] = stamp
             records = await self._engine.write_messages(
-                [self._message(turns[0], texts[0])],
+                [one],
                 namespace=self.namespace,
                 session_id=session_id,
                 group_id=session_id,
-                valid_from=parse_turn_stamp(turns[0], self._zone),
+                valid_from=stamp,
             )
         else:
             messages: list[dict[str, Any]] = []
