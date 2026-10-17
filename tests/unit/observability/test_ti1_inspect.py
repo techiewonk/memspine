@@ -117,15 +117,20 @@ async def _engine(
     write: dict[str, Any] | None = None,
     **extra: Any,
 ) -> Engine:
-    async def router(config: MemspineConfig, hooks: object = None) -> LLMRouter:
+    async def router(
+        config: MemspineConfig, hooks: object = None, wiring: object = None
+    ) -> LLMRouter:
         return LLMRouter({"window_extract": window_llm, **(roles or {})})  # type: ignore[dict-item]
 
     monkeypatch.setattr("memspine.runtime.container.build_llm_router", router)
     kw: dict[str, Any] = {
         "template": "core",
         "dotenv_path": None,
-        "storage": {"path": str(path)},
-        "embedding": {"provider": "hash"},
+        "storage": {
+            "provider": "sqlite",
+            "settings": {"path": str(path), "busy_timeout_s": 5.0},
+        },
+        "embedding": {"provider": "hash", "settings": {}},
         "read": {"rerank": "off", "record_access": True},
         "memories": {"episodic": {"enabled": True}, "semantic": {"enabled": True}},
         "write": {
@@ -134,7 +139,14 @@ async def _engine(
             "window_idle_s": 0.0,
             **(write or {}),
         },
-        "llm": {"roles": {"window_extract": {"model": "fake/window"}}},
+        "llm": {
+            "roles": {
+                "window_extract": {
+                    "provider": "litellm",
+                    "settings": {"model": "fake/window", "timeout_seconds": 30.0}
+                }
+            }
+        },
         "observability": {
             "inspect": inspect,
             "inspect_content": content,
@@ -200,7 +212,15 @@ async def _stored(eng: Engine) -> list[tuple[str, tuple[str, ...], str]]:
 
 # --- flag off ------------------------------------------------------------------------------
 def test_config_defaults_are_off() -> None:
-    obs = MemspineConfig().observability
+    obs = MemspineConfig(
+        runtime={
+            "provider_services": {
+                "health_timeout_s": 1.0,
+                "close_timeout_s": 1.0,
+                "startup_timeout_s": None,
+            }
+        }
+    ).observability
     assert obs.inspect is False and obs.inspect_content is False
 
 
@@ -433,7 +453,18 @@ async def test_read_side_events(monkeypatch) -> None:
         content=True,
         roles={"plan": PlanLLM()},
         read={"rerank": "off", "record_access": True, "planner": "llm"},
-        llm={"roles": {"window_extract": {"model": "fake/window"}, "plan": {"model": "fake/plan"}}},
+        llm={
+            "roles": {
+                "window_extract": {
+                    "provider": "litellm",
+                    "settings": {"model": "fake/window", "timeout_seconds": 30.0}
+                },
+                "plan": {
+                    "provider": "litellm",
+                    "settings": {"model": "fake/plan", "timeout_seconds": 30.0},
+                },
+            }
+        },
     )
     try:
         for _i, msg in enumerate(_msgs(4)):

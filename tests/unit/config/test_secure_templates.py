@@ -24,6 +24,6 @@ def test_server_templates_turn_on_gate_redaction_and_wrapper(template: str) -> N
 @pytest.mark.parametrize("template", ["core", "base", "assistant", "personal", "coding", "voice"])
 def test_other_templates_keep_the_schema_defaults(template: str) -> None:
     config = _config(template)
-    defaults = MemspineConfig()
+    defaults = _config("core")
     assert config.integrity == defaults.integrity
     assert config.firewall == defaults.firewall

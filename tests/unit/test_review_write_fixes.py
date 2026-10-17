@@ -46,7 +46,7 @@ def _engine(
     kwargs: dict[str, Any] = {
         "template": "base",
         "dotenv_path": None,
-        "storage": {"path": ":memory:"},
+        "storage": {'provider': 'sqlite', 'settings': {'path': ':memory:', 'busy_timeout_s': 5.0}},
         "embedding": {"provider": "hash"},
         "memories": memories,
         **extra,

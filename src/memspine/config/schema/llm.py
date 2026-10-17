@@ -4,50 +4,23 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import ConfigDict, Field, JsonValue, model_validator
+
+from memspine.config.schema.base import ConfigModel
 
 
-class EmbeddingConfig(BaseModel):
+class EmbeddingConfig(ConfigModel):
     """Embedder defaults (D-08). ``hash`` is the deterministic zero-network
     provider for tests/CI; ``fastembed`` (ONNX, CPU) is the production default;
     ``static`` is the cheap model2vec table (``[static]``, E4/ADR-020)."""
 
     model_config = ConfigDict(extra="forbid")
 
-    provider: str = "fastembed"  # fastembed | hash | static | litellm | st
-    model: str = "BAAI/bge-small-en-v1.5"
-    #: REQUIRED when provider=litellm — a cloud embedder's output dimension is
-    #: not locally discoverable, and the vector store needs it up front.
-    dim: int | None = None
-    api_base: str | None = None
-    api_key: str | None = None
-    aws_region: str | None = None  # bedrock
-    #: st only: torch device ("cuda", "cpu"; None = library default) and weight dtype
-    #: ("bfloat16", "float16"; None = checkpoint default).
-    device: str | None = None
-    dtype: str | None = None
-    #: st only: sentence-transformers prompt names for queries / documents (Jina v5:
-    #: "query" / "document"), and whether the repo's custom code may run.
-    query_prompt_name: str | None = None
-    document_prompt_name: str | None = None
-    trust_remote_code: bool = False
-    #: litellm only: ask the model for exactly ``dim`` dimensions (Matryoshka
-    #: models: Cohere embed-v4 256/512/1024/1536, Titan v2, OpenAI v3). Off =
-    #: the model's default size, which must then equal ``dim``.
-    request_dimensions: bool = False
-    #: litellm only: asymmetric retrieval models (Cohere: ``search_query`` /
-    #: ``search_document``). None = the provider default for both.
-    query_input_type: str | None = None
-    document_input_type: str | None = None
+    provider: str = "fastembed"
+    settings: dict[str, JsonValue] = Field(default_factory=dict)
     #: G9: the most texts one embedding call carries when ``ingest_messages``
     #: embeds its turns up front (Cohere on Bedrock accepts up to 96).
     batch_size: int = Field(default=32, ge=1)
-    #: N64 (plan v3.2 gaps): fastembed only: a text prepended to every retrieval
-    #: QUERY before embedding (documents unchanged, so no re-index). The BGE v1.5
-    #: models are trained with ``BGE_QUERY_INSTRUCTION`` (``config/constants.py``);
-    #: fastembed's own ``query_embed`` does not add it. None = queries embed like
-    #: documents (unchanged).
-    query_instruction: str | None = None
     #: F-03 (P-25 C): version the vector space. Each stored vector belongs to a space (embedder
     #: model, dim, dtype, query instruction, normalisation); after an embedder change new writes go
     #: to the new space, reads query only a namespace's active space, and ``reembed`` builds the new
@@ -68,32 +41,21 @@ class EmbeddingConfig(BaseModel):
     migrate_profile: bool = False
 
 
-class LLMRoleConfig(BaseModel):
-    """One provider binding per role (D-07/D-22/D-33), routed through LiteLLM.
+class LLMRoleConfig(ConfigModel):
+    """Explicit selected-provider binding with descriptor-owned native settings.
 
-    ``model`` is a LiteLLM model id whose **prefix selects the provider**:
-    ``openai/gpt-4o``, ``ollama/llama3`` (local — set ``api_base``, e.g.
-    ``http://localhost:11434``), ``bedrock/anthropic.claude-3-5-sonnet-...``
-    (set ``aws_region`` or rely on the boto3 credential chain),
-    ``vertex_ai/gemini-...``, ``azure/...``, etc. The special prefix
-    ``llamacpp/<path-to.gguf>`` routes to the in-process
-    :class:`LlamaCppLLM` (``[llmlocal]``) instead of LiteLLM."""
+    For ``provider=litellm``, settings.model is a LiteLLM model ID (e.g.
+    ollama/llama3). Plugin descriptors may define different settings entirely.
+    The model ID never silently selects another role provider.
+    """
 
     model_config = ConfigDict(extra="forbid")
 
-    model: str = ""
-    api_base: str | None = None  # local endpoint override (e.g. Ollama, vLLM)
-    api_key: str | None = None
-    aws_region: str | None = None  # bedrock
-    timeout_seconds: float = 60.0
-    #: Qwen3 thinking control: ``true`` appends the ``/no_think`` soft switch to the
-    #: last user message; ``None`` turns it on for model ids containing ``qwen3``
-    #: (Qwen3 thinks by default, which costs tokens and breaks structured parsing).
-    #: ``<think>...</think>`` blocks are stripped from every reply regardless.
-    no_think: bool | None = None
+    provider: str = Field(min_length=1)
+    settings: dict[str, JsonValue] = Field(default_factory=dict)
 
 
-class StructuredConfig(BaseModel):
+class StructuredConfig(ConfigModel):
     """I69: recovery for a structured-output reply that fails validation. Both default
     off (measure first: ``Engine.structured_stats()``)."""
 
@@ -107,7 +69,7 @@ class StructuredConfig(BaseModel):
     constrained_retry: bool = False
 
 
-class LLMConfig(BaseModel):
+class LLMConfig(ConfigModel):
     """Per-role providers: extract / judge / chat (M14). Roles absent here are
     disabled; the engine only requires them when a feature needs the role."""
 
@@ -120,11 +82,11 @@ class LLMConfig(BaseModel):
 TierName = Literal["none", "small-local", "worker", "frontier"]
 
 
-class ModelDecl(BaseModel):
+class ModelDecl(ConfigModel):
     """MD-01: one model the deployment declares, with the memory it needs. The device plan is
     computed from these declared sizes alone (no GPU, no download). ``id`` is the LiteLLM model id
-    for an ``llm`` (``ollama/qwen3.5:9b``, ``llamacpp/<path>``), else a free name; ``family`` names
-    a reranker (``jina-v3.5`` | ``qwen3-reranker-0.6b`` | ``minilm``)."""
+    for an ``llm`` (for example ``ollama/qwen3.5:9b`` or ``llamacpp/<path>``); ``provider`` selects
+    the adapter independently of that id. ``family`` names a reranker."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -133,7 +95,7 @@ class ModelDecl(BaseModel):
     #: llm only. none = serves no role; small-local = 1-4B worker class; worker = today's 9B class;
     #: frontier = large local or hosted.
     tier: TierName = "worker"
-    #: Empty = the prefix of ``id`` (``ollama``, ``openai``), else ``local``.
+    #: Explicit adapter selection for llm declarations (for example ``litellm`` or ``llamacpp``).
     provider: str = ""
     family: str = ""
     hosted: bool = False
@@ -149,10 +111,24 @@ class ModelDecl(BaseModel):
     api_base: str | None = None
     api_key: str | None = None
     aws_region: str | None = None
-    timeout_seconds: float = 60.0
+    timeout_seconds: float | None = Field(default=None, gt=0, strict=True, allow_inf_nan=False)
+    #: Optional per-model generation defaults. Omitted values leave the selected adapter's own
+    #: defaults in force; explicit zero temperature is meaningful and is preserved.
+    temperature: float | None = Field(default=None, ge=0, strict=True, allow_inf_nan=False)
+    top_p: float | None = Field(default=None, gt=0, le=1, strict=True, allow_inf_nan=False)
+    max_tokens: int | None = Field(default=None, gt=0, strict=True)
+
+    @model_validator(mode="after")
+    def _explicit_llm_timeout(self) -> ModelDecl:
+        if self.kind == "llm":
+            if not self.provider.strip():
+                raise ValueError("LLM catalogue declarations require an explicit provider")
+            if self.timeout_seconds is None:
+                raise ValueError("LLM catalogue declarations require explicit timeout_seconds")
+        return self
 
 
-class GpuDecl(BaseModel):
+class GpuDecl(ConfigModel):
     """MD-01: one declared CUDA device. Only CUDA is planned (MD-03: the AMD iGPU through DirectML
     is 5-8x slower than the CPU and resets the driver), so a non-NVIDIA name is ignored."""
 
@@ -162,7 +138,7 @@ class GpuDecl(BaseModel):
     vram_mb: int = Field(ge=0)
 
 
-class ModelsConfig(BaseModel):
+class ModelsConfig(ConfigModel):
     """MD-01 (P-01, P-02, P-03, P-15, P-19): model tiers, placement, no-model fallbacks and thinking
     per role. ``tiers_v2`` off (default) = roles resolve exactly as before, from ``llm.roles``."""
 
@@ -203,7 +179,7 @@ class ModelsConfig(BaseModel):
     thinking: dict[str, int] = Field(default_factory=dict)
 
 
-class PromptsConfig(BaseModel):
+class PromptsConfig(ConfigModel):
     """User prompt customization (D-43): per-prompt overrides that ride the
     ordinary config layering. Keys under an override: body / system / format /
     version / output_model / token_budget (validated by the registry).
@@ -239,7 +215,7 @@ class PromptsConfig(BaseModel):
     )
 
 
-class WorkersConfig(BaseModel):
+class WorkersConfig(ConfigModel):
     """Background runner selection (D-16): inline (default) / dbos [dbos] /
     taskiq [taskiq] (P7, D-42 §3). Validated against the known set at engine
     start. ``broker_url`` is the Redis/Valkey endpoint the taskiq runner's
@@ -276,7 +252,7 @@ class WorkersConfig(BaseModel):
     transport_broker: Literal["memory", "redis"] = "memory"
 
 
-class DecisionConfig(BaseModel):
+class DecisionConfig(ConfigModel):
     """H24: the optional decision provider (calibrated choice among described options,
     no generation). ``off`` = none; ``gliner2`` uses the ``[ner]`` extra."""
 

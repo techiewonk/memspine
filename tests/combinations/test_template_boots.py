@@ -114,7 +114,7 @@ async def test_template_boots_clean(template: str, make_engine) -> None:
         assert world["profile"] == expected_profile
         assert set(world["memories"]["enabled"]) == set(expected_enabled)
         # A zero-extra boot always lands on the pure-Python defaults.
-        assert world["storage"]["backend"] == "sqlite"
+        assert world["storage"]["provider"] == "sqlite"
         assert world["embedding"] == engine._embedder.embedder_id  # hash embedder
         assert world["runner"] == expected_runner
         assert world["event_log"]["mode"] in {"full", "rolling", "ephemeral"}

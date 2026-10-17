@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing import Any
 
-from memspine.models.providers.llm.tier_gate import WITHHELD_MARKER, is_local_provider
+from memspine.models.providers.llm.tier_gate import WITHHELD_MARKER, is_local_binding
 from memspine.store.records import MemoryRecord
 from memspine.trust.privacy import pii_rank
 
@@ -21,7 +21,7 @@ def _remote_view(eng: Any, role: str, records: Sequence[MemoryRecord]) -> list[M
     role_config = config.llm.roles.get(role)
     if limit is None or role_config is None:
         return list(records)
-    if is_local_provider(role_config.model, role_config.api_base, config.consent.local_hosts):
+    if is_local_binding(role_config.provider, role_config.settings, config.consent.local_hosts):
         return list(records)
     cap = pii_rank(limit)
     return [

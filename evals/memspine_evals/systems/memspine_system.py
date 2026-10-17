@@ -156,7 +156,7 @@ def prepare_forensics_dir(directory: str, environ: Mapping[str, str] | None = No
     )
 
 
-#: ``storage.path`` sentinel: one fresh file-backed store per item (see ``_build_engine``).
+#: ``storage.settings.path`` sentinel: one fresh file-backed store per item (see ``_build_engine``).
 TEMPDIR_STORAGE = "tempdir"
 
 
@@ -372,17 +372,25 @@ class MemspineSystem:
                 "in the repo root, or evaluate the baselines only"
             ) from exc
         self._version = getattr(memspine, "__version__", "unknown")
-        overrides: dict[str, Any] = {"storage": {"path": ":memory:"}, **self.config}
-        # ``storage.path: "tempdir"``: a fresh file-backed store per item, removed on
+        overrides: dict[str, Any] = {
+            "storage": {
+                "provider": "sqlite",
+                "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
+            },
+            **self.config,
+        }
+        # ``storage.settings.path: "tempdir"``: a fresh file-backed store per item, removed on
         # close. LanceDB's in-memory tables commit ~18 MB of memory per write that is
         # never released (7.5 GB for one LoCoMo conversation), so parallel paid runs
         # exhaust the machine's commit limit; a file-backed store peaks at ~0.8 GB.
         storage = dict(overrides.get("storage") or {})
-        if storage.get("path") == TEMPDIR_STORAGE:
+        storage_settings = dict(storage.get("settings") or {})
+        if storage_settings.get("path") == TEMPDIR_STORAGE:
             import tempfile
 
             self._tempdir = tempfile.mkdtemp(prefix="memspine-eval-")
-            storage["path"] = str(Path(self._tempdir) / "memspine.db")
+            storage_settings["path"] = str(Path(self._tempdir) / "memspine.db")
+            storage["settings"] = storage_settings
             overrides["storage"] = storage
         # Never load a .env: the harness passes only what a run needs (a repo .env
         # can hold unrelated secrets, and a benchmark must not depend on it).
@@ -452,12 +460,14 @@ class MemspineSystem:
     def _embed_model(self) -> str | None:
         """C-6: the paid (LiteLLM) embedder's model id, None for a local one."""
         embedding = dict(self.config.get("embedding") or {})
-        return str(embedding.get("model")) if embedding.get("provider") == "litellm" else None
+        settings = dict(embedding.get("settings") or {})
+        return str(settings.get("model")) if embedding.get("provider") == "litellm" else None
 
     def _rerank_model(self) -> str | None:
         """C-6: the paid (LiteLLM) reranker's model id, None for a local one or none."""
         read = dict(self.config.get("read") or {})
-        return str(read.get("rerank_model")) if read.get("rerank") == "litellm" else None
+        settings = dict(read.get("rerank_settings") or {})
+        return str(settings.get("model")) if read.get("rerank") == "litellm" else None
 
     def _embed_services(self, texts: list[str]) -> dict[str, float]:
         """C-6: estimated embedding tokens for ``texts`` (the harness token counter; the

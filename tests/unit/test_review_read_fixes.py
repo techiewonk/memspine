@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+
+async def _resolved_provider(provider: object) -> object:
+    return provider
+
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -21,8 +25,8 @@ def _engine(read: dict[str, Any] | None = None, **extra: Any) -> Engine:
     return Engine(
         template="core",
         dotenv_path=None,
-        storage={"path": ":memory:"},
-        embedding={"provider": "hash"},
+        storage={'provider': "sqlite", 'settings': {'path': ":memory:", 'busy_timeout_s': 5.0}},
+        embedding={'provider': "hash", 'settings': {}},
         memories=memories,
         read={"hybrid": False, **(read or {})},
         **extra,
@@ -382,7 +386,7 @@ async def test_rerank_gate_judges_the_kept_count_not_the_pool(
     eng = _engine({"candidate_pool": 4, "rerank_max_top_k": 3})
     await eng.start()
     try:
-        monkeypatch.setattr(eng, "_rerank_provider", lambda: FakeReranker())
+        monkeypatch.setattr(eng, "_rerank_provider", lambda: _resolved_provider(FakeReranker()))
         for i in range(10):
             await eng.write(f"note {i} about hiking", namespace="a")
         await eng.assemble("hiking", namespace="a", top_k=2)

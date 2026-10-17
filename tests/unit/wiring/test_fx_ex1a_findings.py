@@ -28,8 +28,14 @@ def _engine(path: Path | None = None, **over: Any) -> Engine:
     cfg: dict[str, Any] = {
         "template": "core",
         "dotenv_path": None,
-        "storage": {"path": str(path / "m.db") if path else ":memory:"},
-        "embedding": {"provider": "hash"},
+        "storage": {
+            "provider": "sqlite",
+            "settings": {
+                "path": str(path / "m.db") if path else ":memory:",
+                "busy_timeout_s": 5.0,
+            },
+        },
+        "embedding": {"provider": "hash", "settings": {}},
         "read": {"hybrid": False, "record_access": False, "cache": {"enabled": True}},
         "memories": {"episodic": {"enabled": True}, "semantic": {"enabled": True}},
         "write": {"lineage_table": True},

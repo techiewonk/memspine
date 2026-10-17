@@ -28,6 +28,7 @@ __all__ = [
     "memory_records",
     "metadata",
     "projector_offsets",
+    "provider_projector_bindings",
 ]
 
 metadata = MetaData()
@@ -66,6 +67,19 @@ projector_offsets = Table(
     metadata,
     Column("projector_name", String, primary_key=True),
     Column("last_seq", Integer, nullable=False),
+    Column("updated_at", String, nullable=False),
+)
+
+# Binds a durable projector checkpoint to the provider target that produced it.
+# A stable projector name alone is not sufficient after a provider/target change.
+provider_projector_bindings = Table(
+    "provider_projector_bindings",
+    metadata,
+    Column("deployment_id", String(256), primary_key=True),
+    Column("projector_name", String(256), primary_key=True),
+    Column("provider", String(256), nullable=False),
+    Column("target_fingerprint", String(64), nullable=False),
+    Column("generation_id", String(128), nullable=False),
     Column("updated_at", String, nullable=False),
 )
 

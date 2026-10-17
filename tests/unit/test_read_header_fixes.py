@@ -21,8 +21,8 @@ def _engine(read: dict[str, Any], **kw: Any) -> Engine:
     return Engine(
         template="core",
         dotenv_path=None,
-        storage={"path": ":memory:"},
-        embedding={"provider": "hash"},
+        storage={'provider': "sqlite", 'settings': {'path': ":memory:", 'busy_timeout_s': 5.0}},
+        embedding={'provider': "hash", 'settings': {}},
         memories={"semantic": {"enabled": True}, "episodic": {"enabled": True}},
         read={"hybrid": False, "record_access": False, **read},
         **kw,
@@ -68,6 +68,10 @@ TURNS_12 = [f"we talked about weather and football day {i}" for i in range(12)]
 FACTS_10 = [f"Ana event: Ana talked about the weather and football {n}" for n in range(10)]
 
 
+async def _resolved_provider(provider: object) -> object:
+    return provider
+
+
 # A-1 --------------------------------------------------------------------------------
 
 
@@ -80,7 +84,7 @@ async def test_rerank_keep_with_cards_header_keeps_raw_turns(mode: str) -> None:
     try:
         await _seed(eng, TURNS_12, FACTS_10)
         stub = _Stub()
-        eng._rerank_provider = lambda: stub  # type: ignore[method-assign]
+        eng._rerank_provider = lambda: _resolved_provider(stub)  # type: ignore[method-assign]
         out = await eng.read(QUERY, namespace="a", mode=mode, top_k=3, budget_tokens=4000)
         assert not out.context.abstained
         raw = [r for r in out.context.records if r.memory_type == "episodic"]
@@ -103,7 +107,7 @@ async def test_reranker_runs_once_per_search_of_a_read() -> None:
     try:
         await _seed(eng, turns, facts)
         stub = _Stub()
-        eng._rerank_provider = lambda: stub  # type: ignore[method-assign]
+        eng._rerank_provider = lambda: _resolved_provider(stub)  # type: ignore[method-assign]
         await eng.read(QUERY, namespace="a", mode="retrieve", top_k=5, budget_tokens=4000)
         assert len(stub.calls) == 2  # the header search, then the routed search
         routed = stub.calls[1]

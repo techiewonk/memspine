@@ -93,6 +93,10 @@ class SentenceTransformersEmbedding:
                 convert_to_numpy=True,
                 **({"prompt_name": prompt_name} if prompt_name else {}),
             )
+            if any(len(v) < self._dim for v in vecs):
+                raise ValueError(
+                    "sentence-transformers output dimension is smaller than embedding.settings.dim"
+                )
             return [[float(x) for x in v[: self._dim]] for v in vecs]
 
         return await asyncio.to_thread(_run)

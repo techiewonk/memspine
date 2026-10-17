@@ -94,11 +94,17 @@ def test_commands_without_state_do_not_crash(tmp_path: Path) -> None:
 
 
 def test_resolve_arm_and_offline_swap() -> None:
-    name, cfg = step.resolve_arm("scr-b8-write-v2")
-    assert name == "scr-b8-write-v2" and cfg["embedding"]["provider"] == "st"
+    cfg = {
+        "embedding": {"provider": "st", "settings": {"model": "test/embedder"}},
+        "read": {"rerank": "qwen3", "rerank_settings": {"model": "test/reranker"}},
+        "storage": {"provider": "sqlite", "settings": {"path": "tempdir"}},
+    }
     off, notes = step.offline_config(cfg)
-    assert off["embedding"] == {"provider": "hash"} and off["read"]["rerank"] == "off"
+    assert off["embedding"] == {"provider": "hash", "settings": {}}
+    assert off["read"]["rerank"] == "off" and off["read"]["rerank_settings"] == {}
     assert any("embedder" in n for n in notes) and any("reranker" in n for n in notes)
+    name, arm = step.resolve_arm("scr-b8-write-v2")
+    assert name == "scr-b8-write-v2" and arm["embedding"]["provider"] == "st"
     with pytest.raises(FileNotFoundError):
         step.resolve_arm("no-such-arm")
 

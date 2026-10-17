@@ -10,7 +10,7 @@ import re
 
 import pytest
 
-from memspine.config import flags, schema
+from memspine.config import flags
 
 # a commit hash or an ADR id counts as evidence; so does a named run id ("run <id>")
 _EVIDENCE_REF = re.compile(r"\b(?:[0-9a-f]{7,40}|ADR-\d{3}|run[ _][\w.-]+)\b", re.IGNORECASE)
@@ -77,54 +77,44 @@ def test_registry_areas_are_schema_modules():
     assert areas <= {
         "storage", "llm", "read", "write", "firewall", "integrity",
         "privacy", "observability", "rest", "root", "offline",
-        "isolation", "runtime", "economy",
+        "isolation", "runtime", "economy", "settings",
     }  # fmt: skip
 
 
-def test_retired_flag_names_its_replacement(monkeypatch):
+def test_removed_fields_use_strict_schema_errors():
     from memspine.config.loader import load_config
     from memspine.exceptions import ConfigError
 
-    monkeypatch.setitem(flags.RETIRED, "read.old_switch", "read.hybrid")
-    with pytest.raises(ConfigError, match=r"read\.old_switch.*retired.*read\.hybrid"):
-        load_config(template="base", overrides={"read": {"old_switch": True}})
-    monkeypatch.setitem(flags.RETIRED, "read.gone", "")
-    with pytest.raises(ConfigError, match="no replacement"):
-        load_config(template="base", overrides={"read": {"gone": 1}})
+    with pytest.raises(ConfigError, match=r"storage\.path \(extra_forbidden\)"):
+        load_config(template="base", overrides={"storage": {"path": ":memory:"}})
 
 
-def test_retired_keys_are_gone_from_the_schema():
-    live = set(flags.registry())
-    assert not set(flags.RETIRED) & live
-    for dotted in flags.RETIRED:
-        section, _, name = dotted.partition(".")
-        fields = type(getattr(schema.MemspineConfig(), section)).model_fields
-        assert name not in fields, dotted
+def test_future_lexical_provider_name_is_not_reserved_by_the_schema():
+    from memspine.config.loader import load_config
+
+    config = load_config(template="base", overrides={"read": {"lexical_provider": "opensearch"}})
+    assert config.config.read.lexical_provider == "opensearch"
 
 
-@pytest.mark.parametrize("key", sorted(flags.RETIRED))
-def test_every_retired_key_fails_loudly_in_yaml(key):
+def test_removed_relevance_gate_mode_is_rejected_by_its_enum():
     from memspine.config.loader import load_config
     from memspine.exceptions import ConfigError
 
-    section, _, name = key.partition(".")
-    with pytest.raises(ConfigError, match=rf"{key}.*retired"):
-        load_config(template="base", overrides={section: {name: "off"}})
-
-
-@pytest.mark.parametrize("item", sorted(flags.RETIRED_VALUES))
-def test_every_retired_value_fails_loudly_in_yaml(item):
-    from memspine.config.loader import load_config
-    from memspine.exceptions import ConfigError
-
-    key, _, value = item.partition("=")
-    section, _, name = key.partition(".")
-    with pytest.raises(ConfigError, match="retired"):
-        load_config(template="base", overrides={section: {name: value}})
+    with pytest.raises(ConfigError, match="relevance_gate"):
+        load_config(template="base", overrides={"read": {"relevance_gate": "decider"}})
 
 
 def test_discovery_finds_known_flags():
     assert {"ReadConfig.hybrid", "FirewallConfig.enabled"} <= default_on_flags()
+
+
+def test_native_provider_settings_are_not_pipeline_feature_flags():
+    from memspine.providers.configuration import provider_settings_reference
+
+    assert "OpenSearchSettings.verify_certs" not in default_on_flags()
+    assert "PgvectorSettings.namespace_index" not in default_on_flags()
+    assert provider_settings_reference("lexical", "opensearch")["defaults"]["verify_certs"] is True
+    assert provider_settings_reference("vector", "pgvector")["defaults"]["namespace_index"] is True
 
 
 # --- checker self-tests -----------------------------------------------------------------

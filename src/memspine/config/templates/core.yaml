@@ -10,7 +10,18 @@ event_log:
   compress: false
 
 storage:
-  path: ./memspine.db
+  settings:
+    path: ./memspine.db
+    busy_timeout_s: 5.0
+
+runtime:
+  provider_services:
+    health_timeout_s: 5.0
+    close_timeout_s: 10.0
+    startup_timeout_s: null
+  service_switches:
+    projections:
+      mode: controlled
 
 memories:
   working:
@@ -19,3 +30,6 @@ memories:
     enabled: true
   semantic:
     enabled: true
+
+llm:
+  roles: {}              # no role is bound; selected adapters supply native generation defaults

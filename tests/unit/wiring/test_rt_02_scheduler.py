@@ -42,6 +42,17 @@ SCOPE = OwnerScope(tenant="t", owner="ns")
 T0 = datetime(2026, 10, 13, tzinfo=UTC)
 
 
+def _runtime(**kwargs: Any) -> RuntimeConfig:
+    return RuntimeConfig(
+        provider_services={
+            "health_timeout_s": 2.0,
+            "close_timeout_s": 2.0,
+            "startup_timeout_s": None,
+        },
+        **kwargs,
+    )
+
+
 @pytest.fixture(autouse=True)
 def _clean() -> Any:
     tap.shutdown()
@@ -52,7 +63,7 @@ def _clean() -> Any:
 
 # ------------------------------------------------------------------------------ flag off
 def test_flags_default_off_and_acquire_is_a_noop() -> None:
-    cfg = MemspineConfig().runtime
+    cfg = _runtime()
     assert cfg.scheduler_v2 is False and cfg.model_concurrency == 0
     assert sched.acquire(cfg) is None and sched.active() is None
 
@@ -161,7 +172,7 @@ async def test_a_cancelled_waiter_leaks_no_slot() -> None:
 
 
 async def test_scheduler_installs_the_gate_for_llm_and_embedding_seams() -> None:
-    cfg = RuntimeConfig(model_concurrency=2, scheduler_v2=True)
+    cfg = _runtime(model_concurrency=2, scheduler_v2=True)
     s = sched.acquire(cfg)
     try:
         assert s is not None and installed_gate() is s.gate
@@ -266,7 +277,7 @@ async def test_batched_embedding_matches_the_hash_embedder() -> None:
         if "dim" in HashEmbedding.__init__.__code__.co_varnames
         else HashEmbedding()
     )
-    wrapped = sched.Scheduler(RuntimeConfig(scheduler_v2=True)).wrap_embedder(inner)
+    wrapped = sched.Scheduler(_runtime(scheduler_v2=True)).wrap_embedder(inner)
     assert isinstance(wrapped, sched.BatchedEmbedding)
     try:
         texts = [f"memory number {i}" for i in range(9)]
@@ -280,7 +291,7 @@ async def test_batched_embedding_matches_the_hash_embedder() -> None:
 
 def test_wrap_embedder_is_identity_when_the_flag_is_off() -> None:
     marker = object()
-    assert sched.Scheduler(RuntimeConfig(model_concurrency=2)).wrap_embedder(marker) is marker
+    assert sched.Scheduler(_runtime(model_concurrency=2)).wrap_embedder(marker) is marker
 
 
 # ------------------------------------------------------------------------------ backpressure policy
@@ -409,13 +420,13 @@ async def test_underived_markers_survive_a_restart(tmp_path: Path) -> None:
 
     path = str(tmp_path / "o.db")
     clock = ManualClock(T0)
-    first = _runner(sqlite_engine(path), clock)
+    first = _runner(sqlite_engine(path, busy_timeout_s=5.0), clock)
     first.register("derive", prepare=Handler().prepare, commit=Handler().commit)
     for i in range(3):
         await first.enqueue(SCOPE, "derive", {"i": i})
     first.close()
     clock.advance(120)  # nobody was running
-    again = _runner(sqlite_engine(path), clock)
+    again = _runner(sqlite_engine(path, busy_timeout_s=5.0), clock)
     items, oldest = again.store.backlog()
     assert items == 3 and oldest is not None
     ledger = SloLedger()
@@ -501,7 +512,7 @@ async def test_load_reads_keep_their_p95_under_background_load_and_nothing_is_dr
 
 
 async def test_load_through_the_runner_reads_stay_fast_and_all_jobs_finish() -> None:
-    cfg = RuntimeConfig(scheduler_v2=True, model_concurrency=2, backlog_max_items=0)
+    cfg = _runtime(scheduler_v2=True, model_concurrency=2, backlog_max_items=0)
     s = sched.acquire(cfg)
     assert s is not None
     try:
@@ -549,7 +560,9 @@ async def test_engine_flag_on_gives_the_same_facts_and_releases_the_gate(
     async def run(on: bool) -> list[str]:
         llm = FakeWindowLLM()
 
-        async def router(config: MemspineConfig, hooks: object = None) -> LLMRouter:
+        async def router(
+            config: MemspineConfig, hooks: object = None, wiring: object = None
+        ) -> LLMRouter:
             return LLMRouter({"window_extract": llm})  # type: ignore[dict-item]
 
         monkeypatch.setattr("memspine.runtime.container.build_llm_router", router)
@@ -567,11 +580,11 @@ async def test_engine_flag_on_gives_the_same_facts_and_releases_the_gate(
         eng = Engine(
             template="core",
             dotenv_path=None,
-            storage={"path": str(tmp_path / f"{on}.db")},
-            embedding={"provider": "hash"},
+            storage={'provider': "sqlite", 'settings': {'path': str(tmp_path / f"{on}.db"), 'busy_timeout_s': 5.0}},
+            embedding={'provider': "hash", 'settings': {}},
             memories={"episodic": {"enabled": True}, "semantic": {"enabled": True}},
             write={"window_extract": "facts", "window_async": False, "window_idle_s": 0.0},
-            llm={"roles": {"window_extract": {"model": "fake/window"}}},
+            llm={"roles": {"window_extract": {"provider": "litellm", "settings": {"model": "fake/window", "timeout_seconds": 20.0}}}},
             workers={"outbox": True},
             runtime=runtime,
         )

@@ -12,10 +12,8 @@ from memspine.store.events import EventLogMode
 
 
 def test_defaults_only() -> None:
-    resolved = load_config()
-    assert resolved.config.profile == "simple"
-    assert resolved.config.event_log.mode is EventLogMode.FULL
-    assert resolved.sources["profile"] == "default"
+    with pytest.raises(ConfigError, match="runtime"):
+        load_config()
 
 
 def test_all_shipped_templates_load_cleanly() -> None:
@@ -59,7 +57,9 @@ def test_missing_template_names_search_dirs() -> None:
 
 def test_reserved_namespace_memories_key_rejected() -> None:
     with pytest.raises(ConfigError, match=r"reserved for v0\.2"):
-        load_config(overrides={"namespaces": {"org/a": {"memories": {}}}})
+        load_config(
+            template="base", overrides={"namespaces": {"org/a": {"memories": {}}}}
+        )
 
 
 def test_unknown_memory_type_rejected() -> None:
@@ -72,19 +72,35 @@ def test_unknown_top_level_key_rejected() -> None:
         load_config(overrides={"not_a_key": 1})
 
 
+def test_validation_error_reports_path_without_rejected_value() -> None:
+    secretish_value = "sensitive-value-that-must-not-leak"
+    with pytest.raises(ConfigError) as error:
+        load_config(
+            template="base",
+            overrides={"runtime": {"environment": secretish_value}},
+        )
+    assert "runtime.environment" in str(error.value)
+    assert secretish_value not in str(error.value)
+
+
 def test_secret_resolution_and_missing_secret() -> None:
     resolved = load_config(
-        overrides={"storage": {"path": "${secret:DB_PATH}"}},
+        template="base",
+        overrides={"storage": {"settings": {"path": "${secret:DB_PATH}"}}},
         secret_resolver=lambda name: "/tmp/x.db" if name == "DB_PATH" else None,
     )
-    assert resolved.config.storage.path == "/tmp/x.db"
+    assert resolved.config.storage.settings["path"] == "/tmp/x.db"
 
     with pytest.raises(ConfigError, match="unresolved secret"):
-        load_config(overrides={"storage": {"path": "${secret:MISSING}"}})
+        load_config(
+            template="base",
+            overrides={"storage": {"settings": {"path": "${secret:MISSING}"}}},
+        )
 
 
 def test_env_scalars_parse_types() -> None:
     resolved = load_config(
+        template="base",
         env={
             "MEMSPINE_EVENT_LOG__COMPRESS": "true",
             "MEMSPINE_EVENT_LOG__MODE": "ephemeral",
@@ -96,21 +112,23 @@ def test_env_scalars_parse_types() -> None:
 
 
 def test_workers_runner_rides_env_layering() -> None:
-    resolved = load_config(env={"MEMSPINE_WORKERS__RUNNER": "dbos"})
+    resolved = load_config(template="base", env={"MEMSPINE_WORKERS__RUNNER": "dbos"})
     assert resolved.config.workers.runner == "dbos"
 
 
 def test_unrelated_memspine_env_vars_are_ignored() -> None:
     """Regression: MEMSPINE_HOME/MEMSPINE_DEBUG from other tooling used to be
     injected into the strict schema and crash every load."""
-    resolved = load_config(env={"MEMSPINE_HOME": "/opt/x", "MEMSPINE_DEBUG": "1"})
+    resolved = load_config(
+        template="base", env={"MEMSPINE_HOME": "/opt/x", "MEMSPINE_DEBUG": "1"}
+    )
     assert resolved.config.profile == "simple"
 
 
 def test_yaml_hostile_env_value_falls_back_to_string() -> None:
     """Regression: '@data/db.sqlite' used to raise a raw yaml.ScannerError."""
-    resolved = load_config(env={"MEMSPINE_STORAGE__PATH": "@data/db.sqlite"})
-    assert resolved.config.storage.path == "@data/db.sqlite"
+    resolved = load_config(template="base", env={"MEMSPINE_STORAGE__SETTINGS__PATH": "@data/db.sqlite"})
+    assert resolved.config.storage.settings["path"] == "@data/db.sqlite"
 
 
 def test_missing_user_config_file_is_config_error(tmp_path: Path) -> None:

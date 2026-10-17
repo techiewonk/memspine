@@ -114,7 +114,7 @@ async def test_constrained_unsupported_falls_back_to_plain_retry() -> None:
 
 
 def test_config_defaults_off_and_unknown_keys_refused() -> None:
-    cfg = MemspineConfig()
+    cfg = MemspineConfig(runtime={"provider_services": {"health_timeout_s": 1.0, "close_timeout_s": 1.0, "startup_timeout_s": None}})
     assert cfg.llm.structured.retry_on_error is False
     assert cfg.llm.structured.constrained_retry is False
     with pytest.raises(ValueError):

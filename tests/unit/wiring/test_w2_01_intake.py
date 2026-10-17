@@ -44,8 +44,8 @@ async def build(db: Path | str, **write: Any) -> Engine:
     eng = Engine(
         template="core",
         dotenv_path=None,
-        storage={"path": str(db)},
-        embedding={"provider": "hash"},
+        storage={'provider': "sqlite", 'settings': {'path': str(db), 'busy_timeout_s': 5.0}},
+        embedding={'provider': "hash", 'settings': {}},
         memories={
             "episodic": {"enabled": True},
             "semantic": {"enabled": True},
@@ -80,8 +80,8 @@ async def test_default_config_uses_canonical_gateway(tmp_path: Path) -> None:
     eng = Engine(
         template="core",
         dotenv_path=None,
-        storage={"path": str(tmp_path / "default.db")},
-        embedding={"provider": "hash"},
+        storage={'provider': "sqlite", 'settings': {'path': str(tmp_path / "default.db"), 'busy_timeout_s': 5.0}},
+        embedding={'provider': "hash", 'settings': {}},
         memories={"episodic": {"enabled": True}},
     )
     await eng.start()
@@ -242,7 +242,7 @@ class _StubWindowLLM:
 
 @pytest.fixture
 def stub_llm(monkeypatch: pytest.MonkeyPatch) -> None:
-    async def router(config: Any, hooks: object = None) -> LLMRouter:
+    async def router(config: Any, hooks: object = None, wiring: object = None) -> LLMRouter:
         return LLMRouter({"window_extract": _StubWindowLLM()})  # type: ignore[dict-item]
 
     monkeypatch.setattr("memspine.runtime.container.build_llm_router", router)
@@ -252,10 +252,10 @@ async def _windowed(db: Path, outbox: bool) -> Engine:
     eng = Engine(
         template="core",
         dotenv_path=None,
-        storage={"path": str(db)},
-        embedding={"provider": "hash"},
+        storage={'provider': "sqlite", 'settings': {'path': str(db), 'busy_timeout_s': 5.0}},
+        embedding={'provider': "hash", 'settings': {}},
         memories={"episodic": {"enabled": True}, "semantic": {"enabled": True}},
-        llm={"roles": {"window_extract": {"model": "stub/window"}}},
+        llm={"roles": {"window_extract": {"provider": "litellm", "settings": {"model": "stub/window", "timeout_seconds": 60.0}}}},
         write={
             "window_extract": "facts",
             "window_async": False,

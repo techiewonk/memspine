@@ -8,7 +8,6 @@ from collections.abc import (
     Sequence,
 )
 from datetime import datetime
-from pathlib import Path
 from typing import Any
 
 from memspine.config import constants
@@ -142,12 +141,12 @@ def _build_windows(eng: Any, config: MemspineConfig) -> WindowPipeline | None:
     assert storage is not None  # built in start() before the memory types
     asynchronous = config.write.window_async
     # runtime.container.client_is_memory, inlined: ingest sits below runtime
-    if asynchronous and config.storage.backend == "sqlite" and config.storage.path == ":memory:":
+    if asynchronous and eng._sql is not None and eng._sql.is_memory:
         # Like the sleep scheduler: one shared connection, no WAL, so a background call
         # would collide with foreground writes ("table is locked"). Batch mode instead.
         _log.warning(
             "window.async_disabled_on_memory_db",
-            detail="write.window_async ignored for storage.path=':memory:'; "
+            detail="write.window_async ignored for in-memory SQL storage; "
             "call flush_windows() (sleep() and close_session() do)",
         )
         asynchronous = False
@@ -185,7 +184,7 @@ def _build_windows(eng: Any, config: MemspineConfig) -> WindowPipeline | None:
         extractor=PromptWindowExtractor(
             eng._llm.for_role("window_extract"),
             eng._prompts.for_role("window_extract"),
-            role.model if role is not None else "",
+            str(role.settings.get("model", "")) if role is not None else "",
             items=envelope is not None,
             unified=context_builder is not None,
             partial=eng._prompts.partial,
@@ -286,10 +285,10 @@ def _envelope_write(eng: Any, config: MemspineConfig) -> EnvelopeWrite:
     """W2-06a (``write.envelope_v2``): compiler, validator, one-shot repair, dead-letter list.
     The repair call uses the router-bound LLM of the extraction, so the cost ledger counts it."""
     llm = eng._llm.for_role("window_extract")
-    path = config.storage.path
-    if config.storage.backend == "postgres":
-        data_dir = config.storage.data_dir
-        path = str(Path(data_dir) / "memspine") if data_dir else ":memory:"
+    from memspine.providers.placement import storage_placement
+
+    placement = storage_placement(config, config.runtime.deployment_id or "local")
+    path = str(placement.base_path) if placement.base_path is not None else ":memory:"
     ledger_path = ":memory:" if path == ":memory:" else f"{path}.deadletters.sqlite"
     compiler = EnvelopeCompiler(prompt_hash=f"{STRUCTURED_PROMPT_ID}@{STRUCTURED_VERSION}")
     learned = None

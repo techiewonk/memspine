@@ -23,7 +23,7 @@ This file is loaded into every Claude Code session. Keep it accurate and terse.
 - **Ports & adapters (D-22/M14).** Engine/memories/policies talk only to `services/*` capability ports. `clients/*` own connections; services never open a connection.
 - **Slim core (D-03).** Zero heavy deps in core. Everything optional lives behind a `pip install memspine[extra]`. `torch`/`transformers` never enter core.
 - **Run the test suite in chunks on low-memory machines** (a single-process run can die silently, exit 127); always pass `-p no:deepeval` (the deepeval plugin hides pytest's summary).
-- **Profiles stay green.** Every change keeps `profile="simple"` behavior stable and backward-compatible (ADR-033 deliberately moved the measured read-path advantages into `simple`; `core` is the bare reference and what tests use).
+- **Profiles stay green.** Preserve `simple` retrieval behaviour while applying the accepted breaking provider schema. No legacy configuration aliases or compatibility modules (ADR-068); `core` is the bare reference used by mechanics tests.
 - **Hard-fail clearly (D-10).** Missing service → `MissingServiceError` naming the extra to install, unless `strict_services: false`.
 
 ## Locked defaults (decision register — see plan for D-01…D-49)
@@ -35,7 +35,7 @@ This file is loaded into every Claude Code session. Keep it accurate and terse.
 | Storage | **SQLite** via **SQLAlchemy Core + Alembic**, async engine (**aiosqlite**) | not full ORM; sqlmodel rejected (D-36/D-44) |
 | Event log | `event_log.mode`: **full** (default) / **rolling** / **ephemeral** + optional zstd payload compression | storage-cost control; pruning never passes projector high-water marks (D-45) |
 | Vector | **LanceDB** (+ Tantivy FTS) | D-09 |
-| Graph | **sqlite_adjacency** default; **LadybugDB** `[graph]` is the graph engine (ADR-034); kuzu a deprecated alias | D-26/D-49/D-60 |
+| Graph | **auto** selects compatible LadybugDB `[graph]` or SQLite adjacency; explicit Neo4j is separately configured; no kuzu alias | D-26/D-49/D-60/ADR-068 |
 | Cache/KV | **LMDB** | D-09 |
 | Lexical | **FTS5 / Tantivy** BM25, RRF fusion | D-25; **CJK dropped** (D-34) |
 | Embedder | **fastembed** (ONNX, CPU) | torch behind `[st]` only (D-08) |
@@ -102,3 +102,6 @@ Its authority is the research repo's `paper_spine/EVALUATION_PLAN_2026-09.md` an
 `paper_spine/evaluation/LOOP_METRIC_CONTRACT.md` — budget, baseline conditions, denominator rules
 and the CPC definition come from there. **No paid API runs are authorised**; local
 OpenAI-compatible backends only, and QA mode refuses to start without an explicit model-call cap.
+
+
+Provider architecture: [ADR-068](docs/adr/ADR-068-provider-contracts-and-controlled-changes.md), [ADR-069](docs/adr/ADR-069-remote-providers-and-explicit-recovery.md) and [the accepted plan](docs/PROVIDER_ARCHITECTURE_PLAN.md). Descriptors are owned by `memspine.providers.registry`; no old registry modules or config retirement layer. Constructor fields use nested settings. OpenSearch lexical, Weaviate lexical/vector and pgvector vector are optional adapters; lexical/vector ports remain independent. Pgvector projection DDL requires explicit opt-in, and SQL DELETE is not physical-erasure proof. Cleanup fence recovery requires an application quiescence guard and audited CAS; never steal a lock by age. HTTP service-change execution requires the actual deployment controller; health checks alone do not validate production.

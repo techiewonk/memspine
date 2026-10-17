@@ -31,7 +31,13 @@ def test_two_phase_bootstrap_with_loader(tmp_path: Path) -> None:
     dotenv.write_text("DB_PATH=/data/spine.db\n", encoding="utf-8")
     secrets = EnvSecrets(dotenv_path=dotenv, environ={})
     resolved = load_config(
-        overrides={"storage": {"path": "${secret:DB_PATH}"}},
+        template="core",
+        overrides={
+            "storage": {
+                "provider": "sqlite",
+                "settings": {"path": "${secret:DB_PATH}", "busy_timeout_s": 5.0},
+            }
+        },
         secret_resolver=secrets.get,
     )
-    assert resolved.config.storage.path == "/data/spine.db"
+    assert resolved.config.storage.settings["path"] == "/data/spine.db"

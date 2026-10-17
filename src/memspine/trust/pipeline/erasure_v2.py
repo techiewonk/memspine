@@ -474,8 +474,8 @@ async def _run_purge(eng: Any, manifest_id: str, texts: Sequence[str] = ()) -> P
         purge = getattr(eng._vector, "purge_deleted", None)
         if callable(purge):
             await purge()  # drop the deleted rows' bytes and the older table versions
-        if eng._client is not None:
-            await eng._client.checkpoint()
+        if eng._sql is not None:
+            await eng._sql.checkpoint()
     entry["state"] = "failed" if failed else "done"
     await _marker(
         eng,

@@ -10,6 +10,8 @@ round-trip verbatim. ``MemoryKV`` stays the zero-dep core ``memory`` default
 
 from __future__ import annotations
 
+import asyncio
+
 from memspine.clients.cashews import CashewsClient
 
 __all__ = ["CashewsCache"]
@@ -22,22 +24,27 @@ class CashewsCache:
         *,
         namespace: str = "memspine",
         default_ttl_seconds: float | None = None,
+        request_timeout_s: float | None = None,
     ) -> None:
         self._client = client
         self._prefix = f"{namespace}:"
         self._default_ttl = default_ttl_seconds
+        self._request_timeout_s = request_timeout_s
 
     def _key(self, key: str) -> str:
         return self._prefix + key
 
     async def get(self, key: str) -> bytes | None:
-        value: bytes | None = await self._client.cache.get(self._key(key))
+        async with asyncio.timeout(self._request_timeout_s):
+            value: bytes | None = await self._client.cache.get(self._key(key))
         return value
 
     async def set(self, key: str, value: bytes, ttl_seconds: float | None = None) -> None:
         ttl = ttl_seconds if ttl_seconds is not None else self._default_ttl
         # cashews ``expire=None`` means no expiry; a number is seconds.
-        await self._client.cache.set(self._key(key), value, expire=ttl)
+        async with asyncio.timeout(self._request_timeout_s):
+            await self._client.cache.set(self._key(key), value, expire=ttl)
 
     async def delete(self, key: str) -> None:
-        await self._client.cache.delete(self._key(key))
+        async with asyncio.timeout(self._request_timeout_s):
+            await self._client.cache.delete(self._key(key))

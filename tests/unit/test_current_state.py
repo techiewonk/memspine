@@ -13,8 +13,8 @@ def _engine(**extra: Any) -> Engine:
     return Engine(
         template="core",
         dotenv_path=None,
-        storage={"path": ":memory:"},
-        embedding={"provider": "hash"},
+        storage={'provider': "sqlite", 'settings': {'path': ":memory:", 'busy_timeout_s': 5.0}},
+        embedding={'provider': "hash", 'settings': {}},
         memories={"semantic": {"enabled": True}},
         **extra,
     )
@@ -235,8 +235,8 @@ async def test_contested_fact_keeps_one_current_and_shows_the_dispute() -> None:
     eng = Engine(
         template="core",
         dotenv_path=None,
-        storage={"path": ":memory:"},
-        embedding={"provider": "hash"},
+        storage={'provider': "sqlite", 'settings': {'path': ":memory:", 'busy_timeout_s': 5.0}},
+        embedding={'provider': "hash", 'settings': {}},
         memories={"semantic": {"enabled": True, "policies": {"conflict": {"contest_ties": True}}}},
         read={"current_state_view": True, "hybrid": False},
     )
@@ -284,7 +284,10 @@ async def test_rerank_gate_skips_reranker_for_large_top_k(monkeypatch) -> None: 
     eng = _engine(read={"hybrid": False, "rerank_max_top_k": 3})
     await eng.start()
     try:
-        monkeypatch.setattr(eng, "_rerank_provider", lambda: FakeReranker())
+        async def reranker() -> FakeReranker:
+            return FakeReranker()
+
+        monkeypatch.setattr(eng, "_rerank_provider", reranker)
         for i in range(6):
             await eng.write(f"note {i} about hiking", namespace="a")
         await eng.search("hiking", namespace="a", top_k=2)
@@ -341,7 +344,10 @@ async def test_rerank_date_prefix_and_ordering_skip(monkeypatch) -> None:  # typ
     )
     await eng.start()
     try:
-        monkeypatch.setattr(eng, "_rerank_provider", lambda: FakeReranker())
+        async def reranker() -> FakeReranker:
+            return FakeReranker()
+
+        monkeypatch.setattr(eng, "_rerank_provider", reranker)
         await eng.write(
             "Bram went hiking", namespace="a", valid_from=datetime(2023, 5, 1, tzinfo=UTC)
         )

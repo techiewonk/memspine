@@ -39,8 +39,8 @@ def _engine(**read: Any) -> Engine:
     return Engine(
         template="core",
         dotenv_path=None,
-        storage={"path": ":memory:"},
-        embedding={"provider": "hash"},
+        storage={'provider': "sqlite", 'settings': {'path': ":memory:", 'busy_timeout_s': 5.0}},
+        embedding={'provider': "hash", 'settings': {}},
         memories={"episodic": {"enabled": True}},
         read={"record_access": False, "rerank": "off", **read},
     )
@@ -63,9 +63,16 @@ async def _top(eng: Engine, top_k: int = 2) -> list[str]:
 
 def test_default_off_and_requires() -> None:
     assert ReadConfig().rerank_v2_search_pool == 0
+    runtime = {
+        "provider_services": {
+            "health_timeout_s": 1.0,
+            "close_timeout_s": 1.0,
+            "startup_timeout_s": None,
+        }
+    }
     with pytest.raises(ConfigError, match="rerank_v2"):
-        MemspineConfig(read={"rerank_v2_search_pool": 20})
-    MemspineConfig(read={"rerank_v2": True, "rerank_v2_search_pool": 20})
+        MemspineConfig(read={"rerank_v2_search_pool": 20}, runtime=runtime)
+    MemspineConfig(read={"rerank_v2": True, "rerank_v2_search_pool": 20}, runtime=runtime)
 
 
 async def test_narrow_pool_loses_the_evidence() -> None:

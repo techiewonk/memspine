@@ -3,17 +3,20 @@
 from __future__ import annotations
 
 import math
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import pytest
 
 from memspine.api.engine import Engine
-from memspine.config.schema import MemspineConfig, ReadConfig
+from memspine.config.schema import ReadConfig
 from memspine.core.relevance_probes import OFF_TOPIC_PROBES, calibrate, percentile
 from memspine.models.encoders.embedding.base import EmbeddingService
 from memspine.models.encoders.embedding.hash_local import HashEmbedding
 from memspine.observability.trace import search_forensics
+from memspine.providers.contracts import BuildResult, ProviderRef
+from memspine.providers.registry import EMBEDDERS
 
 T0 = datetime(2023, 5, 1, 9, 0, tzinfo=UTC)
 _STOP = frozenset(
@@ -79,15 +82,33 @@ async def _engine(
 ) -> Engine:
     emb = embedder or TopicEmbedder()
 
-    def build(config: MemspineConfig) -> EmbeddingService:
-        return emb
+    class Builder:
+        async def build(self, settings: Any, context: Any) -> BuildResult[EmbeddingService]:
+            return BuildResult(
+                service=emb,
+                provider=ProviderRef("embedding", "hash"),
+                resources=(),
+                effective_capabilities=frozenset({"embedding"}),
+            )
 
-    monkeypatch.setattr("memspine.runtime.container.make_embedder", build)
+    current = EMBEDDERS.get("hash")
+    monkeypatch.setitem(
+        EMBEDDERS._items,
+        "hash",
+        replace(
+            current,
+            builder=Builder(),
+            target_identity=lambda _settings: {
+                "embedder_id": emb.embedder_id,
+                "dimension": emb.dim,
+            },
+        ),
+    )
     eng = Engine(
         template="core",
         dotenv_path=None,
-        storage={"path": ":memory:"},
-        embedding={"provider": "hash"},
+        storage={'provider': "sqlite", 'settings': {'path': ":memory:", 'busy_timeout_s': 5.0}},
+        embedding={'provider': "hash", 'settings': {}},
         memories={"episodic": {"enabled": True}},
         read={"record_access": False, "relevance_gate_bypass": "none", **read},
     )

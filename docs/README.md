@@ -6,6 +6,10 @@ The blueprint and evidence base for the engine. **The structure plan is authorit
 
 | Doc | What it is |
 |-----|------------|
+| [`PROVIDER_ARCHITECTURE_PLAN.md`](./PROVIDER_ARCHITECTURE_PLAN.md) | Provider decisions, typed contracts, controlled changes, lexical/vector extension design and verification gates. |
+| [`PROVIDER_OPERATIONS.md`](./PROVIDER_OPERATIONS.md) | Current provider settings, runtime inspection, explicit change-control API, generation restart rules and verification limits. |
+| [`PROVIDER_DEFAULTS.md`](./PROVIDER_DEFAULTS.md) | Generated defaults and required fields for every registered provider; includes embedding dimensions and LLM generation settings. |
+| [`PROVIDER_DEPLOYMENT_RUNBOOK.md`](./PROVIDER_DEPLOYMENT_RUNBOOK.md) | Running-Engine inspection, typed HTTP service-change protocol, recovery and actual deployment prerequisites. |
 | [`FEATURES.md`](./FEATURES.md) | **Feature catalog** — the 9 memory types (purpose · enable key · verbs · ADR), the Memory Firewall, and the E1–E9 optimization program (on-by-default vs opt-in). |
 | [`USAGE.md`](./USAGE.md) | **How-to guide** — install & extras, constructing an `Engine`, a worked example per memory type, the CLI, and the REST protocol (with the no-authn caveat). |
 | [`MEMSPINE_FLOWS.md`](./MEMSPINE_FLOWS.md) | **Flow graph** — canonical top-level engine graph (event log + rebuildable projectors) + code-traced write / conflict / retrieve / sleep mermaid sub-flows. |

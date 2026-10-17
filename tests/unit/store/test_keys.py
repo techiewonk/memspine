@@ -52,12 +52,12 @@ def test_index_decisions() -> None:
 # ---------------------------------------------------------------- engine, flag on / off
 
 
-def _engine(key_v2: bool) -> Engine:
+def _engine(key_v2: bool, path: str = ":memory:") -> Engine:
     return Engine(
         template="core",
         dotenv_path=None,
-        storage={"path": ":memory:"},
-        embedding={"provider": "hash"},
+        storage={'provider': "sqlite", 'settings': {'path': path, 'busy_timeout_s': 5.0}},
+        embedding={'provider': "hash", 'settings': {}},
         memories={
             "semantic": {"enabled": True},
             "episodic": {"enabled": True},
@@ -142,20 +142,27 @@ async def test_replay_is_idempotent_and_deterministic() -> None:
     assert keysets[0] == keysets[1] and len(keysets[0]) == 1
 
 
-async def test_alias_lookup_finds_a_pre_flag_record() -> None:
+async def test_alias_lookup_finds_a_pre_flag_record(tmp_path) -> None:
     """A record written under the v1 key (flag off) is still a duplicate once the flag is on."""
-    eng = _engine(False)
-    await eng.start()
-    _wire(eng)
-    await _turn(eng, "moved to Paris", 0)
-    await extract_graph(eng._pipeline_ctx())
-    [legacy] = await _facts(eng)
+    database = str(tmp_path / "pre-flag.db")
+    first = _engine(False, database)
+    await first.start()
+    _wire(first)
+    await _turn(first, "moved to Paris", 0)
+    await extract_graph(first._pipeline_ctx())
+    [legacy] = await _facts(first)
     assert not any(t.startswith(keys.BASE_TAG_PREFIX) for t in legacy.tags)
-    eng.config.graph.key_v2 = True  # same store, flag flipped
-    await _turn(eng, "back to Paris", 5)
-    stats = await extract_graph(eng._pipeline_ctx())
-    assert stats["edges_written"] == 0 and stats["skipped_existing"] == 1
-    await eng.stop()
+    await first.stop()
+
+    resumed = _engine(True, database)
+    await resumed.start()
+    _wire(resumed)
+    try:
+        await _turn(resumed, "back to Paris", 5)
+        stats = await extract_graph(resumed._pipeline_ctx())
+        assert stats["edges_written"] == 0 and stats["skipped_existing"] == 1
+    finally:
+        await resumed.stop()
 
 
 async def test_scope_separation() -> None:

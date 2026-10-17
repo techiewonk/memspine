@@ -4,10 +4,12 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import ConfigDict, Field
+
+from memspine.config.schema.base import ConfigModel
 
 
-class WriteConfig(BaseModel):
+class WriteConfig(ConfigModel):
     """Write-time governance tags (I48, I52, I53). Every key is off by default: a record is
     stored exactly as it was before. The tags are labels only (never the text)."""
 
@@ -348,7 +350,7 @@ class WriteConfig(BaseModel):
     resolve_cache: int = Field(default=1024, ge=1)
 
 
-class IngestConfig(BaseModel):
+class IngestConfig(ConfigModel):
     """E04 attachment handling at write time. Off by default: a message's ``attachments`` are
     ignored exactly as before. On: each attachment's identity (source turn, original URI,
     source caption, availability) is registered and the record is tagged ``asset:<id>``;
@@ -373,7 +375,7 @@ class IngestConfig(BaseModel):
     asset_vision_timeout_s: float = Field(default=120.0, gt=0.0)
 
 
-class DataShapeConfig(BaseModel):
+class DataShapeConfig(ConfigModel):
     """I25: facts about the data the engine will serve, declared by the data adapter (or
     the deployer). Only ``data_profile: auto`` reads them; an undeclared fact (None /
     ``unknown``) selects no preset."""

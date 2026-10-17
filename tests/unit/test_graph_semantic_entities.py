@@ -16,18 +16,18 @@ def test_keys_are_off_by_default() -> None:
     assert ReadConfig().graph_node_search is False
 
 
-def _engine(path: Path, provider: str) -> Engine:
+def _engine(path: Path, provider: str, **read: object) -> Engine:
     return Engine(
         template="core",
         dotenv_path=None,
-        storage={"path": str(path / "m.db")},
-        embedding={"provider": "hash"},
+        storage={'provider': "sqlite", 'settings': {'path': str(path / "m.db"), 'busy_timeout_s': 5.0}},
+        embedding={'provider': "hash", 'settings': {}},
         graph={"provider": provider, "entity_embeddings": True},
         memories={
             "semantic": {"enabled": True},
             "associative": {"enabled": True, "policies": {"entity_nodes": True}},
         },
-        read={"record_access": False, "graph_node_search": True},
+        read={"record_access": False, "graph_node_search": True, **read},
     )
 
 
@@ -83,8 +83,8 @@ async def test_turn_mentions_let_the_graph_reach_raw_turns(tmp_path: Path, provi
     eng = Engine(
         template="core",
         dotenv_path=None,
-        storage={"path": str(tmp_path / "m.db")},
-        embedding={"provider": "hash"},
+        storage={'provider': "sqlite", 'settings': {'path': str(tmp_path / "m.db"), 'busy_timeout_s': 5.0}},
+        embedding={'provider': "hash", 'settings': {}},
         graph={"provider": provider, "entity_embeddings": True},
         memories={
             "episodic": {"enabled": True},
@@ -114,7 +114,7 @@ async def test_focal_entity_seeds_the_graph_and_does_not_leak(tmp_path: Path) ->
     """G-11: ``focal_entity=`` adds a graph seed for one read only."""
     from memspine.read.pipeline.state import _FOCAL_ENTITY
 
-    eng = _engine(tmp_path, "sqlite_adjacency")
+    eng = _engine(tmp_path, "sqlite_adjacency", graph_leg=True)
     await eng.start()
     seen: list[list[str]] = []
     real = eng._graph_seeds
@@ -127,7 +127,6 @@ async def test_focal_entity_seeds_the_graph_and_does_not_leak(tmp_path: Path) ->
     eng._graph_seeds = spy  # type: ignore[method-assign]
     try:
         await eng.write("Luna is a grey cat", namespace="u", entity="Luna", attribute="pet")
-        eng.config.read.graph_leg = True  # type: ignore[misc]
         await eng.search("what about her?", namespace="u", focal_entity="Luna")
         after = _FOCAL_ENTITY.get()
     finally:

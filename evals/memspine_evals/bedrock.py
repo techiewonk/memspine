@@ -141,7 +141,15 @@ def engine_llm_config(
     model: str, region: str, roles: tuple[str, ...] = ENGINE_LLM_ROLES
 ) -> dict[str, Any]:
     """``llm`` config binding every engine role to one LiteLLM model in ``region``."""
-    return {"roles": {role: {"model": model, "aws_region": region} for role in roles}}
+    return {
+        "roles": {
+            role: {
+                "provider": "litellm",
+                "settings": {"model": model, "aws_region": region, "timeout_seconds": 180.0},
+            }
+            for role in roles
+        }
+    }
 
 
 def merge_engine_llm_roles(
@@ -162,6 +170,9 @@ def merge_engine_llm_roles(
         bound.setdefault(role, binding)
     llm["roles"] = bound
     merged["llm"] = llm
+    runtime = dict(merged.get("runtime") or {})
+    runtime.setdefault("deployment_id", "bedrock-evaluation")
+    merged["runtime"] = runtime
     return merged
 
 
@@ -219,6 +230,8 @@ def bedrock_engine_config(
     embed_model: str = COHERE_EMBED_V4,
     embed_dim: int = COHERE_EMBED_V4_DIM,
     roles: tuple[str, ...] = ("extract", "judge", "chat"),
+    request_timeout_s: float = 60.0,
+    llm_timeout_seconds: float = 180.0,
 ) -> dict[str, Any]:
     """``Engine(**...)`` overrides: Cohere v4 embeddings + Qwen3 for every LLM role.
 
@@ -226,20 +239,33 @@ def bedrock_engine_config(
     embedder on an existing store needs a rebuild: vectors of different models
     (and dimensions) are not comparable.
     """
-    embedding: dict[str, Any] = {
-        "provider": "litellm",
+    settings: dict[str, Any] = {
         "model": embed_model,
         "dim": embed_dim,
         "aws_region": region,
+        "request_timeout_s": request_timeout_s,
         "request_dimensions": True,
     }
     if "cohere" in embed_model:
         # asymmetric retrieval: +5 pp R@1 on the same test vs one input type for both
-        embedding["query_input_type"] = "search_query"
-        embedding["document_input_type"] = "search_document"
+        settings["query_input_type"] = "search_query"
+        settings["document_input_type"] = "search_document"
     return {
-        "embedding": embedding,
-        "llm": {"roles": {role: {"model": llm_model, "aws_region": region} for role in roles}},
+        "embedding": {"provider": "litellm", "settings": settings},
+        "llm": {
+            "roles": {
+                role: {
+                    "provider": "litellm",
+                    "settings": {
+                        "model": llm_model,
+                        "aws_region": region,
+                        "timeout_seconds": llm_timeout_seconds,
+                    }
+                }
+                for role in roles
+            }
+        },
+        "runtime": {"deployment_id": "bedrock-evaluation"},
     }
 
 

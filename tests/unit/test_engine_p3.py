@@ -16,8 +16,8 @@ async def engine() -> AsyncIterator[Engine]:
     eng = Engine(
         template="core",
         dotenv_path=None,
-        storage={"path": ":memory:"},
-        embedding={"provider": "hash"},
+        storage={'provider': "sqlite", 'settings': {'path': ":memory:", 'busy_timeout_s': 5.0}},
+        embedding={'provider': "hash", 'settings': {}},
         memories={"resource": {"enabled": True}},
     )
     await eng.start()
@@ -89,8 +89,8 @@ async def test_verbs_fail_loudly_when_type_disabled() -> None:
     eng = Engine(
         template="core",
         dotenv_path=None,
-        storage={"path": ":memory:"},
-        embedding={"provider": "hash"},
+        storage={'provider': "sqlite", 'settings': {'path': ":memory:", 'busy_timeout_s': 5.0}},
+        embedding={'provider': "hash", 'settings': {}},
         memories={"episodic": {"enabled": False}},
     )
     await eng.start()
@@ -209,8 +209,8 @@ async def test_unknown_runner_is_config_error() -> None:
     eng = Engine(
         template="core",
         dotenv_path=None,
-        storage={"path": ":memory:"},
-        embedding={"provider": "hash"},
+        storage={'provider': "sqlite", 'settings': {'path': ":memory:", 'busy_timeout_s': 5.0}},
+        embedding={'provider': "hash", 'settings': {}},
         workers={"runner": "quantum"},
     )
     with pytest.raises(ConfigError, match=r"workers\.runner"):
@@ -227,8 +227,8 @@ async def test_dbos_runner_names_its_extra_when_missing() -> None:
     eng = Engine(
         template="core",
         dotenv_path=None,
-        storage={"path": ":memory:"},
-        embedding={"provider": "hash"},
+        storage={'provider': "sqlite", 'settings': {'path': ":memory:", 'busy_timeout_s': 5.0}},
+        embedding={'provider': "hash", 'settings': {}},
         workers={"runner": "dbos"},
     )
     with pytest.raises(MissingServiceError, match=r"memspine\[dbos\]"):

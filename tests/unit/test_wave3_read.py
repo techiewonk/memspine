@@ -34,8 +34,8 @@ def _engine(**read: Any) -> Engine:
     return Engine(
         template="core",
         dotenv_path=None,
-        storage={"path": ":memory:"},
-        embedding={"provider": "hash"},
+        storage={'provider': "sqlite", 'settings': {'path': ":memory:", 'busy_timeout_s': 5.0}},
+        embedding={'provider': "hash", 'settings': {}},
         memories={
             "semantic": {"enabled": True},
             "episodic": {"enabled": True},
@@ -63,7 +63,7 @@ class _Stub:
 
 
 def _with_roles(monkeypatch: pytest.MonkeyPatch, stubs: dict[str, LLMService]) -> None:
-    async def router(config: MemspineConfig, hooks: object = None) -> LLMRouter:
+    async def router(config: MemspineConfig, hooks: object = None, wiring: object = None) -> LLMRouter:
         return LLMRouter(stubs)
 
     monkeypatch.setattr("memspine.runtime.container.build_llm_router", router)

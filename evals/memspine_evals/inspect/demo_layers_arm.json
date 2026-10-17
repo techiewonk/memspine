@@ -1,9 +1,14 @@
 {
  "embedding": {
-  "provider": "hash"
+  "provider": "hash",
+  "settings": {}
  },
  "storage": {
-  "path": "tempdir"
+  "provider": "sqlite",
+  "settings": {
+   "path": "tempdir",
+   "busy_timeout_s": 5.0
+  }
  },
  "read": {
   "rerank": "off",
@@ -47,7 +52,11 @@
  "llm": {
   "roles": {
    "window_extract": {
-    "model": "stub/window"
+    "provider": "litellm",
+    "settings": {
+     "model": "stub/window",
+     "timeout_seconds": 180.0
+    }
    }
   }
  },
@@ -58,5 +67,8 @@
  },
  "graph": {
   "edge_compiler_v2": true
+ },
+ "runtime": {
+  "deployment_id": "inspect-demo"
  }
 }

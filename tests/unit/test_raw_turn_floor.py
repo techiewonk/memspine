@@ -46,8 +46,8 @@ def _engine(**read: Any) -> Engine:
     return Engine(
         template="core",
         dotenv_path=None,
-        storage={"path": ":memory:"},
-        embedding={"provider": "hash"},
+        storage={'provider': "sqlite", 'settings': {'path': ":memory:", 'busy_timeout_s': 5.0}},
+        embedding={'provider': "hash", 'settings': {}},
         memories={"semantic": {"enabled": True}, "episodic": {"enabled": True}},
         read={"hybrid": False, "record_access": False, **read},
     )
@@ -116,10 +116,8 @@ async def test_raw_turn_floor_without_derived_records_is_byte_identical(mode: st
 
 
 def test_rerank_instruction_reaches_the_settings() -> None:
-    """N12 (plan v3.2): the reranker instruction is configurable, default None."""
-    from memspine.models.providers.rerank.factory import RerankSettings
+    """N12 (plan v3.2): reranker-specific settings carry the instruction."""
+    from memspine.config.schema.providers import Qwen3RerankerSettings
 
-    assert ReadConfig().rerank_instruction is None
-    assert RerankSettings(mode="qwen3", instruction="judge relevance").instruction == (
-        "judge relevance"
-    )
+    assert ReadConfig().rerank_settings == {}
+    assert Qwen3RerankerSettings(instruction="judge relevance").instruction == "judge relevance"

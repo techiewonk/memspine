@@ -23,8 +23,11 @@ def _engine(**extra: Any) -> Engine:
     config: dict[str, Any] = {
         "template": "core",
         "dotenv_path": None,
-        "storage": {"path": ":memory:"},
-        "embedding": {"provider": "hash"},
+        "storage": {
+            "provider": "sqlite",
+            "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
+        },
+        "embedding": {"provider": "hash", "settings": {}},
         "memories": {"episodic": {"enabled": True}, "semantic": {"enabled": True}},
     }
     config.update(extra)
@@ -151,7 +154,12 @@ def _files_holding(directory: Path, needle: bytes) -> list[Path]:
 
 
 async def test_hard_forget_leaves_no_vector_in_older_versions(tmp_path: Path) -> None:
-    eng = _engine(storage={"path": str(tmp_path / "m.db")})
+    eng = _engine(
+        storage={
+            "provider": "sqlite",
+            "settings": {"path": str(tmp_path / "m.db"), "busy_timeout_s": 5.0},
+        }
+    )
     await eng.start()
     try:
         keep = await eng.write("the sky is teal today", namespace="a")
@@ -171,7 +179,12 @@ async def test_hard_forget_leaves_no_vector_in_older_versions(tmp_path: Path) ->
 async def test_verify_forget_is_unproven_when_vector_history_was_not_purged(
     tmp_path: Path,
 ) -> None:
-    eng = _engine(storage={"path": str(tmp_path / "m.db")})
+    eng = _engine(
+        storage={
+            "provider": "sqlite",
+            "settings": {"path": str(tmp_path / "m.db"), "busy_timeout_s": 5.0},
+        }
+    )
     await eng.start()
     try:
         gone = await eng.write(f"{SECRET} is my vault phrase", namespace="a")

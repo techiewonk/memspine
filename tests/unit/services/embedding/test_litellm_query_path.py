@@ -28,7 +28,7 @@ def calls(monkeypatch: pytest.MonkeyPatch) -> list[dict[str, Any]]:
 
 
 async def test_defaults_send_no_new_parameters(calls: list[dict[str, Any]]) -> None:
-    emb = LiteLLMEmbedding("bedrock/cohere.embed-v4:0", 4)
+    emb = LiteLLMEmbedding("bedrock/cohere.embed-v4:0", 4, request_timeout_s=30)
     await emb.embed(["doc"])
     await embed_queries(emb, ["q"])
     assert all("dimensions" not in c and "input_type" not in c for c in calls)
@@ -39,6 +39,7 @@ async def test_requested_dims_and_input_types(calls: list[dict[str, Any]]) -> No
     emb = LiteLLMEmbedding(
         "bedrock/cohere.embed-v4:0",
         4,
+        request_timeout_s=30,
         request_dimensions=True,
         query_input_type="search_query",
         document_input_type="search_document",
@@ -56,6 +57,7 @@ async def test_cache_keeps_query_and_document_vectors_apart(calls: list[dict[str
     emb = LiteLLMEmbedding(
         "bedrock/cohere.embed-v4:0",
         4,
+        request_timeout_s=30,
         query_input_type="search_query",
         document_input_type="search_document",
     )

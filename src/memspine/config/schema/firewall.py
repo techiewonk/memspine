@@ -4,10 +4,12 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import ConfigDict, Field
+
+from memspine.config.schema.base import ConfigModel
 
 
-class FirewallSignalsConfig(BaseModel):
+class FirewallSignalsConfig(ConfigModel):
     """W2 / N20 / N22 (plan v3.2): which write signals the firewall runs.
 
     The defaults reproduce the firewall before W2. ``instruction_extended`` widens the
@@ -38,7 +40,7 @@ class FirewallSignalsConfig(BaseModel):
     minja_bridge_prefix_chars: int | None = Field(default=None, ge=16)
 
 
-class FirewallConfig(BaseModel):
+class FirewallConfig(ConfigModel):
     """Memory Firewall switches (E1 + B8). Defaults reproduce the pre-B8 firewall.
 
     - ``enabled``: ``false`` keeps trust scoring but disables flagging, anomaly

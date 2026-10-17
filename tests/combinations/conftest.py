@@ -28,8 +28,14 @@ def make_engine() -> EngineFactory:
     embedder. Extra kwargs (template, memories, workers, graph, …) layer on."""
 
     def _factory(template: str | None = None, **overrides: Any) -> Engine:
-        overrides.setdefault("storage", {"path": ":memory:"})
-        overrides.setdefault("embedding", {"provider": "hash"})
+        overrides.setdefault(
+            "storage",
+            {
+                "provider": "sqlite",
+                "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
+            },
+        )
+        overrides.setdefault("embedding", {"provider": "hash", "settings": {}})
         return Engine(template=template, dotenv_path=None, **overrides)
 
     return _factory

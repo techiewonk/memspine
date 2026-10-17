@@ -26,18 +26,13 @@ from collections.abc import (
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any, ClassVar, Self, TypeVar
+from typing import Any, ClassVar, Self, TypeVar, cast
 
 import orjson
 from dishka import AsyncContainer
 
 from memspine.api import admin, handle, ops_advisory, ops_memory, ops_trust
 from memspine.api.handle import Memory
-from memspine.clients.cashews import CashewsClient
-from memspine.clients.ladybug import LadybugClient
-from memspine.clients.lancedb import LanceDBClient
-from memspine.clients.postgres import PostgresClient
-from memspine.clients.sqlite import SQLiteClient
 from memspine.compose.answer import final_answer
 from memspine.compose.compression import CompressionPolicy
 from memspine.compose.pack import (
@@ -96,6 +91,7 @@ from memspine.economy.slo import timed_read
 from memspine.exceptions import (
     ConfigError,
     MemspineError,
+    MissingServiceError,
     StorageError,
 )
 from memspine.ingest import asset_describer
@@ -159,7 +155,12 @@ from memspine.models.encoders.query.temporal_query import (
 from memspine.models.providers.decision.decider import Decider, build_decider
 from memspine.models.providers.llm.base import LLMRouter, LLMService
 from memspine.models.providers.rerank.base import Reranker
-from memspine.models.providers.rerank.factory import RerankSettings, build_reranker, rerank_modes
+from memspine.models.providers.rerank.factory import (
+    RerankSettings,
+    build_reranker_result,
+    rerank_modes,
+    validate_reranker_settings,
+)
 from memspine.observability import inspect as inspect_obs
 from memspine.observability import tap
 from memspine.observability.logging import (
@@ -173,6 +174,22 @@ from memspine.prompts.models import (
     ReadPlan,
 )
 from memspine.prompts.registry import PromptRegistry
+from memspine.providers.changes import ChangeCategory, ChangeStrategy, RevisionGuard, SqlChangeStore
+from memspine.providers.contracts import SqlAccess
+from memspine.providers.control import EngineProviderChanges, ProviderChangeRuntime
+from memspine.providers.engine_changes import build_engine_change_support
+from memspine.providers.health import ProviderHealthReport, ProviderStatusService, ReadinessReport
+from memspine.providers.identity import resolve_deployment
+from memspine.providers.lifecycle import (
+    ProviderLifecycleManager,
+    ProviderResourceCleanupError,
+)
+from memspine.providers.projection_bindings import (
+    SqlProjectionBindingStore,
+    projection_target_bindings,
+)
+from memspine.providers.recovery import CleanupQuiescenceGuard
+from memspine.providers.switching import verified_active_projection_routes
 from memspine.read.contract import (
     QueryContract,
 )
@@ -208,11 +225,13 @@ from memspine.runtime.container import (
     Wiring,
     WiringHooks,
     client_is_memory,
+    derived_base,
     lexical_projector_name,
     make_container,
     make_neo4j_projection,
     memory_policy,
     neo4j_outbox_on,
+    preflight_projection_bindings,
 )
 from memspine.schemas.durable import AssertionEnvelope, OwnerScope
 from memspine.schemas.durable.erasure import RetentionBoundary
@@ -275,6 +294,14 @@ __all__ = ["Engine"]
 _log = get_logger(__name__)
 
 
+class _EngineTeardownError(RuntimeError):
+    """Sanitized summary of cleanup steps that did not complete."""
+
+    def __init__(self, message: str, *, retryable: bool = False) -> None:
+        super().__init__(message)
+        self.retryable = retryable
+
+
 #: R02 / I75 v2: legs that vote from the same evidence form one *source family*. A leg that
 #: replays or re-filters another leg's order (the perspective leg replays the vector order by
 #: subject) is not an independent vote; keyword legs and temporal legs are separate evidence.
@@ -313,16 +340,13 @@ def _build_ledger_store(config: MemspineConfig) -> _economy_ledger.LedgerStore |
     is off, or when there is no file to keep it in (``:memory:`` storage: logged)."""
     if not config.economy.ledger_persist:
         return None
-    storage = config.storage
-    if storage.backend == "sqlite" and storage.path != ":memory:":
-        path = f"{storage.path}.cost"
-    elif storage.backend != "sqlite" and storage.data_dir:
-        path = str(Path(storage.data_dir) / "memspine.cost")
-    else:
+    base = derived_base(config)
+    if base == ":memory:":
         _log.warning(
             "ledger_persist.in_memory", detail="no storage file: the cost ledger is not persisted"
         )
         return None
+    path = f"{base}.cost"
     return _economy_ledger.LedgerStore(path)
 
 
@@ -334,27 +358,36 @@ class Engine:
         template: str | None = None,
         user_config: str | Path | dict[str, Any] | None = None,
         dotenv_path: str | Path | None = ".env",
+        provider_change_runtime: ProviderChangeRuntime | None = None,
         **overrides: Any,
     ) -> None:
         self._template = template
         self._user_config = user_config
         self._dotenv_path = dotenv_path
         self._overrides = overrides
+        # Deliberately programmatic and non-serializable: cleanup strategies and
+        # revision guards are trusted application dependencies, not YAML config.
+        self._provider_change_runtime = provider_change_runtime
+        self._provider_changes_controller: EngineProviderChanges | None = None
         self._resolved: ResolvedConfig | None = None
         self._enabled: set[str] = set()
         self._auto_enabled: list[str] = []
-        self._client: SQLiteClient | None = None  # SQLite storage + FTS5/adjacency projections
-        self._pg: PostgresClient | None = None  # Postgres storage backend (Phase 6)
-        self._lance: LanceDBClient | None = None
+        self._sql: SqlAccess | None = None
+        self._provider_resources: ProviderLifecycleManager | None = None
+        self._provider_results: dict[str, Any] = {}
+        self._provider_owner_id: str | None = None
+        self._reranker_build_lock = asyncio.Lock()
+        self._reranker_build_results: dict[str, Any | None] = {}
+        self._reranker_build_tasks: dict[str, asyncio.Task[Any | None]] = {}
+        self._provider_tearing_down = False
+        self._teardown_task: asyncio.Task[None] | None = None
         # Inside a projection batch (ingest_messages): the last seq each
         # projector applied, checkpointed when the batch flushes. None outside.
         self._batch_offsets: dict[str, int] | None = None
-        self._ladybug: LadybugClient | None = None
         # Phase 2: one shared KV cache + the optional clients backing it.
         self._cache: KVCache | None = None
         #: #43: the extraction cache, kept so erasure can purge an erased text's entry.
         self._cached_extractor: CachedExtractor | None = None
-        self._cashews: CashewsClient | None = None  # [cache]: disk/redis/valkey
         self._storage: SqlStorage | None = None
         self._projectors: list[Projector] = []
         self._embedder: EmbeddingService | None = None
@@ -500,10 +533,25 @@ class Engine:
         client/service is torn down before the error propagates (no leaks)."""
         if self._started:
             return self
+        if self._teardown_task is not None and self._teardown_task.done():
+            try:
+                self._teardown_task.result()
+            except BaseException:
+                # A failed close report remains authoritative; do not reuse an
+                # Engine whose dependencies may still be open or partly closed.
+                await self._teardown()
+            self._teardown_task = None
+        self._provider_tearing_down = False
         try:
             return await self._start_inner()
-        except BaseException:
-            await self._teardown()
+        except BaseException as startup_error:
+            try:
+                await self._teardown()
+            except BaseException as cleanup_error:
+                startup_error.add_note(
+                    "Startup cleanup was incomplete: "
+                    + self._cleanup_error_detail(cleanup_error)
+                )
             raise
 
     async def _start_inner(self) -> Self:
@@ -525,6 +573,17 @@ class Engine:
         )
         self._resolved = await container.get(ResolvedConfig)
         config = self._resolved.config
+        cleanup_settings = config.runtime.service_switches.projections
+        if cleanup_settings.cleanup_interval_s is not None:
+            runtime = self._provider_change_runtime
+            if runtime is None or not any(
+                category in {"graph", "vector", "lexical"}
+                for category, _strategy_name in runtime.strategies
+            ):
+                raise ConfigError(
+                    "runtime.service_switches.projections.cleanup_interval_s requires "
+                    "provider_change_runtime with an injected projection strategy"
+                )
         if config.observability.otel.enabled:  # T5-06: MissingServiceError names memspine[otel]
             self._otel = OtelExporter()
 
@@ -536,9 +595,20 @@ class Engine:
 
         # 3./4. construct services + open the write door.
         self._storage = await container.get(SqlStorage)
-        self._client, self._pg = wiring.client, wiring.pg
+        self._sql, self._provider_resources = wiring.sql, wiring.resources
+        self._provider_results = wiring.provider_results
         _snapshot_listings(self._storage)  # I2
         await self._storage.start()
+        assert self._sql is not None
+        wiring.owner_id = await resolve_deployment(
+            self._sql, config.runtime.deployment_id, config.runtime.environment
+        )
+        self._provider_owner_id = wiring.owner_id
+        async with self._sql.engine.connect() as connection:
+            wiring.projection_routes = await verified_active_projection_routes(
+                connection, wiring.owner_id
+            )
+        await preflight_projection_bindings(config, wiring, self._enabled)
         if config.event_log.mode is EventLogMode.EPHEMERAL:
             _log.warning(
                 "event_log.ephemeral_mode_active",
@@ -549,7 +619,6 @@ class Engine:
         # One shared cache (Phase 2) fronts both the embedding and extraction
         # caches; the emb:/ext: producer key prefixes keep them isolated in it.
         self._cache = await container.get(KVCache)
-        self._cashews = wiring.cashews
         # RT-02 (flags runtime.scheduler_v2 / runtime.model_concurrency): the shared scheduler;
         # None when both are off, and then nothing below changes.
         self._sched_v2 = _scheduler_rt.acquire(config.runtime)
@@ -560,7 +629,7 @@ class Engine:
         if self._sched_v2 is not None:
             self._embedder = self._sched_v2.wrap_embedder(self._embedder)
         self._vector = await container.get(VectorStore)
-        self._lance, self._rescore_active = wiring.lance, wiring.rescore_active
+        self._rescore_active = wiring.rescore_active
         # E4 model2vec prefilter (ADR-020): only the intent is recorded here; the
         # static embedder loads lazily on first search so a heavy model download
         # never blocks start and a missing [static] extra self-disables (skip-log).
@@ -578,7 +647,6 @@ class Engine:
         # projector ever writes it), so it is a config error, not a store.
         if "associative" in self._enabled:
             self._graph = await container.get(GraphStore)
-            self._ladybug = wiring.ladybug
         elif "graph" in config.model_fields_set:
             raise ConfigError(
                 "graph configured but memories.associative not enabled — "
@@ -600,6 +668,20 @@ class Engine:
             raise ConfigError(
                 f"unknown read.rerank {config.read.rerank!r} (valid: {', '.join(rerank_modes())})"
             )
+        if config.read.rerank != "off":
+            validate_reranker_settings(
+                config.read.rerank,
+                config.read.rerank_settings,
+                explicit_deployment_id=config.runtime.deployment_id is not None,
+            )
+        if config.read.rerank_v2:
+            for mode in config.read.rerank_v2_chain:
+                validate_reranker_settings(
+                    mode,
+                    config.read.rerank_settings,
+                    explicit_deployment_id=config.runtime.deployment_id is not None,
+                    allow_irrelevant=True,
+                )
         self._working = WorkingMemory(
             append_event=self._append_and_project,
             page_size=int(
@@ -713,15 +795,31 @@ class Engine:
         if neo4j_outbox_on(config):  # F-16e: Neo4j mirror of the graph, fed through the outbox
             if self._graph is None:
                 raise ConfigError("graph.neo4j_outbox needs memories.associative (a graph)")
-            self._neo4j = make_neo4j_projection(
+            self._neo4j = await make_neo4j_projection(
                 config,
-                self._client,
-                self._pg,
+                self._sql,
+                self._provider_resources,
                 self._namespace_lock,
                 graph_entities,
                 _EDGE_COMPILED,
+                self._provider_results,
             )
             self._projectors.append(self._neo4j.projector)
+
+        # A durable high-water mark is valid only for the provider target that
+        # produced it. Fail closed before the mirror worker or catch-up can
+        # serve data under a changed graph/vector/lexical target.
+        assert self._sql is not None and self._provider_owner_id is not None
+        binding_store = SqlProjectionBindingStore(self._sql.engine)
+        for binding in projection_target_bindings(
+            config,
+            self._provider_results,
+            list(self._projectors),
+            self._provider_owner_id,
+            self._embedder,
+            wiring.projection_routes,
+        ):
+            await binding_store.ensure(binding)
 
         # Background runner seam (D-16): inline default, dbos durable [dbos].
         self._runner = await container.get(TaskRunner)
@@ -806,6 +904,12 @@ class Engine:
         from memspine.ingest.message_store import backfill_from_storage
 
         await backfill_from_storage(self._require_started())
+        if cleanup_settings.cleanup_interval_s is not None:
+            runtime = self._provider_change_runtime
+            assert runtime is not None
+            controller = self._build_provider_changes_controller(runtime)
+            self._provider_changes_controller = controller
+            await controller.start_cleanup_worker()
         return self
 
     def _install_write_timers(self, config: MemspineConfig) -> None:
@@ -855,52 +959,203 @@ class Engine:
         await self._teardown()
 
     async def _teardown(self) -> None:
-        if getattr(self, "_ops_ledger", None) is not None:
-            if _ops.installed() is self._ops_ledger:
-                _ops.install(None)
-            self._ops_ledger = None
+        task = self._teardown_task
+        retryable_failure = False
+        if task is not None and task.done():
+            try:
+                task.result()
+            except _EngineTeardownError as exc:
+                retryable_failure = exc.retryable
+            except BaseException:
+                pass
+        if task is None or retryable_failure:
+            task = asyncio.create_task(self._teardown_inner(), name="memspine-engine-teardown")
+            self._teardown_task = task
+        try:
+            await asyncio.shield(task)
+        except asyncio.CancelledError:
+            current = asyncio.current_task()
+            if current is None or current.cancelling() == 0:
+                raise
+            # Stop is cancellation-safe: finish ordered cleanup before returning
+            # cancellation to the caller.
+            try:
+                await asyncio.shield(task)
+            except BaseException as cleanup_error:
+                _log.error(
+                    "engine.teardown_incomplete",
+                    failures=[self._cleanup_error_detail(cleanup_error)],
+                )
+            raise
+
+    async def _teardown_inner(self) -> None:
+        self._provider_tearing_down = True
+        try:
+            await self._drain_reranker_build()
+        except Exception as exc:
+            # A lazy builder that ignores cancellation can still be using its
+            # provider and SQL dependencies, so leave those resources open.
+            raise _EngineTeardownError(
+                "engine teardown blocked before dependency cleanup: reranker build drain "
+                f"failed ({type(exc).__name__})",
+                retryable=True,
+            ) from None
+
+        failures: list[str] = []
+
+        async def attempt(label: str, action: Callable[[], Awaitable[Any] | None]) -> None:
+            try:
+                result = action()
+                if result is not None:
+                    await result
+            except asyncio.CancelledError as exc:
+                failures.append(f"{label} ({type(exc).__name__})")
+            except Exception as exc:
+                failures.append(f"{label} ({self._cleanup_error_detail(exc)})")
+
+        async def stop_provider_cleanup_worker() -> None:
+            if self._provider_changes_controller is not None:
+                controller, self._provider_changes_controller = self._provider_changes_controller, None
+                await controller.stop_cleanup_worker()
+
+        # The cleanup worker uses the same SQL and target strategies as serving;
+        # drain it before any scheduler, client, or SQL dependency is stopped.
+        await attempt("provider cleanup worker", stop_provider_cleanup_worker)
+
+        async def close_ops_ledger() -> None:
+            if self._ops_ledger is not None:
+                ledger, self._ops_ledger = self._ops_ledger, None
+                if _ops.installed() is ledger:
+                    _ops.install(None)
+
+        await attempt("ops ledger", close_ops_ledger)
         self._otel = None
-        if getattr(self, "_cost_ledger", None) is not None:
-            if _economy_ledger.installed() is self._cost_ledger:
-                _economy_ledger.install(None)
-            self._cost_ledger.close()  # type: ignore[union-attr]  # FU-SLEEP: flush the persisted rows  # CI-GREEN: pre-existing typing debt
-            self._cost_ledger = None
-        if getattr(self, "_sched_v2", None) is not None:
-            sched, self._sched_v2 = self._sched_v2, None
-            await _scheduler_rt.release(sched)
-        if self._scheduler is not None:
-            await self._scheduler.stop()  # stop the loop before tearing down its deps
-            self._scheduler = None
-        if self._derive_sched is not None:  # O4-01a: cancel timers and jobs (cycles stay open)
-            derive_sched, self._derive_sched = self._derive_sched, None
-            await derive_sched.stop()
-        await asset_describer.shutdown(self)  # W2-11: queued on_read descriptions
-        if self._windows is not None:
-            await self._windows.stop()  # window workers and idle timers, before the storage goes
-        if self._neo4j is not None:
-            neo4j, self._neo4j = self._neo4j, None
-            await neo4j.close()  # F-16e: bounded drain, then the store handle
-        if self._runner is not None:
-            await self._runner.close()
-        if self._storage is not None:
-            await self._storage.stop()
-        if self._lexical is not None:
-            await self._lexical.close()  # shares the SQLite client; a no-op there
-        if self._graph is not None:
-            await self._graph.close()  # store-held handles; connections close below
-        if self._container is not None:
-            # dishka finalisers: the clients a build opened close here, in the order
-            # client, pg, lance, ladybug, cashews (``Wiring.close_clients``).
-            container, self._container = self._container, None
-            await container.close()
+        async def close_cost_ledger() -> None:
+            if self._cost_ledger is not None:
+                ledger, self._cost_ledger = self._cost_ledger, None
+                if _economy_ledger.installed() is ledger:
+                    _economy_ledger.install(None)
+                ledger.close()
+
+        await attempt("cost ledger", close_cost_ledger)
+        async def release_model_scheduler() -> None:
+            if self._sched_v2 is not None:
+                sched, self._sched_v2 = self._sched_v2, None
+                await _scheduler_rt.release(sched)
+
+        await attempt("model scheduler", release_model_scheduler)
+        async def stop_scheduler() -> None:
+            if self._scheduler is not None:
+                scheduler, self._scheduler = self._scheduler, None
+                await scheduler.stop()
+
+        await attempt("sleep scheduler", stop_scheduler)
+        async def stop_derive_scheduler() -> None:
+            if self._derive_sched is not None:
+                derive_sched, self._derive_sched = self._derive_sched, None
+                await derive_sched.stop()
+
+        await attempt("derive scheduler", stop_derive_scheduler)
+        await attempt("asset describer", lambda: asset_describer.shutdown(self))
+        async def stop_windows() -> None:
+            if self._windows is not None:
+                windows, self._windows = self._windows, None
+                await windows.stop()
+
+        await attempt("window workers", stop_windows)
+        async def close_neo4j_projection() -> None:
+            if self._neo4j is not None:
+                neo4j, self._neo4j = self._neo4j, None
+                await neo4j.close()
+
+        await attempt("Neo4j projection worker", close_neo4j_projection)
+        async def close_runner() -> None:
+            if self._runner is not None:
+                runner, self._runner = self._runner, None
+                await runner.close()
+
+        await attempt("task runner", close_runner)
+        async def stop_storage() -> None:
+            if self._storage is not None:
+                storage, self._storage = self._storage, None
+                await storage.stop()
+
+        await attempt("SQL storage", stop_storage)
+        async def close_container() -> None:
+            if self._container is not None:
+                # Finalisers close owned provider resources in dependency order.
+                container, self._container = self._container, None
+                try:
+                    await container.close()
+                except Exception:
+                    resources = self._provider_resources
+                    if resources is not None:
+                        report = await resources.close_all()
+                        if report.failures:
+                            raise ProviderResourceCleanupError(report) from None
+                    raise
+
+        await attempt("provider resources", close_container)
         for attr in self._timed_attrs:  # I73: drop the instance wrappers, restore the methods
             self.__dict__.pop(attr, None)
         self._timed_attrs = []
         self._write_timers = None
-        if getattr(self, "_tap_owner", False):
-            tap.shutdown()
-            self._tap_owner = False
+        def shutdown_tap() -> None:
+            if getattr(self, "_tap_owner", False):
+                tap.shutdown()
+                self._tap_owner = False
+
+        await attempt("debug tap", shutdown_tap)
         self._started = False
+        if failures:
+            _log.error("engine.teardown_incomplete", failures=failures)
+            raise _EngineTeardownError("engine teardown incomplete: " + "; ".join(failures))
+
+    @staticmethod
+    def _cleanup_error_detail(error: BaseException) -> str:
+        if isinstance(error, ProviderResourceCleanupError):
+            return str(error)
+        if isinstance(error, _EngineTeardownError):
+            return str(error)
+        if isinstance(error, BaseExceptionGroup):
+            details = [Engine._cleanup_error_detail(item) for item in error.exceptions]
+            return "; ".join(dict.fromkeys(details))
+        return type(error).__name__
+
+    async def _drain_reranker_build(self) -> None:
+        """Cancel and drain lazy provider construction before closing its dependencies."""
+        async with self._reranker_build_lock:
+            tasks = list(self._reranker_build_tasks.values())
+            for task in tasks:
+                if not task.done():
+                    task.cancel()
+        pending_tasks = [task for task in tasks if not task.done()]
+        if not pending_tasks:
+            self._reranker_build_tasks.clear()
+            for task in tasks:
+                try:
+                    task.result()
+                except asyncio.CancelledError:
+                    pass
+                except Exception as exc:
+                    _log.warning("rerank.provider_build_stopped", error=type(exc).__name__)
+            return
+        timeout_s = 5.0
+        if self._resolved is not None:
+            timeout_s = self._resolved.config.runtime.provider_services.health_timeout_s
+        done, pending = await asyncio.wait(pending_tasks, timeout=timeout_s)
+        if pending:
+            # Keep dependencies open rather than racing a builder that ignored cancellation.
+            raise TimeoutError("reranker builder did not stop before provider teardown")
+        self._reranker_build_tasks.clear()
+        done.update(task for task in tasks if task.done())
+        for task in done:
+            try:
+                task.result()
+            except asyncio.CancelledError:
+                pass
+            except Exception as exc:
+                _log.warning("rerank.provider_build_stopped", error=type(exc).__name__)
 
     # ── public verbs (P0: write / retrieve / rebuild / describe) ─────────────
 
@@ -3265,10 +3520,10 @@ class Engine:
         await trust_erasure._forget_many(
             self, storage, ns, record_ids, hard, subject_names=subject_names
         )
-        if hard and self._client is not None:
+        if hard and self._sql is not None:
             from memspine.ingest.message_store import tombstone_records
 
-            await tombstone_records(self._client.engine, record_ids)
+            await tombstone_records(self._sql.engine, record_ids)
 
     async def _erased_entity_nodes(
         self, ns: str, names: Sequence[str], *, forced: Sequence[str] = ()
@@ -4028,27 +4283,88 @@ class Engine:
         assert self._resolved is not None
         return self._resolved.config
 
-    def _rerank_provider(self) -> Reranker | None:
+    async def _build_reranker(self, settings: RerankSettings) -> Reranker | None:
+        """Share one lazy provider build across concurrent callers."""
+        mode = settings.mode
+        if self._provider_tearing_down:
+            raise MemspineError("reranker construction cannot start during provider teardown")
+        if mode in self._reranker_build_results:
+            result = self._reranker_build_results[mode]
+            return None if result is None else result.service
+        async with self._reranker_build_lock:
+            if self._provider_tearing_down:
+                raise MemspineError("reranker construction cannot start during provider teardown")
+            if mode in self._reranker_build_results:
+                result = self._reranker_build_results[mode]
+                return None if result is None else result.service
+            task = self._reranker_build_tasks.get(mode)
+            if task is None or task.done():
+                task = asyncio.create_task(
+                    self._perform_reranker_build(settings), name=f"memspine-reranker-build-{mode}"
+                )
+                self._reranker_build_tasks[mode] = task
+        return await asyncio.shield(task)
+
+    async def _perform_reranker_build(self, settings: RerankSettings) -> Reranker | None:
+        """Build once through the provider descriptor and record lifecycle ownership."""
+        mode = settings.mode
+        if self._provider_resources is None:
+            raise MemspineError("reranker construction requires a started engine")
+        from memspine.providers.contexts import RerankerBuildContext, SharedBuildContext
+
+        cfg = self._config()
+        context = RerankerBuildContext(
+            shared=SharedBuildContext(
+                resources=self._provider_resources,
+                owner_id=self._provider_owner_id or "pending-owner",
+                health_timeout_s=cfg.runtime.provider_services.health_timeout_s,
+            ),
+            chunk_chars=settings.chunk_chars,
+            chunk_overlap=settings.chunk_overlap,
+        )
+        try:
+            built = await build_reranker_result(
+                settings,
+                context,
+                explicit_deployment_id=cfg.runtime.deployment_id is not None,
+            )
+        except (MissingServiceError, ConnectionError, TimeoutError) as exc:
+            _log.warning("rerank.provider_unavailable", mode=mode, error=type(exc).__name__)
+            built = None
+        self._reranker_build_results[mode] = built
+        if built is not None:
+            self._provider_results[f"reranker.{mode}"] = built
+            return built.service
+        return None
+
+    async def _rerank_provider(self) -> Reranker | None:
         """The E8 reranker for the configured mode (D-51), constructed lazily
         on first use (cross-encoder weights must not load at engine start).
         An unavailable adapter is skip-logged ONCE and the stage disables
         itself — retrieval quality degrades, retrieval never fails."""
         read = self._config().read
         mode = read.rerank
+        rerank_options = read.rerank_settings
         if mode == "off" or self._rerank_unavailable:
             return None if mode == "off" else self._reranker
         if self._reranker is not None:
             return self._reranker
-        # The RerankerFactory (A2/D-51) owns lazy construction + the swallow-to-
-        # None on ANY failure (COR-3/ADR-018); the engine keeps only the cache +
-        # sticky-disable. A None here means unavailable → disable the stage once.
-        self._reranker = build_reranker(
+        # The provider factory owns lazy construction and classifies approved
+        # unavailability; configuration and programming failures still propagate.
+        self._reranker = await self._build_reranker(
             RerankSettings(
                 mode=mode,
-                model=read.rerank_model,
-                instruction=read.rerank_instruction,
-                device=read.rerank_device,
-                quant=read.rerank_quant,
+                model=cast(str | None, rerank_options.get("model")),
+                api_base=cast(str | None, rerank_options.get("api_base")),
+                api_key=cast(str | None, rerank_options.get("api_key")),
+                aws_region=cast(str | None, rerank_options.get("aws_region")),
+                request_timeout_s=cast(float | None, rerank_options.get("request_timeout_s")),
+                instruction=cast(str | None, rerank_options.get("instruction")),
+                device=cast(str | None, rerank_options.get("device")),
+                quant=cast(str | None, rerank_options.get("quant")),
+                batch_size=cast(int | None, rerank_options.get("batch_size")),
+                max_length=cast(int | None, rerank_options.get("max_length")),
+                max_documents=cast(int | None, rerank_options.get("max_documents")),
                 chunk_chars=read.rerank_chunk_chars,
                 chunk_overlap=read.rerank_chunk_overlap,
             )
@@ -4815,6 +5131,180 @@ class Engine:
                     await self._neo4j.store.delete_node(rid)
         _log.info(EVENT_REBUILD, counts=counts)
         return counts
+
+    def _provider_status_service(self) -> ProviderStatusService:
+        self._require_started()
+        assert self._resolved is not None
+        service = ProviderStatusService(
+            health_timeout_s=self._resolved.config.runtime.provider_services.health_timeout_s
+        )
+        for logical_id, result in self._provider_results.items():
+            service.register_build_result(
+                result,
+                required=logical_id != "graph.mirror" and result.provider.category in {"storage", "vector", "graph", "lexical", "cache"},
+                logical_id=logical_id,
+            )
+        return service
+
+    async def provider_health(self) -> ProviderHealthReport:
+        """Run bounded, read-only infrastructure probes; never call a paid model."""
+        return await self._provider_status_service().health()
+
+    async def _profile_card_entry_count(self, namespace: str) -> int:
+        """Read the derived card inventory without coupling read to derive."""
+        from memspine.derive.pipeline.stages.profile_card import read_latest_card
+
+        card = await read_latest_card(self._require_started(), namespace)
+        return len(card.entries) if card is not None else 0
+
+    def provider_changes(
+        self,
+        *,
+        revision_guard: RevisionGuard | None = None,
+        strategies: Mapping[tuple[ChangeCategory, str], ChangeStrategy] | None = None,
+        plan_ttl_s: float | None = None,
+        cleanup_quiescence_guard: CleanupQuiescenceGuard | None = None,
+    ) -> EngineProviderChanges:
+        """Construct explicit administrative change control over this deployment.
+
+        Supply verified category strategies and revision/config sources. This
+        call performs no migration, model probe or destructive cleanup.
+        """
+        self._require_started()
+        runtime = self._provider_change_runtime
+        supplied = (revision_guard is not None, strategies is not None, plan_ttl_s is not None)
+        if any(supplied) and not all(supplied):
+            raise ConfigError(
+                "provider_changes requires all of revision_guard, strategies, and plan_ttl_s"
+            )
+        if not any(supplied):
+            if runtime is None:
+                raise ConfigError(
+                    "provider_changes requires revision_guard, strategies, and plan_ttl_s "
+                    "or Engine(provider_change_runtime=...)"
+                )
+            revision_guard = runtime.revision_guard
+            strategies = runtime.strategies
+            plan_ttl_s = runtime.plan_ttl_s
+            cleanup_quiescence_guard = (
+                cleanup_quiescence_guard or runtime.cleanup_quiescence_guard
+            )
+        assert revision_guard is not None and strategies is not None and plan_ttl_s is not None
+        if (
+            runtime is not None
+            and revision_guard is runtime.revision_guard
+            and strategies == runtime.strategies
+            and plan_ttl_s == runtime.plan_ttl_s
+            and cleanup_quiescence_guard is runtime.cleanup_quiescence_guard
+            and self._provider_changes_controller is not None
+        ):
+            return self._provider_changes_controller
+        controller = self._build_provider_changes_controller(
+            ProviderChangeRuntime(
+                revision_guard=revision_guard,
+                strategies=strategies,
+                plan_ttl_s=plan_ttl_s,
+                cleanup_quiescence_guard=cleanup_quiescence_guard,
+            )
+        )
+        if runtime is not None and revision_guard is runtime.revision_guard:
+            self._provider_changes_controller = controller
+        return controller
+
+    def _build_provider_changes_controller(
+        self, runtime: ProviderChangeRuntime
+    ) -> EngineProviderChanges:
+        self._require_started()
+        assert self._sql is not None and self._provider_owner_id is not None
+        sql = self._sql
+
+        def assert_active() -> None:
+            self._require_started()
+            if self._sql is not sql:
+                raise MemspineError("provider change controller belongs to a previous Engine start")
+
+        coordinator, _ = build_engine_change_support(
+            sql=sql,
+            revision_guard=runtime.revision_guard,
+            strategies=runtime.strategies,
+            plan_ttl_s=runtime.plan_ttl_s,
+        )
+        config = self._resolved.config if self._resolved is not None else None
+        projections = (
+            config.runtime.service_switches.projections if config is not None else None
+        )
+        return EngineProviderChanges(
+            coordinator=coordinator,
+            store=SqlChangeStore(sql.engine),
+            deployment_id=self._provider_owner_id,
+            assert_active=assert_active,
+            cleanup_interval_s=(projections.cleanup_interval_s if projections is not None else None),
+            cleanup_batch_size=(projections.cleanup_batch_size if projections is not None else 50),
+            cleanup_quiescence_guard=runtime.cleanup_quiescence_guard,
+        )
+
+    async def provider_catalog(self, *, probe_health: bool = False) -> list[dict[str, object]]:
+        """Inspect registered and built services without exposing native settings.
+
+        Each built logical service has its own row, including separate LLM
+        roles and graph mirror. Infrastructure health checks are opt-in; no
+        model quality calls or model downloads are performed.
+        """
+        from memspine.providers.inspection import inspect_providers, projection_diagnostics
+
+        self._require_started()
+        assert self._resolved is not None
+        config = self._resolved.config
+        configured: dict[str, str] = {}
+        category_names = {
+            "storage": config.storage.provider,
+            "cache": config.cache.provider,
+            "vector": config.vector.provider,
+            "embedding": config.embedding.provider,
+            "lexical": config.read.lexical_provider,
+        }
+        for logical_id, result in self._provider_results.items():
+            configured[logical_id] = category_names.get(result.provider.category, result.provider.name)
+        configured["graph.primary"] = config.graph.provider
+        configured["graph.mirror"] = config.graph.mirror.provider
+        report = await self.readiness() if probe_health else None
+        diagnostics = {}
+        diagnostic_error = False
+        try:
+            assert self._sql is not None and self._provider_owner_id is not None
+            async with asyncio.timeout(config.runtime.provider_services.health_timeout_s):
+                diagnostics = await projection_diagnostics(self._sql, self._provider_owner_id)
+        except Exception:
+            diagnostic_error = True
+        rows = inspect_providers(
+            results=self._provider_results,
+            resource_states={} if self._provider_resources is None else self._provider_resources.states,
+            configured=configured,
+            health=None if report is None else report.health,
+            projector_catchup=None if report is None else report.projector_catchup,
+            projections=diagnostics,
+        )
+        if diagnostic_error:
+            for row in rows:
+                if row["logical_service_id"] and row["category"] in {"vector", "lexical", "graph"}:
+                    row["sanitized_error_code"] = "PROVIDER_INSPECTION_FAILED"
+        return rows
+
+    async def readiness(self) -> ReadinessReport:
+        """Require responsive infrastructure and caught-up selected projections."""
+        storage = self._require_started()
+        assert self._resolved is not None
+        catchup: dict[str, bool] = {}
+        for projector in self._projectors:
+            try:
+                async with asyncio.timeout(
+                    self._resolved.config.runtime.provider_services.health_timeout_s
+                ):
+                    offset = await storage.get_offset(projector.name)
+                    catchup[projector.name] = not await storage.read_events(after_seq=offset, limit=1)
+            except Exception:
+                catchup[projector.name] = False
+        return await self._provider_status_service().readiness(projector_catchup=catchup)
 
     def describe(self) -> dict[str, Any]:
         """The effective world (§4 step 7). Only meaningful on a started engine."""

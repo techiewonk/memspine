@@ -285,7 +285,7 @@ def resolve_describer(eng: Any) -> AssetDescriber:
         return LLMDescriber(
             llm.for_role(DESCRIBE_ROLE),
             prompts.for_role(DESCRIBE_ROLE),
-            role.model if role is not None else "",
+            str(role.settings.get("model", "")) if role is not None else "",
         )
     return MetadataDescriber()
 

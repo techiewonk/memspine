@@ -24,8 +24,12 @@ def _engine(**extra: Any) -> Engine:
     base: dict[str, Any] = {
         "template": "core",
         "dotenv_path": None,
-        "storage": {"path": ":memory:"},
-        "embedding": {"provider": "hash"},
+        "runtime": {"deployment_id": "unit-test"},
+        "storage": {
+            "provider": "sqlite",
+            "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
+        },
+        "embedding": {"provider": "hash", "settings": {}},
         "read": {"hybrid": False},
         "memories": {"semantic": {"enabled": True}},
     }
@@ -115,8 +119,8 @@ async def test_correct_bypasses_contest_lower_trust() -> None:
     eng = await Engine(
         template="base",
         dotenv_path=None,
-        storage={"path": ":memory:"},
-        embedding={"provider": "hash"},
+        storage={'provider': "sqlite", 'settings': {'path': ":memory:", 'busy_timeout_s': 5.0}},
+        embedding={'provider': "hash", 'settings': {}},
     ).start()
     try:
         fact = await eng.write("Ana lives in Lyon", namespace="u", entity="ana", attribute="city")
@@ -253,7 +257,13 @@ async def test_audit_chain_detects_tampering_and_survives_restart(tmp_path: Path
     db = tmp_path / "audit.db"
 
     def make() -> Engine:
-        return _engine(storage={"path": str(db)}, audit={"reads": True})
+        return _engine(
+            storage={
+                "provider": "sqlite",
+                "settings": {"path": str(db), "busy_timeout_s": 5.0},
+            },
+            audit={"reads": True},
+        )
 
     eng = await make().start()
     await eng.write("Ana likes green tea", namespace="u")
@@ -359,8 +369,14 @@ async def test_remote_llm_gate_withholds_high_tier_text() -> None:
         consent={"remote_llm_max_tier": "low"},
         llm={
             "roles": {
-                "summarize": {"model": "openai/gpt-4o"},
-                "extract": {"model": "ollama/llama3"},
+                "summarize": {
+                    "provider": "litellm",
+                    "settings": {"model": "openai/gpt-4o", "timeout_seconds": 30.0},
+                },
+                "extract": {
+                    "provider": "litellm",
+                    "settings": {"model": "ollama/llama3", "timeout_seconds": 30.0},
+                },
             }
         },
     ).start()

@@ -49,7 +49,7 @@ async def make_ctx() -> tuple[PipelineContext, Harness]:
     storage = SQLiteStorage(client)
     await storage.start()
     harness = Harness(storage, RecordProjector(storage))
-    resolved = load_config()
+    resolved = load_config(template="core")
     ctx = PipelineContext(storage=storage, config=resolved.config, append_event=harness.append)
     return ctx, harness
 

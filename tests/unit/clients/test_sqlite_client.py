@@ -57,3 +57,14 @@ async def test_shared_cache_database_survives_pool_churn() -> None:
         assert [tuple(row) for row in rows] == [(1,)]
     finally:
         await client.close()
+
+
+async def test_configured_busy_timeout_is_applied_to_connections(tmp_path) -> None:
+    client = SQLiteClient(tmp_path / "busy.db", busy_timeout_s=0.125)
+    await client.connect()
+    try:
+        async with client.engine.connect() as conn:
+            value = await conn.scalar(text("PRAGMA busy_timeout"))
+        assert value == 125
+    finally:
+        await client.close()

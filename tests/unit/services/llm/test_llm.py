@@ -43,7 +43,34 @@ async def test_litellm_chat_passes_model_and_options(monkeypatch: pytest.MonkeyP
     assert seen["aws_region_name"] == "us-east-1"
     assert seen["api_base"] == "http://x"
     assert seen["temperature"] == 0.2  # extra options forwarded
+    assert seen["top_p"] == 1.0
+    assert seen["max_tokens"] == 2048
     assert llm.provider_id == "litellm:bedrock/anthropic.claude-3"
+
+
+async def test_litellm_native_defaults_and_call_options(monkeypatch: pytest.MonkeyPatch) -> None:
+    import litellm
+
+    seen: dict[str, Any] = {}
+
+    async def fake_acompletion(**kwargs: Any) -> _Response:
+        seen.update(kwargs)
+        return _Response("answer")
+
+    monkeypatch.setattr(litellm, "acompletion", fake_acompletion)
+    llm = LiteLLMLLM(
+        "openai/test",
+        temperature=0.4,
+        top_p=0.8,
+        max_tokens=512,
+    )
+    await llm.chat(
+        [{"role": "user", "content": "hi"}],
+        temperature=0.0,
+        max_tokens=64,
+    )
+
+    assert (seen["temperature"], seen["top_p"], seen["max_tokens"]) == (0.0, 0.8, 64)
 
 
 async def test_litellm_wraps_provider_errors(monkeypatch: pytest.MonkeyPatch) -> None:

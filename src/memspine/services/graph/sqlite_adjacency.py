@@ -19,12 +19,12 @@ opens a connection itself.
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from typing import Any
+from typing import Any, Protocol
 
 import orjson
 from sqlalchemy import Select, delete, func, or_, select, text
+from sqlalchemy.ext.asyncio import AsyncEngine
 
-from memspine.clients.sqlite import SQLiteClient
 from memspine.services.graph.base import (
     ENTITY_TEXT_PROP,
     ENTITY_VECTOR_PROP,
@@ -40,6 +40,11 @@ from memspine.services.graph.base import (
 from memspine.services.storage.sqlite.schema import graph_edges, graph_nodes
 
 __all__ = ["SQLiteAdjacencyGraph"]
+
+class _SqlEngineAccess(Protocol):
+    @property
+    def engine(self) -> AsyncEngine: ...
+
 
 _EDGE_KEY = ["src", "dst", "rel_type"]
 
@@ -141,7 +146,7 @@ def _subgraph_rows(namespace: str | None) -> str:
 
 
 class SQLiteAdjacencyGraph:
-    def __init__(self, client: SQLiteClient) -> None:
+    def __init__(self, client: _SqlEngineAccess) -> None:
         self._client = client
 
     async def upsert_node(

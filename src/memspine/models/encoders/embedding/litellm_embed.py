@@ -28,6 +28,7 @@ class LiteLLMEmbedding:
         api_base: str | None = None,
         api_key: str | None = None,
         aws_region: str | None = None,
+        request_timeout_s: float,
         request_dimensions: bool = False,
         query_input_type: str | None = None,
         document_input_type: str | None = None,
@@ -37,6 +38,7 @@ class LiteLLMEmbedding:
         self._api_base = api_base
         self._api_key = api_key
         self._aws_region = aws_region
+        self._request_timeout_s = request_timeout_s
         self._request_dimensions = request_dimensions
         self._query_input_type = query_input_type
         self._document_input_type = document_input_type
@@ -68,6 +70,7 @@ class LiteLLMEmbedding:
         import litellm
 
         kwargs: dict[str, Any] = {"model": self._model, "input": texts}
+        kwargs["timeout"] = self._request_timeout_s
         if self._request_dimensions:
             kwargs["dimensions"] = self._dim
         if input_type is not None:
@@ -81,4 +84,7 @@ class LiteLLMEmbedding:
         response = await retry_transient(
             lambda: litellm.aembedding(**kwargs), what=f"embed:{self._model}"
         )
-        return [list(item["embedding"]) for item in response.data]
+        vectors = [list(map(float, item["embedding"])) for item in response.data]
+        if any(len(vector) != self._dim for vector in vectors):
+            raise ValueError("LiteLLM output dimension differs from embedding.settings.dim")
+        return vectors

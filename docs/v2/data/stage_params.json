@@ -716,41 +716,21 @@
      "screen_ids": []
     },
     {
-     "key": "storage.backend",
+     "key": "storage.provider",
      "default": "sqlite",
      "type": "str",
-     "description": "`sqlite` | `postgres` (ADR-025).",
-     "effect": "`sqlite` | `postgres` (ADR-025).",
+     "description": "Provider and policy fields are validated by their typed configuration schema.",
+     "effect": "Provider and policy fields are validated by their typed configuration schema.",
      "rebuild": true,
      "rebuild_scope": "index",
      "screen_ids": []
     },
     {
-     "key": "storage.data_dir",
-     "default": null,
-     "type": "str | None",
-     "description": "Base dir for file-backed projections (LanceDB/Tantivy); required for postgres.",
-     "effect": "Base dir for file-backed projections (LanceDB/Tantivy); required for postgres.",
-     "rebuild": true,
-     "rebuild_scope": "index",
-     "screen_ids": []
-    },
-    {
-     "key": "storage.path",
-     "default": "./memspine.db",
-     "type": "str",
-     "description": "SQLite db file, or `:memory:` for ephemeral.",
-     "effect": "SQLite db file, or `:memory:` for ephemeral.",
-     "rebuild": true,
-     "rebuild_scope": "index",
-     "screen_ids": []
-    },
-    {
-     "key": "storage.url",
-     "default": null,
-     "type": "str | None",
-     "description": "Postgres DSN (secrets-resolved); required when `backend: postgres`.",
-     "effect": "Postgres DSN (secrets-resolved); required when `backend: postgres`.",
+     "key": "storage.settings",
+     "default": {},
+     "type": "dict[str, JsonValue]",
+     "description": "Provider and policy fields are validated by their typed configuration schema.",
+     "effect": "Provider and policy fields are validated by their typed configuration schema.",
      "rebuild": true,
      "rebuild_scope": "index",
      "screen_ids": []
@@ -764,101 +744,11 @@
    "file_function": "`store/projections/projector.py`; `RecordProjector`, `VectorProjector`, `LexicalProjector`, `GraphProjector`, `Neo4jOutboxProjector`",
    "keys": [
     {
-     "key": "embedding.api_base",
-     "default": null,
-     "type": "str | None",
-     "description": "Endpoint override (litellm).",
-     "effect": "Endpoint override (litellm).",
-     "rebuild": true,
-     "rebuild_scope": "index",
-     "screen_ids": []
-    },
-    {
-     "key": "embedding.api_key",
-     "default": null,
-     "type": "str | None",
-     "description": "API key (litellm; secrets-resolved).",
-     "effect": "API key (litellm; secrets-resolved).",
-     "rebuild": true,
-     "rebuild_scope": "index",
-     "screen_ids": []
-    },
-    {
-     "key": "embedding.aws_region",
-     "default": null,
-     "type": "str | None",
-     "description": "Bedrock region (litellm).",
-     "effect": "Bedrock region (litellm).",
-     "rebuild": true,
-     "rebuild_scope": "index",
-     "screen_ids": []
-    },
-    {
-     "key": "embedding.device",
-     "default": null,
-     "type": "str | None",
-     "description": "`provider: st` only: torch device (`cuda`, `cpu`).",
-     "effect": "`provider: st` only: torch device (`cuda`, `cpu`).",
-     "rebuild": true,
-     "rebuild_scope": "index",
-     "screen_ids": []
-    },
-    {
-     "key": "embedding.dim",
-     "default": null,
-     "type": "int | None",
-     "description": "**Required** when `provider: litellm` — a cloud embedder's output dim.",
-     "effect": "**Required** when `provider: litellm` — a cloud embedder's output dim.",
-     "rebuild": true,
-     "rebuild_scope": "index",
-     "screen_ids": []
-    },
-    {
-     "key": "embedding.document_input_type",
-     "default": null,
-     "type": "str | None",
-     "description": "litellm only: input type for stored content (Cohere: `search_document`).",
-     "effect": "litellm only: input type for stored content (Cohere: `search_document`).",
-     "rebuild": true,
-     "rebuild_scope": "index",
-     "screen_ids": []
-    },
-    {
-     "key": "embedding.document_prompt_name",
-     "default": null,
-     "type": "str | None",
-     "description": "`provider: st` only: prompt name used for documents (Jina v5: `document`).",
-     "effect": "`provider: st` only: prompt name used for documents (Jina v5: `document`).",
-     "rebuild": true,
-     "rebuild_scope": "index",
-     "screen_ids": []
-    },
-    {
-     "key": "embedding.dtype",
-     "default": null,
-     "type": "str | None",
-     "description": "`provider: st` only: weight dtype (`bfloat16`, `float16`). `provider: st` needs `embedding.dim` and the `[st]` extra.",
-     "effect": "`provider: st` only: weight dtype (`bfloat16`, `float16`).",
-     "rebuild": true,
-     "rebuild_scope": "index",
-     "screen_ids": []
-    },
-    {
      "key": "embedding.migrate_profile",
      "default": false,
      "type": "bool",
      "description": "MD-02: accept a profile change on open (the pin is replaced, the old hash kept as `previous`). Needs `embedding.versioned_spaces`; run `VersionedSpaceStore.reembed` (F-03) to move the old records.",
      "effect": "Accept a profile change on open (the pin is replaced, the old hash kept as `previous`).",
-     "rebuild": true,
-     "rebuild_scope": "index",
-     "screen_ids": []
-    },
-    {
-     "key": "embedding.model",
-     "default": "BAAI/bge-small-en-v1.5",
-     "type": "str",
-     "description": "Embedder model id.",
-     "effect": "Embedder model id.",
      "rebuild": true,
      "rebuild_scope": "index",
      "screen_ids": []
@@ -894,51 +784,11 @@
      "screen_ids": []
     },
     {
-     "key": "embedding.query_input_type",
-     "default": null,
-     "type": "str | None",
-     "description": "litellm only: input type for retrieval queries (Cohere: `search_query`).",
-     "effect": "litellm only: input type for retrieval queries (Cohere: `search_query`).",
-     "rebuild": true,
-     "rebuild_scope": "index",
-     "screen_ids": []
-    },
-    {
-     "key": "embedding.query_instruction",
-     "default": null,
-     "type": "str | None",
-     "description": "N64: fastembed only. Text prepended to every retrieval query before embedding; documents are unchanged, so no re-index. For the BGE v1.5 models, use `constants.BGE_QUERY_INSTRUCTION` (\"Represent this sentence for searching relevant passages: \"). fastembed's own `query_embed` does not add it. Query vectors are cached under a key that includes the instruction.",
-     "effect": "Fastembed only. Text prepended to every retrieval query before embedding; documents are unchanged, so no re-index.",
-     "rebuild": true,
-     "rebuild_scope": "index",
-     "screen_ids": []
-    },
-    {
-     "key": "embedding.query_prompt_name",
-     "default": null,
-     "type": "str | None",
-     "description": "`provider: st` only: sentence-transformers prompt name used for queries (Jina v5: `query`).",
-     "effect": "`provider: st` only: sentence-transformers prompt name used for queries (Jina v5: `query`).",
-     "rebuild": true,
-     "rebuild_scope": "index",
-     "screen_ids": []
-    },
-    {
-     "key": "embedding.request_dimensions",
-     "default": false,
-     "type": "bool",
-     "description": "litellm only: request exactly `dim` dimensions (Matryoshka models: Cohere embed-v4 256/512/1024/1536, Titan v2, OpenAI v3).",
-     "effect": "litellm only: request exactly `dim` dimensions (Matryoshka models: Cohere embed-v4 256/512/1024/1536, Titan v2, OpenAI v3).",
-     "rebuild": true,
-     "rebuild_scope": "index",
-     "screen_ids": []
-    },
-    {
-     "key": "embedding.trust_remote_code",
-     "default": false,
-     "type": "bool",
-     "description": "`provider: st` only: allow the model repository's custom code to run (Jina v5 needs it).",
-     "effect": "`provider: st` only: allow the model repository's custom code to run (Jina v5 needs it).",
+     "key": "embedding.settings",
+     "default": {},
+     "type": "dict[str, JsonValue]",
+     "description": "Provider and policy fields are validated by their typed configuration schema.",
+     "effect": "Provider and policy fields are validated by their typed configuration schema.",
      "rebuild": true,
      "rebuild_scope": "index",
      "screen_ids": []
@@ -954,45 +804,31 @@
      "screen_ids": []
     },
     {
-     "key": "read.lexical_analyzer",
-     "default": "default",
-     "type": "Literal['default', 'english']",
-     "description": "N58: Tantivy analyzer for the BM25 leg. `default` (alphanumeric runs, lower-cased) or `english` (adds English stop words and the Snowball English stemmer, so \"camping\" matches \"camp\"). The query is tokenized with the same analyzer. `english` keeps its own index (`<db>.tantivy-english`) under the projector name `lexical:english`, so turning it on rebuilds that index from the event log and leaves the default index alone.",
-     "effect": "Tantivy analyzer for the BM25 leg.",
-     "rebuild": true,
-     "rebuild_scope": "index",
-     "screen_ids": [],
-     "choices": [
-      "default",
-      "english"
-     ]
-    },
-    {
      "key": "read.lexical_provider",
      "default": "tantivy",
      "type": "str",
-     "description": "`sqlite_fts5` (FTS5/BM25) | `tantivy` `[tantivy]`; only when `hybrid` is on.",
-     "effect": "`sqlite_fts5` (FTS5/BM25) | `tantivy` `[tantivy]`; only when `hybrid` is on.",
+     "description": "Registered lexical adapter; Tantivy ships in core. OpenSearch/Weaviate adapters are future work. Used when `hybrid` is on.",
+     "effect": "Registered lexical adapter;",
      "rebuild": false,
      "rebuild_scope": "",
      "screen_ids": []
     },
     {
-     "key": "vector.backend",
-     "default": "lance",
+     "key": "vector.provider",
+     "default": "lancedb",
      "type": "str",
-     "description": "`lance` is the sole store (ADR-021); `weaviate` reserved (raises).",
-     "effect": "`lance` is the sole store (ADR-021);",
+     "description": "Provider and policy fields are validated by their typed configuration schema.",
+     "effect": "Provider and policy fields are validated by their typed configuration schema.",
      "rebuild": true,
      "rebuild_scope": "index",
      "screen_ids": []
     },
     {
-     "key": "vector.quantization",
-     "default": "auto",
-     "type": "str",
-     "description": "`auto` (manifest-driven) | `none` | `int8` | `binary` — E4 native rescore (ADR-020).",
-     "effect": "`auto` (manifest-driven) | `none` | `int8` | `binary` — E4 native rescore (ADR-020).",
+     "key": "vector.settings",
+     "default": {},
+     "type": "dict[str, JsonValue]",
+     "description": "Provider and policy fields are validated by their typed configuration schema.",
+     "effect": "Provider and policy fields are validated by their typed configuration schema.",
      "rebuild": true,
      "rebuild_scope": "index",
      "screen_ids": []
@@ -1000,11 +836,6 @@
    ],
    "prompts": [],
    "models": [
-    {
-     "role": "embedding.model",
-     "source": "embedding.model",
-     "default": "BAAI/bge-small-en-v1.5"
-    },
     {
      "role": "embedding.provider",
      "source": "embedding.provider",
@@ -2098,75 +1929,11 @@
    "file_function": "`GraphProjector`, `Neo4jOutboxProjector`, `services/graph/*`",
    "keys": [
     {
-     "key": "graph.backend",
-     "default": "auto",
-     "type": "Literal['auto', 'neo4j']",
-     "description": "F-16e (M-04 / M-18, owner Q4): the server profile's graph backend. `auto` = the embedded store chosen by `graph.provider`; `neo4j` selects Neo4j as the server graph, which still needs `graph.neo4j_outbox` (the embedded store stays the read path; Neo4j is fed through the outbox).",
-     "effect": "The server profile's graph backend.",
-     "rebuild": true,
-     "rebuild_scope": "index",
-     "screen_ids": [],
-     "choices": [
-      "auto",
-      "neo4j"
-     ]
-    },
-    {
      "key": "graph.entity_embeddings",
      "default": false,
      "type": "bool",
      "description": "GR-3: embed entity-node names (GP-2 entity nodes) into the graph store's entity index. LadybugDB keeps them in an `EntityVec` table (`FLOAT[]` column plus its native FTS index), and entity search ranks by exact in-engine cosine; sqlite_adjacency keeps them in node properties. Rows are written once per entity, removed with the node, and cleared on rebuild.",
      "effect": "Embed entity-node names (GP-2 entity nodes) into the graph store's entity index.",
-     "rebuild": true,
-     "rebuild_scope": "index",
-     "screen_ids": []
-    },
-    {
-     "key": "graph.neo4j_database",
-     "default": "neo4j",
-     "type": "str",
-     "description": "F-16e: Neo4j database name.",
-     "effect": "Neo4j database name.",
-     "rebuild": true,
-     "rebuild_scope": "index",
-     "screen_ids": []
-    },
-    {
-     "key": "graph.neo4j_outbox",
-     "default": false,
-     "type": "bool",
-     "description": "F-16e: mirror the graph to Neo4j through the durable outbox (`workers`-independent runner on the storage database). Every WRITE node, LINK edge (plain and compiled), tombstone and FORGET is queued as a `graph_projection` outbox item; a registered handler applies it with idempotent MERGE (scope-keyed with `isolation.scope_keys_v2`), resuming from the F-04 watermark after a crash and retrying holes. Erasure / retire removes the edges and orphan nodes; `rebuild()` clears and re-feeds Neo4j from the log. Needs `storage.profile: server` or `graph.backend: neo4j`, `memories.associative`, the `[neo4j]` extra and the three environment variables below. Off: no Neo4j, embedded graph unchanged. Emits `graph.neo4j.*` on the wiretap.",
-     "effect": "Mirror the graph to Neo4j through the durable outbox (`workers`-independent runner on the storage database).",
-     "rebuild": true,
-     "rebuild_scope": "index",
-     "screen_ids": []
-    },
-    {
-     "key": "graph.neo4j_password_env",
-     "default": "MEMSPINE_NEO4J_PASSWORD",
-     "type": "str",
-     "description": "F-16e: NAME of the environment variable holding the Neo4j password.",
-     "effect": "NAME of the environment variable holding the Neo4j password.",
-     "rebuild": true,
-     "rebuild_scope": "index",
-     "screen_ids": []
-    },
-    {
-     "key": "graph.neo4j_url_env",
-     "default": "MEMSPINE_NEO4J_URL",
-     "type": "str",
-     "description": "F-16e: NAME of the environment variable holding the Neo4j URL (the value is never stored in config).",
-     "effect": "NAME of the environment variable holding the Neo4j URL (the value is never stored in config).",
-     "rebuild": true,
-     "rebuild_scope": "index",
-     "screen_ids": []
-    },
-    {
-     "key": "graph.neo4j_user_env",
-     "default": "MEMSPINE_NEO4J_USER",
-     "type": "str",
-     "description": "F-16e: NAME of the environment variable holding the Neo4j user.",
-     "effect": "NAME of the environment variable holding the Neo4j user.",
      "rebuild": true,
      "rebuild_scope": "index",
      "screen_ids": []
@@ -2299,8 +2066,8 @@
      "key": "workers.dbos_system_database_url",
      "default": null,
      "type": "str | None",
-     "description": "DBOS system db; `null` derives a SQLite file beside `storage.path`.",
-     "effect": "DBOS system db; `null` derives a SQLite file beside `storage.path`.",
+     "description": "DBOS system db; `null` derives a SQLite file beside `storage.settings.path`.",
+     "effect": "DBOS system db; `null` derives a SQLite file beside `storage.settings.path`.",
      "rebuild": false,
      "rebuild_scope": "",
      "screen_ids": []
@@ -2378,7 +2145,7 @@
      "key": "offline.sleep_v2",
      "default": false,
      "type": "bool",
-     "description": "O4-01a (O-01..O-03, LIB-07). `true`: `Engine.sleep()` returns a `SleepHandle` immediately (`status()` gives a `JobHandle`, `await wait()` returns the stage stats, `cancel()` stops at the next stage boundary) and the cycle runs as a namespace job under a persisted, epoch-fenced lease (one runner per namespace, even across processes; a second `sleep()` is `coalesced` into the holder) with a per-stage watermark (a restart resumes the open cycle and repeats no completed stage; an expired lease is reclaimed). A `TriggerPolicy` also fires jobs: (N deposits AND M minutes idle) OR context pressure C, behind a gap K; a daily maintenance job runs retention, decay and compress. Lease/watermark tables live in `<storage.path>.sleep` (in memory for `:memory:`). With `runtime.scheduler_v2` the job runs at background-derive priority. Taps: `job.sleep.handle`, `job.trigger`, `job.lease`, `job.watermark`. `false`: the blocking sleep, unchanged.",
+     "description": "O4-01a (O-01..O-03, LIB-07). `true`: `Engine.sleep()` returns a `SleepHandle` immediately (`status()` gives a `JobHandle`, `await wait()` returns the stage stats, `cancel()` stops at the next stage boundary) and the cycle runs as a namespace job under a persisted, epoch-fenced lease (one runner per namespace, even across processes; a second `sleep()` is `coalesced` into the holder) with a per-stage watermark (a restart resumes the open cycle and repeats no completed stage; an expired lease is reclaimed). A `TriggerPolicy` also fires jobs: (N deposits AND M minutes idle) OR context pressure C, behind a gap K; a daily maintenance job runs retention, decay and compress. Lease/watermark tables live in `<storage.settings.path>.sleep` (in memory for `:memory:`). With `runtime.scheduler_v2` the job runs at background-derive priority. Taps: `job.sleep.handle`, `job.trigger`, `job.lease`, `job.watermark`. `false`: the blocking sleep, unchanged.",
      "effect": "`true`: `Engine.sleep()` returns a `SleepHandle` immediately (`status()` gives a `JobHandle`, `await wait()` returns the stage stats, `cancel()` stops at the next stage boundary) and the cycle runs as a namespace job under a persisted, epoc",
      "rebuild": true,
      "rebuild_scope": "sleep",
@@ -3467,8 +3234,8 @@
      "key": "economy.ledger_persist",
      "default": false,
      "type": "bool",
-     "description": "FU-SLEEP (needs `economy.ledger_v2`). `true`: every ledger entry is also kept as a compact row (ids, namespace hash, layer, stage, kind, calls, tokens, latency; no names, no content) in a sibling SQLite file of the storage database (`<storage.path>.cost`; with Postgres `<storage.data_dir>/memspine.cost`), buffered and written in batches, and the totals are reloaded at start, so `cost_report` survives a restart. A reloaded row carries only the namespace hash: `cost_report(namespace)` matches it by hash and `by_namespace` names it once the namespace is seen again. Budget spend is not reloaded (it is per period). `:memory:` storage: not persisted (a warning is logged). `false`: in-process only.",
-     "effect": "`true`: every ledger entry is also kept as a compact row (ids, namespace hash, layer, stage, kind, calls, tokens, latency; no names, no content) in a sibling SQLite file of the storage database (`<storage.path>.cost`; with Postgres `<storag",
+     "description": "FU-SLEEP (needs `economy.ledger_v2`). `true`: every ledger entry is also kept as a compact row (ids, namespace hash, layer, stage, kind, calls, tokens, latency; no names, no content) in a sibling SQLite file of the storage database (`<storage.settings.path>.cost`; with Postgres `<storage.settings.data_dir>/memspine.cost`), buffered and written in batches, and the totals are reloaded at start, so `cost_report` survives a restart. A reloaded row carries only the namespace hash: `cost_report(namespace)` matches it by hash and `by_namespace` names it once the namespace is seen again. Budget spend is not reloaded (it is per period). `:memory:` storage: not persisted (a warning is logged). `false`: in-process only.",
+     "effect": "`true`: every ledger entry is also kept as a compact row (ids, namespace hash, layer, stage, kind, calls, tokens, latency; no names, no content) in a sibling SQLite file of the storage database (`<storage.settings.path>.cost`; with Postgres",
      "rebuild": false,
      "rebuild_scope": "",
      "screen_ids": [
@@ -5094,101 +4861,11 @@
    "file_function": "`router._search`, `models/encoders/query`",
    "keys": [
     {
-     "key": "embedding.api_base",
-     "default": null,
-     "type": "str | None",
-     "description": "Endpoint override (litellm).",
-     "effect": "Endpoint override (litellm).",
-     "rebuild": true,
-     "rebuild_scope": "index",
-     "screen_ids": []
-    },
-    {
-     "key": "embedding.api_key",
-     "default": null,
-     "type": "str | None",
-     "description": "API key (litellm; secrets-resolved).",
-     "effect": "API key (litellm; secrets-resolved).",
-     "rebuild": true,
-     "rebuild_scope": "index",
-     "screen_ids": []
-    },
-    {
-     "key": "embedding.aws_region",
-     "default": null,
-     "type": "str | None",
-     "description": "Bedrock region (litellm).",
-     "effect": "Bedrock region (litellm).",
-     "rebuild": true,
-     "rebuild_scope": "index",
-     "screen_ids": []
-    },
-    {
-     "key": "embedding.device",
-     "default": null,
-     "type": "str | None",
-     "description": "`provider: st` only: torch device (`cuda`, `cpu`).",
-     "effect": "`provider: st` only: torch device (`cuda`, `cpu`).",
-     "rebuild": true,
-     "rebuild_scope": "index",
-     "screen_ids": []
-    },
-    {
-     "key": "embedding.dim",
-     "default": null,
-     "type": "int | None",
-     "description": "**Required** when `provider: litellm` — a cloud embedder's output dim.",
-     "effect": "**Required** when `provider: litellm` — a cloud embedder's output dim.",
-     "rebuild": true,
-     "rebuild_scope": "index",
-     "screen_ids": []
-    },
-    {
-     "key": "embedding.document_input_type",
-     "default": null,
-     "type": "str | None",
-     "description": "litellm only: input type for stored content (Cohere: `search_document`).",
-     "effect": "litellm only: input type for stored content (Cohere: `search_document`).",
-     "rebuild": true,
-     "rebuild_scope": "index",
-     "screen_ids": []
-    },
-    {
-     "key": "embedding.document_prompt_name",
-     "default": null,
-     "type": "str | None",
-     "description": "`provider: st` only: prompt name used for documents (Jina v5: `document`).",
-     "effect": "`provider: st` only: prompt name used for documents (Jina v5: `document`).",
-     "rebuild": true,
-     "rebuild_scope": "index",
-     "screen_ids": []
-    },
-    {
-     "key": "embedding.dtype",
-     "default": null,
-     "type": "str | None",
-     "description": "`provider: st` only: weight dtype (`bfloat16`, `float16`). `provider: st` needs `embedding.dim` and the `[st]` extra.",
-     "effect": "`provider: st` only: weight dtype (`bfloat16`, `float16`).",
-     "rebuild": true,
-     "rebuild_scope": "index",
-     "screen_ids": []
-    },
-    {
      "key": "embedding.migrate_profile",
      "default": false,
      "type": "bool",
      "description": "MD-02: accept a profile change on open (the pin is replaced, the old hash kept as `previous`). Needs `embedding.versioned_spaces`; run `VersionedSpaceStore.reembed` (F-03) to move the old records.",
      "effect": "Accept a profile change on open (the pin is replaced, the old hash kept as `previous`).",
-     "rebuild": true,
-     "rebuild_scope": "index",
-     "screen_ids": []
-    },
-    {
-     "key": "embedding.model",
-     "default": "BAAI/bge-small-en-v1.5",
-     "type": "str",
-     "description": "Embedder model id.",
-     "effect": "Embedder model id.",
      "rebuild": true,
      "rebuild_scope": "index",
      "screen_ids": []
@@ -5224,51 +4901,11 @@
      "screen_ids": []
     },
     {
-     "key": "embedding.query_input_type",
-     "default": null,
-     "type": "str | None",
-     "description": "litellm only: input type for retrieval queries (Cohere: `search_query`).",
-     "effect": "litellm only: input type for retrieval queries (Cohere: `search_query`).",
-     "rebuild": true,
-     "rebuild_scope": "index",
-     "screen_ids": []
-    },
-    {
-     "key": "embedding.query_instruction",
-     "default": null,
-     "type": "str | None",
-     "description": "N64: fastembed only. Text prepended to every retrieval query before embedding; documents are unchanged, so no re-index. For the BGE v1.5 models, use `constants.BGE_QUERY_INSTRUCTION` (\"Represent this sentence for searching relevant passages: \"). fastembed's own `query_embed` does not add it. Query vectors are cached under a key that includes the instruction.",
-     "effect": "Fastembed only. Text prepended to every retrieval query before embedding; documents are unchanged, so no re-index.",
-     "rebuild": true,
-     "rebuild_scope": "index",
-     "screen_ids": []
-    },
-    {
-     "key": "embedding.query_prompt_name",
-     "default": null,
-     "type": "str | None",
-     "description": "`provider: st` only: sentence-transformers prompt name used for queries (Jina v5: `query`).",
-     "effect": "`provider: st` only: sentence-transformers prompt name used for queries (Jina v5: `query`).",
-     "rebuild": true,
-     "rebuild_scope": "index",
-     "screen_ids": []
-    },
-    {
-     "key": "embedding.request_dimensions",
-     "default": false,
-     "type": "bool",
-     "description": "litellm only: request exactly `dim` dimensions (Matryoshka models: Cohere embed-v4 256/512/1024/1536, Titan v2, OpenAI v3).",
-     "effect": "litellm only: request exactly `dim` dimensions (Matryoshka models: Cohere embed-v4 256/512/1024/1536, Titan v2, OpenAI v3).",
-     "rebuild": true,
-     "rebuild_scope": "index",
-     "screen_ids": []
-    },
-    {
-     "key": "embedding.trust_remote_code",
-     "default": false,
-     "type": "bool",
-     "description": "`provider: st` only: allow the model repository's custom code to run (Jina v5 needs it).",
-     "effect": "`provider: st` only: allow the model repository's custom code to run (Jina v5 needs it).",
+     "key": "embedding.settings",
+     "default": {},
+     "type": "dict[str, JsonValue]",
+     "description": "Provider and policy fields are validated by their typed configuration schema.",
+     "effect": "Provider and policy fields are validated by their typed configuration schema.",
      "rebuild": true,
      "rebuild_scope": "index",
      "screen_ids": []
@@ -5286,11 +4923,6 @@
    ],
    "prompts": [],
    "models": [
-    {
-     "role": "embedding.model",
-     "source": "embedding.model",
-     "default": "BAAI/bge-small-en-v1.5"
-    },
     {
      "role": "embedding.provider",
      "source": "embedding.provider",
@@ -5327,6 +4959,16 @@
      "screen_ids": []
     },
     {
+     "key": "read.lexical_settings",
+     "default": {},
+     "type": "dict[str, JsonValue]",
+     "description": "Provider and policy fields are validated by their typed configuration schema.",
+     "effect": "Provider and policy fields are validated by their typed configuration schema.",
+     "rebuild": false,
+     "rebuild_scope": "",
+     "screen_ids": []
+    },
+    {
      "key": "read.profile_card_header",
      "default": false,
      "type": "bool",
@@ -5337,21 +4979,21 @@
      "screen_ids": []
     },
     {
-     "key": "vector.backend",
-     "default": "lance",
+     "key": "vector.provider",
+     "default": "lancedb",
      "type": "str",
-     "description": "`lance` is the sole store (ADR-021); `weaviate` reserved (raises).",
-     "effect": "`lance` is the sole store (ADR-021);",
+     "description": "Provider and policy fields are validated by their typed configuration schema.",
+     "effect": "Provider and policy fields are validated by their typed configuration schema.",
      "rebuild": true,
      "rebuild_scope": "index",
      "screen_ids": []
     },
     {
-     "key": "vector.quantization",
-     "default": "auto",
-     "type": "str",
-     "description": "`auto` (manifest-driven) | `none` | `int8` | `binary` — E4 native rescore (ADR-020).",
-     "effect": "`auto` (manifest-driven) | `none` | `int8` | `binary` — E4 native rescore (ADR-020).",
+     "key": "vector.settings",
+     "default": {},
+     "type": "dict[str, JsonValue]",
+     "description": "Provider and policy fields are validated by their typed configuration schema.",
+     "effect": "Provider and policy fields are validated by their typed configuration schema.",
      "rebuild": true,
      "rebuild_scope": "index",
      "screen_ids": []
@@ -5372,30 +5014,6 @@
      "effect": "Fuse the lexical BM25 leg via RRF (D-25; on by default since the v0.2 flip, ADR-019);",
      "rebuild": false,
      "rebuild_scope": "",
-     "screen_ids": []
-    },
-    {
-     "key": "read.lexical_analyzer",
-     "default": "default",
-     "type": "Literal['default', 'english']",
-     "description": "N58: Tantivy analyzer for the BM25 leg. `default` (alphanumeric runs, lower-cased) or `english` (adds English stop words and the Snowball English stemmer, so \"camping\" matches \"camp\"). The query is tokenized with the same analyzer. `english` keeps its own index (`<db>.tantivy-english`) under the projector name `lexical:english`, so turning it on rebuilds that index from the event log and leaves the default index alone.",
-     "effect": "Tantivy analyzer for the BM25 leg.",
-     "rebuild": true,
-     "rebuild_scope": "index",
-     "screen_ids": [],
-     "choices": [
-      "default",
-      "english"
-     ]
-    },
-    {
-     "key": "read.lexical_dates",
-     "default": false,
-     "type": "bool",
-     "description": "N30 (write side): the BM25 index also holds each record's date words (the day it was said and the days it names, e.g. \"2023-05-07 7 May 2023 Sunday\"), so a question naming a date matches lexically. Stored records are unchanged. The index is a variant with its own directory and projector name (`lexical:dates`, or `lexical:english+dates` with the English analyzer), so turning it on rebuilds from the event log.",
-     "effect": "The BM25 index also holds each record's date words (the day it was said and the days it names, e.g. \"2023-05-07 7 May 2023 Sunday\"), so a question naming a date matches lexically.",
-     "rebuild": true,
-     "rebuild_scope": "index",
      "screen_ids": []
     },
     {
@@ -5422,8 +5040,8 @@
      "key": "read.lexical_provider",
      "default": "tantivy",
      "type": "str",
-     "description": "`sqlite_fts5` (FTS5/BM25) | `tantivy` `[tantivy]`; only when `hybrid` is on.",
-     "effect": "`sqlite_fts5` (FTS5/BM25) | `tantivy` `[tantivy]`; only when `hybrid` is on.",
+     "description": "Registered lexical adapter; Tantivy ships in core. OpenSearch/Weaviate adapters are future work. Used when `hybrid` is on.",
+     "effect": "Registered lexical adapter;",
      "rebuild": false,
      "rebuild_scope": "",
      "screen_ids": []
@@ -5440,6 +5058,16 @@
      "choices": [
       "bm25"
      ]
+    },
+    {
+     "key": "read.lexical_settings",
+     "default": {},
+     "type": "dict[str, JsonValue]",
+     "description": "Provider and policy fields are validated by their typed configuration schema.",
+     "effect": "Provider and policy fields are validated by their typed configuration schema.",
+     "rebuild": false,
+     "rebuild_scope": "",
+     "screen_ids": []
     },
     {
      "key": "read.lexical_strip_names",
@@ -5902,6 +5530,16 @@
      "range": {
       "ge": 1
      }
+    },
+    {
+     "key": "read.lexical_settings",
+     "default": {},
+     "type": "dict[str, JsonValue]",
+     "description": "Provider and policy fields are validated by their typed configuration schema.",
+     "effect": "Provider and policy fields are validated by their typed configuration schema.",
+     "rebuild": false,
+     "rebuild_scope": "",
+     "screen_ids": []
     },
     {
      "key": "read.session_leg",
@@ -6757,16 +6395,6 @@
      "screen_ids": []
     },
     {
-     "key": "read.rerank_device",
-     "default": null,
-     "type": "str | None",
-     "description": "`rerank: qwen3` only: torch device (`cuda`); unset = CPU float32.",
-     "effect": "`rerank: qwen3` only: torch device (`cuda`); unset = CPU float32.",
-     "rebuild": false,
-     "rebuild_scope": "",
-     "screen_ids": []
-    },
-    {
      "key": "read.rerank_floor",
      "default": "minmax",
      "type": "Literal['minmax', 'skip']",
@@ -6786,16 +6414,6 @@
      "type": "float | None",
      "description": "N41 confidence gate: when the reranker's best raw score is below this value, it is not confident any candidate answers, and the retrieval order is kept (`rerank_stats()[\"gated\"]` counts these).",
      "effect": "Confidence gate: when the reranker's best raw score is below this value, it is not confident any candidate answers, and the retrieval order is kept (`rerank_stats()[\"gated\"]` counts these).",
-     "rebuild": false,
-     "rebuild_scope": "",
-     "screen_ids": []
-    },
-    {
-     "key": "read.rerank_instruction",
-     "default": null,
-     "type": "str | None",
-     "description": "N12 (ADR-059): the task instruction an instruction-conditioned reranker (`rerank: qwen3`) judges with; null keeps its memory default.",
-     "effect": "The task instruction an instruction-conditioned reranker (`rerank: qwen3`) judges with; null keeps its memory default.",
      "rebuild": false,
      "rebuild_scope": "",
      "screen_ids": []
@@ -6827,28 +6445,14 @@
      }
     },
     {
-     "key": "read.rerank_model",
-     "default": null,
-     "type": "str | None",
-     "description": "LiteLLM rerank model id; required when `rerank: litellm`. For | `read.rerank` | `off` | `off` | `fastembed` | `flashrank` `[rerank]` | `litellm` | `jina` `[st]` (Jina listwise reranker; `rerank_model` defaults to `jinaai/jina-reranker-v3.5`, runs the repo's custom code) | `qwen3` `[st]`/ `qwen3` it overrides the default local model.",
-     "effect": "LiteLLM rerank model id; required when `rerank: litellm`.",
+     "key": "read.rerank_settings",
+     "default": {},
+     "type": "dict[str, JsonValue]",
+     "description": "Provider and policy fields are validated by their typed configuration schema.",
+     "effect": "Provider and policy fields are validated by their typed configuration schema.",
      "rebuild": false,
      "rebuild_scope": "",
      "screen_ids": []
-    },
-    {
-     "key": "read.rerank_quant",
-     "default": null,
-     "type": "Optional[Literal['4bit', '8bit']]",
-     "description": "`rerank: qwen3` only: `4bit` | `8bit` (bitsandbytes, GPU).",
-     "effect": "`rerank: qwen3` only: `4bit` | `8bit` (bitsandbytes, GPU).",
-     "rebuild": false,
-     "rebuild_scope": "",
-     "screen_ids": [],
-     "choices": [
-      "4bit",
-      "8bit"
-     ]
     },
     {
      "key": "read.rerank_v2",
@@ -6930,13 +6534,7 @@
     }
    ],
    "prompts": [],
-   "models": [
-    {
-     "role": "read.rerank_model",
-     "source": "read.rerank_model",
-     "default": null
-    }
-   ]
+   "models": []
   },
   "C21": {
    "name": "Coverage select, MMR",
@@ -9679,12 +9277,8 @@
   }
  },
  "unattributed": {
-  "cache.backend": "generic cache backend (memory, lmdb, redis) shared by the embedding and read-result caches; no single stage owns it",
-  "cache.default_ttl_seconds": "generic cache backend (memory, lmdb, redis) shared by the embedding and read-result caches; no single stage owns it",
-  "cache.max_entries": "generic cache backend (memory, lmdb, redis) shared by the embedding and read-result caches; no single stage owns it",
-  "cache.namespace": "generic cache backend (memory, lmdb, redis) shared by the embedding and read-result caches; no single stage owns it",
-  "cache.path": "generic cache backend (memory, lmdb, redis) shared by the embedding and read-result caches; no single stage owns it",
-  "cache.url": "generic cache backend (memory, lmdb, redis) shared by the embedding and read-result caches; no single stage owns it",
+  "cache.provider": "generic cache backend (memory, lmdb, redis) shared by the embedding and read-result caches; no single stage owns it",
+  "cache.settings": "generic cache backend (memory, lmdb, redis) shared by the embedding and read-result caches; no single stage owns it",
   "consent.local_hosts": "cross-cutting: egress policy for every remote model call",
   "consent.remote_llm_max_tier": "cross-cutting: egress policy for every remote model call",
   "data_profile": "profile selector: resolves to preset keys at config load, no stage reads it",
@@ -9694,17 +9288,17 @@
   "data_shape.history_size": "profile selector: resolves to preset keys at config load, no stage reads it",
   "data_shape.speaker_kind": "profile selector: resolves to preset keys at config load, no stage reads it",
   "data_shape.turn_length": "profile selector: resolves to preset keys at config load, no stage reads it",
+  "graph.mirror.enabled": "no read site matched an inventory stage",
+  "graph.mirror.provider": "no read site matched an inventory stage",
+  "graph.mirror.settings": "no read site matched an inventory stage",
+  "graph.settings": "no read site matched an inventory stage",
   "integrity.enabled": "cross-cutting master switch for the trust model (A11, A14, C18, C20, C25)",
   "isolation.multi_party_namespaces": "cross-cutting: scope and viewer isolation is enforced at every read and write door, not in one stage",
   "isolation.owner_bound_handles": "cross-cutting: scope and viewer isolation is enforced at every read and write door, not in one stage",
   "isolation.scope_keys_v2": "cross-cutting: scope and viewer isolation is enforced at every read and write door, not in one stage",
   "isolation.viewer_required": "cross-cutting: scope and viewer isolation is enforced at every read and write door, not in one stage",
-  "llm.roles.*.api_base": "role binding (model, endpoint, timeout, no_think): applies to every LLM stage that uses the role; see each stage's prompts and models lists",
-  "llm.roles.*.api_key": "role binding (model, endpoint, timeout, no_think): applies to every LLM stage that uses the role; see each stage's prompts and models lists",
-  "llm.roles.*.aws_region": "role binding (model, endpoint, timeout, no_think): applies to every LLM stage that uses the role; see each stage's prompts and models lists",
-  "llm.roles.*.model": "role binding (model, endpoint, timeout, no_think): applies to every LLM stage that uses the role; see each stage's prompts and models lists",
-  "llm.roles.*.no_think": "role binding (model, endpoint, timeout, no_think): applies to every LLM stage that uses the role; see each stage's prompts and models lists",
-  "llm.roles.*.timeout_seconds": "role binding (model, endpoint, timeout, no_think): applies to every LLM stage that uses the role; see each stage's prompts and models lists",
+  "llm.roles.*.provider": "role binding (model, endpoint, timeout, no_think): applies to every LLM stage that uses the role; see each stage's prompts and models lists",
+  "llm.roles.*.settings": "role binding (model, endpoint, timeout, no_think): applies to every LLM stage that uses the role; see each stage's prompts and models lists",
   "memories.*.enabled": "per-memory-type enablement and policy overrides, resolved at engine start",
   "memories.*.policies": "per-memory-type enablement and policy overrides, resolved at engine start",
   "models.allow_hosted": "model planning at engine start (tiers, GPU placement, pins); applies to every stage that uses a model role",
@@ -9762,19 +9356,33 @@
   "runtime.backlog_max_items": "scheduler, backpressure and concurrency budgets: apply to the whole engine, not to one stage",
   "runtime.backlog_max_total_items": "scheduler, backpressure and concurrency budgets: apply to the whole engine, not to one stage",
   "runtime.backlog_retry_after_s": "scheduler, backpressure and concurrency budgets: apply to the whole engine, not to one stage",
+  "runtime.deployment_id": "scheduler, backpressure and concurrency budgets: apply to the whole engine, not to one stage",
   "runtime.encoder_batch_max": "scheduler, backpressure and concurrency budgets: apply to the whole engine, not to one stage",
   "runtime.encoder_batch_wait_ms": "scheduler, backpressure and concurrency budgets: apply to the whole engine, not to one stage",
+  "runtime.environment": "scheduler, backpressure and concurrency budgets: apply to the whole engine, not to one stage",
   "runtime.lag_p95_budget_s": "scheduler, backpressure and concurrency budgets: apply to the whole engine, not to one stage",
   "runtime.model_concurrency": "scheduler, backpressure and concurrency budgets: apply to the whole engine, not to one stage",
+  "runtime.provider_services.close_timeout_s": "scheduler, backpressure and concurrency budgets: apply to the whole engine, not to one stage",
+  "runtime.provider_services.health_timeout_s": "scheduler, backpressure and concurrency budgets: apply to the whole engine, not to one stage",
+  "runtime.provider_services.startup_timeout_s": "scheduler, backpressure and concurrency budgets: apply to the whole engine, not to one stage",
   "runtime.read_p95_budget_s": "scheduler, backpressure and concurrency budgets: apply to the whole engine, not to one stage",
   "runtime.scheduler_v2": "scheduler, backpressure and concurrency budgets: apply to the whole engine, not to one stage",
-  "storage.encryption.key_env": "at-rest encryption of the SQLite file: applies to every stage that persists",
-  "storage.encryption.mode": "at-rest encryption of the SQLite file: applies to every stage that persists",
+  "runtime.service_switches.cache.mode": "scheduler, backpressure and concurrency budgets: apply to the whole engine, not to one stage",
+  "runtime.service_switches.cache.strategy": "scheduler, backpressure and concurrency budgets: apply to the whole engine, not to one stage",
+  "runtime.service_switches.embeddings.mode": "scheduler, backpressure and concurrency budgets: apply to the whole engine, not to one stage",
+  "runtime.service_switches.embeddings.strategy": "scheduler, backpressure and concurrency budgets: apply to the whole engine, not to one stage",
+  "runtime.service_switches.models.historical_derivation": "scheduler, backpressure and concurrency budgets: apply to the whole engine, not to one stage",
+  "runtime.service_switches.models.mode": "scheduler, backpressure and concurrency budgets: apply to the whole engine, not to one stage",
+  "runtime.service_switches.projections.cleanup_batch_size": "scheduler, backpressure and concurrency budgets: apply to the whole engine, not to one stage",
+  "runtime.service_switches.projections.cleanup_interval_s": "scheduler, backpressure and concurrency budgets: apply to the whole engine, not to one stage",
+  "runtime.service_switches.projections.mode": "scheduler, backpressure and concurrency budgets: apply to the whole engine, not to one stage",
+  "runtime.service_switches.projections.retention_s": "scheduler, backpressure and concurrency budgets: apply to the whole engine, not to one stage",
+  "runtime.service_switches.storage.auto_delete_source": "scheduler, backpressure and concurrency budgets: apply to the whole engine, not to one stage",
+  "runtime.service_switches.storage.mode": "scheduler, backpressure and concurrency budgets: apply to the whole engine, not to one stage",
+  "runtime.service_switches.storage.strategy": "scheduler, backpressure and concurrency budgets: apply to the whole engine, not to one stage",
   "storage.profile": "embedded vs server storage preset: applies to every stage that persists",
-  "strict_services": "engine start-up check (missing service raises or skips), not a stage knob",
-  "vector.isolation": "cross-cutting: vector-store namespace isolation",
-  "vector.namespace_index": "vector-store layout, shared by A13 and every vector leg"
+  "strict_services": "engine start-up check (missing service raises or skips), not a stage knob"
  },
- "unattributed_count": 95,
- "schema_key_count": 614
+ "unattributed_count": 105,
+ "schema_key_count": 599
 }

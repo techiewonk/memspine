@@ -20,8 +20,8 @@ def _engine(**read):
     return Engine(
         template="core",
         dotenv_path=None,
-        storage={"path": ":memory:"},
-        embedding={"provider": "hash"},
+        storage={'provider': "sqlite", 'settings': {'path': ":memory:", 'busy_timeout_s': 5.0}},
+        embedding={'provider': "hash", 'settings': {}},
         memories={"episodic": {"enabled": True}},
         offline={"session_close_v2": True, "profile_card_v2": True},
         read={"hybrid": False, "record_access": False, "profile_card_header": True, **read},

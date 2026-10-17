@@ -140,7 +140,7 @@ def ops(out: list[AssertionEnvelope]) -> list[str | None]:
 
 # --- flag and config --------------------------------------------------------------------------
 def test_flag_off_by_default() -> None:
-    w = MemspineConfig().write
+    w = MemspineConfig(runtime={"provider_services": {"health_timeout_s": 1.0, "close_timeout_s": 1.0, "startup_timeout_s": None}}).write
     assert (
         w.integration_v2 is False
         and w.integration_cardinality == {}
@@ -360,15 +360,15 @@ class CityLLM:
 
 
 async def engine(monkeypatch: pytest.MonkeyPatch, llm: Any, **write: Any) -> Engine:
-    async def router(config: MemspineConfig, hooks: object = None) -> LLMRouter:
+    async def router(config: MemspineConfig, hooks: object = None, wiring: object = None) -> LLMRouter:
         return LLMRouter({"window_extract": llm})
 
     monkeypatch.setattr("memspine.runtime.container.build_llm_router", router)
     eng = Engine(
         template="core",
         dotenv_path=None,
-        storage={"path": ":memory:"},
-        embedding={"provider": "hash"},
+        storage={'provider': "sqlite", 'settings': {'path': ":memory:", 'busy_timeout_s': 5.0}},
+        embedding={'provider': "hash", 'settings': {}},
         memories={"episodic": {"enabled": True}, "semantic": {"enabled": True}},
         write={
             "window_extract": "facts",
@@ -377,7 +377,7 @@ async def engine(monkeypatch: pytest.MonkeyPatch, llm: Any, **write: Any) -> Eng
             "envelope_v2": True,
             **write,
         },
-        llm={"roles": {"window_extract": {"model": "fake/window"}}},
+        llm={"roles": {"window_extract": {"provider": "litellm", "settings": {"model": "fake/window", "timeout_seconds": 60.0}}}},
     )
     await eng.start()
     return eng
@@ -416,9 +416,10 @@ def test_stage_registered_only_with_the_flag() -> None:
     class E:
         _storage = None
 
-    assert _envelope_stages(E(), MemspineConfig()) == ()
+    assert _envelope_stages(E(), MemspineConfig(runtime={"provider_services": {"health_timeout_s": 1.0, "close_timeout_s": 1.0, "startup_timeout_s": None}})) == ()
     cfg = MemspineConfig(
-        write={"window_extract": "facts", "envelope_v2": True, "integration_v2": True}
+        runtime={"provider_services": {"health_timeout_s": 1.0, "close_timeout_s": 1.0, "startup_timeout_s": None}},
+        write={"window_extract": "facts", "envelope_v2": True, "integration_v2": True},
     )
     assert [s.order for s in _envelope_stages(E(), cfg)] == [400]
 
@@ -504,8 +505,8 @@ def test_behavioural_inv_order_swap_passes_with_the_flag_and_fails_without(tmp_p
             return Engine(
                 template="core",
                 dotenv_path=None,
-                storage={"path": str(d / "b.db")},
-                embedding={"provider": "hash"},
+                storage={'provider': "sqlite", 'settings': {'path': str(d / "b.db"), 'busy_timeout_s': 5.0}},
+                embedding={'provider': "hash", 'settings': {}},
                 read={"rerank": "off", "record_access": False},
                 memories={"episodic": {"enabled": True}, "semantic": {"enabled": True}},
                 write=(

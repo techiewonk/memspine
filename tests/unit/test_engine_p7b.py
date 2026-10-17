@@ -34,8 +34,8 @@ def make_engine(**read: Any) -> Engine:
     return Engine(
         template="core",
         dotenv_path=None,
-        storage={"path": ":memory:"},
-        embedding={"provider": "hash"},
+        storage={'provider': "sqlite", 'settings': {'path': ":memory:", 'busy_timeout_s': 5.0}},
+        embedding={'provider': "hash", 'settings': {}},
         read=read,
         memories={"semantic": {"enabled": True}, "episodic": {"enabled": True}},
     )
@@ -172,12 +172,10 @@ async def test_assembly_compression_off_by_default(engine: Engine) -> None:
 # ── ADR-018 review hardening ──────────────────────────────────────────────────
 
 
-async def test_reranker_construction_failure_degrades_not_crashes(
+async def test_reranker_construction_failure_for_explicit_provider_propagates(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """COR-3: a reranker whose CONSTRUCTION raises (model-load OSError/RuntimeError,
-    not just ImportError/MissingServiceError) must self-disable the stage — not
-    crash every search()."""
+    """An explicitly selected provider's programming/build failure is not hidden."""
     import memspine.models.providers.rerank.fastembed_rerank as fastembed_module
 
     class ExplodingReranker:
@@ -189,8 +187,7 @@ async def test_reranker_construction_failure_degrades_not_crashes(
     await eng.start()
     try:
         await eng.write("still retrievable after a broken reranker")
-        results = await eng.search("retrievable")
-        assert results  # degraded to vector order, never raised
-        assert eng._rerank_unavailable is True
+        with pytest.raises(RuntimeError, match="model weights failed to download"):
+            await eng.search("retrievable")
     finally:
         await eng.stop()

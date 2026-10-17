@@ -22,7 +22,7 @@ from memspine.store.records import MemoryRecord, chrono_key, record_time
 #: The G8a sweep's firewall-on arm (``evals/sweep_wrapper_threshold.py``), wrapper off.
 FIREWALL_ON: dict[str, Any] = {
     "dotenv_path": None,
-    "storage": {"path": ":memory:"},
+    "storage": {'provider': 'sqlite', 'settings': {'path': ':memory:', 'busy_timeout_s': 5.0}},
     "embedding": {"provider": "hash"},
     "read": {
         "record_access": False,

@@ -11,7 +11,16 @@ from memspine.workers.taskiq_runner import PIPELINE_PRIORITIES
 
 def _order(**offline: object) -> tuple[str, ...]:
     class _Ctx:
-        config = MemspineConfig(offline=offline)  # type: ignore[arg-type]
+        config = MemspineConfig(
+            offline=offline,
+            runtime={
+                "provider_services": {
+                    "health_timeout_s": 1.0,
+                    "close_timeout_s": 1.0,
+                    "startup_timeout_s": None,
+                }
+            },
+        )  # type: ignore[arg-type]
 
     return sleep_stage_order(_Ctx())  # type: ignore[arg-type]
 

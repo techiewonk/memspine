@@ -28,8 +28,8 @@ async def build(db: Path, **write: Any) -> Engine:
     eng = Engine(
         template="core",
         dotenv_path=None,
-        storage={"path": str(db)},
-        embedding={"provider": "hash"},
+        storage={'provider': "sqlite", 'settings': {'path': str(db), 'busy_timeout_s': 5.0}},
+        embedding={'provider': "hash", 'settings': {}},
         memories={"episodic": {"enabled": True}},
         write=write,
     )
@@ -440,7 +440,9 @@ def test_migration_head_and_columns(tmp_path: Path) -> None:
     from memspine.services.storage.sqlite.migrations import alembic_config, upgrade_to_head
 
     script = ScriptDirectory.from_config(alembic_config(tmp_path / "x.db"))
-    assert script.get_heads() == ["lf_e_layer_backfill"]  # LF-E (MF-08) head; w202 is its parent
+    assert script.get_heads() == ["cleanup_fence_recovery"]
+    bindings = script.get_revision("projector_bindings")
+    assert bindings is not None and bindings.down_revision == "provider_changes"
     rev = script.get_revision("w202_stamping")
     assert rev is not None and rev.down_revision == "f02b_tri_temporal"
     db = tmp_path / "old.db"

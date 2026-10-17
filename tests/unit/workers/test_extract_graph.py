@@ -67,6 +67,7 @@ async def _make(
         return list(edges)
 
     config = load_config(
+        template="core",
         overrides={"memories": {"semantic": {"enabled": True, "policies": semantic_policies or {}}}}
     ).config
     ctx = PipelineContext(

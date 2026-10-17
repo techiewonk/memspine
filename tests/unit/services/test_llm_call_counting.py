@@ -65,15 +65,17 @@ async def test_model_calls_after_write_read_sleep(monkeypatch: pytest.MonkeyPatc
         "reflect": _Stub("reflect", '{"insights": []}'),
     }
 
-    async def router(config: MemspineConfig, hooks: object = None) -> LLMRouter:
+    async def router(
+        config: MemspineConfig, hooks: object = None, wiring: object = None
+    ) -> LLMRouter:
         return LLMRouter(stubs)
 
     monkeypatch.setattr("memspine.runtime.container.build_llm_router", router)
     eng = Engine(
         template="core",
         dotenv_path=None,
-        storage={"path": ":memory:"},
-        embedding={"provider": "hash"},
+        storage={'provider': "sqlite", 'settings': {'path': ":memory:", 'busy_timeout_s': 5.0}},
+        embedding={'provider': "hash", 'settings': {}},
         memories={
             "episodic": {
                 "enabled": True,

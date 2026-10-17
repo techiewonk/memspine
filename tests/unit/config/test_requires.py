@@ -33,13 +33,34 @@ def _merge(a: dict, b: dict) -> dict:
     return out
 
 
+def _with_provider_timeouts(raw: dict) -> dict:
+    return _merge(
+        raw,
+        {
+            "runtime": {
+                "provider_services": {
+                    "health_timeout_s": 5.0,
+                    "close_timeout_s": 10.0,
+                    "startup_timeout_s": None,
+                }
+            }
+        },
+    )
+
+
+def _default_config() -> MemspineConfig:
+    return MemspineConfig.model_validate(_with_provider_timeouts({}))
+
+
 def _on_value(key: str) -> object:
     """A value that switches ``key`` on (a flag -> True; a mode -> its first non-off choice)."""
+    if key == "economy.budget":
+        return {"max_calls": 10}
+    if key in _COUNT_KEYS:
+        return 1
     spec = flags.registry().get(key)
     if spec is not None and spec.kind == "mode":
         return next(c for c in spec.choices if c not in ("off", "none"))
-    if key == "economy.budget":
-        return {"max_calls": 10}
     return True
 
 
@@ -47,7 +68,13 @@ def _satisfy(need: Need) -> dict:
     if need.values is not None:
         return _nest(need.path, need.values[0])
     if need.path.startswith("llm.roles."):
-        return _nest(need.path, {"model": "fake/model"})
+        return _nest(
+            need.path,
+            {
+                "provider": "litellm",
+                "settings": {"model": "fake/model", "timeout_seconds": 30.0},
+            },
+        )
     return _nest(need.path, _on_value(need.path))
 
 
@@ -79,7 +106,7 @@ def _close(raw: dict, forbidden: str) -> dict:
 
 
 def test_defaults_are_valid_and_every_required_flag_is_off() -> None:
-    cfg = MemspineConfig()
+    cfg = _default_config()
     check_requires(cfg, strict=True)
     for key in REQUIRES:
         assert not is_active(resolve_path(cfg, key)), f"{key} must default to off"
@@ -142,18 +169,20 @@ def test_each_requirement_raises_naming_the_missing_key_and_holds_when_met(
         if other is not need and not other.soft:
             raw = _merge(raw, _satisfy(other))
     raw = _close(raw, need.path)
-    if need.values is None and is_active(resolve_path(MemspineConfig(), need.path)):
+    if need.values is None and is_active(resolve_path(_default_config(), need.path)):
         raw = _merge(raw, _nest(need.path, False))  # default-on prerequisite: switch it off
     if need.soft:
-        check_requires(MemspineConfig.model_validate(raw))  # a soft need is not a config error
+        check_requires(
+            MemspineConfig.model_validate(_with_provider_timeouts(raw))
+        )  # a soft need is not a config error
         with pytest.raises(ConfigError, match=re.escape(need.path)):
-            check_requires(MemspineConfig.model_validate(raw), strict=True)
+            check_requires(MemspineConfig.model_validate(_with_provider_timeouts(raw)), strict=True)
     else:
         with pytest.raises(ConfigError) as err:
-            MemspineConfig.model_validate(raw)
+            MemspineConfig.model_validate(_with_provider_timeouts(raw))
         assert key in str(err.value)
         assert need.path in str(err.value)
-    met = _close(_merge(raw, _satisfy(need)), "")
+    met = _with_provider_timeouts(_close(_merge(raw, _satisfy(need)), ""))
     check_requires(MemspineConfig.model_validate(met), strict=True)
 
 

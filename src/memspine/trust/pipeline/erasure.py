@@ -256,8 +256,8 @@ async def _forget_many(
     purge = getattr(eng._vector, "purge_deleted", None)
     if callable(purge) and not await purge():
         _log.warning("memory.forget_vector_purge_incomplete", namespace=ns, record_id=ids[0])
-    if eng._client is not None:
-        await eng._client.checkpoint()
+    if eng._sql is not None:
+        await eng._sql.checkpoint()
 
 
 async def _erased_entity_nodes(

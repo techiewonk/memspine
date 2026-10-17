@@ -67,8 +67,8 @@ def _engine(**extra: Any) -> Engine:
     return Engine(
         template="core",
         dotenv_path=None,
-        storage={"path": ":memory:"},
-        embedding={"provider": "hash"},
+        storage={'provider': "sqlite", 'settings': {'path': ":memory:", 'busy_timeout_s': 5.0}},
+        embedding={'provider': "hash", 'settings': {}},
         memories={"episodic": {"enabled": True}, "semantic": {"enabled": True}},
         **extra,
     )
@@ -92,7 +92,7 @@ async def _workload(eng: Engine) -> None:
 
 # ----------------------------------------------------------------------------- flag off
 def test_defaults_are_off() -> None:
-    cfg = MemspineConfig().observability
+    cfg = MemspineConfig(runtime={"provider_services": {"health_timeout_s": 1.0, "close_timeout_s": 1.0, "startup_timeout_s": None}}).observability
     assert cfg.ops_ledger is False
     assert cfg.otel == OtelConfig(enabled=False)
 

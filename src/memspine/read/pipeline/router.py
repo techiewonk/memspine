@@ -32,6 +32,7 @@ from memspine.core.read_filters import (
 from memspine.core.rule_edges import is_why_question
 from memspine.exceptions import (
     MemspineError,
+    MissingServiceError,
 )
 from memspine.memories.episodic.sessions import topic_segments
 from memspine.models.encoders.embedding.base import embed_queries
@@ -918,7 +919,7 @@ async def _search(
             hide=hide,
             max_turns=read_pre.lift_max_turns,
         )
-    reranker = eng._rerank_provider()
+    reranker = await eng._rerank_provider()
     gate = eng._config().read.rerank_max_top_k
     if gate is not None and keep_k > gate and not read_pre.rerank_v2:
         # H18: reranking pays when few of many candidates are kept. The gate
@@ -999,10 +1000,13 @@ async def _search(
                     for (record, _), relevance in zip(candidates, relevances, strict=True)
                 ]
                 reranked = True
-        except Exception as exc:
+        except (MissingServiceError, ConnectionError, TimeoutError) as exc:
             eng._rerank_failures += 1
             _log.warning(
-                "rerank.failed", namespace=ns, reranker=reranker.reranker_id, error=str(exc)
+                "rerank.failed",
+                namespace=ns,
+                reranker=reranker.reranker_id,
+                error=type(exc).__name__,
             )
     scored = [
         (record, eng._scoring.composite_score(record, relevance=relevance))

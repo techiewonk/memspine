@@ -33,15 +33,14 @@ import threading
 from collections.abc import Sequence
 from typing import Any
 
+from memspine.config import constants
 from memspine.exceptions import MissingServiceError
 
 __all__ = ["DEFAULT_INSTRUCTION", "DEFAULT_MODEL", "Qwen3Reranker", "format_pair"]
 
-DEFAULT_MODEL = "Qwen/Qwen3-Reranker-0.6B"
+DEFAULT_MODEL = constants.RERANK_QWEN3_MODEL
 #: The task instruction (the model card recommends one per task; this one is for memory).
-DEFAULT_INSTRUCTION = (
-    "Given a question about a user's past conversations, judge whether the memory helps answer it"
-)
+DEFAULT_INSTRUCTION = constants.RERANK_QWEN3_INSTRUCTION
 _PREFIX = (
     "<|im_start|>system\nJudge whether the Document meets the requirements based on the "
     'Query and the Instruct provided. Note that the answer can only be "yes" or "no".'

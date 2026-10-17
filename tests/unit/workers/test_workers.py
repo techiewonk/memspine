@@ -19,6 +19,7 @@ async def make_ctx(
     mode: str = "rolling", retention_days: int = 1
 ) -> tuple[PipelineContext, SQLiteStorage]:
     config = load_config(
+        template="core",
         overrides={"event_log": {"mode": mode, "retention_days": retention_days}}
     ).config
     client = SQLiteClient(":memory:")

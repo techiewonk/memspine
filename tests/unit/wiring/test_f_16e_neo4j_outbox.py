@@ -32,7 +32,8 @@ from memspine.memories.associative.graph_outbox import (
     rebuild_from_log,
 )
 from memspine.observability import tap
-from memspine.runtime import container as rt_container
+from memspine.providers.contracts import BuildResult, ProviderRef
+from memspine.providers.registry import get_registry
 from memspine.runtime.jobs import ManualClock, RetryBudget
 from memspine.runtime.outbox import SqlJobStore, memory_engine, sqlite_engine
 from memspine.runtime.runner import InlineRunner
@@ -54,10 +55,8 @@ LIVE_SKIP = "needs the neo4j driver and MEMSPINE_TEST_NEO4J_URL (a live server)"
 @pytest.fixture(autouse=True)
 def _tap_reset():
     tap.shutdown()
-    rt_container.set_neo4j_executor_factory(None)
     yield
     tap.shutdown()
-    rt_container.set_neo4j_executor_factory(None)
 
 
 class Crash(BaseException):
@@ -538,7 +537,7 @@ async def test_crash_mid_batch_resumes_from_the_watermark(tmp_path: Path) -> Non
     path = str(tmp_path / "outbox.db")
     clock = ManualClock(T0)
     fake = FakeNeo4j()
-    first = _runner(sqlite_engine(path), clock)
+    first = _runner(sqlite_engine(path, busy_timeout_s=5.0), clock)
     proj, _ = _wire(fake, first)
     for i, rid in enumerate(["a", "b", "c", "d", "e"], start=1):
         await proj.apply(_write(i, rid))
@@ -550,7 +549,7 @@ async def test_crash_mid_batch_resumes_from_the_watermark(tmp_path: Path) -> Non
     done_before = fake.merges
 
     clock.advance(3600)  # the dead worker's lease expires
-    second = _runner(sqlite_engine(path), clock)
+    second = _runner(sqlite_engine(path, busy_timeout_s=5.0), clock)
     _wire(fake, second)
     await second.start()
     assert sorted(n["id"] for n in fake.nodes.values()) == ["a", "b", "c", "d", "e"]
@@ -598,53 +597,89 @@ async def test_projector_reset_clears_then_replay_refeeds() -> None:
 
 
 # --------------------------------------------------------------------------- engine wiring
-def _engine(**graph: Any) -> Engine:
+def _engine(*, mirror: bool = False, deployment_id: str | None = None) -> Engine:
     return Engine(
         template="core",
         dotenv_path=None,
-        storage={"path": ":memory:"},
-        embedding={"provider": "hash"},
+        storage={'provider': "sqlite", 'settings': {'path': ":memory:", 'busy_timeout_s': 5.0}},
+        embedding={'provider': "hash", 'settings': {}},
         memories={
             "semantic": {"enabled": True},
             "associative": {"enabled": True, "policies": {"entity_nodes": True}},
         },
         read={"record_access": False},
-        graph=graph,
+        graph={
+            "provider": "sqlite_adjacency",
+            "settings": {},
+            "mirror": {
+                "enabled": mirror,
+                "provider": "neo4j",
+                "settings": {"connect_timeout_s": 2.0, "request_timeout_s": 2.0},
+            },
+        },
+        runtime={"deployment_id": deployment_id} if deployment_id is not None else {},
     )
 
 
 def test_flag_default_off() -> None:
     g = GraphConfig()
-    assert g.neo4j_outbox is False and g.backend == "auto"
+    assert g.mirror.enabled is False and g.provider == "auto"
 
 
-async def test_flag_on_without_server_profile_or_backend_is_refused() -> None:
-    eng = _engine(neo4j_outbox=True)
-    with pytest.raises(ConfigError, match=r"storage\.profile"):
+async def test_flag_on_without_server_profile_or_backend_is_refused(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("MEMSPINE_NEO4J_URL", "bolt://localhost:7687")
+    eng = _engine(mirror=True)
+    with pytest.raises(ConfigError, match=r"runtime\.deployment_id"):
         await eng.start()
 
 
 async def test_flag_off_builds_no_neo4j() -> None:
-    called: list[int] = []
-    rt_container.set_neo4j_executor_factory(lambda cfg: called.append(1))
-    eng = _engine(backend="neo4j")  # backend alone does nothing without the flag
+    eng = _engine()
     await eng.start()
     try:
         await eng.write("Ilse works at Acme", namespace=NS, memory_type="semantic")
-        assert eng._neo4j is None and called == []
-        assert all(p.name != "graph_neo4j" for p in eng._projectors)
+        assert eng._neo4j is None
+        assert "graph.mirror" not in eng._provider_results
     finally:
         await eng.stop()
 
 
-async def test_engine_feeds_neo4j_through_the_outbox_and_forget_removes_it() -> None:
+def _install_fake_mirror(monkeypatch: pytest.MonkeyPatch, fake: FakeNeo4j) -> None:
+    monkeypatch.setenv("MEMSPINE_NEO4J_URL", "bolt://localhost:7687")
+    descriptor = get_registry("graph_stores").get("neo4j")
+
+    async def build(_settings: Any, ctx: Any) -> BuildResult[GraphStore]:
+        ref = ctx.shared.resources.own(ctx.resource_id, fake.close)
+        store = Neo4jGraphStore(fake, scoped=True)
+
+        async def probe() -> bool:
+            await store.node_count()
+            return True
+
+        return BuildResult(
+            store,
+            ProviderRef("graph", "neo4j"),
+            (ref,),
+            frozenset({"graph", "namespace_filter", "erase", "mirror"}),
+            health_probe=probe,
+        )
+
+    monkeypatch.setattr(descriptor.builder, "build", build)
+
+
+async def test_engine_feeds_neo4j_through_the_outbox_and_forget_removes_it(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     tap.configure(TapConfig(enabled=True, sink="memory"))
     fake = FakeNeo4j()
-    rt_container.set_neo4j_executor_factory(lambda cfg: fake)
-    eng = _engine(neo4j_outbox=True, backend="neo4j")
+    _install_fake_mirror(monkeypatch, fake)
+    eng = _engine(mirror=True, deployment_id="test-deployment")
     await eng.start()
     try:
-        assert eng._neo4j is not None and any(p.name == "graph_neo4j" for p in eng._projectors)
+        assert eng._neo4j is not None
+        assert "graph.mirror" in eng._provider_results
         rec = await eng.write("Ilse works at Acme", namespace=NS, memory_type="semantic")
         embedded = {n for n in [rec.record_id]}
         assert embedded <= {n["id"] for n in fake.nodes.values()}  # mirrored, drained inline
@@ -663,17 +698,26 @@ async def test_engine_feeds_neo4j_through_the_outbox_and_forget_removes_it() -> 
     assert fake.closed
 
 
-async def test_scope_keys_flag_reaches_the_neo4j_store() -> None:
+async def test_scope_keys_flag_reaches_the_neo4j_store(monkeypatch: pytest.MonkeyPatch) -> None:
     fake = FakeNeo4j()
-    rt_container.set_neo4j_executor_factory(lambda cfg: fake)
+    _install_fake_mirror(monkeypatch, fake)
     eng = Engine(
         template="core",
         dotenv_path=None,
-        storage={"path": ":memory:"},
-        embedding={"provider": "hash"},
+        storage={'provider': "sqlite", 'settings': {'path': ":memory:", 'busy_timeout_s': 5.0}},
+        embedding={'provider': "hash", 'settings': {}},
         memories={"semantic": {"enabled": True}, "associative": {"enabled": True}},
         read={"record_access": False},
-        graph={"neo4j_outbox": True, "backend": "neo4j"},
+        graph={
+            "provider": "sqlite_adjacency",
+            "settings": {},
+            "mirror": {
+                "enabled": True,
+                "provider": "neo4j",
+                "settings": {"connect_timeout_s": 2.0, "request_timeout_s": 2.0},
+            },
+        },
+        runtime={"deployment_id": "test-deployment"},
         isolation={"scope_keys_v2": True},
     )
     await eng.start()

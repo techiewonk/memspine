@@ -34,7 +34,7 @@ from memspine_evals.stub_llm import StubLiteLLM, install_stub_litellm
 
 #: Engine overrides for fast offline engines: hash embeddings, mining on.
 MINING = {
-    "embedding": {"provider": "hash"},
+    "embedding": {"provider": "hash", "settings": {}},
     "memories": {
         "episodic": {
             "enabled": True,
@@ -65,14 +65,34 @@ def _summary(out: Path, run_id: str) -> dict[str, Any]:
 
 
 def test_merge_binds_every_engine_role_and_keeps_explicit_ones() -> None:
-    explicit = {"llm": {"roles": {"extract": {"model": "ollama/llama3"}}}, "read": {"x": 1}}
+    explicit = {
+        "llm": {
+            "roles": {
+                "extract": {
+                    "provider": "litellm",
+                    "settings": {"model": "ollama/llama3", "timeout_seconds": 30.0},
+                }
+            }
+        },
+        "read": {"x": 1},
+    }
     merged = merge_engine_llm_roles(explicit, QWEN3_32B, "eu-west-1")
     roles = merged["llm"]["roles"]
     assert set(roles) == set(ENGINE_LLM_ROLES)
-    assert roles["extract"] == {"model": "ollama/llama3"}  # the caller's binding wins
-    assert roles["reflect"] == {"model": QWEN3_32B, "aws_region": "eu-west-1"}
+    assert roles["extract"] == {
+        "provider": "litellm",
+        "settings": {"model": "ollama/llama3", "timeout_seconds": 30.0},
+    }  # the caller's binding wins
+    assert roles["reflect"] == {
+        "provider": "litellm",
+        "settings": {
+            "model": QWEN3_32B,
+            "aws_region": "eu-west-1",
+            "timeout_seconds": 180.0,
+        },
+    }
     assert merged["read"] == {"x": 1}
-    assert explicit["llm"]["roles"] == {"extract": {"model": "ollama/llama3"}}  # not mutated
+    assert explicit["llm"]["roles"]["extract"]["provider"] == "litellm"  # not mutated
 
 
 def test_engine_role_list_matches_the_engine() -> None:
@@ -88,8 +108,10 @@ def test_build_systems_binds_qwen3_roles_in_env_region(monkeypatch: pytest.Monke
     )
     memspine = next(s for s in build_systems(config) if s.system_id == "memspine")
     roles = memspine.describe()["config"]["llm"]["roles"]
-    assert {r: b["model"] for r, b in roles.items()} == dict.fromkeys(ENGINE_LLM_ROLES, QWEN3_32B)
-    assert {b["aws_region"] for b in roles.values()} == {"us-west-2"}
+    assert {
+        role: binding["settings"]["model"] for role, binding in roles.items()
+    } == dict.fromkeys(ENGINE_LLM_ROLES, QWEN3_32B)
+    assert {binding["settings"]["aws_region"] for binding in roles.values()} == {"us-west-2"}
     plain = next(
         s for s in build_systems(C01Config(include_memspine=True)) if s.system_id == "memspine"
     )
@@ -132,7 +154,16 @@ def test_dollar_cap_needs_prices_and_bedrock() -> None:
         check_dollar_cap(C01Config(mode="qa", max_usd=1.0))
     with pytest.raises(ValueError, match="no paid model"):
         check_dollar_cap(C01Config(mode="retrieval", max_usd=1.0))
-    explicit = {"llm": {"roles": {"extract": {"model": "openai/unpriced"}}}}
+    explicit = {
+        "llm": {
+            "roles": {
+                "extract": {
+                    "provider": "litellm",
+                    "settings": {"model": "openai/unpriced", "timeout_seconds": 30.0},
+                }
+            }
+        }
+    }
     with pytest.raises(ValueError, match="openai/unpriced"):
         check_dollar_cap(
             C01Config(

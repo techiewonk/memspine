@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import ConfigDict, Field, model_validator
+
+from memspine.config.schema.base import ConfigModel
 
 
-class OfflineConfig(BaseModel):
+class OfflineConfig(ConfigModel):
     """Opt-in switches for the offline (sleep-cycle) library wiring. All default ``False``: with every
     flag off the sleep cycle, the golden and the record ids are exactly as before."""
 

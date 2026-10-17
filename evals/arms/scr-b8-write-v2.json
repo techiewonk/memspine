@@ -20,8 +20,10 @@
   "perspective_mode": "subject_weight",
   "pool_protect_per_leg": 3,
   "rerank": "jina",
-  "rerank_model": "jinaai/jina-reranker-v3.5",
-  "rerank_device": "cuda",
+  "rerank_settings": {
+   "model": "jinaai/jina-reranker-v3.5",
+   "device": "cuda"
+  },
   "rerank_keep": 10,
   "rerank_floor": "skip",
   "graph_leg": true,
@@ -32,14 +34,19 @@
  },
  "embedding": {
   "provider": "st",
-  "model": "Qwen/Qwen3-Embedding-0.6B",
-  "dim": 1024,
-  "device": "cuda",
-  "dtype": "bfloat16",
-  "query_instruction": "Instruct: Given a question about a user's past conversations, retrieve memories that answer it\nQuery: "
+  "settings": {
+   "model": "Qwen/Qwen3-Embedding-0.6B",
+   "dim": 1024,
+   "device": "cuda",
+   "dtype": "bfloat16",
+   "query_instruction": "Instruct: Given a question about a user's past conversations, retrieve memories that answer it\nQuery: "
+  }
  },
  "storage": {
-  "path": "tempdir"
+  "provider": "sqlite",
+  "settings": {
+   "path": "tempdir"
+  }
  },
  "memories": {
   "episodic": {
@@ -70,22 +77,28 @@
  "llm": {
   "roles": {
    "extract_edges": {
-    "model": "ollama/qwen3.5:9b",
-    "api_base": "http://127.0.0.1:11434",
-    "timeout_seconds": 180.0,
-    "no_think": true
+    "settings": {
+     "model": "ollama/qwen3.5:9b",
+     "api_base": "http://127.0.0.1:11434",
+     "timeout_seconds": 180.0,
+     "no_think": true
+    }
    },
    "summarize_entity": {
-    "model": "ollama/qwen3.5:9b",
-    "api_base": "http://127.0.0.1:11434",
-    "timeout_seconds": 180.0,
-    "no_think": true
+    "settings": {
+     "model": "ollama/qwen3.5:9b",
+     "api_base": "http://127.0.0.1:11434",
+     "timeout_seconds": 180.0,
+     "no_think": true
+    }
    },
    "window_extract": {
-    "model": "ollama/qwen3.5:9b",
-    "api_base": "http://127.0.0.1:11434",
-    "timeout_seconds": 180.0,
-    "no_think": true
+    "settings": {
+     "model": "ollama/qwen3.5:9b",
+     "api_base": "http://127.0.0.1:11434",
+     "timeout_seconds": 180.0,
+     "no_think": true
+    }
    }
   },
   "structured": {

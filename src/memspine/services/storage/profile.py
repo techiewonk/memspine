@@ -113,17 +113,18 @@ def pgvector_available() -> bool:
 
 
 def resolve_profile(storage: StorageConfig) -> StorageProfile:
-    """The profile a storage config selects. ``storage.profile`` wins; a legacy
-    ``backend: postgres`` with the default profile resolves to ``server``'s stores too."""
-    chosen = storage.profile
-    profile = _BY_NAME[chosen]
-    if chosen == "embedded" and storage.backend == "postgres":
-        profile = SERVER
+    """Resolve the explicitly selected schema/migration profile.
+
+    The selected SQL provider is independent: an embedded profile may use an
+    explicitly selected PostgreSQL provider while retaining create-all schema
+    setup, matching the pre-profile embedded behavior.
+    """
+    profile = _BY_NAME[storage.profile]
     if tap.enabled():
         tap.event(
             "store.profile.resolved",
             profile=profile.name,
-            requested=chosen,
+            requested=storage.profile,
             sql_backend=profile.sql_backend,
             pgvector=pgvector_available() if profile is SERVER else False,
         )

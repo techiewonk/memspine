@@ -30,8 +30,11 @@ def _engine(**over: Any) -> Engine:
     cfg: dict[str, Any] = {
         "template": "core",
         "dotenv_path": None,
-        "storage": {"path": ":memory:"},
-        "embedding": {"provider": "hash"},
+        "storage": {
+            "provider": "sqlite",
+            "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
+        },
+        "embedding": {"provider": "hash", "settings": {}},
         "read": {"hybrid": False, "record_access": False},
         "memories": {
             "episodic": {"enabled": True, "policies": {"consolidation": {"mine_facts": True}}},

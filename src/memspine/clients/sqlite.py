@@ -26,6 +26,7 @@ from __future__ import annotations
 import asyncio
 import importlib
 import itertools
+import math
 import os
 from collections.abc import Callable
 from pathlib import Path
@@ -42,9 +43,6 @@ from memspine.exceptions import ConfigError, MissingServiceError, StorageError
 
 __all__ = ["SQLiteClient"]
 
-#: Set first on every connection, so each statement after it, the journal-mode
-#: probe included, waits out a competing writer instead of failing.
-_BUSY_TIMEOUT = f"PRAGMA busy_timeout={constants.SQLITE_BUSY_TIMEOUT_MS}"
 _PRAGMAS = (
     "PRAGMA synchronous=NORMAL",
     "PRAGMA foreign_keys=ON",
@@ -58,12 +56,12 @@ def _is_locked(exc: BaseException) -> bool:
     return "database is locked" in str(exc) or "database is busy" in str(exc)
 
 
-async def _first_connection(engine: AsyncEngine) -> None:
+async def _first_connection(engine: AsyncEngine, busy_timeout_ms: int) -> None:
     """Open (and return to the pool) one connection, retrying while another
     process holds the lock the WAL switch needs (the switch does not wait on its
     own, see :func:`_ensure_wal`), for up to the busy timeout."""
     loop = asyncio.get_running_loop()
-    deadline = loop.time() + constants.SQLITE_BUSY_TIMEOUT_MS / 1000
+    deadline = loop.time() + busy_timeout_ms / 1000
     delay = 0.01
     while True:
         try:
@@ -147,10 +145,14 @@ class SQLiteClient(Client):
         echo: bool = False,
         *,
         cipher_key_env: str | None = None,
+        busy_timeout_s: float = constants.SQLITE_BUSY_TIMEOUT_MS / 1000,
     ) -> None:
+        if isinstance(busy_timeout_s, bool) or not math.isfinite(busy_timeout_s) or busy_timeout_s <= 0:
+            raise ValueError("busy_timeout_s must be finite and positive")
         self._path = str(path)
         self._echo = echo
         self._cipher_key_env = cipher_key_env
+        self._busy_timeout_ms = max(1, math.ceil(busy_timeout_s * 1000))
         self._engine: AsyncEngine | None = None
         self._anchor: AsyncConnection | None = None
         #: #52: opens one keyed SQLCipher DB-API connection (set by ``connect()``).
@@ -208,7 +210,7 @@ class SQLiteClient(Client):
         @sa_event.listens_for(engine.sync_engine, "connect")
         def _set_pragmas(dbapi_conn: Any, _record: Any) -> None:
             cursor = dbapi_conn.cursor()
-            cursor.execute(_BUSY_TIMEOUT)
+            cursor.execute(f"PRAGMA busy_timeout={self._busy_timeout_ms}")
             if not self.is_memory:
                 _ensure_wal(cursor)
             for pragma in _PRAGMAS:
@@ -222,7 +224,7 @@ class SQLiteClient(Client):
             # to switch it). #52: a wrong key or a plain-SQLite file also fails here,
             # at start, instead of at the first write.
             try:
-                await _first_connection(engine)
+                await _first_connection(engine, self._busy_timeout_ms)
             except BaseException:
                 await engine.dispose()
                 raise
@@ -258,6 +260,7 @@ class SQLiteClient(Client):
             conn = driver.connect(path, check_same_thread=False)
             try:
                 conn.execute(_pragma_key(key))  # must precede every other statement
+                conn.execute(f"PRAGMA busy_timeout={self._busy_timeout_ms}")
                 conn.execute("SELECT count(*) FROM sqlite_master").fetchone()
             except Exception:
                 conn.close()

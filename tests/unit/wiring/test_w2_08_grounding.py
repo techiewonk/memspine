@@ -104,12 +104,19 @@ def _run(stage: Any, envs: list[Any], ctx: EnvelopeStageContext) -> list[Any]:
 
 # --- config and registration --------------------------------------------------------------------
 def test_flag_off_registers_nothing_and_on_registers_one_stage_at_200() -> None:
-    off = MemspineConfig()
+    off = MemspineConfig(runtime={"provider_services": {"health_timeout_s": 1.0, "close_timeout_s": 1.0, "startup_timeout_s": None}})
     assert off.write.grounding_v2 is False and off.write.ground_action == "drop"
     assert off.write.ground_adjudicator == "lexical"
     assert _envelope_stages(SimpleNamespace(), off) == ()
     on = MemspineConfig(
-        write={"window_extract": "facts", "envelope_v2": True, "grounding_v2": True}
+        write={"window_extract": "facts", "envelope_v2": True, "grounding_v2": True},
+        runtime={
+            "provider_services": {
+                "health_timeout_s": 1.0,
+                "close_timeout_s": 1.0,
+                "startup_timeout_s": None,
+            }
+        },
     )
     stages = _envelope_stages(SimpleNamespace(), on)
     assert [(s.name, s.order) for s in stages] == [
@@ -282,7 +289,14 @@ def test_build_from_config_wires_the_decider_only_when_asked() -> None:
             "envelope_v2": True,
             "grounding_v2": True,
             "ground_adjudicator": "off",
-        }
+        },
+        runtime={
+            "provider_services": {
+                "health_timeout_s": 1.0,
+                "close_timeout_s": 1.0,
+                "startup_timeout_s": None,
+            }
+        },
     )
     assert build_grounding_stage(SimpleNamespace(), cfg).order == 200
 

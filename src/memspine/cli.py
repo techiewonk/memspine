@@ -142,7 +142,7 @@ def _run_engine_op(db: Path, op: str, **kwargs: object) -> dict[str, object]:
         engine = Engine(
             template="base",
             dotenv_path=None,
-            storage={"path": str(db)},
+            storage={"settings": {"path": str(db)}},
             embedding={"provider": "hash"},
         )
         await engine.start()
@@ -248,7 +248,7 @@ def export_cmd(
         engine = Engine(
             template="base",
             dotenv_path=None,
-            storage={"path": str(db)},
+            storage={"settings": {"path": str(db)}},
             embedding={"provider": "hash"},
         )
         await engine.start()
@@ -308,7 +308,7 @@ def mcp_cmd(
     sys.stdout = sys.stderr  # a stray print must never corrupt the protocol stream
 
     async def _inner() -> None:
-        overrides: dict[str, Any] = {"storage": {"path": str(db)}} if db else {}
+        overrides: dict[str, Any] = {"storage": {"settings": {"path": str(db)}}} if db else {}
         engine = Engine(template=template, user_config=config_file, **overrides)
         await engine.start()
         try:

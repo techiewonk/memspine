@@ -90,7 +90,7 @@ def recs(*texts: str) -> list[Rec]:
 
 # --- config / hints shape -----------------------------------------------------------------------
 def test_flag_default_off_and_literal() -> None:
-    assert MemspineConfig().write.prepass == "off"
+    assert MemspineConfig(runtime={"provider_services": {"health_timeout_s": 1.0, "close_timeout_s": 1.0, "startup_timeout_s": None}}).write.prepass == "off"
     with pytest.raises(ValueError):
         MemspineConfig(write={"prepass": "yes"})
 

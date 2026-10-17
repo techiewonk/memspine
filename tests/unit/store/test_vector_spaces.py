@@ -343,7 +343,7 @@ def test_rederive_plan_tap_event():
 
 
 def test_flag_off_by_default():
-    assert MemspineConfig().embedding.versioned_spaces is False
+    assert MemspineConfig(runtime={"provider_services": {"health_timeout_s": 1.0, "close_timeout_s": 1.0, "startup_timeout_s": None}}).embedding.versioned_spaces is False
 
 
 # ------------------------------------------------------------------ engine wiring (LanceDB)
@@ -357,8 +357,8 @@ async def test_engine_flag_on_matches_flag_off_and_names_table_by_space(tmp_path
         return Engine(
             template="core",
             dotenv_path=None,
-            storage={"path": str(tmp_path / sub / "m.db")},
-            embedding={"provider": "hash", "versioned_spaces": on},
+            storage={'provider': "sqlite", 'settings': {'path': str(tmp_path / sub / "m.db"), 'busy_timeout_s': 5.0}},
+            embedding={'provider': "hash", 'versioned_spaces': on, 'settings': {}},
             read={"record_access": False},
         )
 
@@ -369,11 +369,16 @@ async def test_engine_flag_on_matches_flag_off_and_names_table_by_space(tmp_path
         for eng in (off, on):
             for text in ("camping by the lake", "skiing in the alps"):
                 await eng.write(text, namespace="alice")
-        assert isinstance(on._vector, VersionedSpaceStore)
-        assert not isinstance(off._vector, VersionedSpaceStore)
-        space = on._vector.active_space("alice")
+        on_vector = on._provider_results["vector"].service
+        off_vector = off._provider_results["vector"].service
+        assert isinstance(on_vector, VersionedSpaceStore)
+        assert not isinstance(off_vector, VersionedSpaceStore)
+        space = on_vector.active_space("alice")
         assert space is not None
-        assert any(space.id in n for n in on._lance.db.table_names())
+        import lancedb
+
+        db = lancedb.connect(str(tmp_path / "on" / "m.db.lance"))
+        assert any(space.id in name for name in db.table_names())
         a = await off.search("camping lake", namespace="alice", top_k=5)
         b = await on.search("camping lake", namespace="alice", top_k=5)
         assert [r.content for r, _ in a] == [r.content for r, _ in b]

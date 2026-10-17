@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 from memspine import Engine
-from memspine.config.schema import ReadConfig
+from memspine.config.schema.providers import TantivySettings
 from memspine.services.lexical.tantivy import TantivyLexical
 from memspine.store.records import MemoryRecord, SourceInfo
 
@@ -23,7 +23,7 @@ def rec(record_id: str, content: str, namespace: str = "a") -> MemoryRecord:
 
 
 def test_default_analyzer_is_unchanged() -> None:
-    assert ReadConfig().lexical_analyzer == "default"
+    assert TantivySettings().analyzer == "default"
 
 
 async def test_english_matches_inflected_forms() -> None:
@@ -61,9 +61,14 @@ def _engine(path: Path, analyzer: str) -> Engine:
     return Engine(
         template="core",
         dotenv_path=None,
-        storage={"path": str(path / "m.db")},
-        embedding={"provider": "hash"},
-        read={"hybrid": True, "lexical_analyzer": analyzer, "record_access": False},
+        storage={'provider': "sqlite", 'settings': {'path': str(path / "m.db"), 'busy_timeout_s': 5.0}},
+        embedding={'provider': "hash", 'settings': {}},
+        read={
+            "hybrid": True,
+            "lexical_provider": "tantivy",
+            "lexical_settings": {"analyzer": analyzer},
+            "record_access": False,
+        },
     )
 
 
@@ -101,16 +106,20 @@ async def test_date_tokens_make_a_date_question_match_lexically() -> None:
 
 
 def test_lexical_dates_is_off_by_default() -> None:
-    assert ReadConfig().lexical_dates is False
+    assert TantivySettings().date_tokens is False
 
 
 async def test_dates_variant_has_its_own_index_and_projector(tmp_path: Path) -> None:
     eng = Engine(
         template="core",
         dotenv_path=None,
-        storage={"path": str(tmp_path / "m.db")},
-        embedding={"provider": "hash"},
-        read={"hybrid": True, "lexical_analyzer": "english", "lexical_dates": True},
+        storage={'provider': "sqlite", 'settings': {'path': str(tmp_path / "m.db"), 'busy_timeout_s': 5.0}},
+        embedding={'provider': "hash", 'settings': {}},
+        read={
+            "hybrid": True,
+            "lexical_provider": "tantivy",
+            "lexical_settings": {"analyzer": "english", "date_tokens": True},
+        },
     )
     await eng.start()
     try:

@@ -15,15 +15,15 @@ def _engine(timers: bool) -> Engine:
     return Engine(
         template="core",
         dotenv_path=None,
-        storage={"path": ":memory:"},
-        embedding={"provider": "hash"},
+        storage={'provider': "sqlite", 'settings': {'path': ":memory:", 'busy_timeout_s': 5.0}},
+        embedding={'provider': "hash", 'settings': {}},
         memories={"episodic": {"enabled": True}, "semantic": {"enabled": True}},
         observability={"write_timers": timers},
     )
 
 
 def test_off_by_default() -> None:
-    assert MemspineConfig().observability.write_timers is False
+    assert MemspineConfig(runtime={"provider_services": {"health_timeout_s": 1.0, "close_timeout_s": 1.0, "startup_timeout_s": None}}).observability.write_timers is False
 
 
 def test_step_timers_aggregate_count_total_and_percentiles() -> None:

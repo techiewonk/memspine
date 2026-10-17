@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import ConfigDict, Field
+
+from memspine.config.schema.base import ConfigModel
 
 
-class BudgetConfig(BaseModel):
+class BudgetConfig(ConfigModel):
     """Spend limit per namespace. When it is spent, derivation pauses and the work is marked
     underived in the outbox (never dropped); ``Engine.resume_deferred`` puts it back."""
 
@@ -19,7 +21,7 @@ class BudgetConfig(BaseModel):
     period_s: float | None = Field(default=None, gt=0)
 
 
-class EconomyConfig(BaseModel):
+class EconomyConfig(ConfigModel):
     """Cost accounting. Everything is OFF by default: nothing is recorded and nothing changes.
 
     - ``ledger_v2`` (W2-12; W-26, P-22 C, LIB-27): count model calls, tokens in/out, latency and

@@ -40,8 +40,12 @@ class CashewsClient(Client):
         # Verify reachability at start (D-10): for redis this forces a connection
         # so a bad DSN / down server fails loudly here, not mid-request. For
         # mem/disk it is a cheap no-op miss.
-        await cache.get("__memspine_ping__")
         self._cache = cache
+        try:
+            await cache.get("__memspine_ping__")
+        except BaseException:
+            await self.close()
+            raise
 
     async def close(self) -> None:
         if self._cache is not None:

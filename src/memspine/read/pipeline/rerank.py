@@ -6,9 +6,7 @@ import math
 from typing import Any
 
 from memspine.config import constants
-from memspine.exceptions import (
-    MissingServiceError,
-)
+from memspine.exceptions import MissingServiceError
 from memspine.models.providers.rerank.base import concat_background, gated_rerank
 from memspine.models.providers.rerank.factory import RerankSettings, build_reranker
 from memspine.observability import tap
@@ -123,20 +121,23 @@ def _planned_chain(eng: Any) -> list[tuple[str, str]] | None:
     return cached  # type: ignore[no-any-return]  # CI-GREEN: pre-existing typing debt
 
 
-def _chain_provider(eng: Any, mode: str, read_cfg: Any, device: str | None = None) -> Any:
+async def _chain_provider(eng: Any, mode: str, read_cfg: Any, device: str | None = None) -> Any:
     """The reranker of ``mode``, built once per engine; None when it cannot be built (kept, not
     retried). ``device`` is the planned device (MD-01); None keeps ``read.rerank_device``."""
     cache: dict[str, Any] = eng.__dict__.setdefault("_rerank_v2_cache", {})
     if mode in cache:
         return cache[mode]
-    built = build_reranker(
-        RerankSettings(
-            mode=mode,
-            instruction=read_cfg.rerank_instruction if mode == "qwen3" else None,
-            device=(device or read_cfg.rerank_device) if mode in ("jina", "qwen3") else None,
-            quant=read_cfg.rerank_quant if mode == "qwen3" else None,
-        )
+    settings = RerankSettings(
+        mode=mode,
+        instruction=read_cfg.rerank_settings.get("instruction") if mode == "qwen3" else None,
+        device=(device or read_cfg.rerank_settings.get("device")) if mode in ("jina", "qwen3") else None,
+        quant=read_cfg.rerank_settings.get("quant") if mode == "qwen3" else None,
+        batch_size=read_cfg.rerank_settings.get("batch_size") if mode == "qwen3" else None,
+        max_length=read_cfg.rerank_settings.get("max_length") if mode == "qwen3" else None,
+        max_documents=read_cfg.rerank_settings.get("max_documents") if mode == "jina" else None,
     )
+    build = getattr(eng, "_build_reranker", None)
+    built = await build(settings) if callable(build) else await build_reranker(settings)
     if built is not None and hasattr(built, "unscored_tail"):
         built.unscored_tail = True  # the Jina window tail is unscored (None), never 0.0
     cache[mode] = built
@@ -156,7 +157,7 @@ async def chain_score(
     planned = _planned_chain(eng)
     chain = planned if planned is not None else [(m, "") for m in read_cfg.rerank_v2_chain]
     for pos, (mode, device) in enumerate(chain):
-        reranker = _chain_provider(eng, mode, read_cfg, device or None)
+        reranker = await _chain_provider(eng, mode, read_cfg, device or None)
         if reranker is None:
             tried.append({"mode": mode, "outcome": "unavailable"})
             continue
@@ -165,10 +166,12 @@ async def chain_score(
             raw = list(await gated_rerank(reranker, query, documents))
             if len(raw) != len(documents):
                 raise ValueError(f"{len(raw)} scores for {len(documents)} documents")
-        except Exception as exc:
+        except (MissingServiceError, ConnectionError, TimeoutError) as exc:
             eng._rerank_failures += 1
             _log.warning(
-                "rerank.failed", reranker=getattr(reranker, "reranker_id", mode), error=str(exc)
+                "rerank.failed",
+                reranker=getattr(reranker, "reranker_id", mode),
+                error=type(exc).__name__,
             )
             tried.append({"mode": mode, "outcome": "failed"})
             continue

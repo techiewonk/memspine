@@ -23,7 +23,7 @@ def test_validate_reports_auto_enables(tmp_path: Path) -> None:
     cfg.write_text("memories:\n  reflective:\n    enabled: true\n", encoding="utf-8")
     result = runner.invoke(app, ["config", "validate", "--config", str(cfg)])
     assert result.exit_code == 0
-    assert "auto-enabled (C1b): episodic" in result.output
+    assert "memories: episodic, reflective" in result.output
 
 
 def test_validate_unknown_template_fails() -> None:
@@ -71,8 +71,8 @@ def test_forget_hard_verify_exit_codes(tmp_path: Path) -> None:
         eng = Engine(
             template="core",
             dotenv_path=None,
-            storage={"path": str(db)},
-            embedding={"provider": "hash"},
+            storage={'provider': "sqlite", 'settings': {'path': str(db), 'busy_timeout_s': 5.0}},
+            embedding={'provider': "hash", 'settings': {}},
         )
         await eng.start()
         record = await eng.write("a secret to erase", namespace="default")
@@ -110,8 +110,8 @@ def test_export_writes_jsonl(tmp_path: Path) -> None:
         eng = Engine(
             template="core",
             dotenv_path=None,
-            storage={"path": str(db)},
-            embedding={"provider": "hash"},
+            storage={'provider': "sqlite", 'settings': {'path': str(db), 'busy_timeout_s': 5.0}},
+            embedding={'provider': "hash", 'settings': {}},
         )
         await eng.start()
         record = await eng.write("Ana likes green tea", namespace="user/ana")

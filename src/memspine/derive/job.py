@@ -40,6 +40,8 @@ from collections.abc import Awaitable, Callable, Iterator, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
+from sqlalchemy.engine import Engine as SqlAlchemyEngine
+
 from memspine.derive.budget import DerivationBudget, is_model_stage
 from memspine.exceptions import MemspineError, StorageError
 from memspine.observability import inspect as insp
@@ -177,14 +179,70 @@ class _PgConn:
         self._c.close()
 
 
+class _SqlAlchemyConn:
+    """Small DB-API-shaped view of an engine connection used by lease SQL."""
+
+    def __init__(self, connection: Any, *, postgres: bool) -> None:
+        self._connection = connection
+        self._postgres = postgres
+
+    @property
+    def in_transaction(self) -> bool:
+        return bool(self._connection.in_transaction())
+
+    def execute(self, sql: str, params: Sequence[object] = ()) -> Any:
+        head = sql.strip().upper()
+        if head == "BEGIN IMMEDIATE":
+            self._connection.begin()
+            if self._postgres:
+                self._connection.exec_driver_sql(
+                    "SELECT pg_advisory_xact_lock(%s)", (_PG_LOCK_KEY,)
+                )
+            return None
+        if head == "COMMIT":
+            self._connection.commit()
+            return None
+        if head == "ROLLBACK":
+            self._connection.rollback()
+            return None
+        statement = pg_sql(sql) if self._postgres else sql
+        return self._connection.exec_driver_sql(statement, tuple(params))
+
+    def executescript(self, script: str) -> None:
+        self.execute("BEGIN IMMEDIATE")
+        try:
+            for statement in script.split(";"):
+                if statement.strip():
+                    self.execute(statement)
+        except BaseException:
+            self.execute("ROLLBACK")
+            raise
+        self.execute("COMMIT")
+
+    def close(self) -> None:
+        self._connection.close()
+
+
 class LeaseStore:
     """Persisted lease, cycle, watermark and trigger-state tables (SQLite file, or ``:memory:``;
     a Postgres DSN keeps them in the storage database, shared by every process on it)."""
 
-    def __init__(self, path: str = ":memory:", *, clock: Clock | None = None) -> None:
-        self.path = path
+    def __init__(
+        self, path: str | SqlAlchemyEngine = ":memory:", *, clock: Clock | None = None
+    ) -> None:
+        self._engine = path if isinstance(path, SqlAlchemyEngine) else None
+        if self._engine is not None and self._engine.dialect.name != "postgresql":
+            raise ValueError("SQLAlchemy lease engines must provide shared PostgreSQL storage")
+        self.path: str
+        if self._engine is not None:
+            self.path = str(self._engine.url)
+        else:
+            assert isinstance(path, str)
+            self.path = path
         self.clock: Clock = clock or time.time
-        self._pg = is_pg_url(path)
+        self._pg = (
+            self._engine is not None or is_pg_url(self.path)
+        )
         self._db_time = self._pg and clock is None  # FU-GAPS: lease times come from the database
         self._shared: sqlite3.Connection | None = None
         if path == ":memory:":
@@ -195,6 +253,13 @@ class LeaseStore:
     # ---------------------------------------------------------------- plumbing
     @contextlib.contextmanager
     def _conn(self) -> Iterator[Any]:
+        if self._engine is not None:
+            connection = self._engine.connect()
+            try:
+                yield _SqlAlchemyConn(connection, postgres=True)
+            finally:
+                connection.close()
+            return
         if self._shared is not None:
             yield self._shared
             return

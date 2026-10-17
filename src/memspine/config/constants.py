@@ -234,6 +234,11 @@ REST_RATE_LIMIT_MAX_KEYS = 10_000
 
 # E8 rerank (D-42 §5/D-51): default fastembed ONNX cross-encoder model.
 RERANK_FASTEMBED_MODEL = "Xenova/ms-marco-MiniLM-L-6-v2"
+RERANK_QWEN3_MODEL = "Qwen/Qwen3-Reranker-0.6B"
+RERANK_QWEN3_INSTRUCTION = (
+    "Given a question about a user's past conversations, judge whether the memory helps answer it"
+)
+RERANK_JINA_MODEL = "jinaai/jina-reranker-v3.5"
 
 # E5 assembly-time compression (D-51): llmlingua target keep-rate per block.
 # Surfaced as ``read.compression.assembly_rate`` (v0.2 A6) so a deployment can

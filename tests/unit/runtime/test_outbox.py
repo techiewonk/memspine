@@ -75,7 +75,7 @@ def make_runner(
 
 
 def file_engine(tmp_path: Path) -> Any:
-    return sqlite_engine(str(tmp_path / "outbox.db"))
+    return sqlite_engine(str(tmp_path / "outbox.db"), busy_timeout_s=5.0)
 
 
 # --------------------------------------------------------------------------- persistence

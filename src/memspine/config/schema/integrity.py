@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import ConfigDict, Field, field_validator, model_validator
 
+from memspine.config.schema.base import ConfigModel
 from memspine.exceptions import ConfigError
 
 
-class IntegrityConfig(BaseModel):
+class IntegrityConfig(ConfigModel):
     """Trust-horizon invariant (THI, formerly "MTI") for shared memory — opt-in, default OFF.
 
     Off, every path is byte-identical to the pre-MTI engine: shared reads keep

@@ -208,17 +208,20 @@ def offline_config(
     notes: list[str] = []
     emb = out.get("embedding") or {}
     if not keep_models and emb.get("provider") not in (None, "hash"):
-        notes.append(f"embedder: hash (arm uses {emb.get('provider')}:{emb.get('model')})")
-        out["embedding"] = {"provider": "hash"}
+        model = (emb.get("settings") or {}).get("model")
+        notes.append(f"embedder: hash (arm uses {emb.get('provider')}:{model})")
+        out["embedding"] = {"provider": "hash", "settings": {}}
     read = dict(out.get("read") or {})
     if not keep_models and read.get("rerank") not in (None, "off"):
         notes.append(f"reranker: off (arm uses {read.get('rerank')})")
         read["rerank"] = "off"
-        read.pop("rerank_model", None)
-        read.pop("rerank_device", None)
+        read["rerank_settings"] = {}
     out["read"] = read
-    if (out.get("storage") or {}).get("path") not in (None, "tempdir", ":memory:"):
-        out["storage"] = {"path": "tempdir"}
+    storage = dict(out.get("storage") or {})
+    storage_settings = dict(storage.get("settings") or {})
+    if storage_settings.get("path") not in (None, "tempdir", ":memory:"):
+        storage["settings"] = {**storage_settings, "path": "tempdir"}
+        out["storage"] = storage
         notes.append("storage: tempdir")
     return out, notes
 

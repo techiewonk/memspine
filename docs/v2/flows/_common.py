@@ -83,8 +83,11 @@ async def make_engine(config: dict[str, Any] | None = None, template: str = "cor
     from memspine import Engine
 
     cfg: dict[str, Any] = {
-        "storage": {"path": ":memory:"},
-        "embedding": {"provider": "hash"},
+        "storage": {
+            "provider": "sqlite",
+            "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
+        },
+        "embedding": {"provider": "hash", "settings": {}},
         "memories": {"episodic": {"enabled": True}, "semantic": {"enabled": True}},
         "observability": {"tap": {"enabled": True, "sink": "memory", "content": True}},
     }

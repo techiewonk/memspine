@@ -41,17 +41,15 @@ from memspine.exceptions import (
     ConflictError,
 )
 from memspine.ingest import role_wiring
-from memspine.ingest.index_view import compose_index_text
+from memspine.ingest.index_view import PENDING_INDEX_PREFIX, compose_index_text
 from memspine.ingest.message_helpers import (
     IDEM_TAG_PREFIX,  # noqa: F401  gateway reads this shared constant
     INTAKE_LANDED,  # noqa: F401  gateway sets this shared ContextVar
-    PENDING_INDEX_PREFIX,
-    PENDING_STAMP,
     _index_view_prefixes,
     _looks_like_recall,
     _turn_content,
 )
-from memspine.ingest.stamping import apply_stamp
+from memspine.ingest.stamping import PENDING_STAMP, apply_stamp
 from memspine.ingest.timeparse import _zone_of
 from memspine.memories.episodic.lifecycle import session_of
 from memspine.models.encoders.embedding.base import EmbeddingService

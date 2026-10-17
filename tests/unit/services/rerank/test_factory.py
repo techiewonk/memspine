@@ -2,13 +2,18 @@
 
 from __future__ import annotations
 
-from memspine.models.providers.rerank import factory
+import pytest
+
+from memspine.exceptions import ConfigError
 from memspine.models.providers.rerank.factory import (
     RerankSettings,
     build_reranker,
     register_reranker,
     rerank_modes,
 )
+from memspine.providers.contracts import BuildResult, ProviderRef
+from memspine.providers.registry import ProviderDescriptor, get_registry
+from memspine.providers.settings import EmptySettings
 
 
 def test_rerank_modes_is_off_plus_registry() -> None:
@@ -17,31 +22,47 @@ def test_rerank_modes_is_off_plus_registry() -> None:
     assert {"fastembed", "flashrank", "litellm"} <= set(modes)  # the shipped providers
 
 
-def test_off_builds_none() -> None:
-    assert build_reranker(RerankSettings(mode="off")) is None
+async def test_off_builds_none() -> None:
+    assert await build_reranker(RerankSettings(mode="off")) is None
 
 
-def test_unknown_mode_builds_none() -> None:
-    assert build_reranker(RerankSettings(mode="bogus")) is None
+async def test_unknown_mode_fails_explicitly() -> None:
+    with pytest.raises(ConfigError, match="unknown reranker provider"):
+        await build_reranker(RerankSettings(mode="bogus"))
 
 
-def test_litellm_without_model_degrades_to_none() -> None:
-    # missing model → MissingServiceError inside the spec → swallowed to None
-    # (no litellm import, no network) — the sticky-skip contract.
-    assert build_reranker(RerankSettings(mode="litellm", model=None)) is None
+async def test_litellm_without_model_fails_typed_settings_validation() -> None:
+    with pytest.raises(ConfigError, match="invalid read.rerank_settings"):
+        await build_reranker(
+            RerankSettings(mode="litellm", model=None), explicit_deployment_id=True
+        )
 
 
-def test_register_reranker_extends_modes_and_builds() -> None:
+async def test_register_reranker_extends_modes_and_builds() -> None:
     class _FakeReranker:
         reranker_id = "fake"
 
         async def rerank(self, query: str, documents: list[str]) -> list[float]:
             return [0.0] * len(documents)
 
-    register_reranker("fake_test", lambda s: _FakeReranker())  # type: ignore[arg-type,return-value]
+    class Builder:
+        async def build(self, settings: EmptySettings, ctx: object) -> BuildResult[_FakeReranker]:
+            return BuildResult(
+                _FakeReranker(), ProviderRef("reranker", "fake_test"), (), frozenset({"rerank"})
+            )
+
+    register_reranker(
+        ProviderDescriptor(
+            ProviderRef("reranker", "fake_test"),
+            EmptySettings,
+            frozenset({"rerank"}),
+            (),
+            Builder(),
+        )
+    )
     try:
         assert "fake_test" in rerank_modes()
-        built = build_reranker(RerankSettings(mode="fake_test"))
+        built = await build_reranker(RerankSettings(mode="fake_test"))
         assert built is not None and built.reranker_id == "fake"
     finally:
-        factory._REGISTRY.pop("fake_test", None)  # don't leak into other tests
+        get_registry("rerankers").unregister("fake_test")  # don't leak into other tests

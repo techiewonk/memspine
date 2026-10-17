@@ -1,5 +1,4 @@
-"""F-07 "same YAML keys": every shipped template and preset resolves to the same config as before
-the schema split. The baseline JSON was dumped from the pre-split ``config/schema.py``."""
+"""Golden resolved-config snapshot for every shipped template and preset."""
 
 from __future__ import annotations
 

@@ -87,17 +87,20 @@ class EmbeddingProfile:
         }
 
     def apply(self, cfg: Any) -> Any:
-        """The embedder config (``EmbeddingConfig``) with this profile's fields filled in."""
-        update: dict[str, Any] = {
-            "provider": self.provider,
-            "model": self.model_id,
-            "dim": self.dim,
-            "query_instruction": self.query_instruction,
-        }
+        """The nested provider config with this profile's fields filled in."""
+        settings: dict[str, Any] = dict(cfg.settings)
+        # The hash embedder has no model setting, but its vector size is native
+        # provider configuration and must follow a selected profile.
+        if self.provider != "hash":
+            settings["model"] = self.model_id
+        if self.provider in {"fastembed", "hash", "st", "litellm"}:
+            settings["dim"] = self.dim
+        if self.provider in {"fastembed", "st"}:
+            settings["query_instruction"] = self.query_instruction
         if self.provider == "st":
-            update["device"] = self.device
-            update["dtype"] = None if self.dtype == "float32" else self.dtype
-        return cfg.model_copy(update=update)
+            settings.update(device=self.device, dtype=None if self.dtype == "float32" else self.dtype)
+        return cfg.model_copy(update={"provider": self.provider, "settings": settings})
+
 
 
 GPU_QWEN3 = EmbeddingProfile(

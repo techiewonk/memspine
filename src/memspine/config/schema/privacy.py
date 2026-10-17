@@ -4,10 +4,12 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import ConfigDict, Field
+
+from memspine.config.schema.base import ConfigModel
 
 
-class RetentionClassConfig(BaseModel):
+class RetentionClassConfig(ConfigModel):
     """#48: one retention class. Records of a namespace matching ``namespace`` (a
     glob, ``*`` = any) and of ``memory_type`` (None = any type) expire ``ttl_days``
     after they were recorded."""
@@ -19,7 +21,7 @@ class RetentionClassConfig(BaseModel):
     ttl_days: float = Field(gt=0.0)
 
 
-class RetentionConfig(BaseModel):
+class RetentionConfig(ConfigModel):
     """#48 retention classes (storage limitation). ``classes`` is checked in order;
     the first class that matches a record sets its TTL. A sleep-cycle stage
     hard-forgets expired records through the ordinary forget path, so legal holds
@@ -39,7 +41,7 @@ class RetentionConfig(BaseModel):
     profile: Literal["assistant", "coding", "ephemeral", "multi_agent", "regulated"] | None = None
 
 
-class AuditConfig(BaseModel):
+class AuditConfig(ConfigModel):
     """#49 durable audit, opt-in.
 
     - ``reads``: every ``search`` / ``assemble`` / ``read`` / ``retrieve`` /
@@ -63,7 +65,7 @@ class AuditConfig(BaseModel):
     chain_v2: bool = False
 
 
-class PrivacyConfig(BaseModel):
+class PrivacyConfig(ConfigModel):
     """T5-04 erasure planning (LIB-09), opt-in.
 
     - ``erasure_v2``: a hard forget plans over the lineage graph (the lineage table under
@@ -97,7 +99,7 @@ class PrivacyConfig(BaseModel):
     erasure_rederive: bool = False
 
 
-class ConsentConfig(BaseModel):
+class ConsentConfig(ConfigModel):
     """#50 purpose limitation and the remote-LLM gate, opt-in.
 
     - ``enforce``: a read returns only records whose purpose set (``consent_tags``,

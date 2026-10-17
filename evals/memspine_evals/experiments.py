@@ -356,15 +356,16 @@ def memspine_embedding_model(config: C01Config) -> str:
     pay for calls the harness does not budget, so that combination is refused.
     """
     embedding = dict((config.memspine_config or {}).get("embedding") or {})
+    settings = dict(embedding.get("settings") or {})
     try:
-        from memspine.config.schema import EmbeddingConfig
+        from memspine.config.schema.providers import FastembedEmbeddingSettings
 
-        defaults = EmbeddingConfig()
-        provider = embedding.get("provider", defaults.provider)
-        model = embedding.get("model", defaults.model)
+        defaults = FastembedEmbeddingSettings()
+        provider = embedding.get("provider", "fastembed")
+        model = settings.get("model", defaults.model)
     except ImportError:  # the engine is not installed: its documented default
         provider = embedding.get("provider", "fastembed")
-        model = embedding.get("model", "BAAI/bge-small-en-v1.5")
+        model = settings.get("model", "BAAI/bge-small-en-v1.5")
     if provider != "fastembed":
         raise ValueError(
             f"the same-embedder naive arm needs a fastembed embedder; memspine uses {provider!r}"
@@ -406,7 +407,12 @@ def engine_llm_models(config: C01Config) -> set[str]:
     if not config.include_memspine:
         return set()
     roles = ((memspine_engine_config(config) or {}).get("llm") or {}).get("roles") or {}
-    return {str(binding.get("model", "")) for binding in roles.values() if binding.get("model")}
+    models: set[str] = set()
+    for binding in roles.values():
+        settings = binding.get("settings") or {}
+        if settings.get("model"):
+            models.add(str(settings["model"]))
+    return models
 
 
 def paid_services(config: C01Config) -> list[tuple[str, str]]:
@@ -418,10 +424,10 @@ def paid_services(config: C01Config) -> list[tuple[str, str]]:
     out: list[tuple[str, str]] = []
     embedding = dict(engine.get("embedding") or {})
     if embedding.get("provider") == "litellm":
-        out.append(("embed", str(embedding.get("model") or "")))
+        out.append(("embed", str((embedding.get("settings") or {}).get("model") or "")))
     read = dict(engine.get("read") or {})
     if read.get("rerank") == "litellm":
-        out.append(("rerank", str(read.get("rerank_model") or "")))
+        out.append(("rerank", str((read.get("rerank_settings") or {}).get("model") or "")))
     return out
 
 

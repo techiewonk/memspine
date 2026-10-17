@@ -158,7 +158,7 @@ async def _gate_raw_tops(eng: Any, ns: str, text: str, legs: Sequence[str]) -> d
     if "vector" in legs:
         out["vector"] = max(score for _, score in live)
     if "rerank" in legs:
-        reranker = eng._rerank_provider()
+        reranker = await eng._rerank_provider()
         if reranker is not None:
             raws = await gated_rerank(reranker, text, [concat_background(r) for r, _ in live])
             out["rerank"] = float(max(raws))
@@ -174,7 +174,7 @@ async def _store_calibration(
     assert eng._embedder is not None
     read = eng._config().read
     n_records = len(await eng._require_started().list_records(ns))
-    reranker = eng._rerank_provider() if "rerank" in legs else None
+    reranker = await eng._rerank_provider() if "rerank" in legs else None
     key = (ns, eng._embedder.embedder_id, getattr(reranker, "reranker_id", None), tuple(legs))
     cache: dict[Any, dict[str, Calibration]] = eng.__dict__.setdefault("_relevance_cal", {})
     cached = cache.get(key)
@@ -206,7 +206,7 @@ async def _calibrated_gate(
     ns = ns or records[0].namespace
     entry: dict[str, Any] = {"margin_sd": read.relevance_gate_margin_sd}
     try:
-        has_reranker = eng._rerank_provider() is not None
+        has_reranker = await eng._rerank_provider() is not None
         want = read.relevance_gate_leg
         if want == "auto":
             legs = ["rerank"] if has_reranker else ["vector"]
@@ -373,9 +373,9 @@ def _gate_contract(query: str, named: bool, supported: bool) -> GateContract:
     )
 
 
-def _gate_v2_leg(eng: Any) -> str:
+async def _gate_v2_leg(eng: Any) -> str:
     read = eng._config().read
-    has_reranker = eng._rerank_provider() is not None
+    has_reranker = await eng._rerank_provider() is not None
     want = read.relevance_gate_leg
     if want in ("auto", "any"):
         return "rerank" if has_reranker else "vector"
@@ -388,7 +388,7 @@ async def _gate_v2_calibration(eng: Any, ns: str, leg: str) -> tuple[StoreCalibr
     past ``relevance_gate_regrow`` x the record count it was calibrated on."""
     read = eng._config().read
     n_records = len(await eng._require_started().list_records(ns))
-    reranker = eng._rerank_provider() if leg == "rerank" else None
+    reranker = await eng._rerank_provider() if leg == "rerank" else None
     key = (ns, eng._embedder.embedder_id, getattr(reranker, "reranker_id", None), leg)
     cache: dict[Any, tuple[StoreCalibration, int]] = eng.__dict__.setdefault("_gate_v2_cal", {})
     cached = cache.get(key)
@@ -409,7 +409,7 @@ async def _gate_v2_scores(
     """The raw ``leg`` score of each candidate record (absent = unscored, never 0)."""
     read = eng._config().read
     if leg == "rerank":
-        reranker = eng._rerank_provider()
+        reranker = await eng._rerank_provider()
         raws = await gated_rerank(reranker, query, [concat_background(r) for r in records])
         return {r.record_id: float(s) for r, s in zip(records, raws, strict=True)}
     [qv] = await embed_queries(eng._embedder, [query])
@@ -454,7 +454,7 @@ async def _gate_v2(eng: Any, query: str, result: ReadResult, ns: str | None = No
     ns = ns or judged[0].namespace
     entry: dict[str, Any] = {"margin_sd": read.relevance_gate_margin_sd}
     try:
-        leg = _gate_v2_leg(eng)
+        leg = await _gate_v2_leg(eng)
         cal, recomputed = await _gate_v2_calibration(eng, ns, leg)
         scores = await _gate_v2_scores(eng, ns, query, judged, leg)
         items = [_gate_v2_item(r, scores.get(r.record_id), leg) for r in judged]

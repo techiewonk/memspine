@@ -21,6 +21,7 @@ from pathlib import Path
 import pytest
 
 from memspine import Engine
+from memspine.core.registry import MEMORY_TYPES
 
 #: A fixed instant so time-triggered verbs (watch/due) never touch the wall clock.
 NOW = datetime(2026, 1, 1, 12, 0, 0, tzinfo=UTC)
@@ -133,7 +134,12 @@ ROUND_TRIPS: dict[str, Callable[[Engine, Path], Awaitable[None]]] = {
 
 @pytest.mark.parametrize("memory_type", sorted(ROUND_TRIPS))
 async def test_single_type_boot_round_trip(memory_type: str, tmp_path: Path, make_engine) -> None:
-    engine = make_engine(memories={memory_type: {"enabled": True}})
+    # The base template enables its default memory set. Disable that set
+    # explicitly so this matrix really exercises one requested type and its
+    # dependency closure.
+    memories = {name: {"enabled": False} for name in MEMORY_TYPES}
+    memories[memory_type] = {"enabled": True}
+    engine = make_engine(template="core", memories=memories)
     await engine.start()
     try:
         world = engine.describe()

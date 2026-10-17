@@ -15,7 +15,18 @@ from memspine.config.schema import MemspineConfig
 
 
 def dump() -> dict:
-    out: dict = {"default": MemspineConfig().model_dump(mode="json")}
+    # Lifecycle deadlines are intentionally required inputs. Supply the documented
+    # example values here so the default schema snapshot remains reproducible.
+    explicit_runtime = {
+        "provider_services": {
+            "health_timeout_s": 5.0,
+            "close_timeout_s": 10.0,
+            "startup_timeout_s": None,
+        }
+    }
+    out: dict = {
+        "default": MemspineConfig(runtime=explicit_runtime).model_dump(mode="json")
+    }
     for path in sorted(template_dir().glob("*.yaml")):
         out[f"template:{path.stem}"] = load_config(template=path.stem).config.model_dump(
             mode="json"

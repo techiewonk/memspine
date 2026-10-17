@@ -27,7 +27,7 @@ Everything else (``openai/``, ``anthropic/``, ``bedrock/``, ``vertex_ai/``,
 from __future__ import annotations
 
 import re
-from collections.abc import Awaitable, Callable, Iterable
+from collections.abc import Awaitable, Callable, Iterable, Mapping
 from functools import lru_cache
 from typing import Any
 from urllib.parse import urlparse
@@ -40,6 +40,7 @@ from memspine.models.providers.llm.base import LLMService
 __all__ = [
     "WITHHELD_MARKER",
     "TierGatedLLM",
+    "is_local_binding",
     "is_local_provider",
     "withheld_pattern",
     "withheld_variants",
@@ -64,6 +65,21 @@ def is_local_provider(model: str, api_base: str | None, local_hosts: Iterable[st
         extra = {h.lower() for h in local_hosts}
         return host in _LOCAL_HOSTS or host in extra or host.endswith(".local")
     return model.startswith(_LOCAL_PREFIXES)
+
+
+def is_local_binding(
+    provider: str, settings: Mapping[str, object], local_hosts: Iterable[str] = ()
+) -> bool:
+    """Classify explicit adapters without guessing the schema of a plugin."""
+    if provider == "llamacpp":
+        return True
+    if provider != "litellm":
+        return False
+    model = settings.get("model")
+    api_base = settings.get("api_base")
+    return isinstance(model, str) and is_local_provider(
+        model, api_base if isinstance(api_base, str) else None, local_hosts
+    )
 
 
 def withheld_variants(texts: Iterable[str]) -> list[str]:

@@ -30,8 +30,8 @@ def _engine(**consolidation: Any) -> Engine:
     return Engine(
         template="core",
         dotenv_path=None,
-        storage={"path": ":memory:"},
-        embedding={"provider": "hash"},
+        storage={'provider': "sqlite", 'settings': {'path': ":memory:", 'busy_timeout_s': 5.0}},
+        embedding={'provider': "hash", 'settings': {}},
         memories={
             "episodic": {
                 "enabled": True,
@@ -148,7 +148,7 @@ async def test_miner_prompt_variant(
     stub = _Extract()
     stubs: dict[str, LLMService] = {"extract": stub}
 
-    async def router(config: MemspineConfig, hooks: object = None) -> LLMRouter:
+    async def router(config: MemspineConfig, hooks: object = None, wiring: object = None) -> LLMRouter:
         return LLMRouter(stubs)
 
     monkeypatch.setattr("memspine.runtime.container.build_llm_router", router)

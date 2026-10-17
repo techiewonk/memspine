@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from itertools import pairwise
-from typing import Any
 
 from memspine.models.providers.rerank.chunking import ChunkMaxReranker, split_windows
 from memspine.models.providers.rerank.factory import RerankSettings, build_reranker
@@ -65,10 +64,30 @@ async def test_empty_and_id() -> None:
     assert w.reranker_id == "fake+chunkmax100"
 
 
-def test_factory_default_unwrapped(monkeypatch: Any) -> None:
-    from memspine.models.providers.rerank import factory
+async def test_factory_default_unwrapped() -> None:
+    from memspine.models.providers.rerank.factory import register_reranker
+    from memspine.providers.contracts import BuildResult, ProviderRef
+    from memspine.providers.registry import ProviderDescriptor, get_registry
+    from memspine.providers.settings import EmptySettings
 
-    monkeypatch.setitem(factory._REGISTRY, "fakemode", lambda s: _Scorer())
-    assert isinstance(build_reranker(RerankSettings(mode="fakemode")), _Scorer)
-    wrapped = build_reranker(RerankSettings(mode="fakemode", chunk_chars=300))
-    assert isinstance(wrapped, ChunkMaxReranker)
+    class Builder:
+        async def build(self, _settings: EmptySettings, _context: object) -> BuildResult[_Scorer]:
+            return BuildResult(
+                _Scorer(), ProviderRef("reranker", "fakemode"), (), frozenset({"rerank"})
+            )
+
+    register_reranker(
+        ProviderDescriptor(
+            ProviderRef("reranker", "fakemode"),
+            EmptySettings,
+            frozenset({"rerank"}),
+            (),
+            Builder(),
+        )
+    )
+    try:
+        assert isinstance(await build_reranker(RerankSettings(mode="fakemode")), _Scorer)
+        wrapped = await build_reranker(RerankSettings(mode="fakemode", chunk_chars=300))
+        assert isinstance(wrapped, ChunkMaxReranker)
+    finally:
+        get_registry("rerankers").unregister("fakemode")

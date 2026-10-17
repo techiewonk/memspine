@@ -14,19 +14,13 @@ Rules (G-22, plan rule 10), enforced by ``tests/unit/test_flag_evidence.py``:
   is retired or flipped);
 * ``UNKNOWN (pre-G-22)`` is allowed only for :data:`PRE_G22_UNKNOWN` (frozen; it may only shrink).
 
-Retirement (G-22): a flag removed from the schema is listed in :data:`RETIRED` with its
-replacement (a dotted key, ``""`` when nothing replaces it, or free text when it contains a
-space). A retired VALUE of a field that still exists is listed in :data:`RETIRED_VALUES` under
-``"<dotted key>=<value>"``. Setting either in YAML raises
-:class:`~memspine.exceptions.ConfigError` naming the replacement instead of the generic
-"extra fields not permitted". The record of what was retired and why is ``docs/v2/RETIRED.md``.
 """
 
 from __future__ import annotations
 
 import types
 import typing
-from collections.abc import Iterator, Mapping
+from collections.abc import Iterator
 from dataclasses import dataclass
 from typing import Any, Literal
 
@@ -34,16 +28,13 @@ from pydantic import BaseModel
 
 from memspine.config import schema
 from memspine.config.requires import REQUIRES
-from memspine.exceptions import ConfigError
+from memspine.config.schema.base import ConfigModel
 
 __all__ = [
     "FLAG_EVIDENCE",
     "PRE_G22_UNKNOWN",
-    "RETIRED",
-    "RETIRED_VALUES",
     "UNKNOWN",
     "FlagSpec",
-    "check_retired",
     "config_classes",
     "default_on_flags",
     "registry",
@@ -120,30 +111,6 @@ FLAG_EVIDENCE: dict[str, dict[str, str]] = {
     },
 }
 
-#: Retired flags: dotted YAML key -> replacement (a dotted key; "" = removed with no replacement;
-#: text containing a space is shown as written). F-14a (record: docs/v2/RETIRED.md).
-RETIRED: dict[str, str] = {
-    "read.agentic_mode": "the slot loop (E02, f-slot-i2 net -3 at about 8x wall time) is retired; "
-    "read.agentic runs the single query mode",
-    "read.fact_chain": "the read-time fact chain (E01, f-chain-i2 net -1) is retired; "
-    "memories.semantic.policies.fact_projection is the write-time arm and stays",
-    "read.fact_chain_trigger": "the read-time fact chain is retired; remove it",
-    "read.word_vector_leg": "the word-vector leg (B15, -12 net vs BM25) is retired; "
-    "read.hybrid keeps the BM25 + vector legs",
-    "read.word_vector_provider": "the word-vector leg is retired; remove it",
-    "read.word_vector_model": "the word-vector leg is retired; remove it",
-    "read.word_vector_top_k": "the word-vector leg is retired; remove it",
-}
-
-#: Retired values of a field that still exists: "<dotted key>=<value>" -> replacement text.
-RETIRED_VALUES: dict[str, str] = {
-    "read.relevance_gate=decider": "the decider relevance gate (r3-relgate, LoCoMo 81.6 -> "
-    "59.2) is retired; use 'store_calibrated' or 'off'",
-    "graph.provider=kuzu": "the Kuzu alias was removed (ADR-034); use 'ladybug' or 'auto'",
-    "read.lexical_provider=opensearch": "the opensearch stub was removed; use 'tantivy'",
-}
-
-
 @dataclass(frozen=True)
 class FlagSpec:
     """One flag (``kind == "flag"``, a bool) or mode (``kind == "mode"``, a string enum)."""
@@ -170,11 +137,16 @@ class FlagSpec:
 
 
 def config_classes() -> Iterator[tuple[str, type[BaseModel]]]:
-    """Every config model defined in a ``memspine.config.schema`` area module."""
+    """Pipeline config models, excluding descriptor-owned native settings.
+
+    Provider-native fields live inside opaque selected settings mappings and
+    have their own defaults/schema catalog. They are not global feature flags
+    and cannot be reached by the root flag registry's dotted-key walk.
+    """
     for name, cls in vars(schema).items():
         if (
             isinstance(cls, type)
-            and issubclass(cls, BaseModel)
+            and issubclass(cls, ConfigModel)
             and cls.__module__.startswith(schema.__name__ + ".")
         ):
             yield name, cls
@@ -247,30 +219,3 @@ def default_on_flags() -> set[str]:
         for fname, field in cls.model_fields.items()
         if field.default is True
     }
-
-
-def _retired_hint(new: str) -> str:
-    if not new:
-        return "it has no replacement; remove it"
-    return new if " " in new else f"use {new!r} instead"
-
-
-def check_retired(data: Mapping[str, Any]) -> None:
-    """Raise :class:`ConfigError` if a merged config mapping sets a retired flag or a retired
-    value (G-22)."""
-    stack: list[tuple[str, Mapping[str, Any]]] = [("", data)]
-    while stack:
-        prefix, node = stack.pop()
-        for k, v in node.items():
-            dotted = f"{prefix}{k}"
-            if dotted in RETIRED:
-                raise ConfigError(
-                    f"config key {dotted!r} is retired (G-22): {_retired_hint(RETIRED[dotted])}"
-                )
-            if isinstance(v, str) and (value_key := f"{dotted}={v}") in RETIRED_VALUES:
-                raise ConfigError(
-                    f"config value {value_key!r} is retired (G-22): "
-                    f"{_retired_hint(RETIRED_VALUES[value_key])}"
-                )
-            if isinstance(v, Mapping):
-                stack.append((dotted + ".", v))

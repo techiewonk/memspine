@@ -11,11 +11,10 @@ from memspine.core.correction import detect_correction
 from memspine.core.forget_request import is_forget_request
 from memspine.core.reference_edges import REF_PREFIX, antecedent_kind
 from memspine.ingest import role_wiring
+from memspine.ingest.index_view import PENDING_INDEX_PREFIX
 from memspine.ingest.message_helpers import (
     IDEM_TAG_PREFIX,
     INTAKE_LANDED,
-    PENDING_INDEX_PREFIX,
-    PENDING_STAMP,
     _index_view_prefixes,
     _looks_like_recall,
     _participants_mode,
@@ -24,7 +23,7 @@ from memspine.ingest.message_helpers import (
     _stamp_turn,
     _turn_content,
 )
-from memspine.ingest.stamping import ConversationStamper, participants_of_call
+from memspine.ingest.stamping import PENDING_STAMP, ConversationStamper, participants_of_call
 from memspine.models.encoders.query.temporal_query import RECOMMENDATION_TAG, is_recommendation
 from memspine.observability import inspect as insp
 from memspine.observability import tap

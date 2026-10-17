@@ -1,6 +1,6 @@
 """Cloud reranker via LiteLLM (E8, D-51): Cohere / Bedrock / Together rerank
 endpoints behind the same ``Reranker`` port. The rerank ``model`` comes from
-``read.rerank_model`` (e.g. ``cohere/rerank-english-v3.0``,
+``read.rerank_settings.model`` (e.g. ``cohere/rerank-english-v3.0``,
 ``bedrock/amazon.rerank-v1:0``). litellm returns a relevance score per document;
 we map them back to input order (missing indices score 0.0). Imported lazily.
 """
@@ -22,11 +22,13 @@ class LiteLLMReranker:
         api_base: str | None = None,
         api_key: str | None = None,
         aws_region: str | None = None,
+        request_timeout_s: float,
     ) -> None:
         self._model = model
         self._api_base = api_base
         self._api_key = api_key
         self._aws_region = aws_region
+        self._request_timeout_s = request_timeout_s
         self.reranker_id = f"litellm:{model}"
 
     async def rerank(self, query: str, documents: list[str]) -> list[float]:
@@ -39,6 +41,7 @@ class LiteLLMReranker:
             "query": query,
             "documents": documents,
             "top_n": len(documents),
+            "timeout": self._request_timeout_s,
         }
         if self._api_base is not None:
             kwargs["api_base"] = self._api_base

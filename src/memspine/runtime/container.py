@@ -10,16 +10,11 @@ as :mod:`dishka` providers, in three scopes:
              pipeline run receives).
 ``REQUEST``  one read or write call: a fresh :class:`RequestState` for the call's scope / viewer.
 
-Providers resolve backends by name through the MOD-02 registries (``memspine.store.registry``,
-``memspine.models.registry``) so the plug-ins pinned in ``config.plugins`` apply; the pins are
-enabled by the :class:`Capabilities` provider, which every infrastructure provider depends on.
-
-The builder bodies are moved from the engine unchanged. What they read from engine state
-(``self._client`` ...) comes from :class:`Wiring`, the one mutable holder of the clients a build
-opens; what they call back into the engine for (``_pipeline_ctx``, ``_withheld_texts``,
-``_edge_extract_callable``) arrives as :class:`WiringHooks`. Providers are lazy and the engine asks
-for them in the order it always built them, so the start order, the lazy/eager choices and the
-errors raised are the ones the engine had.
+Infrastructure services resolve through central provider descriptors. Each descriptor validates
+strict settings, declares dependencies and capabilities, and constructs a typed service with a
+category-specific context. :class:`Wiring` owns SQL access, lifecycle resources and build results;
+engine callbacks arrive through :class:`WiringHooks`. The engine requests services in dependency
+order, and optional providers are acquired only when their features are enabled.
 
 ``make_container`` passes ``lock_factory=None``: the container takes no lock of its own (a
 resolution never runs a model call, and RESTRUCTURE section 4 keeps model calls out of locks).
@@ -27,9 +22,10 @@ resolution never runs a model call, and RESTRUCTURE section 4 keeps model calls 
 
 from __future__ import annotations
 
+import asyncio
 import os
 import uuid
-from collections.abc import AsyncIterator, Awaitable, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable, Collection, Mapping
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -37,14 +33,10 @@ from typing import Any, cast
 
 from dishka import AsyncContainer, BaseScope, Provider, make_async_container, new_scope
 
-from memspine.clients.cashews import CashewsClient
-from memspine.clients.ladybug import LadybugClient
-from memspine.clients.lancedb import LanceDBClient
-from memspine.clients.postgres import PostgresClient
-from memspine.clients.sqlite import SQLiteClient
-from memspine.config import constants
 from memspine.config.loader import ResolvedConfig, default_template, load_config
 from memspine.config.schema import MemspineConfig
+from memspine.config.schema.base import ConfigInputError
+from memspine.config.schema.root import freeze_effective_config
 from memspine.core.registry import SERVICE_EXTRAS, dependency_closure, missing_services
 from memspine.derive.pipeline.stages.context import PipelineContext
 from memspine.derive.pipeline.stages.table import PIPELINES
@@ -58,29 +50,75 @@ from memspine.memories.semantic.write_pipeline import (
     cardinality_map,
     extraction_rounds,
 )
-from memspine.models.cache.base import KVCache, MemoryKV
+from memspine.models.cache.base import KVCache
 from memspine.models.cache.semantic import CachedEmbedding, CachedExtractor
 from memspine.models.encoders.embedding.base import EmbeddingService
 from memspine.models.providers.llm import structured as _structured
 from memspine.models.providers.llm.base import LLMRouter, LLMService
-from memspine.models.providers.llm.tier_gate import TierGatedLLM, is_local_provider
-from memspine.models.registry import LLM_PROVIDERS, build_embedder, llm_provider_name
+from memspine.models.providers.llm.tier_gate import TierGatedLLM, is_local_binding
+from memspine.models.providers.rerank.base import Reranker
 from memspine.observability.logging import get_logger
 from memspine.plugins import enable as enable_plugins
 from memspine.prompts.registry import PromptRegistry
-from memspine.runtime.outbox import SqlJobStore, memory_engine, sqlite_engine
+from memspine.providers.contexts import (
+    CacheBuildContext,
+    GraphBuildContext,
+    LexicalBuildContext,
+    LLMBuildContext,
+    SharedBuildContext,
+    StorageBuildContext,
+    VectorBuildContext,
+)
+from memspine.providers.contracts import (
+    BuildResult,
+    ProviderRef,
+    ResourceRef,
+    SqlAccess,
+    StorageBuildResult,
+)
+from memspine.providers.lifecycle import (
+    ProviderLifecycleManager,
+    ProviderResourceCleanupError,
+    ResourceOwnershipError,
+)
+from memspine.providers.placement import generation_component, storage_placement
+from memspine.providers.registry import (
+    CACHE_BACKENDS as PROVIDER_CACHE_BACKENDS,
+)
+from memspine.providers.registry import (
+    EMBEDDERS as PROVIDER_EMBEDDERS,
+)
+from memspine.providers.registry import (
+    GRAPH_STORES as PROVIDER_GRAPH_STORES,
+)
+from memspine.providers.registry import (
+    LEXICAL_INDEXES as PROVIDER_LEXICAL_INDEXES,
+)
+from memspine.providers.registry import (
+    LLM_PROVIDERS as PROVIDER_LLM_PROVIDERS,
+)
+from memspine.providers.registry import (
+    STORAGE_BACKENDS as PROVIDER_STORAGE_BACKENDS,
+)
+from memspine.providers.registry import (
+    VECTOR_STORES as PROVIDER_VECTOR_STORES,
+)
+from memspine.providers.registry import (
+    ProviderDescriptor,
+    get_registry,
+    validate_settings,
+)
+from memspine.providers.selection import select_provider
+from memspine.runtime.outbox import SqlJobStore
 from memspine.runtime.runner import InlineRunner as OutboxRunner
 from memspine.services.graph.base import GraphStore
-from memspine.services.graph.sqlite_adjacency import SQLiteAdjacencyGraph
 from memspine.services.lexical.base import LexicalStore
 from memspine.services.secrets.base import SecretsService
 from memspine.services.secrets.chained import ChainedSecrets
 from memspine.services.secrets.env import EnvSecrets
 from memspine.services.storage.profile import resolve_profile
 from memspine.services.storage.sql_base import SqlStorage
-from memspine.services.storage.sqlite.engine import SQLiteStorage
 from memspine.services.vector.base import VectorStore
-from memspine.store.registry import GRAPH_STORES, LEXICAL_INDEXES, VECTOR_STORES
 from memspine.workers.inline import InlineRunner
 from memspine.workers.runner import TaskRunner
 
@@ -108,11 +146,202 @@ __all__ = [
     "make_outbox_runner",
     "memory_policy",
     "neo4j_outbox_on",
+    "preflight_projection_bindings",
     "request_scope",
     "set_neo4j_executor_factory",
 ]
 
 _log = get_logger(__name__)
+
+
+def _descriptor(registry: Any, name: str, path: str) -> ProviderDescriptor:
+    try:
+        registry = get_registry(registry.kind)
+        descriptor = registry.get(name)
+    except Exception as exc:
+        raise ConfigError(f"unknown provider at {path}: {name!r}") from exc
+    if not isinstance(descriptor, ProviderDescriptor):
+        raise ConfigError(f"provider {path}={name!r} is not registered as a typed provider")
+    return descriptor
+
+
+def _settings(descriptor: ProviderDescriptor, raw: Any) -> Any:
+    return validate_settings(descriptor, raw if isinstance(raw, Mapping) else {})
+
+
+def _owner_id(config: MemspineConfig, wiring: Wiring | None = None) -> str:
+    return (
+        config.runtime.deployment_id
+        or (wiring.owner_id if wiring is not None else None)
+        or "pending-owner"
+    )
+
+
+def _storage_placement(config: MemspineConfig, wiring: Wiring | None) -> Any:
+    return storage_placement(config, _owner_id(config, wiring))
+
+
+async def _build_provider(
+    wiring: Wiring,
+    descriptor: ProviderDescriptor,
+    settings: Any,
+    context: Any,
+    *,
+    result_key: str | None = None,
+) -> BuildResult[Any]:
+    """Run a typed builder under the configured startup deadline."""
+    if descriptor.requires_deployment_id and not wiring.explicit_owner_id:
+        raise ConfigError(
+            f"runtime.deployment_id is required by shared provider "
+            f"{descriptor.ref.category}.{descriptor.ref.name}"
+        )
+    startup_deadline = None
+    try:
+        if wiring.startup_timeout_s is None:
+            result = await descriptor.builder.build(settings, context)
+        else:
+            startup_deadline = asyncio.timeout(wiring.startup_timeout_s)
+            async with startup_deadline:
+                result = await descriptor.builder.build(settings, context)
+    except TimeoutError:
+        provider = f"{descriptor.ref.category}.{descriptor.ref.name}"
+        if startup_deadline is not None and startup_deadline.expired():
+            raise ConfigError(
+                f"provider {provider} exceeded runtime.provider_services.startup_timeout_s"
+            ) from None
+        raise ConfigError(f"provider {provider} exceeded a configured operation timeout") from None
+    except (ConfigError, MissingServiceError):
+        raise
+    except Exception as exc:
+        raise ConfigError(
+            f"provider {descriptor.ref.category}.{descriptor.ref.name} failed during startup "
+            f"({type(exc).__name__})"
+        ) from None
+    if not isinstance(result, BuildResult):
+        raise ConfigError(
+            f"provider builder {descriptor.ref.category}.{descriptor.ref.name} "
+            "did not return a BuildResult"
+        )
+    if not isinstance(result.provider, ProviderRef):
+        raise ConfigError(
+            f"provider builder {descriptor.ref.category}.{descriptor.ref.name} "
+            "returned an invalid provider identity"
+        )
+    if result.provider != descriptor.ref:
+        raise ConfigError(
+            f"provider builder identity mismatch for {descriptor.ref.category}.{descriptor.ref.name}"
+        )
+    if not isinstance(result.effective_capabilities, frozenset) or not all(
+        isinstance(capability, str) and capability for capability in result.effective_capabilities
+    ):
+        raise ConfigError(
+            f"provider builder {descriptor.ref.category}.{descriptor.ref.name} "
+            "returned invalid effective capabilities"
+        )
+    if not isinstance(result.resources, tuple) or not all(
+        isinstance(resource, ResourceRef) for resource in result.resources
+    ):
+        raise ConfigError(
+            f"provider builder {descriptor.ref.category}.{descriptor.ref.name} "
+            "returned invalid resource ownership references"
+        )
+    try:
+        wiring.resources.validate_references(result.resources)
+    except ResourceOwnershipError:
+        raise ConfigError(
+            f"provider builder {descriptor.ref.category}.{descriptor.ref.name} "
+            "returned an unregistered resource reference"
+        ) from None
+    _validate_provider_result(descriptor, result, context)
+    identity = result_key or ".".join(
+        (
+            descriptor.ref.category,
+            descriptor.ref.name,
+            *(ref.resource_id for ref in result.resources),
+        )
+    )
+    wiring.provider_results[identity] = result
+    return result
+
+
+_PROVIDER_BASE_CAPABILITIES: dict[str, frozenset[str]] = {
+    "storage": frozenset({"sql"}),
+    "cache": frozenset({"kv", "ttl"}),
+    "vector": frozenset({"vector", "namespace_filter", "erase"}),
+    "graph": frozenset({"graph", "namespace_filter", "erase"}),
+    "lexical": frozenset({"lexical", "namespace_filter", "erase"}),
+    "embedding": frozenset({"embedding"}),
+    "llm": frozenset({"llm"}),
+    "reranker": frozenset({"rerank"}),
+}
+
+
+def _validate_provider_result(
+    descriptor: ProviderDescriptor, result: BuildResult[Any], context: Any
+) -> None:
+    """Check declared/effective capabilities and service ports before publishing a build.
+
+    These are structural checks only; provider health probes and model calls run later.
+    """
+    category = descriptor.ref.category
+    name = descriptor.ref.name
+    identity = f"{category}.{name}"
+    mandatory = _PROVIDER_BASE_CAPABILITIES[category]
+    if not mandatory <= descriptor.declared_capabilities:
+        missing = ", ".join(sorted(mandatory - descriptor.declared_capabilities))
+        raise ConfigError(f"provider {identity} descriptor omits required capabilities: {missing}")
+    if not mandatory <= result.effective_capabilities:
+        missing = ", ".join(sorted(mandatory - result.effective_capabilities))
+        raise ConfigError(f"provider {identity} build omits required capabilities: {missing}")
+    if not result.effective_capabilities <= descriptor.declared_capabilities:
+        extra = ", ".join(sorted(result.effective_capabilities - descriptor.declared_capabilities))
+        raise ConfigError(f"provider {identity} build claims undeclared capabilities: {extra}")
+
+    if category == "storage":
+        if not isinstance(result, StorageBuildResult):
+            raise ConfigError(f"provider {identity} did not expose the SQL access contract")
+        access = result.sql
+        if (
+            not callable(getattr(access, "checkpoint", None))
+            or not callable(getattr(access, "acquire_sync", None))
+            or not callable(getattr(access, "sync_lease", None))
+            or not isinstance(getattr(access, "capabilities", None), frozenset)
+            or "sql" not in access.capabilities
+            or not access.capabilities <= result.effective_capabilities
+            or not isinstance(getattr(access, "is_memory", None), bool)
+        ):
+            raise ConfigError(f"provider {identity} exposed an incomplete SQL access contract")
+        from sqlalchemy.ext.asyncio import AsyncEngine
+
+        if not isinstance(getattr(access, "engine", None), AsyncEngine):
+            raise ConfigError(f"provider {identity} exposed an invalid SQL engine")
+        return
+
+    ports: dict[str, type[Any]] = {
+        "cache": KVCache,
+        "vector": VectorStore,
+        "graph": GraphStore,
+        "lexical": LexicalStore,
+        "embedding": EmbeddingService,
+        "llm": LLMService,
+        "reranker": Reranker,
+    }
+    if not isinstance(result.service, ports[category]):
+        raise ConfigError(f"provider {identity} service does not satisfy its port contract")
+
+    if category == "vector" and isinstance(context, VectorBuildContext):
+        requested: set[str] = set()
+        if context.versioned_spaces:
+            requested.add("versioned_spaces")
+        if context.quantization is not None:
+            requested.add("quantization")
+        missing_capabilities = requested - result.effective_capabilities
+        if missing_capabilities:
+            names = ", ".join(sorted(missing_capabilities))
+            raise ConfigError(
+                f"provider {identity} does not support requested capabilities: {names}"
+            )
+
 
 # ── scopes ───────────────────────────────────────────────────────────────────────────────
 
@@ -170,24 +399,36 @@ class Capabilities:
 
 @dataclass
 class Wiring:
-    """The clients a build opens, plus the small side-results the builders used to leave on the
-    engine. Created empty; the builders fill it as they connect. ``close_clients`` is the
-    container finaliser: it closes in the order the engine's ``stop`` always did."""
+    """Engine-local generic provider lifecycle and build results."""
 
-    client: SQLiteClient | None = None
-    pg: PostgresClient | None = None
-    lance: LanceDBClient | None = None
-    ladybug: LadybugClient | None = None
-    cashews: CashewsClient | None = None
+    resources: ProviderLifecycleManager
+    health_timeout_s: float
+    startup_timeout_s: float | None
+    owner_id: str | None = None
+    explicit_owner_id: bool = False
+    projection_routes: Mapping[str, Any] = field(default_factory=dict)
+    sql: SqlAccess | None = None
+    provider_results: dict[str, BuildResult[Any]] = field(default_factory=dict)
     #: #43: the extraction cache, kept so erasure can purge an erased text's entry
     cached_extractor: CachedExtractor | None = None
     #: E4: whether the vector leg runs the two-stage quantized rescore
     rescore_active: bool = False
 
     async def close_clients(self) -> None:
-        for client in (self.client, self.pg, self.lance, self.ladybug, self.cashews):
-            if client is not None:
-                await client.close()
+        report = await self.resources.close_all()
+        if report.failures:
+            _log.error(
+                "provider.lifecycle_close_failed",
+                resources=[
+                    {
+                        "resource_id": failure.resource_id,
+                        "error_type": failure.error_type,
+                        "timed_out": failure.timed_out,
+                    }
+                    for failure in report.failures
+                ],
+            )
+            raise ProviderResourceCleanupError(report)
 
 
 @dataclass(frozen=True)
@@ -252,7 +493,7 @@ def memory_policy(config: MemspineConfig, memory_type: str) -> dict[str, Any]:
 
 
 def client_is_memory(config: MemspineConfig) -> bool:
-    return config.storage.backend == "sqlite" and config.storage.path == ":memory:"
+    return storage_placement(config, _owner_id(config)).in_memory
 
 
 def derived_base(config: MemspineConfig) -> str:
@@ -260,23 +501,31 @@ def derived_base(config: MemspineConfig) -> str:
     database (LanceDB vectors, Tantivy lexical). For ``sqlite`` it is the db
     path (``<path>.lance`` etc.); for ``postgres`` it is ``storage.data_dir``
     (required — the DSN is not a filesystem path)."""
-    if config.storage.backend == "postgres":
-        if not config.storage.data_dir:
-            raise ConfigError(
-                "storage.data_dir is required when storage.backend='postgres' — "
-                "it is the base directory for the LanceDB/Tantivy projections"
-            )
-        return str(Path(config.storage.data_dir) / "memspine")
-    return config.storage.path
+    descriptor = _descriptor(PROVIDER_STORAGE_BACKENDS, config.storage.provider, "storage.provider")
+    settings = _settings(descriptor, config.storage.settings)
+    if descriptor.placement is None:
+        raise ConfigError(
+            f"storage provider {descriptor.ref.name!r} does not define projection placement"
+        )
+    placement = descriptor.placement(settings, _owner_id(config))
+    if placement.base_path is None:
+        return ":memory:"
+    return str(placement.base_path)
 
 
 def lexical_variant(config: MemspineConfig) -> str:
     """N58 / N30: the lexical index variant ("" = the default index): the analyzer
     when not ``default``, and ``dates`` with ``read.lexical_dates``."""
-    parts: list[str] = (
-        [] if config.read.lexical_analyzer == "default" else [config.read.lexical_analyzer]
+    settings = _settings(
+        _descriptor(
+            PROVIDER_LEXICAL_INDEXES, config.read.lexical_provider, "read.lexical_provider"
+        ),
+        config.read.lexical_settings,
     )
-    if config.read.lexical_dates:
+    analyzer = getattr(settings, "analyzer", "default")
+    date_tokens = getattr(settings, "date_tokens", False)
+    parts: list[str] = [] if analyzer == "default" else [analyzer]
+    if date_tokens:
         parts.append("dates")
     return "+".join(parts)
 
@@ -306,7 +555,7 @@ def rescore_settings(
     prefix dim (max prefilter savings; the rescore restores full precision).
     """
     manifest = embedder.manifest
-    override = config.vector.quantization
+    override = config.vector.settings.get("quantization", "auto")
     if override == "none":
         quantization = None
     elif override in ("int8", "binary"):
@@ -344,14 +593,23 @@ def build_secrets(spec: EngineSpec) -> SecretsService:
 
 def resolve_config(spec: EngineSpec, secrets: SecretsService) -> ResolvedConfig:
     if spec.config is not None:
-        return ResolvedConfig(config=spec.config)
-    return load_config(
+        try:
+            config = freeze_effective_config(spec.config)
+        except ConfigInputError as exc:
+            raise ConfigError(f"invalid configuration: {exc}") from None
+        return ResolvedConfig(config=config)
+    resolved = load_config(
         template=default_template(spec.template, spec.user_config, spec.overrides),
         user_config=spec.user_config,
         env=os.environ,
         overrides=spec.overrides,
         secret_resolver=secrets.get,
     )
+    try:
+        config = freeze_effective_config(resolved.config)
+    except ConfigInputError as exc:
+        raise ConfigError(f"invalid configuration: {exc}") from None
+    return ResolvedConfig(config=config, sources=dict(resolved.sources))
 
 
 def config_of(resolved: ResolvedConfig) -> MemspineConfig:
@@ -382,8 +640,15 @@ def check_capabilities(config: MemspineConfig) -> Capabilities:
     return Capabilities(enabled=enabled, auto_enabled=auto_enabled)
 
 
-async def wiring_of(_caps: Capabilities) -> AsyncIterator[Wiring]:
-    wiring = Wiring()
+async def wiring_of(config: MemspineConfig, _caps: Capabilities) -> AsyncIterator[Wiring]:
+    timeouts = config.runtime.provider_services
+    wiring = Wiring(
+        resources=ProviderLifecycleManager(close_timeout_s=timeouts.close_timeout_s),
+        health_timeout_s=timeouts.health_timeout_s,
+        startup_timeout_s=timeouts.startup_timeout_s,
+        owner_id=config.runtime.deployment_id,
+        explicit_owner_id=config.runtime.deployment_id is not None,
+    )
     try:
         yield wiring
     finally:
@@ -394,79 +659,35 @@ async def wiring_of(_caps: Capabilities) -> AsyncIterator[Wiring]:
 
 
 async def build_storage(config: MemspineConfig, wiring: Wiring) -> SqlStorage:
-    """Storage backend dispatch (D-36, Phase 6). ``sqlite`` (default) opens a
-    SQLiteClient at ``storage.path``; ``postgres`` opens a PostgresClient at
-    ``storage.url`` (already secrets-resolved by the config loader). Both wrap
-    the same dialect-neutral :class:`SqlStorage`."""
-    backend = config.storage.backend
     resolve_profile(config.storage)  # F-16d: taps store.profile.resolved
-    mode = config.event_log.mode
-    compress = config.event_log.compress
-    encryption = config.storage.encryption
-    if encryption.mode == "sqlcipher" and backend != "sqlite":
-        raise ConfigError(
-            "storage.encryption.mode=sqlcipher applies to the sqlite backend only "
-            f"(storage.backend={backend!r}; use the database's own encryption at rest)"
-        )
-    if backend == "sqlite":
-        cipher_env = encryption.key_env if encryption.mode == "sqlcipher" else None
-        wiring.client = SQLiteClient(config.storage.path, cipher_key_env=cipher_env)
-        await wiring.client.connect()
-        if cipher_env is not None:
-            # #52/ADR-035: name what the option does NOT cover; never the key.
-            _log.warning(
-                "storage.encryption_partial",
-                detail="SQLCipher encrypts the SQLite event log and read model only; "
-                "LanceDB vectors, the Tantivy lexical index, disk caches and a DBOS "
-                "system database are separate files and are not encrypted",
-                key_env=cipher_env,
-            )
-        return SQLiteStorage(wiring.client, mode=mode, compress=compress)
-    if backend == "postgres":
-        if not config.storage.url:
-            raise ConfigError("storage.url is required when storage.backend='postgres'")
-        from memspine.services.storage.postgres.engine import PostgresStorage
-
-        wiring.pg = PostgresClient(config.storage.url)
-        await wiring.pg.connect()
-        return PostgresStorage(
-            wiring.pg,
-            mode=mode,
-            compress=compress,
-            use_alembic=config.storage.profile == "server",
-        )
-    raise ConfigError(f"unknown storage.backend {backend!r} (valid: sqlite, postgres)")
+    descriptor = _descriptor(PROVIDER_STORAGE_BACKENDS, config.storage.provider, "storage.provider")
+    settings = _settings(descriptor, config.storage.settings)
+    shared = SharedBuildContext(
+        wiring.resources, _owner_id(config, wiring), wiring.health_timeout_s
+    )
+    result = await _build_provider(
+        wiring,
+        descriptor,
+        settings,
+        StorageBuildContext(shared, config.event_log, config.storage.profile),
+    )
+    if not isinstance(result, StorageBuildResult):
+        raise ConfigError(f"storage provider {config.storage.provider!r} did not expose SQL access")
+    wiring.sql = result.sql  # Engine receives only this capability, never the native client.
+    return cast(SqlStorage, result.service)
 
 
 async def build_cache(config: MemspineConfig, wiring: Wiring) -> KVCache:
-    """Build the one shared KV cache (D-09, ADR-022 amendment). ``memory`` is
-    the zero-dep :class:`MemoryKV` core default; ``disk``/``redis``/``valkey``
-    go through **cashews** (`[cache]` extra) — on-disk (diskcache) or a shared
-    server. A missing extra hard-fails with the D-10 error (raised by the
-    client on ``connect()``)."""
-    cache = config.cache
-    backend = cache.backend
-    if backend == "memory":
-        return MemoryKV(max_entries=cache.max_entries)
-    if backend in ("disk", "redis", "valkey"):
-        from memspine.models.cache.cashews_cache import CashewsCache
-
-        # disk → diskcache dir at cache.path; redis/valkey → cache.url DSN
-        # (valkey is redis-wire-compatible, so it rides the same client).
-        url = f"disk://?directory={cache.path}" if backend == "disk" else cache.url
-        wiring.cashews = CashewsClient(url)
-        await wiring.cashews.connect()
-        return CashewsCache(
-            wiring.cashews,
-            namespace=cache.namespace,
-            default_ttl_seconds=cache.default_ttl_seconds,
-        )
-    raise ConfigError(f"unknown cache.backend {backend!r} (valid: memory, disk, redis, valkey)")
-
-
-def make_embedder(config: MemspineConfig) -> EmbeddingService:
-    # MOD-02: the typed ``embedders`` registry (memspine.models.registry) holds the factories.
-    return cast("EmbeddingService", build_embedder(resolved_embedding(config)))
+    descriptor = _descriptor(PROVIDER_CACHE_BACKENDS, config.cache.provider, "cache.provider")
+    settings = _settings(descriptor, config.cache.settings)
+    placement = _storage_placement(config, wiring)
+    shared = SharedBuildContext(
+        wiring.resources, _owner_id(config, wiring), wiring.health_timeout_s
+    )
+    result = await _build_provider(
+        wiring, descriptor, settings, CacheBuildContext(shared, placement)
+    )
+    return cast(KVCache, result.service)
 
 
 def resolved_embedding(config: MemspineConfig) -> Any:
@@ -477,7 +698,15 @@ def resolved_embedding(config: MemspineConfig) -> Any:
     from memspine.models.encoders.embedding.profiles import resolve_profile
     from memspine.observability import tap
 
-    profile = resolve_profile(cfg.profile, device=cfg.device)
+    # Provider-native options moved into ``settings``.  In particular, a profile
+    # can be selected while the configured provider is still the default
+    # fastembed provider, so read an explicit device from the raw settings map
+    # rather than looking for a legacy top-level attribute.
+    configured_device = cfg.settings.get("device")
+    profile = resolve_profile(
+        cfg.profile,
+        device=configured_device if isinstance(configured_device, str) else None,
+    )
     tap.event(
         "embed.profile",
         profile=profile.name,
@@ -489,7 +718,12 @@ def resolved_embedding(config: MemspineConfig) -> Any:
     return profile.apply(cfg)
 
 
-def _pin_embedding_profile(config: MemspineConfig, embedder: EmbeddingService) -> Any:
+def _pin_embedding_profile(
+    config: MemspineConfig,
+    embedder: EmbeddingService,
+    *,
+    generation_id: str = "active",
+) -> Any:
     """MD-02: pin the store's embedding profile at creation; refuse a different one on open."""
     cfg = config.embedding
     if not cfg.pin_profile:
@@ -507,19 +741,31 @@ def _pin_embedding_profile(config: MemspineConfig, embedder: EmbeddingService) -
             "embedding.migrate_profile needs embedding.versioned_spaces=true: the new profile's "
             "vectors go to a new space and the F-03 re-embed moves the old records"
         )
+    effective = resolved_embedding(config)
+    provider_settings = _settings(
+        _descriptor(PROVIDER_EMBEDDERS, effective.provider, "embedding.provider"),
+        effective.settings,
+    )
     if cfg.profile is not None:
-        profile = resolve_profile(cfg.profile, device=cfg.device)
+        profile = resolve_profile(cfg.profile, device=getattr(provider_settings, "device", None))
     else:
         eff = resolved_embedding(config)
         profile = EmbeddingProfile(
             name="config",
             provider=eff.provider,
-            model_id=eff.model,
+            model_id=getattr(provider_settings, "model", embedder.embedder_id),
             dim=embedder.dim,
-            dtype=eff.dtype or "float32",
-            query_instruction=eff.query_instruction,
+            dtype=getattr(provider_settings, "dtype", None) or "float32",
+            query_instruction=getattr(provider_settings, "query_instruction", None),
         )
-    path = None if client_is_memory(config) else f"{derived_base(config)}.embedding-profile.json"
+    generation_suffix = (
+        "" if generation_id == "active" else f".generation-{generation_component(generation_id)}"
+    )
+    path = (
+        None
+        if client_is_memory(config)
+        else f"{derived_base(config)}.embedding-profile{generation_suffix}.json"
+    )
     try:
         status = check_or_pin(path, profile, migrate=cfg.migrate_profile)
     except EmbeddingProfileMismatch:
@@ -530,222 +776,254 @@ def _pin_embedding_profile(config: MemspineConfig, embedder: EmbeddingService) -
     return profile
 
 
-def provide_embedder(
-    config: MemspineConfig, cache: KVCache, _caps: Capabilities
+async def provide_embedder(
+    config: MemspineConfig, cache: KVCache, _caps: Capabilities, wiring: Wiring
 ) -> EmbeddingService:
     """The E3-cached embedder (the cache is the one shared KV cache, Phase 2)."""
-    return CachedEmbedding(make_embedder(config), cache)
+    effective = resolved_embedding(config)
+    descriptor = _descriptor(PROVIDER_EMBEDDERS, effective.provider, "embedding.provider")
+    settings = _settings(descriptor, effective.settings)
+    shared = SharedBuildContext(
+        wiring.resources, _owner_id(config, wiring), wiring.health_timeout_s
+    )
+    result = await _build_provider(wiring, descriptor, settings, shared, result_key="embedding")
+    return CachedEmbedding(cast(EmbeddingService, result.service), cache)
 
 
 async def build_vector_store(
     config: MemspineConfig, embedder: EmbeddingService, wiring: Wiring
 ) -> VectorStore:
-    pinned = _pin_embedding_profile(config, embedder)  # MD-02 (flag off: returns at once)
+    route = wiring.projection_routes.get("vectors")
+    generation_id = getattr(route, "physical_generation_id", "active")
+    pinned = _pin_embedding_profile(
+        config, embedder, generation_id=generation_id
+    )  # MD-02 (flag off: returns at once)
     quantization, matryoshka_dim = rescore_settings(config, embedder)
     wiring.rescore_active = quantization is not None or matryoshka_dim is not None
-    backend = config.vector.backend
-    plug = VECTOR_STORES.find(backend)
-    if plug is not None:  # MOD-02: an enabled plug-in vector store
-        return cast(
-            "VectorStore",
-            plug(config, derived_base(config), client_is_memory(config)),
-        )
-    if backend not in VECTOR_STORES:
-        # ``weaviate`` (and future remote stores) keep the config seam open
-        # but are not built yet — LanceDB is the sole reference adapter
-        # (ADR-021, amends D-09). The zero-dep SQLite brute-force store was
-        # removed with it, so there is no ``auto``/``sqlite`` path anymore.
-        raise ConfigError(f"unknown vector.backend {backend!r} (valid: lance; weaviate reserved)")
-    # LanceDB is the only vector store (ADR-021). E4 (ADR-020 §6): LanceDB
-    # owns quantization natively — an active int8/binary/Matryoshka manifest
-    # drives its native compressed ANN index (IVF_HNSW_SQ / IVF_PQ) queried
-    # with refine_factor + nprobes. ``rescore_active`` stays as resolved
-    # above; the store degrades to a flat exact query (skip-logged once)
-    # when the corpus is too small to train an index.
-    from memspine.services.vector.lancedb_store import LanceDBVectorStore
-
-    if client_is_memory(config):
-        # A projection must never outlive its log (D0.1): an in-memory event
-        # log gets an in-memory Lance table. LanceDB keeps a ``memory://``
-        # store private to its connection, so concurrent :memory: engines
-        # never share rows and the table is freed when the client closes.
-        # A scratch directory on disk gave the same results but cost a new
-        # fragment and version file per write (and minutes to delete).
-        lance_path = "memory://vectors"
-        exclusive = True  # no other engine can reach this table
-    else:
-        # sqlite: <path>.lance beside the db; postgres: <data_dir>/memspine.lance
-        lance_path = f"{derived_base(config)}.lance"
-        # A file-backed table may be shared with concurrent engines (D-45):
-        # compacting it could conflict with their writes, and only a merge
-        # knows whether an id is already there, so it keeps the plain path.
-        exclusive = False
-    wiring.lance = LanceDBClient(lance_path)
-    await wiring.lance.connect()
-    lance = wiring.lance
-
-    def make(suffix: str = "", emb: Any = None) -> LanceDBVectorStore:
-        return LanceDBVectorStore(
-            lance,
-            emb if emb is not None else embedder,
-            quantization=quantization,
-            matryoshka_dim=matryoshka_dim,
-            oversample=constants.RESCORE_OVERSAMPLE,
-            compact_every=constants.LANCE_COMPACT_EVERY if exclusive else None,
-            exclusive=exclusive,
-            namespace_index=config.vector.namespace_index,
-            table_suffix=suffix,
-            profile_meta=None if pinned is None else pinned.to_dict(),
-        )
-
-    if config.embedding.versioned_spaces:
-        # F-03 (P-25 C): one backend per vector space, the table named from the space id. Off by
-        # default; with it off the branches below are exactly what they were.
-        return _build_versioned_spaces(config, embedder, lance, make)
-    if config.vector.isolation == "per_namespace":
-        # I4: one table per namespace (``services/vector/per_namespace.py``).
-        from memspine.services.vector.per_namespace import PerNamespaceVectorStore
-
-        return cast("VectorStore", PerNamespaceVectorStore(lance, embedder, make))
-    return make()
+    descriptor = _descriptor(PROVIDER_VECTOR_STORES, config.vector.provider, "vector.provider")
+    if route is not None and descriptor.ref.name != route.provider:
+        raise ConfigError("vector.provider does not match its verified switch target")
+    settings = _settings(descriptor, config.vector.settings)
+    placement = _storage_placement(config, wiring)
+    effective_embedding = resolved_embedding(config)
+    effective_embedding_settings = _settings(
+        _descriptor(PROVIDER_EMBEDDERS, effective_embedding.provider, "embedding.provider"),
+        effective_embedding.settings,
+    )
+    context = VectorBuildContext(
+        SharedBuildContext(wiring.resources, _owner_id(config, wiring), wiring.health_timeout_s),
+        placement,
+        embedder,
+        quantization,
+        matryoshka_dim,
+        None if pinned is None else pinned.to_dict(),
+        config.embedding.versioned_spaces,
+        getattr(effective_embedding_settings, "query_instruction", None),
+        generation_id,
+        sql=wiring.sql,
+    )
+    result = await _build_provider(wiring, descriptor, settings, context, result_key="vector")
+    return cast(VectorStore, result.service)
 
 
-def _build_versioned_spaces(
-    config: MemspineConfig, embedder: EmbeddingService, lance: Any, make: Any
-) -> VectorStore:
-    from dataclasses import dataclass
+async def build_lexical_store(
+    config: MemspineConfig, _caps: Capabilities, wiring: Wiring
+) -> LexicalStore:
+    descriptor = _descriptor(
+        PROVIDER_LEXICAL_INDEXES, config.read.lexical_provider, "read.lexical_provider"
+    )
+    route = wiring.projection_routes.get("lexical")
+    if route is not None and descriptor.ref.name != route.provider:
+        raise ConfigError("read.lexical_provider does not match its verified switch target")
+    settings = _settings(descriptor, config.read.lexical_settings)
+    context = LexicalBuildContext(
+        SharedBuildContext(wiring.resources, _owner_id(config, wiring), wiring.health_timeout_s),
+        _storage_placement(config, wiring),
+        getattr(route, "physical_generation_id", "active"),
+    )
+    result = await _build_provider(wiring, descriptor, settings, context, result_key="lexical")
+    return cast(LexicalStore, result.service)
 
-    from memspine.store.vector_spaces import JsonSpaceState, VectorSpace, VersionedSpaceStore
 
-    @dataclass(frozen=True)
-    class _SpaceEmbedder:
-        """Names and sizes one space's table (the vector store reads only these two)."""
+def _graph_descriptor(config: MemspineConfig, wiring: Wiring) -> ProviderDescriptor:
+    available_capabilities = wiring.sql.capabilities if wiring.sql is not None else frozenset()
+    eligible_names = frozenset({"ladybug"})
+    if "sql.sqlite" in available_capabilities:
+        eligible_names |= {"sqlite_adjacency"}
+    selection = select_provider(
+        "graph",
+        config.graph.provider,
+        required_capabilities=frozenset({"graph", "namespace_filter", "erase"}),
+        preferred_names=("ladybug", "sqlite_adjacency"),
+        eligible_names=eligible_names,
+        available_capabilities=available_capabilities,
+    )
+    return selection.descriptor
 
-        embedder_id: str
-        dim: int
 
-    current = VectorSpace(
-        model_id=embedder.embedder_id,
-        dim=embedder.dim,
-        query_instruction=resolved_embedding(config).query_instruction,
+async def preflight_projection_bindings(
+    config: MemspineConfig,
+    wiring: Wiring,
+    enabled: Collection[str],
+) -> None:
+    """Reject active projection target drift before constructing its providers."""
+    from memspine.providers.projection_bindings import (
+        ProjectionTargetBinding,
+        SqlProjectionBindingStore,
+        projection_target_fingerprint,
     )
 
-    def factory(space: VectorSpace) -> Any:
-        shim = _SpaceEmbedder(space.qualified_id, space.dim)
-        if config.vector.isolation == "per_namespace":
-            from memspine.services.vector.per_namespace import PerNamespaceVectorStore
+    if wiring.sql is None or wiring.owner_id is None:
+        raise ConfigError(
+            "projection target preflight requires started SQL and deployment identity"
+        )
 
-            return PerNamespaceVectorStore(lance, shim, lambda suffix: make(suffix, shim))
-        return make("", shim)
-
-    state = (
-        None if client_is_memory(config) else JsonSpaceState(f"{derived_base(config)}.spaces.json")
+    candidates: list[tuple[str, str, ProviderDescriptor, Any]] = []
+    vector_descriptor = _descriptor(
+        PROVIDER_VECTOR_STORES, config.vector.provider, "vector.provider"
     )
-    return cast("VectorStore", VersionedSpaceStore(factory, current, state))
-
-
-def build_lexical_store(config: MemspineConfig, _caps: Capabilities) -> LexicalStore:
-    """Lexical provider selection (D-25). ``tantivy`` (default, **core**)
-    builds a standalone BM25 index independent of the storage backend, a
-    rebuildable projection driven by the :class:`LexicalProjector`. The
-    transactional-DB ``sqlite_fts5`` provider was removed (v0.2): the lexical
-    leg is a dedicated search index, never bolted onto the system-of-record."""
-    provider = config.read.lexical_provider
-    plug = LEXICAL_INDEXES.find(provider)
-    if plug is not None:  # MOD-02: an enabled plug-in lexical index
-        return cast(
-            "LexicalStore",
-            plug(config, derived_base(config), client_is_memory(config)),
+    candidates.append(("vectors", "vector", vector_descriptor, config.vector.settings))
+    if config.read.hybrid:
+        lexical_descriptor = _descriptor(
+            PROVIDER_LEXICAL_INDEXES,
+            config.read.lexical_provider,
+            "read.lexical_provider",
         )
-    if provider == "tantivy":
-        from memspine.services.lexical.tantivy import TantivyLexical
-
-        # In-RAM index for an in-memory event log (same lifetime, no ghost
-        # segments across runs — mirrors the vector store's :memory: rule);
-        # else an on-disk directory beside the derived base.
-        variant = lexical_variant(config)
-        suffix = f".tantivy-{variant.replace('+', '-')}" if variant else ".tantivy"
-        index_path = None if client_is_memory(config) else f"{derived_base(config)}{suffix}"
-        return TantivyLexical(
-            index_path,
-            analyzer=config.read.lexical_analyzer,
-            date_tokens=config.read.lexical_dates,
+        candidates.append(
+            (
+                lexical_projector_name(config),
+                "lexical",
+                lexical_descriptor,
+                config.read.lexical_settings,
+            )
         )
-    raise ConfigError(f"unknown read.lexical_provider {provider!r} (valid: tantivy)")
+    if "associative" in enabled:
+        graph_descriptor = _graph_descriptor(config, wiring)
+        candidates.append(("graph", "graph", graph_descriptor, config.graph.settings))
+        if neo4j_outbox_on(config):
+            mirror_descriptor = _descriptor(
+                PROVIDER_GRAPH_STORES,
+                config.graph.mirror.provider,
+                "graph.mirror.provider",
+            )
+            candidates.append(
+                (
+                    "graph_neo4j",
+                    "graph",
+                    mirror_descriptor,
+                    config.graph.mirror.settings,
+                )
+            )
+
+    bindings: list[Any] = []
+    for projector_name, category, descriptor, raw_settings in candidates:
+        settings = _settings(descriptor, raw_settings)
+        fingerprint = projection_target_fingerprint(
+            config,
+            category=category,
+            provider=descriptor.ref,
+            settings=settings,
+            deployment_id=wiring.owner_id,
+        )
+        route = wiring.projection_routes.get(projector_name)
+        if route is not None:
+            if route.provider != descriptor.ref.name:
+                raise ConfigError(
+                    f"projector {projector_name!r} selected provider does not match its verified switch target"
+                )
+            if route.target_fingerprint != fingerprint:
+                raise ConfigError(
+                    f"projector {projector_name!r} settings do not match the verified switch target fingerprint"
+                )
+        bindings.append(
+            ProjectionTargetBinding(
+                deployment_id=wiring.owner_id,
+                projector_name=projector_name,
+                provider=(
+                    f"{descriptor.ref.category}:{descriptor.ref.name}:v{descriptor.ref.contract_version}"
+                ),
+                target_fingerprint=fingerprint,
+                generation_id="active" if route is None else route.generation_id,
+                source_provider=None if route is None else route.source_provider,
+                source_target_fingerprint=(
+                    None if route is None else route.source_target_fingerprint
+                ),
+                source_generation_id=None if route is None else route.source_generation_id,
+                verified_checkpoint_seq=None if route is None else route.target_checkpoint_seq,
+            )
+        )
+
+    binding_store = SqlProjectionBindingStore(wiring.sql.engine)
+    for binding in bindings:
+        await binding_store.ensure(binding)
 
 
 async def build_graph_store(config: MemspineConfig, wiring: Wiring) -> GraphStore:
-    """Graph provider selection (D-26). ``sqlite_adjacency`` (default) rides
-    the existing SQLite client; ``ladybug`` opens its own
-    embedded database via a dedicated client (D-24) — in-memory when the
-    event log is in-memory, so the projection can never outlive its log
-    (D0.1)."""
-    provider = config.graph.provider
-    if provider == "auto":
-        # GR-1 (ADR-064): LadybugDB, the graph engine (ADR-034), when installed;
-        # else the zero-dep SQLite adjacency lists (or LadybugDB on postgres).
-        import importlib.util
+    descriptor = _graph_descriptor(config, wiring)
+    if config.graph.mirror.enabled:
+        from memspine.providers.graph_targets import require_distinct_graph_targets
 
-        has_ladybug = importlib.util.find_spec("ladybug") is not None
-        provider = "ladybug" if has_ladybug or wiring.client is None else "sqlite_adjacency"
-    plug = GRAPH_STORES.find(provider)
-    if plug is not None:  # MOD-02: an enabled plug-in graph store
-        return cast(
-            "GraphStore",
-            plug(config, derived_base(config), client_is_memory(config)),
+        mirror_descriptor = _descriptor(
+            PROVIDER_GRAPH_STORES,
+            config.graph.mirror.provider,
+            "graph.mirror.provider",
         )
-    if provider == "sqlite_adjacency":
-        if wiring.client is None:
-            raise ConfigError(
-                "graph.provider='sqlite_adjacency' requires storage.backend='sqlite' — "
-                "use 'ladybug' (own embedded db) with a postgres backend"
-            )
-        return SQLiteAdjacencyGraph(wiring.client)
-    if provider == "ladybug":
-        from memspine.services.graph.ladybug import LadybugGraphStore
-
-        path = ":memory:" if client_is_memory(config) else f"{derived_base(config)}.ladybug"
-        wiring.ladybug = LadybugClient(path)
-        await wiring.ladybug.connect()
-        return LadybugGraphStore(wiring.ladybug)
-    if provider == "neo4j":
-        from memspine.services.graph.neo4j import Neo4jGraphStore
-
-        return cast("GraphStore", Neo4jGraphStore())  # stub — always raises
-    raise ConfigError(
-        f"unknown graph.provider {provider!r} (valid: sqlite_adjacency, ladybug, neo4j)"
+        mirror_settings = _settings(mirror_descriptor, config.graph.mirror.settings)
+        primary_settings = _settings(descriptor, config.graph.settings)
+        require_distinct_graph_targets(
+            descriptor, primary_settings, mirror_descriptor, mirror_settings
+        )
+    route = wiring.projection_routes.get("graph")
+    if route is not None and descriptor.ref.name != route.provider:
+        raise ConfigError("graph.provider does not match its verified switch target")
+    if route is not None and descriptor.ref.name == "sqlite_adjacency":
+        raise ConfigError(
+            "controlled graph switching is unsupported for sqlite_adjacency because it shares the authoritative SQL database"
+        )
+    settings = _settings(descriptor, config.graph.settings)
+    context = GraphBuildContext(
+        SharedBuildContext(wiring.resources, _owner_id(config, wiring), wiring.health_timeout_s),
+        _storage_placement(config, wiring),
+        wiring.sql,
+        getattr(route, "physical_generation_id", "active"),
     )
+    result = await _build_provider(
+        wiring, descriptor, settings, context, result_key="graph.primary"
+    )
+    return cast(GraphStore, result.service)
 
 
-async def build_llm_router(config: MemspineConfig, hooks: WiringHooks) -> LLMRouter:
-    """Route each role by its ``model`` prefix (D-33). ``llamacpp/<path>``
-    binds the in-process :class:`LlamaCppLLM` (``[llmlocal]``); every other
-    model id — ``openai/…``, ``ollama/…``, ``bedrock/…``, ``vertex_ai/…`` —
-    goes through the unified LiteLLM adapter. litellm is imported lazily so a
-    default engine with no LLM role never pays its import cost."""
+async def build_llm_router(config: MemspineConfig, hooks: WiringHooks, wiring: Wiring) -> LLMRouter:
+    """Build each explicit role binding through its selected descriptor."""
     providers: dict[str, LLMService] = {}
-    _structured.configure(config.llm.structured.model_dump())  # I69 (process-wide)
+    shared = SharedBuildContext(
+        wiring.resources, _owner_id(config, wiring), wiring.health_timeout_s
+    )
     for role, role_config in config.llm.roles.items():
-        model = role_config.model
-        if model:
-            # MOD-02: typed ``llm_providers`` registry (llamacpp/, plug-in, else LiteLLM).
-            providers[role] = LLM_PROVIDERS.get(llm_provider_name(model))(model, role_config)
-        else:
-            raise ConfigError(
-                f"llm.roles.{role}.model is required — a LiteLLM model id "
-                "(e.g. openai/gpt-4o, ollama/llama3, bedrock/...) or llamacpp/<path>"
-            )
+        descriptor = _descriptor(
+            PROVIDER_LLM_PROVIDERS, role_config.provider, f"llm.roles.{role}.provider"
+        )
+        typed = _settings(descriptor, role_config.settings)
+        built = await _build_provider(
+            wiring, descriptor, typed, LLMBuildContext(shared, role), result_key=f"llm.{role}"
+        )
+        providers[role] = cast(LLMService, built.service)
     role_configs = dict(config.llm.roles)
     resolved = None
     if config.models.tiers_v2:
-        resolved = _bind_tiered_roles(config, providers, role_configs)
+        resolved = await _bind_tiered_roles(config, providers, role_configs, wiring)
     consent = config.consent
     if consent.remote_llm_max_tier is not None:
         # #50: a remote provider never sees text of records above the tier.
         for role, role_config in role_configs.items():
-            if not is_local_provider(role_config.model, role_config.api_base, consent.local_hosts):
+            if not is_local_binding(
+                role_config.provider, role_config.settings, consent.local_hosts
+            ):
                 providers[role] = TierGatedLLM(providers[role], hooks.withheld_texts)
-    router = LLMRouter(providers)
+    router = LLMRouter(
+        providers,
+        structured_options=_structured.StructuredOptions(**config.llm.structured.model_dump()),
+    )
     if resolved is not None:
         from memspine.models.resolve import report
 
@@ -753,8 +1031,11 @@ async def build_llm_router(config: MemspineConfig, hooks: WiringHooks) -> LLMRou
     return router
 
 
-def _bind_tiered_roles(
-    config: MemspineConfig, providers: dict[str, LLMService], role_configs: dict[str, Any]
+async def _bind_tiered_roles(
+    config: MemspineConfig,
+    providers: dict[str, LLMService],
+    role_configs: dict[str, Any],
+    wiring: Wiring,
 ) -> Any:
     """MD-01 (``models.tiers_v2``): bind every engine role no ``llm.roles`` entry covers through the
     tier plan. A role the plan cannot serve gets no provider, so its feature takes the role's
@@ -782,7 +1063,23 @@ def _bind_tiered_roles(
         rc = role_config(resolved, role)
         if rc is None:
             continue
-        provider = LLM_PROVIDERS.get(llm_provider_name(rc.model))(rc.model, rc)
+        descriptor = _descriptor(
+            PROVIDER_LLM_PROVIDERS, rc.provider, f"models.roles.{role}.provider"
+        )
+        typed = _settings(descriptor, rc.settings)
+        built = await _build_provider(
+            wiring,
+            descriptor,
+            typed,
+            LLMBuildContext(
+                SharedBuildContext(
+                    wiring.resources, _owner_id(config, wiring), wiring.health_timeout_s
+                ),
+                role,
+            ),
+            result_key=f"llm.{role}",
+        )
+        provider = cast(LLMService, built.service)
         b = role_binding(resolved, role)
         if b is not None and b.thinking.mode == "capped":
             provider = ThinkingCapped(
@@ -797,9 +1094,9 @@ def _bind_tiered_roles(
 
 
 async def provide_llm_router(
-    config: MemspineConfig, hooks: WiringHooks, _caps: Capabilities
+    config: MemspineConfig, hooks: WiringHooks, _caps: Capabilities, wiring: Wiring
 ) -> LLMRouter:
-    return await build_llm_router(config, hooks)
+    return await build_llm_router(config, hooks, wiring)
 
 
 def check_decision_provider(config: MemspineConfig) -> DecisionState:
@@ -893,16 +1190,24 @@ def build_write_pipeline(
     )
 
 
-def build_runner(config: MemspineConfig, hooks: WiringHooks, _caps: Capabilities) -> TaskRunner:
+def build_runner(
+    config: MemspineConfig, hooks: WiringHooks, _caps: Capabilities, wiring: Wiring
+) -> TaskRunner:
     if config.workers.runner == "inline":
         return InlineRunner()
     if config.workers.runner == "dbos":
         from memspine.workers.dbos_runner import DBOSRunner, default_system_database_url
 
-        system_database_url = (
-            config.workers.dbos_system_database_url
-            or default_system_database_url(config.storage.path)
-        )
+        system_database_url = config.workers.dbos_system_database_url
+        if system_database_url is None:
+            if "sql.sqlite" not in (wiring.sql.capabilities if wiring.sql is not None else ()):
+                raise ConfigError(
+                    "workers.dbos_system_database_url is required when the selected storage "
+                    "provider does not expose SQLite SQL"
+                )
+            system_database_url = default_system_database_url(
+                str(config.storage.settings.get("path", "./memspine.db"))
+            )
         # ``hooks.pipeline_ctx`` is safe to hand over now: by this point in the
         # engine's start storage/config are already set, and the hook builds a
         # FRESH PipelineContext on every call — exactly what the durable
@@ -942,38 +1247,30 @@ class OutboxHandle:
 
 def make_outbox_runner(
     config: MemspineConfig,
-    wiring_client: SQLiteClient | None,
-    pg_client: PostgresClient | None = None,
+    sql: SqlAccess,
+    resources: ProviderLifecycleManager,
     commit_lock: Callable[[str], Any] | None = None,
 ) -> OutboxRunner:
     """Build the outbox store on the storage database and an inline runner over it.
 
-    SQLite file: a sync engine on the same file (revision ``f04_outbox`` made the tables).
-    ``:memory:``: a private in-process database (nothing outlives the process anyway). Postgres:
-    a sync psycopg engine on the storage URL; the SQL is the same."""
-    if config.storage.backend == "postgres":
-        from sqlalchemy import create_engine
-
-        if pg_client is None:
-            raise ConfigError("workers.outbox on postgres needs the postgres client")
-        engine = create_engine(pg_client._url)  # the client's normalised psycopg URL
-    elif wiring_client is None or wiring_client.is_memory:
-        engine = memory_engine()
-    else:
-        engine = sqlite_engine(wiring_client.path, wiring_client.sync_creator)
+    The sync SQLAlchemy engine is an owned lease from the storage provider, so
+    runtime does not inspect or retain a vendor client.
+    """
+    lease = sql.sync_lease(resources, "outbox")
+    engine = lease.engine
     runner: OutboxRunner
     if config.workers.transport == "taskiq":  # RT-01: the same outbox, ids sent over taskiq
         from memspine.runtime.transport import TransportRunner, make_broker
 
         kind = config.workers.transport_broker
         runner = TransportRunner(
-            SqlJobStore(engine),
+            SqlJobStore(engine, close_engine=False),
             broker=make_broker(kind, config.workers.broker_url),
             local_drain=kind == "memory",
             commit_lock=commit_lock,
         )
     else:
-        runner = OutboxRunner(SqlJobStore(engine), commit_lock=commit_lock)
+        runner = OutboxRunner(SqlJobStore(engine, close_engine=False), commit_lock=commit_lock)
     if config.runtime.scheduler_v2:  # RT-02: backpressure + SLO ledger + background priority
         from memspine.runtime import scheduler as _sched
 
@@ -987,7 +1284,9 @@ def build_outbox(config: MemspineConfig, wiring: Wiring, _storage: SqlStorage) -
     """Provider: the runner when ``workers.outbox`` is on (after storage, so the schema exists)."""
     if not config.workers.outbox:
         return OutboxHandle(None)
-    return OutboxHandle(make_outbox_runner(config, wiring.client, wiring.pg))
+    if wiring.sql is None:
+        raise ConfigError("workers.outbox requires the storage SQL capability")
+    return OutboxHandle(make_outbox_runner(config, wiring.sql, wiring.resources))
 
 
 # ── F-16e: Neo4j graph projection through the outbox ─────────────────────────────────────
@@ -1003,15 +1302,14 @@ def set_neo4j_executor_factory(factory: Neo4jExecutorFactory | None) -> None:
 
 
 def neo4j_outbox_on(config: MemspineConfig) -> bool:
-    """``graph.neo4j_outbox`` is on. Raises :class:`ConfigError` when its prerequisites are not
-    met (server storage profile or ``graph.backend: neo4j``)."""
-    if not config.graph.neo4j_outbox:
+    """Whether the separately configured graph mirror is enabled."""
+    if not config.graph.mirror.enabled:
         return False
     from memspine.services.storage.profile import resolve_profile
 
-    if resolve_profile(config.storage).name != "server" and config.graph.backend != "neo4j":
+    if resolve_profile(config.storage).name != "server" and config.graph.mirror.provider != "neo4j":
         raise ConfigError(
-            "graph.neo4j_outbox needs storage.profile: server or graph.backend: neo4j"
+            "graph.mirror needs storage.profile=server or graph.mirror.provider=neo4j"
         )
     return True
 
@@ -1025,42 +1323,71 @@ class Neo4jProjection:
     store: Any
 
     async def close(self) -> None:
-        await self.runner.stop(1.0)
-        self.runner.close()
-        await self.store.close()
+        failures: list[str] = []
+        try:
+            await self.runner.stop(1.0)
+        except asyncio.CancelledError:
+            failures.append("stop:CancelledError")
+        except Exception as exc:
+            failures.append(f"stop:{type(exc).__name__}")
+        try:
+            self.runner.close()
+        except asyncio.CancelledError:
+            failures.append("close:CancelledError")
+        except Exception as exc:
+            failures.append(f"close:{type(exc).__name__}")
+        if failures:
+            raise RuntimeError("Neo4j projection worker cleanup failed: " + ", ".join(failures))
 
 
-def make_neo4j_projection(
+async def make_neo4j_projection(
     config: MemspineConfig,
-    wiring_client: SQLiteClient | None,
-    pg_client: PostgresClient | None,
+    sql: SqlAccess,
+    resources: ProviderLifecycleManager,
     commit_lock: Callable[[str], Any] | None,
     entities: Any,
     compiled: str,
+    provider_results: dict[str, BuildResult[Any]] | None = None,
 ) -> Neo4jProjection:
     """Build the outbox runner, the Neo4j store and the registered ``graph_projection`` handler."""
     from memspine.memories.associative.graph_outbox import Neo4jGraphHandler, Neo4jOutboxProjector
-    from memspine.services.graph.neo4j import Neo4jGraphStore, executor_from_env
 
-    g = config.graph
-    if _neo4j_executor_factory is not None:
-        executor = _neo4j_executor_factory(config)
-    else:
-        executor = executor_from_env(
-            url_env=g.neo4j_url_env,
-            user_env=g.neo4j_user_env,
-            password_env=g.neo4j_password_env,
-            database=g.neo4j_database,
-        )
-    store = Neo4jGraphStore(executor, scoped=config.isolation.scope_keys_v2)
-    runner = make_outbox_runner(config, wiring_client, pg_client, commit_lock)
+    mirror = config.graph.mirror
+    descriptor = _descriptor(PROVIDER_GRAPH_STORES, mirror.provider, "graph.mirror.provider")
+    settings = _settings(descriptor, mirror.settings)
+    shared = SharedBuildContext(
+        resources,
+        _owner_id(config),
+        config.runtime.provider_services.health_timeout_s,
+    )
+    graph_context = GraphBuildContext(
+        shared,
+        storage_placement(config, _owner_id(config)),  # mirror uses deployment-scoped ownership
+        sql,
+        generation_id=config.runtime.deployment_id or "localdev",
+        resource_id="graph:mirror",
+    )
+    mirror_wiring = Wiring(
+        resources,
+        shared.health_timeout_s,
+        config.runtime.provider_services.startup_timeout_s,
+        owner_id=config.runtime.deployment_id,
+        explicit_owner_id=config.runtime.deployment_id is not None,
+    )
+    built = await _build_provider(
+        mirror_wiring, descriptor, settings, graph_context, result_key="graph.mirror"
+    )
+    if provider_results is not None:
+        provider_results["graph.mirror"] = built
+    store = built.service
+    runner = make_outbox_runner(config, sql, resources, commit_lock)
     Neo4jGraphHandler(store, entities, compiled=compiled).register(runner)
     return Neo4jProjection(Neo4jOutboxProjector(runner), runner, store)
 
 
 def _window_outbox(eng: Any, config: MemspineConfig) -> OutboxRunner:
     """The factory ``ingest.windows`` calls for ``workers.outbox`` (it cannot import runtime)."""
-    return make_outbox_runner(config, eng._client, eng._pg, eng._namespace_lock)
+    return make_outbox_runner(config, eng._sql, eng._provider_resources, eng._namespace_lock)
 
 
 _ingest_windows.register_outbox_factory(_window_outbox)

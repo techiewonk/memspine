@@ -29,9 +29,18 @@ def normalize_pg_url(url: str) -> str:
 
 
 class PostgresClient(Client):
-    def __init__(self, url: str, echo: bool = False) -> None:
+    def __init__(
+        self, url: str, echo: bool = False, *,
+        connect_timeout_s: float | None = None, statement_timeout_s: float | None = None,
+    ) -> None:
         self._url = normalize_pg_url(url)
         self._echo = echo
+        self._connect_args: dict[str, object] = {}
+        if connect_timeout_s is not None:
+            import math
+            self._connect_args["connect_timeout"] = max(1, math.ceil(connect_timeout_s))
+        if statement_timeout_s is not None:
+            self._connect_args["options"] = f"-c statement_timeout={max(1, int(statement_timeout_s * 1000))}"
         self._engine: AsyncEngine | None = None
 
     @property
@@ -47,7 +56,7 @@ class PostgresClient(Client):
             import psycopg  # noqa: F401  # the psycopg3 driver SQLAlchemy binds
         except ImportError as exc:
             raise MissingServiceError("storage:postgres", extra="postgres") from exc
-        engine = create_async_engine(self._url, echo=self._echo)
+        engine = create_async_engine(self._url, echo=self._echo, connect_args=self._connect_args)
         # Verify reachability at start (D-10): a bad DSN / down server must fail
         # loudly here, not on the first write mid-request.
         try:

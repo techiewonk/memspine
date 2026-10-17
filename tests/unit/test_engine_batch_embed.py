@@ -13,9 +13,11 @@ from typing import Any
 import pytest
 
 from memspine.api.engine import Engine
-from memspine.config.schema import MemspineConfig
 from memspine.models.encoders.embedding.base import EmbeddingService
 from memspine.models.encoders.embedding.hash_local import HashEmbedding
+from memspine.providers.builtin.models import HashEmbeddingSettings
+from memspine.providers.contracts import BuildResult, ProviderRef
+from memspine.providers.registry import EMBEDDERS, ProviderDescriptor, get_registry
 
 _TURNS = [
     "Caroline: I went to the LGBTQ support group yesterday.",
@@ -47,15 +49,30 @@ async def _engine(
     embedding: dict[str, Any] | None = None,
     **overrides: Any,
 ) -> Engine:
-    def build(config: MemspineConfig) -> EmbeddingService:
-        return spy
+    class SpyBuilder:
+        async def build(self, settings: Any, ctx: Any) -> BuildResult[EmbeddingService]:
+            return BuildResult(spy, ProviderRef("embedding", "test_spy"), (), frozenset({"embedding"}))
 
-    monkeypatch.setattr("memspine.runtime.container.make_embedder", build)
+    descriptor = ProviderDescriptor(
+        ref=ProviderRef("embedding", "test_spy"),
+        settings_model=HashEmbeddingSettings,
+        declared_capabilities=frozenset({"embedding"}),
+        requirements=(),
+        builder=SpyBuilder(),
+        target_identity=lambda _settings: {
+            "embedder_id": spy.embedder_id,
+            "dimension": spy.dim,
+        },
+    )
+    get_registry("embedders")  # ensure built-ins are loaded before temporarily adding the test adapter
+    monkeypatch.setitem(EMBEDDERS._items, "test_spy", descriptor)
+    embedding_config: dict[str, Any] = {"provider": "test_spy", "settings": {}}
+    embedding_config.update(embedding or {})
     engine = Engine(
         template="core",
         dotenv_path=None,
-        storage={"path": ":memory:"},
-        embedding={"provider": "hash", **(embedding or {})},
+        storage={'provider': "sqlite", 'settings': {'path': ":memory:", 'busy_timeout_s': 5.0}},
+        embedding=embedding_config,
         memories={"episodic": {"enabled": True}},
         **overrides,
     )

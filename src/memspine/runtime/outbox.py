@@ -23,6 +23,7 @@ SQLite and Postgres share the SQL: only the engine differs.
 from __future__ import annotations
 
 import json
+import math
 import threading
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
@@ -132,14 +133,22 @@ OUTBOX_TABLES: tuple[str, ...] = ("outbox", "outbox_progress", "outbox_item", "o
 
 
 # ---------------------------------------------------------------------------- engines
-def sqlite_engine(path: str, creator: Callable[[], Any] | None = None) -> Engine:
+def sqlite_engine(
+    path: str,
+    creator: Callable[[], Any] | None = None,
+    *,
+    busy_timeout_s: float,
+) -> Engine:
     """A sync engine over a file-backed SQLite database (the one the storage layer uses).
 
     ``creator`` opens a keyed connection for an encrypted database (#52)."""
+    if isinstance(busy_timeout_s, bool) or not math.isfinite(busy_timeout_s) or busy_timeout_s <= 0:
+        raise ValueError("busy_timeout_s must be finite and positive")
     if creator is not None:
         return create_engine("sqlite://", creator=creator, poolclass=NullPool)
     return create_engine(
-        f"sqlite:///{path}", connect_args={"timeout": 15, "check_same_thread": False}
+        f"sqlite:///{path}",
+        connect_args={"timeout": busy_timeout_s, "check_same_thread": False},
     )
 
 
@@ -225,8 +234,9 @@ def _scope_where(table: Table, scope: OwnerScope) -> list[Any]:
 class SqlJobStore:
     """``JobStore`` (``runtime.jobs``) over the outbox tables, plus the item side."""
 
-    def __init__(self, engine: Engine) -> None:
+    def __init__(self, engine: Engine, *, close_engine: bool = True) -> None:
         self.engine = engine
+        self._close_engine = close_engine
         self._lock = threading.RLock()
         self._shared = isinstance(engine.pool, StaticPool)
         self.ensure_schema()
@@ -238,7 +248,7 @@ class SqlJobStore:
 
     def close(self) -> None:
         """Release pooled connections (a private in-memory database is kept: it IS the queue)."""
-        if not isinstance(self.engine.pool, StaticPool):
+        if self._close_engine and not isinstance(self.engine.pool, StaticPool):
             self.engine.dispose()
 
     @contextmanager

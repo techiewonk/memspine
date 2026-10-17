@@ -1,0 +1,342 @@
+"""The single registry owner for built-in and pinned provider descriptors."""
+
+from __future__ import annotations
+
+import importlib
+import importlib.util
+from collections.abc import Callable, ItemsView, Iterator, Mapping
+from dataclasses import dataclass, field
+from types import MappingProxyType
+from typing import Any, cast
+
+from pydantic import BaseModel, JsonValue, ValidationError
+
+from memspine.exceptions import ConfigError
+from memspine.providers.contracts import (
+    Category,
+    DependencyRequirement,
+    ProjectionPlacement,
+    ProviderBuilder,
+    ProviderRef,
+)
+from memspine.services.base import CapabilityManifest as ServiceManifest
+
+__all__ = [
+    "CACHE_BACKENDS",
+    "EMBEDDERS",
+    "GRAPH_STORES",
+    "KINDS",
+    "LEXICAL_INDEXES",
+    "LLM_PROVIDERS",
+    "RERANKERS",
+    "STORAGE_BACKENDS",
+    "VECTOR_STORES",
+    "ProviderDescriptor",
+    "ProviderRegistryError",
+    "Registry",
+    "get_registry",
+    "provider_kinds",
+    "provider_projection_settings",
+    "provider_target_identity",
+]
+
+# Plugin extensions which are not providers continue to use this same registry owner.
+KINDS: dict[str, str] = {
+    "storage_backends": "memspine.providers.registry",
+    "vector_stores": "memspine.providers.registry",
+    "graph_stores": "memspine.providers.registry",
+    "lexical_indexes": "memspine.providers.registry",
+    "cache_backends": "memspine.providers.registry",
+    "llm_providers": "memspine.providers.registry",
+    "embedders": "memspine.providers.registry",
+    "rerankers": "memspine.providers.registry",
+    "read_legs": "memspine.read.registry",
+    "derive_stages": "memspine.derive.registry",
+    "memory_types": "memspine.memory.registry",
+    "prompt_sets": "memspine.prompts.registry",
+}
+
+KIND_TO_CATEGORY: dict[str, Category] = {
+    "storage_backends": "storage",
+    "vector_stores": "vector",
+    "graph_stores": "graph",
+    "lexical_indexes": "lexical",
+    "cache_backends": "cache",
+    "llm_providers": "llm",
+    "embedders": "embedding",
+    "rerankers": "reranker",
+}
+_CATEGORY_TO_KIND = {category: kind for kind, category in KIND_TO_CATEGORY.items()}
+class ProviderRegistryError(ConfigError):
+    """Provider registration or resolution failed."""
+
+
+class UnknownProviderError(ProviderRegistryError):
+    """No provider is registered under the requested kind and name."""
+
+
+class Registry[T]:
+    """Name map whose instance is unique for each extension kind."""
+
+    def __new__(cls, kind: str) -> Registry[Any]:
+        if kind not in KINDS:
+            raise ValueError(f"unknown registry kind {kind!r} (known: {sorted(KINDS)})")
+        current = _REGISTRIES.get(kind)
+        if current is not None:
+            return current
+        instance = super().__new__(cls)
+        _REGISTRIES[kind] = instance
+        return instance
+
+    def __init__(self, kind: str) -> None:
+        if hasattr(self, "_items"):
+            return
+        self.kind = kind
+        self._items: dict[str, T] = {}
+        self._builtin: set[str] = set()
+        self._lifetime: dict[str, str] = {}
+
+    def register(self, name: str, provider: T, *, builtin: bool = True, replace: bool = False) -> T:
+        if not name or name.strip() != name:
+            raise ValueError("provider name must be a non-empty trimmed identifier")
+        category = KIND_TO_CATEGORY.get(self.kind)
+        if category is not None:
+            if not isinstance(provider, ProviderDescriptor):
+                raise ProviderRegistryError(
+                    f"{self.kind}: providers must register a typed ProviderDescriptor"
+                )
+            if provider.ref.contract_version != 1:
+                raise ProviderRegistryError("provider contract version is unsupported; expected version 1")
+            if provider.ref.category != category or provider.ref.name != name:
+                raise ProviderRegistryError(
+                    f"{self.kind}: descriptor identity must be {category}:{name}"
+                )
+        if name in self._items and not replace:
+            raise ProviderRegistryError(f"{self.kind}: {name!r} is already registered")
+        self._items[name] = provider
+        if builtin:
+            self._builtin.add(name)
+        else:
+            self._builtin.discard(name)
+        return provider
+
+    def unregister(self, name: str) -> None:
+        self._items.pop(name, None)
+        self._builtin.discard(name)
+        self._lifetime.pop(name, None)
+
+    def get(self, name: str, *default: Any) -> T:
+        try:
+            return self._items[name]
+        except KeyError:
+            if default:
+                return cast(T, default[0])
+            raise UnknownProviderError(
+                f"unknown {self.kind} provider {name!r} (valid: {', '.join(self._items)})"
+            ) from None
+
+    def find(self, name: str) -> T | None:
+        return self._items.get(name)
+
+    def names(self) -> tuple[str, ...]:
+        return tuple(self._items)
+
+    def builtin_names(self) -> tuple[str, ...]:
+        return tuple(name for name in self._items if name in self._builtin)
+
+    def is_builtin(self, name: str) -> bool:
+        return name in self._builtin
+
+    def lifetime_of(self, name: str) -> str:
+        return self._lifetime.get(name, "app")
+
+    def __getitem__(self, name: str) -> T:
+        return self._items[name]
+
+    def __setitem__(self, name: str, provider: T) -> None:
+        self.register(name, provider, builtin=False, replace=True)
+
+    def __delitem__(self, name: str) -> None:
+        if name not in self._items:
+            raise KeyError(name)
+        self.unregister(name)
+
+    def pop(self, name: str, *default: T | None) -> T | None:
+        if name in self._items:
+            value = self._items[name]
+            self.unregister(name)
+            return value
+        if default:
+            return default[0]
+        raise KeyError(name)
+
+    def __contains__(self, name: object) -> bool:
+        return name in self._items
+
+    def __iter__(self) -> Iterator[str]:
+        return iter(self._items)
+
+    def __len__(self) -> int:
+        return len(self._items)
+
+    def items(self) -> ItemsView[str, T]:
+        return self._items.items()
+
+
+_REGISTRIES: dict[str, Registry[Any]] = {}
+_BUILTIN_MODULES: dict[str, tuple[str, ...]] = {
+    "llm_providers": ("memspine.providers.builtin.models",),
+    "embedders": ("memspine.providers.builtin.models",),
+    "rerankers": ("memspine.providers.builtin.models",),
+    "storage_backends": ("memspine.providers.builtin.storage",),
+    "vector_stores": (
+        "memspine.providers.builtin.vector",
+        "memspine.providers.builtin.pgvector",
+        "memspine.providers.builtin.weaviate",
+    ),
+    "graph_stores": ("memspine.providers.builtin.graph",),
+    "lexical_indexes": (
+        "memspine.providers.builtin.lexical",
+        "memspine.providers.builtin.opensearch",
+        "memspine.providers.builtin.weaviate",
+    ),
+    "cache_backends": ("memspine.providers.builtin.cache",),
+}
+_BUILTINS_LOADED: set[str] = set()
+
+
+@dataclass(frozen=True, slots=True)
+class ProviderDescriptor:
+    """Stateless provider metadata and typed engine-local builder."""
+
+    ref: ProviderRef
+    settings_model: type[BaseModel]
+    declared_capabilities: frozenset[str]
+    requirements: tuple[DependencyRequirement, ...]
+    builder: ProviderBuilder[Any, Any, Any]
+    service_manifest: ServiceManifest | None = None
+    placement: Callable[[BaseModel, str], ProjectionPlacement] | None = None
+    requires_deployment_id: bool = False
+    target_identity: Callable[[BaseModel], Mapping[str, JsonValue]] | None = field(
+        default=None, kw_only=True
+    )
+    projection_settings: Callable[[BaseModel], Mapping[str, JsonValue]] | None = field(
+        default=None, kw_only=True
+    )
+
+    def __post_init__(self) -> None:
+        expected_kind = _CATEGORY_TO_KIND.get(self.ref.category)
+        if expected_kind is None:
+            raise ValueError(f"unsupported provider category {self.ref.category!r}")
+        if not isinstance(self.settings_model, type) or not issubclass(self.settings_model, BaseModel):
+            raise TypeError("settings_model must be a Pydantic BaseModel type")
+        if not callable(getattr(self.builder, "build", None)):
+            raise TypeError("provider builder must expose async build(settings, ctx)")
+        if self.service_manifest is not None and self.service_manifest.name != self.ref.name:
+            raise ValueError("service manifest name must match provider name")
+        if not isinstance(self.requires_deployment_id, bool):
+            raise TypeError("requires_deployment_id must be a bool")
+        if self.target_identity is not None and not callable(self.target_identity):
+            raise TypeError("target_identity must be callable")
+        if self.projection_settings is not None and not callable(self.projection_settings):
+            raise TypeError("projection_settings must be callable")
+
+
+def provider_target_identity(
+    descriptor: ProviderDescriptor, settings: BaseModel
+) -> Mapping[str, JsonValue] | None:
+    """Resolve and freeze safe target identity metadata for one provider instance.
+
+    This callback is separate from the provider adapter so projection ownership can
+    fingerprint the resolved endpoint without coupling generic runtime code to a
+    provider vendor or reading secrets from settings itself.
+    """
+    if descriptor.target_identity is None:
+        return None
+    import json
+
+    raw = descriptor.target_identity(settings)
+    # Round-trip through JSON to copy caller-owned structures and reject secret-like
+    # non-JSON values or non-finite floats before they enter a target fingerprint.
+    normalized = json.loads(json.dumps(dict(raw), sort_keys=True, allow_nan=False))
+    if not isinstance(normalized, dict) or not all(isinstance(key, str) for key in normalized):
+        raise ProviderRegistryError("provider target identity must be a JSON object")
+    return MappingProxyType(normalized)
+
+
+def provider_projection_settings(
+    descriptor: ProviderDescriptor, settings: BaseModel
+) -> Mapping[str, JsonValue] | None:
+    """Return descriptor-defined target settings, excluding operational flags."""
+    if descriptor.projection_settings is None:
+        return None
+    import json
+
+    raw = descriptor.projection_settings(settings)
+    normalized = json.loads(json.dumps(dict(raw), sort_keys=True, allow_nan=False))
+    if not isinstance(normalized, dict) or not all(isinstance(key, str) for key in normalized):
+        raise ProviderRegistryError("provider projection settings must be a JSON object")
+    return MappingProxyType(normalized)
+
+
+def get_registry(kind: str) -> Registry[Any]:
+    """Return the unique registry for a plugin kind."""
+    if kind not in KINDS:
+        raise ProviderRegistryError(f"unknown plug-in kind {kind!r} (known: {sorted(KINDS)})")
+    for module in _BUILTIN_MODULES.get(kind, ()):
+        if module not in _BUILTINS_LOADED and importlib.util.find_spec(module) is not None:
+            builtin_module = importlib.import_module(module)
+            register = getattr(builtin_module, "register", None)
+            if callable(register):
+                register()
+            _BUILTINS_LOADED.add(module)
+    return Registry(kind)
+
+
+def provider_kinds() -> tuple[str, ...]:
+    return tuple(KIND_TO_CATEGORY)
+
+
+STORAGE_BACKENDS: Registry[ProviderDescriptor] = Registry("storage_backends")
+VECTOR_STORES: Registry[ProviderDescriptor] = Registry("vector_stores")
+GRAPH_STORES: Registry[ProviderDescriptor] = Registry("graph_stores")
+LEXICAL_INDEXES: Registry[ProviderDescriptor] = Registry("lexical_indexes")
+CACHE_BACKENDS: Registry[ProviderDescriptor] = Registry("cache_backends")
+LLM_PROVIDERS: Registry[ProviderDescriptor] = Registry("llm_providers")
+EMBEDDERS: Registry[ProviderDescriptor] = Registry("embedders")
+RERANKERS: Registry[ProviderDescriptor] = Registry("rerankers")
+
+
+def validate_settings(descriptor: ProviderDescriptor, settings: Mapping[str, Any]) -> BaseModel:
+    """Validate one JSON settings object without echoing possibly secret values."""
+    if not isinstance(settings, Mapping):
+        raise ProviderRegistryError("provider settings must be an object")
+    try:
+        return descriptor.settings_model.model_validate(dict(settings))
+    except ValidationError as exc:
+        paths = sorted({".".join(str(part) for part in error["loc"]) or "<root>" for error in exc.errors()})
+        raise ProviderRegistryError(
+            f"invalid settings for {descriptor.ref.category}.{descriptor.ref.name}: "
+            f"check fields {', '.join(paths)}"
+        ) from None
+
+
+def requirements_available(
+    descriptor: ProviderDescriptor,
+    *,
+    available_services: frozenset[str] = frozenset(),
+    available_capabilities: frozenset[str] = frozenset(),
+) -> tuple[bool, tuple[str, ...]]:
+    """Check package requirements only; never imports a driver or opens a connection."""
+    missing: list[str] = []
+    for requirement in descriptor.requirements:
+        satisfied = (
+            importlib.util.find_spec(requirement.name) is not None
+            if requirement.kind == "package"
+            else requirement.name in (
+                available_services if requirement.kind == "service" else available_capabilities
+            )
+        )
+        if not satisfied and not requirement.optional:
+            missing.append(requirement.name)
+    return not missing, tuple(missing)

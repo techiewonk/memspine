@@ -6,12 +6,8 @@
    "reads": false
   },
   "cache": {
-   "backend": "memory",
-   "default_ttl_seconds": null,
-   "max_entries": 65536,
-   "namespace": "memspine",
-   "path": "./memspine.cache",
-   "url": "redis://localhost:6379/0"
+   "provider": "memory",
+   "settings": {}
   },
   "consent": {
    "enforce": false,
@@ -40,25 +36,12 @@
    "ledger_v2": false
   },
   "embedding": {
-   "api_base": null,
-   "api_key": null,
-   "aws_region": null,
    "batch_size": 32,
-   "device": null,
-   "dim": null,
-   "document_input_type": null,
-   "document_prompt_name": null,
-   "dtype": null,
    "migrate_profile": false,
-   "model": "BAAI/bge-small-en-v1.5",
    "pin_profile": false,
    "profile": null,
    "provider": "fastembed",
-   "query_input_type": null,
-   "query_instruction": null,
-   "query_prompt_name": null,
-   "request_dimensions": false,
-   "trust_remote_code": false,
+   "settings": {},
    "versioned_spaces": false
   },
   "event_log": {
@@ -93,16 +76,16 @@
    "tag_assistant_claims": false
   },
   "graph": {
-   "backend": "auto",
    "edge_compiler_v2": false,
    "entity_embeddings": false,
    "key_v2": false,
-   "neo4j_database": "neo4j",
-   "neo4j_outbox": false,
-   "neo4j_password_env": "MEMSPINE_NEO4J_PASSWORD",
-   "neo4j_url_env": "MEMSPINE_NEO4J_URL",
-   "neo4j_user_env": "MEMSPINE_NEO4J_USER",
-   "provider": "auto"
+   "mirror": {
+    "enabled": false,
+    "provider": "neo4j",
+    "settings": {}
+   },
+   "provider": "auto",
+   "settings": {}
   },
   "ingest": {
    "asset_allowed_mime": [
@@ -405,12 +388,11 @@
    "leg_weights": {},
    "leg_weights_by_shape": {},
    "legs_v2": false,
-   "lexical_analyzer": "default",
-   "lexical_dates": false,
    "lexical_language": "en",
    "lexical_namespace_languages": {},
    "lexical_provider": "tantivy",
    "lexical_scorer": "bm25",
+   "lexical_settings": {},
    "lexical_strip_names": false,
    "lift_before_rerank": false,
    "lift_max_turns": 2,
@@ -509,14 +491,11 @@
    "rerank_chunk_overlap": 0,
    "rerank_context": 0,
    "rerank_date_prefix": false,
-   "rerank_device": null,
    "rerank_floor": "minmax",
    "rerank_gate": null,
-   "rerank_instruction": null,
    "rerank_keep": null,
    "rerank_max_top_k": null,
-   "rerank_model": null,
-   "rerank_quant": null,
+   "rerank_settings": {},
    "rerank_v2": false,
    "rerank_v2_chain": [
     "jina",
@@ -611,30 +590,54 @@
    "backlog_max_items": 2000,
    "backlog_max_total_items": 0,
    "backlog_retry_after_s": 1.0,
+   "deployment_id": null,
    "encoder_batch_max": 32,
    "encoder_batch_wait_ms": 5.0,
+   "environment": "development",
    "lag_p95_budget_s": null,
    "model_concurrency": 0,
+   "provider_services": {
+    "close_timeout_s": 10.0,
+    "health_timeout_s": 5.0,
+    "startup_timeout_s": null
+   },
    "read_p95_budget_s": null,
-   "scheduler_v2": false
+   "scheduler_v2": false,
+   "service_switches": {
+    "cache": {
+     "mode": "controlled",
+     "strategy": "cold_start"
+    },
+    "embeddings": {
+     "mode": "controlled",
+     "strategy": "reembed"
+    },
+    "models": {
+     "historical_derivation": "forward_only",
+     "mode": "controlled"
+    },
+    "projections": {
+     "cleanup_batch_size": 50,
+     "cleanup_interval_s": null,
+     "mode": "controlled",
+     "retention_s": null
+    },
+    "storage": {
+     "auto_delete_source": false,
+     "mode": "controlled",
+     "strategy": "verified_migration"
+    }
+   }
   },
   "storage": {
-   "backend": "sqlite",
-   "data_dir": null,
-   "encryption": {
-    "key_env": null,
-    "mode": "none"
-   },
-   "path": "./memspine.db",
    "profile": "embedded",
-   "url": null
+   "provider": "sqlite",
+   "settings": {}
   },
   "strict_services": true,
   "vector": {
-   "backend": "lance",
-   "isolation": "shared",
-   "namespace_index": false,
-   "quantization": "auto"
+   "provider": "lancedb",
+   "settings": {}
   },
   "workers": {
    "broker_url": "redis://localhost:6379/0",
@@ -708,7 +711,7 @@
    "window_topic_k": 2.0
   }
  },
- "json_schema_sha256": "3fa0e26101549f79dc74f3e84469ce47ee0c58c5cccd4ad5e262e02e01252543",
+ "json_schema_sha256": "44787e350b10b46a4660d6b36ecdc545ae6db3ec6ef8ac8548f55f691005e471",
  "preset:chat_roles": {
   "audit": {
    "actions": false,
@@ -716,12 +719,8 @@
    "reads": false
   },
   "cache": {
-   "backend": "memory",
-   "default_ttl_seconds": null,
-   "max_entries": 65536,
-   "namespace": "memspine",
-   "path": "./memspine.cache",
-   "url": "redis://localhost:6379/0"
+   "provider": "memory",
+   "settings": {}
   },
   "consent": {
    "enforce": false,
@@ -750,25 +749,12 @@
    "ledger_v2": false
   },
   "embedding": {
-   "api_base": null,
-   "api_key": null,
-   "aws_region": null,
    "batch_size": 32,
-   "device": null,
-   "dim": null,
-   "document_input_type": null,
-   "document_prompt_name": null,
-   "dtype": null,
    "migrate_profile": false,
-   "model": "BAAI/bge-small-en-v1.5",
    "pin_profile": false,
    "profile": null,
    "provider": "fastembed",
-   "query_input_type": null,
-   "query_instruction": null,
-   "query_prompt_name": null,
-   "request_dimensions": false,
-   "trust_remote_code": false,
+   "settings": {},
    "versioned_spaces": false
   },
   "event_log": {
@@ -805,16 +791,16 @@
    "tag_assistant_claims": false
   },
   "graph": {
-   "backend": "auto",
    "edge_compiler_v2": false,
    "entity_embeddings": false,
    "key_v2": false,
-   "neo4j_database": "neo4j",
-   "neo4j_outbox": false,
-   "neo4j_password_env": "MEMSPINE_NEO4J_PASSWORD",
-   "neo4j_url_env": "MEMSPINE_NEO4J_URL",
-   "neo4j_user_env": "MEMSPINE_NEO4J_USER",
-   "provider": "auto"
+   "mirror": {
+    "enabled": false,
+    "provider": "neo4j",
+    "settings": {}
+   },
+   "provider": "auto",
+   "settings": {}
   },
   "ingest": {
    "asset_allowed_mime": [
@@ -1142,12 +1128,11 @@
    "leg_weights": {},
    "leg_weights_by_shape": {},
    "legs_v2": false,
-   "lexical_analyzer": "default",
-   "lexical_dates": false,
    "lexical_language": "en",
    "lexical_namespace_languages": {},
    "lexical_provider": "tantivy",
    "lexical_scorer": "bm25",
+   "lexical_settings": {},
    "lexical_strip_names": false,
    "lift_before_rerank": false,
    "lift_max_turns": 2,
@@ -1246,14 +1231,11 @@
    "rerank_chunk_overlap": 0,
    "rerank_context": 0,
    "rerank_date_prefix": false,
-   "rerank_device": null,
    "rerank_floor": "minmax",
    "rerank_gate": null,
-   "rerank_instruction": null,
    "rerank_keep": null,
    "rerank_max_top_k": null,
-   "rerank_model": null,
-   "rerank_quant": null,
+   "rerank_settings": {},
    "rerank_v2": false,
    "rerank_v2_chain": [
     "jina",
@@ -1352,30 +1334,57 @@
    "backlog_max_items": 2000,
    "backlog_max_total_items": 0,
    "backlog_retry_after_s": 1.0,
+   "deployment_id": null,
    "encoder_batch_max": 32,
    "encoder_batch_wait_ms": 5.0,
+   "environment": "development",
    "lag_p95_budget_s": null,
    "model_concurrency": 0,
+   "provider_services": {
+    "close_timeout_s": 10.0,
+    "health_timeout_s": 5.0,
+    "startup_timeout_s": null
+   },
    "read_p95_budget_s": null,
-   "scheduler_v2": false
+   "scheduler_v2": false,
+   "service_switches": {
+    "cache": {
+     "mode": "controlled",
+     "strategy": "cold_start"
+    },
+    "embeddings": {
+     "mode": "controlled",
+     "strategy": "reembed"
+    },
+    "models": {
+     "historical_derivation": "forward_only",
+     "mode": "controlled"
+    },
+    "projections": {
+     "cleanup_batch_size": 50,
+     "cleanup_interval_s": null,
+     "mode": "controlled",
+     "retention_s": null
+    },
+    "storage": {
+     "auto_delete_source": false,
+     "mode": "controlled",
+     "strategy": "verified_migration"
+    }
+   }
   },
   "storage": {
-   "backend": "sqlite",
-   "data_dir": null,
-   "encryption": {
-    "key_env": null,
-    "mode": "none"
-   },
-   "path": "./memspine.db",
    "profile": "embedded",
-   "url": null
+   "provider": "sqlite",
+   "settings": {
+    "busy_timeout_s": 5.0,
+    "path": "./memspine.db"
+   }
   },
   "strict_services": true,
   "vector": {
-   "backend": "lance",
-   "isolation": "shared",
-   "namespace_index": false,
-   "quantization": "auto"
+   "provider": "lancedb",
+   "settings": {}
   },
   "workers": {
    "broker_url": "redis://localhost:6379/0",
@@ -1456,12 +1465,8 @@
    "reads": false
   },
   "cache": {
-   "backend": "memory",
-   "default_ttl_seconds": null,
-   "max_entries": 65536,
-   "namespace": "memspine",
-   "path": "./memspine.cache",
-   "url": "redis://localhost:6379/0"
+   "provider": "memory",
+   "settings": {}
   },
   "consent": {
    "enforce": false,
@@ -1490,25 +1495,12 @@
    "ledger_v2": false
   },
   "embedding": {
-   "api_base": null,
-   "api_key": null,
-   "aws_region": null,
    "batch_size": 32,
-   "device": null,
-   "dim": null,
-   "document_input_type": null,
-   "document_prompt_name": null,
-   "dtype": null,
    "migrate_profile": false,
-   "model": "BAAI/bge-small-en-v1.5",
    "pin_profile": false,
    "profile": null,
    "provider": "fastembed",
-   "query_input_type": null,
-   "query_instruction": null,
-   "query_prompt_name": null,
-   "request_dimensions": false,
-   "trust_remote_code": false,
+   "settings": {},
    "versioned_spaces": false
   },
   "event_log": {
@@ -1543,16 +1535,16 @@
    "tag_assistant_claims": false
   },
   "graph": {
-   "backend": "auto",
    "edge_compiler_v2": false,
    "entity_embeddings": false,
    "key_v2": false,
-   "neo4j_database": "neo4j",
-   "neo4j_outbox": false,
-   "neo4j_password_env": "MEMSPINE_NEO4J_PASSWORD",
-   "neo4j_url_env": "MEMSPINE_NEO4J_URL",
-   "neo4j_user_env": "MEMSPINE_NEO4J_USER",
-   "provider": "auto"
+   "mirror": {
+    "enabled": false,
+    "provider": "neo4j",
+    "settings": {}
+   },
+   "provider": "auto",
+   "settings": {}
   },
   "ingest": {
    "asset_allowed_mime": [
@@ -1878,12 +1870,11 @@
    "leg_weights": {},
    "leg_weights_by_shape": {},
    "legs_v2": false,
-   "lexical_analyzer": "default",
-   "lexical_dates": false,
    "lexical_language": "en",
    "lexical_namespace_languages": {},
    "lexical_provider": "tantivy",
    "lexical_scorer": "bm25",
+   "lexical_settings": {},
    "lexical_strip_names": false,
    "lift_before_rerank": false,
    "lift_max_turns": 2,
@@ -1982,14 +1973,11 @@
    "rerank_chunk_overlap": 0,
    "rerank_context": 0,
    "rerank_date_prefix": false,
-   "rerank_device": null,
    "rerank_floor": "minmax",
    "rerank_gate": null,
-   "rerank_instruction": null,
    "rerank_keep": null,
    "rerank_max_top_k": null,
-   "rerank_model": null,
-   "rerank_quant": null,
+   "rerank_settings": {},
    "rerank_v2": false,
    "rerank_v2_chain": [
     "jina",
@@ -2088,30 +2076,57 @@
    "backlog_max_items": 2000,
    "backlog_max_total_items": 0,
    "backlog_retry_after_s": 1.0,
+   "deployment_id": null,
    "encoder_batch_max": 32,
    "encoder_batch_wait_ms": 5.0,
+   "environment": "development",
    "lag_p95_budget_s": null,
    "model_concurrency": 0,
+   "provider_services": {
+    "close_timeout_s": 10.0,
+    "health_timeout_s": 5.0,
+    "startup_timeout_s": null
+   },
    "read_p95_budget_s": null,
-   "scheduler_v2": false
+   "scheduler_v2": false,
+   "service_switches": {
+    "cache": {
+     "mode": "controlled",
+     "strategy": "cold_start"
+    },
+    "embeddings": {
+     "mode": "controlled",
+     "strategy": "reembed"
+    },
+    "models": {
+     "historical_derivation": "forward_only",
+     "mode": "controlled"
+    },
+    "projections": {
+     "cleanup_batch_size": 50,
+     "cleanup_interval_s": null,
+     "mode": "controlled",
+     "retention_s": null
+    },
+    "storage": {
+     "auto_delete_source": false,
+     "mode": "controlled",
+     "strategy": "verified_migration"
+    }
+   }
   },
   "storage": {
-   "backend": "sqlite",
-   "data_dir": null,
-   "encryption": {
-    "key_env": null,
-    "mode": "none"
-   },
-   "path": "./memspine.db",
    "profile": "embedded",
-   "url": null
+   "provider": "sqlite",
+   "settings": {
+    "busy_timeout_s": 5.0,
+    "path": "./memspine.db"
+   }
   },
   "strict_services": true,
   "vector": {
-   "backend": "lance",
-   "isolation": "shared",
-   "namespace_index": false,
-   "quantization": "auto"
+   "provider": "lancedb",
+   "settings": {}
   },
   "workers": {
    "broker_url": "redis://localhost:6379/0",
@@ -2192,12 +2207,8 @@
    "reads": false
   },
   "cache": {
-   "backend": "memory",
-   "default_ttl_seconds": null,
-   "max_entries": 65536,
-   "namespace": "memspine",
-   "path": "./memspine.cache",
-   "url": "redis://localhost:6379/0"
+   "provider": "memory",
+   "settings": {}
   },
   "consent": {
    "enforce": false,
@@ -2226,25 +2237,12 @@
    "ledger_v2": false
   },
   "embedding": {
-   "api_base": null,
-   "api_key": null,
-   "aws_region": null,
    "batch_size": 32,
-   "device": null,
-   "dim": null,
-   "document_input_type": null,
-   "document_prompt_name": null,
-   "dtype": null,
    "migrate_profile": false,
-   "model": "BAAI/bge-small-en-v1.5",
    "pin_profile": false,
    "profile": null,
    "provider": "fastembed",
-   "query_input_type": null,
-   "query_instruction": null,
-   "query_prompt_name": null,
-   "request_dimensions": false,
-   "trust_remote_code": false,
+   "settings": {},
    "versioned_spaces": false
   },
   "event_log": {
@@ -2279,16 +2277,16 @@
    "tag_assistant_claims": false
   },
   "graph": {
-   "backend": "auto",
    "edge_compiler_v2": false,
    "entity_embeddings": false,
    "key_v2": false,
-   "neo4j_database": "neo4j",
-   "neo4j_outbox": false,
-   "neo4j_password_env": "MEMSPINE_NEO4J_PASSWORD",
-   "neo4j_url_env": "MEMSPINE_NEO4J_URL",
-   "neo4j_user_env": "MEMSPINE_NEO4J_USER",
-   "provider": "auto"
+   "mirror": {
+    "enabled": false,
+    "provider": "neo4j",
+    "settings": {}
+   },
+   "provider": "auto",
+   "settings": {}
   },
   "ingest": {
    "asset_allowed_mime": [
@@ -2614,12 +2612,11 @@
    "leg_weights": {},
    "leg_weights_by_shape": {},
    "legs_v2": false,
-   "lexical_analyzer": "default",
-   "lexical_dates": false,
    "lexical_language": "en",
    "lexical_namespace_languages": {},
    "lexical_provider": "tantivy",
    "lexical_scorer": "bm25",
+   "lexical_settings": {},
    "lexical_strip_names": false,
    "lift_before_rerank": false,
    "lift_max_turns": 2,
@@ -2718,14 +2715,11 @@
    "rerank_chunk_overlap": 200,
    "rerank_context": 0,
    "rerank_date_prefix": false,
-   "rerank_device": null,
    "rerank_floor": "minmax",
    "rerank_gate": null,
-   "rerank_instruction": null,
    "rerank_keep": null,
    "rerank_max_top_k": null,
-   "rerank_model": null,
-   "rerank_quant": null,
+   "rerank_settings": {},
    "rerank_v2": false,
    "rerank_v2_chain": [
     "jina",
@@ -2824,30 +2818,57 @@
    "backlog_max_items": 2000,
    "backlog_max_total_items": 0,
    "backlog_retry_after_s": 1.0,
+   "deployment_id": null,
    "encoder_batch_max": 32,
    "encoder_batch_wait_ms": 5.0,
+   "environment": "development",
    "lag_p95_budget_s": null,
    "model_concurrency": 0,
+   "provider_services": {
+    "close_timeout_s": 10.0,
+    "health_timeout_s": 5.0,
+    "startup_timeout_s": null
+   },
    "read_p95_budget_s": null,
-   "scheduler_v2": false
+   "scheduler_v2": false,
+   "service_switches": {
+    "cache": {
+     "mode": "controlled",
+     "strategy": "cold_start"
+    },
+    "embeddings": {
+     "mode": "controlled",
+     "strategy": "reembed"
+    },
+    "models": {
+     "historical_derivation": "forward_only",
+     "mode": "controlled"
+    },
+    "projections": {
+     "cleanup_batch_size": 50,
+     "cleanup_interval_s": null,
+     "mode": "controlled",
+     "retention_s": null
+    },
+    "storage": {
+     "auto_delete_source": false,
+     "mode": "controlled",
+     "strategy": "verified_migration"
+    }
+   }
   },
   "storage": {
-   "backend": "sqlite",
-   "data_dir": null,
-   "encryption": {
-    "key_env": null,
-    "mode": "none"
-   },
-   "path": "./memspine.db",
    "profile": "embedded",
-   "url": null
+   "provider": "sqlite",
+   "settings": {
+    "busy_timeout_s": 5.0,
+    "path": "./memspine.db"
+   }
   },
   "strict_services": true,
   "vector": {
-   "backend": "lance",
-   "isolation": "shared",
-   "namespace_index": false,
-   "quantization": "auto"
+   "provider": "lancedb",
+   "settings": {}
   },
   "workers": {
    "broker_url": "redis://localhost:6379/0",
@@ -2928,12 +2949,8 @@
    "reads": false
   },
   "cache": {
-   "backend": "memory",
-   "default_ttl_seconds": null,
-   "max_entries": 65536,
-   "namespace": "memspine",
-   "path": "./memspine.cache",
-   "url": "redis://localhost:6379/0"
+   "provider": "memory",
+   "settings": {}
   },
   "consent": {
    "enforce": false,
@@ -2962,25 +2979,12 @@
    "ledger_v2": false
   },
   "embedding": {
-   "api_base": null,
-   "api_key": null,
-   "aws_region": null,
    "batch_size": 32,
-   "device": null,
-   "dim": null,
-   "document_input_type": null,
-   "document_prompt_name": null,
-   "dtype": null,
    "migrate_profile": false,
-   "model": "BAAI/bge-small-en-v1.5",
    "pin_profile": false,
    "profile": null,
    "provider": "fastembed",
-   "query_input_type": null,
-   "query_instruction": null,
-   "query_prompt_name": null,
-   "request_dimensions": false,
-   "trust_remote_code": false,
+   "settings": {},
    "versioned_spaces": false
   },
   "event_log": {
@@ -3015,16 +3019,16 @@
    "tag_assistant_claims": false
   },
   "graph": {
-   "backend": "auto",
    "edge_compiler_v2": false,
    "entity_embeddings": false,
    "key_v2": false,
-   "neo4j_database": "neo4j",
-   "neo4j_outbox": false,
-   "neo4j_password_env": "MEMSPINE_NEO4J_PASSWORD",
-   "neo4j_url_env": "MEMSPINE_NEO4J_URL",
-   "neo4j_user_env": "MEMSPINE_NEO4J_USER",
-   "provider": "auto"
+   "mirror": {
+    "enabled": false,
+    "provider": "neo4j",
+    "settings": {}
+   },
+   "provider": "auto",
+   "settings": {}
   },
   "ingest": {
    "asset_allowed_mime": [
@@ -3350,12 +3354,11 @@
    "leg_weights": {},
    "leg_weights_by_shape": {},
    "legs_v2": false,
-   "lexical_analyzer": "default",
-   "lexical_dates": false,
    "lexical_language": "en",
    "lexical_namespace_languages": {},
    "lexical_provider": "tantivy",
    "lexical_scorer": "bm25",
+   "lexical_settings": {},
    "lexical_strip_names": false,
    "lift_before_rerank": false,
    "lift_max_turns": 2,
@@ -3454,14 +3457,11 @@
    "rerank_chunk_overlap": 0,
    "rerank_context": 0,
    "rerank_date_prefix": false,
-   "rerank_device": null,
    "rerank_floor": "minmax",
    "rerank_gate": null,
-   "rerank_instruction": null,
    "rerank_keep": null,
    "rerank_max_top_k": null,
-   "rerank_model": null,
-   "rerank_quant": null,
+   "rerank_settings": {},
    "rerank_v2": false,
    "rerank_v2_chain": [
     "jina",
@@ -3560,30 +3560,57 @@
    "backlog_max_items": 2000,
    "backlog_max_total_items": 0,
    "backlog_retry_after_s": 1.0,
+   "deployment_id": null,
    "encoder_batch_max": 32,
    "encoder_batch_wait_ms": 5.0,
+   "environment": "development",
    "lag_p95_budget_s": null,
    "model_concurrency": 0,
+   "provider_services": {
+    "close_timeout_s": 10.0,
+    "health_timeout_s": 5.0,
+    "startup_timeout_s": null
+   },
    "read_p95_budget_s": null,
-   "scheduler_v2": false
+   "scheduler_v2": false,
+   "service_switches": {
+    "cache": {
+     "mode": "controlled",
+     "strategy": "cold_start"
+    },
+    "embeddings": {
+     "mode": "controlled",
+     "strategy": "reembed"
+    },
+    "models": {
+     "historical_derivation": "forward_only",
+     "mode": "controlled"
+    },
+    "projections": {
+     "cleanup_batch_size": 50,
+     "cleanup_interval_s": null,
+     "mode": "controlled",
+     "retention_s": null
+    },
+    "storage": {
+     "auto_delete_source": false,
+     "mode": "controlled",
+     "strategy": "verified_migration"
+    }
+   }
   },
   "storage": {
-   "backend": "sqlite",
-   "data_dir": null,
-   "encryption": {
-    "key_env": null,
-    "mode": "none"
-   },
-   "path": "./memspine.db",
    "profile": "embedded",
-   "url": null
+   "provider": "sqlite",
+   "settings": {
+    "busy_timeout_s": 5.0,
+    "path": "./memspine.db"
+   }
   },
   "strict_services": true,
   "vector": {
-   "backend": "lance",
-   "isolation": "shared",
-   "namespace_index": false,
-   "quantization": "auto"
+   "provider": "lancedb",
+   "settings": {}
   },
   "workers": {
    "broker_url": "redis://localhost:6379/0",
@@ -3664,12 +3691,8 @@
    "reads": false
   },
   "cache": {
-   "backend": "memory",
-   "default_ttl_seconds": null,
-   "max_entries": 65536,
-   "namespace": "memspine",
-   "path": "./memspine.cache",
-   "url": "redis://localhost:6379/0"
+   "provider": "memory",
+   "settings": {}
   },
   "consent": {
    "enforce": false,
@@ -3698,25 +3721,12 @@
    "ledger_v2": false
   },
   "embedding": {
-   "api_base": null,
-   "api_key": null,
-   "aws_region": null,
    "batch_size": 32,
-   "device": null,
-   "dim": null,
-   "document_input_type": null,
-   "document_prompt_name": null,
-   "dtype": null,
    "migrate_profile": false,
-   "model": "BAAI/bge-small-en-v1.5",
    "pin_profile": false,
    "profile": null,
    "provider": "fastembed",
-   "query_input_type": null,
-   "query_instruction": null,
-   "query_prompt_name": null,
-   "request_dimensions": false,
-   "trust_remote_code": false,
+   "settings": {},
    "versioned_spaces": false
   },
   "event_log": {
@@ -3751,16 +3761,16 @@
    "tag_assistant_claims": false
   },
   "graph": {
-   "backend": "auto",
    "edge_compiler_v2": false,
    "entity_embeddings": false,
    "key_v2": false,
-   "neo4j_database": "neo4j",
-   "neo4j_outbox": false,
-   "neo4j_password_env": "MEMSPINE_NEO4J_PASSWORD",
-   "neo4j_url_env": "MEMSPINE_NEO4J_URL",
-   "neo4j_user_env": "MEMSPINE_NEO4J_USER",
-   "provider": "auto"
+   "mirror": {
+    "enabled": false,
+    "provider": "neo4j",
+    "settings": {}
+   },
+   "provider": "auto",
+   "settings": {}
   },
   "ingest": {
    "asset_allowed_mime": [
@@ -4086,12 +4096,11 @@
    "leg_weights": {},
    "leg_weights_by_shape": {},
    "legs_v2": false,
-   "lexical_analyzer": "default",
-   "lexical_dates": false,
    "lexical_language": "en",
    "lexical_namespace_languages": {},
    "lexical_provider": "tantivy",
    "lexical_scorer": "bm25",
+   "lexical_settings": {},
    "lexical_strip_names": false,
    "lift_before_rerank": false,
    "lift_max_turns": 2,
@@ -4190,14 +4199,11 @@
    "rerank_chunk_overlap": 0,
    "rerank_context": 0,
    "rerank_date_prefix": false,
-   "rerank_device": null,
    "rerank_floor": "minmax",
    "rerank_gate": null,
-   "rerank_instruction": null,
    "rerank_keep": null,
    "rerank_max_top_k": null,
-   "rerank_model": null,
-   "rerank_quant": null,
+   "rerank_settings": {},
    "rerank_v2": false,
    "rerank_v2_chain": [
     "jina",
@@ -4296,30 +4302,57 @@
    "backlog_max_items": 2000,
    "backlog_max_total_items": 0,
    "backlog_retry_after_s": 1.0,
+   "deployment_id": null,
    "encoder_batch_max": 32,
    "encoder_batch_wait_ms": 5.0,
+   "environment": "development",
    "lag_p95_budget_s": null,
    "model_concurrency": 0,
+   "provider_services": {
+    "close_timeout_s": 10.0,
+    "health_timeout_s": 5.0,
+    "startup_timeout_s": null
+   },
    "read_p95_budget_s": null,
-   "scheduler_v2": false
+   "scheduler_v2": false,
+   "service_switches": {
+    "cache": {
+     "mode": "controlled",
+     "strategy": "cold_start"
+    },
+    "embeddings": {
+     "mode": "controlled",
+     "strategy": "reembed"
+    },
+    "models": {
+     "historical_derivation": "forward_only",
+     "mode": "controlled"
+    },
+    "projections": {
+     "cleanup_batch_size": 50,
+     "cleanup_interval_s": null,
+     "mode": "controlled",
+     "retention_s": null
+    },
+    "storage": {
+     "auto_delete_source": false,
+     "mode": "controlled",
+     "strategy": "verified_migration"
+    }
+   }
   },
   "storage": {
-   "backend": "sqlite",
-   "data_dir": null,
-   "encryption": {
-    "key_env": null,
-    "mode": "none"
-   },
-   "path": "./memspine.db",
    "profile": "embedded",
-   "url": null
+   "provider": "sqlite",
+   "settings": {
+    "busy_timeout_s": 5.0,
+    "path": "./memspine.db"
+   }
   },
   "strict_services": true,
   "vector": {
-   "backend": "lance",
-   "isolation": "shared",
-   "namespace_index": false,
-   "quantization": "auto"
+   "provider": "lancedb",
+   "settings": {}
   },
   "workers": {
    "broker_url": "redis://localhost:6379/0",
@@ -4400,12 +4433,8 @@
    "reads": false
   },
   "cache": {
-   "backend": "memory",
-   "default_ttl_seconds": null,
-   "max_entries": 65536,
-   "namespace": "memspine",
-   "path": "./memspine.cache",
-   "url": "redis://localhost:6379/0"
+   "provider": "memory",
+   "settings": {}
   },
   "consent": {
    "enforce": false,
@@ -4434,25 +4463,12 @@
    "ledger_v2": false
   },
   "embedding": {
-   "api_base": null,
-   "api_key": null,
-   "aws_region": null,
    "batch_size": 32,
-   "device": null,
-   "dim": null,
-   "document_input_type": null,
-   "document_prompt_name": null,
-   "dtype": null,
    "migrate_profile": false,
-   "model": "BAAI/bge-small-en-v1.5",
    "pin_profile": false,
    "profile": null,
    "provider": "fastembed",
-   "query_input_type": null,
-   "query_instruction": null,
-   "query_prompt_name": null,
-   "request_dimensions": false,
-   "trust_remote_code": false,
+   "settings": {},
    "versioned_spaces": false
   },
   "event_log": {
@@ -4487,16 +4503,16 @@
    "tag_assistant_claims": false
   },
   "graph": {
-   "backend": "auto",
    "edge_compiler_v2": false,
    "entity_embeddings": false,
    "key_v2": false,
-   "neo4j_database": "neo4j",
-   "neo4j_outbox": false,
-   "neo4j_password_env": "MEMSPINE_NEO4J_PASSWORD",
-   "neo4j_url_env": "MEMSPINE_NEO4J_URL",
-   "neo4j_user_env": "MEMSPINE_NEO4J_USER",
-   "provider": "auto"
+   "mirror": {
+    "enabled": false,
+    "provider": "neo4j",
+    "settings": {}
+   },
+   "provider": "auto",
+   "settings": {}
   },
   "ingest": {
    "asset_allowed_mime": [
@@ -4822,12 +4838,11 @@
    "leg_weights": {},
    "leg_weights_by_shape": {},
    "legs_v2": false,
-   "lexical_analyzer": "default",
-   "lexical_dates": false,
    "lexical_language": "en",
    "lexical_namespace_languages": {},
    "lexical_provider": "tantivy",
    "lexical_scorer": "bm25",
+   "lexical_settings": {},
    "lexical_strip_names": false,
    "lift_before_rerank": false,
    "lift_max_turns": 2,
@@ -4926,14 +4941,11 @@
    "rerank_chunk_overlap": 0,
    "rerank_context": 0,
    "rerank_date_prefix": false,
-   "rerank_device": null,
    "rerank_floor": "minmax",
    "rerank_gate": null,
-   "rerank_instruction": null,
    "rerank_keep": null,
    "rerank_max_top_k": null,
-   "rerank_model": null,
-   "rerank_quant": null,
+   "rerank_settings": {},
    "rerank_v2": false,
    "rerank_v2_chain": [
     "jina",
@@ -5032,30 +5044,57 @@
    "backlog_max_items": 2000,
    "backlog_max_total_items": 0,
    "backlog_retry_after_s": 1.0,
+   "deployment_id": null,
    "encoder_batch_max": 32,
    "encoder_batch_wait_ms": 5.0,
+   "environment": "development",
    "lag_p95_budget_s": null,
    "model_concurrency": 0,
+   "provider_services": {
+    "close_timeout_s": 10.0,
+    "health_timeout_s": 5.0,
+    "startup_timeout_s": null
+   },
    "read_p95_budget_s": null,
-   "scheduler_v2": false
+   "scheduler_v2": false,
+   "service_switches": {
+    "cache": {
+     "mode": "controlled",
+     "strategy": "cold_start"
+    },
+    "embeddings": {
+     "mode": "controlled",
+     "strategy": "reembed"
+    },
+    "models": {
+     "historical_derivation": "forward_only",
+     "mode": "controlled"
+    },
+    "projections": {
+     "cleanup_batch_size": 50,
+     "cleanup_interval_s": null,
+     "mode": "controlled",
+     "retention_s": null
+    },
+    "storage": {
+     "auto_delete_source": false,
+     "mode": "controlled",
+     "strategy": "verified_migration"
+    }
+   }
   },
   "storage": {
-   "backend": "sqlite",
-   "data_dir": null,
-   "encryption": {
-    "key_env": null,
-    "mode": "none"
-   },
-   "path": "./memspine.db",
    "profile": "embedded",
-   "url": null
+   "provider": "sqlite",
+   "settings": {
+    "busy_timeout_s": 5.0,
+    "path": "./memspine.db"
+   }
   },
   "strict_services": true,
   "vector": {
-   "backend": "lance",
-   "isolation": "shared",
-   "namespace_index": false,
-   "quantization": "auto"
+   "provider": "lancedb",
+   "settings": {}
   },
   "workers": {
    "broker_url": "redis://localhost:6379/0",
@@ -5136,12 +5175,8 @@
    "reads": false
   },
   "cache": {
-   "backend": "memory",
-   "default_ttl_seconds": null,
-   "max_entries": 65536,
-   "namespace": "memspine",
-   "path": "./memspine.cache",
-   "url": "redis://localhost:6379/0"
+   "provider": "memory",
+   "settings": {}
   },
   "consent": {
    "enforce": false,
@@ -5170,25 +5205,12 @@
    "ledger_v2": false
   },
   "embedding": {
-   "api_base": null,
-   "api_key": null,
-   "aws_region": null,
    "batch_size": 32,
-   "device": null,
-   "dim": null,
-   "document_input_type": null,
-   "document_prompt_name": null,
-   "dtype": null,
    "migrate_profile": false,
-   "model": "BAAI/bge-small-en-v1.5",
    "pin_profile": false,
    "profile": null,
    "provider": "fastembed",
-   "query_input_type": null,
-   "query_instruction": null,
-   "query_prompt_name": null,
-   "request_dimensions": false,
-   "trust_remote_code": false,
+   "settings": {},
    "versioned_spaces": false
   },
   "event_log": {
@@ -5223,16 +5245,16 @@
    "tag_assistant_claims": false
   },
   "graph": {
-   "backend": "auto",
    "edge_compiler_v2": false,
    "entity_embeddings": false,
    "key_v2": false,
-   "neo4j_database": "neo4j",
-   "neo4j_outbox": false,
-   "neo4j_password_env": "MEMSPINE_NEO4J_PASSWORD",
-   "neo4j_url_env": "MEMSPINE_NEO4J_URL",
-   "neo4j_user_env": "MEMSPINE_NEO4J_USER",
-   "provider": "auto"
+   "mirror": {
+    "enabled": false,
+    "provider": "neo4j",
+    "settings": {}
+   },
+   "provider": "auto",
+   "settings": {}
   },
   "ingest": {
    "asset_allowed_mime": [
@@ -5558,12 +5580,11 @@
    "leg_weights": {},
    "leg_weights_by_shape": {},
    "legs_v2": true,
-   "lexical_analyzer": "default",
-   "lexical_dates": false,
    "lexical_language": "en",
    "lexical_namespace_languages": {},
    "lexical_provider": "tantivy",
    "lexical_scorer": "bm25",
+   "lexical_settings": {},
    "lexical_strip_names": false,
    "lift_before_rerank": true,
    "lift_max_turns": 2,
@@ -5662,14 +5683,11 @@
    "rerank_chunk_overlap": 0,
    "rerank_context": 0,
    "rerank_date_prefix": false,
-   "rerank_device": null,
    "rerank_floor": "minmax",
    "rerank_gate": null,
-   "rerank_instruction": null,
    "rerank_keep": null,
    "rerank_max_top_k": null,
-   "rerank_model": null,
-   "rerank_quant": null,
+   "rerank_settings": {},
    "rerank_v2": true,
    "rerank_v2_chain": [
     "jina",
@@ -5768,30 +5786,57 @@
    "backlog_max_items": 2000,
    "backlog_max_total_items": 0,
    "backlog_retry_after_s": 1.0,
+   "deployment_id": null,
    "encoder_batch_max": 32,
    "encoder_batch_wait_ms": 5.0,
+   "environment": "development",
    "lag_p95_budget_s": null,
    "model_concurrency": 0,
+   "provider_services": {
+    "close_timeout_s": 10.0,
+    "health_timeout_s": 5.0,
+    "startup_timeout_s": null
+   },
    "read_p95_budget_s": null,
-   "scheduler_v2": false
+   "scheduler_v2": false,
+   "service_switches": {
+    "cache": {
+     "mode": "controlled",
+     "strategy": "cold_start"
+    },
+    "embeddings": {
+     "mode": "controlled",
+     "strategy": "reembed"
+    },
+    "models": {
+     "historical_derivation": "forward_only",
+     "mode": "controlled"
+    },
+    "projections": {
+     "cleanup_batch_size": 50,
+     "cleanup_interval_s": null,
+     "mode": "controlled",
+     "retention_s": null
+    },
+    "storage": {
+     "auto_delete_source": false,
+     "mode": "controlled",
+     "strategy": "verified_migration"
+    }
+   }
   },
   "storage": {
-   "backend": "sqlite",
-   "data_dir": null,
-   "encryption": {
-    "key_env": null,
-    "mode": "none"
-   },
-   "path": "./memspine.db",
    "profile": "embedded",
-   "url": null
+   "provider": "sqlite",
+   "settings": {
+    "busy_timeout_s": 5.0,
+    "path": "./memspine.db"
+   }
   },
   "strict_services": true,
   "vector": {
-   "backend": "lance",
-   "isolation": "shared",
-   "namespace_index": false,
-   "quantization": "auto"
+   "provider": "lancedb",
+   "settings": {}
   },
   "workers": {
    "broker_url": "redis://localhost:6379/0",
@@ -5872,12 +5917,8 @@
    "reads": false
   },
   "cache": {
-   "backend": "memory",
-   "default_ttl_seconds": null,
-   "max_entries": 65536,
-   "namespace": "memspine",
-   "path": "./memspine.cache",
-   "url": "redis://localhost:6379/0"
+   "provider": "memory",
+   "settings": {}
   },
   "consent": {
    "enforce": false,
@@ -5906,25 +5947,12 @@
    "ledger_v2": false
   },
   "embedding": {
-   "api_base": null,
-   "api_key": null,
-   "aws_region": null,
    "batch_size": 32,
-   "device": null,
-   "dim": null,
-   "document_input_type": null,
-   "document_prompt_name": null,
-   "dtype": null,
    "migrate_profile": false,
-   "model": "BAAI/bge-small-en-v1.5",
    "pin_profile": false,
    "profile": null,
    "provider": "fastembed",
-   "query_input_type": null,
-   "query_instruction": null,
-   "query_prompt_name": null,
-   "request_dimensions": false,
-   "trust_remote_code": false,
+   "settings": {},
    "versioned_spaces": false
   },
   "event_log": {
@@ -5959,16 +5987,16 @@
    "tag_assistant_claims": false
   },
   "graph": {
-   "backend": "auto",
    "edge_compiler_v2": true,
    "entity_embeddings": false,
    "key_v2": false,
-   "neo4j_database": "neo4j",
-   "neo4j_outbox": false,
-   "neo4j_password_env": "MEMSPINE_NEO4J_PASSWORD",
-   "neo4j_url_env": "MEMSPINE_NEO4J_URL",
-   "neo4j_user_env": "MEMSPINE_NEO4J_USER",
-   "provider": "auto"
+   "mirror": {
+    "enabled": false,
+    "provider": "neo4j",
+    "settings": {}
+   },
+   "provider": "auto",
+   "settings": {}
   },
   "ingest": {
    "asset_allowed_mime": [
@@ -6298,12 +6326,11 @@
    "leg_weights": {},
    "leg_weights_by_shape": {},
    "legs_v2": true,
-   "lexical_analyzer": "default",
-   "lexical_dates": false,
    "lexical_language": "en",
    "lexical_namespace_languages": {},
    "lexical_provider": "tantivy",
    "lexical_scorer": "bm25",
+   "lexical_settings": {},
    "lexical_strip_names": false,
    "lift_before_rerank": true,
    "lift_max_turns": 2,
@@ -6402,14 +6429,11 @@
    "rerank_chunk_overlap": 0,
    "rerank_context": 0,
    "rerank_date_prefix": false,
-   "rerank_device": null,
    "rerank_floor": "minmax",
    "rerank_gate": null,
-   "rerank_instruction": null,
    "rerank_keep": null,
    "rerank_max_top_k": null,
-   "rerank_model": null,
-   "rerank_quant": null,
+   "rerank_settings": {},
    "rerank_v2": true,
    "rerank_v2_chain": [
     "jina",
@@ -6508,30 +6532,57 @@
    "backlog_max_items": 2000,
    "backlog_max_total_items": 0,
    "backlog_retry_after_s": 1.0,
+   "deployment_id": null,
    "encoder_batch_max": 32,
    "encoder_batch_wait_ms": 5.0,
+   "environment": "development",
    "lag_p95_budget_s": null,
    "model_concurrency": 0,
+   "provider_services": {
+    "close_timeout_s": 10.0,
+    "health_timeout_s": 5.0,
+    "startup_timeout_s": null
+   },
    "read_p95_budget_s": null,
-   "scheduler_v2": false
+   "scheduler_v2": false,
+   "service_switches": {
+    "cache": {
+     "mode": "controlled",
+     "strategy": "cold_start"
+    },
+    "embeddings": {
+     "mode": "controlled",
+     "strategy": "reembed"
+    },
+    "models": {
+     "historical_derivation": "forward_only",
+     "mode": "controlled"
+    },
+    "projections": {
+     "cleanup_batch_size": 50,
+     "cleanup_interval_s": null,
+     "mode": "controlled",
+     "retention_s": null
+    },
+    "storage": {
+     "auto_delete_source": false,
+     "mode": "controlled",
+     "strategy": "verified_migration"
+    }
+   }
   },
   "storage": {
-   "backend": "sqlite",
-   "data_dir": null,
-   "encryption": {
-    "key_env": null,
-    "mode": "none"
-   },
-   "path": "./memspine.db",
    "profile": "embedded",
-   "url": null
+   "provider": "sqlite",
+   "settings": {
+    "busy_timeout_s": 5.0,
+    "path": "./memspine.db"
+   }
   },
   "strict_services": true,
   "vector": {
-   "backend": "lance",
-   "isolation": "shared",
-   "namespace_index": false,
-   "quantization": "auto"
+   "provider": "lancedb",
+   "settings": {}
   },
   "workers": {
    "broker_url": "redis://localhost:6379/0",
@@ -6612,12 +6663,8 @@
    "reads": false
   },
   "cache": {
-   "backend": "memory",
-   "default_ttl_seconds": null,
-   "max_entries": 65536,
-   "namespace": "memspine",
-   "path": "./memspine.cache",
-   "url": "redis://localhost:6379/0"
+   "provider": "memory",
+   "settings": {}
   },
   "consent": {
    "enforce": false,
@@ -6646,25 +6693,12 @@
    "ledger_v2": false
   },
   "embedding": {
-   "api_base": null,
-   "api_key": null,
-   "aws_region": null,
    "batch_size": 32,
-   "device": null,
-   "dim": null,
-   "document_input_type": null,
-   "document_prompt_name": null,
-   "dtype": null,
    "migrate_profile": false,
-   "model": "BAAI/bge-small-en-v1.5",
    "pin_profile": false,
    "profile": null,
    "provider": "fastembed",
-   "query_input_type": null,
-   "query_instruction": null,
-   "query_prompt_name": null,
-   "request_dimensions": false,
-   "trust_remote_code": false,
+   "settings": {},
    "versioned_spaces": false
   },
   "event_log": {
@@ -6699,16 +6733,16 @@
    "tag_assistant_claims": false
   },
   "graph": {
-   "backend": "auto",
    "edge_compiler_v2": false,
    "entity_embeddings": false,
    "key_v2": false,
-   "neo4j_database": "neo4j",
-   "neo4j_outbox": false,
-   "neo4j_password_env": "MEMSPINE_NEO4J_PASSWORD",
-   "neo4j_url_env": "MEMSPINE_NEO4J_URL",
-   "neo4j_user_env": "MEMSPINE_NEO4J_USER",
-   "provider": "auto"
+   "mirror": {
+    "enabled": false,
+    "provider": "neo4j",
+    "settings": {}
+   },
+   "provider": "auto",
+   "settings": {}
   },
   "ingest": {
    "asset_allowed_mime": [
@@ -7034,12 +7068,11 @@
    "leg_weights": {},
    "leg_weights_by_shape": {},
    "legs_v2": false,
-   "lexical_analyzer": "default",
-   "lexical_dates": false,
    "lexical_language": "en",
    "lexical_namespace_languages": {},
    "lexical_provider": "tantivy",
    "lexical_scorer": "bm25",
+   "lexical_settings": {},
    "lexical_strip_names": false,
    "lift_before_rerank": false,
    "lift_max_turns": 2,
@@ -7138,14 +7171,11 @@
    "rerank_chunk_overlap": 0,
    "rerank_context": 0,
    "rerank_date_prefix": false,
-   "rerank_device": null,
    "rerank_floor": "minmax",
    "rerank_gate": null,
-   "rerank_instruction": null,
    "rerank_keep": null,
    "rerank_max_top_k": null,
-   "rerank_model": null,
-   "rerank_quant": null,
+   "rerank_settings": {},
    "rerank_v2": false,
    "rerank_v2_chain": [
     "jina",
@@ -7244,30 +7274,57 @@
    "backlog_max_items": 2000,
    "backlog_max_total_items": 0,
    "backlog_retry_after_s": 1.0,
+   "deployment_id": null,
    "encoder_batch_max": 32,
    "encoder_batch_wait_ms": 5.0,
+   "environment": "development",
    "lag_p95_budget_s": null,
    "model_concurrency": 0,
+   "provider_services": {
+    "close_timeout_s": 10.0,
+    "health_timeout_s": 5.0,
+    "startup_timeout_s": null
+   },
    "read_p95_budget_s": null,
-   "scheduler_v2": false
+   "scheduler_v2": false,
+   "service_switches": {
+    "cache": {
+     "mode": "controlled",
+     "strategy": "cold_start"
+    },
+    "embeddings": {
+     "mode": "controlled",
+     "strategy": "reembed"
+    },
+    "models": {
+     "historical_derivation": "forward_only",
+     "mode": "controlled"
+    },
+    "projections": {
+     "cleanup_batch_size": 50,
+     "cleanup_interval_s": null,
+     "mode": "controlled",
+     "retention_s": null
+    },
+    "storage": {
+     "auto_delete_source": false,
+     "mode": "controlled",
+     "strategy": "verified_migration"
+    }
+   }
   },
   "storage": {
-   "backend": "sqlite",
-   "data_dir": null,
-   "encryption": {
-    "key_env": null,
-    "mode": "none"
-   },
-   "path": "./memspine.db",
    "profile": "embedded",
-   "url": null
+   "provider": "sqlite",
+   "settings": {
+    "busy_timeout_s": 5.0,
+    "path": "./memspine.db"
+   }
   },
   "strict_services": true,
   "vector": {
-   "backend": "lance",
-   "isolation": "shared",
-   "namespace_index": false,
-   "quantization": "auto"
+   "provider": "lancedb",
+   "settings": {}
   },
   "workers": {
    "broker_url": "redis://localhost:6379/0",
@@ -7348,12 +7405,8 @@
    "reads": false
   },
   "cache": {
-   "backend": "memory",
-   "default_ttl_seconds": null,
-   "max_entries": 65536,
-   "namespace": "memspine",
-   "path": "./memspine.cache",
-   "url": "redis://localhost:6379/0"
+   "provider": "memory",
+   "settings": {}
   },
   "consent": {
    "enforce": false,
@@ -7382,25 +7435,12 @@
    "ledger_v2": true
   },
   "embedding": {
-   "api_base": null,
-   "api_key": null,
-   "aws_region": null,
    "batch_size": 32,
-   "device": null,
-   "dim": null,
-   "document_input_type": null,
-   "document_prompt_name": null,
-   "dtype": null,
    "migrate_profile": false,
-   "model": "BAAI/bge-small-en-v1.5",
    "pin_profile": false,
    "profile": null,
    "provider": "fastembed",
-   "query_input_type": null,
-   "query_instruction": null,
-   "query_prompt_name": null,
-   "request_dimensions": false,
-   "trust_remote_code": false,
+   "settings": {},
    "versioned_spaces": false
   },
   "event_log": {
@@ -7435,16 +7475,16 @@
    "tag_assistant_claims": false
   },
   "graph": {
-   "backend": "auto",
    "edge_compiler_v2": false,
    "entity_embeddings": false,
    "key_v2": false,
-   "neo4j_database": "neo4j",
-   "neo4j_outbox": false,
-   "neo4j_password_env": "MEMSPINE_NEO4J_PASSWORD",
-   "neo4j_url_env": "MEMSPINE_NEO4J_URL",
-   "neo4j_user_env": "MEMSPINE_NEO4J_USER",
-   "provider": "auto"
+   "mirror": {
+    "enabled": false,
+    "provider": "neo4j",
+    "settings": {}
+   },
+   "provider": "auto",
+   "settings": {}
   },
   "ingest": {
    "asset_allowed_mime": [
@@ -7770,12 +7810,11 @@
    "leg_weights": {},
    "leg_weights_by_shape": {},
    "legs_v2": false,
-   "lexical_analyzer": "default",
-   "lexical_dates": false,
    "lexical_language": "en",
    "lexical_namespace_languages": {},
    "lexical_provider": "tantivy",
    "lexical_scorer": "bm25",
+   "lexical_settings": {},
    "lexical_strip_names": false,
    "lift_before_rerank": false,
    "lift_max_turns": 2,
@@ -7874,14 +7913,11 @@
    "rerank_chunk_overlap": 0,
    "rerank_context": 0,
    "rerank_date_prefix": false,
-   "rerank_device": null,
    "rerank_floor": "minmax",
    "rerank_gate": null,
-   "rerank_instruction": null,
    "rerank_keep": null,
    "rerank_max_top_k": null,
-   "rerank_model": null,
-   "rerank_quant": null,
+   "rerank_settings": {},
    "rerank_v2": false,
    "rerank_v2_chain": [
     "jina",
@@ -7980,30 +8016,57 @@
    "backlog_max_items": 2000,
    "backlog_max_total_items": 0,
    "backlog_retry_after_s": 1.0,
+   "deployment_id": null,
    "encoder_batch_max": 32,
    "encoder_batch_wait_ms": 5.0,
+   "environment": "development",
    "lag_p95_budget_s": null,
    "model_concurrency": 0,
+   "provider_services": {
+    "close_timeout_s": 10.0,
+    "health_timeout_s": 5.0,
+    "startup_timeout_s": null
+   },
    "read_p95_budget_s": null,
-   "scheduler_v2": true
+   "scheduler_v2": true,
+   "service_switches": {
+    "cache": {
+     "mode": "controlled",
+     "strategy": "cold_start"
+    },
+    "embeddings": {
+     "mode": "controlled",
+     "strategy": "reembed"
+    },
+    "models": {
+     "historical_derivation": "forward_only",
+     "mode": "controlled"
+    },
+    "projections": {
+     "cleanup_batch_size": 50,
+     "cleanup_interval_s": null,
+     "mode": "controlled",
+     "retention_s": null
+    },
+    "storage": {
+     "auto_delete_source": false,
+     "mode": "controlled",
+     "strategy": "verified_migration"
+    }
+   }
   },
   "storage": {
-   "backend": "sqlite",
-   "data_dir": null,
-   "encryption": {
-    "key_env": null,
-    "mode": "none"
-   },
-   "path": "./memspine.db",
    "profile": "embedded",
-   "url": null
+   "provider": "sqlite",
+   "settings": {
+    "busy_timeout_s": 5.0,
+    "path": "./memspine.db"
+   }
   },
   "strict_services": true,
   "vector": {
-   "backend": "lance",
-   "isolation": "shared",
-   "namespace_index": false,
-   "quantization": "auto"
+   "provider": "lancedb",
+   "settings": {}
   },
   "workers": {
    "broker_url": "redis://localhost:6379/0",
@@ -8084,12 +8147,8 @@
    "reads": false
   },
   "cache": {
-   "backend": "memory",
-   "default_ttl_seconds": null,
-   "max_entries": 65536,
-   "namespace": "memspine",
-   "path": "./memspine.cache",
-   "url": "redis://localhost:6379/0"
+   "provider": "memory",
+   "settings": {}
   },
   "consent": {
    "enforce": false,
@@ -8118,25 +8177,12 @@
    "ledger_v2": false
   },
   "embedding": {
-   "api_base": null,
-   "api_key": null,
-   "aws_region": null,
    "batch_size": 32,
-   "device": null,
-   "dim": null,
-   "document_input_type": null,
-   "document_prompt_name": null,
-   "dtype": null,
    "migrate_profile": false,
-   "model": "BAAI/bge-small-en-v1.5",
    "pin_profile": false,
    "profile": null,
    "provider": "fastembed",
-   "query_input_type": null,
-   "query_instruction": null,
-   "query_prompt_name": null,
-   "request_dimensions": false,
-   "trust_remote_code": false,
+   "settings": {},
    "versioned_spaces": false
   },
   "event_log": {
@@ -8171,16 +8217,16 @@
    "tag_assistant_claims": false
   },
   "graph": {
-   "backend": "auto",
    "edge_compiler_v2": false,
    "entity_embeddings": false,
    "key_v2": false,
-   "neo4j_database": "neo4j",
-   "neo4j_outbox": false,
-   "neo4j_password_env": "MEMSPINE_NEO4J_PASSWORD",
-   "neo4j_url_env": "MEMSPINE_NEO4J_URL",
-   "neo4j_user_env": "MEMSPINE_NEO4J_USER",
-   "provider": "auto"
+   "mirror": {
+    "enabled": false,
+    "provider": "neo4j",
+    "settings": {}
+   },
+   "provider": "auto",
+   "settings": {}
   },
   "ingest": {
    "asset_allowed_mime": [
@@ -8506,12 +8552,11 @@
    "leg_weights": {},
    "leg_weights_by_shape": {},
    "legs_v2": false,
-   "lexical_analyzer": "default",
-   "lexical_dates": false,
    "lexical_language": "en",
    "lexical_namespace_languages": {},
    "lexical_provider": "tantivy",
    "lexical_scorer": "bm25",
+   "lexical_settings": {},
    "lexical_strip_names": false,
    "lift_before_rerank": false,
    "lift_max_turns": 2,
@@ -8610,14 +8655,11 @@
    "rerank_chunk_overlap": 0,
    "rerank_context": 0,
    "rerank_date_prefix": false,
-   "rerank_device": null,
    "rerank_floor": "minmax",
    "rerank_gate": null,
-   "rerank_instruction": null,
    "rerank_keep": null,
    "rerank_max_top_k": null,
-   "rerank_model": null,
-   "rerank_quant": null,
+   "rerank_settings": {},
    "rerank_v2": false,
    "rerank_v2_chain": [
     "jina",
@@ -8716,30 +8758,57 @@
    "backlog_max_items": 2000,
    "backlog_max_total_items": 0,
    "backlog_retry_after_s": 1.0,
+   "deployment_id": null,
    "encoder_batch_max": 32,
    "encoder_batch_wait_ms": 5.0,
+   "environment": "development",
    "lag_p95_budget_s": null,
    "model_concurrency": 0,
+   "provider_services": {
+    "close_timeout_s": 10.0,
+    "health_timeout_s": 5.0,
+    "startup_timeout_s": null
+   },
    "read_p95_budget_s": null,
-   "scheduler_v2": false
+   "scheduler_v2": false,
+   "service_switches": {
+    "cache": {
+     "mode": "controlled",
+     "strategy": "cold_start"
+    },
+    "embeddings": {
+     "mode": "controlled",
+     "strategy": "reembed"
+    },
+    "models": {
+     "historical_derivation": "forward_only",
+     "mode": "controlled"
+    },
+    "projections": {
+     "cleanup_batch_size": 50,
+     "cleanup_interval_s": null,
+     "mode": "controlled",
+     "retention_s": null
+    },
+    "storage": {
+     "auto_delete_source": false,
+     "mode": "controlled",
+     "strategy": "verified_migration"
+    }
+   }
   },
   "storage": {
-   "backend": "sqlite",
-   "data_dir": null,
-   "encryption": {
-    "key_env": null,
-    "mode": "none"
-   },
-   "path": "./memspine.db",
    "profile": "embedded",
-   "url": null
+   "provider": "sqlite",
+   "settings": {
+    "busy_timeout_s": 5.0,
+    "path": "./memspine.db"
+   }
   },
   "strict_services": true,
   "vector": {
-   "backend": "lance",
-   "isolation": "shared",
-   "namespace_index": false,
-   "quantization": "auto"
+   "provider": "lancedb",
+   "settings": {}
   },
   "workers": {
    "broker_url": "redis://localhost:6379/0",
@@ -8820,12 +8889,8 @@
    "reads": false
   },
   "cache": {
-   "backend": "memory",
-   "default_ttl_seconds": null,
-   "max_entries": 65536,
-   "namespace": "memspine",
-   "path": "./memspine.cache",
-   "url": "redis://localhost:6379/0"
+   "provider": "memory",
+   "settings": {}
   },
   "consent": {
    "enforce": false,
@@ -8854,25 +8919,12 @@
    "ledger_v2": false
   },
   "embedding": {
-   "api_base": null,
-   "api_key": null,
-   "aws_region": null,
    "batch_size": 32,
-   "device": null,
-   "dim": null,
-   "document_input_type": null,
-   "document_prompt_name": null,
-   "dtype": null,
    "migrate_profile": false,
-   "model": "BAAI/bge-small-en-v1.5",
    "pin_profile": false,
    "profile": null,
    "provider": "fastembed",
-   "query_input_type": null,
-   "query_instruction": null,
-   "query_prompt_name": null,
-   "request_dimensions": false,
-   "trust_remote_code": false,
+   "settings": {},
    "versioned_spaces": false
   },
   "event_log": {
@@ -8907,16 +8959,16 @@
    "tag_assistant_claims": false
   },
   "graph": {
-   "backend": "auto",
    "edge_compiler_v2": false,
    "entity_embeddings": false,
    "key_v2": false,
-   "neo4j_database": "neo4j",
-   "neo4j_outbox": false,
-   "neo4j_password_env": "MEMSPINE_NEO4J_PASSWORD",
-   "neo4j_url_env": "MEMSPINE_NEO4J_URL",
-   "neo4j_user_env": "MEMSPINE_NEO4J_USER",
-   "provider": "auto"
+   "mirror": {
+    "enabled": false,
+    "provider": "neo4j",
+    "settings": {}
+   },
+   "provider": "auto",
+   "settings": {}
   },
   "ingest": {
    "asset_allowed_mime": [
@@ -9242,12 +9294,11 @@
    "leg_weights": {},
    "leg_weights_by_shape": {},
    "legs_v2": false,
-   "lexical_analyzer": "default",
-   "lexical_dates": false,
    "lexical_language": "en",
    "lexical_namespace_languages": {},
    "lexical_provider": "tantivy",
    "lexical_scorer": "bm25",
+   "lexical_settings": {},
    "lexical_strip_names": false,
    "lift_before_rerank": false,
    "lift_max_turns": 2,
@@ -9346,14 +9397,11 @@
    "rerank_chunk_overlap": 0,
    "rerank_context": 0,
    "rerank_date_prefix": true,
-   "rerank_device": null,
    "rerank_floor": "minmax",
    "rerank_gate": null,
-   "rerank_instruction": null,
    "rerank_keep": null,
    "rerank_max_top_k": null,
-   "rerank_model": null,
-   "rerank_quant": null,
+   "rerank_settings": {},
    "rerank_v2": false,
    "rerank_v2_chain": [
     "jina",
@@ -9452,30 +9500,57 @@
    "backlog_max_items": 2000,
    "backlog_max_total_items": 0,
    "backlog_retry_after_s": 1.0,
+   "deployment_id": null,
    "encoder_batch_max": 32,
    "encoder_batch_wait_ms": 5.0,
+   "environment": "development",
    "lag_p95_budget_s": null,
    "model_concurrency": 0,
+   "provider_services": {
+    "close_timeout_s": 10.0,
+    "health_timeout_s": 5.0,
+    "startup_timeout_s": null
+   },
    "read_p95_budget_s": null,
-   "scheduler_v2": false
+   "scheduler_v2": false,
+   "service_switches": {
+    "cache": {
+     "mode": "controlled",
+     "strategy": "cold_start"
+    },
+    "embeddings": {
+     "mode": "controlled",
+     "strategy": "reembed"
+    },
+    "models": {
+     "historical_derivation": "forward_only",
+     "mode": "controlled"
+    },
+    "projections": {
+     "cleanup_batch_size": 50,
+     "cleanup_interval_s": null,
+     "mode": "controlled",
+     "retention_s": null
+    },
+    "storage": {
+     "auto_delete_source": false,
+     "mode": "controlled",
+     "strategy": "verified_migration"
+    }
+   }
   },
   "storage": {
-   "backend": "sqlite",
-   "data_dir": null,
-   "encryption": {
-    "key_env": null,
-    "mode": "none"
-   },
-   "path": "./memspine.db",
    "profile": "embedded",
-   "url": null
+   "provider": "sqlite",
+   "settings": {
+    "busy_timeout_s": 5.0,
+    "path": "./memspine.db"
+   }
   },
   "strict_services": true,
   "vector": {
-   "backend": "lance",
-   "isolation": "shared",
-   "namespace_index": false,
-   "quantization": "auto"
+   "provider": "lancedb",
+   "settings": {}
   },
   "workers": {
    "broker_url": "redis://localhost:6379/0",
@@ -9556,12 +9631,8 @@
    "reads": false
   },
   "cache": {
-   "backend": "memory",
-   "default_ttl_seconds": null,
-   "max_entries": 65536,
-   "namespace": "memspine",
-   "path": "./memspine.cache",
-   "url": "redis://localhost:6379/0"
+   "provider": "memory",
+   "settings": {}
   },
   "consent": {
    "enforce": false,
@@ -9590,25 +9661,12 @@
    "ledger_v2": false
   },
   "embedding": {
-   "api_base": null,
-   "api_key": null,
-   "aws_region": null,
    "batch_size": 32,
-   "device": null,
-   "dim": null,
-   "document_input_type": null,
-   "document_prompt_name": null,
-   "dtype": null,
    "migrate_profile": false,
-   "model": "BAAI/bge-small-en-v1.5",
    "pin_profile": false,
    "profile": null,
    "provider": "fastembed",
-   "query_input_type": null,
-   "query_instruction": null,
-   "query_prompt_name": null,
-   "request_dimensions": false,
-   "trust_remote_code": false,
+   "settings": {},
    "versioned_spaces": false
   },
   "event_log": {
@@ -9643,16 +9701,16 @@
    "tag_assistant_claims": false
   },
   "graph": {
-   "backend": "auto",
    "edge_compiler_v2": false,
    "entity_embeddings": false,
    "key_v2": false,
-   "neo4j_database": "neo4j",
-   "neo4j_outbox": false,
-   "neo4j_password_env": "MEMSPINE_NEO4J_PASSWORD",
-   "neo4j_url_env": "MEMSPINE_NEO4J_URL",
-   "neo4j_user_env": "MEMSPINE_NEO4J_USER",
-   "provider": "auto"
+   "mirror": {
+    "enabled": false,
+    "provider": "neo4j",
+    "settings": {}
+   },
+   "provider": "auto",
+   "settings": {}
   },
   "ingest": {
    "asset_allowed_mime": [
@@ -9978,12 +10036,11 @@
    "leg_weights": {},
    "leg_weights_by_shape": {},
    "legs_v2": false,
-   "lexical_analyzer": "default",
-   "lexical_dates": false,
    "lexical_language": "en",
    "lexical_namespace_languages": {},
    "lexical_provider": "tantivy",
    "lexical_scorer": "bm25",
+   "lexical_settings": {},
    "lexical_strip_names": false,
    "lift_before_rerank": false,
    "lift_max_turns": 2,
@@ -10082,14 +10139,11 @@
    "rerank_chunk_overlap": 0,
    "rerank_context": 0,
    "rerank_date_prefix": false,
-   "rerank_device": null,
    "rerank_floor": "minmax",
    "rerank_gate": null,
-   "rerank_instruction": null,
    "rerank_keep": null,
    "rerank_max_top_k": null,
-   "rerank_model": null,
-   "rerank_quant": null,
+   "rerank_settings": {},
    "rerank_v2": false,
    "rerank_v2_chain": [
     "jina",
@@ -10188,30 +10242,57 @@
    "backlog_max_items": 2000,
    "backlog_max_total_items": 0,
    "backlog_retry_after_s": 1.0,
+   "deployment_id": null,
    "encoder_batch_max": 32,
    "encoder_batch_wait_ms": 5.0,
+   "environment": "development",
    "lag_p95_budget_s": null,
    "model_concurrency": 0,
+   "provider_services": {
+    "close_timeout_s": 10.0,
+    "health_timeout_s": 5.0,
+    "startup_timeout_s": null
+   },
    "read_p95_budget_s": null,
-   "scheduler_v2": false
+   "scheduler_v2": false,
+   "service_switches": {
+    "cache": {
+     "mode": "controlled",
+     "strategy": "cold_start"
+    },
+    "embeddings": {
+     "mode": "controlled",
+     "strategy": "reembed"
+    },
+    "models": {
+     "historical_derivation": "forward_only",
+     "mode": "controlled"
+    },
+    "projections": {
+     "cleanup_batch_size": 50,
+     "cleanup_interval_s": null,
+     "mode": "controlled",
+     "retention_s": null
+    },
+    "storage": {
+     "auto_delete_source": false,
+     "mode": "controlled",
+     "strategy": "verified_migration"
+    }
+   }
   },
   "storage": {
-   "backend": "sqlite",
-   "data_dir": null,
-   "encryption": {
-    "key_env": null,
-    "mode": "none"
-   },
-   "path": "./memspine.db",
    "profile": "embedded",
-   "url": null
+   "provider": "sqlite",
+   "settings": {
+    "busy_timeout_s": 5.0,
+    "path": "./memspine.db"
+   }
   },
   "strict_services": true,
   "vector": {
-   "backend": "lance",
-   "isolation": "shared",
-   "namespace_index": false,
-   "quantization": "auto"
+   "provider": "lancedb",
+   "settings": {}
   },
   "workers": {
    "broker_url": "redis://localhost:6379/0",
@@ -10292,12 +10373,8 @@
    "reads": false
   },
   "cache": {
-   "backend": "memory",
-   "default_ttl_seconds": null,
-   "max_entries": 65536,
-   "namespace": "memspine",
-   "path": "./memspine.cache",
-   "url": "redis://localhost:6379/0"
+   "provider": "memory",
+   "settings": {}
   },
   "consent": {
    "enforce": false,
@@ -10326,25 +10403,12 @@
    "ledger_v2": false
   },
   "embedding": {
-   "api_base": null,
-   "api_key": null,
-   "aws_region": null,
    "batch_size": 32,
-   "device": null,
-   "dim": null,
-   "document_input_type": null,
-   "document_prompt_name": null,
-   "dtype": null,
    "migrate_profile": false,
-   "model": "BAAI/bge-small-en-v1.5",
    "pin_profile": false,
    "profile": null,
    "provider": "fastembed",
-   "query_input_type": null,
-   "query_instruction": null,
-   "query_prompt_name": null,
-   "request_dimensions": false,
-   "trust_remote_code": false,
+   "settings": {},
    "versioned_spaces": false
   },
   "event_log": {
@@ -10379,16 +10443,16 @@
    "tag_assistant_claims": false
   },
   "graph": {
-   "backend": "auto",
    "edge_compiler_v2": false,
    "entity_embeddings": false,
    "key_v2": false,
-   "neo4j_database": "neo4j",
-   "neo4j_outbox": false,
-   "neo4j_password_env": "MEMSPINE_NEO4J_PASSWORD",
-   "neo4j_url_env": "MEMSPINE_NEO4J_URL",
-   "neo4j_user_env": "MEMSPINE_NEO4J_USER",
-   "provider": "auto"
+   "mirror": {
+    "enabled": false,
+    "provider": "neo4j",
+    "settings": {}
+   },
+   "provider": "auto",
+   "settings": {}
   },
   "ingest": {
    "asset_allowed_mime": [
@@ -10714,12 +10778,11 @@
    "leg_weights": {},
    "leg_weights_by_shape": {},
    "legs_v2": false,
-   "lexical_analyzer": "default",
-   "lexical_dates": false,
    "lexical_language": "en",
    "lexical_namespace_languages": {},
    "lexical_provider": "tantivy",
    "lexical_scorer": "bm25",
+   "lexical_settings": {},
    "lexical_strip_names": false,
    "lift_before_rerank": false,
    "lift_max_turns": 2,
@@ -10818,14 +10881,11 @@
    "rerank_chunk_overlap": 0,
    "rerank_context": 0,
    "rerank_date_prefix": false,
-   "rerank_device": null,
    "rerank_floor": "minmax",
    "rerank_gate": null,
-   "rerank_instruction": null,
    "rerank_keep": null,
    "rerank_max_top_k": null,
-   "rerank_model": null,
-   "rerank_quant": null,
+   "rerank_settings": {},
    "rerank_v2": false,
    "rerank_v2_chain": [
     "jina",
@@ -10924,30 +10984,57 @@
    "backlog_max_items": 2000,
    "backlog_max_total_items": 0,
    "backlog_retry_after_s": 1.0,
+   "deployment_id": null,
    "encoder_batch_max": 32,
    "encoder_batch_wait_ms": 5.0,
+   "environment": "development",
    "lag_p95_budget_s": null,
    "model_concurrency": 0,
+   "provider_services": {
+    "close_timeout_s": 10.0,
+    "health_timeout_s": 5.0,
+    "startup_timeout_s": null
+   },
    "read_p95_budget_s": null,
-   "scheduler_v2": false
+   "scheduler_v2": false,
+   "service_switches": {
+    "cache": {
+     "mode": "controlled",
+     "strategy": "cold_start"
+    },
+    "embeddings": {
+     "mode": "controlled",
+     "strategy": "reembed"
+    },
+    "models": {
+     "historical_derivation": "forward_only",
+     "mode": "controlled"
+    },
+    "projections": {
+     "cleanup_batch_size": 50,
+     "cleanup_interval_s": null,
+     "mode": "controlled",
+     "retention_s": null
+    },
+    "storage": {
+     "auto_delete_source": false,
+     "mode": "controlled",
+     "strategy": "verified_migration"
+    }
+   }
   },
   "storage": {
-   "backend": "sqlite",
-   "data_dir": null,
-   "encryption": {
-    "key_env": null,
-    "mode": "none"
-   },
-   "path": "./memspine.db",
    "profile": "embedded",
-   "url": null
+   "provider": "sqlite",
+   "settings": {
+    "busy_timeout_s": 5.0,
+    "path": "./memspine.db"
+   }
   },
   "strict_services": true,
   "vector": {
-   "backend": "lance",
-   "isolation": "shared",
-   "namespace_index": false,
-   "quantization": "auto"
+   "provider": "lancedb",
+   "settings": {}
   },
   "workers": {
    "broker_url": "redis://localhost:6379/0",
@@ -11028,12 +11115,8 @@
    "reads": false
   },
   "cache": {
-   "backend": "memory",
-   "default_ttl_seconds": null,
-   "max_entries": 65536,
-   "namespace": "memspine",
-   "path": "./memspine.cache",
-   "url": "redis://localhost:6379/0"
+   "provider": "memory",
+   "settings": {}
   },
   "consent": {
    "enforce": false,
@@ -11062,25 +11145,12 @@
    "ledger_v2": false
   },
   "embedding": {
-   "api_base": null,
-   "api_key": null,
-   "aws_region": null,
    "batch_size": 32,
-   "device": null,
-   "dim": null,
-   "document_input_type": null,
-   "document_prompt_name": null,
-   "dtype": null,
    "migrate_profile": false,
-   "model": "BAAI/bge-small-en-v1.5",
    "pin_profile": false,
    "profile": null,
    "provider": "fastembed",
-   "query_input_type": null,
-   "query_instruction": null,
-   "query_prompt_name": null,
-   "request_dimensions": false,
-   "trust_remote_code": false,
+   "settings": {},
    "versioned_spaces": false
   },
   "event_log": {
@@ -11115,16 +11185,16 @@
    "tag_assistant_claims": false
   },
   "graph": {
-   "backend": "auto",
    "edge_compiler_v2": false,
    "entity_embeddings": false,
    "key_v2": false,
-   "neo4j_database": "neo4j",
-   "neo4j_outbox": false,
-   "neo4j_password_env": "MEMSPINE_NEO4J_PASSWORD",
-   "neo4j_url_env": "MEMSPINE_NEO4J_URL",
-   "neo4j_user_env": "MEMSPINE_NEO4J_USER",
-   "provider": "auto"
+   "mirror": {
+    "enabled": false,
+    "provider": "neo4j",
+    "settings": {}
+   },
+   "provider": "auto",
+   "settings": {}
   },
   "ingest": {
    "asset_allowed_mime": [
@@ -11450,12 +11520,11 @@
    "leg_weights": {},
    "leg_weights_by_shape": {},
    "legs_v2": false,
-   "lexical_analyzer": "default",
-   "lexical_dates": false,
    "lexical_language": "en",
    "lexical_namespace_languages": {},
    "lexical_provider": "tantivy",
    "lexical_scorer": "bm25",
+   "lexical_settings": {},
    "lexical_strip_names": false,
    "lift_before_rerank": false,
    "lift_max_turns": 2,
@@ -11554,14 +11623,11 @@
    "rerank_chunk_overlap": 0,
    "rerank_context": 0,
    "rerank_date_prefix": false,
-   "rerank_device": null,
    "rerank_floor": "minmax",
    "rerank_gate": null,
-   "rerank_instruction": null,
    "rerank_keep": null,
    "rerank_max_top_k": null,
-   "rerank_model": null,
-   "rerank_quant": null,
+   "rerank_settings": {},
    "rerank_v2": false,
    "rerank_v2_chain": [
     "jina",
@@ -11660,30 +11726,57 @@
    "backlog_max_items": 2000,
    "backlog_max_total_items": 0,
    "backlog_retry_after_s": 1.0,
+   "deployment_id": null,
    "encoder_batch_max": 32,
    "encoder_batch_wait_ms": 5.0,
+   "environment": "development",
    "lag_p95_budget_s": null,
    "model_concurrency": 0,
+   "provider_services": {
+    "close_timeout_s": 10.0,
+    "health_timeout_s": 5.0,
+    "startup_timeout_s": null
+   },
    "read_p95_budget_s": null,
-   "scheduler_v2": false
+   "scheduler_v2": false,
+   "service_switches": {
+    "cache": {
+     "mode": "controlled",
+     "strategy": "cold_start"
+    },
+    "embeddings": {
+     "mode": "controlled",
+     "strategy": "reembed"
+    },
+    "models": {
+     "historical_derivation": "forward_only",
+     "mode": "controlled"
+    },
+    "projections": {
+     "cleanup_batch_size": 50,
+     "cleanup_interval_s": null,
+     "mode": "controlled",
+     "retention_s": null
+    },
+    "storage": {
+     "auto_delete_source": false,
+     "mode": "controlled",
+     "strategy": "verified_migration"
+    }
+   }
   },
   "storage": {
-   "backend": "sqlite",
-   "data_dir": null,
-   "encryption": {
-    "key_env": null,
-    "mode": "none"
-   },
-   "path": "./memspine.db",
    "profile": "embedded",
-   "url": null
+   "provider": "sqlite",
+   "settings": {
+    "busy_timeout_s": 5.0,
+    "path": "./memspine.db"
+   }
   },
   "strict_services": true,
   "vector": {
-   "backend": "lance",
-   "isolation": "shared",
-   "namespace_index": false,
-   "quantization": "auto"
+   "provider": "lancedb",
+   "settings": {}
   },
   "workers": {
    "broker_url": "redis://localhost:6379/0",
@@ -11764,12 +11857,8 @@
    "reads": false
   },
   "cache": {
-   "backend": "memory",
-   "default_ttl_seconds": null,
-   "max_entries": 65536,
-   "namespace": "memspine",
-   "path": "./memspine.cache",
-   "url": "redis://localhost:6379/0"
+   "provider": "memory",
+   "settings": {}
   },
   "consent": {
    "enforce": false,
@@ -11798,25 +11887,12 @@
    "ledger_v2": false
   },
   "embedding": {
-   "api_base": null,
-   "api_key": null,
-   "aws_region": null,
    "batch_size": 32,
-   "device": null,
-   "dim": null,
-   "document_input_type": null,
-   "document_prompt_name": null,
-   "dtype": null,
    "migrate_profile": false,
-   "model": "BAAI/bge-small-en-v1.5",
    "pin_profile": false,
    "profile": null,
    "provider": "fastembed",
-   "query_input_type": null,
-   "query_instruction": null,
-   "query_prompt_name": null,
-   "request_dimensions": false,
-   "trust_remote_code": false,
+   "settings": {},
    "versioned_spaces": false
   },
   "event_log": {
@@ -11851,16 +11927,16 @@
    "tag_assistant_claims": false
   },
   "graph": {
-   "backend": "auto",
    "edge_compiler_v2": false,
    "entity_embeddings": false,
    "key_v2": false,
-   "neo4j_database": "neo4j",
-   "neo4j_outbox": false,
-   "neo4j_password_env": "MEMSPINE_NEO4J_PASSWORD",
-   "neo4j_url_env": "MEMSPINE_NEO4J_URL",
-   "neo4j_user_env": "MEMSPINE_NEO4J_USER",
-   "provider": "auto"
+   "mirror": {
+    "enabled": false,
+    "provider": "neo4j",
+    "settings": {}
+   },
+   "provider": "auto",
+   "settings": {}
   },
   "ingest": {
    "asset_allowed_mime": [
@@ -12186,12 +12262,11 @@
    "leg_weights": {},
    "leg_weights_by_shape": {},
    "legs_v2": false,
-   "lexical_analyzer": "default",
-   "lexical_dates": false,
    "lexical_language": "en",
    "lexical_namespace_languages": {},
    "lexical_provider": "tantivy",
    "lexical_scorer": "bm25",
+   "lexical_settings": {},
    "lexical_strip_names": false,
    "lift_before_rerank": false,
    "lift_max_turns": 2,
@@ -12290,14 +12365,11 @@
    "rerank_chunk_overlap": 0,
    "rerank_context": 0,
    "rerank_date_prefix": false,
-   "rerank_device": null,
    "rerank_floor": "minmax",
    "rerank_gate": null,
-   "rerank_instruction": null,
    "rerank_keep": null,
    "rerank_max_top_k": null,
-   "rerank_model": null,
-   "rerank_quant": null,
+   "rerank_settings": {},
    "rerank_v2": false,
    "rerank_v2_chain": [
     "jina",
@@ -12396,30 +12468,57 @@
    "backlog_max_items": 2000,
    "backlog_max_total_items": 0,
    "backlog_retry_after_s": 1.0,
+   "deployment_id": null,
    "encoder_batch_max": 32,
    "encoder_batch_wait_ms": 5.0,
+   "environment": "development",
    "lag_p95_budget_s": null,
    "model_concurrency": 0,
+   "provider_services": {
+    "close_timeout_s": 10.0,
+    "health_timeout_s": 5.0,
+    "startup_timeout_s": null
+   },
    "read_p95_budget_s": null,
-   "scheduler_v2": false
+   "scheduler_v2": false,
+   "service_switches": {
+    "cache": {
+     "mode": "controlled",
+     "strategy": "cold_start"
+    },
+    "embeddings": {
+     "mode": "controlled",
+     "strategy": "reembed"
+    },
+    "models": {
+     "historical_derivation": "forward_only",
+     "mode": "controlled"
+    },
+    "projections": {
+     "cleanup_batch_size": 50,
+     "cleanup_interval_s": null,
+     "mode": "controlled",
+     "retention_s": null
+    },
+    "storage": {
+     "auto_delete_source": false,
+     "mode": "controlled",
+     "strategy": "verified_migration"
+    }
+   }
   },
   "storage": {
-   "backend": "sqlite",
-   "data_dir": null,
-   "encryption": {
-    "key_env": null,
-    "mode": "none"
-   },
-   "path": "./memspine.db",
    "profile": "embedded",
-   "url": null
+   "provider": "sqlite",
+   "settings": {
+    "busy_timeout_s": 5.0,
+    "path": "./memspine.db"
+   }
   },
   "strict_services": true,
   "vector": {
-   "backend": "lance",
-   "isolation": "shared",
-   "namespace_index": false,
-   "quantization": "auto"
+   "provider": "lancedb",
+   "settings": {}
   },
   "workers": {
    "broker_url": "redis://localhost:6379/0",
@@ -12500,12 +12599,8 @@
    "reads": false
   },
   "cache": {
-   "backend": "memory",
-   "default_ttl_seconds": null,
-   "max_entries": 65536,
-   "namespace": "memspine",
-   "path": "./memspine.cache",
-   "url": "redis://localhost:6379/0"
+   "provider": "memory",
+   "settings": {}
   },
   "consent": {
    "enforce": false,
@@ -12534,25 +12629,14 @@
    "ledger_v2": false
   },
   "embedding": {
-   "api_base": null,
-   "api_key": null,
-   "aws_region": null,
    "batch_size": 32,
-   "device": null,
-   "dim": null,
-   "document_input_type": null,
-   "document_prompt_name": null,
-   "dtype": null,
    "migrate_profile": false,
-   "model": "BAAI/bge-small-en-v1.5",
    "pin_profile": false,
    "profile": null,
    "provider": "fastembed",
-   "query_input_type": null,
-   "query_instruction": null,
-   "query_prompt_name": null,
-   "request_dimensions": false,
-   "trust_remote_code": false,
+   "settings": {
+    "model": "BAAI/bge-small-en-v1.5"
+   },
    "versioned_spaces": false
   },
   "event_log": {
@@ -12587,16 +12671,16 @@
    "tag_assistant_claims": false
   },
   "graph": {
-   "backend": "auto",
    "edge_compiler_v2": false,
    "entity_embeddings": false,
    "key_v2": false,
-   "neo4j_database": "neo4j",
-   "neo4j_outbox": false,
-   "neo4j_password_env": "MEMSPINE_NEO4J_PASSWORD",
-   "neo4j_url_env": "MEMSPINE_NEO4J_URL",
-   "neo4j_user_env": "MEMSPINE_NEO4J_USER",
-   "provider": "sqlite_adjacency"
+   "mirror": {
+    "enabled": false,
+    "provider": "neo4j",
+    "settings": {}
+   },
+   "provider": "sqlite_adjacency",
+   "settings": {}
   },
   "ingest": {
    "asset_allowed_mime": [
@@ -12931,12 +13015,11 @@
    "leg_weights": {},
    "leg_weights_by_shape": {},
    "legs_v2": false,
-   "lexical_analyzer": "default",
-   "lexical_dates": false,
    "lexical_language": "en",
    "lexical_namespace_languages": {},
    "lexical_provider": "tantivy",
    "lexical_scorer": "bm25",
+   "lexical_settings": {},
    "lexical_strip_names": false,
    "lift_before_rerank": false,
    "lift_max_turns": 2,
@@ -13035,14 +13118,11 @@
    "rerank_chunk_overlap": 0,
    "rerank_context": 0,
    "rerank_date_prefix": false,
-   "rerank_device": null,
    "rerank_floor": "minmax",
    "rerank_gate": null,
-   "rerank_instruction": null,
    "rerank_keep": null,
    "rerank_max_top_k": null,
-   "rerank_model": null,
-   "rerank_quant": null,
+   "rerank_settings": {},
    "rerank_v2": false,
    "rerank_v2_chain": [
     "jina",
@@ -13141,30 +13221,59 @@
    "backlog_max_items": 2000,
    "backlog_max_total_items": 0,
    "backlog_retry_after_s": 1.0,
+   "deployment_id": null,
    "encoder_batch_max": 32,
    "encoder_batch_wait_ms": 5.0,
+   "environment": "development",
    "lag_p95_budget_s": null,
    "model_concurrency": 0,
+   "provider_services": {
+    "close_timeout_s": 10.0,
+    "health_timeout_s": 5.0,
+    "startup_timeout_s": null
+   },
    "read_p95_budget_s": null,
-   "scheduler_v2": false
+   "scheduler_v2": false,
+   "service_switches": {
+    "cache": {
+     "mode": "controlled",
+     "strategy": "cold_start"
+    },
+    "embeddings": {
+     "mode": "controlled",
+     "strategy": "reembed"
+    },
+    "models": {
+     "historical_derivation": "forward_only",
+     "mode": "controlled"
+    },
+    "projections": {
+     "cleanup_batch_size": 50,
+     "cleanup_interval_s": null,
+     "mode": "controlled",
+     "retention_s": null
+    },
+    "storage": {
+     "auto_delete_source": false,
+     "mode": "controlled",
+     "strategy": "verified_migration"
+    }
+   }
   },
   "storage": {
-   "backend": "sqlite",
-   "data_dir": null,
-   "encryption": {
-    "key_env": null,
-    "mode": "none"
-   },
-   "path": "./memspine_benchmark.db",
    "profile": "embedded",
-   "url": null
+   "provider": "sqlite",
+   "settings": {
+    "busy_timeout_s": 5.0,
+    "path": "./memspine_benchmark.db"
+   }
   },
   "strict_services": true,
   "vector": {
-   "backend": "lance",
-   "isolation": "shared",
-   "namespace_index": false,
-   "quantization": "auto"
+   "provider": "lancedb",
+   "settings": {
+    "quantization": "auto"
+   }
   },
   "workers": {
    "broker_url": "redis://localhost:6379/0",
@@ -13245,12 +13354,8 @@
    "reads": false
   },
   "cache": {
-   "backend": "memory",
-   "default_ttl_seconds": null,
-   "max_entries": 65536,
-   "namespace": "memspine",
-   "path": "./memspine.cache",
-   "url": "redis://localhost:6379/0"
+   "provider": "memory",
+   "settings": {}
   },
   "consent": {
    "enforce": false,
@@ -13279,25 +13384,12 @@
    "ledger_v2": false
   },
   "embedding": {
-   "api_base": null,
-   "api_key": null,
-   "aws_region": null,
    "batch_size": 32,
-   "device": null,
-   "dim": null,
-   "document_input_type": null,
-   "document_prompt_name": null,
-   "dtype": null,
    "migrate_profile": false,
-   "model": "BAAI/bge-small-en-v1.5",
    "pin_profile": false,
    "profile": null,
    "provider": "fastembed",
-   "query_input_type": null,
-   "query_instruction": null,
-   "query_prompt_name": null,
-   "request_dimensions": false,
-   "trust_remote_code": false,
+   "settings": {},
    "versioned_spaces": false
   },
   "event_log": {
@@ -13332,16 +13424,16 @@
    "tag_assistant_claims": false
   },
   "graph": {
-   "backend": "auto",
    "edge_compiler_v2": false,
    "entity_embeddings": false,
    "key_v2": false,
-   "neo4j_database": "neo4j",
-   "neo4j_outbox": false,
-   "neo4j_password_env": "MEMSPINE_NEO4J_PASSWORD",
-   "neo4j_url_env": "MEMSPINE_NEO4J_URL",
-   "neo4j_user_env": "MEMSPINE_NEO4J_USER",
-   "provider": "auto"
+   "mirror": {
+    "enabled": false,
+    "provider": "neo4j",
+    "settings": {}
+   },
+   "provider": "auto",
+   "settings": {}
   },
   "ingest": {
    "asset_allowed_mime": [
@@ -13672,12 +13764,11 @@
    "leg_weights": {},
    "leg_weights_by_shape": {},
    "legs_v2": false,
-   "lexical_analyzer": "default",
-   "lexical_dates": false,
    "lexical_language": "en",
    "lexical_namespace_languages": {},
    "lexical_provider": "tantivy",
    "lexical_scorer": "bm25",
+   "lexical_settings": {},
    "lexical_strip_names": false,
    "lift_before_rerank": false,
    "lift_max_turns": 2,
@@ -13776,14 +13867,11 @@
    "rerank_chunk_overlap": 0,
    "rerank_context": 0,
    "rerank_date_prefix": false,
-   "rerank_device": null,
    "rerank_floor": "minmax",
    "rerank_gate": null,
-   "rerank_instruction": null,
    "rerank_keep": null,
    "rerank_max_top_k": null,
-   "rerank_model": null,
-   "rerank_quant": null,
+   "rerank_settings": {},
    "rerank_v2": false,
    "rerank_v2_chain": [
     "jina",
@@ -13882,30 +13970,57 @@
    "backlog_max_items": 2000,
    "backlog_max_total_items": 0,
    "backlog_retry_after_s": 1.0,
+   "deployment_id": null,
    "encoder_batch_max": 32,
    "encoder_batch_wait_ms": 5.0,
+   "environment": "development",
    "lag_p95_budget_s": null,
    "model_concurrency": 0,
+   "provider_services": {
+    "close_timeout_s": 10.0,
+    "health_timeout_s": 5.0,
+    "startup_timeout_s": null
+   },
    "read_p95_budget_s": null,
-   "scheduler_v2": false
+   "scheduler_v2": false,
+   "service_switches": {
+    "cache": {
+     "mode": "controlled",
+     "strategy": "cold_start"
+    },
+    "embeddings": {
+     "mode": "controlled",
+     "strategy": "reembed"
+    },
+    "models": {
+     "historical_derivation": "forward_only",
+     "mode": "controlled"
+    },
+    "projections": {
+     "cleanup_batch_size": 50,
+     "cleanup_interval_s": null,
+     "mode": "controlled",
+     "retention_s": null
+    },
+    "storage": {
+     "auto_delete_source": false,
+     "mode": "controlled",
+     "strategy": "verified_migration"
+    }
+   }
   },
   "storage": {
-   "backend": "sqlite",
-   "data_dir": null,
-   "encryption": {
-    "key_env": null,
-    "mode": "none"
-   },
-   "path": "./memspine.db",
    "profile": "embedded",
-   "url": null
+   "provider": "sqlite",
+   "settings": {
+    "busy_timeout_s": 5.0,
+    "path": "./memspine.db"
+   }
   },
   "strict_services": true,
   "vector": {
-   "backend": "lance",
-   "isolation": "shared",
-   "namespace_index": false,
-   "quantization": "auto"
+   "provider": "lancedb",
+   "settings": {}
   },
   "workers": {
    "broker_url": "redis://localhost:6379/0",
@@ -13986,12 +14101,8 @@
    "reads": false
   },
   "cache": {
-   "backend": "memory",
-   "default_ttl_seconds": null,
-   "max_entries": 65536,
-   "namespace": "memspine",
-   "path": "./memspine.cache",
-   "url": "redis://localhost:6379/0"
+   "provider": "memory",
+   "settings": {}
   },
   "consent": {
    "enforce": false,
@@ -14020,25 +14131,12 @@
    "ledger_v2": false
   },
   "embedding": {
-   "api_base": null,
-   "api_key": null,
-   "aws_region": null,
    "batch_size": 32,
-   "device": null,
-   "dim": null,
-   "document_input_type": null,
-   "document_prompt_name": null,
-   "dtype": null,
    "migrate_profile": false,
-   "model": "BAAI/bge-small-en-v1.5",
    "pin_profile": false,
    "profile": null,
    "provider": "fastembed",
-   "query_input_type": null,
-   "query_instruction": null,
-   "query_prompt_name": null,
-   "request_dimensions": false,
-   "trust_remote_code": false,
+   "settings": {},
    "versioned_spaces": false
   },
   "event_log": {
@@ -14073,16 +14171,16 @@
    "tag_assistant_claims": false
   },
   "graph": {
-   "backend": "auto",
    "edge_compiler_v2": false,
    "entity_embeddings": false,
    "key_v2": false,
-   "neo4j_database": "neo4j",
-   "neo4j_outbox": false,
-   "neo4j_password_env": "MEMSPINE_NEO4J_PASSWORD",
-   "neo4j_url_env": "MEMSPINE_NEO4J_URL",
-   "neo4j_user_env": "MEMSPINE_NEO4J_USER",
-   "provider": "auto"
+   "mirror": {
+    "enabled": false,
+    "provider": "neo4j",
+    "settings": {}
+   },
+   "provider": "auto",
+   "settings": {}
   },
   "ingest": {
    "asset_allowed_mime": [
@@ -14398,12 +14496,11 @@
    "leg_weights": {},
    "leg_weights_by_shape": {},
    "legs_v2": false,
-   "lexical_analyzer": "default",
-   "lexical_dates": false,
    "lexical_language": "en",
    "lexical_namespace_languages": {},
    "lexical_provider": "tantivy",
    "lexical_scorer": "bm25",
+   "lexical_settings": {},
    "lexical_strip_names": false,
    "lift_before_rerank": false,
    "lift_max_turns": 2,
@@ -14502,14 +14599,11 @@
    "rerank_chunk_overlap": 0,
    "rerank_context": 0,
    "rerank_date_prefix": false,
-   "rerank_device": null,
    "rerank_floor": "minmax",
    "rerank_gate": null,
-   "rerank_instruction": null,
    "rerank_keep": null,
    "rerank_max_top_k": null,
-   "rerank_model": null,
-   "rerank_quant": null,
+   "rerank_settings": {},
    "rerank_v2": false,
    "rerank_v2_chain": [
     "jina",
@@ -14604,30 +14698,57 @@
    "backlog_max_items": 2000,
    "backlog_max_total_items": 0,
    "backlog_retry_after_s": 1.0,
+   "deployment_id": null,
    "encoder_batch_max": 32,
    "encoder_batch_wait_ms": 5.0,
+   "environment": "development",
    "lag_p95_budget_s": null,
    "model_concurrency": 0,
+   "provider_services": {
+    "close_timeout_s": 10.0,
+    "health_timeout_s": 5.0,
+    "startup_timeout_s": null
+   },
    "read_p95_budget_s": null,
-   "scheduler_v2": false
+   "scheduler_v2": false,
+   "service_switches": {
+    "cache": {
+     "mode": "controlled",
+     "strategy": "cold_start"
+    },
+    "embeddings": {
+     "mode": "controlled",
+     "strategy": "reembed"
+    },
+    "models": {
+     "historical_derivation": "forward_only",
+     "mode": "controlled"
+    },
+    "projections": {
+     "cleanup_batch_size": 50,
+     "cleanup_interval_s": null,
+     "mode": "controlled",
+     "retention_s": null
+    },
+    "storage": {
+     "auto_delete_source": false,
+     "mode": "controlled",
+     "strategy": "verified_migration"
+    }
+   }
   },
   "storage": {
-   "backend": "sqlite",
-   "data_dir": null,
-   "encryption": {
-    "key_env": null,
-    "mode": "none"
-   },
-   "path": "./memspine.db",
    "profile": "embedded",
-   "url": null
+   "provider": "sqlite",
+   "settings": {
+    "busy_timeout_s": 5.0,
+    "path": "./memspine.db"
+   }
   },
   "strict_services": true,
   "vector": {
-   "backend": "lance",
-   "isolation": "shared",
-   "namespace_index": false,
-   "quantization": "auto"
+   "provider": "lancedb",
+   "settings": {}
   },
   "workers": {
    "broker_url": "redis://localhost:6379/0",
@@ -14708,12 +14829,8 @@
    "reads": false
   },
   "cache": {
-   "backend": "memory",
-   "default_ttl_seconds": null,
-   "max_entries": 65536,
-   "namespace": "memspine",
-   "path": "./memspine.cache",
-   "url": "redis://localhost:6379/0"
+   "provider": "memory",
+   "settings": {}
   },
   "consent": {
    "enforce": false,
@@ -14742,25 +14859,12 @@
    "ledger_v2": false
   },
   "embedding": {
-   "api_base": null,
-   "api_key": null,
-   "aws_region": null,
    "batch_size": 32,
-   "device": null,
-   "dim": null,
-   "document_input_type": null,
-   "document_prompt_name": null,
-   "dtype": null,
    "migrate_profile": false,
-   "model": "BAAI/bge-small-en-v1.5",
    "pin_profile": false,
    "profile": null,
    "provider": "fastembed",
-   "query_input_type": null,
-   "query_instruction": null,
-   "query_prompt_name": null,
-   "request_dimensions": false,
-   "trust_remote_code": false,
+   "settings": {},
    "versioned_spaces": false
   },
   "event_log": {
@@ -14795,16 +14899,16 @@
    "tag_assistant_claims": false
   },
   "graph": {
-   "backend": "auto",
    "edge_compiler_v2": false,
    "entity_embeddings": true,
    "key_v2": false,
-   "neo4j_database": "neo4j",
-   "neo4j_outbox": false,
-   "neo4j_password_env": "MEMSPINE_NEO4J_PASSWORD",
-   "neo4j_url_env": "MEMSPINE_NEO4J_URL",
-   "neo4j_user_env": "MEMSPINE_NEO4J_USER",
-   "provider": "auto"
+   "mirror": {
+    "enabled": false,
+    "provider": "neo4j",
+    "settings": {}
+   },
+   "provider": "auto",
+   "settings": {}
   },
   "ingest": {
    "asset_allowed_mime": [
@@ -15138,12 +15242,11 @@
    "leg_weights": {},
    "leg_weights_by_shape": {},
    "legs_v2": false,
-   "lexical_analyzer": "default",
-   "lexical_dates": false,
    "lexical_language": "en",
    "lexical_namespace_languages": {},
    "lexical_provider": "tantivy",
    "lexical_scorer": "bm25",
+   "lexical_settings": {},
    "lexical_strip_names": false,
    "lift_before_rerank": false,
    "lift_max_turns": 2,
@@ -15242,14 +15345,11 @@
    "rerank_chunk_overlap": 0,
    "rerank_context": 0,
    "rerank_date_prefix": false,
-   "rerank_device": null,
    "rerank_floor": "minmax",
    "rerank_gate": null,
-   "rerank_instruction": null,
    "rerank_keep": null,
    "rerank_max_top_k": null,
-   "rerank_model": null,
-   "rerank_quant": null,
+   "rerank_settings": {},
    "rerank_v2": false,
    "rerank_v2_chain": [
     "jina",
@@ -15348,30 +15448,57 @@
    "backlog_max_items": 2000,
    "backlog_max_total_items": 0,
    "backlog_retry_after_s": 1.0,
+   "deployment_id": null,
    "encoder_batch_max": 32,
    "encoder_batch_wait_ms": 5.0,
+   "environment": "development",
    "lag_p95_budget_s": null,
    "model_concurrency": 0,
+   "provider_services": {
+    "close_timeout_s": 10.0,
+    "health_timeout_s": 5.0,
+    "startup_timeout_s": null
+   },
    "read_p95_budget_s": null,
-   "scheduler_v2": false
+   "scheduler_v2": false,
+   "service_switches": {
+    "cache": {
+     "mode": "controlled",
+     "strategy": "cold_start"
+    },
+    "embeddings": {
+     "mode": "controlled",
+     "strategy": "reembed"
+    },
+    "models": {
+     "historical_derivation": "forward_only",
+     "mode": "controlled"
+    },
+    "projections": {
+     "cleanup_batch_size": 50,
+     "cleanup_interval_s": null,
+     "mode": "controlled",
+     "retention_s": null
+    },
+    "storage": {
+     "auto_delete_source": false,
+     "mode": "controlled",
+     "strategy": "verified_migration"
+    }
+   }
   },
   "storage": {
-   "backend": "sqlite",
-   "data_dir": null,
-   "encryption": {
-    "key_env": null,
-    "mode": "none"
-   },
-   "path": "./memspine.db",
    "profile": "embedded",
-   "url": null
+   "provider": "sqlite",
+   "settings": {
+    "busy_timeout_s": 5.0,
+    "path": "./memspine.db"
+   }
   },
   "strict_services": true,
   "vector": {
-   "backend": "lance",
-   "isolation": "shared",
-   "namespace_index": false,
-   "quantization": "auto"
+   "provider": "lancedb",
+   "settings": {}
   },
   "workers": {
    "broker_url": "redis://localhost:6379/0",
@@ -15452,12 +15579,8 @@
    "reads": false
   },
   "cache": {
-   "backend": "memory",
-   "default_ttl_seconds": null,
-   "max_entries": 65536,
-   "namespace": "memspine",
-   "path": "./memspine.cache",
-   "url": "redis://localhost:6379/0"
+   "provider": "memory",
+   "settings": {}
   },
   "consent": {
    "enforce": false,
@@ -15486,25 +15609,12 @@
    "ledger_v2": false
   },
   "embedding": {
-   "api_base": null,
-   "api_key": null,
-   "aws_region": null,
    "batch_size": 32,
-   "device": null,
-   "dim": null,
-   "document_input_type": null,
-   "document_prompt_name": null,
-   "dtype": null,
    "migrate_profile": false,
-   "model": "BAAI/bge-small-en-v1.5",
    "pin_profile": false,
    "profile": null,
    "provider": "fastembed",
-   "query_input_type": null,
-   "query_instruction": null,
-   "query_prompt_name": null,
-   "request_dimensions": false,
-   "trust_remote_code": false,
+   "settings": {},
    "versioned_spaces": false
   },
   "event_log": {
@@ -15539,16 +15649,16 @@
    "tag_assistant_claims": false
   },
   "graph": {
-   "backend": "auto",
    "edge_compiler_v2": false,
    "entity_embeddings": false,
    "key_v2": false,
-   "neo4j_database": "neo4j",
-   "neo4j_outbox": false,
-   "neo4j_password_env": "MEMSPINE_NEO4J_PASSWORD",
-   "neo4j_url_env": "MEMSPINE_NEO4J_URL",
-   "neo4j_user_env": "MEMSPINE_NEO4J_USER",
-   "provider": "auto"
+   "mirror": {
+    "enabled": false,
+    "provider": "neo4j",
+    "settings": {}
+   },
+   "provider": "auto",
+   "settings": {}
   },
   "ingest": {
    "asset_allowed_mime": [
@@ -15878,12 +15988,11 @@
    "leg_weights": {},
    "leg_weights_by_shape": {},
    "legs_v2": false,
-   "lexical_analyzer": "default",
-   "lexical_dates": false,
    "lexical_language": "en",
    "lexical_namespace_languages": {},
    "lexical_provider": "tantivy",
    "lexical_scorer": "bm25",
+   "lexical_settings": {},
    "lexical_strip_names": false,
    "lift_before_rerank": false,
    "lift_max_turns": 2,
@@ -15982,14 +16091,11 @@
    "rerank_chunk_overlap": 0,
    "rerank_context": 0,
    "rerank_date_prefix": false,
-   "rerank_device": null,
    "rerank_floor": "minmax",
    "rerank_gate": null,
-   "rerank_instruction": null,
    "rerank_keep": null,
    "rerank_max_top_k": null,
-   "rerank_model": null,
-   "rerank_quant": null,
+   "rerank_settings": {},
    "rerank_v2": false,
    "rerank_v2_chain": [
     "jina",
@@ -16088,30 +16194,57 @@
    "backlog_max_items": 2000,
    "backlog_max_total_items": 0,
    "backlog_retry_after_s": 1.0,
+   "deployment_id": null,
    "encoder_batch_max": 32,
    "encoder_batch_wait_ms": 5.0,
+   "environment": "development",
    "lag_p95_budget_s": null,
    "model_concurrency": 0,
+   "provider_services": {
+    "close_timeout_s": 10.0,
+    "health_timeout_s": 5.0,
+    "startup_timeout_s": null
+   },
    "read_p95_budget_s": null,
-   "scheduler_v2": false
+   "scheduler_v2": false,
+   "service_switches": {
+    "cache": {
+     "mode": "controlled",
+     "strategy": "cold_start"
+    },
+    "embeddings": {
+     "mode": "controlled",
+     "strategy": "reembed"
+    },
+    "models": {
+     "historical_derivation": "forward_only",
+     "mode": "controlled"
+    },
+    "projections": {
+     "cleanup_batch_size": 50,
+     "cleanup_interval_s": null,
+     "mode": "controlled",
+     "retention_s": null
+    },
+    "storage": {
+     "auto_delete_source": false,
+     "mode": "controlled",
+     "strategy": "verified_migration"
+    }
+   }
   },
   "storage": {
-   "backend": "sqlite",
-   "data_dir": null,
-   "encryption": {
-    "key_env": null,
-    "mode": "none"
-   },
-   "path": "./memspine.db",
    "profile": "embedded",
-   "url": null
+   "provider": "sqlite",
+   "settings": {
+    "busy_timeout_s": 5.0,
+    "path": "./memspine.db"
+   }
   },
   "strict_services": true,
   "vector": {
-   "backend": "lance",
-   "isolation": "shared",
-   "namespace_index": false,
-   "quantization": "auto"
+   "provider": "lancedb",
+   "settings": {}
   },
   "workers": {
    "broker_url": "redis://localhost:6379/0",
@@ -16192,12 +16325,8 @@
    "reads": false
   },
   "cache": {
-   "backend": "memory",
-   "default_ttl_seconds": null,
-   "max_entries": 65536,
-   "namespace": "memspine",
-   "path": "./memspine.cache",
-   "url": "redis://localhost:6379/0"
+   "provider": "memory",
+   "settings": {}
   },
   "consent": {
    "enforce": false,
@@ -16226,25 +16355,12 @@
    "ledger_v2": false
   },
   "embedding": {
-   "api_base": null,
-   "api_key": null,
-   "aws_region": null,
    "batch_size": 32,
-   "device": null,
-   "dim": null,
-   "document_input_type": null,
-   "document_prompt_name": null,
-   "dtype": null,
    "migrate_profile": false,
-   "model": "BAAI/bge-small-en-v1.5",
    "pin_profile": false,
    "profile": null,
    "provider": "fastembed",
-   "query_input_type": null,
-   "query_instruction": null,
-   "query_prompt_name": null,
-   "request_dimensions": false,
-   "trust_remote_code": false,
+   "settings": {},
    "versioned_spaces": false
   },
   "event_log": {
@@ -16279,16 +16395,16 @@
    "tag_assistant_claims": false
   },
   "graph": {
-   "backend": "auto",
    "edge_compiler_v2": false,
    "entity_embeddings": false,
    "key_v2": false,
-   "neo4j_database": "neo4j",
-   "neo4j_outbox": false,
-   "neo4j_password_env": "MEMSPINE_NEO4J_PASSWORD",
-   "neo4j_url_env": "MEMSPINE_NEO4J_URL",
-   "neo4j_user_env": "MEMSPINE_NEO4J_USER",
-   "provider": "auto"
+   "mirror": {
+    "enabled": false,
+    "provider": "neo4j",
+    "settings": {}
+   },
+   "provider": "auto",
+   "settings": {}
   },
   "ingest": {
    "asset_allowed_mime": [
@@ -16622,12 +16738,11 @@
    "leg_weights": {},
    "leg_weights_by_shape": {},
    "legs_v2": false,
-   "lexical_analyzer": "default",
-   "lexical_dates": false,
    "lexical_language": "en",
    "lexical_namespace_languages": {},
    "lexical_provider": "tantivy",
    "lexical_scorer": "bm25",
+   "lexical_settings": {},
    "lexical_strip_names": false,
    "lift_before_rerank": false,
    "lift_max_turns": 2,
@@ -16726,14 +16841,11 @@
    "rerank_chunk_overlap": 0,
    "rerank_context": 0,
    "rerank_date_prefix": false,
-   "rerank_device": null,
    "rerank_floor": "minmax",
    "rerank_gate": null,
-   "rerank_instruction": null,
    "rerank_keep": null,
    "rerank_max_top_k": null,
-   "rerank_model": null,
-   "rerank_quant": null,
+   "rerank_settings": {},
    "rerank_v2": false,
    "rerank_v2_chain": [
     "jina",
@@ -16832,30 +16944,57 @@
    "backlog_max_items": 2000,
    "backlog_max_total_items": 0,
    "backlog_retry_after_s": 1.0,
+   "deployment_id": null,
    "encoder_batch_max": 32,
    "encoder_batch_wait_ms": 5.0,
+   "environment": "development",
    "lag_p95_budget_s": null,
    "model_concurrency": 0,
+   "provider_services": {
+    "close_timeout_s": 10.0,
+    "health_timeout_s": 5.0,
+    "startup_timeout_s": null
+   },
    "read_p95_budget_s": null,
-   "scheduler_v2": false
+   "scheduler_v2": false,
+   "service_switches": {
+    "cache": {
+     "mode": "controlled",
+     "strategy": "cold_start"
+    },
+    "embeddings": {
+     "mode": "controlled",
+     "strategy": "reembed"
+    },
+    "models": {
+     "historical_derivation": "forward_only",
+     "mode": "controlled"
+    },
+    "projections": {
+     "cleanup_batch_size": 50,
+     "cleanup_interval_s": null,
+     "mode": "controlled",
+     "retention_s": null
+    },
+    "storage": {
+     "auto_delete_source": false,
+     "mode": "controlled",
+     "strategy": "verified_migration"
+    }
+   }
   },
   "storage": {
-   "backend": "sqlite",
-   "data_dir": null,
-   "encryption": {
-    "key_env": null,
-    "mode": "none"
-   },
-   "path": "./memspine.db",
    "profile": "embedded",
-   "url": null
+   "provider": "sqlite",
+   "settings": {
+    "busy_timeout_s": 5.0,
+    "path": "./memspine.db"
+   }
   },
   "strict_services": true,
   "vector": {
-   "backend": "lance",
-   "isolation": "shared",
-   "namespace_index": false,
-   "quantization": "auto"
+   "provider": "lancedb",
+   "settings": {}
   },
   "workers": {
    "broker_url": "redis://localhost:6379/0",
@@ -16936,12 +17075,8 @@
    "reads": false
   },
   "cache": {
-   "backend": "memory",
-   "default_ttl_seconds": null,
-   "max_entries": 65536,
-   "namespace": "memspine",
-   "path": "./memspine.cache",
-   "url": "redis://localhost:6379/0"
+   "provider": "memory",
+   "settings": {}
   },
   "consent": {
    "enforce": false,
@@ -16970,25 +17105,12 @@
    "ledger_v2": false
   },
   "embedding": {
-   "api_base": null,
-   "api_key": null,
-   "aws_region": null,
    "batch_size": 32,
-   "device": null,
-   "dim": null,
-   "document_input_type": null,
-   "document_prompt_name": null,
-   "dtype": null,
    "migrate_profile": false,
-   "model": "BAAI/bge-small-en-v1.5",
    "pin_profile": false,
    "profile": null,
    "provider": "fastembed",
-   "query_input_type": null,
-   "query_instruction": null,
-   "query_prompt_name": null,
-   "request_dimensions": false,
-   "trust_remote_code": false,
+   "settings": {},
    "versioned_spaces": false
   },
   "event_log": {
@@ -17023,16 +17145,16 @@
    "tag_assistant_claims": true
   },
   "graph": {
-   "backend": "auto",
    "edge_compiler_v2": false,
    "entity_embeddings": false,
    "key_v2": false,
-   "neo4j_database": "neo4j",
-   "neo4j_outbox": false,
-   "neo4j_password_env": "MEMSPINE_NEO4J_PASSWORD",
-   "neo4j_url_env": "MEMSPINE_NEO4J_URL",
-   "neo4j_user_env": "MEMSPINE_NEO4J_USER",
-   "provider": "auto"
+   "mirror": {
+    "enabled": false,
+    "provider": "neo4j",
+    "settings": {}
+   },
+   "provider": "auto",
+   "settings": {}
   },
   "ingest": {
    "asset_allowed_mime": [
@@ -17358,12 +17480,11 @@
    "leg_weights": {},
    "leg_weights_by_shape": {},
    "legs_v2": false,
-   "lexical_analyzer": "default",
-   "lexical_dates": false,
    "lexical_language": "en",
    "lexical_namespace_languages": {},
    "lexical_provider": "tantivy",
    "lexical_scorer": "bm25",
+   "lexical_settings": {},
    "lexical_strip_names": false,
    "lift_before_rerank": false,
    "lift_max_turns": 2,
@@ -17462,14 +17583,11 @@
    "rerank_chunk_overlap": 0,
    "rerank_context": 0,
    "rerank_date_prefix": false,
-   "rerank_device": null,
    "rerank_floor": "minmax",
    "rerank_gate": null,
-   "rerank_instruction": null,
    "rerank_keep": null,
    "rerank_max_top_k": null,
-   "rerank_model": null,
-   "rerank_quant": null,
+   "rerank_settings": {},
    "rerank_v2": false,
    "rerank_v2_chain": [
     "jina",
@@ -17568,30 +17686,57 @@
    "backlog_max_items": 2000,
    "backlog_max_total_items": 0,
    "backlog_retry_after_s": 1.0,
+   "deployment_id": null,
    "encoder_batch_max": 32,
    "encoder_batch_wait_ms": 5.0,
+   "environment": "development",
    "lag_p95_budget_s": null,
    "model_concurrency": 0,
+   "provider_services": {
+    "close_timeout_s": 10.0,
+    "health_timeout_s": 5.0,
+    "startup_timeout_s": null
+   },
    "read_p95_budget_s": null,
-   "scheduler_v2": false
+   "scheduler_v2": false,
+   "service_switches": {
+    "cache": {
+     "mode": "controlled",
+     "strategy": "cold_start"
+    },
+    "embeddings": {
+     "mode": "controlled",
+     "strategy": "reembed"
+    },
+    "models": {
+     "historical_derivation": "forward_only",
+     "mode": "controlled"
+    },
+    "projections": {
+     "cleanup_batch_size": 50,
+     "cleanup_interval_s": null,
+     "mode": "controlled",
+     "retention_s": null
+    },
+    "storage": {
+     "auto_delete_source": false,
+     "mode": "controlled",
+     "strategy": "verified_migration"
+    }
+   }
   },
   "storage": {
-   "backend": "sqlite",
-   "data_dir": null,
-   "encryption": {
-    "key_env": null,
-    "mode": "none"
-   },
-   "path": "./memspine.db",
    "profile": "embedded",
-   "url": null
+   "provider": "sqlite",
+   "settings": {
+    "busy_timeout_s": 5.0,
+    "path": "./memspine.db"
+   }
   },
   "strict_services": true,
   "vector": {
-   "backend": "lance",
-   "isolation": "shared",
-   "namespace_index": false,
-   "quantization": "auto"
+   "provider": "lancedb",
+   "settings": {}
   },
   "workers": {
    "broker_url": "redis://localhost:6379/0",
@@ -17672,12 +17817,8 @@
    "reads": false
   },
   "cache": {
-   "backend": "memory",
-   "default_ttl_seconds": null,
-   "max_entries": 65536,
-   "namespace": "memspine",
-   "path": "./memspine.cache",
-   "url": "redis://localhost:6379/0"
+   "provider": "memory",
+   "settings": {}
   },
   "consent": {
    "enforce": false,
@@ -17706,25 +17847,12 @@
    "ledger_v2": false
   },
   "embedding": {
-   "api_base": null,
-   "api_key": null,
-   "aws_region": null,
    "batch_size": 32,
-   "device": null,
-   "dim": null,
-   "document_input_type": null,
-   "document_prompt_name": null,
-   "dtype": null,
    "migrate_profile": false,
-   "model": "BAAI/bge-small-en-v1.5",
    "pin_profile": false,
    "profile": null,
    "provider": "fastembed",
-   "query_input_type": null,
-   "query_instruction": null,
-   "query_prompt_name": null,
-   "request_dimensions": false,
-   "trust_remote_code": false,
+   "settings": {},
    "versioned_spaces": false
   },
   "event_log": {
@@ -17759,16 +17887,16 @@
    "tag_assistant_claims": false
   },
   "graph": {
-   "backend": "auto",
    "edge_compiler_v2": false,
    "entity_embeddings": false,
    "key_v2": false,
-   "neo4j_database": "neo4j",
-   "neo4j_outbox": false,
-   "neo4j_password_env": "MEMSPINE_NEO4J_PASSWORD",
-   "neo4j_url_env": "MEMSPINE_NEO4J_URL",
-   "neo4j_user_env": "MEMSPINE_NEO4J_USER",
-   "provider": "auto"
+   "mirror": {
+    "enabled": false,
+    "provider": "neo4j",
+    "settings": {}
+   },
+   "provider": "auto",
+   "settings": {}
   },
   "ingest": {
    "asset_allowed_mime": [
@@ -18095,12 +18223,11 @@
    "leg_weights": {},
    "leg_weights_by_shape": {},
    "legs_v2": false,
-   "lexical_analyzer": "default",
-   "lexical_dates": false,
    "lexical_language": "en",
    "lexical_namespace_languages": {},
    "lexical_provider": "tantivy",
    "lexical_scorer": "bm25",
+   "lexical_settings": {},
    "lexical_strip_names": false,
    "lift_before_rerank": false,
    "lift_max_turns": 2,
@@ -18199,14 +18326,11 @@
    "rerank_chunk_overlap": 0,
    "rerank_context": 0,
    "rerank_date_prefix": false,
-   "rerank_device": null,
    "rerank_floor": "minmax",
    "rerank_gate": null,
-   "rerank_instruction": null,
    "rerank_keep": null,
    "rerank_max_top_k": null,
-   "rerank_model": null,
-   "rerank_quant": null,
+   "rerank_settings": {},
    "rerank_v2": false,
    "rerank_v2_chain": [
     "jina",
@@ -18305,30 +18429,57 @@
    "backlog_max_items": 2000,
    "backlog_max_total_items": 0,
    "backlog_retry_after_s": 1.0,
+   "deployment_id": null,
    "encoder_batch_max": 32,
    "encoder_batch_wait_ms": 5.0,
+   "environment": "development",
    "lag_p95_budget_s": null,
    "model_concurrency": 0,
+   "provider_services": {
+    "close_timeout_s": 10.0,
+    "health_timeout_s": 5.0,
+    "startup_timeout_s": null
+   },
    "read_p95_budget_s": null,
-   "scheduler_v2": false
+   "scheduler_v2": false,
+   "service_switches": {
+    "cache": {
+     "mode": "controlled",
+     "strategy": "cold_start"
+    },
+    "embeddings": {
+     "mode": "controlled",
+     "strategy": "reembed"
+    },
+    "models": {
+     "historical_derivation": "forward_only",
+     "mode": "controlled"
+    },
+    "projections": {
+     "cleanup_batch_size": 50,
+     "cleanup_interval_s": null,
+     "mode": "controlled",
+     "retention_s": null
+    },
+    "storage": {
+     "auto_delete_source": false,
+     "mode": "controlled",
+     "strategy": "verified_migration"
+    }
+   }
   },
   "storage": {
-   "backend": "sqlite",
-   "data_dir": null,
-   "encryption": {
-    "key_env": null,
-    "mode": "none"
-   },
-   "path": "./memspine.db",
    "profile": "embedded",
-   "url": null
+   "provider": "sqlite",
+   "settings": {
+    "busy_timeout_s": 5.0,
+    "path": "./memspine.db"
+   }
   },
   "strict_services": true,
   "vector": {
-   "backend": "lance",
-   "isolation": "shared",
-   "namespace_index": false,
-   "quantization": "auto"
+   "provider": "lancedb",
+   "settings": {}
   },
   "workers": {
    "broker_url": "redis://localhost:6379/0",
@@ -18409,12 +18560,8 @@
    "reads": false
   },
   "cache": {
-   "backend": "memory",
-   "default_ttl_seconds": null,
-   "max_entries": 65536,
-   "namespace": "memspine",
-   "path": "./memspine.cache",
-   "url": "redis://localhost:6379/0"
+   "provider": "memory",
+   "settings": {}
   },
   "consent": {
    "enforce": false,
@@ -18443,25 +18590,12 @@
    "ledger_v2": false
   },
   "embedding": {
-   "api_base": null,
-   "api_key": null,
-   "aws_region": null,
    "batch_size": 32,
-   "device": null,
-   "dim": null,
-   "document_input_type": null,
-   "document_prompt_name": null,
-   "dtype": null,
    "migrate_profile": false,
-   "model": "BAAI/bge-small-en-v1.5",
    "pin_profile": false,
    "profile": null,
    "provider": "fastembed",
-   "query_input_type": null,
-   "query_instruction": null,
-   "query_prompt_name": null,
-   "request_dimensions": false,
-   "trust_remote_code": false,
+   "settings": {},
    "versioned_spaces": false
   },
   "event_log": {
@@ -18496,16 +18630,16 @@
    "tag_assistant_claims": false
   },
   "graph": {
-   "backend": "auto",
    "edge_compiler_v2": false,
    "entity_embeddings": false,
    "key_v2": false,
-   "neo4j_database": "neo4j",
-   "neo4j_outbox": false,
-   "neo4j_password_env": "MEMSPINE_NEO4J_PASSWORD",
-   "neo4j_url_env": "MEMSPINE_NEO4J_URL",
-   "neo4j_user_env": "MEMSPINE_NEO4J_USER",
-   "provider": "auto"
+   "mirror": {
+    "enabled": false,
+    "provider": "neo4j",
+    "settings": {}
+   },
+   "provider": "auto",
+   "settings": {}
   },
   "ingest": {
    "asset_allowed_mime": [
@@ -18833,12 +18967,11 @@
    "leg_weights": {},
    "leg_weights_by_shape": {},
    "legs_v2": false,
-   "lexical_analyzer": "default",
-   "lexical_dates": false,
    "lexical_language": "en",
    "lexical_namespace_languages": {},
    "lexical_provider": "tantivy",
    "lexical_scorer": "bm25",
+   "lexical_settings": {},
    "lexical_strip_names": false,
    "lift_before_rerank": false,
    "lift_max_turns": 2,
@@ -18937,14 +19070,11 @@
    "rerank_chunk_overlap": 0,
    "rerank_context": 0,
    "rerank_date_prefix": false,
-   "rerank_device": null,
    "rerank_floor": "minmax",
    "rerank_gate": null,
-   "rerank_instruction": null,
    "rerank_keep": null,
    "rerank_max_top_k": null,
-   "rerank_model": null,
-   "rerank_quant": null,
+   "rerank_settings": {},
    "rerank_v2": false,
    "rerank_v2_chain": [
     "jina",
@@ -19043,30 +19173,57 @@
    "backlog_max_items": 2000,
    "backlog_max_total_items": 0,
    "backlog_retry_after_s": 1.0,
+   "deployment_id": null,
    "encoder_batch_max": 32,
    "encoder_batch_wait_ms": 5.0,
+   "environment": "development",
    "lag_p95_budget_s": null,
    "model_concurrency": 0,
+   "provider_services": {
+    "close_timeout_s": 10.0,
+    "health_timeout_s": 5.0,
+    "startup_timeout_s": null
+   },
    "read_p95_budget_s": null,
-   "scheduler_v2": false
+   "scheduler_v2": false,
+   "service_switches": {
+    "cache": {
+     "mode": "controlled",
+     "strategy": "cold_start"
+    },
+    "embeddings": {
+     "mode": "controlled",
+     "strategy": "reembed"
+    },
+    "models": {
+     "historical_derivation": "forward_only",
+     "mode": "controlled"
+    },
+    "projections": {
+     "cleanup_batch_size": 50,
+     "cleanup_interval_s": null,
+     "mode": "controlled",
+     "retention_s": null
+    },
+    "storage": {
+     "auto_delete_source": false,
+     "mode": "controlled",
+     "strategy": "verified_migration"
+    }
+   }
   },
   "storage": {
-   "backend": "sqlite",
-   "data_dir": null,
-   "encryption": {
-    "key_env": null,
-    "mode": "none"
-   },
-   "path": "./memspine.db",
    "profile": "embedded",
-   "url": null
+   "provider": "sqlite",
+   "settings": {
+    "busy_timeout_s": 5.0,
+    "path": "./memspine.db"
+   }
   },
   "strict_services": true,
   "vector": {
-   "backend": "lance",
-   "isolation": "shared",
-   "namespace_index": false,
-   "quantization": "auto"
+   "provider": "lancedb",
+   "settings": {}
   },
   "workers": {
    "broker_url": "redis://localhost:6379/0",

@@ -218,8 +218,8 @@ def _scope_of(ns: str, session: str | None, principal: str | None) -> Scope:
 
 
 def _is_memory_db(eng: Any) -> bool:
-    cfg = eng._config().storage
-    return cfg.backend == "sqlite" and cfg.path == ":memory:"  # type: ignore[no-any-return]  # CI-GREEN: pre-existing typing debt
+    sql = eng._sql
+    return bool(sql is not None and sql.is_memory)
 
 
 def capabilities_of(eng: Any) -> dict[str, bool]:

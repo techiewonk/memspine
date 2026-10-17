@@ -9,17 +9,18 @@ from __future__ import annotations
 
 from typing import ClassVar, Self
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import ConfigDict
 
+from memspine.config.schema.base import ConfigModel
 from memspine.exceptions import ConfigError
 
 __all__ = ["BindablePolicy", "PolicyOptions"]
 
 
-class PolicyOptions(BaseModel):
+class PolicyOptions(ConfigModel):
     """Base for every policy's options; rejects unknown keys at bind time."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
 
 
 class BindablePolicy:
@@ -35,7 +36,7 @@ class BindablePolicy:
     def bind(cls, raw_options: dict[str, object] | None = None) -> Self:
         """Validate raw config options and construct the policy."""
         try:
-            options = cls.Options.model_validate(raw_options or {})
+            options = cls.Options.model_validate(raw_options if raw_options is not None else {})
         except Exception as exc:
             raise ConfigError(f"invalid options for policy {cls.name!r}: {exc}") from exc
         return cls(options)

@@ -4,10 +4,12 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import ConfigDict, Field
+
+from memspine.config.schema.base import ConfigModel
 
 
-class TapConfig(BaseModel):
+class TapConfig(ConfigModel):
     """WT-01 wiretap: a per-request trace of every pipeline stage, for debugging only.
 
     Off by default; when off no event is built and no file is touched. Events carry ids, scores,
@@ -28,7 +30,7 @@ class TapConfig(BaseModel):
     )
 
 
-class OtelConfig(BaseModel):
+class OtelConfig(ConfigModel):
     """T5-06 (G-20): optional OpenTelemetry export of request -> stage spans.
 
     Off by default. On, ``Engine.start()`` raises ``MissingServiceError`` naming ``memspine[otel]``
@@ -43,7 +45,7 @@ class OtelConfig(BaseModel):
     enabled: bool = False
 
 
-class ObservabilityConfig(BaseModel):
+class ObservabilityConfig(ConfigModel):
     """I73 diagnostics, opt-in.
 
     - ``write_timers``: time each step of the write door (validation, firewall, redaction,

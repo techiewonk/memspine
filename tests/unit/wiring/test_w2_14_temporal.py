@@ -442,12 +442,12 @@ async def test_precision_aware_off_is_the_old_ranking() -> None:
     day = _rec("day", "2019-03-03", datetime(2019, 3, 3, tzinfo=UTC))
     a = await _run_leg([year, day], "what happened on 2019-03-03?", aware=False)
     assert all(0 < s <= 1.0 for _, s in a)
-    assert MemspineConfig().read.temporal_precision_aware is False
+    assert MemspineConfig(runtime={"provider_services": {"health_timeout_s": 1.0, "close_timeout_s": 1.0, "startup_timeout_s": None}}).read.temporal_precision_aware is False
 
 
 # --- config + one window end to end ---------------------------------------------------------------------------
 def test_flag_defaults_off() -> None:
-    assert MemspineConfig().write.temporal_v2 is False
+    assert MemspineConfig(runtime={"provider_services": {"health_timeout_s": 1.0, "close_timeout_s": 1.0, "startup_timeout_s": None}}).write.temporal_v2 is False
 
 
 class DatedLLM(ItemLLM):

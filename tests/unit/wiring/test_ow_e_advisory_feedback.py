@@ -53,8 +53,11 @@ def _engine(memories: dict[str, Any] | None = None, write: dict[str, Any] | None
     return Engine(
         template="core",
         dotenv_path=None,
-        storage={"path": ":memory:"},
-        embedding={"provider": "hash"},
+        storage={
+            'provider': 'sqlite',
+            'settings': {'path': ":memory:", 'busy_timeout_s': 5.0},
+        },
+        embedding={'provider': "hash", 'settings': {}},
         memories={"episodic": {"enabled": True}, **(memories or {})},
         write=write or {},
         read={"hybrid": False},
@@ -477,7 +480,7 @@ async def test_check_watches_flag_off_makes_no_advisory_calls(
     async def noop(event: Any) -> None:
         return None
 
-    ctx = PipelineContext(storage=storage, config=load_config().config, append_event=noop)
+    ctx = PipelineContext(storage=storage, config=load_config(template="core").config, append_event=noop)
     assert await check_watches(ctx) == {"status": "ok", "fired": 0, "due": 0, "invalidated": 0}
 
 

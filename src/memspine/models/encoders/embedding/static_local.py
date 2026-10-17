@@ -36,14 +36,15 @@ def _normalize(vector: list[float]) -> list[float]:
 
 
 class StaticEmbedder:
-    def __init__(self, model: str = _DEFAULT_MODEL) -> None:
+    def __init__(self, model: str = _DEFAULT_MODEL, dim: int | None = None) -> None:
         try:
             import model2vec  # noqa: F401
         except ImportError as exc:
             raise MissingServiceError("services.embedding.static", extra="static") from exc
         self._model_name = model
         self._model: Any = None
-        self._dim = 0
+        self._dim = dim or 0
+        self._expected_dim = dim
         self._lock = asyncio.Lock()
 
     @property
@@ -79,5 +80,10 @@ class StaticEmbedder:
 
         vectors = await asyncio.to_thread(_run)
         if vectors:
-            self._dim = len(vectors[0])
+            actual_dim = len(vectors[0])
+            if any(len(vector) != actual_dim for vector in vectors):
+                raise ValueError("static embedder returned vectors with inconsistent dimensions")
+            if self._expected_dim is not None and actual_dim != self._expected_dim:
+                raise ValueError("static embedder output dimension differs from configured dimension")
+            self._dim = actual_dim
         return vectors

@@ -62,8 +62,8 @@ def _engine(write: dict[str, Any] | None = None, **read: Any) -> Engine:
     return Engine(
         template="core",
         dotenv_path=None,
-        storage={"path": ":memory:"},
-        embedding={"provider": "hash"},
+        storage={'provider': "sqlite", 'settings': {'path': ":memory:", 'busy_timeout_s': 5.0}},
+        embedding={'provider': "hash", 'settings': {}},
         memories={"semantic": {"enabled": True}, "episodic": {"enabled": True}},
         read={"hybrid": False, "record_access": False, **read},
         write=write or {},
@@ -80,7 +80,7 @@ def _rec(content: str, tags: list[str] | None = None, **kw: Any) -> MemoryRecord
 
 
 def test_everything_is_off_by_default() -> None:
-    cfg = MemspineConfig()
+    cfg = MemspineConfig(runtime={"provider_services": {"health_timeout_s": 1.0, "close_timeout_s": 1.0, "startup_timeout_s": None}})
     assert cfg.write == WriteConfig()
     assert (cfg.write.sensitivity, cfg.write.participants, cfg.write.inferred) == (
         "off",

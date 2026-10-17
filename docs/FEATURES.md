@@ -87,8 +87,8 @@ closure (C1b) auto-enables prerequisites and logs each one.
   vector neighbourhood (A-MEM evolution). Links ride budget-checked `LINK` events
   through the same door (the graph is a projector, not a second source of truth).
 - **Enable:** `memories.associative.enabled: true` (auto-enables semantic).
-  Constructs a graph store — `sqlite_adjacency` by default, `kuzu` via
-  `memspine[kuzu]`. An explicit `graph:` block without associative is a config
+  Constructs a graph store through `graph.provider: auto`, choosing a compatible
+  local provider (`ladybug` when installed, otherwise SQLite adjacency for SQLite). An explicit `graph:` block without associative is a config
   error.
 - **Key verbs:** `associate(src_id, dst_id, rel, weight)`,
   `related(record_id, k)`.
@@ -169,7 +169,7 @@ bit-identical to the plain pipeline — `profile="simple"` behavior never change
 `search` fuses a lexical BM25 leg into the vector ranking via reciprocal-rank fusion
 (RRF) **by default** (`read.hybrid: true`, the v0.2 flip, ADR-019), so a record only
 lexical search would surface can still enter results. The lexical store is
-`read.lexical_provider`: `tantivy` (default) or `opensearch` (`memspine[opensearch]`).
+`read.lexical_provider`: `tantivy` (implemented). OpenSearch and Weaviate lexical/vector adapters are planned extensions; hybrid fusion remains read policy.
 `read.hybrid: false` restores the vector-only pipeline bit-identically and builds no
 lexical index. Two further opt-in legs join the same fusion: `read.temporal_leg`
 (records whose event time lies in an absolute date span named in the query) and
@@ -201,7 +201,8 @@ Example — turn on hybrid, E8 rerank, and E5 compression:
 ```yaml
 read:
   hybrid: true               # fuse vector + lexical BM25 via RRF (D-25)
-  lexical_provider: sqlite_fts5   # sqlite_fts5 | tantivy [tantivy]
+  lexical_provider: tantivy
+  lexical_settings: {}
   rerank: fastembed          # off | fastembed | flashrank [rerank] | litellm
   static_prefilter: true     # cheap lexical-overlap gate (post-vector)
   compression:
@@ -253,24 +254,26 @@ Screen results for each key, wins and losses alike, are in the research repo:
 
 ---
 
-## Pluggable backends (composable by config)
+## Pluggable providers
+
+Constructor options live under typed `settings`. Existing data changes require a controlled migration/rebuild; a selector alone does not migrate a deployment. [Provider plan](PROVIDER_ARCHITECTURE_PLAN.md), [ADR-068](adr/ADR-068-provider-contracts-and-controlled-changes.md).
 
 Every store is a capability port; the event-sourced core is the single source of
-truth, so backends are swappable by config alone. Selecting an unbuilt/reserved
-backend raises `ConfigError`.
+truth. Startup selects the configured adapter; existing data needs a controlled migration or rebuild. Unregistered providers raise `ConfigError`.
 
 | Capability | Config key | Options |
 |------------|-----------|---------|
-| SQL storage / event log | `storage.backend` | `sqlite` (default) · `postgres` `[postgres]` (ADR-025) |
-| Vector | `vector.backend` | `lance` (sole store, ADR-021) · `weaviate` reserved |
-| Graph | `graph.provider` | `sqlite_adjacency` (default) · `kuzu` `[kuzu]` · `ladybug` `[graph]` · `neo4j` reserved |
-| Cache / KV | `cache.backend` | `memory` (default) · `lmdb` `[lmdb]` · `redis` `[redis]` · `valkey` `[valkey]` |
-| Lexical (hybrid leg) | `read.lexical_provider` | `sqlite_fts5` (default) · `tantivy` `[tantivy]` |
+| SQL storage / event log | `storage.provider` | `sqlite` (default) · `postgres` `[postgres]` (ADR-025) |
+| Vector | `vector.provider` | `lancedb` (implemented) · Weaviate future adapter |
+| Graph | `graph.provider` | `auto` chooses a compatible local graph · `sqlite_adjacency` · `ladybug` `[graph]` · direct `neo4j` `[neo4j]` (real-server gate pending) |
+| Cache / KV | `cache.provider` | `memory` (default) · `disk` · `redis` · `valkey` (external caches need `[cache]`) |
+| Lexical (hybrid leg) | `read.lexical_provider` | `tantivy` (core); future OpenSearch / Weaviate adapters |
 | Embedding | `embedding.provider` | `fastembed` (default) · `hash` · `static` `[static]` · `litellm` (cloud; `dim` required) |
-| LLM (per role) | `llm.roles.<role>.model` | LiteLLM prefix routing — `openai/` · `ollama/` · `bedrock/` · `vertex_ai/` · `llamacpp/<path>` (ADR-024) |
+| LLM (per role) | `llm.roles.<role>.provider` and `.settings` | Explicit `litellm` or `llamacpp` adapter; model ID and applicable timeout belong in settings. Plugins may register other adapters. |
+| Reranker | `read.rerank` and `read.rerank_settings` | Selected registered adapter or explicit chain policy; shares provider validation and lifecycle. |
 | Secrets | `MEMSPINE_SECRETS_BACKEND` *(env var)* | `env` (default) · `aws` `[aws]` (ADR-023) |
 | Workers | `workers.runner` | `inline` (default) · `dbos` `[dbos]` · `taskiq` `[taskiq]` |
 
 The full key-by-key reference (defaults + notes) is in
 [`USAGE.md` § Config-key reference](./USAGE.md#config-key-reference); swap recipes
-(config diffs) are in [`USAGE.md` § Swap a backend](./USAGE.md#swap-a-backend-config-alone).
+(config diffs) are in [`USAGE.md` § Swap a backend](./USAGE.md#select-a-provider-and-plan-a-controlled-change).

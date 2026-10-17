@@ -31,15 +31,17 @@ class _Stub:
 async def _miner(monkeypatch: pytest.MonkeyPatch, cached: bool) -> tuple[_Stub, Any, Engine]:
     stub = _Stub()
 
-    async def router(config: MemspineConfig, hooks: object = None) -> LLMRouter:
+    async def router(
+        config: MemspineConfig, hooks: object = None, wiring: object = None
+    ) -> LLMRouter:
         return LLMRouter({"extract": stub})
 
     monkeypatch.setattr("memspine.runtime.container.build_llm_router", router)
     eng = Engine(
         template="core",
         dotenv_path=None,
-        storage={"path": ":memory:"},
-        embedding={"provider": "hash"},
+        storage={'provider': "sqlite", 'settings': {'path': ":memory:", 'busy_timeout_s': 5.0}},
+        embedding={'provider': "hash", 'settings': {}},
         memories={
             "episodic": {
                 "enabled": True,

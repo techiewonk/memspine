@@ -25,8 +25,8 @@ def _engine(path: str, passive_after: object = HORIZON, **extra: Any) -> Engine:
     return Engine(
         template="core",
         dotenv_path=None,
-        storage={"path": path},
-        embedding={"provider": "hash"},
+        storage={'provider': "sqlite", 'settings': {'path': path, 'busy_timeout_s': 5.0}},
+        embedding={'provider': "hash", 'settings': {}},
         read={"hybrid": False, "record_access": False},
         memories={"episodic": {"enabled": True, "policies": policies}},
         **extra,

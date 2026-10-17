@@ -7,7 +7,15 @@ from memspine.observability import tap
 
 
 def test_default_config_tap_off():
-    cfg = MemspineConfig()
+    cfg = MemspineConfig(
+        runtime={
+            "provider_services": {
+                "health_timeout_s": 1.0,
+                "close_timeout_s": 1.0,
+                "startup_timeout_s": None,
+            }
+        }
+    )
     assert cfg.observability.tap.enabled is False
     assert cfg.observability.tap.sink == "jsonl"
     assert cfg.observability.tap.dir == "runs/_tap"

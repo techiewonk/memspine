@@ -62,16 +62,15 @@ async def facts(eng: Engine) -> list[Any]:
 
 # ------------------------------------------------------------------------------------------ flag off
 def test_flag_is_off_by_default() -> None:
-    w = MemspineConfig().write
+    w = MemspineConfig(runtime={"provider_services": {"health_timeout_s": 1.0, "close_timeout_s": 1.0, "startup_timeout_s": None}}).write
     assert w.role_policy_v2 is False
     assert w.echo_threshold == 0.6
 
 
 async def test_flag_off_is_unchanged(monkeypatch: pytest.MonkeyPatch) -> None:
     llm = FakeWindowLLM()
-    eng = await _engine(monkeypatch, llm)
+    eng = await _engine(monkeypatch, llm, firewall={"skip_message_roles": ["system"]})
     try:
-        eng._config().firewall.skip_message_roles[:] = ["system"]
         await eng.ingest_messages(convo(), namespace=NS, session_id="s1")
         rows = await raw(eng)
         assert SYSTEM not in rows  # the old skip: a system turn is not stored
@@ -90,9 +89,13 @@ async def test_flag_off_is_unchanged(monkeypatch: pytest.MonkeyPatch) -> None:
 # ----------------------------------------------------------------------------- roles at derivation
 async def test_system_is_raw_but_never_derived(monkeypatch: pytest.MonkeyPatch) -> None:
     llm = FakeWindowLLM()
-    eng = await _engine(monkeypatch, llm, role_policy_v2=True)
+    eng = await _engine(
+        monkeypatch,
+        llm,
+        role_policy_v2=True,
+        firewall={"skip_message_roles": ["system"]},
+    )
     try:
-        eng._config().firewall.skip_message_roles[:] = ["system"]  # on: raw keeps it anyway
         await eng.ingest_messages(convo(), namespace=NS, session_id="s1")
         rows = await raw(eng)
         assert SYSTEM in rows
@@ -161,7 +164,7 @@ async def test_live_members_filters_for_session_stages(monkeypatch: pytest.Monke
         live = await _live_members(ctx, ids)  # type: ignore[arg-type]
         assert SYSTEM not in {m.content for m in live}
         assert len(live) == len(ids) - 1
-        off = SimpleNamespace(storage=storage, config=MemspineConfig())
+        off = SimpleNamespace(storage=storage, config=MemspineConfig(runtime={"provider_services": {"health_timeout_s": 1.0, "close_timeout_s": 1.0, "startup_timeout_s": None}}))
         assert len(await _live_members(off, ids)) == len(ids)  # type: ignore[arg-type]
     finally:
         await eng.stop()
@@ -272,8 +275,8 @@ async def build_gateway(tmp_path: Path, **write: Any) -> Engine:
     eng = Engine(
         template="core",
         dotenv_path=None,
-        storage={"path": str(tmp_path / "gw.db")},
-        embedding={"provider": "hash"},
+        storage={'provider': "sqlite", 'settings': {'path': str(tmp_path / "gw.db"), 'busy_timeout_s': 5.0}},
+        embedding={'provider': "hash", 'settings': {}},
         memories={
             "episodic": {"enabled": True},
             "semantic": {"enabled": True},

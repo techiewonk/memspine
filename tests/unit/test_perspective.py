@@ -231,8 +231,8 @@ def _engine(policy: Any = "heuristic", **read: Any) -> Engine:
     return Engine(
         template="core",
         dotenv_path=None,
-        storage={"path": ":memory:"},
-        embedding={"provider": "hash"},
+        storage={'provider': "sqlite", 'settings': {'path': ":memory:", 'busy_timeout_s': 5.0}},
+        embedding={'provider': "hash", 'settings': {}},
         memories={"episodic": {"enabled": True, "policies": {"perspective": policy}}},
         read={"hybrid": False, "record_access": False, **read},
     )
@@ -282,8 +282,8 @@ async def test_off_writes_no_perspective_tags() -> None:
     eng = Engine(
         template="core",
         dotenv_path=None,
-        storage={"path": ":memory:"},
-        embedding={"provider": "hash"},
+        storage={'provider': "sqlite", 'settings': {'path': ":memory:", 'busy_timeout_s': 5.0}},
+        embedding={'provider': "hash", 'settings': {}},
         memories={"episodic": {"enabled": True}},
         read={"hybrid": False, "record_access": False},
     )

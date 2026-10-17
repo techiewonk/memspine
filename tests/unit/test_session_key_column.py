@@ -19,8 +19,8 @@ def _engine(path: Path) -> Engine:
     return Engine(
         template="core",
         dotenv_path=None,
-        storage={"path": str(path)},
-        embedding={"provider": "hash"},
+        storage={'provider': "sqlite", 'settings': {'path': str(path), 'busy_timeout_s': 5.0}},
+        embedding={'provider': "hash", 'settings': {}},
         memories={"episodic": {"enabled": True}},
     )
 

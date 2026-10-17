@@ -741,7 +741,7 @@ def _system_config(
         # the protocol from the one that ran is the worst of both worlds: the embedder
         # is the single largest determinant of retrieval quality, and the result file
         # would name the wrong one.
-        extra_overrides["embedding.model"] = args.embedding_model
+        extra_overrides["embedding.settings.model"] = args.embedding_model
     template = args.profile or start.template
     config_sha = _file_sha256(start.config_path)
     system = start.model_copy(

@@ -90,8 +90,8 @@ async def make(tmp_path, *, ingest: dict[str, Any] | None = None, **read: Any) -
     eng = Engine(
         template="core",
         dotenv_path=None,
-        storage={"path": ":memory:"},
-        embedding={"provider": "hash"},
+        storage={'provider': "sqlite", 'settings': {'path': ":memory:", 'busy_timeout_s': 5.0}},
+        embedding={'provider': "hash", 'settings': {}},
         memories={"episodic": {"enabled": True}},
         ingest=ingest or {},
         read={"hybrid": False, "record_access": False, **read},
@@ -109,7 +109,7 @@ def contents(result: Any) -> list[str]:
 
 
 def test_everything_is_off_by_default() -> None:
-    cfg = MemspineConfig()
+    cfg = MemspineConfig(runtime={"provider_services": {"health_timeout_s": 1.0, "close_timeout_s": 1.0, "startup_timeout_s": None}})
     assert cfg.ingest.assets == "off" and cfg.read.asset_evidence == "off"
     assert cfg.read.external_evidence == "off" and cfg.read.external_provider == "none"
     assert IngestConfig().asset_vision == "none"
@@ -117,9 +117,16 @@ def test_everything_is_off_by_default() -> None:
 
 def test_config_rejects_inconsistent_asset_keys() -> None:
     with pytest.raises(ConfigError):
-        MemspineConfig(read=ReadConfig(asset_evidence="cached"))
+        MemspineConfig(
+            runtime={"provider_services": {"health_timeout_s": 1.0, "close_timeout_s": 1.0, "startup_timeout_s": None}},
+            read=ReadConfig(asset_evidence="cached"),
+        )
     with pytest.raises(ConfigError):
-        MemspineConfig(ingest=IngestConfig(assets="on"), read=ReadConfig(asset_evidence="fetch"))
+        MemspineConfig(
+            runtime={"provider_services": {"health_timeout_s": 1.0, "close_timeout_s": 1.0, "startup_timeout_s": None}},
+            ingest=IngestConfig(assets="on"),
+            read=ReadConfig(asset_evidence="fetch"),
+        )
 
 
 async def test_attachments_are_ignored_when_ingest_assets_is_off(tmp_path) -> None:
@@ -139,8 +146,8 @@ async def asset_engine(tmp_path, fetcher: Fetcher, vision: Vision, mode: str = "
     eng = Engine(
         template="core",
         dotenv_path=None,
-        storage={"path": ":memory:"},
-        embedding={"provider": "hash"},
+        storage={'provider': "sqlite", 'settings': {'path': ":memory:", 'busy_timeout_s': 5.0}},
+        embedding={'provider': "hash", 'settings': {}},
         memories={"episodic": {"enabled": True}},
         ingest={"assets": "on", "asset_dir": str(tmp_path)},
         read={"hybrid": False, "record_access": False, "asset_evidence": mode},

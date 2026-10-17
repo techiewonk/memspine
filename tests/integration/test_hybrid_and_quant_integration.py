@@ -8,7 +8,7 @@ record the lexical leg surfaces. This proves the lexical projector caught up
 from the persisted log (not from any in-memory state).
 
 Part B (L2, quantization): write with quantization OFF, reopen with
-``vector.quantization=int8`` (the vector projector is already caught up, so
+``vector.settings.quantization=int8`` (the vector projector is already caught up, so
 catch-up re-projects nothing), then ``rebuild()`` — which resets the vector
 projector and replays the log into a freshly int8-indexed LanceDB table. The
 native two-stage rescore then returns the correct exact-cosine top-1.
@@ -24,7 +24,12 @@ tests/unit/services/vector/test_lancedb_rescore.py.
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
+
+import pytest
+
+from memspine.exceptions import ConfigError
 
 _SEMANTIC: dict[str, Any] = {
     "memories": {"semantic": {"enabled": True}},
@@ -63,25 +68,53 @@ async def test_hybrid_lexical_index_backfills_from_log_on_reopen(make_file_engin
 
 
 async def test_rebuild_reprojects_and_int8_rescore_returns_exact_top1(
-    make_file_engine: Any,
+    make_file_engine: Any, tmp_path: Path
 ) -> None:
-    # ── write with quantization OFF: the exact float32 query() path ───────────
-    engine = make_file_engine(**_SEMANTIC)
+    contents = ("the sky is blue today", "green grass grows", "red apples fall")
+    float_storage = {
+        "provider": "sqlite",
+        "settings": {"path": str(tmp_path / "float.db"), "busy_timeout_s": 5.0},
+    }
+    int8_storage = {
+        "provider": "sqlite",
+        "settings": {"path": str(tmp_path / "int8.db"), "busy_timeout_s": 5.0},
+    }
+
+    # Each quantization setting gets its own target, populated with the same
+    # records, so the result comparison measures quantization behavior alone.
+    engine = make_file_engine(storage=float_storage, **_SEMANTIC)
     await engine.start()
     try:
         assert engine._rescore_active is False
-        for content in ("the sky is blue today", "green grass grows", "red apples fall"):
+        for content in contents:
             await engine.write(content)
+        float_results = await engine.search("the sky is blue today")
+        assert float_results[0][0].content == "the sky is blue today"
     finally:
         await engine.stop()
 
-    # ── reopen with int8: rescore is active. The vector projector is already
-    #     caught up (its offset persisted), so start() re-projects nothing;
-    #     rebuild() resets it and replays the log into an int8-indexed table ───
-    quant = make_file_engine(memories=_SEMANTIC["memories"], vector={"quantization": "int8"})
+    # A changed provider configuration cannot silently reuse a persisted
+    # projection target; changing it requires an explicitly verified switch.
+    changed_target = make_file_engine(
+        storage=float_storage,
+        memories=_SEMANTIC["memories"],
+        vector={"settings": {"quantization": "int8"}},
+    )
+    with pytest.raises(ConfigError, match="different target|verified projection switch"):
+        await changed_target.start()
+
+    # ── int8 on an independent target, with the same source records ───────────
+    quant = make_file_engine(
+        storage=int8_storage,
+        memories=_SEMANTIC["memories"],
+        vector={"settings": {"quantization": "int8"}},
+    )
     await quant.start()
     try:
         assert quant._rescore_active is True
+
+        for content in contents:
+            await quant.write(content)
 
         counts = await quant.rebuild()
         assert counts["vectors"] == 3, "rebuild must re-project every record from the log"
@@ -90,5 +123,6 @@ async def test_rebuild_reprojects_and_int8_rescore_returns_exact_top1(
         # the exact float32 top-1 (small corpus < oversample window => exact).
         results = await quant.search("the sky is blue today")
         assert results[0][0].content == "the sky is blue today"
+        assert results[0][0].content == float_results[0][0].content
     finally:
         await quant.stop()

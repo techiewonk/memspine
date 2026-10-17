@@ -35,10 +35,17 @@ def make_engine(**read: object) -> Engine:
     return Engine(
         template="core",
         dotenv_path=None,
-        storage={"path": ":memory:"},
-        embedding={"provider": "hash"},
+        storage={'provider': "sqlite", 'settings': {'path': ":memory:", 'busy_timeout_s': 5.0}},
+        embedding={'provider': "hash", 'settings': {}},
         memories={"semantic": {"enabled": True}},
         **({"read": read} if read else {}),  # type: ignore[arg-type]
+    )
+
+
+def make_config(**overrides: object) -> MemspineConfig:
+    return MemspineConfig(
+        runtime={"provider_services": {"health_timeout_s": 1.0, "close_timeout_s": 1.0, "startup_timeout_s": None}},
+        **overrides,
     )
 
 
@@ -46,8 +53,8 @@ def make_engine(**read: object) -> Engine:
 
 
 def test_rescore_settings_manifest_driven_and_override() -> None:
-    eng = Engine(dotenv_path=None, storage={"path": ":memory:"})
-    config = MemspineConfig()  # vector.quantization defaults to "auto"
+    eng = Engine(dotenv_path=None, storage={'provider': "sqlite", 'settings': {'path': ":memory:", 'busy_timeout_s': 5.0}})
+    config = make_config()  # vector.settings.quantization defaults to "auto"
 
     # auto reads the manifest: default (None) -> inactive.
     eng._embedder = _FakeEmbedder(EmbedderManifest("x", 4))  # type: ignore[assignment]
@@ -60,12 +67,12 @@ def test_rescore_settings_manifest_driven_and_override() -> None:
     assert rescore_settings(config, eng._embedder) == ("int8", 4)
 
     # explicit override forces a scheme even when the manifest declares none.
-    forced = MemspineConfig(vector={"quantization": "binary"})
+    forced = make_config(vector={"settings": {"quantization": "binary"}})
     eng._embedder = _FakeEmbedder(EmbedderManifest("x", 4))  # type: ignore[assignment]
     assert rescore_settings(forced, eng._embedder) == ("binary", None)
 
     # explicit "none" forces OFF even when the manifest declares int8.
-    off = MemspineConfig(vector={"quantization": "none"})
+    off = make_config(vector={"settings": {"quantization": "none"}})
     eng._embedder = _FakeEmbedder(  # type: ignore[assignment]
         EmbedderManifest("x", 4, quantization="int8")
     )
@@ -73,10 +80,10 @@ def test_rescore_settings_manifest_driven_and_override() -> None:
 
 
 def test_rescore_settings_rejects_unknown_override() -> None:
-    eng = Engine(dotenv_path=None, storage={"path": ":memory:"})
+    eng = Engine(dotenv_path=None, storage={'provider': "sqlite", 'settings': {'path': ":memory:", 'busy_timeout_s': 5.0}})
     eng._embedder = _FakeEmbedder(EmbedderManifest("x", 4))  # type: ignore[assignment]
     with pytest.raises(ConfigError):
-        rescore_settings(MemspineConfig(vector={"quantization": "bogus"}), eng._embedder)
+        rescore_settings(make_config(vector={"settings": {"quantization": "bogus"}}), eng._embedder)
 
 
 # ── default OFF: exact query() path, rescore inactive ─────────────────────────
@@ -99,9 +106,9 @@ async def int8_engine() -> AsyncIterator[Engine]:
     eng = Engine(
         template="core",
         dotenv_path=None,
-        storage={"path": ":memory:"},
-        embedding={"provider": "hash"},
-        vector={"quantization": "int8"},
+        storage={'provider': "sqlite", 'settings': {'path': ":memory:", 'busy_timeout_s': 5.0}},
+        embedding={'provider': "hash", 'settings': {}},
+        vector={"settings": {"quantization": "int8"}},
         memories={"semantic": {"enabled": True}},
     )
     await eng.start()

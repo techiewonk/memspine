@@ -36,14 +36,18 @@ def db_path(tmp_path: Path) -> str:
 def make_file_engine(db_path: str) -> FileEngineFactory:
     """Factory for a FILE-BACKED engine (deterministic ``hash`` embedder).
 
-    Every call defaults ``storage.path`` to the per-test ``db_path``, so calling
+    Every call defaults ``storage.settings.path`` to the per-test ``db_path``, so calling
     the factory twice constructs two engines over the *same* file — the reopen
     scenario. Pass an explicit ``storage=`` to point at a different file (the
     runner-parity test isolates each runner on its own db)."""
 
     def _factory(**overrides: Any) -> Engine:
-        overrides.setdefault("storage", {"path": db_path})
-        overrides.setdefault("embedding", {"provider": "hash"})
+        overrides.setdefault("template", "core")
+        overrides.setdefault(
+            "storage",
+            {"provider": "sqlite", "settings": {"path": db_path, "busy_timeout_s": 5.0}},
+        )
+        overrides.setdefault("embedding", {"provider": "hash", "settings": {}})
         return Engine(dotenv_path=None, **overrides)
 
     return _factory

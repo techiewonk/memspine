@@ -36,6 +36,49 @@ T0 = datetime(2026, 10, 13, tzinfo=UTC)
 TTL = timedelta(seconds=30)
 
 
+def _runner_dependencies() -> tuple[Any, Any]:
+    """Create the generic SQL capability and resource owner used by the runtime builder."""
+    from sqlalchemy.ext.asyncio import create_async_engine
+
+    from memspine.providers.lifecycle import ProviderLifecycleManager
+    from memspine.providers.sql import ManagedSqlAccess
+    from memspine.runtime.outbox import memory_engine
+
+    async_engine = create_async_engine("sqlite+aiosqlite:///:memory:")
+    resources = ProviderLifecycleManager(close_timeout_s=2.0)
+
+    async def close_storage() -> None:
+        await async_engine.dispose()
+
+    resources.own("storage", close_storage)
+
+    async def checkpoint() -> None:
+        return None
+
+    sql = ManagedSqlAccess(
+        async_engine,
+        is_memory=True,
+        capabilities=frozenset({"sqlite", "memory"}),
+        checkpoint=checkpoint,
+        sync_factory=memory_engine,
+        owner_resource_id="storage",
+    )
+    return sql, resources
+
+
+def _config(**kwargs: Any) -> MemspineConfig:
+    return MemspineConfig(
+        runtime={
+            "provider_services": {
+                "health_timeout_s": 2.0,
+                "close_timeout_s": 2.0,
+                "startup_timeout_s": None,
+            }
+        },
+        **kwargs,
+    )
+
+
 @pytest.fixture(autouse=True)
 def _tap_off():
     tap.shutdown()
@@ -81,7 +124,7 @@ class QueueBroker(AsyncBroker):
 
 
 def db(tmp_path: Path) -> Any:
-    return sqlite_engine(str(tmp_path / "outbox.db"))
+    return sqlite_engine(str(tmp_path / "outbox.db"), busy_timeout_s=5.0)
 
 
 def make(
@@ -113,22 +156,30 @@ async def _items(runner: TransportRunner, n: int) -> None:
 
 # ----------------------------------------------------------------------------- the flag
 def test_flag_defaults_off_and_inline_builds_the_inline_runner() -> None:
-    cfg = MemspineConfig()
+    cfg = _config()
     assert cfg.workers.transport == "inline" and cfg.workers.transport_broker == "memory"
-    runner = make_outbox_runner(cfg, None)
-    assert type(runner) is InlineRunner
+    sql, resources = _runner_dependencies()
+    try:
+        runner = make_outbox_runner(cfg, sql, resources)
+        assert type(runner) is InlineRunner
+    finally:
+        asyncio.run(resources.close_all())
 
 
 def test_flag_on_builds_a_transport_runner_over_the_memory_broker() -> None:
-    cfg = MemspineConfig(workers={"outbox": True, "transport": "taskiq"})
-    runner = make_outbox_runner(cfg, None)
-    assert isinstance(runner, TransportRunner) and runner.local_drain
-    assert isinstance(runner.broker, InMemoryBroker)
+    cfg = _config(workers={"outbox": True, "transport": "taskiq"})
+    sql, resources = _runner_dependencies()
+    try:
+        runner = make_outbox_runner(cfg, sql, resources)
+        assert isinstance(runner, TransportRunner) and runner.local_drain
+        assert isinstance(runner.broker, InMemoryBroker)
+    finally:
+        asyncio.run(resources.close_all())
 
 
 def test_redis_broker_is_built_lazily_from_the_url() -> None:
     pytest.importorskip("taskiq_redis")
-    cfg = MemspineConfig(
+    cfg = _config(
         workers={
             "outbox": True,
             "transport": "taskiq",
@@ -136,10 +187,14 @@ def test_redis_broker_is_built_lazily_from_the_url() -> None:
             "broker_url": "redis://localhost:6399/3",
         }
     )
-    runner = make_outbox_runner(cfg, None)
-    assert isinstance(runner, TransportRunner) and not runner.local_drain  # producer only
-    assert type(runner.broker).__name__ == "RedisStreamBroker"
-    assert make_broker("memory").__class__ is InMemoryBroker
+    sql, resources = _runner_dependencies()
+    try:
+        runner = make_outbox_runner(cfg, sql, resources)
+        assert isinstance(runner, TransportRunner) and not runner.local_drain  # producer only
+        assert type(runner.broker).__name__ == "RedisStreamBroker"
+        assert make_broker("memory").__class__ is InMemoryBroker
+    finally:
+        asyncio.run(resources.close_all())
 
 
 # ----------------------------------------------------------------------------- in-memory broker
@@ -318,18 +373,18 @@ async def test_engine_with_the_transport_flag_gives_the_same_facts(
     async def run(transport: str) -> tuple[list[str], dict[str, Any]]:
         llm = FakeWindowLLM()
 
-        async def router(config: MemspineConfig, hooks: object = None) -> LLMRouter:
+        async def router(config: MemspineConfig, hooks: object = None, wiring: object = None) -> LLMRouter:
             return LLMRouter({"window_extract": llm})  # type: ignore[dict-item]
 
         monkeypatch.setattr("memspine.runtime.container.build_llm_router", router)
         eng = Engine(
             template="core",
             dotenv_path=None,
-            storage={"path": str(tmp_path / f"{transport}.db")},
-            embedding={"provider": "hash"},
+            storage={'provider': "sqlite", 'settings': {'path': str(tmp_path / f"{transport}.db"), 'busy_timeout_s': 5.0}},
+            embedding={'provider': "hash", 'settings': {}},
             memories={"episodic": {"enabled": True}, "semantic": {"enabled": True}},
             write={"window_extract": "facts", "window_async": False, "window_idle_s": 0.0},
-            llm={"roles": {"window_extract": {"model": "fake/window"}}},
+            llm={"roles": {"window_extract": {"provider": "litellm", "settings": {"model": "fake/window", "timeout_seconds": 20.0}}}},
             workers={"outbox": True, "transport": transport},
         )
         await eng.start()

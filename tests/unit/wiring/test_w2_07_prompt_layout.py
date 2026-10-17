@@ -53,7 +53,7 @@ def test_flag_default_off() -> None:
     cfg = PromptsConfig()
     assert cfg.layout_v2 is False
     assert cfg.layout_partials == ["same_language", "coarse_date"]
-    assert MemspineConfig().prompts.layout_v2 is False
+    assert MemspineConfig(runtime={"provider_services": {"health_timeout_s": 1.0, "close_timeout_s": 1.0, "startup_timeout_s": None}}).prompts.layout_v2 is False
 
 
 def test_v2_pack_covers_the_write_prompts() -> None:
@@ -323,7 +323,16 @@ def test_prompt_render_tap_event() -> None:
 def test_config_flows_into_the_container_registry() -> None:
     from memspine.runtime.container import build_prompts
 
-    cfg = MemspineConfig(prompts={"layout_v2": True, "layout_partials": ["coarse_date"]})
+    cfg = MemspineConfig(
+        prompts={"layout_v2": True, "layout_partials": ["coarse_date"]},
+        runtime={
+            "provider_services": {
+                "health_timeout_s": 1.0,
+                "close_timeout_s": 1.0,
+                "startup_timeout_s": None,
+            }
+        },
+    )
     reg = build_prompts(cfg)
     assert reg.get("window_extract").version == 2
     assert re.search(r"coarse_date", ",".join(reg.get("window_extract")._layout_partials))

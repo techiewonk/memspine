@@ -21,7 +21,7 @@ import pytest
 import structlog
 
 from memspine.config.loader import load_config
-from memspine.core.registry import dependency_closure
+from memspine.core.registry import MEMORY_TYPES, dependency_closure
 from memspine.exceptions import ConfigError, MissingServiceError
 
 # ── (a) dependency auto-enable ────────────────────────────────────────────────
@@ -53,7 +53,9 @@ def test_closure_logs_every_auto_enable(asked: str, expected_dep: str) -> None:
 async def test_engine_reports_auto_enabled_in_describe(make_engine) -> None:
     # A minimal config asking only for reflective: episodic is not otherwise
     # enabled, so the closure surfaces it in describe()'s auto_enabled list.
-    engine = make_engine(memories={"reflective": {"enabled": True}})
+    memories = {name: {"enabled": False} for name in MEMORY_TYPES}
+    memories["reflective"] = {"enabled": True}
+    engine = make_engine(template="core", memories=memories)
     await engine.start()
     try:
         world = engine.describe()
@@ -73,14 +75,18 @@ async def test_engine_reports_auto_enabled_in_describe(make_engine) -> None:
     ],
 )
 async def test_missing_graph_service_hard_fails_naming_the_extra(
-    provider: str, extra: str, make_engine
+    provider: str, extra: str, make_engine, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    # A stub graph provider fires MissingServiceError deterministically,
-    # independent of what happens to be installed in this env.
+    # Make the optional driver unavailable deterministically, without opening
+    # a live Neo4j connection.
+    monkeypatch.setitem(sys.modules, "neo4j", None)
     engine = make_engine(
         template="core",
         memories={"associative": {"enabled": True}},
-        graph={"provider": provider},
+        graph={
+            "provider": provider,
+            "settings": {"connect_timeout_s": 1.0, "request_timeout_s": 1.0},
+        },
     )
     with pytest.raises(MissingServiceError) as excinfo:
         await engine.start()
@@ -114,6 +120,81 @@ async def test_strict_services_is_the_gate_default(make_engine) -> None:
         assert engine.describe()["strict_services"] is True
     finally:
         await engine.stop()
+
+
+@pytest.mark.parametrize(
+    ("group", "selector", "settings_key"),
+    [
+        ("storage", "provider", "settings"),
+        ("vector", "provider", "settings"),
+        ("cache", "provider", "settings"),
+        ("graph", "provider", "settings"),
+        ("embedding", "provider", "settings"),
+        ("read", "lexical_provider", "lexical_settings"),
+        ("read", "rerank", "rerank_settings"),
+        ("llm.roles.window_extract", "provider", "settings"),
+    ],
+)
+def test_provider_change_replaces_inherited_native_settings(
+    group: str, selector: str, settings_key: str
+) -> None:
+    def nested(**values):
+        node = {}
+        current = node
+        parts = group.split(".")
+        for part in parts[:-1]:
+            current[part] = {}
+            current = current[part]
+        current[parts[-1]] = values
+        return node
+
+    old_config = nested(
+        **{selector: "old-provider", settings_key: {"old_native_option": "discard"}}
+    )
+    new_config = nested(
+        **{selector: "new-provider", settings_key: {"new_native_option": "keep"}}
+    )
+    loaded = load_config(
+        template="base",
+        user_config=old_config,
+        overrides=new_config,
+    )
+    selected = loaded.config
+    for part in group.split("."):
+        selected = getattr(selected, part) if hasattr(selected, part) else selected[part]
+    assert getattr(selected, selector) == "new-provider"
+    assert getattr(selected, settings_key) == {"new_native_option": "keep"}
+
+
+def test_provider_settings_overlay_merges_same_provider_and_refreshes_sources() -> None:
+    loaded = load_config(
+        template="base",
+        user_config={"storage": {"provider": "sqlite", "settings": {"path": "first.db"}}},
+        overrides={"storage": {"provider": "sqlite", "settings": {"busy_timeout_s": 7.0}}},
+    )
+    assert loaded.config.storage.settings == {"path": "first.db", "busy_timeout_s": 7.0}
+    assert loaded.sources["storage.settings.path"] == "user"
+    assert loaded.sources["storage.settings.busy_timeout_s"] == "kwargs"
+    assert "embedding.settings.model" not in loaded.sources
+
+
+def test_provider_change_applies_across_yaml_environment_and_kwargs_layers() -> None:
+    loaded = load_config(
+        template="base",
+        user_config={"embedding": {"provider": "vendor-a", "settings": {"model": "old"}}},
+        env={
+            "MEMSPINE_EMBEDDING__PROVIDER": "vendor-b",
+            "MEMSPINE_EMBEDDING__SETTINGS__region": "region-a",
+        },
+        overrides={
+            "embedding": {"provider": "hash", "settings": {"test_seed": 17}},
+        },
+    )
+    assert loaded.config.embedding.provider == "hash"
+    assert loaded.config.embedding.settings == {"test_seed": 17}
+    assert "embedding.settings.model" not in loaded.sources
+    assert "embedding.settings.region" not in loaded.sources
+    assert loaded.sources["embedding.settings.test_seed"] == "kwargs"
 
 
 # ── (c) reserved-key rejection ────────────────────────────────────────────────

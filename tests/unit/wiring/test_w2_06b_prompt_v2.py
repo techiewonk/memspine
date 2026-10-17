@@ -122,7 +122,7 @@ async def _run(
 
 # --- config / flag off --------------------------------------------------------------------------
 def test_defaults_are_off() -> None:
-    w = MemspineConfig().write
+    w = MemspineConfig(runtime={"provider_services": {"health_timeout_s": 1.0, "close_timeout_s": 1.0, "startup_timeout_s": None}}).write
     assert w.prompt_v2 is False and w.prompt_schema == "auto"
     assert (w.prompt_known_cap, w.prompt_context_turns) == (40, 3)
 

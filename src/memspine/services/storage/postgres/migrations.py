@@ -43,8 +43,9 @@ def upgrade_to_head(url: str) -> None:
 
 def ensure_schema(url: str) -> None:
     """Bring a Postgres database to head. A database that already has the tables but no
-    ``alembic_version`` (made by the legacy ``create_all`` path) is stamped at head, because
-    ``create_all`` builds the current schema; an empty database is migrated from the baseline."""
+    ``alembic_version`` (made by the embedded ``create_all`` path) is stamped at the last
+    metadata-only revision, then upgraded so migration-only provider tables are created.
+    An empty database is migrated from the baseline."""
     sync_url = normalize_pg_url(url)
     engine = create_engine(sync_url)
     try:
@@ -55,7 +56,8 @@ def ensure_schema(url: str) -> None:
     with _LOCK:
         cfg = alembic_config(sync_url)
         if legacy:
-            command.stamp(cfg, "head")
+            command.stamp(cfg, "pg_lf_e_layer_backfill")
+            command.upgrade(cfg, "head")
             tap.event("store.profile.migrate", tree="postgres", action="stamped_legacy")
         else:
             command.upgrade(cfg, "head")

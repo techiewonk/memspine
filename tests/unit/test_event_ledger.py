@@ -6,6 +6,7 @@ from __future__ import annotations
 import re
 from collections.abc import Iterator
 from datetime import UTC, date, datetime, timedelta
+from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
@@ -249,18 +250,20 @@ RULES = [
 
 
 def _with_roles(monkeypatch: pytest.MonkeyPatch, stubs: dict[str, LLMService]) -> None:
-    async def router(config: MemspineConfig, hooks: object = None) -> LLMRouter:
+    async def router(
+        config: MemspineConfig, hooks: object = None, wiring: object = None
+    ) -> LLMRouter:
         return LLMRouter(stubs)
 
     monkeypatch.setattr("memspine.runtime.container.build_llm_router", router)
 
 
-def _engine(**read: Any) -> Engine:
+def _engine(*, storage_path: str = ":memory:", **read: Any) -> Engine:
     return Engine(
         template="core",
         dotenv_path=None,
-        storage={"path": ":memory:"},
-        embedding={"provider": "hash"},
+        storage={'provider': "sqlite", 'settings': {'path': storage_path, 'busy_timeout_s': 5.0}},
+        embedding={'provider': "hash", 'settings': {}},
         memories={"episodic": {"enabled": True}, "semantic": {"enabled": True}},
         read={"hybrid": False, "record_access": False, **read},
     )
@@ -370,22 +373,33 @@ async def test_an_invented_span_is_dropped_and_logged(monkeypatch: pytest.Monkey
         await eng.stop()
 
 
-async def test_not_an_event_question_does_not_fire(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_not_an_event_question_does_not_fire(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
     stub = _EventsStub(RULES)
     _with_roles(monkeypatch, {"extract": stub})
-    eng = _engine(event_ledger="on")
+    database = str(tmp_path / "events.db")
+    eng = _engine(storage_path=database, event_ledger="on")
     await eng.start()
     try:
         await _seed(eng)
         with search_forensics() as stages:
             await _read(eng, "What does Ana's sister bake?")
         assert stub.prompts == [] and stages["event_ledger"]["stop"] == "not_triggered"
-        eng.config.read.event_ledger_trigger = "always"
-        with search_forensics() as stages:
-            await _read(eng, "What does Ana's sister bake?")
-        assert len(stub.prompts) == 1
     finally:
         await eng.stop()
+
+    configured = _engine(
+        storage_path=database, event_ledger="on", event_ledger_trigger="always"
+    )
+    await configured.start()
+    try:
+        with search_forensics() as stages:
+            await _read(configured, "What does Ana's sister bake?")
+        assert stages["event_ledger"]["stop"] != "not_triggered"
+        assert len(stub.prompts) == 1
+    finally:
+        await configured.stop()
 
 
 async def test_unbound_role_and_failure_keep_the_read(monkeypatch: pytest.MonkeyPatch) -> None:

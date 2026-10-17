@@ -1,8 +1,6 @@
-"""MOD-02: every built-in registers at import under today's config names."""
+"""The centralized provider registry owns all built-in identities."""
 
 from __future__ import annotations
-
-from types import SimpleNamespace
 
 import pytest
 
@@ -23,9 +21,9 @@ def test_all_kinds_exist() -> None:
 def test_builtin_names_match_config_values() -> None:
     assert _names("embedders") == ("fastembed", "hash", "static", "litellm", "st")
     assert _names("rerankers") == ("fastembed", "flashrank", "litellm", "qwen3", "jina")
-    assert _names("llm_providers") == ("llamacpp", "litellm")
-    assert _names("vector_stores") == ("lance",)
-    assert _names("lexical_indexes") == ("tantivy",)
+    assert _names("llm_providers") == ("litellm", "llamacpp")
+    assert set(_names("vector_stores")) == {"lancedb", "pgvector", "weaviate"}
+    assert set(_names("lexical_indexes")) == {"tantivy", "opensearch", "weaviate"}
     assert _names("graph_stores") == ("sqlite_adjacency", "ladybug", "neo4j")
     assert _names("prompt_sets") == ("default",)
     assert set(_names("derive_stages")) == {
@@ -58,34 +56,50 @@ def test_rerank_modes_come_from_the_registry() -> None:
 
     modes = rerank_modes()
     assert modes[:6] == ("off", "fastembed", "flashrank", "litellm", "qwen3", "jina")
-    register_reranker("mod02_tmp", lambda s: None)
+    from memspine.providers.contracts import BuildResult, ProviderRef
+    from memspine.providers.registry import ProviderDescriptor
+    from memspine.providers.settings import EmptySettings
+
+    class Builder:
+        async def build(self, settings, ctx):
+            return BuildResult(object(), ProviderRef("reranker", "mod02_tmp"), (), frozenset({"rerank"}))
+
+    register_reranker(ProviderDescriptor(
+        ProviderRef("reranker", "mod02_tmp"), EmptySettings,
+        frozenset({"rerank"}), (), Builder(),
+    ))
     try:
         assert "mod02_tmp" in rerank_modes()
     finally:
         plugins.get_registry("rerankers").unregister("mod02_tmp")
 
 
-def test_llm_provider_routing() -> None:
-    from memspine.models.registry import llm_provider_name
+def test_llm_provider_is_declared_separately_from_model_id() -> None:
+    from memspine.config.schema.llm import ModelDecl, ModelsConfig
+    from memspine.models.resolve import resolve_models
 
-    assert llm_provider_name("llamacpp/x.gguf") == "llamacpp"
-    assert llm_provider_name("openai/gpt-4o") == "litellm"
-    assert llm_provider_name("plain-model") == "litellm"
+    models = ModelsConfig(
+        tiers_v2=True,
+        catalogue=[
+            ModelDecl(
+                id="ollama/model",
+                provider="llamacpp",
+                timeout_seconds=30.0,
+            )
+        ],
+        role_tier={"extract": "worker"},
+    )
+    resolved = resolve_models(models, gpus=())
+    assert resolved.plan.binding("extract").provider == "llamacpp"
 
 
-def test_unknown_embedder_keeps_message() -> None:
-    from memspine.models.registry import build_embedder
+def test_embedder_factories_are_typed_and_lazy() -> None:
+    from memspine.providers.registry import EMBEDDERS, ProviderDescriptor
 
-    with pytest.raises(ConfigError, match=r"valid: fastembed, hash, static, litellm, st"):
-        build_embedder(SimpleNamespace(provider="nope"))
-
-
-def test_hash_embedder_builds_and_dim_checks() -> None:
-    from memspine.models.registry import build_embedder
-
-    assert build_embedder(SimpleNamespace(provider="hash")) is not None
-    with pytest.raises(ConfigError, match=r"embedding.dim is required"):
-        build_embedder(SimpleNamespace(provider="st", dim=None))
+    fastembed = EMBEDDERS.get("fastembed")
+    assert isinstance(fastembed, ProviderDescriptor)
+    assert fastembed.settings_model.__name__ == "FastembedEmbeddingSettings"
+    assert "fastembed" in EMBEDDERS.builtin_names()
 
 
 def test_unknown_provider_error_lists_valid() -> None:
@@ -93,10 +107,16 @@ def test_unknown_provider_error_lists_valid() -> None:
         plugins.get_registry("prompt_sets").get("nope")
 
 
+def test_obsolete_vector_provider_name_is_not_an_alias() -> None:
+    with pytest.raises(plugins.UnknownProviderError, match="unknown vector_stores provider 'lance'") as caught:
+        plugins.get_registry("vector_stores").get("lance")
+    assert "lancedb" in str(caught.value)
+
+
 def test_duplicate_registration_refused() -> None:
     reg = plugins.get_registry("prompt_sets")
-    with pytest.raises(plugins.PluginError):
-        reg.register("default", lambda: [])
+    with pytest.raises(plugins.ProviderRegistryError):
+        reg.register("default", lambda: [], replace=False)
 
 
 def test_unknown_memory_type_still_rejected() -> None:

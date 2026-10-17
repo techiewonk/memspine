@@ -21,43 +21,47 @@ QWEN_QUERY = (
 EMBEDDERS = {
     "ejina": {
         "provider": "st",
-        "model": "jinaai/jina-embeddings-v5-text-small-retrieval",
-        "dim": 1024,
-        "device": "cuda",
-        "dtype": "bfloat16",
-        "query_prompt_name": "query",
-        "document_prompt_name": "document",
-        "trust_remote_code": True,
+        "settings": {
+            "model": "jinaai/jina-embeddings-v5-text-small-retrieval",
+            "dim": 1024,
+            "device": "cuda",
+            "dtype": "bfloat16",
+            "query_prompt_name": "query",
+            "document_prompt_name": "document",
+            "trust_remote_code": True,
+        },
     },
-    "ebge": {"provider": "fastembed", "model": "BAAI/bge-small-en-v1.5"},
-    "ebgeb": {"provider": "fastembed", "model": "BAAI/bge-base-en-v1.5"},
+    "ebge": {"provider": "fastembed", "settings": {"model": "BAAI/bge-small-en-v1.5"}},
+    "ebgeb": {"provider": "fastembed", "settings": {"model": "BAAI/bge-base-en-v1.5"}},
     "eq06": {
         "provider": "st",
-        "model": "Qwen/Qwen3-Embedding-0.6B",
-        "dim": 1024,
-        "device": "cuda",
-        "dtype": "bfloat16",
-        "query_instruction": QWEN_QUERY,
+        "settings": {
+            "model": "Qwen/Qwen3-Embedding-0.6B",
+            "dim": 1024,
+            "device": "cuda",
+            "dtype": "bfloat16",
+            "query_instruction": QWEN_QUERY,
+        },
     },
 }
 RERANKERS = {
     "rjina": {
         "rerank": "jina",
-        "rerank_model": "jinaai/jina-reranker-v3.5",
-        "rerank_device": "cuda",
+        "rerank_settings": {"model": "jinaai/jina-reranker-v3.5", "device": "cuda"},
     },
     "roff": {"rerank": "off"},
-    "rbge": {"rerank": "fastembed", "rerank_model": "BAAI/bge-reranker-base"},
+    "rbge": {"rerank": "fastembed", "rerank_settings": {"model": "BAAI/bge-reranker-base"}},
     "rq06": {
         "rerank": "qwen3",
-        "rerank_model": "Qwen/Qwen3-Reranker-0.6B",
-        "rerank_device": "cuda",
+        "rerank_settings": {"model": "Qwen/Qwen3-Reranker-0.6B", "device": "cuda"},
     },
     "rq4b4": {
         "rerank": "qwen3",
-        "rerank_model": "Qwen/Qwen3-Reranker-4B",
-        "rerank_device": "cuda",
-        "rerank_quant": "4bit",
+        "rerank_settings": {
+            "model": "Qwen/Qwen3-Reranker-4B",
+            "device": "cuda",
+            "quant": "4bit",
+        },
     },
 }
 

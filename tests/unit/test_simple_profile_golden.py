@@ -62,7 +62,7 @@ _OPTIONS = {
 
 
 def _snapshot() -> dict[str, Any]:
-    config = MemspineConfig().model_dump(mode="json")
+    config = MemspineConfig(runtime={"provider_services": {"health_timeout_s": 1.0, "close_timeout_s": 1.0, "startup_timeout_s": None}}).model_dump(mode="json")
     return {
         "config": {section: config[section] for section in _SECTIONS},
         "policy_options": {

@@ -1,4 +1,4 @@
-"""``storage.path: "tempdir"`` gives each item a fresh file-backed store, removed on close."""
+"""``storage.settings.path: "tempdir"`` gives each item a fresh store, removed on close."""
 
 from __future__ import annotations
 
@@ -15,7 +15,10 @@ from memspine_evals.systems.memspine_system import TEMPDIR_STORAGE, MemspineSyst
 
 def test_tempdir_storage_is_per_item_and_removed() -> None:
     system = MemspineSystem(
-        config={"storage": {"path": TEMPDIR_STORAGE}, "embedding": {"provider": "hash"}},
+        config={
+            "storage": {"provider": "sqlite", "settings": {"path": TEMPDIR_STORAGE}},
+            "embedding": {"provider": "hash", "settings": {}},
+        },
         template="core",
     )
 

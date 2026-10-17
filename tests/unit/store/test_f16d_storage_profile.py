@@ -40,16 +40,16 @@ from memspine.store.records import MemoryRecord, SourceInfo
 def test_both_trees_have_a_single_head() -> None:
     sqlite_dir = Path(sqlite_migrations.__file__).parent / "alembic"
     assert len(ScriptDirectory(str(sqlite_dir)).get_heads()) == 1
-    # LF-E (MF-08) added the layer backfill revision
-    assert pg_migrations.heads() == ["pg_lf_e_layer_backfill"]
+    # The audited cleanup-fence recovery migration is the current head in both trees.
+    assert pg_migrations.heads() == ["pg_cleanup_fence_recovery"]
 
 
 def test_postgres_tree_mirrors_the_sqlite_revision_count() -> None:
     def count(tree: Path) -> int:
         return len(list(ScriptDirectory(str(tree)).walk_revisions()))
 
-    # LF-E: sqlite 0011 mirrors pg0011
-    assert count(EMBEDDED.migration_tree) == count(SERVER.migration_tree) == 11
+    # Provider-contract and projector-binding revisions are mirrored in both trees.
+    assert count(EMBEDDED.migration_tree) == count(SERVER.migration_tree) == 14
 
 
 def _family(col_type: Any) -> str:
@@ -137,30 +137,53 @@ def test_postgres_tree_downgrades_to_empty(tmp_path: Path) -> None:
 
 
 def test_default_profile_is_embedded_and_unchanged() -> None:
-    cfg = MemspineConfig()
+    cfg = MemspineConfig(runtime={"provider_services": {"health_timeout_s": 1.0, "close_timeout_s": 1.0, "startup_timeout_s": None}})
     assert cfg.storage.profile == "embedded"
-    assert cfg.storage.backend == "sqlite"
+    assert cfg.storage.provider == "sqlite"
     assert resolve_profile(cfg.storage) is EMBEDDED
     assert EMBEDDED.sql_backend == "sqlite" and EMBEDDED.vector == "lancedb"
 
 
 def test_server_profile_selects_postgres_backend() -> None:
-    storage = StorageConfig(profile="server", url="postgresql://x/y")
-    assert storage.backend == "postgres"
+    storage = StorageConfig(
+        profile="server",
+        settings={
+            "url": "postgresql://x/y",
+            "data_dir": "./memspine-server",
+            "connect_timeout_s": 5.0,
+            "statement_timeout_s": 30.0,
+        },
+    )
+    assert storage.provider == "postgres"
     assert resolve_profile(storage) is SERVER
+    from memspine.providers.registry import get_registry, validate_settings
+
+    assert validate_settings(
+        get_registry("storage_backends").get("postgres"), storage.settings
+    )
     assert set(SERVER.provides()) == set(EMBEDDED.provides())
     assert SERVER.migration_tree.name == "alembic" and SERVER.migration_tree.is_dir()
 
 
 def test_server_profile_rejects_a_foreign_backend() -> None:
     with pytest.raises(ConfigError):
-        StorageConfig(profile="server", backend="mysql")
+        StorageConfig(profile="server", provider="sqlite")
 
 
-def test_legacy_postgres_backend_resolves_to_server_stores() -> None:
-    storage = StorageConfig(backend="postgres", url="postgresql://x/y")
+def test_embedded_profile_can_use_an_explicit_postgres_provider() -> None:
+    storage = StorageConfig(
+        profile="embedded",
+        provider="postgres",
+        settings={
+            "url": "postgresql://x/y",
+            "data_dir": "./memspine-server",
+            "connect_timeout_s": 5.0,
+            "statement_timeout_s": 30.0,
+        },
+    )
     assert storage.profile == "embedded"
-    assert resolve_profile(storage) is SERVER
+    assert storage.provider == "postgres"
+    assert resolve_profile(storage) is EMBEDDED
 
 
 def test_profile_events_are_tapped(monkeypatch: pytest.MonkeyPatch) -> None:

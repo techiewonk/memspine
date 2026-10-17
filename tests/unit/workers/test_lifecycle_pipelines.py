@@ -50,7 +50,7 @@ async def make_ctx(**config_overrides: object) -> tuple[PipelineContext, Harness
     storage = SQLiteStorage(client)
     await storage.start()
     harness = Harness(storage, RecordProjector(storage))
-    resolved = load_config(overrides=dict(config_overrides))
+    resolved = load_config(template="core", overrides=dict(config_overrides))
     ctx = PipelineContext(storage=storage, config=resolved.config, append_event=harness.append)
     return ctx, harness
 

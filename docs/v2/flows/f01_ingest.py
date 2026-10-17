@@ -40,7 +40,15 @@ CONFIG: dict[str, Any] = {
         "integration_v2": True,
         "lineage_table": True,
     },
-    "llm": {"roles": {"window_extract": {"model": "stub/window"}}},
+    "llm": {
+        "roles": {
+            "window_extract": {
+                "provider": "litellm",
+                "settings": {"model": "stub/window", "timeout_seconds": 30.0},
+            }
+        }
+    },
+    "runtime": {"deployment_id": "offline-flow-check"},
     "offline": {"session_close_v2": True, "patterns_v2": True, "standing_v2": True},
     "graph": {"edge_compiler_v2": True},
 }

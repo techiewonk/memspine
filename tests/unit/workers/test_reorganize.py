@@ -61,7 +61,7 @@ async def make_ctx() -> tuple[PipelineContext, Harness, SQLiteAdjacencyGraph]:
     harness = Harness(storage, graph)
     ctx = PipelineContext(
         storage=storage,
-        config=load_config().config,
+        config=load_config(template="core").config,
         append_event=harness.append,
         graph=graph,
     )
@@ -252,6 +252,7 @@ async def test_leiden_runs_per_namespace_over_that_namespace_only(
 def with_community(ctx: PipelineContext, **options: object) -> None:
     """Set ``memories.associative.policies.community`` on a test context."""
     ctx.config = load_config(
+        template="core",
         user_config={"memories": {"associative": {"policies": {"community": options}}}}
     ).config
 

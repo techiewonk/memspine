@@ -12,7 +12,7 @@ pytest.importorskip("lancedb")
 
 from memspine.clients.lancedb import LanceDBClient
 from memspine.config import constants
-from memspine.config.schema import VectorConfig
+from memspine.config.schema.providers import LanceDBSettings
 from memspine.models.encoders.embedding.hash_local import HashEmbedding
 from memspine.services.vector.lancedb_store import LanceDBVectorStore
 
@@ -31,7 +31,7 @@ async def _store(tmp_path: Path, on: bool) -> LanceDBVectorStore:
 
 
 def test_off_by_default() -> None:
-    assert VectorConfig().namespace_index is False
+    assert LanceDBSettings().namespace_index is False
 
 
 async def test_index_is_built_and_results_are_unchanged(

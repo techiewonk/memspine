@@ -313,14 +313,21 @@ def role_config(resolved: ResolvedModels, role: str) -> Any | None:
         no_think = False
     else:
         no_think = True if (info is not None and info.supports_thinking) else None
-    return LLMRoleConfig(
-        model=d.id,
-        api_base=d.api_base,
-        api_key=d.api_key,
-        aws_region=d.aws_region,
-        timeout_seconds=max(d.timeout_seconds, b.timeout_s),
-        no_think=no_think,
-    )
+    if d.timeout_seconds is None:
+        raise ValueError("bound LLM declaration is missing its explicit timeout")
+    settings: dict[str, Any] = {
+        "model": d.id,
+        "timeout_seconds": d.timeout_seconds,
+    }
+    for name in ("api_base", "api_key", "aws_region", "no_think"):
+        value = no_think if name == "no_think" else getattr(d, name)
+        if value is not None:
+            settings[name] = value
+    for name in ("temperature", "top_p", "max_tokens"):
+        value = getattr(d, name)
+        if value is not None:
+            settings[name] = value
+    return LLMRoleConfig(provider=d.provider, settings=settings)
 
 
 def role_binding(resolved: ResolvedModels, role: str) -> RoleBinding | None:

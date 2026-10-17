@@ -28,8 +28,8 @@ def _engine(**read: Any) -> Engine:
     return Engine(
         template="core",
         dotenv_path=None,
-        storage={"path": ":memory:"},
-        embedding={"provider": "hash"},
+        storage={'provider': "sqlite", 'settings': {'path': ":memory:", 'busy_timeout_s': 5.0}},
+        embedding={'provider': "hash", 'settings': {}},
         memories={"episodic": {"enabled": True}},
         read={"record_access": False, **read},
     )
@@ -84,9 +84,26 @@ async def test_engine_passes_every_knob_to_build_decider(monkeypatch: pytest.Mon
         )
     ]
     assert eng._decider_adapter() is a  # cached while the knobs are unchanged
-    eng.config.read.decider_dtype = "float32"  # a changed knob rebuilds the adapter
-    assert eng._decider_adapter() is not a and len(seen) == 2
     await eng.stop()
+
+    # An immutable Engine config is selected at startup; a second instance exercises
+    # the alternate setting without mutating the first engine's snapshot.
+    changed = _engine(
+        decider="opendecider",
+        decider_model="my/model",
+        decider_threads=3,
+        decider_backend="onnx",
+        decider_workers=2,
+        decider_dtype="float32",
+    )
+    await changed.start()
+    try:
+        b = changed._decider_adapter()
+        assert b is not a and len(seen) == 2
+        assert seen[1][3]["dtype"] == "float32"
+        assert changed._decider_adapter() is b
+    finally:
+        await changed.stop()
 
 
 def test_build_decider_forwards_the_knobs() -> None:

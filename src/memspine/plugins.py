@@ -24,11 +24,22 @@ from __future__ import annotations
 import hashlib
 import importlib
 import importlib.metadata
-from collections.abc import Callable, Iterable, Iterator, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 from typing import Any
 
 from memspine.exceptions import ConfigError
+from memspine.providers.registry import (
+    KIND_TO_CATEGORY,
+    KINDS,
+    ProviderDescriptor,
+    ProviderRegistryError,
+    Registry,
+    UnknownProviderError,
+)
+from memspine.providers.registry import (
+    get_registry as central_get_registry,
+)
 from memspine.schemas.public.plugins import (
     CapabilityManifest,
     DuplicateSlotError,
@@ -40,6 +51,7 @@ __all__ = [
     "KINDS",
     "DiscoveredPlugin",
     "EnabledPlugin",
+    "PluginContractError",
     "PluginError",
     "PluginHashError",
     "PluginLifetimeError",
@@ -54,20 +66,6 @@ __all__ = [
     "get_registry",
     "load_registries",
 ]
-
-#: The extension kinds and the module that owns each kind's registry.
-KINDS: dict[str, str] = {
-    "llm_providers": "memspine.models.registry",
-    "embedders": "memspine.models.registry",
-    "rerankers": "memspine.models.registry",
-    "vector_stores": "memspine.store.registry",
-    "lexical_indexes": "memspine.store.registry",
-    "graph_stores": "memspine.store.registry",
-    "read_legs": "memspine.read.registry",
-    "derive_stages": "memspine.derive.registry",
-    "memory_types": "memspine.memory.registry",
-    "prompt_sets": "memspine.prompts.registry",
-}
 
 _GROUP_PREFIX = "memspine."
 _LIFETIMES = ("app", "job", "request")
@@ -93,103 +91,8 @@ class PluginLifetimeError(PluginError, LifetimeViolation):
     """The pinned lifetime differs from the lifetime the plug-in declares."""
 
 
-class UnknownProviderError(ConfigError):
-    """No provider is registered under that name for the kind."""
-
-
-class Registry[T]:
-    """A typed name -> provider map for one extension kind.
-
-    Built-ins are registered explicitly by the owning package; enabled plug-ins are added by
-    :func:`enable`. Names are unique; re-registering a built-in name raises unless
-    ``replace=True`` (the pre-existing ``register_reranker`` seam used replace semantics).
-    """
-
-    def __init__(self, kind: str) -> None:
-        if kind not in KINDS:
-            raise ValueError(f"unknown registry kind {kind!r} (known: {sorted(KINDS)})")
-        self.kind = kind
-        self._items: dict[str, T] = {}
-        self._builtin: set[str] = set()
-        self._lifetime: dict[str, str] = {}
-        _REGISTRIES[kind] = self
-
-    def register(self, name: str, provider: T, *, builtin: bool = True, replace: bool = False) -> T:
-        if name in self._items and not replace:
-            raise PluginError(f"{self.kind}: {name!r} is already registered")
-        self._items[name] = provider
-        if builtin:
-            self._builtin.add(name)
-        else:
-            self._builtin.discard(name)
-        return provider
-
-    def unregister(self, name: str) -> None:
-        self._items.pop(name, None)
-        self._builtin.discard(name)
-        self._lifetime.pop(name, None)
-
-    def get(self, name: str, *default: Any) -> T:
-        """The provider for ``name``; unknown raises (dict-style ``default`` accepted)."""
-        try:
-            return self._items[name]
-        except KeyError:
-            if default:
-                return default[0]  # type: ignore[no-any-return]
-            raise UnknownProviderError(
-                f"unknown {self.kind} provider {name!r} (valid: {', '.join(self._items)})"
-            ) from None
-
-    def find(self, name: str) -> T | None:
-        return self._items.get(name)
-
-    def names(self) -> tuple[str, ...]:
-        return tuple(self._items)
-
-    def builtin_names(self) -> tuple[str, ...]:
-        return tuple(n for n in self._items if n in self._builtin)
-
-    def is_builtin(self, name: str) -> bool:
-        return name in self._builtin
-
-    def lifetime_of(self, name: str) -> str:
-        return self._lifetime.get(name, "app")
-
-    # dict-style access, kept so code and tests that used the old plain-dict registries still work.
-    def __getitem__(self, name: str) -> T:
-        return self._items[name]
-
-    def __setitem__(self, name: str, provider: T) -> None:
-        self.register(name, provider, builtin=False, replace=True)
-
-    def __delitem__(self, name: str) -> None:
-        if name not in self._items:
-            raise KeyError(name)
-        self.unregister(name)
-
-    def pop(self, name: str, *default: T | None) -> T | None:
-        if name in self._items:
-            value = self._items[name]
-            self.unregister(name)
-            return value
-        if default:
-            return default[0]
-        raise KeyError(name)
-
-    def __contains__(self, name: object) -> bool:
-        return name in self._items
-
-    def __iter__(self) -> Iterator[str]:
-        return iter(self._items)
-
-    def __len__(self) -> int:
-        return len(self._items)
-
-    def items(self) -> Iterable[tuple[str, T]]:
-        return self._items.items()
-
-
-_REGISTRIES: dict[str, Registry[Any]] = {}
+class PluginContractError(PluginError):
+    """A provider entry point does not implement the supported descriptor contract."""
 
 
 def load_registries() -> None:
@@ -201,9 +104,9 @@ def load_registries() -> None:
 def get_registry(kind: str) -> Registry[Any]:
     load_registries()
     try:
-        return _REGISTRIES[kind]
-    except KeyError:
-        raise PluginError(f"unknown plug-in kind {kind!r} (known: {sorted(KINDS)})") from None
+        return central_get_registry(kind)
+    except ProviderRegistryError as exc:
+        raise PluginError(str(exc)) from None
 
 
 @dataclass(frozen=True)
@@ -317,7 +220,7 @@ def enable(
                 f"slot {m.slot!r} has two providers: " + " and ".join(repr(e.value) for e in eps)
             )
         ep = eps[0]
-        registry = _REGISTRIES[kind]
+        registry = central_get_registry(kind)
         if key in registry:
             owner = "a built-in" if registry.is_builtin(key) else "an enabled plug-in"
             raise DuplicateSlotError(f"slot {m.slot!r} has two providers: {owner} and {m.name!r}")
@@ -342,22 +245,55 @@ def enable(
         declared = getattr(obj, "__memspine_lifetime__", "app")
         if declared not in _LIFETIMES or declared != m.lifetime:
             for e in done:  # leave nothing half-enabled
-                _REGISTRIES[e.kind].unregister(e.manifest.slot.partition(":")[2])
+                central_get_registry(e.kind).unregister(e.manifest.slot.partition(":")[2])
             raise PluginLifetimeError(
                 f"plug-in {m.name!r} declares lifetime {declared!r} but is pinned as {m.lifetime!r}"
             )
         key = m.slot.partition(":")[2]
-        _REGISTRIES[kind].register(key, obj, builtin=False)
-        _REGISTRIES[kind]._lifetime[key] = m.lifetime
+        if kind in KIND_TO_CATEGORY:
+            try:
+                _validate_provider_plugin(kind, key, obj, m)
+            except PluginContractError:
+                for enabled in done:
+                    central_get_registry(enabled.kind).unregister(
+                        enabled.manifest.slot.partition(":")[2]
+                    )
+                raise
+        central_get_registry(kind).register(key, obj, builtin=False)
+        central_get_registry(kind)._lifetime[key] = m.lifetime
         done.append(EnabledPlugin(m, kind, m.name, _pin(m.version)))
     _ENABLED.extend(done)
     return done
 
 
+def _validate_provider_plugin(
+    kind: str,
+    key: str,
+    value: Any,
+    manifest: CapabilityManifest,
+) -> None:
+    """Reject callable-era factories; provider plugins must export a typed descriptor."""
+    if not isinstance(value, ProviderDescriptor):
+        raise PluginContractError(
+            f"plug-in {manifest.name!r} for {kind}:{key} must export a ProviderDescriptor "
+            "with an async build(settings, ctx) method (provider contract v1)"
+        )
+    expected_category = KIND_TO_CATEGORY[kind]
+    if value.ref.category != expected_category or value.ref.name != key:
+        raise PluginContractError(
+            f"plug-in {manifest.name!r} descriptor identity must be {expected_category}:{key}"
+        )
+    if value.ref.contract_version != 1:
+        raise PluginContractError(
+            f"plug-in {manifest.name!r} uses unsupported {expected_category} provider "
+            f"contract version {value.ref.contract_version}; supported version is 1"
+        )
+
+
 def disable_all() -> None:
     """Unregister every enabled plug-in (tests, engine shutdown)."""
     for e in _ENABLED:
-        _REGISTRIES[e.kind].unregister(e.manifest.slot.partition(":")[2])
+        central_get_registry(e.kind).unregister(e.manifest.slot.partition(":")[2])
     _ENABLED.clear()
 
 

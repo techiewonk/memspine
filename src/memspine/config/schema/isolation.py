@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import ConfigDict, Field
+
+from memspine.config.schema.base import ConfigModel
 
 
-class IsolationConfig(BaseModel):
+class IsolationConfig(ConfigModel):
     """Tenant + owner scope in every key, and a viewer on every multi-party read (all off)."""
 
     model_config = ConfigDict(extra="forbid")

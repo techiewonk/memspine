@@ -178,8 +178,11 @@ async def _observe_engine(template: str, storage_path: str) -> dict[str, Any]:
     engine = Engine(
         template=template,
         dotenv_path=None,
-        storage={"path": storage_path},
-        embedding={"provider": "hash", "batch_size": 32},
+        storage={
+            "provider": "sqlite",
+            "settings": {"path": storage_path, "busy_timeout_s": 5.0},
+        },
+        embedding={"provider": "hash", "settings": {}, "batch_size": 32},
     )
     await engine.start()
     try:

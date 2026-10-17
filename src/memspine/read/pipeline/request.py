@@ -519,10 +519,7 @@ async def layer_inventory(
     )
     registry = (await LayerRegistry.load(storage, ns, template)).with_selected(selected)
     if eng._config().offline.profile_card_v2 or read.profile_card_header:
-        from memspine.derive.pipeline.stages.profile_card import read_latest_card
-
-        card = await read_latest_card(storage, ns)
-        registry = registry.with_artifacts("L5", len(card.entries) if card else 0)
+        registry = registry.with_artifacts("L5", await eng._profile_card_entry_count(ns))
     return registry
 
 

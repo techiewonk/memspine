@@ -38,28 +38,29 @@ event_log:
   compress: false      # zstd at rest costs CPU per append; price it separately
 
 storage:
-  path: ./memspine_benchmark.db   # harness overrides this per sample so a built
-                                  # memory can be cached and reused (one build,
-                                  # many read-side ablations)
+  settings:
+    path: ./memspine_benchmark.db   # harness overrides this per sample
+    busy_timeout_s: 5.0
 
 embedding:
   provider: fastembed             # ONNX on CPU — torch never enters core (D-08)
-  model: BAAI/bge-small-en-v1.5   # pinned: an unpinned embedder is an unpinned
-                                  # number
+  settings:
+    model: BAAI/bge-small-en-v1.5  # pinned: an unpinned embedder is an unpinned number
 
 vector:
-  backend: lance
-  quantization: auto   # the default embedder declares none -> exact float32
+  provider: lancedb
+  settings:
+    quantization: auto   # the default embedder declares none -> exact float32
 
 graph:
   provider: sqlite_adjacency   # zero-dep default (D-26/D-49); legal here only
                                # because associative memory is enabled below
 
 cache:
-  backend: memory      # in-process E3 embedding cache, zero-dep core (D-03)
+  provider: memory      # in-process E3 embedding cache, zero-dep core (D-03)
 
 llm:
-  roles: {}            # no role bound anywhere => no LLM call on any path
+  roles: {}            # no role bound => no LLM call; provider defaults apply only when bound
 
 read:
   hybrid: true                    # BM25 leg + RRF fusion (D-25/ADR-019); core

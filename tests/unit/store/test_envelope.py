@@ -12,8 +12,11 @@ import pytest
 from alembic import command
 
 from memspine import Engine
+from memspine.clients.sqlite import SQLiteClient
+from memspine.exceptions import ConfigError
 from memspine.schemas.durable.assertion import AssertionEnvelope
 from memspine.schemas.versioning import latest_version, upcast
+from memspine.services.storage.sqlite.engine import SQLiteStorage
 from memspine.services.storage.sqlite.migrations import alembic_config, upgrade_to_head
 from memspine.store.envelope import from_envelope, to_envelope, upcast_record_payload
 from memspine.store.layers import derive_axes, derive_layer, derive_provenance_class
@@ -177,8 +180,8 @@ def _engine(path: Path) -> Engine:
     return Engine(
         template="core",
         dotenv_path=None,
-        storage={"path": str(path)},
-        embedding={"provider": "hash"},
+        storage={'provider': "sqlite", 'settings': {'path': str(path), 'busy_timeout_s': 5.0}},
+        embedding={'provider': "hash", 'settings': {}},
         memories={"episodic": {"enabled": True}},
     )
 
@@ -283,10 +286,18 @@ async def test_migration_down_up_and_backfill(tmp_path: Path) -> None:
     assert got[ids[1]] == ("L4", "reflective", "derived", None, None, b"[]", 1)
     upgrade_to_head(path)  # a second upgrade is a no-op
     eng = _engine(path)
-    await eng.start()
+    # Downgrading below provider metadata deliberately removed the binding;
+    # an application must not reuse its remaining nonzero replay offset.
+    with pytest.raises(ConfigError, match="without a provider target binding"):
+        await eng.start()
+    client = SQLiteClient(str(path), busy_timeout_s=5.0)
+    await client.connect()
+    storage = SQLiteStorage(client)
+    await storage.start()
     try:
-        record = await eng._storage.get_record(ids[0])  # type: ignore[attr-defined]
+        record = await storage.get_record(ids[0])
     finally:
-        await eng.stop()
+        await storage.stop()
+        await client.close()
     assert record is not None
     assert (record.layer, record.axes.speaker, record.axes.subject) == ("L3", "alice", ["bob"])

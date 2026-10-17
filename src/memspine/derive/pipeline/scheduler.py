@@ -13,6 +13,7 @@ from memspine.derive.triggers import TriggerConfig, TriggerPolicy
 from memspine.exceptions import MemspineError, StorageError
 from memspine.memories.procedural.prompt_registry import prompt_version_records
 from memspine.observability.logging import EVENT_WRITE, get_logger
+from memspine.providers.placement import storage_placement
 from memspine.store.events import EventKind, MemoryEvent
 from memspine.store.records import MemoryRecord, RecordStatus
 from memspine.store.scope import validate_namespace
@@ -63,14 +64,24 @@ def build_sleep_v2(eng: Any, config: Any) -> DerivationScheduler:
     for non-file backends), so two processes on one database never overlap and the job bookkeeping
     never contends with the event-log writer."""
     off = config.offline
-    storage = config.storage
+    sql = getattr(eng, "_sql", None)
+    resources = getattr(eng, "_provider_resources", None)
     path = ":memory:"
-    if storage.backend == "sqlite" and storage.path != ":memory:":
-        path = f"{storage.path}.sleep"
-    elif storage.backend == "postgres" and storage.url:
-        path = storage.url  # FU-SLEEP: the lease tables live in the storage database
-    elif storage.backend != "sqlite":
-        _log.warning("sleep_v2.leases_in_memory", detail="no storage url: per-process leases")
+    shared_sql_engine = None
+    if sql is not None:
+        placement = storage_placement(config, getattr(eng, "_provider_owner_id", None) or "pending-owner")
+        capabilities = sql.capabilities
+        if placement.in_memory:
+            path = ":memory:"
+        elif "sql.sqlite" in capabilities and placement.base_path is not None:
+            path = f"{placement.base_path}.sleep"
+        elif "sql.shared_leases" in capabilities and resources is not None:
+            shared_sql_engine = sql.sync_lease(resources, "sleep_leases").engine
+        else:
+            _log.warning(
+                "sleep_v2.leases_in_memory",
+                detail="selected SQL provider has no durable lease capability",
+            )
     policy = TriggerPolicy(
         TriggerConfig(
             min_turns=off.sleep_min_turns,
@@ -101,7 +112,7 @@ def build_sleep_v2(eng: Any, config: Any) -> DerivationScheduler:
         budget = DerivationBudget(off.budget_calls_per_cycle, off.budget_tokens_per_cycle)
     tracker = getattr(eng, "_freshness_tracker", None)
     return DerivationScheduler(
-        store=LeaseStore(path),
+        store=LeaseStore(shared_sql_engine if shared_sql_engine is not None else path),
         policy=policy,
         run_stage=_run_stage,
         stages=lambda: sleep_stage_order(eng._pipeline_ctx()),

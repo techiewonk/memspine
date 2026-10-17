@@ -29,8 +29,14 @@ def _engine(path: Path | None = None, **over: Any) -> Engine:
     cfg: dict[str, Any] = {
         "template": "core",
         "dotenv_path": None,
-        "storage": {"path": str(path / "m.db") if path else ":memory:"},
-        "embedding": {"provider": "hash"},
+        "storage": {
+            "provider": "sqlite",
+            "settings": {
+                "path": str(path / "m.db") if path else ":memory:",
+                "busy_timeout_s": 5.0,
+            },
+        },
+        "embedding": {"provider": "hash", "settings": {}},
         "read": {"hybrid": False, "record_access": False, "cache": {"enabled": True}},
         "memories": {"episodic": {"enabled": True}, "semantic": {"enabled": True}},
     }
@@ -83,7 +89,7 @@ def test_flags_default_off() -> None:
     assert PrivacyConfig().erasure_v2 is False
     assert RetentionConfig().v2 is False and RetentionConfig().profile is None
     assert AuditConfig().chain_v2 is False
-    cfg = MemspineConfig()
+    cfg = MemspineConfig(runtime={"provider_services": {"health_timeout_s": 1.0, "close_timeout_s": 1.0, "startup_timeout_s": None}})
     assert cfg.privacy.erasure_v2 is False and cfg.audit.chain_v2 is False
 
 

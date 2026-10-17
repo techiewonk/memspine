@@ -127,8 +127,8 @@ def _engine(path: Path, **write: Any) -> Engine:
     return Engine(
         template="core",
         dotenv_path=None,
-        storage={"path": str(path / "m.db")},
-        embedding={"provider": "hash"},
+        storage={'provider': "sqlite", 'settings': {'path': str(path / "m.db"), 'busy_timeout_s': 5.0}},
+        embedding={'provider': "hash", 'settings': {}},
         read={"hybrid": True, "record_access": False},
         write=write,
     )

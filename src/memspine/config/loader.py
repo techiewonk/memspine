@@ -19,10 +19,11 @@ from pathlib import Path
 from typing import Any
 
 import yaml
+from pydantic import ValidationError
 
 from memspine.config import constants, presets
-from memspine.config.flags import check_retired
 from memspine.config.schema import MemspineConfig
+from memspine.config.schema.base import ConfigInputError, validate_config_input
 from memspine.exceptions import ConfigError
 
 __all__ = [
@@ -59,6 +60,66 @@ def _deep_merge(base: dict[str, Any], overlay: dict[str, Any]) -> dict[str, Any]
         else:
             merged[key] = value
     return merged
+
+
+def _provider_settings_resets(
+    base: Mapping[str, Any], overlay: Mapping[str, Any], prefix: str = ""
+) -> set[str]:
+    """Return settings paths whose selected provider changes in this layer.
+
+    Provider settings belong to the selected descriptor. Carrying settings
+    from a different provider across layers would feed unrelated constructor
+    options to strict validation. Same-provider layers retain ordinary deep
+    merge behavior.
+    """
+    reset: set[str] = set()
+    if "provider" in overlay and overlay.get("provider") != base.get("provider"):
+        reset.add(f"{prefix}settings" if prefix else "settings")
+
+    # Read has two provider bindings whose settings use explicit pair names.
+    for selector, settings_key in (
+        ("lexical_provider", "lexical_settings"),
+        ("rerank", "rerank_settings"),
+    ):
+        if selector in overlay and overlay.get(selector) != base.get(selector):
+            reset.add(f"{prefix}{settings_key}")
+
+    for key, value in overlay.items():
+        base_value = base.get(key)
+        if isinstance(value, Mapping) and isinstance(base_value, Mapping):
+            reset.update(_provider_settings_resets(base_value, value, f"{prefix}{key}."))
+    return reset
+
+
+def _merge_layer(base: dict[str, Any], overlay: dict[str, Any]) -> dict[str, Any]:
+    """Deep merge a config layer while isolating settings on provider changes."""
+    resets = _provider_settings_resets(base, overlay)
+    if not resets:
+        return _deep_merge(base, overlay)
+    adjusted_base = _deepcopy_mapping(base)
+    for path in resets:
+        node = adjusted_base
+        parts = path.split(".")
+        for part in parts[:-1]:
+            child = node.get(part)
+            if not isinstance(child, dict):
+                break
+            node = child
+        else:
+            node[parts[-1]] = {}
+    return _deep_merge(adjusted_base, overlay)
+
+
+def _deepcopy_mapping(value: Mapping[str, Any]) -> dict[str, Any]:
+    return {key: _deepcopy_value(item) for key, item in value.items()}
+
+
+def _deepcopy_value(value: Any) -> Any:
+    if isinstance(value, Mapping):
+        return _deepcopy_mapping(value)
+    if isinstance(value, list):
+        return [_deepcopy_value(item) for item in value]
+    return value
 
 
 def flatten_dotted(data: dict[str, Any], prefix: str = "") -> dict[str, Any]:
@@ -204,7 +265,7 @@ def _with_data_presets(
     above template defaults and below every explicit user / env / kwargs setting."""
     probe: dict[str, Any] = {}
     for _, data in layers:
-        probe = _deep_merge(probe, data)
+        probe = _merge_layer(probe, data)
     spec = probe.get("data_profile", "off")
     if not isinstance(spec, str) or spec.strip().lower() == "off":
         return layers
@@ -245,19 +306,38 @@ def load_config(
     merged: dict[str, Any] = {}
     sources: dict[str, str] = {}
     for layer_name, layer_data in layers:
-        merged = _deep_merge(merged, layer_data)
+        for settings_path in _provider_settings_resets(merged, layer_data):
+            prefix = f"{settings_path}."
+            for dotted in tuple(sources):
+                if dotted == settings_path or dotted.startswith(prefix):
+                    del sources[dotted]
+        merged = _merge_layer(merged, layer_data)
         for dotted in flatten_dotted(layer_data):
             sources[dotted] = layer_name
 
     merged = _resolve_secrets(merged, secret_resolver)
-    check_retired(merged)  # G-22: a retired flag names its replacement
 
     try:
+        # Check scalar/container input types before Pydantic's normal coercion.
+        # YAML and environment adapters have already parsed their string forms.
+        validate_config_input(merged, MemspineConfig)
         config = MemspineConfig.model_validate(merged)
+    except ConfigInputError as exc:
+        raise ConfigError(f"invalid configuration: {exc}") from None
     except ConfigError:
         raise
-    except Exception as exc:  # pydantic ValidationError -> our error type
-        raise ConfigError(f"invalid configuration: {exc}") from exc
+    except ValidationError as exc:
+        # Pydantic's default string includes the rejected input. Config values
+        # may contain credentials, URLs, or decrypted secrets, so expose only
+        # field locations and stable error codes.
+        issues = []
+        for error in exc.errors(include_url=False, include_input=False, include_context=False):
+            location = ".".join(str(part) for part in error["loc"]) or "<root>"
+            issues.append(f"{location} ({error['type']})")
+        detail = "; ".join(issues) or "validation failed"
+        raise ConfigError(f"invalid configuration: {detail}") from None
+    except Exception as exc:  # unexpected validation failure -> our error type
+        raise ConfigError(f"invalid configuration ({type(exc).__name__})") from None
 
     # Anything not set by an explicit layer came from schema defaults.
     for dotted in flatten_dotted(config.model_dump(mode="json")):

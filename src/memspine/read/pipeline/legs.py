@@ -354,7 +354,7 @@ async def registry_base_legs(
         temporal_mentions=read.temporal_leg_mentions,
         # the precision flag reads the stored event-time field, so it implies the happened date
         temporal_event_dates=read.temporal_leg_event_dates or read.temporal_precision_aware,
-        lexical_dates=read.lexical_dates,
+        lexical_dates=bool(read.lexical_settings.get("date_tokens", False)),
         vector_search=search_vector if eng._embedder is not None else None,
     )
     if use_hybrid and read.lexical_strip_names:

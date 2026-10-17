@@ -150,8 +150,9 @@ def _engine(resolve: str = "llm") -> Engine:
     return Engine(
         template="core",
         dotenv_path=None,
-        storage={"path": ":memory:"},
-        embedding={"provider": "hash"},
+        runtime={"deployment_id": "unit-test"},
+        storage={'provider': "sqlite", 'settings': {'path': ":memory:", 'busy_timeout_s': 5.0}},
+        embedding={'provider': "hash", 'settings': {}},
         memories={
             "semantic": {
                 "enabled": True,
@@ -307,8 +308,8 @@ async def test_off_by_default_changes_nothing() -> None:
     eng = Engine(
         template="core",
         dotenv_path=None,
-        storage={"path": ":memory:"},
-        embedding={"provider": "hash"},
+        storage={'provider': "sqlite", 'settings': {'path': ":memory:", 'busy_timeout_s': 5.0}},
+        embedding={'provider': "hash", 'settings': {}},
         memories={"semantic": {"enabled": True}, "episodic": {"enabled": True}},
     )
     await eng.start()
@@ -353,8 +354,9 @@ async def test_engine_binds_the_batched_prompts() -> None:
     eng = Engine(
         template="core",
         dotenv_path=None,
-        storage={"path": ":memory:"},
-        embedding={"provider": "hash"},
+        runtime={"deployment_id": "unit-test"},
+        storage={'provider': "sqlite", 'settings': {'path': ":memory:", 'busy_timeout_s': 5.0}},
+        embedding={'provider': "hash", 'settings': {}},
         memories={
             "semantic": {"enabled": True, "policies": {"extract_graph": {"resolve": "llm"}}},
             "episodic": {"enabled": True},
@@ -365,9 +367,18 @@ async def test_engine_binds_the_batched_prompts() -> None:
         },
         llm={
             "roles": {
-                "extract_edges": {"model": "ollama/llama3"},
-                "resolve_entity": {"model": "ollama/llama3"},
-                "summarize_entity": {"model": "ollama/llama3"},
+                "extract_edges": {
+                    "provider": "litellm",
+                    "settings": {"model": "ollama/llama3", "timeout_seconds": 30.0},
+                },
+                "resolve_entity": {
+                    "provider": "litellm",
+                    "settings": {"model": "ollama/llama3", "timeout_seconds": 30.0},
+                },
+                "summarize_entity": {
+                    "provider": "litellm",
+                    "settings": {"model": "ollama/llama3", "timeout_seconds": 30.0},
+                },
             }
         },
     )
@@ -404,8 +415,8 @@ async def test_forgetting_any_cited_turn_erases_a_session_decision(forget: str) 
     eng = Engine(
         template="core",
         dotenv_path=None,
-        storage={"path": ":memory:"},
-        embedding={"provider": "hash"},
+        storage={'provider': "sqlite", 'settings': {'path': ":memory:", 'busy_timeout_s': 5.0}},
+        embedding={'provider': "hash", 'settings': {}},
         memories={
             "semantic": {
                 "enabled": True,

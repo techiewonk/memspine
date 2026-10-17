@@ -114,9 +114,9 @@ PENDING_ROLE: ContextVar[RoleDecision | None] = ContextVar("memspine_pending_rol
 
 
 def _looks_like_recall(content: str) -> bool:
-    from memspine.ingest import write as ingest_write  # lazy: write imports this module
+    from memspine.ingest.message_helpers import _looks_like_recall
 
-    return ingest_write._looks_like_recall(content)
+    return _looks_like_recall(content)
 
 
 def decide(eng: Any, ns: str, session_id: str | None, role: str, content: str) -> RoleDecision:

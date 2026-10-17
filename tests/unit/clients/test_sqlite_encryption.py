@@ -17,11 +17,12 @@ from pathlib import Path
 from typing import Any, ClassVar
 
 import pytest
+from pydantic import ValidationError
 from structlog.testing import capture_logs
 
 from memspine import Engine
 from memspine.clients.sqlite import SQLiteClient, load_sqlcipher_driver
-from memspine.config.schema import MemspineConfig
+from memspine.config.schema.providers import PostgresSettings, SqliteSettings
 from memspine.exceptions import ConfigError, MissingServiceError, StorageError
 
 KEY_ENV = "MEMSPINE_TEST_DB_KEY"
@@ -67,10 +68,13 @@ def _hide_drivers(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_config_defaults_off_and_requires_key_env_name() -> None:
-    assert MemspineConfig().storage.encryption.mode == "none"
-    assert MemspineConfig().storage.encryption.key_env is None
-    with pytest.raises(ConfigError, match="key_env"):
-        MemspineConfig.model_validate({"storage": {"encryption": {"mode": "sqlcipher"}}})
+    defaults = SqliteSettings(path=":memory:", busy_timeout_s=5.0)
+    assert defaults.encryption.mode == "none"
+    assert defaults.encryption.key_env is None
+    with pytest.raises(ValidationError, match="key_env"):
+        SqliteSettings.model_validate(
+            {"path": ":memory:", "busy_timeout_s": 5.0, "encryption": {"mode": "sqlcipher"}}
+        )
 
 
 def test_missing_driver_names_the_encrypt_extra(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -89,11 +93,8 @@ async def test_engine_start_fails_with_missing_service_error(
     eng = Engine(
         template="core",
         dotenv_path=None,
-        storage={
-            "path": str(tmp_path / "enc.db"),
-            "encryption": {"mode": "sqlcipher", "key_env": KEY_ENV},
-        },
-        embedding={"provider": "hash"},
+        storage={'provider': "sqlite", 'settings': {'path': str(tmp_path / "enc.db"), 'encryption': {"mode": "sqlcipher", "key_env": KEY_ENV}, 'busy_timeout_s': 5.0}},
+        embedding={'provider': "hash", 'settings': {}},
         read={"hybrid": False},
     )
     with pytest.raises(MissingServiceError, match=r"memspine\[encrypt\]"):
@@ -157,8 +158,15 @@ async def test_engine_round_trip_never_logs_the_key(
     monkeypatch.setenv(KEY_ENV, SECRET)
     db = tmp_path / "enc.db"
     overrides: dict[str, Any] = {
-        "storage": {"path": str(db), "encryption": {"mode": "sqlcipher", "key_env": KEY_ENV}},
-        "embedding": {"provider": "hash"},
+        "storage": {
+            "provider": "sqlite",
+            "settings": {
+                "path": str(db),
+                "busy_timeout_s": 5.0,
+                "encryption": {"mode": "sqlcipher", "key_env": KEY_ENV},
+            },
+        },
+        "embedding": {"provider": "hash", "settings": {}},
         "read": {"hybrid": False},
     }
     caplog.set_level(logging.DEBUG)
@@ -168,32 +176,28 @@ async def test_engine_round_trip_never_logs_the_key(
         try:
             record = await eng.write("Ana lives in Lyon", namespace="a")
             assert [r.record_id for r in await eng.retrieve(namespace="a")] == [record.record_id]
-            assert eng._client is not None
-            assert SECRET not in repr(eng._client)
-            assert SECRET not in repr(eng._resolved)
+            assert SECRET not in repr(eng)
+            assert SECRET not in repr(await eng.provider_health())
             assert SECRET not in str(eng.describe())
         finally:
             await eng.stop()
     # migrations ran over keyed connections too (every connection keyed first)
     assert _Recording.statements.count(f"PRAGMA key = '{SECRET}'") >= 2
-    assert any(e["event"] == "storage.encryption_partial" for e in logs)
     assert SECRET not in repr(logs)
     assert SECRET not in caplog.text
 
 
-async def test_postgres_backend_rejects_sqlcipher() -> None:
-    eng = Engine(
-        template="core",
-        dotenv_path=None,
-        storage={
-            "backend": "postgres",
-            "url": "postgresql://unused",
-            "encryption": {"mode": "sqlcipher", "key_env": KEY_ENV},
-        },
-        embedding={"provider": "hash"},
-    )
-    with pytest.raises(ConfigError, match="sqlite backend only"):
-        await eng.start()
+def test_postgres_provider_rejects_sqlcipher_setting() -> None:
+    with pytest.raises(ValidationError, match="encryption"):
+        PostgresSettings.model_validate(
+            {
+                "url": "postgresql://unused",
+                "data_dir": ".",
+                "connect_timeout_s": 5.0,
+                "statement_timeout_s": 5.0,
+                "encryption": {"mode": "sqlcipher", "key_env": KEY_ENV},
+            }
+        )
 
 
 @pytest.mark.skipif(not _HAS_DRIVER, reason="SQLCipher driver ([encrypt]) not installed")
@@ -205,8 +209,8 @@ async def test_real_sqlcipher_file_is_unreadable_without_the_key(
     eng = Engine(
         template="core",
         dotenv_path=None,
-        storage={"path": str(db), "encryption": {"mode": "sqlcipher", "key_env": KEY_ENV}},
-        embedding={"provider": "hash"},
+        storage={'provider': "sqlite", 'settings': {'path': str(db), 'encryption': {"mode": "sqlcipher", "key_env": KEY_ENV}, 'busy_timeout_s': 5.0}},
+        embedding={'provider': "hash", 'settings': {}},
         read={"hybrid": False},
     )
     await eng.start()

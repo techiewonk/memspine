@@ -1,0 +1,59 @@
+{
+  "docker": true,
+  "images": [
+    "postgres: sha256:7b822b0aac60967beb1ea5e576b8602c94c300a157d187f385ae3e0da199b90a [pgvector/pgvector@sha256:7b822b0aac60967beb1ea5e576b8602c94c300a157d187f385ae3e0da199b90a]",
+    "neo4j: sha256:f1e52d4dc6da122468c4a3c1050a4f5e117f6d3268625237c34d49166f0d6082 [neo4j@sha256:f1e52d4dc6da122468c4a3c1050a4f5e117f6d3268625237c34d49166f0d6082]",
+    "redis: sha256:858f009f9709ce576febc734aa78b8f6d624b82571f9ddb6bda4377c833b3499 [redis@sha256:858f009f9709ce576febc734aa78b8f6d624b82571f9ddb6bda4377c833b3499]",
+    "valkey: sha256:640c5e62cea04b6d6f2084232651d0cc70362d31f4f805e7be94dbed6855e8f2 [valkey/valkey@sha256:640c5e62cea04b6d6f2084232651d0cc70362d31f4f805e7be94dbed6855e8f2]",
+    "postgres runtime: postgres (PostgreSQL) 16.15 (Debian 16.15-1.pgdg12+2)",
+    "neo4j runtime: 5.26.32",
+    "redis runtime: Redis server v=7.4.11 sha=00000000:0 malloc=jemalloc-5.3.0 bits=64 build=40ff01a501d8e4b6",
+    "valkey runtime: Valkey server v=8.1.10 sha=00000000:0 malloc=jemalloc-5.3.0 bits=64 build=f1f7d07da9c59343"
+  ],
+  "services_started": [
+    "postgres",
+    "neo4j",
+    "redis",
+    "valkey"
+  ],
+  "pytest_exit_code": 0,
+  "environment_variables": {
+    "MEMSPINE_TEST_LIVE_POSTGRES_URL": true,
+    "MEMSPINE_TEST_NEO4J_URL": true,
+    "MEMSPINE_TEST_NEO4J_USER": true,
+    "MEMSPINE_TEST_NEO4J_PASSWORD": true,
+    "MEMSPINE_TEST_LIVE_REDIS_URL": true,
+    "MEMSPINE_TEST_LIVE_VALKEY_URL": true
+  },
+  "pytest_summary": "5 passed, 9 warnings in 7.69s",
+  "pytest_skips": [],
+  "image_digests": [
+    "postgres: sha256:7b822b0aac60967beb1ea5e576b8602c94c300a157d187f385ae3e0da199b90a [pgvector/pgvector@sha256:7b822b0aac60967beb1ea5e576b8602c94c300a157d187f385ae3e0da199b90a]",
+    "neo4j: sha256:f1e52d4dc6da122468c4a3c1050a4f5e117f6d3268625237c34d49166f0d6082 [neo4j@sha256:f1e52d4dc6da122468c4a3c1050a4f5e117f6d3268625237c34d49166f0d6082]",
+    "redis: sha256:858f009f9709ce576febc734aa78b8f6d624b82571f9ddb6bda4377c833b3499 [redis@sha256:858f009f9709ce576febc734aa78b8f6d624b82571f9ddb6bda4377c833b3499]",
+    "valkey: sha256:640c5e62cea04b6d6f2084232651d0cc70362d31f4f805e7be94dbed6855e8f2 [valkey/valkey@sha256:640c5e62cea04b6d6f2084232651d0cc70362d31f4f805e7be94dbed6855e8f2]",
+    "postgres runtime: postgres (PostgreSQL) 16.15 (Debian 16.15-1.pgdg12+2)",
+    "neo4j runtime: 5.26.32",
+    "redis runtime: Redis server v=7.4.11 sha=00000000:0 malloc=jemalloc-5.3.0 bits=64 build=40ff01a501d8e4b6",
+    "valkey runtime: Valkey server v=8.1.10 sha=00000000:0 malloc=jemalloc-5.3.0 bits=64 build=f1f7d07da9c59343"
+  ],
+  "remote_search_providers": {
+    "images": {
+      "opensearch": "sha256:4ee82ecb35d837a6186c81aaa64c8a5bce71aa956edbd87f1f684ab56af52c44 [opensearchproject/opensearch@sha256:4ee82ecb35d837a6186c81aaa64c8a5bce71aa956edbd87f1f684ab56af52c44]",
+      "weaviate": "sha256:920463cf9a9b2b8d38e5b925d63f6928fa703277c93df11d5a75fc75e1fff758 [cr.weaviate.io/semitechnologies/weaviate@sha256:920463cf9a9b2b8d38e5b925d63f6928fa703277c93df11d5a75fc75e1fff758]"
+    },
+    "services": {
+      "opensearch": {
+        "version": "2.19.5",
+        "bind": "127.0.0.1"
+      },
+      "weaviate": {
+        "version": "1.32.4",
+        "bind": "127.0.0.1"
+      }
+    },
+    "pytest_exit_code": 0,
+    "pytest_summary": "3 passed, 3 warnings in 7.39s",
+    "runner": "scripts/run_remote_provider_contracts.py"
+  }
+}

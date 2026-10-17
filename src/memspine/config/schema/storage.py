@@ -2,16 +2,17 @@
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import ConfigDict, Field, JsonValue, model_validator
 
 from memspine.config import constants
+from memspine.config.schema.base import ConfigModel
 from memspine.exceptions import ConfigError
 from memspine.store.events import EventLogMode
 
 
-class EventLogConfig(BaseModel):
+class EventLogConfig(ConfigModel):
     """At-rest lifetime of the memory_events log (D-45)."""
 
     model_config = ConfigDict(extra="forbid")
@@ -21,7 +22,7 @@ class EventLogConfig(BaseModel):
     compress: bool = False
 
 
-class EncryptionConfig(BaseModel):
+class EncryptionConfig(ConfigModel):
     """Encryption at rest for the SQLite event log and read model (#52, ADR-035).
 
     ``none`` (default) leaves the database file plain. ``sqlcipher`` opens every
@@ -47,147 +48,79 @@ class EncryptionConfig(BaseModel):
         return self
 
 
-class StorageConfig(BaseModel):
-    """Event-log + read-model storage (D-36, Phase 6). ``sqlite`` (default) uses
-    ``path`` (a file, or ``:memory:``); ``postgres`` uses ``url`` (a DSN,
-    secrets-resolved) and ``data_dir`` as the base directory for the derived
-    file-backed projections (LanceDB vectors, Tantivy lexical) that live outside
-    the SQL database. Both backends share one dialect-neutral schema (ADR-025)."""
+class StorageConfig(ConfigModel):
+    """Event-log and read-model storage selection; native options are nested."""
 
     model_config = ConfigDict(extra="forbid")
 
-    #: F-16d (M-04 C): the storage profile. ``embedded`` (default, today's behaviour): SQLite +
-    #: LanceDB + Tantivy. ``server``: Postgres (``url`` required; ``backend`` is set to
-    #: ``postgres``) with its own Alembic tree, pgvector when installed. A legacy
-    #: ``backend: postgres`` with the default profile keeps its ``create_all`` bring-up.
     profile: Literal["embedded", "server"] = "embedded"
-    backend: str = "sqlite"  # sqlite | postgres
-    path: str = "./memspine.db"  # sqlite db file, or ":memory:"
-    url: str | None = None  # postgres DSN, required when backend=postgres
-    data_dir: str | None = None  # base dir for derived vector/lexical files (postgres)
-    #: #52: SQLCipher encryption at rest (sqlite backend only); off by default.
-    encryption: EncryptionConfig = Field(default_factory=EncryptionConfig)
+    provider: str = "sqlite"
+    settings: dict[str, JsonValue] = Field(default_factory=dict)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _resolve_provider(cls, value: Any) -> Any:
+        if not isinstance(value, dict):
+            return value
+        data = dict(value)
+        profile = data.get("profile", "embedded")
+        if "provider" not in data:
+            data["provider"] = "postgres" if profile == "server" else "sqlite"
+        elif data["provider"] is None:
+            raise ConfigError(
+                "storage.provider cannot be null; omit it to resolve from storage.profile"
+            )
+        if profile == "server" and data["provider"] != "postgres":
+            raise ConfigError(
+                f"storage.profile=server needs storage.provider=postgres (got {data['provider']!r})"
+            )
+        return data
+
+
+class VectorConfig(ConfigModel):
+    """Vector store selection and cross-provider projection policy."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    provider: str = "lancedb"
+    settings: dict[str, JsonValue] = Field(default_factory=dict)
+
+
+class GraphMirrorConfig(ConfigModel):
+    """Optional graph mirror with independent provider settings."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: bool = False
+    provider: str = "neo4j"
+    settings: dict[str, JsonValue] = Field(default_factory=dict)
+
+
+class GraphConfig(ConfigModel):
+    """Primary graph selection plus semantic graph policies."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    provider: str = "auto"
+    settings: dict[str, JsonValue] = Field(default_factory=dict)
+    mirror: GraphMirrorConfig = Field(default_factory=GraphMirrorConfig)
+    entity_embeddings: bool = False
+    key_v2: bool = False
+    edge_compiler_v2: bool = False
 
     @model_validator(mode="after")
-    def _profile_backend(self) -> StorageConfig:
-        if self.profile == "server":
-            if self.backend == "sqlite":
-                self.backend = "postgres"  # the default backend, so the profile picks it
-            if self.backend != "postgres":
-                raise ConfigError(
-                    f"storage.profile=server needs storage.backend=postgres (got {self.backend!r})"
-                )
+    def _auto_settings_are_empty(self) -> GraphConfig:
+        if self.provider == "auto" and self.settings:
+            raise ConfigError(
+                "graph.settings cannot be set when graph.provider='auto'; choose a provider explicitly"
+            )
         return self
 
 
-class VectorConfig(BaseModel):
-    """Vector store selection (D-09, amended by ADR-021). ``lance`` (LanceDB) is
-    the sole vector store and now a core dependency — the zero-dep SQLite
-    brute-force store was removed, so there is no ``auto``/``sqlite`` fallback.
-    ``weaviate`` (and future remote stores) keep the config seam open but are
-    not built yet; selecting one raises ``ConfigError``. An ``:memory:`` event
-    log points LanceDB at a per-engine scratch dir removed on ``stop()`` so the
-    projection never outlives its log (D0.1).
-
-    ``quantization`` drives the E4 two-stage rescore (ADR-020), realized by
-    LanceDB's native compressed ANN index (IVF_HNSW_SQ / IVF_PQ): ``auto``
-    (default) reads the embedder manifest — the default embedders declare none,
-    so the exact float32 path is unchanged; ``none`` forces it off;
-    ``int8``/``binary`` force that scheme even for an embedder that does not
-    declare it (a deployer opting a known-tolerant model in). Matryoshka
-    truncation is manifest-only (the model must be trained for it).
-    """
+class CacheConfig(ConfigModel):
+    """KV cache selection; constructor options live in provider settings."""
 
     model_config = ConfigDict(extra="forbid")
 
-    backend: str = "lance"  # lance (sole store); weaviate reserved (ADR-021)
-    quantization: str = "auto"  # auto | none | int8 | binary (E4/ADR-020)
-    #: I1 (isolation review 2026-10-08): keep a BITMAP scalar index on the vector
-    #: table's ``namespace`` column (rebuilt every ``NAMESPACE_INDEX_EVERY`` writes once
-    #: the table has ``NAMESPACE_INDEX_MIN_ROWS`` rows), so the per-user prefilter
-    #: reads one user's rows. Results are unchanged. Off: the column is scanned.
-    namespace_index: bool = False
-    #: I4 (isolation review 2026-10-08): ``shared`` (unchanged: one table per embedder,
-    #: namespace prefilter) or ``per_namespace`` (one table per namespace: a search
-    #: touches one user's rows only, and ``erase_namespace`` drops the user's table).
-    #: Switching rebuilds the vector projection from the event log.
-    isolation: Literal["shared", "per_namespace"] = "shared"
-
-
-class GraphConfig(BaseModel):
-    """Graph store selection (D-26). ``sqlite_adjacency`` is the zero-dep
-    default and fallback; ``ladybug`` (the maintained Kùzu fork, ``[graph]``) is
-    the graph engine for graph features (ADR-034). The ``kuzu`` alias was removed
-    (Kùzu was archived on 2025-10-10; ADR-034, G-22).
-    The store is only constructed when associative memory
-    is enabled or this block is set explicitly — ``profile="simple"`` never
-    touches it."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    #: GR-1 (ADR-064): ``auto`` (default) = LadybugDB when the ``ladybug`` package is
-    #: installed (``[graph]``), else ``sqlite_adjacency``. Explicit values pin one.
-    provider: str = "auto"  # auto | sqlite_adjacency | ladybug | neo4j
-    #: GR-3 (graph engine plan 2026-10-08): embed entity-node names (GP-2 entity nodes)
-    #: into the graph store's entity index: LadybugDB keeps them in a FLOAT[] column with
-    #: its native HNSW vector index and FTS index; sqlite_adjacency in node properties.
-    entity_embeddings: bool = False
-    #: F-01 (M-17 B, W-20 C): graph key format v2 for ``extract_graph`` edges: the key adds the edge
-    #: kind and an occurrence (the cited source records), so A -> B -> A writes a new occurrence
-    #: instead of being swallowed as a duplicate of the closed A; old keys stay valid as aliases.
-    #: Off: today's ``(namespace, src, rel, dst)`` key, byte-identical.
-    key_v2: bool = False
-    #: F-02c (M-16, S5-3, LIB-35): the ``compile_edges`` sleep stage compiles the assertion
-    #: records into typed graph edges (assertion node, role edges, one subject-object edge; time
-    #: axes from the tri-temporal fields, evidence ids, trust, a ``tentative`` tag that default
-    #: reads exclude) and projects them as LINK events, idempotently. An erased or retired record
-    #: takes its edges with it. With ``isolation.scope_keys_v2`` the edge keys use tenant + owner.
-    #: Off (default): no compiled edges, byte-identical. Tap: ``graph.compile.*``.
-    edge_compiler_v2: bool = False
-    #: F-16e (M-04 / M-18, owner Q4): the server profile's graph backend. ``auto`` (default) = the
-    #: embedded store chosen by ``provider``; ``neo4j`` selects Neo4j as the server graph (it still
-    #: needs ``neo4j_outbox``; the embedded store stays the read path, Neo4j is fed by the outbox).
-    backend: Literal["auto", "neo4j"] = "auto"
-    #: F-16e: feed a Neo4j graph through the durable outbox. Every graph event (record nodes, LINK
-    #: edges and compiled edges, tombstones, FORGET) is queued as a ``graph_projection`` item and a
-    #: registered handler applies it with idempotent MERGE (scope-keyed with
-    #: ``isolation.scope_keys_v2``), resuming from the F-04 watermark after a crash. Erasure and
-    #: retire remove edges and orphan nodes. Needs ``storage.profile: server`` or
-    #: ``graph.backend: neo4j``, the ``[neo4j]`` extra, memories.associative, and the three
-    #: environment variables below. Off (default): no Neo4j, embedded graph unchanged.
-    #: Tap: ``graph.neo4j.*``.
-    neo4j_outbox: bool = False
-    #: F-16e: NAMES of the environment variables holding the Neo4j URL, user and password. The
-    #: values never live in config or the repo.
-    neo4j_url_env: str = "MEMSPINE_NEO4J_URL"
-    neo4j_user_env: str = "MEMSPINE_NEO4J_USER"
-    neo4j_password_env: str = "MEMSPINE_NEO4J_PASSWORD"
-    #: F-16e: Neo4j database name.
-    neo4j_database: str = "neo4j"
-
-
-class CacheConfig(BaseModel):
-    """KV cache selection (D-09, ADR-022 amendment). One cache is built and shared
-    by the embedding (E3) and extraction (E3) caches — the ``emb:``/``ext:``
-    producer key prefixes already keep them from colliding in a shared store.
-
-    - ``memory`` (default): in-process :class:`MemoryKV`, zero-dep core (slim-core
-      D-03 keeps this hand-rolled — cashews never imports into core).
-    - ``disk`` (``[cache]``): persistent on-disk cache (cashews → diskcache) at
-      ``path`` (a directory); survives restarts.
-    - ``redis`` / ``valkey`` (``[cache]``): shared cross-process cache at ``url``
-      (cashews → redis-py; valkey is redis-wire-compatible), native TTL.
-
-    ``namespace`` prefixes every key so multiple memspine instances can share
-    one disk dir / redis server safely. ``default_ttl_seconds`` (``None`` = no
-    expiry) applies when a caller does not pass an explicit TTL. ``url`` is
-    secrets-resolved by the config loader (Phase 3)."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    backend: str = "memory"  # memory | disk | redis | valkey (disk/redis/valkey via cashews)
-    path: str = "./memspine.cache"  # disk cache directory
-    url: str = "redis://localhost:6379/0"  # redis/valkey DSN
-    namespace: str = "memspine"
-    default_ttl_seconds: float | None = None
-    max_entries: int = constants.MEMORY_KV_MAX_ENTRIES  # memory backend cap
+    provider: str = "memory"
+    settings: dict[str, JsonValue] = Field(default_factory=dict)

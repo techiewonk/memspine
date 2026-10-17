@@ -41,7 +41,7 @@ def test_redact_masks_broker_credentials() -> None:
 
 
 async def make_ctx() -> PipelineContext:
-    config = load_config(overrides={"event_log": {"mode": "full"}}).config
+    config = load_config(template="core", overrides={"event_log": {"mode": "full"}}).config
     client = SQLiteClient(":memory:")
     await client.connect()
     storage = SQLiteStorage(client, mode=EventLogMode.FULL)

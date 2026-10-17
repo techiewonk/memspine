@@ -74,16 +74,26 @@ def _engine() -> Engine:
     return Engine(
         template="core",
         dotenv_path=None,
-        storage={"path": ":memory:"},
-        embedding={"provider": "hash"},
+        runtime={"deployment_id": "unit-test"},
+        storage={'provider': "sqlite", 'settings': {'path': ":memory:", 'busy_timeout_s': 5.0}},
+        embedding={'provider': "hash", 'settings': {}},
         read={"hybrid": False},
         memories={"semantic": {"enabled": True}},
         consent={"remote_llm_max_tier": "low"},
         llm={
             "roles": {
-                "sufficiency": {"model": "openai/gpt-4o"},
-                "verify_answer": {"model": "openai/gpt-4o"},
-                "summarize": {"model": "ollama/llama3"},
+                "sufficiency": {
+                    "provider": "litellm",
+                    "settings": {"model": "openai/gpt-4o", "timeout_seconds": 30.0},
+                },
+                "verify_answer": {
+                    "provider": "litellm",
+                    "settings": {"model": "openai/gpt-4o", "timeout_seconds": 30.0},
+                },
+                "summarize": {
+                    "provider": "litellm",
+                    "settings": {"model": "ollama/llama3", "timeout_seconds": 30.0},
+                },
             }
         },
     )

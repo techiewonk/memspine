@@ -1,0 +1,87 @@
+"""Provider contracts and engine-local resource lifecycle."""
+
+from memspine.providers.configuration import provider_settings_reference
+from memspine.providers.contracts import (
+    BuildResult,
+    Category,
+    DependencyRequirement,
+    LifecycleManager,
+    ProjectionPlacement,
+    ProviderBuilder,
+    ProviderRef,
+    ResourceRef,
+    SqlAccess,
+    StorageBuildResult,
+    SyncSqlLease,
+)
+from memspine.providers.health import (
+    ProbeStatus,
+    ProviderHealthReport,
+    ProviderProbeResult,
+    ProviderStatusService,
+    ReadinessReport,
+    sql_health_probe,
+)
+from memspine.providers.lifecycle import (
+    LifecycleCloseReport,
+    LifecycleState,
+    ProviderLifecycleManager,
+    ResourceCloseFailure,
+    ResourceOwnershipError,
+)
+from memspine.providers.recovery import (
+    CleanupFenceRecoveryReceipt,
+    CleanupFenceRecoveryRequest,
+    CleanupQuiescenceGuard,
+    CleanupQuiescenceProof,
+)
+from memspine.providers.settings import (
+    EmptySettings,
+    LiteLLMRoleSettings,
+    LlamaCppRoleSettings,
+    Neo4jSettings,
+    ProjectionSwitchSettings,
+    ProviderServicesSettings,
+    StrictSettings,
+    freeze_settings,
+    freeze_settings_mapping,
+)
+
+__all__ = [
+    "BuildResult",
+    "Category",
+    "CleanupFenceRecoveryReceipt",
+    "CleanupFenceRecoveryRequest",
+    "CleanupQuiescenceGuard",
+    "CleanupQuiescenceProof",
+    "DependencyRequirement",
+    "EmptySettings",
+    "LifecycleCloseReport",
+    "LifecycleManager",
+    "LifecycleState",
+    "LiteLLMRoleSettings",
+    "LlamaCppRoleSettings",
+    "Neo4jSettings",
+    "ProbeStatus",
+    "ProjectionPlacement",
+    "ProjectionSwitchSettings",
+    "ProviderBuilder",
+    "ProviderHealthReport",
+    "ProviderLifecycleManager",
+    "ProviderProbeResult",
+    "ProviderRef",
+    "ProviderServicesSettings",
+    "ProviderStatusService",
+    "ReadinessReport",
+    "ResourceCloseFailure",
+    "ResourceOwnershipError",
+    "ResourceRef",
+    "SqlAccess",
+    "StorageBuildResult",
+    "StrictSettings",
+    "SyncSqlLease",
+    "freeze_settings",
+    "freeze_settings_mapping",
+    "provider_settings_reference",
+    "sql_health_probe",
+]

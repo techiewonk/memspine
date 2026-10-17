@@ -81,7 +81,7 @@ from memspine import Engine
 async def main() -> None:
     engine = Engine(
         template="base",
-        storage={"path": "./quickstart.db"},
+        storage={"settings": {"path": "./quickstart.db"}},
         embedding={"provider": "hash"},   # offline demo; omit for fastembed (ONNX, CPU)
     )
     await engine.start()
@@ -187,7 +187,7 @@ Every write of every type passes a deterministic gate before the door (OWASP **A
 | **E8** retrieval-quality stages | | `read.rerank: fastembed`\|`flashrank`\|`litellm` (+ `rerank_model`); `read.static_prefilter: true` |
 | **E9** token micro-opts | ✅ YAML/CoD prompt formats + always-on `json-repair` | |
 
-> **Hybrid retrieval is on by default (v0.2):** every `search` fuses a lexical **BM25** leg — a standalone **Tantivy** index (core dependency, backend-independent) — into the vector ranking via reciprocal-rank fusion (D-25). Set `read.hybrid: false` to restore the bit-identical vector-only pipeline; server-scale deployments swap the lexical leg to OpenSearch/Elasticsearch with `memspine[opensearch]`.
+> **Hybrid retrieval is on by default (v0.2):** every `search` fuses a lexical **BM25** leg — a standalone **Tantivy** index (core dependency, backend-independent) — into the vector ranking via reciprocal-rank fusion (D-25). Set `read.hybrid: false` to restore the bit-identical vector-only pipeline; future OpenSearch/Weaviate adapters can extend the same lexical/vector ports; those adapters are not currently shipped.
 
 ### 🆕 New in v0.2
 
@@ -204,7 +204,7 @@ The engine now *learns on its own* and retrieves more sharply out of the box:
 | 🗜️ **Deeper compression** | llmlingua-2 model, per-placement-band token budgets, entity `preserve`, and a zstd-vs-llmlingua decision rule | `memspine[compress]` |
 | 🧠 **Reinforcement on read** | retrieving a record additively bumps its salience (`utility += step`) — used memories decay slower | on by default |
 | 🧩 **Prompt partials + scenarios** | Jinja `_partials/` includes + `(role, scenario)` variant selection, fingerprinted into `prompt_version` | prompt pack |
-| 🗃️ **Unified cache** | cashews backs `cache.backend = memory\|disk\|redis\|valkey` (LMDB retired) | `memspine[cache]` for disk/redis |
+| 🗃️ **Unified cache** | cashews backs `cache.provider = memory\|disk\|redis\|valkey` (LMDB retired) | `memspine[cache]` for disk/redis |
 
 ---
 
@@ -214,7 +214,7 @@ The **core** install is slim (D-03) but already a full brain — SQLite event lo
 
 ```bash
 pip install memspine                              # core: SQLite + LanceDB + Tantivy + LiteLLM + fastembed
-pip install "memspine[kuzu]"                   # embedded-Cypher graph for associative memory
+pip install "memspine[graph]"                  # Ladybug embedded-Cypher graph
 pip install "memspine[ingest]"                 # markitdown + chonkie — document ingest()
 pip install "memspine[ner]"                    # gliner2 CPU entity extraction
 pip install "memspine[structured]"             # instructor — schema-validated LLM output
@@ -223,7 +223,7 @@ pip install "memspine[rerank]"                 # flashrank — E8 cross-encoder 
 pip install "memspine[community]"              # graspologic-native — Leiden graph community detection (MIT)
 pip install "memspine[cache]"                  # cashews — disk / redis / valkey cache backends
 pip install "memspine[rest]"                   # FastAPI + uvicorn — REST protocol
-pip install "memspine[opensearch]"             # server-scale lexical (OpenSearch / Elasticsearch)
+ # OpenSearch / Weaviate adapters are planned; no shipped extra is claimed.
 pip install "memspine[dbos]" / "[taskiq]"      # durable / brokered background workers
 pip install "memspine[llmlocal]"               # llama-cpp-python in-proc inference
 ```
@@ -232,8 +232,8 @@ pip install "memspine[llmlocal]"               # llama-cpp-python in-proc infere
 |-------|---------|
 | *(core)* | SQLite event log, **LanceDB vector**, **Tantivy BM25**, LiteLLM gateway, fastembed, inline runner (ADR-021/024/D-25) |
 | `graph` | LadybugDB embedded graph adapter (D-26) |
-| `kuzu` | embedded-Cypher graph store for associative memory (D-26) |
-| `cache` | cashews-backed disk / redis / valkey cache (`cache.backend`, ADR-022) |
+| `graph` | Ladybug embedded-Cypher graph store for associative memory |
+| `cache` | cashews-backed disk / redis / valkey cache (`cache.provider`, ADR-022) |
 | `ingest` | multi-format document ingest + chunking (D-29) |
 | `ner` | local CPU entity extraction (D-28) |
 | `structured` | schema-validated LLM output via instructor (D-31) |
@@ -241,7 +241,7 @@ pip install "memspine[llmlocal]"               # llama-cpp-python in-proc infere
 | `rerank` | E8 cross-encoder rerank alternative (flashrank) |
 | `static` | E4 model2vec static-embedding prefilter (ADR-020) |
 | `community` | Leiden graph community detection (graspologic-native, MIT, D-40/ADR-043 — needs numpy + scipy, no numpy ceiling) |
-| `opensearch` | server-scale lexical backend for hybrid (OpenSearch / Elasticsearch, D-25) |
+| Future adapters | OpenSearch / Weaviate lexical and vector adapters require implementation and backend verification |
 | `dbos` / `taskiq` | durable / brokered worker runners (D-16) |
 | `rest` | REST protocol (FastAPI, D-06) |
 | `llmlocal` | in-proc open-weight inference (llama-cpp-python) |
@@ -399,7 +399,7 @@ flowchart TB
         KV["KV cache"]
     end
     subgraph BK["🔌 Backends"]
-        B["LanceDB · Tantivy · kuzu / sqlite_adjacency · SQLite · cashews"]
+        B["LanceDB · Tantivy · ladybug / sqlite_adjacency · SQLite · cashews"]
     end
     API --> COG --> STORE --> BK
 
@@ -422,12 +422,12 @@ Every capability is a port. The engine plans against capabilities, degrades grac
 | Capability | 🟢 Default *(embedded, offline)* | 🚀 Swap-in *(config alone)* |
 |------------|----------------------------------|-----------|
 | **Vector** | **LanceDB** *(core, ADR-021)* | Weaviate *(reserved)* |
-| **Graph** | **`sqlite_adjacency`** *(zero-dep)* · **kuzu** with `[kuzu]` · **ladybug** with `[graph]` | Neo4j *(reserved)* |
-| **Cache / KV** | in-process KV *(core)* · cashews **disk** with `[cache]` | Redis / Valkey via `cache.backend` + `[cache]` *(ADR-022)* |
+| **Graph** | **`sqlite_adjacency`** *(zero-dep)* · **ladybug** with `[graph]` | Direct Neo4j factory `[neo4j]` (real-server gate pending) |
+| **Cache / KV** | in-process KV *(core)* · cashews **disk** with `[cache]` | Redis / Valkey via `cache.provider` + `[cache]` *(ADR-022)* |
 | **Relational / event log** | **SQLite** (SQLAlchemy Core + Alembic) | **PostgreSQL** `[postgres]` *(ADR-025)* |
 | **Embeddings** | **fastembed** (ONNX, CPU) · `hash` for tests · model2vec `[static]` | **LiteLLM** cloud (OpenAI / Bedrock / …) via `embedding.provider: litellm` *(ADR-024)* |
 | **LLM** | **local**: Ollama · vLLM · llama.cpp `[llmlocal]` · LM Studio · any OpenAI-compatible | **LiteLLM** prefix routing: `openai/` · `bedrock/` · `vertex_ai/` · `azure/` *(ADR-024)* |
-| **Lexical** | **Tantivy BM25** *(core, hybrid on by default)* | **OpenSearch / Elasticsearch** `[opensearch]` |
+| **Lexical** | **Tantivy BM25** *(core, hybrid on by default)* | OpenSearch / Weaviate *(planned adapters)* |
 | **Secrets** | env / `.env` *(core, ADR-023)* | **AWS Secrets Manager** `[aws]` via `MEMSPINE_SECRETS_BACKEND=aws` |
 | **Workers** | **inline** | DBOS `[dbos]` · taskiq `[taskiq]` |
 
@@ -437,11 +437,11 @@ Every capability is a port. The engine plans against capabilities, degrades grac
 
 memspine is **pre-alpha**. What's shipped vs. deferred, so you're not surprised:
 
-- **Retrieval is hybrid *by default* (v0.2).** `search` runs `[static_prefilter?] → vector + Tantivy BM25 fused by RRF → [rerank?] → score`. Set `read.hybrid: false` for the bit-identical vector-only pipeline. The embedded Tantivy index is **single-writer per directory**, so two live Engine instances can't share one file-backed lexical index — use one engine per process or the `[opensearch]` provider.
-- **Graph default is `sqlite_adjacency`.** `sqlite_adjacency` (zero-dep) is the shipped default; `ladybug` (`[graph]`) and `kuzu` (`[kuzu]`) are working embedded-Cypher opt-ins; Neo4j is a reserved stub. Graphiti-style `extract_graph` is **opt-in** (`memories.semantic.policies.extract_graph`).
+- **Retrieval is hybrid *by default* (v0.2).** `search` runs `[static_prefilter?] → vector + Tantivy BM25 fused by RRF → [rerank?] → score`. Set `read.hybrid: false` for the bit-identical vector-only pipeline. The embedded Tantivy index is **single-writer per directory**, so two live Engine instances can't share one file-backed lexical index — use one writer per index directory. OpenSearch and Weaviate adapters remain planned extensions; they are not shipped alternatives.
+- **Graph selection defaults to `auto`.** It chooses a compatible local provider; SQLite adjacency is the zero-dependency option for SQLite; `ladybug` (`[graph]`) is the embedded-Cypher opt-in. Direct Neo4j and an independent optional mirror use typed graph construction; real-server parity remains a separate verification gate. Graphiti-style `extract_graph` is **opt-in** (`memories.semantic.policies.extract_graph`).
 - **The autonomous scheduler is off by default and skipped on `:memory:`.** Set `workers.sleep_interval_seconds` to drive dynamics on a file-backed DB; production autonomous scheduling should pair with a durable runner (`[dbos]`/`[taskiq]`).
-- **Some backends are still reserved stubs.** `weaviate` vector, `neo4j` graph, and the `opensearch` lexical provider raise a clear error if selected; everything else in the swap-in table is wired.
-- **Extras gate features.** `ingest`, `compress`, `rerank`, `static`, `community`, `cache` (disk/redis/valkey), `postgres`, `opensearch`, `aws`, and durable/brokered workers each need their extra installed.
+- **Provider support is explicit.** Tantivy supplies lexical retrieval; OpenSearch and Weaviate remain future adapters. Direct Neo4j construction and a separate optional mirror use the graph contract; real-server verification is a separate release gate. Unknown providers fail selection. See the [provider architecture plan](docs/PROVIDER_ARCHITECTURE_PLAN.md) and [ADR-068](docs/adr/ADR-068-provider-contracts-and-controlled-changes.md).
+- **Extras gate features.** `ingest`, `compress`, `rerank`, `static`, `community`, `cache` (disk/redis/valkey), `postgres`, `neo4j`, `aws`, and durable/brokered workers each need their extra installed.
 - **REST has no authentication in v0.1.** The namespace comes from the `X-Memspine-Namespace` header verbatim — binding caller → namespace is the deployer's job (ADR-017/018). REST writes are forced onto the low-trust `rest` channel.
 - **Sync wrappers cover only** `start`/`write`/`retrieve`/`stop`; everything else is async.
 

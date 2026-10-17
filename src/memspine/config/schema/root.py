@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
-from typing import Any
+from collections.abc import Iterable, Mapping
+from functools import cache
+from typing import Any, Self, SupportsIndex
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator, model_validator
 
 from memspine.config.requires import check_requires
+from memspine.config.schema.base import ConfigInputError, ConfigModel, validate_config_input
 from memspine.config.schema.economy import EconomyConfig
 from memspine.config.schema.firewall import FirewallConfig
 from memspine.config.schema.integrity import IntegrityConfig
@@ -44,7 +47,7 @@ from memspine.schemas.public.plugins import CapabilityManifest
 from memspine.store.scope import validate_namespace
 
 
-class MemoryTypeConfig(BaseModel):
+class MemoryTypeConfig(ConfigModel):
     """Per-instance enablement + per-type policy overrides (D-14)."""
 
     model_config = ConfigDict(extra="forbid")
@@ -53,7 +56,7 @@ class MemoryTypeConfig(BaseModel):
     policies: dict[str, Any] = Field(default_factory=dict)
 
 
-class NamespaceConfig(BaseModel):
+class NamespaceConfig(ConfigModel):
     """Per-namespace *policy* overrides only (D-14)."""
 
     model_config = ConfigDict(extra="forbid")
@@ -61,7 +64,7 @@ class NamespaceConfig(BaseModel):
     policies: dict[str, Any] = Field(default_factory=dict)
 
 
-class MemspineConfig(BaseModel):
+class MemspineConfig(ConfigModel):
     model_config = ConfigDict(extra="forbid")
 
     profile: str = "simple"
@@ -88,7 +91,7 @@ class MemspineConfig(BaseModel):
     firewall: FirewallConfig = Field(default_factory=FirewallConfig)
     isolation: IsolationConfig = Field(default_factory=IsolationConfig)
     workers: WorkersConfig = Field(default_factory=WorkersConfig)
-    runtime: RuntimeConfig = Field(default_factory=RuntimeConfig)
+    runtime: RuntimeConfig
     economy: EconomyConfig = Field(default_factory=EconomyConfig)
     retention: RetentionConfig = Field(default_factory=RetentionConfig)
     audit: AuditConfig = Field(default_factory=AuditConfig)
@@ -113,6 +116,8 @@ class MemspineConfig(BaseModel):
             raise ConfigError("read.asset_evidence needs ingest.assets: on")
         if self.read.asset_evidence == "fetch" and not self.ingest.asset_dir:
             raise ConfigError("read.asset_evidence: fetch needs ingest.asset_dir (the cache)")
+        if self.runtime.environment == "production" and self.runtime.deployment_id is None:
+            raise ConfigError("runtime.environment=production requires runtime.deployment_id")
         return self
 
     @model_validator(mode="after")
@@ -146,3 +151,202 @@ class MemspineConfig(BaseModel):
 
     def enabled_memories(self) -> set[str]:
         return {name for name, mem in self.memories.items() if mem.enabled}
+
+
+class _FrozenConfigDict(dict[Any, Any]):
+    """Dict-compatible immutable container used in detached effective snapshots."""
+
+    def __setitem__(self, key: Any, value: Any) -> None:
+        raise TypeError("effective configuration is immutable")
+
+    def __delitem__(self, key: Any) -> None:
+        raise TypeError("effective configuration is immutable")
+
+    def clear(self) -> None:
+        raise TypeError("effective configuration is immutable")
+
+    def pop(self, key: Any, *default: Any) -> Any:
+        raise TypeError("effective configuration is immutable")
+
+    def popitem(self) -> tuple[Any, Any]:
+        raise TypeError("effective configuration is immutable")
+
+    def setdefault(self, key: Any, default: Any = None) -> Any:
+        raise TypeError("effective configuration is immutable")
+
+    def update(self, *args: Any, **kwargs: Any) -> None:
+        raise TypeError("effective configuration is immutable")
+
+    def __ior__(self, other: Any) -> _FrozenConfigDict:  # type: ignore[misc]
+        raise TypeError("effective configuration is immutable")
+
+
+class _FrozenConfigList(list[Any]):
+    """List-compatible immutable container so Pydantic keeps its normal serializers."""
+
+    def __setitem__(self, index: Any, value: Any) -> None:
+        raise TypeError("effective configuration is immutable")
+
+    def __delitem__(self, index: Any) -> None:
+        raise TypeError("effective configuration is immutable")
+
+    def append(self, value: Any) -> None:
+        raise TypeError("effective configuration is immutable")
+
+    def clear(self) -> None:
+        raise TypeError("effective configuration is immutable")
+
+    def extend(self, values: Any) -> None:
+        raise TypeError("effective configuration is immutable")
+
+    def insert(self, index: SupportsIndex, value: Any) -> None:
+        raise TypeError("effective configuration is immutable")
+
+    def pop(self, index: SupportsIndex = -1) -> Any:
+        raise TypeError("effective configuration is immutable")
+
+    def remove(self, value: Any) -> None:
+        raise TypeError("effective configuration is immutable")
+
+    def reverse(self) -> None:
+        raise TypeError("effective configuration is immutable")
+
+    def sort(self, *, key: Any = None, reverse: bool = False) -> None:
+        raise TypeError("effective configuration is immutable")
+
+    def __iadd__(self, values: Iterable[Any]) -> Self:  # type: ignore[misc]
+        raise TypeError("effective configuration is immutable")
+
+    def __imul__(self, count: SupportsIndex) -> Self:
+        raise TypeError("effective configuration is immutable")
+
+
+class _FrozenFieldsSet(set[str]):
+    """Read-only field-presence metadata that Pydantic can copy for model_copy()."""
+
+    def add(self, element: str) -> None:
+        raise TypeError("effective configuration is immutable")
+
+    def clear(self) -> None:
+        raise TypeError("effective configuration is immutable")
+
+    def difference_update(self, *others: Any) -> None:
+        raise TypeError("effective configuration is immutable")
+
+    def discard(self, element: object) -> None:
+        raise TypeError("effective configuration is immutable")
+
+    def intersection_update(self, *others: Any) -> None:
+        raise TypeError("effective configuration is immutable")
+
+    def pop(self) -> str:
+        raise TypeError("effective configuration is immutable")
+
+    def remove(self, element: str) -> None:
+        raise TypeError("effective configuration is immutable")
+
+    def symmetric_difference_update(self, other: Any) -> None:
+        raise TypeError("effective configuration is immutable")
+
+    def update(self, *others: Any) -> None:
+        raise TypeError("effective configuration is immutable")
+
+    def __copy__(self) -> set[str]:
+        # Pydantic copies field-set metadata while constructing model_copy() results.
+        return set(self)
+
+    def __ior__(self, other: Any) -> Any:  # type: ignore[misc]
+        raise TypeError("effective configuration is immutable")
+
+    def __iand__(self, other: Any) -> Any:  # type: ignore[misc]
+        raise TypeError("effective configuration is immutable")
+
+    def __isub__(self, other: Any) -> Any:  # type: ignore[misc]
+        raise TypeError("effective configuration is immutable")
+
+    def __ixor__(self, other: Any) -> Any:  # type: ignore[misc]
+        raise TypeError("effective configuration is immutable")
+
+
+@cache
+def _frozen_config_model(model_type: type[BaseModel]) -> type[BaseModel]:
+    config: ConfigDict = ConfigDict(**model_type.model_config)
+    config["frozen"] = True
+    # Snapshot fields have already been validated. Most nested snapshot types
+    # are only read, so defer their redundant validator/serializer construction
+    # until a caller explicitly validates or serializes that frozen type.
+    config["defer_build"] = True
+
+    def same_config_value(self: BaseModel, other: object) -> bool:
+        if not isinstance(other, model_type):
+            return False
+        return self.model_dump(mode="python") == other.model_dump(mode="python")
+
+    return type(
+        f"Frozen{model_type.__name__}",
+        (model_type,),
+        {
+            "model_config": ConfigDict(**config),
+            "__module__": model_type.__module__,
+            "__eq__": same_config_value,
+        },
+    )
+
+
+def _freeze_config_value(value: Any) -> Any:
+    if isinstance(value, BaseModel):
+        frozen_type = _frozen_config_model(type(value))
+        fields = {
+            name: _freeze_config_value(getattr(value, name))
+            for name in value.__class__.model_fields
+        }
+        frozen = frozen_type.model_construct(
+            _fields_set=set(value.model_fields_set),
+            **fields,
+        )
+        # Pydantic's model_copy() calls set.copy(), which returns a mutable built-in
+        # set before applying updates; the snapshot itself keeps immutable metadata.
+        object.__setattr__(
+            frozen, "__pydantic_fields_set__", _FrozenFieldsSet(value.model_fields_set)
+        )
+        if value.__pydantic_extra__ is not None:
+            object.__setattr__(
+                frozen,
+                "__pydantic_extra__",
+                _freeze_config_value(value.__pydantic_extra__),
+            )
+        return frozen
+    if isinstance(value, dict):
+        return _FrozenConfigDict({key: _freeze_config_value(item) for key, item in value.items()})
+    if isinstance(value, Mapping):
+        return _FrozenConfigDict({key: _freeze_config_value(item) for key, item in value.items()})
+    if isinstance(value, list):
+        return _FrozenConfigList(_freeze_config_value(item) for item in value)
+    if isinstance(value, tuple):
+        return tuple(_freeze_config_value(item) for item in value)
+    if isinstance(value, (set, frozenset)):
+        return frozenset(_freeze_config_value(item) for item in value)
+    return value
+
+
+def freeze_effective_config(config: MemspineConfig) -> MemspineConfig:
+    """Return a detached, recursively immutable snapshot of a validated config.
+
+    Dynamic frozen subclasses preserve the validated model interfaces and
+    validators without changing global Pydantic schema metadata. Mutable input
+    objects and their field-presence metadata remain untouched.
+    """
+    validate_config_input(config, MemspineConfig)
+    # Callers may edit typed input models before startup. Recheck constraints and
+    # cross-field rules, but retain the original explicit-field metadata below.
+    try:
+        MemspineConfig.model_validate(config.model_dump(mode="python"))
+    except ValidationError as exc:
+        failures = ", ".join(
+            f"{'.'.join(str(part) for part in error['loc']) or 'config'}: {error['type']}"
+            for error in exc.errors(include_input=False, include_context=False)
+        )
+        raise ConfigInputError(f"Invalid effective config ({failures})") from None
+    frozen = _freeze_config_value(config)
+    assert isinstance(frozen, MemspineConfig)
+    return frozen

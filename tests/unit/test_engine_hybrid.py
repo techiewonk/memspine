@@ -75,8 +75,8 @@ def make_engine(hybrid: bool = False) -> Engine:
     return Engine(
         template="core",
         dotenv_path=None,
-        storage={"path": ":memory:"},
-        embedding={"provider": "hash"},
+        storage={'provider': "sqlite", 'settings': {'path': ":memory:", 'busy_timeout_s': 5.0}},
+        embedding={'provider': "hash", 'settings': {}},
         read={"hybrid": hybrid},
         memories={"semantic": {"enabled": True}},
     )
@@ -142,8 +142,8 @@ async def test_hybrid_enabled_via_config_layer_not_just_kwargs() -> None:
         template="core",
         dotenv_path=None,
         user_config={"read": {"hybrid": True}},
-        storage={"path": ":memory:"},
-        embedding={"provider": "hash"},
+        storage={'provider': "sqlite", 'settings': {'path': ":memory:", 'busy_timeout_s': 5.0}},
+        embedding={'provider': "hash", 'settings': {}},
         memories={"semantic": {"enabled": True}},
     )
     await eng.start()
@@ -197,7 +197,8 @@ async def test_hybrid_relevance_outranks_recency(hybrid_engine: Engine) -> None:
     irrelevant = await hybrid_engine.write("grocery shopping list milk eggs bread")
     # Age the relevant record ~4 days so RECENCY favors the fresher irrelevant one.
     aged = (datetime.now(UTC) - timedelta(days=4)).isoformat()
-    async with hybrid_engine._client.engine.begin() as conn:
+    assert hybrid_engine._sql is not None
+    async with hybrid_engine._sql.engine.begin() as conn:
         await conn.execute(
             text("UPDATE memory_records SET recorded_at = :t WHERE record_id = :rid"),
             {"t": aged, "rid": relevant.record_id},

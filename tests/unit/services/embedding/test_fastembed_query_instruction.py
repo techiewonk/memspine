@@ -7,7 +7,7 @@ from typing import Any
 import pytest
 
 from memspine.config import constants
-from memspine.config.schema import EmbeddingConfig
+from memspine.config.schema.providers import FastembedEmbeddingSettings
 from memspine.models.cache.base import MemoryKV
 from memspine.models.cache.semantic import CachedEmbedding
 from memspine.models.encoders.embedding.base import embed_queries
@@ -20,7 +20,7 @@ class _FakeModel:
 
     def embed(self, texts: list[str]) -> Any:
         self.seen.extend(texts)
-        return [[float(len(t)), 1.0] for t in texts]
+        return [[float(len(t)), *([1.0] * 383)] for t in texts]
 
 
 def _emb(instruction: str | None) -> tuple[FastembedEmbedding, _FakeModel]:
@@ -31,7 +31,7 @@ def _emb(instruction: str | None) -> tuple[FastembedEmbedding, _FakeModel]:
 
 
 def test_off_by_default() -> None:
-    assert EmbeddingConfig().query_instruction is None
+    assert FastembedEmbeddingSettings().query_instruction is None
 
 
 async def test_no_instruction_embeds_queries_like_documents() -> None:

@@ -43,8 +43,8 @@ async def test_a_read_lists_each_scope_once(monkeypatch: pytest.MonkeyPatch) -> 
     eng = Engine(
         template="core",
         dotenv_path=None,
-        storage={"path": ":memory:"},
-        embedding={"provider": "hash"},
+        storage={'provider': "sqlite", 'settings': {'path': ":memory:", 'busy_timeout_s': 5.0}},
+        embedding={'provider': "hash", 'settings': {}},
         memories={"episodic": {"enabled": True}},
         read=LEGS,
     )

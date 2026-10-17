@@ -2,10 +2,52 @@
 
 from __future__ import annotations
 
-from pydantic import BaseModel, ConfigDict, Field
+from typing import Literal
+
+from pydantic import ConfigDict, Field
+
+from memspine.config.schema.base import ConfigModel
+from memspine.providers.settings import ProjectionSwitchSettings, ProviderServicesSettings
 
 
-class RuntimeConfig(BaseModel):
+class _StrictRuntimeModel(ConfigModel):
+    model_config = ConfigDict(extra="forbid", frozen=True, strict=True, allow_inf_nan=False)
+
+
+ProviderServicesConfig = ProviderServicesSettings
+ProjectionSwitchConfig = ProjectionSwitchSettings
+
+
+class EmbeddingSwitchConfig(_StrictRuntimeModel):
+    mode: Literal["controlled"] = "controlled"
+    strategy: Literal["reembed"] = "reembed"
+
+
+class ModelSwitchConfig(_StrictRuntimeModel):
+    mode: Literal["controlled"] = "controlled"
+    historical_derivation: Literal["forward_only"] = "forward_only"
+
+
+class StorageSwitchConfig(_StrictRuntimeModel):
+    mode: Literal["controlled"] = "controlled"
+    strategy: Literal["verified_migration"] = "verified_migration"
+    auto_delete_source: Literal[False] = False
+
+
+class CacheSwitchConfig(_StrictRuntimeModel):
+    mode: Literal["controlled"] = "controlled"
+    strategy: Literal["cold_start"] = "cold_start"
+
+
+class ServiceSwitchesConfig(_StrictRuntimeModel):
+    projections: ProjectionSwitchConfig = Field(default_factory=ProjectionSwitchConfig)
+    embeddings: EmbeddingSwitchConfig = Field(default_factory=EmbeddingSwitchConfig)
+    models: ModelSwitchConfig = Field(default_factory=ModelSwitchConfig)
+    storage: StorageSwitchConfig = Field(default_factory=StorageSwitchConfig)
+    cache: CacheSwitchConfig = Field(default_factory=CacheSwitchConfig)
+
+
+class RuntimeConfig(ConfigModel):
     """In-process scheduling of model work and derived work. Everything is OFF by default.
 
     - ``scheduler_v2`` (RT-02): turns on micro-batched encoder executors (document and query
@@ -23,6 +65,12 @@ class RuntimeConfig(BaseModel):
     """
 
     model_config = ConfigDict(extra="forbid")
+
+    environment: Literal["development", "production"] = "development"
+    deployment_id: str | None = Field(default=None, min_length=1)
+    # No defaults: each deadline must be stated even when startup is unbounded.
+    provider_services: ProviderServicesConfig
+    service_switches: ServiceSwitchesConfig = Field(default_factory=ServiceSwitchesConfig)
 
     scheduler_v2: bool = False
     model_concurrency: int = Field(default=0, ge=0)

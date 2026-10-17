@@ -116,15 +116,15 @@ async def _engine(
     economy: dict[str, Any] | None = None,
     **write: Any,
 ) -> Engine:
-    async def router(config: MemspineConfig, hooks: object = None) -> LLMRouter:
+    async def router(config: MemspineConfig, hooks: object = None, wiring: object = None) -> LLMRouter:
         return LLMRouter({"window_extract": llm})
 
     monkeypatch.setattr("memspine.runtime.container.build_llm_router", router)
     eng = Engine(
         template="core",
         dotenv_path=None,
-        storage={"path": str(path)},
-        embedding={"provider": "hash"},
+        storage={'provider': "sqlite", 'settings': {'path': str(path), 'busy_timeout_s': 5.0}},
+        embedding={'provider': "hash", 'settings': {}},
         memories={"episodic": {"enabled": True}, "semantic": {"enabled": True}},
         write={
             "window_extract": "facts",
@@ -133,7 +133,7 @@ async def _engine(
             "envelope_v2": True,
             **write,
         },
-        llm={"roles": {"window_extract": {"model": "fake/window"}}},
+        llm={"roles": {"window_extract": {"provider": "litellm", "settings": {"model": "fake/window", "timeout_seconds": 60.0}}}},
         economy=economy or {},
     )
     await eng.start()
@@ -185,7 +185,7 @@ def _setup(*roles: str) -> tuple[EnvelopeCompiler, ItemValidator, Any]:
 
 # --- config and flag off ----------------------------------------------------------------------
 def test_the_flag_is_off_by_default() -> None:
-    assert MemspineConfig().write.envelope_v2 is False
+    assert MemspineConfig(runtime={"provider_services": {"health_timeout_s": 1.0, "close_timeout_s": 1.0, "startup_timeout_s": None}}).write.envelope_v2 is False
 
 
 async def test_flag_off_is_unchanged(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:

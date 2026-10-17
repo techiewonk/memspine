@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
+from pydantic import ValidationError
 
 from memspine import Engine
 from memspine.exceptions import ConfigError
@@ -30,7 +31,9 @@ async def test_litellm_embedding_round_trips(monkeypatch: pytest.MonkeyPatch) ->
         return _EmbedResponse([[0.1, 0.2], [0.3, 0.4]])
 
     monkeypatch.setattr(litellm, "aembedding", fake_aembedding)
-    emb = LiteLLMEmbedding("openai/text-embedding-3-small", dim=2, api_key="sk")
+    emb = LiteLLMEmbedding(
+        "openai/text-embedding-3-small", dim=2, api_key="sk", request_timeout_s=30
+    )
     out = await emb.embed(["a", "b"])
     assert out == [[0.1, 0.2], [0.3, 0.4]]
     assert seen["model"] == "openai/text-embedding-3-small" and seen["input"] == ["a", "b"]
@@ -56,7 +59,7 @@ async def test_litellm_rerank_maps_scores_to_input_order(monkeypatch: pytest.Mon
         )
 
     monkeypatch.setattr(litellm, "arerank", fake_arerank)
-    reranker = LiteLLMReranker("cohere/rerank-english-v3.0")
+    reranker = LiteLLMReranker("cohere/rerank-english-v3.0", request_timeout_s=30)
     scores = await reranker.rerank("q", ["doc-a", "doc-b"])
     assert scores == [0.1, 0.9]  # realigned to input order
     assert await reranker.rerank("q", []) == []
@@ -68,9 +71,17 @@ async def test_litellm_rerank_maps_scores_to_input_order(monkeypatch: pytest.Mon
 async def test_engine_routes_litellm_model_prefix() -> None:
     eng = Engine(
         dotenv_path=None,
-        storage={"path": ":memory:"},
-        embedding={"provider": "hash"},
-        llm={"roles": {"chat": {"model": "openai/gpt-4o"}}},
+        runtime={"deployment_id": "unit-test"},
+        storage={'provider': "sqlite", 'settings': {'path': ":memory:", 'busy_timeout_s': 5.0}},
+        embedding={'provider': "hash", 'settings': {}},
+        llm={
+            "roles": {
+                "chat": {
+                    "provider": "litellm",
+                    "settings": {"model": "openai/gpt-4o", "timeout_seconds": 30.0}
+                }
+            }
+        },
     )
     await eng.start()
     try:
@@ -84,23 +95,48 @@ async def test_engine_routes_litellm_model_prefix() -> None:
 async def test_engine_empty_model_raises() -> None:
     eng = Engine(
         dotenv_path=None,
-        storage={"path": ":memory:"},
-        embedding={"provider": "hash"},
-        llm={"roles": {"chat": {"model": ""}}},
+        runtime={"deployment_id": "unit-test"},
+        storage={'provider': "sqlite", 'settings': {'path': ":memory:", 'busy_timeout_s': 5.0}},
+        embedding={'provider': "hash", 'settings': {}},
+        llm={
+            "roles": {
+                "chat": {
+                    "provider": "litellm",
+                    "settings": {"model": "", "timeout_seconds": 30.0},
+                }
+            }
+        },
     )
-    with pytest.raises(ConfigError, match=r"llm\.roles\.chat\.model is required"):
+    with pytest.raises(ConfigError, match=r"invalid settings for llm\.litellm.*model"):
         await eng.start()
     await eng.stop()
 
 
 async def test_litellm_embedder_requires_dim() -> None:
+    from memspine.config.schema.providers import LiteLLMEmbeddingSettings
+
+    known = LiteLLMEmbeddingSettings(request_timeout_s=30.0)
+    assert known.dim == 1536
+    with pytest.raises(ValidationError, match=r"settings\.dim is required"):
+        LiteLLMEmbeddingSettings(
+            model="custom/embedding-model-with-unknown-dimension",
+            request_timeout_s=30.0,
+        )
+
     eng = Engine(
         dotenv_path=None,
-        storage={"path": ":memory:"},
-        embedding={"provider": "litellm", "model": "openai/text-embedding-3-small"},
+        runtime={"deployment_id": "unit-test"},
+        storage={'provider': "sqlite", 'settings': {'path': ":memory:", 'busy_timeout_s': 5.0}},
+        embedding={
+            "provider": "litellm",
+            "settings": {
+                "model": "custom/embedding-model-with-unknown-dimension",
+                "request_timeout_s": 30.0,
+            },
+        },
         memories={"semantic": {"enabled": True}},
     )
-    with pytest.raises(ConfigError, match=r"embedding\.dim is required"):
+    with pytest.raises(ConfigError, match=r"invalid settings for embedding\.litellm"):
         await eng.start()
     await eng.stop()
 
@@ -111,10 +147,17 @@ async def test_read_rerank_litellm_accepted_at_start() -> None:
     predated the litellm rerank branch. The reranker itself loads lazily."""
     eng = Engine(
         dotenv_path=None,
-        storage={"path": ":memory:"},
-        embedding={"provider": "hash"},
+        runtime={"deployment_id": "unit-test"},
+        storage={'provider': "sqlite", 'settings': {'path': ":memory:", 'busy_timeout_s': 5.0}},
+        embedding={'provider': "hash", 'settings': {}},
         memories={"semantic": {"enabled": True}},
-        read={"rerank": "litellm", "rerank_model": "cohere/rerank-english-v3.0"},
+        read={
+            "rerank": "litellm",
+            "rerank_settings": {
+                "model": "cohere/rerank-english-v3.0",
+                "request_timeout_s": 30.0,
+            },
+        },
     )
     await eng.start()  # must NOT raise
     try:

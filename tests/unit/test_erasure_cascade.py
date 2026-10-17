@@ -19,8 +19,11 @@ def _engine(**extra: Any) -> Engine:
     config: dict[str, Any] = {
         "template": "core",
         "dotenv_path": None,
-        "storage": {"path": ":memory:"},
-        "embedding": {"provider": "hash"},
+        "storage": {
+            "provider": "sqlite",
+            "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
+        },
+        "embedding": {"provider": "hash", "settings": {}},
     }
     config.update(extra)
     return Engine(**config)
@@ -201,7 +204,12 @@ def _file_bytes(db: Path) -> tuple[int, bytes]:
 async def test_file_database_keeps_no_erased_bytes(tmp_path: Path) -> None:
     """secure_delete zeroes freed pages and the checkpoint empties the WAL."""
     db = tmp_path / "erase.db"
-    eng = _engine(storage={"path": str(db)})
+    eng = _engine(
+        storage={
+            "provider": "sqlite",
+            "settings": {"path": str(db), "busy_timeout_s": 5.0},
+        }
+    )
     await eng.start()
     try:
         sentinel = "SENTINEL-ERASE-7c1f9"

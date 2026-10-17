@@ -179,7 +179,7 @@ async def test_document_text_cannot_inject_template_tokens(fake: list[int]) -> N
     assert reranker._tokenizer.kwargs.get("split_special_tokens") is True
 
 
-def test_missing_extra_raises_and_the_factory_degrades(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_missing_extra_raises_and_the_factory_degrades(monkeypatch: pytest.MonkeyPatch) -> None:
     from memspine.models.providers.rerank.qwen3_rerank import Qwen3Reranker
 
     monkeypatch.setitem(sys.modules, "transformers", None)  # import -> ImportError
@@ -188,13 +188,13 @@ def test_missing_extra_raises_and_the_factory_degrades(monkeypatch: pytest.Monke
     assert info.value.extra == "st"
     assert "memspine[st]" in str(info.value)
     assert "qwen3" in rerank_modes()
-    assert build_reranker(RerankSettings(mode="qwen3")) is None
+    assert await build_reranker(RerankSettings(mode="qwen3")) is None
 
 
-def test_factory_builds_with_the_configured_model(fake: list[int]) -> None:
-    built = build_reranker(RerankSettings(mode="qwen3", model="Qwen/Qwen3-Reranker-4B"))
+async def test_factory_builds_with_the_configured_model(fake: list[int]) -> None:
+    built = await build_reranker(RerankSettings(mode="qwen3", model="Qwen/Qwen3-Reranker-4B"))
     assert built is not None and built.reranker_id == "qwen3:Qwen/Qwen3-Reranker-4B"
-    default = build_reranker(RerankSettings(mode="qwen3"))
+    default = await build_reranker(RerankSettings(mode="qwen3"))
     assert default is not None and default.reranker_id == "qwen3:Qwen/Qwen3-Reranker-0.6B"
     assert fake == []  # construction never loads weights
 

@@ -86,12 +86,20 @@ class LiteLLMLLM:
         aws_region: str | None = None,
         timeout_seconds: float = 60.0,
         no_think: bool | None = None,
+        temperature: float = 0.2,
+        top_p: float = 1.0,
+        max_tokens: int = 2048,
     ) -> None:
         self._model = model
         self._api_base = api_base
         self._api_key = api_key
         self._aws_region = aws_region
         self._timeout = timeout_seconds
+        self._generation_defaults = {
+            "temperature": temperature,
+            "top_p": top_p,
+            "max_tokens": max_tokens,
+        }
         self.no_think = default_no_think(model) if no_think is None else no_think
         #: Provider-reported tokens over this adapter's lifetime: prompt, completion.
         #: Read by the router's token ledger (``LLMRouter.token_counts``).
@@ -115,6 +123,7 @@ class LiteLLMLLM:
             "model": self._model,
             "messages": _with_no_think(messages) if self.no_think else messages,
             "timeout": self._timeout,
+            **self._generation_defaults,
         }
         if self.no_think and self._model.split("/", 1)[0] in _OLLAMA_PREFIXES:
             # Ollama ignores the ``/no_think`` suffix for Qwen3.5: the model reasons until max_tokens and the

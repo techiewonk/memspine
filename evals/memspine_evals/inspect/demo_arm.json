@@ -1,6 +1,6 @@
 {
- "embedding": {"provider": "hash"},
- "storage": {"path": "tempdir"},
+ "embedding": {"provider": "hash", "settings": {}},
+ "storage": {"provider": "sqlite", "settings": {"path": "tempdir", "busy_timeout_s": 5.0}},
  "read": {"rerank": "off", "record_access": false, "list_mode": true, "replay_window_before": 1, "replay_window_after": 1},
  "memories": {
   "episodic": {"enabled": true},
@@ -12,5 +12,6 @@
   "prompt_v2": true, "stamping_v2": true, "role_policy_v2": true, "temporal_v2": true,
   "grounding_v2": true, "integration_v2": true, "lineage_table": true
  },
- "llm": {"roles": {"window_extract": {"model": "stub/window"}}}
+ "llm": {"roles": {"window_extract": {"provider": "litellm", "settings": {"model": "stub/window", "timeout_seconds": 180.0}}}},
+ "runtime": {"deployment_id": "inspect-demo"}
 }

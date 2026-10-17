@@ -45,14 +45,15 @@ def event_loop_policy(request: pytest.FixtureRequest) -> asyncio.AbstractEventLo
 def _pin_pre_adr032_default(
     request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """The suite tests engine mechanics on schema defaults: ``Engine()`` with no
-    template meant "no template" before ADR-032 made ``assistant`` the default.
-    Keep that for every test except those marked ``shipped_default``, which check
-    the real default."""
+    """Mechanics tests select the explicit slim core template.
+
+    Core preserves the bare memory defaults and states required provider deadlines.
+    Tests marked ``shipped_default`` still exercise the real assistant default.
+    """
     if request.node.get_closest_marker("shipped_default") is None:
         from memspine.config import constants
 
-        monkeypatch.setattr(constants, "DEFAULT_TEMPLATE", None)
+        monkeypatch.setattr(constants, "DEFAULT_TEMPLATE", "core")
 
 
 @pytest.fixture(autouse=True)

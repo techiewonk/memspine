@@ -31,7 +31,7 @@ from memspine.read.pending_barrier import PendingBarrier
 
 
 def test_flags_default_off() -> None:
-    cfg = MemspineConfig()
+    cfg = MemspineConfig(runtime={"provider_services": {"health_timeout_s": 1.0, "close_timeout_s": 1.0, "startup_timeout_s": None}})
     assert cfg.write.online_extractor_v2 is False
     assert cfg.read.wait_for_pending_s == 0.0
 
@@ -83,7 +83,7 @@ async def test_no_model_template_makes_zero_calls_with_every_write_flag_on(
 ) -> None:
     calls: list[str] = []
 
-    async def router(config: MemspineConfig, hooks: object = None) -> LLMRouter:
+    async def router(config: MemspineConfig, hooks: object = None, wiring: object = None) -> LLMRouter:
         r = LLMRouter({})
         orig = r.for_role
 
@@ -103,8 +103,8 @@ async def test_no_model_template_makes_zero_calls_with_every_write_flag_on(
     eng = Engine(
         template="core",
         dotenv_path=None,
-        storage={"path": ":memory:"},
-        embedding={"provider": "hash"},
+        storage={'provider': "sqlite", 'settings': {'path': ":memory:", 'busy_timeout_s': 5.0}},
+        embedding={'provider': "hash", 'settings': {}},
         write={**flags, "window_extract": "facts", "window_async": False, "window_idle_s": 0.0},
     )
     await eng.start()
@@ -125,8 +125,8 @@ async def test_no_model_start_still_fails_with_the_flag_off() -> None:
     eng = Engine(
         template="core",
         dotenv_path=None,
-        storage={"path": ":memory:"},
-        embedding={"provider": "hash"},
+        storage={'provider': "sqlite", 'settings': {'path': ":memory:", 'busy_timeout_s': 5.0}},
+        embedding={'provider': "hash", 'settings': {}},
         write={"window_extract": "facts"},
     )
     with pytest.raises(ConfigError):
@@ -179,18 +179,18 @@ async def test_barrier_without_an_outbox_is_ready() -> None:
 
 
 async def _outbox_engine(monkeypatch: pytest.MonkeyPatch, path: Path, **read: Any) -> Engine:
-    async def router(config: MemspineConfig, hooks: object = None) -> LLMRouter:
+    async def router(config: MemspineConfig, hooks: object = None, wiring: object = None) -> LLMRouter:
         return LLMRouter({"window_extract": FakeWindowLLM()})  # type: ignore[dict-item]
 
     monkeypatch.setattr("memspine.runtime.container.build_llm_router", router)
     eng = Engine(
         template="core",
         dotenv_path=None,
-        storage={"path": str(path)},
-        embedding={"provider": "hash"},
+        storage={'provider': "sqlite", 'settings': {'path': str(path), 'busy_timeout_s': 5.0}},
+        embedding={'provider': "hash", 'settings': {}},
         memories={"episodic": {"enabled": True}, "semantic": {"enabled": True}},
         write={"window_extract": "facts", "window_async": False, "window_idle_s": 0.0},
-        llm={"roles": {"window_extract": {"model": "fake/window"}}},
+        llm={"roles": {"window_extract": {"provider": "litellm", "settings": {"model": "fake/window", "timeout_seconds": 60.0}}}},
         workers={"outbox": True},
         read=read,
     )

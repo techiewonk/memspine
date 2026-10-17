@@ -9,26 +9,32 @@ from __future__ import annotations
 import asyncio
 from typing import Any
 
+from memspine.config.schema.providers import FASTEMBED_MODEL_DIMS
 from memspine.models.encoders.embedding.base import EmbedderManifest
 
 __all__ = ["FastembedEmbedding"]
 
-_KNOWN_DIMS = {
-    "BAAI/bge-small-en-v1.5": 384,
-    "BAAI/bge-base-en-v1.5": 768,
-    "sentence-transformers/all-MiniLM-L6-v2": 384,
-}
+_KNOWN_DIMS = FASTEMBED_MODEL_DIMS
 
 
 class FastembedEmbedding:
     def __init__(
-        self, model: str = "BAAI/bge-small-en-v1.5", query_instruction: str | None = None
+        self,
+        model: str = "BAAI/bge-small-en-v1.5",
+        query_instruction: str | None = None,
+        dim: int | None = None,
     ) -> None:
         self._model_name = model
         #: N64: prepended to queries only (``embed_queries``); None = symmetric.
         self._query_instruction = query_instruction or None
         self._model: Any = None
-        self._dim = _KNOWN_DIMS.get(model, 384)
+        resolved_dim = _KNOWN_DIMS.get(model, dim)
+        if dim is not None and resolved_dim is not None and dim != resolved_dim:
+            raise ValueError("configured fastembed dimension conflicts with known model metadata")
+        if resolved_dim is None:
+            raise ValueError("fastembed dimension must be configured for models without known metadata")
+        self._dim = resolved_dim
+        self._expected_dim = resolved_dim
         self._lock = asyncio.Lock()
 
     @property
@@ -66,7 +72,12 @@ class FastembedEmbedding:
 
         vectors = await asyncio.to_thread(_run)
         if vectors:
-            self._dim = len(vectors[0])
+            actual_dim = len(vectors[0])
+            if any(len(vector) != actual_dim for vector in vectors):
+                raise ValueError("fastembed returned vectors with inconsistent dimensions")
+            if self._expected_dim is not None and actual_dim != self._expected_dim:
+                raise ValueError("fastembed output dimension differs from configured model dimension")
+            self._dim = actual_dim
         return vectors
 
     @property

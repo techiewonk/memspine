@@ -4,13 +4,14 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import ConfigDict, Field, JsonValue, model_validator
 
 from memspine.config import constants
+from memspine.config.schema.base import ConfigModel
 from memspine.exceptions import ConfigError
 
 
-class ReadCacheConfig(BaseModel):
+class ReadCacheConfig(ConfigModel):
     """R3-15 read-result cache (``read.cache``)."""
 
     enabled: bool = False
@@ -18,7 +19,7 @@ class ReadCacheConfig(BaseModel):
     ttl_seconds: float | None = Field(default=None, gt=0)
 
 
-class ReadConfig(BaseModel):
+class ReadConfig(ConfigModel):
     """ReadPolicy bindings (M12) + the E8/E5 opt-in stages (D-51, default OFF).
 
     ``scoring``/``assembly`` flow into ``ScoringPolicy.bind`` /
@@ -64,24 +65,13 @@ class ReadConfig(BaseModel):
     scoring: dict[str, Any] = Field(default_factory=dict)
     assembly: dict[str, Any] = Field(default_factory=dict)
     rerank: str = "off"  # off | fastembed | flashrank | litellm
-    #: LiteLLM rerank model id, required when rerank=litellm
-    #: (e.g. cohere/rerank-english-v3.0, bedrock/amazon.rerank-v1:0).
-    rerank_model: str | None = None
+    #: Provider constructor options. The selected descriptor validates the object.
+    rerank_settings: dict[str, JsonValue] = Field(default_factory=dict)
     static_prefilter: bool = False
     static_embedding_prefilter: bool = False
     hybrid: bool = True  # v0.2 A3: default-on hybrid retrieval (D-25, ADR-019)
     lexical_provider: str = "tantivy"  # tantivy (core, default) (D-25)
-    #: N58 (gaps plan 2026-10-08): the Tantivy analyzer for the BM25 body. ``default``
-    #: (unchanged: alphanumeric runs, lower-cased) or ``english`` (plus English stop
-    #: words and the Snowball English stemmer, so "camping" matches "camp"). The
-    #: ``english`` index lives in its own directory under its own projector name, so
-    #: switching rebuilds it from the event log and never touches the default index.
-    lexical_analyzer: Literal["default", "english"] = "default"
-    #: N30 (write side; Hindsight indexes dates with the text): the BM25 index also
-    #: holds each record's date words (the day it was said and the days it names:
-    #: "2023-05-07 7 May 2023 Sunday"), so a question naming a date matches lexically.
-    #: Own index and projector name (``lexical:dates``): turning it on rebuilds.
-    lexical_dates: bool = False
+    lexical_settings: dict[str, JsonValue] = Field(default_factory=dict)
     compression: dict[str, Any] = Field(default_factory=dict)
     #: Append a RETRIEVE event per search (access stats feed reinforcement, M1).
     #: ``false`` makes reads side-effect free, e.g. so benchmark questions cannot
@@ -266,13 +256,6 @@ class ReadConfig(BaseModel):
     #: G-10 (Graphiti MMR): None = off; a lambda in [0, 1] reorders the final hits by
     #: maximal marginal relevance on embeddings (1 = relevance only, 0 = diversity only).
     mmr_lambda: float | None = Field(default=None, ge=0.0, le=1.0)
-    #: N12 (plan v3.2, EverMemOS): the task instruction an instruction-conditioned
-    #: reranker (``rerank: qwen3``) judges with; None keeps its memory default.
-    rerank_instruction: str | None = None
-    #: ``rerank: qwen3`` only: torch device (None = CPU float32) and weight quantisation
-    #: ("4bit" | "8bit" via bitsandbytes, GPU only; None = full precision).
-    rerank_device: str | None = None
-    rerank_quant: Literal["4bit", "8bit"] | None = None
     #: I9: None (default, unchanged) = a long record is cut by the reranker's own context
     #: limit (the tail is dropped). N = records longer than N characters are scored in
     #: overlapping windows of N characters and take the max window score, so a long assistant

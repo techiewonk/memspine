@@ -14,8 +14,8 @@ def _engine(template: str) -> Engine:
     return Engine(
         template=template,
         dotenv_path=None,
-        storage={"path": ":memory:"},
-        embedding={"provider": "hash"},
+        storage={'provider': "sqlite", 'settings': {'path': ":memory:", 'busy_timeout_s': 5.0}},
+        embedding={'provider': "hash", 'settings': {}},
     )
 
 
@@ -79,7 +79,11 @@ async def test_core_template_is_bare_and_base_has_the_advantages() -> None:
 @pytest.mark.shipped_default
 async def test_engine_without_a_template_uses_assistant() -> None:
     """ADR-032: Engine() defaults to the assistant template; base stays simple."""
-    eng = Engine(dotenv_path=None, storage={"path": ":memory:"}, embedding={"provider": "hash"})
+    eng = Engine(
+        dotenv_path=None,
+        storage={'provider': "sqlite", 'settings': {'path': ":memory:", 'busy_timeout_s': 5.0}},
+        embedding={'provider': "hash", 'settings': {}},
+    )
     await eng.start()
     try:
         assert eng.describe()["profile"] == "assistant"
@@ -101,7 +105,10 @@ async def test_profile_simple_without_a_template_is_base(where: str) -> None:
     ``Engine(profile="simple")`` never picks up the assistant settings."""
     from memspine.config.loader import load_config
 
-    common = {"storage": {"path": ":memory:"}, "embedding": {"provider": "hash"}}
+    common = {
+        "storage": {"settings": {"path": ":memory:"}},
+        "embedding": {"provider": "hash"},
+    }
     if where == "kwargs":
         eng = Engine(dotenv_path=None, profile="simple", **common)
     else:

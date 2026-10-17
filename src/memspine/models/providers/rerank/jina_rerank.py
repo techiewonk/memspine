@@ -18,11 +18,12 @@ import importlib
 import threading
 from typing import Any
 
+from memspine.config import constants
 from memspine.exceptions import MissingServiceError
 
 __all__ = ["DEFAULT_MODEL", "JinaReranker"]
 
-DEFAULT_MODEL = "jinaai/jina-reranker-v3.5"
+DEFAULT_MODEL = constants.RERANK_JINA_MODEL
 _SERVICE = "services.rerank.jina (transformers + torch)"
 
 

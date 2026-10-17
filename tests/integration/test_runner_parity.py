@@ -53,7 +53,9 @@ async def _build_ctx(path: str) -> tuple[PipelineContext, SQLiteStorage, SQLiteC
         await projector.apply(appended)
         await storage.set_offset(projector.name, appended.seq)
 
-    config = load_config().config
+    # Runtime lifecycle/service timeouts are required in raw configuration;
+    # load an explicit shipped config rather than relying on implicit defaults.
+    config = load_config(template="base").config
     return PipelineContext(storage=storage, config=config, append_event=append), storage, client
 
 

@@ -45,8 +45,8 @@ def _engine(path: Path, *, offline: dict[str, Any] | None = None, **extra: Any) 
     return Engine(
         template="core",
         dotenv_path=None,
-        storage={"path": str(path / "m.db")},
-        embedding={"provider": "hash"},
+        storage={'provider': "sqlite", 'settings': {'path': str(path / "m.db"), 'busy_timeout_s': 5.0}},
+        embedding={'provider': "hash", 'settings': {}},
         memories={
             "episodic": {"enabled": True, "policies": {"consolidation": {"mine_facts": True}}},
             "semantic": {"enabled": True},
@@ -309,27 +309,47 @@ def test_pg_sql_translation() -> None:
     assert "BIGSERIAL PRIMARY KEY" in ddl and "DOUBLE PRECISION" in ddl
 
 
-def test_postgres_storage_url_is_the_lease_path(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_shared_sql_lease_capability_uses_owned_sync_lease(monkeypatch: pytest.MonkeyPatch) -> None:
     from types import SimpleNamespace
 
+    from memspine.config.schema import MemspineConfig
     from memspine.derive.pipeline import scheduler as sched
 
     seen: list[str] = []
 
     class Fake(LeaseStore):
-        def __init__(self, path: str = ":memory:", **kw: Any) -> None:
+        def __init__(self, path: Any = ":memory:", **kw: Any) -> None:
             seen.append(path)
             super().__init__(":memory:", **kw)
 
     monkeypatch.setattr(sched, "LeaseStore", Fake)
-    off = OfflineConfig()
-    cfg = SimpleNamespace(
-        offline=off,
-        storage=SimpleNamespace(backend="postgres", url="postgresql://u@h/db", path="x"),
-        runtime=SimpleNamespace(scheduler_v2=False),
+    cfg = MemspineConfig(
+        runtime={
+            "provider_services": {
+                "health_timeout_s": 1.0,
+                "close_timeout_s": 1.0,
+                "startup_timeout_s": None,
+            }
+        },
+        storage={
+            "provider": "postgres",
+            "settings": {
+                "url": "postgresql://u@h/db",
+                "data_dir": "./derived",
+                "connect_timeout_s": 1.0,
+                "statement_timeout_s": 5.0,
+            },
+        },
     )
-    sched.build_sleep_v2(SimpleNamespace(), cfg)
-    assert seen == ["postgresql://u@h/db"]
+    access = SimpleNamespace(capabilities=frozenset({"sql.shared_leases"}))
+    access.sync_lease = lambda resources, purpose: SimpleNamespace(engine=purpose)
+    scheduler_engine = SimpleNamespace(
+        _sql=access,
+        _provider_resources=object(),
+        _provider_owner_id="deployment-a",
+    )
+    sched.build_sleep_v2(scheduler_engine, cfg)
+    assert seen == ["sleep_leases"]
 
 
 @pytest.fixture

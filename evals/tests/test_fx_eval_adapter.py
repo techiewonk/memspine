@@ -46,11 +46,19 @@ class _CloseLLM:
 
 def _config(**offline: Any) -> dict[str, Any]:
     return {
-        "embedding": {"provider": "hash"},
+        "embedding": {"provider": "hash", "settings": {}},
+        "runtime": {"deployment_id": "unit-test"},
         "dotenv_path": None,
         "memories": {"episodic": {"enabled": True}, "semantic": {"enabled": True}},
         "offline": {"session_close_v2": True, **offline},
-        "llm": {"roles": {"session_close": {"model": "fake/close"}}},
+        "llm": {
+            "roles": {
+                "session_close": {
+                    "provider": "litellm",
+                    "settings": {"model": "fake/close", "timeout_seconds": 30.0},
+                }
+            }
+        },
     }
 
 
@@ -59,7 +67,7 @@ async def _run(
 ) -> tuple[Any, Any, _CloseLLM]:
     llm = _CloseLLM()
 
-    async def router(cfg: Any, hooks: object = None) -> Any:
+    async def router(cfg: Any, hooks: object = None, wiring: object = None) -> Any:
         from memspine.models.providers.llm.base import LLMRouter
 
         return LLMRouter({"session_close": llm})  # type: ignore[dict-item]

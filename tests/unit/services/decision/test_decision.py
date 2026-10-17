@@ -174,8 +174,8 @@ def _engine(**extra: Any) -> Engine:
     return Engine(
         template="core",
         dotenv_path=None,
-        storage={"path": ":memory:"},
-        embedding={"provider": "hash"},
+        storage={'provider': "sqlite", 'settings': {'path': ":memory:", 'busy_timeout_s': 5.0}},
+        embedding={'provider': "hash", 'settings': {}},
         read={"hybrid": False, "planner": "decision"},
         decision={"provider": "gliner2"},
         **extra,
@@ -283,8 +283,8 @@ async def test_confidence_gate_keeps_the_default_mode(
     eng = Engine(
         template="core",
         dotenv_path=None,
-        storage={"path": ":memory:"},
-        embedding={"provider": "hash"},
+        storage={'provider': "sqlite", 'settings': {'path': ":memory:", 'busy_timeout_s': 5.0}},
+        embedding={'provider': "hash", 'settings': {}},
         memories={"episodic": {"enabled": True}},
         read={"hybrid": False, "planner": "decision", "planner_min_confidence": gate},
         decision={"provider": "gliner2"},
@@ -317,8 +317,8 @@ async def test_bare_label_confidence_is_unknown_not_sure(
     eng = Engine(
         template="core",
         dotenv_path=None,
-        storage={"path": ":memory:"},
-        embedding={"provider": "hash"},
+        storage={'provider': "sqlite", 'settings': {'path': ":memory:", 'busy_timeout_s': 5.0}},
+        embedding={'provider': "hash", 'settings': {}},
         read={"hybrid": False, "planner": "decision", "planner_min_confidence": gate},
         decision={"provider": "gliner2"},
     )
@@ -369,8 +369,8 @@ async def test_rules_route_before_the_provider(
     eng = Engine(
         template="core",
         dotenv_path=None,
-        storage={"path": ":memory:"},
-        embedding={"provider": "hash"},
+        storage={'provider': "sqlite", 'settings': {'path': ":memory:", 'busy_timeout_s': 5.0}},
+        embedding={'provider': "hash", 'settings': {}},
         read={"hybrid": False, "planner": "decision", "planner_min_confidence": 0.99},
         decision={"provider": "gliner2"},
     )

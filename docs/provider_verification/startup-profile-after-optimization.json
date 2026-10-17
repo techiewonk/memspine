@@ -1,0 +1,3927 @@
+{
+  "variant": "current",
+  "constructor_ms": 0.1417000312358141,
+  "start_ms": 2511.5992000792176,
+  "stats": [
+    {
+      "file": "src/memspine/api/engine.py",
+      "line": 531,
+      "function": "start",
+      "calls": 188,
+      "own_s": 0.0002376,
+      "cumulative_s": 2.3518811
+    },
+    {
+      "file": "src/memspine/api/engine.py",
+      "line": 557,
+      "function": "_start_inner",
+      "calls": 187,
+      "own_s": 0.00044960000000000003,
+      "cumulative_s": 2.3509948
+    },
+    {
+      "file": "src/memspine/runtime/container.py",
+      "line": 184,
+      "function": "_build_provider",
+      "calls": 29,
+      "own_s": 9.740000000000001e-05,
+      "cumulative_s": 2.0020641
+    },
+    {
+      "file": "src/memspine/runtime/container.py",
+      "line": 793,
+      "function": "build_vector_store",
+      "calls": 2,
+      "own_s": 4.800000000000001e-06,
+      "cumulative_s": 1.9842484
+    },
+    {
+      "file": "src/memspine/providers/builtin/vector.py",
+      "line": 20,
+      "function": "build",
+      "calls": 2,
+      "own_s": 4.6e-05,
+      "cumulative_s": 1.9841853
+    },
+    {
+      "file": "<frozen importlib._bootstrap_external>",
+      "line": 1020,
+      "function": "exec_module",
+      "calls": 721,
+      "own_s": 0.0015425,
+      "cumulative_s": 1.868807
+    },
+    {
+      "file": "<frozen importlib._bootstrap>",
+      "line": 480,
+      "function": "_call_with_frames_removed",
+      "calls": 1771,
+      "own_s": 0.0007637000000000001,
+      "cumulative_s": 1.8581793000000002
+    },
+    {
+      "file": "<frozen importlib._bootstrap>",
+      "line": 1349,
+      "function": "_find_and_load",
+      "calls": 804,
+      "own_s": 0.0028865,
+      "cumulative_s": 1.7720356000000002
+    },
+    {
+      "file": "<frozen importlib._bootstrap>",
+      "line": 1304,
+      "function": "_find_and_load_unlocked",
+      "calls": 802,
+      "own_s": 0.0023725,
+      "cumulative_s": 1.7713653
+    },
+    {
+      "file": "<frozen importlib._bootstrap>",
+      "line": 911,
+      "function": "_load_unlocked",
+      "calls": 773,
+      "own_s": 0.0019764,
+      "cumulative_s": 1.76719
+    },
+    {
+      "file": "src/memspine/clients/lancedb.py",
+      "line": 31,
+      "function": "connect",
+      "calls": 2,
+      "own_s": 9.4e-06,
+      "cumulative_s": 1.5664209
+    },
+    {
+      "file": "<frozen importlib._bootstrap_external>",
+      "line": 1093,
+      "function": "get_code",
+      "calls": 721,
+      "own_s": 0.0049424000000000004,
+      "cumulative_s": 0.46419960000000005
+    },
+    {
+      "file": "<frozen importlib._bootstrap_external>",
+      "line": 1326,
+      "function": "exec_module",
+      "calls": 62,
+      "own_s": 5.92e-05,
+      "cumulative_s": 0.39390850000000005
+    },
+    {
+      "file": "<frozen importlib._bootstrap_external>",
+      "line": 1214,
+      "function": "get_data",
+      "calls": 721,
+      "own_s": 0.0018691,
+      "cumulative_s": 0.35611380000000004
+    },
+    {
+      "file": "<frozen importlib._bootstrap>",
+      "line": 1390,
+      "function": "_handle_fromlist",
+      "calls": 1665,
+      "own_s": 0.0013414000000000002,
+      "cumulative_s": 0.27964150000000004
+    },
+    {
+      "file": "src/memspine/services/storage/sqlite/engine.py",
+      "line": 1,
+      "function": "<module>",
+      "calls": 1,
+      "own_s": 8.900000000000001e-06,
+      "cumulative_s": 0.1775121
+    },
+    {
+      "file": "src/memspine/services/storage/sqlite/migrations.py",
+      "line": 1,
+      "function": "<module>",
+      "calls": 1,
+      "own_s": 2.09e-05,
+      "cumulative_s": 0.17719880000000002
+    },
+    {
+      "file": "<frozen importlib._bootstrap>",
+      "line": 1240,
+      "function": "_find_spec",
+      "calls": 802,
+      "own_s": 0.004584100000000001,
+      "cumulative_s": 0.1717499
+    },
+    {
+      "file": "<frozen importlib._bootstrap_external>",
+      "line": 1551,
+      "function": "find_spec",
+      "calls": 798,
+      "own_s": 0.00046080000000000003,
+      "cumulative_s": 0.16202830000000001
+    },
+    {
+      "file": "<frozen importlib._bootstrap_external>",
+      "line": 1522,
+      "function": "_get_spec",
+      "calls": 798,
+      "own_s": 0.0014071,
+      "cumulative_s": 0.16150040000000002
+    },
+    {
+      "file": "<frozen importlib._bootstrap_external>",
+      "line": 1624,
+      "function": "find_spec",
+      "calls": 1081,
+      "own_s": 0.0056275000000000006,
+      "cumulative_s": 0.1526662
+    },
+    {
+      "file": "<frozen importlib._bootstrap>",
+      "line": 645,
+      "function": "parent",
+      "calls": 17294,
+      "own_s": 0.14238820000000002,
+      "cumulative_s": 0.1456021
+    },
+    {
+      "file": "<frozen importlib._bootstrap_external>",
+      "line": 145,
+      "function": "_path_stat",
+      "calls": 2903,
+      "own_s": 0.0009180000000000001,
+      "cumulative_s": 0.13257290000000002
+    },
+    {
+      "file": "src/memspine/runtime/container.py",
+      "line": 1127,
+      "function": "build_prompts",
+      "calls": 1,
+      "own_s": 1.41e-05,
+      "cumulative_s": 0.1120584
+    },
+    {
+      "file": "src/memspine/prompts/registry.py",
+      "line": 68,
+      "function": "__init__",
+      "calls": 1,
+      "own_s": 5.7300000000000004e-05,
+      "cumulative_s": 0.11204430000000001
+    },
+    {
+      "file": "src/memspine/services/storage/sqlite/migrations.py",
+      "line": 55,
+      "function": "ensure_schema",
+      "calls": 1,
+      "own_s": 1.15e-05,
+      "cumulative_s": 0.10831660000000001
+    },
+    {
+      "file": "src/memspine/services/storage/sqlite/migrations.py",
+      "line": 75,
+      "function": "_ensure_schema_plain",
+      "calls": 1,
+      "own_s": 1.5300000000000003e-05,
+      "cumulative_s": 0.10829620000000001
+    },
+    {
+      "file": "src/memspine/services/storage/sqlite/alembic/env.py",
+      "line": 1,
+      "function": "<module>",
+      "calls": 1,
+      "own_s": 9.3e-06,
+      "cumulative_s": 0.10309310000000001
+    },
+    {
+      "file": "src/memspine/services/storage/sqlite/alembic/env.py",
+      "line": 29,
+      "function": "run_migrations_online",
+      "calls": 1,
+      "own_s": 1.59e-05,
+      "cumulative_s": 0.1030786
+    },
+    {
+      "file": "src/memspine/prompts/loader.py",
+      "line": 16,
+      "function": "load_default_pack",
+      "calls": 1,
+      "own_s": 0.0001309,
+      "cumulative_s": 0.0668128
+    },
+    {
+      "file": "<frozen importlib._bootstrap_external>",
+      "line": 782,
+      "function": "_compile_bytecode",
+      "calls": 721,
+      "own_s": 0.0065934,
+      "cumulative_s": 0.06553500000000001
+    },
+    {
+      "file": "src/memspine/prompts/base.py",
+      "line": 154,
+      "function": "parse_prompt_text",
+      "calls": 51,
+      "own_s": 0.0001454,
+      "cumulative_s": 0.0578651
+    },
+    {
+      "file": "<frozen importlib._bootstrap>",
+      "line": 806,
+      "function": "module_from_spec",
+      "calls": 788,
+      "own_s": 0.0008882,
+      "cumulative_s": 0.056969000000000006
+    },
+    {
+      "file": "<frozen importlib._bootstrap_external>",
+      "line": 155,
+      "function": "_path_is_mode_type",
+      "calls": 1025,
+      "own_s": 0.0005963,
+      "cumulative_s": 0.0475203
+    },
+    {
+      "file": "src/memspine/services/storage/sqlite/alembic/versions/0001_baseline.py",
+      "line": 33,
+      "function": "upgrade",
+      "calls": 1,
+      "own_s": 8.200000000000001e-06,
+      "cumulative_s": 0.047513200000000005
+    },
+    {
+      "file": "<frozen importlib._bootstrap_external>",
+      "line": 164,
+      "function": "_path_isfile",
+      "calls": 949,
+      "own_s": 0.0004924,
+      "cumulative_s": 0.0462904
+    },
+    {
+      "file": "src/memspine/prompts/registry.py",
+      "line": 136,
+      "function": "_bind",
+      "calls": 51,
+      "own_s": 0.00012910000000000002,
+      "cumulative_s": 0.045076500000000005
+    },
+    {
+      "file": "src/memspine/prompts/env.py",
+      "line": 95,
+      "function": "partials_fingerprint",
+      "calls": 51,
+      "own_s": 0.0001942,
+      "cumulative_s": 0.0447863
+    },
+    {
+      "file": "src/memspine/prompts/env.py",
+      "line": 70,
+      "function": "referenced_partial_sources",
+      "calls": 51,
+      "own_s": 0.0003099,
+      "cumulative_s": 0.0444407
+    },
+    {
+      "file": "<frozen importlib._bootstrap_external>",
+      "line": 1318,
+      "function": "create_module",
+      "calls": 62,
+      "own_s": 0.00010300000000000001,
+      "cumulative_s": 0.0414602
+    },
+    {
+      "file": "C:/Users/hembad/AppData/Roaming/uv/python/cpython-3.13.5-windows-x86_64-none/Lib/importlib/metadata/__init__.py",
+      "line": 999,
+      "function": "entry_points",
+      "calls": 1,
+      "own_s": 8.510000000000001e-05,
+      "cumulative_s": 0.0400753
+    },
+    {
+      "file": "C:/Users/hembad/AppData/Roaming/uv/python/cpython-3.13.5-windows-x86_64-none/Lib/importlib/metadata/__init__.py",
+      "line": 1008,
+      "function": "<genexpr>",
+      "calls": 242,
+      "own_s": 0.00011420000000000001,
+      "cumulative_s": 0.0397281
+    },
+    {
+      "file": "src/memspine/prompts/env.py",
+      "line": 64,
+      "function": "_referenced_names",
+      "calls": 185,
+      "own_s": 0.00015560000000000001,
+      "cumulative_s": 0.0332744
+    },
+    {
+      "file": "src/memspine/runtime/container.py",
+      "line": 594,
+      "function": "resolve_config",
+      "calls": 1,
+      "own_s": 1.56e-05,
+      "cumulative_s": 0.027759700000000002
+    },
+    {
+      "file": "<frozen importlib._bootstrap_external>",
+      "line": 101,
+      "function": "_path_join",
+      "calls": 5256,
+      "own_s": 0.0183507,
+      "cumulative_s": 0.026885500000000003
+    },
+    {
+      "file": "<frozen importlib._bootstrap_external>",
+      "line": 1233,
+      "function": "path_stats",
+      "calls": 721,
+      "own_s": 0.0003662,
+      "cumulative_s": 0.025706800000000002
+    },
+    {
+      "file": "src/memspine/config/schema/root.py",
+      "line": 332,
+      "function": "freeze_effective_config",
+      "calls": 1,
+      "own_s": 5e-06,
+      "cumulative_s": 0.0225928
+    },
+    {
+      "file": "C:/Users/hembad/AppData/Roaming/uv/python/cpython-3.13.5-windows-x86_64-none/Lib/importlib/metadata/_itertools.py",
+      "line": 4,
+      "function": "unique_everseen",
+      "calls": 242,
+      "own_s": 0.000388,
+      "cumulative_s": 0.0215534
+    },
+    {
+      "file": "src/memspine/config/schema/root.py",
+      "line": 296,
+      "function": "_freeze_config_value",
+      "calls": 671,
+      "own_s": 0.0007849,
+      "cumulative_s": 0.0196898
+    },
+    {
+      "file": "<frozen importlib._bootstrap_external>",
+      "line": 1675,
+      "function": "_fill_cache",
+      "calls": 77,
+      "own_s": 0.0041082,
+      "cumulative_s": 0.019458
+    },
+    {
+      "file": "C:/Users/hembad/AppData/Roaming/uv/python/cpython-3.13.5-windows-x86_64-none/Lib/importlib/__init__.py",
+      "line": 71,
+      "function": "import_module",
+      "calls": 14,
+      "own_s": 2.47e-05,
+      "cumulative_s": 0.0190647
+    },
+    {
+      "file": "<frozen importlib._bootstrap>",
+      "line": 1375,
+      "function": "_gcd_import",
+      "calls": 14,
+      "own_s": 1.73e-05,
+      "cumulative_s": 0.0190379
+    },
+    {
+      "file": "C:/Users/hembad/AppData/Roaming/uv/python/cpython-3.13.5-windows-x86_64-none/Lib/importlib/metadata/__init__.py",
+      "line": 488,
+      "function": "entry_points",
+      "calls": 241,
+      "own_s": 0.0001283,
+      "cumulative_s": 0.0180605
+    },
+    {
+      "file": "src/memspine/config/schema/root.py",
+      "line": 271,
+      "function": "_frozen_config_model",
+      "calls": 44,
+      "own_s": 0.00017230000000000001,
+      "cumulative_s": 0.017696700000000003
+    },
+    {
+      "file": "<frozen importlib._bootstrap_external>",
+      "line": 513,
+      "function": "cache_from_source",
+      "calls": 1442,
+      "own_s": 0.0028127,
+      "cumulative_s": 0.0160658
+    },
+    {
+      "file": "C:/Users/hembad/AppData/Roaming/uv/python/cpython-3.13.5-windows-x86_64-none/Lib/importlib/metadata/__init__.py",
+      "line": 907,
+      "function": "read_text",
+      "calls": 243,
+      "own_s": 0.0004716,
+      "cumulative_s": 0.0157895
+    },
+    {
+      "file": "src/memspine/runtime/container.py",
+      "line": 864,
+      "function": "preflight_projection_bindings",
+      "calls": 35,
+      "own_s": 8.49e-05,
+      "cumulative_s": 0.0142199
+    },
+    {
+      "file": "<frozen importlib._bootstrap>",
+      "line": 733,
+      "function": "_init_module_attrs",
+      "calls": 788,
+      "own_s": 0.0019937,
+      "cumulative_s": 0.013800000000000002
+    },
+    {
+      "file": "src/memspine/runtime/container.py",
+      "line": 661,
+      "function": "build_storage",
+      "calls": 24,
+      "own_s": 3.16e-05,
+      "cumulative_s": 0.013311300000000002
+    },
+    {
+      "file": "src/memspine/providers/builtin/storage.py",
+      "line": 62,
+      "function": "build",
+      "calls": 24,
+      "own_s": 5.2900000000000005e-05,
+      "cumulative_s": 0.0131041
+    },
+    {
+      "file": "src/memspine/clients/sqlite.py",
+      "line": 191,
+      "function": "connect",
+      "calls": 24,
+      "own_s": 1.94e-05,
+      "cumulative_s": 0.0129987
+    },
+    {
+      "file": "src/memspine/clients/sqlite.py",
+      "line": 59,
+      "function": "_first_connection",
+      "calls": 24,
+      "own_s": 2.93e-05,
+      "cumulative_s": 0.0129631
+    },
+    {
+      "file": "C:/Users/hembad/AppData/Roaming/uv/python/cpython-3.13.5-windows-x86_64-none/Lib/importlib/metadata/__init__.py",
+      "line": 890,
+      "function": "<genexpr>",
+      "calls": 26,
+      "own_s": 3.23e-05,
+      "cumulative_s": 0.011997
+    },
+    {
+      "file": "<frozen importlib._bootstrap>",
+      "line": 304,
+      "function": "acquire",
+      "calls": 1476,
+      "own_s": 0.0039065,
+      "cumulative_s": 0.0119717
+    },
+    {
+      "file": "C:/Users/hembad/AppData/Roaming/uv/python/cpython-3.13.5-windows-x86_64-none/Lib/importlib/metadata/__init__.py",
+      "line": 756,
+      "function": "search",
+      "calls": 25,
+      "own_s": 4.2000000000000004e-05,
+      "cumulative_s": 0.0119615
+    },
+    {
+      "file": "src/memspine/ingest/gateway.py",
+      "line": 810,
+      "function": "recover",
+      "calls": 63,
+      "own_s": 9.530000000000001e-05,
+      "cumulative_s": 0.011857000000000001
+    },
+    {
+      "file": "src/memspine/providers/registry.py",
+      "line": 282,
+      "function": "get_registry",
+      "calls": 28,
+      "own_s": 9.32e-05,
+      "cumulative_s": 0.011673600000000001
+    },
+    {
+      "file": "src/memspine/services/storage/sqlite/alembic/versions/0008_outbox.py",
+      "line": 29,
+      "function": "upgrade",
+      "calls": 1,
+      "own_s": 7.32e-05,
+      "cumulative_s": 0.0113314
+    },
+    {
+      "file": "src/memspine/runtime/container.py",
+      "line": 157,
+      "function": "_descriptor",
+      "calls": 10,
+      "own_s": 1.94e-05,
+      "cumulative_s": 0.010704
+    },
+    {
+      "file": "<frozen importlib._bootstrap>",
+      "line": 416,
+      "function": "__enter__",
+      "calls": 802,
+      "own_s": 0.0005073,
+      "cumulative_s": 0.0105571
+    },
+    {
+      "file": "<frozen importlib._bootstrap>",
+      "line": 632,
+      "function": "cached",
+      "calls": 1504,
+      "own_s": 0.0004598,
+      "cumulative_s": 0.0105162
+    },
+    {
+      "file": "C:/Users/hembad/AppData/Roaming/uv/python/cpython-3.13.5-windows-x86_64-none/Lib/importlib/metadata/__init__.py",
+      "line": 765,
+      "function": "lookup",
+      "calls": 4,
+      "own_s": 8.8e-06,
+      "cumulative_s": 0.0104297
+    },
+    {
+      "file": "C:/Users/hembad/AppData/Roaming/uv/python/cpython-3.13.5-windows-x86_64-none/Lib/importlib/metadata/__init__.py",
+      "line": 775,
+      "function": "__init__",
+      "calls": 4,
+      "own_s": 0.0012046000000000001,
+      "cumulative_s": 0.0104209
+    },
+    {
+      "file": "src/memspine/ingest/gateway.py",
+      "line": 285,
+      "function": "_engine",
+      "calls": 58,
+      "own_s": 6.77e-05,
+      "cumulative_s": 0.010177700000000001
+    },
+    {
+      "file": "src/memspine/ingest/intake_store.py",
+      "line": 115,
+      "function": "ensure_schema",
+      "calls": 58,
+      "own_s": 3.1e-05,
+      "cumulative_s": 0.010081900000000001
+    },
+    {
+      "file": "<frozen importlib._bootstrap_external>",
+      "line": 642,
+      "function": "_get_cached",
+      "calls": 783,
+      "own_s": 0.0007663,
+      "cumulative_s": 0.0100564
+    },
+    {
+      "file": "src/memspine/providers/projection_bindings.py",
+      "line": 59,
+      "function": "ensure",
+      "calls": 50,
+      "own_s": 0.0001418,
+      "cumulative_s": 0.009228
+    },
+    {
+      "file": "C:/Users/hembad/AppData/Roaming/uv/python/cpython-3.13.5-windows-x86_64-none/Lib/importlib/metadata/__init__.py",
+      "line": 742,
+      "function": "children",
+      "calls": 4,
+      "own_s": 2.44e-05,
+      "cumulative_s": 0.0081955
+    },
+    {
+      "file": "<frozen importlib._bootstrap_external>",
+      "line": 1500,
+      "function": "_path_importer_cache",
+      "calls": 1131,
+      "own_s": 0.0006037000000000001,
+      "cumulative_s": 0.0073052
+    },
+    {
+      "file": "<frozen importlib._bootstrap_external>",
+      "line": 1487,
+      "function": "_path_hooks",
+      "calls": 76,
+      "own_s": 0.00022840000000000002,
+      "cumulative_s": 0.0067015
+    },
+    {
+      "file": "<frozen importlib._bootstrap>",
+      "line": 463,
+      "function": "_lock_unlock_module",
+      "calls": 674,
+      "own_s": 0.0004538,
+      "cumulative_s": 0.006552700000000001
+    },
+    {
+      "file": "src/memspine/runtime/container.py",
+      "line": 1446,
+      "function": "make_container",
+      "calls": 1,
+      "own_s": 1.54e-05,
+      "cumulative_s": 0.005831800000000001
+    },
+    {
+      "file": "src/memspine/store/replay.py",
+      "line": 34,
+      "function": "catch_up",
+      "calls": 31,
+      "own_s": 6.88e-05,
+      "cumulative_s": 0.005727800000000001
+    },
+    {
+      "file": "<frozen importlib._bootstrap>",
+      "line": 162,
+      "function": "__enter__",
+      "calls": 1476,
+      "own_s": 0.0010934,
+      "cumulative_s": 0.0056902
+    },
+    {
+      "file": "C:/Users/hembad/AppData/Roaming/uv/python/cpython-3.13.5-windows-x86_64-none/Lib/importlib/metadata/__init__.py",
+      "line": 924,
+      "function": "_normalized_name",
+      "calls": 241,
+      "own_s": 0.00033410000000000004,
+      "cumulative_s": 0.005661
+    },
+    {
+      "file": "<frozen importlib._bootstrap_external>",
+      "line": 1619,
+      "function": "_get_spec",
+      "calls": 777,
+      "own_s": 0.0009245000000000001,
+      "cumulative_s": 0.0053422
+    },
+    {
+      "file": "src/memspine/providers/identity.py",
+      "line": 19,
+      "function": "resolve_deployment",
+      "calls": 10,
+      "own_s": 3.33e-05,
+      "cumulative_s": 0.0051926
+    },
+    {
+      "file": "src/memspine/config/loader.py",
+      "line": 279,
+      "function": "load_config",
+      "calls": 1,
+      "own_s": 8.570000000000001e-05,
+      "cumulative_s": 0.0051507
+    },
+    {
+      "file": "C:/Users/hembad/AppData/Roaming/uv/python/cpython-3.13.5-windows-x86_64-none/Lib/importlib/metadata/__init__.py",
+      "line": 334,
+      "function": "__new__",
+      "calls": 243,
+      "own_s": 0.0025411,
+      "cumulative_s": 0.0047748
+    },
+    {
+      "file": "<frozen importlib._bootstrap_external>",
+      "line": 833,
+      "function": "spec_from_file_location",
+      "calls": 792,
+      "own_s": 0.0018074,
+      "cumulative_s": 0.004580600000000001
+    },
+    {
+      "file": "<frozen importlib._bootstrap>",
+      "line": 124,
+      "function": "setdefault",
+      "calls": 1476,
+      "own_s": 0.0020278,
+      "cumulative_s": 0.0043515
+    },
+    {
+      "file": "C:/Users/hembad/AppData/Roaming/uv/python/cpython-3.13.5-windows-x86_64-none/Lib/importlib/metadata/__init__.py",
+      "line": 980,
+      "function": "version",
+      "calls": 2,
+      "own_s": 4.7e-06,
+      "cumulative_s": 0.0042223
+    },
+    {
+      "file": "src/memspine/runtime/container.py",
+      "line": 829,
+      "function": "build_lexical_store",
+      "calls": 1,
+      "own_s": 3.12e-05,
+      "cumulative_s": 0.0042207
+    },
+    {
+      "file": "<frozen importlib.util>",
+      "line": 70,
+      "function": "find_spec",
+      "calls": 14,
+      "own_s": 2.64e-05,
+      "cumulative_s": 0.0041056
+    },
+    {
+      "file": "src/memspine/providers/builtin/lexical.py",
+      "line": 13,
+      "function": "build",
+      "calls": 1,
+      "own_s": 1.62e-05,
+      "cumulative_s": 0.0040667
+    },
+    {
+      "file": "<frozen importlib._bootstrap_external>",
+      "line": 137,
+      "function": "_path_split",
+      "calls": 1457,
+      "own_s": 0.0013276000000000002,
+      "cumulative_s": 0.0037918
+    },
+    {
+      "file": "src/memspine/services/storage/sql_base.py",
+      "line": 163,
+      "function": "read_events",
+      "calls": 18,
+      "own_s": 6.53e-05,
+      "cumulative_s": 0.0037183000000000003
+    },
+    {
+      "file": "src/memspine/services/lexical/tantivy.py",
+      "line": 158,
+      "function": "__init__",
+      "calls": 1,
+      "own_s": 1.69e-05,
+      "cumulative_s": 0.0034402
+    },
+    {
+      "file": "src/memspine/config/schema/base.py",
+      "line": 179,
+      "function": "validate_config_input",
+      "calls": 54,
+      "own_s": 1.84e-05,
+      "cumulative_s": 0.0034260000000000002
+    },
+    {
+      "file": "src/memspine/config/schema/base.py",
+      "line": 165,
+      "function": "_validate_model_mapping",
+      "calls": 127,
+      "own_s": 0.0006062,
+      "cumulative_s": 0.0034076
+    },
+    {
+      "file": "<frozen importlib._bootstrap>",
+      "line": 426,
+      "function": "_get_module_lock",
+      "calls": 1476,
+      "own_s": 0.0021583,
+      "cumulative_s": 0.003236
+    },
+    {
+      "file": "src/memspine/config/schema/base.py",
+      "line": 28,
+      "function": "_validate_value",
+      "calls": 868,
+      "own_s": 0.0008113,
+      "cumulative_s": 0.0032193
+    },
+    {
+      "file": "<frozen importlib._bootstrap>",
+      "line": 372,
+      "function": "release",
+      "calls": 1476,
+      "own_s": 0.0020531,
+      "cumulative_s": 0.0031571000000000004
+    },
+    {
+      "file": "src/memspine/config/loader.py",
+      "line": 154,
+      "function": "_load_template_chain",
+      "calls": 1,
+      "own_s": 6.4000000000000006e-06,
+      "cumulative_s": 0.0029946
+    },
+    {
+      "file": "src/memspine/config/loader.py",
+      "line": 138,
+      "function": "_read_yaml",
+      "calls": 1,
+      "own_s": 4.3e-06,
+      "cumulative_s": 0.0028799000000000003
+    },
+    {
+      "file": "C:/Users/hembad/AppData/Roaming/uv/python/cpython-3.13.5-windows-x86_64-none/Lib/importlib/metadata/__init__.py",
+      "line": 483,
+      "function": "version",
+      "calls": 2,
+      "own_s": 7.9e-06,
+      "cumulative_s": 0.0027795000000000003
+    },
+    {
+      "file": "<frozen importlib._bootstrap_external>",
+      "line": 1716,
+      "function": "path_hook_for_FileFinder",
+      "calls": 76,
+      "own_s": 0.0001528,
+      "cumulative_s": 0.0027714000000000003
+    },
+    {
+      "file": "C:/Users/hembad/AppData/Roaming/uv/python/cpython-3.13.5-windows-x86_64-none/Lib/importlib/metadata/__init__.py",
+      "line": 448,
+      "function": "metadata",
+      "calls": 2,
+      "own_s": 1.7500000000000002e-05,
+      "cumulative_s": 0.0027612
+    },
+    {
+      "file": "C:/Users/hembad/AppData/Roaming/uv/python/cpython-3.13.5-windows-x86_64-none/Lib/importlib/metadata/__init__.py",
+      "line": 294,
+      "function": "_from_text_for",
+      "calls": 241,
+      "own_s": 0.0002165,
+      "cumulative_s": 0.0025717
+    },
+    {
+      "file": "<frozen importlib._bootstrap_external>",
+      "line": 190,
+      "function": "_path_abspath",
+      "calls": 868,
+      "own_s": 0.00030060000000000004,
+      "cumulative_s": 0.0025431
+    },
+    {
+      "file": "<frozen importlib._bootstrap>",
+      "line": 420,
+      "function": "__exit__",
+      "calls": 802,
+      "own_s": 0.00029610000000000004,
+      "cumulative_s": 0.0025122
+    },
+    {
+      "file": "<frozen importlib._bootstrap_external>",
+      "line": 697,
+      "function": "_classify_pyc",
+      "calls": 721,
+      "own_s": 0.0013723000000000001,
+      "cumulative_s": 0.0024537
+    },
+    {
+      "file": "src/memspine/store/vector_spaces.py",
+      "line": 1,
+      "function": "<module>",
+      "calls": 1,
+      "own_s": 2.6200000000000003e-05,
+      "cumulative_s": 0.0024076
+    },
+    {
+      "file": "src/memspine/runtime/container.py",
+      "line": 1412,
+      "function": "_provider",
+      "calls": 1,
+      "own_s": 1.72e-05,
+      "cumulative_s": 0.0023487
+    },
+    {
+      "file": "<frozen importlib._bootstrap_external>",
+      "line": 177,
+      "function": "_path_isabs",
+      "calls": 868,
+      "own_s": 0.0010153,
+      "cumulative_s": 0.0022425
+    },
+    {
+      "file": "C:/Users/hembad/AppData/Roaming/uv/python/cpython-3.13.5-windows-x86_64-none/Lib/importlib/metadata/__init__.py",
+      "line": 296,
+      "function": "<genexpr>",
+      "calls": 453,
+      "own_s": 0.00014230000000000002,
+      "cumulative_s": 0.0021663000000000003
+    },
+    {
+      "file": "src/memspine/providers/builtin/weaviate.py",
+      "line": 1,
+      "function": "<module>",
+      "calls": 1,
+      "own_s": 1.62e-05,
+      "cumulative_s": 0.0020683
+    },
+    {
+      "file": "src/memspine/services/storage/sql_base.py",
+      "line": 194,
+      "function": "get_offset",
+      "calls": 18,
+      "own_s": 3.96e-05,
+      "cumulative_s": 0.0019340000000000002
+    },
+    {
+      "file": "C:/Users/hembad/AppData/Roaming/uv/python/cpython-3.13.5-windows-x86_64-none/Lib/importlib/metadata/__init__.py",
+      "line": 300,
+      "function": "<genexpr>",
+      "calls": 453,
+      "own_s": 0.0002023,
+      "cumulative_s": 0.0019086
+    },
+    {
+      "file": "src/memspine/providers/projection_bindings.py",
+      "line": 290,
+      "function": "projection_target_fingerprint",
+      "calls": 4,
+      "own_s": 6.64e-05,
+      "cumulative_s": 0.0017994
+    },
+    {
+      "file": "<frozen importlib._bootstrap_external>",
+      "line": 169,
+      "function": "_path_isdir",
+      "calls": 76,
+      "own_s": 5.11e-05,
+      "cumulative_s": 0.0017734
+    },
+    {
+      "file": "<frozen importlib._bootstrap_external>",
+      "line": 89,
+      "function": "_unpack_uint32",
+      "calls": 2163,
+      "own_s": 0.0010659,
+      "cumulative_s": 0.0017471000000000001
+    },
+    {
+      "file": "<frozen importlib._bootstrap_external>",
+      "line": 730,
+      "function": "_validate_timestamp_pyc",
+      "calls": 721,
+      "own_s": 0.0007839,
+      "cumulative_s": 0.0016369000000000002
+    },
+    {
+      "file": "src/memspine/providers/builtin/storage.py",
+      "line": 1,
+      "function": "<module>",
+      "calls": 1,
+      "own_s": 2.6000000000000002e-05,
+      "cumulative_s": 0.0015794000000000001
+    },
+    {
+      "file": "C:/Users/hembad/AppData/Roaming/uv/python/cpython-3.13.5-windows-x86_64-none/Lib/importlib/metadata/__init__.py",
+      "line": 104,
+      "function": "<genexpr>",
+      "calls": 453,
+      "own_s": 0.00022180000000000002,
+      "cumulative_s": 0.0015447000000000002
+    },
+    {
+      "file": "src/memspine/ingest/message_store.py",
+      "line": 100,
+      "function": "backfill_from_storage",
+      "calls": 8,
+      "own_s": 1.3700000000000001e-05,
+      "cumulative_s": 0.0014921000000000001
+    },
+    {
+      "file": "C:/Users/hembad/AppData/Roaming/uv/python/cpython-3.13.5-windows-x86_64-none/Lib/importlib/metadata/__init__.py",
+      "line": 954,
+      "function": "distribution",
+      "calls": 2,
+      "own_s": 6.5000000000000004e-06,
+      "cumulative_s": 0.0014381
+    },
+    {
+      "file": "<frozen importlib._bootstrap>",
+      "line": 74,
+      "function": "__new__",
+      "calls": 1476,
+      "own_s": 0.0009903000000000002,
+      "cumulative_s": 0.0014340000000000002
+    },
+    {
+      "file": "C:/Users/hembad/AppData/Roaming/uv/python/cpython-3.13.5-windows-x86_64-none/Lib/importlib/metadata/__init__.py",
+      "line": 393,
+      "function": "from_name",
+      "calls": 2,
+      "own_s": 8.900000000000001e-06,
+      "cumulative_s": 0.0014316
+    },
+    {
+      "file": "<frozen importlib._bootstrap_external>",
+      "line": 139,
+      "function": "<genexpr>",
+      "calls": 4371,
+      "own_s": 0.0008953,
+      "cumulative_s": 0.0014267000000000001
+    },
+    {
+      "file": "src/memspine/ingest/intake_store.py",
+      "line": 229,
+      "function": "pending_intents",
+      "calls": 6,
+      "own_s": 1.1900000000000001e-05,
+      "cumulative_s": 0.0014168000000000002
+    },
+    {
+      "file": "C:/Users/hembad/AppData/Roaming/uv/python/cpython-3.13.5-windows-x86_64-none/Lib/importlib/metadata/__init__.py",
+      "line": 759,
+      "function": "mtime",
+      "calls": 25,
+      "own_s": 5.6300000000000006e-05,
+      "cumulative_s": 0.0013876000000000001
+    },
+    {
+      "file": "<frozen importlib._bootstrap>",
+      "line": 1226,
+      "function": "__exit__",
+      "calls": 4019,
+      "own_s": 0.0007907000000000001,
+      "cumulative_s": 0.0012219000000000002
+    },
+    {
+      "file": "C:/Users/hembad/AppData/Roaming/uv/python/cpython-3.13.5-windows-x86_64-none/Lib/importlib/metadata/_functools.py",
+      "line": 89,
+      "function": "pass_none",
+      "calls": 241,
+      "own_s": 0.00019240000000000001,
+      "cumulative_s": 0.0010962
+    },
+    {
+      "file": "<frozen importlib._bootstrap>",
+      "line": 982,
+      "function": "find_spec",
+      "calls": 802,
+      "own_s": 0.00021020000000000001,
+      "cumulative_s": 0.0010457
+    },
+    {
+      "file": "src/memspine/runtime/container.py",
+      "line": 680,
+      "function": "build_cache",
+      "calls": 1,
+      "own_s": 1.3000000000000001e-05,
+      "cumulative_s": 0.0010194000000000002
+    },
+    {
+      "file": "<frozen importlib._bootstrap>",
+      "line": 1222,
+      "function": "__enter__",
+      "calls": 4019,
+      "own_s": 0.0006711,
+      "cumulative_s": 0.0010074
+    },
+    {
+      "file": "<frozen importlib._bootstrap>",
+      "line": 82,
+      "function": "remove",
+      "calls": 1476,
+      "own_s": 0.0006539,
+      "cumulative_s": 0.0010010000000000002
+    },
+    {
+      "file": "src/memspine/providers/switching.py",
+      "line": 302,
+      "function": "verified_active_projection_routes",
+      "calls": 5,
+      "own_s": 2.02e-05,
+      "cumulative_s": 0.0009757
+    },
+    {
+      "file": "src/memspine/providers/builtin/models.py",
+      "line": 287,
+      "function": "register",
+      "calls": 1,
+      "own_s": 3.55e-05,
+      "cumulative_s": 0.0009443
+    },
+    {
+      "file": "<frozen importlib._bootstrap>",
+      "line": 445,
+      "function": "cb",
+      "calls": 789,
+      "own_s": 0.0005867,
+      "cumulative_s": 0.0009337000000000001
+    },
+    {
+      "file": "<frozen importlib._bootstrap>",
+      "line": 79,
+      "function": "__init__",
+      "calls": 1476,
+      "own_s": 0.0008897000000000001,
+      "cumulative_s": 0.0008897000000000001
+    },
+    {
+      "file": "<frozen importlib._bootstrap>",
+      "line": 1128,
+      "function": "find_spec",
+      "calls": 798,
+      "own_s": 0.0003327,
+      "cumulative_s": 0.0008693
+    },
+    {
+      "file": "src/memspine/providers/builtin/models.py",
+      "line": 205,
+      "function": "_register",
+      "calls": 6,
+      "own_s": 2.7300000000000003e-05,
+      "cumulative_s": 0.000866
+    },
+    {
+      "file": "<frozen importlib._bootstrap_external>",
+      "line": 1598,
+      "function": "__init__",
+      "calls": 76,
+      "own_s": 0.00021070000000000003,
+      "cumulative_s": 0.0008452
+    },
+    {
+      "file": "src/memspine/providers/builtin/models.py",
+      "line": 237,
+      "function": "_embedding_target_identity",
+      "calls": 5,
+      "own_s": 4.2000000000000004e-06,
+      "cumulative_s": 0.0007958
+    },
+    {
+      "file": "<frozen importlib._bootstrap>",
+      "line": 232,
+      "function": "__init__",
+      "calls": 789,
+      "own_s": 0.000595,
+      "cumulative_s": 0.0007608000000000001
+    },
+    {
+      "file": "C:/Users/hembad/AppData/Roaming/uv/python/cpython-3.13.5-windows-x86_64-none/Lib/importlib/metadata/_functools.py",
+      "line": 99,
+      "function": "wrapper",
+      "calls": 241,
+      "own_s": 0.00010480000000000001,
+      "cumulative_s": 0.0007343
+    },
+    {
+      "file": "src/memspine/services/weaviate_projection.py",
+      "line": 1,
+      "function": "<module>",
+      "calls": 1,
+      "own_s": 9.100000000000001e-06,
+      "cumulative_s": 0.0007235000000000001
+    },
+    {
+      "file": "<frozen importlib._bootstrap_external>",
+      "line": 674,
+      "function": "_check_name_wrapper",
+      "calls": 736,
+      "own_s": 0.0006522,
+      "cumulative_s": 0.0007185000000000001
+    },
+    {
+      "file": "src/memspine/services/storage/sqlite/alembic/versions/0003_graph_namespace_weight.py",
+      "line": 48,
+      "function": "upgrade",
+      "calls": 1,
+      "own_s": 9.600000000000001e-06,
+      "cumulative_s": 0.0007079
+    },
+    {
+      "file": "<frozen importlib._bootstrap>",
+      "line": 491,
+      "function": "_verbose_message",
+      "calls": 5809,
+      "own_s": 0.0007073,
+      "cumulative_s": 0.0007073
+    },
+    {
+      "file": "src/memspine/providers/sql.py",
+      "line": 1,
+      "function": "<module>",
+      "calls": 1,
+      "own_s": 8.900000000000001e-06,
+      "cumulative_s": 0.0006946000000000001
+    },
+    {
+      "file": "C:/Users/hembad/AppData/Roaming/uv/python/cpython-3.13.5-windows-x86_64-none/Lib/importlib/metadata/__init__.py",
+      "line": 110,
+      "function": "read",
+      "calls": 453,
+      "own_s": 0.00036030000000000003,
+      "cumulative_s": 0.0006533
+    },
+    {
+      "file": "C:/Users/hembad/AppData/Roaming/uv/python/cpython-3.13.5-windows-x86_64-none/Lib/importlib/metadata/__init__.py",
+      "line": 851,
+      "function": "normalize",
+      "calls": 243,
+      "own_s": 0.00015800000000000002,
+      "cumulative_s": 0.0006472
+    },
+    {
+      "file": "<frozen importlib._bootstrap>",
+      "line": 173,
+      "function": "__exit__",
+      "calls": 1476,
+      "own_s": 0.0003551,
+      "cumulative_s": 0.0006452000000000001
+    },
+    {
+      "file": "src/memspine/services/storage/sqlite/alembic/versions/0005_record_session_role.py",
+      "line": 40,
+      "function": "upgrade",
+      "calls": 1,
+      "own_s": 7.7e-06,
+      "cumulative_s": 0.0006426
+    },
+    {
+      "file": "src/memspine/services/storage/sqlite/alembic/versions/0002_group_id_tags.py",
+      "line": 34,
+      "function": "upgrade",
+      "calls": 1,
+      "own_s": 6.300000000000001e-06,
+      "cumulative_s": 0.0006154
+    },
+    {
+      "file": "C:/Users/hembad/AppData/Roaming/uv/python/cpython-3.13.5-windows-x86_64-none/Lib/importlib/metadata/__init__.py",
+      "line": 936,
+      "function": "_name_from_stem",
+      "calls": 241,
+      "own_s": 0.0001228,
+      "cumulative_s": 0.0006101
+    },
+    {
+      "file": "src/memspine/services/storage/sqlite/alembic/versions/0002_group_id_tags.py",
+      "line": 29,
+      "function": "_columns",
+      "calls": 1,
+      "own_s": 8.8e-06,
+      "cumulative_s": 0.0006091
+    },
+    {
+      "file": "src/memspine/services/storage/sqlite/alembic/versions/0007_record_envelope.py",
+      "line": 53,
+      "function": "upgrade",
+      "calls": 1,
+      "own_s": 5.600000000000001e-06,
+      "cumulative_s": 0.000604
+    },
+    {
+      "file": "<frozen importlib._bootstrap>",
+      "line": 48,
+      "function": "_new_module",
+      "calls": 721,
+      "own_s": 0.0005637,
+      "cumulative_s": 0.0005637
+    },
+    {
+      "file": "src/memspine/providers/projection_bindings.py",
+      "line": 208,
+      "function": "projection_target_bindings",
+      "calls": 1,
+      "own_s": 2.46e-05,
+      "cumulative_s": 0.0005208000000000001
+    },
+    {
+      "file": "src/memspine/services/storage/sqlite/alembic/versions/0009_tri_temporal.py",
+      "line": 59,
+      "function": "upgrade",
+      "calls": 1,
+      "own_s": 3.7e-06,
+      "cumulative_s": 0.0005151
+    },
+    {
+      "file": "src/memspine/services/storage/sqlite/alembic/versions/0009_tri_temporal.py",
+      "line": 48,
+      "function": "_columns",
+      "calls": 1,
+      "own_s": 7.9e-06,
+      "cumulative_s": 0.0005114000000000001
+    },
+    {
+      "file": "src/memspine/runtime/container.py",
+      "line": 779,
+      "function": "provide_embedder",
+      "calls": 1,
+      "own_s": 6.1e-06,
+      "cumulative_s": 0.0004557
+    },
+    {
+      "file": "src/memspine/services/storage/sqlite/alembic/versions/0003_graph_namespace_weight.py",
+      "line": 43,
+      "function": "_indexes",
+      "calls": 2,
+      "own_s": 5.4e-06,
+      "cumulative_s": 0.00044820000000000005
+    },
+    {
+      "file": "src/memspine/services/storage/sqlite/alembic/versions/0011_layer_backfill.py",
+      "line": 31,
+      "function": "upgrade",
+      "calls": 1,
+      "own_s": 1.2800000000000001e-05,
+      "cumulative_s": 0.0004462
+    },
+    {
+      "file": "<frozen importlib._bootstrap_external>",
+      "line": 67,
+      "function": "_relax_case",
+      "calls": 1081,
+      "own_s": 0.000433,
+      "cumulative_s": 0.000433
+    },
+    {
+      "file": "src/memspine/runtime/container.py",
+      "line": 1096,
+      "function": "provide_llm_router",
+      "calls": 1,
+      "own_s": 4.2000000000000004e-06,
+      "cumulative_s": 0.00042320000000000004
+    },
+    {
+      "file": "src/memspine/runtime/container.py",
+      "line": 996,
+      "function": "build_llm_router",
+      "calls": 1,
+      "own_s": 2e-05,
+      "cumulative_s": 0.00041900000000000005
+    },
+    {
+      "file": "src/memspine/providers/builtin/models.py",
+      "line": 90,
+      "function": "build",
+      "calls": 1,
+      "own_s": 3.3e-06,
+      "cumulative_s": 0.00041190000000000004
+    },
+    {
+      "file": "src/memspine/providers/builtin/models.py",
+      "line": 150,
+      "function": "_embed_hash",
+      "calls": 1,
+      "own_s": 3.4e-06,
+      "cumulative_s": 0.00040710000000000003
+    },
+    {
+      "file": "src/memspine/providers/engine_changes.py",
+      "line": 37,
+      "function": "resolved_config_fingerprint",
+      "calls": 4,
+      "own_s": 1.88e-05,
+      "cumulative_s": 0.0004014
+    },
+    {
+      "file": "src/memspine/clients/sqlite.py",
+      "line": 1,
+      "function": "<module>",
+      "calls": 1,
+      "own_s": 1.86e-05,
+      "cumulative_s": 0.0003574
+    },
+    {
+      "file": "src/memspine/providers/registry.py",
+      "line": 310,
+      "function": "validate_settings",
+      "calls": 23,
+      "own_s": 4.05e-05,
+      "cumulative_s": 0.0003533
+    },
+    {
+      "file": "src/memspine/config/schema/base.py",
+      "line": 189,
+      "function": "_reject_coerced_scalars",
+      "calls": 52,
+      "own_s": 1.16e-05,
+      "cumulative_s": 0.0003334
+    },
+    {
+      "file": "src/memspine/services/storage/sqlite/alembic/versions/0005_record_session_role.py",
+      "line": 35,
+      "function": "_indexes",
+      "calls": 1,
+      "own_s": 3.4e-06,
+      "cumulative_s": 0.00032510000000000004
+    },
+    {
+      "file": "src/memspine/services/storage/sqlite/alembic/versions/0004_record_invalid_at.py",
+      "line": 33,
+      "function": "upgrade",
+      "calls": 1,
+      "own_s": 5.3e-06,
+      "cumulative_s": 0.0003235
+    },
+    {
+      "file": "src/memspine/services/storage/sqlite/alembic/versions/0004_record_invalid_at.py",
+      "line": 28,
+      "function": "_columns",
+      "calls": 1,
+      "own_s": 5.500000000000001e-06,
+      "cumulative_s": 0.00031820000000000004
+    },
+    {
+      "file": "src/memspine/services/storage/sqlite/alembic/versions/0010_w202_stamping.py",
+      "line": 32,
+      "function": "upgrade",
+      "calls": 1,
+      "own_s": 2.1000000000000002e-06,
+      "cumulative_s": 0.0003165
+    },
+    {
+      "file": "src/memspine/services/storage/sqlite/alembic/versions/0007_record_envelope.py",
+      "line": 38,
+      "function": "_columns",
+      "calls": 1,
+      "own_s": 7.100000000000001e-06,
+      "cumulative_s": 0.0003148
+    },
+    {
+      "file": "src/memspine/services/storage/sqlite/alembic/versions/0010_w202_stamping.py",
+      "line": 28,
+      "function": "_columns",
+      "calls": 1,
+      "own_s": 6.8e-06,
+      "cumulative_s": 0.0003144
+    },
+    {
+      "file": "src/memspine/services/storage/sqlite/alembic/versions/0005_record_session_role.py",
+      "line": 30,
+      "function": "_columns",
+      "calls": 1,
+      "own_s": 5.600000000000001e-06,
+      "cumulative_s": 0.0003098
+    },
+    {
+      "file": "src/memspine/providers/engine_changes.py",
+      "line": 44,
+      "function": "canonical",
+      "calls": 56,
+      "own_s": 5.3500000000000006e-05,
+      "cumulative_s": 0.0002852
+    },
+    {
+      "file": "src/memspine/services/storage/sqlite/alembic/versions/0007_record_envelope.py",
+      "line": 42,
+      "function": "_indexes",
+      "calls": 1,
+      "own_s": 3.7e-06,
+      "cumulative_s": 0.0002836
+    },
+    {
+      "file": "src/memspine/config/loader.py",
+      "line": 94,
+      "function": "_merge_layer",
+      "calls": 6,
+      "own_s": 1.0700000000000001e-05,
+      "cumulative_s": 0.0002754
+    },
+    {
+      "file": "src/memspine/config/loader.py",
+      "line": 125,
+      "function": "flatten_dotted",
+      "calls": 66,
+      "own_s": 0.0001908,
+      "cumulative_s": 0.00025550000000000003
+    },
+    {
+      "file": "C:/Users/hembad/AppData/Roaming/uv/python/cpython-3.13.5-windows-x86_64-none/Lib/importlib/metadata/_collections.py",
+      "line": 28,
+      "function": "parse",
+      "calls": 212,
+      "own_s": 0.0001566,
+      "cumulative_s": 0.0002538
+    },
+    {
+      "file": "src/memspine/services/storage/sqlite/alembic/versions/0003_graph_namespace_weight.py",
+      "line": 38,
+      "function": "_columns",
+      "calls": 2,
+      "own_s": 6.200000000000001e-06,
+      "cumulative_s": 0.0002501
+    },
+    {
+      "file": "C:/Users/hembad/AppData/Roaming/uv/python/cpython-3.13.5-windows-x86_64-none/Lib/importlib/metadata/__init__.py",
+      "line": 273,
+      "function": "select",
+      "calls": 1,
+      "own_s": 2.0000000000000003e-06,
+      "cumulative_s": 0.00024470000000000004
+    },
+    {
+      "file": "C:/Users/hembad/AppData/Roaming/uv/python/cpython-3.13.5-windows-x86_64-none/Lib/importlib/metadata/__init__.py",
+      "line": 278,
+      "function": "<genexpr>",
+      "calls": 1,
+      "own_s": 6.400000000000001e-05,
+      "cumulative_s": 0.00024270000000000002
+    },
+    {
+      "file": "src/memspine/providers/placement.py",
+      "line": 10,
+      "function": "storage_placement",
+      "calls": 7,
+      "own_s": 1.72e-05,
+      "cumulative_s": 0.0002367
+    },
+    {
+      "file": "src/memspine/config/loader.py",
+      "line": 261,
+      "function": "_with_data_presets",
+      "calls": 1,
+      "own_s": 4.000000000000001e-06,
+      "cumulative_s": 0.000229
+    },
+    {
+      "file": "src/memspine/config/schema/base.py",
+      "line": 168,
+      "function": "<genexpr>",
+      "calls": 691,
+      "own_s": 0.00010480000000000001,
+      "cumulative_s": 0.0002287
+    },
+    {
+      "file": "src/memspine/services/storage/sqlite/alembic/versions/0012_provider_changes.py",
+      "line": 24,
+      "function": "upgrade",
+      "calls": 1,
+      "own_s": 4.9000000000000005e-06,
+      "cumulative_s": 0.00022840000000000002
+    },
+    {
+      "file": "src/memspine/config/loader.py",
+      "line": 65,
+      "function": "_provider_settings_resets",
+      "calls": 15,
+      "own_s": 2.8100000000000002e-05,
+      "cumulative_s": 0.0002177
+    },
+    {
+      "file": "<frozen importlib._bootstrap>",
+      "line": 599,
+      "function": "__init__",
+      "calls": 818,
+      "own_s": 0.0002044,
+      "cumulative_s": 0.0002044
+    },
+    {
+      "file": "src/memspine/services/storage/sqlite/migrations.py",
+      "line": 43,
+      "function": "alembic_config",
+      "calls": 1,
+      "own_s": 6.200000000000001e-06,
+      "cumulative_s": 0.00019590000000000002
+    },
+    {
+      "file": "src/memspine/runtime/container.py",
+      "line": 168,
+      "function": "_settings",
+      "calls": 10,
+      "own_s": 8.7e-06,
+      "cumulative_s": 0.0001898
+    },
+    {
+      "file": "C:/Users/hembad/AppData/Roaming/uv/python/cpython-3.13.5-windows-x86_64-none/Lib/importlib/metadata/__init__.py",
+      "line": 298,
+      "function": "_from_text",
+      "calls": 241,
+      "own_s": 0.00010200000000000001,
+      "cumulative_s": 0.0001889
+    },
+    {
+      "file": "src/memspine/services/storage/sqlite/alembic/versions/0006_lineage_table.py",
+      "line": 27,
+      "function": "upgrade",
+      "calls": 1,
+      "own_s": 4.3e-06,
+      "cumulative_s": 0.0001795
+    },
+    {
+      "file": "C:/Users/hembad/AppData/Roaming/uv/python/cpython-3.13.5-windows-x86_64-none/Lib/importlib/metadata/__init__.py",
+      "line": 205,
+      "function": "matches",
+      "calls": 212,
+      "own_s": 8.680000000000001e-05,
+      "cumulative_s": 0.0001787
+    },
+    {
+      "file": "C:/Users/hembad/AppData/Roaming/uv/python/cpython-3.13.5-windows-x86_64-none/Lib/importlib/metadata/__init__.py",
+      "line": 749,
+      "function": "zip_children",
+      "calls": 3,
+      "own_s": 7.2000000000000005e-06,
+      "cumulative_s": 0.0001696
+    },
+    {
+      "file": "C:/Users/hembad/AppData/Roaming/uv/python/cpython-3.13.5-windows-x86_64-none/Lib/importlib/metadata/__init__.py",
+      "line": 170,
+      "function": "__init__",
+      "calls": 212,
+      "own_s": 6.68e-05,
+      "cumulative_s": 0.0001616
+    },
+    {
+      "file": "src/memspine/core/policies/base.py",
+      "line": 35,
+      "function": "bind",
+      "calls": 8,
+      "own_s": 2.4900000000000002e-05,
+      "cumulative_s": 0.0001587
+    },
+    {
+      "file": "src/memspine/config/loader.py",
+      "line": 185,
+      "function": "_env_layer",
+      "calls": 1,
+      "own_s": 2.71e-05,
+      "cumulative_s": 0.00015010000000000002
+    },
+    {
+      "file": "<frozen importlib._bootstrap>",
+      "line": 158,
+      "function": "__init__",
+      "calls": 1476,
+      "own_s": 0.000145,
+      "cumulative_s": 0.000145
+    },
+    {
+      "file": "src/memspine/api/engine.py",
+      "line": 356,
+      "function": "__init__",
+      "calls": 1,
+      "own_s": 3.8100000000000005e-05,
+      "cumulative_s": 0.00013550000000000001
+    },
+    {
+      "file": "src/memspine/providers/settings.py",
+      "line": 73,
+      "function": "model_post_init",
+      "calls": 37,
+      "own_s": 6.3e-05,
+      "cumulative_s": 0.0001326
+    },
+    {
+      "file": "src/memspine/services/storage/sqlite/alembic/versions/0012_provider_changes.py",
+      "line": 20,
+      "function": "_tables",
+      "calls": 1,
+      "own_s": 4.1000000000000006e-06,
+      "cumulative_s": 0.0001317
+    },
+    {
+      "file": "src/memspine/services/storage/sqlite/alembic/versions/0013_projector_bindings.py",
+      "line": 18,
+      "function": "upgrade",
+      "calls": 1,
+      "own_s": 3.2000000000000003e-06,
+      "cumulative_s": 0.0001307
+    },
+    {
+      "file": "C:/Users/hembad/AppData/Roaming/uv/python/cpython-3.13.5-windows-x86_64-none/Lib/importlib/metadata/__init__.py",
+      "line": 201,
+      "function": "_for",
+      "calls": 212,
+      "own_s": 5.7100000000000006e-05,
+      "cumulative_s": 0.00011540000000000001
+    },
+    {
+      "file": "src/memspine/services/storage/sqlite/alembic/versions/0008_outbox.py",
+      "line": 25,
+      "function": "_tables",
+      "calls": 1,
+      "own_s": 3.3e-06,
+      "cumulative_s": 0.0001151
+    },
+    {
+      "file": "src/memspine/services/storage/sqlite/engine.py",
+      "line": 45,
+      "function": "start",
+      "calls": 2,
+      "own_s": 4.6e-06,
+      "cumulative_s": 0.0001122
+    },
+    {
+      "file": "src/memspine/services/storage/sqlite/alembic/versions/0014_cleanup_fence_recovery.py",
+      "line": 18,
+      "function": "upgrade",
+      "calls": 1,
+      "own_s": 2.9e-06,
+      "cumulative_s": 0.0001106
+    },
+    {
+      "file": "<frozen importlib._bootstrap>",
+      "line": 412,
+      "function": "__init__",
+      "calls": 802,
+      "own_s": 0.0001101,
+      "cumulative_s": 0.0001101
+    },
+    {
+      "file": "src/memspine/config/loader.py",
+      "line": 176,
+      "function": "_find_template",
+      "calls": 1,
+      "own_s": 3e-06,
+      "cumulative_s": 0.00010530000000000001
+    },
+    {
+      "file": "C:/Users/hembad/AppData/Roaming/uv/python/cpython-3.13.5-windows-x86_64-none/Lib/importlib/metadata/__init__.py",
+      "line": 121,
+      "function": "valid",
+      "calls": 389,
+      "own_s": 7.120000000000001e-05,
+      "cumulative_s": 0.00010470000000000001
+    },
+    {
+      "file": "src/memspine/runtime/container.py",
+      "line": 180,
+      "function": "_storage_placement",
+      "calls": 3,
+      "own_s": 4.3e-06,
+      "cumulative_s": 0.00010420000000000001
+    },
+    {
+      "file": "C:/Users/hembad/AppData/Roaming/uv/python/cpython-3.13.5-windows-x86_64-none/Lib/importlib/metadata/__init__.py",
+      "line": 804,
+      "function": "search",
+      "calls": 25,
+      "own_s": 5.0900000000000004e-05,
+      "cumulative_s": 0.0001022
+    },
+    {
+      "file": "C:/Users/hembad/AppData/Roaming/uv/python/cpython-3.13.5-windows-x86_64-none/Lib/importlib/metadata/_adapters.py",
+      "line": 46,
+      "function": "__init__",
+      "calls": 2,
+      "own_s": 2.7e-06,
+      "cumulative_s": 9.740000000000001e-05
+    },
+    {
+      "file": "src/memspine/prompts/env.py",
+      "line": 42,
+      "function": "build_environment",
+      "calls": 1,
+      "own_s": 9.3e-06,
+      "cumulative_s": 9.6e-05
+    },
+    {
+      "file": "C:/Users/hembad/AppData/Roaming/uv/python/cpython-3.13.5-windows-x86_64-none/Lib/importlib/metadata/_adapters.py",
+      "line": 63,
+      "function": "_repair_headers",
+      "calls": 2,
+      "own_s": 2.4900000000000002e-05,
+      "cumulative_s": 9.470000000000001e-05
+    },
+    {
+      "file": "<frozen importlib._bootstrap_external>",
+      "line": 1184,
+      "function": "__init__",
+      "calls": 730,
+      "own_s": 9.290000000000001e-05,
+      "cumulative_s": 9.290000000000001e-05
+    },
+    {
+      "file": "src/memspine/runtime/container.py",
+      "line": 1437,
+      "function": "_context_provider",
+      "calls": 1,
+      "own_s": 3.2000000000000003e-06,
+      "cumulative_s": 9.190000000000001e-05
+    },
+    {
+      "file": "src/memspine/providers/registry.py",
+      "line": 245,
+      "function": "provider_target_identity",
+      "calls": 8,
+      "own_s": 1.6100000000000002e-05,
+      "cumulative_s": 8.75e-05
+    },
+    {
+      "file": "C:/Users/hembad/AppData/Roaming/uv/python/cpython-3.13.5-windows-x86_64-none/Lib/importlib/metadata/__init__.py",
+      "line": 102,
+      "function": "section_pairs",
+      "calls": 241,
+      "own_s": 8.690000000000001e-05,
+      "cumulative_s": 8.690000000000001e-05
+    },
+    {
+      "file": "<frozen importlib._bootstrap_external>",
+      "line": 1009,
+      "function": "is_package",
+      "calls": 15,
+      "own_s": 2.16e-05,
+      "cumulative_s": 8.5e-05
+    },
+    {
+      "file": "src/memspine/runtime/container.py",
+      "line": 279,
+      "function": "_validate_provider_result",
+      "calls": 5,
+      "own_s": 2.0600000000000003e-05,
+      "cumulative_s": 8.350000000000001e-05
+    },
+    {
+      "file": "<frozen importlib._bootstrap>",
+      "line": 653,
+      "function": "has_location",
+      "calls": 792,
+      "own_s": 7.950000000000001e-05,
+      "cumulative_s": 7.950000000000001e-05
+    },
+    {
+      "file": "src/memspine/runtime/container.py",
+      "line": 533,
+      "function": "lexical_projector_name",
+      "calls": 2,
+      "own_s": 4.4e-06,
+      "cumulative_s": 7.7e-05
+    },
+    {
+      "file": "src/memspine/runtime/container.py",
+      "line": 516,
+      "function": "lexical_variant",
+      "calls": 2,
+      "own_s": 9.9e-06,
+      "cumulative_s": 7.26e-05
+    },
+    {
+      "file": "C:/Users/hembad/AppData/Roaming/uv/python/cpython-3.13.5-windows-x86_64-none/Lib/importlib/metadata/__init__.py",
+      "line": 427,
+      "function": "<genexpr>",
+      "calls": 4,
+      "own_s": 6.200000000000001e-06,
+      "cumulative_s": 7.21e-05
+    },
+    {
+      "file": "src/memspine/providers/builtin/storage.py",
+      "line": 30,
+      "function": "sqlite_placement",
+      "calls": 7,
+      "own_s": 2.3500000000000002e-05,
+      "cumulative_s": 7.19e-05
+    },
+    {
+      "file": "<frozen importlib._bootstrap>",
+      "line": 997,
+      "function": "exec_module",
+      "calls": 4,
+      "own_s": 2.5e-06,
+      "cumulative_s": 6.890000000000001e-05
+    },
+    {
+      "file": "<frozen importlib._bootstrap_external>",
+      "line": 1604,
+      "function": "<genexpr>",
+      "calls": 608,
+      "own_s": 6.7e-05,
+      "cumulative_s": 6.7e-05
+    },
+    {
+      "file": "<frozen importlib._bootstrap_external>",
+      "line": 1209,
+      "function": "get_filename",
+      "calls": 736,
+      "own_s": 6.63e-05,
+      "cumulative_s": 6.63e-05
+    },
+    {
+      "file": "src/memspine/providers/settings.py",
+      "line": 51,
+      "function": "_freeze_model_value",
+      "calls": 88,
+      "own_s": 3.63e-05,
+      "cumulative_s": 6.43e-05
+    },
+    {
+      "file": "src/memspine/config/schema/root.py",
+      "line": 123,
+      "function": "_requirements_hold",
+      "calls": 1,
+      "own_s": 1.8000000000000001e-06,
+      "cumulative_s": 6.0400000000000004e-05
+    },
+    {
+      "file": "src/memspine/providers/builtin/lexical.py",
+      "line": 1,
+      "function": "<module>",
+      "calls": 1,
+      "own_s": 5.4e-06,
+      "cumulative_s": 5.9600000000000005e-05
+    },
+    {
+      "file": "src/memspine/config/requires.py",
+      "line": 167,
+      "function": "check_requires",
+      "calls": 1,
+      "own_s": 6.900000000000001e-06,
+      "cumulative_s": 5.86e-05
+    },
+    {
+      "file": "src/memspine/config/loader.py",
+      "line": 43,
+      "function": "template_dir",
+      "calls": 1,
+      "own_s": 5.600000000000001e-06,
+      "cumulative_s": 5.83e-05
+    },
+    {
+      "file": "src/memspine/providers/registry.py",
+      "line": 227,
+      "function": "__post_init__",
+      "calls": 24,
+      "own_s": 3.04e-05,
+      "cumulative_s": 5.6200000000000004e-05
+    },
+    {
+      "file": "<frozen importlib._bootstrap>",
+      "line": 989,
+      "function": "create_module",
+      "calls": 4,
+      "own_s": 4.800000000000001e-06,
+      "cumulative_s": 5.5400000000000005e-05
+    },
+    {
+      "file": "<frozen importlib._bootstrap_external>",
+      "line": 1575,
+      "function": "find_distributions",
+      "calls": 3,
+      "own_s": 6.900000000000001e-06,
+      "cumulative_s": 5.520000000000001e-05
+    },
+    {
+      "file": "src/memspine/config/loader.py",
+      "line": 113,
+      "function": "_deepcopy_mapping",
+      "calls": 28,
+      "own_s": 1.69e-05,
+      "cumulative_s": 5.47e-05
+    },
+    {
+      "file": "<frozen importlib._bootstrap_external>",
+      "line": 1017,
+      "function": "create_module",
+      "calls": 721,
+      "own_s": 5.3500000000000006e-05,
+      "cumulative_s": 5.3500000000000006e-05
+    },
+    {
+      "file": "src/memspine/trust/firewall.py",
+      "line": 261,
+      "function": "__init__",
+      "calls": 2,
+      "own_s": 6.8e-06,
+      "cumulative_s": 5.3200000000000006e-05
+    },
+    {
+      "file": "src/memspine/providers/lifecycle.py",
+      "line": 100,
+      "function": "own",
+      "calls": 3,
+      "own_s": 3.51e-05,
+      "cumulative_s": 5.2400000000000007e-05
+    },
+    {
+      "file": "src/memspine/config/requires.py",
+      "line": 160,
+      "function": "missing_needs",
+      "calls": 25,
+      "own_s": 1.08e-05,
+      "cumulative_s": 5.17e-05
+    },
+    {
+      "file": "src/memspine/services/lexical/tantivy.py",
+      "line": 1,
+      "function": "<module>",
+      "calls": 1,
+      "own_s": 2.01e-05,
+      "cumulative_s": 5.0400000000000005e-05
+    },
+    {
+      "file": "src/memspine/providers/builtin/storage.py",
+      "line": 161,
+      "function": "register",
+      "calls": 1,
+      "own_s": 2.1400000000000002e-05,
+      "cumulative_s": 5.0100000000000005e-05
+    },
+    {
+      "file": "src/memspine/config/loader.py",
+      "line": 117,
+      "function": "_deepcopy_value",
+      "calls": 52,
+      "own_s": 1.34e-05,
+      "cumulative_s": 4.9600000000000006e-05
+    },
+    {
+      "file": "src/memspine/providers/builtin/cache.py",
+      "line": 109,
+      "function": "register",
+      "calls": 1,
+      "own_s": 1.72e-05,
+      "cumulative_s": 4.6800000000000006e-05
+    },
+    {
+      "file": "C:/Users/hembad/AppData/Roaming/uv/python/cpython-3.13.5-windows-x86_64-none/Lib/importlib/metadata/__init__.py",
+      "line": 871,
+      "function": "find_distributions",
+      "calls": 3,
+      "own_s": 8.000000000000001e-06,
+      "cumulative_s": 4.6e-05
+    },
+    {
+      "file": "src/memspine/providers/builtin/lexical.py",
+      "line": 12,
+      "function": "TantivyBuilder",
+      "calls": 1,
+      "own_s": 5.1e-06,
+      "cumulative_s": 4.3700000000000005e-05
+    },
+    {
+      "file": "src/memspine/providers/builtin/vector.py",
+      "line": 1,
+      "function": "<module>",
+      "calls": 1,
+      "own_s": 1.9900000000000003e-05,
+      "cumulative_s": 4.1500000000000006e-05
+    },
+    {
+      "file": "C:/Users/hembad/AppData/Roaming/uv/python/cpython-3.13.5-windows-x86_64-none/Lib/importlib/metadata/__init__.py",
+      "line": 225,
+      "function": "<genexpr>",
+      "calls": 212,
+      "own_s": 2.57e-05,
+      "cumulative_s": 4.1200000000000005e-05
+    },
+    {
+      "file": "src/memspine/services/vector/lancedb_store.py",
+      "line": 1,
+      "function": "<module>",
+      "calls": 1,
+      "own_s": 1.0700000000000001e-05,
+      "cumulative_s": 3.96e-05
+    },
+    {
+      "file": "C:/Users/hembad/AppData/Roaming/uv/python/cpython-3.13.5-windows-x86_64-none/Lib/importlib/metadata/_collections.py",
+      "line": 20,
+      "function": "__missing__",
+      "calls": 30,
+      "own_s": 2.3100000000000002e-05,
+      "cumulative_s": 3.8400000000000005e-05
+    },
+    {
+      "file": "src/memspine/prompts/env.py",
+      "line": 38,
+      "function": "partials_dir",
+      "calls": 1,
+      "own_s": 5.7000000000000005e-06,
+      "cumulative_s": 3.79e-05
+    },
+    {
+      "file": "src/memspine/config/requires.py",
+      "line": 55,
+      "function": "resolve_path",
+      "calls": 25,
+      "own_s": 1.69e-05,
+      "cumulative_s": 3.71e-05
+    },
+    {
+      "file": "src/memspine/clients/lancedb.py",
+      "line": 1,
+      "function": "<module>",
+      "calls": 1,
+      "own_s": 7.100000000000001e-06,
+      "cumulative_s": 3.68e-05
+    },
+    {
+      "file": "src/memspine/runtime/container.py",
+      "line": 623,
+      "function": "check_capabilities",
+      "calls": 1,
+      "own_s": 1.5300000000000003e-05,
+      "cumulative_s": 3.5000000000000004e-05
+    },
+    {
+      "file": "<frozen importlib._bootstrap>",
+      "line": 662,
+      "function": "spec_from_loader",
+      "calls": 5,
+      "own_s": 1.55e-05,
+      "cumulative_s": 3.5000000000000004e-05
+    },
+    {
+      "file": "C:/Users/hembad/AppData/Roaming/uv/python/cpython-3.13.5-windows-x86_64-none/Lib/importlib/metadata/__init__.py",
+      "line": 886,
+      "function": "_search_paths",
+      "calls": 3,
+      "own_s": 9.100000000000001e-06,
+      "cumulative_s": 3.49e-05
+    },
+    {
+      "file": "src/memspine/services/storage/sqlite/engine.py",
+      "line": 28,
+      "function": "__init__",
+      "calls": 1,
+      "own_s": 2.8000000000000003e-06,
+      "cumulative_s": 3.47e-05
+    },
+    {
+      "file": "src/memspine/providers/builtin/cache.py",
+      "line": 1,
+      "function": "<module>",
+      "calls": 1,
+      "own_s": 7.6e-06,
+      "cumulative_s": 3.47e-05
+    },
+    {
+      "file": "src/memspine/providers/registry.py",
+      "line": 99,
+      "function": "register",
+      "calls": 24,
+      "own_s": 2.26e-05,
+      "cumulative_s": 3.47e-05
+    },
+    {
+      "file": "src/memspine/providers/builtin/pgvector.py",
+      "line": 1,
+      "function": "<module>",
+      "calls": 1,
+      "own_s": 1.54e-05,
+      "cumulative_s": 3.43e-05
+    },
+    {
+      "file": "src/memspine/config/schema/root.py",
+      "line": 324,
+      "function": "<genexpr>",
+      "calls": 41,
+      "own_s": 7.8e-06,
+      "cumulative_s": 3.3100000000000005e-05
+    },
+    {
+      "file": "C:/Users/hembad/AppData/Roaming/uv/python/cpython-3.13.5-windows-x86_64-none/Lib/importlib/metadata/__init__.py",
+      "line": 411,
+      "function": "discover",
+      "calls": 3,
+      "own_s": 2.18e-05,
+      "cumulative_s": 3.24e-05
+    },
+    {
+      "file": "<frozen importlib._bootstrap_external>",
+      "line": 1795,
+      "function": "_get_supported_file_loaders",
+      "calls": 15,
+      "own_s": 2.09e-05,
+      "cumulative_s": 3.21e-05
+    },
+    {
+      "file": "src/memspine/services/storage/sql_base.py",
+      "line": 68,
+      "function": "__init__",
+      "calls": 1,
+      "own_s": 3.19e-05,
+      "cumulative_s": 3.19e-05
+    },
+    {
+      "file": "src/memspine/providers/builtin/weaviate.py",
+      "line": 124,
+      "function": "register",
+      "calls": 1,
+      "own_s": 1.18e-05,
+      "cumulative_s": 3.1e-05
+    },
+    {
+      "file": "src/memspine/config/loader.py",
+      "line": 214,
+      "function": "_resolve_secrets",
+      "calls": 30,
+      "own_s": 1.94e-05,
+      "cumulative_s": 2.7000000000000002e-05
+    },
+    {
+      "file": "src/memspine/providers/builtin/pgvector.py",
+      "line": 180,
+      "function": "register",
+      "calls": 1,
+      "own_s": 1.02e-05,
+      "cumulative_s": 2.6000000000000002e-05
+    },
+    {
+      "file": "src/memspine/clients/base.py",
+      "line": 1,
+      "function": "<module>",
+      "calls": 1,
+      "own_s": 2.5e-06,
+      "cumulative_s": 2.58e-05
+    },
+    {
+      "file": "src/memspine/providers/builtin/opensearch.py",
+      "line": 1,
+      "function": "<module>",
+      "calls": 1,
+      "own_s": 1.1400000000000001e-05,
+      "cumulative_s": 2.58e-05
+    },
+    {
+      "file": "src/memspine/config/schema/base.py",
+      "line": 45,
+      "function": "<genexpr>",
+      "calls": 136,
+      "own_s": 2.5600000000000002e-05,
+      "cumulative_s": 2.5600000000000002e-05
+    },
+    {
+      "file": "C:/Users/hembad/AppData/Roaming/uv/python/cpython-3.13.5-windows-x86_64-none/Lib/importlib/metadata/__init__.py",
+      "line": 844,
+      "function": "__init__",
+      "calls": 3,
+      "own_s": 6e-06,
+      "cumulative_s": 2.5500000000000003e-05
+    },
+    {
+      "file": "src/memspine/providers/builtin/vector.py",
+      "line": 103,
+      "function": "register",
+      "calls": 1,
+      "own_s": 8.5e-06,
+      "cumulative_s": 2.33e-05
+    },
+    {
+      "file": "src/memspine/observability/logging.py",
+      "line": 136,
+      "function": "get_logger",
+      "calls": 2,
+      "own_s": 7.100000000000001e-06,
+      "cumulative_s": 2.25e-05
+    },
+    {
+      "file": "src/memspine/models/encoders/embedding/fastembed_local.py",
+      "line": 1,
+      "function": "<module>",
+      "calls": 1,
+      "own_s": 6.200000000000001e-06,
+      "cumulative_s": 2.2400000000000002e-05
+    },
+    {
+      "file": "src/memspine/ingest/message_store.py",
+      "line": 1,
+      "function": "<module>",
+      "calls": 1,
+      "own_s": 1.4200000000000001e-05,
+      "cumulative_s": 2e-05
+    },
+    {
+      "file": "C:/Users/hembad/AppData/Roaming/uv/python/cpython-3.13.5-windows-x86_64-none/Lib/importlib/metadata/__init__.py",
+      "line": 900,
+      "function": "__init__",
+      "calls": 243,
+      "own_s": 1.97e-05,
+      "cumulative_s": 1.97e-05
+    },
+    {
+      "file": "src/memspine/api/engine.py",
+      "line": 5912,
+      "function": "_memory_policy",
+      "calls": 7,
+      "own_s": 6.8e-06,
+      "cumulative_s": 1.9200000000000003e-05
+    },
+    {
+      "file": "src/memspine/prompts/loader.py",
+      "line": 12,
+      "function": "defaults_dir",
+      "calls": 1,
+      "own_s": 2.0000000000000003e-06,
+      "cumulative_s": 1.91e-05
+    },
+    {
+      "file": "src/memspine/clients/sqlite.py",
+      "line": 77,
+      "function": "_ensure_wal",
+      "calls": 1,
+      "own_s": 1.1e-06,
+      "cumulative_s": 1.87e-05
+    },
+    {
+      "file": "src/memspine/services/vector/per_namespace.py",
+      "line": 1,
+      "function": "<module>",
+      "calls": 1,
+      "own_s": 5.500000000000001e-06,
+      "cumulative_s": 1.87e-05
+    },
+    {
+      "file": "src/memspine/providers/builtin/opensearch.py",
+      "line": 76,
+      "function": "register",
+      "calls": 1,
+      "own_s": 6.8e-06,
+      "cumulative_s": 1.8200000000000002e-05
+    },
+    {
+      "file": "src/memspine/models/encoders/embedding/hash_local.py",
+      "line": 1,
+      "function": "<module>",
+      "calls": 1,
+      "own_s": 5.7000000000000005e-06,
+      "cumulative_s": 1.7800000000000002e-05
+    },
+    {
+      "file": "src/memspine/providers/registry.py",
+      "line": 81,
+      "function": "__new__",
+      "calls": 28,
+      "own_s": 1.2400000000000002e-05,
+      "cumulative_s": 1.7800000000000002e-05
+    },
+    {
+      "file": "C:/Users/hembad/AppData/Roaming/uv/python/cpython-3.13.5-windows-x86_64-none/Lib/importlib/metadata/__init__.py",
+      "line": 963,
+      "function": "distributions",
+      "calls": 1,
+      "own_s": 5.600000000000001e-06,
+      "cumulative_s": 1.72e-05
+    },
+    {
+      "file": "src/memspine/providers/builtin/vector.py",
+      "line": 42,
+      "function": "make",
+      "calls": 1,
+      "own_s": 8.200000000000001e-06,
+      "cumulative_s": 1.66e-05
+    },
+    {
+      "file": "src/memspine/providers/lifecycle.py",
+      "line": 137,
+      "function": "validate_references",
+      "calls": 5,
+      "own_s": 1.4400000000000001e-05,
+      "cumulative_s": 1.6400000000000002e-05
+    },
+    {
+      "file": "src/memspine/runtime/container.py",
+      "line": 490,
+      "function": "memory_policy",
+      "calls": 9,
+      "own_s": 1.2600000000000001e-05,
+      "cumulative_s": 1.5100000000000001e-05
+    },
+    {
+      "file": "src/memspine/providers/contracts.py",
+      "line": 40,
+      "function": "__post_init__",
+      "calls": 28,
+      "own_s": 1.1700000000000001e-05,
+      "cumulative_s": 1.5100000000000001e-05
+    },
+    {
+      "file": "C:/Users/hembad/AppData/Roaming/uv/python/cpython-3.13.5-windows-x86_64-none/Lib/importlib/metadata/_adapters.py",
+      "line": 64,
+      "function": "redent",
+      "calls": 171,
+      "own_s": 1.3000000000000001e-05,
+      "cumulative_s": 1.3000000000000001e-05
+    },
+    {
+      "file": "src/memspine/config/loader.py",
+      "line": 55,
+      "function": "_deep_merge",
+      "calls": 11,
+      "own_s": 1.11e-05,
+      "cumulative_s": 1.3000000000000001e-05
+    },
+    {
+      "file": "src/memspine/providers/registry.py",
+      "line": 91,
+      "function": "__init__",
+      "calls": 28,
+      "own_s": 7.7e-06,
+      "cumulative_s": 1.27e-05
+    },
+    {
+      "file": "src/memspine/runtime/container.py",
+      "line": 576,
+      "function": "build_secrets",
+      "calls": 1,
+      "own_s": 5.2e-06,
+      "cumulative_s": 1.25e-05
+    },
+    {
+      "file": "src/memspine/core/registry.py",
+      "line": 85,
+      "function": "dependency_closure",
+      "calls": 1,
+      "own_s": 6.1e-06,
+      "cumulative_s": 1.25e-05
+    },
+    {
+      "file": "<frozen importlib._bootstrap>",
+      "line": 501,
+      "function": "_requires_builtin_wrapper",
+      "calls": 4,
+      "own_s": 1.18e-05,
+      "cumulative_s": 1.22e-05
+    },
+    {
+      "file": "src/memspine/runtime/container.py",
+      "line": 643,
+      "function": "wiring_of",
+      "calls": 1,
+      "own_s": 7.000000000000001e-06,
+      "cumulative_s": 1.22e-05
+    },
+    {
+      "file": "src/memspine/providers/builtin/lexical.py",
+      "line": 43,
+      "function": "register",
+      "calls": 1,
+      "own_s": 3.9e-06,
+      "cumulative_s": 1.1900000000000001e-05
+    },
+    {
+      "file": "C:/Users/hembad/AppData/Roaming/uv/python/cpython-3.13.5-windows-x86_64-none/Lib/importlib/metadata/__init__.py",
+      "line": 443,
+      "function": "<genexpr>",
+      "calls": 16,
+      "own_s": 3.8e-06,
+      "cumulative_s": 1.0700000000000001e-05
+    },
+    {
+      "file": "C:/Users/hembad/AppData/Roaming/uv/python/cpython-3.13.5-windows-x86_64-none/Lib/importlib/metadata/_adapters.py",
+      "line": 53,
+      "function": "__getitem__",
+      "calls": 2,
+      "own_s": 2.2e-06,
+      "cumulative_s": 1.04e-05
+    },
+    {
+      "file": "src/memspine/ingest/gateway.py",
+      "line": 802,
+      "function": "gateway_of",
+      "calls": 1,
+      "own_s": 4.000000000000001e-06,
+      "cumulative_s": 9.7e-06
+    },
+    {
+      "file": "src/memspine/runtime/container.py",
+      "line": 546,
+      "function": "rescore_settings",
+      "calls": 1,
+      "own_s": 2.8000000000000003e-06,
+      "cumulative_s": 9.600000000000001e-06
+    },
+    {
+      "file": "C:/Users/hembad/AppData/Roaming/uv/python/cpython-3.13.5-windows-x86_64-none/Lib/importlib/metadata/_adapters.py",
+      "line": 41,
+      "function": "__new__",
+      "calls": 2,
+      "own_s": 3.7e-06,
+      "cumulative_s": 9.5e-06
+    },
+    {
+      "file": "src/memspine/config/schema/base.py",
+      "line": 141,
+      "function": "<genexpr>",
+      "calls": 3,
+      "own_s": 5.500000000000001e-06,
+      "cumulative_s": 9.3e-06
+    },
+    {
+      "file": "src/memspine/config/remote.py",
+      "line": 1,
+      "function": "<module>",
+      "calls": 1,
+      "own_s": 6.8e-06,
+      "cumulative_s": 9.2e-06
+    },
+    {
+      "file": "src/memspine/providers/builtin/cache.py",
+      "line": 27,
+      "function": "build",
+      "calls": 1,
+      "own_s": 5.500000000000001e-06,
+      "cumulative_s": 8.8e-06
+    },
+    {
+      "file": "src/memspine/core/registry.py",
+      "line": 77,
+      "function": "validate_types",
+      "calls": 2,
+      "own_s": 6.1e-06,
+      "cumulative_s": 8.8e-06
+    },
+    {
+      "file": "src/memspine/services/vector/lancedb_store.py",
+      "line": 41,
+      "function": "__init__",
+      "calls": 1,
+      "own_s": 7.6e-06,
+      "cumulative_s": 8.400000000000001e-06
+    },
+    {
+      "file": "src/memspine/providers/contracts.py",
+      "line": 119,
+      "function": "__post_init__",
+      "calls": 16,
+      "own_s": 6.1e-06,
+      "cumulative_s": 8.3e-06
+    },
+    {
+      "file": "src/memspine/clients/sqlite.py",
+      "line": 142,
+      "function": "__init__",
+      "calls": 1,
+      "own_s": 6.8e-06,
+      "cumulative_s": 8.200000000000001e-06
+    },
+    {
+      "file": "src/memspine/api/engine.py",
+      "line": 5576,
+      "function": "_build_windows",
+      "calls": 1,
+      "own_s": 7.000000000000001e-06,
+      "cumulative_s": 8.1e-06
+    },
+    {
+      "file": "src/memspine/runtime/container.py",
+      "line": 1138,
+      "function": "build_extractor",
+      "calls": 1,
+      "own_s": 5.1e-06,
+      "cumulative_s": 8.000000000000001e-06
+    },
+    {
+      "file": "src/memspine/models/providers/rerank/factory.py",
+      "line": 139,
+      "function": "rerank_modes",
+      "calls": 1,
+      "own_s": 2.8000000000000003e-06,
+      "cumulative_s": 7.9e-06
+    },
+    {
+      "file": "<frozen importlib._bootstrap>",
+      "line": 1285,
+      "function": "_sanity_check",
+      "calls": 14,
+      "own_s": 6.200000000000001e-06,
+      "cumulative_s": 7.9e-06
+    },
+    {
+      "file": "src/memspine/config/schema/root.py",
+      "line": 130,
+      "function": "_known_memory_types",
+      "calls": 1,
+      "own_s": 3e-06,
+      "cumulative_s": 7.7e-06
+    },
+    {
+      "file": "src/memspine/services/storage/sqlite/alembic/versions/0001_baseline.py",
+      "line": 1,
+      "function": "<module>",
+      "calls": 1,
+      "own_s": 6.300000000000001e-06,
+      "cumulative_s": 7.6e-06
+    },
+    {
+      "file": "src/memspine/services/storage/sqlite/alembic/versions/0007_record_envelope.py",
+      "line": 1,
+      "function": "<module>",
+      "calls": 1,
+      "own_s": 6.7e-06,
+      "cumulative_s": 7.5e-06
+    },
+    {
+      "file": "src/memspine/runtime/container.py",
+      "line": 234,
+      "function": "<genexpr>",
+      "calls": 20,
+      "own_s": 6.6e-06,
+      "cumulative_s": 7.4e-06
+    },
+    {
+      "file": "<frozen importlib._bootstrap_external>",
+      "line": 1307,
+      "function": "__init__",
+      "calls": 62,
+      "own_s": 7.4e-06,
+      "cumulative_s": 7.4e-06
+    },
+    {
+      "file": "src/memspine/api/engine.py",
+      "line": 5710,
+      "function": "_build_summarize",
+      "calls": 1,
+      "own_s": 3.2000000000000003e-06,
+      "cumulative_s": 7.3e-06
+    },
+    {
+      "file": "C:/Users/hembad/AppData/Roaming/uv/python/cpython-3.13.5-windows-x86_64-none/Lib/importlib/metadata/__init__.py",
+      "line": 866,
+      "function": "__bool__",
+      "calls": 50,
+      "own_s": 7.100000000000001e-06,
+      "cumulative_s": 7.100000000000001e-06
+    },
+    {
+      "file": "src/memspine/clients/sqlite.py",
+      "line": 210,
+      "function": "_set_pragmas",
+      "calls": 1,
+      "own_s": 8.000000000000001e-07,
+      "cumulative_s": 6.8e-06
+    },
+    {
+      "file": "src/memspine/providers/registry.py",
+      "line": 128,
+      "function": "get",
+      "calls": 28,
+      "own_s": 6.8e-06,
+      "cumulative_s": 6.8e-06
+    },
+    {
+      "file": "src/memspine/models/cache/semantic.py",
+      "line": 55,
+      "function": "manifest",
+      "calls": 1,
+      "own_s": 6.000000000000001e-07,
+      "cumulative_s": 6.6e-06
+    },
+    {
+      "file": "src/memspine/runtime/container.py",
+      "line": 1102,
+      "function": "check_decision_provider",
+      "calls": 1,
+      "own_s": 5.500000000000001e-06,
+      "cumulative_s": 6.300000000000001e-06
+    },
+    {
+      "file": "src/memspine/api/engine.py",
+      "line": 5900,
+      "function": "_build_session_edge_extractor",
+      "calls": 1,
+      "own_s": 3e-06,
+      "cumulative_s": 6.300000000000001e-06
+    },
+    {
+      "file": "C:/Users/hembad/AppData/Roaming/uv/python/cpython-3.13.5-windows-x86_64-none/Lib/importlib/metadata/__init__.py",
+      "line": 691,
+      "function": "__init__",
+      "calls": 3,
+      "own_s": 2.8000000000000003e-06,
+      "cumulative_s": 6.200000000000001e-06
+    },
+    {
+      "file": "C:/Users/hembad/AppData/Roaming/uv/python/cpython-3.13.5-windows-x86_64-none/Lib/importlib/metadata/_collections.py",
+      "line": 23,
+      "function": "freeze",
+      "calls": 8,
+      "own_s": 6.200000000000001e-06,
+      "cumulative_s": 6.200000000000001e-06
+    },
+    {
+      "file": "src/memspine/services/storage/sqlite/alembic/versions/0005_record_session_role.py",
+      "line": 1,
+      "function": "<module>",
+      "calls": 1,
+      "own_s": 5.4e-06,
+      "cumulative_s": 6.1e-06
+    },
+    {
+      "file": "src/memspine/runtime/container.py",
+      "line": 1193,
+      "function": "build_runner",
+      "calls": 1,
+      "own_s": 5.500000000000001e-06,
+      "cumulative_s": 6e-06
+    },
+    {
+      "file": "src/memspine/models/encoders/embedding/hash_local.py",
+      "line": 34,
+      "function": "manifest",
+      "calls": 1,
+      "own_s": 4.000000000000001e-06,
+      "cumulative_s": 6e-06
+    },
+    {
+      "file": "src/memspine/config/schema/read.py",
+      "line": 1248,
+      "function": "<lambda>",
+      "calls": 1,
+      "own_s": 1.5e-06,
+      "cumulative_s": 5.9e-06
+    },
+    {
+      "file": "src/memspine/services/storage/sqlite/alembic/versions/0012_provider_changes.py",
+      "line": 1,
+      "function": "<module>",
+      "calls": 1,
+      "own_s": 4.6e-06,
+      "cumulative_s": 5.600000000000001e-06
+    },
+    {
+      "file": "src/memspine/providers/projection_bindings.py",
+      "line": 374,
+      "function": "_effective_embedding",
+      "calls": 2,
+      "own_s": 4.800000000000001e-06,
+      "cumulative_s": 5.500000000000001e-06
+    },
+    {
+      "file": "src/memspine/config/schema/root.py",
+      "line": 326,
+      "function": "<genexpr>",
+      "calls": 4,
+      "own_s": 1.1e-06,
+      "cumulative_s": 5.4e-06
+    },
+    {
+      "file": "src/memspine/ingest/gateway.py",
+      "line": 269,
+      "function": "__init__",
+      "calls": 1,
+      "own_s": 4.7e-06,
+      "cumulative_s": 5.3e-06
+    },
+    {
+      "file": "src/memspine/runtime/container.py",
+      "line": 1166,
+      "function": "build_write_pipeline",
+      "calls": 1,
+      "own_s": 3.3e-06,
+      "cumulative_s": 5e-06
+    },
+    {
+      "file": "src/memspine/runtime/container.py",
+      "line": 172,
+      "function": "_owner_id",
+      "calls": 9,
+      "own_s": 5e-06,
+      "cumulative_s": 5e-06
+    },
+    {
+      "file": "C:/Users/hembad/AppData/Roaming/uv/python/cpython-3.13.5-windows-x86_64-none/Lib/importlib/metadata/_collections.py",
+      "line": 24,
+      "function": "<lambda>",
+      "calls": 30,
+      "own_s": 5e-06,
+      "cumulative_s": 5e-06
+    },
+    {
+      "file": "src/memspine/services/storage/sqlite/alembic/versions/0009_tri_temporal.py",
+      "line": 1,
+      "function": "<module>",
+      "calls": 1,
+      "own_s": 4.1000000000000006e-06,
+      "cumulative_s": 4.9000000000000005e-06
+    },
+    {
+      "file": "src/memspine/store/vector_spaces.py",
+      "line": 60,
+      "function": "VectorSpace",
+      "calls": 1,
+      "own_s": 4.9000000000000005e-06,
+      "cumulative_s": 4.9000000000000005e-06
+    },
+    {
+      "file": "src/memspine/clients/sqlite.py",
+      "line": 139,
+      "function": "SQLiteClient",
+      "calls": 1,
+      "own_s": 4.9000000000000005e-06,
+      "cumulative_s": 4.9000000000000005e-06
+    },
+    {
+      "file": "src/memspine/providers/contracts.py",
+      "line": 67,
+      "function": "__post_init__",
+      "calls": 7,
+      "own_s": 3.9e-06,
+      "cumulative_s": 4.9000000000000005e-06
+    },
+    {
+      "file": "src/memspine/core/fact_chain.py",
+      "line": 75,
+      "function": "fact_projection_on",
+      "calls": 1,
+      "own_s": 3.5000000000000004e-06,
+      "cumulative_s": 4.5e-06
+    },
+    {
+      "file": "src/memspine/services/storage/sqlite/alembic/versions/0014_cleanup_fence_recovery.py",
+      "line": 1,
+      "function": "<module>",
+      "calls": 1,
+      "own_s": 3.3e-06,
+      "cumulative_s": 4.4e-06
+    },
+    {
+      "file": "src/memspine/api/engine.py",
+      "line": 5897,
+      "function": "_build_edge_extractor",
+      "calls": 1,
+      "own_s": 2.0000000000000003e-06,
+      "cumulative_s": 4.3e-06
+    },
+    {
+      "file": "src/memspine/trust/pipeline/state.py",
+      "line": 70,
+      "function": "_as_options_dict",
+      "calls": 4,
+      "own_s": 3.7e-06,
+      "cumulative_s": 4.3e-06
+    },
+    {
+      "file": "src/memspine/store/vector_spaces.py",
+      "line": 211,
+      "function": "VersionedSpaceStore",
+      "calls": 1,
+      "own_s": 4.2000000000000004e-06,
+      "cumulative_s": 4.2000000000000004e-06
+    },
+    {
+      "file": "src/memspine/services/storage/sqlite/alembic/versions/0010_w202_stamping.py",
+      "line": 1,
+      "function": "<module>",
+      "calls": 1,
+      "own_s": 3.3e-06,
+      "cumulative_s": 4.2000000000000004e-06
+    },
+    {
+      "file": "src/memspine/services/storage/sqlite/alembic/versions/0011_layer_backfill.py",
+      "line": 1,
+      "function": "<module>",
+      "calls": 1,
+      "own_s": 3.4e-06,
+      "cumulative_s": 4.2000000000000004e-06
+    },
+    {
+      "file": "src/memspine/models/providers/llm/base.py",
+      "line": 246,
+      "function": "__init__",
+      "calls": 1,
+      "own_s": 3.6000000000000003e-06,
+      "cumulative_s": 4.2000000000000004e-06
+    },
+    {
+      "file": "src/memspine/services/storage/sqlite/alembic/versions/0002_group_id_tags.py",
+      "line": 1,
+      "function": "<module>",
+      "calls": 1,
+      "own_s": 3.2000000000000003e-06,
+      "cumulative_s": 4.1000000000000006e-06
+    },
+    {
+      "file": "src/memspine/providers/registry.py",
+      "line": 173,
+      "function": "__contains__",
+      "calls": 24,
+      "own_s": 4.1000000000000006e-06,
+      "cumulative_s": 4.1000000000000006e-06
+    },
+    {
+      "file": "src/memspine/derive/pipeline/builders.py",
+      "line": 97,
+      "function": "_build_summarize",
+      "calls": 1,
+      "own_s": 2.8000000000000003e-06,
+      "cumulative_s": 4.1000000000000006e-06
+    },
+    {
+      "file": "src/memspine/models/cache/semantic.py",
+      "line": 47,
+      "function": "embedder_id",
+      "calls": 1,
+      "own_s": 3.2000000000000003e-06,
+      "cumulative_s": 4.000000000000001e-06
+    },
+    {
+      "file": "src/memspine/services/vector/lancedb_store.py",
+      "line": 40,
+      "function": "LanceDBVectorStore",
+      "calls": 1,
+      "own_s": 3.9e-06,
+      "cumulative_s": 3.9e-06
+    },
+    {
+      "file": "src/memspine/services/storage/sqlite/alembic/versions/0013_projector_bindings.py",
+      "line": 1,
+      "function": "<module>",
+      "calls": 1,
+      "own_s": 3e-06,
+      "cumulative_s": 3.9e-06
+    },
+    {
+      "file": "<frozen importlib._bootstrap>",
+      "line": 1231,
+      "function": "_resolve_name",
+      "calls": 2,
+      "own_s": 2.1000000000000002e-06,
+      "cumulative_s": 3.9e-06
+    },
+    {
+      "file": "src/memspine/store/vector_spaces.py",
+      "line": 467,
+      "function": "StaleReport",
+      "calls": 1,
+      "own_s": 2.1000000000000002e-06,
+      "cumulative_s": 3.8e-06
+    },
+    {
+      "file": "C:/Users/hembad/AppData/Roaming/uv/python/cpython-3.13.5-windows-x86_64-none/Lib/importlib/metadata/__init__.py",
+      "line": 440,
+      "function": "_discover_resolvers",
+      "calls": 3,
+      "own_s": 3.8e-06,
+      "cumulative_s": 3.8e-06
+    },
+    {
+      "file": "src/memspine/config/requires.py",
+      "line": 68,
+      "function": "is_active",
+      "calls": 25,
+      "own_s": 3.3e-06,
+      "cumulative_s": 3.8e-06
+    },
+    {
+      "file": "src/memspine/providers/registry.py",
+      "line": 141,
+      "function": "names",
+      "calls": 3,
+      "own_s": 3.7e-06,
+      "cumulative_s": 3.7e-06
+    },
+    {
+      "file": "src/memspine/providers/async_utils.py",
+      "line": 1,
+      "function": "<module>",
+      "calls": 1,
+      "own_s": 2.7e-06,
+      "cumulative_s": 3.5000000000000004e-06
+    },
+    {
+      "file": "src/memspine/services/storage/sqlite/alembic/versions/0003_graph_namespace_weight.py",
+      "line": 1,
+      "function": "<module>",
+      "calls": 1,
+      "own_s": 2.6e-06,
+      "cumulative_s": 3.5000000000000004e-06
+    },
+    {
+      "file": "src/memspine/services/storage/sqlite/alembic/versions/0004_record_invalid_at.py",
+      "line": 1,
+      "function": "<module>",
+      "calls": 1,
+      "own_s": 2.6e-06,
+      "cumulative_s": 3.5000000000000004e-06
+    },
+    {
+      "file": "src/memspine/services/storage/profile.py",
+      "line": 115,
+      "function": "resolve_profile",
+      "calls": 1,
+      "own_s": 2.9e-06,
+      "cumulative_s": 3.4e-06
+    },
+    {
+      "file": "src/memspine/trust/firewall.py",
+      "line": 167,
+      "function": "__post_init__",
+      "calls": 2,
+      "own_s": 3.4e-06,
+      "cumulative_s": 3.4e-06
+    },
+    {
+      "file": "src/memspine/derive/pipeline/builders.py",
+      "line": 402,
+      "function": "_build_session_edge_extractor",
+      "calls": 1,
+      "own_s": 2.0000000000000003e-06,
+      "cumulative_s": 3.3e-06
+    },
+    {
+      "file": "src/memspine/memories/semantic/store.py",
+      "line": 61,
+      "function": "__init__",
+      "calls": 1,
+      "own_s": 3.3e-06,
+      "cumulative_s": 3.3e-06
+    },
+    {
+      "file": "src/memspine/services/storage/sqlite/alembic/versions/0006_lineage_table.py",
+      "line": 1,
+      "function": "<module>",
+      "calls": 1,
+      "own_s": 2.4000000000000003e-06,
+      "cumulative_s": 3.3e-06
+    },
+    {
+      "file": "src/memspine/providers/lifecycle.py",
+      "line": 78,
+      "function": "__init__",
+      "calls": 1,
+      "own_s": 2.7e-06,
+      "cumulative_s": 3.3e-06
+    },
+    {
+      "file": "src/memspine/services/storage/sqlite/alembic/versions/0008_outbox.py",
+      "line": 1,
+      "function": "<module>",
+      "calls": 1,
+      "own_s": 2.3e-06,
+      "cumulative_s": 3.2000000000000003e-06
+    },
+    {
+      "file": "src/memspine/services/remote_search.py",
+      "line": 1,
+      "function": "<module>",
+      "calls": 1,
+      "own_s": 3.2000000000000003e-06,
+      "cumulative_s": 3.2000000000000003e-06
+    },
+    {
+      "file": "C:/Users/hembad/AppData/Roaming/uv/python/cpython-3.13.5-windows-x86_64-none/Lib/importlib/metadata/__init__.py",
+      "line": 736,
+      "function": "__init__",
+      "calls": 25,
+      "own_s": 3.2000000000000003e-06,
+      "cumulative_s": 3.2000000000000003e-06
+    },
+    {
+      "file": "src/memspine/config/schema/providers.py",
+      "line": 47,
+      "function": "_key_environment_is_named",
+      "calls": 10,
+      "own_s": 3.2000000000000003e-06,
+      "cumulative_s": 3.2000000000000003e-06
+    },
+    {
+      "file": "src/memspine/core/policies/base.py",
+      "line": 32,
+      "function": "__init__",
+      "calls": 8,
+      "own_s": 3.2000000000000003e-06,
+      "cumulative_s": 3.2000000000000003e-06
+    },
+    {
+      "file": "src/memspine/config/schema/root.py",
+      "line": 152,
+      "function": "enabled_memories",
+      "calls": 1,
+      "own_s": 3e-06,
+      "cumulative_s": 3.2000000000000003e-06
+    },
+    {
+      "file": "src/memspine/core/policies/trust.py",
+      "line": 56,
+      "function": "<lambda>",
+      "calls": 2,
+      "own_s": 3.2000000000000003e-06,
+      "cumulative_s": 3.2000000000000003e-06
+    },
+    {
+      "file": "src/memspine/runtime/container.py",
+      "line": 241,
+      "function": "<genexpr>",
+      "calls": 8,
+      "own_s": 2.8000000000000003e-06,
+      "cumulative_s": 3.1000000000000004e-06
+    },
+    {
+      "file": "C:/Users/hembad/AppData/Roaming/uv/python/cpython-3.13.5-windows-x86_64-none/Lib/importlib/metadata/__init__.py",
+      "line": 694,
+      "function": "path",
+      "calls": 3,
+      "own_s": 1.6000000000000001e-06,
+      "cumulative_s": 3.1000000000000004e-06
+    },
+    {
+      "file": "src/memspine/services/lexical/tantivy.py",
+      "line": 148,
+      "function": "TantivyLexical",
+      "calls": 1,
+      "own_s": 3e-06,
+      "cumulative_s": 3e-06
+    },
+    {
+      "file": "src/memspine/runtime/container.py",
+      "line": 1304,
+      "function": "neo4j_outbox_on",
+      "calls": 1,
+      "own_s": 2.9e-06,
+      "cumulative_s": 2.9e-06
+    },
+    {
+      "file": "src/memspine/workers/inline.py",
+      "line": 23,
+      "function": "register",
+      "calls": 23,
+      "own_s": 2.8000000000000003e-06,
+      "cumulative_s": 2.8000000000000003e-06
+    },
+    {
+      "file": "src/memspine/services/storage/sqlite/engine.py",
+      "line": 25,
+      "function": "SQLiteStorage",
+      "calls": 1,
+      "own_s": 2.8000000000000003e-06,
+      "cumulative_s": 2.8000000000000003e-06
+    },
+    {
+      "file": "src/memspine/providers/projection_bindings.py",
+      "line": 223,
+      "function": "<genexpr>",
+      "calls": 3,
+      "own_s": 1.6000000000000001e-06,
+      "cumulative_s": 2.6e-06
+    },
+    {
+      "file": "src/memspine/clients/base.py",
+      "line": 10,
+      "function": "Client",
+      "calls": 1,
+      "own_s": 1.9e-06,
+      "cumulative_s": 2.6e-06
+    },
+    {
+      "file": "src/memspine/core/registry.py",
+      "line": 67,
+      "function": "missing_services",
+      "calls": 1,
+      "own_s": 2.1000000000000002e-06,
+      "cumulative_s": 2.6e-06
+    },
+    {
+      "file": "src/memspine/clients/sqlite.py",
+      "line": 185,
+      "function": "engine",
+      "calls": 9,
+      "own_s": 2.4000000000000003e-06,
+      "cumulative_s": 2.4000000000000003e-06
+    },
+    {
+      "file": "src/memspine/models/encoders/embedding/fastembed_local.py",
+      "line": 20,
+      "function": "FastembedEmbedding",
+      "calls": 1,
+      "own_s": 2.4000000000000003e-06,
+      "cumulative_s": 2.4000000000000003e-06
+    },
+    {
+      "file": "src/memspine/providers/contracts.py",
+      "line": 54,
+      "function": "__post_init__",
+      "calls": 3,
+      "own_s": 2.2e-06,
+      "cumulative_s": 2.4000000000000003e-06
+    },
+    {
+      "file": "src/memspine/config/schema/read.py",
+      "line": 1331,
+      "function": "_header_shares_leave_room",
+      "calls": 1,
+      "own_s": 2.4000000000000003e-06,
+      "cumulative_s": 2.4000000000000003e-06
+    },
+    {
+      "file": "src/memspine/derive/pipeline/builders.py",
+      "line": 385,
+      "function": "_build_edge_extractor",
+      "calls": 1,
+      "own_s": 9.000000000000001e-07,
+      "cumulative_s": 2.3e-06
+    },
+    {
+      "file": "src/memspine/providers/builtin/models.py",
+      "line": 260,
+      "function": "<lambda>",
+      "calls": 2,
+      "own_s": 2.2e-06,
+      "cumulative_s": 2.2e-06
+    },
+    {
+      "file": "src/memspine/models/encoders/embedding/hash_local.py",
+      "line": 22,
+      "function": "HashEmbedding",
+      "calls": 1,
+      "own_s": 2.1000000000000002e-06,
+      "cumulative_s": 2.1000000000000002e-06
+    },
+    {
+      "file": "src/memspine/api/engine.py",
+      "line": 5361,
+      "function": "_require_started",
+      "calls": 2,
+      "own_s": 2.0000000000000003e-06,
+      "cumulative_s": 2.0000000000000003e-06
+    },
+    {
+      "file": "src/memspine/compose/compression.py",
+      "line": 119,
+      "function": "<lambda>",
+      "calls": 2,
+      "own_s": 2.0000000000000003e-06,
+      "cumulative_s": 2.0000000000000003e-06
+    },
+    {
+      "file": "src/memspine/config/schema/storage.py",
+      "line": 60,
+      "function": "_resolve_provider",
+      "calls": 1,
+      "own_s": 1.8000000000000001e-06,
+      "cumulative_s": 1.9e-06
+    },
+    {
+      "file": "C:/Users/hembad/AppData/Roaming/uv/python/cpython-3.13.5-windows-x86_64-none/Lib/importlib/metadata/__init__.py",
+      "line": 858,
+      "function": "legacy_normalize",
+      "calls": 2,
+      "own_s": 1.3e-06,
+      "cumulative_s": 1.8000000000000001e-06
+    },
+    {
+      "file": "src/memspine/providers/registry.py",
+      "line": 262,
+      "function": "<genexpr>",
+      "calls": 6,
+      "own_s": 1.6000000000000001e-06,
+      "cumulative_s": 1.8000000000000001e-06
+    },
+    {
+      "file": "src/memspine/providers/lifecycle.py",
+      "line": 184,
+      "function": "_ensure_open",
+      "calls": 3,
+      "own_s": 1.8000000000000001e-06,
+      "cumulative_s": 1.8000000000000001e-06
+    },
+    {
+      "file": "src/memspine/services/vector/per_namespace.py",
+      "line": 33,
+      "function": "PerNamespaceVectorStore",
+      "calls": 1,
+      "own_s": 1.7e-06,
+      "cumulative_s": 1.7e-06
+    },
+    {
+      "file": "src/memspine/api/engine.py",
+      "line": 915,
+      "function": "_install_write_timers",
+      "calls": 1,
+      "own_s": 1.7e-06,
+      "cumulative_s": 1.7e-06
+    },
+    {
+      "file": "src/memspine/runtime/scheduler.py",
+      "line": 412,
+      "function": "acquire",
+      "calls": 1,
+      "own_s": 1.6000000000000001e-06,
+      "cumulative_s": 1.6000000000000001e-06
+    },
+    {
+      "file": "src/memspine/runtime/container.py",
+      "line": 693,
+      "function": "resolved_embedding",
+      "calls": 4,
+      "own_s": 1.5e-06,
+      "cumulative_s": 1.5e-06
+    },
+    {
+      "file": "src/memspine/clients/lancedb.py",
+      "line": 20,
+      "function": "LanceDBClient",
+      "calls": 1,
+      "own_s": 1.5e-06,
+      "cumulative_s": 1.5e-06
+    },
+    {
+      "file": "src/memspine/config/schema/offline.py",
+      "line": 139,
+      "function": "_decay_bands",
+      "calls": 1,
+      "own_s": 1.5e-06,
+      "cumulative_s": 1.5e-06
+    },
+    {
+      "file": "src/memspine/config/schema/root.py",
+      "line": 111,
+      "function": "_asset_keys_agree",
+      "calls": 1,
+      "own_s": 1.5e-06,
+      "cumulative_s": 1.5e-06
+    },
+    {
+      "file": "src/memspine/services/storage/sqlite/migrations.py",
+      "line": 35,
+      "function": "_reject_memory",
+      "calls": 2,
+      "own_s": 1.4000000000000001e-06,
+      "cumulative_s": 1.4000000000000001e-06
+    },
+    {
+      "file": "src/memspine/models/encoders/embedding/hash_local.py",
+      "line": 26,
+      "function": "embedder_id",
+      "calls": 2,
+      "own_s": 1.4000000000000001e-06,
+      "cumulative_s": 1.4000000000000001e-06
+    },
+    {
+      "file": "src/memspine/store/vector_spaces.py",
+      "line": 520,
+      "function": "RederivePlan",
+      "calls": 1,
+      "own_s": 1.4000000000000001e-06,
+      "cumulative_s": 1.4000000000000001e-06
+    },
+    {
+      "file": "src/memspine/clients/sqlite.py",
+      "line": 181,
+      "function": "is_memory",
+      "calls": 6,
+      "own_s": 1.3e-06,
+      "cumulative_s": 1.3e-06
+    },
+    {
+      "file": "src/memspine/models/providers/llm/base.py",
+      "line": 258,
+      "function": "roles",
+      "calls": 1,
+      "own_s": 8.000000000000001e-07,
+      "cumulative_s": 1.3e-06
+    },
+    {
+      "file": "src/memspine/models/cache/semantic.py",
+      "line": 41,
+      "function": "__init__",
+      "calls": 1,
+      "own_s": 1.2000000000000002e-06,
+      "cumulative_s": 1.2000000000000002e-06
+    },
+    {
+      "file": "src/memspine/read/pipeline/timeview.py",
+      "line": 39,
+      "function": "_snapshot_listings",
+      "calls": 1,
+      "own_s": 1.2000000000000002e-06,
+      "cumulative_s": 1.2000000000000002e-06
+    },
+    {
+      "file": "src/memspine/services/secrets/env.py",
+      "line": 18,
+      "function": "__init__",
+      "calls": 1,
+      "own_s": 1.2000000000000002e-06,
+      "cumulative_s": 1.2000000000000002e-06
+    },
+    {
+      "file": "src/memspine/ingest/windows.py",
+      "line": 116,
+      "function": "_build_windows",
+      "calls": 1,
+      "own_s": 1.1e-06,
+      "cumulative_s": 1.1e-06
+    },
+    {
+      "file": "src/memspine/models/cache/semantic.py",
+      "line": 51,
+      "function": "dim",
+      "calls": 1,
+      "own_s": 1.0000000000000002e-06,
+      "cumulative_s": 1.1e-06
+    },
+    {
+      "file": "src/memspine/providers/sql.py",
+      "line": 21,
+      "function": "__init__",
+      "calls": 1,
+      "own_s": 1.1e-06,
+      "cumulative_s": 1.1e-06
+    },
+    {
+      "file": "src/memspine/clients/sqlite.py",
+      "line": 117,
+      "function": "_Secret",
+      "calls": 1,
+      "own_s": 1.1e-06,
+      "cumulative_s": 1.1e-06
+    },
+    {
+      "file": "src/memspine/providers/projection_bindings.py",
+      "line": 193,
+      "function": "_require_match",
+      "calls": 2,
+      "own_s": 1.0000000000000002e-06,
+      "cumulative_s": 1.0000000000000002e-06
+    },
+    {
+      "file": "src/memspine/providers/sql.py",
+      "line": 14,
+      "function": "ManagedSqlAccess",
+      "calls": 1,
+      "own_s": 1.0000000000000002e-06,
+      "cumulative_s": 1.0000000000000002e-06
+    },
+    {
+      "file": "src/memspine/store/vector_spaces.py",
+      "line": 196,
+      "function": "ReembedReport",
+      "calls": 1,
+      "own_s": 9.000000000000001e-07,
+      "cumulative_s": 9.000000000000001e-07
+    },
+    {
+      "file": "src/memspine/observability/inspect.py",
+      "line": 81,
+      "function": "configure",
+      "calls": 1,
+      "own_s": 9.000000000000001e-07,
+      "cumulative_s": 9.000000000000001e-07
+    },
+    {
+      "file": "src/memspine/runtime/container.py",
+      "line": 721,
+      "function": "_pin_embedding_profile",
+      "calls": 1,
+      "own_s": 8.000000000000001e-07,
+      "cumulative_s": 8.000000000000001e-07
+    },
+    {
+      "file": "src/memspine/memories/working/manager.py",
+      "line": 31,
+      "function": "__init__",
+      "calls": 1,
+      "own_s": 8.000000000000001e-07,
+      "cumulative_s": 8.000000000000001e-07
+    },
+    {
+      "file": "src/memspine/providers/projection_bindings.py",
+      "line": 56,
+      "function": "__init__",
+      "calls": 2,
+      "own_s": 8.000000000000001e-07,
+      "cumulative_s": 8.000000000000001e-07
+    },
+    {
+      "file": "src/memspine/providers/async_utils.py",
+      "line": 9,
+      "function": "<generic parameters of run_blocking_drained>",
+      "calls": 1,
+      "own_s": 8.000000000000001e-07,
+      "cumulative_s": 8.000000000000001e-07
+    },
+    {
+      "file": "src/memspine/store/vector_spaces.py",
+      "line": 167,
+      "function": "SpaceBackend",
+      "calls": 1,
+      "own_s": 8.000000000000001e-07,
+      "cumulative_s": 8.000000000000001e-07
+    },
+    {
+      "file": "src/memspine/store/vector_spaces.py",
+      "line": 120,
+      "function": "SpaceStateStore",
+      "calls": 1,
+      "own_s": 8.000000000000001e-07,
+      "cumulative_s": 8.000000000000001e-07
+    },
+    {
+      "file": "src/memspine/clients/lancedb.py",
+      "line": 21,
+      "function": "__init__",
+      "calls": 1,
+      "own_s": 8.000000000000001e-07,
+      "cumulative_s": 8.000000000000001e-07
+    },
+    {
+      "file": "src/memspine/compose/compression.py",
+      "line": 114,
+      "function": "<lambda>",
+      "calls": 2,
+      "own_s": 8.000000000000001e-07,
+      "cumulative_s": 8.000000000000001e-07
+    },
+    {
+      "file": "src/memspine/config/schema/storage.py",
+      "line": 111,
+      "function": "_auto_settings_are_empty",
+      "calls": 1,
+      "own_s": 8.000000000000001e-07,
+      "cumulative_s": 8.000000000000001e-07
+    },
+    {
+      "file": "src/memspine/providers/builtin/vector.py",
+      "line": 19,
+      "function": "LanceDBBuilder",
+      "calls": 1,
+      "own_s": 7.000000000000001e-07,
+      "cumulative_s": 7.000000000000001e-07
+    },
+    {
+      "file": "src/memspine/providers/builtin/cache.py",
+      "line": 26,
+      "function": "MemoryBuilder",
+      "calls": 1,
+      "own_s": 7.000000000000001e-07,
+      "cumulative_s": 7.000000000000001e-07
+    },
+    {
+      "file": "src/memspine/providers/builtin/weaviate.py",
+      "line": 54,
+      "function": "WeaviateVectorBuilder",
+      "calls": 1,
+      "own_s": 7.000000000000001e-07,
+      "cumulative_s": 7.000000000000001e-07
+    },
+    {
+      "file": "src/memspine/store/vector_spaces.py",
+      "line": 136,
+      "function": "JsonSpaceState",
+      "calls": 1,
+      "own_s": 7.000000000000001e-07,
+      "cumulative_s": 7.000000000000001e-07
+    },
+    {
+      "file": "src/memspine/providers/registry.py",
+      "line": 267,
+      "function": "provider_projection_settings",
+      "calls": 4,
+      "own_s": 7.000000000000001e-07,
+      "cumulative_s": 7.000000000000001e-07
+    },
+    {
+      "file": "src/memspine/memories/episodic/lifecycle.py",
+      "line": 58,
+      "function": "passive_after",
+      "calls": 1,
+      "own_s": 5.000000000000001e-07,
+      "cumulative_s": 7.000000000000001e-07
+    },
+    {
+      "file": "src/memspine/models/cache/base.py",
+      "line": 26,
+      "function": "__init__",
+      "calls": 1,
+      "own_s": 6.000000000000001e-07,
+      "cumulative_s": 6.000000000000001e-07
+    },
+    {
+      "file": "src/memspine/prompts/registry.py",
+      "line": 81,
+      "function": "<genexpr>",
+      "calls": 3,
+      "own_s": 6.000000000000001e-07,
+      "cumulative_s": 6.000000000000001e-07
+    },
+    {
+      "file": "src/memspine/services/lexical/projector.py",
+      "line": 22,
+      "function": "__init__",
+      "calls": 1,
+      "own_s": 6.000000000000001e-07,
+      "cumulative_s": 6.000000000000001e-07
+    },
+    {
+      "file": "src/memspine/runtime/container.py",
+      "line": 260,
+      "function": "<genexpr>",
+      "calls": 3,
+      "own_s": 6.000000000000001e-07,
+      "cumulative_s": 6.000000000000001e-07
+    },
+    {
+      "file": "src/memspine/services/storage/projector.py",
+      "line": 93,
+      "function": "__init__",
+      "calls": 1,
+      "own_s": 6.000000000000001e-07,
+      "cumulative_s": 6.000000000000001e-07
+    },
+    {
+      "file": "src/memspine/providers/builtin/pgvector.py",
+      "line": 51,
+      "function": "PgvectorBuilder",
+      "calls": 1,
+      "own_s": 6.000000000000001e-07,
+      "cumulative_s": 6.000000000000001e-07
+    },
+    {
+      "file": "src/memspine/providers/builtin/weaviate.py",
+      "line": 94,
+      "function": "WeaviateLexicalBuilder",
+      "calls": 1,
+      "own_s": 6.000000000000001e-07,
+      "cumulative_s": 6.000000000000001e-07
+    },
+    {
+      "file": "src/memspine/providers/builtin/opensearch.py",
+      "line": 42,
+      "function": "OpenSearchBuilder",
+      "calls": 1,
+      "own_s": 6.000000000000001e-07,
+      "cumulative_s": 6.000000000000001e-07
+    },
+    {
+      "file": "src/memspine/providers/builtin/cache.py",
+      "line": 75,
+      "function": "__init__",
+      "calls": 2,
+      "own_s": 6.000000000000001e-07,
+      "cumulative_s": 6.000000000000001e-07
+    },
+    {
+      "file": "src/memspine/providers/builtin/cache.py",
+      "line": 74,
+      "function": "RemoteBuilder",
+      "calls": 1,
+      "own_s": 6.000000000000001e-07,
+      "cumulative_s": 6.000000000000001e-07
+    },
+    {
+      "file": "src/memspine/observability/usage.py",
+      "line": 29,
+      "function": "__init__",
+      "calls": 1,
+      "own_s": 6.000000000000001e-07,
+      "cumulative_s": 6.000000000000001e-07
+    },
+    {
+      "file": "src/memspine/config/schema/read.py",
+      "line": 245,
+      "function": "<lambda>",
+      "calls": 1,
+      "own_s": 6.000000000000001e-07,
+      "cumulative_s": 6.000000000000001e-07
+    },
+    {
+      "file": "src/memspine/providers/lifecycle.py",
+      "line": 117,
+      "function": "<genexpr>",
+      "calls": 3,
+      "own_s": 6.000000000000001e-07,
+      "cumulative_s": 6.000000000000001e-07
+    },
+    {
+      "file": "src/memspine/trust/firewall.py",
+      "line": 184,
+      "function": "__init__",
+      "calls": 1,
+      "own_s": 6.000000000000001e-07,
+      "cumulative_s": 6.000000000000001e-07
+    },
+    {
+      "file": "src/memspine/services/vector/projector.py",
+      "line": 21,
+      "function": "__init__",
+      "calls": 1,
+      "own_s": 5.000000000000001e-07,
+      "cumulative_s": 5.000000000000001e-07
+    },
+    {
+      "file": "src/memspine/workers/inline.py",
+      "line": 20,
+      "function": "__init__",
+      "calls": 1,
+      "own_s": 5.000000000000001e-07,
+      "cumulative_s": 5.000000000000001e-07
+    },
+    {
+      "file": "src/memspine/providers/builtin/storage.py",
+      "line": 61,
+      "function": "SqliteBuilder",
+      "calls": 1,
+      "own_s": 5.000000000000001e-07,
+      "cumulative_s": 5.000000000000001e-07
+    },
+    {
+      "file": "src/memspine/store/vector_spaces.py",
+      "line": 185,
+      "function": "_Embedder",
+      "calls": 1,
+      "own_s": 5.000000000000001e-07,
+      "cumulative_s": 5.000000000000001e-07
+    },
+    {
+      "file": "src/memspine/store/vector_spaces.py",
+      "line": 125,
+      "function": "InMemorySpaceState",
+      "calls": 1,
+      "own_s": 5.000000000000001e-07,
+      "cumulative_s": 5.000000000000001e-07
+    },
+    {
+      "file": "src/memspine/observability/tap.py",
+      "line": 260,
+      "function": "enabled",
+      "calls": 1,
+      "own_s": 5.000000000000001e-07,
+      "cumulative_s": 5.000000000000001e-07
+    },
+    {
+      "file": "src/memspine/config/schema/write.py",
+      "line": 369,
+      "function": "<lambda>",
+      "calls": 1,
+      "own_s": 5.000000000000001e-07,
+      "cumulative_s": 5.000000000000001e-07
+    },
+    {
+      "file": "src/memspine/providers/builtin/storage.py",
+      "line": 104,
+      "function": "PostgresBuilder",
+      "calls": 1,
+      "own_s": 4.0000000000000003e-07,
+      "cumulative_s": 4.0000000000000003e-07
+    },
+    {
+      "file": "src/memspine/providers/builtin/cache.py",
+      "line": 45,
+      "function": "DiskBuilder",
+      "calls": 1,
+      "own_s": 4.0000000000000003e-07,
+      "cumulative_s": 4.0000000000000003e-07
+    },
+    {
+      "file": "<frozen importlib._bootstrap>",
+      "line": 1014,
+      "function": "is_package",
+      "calls": 4,
+      "own_s": 4.0000000000000003e-07,
+      "cumulative_s": 4.0000000000000003e-07
+    },
+    {
+      "file": "src/memspine/config/schema/observability.py",
+      "line": 29,
+      "function": "<lambda>",
+      "calls": 1,
+      "own_s": 4.0000000000000003e-07,
+      "cumulative_s": 4.0000000000000003e-07
+    },
+    {
+      "file": "src/memspine/config/schema/rest.py",
+      "line": 62,
+      "function": "_jwt_is_pinned",
+      "calls": 1,
+      "own_s": 4.0000000000000003e-07,
+      "cumulative_s": 4.0000000000000003e-07
+    },
+    {
+      "file": "src/memspine/memories/episodic/store.py",
+      "line": 34,
+      "function": "__init__",
+      "calls": 1,
+      "own_s": 4.0000000000000003e-07,
+      "cumulative_s": 4.0000000000000003e-07
+    },
+    {
+      "file": "src/memspine/core/owner_check.py",
+      "line": 252,
+      "function": "__init__",
+      "calls": 1,
+      "own_s": 4.0000000000000003e-07,
+      "cumulative_s": 4.0000000000000003e-07
+    },
+    {
+      "file": "src/memspine/providers/placement.py",
+      "line": 19,
+      "function": "generation_component",
+      "calls": 1,
+      "own_s": 3.0000000000000004e-07,
+      "cumulative_s": 3.0000000000000004e-07
+    },
+    {
+      "file": "src/memspine/runtime/container.py",
+      "line": 615,
+      "function": "config_of",
+      "calls": 1,
+      "own_s": 3.0000000000000004e-07,
+      "cumulative_s": 3.0000000000000004e-07
+    },
+    {
+      "file": "src/memspine/clients/sqlite.py",
+      "line": 170,
+      "function": "sync_creator",
+      "calls": 1,
+      "own_s": 3.0000000000000004e-07,
+      "cumulative_s": 3.0000000000000004e-07
+    },
+    {
+      "file": "src/memspine/models/encoders/embedding/hash_local.py",
+      "line": 23,
+      "function": "__init__",
+      "calls": 1,
+      "own_s": 3.0000000000000004e-07,
+      "cumulative_s": 3.0000000000000004e-07
+    },
+    {
+      "file": "src/memspine/config/schema/integrity.py",
+      "line": 95,
+      "function": "_horizon_needs_product",
+      "calls": 1,
+      "own_s": 3.0000000000000004e-07,
+      "cumulative_s": 3.0000000000000004e-07
+    },
+    {
+      "file": "src/memspine/plugins.py",
+      "line": 183,
+      "function": "enable",
+      "calls": 1,
+      "own_s": 3.0000000000000004e-07,
+      "cumulative_s": 3.0000000000000004e-07
+    },
+    {
+      "file": "src/memspine/config/schema/read.py",
+      "line": 741,
+      "function": "<lambda>",
+      "calls": 1,
+      "own_s": 3.0000000000000004e-07,
+      "cumulative_s": 3.0000000000000004e-07
+    },
+    {
+      "file": "src/memspine/config/schema/rest.py",
+      "line": 35,
+      "function": "<lambda>",
+      "calls": 1,
+      "own_s": 3.0000000000000004e-07,
+      "cumulative_s": 3.0000000000000004e-07
+    },
+    {
+      "file": "src/memspine/clients/__init__.py",
+      "line": 1,
+      "function": "<module>",
+      "calls": 1,
+      "own_s": 2.0000000000000002e-07,
+      "cumulative_s": 2.0000000000000002e-07
+    },
+    {
+      "file": "src/memspine/config/schema/llm.py",
+      "line": 214,
+      "function": "<lambda>",
+      "calls": 1,
+      "own_s": 2.0000000000000002e-07,
+      "cumulative_s": 2.0000000000000002e-07
+    },
+    {
+      "file": "src/memspine/config/schema/read.py",
+      "line": 1118,
+      "function": "<lambda>",
+      "calls": 1,
+      "own_s": 2.0000000000000002e-07,
+      "cumulative_s": 2.0000000000000002e-07
+    },
+    {
+      "file": "src/memspine/config/schema/read.py",
+      "line": 776,
+      "function": "<lambda>",
+      "calls": 1,
+      "own_s": 2.0000000000000002e-07,
+      "cumulative_s": 2.0000000000000002e-07
+    },
+    {
+      "file": "src/memspine/config/loader.py",
+      "line": 235,
+      "function": "default_template",
+      "calls": 1,
+      "own_s": 2.0000000000000002e-07,
+      "cumulative_s": 2.0000000000000002e-07
+    },
+    {
+      "file": "src/memspine/clients/sqlite.py",
+      "line": 177,
+      "function": "path",
+      "calls": 1,
+      "own_s": 1.0000000000000001e-07,
+      "cumulative_s": 1.0000000000000001e-07
+    },
+    {
+      "file": "src/memspine/models/encoders/embedding/hash_local.py",
+      "line": 30,
+      "function": "dim",
+      "calls": 1,
+      "own_s": 1.0000000000000001e-07,
+      "cumulative_s": 1.0000000000000001e-07
+    }
+  ]
+}

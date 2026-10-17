@@ -27,8 +27,8 @@ def _engine(path: Path | str = ":memory:", **kw: Any) -> Engine:
     return Engine(
         template="core",
         dotenv_path=None,
-        storage={"path": str(path)},
-        embedding={"provider": "hash"},
+        storage={'provider': "sqlite", 'settings': {'path': str(path), 'busy_timeout_s': 5.0}},
+        embedding={'provider': "hash", 'settings': {}},
         memories={"episodic": {"enabled": True}, "semantic": {"enabled": True}},
         write={"lineage_table": kw.pop("lineage", False)},
         offline=offline,
@@ -111,7 +111,7 @@ def test_flags_default_off_and_order_unchanged() -> None:
     cfg = OfflineConfig()
     assert cfg.patterns_v2 is False and cfg.standing_v2 is False
     assert ReadConfig().standing_v2 is False
-    assert MemspineConfig().offline == cfg
+    assert MemspineConfig(runtime={"provider_services": {"health_timeout_s": 1.0, "close_timeout_s": 1.0, "startup_timeout_s": None}}).offline == cfg
     assert "pattern_observations" not in SLEEP_CYCLE_ORDER
     assert "standing_answers" not in SLEEP_CYCLE_ORDER
 

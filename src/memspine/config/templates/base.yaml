@@ -13,7 +13,18 @@ event_log:
   compress: false
 
 storage:
-  path: ./memspine.db
+  settings:
+    path: ./memspine.db
+    busy_timeout_s: 5.0
+
+runtime:
+  provider_services:
+    health_timeout_s: 5.0
+    close_timeout_s: 10.0
+    startup_timeout_s: null
+  service_switches:
+    projections:
+      mode: controlled
 
 read:
   default_mode: replay          # combo-A read path (auto's compose routing measured -2.1)

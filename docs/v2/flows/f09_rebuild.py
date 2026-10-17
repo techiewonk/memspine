@@ -186,7 +186,9 @@ async def make_source_db(ctx: Ctx) -> None:
     root = Path(tempfile.mkdtemp(prefix="memspine_f9_"))
     src = root / "source.db"
     ctx.state.update(root=root, src=src)
-    eng = await make_engine({"storage": {"path": str(src)}})
+    eng = await make_engine(
+        {"storage": {"settings": {"path": str(src), "busy_timeout_s": 5.0}}}
+    )
     try:
         ns = ctx.ns
         a = await eng.write(
@@ -250,7 +252,9 @@ async def migrate_function(ctx: Ctx) -> None:
         d["limited_rebuild"] and "vector index" in d["not_rebuilt"],
     )
     ctx.expect("the source file is byte-identical afterwards (never written)", before, _sha(src))
-    eng = await make_engine({"storage": {"path": str(dst)}})
+    eng = await make_engine(
+        {"storage": {"settings": {"path": str(dst), "busy_timeout_s": 5.0}}}
+    )
     try:
         got = await snapshot(eng._require_started(), ctx.ns)
         ctx.show("target rows (id, layer, status)", [(i[:6], lay, st) for i, lay, st in got])
@@ -290,7 +294,9 @@ async def migrate_cli(ctx: Ctx) -> None:
         (6, 6),
         (rep["events_read"], rep["events_written"]),
     )
-    eng = await make_engine({"storage": {"path": str(dst)}})
+    eng = await make_engine(
+        {"storage": {"settings": {"path": str(dst), "busy_timeout_s": 5.0}}}
+    )
     try:
         got = await snapshot(eng._require_started(), ctx.ns)
         ctx.expect(

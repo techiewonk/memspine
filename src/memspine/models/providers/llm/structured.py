@@ -42,7 +42,7 @@ _log = get_logger(__name__)
 
 @dataclass(frozen=True)
 class StructuredOptions:
-    """Process-wide switches (set from ``llm.structured`` at engine start)."""
+    """Immutable retry policy; Engine binds its own instance to its router."""
 
     retry_on_error: bool = False
     constrained_retry: bool = False
@@ -245,7 +245,8 @@ async def structured_call[ModelT: BaseModel](
     first = _try_validate(raw, prompt.format, output_model, version)
     if isinstance(first, BaseModel):
         return first  # type: ignore[return-value]
-    options = _OPTIONS
+    bound_options = getattr(llm, "structured_options", None)
+    options = bound_options if isinstance(bound_options, StructuredOptions) else _OPTIONS
     if not options.retry_on_error:
         raise _validation_error(prompt, output_model, first, raw)
     _bump(version, "retried")

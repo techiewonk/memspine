@@ -178,13 +178,27 @@ async def test_router_estimates_tokens_without_usage() -> None:
 async def test_engine_binds_no_think_from_config(monkeypatch: pytest.MonkeyPatch) -> None:
     eng = Engine(
         dotenv_path=None,
-        storage={"path": ":memory:"},
-        embedding={"provider": "hash"},
+        runtime={"deployment_id": "unit-test"},
+        storage={'provider': "sqlite", 'settings': {'path': ":memory:", 'busy_timeout_s': 5.0}},
+        embedding={'provider': "hash", 'settings': {}},
         llm={
             "roles": {
-                "extract": {"model": QWEN},
-                "chat": {"model": QWEN, "no_think": False},
-                "judge": {"model": "openai/gpt-4o"},
+                "extract": {
+                    "provider": "litellm",
+                    "settings": {"model": QWEN, "timeout_seconds": 30.0},
+                },
+                "chat": {
+                    "provider": "litellm",
+                    "settings": {
+                        "model": QWEN,
+                        "timeout_seconds": 30.0,
+                        "no_think": False,
+                    }
+                },
+                "judge": {
+                    "provider": "litellm",
+                    "settings": {"model": "openai/gpt-4o", "timeout_seconds": 30.0}
+                },
             }
         },
     )

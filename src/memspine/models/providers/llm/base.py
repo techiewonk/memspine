@@ -10,7 +10,10 @@ JSON parser ships now.
 from __future__ import annotations
 
 import time
-from typing import Any, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
+
+if TYPE_CHECKING:
+    from memspine.models.providers.llm.structured import StructuredOptions
 
 from json_repair import repair_json
 
@@ -86,12 +89,14 @@ class _Counted:
         counts: dict[str, int],
         estimates: dict[str, list[int]] | None = None,
         usage: UsageLedger | None = None,
+        structured_options: StructuredOptions | None = None,
     ) -> None:
         self._inner = inner
         self._role = role
         self._counts = counts
         self._estimates = estimates if estimates is not None else {}
         self._usage = usage
+        self.structured_options = structured_options
 
     @property
     def provider_id(self) -> str:
@@ -238,11 +243,17 @@ class LLMRouter:
     #: MD-01: the resolved model plan when ``models.tiers_v2`` built this router, else None.
     model_plan: Any = None
 
-    def __init__(self, providers: dict[str, LLMService]) -> None:
+    def __init__(
+        self,
+        providers: dict[str, LLMService],
+        *,
+        structured_options: StructuredOptions | None = None,
+    ) -> None:
         self._providers = providers
         self._counts: dict[str, int] = {}
         self._estimates: dict[str, list[int]] = {}
         self._usage = UsageLedger()
+        self._structured_options = structured_options
 
     @property
     def roles(self) -> list[str]:
@@ -254,13 +265,20 @@ class LLMRouter:
         if provider is None:
             raise ConfigError(
                 f"no LLM provider bound for role {role!r} — add llm.roles.{role} "
-                "to your config (a LiteLLM model id: openai/…, ollama/…, bedrock/…, D-33)"
+                "with provider and selected-provider settings to your config"
             )
         return provider
 
     def for_role(self, role: str) -> LLMService:
         """The provider for ``role``, counting every call (see ``call_counts``)."""
-        return _Counted(self.provider(role), role, self._counts, self._estimates, self._usage)
+        return _Counted(
+            self.provider(role),
+            role,
+            self._counts,
+            self._estimates,
+            self._usage,
+            self._structured_options,
+        )
 
     def call_counts(self) -> dict[str, int]:
         """Model calls made so far, per role."""

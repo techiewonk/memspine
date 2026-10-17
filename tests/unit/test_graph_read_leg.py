@@ -93,7 +93,18 @@ async def test_leg_k_caps_the_leg_and_depth_widens_it() -> None:
         )
         near = {r.record_id for r, _ in await eng._graph_walk("a", "Melanie")}
         assert ids["Caroline lives in Denver"] not in near
-        eng._resolved.config.read.graph_depth = 2  # type: ignore[union-attr]
+    finally:
+        await eng.stop()
+
+    eng = await _started(graph_leg=True, graph_depth=2)
+    try:
+        ids = await seed(eng)
+        await eng.write(
+            "Melanie visited Caroline",
+            namespace="a",
+            entity="Melanie",
+            tags=["kind:event", "rel:visited", "dst:Caroline"],
+        )
         far = {r.record_id for r, _ in await eng._graph_walk("a", "Melanie")}
         assert ids["Caroline lives in Denver"] in far
     finally:
@@ -206,8 +217,8 @@ async def test_graph_hits_still_pass_integrity_admission() -> None:
     eng = Engine(
         template="core",
         dotenv_path=None,
-        storage={"path": ":memory:"},
-        embedding={"provider": "hash"},
+        storage={'provider': "sqlite", 'settings': {'path': ":memory:", 'busy_timeout_s': 5.0}},
+        embedding={'provider': "hash", 'settings': {}},
         memories={
             "semantic": {"enabled": True},
             "episodic": {"enabled": True},
@@ -340,8 +351,8 @@ async def test_related_ignores_entity_edges(strategy: str) -> None:
         eng = Engine(
             template="core",
             dotenv_path=None,
-            storage={"path": ":memory:"},
-            embedding={"provider": "hash"},
+            storage={'provider': "sqlite", 'settings': {'path': ":memory:", 'busy_timeout_s': 5.0}},
+            embedding={'provider': "hash", 'settings': {}},
             memories={
                 "semantic": {"enabled": True},
                 "episodic": {"enabled": True},

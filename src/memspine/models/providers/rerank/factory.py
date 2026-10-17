@@ -1,8 +1,9 @@
 """Reranker factory (E8, D-51): a registry mapping a rerank mode to a lazy
 constructor, so "multiple support" is one registry entry — not an engine
-if/elif. Each spec imports its adapter INSIDE the thunk (nothing heavy loads at
-module import), and construction failures swallow to ``None`` so an unavailable
-reranker degrades to vector order exactly as before (COR-3/ADR-018).
+if/elif. Each spec imports its adapter inside the builder (nothing heavy loads at
+module import). Classified provider-unavailability errors return ``None`` so
+retrieval can continue without reranking; configuration and programming errors
+remain visible to the caller.
 
 ``rerank_modes()`` is the single source the engine's startup validator reads, so
 a config typo fails fast at start while the valid set stays in lock-step with
@@ -11,23 +12,31 @@ the registry — including any deployment-registered provider (``register_rerank
 
 from __future__ import annotations
 
-from collections.abc import Callable
-from dataclasses import dataclass
+from collections.abc import Mapping
+from dataclasses import dataclass, replace
+from typing import Any
 
 from memspine.exceptions import MissingServiceError
 from memspine.models.providers.rerank.base import Reranker
-from memspine.models.registry import RERANKERS
-from memspine.observability.logging import get_logger
+from memspine.providers.builtin.models import register as _register_builtin_models
+from memspine.providers.contexts import RerankerBuildContext
+from memspine.providers.contracts import BuildResult
+from memspine.providers.registry import (
+    RERANKERS,
+    ProviderDescriptor,
+    ProviderRegistryError,
+    get_registry,
+    validate_settings,
+)
 
 __all__ = [
     "RerankSettings",
     "build_reranker",
+    "build_reranker_result",
     "register_reranker",
     "rerank_modes",
+    "validate_reranker_settings",
 ]
-
-_log = get_logger(__name__)
-
 
 @dataclass(frozen=True)
 class RerankSettings:
@@ -38,20 +47,20 @@ class RerankSettings:
     api_base: str | None = None
     api_key: str | None = None
     aws_region: str | None = None
+    request_timeout_s: float | None = None
     #: N12 (plan v3.2): the task instruction of an instruction-conditioned reranker
     #: (``qwen3``); None keeps its default memory instruction.
     instruction: str | None = None
     #: ``qwen3``: torch device and bitsandbytes quantisation ("4bit" | "8bit").
     device: str | None = None
     quant: str | None = None
+    batch_size: int | None = None
+    max_length: int | None = None
+    max_documents: int | None = None
     #: I9 (opt-in): documents longer than this many characters are scored in
     #: overlapping windows and take the max window score. None = unchanged.
     chunk_chars: int | None = None
     chunk_overlap: int = 0
-
-
-#: A spec lazily constructs one Reranker from settings (imports its adapter here).
-RerankSpec = Callable[[RerankSettings], Reranker]
 
 
 def _build_fastembed(settings: RerankSettings) -> Reranker:
@@ -70,11 +79,14 @@ def _build_flashrank(settings: RerankSettings) -> Reranker:
 
 def _build_litellm(settings: RerankSettings) -> Reranker:
     if not settings.model:
-        # A misconfigured cloud rerank must degrade like any unavailable adapter
-        # (caught below → skip-log, sticky), not crash retrieval; name the fix.
+        # An explicitly selected provider with missing model settings is a config error.
         raise MissingServiceError(
-            "services.rerank.litellm (set read.rerank_model)", extra="litellm"
+            "services.rerank.litellm (set read.rerank_settings.model)", extra="litellm"
         )
+    if settings.request_timeout_s is None:
+        from memspine.exceptions import ConfigError
+
+        raise ConfigError("read.rerank_settings.request_timeout_s is required for the litellm reranker")
     from memspine.models.providers.rerank.litellm_rerank import LiteLLMReranker
 
     return LiteLLMReranker(
@@ -82,6 +94,7 @@ def _build_litellm(settings: RerankSettings) -> Reranker:
         api_base=settings.api_base,
         api_key=settings.api_key,
         aws_region=settings.aws_region,
+        request_timeout_s=settings.request_timeout_s,
     )
 
 
@@ -97,60 +110,134 @@ def _build_qwen3(settings: RerankSettings) -> Reranker:
         instruction=settings.instruction or DEFAULT_INSTRUCTION,
         device=settings.device,
         quant=settings.quant,
+        batch_size=settings.batch_size if settings.batch_size is not None else 8,
+        max_length=settings.max_length if settings.max_length is not None else 8192,
     )
 
 
 def _build_jina(settings: RerankSettings) -> Reranker:
     from memspine.models.providers.rerank.jina_rerank import DEFAULT_MODEL, JinaReranker
 
-    return JinaReranker(settings.model or DEFAULT_MODEL, device=settings.device)
+    return JinaReranker(
+        settings.model or DEFAULT_MODEL,
+        device=settings.device,
+        max_documents=settings.max_documents if settings.max_documents is not None else 64,
+    )
 
 
-#: The typed registry (MOD-02) lives in ``memspine.models.registry``; built-ins register here.
 _REGISTRY = RERANKERS
-RERANKERS.register("fastembed", _build_fastembed)  # in-core (rides fastembed D-08)
-RERANKERS.register("flashrank", _build_flashrank)  # [rerank]
-RERANKERS.register("litellm", _build_litellm)  # [litellm] — Cohere/Voyage/Jina/Bedrock
-RERANKERS.register("qwen3", _build_qwen3)  # [st] — Qwen3-Reranker (transformers + torch), G5a
-RERANKERS.register("jina", _build_jina)  # [st] — Jina listwise reranker (custom code, CC-BY-NC)
 
 
-def register_reranker(mode: str, spec: RerankSpec) -> None:
-    """Deployment seam (D-17 spirit): add a custom reranker without editing core.
-    The shipped registry stays curated; new torch backends (e.g. an ``[st]``
-    sentence-transformers cross-encoder) register here."""
-    _REGISTRY.register(mode, spec, builtin=False, replace=True)
+def register_reranker(descriptor: ProviderDescriptor) -> None:
+    """Register a typed deployment descriptor through the central registry."""
+    _register_builtin_models()
+    if descriptor.ref.category != "reranker":
+        raise ValueError("register_reranker requires a reranker descriptor")
+    _REGISTRY.register(descriptor.ref.name, descriptor, builtin=False, replace=True)
 
 
 def rerank_modes() -> tuple[str, ...]:
     """The valid ``read.rerank`` values — ``off`` plus every registered provider.
     The ONE source for the engine's startup validation, so the check can never
     drift from what ``build_reranker`` actually supports (the A1 bug's root)."""
+    get_registry("rerankers")
     return ("off", *_REGISTRY.names())
 
 
-def build_reranker(settings: RerankSettings) -> Reranker | None:
-    """Construct the reranker for ``settings.mode``, or ``None`` for ``off`` /
-    any unavailable adapter. ANY construction failure (ImportError,
-    MissingServiceError, OSError model-download, weight-load ValueError/Runtime)
-    swallows to ``None`` + one info log — the sticky skip the engine applied
-    before, so retrieval degrades to vector order and never crashes."""
+def _settings_values(settings: RerankSettings) -> dict[str, Any]:
+    return {
+        key: getattr(settings, key)
+        for key in (
+            "model", "api_base", "api_key", "aws_region", "instruction", "device", "quant",
+            "request_timeout_s",
+            "batch_size", "max_length", "max_documents",
+        )
+        if getattr(settings, key, None) is not None
+    }
+
+
+def validate_reranker_settings(
+    mode: str,
+    settings: Mapping[str, Any],
+    *,
+    explicit_deployment_id: bool,
+    allow_irrelevant: bool = False,
+) -> tuple[ProviderDescriptor, Any] | None:
+    """Validate options and shared-provider requirements without loading a model."""
+    if mode == "off":
+        return None
+    get_registry("rerankers")
+    descriptor = _REGISTRY.find(mode)
+    if not isinstance(descriptor, ProviderDescriptor):
+        from memspine.exceptions import ConfigError
+
+        raise ConfigError(
+            f"unknown reranker provider {mode!r} (valid: {', '.join(rerank_modes())})"
+        )
+    if descriptor.requires_deployment_id and not explicit_deployment_id:
+        from memspine.exceptions import ConfigError
+
+        raise ConfigError(
+            f"runtime.deployment_id is required by shared provider reranker.{mode}"
+        )
+    values = dict(settings)
+    if allow_irrelevant:
+        values = {key: value for key, value in values.items() if key in descriptor.settings_model.model_fields}
+    try:
+        typed = validate_settings(descriptor, values)
+    except ProviderRegistryError as exc:
+        from memspine.exceptions import ConfigError
+
+        raise ConfigError(
+            f"invalid read.rerank_settings for provider {mode!r} ({type(exc).__name__})"
+        ) from None
+    return descriptor, typed
+
+
+async def build_reranker_result(
+    settings: RerankSettings,
+    context: RerankerBuildContext | None = None,
+    *,
+    explicit_deployment_id: bool = False,
+) -> BuildResult[Reranker] | None:
+    """Build through the selected async descriptor and preserve result metadata."""
     if settings.mode == "off":
         return None
-    spec = _REGISTRY.find(settings.mode)
-    if spec is None:
-        return None  # unknown mode is rejected by startup validation; be safe
+    validated = validate_reranker_settings(
+        settings.mode,
+        _settings_values(settings),
+        explicit_deployment_id=explicit_deployment_id,
+    )
+    assert validated is not None
+    descriptor, typed = validated
     try:
-        built = spec(settings)
-        if settings.chunk_chars:
-            from memspine.models.providers.rerank.chunking import ChunkMaxReranker
-
-            built = ChunkMaxReranker(built, settings.chunk_chars, settings.chunk_overlap)
-        return built  # type: ignore[no-any-return]  # CI-GREEN: pre-existing typing debt
-    except Exception as exc:
-        _log.info(
-            "rerank.unavailable",
-            provider=settings.mode,
-            detail=f"E8 rerank stage skipped — {exc}",
-        )
+        built = await descriptor.builder.build(typed, context)
+    except (MissingServiceError, ConnectionError, TimeoutError):
+        # These failures mean the provider cannot currently serve this mode;
+        # configuration and programming errors remain visible to the caller.
         return None
+    if built.provider != descriptor.ref:
+        from memspine.exceptions import ConfigError
+
+        raise ConfigError(f"reranker builder identity mismatch for {settings.mode!r}")
+    if settings.chunk_chars:
+        from memspine.models.providers.rerank.chunking import ChunkMaxReranker
+
+        built = replace(
+            built,
+            service=ChunkMaxReranker(built.service, settings.chunk_chars, settings.chunk_overlap),
+        )
+    return built
+
+
+async def build_reranker(
+    settings: RerankSettings,
+    context: RerankerBuildContext | None = None,
+    *,
+    explicit_deployment_id: bool = False,
+) -> Reranker | None:
+    """Build the selected reranker asynchronously through its authoritative descriptor."""
+    result = await build_reranker_result(
+        settings, context, explicit_deployment_id=explicit_deployment_id
+    )
+    return None if result is None else result.service

@@ -281,15 +281,15 @@ class EvalRunner:
         models: dict[str, Any] = {
             "reader": getattr(self.reader, "model", None),
             "judge": getattr(self.judge.spec, "model", None),
-            "embedder": (cfg.get("embedding") or {}).get("model"),
-            "reranker": read.get("rerank_model"),
+            "embedder": ((cfg.get("embedding") or {}).get("settings") or {}).get("model"),
+            "reranker": (read.get("rerank_settings") or {}).get("model"),
             "worker": llm.get("model") or llm.get("worker_model"),
         }
-        # Engine config shape is llm.roles.<role>.model (LLMConfig); the extract role is the worker model.
+        # The extract role's typed provider settings carry the worker model.
         roles = llm.get("roles") or {}
         extract = roles.get("extract") if isinstance(roles, dict) else None
         if not models["worker"] and isinstance(extract, dict):
-            models["worker"] = extract.get("model")
+            models["worker"] = (extract.get("settings") or {}).get("model")
         item_ids = (self.config.extra_limits or {}).get("item_ids")
         sample_ids = (self.config.extra_limits or {}).get(
             "slice_query_ids"

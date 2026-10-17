@@ -4,10 +4,12 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import ConfigDict, Field, model_validator
+
+from memspine.config.schema.base import ConfigModel
 
 
-class RestApiKeyConfig(BaseModel):
+class RestApiKeyConfig(ConfigModel):
     """#51: one API key of the reference REST auth middleware. The key itself is
     read from the environment variable ``key_env`` (or given in ``key``, which the
     loader can resolve from a secret reference); it is never logged or echoed."""
@@ -21,7 +23,7 @@ class RestApiKeyConfig(BaseModel):
     admin: bool = False
 
 
-class RestJwtConfig(BaseModel):
+class RestJwtConfig(ConfigModel):
     """#51: OIDC/JWT bearer verification (needs ``pyjwt``). The verification key
     comes from ``jwks_url`` (asymmetric, fetched by PyJWT) or the environment
     variable ``key_env`` (a PEM public key or an HMAC secret)."""
@@ -39,7 +41,7 @@ class RestJwtConfig(BaseModel):
     admin_role: str = "memspine-admin"
 
 
-class RestRateLimitConfig(BaseModel):
+class RestRateLimitConfig(ConfigModel):
     """#51: in-memory token bucket per principal (per client address without auth)."""
 
     model_config = ConfigDict(extra="forbid")
@@ -48,7 +50,7 @@ class RestRateLimitConfig(BaseModel):
     burst: int = Field(default=10, ge=1)
 
 
-class RestAuthConfig(BaseModel):
+class RestAuthConfig(ConfigModel):
     """#51 reference auth middleware (not a production auth plane, ADR-041)."""
 
     model_config = ConfigDict(extra="forbid")
@@ -81,7 +83,7 @@ class RestAuthConfig(BaseModel):
         return self
 
 
-class RestConfig(BaseModel):
+class RestConfig(ConfigModel):
     """#51 REST protocol options. Defaults keep the unauthenticated v0.1 app."""
 
     model_config = ConfigDict(extra="forbid")

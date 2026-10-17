@@ -19,7 +19,7 @@ class _Reranker:
     async def rerank(self, query: str, documents: list[str]) -> list[float]:
         self.seen = len(documents)
         if self.fail:
-            raise RuntimeError("reranker down")
+            raise TimeoutError("reranker down")
         return [float(i) for i in range(len(documents))]  # reverses the order
 
 
@@ -27,8 +27,8 @@ def _engine(**read: Any) -> Engine:
     return Engine(
         template="core",
         dotenv_path=None,
-        storage={"path": ":memory:"},
-        embedding={"provider": "hash"},
+        storage={'provider': "sqlite", 'settings': {'path': ":memory:", 'busy_timeout_s': 5.0}},
+        embedding={'provider': "hash", 'settings': {}},
         read={"hybrid": False, "record_access": False, **read},
     )
 
@@ -36,7 +36,10 @@ def _engine(**read: Any) -> Engine:
 async def _assemble(eng: Engine, reranker: _Reranker | None) -> list[str]:
     for i in range(20):
         await eng.write(f"note {i} about the garden and the tomatoes", namespace="a")
-    eng._rerank_provider = lambda: reranker  # type: ignore[method-assign]
+    async def reranker_provider() -> _Reranker | None:
+        return reranker
+
+    eng._rerank_provider = reranker_provider  # type: ignore[method-assign]
     out = await eng.assemble("garden tomatoes", namespace="a", budget_tokens=4000, top_k=5)
     return [r.content for r in out.records]
 

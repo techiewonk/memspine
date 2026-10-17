@@ -33,8 +33,8 @@ def _engine(path: Path | str = ":memory:", **kw: object) -> Engine:
     return Engine(
         template="core",
         dotenv_path=None,
-        storage={"path": str(path)},
-        embedding={"provider": "hash"},
+        storage={'provider': "sqlite", 'settings': {'path': str(path), 'busy_timeout_s': 5.0}},
+        embedding={'provider': "hash", 'settings': {}},
         memories={"episodic": {"enabled": True}, "semantic": {"enabled": True}},
         **kw,  # type: ignore[arg-type]
     )
@@ -224,7 +224,7 @@ async def test_migration_down_up_and_backfill(tmp_path: Path) -> None:
 
 def test_single_alembic_head() -> None:
     script = ScriptDirectory.from_config(alembic_config(Path("unused.db")))
-    assert script.get_heads() == ["lf_e_layer_backfill"]  # LF-E (MF-08) layer backfill is the head
+    assert script.get_heads() == ["cleanup_fence_recovery"]
     rev = script.get_revision("f02b_tri_temporal")
     assert rev is not None and rev.down_revision == "f04_outbox"
 
@@ -233,11 +233,18 @@ def test_single_alembic_head() -> None:
 
 
 def test_template_enables_layers_from_config() -> None:
-    assert LayerTemplate.from_config(MemspineConfig()).enabled == {"L0"}
-    with_worker = LayerTemplate.from_config(MemspineConfig(), worker_model=True)
+    assert LayerTemplate.from_config(MemspineConfig(runtime={"provider_services": {"health_timeout_s": 1.0, "close_timeout_s": 1.0, "startup_timeout_s": None}})).enabled == {"L0"}
+    with_worker = LayerTemplate.from_config(MemspineConfig(runtime={"provider_services": {"health_timeout_s": 1.0, "close_timeout_s": 1.0, "startup_timeout_s": None}}), worker_model=True)
     assert with_worker.enabled == {"L0", "L1", "L3"}
     cfg = MemspineConfig.model_validate(
         {
+            "runtime": {
+                "provider_services": {
+                    "health_timeout_s": 1.0,
+                    "close_timeout_s": 1.0,
+                    "startup_timeout_s": None,
+                }
+            },
             "write": {"window_extract": "all"},
             "memories": {"reflective": {"enabled": True}, "procedural": {"enabled": True}},
         }

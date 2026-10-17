@@ -21,8 +21,8 @@ def _engine(tmp_path: Any, **read: Any) -> Engine:
     return Engine(
         template="core",
         dotenv_path=None,
-        storage={"path": str(tmp_path / "t.db")},
-        embedding={"provider": "hash"},
+        storage={'provider': "sqlite", 'settings': {'path': str(tmp_path / "t.db"), 'busy_timeout_s': 5.0}},
+        embedding={'provider': "hash", 'settings': {}},
         read={"rerank": "off", "record_access": False, **read},
         memories={"episodic": {"enabled": True}, "semantic": {"enabled": True}},
     )

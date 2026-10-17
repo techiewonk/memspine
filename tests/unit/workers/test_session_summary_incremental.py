@@ -61,7 +61,7 @@ async def make_ctx(
     overrides: dict[str, object] = {}
     if policy is not None:
         overrides = {"memories": {"episodic": {"policies": {"consolidation": policy}}}}
-    resolved = load_config(overrides=overrides)
+    resolved = load_config(template="core", overrides=overrides)
     ctx = PipelineContext(storage=storage, config=resolved.config, append_event=harness.append)
     if counter is not None:
         ctx.summarize = counter.summarize

@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+
+async def _resolved_provider(provider: object) -> object:
+    return provider
+
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -20,8 +24,8 @@ def _engine(**read: Any) -> Engine:
     return Engine(
         template="core",
         dotenv_path=None,
-        storage={"path": ":memory:"},
-        embedding={"provider": "hash"},
+        storage={'provider': "sqlite", 'settings': {'path': ":memory:", 'busy_timeout_s': 5.0}},
+        embedding={'provider': "hash", 'settings': {}},
         memories={"episodic": {"enabled": True}},
         read={"hybrid": False, "record_access": False, **read},
     )
@@ -96,7 +100,7 @@ async def _read(read: dict[str, Any], reranker: _Reranker | None, top_k: int = 5
     try:
         for i in range(60):
             await eng.write(f"note {i} about the garden and the tomatoes {WORDS[i]}", namespace="a")
-        eng._rerank_provider = lambda: reranker  # type: ignore[method-assign]
+        eng._rerank_provider = lambda: _resolved_provider(reranker)  # type: ignore[method-assign]
         out = await eng.assemble("garden tomatoes", namespace="a", budget_tokens=4000, top_k=top_k)
         return [r.content for r in out.records]
     finally:

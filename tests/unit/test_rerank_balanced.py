@@ -10,8 +10,11 @@ from typing import Any
 import pytest
 
 from memspine import Engine
-from memspine.models.providers.rerank.factory import RerankSettings, register_reranker
+from memspine.models.providers.rerank.factory import register_reranker
 from memspine.observability.trace import search_forensics
+from memspine.providers.contracts import BuildResult, ProviderRef
+from memspine.providers.registry import ProviderDescriptor, get_registry
+from memspine.providers.settings import EmptySettings
 
 
 class _ConstReranker:
@@ -21,19 +24,37 @@ class _ConstReranker:
         return [1.0 / (i + 1) for i in range(len(documents))]
 
 
-def _const(settings: RerankSettings) -> Any:
-    return _ConstReranker()
+class _ConstBuilder:
+    def construct(self, settings: EmptySettings, ctx: Any = None) -> _ConstReranker:
+        return _ConstReranker()
+
+    async def build(self, settings: EmptySettings, ctx: Any) -> BuildResult[_ConstReranker]:
+        return BuildResult(
+            self.construct(settings), ProviderRef("reranker", "const_test"), (), frozenset({"rerank"})
+        )
 
 
-register_reranker("const_test", _const)
+@pytest.fixture(scope="module", autouse=True)
+def _const_provider():
+    register_reranker(
+        ProviderDescriptor(
+            ProviderRef("reranker", "const_test"),
+            EmptySettings,
+            frozenset({"rerank"}),
+            (),
+            _ConstBuilder(),
+        )
+    )
+    yield
+    get_registry("rerankers").unregister("const_test")
 
 
 def _engine(**read: Any) -> Engine:
     return Engine(
         template="core",
         dotenv_path=None,
-        storage={"path": ":memory:"},
-        embedding={"provider": "hash"},
+        storage={'provider': "sqlite", 'settings': {'path': ":memory:", 'busy_timeout_s': 5.0}},
+        embedding={"provider": "hash", "settings": {}},
         memories={"episodic": {"enabled": True}},
         read={"record_access": False, "rerank": "const_test", **read},
     )
