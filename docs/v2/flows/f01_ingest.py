@@ -159,7 +159,7 @@ async def stamping(ctx: Ctx) -> None:
             "timestamp": "2024-03-03T09:15:00+02:00",
         },
     ]
-    recs = await ctx.engine.write_messages(msgs, namespace=ctx.ns, session_id="S1")
+    recs = await ctx.engine.ingest_messages(msgs, namespace=ctx.ns, session_id="S1")
     ctx.state["s1"] = [r.record_id for r in recs]
     for r in recs:
         ctx.show("turn", brief(r))
@@ -357,7 +357,7 @@ async def window_extraction(ctx: Ctx) -> None:
             "timestamp": "2024-03-09",
         },
     ]
-    turns = await eng.write_messages(msgs, namespace=ns, session_id="S2")
+    turns = await eng.ingest_messages(msgs, namespace=ns, session_id="S2")
     raw = {t.record_id: t for t in turns}
     stats = await eng.flush_windows(ns, final=True)
     ctx.show(

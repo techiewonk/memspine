@@ -1116,7 +1116,7 @@ WP = [
         "behaviour",
         "Write p95 at most 250 ms; idempotent retries; receipt never claims an unavailable capability; crash tests at every commit/projector boundary",
         "Needs measurement",
-        "write.intake_v2 flag-off; idempotent retries, crash-tested commit order, honest receipts, re-ingest versioning; double-send screen pending",
+        "Legacy intake selector removed; canonical durable intake is always on. Idempotent retries, crash-tested commit order, honest receipts and re-ingest versioning; double-send screen pending",
     ),
     (
         "W2-02",

@@ -41,7 +41,7 @@ def _engine(path: Path | str = ":memory:", **kw: object) -> Engine:
 
 
 async def _seed(eng: Engine) -> list[MemoryRecord]:
-    await eng.write_messages(
+    await eng.ingest_messages(
         [
             {"role": "user", "content": "we went camping by the lake"},
             {"role": "assistant", "content": "camping sounds fun"},
@@ -117,8 +117,10 @@ async def test_new_turns_carry_source_time() -> None:
     await eng.start()
     try:
         turns = await _seed(eng)
-        await eng.write_messages(
-            [{"role": "user", "content": "no timestamp"}], namespace="v", session_id="s2"
+        await eng.ingest_messages(
+            [{"message_id": "bare-turn", "role": "user", "content": "no timestamp"}],
+            namespace="v",
+            session_id="s2",
         )
         bare = (await eng.conversation("v", "s2"))[0]
     finally:
@@ -127,7 +129,9 @@ async def test_new_turns_carry_source_time() -> None:
     assert {(t.source_precision, t.event_precision, t.event_basis) for t in turns} == {
         ("instant", "instant", "explicit")
     }
-    assert bare.source_at is None and bare.event_basis is None  # never invented
+    assert bare.source_at is not None and bare.event_basis == "explicit"
+    assert bare.source.message is not None
+    assert bare.source.message["created_at_generated"] is True
 
 
 async def test_derived_records_inherit_and_window_facts_say_inferred() -> None:
@@ -280,7 +284,7 @@ async def test_router_layer_state_uses_the_registry_and_falls_back(
     eng = _engine(read={"router_rules": True})
     await eng.start()
     try:
-        await eng.write_messages(
+        await eng.ingest_messages(
             [{"role": "user", "content": "we went camping"}],
             namespace="u",
             session_id="s1",

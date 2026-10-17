@@ -114,7 +114,7 @@ class C01Config:
     memspine_context_order: str = "chrono"
     #: run the engine's sleep cycle after ingestion (write-time stages: H2, H8, H14)
     memspine_build_sleep: bool = False
-    #: G9: turns of one session per write_messages call (1 = one call per turn)
+    #: G9: turns of one session per ingest_messages call (1 = one call per turn)
     memspine_batch_turns: int = 1
     #: H7/H12: QA prompt variant for EVERY arm (default | dated | abstain), recorded
     #: in the reader manifest via its prompt hash.

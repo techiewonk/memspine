@@ -38,7 +38,7 @@ async def seed(ctx: Ctx) -> None:
             "timestamp": (T0 + timedelta(minutes=3)).isoformat(),
         },
     ]
-    r1 = await e.write_messages(day1, namespace=ctx.ns, session_id="conv-day1")
+    r1 = await e.ingest_messages(day1, namespace=ctx.ns, session_id="conv-day1")
     # Day 3: a second conversation of two turns.
     d3 = T0 + timedelta(days=2)
     day3 = [
@@ -53,7 +53,7 @@ async def seed(ctx: Ctx) -> None:
             "timestamp": (d3 + timedelta(minutes=2)).isoformat(),
         },
     ]
-    r3 = await e.write_messages(day3, namespace=ctx.ns, session_id="conv-day3")
+    r3 = await e.ingest_messages(day3, namespace=ctx.ns, session_id="conv-day3")
     ctx.state.update(day1=[r.record_id for r in r1], day3=[r.record_id for r in r3])
     ctx.show("turns written", {"day1": len(r1), "day3": len(r3)})
     ctx.expect("six turn records", 6, len(r1) + len(r3))

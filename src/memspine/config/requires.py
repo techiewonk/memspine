@@ -108,9 +108,6 @@ REQUIRES: dict[str, tuple[Need, ...]] = {
     "write.coverage_v2": (_ENVELOPE,),
     "write.resolver_v2": (_ENVELOPE,),
     "write.prepass": (_WINDOW,),
-    "write.asset_describer": (
-        Need("write.intake_v2", why="assets enter through the intake gateway"),
-    ),
     # --- read: legs and blocks that read what another switch builds ---
     "read.graph_leg_v2": (
         _LEGS,

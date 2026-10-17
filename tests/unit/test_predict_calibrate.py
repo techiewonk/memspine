@@ -38,7 +38,7 @@ async def _session(eng: Engine) -> list[str]:
             ]
         )
     ]
-    written = await eng.write_messages(msgs, namespace="a", session_id="s1", group_id="s1")
+    written = await eng.ingest_messages(msgs, namespace="a", session_id="s1", group_id="s1")
     return [r.record_id for r in written]
 
 
@@ -157,7 +157,7 @@ async def test_engine_incremental_summary_wiring(monkeypatch: pytest.MonkeyPatch
         turns = await _session(eng)
         await eng.sleep()
         later = datetime(2023, 5, 8, 13, 5, tzinfo=UTC)
-        more = await eng.write_messages(
+        more = await eng.ingest_messages(
             [{"role": "user", "content": "Alice: also a cat", "timestamp": later.isoformat()}],
             namespace="a",
             session_id="s1",
@@ -282,7 +282,7 @@ async def test_prompt_inputs_are_single_lines_with_markers_escaped(
             {"role": "user", "content": c, "timestamp": (t0 + timedelta(minutes=i)).isoformat()}
             for i, c in enumerate([forged, "Alice: I got promoted", "Alice: and a cat"])
         ]
-        await eng.write_messages(msgs, namespace="a", session_id="s1", group_id="s1")
+        await eng.ingest_messages(msgs, namespace="a", session_id="s1", group_id="s1")
         await eng.sleep()
         cue, _, knowledge = calls["predict"][0]  # type: ignore[misc]
         assert "\n" not in cue and cue.startswith("Alice: hi Session opening")

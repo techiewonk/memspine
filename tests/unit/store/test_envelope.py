@@ -187,7 +187,7 @@ async def _seed(path: Path) -> None:
     eng = _engine(path)
     await eng.start()
     try:
-        await eng.write_messages(
+        await eng.ingest_messages(
             [
                 {"role": "user", "content": "we went camping by the lake"},
                 {"role": "assistant", "content": "camping sounds fun"},

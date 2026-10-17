@@ -69,7 +69,7 @@ async def _write_session(eng: Engine) -> None:
         {"role": "user", "content": c, "timestamp": (T0 + timedelta(minutes=i)).isoformat()}
         for i, c in enumerate(TURNS)
     ]
-    await eng.write_messages(msgs, namespace="a", session_id="s1", group_id="s1")
+    await eng.ingest_messages(msgs, namespace="a", session_id="s1", group_id="s1")
 
 
 async def _semantic(eng: Engine) -> list[MemoryRecord]:
@@ -480,7 +480,7 @@ async def test_a_list_card_over_assistant_only_facts_is_an_assistant_claim(
             }
             for i, c in enumerate(TURNS)
         ]
-        await eng.write_messages(msgs, namespace="a", session_id="s1", group_id="s1")
+        await eng.ingest_messages(msgs, namespace="a", session_id="s1", group_id="s1")
         await eng.sleep()
         records = await _semantic(eng)
         facts = [r for r in records if "kind:event" in r.tags]

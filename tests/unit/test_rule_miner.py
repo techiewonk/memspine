@@ -93,7 +93,7 @@ async def test_rule_mining_end_to_end_supersedes_home_without_an_llm() -> None:
                 }
                 for i, text in enumerate(texts)
             ]
-            await eng.write_messages(msgs, namespace="a", session_id=f"s{day}", group_id=f"s{day}")
+            await eng.ingest_messages(msgs, namespace="a", session_id=f"s{day}", group_id=f"s{day}")
         await eng.sleep()
         assert eng.model_calls() == {}
         homes = [
@@ -139,7 +139,7 @@ async def test_auto_watch_turns_a_dated_plan_into_a_watch() -> None:
             {"role": "user", "content": c, "timestamp": (t0 + timedelta(minutes=i)).isoformat()}
             for i, c in enumerate(texts)
         ]
-        await eng.write_messages(msgs, namespace="a", session_id="s1", group_id="s1")
+        await eng.ingest_messages(msgs, namespace="a", session_id="s1", group_id="s1")
         await eng.sleep()
         watches = await eng._require_started().list_records("a", "prospective")
         assert [w.content for w in watches] == ["Melanie plans: run a marathon"]
@@ -201,7 +201,7 @@ async def test_profile_slots_header_shows_the_current_slots() -> None:
                 }
                 for i, text in enumerate(texts)
             ]
-            await eng.write_messages(msgs, namespace="a", session_id=f"s{day}", group_id=f"s{day}")
+            await eng.ingest_messages(msgs, namespace="a", session_id=f"s{day}", group_id=f"s{day}")
         await eng.sleep()
         out = await eng.read("Where does Caroline live?", namespace="a", mode="replay", top_k=3)
         [header] = [r for r in out.context.records if constants.SLOTS_TAG in r.tags]

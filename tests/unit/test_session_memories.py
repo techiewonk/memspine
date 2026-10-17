@@ -30,7 +30,7 @@ async def test_lists_records_derived_from_the_session_turns() -> None:
             {"role": "user", "content": c, "timestamp": (t0 + timedelta(minutes=i)).isoformat()}
             for i, c in enumerate(texts)
         ]
-        await eng.write_messages(msgs, namespace="a", session_id="s1", group_id="s1")
+        await eng.ingest_messages(msgs, namespace="a", session_id="s1", group_id="s1")
         await eng.sleep()
         turns = await eng._require_started().list_records("a", "episodic")
         derived = await eng.session_memories("a", [t.record_id for t in turns])
@@ -43,7 +43,7 @@ async def test_lists_records_derived_from_the_session_turns() -> None:
         await eng.stop()
 
 
-async def test_write_messages_keeps_an_image_caption() -> None:
+async def test_ingest_messages_keeps_an_image_caption() -> None:
     """G30 (plan v3.2): a turn's caption is stored with its text."""
     eng = Engine(
         template="core",
@@ -54,7 +54,7 @@ async def test_write_messages_keeps_an_image_caption() -> None:
     )
     await eng.start()
     try:
-        await eng.write_messages(
+        await eng.ingest_messages(
             [{"role": "user", "content": "Look at this!", "caption": "a dog on a beach"}],
             namespace="a",
         )

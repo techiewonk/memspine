@@ -38,7 +38,7 @@ async def test_assistant_reads_replay_and_answers_with_the_dated_prompt() -> Non
     eng = _engine("assistant")
     await eng.start()
     try:
-        await eng.write_messages(
+        await eng.ingest_messages(
             [{"role": "user", "content": "Ana: I went hiking last Friday."}],
             namespace="a",
             session_id="s1",

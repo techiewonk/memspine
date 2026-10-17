@@ -37,7 +37,7 @@ def _engine(path: Path | str = ":memory:", **kw: Any) -> Engine:
 
 
 async def _turn(eng: Engine, text: str, when: datetime, role: str = "user") -> MemoryRecord:
-    await eng.write_messages(
+    await eng.ingest_messages(
         [{"role": role, "content": text}],
         namespace=NS,
         session_id=f"s{when:%m%d}",

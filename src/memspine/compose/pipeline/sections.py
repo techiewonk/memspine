@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping, Sequence
-from datetime import UTC, datetime
+from datetime import datetime
 from typing import Any
 
 from memspine.compose.pack import AssembledContext, estimate_tokens
@@ -922,9 +922,10 @@ async def _profile_card_section(
     The consumer of the marker-backed card (``offline.profile_card_v2``): the latest
     ``profile_card_v2`` marker of the namespace (latest wins per attribute), minus entries last
     confirmed more than ``read.profile_card_max_age_days`` ago (0 = no bound). An entry is shown
-    only while at least one of its source records is still live (present, activated, not
-    quarantined, through the same live view as any context record), so a forgotten turn cannot
-    keep a card line alive; its line cites only the live source ids. Lines are kept best
+    only while every cited source record is still live (present, activated, not quarantined,
+    through the same live view as any context record). Since the marker has no per-source
+    attribution for parts of an entry value, a hidden cited source may have contributed to the
+    whole value; in that case the entry is omitted. Lines are kept best
     confidence first while the block fits ``read.profile_card_header_budget`` tokens (never more
     than :data:`constants.PROFILE_PACK_MAX_SHARE` of the read budget), then shown in section
     order. The block is a synthetic record whose parents are the cited sources, so its trust,
@@ -949,7 +950,7 @@ async def _profile_card_section(
     card = await read_latest_card(storage, ns)
     if card is None or not card.entries:
         return None
-    now = datetime.now(UTC)
+    now = eng._clock()
     entries = fresh_entries(card, max_age_days=read_cfg.profile_card_max_age_days, now=now)
     shown: list[tuple[Any, str, list[MemoryRecord]]] = []
     for entry in entries:
@@ -961,8 +962,8 @@ async def _profile_card_section(
             view = await eng._live_view(record)
             if view is not None:
                 live.append(view)
-        if not live:
-            continue  # every source forgotten, hidden or refused: the entry does not render
+        if not live or len(live) != len(entry.support_ids):
+            continue  # fail closed: the line may disclose information from any cited source
         line = card_entry_line(entry, [r.record_id for r in live], now)
         trial = [*shown, (entry, line, live)]
         if estimate_tokens(render_card_header([t[1] for t in trial])) <= allowance:

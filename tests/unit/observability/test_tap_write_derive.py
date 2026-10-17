@@ -42,7 +42,7 @@ async def test_model_free_write_has_write_trace() -> None:
     await eng.start()
     try:
         await eng.write("Alice lives in Paris", namespace="a", entity="alice", attribute="city")
-        await eng.write_messages(
+        await eng.ingest_messages(
             [{"role": "user", "content": "Bob: I like tea"}, {"role": "system", "content": "x"}],
             namespace="a",
             session_id="s1",

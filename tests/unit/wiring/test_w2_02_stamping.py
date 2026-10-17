@@ -45,6 +45,8 @@ async def rows(eng: Engine) -> list[MemoryRecord]:
 
 GROUP = [
     {
+        "message_id": "stamped-0",
+        "conversation_id": "stamping-conversation",
         "role": "user",
         "speaker": "Ilse",
         "addressee": "Bram",
@@ -53,6 +55,8 @@ GROUP = [
         "tz": "Asia/Tokyo",
     },
     {
+        "message_id": "stamped-1",
+        "conversation_id": "stamping-conversation",
         "role": "user",
         "speaker": "Bram",
         "addressee": "Ilse",
@@ -60,11 +64,15 @@ GROUP = [
         "timestamp": "2026-03-01T01:05:00",
     },
     {
+        "message_id": "stamped-2",
+        "conversation_id": "stamping-conversation",
         "role": "assistant",
         "content": "Shall I note the Oslo address?",
         "timestamp": "2026-03-01T01:06:00",
     },
     {
+        "message_id": "stamped-3",
+        "conversation_id": "stamping-conversation",
         "role": "user",
         "speaker": "Ilse",
         "content": "yes please, note it",
@@ -78,7 +86,7 @@ async def test_flag_off_is_unchanged(tmp_path: Path) -> None:
     eng = await build(tmp_path / "off.db")
     try:
         assert eng._config().write.stamping_v2 is False
-        await eng.write_messages(GROUP, namespace=NS, session_id="s1")
+        await eng.ingest_messages(GROUP, namespace=NS, session_id="s1")
         for r in await rows(eng):
             assert r.source_tz is None
             assert r.axes.participants == []
@@ -94,7 +102,7 @@ async def test_three_clocks_and_zone(tmp_path: Path) -> None:
     eng = await build(tmp_path / "on.db", stamping_v2=True)
     before = datetime.now(UTC)
     try:
-        await eng.write_messages(GROUP, namespace=NS, session_id="s1")
+        await eng.ingest_messages(GROUP, namespace=NS, session_id="s1")
         by = {r.content: r for r in await rows(eng)}
         first = by["Bram, I moved to Oslo"]
         # declared zone preserved, instant exact (09:00 at +09:00 is 00:00 UTC)
@@ -113,15 +121,19 @@ async def test_three_clocks_and_zone(tmp_path: Path) -> None:
         await eng.stop()
 
 
-async def test_undated_turn_stays_undated(tmp_path: Path) -> None:
+async def test_undated_turn_gets_generated_source_time(tmp_path: Path) -> None:
     eng = await build(tmp_path / "u.db", stamping_v2=True)
     try:
-        await eng.write_messages(
-            [{"role": "user", "content": "Tomasz keeps goats"}], namespace=NS, session_id="s2"
+        before = datetime.now(UTC)
+        await eng.ingest_messages(
+            [{"message_id": "goats-1", "role": "user", "content": "Tomasz keeps goats"}],
+            namespace=NS,
+            session_id="s2",
         )
         (rec,) = await rows(eng)
-        assert rec.source_at is None  # never "now"
-        assert rec.source_tz == "unknown"
+        assert rec.source_at is not None and rec.source_at >= before
+        assert rec.source_tz == "UTC"
+        assert rec.source.message["created_at_generated"] is True
         assert rec.recorded_at is not None
     finally:
         await eng.stop()
@@ -147,7 +159,7 @@ def test_clock_stamper_flags() -> None:
 async def test_multiparty_axes(tmp_path: Path) -> None:
     eng = await build(tmp_path / "m.db", stamping_v2=True)
     try:
-        await eng.write_messages(GROUP, namespace=NS, session_id="s1")
+        await eng.ingest_messages(GROUP, namespace=NS, session_id="s1")
         by = {r.content: r for r in await rows(eng)}
         a = by["Bram, I moved to Oslo"]
         assert (a.axes.speaker, a.axes.addressee) == ("ilse", "bram")
@@ -171,7 +183,7 @@ async def test_multiparty_axes(tmp_path: Path) -> None:
 async def test_participant_tags_can_be_off(tmp_path: Path) -> None:
     eng = await build(tmp_path / "t.db", stamping_v2=True, stamp_participant_tags="none")
     try:
-        await eng.write_messages(GROUP, namespace=NS, session_id="s1")
+        await eng.ingest_messages(GROUP, namespace=NS, session_id="s1")
         for r in await rows(eng):
             assert r.axes.participants  # typed column still filled
             assert not any(t.startswith("participant:") for t in r.tags)
@@ -198,7 +210,7 @@ async def test_axes_round_trip_through_storage(tmp_path: Path) -> None:
     db = tmp_path / "rt.db"
     eng = await build(db, stamping_v2=True)
     try:
-        await eng.write_messages(GROUP, namespace=NS, session_id="s1")
+        await eng.ingest_messages(GROUP, namespace=NS, session_id="s1")
         got = await rows(eng)
         ids = [r.record_id for r in got]
     finally:
@@ -229,7 +241,7 @@ def test_record_axes_dump_omits_empty_participants() -> None:
 async def test_provenance_class_from_roles(tmp_path: Path) -> None:
     eng = await build(tmp_path / "p.db", stamping_v2=True)
     try:
-        await eng.write_messages(
+        await eng.ingest_messages(
             [
                 {"role": "user", "content": "I keep bees"},
                 {"role": "assistant", "content": "You could try a top-bar hive"},
@@ -249,15 +261,16 @@ async def test_provenance_class_from_roles(tmp_path: Path) -> None:
 async def test_assent_tag_only_for_real_assent(tmp_path: Path) -> None:
     eng = await build(tmp_path / "a.db", stamping_v2=True)
     try:
-        await eng.write_messages(
+        await eng.ingest_messages(
             [
-                {"role": "assistant", "content": "Shall I book the hive inspection for Friday?"},
-                {"role": "user", "content": "ok, thanks"},
+                {"conversation_id": "assent-test", "role": "assistant", "content": "Shall I book the hive inspection for Friday?"},
+                {"conversation_id": "assent-test", "role": "user", "content": "ok, thanks"},
                 {
+                    "conversation_id": "assent-test",
                     "role": "assistant",
                     "content": "Shall I also order three new frames for the hive?",
                 },
-                {"role": "user", "content": "yes please, order them"},
+                {"conversation_id": "assent-test", "role": "user", "content": "yes please, order them"},
             ],
             namespace=NS,
             session_id="s4",
@@ -402,9 +415,9 @@ def test_asserter_subject_mismatch_flagged() -> None:
 
 # ------------------------------------------------------------------------------------ gateway path
 async def test_stamps_inside_the_gateway(tmp_path: Path) -> None:
-    eng = await build(tmp_path / "g.db", stamping_v2=True, intake_v2=True)
+    eng = await build(tmp_path / "g.db", stamping_v2=True)
     try:
-        await eng.write_messages(GROUP, namespace=NS, session_id="s1")
+        await eng.ingest_messages(GROUP, namespace=NS, session_id="s1")
         by = {r.content: r for r in await rows(eng)}
         first = by["Bram, I moved to Oslo"]
         assert first.source_tz == "Asia/Tokyo"
@@ -413,7 +426,7 @@ async def test_stamps_inside_the_gateway(tmp_path: Path) -> None:
         prop = by["Shall I note the Oslo address?"]
         assert f"assent_of:{prop.record_id}" in yes.tags
         # a retry writes nothing new and stamps nothing twice
-        again = await eng.write_messages(GROUP, namespace=NS, session_id="s1")
+        again = await eng.ingest_messages(GROUP, namespace=NS, session_id="s1")
         assert len(await rows(eng)) == len(GROUP)
         assert [r.record_id for r in again] == [by[t["content"]].record_id for t in GROUP]
     finally:

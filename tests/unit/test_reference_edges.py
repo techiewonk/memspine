@@ -89,13 +89,20 @@ def _engine(**read: Any) -> Engine:
 
 def _messages() -> list[dict[str, Any]]:
     return [
-        {**m, "timestamp": (T0 + timedelta(minutes=i)).isoformat()}
+        {
+            **m,
+            "message_id": f"edge-message-{i}",
+            "conversation_id": "edge-conversation",
+            "timestamp": (T0 + timedelta(minutes=i)).isoformat(),
+        }
         for i, m in enumerate(CONVERSATION)
     ]
 
 
 async def _ingest(eng: Engine) -> list[Any]:
-    return await eng.write_messages(_messages(), namespace="a", session_id="s1")  # type: ignore[arg-type]
+    return await eng.ingest_messages(
+        _messages(), namespace="a", session_id="s1", conversation_id="edge-conversation"
+    )
 
 
 async def test_default_off_writes_no_edges() -> None:
@@ -128,9 +135,11 @@ async def test_an_explicit_reply_to_is_never_overridden() -> None:
     await eng.start()
     try:
         msgs = _messages()
-        msgs[1] = {**msgs[1], "reply_to": 0}
-        msgs[4] = {**msgs[4], "reply_to": 0}
-        recs = await eng.write_messages(msgs, namespace="a", session_id="s1")  # type: ignore[arg-type]
+        msgs[1] = {**msgs[1], "reply_to": "edge-message-0"}
+        msgs[4] = {**msgs[4], "reply_to": "edge-message-0"}
+        recs = await eng.ingest_messages(
+            msgs, namespace="a", session_id="s1", conversation_id="edge-conversation"
+        )
         pre = constants.REPLY_TO_PREFIX
         assert not any(t.startswith("ref:") for t in recs[1].tags + recs[4].tags)
         assert [t for t in recs[4].tags if t.startswith(pre)] == [f"{pre}{recs[0].record_id}"]

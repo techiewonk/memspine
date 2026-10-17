@@ -97,7 +97,7 @@ async def make(tmp_path, *, ingest: dict[str, Any] | None = None, **read: Any) -
         read={"hybrid": False, "record_access": False, **read},
     )
     await eng.start()
-    await eng.write_messages(TURNS, namespace="a", session_id="s1")
+    await eng.ingest_messages(TURNS, namespace="a", session_id="s1")
     return eng
 
 
@@ -147,7 +147,7 @@ async def asset_engine(tmp_path, fetcher: Fetcher, vision: Vision, mode: str = "
     )
     await eng.start()
     eng.set_asset_adapter(AssetAdapter(AssetRegistry(tmp_path), fetcher, vision, tmp_path))
-    await eng.write_messages(TURNS, namespace="a", session_id="s1")
+    await eng.ingest_messages(TURNS, namespace="a", session_id="s1")
     return eng
 
 

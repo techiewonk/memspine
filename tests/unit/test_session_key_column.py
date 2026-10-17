@@ -30,7 +30,7 @@ async def _seed(path: Path) -> None:
     await eng.start()
     try:
         for sid, words in (("s1", "camping by the lake"), ("s2", "skiing in the alps")):
-            await eng.write_messages(
+            await eng.ingest_messages(
                 [
                     {"role": "user", "content": f"we went {words}"},
                     {"role": "assistant", "content": f"{words} sounds fun"},

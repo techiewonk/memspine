@@ -61,7 +61,7 @@ async def _session(eng: Engine, turns: list[str] = TURNS) -> list[MemoryRecord]:
         {"role": "user", "content": c, "timestamp": (T0 + timedelta(minutes=i)).isoformat()}
         for i, c in enumerate(turns)
     ]
-    return await eng.write_messages(msgs, namespace="a", session_id="s1", group_id="s1")
+    return await eng.ingest_messages(msgs, namespace="a", session_id="s1", group_id="s1")
 
 
 async def _events(eng: Engine) -> list[MemoryEvent]:
@@ -156,7 +156,7 @@ async def test_r2_1_cues_skip_extraction_and_conflict() -> None:
             attribute="city",
             valid_from=datetime(2023, 1, 1, tzinfo=UTC),
         )
-        [turn] = await eng.write_messages(
+        [turn] = await eng.ingest_messages(
             [{"role": "user", "content": "I moved to Lyon last year"}], namespace="a"
         )
         assert eng._semantic is not None
@@ -174,7 +174,7 @@ async def test_r2_1_a_cue_is_never_a_merge_target() -> None:
     eng = _engine()
     await eng.start()
     try:
-        [turn] = await eng.write_messages(
+        [turn] = await eng.ingest_messages(
             [{"role": "user", "content": "Ana lives in Lyon"}], namespace="a"
         )
         await eng.add_cues(turn.record_id, ["Ana lives in Lyon"], namespace="a")
@@ -568,7 +568,7 @@ async def test_r2_11_assistant_claim_reaches_derived_cues() -> None:
     eng = _engine(firewall={"tag_assistant_claims": True})
     await eng.start()
     try:
-        [turn] = await eng.write_messages(
+        [turn] = await eng.ingest_messages(
             [{"role": "assistant", "content": "You said you live in Lyon"}], namespace="a"
         )
         [cue] = await eng.add_cues(turn.record_id, ["where does the user live"], namespace="a")
@@ -582,7 +582,7 @@ async def test_r2_11_skipped_recall_leaves_a_marker_event() -> None:
     await eng.start()
     try:
         echoed = "CURRENT (since 2023-05-01): Ana lives in Lyon"
-        assert await eng.write_messages([{"role": "user", "content": echoed}], namespace="a") == []
+        assert await eng.ingest_messages([{"role": "user", "content": echoed}], namespace="a") == []
         markers = [e for e in await _events(eng) if e.kind is EventKind.MARKER]
         assert [m.payload["marker"] for m in markers] == ["recall_skipped"]
         assert echoed not in str(markers[0].payload)  # fingerprint, not content
@@ -669,7 +669,7 @@ async def test_r5_4_each_assembly_wrapper_is_skipped(echo: str) -> None:
     eng = _engine(firewall={"skip_injected_recall": True})
     await eng.start()
     try:
-        assert await eng.write_messages([{"role": "user", "content": echo}], namespace="a") == []
+        assert await eng.ingest_messages([{"role": "user", "content": echo}], namespace="a") == []
     finally:
         await eng.stop()
 

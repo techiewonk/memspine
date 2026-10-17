@@ -140,7 +140,7 @@ def _engine(**read: Any) -> Engine:
 
 
 async def _store(eng: Engine) -> None:
-    await eng.write_messages(
+    await eng.ingest_messages(
         [
             {
                 "role": "user",
@@ -164,7 +164,7 @@ async def test_engine_owner_swap_note_and_marks() -> None:
     eng = _engine(owner_check="both")
     await eng.start()
     try:
-        await eng.write_messages(
+        await eng.ingest_messages(
             [
                 {"role": "user", "speaker": "Caroline", "content": "Caroline: Hi Melanie, hello."},
                 {
@@ -183,7 +183,7 @@ async def test_engine_owner_swap_note_and_marks() -> None:
         # nothing dropped: mark-only returns the same evidence as the default read
         base = _engine()
         await base.start()
-        await base.write_messages(
+        await base.ingest_messages(
             [
                 {"role": "user", "speaker": "Caroline", "content": "Caroline: Hi Melanie, hello."},
                 {
@@ -219,7 +219,7 @@ async def test_engine_chat_user_assistant() -> None:
     eng = _engine(owner_check="both", user_header="on")
     await eng.start()
     try:
-        await eng.write_messages(
+        await eng.ingest_messages(
             [
                 {"role": "user", "content": "I love hiking in the mountains."},
                 {"role": "assistant", "content": "I recommend the Alps trail for hiking."},

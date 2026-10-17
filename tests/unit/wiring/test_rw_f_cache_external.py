@@ -27,7 +27,7 @@ def _engine(**read: Any) -> Engine:
 
 async def _seed(eng: Engine) -> list[str]:
     await eng.start()
-    await eng.write_messages(
+    await eng.ingest_messages(
         [
             {"role": "user", "content": "Ana booked the flight to Lyon"},
             {"role": "user", "content": "Ana packed the green bag"},
@@ -72,7 +72,7 @@ async def test_cache_hit_then_write_invalidates() -> None:
     second.context.records.clear()  # a caller mutation never reaches the cache
     third = await eng.read("Lyon flight", namespace="a")
     assert calls[0] == 1 and third.context.records
-    await eng.write_messages([{"role": "user", "content": "Ana left Lyon"}], namespace="a")
+    await eng.ingest_messages([{"role": "user", "content": "Ana left Lyon"}], namespace="a")
     await eng.read("Lyon flight", namespace="a")
     assert calls[0] == 2  # store generation moved: stale, recomputed
 

@@ -148,9 +148,9 @@ async def test_write_with_group_id_and_tags_over_rest(client: httpx.AsyncClient)
     assert set(record["tags"]) == {"ops", "infra"}
 
 
-async def test_write_messages_over_rest(client: httpx.AsyncClient) -> None:
+async def test_ingest_messages_over_rest(client: httpx.AsyncClient) -> None:
     resp = await client.post(
-        "/write_messages",
+        "/ingest_messages",
         json={
             "messages": [
                 {"role": "user", "content": "what's the plan?"},
@@ -169,9 +169,62 @@ async def test_write_messages_over_rest(client: httpx.AsyncClient) -> None:
     assert [r["source"]["role"] for r in records] == ["user", "assistant"]
 
 
+async def test_ingest_messages_preserves_identity_and_sender_over_rest(
+    client: httpx.AsyncClient,
+) -> None:
+    resp = await client.post(
+        "/ingest_messages",
+        json={
+            "session_id": "rest-session",
+            "conversation_id": "rest-conversation",
+            "messages": [
+                {
+                    "message_id": "rest-message-1",
+                    "role": "user",
+                    "content": "Mina moved to Oslo",
+                    "sender": {"id": "mina-7", "kind": "human", "name": "Mina"},
+                    "created_at": "2026-04-01T10:30:00+02:00",
+                    "updated_at": "2026-04-01T10:31:00+02:00",
+                    "metadata": {"source": "mobile", "sequence": 3},
+                }
+            ],
+        },
+        headers=ns("chat-identities"),
+    )
+    assert resp.status_code == 200, resp.text
+    (record,) = resp.json()
+    message = record["source"]["message"]
+    assert message["message_id"] == "rest-message-1"
+    assert message["conversation_id"] == "rest-conversation"
+    assert message["session_id"] == "rest-session"
+    assert message["sender"] == {"id": "mina-7", "kind": "human", "name": "Mina"}
+    assert message["created_at"] == "2026-04-01T10:30:00+02:00"
+    assert message["updated_at"] == "2026-04-01T10:31:00+02:00"
+    assert message["metadata"] == {"source": "mobile", "sequence": 3}
+
+
+async def test_ingest_messages_unresolved_reply_is_422(client: httpx.AsyncClient) -> None:
+    resp = await client.post(
+        "/ingest_messages",
+        json={
+            "session_id": "rest-session",
+            "messages": [
+                {
+                    "message_id": "reply-1",
+                    "role": "user",
+                    "content": "Answering the missing message",
+                    "reply_to": "missing-parent",
+                }
+            ],
+        },
+        headers=ns("chat-invalid-reply"),
+    )
+    assert resp.status_code == 422
+
+
 async def test_write_episode_links_turns_over_rest(client: httpx.AsyncClient) -> None:
     resp = await client.post(
-        "/write_messages",
+        "/ingest_messages",
         json={
             "messages": [
                 {"role": "user", "content": "book a table"},

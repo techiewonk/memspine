@@ -36,7 +36,7 @@ def _engine(path: Path, *, lineage: bool) -> Engine:
 
 
 async def _turns(eng: Engine) -> list[MemoryRecord]:
-    await eng.write_messages(
+    await eng.ingest_messages(
         [
             {"role": "user", "content": "I moved to Lisbon last spring"},
             {"role": "user", "content": "my sister lives there too"},

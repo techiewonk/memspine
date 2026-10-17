@@ -57,7 +57,7 @@ async def _closed_session(eng: Engine, ns: str = "a") -> list[MemoryRecord]:
             "timestamp": start + timedelta(minutes=2),
         },
     ]
-    return await eng.write_messages(turns, namespace=ns, session_id="s1")  # type: ignore[arg-type]
+    return await eng.ingest_messages(turns, namespace=ns, session_id="s1")  # type: ignore[arg-type]
 
 
 async def _summaries(eng: Engine, ns: str = "a") -> list[MemoryRecord]:

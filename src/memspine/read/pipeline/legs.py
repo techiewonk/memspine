@@ -365,14 +365,11 @@ async def registry_base_legs(
     registry = lib.REGISTRY
     graph_on = read.graph_leg_v2 and "graph" not in off
     episode_on = read.episode_leg_v2 and "episode" not in off
-    if episode_on or graph_on:
-        # R3-05c / R3-05b: the layer registry says whether L2 / L3 hold records
-        from memspine.store.layer_registry import LayerRegistry, LayerTemplate
-
-        ctx.layer_registry = LayerRegistry.of(
+    if episode_on or graph_on or read.profile_card_header:
+        ctx.layer_registry = await read_request.layer_inventory(
+            eng,
             ns,
-            LayerTemplate(),
-            await eng._require_started().layer_counts(ns),
+            read,
             selected=[*(["L2"] if episode_on else []), *(["L3"] if graph_on else [])],
         )
     if episode_on:
@@ -401,6 +398,8 @@ async def registry_base_legs(
             extra_legs.append(NamedLeg("episode", turns))
     if graph_on:
         extra_legs += await _graph_hop_leg(eng, ns, query, live, vector_hits, fetch_k, ctx)
+    if ctx.layer_registry is not None:
+        tap.event("read.layers", namespace=ns, layers=ctx.layer_registry.report())
     if read.query_encoder != "none":
         extra_legs += await eng._encoder_legs(ns, query)
     for text, vector in zip(probe_texts, probe_vectors, strict=True):

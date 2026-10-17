@@ -73,7 +73,7 @@ async def test_i43_hearsay_trust_is_capped() -> None:
     eng = _engine(firewall={"hearsay_trust_cap": 0.3})
     await eng.start()
     try:
-        first, hear = await eng.write_messages(
+        first, hear = await eng.ingest_messages(
             [
                 {"role": "user", "content": "Caroline: I love tennis.", "speaker": "Caroline"},
                 {
@@ -95,7 +95,7 @@ async def test_i43_cap_is_off_by_default() -> None:
     eng = _engine()
     await eng.start()
     try:
-        [hear] = await eng.write_messages(
+        [hear] = await eng.ingest_messages(
             [{"role": "user", "content": "My mom said she loves tennis.", "speaker": "Caroline"}],
             namespace="a",
         )
@@ -129,7 +129,7 @@ async def test_i44_render_marks_hedged_records() -> None:
     eng = _engine(perspective_marker=True, perspective_axes=["subject", "certainty"])
     await eng.start()
     try:
-        await eng.write_messages(
+        await eng.ingest_messages(
             [{"role": "user", "content": "Maybe I live in Lisbon.", "speaker": "Caroline"}],
             namespace="a",
         )
@@ -185,7 +185,7 @@ async def test_i47_user_turn_acknowledges_the_assistant_turn_before_it() -> None
     )
     await eng.start()
     try:
-        a1, u1, a2, u2 = await eng.write_messages(
+        a1, u1, a2, u2 = await eng.ingest_messages(
             [
                 {"role": "assistant", "content": "You like jazz."},
                 {"role": "user", "content": "Yes, exactly."},
@@ -211,7 +211,7 @@ async def test_i47_ack_off_writes_no_ack_tags() -> None:
     eng = _engine()
     await eng.start()
     try:
-        recs = await eng.write_messages(
+        recs = await eng.ingest_messages(
             [
                 {"role": "assistant", "content": "You like jazz."},
                 {"role": "user", "content": "Yes, exactly."},
@@ -352,7 +352,7 @@ async def test_i55_mined_fact_inherits_and_the_conflict_key_uses_it() -> None:
     )
     await eng.start()
     try:
-        turns = await eng.write_messages(
+        turns = await eng.ingest_messages(
             [
                 {"role": "user", "content": "I really like jazz.", "speaker": "Caroline"},
                 {"role": "user", "content": "My cousin likes rock.", "speaker": "Caroline"},

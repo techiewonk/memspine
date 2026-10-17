@@ -87,12 +87,12 @@ runner (per item) --> MemspineSystem.insert(turn)                         H:259
         text    = f"{speaker}: {turn.text}"                                  H:293  <-- speaker NAME is content
         role    = "user" for EVERY turn (speaker is not a role)              H:298-315
         stamp   = parse_turn_time(timestamp)  UTC, formats at H:25-31        H:57
-        1 turn  : write_messages([...], valid_from=stamp)                    H:298
+        1 turn  : ingest_messages([...], valid_from=stamp)                    H:298
         >1 turn : each message carries "timestamp": stamp (valid_from not passed) H:306-318
         namespace="eval", session_id=<session_N>, group_id=<session_N>
         |
         v
-  Engine.write_messages(messages, namespace, session_id, group_id, valid_from)       E:3078
+  Engine.ingest_messages(messages, namespace, session_id, group_id, valid_from)       E:3078
   |
   |-[1] contents = _depositable_contents(messages)                         E:3119 / E:3268
   |       drops roles in firewall.skip_message_roles ([]), recall-echo turns (skip_injected_recall False),
@@ -166,7 +166,7 @@ runner (per item) --> MemspineSystem.insert(turn)                         H:259
                         |- CUE_TAG branch (not used)                       E:3525
                         |- memory_type == "semantic" -> SemanticMemory.write (dedup MinHash/LSH + cosine .92, entity
                         |      extraction, M4 conflict ladder)             E:3542 ; memories/semantic/store.py:126-220
-                        |      NOT TAKEN: write_messages always uses memory_type="episodic" (E:3254).
+                        |      NOT TAKEN: ingest_messages always uses memory_type="episodic" (E:3254).
                         |      => dedupe, entity extraction (entity_extraction off|llm|gliner, E:11416) and the
                         |         conflict ladder are never applied to LoCoMo turns. Duplicates are stored as-is.
                         |- plain WRITE event for episodic                   E:3554
@@ -194,7 +194,7 @@ runner (per item) --> MemspineSystem.insert(turn)                         H:259
             |- reply link (none)                                             E:1444
 ```
 
-Return path: `write_messages` returns the `MemoryRecord` list in message order (E:3264). The adapter
+Return path: `ingest_messages` returns the `MemoryRecord` list in message order (E:3264). The adapter
 maps `record_id -> turn_id` with `_align` (`H:319-323`, `H:621-642`), and writes the ingest audit line when
 `MEMSPINE_FORENSICS_DIR` is set (`_write_ingest_log`, `H:404`): turn, session, source text, stored text,
 `text_identical`, `valid_from`, `memory_type`, `group_id`, `session_id`, `batch_size`.

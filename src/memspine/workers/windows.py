@@ -304,6 +304,13 @@ def _excluded(window: Window | None, member_ids: Sequence[str]) -> list[str]:
     return [t.record_id for t in window.turns if t.record_id not in live]
 
 
+def _conversation_id(record: MemoryRecord) -> str | None:
+    """Canonical conversation boundary, absent on pre-metadata/raw records."""
+    message = record.source.message
+    value = message.get("conversation_id") if isinstance(message, dict) else None
+    return value if isinstance(value, str) and value else None
+
+
 def _note_io(messages: Sequence[Mapping[str, str]], reply: str) -> None:
     """TI-1: hand the rendered prompt and the raw reply of this model call to the window call
     that is capturing them (``write.extract.io``)."""
@@ -672,6 +679,7 @@ class _Job:
     closed_session: str | None = None
     cancelled: bool = False
     members: frozenset[str] = frozenset()
+    conversation_id: str | None = None
     #: W2-05: what the batcher needs (estimated tokens, when the window closed)
     tokens: int = 0
     queued_at: float = 0.0
@@ -686,6 +694,7 @@ class _Store:
     idle: asyncio.TimerHandle | None = None
     touch: int = 0
     session: str | None = None
+    conversation_id: str | None = None
     pending: list[WindowEdgeBatch] = field(default_factory=list)
     inflight: _Job | None = None
     #: W2-05: the jobs of a batched call in hand (a forget cancels the one it touches)
@@ -693,7 +702,7 @@ class _Store:
     batch_timer: asyncio.TimerHandle | None = None
     session_windows: Counter[str] = field(default_factory=Counter)
     #: W2-06b: the last turns of the previous window (the CONTEXT part of the prompt)
-    tail: list[str] = field(default_factory=list)
+    tails: dict[str | None, list[str]] = field(default_factory=dict)
 
 
 class WindowPipeline:
@@ -820,6 +829,20 @@ class WindowPipeline:
         self._recover_in_background()
         ns = record.namespace
         store = self._store(ns)
+        conversation_id = _conversation_id(record)
+        # The source/session id may deliberately identify one physical transcript containing
+        # several independent conversations. Close only the window at that boundary; the
+        # session-close hook still belongs to the physical session below.
+        if (
+            conversation_id is not None
+            and store.conversation_id is not None
+            and conversation_id != store.conversation_id
+        ):
+            window = store.segmenter.close("flush")
+            if window is not None:
+                self._enqueue(ns, store, window)
+        if conversation_id is not None:
+            store.conversation_id = conversation_id
         vector: list[float] | None = None
         if self._embed is not None and self.settings.topic_k > 0.0:
             try:
@@ -859,6 +882,7 @@ class WindowPipeline:
                     {
                         "kind": "window",
                         "session": window.session,
+                        "conversation_id": store.conversation_id,
                         "reason": window.reason,
                         "record_ids": window.record_ids,
                         **(
@@ -874,6 +898,7 @@ class WindowPipeline:
                 ns,
                 window=window,
                 members=frozenset(window.record_ids),
+                conversation_id=store.conversation_id,
                 tokens=window.tokens,
                 queued_at=self._clock(),
             )
@@ -1211,7 +1236,12 @@ class WindowPipeline:
             batched = await self._outbox_prepare_batch(ns, store, offset)
             if batched is not _MISSING:
                 return ("window", batched)
-        job = _Job(ns, window=window, members=frozenset(window.record_ids))
+        job = _Job(
+            ns,
+            window=window,
+            members=frozenset(window.record_ids),
+            conversation_id=payload.get("conversation_id"),
+        )
         store.inflight = job  # a forget during the call cancels it
         try:
             prepared = await self._prepare_job(ns, job, strict=True)
@@ -1237,7 +1267,7 @@ class WindowPipeline:
                 break
             items.append(
                 BatchItem(
-                    (scope.tenant, scope.owner),
+                    (scope.tenant, scope.owner, payload.get("conversation_id")),
                     (offset, payload),
                     max(int(payload.get("tokens", 1)), 1),
                     float(payload.get("staged_at", 0.0)),  # no stamp (old row): old enough
@@ -1266,7 +1296,14 @@ class WindowPipeline:
                 reason=str(payload.get("reason", "")),
                 session=payload.get("session"),
             )
-            jobs.append(_Job(ns, window=window, members=frozenset(window.record_ids)))
+            jobs.append(
+                _Job(
+                    ns,
+                    window=window,
+                    members=frozenset(window.record_ids),
+                    conversation_id=payload.get("conversation_id"),
+                )
+            )
         store.inflight_batch = jobs
         try:
             prepared = await self._prepare_batch(ns, jobs, strict=True, reason=plans[0].reason)
@@ -1303,7 +1340,9 @@ class WindowPipeline:
             if job.closed_session is not None:
                 sentinel = True
                 break
-            items.append(BatchItem((ns,), job, max(job.tokens, 1), job.queued_at))
+            items.append(
+                BatchItem((ns, job.conversation_id), job, max(job.tokens, 1), job.queued_at)
+            )
         now = self._clock()
         plans = self._batcher.plan(items, now, final=final or sentinel)
         if plans:
@@ -1425,9 +1464,12 @@ class WindowPipeline:
         }
         if self._ctx is not None:
             variables = await self._with_prompt_context(
-                ns, variables, [t for texts in texts_by_window for t in texts], len(live)
+                ns,
+                variables,
+                [t for texts in texts_by_window for t in texts],
+                len(live),
+                live[0][1].conversation_id,
             )
-            self._store(ns).tail = self._ctx.tail(texts_by_window[-1])
         self._counts["windows_processed"] += len(live)
         self._counts["batches"] += 1
         self._counts["batched_windows"] += len(live)
@@ -1845,7 +1887,9 @@ class WindowPipeline:
             "turn_count": len(records),
         }
         if self._ctx is not None:
-            variables = await self._with_prompt_context(ns, variables, line_texts)
+            variables = await self._with_prompt_context(
+                ns, variables, line_texts, conversation_id=_conversation_id(records[0])
+            )
         self._counts["windows_processed"] += 1
         tap.event(
             "write.window.planned",
@@ -1900,13 +1944,19 @@ class WindowPipeline:
         return _Prepared(job, records, merged, line_texts, window_id, len(groups), failed)
 
     async def _with_prompt_context(
-        self, ns: str, variables: dict[str, Any], texts: Sequence[str], windows: int = 0
+        self,
+        ns: str,
+        variables: dict[str, Any],
+        texts: Sequence[str],
+        windows: int = 0,
+        conversation_id: str | None = None,
     ) -> dict[str, Any]:
         """W2-06b: add CONTEXT (the previous window's tail) and KNOWN to the prompt variables."""
         assert self._ctx is not None
         store = self._store(ns)
-        built = await self._ctx.build(ns, "\n".join(texts), store.tail)
-        store.tail = self._ctx.tail(texts)
+        tail = store.tails.get(conversation_id, [])
+        built = await self._ctx.build(ns, "\n".join(texts), tail)
+        store.tails[conversation_id] = self._ctx.tail(texts)
         out = {
             **variables,
             "context": built.context,

@@ -43,7 +43,7 @@ async def build(db: Path, **write: Any) -> Engine:
             "resource": {"enabled": True},
             "shared": {"enabled": True},
         },
-        write={"intake_v2": True, "lineage_table": True, **write},
+        write={"lineage_table": True, **write},
     )
     await eng.start()
     return eng

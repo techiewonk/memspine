@@ -51,7 +51,7 @@ async def engine() -> AsyncIterator[Engine]:
 async def test_write_strips_reserved_tags(engine: Engine, tag: str) -> None:
     record = await engine.write("plain note", namespace="a", tags=[tag, "mine"])
     assert record.tags == ["mine"]
-    [turn] = await engine.write_messages(
+    [turn] = await engine.ingest_messages(
         [{"role": "user", "content": "a turn"}], namespace="a", tags=[tag]
     )
     assert tag not in turn.tags

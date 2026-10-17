@@ -11,7 +11,7 @@ NAME = "assets"
 TITLE = "Documents and assets: ingest (chunks), re-ingest idempotence, new version, ingest_asset (reference + description)"
 CONFIG = {
     "memories": {"resource": {"enabled": True}},
-    "write": {"intake_v2": True, "asset_describer": "ingest"},
+    "write": {"asset_describer": "ingest"},
 }
 
 
@@ -31,7 +31,7 @@ async def ingest_doc(ctx: Ctx) -> None:
     doc = d / "hives.txt"
     doc.write_text(_doc_text("Queen notes for the second hive."), encoding="utf-8")
     ctx.state["doc"] = doc
-    recs = await e.ingest(doc, namespace=ctx.ns)
+    recs = await e.ingest_data(doc, namespace=ctx.ns)
     ctx.state["chunks"] = [r.record_id for r in recs]
     ctx.show("chunks", [(r.source.message_id, len(r.content), r.tags) for r in recs])
     ctx.check("a document longer than one chunk gives several records", len(recs) >= 2, len(recs))
@@ -69,7 +69,7 @@ async def search_chunks(ctx: Ctx) -> None:
 
 async def reingest_same(ctx: Ctx) -> None:
     e = ctx.engine
-    again = await e.ingest(ctx.state["doc"], namespace=ctx.ns)
+    again = await e.ingest_data(ctx.state["doc"], namespace=ctx.ns)
     ctx.expect("re-ingesting an unchanged document returns no new records", 0, len(again))
     live = [r for r in await e.list_records(ctx.ns, "resource") if r.status.value == "activated"]
     ctx.expect("record count unchanged", len(ctx.state["chunks"]), len(live))
@@ -78,7 +78,7 @@ async def reingest_same(ctx: Ctx) -> None:
 async def reingest_changed(ctx: Ctx) -> None:
     e = ctx.engine
     ctx.state["doc"].write_text(_doc_text("Swarm notes for the third hive."), encoding="utf-8")
-    new = await e.ingest(ctx.state["doc"], namespace=ctx.ns)
+    new = await e.ingest_data(ctx.state["doc"], namespace=ctx.ns)
     ctx.show("new records", [(r.source.message_id, r.tags) for r in new])
     ctx.check("a changed chunk produces a new record", len(new) >= 1)
     ctx.check(
@@ -106,9 +106,9 @@ async def ingest_empty_and_missing(ctx: Ctx) -> None:
     e = ctx.engine
     empty = ctx.state["dir"] / "empty.txt"
     empty.write_text("   \n\n  ", encoding="utf-8")
-    ctx.expect("an empty document yields no records", [], await e.ingest(empty, namespace=ctx.ns))
+    ctx.expect("an empty document yields no records", [], await e.ingest_data(empty, namespace=ctx.ns))
     try:
-        await e.ingest(ctx.state["dir"] / "absent.txt", namespace=ctx.ns)
+        await e.ingest_data(ctx.state["dir"] / "absent.txt", namespace=ctx.ns)
         raised = False
     except Exception as exc:
         raised = True

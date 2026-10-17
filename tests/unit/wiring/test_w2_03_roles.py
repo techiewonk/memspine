@@ -40,11 +40,11 @@ MEMORY = "Ilse keeps three hives of bees behind the old mill near the river bend
 
 def convo() -> list[dict[str, str]]:
     return [
-        {"role": "system", "content": SYSTEM},
-        {"role": "user", "content": "Ilse: I repotted the orchid on the balcony"},
-        {"role": "assistant", "content": ASSISTANT},
-        {"role": "tool", "content": TOOL},
-        {"role": "user", "content": "Bram: We booked a kayak tour along the northern coast"},
+        {"conversation_id": "roles-conversation", "role": "system", "content": SYSTEM},
+        {"conversation_id": "roles-conversation", "role": "user", "content": "Ilse: I repotted the orchid on the balcony"},
+        {"conversation_id": "roles-conversation", "role": "assistant", "content": ASSISTANT},
+        {"conversation_id": "roles-conversation", "role": "tool", "content": TOOL},
+        {"conversation_id": "roles-conversation", "role": "user", "content": "Bram: We booked a kayak tour along the northern coast"},
     ]
 
 
@@ -72,7 +72,7 @@ async def test_flag_off_is_unchanged(monkeypatch: pytest.MonkeyPatch) -> None:
     eng = await _engine(monkeypatch, llm)
     try:
         eng._config().firewall.skip_message_roles[:] = ["system"]
-        await eng.write_messages(convo(), namespace=NS, session_id="s1")
+        await eng.ingest_messages(convo(), namespace=NS, session_id="s1")
         rows = await raw(eng)
         assert SYSTEM not in rows  # the old skip: a system turn is not stored
         assert not any(
@@ -93,7 +93,7 @@ async def test_system_is_raw_but_never_derived(monkeypatch: pytest.MonkeyPatch) 
     eng = await _engine(monkeypatch, llm, role_policy_v2=True)
     try:
         eng._config().firewall.skip_message_roles[:] = ["system"]  # on: raw keeps it anyway
-        await eng.write_messages(convo(), namespace=NS, session_id="s1")
+        await eng.ingest_messages(convo(), namespace=NS, session_id="s1")
         rows = await raw(eng)
         assert SYSTEM in rows
         assert f"{T.ROLE_USE_TAG_PREFIX}excluded" in rows[SYSTEM].tags
@@ -111,7 +111,7 @@ async def test_assistant_is_proposed_and_never_above_user(monkeypatch: pytest.Mo
     llm = FakeWindowLLM()
     eng = await _engine(monkeypatch, llm, role_policy_v2=True, stamping_v2=True)
     try:
-        await eng.write_messages(convo(), namespace=NS, session_id="s1")
+        await eng.ingest_messages(convo(), namespace=NS, session_id="s1")
         rows = await raw(eng)
         a, u = rows[ASSISTANT], rows["Ilse: I repotted the orchid on the balcony"]
         assert a.provenance_class == "assistant_proposed"
@@ -129,7 +129,7 @@ async def test_tool_is_evidence_and_a_fact_only_it_backs_is_marked(
     llm = FakeWindowLLM()
     eng = await _engine(monkeypatch, llm, role_policy_v2=True)
     try:
-        await eng.write_messages(convo(), namespace=NS, session_id="s1")
+        await eng.ingest_messages(convo(), namespace=NS, session_id="s1")
         rows = await raw(eng)
         t = rows[TOOL]
         assert t.provenance_class == "tool"
@@ -153,7 +153,7 @@ async def test_live_members_filters_for_session_stages(monkeypatch: pytest.Monke
     llm = FakeWindowLLM()
     eng = await _engine(monkeypatch, llm, role_policy_v2=True)
     try:
-        await eng.write_messages(convo(), namespace=NS, session_id="s1")
+        await eng.ingest_messages(convo(), namespace=NS, session_id="s1")
         rows = await raw(eng)
         storage = eng._require_started()
         ctx = SimpleNamespace(storage=storage, config=eng._config())
@@ -173,7 +173,7 @@ async def test_marked_echo_is_raw_only(monkeypatch: pytest.MonkeyPatch) -> None:
     eng = await _engine(monkeypatch, llm, role_policy_v2=True)
     try:
         echo = "Noor: " + wrap_recall("rec-1", "the orchid was repotted twice last spring")
-        await eng.write_messages(
+        await eng.ingest_messages(
             [
                 {"role": "user", "content": "Ilse: I repotted the orchid on the balcony"},
                 {"role": "assistant", "content": echo},
@@ -197,7 +197,7 @@ async def test_engine_own_wrapper_counts_as_a_marker(monkeypatch: pytest.MonkeyP
     eng = await _engine(monkeypatch, llm, role_policy_v2=True)
     try:
         text = f"Noor: {T.CURRENT_STATE_MARKER} Ilse lives in Oslo"
-        await eng.write_messages(
+        await eng.ingest_messages(
             [{"role": "assistant", "content": text}], namespace=NS, session_id="s1"
         )
         assert T.ECHO_TAG in (await raw(eng))[text].tags
@@ -215,7 +215,7 @@ async def test_last_read_overlap_is_blocked_marker_free(monkeypatch: pytest.Monk
         paraphrase = "Noor: " + MEMORY  # the marker dropped, the text repeated
         fresh = "Bram: We booked a kayak tour along the northern coast"
         restate = "Ilse: " + MEMORY
-        await eng.write_messages(
+        await eng.ingest_messages(
             [
                 {"role": "assistant", "content": paraphrase},
                 {"role": "user", "content": fresh},
@@ -236,7 +236,7 @@ async def test_last_read_overlap_is_blocked_marker_free(monkeypatch: pytest.Monk
         assert eng._role_metrics["echo.overlap"] == 2
         # another session's read does not make this session's turns echoes
         other = "Noor: " + MEMORY + " again"
-        await eng.write_messages(
+        await eng.ingest_messages(
             [{"role": "assistant", "content": other}], namespace=NS, session_id="s2"
         )
         assert T.ECHO_TAG not in (await raw(eng))[other].tags
@@ -279,15 +279,16 @@ async def build_gateway(tmp_path: Path, **write: Any) -> Engine:
             "semantic": {"enabled": True},
             "procedural": {"enabled": True},
         },
-        write={"intake_v2": True, **write},
+        write=dict(write),
     )
     await eng.start()
     return eng
 
 
 MIXED = [
-    {"role": "user", "content": "Ilse: just chatting about the weather today"},
+    {"message_id": "role-0", "role": "user", "content": "Ilse: just chatting about the weather today"},
     {
+        "message_id": "role-1",
         "role": "user",
         "content": "Ilse: I moved to Oslo last week",
         "entity": "Ilse",
@@ -295,12 +296,14 @@ MIXED = [
         "value": "Oslo",
     },
     {
+        "message_id": "role-2",
         "role": "assistant",
         "content": "Plan: book ferry, pack boxes, hand over keys",
         "memory_type": "plan",
         "name": "moving day",
     },
     {
+        "message_id": "role-3",
         "role": "assistant",
         "content": "To tune the hive, check the frames weekly",
         "memory_type": "skill",
@@ -312,7 +315,7 @@ MIXED = [
 async def test_routing_keyed_vs_unkeyed(tmp_path: Path) -> None:
     eng = await build_gateway(tmp_path, role_policy_v2=True)
     try:
-        await eng.write_messages(MIXED, namespace=NS, session_id="s1")
+        await eng.ingest_messages(MIXED, namespace=NS, session_id="s1")
         storage = eng._require_started()
         rawrows = {r.content: r for r in await storage.list_records(NS, "episodic")}
         assert len(rawrows) == 4  # raw keeps every turn
@@ -329,7 +332,7 @@ async def test_routing_keyed_vs_unkeyed(tmp_path: Path) -> None:
         assert eng._role_metrics["route.unkeyed"] == 1
         assert eng._role_metrics["route.semantic"] == 1
         # a retry of the same batch writes nothing new (the typed records carry the write id)
-        await eng.write_messages(MIXED, namespace=NS, session_id="s1")
+        await eng.ingest_messages(MIXED, namespace=NS, session_id="s1")
         assert (
             len([r for r in await storage.list_records(NS, "semantic") if T.ROUTED_TAG in r.tags])
             == 1
@@ -342,7 +345,7 @@ async def test_routing_keyed_vs_unkeyed(tmp_path: Path) -> None:
 async def test_routing_off_without_the_flag(tmp_path: Path) -> None:
     eng = await build_gateway(tmp_path)
     try:
-        await eng.write_messages(MIXED, namespace=NS, session_id="s1")
+        await eng.ingest_messages(MIXED, namespace=NS, session_id="s1")
         storage = eng._require_started()
         assert not [r for r in await storage.list_records(NS, "semantic") if T.ROUTED_TAG in r.tags]
         assert await storage.list_records(NS, "procedural") == []
@@ -359,7 +362,7 @@ async def test_an_echo_turn_is_not_routed(tmp_path: Path) -> None:
             "entity": "Ilse",
             "attribute": "city",
         }
-        await eng.write_messages([echoed], namespace=NS, session_id="s1")
+        await eng.ingest_messages([echoed], namespace=NS, session_id="s1")
         storage = eng._require_started()
         assert not [r for r in await storage.list_records(NS, "semantic") if T.ROUTED_TAG in r.tags]
         assert eng._role_metrics["route.skipped"] == 1

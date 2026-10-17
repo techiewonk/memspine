@@ -1,4 +1,4 @@
-"""#63: the firewall's neighbour query is batched in ``write_messages``.
+"""#63: the firewall's neighbour query is batched in ``ingest_messages``.
 
 One batched vector search before the first turn, plus the rows written since,
 must give every turn the same neighbours (and so the same verdict) as the
@@ -90,7 +90,7 @@ async def _ingest(batched: bool, monkeypatch: pytest.MonkeyPatch) -> dict[str, A
         await eng.write("seed note about the lake and the garden", namespace="conv")
         records = []
         for start in range(0, 120, 40):
-            records += await eng.write_messages(
+            records += await eng.ingest_messages(
                 _turns(120)[start : start + 40], namespace="conv", channel="web"
             )
     finally:
@@ -104,7 +104,7 @@ async def test_batched_neighbours_match_per_turn_queries(monkeypatch: pytest.Mon
     batched = await _ingest(True, monkeypatch)
 
     assert plain["calls"]["query_many"] == 0
-    assert batched["calls"]["query_many"] >= 3  # per write_messages call, per embedding chunk
+    assert batched["calls"]["query_many"] >= 3  # per ingest_messages call, per embedding chunk
     assert batched["calls"]["query"] < plain["calls"]["query"]
 
     def verdicts(run: dict[str, Any]) -> list[tuple[Any, ...]]:

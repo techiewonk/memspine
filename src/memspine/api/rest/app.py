@@ -54,6 +54,7 @@ from memspine.api.rest.models import (
     FeedbackRequest,
     GrantRequest,
     GrantView,
+    IngestMessagesRequest,
     PlanRequest,
     PromoteRequest,
     QuarantineDecision,
@@ -64,7 +65,6 @@ from memspine.api.rest.models import (
     SkillRequest,
     SubscriptionRequest,
     WatchRequest,
-    WriteMessagesRequest,
     WriteRequest,
 )
 from memspine.config import constants
@@ -354,19 +354,36 @@ def build_app(engine: Engine, rest: RestConfig | None = None) -> FastAPI:
             purposes=body.purposes or None,
         )
 
-    @app.post("/write_messages")
-    async def write_messages(
-        body: WriteMessagesRequest, ns: Namespace, request: Request
+    @app.post("/ingest_messages")
+    async def ingest_messages(
+        body: IngestMessagesRequest, ns: Namespace, request: Request
     ) -> list[MemoryRecord]:
         # C4: chat-transcript ingestion. Force channel="rest" (SEC-C1, same as
         # /write) so TrustPolicy caps each turn's trust regardless of the claimed
         # role — the per-turn role is preserved for provenance only.
-        turns = [{"role": turn.role, "content": turn.content} for turn in body.messages]
+        turns = [turn.model_dump(exclude_none=True) for turn in body.messages]
         actor = _actor(request, body.actor)
         mem = scope(request, ns)
         if body.as_episode:
-            return await mem.write_episode(turns, actor=actor, channel="rest")  # type: ignore[no-any-return]  # CI-GREEN: pre-existing typing debt
-        return await mem.write_messages(turns, actor=actor, channel="rest")  # type: ignore[no-any-return]  # CI-GREEN: pre-existing typing debt
+            if body.session_id is not None or body.conversation_id is not None:
+                raise HTTPException(
+                    status_code=422,
+                    detail="session_id and conversation_id cannot be set with as_episode",
+                )
+            try:
+                return await mem.write_episode(turns, actor=actor, channel="rest")  # type: ignore[no-any-return]  # CI-GREEN: pre-existing typing debt
+            except ValueError as exc:
+                raise HTTPException(status_code=422, detail=str(exc)) from exc
+        try:
+            return await mem.ingest_messages(  # type: ignore[no-any-return]  # CI-GREEN: pre-existing typing debt
+                turns,
+                actor=actor,
+                channel="rest",
+                session_id=body.session_id,
+                conversation_id=body.conversation_id,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     @app.post("/search")
     async def search(body: SearchRequest, ns: Namespace, request: Request) -> list[ScoredRecord]:

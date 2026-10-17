@@ -49,7 +49,7 @@ def _engine(path: Path | None = None, rederive: bool = True, **priv: Any) -> Eng
 
 
 async def _turns(eng: Engine) -> tuple[MemoryRecord, MemoryRecord, MemoryRecord]:
-    await eng.write_messages(
+    await eng.ingest_messages(
         [
             {"role": "user", "content": f"I keep a hive named {MARK} behind the mill"},
             {"role": "user", "content": "my sister plays the cello"},

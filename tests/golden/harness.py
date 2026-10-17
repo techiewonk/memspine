@@ -126,7 +126,7 @@ async def _ingest(eng: Engine, spec: dict[str, Any], labels: _Labels) -> None:
     for conv in spec["conversations"]:
         ns = conv["namespace"]
         for session in conv["sessions"]:
-            written = await eng.write_messages(
+            written = await eng.ingest_messages(
                 session["messages"],
                 namespace=ns,
                 session_id=session["session_id"],

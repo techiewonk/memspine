@@ -391,7 +391,7 @@ async def say(eng: Engine, session: str, city: str, day: int) -> None:
             "timestamp": (T0 + timedelta(days=day)).isoformat(),
         }
     ]
-    await eng.write_messages(msg, namespace="a", session_id=session, group_id=session)
+    await eng.ingest_messages(msg, namespace="a", session_id=session, group_id=session)
     await eng.flush_windows()
 
 

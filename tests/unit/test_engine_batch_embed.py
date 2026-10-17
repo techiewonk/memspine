@@ -1,4 +1,4 @@
-"""G9: ``write_messages`` embeds its turns in chunked batches.
+"""G9: ``ingest_messages`` embeds its turns in chunked batches.
 
 The turns that reach the door are embedded up front, in calls of at most
 ``embedding.batch_size`` texts; the per-record firewall and vector projection
@@ -64,7 +64,18 @@ async def _engine(
 
 
 def _messages() -> list[dict[str, str]]:
-    return [{"role": "user", "content": text} for text in _TURNS]
+    # The comparison uses two independent engines; stable identities ensure their
+    # generated identity tags are part of the comparison rather than noise.
+    return [
+        {
+            "role": "user",
+            "content": text,
+            "message_id": f"batch-message-{i}",
+            "session_id": "batch-session",
+            "conversation_id": "batch-conversation",
+        }
+        for i, text in enumerate(_TURNS)
+    ]
 
 
 async def _neighbours(engine: Engine, ns: str) -> list[tuple[str, float]]:
@@ -82,11 +93,11 @@ async def _neighbours(engine: Engine, ns: str) -> list[tuple[str, float]]:
     return sorted(out)
 
 
-async def test_write_messages_makes_one_embedding_call(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_ingest_messages_makes_one_embedding_call(monkeypatch: pytest.MonkeyPatch) -> None:
     spy = SpyEmbedder()
     engine = await _engine(monkeypatch, spy)
     try:
-        records = await engine.write_messages(_messages(), namespace="chat/batch")
+        records = await engine.ingest_messages(_messages(), namespace="chat/batch")
         assert len(records) == len(_TURNS)
         assert spy.calls == [_TURNS]  # one call; firewall + projector hit the cache
     finally:
@@ -100,15 +111,22 @@ async def test_batched_records_and_vectors_match_single_writes(
     batched = await _engine(monkeypatch, batched_spy)
     single = await _engine(monkeypatch, single_spy)
     try:
-        got = await batched.write_messages(_messages(), namespace="chat/x")
+        got = await batched.ingest_messages(_messages(), namespace="chat/x")
         want = []
         for message in _messages():
-            want.extend(await single.write_messages([message], namespace="chat/x"))
+            want.extend(await single.ingest_messages([message], namespace="chat/x"))
         assert len(single_spy.calls) == len(_TURNS)  # unbatched: one call per turn
 
         def shape(records: list[Any]) -> list[tuple[Any, ...]]:
             return [
-                (r.content, r.memory_type, r.trust, r.quarantined, r.tags, r.source.role)
+                (
+                    r.content,
+                    r.memory_type,
+                    r.trust,
+                    r.quarantined,
+                    [tag for tag in r.tags if not tag.startswith("idem:")],
+                    r.source.role,
+                )
                 for r in records
             ]
 
@@ -123,7 +141,7 @@ async def test_batch_larger_than_batch_size_is_chunked(monkeypatch: pytest.Monke
     spy = SpyEmbedder()
     engine = await _engine(monkeypatch, spy, embedding={"batch_size": 2})
     try:
-        await engine.write_messages(_messages(), namespace="chat/chunk")
+        await engine.ingest_messages(_messages(), namespace="chat/chunk")
         assert [len(call) for call in spy.calls] == [2, 2, 1]
         assert [text for call in spy.calls for text in call] == _TURNS
     finally:
@@ -135,7 +153,7 @@ async def test_single_write_embeds_exactly_as_before(monkeypatch: pytest.MonkeyP
     engine = await _engine(monkeypatch, spy)
     try:
         await engine.write(_TURNS[0], namespace="chat/one", memory_type="episodic")
-        await engine.write_messages(_messages()[1:2], namespace="chat/one")
+        await engine.ingest_messages(_messages()[1:2], namespace="chat/one")
         assert spy.calls == [[_TURNS[0]], [_TURNS[1]]]
     finally:
         await engine.stop()
@@ -146,7 +164,7 @@ async def test_skipped_turns_are_not_embedded(monkeypatch: pytest.MonkeyPatch) -
     engine = await _engine(monkeypatch, spy, firewall={"skip_message_roles": ["system"]})
     try:
         messages = [{"role": "system", "content": "You are helpful."}, *_messages()[:2]]
-        records = await engine.write_messages(messages, namespace="chat/skip")
+        records = await engine.ingest_messages(messages, namespace="chat/skip")
         assert len(records) == 2
         assert spy.calls == [_TURNS[:2]]
     finally:
@@ -161,7 +179,7 @@ async def test_failed_batch_embedding_writes_nothing(monkeypatch: pytest.MonkeyP
     engine = await _engine(monkeypatch, spy)
     try:
         with pytest.raises(RuntimeError, match="embedding provider unavailable"):
-            await engine.write_messages(_messages(), namespace="chat/fail")
+            await engine.ingest_messages(_messages(), namespace="chat/fail")
         assert await engine.retrieve("chat/fail") == []
     finally:
         await engine.stop()

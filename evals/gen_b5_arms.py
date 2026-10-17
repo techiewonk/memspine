@@ -52,7 +52,7 @@ OVERLAYS: dict[str, dict] = {
     "decay": {"offline": {"decay_v2": True}},
     "stamping": {"write": {"stamping_v2": True}},
     "rolepolicy": {"write": {"role_policy_v2": True}},
-    "intake": {"write": {"intake_v2": True}},
+    "intake": {"write": {}},
     # window-facts reference and its two flag arms (the flags need write.window_extract = facts)
     "windowfacts": WX,
     "envelope": {

@@ -1,4 +1,4 @@
-"""write_messages shares one projection batch across its turns.
+"""ingest_messages shares one projection batch across its turns.
 
 The batch may hold the lexical commit and the projector checkpoints until the
 end of the call, but reads inside it must see every applied turn, and a
@@ -46,11 +46,11 @@ async def _head(engine: Engine) -> int:
     return max(event.seq or 0 for event in events)
 
 
-async def test_write_messages_checkpoints_every_projector_at_the_head() -> None:
+async def test_ingest_messages_checkpoints_every_projector_at_the_head() -> None:
     engine = await _engine()
     try:
         assert any(isinstance(p, LexicalProjector) for p in engine._projectors)
-        await engine.write_messages(_TURNS, namespace="chat")
+        await engine.ingest_messages(_TURNS, namespace="chat")
         head = await _head(engine)
         assert set((await _offsets(engine)).values()) == {head}
         assert engine._batch_offsets is None
@@ -93,7 +93,7 @@ async def test_a_failed_flush_keeps_only_that_checkpoint_behind(
 
         monkeypatch.setattr(lexical, "flush", broken_flush)
         with pytest.raises(RuntimeError, match="index unavailable"):
-            await engine.write_messages(_TURNS, namespace="chat")
+            await engine.ingest_messages(_TURNS, namespace="chat")
         head = await _head(engine)
         offsets = await _offsets(engine)
         assert offsets.pop("lexical") == 0

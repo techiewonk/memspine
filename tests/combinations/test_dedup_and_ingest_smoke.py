@@ -75,7 +75,7 @@ async def test_plaintext_ingest_round_trips_without_the_extra(tmp_path: Path, ma
             "# Incident Report\n\nThe cache filled up overnight.\n\nRotation now runs hourly.\n",
             encoding="utf-8",
         )
-        chunks = await engine.ingest(str(doc))
+        chunks = await engine.ingest_data(str(doc))
         assert chunks, "ingest produced no resource records"
         assert all(c.memory_type == "resource" for c in chunks)
         stored = await engine.retrieve(memory_type="resource")
@@ -95,7 +95,7 @@ async def test_rich_format_ingest_smoke_when_extra_present(tmp_path: Path, make_
     try:
         doc = tmp_path / "brief.md"  # markitdown handles md too; keep the smoke cheap
         doc.write_text("# Brief\n\nOne paragraph of content.\n", encoding="utf-8")
-        chunks = await engine.ingest(str(doc))
+        chunks = await engine.ingest_data(str(doc))
         assert chunks
     finally:
         await engine.stop()

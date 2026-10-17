@@ -135,7 +135,7 @@ class FakeEngine:
         self.calls: list[dict[str, object]] = []
         self.sleeps = 0
 
-    async def write_messages(
+    async def ingest_messages(
         self,
         messages: Sequence[Mapping[str, str]],
         namespace: str = "default",

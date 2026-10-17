@@ -503,6 +503,29 @@ def _services(eng: Any, read: Any) -> ServiceState:
     )
 
 
+async def layer_inventory(
+    eng: Any, ns: str, read: Any, *, selected: Sequence[str] = ()
+) -> LayerRegistry:
+    """Inventory for diagnostics, not an admission decision.
+
+    Marker entries are counted separately from record rows. Their presence does not
+    establish freshness, visibility or selection by the profile-card consumer.
+    """
+    storage = eng._require_started()
+    template = LayerTemplate.from_config(
+        eng._config(),
+        worker_model=_services(eng, read).worker_model,
+        graph_store=eng._graph is not None,
+    )
+    registry = (await LayerRegistry.load(storage, ns, template)).with_selected(selected)
+    if eng._config().offline.profile_card_v2 or read.profile_card_header:
+        from memspine.derive.pipeline.stages.profile_card import read_latest_card
+
+        card = await read_latest_card(storage, ns)
+        registry = registry.with_artifacts("L5", len(card.entries) if card else 0)
+    return registry
+
+
 async def layer_state(eng: Any, ns: str, read: Any) -> LayerState:
     """Adapter: the :class:`LayerRegistry` of the namespace as a :class:`LayerState` (F-02b).
 

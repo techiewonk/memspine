@@ -242,7 +242,7 @@ async def test_write_tags_and_content_unchanged() -> None:
     eng = _engine()
     await eng.start()
     try:
-        recs = await eng.write_messages(
+        recs = await eng.ingest_messages(
             [
                 {
                     "role": "user",
@@ -268,7 +268,7 @@ async def test_explicit_speaker_without_text_prefix() -> None:
     eng = _engine()
     await eng.start()
     try:
-        [rec] = await eng.write_messages(
+        [rec] = await eng.ingest_messages(
             [{"role": "user", "content": "I adopted a dog", "speaker": "Melanie"}], namespace="a"
         )
         assert "spk:melanie" in rec.tags
@@ -289,17 +289,20 @@ async def test_off_writes_no_perspective_tags() -> None:
     )
     await eng.start()
     try:
-        [rec] = await eng.write_messages(
+        [rec] = await eng.ingest_messages(
             [{"role": "user", "content": "Caroline: My cousin moved", "speaker": "Caroline"}],
             namespace="a",
         )
-        assert rec.tags == []
+        assert not any(
+            tag.startswith(("spk:", "sub:", "addr:"))
+            for tag in rec.tags
+        )
     finally:
         await eng.stop()
 
 
 async def _store(eng: Engine) -> None:
-    await eng.write_messages(
+    await eng.ingest_messages(
         [
             {
                 "role": "user",
@@ -400,7 +403,7 @@ async def test_chat_roles_assistant_statements() -> None:
     eng = _engine(perspective_mode="subject_weight", perspective_weight=0.9)
     await eng.start()
     try:
-        await eng.write_messages(
+        await eng.ingest_messages(
             [
                 {"role": "user", "content": "I love hiking in the mountains."},
                 {"role": "assistant", "content": "I recommend the Alps trail for hiking."},

@@ -77,15 +77,15 @@ async def test_i7_off_changes_nothing() -> None:
         await eng.stop()
 
 
-async def test_i7_write_messages_without_timestamps() -> None:
+async def test_i7_ingest_messages_without_timestamps() -> None:
     eng = _engine(skip_defaulted_dates=True)
     await eng.start()
     try:
-        recs = await eng.write_messages(
+        recs = await eng.ingest_messages(
             [{"role": "user", "content": "I like tea"}], namespace="a", session_id="s"
         )
         assert all("ts_defaulted" in r.tags for r in recs)
-        stamped = await eng.write_messages(
+        stamped = await eng.ingest_messages(
             [
                 {
                     "role": "user",

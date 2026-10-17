@@ -79,7 +79,7 @@ async def test_ledger_id_also_unhides_a_passive_session() -> None:
         from datetime import UTC, datetime, timedelta
 
         old = datetime.now(UTC) - timedelta(days=3)
-        await eng.write_messages(
+        await eng.ingest_messages(
             [{"role": "user", "content": "we went camping by the lake"}],
             namespace="a",
             session_id="trip",

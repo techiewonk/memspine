@@ -35,7 +35,7 @@ async def _session(eng: Engine) -> None:
             ]
         )
     ]
-    await eng.write_messages(msgs, namespace="a", session_id="s1", group_id="s1")
+    await eng.ingest_messages(msgs, namespace="a", session_id="s1", group_id="s1")
 
 
 async def test_insights_are_stored_once_with_evidence(monkeypatch: pytest.MonkeyPatch) -> None:

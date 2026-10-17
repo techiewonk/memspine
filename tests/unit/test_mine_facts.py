@@ -37,7 +37,7 @@ async def _write_session(eng: Engine, trust_role: str = "user") -> datetime:
             ]
         )
     ]
-    await eng.write_messages(msgs, namespace="a", session_id="s1", group_id="s1")
+    await eng.ingest_messages(msgs, namespace="a", session_id="s1", group_id="s1")
     return t0
 
 
@@ -105,7 +105,7 @@ async def test_mined_fact_trust_follows_low_trust_sources(monkeypatch: pytest.Mo
             }
             for i in range(3)
         ]
-        await eng.write_messages(
+        await eng.ingest_messages(
             msgs, namespace="a", session_id="s2", group_id="s2", channel="ingest"
         )
         await eng.sleep()
@@ -204,7 +204,7 @@ async def test_mine_by_topic_calls_the_miner_once_per_segment(
     ]
     await eng.start()
     try:
-        await eng.write_messages(msgs, namespace="a", session_id="s1", group_id="s1")
+        await eng.ingest_messages(msgs, namespace="a", session_id="s1", group_id="s1")
         report = await eng.sleep()
         assert report["mine_facts"]["sessions"] == 1
         assert len(seen) == 2  # one call per topic segment
@@ -234,7 +234,7 @@ async def _two_sessions(eng: Engine) -> None:
             {"role": "user", "content": c, "timestamp": (t + timedelta(minutes=i)).isoformat()}
             for i, c in enumerate([line, "Melanie: wow, tell me more", "Caroline: it was great"])
         ]
-        await eng.write_messages(msgs, namespace="a", session_id=f"s{n}", group_id=f"s{n}")
+        await eng.ingest_messages(msgs, namespace="a", session_id=f"s{n}", group_id=f"s{n}")
         await eng.sleep()
 
 

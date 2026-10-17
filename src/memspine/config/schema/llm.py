@@ -39,7 +39,7 @@ class EmbeddingConfig(BaseModel):
     #: ``search_document``). None = the provider default for both.
     query_input_type: str | None = None
     document_input_type: str | None = None
-    #: G9: the most texts one embedding call carries when ``write_messages``
+    #: G9: the most texts one embedding call carries when ``ingest_messages``
     #: embeds its turns up front (Cohere on Bedrock accepts up to 96).
     batch_size: int = Field(default=32, ge=1)
     #: N64 (plan v3.2 gaps): fastembed only: a text prepended to every retrieval

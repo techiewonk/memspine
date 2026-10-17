@@ -11,14 +11,13 @@ from collections.abc import (
 )
 from contextvars import ContextVar
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta
 from time import perf_counter
 from typing import Any
 
 from memspine.config import constants
 from memspine.config.schema import FirewallConfig
-from memspine.core.correction import Correction, detect_correction
-from memspine.core.forget_request import is_forget_request
+from memspine.core.correction import Correction
 from memspine.core.inference import (
     INFERRED_CHANNELS,
     INFERRED_TAG,
@@ -27,7 +26,6 @@ from memspine.core.inference import (
     support_count,
     support_tags,
 )
-from memspine.core.reference_edges import REF_PREFIX, antecedent_kind
 from memspine.core.sensitive import sensitive_topics
 from memspine.core.sensitivity import (
     GRADE_TAG_PREFIX,
@@ -43,15 +41,17 @@ from memspine.exceptions import (
     ConflictError,
 )
 from memspine.ingest import role_wiring
-from memspine.ingest.index_view import PENDING_INDEX_PREFIX, compose_index_text, plan_prefixes
-from memspine.ingest.stamping import (
-    ASSENT_TAG_PREFIX,
+from memspine.ingest.index_view import compose_index_text
+from memspine.ingest.message_helpers import (
+    IDEM_TAG_PREFIX,  # noqa: F401  gateway reads this shared constant
+    INTAKE_LANDED,  # noqa: F401  gateway sets this shared ContextVar
+    PENDING_INDEX_PREFIX,
     PENDING_STAMP,
-    ConversationStamper,
-    PendingStamp,
-    apply_stamp,
-    participants_of_call,
+    _index_view_prefixes,
+    _looks_like_recall,
+    _turn_content,
 )
+from memspine.ingest.stamping import apply_stamp
 from memspine.ingest.timeparse import _zone_of
 from memspine.memories.episodic.lifecycle import session_of
 from memspine.models.encoders.embedding.base import EmbeddingService
@@ -59,12 +59,9 @@ from memspine.models.encoders.query.shape import (
     content_words,
 )
 from memspine.models.encoders.query.temporal_query import (
-    RECOMMENDATION_TAG,
     SPEAKER_PREFIX,
-    is_recommendation,
     speaker_of,
 )
-from memspine.observability import inspect as insp
 from memspine.observability import tap
 from memspine.observability.logging import (
     EVENT_WRITE,
@@ -101,24 +98,6 @@ _log = get_logger(__name__)
 CUE_TAG = constants.CUE_TAG
 
 
-#: H21: markers memspine itself writes into assembled context. A message carrying them is
-#: recalled memory echoed back, not a new observation. Built from the emitters' constants
-#: (R5-4) so a new or reworded wrapper cannot silently slip past the filter.
-_RECALL_MARKERS = (
-    constants.UNTRUSTED_NOTE_MARKER,
-    constants.CURRENT_STATE_MARKER,
-    constants.HISTORY_MARKER,
-    constants.DISPUTED_MARKER,
-    constants.INSTRUCTION_FLAG_MARKER,
-    constants.TIMELINE_MARKER,
-    constants.STANDING_MARKER,
-    constants.CLAIM_MARKER,
-    constants.CARDS_MARKER,
-    constants.PROFILE_MARKER,
-    constants.COUNT_MARKER,
-)
-
-
 #: #44: ordering of PII tiers, least to most sensitive.
 _PII_RANK = {PiiTier.NONE: 0, PiiTier.LOW: 1, PiiTier.HIGH: 2, PiiTier.REGULATED: 3}
 
@@ -136,32 +115,10 @@ def _screen_text(text: str, fw: FirewallConfig) -> tuple[str, list[str]]:
     )
 
 
-def _looks_like_recall(content: str) -> bool:
-    return any(marker in content for marker in _RECALL_MARKERS)
-
-
 def _reply_targets(record: MemoryRecord) -> list[str]:
     """G27: the record ids ``record``'s ``reply_to:<id>`` tags name."""
     prefix = constants.REPLY_TO_PREFIX
     return [tag[len(prefix) :] for tag in record.tags if tag.startswith(prefix) and tag != prefix]
-
-
-def _reply_target(turn: Mapping[str, Any], index: int, written: Mapping[int, str]) -> str | None:
-    """G27: the record a ``write_messages`` turn answers (its ``reply_to`` field).
-
-    A string is a record id; an int is the index of an earlier message of the same
-    call (one skipped as system/tool text or injected recall links to nothing).
-    Anything else, or an index that is not earlier, is a ``ValueError``."""
-    raw: object = turn.get("reply_to")
-    if raw is None:
-        return None
-    if isinstance(raw, str) and raw:
-        return raw
-    if isinstance(raw, int) and not isinstance(raw, bool) and 0 <= raw < index:
-        return written.get(raw)
-    raise ValueError(
-        f"messages[{index}]['reply_to'] must be a record id or the index of an earlier message"
-    )
 
 
 def _caller_tags(tags: Sequence[str] | None, ns: str) -> list[str]:
@@ -195,7 +152,7 @@ class WriteOutcome:
 
 
 class _NeighbourBatch:
-    """#63: the firewall's nearest-neighbour context for one ``write_messages`` call.
+    """#63: the firewall's nearest-neighbour context for one ``ingest_messages`` call.
 
     ``prefetched`` holds, per content, the top-k hits of ONE batched vector query
     made before the first turn is written. Every WRITE or FORGET the namespace
@@ -261,30 +218,10 @@ class _NeighbourBatch:
         return hits[:top_k]
 
 
-#: W2-01: a turn carrying ``_idem`` (its intake write id) is tagged ``idem:<id>``; the intake
-#: gateway finds the records of an interrupted write by that tag. ``INTAKE_LANDED`` collects
-#: write id -> record id for the gateway's current apply (None outside one).
-IDEM_TAG_PREFIX = "idem:"
-INTAKE_LANDED: ContextVar[dict[str, str] | None] = ContextVar("intake_landed", default=None)
-
-#: #63: the neighbour batch of the ``write_messages`` call running in this task.
+#: #63: the neighbour batch of the ``ingest_messages`` call running in this task.
 _NEIGHBOUR_BATCH: ContextVar[_NeighbourBatch | None] = ContextVar(
     "memspine_neighbour_batch", default=None
 )
-
-
-def _speaker_of(turn: Mapping[str, str]) -> str:
-    """I53: who spoke a message: its ``speaker`` or ``name`` key, else its role."""
-    return str(turn.get("speaker") or turn.get("name") or turn.get("role") or "")
-
-
-def _turn_content(turn: Mapping[str, str]) -> str:
-    """G30 (plan v3.2): a turn's text, with an image or attachment ``caption`` (when
-    the turn carries one) appended as ``[image: caption]``, so it is embedded, indexed
-    and read with the turn. Raises ``KeyError`` without ``content``, as before."""
-    content = turn["content"]
-    caption = turn.get("caption")
-    return f"{content} [image: {caption}]".strip() if caption else content
 
 
 def _message_sender(record: MemoryRecord) -> str | None:
@@ -504,7 +441,7 @@ async def write_ex(eng: Any, content: str, **kwargs: Any) -> WriteOutcome:
     return WriteOutcome(record=record, action=action, occurrence_id=new_record_id())
 
 
-async def write_messages(
+async def apply_messages(
     eng: Any,
     messages: Sequence[Mapping[str, str]],
     namespace: str = "default",
@@ -515,63 +452,7 @@ async def write_messages(
     tags: list[str] | None = None,
     valid_from: datetime | None = None,
 ) -> list[MemoryRecord]:
-    """C4: ingest a chat transcript as per-turn **episodic** records.
-
-    ``messages`` is OpenAI-style ``[{"role": ..., "content": ...}]``. Each
-    turn becomes one episodic record whose provenance ``role`` is the turn's
-    role and whose ``channel`` is ``channel`` (default ``"messages"``);
-    passing ``session_id`` (or using :meth:`write_episode`) stamps every turn
-    with the same conversation id so they group as one episode. Untrusted
-    callers (e.g. REST) pass ``channel="rest"`` so TrustPolicy caps the
-    turns' trust regardless of the claimed role (SEC-C1). Turns ride the
-    ordinary write door, so the firewall, dedup, and lifecycle all apply.
-    Additive over the P0 contract — callers that never use it see no change.
-
-    Event time: a message may carry ``"timestamp"`` (ISO-8601 string or
-    ``datetime``); otherwise ``valid_from`` applies to the whole batch;
-    otherwise "now". This is what lets "when did X happen" be answered from
-    the session date rather than from the ingestion time.
-
-    Reply threads (G27): a message may carry ``"reply_to"``, the record id it
-    answers or the index of an earlier message of this call; it is passed to
-    :meth:`write` as ``reply_to``.
-
-    Embedding (G9): the turns that will reach the door are embedded up front
-    in calls of at most ``embedding.batch_size`` texts, which fills the
-    embedding cache; the per-record firewall and vector projection then read
-    their vectors from it. If that up-front embedding fails, the call raises
-    before any turn is written, so a retry cannot duplicate turns.
-
-    The turns share one projection batch (:meth:`_projection_batch`): the
-    lexical index commits and the projector checkpoints happen once per
-    call instead of once per turn.
-
-    ``write.intake_v2`` (W2-01): the call goes through the intake gateway first (envelope, write
-    ids, receipt, idempotent retry); the gateway runs :func:`write_messages_direct` on the fresh
-    turns."""
-    if eng._config().write.intake_v2:
-        from memspine.ingest import gateway as intake_gateway
-
-        return await intake_gateway.write_messages(
-            eng, messages, namespace, actor, session_id, channel, group_id, tags, valid_from
-        )
-    return await write_messages_direct(
-        eng, messages, namespace, actor, session_id, channel, group_id, tags, valid_from
-    )
-
-
-async def write_messages_direct(
-    eng: Any,
-    messages: Sequence[Mapping[str, str]],
-    namespace: str = "default",
-    actor: str = "user",
-    session_id: str | None = None,
-    channel: str = "messages",
-    group_id: str | None = None,
-    tags: list[str] | None = None,
-    valid_from: datetime | None = None,
-) -> list[MemoryRecord]:
-    """The write path as it was before the intake gateway (``write.intake_v2`` off)."""
+    """Internal gateway apply sink; never a second public ingestion path."""
     contents = eng._depositable_contents(messages)
     tap.event(
         "write.messages.received",
@@ -640,7 +521,7 @@ async def _prefetch_neighbours(
 
 async def _write_turns(
     eng: Any,
-    messages: Sequence[Mapping[str, str]],
+    messages: Sequence[Mapping[str, Any]],
     namespace: str,
     actor: str,
     session_id: str | None,
@@ -649,225 +530,12 @@ async def _write_turns(
     tags: list[str] | None,
     valid_from: datetime | None,
 ) -> list[MemoryRecord]:
-    """The per-turn loop of :meth:`write_messages`: each turn goes through
-    the write door on its own, with its own firewall and ladder decisions."""
-    records: list[MemoryRecord] = []
-    written_at: dict[int, str] = {}  # G27: message index -> its record id
-    ref_cfg = eng._config().read  # A07
-    prev_turn: tuple[str, str] | None = None  # (record id, speaker) of the last turn written
-    fw = eng._config().firewall
-    if eng._perspective_options().on:
-        # I39: the call's participants are known before its first turn is annotated
-        state = await eng._persp_state_for(validate_namespace(namespace))
-        for turn in messages:
-            if isinstance(turn, Mapping):
-                who = turn.get("speaker") or turn.get("name")
-                if isinstance(who, str) and who.strip():
-                    state["known"].add(who.strip().lower())
-    session_speakers = (  # I53: everyone present in this call, in order of first turn
-        list(dict.fromkeys(_speaker_of(t) for t in messages if isinstance(t, Mapping)))
-        if await _participants_mode(eng, namespace) == "session"
-        else []
+    """Private Engine hook delegating the per-turn loop to its own module."""
+    from memspine.ingest.message_apply import apply_turns
+
+    return await apply_turns(
+        eng, messages, namespace, actor, session_id, channel, group_id, tags, valid_from
     )
-    role_policy_v2 = eng._config().write.role_policy_v2  # W2-03
-    conv_stamper = None
-    if eng._config().write.stamping_v2:  # W2-02
-        conv_stamper = ConversationStamper(
-            namespace=validate_namespace(namespace),
-            source_id=session_id or "nosession",
-            default_tz=eng._config().write.stamp_default_tz or eng._config().read.naive_timezone,
-            session_speakers=tuple(
-                participants_of_call([t for t in messages if isinstance(t, Mapping)])
-            ),
-        )
-    index_prefixes = _index_view_prefixes(eng, messages, valid_from)  # R14-INDEXVIEW ([] = off)
-    for i, turn in enumerate(messages):
-        try:
-            role = turn["role"]
-            content = _turn_content(turn)
-        except (KeyError, TypeError) as exc:
-            raise ValueError(
-                f"messages[{i}] must be a mapping with 'role' and 'content' keys"
-            ) from exc
-        reply_to = _reply_target(turn, i, written_at)
-        role_dec = (
-            role_wiring.decide(eng, validate_namespace(namespace), session_id, role, content)
-            if role_policy_v2
-            else None
-        )  # W2-03: raw keeps every role; derivation reads the tags
-        if role in fw.skip_message_roles and role_dec is None:
-            tap.event("write.turn.skipped", reason="role", role=role, turn=i)
-            continue  # H21: system/tool text is not memory
-        if fw.skip_injected_recall and role_dec is None and _looks_like_recall(content):
-            # H21: recalled memory echoed back is not new evidence. R2-11:
-            # never silently: a MARKER event traces what was dropped (by
-            # fingerprint, not content) so a genuine turn that merely
-            # quotes a marker can be found and re-ingested.
-            _log.info("memory.skip_injected_recall", namespace=namespace)
-            tap.event("write.turn.skipped", reason="injected_recall", turn=i)
-            eng._require_started()
-            await eng._append_and_project(
-                MemoryEvent(
-                    kind=EventKind.MARKER,
-                    namespace=validate_namespace(namespace),
-                    actor=actor,
-                    payload={
-                        "marker": "recall_skipped",
-                        "role": role,
-                        "session_id": session_id,
-                        "message_index": i,
-                        "content_fingerprint": fingerprint_payload({"content": content}),
-                        "chars": len(content),
-                    },
-                )
-            )
-            continue
-        turn_tags = list(tags or [])
-        if role_dec is not None:
-            turn_tags.extend(role_dec.tags)
-        if eng._perspective_options().on:  # I39: explicit participants ride as tags
-            who = turn.get("speaker") or turn.get("name")
-            to = turn.get("addressee")
-            if isinstance(who, str) and who.strip():
-                turn_tags.append(f"spk:{who.strip().lower()}")
-            if isinstance(to, str) and to.strip():
-                turn_tags.append(f"addr:{to.strip().lower()}")
-        if fw.tag_assistant_claims and role == "assistant":
-            turn_tags.append("assistant_claim")
-        if role == "assistant" and eng._config().read.role_aware and is_recommendation(content):
-            turn_tags.append(RECOMMENDATION_TAG)  # W11: the recommendation ledger
-        if (
-            role == "user"
-            and eng._memory_policy(eng._config(), "episodic").get("forget_detector")
-            and is_forget_request(content)
-        ):
-            # G25: tagged and listed by forget_requests(); never deleted on a regex.
-            turn_tags.append(constants.FORGET_REQUEST_TAG)
-        correction = (
-            detect_correction(content)
-            if role == "user"
-            and eng._memory_policy(eng._config(), "episodic").get("correction_detector")
-            else None
-        )
-        if correction is not None:
-            turn_tags.append(constants.CORRECTION_TAG)  # W17d
-        if "_idem" in turn:  # W2-01: the intake write id rides as a tag (restart recovery)
-            turn_tags.append(f"{IDEM_TAG_PREFIX}{turn['_idem']}")
-        asset_refs = eng._attachment_refs(turn, i, session_id)
-        for _ref, aid in asset_refs:
-            turn_tags.append(f"asset:{aid}")  # E04: ingest.assets
-        if ref_cfg.reference_edges == "on" and reply_to is None and prev_turn is not None:
-            # A07: a short reply / deictic turn answers the turn right before it
-            ref_kind = antecedent_kind(
-                content,
-                _speaker_of(turn),
-                prev_turn[1],
-                max_words=ref_cfg.reference_short_words,
-            )
-            if ref_kind is not None:
-                reply_to = prev_turn[0]
-                turn_tags.append(f"{REF_PREFIX}{ref_kind}")
-        stamp = eng._event_time(turn.get("timestamp")) or valid_from
-        if stamp is not None and session_id and eng._config().read.session_sequence:
-            stamp = eng._sequenced(namespace, session_id, eng._localize(stamp))
-        pending = None
-        if conv_stamper is not None:  # W2-02: three clocks, axes, participants, provenance class
-            pending = _stamp_turn(eng, conv_stamper, i, turn, role, content, bool(session_speakers))
-        pending_token = PENDING_STAMP.set(pending) if pending is not None else None
-        role_token = role_wiring.PENDING_ROLE.set(role_dec) if role_dec is not None else None
-        index_token = (
-            PENDING_INDEX_PREFIX.set(index_prefixes[i])
-            if index_prefixes and index_prefixes[i]
-            else None
-        )
-        try:
-            record = await eng.write(
-                content,
-                namespace=namespace,
-                memory_type="episodic",
-                source=SourceInfo(role=role, channel=channel, message_id=session_id),
-                actor=actor,
-                group_id=group_id,
-                tags=turn_tags or None,
-                valid_from=stamp,
-                reply_to=reply_to,
-                participants=([_speaker_of(turn), *session_speakers] if session_speakers else None),
-                visibility=(
-                    str(turn["visibility"]) if session_speakers and "visibility" in turn else None
-                ),
-            )
-        finally:
-            if pending_token is not None:
-                PENDING_STAMP.reset(pending_token)
-            if role_token is not None:
-                role_wiring.PENDING_ROLE.reset(role_token)
-            if index_token is not None:
-                PENDING_INDEX_PREFIX.reset(index_token)
-        if conv_stamper is not None:
-            conv_stamper.clear_proposal()
-            if role == "assistant" and not record.quarantined:
-                conv_stamper.note_assistant(record.record_id, content)
-        if asset_refs:
-            eng._register_assets(asset_refs, turn, i, session_id, record.record_id)
-        if correction is not None and not record.quarantined:
-            await eng._apply_correction(record.namespace, record, correction, records)
-        records.append(record)
-        written_at[i] = record.record_id
-        if insp.inspect_enabled():  # TI-1: message index -> rid (the pre-record events' join)
-            insp.turn_bound(
-                rid=record.record_id,
-                index=i,
-                session=session_id,
-                speaker=_speaker_of(turn),
-                quarantined=bool(record.quarantined),
-                wid=str(turn["_idem"]) if "_idem" in turn else None,
-            )
-        if "_idem" in turn:  # W2-01: tell the intake gateway which record this write id became
-            sink = INTAKE_LANDED.get()
-            if sink is not None:
-                sink[str(turn["_idem"])] = record.record_id
-        if not record.quarantined:
-            prev_turn = (record.record_id, _speaker_of(turn))
-    return records
-
-
-def _index_view_prefixes(
-    eng: Any, messages: Sequence[Mapping[str, str]], valid_from: datetime | None
-) -> list[str]:
-    """R14-INDEXVIEW: one index prefix per turn (``write.index_view``); an empty list when off.
-    The date is the turn's own timestamp (else the call's ``valid_from``), read as written."""
-    wcfg = eng._config().write
-    if not wcfg.index_view:
-        return []
-
-    def stamp_of(turn: Mapping[str, Any]) -> datetime | None:
-        value = turn.get("timestamp")
-        if isinstance(value, datetime):
-            return value
-        if value is not None:
-            try:
-                return datetime.fromisoformat(str(value))
-            except ValueError:
-                return valid_from
-        return valid_from
-
-    prefixes = plan_prefixes(
-        [t if isinstance(t, Mapping) else {} for t in messages],
-        speaker_of=_speaker_of,  # type: ignore[arg-type]  # CI-GREEN: pre-existing typing debt
-        stamp_of=stamp_of,
-        content_of=_turn_content,  # type: ignore[arg-type]  # CI-GREEN: pre-existing typing debt
-        max_extra_tokens=wcfg.index_view_max_extra_tokens,
-        elliptical_threshold=wcfg.index_view_elliptical_threshold,
-        elliptical_max_words=wcfg.index_view_elliptical_max_words,
-        carry=wcfg.index_view_carry,
-    )
-    tap.event(
-        "write.index_view.plan",
-        turns=len(prefixes),
-        prefixed=sum(1 for p in prefixes if p),
-        extra_tokens=sum(len(p.split()) for p in prefixes),
-    )
-    return prefixes
 
 
 def _index_view_texts(
@@ -885,55 +553,6 @@ def _index_view_texts(
             continue
         texts.append(compose_index_text(prefix, body) or body)
     return texts
-
-
-def _stamp_turn(
-    eng: Any,
-    conv: ConversationStamper,
-    index: int,
-    turn: Mapping[str, Any],
-    role: str,
-    content: str,
-    session_tags_on: bool,
-) -> PendingStamp:
-    """W2-02: stamp one raw turn (taps ``write.stamp.*``) and run the assent check of a user turn
-    against the assistant turn it answers."""
-    wcfg = eng._config().write
-    pending = conv.turn(index, turn, content, recorded_at=datetime.now(UTC))
-    st = pending.stamped
-    extra: list[str] = []
-    verdict, proposal_id = conv.assent_for(role, content)
-    if verdict is not None:
-        if tap.enabled():
-            tap.event(
-                "write.stamp.assent",
-                turn=index,
-                kind=verdict.kind,
-                binds=verdict.binds,
-                matched=list(verdict.matched),
-                reasons=list(verdict.reasons),
-                proposal=proposal_id,
-            )
-        if verdict.confirms and proposal_id is not None:
-            extra.append(f"{ASSENT_TAG_PREFIX}{proposal_id}")
-    if wcfg.stamp_participant_tags == "v1" and not session_tags_on:
-        extra.extend(st.participant_tags)  # the v1 tag, kept for the dual-read period
-    if tap.enabled():
-        tap.event(
-            "write.stamp.turn",
-            turn=index,
-            role=role,
-            src_class=st.src_class,
-            spk=st.spk,
-            addr=st.addr,
-            participants=len(st.participants),
-            source_tz=st.source_tz,
-            tz_unknown=st.tz_unknown,
-            precision=st.precision,
-            dated=st.source_at is not None,
-            flags=list(st.flags),
-        )
-    return PendingStamp(st, tuple(extra))
 
 
 def _localize(eng: Any, value: datetime) -> datetime:
@@ -977,7 +596,7 @@ def _sequenced(eng: Any, namespace: str, session_id: str, stamp: datetime) -> da
 
 
 def _depositable_contents(eng: Any, messages: Sequence[Mapping[str, str]]) -> list[str]:
-    """The contents ``write_messages`` will send through the door, as the
+    """The contents ``ingest_messages`` will send through the door, as the
     firewall will see them (role/recall skips applied, secrets redacted).
 
     Malformed turns are left out here; the write loop raises on them exactly
@@ -1023,20 +642,31 @@ async def write_episode(
     tags: list[str] | None = None,
 ) -> list[MemoryRecord]:
     """C4: ingest a transcript as ONE conversation. Like
-    :meth:`write_messages`, but stamps every turn with a shared,
+    :meth:`ingest_messages`, but stamps every turn with a shared,
     content-derived session id (``message_id``) AND the same ``group_id``
     (D2), so the turns are retrievable and consolidatable as a single
     episode — the M13.2 session detector then treats them as one session at
     consolidation time."""
     session_id = fingerprint_payload({"episode": [str(turn) for turn in messages]})
-    return await eng.write_messages(  # type: ignore[no-any-return]  # CI-GREEN: pre-existing typing debt
-        messages,
+    episode_messages: list[dict[str, Any]] = []
+    for i, turn in enumerate(messages):
+        item = dict(turn)
+        if item.get("message_id") is None:
+            item["message_id"] = fingerprint_payload({"episode": session_id, "index": i})
+        episode_messages.append(item)
+    conversation_id = next(
+        (str(turn["conversation_id"]) for turn in episode_messages if turn.get("conversation_id")),
+        session_id,
+    )
+    return await eng.ingest_messages(  # type: ignore[no-any-return]  # CI-GREEN: pre-existing typing debt
+        episode_messages,
         namespace=namespace,
         actor=actor,
         session_id=session_id,
         channel=channel,
         group_id=session_id,
         tags=tags,
+        conversation_id=conversation_id,
     )
 
 
@@ -1350,23 +980,6 @@ async def _grade_sensitivity(eng: Any, content: str, mode: str) -> tuple[str, tu
     except Exception as exc:  # an enhancer, never a gate; log the class, not the text
         _log.warning("write.sensitivity_decider_failed", error=type(exc).__name__)
     return label.grade, label.categories
-
-
-async def _participants_mode(eng: Any, namespace: str) -> str:
-    """The effective ``write.participants`` for ``namespace`` (F1).
-
-    ``write.participants`` when set. Otherwise, under ``isolation.viewer_required``, a multi-party
-    namespace (``isolation.multi_party_namespaces``, a ``multi_party=True`` handle, or detected from
-    its records) behaves as ``session``: a turn is tagged with its speakers and a derived record
-    inherits its parents' tags, so a private turn's facts are as private as the turn. With the
-    flag off (or a single-party namespace) the result is the configured value, i.e. unchanged.
-    """
-    configured = str(eng._config().write.participants)
-    if configured != "off" or not scope_guard.viewer_required(eng):
-        return configured
-    if await scope_guard.is_multi_party(eng, validate_namespace(namespace)):
-        return "session"
-    return configured
 
 
 async def _govern_write(eng: Any, record: MemoryRecord) -> MemoryRecord:

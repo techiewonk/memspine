@@ -38,7 +38,7 @@ class StubDescriber:
 
 
 async def build(db: Path, **write: Any) -> Engine:
-    cfg: dict[str, Any] = {"intake_v2": True, "lineage_table": True, **write}
+    cfg: dict[str, Any] = {"lineage_table": True, **write}
     eng = Engine(
         template="core",
         dotenv_path=None,
@@ -82,12 +82,6 @@ async def test_flag_off_is_unchanged(tmp_path: Path, png: Path) -> None:
         assert hits and all(ad.ASSET_TAG not in r.tags for r, _ in hits)
     finally:
         await eng.stop()
-
-
-async def test_needs_intake_v2(tmp_path: Path, png: Path) -> None:
-    # FU-REQS: the missing prerequisite is now a config error at load, not a late verb refusal
-    with pytest.raises(ConfigError, match="intake_v2"):
-        await build(tmp_path / "b.db", asset_describer="ingest", intake_v2=False)
 
 
 async def test_ingest_trigger_writes_description_with_lineage(tmp_path: Path, png: Path) -> None:

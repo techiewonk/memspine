@@ -60,7 +60,7 @@ async def test_assistant_recommendation_is_found_for_a_you_recommended_question(
             {"role": r, "content": c, "timestamp": (t0 + timedelta(minutes=i)).isoformat()}
             for i, (r, c) in enumerate(turns)
         ]
-        await eng.write_messages(msgs, namespace="a", session_id="s1", group_id="s1")
+        await eng.ingest_messages(msgs, namespace="a", session_id="s1", group_id="s1")
         records = await eng._require_started().list_records("a", "episodic")
         tagged = [r.content for r in records if RECOMMENDATION_TAG in r.tags]
         assert tagged == ["I'd recommend The Overstory by Richard Powers."]

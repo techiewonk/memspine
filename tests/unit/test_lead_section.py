@@ -192,7 +192,7 @@ async def test_standing_preferences_follow_the_persona() -> None:
     await eng.start()
     try:
         await eng.set_persona("a", "You are a helpful assistant.")
-        await eng.write_messages(
+        await eng.ingest_messages(
             [
                 {"role": "user", "content": "From now on, please call me Mel."},
                 {"role": "user", "content": "I always loved painting as a kid."},
@@ -230,7 +230,7 @@ async def test_standing_block_kept_when_assembly_abstains() -> None:
     await eng.start()
     try:
         await _caroline_facts(eng)
-        await eng.write_messages(
+        await eng.ingest_messages(
             [{"role": "user", "content": "Please always answer in metric units."}], namespace="a"
         )
         ctx = await eng.assemble("Where does Caroline live?", namespace="a")
@@ -246,7 +246,7 @@ async def test_replay_read_keeps_the_timeline() -> None:
     await eng.start()
     try:
         await _caroline_facts(eng)
-        await eng.write_messages(
+        await eng.ingest_messages(
             [{"role": "user", "content": "Caroline told me she moved to Seattle."}],
             namespace="a",
             valid_from=_d(6, 2),

@@ -272,7 +272,7 @@ def as_of_scope(as_of: DateBound | None) -> Iterator[None]:
 class RecordScope:
     """I7 / I8 / G-12 (isolation review, S8 gaps 2026-10-08): which records a read may
     return inside its namespace. ``sessions``: conversation ids
-    (``write_messages(session_id=...)``, a record's ``source.message_id``). ``roles``:
+    (``ingest_messages(session_id=...)``, a record's ``source.message_id``). ``roles``:
     ``user`` / ``assistant`` / ``tool`` / ... (``source.role``). ``memory_types``:
     ``episodic`` / ``semantic`` / ... . ``tags_any``: at least one of these tags.
     None: no limit on that axis."""

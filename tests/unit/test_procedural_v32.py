@@ -217,7 +217,7 @@ async def test_w17d_correction_supersedes_keyed_fact_and_leaves_a_lesson() -> No
     eng = await _engine(episodic={"correction_detector": True}, procedural={"lessons": True})
     try:
         await eng.write("the meeting is on Monday", entity="meeting", attribute="day")
-        turns = await eng.write_messages(
+        turns = await eng.ingest_messages(
             [
                 {"role": "assistant", "content": "Your meeting is on Monday."},
                 {"role": "user", "content": "No, I said Tuesday, not Monday."},
@@ -235,7 +235,7 @@ async def test_w17d_bare_correction_retracts_and_off_by_default() -> None:
     eng = await _engine(episodic={"correction_detector": True})
     try:
         await eng.write("the meeting is on Monday", entity="meeting", attribute="day")
-        await eng.write_messages(
+        await eng.ingest_messages(
             [
                 {"role": "assistant", "content": "The meeting is on Monday."},
                 {"role": "user", "content": "That's wrong."},
@@ -247,7 +247,7 @@ async def test_w17d_bare_correction_retracts_and_off_by_default() -> None:
     off = await _engine()
     try:
         await off.write("the meeting is on Monday", entity="meeting", attribute="day")
-        turns = await off.write_messages([{"role": "user", "content": "No, I said Tuesday."}])
+        turns = await off.ingest_messages([{"role": "user", "content": "No, I said Tuesday."}])
         assert constants.CORRECTION_TAG not in turns[0].tags
         assert await _key_facts(off) == ["the meeting is on Monday"]
     finally:

@@ -436,3 +436,49 @@ async def test_context_is_the_previous_windows_tail_and_the_tap_event(
         assert isinstance(taps[0]["known_count"], int)
     finally:
         await eng.stop()
+
+
+async def test_conversation_boundary_clears_prompt_tail_and_batches_stay_within_conversation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    llm = WindowLLM()
+    llm.supports_json_schema = True
+    eng = await _engine(
+        monkeypatch,
+        llm,
+        window_extract="facts_graph",
+        prompt_v2=True,
+        segmentation_v2=True,
+        window_max_turns=2,
+        segment_grow_tokens=1,
+        segment_max_turns=2,
+    )
+    try:
+        def messages(marker: str) -> list[dict[str, str]]:
+            return [
+                {
+                    "role": "user",
+                    "content": f"Mira: {marker} detail number {i}",
+                }
+                for i in range(4)
+            ]
+
+        await eng.ingest_messages(
+            messages("C1_PRIVATE"), namespace="a", session_id="S1", conversation_id="C1"
+        )
+        await eng.ingest_messages(
+            messages("C2_PRIVATE"), namespace="a", session_id="S1", conversation_id="C2"
+        )
+        stats = await eng.flush_windows()
+        users = [m[-1]["content"] for m, _ in llm.requests if "NEW:\n" in m[-1]["content"]]
+
+        assert stats["windows"] == 4
+        assert stats["batches"] == 2
+        assert stats["batched_windows"] == 4
+        assert len(users) == 2
+        assert "C1_PRIVATE" in users[0] and "C2_PRIVATE" not in users[0]
+        assert "C2_PRIVATE" in users[1] and "C1_PRIVATE" not in users[1]
+        second_context = users[1].split("\n\nCONTEXT:\n", 1)[1].split("\n\nKNOWN:", 1)[0]
+        assert second_context.strip() == "(none)"
+    finally:
+        await eng.stop()

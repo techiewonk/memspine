@@ -18,7 +18,7 @@ class WriteConfig(BaseModel):
     #: ``decider``: the lexicon, raised by the decider ``sensitivity`` task when it is sure
     #: (``read.decider: opendecider``); the decider can raise a grade, never lower it.
     sensitivity: Literal["off", "heuristic", "decider"] = "off"
-    #: I53: ``session``: ``write_messages`` tags each turn ``participant:<name>`` for every
+    #: I53: ``session``: ``ingest_messages`` tags each turn ``participant:<name>`` for every
     #: speaker of the call (the turn's own speaker first; a turn's ``name``/``speaker`` key,
     #: else its role), and a derived record (mined fact, summary) inherits the union of its
     #: parents' participants and the strictest visibility. ``viewer`` reads then filter.
@@ -230,19 +230,6 @@ class WriteConfig(BaseModel):
     #: at all. ``False`` (default): the old write path exactly, and the table is never written.
     lineage_table: bool = False
 
-    #: W2-01 (LIB-30; W-01, W-02, W-03, W-24): one intake gateway in front of ``write_messages``,
-    #: ``write_episode`` and ``ingest``. ``True``: every call becomes a ``SourceEnvelope``; each segment
-    #: gets an S3-3 write id (scope, source, version, position, content), so a retry (a re-sent batch,
-    #: a crash and a re-send) writes nothing new; the call returns after a durable ledger commit and the
-    #: old write door runs on the fresh segments only; an interrupted apply is finished at the next
-    #: ``start()``. A re-ingested document with edited content becomes a new source version: unchanged
-    #: chunks stay, changed ones are archived with the facts derived only from them (derived items that
-    #: keep another live parent are re-pointed). The receipt carries readiness per capability and
-    #: never claims one the engine does not run (``raw_search`` is ready at return; ``facts`` /
-    #: ``graph`` / ``summaries`` follow the window outbox barrier). Taps ``write.intake.*``. ``False``
-    #: (default): the old write path, unchanged.
-    intake_v2: bool = False
-
     #: W2-11 (W-23): the asset describer. ``off`` (default, the BD-8 hold): ``ingest_asset`` is refused
     #: and nothing else changes. ``ingest``: ``Engine.ingest_asset`` stores the asset reference (content
     #: hash + path/URI, never the bytes) as a record and, right away, a description as a derived record
@@ -251,7 +238,7 @@ class WriteConfig(BaseModel):
     #: once (the description is a record, so it is cached), waiting at most ``asset_describe_timeout_s``.
     #: The describer is the optional LLM role ``describe_asset`` (vision-capable model, a MD-01 tier);
     #: with none bound it writes a metadata-only description (filename, mime, size, alt text, EXIF) and
-    #: makes no model call. Needs ``write.intake_v2``. Taps ``write.asset.*``.
+    #: makes no model call. Taps ``write.asset.*``.
     asset_describer: Literal["off", "ingest", "on_read"] = "off"
     #: W2-11: longest an ``on_read`` read waits for descriptions; past it the read returns without them
     #: and the work continues in the background (queued, one task per asset).
@@ -265,7 +252,7 @@ class WriteConfig(BaseModel):
     #: provenance class from the role. A user turn that answers an assistant turn in the
     #: same call is run through the assent check (a real yes is tagged
     #: ``assent_of:<assistant record>``, "ok, thanks" is not). Runs on the direct path and
-    #: inside the intake gateway (``write.intake_v2``). The event interval and its precision
+    #: through the canonical intake gateway. The event interval and its precision
     #: are filled at derivation, not here. Taps ``write.stamp.*``. ``False`` (default):
     #: turns are stamped as before.
     stamping_v2: bool = False
@@ -286,7 +273,7 @@ class WriteConfig(BaseModel):
     #: that carries a recall marker (the engine's own wrappers or ``wrap_recall``) or overlaps the
     #: session's last read above ``echo_threshold`` is tagged ``echo`` / ``echo_of:<id>`` and is
     #: never re-derived as a new fact; a user restatement is an ``assent_candidate``, not support.
-    #: With ``write.intake_v2``, a turn that carries ``entity`` + ``attribute`` (or ``memory_type``
+    #: A turn that carries ``entity`` + ``attribute`` (or ``memory_type``
     #: skill / plan) is also written as a typed record with the raw turn as its parent; unkeyed
     #: turns stay raw. Taps ``write.role.*``, ``write.echo.*``, ``write.route.*``. ``False``
     #: (default): unchanged.

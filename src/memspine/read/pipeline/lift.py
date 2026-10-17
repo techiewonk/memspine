@@ -79,7 +79,7 @@ async def _annotate_perspective(
     when: datetime | None = None,
 ) -> list[str]:
     """I39: the tags of ``content``'s perspective. Explicit ``spk:`` / ``addr:`` tags (from
-    ``write_messages`` ``speaker`` / ``addressee``) beat the rules; a ``decider`` mode lets
+    ``ingest_messages`` ``speaker`` / ``addressee``) beat the rules; a ``decider`` mode lets
     the decider port answer the typed stance questions (``is_fact`` ...) above its
     confidence floor. Never raises: a failure leaves the tags as they were."""
     try:

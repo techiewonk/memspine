@@ -234,7 +234,7 @@ def _system(threshold: float, channel: str) -> Any:
         async def _build_engine(self) -> Any:
             engine = await super()._build_engine()
             if channel != "messages":
-                engine.write_messages = functools.partial(engine.write_messages, channel=channel)
+                engine.ingest_messages = functools.partial(engine.ingest_messages, channel=channel)
             return engine
 
     return _Channelled(template="base", config=_engine_config(threshold), read_mode="replay")

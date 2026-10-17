@@ -45,21 +45,51 @@ async def test_write_reply_to_tags_the_reply_and_refuses_unknown_targets() -> No
         await eng.stop()
 
 
-async def test_write_messages_reply_to_by_index_or_id() -> None:
+async def test_ingest_messages_reply_to_by_index_or_id() -> None:
     eng = _engine()
     await eng.start()
     try:
-        first = await eng.write("Earlier note about the venue", namespace="a")
+        prior = await eng.ingest_messages(
+            [
+                {
+                    "message_id": "prior-note",
+                    "session_id": "s1",
+                    "conversation_id": "venue-thread",
+                    "role": "user",
+                    "content": "Earlier note about the venue",
+                }
+            ],
+            namespace="a",
+            session_id="s1",
+            conversation_id="venue-thread",
+        )
+        first = prior[0]
         msgs = [
-            {"role": "user", "content": "Which venue should we book?"},
-            {"role": "assistant", "content": "The Old Mill.", "reply_to": 0},
-            {"role": "user", "content": "Same as my note?", "reply_to": first.record_id},
+            {
+                "message_id": "venue-question",
+                "role": "user",
+                "content": "Which venue should we book?",
+            },
+            {
+                "message_id": "venue-answer",
+                "role": "assistant",
+                "content": "The Old Mill.",
+                "reply_to": "venue-question",
+            },
+            {
+                "message_id": "venue-followup",
+                "role": "user",
+                "content": "Same as my note?",
+                "reply_to": "prior-note",
+            },
         ]
-        records = await eng.write_messages(msgs, namespace="a", session_id="s1")  # type: ignore[arg-type]
+        records = await eng.ingest_messages(
+            msgs, namespace="a", session_id="s1", conversation_id="venue-thread"
+        )
         assert f"{constants.REPLY_TO_PREFIX}{records[0].record_id}" in records[1].tags
         assert f"{constants.REPLY_TO_PREFIX}{first.record_id}" in records[2].tags
         with pytest.raises(ValueError, match="reply_to"):
-            await eng.write_messages(
+            await eng.ingest_messages(
                 [{"role": "user", "content": "x", "reply_to": 3}],  # type: ignore[list-item]
                 namespace="a",
             )
@@ -89,12 +119,37 @@ async def test_reply_link_edge_is_written_with_associative_memory() -> None:
 
 async def _thread(eng: Engine) -> tuple[str, str]:
     """A question, far-away chatter, then its answer replying to it."""
-    msgs: list[dict[str, Any]] = [{"role": "user", "content": "Which venue should we book?"}]
-    msgs += [{"role": "user", "content": f"unrelated chatter number {i}"} for i in range(8)]
-    msgs.append({"role": "assistant", "content": "The Old Mill has parking.", "reply_to": 0})
+    msgs: list[dict[str, Any]] = [
+        {
+            "message_id": "thread-question",
+            "conversation_id": "venue-thread",
+            "role": "user",
+            "content": "Which venue should we book?",
+        }
+    ]
+    msgs += [
+        {
+            "message_id": f"thread-chatter-{i}",
+            "conversation_id": "venue-thread",
+            "role": "user",
+            "content": f"unrelated chatter number {i}",
+        }
+        for i in range(8)
+    ]
+    msgs.append(
+        {
+            "message_id": "thread-answer",
+            "conversation_id": "venue-thread",
+            "role": "assistant",
+            "content": "The Old Mill has parking.",
+            "reply_to": "thread-question",
+        }
+    )
     for i, msg in enumerate(msgs):
         msg["timestamp"] = (T0 + timedelta(minutes=i)).isoformat()
-    records = await eng.write_messages(msgs, namespace="a", session_id="s1")  # type: ignore[arg-type]
+    records = await eng.ingest_messages(
+        msgs, namespace="a", session_id="s1", conversation_id="venue-thread"
+    )
     return records[0].content, records[-1].content
 
 

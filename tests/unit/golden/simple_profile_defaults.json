@@ -433,7 +433,6 @@
       "inferred_explicit_overlap": 0.6,
       "inferred_support_overlap": 0.3,
       "inferred_trust_cap": 0.4,
-      "intake_v2": false,
       "integration_cardinality": {},
       "integration_decide_unhinted": false,
       "integration_v2": false,

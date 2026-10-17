@@ -90,9 +90,6 @@
   "write.echo_threshold": [
    "A6"
   ],
-  "write.intake_v2": [
-   "A2"
-  ],
   "write.index_view*": [
    "A9"
   ],

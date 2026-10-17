@@ -89,7 +89,7 @@ async def _contexts(mode: str) -> list[list[str]]:
             for line in lines:
                 # The harness's write path: one user turn per call, the session stamp
                 # as event time, so every turn of a session shares ``valid_from``.
-                await engine.write_messages(
+                await engine.ingest_messages(
                     [{"role": "user", "content": line}],
                     namespace="eval",
                     session_id=f"s{s}",

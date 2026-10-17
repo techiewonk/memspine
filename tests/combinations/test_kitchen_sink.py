@@ -89,7 +89,7 @@ async def test_kitchen_sink_multi_type_round_trip(kitchen: Engine, tmp_path: Pat
     # resource
     doc = tmp_path / "runbook.md"
     doc.write_text("# Runbook\n\nStep one.\n\nStep two.", encoding="utf-8")
-    chunks = await kitchen.ingest(str(doc))
+    chunks = await kitchen.ingest_data(str(doc))
     assert chunks
 
     # shared (cross-namespace grant)

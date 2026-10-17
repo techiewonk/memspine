@@ -18,7 +18,7 @@ text) and 14 queries:
   relative time, multi-party with viewer, non-English, and two questions with no answer.
 
 The harness (`harness.py`) builds the engine with the `core` template, `embedding.provider: hash`,
-`read.rerank: off`, no LLM and a temporary SQLite file; ingests with `write_messages` and `write`; runs
+`read.rerank: off`, no LLM and a temporary SQLite file; ingests with `ingest_messages` and `write`; runs
 `Engine.sleep()` (the model-free offline pass; model stages report `skipped`); then for every query runs
 `search` (ordered hits and scores) and `read` in `retrieve` and `compose` modes.
 

@@ -33,7 +33,7 @@ async def _session(eng: Engine) -> None:
             ["Alice: hi", "Alice: I just found out I am allergic to nuts", "Bob: oh no, take care"]
         )
     ]
-    await eng.write_messages(msgs, namespace="a", session_id="s1", group_id="s1")
+    await eng.ingest_messages(msgs, namespace="a", session_id="s1", group_id="s1")
 
 
 async def test_cues_land_on_the_answering_turn_once(monkeypatch: pytest.MonkeyPatch) -> None:

@@ -87,7 +87,7 @@ async def _rt_resource(engine: Engine, tmp_path: Path) -> None:
     doc.write_text(
         "# Runbook\n\nRotate the API key monthly.\n\nPage the on-call.", encoding="utf-8"
     )
-    chunks = await engine.ingest(str(doc))
+    chunks = await engine.ingest_data(str(doc))
     assert chunks, "ingest produced no resource records"
     got = await engine.retrieve(memory_type="resource")
     assert {c.record_id for c in chunks} <= {r.record_id for r in got}

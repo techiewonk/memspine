@@ -103,8 +103,10 @@ from memspine.ingest import assets as ingest_assets
 from memspine.ingest import gateway as ingest_gateway
 from memspine.ingest import windows as ingest_windows
 from memspine.ingest import write as ingest_write
-from memspine.ingest.write import (
+from memspine.ingest.message_helpers import (
     _RECALL_MARKERS,  # noqa: F401  (tests import it from here)
+)
+from memspine.ingest.write import (
     WriteOutcome,
     _NeighbourBatch,
 )
@@ -344,7 +346,7 @@ class Engine:
         self._client: SQLiteClient | None = None  # SQLite storage + FTS5/adjacency projections
         self._pg: PostgresClient | None = None  # Postgres storage backend (Phase 6)
         self._lance: LanceDBClient | None = None
-        # Inside a projection batch (write_messages): the last seq each
+        # Inside a projection batch (ingest_messages): the last seq each
         # projector applied, checkpointed when the batch flushes. None outside.
         self._batch_offsets: dict[str, int] | None = None
         self._ladybug: LadybugClient | None = None
@@ -795,12 +797,15 @@ class Engine:
         if config.privacy.erasure_v2:  # T5-04: erased / hidden ids, queue, purge table
             await trust_erasure_v2.load(self)
         self._started = True
-        if (
-            config.write.intake_v2
-        ):  # W2-01: finish any write the last run accepted but did not apply
-            from memspine.ingest import gateway as intake_gateway
+        # Finish any accepted intake the last run did not apply.
+        from memspine.ingest import gateway as intake_gateway
 
-            await intake_gateway.recover(self)
+        await intake_gateway.recover(self)
+        # Rebuild the lightweight source-identity projection for stores imported
+        # before it existed. This runs at startup, never on each message call.
+        from memspine.ingest.message_store import backfill_from_storage
+
+        await backfill_from_storage(self._require_started())
         return self
 
     def _install_write_timers(self, config: MemspineConfig) -> None:
@@ -1663,9 +1668,9 @@ class Engine:
     @tap.traced("write")
     @_ops.staged("write")  # T5-06: per-stage ops ledger (a pass-through when it is off)
     @prioritised(Priority.WRITE)  # RT-02: foreground write class (a no-op without the gate)
-    async def write_messages(
+    async def ingest_messages(
         self,
-        messages: Sequence[Mapping[str, str]],
+        messages: Sequence[Mapping[str, Any]],
         namespace: str = "default",
         actor: str = "user",
         session_id: str | None = None,
@@ -1673,39 +1678,43 @@ class Engine:
         group_id: str | None = None,
         tags: list[str] | None = None,
         valid_from: datetime | None = None,
+        conversation_id: str | None = None,
     ) -> list[MemoryRecord]:
-        """C4: ingest a chat transcript as per-turn **episodic** records.
+        """Accept source messages through the canonical durable ingestion path.
 
-        ``messages`` is OpenAI-style ``[{"role": ..., "content": ...}]``. Each
-        turn becomes one episodic record whose provenance ``role`` is the turn's
-        role and whose ``channel`` is ``channel`` (default ``"messages"``);
-        passing ``session_id`` (or using :meth:`write_episode`) stamps every turn
-        with the same conversation id so they group as one episode. Untrusted
-        callers (e.g. REST) pass ``channel="rest"`` so TrustPolicy caps the
-        turns' trust regardless of the claimed role (SEC-C1). Turns ride the
-        ordinary write door, so the firewall, dedup, and lifecycle all apply.
-        Additive over the P0 contract — callers that never use it see no change.
+        Preserve supplied ``message_id``, ``session_id``, ``conversation_id`` and
+        ``created_at``; generate missing identities and creation times. One missing
+        session is generated per call. Each root without an explicit conversation
+        starts its own conversation; replies inherit their parent's conversation.
+        ``reply_to`` names a source message ID in this namespace, stored already
+        or earlier in the batch, with matching session/conversation ownership.
 
-        Event time: a message may carry ``"timestamp"`` (ISO-8601 string or
-        ``datetime``); otherwise ``valid_from`` applies to the whole batch;
-        otherwise "now". This is what lets "when did X happen" be answered from
-        the session date rather than from the ingestion time.
+        Nested ``sender`` records identity independently of conversational ``role``.
+        Returned records expose resolved source metadata in ``record.source.message``.
+        Identical supplied-ID retries return existing results; changed data raises
+        until an explicit revision API is provided. Excluded turns produce no record.
 
-        Reply threads (G27): a message may carry ``"reply_to"``, the record id it
-        answers or the index of an earlier message of this call; it is passed to
-        :meth:`write` as ``reply_to``.
+        ``created_at`` accepts ISO text or datetime. ``timestamp`` and batch
+        ``valid_from`` are accepted time inputs; absent source time uses the engine
+        clock and retains its generated provenance. Write policies, firewall and
+        trust still apply; optional extraction respects conversation boundaries.
+        Acceptance is durable before application, so interrupted writes can resume
+        with their original identities. Projection/embedding batching remains an
+        internal optimization, not a separate ingestion mode.
+        """
+        from memspine.ingest.message_ingestion import ingest_messages as ingest_batch
 
-        Embedding (G9): the turns that will reach the door are embedded up front
-        in calls of at most ``embedding.batch_size`` texts, which fills the
-        embedding cache; the per-record firewall and vector projection then read
-        their vectors from it. If that up-front embedding fails, the call raises
-        before any turn is written, so a retry cannot duplicate turns.
-
-        The turns share one projection batch (:meth:`_projection_batch`): the
-        lexical index commits and the projector checkpoints happen once per
-        call instead of once per turn."""
-        return await ingest_write.write_messages(
-            self, messages, namespace, actor, session_id, channel, group_id, tags, valid_from
+        return await ingest_batch(
+            self,
+            messages,
+            namespace,
+            actor,
+            session_id,
+            channel,
+            group_id,
+            tags,
+            valid_from,
+            conversation_id=conversation_id,
         )
 
     async def _prefetch_neighbours(
@@ -1755,7 +1764,7 @@ class Engine:
         tags: list[str] | None = None,
     ) -> list[MemoryRecord]:
         """C4: ingest a transcript as ONE conversation. Like
-        :meth:`write_messages`, but stamps every turn with a shared,
+        :meth:`ingest_messages`, but stamps every turn with a shared,
         content-derived session id (``message_id``) AND the same ``group_id``
         (D2), so the turns are retrievable and consolidatable as a single
         episode — the M13.2 session detector then treats them as one session at
@@ -3253,9 +3262,13 @@ class Engine:
         caches are purged and the WAL checkpointed. The same pass renames, in the
         community-partition markers, the entity node ids of ``subject_names`` and
         of the erased records' entities that no longer have a graph edge."""
-        return await trust_erasure._forget_many(
+        await trust_erasure._forget_many(
             self, storage, ns, record_ids, hard, subject_names=subject_names
         )
+        if hard and self._client is not None:
+            from memspine.ingest.message_store import tombstone_records
+
+            await tombstone_records(self._client.engine, record_ids)
 
     async def _erased_entity_nodes(
         self, ns: str, names: Sequence[str], *, forced: Sequence[str] = ()
@@ -3392,7 +3405,7 @@ class Engine:
         session_id: str = "",
         roles: Sequence[str] | None = None,
     ) -> list[MemoryRecord]:
-        """I6: the live turns of one conversation (``write_messages(session_id=...)``),
+        """I6: the live turns of one conversation (``ingest_messages(session_id=...)``),
         in time order, read through the indexed ``session_key`` column; ``roles`` keeps
         only some speakers. Passes the same context gates as a read (erased, quarantined
         or untrusted turns are left out)."""
@@ -4069,14 +4082,14 @@ class Engine:
         """Derived session boundaries over the episodic timeline (M13.2)."""
         return await read_timeview.sessions(self, namespace, gap_minutes)
 
-    async def ingest(
+    async def ingest_data(
         self,
         path: str | Path,
         namespace: str = "default",
         pii_tier: PiiTier = PiiTier.NONE,
     ) -> list[MemoryRecord]:
         """Ingest a document (D-29): extract → chunk → resource records."""
-        return await handle.ingest(self, path, namespace, pii_tier)
+        return await handle.ingest_data(self, path, namespace, pii_tier)
 
     async def ingest_asset(
         self,
@@ -4923,7 +4936,7 @@ class Engine:
 
     @asynccontextmanager
     async def _projection_batch(self) -> AsyncIterator[None]:
-        """Group the projection work of many events (one ``write_messages`` call).
+        """Group the projection work of many events (one ``ingest_messages`` call).
 
         Every event is still appended and applied one at a time, so the log, the
         records and every read in between are exactly as without the batch.

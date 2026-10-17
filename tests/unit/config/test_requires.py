@@ -164,7 +164,6 @@ EXEMPT: dict[str, str] = {
     "write.learned_persist": "persists kinds (envelope_v2) OR pre-pass aliases (prepass); either alone is valid",
     "write.window_extract": "needs an LLM role; checked at engine start (D-10)",
     "read.asset_evidence": "already a root validator (_asset_keys_agree)",
-    "write.asset_describer": "intake_v2 declared; the 'ingest' value is also covered above",
     "read.core_terms_leg": "needs the lexical store; read.hybrid is on by default",
     "embedding.migrate_profile": "versioned_spaces check lives in the embedding profile gate (MD-02)",
     "graph.neo4j_outbox": "needs storage.profile server OR graph.backend neo4j; an either/or the table cannot express yet",

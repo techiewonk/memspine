@@ -160,6 +160,7 @@ def _msgs(count: int, speaker: str = "Bram") -> list[dict[str, str]]:
             "role": "user",
             "content": f"{speaker}: {things[i % len(things)]}",
             "timestamp": (T0 + timedelta(minutes=i)).isoformat(),
+            "message_id": f"inspect-message-{i}",
         }
         for i in range(count)
     ]
@@ -169,7 +170,9 @@ async def _run(eng: Engine) -> None:
     """write (inside scopes) -> window flush -> sleep -> read, with the correlation keys on."""
     for i, msg in enumerate(_msgs(4)):
         with insp.inspect_scope(run_id="run1", item="conv1", turn_id=f"D1:{i + 1}"):
-            await eng.write_messages([msg], namespace="a", session_id="s1", group_id="s1")
+            await eng.ingest_messages(
+                [msg], namespace="a", session_id="s1", conversation_id="conv1", group_id="s1"
+            )
     with insp.inspect_scope(run_id="run1", item="conv1", phase="flush_windows"):
         await eng.flush_windows()
     with insp.inspect_scope(run_id="run1", item="conv1", phase="sleep"):
@@ -184,7 +187,13 @@ async def _stored(eng: Engine) -> list[tuple[str, tuple[str, ...], str]]:
     for mt in ("episodic", "semantic"):
         for r in await storage.list_records("a", mt):
             content = re.sub(r"[0-9a-f]{12}$", "", r.content)
-            tags = tuple(sorted(re.sub(r"[0-9a-f]{12}", "", t) for t in r.tags))
+            tags = tuple(
+                sorted(
+                    re.sub(r"[0-9a-f]{12}", "", t)
+                    for t in r.tags
+                    if not t.startswith("idem:")
+                )
+            )
             rows.append((content, tags, r.status.value))
     return sorted(rows)
 
@@ -333,7 +342,7 @@ async def test_skipped_and_failed_windows_still_report_their_members(monkeypatch
     try:
         for i, msg in enumerate(_msgs(3)):
             with insp.inspect_scope(turn_id=f"D2:{i + 1}"):
-                await eng.write_messages([msg], namespace="a", session_id="s2", group_id="s2")
+                await eng.ingest_messages([msg], namespace="a", session_id="s2", group_id="s2")
         await eng.flush_windows()
     finally:
         await _stop(eng)
@@ -388,7 +397,7 @@ async def test_envelope_lifecycle_occ_to_rid(monkeypatch) -> None:
                 }
             ]
             with insp.inspect_scope(run_id="run1", item="conv1", turn_id=f"D1:{i + 1}"):
-                await eng.write_messages(msg, namespace="a", session_id="s1", group_id="s1")
+                await eng.ingest_messages(msg, namespace="a", session_id="s1", group_id="s1")
         with insp.inspect_scope(run_id="run1", item="conv1"):
             await eng.flush_windows()
         facts = [
@@ -428,7 +437,7 @@ async def test_read_side_events(monkeypatch) -> None:
     )
     try:
         for _i, msg in enumerate(_msgs(4)):
-            await eng.write_messages([msg], namespace="a", session_id="s1", group_id="s1")
+            await eng.ingest_messages([msg], namespace="a", session_id="s1", group_id="s1")
         with insp.inspect_scope(query_id="Q9"):
             await eng.search("What did Bram say about the orchid?", namespace="a", top_k=3)
             await eng.assemble("What did Bram say about the orchid?", namespace="a", top_k=3)
@@ -474,7 +483,7 @@ async def test_outbox_prepare_and_commit_run_in_a_job_request(monkeypatch, tmp_p
     )
     try:
         for _i, msg in enumerate(_msgs(3)):
-            await eng.write_messages([msg], namespace="a", session_id="s1", group_id="s1")
+            await eng.ingest_messages([msg], namespace="a", session_id="s1", group_id="s1")
         await eng.flush_windows()
     finally:
         await _stop(eng)

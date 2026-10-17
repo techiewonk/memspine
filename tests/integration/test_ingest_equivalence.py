@@ -1,6 +1,6 @@
-"""Ingest speed-ups must not change what ``write_messages`` produces.
+"""Ingest speed-ups must not change what ``ingest_messages`` produces.
 
-The same 60 LoCoMo-like turns (3 sessions x 20, one ``write_messages`` call per
+The same 60 LoCoMo-like turns (3 sessions x 20, one ``ingest_messages`` call per
 session) are ingested on the ``base`` and ``core`` templates, on an in-memory
 and on a file-backed store. The records (content, status, trust and the rest),
 the event log, and the results of five searches are compared against a fixture
@@ -20,7 +20,9 @@ as in the checked one.
 The fixture was regenerated on 2026-10-16 from the 2.0 code (restructure + layer contract): the
 diff to the 2026-10-05 fixture was only five added record fields (source_at, source_precision,
 event_basis, event_precision from stamping v2; layer from MF-05) and lower-rank order moves in
-two searches with the same result sets and the same top six.
+two searches with the same result sets and the same top six. The current test supplies stable
+message/conversation IDs and checks those identities separately; its legacy projection drops only
+the new identity envelope and operational identity tags before comparing the unchanged golden.
 
 Regenerate the fixture (only from code whose behaviour is the reference) with
 ``python tests/integration/test_ingest_equivalence.py --regen``.
@@ -109,6 +111,8 @@ def _sessions() -> list[tuple[str, list[dict[str, str]]]]:
                 words = turns[1]["content"].split(": ", 1)[1]
             turns.append(
                 {
+                    "message_id": f"s{s}-m{t}",
+                    "conversation_id": f"s{s}-conversation",
                     "role": "user" if t % 2 == 0 else "assistant",
                     "content": f"{speaker}: {words}.",
                     "timestamp": (base + timedelta(days=s, minutes=t)).isoformat(),
@@ -180,7 +184,7 @@ async def _observe_engine(template: str, storage_path: str) -> dict[str, Any]:
     await engine.start()
     try:
         for session_id, turns in _sessions():
-            await engine.write_messages(
+            await engine.ingest_messages(
                 turns, namespace="conv", session_id=session_id, group_id=session_id
             )
         assert engine._storage is not None
@@ -201,7 +205,24 @@ async def _observe_engine(template: str, storage_path: str) -> dict[str, Any]:
         for query in QUERIES:
             hits = await engine.search(query, namespace="conv", top_k=8)
             searches.append([[norm.id(record.record_id), score] for record, score in hits])
-        return {"events": event_rows, "records": record_rows, "searches": searches}
+        identities = sorted(
+            (
+                {
+                    "message_id": record.source.message["message_id"],
+                    "session_id": record.source.message["session_id"],
+                    "conversation_id": record.source.message["conversation_id"],
+                }
+                for record in records
+                if record.source.message is not None
+            ),
+            key=lambda row: row["message_id"],
+        )
+        return {
+            "events": event_rows,
+            "records": record_rows,
+            "searches": searches,
+            "identities": identities,
+        }
     finally:
         await engine.stop()
 
@@ -267,14 +288,53 @@ def _assert_same(got: Any, want: Any, path: str = "$") -> None:
         assert got == want, f"{path}: {got!r} != {want!r}"
 
 
+def _legacy_observation(value: Any) -> Any:
+    """Drop only the intentionally new public identity envelope/tags for the old golden."""
+    if isinstance(value, dict):
+        out = {}
+        for key, item in value.items():
+            if key == "message" and isinstance(item, dict) and "message_id" in item:
+                continue
+            if key == "tags" and isinstance(item, list):
+                item = [
+                    tag
+                    for tag in item
+                    if not tag.startswith(
+                        ("message_id:", "session_id:", "conversation_id:", "idem:")
+                    )
+                ]
+            out[key] = _legacy_observation(item)
+        return out
+    if isinstance(value, list | tuple):
+        return [_legacy_observation(item) for item in value]
+    return value
+
+
+def _expected_identities() -> list[dict[str, str]]:
+    return sorted(
+        (
+            {
+                "message_id": f"s{s}-m{t}",
+                "session_id": f"s{s}",
+                "conversation_id": f"s{s}-conversation",
+            }
+            for s in range(3)
+            for t in range(20)
+        ),
+        key=lambda row: row["message_id"],
+    )
+
+
 @pytest.mark.parametrize("variant", ["base:memory", "base:file", "core:memory", "core:file"])
-def test_write_messages_matches_pre_optimisation_fixture(variant: str, tmp_path: Path) -> None:
+def test_ingest_messages_matches_pre_optimisation_fixture(variant: str, tmp_path: Path) -> None:
     template, store = variant.split(":")
     path = ":memory:" if store == "memory" else str(tmp_path / f"{template}.db")
     got = asyncio.run(_observe(template, path))
+    identities = got.pop("identities")
+    assert identities == _expected_identities()
     want = json.loads(FIXTURE.read_text(encoding="utf-8"))[variant]
     assert len(got["records"]) == 60
-    _assert_same(got, want)
+    _assert_same(_legacy_observation(got), want)
 
 
 if __name__ == "__main__":  # pragma: no cover - fixture regeneration
@@ -283,7 +343,13 @@ if __name__ == "__main__":  # pragma: no cover - fixture regeneration
     if "--regen" not in sys.argv:
         raise SystemExit("usage: python test_ingest_equivalence.py --regen")
     with tempfile.TemporaryDirectory() as tmp:
-        data = _observe_all(Path(tmp))
+        observations = _observe_all(Path(tmp))
+    data = {
+        variant: _legacy_observation(
+            {key: value for key, value in observation.items() if key != "identities"}
+        )
+        for variant, observation in observations.items()
+    }
     FIXTURE.parent.mkdir(parents=True, exist_ok=True)
     FIXTURE.write_text(json.dumps(data, indent=1, sort_keys=True) + "\n", encoding="utf-8")
     print(f"wrote {FIXTURE}")

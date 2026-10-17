@@ -21,7 +21,7 @@ What lives here (and what deliberately does not):
   carried on every question so per-category statistics are reportable end to end
   (MAGMA harvest §2.4).
 * **Ingestion** — ``ingest_sample`` feeds turns into an engine through
-  :meth:`Engine.write_messages`, i.e. the *normal write door*. Nothing is stubbed and
+  :meth:`Engine.ingest_messages`, i.e. the *normal write door*. Nothing is stubbed and
   nothing is bypassed; measuring the real write cost is the point. Be precise about
   *which* layers that bills, though: these are ``episodic`` writes, so they pay
   firewall assessment, event append, all four projectors, corroboration and link
@@ -649,7 +649,7 @@ class SupportsEngineWrite(Protocol):
     ``TYPE_CHECKING`` assertion at the bottom of this module.
     """
 
-    async def write_messages(
+    async def ingest_messages(
         self,
         messages: Sequence[Mapping[str, str]],
         namespace: str = ...,
@@ -727,7 +727,7 @@ async def ingest_sample(
 ) -> IngestionStats:
     """Feed one sample's turns into ``engine`` through the normal write path.
 
-    One session becomes one call to :meth:`Engine.write_messages`, stamped with a
+    One session becomes one call to :meth:`Engine.ingest_messages`, stamped with a
     shared ``session_id`` and ``group_id`` so the M13.2 session detector sees a
     single episode at consolidation time — the same shape :meth:`write_episode`
     produces, but with LoCoMo's own session boundary instead of a content hash.
@@ -762,7 +762,7 @@ async def ingest_sample(
             content = turn.render(with_timestamp=opts.with_timestamp)
             characters += len(content)
             messages.append({"role": to_role(turn.speaker), "content": content})
-        written = await engine.write_messages(
+        written = await engine.ingest_messages(
             messages,
             namespace=resolved_ns,
             channel=opts.channel,

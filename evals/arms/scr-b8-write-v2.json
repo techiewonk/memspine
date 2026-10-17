@@ -99,7 +99,6 @@
   "prompt_v2": true,
   "stamping_v2": true,
   "role_policy_v2": true,
-  "intake_v2": true,
   "temporal_v2": true,
   "grounding_v2": true,
   "coverage_v2": true,

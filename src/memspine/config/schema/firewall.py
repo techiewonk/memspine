@@ -80,7 +80,7 @@ class FirewallConfig(BaseModel):
     sensitive_topics: bool = False
     max_content_chars: int | None = Field(default=None, ge=1)
     protected_keys: list[str] = Field(default_factory=list)
-    #: H21 (G->D self-contamination): ``write_messages`` never deposits turns whose role
+    #: H21 (G->D self-contamination): ``ingest_messages`` never deposits turns whose role
     #: is listed here (e.g. ``["system", "tool"]``).
     skip_message_roles: list[str] = Field(default_factory=list)
     #: H21: never re-deposit a turn that carries memspine's own assembly markers

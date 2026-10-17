@@ -77,11 +77,11 @@ async def test_pii_default_tier_policy_is_applied() -> None:
         await eng.stop()
 
 
-async def test_write_messages_prewarm_matches_redacted_content() -> None:
+async def test_ingest_messages_prewarm_matches_redacted_content() -> None:
     eng = _engine(firewall={"pii": "redact"})
     await eng.start()
     try:
-        records = await eng.write_messages(
+        records = await eng.ingest_messages(
             [
                 {"role": "user", "content": "my number is +1 415-555-0123"},
                 {"role": "user", "content": "and my ssn is 123-45-6789"},

@@ -203,7 +203,7 @@ async def test_no_model_template_makes_zero_calls_across_write_sleep_read(
             for i, c in enumerate(["Ilse: I run every morning", "Ilse: no coffee after noon"])
         ]
         await eng.write("Ilse lives in Bergen", namespace="a", memory_type="semantic")
-        await eng.write_messages(msgs, namespace="a", session_id="s1", group_id="s1")
+        await eng.ingest_messages(msgs, namespace="a", session_id="s1", group_id="s1")
         hits = await eng.read("How often does Ilse run?", namespace="a", mode="compose", top_k=2)
         await eng.sleep()
         assert hits is not None  # the legs returned (possibly empty) rather than erroring

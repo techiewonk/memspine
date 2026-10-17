@@ -38,7 +38,7 @@ async def test_timeline_and_sessions_verbs(engine: Engine) -> None:
 async def test_ingest_creates_provenance_tagged_chunks(engine: Engine, tmp_path: Path) -> None:
     doc = tmp_path / "guide.md"
     doc.write_text("First part.\n\nSecond part.", encoding="utf-8")
-    records = await engine.ingest(doc, namespace="agent/a")
+    records = await engine.ingest_data(doc, namespace="agent/a")
     assert records
     stored = await engine.retrieve(namespace="agent/a", memory_type="resource")
     assert len(stored) == len(records)
@@ -98,7 +98,7 @@ async def test_verbs_fail_loudly_when_type_disabled() -> None:
         with pytest.raises(MemspineError, match="episodic"):
             await eng.timeline()
         with pytest.raises(MemspineError, match="resource"):
-            await eng.ingest("nothing.txt")
+            await eng.ingest_data("nothing.txt")
     finally:
         await eng.stop()
 
@@ -158,8 +158,8 @@ async def test_reingest_after_partial_failure_skips_landed_chunks(
 ) -> None:
     doc = tmp_path / "guide.md"
     doc.write_text("First part.\n\nSecond part.", encoding="utf-8")
-    first = await engine.ingest(doc, namespace="agent/a")
-    again = await engine.ingest(doc, namespace="agent/a")  # e.g. retry after crash
+    first = await engine.ingest_data(doc, namespace="agent/a")
+    again = await engine.ingest_data(doc, namespace="agent/a")  # e.g. retry after crash
     assert first and again == []  # nothing duplicated
     stored = await engine.retrieve(namespace="agent/a", memory_type="resource")
     assert len(stored) == len(first)
@@ -168,7 +168,7 @@ async def test_reingest_after_partial_failure_skips_landed_chunks(
 async def test_ingest_empty_document_is_a_loud_noop(engine: Engine, tmp_path: Path) -> None:
     doc = tmp_path / "empty.md"
     doc.write_text("   \n\n  ", encoding="utf-8")
-    records = await engine.ingest(doc, namespace="agent/a")
+    records = await engine.ingest_data(doc, namespace="agent/a")
     assert records == []
     assert await engine.retrieve(namespace="agent/a", memory_type="resource") == []
 

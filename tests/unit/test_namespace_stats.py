@@ -15,7 +15,7 @@ async def test_namespace_stats_counts_one_user_only() -> None:
     )
     await eng.start()
     try:
-        await eng.write_messages(
+        await eng.ingest_messages(
             [
                 {"role": "user", "content": "we went camping"},
                 {"role": "assistant", "content": "nice"},

@@ -45,7 +45,7 @@ async def _seed(eng: Engine) -> list[str]:
         {"role": r, "content": c, "timestamp": (T0 + timedelta(minutes=i)).isoformat()}
         for i, (r, c) in enumerate(TURNS)
     ]
-    records = await eng.write_messages(msgs, namespace="a", session_id="s1")
+    records = await eng.ingest_messages(msgs, namespace="a", session_id="s1")
     return [r.record_id for r in records]
 
 
@@ -146,7 +146,7 @@ async def test_causal_walk_off_and_non_why_questions_are_unchanged() -> None:
             "Bo: The band has a new drummer.",
         ]
         for eng in (off, on):
-            await eng.write_messages(
+            await eng.ingest_messages(
                 [{"role": "user", "content": text} for text in fillers],
                 namespace="a",
                 session_id="s0",

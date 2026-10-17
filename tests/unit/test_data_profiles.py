@@ -137,7 +137,7 @@ async def test_chat_roles_profile_stops_assistant_boilerplate_quarantine() -> No
         )
         await eng.start()
         try:
-            records = await eng.write_messages(turns, namespace="c", channel="web")
+            records = await eng.ingest_messages(turns, namespace="c", channel="web")
         finally:
             await eng.stop()
         return sum(1 for r in records if r.quarantined)

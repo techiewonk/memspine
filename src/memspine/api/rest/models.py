@@ -21,6 +21,7 @@ __all__ = [
     "FeedbackRequest",
     "GrantRequest",
     "GrantView",
+    "IngestMessagesRequest",
     "PlanRequest",
     "PromoteRequest",
     "QuarantineDecision",
@@ -67,13 +68,23 @@ class CorrectRequest(_Request):
 class Turn(_Request):
     role: str
     content: str
+    message_id: str | None = None
+    conversation_id: str | None = None
+    session_id: str | None = None
+    sender: dict[str, object] | None = None
+    created_at: datetime | str | None = None
+    updated_at: datetime | str | None = None
+    reply_to: str | None = None
+    metadata: dict[str, object] | None = None
 
 
-class WriteMessagesRequest(_Request):
+class IngestMessagesRequest(_Request):
     """C4: a chat transcript to ingest as per-turn episodic records."""
 
     messages: list[Turn]
     actor: str = "user"
+    session_id: str | None = None
+    conversation_id: str | None = None
     #: When true, link all turns under one content-derived session id
     #: (Engine.write_episode); else per-turn records with no shared session.
     as_episode: bool = False

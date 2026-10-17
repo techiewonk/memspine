@@ -145,7 +145,7 @@ async def test_f1_raw_turns_in_a_declared_multi_party_namespace_carry_their_spea
     eng = _isolated(isolation={"multi_party_namespaces": [NS]})
     await eng.start()
     try:
-        await eng.write_messages(
+        await eng.ingest_messages(
             [
                 {"role": "user", "content": "Ilse: the lantern is in the cellar", "name": "ilse"},
                 {"role": "user", "content": "Tomasz: I will not tell anyone", "name": "tomasz"},
@@ -178,7 +178,7 @@ async def test_f1_flags_off_change_nothing() -> None:
 
 
 async def _turns(eng: Engine) -> tuple[MemoryRecord, MemoryRecord]:
-    await eng.write_messages(
+    await eng.ingest_messages(
         [
             {"role": "user", "content": f"I keep a hive named {LANTERN} behind the mill"},
             {"role": "user", "content": "my sister plays the cello"},

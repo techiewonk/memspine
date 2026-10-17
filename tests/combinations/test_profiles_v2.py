@@ -136,7 +136,7 @@ async def test_profile_boots_and_runs_the_cycle(
     eng = await memspine.open(dotenv_path=None, **_overrides(name, db))
     try:
         mem = eng.scope(NS, principal="ilse", viewer="ilse", purpose="assist")
-        await mem.write_messages(_turns(LINES), session_id="s1", group_id="s1")
+        await mem.ingest_messages(_turns(LINES), session_id="s1", group_id="s1")
         await eng.flush_windows()
         await mem.sleep()
         found = await _find(mem, SECRET)
@@ -195,7 +195,7 @@ async def test_write_and_trust_profiles_together_erase_the_derived_facts(
     eng = await memspine.open(dotenv_path=None, **raw)
     try:
         mem = eng.scope(NS, principal="ilse", viewer="ilse", purpose="assist")
-        await mem.write_messages(_turns(LINES), session_id="s1", group_id="s1")
+        await mem.ingest_messages(_turns(LINES), session_id="s1", group_id="s1")
         await eng.flush_windows()
         found = await _find(mem, SECRET)
         assert len(found) >= 2, "a raw turn and at least one derived fact carry the text"
@@ -207,7 +207,7 @@ async def test_write_and_trust_profiles_together_erase_the_derived_facts(
 
 
 _V2_STAGES = (
-    "segmentation_v2", "envelope_v2", "prompt_v2", "stamping_v2", "role_policy_v2", "intake_v2",
+    "segmentation_v2", "envelope_v2", "prompt_v2", "stamping_v2", "role_policy_v2",
     "temporal_v2", "grounding_v2", "coverage_v2", "resolver_v2", "integration_v2",
 )  # fmt: skip
 
@@ -226,7 +226,7 @@ async def test_write_v2_alone_forget_reaches_derived_facts(
     eng = await memspine.open(dotenv_path=None, **raw)
     try:
         mem = eng.scope(NS, principal="ilse", viewer="ilse", purpose="assist")
-        await mem.write_messages(_turns(LINES), session_id="s1", group_id="s1")
+        await mem.ingest_messages(_turns(LINES), session_id="s1", group_id="s1")
         await eng.flush_windows()
         storage = eng._require_started()
         recs = {r.record_id: r for r in await storage.list_records(NS)}

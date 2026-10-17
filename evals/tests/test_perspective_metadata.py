@@ -1,4 +1,4 @@
-"""I5 / I39: the adapter hands each turn's speaker and chat role to ``write_messages``.
+"""I5 / I39: the adapter hands each turn's speaker and chat role to ``ingest_messages``.
 
 Default runs write exactly what they always wrote (role ``user``, no speaker key); with the
 perspective layer configured (or ``perspective_metadata=True``) the speaker and role travel as

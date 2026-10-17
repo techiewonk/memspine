@@ -146,8 +146,8 @@ async def test_flag_on_stores_the_index_text_and_keeps_the_display_text(tmp_path
     await off.start()
     await on.start()
     try:
-        rec_off = await off.write_messages(TURNS, namespace=NS, session_id="s1")
-        rec_on = await on.write_messages(TURNS, namespace=NS, session_id="s1")
+        rec_off = await off.ingest_messages(TURNS, namespace=NS, session_id="s1")
+        rec_on = await on.ingest_messages(TURNS, namespace=NS, session_id="s1")
         pay_off = await _payloads(off)
         pay_on = await _payloads(on)
         assert all("index_text" not in p for p in pay_off)

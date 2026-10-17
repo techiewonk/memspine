@@ -1,6 +1,6 @@
 """SystemAdapter for memspine itself.
 
-Deliberately thin: it uses the public facade only (``write_messages`` in,
+Deliberately thin: it uses the public facade only (``ingest_messages`` in,
 ``assemble`` out), because an adapter that reaches into internals would
 evaluate a configuration no user can reproduce. Each item gets a fresh
 in-memory engine, so nothing leaks between conversations.
@@ -281,7 +281,7 @@ class MemspineSystem:
         self.namespace = namespace
         self.config = dict(config or {})
         #: I5 / I39: send each turn's speaker (a LoCoMo participant name) and chat role
-        #: (``user`` / ``assistant``) to ``write_messages`` as message metadata, and the
+        #: (``user`` / ``assistant``) to ``ingest_messages`` as message metadata, and the
         #: asker (``persona`` / ``asker`` in a question's meta) to the read. The stored
         #: text is the same either way. None = on exactly when the config enables the
         #: perspective layer (``memories.episodic.policies.perspective``), so default runs
@@ -317,7 +317,7 @@ class MemspineSystem:
         self._version = engine_version()
         # record_id -> turn_id, so retrieved records map back to gold units.
         self._origin: dict[str, str] = {}
-        #: G9: up to this many turns of one session go into one ``write_messages``
+        #: G9: up to this many turns of one session go into one ``ingest_messages``
         #: call (one batched embedding). 1 = one call per turn, the original path.
         self.batch_turns = max(1, int(batch_turns))
         self._buffer: list[Turn] = []
@@ -560,7 +560,7 @@ class MemspineSystem:
         if self.batch_turns <= 1:
             return await self._deposit([turn])
         # G9 batching: a session boundary flushes the previous session first, so
-        # one write_messages call never mixes session ids, group ids or episodes.
+        # one ingest_messages call never mixes session ids, group ids or episodes.
         results: list[DepositResult] = []
         if self._buffer and self._buffer[0].session_id != turn.session_id:
             results.append(await self.flush())
@@ -572,7 +572,7 @@ class MemspineSystem:
         return _merge_deposits(results)
 
     def _message(self, turn: Turn, text: str) -> dict[str, Any]:
-        """One ``write_messages`` entry. Default: role ``user`` for every turn (the stored
+        """One ``ingest_messages`` entry. Default: role ``user`` for every turn (the stored
         content carries the speaker name). With perspective metadata: ``speaker`` = the
         turn's speaker, and the chat role when the speaker is ``user`` / ``assistant``."""
         message: dict[str, Any]
@@ -620,7 +620,7 @@ class MemspineSystem:
                 # the stamping stage (write.stamping_v2) reads the source time from the message, as in the
                 # batch path below; valid_from alone left single-turn writes undated (precision unknown)
                 one["timestamp"] = stamp_source_time(turns[0], stamp)
-            records = await self._engine.write_messages(
+            records = await self._engine.ingest_messages(
                 [one],
                 namespace=self.namespace,
                 session_id=session_id,
@@ -635,7 +635,7 @@ class MemspineSystem:
                 if stamp is not None:
                     message["timestamp"] = stamp_source_time(turn, stamp)
                 messages.append(message)
-            records = await self._engine.write_messages(
+            records = await self._engine.ingest_messages(
                 messages,
                 namespace=self.namespace,
                 session_id=session_id,
@@ -644,7 +644,7 @@ class MemspineSystem:
         return list(records)
 
     async def _deposit(self, turns: list[Turn]) -> DepositResult:
-        """One ``write_messages`` call for turns of ONE session."""
+        """One ``ingest_messages`` call for turns of ONE session."""
         # The speaker NAME is content ("Ana: ..."), not a provenance role:
         # passing it as the role dropped names from the stored text and gave
         # every speaker an unknown-role trust. The session stamp becomes the
@@ -1390,7 +1390,7 @@ def _enum_value(value: Any) -> Any:
 def _align(records: list[Any], turns: list[Turn], texts: list[str]) -> list[tuple[Any, str]]:
     """Pair each written record with the turn it came from.
 
-    ``write_messages`` returns records in message order, one per turn unless the
+    ``ingest_messages`` returns records in message order, one per turn unless the
     engine skipped a turn (role or recalled-memory filters). Equal counts zip.
     Otherwise each record is matched, in order, to the next turn with identical
     content; a record that matches none (its content was redacted) takes the

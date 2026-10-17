@@ -15,7 +15,7 @@ flowchart TB
 
   subgraph Facade["memspine.Engine — async verbs (engine.py)"]
     direction LR
-    W["write · write_messages · write_episode"]
+    W["write · ingest_messages · write_episode"]
     S["search · assemble · shared_search"]
     F["forget · verify_forget · audit_taint"]
     SL["sleep · SleepScheduler"]

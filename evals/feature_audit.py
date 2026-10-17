@@ -224,7 +224,7 @@ async def _session(engine: Any, texts: list[str], start: datetime = T0, **kw: An
         {"role": "user", "content": c, "timestamp": (start + timedelta(minutes=i)).isoformat()}
         for i, c in enumerate(texts)
     ]
-    return await engine.write_messages(msgs, namespace="a", session_id="s1", group_id="s1", **kw)
+    return await engine.ingest_messages(msgs, namespace="a", session_id="s1", group_id="s1", **kw)
 
 
 def _src(role: str, channel: str | None = None, principal: str | None = None) -> Any:
@@ -525,7 +525,7 @@ async def check_event_time() -> bool:
     engine = await _engine()
     try:
         when = datetime(2023, 5, 8, tzinfo=UTC)
-        records = await engine.write_messages(
+        records = await engine.ingest_messages(
             [{"role": "user", "content": "Ana: I moved to Lyon."}],
             namespace="audit",
             session_id="s1",
@@ -1043,7 +1043,7 @@ async def check_dated_render() -> bool:
     for render in ("dated", "plain"):
         engine = await _engine(render=render)
         try:
-            await engine.write_messages(
+            await engine.ingest_messages(
                 [{"role": "user", "content": "Ana: I moved to Lyon."}],
                 namespace="audit",
                 session_id="s1",
@@ -1350,7 +1350,7 @@ async def check_h21_deposit_filters() -> bool:
         eng = _engine_kw(memories={"episodic": {"enabled": True}}, firewall=fw)
         await eng.start()
         try:
-            out = await eng.write_messages(
+            out = await eng.ingest_messages(
                 [
                     {"role": "system", "content": "You are a helpful assistant."},
                     {"role": "user", "content": "CURRENT (since 2023-05-01): Ana lives in Lyon"},

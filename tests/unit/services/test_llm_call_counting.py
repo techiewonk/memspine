@@ -98,7 +98,7 @@ async def test_model_calls_after_write_read_sleep(monkeypatch: pytest.MonkeyPatc
                 ["Ana: I run every morning", "Ana: no coffee after noon", "Bob: nice routine"]
             )
         ]
-        await eng.write_messages(msgs, namespace="a", session_id="s1", group_id="s1")
+        await eng.ingest_messages(msgs, namespace="a", session_id="s1", group_id="s1")
         await eng.read("How often does Ana run?", namespace="a", mode="compose", top_k=2)
         after_read = eng.model_calls()
         assert after_read["query_rewrite"] == 1

@@ -57,8 +57,8 @@ def _turns(lines: list[str], day: str) -> list[dict[str, str]]:
 async def prepare(ctx: Ctx) -> None:
     install_offline_llm()
     eng, ns = ctx.engine, ctx.ns
-    raw1 = await eng.write_messages(_turns(S1, "2024-03-01"), namespace=ns, session_id="S1")
-    raw2 = await eng.write_messages(_turns(S2, "2024-04-10"), namespace=ns, session_id="S2")
+    raw1 = await eng.ingest_messages(_turns(S1, "2024-03-01"), namespace=ns, session_id="S1")
+    raw2 = await eng.ingest_messages(_turns(S2, "2024-04-10"), namespace=ns, session_id="S2")
     stats = await eng.flush_windows(ns, final=True)
     ctx.state["raw1"] = [r.record_id for r in raw1]
     ctx.state["raw2"] = [r.record_id for r in raw2]

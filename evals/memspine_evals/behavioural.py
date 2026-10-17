@@ -201,7 +201,7 @@ class Ctx:
                     mixed.append(t)
                     mixed.extend(FILLER_TURNS[(2 * i) : (2 * i) + 2])
                 turns = mixed
-            await self.eng.write_messages(
+            await self.eng.ingest_messages(
                 [{"role": r, "content": t} for r, t in turns],
                 namespace=ns,
                 session_id=f"{ns}-{s.session_id}",
@@ -327,7 +327,7 @@ _CANARY_A = ("zorblax", "quindle")
 
 async def _tenant_setup(c: Ctx) -> tuple[str, str]:
     a, b = "tn-a", "tn-b"
-    await c.eng.write_messages(
+    await c.eng.ingest_messages(
         [
             {
                 "role": "user",
@@ -346,7 +346,7 @@ async def _tenant_setup(c: Ctx) -> tuple[str, str]:
         entity="Bram",
         attribute="allergy",
     )
-    await c.eng.write_messages(
+    await c.eng.ingest_messages(
         [
             {"role": "user", "content": "I repainted the shed green and bought new garden gloves."},
             {

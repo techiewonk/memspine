@@ -45,7 +45,7 @@ async def _session(engine: Engine, texts: list[str]) -> list[str]:
         {"role": "user", "content": c, "timestamp": (t0 + timedelta(minutes=i)).isoformat()}
         for i, c in enumerate(texts)
     ]
-    recs = await engine.write_messages(msgs, namespace="a", session_id="s1", group_id="s1")
+    recs = await engine.ingest_messages(msgs, namespace="a", session_id="s1", group_id="s1")
     await engine.sleep()
     return [r.record_id for r in recs]
 

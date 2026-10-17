@@ -920,7 +920,7 @@ def build_parser() -> argparse.ArgumentParser:
         type=int,
         default=1,
         metavar="N",
-        help="memspine arm: write up to N turns of one session per write_messages call "
+        help="memspine arm: write up to N turns of one session per ingest_messages call "
         "(one batched embedding); flushed before every query and at session boundaries (G9)",
     )
     c01.add_argument(

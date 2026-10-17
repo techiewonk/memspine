@@ -1,4 +1,4 @@
-"""C-1: event time (valid_from) on write and write_messages."""
+"""C-1: event time (valid_from) on write and ingest_messages."""
 
 from __future__ import annotations
 
@@ -37,9 +37,9 @@ async def test_write_sets_event_time_and_makes_it_aware(engine: Engine) -> None:
     assert rec.recorded_at > rec.valid_from  # event time is not ingestion time
 
 
-async def test_write_messages_per_message_timestamp_beats_batch(engine: Engine) -> None:
+async def test_ingest_messages_per_message_timestamp_beats_batch(engine: Engine) -> None:
     batch = datetime(2023, 1, 1, tzinfo=UTC)
-    records = await engine.write_messages(
+    records = await engine.ingest_messages(
         [
             {"role": "user", "content": "first", "timestamp": "2023-05-08T13:56:00"},
             {"role": "user", "content": "second"},

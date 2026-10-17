@@ -29,7 +29,7 @@ def _engine(tmp_path: Any, **read: Any) -> Engine:
 
 
 async def _store(eng: Engine) -> None:
-    await eng.write_messages(
+    await eng.ingest_messages(
         [
             {"role": "user", "content": "Ilse lives in Rotterdam and works as a nurse."},
             {"role": "user", "content": "Ilse's dentist is Bram and his clinic is in Delft."},

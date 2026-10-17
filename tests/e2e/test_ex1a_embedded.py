@@ -315,7 +315,7 @@ class World:
             (self.ilse, "ilse-s2", ILSE_S2, 60),
             (self.bram, "bram-s1", BRAM_S1, 0),
         ):
-            await handle.write_messages(_turns(lines, start), session_id=session, group_id=session)
+            await handle.ingest_messages(_turns(lines, start), session_id=session, group_id=session)
         for text, visibility in HOME:
             await self.eng.write(
                 text,

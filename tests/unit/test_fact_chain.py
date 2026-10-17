@@ -92,7 +92,7 @@ async def _session(eng: Engine, lines: list[str], ns: str = "a", sid: str = "s1"
         {"role": "user", "content": c, "timestamp": (t0 + timedelta(minutes=i)).isoformat()}
         for i, c in enumerate(lines)
     ]
-    await eng.write_messages(msgs, namespace=ns, session_id=sid, group_id=sid)
+    await eng.ingest_messages(msgs, namespace=ns, session_id=sid, group_id=sid)
     turns = await eng.retrieve(namespace=ns, memory_type="episodic")
     by_text = {t.content: t.record_id for t in turns}
     return [by_text[next(k for k in by_text if line.split(": ", 1)[1] in k)] for line in lines]

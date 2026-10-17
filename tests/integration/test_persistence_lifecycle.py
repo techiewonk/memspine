@@ -85,7 +85,7 @@ async def test_persistence_survives_reopen_and_rebuild(
         doc.write_text(
             "# Runbook\n\nRotate the API key monthly.\n\nPage on-call.", encoding="utf-8"
         )
-        chunks = await engine.ingest(str(doc))
+        chunks = await engine.ingest_data(str(doc))
         assert chunks, "ingest produced no resource records"
     finally:
         await engine.stop()

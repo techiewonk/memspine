@@ -8,7 +8,6 @@ purpose) filled in. The module-level functions are the engine's scoped views (``
 
 from __future__ import annotations
 
-import asyncio
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -155,7 +154,7 @@ async def conversation(
     session_id: str = "",
     roles: Sequence[str] | None = None,
 ) -> list[MemoryRecord]:
-    """I6: the live turns of one conversation (``write_messages(session_id=...)``),
+    """I6: the live turns of one conversation (``ingest_messages(session_id=...)``),
     in time order, read through the indexed ``session_key`` column; ``roles`` keeps
     only some speakers. Passes the same context gates as a read (erased, quarantined
     or untrusted turns are left out)."""
@@ -187,7 +186,7 @@ async def session_memories(
     return sorted(out, key=chrono_key)
 
 
-async def ingest(
+async def ingest_data(
     eng: Any,
     path: str | Path,
     namespace: str = "default",
@@ -196,18 +195,11 @@ async def ingest(
     """Ingest a document (D-29): extract → chunk → resource records."""
     eng._require_started()
     if eng._resource is None:
-        raise MemspineError("resource memory not enabled — set memories.resource.enabled: true")
+        raise MemspineError("resource memory not enabled ? set memories.resource.enabled: true")
+    from memspine.ingest import gateway as intake_gateway
+
     ns = validate_namespace(namespace)
-    if eng._config().write.intake_v2:  # W2-01: the intake gateway (versioned source, idempotent)
-        from memspine.ingest import gateway as intake_gateway
-
-        return await intake_gateway.ingest(eng, path, ns, pii_tier)
-    # Same one-writer-per-namespace unit as write()/forget(): ingest's
-    # firewall-context reads and chunk writes must not interleave with a
-    # concurrent hard delete's read-hold-check-redact sequence.
-    async with eng._write_locks.setdefault(ns, asyncio.Lock()):
-        return await eng._resource.ingest(ns, path, pii_tier=pii_tier)  # type: ignore[no-any-return]  # CI-GREEN: pre-existing typing debt
-
+    return await intake_gateway.ingest_data(eng, path, ns, pii_tier)
 
 _BOUND_KEYS = frozenset({"namespace", "viewer", "purpose"})
 
@@ -360,9 +352,9 @@ class Memory:
         """Write one memory and return the outcome (``Engine.write_ex``)."""
         return await self._scoped("write_ex", content, **kwargs)
 
-    async def write_messages(self, turns: Sequence[Mapping[str, Any]], **kwargs: Any) -> Any:
-        """Write chat turns (``Engine.write_messages``)."""
-        return await self._scoped("write_messages", turns, **kwargs)
+    async def ingest_messages(self, turns: Sequence[Mapping[str, Any]], **kwargs: Any) -> Any:
+        """Write chat turns (``Engine.ingest_messages``)."""
+        return await self._scoped("ingest_messages", turns, **kwargs)
 
     async def write_episode(self, turns: Sequence[Mapping[str, Any]], **kwargs: Any) -> Any:
         """Write chat turns as one episode (``Engine.write_episode``)."""

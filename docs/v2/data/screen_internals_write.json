@@ -3,11 +3,11 @@
   "id": "REF-WRITE",
   "settings": {},
   "stage": "D",
-  "trigger": "per write_messages call (a batch of turns); the per-turn loop runs once per depositable turn",
+  "trigger": "Engine.ingest_messages(messages, conversation_id=...) or Engine.ingest_data(document)",
   "steps": [
    {
     "n": 1,
-    "what": "Entry: Engine.write_messages delegates to ingest.write.write_messages. With write.intake_v2 on it first goes through the intake gateway (envelope, write ids, receipt) which then calls write_messages_direct on the fresh turns; with it off write_messages_direct runs straight away.",
+    "what": "Public entry: Engine.ingest_messages / Engine.ingest_data routes through the single durable intake lifecycle into write.apply_messages. No selector flag or legacy alias remains.",
     "code": "src/memspine/ingest/write.py:write_messages (505), write_messages_direct (561); src/memspine/api/engine.py:write_messages (1652)",
     "kind": "rule"
    },
@@ -773,15 +773,13 @@
  },
  {
   "id": "S50",
-  "settings": {
-   "write.intake_v2": true
-  },
+  "settings": {},
   "stage": "D",
-  "trigger": "per write_messages / write_episode / ingest call; and once at engine start (recovery of an accepted but unapplied write)",
+  "trigger": "Every public ingestion call; no configuration gate",
   "steps": [
    {
     "n": 1,
-    "what": "ingest.write.write_messages sees intake_v2 and hands the call to gateway.write_messages: each turn becomes a Segment (seg_index, role, speaker, source_at, content) and the call becomes one SourceEnvelope (kind conversation, source id '<session>#<batch digest>', scope from namespace/session/actor).",
+    "what": "Canonical intake lifecycle is always active: message_ingestion normalizes identity and content, gateway validates source and accepts the intent, then the shared apply path commits fresh turns.",
     "code": "src/memspine/ingest/write.py:write_messages (505-545); src/memspine/ingest/gateway.py:write_messages (813)",
     "kind": "rule"
    },
@@ -942,7 +940,6 @@
   "settings": {
    "write.window_extract": "facts",
    "write.window_async": false,
-   "write.intake_v2": true,
    "write.stamping_v2": true,
    "write.role_policy_v2": true,
    "write.segmentation_v2": true,
@@ -958,11 +955,11 @@
    "(defaults used)": "ground_adjudicator lexical, ground_action drop, coverage_threshold 0.8, coverage_max_targets 6, coverage_context_lines 2, resolve_high 0.9, resolve_grey 0.7, prompt_known_cap 40, prompt_context_turns 3, prompt_schema auto, integration_decide_unhinted false"
   },
   "stage": "D",
-  "trigger": "intake/stamping/role policy per turn at write_messages; segmentation per turn; batching + extraction + stages + deposit per batch of windows at flush_windows/close_session/sleep (async off)",
+  "trigger": "Accepted intake intent ready for application",
   "steps": [
    {
     "n": 1,
-    "what": "INTAKE (write.intake_v2). write_messages becomes a SourceEnvelope; IntakeBook assigns write ids and verdicts (new/retry/new_version), checks quota, commits the intent and apply payload in one SQL transaction, then applies the fresh turns through write_messages_direct (tagged idem:<id>) and marks the receipt applied. Crash recovery runs at start.",
+    "what": "Accepted intents are applied through the canonical message apply path; durable identity reservations and source metadata are indexed separately from message text.",
     "code": "src/memspine/ingest/gateway.py:IntakeGateway.submit (291), _apply_messages (463), _finish (406); src/memspine/ingest/write.py:write_messages (505)",
     "kind": "storage"
    },

@@ -193,7 +193,40 @@ async def _facts(eng: Engine, ns: str = "a") -> list[Any]:
 
 
 async def _send(eng: Engine, ns: str, session: str, messages: list[dict[str, str]]) -> None:
-    await eng.write_messages(messages, namespace=ns, session_id=session, group_id=session)
+    await eng.ingest_messages(
+        messages,
+        namespace=ns,
+        session_id=session,
+        conversation_id=session,
+        group_id=session,
+    )
+
+
+async def test_records_without_conversation_metadata_keep_session_windowing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    llm = FakeWindowLLM()
+    eng = await _engine(monkeypatch, llm, window_max_turns=6)
+    pipeline = eng._windows
+    assert pipeline is not None
+    try:
+        eng._windows = None
+        records = await eng.ingest_messages(
+            _turns("trip", 2), namespace="a", session_id="S1", conversation_id="C1"
+        )
+        eng._windows = pipeline
+        for record in records:
+            raw = record.model_copy(
+                update={"source": record.source.model_copy(update={"message": None})}
+            )
+            await pipeline.observe(raw, "S1")
+
+        stats = await pipeline.flush()
+        assert stats["windows"] == 1
+        assert stats["windows_processed"] == 1
+    finally:
+        eng._windows = pipeline
+        await eng.stop()
 
 
 # --- segmenter -------------------------------------------------------------------------------
@@ -673,6 +706,7 @@ async def test_counters_windows_per_session_and_calls_per_turn(
     eng = await _engine(monkeypatch, llm)
     try:
         await _send(eng, "a", "s1", _turns("trip", 13))  # 6 + 6 + 1
+        await eng.close_session("a", "s1")
         await _send(eng, "a", "s2", _turns("walk", 5))  # 5
         stats = await eng.flush_windows()
         assert stats["turns"] == 18 and stats["windows"] == 4 and stats["calls"] == 4

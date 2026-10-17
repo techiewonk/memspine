@@ -63,7 +63,7 @@ async def _session(eng: Engine, turns: list[str], namespace: str = "a") -> list[
         {"role": "user", "content": c, "timestamp": (T0 + timedelta(minutes=i)).isoformat()}
         for i, c in enumerate(turns)
     ]
-    return await eng.write_messages(msgs, namespace=namespace, session_id="s1", group_id="s1")
+    return await eng.ingest_messages(msgs, namespace=namespace, session_id="s1", group_id="s1")
 
 
 async def _by_channel(eng: Engine, channel: str, namespace: str = "a") -> list[MemoryRecord]:
@@ -98,7 +98,7 @@ async def test_n2_extract_graph_fact_is_derived_and_parent_capped() -> None:
     await eng.start()
     eng._extract_edges = _extractor([_edge("alice works at acme")])
     try:
-        [turn] = await eng.write_messages(
+        [turn] = await eng.ingest_messages(
             [{"role": "user", "content": "Alice works at Acme"}], namespace="a"
         )
         stats = await extract_graph(eng._pipeline_ctx())
@@ -116,7 +116,7 @@ async def test_n2_extract_graph_fact_on_a_protected_key_is_quarantined() -> None
     await eng.start()
     eng._extract_edges = _extractor([_edge("alice works at zorg corp")])
     try:
-        await eng.write_messages(
+        await eng.ingest_messages(
             [{"role": "user", "content": "Alice works at Acme"}], namespace="a"
         )
         stats = await extract_graph(eng._pipeline_ctx())
@@ -132,7 +132,7 @@ async def test_n2_instruction_shaped_edge_is_quarantined_and_gets_no_link() -> N
     await eng.start()
     eng._extract_edges = _extractor([_edge(INJECTION)])
     try:
-        [turn] = await eng.write_messages(
+        [turn] = await eng.ingest_messages(
             [{"role": "user", "content": "Alice works at Acme"}], namespace="a"
         )
         stats = await extract_graph(eng._pipeline_ctx())
@@ -153,7 +153,7 @@ async def test_n2_instruction_flagged_source_yields_no_edges() -> None:
     await eng.start()
     eng._extract_edges = _extractor([_edge("alice works at acme")], seen)
     try:
-        [turn] = await eng.write_messages(
+        [turn] = await eng.ingest_messages(
             [{"role": "user", "content": f"Alice works at Acme. {INJECTION}"}], namespace="a"
         )
         assert turn.instruction_flag and not turn.quarantined  # a user may write imperatives

@@ -1,7 +1,7 @@
 """Session lifecycle (#53, ADR-037): ACTIVE / PASSIVE archival of idle sessions.
 
 A *session* here is the explicit conversation id a writer stamps on its turns
-(``write_messages(session_id=...)`` / ``write_episode``, stored as the episodic
+(``ingest_messages(session_id=...)`` / ``write_episode``, stored as the episodic
 record's ``source.message_id``). A session whose newest write is older than
 ``memories.episodic.policies.sessions.passive_after`` is marked PASSIVE by the
 sleep cycle: its records stay stored and retrievable, but default reads leave them

@@ -81,7 +81,7 @@ async def _seed(eng: Engine) -> None:
             }
             for i in range(3)
         ]
-        await eng.write_messages(msgs, namespace=ns, session_id=f"s-{ns}", group_id=f"s-{ns}")
+        await eng.ingest_messages(msgs, namespace=ns, session_id=f"s-{ns}", group_id=f"s-{ns}")
 
 
 async def _mined(eng: Engine, ns: str) -> int:

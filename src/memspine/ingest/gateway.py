@@ -1,6 +1,6 @@
 """Intake gateway (W2-01; W-01, W-02, W-03, W-24): the one door in front of the old write doors.
 
-``write_messages``, ``write_episode`` and ``ingest`` become adapters (``write.intake_v2``): each call
+``ingest_messages``, ``write_episode`` and ``ingest`` become adapters (canonical intake): each call
 is turned into a :class:`~memspine.schemas.steps.shared.SourceEnvelope`, run through the pure
 ``IntakeBook`` (LIB-30: validation, S3-3 write ids, idempotent retry, document version diff,
 receipt), and the segments that are new go through the old write path unchanged.
@@ -50,10 +50,18 @@ from memspine.ingest.intake import (
     IntakeBook,
     IntakeCost,
     SourceState,
+    ValidatedEnvelope,
     scope_key,
-    validate_envelope,
+    validate_source,
     write_id,
 )
+from memspine.ingest.message_helpers import (
+    IDEM_TAG_PREFIX,
+    INTAKE_LANDED,
+    _looks_like_recall,
+    _turn_content,
+)
+from memspine.ingest.message_schema import ValidatedMessageBatch
 from memspine.memories.procedural.skills import make_skill_record
 from memspine.observability import tap
 from memspine.schemas.public import QuotaExceeded, WaitResult
@@ -71,12 +79,10 @@ __all__ = [
     "SourceVersioner",
     "capabilities_of",
     "gateway_of",
-    "ingest",
+    "ingest_data",
+    "ingest_resolved_messages",
     "recover",
-    "write_messages",
 ]
-
-_ROLES = {"user", "assistant", "tool", "system", "operator", "document"}
 
 
 class SimulatedCrash(BaseException):
@@ -267,6 +273,7 @@ class IntakeGateway:
         self.last_new: set[str] = set()  # record ids this gateway call wrote (not replayed or kept)
         self.quota_check: Callable[[IntakeCost], QuotaExceeded | None] | None = None
         self._db: AsyncEngine | None = None
+        self._message_recovery_needed = False
         self._locks: dict[str, asyncio.Lock] = {}
         self.versioner = SourceVersioner(eng)
 
@@ -295,7 +302,8 @@ class IntakeGateway:
         eng = self.eng
         db = await self._engine()
         self.last_new = set()
-        venv = validate_envelope(env)
+        validated = validate_source(env)
+        venv = validated.envelope
         skey = scope_key(venv.scope)
         async with self._lock(skey):
             now = datetime.now(UTC)
@@ -314,7 +322,7 @@ class IntakeGateway:
             before = ov.get_source(skey, venv.source_id)
             book = IntakeBook(ov, ephemeral=_is_memory_db(eng))
             self._boundary("pre_accept")
-            out = book.accept(venv, capabilities_of(eng), self.quota_check, now=now)
+            out = book.accept_validated(validated, capabilities_of(eng), self.quota_check, now=now)
             if isinstance(out, QuotaExceeded):
                 tap.event("write.intake.rejected", reason="quota", quota=out.quota)
                 raise QuotaExceededError(out)
@@ -322,7 +330,7 @@ class IntakeGateway:
                 await self._resume_many(known_intents | {out.receipt.intent_id})
                 return await self._result(db, skey, out.receipt, replayed=True, noop=out.noop)
             change = ov.change
-            payload = self._payload(venv, ns, adapter, args, out, before, wids, version)
+            payload = self._payload(validated, ns, adapter, args, out, before, wids, version)
             self._boundary("pre_commit")
             await store.commit(
                 db,
@@ -348,7 +356,7 @@ class IntakeGateway:
 
     def _payload(
         self,
-        env: SourceEnvelope,
+        validated: ValidatedEnvelope,
         ns: str,
         adapter: str,
         args: dict[str, Any],
@@ -357,6 +365,7 @@ class IntakeGateway:
         wids: Sequence[str],
         version: int,
     ) -> dict[str, Any]:
+        env = validated.envelope
         fresh_idx = [e.payload["seg_index"] for e in out.events if e.kind == "memory.write"]
         fresh_wid = {
             e.payload["seg_index"]: e.payload["write_id"]
@@ -384,13 +393,26 @@ class IntakeGateway:
         if adapter == "messages":
             turns = args["turns"]
             for item in body["fresh"]:
-                item["turn"] = _turn_json(turns[item["i"]])
+                i = item["i"]
+                turn = dict(turns[i])
+                segment = env.segments[i]
+                turn["role"] = segment.role
+                turn["content"] = segment.content
+                # The adapter already folded the caption into validated content.
+                turn.pop("caption", None)
+                turn["speaker"] = segment.speaker
+                if turn.get("created_at") is not None:
+                    # Resolved message time preserves source precision and whether
+                    # the caller supplied a zone; source_at is a normalized instant.
+                    turn["timestamp"] = turn["created_at"]
+                elif segment.source_at is not None:
+                    turn["timestamp"] = segment.source_at
+                item["turn"] = _turn_json(turn)
             body["args"] = {k: v for k, v in args.items() if k != "turns"}
             body["all_wids"] = {str(i): w for i, w in enumerate(wids)}
         else:
-            chunks = args["chunks"]
             for item in body["fresh"]:
-                item["text"] = chunks[item["i"]]
+                item["text"] = env.segments[item["i"]].content
             body["args"] = {k: v for k, v in args.items() if k != "chunks"}
         return body
 
@@ -445,7 +467,7 @@ class IntakeGateway:
         storage = self.eng._require_started()
         want = set(wids)
         found: dict[str, str] = {}
-        prefix = ingest_write.IDEM_TAG_PREFIX
+        prefix = IDEM_TAG_PREFIX
         for rec in await storage.list_records(ns, memory_type):
             for tag in rec.tags:
                 if tag.startswith(prefix) and tag[len(prefix) :] in want:
@@ -478,10 +500,7 @@ class IntakeGateway:
             turn = f["turn"]
             if resume and (
                 turn.get("role") in fw.skip_message_roles
-                or (
-                    fw.skip_injected_recall
-                    and ingest_write._looks_like_recall(str(turn.get("content", "")))
-                )
+                or (fw.skip_injected_recall and _looks_like_recall(str(turn.get("content", ""))))
             ):
                 continue  # legacy writes no record for these; do not replay their audit marker
             todo.append(f)
@@ -509,9 +528,9 @@ class IntakeGateway:
                         else:
                             turn.pop("reply_to")
                 turns.append(turn)
-            token = ingest_write.INTAKE_LANDED.set(sink)
+            token = INTAKE_LANDED.set(sink)
             try:
-                await ingest_write.write_messages_direct(
+                await ingest_write.apply_messages(
                     eng,
                     turns,
                     ns,
@@ -523,7 +542,7 @@ class IntakeGateway:
                     datetime.fromisoformat(a["valid_from"]) if a["valid_from"] else None,
                 )
             finally:
-                ingest_write.INTAKE_LANDED.reset(token)
+                INTAKE_LANDED.reset(token)
         if eng._config().write.role_policy_v2:  # W2-03: keyed turns also get a typed record
             await self._route_typed(p, fresh, {**landed, **sink})
         return {**landed, **sink}
@@ -567,7 +586,7 @@ class IntakeGateway:
                 tap.event("write.route.skipped", reason="raw_unusable", type=r.typed, wid=wid)
                 continue
             try:
-                tags = [f"{ingest_write.IDEM_TAG_PREFIX}{wid}", constants.ROUTED_TAG]
+                tags = [f"{IDEM_TAG_PREFIX}{wid}", constants.ROUTED_TAG]
                 if r.typed in ("skill", "plan"):  # procedural: kind rides as the attribute
                     name = _name_of(f["turn"], r.text or raw.content)
                     rec = make_skill_record(
@@ -806,33 +825,27 @@ async def recover(eng: Any) -> int:
 
 
 def _turn_text(turn: Mapping[str, Any]) -> str:
-    return ingest_write._turn_content(turn)
+    return _turn_content(turn)
 
 
-async def write_messages(
+async def ingest_resolved_messages(
     eng: Any,
-    messages: Sequence[Mapping[str, str]],
-    namespace: str = "default",
-    actor: str = "user",
-    session_id: str | None = None,
-    channel: str = "messages",
-    group_id: str | None = None,
-    tags: list[str] | None = None,
-    valid_from: datetime | None = None,
+    batch: ValidatedMessageBatch,
+    namespace: str,
+    actor: str,
+    session_id: str | None,
+    channel: str,
+    group_id: str | None,
+    tags: list[str] | None,
+    valid_from: datetime | None,
 ) -> list[MemoryRecord]:
-    """``write_messages`` as an intake adapter. Returns the records of the call's turns (a retried
-    turn returns its original record); the receipt is ``gateway_of(eng).last_receipt``."""
+    """Submit normalized messages only; the batch owns resolved message fields and content."""
+    if not isinstance(batch, ValidatedMessageBatch):
+        raise TypeError("ingest_resolved_messages requires a ValidatedMessageBatch")
     ns = validate_namespace(namespace)
+    turns = batch.to_messages()
     segments: list[Segment] = []
-    turns: list[dict[str, Any]] = []
-    for i, turn in enumerate(messages):
-        try:
-            role = turn["role"]
-            content = _turn_text(turn)
-        except (KeyError, TypeError) as exc:
-            raise ValueError(
-                f"messages[{i}] must be a mapping with 'role' and 'content' keys"
-            ) from exc
+    for i, turn in enumerate(turns):
         stamp = eng._event_time(turn.get("timestamp")) or (
             eng._localize(valid_from) if valid_from is not None else None
         )
@@ -840,18 +853,17 @@ async def write_messages(
         segments.append(
             Segment(
                 seg_index=i,
-                role=role if role in _ROLES else "user",  # type: ignore[arg-type]  # CI-GREEN: pre-existing typing debt
+                role=turn["role"],
                 speaker=who if isinstance(who, str) else None,
                 source_at=stamp,
-                content=content,
+                content=_turn_text(turn),
             )
         )
-        turns.append(dict(turn))
     if not segments:
         return []
-    batch = _digest([_turn_json(t) for t in turns])
+    source_digest = _digest([_turn_json(t) for t in turns])
     env = SourceEnvelope(
-        source_id=f"{session_id or 'nosession'}#{batch}",
+        source_id=f"{session_id or 'nosession'}#{source_digest}",
         kind="conversation",
         scope=_scope_of(ns, session_id, actor),
         segments=segments,
@@ -876,7 +888,7 @@ async def write_messages(
     return out
 
 
-async def ingest(
+async def ingest_data(
     eng: Any, path: str | Path, namespace: str = "default", pii_tier: PiiTier = PiiTier.NONE
 ) -> list[MemoryRecord]:
     """``ingest`` as an intake adapter: a document is a versioned source; chunks are segments.
@@ -929,7 +941,7 @@ async def ingest_asset(
     pii_tier: PiiTier = PiiTier.NONE,
 ) -> MemoryRecord | None:
     """W2-11: store an asset reference (``asset`` envelope; ``write.asset_describer`` must not be
-    ``off``, ``write.intake_v2`` must be on). The same asset (content hash) in a namespace is stored
+    ``off``). The same asset (content hash) in a namespace is stored
     once. Returns the asset record, or None when it was already stored."""
     from memspine.exceptions import ConfigError
     from memspine.ingest import asset_describer as ad
@@ -937,8 +949,6 @@ async def ingest_asset(
     cfg = eng._config().write
     if cfg.asset_describer == "off":
         raise ConfigError("ingest_asset needs write.asset_describer: ingest | on_read")
-    if not cfg.intake_v2:
-        raise ConfigError("ingest_asset goes through the intake gateway: set write.intake_v2")
     ns = validate_namespace(namespace)
     info = await asyncio.to_thread(
         ad.asset_info_from_file,

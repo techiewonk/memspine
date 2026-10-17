@@ -2,7 +2,7 @@
 
 Buffered turns must keep their ``turn_id`` mapping (R@k scores on it), must be
 written before any query (pinned mid-stream or tail) and must never share a
-``write_messages`` call with another session's turns.
+``ingest_messages`` call with another session's turns.
 """
 
 from __future__ import annotations
@@ -47,15 +47,15 @@ def _turns() -> list[Turn]:
 
 
 class _SpyEngine:
-    """Records every write_messages batch (session id and size)."""
+    """Records every ingest_messages batch (session id and size)."""
 
     def __init__(self, inner: Any) -> None:
         self.inner = inner
         self.batches: list[tuple[str, int]] = []
 
-    async def write_messages(self, messages: list[dict[str, Any]], **kwargs: Any) -> Any:
+    async def ingest_messages(self, messages: list[dict[str, Any]], **kwargs: Any) -> Any:
         self.batches.append((kwargs["session_id"], len(messages)))
-        return await self.inner.write_messages(messages, **kwargs)
+        return await self.inner.ingest_messages(messages, **kwargs)
 
     def __getattr__(self, name: str) -> Any:
         return getattr(self.inner, name)

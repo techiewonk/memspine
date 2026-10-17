@@ -63,12 +63,12 @@ async def test_configured_zone_applies_to_naive_values_and_message_timestamps() 
         rec = await eng.write("x", namespace="n", memory_type="episodic", valid_from=NAIVE)
         # 23:30 New York (EDT, UTC-4) is 03:30 UTC the next day: the zone matters near midnight
         assert rec.valid_from.astimezone(UTC) == datetime(2023, 5, 9, 3, 30, tzinfo=UTC)
-        out = await eng.write_messages(
+        out = await eng.ingest_messages(
             [{"role": "user", "content": "hello there", "timestamp": "2023-05-08T23:30:00"}],
             namespace="n",
         )
         assert out[0].valid_from.astimezone(UTC) == datetime(2023, 5, 9, 3, 30, tzinfo=UTC)
-        out = await eng.write_messages(
+        out = await eng.ingest_messages(
             [{"role": "user", "content": "hi again", "timestamp": "2023-05-08T23:30:00+00:00"}],
             namespace="n",
         )
@@ -95,13 +95,13 @@ async def test_session_sequence_keeps_write_order_when_stamps_tie() -> None:
     eng = _engine(session_sequence=True)
     await eng.start()
     try:
-        recs = await eng.write_messages(_SESSION, namespace="n", session_id="s1", valid_from=day)
+        recs = await eng.ingest_messages(_SESSION, namespace="n", session_id="s1", valid_from=day)
         stamps = [r.valid_from for r in recs]
         assert stamps == sorted(stamps) and len(set(stamps)) == len(stamps)
         assert stamps[0] == day and stamps[-1] == day + timedelta(microseconds=5)
         assert {s.date() for s in stamps} == {day.date()}  # sub-day only, the date is unchanged
         # a later call of the same session at the same stamp continues the sequence
-        more = await eng.write_messages(
+        more = await eng.ingest_messages(
             [{"role": "user", "content": "one more turn"}],
             namespace="n",
             session_id="s1",
@@ -112,7 +112,7 @@ async def test_session_sequence_keeps_write_order_when_stamps_tie() -> None:
         got = await eng.conversation("n", "s1")
         assert [r.content for r in got][:6] == [m["content"] for m in _SESSION]
         # another session at the same stamp starts again at zero
-        other = await eng.write_messages(
+        other = await eng.ingest_messages(
             [{"role": "user", "content": "elsewhere"}],
             namespace="n",
             session_id="s2",
@@ -128,7 +128,7 @@ async def test_default_stores_stamps_as_given() -> None:
     eng = _engine()
     await eng.start()
     try:
-        recs = await eng.write_messages(_SESSION, namespace="n", session_id="s1", valid_from=day)
+        recs = await eng.ingest_messages(_SESSION, namespace="n", session_id="s1", valid_from=day)
         assert {r.valid_from for r in recs} == {day}
     finally:
         await eng.stop()

@@ -1,4 +1,4 @@
-"""H21: deposit filters on write_messages (self-contamination)."""
+"""H21: deposit filters on ingest_messages (self-contamination)."""
 
 from __future__ import annotations
 
@@ -22,7 +22,7 @@ async def test_filters_skip_system_tool_and_recall_and_tag_claims() -> None:
     )
     await eng.start()
     try:
-        out = await eng.write_messages(
+        out = await eng.ingest_messages(
             [
                 {"role": "system", "content": "You are a helpful assistant."},
                 {"role": "tool", "content": "search results: ..."},
@@ -46,7 +46,7 @@ async def test_filters_off_by_default() -> None:
     eng = _engine()
     await eng.start()
     try:
-        out = await eng.write_messages(
+        out = await eng.ingest_messages(
             [
                 {"role": "system", "content": "You are a helpful assistant."},
                 {"role": "assistant", "content": "You could try the new bakery"},

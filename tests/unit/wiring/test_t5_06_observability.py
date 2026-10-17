@@ -76,7 +76,7 @@ def _engine(**extra: Any) -> Engine:
 
 async def _workload(eng: Engine) -> None:
     await eng.write("Ilse lives in Tomasz Street with Bram", namespace="noor", entity="Ilse")
-    await eng.write_messages(
+    await eng.ingest_messages(
         [
             {"role": "user", "content": "Bram: Noor moved to Tomasz Street last spring"},
             {"role": "assistant", "content": "Ilse noted that Noor likes green tea"},
@@ -129,7 +129,7 @@ async def test_ops_report_covers_read_write_and_sleep_stages() -> None:
         await eng.stop()
     assert report["enabled"] is True
     stages = report["stages"]
-    assert {"write", "write_messages"} <= set(stages["write"])
+    assert {"write", "ingest_messages"} <= set(stages["write"])
     assert {"search", "retrieve", "read"} <= set(stages["read"])
     assert {"consolidate", "extract_graph"} <= set(stages["sleep"])
     for kind in ("read", "write", "sleep"):

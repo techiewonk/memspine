@@ -355,11 +355,11 @@ async def test_viewer_filters_search_assemble_and_read() -> None:
         await eng.stop()
 
 
-async def test_write_messages_tags_session_participants() -> None:
+async def test_ingest_messages_tags_session_participants() -> None:
     eng = _engine({"participants": "session"})
     await eng.start()
     try:
-        recs = await eng.write_messages(
+        recs = await eng.ingest_messages(
             [
                 {"role": "user", "name": "Sam", "content": "The garden needs water"},
                 {"role": "user", "name": "Pat", "content": "I will water the garden"},
@@ -383,7 +383,7 @@ async def test_mined_fact_inherits_the_privacy_of_its_source_turn() -> None:
     eng = _engine({"participants": "session"})
     await eng.start()
     try:
-        recs = await eng.write_messages(
+        recs = await eng.ingest_messages(
             [
                 {
                     "role": "user",

@@ -123,7 +123,7 @@ class ReadConfig(BaseModel):
     #: Off: unchanged.
     subject_leg: bool = False
     #: W11 (plan v3.2): assistant-side memory. Assistant turns that recommend something
-    #: are tagged ``recommendation`` at ``write_messages``; a question about what the
+    #: are tagged ``recommendation`` at ``ingest_messages``; a question about what the
     #: assistant said ("what did you recommend", "your suggestion") gets an RRF leg of
     #: the assistant's own turns, recommendations first. Off: unchanged.
     role_aware: bool = False
@@ -552,7 +552,7 @@ class ReadConfig(BaseModel):
     #: the budget). Off: byte-identical.
     reply_links: bool = False
     #: A07: reply / reference edges inferred from the turn order. ``on``: at write time
-    #: (``write_messages``) a short reply from another speaker, and a turn that opens with a
+    #: (``ingest_messages``) a short reply from another speaker, and a turn that opens with a
     #: deictic reference ("this", "that", "these", "those", "we"), is linked to the immediately
     #: preceding turn through ``reply_to:<id>`` plus a ``ref:short_reply`` / ``ref:deictic``
     #: tag; an explicit ``reply_to`` is never overridden. At read time (replay) the antecedent

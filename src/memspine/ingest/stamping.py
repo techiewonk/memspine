@@ -8,7 +8,7 @@
 * :class:`RoleStamper`: ``spk``, ``addr``, ``participants[]`` and the v1 participant tags (W-05), plus the
   role's provenance class and base trust (W-08 stage 1).
 
-:class:`ConversationStamper` walks one ``write_messages`` call: it keeps the call's speakers and the last
+:class:`ConversationStamper` walks one ``ingest_messages`` call: it keeps the call's speakers and the last
 source time, stamps each turn, and runs the assent check of a user turn against the assistant turn it
 answers. :func:`apply_stamp` copies a :class:`~memspine.ingest.stamp.StampedTurn` onto a record; it is
 handed to the write door through the :data:`PENDING_STAMP` context variable (the door's signature stays
@@ -178,7 +178,7 @@ PENDING_STAMP: ContextVar[PendingStamp | None] = ContextVar("memspine_pending_st
 def participants_of_call(
     messages: Sequence[Mapping[str, Any]], aliases: Mapping[str, str] | None = None
 ) -> list[str]:
-    """Everyone present in one ``write_messages`` call, in order of first turn (v1 convention: a turn with
+    """Everyone present in one ``ingest_messages`` call, in order of first turn (v1 convention: a turn with
     no ``speaker`` / ``name`` counts as its role). Normalised principal ids."""
     out: list[str] = []
     for turn in messages:

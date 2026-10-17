@@ -39,14 +39,14 @@ def _turns(*texts: str) -> list[dict[str, str]]:
 
 async def _two_sessions(eng: Engine) -> None:
     """``old`` idles past the horizon; ``new`` is written just before the sleep."""
-    await eng.write_messages(
+    await eng.ingest_messages(
         _turns("Ana booked the flight to Lyon", "Ana packed the green bag"),
         namespace="a",
         session_id="old",
         group_id="old",
     )
     await asyncio.sleep(HORIZON + 0.2)
-    await eng.write_messages(
+    await eng.ingest_messages(
         _turns("Ana asked about the Lyon hotel"), namespace="a", session_id="new", group_id="new"
     )
 
@@ -159,7 +159,7 @@ async def test_new_write_reopens_the_session(tmp_path: Path) -> None:
     try:
         await _two_sessions(eng)
         await eng.sleep()
-        await eng.write_messages(
+        await eng.ingest_messages(
             _turns("Ana changed the Lyon flight"), namespace="a", session_id="old", group_id="old"
         )
         hits = await eng.search("Ana Lyon", namespace="a", top_k=10)

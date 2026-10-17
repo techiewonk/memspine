@@ -116,7 +116,7 @@ async def _engine(
 
 
 async def _send(eng: Engine, session: str, messages: list[dict[str, str]], ns: str = "a") -> None:
-    await eng.write_messages(messages, namespace=ns, session_id=session, group_id=session)
+    await eng.ingest_messages(messages, namespace=ns, session_id=session, group_id=session)
 
 
 async def _derived(eng: Engine, ns: str = "a") -> list[Any]:

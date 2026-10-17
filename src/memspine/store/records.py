@@ -63,7 +63,7 @@ _last_record_time = datetime.min.replace(tzinfo=UTC)
 def record_time() -> datetime:
     """#87: the default ``recorded_at``, strictly increasing within the process.
 
-    Two records built in the same clock tick (a batched ``write_messages``) would
+    Two records built in the same clock tick (a batched ``ingest_messages``) would
     otherwise share a record time, and their order would fall to the random
     ``record_id``. A tie is bumped by one microsecond, so record time follows
     construction order and identical inputs give identical orderings."""
@@ -129,6 +129,9 @@ class SourceInfo(BaseModel):
     channel: str = "internal"
     doc_path: str | None = None
     message_id: str | None = None
+    #: Source-message envelope for canonical conversation ingestion. ``message_id`` above remains
+    #: the internal session provenance key used by existing derivation stages.
+    message: dict[str, Any] | None = None
     prompt_version: str | None = None
     # MTI provenance (integrity.*, opt-in): the authenticated principal behind
     # the write, and the records the writer had in context when it produced
@@ -136,6 +139,13 @@ class SourceInfo(BaseModel):
     # without them behave exactly as before.
     principal: str | None = None
     parents: list[str] = Field(default_factory=list)
+
+    @model_serializer(mode="wrap")
+    def _omit_message(self, handler: SerializerFunctionWrapHandler) -> Any:
+        data = handler(self)
+        if self.message is None:
+            data.pop("message", None)
+        return data
 
 
 #: ScoringState fields added after v0.2, left out of a dump while at their default,

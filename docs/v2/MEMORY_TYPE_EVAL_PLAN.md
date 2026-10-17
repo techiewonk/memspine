@@ -6,8 +6,14 @@ headline score from it says nothing about reflective, procedural, prospective or
 This plan evaluates each of the nine memory types on its own, then in interaction, with the same
 budget on every arm and the effective flags written into every result row.
 
-Layer map (`store/layers.py`): working, episodic, resource, shared = L0; semantic = L1 (summaries
-and episodes L2); associative = L3; reflective = L4; procedural, prospective = L5.
+Layer map (`src/memspine/store/layers.py`): working, episodic, resource, shared = L0; semantic facts
+= L1; semantic session summaries/episodes = L2; associative graph records = L3; reflective records
+and semantic observation-channel records = L4; procedural records, prospective watches, and semantic
+standing-answer records = L5. These are storage layers, not an assertion that nearby mechanisms are
+the same memory type. Standing answers are semantic answer caches on L5, not proof of procedural skill
+learning; profile cards are event-log markers (not layered records); prospective watches are trigger
+records and are distinct from anticipation cues (retrieval keys on answering turns); resource records
+describe assets/documents and remain their own type.
 
 ## 1. Rules for every run
 
@@ -30,6 +36,18 @@ and episodes L2); associative = L3; reflective = L4; procedural, prospective = L
 5. **Contract tests first.** `tests/unit/contract/test_layer_contract.py` must pass before any
    derived-layer arm is run. An arm run on a tree where session-close records land on L1 measures
    the bug, not the memory type.
+6. **Prerequisite flags are exact.** Validate the resolved config (including `config/requires.py`)
+   before each run; do not infer a prerequisite from a feature name. Relevant hard requirements are
+   `read.standing_v2` → `offline.standing_v2`; `read.profile_card_header` →
+   `offline.profile_card_v2` → `offline.session_close_v2`; `write.asset_describer` →
+   `write.intake_v2`; and `read.graph_leg_v2` → `read.legs_v2` plus `graph.edge_compiler_v2`.
+   Type enablement is `memories.<type>.enabled`: prospective watches need
+   `memories.prospective.enabled: true`; anticipation is separately the episodic consolidation policy
+   `memories.episodic.policies.consolidation.anticipate: true` and a bound `anticipate` (or fallback
+   `extract`) role. Procedural lifecycle needs `memories.procedural.enabled: true`. Record resolved
+   role bindings, sleep invocation, type enablement and read flags in the row. `offline.patterns_v2`
+   and `offline.standing_v2` are opt-in sleep stages; do not assume either runs merely because its
+   corresponding memory type is enabled.
 
 ## 2. Per memory type: ablation and metric
 
@@ -43,13 +61,15 @@ in `effective_flags` and `layer_counts_after` for the row to count.
 | episodic | L0 (+ L2 episodes) | `memories.episodic`, `offline.session_close_v2` for episodes | vector, lexical, temporal, episode leg | temporal and multi-session questions (LoCoMo cat 2/3, OP-Bench); F1 / judge | L2 count > 0 when the episode leg is claimed; lift returns source turns |
 | semantic | L1 | `memories.semantic`, `write.window_extract: facts`, `write.envelope_v2` | vector, lexical, entity leg | single-hop and knowledge-update (LoCoMo cat 1/4, MAB-CR); F1, update accuracy | L1 count > 0 and above raw-turn count not dominated by user writes |
 | associative | L3 | `memories.associative`, `graph.edge_compiler_v2`, `read.graph_leg_v2`, `extract_graph` | graph leg, entity summaries | multi-hop, who/what-connects questions; F1 on multi-hop subset | graph leg `on`, edges compiled, hit count > 0 (an empty graph leg is `inert`) |
-| reflective | L4 | `offline.patterns_v2` (observations) | observation records in evidence block | preference and pattern questions (PrefEval); preference-follow accuracy | L4 count > 0 |
-| procedural | L5 | `offline.standing_v2` plus `read.standing_v2`; profile card via `offline.profile_card_v2` | standing block | repeated-instruction and how-to tasks; success of the standing answer | L5 count > 0 and `read.standing_v2` on |
-| prospective | L5 | prospective memory enabled, anticipation cues | cue records, time-triggered read | reminder and future-event questions; due-recall rate, false-trigger rate | L5 count > 0; cue count logged |
+| reflective | L4 | `offline.patterns_v2` produces semantic `observation` channel records; `consolidation.reflect_profile` produces reflective records; profile card is separately `offline.profile_card_v2` | observation and/or `read.profile_header`; card via `read.profile_card_header` | held-out preference/pattern probes; accuracy by representation, evidence support and stale/forgotten-support rejection | State the mechanism under test. For patterns require observation-channel L4 records and retrieval hits; for profile reflection require reflective records; for the card require a latest card marker with live cited support and header inclusion. Do not pool these counts. |
+| procedural | L5 | skill API (`add_skill`, `promote_skill`, `deprecate_skill`, `skills`; `memories.procedural.enabled`); task state/outcome APIs are a separate mechanism | `skills(kind="skill")`, usable-only active selection; task state/outcomes evaluated separately | held-out repeated-task transfer; skill applicability/selection, staged promotion, dry-run gate, deprecation | Verify `add_skill` creates a draft; only legal one-step promotion draft→staged→verified→active succeeds; verified→active requires `dry_run_passed=True`; active skills are returned by usable-only `skills`; deprecated skills are no longer offered; illegal promotions fail and repeated deprecation is idempotent. Keep task progression and task-close outcomes separate from skill lifecycle scores. |
+| prospective | L5 | `Engine.watch` / `memories.prospective`; separate optional `consolidation.anticipate` writes cues to answering semantic turns | `due()` / `pending()` and acknowledge; anticipation cues affect retrieval keys, not assembled evidence | synthetic future-event probes; due and invalidation precision/recall, false fires, acknowledgement and cue-assisted retrieval | Watches: verify due watch fires only at/after due time; target watch fires on matching invalidation; acknowledgement cancels repeat delivery; repeated sweep is idempotent (no duplicate firing). Report due and invalidation separately. Cues: verify cue tags/keys and retrieval hit independently; never count as a watch. |
 | shared | L0 grants | `memories.shared` with two or more principals | scoped read | cross-agent visibility: leak rate (must be zero), authorised recall | principals and grants logged; leak rate reported even at zero |
-| resource | L0 | resource intake (`write.intake_v2`, asset describer) | resource records | document and asset questions; F1 on the doc subset | resource count > 0 |
+| resource | L0 | document ingestion is `ResourceMemory.ingest` / `Engine.ingest` (extract, chunk, write resource records); `write.asset_describer` configures a separate image-asset description path through the intake gateway | resource-record retrieval for documents; asset evidence path for image assets | held-out document questions; retrieval/answer accuracy and source-document attribution. Test image-asset description separately. | Require resource chunks with `source.doc_path` and chunk IDs; verify re-ingest idempotency and answer attribution to the right document. Record image asset mode separately; do not attribute document ingestion to `write.intake_v2` or count asset descriptions as resource records. |
+| standing answers (semantic mechanism; cross-cutting diagnostic, not a tenth type) | L5 | `offline.standing_v2` builds cached answers from keyed semantic fact histories; `read.standing_v2` selects/includes them | standing answer block and router `profile` leg | keyed-state questions; answer accuracy, freshness after value change, contested-state handling, rebuild cost | Require current L5 `standing` channel records with supporting semantic parents, matching dependency fingerprint, and read inclusion; verify invalidation/rebuild after source change. Do not score as procedural skill evidence. |
+| profile card (profile representation; cross-cutting diagnostic) | event-log marker, no record layer | `offline.profile_card_v2` at session close; `read.profile_card_header` consumes latest marker | profile card header | profile attribute accuracy, evidence support, forgotten-support invalidation, header budget | Require latest `profile_card_v2` marker and header inclusion; cited support must remain live. Report marker count and coverage, not L-layer counts. |
 
-Prospective, shared and resource need purpose-built slices because the five-benchmark suite barely
+Prospective watches, procedural lifecycle, shared and resource need purpose-built slices because the five-benchmark suite barely
 touches them. Their slices are small and synthetic (invented names only); report them as
 diagnostics, not as headline scores.
 
@@ -60,8 +80,10 @@ diagnostics, not as headline scores.
 | H-temporal | held-out sessions, temporal categories | episodic, working | built before any derived-layer arm runs |
 | H-update | knowledge-update questions | semantic, reflective | tests supersede/contest behaviour end to end |
 | H-multihop | multi-hop questions | associative, semantic | graph leg claimed only if its hits are non-empty |
-| H-pref | PrefEval-style preference probes | reflective, procedural | reader prompt fixed across arms |
-| H-synth | synthetic, invented names | prospective, shared, resource | diagnostics; no dataset text |
+| H-pref | PrefEval-style preference probes | reflective observations, profile card, standing answers | score each mechanism separately; reader prompt fixed across arms |
+| H-proc | synthetic repeated tasks with explicit success/failure/done events | procedural | lifecycle transitions, progression, selection and close; diagnostics |
+| H-watch | synthetic due-time and target-invalidation scenarios | prospective watches | fire/cancel/duplicate/idempotence checks; diagnostics |
+| H-synth | synthetic, invented names | shared, resource, anticipation cues | diagnostics; no dataset text |
 
 ## 4. Individual, then interaction
 
@@ -70,8 +92,10 @@ diagnostics, not as headline scores.
    guard). One seed minimum for screens; three for anything that gates adoption.
 2. **Pairwise interaction.** Only the pairs that share a producer or a read path:
    semantic x episodic (shared turns as lineage parents), semantic x associative (facts as edge
-   records), episodic x reflective (observations over sessions), reflective x procedural (L4 feeding
-   L5 standing answers), procedural x prospective (both L5). For each pair report
+   records), episodic x reflective (observations over sessions), procedural x prospective (a fired
+   watch can close a task). Standing-answer interactions should be included only where a concrete
+   source/read path is exercised in the arm; no L4-to-standing-answer dependency is assumed.
+   For each pair report
    `score(A+B) - max(score(A), score(B))` and `score(A+B) - score(A) - score(B) + score(J)`
    (interaction term), with the same matched budget. A pair is called synergistic only if the
    interaction term clears the paired-bootstrap interval.
@@ -79,6 +103,12 @@ diagnostics, not as headline scores.
    at 2x budget, to separate "more memory types" from "more tokens or calls".
 4. **Leave-one-out.** From the full stack remove one type at a time. A type whose removal changes
    nothing is either redundant or inert; the effective-flag record tells which.
+
+No held-out quality or cost figures are asserted by this plan. Record exact results only after the
+frozen slices have been run: paired score and uncertainty; retrieval/answer quality by mechanism;
+watch due/invalidation precision and cancellation/duplicate outcomes; stale-state accuracy; tokens
+in/out; read/write model calls; and p50/p95 latency. Mark unrun measurements `pending`; a configured
+arm or passing contract test is not benchmark evidence.
 
 ## 5. Failure labels
 

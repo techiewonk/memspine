@@ -22,7 +22,7 @@ async def _engine(**read: object) -> Engine:
         read={"record_access": False, "recent_exchanges": 4, **read},
     )
     await eng.start()
-    await eng.write_messages(
+    await eng.ingest_messages(
         [
             {"role": "user", "content": "trip one: we went camping by the lake"},
             {"role": "assistant", "content": "trip one: the lake sounds lovely"},
@@ -31,7 +31,7 @@ async def _engine(**read: object) -> Engine:
         session_id="s1",
         valid_from=T0,
     )
-    await eng.write_messages(
+    await eng.ingest_messages(
         [
             {"role": "user", "content": "trip two: we went skiing in the alps"},
             {"role": "assistant", "content": "trip two: the alps sound cold"},

@@ -44,7 +44,7 @@ async def _write_session(eng: Engine) -> list[str]:
         {"role": "user", "content": c, "timestamp": (T0 + timedelta(minutes=i)).isoformat()}
         for i, c in enumerate(TURNS)
     ]
-    records = await eng.write_messages(msgs, namespace="a", session_id="s1", group_id="s1")
+    records = await eng.ingest_messages(msgs, namespace="a", session_id="s1", group_id="s1")
     return [r.record_id for r in records]
 
 
@@ -318,7 +318,7 @@ async def _mine_turns(
     msgs = [
         {"role": "user", "content": c, "timestamp": t.isoformat()} for t, c in [*turns, *filler]
     ]
-    await eng.write_messages(msgs, namespace="a", session_id="s1", group_id="s1")
+    await eng.ingest_messages(msgs, namespace="a", session_id="s1", group_id="s1")
     await eng.sleep()
     return eng, await _facts(eng)
 

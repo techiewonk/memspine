@@ -193,7 +193,7 @@ async def cell(
                 0,
             ),
         ):
-            await handle.write_messages(_turns(lines, start), session_id=session, group_id=session)
+            await handle.ingest_messages(_turns(lines, start), session_id=session, group_id=session)
         for text, visibility in _HOME:
             await w.eng.write(
                 text,
@@ -465,7 +465,7 @@ async def test_service_execute_matches_the_handle(tmp_path: Path, stubs: dict[st
     c.world = await c.open()
     try:
         w = c.w
-        await w.ilse.write_messages(_turns(_ILSE_S1, 0), session_id="ilse-s1", group_id="ilse-s1")
+        await w.ilse.ingest_messages(_turns(_ILSE_S1, 0), session_id="ilse-s1", group_id="ilse-s1")
         await w.eng.close_session(NS_ILSE, "ilse-s1")
         await w.eng.flush_windows()
         secret_id = await w._turn_id(NS_ILSE, SECRET)
@@ -497,7 +497,7 @@ async def test_erase_then_sleep_rederives_and_reads_stay_clean(
             (w.ilse, "ilse-s1", _ILSE_S1, 0),
             (w.ilse, "ilse-s2", _ILSE_S2, 60),
         ):
-            await handle.write_messages(_turns(lines, start), session_id=session, group_id=session)
+            await handle.ingest_messages(_turns(lines, start), session_id=session, group_id=session)
         await w.eng.consent_grant(NS_ILSE, "assist")
         await w.eng.close_session(NS_ILSE, "ilse-s1")
         await w.eng.close_session(NS_ILSE, "ilse-s2")

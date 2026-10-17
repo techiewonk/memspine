@@ -52,7 +52,7 @@ async def _ingest(
     )
     await eng.start()
     try:
-        records = await eng.write_messages(turns or _chat(40), namespace="chat", channel="web")
+        records = await eng.ingest_messages(turns or _chat(40), namespace="chat", channel="web")
     finally:
         await eng.stop()
     held = [r for r in records if r.quarantined]

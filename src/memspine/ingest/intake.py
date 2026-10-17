@@ -54,12 +54,14 @@ __all__ = [
     "IntakeStore",
     "LiveSegment",
     "SourceState",
+    "ValidatedEnvelope",
     "VersionPlan",
     "VersionRecord",
     "normalise_text",
     "owner_scope",
     "scope_key",
     "validate_envelope",
+    "validate_source",
     "write_id",
 ]
 
@@ -83,6 +85,21 @@ class IntakeLimits:
     max_envelope_chars: int = 2_000_000
     max_assets_per_segment: int = 16
     max_id_chars: int = 256
+
+
+@dataclass(frozen=True, init=False)
+class ValidatedEnvelope:
+    """Immutable boundary token carrying a normalized source envelope."""
+
+    _envelope: SourceEnvelope
+
+    def __init__(self, envelope: SourceEnvelope) -> None:
+        object.__setattr__(self, "_envelope", envelope.model_copy(deep=True))
+
+    @property
+    def envelope(self) -> SourceEnvelope:
+        # SourceEnvelope is a mutable Pydantic model; return an isolated copy so the token stays fixed.
+        return self._envelope.model_copy(deep=True)
 
 
 @dataclass(frozen=True)
@@ -170,6 +187,13 @@ def validate_envelope(env: SourceEnvelope, limits: IntakeLimits | None = None) -
     return env.model_copy(
         update={"source_id": source_id, "segments": out, "participants": participants}
     )
+
+
+def validate_source(
+    envelope: SourceEnvelope, limits: IntakeLimits | None = None
+) -> ValidatedEnvelope:
+    """Validate and normalize an envelope exactly once, returning an immutable acceptance token."""
+    return ValidatedEnvelope(validate_envelope(envelope, limits))
 
 
 # ---------------------------------------------------------------------------------------------------
@@ -386,9 +410,24 @@ class IntakeBook:
         Returns ``QuotaExceeded`` (no receipt, no state) or an :class:`IntakeOutcome` whose ``receipt``
         is the answer for the caller and whose ``events`` are drafts for the event log.
         """
+        return self.accept_validated(
+            validate_source(envelope, self.limits), capabilities, quota_check, now=now
+        )
+
+    def accept_validated(
+        self,
+        validated: ValidatedEnvelope,
+        capabilities: Collection[str] | Mapping[str, bool],
+        quota_check: QuotaCheck | None,
+        *,
+        now: datetime,
+    ) -> IntakeOutcome | QuotaExceeded:
+        """Accept an already-validated envelope token without running validation again."""
+        if not isinstance(validated, ValidatedEnvelope):
+            raise TypeError("accept_validated requires a ValidatedEnvelope")
         if now.tzinfo is None:
             raise IntakeError("now must be timezone-aware")
-        env = validate_envelope(envelope, self.limits)
+        env = validated.envelope
         configured = _configured(capabilities)
         skey = scope_key(env.scope)
         if env.kind == "document":
