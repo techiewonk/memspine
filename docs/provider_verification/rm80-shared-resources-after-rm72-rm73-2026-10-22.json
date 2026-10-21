@@ -1,0 +1,194 @@
+{
+ "label": "after-rm72-rm73",
+ "revision": "1d070c32",
+ "platform": "Windows-11-10.0.26340-SP0",
+ "python": "3.13.5",
+ "runs": [
+  {
+   "engines": 1,
+   "embedder": "fastembed",
+   "overrides": {},
+   "start_ms": [
+    824.0626000042539
+   ],
+   "first_request_ms": [
+    850.2693000191357
+   ],
+   "steady_search_p50_ms": 8.71464998635929,
+   "rss_delta_started_mb": 62.48046875,
+   "rss_delta_end_mb": 252.62109375,
+   "peak_mb": 418.93359375,
+   "threads": 150,
+   "os_handles": 393,
+   "trial": 0
+  },
+  {
+   "engines": 1,
+   "embedder": "fastembed",
+   "overrides": {},
+   "start_ms": [
+    783.1444999901578
+   ],
+   "first_request_ms": [
+    778.0557999794837
+   ],
+   "steady_search_p50_ms": 8.053249985096045,
+   "rss_delta_started_mb": 63.11328125,
+   "rss_delta_end_mb": 252.375,
+   "peak_mb": 419.73046875,
+   "threads": 150,
+   "os_handles": 393,
+   "trial": 1
+  },
+  {
+   "engines": 1,
+   "embedder": "fastembed",
+   "overrides": {},
+   "start_ms": [
+    848.2881000090856
+   ],
+   "first_request_ms": [
+    830.9067999944091
+   ],
+   "steady_search_p50_ms": 8.319450003909878,
+   "rss_delta_started_mb": 62.80859375,
+   "rss_delta_end_mb": 252.8046875,
+   "peak_mb": 418.828125,
+   "threads": 149,
+   "os_handles": 390,
+   "trial": 2
+  },
+  {
+   "engines": 2,
+   "embedder": "fastembed",
+   "overrides": {},
+   "start_ms": [
+    817.0874000061303,
+    315.78990002162755
+   ],
+   "first_request_ms": [
+    601.9469999882858,
+    121.66089998208918
+   ],
+   "steady_search_p50_ms": 7.215149991679937,
+   "rss_delta_started_mb": 64.796875,
+   "rss_delta_end_mb": 260.63671875,
+   "peak_mb": 430.74609375,
+   "threads": 158,
+   "os_handles": 410,
+   "trial": 0
+  },
+  {
+   "engines": 2,
+   "embedder": "fastembed",
+   "overrides": {},
+   "start_ms": [
+    827.1441000106279,
+    338.05319998646155
+   ],
+   "first_request_ms": [
+    631.6837000194937,
+    119.35209998046048
+   ],
+   "steady_search_p50_ms": 8.386050001718104,
+   "rss_delta_started_mb": 66.20703125,
+   "rss_delta_end_mb": 260.9453125,
+   "peak_mb": 431.94921875,
+   "threads": 158,
+   "os_handles": 410,
+   "trial": 1
+  },
+  {
+   "engines": 2,
+   "embedder": "fastembed",
+   "overrides": {},
+   "start_ms": [
+    797.3543000116479,
+    316.4698999898974
+   ],
+   "first_request_ms": [
+    624.5674999954645,
+    116.48140000761487
+   ],
+   "steady_search_p50_ms": 7.215849997010082,
+   "rss_delta_started_mb": 64.29296875,
+   "rss_delta_end_mb": 258.7265625,
+   "peak_mb": 429.54296875,
+   "threads": 158,
+   "os_handles": 410,
+   "trial": 2
+  },
+  {
+   "engines": 4,
+   "embedder": "fastembed",
+   "overrides": {},
+   "start_ms": [
+    777.1467999846209,
+    301.94659999688156,
+    172.1382999967318,
+    161.87300000456162
+   ],
+   "first_request_ms": [
+    595.7850000122562,
+    114.78650002391078,
+    108.40900000766851,
+    105.49270000774413
+   ],
+   "steady_search_p50_ms": 7.047499995678663,
+   "rss_delta_started_mb": 66.1328125,
+   "rss_delta_end_mb": 272.109375,
+   "peak_mb": 443.0625,
+   "threads": 174,
+   "os_handles": 444,
+   "trial": 0
+  },
+  {
+   "engines": 4,
+   "embedder": "fastembed",
+   "overrides": {},
+   "start_ms": [
+    776.8476000055671,
+    311.6259000089485,
+    170.26679997798055,
+    164.20659999130294
+   ],
+   "first_request_ms": [
+    596.3557999930345,
+    107.3917000030633,
+    107.08020001766272,
+    106.18860000977293
+   ],
+   "steady_search_p50_ms": 6.900849999510683,
+   "rss_delta_started_mb": 66.453125,
+   "rss_delta_end_mb": 271.234375,
+   "peak_mb": 441.984375,
+   "threads": 174,
+   "os_handles": 444,
+   "trial": 1
+  },
+  {
+   "engines": 4,
+   "embedder": "fastembed",
+   "overrides": {},
+   "start_ms": [
+    746.6571000113618,
+    264.7729000018444,
+    158.13699999125674,
+    158.32960000261664
+   ],
+   "first_request_ms": [
+    567.5224000005983,
+    108.75230000237934,
+    108.57260000193492,
+    107.99009999027476
+   ],
+   "steady_search_p50_ms": 6.571099991560914,
+   "rss_delta_started_mb": 65.95703125,
+   "rss_delta_end_mb": 270.46484375,
+   "peak_mb": 441.796875,
+   "threads": 174,
+   "os_handles": 444,
+   "trial": 2
+  }
+ ]
+}

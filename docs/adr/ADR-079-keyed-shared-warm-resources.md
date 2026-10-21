@@ -127,3 +127,12 @@ re-run per variant on an idle host (latency) and any host (RSS, handles, threads
 | `http.max_connections` | 10, 100 | p95 against a local stub server under concurrency | smallest within 5% of best p95 |
 | `keep_warm` / `idle_ttl_s` | owner-fixed (keep warm, no TTL) | reload cost after release | documented, not re-decided |
 | `memory_budget_mb` | opt-in | measured RSS per model | documented typical sizes |
+
+### RM-80 result 1: `scope` (2026-10-22)
+
+Same harness, before vs after RM-72/RM-73 (3 trials, cached bge-small, fresh process):
+each extra identical Engine went from about 124 MB RSS, +23 threads and +32 OS handles to
+about 6 MB, +8 threads and +17 handles; first request on additional Engines from 280-700 ms
+to about 110 ms. Four Engines: 623 MB to 271 MB. Saving far exceeds the 10% rule and
+isolation tests pass, so **`scope=process` is confirmed as the default**. Evidence:
+`docs/provider_verification/rm80-shared-resources-{baseline,after-rm72-rm73}-2026-10-22.json`.
