@@ -180,7 +180,7 @@ ItemV1{s?, r?, o?, text, kind: state|event|fact, mode, neg, when?, until?, lines
 
 ### W-13 Durable derivation queue: C, leased outbox, at-least-once, idempotent effects
 - **Decision:** persist membership, source versions, attempts, the lease and the result state. Deposit idempotently, then acknowledge. Backlog age and size are capped.
-- **Verdict:** ok. G-19 A (inline runner) changes how it runs, not whether it is correct. The outbox is a table in the local SQL store drained by an in-process worker, and the lease detects a crashed holder rather than arbitrating between many workers. Option D (dbos or taskiq) stays an adapter.
+- **Verdict:** ok. G-19 A (inline runner) changes how it runs, not whether it is correct. The outbox is a table in the local SQL store drained by an in-process worker, and the lease detects a crashed holder rather than arbitrating between many workers. Option D (an external runner: taskiq, or Temporal + embedded Resonate, which replaced dbos per ADR-071) stays an adapter.
 - **What will happen:** no silent gaps in derived layers after a restart. A retried call costs one repeated model call. Touches $\mathcal{D}$, semantic, associative and episodic.
 - **Where:** `workers/windows.py:326` deque, `:554` stop, `:568` jobs_abandoned, `:608` take_edges (clears before ack), `:808` pending, `config/schema.py:265` WorkersConfig -> `derive.DerivationOutbox`.
 - **Depends on / affects:** W-02, W-10, W-14, W-20 (versioned keys make the deposit idempotent), W-25; O-03, O-10.
@@ -316,7 +316,7 @@ ItemV1{s?, r?, o?, text, kind: state|event|fact, mode, neg, when?, until?, lines
 | W-22 (M-12) | An undeclared state contests (W-22 D), but unknown attributes coexist (M-12 B). | The M-12 registry decides (unknown means coexist). Learned cardinality is only a reviewable proposal. Contest applies only on an extracted transition. | owner confirmation |
 | W-21 (W-16) | The `replaces` hint assumed W-16 C, which was not chosen. | Ship the hints without `replaces`, and add it when W-16 C (advanced) passes its knowledge-update gate. | none (sequencing) |
 | W-10 (M-18, M-04) | M-18 A dropped the capability contract, but the outbox apply needs idempotent upsert and tombstone checks per backend, including Neo4j (the M-04 note). | A minimal projector contract inside W-10 (upsert by assertion id, tombstone check, rebuild from the log), applied to Ladybug, SQL adjacency and Neo4j. | owner awareness; the M area should confirm |
-| W-13, W-10 (G-19) | G-19 A means no named server mode or worker process. | The outbox and queue are SQL tables drained by in-process workers, and the lease covers crash recovery. External runners (dbos, taskiq) and a separate worker stay adapters. | none |
+| W-13, W-10 (G-19) | G-19 A means no named server mode or worker process. | The outbox and queue are SQL tables drained by in-process workers, and the lease covers crash recovery. External runners (taskiq; Temporal + embedded Resonate, which replaced dbos per ADR-071) and a separate worker stay adapters. | none |
 | W-05 | Should participants be on by default, or opt-in as in v1? | On by default as a typed column, with the v1 tag also written. This reads the owner's "keep participant tag too" as always-on. | none unless the owner disagrees |
 | W-26 / P-22 | The same ledger is decided twice. | One `ledger` component owned by P-22, and W-26 adds the write-side fields. | none |
 
@@ -336,7 +336,7 @@ ItemV1{s?, r?, o?, text, kind: state|event|fact, mode, neg, when?, until?, lines
 ## Owner follow-up (2026-10-12)
 
 - **Q1 Layer field, two layers on** (as proposed): Every record has an explicit `layer` field; raw (L0) and facts (L1) are populated by default; episodes, summaries, graph, profile, observations and communities are opt-in layers.
-- **Q2 Durable outbox** (as proposed): Library-first inline runner draining a durable outbox in the same store; leftover work resumes on the next open; dbos and taskiq are optional drainers.
+- **Q2 Durable outbox** (as proposed): Library-first inline runner draining a durable outbox in the same store; leftover work resumes on the next open; dbos and taskiq are optional drainers. *(DBOS later replaced by Temporal + embedded Resonate, ADR-071.)*
 - **Q4 Neo4j is the server graph** (changed): Embedded profile: auto Ladybug else SQL adjacency (M-18 A). Server profile: Postgres + pgvector + Postgres full text for records, Neo4j for the graph, fed only through the outbox. W-10: the Neo4j projection is always fed through the outbox, never inline.
 - **Q7 Coexist unless marked** (as proposed): Undeclared attributes coexist (registry default); a new value contests the old one only when extraction marks a change; learned cardinality only as reviewable proposals.
 

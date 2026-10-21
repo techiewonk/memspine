@@ -1,6 +1,6 @@
 # ADR-071: Replace DBOS with Temporal and embedded Resonate
 
-**Status:** Accepted — implementation and focused verification in progress  
+**Status:** Accepted — maintenance runner implemented and locally verified (live Temporal Server + local Resonate gate: 9 passed; see [provider verification](../provider_verification/README.md)). Still pending: ACD-04/07 ingestion outbox-to-Temporal integration (the ingestion outbox remains its own inline/taskiq transport) and ACD-12 deployment canary ([directive §7](../TEMPORAL_RESONATE_CHANGE_DIRECTIVE.md)).  
 **Date:** 2026-10-17  
 **Decider:** Repository owner  
 **Supersedes:** ADR-005 durable DBOS implementation; D-16 durable runner choice

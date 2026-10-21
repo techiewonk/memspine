@@ -4,6 +4,27 @@ All notable changes to memspine are documented here. Format: [Keep a Changelog](
 
 ## [Unreleased]
 
+### Accepted designs, not implemented — ingestion and context enrichment, 2026-10-18
+- ADR-077 (D-99): raw-first ingestion with durable background grounding, source-bound unasserted graph mentions, recoverable lossless raw encoding and separate summaries. Implementation BI-01..12 is planned in `docs/BACKGROUND_INGESTION_PLAN.md`; no defaults change.
+- ADR-078 (D-100): evidence-bound identity/aliases, dated residence transitions with multiple homes, source-local temporal precision and evidence-known time. Target schema contracts in `docs/ENRICHMENT_SCHEMA_CONTRACTS.md`; runtime implementation remains planned.
+
+### Added — GLiNER structured candidates, named model profiles and grounded mentions (breaking config), 2026-10-17/18
+- ADR-072 (D-94): explicitly constructed GLiNER structured extraction returns typed, source-cited candidates only; it cannot bypass canonical grounding or persist assertions.
+- ADR-074 (D-96): one lazy Engine-owned GLiNER model pool shares weights across decision, semantic and prepass consumers (never extraction results); `decision.model` removed without an alias.
+- ADR-075 (D-97): named `models.profiles` plus `models.bindings` select GLiNER/LLM models per role (default GLiNER checkpoint `fastino/gliner2.5-base-v1`), replacing the single `models.gliner` field without an alias. Generative escalation is explicit, bounded and opt-in.
+- ADR-076 (D-98): GLiNER mentions are exact source-bound annotations with `asserted=False`; sender/message identity comes from the canonical message envelope. Mentions never create fact keys or replace window support evidence.
+
+### Changed — measured performance kernels, 2026-10-17/18
+- ADR-073 (D-95): chunked NumPy SimHash voting above a measured crossover, output-identical (signed-64 xxh64 sketches); short inputs keep Python voting.
+- ADR-074 (D-96): exact optional RRF prefixes for the two fixed-prefix graph seed callers only (the main router keeps full ranking); bounded datasketch `update_batch` for MinHash at eight or more unique tokens with identical persisted signatures. Validation is kernel-only; no complete-engine speedup is claimed.
+
+### Changed — provider architecture and remote providers (breaking), 2026-10-17
+- ADR-068 (D-90): one descriptor registry per provider category (`memspine.providers.registry`), strict nested `settings` per selected provider, explicit selection failures and verified projection changes. Old keys, aliases and retirement maps are removed.
+- ADR-069 (D-91): optional OpenSearch lexical (`[opensearch]`), Weaviate lexical/vector (`[weaviate]`) and pgvector vector (`[postgres]`) adapters; audited cleanup-fence recovery behind an application quiescence guard; typed HTTP service-change execution that needs a real deployment controller. Native contracts passed against disposable local servers; production acceptance is separate.
+
+### Changed — Python 3.13 dependency refresh, 2026-10-17
+- ADR-070 (D-92): refreshed uv lock and direct minimums to current stable compatible releases; CI installs with `uv sync --locked`. DeepEval and its Click override removed from development dependencies. (The DBOS 3.x upgrade in this ADR is superseded by ADR-071 below.)
+
 ### Changed — durable orchestration (breaking), 2026-10-17
 - Replace DBOS with an optional `[temporal]` runner combining an external Temporal Server and strictly embedded Resonate. The local application-owned SQLite step journal preserves committed pipeline results and fences stale journal commits; it is not native Resonate persistence or an exactly-once external-effect promise.
 - Remove the DBOS runner, dependency/extra, selector and system-database setting without aliases. Server templates explicitly select Temporal. Core/embedded profiles remain inline; the `local` bundle does not require a remote Temporal service.

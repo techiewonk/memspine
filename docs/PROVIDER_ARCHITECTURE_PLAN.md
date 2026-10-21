@@ -81,6 +81,11 @@ Environment is explicit, never inferred from hostname or provider. Authoritative
 
 ## 2. Current-code facts
 
+> **Historical (pre-implementation).** These facts describe the code before the provider
+> architecture landed (commit `e6596f44`). They no longer describe current code: descriptors
+> now live in `memspine.providers.registry`, Neo4j and pgvector are implemented providers, and
+> retirement maps are gone. See section 8 and [verification](provider_verification/README.md).
+
 - `store/registry.py` already has vector/graph/lexical registries; builtins are `None` sentinels, external factories are synchronous `(config, base_path, in_memory) -> store`.
 - `plugins.Registry` validates against `plugins.KINDS`, with global mappings. Central migration must leave exactly one registry object per kind.
 - Service and plugin manifests are different types sharing the current class name `CapabilityManifest`.
@@ -637,6 +642,11 @@ Detailed requirements exposed by consolidation, covered within R09/R16/R23/R24/R
 
 ## 11. Review items before implementation
 
+> **Historical, closed.** This was the pre-implementation review checklist. Q28-Q35 were
+> accepted (section 14.4) and the implementation was committed as `e6596f44`; the unchecked
+> boxes below are kept as the original record, not open work. Live status is in
+> [`PROVIDER_TODO.md`](PROVIDER_TODO.md).
+
 These are the new detailed proposals to review; already accepted architecture choices need not be asked again.
 
 - [ ] Resolve the exact-schema review batch Q28-Q35 in section 14, including common deployment identity and execution contracts.
@@ -662,7 +672,7 @@ Current source anchors:
 - [Lance native adapter](../src/memspine/services/vector/lancedb_store.py), [namespace wrapper](../src/memspine/services/vector/per_namespace.py), [versioned spaces](../src/memspine/store/vector_spaces.py), [Ladybug adapter](../src/memspine/services/graph/ladybug.py), [Neo4j adapter](../src/memspine/services/graph/neo4j.py).
 - [SQLite/SQLCipher client](../src/memspine/clients/sqlite.py), [PostgreSQL client](../src/memspine/clients/postgres.py), [identity/erasure metadata](../src/memspine/ingest/message_store.py).
 
-Static source reads and documentation validation only. Proposed schemas/contracts/state machine are not implemented or integration-tested. Historical 1,586 passing ingestion tests relate to that earlier change, not this provider design. No driver install, server connection, provider benchmark, database mutation, runtime refactor, commit or push was performed.
+Historical (written before implementation): static source reads and documentation validation only. Proposed schemas/contracts/state machine are not implemented or integration-tested. Historical 1,586 passing ingestion tests relate to that earlier change, not this provider design. No driver install, server connection, provider benchmark, database mutation, runtime refactor, commit or push was performed.
 
 
 Documentation checks completed for this consolidation: all 24 decisions and 33 gap IDs present; 12 implementation steps and 14 test groups accounted for; 24 local source links exist; balanced code fences and no trailing whitespace; both Python snippets parse; both YAML examples parse; sample new Pydantic models accept valid defaults and reject negative retention, unsupported hot mode, unknown empty-settings fields and missing Neo4j deployment ownership. These checks validate documentation fragments only, not their integration into MemSpine config or runtime.
@@ -812,8 +822,8 @@ Owner selected **A for all three** on 2026-10-17:
 - Q27: embedding-space changes require explicit re-embedding and matched query/document activation. LLM/extraction/reflection/summarization producer changes are forward-only by default; historical derivation needs a separately requested versioned operation. No unlimited model calls or data migration starts merely from a config change.
 
 The concrete schema decisions below are accepted. Runtime implementation and local
-tests are in progress as recorded in section 8; no production migration, commit or
-push has been performed.
+tests are recorded in section 8; the provider core was committed as `e6596f44`. No
+production migration has been performed.
 
 
 ## 14. Concrete schema/contract decisions (Q28-Q35 accepted; current mapping in 14.4)
@@ -919,7 +929,7 @@ Recommendation: retain engine-controlled fusion as the portable baseline. Native
 - Provider retirement maps/checks and old model/store registry ownership modules were removed. The hardcoded OpenSearch rejection is gone. Unknown/unimplemented providers still fail registry selection.
 - Explicit SQLite `settings.busy_timeout_s` is mapped to async and sync connections. Templates state the value; standalone configs must supply it.
 - Docker-backed checks cover PostgreSQL 16.15, Neo4j 5.26.32, Redis 7.4.11, Valkey 8.1.10, OpenSearch 2.19.5 and Weaviate 1.32.4, plus the separate pgvector contract. Tested operations, image digests and limits are in [verification](provider_verification/README.md).
-- No commit, push, production migration, paid model probe or destructive cutover has been performed.
+- The provider core was later committed as `e6596f44` ("Implement unified provider architecture and remote service contracts"). No production migration, paid model probe or destructive cutover has been performed.
 
 ### Projection target restart safety (2026-10-17)
 

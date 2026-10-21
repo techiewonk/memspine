@@ -43,7 +43,7 @@ planned in `docs/v2/` and judged by its own gate against a frozen v1 reference (
 | 14 | `memspine.ops.retention`, `memspine.trust.audit` | Retention and audit are set per profile. Action audit is always on; read audit is on in shared and regulated profiles (G-14 D, G-15 D). |
 | 15 | `memspine.api` | A small loop-verb core on a scoped handle, with admin groups on the engine. It is built in place inside `memspine`; the old `Engine` verbs are replaced, not aliased (G-16 D, ADR-067). |
 | 16 | `memspine.protocols` | REST binds only to loopback unless auth is set, and scopes are bound to the principal. MCP stays stdio. Framework adapters are deferred (G-17 C, G-18 A). |
-| 17 | `memspine.runtime` | An embedded library with an inline runner that drains a **durable local outbox** in the same store. dbos and taskiq are alternative drainers (G-19 A with a durable outbox; confirmed by the owner, Q2). |
+| 17 | `memspine.runtime` | An embedded library with an inline runner that drains a **durable local outbox** in the same store; taskiq is the alternative outbox transport (G-19 A with a durable outbox; confirmed by the owner, Q2). The durable maintenance runner is Temporal + embedded Resonate (`[temporal]`, ADR-071, which removed DBOS); outbox-to-Temporal ingestion submission (ACD-04/07) is pending. |
 | 18 | `memspine.ops.ledger` | A uniform per-stage ledger and an optional OTel extra. No content in spans and no product telemetry (G-20 C). |
 | 19 | `memspine.config` | No model by default. The base profile is generic; settings tied to a data shape live in presets. A flag registry with retirement (G-21 B, G-22 C). |
 | 20 | `memspine.migrate` | Upcast the v1 events and rebuild every projection by replay. Old events are upcast at migration time; there is no runtime compatibility shim (G-23, ADR-067). |
@@ -505,7 +505,8 @@ planned in `docs/v2/` and judged by its own gate against a frozen v1 reference (
 ### G-19 Deployment modes and background runners: A, library-first with the inline runner (recommended C)
 
 - **Decision as answered:** The embeddable library with the inline runner is the default. Servers, dbos and taskiq
-  are extras. There is no matrix of three named, CI-tested modes.
+  are extras. There is no matrix of three named, CI-tested modes. *(Later: DBOS was replaced by
+  Temporal + embedded Resonate, ADR-071.)*
 - **What follows from choosing A over C:**
   1. There are no first-class "server" or "ephemeral" modes with their own templates and CI lanes. The REST and MCP
      hosts and the EPHEMERAL log stay as configurations.
@@ -535,7 +536,9 @@ planned in `docs/v2/` and judged by its own gate against a frozen v1 reference (
   - **Locks.** The per-namespace job lock (O-03 B) is a lease row in the same store, not an in-process asyncio lock.
     Two processes on one SQLite file, or a REST host plus a CLI, therefore never overlap.
   - **dbos and taskiq** become alternative drainers of the same outbox for many instances. They do not define the
-    jobs a second time.
+    jobs a second time. *(Historical: ADR-071 removed DBOS. Temporal + embedded Resonate now runs registered
+    maintenance pipelines; outbox-to-Temporal ingestion submission is pending, ACD-04/07. taskiq remains an outbox
+    transport.)*
   - **The ephemeral configuration** keeps the outbox in memory and is non-durable by declaration.
 - **Decisions that assumed a durable runner or server mode, and their status under this reading:**
   - **W-02 D** (derivation intent in the receipt): holds, because the intent is the outbox row.
@@ -762,7 +765,7 @@ planned in `docs/v2/` and judged by its own gate against a frozen v1 reference (
 
 | id | Issue | Proposal | Needs |
 |---|---|---|---|
-| G-19 | A says derived work is lost on a crash; W-02 D, W-10 B+C, W-13 C, W-25 B, O-03 B and O-10 B need a durable outbox | A plus a durable local outbox inside the library (B in substance, without C's mode matrix); inline runner as the drainer; dbos and taskiq as alternative drainers | owner: confirm outbox, or say whether B was meant |
+| G-19 | A says derived work is lost on a crash; W-02 D, W-10 B+C, W-13 C, W-25 B, O-03 B and O-10 B need a durable outbox | A plus a durable local outbox inside the library (B in substance, without C's mode matrix); inline runner as the drainer; dbos and taskiq as alternative drainers (DBOS later replaced by Temporal + embedded Resonate, ADR-071) | owner: confirm outbox, or say whether B was meant |
 | G-19 / G-17 / M-04 | C's "server mode with worker process" is gone | The REST host embeds the library and drains the outbox; Postgres storage profile for many instances; leases make shared stores safe | none (design) |
 | G-19 / O-02 | With no daemon, sleep triggers fire only while a host runs | Evaluate triggers at open and after writes; `memspine drain` for a cron; watermarks expose the backlog | none (document) |
 | G-19 / G-12 | Store per tenant was to be a server setting | An operator choice (one data dir or database per tenant), with no engine feature | none |
@@ -791,7 +794,7 @@ planned in `docs/v2/` and judged by its own gate against a frozen v1 reference (
 
 ## Owner follow-up (2026-10-12)
 
-- **Q2 Durable outbox** (as proposed): Library-first inline runner draining a durable outbox in the same store; leftover work resumes on the next open; dbos and taskiq are optional drainers.
+- **Q2 Durable outbox** (as proposed): Library-first inline runner draining a durable outbox in the same store; leftover work resumes on the next open; dbos and taskiq are optional drainers. *(DBOS later replaced by Temporal + embedded Resonate, ADR-071.)*
 - **Q4 Neo4j is the server graph** (changed): Embedded profile: auto Ladybug else SQL adjacency (M-18 A). Server profile: Postgres + pgvector + Postgres full text for records, Neo4j for the graph, fed only through the outbox. G-13: the reverse-lineage erasure index must reach Neo4j; isolation and erasure probes run on the server profile as an exit gate.
 - **Q8 Assistant exemption in the chat preset only** (as proposed): Base firewall signals on every channel, extended and semantic on top; the assistant-role exemption only in the chat data-shape preset.
 

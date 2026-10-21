@@ -1,6 +1,6 @@
 # ADR-068: Provider contracts and controlled changes
 
-Status: implementation in progress (2026-10-17). Decisions Q1–Q35 in [the provider plan](../PROVIDER_ARCHITECTURE_PLAN.md) govern this ADR.
+Status: accepted; implemented and locally verified (2026-10-17/18, see [provider verification](../provider_verification/README.md)). Production deployment acceptance (a real deployment controller and quiescence guard) remains a separate gate. Decisions Q1–Q35 in [the provider plan](../PROVIDER_ARCHITECTURE_PLAN.md) govern this ADR.
 
 ## Decision
 

@@ -112,6 +112,12 @@ Validate and resolve sender/session/conversation metadata
   -> optional existing LLM enrichment for unresolved information
 ```
 
+> **Superseded for the target ingestion profile (D-99 / ADR-077).** The selected background
+> ingestion profile is non-generative: unresolved information stays unresolved, and no
+> generative call or hidden fallback is permitted there. The final "optional LLM enrichment"
+> step above predates that decision; any future generative enhancement needs a separate
+> explicit policy. See [the background ingestion plan](BACKGROUND_INGESTION_PLAN.md).
+
 The stage does not replace raw persistence or become another ingestion API.
 It can reduce generative extraction work, but it still consumes inference compute.
 Do not promise a latency gain or an LLM-call reduction until measured. Cross-turn

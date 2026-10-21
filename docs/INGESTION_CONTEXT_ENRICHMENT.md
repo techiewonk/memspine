@@ -109,7 +109,12 @@ N1 — A accepted: tested English semantic patterns first; preserve all original
 B1 — A accepted: configurable bounded candidate retrieval and reconciliation, with explicit partial/deferred outcomes and resumable cursors. Numeric limits require focused measurements before promotion. Partial candidate coverage cannot establish that an antecedent is globally unique; uniqueness requires a complete relevant scope or explicit identity evidence.
 F1 — A accepted: persist source-bound unresolved annotations with reason, scoped candidate pointers and retry eligibility; raw text remains searchable. No guessed facts or automatic LLM fallback. Candidate pointers inherit visibility restrictions and do not assert candidate identity.
 
-## Pending fourth-round decisions
+## Pending fourth-round decisions (resolved)
+
+> **Resolved later in this file:** C2 and T2 were accepted as C2-A and T2-A under
+> "Accepted fourth-round selections"; S1 was confirmed with R2 under "Final retrieval selection
+> and terminology" (engineering default with optional measured non-generative models). The
+> list below is the original proposal record.
 
 S1: exact IDs/explicit aliases/reply candidates plus BM25 initially; optional word vectors later behind measured recall/precision gates (recommended).
 C2: retain competing source-bound claims; only authorised explicit correction/transition can supersede applicable claims (recommended).

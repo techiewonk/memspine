@@ -1,4 +1,4 @@
-# CPU non-generative kernel results â€” 2026-10-18
+# CPU non-generative kernel results — 2026-10-18
 
 Measured on this machine. These results identify promising starting profiles; they do **not** establish global best-in-class or production/LoCoMo accuracy. All models are non-generative and below 250M verified model parameters; BM25 has no neural weights.
 
@@ -62,7 +62,7 @@ GLiNER confidence is not identity/claim authority. This does not measure residen
 | cross-encoder/ms-marco-MiniLM-L-6-v2 | 8 | 8.605 | 11.480 | Four query/passage pairs |
 | cross-encoder/ms-marco-TinyBERT-L2-v2 | 7 | 1.064 | 1.717 | Four query/passage pairs |
 
-Model2Vec8M selected only 4/8 correct passages despite its 23/24 routing score. Examples include preferring an invitation over attendance, an unrelated negative statement over the intended plan, and another studioâ€™s opening date. Static topic similarity must not decide factual validity or trim away supporting dependencies. TinyBERT preferred a planned ten-kilometre walk over the completed three-kilometre walk; MiniLM cross-encoder passed these eight cases. No test here proves safe trimming at 4K or multi-hop evidence retention.
+Model2Vec8M selected only 4/8 correct passages despite its 23/24 routing score. Examples include preferring an invitation over attendance, an unrelated negative statement over the intended plan, and another studio’s opening date. Static topic similarity must not decide factual validity or trim away supporting dependencies. TinyBERT preferred a planned ten-kilometre walk over the completed three-kilometre walk; MiniLM cross-encoder passed these eight cases. No test here proves safe trimming at 4K or multi-hop evidence retention.
 
 ## Classifier sensitivity and failed setup
 
@@ -72,7 +72,7 @@ Initial isolated runs failed because the temporary sklearn dependency set lacked
 
 ## Published benchmarks: separate evidence
 
-The [Sentence Transformers official table](https://sbert.net/docs/cross_encoder/pretrained_models.html) lists TinyBERT-L2 at MS MARCO MRR@10 32.56 / TREC DL19 NDCG@10 69.84, and MiniLM-L6 at 39.01 / 74.30. That supports the general speed/quality tradeoff, but these are different tasks, datasets and hardware from our local probes. Its docs/sec figures are not this CPUâ€™s throughput. The [Model2Vec card](https://huggingface.co/minishlab/potion-base-8M) and [GLiNER Small card](https://huggingface.co/fastino/gliner2.5-small-v1) document their intended roles; their published claims are not substituted for local grounding tests.
+The [Sentence Transformers official table](https://sbert.net/docs/cross_encoder/pretrained_models.html) lists TinyBERT-L2 at MS MARCO MRR@10 32.56 / TREC DL19 NDCG@10 69.84, and MiniLM-L6 at 39.01 / 74.30. That supports the general speed/quality tradeoff, but these are different tasks, datasets and hardware from our local probes. Its docs/sec figures are not this CPU’s throughput. The [Model2Vec card](https://huggingface.co/minishlab/potion-base-8M) and [GLiNER Small card](https://huggingface.co/fastino/gliner2.5-small-v1) document their intended roles; their published claims are not substituted for local grounding tests.
 
 ## Next focused measurements before adoption
 

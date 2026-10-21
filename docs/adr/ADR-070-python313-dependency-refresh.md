@@ -16,6 +16,10 @@ and adapter regression gates. Keep Ladybug's storage-format minor cap. Keep
 Hugging Face Hub below 2 because current sentence-transformers declares that cap.
 All these constraints remain explicit published metadata, not uv-only overrides.
 
+> **Superseded (DBOS item only):** the DBOS 3.x upgrade is superseded by
+> [ADR-071](ADR-071-temporal-resonate-orchestration.md), which removed DBOS from active
+> code, dependencies and configuration in favour of Temporal + embedded Resonate.
+
 Remove the unused DeepEval development dependency and the Click override it
 required. The source and evaluation harness do not import DeepEval; the custom
 reader/judge harness remains unchanged. Installing an incompatible package and

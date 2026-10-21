@@ -32,6 +32,11 @@ Hub snapshot before SDK dispatch because the inspected SDK drops Hub options
 between config and model loading. Incomplete local artifacts must fail rather
 than allowing a hidden remote fallback.
 
+> **Superseded (settings shape only):** the single `models.gliner` record is replaced by
+> named `models.profiles` plus `models.bindings` in
+> [ADR-075](ADR-075-named-model-profiles-and-escalation.md), with no alias. The per-profile
+> GLiNER settings keep the same fields; the shared Engine-owned pool decision stands.
+
 ## Consequences and verification
 
 The same measured-kernel pass adopts bounded datasketch `update_batch` for

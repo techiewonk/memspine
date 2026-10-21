@@ -32,7 +32,7 @@ Three answers from other areas shape this one:
 | # | Element | v2 design as decided |
 |---|---|---|
 | 1 | Tiers (O-01) | **Window (call 1)**: facts and edges, one call per window. **Session close (call 2)**: one structured call for summary, stitched episode and profile ops. **Sleep (call 3)**: reconcile, maintain and personalise. Each artefact has one owning tier, and sleep may re-run a session task only as its fallback executor (O-07). |
-| 2 | Runner (G-19) | Inline, in-process. No separate worker. dbos and taskiq stay as extras. |
+| 2 | Runner (G-19) | Inline, in-process. No separate worker. Temporal + embedded Resonate (`[temporal]`, ADR-071, which replaced DBOS) and taskiq stay as extras. |
 | 3 | Triggers (O-02) | Per namespace, a sleep job fires on **(N new deposits AND M minutes idle) OR context pressure C, both behind gap K (hours since the last run)**. Manual `sleep()` is non-blocking and returns a job handle (OF-1, OF-2). Off by default, so evals stay deterministic. Trigger checks run on deposit commit, on an idle timer when the engine is long-lived, and at engine open (catch-up). |
 | 4 | Unit of work (O-03) | One job per dirty namespace. It holds a persisted advisory lease, processes the changed records and their neighbours stage by stage, and advances a per-stage watermark only after that stage commits. |
 | 5 | Stage order (O-04) | retention, then catch-up extraction for underived sources, reconcile backlog and resolve entities, contradiction and invalidation, near-duplicate merge, value histories, session catch-up (call-2 fallback), entity summaries, communities, profile ops catch-up and reflection, observer views, standing answers, watches and cues, procedural cases, decay, compress, event-log prune. No observation stage (O-15 A). A dependency graph (O-04 C) can come later. |
@@ -341,7 +341,7 @@ class NamespaceJob:                            # memspine.derive.job
 ## Owner follow-up (2026-10-12)
 
 - **Q1 Layer field, two layers on** (as proposed): Every record has an explicit `layer` field; raw (L0) and facts (L1) are populated by default; episodes, summaries, graph, profile, observations and communities are opt-in layers.
-- **Q2 Durable outbox** (as proposed): Library-first inline runner draining a durable outbox in the same store; leftover work resumes on the next open; dbos and taskiq are optional drainers.
+- **Q2 Durable outbox** (as proposed): Library-first inline runner draining a durable outbox in the same store; leftover work resumes on the next open; dbos and taskiq are optional drainers. *(DBOS later replaced by Temporal + embedded Resonate, ADR-071.)*
 - **Q3 Value histories plus pattern observations** (changed): Build the deterministic value-history view AND an observation layer for recurring patterns only (code-grouped, model-worded only for groups that changed). O-15 is reopened from 'none' to 'patterns only'; observations are an opt-in L4 layer (Q1). New stage `observe_patterns` after value histories in O-04; budgeted under O-05; observations are cited records (L4, opt-in), refreshed only for changed groups; O-21 standing answers may cite them.
 
 ## Change log

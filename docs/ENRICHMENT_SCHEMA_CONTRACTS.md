@@ -225,7 +225,7 @@ The [coverage map](schema_review/gap_coverage.json) enumerates every NL-01..NL-5
 
 ## 9. Implementation and test checklist
 
-1. Resolve remaining schema choices below; update ADR-078 and D-100 only for accepted changes.
+1. Resolve remaining schema choices below; update ADR-078 and D-100 only for accepted changes. *(Resolved: Q-S1..5 selected B/B/A/A/B under "Owner-selected representations".)*
 2. Freeze target version, predicate vocabulary and current-to-target field mapping. No backward compatibility aliases.
 3. Implement pure value validators and synthetic source fixtures first: aware/unknown clocks, date-only text, identity ambiguity, negation/plans, distinct object instances and corrections; add copied-excerpt cascade/backup-boundary tests.
 4. Wire existing temporal/parser/compile and read bundle machinery; retain canonical acceptance and producer boundaries.
@@ -251,6 +251,8 @@ Scope/identity lifetime recommendation is namespace-scoped across sessions/conve
 
 ## Operating policy draft — 2026-10-18
 
+> **Superseded:** the proposed values below were accepted as O1-A..O4-A in the next section.
+
 [Numeric budgets, vocabulary and erasure checks](ENRICHMENT_OPERATING_POLICY.md) supplies proposed limits, 43 typed predicates and 20 copy-class checks. Owner explicitly selected 4,096 evidence tokens; other numeric defaults and backup/erasure operating choices remain proposed. Claim.attribute_key is explicit for the proposed attribute allowlist. No runtime implementation/default is changed by review JSON.
 
 ## Operating selections accepted — 2026-10-18
@@ -258,6 +260,9 @@ Scope/identity lifetime recommendation is namespace-scoped across sessions/conve
 Operating selections O1-A/O2-A/O3-A/O4-A accepted. ENRICHMENT_OPERATING_POLICY.md and schema_review/operating_defaults.json now record accepted starting design, not merely proposed values. Runtime contract integration, C01-C22 behavioural proof, actual backend erasure and model-specific acceptance remain pending.
 
 ## Generic vocabulary review — 2026-10-18
+
+> **Superseded:** BI-Q2 B (owner selections, 2026-10-21, top of this file) adopts all 53
+> predicates and 44 property keys in the coordinated rewrite.
 
 See [complete generic catalog](GENERIC_PREDICATE_ATTRIBUTE_CATALOG.md): accepted 43 predicates/nine keys preserved; 10 predicates and 35 keys proposed for broader reuse. New review findings: measurement/count/frequency property keys, domain-constrained biological roles, multi-party/comparison qualifiers and catalogue provenance. Current schema restrictions remain unchanged until these refinements are selected. No runtime registration or extraction implementation is claimed.
 

@@ -2,7 +2,7 @@
 
 - **Status:** accepted (opt-in, `write.window_extract: off` by default; reads and writes are byte-identical when off)
 - **Date:** 2026-10-11
-- **Decision id:** W1 (structure-plan register row to be added with the next register refresh).
+- **Decision id:** W1; structure-plan register row D-101.
 - **Sources:** `docs/ENGINE_COMPARISON_AND_WRITE_PATH_DESIGN.html` (Part B, B8, "Decided design"); `docs/DEFERRED_INGEST_STUDY.md` (flush and cancel-on-forget rules); user approval 2026-10-11.
 
 ## Context

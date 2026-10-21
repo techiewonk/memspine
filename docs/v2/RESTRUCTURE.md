@@ -74,7 +74,7 @@ prompts) -> schemas`; `store` never imports `read`, `derive`, `ingest`, `api`; `
 | F-15 | `derive/stages/*` | `workers/pipelines.py` |
 | F-01 | `store/keys.py` | `_edge_key` users in `derive/` |
 | F-02a/b/c | `store/{envelope,layers}.py`, `derive/graph.py`, alembic revision | `store/records.py` |
-| F-04, RT-01, RT-02 | `runtime/*`, `ingest/commit.py` | `workers/{inline,runner,scheduler,schedule,dbos_runner,taskiq_runner}.py` |
+| F-04, RT-01, RT-02 | `runtime/*`, `ingest/commit.py` | `workers/{inline,runner,scheduler,schedule,temporal_runner,temporal_workflow,step_journal,taskiq_runner}.py` (DBOS runner removed, ADR-071) |
 | F-16a..f | `store/{lineage,migrate,profiles}.py`, `store/backends/{postgres,neo4j}`, `derive/write.py` | `services/graph/neo4j.py` stub |
 
 Line ranges refer to `engine.py` at commit c83e93a; the method-to-module map (P0-04) supersedes them before F-08.

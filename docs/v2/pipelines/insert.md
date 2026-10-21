@@ -330,7 +330,8 @@ Output: projection applied; row status done (same transaction as the apply where
 - **Ordering and locking:** per-namespace order by `seq`; a lease row per claimed batch; Neo4j is always fed here,
   never inline (Q4).
 - **Config:** `graph.provider` (`config/schema.py:173-186`, `auto`) unchanged for embedded; server profile `neo4j`;
-  `workers.runner` (`:265`, `inline`) -> *(proposed)* `runtime.drainer: inline | dbos | taskiq`.
+  `workers.runner` (`:265`, `inline`) -> *(proposed)* `runtime.drainer: inline | dbos | taskiq`. Current
+  (ADR-071): `workers.runner: inline | temporal | taskiq`; DBOS is removed.
 - **Today vs decided:** the graph projector applies inline in `_append_and_project` (`engine.py:13498-13503`); the
   Neo4j adapter is a stub (`services/graph/neo4j.py:16-18`). Decided W-10, M-04/M-18 with Q4, G-19: projector
   contract (apply, neighbours, erase, rebuild, scope_check). Packages **F-04**, **F-16**.

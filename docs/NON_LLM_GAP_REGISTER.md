@@ -81,7 +81,11 @@ Rows are generic requirements, not a claim that every capability is absent. `V` 
 6. Focused synthetic tests for identity, time, privacy, source lifecycle, retry and budget behaviour. Optional learned models have explicit profiles and limits, no hidden generative fallback.
 7. Only after owner review, implement canonical background ingestion integration. No parallel intake API or provider-specific source truth.
 
-## Questions still requiring selection
+## Questions still requiring selection (all resolved)
+
+> **Resolved 2026-10-18, later in this file:** LX1, TR1, C2, T2, CT1 and K1 were accepted as
+> option A ("Owner selections"); R2/S1 were confirmed as engineering with optional measured
+> non-generative models ("R2/S1 resolved"). The list below is the original proposal record.
 
 - S1: initial exact/alias/reply + BM25, optional vectors/reranking after measurement (recommended).
 - C2: competing claims retained, explicit authorised correction/transition required for supersession (recommended).

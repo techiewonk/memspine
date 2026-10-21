@@ -505,7 +505,7 @@ class Fingerprint(NamedTuple):      # provenance.fingerprint
 
 ## Owner follow-up (2026-10-12)
 
-- **Q2 Durable outbox** (as proposed): Library-first inline runner draining a durable outbox in the same store; leftover work resumes on the next open; dbos and taskiq are optional drainers.
+- **Q2 Durable outbox** (as proposed): Library-first inline runner draining a durable outbox in the same store; leftover work resumes on the next open; dbos and taskiq are optional drainers. *(DBOS later replaced by Temporal + embedded Resonate, ADR-071.)*
 - **Q5 Jina on every read if installed** (as proposed): Jina v3.5 reranks every read wherever the model is installed; the pre-run gate is a CPU-only mode; the eval harness forces it on.
 - **Q6 Jina if installed, permissive fallback** (as proposed): Jina stays for research and evaluation; the library default is 'Jina if installed', with a permissively licensed reranker named as the commercial fallback (licence check is a research task).
 

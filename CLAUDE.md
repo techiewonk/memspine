@@ -6,7 +6,7 @@ This file is loaded into every Claude Code session. Keep it accurate and terse.
 
 `memspine` is an open-source **cognitive-memory engine** for AI agents: one clean API (`Engine`) over a real write pipeline, hybrid + graph retrieval, and background learning dynamics — with pluggable, composable stores. It is the *engine*, not a product.
 
-**Status:** pre-alpha, under active construction. **P0–P7 are all implemented and review-passed** (substrate · working memory + retrieval · semantic · episodic + lifecycle · Memory Firewall · procedural + reflective · associative graph · prospective + shared + REST), plus the C6 combination matrix — **2378** tests collected (`uv run pytest --collect-only -q`; +530 in `evals/tests`), `ruff` + `mypy --strict` clean, **64 ADRs** (ADR-001…ADR-065, 038 unassigned; ADR-029/030/031 *proposed*), decision register through D-89. All 9 memory types and E1–E9 are landed. User-facing docs: `docs/FEATURES.md` + `docs/USAGE.md`. Ecosystem comparison: `docs/ECOSYSTEM_COMPARISON.md` + `docs/ARCHITECTURE_FLOWS.md` (pass #3: stages, packages, prompts, memory I/O). Current snapshot lives in `STATUS.md` (manually refreshed; the 30-min auto-refresh stopped in July). The design docs in `docs/` are the **single source of truth** — read them before writing code.
+**Status:** pre-alpha, under active construction. **P0–P7 are all implemented and review-passed** (substrate · working memory + retrieval · semantic · episodic + lifecycle · Memory Firewall · procedural + reflective · associative graph · prospective + shared + REST), plus the C6 combination matrix. Get the current test count with `uv run pytest --collect-only -q` (evals add `evals/tests`); `ruff` + `mypy --strict` are the gate. **76 ADRs** (ADR-001…ADR-078; 038 and 045 unassigned; ADR-029/030/031 *proposed*), decision register through D-101. All 9 memory types and E1–E9 are landed. User-facing docs: `docs/FEATURES.md` + `docs/USAGE.md`. Ecosystem comparison: `docs/ECOSYSTEM_COMPARISON.md` + `docs/ARCHITECTURE_FLOWS.md` (pass #3: stages, packages, prompts, memory I/O). Current task/status lives only in `docs/PROVIDER_TODO.md` (see below). The design docs in `docs/` are the **single source of truth** — read them before writing code.
 
 ## Single live task/status tracker
 
@@ -14,7 +14,7 @@ Use **docs/PROVIDER_TODO.md** for all current task IDs, statuses, completed work
 
 ## Read these first (in order)
 
-1. `docs/memspine-structure-plan.md` — **the buildable blueprint**: repo tree, extras matrix, decision register (D-01…D-80), phase plan (P0…P7), enhancement program (E1–E9). This is authoritative.
+1. `docs/memspine-structure-plan.md` — **the buildable blueprint**: repo tree, extras matrix, decision register (D-01…D-101), phase plan (P0…P7), enhancement program (E1–E9). This is authoritative.
 2. `docs/UNIMEM_V2_REWORK_PROPOSAL.md` — architecture rationale (why, and the evidence base).
 3. `docs/DEPENDENCY_ANALYSIS.md` + `docs/PACKAGE_CATALOG.md` — why each dependency was chosen; every candidate package with "does what".
 
@@ -23,14 +23,14 @@ Use **docs/PROVIDER_TODO.md** for all current task IDs, statuses, completed work
 ## Golden rules (do not violate without an ADR)
 
 - **Event-sourced core.** An append-only `memory_events` log is the source of truth. Vector/graph/FTS/cache are **rebuildable projectors** — never a second source of truth.
-- **Anti-lock-in (D-17).** Background pipelines are plain, idempotent step functions in `workers/pipelines.py`. Runners (inline/Temporal+Resonate/taskiq) *decorate* them — no runner imports inside pipeline code.
+- **Anti-lock-in (D-17).** Background pipelines are plain, idempotent step functions under `derive/pipeline/stages/`, registered by name in `derive/pipeline/stages/table.py`. Runners (inline/Temporal+Resonate/taskiq) *decorate* them — no runner imports inside pipeline code.
 - **Ports & adapters (D-22/M14).** Engine/memories/policies talk only to `services/*` capability ports. `clients/*` own connections; services never open a connection.
 - **Slim core (D-03).** Zero heavy deps in core. Everything optional lives behind a `pip install memspine[extra]`. `torch`/`transformers` never enter core.
-- **Run the test suite in chunks on low-memory machines** (a single-process run can die silently, exit 127); always pass `-p no:deepeval` (the deepeval plugin hides pytest's summary).
+- **Run the test suite in chunks on low-memory machines** (a single-process run can die silently, exit 127). DeepEval is no longer a dependency; pass `-p no:deepeval` only while an old `.venv` still has it installed (its plugin hides pytest's summary).
 - **Profiles stay green.** Preserve `simple` retrieval behaviour while applying the accepted breaking provider schema. No legacy configuration aliases or compatibility modules (ADR-068); `core` is the bare reference used by mechanics tests.
 - **Hard-fail clearly (D-10).** Missing service → `MissingServiceError` naming the extra to install, unless `strict_services: false`.
 
-## Locked defaults (decision register — see plan for D-01…D-49)
+## Locked defaults (decision register — see plan for D-01…D-101)
 
 | Area | Default | Notes |
 |------|---------|-------|
@@ -40,13 +40,13 @@ Use **docs/PROVIDER_TODO.md** for all current task IDs, statuses, completed work
 | Event log | `event_log.mode`: **full** (default) / **rolling** / **ephemeral** + optional zstd payload compression | storage-cost control; pruning never passes projector high-water marks (D-45) |
 | Vector | **LanceDB** (+ Tantivy FTS) | D-09 |
 | Graph | **auto** selects compatible LadybugDB `[graph]` or SQLite adjacency; explicit Neo4j is separately configured; no kuzu alias | D-26/D-49/D-60/ADR-068 |
-| Cache/KV | **LMDB** | D-09 |
+| Cache/KV | **memory** (in-process) default; disk / redis / valkey via cashews `[cache]` | D-09/ADR-022 amendment; LMDB replaced |
 | Lexical | **FTS5 / Tantivy** BM25, RRF fusion | D-25; **CJK dropped** (D-34) |
 | Embedder | **fastembed** (ONNX, CPU) | torch behind `[st]` only (D-08) |
 | LLM | local: **Ollama/vLLM/llama.cpp/LM Studio/OpenAI-compatible** + Bedrock | per-role providers; litellm adapter-only (D-07/D-33/D-39) |
 | Workers | **inline** default, **Temporal + embedded Resonate** durable, **taskiq** brokered | ADR-071; Temporal requires external cluster + persistent local journal |
 | Dedup | **datasketch** MinHash-LSH → cosine confirm | D-27 |
-| Entities | **gliner2** CPU NER (flag) + LLM fallback | D-28 |
+| Entities | **GLiNER2** CPU NER `[ner]` (default checkpoint GLiNER2.5 Base, `fastino/gliner2.5-base-v1`), selected via named `models.profiles` + `models.bindings` (off unless bound) + LLM fallback | D-28/D-97/ADR-075 |
 | Ingest | **markitdown + chonkie** `[ingest]` | D-29 |
 | Structured output | **instructor** + always-on **json-repair** | D-31 |
 | Compression | **zstandard** cold-tier + **llmlingua** assembly `[compress]` | D-32/E5 |
@@ -76,7 +76,7 @@ no longer a development dependency; no Click override is permitted. Heavy model
 extras remain optional and are not proven by metadata/lock resolution alone.
 
 ```bash
-uv sync --all-extras          # install dev env
+uv sync --locked --extra dev  # install dev env (add --extra <name> for optional features)
 just test                     # pytest
 just lint                     # ruff + mypy
 just docs                     # mkdocs serve
@@ -89,14 +89,16 @@ uv run ruff check . && uv run ruff format --check .
 ## How to work here
 
 1. **Find the phase.** Work follows P0→P7 (see plan §5). Confirm which phase a task belongs to; don't build P4 before P1's contracts exist.
-2. **Check the register.** Before adding a dependency or pattern, confirm it against D-01…D-46. New dep → justify like `DEPENDENCY_ANALYSIS.md` (what it does, who proves it, which extra) and record a decision.
+2. **Check the register.** Before adding a dependency or pattern, confirm it against D-01…D-101. New dep → justify like `DEPENDENCY_ANALYSIS.md` (what it does, who proves it, which extra) and record a decision.
 3. **Keep the core slim and `simple` green.** Guard both in every PR.
 4. **Update docs with the code.** If you change a contract, update the structure plan + this file in the same change.
 
-## Repo layout (target — being built out)
+## Repo layout (restructured in place, ADR-067)
 
 ```
-src/memspine/{engine,cli}.py · core/ · memories/ · services/ · clients/ · workers/ · config/ · prompts/ · protocols/ · observability/
+src/memspine/{cli,plugins,scope,exceptions}.py · api/ (Engine facade, api/engine.py) · memory/ · memories/ · ingest/ · derive/ · read/
+  · store/ · providers/ · services/ · clients/ · models/ · semantics/ · trust/ · economy/ · runtime/ · workers/ · compose/
+  · core/ · config/ · schemas/ · prompts/ · ops/ · observability/
 evals/ (repo root, not shipped) · tests/{unit,integration,combinations}/ · docs/{adr/, *.md}
 ```
 

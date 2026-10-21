@@ -28,7 +28,7 @@
 ---
 
 > [!NOTE]
-> **Status: pre-alpha, MemSpine 2.0 restructure landed on `main`.** The v2 engine reorganises the code into `ingest / derive / read / compose / store / trust / runtime / api` (ADR-067), adds the six memory layers L0–L5 with a checked layer contract, and ships a step-by-step **inspector** and a browser **Tuning Studio**, so every phase can be run, read and tuned by hand. The adopted retrieval default is `evals/arms/v2-PICK3-j.json` ([`docs/v2/FINAL_PICK.md`](./docs/v2/FINAL_PICK.md)). There are 66 ADRs in [`docs/adr`](./docs/adr). Start with [`docs/v2/README.md`](./docs/v2/README.md), [`docs/USAGE.md`](./docs/USAGE.md) and [`docs/FEATURES.md`](./docs/FEATURES.md). Some capabilities need extras (below), and a few production swap-ins are reserved; see the [honest caveats](#-honest-caveats).
+> **Status: pre-alpha, MemSpine 2.0 restructure landed on `main`.** The v2 engine reorganises the code into `ingest / derive / read / compose / store / trust / runtime / api` (ADR-067), adds the six memory layers L0–L5 with a checked layer contract, and ships a step-by-step **inspector** and a browser **Tuning Studio**, so every phase can be run, read and tuned by hand. The adopted retrieval default is `evals/arms/v2-PICK3-j.json` ([`docs/v2/FINAL_PICK.md`](./docs/v2/FINAL_PICK.md)). There are 76 ADRs in [`docs/adr`](./docs/adr) (ADR-001 to ADR-078; 038 and 045 unassigned). Start with [`docs/v2/README.md`](./docs/v2/README.md), [`docs/USAGE.md`](./docs/USAGE.md) and [`docs/FEATURES.md`](./docs/FEATURES.md). Some capabilities need extras (below), and remote swap-ins have local verification only; see the [honest caveats](#-honest-caveats).
 
 ---
 
@@ -187,7 +187,7 @@ Every write of every type passes a deterministic gate before the door (OWASP **A
 | **E8** retrieval-quality stages | | `read.rerank: fastembed`\|`flashrank`\|`litellm` (+ `rerank_model`); `read.static_prefilter: true` |
 | **E9** token micro-opts | ✅ YAML/CoD prompt formats + always-on `json-repair` | |
 
-> **Hybrid retrieval is on by default (v0.2):** every `search` fuses a lexical **BM25** leg — a standalone **Tantivy** index (core dependency, backend-independent) — into the vector ranking via reciprocal-rank fusion (D-25). Set `read.hybrid: false` to restore the bit-identical vector-only pipeline; future OpenSearch/Weaviate adapters can extend the same lexical/vector ports; those adapters are not currently shipped.
+> **Hybrid retrieval is on by default (v0.2):** every `search` fuses a lexical **BM25** leg — a standalone **Tantivy** index (core dependency, backend-independent) — into the vector ranking via reciprocal-rank fusion (D-25). Set `read.hybrid: false` to restore the bit-identical vector-only pipeline. Optional OpenSearch (lexical), Weaviate (lexical/vector) and pgvector (vector) adapters plug into the same independent lexical/vector ports (ADR-069).
 
 ### 🆕 New in v0.2
 
@@ -223,7 +223,10 @@ pip install "memspine[rerank]"                 # flashrank — E8 cross-encoder 
 pip install "memspine[community]"              # graspologic-native — Leiden graph community detection (MIT)
 pip install "memspine[cache]"                  # cashews — disk / redis / valkey cache backends
 pip install "memspine[rest]"                   # FastAPI + uvicorn — REST protocol
- # OpenSearch / Weaviate adapters are planned; no shipped extra is claimed.
+pip install "memspine[opensearch]"             # OpenSearch lexical/BM25 adapter (ADR-069)
+pip install "memspine[weaviate]"               # Weaviate lexical + vector adapters (ADR-069)
+pip install "memspine[postgres]"               # PostgreSQL storage + pgvector vector adapter
+pip install "memspine[neo4j]"                  # direct Neo4j graph provider
 pip install "memspine[temporal]" / "[taskiq]"      # Temporal Server + embedded Resonate / brokered workers
 pip install "memspine[llmlocal]"               # llama-cpp-python in-proc inference
 ```
@@ -241,18 +244,19 @@ pip install "memspine[llmlocal]"               # llama-cpp-python in-proc infere
 | `rerank` | E8 cross-encoder rerank alternative (flashrank) |
 | `static` | E4 model2vec static-embedding prefilter (ADR-020) |
 | `community` | Leiden graph community detection (graspologic-native, MIT, D-40/ADR-043 — needs numpy + scipy, no numpy ceiling) |
-| Future adapters | OpenSearch / Weaviate lexical and vector adapters require implementation and backend verification |
+| `opensearch` | OpenSearch lexical adapter (`lexical.provider: opensearch`, ADR-069) |
+| `weaviate` | Weaviate lexical and vector adapters (`lexical`/`vector.provider: weaviate`, ADR-069) |
 | `temporal` / `taskiq` | Temporal Server + local Resonate / brokered worker runners (ADR-071) |
 | `rest` | REST protocol (FastAPI, D-06) |
 | `llmlocal` | in-proc open-weight inference (llama-cpp-python) |
-| `postgres` | PostgreSQL storage backend (ADR-025) |
+| `postgres` | PostgreSQL storage backend (ADR-025) and pgvector vector adapter (`vector.provider: pgvector`, ADR-069; projection DDL needs explicit opt-in) |
 | `aws` | Bedrock LLM/embeddings + AWS Secrets Manager (ADR-023/024) |
 | `promptopt` | prompt self-optimization hook (langmem, D-43) |
-| `weaviate`, `neo4j` | reserved production swap-ins (raise if selected) |
+| `neo4j` | direct Neo4j graph provider (`graph.provider: neo4j`) |
 
 > Both the **LiteLLM** gateway (cloud + local LLM/embedding/rerank, ADR-024) and the **Tantivy** BM25 leg (default-on hybrid, D-25) are **core** dependencies — no extra needed.
 
-Convenience bundles: `local` (`graph,cache,ingest,ner`), `prod-aws`, `all`. Dev: `uv sync --all-extras`.
+Convenience bundles: `local` (`graph,cache,ingest,ner`), `prod-aws`, `all`. Dev: `uv sync --locked --extra dev` (ADR-070).
 
 ---
 
@@ -421,13 +425,13 @@ Every capability is a port. The engine plans against capabilities, degrades grac
 
 | Capability | 🟢 Default *(embedded, offline)* | 🚀 Swap-in *(config alone)* |
 |------------|----------------------------------|-----------|
-| **Vector** | **LanceDB** *(core, ADR-021)* | Weaviate *(reserved)* |
-| **Graph** | **`sqlite_adjacency`** *(zero-dep)* · **ladybug** with `[graph]` | Direct Neo4j factory `[neo4j]` (real-server gate pending) |
+| **Vector** | **LanceDB** *(core, ADR-021)* | Weaviate `[weaviate]` · pgvector `[postgres]` *(ADR-069)* |
+| **Graph** | **`sqlite_adjacency`** *(zero-dep)* · **ladybug** with `[graph]` | Direct Neo4j `[neo4j]` |
 | **Cache / KV** | in-process KV *(core)* · cashews **disk** with `[cache]` | Redis / Valkey via `cache.provider` + `[cache]` *(ADR-022)* |
 | **Relational / event log** | **SQLite** (SQLAlchemy Core + Alembic) | **PostgreSQL** `[postgres]` *(ADR-025)* |
 | **Embeddings** | **fastembed** (ONNX, CPU) · `hash` for tests · model2vec `[static]` | **LiteLLM** cloud (OpenAI / Bedrock / …) via `embedding.provider: litellm` *(ADR-024)* |
 | **LLM** | **local**: Ollama · vLLM · llama.cpp `[llmlocal]` · LM Studio · any OpenAI-compatible | **LiteLLM** prefix routing: `openai/` · `bedrock/` · `vertex_ai/` · `azure/` *(ADR-024)* |
-| **Lexical** | **Tantivy BM25** *(core, hybrid on by default)* | OpenSearch / Weaviate *(planned adapters)* |
+| **Lexical** | **Tantivy BM25** *(core, hybrid on by default)* | OpenSearch `[opensearch]` · Weaviate `[weaviate]` *(ADR-069)* |
 | **Secrets** | env / `.env` *(core, ADR-023)* | **AWS Secrets Manager** `[aws]` via `MEMSPINE_SECRETS_BACKEND=aws` |
 | **Workers** | **inline** | Temporal + embedded Resonate `[temporal]` · taskiq `[taskiq]` |
 
@@ -437,11 +441,11 @@ Every capability is a port. The engine plans against capabilities, degrades grac
 
 memspine is **pre-alpha**. What's shipped vs. deferred, so you're not surprised:
 
-- **Retrieval is hybrid *by default* (v0.2).** `search` runs `[static_prefilter?] → vector + Tantivy BM25 fused by RRF → [rerank?] → score`. Set `read.hybrid: false` for the bit-identical vector-only pipeline. The embedded Tantivy index is **single-writer per directory**, so two live Engine instances can't share one file-backed lexical index — use one writer per index directory. OpenSearch and Weaviate adapters remain planned extensions; they are not shipped alternatives.
-- **Graph selection defaults to `auto`.** It chooses a compatible local provider; SQLite adjacency is the zero-dependency option for SQLite; `ladybug` (`[graph]`) is the embedded-Cypher opt-in. Direct Neo4j and an independent optional mirror use typed graph construction; real-server parity remains a separate verification gate. Graphiti-style `extract_graph` is **opt-in** (`memories.semantic.policies.extract_graph`).
+- **Retrieval is hybrid *by default* (v0.2).** `search` runs `[static_prefilter?] → vector + Tantivy BM25 fused by RRF → [rerank?] → score`. Set `read.hybrid: false` for the bit-identical vector-only pipeline. The embedded Tantivy index is **single-writer per directory**, so two live Engine instances can't share one file-backed lexical index — use one writer per index directory, or select the optional OpenSearch/Weaviate lexical adapter.
+- **Graph selection defaults to `auto`.** It chooses a compatible local provider; SQLite adjacency is the zero-dependency option for SQLite; `ladybug` (`[graph]`) is the embedded-Cypher opt-in. Direct Neo4j and an independent optional mirror use typed graph construction. Graphiti-style `extract_graph` is **opt-in** (`memories.semantic.policies.extract_graph`).
 - **The autonomous scheduler is off by default and skipped on `:memory:`.** Set `workers.sleep_interval_seconds` to drive dynamics on a file-backed DB; production autonomous scheduling should pair with a durable runner (`[temporal]`/`[taskiq]`).
-- **Provider support is explicit.** Tantivy supplies lexical retrieval; OpenSearch and Weaviate remain future adapters. Direct Neo4j construction and a separate optional mirror use the graph contract; real-server verification is a separate release gate. Unknown providers fail selection. See the [provider architecture plan](docs/PROVIDER_ARCHITECTURE_PLAN.md) and [ADR-068](docs/adr/ADR-068-provider-contracts-and-controlled-changes.md).
-- **Extras gate features.** `ingest`, `compress`, `rerank`, `static`, `community`, `cache` (disk/redis/valkey), `postgres`, `neo4j`, `aws`, and durable/brokered workers each need their extra installed.
+- **Provider support is explicit.** Tantivy supplies lexical retrieval by default; OpenSearch, Weaviate and pgvector are optional adapters (ADR-069), and Neo4j is a direct graph provider. Their native contracts passed against disposable local servers only; production deployment acceptance (a real deployment controller and quiescence guard) is a separate gate, and SQL DELETE in pgvector is not physical-erasure proof. Unknown providers fail selection. See the [provider architecture plan](docs/PROVIDER_ARCHITECTURE_PLAN.md) and [ADR-068](docs/adr/ADR-068-provider-contracts-and-controlled-changes.md).
+- **Extras gate features.** `ingest`, `compress`, `rerank`, `static`, `community`, `cache` (disk/redis/valkey), `postgres`, `neo4j`, `opensearch`, `weaviate`, `aws`, and durable/brokered workers each need their extra installed.
 - **REST has no authentication in v0.1.** The namespace comes from the `X-Memspine-Namespace` header verbatim — binding caller → namespace is the deployer's job (ADR-017/018). REST writes are forced onto the low-trust `rest` channel.
 - **Sync wrappers cover only** `start`/`write`/`retrieve`/`stop`; everything else is async.
 
@@ -482,7 +486,7 @@ flowchart LR
 Contributions welcome — start with [`CONTRIBUTING.md`](./CONTRIBUTING.md) and the golden rules in [`CLAUDE.md`](./CLAUDE.md). Before changing a stage, walk it once in step mode ([`MANUAL_TESTING.md`](./docs/v2/MANUAL_TESTING.md)) and keep `save` at 0 invariant errors.
 
 ```bash
-uv sync --all-extras
+uv sync --locked --extra dev
 just check        # ruff + mypy + pytest
 ```
 

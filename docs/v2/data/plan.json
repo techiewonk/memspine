@@ -3795,7 +3795,9 @@
     "src/memspine/workers/runner.py",
     "src/memspine/workers/scheduler.py",
     "src/memspine/workers/schedule.py",
-    "src/memspine/workers/dbos_runner.py",
+    "src/memspine/workers/temporal_runner.py",
+    "src/memspine/workers/temporal_workflow.py",
+    "src/memspine/workers/step_journal.py",
     "src/memspine/workers/taskiq_runner.py"
    ],
    "lane": "S2 foundations (serial: Alembic)",
@@ -3850,7 +3852,9 @@
     "src/memspine/workers/runner.py",
     "src/memspine/workers/scheduler.py",
     "src/memspine/workers/schedule.py",
-    "src/memspine/workers/dbos_runner.py",
+    "src/memspine/workers/temporal_runner.py",
+    "src/memspine/workers/temporal_workflow.py",
+    "src/memspine/workers/step_journal.py",
     "src/memspine/workers/taskiq_runner.py"
    ],
    "lane": "S2 foundations (serial: Alembic)",
@@ -3902,7 +3906,9 @@
     "src/memspine/workers/runner.py",
     "src/memspine/workers/scheduler.py",
     "src/memspine/workers/schedule.py",
-    "src/memspine/workers/dbos_runner.py",
+    "src/memspine/workers/temporal_runner.py",
+    "src/memspine/workers/temporal_workflow.py",
+    "src/memspine/workers/step_journal.py",
     "src/memspine/workers/taskiq_runner.py"
    ],
    "lane": "S2 foundations (serial: Alembic)",
