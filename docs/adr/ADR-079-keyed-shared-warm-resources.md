@@ -67,3 +67,30 @@ A 2026-10-22 audit found that inside one Engine most clients are shared, but:
 - Work is phased: RM-71 registry core, RM-72 in-engine duplicates, RM-73 model sharing,
   RM-74 background warm-up and readiness, RM-75 keyed globals, RM-76 per-process warm
   pools, RM-77 multi-engine acceptance tests.
+
+## Addendum 2026-10-22: alternatives re-verified and settings selected
+
+Re-verification: a plain process singleton is rejected (mixes targets and credentials,
+breaks loop-bound async clients and forks); per-Engine allocation is rejected (duplicate
+pools and weight copies). The keyed refcounted registry matches library guidance (one
+SQLAlchemy engine per database per process, long-lived HTTP sessions, load-once model
+weights). An external connection pooler and a shared local model server are complements,
+not replacements.
+
+Selected `runtime.shared_resources` settings (RM-78), all strict, documented in USAGE.md,
+defaults in `config/constants.py`:
+
+| Setting | Default |
+|---|---|
+| `scope` | `process` (`engine` = isolated) |
+| `warmup` | `background` (`lazy` \| `background` \| `blocking`) |
+| `warmup_timeout_s` | 120 |
+| `warmup_concurrency` | 2 |
+| `warmup_include` / `warmup_exclude` | all / none |
+| `keep_warm` | `true` (weights stay loaded for the process life) |
+| `idle_ttl_s` | unset (opt-in) |
+| `memory_budget_mb` | unset (opt-in; LRU among idle, never in-use) |
+| `max_models_per_category` | unset (replaces fixed per-model caps) |
+| `sql.pool_size` / `max_overflow` / `pool_recycle_s` / `pool_pre_ping` | 5 / 10 / 1800 / true |
+| `http.max_connections` / `keepalive_s` | 100 / 30 |
+| `model_server` | reserved for a future opt-in local model server (RM-79) |

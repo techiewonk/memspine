@@ -10,14 +10,14 @@ Keep one row per stable ID. PA IDs preserve the 136-item provider program; BI ID
 | Current status | All work items |
 |---|---:|
 | BLOCKED | 1 |
-| DEFERRED | 5 |
+| DEFERRED | 6 |
 | DEPLOYMENT_CHECK | 19 |
 | DONE | 134 |
 | EXCLUDED | 4 |
 | IN_PROGRESS | 29 |
 | NEEDS_INPUT | 3 |
 | NEEDS_TOOLCHAIN | 1 |
-| OPEN | 21 |
+| OPEN | 22 |
 | OPEN_REVIEW | 18 |
 | PLANNED | 11 |
 | PROPOSED | 3 |
@@ -28,10 +28,10 @@ Keep one row per stable ID. PA IDs preserve the 136-item provider program; BI ID
 | BI | 12 |
 | DS | 21 |
 | PA | 136 |
-| RM | 77 |
+| RM | 79 |
 | RS | 9 |
 
-Total: **255 unique task IDs**. Provider-only historical denominator stays 136; the combined total also includes BI, DS, RS and imported review suggestions.
+Total: **257 unique task IDs**. Provider-only historical denominator stays 136; the combined total also includes BI, DS, RS and imported review suggestions.
 <!-- CURRENT_SUMMARY_END -->
 
 ## Status and column legend
@@ -322,6 +322,8 @@ its scope is narrower than the prerequisite (say so in the row) or its status is
 | RM-75 | OPEN | P2 | Runtime maintainer | Key the process globals in the registry: model scheduler, economy and ops ledgers, tap sink, concurrency gate | Audit: unkeyed scheduler singleton and last-Engine-wins ledgers/tap/gate | Two Engines with different settings keep their own instances; refcounted close | Prereq: RM-71 |
 | RM-76 | OPEN | P2 | Worker / deployment maintainer | Per-process warm pools for separate workers: taskiq worker, uvicorn workers, MCP subprocess | Audit: each separate process builds a full Engine and repeats warm-up | Registry built and warmed at worker start after fork/spawn; documented process model | Prereq: RM-71, RM-74 |
 | RM-77 | OPEN | P1 | Verification lead | Multi-engine acceptance for shared resources (extends tracker T13) | Required by ADR-079 consequences | Stop-one-while-another-active, different-settings isolation, single-writer path sharing, loop affinity, fork reset, :memory: uniqueness, no result sharing | Prereq: RM-72, RM-73, RM-75 |
+| RM-78 | OPEN | P1 | Config / runtime maintainer | Add the runtime.shared_resources settings block (scope, warmup and limits, keep_warm, idle TTL, memory budget, per-category caps, SQL and HTTP pools) | Owner adopted all proposed settings 2026-10-22; default keep warm with no TTL [ADR-079 addendum](adr/ADR-079-keyed-shared-warm-resources.md) | Strict schema, constants, USAGE.md rows, wiring into the registry, warm-up and pools; tests per setting; implement after RM-72/73/75 merge to avoid schema conflicts | Prereq: RM-72, RM-73, RM-75; Feeds: RM-74, RM-76 |
+| RM-79 | DEFERRED | P3 | Model / deployment maintainer | Opt-in shared local model server for cross-process RAM sharing (embedder, GLiNER, reranker) | Owner 2026-10-22: reserve the model_server setting, build later [ADR-079 addendum](adr/ADR-079-keyed-shared-warm-resources.md) | Select when multi-process deployments need shared model RAM | Prereq: RM-76 |
 <!-- TASK_REGISTER_END -->
 
 ## Imported roadmap detail (no independent statuses)
