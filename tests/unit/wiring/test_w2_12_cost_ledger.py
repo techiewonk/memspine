@@ -19,6 +19,7 @@ from memspine.economy import ledger as costs
 from memspine.economy.ledger import Budget, WriteCostLedger, cost_scope
 from memspine.economy.targets import TargetFailure, TargetSet
 from memspine.models.providers.llm.base import LLMRouter
+from memspine.observability import bindings
 
 EDGES = [
     {
@@ -215,8 +216,7 @@ async def test_ledger_counts_a_stubbed_sleep_stage(
 
 async def test_a_failed_call_is_counted_and_reraised() -> None:
     ledger = WriteCostLedger()
-    costs.install(ledger)
-    try:
+    with bindings.bound(bindings.EngineBinding(cost_ledger=ledger)):
 
         class Boom:
             provider_id = "boom"
@@ -228,8 +228,6 @@ async def test_a_failed_call_is_counted_and_reraised() -> None:
         with cost_scope(namespace="n", layer="facts", stage="window_extract"):
             with pytest.raises(TimeoutError):
                 await router.for_role("x").chat([{"role": "user", "content": "hello"}])
-    finally:
-        costs.install(None)
     rep = ledger.report("n")
     assert rep["failures"] == 1 and rep["model_calls"] == 1
     assert ledger.records[0].outcome == "timeout"

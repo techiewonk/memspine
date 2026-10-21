@@ -5,6 +5,7 @@ both OFF by default. Model-free: calls are asyncio sleeps and a hash embedder.""
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import re
 import sys
 import time
@@ -22,7 +23,7 @@ from memspine.derive.backpressure import (
     Backpressure,
     BackpressureRejected,
 )
-from memspine.economy.slo import SloLedger, install_ledger, percentile, timed_read
+from memspine.economy.slo import SloLedger, percentile, timed_read
 from memspine.models.concurrency import (
     Priority,
     current_priority,
@@ -30,7 +31,7 @@ from memspine.models.concurrency import (
     model_slot,
     priority_scope,
 )
-from memspine.observability import tap
+from memspine.observability import bindings, tap
 from memspine.runtime import scheduler as sched
 from memspine.runtime.jobs import ManualClock, RetryBudget
 from memspine.runtime.outbox import SqlJobStore, memory_engine
@@ -59,13 +60,14 @@ def _clean() -> Any:
     yield
     tap.shutdown()
     assert installed_gate() is None  # no test leaks a gate
+    assert not bindings.live()  # every engine unregisters on stop
 
 
 # ------------------------------------------------------------------------------ flag off
-def test_flags_default_off_and_acquire_is_a_noop() -> None:
+async def test_flags_default_off_and_acquire_is_a_noop() -> None:
     cfg = _runtime()
     assert cfg.scheduler_v2 is False and cfg.model_concurrency == 0
-    assert sched.acquire(cfg) is None and sched.active() is None
+    assert await sched.acquire(cfg) is None
 
 
 async def test_without_a_gate_model_slot_and_timed_read_are_passthroughs() -> None:
@@ -171,11 +173,15 @@ async def test_a_cancelled_waiter_leaks_no_slot() -> None:
         assert gate.active == 1
 
 
-async def test_scheduler_installs_the_gate_for_llm_and_embedding_seams() -> None:
+async def test_scheduler_gate_bounds_the_llm_and_embedding_seams() -> None:
     cfg = _runtime(model_concurrency=2, scheduler_v2=True)
-    s = sched.acquire(cfg)
+    lease = await sched.acquire(cfg)
+    assert lease is not None
+    s = lease.value
     try:
-        assert s is not None and installed_gate() is s.gate
+        binding = bindings.EngineBinding(gate=s.gate, slo_ledger=s.slo_ledger)
+        with bindings.bound(binding):
+            assert installed_gate() is s.gate
         running = peak = 0
 
         async def call() -> None:
@@ -186,11 +192,12 @@ async def test_scheduler_installs_the_gate_for_llm_and_embedding_seams() -> None
                 await asyncio.sleep(0.003)
                 running -= 1
 
-        await asyncio.gather(*(call() for _ in range(10)))
+        with bindings.bound(binding):
+            await asyncio.gather(*(call() for _ in range(10)))
         assert peak == 2
     finally:
-        await sched.release(s)
-    assert installed_gate() is None and sched.active() is None
+        await sched.release(lease)
+    assert installed_gate() is None
 
 
 async def test_gate_tap_events_name_priority_and_wait() -> None:
@@ -453,8 +460,7 @@ def test_percentile_and_report_budgets() -> None:
 
 async def test_timed_read_records_the_outermost_call_only() -> None:
     ledger = SloLedger()
-    previous = install_ledger(ledger)
-    try:
+    with bindings.bound(bindings.EngineBinding(slo_ledger=ledger)):
 
         @timed_read
         async def inner() -> None:
@@ -466,8 +472,6 @@ async def test_timed_read_records_the_outermost_call_only() -> None:
 
         await outer()
         await inner()
-    finally:
-        install_ledger(previous)
     assert ledger.report().reads == 2
 
 
@@ -513,8 +517,11 @@ async def test_load_reads_keep_their_p95_under_background_load_and_nothing_is_dr
 
 async def test_load_through_the_runner_reads_stay_fast_and_all_jobs_finish() -> None:
     cfg = _runtime(scheduler_v2=True, model_concurrency=2, backlog_max_items=0)
-    s = sched.acquire(cfg)
-    assert s is not None
+    lease = await sched.acquire(cfg)
+    assert lease is not None
+    s = lease.value
+    seams = contextlib.ExitStack()
+    seams.enter_context(bindings.bound(bindings.EngineBinding(gate=s.gate)))
     try:
         runner = _runner()
 
@@ -542,7 +549,8 @@ async def test_load_through_the_runner_reads_stay_fast_and_all_jobs_finish() -> 
         assert percentile(lat, 0.95) < 0.05
         assert s.ledger.report().lag_samples == 16
     finally:
-        await sched.release(s)
+        seams.close()
+        await sched.release(lease)
 
 
 # ------------------------------------------------------------------------------ engine, flag on
@@ -600,7 +608,8 @@ async def test_engine_flag_on_gives_the_same_facts_and_releases_the_gate(
         )
         await eng.start()
         try:
-            assert (installed_gate() is not None) is on
+            with bindings.bound(eng._binding):  # what this Engine's calls see
+                assert (installed_gate() is not None) is on
             for ns in ("a", "b"):
                 await _send(eng, ns, "s1", _turns("trip", 9))
                 await _send(eng, ns, "s2", _turns("walk", 4))

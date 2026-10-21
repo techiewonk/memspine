@@ -13,8 +13,14 @@ All in-process asyncio (one process per store). Three pieces, each behind a flag
                       work only, never for a read) and run one batch at a time, highest priority
                       first. Reads never wait to fill a batch; they batch only while a previous
                       batch is running.
-``Scheduler``         owns the gate, the executors, the SLO ledger and the backpressure policy, and
-                      installs the gate at the ``models.concurrency`` seam.
+``Scheduler``         owns the gate, the executors, the SLO ledger and the backpressure policy. The
+                      Engine binds its gate and ledger (``observability.bindings``), which is where
+                      the ``models.concurrency`` and ``economy.slo`` seams read them.
+
+``acquire`` / ``release`` share one Scheduler per process between Engines whose scheduling
+settings are identical (and that run on the same event loop: the gate's futures are loop-bound),
+through the per-process resource registry (ADR-079 decision 5). Engines with different settings
+get their own; the last release closes it.
 
 Backpressure itself is ``derive.backpressure`` (a pure policy); ``InlineRunner`` applies it at
 enqueue. Tap events: ``runtime.sched.{grant,batch,install,uninstall}``.
@@ -31,15 +37,10 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 from memspine.derive.backpressure import Backpressure
-from memspine.economy.slo import SloLedger, install_ledger
-from memspine.models.concurrency import (
-    Priority,
-    current_priority,
-    install_gate,
-    installed_gate,
-    priority_scope,
-)
+from memspine.economy.slo import SloLedger
+from memspine.models.concurrency import Priority, current_priority, priority_scope
 from memspine.observability import tap
+from memspine.providers.shared import Lease, resource_key, shared_registry
 
 if TYPE_CHECKING:
     from memspine.config.schema.runtime import RuntimeConfig
@@ -51,8 +52,8 @@ __all__ = [
     "Priority",
     "Scheduler",
     "acquire",
-    "active",
     "release",
+    "settings_of",
 ]
 
 
@@ -330,7 +331,7 @@ class BatchedEmbedding:
 
 # --------------------------------------------------------------------------- the scheduler
 class Scheduler:
-    """Gate + executors + ledger + backpressure for one process (built from ``RuntimeConfig``)."""
+    """Gate + executors + ledger + backpressure for one set of scheduling settings."""
 
     def __init__(self, cfg: RuntimeConfig, ledger: SloLedger | None = None) -> None:
         self.cfg = cfg
@@ -355,36 +356,30 @@ class Scheduler:
             else None
         )
         self._embedders: list[BatchedEmbedding] = []
-        self._previous_gate: Any = None
-        self._previous_ledger: SloLedger | None = None
-        self._installed = False
+        self._opened = False
 
-    def install(self) -> None:
-        if self._installed:
+    @property
+    def slo_ledger(self) -> SloLedger | None:
+        """The ledger the read seam records into (only with ``runtime.scheduler_v2``)."""
+        return self.ledger if self.cfg.scheduler_v2 else None
+
+    def open(self) -> None:
+        if self._opened:
             return
-        self._previous_gate = installed_gate()
-        if self.gate is not None:
-            install_gate(self.gate)
-        if self.cfg.scheduler_v2:
-            self._previous_ledger = install_ledger(self.ledger)
-        self._installed = True
+        self._opened = True
         tap.event(
             "runtime.sched.install",
             slots=self.cfg.model_concurrency,
             scheduler_v2=self.cfg.scheduler_v2,
         )
 
-    async def uninstall(self) -> None:
-        if not self._installed:
+    async def close(self) -> None:
+        if not self._opened:
             return
-        if self.gate is not None and installed_gate() is self.gate:
-            install_gate(self._previous_gate)
-        if self.cfg.scheduler_v2:
-            install_ledger(self._previous_ledger)
         for e in self._embedders:
             await e.close()
         self._embedders.clear()
-        self._installed = False
+        self._opened = False
         tap.event("runtime.sched.uninstall")
 
     def wrap_embedder(self, embedder: Any) -> Any:
@@ -399,35 +394,58 @@ class Scheduler:
         self._embedders.append(wrapped)
         return wrapped
 
-
-# --------------------------------------------------------------------------- process-wide handle
-_ACTIVE: Scheduler | None = None
-_REFS = 0
-
-
-def active() -> Scheduler | None:
-    return _ACTIVE
+    async def close_embedder(self, embedder: Any) -> None:
+        """Close one Engine's executors (from ``wrap_embedder``) while the Scheduler stays shared."""
+        if isinstance(embedder, BatchedEmbedding) and embedder in self._embedders:
+            self._embedders.remove(embedder)
+            await embedder.close()
 
 
-def acquire(cfg: RuntimeConfig) -> Scheduler | None:
-    """Engine start: the shared scheduler, or None when both flags are off. Reference counted, so
-    several engines in one process share ONE gate (the semaphore is global by design)."""
-    global _ACTIVE, _REFS
+# --------------------------------------------------------------------------- keyed shared handle
+#: The RuntimeConfig fields a Scheduler is built from (its sharing key).
+_SCHED_FIELDS = frozenset(
+    {
+        "scheduler_v2",
+        "model_concurrency",
+        "background_reserve",
+        "encoder_batch_max",
+        "encoder_batch_wait_ms",
+        "backlog_coalesce_items",
+        "backlog_coalesce_age_s",
+        "backlog_max_items",
+        "backlog_max_age_s",
+        "backlog_max_total_items",
+        "backlog_retry_after_s",
+        "read_p95_budget_s",
+        "lag_p95_budget_s",
+    }
+)
+
+
+def settings_of(cfg: RuntimeConfig) -> dict[str, Any]:
+    """The scheduling settings of ``cfg`` (what two Engines must agree on to share)."""
+    return cfg.model_dump(include=set(_SCHED_FIELDS))
+
+
+async def acquire(cfg: RuntimeConfig) -> Lease[Scheduler] | None:
+    """Engine start: a lease on the Scheduler for these settings, or None when both flags are off.
+    Engines with identical settings on one loop share ONE Scheduler (one gate); others do not."""
     if not (cfg.scheduler_v2 or cfg.model_concurrency > 0):
         return None
-    if _ACTIVE is None:
-        _ACTIVE = Scheduler(cfg)
-        _ACTIVE.install()
-    _REFS += 1
-    return _ACTIVE
+
+    async def build() -> Scheduler:
+        sched = Scheduler(cfg)
+        sched.open()
+        return sched
+
+    async def close(sched: Scheduler) -> None:
+        await sched.close()
+
+    key = resource_key("runtime.scheduler", {}, settings_of(cfg), scope="loop")
+    return await shared_registry().acquire(key, build, close=close)
 
 
-async def release(sched: Scheduler | None) -> None:
-    """Engine stop: the last release uninstalls the gate."""
-    global _ACTIVE, _REFS
-    if sched is None or sched is not _ACTIVE:
-        return
-    _REFS -= 1
-    if _REFS <= 0:
-        _ACTIVE, _REFS = None, 0
-        await sched.uninstall()
+async def release(lease: Lease[Scheduler] | None) -> None:
+    """Engine stop: drop this Engine's reference; the last one closes the Scheduler."""
+    if lease is not None:
+        await lease.aclose()

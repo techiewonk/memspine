@@ -11,8 +11,9 @@ One surface over the three ledgers the engine already has:
   write and sleep stage, plus the budget).
 
 :func:`ops_report` merges them into one dict. Nothing here holds content: stage names are code
-constants, ids are hashes or counters, everything else is a count or a duration. With nothing
-installed every hook is a pass-through (one global read).
+constants, ids are hashes or counters, everything else is a count or a duration. Each Engine binds
+its own ledger (``observability.bindings``, ADR-079 decision 5); with nothing bound every hook is a
+pass-through.
 """
 
 from __future__ import annotations
@@ -26,13 +27,13 @@ from collections.abc import Awaitable, Callable, Iterator
 from contextvars import ContextVar
 from typing import Any, Literal
 
+from memspine.observability import bindings as _bindings
 from memspine.observability.stage_ledger import StageEntry, StageLedger
 
 __all__ = [
     "KINDS",
     "OpsLedger",
     "StageHandle",
-    "install",
     "installed",
     "note",
     "ops_report",
@@ -154,25 +155,17 @@ class OpsLedger:
         return out
 
 
-# --------------------------------------------------------------------------------- install
-_LEDGER: OpsLedger | None = None
-
-
-def install(ledger: OpsLedger | None) -> OpsLedger | None:
-    """Make ``ledger`` the process-wide ops ledger (None removes it); returns the previous one."""
-    global _LEDGER
-    previous, _LEDGER = _LEDGER, ledger
-    return previous
-
-
+# --------------------------------------------------------------------------------- binding
 def installed() -> OpsLedger | None:
-    return _LEDGER
+    """The ops ledger bound for the current Engine (``observability.ops_ledger``), if any."""
+    ledger: OpsLedger | None = _bindings.resolve("ops_ledger", None)
+    return ledger
 
 
 @contextlib.contextmanager
 def stage(kind: Kind, name: str) -> Iterator[StageHandle | None]:
-    """Time one stage in the installed ledger; a null context (yields None) when none is."""
-    ledger = _LEDGER
+    """Time one stage in the bound ledger; a null context (yields None) when none is."""
+    ledger = installed()
     if ledger is None:
         yield None
         return
@@ -195,7 +188,7 @@ def staged[F: Callable[..., Awaitable[Any]]](kind: Kind) -> Callable[[F], F]:
     def deco(fn: F) -> F:
         @functools.wraps(fn)
         async def inner(*args: Any, **kwargs: Any) -> Any:
-            ledger = _LEDGER
+            ledger = installed()
             if ledger is None or _IN_VERB.get():
                 return await fn(*args, **kwargs)
             with ledger.stage(kind, fn.__name__, verb=True) as handle:

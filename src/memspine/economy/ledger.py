@@ -11,8 +11,8 @@ content), so the LIB-27 aggregates and targets work on it unchanged.
 caller asks ``exhausted(namespace)`` before starting derivation, and a spent budget pauses the
 work, which the window writer parks as underived items in the outbox (``resume`` lets them go).
 
-Process-wide install (``install`` / ``installed``) mirrors ``economy.slo``; with nothing
-installed every hook is a pass-through.
+Each Engine binds its own ledger (``observability.bindings``, ADR-079 decision 5); ``installed``
+returns the ledger of the current Engine. With nothing bound every hook is a pass-through.
 """
 
 from __future__ import annotations
@@ -28,6 +28,7 @@ from contextvars import ContextVar
 from dataclasses import dataclass
 from typing import Any, Literal
 
+from memspine.observability import bindings as _bindings
 from memspine.observability import tap
 from memspine.observability.stage_ledger import StageEntry, StageLedger, scope_hash
 from memspine.schemas.durable.common import OwnerScope
@@ -42,7 +43,6 @@ __all__ = [
     "WriteCostLedger",
     "cost_scope",
     "current_scope",
-    "install",
     "installed",
     "record_call",
 ]
@@ -500,25 +500,17 @@ class WriteCostLedger:
         return out
 
 
-# --------------------------------------------------------------------------------- install
-_LEDGER: WriteCostLedger | None = None
-
-
-def install(ledger: WriteCostLedger | None) -> WriteCostLedger | None:
-    """Make ``ledger`` the process-wide sink (None removes it); returns the previous one."""
-    global _LEDGER
-    previous, _LEDGER = _LEDGER, ledger
-    return previous
-
-
+# --------------------------------------------------------------------------------- binding
 def installed() -> WriteCostLedger | None:
-    return _LEDGER
+    """The cost ledger bound for the current Engine (``economy.ledger_v2``), if any."""
+    ledger: WriteCostLedger | None = _bindings.resolve("cost_ledger", None)
+    return ledger
 
 
 def record_call(kind: Kind, **fields: Any) -> None:
-    """Model-seam hook: record into the installed ledger; a pass-through when none is installed.
+    """Model-seam hook: record into the bound ledger; a pass-through when none is bound.
     Never raises into a model call."""
-    ledger = _LEDGER
+    ledger = installed()
     if ledger is None:
         return
     with contextlib.suppress(Exception):

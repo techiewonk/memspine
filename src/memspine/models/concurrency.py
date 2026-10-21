@@ -1,9 +1,10 @@
 """Model-call concurrency hook (RT-02; P-20): the seam a global model gate plugs into.
 
-``models`` sits below ``runtime``, so the gate itself lives in ``runtime.scheduler`` and installs
-itself here. Every model call (LLM chat, embedding, rerank) enters ``model_slot()``; with no gate
-installed (flag ``runtime.model_concurrency`` = 0, the default) that is a no-op context manager, so
-behaviour and cost are unchanged.
+``models`` sits below ``runtime``, so the gate itself lives in ``runtime.scheduler``; each Engine
+binds the gate of its own ``runtime`` settings (``observability.bindings``, ADR-079 decision 5).
+Every model call (LLM chat, embedding, rerank) enters ``model_slot()``; with no gate bound (flag
+``runtime.model_concurrency`` = 0, the default) that is a no-op context manager, so behaviour and
+cost are unchanged.
 
 Priority classes (lower number = served first): foreground read, foreground write, background
 derive. The class of the current task rides a ``ContextVar``: ``priority_scope`` sets it for a block
@@ -19,11 +20,12 @@ from contextvars import ContextVar
 from enum import IntEnum
 from typing import Any, Protocol, TypeVar
 
+from memspine.observability import bindings as _bindings
+
 __all__ = [
     "ModelGate",
     "Priority",
     "current_priority",
-    "install_gate",
     "installed_gate",
     "model_slot",
     "prioritised",
@@ -50,7 +52,6 @@ class ModelGate(Protocol):
 
 
 _PRIORITY: ContextVar[Priority] = ContextVar("memspine_model_priority", default=Priority.READ)
-_GATE: ModelGate | None = None
 
 
 def current_priority() -> Priority:
@@ -81,21 +82,16 @@ def prioritised(priority: Priority) -> Callable[[_F], _F]:
     return wrap
 
 
-def install_gate(gate: ModelGate | None) -> ModelGate | None:
-    """Install (or, with None, remove) the process-wide gate. Returns the previous one."""
-    global _GATE
-    previous, _GATE = _GATE, gate
-    return previous
-
-
 def installed_gate() -> ModelGate | None:
-    return _GATE
+    """The gate bound for the current Engine (None: no gate)."""
+    gate: ModelGate | None = _bindings.resolve("gate", None)
+    return gate
 
 
 @contextlib.asynccontextmanager
 async def model_slot(kind: str = "llm") -> AsyncIterator[None]:
     """Hold one model-concurrency slot for the duration of a model call (no-op without a gate)."""
-    gate = _GATE
+    gate = installed_gate()
     if gate is None:
         yield
         return

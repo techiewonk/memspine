@@ -24,10 +24,11 @@ from contextvars import ContextVar
 from dataclasses import dataclass
 from typing import Any
 
+from memspine.observability import bindings as _bindings
+
 __all__ = [
     "SloLedger",
     "SloReport",
-    "install_ledger",
     "installed_ledger",
     "percentile",
     "timed_read",
@@ -132,29 +133,22 @@ class SloLedger:
 
 
 # --------------------------------------------------------------------------- read timing hook
-_LEDGER: SloLedger | None = None
 _IN_READ: ContextVar[bool] = ContextVar("memspine_slo_in_read", default=False)
 
 
-def install_ledger(ledger: SloLedger | None) -> SloLedger | None:
-    """Make ``ledger`` the process-wide read-latency sink (None removes it); returns the old one."""
-    global _LEDGER
-    previous, _LEDGER = _LEDGER, ledger
-    return previous
-
-
 def installed_ledger() -> SloLedger | None:
-    """The process-wide read-latency ledger, if one is installed (T5-06 ops report)."""
-    return _LEDGER
+    """The read-latency ledger bound for the current Engine (``runtime.scheduler_v2``), if any."""
+    ledger: SloLedger | None = _bindings.resolve("slo_ledger", None)
+    return ledger
 
 
 def timed_read[F: Callable[..., Awaitable[Any]]](fn: F) -> F:
-    """Decorator for the public read verbs: record the outermost call's wall time in the installed
-    ledger (a nested read verb is not counted twice). A pass-through when no ledger is installed."""
+    """Decorator for the public read verbs: record the outermost call's wall time in the bound
+    ledger (a nested read verb is not counted twice). A pass-through when no ledger is bound."""
 
     @functools.wraps(fn)
     async def inner(*args: Any, **kwargs: Any) -> Any:
-        ledger = _LEDGER
+        ledger = installed_ledger()
         if ledger is None or _IN_READ.get():
             return await fn(*args, **kwargs)
         token = _IN_READ.set(True)

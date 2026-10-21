@@ -1513,10 +1513,14 @@ def make_outbox_runner(
     else:
         runner = OutboxRunner(parts.store, commit_lock=commit_lock)
     if config.runtime.scheduler_v2:  # RT-02: backpressure + SLO ledger + background priority
+        from memspine.observability import bindings as _bindings
         from memspine.runtime import scheduler as _sched
 
-        # the engine acquired the shared scheduler at start; a bare runner gets a private policy
-        shared = _sched.active() or _sched.Scheduler(config.runtime)
+        # the starting engine bound the scheduler of its own settings; a bare runner gets a
+        # private policy
+        shared: _sched.Scheduler = _bindings.resolve("scheduler", None) or _sched.Scheduler(
+            config.runtime
+        )
         runner.configure_scheduler(shared.backpressure, shared.ledger)
     return runner
 

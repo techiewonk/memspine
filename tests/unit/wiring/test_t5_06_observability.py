@@ -20,7 +20,7 @@ from memspine.config.schema import MemspineConfig
 from memspine.config.schema.observability import OtelConfig
 from memspine.economy import ledger as costs
 from memspine.exceptions import MissingServiceError
-from memspine.observability import tap
+from memspine.observability import bindings, tap
 from memspine.observability.stage_ledger import StageEntry
 from memspine.ops import ledger as ops
 from memspine.ops.otel import (
@@ -112,8 +112,9 @@ async def test_flag_off_installs_nothing_and_results_are_unchanged() -> None:
         eng = _engine(**flags)
         await eng.start()
         try:
-            assert (ops.installed() is not None) == bool(flags)
-            assert not tap.enabled()
+            with bindings.bound(eng._binding):  # what this Engine's calls see
+                assert (ops.installed() is not None) == bool(flags)
+                assert not tap.enabled()
             await eng.write("Ilse lives in Brussels", namespace="noor", entity="Ilse")
             hits = await eng.search("Ilse", namespace="noor")
             results.append([h[0].content for h in hits])
@@ -357,7 +358,8 @@ async def test_no_content_in_any_span_over_a_full_workload(
     try:
         await _workload(eng)
         report = eng.ops_report()
-        held = str(tap.memory_traces())
+        with bindings.bound(eng._binding):  # this Engine's tap
+            held = str(tap.memory_traces())
     finally:
         await eng.stop()
     assert tracer.spans, "the workload emitted no spans"

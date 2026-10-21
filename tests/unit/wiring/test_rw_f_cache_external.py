@@ -13,9 +13,18 @@ from memspine.models.cache.semantic import CachedExtractor
 from memspine.prompts.models import ExtractedFact
 from memspine.read.pipeline import request as rq
 
+_ENGINES: list[Engine] = []
+
+
+@pytest.fixture(autouse=True)
+async def _stop_engines() -> Any:
+    yield
+    while _ENGINES:  # no started Engine outlives its test (RM-75: live Engines are counted)
+        await _ENGINES.pop().stop()
+
 
 def _engine(**read: Any) -> Engine:
-    return Engine(
+    eng = Engine(
         template="core",
         dotenv_path=None,
         storage={"provider": "sqlite", "settings": {"path": ":memory:", "busy_timeout_s": 5.0}},
@@ -23,6 +32,8 @@ def _engine(**read: Any) -> Engine:
         read={"hybrid": False, "record_access": False, **read},
         memories={"episodic": {"enabled": True}},
     )
+    _ENGINES.append(eng)
+    return eng
 
 
 async def _seed(eng: Engine) -> list[str]:

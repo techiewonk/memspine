@@ -12,15 +12,20 @@ API contract for wiring code (stable):
 
 Extras: ``configure(cfg)``, ``shutdown()``, ``traced(kind)`` (decorator that opens a request
 around an async or sync callable), ``current()``,
-``memory_traces()``, ``register_sink(name, factory)``.
+``memory_traces()``, ``register_sink(name, factory)``, ``capture_only(sink)``.
+
+Per-Engine state (ADR-079 decision 5): an Engine opens a :class:`TapState` for its own tap
+settings (``open_state``; shared through the resource registry between Engines with identical
+settings) and binds it (``observability.bindings``); every call of that Engine uses it.
+``configure`` / ``shutdown`` manage the process default used by code outside any Engine.
 
 Event names follow ``<pipeline>.<stage>.<what>`` (``read.gate.dropped``). Field values are guarded:
 numbers, booleans, None, identifier-shaped strings (LIB-27 content guard) and lists / dicts
 of those.
 Anything else is dropped and its name is listed under the ``field_rejected`` field of that event.
 
-Off path: ``enabled()`` is one module-level bool read; ``event``/``span``/``request`` test it
-first and return without touching a ContextVar or building anything.
+Off path: with no tap state open anywhere in the process ``enabled()`` is one module-level bool
+read; ``event``/``span``/``request`` test it first and return without building anything.
 Sinks never raise into the engine.
 """
 
@@ -42,6 +47,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any, Protocol, TypeVar
 
+from memspine.observability import bindings as _bindings
 from memspine.observability.stage_ledger import ContentGuardError, _guard, scope_hash
 
 if TYPE_CHECKING:
@@ -53,7 +59,10 @@ __all__ = [
     "TapConfigError",
     "TapEvent",
     "TapSink",
+    "TapState",
     "add_sink",
+    "capture_only",
+    "close_state",
     "configure",
     "content",
     "content_enabled",
@@ -61,6 +70,7 @@ __all__ = [
     "enabled",
     "event",
     "memory_traces",
+    "open_state",
     "register_sink",
     "request",
     "shutdown",
@@ -72,14 +82,12 @@ MAX_LIST_ITEMS = 200
 MAX_DEPTH = 3
 _F = TypeVar("_F", bound=Callable[..., Any])
 
-# ── module state (set by configure) ──────────────────────────────────────────
+# ── module state ─────────────────────────────────────────────────────────────
+#: True while any tap state is open in the process (the process default or an Engine's): the
+#: off-path check. Which state applies is resolved per call (``_state``).
 _ON = False
-_CONTENT = False
-_MAX_CHARS = 200
-_SAMPLE = 1.0
-_KINDS: frozenset[str] = frozenset({"read", "write", "job"})
-_SINK: TapSink | None = None
-_EXTRA_SINKS: list[TapSink] = []  # T5-06: sinks next to the configured one (OTel exporter)
+_OPEN_STATES = 0  # Engine-held states (open_state / close_state)
+_STATE_LOCK = threading.Lock()
 _SINK_LOCK = threading.Lock()
 _CUR: ContextVar[RequestTrace | None] = ContextVar("memspine_tap_request", default=None)
 _ERRORS = 0  # sink failures swallowed (never raised into the engine)
@@ -95,6 +103,29 @@ class TapConfigError(RuntimeError):
 class TapSink(Protocol):
     def write(self, trace: dict[str, Any]) -> None: ...
     def close(self) -> None: ...
+
+
+@dataclass(slots=True, eq=False)
+class TapState:
+    """One tap configuration: its options and its configured sink."""
+
+    content: bool
+    max_chars: int
+    sample: float
+    kinds: frozenset[str]
+    sink: TapSink | None
+    #: T5-06: sinks next to the configured one added outside an Engine (``add_sink``)
+    extra_sinks: list[TapSink] = field(default_factory=list)
+
+
+_DEFAULT: TapState | None = None  # configure() / shutdown(): code outside any Engine
+#: capture_only(): traces finished in this context go to these sinks only
+_CAPTURE: ContextVar[tuple[TapSink, ...] | None] = ContextVar("memspine_tap_capture", default=None)
+
+
+def _state() -> TapState | None:
+    state: TapState | None = _bindings.resolve("tap", _DEFAULT)
+    return state
 
 
 _SINK_FACTORIES: dict[str, Callable[[Any], TapSink | None]] = {}
@@ -180,15 +211,19 @@ def _mask(text: str) -> str:
 
 def content(text: str) -> Content:
     """Mark ``text`` as content: kept (truncated, redacted) only when the content opt-in is on."""
-    if not _CONTENT:
+    state = _state() if _ON else None
+    if state is None or not state.content:
         return _NO_CONTENT
-    out = Content(_mask(str(text))[:_MAX_CHARS])
+    out = Content(_mask(str(text))[: state.max_chars])
     out.kept = True
     return out
 
 
 def content_enabled() -> bool:
-    return _ON and _CONTENT
+    if not _ON:
+        return False
+    state = _state()
+    return state is not None and state.content
 
 
 class _Reject(Exception):
@@ -258,11 +293,11 @@ def _guard_fields(fields: Mapping[str, Any]) -> dict[str, Any]:
 
 # ── public API ───────────────────────────────────────────────────────────────
 def enabled() -> bool:
-    return _ON
+    return _ON and _state() is not None
 
 
 def current() -> RequestTrace | None:
-    return _CUR.get() if _ON else None
+    return _CUR.get() if enabled() else None
 
 
 def _append(trace: RequestTrace, stage: str, fields: Mapping[str, Any]) -> None:
@@ -281,7 +316,7 @@ def _append(trace: RequestTrace, stage: str, fields: Mapping[str, Any]) -> None:
 
 
 def event(stage: str, /, **fields: Any) -> None:
-    if not _ON:
+    if not enabled():
         return None
     trace = _CUR.get()
     if trace is None:  # an event outside any request: a one-event "adhoc" trace
@@ -295,7 +330,7 @@ def event(stage: str, /, **fields: Any) -> None:
 
 @contextmanager
 def span(stage: str, /, **fields: Any) -> Iterator[None]:
-    if not _ON:
+    if not enabled():
         yield
         return
     t0 = time.perf_counter()
@@ -332,12 +367,15 @@ def scope_hash_str(raw: str) -> str:
 
 @contextmanager
 def request(kind: str, /, **fields: Any) -> Iterator[None]:
-    if not _ON:
+    state = _state() if _ON else None
+    if state is None:
         yield
         return
     parent = _CUR.get()
     scope = fields.pop("scope", None)
-    if parent is None and ((kind not in _KINDS and kind != "adhoc") or random.random() >= _SAMPLE):
+    if parent is None and (
+        (kind not in state.kinds and kind != "adhoc") or random.random() >= state.sample
+    ):
         token = _CUR.set(
             RequestTrace("skipped", kind, "none", "", time.perf_counter(), active=False)
         )
@@ -371,7 +409,7 @@ def request(kind: str, /, **fields: Any) -> Iterator[None]:
             with parent._lock:
                 parent.children.append(trace)
         else:
-            _emit(trace)
+            _emit(trace, state)
 
 
 def traced(kind: str) -> Callable[[_F], _F]:
@@ -382,7 +420,7 @@ def traced(kind: str) -> Callable[[_F], _F]:
 
             @functools.wraps(fn)
             async def awrapper(*args: Any, **kwargs: Any) -> Any:
-                if not _ON:
+                if not enabled():
                     return await fn(*args, **kwargs)
                 with request(kind, op=fn.__name__, **_request_fields(kwargs)):
                     return await fn(*args, **kwargs)
@@ -391,7 +429,7 @@ def traced(kind: str) -> Callable[[_F], _F]:
 
         @functools.wraps(fn)
         def wrapper(*args: Any, **kwargs: Any) -> Any:
-            if not _ON:
+            if not enabled():
                 return fn(*args, **kwargs)
             with request(kind, op=fn.__name__, **_request_fields(kwargs)):
                 return fn(*args, **kwargs)
@@ -479,9 +517,20 @@ def _ranked_fields(val: Any) -> dict[str, Any]:
 
 
 # ── sinks plumbing ───────────────────────────────────────────────────────────
-def _emit(trace: RequestTrace) -> None:
+def _sinks(state: TapState) -> list[TapSink]:
+    captured = _CAPTURE.get()
+    if captured is not None:
+        return list(captured)
+    sinks = [s for s in (state.sink, *state.extra_sinks) if s is not None]
+    binding = _bindings.current()
+    if binding is not None and binding.tap is state:
+        sinks.extend(binding.tap_sinks)
+    return sinks
+
+
+def _emit(trace: RequestTrace, state: TapState) -> None:
     global _ERRORS
-    sinks = [s for s in (_SINK, *_EXTRA_SINKS) if s is not None]
+    sinks = _sinks(state)
     if not sinks:
         return
     try:
@@ -498,15 +547,31 @@ def _emit(trace: RequestTrace) -> None:
 
 
 def add_sink(sink: TapSink) -> None:
-    """Add a sink that receives every finished trace next to the configured one (T5-06). The tap
-    must be enabled; ``shutdown()`` closes and drops it. Sinks never raise into the engine."""
-    _EXTRA_SINKS.append(sink)
+    """Add a sink that receives every finished trace next to the configured one (T5-06). It
+    joins the current Engine's tap when that Engine has one (closed when the Engine stops), else
+    the process default (closed by ``shutdown()``); a no-op with the tap off. Sinks never raise
+    into the engine."""
+    binding = _bindings.current()
+    if binding is not None and binding.tap is not None:
+        binding.tap_sinks.append(sink)
+    elif _DEFAULT is not None:
+        _DEFAULT.extra_sinks.append(sink)
+
+
+@contextmanager
+def capture_only(*sinks: TapSink) -> Iterator[None]:
+    """Traces finished inside this block (and the tasks it spawns) go to ``sinks`` only."""
+    token = _CAPTURE.set(tuple(sinks))
+    try:
+        yield
+    finally:
+        _CAPTURE.reset(token)
 
 
 def memory_traces() -> list[dict[str, Any]]:
     """Traces held by the active ``memory`` sink (oldest first); empty for other sinks."""
-    sink = _SINK
-    traces = getattr(sink, "traces", None)
+    state = _state()
+    traces = getattr(state.sink if state is not None else None, "traces", None)
     return traces() if callable(traces) else []
 
 
@@ -514,12 +579,7 @@ def sink_errors() -> int:
     return _ERRORS
 
 
-def configure(cfg: TapConfig | None) -> None:
-    """Apply a ``TapConfig``. Disabled (or ``None``) switches the tap off and closes the sink."""
-    global _ON, _CONTENT, _MAX_CHARS, _SAMPLE, _KINDS, _SINK
-    shutdown()
-    if cfg is None or not cfg.enabled:
-        return
+def _build_state(cfg: TapConfig) -> TapState:
     from memspine.observability import tap_sinks  # registers the built-in sinks
 
     tap_sinks.register_builtin()
@@ -529,22 +589,66 @@ def configure(cfg: TapConfig | None) -> None:
         if factory is None:
             raise TapConfigError(f"unknown tap sink {cfg.sink!r}")
         sink = factory(cfg)  # may raise TapConfigError (otel without opentelemetry)
-    _SINK = sink
-    _CONTENT = bool(cfg.content)
-    _MAX_CHARS = int(cfg.max_content_chars)
-    _SAMPLE = float(cfg.sample_rate)
-    _KINDS = frozenset(cfg.kinds)
-    _ON = True
+    return TapState(
+        content=bool(cfg.content),
+        max_chars=int(cfg.max_content_chars),
+        sample=float(cfg.sample_rate),
+        kinds=frozenset(cfg.kinds),
+        sink=sink,
+    )
+
+
+def _close_sinks(sinks: list[TapSink | None]) -> None:
+    for closing in sinks:
+        if closing is not None:
+            with contextlib.suppress(Exception):
+                closing.close()
+
+
+def _recompute_on() -> None:
+    global _ON
+    _ON = _DEFAULT is not None or _OPEN_STATES > 0
+
+
+def open_state(cfg: TapConfig) -> TapState:
+    """An Engine's tap state for an enabled ``cfg`` (the caller binds it; ``close_state`` ends it)."""
+    global _OPEN_STATES
+    if not cfg.enabled:
+        raise TapConfigError("open_state needs an enabled tap config")
+    state = _build_state(cfg)
+    with _STATE_LOCK:
+        _OPEN_STATES += 1
+        _recompute_on()
+    return state
+
+
+def close_state(state: TapState) -> None:
+    """Close a state from ``open_state``: its sinks are closed."""
+    global _OPEN_STATES
+    with _STATE_LOCK:
+        _OPEN_STATES = max(0, _OPEN_STATES - 1)
+        _recompute_on()
+    _close_sinks([state.sink, *state.extra_sinks])
+
+
+def configure(cfg: TapConfig | None) -> None:
+    """Apply a ``TapConfig`` as the process default (code outside any Engine). Disabled (or
+    ``None``) switches the default off and closes its sink."""
+    global _DEFAULT
+    shutdown()
+    if cfg is None or not cfg.enabled:
+        return
+    state = _build_state(cfg)
+    with _STATE_LOCK:
+        _DEFAULT = state
+        _recompute_on()
 
 
 def shutdown() -> None:
-    """Switch the tap off and close the sink."""
-    global _ON, _CONTENT, _SINK
-    _ON = False
-    _CONTENT = False
-    sink, _SINK = _SINK, None
-    extras = list(_EXTRA_SINKS)
-    _EXTRA_SINKS.clear()
-    for closing in ([sink] if sink is not None else []) + extras:
-        with contextlib.suppress(Exception):
-            closing.close()
+    """Switch the process default tap off and close its sinks (Engine states are untouched)."""
+    global _DEFAULT
+    with _STATE_LOCK:
+        state, _DEFAULT = _DEFAULT, None
+        _recompute_on()
+    if state is not None:
+        _close_sinks([state.sink, *state.extra_sinks])

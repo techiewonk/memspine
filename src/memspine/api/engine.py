@@ -13,7 +13,9 @@ Startup follows plan §4 (Phase-0 scope — runners join in Phase 1):
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import threading
+import uuid
 from collections import Counter
 from collections.abc import (
     AsyncIterator,
@@ -86,7 +88,6 @@ from memspine.derive.pipeline.stages.edge_compiler_v2 import COMPILED as _EDGE_C
 from memspine.derive.pipeline.stages.table import PIPELINES
 from memspine.derive.scheduler import DerivationScheduler
 from memspine.economy import ledger as _economy_ledger
-from memspine.economy import slo as _slo
 from memspine.economy.slo import timed_read
 from memspine.exceptions import (
     ConfigError,
@@ -161,6 +162,7 @@ from memspine.models.providers.rerank.factory import (
     rerank_modes,
     validate_reranker_settings,
 )
+from memspine.observability import bindings as _bindings
 from memspine.observability import inspect as inspect_obs
 from memspine.observability import tap
 from memspine.observability.logging import (
@@ -189,6 +191,7 @@ from memspine.providers.projection_bindings import (
     projection_target_bindings,
 )
 from memspine.providers.recovery import CleanupQuiescenceGuard
+from memspine.providers.shared import Lease, resource_key, shared_registry
 from memspine.providers.switching import verified_active_projection_routes
 from memspine.read.contract import (
     QueryContract,
@@ -351,6 +354,13 @@ def _build_ledger_store(config: MemspineConfig) -> _economy_ledger.LedgerStore |
     return _economy_ledger.LedgerStore(path)
 
 
+def _seam_target(config: MemspineConfig, engine_token: str) -> dict[str, str]:
+    """RM-75: the storage identity a per-store seam (cost / ops ledger) is shared under. An
+    in-memory store is unique per Engine, so its seams are too."""
+    base = derived_base(config)
+    return {"engine": engine_token} if base == ":memory:" else {"base": base}
+
+
 class Engine:
     """Async-first facade; thin sync wrappers on the public verbs (D-01)."""
 
@@ -462,6 +472,14 @@ class Engine:
         self._sched_v2: _scheduler_rt.Scheduler | None = None  # RT-02
         self._cost_ledger: _economy_ledger.WriteCostLedger | None = None  # W2-12
         self._ops_ledger: _ops.OpsLedger | None = None  # T5-06 (observability.ops_ledger)
+        #: RM-75 (ADR-079 decision 5): this Engine's gate, ledgers and tap, bound on every public
+        #: call (and inherited by the tasks it spawns); shared leases on the keyed instances.
+        self._binding = _bindings.EngineBinding()
+        self._seam_token = uuid.uuid4().hex
+        self._sched_lease: Lease[_scheduler_rt.Scheduler] | None = None
+        self._cost_lease: Lease[_economy_ledger.WriteCostLedger] | None = None
+        self._ops_lease: Lease[_ops.OpsLedger] | None = None
+        self._tap_lease: Lease[tap.TapState] | None = None
         self._otel: OtelExporter | None = None  # T5-06 (observability.otel)
         self._scheduler: SleepScheduler | None = None  # D1: autonomous sleep loop
         #: O4-01a: namespace jobs, leases, watermarks and triggers (``offline.sleep_v2``).
@@ -557,6 +575,7 @@ class Engine:
             raise
 
     async def _start_inner(self) -> Self:
+        _bindings.register(self._binding, self)  # RM-75: a live Engine (see observability.bindings)
         # 1. secrets, then config (D-22 two-phase): the container's bootstrap providers.
         # The hooks are the engine callbacks the builders need (read now, as the memories
         # always captured them); everything else is resolved lazily, in the order below.
@@ -623,12 +642,18 @@ class Engine:
         # One shared cache (Phase 2) fronts both the embedding and extraction
         # caches; the emb:/ext: producer key prefixes keep them isolated in it.
         self._cache = await container.get(KVCache)
-        # RT-02 (flags runtime.scheduler_v2 / runtime.model_concurrency): the shared scheduler;
-        # None when both are off, and then nothing below changes.
-        self._sched_v2 = _scheduler_rt.acquire(config.runtime)
+        # RT-02 (flags runtime.scheduler_v2 / runtime.model_concurrency): the scheduler of these
+        # settings, shared with Engines that have the same (RM-75); None when both are off, and
+        # then nothing below changes.
+        seams = self._binding
+        self._sched_lease = await _scheduler_rt.acquire(config.runtime)
+        if self._sched_lease is not None:
+            sched = self._sched_v2 = self._sched_lease.value
+            seams.scheduler, seams.gate = sched, sched.gate
+            seams.slo_ledger = sched.slo_ledger
         if config.economy.ledger_v2:  # W2-12 (W-26, P-22 C): the write-side cost ledger
-            self._cost_ledger = _build_cost_ledger(config)
-            _economy_ledger.install(self._cost_ledger)
+            self._cost_lease = await self._acquire_cost_ledger(config)
+            self._cost_ledger = seams.cost_ledger = self._cost_lease.value
         self._embedder = await container.get(EmbeddingService)
         if self._sched_v2 is not None:
             self._embedder = self._sched_v2.wrap_embedder(self._embedder)
@@ -877,8 +902,16 @@ class Engine:
                 await self._derive_sched.on_open()
         self._install_write_timers(config)
         if config.observability.ops_ledger:  # T5-06: per-stage ops ledger, off by default
-            self._ops_ledger = _ops.OpsLedger()
-            _ops.install(self._ops_ledger)
+            self._ops_lease = await shared_registry().acquire(
+                resource_key(
+                    "observability.ops_ledger",
+                    _seam_target(config, self._seam_token),
+                    {"ops_ledger": True},
+                    scope="thread",
+                ),
+                self._new_ops_ledger,
+            )
+            self._ops_ledger = seams.ops_ledger = self._ops_lease.value
         obs = config.observability
         inspect_obs.configure(obs.inspect, obs.inspect_content)  # TI-1: off unless asked
         if obs.tap.enabled or obs.otel.enabled or obs.inspect:
@@ -896,10 +929,10 @@ class Engine:
                         "max_content_chars": max(tap_cfg.max_content_chars, 20000),
                     }
                 )
-            tap.configure(tap_cfg)
-            self._tap_owner = True
+            self._tap_lease = await self._acquire_tap(tap_cfg)
+            seams.tap = self._tap_lease.value
             if self._otel is not None:
-                tap.add_sink(self._otel)
+                seams.tap_sinks.append(self._otel)  # this Engine's exporter only
         if config.privacy.erasure_v2:  # T5-04: erased / hidden ids, queue, purge table
             await trust_erasure_v2.load(self)
         self._started = True
@@ -919,6 +952,41 @@ class Engine:
             self._provider_changes_controller = controller
             await controller.start_cleanup_worker()
         return self
+
+    async def _acquire_cost_ledger(
+        self, config: MemspineConfig
+    ) -> Lease[_economy_ledger.WriteCostLedger]:
+        """RM-75: the cost ledger for this economy config and store, shared by Engines that agree."""
+
+        async def build() -> _economy_ledger.WriteCostLedger:
+            return _build_cost_ledger(config)
+
+        async def close(ledger: _economy_ledger.WriteCostLedger) -> None:
+            ledger.close()
+
+        key = resource_key(
+            "economy.cost_ledger",
+            _seam_target(config, self._seam_token),
+            {"economy": config.economy.model_dump(mode="json"), "outbox": config.workers.outbox},
+            scope="thread",
+        )
+        return await shared_registry().acquire(key, build, close=close)
+
+    @staticmethod
+    async def _new_ops_ledger() -> _ops.OpsLedger:
+        return _ops.OpsLedger()
+
+    async def _acquire_tap(self, tap_cfg: Any) -> Lease[tap.TapState]:
+        """RM-75: the tap state for these effective tap settings, shared by Engines that agree."""
+
+        async def build() -> tap.TapState:
+            return tap.open_state(tap_cfg)
+
+        async def close(state: tap.TapState) -> None:
+            tap.close_state(state)
+
+        key = resource_key("observability.tap", {}, tap_cfg.model_dump(mode="json"), scope="thread")
+        return await shared_registry().acquire(key, build, close=close)
 
     def _install_write_timers(self, config: MemspineConfig) -> None:
         """I73: wrap the write-door steps with monotonic timers, only when
@@ -1033,28 +1101,33 @@ class Engine:
         # drain it before any scheduler, client, or SQL dependency is stopped.
         await attempt("provider cleanup worker", stop_provider_cleanup_worker)
 
+        seams = self._binding
+
         async def close_ops_ledger() -> None:
-            if self._ops_ledger is not None:
-                ledger, self._ops_ledger = self._ops_ledger, None
-                if _ops.installed() is ledger:
-                    _ops.install(None)
+            self._ops_ledger = seams.ops_ledger = None
+            if self._ops_lease is not None:
+                lease, self._ops_lease = self._ops_lease, None
+                await lease.aclose()
 
         await attempt("ops ledger", close_ops_ledger)
         self._otel = None
 
         async def close_cost_ledger() -> None:
-            if self._cost_ledger is not None:
-                ledger, self._cost_ledger = self._cost_ledger, None
-                if _economy_ledger.installed() is ledger:
-                    _economy_ledger.install(None)
-                ledger.close()
+            self._cost_ledger = seams.cost_ledger = None
+            if self._cost_lease is not None:
+                lease, self._cost_lease = self._cost_lease, None
+                await lease.aclose()  # the last Engine holding it closes the ledger
 
         await attempt("cost ledger", close_cost_ledger)
 
         async def release_model_scheduler() -> None:
-            if self._sched_v2 is not None:
-                sched, self._sched_v2 = self._sched_v2, None
-                await _scheduler_rt.release(sched)
+            seams.scheduler = seams.gate = seams.slo_ledger = None
+            sched, self._sched_v2 = self._sched_v2, None
+            if sched is not None:
+                await sched.close_embedder(self._embedder)  # this Engine's executors only
+            if self._sched_lease is not None:
+                lease, self._sched_lease = self._sched_lease, None
+                await _scheduler_rt.release(lease)
 
         await attempt("model scheduler", release_model_scheduler)
 
@@ -1122,12 +1195,18 @@ class Engine:
         self._timed_attrs = []
         self._write_timers = None
 
-        def shutdown_tap() -> None:
-            if getattr(self, "_tap_owner", False):
-                tap.shutdown()
-                self._tap_owner = False
+        async def release_tap() -> None:
+            sinks, seams.tap_sinks, seams.tap = seams.tap_sinks, [], None
+            for sink in sinks:
+                with contextlib.suppress(Exception):
+                    sink.close()
+            if self._tap_lease is not None:
+                lease, self._tap_lease = self._tap_lease, None
+                await lease.aclose()
 
-        await attempt("debug tap", shutdown_tap)
+        await attempt("debug tap", release_tap)
+        seams.clear()
+        _bindings.unregister(seams)
         self._started = False
         self._gliner_pool = None
         self._decision = None
@@ -5674,7 +5753,7 @@ class Engine:
         write cost ledger (``economy.ledger_v2``: model calls, tokens, embed calls, budget). A
         ledger that is off contributes nothing; ``namespace`` filters the cost rows. Ids, counts
         and durations only."""
-        slo_ledger = _slo.installed_ledger()
+        slo_ledger = self._binding.slo_ledger
         return _ops.ops_report(
             self._ops_ledger,
             slo=slo_ledger.report() if slo_ledger is not None else None,
@@ -5970,3 +6049,7 @@ class Engine:
     @staticmethod
     def _memory_policy(config: MemspineConfig, memory_type: str) -> dict[str, Any]:
         return memory_policy(config, memory_type)
+
+
+# RM-75: every public coroutine verb runs with this Engine's binding (gate, ledgers, tap).
+_bindings.bind_public_methods(Engine)

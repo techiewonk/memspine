@@ -763,21 +763,19 @@ class TuneMixin:
                 tokens=0,
             ),
         )
-        saved = (tap._SINK, list(tap._EXTRA_SINKS), pipe._cache)
-        tap._SINK, tap._EXTRA_SINKS[:] = None, [scratch]
+        saved_cache = pipe._cache
         pipe._cache = None  # the extraction cache is keyed by content, not by the edited prompt
         try:
             with (
                 self.system._scope(phase="rerun", window_id=window_id),
+                tap.capture_only(scratch),  # the rerun trace goes to the scratch sink only
                 tap.request("write", rerun=True),
             ):
                 prepared = await pipe._prepare_records(self.item, job, records, strict=False)
                 if commit and prepared is not None:
                     await pipe._commit_job(self.item, pipe._store(self.item), prepared)
         finally:
-            tap._SINK = saved[0]
-            tap._EXTRA_SINKS[:] = saved[1]
-            pipe._cache = saved[2]
+            pipe._cache = saved_cache
         after = self._window_view(scratch.rows)
         self.head(
             f"rerun window {window_id}: {len(records)} turn(s)"

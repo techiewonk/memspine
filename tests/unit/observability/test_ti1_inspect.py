@@ -19,8 +19,8 @@ from test_window_write import FakeWindowLLM
 from memspine import Engine
 from memspine.config.schema import MemspineConfig
 from memspine.models.providers.llm.base import LLMRouter
+from memspine.observability import bindings, tap
 from memspine.observability import inspect as insp
-from memspine.observability import tap
 from memspine.prompts.structured import STRUCTURED_SYSTEM
 
 T0 = datetime(2023, 3, 1, 9, 0, tzinfo=UTC)
@@ -92,7 +92,8 @@ _SNAP: list[dict[str, Any]] = []
 
 async def _stop(eng: Engine) -> None:
     """Snapshot the memory sink first: an engine that owns the tap shuts it down on stop."""
-    _SNAP[:] = tap.memory_traces()
+    with bindings.bound(eng._binding):  # the Engine's own tap
+        _SNAP[:] = tap.memory_traces()
     await eng.stop()
 
 

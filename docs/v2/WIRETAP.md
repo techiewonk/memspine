@@ -17,8 +17,13 @@ observability:
     kinds: [read, write, job]
 ```
 
-`Engine.start()` calls `tap.configure(config.observability.tap)`; `Engine.stop()` shuts it down. Outside an
-engine: `tap.configure(TapConfig(enabled=True, sink="memory"))`, then `tap.memory_traces()`.
+`Engine.start()` opens a tap state for its own `observability.tap` settings (shared through the
+resource registry with Engines whose settings are identical, ADR-079 decision 5) and binds it to every
+public call of that Engine (`observability.bindings`); `Engine.stop()` releases it, and the last
+holder closes the sink. Two Engines with different tap settings trace into their own sinks. Outside an
+engine: `tap.configure(TapConfig(enabled=True, sink="memory"))` sets the process default, then
+`tap.memory_traces()`. With exactly one Engine started, code running outside its calls uses that
+Engine's tap; with several, such code uses only the process default.
 `Engine.search/retrieve/assemble/read` open `read` requests, `write/write_messages/write_episode` open
 `write`, `sleep` opens `job` (`@tap.traced(kind)`). Calls nested inside another request become children of it.
 
