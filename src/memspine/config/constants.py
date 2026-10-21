@@ -11,6 +11,11 @@ from typing import Literal
 # Hybrid retrieval fusion (D-25): reciprocal-rank-fusion constant.
 RRF_K = 60
 
+# ADR-074: RRF bounded-prefix crossover, measured in scripts/benchmark_bounded_topk.py.
+# These are implementation thresholds, not retrieval-quality or user config knobs.
+RRF_HEAP_MIN_CANDIDATES = 1024
+RRF_HEAP_MAX_FRACTION_DENOMINATOR = 8
+
 # Lexical BM25 leg (D-25/D-42 §5): bounded LRU cache of query results, dropped
 # on any index mutation. Keeps repeated hybrid queries off the FTS5 index.
 LEXICAL_CACHE_MAX_ENTRIES = 512
@@ -53,7 +58,16 @@ TANTIVY_WRITER_HEAP_BYTES = 15_000_000
 
 # Two-stage dedup (D-27 / M5).
 DEDUP_COSINE_THRESHOLD = 0.92
+# ADR-073: measured SimHash crossover and bounded unpacked-bit matrix.
+# Internal tuning only; outputs are invariant and these are not provider settings.
+SIMHASH_VECTORIZE_MIN_TOKENS = 8
+SIMHASH_CHUNK_TOKENS = 4096
+
 MINHASH_NUM_PERM = 128
+# ADR-074: maximum rows x permutations for the bounded MinHash update_batch kernel.
+# This is implementation tuning, not a user-facing dedup setting.
+MINHASH_BATCH_MIN_UNIQUE_TOKENS = 8
+MINHASH_BATCH_MAX_CELLS = 65_536
 LSH_THRESHOLD = 0.6
 
 # Associative memory (M13.6): max outgoing links per node (bounded A-MEM).

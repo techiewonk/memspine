@@ -677,7 +677,13 @@ async def _graph_leg(
     try:
         if use_hybrid or extra_legs:
             prelim = [
-                rid for rid, _ in rrf_fuse(list(vector_hits), list(lexical_hits), extra=extra_legs)
+                rid
+                for rid, _ in rrf_fuse(
+                    list(vector_hits),
+                    list(lexical_hits),
+                    extra=extra_legs,
+                    limit=constants.GRAPH_LEG_FALLBACK_HITS,
+                )
             ]
         else:
             prelim = [hit.record_id for hit in vector_hits]
@@ -1519,7 +1525,13 @@ async def _community_gate(
     try:
         if use_hybrid or extra_legs:
             prelim = [
-                rid for rid, _ in rrf_fuse(list(vector_hits), list(lexical_hits), extra=extra_legs)
+                rid
+                for rid, _ in rrf_fuse(
+                    list(vector_hits),
+                    list(lexical_hits),
+                    extra=extra_legs,
+                    limit=constants.GRAPH_LEG_FALLBACK_HITS,
+                )
             ]
         else:
             prelim = [hit.record_id for hit in vector_hits]

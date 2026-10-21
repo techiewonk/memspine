@@ -8,8 +8,10 @@ reconstructable without re-reading content.
 
 from __future__ import annotations
 
+from itertools import islice
 from typing import ClassVar
 
+import numpy as np
 import xxhash
 from datasketch import MinHash, MinHashLSH
 
@@ -48,8 +50,15 @@ class DedupPolicy(BindablePolicy):
 
     def minhash(self, text: str) -> MinHash:
         sketch = MinHash(num_perm=self._opts.minhash_num_perm)
-        for token in set(_tokens(text)):
-            sketch.update(token.encode())
+        unique_tokens = set(_tokens(text))
+        if len(unique_tokens) < constants.MINHASH_BATCH_MIN_UNIQUE_TOKENS:
+            for token in unique_tokens:
+                sketch.update(token.encode())
+            return sketch
+        batch_size = max(1, constants.MINHASH_BATCH_MAX_CELLS // sketch.num_perm)
+        tokens = iter(unique_tokens)
+        while batch := list(islice(tokens, batch_size)):
+            sketch.update_batch([token.encode() for token in batch])
         return sketch
 
     def minhash_signature(self, text: str) -> bytes:
@@ -70,17 +79,37 @@ class DedupPolicy(BindablePolicy):
         Returned as a SIGNED 64-bit integer (two's complement) so it fits a
         SQLite INTEGER column; XOR-popcount distances must mask to 64 bits.
         """
-        weights = [0] * 64
-        for token in _tokens(text):
-            # xxhash >=4 rejects str ("Strings must be encoded before hashing").
-            # Encoding explicitly is value-identical to 3.x's implicit UTF-8, so no
-            # stored fingerprint changes, and it works on both majors.
-            digest = xxhash.xxh64_intdigest(token.encode("utf-8"))
+        tokens = _tokens(text)
+        if len(tokens) < constants.SIMHASH_VECTORIZE_MIN_TOKENS:
+            weights = [0] * 64
+            for token in tokens:
+                digest = xxhash.xxh64_intdigest(token.encode("utf-8"))
+                for bit in range(64):
+                    weights[bit] += 1 if (digest >> bit) & 1 else -1
+            value = 0
             for bit in range(64):
-                weights[bit] += 1 if (digest >> bit) & 1 else -1
+                if weights[bit] > 0:
+                    value |= 1 << bit
+            return value - (1 << 64) if value >= (1 << 63) else value
+
+        # Keep the temporary unpacked-bit matrix bounded even for very long
+        # inputs. Explicit little-endian bytes preserve the xxh64 bit numbering
+        # independently of native byte order. Summing one-bits and comparing
+        # strictly against half the token count is exactly equivalent to the
+        # old +/-1 voting loop, including ties and repeated tokens.
+        ones = np.zeros(64, dtype=np.uint64)
+        for start in range(0, len(tokens), constants.SIMHASH_CHUNK_TOKENS):
+            chunk = tokens[start : start + constants.SIMHASH_CHUNK_TOKENS]
+            hashes = np.fromiter(
+                (xxhash.xxh64_intdigest(token.encode("utf-8")) for token in chunk),
+                dtype=np.uint64,
+                count=len(chunk),
+            ).astype("<u8", copy=False)
+            bits = np.unpackbits(hashes.view(np.uint8), bitorder="little").reshape(-1, 64)
+            ones += bits.sum(axis=0, dtype=np.uint64)
         value = 0
         for bit in range(64):
-            if weights[bit] > 0:
+            if int(ones[bit]) * 2 > len(tokens):
                 value |= 1 << bit
         return value - (1 << 64) if value >= (1 << 63) else value
 

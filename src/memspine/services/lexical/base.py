@@ -13,11 +13,17 @@ fused ranking is stable across runs.
 
 from __future__ import annotations
 
+import heapq
+import math
 from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Protocol, runtime_checkable
 
-from memspine.config.constants import RRF_K
+from memspine.config.constants import (
+    RRF_HEAP_MAX_FRACTION_DENOMINATOR,
+    RRF_HEAP_MIN_CANDIDATES,
+    RRF_K,
+)
 from memspine.store.records import MemoryRecord
 
 __all__ = ["LexicalHit", "LexicalStore", "RankedHit", "minmax_fuse", "rrf_fuse"]
@@ -83,6 +89,8 @@ def rrf_fuse(
     k: int = RRF_K,
     extra: Sequence[Sequence[RankedHit]] = (),
     weights: Sequence[float] | None = None,
+    *,
+    limit: int | None = None,
 ) -> list[tuple[str, float]]:
     """Reciprocal-rank fusion (D-25) of the vector and lexical legs.
 
@@ -101,7 +109,12 @@ def rrf_fuse(
 
     ``weights`` (N16, plan v3.2): one weight per leg (vector, lexical, then each extra
     leg), multiplying its ``1 / (k + rank)`` contributions. None: all 1 (unchanged).
+    ``limit`` optionally returns only the exact prefix of the full fused order.
+    It does not truncate input legs or alter score accumulation. ``None`` keeps
+    the original full-ranking behavior; zero returns an empty list.
     """
+    if limit is not None and (isinstance(limit, bool) or not isinstance(limit, int) or limit < 0):
+        raise ValueError("limit must be a non-negative integer or None")
     legs = (vector_hits, lexical_hits, *extra)
     fused: dict[str, float] = {}
     ranks: dict[str, list[int]] = {}
@@ -113,7 +126,26 @@ def rrf_fuse(
             slots[leg] = min(slots[leg], rank)
             weight = 1.0 if weights is None or leg >= len(weights) else weights[leg]
             fused[rid] = fused.get(rid, 0.0) + weight / (k + rank)
-    return sorted(fused.items(), key=lambda item: (-item[1], ranks[item[0]]))
+    if limit == 0:
+        return []
+
+    def key(item: tuple[str, float]) -> tuple[float, list[int]]:
+        return (-item[1], ranks[item[0]])
+
+    if limit is None or limit >= len(fused):
+        return sorted(fused.items(), key=key)
+    # The heap setup costs more than a C-backed full sort for modest pools or
+    # wide prefixes. Keep those workloads on the original path.
+    if len(fused) < RRF_HEAP_MIN_CANDIDATES or limit * RRF_HEAP_MAX_FRACTION_DENOMINATOR >= len(
+        fused
+    ):
+        return sorted(fused.items(), key=key)[:limit]
+    # Python's sort has observable ordering for non-finite scores (including
+    # NaN, which is not totally ordered). Preserve it rather than substituting
+    # heap selection for those inputs.
+    if any(not math.isfinite(score) for score in fused.values()):
+        return sorted(fused.items(), key=key)[:limit]
+    return heapq.nsmallest(limit, fused.items(), key=key)
 
 
 def minmax_fuse(
