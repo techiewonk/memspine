@@ -550,6 +550,9 @@ async def _reorganize_community(
             namespace=namespace,
             memory_type="semantic",
             content=summary_text,
+            # Derivation time belongs in recorded_at. Replaying old conversations
+            # must not turn their community summaries into current-day evidence.
+            valid_from=max(member.valid_from for member in members),
             source=SourceInfo(
                 role=constants.DERIVED_ROLE,
                 channel="reorganize",

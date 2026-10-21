@@ -8,9 +8,7 @@ from __future__ import annotations
 
 import asyncio
 
-import pytest
-
-ladybug_mod = pytest.importorskip("memspine.services.graph.ladybug")
+from memspine.services.graph import ladybug as ladybug_mod
 
 
 class _Fake:

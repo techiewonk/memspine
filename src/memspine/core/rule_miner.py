@@ -14,8 +14,10 @@ Two kinds of slot, as the LLM miner's ``kind`` field:
 - ``event`` (many hold at once): likes, dislikes, pets, family members, activities,
   plans.
 
-Every value is a span of the line it came from (grounded by construction, so
-``stated``), cut at the clause end. English, regex only; recall is modest by design
+Every value is a span of the line it came from, cut at the clause end. Span
+overlap alone does not establish speaker authority or an assertion: quoted,
+reported, conditional and uncertain predicate matches are conservatively omitted.
+English, regex only; recall is modest by design
 and measured against the LLM miner and gold profiles (plan rows A6, W5).
 """
 
@@ -156,11 +158,118 @@ def _clean(value: str) -> str | None:
     return text
 
 
+_CONDITIONAL = re.compile(
+    r"\b(?:if|unless|suppos(?:e|ing)|assuming|provided|providing|whenever|when)\b",
+    re.IGNORECASE,
+)
+_REPORTING = re.compile(
+    r"\b(?:say|says|said|tell|tells|told|claim|claims|claimed|report|reports|reported|"
+    r"wrote|writes|texted|asked|suggest(?:s|ed)?|propos(?:e|es|ed)|deny|denies|denied)\b"
+    r"|\baccording\s+to\b",
+    re.IGNORECASE,
+)
+_UNCERTAIN_PREFIX = re.compile(
+    r"\b(?:maybe|perhaps|possibly|apparently|allegedly|supposedly|would|could|might|"
+    r"may|should|wish|imagine|pretend|hypothetically)\b"
+    r"|\bI\s+(?:think|believe|guess|suspect|wonder|dreamed|dreamt)\b"
+    r"|\b(?:don't|do not|didn't|did not)\s+(?:think|believe|know)\b"
+    r"|\bnot\s+(?:true|correct|accurate|sure|that|the\s+case)\b|\bfalse\s+that\b"
+    r"|\b(?:isn't|wasn't)\s+(?:true|correct|accurate|the\s+case)\b"
+    r"|\b(?:plan(?:ned|ning)?|hope|hoping|want|intend)\s+to\b"
+    r"|\bgoing\s+to\b",
+    re.IGNORECASE,
+)
+_INDEPENDENT = re.compile(r"\b(?:but|however|nevertheless)\b", re.IGNORECASE)
+_NEXT_CLAUSE = re.compile(r"\b(?:and|but|however|nevertheless)\b", re.IGNORECASE)
+_ALTERNATIVE = re.compile(r"\b(?:either|or)\b", re.IGNORECASE)
+_UNCERTAIN_SUFFIX = re.compile(
+    r"\b(?:maybe|perhaps|possibly|apparently|allegedly|supposedly)\b"
+    r"|\bI\s+(?:think|believe|guess|suspect)\b",
+    re.IGNORECASE,
+)
+
+
+def _quoted_ranges(text: str) -> list[tuple[int, int]]:
+    """Quoted/code ranges; word-internal apostrophes are not quotation marks.
+
+    An unmatched opener protects the remaining line. This deliberately prefers
+    omission over treating a partial quotation as an assertion by the speaker.
+    """
+    pairs = {'"': '"', "'": "'", "\u201c": "\u201d", "\u2018": "\u2019", "`": "`"}
+    ranges: list[tuple[int, int]] = []
+    closing: str | None = None
+    start = 0
+    for i, char in enumerate(text):
+        if i and text[i - 1] == "\\":
+            continue
+        if (
+            char in {"'", "\u2019"}
+            and i
+            and i + 1 < len(text)
+            and text[i - 1].isalnum()
+            and text[i + 1].isalnum()
+        ):
+            continue
+        if closing is None and char in {"'", "\u2019"} and i and text[i - 1].isalnum():
+            continue  # a trailing possessive apostrophe cannot open a quotation
+        if closing is not None:
+            if char == closing:
+                ranges.append((start, i + 1))
+                closing = None
+        elif char in pairs:
+            start, closing = i, pairs[char]
+    if closing is not None:
+        ranges.append((start, len(text)))
+    return ranges
+
+
+def _asserted_match(text: str, match: re.Match[str]) -> bool:
+    """Conservative English scope guard, not general discourse resolution.
+
+    Quoted values (e.g. a book title) are allowed when the predicate itself is
+    outside quotation. Explicit independent contrast clauses can re-establish
+    the transcript speaker; an ``and`` does not clear reported/conditional scope.
+    """
+    quoted = _quoted_ranges(text)
+    if any(start <= match.start() < end for start, end in quoted):
+        return False
+    chars = list(text)
+    for start, end in quoted:
+        chars[start:end] = " " * (end - start)
+    masked = "".join(chars).replace("\u2019", "'")
+    # Original punctuation also recognises the end of a quoted sentence, so an
+    # independent following sentence is not kept under the old reporting scope.
+    previous = list(re.finditer(r"[.!?;\n]", text[: match.start()]))
+    start = previous[-1].end() if previous else 0
+    following = re.search(r"[.!?;\n]", text[match.end() :])
+    end = match.end() + following.start() if following else len(text)
+    if following and following.group() == "?":
+        return False
+    prefix = masked[start : match.start()]
+    # Conditionals govern their consequent even across a coordinating clause.
+    if _CONDITIONAL.search(prefix):
+        return False
+    contrasts = list(_INDEPENDENT.finditer(prefix))
+    if contrasts:
+        prefix = prefix[contrasts[-1].end() :]
+    if _REPORTING.search(prefix) or _UNCERTAIN_PREFIX.search(prefix) or _ALTERNATIVE.search(prefix):
+        return False
+    current = masked[match.start() : end]
+    next_clause = _NEXT_CLAUSE.search(current)
+    if next_clause:
+        current = current[: next_clause.start()]
+    return not any(
+        pattern.search(current) for pattern in (_CONDITIONAL, _UNCERTAIN_SUFFIX, _ALTERNATIVE)
+    )
+
+
 def _line_slots(text: str) -> list[tuple[str, str, str]]:
     """``(attribute, kind, raw value)`` for every rule match in one line's text."""
     found: list[tuple[str, str, str]] = []
     for rule in RULES:
         for m in rule.pattern.finditer(text):
+            if not _asserted_match(text, m):
+                continue
             value = m["v"]
             if rule.attribute == "job" and re.search(r" (?:at|for) ", value):
                 # "a counselor at the LGBTQ center": the job, then the employer.
@@ -168,13 +277,19 @@ def _line_slots(text: str) -> list[tuple[str, str, str]]:
                 found.append(("employer", "state", employer))
             found.append((rule.attribute, rule.kind, value))
     for m in _FAVOURITE.finditer(text):
+        if not _asserted_match(text, m):
+            continue
         found.append((f"favourite_{canonical_thing(m['thing'])}", "state", m["v"]))
     for m in _REL_STATE_RX.finditer(text):
+        if not _asserted_match(text, m):
+            continue
         rel = m["rel"].lower()
         slot = {"mom": "mother", "dad": "father"}.get(rel, rel)
         slot = "partner" if slot in {"wife", "husband", "boyfriend", "girlfriend"} else slot
         found.append((slot, "state", m["v"]))
     for m in _NO_LONGER.finditer(text):
+        if not _asserted_match(text, m):
+            continue
         found.append(("dislikes", "event", m["v"]))
     # N07 (plan v3.2, O-Mem attitude timeline): every like / dislike also sets a
     # single-valued attitude slot for its object, so a change of mind supersedes.

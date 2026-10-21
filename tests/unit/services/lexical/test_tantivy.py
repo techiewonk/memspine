@@ -1,15 +1,13 @@
 """Standalone Tantivy lexical adapter (D-25, **core** default): BM25 ordering,
 namespace isolation, delete/clear+rebuild, NUL/injection safety, exists().
 
-Tantivy is a core dependency (v0.2), so this always runs; ``importorskip`` is a
-belt-and-braces guard for a broken build.
+Tantivy is a core dependency (v0.2), so a missing or broken installation must
+fail collection rather than silently skip coverage of the default lexical leg.
 """
 
 from __future__ import annotations
 
-import pytest
-
-pytest.importorskip("tantivy")
+import tantivy  # noqa: F401 -- required core dependency must import successfully.
 
 from memspine.config.constants import MAX_LEXICAL_QUERY_TERMS
 from memspine.services.lexical.tantivy import TantivyLexical, tokenize_content

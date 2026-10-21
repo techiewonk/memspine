@@ -195,7 +195,7 @@ async def load_overlay(
                 ov._writes[(skey, r.write_id)] = live
                 intent_ids.add(live.intent_id)
         if intent_ids:
-            rows = (
+            intent_rows = (
                 await conn.execute(
                     select(
                         intake_intent.c.intent_id,
@@ -204,11 +204,15 @@ async def load_overlay(
                     ).where(intake_intent.c.intent_id.in_(sorted(intent_ids)))
                 )
             ).all()
-            for r in rows:
-                ov._receipts[r.intent_id] = Receipt.model_validate_json(r.receipt).model_copy(
-                    update={"readiness": Readiness.model_validate_json(r.readiness)}
+            for intent_row in intent_rows:
+                ov._receipts[intent_row.intent_id] = Receipt.model_validate_json(
+                    intent_row.receipt
+                ).model_copy(
+                    update={"readiness": Readiness.model_validate_json(intent_row.readiness)}
                 )
-                ov._readiness[r.intent_id] = Readiness.model_validate_json(r.readiness)
+                ov._readiness[intent_row.intent_id] = Readiness.model_validate_json(
+                    intent_row.readiness
+                )
     return ov
 
 
