@@ -3,17 +3,27 @@
 `GLiNERModelPool` is an explicitly constructed, engine-owned optional resource
 in `memspine.models.runtime.gliner_runtime`. It does not introduce an ingress
 path or make GLiNER a core dependency. Semantic NER, decision classification and
-prepass consumers resolve their own named model profile and receive a lease
-from the same Engine pool. No module-global model cache is created.
+prepass consumers resolve their own named model profile and hold one
+Engine-lifetime binding (`pool.binding(settings)`) on the same Engine pool: the
+lease is acquired on first call and kept until the pool closes, instead of an
+acquire/release per call. A failed first acquisition is not cached.
 
 The pool accepts the canonical `GlinerSettings` structurally: `model`,
 `revision`, `device`, `local_files_only`, `tasks` and `inference_concurrency`.
-Its key contains the selected checkpoint, exact revision, device, local-only
-policy, normalized task set and inference concurrency. Capacity is finite (one
-model by default), configured by `models.gliner_max_models`. When every slot is
-leased or running, a request for a different key raises `GLiNERPoolFullError`
-rather than loading beyond the configured resource bound. An idle model may be
-evicted before admitting a different key.
+Since RM-73 (ADR-079) the weight key is only the selected checkpoint, exact
+revision, device and local-only policy. The normalized task set and inference
+concurrency are per-lease limits: profiles that differ only in them share one
+loaded model (so `gliner_max_models=1` no longer thrashes between them), and
+each distinct limit keeps its own concurrency semaphore. Weights load through
+the process `ResourceRegistry` (`memspine.providers.shared`): identical weights
+are loaded once per process and shared by every Engine; stopping one Engine
+releases only its hold, and the last release disposes the model. Capacity is
+finite (one checkpoint per Engine by default), configured by
+`models.gliner_max_models`. An idle checkpoint (no reservation or running call)
+may be evicted for a different one even while leased; its leases reload it on
+their next call. When every resident checkpoint is loading or running, a request
+for a different checkpoint raises `GLiNERPoolFullError` rather than loading
+beyond the configured resource bound.
 
 Profiles and role bindings are explicit. Each active GLiNER consumer must bind
 to a profile with `kind: gliner`, `provider: gliner2`, and the task it needs.
@@ -43,25 +53,23 @@ models:
     gliner_decision: decisions
 ```
 
-Different profile names with identical effective settings share one model
-because the pool keys on resolved settings. Different checkpoints or inference
-policies use separate entries, subject to the configured capacity. The model
-weights are shared; extraction results and user data remain owned by the
-consumer and its namespace-scoped caches.
+Different profile names with identical weight settings share one model because
+the pool keys on resolved weight settings; in the example above all three
+bindings share one checkpoint. Different checkpoints use separate entries,
+subject to the configured capacity. The model weights are shared; extraction
+results and user data remain owned by the consumer and its namespace-scoped
+caches.
 
-Callers acquire and inject leases explicitly:
+Consumers hold a binding for the Engine lifetime; explicit leases remain available:
 
 ```python
 from memspine.models.profiles import resolve_gliner_settings
 
 pool = GLiNERModelPool()
 settings = resolve_gliner_settings(config, "gliner_semantic")
-lease = await pool.acquire(settings)
-try:
-    result = await lease.call(lambda model: model.extract_entities(text, labels))
-finally:
-    await lease.aclose()
-await pool.aclose()
+binding = pool.binding(settings)
+result = await binding.call(lambda model: model.extract_entities(text, labels))
+await pool.aclose()  # releases this Engine's hold; other Engines keep theirs
 ```
 
 The callback must be synchronous and should contain the complete SDK operation

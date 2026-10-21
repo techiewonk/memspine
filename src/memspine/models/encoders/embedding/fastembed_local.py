@@ -1,7 +1,8 @@
 """Default embedder (D-08): fastembed — ONNX, CPU-friendly, no torch.
 
 The model loads lazily on first use (it may download weights); inference runs
-in a worker thread because fastembed is synchronous.
+in a worker thread because fastembed is synchronous. Engine-built instances share
+the loaded weights per process through the resource registry (ADR-079 / RM-73).
 """
 
 from __future__ import annotations
@@ -11,10 +12,14 @@ from typing import Any
 
 from memspine.config.schema.providers import FASTEMBED_MODEL_DIMS
 from memspine.models.encoders.embedding.base import EmbedderManifest
+from memspine.models.runtime.shared_weights import SharedWeights
+from memspine.providers.shared import ResourceRegistry
 
 __all__ = ["FastembedEmbedding"]
 
 _KNOWN_DIMS = FASTEMBED_MODEL_DIMS
+#: Fixed text the warm hooks embed once per shared model (never cached as a result).
+WARM_TEXT = "warm-up"
 
 
 class FastembedEmbedding:
@@ -23,6 +28,8 @@ class FastembedEmbedding:
         model: str = "BAAI/bge-small-en-v1.5",
         query_instruction: str | None = None,
         dim: int | None = None,
+        *,
+        registry: ResourceRegistry | None = None,
     ) -> None:
         self._model_name = model
         #: N64: prepended to queries only (``embed_queries``); None = symmetric.
@@ -37,7 +44,15 @@ class FastembedEmbedding:
             )
         self._dim = resolved_dim
         self._expected_dim = resolved_dim
-        self._lock = asyncio.Lock()
+        # Weight key: the model only. The query instruction and dimension check are per holder.
+        self._weights: SharedWeights[Any] = SharedWeights(
+            "model.embedding.fastembed",
+            {"model": model},
+            None,
+            self._load,
+            warm=lambda loaded: list(loaded.embed([WARM_TEXT])),
+            registry=registry,
+        )
 
     @property
     def embedder_id(self) -> str:
@@ -55,16 +70,24 @@ class FastembedEmbedding:
         knows their model tolerates int8 opts in via ``vector.quantization``."""
         return EmbedderManifest(embedder_id=self.embedder_id, dim=self._dim)
 
+    def _load(self) -> Any:
+        from fastembed import TextEmbedding
+
+        return TextEmbedding(model_name=self._model_name)
+
     async def _ensure_model(self) -> Any:
         if self._model is None:
-            async with self._lock:
-                if self._model is None:
-                    from fastembed import TextEmbedding
-
-                    self._model = await asyncio.to_thread(
-                        TextEmbedding, model_name=self._model_name
-                    )
+            self._model = await self._weights.get()
         return self._model
+
+    async def warm(self) -> None:
+        """Load the shared weights and embed a fixed short text once (ADR-079 warm hook)."""
+        await self._weights.warm()
+
+    async def aclose(self) -> None:
+        """Release this holder's weight lease; another Engine's lease keeps them loaded."""
+        self._model = None
+        await self._weights.aclose()
 
     async def embed(self, texts: list[str]) -> list[list[float]]:
         model = await self._ensure_model()

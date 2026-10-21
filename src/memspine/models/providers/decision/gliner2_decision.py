@@ -76,7 +76,8 @@ class GLiNER2Decision:
                 "the bound GLiNER profile must include task 'classification' for the decision provider"
             )
         self.settings = settings
-        self._pool = pool
+        # RM-73: one Engine-lifetime lease, not an acquire/release per call.
+        self._model = pool.binding(settings)
 
     @property
     def provider_id(self) -> str:
@@ -106,11 +107,7 @@ class GLiNER2Decision:
         return parse_choice(result, options)
 
     async def choose(self, text: str, options: Mapping[str, str]) -> tuple[str, float | None]:
-        lease = await self._pool.acquire(self.settings)
-        try:
-            return await lease.call(lambda model: self._choose_sync(model, text, options))
-        finally:
-            await lease.aclose()
+        return await self._model.call(lambda model: self._choose_sync(model, text, options))
 
     @property
     def entities_model_id(self) -> str:
@@ -127,12 +124,10 @@ class GLiNER2Decision:
             raise ValueError(
                 "the bound GLiNER profile must include task 'entities' for decision entity lookup"
             )
-        lease = await self._pool.acquire(self.settings)
-        try:
-            raw = await lease.call(lambda model: model.extract_entities(text, list(_ENTITY_LABELS)))
-            return parse_entities(raw)
-        finally:
-            await lease.aclose()
+        raw = await self._model.call(
+            lambda model: model.extract_entities(text, list(_ENTITY_LABELS))
+        )
+        return parse_entities(raw)
 
 
 def parse_entities(result: Any) -> list[str]:

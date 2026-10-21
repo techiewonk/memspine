@@ -21,7 +21,7 @@ from memspine.config.schema.providers import (
     StaticEmbeddingSettings,
 )
 from memspine.models.providers.llm.base import LLMService
-from memspine.providers.contexts import LLMBuildContext
+from memspine.providers.contexts import LLMBuildContext, SharedBuildContext
 from memspine.providers.contracts import (
     BuildResult,
     Category,
@@ -34,6 +34,7 @@ from memspine.providers.settings import (
     LlamaCppRoleSettings,
     StrictSettings,
 )
+from memspine.providers.shared import ResourceRegistry, shared_registry
 from memspine.services.base import CapabilityManifest
 
 __all__ = ["register"]
@@ -55,7 +56,9 @@ class _RerankerBuilder:
     factory_name: str
     capabilities: frozenset[str] = frozenset({"rerank"})
 
-    def construct(self, settings: Any, ctx: Any = None) -> Any:
+    def construct(
+        self, settings: Any, ctx: Any = None, registry: ResourceRegistry | None = None
+    ) -> Any:
         from memspine.models.providers.rerank import factory as rerank_factory
 
         current = rerank_factory.RerankSettings(
@@ -74,11 +77,23 @@ class _RerankerBuilder:
             chunk_chars=getattr(ctx, "chunk_chars", 0) if ctx is not None else 0,
             chunk_overlap=getattr(ctx, "chunk_overlap", 0) if ctx is not None else 0,
         )
-        return getattr(rerank_factory, self.factory_name)(current)
+        return getattr(rerank_factory, self.factory_name)(current, registry)
 
     async def build(self, settings: Any, ctx: Any) -> BuildResult[Any]:
-        service = self.construct(settings, ctx)
-        return BuildResult(service, self.ref, (), self.capabilities)
+        shared = getattr(ctx, "shared", None)
+        if not isinstance(shared, SharedBuildContext):
+            # Standalone build (no Engine lifecycle): private weights, freed with the object.
+            return BuildResult(self.construct(settings, ctx), self.ref, (), self.capabilities)
+        # Engine build: weights come from the process registry; this Engine's lease is
+        # released by its lifecycle, never by another Engine (ADR-079 / RM-73).
+        service = self.construct(settings, ctx, shared_registry())
+        release = getattr(service, "aclose", None)
+        refs = (
+            (shared.resources.own(f"reranker.weights:{self.ref.name}", release),)
+            if callable(release)
+            else ()
+        )
+        return BuildResult(service, self.ref, refs, self.capabilities)
 
 
 @dataclass(frozen=True, slots=True)
@@ -90,6 +105,28 @@ class _SyncBuilder:
     async def build(self, settings: Any, ctx: Any) -> BuildResult[Any]:
         service = self.factory(settings, ctx)
         return BuildResult(service, self.ref, (), self.capabilities)
+
+
+@dataclass(frozen=True, slots=True)
+class _EmbeddingBuilder:
+    """Local embedders take the process weight registry when an Engine builds them, and the
+    Engine lifecycle releases its lease; the result cache stays per Engine (CachedEmbedding)."""
+
+    ref: ProviderRef
+    factory: Callable[[Any, ResourceRegistry | None], Any]
+    capabilities: frozenset[str]
+
+    async def build(self, settings: Any, ctx: Any) -> BuildResult[Any]:
+        if not isinstance(ctx, SharedBuildContext):
+            return BuildResult(self.factory(settings, None), self.ref, (), self.capabilities)
+        service = self.factory(settings, shared_registry())
+        release = getattr(service, "aclose", None)
+        refs = (
+            (ctx.resources.own(f"embedding.weights:{self.ref.name}", release),)
+            if callable(release)
+            else ()
+        )
+        return BuildResult(service, self.ref, refs, self.capabilities)
 
 
 @dataclass(frozen=True, slots=True)
@@ -107,6 +144,8 @@ class _LlamaCppBuilder:
             raise ConfigError("llamacpp provider model must have the form 'llamacpp/<model-path>'")
 
         service = LlamaCppLLM.allocate()
+        # The lifecycle id stays per role/profile (one holder each); the native model is keyed
+        # by path and load options, so roles/profiles on the same GGUF share one load.
         resource = ctx.shared.resources.own(ctx.resource_key or f"llm:{ctx.role}", service.close)
         native_options: dict[str, Any] = {
             "n_gpu_layers": settings.n_gpu_layers,
@@ -115,8 +154,9 @@ class _LlamaCppBuilder:
         if settings.n_threads is not None:
             native_options["n_threads"] = settings.n_threads
         try:
-            service.initialize(
+            await service.initialize_shared(
                 settings.model[len(prefix) :],
+                registry=shared_registry(),
                 n_ctx=settings.n_ctx,
                 timeout_seconds=settings.timeout_seconds,
                 temperature=settings.temperature,
@@ -133,7 +173,7 @@ class _LlamaCppBuilder:
         return BuildResult(service, self.ref, (resource,), frozenset({"llm"}))
 
 
-def _embed_fast(settings: FastembedEmbeddingSettings, _ctx: Any) -> Any:
+def _embed_fast(settings: FastembedEmbeddingSettings, registry: ResourceRegistry | None) -> Any:
     if settings.dim is None:
         from memspine.exceptions import ConfigError
 
@@ -144,26 +184,27 @@ def _embed_fast(settings: FastembedEmbeddingSettings, _ctx: Any) -> Any:
         model=settings.model,
         query_instruction=settings.query_instruction,
         dim=settings.dim,
+        registry=registry,
     )
 
 
-def _embed_hash(settings: HashEmbeddingSettings, _ctx: Any) -> Any:
+def _embed_hash(settings: HashEmbeddingSettings, _registry: ResourceRegistry | None) -> Any:
     from memspine.models.encoders.embedding.hash_local import HashEmbedding
 
     return HashEmbedding(dim=settings.dim)
 
 
-def _embed_static(settings: StaticEmbeddingSettings, _ctx: Any) -> Any:
+def _embed_static(settings: StaticEmbeddingSettings, registry: ResourceRegistry | None) -> Any:
     if settings.dim is None:
         from memspine.exceptions import ConfigError
 
         raise ConfigError("embedding.settings.dim could not be resolved")
     from memspine.models.encoders.embedding.static_local import StaticEmbedder
 
-    return StaticEmbedder(model=settings.model, dim=settings.dim)
+    return StaticEmbedder(model=settings.model, dim=settings.dim, registry=registry)
 
 
-def _embed_litellm(settings: LiteLLMEmbeddingSettings, _ctx: Any) -> Any:
+def _embed_litellm(settings: LiteLLMEmbeddingSettings, _registry: ResourceRegistry | None) -> Any:
     if settings.dim is None:
         from memspine.exceptions import ConfigError
 
@@ -183,7 +224,9 @@ def _embed_litellm(settings: LiteLLMEmbeddingSettings, _ctx: Any) -> Any:
     )
 
 
-def _embed_st(settings: SentenceTransformersEmbeddingSettings, _ctx: Any) -> Any:
+def _embed_st(
+    settings: SentenceTransformersEmbeddingSettings, registry: ResourceRegistry | None
+) -> Any:
     if settings.dim is None:
         from memspine.exceptions import ConfigError
 
@@ -199,6 +242,7 @@ def _embed_st(settings: SentenceTransformersEmbeddingSettings, _ctx: Any) -> Any
         query_prompt_name=settings.query_prompt_name,
         document_prompt_name=settings.document_prompt_name,
         trust_remote_code=settings.trust_remote_code,
+        registry=registry,
     )
 
 
@@ -222,7 +266,11 @@ def _register(
             settings_model=settings_model,
             declared_capabilities=frozenset({capability}),
             requirements=requirements,
-            builder=_SyncBuilder(ref, factory, frozenset({capability})),
+            builder=(
+                _EmbeddingBuilder(ref, factory, frozenset({capability}))
+                if category == "embedding"
+                else _SyncBuilder(ref, factory, frozenset({capability}))
+            ),
             service_manifest=CapabilityManifest(
                 name, capability, provides=(capability,), extra=extra
             ),

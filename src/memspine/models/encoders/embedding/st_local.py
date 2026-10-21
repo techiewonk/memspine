@@ -13,6 +13,8 @@ from typing import Any
 
 from memspine.exceptions import MissingServiceError
 from memspine.models.encoders.embedding.base import EmbedderManifest
+from memspine.models.runtime.shared_weights import SharedWeights
+from memspine.providers.shared import ResourceRegistry
 
 __all__ = ["SentenceTransformersEmbedding"]
 
@@ -30,6 +32,7 @@ class SentenceTransformersEmbedding:
         query_prompt_name: str | None = None,
         document_prompt_name: str | None = None,
         trust_remote_code: bool = False,
+        registry: ResourceRegistry | None = None,
     ) -> None:
         try:
             importlib.import_module("sentence_transformers")
@@ -45,7 +48,16 @@ class SentenceTransformersEmbedding:
         self._document_prompt_name = document_prompt_name
         self._trust_remote_code = trust_remote_code
         self._model: Any = None
-        self._lock = asyncio.Lock()
+        # Weight key: everything that changes the loaded model. Prompts, instructions and the
+        # batch size are per holder.
+        self._weights: SharedWeights[Any] = SharedWeights(
+            "model.embedding.st",
+            {"model": model},
+            {"device": device, "dtype": dtype, "trust_remote_code": trust_remote_code},
+            self._load,
+            warm=lambda loaded: loaded.encode(["warm-up"], convert_to_numpy=True),
+            registry=registry,
+        )
 
     @property
     def embedder_id(self) -> str:
@@ -61,10 +73,17 @@ class SentenceTransformersEmbedding:
 
     async def _ensure_model(self) -> Any:
         if self._model is None:
-            async with self._lock:
-                if self._model is None:
-                    self._model = await asyncio.to_thread(self._load)
+            self._model = await self._weights.get()
         return self._model
+
+    async def warm(self) -> None:
+        """Load the shared weights and encode a fixed short text once (ADR-079 warm hook)."""
+        await self._weights.warm()
+
+    async def aclose(self) -> None:
+        """Release this holder's weight lease; another holder keeps them loaded."""
+        self._model = None
+        await self._weights.aclose()
 
     def _load(self) -> Any:
         from sentence_transformers import SentenceTransformer

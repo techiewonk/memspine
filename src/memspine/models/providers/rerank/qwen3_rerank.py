@@ -15,7 +15,10 @@ transformers and torch are imported lazily: constructing the reranker only check
 are importable (raising :class:`MissingServiceError` naming the ``st`` extra when they
 are not, which the factory turns into a skipped rerank stage); the weights load on the
 first ``rerank`` call, under a lock, inside the worker thread that scores. Scoring runs
-in batches in a worker thread, so the event loop stays free.
+in batches in a worker thread, so the event loop stays free. Engine-built instances
+(``registry`` passed) share the loaded tokenizer, weights and inference lock per process,
+keyed by model, device and quantisation (ADR-079 / RM-73); the instruction, batch size and
+length budget stay per holder.
 
 On CPU (``device`` unset or ``"cpu"``) the weights are kept in float32. The checkpoint is
 stored in bfloat16 and transformers>=5 loads it as such; on a CPU without native bf16
@@ -31,10 +34,13 @@ import importlib
 import math
 import threading
 from collections.abc import Sequence
+from dataclasses import dataclass
 from typing import Any
 
 from memspine.config import constants
 from memspine.exceptions import MissingServiceError
+from memspine.models.runtime.shared_weights import SharedWeights
+from memspine.providers.shared import ResourceRegistry
 
 __all__ = ["DEFAULT_INSTRUCTION", "DEFAULT_MODEL", "Qwen3Reranker", "format_pair"]
 
@@ -62,6 +68,20 @@ def _import(name: str) -> Any:
         raise MissingServiceError(_SERVICE, extra="st") from exc
 
 
+@dataclass(frozen=True, slots=True)
+class _Qwen3Weights:
+    """Everything one load produces; shared by every holder of the same key."""
+
+    tokenizer: Any
+    model: Any
+    prefix: list[int]
+    suffix: list[int]
+    yes_id: int
+    no_id: int
+    #: HF fast tokenizers are not safe to share across threads: one lock per loaded tokenizer.
+    infer_lock: Any
+
+
 class Qwen3Reranker:
     """``Reranker`` port over Qwen3-Reranker (P(yes) per document, input order)."""
 
@@ -74,6 +94,7 @@ class Qwen3Reranker:
         max_length: int = 8192,
         device: str | None = None,
         quant: str | None = None,
+        registry: ResourceRegistry | None = None,
     ) -> None:
         # Fail at construction (not first use) when the extra is missing, so the
         # factory's swallow-to-None turns it into one skip log at engine start.
@@ -94,46 +115,93 @@ class Qwen3Reranker:
         self._yes_id = -1
         self._no_id = -1
         self.reranker_id = f"qwen3:{model}" + (f":{quant}" if quant else "")
+        #: Shared weights when an Engine built this reranker; None keeps the private sync load.
+        self._weights: SharedWeights[_Qwen3Weights] | None = (
+            None
+            if registry is None
+            else SharedWeights(
+                "model.reranker.qwen3",
+                {"model": model},
+                {"device": device, "quant": quant},
+                self._load_weights,
+                warm=lambda loaded: self._score_with(loaded, "warm-up", ["warm-up"]),
+                registry=registry,
+            )
+        )
 
     # -- loading ---------------------------------------------------------------------
+
+    def _load_weights(self) -> _Qwen3Weights:
+        auto_tok = self._transformers.AutoTokenizer
+        auto_lm = self._transformers.AutoModelForCausalLM
+        tokenizer = auto_tok.from_pretrained(self._model_id, padding_side="left")
+        if self._quant is not None:
+            # bitsandbytes places the quantised weights on the GPU itself.
+            bnb = {"4bit": {"load_in_4bit": True}, "8bit": {"load_in_8bit": True}}[self._quant]
+            cfg = self._transformers.BitsAndBytesConfig(
+                **bnb, bnb_4bit_compute_dtype=self._torch.bfloat16
+            )
+            model = auto_lm.from_pretrained(
+                self._model_id, quantization_config=cfg, device_map={"": self._device or 0}
+            ).eval()
+        else:
+            model = auto_lm.from_pretrained(self._model_id).eval()
+            if self._device is None or str(self._device).startswith("cpu"):
+                model = model.float()  # bf16 on CPU: slow and drifts under padding
+            if self._device is not None:
+                model = model.to(self._device)
+        return _Qwen3Weights(
+            tokenizer=tokenizer,
+            model=model,
+            prefix=list(tokenizer.encode(_PREFIX, add_special_tokens=False)),
+            suffix=list(tokenizer.encode(_SUFFIX, add_special_tokens=False)),
+            yes_id=int(tokenizer.convert_tokens_to_ids("yes")),
+            no_id=int(tokenizer.convert_tokens_to_ids("no")),
+            infer_lock=threading.Lock(),
+        )
+
+    def _adopt(self, loaded: _Qwen3Weights) -> None:
+        self._prefix = loaded.prefix
+        self._suffix = loaded.suffix
+        self._yes_id = loaded.yes_id
+        self._no_id = loaded.no_id
+        self._tokenizer = loaded.tokenizer
+        self._infer_lock = loaded.infer_lock
+        self._model = loaded.model  # last: it is the "loaded" flag
 
     def _ensure_loaded(self) -> None:
         """Load tokenizer and weights once; concurrent first calls wait on the lock."""
         if self._model is not None:
             return
+        if self._weights is not None:
+            raise RuntimeError("a shared Qwen3 reranker loads through rerank() or warm()")
         with self._load_lock:
             if self._model is not None:
                 return
-            auto_tok = self._transformers.AutoTokenizer
-            auto_lm = self._transformers.AutoModelForCausalLM
-            tokenizer = auto_tok.from_pretrained(self._model_id, padding_side="left")
-            if self._quant is not None:
-                # bitsandbytes places the quantised weights on the GPU itself.
-                bnb = {"4bit": {"load_in_4bit": True}, "8bit": {"load_in_8bit": True}}[self._quant]
-                cfg = self._transformers.BitsAndBytesConfig(
-                    **bnb, bnb_4bit_compute_dtype=self._torch.bfloat16
-                )
-                model = auto_lm.from_pretrained(
-                    self._model_id, quantization_config=cfg, device_map={"": self._device or 0}
-                ).eval()
-            else:
-                model = auto_lm.from_pretrained(self._model_id).eval()
-                if self._device is None or str(self._device).startswith("cpu"):
-                    model = model.float()  # bf16 on CPU: slow and drifts under padding
-                if self._device is not None:
-                    model = model.to(self._device)
-            self._prefix = list(tokenizer.encode(_PREFIX, add_special_tokens=False))
-            self._suffix = list(tokenizer.encode(_SUFFIX, add_special_tokens=False))
-            self._yes_id = int(tokenizer.convert_tokens_to_ids("yes"))
-            self._no_id = int(tokenizer.convert_tokens_to_ids("no"))
-            self._tokenizer = tokenizer
-            self._model = model  # last: it is the "loaded" flag
+            self._adopt(self._load_weights())
+
+    async def warm(self) -> None:
+        """Load the shared weights and score one fixed pair (ADR-079 warm hook)."""
+        if self._weights is None:
+            await asyncio.to_thread(self._ensure_loaded)
+            return
+        await self._weights.warm()
+        self._adopt(await self._weights.get())
+
+    async def aclose(self) -> None:
+        """Release this holder's weights; another holder keeps a shared load."""
+        self._model = None
+        self._tokenizer = None
+        if self._weights is not None:
+            await self._weights.aclose()
 
     # -- scoring ---------------------------------------------------------------------
 
-    def _encode(self, texts: Sequence[str]) -> Any:
-        tok = self._tokenizer
-        budget = self._max_length - len(self._prefix) - len(self._suffix)
+    def _encode(self, texts: Sequence[str], loaded: _Qwen3Weights | None = None) -> Any:
+        tok = self._tokenizer if loaded is None else loaded.tokenizer
+        prefix = self._prefix if loaded is None else loaded.prefix
+        suffix = self._suffix if loaded is None else loaded.suffix
+        budget = self._max_length - len(prefix) - len(suffix)
         # B-5: query and document text is untrusted. ``split_special_tokens``
         # tokenizes a literal ``<|im_end|>`` in a memory as plain text, so a
         # stored document cannot close the user turn and forge the chat
@@ -146,18 +214,23 @@ class Qwen3Reranker:
             max_length=budget,
             split_special_tokens=True,
         )
-        enc["input_ids"] = [self._prefix + list(ids) + self._suffix for ids in enc["input_ids"]]
+        enc["input_ids"] = [prefix + list(ids) + suffix for ids in enc["input_ids"]]
         batch = tok.pad(enc, padding=True, return_tensors="pt", max_length=self._max_length)
         if self._device is not None:
             batch = {k: v.to(self._device) for k, v in batch.items()}
         return batch
 
-    def _score_batch(self, texts: Sequence[str]) -> list[float]:
-        batch = self._encode(texts)
+    def _score_batch(
+        self, texts: Sequence[str], loaded: _Qwen3Weights | None = None
+    ) -> list[float]:
+        batch = self._encode(texts, loaded)
+        model = self._model if loaded is None else loaded.model
+        yes_id = self._yes_id if loaded is None else loaded.yes_id
+        no_id = self._no_id if loaded is None else loaded.no_id
         with self._torch.no_grad():
-            last = self._model(**batch).logits[:, -1, :]
-            yes = [float(v) for v in last[:, self._yes_id].tolist()]
-            no = [float(v) for v in last[:, self._no_id].tolist()]
+            last = model(**batch).logits[:, -1, :]
+            yes = [float(v) for v in last[:, yes_id].tolist()]
+            no = [float(v) for v in last[:, no_id].tolist()]
         # softmax over the two logits, P(yes) = 1 / (1 + exp(no - yes)), overflow-safe
         return [_p_yes(y, n) for y, n in zip(yes, no, strict=True)]
 
@@ -173,9 +246,22 @@ class Qwen3Reranker:
                 scores.extend(self._score_batch(texts[start : start + self._batch_size]))
         return scores
 
+    def _score_with(
+        self, loaded: _Qwen3Weights, query: str, documents: Sequence[str]
+    ) -> list[float]:
+        """Score against an explicit load (the shared warm hook, before any holder adopts)."""
+        texts = [format_pair(self._instruction, query, d) for d in documents]
+        scores: list[float] = []
+        with loaded.infer_lock:
+            for start in range(0, len(texts), self._batch_size):
+                scores.extend(self._score_batch(texts[start : start + self._batch_size], loaded))
+        return scores
+
     async def rerank(self, query: str, documents: list[str]) -> list[float]:
         if not documents:
             return []
+        if self._weights is not None and self._model is None:
+            self._adopt(await self._weights.get())
         return await asyncio.to_thread(self.score, query, documents)
 
 

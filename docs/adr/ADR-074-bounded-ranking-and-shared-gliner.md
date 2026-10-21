@@ -37,6 +37,13 @@ than allowing a hidden remote fallback.
 > [ADR-075](ADR-075-named-model-profiles-and-escalation.md), with no alias. The per-profile
 > GLiNER settings keep the same fields; the shared Engine-owned pool decision stands.
 
+> **Superseded (weight ownership, RM-73):** [ADR-079](ADR-079-keyed-shared-warm-resources.md)
+> replaces "no process-global cache": the Engine pool now draws weights from the
+> per-process `ResourceRegistry`, keyed by model, revision, device and `local_files_only`
+> only. `tasks` and `inference_concurrency` are per-lease limits, so profiles differing only
+> in them share one load; consumers hold one Engine-lifetime lease. Each Engine still owns
+> its pool, capacity bound and lifecycle; extraction results are still never shared.
+
 ## Consequences and verification
 
 The same measured-kernel pass adopts bounded datasketch `update_batch` for

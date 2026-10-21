@@ -56,6 +56,13 @@ class CachedEmbedding:
     def manifest(self) -> EmbedderManifest:
         return self._inner.manifest  # caching changes nothing the E4 seam reads
 
+    async def warm(self) -> None:
+        """ADR-079 warm hook: load the inner embedder's shared weights. Never touches this
+        Engine's cache (the warm-up vector is not a result)."""
+        warm = getattr(self._inner, "warm", None)
+        if callable(warm):
+            await warm()
+
     def _key(self, text: str, prefix: str = "emb") -> str:
         return f"{prefix}:{self._inner.embedder_id}:{xxhash.xxh64_hexdigest(text.encode())}"
 

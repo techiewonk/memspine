@@ -320,8 +320,9 @@ class GlinerHints:
     the package is missing, in which case the caller uses the rules alone."""
 
     def __init__(self, pool: GLiNERModelPool, settings: GlinerSettings) -> None:
-        self._pool = pool
         self._settings = settings
+        # RM-73: one Engine-lifetime lease, not an acquire/release per call.
+        self._model = pool.binding(settings)
         if "entities" not in settings.tasks:
             raise ValueError(
                 "the bound GLiNER profile must include task 'entities' for the write pre-pass"
@@ -348,18 +349,14 @@ class GlinerHints:
 
     async def aentities(self, text: str) -> tuple[MentionSpan, ...]:
         """Return exact source spans; malformed or ambiguous output fails closed."""
-        lease = await self._pool.acquire(self._settings)
-        try:
-            raw = await lease.call(
-                lambda model: model.extract_entities(
-                    text,
-                    list(GLINER_LABELS),
-                    include_confidence=True,
-                    include_spans=True,
-                )
+        raw = await self._model.call(
+            lambda model: model.extract_entities(
+                text,
+                list(GLINER_LABELS),
+                include_confidence=True,
+                include_spans=True,
             )
-        finally:
-            await lease.aclose()
+        )
         return parse_gliner_mentions(text, raw, GLINER_LABELS)
 
 

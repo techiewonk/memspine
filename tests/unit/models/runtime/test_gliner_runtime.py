@@ -169,13 +169,30 @@ async def test_distinct_effective_settings_get_distinct_models_and_pool_is_bound
     pool = GLiNERModelPool(max_models=2, loader=loader)
     first = await pool.acquire(Settings())
     second = await pool.acquire(Settings(revision="rev-b"))
+    entered = threading.Event()
+    finish = threading.Event()
+
+    def busy(model: FakeModel) -> None:
+        entered.set()
+        assert finish.wait(2)
+
+    # Both resident checkpoints are running: a third has no evictable slot.
+    calls = [asyncio.create_task(lease.call(busy)) for lease in (first, second)]
+    assert await asyncio.to_thread(entered.wait, 1)
+    await asyncio.sleep(0.02)
     with pytest.raises(GLiNERPoolFullError):
         await pool.acquire(Settings(model="other/model"))
+    finish.set()
+    await asyncio.gather(*calls)
     assert len(loaded) == 2
-    await first.aclose()
+    # Idle: the least recently used one is evicted even though it stays leased...
     third = await pool.acquire(Settings(model="other/model"))
     assert models[0].closed == 1
     assert len(loaded) == 3
+    # ...and its lease reloads it transparently on the next call.
+    assert await first.call(lambda model: model.work(0)) == 42
+    assert len(loaded) == 4
+    await first.aclose()
     await second.aclose()
     await third.aclose()
     await pool.aclose()
@@ -305,7 +322,9 @@ async def test_cancelled_waiter_does_not_dispose_model_while_worker_thread_runs(
 
 
 @pytest.mark.asyncio
-async def test_inference_concurrency_is_part_of_model_key() -> None:
+async def test_tasks_and_concurrency_are_lease_limits_not_weight_keys() -> None:
+    """RM-73: profiles differing only in tasks/concurrency share one load, even at
+    ``max_models=1`` (no thrash), while each keeps its own concurrency bound."""
     models: list[FakeModel] = []
 
     def load(_: Settings) -> FakeModel:
@@ -313,14 +332,85 @@ async def test_inference_concurrency_is_part_of_model_key() -> None:
         models.append(model)
         return model
 
-    pool = GLiNERModelPool(max_models=2, loader=load)
-    lease = await pool.acquire(Settings(inference_concurrency=1))
-    differently_bounded = await pool.acquire(Settings(inference_concurrency=3))
-    assert differently_bounded._entry is not lease._entry
-    assert len(models) == 2
-    await lease.aclose()
-    await differently_bounded.aclose()
+    pool = GLiNERModelPool(max_models=1, loader=load)
+    narrow = await pool.acquire(Settings(tasks=("entities",), inference_concurrency=1))
+    wide = await pool.acquire(Settings(tasks=("classification",), inference_concurrency=3))
+    for _ in range(3):  # alternating consumers never reload
+        await narrow.call(lambda model: model.work(0))
+        await wide.call(lambda model: model.work(0))
+    assert wide._entry is narrow._entry
+    assert len(models) == 1
+    assert narrow._semaphore is not wide._semaphore
+    await asyncio.gather(*(narrow.call(lambda model: model.work()) for _ in range(4)))
+    assert models[0].max_active == 1
+    models[0].max_active = 0
+    await asyncio.gather(*(wide.call(lambda model: model.work()) for _ in range(6)))
+    assert models[0].max_active == 3
+    await narrow.aclose()
+    await wide.aclose()
     await pool.aclose()
+    assert models[0].closed == 1
+
+
+@pytest.mark.asyncio
+async def test_two_engine_pools_share_weights_and_last_release_frees() -> None:
+    """RM-73: two Engines (two pools) with identical weights load once; stopping one never
+    frees weights the other still holds."""
+    from memspine.providers.shared import ResourceRegistry
+
+    registry = ResourceRegistry()
+    models: list[FakeModel] = []
+
+    def load(_: Settings) -> FakeModel:
+        model = FakeModel()
+        models.append(model)
+        return model
+
+    engine_a = GLiNERModelPool(loader=load, registry=registry)
+    engine_b = GLiNERModelPool(loader=load, registry=registry)
+    a = engine_a.binding(Settings(tasks=("entities",)))
+    b = engine_b.binding(Settings(tasks=("classification",), inference_concurrency=2))
+    assert await a.call(lambda model: model.work(0)) == 42
+    assert await b.call(lambda model: model.work(0)) == 42
+    assert len(models) == 1
+    await engine_a.aclose()
+    assert models[0].closed == 0
+    assert await b.call(lambda model: model.work(0)) == 42  # still served
+    await engine_b.aclose()
+    assert models[0].closed == 1
+    assert registry.stats() == ()
+
+    other = GLiNERModelPool(loader=load, registry=registry)
+    different = other.binding(Settings(device="cuda"))
+    await different.call(lambda model: model.work(0))
+    assert len(models) == 2  # different weight settings load separately
+    await other.aclose()
+
+
+@pytest.mark.asyncio
+async def test_binding_holds_one_lease_for_the_pool_lifetime_and_retries_failures() -> None:
+    attempts = 0
+    model = FakeModel()
+
+    def load(_: Settings) -> FakeModel:
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            raise OSError("transient")
+        return model
+
+    pool = GLiNERModelPool(loader=load)
+    binding = pool.binding(Settings())
+    with pytest.raises(OSError, match="transient"):
+        await binding.call(lambda loaded: loaded.work(0))
+    for _ in range(3):
+        assert await binding.call(lambda loaded: loaded.work(0)) == 42
+    assert attempts == 2
+    assert next(iter(pool._entries.values())).references == 1  # one lifetime lease
+    await pool.aclose()
+    assert model.closed == 1
+    with pytest.raises(GLiNERPoolClosedError):
+        await binding.call(lambda loaded: loaded.work(0))
 
 
 @pytest.mark.asyncio

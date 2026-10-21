@@ -7,7 +7,8 @@ licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/L
 Changes: only the inference path of the nano model is kept (no server, MCP, framework
 integrations, guardrails or remote backends); the typed-question layer is reduced to what
 memspine needs (``noul`` yes/no); length-bucketed batching, ``torch.inference_mode``, thread
-control, an ONNX Runtime backend, a process-wide cache and a snapshot loader are added. See the
+control, an ONNX Runtime backend, process-shared refcounted weights and a snapshot loader are
+added. See the
 NOTICE file in the repository root.
 
 The model (``manjunathshiva/opendecider-nano``, Apache-2.0, ~395M parameters) is a bidirectional
@@ -33,6 +34,9 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
+from memspine.models.runtime.shared_weights import SharedWeights
+from memspine.providers.shared import ResourceRegistry
+
 __all__ = [
     "DEFAULT_MODEL",
     "ONNX_REPO",
@@ -40,6 +44,7 @@ __all__ = [
     "NanoOnnx",
     "load_nano",
     "nano_ids",
+    "nano_weights",
     "noul_options",
     "physical_cores",
 ]
@@ -259,11 +264,6 @@ class NanoOnnx(_Base):
         ]
 
 
-_MODELS: dict[tuple[Any, ...], _Base] = {}
-_ERRORS: dict[tuple[Any, ...], Exception] = {}
-_LOCK = threading.Lock()
-
-
 def _snapshot(name: str) -> Path:
     path = Path(name)
     if path.is_dir():
@@ -281,41 +281,60 @@ def load_nano(
     backend: str = "torch",
     threads: int | None = None,
 ) -> _Base:
-    """The model for ``name`` (a Hub id or a local folder), loaded once per process and
-    (device, dtype, backend, threads). A failed load is cached, so a broken install is not
-    retried on every read. ``backend="onnx"`` uses the published 8-bit ONNX build on CPU.
-    Raises ``MissingServiceError(extra="decider")`` when the dependencies are absent."""
+    """Load the model for ``name`` (a Hub id or a local folder) for (device, dtype, backend,
+    threads). Uncached: share a load through :func:`nano_weights`. ``backend="onnx"`` uses the
+    published 8-bit ONNX build on CPU. Raises ``MissingServiceError(extra="decider")`` when
+    the dependencies are absent."""
     if backend not in ("torch", "onnx"):
         raise ValueError(f"decider backend must be 'torch' or 'onnx', got {backend!r}")
-    key = (name, device, dtype, backend, threads)
-    with _LOCK:
-        if key in _MODELS:
-            return _MODELS[key]
-        if key in _ERRORS:
-            raise _ERRORS[key]
-        try:
-            try:
-                import safetensors  # noqa: F401
-                import torch
-                import transformers  # noqa: F401
+    try:
+        import safetensors  # noqa: F401
+        import torch
+        import transformers  # noqa: F401
 
-                if backend == "onnx":
-                    import onnxruntime  # noqa: F401
-            except ImportError as exc:
-                from memspine.exceptions import MissingServiceError
+        if backend == "onnx":
+            import onnxruntime  # noqa: F401
+    except ImportError as exc:
+        from memspine.exceptions import MissingServiceError
 
-                raise MissingServiceError("opendecider decider", extra="decider") from exc
-            path = _snapshot(name)
-            if backend == "onnx":
-                from huggingface_hub import hf_hub_download
+        raise MissingServiceError("opendecider decider", extra="decider") from exc
+    path = _snapshot(name)
+    if backend == "onnx":
+        from huggingface_hub import hf_hub_download
 
-                _MODELS[key] = NanoOnnx(path, hf_hub_download(ONNX_REPO, _ONNX_FILE), threads)
-            else:
-                dev = device
-                if device == "auto":
-                    dev = "cuda" if torch.cuda.is_available() else "cpu"
-                _MODELS[key] = NanoModel(path, dev, dtype, threads)
-        except Exception as exc:
-            _ERRORS[key] = exc
-            raise
-        return _MODELS[key]
+        return NanoOnnx(path, hf_hub_download(ONNX_REPO, _ONNX_FILE), threads)
+    dev = device
+    if device == "auto":
+        dev = "cuda" if torch.cuda.is_available() else "cpu"
+    return NanoModel(path, dev, dtype, threads)
+
+
+def nano_weights(
+    name: str = DEFAULT_MODEL,
+    device: str = "cpu",
+    dtype: str = "float32",
+    *,
+    backend: str = "torch",
+    threads: int | None = None,
+    registry: ResourceRegistry | None = None,
+    loader: Any = None,
+) -> SharedWeights[_Base]:
+    """A lazy lease on the decider weights for (name, device, dtype, backend, threads): the
+    process registry shares one load among every holder and frees it with the last release
+    (ADR-079 / RM-73). A failed load is not cached; the next use retries. ``loader``
+    defaults to :func:`load_nano` (resolved at call time so tests can patch it)."""
+    if backend not in ("torch", "onnx"):
+        raise ValueError(f"decider backend must be 'torch' or 'onnx', got {backend!r}")
+
+    def _load() -> _Base:
+        load = loader if loader is not None else load_nano
+        return load(name, device, dtype, backend=backend, threads=threads)
+
+    return SharedWeights(
+        "model.decider.opendecider",
+        {"model": name},
+        {"device": device, "dtype": dtype, "backend": backend, "threads": threads},
+        _load,
+        warm=lambda model: model.yes_probability(["warm-up"], "Is this a warm-up?"),
+        registry=registry,
+    )

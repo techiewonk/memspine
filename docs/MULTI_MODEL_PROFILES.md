@@ -36,18 +36,24 @@ concurrency. GLiNER `settings: {}` receives the default Base checkpoint, CPU,
 local files only, entities/classification and concurrency one. Declare a pinned
 revision when reproducible artifacts are required.
 
-Different profile names with identical GLiNER effective settings share one model
-pool entry. Different configurations can load separate models. Set
-`models.gliner_max_models` explicitly for the desired resident model bound
-(default one); a full busy pool fails rather than exceeding that bound. LLM
-profile providers are owned by the Engine lifecycle. Sharing a resource never
-authorizes sharing namespace-specific extraction results.
+GLiNER weights are keyed by checkpoint, revision, device and offline policy only
+(RM-73 / ADR-079). Profiles that differ only in `tasks` or `inference_concurrency`
+share one load (each keeps its own concurrency bound), and identical weights are
+shared by every Engine in the process. Different checkpoints load separately. Set
+`models.gliner_max_models` explicitly for the desired resident checkpoint bound
+per Engine (default one); an idle checkpoint may be evicted and reloads on its
+next call, and a pool whose checkpoints are all busy fails rather than exceeding
+that bound. LLM profile providers are owned by the Engine lifecycle. Sharing a
+resource never authorizes sharing namespace-specific extraction results.
 
 Provider factories receive the logical task role and an optional stable
 `LLMBuildContext.resource_key`. Named profiles use `llm.profile:<name>` so two
 native models serving the same role register distinct owned resources. A shared
 profile still constructs and closes its provider once. Inline bindings retain
-their role-based ownership key.
+their role-based ownership key. The ownership key is not the weight key: llama.cpp
+loads are keyed by the absolute GGUF path plus native load options (`n_ctx`,
+`n_gpu_layers`, `n_batch`, `n_threads`), so two roles or profiles on the same file
+share one native model per process; the last release closes it.
 
 Named LLM cache identities include normalized native provider settings; an
 escalation identity also includes its ordered candidates and effective policy.

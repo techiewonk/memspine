@@ -87,8 +87,9 @@ class GlinerEntityExtractor:
         labels: tuple[str, ...] = _DEFAULT_LABELS,
     ) -> None:
         self._labels = list(labels)
-        self._pool = pool
         self._settings = settings
+        # RM-73: one Engine-lifetime lease, not an acquire/release per call.
+        self._model = pool.binding(settings)
         missing = set(("entities",)) - set(settings.tasks)
         if missing:
             raise ValueError(
@@ -115,16 +116,12 @@ class GlinerEntityExtractor:
 
     async def extract_mentions(self, content: str) -> tuple[MentionSpan, ...]:
         """Return every exact source mention as an explicitly unasserted span."""
-        lease = await self._pool.acquire(self._settings)
-        try:
-            raw = await lease.call(
-                lambda model: model.extract_entities(
-                    content,
-                    self._labels,
-                    include_confidence=True,
-                    include_spans=True,
-                )
+        raw = await self._model.call(
+            lambda model: model.extract_entities(
+                content,
+                self._labels,
+                include_confidence=True,
+                include_spans=True,
             )
-        finally:
-            await lease.aclose()
+        )
         return parse_gliner_mentions(content, raw, self._labels)

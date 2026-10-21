@@ -1115,6 +1115,7 @@ class Engine:
                             raise ProviderResourceCleanupError(report) from None
                     raise
 
+        await attempt("decider weights", self._release_deciders)
         await attempt("provider resources", close_container)
         for attr in self._timed_attrs:  # I73: drop the instance wrappers, restore the methods
             self.__dict__.pop(attr, None)
@@ -2866,6 +2867,12 @@ class Engine:
         )
         cached = getattr(self, "_decider_cache", None)
         if cached is None or cached[0] != key:
+            from memspine.providers.shared import shared_registry
+
+            if cached is not None:
+                # A replaced decider keeps its weight lease until teardown releases it
+                # (an in-flight decision may still be using it).
+                self.__dict__.setdefault("_retired_deciders", []).append(cached[1])
             kind, model, device, threads, backend, workers, dtype = key
             cached = (
                 key,
@@ -2877,10 +2884,23 @@ class Engine:
                     backend=backend,
                     workers=workers,
                     dtype=dtype,
+                    # RM-73: weights shared per process; this Engine's teardown releases.
+                    registry=shared_registry(),
                 ),
             )
             self._decider_cache = cached
         return cached[1]
+
+    async def _release_deciders(self) -> None:
+        """Release the decider weight leases this Engine holds (other Engines keep theirs)."""
+        held = list(self.__dict__.pop("_retired_deciders", []))
+        cached = self.__dict__.pop("_decider_cache", None)
+        if cached is not None:
+            held.append(cached[1])
+        for decider in held:
+            release = getattr(decider, "aclose", None)
+            if callable(release):
+                await release()
 
     async def _decided(self, task: str, question: str, context: str | None, heuristic: str) -> str:
         return await read_request._decided(self, task, question, context, heuristic)

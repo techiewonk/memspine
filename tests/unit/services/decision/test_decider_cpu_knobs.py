@@ -59,7 +59,11 @@ async def test_engine_passes_every_knob_to_build_decider(monkeypatch: pytest.Mon
     class Stub:
         decider_id = "stub"
 
+    from memspine.providers.shared import shared_registry
+
     def build(kind: str, model: str, device: str, **kw: Any) -> Stub:
+        # RM-73: an Engine build shares the decider weights through the process registry.
+        assert kw.pop("registry") is shared_registry()
         seen.append((kind, model, device, kw))
         return Stub()
 
@@ -181,8 +185,6 @@ def fake_stack(monkeypatch: pytest.MonkeyPatch) -> dict[str, list[tuple[Any, ...
     monkeypatch.setattr(nano, "NanoModel", FakeTorchModel)
     monkeypatch.setattr(nano, "NanoOnnx", FakeOnnxModel)
     monkeypatch.setattr(nano, "_snapshot", lambda name: f"/snap/{name}")
-    monkeypatch.setattr(nano, "_MODELS", {})
-    monkeypatch.setattr(nano, "_ERRORS", {})
     return built
 
 
@@ -202,13 +204,33 @@ def test_unknown_backend_is_rejected(fake_stack: dict[str, list]) -> None:
         nano.load_nano("m", "cpu", backend="tensorrt")
 
 
-def test_models_are_cached_per_dtype_backend_and_threads(fake_stack: dict[str, list]) -> None:
-    a = nano.load_nano("m", "cpu", "float32", backend="torch", threads=4)
-    assert nano.load_nano("m", "cpu", "float32", backend="torch", threads=4) is a
-    assert nano.load_nano("m", "cpu", "bfloat16", backend="torch", threads=4) is not a
-    assert nano.load_nano("m", "cpu", "float32", backend="onnx", threads=4) is not a
-    assert nano.load_nano("m", "cpu", "float32", backend="torch", threads=2) is not a
+async def test_weights_are_shared_per_dtype_backend_and_threads(
+    fake_stack: dict[str, list],
+) -> None:
+    """RM-73: identical (model, device, dtype, backend, threads) share one load through the
+    registry; any difference loads separately; the last release frees the entry."""
+    from memspine.providers.shared import ResourceRegistry
+
+    registry = ResourceRegistry()
+
+    def lease(dtype: str, backend: str, threads: int) -> Any:
+        return nano.nano_weights(
+            "m", "cpu", dtype, backend=backend, threads=threads, registry=registry
+        )
+
+    a, same = lease("float32", "torch", 4), lease("float32", "torch", 4)
+    others = [
+        lease("bfloat16", "torch", 4),
+        lease("float32", "onnx", 4),
+        lease("float32", "torch", 2),
+    ]
+    first = await a.get()
+    assert await same.get() is first
+    assert all([await other.get() is not first for other in others])
     assert len(fake_stack["torch"]) == 3 and len(fake_stack["onnx"]) == 1
+    for holder in (a, same, *others):
+        await holder.aclose()
+    assert registry.stats() == ()
 
 
 def test_adapter_hands_its_knobs_to_the_loader(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -228,14 +250,22 @@ def test_adapter_hands_its_knobs_to_the_loader(monkeypatch: pytest.MonkeyPatch) 
     assert got == [("m", "cpu", "bfloat16", {"backend": "onnx", "threads": 2})]
 
 
-def test_onnx_without_onnxruntime_is_a_missing_service_and_is_cached(
+async def test_onnx_without_onnxruntime_is_a_missing_service_and_is_not_cached(
     fake_stack: dict[str, list], monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    from memspine.providers.shared import ResourceRegistry
+
+    registry = ResourceRegistry()
     monkeypatch.setitem(sys.modules, "onnxruntime", None)  # import raises ImportError
-    for _ in range(2):  # the failure is cached, not retried
+    weights = nano.nano_weights("m", "cpu", backend="onnx", registry=registry)
+    for _ in range(2):  # RM-73: a failed load is not cached; each use retries
         with pytest.raises(MissingServiceError):
-            nano.load_nano("m", "cpu", backend="onnx")
-    assert len(nano._ERRORS) == 1
+            await weights.get()
+    assert registry.stats() == ()
+    monkeypatch.setitem(sys.modules, "onnxruntime", types.ModuleType("onnxruntime"))
+    assert await weights.get() is not None  # the dependency arrived: the retry loads
+    assert len(fake_stack["onnx"]) == 1
+    await weights.aclose()
     nano.load_nano("m", "cpu", backend="torch")  # the torch backend is unaffected
     assert len(fake_stack["torch"]) == 1
 

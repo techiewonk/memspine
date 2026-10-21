@@ -32,9 +32,12 @@ from typing import Any, Protocol, runtime_checkable
 from memspine.models.providers.decision.opendecider_nano import (
     DEFAULT_MODEL,
     load_nano,
+    nano_weights,
     noul_options,
     physical_cores,
 )
+from memspine.models.runtime.shared_weights import SharedWeights
+from memspine.providers.shared import ResourceRegistry
 
 __all__ = [
     "DEFAULT_MODEL",
@@ -308,7 +311,10 @@ class OpenDeciderDecider:
 
     Every task is a ``noul`` (yes/no) question; the label is the task's ``yes`` label when
     P(yes) >= 0.5, else its ``no`` label, and the confidence is max(P(yes), 1 - P(yes)).
-    The model is a process-wide singleton per (name, device), loaded on first use.
+    The weights load on first use (or :meth:`warm`). With ``registry`` (an Engine build) they
+    are shared per process by (name, device, dtype, backend, threads) and released by
+    :meth:`aclose`; without one the load is private to this instance (ADR-079 / RM-73).
+    A failed load is not cached: the next decision retries.
     """
 
     decider_id = "opendecider"
@@ -322,6 +328,7 @@ class OpenDeciderDecider:
         backend: str = "torch",
         workers: int = 1,
         dtype: str = "float32",
+        registry: ResourceRegistry | None = None,
     ) -> None:
         self.model = model
         self.dtype = dtype
@@ -331,11 +338,51 @@ class OpenDeciderDecider:
         #: intra-op threads per worker: the physical cores split between the workers
         self.threads = threads or max(1, physical_cores() // self.workers)
         self._pool: ThreadPoolExecutor | None = None
+        self._registry = registry
+        self._weights: SharedWeights[Any] | None = None
+        self._nano: Any = None
+        self._closed = False
+
+    def _shared(self) -> SharedWeights[Any]:
+        if self._closed:
+            raise RuntimeError("the decider was closed")
+        if self._weights is None:
+            self._weights = nano_weights(
+                self.model,
+                self.device,
+                self.dtype,
+                backend=self.backend,
+                threads=self.threads,
+                registry=self._registry,
+                loader=lambda *a, **k: load_nano(*a, **k),
+            )
+        return self._weights
+
+    async def _ensure(self) -> Any:
+        if self._nano is None:
+            self._nano = await self._shared().get()
+        return self._nano
+
+    async def warm(self) -> None:
+        """Load the shared weights and answer one fixed question (ADR-079 warm hook)."""
+        await self._shared().warm()
+        await self._ensure()
+
+    async def aclose(self) -> None:
+        """Release this holder's weights and its worker threads."""
+        self._closed = True
+        self._nano = None
+        weights, self._weights = self._weights, None
+        pool, self._pool = self._pool, None
+        if pool is not None:
+            pool.shutdown(wait=False)
+        if weights is not None:
+            await weights.aclose()
 
     def _loaded(self) -> Any:
-        return load_nano(
-            self.model, self.device, self.dtype, backend=self.backend, threads=self.threads
-        )
+        if self._nano is None:
+            raise RuntimeError("the decider loads through its async methods or warm()")
+        return self._nano
 
     @staticmethod
     def _parse(task: str, p_yes: float, info: Mapping[str, Any] | None = None) -> Decision:
@@ -378,6 +425,7 @@ class OpenDeciderDecider:
         return [self._parse(t, p["yes"]) for (t, _, _), p in zip(items, probs, strict=True)]
 
     async def _run(self, fn: Callable[..., Any], *args: Any) -> Any:
+        await self._ensure()
         if self.workers == 1:
             return await asyncio.to_thread(fn, *args)
         if self._pool is None:
@@ -405,12 +453,19 @@ def build_decider(
     backend: str = "torch",
     workers: int = 1,
     dtype: str = "float32",
+    registry: ResourceRegistry | None = None,
 ) -> Decider:
     """``heuristic`` | ``opendecider`` -> the adapter (the model loads on first use)."""
     if kind == "heuristic":
         return HeuristicDecider()
     if kind == "opendecider":
         return OpenDeciderDecider(
-            model, device, threads=threads, backend=backend, workers=workers, dtype=dtype
+            model,
+            device,
+            threads=threads,
+            backend=backend,
+            workers=workers,
+            dtype=dtype,
+            registry=registry,
         )
     raise ValueError(f"decider must be 'heuristic' or 'opendecider', got {kind!r}")

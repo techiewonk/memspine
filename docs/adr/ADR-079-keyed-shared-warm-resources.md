@@ -58,6 +58,22 @@ A 2026-10-22 audit found that inside one Engine most clients are shared, but:
   auth digest; secrets are never stored in keys or logs.
 - No compatibility layer or alias is added.
 
+## Implementation notes
+
+- **RM-73 (model weights).** `memspine.models.runtime.shared_weights.SharedWeights` is a lazy,
+  refcounted lease on a `scope="thread"` registry entry; the key holds only weight-affecting
+  options. Embedders (fastembed: model; sentence-transformers: model, device, dtype,
+  trust_remote_code; model2vec: model), rerankers (fastembed, flashrank: model; Qwen3: model,
+  device, quant; Jina: model, device), llama.cpp (absolute GGUF path plus `n_ctx` and native
+  load options; never the role or profile name), GLiNER (model, revision, device,
+  local_files_only; tasks and concurrency are per-lease limits) and OpenDecider (model,
+  device, dtype, backend, threads) all load through it. Engine builders pass the process
+  registry and register the lease release with the Engine lifecycle; directly constructed
+  adapters use a private registry. The E4 static prefilter builds the same key as a
+  configured static embedder of the same model. Load failures are never cached. Each adapter
+  exposes `warm()` (load plus one fixed short inference) for RM-74; RM-73 schedules no
+  warm-up itself. Result caches (`CachedEmbedding`, extraction caches) stay per Engine.
+
 ## Consequences
 
 - Fewer connections and less RAM; no first-request model load once warm.

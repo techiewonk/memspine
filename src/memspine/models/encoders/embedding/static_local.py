@@ -21,8 +21,14 @@ from typing import Any
 
 from memspine.exceptions import MissingServiceError
 from memspine.models.encoders.embedding.base import EmbedderManifest
+from memspine.models.runtime.shared_weights import SharedWeights
+from memspine.providers.shared import ResourceRegistry
 
-__all__ = ["StaticEmbedder"]
+__all__ = ["STATIC_WEIGHTS_CATEGORY", "StaticEmbedder"]
+
+#: Registry category of model2vec weights: the configured static embedder and the E4
+#: prefilter build the same key for the same model, so they share one load (RM-73).
+STATIC_WEIGHTS_CATEGORY = "model.embedding.static"
 
 #: Default distilled static model — small, CPU-only, no torch.
 _DEFAULT_MODEL = "minishlab/potion-base-8M"
@@ -36,7 +42,13 @@ def _normalize(vector: list[float]) -> list[float]:
 
 
 class StaticEmbedder:
-    def __init__(self, model: str = _DEFAULT_MODEL, dim: int | None = None) -> None:
+    def __init__(
+        self,
+        model: str = _DEFAULT_MODEL,
+        dim: int | None = None,
+        *,
+        registry: ResourceRegistry | None = None,
+    ) -> None:
         try:
             import model2vec  # noqa: F401
         except ImportError as exc:
@@ -45,7 +57,15 @@ class StaticEmbedder:
         self._model: Any = None
         self._dim = dim or 0
         self._expected_dim = dim
-        self._lock = asyncio.Lock()
+        # Weight key: the model only; ``dim`` is a per-holder output check.
+        self._weights: SharedWeights[Any] = SharedWeights(
+            STATIC_WEIGHTS_CATEGORY,
+            {"model": model},
+            None,
+            self._load,
+            warm=lambda loaded: loaded.encode(["warm-up"]),
+            registry=registry,
+        )
 
     @property
     def embedder_id(self) -> str:
@@ -61,16 +81,24 @@ class StaticEmbedder:
         further quantization/truncation — its vectors go straight to prefilter."""
         return EmbedderManifest(embedder_id=self.embedder_id, dim=self._dim)
 
+    def _load(self) -> Any:
+        from model2vec import StaticModel
+
+        return StaticModel.from_pretrained(self._model_name)
+
     async def _ensure_model(self) -> Any:
         if self._model is None:
-            async with self._lock:
-                if self._model is None:
-                    from model2vec import StaticModel
-
-                    self._model = await asyncio.to_thread(
-                        StaticModel.from_pretrained, self._model_name
-                    )
+            self._model = await self._weights.get()
         return self._model
+
+    async def warm(self) -> None:
+        """Load the shared weights and encode a fixed short text once (ADR-079 warm hook)."""
+        await self._weights.warm()
+
+    async def aclose(self) -> None:
+        """Release this holder's weight lease; another holder keeps them loaded."""
+        self._model = None
+        await self._weights.aclose()
 
     async def embed(self, texts: list[str]) -> list[list[float]]:
         model = await self._ensure_model()

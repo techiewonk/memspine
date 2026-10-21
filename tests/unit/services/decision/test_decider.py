@@ -254,7 +254,7 @@ async def test_opendecider_adapter_convention(
     d2 = await a.decide("list_mode", "What hobbies does Tim have?")
     assert (d1.label, round(d1.confidence or 0, 2)) == ("irrelevant", 0.9)
     assert d2.label == "set" and d2.adapter == "opendecider" and d2.task == "list_mode"
-    assert loads == [("m", "cpu"), ("m", "cpu")]  # the real loader caches per process
+    assert loads == [("m", "cpu")]  # one lease per adapter: loaded once, then reused
     states, instructions = model.calls[0]
     assert states[0].startswith("Message: Write me a poem" + chr(10) + "Memories:")
     assert instructions == TASKS["relevance"].instructions
@@ -270,12 +270,12 @@ async def test_opendecider_missing_dependencies_is_a_missing_service(
     from memspine.models.providers.decision import opendecider_nano as nano
 
     monkeypatch.setitem(sys.modules, "torch", None)  # import raises ImportError
-    monkeypatch.setattr(nano, "_MODELS", {})
-    monkeypatch.setattr(nano, "_ERRORS", {})
+    assert nano.load_nano is not None
+    decider = OpenDeciderDecider("m", "cpu")
     with pytest.raises(MissingServiceError):
-        await OpenDeciderDecider("m", "cpu").decide("relevance", "q", "c")
-    with pytest.raises(MissingServiceError):  # cached, not retried
-        await OpenDeciderDecider("m", "cpu").decide("relevance", "q", "c")
+        await decider.decide("relevance", "q", "c")
+    with pytest.raises(MissingServiceError):  # RM-73: not cached; retried and still missing
+        await decider.decide("relevance", "q", "c")
 
 
 def test_nano_input_layout_matches_the_published_format() -> None:

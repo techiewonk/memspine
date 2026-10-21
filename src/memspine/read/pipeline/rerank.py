@@ -54,7 +54,22 @@ async def _static_embedding_prefilter(
         try:
             from memspine.models.encoders.embedding.static_local import StaticEmbedder
 
-            eng._static_embedder = StaticEmbedder()
+            resources = getattr(eng, "_provider_resources", None)
+            if resources is None:
+                eng._static_embedder = StaticEmbedder()
+            else:
+                # RM-73: the same registry key as a configured static embedder of the same
+                # model, so the prefilter never loads a second copy; this Engine's lifecycle
+                # releases its lease.
+                from memspine.providers.lifecycle import ResourceOwnershipError
+                from memspine.providers.shared import shared_registry
+
+                embedder = StaticEmbedder(registry=shared_registry())
+                try:
+                    resources.own("embedding.weights:static-prefilter", embedder.aclose)
+                except ResourceOwnershipError:
+                    return candidates  # the Engine is stopping: no new weight lease
+                eng._static_embedder = embedder
         except (MissingServiceError, ImportError) as exc:
             # The extra is genuinely absent — disable permanently.
             eng._static_unavailable = True

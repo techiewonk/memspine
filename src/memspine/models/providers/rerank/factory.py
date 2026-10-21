@@ -28,6 +28,7 @@ from memspine.providers.registry import (
     get_registry,
     validate_settings,
 )
+from memspine.providers.shared import ResourceRegistry
 
 __all__ = [
     "RerankSettings",
@@ -64,21 +65,32 @@ class RerankSettings:
     chunk_overlap: int = 0
 
 
-def _build_fastembed(settings: RerankSettings) -> Reranker:
+# Each local builder takes the weight registry: the process registry for an Engine-owned build
+# (weights shared per process, ADR-079 / RM-73), None for a standalone private load.
+
+
+def _build_fastembed(
+    settings: RerankSettings, registry: ResourceRegistry | None = None
+) -> Reranker:
     from memspine.models.providers.rerank.fastembed_rerank import FastembedReranker
 
     # FastembedReranker takes a required str with a default model; pass through
     # only when configured, else let it pick its default.
-    return FastembedReranker(settings.model) if settings.model else FastembedReranker()
+    if settings.model:
+        return FastembedReranker(settings.model, registry=registry)
+    return FastembedReranker(registry=registry)
 
 
-def _build_flashrank(settings: RerankSettings) -> Reranker:
+def _build_flashrank(
+    settings: RerankSettings, registry: ResourceRegistry | None = None
+) -> Reranker:
     from memspine.models.providers.rerank.flashrank_rerank import FlashrankReranker
 
-    return FlashrankReranker(settings.model)
+    return FlashrankReranker(settings.model, registry=registry)
 
 
-def _build_litellm(settings: RerankSettings) -> Reranker:
+def _build_litellm(settings: RerankSettings, registry: ResourceRegistry | None = None) -> Reranker:
+    del registry  # remote provider: no local weights
     if not settings.model:
         # An explicitly selected provider with missing model settings is a config error.
         raise MissingServiceError(
@@ -101,7 +113,7 @@ def _build_litellm(settings: RerankSettings) -> Reranker:
     )
 
 
-def _build_qwen3(settings: RerankSettings) -> Reranker:
+def _build_qwen3(settings: RerankSettings, registry: ResourceRegistry | None = None) -> Reranker:
     from memspine.models.providers.rerank.qwen3_rerank import (
         DEFAULT_INSTRUCTION,
         DEFAULT_MODEL,
@@ -115,16 +127,18 @@ def _build_qwen3(settings: RerankSettings) -> Reranker:
         quant=settings.quant,
         batch_size=settings.batch_size if settings.batch_size is not None else 8,
         max_length=settings.max_length if settings.max_length is not None else 8192,
+        registry=registry,
     )
 
 
-def _build_jina(settings: RerankSettings) -> Reranker:
+def _build_jina(settings: RerankSettings, registry: ResourceRegistry | None = None) -> Reranker:
     from memspine.models.providers.rerank.jina_rerank import DEFAULT_MODEL, JinaReranker
 
     return JinaReranker(
         settings.model or DEFAULT_MODEL,
         device=settings.device,
         max_documents=settings.max_documents if settings.max_documents is not None else 64,
+        registry=registry,
     )
 
 
