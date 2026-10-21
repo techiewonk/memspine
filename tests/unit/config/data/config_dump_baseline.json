@@ -27,7 +27,6 @@
    "turn_length": "unknown"
   },
   "decision": {
-   "model": "fastino/gliner2-base-v1",
    "provider": "off"
   },
   "economy": {
@@ -139,14 +138,18 @@
   "memories": {},
   "models": {
    "allow_hosted": false,
+   "bindings": {},
    "catalogue": [],
    "default_rerankers": "shipped",
    "detect_gpus": false,
    "embedder_profile": "auto",
+   "escalation": {},
+   "gliner_max_models": 1,
    "gpu_headroom_mb": 512,
    "gpus": [],
    "on_missing_model": "error",
    "pins": {},
+   "profiles": {},
    "ram_mb": 0,
    "required_roles": [],
    "rerank": "chain",
@@ -641,10 +644,18 @@
   },
   "workers": {
    "broker_url": "redis://localhost:6379/0",
-   "dbos_system_database_url": null,
    "outbox": false,
+   "resonate": {
+    "journal_busy_timeout_s": 5.0,
+    "journal_path": "./memspine-resonate.sqlite",
+    "max_concurrent_tasks": 4,
+    "step_lease_s": 360.0,
+    "step_timeout_s": 240.0,
+    "task_timeout_s": 270.0
+   },
    "runner": "inline",
    "sleep_interval_seconds": null,
+   "temporal": null,
    "transport": "inline",
    "transport_broker": "memory"
   },
@@ -711,7 +722,7 @@
    "window_topic_k": 2.0
   }
  },
- "json_schema_sha256": "44787e350b10b46a4660d6b36ecdc545ae6db3ec6ef8ac8548f55f691005e471",
+ "json_schema_sha256": "85a3db4c496ce201dffa4d33f298ecf7f7f70c1d208e01ef03f779c900a63591",
  "preset:chat_roles": {
   "audit": {
    "actions": false,
@@ -740,7 +751,6 @@
    "turn_length": "unknown"
   },
   "decision": {
-   "model": "fastino/gliner2-base-v1",
    "provider": "off"
   },
   "economy": {
@@ -873,14 +883,18 @@
   },
   "models": {
    "allow_hosted": false,
+   "bindings": {},
    "catalogue": [],
    "default_rerankers": "shipped",
    "detect_gpus": false,
    "embedder_profile": "auto",
+   "escalation": {},
+   "gliner_max_models": 1,
    "gpu_headroom_mb": 512,
    "gpus": [],
    "on_missing_model": "error",
    "pins": {},
+   "profiles": {},
    "ram_mb": 0,
    "required_roles": [],
    "rerank": "chain",
@@ -1388,10 +1402,18 @@
   },
   "workers": {
    "broker_url": "redis://localhost:6379/0",
-   "dbos_system_database_url": null,
    "outbox": false,
+   "resonate": {
+    "journal_busy_timeout_s": 5.0,
+    "journal_path": "./memspine-resonate.sqlite",
+    "max_concurrent_tasks": 4,
+    "step_lease_s": 360.0,
+    "step_timeout_s": 240.0,
+    "task_timeout_s": 270.0
+   },
    "runner": "inline",
    "sleep_interval_seconds": null,
+   "temporal": null,
    "transport": "inline",
    "transport_broker": "memory"
   },
@@ -1486,7 +1508,6 @@
    "turn_length": "unknown"
   },
   "decision": {
-   "model": "fastino/gliner2-base-v1",
    "provider": "off"
   },
   "economy": {
@@ -1615,14 +1636,18 @@
   },
   "models": {
    "allow_hosted": false,
+   "bindings": {},
    "catalogue": [],
    "default_rerankers": "shipped",
    "detect_gpus": false,
    "embedder_profile": "auto",
+   "escalation": {},
+   "gliner_max_models": 1,
    "gpu_headroom_mb": 512,
    "gpus": [],
    "on_missing_model": "error",
    "pins": {},
+   "profiles": {},
    "ram_mb": 0,
    "required_roles": [],
    "rerank": "chain",
@@ -2130,10 +2155,18 @@
   },
   "workers": {
    "broker_url": "redis://localhost:6379/0",
-   "dbos_system_database_url": null,
    "outbox": false,
+   "resonate": {
+    "journal_busy_timeout_s": 5.0,
+    "journal_path": "./memspine-resonate.sqlite",
+    "max_concurrent_tasks": 4,
+    "step_lease_s": 360.0,
+    "step_timeout_s": 240.0,
+    "task_timeout_s": 270.0
+   },
    "runner": "inline",
    "sleep_interval_seconds": null,
+   "temporal": null,
    "transport": "inline",
    "transport_broker": "memory"
   },
@@ -2228,7 +2261,6 @@
    "turn_length": "unknown"
   },
   "decision": {
-   "model": "fastino/gliner2-base-v1",
    "provider": "off"
   },
   "economy": {
@@ -2357,14 +2389,18 @@
   },
   "models": {
    "allow_hosted": false,
+   "bindings": {},
    "catalogue": [],
    "default_rerankers": "shipped",
    "detect_gpus": false,
    "embedder_profile": "auto",
+   "escalation": {},
+   "gliner_max_models": 1,
    "gpu_headroom_mb": 512,
    "gpus": [],
    "on_missing_model": "error",
    "pins": {},
+   "profiles": {},
    "ram_mb": 0,
    "required_roles": [],
    "rerank": "chain",
@@ -2872,10 +2908,18 @@
   },
   "workers": {
    "broker_url": "redis://localhost:6379/0",
-   "dbos_system_database_url": null,
    "outbox": false,
+   "resonate": {
+    "journal_busy_timeout_s": 5.0,
+    "journal_path": "./memspine-resonate.sqlite",
+    "max_concurrent_tasks": 4,
+    "step_lease_s": 360.0,
+    "step_timeout_s": 240.0,
+    "task_timeout_s": 270.0
+   },
    "runner": "inline",
    "sleep_interval_seconds": null,
+   "temporal": null,
    "transport": "inline",
    "transport_broker": "memory"
   },
@@ -2970,7 +3014,6 @@
    "turn_length": "unknown"
   },
   "decision": {
-   "model": "fastino/gliner2-base-v1",
    "provider": "off"
   },
   "economy": {
@@ -3099,14 +3142,18 @@
   },
   "models": {
    "allow_hosted": false,
+   "bindings": {},
    "catalogue": [],
    "default_rerankers": "shipped",
    "detect_gpus": false,
    "embedder_profile": "auto",
+   "escalation": {},
+   "gliner_max_models": 1,
    "gpu_headroom_mb": 512,
    "gpus": [],
    "on_missing_model": "error",
    "pins": {},
+   "profiles": {},
    "ram_mb": 0,
    "required_roles": [],
    "rerank": "chain",
@@ -3614,10 +3661,18 @@
   },
   "workers": {
    "broker_url": "redis://localhost:6379/0",
-   "dbos_system_database_url": null,
    "outbox": false,
+   "resonate": {
+    "journal_busy_timeout_s": 5.0,
+    "journal_path": "./memspine-resonate.sqlite",
+    "max_concurrent_tasks": 4,
+    "step_lease_s": 360.0,
+    "step_timeout_s": 240.0,
+    "task_timeout_s": 270.0
+   },
    "runner": "inline",
    "sleep_interval_seconds": null,
+   "temporal": null,
    "transport": "inline",
    "transport_broker": "memory"
   },
@@ -3712,7 +3767,6 @@
    "turn_length": "unknown"
   },
   "decision": {
-   "model": "fastino/gliner2-base-v1",
    "provider": "off"
   },
   "economy": {
@@ -3841,14 +3895,18 @@
   },
   "models": {
    "allow_hosted": false,
+   "bindings": {},
    "catalogue": [],
    "default_rerankers": "shipped",
    "detect_gpus": false,
    "embedder_profile": "auto",
+   "escalation": {},
+   "gliner_max_models": 1,
    "gpu_headroom_mb": 512,
    "gpus": [],
    "on_missing_model": "error",
    "pins": {},
+   "profiles": {},
    "ram_mb": 0,
    "required_roles": [],
    "rerank": "chain",
@@ -4356,10 +4414,18 @@
   },
   "workers": {
    "broker_url": "redis://localhost:6379/0",
-   "dbos_system_database_url": null,
    "outbox": false,
+   "resonate": {
+    "journal_busy_timeout_s": 5.0,
+    "journal_path": "./memspine-resonate.sqlite",
+    "max_concurrent_tasks": 4,
+    "step_lease_s": 360.0,
+    "step_timeout_s": 240.0,
+    "task_timeout_s": 270.0
+   },
    "runner": "inline",
    "sleep_interval_seconds": null,
+   "temporal": null,
    "transport": "inline",
    "transport_broker": "memory"
   },
@@ -4454,7 +4520,6 @@
    "turn_length": "unknown"
   },
   "decision": {
-   "model": "fastino/gliner2-base-v1",
    "provider": "off"
   },
   "economy": {
@@ -4583,14 +4648,18 @@
   },
   "models": {
    "allow_hosted": false,
+   "bindings": {},
    "catalogue": [],
    "default_rerankers": "shipped",
    "detect_gpus": false,
    "embedder_profile": "auto",
+   "escalation": {},
+   "gliner_max_models": 1,
    "gpu_headroom_mb": 512,
    "gpus": [],
    "on_missing_model": "error",
    "pins": {},
+   "profiles": {},
    "ram_mb": 0,
    "required_roles": [],
    "rerank": "chain",
@@ -5098,10 +5167,18 @@
   },
   "workers": {
    "broker_url": "redis://localhost:6379/0",
-   "dbos_system_database_url": null,
    "outbox": false,
+   "resonate": {
+    "journal_busy_timeout_s": 5.0,
+    "journal_path": "./memspine-resonate.sqlite",
+    "max_concurrent_tasks": 4,
+    "step_lease_s": 360.0,
+    "step_timeout_s": 240.0,
+    "task_timeout_s": 270.0
+   },
    "runner": "inline",
    "sleep_interval_seconds": null,
+   "temporal": null,
    "transport": "inline",
    "transport_broker": "memory"
   },
@@ -5196,7 +5273,6 @@
    "turn_length": "unknown"
   },
   "decision": {
-   "model": "fastino/gliner2-base-v1",
    "provider": "off"
   },
   "economy": {
@@ -5325,14 +5401,18 @@
   },
   "models": {
    "allow_hosted": false,
+   "bindings": {},
    "catalogue": [],
    "default_rerankers": "shipped",
    "detect_gpus": false,
    "embedder_profile": "auto",
+   "escalation": {},
+   "gliner_max_models": 1,
    "gpu_headroom_mb": 512,
    "gpus": [],
    "on_missing_model": "error",
    "pins": {},
+   "profiles": {},
    "ram_mb": 0,
    "required_roles": [],
    "rerank": "chain",
@@ -5840,10 +5920,18 @@
   },
   "workers": {
    "broker_url": "redis://localhost:6379/0",
-   "dbos_system_database_url": null,
    "outbox": false,
+   "resonate": {
+    "journal_busy_timeout_s": 5.0,
+    "journal_path": "./memspine-resonate.sqlite",
+    "max_concurrent_tasks": 4,
+    "step_lease_s": 360.0,
+    "step_timeout_s": 240.0,
+    "task_timeout_s": 270.0
+   },
    "runner": "inline",
    "sleep_interval_seconds": null,
+   "temporal": null,
    "transport": "inline",
    "transport_broker": "memory"
   },
@@ -5938,7 +6026,6 @@
    "turn_length": "unknown"
   },
   "decision": {
-   "model": "fastino/gliner2-base-v1",
    "provider": "off"
   },
   "economy": {
@@ -6071,14 +6158,18 @@
   },
   "models": {
    "allow_hosted": false,
+   "bindings": {},
    "catalogue": [],
    "default_rerankers": "shipped",
    "detect_gpus": false,
    "embedder_profile": "auto",
+   "escalation": {},
+   "gliner_max_models": 1,
    "gpu_headroom_mb": 512,
    "gpus": [],
    "on_missing_model": "error",
    "pins": {},
+   "profiles": {},
    "ram_mb": 0,
    "required_roles": [],
    "rerank": "chain",
@@ -6586,10 +6677,18 @@
   },
   "workers": {
    "broker_url": "redis://localhost:6379/0",
-   "dbos_system_database_url": null,
    "outbox": false,
+   "resonate": {
+    "journal_busy_timeout_s": 5.0,
+    "journal_path": "./memspine-resonate.sqlite",
+    "max_concurrent_tasks": 4,
+    "step_lease_s": 360.0,
+    "step_timeout_s": 240.0,
+    "task_timeout_s": 270.0
+   },
    "runner": "inline",
    "sleep_interval_seconds": null,
+   "temporal": null,
    "transport": "inline",
    "transport_broker": "memory"
   },
@@ -6684,7 +6783,6 @@
    "turn_length": "unknown"
   },
   "decision": {
-   "model": "fastino/gliner2-base-v1",
    "provider": "off"
   },
   "economy": {
@@ -6813,14 +6911,18 @@
   },
   "models": {
    "allow_hosted": false,
+   "bindings": {},
    "catalogue": [],
    "default_rerankers": "shipped",
    "detect_gpus": false,
    "embedder_profile": "auto",
+   "escalation": {},
+   "gliner_max_models": 1,
    "gpu_headroom_mb": 512,
    "gpus": [],
    "on_missing_model": "error",
    "pins": {},
+   "profiles": {},
    "ram_mb": 0,
    "required_roles": [],
    "rerank": "chain",
@@ -7328,10 +7430,18 @@
   },
   "workers": {
    "broker_url": "redis://localhost:6379/0",
-   "dbos_system_database_url": null,
    "outbox": false,
+   "resonate": {
+    "journal_busy_timeout_s": 5.0,
+    "journal_path": "./memspine-resonate.sqlite",
+    "max_concurrent_tasks": 4,
+    "step_lease_s": 360.0,
+    "step_timeout_s": 240.0,
+    "task_timeout_s": 270.0
+   },
    "runner": "inline",
    "sleep_interval_seconds": null,
+   "temporal": null,
    "transport": "inline",
    "transport_broker": "memory"
   },
@@ -7426,7 +7536,6 @@
    "turn_length": "unknown"
   },
   "decision": {
-   "model": "fastino/gliner2-base-v1",
    "provider": "off"
   },
   "economy": {
@@ -7555,14 +7664,18 @@
   },
   "models": {
    "allow_hosted": false,
+   "bindings": {},
    "catalogue": [],
    "default_rerankers": "shipped",
    "detect_gpus": false,
    "embedder_profile": "auto",
+   "escalation": {},
+   "gliner_max_models": 1,
    "gpu_headroom_mb": 512,
    "gpus": [],
    "on_missing_model": "error",
    "pins": {},
+   "profiles": {},
    "ram_mb": 0,
    "required_roles": [],
    "rerank": "chain",
@@ -8070,10 +8183,18 @@
   },
   "workers": {
    "broker_url": "redis://localhost:6379/0",
-   "dbos_system_database_url": null,
    "outbox": true,
+   "resonate": {
+    "journal_busy_timeout_s": 5.0,
+    "journal_path": "./memspine-resonate.sqlite",
+    "max_concurrent_tasks": 4,
+    "step_lease_s": 360.0,
+    "step_timeout_s": 240.0,
+    "task_timeout_s": 270.0
+   },
    "runner": "inline",
    "sleep_interval_seconds": null,
+   "temporal": null,
    "transport": "inline",
    "transport_broker": "memory"
   },
@@ -8168,7 +8289,6 @@
    "turn_length": "unknown"
   },
   "decision": {
-   "model": "fastino/gliner2-base-v1",
    "provider": "off"
   },
   "economy": {
@@ -8297,14 +8417,18 @@
   },
   "models": {
    "allow_hosted": false,
+   "bindings": {},
    "catalogue": [],
    "default_rerankers": "shipped",
    "detect_gpus": false,
    "embedder_profile": "auto",
+   "escalation": {},
+   "gliner_max_models": 1,
    "gpu_headroom_mb": 512,
    "gpus": [],
    "on_missing_model": "error",
    "pins": {},
+   "profiles": {},
    "ram_mb": 0,
    "required_roles": [],
    "rerank": "chain",
@@ -8812,10 +8936,18 @@
   },
   "workers": {
    "broker_url": "redis://localhost:6379/0",
-   "dbos_system_database_url": null,
    "outbox": false,
+   "resonate": {
+    "journal_busy_timeout_s": 5.0,
+    "journal_path": "./memspine-resonate.sqlite",
+    "max_concurrent_tasks": 4,
+    "step_lease_s": 360.0,
+    "step_timeout_s": 240.0,
+    "task_timeout_s": 270.0
+   },
    "runner": "inline",
    "sleep_interval_seconds": null,
+   "temporal": null,
    "transport": "inline",
    "transport_broker": "memory"
   },
@@ -8910,7 +9042,6 @@
    "turn_length": "unknown"
   },
   "decision": {
-   "model": "fastino/gliner2-base-v1",
    "provider": "off"
   },
   "economy": {
@@ -9039,14 +9170,18 @@
   },
   "models": {
    "allow_hosted": false,
+   "bindings": {},
    "catalogue": [],
    "default_rerankers": "shipped",
    "detect_gpus": false,
    "embedder_profile": "auto",
+   "escalation": {},
+   "gliner_max_models": 1,
    "gpu_headroom_mb": 512,
    "gpus": [],
    "on_missing_model": "error",
    "pins": {},
+   "profiles": {},
    "ram_mb": 0,
    "required_roles": [],
    "rerank": "chain",
@@ -9554,10 +9689,18 @@
   },
   "workers": {
    "broker_url": "redis://localhost:6379/0",
-   "dbos_system_database_url": null,
    "outbox": false,
+   "resonate": {
+    "journal_busy_timeout_s": 5.0,
+    "journal_path": "./memspine-resonate.sqlite",
+    "max_concurrent_tasks": 4,
+    "step_lease_s": 360.0,
+    "step_timeout_s": 240.0,
+    "task_timeout_s": 270.0
+   },
    "runner": "inline",
    "sleep_interval_seconds": null,
+   "temporal": null,
    "transport": "inline",
    "transport_broker": "memory"
   },
@@ -9652,7 +9795,6 @@
    "turn_length": "unknown"
   },
   "decision": {
-   "model": "fastino/gliner2-base-v1",
    "provider": "off"
   },
   "economy": {
@@ -9781,14 +9923,18 @@
   },
   "models": {
    "allow_hosted": false,
+   "bindings": {},
    "catalogue": [],
    "default_rerankers": "shipped",
    "detect_gpus": false,
    "embedder_profile": "auto",
+   "escalation": {},
+   "gliner_max_models": 1,
    "gpu_headroom_mb": 512,
    "gpus": [],
    "on_missing_model": "error",
    "pins": {},
+   "profiles": {},
    "ram_mb": 0,
    "required_roles": [],
    "rerank": "chain",
@@ -10296,10 +10442,18 @@
   },
   "workers": {
    "broker_url": "redis://localhost:6379/0",
-   "dbos_system_database_url": null,
    "outbox": false,
+   "resonate": {
+    "journal_busy_timeout_s": 5.0,
+    "journal_path": "./memspine-resonate.sqlite",
+    "max_concurrent_tasks": 4,
+    "step_lease_s": 360.0,
+    "step_timeout_s": 240.0,
+    "task_timeout_s": 270.0
+   },
    "runner": "inline",
    "sleep_interval_seconds": null,
+   "temporal": null,
    "transport": "inline",
    "transport_broker": "memory"
   },
@@ -10394,7 +10548,6 @@
    "turn_length": "unknown"
   },
   "decision": {
-   "model": "fastino/gliner2-base-v1",
    "provider": "off"
   },
   "economy": {
@@ -10523,14 +10676,18 @@
   },
   "models": {
    "allow_hosted": false,
+   "bindings": {},
    "catalogue": [],
    "default_rerankers": "shipped",
    "detect_gpus": false,
    "embedder_profile": "auto",
+   "escalation": {},
+   "gliner_max_models": 1,
    "gpu_headroom_mb": 512,
    "gpus": [],
    "on_missing_model": "error",
    "pins": {},
+   "profiles": {},
    "ram_mb": 0,
    "required_roles": [],
    "rerank": "chain",
@@ -11038,10 +11195,18 @@
   },
   "workers": {
    "broker_url": "redis://localhost:6379/0",
-   "dbos_system_database_url": null,
    "outbox": false,
+   "resonate": {
+    "journal_busy_timeout_s": 5.0,
+    "journal_path": "./memspine-resonate.sqlite",
+    "max_concurrent_tasks": 4,
+    "step_lease_s": 360.0,
+    "step_timeout_s": 240.0,
+    "task_timeout_s": 270.0
+   },
    "runner": "inline",
    "sleep_interval_seconds": null,
+   "temporal": null,
    "transport": "inline",
    "transport_broker": "memory"
   },
@@ -11136,7 +11301,6 @@
    "turn_length": "unknown"
   },
   "decision": {
-   "model": "fastino/gliner2-base-v1",
    "provider": "off"
   },
   "economy": {
@@ -11265,14 +11429,18 @@
   },
   "models": {
    "allow_hosted": false,
+   "bindings": {},
    "catalogue": [],
    "default_rerankers": "shipped",
    "detect_gpus": false,
    "embedder_profile": "auto",
+   "escalation": {},
+   "gliner_max_models": 1,
    "gpu_headroom_mb": 512,
    "gpus": [],
    "on_missing_model": "error",
    "pins": {},
+   "profiles": {},
    "ram_mb": 0,
    "required_roles": [],
    "rerank": "chain",
@@ -11780,10 +11948,18 @@
   },
   "workers": {
    "broker_url": "redis://localhost:6379/0",
-   "dbos_system_database_url": null,
    "outbox": false,
+   "resonate": {
+    "journal_busy_timeout_s": 5.0,
+    "journal_path": "./memspine-resonate.sqlite",
+    "max_concurrent_tasks": 4,
+    "step_lease_s": 360.0,
+    "step_timeout_s": 240.0,
+    "task_timeout_s": 270.0
+   },
    "runner": "inline",
    "sleep_interval_seconds": null,
+   "temporal": null,
    "transport": "inline",
    "transport_broker": "memory"
   },
@@ -11878,7 +12054,6 @@
    "turn_length": "unknown"
   },
   "decision": {
-   "model": "fastino/gliner2-base-v1",
    "provider": "off"
   },
   "economy": {
@@ -12007,14 +12182,18 @@
   },
   "models": {
    "allow_hosted": false,
+   "bindings": {},
    "catalogue": [],
    "default_rerankers": "shipped",
    "detect_gpus": false,
    "embedder_profile": "auto",
+   "escalation": {},
+   "gliner_max_models": 1,
    "gpu_headroom_mb": 512,
    "gpus": [],
    "on_missing_model": "error",
    "pins": {},
+   "profiles": {},
    "ram_mb": 0,
    "required_roles": [],
    "rerank": "chain",
@@ -12522,10 +12701,18 @@
   },
   "workers": {
    "broker_url": "redis://localhost:6379/0",
-   "dbos_system_database_url": null,
    "outbox": false,
+   "resonate": {
+    "journal_busy_timeout_s": 5.0,
+    "journal_path": "./memspine-resonate.sqlite",
+    "max_concurrent_tasks": 4,
+    "step_lease_s": 360.0,
+    "step_timeout_s": 240.0,
+    "task_timeout_s": 270.0
+   },
    "runner": "inline",
    "sleep_interval_seconds": null,
+   "temporal": null,
    "transport": "inline",
    "transport_broker": "memory"
   },
@@ -12620,7 +12807,6 @@
    "turn_length": "unknown"
   },
   "decision": {
-   "model": "fastino/gliner2-base-v1",
    "provider": "off"
   },
   "economy": {
@@ -12758,14 +12944,18 @@
   },
   "models": {
    "allow_hosted": false,
+   "bindings": {},
    "catalogue": [],
    "default_rerankers": "shipped",
    "detect_gpus": false,
    "embedder_profile": "auto",
+   "escalation": {},
+   "gliner_max_models": 1,
    "gpu_headroom_mb": 512,
    "gpus": [],
    "on_missing_model": "error",
    "pins": {},
+   "profiles": {},
    "ram_mb": 0,
    "required_roles": [],
    "rerank": "chain",
@@ -13277,10 +13467,18 @@
   },
   "workers": {
    "broker_url": "redis://localhost:6379/0",
-   "dbos_system_database_url": null,
    "outbox": false,
+   "resonate": {
+    "journal_busy_timeout_s": 5.0,
+    "journal_path": "./memspine-resonate.sqlite",
+    "max_concurrent_tasks": 4,
+    "step_lease_s": 360.0,
+    "step_timeout_s": 240.0,
+    "task_timeout_s": 270.0
+   },
    "runner": "inline",
    "sleep_interval_seconds": null,
+   "temporal": null,
    "transport": "inline",
    "transport_broker": "memory"
   },
@@ -13375,7 +13573,6 @@
    "turn_length": "unknown"
   },
   "decision": {
-   "model": "fastino/gliner2-base-v1",
    "provider": "off"
   },
   "economy": {
@@ -13509,14 +13706,18 @@
   },
   "models": {
    "allow_hosted": false,
+   "bindings": {},
    "catalogue": [],
    "default_rerankers": "shipped",
    "detect_gpus": false,
    "embedder_profile": "auto",
+   "escalation": {},
+   "gliner_max_models": 1,
    "gpu_headroom_mb": 512,
    "gpus": [],
    "on_missing_model": "error",
    "pins": {},
+   "profiles": {},
    "ram_mb": 0,
    "required_roles": [],
    "rerank": "chain",
@@ -14024,10 +14225,18 @@
   },
   "workers": {
    "broker_url": "redis://localhost:6379/0",
-   "dbos_system_database_url": null,
    "outbox": false,
+   "resonate": {
+    "journal_busy_timeout_s": 5.0,
+    "journal_path": "./memspine-resonate.sqlite",
+    "max_concurrent_tasks": 4,
+    "step_lease_s": 360.0,
+    "step_timeout_s": 240.0,
+    "task_timeout_s": 270.0
+   },
    "runner": "inline",
    "sleep_interval_seconds": null,
+   "temporal": null,
    "transport": "inline",
    "transport_broker": "memory"
   },
@@ -14122,7 +14331,6 @@
    "turn_length": "unknown"
   },
   "decision": {
-   "model": "fastino/gliner2-base-v1",
    "provider": "off"
   },
   "economy": {
@@ -14247,14 +14455,18 @@
   },
   "models": {
    "allow_hosted": false,
+   "bindings": {},
    "catalogue": [],
    "default_rerankers": "shipped",
    "detect_gpus": false,
    "embedder_profile": "auto",
+   "escalation": {},
+   "gliner_max_models": 1,
    "gpu_headroom_mb": 512,
    "gpus": [],
    "on_missing_model": "error",
    "pins": {},
+   "profiles": {},
    "ram_mb": 0,
    "required_roles": [],
    "rerank": "chain",
@@ -14752,10 +14964,18 @@
   },
   "workers": {
    "broker_url": "redis://localhost:6379/0",
-   "dbos_system_database_url": null,
    "outbox": false,
+   "resonate": {
+    "journal_busy_timeout_s": 5.0,
+    "journal_path": "./memspine-resonate.sqlite",
+    "max_concurrent_tasks": 4,
+    "step_lease_s": 360.0,
+    "step_timeout_s": 240.0,
+    "task_timeout_s": 270.0
+   },
    "runner": "inline",
    "sleep_interval_seconds": null,
+   "temporal": null,
    "transport": "inline",
    "transport_broker": "memory"
   },
@@ -14850,7 +15070,6 @@
    "turn_length": "unknown"
   },
   "decision": {
-   "model": "fastino/gliner2-base-v1",
    "provider": "off"
   },
   "economy": {
@@ -14987,14 +15206,18 @@
   },
   "models": {
    "allow_hosted": false,
+   "bindings": {},
    "catalogue": [],
    "default_rerankers": "shipped",
    "detect_gpus": false,
    "embedder_profile": "auto",
+   "escalation": {},
+   "gliner_max_models": 1,
    "gpu_headroom_mb": 512,
    "gpus": [],
    "on_missing_model": "error",
    "pins": {},
+   "profiles": {},
    "ram_mb": 0,
    "required_roles": [],
    "rerank": "chain",
@@ -15502,10 +15725,18 @@
   },
   "workers": {
    "broker_url": "redis://localhost:6379/0",
-   "dbos_system_database_url": null,
    "outbox": false,
+   "resonate": {
+    "journal_busy_timeout_s": 5.0,
+    "journal_path": "./memspine-resonate.sqlite",
+    "max_concurrent_tasks": 4,
+    "step_lease_s": 360.0,
+    "step_timeout_s": 240.0,
+    "task_timeout_s": 270.0
+   },
    "runner": "inline",
    "sleep_interval_seconds": null,
+   "temporal": null,
    "transport": "inline",
    "transport_broker": "memory"
   },
@@ -15600,7 +15831,6 @@
    "turn_length": "unknown"
   },
   "decision": {
-   "model": "fastino/gliner2-base-v1",
    "provider": "off"
   },
   "economy": {
@@ -15733,14 +15963,18 @@
   },
   "models": {
    "allow_hosted": false,
+   "bindings": {},
    "catalogue": [],
    "default_rerankers": "shipped",
    "detect_gpus": false,
    "embedder_profile": "auto",
+   "escalation": {},
+   "gliner_max_models": 1,
    "gpu_headroom_mb": 512,
    "gpus": [],
    "on_missing_model": "error",
    "pins": {},
+   "profiles": {},
    "ram_mb": 0,
    "required_roles": [],
    "rerank": "chain",
@@ -16248,10 +16482,31 @@
   },
   "workers": {
    "broker_url": "redis://localhost:6379/0",
-   "dbos_system_database_url": null,
    "outbox": false,
-   "runner": "dbos",
+   "resonate": {
+    "journal_busy_timeout_s": 5.0,
+    "journal_path": "./memspine-resonate.sqlite",
+    "max_concurrent_tasks": 4,
+    "step_lease_s": 360.0,
+    "step_timeout_s": 240.0,
+    "task_timeout_s": 270.0
+   },
+   "runner": "temporal",
    "sleep_interval_seconds": null,
+   "temporal": {
+    "activity_timeout_s": 300.0,
+    "address": "localhost:7233",
+    "api_key": null,
+    "deployment_id": "multi-agent",
+    "max_concurrent_activities": 4,
+    "max_result_bytes": 65536,
+    "namespace": "default",
+    "retry_max_attempts": 3,
+    "rpc_timeout_s": 30.0,
+    "task_queue": null,
+    "tls": false,
+    "workflow_timeout_s": 3600.0
+   },
    "transport": "inline",
    "transport_broker": "memory"
   },
@@ -16346,7 +16601,6 @@
    "turn_length": "unknown"
   },
   "decision": {
-   "model": "fastino/gliner2-base-v1",
    "provider": "off"
   },
   "economy": {
@@ -16483,14 +16737,18 @@
   },
   "models": {
    "allow_hosted": false,
+   "bindings": {},
    "catalogue": [],
    "default_rerankers": "shipped",
    "detect_gpus": false,
    "embedder_profile": "auto",
+   "escalation": {},
+   "gliner_max_models": 1,
    "gpu_headroom_mb": 512,
    "gpus": [],
    "on_missing_model": "error",
    "pins": {},
+   "profiles": {},
    "ram_mb": 0,
    "required_roles": [],
    "rerank": "chain",
@@ -16998,10 +17256,18 @@
   },
   "workers": {
    "broker_url": "redis://localhost:6379/0",
-   "dbos_system_database_url": null,
    "outbox": false,
+   "resonate": {
+    "journal_busy_timeout_s": 5.0,
+    "journal_path": "./memspine-resonate.sqlite",
+    "max_concurrent_tasks": 4,
+    "step_lease_s": 360.0,
+    "step_timeout_s": 240.0,
+    "task_timeout_s": 270.0
+   },
    "runner": "inline",
    "sleep_interval_seconds": null,
+   "temporal": null,
    "transport": "inline",
    "transport_broker": "memory"
   },
@@ -17096,7 +17362,6 @@
    "turn_length": "unknown"
   },
   "decision": {
-   "model": "fastino/gliner2-base-v1",
    "provider": "off"
   },
   "economy": {
@@ -17225,14 +17490,18 @@
   },
   "models": {
    "allow_hosted": false,
+   "bindings": {},
    "catalogue": [],
    "default_rerankers": "shipped",
    "detect_gpus": false,
    "embedder_profile": "auto",
+   "escalation": {},
+   "gliner_max_models": 1,
    "gpu_headroom_mb": 512,
    "gpus": [],
    "on_missing_model": "error",
    "pins": {},
+   "profiles": {},
    "ram_mb": 0,
    "required_roles": [],
    "rerank": "chain",
@@ -17740,10 +18009,18 @@
   },
   "workers": {
    "broker_url": "redis://localhost:6379/0",
-   "dbos_system_database_url": null,
    "outbox": false,
+   "resonate": {
+    "journal_busy_timeout_s": 5.0,
+    "journal_path": "./memspine-resonate.sqlite",
+    "max_concurrent_tasks": 4,
+    "step_lease_s": 360.0,
+    "step_timeout_s": 240.0,
+    "task_timeout_s": 270.0
+   },
    "runner": "inline",
    "sleep_interval_seconds": null,
+   "temporal": null,
    "transport": "inline",
    "transport_broker": "memory"
   },
@@ -17838,7 +18115,6 @@
    "turn_length": "unknown"
   },
   "decision": {
-   "model": "fastino/gliner2-base-v1",
    "provider": "off"
   },
   "economy": {
@@ -17968,14 +18244,18 @@
   },
   "models": {
    "allow_hosted": false,
+   "bindings": {},
    "catalogue": [],
    "default_rerankers": "shipped",
    "detect_gpus": false,
    "embedder_profile": "auto",
+   "escalation": {},
+   "gliner_max_models": 1,
    "gpu_headroom_mb": 512,
    "gpus": [],
    "on_missing_model": "error",
    "pins": {},
+   "profiles": {},
    "ram_mb": 0,
    "required_roles": [],
    "rerank": "chain",
@@ -18483,10 +18763,31 @@
   },
   "workers": {
    "broker_url": "redis://localhost:6379/0",
-   "dbos_system_database_url": null,
    "outbox": false,
-   "runner": "dbos",
+   "resonate": {
+    "journal_busy_timeout_s": 5.0,
+    "journal_path": "./memspine-resonate.sqlite",
+    "max_concurrent_tasks": 4,
+    "step_lease_s": 360.0,
+    "step_timeout_s": 240.0,
+    "task_timeout_s": 270.0
+   },
+   "runner": "temporal",
    "sleep_interval_seconds": null,
+   "temporal": {
+    "activity_timeout_s": 300.0,
+    "address": "localhost:7233",
+    "api_key": null,
+    "deployment_id": "regulated-financial",
+    "max_concurrent_activities": 4,
+    "max_result_bytes": 65536,
+    "namespace": "default",
+    "retry_max_attempts": 3,
+    "rpc_timeout_s": 30.0,
+    "task_queue": null,
+    "tls": false,
+    "workflow_timeout_s": 3600.0
+   },
    "transport": "inline",
    "transport_broker": "memory"
   },
@@ -18581,7 +18882,6 @@
    "turn_length": "unknown"
   },
   "decision": {
-   "model": "fastino/gliner2-base-v1",
    "provider": "off"
   },
   "economy": {
@@ -18712,14 +19012,18 @@
   },
   "models": {
    "allow_hosted": false,
+   "bindings": {},
    "catalogue": [],
    "default_rerankers": "shipped",
    "detect_gpus": false,
    "embedder_profile": "auto",
+   "escalation": {},
+   "gliner_max_models": 1,
    "gpu_headroom_mb": 512,
    "gpus": [],
    "on_missing_model": "error",
    "pins": {},
+   "profiles": {},
    "ram_mb": 0,
    "required_roles": [],
    "rerank": "chain",
@@ -19227,10 +19531,18 @@
   },
   "workers": {
    "broker_url": "redis://localhost:6379/0",
-   "dbos_system_database_url": null,
    "outbox": false,
+   "resonate": {
+    "journal_busy_timeout_s": 5.0,
+    "journal_path": "./memspine-resonate.sqlite",
+    "max_concurrent_tasks": 4,
+    "step_lease_s": 360.0,
+    "step_timeout_s": 240.0,
+    "task_timeout_s": 270.0
+   },
    "runner": "inline",
    "sleep_interval_seconds": null,
+   "temporal": null,
    "transport": "inline",
    "transport_broker": "memory"
   },

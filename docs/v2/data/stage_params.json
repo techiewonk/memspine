@@ -2063,24 +2063,19 @@
      "screen_ids": []
     },
     {
-     "key": "workers.dbos_system_database_url",
-     "default": null,
-     "type": "str | None",
-     "description": "DBOS system db; `null` derives a SQLite file beside `storage.settings.path`.",
-     "effect": "DBOS system db; `null` derives a SQLite file beside `storage.settings.path`.",
-     "rebuild": false,
-     "rebuild_scope": "",
-     "screen_ids": []
-    },
-    {
      "key": "workers.runner",
      "default": "inline",
-     "type": "str",
-     "description": "`inline` | `dbos` `[dbos]` | `taskiq` `[taskiq]` (D-16).",
-     "effect": "`inline` | `dbos` `[dbos]` | `taskiq` `[taskiq]` (D-16).",
+     "type": "Literal['inline', 'temporal', 'taskiq']",
+     "description": "`inline` | `temporal` `[temporal]` | `taskiq` `[taskiq]` (ADR-071).",
+     "effect": "`inline` | `temporal` `[temporal]` | `taskiq` `[taskiq]` (ADR-071).",
      "rebuild": false,
      "rebuild_scope": "",
-     "screen_ids": []
+     "screen_ids": [],
+     "choices": [
+      "inline",
+      "temporal",
+      "taskiq"
+     ]
     },
     {
      "key": "workers.sleep_interval_seconds",
@@ -4126,20 +4121,10 @@
      "screen_ids": []
     },
     {
-     "key": "decision.model",
-     "default": "fastino/gliner2-base-v1",
-     "type": "str",
-     "description": "H24: the GLiNER2 checkpoint (Hugging Face id; `-large-v1` and `-multi-v1` also exist).",
-     "effect": "The GLiNER2 checkpoint (Hugging Face id;",
-     "rebuild": false,
-     "rebuild_scope": "",
-     "screen_ids": []
-    },
-    {
      "key": "decision.provider",
      "default": "off",
      "type": "Literal['off', 'gliner2']",
-     "description": "H24: optional decision provider for calibrated choices among described options without generation. `gliner2` uses the `[ner]` extra (GLiNER2, Apache-2.0).",
+     "description": "H24: optional decision provider for calibrated choices among described options without generation. `gliner2` uses the `[ner]` extra (GLiNER2, Apache-2.0); bind `gliner_decision` to a GLiNER profile in `models.bindings`.",
      "effect": "Optional decision provider for calibrated choices among described options without generation.",
      "rebuild": false,
      "rebuild_scope": "",
@@ -4492,11 +4477,6 @@
     }
    ],
    "models": [
-    {
-     "role": "decision.model",
-     "source": "decision.model",
-     "default": "fastino/gliner2-base-v1"
-    },
     {
      "role": "plan",
      "source": "llm.roles.plan.model"
@@ -9302,14 +9282,24 @@
   "memories.*.enabled": "per-memory-type enablement and policy overrides, resolved at engine start",
   "memories.*.policies": "per-memory-type enablement and policy overrides, resolved at engine start",
   "models.allow_hosted": "model planning at engine start (tiers, GPU placement, pins); applies to every stage that uses a model role",
+  "models.bindings": "explicit role-to-profile selection for generative calls and gliner_decision/gliner_semantic/gliner_prepass; precedence over automatic tier selection",
   "models.catalogue": "model planning at engine start (tiers, GPU placement, pins); applies to every stage that uses a model role",
   "models.default_rerankers": "model planning at engine start (tiers, GPU placement, pins); applies to every stage that uses a model role",
   "models.detect_gpus": "model planning at engine start (tiers, GPU placement, pins); applies to every stage that uses a model role",
   "models.embedder_profile": "model planning at engine start (tiers, GPU placement, pins); applies to every stage that uses a model role",
+  "models.escalation.*.max_attempts": "opt-in per-chat-invocation model escalation with explicit triggers, attempt limit, total deadline and per-attempt output setting; each candidate retains consent gates",
+  "models.escalation.*.max_tokens_per_attempt": "opt-in per-chat-invocation model escalation with explicit triggers, attempt limit, total deadline and per-attempt output setting; each candidate retains consent gates",
+  "models.escalation.*.targets": "opt-in per-chat-invocation model escalation with explicit triggers, attempt limit, total deadline and per-attempt output setting; each candidate retains consent gates",
+  "models.escalation.*.timeout_s": "opt-in per-chat-invocation model escalation with explicit triggers, attempt limit, total deadline and per-attempt output setting; each candidate retains consent gates",
+  "models.escalation.*.triggers": "opt-in per-chat-invocation model escalation with explicit triggers, attempt limit, total deadline and per-attempt output setting; each candidate retains consent gates",
+  "models.gliner_max_models": "explicit bound on resident engine-owned GLiNER models; different profiles may use different checkpoints within this resource cap",
   "models.gpu_headroom_mb": "model planning at engine start (tiers, GPU placement, pins); applies to every stage that uses a model role",
   "models.gpus": "model planning at engine start (tiers, GPU placement, pins); applies to every stage that uses a model role",
   "models.on_missing_model": "model planning at engine start (tiers, GPU placement, pins); applies to every stage that uses a model role",
   "models.pins": "model planning at engine start (tiers, GPU placement, pins); applies to every stage that uses a model role",
+  "models.profiles.*.kind": "named native LLM/GLiNER provider settings; explicit task bindings select resources, identical effective GLiNER settings share weights and each Engine owns its resources",
+  "models.profiles.*.provider": "named native LLM/GLiNER provider settings; explicit task bindings select resources, identical effective GLiNER settings share weights and each Engine owns its resources",
+  "models.profiles.*.settings": "named native LLM/GLiNER provider settings; explicit task bindings select resources, identical effective GLiNER settings share weights and each Engine owns its resources",
   "models.ram_mb": "model planning at engine start (tiers, GPU placement, pins); applies to every stage that uses a model role",
   "models.required_roles": "model planning at engine start (tiers, GPU placement, pins); applies to every stage that uses a model role",
   "models.role_tier": "model planning at engine start (tiers, GPU placement, pins); applies to every stage that uses a model role",
@@ -9381,8 +9371,15 @@
   "runtime.service_switches.storage.mode": "scheduler, backpressure and concurrency budgets: apply to the whole engine, not to one stage",
   "runtime.service_switches.storage.strategy": "scheduler, backpressure and concurrency budgets: apply to the whole engine, not to one stage",
   "storage.profile": "embedded vs server storage preset: applies to every stage that persists",
-  "strict_services": "engine start-up check (missing service raises or skips), not a stage knob"
+  "strict_services": "engine start-up check (missing service raises or skips), not a stage knob",
+  "workers.resonate.journal_busy_timeout_s": "no read site matched an inventory stage",
+  "workers.resonate.journal_path": "no read site matched an inventory stage",
+  "workers.resonate.max_concurrent_tasks": "no read site matched an inventory stage",
+  "workers.resonate.step_lease_s": "no read site matched an inventory stage",
+  "workers.resonate.step_timeout_s": "no read site matched an inventory stage",
+  "workers.resonate.task_timeout_s": "no read site matched an inventory stage",
+  "workers.temporal": "no read site matched an inventory stage"
  },
- "unattributed_count": 105,
- "schema_key_count": 599
+ "unattributed_count": 122,
+ "schema_key_count": 614
 }

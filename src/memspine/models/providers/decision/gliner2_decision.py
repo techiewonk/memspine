@@ -6,10 +6,9 @@ loaded lazily on first use and runs in a worker thread so the event loop is neve
 
 API surface used here, and how sure we are of it:
 
-* ``from gliner2 import GLiNER2`` and ``GLiNER2.from_pretrained(<hf id>)``: the same calls as
-  the NER adapter (``memories/semantic/entities.py``) and graphiti's ``GLiNER2Client``.
-  ``AutoExtractor`` is accepted as a fallback import name.
-* The default checkpoint ``fastino/gliner2-base-v1`` is the id graphiti documents.
+* ``from gliner2 import AutoExtractor`` and ``AutoExtractor.from_pretrained(<hf id>)`` dispatches
+  to the model architecture declared in the checkpoint config.
+* The default checkpoint ``fastino/gliner2.5-base-v1`` uses the boundary architecture.
 * Classification goes through ``create_schema().classification(...)`` + ``extract(...)`` when the
   model exposes them, and through ``classify_text(...)`` otherwise. ``include_confidence`` is
   dropped on a ``TypeError``. The shape of the result is checked by ``parse_choice``.
@@ -20,77 +19,78 @@ API surface used here, and how sure we are of it:
 
 from __future__ import annotations
 
-import asyncio
 import importlib
-import threading
 from collections.abc import Mapping
 from typing import Any
 
+from memspine.config.schema.llm import GlinerSettings
 from memspine.exceptions import MissingServiceError
+from memspine.models.runtime.gliner_runtime import GLiNERModelPool
 
-__all__ = ["DEFAULT_MODEL", "GLiNER2Decision", "gliner2_class", "parse_choice", "parse_entities"]
+__all__ = [
+    "DEFAULT_MODEL",
+    "GLiNER2Decision",
+    "auto_extractor_class",
+    "parse_choice",
+    "parse_entities",
+]
 
-DEFAULT_MODEL = "fastino/gliner2-base-v1"
+DEFAULT_MODEL = GlinerSettings().model
 _SERVICE = "gliner2 decision provider"
-_CLASS_NAMES = ("GLiNER2", "AutoExtractor")
 _FIELD = "choice"
 #: GP-3: the entity types the graph leg asks for when it seeds from a query.
 _ENTITY_LABELS = ("person", "place", "organization", "event", "thing")
 
 
-def gliner2_class() -> Any:
-    """The gliner2 model class (``GLiNER2``, else ``AutoExtractor``).
+def auto_extractor_class() -> Any:
+    """Return ``gliner2.AutoExtractor`` without loading a checkpoint.
 
-    Raises ``MissingServiceError(extra="ner")`` when gliner2 is not installed or exposes
-    neither name. Importing the package does not download a model.
+    Raises ``MissingServiceError(extra="ner")`` when gliner2 or its local runtime is
+    unavailable, or when the package does not expose ``AutoExtractor``. Importing
+    the package does not download a model.
     """
     try:
         module = importlib.import_module("gliner2")
     except ImportError as exc:
         raise MissingServiceError(_SERVICE, extra="ner") from exc
-    for name in _CLASS_NAMES:
-        try:
-            # gliner2>=2.0 resolves its model classes lazily (module ``__getattr__``):
-            # a base install without the ``[local]`` stack (torch, transformers,
-            # peft) raises ImportError here, not at ``import gliner2``.
-            cls = getattr(module, name, None)
-        except ImportError as exc:
-            raise MissingServiceError(_SERVICE, extra="ner") from exc
-        if cls is not None:
-            return cls
-    raise MissingServiceError(_SERVICE, extra="ner")
+    try:
+        # gliner2>=2.0 resolves this lazily; a base install without the local
+        # stack raises ImportError here rather than while importing the package.
+        cls = getattr(module, "AutoExtractor", None)
+    except ImportError as exc:
+        raise MissingServiceError(_SERVICE, extra="ner") from exc
+    if cls is None:
+        raise MissingServiceError(_SERVICE, extra="ner")
+    return cls
 
 
 class GLiNER2Decision:
     """``DecisionProvider`` backed by a GLiNER2 classification head.
 
-    The first load runs under a lock, so concurrent reads load the model once. A failed load
-    is cached and re-raised on later calls, so a broken install is not retried on every read.
+    The engine-owned model pool coalesces concurrent loads across every GLiNER consumer.
     """
 
-    provider_id = "gliner2"
+    def __init__(self, settings: GlinerSettings, pool: GLiNERModelPool) -> None:
+        if "classification" not in settings.tasks:
+            raise ValueError(
+                "the bound GLiNER profile must include task 'classification' for the decision provider"
+            )
+        self.settings = settings
+        self._pool = pool
 
-    def __init__(self, model: str = DEFAULT_MODEL) -> None:
-        self.model = model
-        self._extractor: Any = None
-        self._load_error: Exception | None = None
-        self._lock = threading.Lock()
+    @property
+    def provider_id(self) -> str:
+        settings = self.settings
+        task_set = ",".join(sorted(settings.tasks))
+        return (
+            f"gliner2:{settings.model}@{settings.revision or 'default'}:{settings.device}:"
+            f"local={settings.local_files_only}:tasks={task_set}:"
+            f"concurrency={settings.inference_concurrency}:classification-v1:{_FIELD}"
+        )
 
-    def _load(self) -> Any:
-        with self._lock:
-            if self._extractor is not None:
-                return self._extractor
-            if self._load_error is not None:
-                raise self._load_error
-            try:
-                self._extractor = gliner2_class().from_pretrained(self.model)
-            except Exception as exc:
-                self._load_error = exc
-                raise
-            return self._extractor
-
-    def _choose_sync(self, text: str, options: Mapping[str, str]) -> tuple[str, float | None]:
-        extractor = self._load()
+    def _choose_sync(
+        self, extractor: Any, text: str, options: Mapping[str, str]
+    ) -> tuple[str, float | None]:
         described = dict(options)
         if hasattr(extractor, "create_schema") and hasattr(extractor, "extract"):
             schema = extractor.create_schema().classification(_FIELD, described)
@@ -106,14 +106,33 @@ class GLiNER2Decision:
         return parse_choice(result, options)
 
     async def choose(self, text: str, options: Mapping[str, str]) -> tuple[str, float | None]:
-        return await asyncio.to_thread(self._choose_sync, text, options)
+        lease = await self._pool.acquire(self.settings)
+        try:
+            return await lease.call(lambda model: self._choose_sync(model, text, options))
+        finally:
+            await lease.aclose()
 
-    def _entities_sync(self, text: str) -> list[str]:
-        return parse_entities(self._load().extract_entities(text, list(_ENTITY_LABELS)))
+    @property
+    def entities_model_id(self) -> str:
+        settings = self.settings
+        return (
+            f"gliner2:{settings.model}@{settings.revision or 'default'}:{settings.device}:"
+            f"local={settings.local_files_only}:tasks={','.join(sorted(settings.tasks))}:"
+            f"concurrency={settings.inference_concurrency}:entities-v1[{','.join(_ENTITY_LABELS)}]"
+        )
 
     async def entities(self, text: str) -> list[str]:
         """GP-3: the entity names in ``text`` (seeds for the graph read leg)."""
-        return await asyncio.to_thread(self._entities_sync, text)
+        if "entities" not in self.settings.tasks:
+            raise ValueError(
+                "the bound GLiNER profile must include task 'entities' for decision entity lookup"
+            )
+        lease = await self._pool.acquire(self.settings)
+        try:
+            raw = await lease.call(lambda model: model.extract_entities(text, list(_ENTITY_LABELS)))
+            return parse_entities(raw)
+        finally:
+            await lease.aclose()
 
 
 def parse_entities(result: Any) -> list[str]:

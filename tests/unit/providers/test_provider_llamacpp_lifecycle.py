@@ -8,11 +8,13 @@ from typing import Any
 
 import pytest
 
+from memspine.config.schema import MemspineConfig
 from memspine.providers.builtin.models import register
 from memspine.providers.contexts import LLMBuildContext, SharedBuildContext
 from memspine.providers.lifecycle import LifecycleState, ProviderLifecycleManager
 from memspine.providers.registry import LLM_PROVIDERS
 from memspine.providers.settings import LlamaCppRoleSettings
+from memspine.runtime import container
 
 
 def _builder():
@@ -20,10 +22,15 @@ def _builder():
     return LLM_PROVIDERS.get("llamacpp").builder
 
 
-def _context(resources: ProviderLifecycleManager, role: str = "chat") -> LLMBuildContext:
+def _context(
+    resources: ProviderLifecycleManager,
+    role: str = "chat",
+    resource_key: str | None = None,
+) -> LLMBuildContext:
     return LLMBuildContext(
         shared=SharedBuildContext(resources, "deployment-a", 1.0),
         role=role,
+        resource_key=resource_key,
     )
 
 
@@ -102,6 +109,81 @@ async def test_llamacpp_constructor_failure_unwinds_registered_resource(
     report = await resources.close_all()
     assert report.complete
     assert resources.states == {"llm:chat": LifecycleState.STOPPED}
+
+
+@pytest.mark.asyncio
+async def test_named_llamacpp_profiles_have_distinct_resources_and_shared_profile_closes_once(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    register()
+    constructed: list[str] = []
+    closed: dict[str, int] = {}
+
+    class FakeLlama:
+        def __init__(self, **kwargs: Any) -> None:
+            model_path = str(kwargs["model_path"])
+            self.model_path = model_path
+            constructed.append(model_path)
+
+        def create_chat_completion(self, **kwargs: Any) -> dict[str, object]:
+            return {"choices": [{"message": {"content": "answer"}}]}
+
+        def close(self) -> None:
+            closed[self.model_path] = closed.get(self.model_path, 0) + 1
+
+    monkeypatch.setitem(sys.modules, "llama_cpp", types.SimpleNamespace(Llama=FakeLlama))
+    config = MemspineConfig(
+        runtime={
+            "provider_services": {
+                "health_timeout_s": 2.0,
+                "close_timeout_s": 2.0,
+                "startup_timeout_s": None,
+            }
+        },
+        models={
+            "profiles": {
+                "primary": {
+                    "kind": "llm",
+                    "provider": "llamacpp",
+                    "settings": {"model": "llamacpp/primary.gguf", "timeout_seconds": 2.0},
+                },
+                "backup": {
+                    "kind": "llm",
+                    "provider": "llamacpp",
+                    "settings": {"model": "llamacpp/backup.gguf", "timeout_seconds": 2.0},
+                },
+            },
+            "bindings": {"chat": "primary", "extract": "primary"},
+            "escalation": {
+                "chat": {
+                    "targets": ["backup"],
+                    "triggers": ["empty"],
+                    "max_attempts": 2,
+                    "timeout_s": 1.0,
+                    "max_tokens_per_attempt": 64,
+                }
+            },
+        },
+    )
+    resources = ProviderLifecycleManager(close_timeout_s=2.0)
+    wiring = container.Wiring(
+        resources=resources,
+        health_timeout_s=2.0,
+        startup_timeout_s=None,
+    )
+
+    router = await container.build_llm_router(config, container.WiringHooks(), wiring)
+    assert constructed == ["primary.gguf", "backup.gguf"]
+    assert resources.states == {
+        "llm.profile:primary": LifecycleState.REGISTERED,
+        "llm.profile:backup": LifecycleState.REGISTERED,
+    }
+    chat = router.provider("chat")
+    assert chat._memspine_attempt_providers[0] is router.provider("extract")
+
+    report = await resources.close_all()
+    assert report.complete
+    assert closed == {"primary.gguf": 1, "backup.gguf": 1}
 
 
 @pytest.mark.asyncio

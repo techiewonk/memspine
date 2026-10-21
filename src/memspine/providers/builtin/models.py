@@ -107,7 +107,7 @@ class _LlamaCppBuilder:
             raise ConfigError("llamacpp provider model must have the form 'llamacpp/<model-path>'")
 
         service = LlamaCppLLM.allocate()
-        resource = ctx.shared.resources.own(f"llm:{ctx.role}", service.close)
+        resource = ctx.shared.resources.own(ctx.resource_key or f"llm:{ctx.role}", service.close)
         native_options: dict[str, Any] = {
             "n_gpu_layers": settings.n_gpu_layers,
             "n_batch": settings.n_batch,
@@ -227,9 +227,7 @@ def _register(
                 name, capability, provides=(capability,), extra=extra
             ),
             requires_deployment_id=requires_deployment_id,
-            target_identity=(
-                _embedding_target_identity(name) if category == "embedding" else None
-            ),
+            target_identity=(_embedding_target_identity(name) if category == "embedding" else None),
         ),
     )
 
@@ -287,17 +285,18 @@ def _embedding_target_identity(name: str) -> Callable[[Any], dict[str, Any]]:
 def register() -> None:
     """Register lazy descriptors; importing this module loads no model adapter."""
     models: tuple[
-    tuple[
-        Any,
-        Category,
-        str,
-        type[BaseModel],
-        Callable[[Any, Any], Any],
-        str,
-        bool,
-        tuple[DependencyRequirement, ...],
-        str | None,
-    ], ...
+        tuple[
+            Any,
+            Category,
+            str,
+            type[BaseModel],
+            Callable[[Any, Any], Any],
+            str,
+            bool,
+            tuple[DependencyRequirement, ...],
+            str | None,
+        ],
+        ...,
     ] = (
         (
             LLM_PROVIDERS,
@@ -429,14 +428,20 @@ def register() -> None:
             "qwen3",
             Qwen3RerankerSettings,
             "_build_qwen3",
-            (DependencyRequirement("package", "transformers"), DependencyRequirement("package", "torch")),
+            (
+                DependencyRequirement("package", "transformers"),
+                DependencyRequirement("package", "torch"),
+            ),
             "st",
         ),
         (
             "jina",
             JinaRerankerSettings,
             "_build_jina",
-            (DependencyRequirement("package", "transformers"), DependencyRequirement("package", "torch")),
+            (
+                DependencyRequirement("package", "transformers"),
+                DependencyRequirement("package", "torch"),
+            ),
             "st",
         ),
     )

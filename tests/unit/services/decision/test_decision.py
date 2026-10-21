@@ -1,9 +1,9 @@
-"""H24: decision port, GLiNER2 adapter (fake gliner2 module), and the read planner."""
+"""H24: decision port, GLiNER2.5 adapter (fake SDK), and the read planner."""
 
 from __future__ import annotations
 
+import asyncio
 import sys
-import threading
 import types
 from collections.abc import Mapping
 from datetime import UTC, datetime
@@ -12,14 +12,16 @@ from typing import Any, ClassVar
 import pytest
 
 from memspine import Engine
-from memspine.exceptions import MissingServiceError
+from memspine.config.schema.llm import GlinerSettings
+from memspine.exceptions import ConfigError, MissingServiceError
 from memspine.models.providers.decision import DecisionProvider
 from memspine.models.providers.decision.gliner2_decision import (
     DEFAULT_MODEL,
     GLiNER2Decision,
-    gliner2_class,
+    auto_extractor_class,
     parse_choice,
 )
+from memspine.models.runtime.gliner_runtime import GLiNERModelPool
 
 OPTS = {"a": "first", "b": "second"}
 
@@ -32,8 +34,17 @@ def test_parse_choice_shapes() -> None:
         parse_choice({"choice": "zzz"}, OPTS)
 
 
+def test_gliner_settings_reject_invalid_or_coerced_values() -> None:
+    with pytest.raises(ValueError, match="at least one task"):
+        GlinerSettings(tasks=())
+    with pytest.raises(ValueError):
+        GlinerSettings(local_files_only="false")  # type: ignore[arg-type]
+    with pytest.raises(ValueError):
+        GlinerSettings(inference_concurrency=True)  # type: ignore[arg-type]
+
+
 def test_gliner2_satisfies_the_port() -> None:
-    assert isinstance(GLiNER2Decision(), DecisionProvider)
+    assert isinstance(GLiNER2Decision(GlinerSettings(), GLiNERModelPool()), DecisionProvider)
 
 
 # ── fake gliner2 module ──────────────────────────────────────────────────────
@@ -49,14 +60,9 @@ class _Schema:
 
 
 class _FakeModel:
-    """Mimics ``GLiNER2``: ``from_pretrained`` + ``create_schema`` + ``extract``."""
+    """Mimics the architecture-dispatched ``AutoExtractor`` API."""
 
     loaded: ClassVar[list[str]] = []
-
-    @classmethod
-    def from_pretrained(cls, model_id: str) -> _FakeModel:
-        cls.loaded.append(model_id)
-        return cls()
 
     def create_schema(self) -> _Schema:
         return _Schema()
@@ -65,21 +71,38 @@ class _FakeModel:
         assert schema.fields["choice"] == OPTS
         return {"choice": {"label": "b", "confidence": 0.7}}
 
+    def extract_entities(
+        self,
+        text: str,
+        labels: list[str],
+        *,
+        include_confidence: bool = False,
+        include_spans: bool = False,
+    ) -> dict[str, Any]:
+        start = text.find("Mira")
+        found: list[Any] = []
+        if start >= 0:
+            item: dict[str, Any] = {"text": "Mira", "start": start, "end": start + 4}
+            if include_confidence:
+                item["confidence"] = 0.88
+            found.append(item if include_spans else "Mira")
+        return {"entities": {"person": found}}
+
 
 class _ClassifyOnly:
     """A gliner2 build exposing only ``classify_text`` (and no confidence kwarg)."""
-
-    @classmethod
-    def from_pretrained(cls, model_id: str) -> _ClassifyOnly:
-        return cls()
 
     def classify_text(self, text: str, tasks: Mapping[str, Any]) -> dict[str, Any]:
         return {"choice": "a"}
 
 
-def _fake_gliner2(monkeypatch: pytest.MonkeyPatch, cls: type, name: str = "GLiNER2") -> None:
+def _fake_gliner2(
+    monkeypatch: pytest.MonkeyPatch, cls: type, *, legacy_class: type | None = None
+) -> None:
     module = types.ModuleType("gliner2")
-    setattr(module, name, cls)
+    module.AutoExtractor = cls
+    if legacy_class is not None:
+        module.GLiNER2 = legacy_class
     monkeypatch.setitem(sys.modules, "gliner2", module)
 
 
@@ -87,97 +110,112 @@ def _no_gliner2(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setitem(sys.modules, "gliner2", None)  # import raises ImportError
 
 
-async def test_adapter_uses_gliner2_class_and_default_checkpoint(
+async def test_adapter_uses_autoextractor_and_25_default_checkpoint(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _FakeModel.loaded = []
-    _fake_gliner2(monkeypatch, _FakeModel)
-    provider = GLiNER2Decision()
+
+    class _LegacyMustNotLoad:
+        @classmethod
+        def from_pretrained(cls, model_id: str) -> Any:
+            raise AssertionError("legacy GLiNER2 class must not be loaded")
+
+    _fake_gliner2(monkeypatch, _FakeModel, legacy_class=_LegacyMustNotLoad)
+    settings = GlinerSettings()
+    pool = GLiNERModelPool(
+        loader=lambda effective: (_FakeModel.loaded.append(effective.model), _FakeModel())[1]
+    )
+    provider = GLiNER2Decision(settings, pool)
     assert await provider.choose("q", OPTS) == ("b", 0.7)
-    assert _FakeModel.loaded == [DEFAULT_MODEL] == ["fastino/gliner2-base-v1"]
+    assert _FakeModel.loaded == [DEFAULT_MODEL] == ["fastino/gliner2.5-base-v1"]
+    await pool.aclose()
 
 
 async def test_adapter_falls_back_to_autoextractor_and_classify_text(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    _fake_gliner2(monkeypatch, _ClassifyOnly, name="AutoExtractor")
-    assert await GLiNER2Decision().choose("q", OPTS) == ("a", None)
+    _fake_gliner2(monkeypatch, _ClassifyOnly)
+    pool = GLiNERModelPool(loader=lambda _settings: _ClassifyOnly())
+    assert await GLiNER2Decision(GlinerSettings(), pool).choose("q", OPTS) == ("a", None)
+    await pool.aclose()
 
 
-def test_gliner2_class_missing_names_the_extra(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_autoextractor_missing_names_the_extra(monkeypatch: pytest.MonkeyPatch) -> None:
     _no_gliner2(monkeypatch)
     with pytest.raises(MissingServiceError) as info:
-        gliner2_class()
+        auto_extractor_class()
     assert info.value.extra == "ner"
 
 
 def test_gliner2_lazy_class_import_error_names_the_extra(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """gliner2>=2.0 base install: ``import gliner2`` works, but resolving ``GLiNER2``
+    """gliner2>=2.0 base install: ``import gliner2`` works, but resolving ``AutoExtractor``
     imports the absent local stack (peft) and raises ImportError from ``__getattr__``."""
     module = types.ModuleType("gliner2")
 
     def _lazy(name: str) -> Any:
-        raise ModuleNotFoundError("No module named 'peft'")
+        if name == "AutoExtractor":
+            raise ModuleNotFoundError("No module named 'peft'")
+        raise AttributeError(name)
 
     module.__getattr__ = _lazy  # type: ignore[method-assign]
     monkeypatch.setitem(sys.modules, "gliner2", module)
     with pytest.raises(MissingServiceError) as info:
-        gliner2_class()
+        auto_extractor_class()
     assert info.value.extra == "ner"
 
 
-async def test_load_failure_is_cached(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_load_failure_reaches_the_caller() -> None:
     calls = {"n": 0}
 
-    class _Broken:
-        @classmethod
-        def from_pretrained(cls, model_id: str) -> Any:
-            calls["n"] += 1
-            raise OSError("no weights")
+    def _broken(_settings: GlinerSettings) -> Any:
+        calls["n"] += 1
+        raise OSError("no weights")
 
-    _fake_gliner2(monkeypatch, _Broken)
-    provider = GLiNER2Decision()
-    for _ in range(3):
-        with pytest.raises(OSError):
-            await provider.choose("q", OPTS)
+    pool = GLiNERModelPool(loader=_broken)
+    provider = GLiNER2Decision(GlinerSettings(), pool)
+    with pytest.raises(OSError):
+        await provider.choose("q", OPTS)
     assert calls["n"] == 1
+    await pool.aclose()
 
 
-def test_load_is_serialised_by_a_lock(monkeypatch: pytest.MonkeyPatch) -> None:
-    gate = threading.Event()
+async def test_load_is_serialised_by_pool() -> None:
     calls = {"n": 0}
 
-    class _Slow(_FakeModel):
-        @classmethod
-        def from_pretrained(cls, model_id: str) -> _Slow:
-            calls["n"] += 1
-            gate.wait(0.2)
-            return cls()
+    def _load(_settings: GlinerSettings) -> _FakeModel:
+        calls["n"] += 1
+        return _FakeModel()
 
-    _fake_gliner2(monkeypatch, _Slow)
-    provider = GLiNER2Decision()
-    threads = [threading.Thread(target=provider._load) for _ in range(4)]
-    for t in threads:
-        t.start()
-    gate.set()
-    for t in threads:
-        t.join()
+    pool = GLiNERModelPool(loader=_load)
+    provider = GLiNER2Decision(GlinerSettings(), pool)
+    await asyncio.gather(*(provider.choose("q", OPTS) for _ in range(4)))
     assert calls["n"] == 1
+    await pool.aclose()
 
 
 # ── engine start validation + planner ─────────────────────────────────────────
 
 
 def _engine(**extra: Any) -> Engine:
+    models = {
+        "profiles": {"gliner-default": {"kind": "gliner", "provider": "gliner2", "settings": {}}},
+        "bindings": {"gliner_decision": "gliner-default"},
+    }
+    overrides = extra.pop("models", {})
+    for key in ("profiles", "bindings"):
+        if key in overrides:
+            models[key].update(overrides[key])
+    models.update({key: value for key, value in overrides.items() if key not in models})
     return Engine(
         template="core",
         dotenv_path=None,
-        storage={'provider': "sqlite", 'settings': {'path': ":memory:", 'busy_timeout_s': 5.0}},
-        embedding={'provider': "hash", 'settings': {}},
+        storage={"provider": "sqlite", "settings": {"path": ":memory:", "busy_timeout_s": 5.0}},
+        embedding={"provider": "hash", "settings": {}},
         read={"hybrid": False, "planner": "decision"},
         decision={"provider": "gliner2"},
+        models=models,
         **extra,
     )
 
@@ -198,6 +236,41 @@ async def test_start_lenient_turns_decision_off(monkeypatch: pytest.MonkeyPatch)
         assert await eng._plan_read_mode("how many cities") is None
     finally:
         await eng.stop()
+
+
+async def test_core_start_does_not_import_or_load_gliner_when_off(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _no_gliner2(monkeypatch)
+    eng = Engine(
+        template="core",
+        dotenv_path=None,
+        storage={"provider": "sqlite", "settings": {"path": ":memory:", "busy_timeout_s": 5.0}},
+        embedding={"provider": "hash", "settings": {}},
+        decision={"provider": "off"},
+    )
+    await eng.start()
+    try:
+        assert eng._gliner_pool is None
+    finally:
+        await eng.stop()
+
+
+async def test_enabled_consumer_requires_its_configured_gliner_task() -> None:
+    eng = _engine(
+        models={
+            "profiles": {
+                "gliner-default": {
+                    "kind": "gliner",
+                    "provider": "gliner2",
+                    "settings": {"tasks": ["entities"]},
+                }
+            },
+            "bindings": {"gliner_decision": "gliner-default"},
+        }
+    )
+    with pytest.raises(ConfigError, match="classification"):
+        await eng.start()
 
 
 class _Fake:
@@ -252,13 +325,194 @@ async def test_planner_failure_falls_back_to_rules(monkeypatch: pytest.MonkeyPat
         await eng.stop()
 
 
-def test_ner_adapter_uses_the_same_checkpoint(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_ner_adapter_uses_shared_settings_and_pool(monkeypatch: pytest.MonkeyPatch) -> None:
+    from memspine.derive.gliner_mentions import MentionSpan
     from memspine.memories.semantic.entities import GlinerEntityExtractor
 
     _FakeModel.loaded = []
-    _fake_gliner2(monkeypatch, _FakeModel)
-    GlinerEntityExtractor()
+    settings = GlinerSettings()
+    pool = GLiNERModelPool(
+        loader=lambda effective: (_FakeModel.loaded.append(effective.model), _FakeModel())[1]
+    )
+    extractor = GlinerEntityExtractor(pool, settings)
+    assert await extractor.extract("Mira") == []
+    assert await extractor.extract_mentions("Mira") == (
+        MentionSpan(text="Mira", label="person", start=0, end=4, confidence=0.88),
+    )
+    assert extractor.model_id.startswith(f"gliner2:{DEFAULT_MODEL}@default:cpu:local=True:tasks=")
     assert _FakeModel.loaded == [DEFAULT_MODEL]
+    await pool.aclose()
+
+
+async def test_engine_consumers_share_one_lazy_model_instance() -> None:
+    from memspine.derive.prepass import GlinerHints
+    from memspine.memories.semantic.entities import GlinerEntityExtractor
+
+    loads: list[str] = []
+
+    def loader(settings: GlinerSettings) -> _FakeModel:
+        loads.append(settings.model)
+        return _FakeModel()
+
+    settings = GlinerSettings()
+    pool = GLiNERModelPool(loader=loader)
+    decision = GLiNER2Decision(settings, pool)
+    semantic = GlinerEntityExtractor(pool, settings)
+    prepass = GlinerHints(pool, settings)
+    assert loads == []  # construction and engine wiring do not load weights
+
+    assert await decision.choose("q", OPTS) == ("b", 0.7)
+    from memspine.derive.gliner_mentions import MentionSpan
+
+    assert await semantic.extract("Mira") == []
+    mentions = await semantic.extract_mentions("Mira")
+    assert mentions == (MentionSpan(text="Mira", label="person", start=0, end=4, confidence=0.88),)
+    assert await prepass.aentities("Mira") == mentions
+    assert loads == [DEFAULT_MODEL]
+    await pool.aclose()
+
+
+async def test_engine_injects_one_owned_pool_into_enabled_consumers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from types import SimpleNamespace
+
+    from memspine.derive.prepass import GlinerHints
+    from memspine.ingest.windows import _prepass
+    from memspine.memories.semantic.entities import GlinerEntityExtractor
+    from memspine.runtime import container as runtime_container
+
+    _fake_gliner2(monkeypatch, _FakeModel)
+    loads: list[str] = []
+    pools: list[GLiNERModelPool] = []
+
+    def make_pool(**kw: Any) -> GLiNERModelPool:
+        pool = GLiNERModelPool(
+            max_models=kw["max_models"],
+            loader=lambda settings: (loads.append(settings.model), _FakeModel())[1],
+        )
+        pools.append(pool)
+        return pool
+
+    monkeypatch.setattr(runtime_container, "GLiNERModelPool", make_pool)
+    eng = _engine(
+        memories={"semantic": {"enabled": True, "policies": {"entity_extraction": "gliner"}}},
+        write={
+            "prepass": "gliner",
+            "window_extract": "facts",
+            "online_extractor_v2": True,
+        },
+        models={
+            "gliner_max_models": 2,
+            "bindings": {
+                "gliner_semantic": "gliner-default",
+                "gliner_prepass": "gliner-default",
+            },
+        },
+    )
+    await eng.start()
+    try:
+        pool = pools[-1]
+        assert eng._gliner_pool is pool
+        assert isinstance(eng._semantic._extractor, GlinerEntityExtractor)
+        assert loads == []
+
+        assert await eng._semantic._extractor.extract("Mira") == []
+        assert await eng._semantic._extractor.extract_mentions("Mira")
+        decision = eng._decision_provider()
+        assert await decision.choose("q", OPTS) == ("b", 0.7)
+        prepass = _prepass(eng, eng._config())
+        assert isinstance(prepass._gliner, GlinerHints)
+        hints = await prepass.ahints(
+            [SimpleNamespace(record_id="source-1", content="Mira")],
+            namespace="private-a",
+        )
+        assert any(span.text == "Mira" for span in hints.entities)
+        assert loads == [DEFAULT_MODEL]
+    finally:
+        await eng.stop()
+
+
+async def test_engine_profiles_select_distinct_models_and_share_equal_settings(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from types import SimpleNamespace
+
+    from memspine.ingest.windows import _prepass
+    from memspine.memories.semantic.entities import GlinerEntityExtractor
+    from memspine.runtime import container as runtime_container
+
+    _fake_gliner2(monkeypatch, _FakeModel)
+    loaded: list[str] = []
+    pools: list[GLiNERModelPool] = []
+
+    def make_pool(*, max_models: int) -> GLiNERModelPool:
+        pool = GLiNERModelPool(
+            max_models=max_models,
+            loader=lambda settings: (loaded.append(settings.model), _FakeModel())[1],
+        )
+        pools.append(pool)
+        return pool
+
+    monkeypatch.setattr(runtime_container, "GLiNERModelPool", make_pool)
+    shared_entities = {"model": "fake/entities", "tasks": ["entities"]}
+    eng = _engine(
+        memories={"semantic": {"enabled": True, "policies": {"entity_extraction": "gliner"}}},
+        write={
+            "prepass": "gliner",
+            "window_extract": "facts",
+            "online_extractor_v2": True,
+        },
+        models={
+            "gliner_max_models": 2,
+            "profiles": {
+                "semantic-a": {
+                    "kind": "gliner",
+                    "provider": "gliner2",
+                    "settings": shared_entities,
+                },
+                "prepass-copy": {
+                    "kind": "gliner",
+                    "provider": "gliner2",
+                    "settings": shared_entities,
+                },
+                "decision-b": {
+                    "kind": "gliner",
+                    "provider": "gliner2",
+                    "settings": {"model": "fake/classification", "tasks": ["classification"]},
+                },
+            },
+            "bindings": {
+                "gliner_semantic": "semantic-a",
+                "gliner_prepass": "prepass-copy",
+                "gliner_decision": "decision-b",
+            },
+        },
+    )
+    await eng.start()
+    try:
+        assert pools[-1]._max_models == 2
+        assert isinstance(eng._semantic._extractor, GlinerEntityExtractor)
+        assert await eng._semantic._extractor.extract("Mira") == []
+        assert await eng._semantic._extractor.extract_mentions("Mira")
+        decision = eng._decision_provider()
+        assert await decision.choose("q", OPTS) == ("b", 0.7)
+        prepass = _prepass(eng, eng._config())
+        hints = await prepass.ahints(
+            [SimpleNamespace(record_id="source-1", content="Mira")], namespace="private-a"
+        )
+        assert any(span.text == "Mira" for span in hints.entities)
+        assert loaded.count("fake/entities") == 1
+        assert loaded.count("fake/classification") == 1
+    finally:
+        await eng.stop()
+    assert eng._gliner_pool is None
+    await eng.start()
+    try:
+        assert eng._gliner_pool is pools[-1] and eng._gliner_pool is not pools[0]
+        assert eng._decision_provider() is not decision
+    finally:
+        await eng.stop()
 
 
 class _Scored:
@@ -283,11 +537,17 @@ async def test_confidence_gate_keeps_the_default_mode(
     eng = Engine(
         template="core",
         dotenv_path=None,
-        storage={'provider': "sqlite", 'settings': {'path': ":memory:", 'busy_timeout_s': 5.0}},
-        embedding={'provider': "hash", 'settings': {}},
+        storage={"provider": "sqlite", "settings": {"path": ":memory:", "busy_timeout_s": 5.0}},
+        embedding={"provider": "hash", "settings": {}},
         memories={"episodic": {"enabled": True}},
         read={"hybrid": False, "planner": "decision", "planner_min_confidence": gate},
         decision={"provider": "gliner2"},
+        models={
+            "profiles": {
+                "gliner-default": {"kind": "gliner", "provider": "gliner2", "settings": {}}
+            },
+            "bindings": {"gliner_decision": "gliner-default"},
+        },
     )
     await eng.start()
     try:
@@ -317,10 +577,16 @@ async def test_bare_label_confidence_is_unknown_not_sure(
     eng = Engine(
         template="core",
         dotenv_path=None,
-        storage={'provider': "sqlite", 'settings': {'path': ":memory:", 'busy_timeout_s': 5.0}},
-        embedding={'provider': "hash", 'settings': {}},
+        storage={"provider": "sqlite", "settings": {"path": ":memory:", "busy_timeout_s": 5.0}},
+        embedding={"provider": "hash", "settings": {}},
         read={"hybrid": False, "planner": "decision", "planner_min_confidence": gate},
         decision={"provider": "gliner2"},
+        models={
+            "profiles": {
+                "gliner-default": {"kind": "gliner", "provider": "gliner2", "settings": {}}
+            },
+            "bindings": {"gliner_decision": "gliner-default"},
+        },
     )
     await eng.start()
     try:
@@ -329,7 +595,9 @@ async def test_bare_label_confidence_is_unknown_not_sure(
             def classify_text(self, text: str, tasks: Mapping[str, Any]) -> dict[str, Any]:
                 return {"choice": "count or list"}
 
-        bare = GLiNER2Decision()
+        bare = GLiNER2Decision(
+            GlinerSettings(), GLiNERModelPool(loader=lambda _settings: _BareModel())
+        )
         _fake_gliner2(monkeypatch, _BareModel)
         monkeypatch.setattr(eng, "_decision_provider", lambda: bare)
         assert await eng._plan_read_mode("where does Ana live") == expected
@@ -369,10 +637,16 @@ async def test_rules_route_before_the_provider(
     eng = Engine(
         template="core",
         dotenv_path=None,
-        storage={'provider': "sqlite", 'settings': {'path': ":memory:", 'busy_timeout_s': 5.0}},
-        embedding={'provider': "hash", 'settings': {}},
+        storage={"provider": "sqlite", "settings": {"path": ":memory:", "busy_timeout_s": 5.0}},
+        embedding={"provider": "hash", "settings": {}},
         read={"hybrid": False, "planner": "decision", "planner_min_confidence": 0.99},
         decision={"provider": "gliner2"},
+        models={
+            "profiles": {
+                "gliner-default": {"kind": "gliner", "provider": "gliner2", "settings": {}}
+            },
+            "bindings": {"gliner_decision": "gliner-default"},
+        },
     )
     await eng.start()
     try:

@@ -374,6 +374,8 @@ class Engine:
         self._auto_enabled: list[str] = []
         self._sql: SqlAccess | None = None
         self._provider_resources: ProviderLifecycleManager | None = None
+        self._gliner_pool: Any | None = None
+        self._decision: Any | None = None
         self._provider_results: dict[str, Any] = {}
         self._provider_owner_id: str | None = None
         self._reranker_build_lock = asyncio.Lock()
@@ -549,8 +551,7 @@ class Engine:
                 await self._teardown()
             except BaseException as cleanup_error:
                 startup_error.add_note(
-                    "Startup cleanup was incomplete: "
-                    + self._cleanup_error_detail(cleanup_error)
+                    "Startup cleanup was incomplete: " + self._cleanup_error_detail(cleanup_error)
                 )
             raise
 
@@ -596,6 +597,7 @@ class Engine:
         # 3./4. construct services + open the write door.
         self._storage = await container.get(SqlStorage)
         self._sql, self._provider_resources = wiring.sql, wiring.resources
+        self._gliner_pool = wiring.gliner_pool
         self._provider_results = wiring.provider_results
         _snapshot_listings(self._storage)  # I2
         await self._storage.start()
@@ -821,10 +823,14 @@ class Engine:
         ):
             await binding_store.ensure(binding)
 
-        # Background runner seam (D-16): inline default, dbos durable [dbos].
-        self._runner = await container.get(TaskRunner)
+        # Register pipelines before starting remote runners so workflow recovery
+        # cannot observe an incomplete registry. Any start failure is covered by
+        # Engine.start's startup teardown, including runner.close().
+        runner = self._runner = await container.get(TaskRunner)
+        assert runner is not None
         for name, pipeline in PIPELINES.items():
-            self._runner.register(name, pipeline)  # type: ignore[union-attr]  # CI-GREEN: pre-existing typing debt
+            runner.register(name, pipeline)
+        await runner.start()
 
         # 5.(minimal)/6. catch-up from high-water marks; rolling mode prunes on
         # boot via the pipeline (continuous scheduling joins the P3 sleep cycle).
@@ -1015,7 +1021,10 @@ class Engine:
 
         async def stop_provider_cleanup_worker() -> None:
             if self._provider_changes_controller is not None:
-                controller, self._provider_changes_controller = self._provider_changes_controller, None
+                controller, self._provider_changes_controller = (
+                    self._provider_changes_controller,
+                    None,
+                )
                 await controller.stop_cleanup_worker()
 
         # The cleanup worker uses the same SQL and target strategies as serving;
@@ -1030,6 +1039,7 @@ class Engine:
 
         await attempt("ops ledger", close_ops_ledger)
         self._otel = None
+
         async def close_cost_ledger() -> None:
             if self._cost_ledger is not None:
                 ledger, self._cost_ledger = self._cost_ledger, None
@@ -1038,18 +1048,21 @@ class Engine:
                 ledger.close()
 
         await attempt("cost ledger", close_cost_ledger)
+
         async def release_model_scheduler() -> None:
             if self._sched_v2 is not None:
                 sched, self._sched_v2 = self._sched_v2, None
                 await _scheduler_rt.release(sched)
 
         await attempt("model scheduler", release_model_scheduler)
+
         async def stop_scheduler() -> None:
             if self._scheduler is not None:
                 scheduler, self._scheduler = self._scheduler, None
                 await scheduler.stop()
 
         await attempt("sleep scheduler", stop_scheduler)
+
         async def stop_derive_scheduler() -> None:
             if self._derive_sched is not None:
                 derive_sched, self._derive_sched = self._derive_sched, None
@@ -1057,30 +1070,35 @@ class Engine:
 
         await attempt("derive scheduler", stop_derive_scheduler)
         await attempt("asset describer", lambda: asset_describer.shutdown(self))
+
         async def stop_windows() -> None:
             if self._windows is not None:
                 windows, self._windows = self._windows, None
                 await windows.stop()
 
         await attempt("window workers", stop_windows)
+
         async def close_neo4j_projection() -> None:
             if self._neo4j is not None:
                 neo4j, self._neo4j = self._neo4j, None
                 await neo4j.close()
 
         await attempt("Neo4j projection worker", close_neo4j_projection)
+
         async def close_runner() -> None:
             if self._runner is not None:
                 runner, self._runner = self._runner, None
                 await runner.close()
 
         await attempt("task runner", close_runner)
+
         async def stop_storage() -> None:
             if self._storage is not None:
                 storage, self._storage = self._storage, None
                 await storage.stop()
 
         await attempt("SQL storage", stop_storage)
+
         async def close_container() -> None:
             if self._container is not None:
                 # Finalisers close owned provider resources in dependency order.
@@ -1100,6 +1118,7 @@ class Engine:
             self.__dict__.pop(attr, None)
         self._timed_attrs = []
         self._write_timers = None
+
         def shutdown_tap() -> None:
             if getattr(self, "_tap_owner", False):
                 tap.shutdown()
@@ -1107,6 +1126,9 @@ class Engine:
 
         await attempt("debug tap", shutdown_tap)
         self._started = False
+        self._gliner_pool = None
+        self._decision = None
+        self._window_prepass = None
         if failures:
             _log.error("engine.teardown_incomplete", failures=failures)
             raise _EngineTeardownError("engine teardown incomplete: " + "; ".join(failures))
@@ -5141,7 +5163,8 @@ class Engine:
         for logical_id, result in self._provider_results.items():
             service.register_build_result(
                 result,
-                required=logical_id != "graph.mirror" and result.provider.category in {"storage", "vector", "graph", "lexical", "cache"},
+                required=logical_id != "graph.mirror"
+                and result.provider.category in {"storage", "vector", "graph", "lexical", "cache"},
                 logical_id=logical_id,
             )
         return service
@@ -5186,9 +5209,7 @@ class Engine:
             revision_guard = runtime.revision_guard
             strategies = runtime.strategies
             plan_ttl_s = runtime.plan_ttl_s
-            cleanup_quiescence_guard = (
-                cleanup_quiescence_guard or runtime.cleanup_quiescence_guard
-            )
+            cleanup_quiescence_guard = cleanup_quiescence_guard or runtime.cleanup_quiescence_guard
         assert revision_guard is not None and strategies is not None and plan_ttl_s is not None
         if (
             runtime is not None
@@ -5230,15 +5251,15 @@ class Engine:
             plan_ttl_s=runtime.plan_ttl_s,
         )
         config = self._resolved.config if self._resolved is not None else None
-        projections = (
-            config.runtime.service_switches.projections if config is not None else None
-        )
+        projections = config.runtime.service_switches.projections if config is not None else None
         return EngineProviderChanges(
             coordinator=coordinator,
             store=SqlChangeStore(sql.engine),
             deployment_id=self._provider_owner_id,
             assert_active=assert_active,
-            cleanup_interval_s=(projections.cleanup_interval_s if projections is not None else None),
+            cleanup_interval_s=(
+                projections.cleanup_interval_s if projections is not None else None
+            ),
             cleanup_batch_size=(projections.cleanup_batch_size if projections is not None else 50),
             cleanup_quiescence_guard=runtime.cleanup_quiescence_guard,
         )
@@ -5264,7 +5285,9 @@ class Engine:
             "lexical": config.read.lexical_provider,
         }
         for logical_id, result in self._provider_results.items():
-            configured[logical_id] = category_names.get(result.provider.category, result.provider.name)
+            configured[logical_id] = category_names.get(
+                result.provider.category, result.provider.name
+            )
         configured["graph.primary"] = config.graph.provider
         configured["graph.mirror"] = config.graph.mirror.provider
         report = await self.readiness() if probe_health else None
@@ -5278,7 +5301,9 @@ class Engine:
             diagnostic_error = True
         rows = inspect_providers(
             results=self._provider_results,
-            resource_states={} if self._provider_resources is None else self._provider_resources.states,
+            resource_states={}
+            if self._provider_resources is None
+            else self._provider_resources.states,
             configured=configured,
             health=None if report is None else report.health,
             projector_catchup=None if report is None else report.projector_catchup,
@@ -5301,7 +5326,9 @@ class Engine:
                     self._resolved.config.runtime.provider_services.health_timeout_s
                 ):
                     offset = await storage.get_offset(projector.name)
-                    catchup[projector.name] = not await storage.read_events(after_seq=offset, limit=1)
+                    catchup[projector.name] = not await storage.read_events(
+                        after_seq=offset, limit=1
+                    )
             except Exception:
                 catchup[projector.name] = False
         return await self._provider_status_service().readiness(projector_catchup=catchup)
@@ -5683,13 +5710,18 @@ class Engine:
     def _decision_provider(self) -> Any:
         """H24: the configured decision provider, built lazily; None when off (or when
         gliner2 was missing at start under ``strict_services: false``)."""
-        cfg = self._config().decision
+        config = self._config()
+        cfg = config.decision
         if cfg.provider == "off" or getattr(self, "_decision_off", False):
             return None
         if getattr(self, "_decision", None) is None:
+            from memspine.models.profiles import resolve_gliner_settings
             from memspine.models.providers.decision.gliner2_decision import GLiNER2Decision
 
-            self._decision = GLiNER2Decision(cfg.model)
+            if self._gliner_pool is None:
+                raise ConfigError("decision GLiNER provider needs the engine GLiNER pool")
+            settings = resolve_gliner_settings(config, "gliner_decision")
+            self._decision = GLiNER2Decision(settings, self._gliner_pool)
         return self._decision
 
     async def _plan_read_mode(self, query: str) -> str | None:

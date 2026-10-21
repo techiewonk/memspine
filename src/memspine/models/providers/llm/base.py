@@ -10,7 +10,7 @@ JSON parser ships now.
 from __future__ import annotations
 
 import time
-from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Any, Protocol, cast, runtime_checkable
 
 if TYPE_CHECKING:
     from memspine.models.providers.llm.structured import StructuredOptions
@@ -75,6 +75,15 @@ def _reported_usage(provider: object) -> tuple[int, int] | None:
     return None
 
 
+def _provider_model(provider: LLMService) -> str:
+    """Keep metric labels on the selected adapter, not an opaque cache identity."""
+    return str(
+        getattr(provider, "model", None)
+        or getattr(provider, "metrics_provider_id", None)
+        or provider.provider_id
+    )
+
+
 class _Counted:
     """A provider that counts its own ``chat`` calls into the router's ledger.
 
@@ -106,17 +115,22 @@ class _Counted:
         self._counts[self._role] = self._counts.get(self._role, 0) + 1
         costed = _costs.installed() is not None  # W2-12: economy.ledger_v2
         t0 = time.perf_counter() if costed else 0.0
+        reported: tuple[int, int] | None = None
+
         try:
             async with model_slot("llm"):  # RT-02: no-op unless runtime.model_concurrency is on
                 if tap.enabled():
                     reply = await self._tapped_chat(messages, options)
                 else:
                     reply = await self._inner.chat(messages, **options)
+                # Snapshot before model_slot.__aexit__: it may await and another
+                # concurrent call can update a provider's last_usage meanwhile.
+                reported = _reported_usage(self._inner)
         except BaseException as exc:
             if costed:
                 _costs.record_call(
                     "generative",
-                    model=str(getattr(self._inner, "model", None) or self._inner.provider_id),
+                    model=_provider_model(self._inner),
                     tokens_in=sum(len(str(m.get("content", ""))) for m in messages)
                     // _CHARS_PER_TOKEN,
                     latency_ms=(time.perf_counter() - t0) * 1000.0,
@@ -126,23 +140,21 @@ class _Counted:
         # Chars/4 estimate, used only for providers that report no usage of their own.
         est_in = sum(len(str(m.get("content", ""))) for m in messages) // _CHARS_PER_TOKEN
         est_out = len(reply) // _CHARS_PER_TOKEN
-        acc = self._estimates.setdefault(self._role, [0, 0])
-        acc[0] += est_in
-        acc[1] += est_out
+        totals = self._estimates.setdefault(self._role, [0, 0])
+        tokens_in, tokens_out = reported if reported is not None else (est_in, est_out)
+        totals[0] += tokens_in
+        totals[1] += tokens_out
         if costed:
-            reported_cost = _reported_usage(self._inner)
             _costs.record_call(
                 "generative",
-                model=str(getattr(self._inner, "model", None) or self._inner.provider_id),
-                tokens_in=reported_cost[0] if reported_cost else est_in,
-                tokens_out=reported_cost[1] if reported_cost else est_out,
+                model=_provider_model(self._inner),
+                tokens_in=tokens_in,
+                tokens_out=tokens_out,
                 latency_ms=(time.perf_counter() - t0) * 1000.0,
             )
         if self._usage is not None:
             # #33: no await since the provider returned, so ``last_usage`` is still
             # this call's report even with concurrent calls on the same provider.
-            reported = _reported_usage(self._inner)
-            tokens_in, tokens_out = reported if reported is not None else (est_in, est_out)
             prompt_id = getattr(messages, "prompt_id", None)
             prompt_version = getattr(messages, "prompt_version", None)
             self._usage.record(
@@ -166,7 +178,7 @@ class _Counted:
     async def _tapped_chat(self, messages: list[dict[str, str]], options: dict[str, Any]) -> str:
         """WT-02: one ``model.call`` event per LLM call (role, model, tokens, duration, outcome)."""
         t0 = time.perf_counter()
-        model = str(getattr(self._inner, "model", None) or self._inner.provider_id)
+        model = _provider_model(self._inner)
         try:
             reply = await self._inner.chat(messages, **options)
         except BaseException as exc:
@@ -250,6 +262,7 @@ class LLMRouter:
         structured_options: StructuredOptions | None = None,
     ) -> None:
         self._providers = providers
+        self._counted_attempt_roles: set[str] = set()
         self._counts: dict[str, int] = {}
         self._estimates: dict[str, list[int]] = {}
         self._usage = UsageLedger()
@@ -271,8 +284,29 @@ class LLMRouter:
 
     def for_role(self, role: str) -> LLMService:
         """The provider for ``role``, counting every call (see ``call_counts``)."""
+        provider = self.provider(role)
+        attempt_providers = getattr(provider, "_memspine_attempt_providers", None)
+        bind_attempts = getattr(provider, "_bind_counted_attempts", None)
+        if attempt_providers is not None and callable(bind_attempts):
+            if role not in self._counted_attempt_roles:
+                bind_attempts(
+                    tuple(
+                        _Counted(
+                            attempt_provider,
+                            role,
+                            self._counts,
+                            self._estimates,
+                            self._usage,
+                            self._structured_options,
+                        )
+                        for attempt_provider in attempt_providers
+                    )
+                )
+                self._counted_attempt_roles.add(role)
+            cast(Any, provider).structured_options = self._structured_options
+            return provider
         return _Counted(
-            self.provider(role),
+            provider,
             role,
             self._counts,
             self._estimates,
@@ -287,15 +321,13 @@ class LLMRouter:
     def token_counts(self) -> dict[str, dict[str, int]]:
         """Tokens spent so far, per role: ``{"prompt": n, "completion": n}``.
 
-        A provider that reports its own usage (``usage_totals``, e.g. LiteLLM) is
-        read directly; any other provider is estimated at four characters per
-        token from the counted calls' messages and replies.
+        Every counted invocation contributes provider-reported usage when available,
+        otherwise a four-characters-per-token estimate. Totals are role-local even
+        when multiple roles share one provider profile.
         """
         out: dict[str, dict[str, int]] = {}
-        for role, provider in self._providers.items():
-            totals = getattr(provider, "usage_totals", None)
-            if not (isinstance(totals, list) and len(totals) == 2):
-                totals = self._estimates.get(role)
+        for role in self._providers:
+            totals = self._estimates.get(role)
             if totals and (totals[0] or totals[1]):
                 out[role] = {"prompt": int(totals[0]), "completion": int(totals[1])}
         return out

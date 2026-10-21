@@ -67,6 +67,9 @@ class LexicalBuildContext:
 class LLMBuildContext:
     shared: SharedBuildContext
     role: str
+    #: Stable provider-owned resource identity; profile bindings set this when one logical role
+    #: can own multiple native provider instances. Inline role builders keep the role-based key.
+    resource_key: str | None = None
 
 
 @dataclass(frozen=True)

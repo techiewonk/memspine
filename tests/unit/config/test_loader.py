@@ -57,9 +57,7 @@ def test_missing_template_names_search_dirs() -> None:
 
 def test_reserved_namespace_memories_key_rejected() -> None:
     with pytest.raises(ConfigError, match=r"reserved for v0\.2"):
-        load_config(
-            template="base", overrides={"namespaces": {"org/a": {"memories": {}}}}
-        )
+        load_config(template="base", overrides={"namespaces": {"org/a": {"memories": {}}}})
 
 
 def test_unknown_memory_type_rejected() -> None:
@@ -105,29 +103,37 @@ def test_env_scalars_parse_types() -> None:
             "MEMSPINE_EVENT_LOG__COMPRESS": "true",
             "MEMSPINE_EVENT_LOG__MODE": "ephemeral",
             "IGNORED": "x",
-        }
+        },
     )
     assert resolved.config.event_log.compress is True
     assert resolved.config.event_log.mode is EventLogMode.EPHEMERAL
 
 
 def test_workers_runner_rides_env_layering() -> None:
-    resolved = load_config(template="base", env={"MEMSPINE_WORKERS__RUNNER": "dbos"})
-    assert resolved.config.workers.runner == "dbos"
+    resolved = load_config(
+        template="base",
+        env={
+            "MEMSPINE_WORKERS__RUNNER": "temporal",
+            "MEMSPINE_WORKERS__TEMPORAL__DEPLOYMENT_ID": "test-deployment",
+        },
+    )
+    assert resolved.config.workers.runner == "temporal"
+    assert resolved.config.workers.temporal is not None
+    assert resolved.config.workers.temporal.deployment_id == "test-deployment"
 
 
 def test_unrelated_memspine_env_vars_are_ignored() -> None:
     """Regression: MEMSPINE_HOME/MEMSPINE_DEBUG from other tooling used to be
     injected into the strict schema and crash every load."""
-    resolved = load_config(
-        template="base", env={"MEMSPINE_HOME": "/opt/x", "MEMSPINE_DEBUG": "1"}
-    )
+    resolved = load_config(template="base", env={"MEMSPINE_HOME": "/opt/x", "MEMSPINE_DEBUG": "1"})
     assert resolved.config.profile == "simple"
 
 
 def test_yaml_hostile_env_value_falls_back_to_string() -> None:
     """Regression: '@data/db.sqlite' used to raise a raw yaml.ScannerError."""
-    resolved = load_config(template="base", env={"MEMSPINE_STORAGE__SETTINGS__PATH": "@data/db.sqlite"})
+    resolved = load_config(
+        template="base", env={"MEMSPINE_STORAGE__SETTINGS__PATH": "@data/db.sqlite"}
+    )
     assert resolved.config.storage.settings["path"] == "@data/db.sqlite"
 
 

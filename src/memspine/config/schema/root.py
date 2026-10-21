@@ -17,6 +17,7 @@ from memspine.config.schema.isolation import IsolationConfig
 from memspine.config.schema.llm import (
     DecisionConfig,
     EmbeddingConfig,
+    GlinerSettings,
     LLMConfig,
     ModelsConfig,
     PromptsConfig,
@@ -43,6 +44,7 @@ from memspine.config.schema.storage import (
 from memspine.config.schema.write import DataShapeConfig, IngestConfig, WriteConfig
 from memspine.core.registry import validate_types
 from memspine.exceptions import ConfigError
+from memspine.prompts.roles import CATALOGUE_ROLE, PROMPT_ROLES
 from memspine.schemas.public.plugins import CapabilityManifest
 from memspine.store.scope import validate_namespace
 
@@ -125,6 +127,94 @@ class MemspineConfig(ConfigModel):
         """FU-REQS: a flag that needs another switch raises, naming it, instead of being
         silently inert (``config/requires.py``; the table is also ``FlagSpec.requires``)."""
         check_requires(self)
+        return self
+
+    @model_validator(mode="after")
+    def _model_profile_bindings_are_valid(self) -> MemspineConfig:
+        """Validate profile references and capabilities without loading any provider SDK."""
+        gliner_roles = {
+            "gliner_decision": "classification",
+            "gliner_semantic": "entities",
+            "gliner_prepass": "entities",
+        }
+        llm_roles = set(PROMPT_ROLES) | set(CATALOGUE_ROLE)
+        valid_roles = llm_roles | set(gliner_roles)
+        tasks_by_role: dict[str, set[str]] = {}
+        for profile_name in self.models.profiles:
+            if not profile_name.strip() or profile_name != profile_name.strip():
+                raise ConfigError(
+                    "models.profiles keys must be non-empty names without surrounding whitespace"
+                )
+        for role, profile_name in self.models.bindings.items():
+            if role not in valid_roles:
+                raise ConfigError(f"models.bindings has unknown role {role!r}")
+            profile = self.models.profiles.get(profile_name)
+            if profile is None:
+                raise ConfigError(
+                    f"models.bindings.{role} references unknown profile {profile_name!r}"
+                )
+            expected_kind = "gliner" if role in gliner_roles else "llm"
+            if profile.kind != expected_kind:
+                raise ConfigError(
+                    f"models.bindings.{role} requires a {expected_kind} profile; "
+                    f"{profile_name!r} is {profile.kind}"
+                )
+            if role in self.llm.roles:
+                raise ConfigError(
+                    f"LLM role {role!r} cannot be configured in both llm.roles and models.bindings"
+                )
+            if profile.kind == "gliner":
+                tasks_by_role[role] = set(GlinerSettings.model_validate(profile.settings).tasks)
+
+        for role, policy in self.models.escalation.items():
+            if role not in llm_roles:
+                raise ConfigError(f"models.escalation has unknown LLM role {role!r}")
+            primary_name = self.models.bindings.get(role)
+            if primary_name is None:
+                raise ConfigError(
+                    f"models.escalation.{role} requires a primary LLM profile in models.bindings"
+                )
+            primary = self.models.profiles[primary_name]
+            if primary.kind != "llm":
+                raise ConfigError(f"models.escalation.{role} primary profile must be kind llm")
+            for target in policy.targets:
+                target_profile = self.models.profiles.get(target)
+                if target_profile is None:
+                    raise ConfigError(
+                        f"models.escalation.{role} references unknown target profile {target!r}"
+                    )
+                if target_profile.kind != "llm":
+                    raise ConfigError(
+                        f"models.escalation.{role} target {target!r} must be kind llm"
+                    )
+                if target == primary_name:
+                    raise ConfigError(
+                        f"models.escalation.{role} target {target!r} is already the primary profile"
+                    )
+
+        semantic = self.memories.get("semantic")
+        semantic_mode = (
+            semantic.policies.get("entity_extraction", "off") if semantic is not None else "off"
+        )
+        active_consumers = {
+            "gliner_decision": self.decision.provider == "gliner2",
+            "gliner_semantic": semantic_mode == "gliner",
+            "gliner_prepass": self.write.prepass == "gliner",
+        }
+        for role, active in active_consumers.items():
+            if active:
+                tasks = tasks_by_role.get(role)
+                required_task = gliner_roles[role]
+                if tasks is None or required_task not in tasks:
+                    raise ConfigError(
+                        f"active GLiNER consumer {role!r} needs a bound GLiNER profile "
+                        f"with task {required_task!r}"
+                    )
+                profile_name = self.models.bindings[role]
+                if self.models.profiles[profile_name].provider != "gliner2":
+                    raise ConfigError(
+                        f"active GLiNER consumer {role!r} requires provider 'gliner2'"
+                    )
         return self
 
     @field_validator("memories")

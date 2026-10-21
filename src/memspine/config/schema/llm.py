@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from pydantic import ConfigDict, Field, JsonValue, model_validator
+from pydantic import ConfigDict, Field, JsonValue, SecretStr, model_validator
 
 from memspine.config.schema.base import ConfigModel
 
@@ -138,11 +138,108 @@ class GpuDecl(ConfigModel):
     vram_mb: int = Field(ge=0)
 
 
+class GlinerSettings(ConfigModel):
+    """Strict native settings for a GLiNER model profile."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    model: str = "fastino/gliner2.5-base-v1"
+    revision: str | None = None
+    device: Literal["cpu", "cuda"] = "cpu"
+    local_files_only: bool = True
+    tasks: tuple[Literal["entities", "classification", "records", "relations"], ...] = (
+        "entities",
+        "classification",
+    )
+    inference_concurrency: int = Field(default=1, ge=1)
+
+    @model_validator(mode="after")
+    def _tasks_are_unique(self) -> GlinerSettings:
+        if not self.tasks:
+            raise ValueError("GLiNER profile tasks must contain at least one task")
+        if len(set(self.tasks)) != len(self.tasks):
+            raise ValueError("GLiNER profile tasks must not contain duplicates")
+        if not self.model.strip() or self.model != self.model.strip():
+            raise ValueError(
+                "GLiNER profile model must be non-empty and have no surrounding whitespace"
+            )
+        if self.revision is not None and (
+            not self.revision.strip() or self.revision != self.revision.strip()
+        ):
+            raise ValueError(
+                "GLiNER profile revision must be non-empty and have no surrounding whitespace"
+            )
+        return self
+
+
+class ModelProfile(ConfigModel):
+    """Named provider configuration, validated only as data until a consumer resolves it."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    kind: Literal["llm", "gliner"]
+    provider: str = Field(min_length=1)
+    settings: dict[str, JsonValue] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def _profile_settings(self) -> ModelProfile:
+        if not self.provider.strip() or self.provider != self.provider.strip():
+            raise ValueError(
+                "model profile provider must be non-empty and have no surrounding whitespace"
+            )
+        if self.kind == "gliner":
+            if self.provider != "gliner2":
+                raise ValueError("GLiNER profiles require provider 'gliner2'")
+            GlinerSettings.model_validate(self.settings)
+        return self
+
+
+class EscalationPolicy(ConfigModel):
+    """Bounded retry ladder for structured LLM calls."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    targets: tuple[str, ...] = ()
+    triggers: tuple[Literal["error", "empty", "invalid_json"], ...] = ("error",)
+    max_attempts: int = Field(default=2, ge=1)
+    timeout_s: float = Field(gt=0, strict=True, allow_inf_nan=False)
+    max_tokens_per_attempt: int = Field(gt=0, strict=True)
+
+    @model_validator(mode="after")
+    def _bounded_chain(self) -> EscalationPolicy:
+        if not self.triggers or len(set(self.triggers)) != len(self.triggers):
+            raise ValueError(
+                "models.escalation.triggers must be non-empty and contain no duplicates"
+            )
+        if any(not target.strip() or target != target.strip() for target in self.targets):
+            raise ValueError("models.escalation.targets must be non-empty profile names")
+        if len(set(self.targets)) != len(self.targets):
+            raise ValueError("models.escalation.targets must be unique")
+        if self.targets and self.max_attempts < 2:
+            raise ValueError(
+                "models.escalation.max_attempts must be at least 2 when targets are set"
+            )
+        if self.max_attempts > 1 + len(self.targets):
+            raise ValueError(
+                "models.escalation.max_attempts exceeds the primary plus target profiles"
+            )
+        return self
+
+
 class ModelsConfig(ConfigModel):
     """MD-01 (P-01, P-02, P-03, P-15, P-19): model tiers, placement, no-model fallbacks and thinking
     per role. ``tiers_v2`` off (default) = roles resolve exactly as before, from ``llm.roles``."""
 
     model_config = ConfigDict(extra="forbid")
+
+    #: Named provider profiles are data-only until resolved by an active consumer.
+    profiles: dict[str, ModelProfile] = Field(default_factory=dict)
+    #: Consumer role -> named model profile. GLiNER consumers use the three fixed role names.
+    bindings: dict[str, str] = Field(default_factory=dict)
+    #: Upper bound on simultaneously loaded GLiNER checkpoints.
+    gliner_max_models: int = Field(default=1, ge=1)
+    #: Per-LLM-role bounded escalation policy.
+    escalation: dict[str, EscalationPolicy] = Field(default_factory=dict)
 
     #: Roles resolve through tier, placement and fallback (``memspine.models.resolve``). A role with
     #: an explicit ``llm.roles`` entry keeps it (explicit wins). Taps: ``models.resolve``,
@@ -215,22 +312,53 @@ class PromptsConfig(ConfigModel):
     )
 
 
-class WorkersConfig(ConfigModel):
-    """Background runner selection (D-16): inline (default) / dbos [dbos] /
-    taskiq [taskiq] (P7, D-42 §3). Validated against the known set at engine
-    start. ``broker_url`` is the Redis/Valkey endpoint the taskiq runner's
-    per-scope streams live on; ignored by the other runners.
-    ``dbos_system_database_url`` is ignored by the other runners too: None
-    (default) derives a SQLite file colocated with ``storage.path`` — zero
-    external infra, matching every other core default (D-09/D-25/D-26); set
-    it to a Postgres URL only for multi-instance deployments where DBOS's own
-    cross-replica recovery requires a shared system database."""
+class TemporalWorkerSettings(ConfigModel):
+    """Remote Temporal connection and bounded workflow execution settings."""
 
     model_config = ConfigDict(extra="forbid")
 
-    runner: str = "inline"
+    deployment_id: str = Field(min_length=1)
+    address: str = Field(default="localhost:7233", min_length=1)
+    namespace: str = Field(default="default", min_length=1)
+    task_queue: str | None = Field(default=None, min_length=1)
+    tls: bool = False
+    api_key: SecretStr | None = None
+    rpc_timeout_s: float = Field(default=30.0, gt=0, le=3600)
+    activity_timeout_s: float = Field(default=300.0, gt=0, le=86400)
+    workflow_timeout_s: float = Field(default=3600.0, gt=0, le=604800)
+    max_concurrent_activities: int = Field(default=4, ge=1, le=1024)
+    retry_max_attempts: int = Field(default=3, ge=1, le=100)
+    max_result_bytes: int = Field(default=65536, ge=1, le=1048576)
+
+
+class ResonateWorkerSettings(ConfigModel):
+    """Embedded Resonate promise execution and SQLite step journal settings."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    journal_path: str = Field(default="./memspine-resonate.sqlite", min_length=1)
+    task_timeout_s: float = Field(default=270.0, gt=0, le=604800)
+    step_timeout_s: float = Field(default=240.0, gt=0, le=86400)
+    step_lease_s: float = Field(default=360.0, gt=0, le=86400)
+    journal_busy_timeout_s: float = Field(default=5.0, gt=0, le=3600)
+    max_concurrent_tasks: int = Field(default=4, ge=1, le=1024)
+
+    @model_validator(mode="after")
+    def _require_persistent_journal(self) -> ResonateWorkerSettings:
+        if self.journal_path == ":memory:" or self.journal_path.startswith("file:"):
+            raise ValueError("workers.resonate.journal_path must be a persistent filesystem path")
+        return self
+
+
+class WorkersConfig(ConfigModel):
+    """Background runner selection and provider-owned runner settings."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    runner: Literal["inline", "temporal", "taskiq"] = "inline"
     broker_url: str = "redis://localhost:6379/0"
-    dbos_system_database_url: str | None = None
+    temporal: TemporalWorkerSettings | None = None
+    resonate: ResonateWorkerSettings = Field(default_factory=ResonateWorkerSettings)
     #: D1: autonomous maintenance. When set to a positive number of seconds the
     #: engine starts a background loop that runs the full sleep cycle
     #: (consolidate → … → decay → prune) on that interval. None (default) keeps
@@ -251,6 +379,37 @@ class WorkersConfig(ConfigModel):
     #: ``broker_url``; this process only enqueues and ``python -m memspine.api.worker`` drains.
     transport_broker: Literal["memory", "redis"] = "memory"
 
+    @model_validator(mode="after")
+    def _validate_temporal_deadlines(self) -> WorkersConfig:
+        if self.runner != "temporal":
+            return self
+        temporal = self.temporal
+        if temporal is None:
+            raise ValueError(
+                "workers.temporal with deployment_id is required for runner='temporal'"
+            )
+        resonate = self.resonate
+        if resonate.step_lease_s <= temporal.activity_timeout_s + resonate.journal_busy_timeout_s:
+            raise ValueError(
+                "workers.resonate.step_lease_s must exceed temporal.activity_timeout_s "
+                "plus journal_busy_timeout_s"
+            )
+        if resonate.task_timeout_s <= resonate.step_timeout_s:
+            raise ValueError("workers.resonate.task_timeout_s must exceed step_timeout_s")
+        if temporal.activity_timeout_s <= resonate.task_timeout_s:
+            raise ValueError(
+                "workers.temporal.activity_timeout_s must exceed resonate.task_timeout_s"
+            )
+        activity_budget = (
+            temporal.activity_timeout_s * temporal.retry_max_attempts
+            + resonate.step_lease_s * (temporal.retry_max_attempts - 1)
+        )
+        if temporal.workflow_timeout_s <= activity_budget:
+            raise ValueError(
+                "workers.temporal.workflow_timeout_s must exceed the configured Activity retry budget"
+            )
+        return self
+
 
 class DecisionConfig(ConfigModel):
     """H24: the optional decision provider (calibrated choice among described options,
@@ -259,4 +418,3 @@ class DecisionConfig(ConfigModel):
     model_config = ConfigDict(extra="forbid")
 
     provider: Literal["off", "gliner2"] = "off"
-    model: str = "fastino/gliner2-base-v1"

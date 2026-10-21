@@ -3,12 +3,13 @@
 Model-free: hash embedder, no LLM. Invented names only (Ilse, Bram, Noor, Tomasz).
 
 OTel: the exporter is driven through a fake tracer (always runs, covers the span shape and the
-guard); the SDK in-memory exporter test runs only when ``opentelemetry.sdk`` imports and is skipped
-with a reason otherwise.
+guard); the SDK in-memory exporter test skips only when the optional SDK is absent. Broken
+installed SDKs, transitive dependencies and exporter imports fail normally.
 """
 
 from __future__ import annotations
 
+import importlib
 import sys
 from typing import Any
 
@@ -67,8 +68,8 @@ def _engine(**extra: Any) -> Engine:
     return Engine(
         template="core",
         dotenv_path=None,
-        storage={'provider': "sqlite", 'settings': {'path': ":memory:", 'busy_timeout_s': 5.0}},
-        embedding={'provider': "hash", 'settings': {}},
+        storage={"provider": "sqlite", "settings": {"path": ":memory:", "busy_timeout_s": 5.0}},
+        embedding={"provider": "hash", "settings": {}},
         memories={"episodic": {"enabled": True}, "semantic": {"enabled": True}},
         **extra,
     )
@@ -92,7 +93,15 @@ async def _workload(eng: Engine) -> None:
 
 # ----------------------------------------------------------------------------- flag off
 def test_defaults_are_off() -> None:
-    cfg = MemspineConfig(runtime={"provider_services": {"health_timeout_s": 1.0, "close_timeout_s": 1.0, "startup_timeout_s": None}}).observability
+    cfg = MemspineConfig(
+        runtime={
+            "provider_services": {
+                "health_timeout_s": 1.0,
+                "close_timeout_s": 1.0,
+                "startup_timeout_s": None,
+            }
+        }
+    ).observability
     assert cfg.ops_ledger is False
     assert cfg.otel == OtelConfig(enabled=False)
 
@@ -373,17 +382,56 @@ async def test_no_content_in_any_span_over_a_full_workload(
     assert any(n in held for n in NAMES)
 
 
-@pytest.mark.skipif(
-    not __import__("importlib").util.find_spec("opentelemetry"),
-    reason="opentelemetry-api is not installed",
-)
-async def test_sdk_in_memory_exporter_if_the_sdk_imports(monkeypatch: pytest.MonkeyPatch) -> None:
+def _require_otel_sdk() -> None:
+    """Only an absent optional package is a skip; broken installations fail."""
     try:
-        from opentelemetry.sdk.trace import TracerProvider
-        from opentelemetry.sdk.trace.export import SimpleSpanProcessor
-        from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
-    except Exception as exc:  # the SDK is absent or broken in this environment
-        pytest.skip(f"opentelemetry-sdk does not import here ({type(exc).__name__}: {exc})")
+        importlib.import_module("opentelemetry.sdk")
+    except ModuleNotFoundError as exc:
+        if exc.name not in {"opentelemetry", "opentelemetry.sdk"}:
+            raise
+        pytest.skip("opentelemetry-sdk is not installed")
+
+
+@pytest.mark.parametrize("missing", ["opentelemetry", "opentelemetry.sdk"])
+def test_sdk_guard_skips_only_absent_optional_package(
+    monkeypatch: pytest.MonkeyPatch, missing: str
+) -> None:
+    def missing_sdk(name: str) -> None:
+        assert name == "opentelemetry.sdk"
+        raise ModuleNotFoundError(name=missing)
+
+    monkeypatch.setattr(importlib, "import_module", missing_sdk)
+    with pytest.raises(pytest.skip.Exception, match="opentelemetry-sdk is not installed"):
+        _require_otel_sdk()
+
+
+@pytest.mark.parametrize(
+    "error",
+    [
+        ModuleNotFoundError(name="sdk_transitive_dependency"),
+        ImportError("broken SDK"),
+        RuntimeError("SDK initialization failed"),
+    ],
+)
+def test_sdk_guard_does_not_hide_broken_installation(
+    monkeypatch: pytest.MonkeyPatch, error: Exception
+) -> None:
+    def broken_sdk(name: str) -> None:
+        assert name == "opentelemetry.sdk"
+        raise error
+
+    monkeypatch.setattr(importlib, "import_module", broken_sdk)
+    with pytest.raises(type(error)) as caught:
+        _require_otel_sdk()
+    assert caught.value is error
+
+
+async def test_sdk_in_memory_exporter_if_the_sdk_imports(monkeypatch: pytest.MonkeyPatch) -> None:
+    _require_otel_sdk()
+    from opentelemetry.sdk.trace import TracerProvider
+    from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+    from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+
     memory = InMemorySpanExporter()
     provider = TracerProvider()
     provider.add_span_processor(SimpleSpanProcessor(memory))

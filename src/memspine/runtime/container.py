@@ -39,7 +39,6 @@ from memspine.config.schema.base import ConfigInputError
 from memspine.config.schema.root import freeze_effective_config
 from memspine.core.registry import SERVICE_EXTRAS, dependency_closure, missing_services
 from memspine.derive.pipeline.stages.context import PipelineContext
-from memspine.derive.pipeline.stages.table import PIPELINES
 from memspine.exceptions import ConfigError, MissingServiceError
 from memspine.ingest import windows as _ingest_windows
 from memspine.memories.semantic.entities import EntityExtractor, LLMEntityExtractor
@@ -53,10 +52,17 @@ from memspine.memories.semantic.write_pipeline import (
 from memspine.models.cache.base import KVCache
 from memspine.models.cache.semantic import CachedEmbedding, CachedExtractor
 from memspine.models.encoders.embedding.base import EmbeddingService
+from memspine.models.profiles import bound_llm_roles, resolve_llm_profile
 from memspine.models.providers.llm import structured as _structured
 from memspine.models.providers.llm.base import LLMRouter, LLMService
 from memspine.models.providers.llm.tier_gate import TierGatedLLM, is_local_binding
 from memspine.models.providers.rerank.base import Reranker
+from memspine.models.runtime.escalation import (
+    EscalatingLLM,
+    ProfiledLLM,
+    profiled_provider_identity,
+)
+from memspine.models.runtime.gliner_runtime import GLiNERModelPool
 from memspine.observability.logging import get_logger
 from memspine.plugins import enable as enable_plugins
 from memspine.prompts.registry import PromptRegistry
@@ -381,7 +387,7 @@ async def _no_withheld() -> list[str]:
 class WiringHooks:
     """The engine callbacks the builders need (so ``runtime`` never imports the engine)."""
 
-    #: builds a fresh :class:`PipelineContext` (JOB scope; the DBOS runner's context factory)
+    #: builds a fresh :class:`PipelineContext` (JOB scope; Temporal activity context factory)
     pipeline_ctx: Callable[[], PipelineContext] | None = None
     #: texts of records above the consent tier, for the tier-gated remote LLM (#50)
     withheld_texts: Callable[[], Awaitable[list[str]]] = _no_withheld
@@ -411,6 +417,8 @@ class Wiring:
     provider_results: dict[str, BuildResult[Any]] = field(default_factory=dict)
     #: #43: the extraction cache, kept so erasure can purge an erased text's entry
     cached_extractor: CachedExtractor | None = None
+    #: Optional engine-owned local GLiNER model pool. Created only when a GLiNER feature is on.
+    gliner_pool: GLiNERModelPool | None = None
     #: E4: whether the vector leg runs the two-stage quantized rescore
     rescore_active: bool = False
 
@@ -649,6 +657,14 @@ async def wiring_of(config: MemspineConfig, _caps: Capabilities) -> AsyncIterato
         owner_id=config.runtime.deployment_id,
         explicit_owner_id=config.runtime.deployment_id is not None,
     )
+    gliner_active = (
+        config.decision.provider == "gliner2"
+        or memory_policy(config, "semantic").get("entity_extraction", "off") == "gliner"
+        or config.write.prepass == "gliner"
+    )
+    if gliner_active:
+        wiring.gliner_pool = GLiNERModelPool(max_models=config.models.gliner_max_models)
+        wiring.resources.own("gliner-model-pool", wiring.gliner_pool.aclose)
     try:
         yield wiring
     finally:
@@ -994,12 +1010,51 @@ async def build_graph_store(config: MemspineConfig, wiring: Wiring) -> GraphStor
 
 
 async def build_llm_router(config: MemspineConfig, hooks: WiringHooks, wiring: Wiring) -> LLMRouter:
-    """Build each explicit role binding through its selected descriptor."""
+    """Build inline, named-profile, tiered and escalation LLM bindings."""
     providers: dict[str, LLMService] = {}
+    role_configs = bound_llm_roles(config)
+    profile_services: dict[str, LLMService] = {}
     shared = SharedBuildContext(
         wiring.resources, _owner_id(config, wiring), wiring.health_timeout_s
     )
-    for role, role_config in config.llm.roles.items():
+
+    async def build_profile(profile_name: str, role: str) -> LLMService:
+        existing = profile_services.get(profile_name)
+        if existing is not None:
+            return existing
+        profile_config = resolve_llm_profile(config, profile_name)
+        descriptor = _descriptor(
+            PROVIDER_LLM_PROVIDERS,
+            profile_config.provider,
+            f"models.profiles.{profile_name}.provider",
+        )
+        typed = _settings(descriptor, profile_config.settings)
+        built = await _build_provider(
+            wiring,
+            descriptor,
+            typed,
+            LLMBuildContext(shared, role, resource_key=f"llm.profile:{profile_name}"),
+            result_key=f"llm.profile.{profile_name}",
+        )
+        raw_service = cast(LLMService, built.service)
+        service = ProfiledLLM(
+            raw_service,
+            profiled_provider_identity(descriptor.ref, typed, raw_service),
+        )
+        profile_services[profile_name] = service
+        return service
+
+    def native_token_cap(role_config: Any) -> int | None:
+        value = role_config.settings.get("max_tokens")
+        if isinstance(value, int) and not isinstance(value, bool) and value > 0:
+            return value
+        return None
+
+    for role, role_config in role_configs.items():
+        profile_name = config.models.bindings.get(role)
+        if profile_name is not None and config.models.profiles[profile_name].kind == "llm":
+            providers[role] = await build_profile(profile_name, role)
+            continue
         descriptor = _descriptor(
             PROVIDER_LLM_PROVIDERS, role_config.provider, f"llm.roles.{role}.provider"
         )
@@ -1008,26 +1063,93 @@ async def build_llm_router(config: MemspineConfig, hooks: WiringHooks, wiring: W
             wiring, descriptor, typed, LLMBuildContext(shared, role), result_key=f"llm.{role}"
         )
         providers[role] = cast(LLMService, built.service)
-    role_configs = dict(config.llm.roles)
     resolved = None
     if config.models.tiers_v2:
         resolved = await _bind_tiered_roles(config, providers, role_configs, wiring)
     consent = config.consent
     if consent.remote_llm_max_tier is not None:
-        # #50: a remote provider never sees text of records above the tier.
+        # Gate each candidate independently: a local primary may target a remote profile.
         for role, role_config in role_configs.items():
             if not is_local_binding(
                 role_config.provider, role_config.settings, consent.local_hosts
             ):
                 providers[role] = TierGatedLLM(providers[role], hooks.withheld_texts)
+        for role, policy in config.models.escalation.items():
+            target_names = policy.targets[: max(0, policy.max_attempts - 1)]
+            profile_names = (config.models.bindings[role], *target_names)
+            candidates: list[LLMService] = [providers[role]]
+            profile_caps = [native_token_cap(role_configs[role])]
+            for profile_name in target_names:
+                candidates.append(await build_profile(profile_name, role))
+                profile_caps.append(native_token_cap(resolve_llm_profile(config, profile_name)))
+            gated = []
+            for candidate, profile_name in zip(candidates[1:], target_names, strict=True):
+                target_config = resolve_llm_profile(config, profile_name)
+                if not is_local_binding(
+                    target_config.provider, target_config.settings, consent.local_hosts
+                ):
+                    candidate = TierGatedLLM(candidate, hooks.withheld_texts)
+                gated.append(candidate)
+            providers[role] = EscalatingLLM(
+                role, profile_names, (candidates[0], *gated), policy, tuple(profile_caps)
+            )
+    else:
+        for role, policy in config.models.escalation.items():
+            target_names = policy.targets[: max(0, policy.max_attempts - 1)]
+            profile_names = (config.models.bindings[role], *target_names)
+            candidates = [providers[role]]
+            profile_caps = [native_token_cap(role_configs[role])]
+            for profile_name in target_names:
+                candidates.append(await build_profile(profile_name, role))
+                profile_caps.append(native_token_cap(resolve_llm_profile(config, profile_name)))
+            providers[role] = EscalatingLLM(
+                role, profile_names, tuple(candidates), policy, tuple(profile_caps)
+            )
     router = LLMRouter(
         providers,
         structured_options=_structured.StructuredOptions(**config.llm.structured.model_dump()),
     )
     if resolved is not None:
         from memspine.models.resolve import report
+        from memspine.prompts.roles import CATALOGUE_ROLE
 
-        router.model_plan = report(resolved)
+        explicit_profiles = {
+            role: profile_name
+            for role, profile_name in config.models.bindings.items()
+            if role in role_configs and config.models.profiles[profile_name].kind == "llm"
+        }
+        model_plan = report(resolved)
+        profiles_by_catalogue: dict[str, dict[str, str]] = {}
+        for role, profile_name in explicit_profiles.items():
+            catalogue_role = CATALOGUE_ROLE.get(role)
+            if catalogue_role is not None:
+                profiles_by_catalogue.setdefault(catalogue_role, {})[role] = profile_name
+        for role_plan in model_plan["roles"]:
+            bindings = profiles_by_catalogue.get(role_plan["role"])
+            if not bindings:
+                continue
+            profiles = set(bindings.values())
+            role_plan.update(
+                status="explicit_multiple" if len(profiles) > 1 else "explicit",
+                model=(
+                    "multiple profiles"
+                    if len(profiles) > 1
+                    else str(
+                        config.models.profiles[next(iter(profiles))].settings.get(
+                            "model", next(iter(profiles))
+                        )
+                    )
+                ),
+                device="",
+                fallback="",
+                profile_bindings=dict(sorted(bindings.items())),
+            )
+            if len(profiles) == 1:
+                role_plan["profile"] = next(iter(profiles))
+        router.model_plan = {
+            **model_plan,
+            "explicit_profiles": explicit_profiles,
+        }
     return router
 
 
@@ -1052,13 +1174,30 @@ async def _bind_tiered_roles(
     from memspine.observability import tap
     from memspine.prompts.roles import CATALOGUE_ROLE
 
+    explicit_roles = set(role_configs)
+    explicit_catalogue_roles = {
+        CATALOGUE_ROLE[role] for role in explicit_roles if role in CATALOGUE_ROLE
+    }
     extra = ("extract",) if config.write.window_extract != "off" else ()
-    resolved = resolve_models(config.models, extra_required=extra)
+    models_config = config.models.model_copy(
+        update={
+            "required_roles": tuple(
+                role
+                for role in config.models.required_roles
+                if role not in explicit_catalogue_roles
+            )
+        }
+    )
+    resolved = resolve_models(
+        models_config,
+        extra_required=tuple(role for role in extra if role not in explicit_catalogue_roles),
+    )
     resolved.check()
     spec_tokens = {r.name: r.max_tokens for r in ROLE_CATALOGUE}
     for role in sorted(CATALOGUE_ROLE):
-        if role in config.llm.roles:
-            tap.event("models.resolve", role=role, status="explicit", source="llm.roles")
+        if role in explicit_roles:
+            source = "models.profiles" if role in config.models.bindings else "llm.roles"
+            tap.event("models.resolve", role=role, status="explicit", source=source)
             continue
         rc = role_config(resolved, role)
         if rc is None:
@@ -1089,7 +1228,7 @@ async def _bind_tiered_roles(
             )
         providers[role] = provider
         role_configs[role] = rc
-    emit_taps(resolved, tuple(r for r in sorted(CATALOGUE_ROLE) if r not in config.llm.roles))
+    emit_taps(resolved, tuple(r for r in sorted(CATALOGUE_ROLE) if r not in explicit_roles))
     return resolved
 
 
@@ -1107,10 +1246,10 @@ def check_decision_provider(config: MemspineConfig) -> DecisionState:
     """
     if config.decision.provider == "off":
         return DecisionState(off=False)
-    from memspine.models.providers.decision.gliner2_decision import gliner2_class
+    from memspine.models.providers.decision.gliner2_decision import auto_extractor_class
 
     try:
-        gliner2_class()
+        auto_extractor_class()
     except MissingServiceError:
         if config.strict_services:
             raise
@@ -1156,8 +1295,12 @@ def build_extractor(
         return SemanticExtractor(wiring.cached_extractor)
     if mode == "gliner":
         from memspine.memories.semantic.entities import GlinerEntityExtractor
+        from memspine.models.profiles import resolve_gliner_settings
 
-        return SemanticExtractor(GlinerEntityExtractor())
+        if wiring.gliner_pool is None:
+            raise ConfigError("semantic GLiNER extraction needs the engine GLiNER pool")
+        settings = resolve_gliner_settings(config, "gliner_semantic")
+        return SemanticExtractor(GlinerEntityExtractor(wiring.gliner_pool, settings))
     raise ConfigError(
         f"unknown memories.semantic.policies.entity_extraction {mode!r} (valid: off, llm, gliner)"
     )
@@ -1195,46 +1338,45 @@ def build_runner(
 ) -> TaskRunner:
     if config.workers.runner == "inline":
         return InlineRunner()
-    if config.workers.runner == "dbos":
-        from memspine.workers.dbos_runner import DBOSRunner, default_system_database_url
-
-        system_database_url = config.workers.dbos_system_database_url
-        if system_database_url is None:
-            if "sql.sqlite" not in (wiring.sql.capabilities if wiring.sql is not None else ()):
-                raise ConfigError(
-                    "workers.dbos_system_database_url is required when the selected storage "
-                    "provider does not expose SQLite SQL"
-                )
-            system_database_url = default_system_database_url(
-                str(config.storage.settings.get("path", "./memspine.db"))
+    if config.workers.runner == "temporal":
+        settings = config.workers.temporal
+        if settings is None:
+            raise ConfigError(
+                "workers.temporal.deployment_id is required when workers.runner='temporal'"
             )
-        # ``hooks.pipeline_ctx`` is safe to hand over now: by this point in the
-        # engine's start storage/config are already set, and the hook builds a
-        # FRESH PipelineContext on every call — exactly what the durable
-        # workflow needs on recovery (see dbos_runner's module docstring).
         if hooks.pipeline_ctx is None:
-            raise ConfigError("workers.runner='dbos' needs the pipeline_ctx wiring hook")
-        runner = DBOSRunner(
-            system_database_url=system_database_url,
+            raise ConfigError("workers.runner='temporal' needs the pipeline_ctx wiring hook")
+        from memspine.workers.temporal_runner import TemporalRunner
+
+        queue = settings.task_queue or f"memspine-pipelines-v1-{settings.deployment_id}"
+        resonate = config.workers.resonate
+        return TemporalRunner(
+            deployment_id=settings.deployment_id,
+            address=settings.address,
+            namespace=settings.namespace,
+            task_queue=queue,
+            tls=settings.tls,
+            api_key=settings.api_key.get_secret_value() if settings.api_key is not None else None,
+            journal_path=resonate.journal_path,
             context_factory=hooks.pipeline_ctx,
+            rpc_timeout_s=settings.rpc_timeout_s,
+            activity_timeout_s=settings.activity_timeout_s,
+            workflow_timeout_s=settings.workflow_timeout_s,
+            max_concurrent_activities=settings.max_concurrent_activities,
+            retry_max_attempts=settings.retry_max_attempts,
+            max_result_bytes=settings.max_result_bytes,
+            resonate_task_timeout_s=resonate.task_timeout_s,
+            step_timeout_s=resonate.step_timeout_s,
+            step_lease_s=resonate.step_lease_s,
+            journal_busy_timeout_s=resonate.journal_busy_timeout_s,
+            resonate_max_concurrent_tasks=resonate.max_concurrent_tasks,
         )
-        # Register every pipeline BEFORE launch(): DBOS dispatches
-        # recovery of any crash-orphaned PENDING workflow the moment
-        # launch() runs, and that recovery resolves pipelines by name
-        # through this same runner (dbos_runner's `_run_pipeline_
-        # workflow`) — an empty registry would race it. The generic
-        # registration loop in the engine (identical for every runner) still
-        # runs afterwards; re-registering the same names is a no-op.
-        for name, pipeline in PIPELINES.items():
-            runner.register(name, pipeline)
-        runner.launch()
-        return runner
     if config.workers.runner == "taskiq":
         from memspine.workers.taskiq_runner import TaskiqRunner
 
         return TaskiqRunner(url=config.workers.broker_url)
     raise ConfigError(
-        f"unknown workers.runner {config.workers.runner!r} (valid: inline, dbos, taskiq)"
+        f"unknown workers.runner {config.workers.runner!r} (valid: inline, temporal, taskiq)"
     )
 
 

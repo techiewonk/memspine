@@ -11,7 +11,7 @@ import json
 import re
 from pathlib import Path
 
-import pytest
+from memspine.workers import schedule
 
 ROOT = Path(__file__).resolve().parents[3]
 SRC = ROOT / "src" / "memspine"
@@ -97,9 +97,6 @@ def test_every_envelope_stage_is_registered() -> None:
 
 
 def test_every_sleep_stage_is_registered() -> None:
-    pytest.importorskip("memspine")
-    from memspine.workers import schedule
-
     names = set(schedule.SLEEP_CYCLE_ORDER) | {
         v for k, v in vars(schedule).items() if k.endswith("_STAGE") and isinstance(v, str)
     }
