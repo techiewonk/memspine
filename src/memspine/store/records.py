@@ -30,6 +30,7 @@ from pydantic import (
 )
 
 from memspine.config.constants import REFLECTION_DEPTH_CAP, TRUST_DEFAULT
+from memspine.schemas.durable.entity_mentions import EntityMention
 from memspine.schemas.durable.temporal import TimeBasis, TimePrecision
 from memspine.store.events import fingerprint_payload
 from memspine.store.layers import (
@@ -42,6 +43,7 @@ from memspine.store.layers import (
 
 __all__ = [
     "ArchivedVersion",
+    "EntityMention",
     "MemoryRecord",
     "PiiTier",
     "RecordAxes",
@@ -229,6 +231,9 @@ class RecordFingerprint(BaseModel):
     #: roles, verdict), kept in this blob like ``covers_seq`` so no column or migration is needed.
     #: ``None`` = the record was not written from an envelope. Read it with ``Engine.get_envelope``.
     envelope: dict[str, Any] | None = None
+    #: PA-119: all GLiNER entity spans are kept as unasserted, source-bound annotations here. This
+    #: stays in the existing fingerprint/event blob; it is not a fact key or a new SQL column.
+    entity_mentions: tuple[EntityMention, ...] = ()
 
     @model_serializer(mode="wrap")
     def _omit_unset(self, handler: SerializerFunctionWrapHandler) -> Any:
@@ -238,6 +243,8 @@ class RecordFingerprint(BaseModel):
                 data.pop("covers_seq", None)  # a record that never set it dumps as before
             if data.get("envelope") is None:
                 data.pop("envelope", None)
+            if not data.get("entity_mentions"):
+                data.pop("entity_mentions", None)
         return data
 
 

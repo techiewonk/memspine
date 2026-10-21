@@ -71,6 +71,7 @@ __all__ = [
     "TimeAnchor",
     "WindowLine",
     "compile_items",
+    "gliner_annotation_hits",
     "keep_text_only",
     "map_modality",
     "normalise_kind",
@@ -397,7 +398,7 @@ def _compile_one(
         )
 
     # S2-3 condition 1: a reserved name anywhere in the item invalidates it.
-    hits = reserved_hits(item)
+    hits = [*reserved_hits(item), *gliner_annotation_hits(item)]
     if hits:
         return Rejection(
             index, RejectionCode.RESERVED_FIELD, "reserved system name in item", tuple(hits)
@@ -563,6 +564,21 @@ def _compile_one(
         return Rejection(
             index, RejectionCode.INVALID_ENVELOPE, f"{first['type']}: {first['msg']}"[:200]
         )
+
+
+def gliner_annotation_hits(value: Any, path: str = "") -> list[str]:
+    """Find attempts to author the system-owned window annotation, recursively."""
+    hits: list[str] = []
+    if isinstance(value, Mapping):
+        for key, child in value.items():
+            child_path = f"{path}.{key}" if path else str(key)
+            if isinstance(key, str) and key.lower() == "gliner_mentions":
+                hits.append(child_path)
+            hits.extend(gliner_annotation_hits(child, child_path))
+    elif isinstance(value, (list, tuple)):
+        for index, child in enumerate(value):
+            hits.extend(gliner_annotation_hits(child, f"{path}[{index}]"))
+    return hits
 
 
 def _evidence(role: str, line: WindowLine, span: Span | None) -> Evidence:

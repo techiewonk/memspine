@@ -15,6 +15,7 @@ from memspine.schemas.durable.assessment import (
     is_tentative,
 )
 from memspine.schemas.durable.common import Fingerprint, OwnerScope, Provenance, SourceRef
+from memspine.schemas.durable.entity_mentions import EntityMention
 from memspine.schemas.durable.erasure import ErasedIds, ErasureManifest, RetentionBoundary
 from memspine.schemas.durable.events import EVENT_KINDS, MemoryEvent
 from memspine.schemas.durable.evidence import Evidence, Span, TurnRef
@@ -41,6 +42,7 @@ __all__ = [
     "AssertionKey",
     "Assessment",
     "Duration",
+    "EntityMention",
     "ErasedIds",
     "ErasureManifest",
     "Evidence",

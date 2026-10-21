@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 from memspine import Engine
-from memspine.exceptions import ConfigError, MemspineError, MissingServiceError
+from memspine.exceptions import ConfigError, MemspineError
 
 
 @pytest.fixture
@@ -16,8 +16,8 @@ async def engine() -> AsyncIterator[Engine]:
     eng = Engine(
         template="core",
         dotenv_path=None,
-        storage={'provider': "sqlite", 'settings': {'path': ":memory:", 'busy_timeout_s': 5.0}},
-        embedding={'provider': "hash", 'settings': {}},
+        storage={"provider": "sqlite", "settings": {"path": ":memory:", "busy_timeout_s": 5.0}},
+        embedding={"provider": "hash", "settings": {}},
         memories={"resource": {"enabled": True}},
     )
     await eng.start()
@@ -89,8 +89,8 @@ async def test_verbs_fail_loudly_when_type_disabled() -> None:
     eng = Engine(
         template="core",
         dotenv_path=None,
-        storage={'provider': "sqlite", 'settings': {'path': ":memory:", 'busy_timeout_s': 5.0}},
-        embedding={'provider': "hash", 'settings': {}},
+        storage={"provider": "sqlite", "settings": {"path": ":memory:", "busy_timeout_s": 5.0}},
+        embedding={"provider": "hash", "settings": {}},
         memories={"episodic": {"enabled": False}},
     )
     await eng.start()
@@ -209,27 +209,21 @@ async def test_unknown_runner_is_config_error() -> None:
     eng = Engine(
         template="core",
         dotenv_path=None,
-        storage={'provider': "sqlite", 'settings': {'path': ":memory:", 'busy_timeout_s': 5.0}},
-        embedding={'provider': "hash", 'settings': {}},
+        storage={"provider": "sqlite", "settings": {"path": ":memory:", "busy_timeout_s": 5.0}},
+        embedding={"provider": "hash", "settings": {}},
         workers={"runner": "quantum"},
     )
     with pytest.raises(ConfigError, match=r"workers\.runner"):
         await eng.start()
 
 
-async def test_dbos_runner_names_its_extra_when_missing() -> None:
-    try:
-        import dbos  # noqa: F401
-
-        pytest.skip("dbos installed — MissingServiceError path not reachable")
-    except ImportError:
-        pass
+async def test_temporal_runner_requires_deployment_settings() -> None:
     eng = Engine(
         template="core",
         dotenv_path=None,
-        storage={'provider': "sqlite", 'settings': {'path': ":memory:", 'busy_timeout_s': 5.0}},
-        embedding={'provider': "hash", 'settings': {}},
-        workers={"runner": "dbos"},
+        storage={"provider": "sqlite", "settings": {"path": ":memory:", "busy_timeout_s": 5.0}},
+        embedding={"provider": "hash", "settings": {}},
+        workers={"runner": "temporal"},
     )
-    with pytest.raises(MissingServiceError, match=r"memspine\[dbos\]"):
+    with pytest.raises(ConfigError, match=r"invalid configuration: workers"):
         await eng.start()

@@ -948,33 +948,61 @@ class WindowPipeline:
     async def _persist_staged(self, *, force: bool = False) -> None:
         """Outbox mode: write the items ``_enqueue`` staged (in order), then wake the workers.
         Staging keeps the segmenter code synchronous and in its old order; the database write
-        happens here, off the event loop (``InlineRunner.enqueue``)."""
+        happens here, off the event loop (``InlineRunner.enqueue``).
+
+        Cancellation waits for the in-flight acceptance to settle: cancelling a ``to_thread``
+        await does not stop its database write. Only acknowledged items leave staging. A provider
+        exception after an unknown commit remains an at-least-once retry boundary, not an
+        exactly-once guarantee; durable source/job reconciliation is a separate requirement.
+        """
         if self._outbox is None or not self._staged:
             return
         deferred_s: float | None = None
-        async with self._persist_lock:
-            staged, self._staged = self._staged, []
-            for at, (ns, payload) in enumerate(staged):
+        staged: list[tuple[str, dict[str, Any]]] = []
+        accepted = 0
+        try:
+            async with self._persist_lock:
+                staged, self._staged = self._staged, []
                 try:
-                    if force:  # flush / session close: accept past the hard cap, never defer
-                        await self._outbox.enqueue(
-                            self._scope(ns), WINDOW_STAGE, payload, force=True
-                        )
-                    else:
-                        await self._outbox.enqueue(self._scope(ns), WINDOW_STAGE, payload)
+                    for ns, payload in staged:
+                        if force:  # flush / session close: accept past the hard cap, never defer
+                            enqueue = self._outbox.enqueue(
+                                self._scope(ns), WINDOW_STAGE, payload, force=True
+                            )
+                        else:
+                            enqueue = self._outbox.enqueue(self._scope(ns), WINDOW_STAGE, payload)
+                        task = asyncio.create_task(enqueue)
+                        cancelled: asyncio.CancelledError | None = None
+                        while True:
+                            try:
+                                await asyncio.shield(task)
+                                break
+                            except asyncio.CancelledError as exc:
+                                if task.cancelled():
+                                    raise
+                                # Keep the same acceptance alive even under repeated cancellation.
+                                cancelled = exc
+                            except BaseException as exc:
+                                if cancelled is not None:
+                                    raise cancelled from exc
+                                raise
+                        accepted += 1
+                        if cancelled is not None:
+                            raise cancelled
                 except BackpressureRejected as rejected:
-                    # RT-02 (W-25 B): refused BEFORE it was accepted, so nothing was written; keep
-                    # this item and the rest staged, in order, and offer them again later.
-                    self._staged = staged[at:] + self._staged
-                    staged = staged[:at]
+                    # Refused before acceptance; retry this item and the remaining suffix later.
                     self._counts["windows_deferred_backpressure"] += 1
                     deferred_s = rejected.receipt.retry_after_s
-                    break
-        if self._async and not self._stopped:
-            for ns in dict.fromkeys(n for n, _ in staged):
-                self._ensure_worker(ns, self._store(ns))
-            if deferred_s is not None:
-                self._retry_persist_later(deferred_s)
+                finally:
+                    # New work can have arrived while enqueue awaited I/O. Restore older work
+                    # before it, but never re-stage an item whose acceptance was acknowledged.
+                    self._staged = staged[accepted:] + self._staged
+        finally:
+            if self._async and not self._stopped:
+                for ns in dict.fromkeys(n for n, _ in staged[:accepted]):
+                    self._ensure_worker(ns, self._store(ns))
+                if deferred_s is not None:
+                    self._retry_persist_later(deferred_s)
 
     def _retry_persist_later(self, delay_s: float) -> None:
         """Offer the deferred (backpressured) items again after the receipt's retry time."""
@@ -1422,7 +1450,7 @@ class WindowPipeline:
                         reason="no_live_turns",
                     )
                 continue
-            verdict = await self._prepass_verdict(records)
+            verdict = await self._prepass_verdict(records, namespace=ns)
             if verdict == "skip":
                 out[i] = self._skipped(job, records, ns)
                 continue
@@ -1874,7 +1902,7 @@ class WindowPipeline:
         window = job.window
         assert window is not None
         if not episode_only:
-            verdict = await self._prepass_verdict(records)
+            verdict = await self._prepass_verdict(records, namespace=ns)
             if verdict == "skip":
                 return self._skipped(job, records, ns)
             episode_only = verdict == "episode_only"
@@ -1967,7 +1995,7 @@ class WindowPipeline:
             out["windows"] = windows
         return out
 
-    async def _prepass_verdict(self, records: list[MemoryRecord]) -> str | None:
+    async def _prepass_verdict(self, records: list[MemoryRecord], *, namespace: str) -> str | None:
         """W2-13: ``"skip"`` when the pre-pass found nothing extractable (filler) in this window.
         With the ``episode`` section on the episode of a quiet window is still wanted, so the
         verdict is ``"episode_only"`` (FU-GAPS): the facts and edges part is dropped from the
@@ -1978,7 +2006,7 @@ class WindowPipeline:
         if self._env is not None and self._env.learned is not None:
             await self._env.learned.load()  # the logged aliases feed the hints
         self._counts["prepass_checked"] += 1
-        hints = await pre.ahints(records)
+        hints = await pre.ahints(records, namespace=namespace)
         if tap.enabled():
             tap.event(
                 "write.prepass.window",
@@ -2040,20 +2068,23 @@ class WindowPipeline:
             return
         if env.learned is not None:
             await env.learned.load()
-        transcript, texts, people = build_transcript(records)
+        transcript, _texts, people = build_transcript(records)
         lines = {
             n: WindowLine(
                 turn_id=rec.record_id,
                 source_id=rec.record_id,  # evidence names the turn record: parents come from it
-                source_version=1,
+                source_version=rec.version,
                 seg_index=int(fingerprint_payload({"r": rec.record_id})[:6], 16),
                 role=rec.source.role or "user",
                 speaker=rec.axes.speaker or _speaker_label(rec),
                 source_at=rec.source_at or rec.valid_from,
                 tz=rec.source_tz,
-                content=text,
+                # Evidence spans are persisted against the original source record. The model sees
+                # the normalized/prefixed transcript above, but those presentation-only prefix
+                # characters must never shift durable source offsets.
+                content=rec.content,
             )
-            for n, (rec, text) in enumerate(zip(records, texts, strict=True), 1)
+            for n, rec in enumerate(records, 1)
         }
         ctx = env.compiler.context(
             self._scope(ns),

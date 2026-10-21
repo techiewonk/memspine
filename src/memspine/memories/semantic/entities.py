@@ -5,7 +5,8 @@ canonical (entity, attribute) keys. Providers:
 
 - ``llm``    — the extract prompt (D-43) + structured output (D-31); default
                fallback whenever an ``extract`` LLM role is bound,
-- ``gliner`` — gliner2 CPU zero-shot NER behind the ``[ner]`` extra (D-28),
+- ``gliner`` — gliner2 CPU zero-shot NER behind the ``[local]`` extra (D-28),
+               source-grounded, unasserted entity mentions without an LLM call,
 - ``off``    — no extraction; records stay unkeyed (dedup still protects).
 
 Alias merges are logged so entity resolution is auditable.
@@ -13,12 +14,13 @@ Alias merges are logged so entity resolution is auditable.
 
 from __future__ import annotations
 
-import asyncio
-from typing import Any, Protocol, runtime_checkable
+from typing import Protocol, runtime_checkable
 
-from memspine.exceptions import MissingServiceError
+from memspine.config.schema.llm import GlinerSettings
+from memspine.derive.gliner_mentions import MentionSpan, parse_gliner_mentions
 from memspine.models.providers.llm.base import LLMService
 from memspine.models.providers.llm.structured import structured_call
+from memspine.models.runtime.gliner_runtime import GLiNERModelPool
 from memspine.observability.logging import get_logger
 from memspine.prompts.base import Prompt
 from memspine.prompts.models import ExtractedFact, ExtractedFacts
@@ -26,9 +28,6 @@ from memspine.prompts.models import ExtractedFact, ExtractedFacts
 __all__ = ["EntityExtractor", "GlinerEntityExtractor", "LLMEntityExtractor"]
 
 _log = get_logger(__name__)
-
-# The Hugging Face id of the GLiNER2 base checkpoint (the decision provider uses the same one).
-GLINER2_NER_MODEL = "fastino/gliner2-base-v1"
 
 
 @runtime_checkable
@@ -72,47 +71,60 @@ class LLMEntityExtractor:
 
 
 class GlinerEntityExtractor:
-    """gliner2 zero-shot NER (D-28), ``[ner]``: entities without an LLM call.
+    """gliner2 zero-shot NER (D-28), ``[local]``: entities without an LLM call.
 
-    NER yields entities, not (attribute, value) triples — extracted facts key
-    the record (attribute="mention") for conflict grouping; the LLM extractor
-    remains the richer default when a role is bound.
+    NER yields source-grounded annotations, not (entity, attribute) assertions.
+    The semantic store persists spans separately from the fact-conflict ladder;
+    the LLM extractor remains the fact-extraction path when a role is bound.
     """
 
     _DEFAULT_LABELS = ("person", "organization", "location", "product")
 
-    def __init__(self, labels: tuple[str, ...] = _DEFAULT_LABELS) -> None:
-        try:
-            from gliner2 import GLiNER2
-        except ImportError as exc:
-            raise MissingServiceError("ner:gliner2", extra="ner") from exc
+    def __init__(
+        self,
+        pool: GLiNERModelPool,
+        settings: GlinerSettings,
+        labels: tuple[str, ...] = _DEFAULT_LABELS,
+    ) -> None:
         self._labels = list(labels)
-        self._model: Any = GLiNER2.from_pretrained(GLINER2_NER_MODEL)
+        self._pool = pool
+        self._settings = settings
+        missing = set(("entities",)) - set(settings.tasks)
+        if missing:
+            raise ValueError(
+                "the bound GLiNER profile must include task 'entities' for semantic extraction"
+            )
+
+    @property
+    def model_id(self) -> str:
+        """Effective producer identity for any extraction cache or provenance record."""
+        labels = ",".join(self._labels)
+        settings = self._settings
+        return (
+            f"gliner2:{settings.model}@{settings.revision or 'default'}:{settings.device}:"
+            f"local={settings.local_files_only}:tasks={','.join(sorted(settings.tasks))}:"
+            f"concurrency={settings.inference_concurrency}:grounded-mentions-v2[{labels}]"
+        )
 
     async def extract(self, content: str) -> list[ExtractedFact]:
-        def _run() -> Any:
-            return self._model.extract_entities(content, self._labels)
+        """Satisfy the fact-extractor protocol without inventing assertions.
 
-        raw = await asyncio.to_thread(_run)
-        facts: list[ExtractedFact] = []
-        entities = raw.get("entities", raw) if isinstance(raw, dict) else raw
-        if isinstance(entities, dict):
-            for label, names in entities.items():
-                for name in names:
-                    facts.append(
-                        ExtractedFact(
-                            entity=canonical_entity(str(name)),
-                            attribute="mention",
-                            value=str(label),
-                        )
-                    )
-        else:
-            # A gliner2 version bump changing the result shape must be loud,
-            # not a permanent silent "no entities in anything".
-            _log.warning(
-                "entity.gliner_unexpected_result_shape",
-                shape=type(entities).__name__,
-                detail="gliner2 extract_entities returned an unrecognized structure; "
-                "no entities extracted — check the installed gliner2 version",
+        Call ``extract_mentions`` when source-grounded NER annotations are needed.
+        """
+        return []
+
+    async def extract_mentions(self, content: str) -> tuple[MentionSpan, ...]:
+        """Return every exact source mention as an explicitly unasserted span."""
+        lease = await self._pool.acquire(self._settings)
+        try:
+            raw = await lease.call(
+                lambda model: model.extract_entities(
+                    content,
+                    self._labels,
+                    include_confidence=True,
+                    include_spans=True,
+                )
             )
-        return facts
+        finally:
+            await lease.aclose()
+        return parse_gliner_mentions(content, raw, self._labels)

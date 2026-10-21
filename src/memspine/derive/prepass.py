@@ -22,22 +22,34 @@ closed vocabulary of greetings / thanks / acknowledgements. Anything else (a fir
 statement, a number, a date cue, a name, a non-Latin word) keeps the window.
 
 Envelope fields read: ``subject.surface``, ``object.surface``. Written: ``extras["prepass_unseen"]``
-(list of surfaces) on a flagged envelope. Nothing else.
+(list of surfaces) on a flagged envelope and, in GLiNER mode, source-bound unasserted
+``extras["gliner_mentions"]`` annotations for cited source turns. Mentions are not evidence.
 """
 
 from __future__ import annotations
 
 import asyncio
+import hashlib
+import json
 import re
 from collections import OrderedDict
 from collections.abc import Callable, Iterable, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any, Literal
 
+from memspine.config.schema.llm import GlinerSettings
 from memspine.derive.envelope_stages import EnvelopeStage, EnvelopeStageContext
+from memspine.derive.gliner_mentions import (
+    GlinerMentionError,
+    MentionSpan,
+    bind_gliner_mentions,
+    parse_gliner_mentions,
+)
+from memspine.models.runtime.gliner_runtime import GLiNERModelPool
 from memspine.observability import tap
 from memspine.observability.logging import get_logger
 from memspine.schemas.durable.assertion import AssertionEnvelope
+from memspine.schemas.durable.entity_mentions import EntityMention
 
 __all__ = [
     "FILLER_VOCAB",
@@ -113,6 +125,7 @@ class Span:
     line: int
     label: str  # name | alias | date | number | a GLiNER2 label
     source: str = "rules"  # rules | gliner
+    confidence: float | None = None
 
 
 @dataclass(frozen=True)
@@ -122,6 +135,8 @@ class Hints:
     mode: str
     turns: int
     entities: tuple[Span, ...] = ()
+    #: Exact GLiNER mentions in original source-record coordinates. These are annotations only.
+    gliner_mentions: tuple[tuple[int, MentionSpan], ...] = ()
     dates: tuple[Span, ...] = ()
     numbers: tuple[Span, ...] = ()
     #: store-known aliases found in the turns (a subset of ``entities``, label ``alias``)
@@ -278,12 +293,14 @@ def _finish(
     known: list[str],
     filler: list[int],
     speakers: Sequence[str] = (),
+    gliner_mentions: Sequence[tuple[int, MentionSpan]] = (),
 ) -> Hints:
     nothing = bool(turns) and len(filler) == turns and not (entities or dates or numbers)
     return Hints(
         mode=mode,
         turns=turns,
         entities=tuple(entities),
+        gliner_mentions=tuple(gliner_mentions),
         dates=tuple(dates),
         numbers=tuple(numbers),
         known=tuple(known),
@@ -293,53 +310,75 @@ def _finish(
     )
 
 
-#: labels asked of GLiNER2 (the decision provider's set plus date and quantity)
+#: labels asked of GLiNER2.5 (the decision provider's set plus date and quantity)
 GLINER_LABELS = ("person", "place", "organization", "event", "date", "quantity")
+GLINER_DEFAULT_MODEL = GlinerSettings().model
 
 
 class GlinerHints:
     """GLiNER2 entity finder (local CPU, ``[ner]``). Loads lazily; ``available()`` is False when
     the package is missing, in which case the caller uses the rules alone."""
 
-    def __init__(self, model: str = "fastino/gliner2-base-v1") -> None:
-        self._model_id = model
-        self._model: Any = None
+    def __init__(self, pool: GLiNERModelPool, settings: GlinerSettings) -> None:
+        self._pool = pool
+        self._settings = settings
+        if "entities" not in settings.tasks:
+            raise ValueError(
+                "the bound GLiNER profile must include task 'entities' for the write pre-pass"
+            )
+
+    @property
+    def producer_id(self) -> str:
+        settings = self._settings
+        return (
+            f"gliner2:{settings.model}@{settings.revision or 'default'}:{settings.device}:"
+            f"local={settings.local_files_only}:tasks={','.join(sorted(settings.tasks))}:"
+            f"concurrency={settings.inference_concurrency}:prepass-v2-source-bound"
+        )
 
     @staticmethod
     def available() -> bool:
         try:
-            from memspine.models.providers.decision.gliner2_decision import gliner2_class
+            from memspine.models.providers.decision.gliner2_decision import auto_extractor_class
 
-            gliner2_class()
+            auto_extractor_class()
         except Exception:
             return False
         return True
 
-    def _load(self) -> Any:
-        if self._model is None:
-            from memspine.models.providers.decision.gliner2_decision import gliner2_class
-
-            self._model = gliner2_class().from_pretrained(self._model_id)
-        return self._model
-
-    def entities(self, text: str) -> list[tuple[str, str]]:
-        """``[(surface, label)]`` for one text; an unrecognised result shape yields nothing."""
-        raw = self._load().extract_entities(text, list(GLINER_LABELS))
-        found = raw.get("entities", raw) if isinstance(raw, dict) else None
-        if not isinstance(found, dict):
-            return []
-        return [(str(n), str(label)) for label, names in found.items() for n in (names or [])]
+    async def aentities(self, text: str) -> tuple[MentionSpan, ...]:
+        """Return exact source spans; malformed or ambiguous output fails closed."""
+        lease = await self._pool.acquire(self._settings)
+        try:
+            raw = await lease.call(
+                lambda model: model.extract_entities(
+                    text,
+                    list(GLINER_LABELS),
+                    include_confidence=True,
+                    include_spans=True,
+                )
+            )
+        finally:
+            await lease.aclose()
+        return parse_gliner_mentions(text, raw, GLINER_LABELS)
 
 
 def _gliner_spans(finder: Any, records: Sequence[Any]) -> list[Span]:
     out: list[Span] = []
     for n, rec in enumerate(records, 1):
         text = _content(rec)
-        for surface, label in finder.entities(text):
-            at = text.find(surface)
-            if at < 0:
-                continue  # a span the model invented is not a hint
-            out.append(Span(surface, at, at + len(surface), n, label, "gliner"))
+        raw_found = finder.entities(text)
+        typed: dict[str, list[str]] = {}
+        for surface, label in raw_found:
+            typed.setdefault(label, []).append(surface)
+        try:
+            found = parse_gliner_mentions(text, typed, tuple(typed))
+        except GlinerMentionError:
+            continue
+        out.extend(
+            Span(item.text, item.start, item.end, n, item.label, "gliner", item.confidence)
+            for item in found
+        )
     return out
 
 
@@ -352,18 +391,22 @@ def prepass_hints(
 ) -> Hints:
     """Hints for one window's raw turns. ``off`` returns an empty, never-skipping :class:`Hints`.
 
-    ``gliner`` is a finder with ``entities(text) -> [(surface, label)]`` (:class:`GlinerHints` or a
-    stub); without one, ``gliner`` mode is the rules."""
+    ``gliner`` is a synchronous test finder. Integrated inference runs through
+    :meth:`Prepass.ahints` and the engine-owned asynchronous model pool."""
     if mode == "off":
         return Hints(mode="off", turns=len(records))
     base = rule_hints(records, known_aliases=known_aliases, mode=mode)
     if mode != "gliner" or gliner is None:
         return base
     extra = _gliner_spans(gliner, records)
-    have = {(s.line, s.text.lower()) for s in base.entities}
-    added = [s for s in extra if (s.line, s.text.lower()) not in have]
+    return _with_gliner_spans(base, extra)
+
+
+def _with_gliner_spans(base: Hints, extra: list[Span]) -> Hints:
+    have = {(s.line, s.start, s.end, s.text.lower()) for s in base.entities}
+    added = [s for s in extra if (s.line, s.start, s.end, s.text.lower()) not in have]
     return _finish(
-        mode,
+        base.mode,
         base.turns,
         [*base.entities, *(s for s in added if s.label not in ("date", "quantity"))],
         [*base.dates, *(s for s in added if s.label == "date")],
@@ -371,6 +414,7 @@ def prepass_hints(
         list(base.known),
         list(base.filler_lines),
         base.speakers,
+        base.gliner_mentions,
     )
 
 
@@ -382,14 +426,27 @@ class Prepass:
         mode: PrepassMode = "rules",
         *,
         gliner: Any = None,
+        gliner_pool: GLiNERModelPool | None = None,
+        gliner_settings: GlinerSettings | None = None,
         aliases: Callable[[], Iterable[str]] | None = None,
         cache_size: int = 64,
     ) -> None:
         if mode == "gliner" and gliner is None:
-            finder = GlinerHints()
-            if finder.available():
-                gliner = finder
+            if gliner_pool is not None and gliner_settings is not None:
+                finder = GlinerHints(gliner_pool, gliner_settings)
+                if finder.available():
+                    gliner = finder
             else:
+                _log.warning(
+                    "prepass.gliner_unavailable",
+                    detail="engine GLiNER pool is unavailable; using the rules",
+                )
+        if mode == "gliner" and gliner is None:
+            from memspine.models.providers.decision.gliner2_decision import auto_extractor_class
+
+            try:
+                auto_extractor_class()
+            except Exception:
                 _log.warning(
                     "prepass.gliner_unavailable",
                     detail="write.prepass=gliner but gliner2 is not installed; using the rules",
@@ -432,25 +489,98 @@ class Prepass:
         extra = list(self._aliases()) if self._aliases is not None else []
         return [*self._learned, *extra]
 
-    def hints(self, records: Sequence[Any]) -> Hints:
-        """Synchronous hints (rules; GLiNER2 too when it is loaded and cheap enough to block)."""
-        key = tuple(str(getattr(r, "record_id", id(r))) for r in records)
+    def hints(self, records: Sequence[Any], *, namespace: str | None = None) -> Hints:
+        """Synchronous rules-only hints; model inference is restricted to :meth:`ahints`."""
+        key = self._cache_key(records, "sync", namespace)
         hit = self._cache.get(key)
         if hit is not None:
             return hit
         out = prepass_hints(
-            records, mode=self.mode, known_aliases=self.known_aliases(), gliner=self._gliner
+            records,
+            mode=self.mode,
+            known_aliases=self.known_aliases(),
+            gliner=(self._gliner if hasattr(self._gliner, "entities") else None),
         )
         self._cache[key] = out
         while len(self._cache) > self._cache_size:
             self._cache.popitem(last=False)
         return out
 
-    async def ahints(self, records: Sequence[Any]) -> Hints:
+    async def ahints(self, records: Sequence[Any], *, namespace: str | None = None) -> Hints:
         """Hints without blocking the event loop (GLiNER2 runs in a worker thread)."""
-        if self.uses_gliner:
-            return await asyncio.to_thread(self.hints, records)
-        return self.hints(records)
+        producer = str(getattr(self._gliner, "producer_id", "rules"))
+        key = self._cache_key(records, f"async:{producer}", namespace)
+        hit = self._cache.get(key)
+        if hit is not None:
+            return hit
+        aliases = self.known_aliases()
+        base = rule_hints(records, known_aliases=aliases, mode=self.mode)
+        finder = self._gliner
+        if self.mode == "gliner" and finder is not None:
+            extra: list[Span] = []
+            mentions: list[tuple[int, MentionSpan]] = []
+            for line, record in enumerate(records, 1):
+                text = _content(record)
+                async_entities = getattr(finder, "aentities", None)
+                try:
+                    if callable(async_entities):
+                        found = async_entities(text)
+                        if hasattr(found, "__await__"):
+                            found = await found
+                    else:
+                        # Test finders can use the same typed parser result contract.
+                        raw_found = await asyncio.to_thread(finder.entities, text)
+                        typed: dict[str, list[str]] = {}
+                        for surface, label in raw_found:
+                            typed.setdefault(label, []).append(surface)
+                        found = parse_gliner_mentions(text, typed, tuple(typed))
+                    if not all(isinstance(item, MentionSpan) for item in found):
+                        raise GlinerMentionError("pre-pass finder returned unvalidated mentions")
+                except GlinerMentionError:
+                    _log.warning("prepass.gliner_invalid_mentions", line=line)
+                    continue
+                mentions.extend((line, item) for item in found)
+                extra.extend(
+                    Span(
+                        item.text, item.start, item.end, line, item.label, "gliner", item.confidence
+                    )
+                    for item in found
+                )
+            base = _with_gliner_spans(base, extra)
+            base = replace(base, gliner_mentions=tuple(mentions))
+        self._cache[key] = base
+        while len(self._cache) > self._cache_size:
+            self._cache.popitem(last=False)
+        return base
+
+    @staticmethod
+    def _cache_key(records: Sequence[Any], producer: str, namespace: str | None) -> tuple[str, ...]:
+        identities: list[str] = []
+        for record in records:
+            source = getattr(record, "source", None)
+            message = getattr(source, "message", None) or {}
+            sender = message.get("sender", {}) if isinstance(message, dict) else {}
+            axes = getattr(record, "axes", None)
+            identity = {
+                "namespace": getattr(record, "namespace", None),
+                "record_id": getattr(record, "record_id", None),
+                "version": getattr(record, "version", None),
+                "content": _content(record),
+                "role": getattr(source, "role", None),
+                "channel": getattr(source, "channel", None),
+                "source_parents": getattr(source, "parents", None),
+                "source_message_id": getattr(source, "message_id", None),
+                "message": message,
+                "sender": sender,
+                "speaker": getattr(axes, "speaker", None),
+            }
+            encoded = json.dumps(identity, sort_keys=True, ensure_ascii=False, default=str).encode()
+            identities.append(hashlib.sha256(encoded).hexdigest())
+        return (
+            producer,
+            f"namespace:{namespace or ''}",
+            *identities,
+        )
 
 
 _PRONOUNS = frozenset({"i", "me", "my", "we", "you", "he", "she", "they", "user", "assistant"})
@@ -467,8 +597,16 @@ def prepass_stage(prepass: Prepass) -> EnvelopeStage:
     async def run(
         envelopes: list[AssertionEnvelope], ctx: EnvelopeStageContext
     ) -> list[AssertionEnvelope]:
-        hints = prepass.hints(ctx.records)
+        hints = await prepass.ahints(ctx.records, namespace=ctx.namespace)
         seen = hints.names() | {a.lower() for a in prepass.known_aliases()}
+        records_by_id = {str(getattr(record, "record_id", "")): record for record in ctx.records}
+        mentions_by_record: dict[str, list[MentionSpan]] = {}
+        for line, mention in hints.gliner_mentions:
+            if 1 <= line <= len(ctx.records):
+                record = ctx.records[line - 1]
+                mentions_by_record.setdefault(str(getattr(record, "record_id", "")), []).append(
+                    mention
+                )
         out: list[AssertionEnvelope] = []
         for env in envelopes:
             unseen = [
@@ -478,11 +616,36 @@ def prepass_stage(prepass: Prepass) -> EnvelopeStage:
                 and _checkable(m.surface)
                 and not any(w in seen for w in (m.surface.lower(), *m.surface.lower().split()))
             ]
+            extras = dict(env.extras)
+            # The extraction model does not own this reserved system annotation.
+            extras.pop("gliner_mentions", None)
             if unseen:
                 ctx.notes["prepass_unseen_entity"] += 1
                 if tap.enabled():
                     tap.event("write.prepass.unseen", window=ctx.window_id, n=len(unseen))
-                env = env.model_copy(update={"extras": {**env.extras, "prepass_unseen": unseen}})
+                extras["prepass_unseen"] = unseen
+            cited_ids = {
+                evidence.turn.source_id
+                for evidence in env.evidence
+                if evidence.turn is not None and evidence.turn.source_id in records_by_id
+            }
+            bound: list[EntityMention] = []
+            for record_id in sorted(cited_ids):
+                record = records_by_id[record_id]
+                record_mentions = mentions_by_record.get(record_id, [])
+                if record_mentions:
+                    try:
+                        bound.extend(bind_gliner_mentions(record, record_mentions))
+                    except GlinerMentionError:
+                        _log.warning(
+                            "prepass.gliner_source_changed",
+                            record_id=record_id,
+                            detail="source no longer matches validated mention offsets",
+                        )
+            if bound:
+                extras["gliner_mentions"] = [mention.model_dump(mode="json") for mention in bound]
+            if extras != env.extras:
+                env = env.model_copy(update={"extras": extras})
             out.append(env)
         if hints.nothing_extractable and envelopes:
             ctx.notes["prepass_filler_with_facts"] += len(envelopes)

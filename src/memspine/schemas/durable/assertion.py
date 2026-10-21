@@ -8,11 +8,12 @@ from __future__ import annotations
 
 from typing import Any, ClassVar, Literal
 
-from pydantic import Field, model_validator
+from pydantic import Field, ValidationError, model_validator
 
 from memspine.schemas.base import DurableModel, DurablePart
 from memspine.schemas.durable.assessment import Assessment
 from memspine.schemas.durable.common import Fingerprint, OwnerScope, Provenance, SrcClass
+from memspine.schemas.durable.entity_mentions import EntityMention as GlinerMentionAnnotation
 from memspine.schemas.durable.evidence import Evidence
 from memspine.schemas.durable.identity import AssertionKey
 from memspine.schemas.durable.temporal import TimeAxes
@@ -134,9 +135,40 @@ class AssertionEnvelope(DurableModel):
                 f"event time precision {self.time.event_precision!r}"
             )
         # Session 2 condition 1: reserved system names are never stored as extras.
-        hits = reserved_hits(self.extras)
+        gliner_key = next(
+            (
+                key
+                for key in self.extras
+                if isinstance(key, str) and key.lower() == "gliner_mentions"
+            ),
+            None,
+        )
+        if gliner_key is not None and gliner_key != "gliner_mentions":
+            raise ValueError("system annotation extras key must use canonical spelling")
+        ordinary_extras = {
+            key: value for key, value in self.extras.items() if key != "gliner_mentions"
+        }
+        hits = reserved_hits(ordinary_extras)
         if hits:
             raise ValueError(f"extras may not contain reserved names: {hits}")
+        if gliner_key is not None:
+            raw_mentions = self.extras["gliner_mentions"]
+            if not isinstance(raw_mentions, list):
+                raise ValueError("gliner_mentions must be a list of source-bound annotations")
+            cited_versions = {
+                evidence.turn.source_id: evidence.turn.source_version
+                for evidence in self.evidence
+                if evidence.turn is not None
+            }
+            try:
+                for annotation in raw_mentions:
+                    mention = GlinerMentionAnnotation.model_validate(annotation, strict=True)
+                    if mention.source_namespace != self.scope.owner:
+                        raise ValueError("GLiNER annotation namespace differs from envelope scope")
+                    if cited_versions.get(mention.source_record_id) != mention.source_version:
+                        raise ValueError("GLiNER annotation source is not cited at this version")
+            except (ValidationError, TypeError) as exc:
+                raise ValueError("gliner_mentions contains an invalid annotation") from exc
         ids = self.mention_ids
         if len(set(ids)) != len(ids):
             raise ValueError("mention ids must be distinct")

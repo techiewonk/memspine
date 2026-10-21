@@ -21,8 +21,11 @@ def _engine(tmp_path: Any, **read: Any) -> Engine:
     return Engine(
         template="core",
         dotenv_path=None,
-        storage={'provider': "sqlite", 'settings': {'path': str(tmp_path / "t.db"), 'busy_timeout_s': 5.0}},
-        embedding={'provider': "hash", 'settings': {}},
+        storage={
+            "provider": "sqlite",
+            "settings": {"path": str(tmp_path / "t.db"), "busy_timeout_s": 5.0},
+        },
+        embedding={"provider": "hash", "settings": {}},
         read={"rerank": "off", "record_access": False, **read},
         memories={"episodic": {"enabled": True}, "semantic": {"enabled": True}},
     )
@@ -48,16 +51,45 @@ def test_gate_contract_maps_typed_fields() -> None:
     assert named.named_reference is True
 
 
-def test_gate_contract_time_view_needs_support() -> None:
-    q = "Where did Ilse live in 1998?"
-    typed = build_contract(q)
-    if typed.request_kind != "as_of" and typed.time_view.kind not in ("as_of", "history"):
-        pytest.skip("rules do not read this phrase as a time view")
-    assert _gate_contract(q, False, False).request_kind == "lookup"
-    assert _gate_contract(q, False, False).time_view == "current"
-    assert _gate_contract(q, False, True).time_view != "current" or (
-        _gate_contract(q, False, True).request_kind == "as_of"
-    )
+@pytest.mark.parametrize(
+    ("query", "typed_kind", "typed_view", "unsupported_kind", "supported_view"),
+    [
+        ("Where did Ilse live as of 1998?", "as_of", "as_of", "lookup", "as_of"),
+        # A range retains the as-of request kind, but GateContract has no range view.
+        ("Where did Ilse live in 1998?", "as_of", "range", "lookup", "current"),
+        # Enumeration remains an independent bypass even without temporal support.
+        (
+            "What is the history of Ilse home cities?",
+            "enumeration",
+            "history",
+            "enumeration",
+            "history",
+        ),
+    ],
+)
+def test_gate_contract_time_view_needs_support(
+    query: str,
+    typed_kind: str,
+    typed_view: str,
+    unsupported_kind: str,
+    supported_view: str,
+) -> None:
+    typed = build_contract(query)
+    assert (typed.request_kind, typed.time_view.kind) == (typed_kind, typed_view)
+
+    unsupported = _gate_contract(query, False, False)
+    assert (unsupported.request_kind, unsupported.time_view) == (unsupported_kind, "current")
+    supported = _gate_contract(query, False, True)
+    assert (supported.request_kind, supported.time_view) == (typed_kind, supported_view)
+
+
+@pytest.mark.parametrize("supported", [False, True])
+def test_gate_contract_non_temporal_input_stays_current(supported: bool) -> None:
+    query = "Where does Ilse live?"
+    typed = build_contract(query)
+    assert (typed.request_kind, typed.time_view.kind) == ("lookup", "unspecified")
+    contract = _gate_contract(query, False, supported)
+    assert (contract.request_kind, contract.time_view) == ("lookup", "current")
 
 
 async def test_gate_v2_off_is_untouched(tmp_path: Any) -> None:

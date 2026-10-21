@@ -50,7 +50,7 @@ from datetime import datetime, timedelta
 from enum import StrEnum
 from typing import Any
 
-from memspine.derive.compile import ParseFailure
+from memspine.derive.compile import ParseFailure, gliner_annotation_hits
 from memspine.schemas.durable import Interval, TemporalRef
 from memspine.schemas.reserved import reserved_hits
 from memspine.schemas.steps.shared import Turn
@@ -544,7 +544,7 @@ def _guard_item(section: str, index: int, item: Any, reject: Reject) -> Mapping[
     if not isinstance(item, Mapping):
         reject(section, index, RejectionReason.INVALID_FIELD, "item is not an object")
         return None
-    hits = reserved_hits(item)
+    hits = [*reserved_hits(item), *gliner_annotation_hits(item)]
     if hits:
         reject(section, index, RejectionReason.RESERVED_FIELD, ", ".join(hits))
         return None

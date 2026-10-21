@@ -381,7 +381,18 @@ def _prepass(eng: Any, config: MemspineConfig) -> Prepass | None:
         return None
     shared: Prepass | None = getattr(eng, "_window_prepass", None)
     if shared is None:
-        shared = Prepass(config.write.prepass)
+        from memspine.models.profiles import resolve_gliner_settings
+
+        settings = (
+            resolve_gliner_settings(config, "gliner_prepass")
+            if config.write.prepass == "gliner"
+            else None
+        )
+        shared = Prepass(
+            config.write.prepass,
+            gliner_pool=getattr(eng, "_gliner_pool", None),
+            gliner_settings=settings,
+        )
         eng._window_prepass = shared
     return shared
 

@@ -22,6 +22,7 @@ from memspine.config.constants import CUE_TAG
 from memspine.core import trace_sink
 from memspine.core.policies.conflict import ConflictPolicy, ConflictVerdict
 from memspine.core.policies.dedup import DedupPolicy
+from memspine.derive.gliner_mentions import bind_gliner_mentions
 from memspine.memories.base import BaseMemory
 from memspine.memories.semantic.entities import EntityExtractor
 from memspine.memories.semantic.write_pipeline import EDGE_CHANNEL, ScreenDerived, WritePipeline
@@ -174,6 +175,10 @@ class SemanticMemory(BaseMemory):
         return await self._write_locked(fact)
 
     async def _write_primary(self, record: MemoryRecord) -> SemanticWriteResult:
+        # GLiNER yields unasserted source annotations, not fact keys. Run it
+        # before dedup so a dropped duplicate carries its spans in the existing
+        # MERGE dropped_record snapshot. Spans remain bound to the input source.
+        record = await self._annotate_entity_mentions(record)
         # Sketch computation (minhash over tokens) is CPU-bound — off the loop.
         record = await asyncio.to_thread(self._dedup.annotate, record)
         index = await self._index_for(record.namespace)
@@ -197,7 +202,11 @@ class SemanticMemory(BaseMemory):
 
         # M13.3: entity resolution BEFORE conflict detection. The prompt that
         # produced the keying lands in provenance (D-43/E1 audit trail).
-        if self._extractor is not None and record.entity is None:
+        if (
+            self._extractor is not None
+            and record.entity is None
+            and not callable(getattr(self._extractor, "extract_mentions", None))
+        ):
             facts = await self._extractor.extract(record.content)
             if not facts:
                 # Distinguishable in logs from "extraction not configured":
@@ -246,6 +255,16 @@ class SemanticMemory(BaseMemory):
                 trust_incoming=record.trust,
             )  # fmt: skip
         return SemanticWriteResult(record=record, action="added")
+
+    async def _annotate_entity_mentions(self, record: MemoryRecord) -> MemoryRecord:
+        """Attach typed GLiNER spans to the existing fingerprint blob."""
+        extract_mentions = getattr(self._extractor, "extract_mentions", None)
+        if not callable(extract_mentions):
+            return record
+        mentions = await extract_mentions(record.content)
+        bound = bind_gliner_mentions(record, mentions) if mentions else ()
+        fingerprint = record.fingerprint.model_copy(update={"entity_mentions": bound})
+        return record.model_copy(update={"fingerprint": fingerprint})
 
     async def _incumbent_for_subject(
         self, record: MemoryRecord, existing: MemoryRecord

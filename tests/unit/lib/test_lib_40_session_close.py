@@ -151,7 +151,8 @@ def test_parse_failures(raw: str) -> None:
 
 
 @pytest.mark.parametrize(
-    "name", ["id", "user_id", "trust", "Status", "lineage", "fingerprint", "scope"]
+    "name",
+    ["id", "user_id", "trust", "Status", "lineage", "fingerprint", "scope", "GLiNER_Mentions"],
 )
 def test_reserved_field_drops_item_keeps_siblings(name: str) -> None:
     raw = out(

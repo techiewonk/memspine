@@ -5,6 +5,7 @@ with a reason and a stub finder exercises the same code path."""
 from __future__ import annotations
 
 import sys
+import types
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -13,13 +14,17 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from test_w2_06a_envelope import ItemLLM
+from test_w2_06a_envelope import ItemLLM, _item
 from test_w2_06a_envelope import _engine as env_engine
 from test_window_write import FakeWindowLLM, _facts, _send
 from test_window_write import _engine as legacy_engine
 
 from memspine.config.schema import MemspineConfig
+from memspine.derive.compile import WindowLine
+from memspine.derive.envelope_compiler import EnvelopeCompiler
 from memspine.derive.envelope_stages import EnvelopeStageContext
+from memspine.derive.gliner_mentions import MentionSpan
+from memspine.derive.items import ItemValidator
 from memspine.derive.prepass import (
     GlinerHints,
     Hints,
@@ -28,7 +33,9 @@ from memspine.derive.prepass import (
     prepass_stage,
     rule_hints,
 )
+from memspine.schemas.durable import OwnerScope
 from memspine.schemas.durable.assertion import Mention
+from memspine.store.records import MemoryRecord, SourceInfo
 
 T0 = datetime(2023, 6, 1, 9, 0, tzinfo=UTC)
 NAMES = ["Ilse", "Bram", "Noor", "Tomasz"]
@@ -90,7 +97,18 @@ def recs(*texts: str) -> list[Rec]:
 
 # --- config / hints shape -----------------------------------------------------------------------
 def test_flag_default_off_and_literal() -> None:
-    assert MemspineConfig(runtime={"provider_services": {"health_timeout_s": 1.0, "close_timeout_s": 1.0, "startup_timeout_s": None}}).write.prepass == "off"
+    assert (
+        MemspineConfig(
+            runtime={
+                "provider_services": {
+                    "health_timeout_s": 1.0,
+                    "close_timeout_s": 1.0,
+                    "startup_timeout_s": None,
+                }
+            }
+        ).write.prepass
+        == "off"
+    )
     with pytest.raises(ValueError):
         MemspineConfig(write={"prepass": "yes"})
 
@@ -320,7 +338,6 @@ class StubGliner:
             out.append(("Kestrel Works", "organization"))
         if "next harvest" in text:
             out.append(("next harvest", "date"))
-        out.append(("not in the text", "person"))  # an invented span is dropped
         return out
 
 
@@ -331,9 +348,18 @@ def test_gliner_hints_only_add_and_can_veto_a_skip() -> None:
     h = prepass_hints(turns, mode="gliner", gliner=StubGliner())
     assert {s.text for s in h.entities} >= {"Kestrel Works"}
     assert any(s.text == "next harvest" and s.source == "gliner" for s in h.dates)
-    assert "not in the text" not in {s.text for s in h.entities}
     # gliner mode without a finder is the rules
     assert prepass_hints(turns, mode="gliner").entities == base.entities
+
+
+def test_sync_finder_drops_entire_malformed_result() -> None:
+    class InvalidFinder:
+        def entities(self, text: str) -> list[tuple[str, str]]:
+            return [("Ilse", "person"), ("not in source", "person")]
+
+    text = "Ilse met Noor"
+    hints = prepass_hints(recs(text), mode="gliner", gliner=InvalidFinder())
+    assert not any(span.source == "gliner" for span in (*hints.entities, *hints.dates))
 
 
 def test_gliner_unavailable_falls_back_to_rules(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -342,7 +368,201 @@ def test_gliner_unavailable_falls_back_to_rules(monkeypatch: pytest.MonkeyPatch)
     assert not p.uses_gliner and p.hints(recs("Hi!")).nothing_extractable
 
 
-@pytest.mark.skipif(not GlinerHints.available(), reason="gliner2 ([ner] extra) is not installed")
-def test_gliner_adapter_real_model() -> None:  # pragma: no cover - needs the model cached
-    out = GlinerHints().entities("Ilse works at Kestrel Works in Vorstad")
-    assert out and all(isinstance(s, str) and isinstance(label, str) for s, label in out)
+async def test_async_hint_cache_is_scoped_by_namespace() -> None:
+    class Finder:
+        producer_id = "test-gliner-v1"
+
+        def __init__(self) -> None:
+            self.calls = 0
+
+        async def aentities(self, text: str) -> list[tuple[str, str]]:
+            self.calls += 1
+            return (MentionSpan(text="Mira", label="person", start=0, end=4),)
+
+    finder = Finder()
+    prepass = Prepass("gliner", gliner=finder)
+    records = [types.SimpleNamespace(record_id="same-id", content="Mira")]
+    await prepass.ahints(records, namespace="tenant-a")
+    await prepass.ahints(records, namespace="tenant-b")
+    await prepass.ahints(records, namespace="tenant-a")
+    assert finder.calls == 2
+
+
+async def test_async_hint_cache_tracks_record_snapshot_and_sender() -> None:
+    class Finder:
+        producer_id = "snapshot-cache-test"
+
+        def __init__(self) -> None:
+            self.calls = 0
+
+        async def aentities(self, text: str) -> tuple[MentionSpan, ...]:
+            self.calls += 1
+            return (MentionSpan(text="Mira", label="person", start=0, end=4),)
+
+    finder = Finder()
+    prepass = Prepass("gliner", gliner=finder)
+
+    def record(content: str, sender: str) -> Any:
+        return types.SimpleNamespace(
+            record_id="reused-id",
+            version=1,
+            namespace="tenant-a",
+            content=content,
+            source=types.SimpleNamespace(
+                role="user",
+                channel="chat",
+                message_id="message-1",
+                parents=(),
+                message={"message_id": "message-1", "sender": {"id": sender}},
+            ),
+            axes=types.SimpleNamespace(speaker="Mira"),
+        )
+
+    await prepass.ahints([record("Mira likes tea", "sender-a")], namespace="tenant-a")
+    await prepass.ahints([record("Mira likes coffee", "sender-a")], namespace="tenant-a")
+    await prepass.ahints([record("Mira likes coffee", "sender-b")], namespace="tenant-a")
+    assert finder.calls == 3
+
+
+async def test_gliner_hints_uses_shared_settings_and_pool(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from memspine.config.schema.llm import GlinerSettings
+    from memspine.models.providers.decision.gliner2_decision import DEFAULT_MODEL
+    from memspine.models.runtime.gliner_runtime import GLiNERModelPool
+
+    loaded: list[str] = []
+
+    class _BoundaryExtractor:
+        def extract_entities(
+            self,
+            text: str,
+            labels: list[str],
+            *,
+            include_confidence: bool = False,
+            include_spans: bool = False,
+        ) -> dict[str, Any]:
+            assert include_confidence and include_spans
+            return {"entities": {"person": [{"text": "Mira", "start": 0, "end": 4}]}}
+
+    module = types.ModuleType("gliner2")
+    module.AutoExtractor = _BoundaryExtractor
+    # A legacy class may be present in the SDK but must not be selected.
+    module.GLiNER2 = object()
+    monkeypatch.setitem(sys.modules, "gliner2", module)
+
+    settings = GlinerSettings()
+    pool = GLiNERModelPool(
+        loader=lambda effective: (loaded.append(effective.model), _BoundaryExtractor())[1]
+    )
+    finder = GlinerHints(pool, settings)
+    assert await finder.aentities("Mira") == (
+        MentionSpan(text="Mira", label="person", start=0, end=4),
+    )
+    assert await finder.aentities("Mira") == (
+        MentionSpan(text="Mira", label="person", start=0, end=4),
+    )
+    assert loaded == [DEFAULT_MODEL]
+    await pool.aclose()
+
+
+async def test_prepass_stage_binds_mentions_only_to_cited_source_and_roundtrips() -> None:
+    from memspine.derive.gliner_mentions import MentionSpan
+
+    content = "Mira met Mira near 東京."
+    record = MemoryRecord(
+        record_id="turn-1",
+        namespace="default",
+        memory_type="episodic",
+        content=content,
+        version=3,
+        source=SourceInfo(
+            role="user",
+            channel="chat",
+            message={
+                "message_id": "message-7",
+                "role": "user",
+                "sender": {"id": "principal-2", "kind": "user"},
+                "created_at": "2023-06-01T09:00:00+00:00",
+            },
+        ),
+    )
+
+    class Finder:
+        producer_id = "source-bound-test"
+
+        async def aentities(self, text: str) -> tuple[MentionSpan, ...]:
+            assert text == content
+            return (
+                MentionSpan(text="Mira", label="person", start=0, end=4, confidence=0.91),
+                MentionSpan(text="Mira", label="person", start=9, end=13, confidence=0.84),
+                MentionSpan(text="東京", label="place", start=19, end=21, confidence=0.7),
+            )
+
+    compiler = EnvelopeCompiler(clock=lambda: T0)
+    line = WindowLine(
+        turn_id=record.record_id,
+        source_id=record.record_id,
+        source_version=record.version,
+        seg_index=1,
+        role="user",
+        speaker="Mira",
+        source_at=T0,
+        tz="UTC",
+        content=content,
+    )
+    compile_ctx = compiler.context(
+        OwnerScope(tenant="default", owner="default"), "window-1", {1: line}, source_time=T0
+    )
+    compiled = ItemValidator(compiler).validate(
+        [_item(text="Mira met Mira near Tokyo", span="Mira met Mira")], compile_ctx
+    )
+    assert len(compiled.envelopes) == 1
+    original = compiled.envelopes[0]
+    trust = original.assessment.source_trust
+    evidence = [e.model_dump(mode="json") for e in original.evidence]
+    # Exercise system-stage scrubbing too; normal model output is rejected at compile time.
+    spoofed = original.model_copy(
+        update={"extras": {"gliner_mentions": [{"text": "fake", "asserted": True}]}}
+    )
+    prepass = Prepass("gliner", gliner=Finder())
+    stage = prepass_stage(prepass)
+    stage_ctx = EnvelopeStageContext(
+        namespace="default",
+        window_id="window-1",
+        lines={1: line},
+        records=[record],
+        compile_ctx=compile_ctx,
+    )
+    (annotated,) = await stage.run([spoofed], stage_ctx)
+    annotations = annotated.extras["gliner_mentions"]
+    assert [item["text"] for item in annotations] == ["Mira", "Mira", "東京"]
+    assert [(item["start"], item["end"]) for item in annotations] == [(0, 4), (9, 13), (19, 21)]
+    assert [item["confidence"] for item in annotations] == [0.91, 0.84, 0.7]
+    assert all(item["asserted"] is False for item in annotations)
+    assert all(item["source_record_id"] == "turn-1" for item in annotations)
+    assert all(item["source_version"] == 3 for item in annotations)
+    assert all(item["source_namespace"] == "default" for item in annotations)
+    assert all(item["sender_id"] == "principal-2" for item in annotations)
+    assert all(item["source_message_id"] == "message-7" for item in annotations)
+    assert annotated.assessment.source_trust == trust
+    assert [e.model_dump(mode="json") for e in annotated.evidence] == evidence
+
+    # The durable read path validates the system-owned annotation after storage/reopen.
+    from memspine.schemas.durable.assertion import AssertionEnvelope
+
+    reloaded = AssertionEnvelope.model_validate(annotated.model_dump(mode="json"))
+    assert reloaded.extras["gliner_mentions"] == annotations
+    forged = annotated.model_dump(mode="json")
+    forged["extras"]["gliner_mentions"][0]["source_namespace"] = "other-tenant"
+    with pytest.raises(ValueError, match="namespace differs"):
+        AssertionEnvelope.model_validate(forged)
+    forged = annotated.model_dump(mode="json")
+    forged["extras"]["gliner_mentions"][0]["source_version"] = 2
+    with pytest.raises(ValueError, match="source is not cited"):
+        AssertionEnvelope.model_validate(forged)
+
+
+@pytest.mark.skip(reason="real model inference is covered by the explicit offline smoke tool")
+async def test_gliner_adapter_real_model() -> None:  # pragma: no cover - requires local weights
+    raise AssertionError("real GLiNER inference is not a unit test")

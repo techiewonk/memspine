@@ -34,6 +34,7 @@ from memspine.prompts.structured import (
     repair_messages,
 )
 from memspine.schemas.durable import OwnerScope
+from memspine.workers.windows import _Job, build_transcript
 
 LINE = re.compile(r"^\[(\d+)\] \[[\d-]+\] (.+)$", re.M)
 NOW = datetime(2023, 6, 1, 12, 0, tzinfo=UTC)
@@ -116,15 +117,17 @@ async def _engine(
     economy: dict[str, Any] | None = None,
     **write: Any,
 ) -> Engine:
-    async def router(config: MemspineConfig, hooks: object = None, wiring: object = None) -> LLMRouter:
+    async def router(
+        config: MemspineConfig, hooks: object = None, wiring: object = None
+    ) -> LLMRouter:
         return LLMRouter({"window_extract": llm})
 
     monkeypatch.setattr("memspine.runtime.container.build_llm_router", router)
     eng = Engine(
         template="core",
         dotenv_path=None,
-        storage={'provider': "sqlite", 'settings': {'path': str(path), 'busy_timeout_s': 5.0}},
-        embedding={'provider': "hash", 'settings': {}},
+        storage={"provider": "sqlite", "settings": {"path": str(path), "busy_timeout_s": 5.0}},
+        embedding={"provider": "hash", "settings": {}},
         memories={"episodic": {"enabled": True}, "semantic": {"enabled": True}},
         write={
             "window_extract": "facts",
@@ -133,7 +136,14 @@ async def _engine(
             "envelope_v2": True,
             **write,
         },
-        llm={"roles": {"window_extract": {"provider": "litellm", "settings": {"model": "fake/window", "timeout_seconds": 60.0}}}},
+        llm={
+            "roles": {
+                "window_extract": {
+                    "provider": "litellm",
+                    "settings": {"model": "fake/window", "timeout_seconds": 60.0},
+                }
+            }
+        },
         economy=economy or {},
     )
     await eng.start()
@@ -185,7 +195,18 @@ def _setup(*roles: str) -> tuple[EnvelopeCompiler, ItemValidator, Any]:
 
 # --- config and flag off ----------------------------------------------------------------------
 def test_the_flag_is_off_by_default() -> None:
-    assert MemspineConfig(runtime={"provider_services": {"health_timeout_s": 1.0, "close_timeout_s": 1.0, "startup_timeout_s": None}}).write.envelope_v2 is False
+    assert (
+        MemspineConfig(
+            runtime={
+                "provider_services": {
+                    "health_timeout_s": 1.0,
+                    "close_timeout_s": 1.0,
+                    "startup_timeout_s": None,
+                }
+            }
+        ).write.envelope_v2
+        is False
+    )
 
 
 async def test_flag_off_is_unchanged(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
@@ -246,9 +267,15 @@ def test_missing_and_out_of_range_citations_are_rejected_alone() -> None:
 def test_a_reserved_field_invalidates_the_item_and_never_reaches_the_envelope() -> None:
     _, validator, ctx = _setup("user")
     out = validator.validate(
-        [_item(trust=0.99), _item(user_id="u1"), _item(extra_note="kept")], ctx
+        [
+            _item(trust=0.99),
+            _item(user_id="u1"),
+            _item(gliner_mentions=[{"text": "forged", "asserted": False}]),
+            _item(extra_note="kept"),
+        ],
+        ctx,
     )
-    assert [x.rejection.code for x in out.invalid] == [RejectionCode.RESERVED_FIELD] * 2
+    assert [x.rejection.code for x in out.invalid] == [RejectionCode.RESERVED_FIELD] * 3
     (env,) = out.envelopes
     assert env.assessment.source_trust == pytest.approx(0.8)  # system-set, not the model's
     assert env.extras["extra_note"] == "kept"  # an unknown, non-reserved field is allowed
@@ -499,6 +526,41 @@ async def test_repair_calls_are_counted_by_the_cost_ledger(
         assert report["model_calls"] == 2  # the extraction and the repair re-ask
         assert report["by_stage"]["window_extract"]["model_calls"] == 2
         assert report["by_layer"]["facts"]["model_calls"] == 2
+    finally:
+        await eng.stop()
+
+
+async def test_window_compile_uses_unprefixed_unicode_source_offsets(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source = "Mira works for Acme in 東京.\nMira works for Acme in 東京."
+    eng = await _engine(monkeypatch, ItemLLM())
+    try:
+        records = await eng.ingest_messages(
+            [{"role": "user", "content": source, "timestamp": NOW.isoformat()}],
+            namespace="a",
+            session_id="offset-session",
+            conversation_id="offset-session",
+            group_id="offset-session",
+        )
+        assert len(records) == 1 and records[0].content == source
+        transcript, _, _ = build_transcript(records)
+        assert "user: " in transcript  # the speaker prefix is presentation-only
+
+        pipeline = eng._windows
+        assert pipeline is not None and pipeline._env is not None
+        merged: dict[str, Any] = {
+            "facts": [_item(text="Mira works for Acme in Tokyo", span=source)]
+        }
+        await pipeline._compile_items(
+            "a", _Job(namespace="a"), records, merged, "window-source-offset"
+        )
+        outcome = merged["facts"]
+        assert len(outcome.envelopes) == 1
+        (citation,) = outcome.envelopes[0].evidence
+        assert citation.span.quote == source
+        assert citation.span.start == 0 and citation.span.end == len(source)
+        assert source[citation.span.start : citation.span.end] == citation.span.quote
     finally:
         await eng.stop()
 
