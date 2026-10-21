@@ -1,5 +1,12 @@
 # Dependency Analysis — code-level scan of `D:\mem` for `memspine` adoption
 
+> Orchestration update (2026-10-17): DBOS has been removed from active packaging
+> and runtime. The durable runner is Temporal Server + embedded Resonate with an
+> application-owned SQLite result journal, installed through `[temporal]`; see
+> [ADR-071](adr/ADR-071-temporal-resonate-orchestration.md). Earlier dependency
+> measurements and DBOS comparisons below are historical, not current setup instructions.
+
+
 **Status:** Evidence document · Generated 2026-07-07 from a code-level scan of every dependency manifest (`pyproject.toml`, `requirements*.txt`, `package.json`) across the repos in `D:\mem`. **Last manifest refresh:** 2026-07-07 · **Flow/taxonomy comparison refresh:** 2026-07-10 pass #3–#4 — see [`ECOSYSTEM_COMPARISON.md`](./ECOSYSTEM_COMPARISON.md) §3.10–§3.14 (**§3.12 = complete package union**) and [`exports/ECOSYSTEM_PACKAGE_ADOPTION.csv`](./exports/ECOSYSTEM_PACKAGE_ADOPTION.csv). **LadybugDB note (D-26):** ladybug v0.18.0 published PyPI 2026-07-01; memspine ships `services/graph/ladybug.py` adapter; config default remains `sqlite_adjacency`. **Vector note (ADR-021):** LanceDB is core-only; SQLite brute-force vector fallback removed.
 **Purpose:** (1) inventory what every repo actually depends on, (2) say what each notable package *does*, (3) map it to *where it slots into `memspine`* (§ references are to `memspine-structure-plan.md`), and (4) flag **advanced packages worth adopting** that the current blueprint does not yet name.
 **How to read the "memspine slot" column:** ✅ already the blueprint default · ➕ candidate to adopt (new) · 🔁 prod swap-in stub already reserved · 🧪 research/eval only · ➖ out of scope.

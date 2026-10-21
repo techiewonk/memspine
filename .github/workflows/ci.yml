@@ -19,13 +19,15 @@ jobs:
           python-version: "3.13"
           enable-cache: true
       - name: Sync dev environment
-        run: uv sync --extra dev
+        run: uv sync --locked --extra dev
+      - name: Validate installed dependencies
+        run: uv pip check
       - name: Lint
         run: uv run ruff check . && uv run ruff format --check .
       - name: Typecheck
         run: uv run mypy
       - name: Test
-        run: uv run pytest -q
+        run: uv run pytest -rs -q
 
   # X-02: blocking gates, each its own step so a failure names the violated rule.
   # No network, no GPU, no model call. PYTHONPATH=src is belt and braces (the project is
@@ -42,19 +44,19 @@ jobs:
           python-version: "3.13"
           enable-cache: true
       - name: Sync dev environment
-        run: uv sync --extra dev
+        run: uv sync --locked --extra dev
       - name: Golden (CPU)
         run: uv run bash tests/golden/run_golden.sh
       - name: Import contracts
         run: uv run python scripts/ci_importlinter.py
       - name: Prompt gold-lint (blocking)
-        run: uv run pytest tests/unit/test_prompt_gold_lint.py tests/unit/prompts -q -o addopts=""
+        run: uv run pytest -rs tests/unit/test_prompt_gold_lint.py tests/unit/prompts -q -o addopts=""
       - name: Single Alembic head per backend
-        run: uv run pytest tests/unit/test_alembic_single_head.py -q -o addopts=""
+        run: uv run pytest -rs tests/unit/test_alembic_single_head.py -q -o addopts=""
       - name: Flag evidence (G-22)
-        run: uv run pytest tests/unit/test_flag_evidence.py -q -o addopts=""
+        run: uv run pytest -rs tests/unit/test_flag_evidence.py -q -o addopts=""
       - name: Gate tooling tests
-        run: uv run pytest tests/unit/test_import_contracts.py tests/unit/test_ci_importlinter.py -q -o addopts=""
+        run: uv run pytest -rs tests/unit/test_import_contracts.py tests/unit/test_ci_importlinter.py -q -o addopts=""
 
   # H1 / PROC-1: the eval harness tests run on every PR. Stub reader and judge only:
   # no network, no GPU, no Ollama, no cloud credentials.
@@ -69,15 +71,42 @@ jobs:
           python-version: "3.13"
           enable-cache: true
       - name: Sync dev environment
-        run: uv sync --extra dev
+        run: uv sync --locked --extra dev
       # H6: pyproject's `pythonpath = ["evals"]` makes `memspine_evals` and the evals/*.py scripts
       # importable whichever conftest wins; PYTHONPATH=src below is belt and braces. The eval-only
       # packages ride `uv run --with` so the run never depends on a separate `uv pip install`
       # surviving uv's re-sync. No dataset files are present in CI (data/ is gitignored): tests that
       # need LoCoMo/OP-Bench skip or use the synthetic fixtures.
       - name: Eval harness tests
-        run: uv run --with pyarrow --with jsonschema --with httpx pytest evals/tests -q -p no:cacheprovider
+        run: uv run --with pyarrow --with jsonschema --with httpx pytest -rs evals/tests -q -p no:cacheprovider
         env:
           PYTHONPATH: src
           AWS_ACCESS_KEY_ID: ""
           AWS_SECRET_ACCESS_KEY: ""
+
+  orchestration:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    env:
+      PYTHONPATH: src
+      HF_HUB_OFFLINE: "1"
+      TRANSFORMERS_OFFLINE: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.13"
+          enable-cache: true
+      - name: Sync optional orchestration environment
+        run: uv sync --locked --extra dev --extra temporal
+      - name: Validate installed dependencies
+        run: uv pip check
+      - name: Typecheck with real optional SDKs
+        run: uv run mypy
+      - name: Journal, runner and SDK boundaries
+        run: uv run pytest -rs tests/unit/workers tests/unit/test_temporal_resonate_journal.py tests/integration/test_temporal_resonate_recovery.py -p no:deepeval -o addopts="" -q
+      # Live dispatch additionally requires MEMSPINE_TEST_TEMPORAL_ADDRESS. The SDK
+      # ActivityEnvironment path above runs without a Server; it is not failover proof.

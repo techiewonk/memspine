@@ -11,7 +11,7 @@ from __future__ import annotations
 import asyncio
 import os
 import sys
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
 
 import pytest
 
@@ -22,23 +22,39 @@ _PG_MODULES = (
     "test_storage_backends",
     "test_f16f_matrix",
     "test_ex1a_server",
+    "test_pgvector_contract",
 )
+_PG_LIVE_ONLY_TESTS = {
+    "test_provider_live_contracts": frozenset({"test_postgres_storage_contract"})
+}
 
 
-@pytest.fixture
-def event_loop_policy(request: pytest.FixtureRequest) -> asyncio.AbstractEventLoopPolicy:
-    """psycopg's async mode cannot run on the Proactor loop (the Windows default).
+def pytest_asyncio_loop_factories(
+    config: pytest.Config, item: pytest.Item
+) -> dict[str, Callable[[], asyncio.AbstractEventLoop]]:
+    """Select a selector loop only for opt-in live-Postgres tests on Windows.
 
-    Only the live-Postgres modules get the selector loop (a global switch would break asyncio
-    subprocesses); the default policy elsewhere and whenever no Postgres URL is exported."""
-    live = (
-        sys.platform == "win32"
-        and request.module.__name__.rsplit(".", 1)[-1] in _PG_MODULES
-        and (os.environ.get("MEMSPINE_TEST_PG_URL") or os.environ.get("MEMSPINE_TEST_POSTGRES_URL"))
+    Psycopg's async mode is incompatible with Windows' default Proactor loop. The
+    pytest-asyncio 1.4 loop-factory hook scopes the alternative to those test items,
+    so unrelated asyncio tests retain the platform's normal ``new_event_loop``.
+    """
+    del config  # The selection depends on the item and explicit live-server opt-in.
+    module_name = item.module.__name__.rsplit(".", 1)[-1]
+    live_postgres_test = module_name in _PG_MODULES or item.name in _PG_LIVE_ONLY_TESTS.get(
+        module_name, ()
     )
-    if live:
-        return asyncio.WindowsSelectorEventLoopPolicy()  # type: ignore[attr-defined,no-any-return]
-    return asyncio.get_event_loop_policy()
+    live_postgres = (
+        sys.platform == "win32"
+        and live_postgres_test
+        and (
+            os.environ.get("MEMSPINE_TEST_PG_URL")
+            or os.environ.get("MEMSPINE_TEST_POSTGRES_URL")
+            or os.environ.get("MEMSPINE_TEST_LIVE_POSTGRES_URL")
+        )
+    )
+    if live_postgres:
+        return {"windows_selector": asyncio.SelectorEventLoop}
+    return {"default": asyncio.new_event_loop}
 
 
 @pytest.fixture(autouse=True)
