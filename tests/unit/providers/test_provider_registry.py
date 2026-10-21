@@ -156,18 +156,36 @@ async def test_same_service_can_have_two_categories_and_share_one_resource() -> 
     class VectorBuilder:
         async def build(self, settings: VectorSettings, ctx: Any) -> BuildResult[str]:
             resource = ctx.resources.own("shared", close)
-            return BuildResult("vector", ProviderRef("vector", "test_dual_backend"), (resource,), frozenset({"vector"}))
+            return BuildResult(
+                "vector",
+                ProviderRef("vector", "test_dual_backend"),
+                (resource,),
+                frozenset({"vector"}),
+            )
 
     class LexicalBuilder:
         async def build(self, settings: LexicalSettings, ctx: Any) -> BuildResult[str]:
             resource = ctx.resources.borrow("shared")
-            return BuildResult("lexical", ProviderRef("lexical", "test_dual_backend"), (resource,), frozenset({"lexical"}))
+            return BuildResult(
+                "lexical",
+                ProviderRef("lexical", "test_dual_backend"),
+                (resource,),
+                frozenset({"lexical"}),
+            )
 
     vector = ProviderDescriptor(
-        ProviderRef("vector", "test_dual_backend"), VectorSettings, frozenset({"vector"}), (), VectorBuilder()
+        ProviderRef("vector", "test_dual_backend"),
+        VectorSettings,
+        frozenset({"vector"}),
+        (),
+        VectorBuilder(),
     )
     lexical = ProviderDescriptor(
-        ProviderRef("lexical", "test_dual_backend"), LexicalSettings, frozenset({"lexical"}), (), LexicalBuilder()
+        ProviderRef("lexical", "test_dual_backend"),
+        LexicalSettings,
+        frozenset({"lexical"}),
+        (),
+        LexicalBuilder(),
     )
     vector_registry = get_registry("vector_stores")
     lexical_registry = get_registry("lexical_indexes")

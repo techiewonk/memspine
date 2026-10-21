@@ -177,15 +177,17 @@ class _Reranker:
 def _engine(monkeypatch: pytest.MonkeyPatch, stub: _PlanStub | None = None, **read: Any) -> Engine:
     stubs: dict[str, LLMService] = {"plan": stub} if stub is not None else {}
 
-    async def router(config: MemspineConfig, hooks: object = None, wiring: object = None) -> LLMRouter:
+    async def router(
+        config: MemspineConfig, hooks: object = None, wiring: object = None
+    ) -> LLMRouter:
         return LLMRouter(stubs)
 
     monkeypatch.setattr("memspine.runtime.container.build_llm_router", router)
     return Engine(
         template="core",
         dotenv_path=None,
-        storage={'provider': "sqlite", 'settings': {'path': ":memory:", 'busy_timeout_s': 5.0}},
-        embedding={'provider': "hash", 'settings': {}},
+        storage={"provider": "sqlite", "settings": {"path": ":memory:", "busy_timeout_s": 5.0}},
+        embedding={"provider": "hash", "settings": {}},
         memories={"episodic": {"enabled": True}},
         read={"hybrid": False, "record_access": False, **read},
     )

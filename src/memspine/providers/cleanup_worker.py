@@ -60,7 +60,9 @@ class ProjectionCleanupWorker:
         self._started = True
         self._stopping = False
         self._stop_event.clear()
-        startup_task = asyncio.create_task(self._run_once(), name="projection-cleanup-startup-sweep")
+        startup_task = asyncio.create_task(
+            self._run_once(), name="projection-cleanup-startup-sweep"
+        )
         self._startup_task = startup_task
         try:
             report = await self._await_shielded(startup_task)
@@ -131,6 +133,7 @@ class ProjectionCleanupWorker:
         tasks: Sequence[asyncio.Task[None] | asyncio.Task[CleanupSweepReport]],
     ) -> None:
         """Drain owned work despite caller cancellation, then preserve it."""
+
         async def collect() -> None:
             await asyncio.gather(*tasks, return_exceptions=True)
 

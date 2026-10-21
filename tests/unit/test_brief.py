@@ -14,8 +14,8 @@ async def test_brief_shows_the_last_turns_oldest_first_within_budget() -> None:
     eng = Engine(
         template="core",
         dotenv_path=None,
-        storage={'provider': "sqlite", 'settings': {'path': ":memory:", 'busy_timeout_s': 5.0}},
-        embedding={'provider': "hash", 'settings': {}},
+        storage={"provider": "sqlite", "settings": {"path": ":memory:", "busy_timeout_s": 5.0}},
+        embedding={"provider": "hash", "settings": {}},
         memories={"episodic": {"enabled": True}},
     )
     await eng.start()

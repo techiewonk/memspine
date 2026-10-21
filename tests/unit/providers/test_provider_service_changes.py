@@ -161,9 +161,7 @@ class FakeBackend(ServiceChangeBackend):
                 update={
                     "status": ChangeStatus.CLEANED,
                     "purge_status": "complete",
-                    "purge_report_id": None
-                    if self.omit_cleanup_proof
-                    else "cache-purge-report",
+                    "purge_report_id": None if self.omit_cleanup_proof else "cache-purge-report",
                 }
             )
         if isinstance(result, EmbeddingMigrationResult):
@@ -294,9 +292,7 @@ async def test_backend_must_report_completed_checkpoint_before_verification() ->
         store = SqlChangeStore(engine)
         await store.create_schema()
         backend = FakeBackend(corrupt_result=True)
-        strategies = build_service_change_strategies(
-            {("cache", "coldstart_reset"): backend}
-        )
+        strategies = build_service_change_strategies({("cache", "coldstart_reset"): backend})
         coordinator = ChangeCoordinator(
             store=store,
             revision_guard=Guard(),

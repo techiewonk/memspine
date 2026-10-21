@@ -37,28 +37,33 @@ def render() -> str:
         category = cast(Category, KIND_TO_CATEGORY[kind])
         for name in get_registry(kind).names():
             reference = provider_settings_reference(category, name)
-            defaults = "<br>".join(
-                code(f"{key} = {json.dumps(value, ensure_ascii=False, sort_keys=True)}")
-                for key, value in reference["defaults"].items()
-            ) or "No native options"
+            defaults = (
+                "<br>".join(
+                    code(f"{key} = {json.dumps(value, ensure_ascii=False, sort_keys=True)}")
+                    for key, value in reference["defaults"].items()
+                )
+                or "No native options"
+            )
             required = ", ".join(code(key) for key in reference["required"]) or "None"
             rows.append(f"| {category} | {code(name)} | {defaults} | {required} |")
-    rows.extend([
-        "",
-        "Schema defaults do not include credentials or live Engine configuration. Nullable fields",
-        "remain explicit: a null device delegates placement to the selected provider; an omitted",
-        "required deadline is an error. FlashRank's null model uses its installed library default.",
-        "Local LLM file paths and remote credentials must be supplied by the deployment.",
-        "",
-        "Inspect one provider, including validation constraints, without starting an Engine:",
-        "",
-        "```python",
-        "from memspine.providers import provider_settings_reference",
-        "print(provider_settings_reference('embedding', 'fastembed'))",
-        "print(provider_settings_reference('llm', 'litellm'))",
-        "```",
-        "",
-    ])
+    rows.extend(
+        [
+            "",
+            "Schema defaults do not include credentials or live Engine configuration. Nullable fields",
+            "remain explicit: a null device delegates placement to the selected provider; an omitted",
+            "required deadline is an error. FlashRank's null model uses its installed library default.",
+            "Local LLM file paths and remote credentials must be supplied by the deployment.",
+            "",
+            "Inspect one provider, including validation constraints, without starting an Engine:",
+            "",
+            "```python",
+            "from memspine.providers import provider_settings_reference",
+            "print(provider_settings_reference('embedding', 'fastembed'))",
+            "print(provider_settings_reference('llm', 'litellm'))",
+            "```",
+            "",
+        ]
+    )
     return "\n".join(rows)
 
 

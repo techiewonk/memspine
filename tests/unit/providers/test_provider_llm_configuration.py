@@ -37,9 +37,12 @@ def test_role_requires_explicit_provider_and_catalogue_llm_requires_timeout() ->
         ModelDecl(id="ollama/model", kind="llm", provider="litellm")
     with pytest.raises(ValidationError):
         ModelDecl(id="ollama/model", kind="llm", provider="litellm", timeout_seconds=True)
-    assert ModelDecl(
-        id="ollama/model", kind="llm", provider="litellm", timeout_seconds=13.0
-    ).timeout_seconds == 13.0
+    assert (
+        ModelDecl(
+            id="ollama/model", kind="llm", provider="litellm", timeout_seconds=13.0
+        ).timeout_seconds
+        == 13.0
+    )
 
 
 @pytest.mark.asyncio

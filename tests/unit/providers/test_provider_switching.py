@@ -498,7 +498,9 @@ async def test_tantivy_cleanup_route_survives_fresh_engine_restart(tmp_path) -> 
         async def complete_erasures(self, **kwargs) -> int:
             return 0
 
-        async def delete_owned_generation(self, generation: ProjectionGeneration) -> CleanupEvidence:
+        async def delete_owned_generation(
+            self, generation: ProjectionGeneration
+        ) -> CleanupEvidence:
             assert generation.generation_id == "active"
             # The original Engine has stopped before cleanup; this path came from its owned builder.
             shutil.rmtree(source_path)

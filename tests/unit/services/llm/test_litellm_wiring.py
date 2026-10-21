@@ -72,13 +72,13 @@ async def test_engine_routes_litellm_model_prefix() -> None:
     eng = Engine(
         dotenv_path=None,
         runtime={"deployment_id": "unit-test"},
-        storage={'provider': "sqlite", 'settings': {'path': ":memory:", 'busy_timeout_s': 5.0}},
-        embedding={'provider': "hash", 'settings': {}},
+        storage={"provider": "sqlite", "settings": {"path": ":memory:", "busy_timeout_s": 5.0}},
+        embedding={"provider": "hash", "settings": {}},
         llm={
             "roles": {
                 "chat": {
                     "provider": "litellm",
-                    "settings": {"model": "openai/gpt-4o", "timeout_seconds": 30.0}
+                    "settings": {"model": "openai/gpt-4o", "timeout_seconds": 30.0},
                 }
             }
         },
@@ -96,8 +96,8 @@ async def test_engine_empty_model_raises() -> None:
     eng = Engine(
         dotenv_path=None,
         runtime={"deployment_id": "unit-test"},
-        storage={'provider': "sqlite", 'settings': {'path': ":memory:", 'busy_timeout_s': 5.0}},
-        embedding={'provider': "hash", 'settings': {}},
+        storage={"provider": "sqlite", "settings": {"path": ":memory:", "busy_timeout_s": 5.0}},
+        embedding={"provider": "hash", "settings": {}},
         llm={
             "roles": {
                 "chat": {
@@ -126,7 +126,7 @@ async def test_litellm_embedder_requires_dim() -> None:
     eng = Engine(
         dotenv_path=None,
         runtime={"deployment_id": "unit-test"},
-        storage={'provider': "sqlite", 'settings': {'path': ":memory:", 'busy_timeout_s': 5.0}},
+        storage={"provider": "sqlite", "settings": {"path": ":memory:", "busy_timeout_s": 5.0}},
         embedding={
             "provider": "litellm",
             "settings": {
@@ -148,8 +148,8 @@ async def test_read_rerank_litellm_accepted_at_start() -> None:
     eng = Engine(
         dotenv_path=None,
         runtime={"deployment_id": "unit-test"},
-        storage={'provider': "sqlite", 'settings': {'path': ":memory:", 'busy_timeout_s': 5.0}},
-        embedding={'provider': "hash", 'settings': {}},
+        storage={"provider": "sqlite", "settings": {"path": ":memory:", "busy_timeout_s": 5.0}},
+        embedding={"provider": "hash", "settings": {}},
         memories={"semantic": {"enabled": True}},
         read={
             "rerank": "litellm",

@@ -39,8 +39,11 @@ def _engine(path: Path | None = None, rederive: bool = True, **priv: Any) -> Eng
     return Engine(
         template="core",
         dotenv_path=None,
-        storage={'provider': "sqlite", 'settings': {'path': str(path / "m.db") if path else ":memory:", 'busy_timeout_s': 5.0}},
-        embedding={'provider': "hash", 'settings': {}},
+        storage={
+            "provider": "sqlite",
+            "settings": {"path": str(path / "m.db") if path else ":memory:", "busy_timeout_s": 5.0},
+        },
+        embedding={"provider": "hash", "settings": {}},
         read={"hybrid": False, "record_access": False, "cache": {"enabled": True}},
         memories={"episodic": {"enabled": True}, "semantic": {"enabled": True}},
         write={"lineage_table": True},

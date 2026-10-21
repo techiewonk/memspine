@@ -41,6 +41,7 @@ def resolved_config_fingerprint(config: BaseModel | Mapping[str, object]) -> str
     Credentials contribute to the hash without being persisted or returned, so
     changing credentials invalidates a previously prepared plan.
     """
+
     def canonical(value: object) -> object:
         # Masked display serialization would make different credentials hash alike.
         # Raw values are consumed only in memory for the digest, never persisted.

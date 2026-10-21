@@ -90,7 +90,9 @@ async def test_client_injects_operation_executor_and_retains_transport_ownership
 
 
 @pytest.mark.asyncio
-async def test_graph_builder_injects_service_executor_factory(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_graph_builder_injects_service_executor_factory(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     import memspine.services.graph.neo4j as service_module
     from memspine.providers.builtin.graph import Neo4jBuilder
 

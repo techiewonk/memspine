@@ -74,8 +74,8 @@ async def test_engine_wires_the_anchor_legs() -> None:
     eng = Engine(
         template="core",
         dotenv_path=None,
-        storage={'provider': "sqlite", 'settings': {'path': ":memory:", 'busy_timeout_s': 5.0}},
-        embedding={'provider': "hash", 'settings': {}},
+        storage={"provider": "sqlite", "settings": {"path": ":memory:", "busy_timeout_s": 5.0}},
+        embedding={"provider": "hash", "settings": {}},
         memories={"episodic": {"enabled": True}},
         read={"record_access": False, "cohesion_leg": True, "fusion": "minmax"},
     )
@@ -96,8 +96,8 @@ async def _maxsim_engine() -> Engine:
     eng = Engine(
         template="core",
         dotenv_path=None,
-        storage={'provider': "sqlite", 'settings': {'path': ":memory:", 'busy_timeout_s': 5.0}},
-        embedding={'provider': "hash", 'settings': {}},
+        storage={"provider": "sqlite", "settings": {"path": ":memory:", "busy_timeout_s": 5.0}},
+        embedding={"provider": "hash", "settings": {}},
         memories={"episodic": {"enabled": True}},
         read={"record_access": False, "maxsim_leg": True, "temporal_leg": True},
     )
@@ -150,8 +150,8 @@ async def test_session_digest_header_quotes_sessions_without_hiding_turns() -> N
     eng = Engine(
         template="core",
         dotenv_path=None,
-        storage={'provider': "sqlite", 'settings': {'path': ":memory:", 'busy_timeout_s': 5.0}},
-        embedding={'provider': "hash", 'settings': {}},
+        storage={"provider": "sqlite", "settings": {"path": ":memory:", "busy_timeout_s": 5.0}},
+        embedding={"provider": "hash", "settings": {}},
         memories={"episodic": {"enabled": True}},
         read={"record_access": False, "session_digest": True},
     )
@@ -182,8 +182,8 @@ async def _fact_engine(**read: object) -> Engine:
     eng = Engine(
         template="core",
         dotenv_path=None,
-        storage={'provider': "sqlite", 'settings': {'path': ":memory:", 'busy_timeout_s': 5.0}},
-        embedding={'provider': "hash", 'settings': {}},
+        storage={"provider": "sqlite", "settings": {"path": ":memory:", "busy_timeout_s": 5.0}},
+        embedding={"provider": "hash", "settings": {}},
         memories={"episodic": {"enabled": True}, "semantic": {"enabled": True}},
         read={"record_access": False, **read},
     )
@@ -260,8 +260,8 @@ async def test_gist_after_shows_lower_hits_as_one_sentence() -> None:
         eng = Engine(
             template="core",
             dotenv_path=None,
-            storage={'provider': "sqlite", 'settings': {'path': ":memory:", 'busy_timeout_s': 5.0}},
-            embedding={'provider': "hash", 'settings': {}},
+            storage={"provider": "sqlite", "settings": {"path": ":memory:", "busy_timeout_s": 5.0}},
+            embedding={"provider": "hash", "settings": {}},
             read={"record_access": False, "gist_after": gist_after},
         )
         await eng.start()

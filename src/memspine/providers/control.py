@@ -44,7 +44,11 @@ class ProviderChangeRuntime:
     cleanup_quiescence_guard: CleanupQuiescenceGuard | None = None
 
     def __post_init__(self) -> None:
-        if isinstance(self.plan_ttl_s, bool) or not math.isfinite(self.plan_ttl_s) or self.plan_ttl_s <= 0:
+        if (
+            isinstance(self.plan_ttl_s, bool)
+            or not math.isfinite(self.plan_ttl_s)
+            or self.plan_ttl_s <= 0
+        ):
             raise ValueError("plan_ttl_s must be finite and positive")
         object.__setattr__(self, "strategies", MappingProxyType(dict(self.strategies)))
 
@@ -149,9 +153,7 @@ class EngineProviderChanges:
         self, operation_id: str
     ) -> tuple[CleanupFenceRecoveryReceipt, ...]:
         await self._check_operation(operation_id)
-        return await self._store.audit_cleanup_fence_recoveries(
-            self._deployment_id, operation_id
-        )
+        return await self._store.audit_cleanup_fence_recoveries(self._deployment_id, operation_id)
 
     async def sweep_expired_projection_cleanup(
         self, batch_size: int, after_operation_id: str | None = None

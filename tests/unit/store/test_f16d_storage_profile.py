@@ -137,7 +137,15 @@ def test_postgres_tree_downgrades_to_empty(tmp_path: Path) -> None:
 
 
 def test_default_profile_is_embedded_and_unchanged() -> None:
-    cfg = MemspineConfig(runtime={"provider_services": {"health_timeout_s": 1.0, "close_timeout_s": 1.0, "startup_timeout_s": None}})
+    cfg = MemspineConfig(
+        runtime={
+            "provider_services": {
+                "health_timeout_s": 1.0,
+                "close_timeout_s": 1.0,
+                "startup_timeout_s": None,
+            }
+        }
+    )
     assert cfg.storage.profile == "embedded"
     assert cfg.storage.provider == "sqlite"
     assert resolve_profile(cfg.storage) is EMBEDDED
@@ -158,9 +166,7 @@ def test_server_profile_selects_postgres_backend() -> None:
     assert resolve_profile(storage) is SERVER
     from memspine.providers.registry import get_registry, validate_settings
 
-    assert validate_settings(
-        get_registry("storage_backends").get("postgres"), storage.settings
-    )
+    assert validate_settings(get_registry("storage_backends").get("postgres"), storage.settings)
     assert set(SERVER.provides()) == set(EMBEDDED.provides())
     assert SERVER.migration_tree.name == "alembic" and SERVER.migration_tree.is_dir()
 

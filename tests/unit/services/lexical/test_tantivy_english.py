@@ -61,8 +61,11 @@ def _engine(path: Path, analyzer: str) -> Engine:
     return Engine(
         template="core",
         dotenv_path=None,
-        storage={'provider': "sqlite", 'settings': {'path': str(path / "m.db"), 'busy_timeout_s': 5.0}},
-        embedding={'provider': "hash", 'settings': {}},
+        storage={
+            "provider": "sqlite",
+            "settings": {"path": str(path / "m.db"), "busy_timeout_s": 5.0},
+        },
+        embedding={"provider": "hash", "settings": {}},
         read={
             "hybrid": True,
             "lexical_provider": "tantivy",
@@ -113,8 +116,11 @@ async def test_dates_variant_has_its_own_index_and_projector(tmp_path: Path) -> 
     eng = Engine(
         template="core",
         dotenv_path=None,
-        storage={'provider': "sqlite", 'settings': {'path': str(tmp_path / "m.db"), 'busy_timeout_s': 5.0}},
-        embedding={'provider': "hash", 'settings': {}},
+        storage={
+            "provider": "sqlite",
+            "settings": {"path": str(tmp_path / "m.db"), "busy_timeout_s": 5.0},
+        },
+        embedding={"provider": "hash", "settings": {}},
         read={
             "hybrid": True,
             "lexical_provider": "tantivy",

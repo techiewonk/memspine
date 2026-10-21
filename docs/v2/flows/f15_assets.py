@@ -106,7 +106,9 @@ async def ingest_empty_and_missing(ctx: Ctx) -> None:
     e = ctx.engine
     empty = ctx.state["dir"] / "empty.txt"
     empty.write_text("   \n\n  ", encoding="utf-8")
-    ctx.expect("an empty document yields no records", [], await e.ingest_data(empty, namespace=ctx.ns))
+    ctx.expect(
+        "an empty document yields no records", [], await e.ingest_data(empty, namespace=ctx.ns)
+    )
     try:
         await e.ingest_data(ctx.state["dir"] / "absent.txt", namespace=ctx.ns)
         raised = False

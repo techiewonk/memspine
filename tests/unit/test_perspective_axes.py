@@ -85,8 +85,8 @@ async def test_i55_invariant_one_active_state_per_owner_entity_attribute_subject
     eng = Engine(
         template="core",
         dotenv_path=None,
-        storage={'provider': "sqlite", 'settings': {'path': ":memory:", 'busy_timeout_s': 5.0}},
-        embedding={'provider': "hash", 'settings': {}},
+        storage={"provider": "sqlite", "settings": {"path": ":memory:", "busy_timeout_s": 5.0}},
+        embedding={"provider": "hash", "settings": {}},
         memories={
             "semantic": {"enabled": True, "policies": {"conflict": {"perspective_key": True}}}
         },

@@ -343,7 +343,18 @@ def test_rederive_plan_tap_event():
 
 
 def test_flag_off_by_default():
-    assert MemspineConfig(runtime={"provider_services": {"health_timeout_s": 1.0, "close_timeout_s": 1.0, "startup_timeout_s": None}}).embedding.versioned_spaces is False
+    assert (
+        MemspineConfig(
+            runtime={
+                "provider_services": {
+                    "health_timeout_s": 1.0,
+                    "close_timeout_s": 1.0,
+                    "startup_timeout_s": None,
+                }
+            }
+        ).embedding.versioned_spaces
+        is False
+    )
 
 
 # ------------------------------------------------------------------ engine wiring (LanceDB)
@@ -357,8 +368,11 @@ async def test_engine_flag_on_matches_flag_off_and_names_table_by_space(tmp_path
         return Engine(
             template="core",
             dotenv_path=None,
-            storage={'provider': "sqlite", 'settings': {'path': str(tmp_path / sub / "m.db"), 'busy_timeout_s': 5.0}},
-            embedding={'provider': "hash", 'versioned_spaces': on, 'settings': {}},
+            storage={
+                "provider": "sqlite",
+                "settings": {"path": str(tmp_path / sub / "m.db"), "busy_timeout_s": 5.0},
+            },
+            embedding={"provider": "hash", "versioned_spaces": on, "settings": {}},
             read={"record_access": False},
         )
 

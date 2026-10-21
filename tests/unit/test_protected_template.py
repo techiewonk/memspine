@@ -9,8 +9,8 @@ async def test_protected_template_loads_with_the_protections_on() -> None:
     eng = Engine(
         template="protected",
         dotenv_path=None,
-        storage={'provider': "sqlite", 'settings': {'path': ":memory:", 'busy_timeout_s': 5.0}},
-        embedding={'provider': "hash", 'settings': {}},
+        storage={"provider": "sqlite", "settings": {"path": ":memory:", "busy_timeout_s": 5.0}},
+        embedding={"provider": "hash", "settings": {}},
     )
     await eng.start()
     try:

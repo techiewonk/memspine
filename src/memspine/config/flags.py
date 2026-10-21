@@ -111,6 +111,7 @@ FLAG_EVIDENCE: dict[str, dict[str, str]] = {
     },
 }
 
+
 @dataclass(frozen=True)
 class FlagSpec:
     """One flag (``kind == "flag"``, a bool) or mode (``kind == "mode"``, a string enum)."""

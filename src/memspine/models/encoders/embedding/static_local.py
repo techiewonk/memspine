@@ -84,6 +84,8 @@ class StaticEmbedder:
             if any(len(vector) != actual_dim for vector in vectors):
                 raise ValueError("static embedder returned vectors with inconsistent dimensions")
             if self._expected_dim is not None and actual_dim != self._expected_dim:
-                raise ValueError("static embedder output dimension differs from configured dimension")
+                raise ValueError(
+                    "static embedder output dimension differs from configured dimension"
+                )
             self._dim = actual_dim
         return vectors

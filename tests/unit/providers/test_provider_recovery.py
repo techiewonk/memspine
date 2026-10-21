@@ -84,7 +84,9 @@ class _QuiescenceGuard:
         self.calls = 0
         self.proof_id = "proof-cleanup-1"
 
-    async def prove_quiescence(self, request: CleanupFenceRecoveryRequest) -> CleanupQuiescenceProof:
+    async def prove_quiescence(
+        self, request: CleanupFenceRecoveryRequest
+    ) -> CleanupQuiescenceProof:
         self.calls += 1
         now = self._clock()
         return CleanupQuiescenceProof(
@@ -171,9 +173,7 @@ async def test_proven_recovery_advances_fence_and_resumes_same_cleanup() -> None
     try:
         guard = _QuiescenceGuard(clock)
         request = _recovery_request(pending)
-        receipt = await coordinator.recover_abandoned_cleanup_fence(
-            request, quiescence_guard=guard
-        )
+        receipt = await coordinator.recover_abandoned_cleanup_fence(request, quiescence_guard=guard)
         assert receipt.previous_fence_epoch == pending.fence_epoch
         assert receipt.released_fence_epoch == pending.fence_epoch + 1
         assert receipt.operation_revision == pending.operation_revision + 1
@@ -263,7 +263,9 @@ async def test_competing_recoveries_use_exact_revision_epoch_and_one_time_proof(
         )
         assert sum(not isinstance(result, BaseException) for result in results) == 1
         assert sum(isinstance(result, ChangeError) for result in results) == 1, repr(results)
-        assert len(await store.audit_cleanup_fence_recoveries("deploy-a", pending.operation_id)) == 1
+        assert (
+            len(await store.audit_cleanup_fence_recoveries("deploy-a", pending.operation_id)) == 1
+        )
         assert guard.calls == 2
     finally:
         await engine.dispose()
@@ -291,7 +293,9 @@ async def test_recovery_rejects_expired_quiescence_proof() -> None:
             await coordinator.recover_abandoned_cleanup_fence(
                 _recovery_request(pending), quiescence_guard=guard
             )
-        assert (await store.get_operation(pending.operation_id)).status is ChangeStatus.CLEANUP_PENDING
+        assert (
+            await store.get_operation(pending.operation_id)
+        ).status is ChangeStatus.CLEANUP_PENDING
         assert await store.audit_cleanup_fence_recoveries("deploy-a", pending.operation_id) == ()
     finally:
         await engine.dispose()

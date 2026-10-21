@@ -29,7 +29,9 @@ class LanceDBBuilder:
         if placement.in_memory and ctx.generation_id != "active":
             raise ConfigError("controlled vector generations require durable storage placement")
         scoped_generation = generation_component(ctx.generation_id)
-        generation_suffix = "" if ctx.generation_id == "active" else f".generation-{scoped_generation}"
+        generation_suffix = (
+            "" if ctx.generation_id == "active" else f".generation-{scoped_generation}"
+        )
         path = (
             "memory://vectors"
             if placement.in_memory
@@ -77,9 +79,7 @@ class LanceDBBuilder:
             state = (
                 None
                 if placement.in_memory
-                else JsonSpaceState(
-                    f"{placement.base_path}.spaces{generation_suffix}.json"
-                )
+                else JsonSpaceState(f"{placement.base_path}.spaces{generation_suffix}.json")
             )
             service = cast(VectorStore, VersionedSpaceStore(factory, current, state))
         elif settings.isolation == "per_namespace":

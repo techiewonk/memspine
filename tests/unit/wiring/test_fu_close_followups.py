@@ -28,19 +28,28 @@ ENTRY = "prefers zanzibar blend tea without sugar"
 async def _engine(
     monkeypatch: pytest.MonkeyPatch, llm: FakeCloseLLM, path: str = ":memory:", **offline: Any
 ) -> Engine:
-    async def router(config: MemspineConfig, hooks: object = None, wiring: object = None) -> LLMRouter:
+    async def router(
+        config: MemspineConfig, hooks: object = None, wiring: object = None
+    ) -> LLMRouter:
         return LLMRouter({"session_close": llm})  # type: ignore[dict-item]
 
     monkeypatch.setattr("memspine.runtime.container.build_llm_router", router)
     eng = Engine(
         template="core",
         dotenv_path=None,
-        storage={'provider': "sqlite", 'settings': {'path': path, 'busy_timeout_s': 5.0}},
-        embedding={'provider': "hash", 'settings': {}},
+        storage={"provider": "sqlite", "settings": {"path": path, "busy_timeout_s": 5.0}},
+        embedding={"provider": "hash", "settings": {}},
         memories={"episodic": {"enabled": True}, "semantic": {"enabled": True}},
         offline=offline,
         write={"lineage_table": True},
-        llm={"roles": {"session_close": {"provider": "litellm", "settings": {"model": "fake/close", "timeout_seconds": 60.0}}}},
+        llm={
+            "roles": {
+                "session_close": {
+                    "provider": "litellm",
+                    "settings": {"model": "fake/close", "timeout_seconds": 60.0},
+                }
+            }
+        },
     )
     await eng.start()
     return eng

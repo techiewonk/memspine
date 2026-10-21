@@ -21,7 +21,7 @@ def _engine(path: Path) -> Engine:
         dotenv_path=None,
         storage={"provider": "sqlite", "settings": {"path": str(path), "busy_timeout_s": 5.0}},
         embedding={"provider": "hash", "settings": {}},
-        cache={'provider': "memory", 'settings': {}},
+        cache={"provider": "memory", "settings": {}},
         memories={"semantic": {"enabled": True}},
     )
 
@@ -127,9 +127,9 @@ async def test_primary_graph_and_lexical_health_results_keep_distinct_ids(tmp_pa
     engine = Engine(
         template="core",
         dotenv_path=None,
-        storage={'provider': "sqlite", 'settings': {'path': ":memory:", 'busy_timeout_s': 5.0}},
+        storage={"provider": "sqlite", "settings": {"path": ":memory:", "busy_timeout_s": 5.0}},
         embedding={"provider": "hash", "settings": {}},
-        cache={'provider': "memory", 'settings': {}},
+        cache={"provider": "memory", "settings": {}},
         memories={"associative": {"enabled": True}},
         graph={"provider": "sqlite_adjacency", "settings": {}},
     )
@@ -158,8 +158,12 @@ async def test_startup_failure_closes_already_built_providers(tmp_path: Path) ->
 
 
 @pytest.mark.asyncio
-async def test_cleanup_schedule_requires_injected_strategy_before_provider_start(tmp_path: Path) -> None:
-    engine = _cleanup_engine(tmp_path / "cleanup-missing-injection.db", provider_change_runtime=None)
+async def test_cleanup_schedule_requires_injected_strategy_before_provider_start(
+    tmp_path: Path,
+) -> None:
+    engine = _cleanup_engine(
+        tmp_path / "cleanup-missing-injection.db", provider_change_runtime=None
+    )
     with pytest.raises(ConfigError, match="requires provider_change_runtime"):
         await engine.start()
     assert engine._provider_results == {}
@@ -169,7 +173,9 @@ async def test_cleanup_schedule_requires_injected_strategy_before_provider_start
 async def test_cleanup_schedule_runs_bounded_startup_sweep_and_stops_with_engine(
     tmp_path: Path,
 ) -> None:
-    engine = _cleanup_engine(tmp_path / "cleanup-runtime.db", provider_change_runtime=_cleanup_runtime())
+    engine = _cleanup_engine(
+        tmp_path / "cleanup-runtime.db", provider_change_runtime=_cleanup_runtime()
+    )
     await engine.start()
     controller = engine.provider_changes()
     assert controller.cleanup_worker_running

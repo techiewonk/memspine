@@ -20,8 +20,11 @@ def _engine(path: Path, provider: str, **read: object) -> Engine:
     return Engine(
         template="core",
         dotenv_path=None,
-        storage={'provider': "sqlite", 'settings': {'path': str(path / "m.db"), 'busy_timeout_s': 5.0}},
-        embedding={'provider': "hash", 'settings': {}},
+        storage={
+            "provider": "sqlite",
+            "settings": {"path": str(path / "m.db"), "busy_timeout_s": 5.0},
+        },
+        embedding={"provider": "hash", "settings": {}},
         graph={"provider": provider, "entity_embeddings": True},
         memories={
             "semantic": {"enabled": True},
@@ -83,8 +86,11 @@ async def test_turn_mentions_let_the_graph_reach_raw_turns(tmp_path: Path, provi
     eng = Engine(
         template="core",
         dotenv_path=None,
-        storage={'provider': "sqlite", 'settings': {'path': str(tmp_path / "m.db"), 'busy_timeout_s': 5.0}},
-        embedding={'provider': "hash", 'settings': {}},
+        storage={
+            "provider": "sqlite",
+            "settings": {"path": str(tmp_path / "m.db"), "busy_timeout_s": 5.0},
+        },
+        embedding={"provider": "hash", "settings": {}},
         graph={"provider": provider, "entity_embeddings": True},
         memories={
             "episodic": {"enabled": True},

@@ -373,18 +373,30 @@ async def test_engine_with_the_transport_flag_gives_the_same_facts(
     async def run(transport: str) -> tuple[list[str], dict[str, Any]]:
         llm = FakeWindowLLM()
 
-        async def router(config: MemspineConfig, hooks: object = None, wiring: object = None) -> LLMRouter:
+        async def router(
+            config: MemspineConfig, hooks: object = None, wiring: object = None
+        ) -> LLMRouter:
             return LLMRouter({"window_extract": llm})  # type: ignore[dict-item]
 
         monkeypatch.setattr("memspine.runtime.container.build_llm_router", router)
         eng = Engine(
             template="core",
             dotenv_path=None,
-            storage={'provider': "sqlite", 'settings': {'path': str(tmp_path / f"{transport}.db"), 'busy_timeout_s': 5.0}},
-            embedding={'provider': "hash", 'settings': {}},
+            storage={
+                "provider": "sqlite",
+                "settings": {"path": str(tmp_path / f"{transport}.db"), "busy_timeout_s": 5.0},
+            },
+            embedding={"provider": "hash", "settings": {}},
             memories={"episodic": {"enabled": True}, "semantic": {"enabled": True}},
             write={"window_extract": "facts", "window_async": False, "window_idle_s": 0.0},
-            llm={"roles": {"window_extract": {"provider": "litellm", "settings": {"model": "fake/window", "timeout_seconds": 20.0}}}},
+            llm={
+                "roles": {
+                    "window_extract": {
+                        "provider": "litellm",
+                        "settings": {"model": "fake/window", "timeout_seconds": 20.0},
+                    }
+                }
+            },
             workers={"outbox": True, "transport": transport},
         )
         await eng.start()

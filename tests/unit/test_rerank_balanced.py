@@ -30,7 +30,10 @@ class _ConstBuilder:
 
     async def build(self, settings: EmptySettings, ctx: Any) -> BuildResult[_ConstReranker]:
         return BuildResult(
-            self.construct(settings), ProviderRef("reranker", "const_test"), (), frozenset({"rerank"})
+            self.construct(settings),
+            ProviderRef("reranker", "const_test"),
+            (),
+            frozenset({"rerank"}),
         )
 
 
@@ -53,7 +56,7 @@ def _engine(**read: Any) -> Engine:
     return Engine(
         template="core",
         dotenv_path=None,
-        storage={'provider': "sqlite", 'settings': {'path': ":memory:", 'busy_timeout_s': 5.0}},
+        storage={"provider": "sqlite", "settings": {"path": ":memory:", "busy_timeout_s": 5.0}},
         embedding={"provider": "hash", "settings": {}},
         memories={"episodic": {"enabled": True}},
         read={"record_access": False, "rerank": "const_test", **read},

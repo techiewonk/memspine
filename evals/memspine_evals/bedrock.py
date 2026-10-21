@@ -260,7 +260,7 @@ def bedrock_engine_config(
                         "model": llm_model,
                         "aws_region": region,
                         "timeout_seconds": llm_timeout_seconds,
-                    }
+                    },
                 }
                 for role in roles
             }

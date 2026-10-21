@@ -30,7 +30,9 @@ class OpenSearchClient:
             username = os.environ.get(self.settings.username_env)
             password = os.environ.get(self.settings.password_env)
             if username is None or password is None:
-                missing = self.settings.username_env if username is None else self.settings.password_env
+                missing = (
+                    self.settings.username_env if username is None else self.settings.password_env
+                )
                 raise ConfigError(f"OpenSearch authentication needs environment variable {missing}")
             auth = (username, password)
         client = AsyncOpenSearch(

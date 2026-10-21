@@ -24,9 +24,7 @@ def dump() -> dict:
             "startup_timeout_s": None,
         }
     }
-    out: dict = {
-        "default": MemspineConfig(runtime=explicit_runtime).model_dump(mode="json")
-    }
+    out: dict = {"default": MemspineConfig(runtime=explicit_runtime).model_dump(mode="json")}
     for path in sorted(template_dir().glob("*.yaml")):
         out[f"template:{path.stem}"] = load_config(template=path.stem).config.model_dump(
             mode="json"

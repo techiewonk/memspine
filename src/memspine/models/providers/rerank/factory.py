@@ -38,6 +38,7 @@ __all__ = [
     "validate_reranker_settings",
 ]
 
+
 @dataclass(frozen=True)
 class RerankSettings:
     """The resolved rerank config a spec needs (from ``read.rerank*``)."""
@@ -86,7 +87,9 @@ def _build_litellm(settings: RerankSettings) -> Reranker:
     if settings.request_timeout_s is None:
         from memspine.exceptions import ConfigError
 
-        raise ConfigError("read.rerank_settings.request_timeout_s is required for the litellm reranker")
+        raise ConfigError(
+            "read.rerank_settings.request_timeout_s is required for the litellm reranker"
+        )
     from memspine.models.providers.rerank.litellm_rerank import LiteLLMReranker
 
     return LiteLLMReranker(
@@ -148,9 +151,17 @@ def _settings_values(settings: RerankSettings) -> dict[str, Any]:
     return {
         key: getattr(settings, key)
         for key in (
-            "model", "api_base", "api_key", "aws_region", "instruction", "device", "quant",
+            "model",
+            "api_base",
+            "api_key",
+            "aws_region",
+            "instruction",
+            "device",
+            "quant",
             "request_timeout_s",
-            "batch_size", "max_length", "max_documents",
+            "batch_size",
+            "max_length",
+            "max_documents",
         )
         if getattr(settings, key, None) is not None
     }
@@ -177,12 +188,14 @@ def validate_reranker_settings(
     if descriptor.requires_deployment_id and not explicit_deployment_id:
         from memspine.exceptions import ConfigError
 
-        raise ConfigError(
-            f"runtime.deployment_id is required by shared provider reranker.{mode}"
-        )
+        raise ConfigError(f"runtime.deployment_id is required by shared provider reranker.{mode}")
     values = dict(settings)
     if allow_irrelevant:
-        values = {key: value for key, value in values.items() if key in descriptor.settings_model.model_fields}
+        values = {
+            key: value
+            for key, value in values.items()
+            if key in descriptor.settings_model.model_fields
+        }
     try:
         typed = validate_settings(descriptor, values)
     except ProviderRegistryError as exc:

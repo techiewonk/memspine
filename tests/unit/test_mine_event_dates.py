@@ -27,8 +27,8 @@ def _engine(**consolidation: Any) -> Engine:
     return Engine(
         template="core",
         dotenv_path=None,
-        storage={'provider': "sqlite", 'settings': {'path': ":memory:", 'busy_timeout_s': 5.0}},
-        embedding={'provider': "hash", 'settings': {}},
+        storage={"provider": "sqlite", "settings": {"path": ":memory:", "busy_timeout_s": 5.0}},
+        embedding={"provider": "hash", "settings": {}},
         memories={
             "episodic": {
                 "enabled": True,
@@ -140,8 +140,8 @@ async def test_relative_week_applies_to_mined_dates(monkeypatch: pytest.MonkeyPa
     eng = Engine(
         template="core",
         dotenv_path=None,
-        storage={'provider': "sqlite", 'settings': {'path': ":memory:", 'busy_timeout_s': 5.0}},
-        embedding={'provider': "hash", 'settings': {}},
+        storage={"provider": "sqlite", "settings": {"path": ":memory:", "busy_timeout_s": 5.0}},
+        embedding={"provider": "hash", "settings": {}},
         read={"relative_week": "preceding_7_days"},
         memories={
             "episodic": {
@@ -198,7 +198,9 @@ class _Extract:
 def _llm_engine(monkeypatch: pytest.MonkeyPatch, stub: _Extract, **options: Any) -> Engine:
     stubs: dict[str, LLMService] = {"extract": stub}
 
-    async def router(config: MemspineConfig, hooks: object = None, wiring: object = None) -> LLMRouter:
+    async def router(
+        config: MemspineConfig, hooks: object = None, wiring: object = None
+    ) -> LLMRouter:
         return LLMRouter(stubs)
 
     monkeypatch.setattr("memspine.runtime.container.build_llm_router", router)

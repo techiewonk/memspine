@@ -144,12 +144,18 @@ class ProviderLifecycleManager:
             if ref.ownership == "owned":
                 resource = self._resources.get(ref.resource_id)
                 if resource is None or resource.ref != ref:
-                    raise ResourceOwnershipError("provider result contains an unregistered owned resource")
+                    raise ResourceOwnershipError(
+                        "provider result contains an unregistered owned resource"
+                    )
             elif ref.ownership == "borrowed":
                 if ref.resource_id not in self._borrowed or ref.resource_id not in self._resources:
-                    raise ResourceOwnershipError("provider result contains an unregistered borrowed resource")
+                    raise ResourceOwnershipError(
+                        "provider result contains an unregistered borrowed resource"
+                    )
             else:
-                raise ResourceOwnershipError("provider result contains an invalid ownership reference")
+                raise ResourceOwnershipError(
+                    "provider result contains an invalid ownership reference"
+                )
 
     async def close_all(self) -> LifecycleCloseReport:
         """Close every owned resource and return failures without masking callers."""

@@ -51,7 +51,9 @@ async def _engine(
 ) -> Engine:
     class SpyBuilder:
         async def build(self, settings: Any, ctx: Any) -> BuildResult[EmbeddingService]:
-            return BuildResult(spy, ProviderRef("embedding", "test_spy"), (), frozenset({"embedding"}))
+            return BuildResult(
+                spy, ProviderRef("embedding", "test_spy"), (), frozenset({"embedding"})
+            )
 
     descriptor = ProviderDescriptor(
         ref=ProviderRef("embedding", "test_spy"),
@@ -64,14 +66,16 @@ async def _engine(
             "dimension": spy.dim,
         },
     )
-    get_registry("embedders")  # ensure built-ins are loaded before temporarily adding the test adapter
+    get_registry(
+        "embedders"
+    )  # ensure built-ins are loaded before temporarily adding the test adapter
     monkeypatch.setitem(EMBEDDERS._items, "test_spy", descriptor)
     embedding_config: dict[str, Any] = {"provider": "test_spy", "settings": {}}
     embedding_config.update(embedding or {})
     engine = Engine(
         template="core",
         dotenv_path=None,
-        storage={'provider': "sqlite", 'settings': {'path': ":memory:", 'busy_timeout_s': 5.0}},
+        storage={"provider": "sqlite", "settings": {"path": ":memory:", "busy_timeout_s": 5.0}},
         embedding=embedding_config,
         memories={"episodic": {"enabled": True}},
         **overrides,

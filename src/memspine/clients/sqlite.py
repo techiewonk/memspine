@@ -147,7 +147,11 @@ class SQLiteClient(Client):
         cipher_key_env: str | None = None,
         busy_timeout_s: float = constants.SQLITE_BUSY_TIMEOUT_MS / 1000,
     ) -> None:
-        if isinstance(busy_timeout_s, bool) or not math.isfinite(busy_timeout_s) or busy_timeout_s <= 0:
+        if (
+            isinstance(busy_timeout_s, bool)
+            or not math.isfinite(busy_timeout_s)
+            or busy_timeout_s <= 0
+        ):
             raise ValueError("busy_timeout_s must be finite and positive")
         self._path = str(path)
         self._echo = echo

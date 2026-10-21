@@ -32,7 +32,15 @@ T0 = datetime(2023, 5, 8, 9, 0, tzinfo=UTC)
 
 
 def test_the_flag_is_off_by_default() -> None:
-    w = MemspineConfig(runtime={"provider_services": {"health_timeout_s": 1.0, "close_timeout_s": 1.0, "startup_timeout_s": None}}).write
+    w = MemspineConfig(
+        runtime={
+            "provider_services": {
+                "health_timeout_s": 1.0,
+                "close_timeout_s": 1.0,
+                "startup_timeout_s": None,
+            }
+        }
+    ).write
     assert w.segmentation_v2 is False
     assert (w.segment_gap_s, w.segment_calendar_day_cut) == (1800.0, False)
     assert (w.batch_max_tokens, w.batch_max_windows, w.batch_max_age_s) == (3000, 8, 30.0)
@@ -202,7 +210,9 @@ async def _engine(
     mode: str = "facts",
     **write: Any,
 ) -> Engine:
-    async def router(config: MemspineConfig, hooks: object = None, wiring: object = None) -> LLMRouter:
+    async def router(
+        config: MemspineConfig, hooks: object = None, wiring: object = None
+    ) -> LLMRouter:
         return LLMRouter({"window_extract": llm})  # type: ignore[dict-item]
 
     monkeypatch.setattr("memspine.runtime.container.build_llm_router", router)
@@ -210,11 +220,18 @@ async def _engine(
     eng = Engine(
         template="core",
         dotenv_path=None,
-        storage={'provider': "sqlite", 'settings': {'path': str(path), 'busy_timeout_s': 5.0}},
-        embedding={'provider': "hash", 'settings': {}},
+        storage={"provider": "sqlite", "settings": {"path": str(path), "busy_timeout_s": 5.0}},
+        embedding={"provider": "hash", "settings": {}},
         memories={"episodic": {"enabled": True}, "semantic": {"enabled": True}},
         write={"window_extract": mode, "window_async": False, "window_idle_s": 0.0, **write},
-        llm={"roles": {"window_extract": {"provider": "litellm", "settings": {"model": "fake/window", "timeout_seconds": 60.0}}}},
+        llm={
+            "roles": {
+                "window_extract": {
+                    "provider": "litellm",
+                    "settings": {"model": "fake/window", "timeout_seconds": 60.0},
+                }
+            }
+        },
         **extra,
     )
     await eng.start()

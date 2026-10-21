@@ -119,8 +119,8 @@ async def test_correct_bypasses_contest_lower_trust() -> None:
     eng = await Engine(
         template="base",
         dotenv_path=None,
-        storage={'provider': "sqlite", 'settings': {'path': ":memory:", 'busy_timeout_s': 5.0}},
-        embedding={'provider': "hash", 'settings': {}},
+        storage={"provider": "sqlite", "settings": {"path": ":memory:", "busy_timeout_s": 5.0}},
+        embedding={"provider": "hash", "settings": {}},
     ).start()
     try:
         fact = await eng.write("Ana lives in Lyon", namespace="u", entity="ana", attribute="city")

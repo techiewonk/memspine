@@ -29,7 +29,9 @@ def endpoint_from_env(
         or parsed.fragment
         or parsed.path not in ("", "/")
     ):
-        raise ConfigError("remote provider endpoint must be an absolute host URL without credentials or path")
+        raise ConfigError(
+            "remote provider endpoint must be an absolute host URL without credentials or path"
+        )
     secure = parsed.scheme.lower() in {"https", "grpcs"}
     default_port = 443 if secure else 80
     return host, parsed.scheme.lower(), port or default_port, secure

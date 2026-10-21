@@ -61,7 +61,9 @@ def prepare_retries(
             "content": old.content if old else item.get("content"),
         }
         sender = meta.get("sender") or {}
-        expected["speaker"] = sender.get("id") or sender.get("name") or (old.axes.speaker if old else None)
+        expected["speaker"] = (
+            sender.get("id") or sender.get("name") or (old.axes.speaker if old else None)
+        )
         expected["name"] = sender.get("name")
         expected["timestamp"] = meta["created_at"]
         for key, value in (("session_id", session_id), ("conversation_id", conversation_id)):

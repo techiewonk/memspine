@@ -21,7 +21,9 @@ class TantivyBuilder:
         suffix = f".tantivy-{'-'.join(parts)}" if parts else ".tantivy"
         if ctx.generation_id != "active":
             if ctx.placement.in_memory:
-                raise ConfigError("controlled lexical generations require durable storage placement")
+                raise ConfigError(
+                    "controlled lexical generations require durable storage placement"
+                )
             suffix += f"-generation-{generation_component(ctx.generation_id)}"
         path = None if ctx.placement.in_memory else f"{ctx.placement.base_path}{suffix}"
         service = TantivyLexical(path, analyzer=settings.analyzer, date_tokens=settings.date_tokens)

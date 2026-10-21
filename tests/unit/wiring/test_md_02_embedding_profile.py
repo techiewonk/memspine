@@ -51,10 +51,10 @@ def _engine(path: Path, **embedding: Any) -> Engine:
         template="core",
         dotenv_path=None,
         storage={
-            'provider': 'sqlite',
-            'settings': {'path': str(path), 'busy_timeout_s': 5.0},
+            "provider": "sqlite",
+            "settings": {"path": str(path), "busy_timeout_s": 5.0},
         },
-        embedding={'provider': "hash", 'settings': {}, **embedding},
+        embedding={"provider": "hash", "settings": {}, **embedding},
         read={"hybrid": False, "record_access": False},
         memories={"semantic": {"enabled": True}},
     )
@@ -130,9 +130,7 @@ async def test_embedder_builder_receives_effective_profile_settings_without_load
 ) -> None:
     """The profile selects a typed builder; the fake avoids model or GPU initialization."""
 
-    config = load_config(
-        template="core", env={}, overrides={"embedding": raw_embedding}
-    ).config
+    config = load_config(template="core", env={}, overrides={"embedding": raw_embedding}).config
     effective = resolved_embedding(config)
     assert effective.provider == expected_provider
 
@@ -257,10 +255,10 @@ async def test_memory_store_pins_nothing() -> None:
         template="core",
         dotenv_path=None,
         storage={
-            'provider': 'sqlite',
-            'settings': {'path': ":memory:", 'busy_timeout_s': 5.0},
+            "provider": "sqlite",
+            "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
         },
-        embedding={'provider': "hash", 'profile': "fake_a", 'pin_profile': True, 'settings': {}},
+        embedding={"provider": "hash", "profile": "fake_a", "pin_profile": True, "settings": {}},
         memories={"semantic": {"enabled": True}},
     )
     await eng.start()

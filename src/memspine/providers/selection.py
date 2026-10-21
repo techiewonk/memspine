@@ -101,7 +101,9 @@ def select_provider(
             continue
         missing_capabilities = required_capabilities - candidate.declared_capabilities
         if missing_capabilities:
-            reasons.append(f"{name}: missing capabilities {', '.join(sorted(missing_capabilities))}")
+            reasons.append(
+                f"{name}: missing capabilities {', '.join(sorted(missing_capabilities))}"
+            )
             continue
         available, missing_requirements = requirements_available(
             candidate,

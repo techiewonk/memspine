@@ -130,7 +130,15 @@ def _run(
 
 # --- config and registration --------------------------------------------------------------------
 def test_flag_off_registers_nothing_and_on_registers_one_stage_at_250_after_grounding() -> None:
-    off = MemspineConfig(runtime={"provider_services": {"health_timeout_s": 1.0, "close_timeout_s": 1.0, "startup_timeout_s": None}})
+    off = MemspineConfig(
+        runtime={
+            "provider_services": {
+                "health_timeout_s": 1.0,
+                "close_timeout_s": 1.0,
+                "startup_timeout_s": None,
+            }
+        }
+    )
     assert off.write.coverage_v2 is False and off.write.coverage_threshold == 0.8
     assert _envelope_stages(SimpleNamespace(), off) == ()
     on = MemspineConfig(

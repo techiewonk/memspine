@@ -28,7 +28,12 @@ from memspine.providers.lifecycle import ProviderLifecycleManager
 from memspine.runtime import container
 
 SMALL = ModelDecl(
-    id="ollama/small-3b", provider="litellm", tier="small-local", vram_mb=2500, ram_mb=3000, context_vram_mb=500,
+    id="ollama/small-3b",
+    provider="litellm",
+    tier="small-local",
+    vram_mb=2500,
+    ram_mb=3000,
+    context_vram_mb=500,
     timeout_seconds=60.0,
 )
 NINE = ModelDecl(
@@ -41,7 +46,9 @@ NINE = ModelDecl(
     supports_thinking=True,
     timeout_seconds=60.0,
 )
-BIG = ModelDecl(id="openai/frontier", provider="litellm", tier="frontier", hosted=True, timeout_seconds=60.0)
+BIG = ModelDecl(
+    id="openai/frontier", provider="litellm", tier="frontier", hosted=True, timeout_seconds=60.0
+)
 RTX = GpuDecl(name="NVIDIA GeForce RTX 5080", vram_mb=16303)
 
 
@@ -50,11 +57,13 @@ def _models(**kw: Any) -> ModelsConfig:
 
 
 def _runtime() -> dict[str, Any]:
-    return {"provider_services": {
-        "health_timeout_s": 2.0,
-        "close_timeout_s": 2.0,
-        "startup_timeout_s": None,
-    }}
+    return {
+        "provider_services": {
+            "health_timeout_s": 2.0,
+            "close_timeout_s": 2.0,
+            "startup_timeout_s": None,
+        }
+    }
 
 
 def _config(**kwargs: Any) -> MemspineConfig:
@@ -85,7 +94,9 @@ def stub_providers(monkeypatch: pytest.MonkeyPatch) -> list[_Stub]:
     made: list[_Stub] = []
     real_build = container._build_provider
 
-    async def build(wiring: Any, descriptor: Any, settings: Any, context: Any, *, result_key: str | None = None) -> BuildResult[Any]:
+    async def build(
+        wiring: Any, descriptor: Any, settings: Any, context: Any, *, result_key: str | None = None
+    ) -> BuildResult[Any]:
         if descriptor.ref.category != "llm":
             return await real_build(wiring, descriptor, settings, context, result_key=result_key)
         service = _Stub(settings.model)
@@ -114,7 +125,14 @@ async def test_default_is_off_and_config_roles_resolve_as_before(
     stub_providers: list[_Stub],
 ) -> None:
     cfg = _config(
-        llm={"roles": {"extract": {"provider": "litellm", "settings": {"model": "ollama/x", "timeout_seconds": 60.0}}}},
+        llm={
+            "roles": {
+                "extract": {
+                    "provider": "litellm",
+                    "settings": {"model": "ollama/x", "timeout_seconds": 60.0},
+                }
+            }
+        },
         models={"catalogue": [NINE]},
     )
     assert cfg.models.tiers_v2 is False
@@ -200,8 +218,8 @@ def _engine(models: ModelsConfig, **extra: Any) -> Engine:
     return Engine(
         template="core",
         dotenv_path=None,
-        storage={'provider': "sqlite", 'settings': {'path': ":memory:", 'busy_timeout_s': 5.0}},
-        embedding={'provider': "hash", 'settings': {}},
+        storage={"provider": "sqlite", "settings": {"path": ":memory:", "busy_timeout_s": 5.0}},
+        embedding={"provider": "hash", "settings": {}},
         models=models,
         runtime=_runtime(),
         **extra,
@@ -262,7 +280,14 @@ async def test_bound_roles_do_make_calls_counted_by_the_stub(stub_providers: lis
 
 async def test_explicit_llm_roles_win_over_the_plan(stub_providers: list[_Stub]) -> None:
     cfg = _config(
-        llm={"roles": {"extract": {"provider": "litellm", "settings": {"model": "ollama/pinned", "timeout_seconds": 60.0}}}},
+        llm={
+            "roles": {
+                "extract": {
+                    "provider": "litellm",
+                    "settings": {"model": "ollama/pinned", "timeout_seconds": 60.0},
+                }
+            }
+        },
         models=_models(catalogue=[NINE], gpus=[RTX]),
     )
     router = await _build(cfg)
@@ -396,6 +421,7 @@ async def test_chain_score_flag_off_uses_the_config_chain(monkeypatch: pytest.Mo
     from memspine.read.pipeline import rerank as rr
 
     built: list[str] = []
+
     async def fake_build(settings: Any) -> None:
         built.append(settings.mode)
 
@@ -486,7 +512,9 @@ def test_capped_thinking_only_for_judge_and_reflect() -> None:
 
 
 def test_capped_thinking_needs_a_model_that_can_think() -> None:
-    plain = ModelDecl(id="ollama/plain-9b", provider="litellm", tier="worker", vram_mb=6000, timeout_seconds=60.0)
+    plain = ModelDecl(
+        id="ollama/plain-9b", provider="litellm", tier="worker", vram_mb=6000, timeout_seconds=60.0
+    )
     r = resolve_models(_models(catalogue=[plain], gpus=[RTX], thinking={"judge": 512}))
     res = resolve_role(r, "judge")
     assert res.thinking == "off" and res.reason_code == "thinking_not_applied"

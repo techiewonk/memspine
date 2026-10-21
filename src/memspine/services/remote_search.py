@@ -20,8 +20,6 @@ def bounded_query(query: str, *, max_chars: int = 2048, max_terms: int = 64) -> 
     text = query[:max_chars]
     # Preserve ordinary whitespace but strip controls, which are not meaningful
     # search terms and can produce inconsistent behavior across server versions.
-    text = "".join(
-        ch for ch in text if ch in "\t\n\r" or (ord(ch) >= 32 and ord(ch) != 127)
-    )
+    text = "".join(ch for ch in text if ch in "\t\n\r" or (ord(ch) >= 32 and ord(ch) != 127))
     terms = re.findall(r"[^\W_]+", text, flags=re.UNICODE)[:max_terms]
     return " ".join(terms)

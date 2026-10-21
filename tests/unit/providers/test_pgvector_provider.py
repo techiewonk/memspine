@@ -169,6 +169,7 @@ def test_postgres_storage_target_identity_is_specific_and_contains_no_password()
     from memspine.providers.registry import get_registry, provider_target_identity
 
     descriptor = get_registry("storage_backends").get("postgres")
+
     def settings(url: str) -> PostgresSettings:
         return PostgresSettings(
             url=url,

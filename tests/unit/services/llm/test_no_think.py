@@ -179,8 +179,8 @@ async def test_engine_binds_no_think_from_config(monkeypatch: pytest.MonkeyPatch
     eng = Engine(
         dotenv_path=None,
         runtime={"deployment_id": "unit-test"},
-        storage={'provider': "sqlite", 'settings': {'path': ":memory:", 'busy_timeout_s': 5.0}},
-        embedding={'provider': "hash", 'settings': {}},
+        storage={"provider": "sqlite", "settings": {"path": ":memory:", "busy_timeout_s": 5.0}},
+        embedding={"provider": "hash", "settings": {}},
         llm={
             "roles": {
                 "extract": {
@@ -193,11 +193,11 @@ async def test_engine_binds_no_think_from_config(monkeypatch: pytest.MonkeyPatch
                         "model": QWEN,
                         "timeout_seconds": 30.0,
                         "no_think": False,
-                    }
+                    },
                 },
                 "judge": {
                     "provider": "litellm",
-                    "settings": {"model": "openai/gpt-4o", "timeout_seconds": 30.0}
+                    "settings": {"model": "openai/gpt-4o", "timeout_seconds": 30.0},
                 },
             }
         },

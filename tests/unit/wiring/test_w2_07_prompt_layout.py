@@ -53,7 +53,18 @@ def test_flag_default_off() -> None:
     cfg = PromptsConfig()
     assert cfg.layout_v2 is False
     assert cfg.layout_partials == ["same_language", "coarse_date"]
-    assert MemspineConfig(runtime={"provider_services": {"health_timeout_s": 1.0, "close_timeout_s": 1.0, "startup_timeout_s": None}}).prompts.layout_v2 is False
+    assert (
+        MemspineConfig(
+            runtime={
+                "provider_services": {
+                    "health_timeout_s": 1.0,
+                    "close_timeout_s": 1.0,
+                    "startup_timeout_s": None,
+                }
+            }
+        ).prompts.layout_v2
+        is False
+    )
 
 
 def test_v2_pack_covers_the_write_prompts() -> None:

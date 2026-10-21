@@ -31,9 +31,7 @@ def test_settings_reject_unknown_fields_and_coercion() -> None:
 def test_sqlite_busy_timeout_is_an_explicit_finite_setting() -> None:
     with pytest.raises(ValidationError):
         SqliteSettings.model_validate({"path": ":memory:"})
-    settings = SqliteSettings.model_validate(
-        {"path": ":memory:", "busy_timeout_s": 0.25}
-    )
+    settings = SqliteSettings.model_validate({"path": ":memory:", "busy_timeout_s": 0.25})
     assert settings.busy_timeout_s == 0.25
     for value in (0, -1, float("inf"), float("nan")):
         with pytest.raises(ValidationError):

@@ -62,12 +62,19 @@ def test_rerank_modes_come_from_the_registry() -> None:
 
     class Builder:
         async def build(self, settings, ctx):
-            return BuildResult(object(), ProviderRef("reranker", "mod02_tmp"), (), frozenset({"rerank"}))
+            return BuildResult(
+                object(), ProviderRef("reranker", "mod02_tmp"), (), frozenset({"rerank"})
+            )
 
-    register_reranker(ProviderDescriptor(
-        ProviderRef("reranker", "mod02_tmp"), EmptySettings,
-        frozenset({"rerank"}), (), Builder(),
-    ))
+    register_reranker(
+        ProviderDescriptor(
+            ProviderRef("reranker", "mod02_tmp"),
+            EmptySettings,
+            frozenset({"rerank"}),
+            (),
+            Builder(),
+        )
+    )
     try:
         assert "mod02_tmp" in rerank_modes()
     finally:
@@ -108,7 +115,9 @@ def test_unknown_provider_error_lists_valid() -> None:
 
 
 def test_obsolete_vector_provider_name_is_not_an_alias() -> None:
-    with pytest.raises(plugins.UnknownProviderError, match="unknown vector_stores provider 'lance'") as caught:
+    with pytest.raises(
+        plugins.UnknownProviderError, match="unknown vector_stores provider 'lance'"
+    ) as caught:
         plugins.get_registry("vector_stores").get("lance")
     assert "lancedb" in str(caught.value)
 

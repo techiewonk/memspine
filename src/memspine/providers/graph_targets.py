@@ -24,9 +24,7 @@ def require_distinct_graph_targets(
     right = provider_target_identity(mirror, mirror_settings)
     if left is None or right is None:
         if primary.ref == mirror.ref:
-            raise ConfigError(
-                "primary/mirror target isolation requires provider target identity"
-            )
+            raise ConfigError("primary/mirror target isolation requires provider target identity")
         return
     left_target = left.get("canonical_target", left)
     right_target = right.get("canonical_target", right)

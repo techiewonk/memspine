@@ -52,9 +52,7 @@ class ChangePreparation(StrictSettings):
 class ServiceChangeBackend(Protocol):
     """Injected execution surface; implementation owns idempotency and I/O."""
 
-    async def prepare(
-        self, plan: ChangePlan, operation: OperationRecord
-    ) -> ChangePreparation: ...
+    async def prepare(self, plan: ChangePlan, operation: OperationRecord) -> ChangePreparation: ...
 
     async def execute(
         self,
@@ -159,7 +157,9 @@ class ServiceChangeStrategy:
         await context.checkpoint(
             context.operation.checkpoint.model_copy(update={"phase": "prepared"})
         )
-        checkpoint = await self.backend.execute(plan, context.operation, context.operation.checkpoint)
+        checkpoint = await self.backend.execute(
+            plan, context.operation, context.operation.checkpoint
+        )
         if checkpoint.phase not in {"executed", "verified"}:
             raise ChangeConflict("backend did not provide a completed execution checkpoint")
         await context.checkpoint(checkpoint)

@@ -161,5 +161,3 @@ async def _participants_mode(eng: Any, namespace: str) -> str:
     if await scope_guard.is_multi_party(eng, validate_namespace(namespace)):
         return "session"
     return configured
-
-

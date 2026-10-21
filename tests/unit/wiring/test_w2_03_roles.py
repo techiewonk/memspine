@@ -41,10 +41,18 @@ MEMORY = "Ilse keeps three hives of bees behind the old mill near the river bend
 def convo() -> list[dict[str, str]]:
     return [
         {"conversation_id": "roles-conversation", "role": "system", "content": SYSTEM},
-        {"conversation_id": "roles-conversation", "role": "user", "content": "Ilse: I repotted the orchid on the balcony"},
+        {
+            "conversation_id": "roles-conversation",
+            "role": "user",
+            "content": "Ilse: I repotted the orchid on the balcony",
+        },
         {"conversation_id": "roles-conversation", "role": "assistant", "content": ASSISTANT},
         {"conversation_id": "roles-conversation", "role": "tool", "content": TOOL},
-        {"conversation_id": "roles-conversation", "role": "user", "content": "Bram: We booked a kayak tour along the northern coast"},
+        {
+            "conversation_id": "roles-conversation",
+            "role": "user",
+            "content": "Bram: We booked a kayak tour along the northern coast",
+        },
     ]
 
 
@@ -62,7 +70,15 @@ async def facts(eng: Engine) -> list[Any]:
 
 # ------------------------------------------------------------------------------------------ flag off
 def test_flag_is_off_by_default() -> None:
-    w = MemspineConfig(runtime={"provider_services": {"health_timeout_s": 1.0, "close_timeout_s": 1.0, "startup_timeout_s": None}}).write
+    w = MemspineConfig(
+        runtime={
+            "provider_services": {
+                "health_timeout_s": 1.0,
+                "close_timeout_s": 1.0,
+                "startup_timeout_s": None,
+            }
+        }
+    ).write
     assert w.role_policy_v2 is False
     assert w.echo_threshold == 0.6
 
@@ -164,7 +180,18 @@ async def test_live_members_filters_for_session_stages(monkeypatch: pytest.Monke
         live = await _live_members(ctx, ids)  # type: ignore[arg-type]
         assert SYSTEM not in {m.content for m in live}
         assert len(live) == len(ids) - 1
-        off = SimpleNamespace(storage=storage, config=MemspineConfig(runtime={"provider_services": {"health_timeout_s": 1.0, "close_timeout_s": 1.0, "startup_timeout_s": None}}))
+        off = SimpleNamespace(
+            storage=storage,
+            config=MemspineConfig(
+                runtime={
+                    "provider_services": {
+                        "health_timeout_s": 1.0,
+                        "close_timeout_s": 1.0,
+                        "startup_timeout_s": None,
+                    }
+                }
+            ),
+        )
         assert len(await _live_members(off, ids)) == len(ids)  # type: ignore[arg-type]
     finally:
         await eng.stop()
@@ -275,8 +302,11 @@ async def build_gateway(tmp_path: Path, **write: Any) -> Engine:
     eng = Engine(
         template="core",
         dotenv_path=None,
-        storage={'provider': "sqlite", 'settings': {'path': str(tmp_path / "gw.db"), 'busy_timeout_s': 5.0}},
-        embedding={'provider': "hash", 'settings': {}},
+        storage={
+            "provider": "sqlite",
+            "settings": {"path": str(tmp_path / "gw.db"), "busy_timeout_s": 5.0},
+        },
+        embedding={"provider": "hash", "settings": {}},
         memories={
             "episodic": {"enabled": True},
             "semantic": {"enabled": True},
@@ -289,7 +319,11 @@ async def build_gateway(tmp_path: Path, **write: Any) -> Engine:
 
 
 MIXED = [
-    {"message_id": "role-0", "role": "user", "content": "Ilse: just chatting about the weather today"},
+    {
+        "message_id": "role-0",
+        "role": "user",
+        "content": "Ilse: just chatting about the weather today",
+    },
     {
         "message_id": "role-1",
         "role": "user",

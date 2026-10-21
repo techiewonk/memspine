@@ -201,6 +201,7 @@ async def ingest_data(
     ns = validate_namespace(namespace)
     return await intake_gateway.ingest_data(eng, path, ns, pii_tier)
 
+
 _BOUND_KEYS = frozenset({"namespace", "viewer", "purpose"})
 
 

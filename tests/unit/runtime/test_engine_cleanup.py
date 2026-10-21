@@ -184,9 +184,7 @@ async def test_neo4j_projection_closes_runner_even_if_drain_raises() -> None:
         def close(self) -> None:
             calls.append("close")
 
-    projection = Neo4jProjection(
-        projector=object(), runner=cast(Any, Runner()), store=object()
-    )
+    projection = Neo4jProjection(projector=object(), runner=cast(Any, Runner()), store=object())
     with pytest.raises(RuntimeError, match="stop:RuntimeError") as raised:
         await projection.close()
 

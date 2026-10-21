@@ -59,7 +59,9 @@ async def _engine(
     extra_roles: dict[str, Any] | None = None,
     extract_graph: dict[str, Any] | None = None,
 ) -> Engine:
-    async def router(config: MemspineConfig, hooks: object = None, wiring: object = None) -> LLMRouter:
+    async def router(
+        config: MemspineConfig, hooks: object = None, wiring: object = None
+    ) -> LLMRouter:
         return LLMRouter({"window_extract": llm, **(extra_roles or {})})  # type: ignore[dict-item]
 
     monkeypatch.setattr("memspine.runtime.container.build_llm_router", router)
@@ -69,14 +71,23 @@ async def _engine(
     eng = Engine(
         template="core",
         dotenv_path=None,
-        storage={'provider': "sqlite", 'settings': {'path': str(path), 'busy_timeout_s': 5.0}},
-        embedding={'provider': "hash", 'settings': {}},
+        storage={"provider": "sqlite", "settings": {"path": str(path), "busy_timeout_s": 5.0}},
+        embedding={"provider": "hash", "settings": {}},
         memories={"episodic": {"enabled": True}, "semantic": semantic},
         write={"window_extract": mode, "window_async": False, "window_idle_s": 0.0},
         llm={
             "roles": {
-                "window_extract": {"provider": "litellm", "settings": {"model": "fake/window", "timeout_seconds": 60.0}},
-                **{r: {"provider": "litellm", "settings": {"model": "fake/x", "timeout_seconds": 60.0}} for r in (extra_roles or {})},
+                "window_extract": {
+                    "provider": "litellm",
+                    "settings": {"model": "fake/window", "timeout_seconds": 60.0},
+                },
+                **{
+                    r: {
+                        "provider": "litellm",
+                        "settings": {"model": "fake/x", "timeout_seconds": 60.0},
+                    }
+                    for r in (extra_roles or {})
+                },
             }
         },
         workers={"outbox": outbox},
@@ -96,7 +107,18 @@ async def _three_sessions(eng: Engine) -> None:
 def test_defaults_are_off() -> None:
     cfg = EconomyConfig()
     assert cfg.ledger_v2 is False and cfg.budget is None
-    assert MemspineConfig(runtime={"provider_services": {"health_timeout_s": 1.0, "close_timeout_s": 1.0, "startup_timeout_s": None}}).economy == cfg
+    assert (
+        MemspineConfig(
+            runtime={
+                "provider_services": {
+                    "health_timeout_s": 1.0,
+                    "close_timeout_s": 1.0,
+                    "startup_timeout_s": None,
+                }
+            }
+        ).economy
+        == cfg
+    )
 
 
 async def test_flag_off_installs_nothing_and_the_facts_are_unchanged(

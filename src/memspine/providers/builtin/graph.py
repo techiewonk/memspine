@@ -36,9 +36,7 @@ def _neo4j_target_identity(settings: BaseModel) -> dict[str, JsonValue]:
         raise ConfigError("Neo4j target URL is invalid")
     username = os.environ.get(settings.user_env) or ""
     password = os.environ.get(settings.password_env) or ""
-    auth_material = "\0".join(
-        (username, password, parsed.username or "", parsed.password or "")
-    )
+    auth_material = "\0".join((username, password, parsed.username or "", parsed.password or ""))
     auth_digest = sha256(auth_material.encode()).hexdigest()
     return {
         "scheme": parsed.scheme.lower(),

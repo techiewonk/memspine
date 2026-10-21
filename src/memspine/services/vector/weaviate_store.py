@@ -22,7 +22,9 @@ class WeaviateVectorStore:
         self._embedder_id = embedder_id
         self._dimension = dimension
 
-    async def upsert(self, record_id: str, namespace: str, embedder_id: str, vector: list[float]) -> None:
+    async def upsert(
+        self, record_id: str, namespace: str, embedder_id: str, vector: list[float]
+    ) -> None:
         values = self._validate(embedder_id, vector)
         await upsert_object(
             self._collection,
@@ -32,7 +34,9 @@ class WeaviateVectorStore:
             vector=values,
         )
 
-    async def query(self, namespace: str, vector: list[float], embedder_id: str, top_k: int = 8) -> list[VectorHit]:
+    async def query(
+        self, namespace: str, vector: list[float], embedder_id: str, top_k: int = 8
+    ) -> list[VectorHit]:
         values = self._validate(embedder_id, vector)
         if top_k <= 0:
             return []
@@ -57,7 +61,9 @@ class WeaviateVectorStore:
                 hits.append(VectorHit(str(record_id), 1.0 - float(distance)))
         return sorted(hits, key=lambda hit: (-hit.score, hit.record_id))[:top_k]
 
-    async def search_rescore(self, namespace: str, vector: list[float], embedder_id: str, top_k: int = 8) -> list[VectorHit]:
+    async def search_rescore(
+        self, namespace: str, vector: list[float], embedder_id: str, top_k: int = 8
+    ) -> list[VectorHit]:
         return await self.query(namespace, vector, embedder_id, top_k)
 
     async def delete(self, record_id: str) -> None:

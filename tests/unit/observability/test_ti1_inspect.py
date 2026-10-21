@@ -143,7 +143,7 @@ async def _engine(
             "roles": {
                 "window_extract": {
                     "provider": "litellm",
-                    "settings": {"model": "fake/window", "timeout_seconds": 30.0}
+                    "settings": {"model": "fake/window", "timeout_seconds": 30.0},
                 }
             }
         },
@@ -200,11 +200,7 @@ async def _stored(eng: Engine) -> list[tuple[str, tuple[str, ...], str]]:
         for r in await storage.list_records("a", mt):
             content = re.sub(r"[0-9a-f]{12}$", "", r.content)
             tags = tuple(
-                sorted(
-                    re.sub(r"[0-9a-f]{12}", "", t)
-                    for t in r.tags
-                    if not t.startswith("idem:")
-                )
+                sorted(re.sub(r"[0-9a-f]{12}", "", t) for t in r.tags if not t.startswith("idem:"))
             )
             rows.append((content, tags, r.status.value))
     return sorted(rows)
@@ -457,7 +453,7 @@ async def test_read_side_events(monkeypatch) -> None:
             "roles": {
                 "window_extract": {
                     "provider": "litellm",
-                    "settings": {"model": "fake/window", "timeout_seconds": 30.0}
+                    "settings": {"model": "fake/window", "timeout_seconds": 30.0},
                 },
                 "plan": {
                     "provider": "litellm",

@@ -89,8 +89,8 @@ async def test_read_dedupes_before_assembly_and_reports_it() -> None:
     eng = Engine(
         template="core",
         dotenv_path=None,
-        storage={'provider': "sqlite", 'settings': {'path': ":memory:", 'busy_timeout_s': 5.0}},
-        embedding={'provider': "hash", 'settings': {}},
+        storage={"provider": "sqlite", "settings": {"path": ":memory:", "busy_timeout_s": 5.0}},
+        embedding={"provider": "hash", "settings": {}},
         memories={"semantic": {"enabled": True}},
         read={"hybrid": False, "dedupe": "jaccard"},
     )
@@ -224,8 +224,8 @@ async def test_replay_hits_first_keeps_second_hit_under_tight_budget() -> None:
         eng = Engine(
             template="core",
             dotenv_path=None,
-            storage={'provider': "sqlite", 'settings': {'path': ":memory:", 'busy_timeout_s': 5.0}},
-            embedding={'provider': "hash", 'settings': {}},
+            storage={"provider": "sqlite", "settings": {"path": ":memory:", "busy_timeout_s": 5.0}},
+            embedding={"provider": "hash", "settings": {}},
             memories={"episodic": {"enabled": True}},
             read={"hybrid": False, "record_access": False, **read},
         )

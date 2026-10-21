@@ -76,7 +76,9 @@ def _clean() -> Any:
 
 
 def _patch(monkeypatch: pytest.MonkeyPatch, groups: dict[str, list[FakeEP]]) -> None:
-    monkeypatch.setattr(importlib.metadata, "entry_points", lambda group=None: groups.get(group, []))
+    monkeypatch.setattr(
+        importlib.metadata, "entry_points", lambda group=None: groups.get(group, [])
+    )
 
 
 def test_discovered_but_not_enabled(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -95,7 +97,13 @@ def test_enabled_with_pin_registers_descriptor_and_records(monkeypatch: pytest.M
     assert EMBEDDERS.get("acme") == _descriptor()
     assert not EMBEDDERS.is_builtin("acme")
     assert plugins.enabled_manifest() == [
-        {"name": "acme", "version": "1.2.3", "hash": None, "slot": "embedders:acme", "lifetime": "app"}
+        {
+            "name": "acme",
+            "version": "1.2.3",
+            "hash": None,
+            "slot": "embedders:acme",
+            "lifetime": "app",
+        }
     ]
     plugins.enable([_pin(version="==1.2.3")])
     assert len(plugins.enabled_manifest()) == 1
@@ -119,7 +127,10 @@ def test_not_advertised_errors(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_hash_pin(monkeypatch: pytest.MonkeyPatch) -> None:
     record = "acme/__init__.py,sha256=abc,10\n"
     good = "sha256:" + hashlib.sha256(record.encode()).hexdigest()
-    _patch(monkeypatch, {"memspine.embedders": [FakeEP("acme", _descriptor(), FakeDist(record=record))]})
+    _patch(
+        monkeypatch,
+        {"memspine.embedders": [FakeEP("acme", _descriptor(), FakeDist(record=record))]},
+    )
     with pytest.raises(plugins.PluginHashError):
         plugins.enable([_pin(hash="sha256:" + "0" * 64)])
     plugins.enable([_pin(hash=good)])
@@ -129,7 +140,12 @@ def test_hash_pin(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_two_providers_one_slot_errors(monkeypatch: pytest.MonkeyPatch) -> None:
     _patch(
         monkeypatch,
-        {"memspine.embedders": [FakeEP("acme", _descriptor()), FakeEP("other", _descriptor("other"))]},
+        {
+            "memspine.embedders": [
+                FakeEP("acme", _descriptor()),
+                FakeEP("other", _descriptor("other")),
+            ]
+        },
     )
     with pytest.raises(DuplicateSlotError, match=r"acme.*other"):
         plugins.enable([_pin(), _pin(name="other")])

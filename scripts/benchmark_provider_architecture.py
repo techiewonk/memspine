@@ -71,11 +71,18 @@ async def workload(args: argparse.Namespace) -> dict[str, Any]:
 
     def engine() -> Any:
         return Engine(
-            template="core", dotenv_path=None, storage=storage,
+            template="core",
+            dotenv_path=None,
+            storage=storage,
             embedding={"provider": "hash"},
-            read={"record_access": False, "scoring": {
-                "recency_weight": 0.0, "importance_weight": 0.0, "utility_weight": 0.0,
-            }},
+            read={
+                "record_access": False,
+                "scoring": {
+                    "recency_weight": 0.0,
+                    "importance_weight": 0.0,
+                    "utility_weight": 0.0,
+                },
+            },
         )
 
     started = time.perf_counter()
@@ -118,16 +125,24 @@ async def workload(args: argparse.Namespace) -> dict[str, Any]:
         await reopened.stop()
     memory = psutil.Process().memory_info()
     return {
-        "variant": args.variant, "input_hash": digest(messages),
+        "variant": args.variant,
+        "input_hash": digest(messages),
         "source_file": str(Path(memspine.__file__).resolve()),
-        "import_ms": import_ms, "cold_start_ms": cold_start_ms,
+        "import_ms": import_ms,
+        "cold_start_ms": cold_start_ms,
         "first_config_dump_ms": first_config_dump_ms,
-        "warm_start_ms": warm_starts, "ingest_ms": ingest_ms,
-        "search_ms": latencies, "stop_ms": stop_ms,
+        "warm_start_ms": warm_starts,
+        "ingest_ms": ingest_ms,
+        "search_ms": latencies,
+        "stop_ms": stop_ms,
         "peak_rss_bytes": getattr(memory, "peak_wset", memory.rss),
-        "peak_memory_method": "Windows peak working set" if hasattr(memory, "peak_wset") else "end-of-run RSS (not peak)",
-        "output_hash": digest(outputs), "stored_hash": digest(stored),
-        "record_count": len(stored), "llm_usage": usage,
+        "peak_memory_method": "Windows peak working set"
+        if hasattr(memory, "peak_wset")
+        else "end-of-run RSS (not peak)",
+        "output_hash": digest(outputs),
+        "stored_hash": digest(stored),
+        "record_count": len(stored),
+        "llm_usage": usage,
         "host_cpu_percent": psutil.cpu_percent(interval=None),
     }
 
@@ -147,7 +162,8 @@ def summary(samples: list[dict[str, Any]]) -> dict[str, Any]:
         "warm_start_median_ms": statistics.median(warm),
         "warm_start_p95_ms": percentile(warm, 0.95),
         "ingest_median_ms": statistics.median(sample["ingest_ms"] for sample in samples),
-        "search_p50_ms": statistics.median(search), "search_p95_ms": percentile(search, 0.95),
+        "search_p50_ms": statistics.median(search),
+        "search_p95_ms": percentile(search, 0.95),
         "stop_median_ms": statistics.median(sample["stop_ms"] for sample in samples),
         "peak_rss_median_bytes": statistics.median(sample["peak_rss_bytes"] for sample in samples),
     }
@@ -166,25 +182,58 @@ def run(args: argparse.Namespace) -> int:
                 work_dir = Path(temporary) / f"{trial}-{variant}"
                 work_dir.mkdir()
                 result = work_dir / "result.json"
-                env = {**os.environ, "PYTHONPATH": str(variants[variant]),
-                       "HF_HUB_OFFLINE": "1", "TRANSFORMERS_OFFLINE": "1"}
-                command = [sys.executable, str(Path(__file__).resolve()), "--worker-src", str(variants[variant]),
-                           "--variant", variant, "--work-dir", str(work_dir), "--out", str(result),
-                           "--messages", str(args.messages), "--queries", str(args.queries)]
-                completed = subprocess.run(command, env=env, cwd=ROOT, capture_output=True, text=True, timeout=180)
+                env = {
+                    **os.environ,
+                    "PYTHONPATH": str(variants[variant]),
+                    "HF_HUB_OFFLINE": "1",
+                    "TRANSFORMERS_OFFLINE": "1",
+                }
+                command = [
+                    sys.executable,
+                    str(Path(__file__).resolve()),
+                    "--worker-src",
+                    str(variants[variant]),
+                    "--variant",
+                    variant,
+                    "--work-dir",
+                    str(work_dir),
+                    "--out",
+                    str(result),
+                    "--messages",
+                    str(args.messages),
+                    "--queries",
+                    str(args.queries),
+                ]
+                completed = subprocess.run(
+                    command, env=env, cwd=ROOT, capture_output=True, text=True, timeout=180
+                )
                 if completed.returncode:
                     raise RuntimeError(f"{variant} benchmark failed:\n{completed.stderr[-6000:]}")
                 samples[variant].append(json.loads(result.read_text(encoding="utf-8")))
                 print(f"trial {trial + 1}/{args.trials}: {variant} complete", flush=True)
     report: dict[str, Any] = {
-        "environment": {"python": platform.python_version(), "platform": platform.platform(),
-                        "cpu_count": os.cpu_count(), "variant_order_alternated": True},
+        "environment": {
+            "python": platform.python_version(),
+            "platform": platform.platform(),
+            "cpu_count": os.cpu_count(),
+            "variant_order_alternated": True,
+        },
         "source_fingerprints": fingerprints,
-        "workload": {"messages": args.messages, "queries_per_trial": args.queries, "trials": args.trials,
-                     "providers": ["sqlite", "lancedb", "tantivy", "hash"], "remote_calls": False},
-        "samples": samples, "summary": {key: summary(value) for key, value in samples.items()},
+        "workload": {
+            "messages": args.messages,
+            "queries_per_trial": args.queries,
+            "trials": args.trials,
+            "providers": ["sqlite", "lancedb", "tantivy", "hash"],
+            "remote_calls": False,
+        },
+        "samples": samples,
+        "summary": {key: summary(value) for key, value in samples.items()},
     }
-    hashes = {(sample["input_hash"], sample["stored_hash"], sample["output_hash"]) for rows in samples.values() for sample in rows}
+    hashes = {
+        (sample["input_hash"], sample["stored_hash"], sample["output_hash"])
+        for rows in samples.values()
+        for sample in rows
+    }
     report["behaviour_matches"] = len(hashes) == 1
     report["source_stable"] = all(
         source_fingerprint(source) == fingerprints[variant] for variant, source in variants.items()
@@ -203,7 +252,13 @@ def run(args: argparse.Namespace) -> int:
             for key in report["summary"]["current"]
         }
         report["investigate_over_10_percent"] = [
-            key for key in ("cold_start_median_ms", "warm_start_p95_ms", "search_p95_ms", "peak_rss_median_bytes")
+            key
+            for key in (
+                "cold_start_median_ms",
+                "warm_start_p95_ms",
+                "search_p95_ms",
+                "peak_rss_median_bytes",
+            )
             if report["change_percent"][key] > 10
         ]
     args.out.parent.mkdir(parents=True, exist_ok=True)

@@ -68,7 +68,9 @@ async def _make(
 
     config = load_config(
         template="core",
-        overrides={"memories": {"semantic": {"enabled": True, "policies": semantic_policies or {}}}}
+        overrides={
+            "memories": {"semantic": {"enabled": True, "policies": semantic_policies or {}}}
+        },
     ).config
     ctx = PipelineContext(
         storage=storage,

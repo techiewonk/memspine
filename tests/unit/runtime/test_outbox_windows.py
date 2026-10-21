@@ -40,15 +40,15 @@ async def _engine(
     eng = Engine(
         template="core",
         dotenv_path=None,
-        storage={'provider': "sqlite", 'settings': {'path': str(path), 'busy_timeout_s': 5.0}},
-        embedding={'provider': "hash", 'settings': {}},
+        storage={"provider": "sqlite", "settings": {"path": str(path), "busy_timeout_s": 5.0}},
+        embedding={"provider": "hash", "settings": {}},
         memories={"episodic": {"enabled": True}, "semantic": {"enabled": True}},
         write={"window_extract": "facts", "window_async": False, "window_idle_s": 0.0, **write},
         llm={
             "roles": {
                 "window_extract": {
                     "provider": "litellm",
-                    "settings": {"model": "fake/window", "timeout_seconds": 30.0}
+                    "settings": {"model": "fake/window", "timeout_seconds": 30.0},
                 }
             }
         },
@@ -73,7 +73,18 @@ def _contents(facts: list[Any]) -> list[str]:
 
 
 def test_the_flag_is_off_by_default() -> None:
-    assert MemspineConfig(runtime={"provider_services": {"health_timeout_s": 1.0, "close_timeout_s": 1.0, "startup_timeout_s": None}}).workers.outbox is False
+    assert (
+        MemspineConfig(
+            runtime={
+                "provider_services": {
+                    "health_timeout_s": 1.0,
+                    "close_timeout_s": 1.0,
+                    "startup_timeout_s": None,
+                }
+            }
+        ).workers.outbox
+        is False
+    )
 
 
 async def test_flag_off_keeps_the_in_memory_queue_and_writes_no_outbox_rows(

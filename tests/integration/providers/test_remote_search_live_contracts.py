@@ -38,26 +38,36 @@ async def test_opensearch_lexical_crud_namespace_and_deployment_isolation() -> N
     await client.connect()
     marker = uuid.uuid4().hex
     index_name = f"memspine-live-{marker}"
-    left = OpenSearchLexical(client, index=index_name, owner_id=f"left-{marker}", request_timeout_s=20.0)
-    right = OpenSearchLexical(client, index=index_name, owner_id=f"right-{marker}", request_timeout_s=20.0)
+    left = OpenSearchLexical(
+        client, index=index_name, owner_id=f"left-{marker}", request_timeout_s=20.0
+    )
+    right = OpenSearchLexical(
+        client, index=index_name, owner_id=f"right-{marker}", request_timeout_s=20.0
+    )
     try:
         await left.ensure_index()
         await right.ensure_index()
         await left.index_many(
             [
                 MemoryRecord(
-                    record_id=f"left-alpha-{marker}", namespace="alpha", memory_type="semantic",
+                    record_id=f"left-alpha-{marker}",
+                    namespace="alpha",
+                    memory_type="semantic",
                     content=f"cobalt observability {marker}",
                 ),
                 MemoryRecord(
-                    record_id=f"left-beta-{marker}", namespace="beta", memory_type="semantic",
+                    record_id=f"left-beta-{marker}",
+                    namespace="beta",
+                    memory_type="semantic",
                     content=f"cobalt observability {marker}",
                 ),
             ]
         )
         await right.index(
             MemoryRecord(
-                record_id=f"right-alpha-{marker}", namespace="alpha", memory_type="semantic",
+                record_id=f"right-alpha-{marker}",
+                namespace="alpha",
+                memory_type="semantic",
                 content=f"cobalt observability {marker}",
             )
         )
@@ -98,13 +108,17 @@ async def test_weaviate_vector_and_bm25_crud_namespace_and_deployment_isolation(
         lexical_right = WeaviateLexicalStore(collection, owner_id=f"right-{marker}")
         await lexical_left.index(
             MemoryRecord(
-                record_id=f"lex-left-{marker}", namespace="alpha", memory_type="semantic",
+                record_id=f"lex-left-{marker}",
+                namespace="alpha",
+                memory_type="semantic",
                 content=f"amber telescope {marker}",
             )
         )
         await lexical_right.index(
             MemoryRecord(
-                record_id=f"lex-right-{marker}", namespace="alpha", memory_type="semantic",
+                record_id=f"lex-right-{marker}",
+                namespace="alpha",
+                memory_type="semantic",
                 content=f"amber telescope {marker}",
             )
         )
@@ -121,8 +135,7 @@ async def test_weaviate_vector_and_bm25_crud_namespace_and_deployment_isolation(
         await vector_left.upsert(f"vec-left-{marker}", "alpha", "test:2", [1.0, 0.0])
         await vector_right.upsert(f"vec-right-{marker}", "alpha", "test:2", [1.0, 0.0])
         assert [
-            hit.record_id
-            for hit in await vector_left.query("alpha", [1.0, 0.0], "test:2")
+            hit.record_id for hit in await vector_left.query("alpha", [1.0, 0.0], "test:2")
         ] == [f"vec-left-{marker}"]
         assert await vector_left.exists(f"vec-left-{marker}")
         await vector_left.delete(f"vec-left-{marker}")

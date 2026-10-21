@@ -97,19 +97,28 @@ def _turns(count: int, start: int = 0, session: str | None = None) -> list[dict[
 async def _engine(
     monkeypatch: pytest.MonkeyPatch, llm: FakeCloseLLM, *, role: str = "session_close", **write: Any
 ) -> Engine:
-    async def router(config: MemspineConfig, hooks: object = None, wiring: object = None) -> LLMRouter:
+    async def router(
+        config: MemspineConfig, hooks: object = None, wiring: object = None
+    ) -> LLMRouter:
         return LLMRouter({role: llm})  # type: ignore[dict-item]
 
     monkeypatch.setattr("memspine.runtime.container.build_llm_router", router)
     eng = Engine(
         template="core",
         dotenv_path=None,
-        storage={'provider': "sqlite", 'settings': {'path': ":memory:", 'busy_timeout_s': 5.0}},
-        embedding={'provider': "hash", 'settings': {}},
+        storage={"provider": "sqlite", "settings": {"path": ":memory:", "busy_timeout_s": 5.0}},
+        embedding={"provider": "hash", "settings": {}},
         memories={"episodic": {"enabled": True}, "semantic": {"enabled": True}},
         offline={k: v for k, v in write.items() if k != "lineage_table"},
         **({"write": {"lineage_table": True}} if write.get("lineage_table") else {}),
-        llm={"roles": {role: {"provider": "litellm", "settings": {"model": "fake/close", "timeout_seconds": 60.0}}}},
+        llm={
+            "roles": {
+                role: {
+                    "provider": "litellm",
+                    "settings": {"model": "fake/close", "timeout_seconds": 60.0},
+                }
+            }
+        },
     )
     await eng.start()
     return eng

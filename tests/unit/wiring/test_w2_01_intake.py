@@ -35,7 +35,11 @@ NS = "acme/ilse"
 TURNS = [
     {"message_id": "turn-0", "role": "user", "content": "Ilse: I keep bees behind the mill"},
     {"message_id": "turn-1", "role": "assistant", "content": "Bees are lovely, how many hives?"},
-    {"message_id": "turn-2", "role": "user", "content": "Ilse: Three hives, Noor paints the boxes green"},
+    {
+        "message_id": "turn-2",
+        "role": "user",
+        "content": "Ilse: Three hives, Noor paints the boxes green",
+    },
 ]
 
 
@@ -44,8 +48,8 @@ async def build(db: Path | str, **write: Any) -> Engine:
     eng = Engine(
         template="core",
         dotenv_path=None,
-        storage={'provider': "sqlite", 'settings': {'path': str(db), 'busy_timeout_s': 5.0}},
-        embedding={'provider': "hash", 'settings': {}},
+        storage={"provider": "sqlite", "settings": {"path": str(db), "busy_timeout_s": 5.0}},
+        embedding={"provider": "hash", "settings": {}},
         memories={
             "episodic": {"enabled": True},
             "semantic": {"enabled": True},
@@ -80,8 +84,11 @@ async def test_default_config_uses_canonical_gateway(tmp_path: Path) -> None:
     eng = Engine(
         template="core",
         dotenv_path=None,
-        storage={'provider': "sqlite", 'settings': {'path': str(tmp_path / "default.db"), 'busy_timeout_s': 5.0}},
-        embedding={'provider': "hash", 'settings': {}},
+        storage={
+            "provider": "sqlite",
+            "settings": {"path": str(tmp_path / "default.db"), "busy_timeout_s": 5.0},
+        },
+        embedding={"provider": "hash", "settings": {}},
         memories={"episodic": {"enabled": True}},
     )
     await eng.start()
@@ -252,10 +259,17 @@ async def _windowed(db: Path, outbox: bool) -> Engine:
     eng = Engine(
         template="core",
         dotenv_path=None,
-        storage={'provider': "sqlite", 'settings': {'path': str(db), 'busy_timeout_s': 5.0}},
-        embedding={'provider': "hash", 'settings': {}},
+        storage={"provider": "sqlite", "settings": {"path": str(db), "busy_timeout_s": 5.0}},
+        embedding={"provider": "hash", "settings": {}},
         memories={"episodic": {"enabled": True}, "semantic": {"enabled": True}},
-        llm={"roles": {"window_extract": {"provider": "litellm", "settings": {"model": "stub/window", "timeout_seconds": 60.0}}}},
+        llm={
+            "roles": {
+                "window_extract": {
+                    "provider": "litellm",
+                    "settings": {"model": "stub/window", "timeout_seconds": 60.0},
+                }
+            }
+        },
         write={
             "window_extract": "facts",
             "window_async": False,

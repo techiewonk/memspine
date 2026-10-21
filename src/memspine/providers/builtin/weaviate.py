@@ -52,7 +52,9 @@ def _target_identity(model: BaseModel) -> dict[str, JsonValue]:
 
 
 class WeaviateVectorBuilder:
-    async def build(self, settings: WeaviateSettings, ctx: VectorBuildContext) -> BuildResult[VectorStore]:
+    async def build(
+        self, settings: WeaviateSettings, ctx: VectorBuildContext
+    ) -> BuildResult[VectorStore]:
         from memspine.clients.weaviate import WeaviateClient
         from memspine.services.vector.weaviate_store import WeaviateVectorStore
 
@@ -61,9 +63,13 @@ class WeaviateVectorBuilder:
         if ctx.versioned_spaces:
             raise ConfigError("Weaviate does not support versioned embedding spaces")
         if ctx.quantization is not None or ctx.matryoshka_dim is not None:
-            raise ConfigError("Weaviate does not support configured quantization or Matryoshka rescoring")
+            raise ConfigError(
+                "Weaviate does not support configured quantization or Matryoshka rescoring"
+            )
         vector_space = f"{ctx.generation_id}:{ctx.embedding.embedder_id}:{ctx.embedding.dim}"
-        name = collection_name(settings.collection_prefix, "Vector", ctx.shared.owner_id, vector_space)
+        name = collection_name(
+            settings.collection_prefix, "Vector", ctx.shared.owner_id, vector_space
+        )
         client = WeaviateClient(settings)
         ref = ctx.shared.resources.own("vector", client.close)
         await client.connect()
@@ -92,13 +98,17 @@ class WeaviateVectorBuilder:
 
 
 class WeaviateLexicalBuilder:
-    async def build(self, settings: WeaviateSettings, ctx: LexicalBuildContext) -> BuildResult[LexicalStore]:
+    async def build(
+        self, settings: WeaviateSettings, ctx: LexicalBuildContext
+    ) -> BuildResult[LexicalStore]:
         from memspine.clients.weaviate import WeaviateClient
         from memspine.services.lexical.weaviate_store import WeaviateLexicalStore
 
         if not ctx.shared.owner_id:
             raise ConfigError("Weaviate requires a stable runtime.deployment_id")
-        name = collection_name(settings.collection_prefix, "Lexical", ctx.shared.owner_id, ctx.generation_id)
+        name = collection_name(
+            settings.collection_prefix, "Lexical", ctx.shared.owner_id, ctx.generation_id
+        )
         client = WeaviateClient(settings)
         ref = ctx.shared.resources.own("lexical", client.close)
         await client.connect()

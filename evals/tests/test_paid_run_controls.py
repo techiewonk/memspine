@@ -108,9 +108,9 @@ def test_build_systems_binds_qwen3_roles_in_env_region(monkeypatch: pytest.Monke
     )
     memspine = next(s for s in build_systems(config) if s.system_id == "memspine")
     roles = memspine.describe()["config"]["llm"]["roles"]
-    assert {
-        role: binding["settings"]["model"] for role, binding in roles.items()
-    } == dict.fromkeys(ENGINE_LLM_ROLES, QWEN3_32B)
+    assert {role: binding["settings"]["model"] for role, binding in roles.items()} == dict.fromkeys(
+        ENGINE_LLM_ROLES, QWEN3_32B
+    )
     assert {binding["settings"]["aws_region"] for binding in roles.values()} == {"us-west-2"}
     plain = next(
         s for s in build_systems(C01Config(include_memspine=True)) if s.system_id == "memspine"

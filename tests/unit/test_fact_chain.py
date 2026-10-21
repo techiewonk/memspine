@@ -76,8 +76,8 @@ def _projecting_engine(value: Any = "on") -> Engine:
     return Engine(
         template="core",
         dotenv_path=None,
-        storage={'provider': "sqlite", 'settings': {'path': ":memory:", 'busy_timeout_s': 5.0}},
-        embedding={'provider': "hash", 'settings': {}},
+        storage={"provider": "sqlite", "settings": {"path": ":memory:", "busy_timeout_s": 5.0}},
+        embedding={"provider": "hash", "settings": {}},
         memories={
             # sessions come from the consolidate stage, which needs an active trigger
             "episodic": {"enabled": True, "policies": {"consolidation": {"mine_facts": True}}},

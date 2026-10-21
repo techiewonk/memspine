@@ -41,6 +41,7 @@ from memspine.services.storage.sqlite.schema import graph_edges, graph_nodes
 
 __all__ = ["SQLiteAdjacencyGraph"]
 
+
 class _SqlEngineAccess(Protocol):
     @property
     def engine(self) -> AsyncEngine: ...

@@ -67,6 +67,8 @@ KIND_TO_CATEGORY: dict[str, Category] = {
     "rerankers": "reranker",
 }
 _CATEGORY_TO_KIND = {category: kind for kind, category in KIND_TO_CATEGORY.items()}
+
+
 class ProviderRegistryError(ConfigError):
     """Provider registration or resolution failed."""
 
@@ -106,7 +108,9 @@ class Registry[T]:
                     f"{self.kind}: providers must register a typed ProviderDescriptor"
                 )
             if provider.ref.contract_version != 1:
-                raise ProviderRegistryError("provider contract version is unsupported; expected version 1")
+                raise ProviderRegistryError(
+                    "provider contract version is unsupported; expected version 1"
+                )
             if provider.ref.category != category or provider.ref.name != name:
                 raise ProviderRegistryError(
                     f"{self.kind}: descriptor identity must be {category}:{name}"
@@ -228,7 +232,9 @@ class ProviderDescriptor:
         expected_kind = _CATEGORY_TO_KIND.get(self.ref.category)
         if expected_kind is None:
             raise ValueError(f"unsupported provider category {self.ref.category!r}")
-        if not isinstance(self.settings_model, type) or not issubclass(self.settings_model, BaseModel):
+        if not isinstance(self.settings_model, type) or not issubclass(
+            self.settings_model, BaseModel
+        ):
             raise TypeError("settings_model must be a Pydantic BaseModel type")
         if not callable(getattr(self.builder, "build", None)):
             raise TypeError("provider builder must expose async build(settings, ctx)")
@@ -314,7 +320,9 @@ def validate_settings(descriptor: ProviderDescriptor, settings: Mapping[str, Any
     try:
         return descriptor.settings_model.model_validate(dict(settings))
     except ValidationError as exc:
-        paths = sorted({".".join(str(part) for part in error["loc"]) or "<root>" for error in exc.errors()})
+        paths = sorted(
+            {".".join(str(part) for part in error["loc"]) or "<root>" for error in exc.errors()}
+        )
         raise ProviderRegistryError(
             f"invalid settings for {descriptor.ref.category}.{descriptor.ref.name}: "
             f"check fields {', '.join(paths)}"
@@ -333,9 +341,8 @@ def requirements_available(
         satisfied = (
             importlib.util.find_spec(requirement.name) is not None
             if requirement.kind == "package"
-            else requirement.name in (
-                available_services if requirement.kind == "service" else available_capabilities
-            )
+            else requirement.name
+            in (available_services if requirement.kind == "service" else available_capabilities)
         )
         if not satisfied and not requirement.optional:
             missing.append(requirement.name)

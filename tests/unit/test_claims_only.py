@@ -17,8 +17,8 @@ def _engine(**integrity: Any) -> Engine:
     return Engine(
         template="core",
         dotenv_path=None,
-        storage={'provider': "sqlite", 'settings': {'path': ":memory:", 'busy_timeout_s': 5.0}},
-        embedding={'provider': "hash", 'settings': {}},
+        storage={"provider": "sqlite", "settings": {"path": ":memory:", "busy_timeout_s": 5.0}},
+        embedding={"provider": "hash", "settings": {}},
         memories={"semantic": {"enabled": True}, "episodic": {"enabled": True}},
         read={"record_access": False},
         integrity={"enabled": True, **integrity},

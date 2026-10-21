@@ -279,9 +279,7 @@ def projection_target_bindings(
                     None if route is None else route.source_target_fingerprint
                 ),
                 source_generation_id=None if route is None else route.source_generation_id,
-                verified_checkpoint_seq=(
-                    None if route is None else route.target_checkpoint_seq
-                ),
+                verified_checkpoint_seq=(None if route is None else route.target_checkpoint_seq),
             )
         )
     return tuple(bindings)

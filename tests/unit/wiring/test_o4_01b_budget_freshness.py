@@ -73,8 +73,8 @@ def _engine(path: Path | str = ":memory:", **kw: Any) -> Engine:
     return Engine(
         template="core",
         dotenv_path=None,
-        storage={'provider': "sqlite", 'settings': {'path': str(path), 'busy_timeout_s': 5.0}},
-        embedding={'provider': "hash", 'settings': {}},
+        storage={"provider": "sqlite", "settings": {"path": str(path), "busy_timeout_s": 5.0}},
+        embedding={"provider": "hash", "settings": {}},
         memories={"episodic": {"enabled": True}, "semantic": {"enabled": True}},
         write={"lineage_table": kw.pop("lineage", False)},
         offline=kw.pop("offline", {}),
@@ -122,7 +122,18 @@ def test_flags_default_off() -> None:
     assert off.budget_calls_per_cycle is None and off.budget_tokens_per_cycle is None
     assert rd.freshness_v2 is False and rd.freshness_fallback is False
     assert rd.freshness_stale_gap == 20 and rd.freshness_fallback_max == 20
-    assert MemspineConfig(runtime={"provider_services": {"health_timeout_s": 1.0, "close_timeout_s": 1.0, "startup_timeout_s": None}}).offline == off
+    assert (
+        MemspineConfig(
+            runtime={
+                "provider_services": {
+                    "health_timeout_s": 1.0,
+                    "close_timeout_s": 1.0,
+                    "startup_timeout_s": None,
+                }
+            }
+        ).offline
+        == off
+    )
 
 
 def test_covers_seq_is_not_dumped_while_unset() -> None:

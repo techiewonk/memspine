@@ -13,8 +13,8 @@ def _engine(**extra: Any) -> Engine:
     return Engine(
         template="core",
         dotenv_path=None,
-        storage={'provider': "sqlite", 'settings': {'path': ":memory:", 'busy_timeout_s': 5.0}},
-        embedding={'provider': "hash", 'settings': {}},
+        storage={"provider": "sqlite", "settings": {"path": ":memory:", "busy_timeout_s": 5.0}},
+        embedding={"provider": "hash", "settings": {}},
         memories={"semantic": {"enabled": True}},
         **extra,
     )
@@ -235,8 +235,8 @@ async def test_contested_fact_keeps_one_current_and_shows_the_dispute() -> None:
     eng = Engine(
         template="core",
         dotenv_path=None,
-        storage={'provider': "sqlite", 'settings': {'path': ":memory:", 'busy_timeout_s': 5.0}},
-        embedding={'provider': "hash", 'settings': {}},
+        storage={"provider": "sqlite", "settings": {"path": ":memory:", "busy_timeout_s": 5.0}},
+        embedding={"provider": "hash", "settings": {}},
         memories={"semantic": {"enabled": True, "policies": {"conflict": {"contest_ties": True}}}},
         read={"current_state_view": True, "hybrid": False},
     )
@@ -284,6 +284,7 @@ async def test_rerank_gate_skips_reranker_for_large_top_k(monkeypatch) -> None: 
     eng = _engine(read={"hybrid": False, "rerank_max_top_k": 3})
     await eng.start()
     try:
+
         async def reranker() -> FakeReranker:
             return FakeReranker()
 
@@ -344,6 +345,7 @@ async def test_rerank_date_prefix_and_ordering_skip(monkeypatch) -> None:  # typ
     )
     await eng.start()
     try:
+
         async def reranker() -> FakeReranker:
             return FakeReranker()
 

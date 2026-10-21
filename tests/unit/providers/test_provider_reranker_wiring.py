@@ -61,7 +61,9 @@ async def test_async_plugin_builder_receives_typed_settings_and_lifecycle_contex
             chunk_overlap=32,
         )
         built = await build_reranker_result(
-            RerankSettings(mode="async_test", model="test-model", chunk_chars=256, chunk_overlap=32),
+            RerankSettings(
+                mode="async_test", model="test-model", chunk_chars=256, chunk_overlap=32
+            ),
             context,
         )
         assert built is not None and built.provider == ref

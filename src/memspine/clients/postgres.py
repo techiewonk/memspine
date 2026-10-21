@@ -30,17 +30,24 @@ def normalize_pg_url(url: str) -> str:
 
 class PostgresClient(Client):
     def __init__(
-        self, url: str, echo: bool = False, *,
-        connect_timeout_s: float | None = None, statement_timeout_s: float | None = None,
+        self,
+        url: str,
+        echo: bool = False,
+        *,
+        connect_timeout_s: float | None = None,
+        statement_timeout_s: float | None = None,
     ) -> None:
         self._url = normalize_pg_url(url)
         self._echo = echo
         self._connect_args: dict[str, object] = {}
         if connect_timeout_s is not None:
             import math
+
             self._connect_args["connect_timeout"] = max(1, math.ceil(connect_timeout_s))
         if statement_timeout_s is not None:
-            self._connect_args["options"] = f"-c statement_timeout={max(1, int(statement_timeout_s * 1000))}"
+            self._connect_args["options"] = (
+                f"-c statement_timeout={max(1, int(statement_timeout_s * 1000))}"
+            )
         self._engine: AsyncEngine | None = None
 
     @property

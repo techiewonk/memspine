@@ -87,9 +87,7 @@ class PgVectorStore:
                     select(func.set_config("hnsw.ef_search", str(self._hnsw_ef_search), True))
                 )
             rows = conn.execute(statement).all()
-            return [
-                VectorHit(str(row.record_id), 1.0 - float(row.distance)) for row in rows
-            ]
+            return [VectorHit(str(row.record_id), 1.0 - float(row.distance)) for row in rows]
 
         return await run_blocking_drained(self._execute, run)
 
@@ -102,9 +100,7 @@ class PgVectorStore:
     async def query_many(
         self, namespace: str, vectors: list[list[float]], embedder_id: str, top_k: int = 8
     ) -> list[list[VectorHit]]:
-        return [
-            await self.query(namespace, vector, embedder_id, top_k) for vector in vectors
-        ]
+        return [await self.query(namespace, vector, embedder_id, top_k) for vector in vectors]
 
     async def scores_for(
         self, namespace: str, vector: list[float], embedder_id: str, record_ids: list[str]
@@ -144,7 +140,9 @@ class PgVectorStore:
         await run_blocking_drained(self._execute, lambda conn: conn.execute(statement))
 
     async def exists(self, record_id: str) -> bool:
-        statement = select(self._table.c.record_id).where(self._table.c.record_id == record_id).limit(1)
+        statement = (
+            select(self._table.c.record_id).where(self._table.c.record_id == record_id).limit(1)
+        )
         return await run_blocking_drained(
             self._execute, lambda conn: conn.execute(statement).first() is not None
         )

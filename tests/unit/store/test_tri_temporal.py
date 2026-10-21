@@ -33,8 +33,8 @@ def _engine(path: Path | str = ":memory:", **kw: object) -> Engine:
     return Engine(
         template="core",
         dotenv_path=None,
-        storage={'provider': "sqlite", 'settings': {'path': str(path), 'busy_timeout_s': 5.0}},
-        embedding={'provider': "hash", 'settings': {}},
+        storage={"provider": "sqlite", "settings": {"path": str(path), "busy_timeout_s": 5.0}},
+        embedding={"provider": "hash", "settings": {}},
         memories={"episodic": {"enabled": True}, "semantic": {"enabled": True}},
         **kw,  # type: ignore[arg-type]
     )
@@ -233,8 +233,29 @@ def test_single_alembic_head() -> None:
 
 
 def test_template_enables_layers_from_config() -> None:
-    assert LayerTemplate.from_config(MemspineConfig(runtime={"provider_services": {"health_timeout_s": 1.0, "close_timeout_s": 1.0, "startup_timeout_s": None}})).enabled == {"L0"}
-    with_worker = LayerTemplate.from_config(MemspineConfig(runtime={"provider_services": {"health_timeout_s": 1.0, "close_timeout_s": 1.0, "startup_timeout_s": None}}), worker_model=True)
+    assert LayerTemplate.from_config(
+        MemspineConfig(
+            runtime={
+                "provider_services": {
+                    "health_timeout_s": 1.0,
+                    "close_timeout_s": 1.0,
+                    "startup_timeout_s": None,
+                }
+            }
+        )
+    ).enabled == {"L0"}
+    with_worker = LayerTemplate.from_config(
+        MemspineConfig(
+            runtime={
+                "provider_services": {
+                    "health_timeout_s": 1.0,
+                    "close_timeout_s": 1.0,
+                    "startup_timeout_s": None,
+                }
+            }
+        ),
+        worker_model=True,
+    )
     assert with_worker.enabled == {"L0", "L1", "L3"}
     cfg = MemspineConfig.model_validate(
         {

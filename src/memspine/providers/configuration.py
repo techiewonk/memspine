@@ -133,7 +133,9 @@ def _has_default_factory(model: type[BaseModel], seen: frozenset[type[BaseModel]
     for field in model.model_fields.values():
         if field.default_factory is not None:
             return True
-        if any(_has_default_factory(nested, nested_seen) for nested in _nested_models(field.annotation)):
+        if any(
+            _has_default_factory(nested, nested_seen) for nested in _nested_models(field.annotation)
+        ):
             return True
     return False
 

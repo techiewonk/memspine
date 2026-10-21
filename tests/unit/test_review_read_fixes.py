@@ -6,6 +6,7 @@ from __future__ import annotations
 async def _resolved_provider(provider: object) -> object:
     return provider
 
+
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -25,8 +26,8 @@ def _engine(read: dict[str, Any] | None = None, **extra: Any) -> Engine:
     return Engine(
         template="core",
         dotenv_path=None,
-        storage={'provider': "sqlite", 'settings': {'path': ":memory:", 'busy_timeout_s': 5.0}},
-        embedding={'provider': "hash", 'settings': {}},
+        storage={"provider": "sqlite", "settings": {"path": ":memory:", "busy_timeout_s": 5.0}},
+        embedding={"provider": "hash", "settings": {}},
         memories=memories,
         read={"hybrid": False, **(read or {})},
         **extra,

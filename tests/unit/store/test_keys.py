@@ -56,8 +56,8 @@ def _engine(key_v2: bool, path: str = ":memory:") -> Engine:
     return Engine(
         template="core",
         dotenv_path=None,
-        storage={'provider': "sqlite", 'settings': {'path': path, 'busy_timeout_s': 5.0}},
-        embedding={'provider': "hash", 'settings': {}},
+        storage={"provider": "sqlite", "settings": {"path": path, "busy_timeout_s": 5.0}},
+        embedding={"provider": "hash", "settings": {}},
         memories={
             "semantic": {"enabled": True},
             "episodic": {"enabled": True},

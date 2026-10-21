@@ -127,7 +127,11 @@ def main() -> int:
         with urlopen(f"http://127.0.0.1:{os_port}/", timeout=5) as response:
             os_version = json.load(response).get("version", {}).get("number", "unknown")
         child_env["MEMSPINE_TEST_LIVE_OPENSEARCH_URL"] = f"http://127.0.0.1:{os_port}"
-        evidence["services"]["opensearch"] = {"version": os_version, "port": os_port, "bind": "127.0.0.1"}
+        evidence["services"]["opensearch"] = {
+            "version": os_version,
+            "port": os_port,
+            "bind": "127.0.0.1",
+        }
 
         weaviate_name = start(
             "weaviate",
@@ -181,12 +185,19 @@ def main() -> int:
         )
         output = redact(
             result.stdout or "",
-            [child_env["MEMSPINE_TEST_LIVE_OPENSEARCH_URL"], child_env["MEMSPINE_TEST_LIVE_WEAVIATE_URL"]],
+            [
+                child_env["MEMSPINE_TEST_LIVE_OPENSEARCH_URL"],
+                child_env["MEMSPINE_TEST_LIVE_WEAVIATE_URL"],
+            ],
         )
         print(output, end="" if output.endswith("\n") else "\n")
         evidence["pytest_exit_code"] = result.returncode
         evidence["pytest_summary"] = next(
-            (line for line in reversed(output.splitlines()) if " passed" in line or " failed" in line),
+            (
+                line
+                for line in reversed(output.splitlines())
+                if " passed" in line or " failed" in line
+            ),
             "NO SUMMARY",
         )
         if options.report:

@@ -1,4 +1,5 @@
 """Storage-owned placement policy without backend branches in consumers."""
+
 from hashlib import sha256
 
 from memspine.config.schema import MemspineConfig

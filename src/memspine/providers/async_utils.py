@@ -6,7 +6,9 @@ import asyncio
 from collections.abc import Callable
 
 
-async def run_blocking_drained[T](function: Callable[..., T], /, *args: object, **kwargs: object) -> T:
+async def run_blocking_drained[T](
+    function: Callable[..., T], /, *args: object, **kwargs: object
+) -> T:
     """Wait for a started thread operation before allowing dependency teardown.
 
     Cancelling ``asyncio.to_thread``'s await does not stop its worker thread. A

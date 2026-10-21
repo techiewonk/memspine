@@ -12,8 +12,12 @@ def test_sqlite_storage_migration_installs_durable_provider_change_tables(tmp_pa
     try:
         inspector = inspect(engine)
         tables = set(inspector.get_table_names())
-        generation_columns = {column["name"] for column in inspector.get_columns("provider_projection_generations")}
-        generation_pk = inspector.get_pk_constraint("provider_projection_generations")["constrained_columns"]
+        generation_columns = {
+            column["name"] for column in inspector.get_columns("provider_projection_generations")
+        }
+        generation_pk = inspector.get_pk_constraint("provider_projection_generations")[
+            "constrained_columns"
+        ]
     finally:
         engine.dispose()
 

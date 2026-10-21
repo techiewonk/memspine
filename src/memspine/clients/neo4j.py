@@ -66,7 +66,8 @@ class Neo4jClient(Client):
             raise ConfigError(f"Neo4j target needs environment variable {settings.url_env}")
         user, password = os.environ.get(settings.user_env), os.environ.get(settings.password_env)
         driver: NativeNeo4jDriver = AsyncGraphDatabase.driver(
-            url, auth=(user, password or "") if user else None,
+            url,
+            auth=(user, password or "") if user else None,
             connection_timeout=settings.connect_timeout_s,
         )
         self._driver = driver

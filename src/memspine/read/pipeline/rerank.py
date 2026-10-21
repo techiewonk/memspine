@@ -130,7 +130,9 @@ async def _chain_provider(eng: Any, mode: str, read_cfg: Any, device: str | None
     settings = RerankSettings(
         mode=mode,
         instruction=read_cfg.rerank_settings.get("instruction") if mode == "qwen3" else None,
-        device=(device or read_cfg.rerank_settings.get("device")) if mode in ("jina", "qwen3") else None,
+        device=(device or read_cfg.rerank_settings.get("device"))
+        if mode in ("jina", "qwen3")
+        else None,
         quant=read_cfg.rerank_settings.get("quant") if mode == "qwen3" else None,
         batch_size=read_cfg.rerank_settings.get("batch_size") if mode == "qwen3" else None,
         max_length=read_cfg.rerank_settings.get("max_length") if mode == "qwen3" else None,

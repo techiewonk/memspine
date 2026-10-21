@@ -28,8 +28,8 @@ async def build(db: Path, **write: Any) -> Engine:
     eng = Engine(
         template="core",
         dotenv_path=None,
-        storage={'provider': "sqlite", 'settings': {'path': str(db), 'busy_timeout_s': 5.0}},
-        embedding={'provider': "hash", 'settings': {}},
+        storage={"provider": "sqlite", "settings": {"path": str(db), "busy_timeout_s": 5.0}},
+        embedding={"provider": "hash", "settings": {}},
         memories={"episodic": {"enabled": True}},
         write=write,
     )
@@ -263,14 +263,22 @@ async def test_assent_tag_only_for_real_assent(tmp_path: Path) -> None:
     try:
         await eng.ingest_messages(
             [
-                {"conversation_id": "assent-test", "role": "assistant", "content": "Shall I book the hive inspection for Friday?"},
+                {
+                    "conversation_id": "assent-test",
+                    "role": "assistant",
+                    "content": "Shall I book the hive inspection for Friday?",
+                },
                 {"conversation_id": "assent-test", "role": "user", "content": "ok, thanks"},
                 {
                     "conversation_id": "assent-test",
                     "role": "assistant",
                     "content": "Shall I also order three new frames for the hive?",
                 },
-                {"conversation_id": "assent-test", "role": "user", "content": "yes please, order them"},
+                {
+                    "conversation_id": "assent-test",
+                    "role": "user",
+                    "content": "yes please, order them",
+                },
             ],
             namespace=NS,
             session_id="s4",

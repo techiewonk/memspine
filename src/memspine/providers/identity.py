@@ -1,4 +1,5 @@
 """Stable deployment ownership, persisted with authoritative SQL metadata."""
+
 from uuid import uuid4
 
 from sqlalchemy import Column, Integer, String, Table, select
@@ -10,14 +11,17 @@ from memspine.providers.contracts import SqlAccess
 from memspine.services.storage.sqlite.schema import metadata
 
 DEPLOYMENT_METADATA = Table(
-    "provider_deployment_identity", metadata,
+    "provider_deployment_identity",
+    metadata,
     Column("id", Integer, primary_key=True),
     Column("deployment_id", String(256), nullable=False),
 )
 
 
 async def resolve_deployment(
-    sql: SqlAccess, configured_id: str | None, environment: str,
+    sql: SqlAccess,
+    configured_id: str | None,
+    environment: str,
 ) -> str:
     """Create ownership once; reject an identity change against existing data."""
     if environment == "production" and not configured_id:
@@ -38,7 +42,9 @@ async def resolve_deployment(
                 .on_conflict_do_nothing(index_elements=["id"])
             )
         else:
-            raise ConfigError("storage SQL dialect does not support deployment identity initialization")
+            raise ConfigError(
+                "storage SQL dialect does not support deployment identity initialization"
+            )
         existing: str = (
             await conn.execute(
                 select(DEPLOYMENT_METADATA.c.deployment_id).where(DEPLOYMENT_METADATA.c.id == 1)

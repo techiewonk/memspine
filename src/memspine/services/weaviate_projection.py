@@ -73,7 +73,9 @@ async def ensure_collection(client: Any, name: str, *, include_content: bool) ->
 
 def validate_vector(vector: list[float], expected_dim: int) -> list[float]:
     if len(vector) != expected_dim:
-        raise ConfigError(f"Weaviate vector dimension mismatch: expected {expected_dim}, received {len(vector)}")
+        raise ConfigError(
+            f"Weaviate vector dimension mismatch: expected {expected_dim}, received {len(vector)}"
+        )
     if any(
         isinstance(value, bool) or not isinstance(value, Real) or not math.isfinite(float(value))
         for value in vector
@@ -85,7 +87,14 @@ def validate_vector(vector: list[float], expected_dim: int) -> list[float]:
     return normalized
 
 
-async def upsert_object(collection: Any, *, owner_id: str, record_id: str, props: dict[str, str], vector: list[float] | None = None) -> None:
+async def upsert_object(
+    collection: Any,
+    *,
+    owner_id: str,
+    record_id: str,
+    props: dict[str, str],
+    vector: list[float] | None = None,
+) -> None:
     data = collection.data
     object_id = record_uuid(owner_id, record_id)
     if await data.exists(object_id):

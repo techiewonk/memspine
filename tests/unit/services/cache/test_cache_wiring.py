@@ -16,7 +16,7 @@ from memspine.providers.lifecycle import LifecycleState
 
 def _engine(**cfg: object) -> Engine:
     options: dict[str, object] = {
-        "storage": {"provider": "sqlite", "settings": {'path': ':memory:', 'busy_timeout_s': 5.0}},
+        "storage": {"provider": "sqlite", "settings": {"path": ":memory:", "busy_timeout_s": 5.0}},
         "embedding": {"provider": "hash", "settings": {}},
         "cache": {"provider": "memory", "settings": {}},
         "memories": {"semantic": {"enabled": True}},

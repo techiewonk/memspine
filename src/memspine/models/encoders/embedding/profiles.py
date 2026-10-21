@@ -98,9 +98,10 @@ class EmbeddingProfile:
         if self.provider in {"fastembed", "st"}:
             settings["query_instruction"] = self.query_instruction
         if self.provider == "st":
-            settings.update(device=self.device, dtype=None if self.dtype == "float32" else self.dtype)
+            settings.update(
+                device=self.device, dtype=None if self.dtype == "float32" else self.dtype
+            )
         return cfg.model_copy(update={"provider": self.provider, "settings": settings})
-
 
 
 GPU_QWEN3 = EmbeddingProfile(

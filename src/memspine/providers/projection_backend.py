@@ -268,7 +268,9 @@ class EventLogProjectionBackend:
             raise ValueError("retained-generation erasure requires a sequenced FORGET event")
         logged = await self._event_log.read_events(after_seq=event.seq - 1, limit=1)
         if not logged or logged[0].seq != event.seq or logged[0].event_id != event.event_id:
-            raise ValueError("retained-generation erasure is not present in the authoritative event log")
+            raise ValueError(
+                "retained-generation erasure is not present in the authoritative event log"
+            )
         current = await self._switch_store.get_generation(
             generation.deployment_id,
             generation.logical_service_id,

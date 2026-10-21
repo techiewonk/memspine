@@ -11,8 +11,10 @@ async def test_identity_survives_reopen_and_rejects_conflicting_explicit_owner(t
     engine = create_async_engine(f"sqlite+aiosqlite:///{tmp_path / 'identity.db'}")
     async with engine.begin() as conn:
         await conn.run_sync(DEPLOYMENT_METADATA.create)
+
     class Sql:
         pass
+
     sql = Sql()
     sql.engine = engine
     first = await resolve_deployment(sql, None, "development")

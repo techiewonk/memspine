@@ -35,8 +35,8 @@ def make_engine(**read: object) -> Engine:
     return Engine(
         template="core",
         dotenv_path=None,
-        storage={'provider': "sqlite", 'settings': {'path': ":memory:", 'busy_timeout_s': 5.0}},
-        embedding={'provider': "hash", 'settings': {}},
+        storage={"provider": "sqlite", "settings": {"path": ":memory:", "busy_timeout_s": 5.0}},
+        embedding={"provider": "hash", "settings": {}},
         memories={"semantic": {"enabled": True}},
         **({"read": read} if read else {}),  # type: ignore[arg-type]
     )
@@ -44,7 +44,13 @@ def make_engine(**read: object) -> Engine:
 
 def make_config(**overrides: object) -> MemspineConfig:
     return MemspineConfig(
-        runtime={"provider_services": {"health_timeout_s": 1.0, "close_timeout_s": 1.0, "startup_timeout_s": None}},
+        runtime={
+            "provider_services": {
+                "health_timeout_s": 1.0,
+                "close_timeout_s": 1.0,
+                "startup_timeout_s": None,
+            }
+        },
         **overrides,
     )
 
@@ -53,7 +59,10 @@ def make_config(**overrides: object) -> MemspineConfig:
 
 
 def test_rescore_settings_manifest_driven_and_override() -> None:
-    eng = Engine(dotenv_path=None, storage={'provider': "sqlite", 'settings': {'path': ":memory:", 'busy_timeout_s': 5.0}})
+    eng = Engine(
+        dotenv_path=None,
+        storage={"provider": "sqlite", "settings": {"path": ":memory:", "busy_timeout_s": 5.0}},
+    )
     config = make_config()  # vector.settings.quantization defaults to "auto"
 
     # auto reads the manifest: default (None) -> inactive.
@@ -80,7 +89,10 @@ def test_rescore_settings_manifest_driven_and_override() -> None:
 
 
 def test_rescore_settings_rejects_unknown_override() -> None:
-    eng = Engine(dotenv_path=None, storage={'provider': "sqlite", 'settings': {'path': ":memory:", 'busy_timeout_s': 5.0}})
+    eng = Engine(
+        dotenv_path=None,
+        storage={"provider": "sqlite", "settings": {"path": ":memory:", "busy_timeout_s": 5.0}},
+    )
     eng._embedder = _FakeEmbedder(EmbedderManifest("x", 4))  # type: ignore[assignment]
     with pytest.raises(ConfigError):
         rescore_settings(make_config(vector={"settings": {"quantization": "bogus"}}), eng._embedder)
@@ -106,8 +118,8 @@ async def int8_engine() -> AsyncIterator[Engine]:
     eng = Engine(
         template="core",
         dotenv_path=None,
-        storage={'provider': "sqlite", 'settings': {'path': ":memory:", 'busy_timeout_s': 5.0}},
-        embedding={'provider': "hash", 'settings': {}},
+        storage={"provider": "sqlite", "settings": {"path": ":memory:", "busy_timeout_s": 5.0}},
+        embedding={"provider": "hash", "settings": {}},
         vector={"settings": {"quantization": "int8"}},
         memories={"semantic": {"enabled": True}},
     )

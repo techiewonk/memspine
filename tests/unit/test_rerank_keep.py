@@ -27,8 +27,8 @@ def _engine(**read: Any) -> Engine:
     return Engine(
         template="core",
         dotenv_path=None,
-        storage={'provider': "sqlite", 'settings': {'path': ":memory:", 'busy_timeout_s': 5.0}},
-        embedding={'provider': "hash", 'settings': {}},
+        storage={"provider": "sqlite", "settings": {"path": ":memory:", "busy_timeout_s": 5.0}},
+        embedding={"provider": "hash", "settings": {}},
         read={"hybrid": False, "record_access": False, **read},
     )
 
@@ -36,6 +36,7 @@ def _engine(**read: Any) -> Engine:
 async def _assemble(eng: Engine, reranker: _Reranker | None) -> list[str]:
     for i in range(20):
         await eng.write(f"note {i} about the garden and the tomatoes", namespace="a")
+
     async def reranker_provider() -> _Reranker | None:
         return reranker
 

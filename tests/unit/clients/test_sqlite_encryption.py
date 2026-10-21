@@ -93,8 +93,15 @@ async def test_engine_start_fails_with_missing_service_error(
     eng = Engine(
         template="core",
         dotenv_path=None,
-        storage={'provider': "sqlite", 'settings': {'path': str(tmp_path / "enc.db"), 'encryption': {"mode": "sqlcipher", "key_env": KEY_ENV}, 'busy_timeout_s': 5.0}},
-        embedding={'provider': "hash", 'settings': {}},
+        storage={
+            "provider": "sqlite",
+            "settings": {
+                "path": str(tmp_path / "enc.db"),
+                "encryption": {"mode": "sqlcipher", "key_env": KEY_ENV},
+                "busy_timeout_s": 5.0,
+            },
+        },
+        embedding={"provider": "hash", "settings": {}},
         read={"hybrid": False},
     )
     with pytest.raises(MissingServiceError, match=r"memspine\[encrypt\]"):
@@ -209,8 +216,15 @@ async def test_real_sqlcipher_file_is_unreadable_without_the_key(
     eng = Engine(
         template="core",
         dotenv_path=None,
-        storage={'provider': "sqlite", 'settings': {'path': str(db), 'encryption': {"mode": "sqlcipher", "key_env": KEY_ENV}, 'busy_timeout_s': 5.0}},
-        embedding={'provider': "hash", 'settings': {}},
+        storage={
+            "provider": "sqlite",
+            "settings": {
+                "path": str(db),
+                "encryption": {"mode": "sqlcipher", "key_env": KEY_ENV},
+                "busy_timeout_s": 5.0,
+            },
+        },
+        embedding={"provider": "hash", "settings": {}},
         read={"hybrid": False},
     )
     await eng.start()

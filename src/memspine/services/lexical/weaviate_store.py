@@ -28,7 +28,9 @@ class WeaviateLexicalStore:
             self._collection,
             owner_id=self._owner_id,
             record_id=record.record_id,
-            props=properties(record.record_id, record.namespace, self._owner_id, content=record.content),
+            props=properties(
+                record.record_id, record.namespace, self._owner_id, content=record.content
+            ),
         )
 
     async def index_many(self, records: Sequence[MemoryRecord]) -> None:
@@ -62,7 +64,9 @@ class WeaviateLexicalStore:
 
     async def delete(self, record_id: str) -> None:
         object_id = record_uuid(self._owner_id, record_id)
-        obj = await self._collection.query.fetch_object_by_id(object_id, return_properties=["owner_scope"])
+        obj = await self._collection.query.fetch_object_by_id(
+            object_id, return_properties=["owner_scope"]
+        )
         if obj is not None and obj.properties.get("owner_scope") == self._owner_scope:
             await self._collection.data.delete_by_id(object_id)
 

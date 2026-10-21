@@ -240,9 +240,7 @@ class LeaseStore:
             assert isinstance(path, str)
             self.path = path
         self.clock: Clock = clock or time.time
-        self._pg = (
-            self._engine is not None or is_pg_url(self.path)
-        )
+        self._pg = self._engine is not None or is_pg_url(self.path)
         self._db_time = self._pg and clock is None  # FU-GAPS: lease times come from the database
         self._shared: sqlite3.Connection | None = None
         if path == ":memory:":

@@ -731,7 +731,9 @@ class SqlChangeStore:
                 or operation_row.fence_epoch != request.expected_fence_epoch
                 or operation.fence_epoch != request.expected_fence_epoch
             ):
-                raise StaleChangePlan("cleanup recovery state changed; inspect and request fresh proof")
+                raise StaleChangePlan(
+                    "cleanup recovery state changed; inspect and request fresh proof"
+                )
             released_epoch = request.expected_fence_epoch + 1
             recovered_at = now.astimezone(UTC)
             recovered_operation = operation.model_copy(
@@ -852,7 +854,9 @@ class SqlChangeStore:
             raise ValueError("cleanup sweep limit must be a positive integer")
         predicates = [
             _operations.c.deployment_id == deployment_id,
-            _operations.c.status.in_([ChangeStatus.ACTIVE.value, ChangeStatus.CLEANUP_PENDING.value]),
+            _operations.c.status.in_(
+                [ChangeStatus.ACTIVE.value, ChangeStatus.CLEANUP_PENDING.value]
+            ),
         ]
         if after_operation_id is not None:
             predicates.append(_operations.c.operation_id > after_operation_id)

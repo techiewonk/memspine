@@ -85,7 +85,9 @@ class Neo4jSettings(StrictSettings):
 
     url_env: str = Field(default="MEMSPINE_NEO4J_URL", pattern=r"^[A-Za-z_][A-Za-z0-9_]*$")
     user_env: str = Field(default="MEMSPINE_NEO4J_USER", pattern=r"^[A-Za-z_][A-Za-z0-9_]*$")
-    password_env: str = Field(default="MEMSPINE_NEO4J_PASSWORD", pattern=r"^[A-Za-z_][A-Za-z0-9_]*$")
+    password_env: str = Field(
+        default="MEMSPINE_NEO4J_PASSWORD", pattern=r"^[A-Za-z_][A-Za-z0-9_]*$"
+    )
     database: str = Field(default="neo4j", min_length=1)
     connect_timeout_s: float = Field(gt=0)
     request_timeout_s: float = Field(gt=0)
@@ -138,9 +140,7 @@ class ProjectionSwitchSettings(StrictSettings):
     retention_s: int | None = Field(default=None, ge=0)
     # None keeps automatic cleanup disabled. Setting an interval opts into an
     # immediate bounded startup sweep followed by periodic bounded sweeps.
-    cleanup_interval_s: float | None = Field(
-        default=None, gt=0, strict=True, allow_inf_nan=False
-    )
+    cleanup_interval_s: float | None = Field(default=None, gt=0, strict=True, allow_inf_nan=False)
     cleanup_batch_size: int = Field(default=50, ge=1, strict=True)
 
 

@@ -20,8 +20,8 @@ async def test_rounds_add_new_queries_until_none_appear(rounds: int, expected: i
     eng = Engine(
         template="core",
         dotenv_path=None,
-        storage={'provider': "sqlite", 'settings': {'path': ":memory:", 'busy_timeout_s': 5.0}},
-        embedding={'provider': "hash", 'settings': {}},
+        storage={"provider": "sqlite", "settings": {"path": ":memory:", "busy_timeout_s": 5.0}},
+        embedding={"provider": "hash", "settings": {}},
         read={"record_access": False, "completeness_check": True, "completeness_rounds": rounds},
     )
     await eng.start()

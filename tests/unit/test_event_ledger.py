@@ -262,8 +262,8 @@ def _engine(*, storage_path: str = ":memory:", **read: Any) -> Engine:
     return Engine(
         template="core",
         dotenv_path=None,
-        storage={'provider': "sqlite", 'settings': {'path': storage_path, 'busy_timeout_s': 5.0}},
-        embedding={'provider': "hash", 'settings': {}},
+        storage={"provider": "sqlite", "settings": {"path": storage_path, "busy_timeout_s": 5.0}},
+        embedding={"provider": "hash", "settings": {}},
         memories={"episodic": {"enabled": True}, "semantic": {"enabled": True}},
         read={"hybrid": False, "record_access": False, **read},
     )
@@ -389,9 +389,7 @@ async def test_not_an_event_question_does_not_fire(
     finally:
         await eng.stop()
 
-    configured = _engine(
-        storage_path=database, event_ledger="on", event_ledger_trigger="always"
-    )
+    configured = _engine(storage_path=database, event_ledger="on", event_ledger_trigger="always")
     await configured.start()
     try:
         with search_forensics() as stages:

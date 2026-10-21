@@ -211,9 +211,7 @@ def test_embedding_target_identity_requires_exact_dimension_without_loading_mode
 def test_builtin_embedding_defaults_are_model_specific() -> None:
     assert FastembedEmbeddingSettings().dim == 384
     assert FastembedEmbeddingSettings(model="BAAI/bge-base-en-v1.5").dim == 768
-    assert FastembedEmbeddingSettings(
-        model="organization/private-model", dim=512
-    ).dim == 512
+    assert FastembedEmbeddingSettings(model="organization/private-model", dim=512).dim == 512
     with pytest.raises(ValidationError, match="settings.dim is required"):
         FastembedEmbeddingSettings(model="organization/private-model")
 
@@ -236,9 +234,9 @@ def test_builtin_embedding_defaults_are_model_specific() -> None:
 
     assert SentenceTransformersEmbeddingSettings().dim == 384
     assert SentenceTransformersEmbeddingSettings(model="Qwen/Qwen3-Embedding-0.6B").dim == 1024
-    assert SentenceTransformersEmbeddingSettings(
-        model="Qwen/Qwen3-Embedding-0.6B", dim=256
-    ).dim == 256
+    assert (
+        SentenceTransformersEmbeddingSettings(model="Qwen/Qwen3-Embedding-0.6B", dim=256).dim == 256
+    )
     with pytest.raises(ValidationError, match="settings.dim is required"):
         SentenceTransformersEmbeddingSettings(model="organization/model")
     assert SentenceTransformersEmbeddingSettings(model="organization/model", dim=768).dim == 768
@@ -248,14 +246,18 @@ def test_builtin_embedding_defaults_are_model_specific() -> None:
         "openai/text-embedding-3-small",
         1536,
     )
-    assert LiteLLMEmbeddingSettings(
-        model="openai/text-embedding-3-large", request_timeout_s=10.0
-    ).dim == 3072
+    assert (
+        LiteLLMEmbeddingSettings(model="openai/text-embedding-3-large", request_timeout_s=10.0).dim
+        == 3072
+    )
     with pytest.raises(ValidationError, match="settings.dim is required"):
         LiteLLMEmbeddingSettings(model="custom/provider-model", request_timeout_s=10.0)
-    assert LiteLLMEmbeddingSettings(
-        model="custom/provider-model", dim=1024, request_timeout_s=10.0
-    ).dim == 1024
+    assert (
+        LiteLLMEmbeddingSettings(
+            model="custom/provider-model", dim=1024, request_timeout_s=10.0
+        ).dim
+        == 1024
+    )
 
 
 async def test_mock_embedding_dimensions_must_match_the_declared_table(
@@ -355,9 +357,7 @@ async def test_builtin_tantivy_generation_opener_reopens_owned_file_generation(
     await source.close()
 
     reopened_source = await open_generation("active")
-    source_hits = await reopened_source._service.search(
-        "generation-test", "camping", top_k=5
-    )
+    source_hits = await reopened_source._service.search("generation-test", "camping", top_k=5)
     await reopened_source.close()
     assert [hit.record_id for hit in source_hits] == ["generation-record"]
 
@@ -374,9 +374,7 @@ async def test_builtin_tantivy_generation_opener_reopens_owned_file_generation(
     await target.close()
 
     reopened_target = await open_generation("../../unsafe/path")
-    target_hits = await reopened_target._service.search(
-        "generation-test", "camping", top_k=5
-    )
+    target_hits = await reopened_target._service.search("generation-test", "camping", top_k=5)
     await reopened_target.close()
     assert [hit.record_id for hit in target_hits] == ["generation-record"]
     assert generation_component("../../unsafe/path") not in ("../../unsafe/path", "active")

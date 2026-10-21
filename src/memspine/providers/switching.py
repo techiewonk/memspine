@@ -367,7 +367,9 @@ async def verified_active_projection_routes(
             or operation.result.target_generation != target_generation
             or operation.result.source_generation != scope.source_generation
         ):
-            raise RuntimeError("active projection operation ownership or generation is inconsistent")
+            raise RuntimeError(
+                "active projection operation ownership or generation is inconsistent"
+            )
         generation_row = (
             await connection.execute(
                 select(_generation_rows.c.payload).where(
@@ -404,7 +406,9 @@ async def verified_active_projection_routes(
         expected = (
             manifest.target_generation == target_generation
             and manifest.target_provider == scope.target_provider == generation.provider
-            and manifest.target_fingerprint == scope.target_fingerprint == generation.target_fingerprint
+            and manifest.target_fingerprint
+            == scope.target_fingerprint
+            == generation.target_fingerprint
             and manifest.deployment_id == deployment_id
             and generation.owner_id == scope.owner_id
             and generation.checkpoint_seq == operation.result.target_checkpoint
@@ -429,7 +433,9 @@ async def verified_active_projection_routes(
         )
         previous = routes.get(projector_name)
         if previous is not None and previous.generation_id != route.generation_id:
-            raise RuntimeError("multiple active verified projection generations target one projector")
+            raise RuntimeError(
+                "multiple active verified projection generations target one projector"
+            )
         routes[projector_name] = route
     return routes
 

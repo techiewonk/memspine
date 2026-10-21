@@ -40,21 +40,25 @@ def test_remote_providers_are_lazy_registered_and_category_specific() -> None:
         ("vector", "weaviate"),
         ("lexical", "weaviate"),
     }
-    assert all(row.availability in {"available", "missing_dependency:opensearchpy", "missing_dependency:weaviate"} for row in rows)
+    assert all(
+        row.availability
+        in {"available", "missing_dependency:opensearchpy", "missing_dependency:weaviate"}
+        for row in rows
+    )
 
 
 def test_provider_settings_are_strict_and_require_finite_timeouts() -> None:
     with pytest.raises(ValueError):
         OpenSearchSettings(connect_timeout_s=float("inf"), request_timeout_s=1.0)
     with pytest.raises(ValueError):
-        OpenSearchSettings(
-            username_env="USER", connect_timeout_s=1.0, request_timeout_s=1.0
-        )
+        OpenSearchSettings(username_env="USER", connect_timeout_s=1.0, request_timeout_s=1.0)
     with pytest.raises(ValueError):
         WeaviateSettings(connect_timeout_s=1.0, request_timeout_s=1.0, unrecognized=True)
 
 
-def test_target_identities_resolve_endpoints_without_exposing_credentials(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_target_identities_resolve_endpoints_without_exposing_credentials(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     monkeypatch.setenv("SEARCH_ENDPOINT", "https://search.example:9443")
     monkeypatch.setenv("SEARCH_USER", "example-user")
     monkeypatch.setenv("SEARCH_PASS", "never-return-this")
@@ -138,8 +142,12 @@ class _OpenSearchClient:
 @pytest.mark.asyncio
 async def test_opensearch_search_and_clear_are_namespace_and_owner_scoped() -> None:
     client = _OpenSearchClient()
-    store = OpenSearchLexical(client, index="memspine-owned", owner_id="deploy-a", request_timeout_s=2)
-    record = MemoryRecord(namespace="ns-a", memory_type="semantic", content="Cobalt notes", record_id="r1")
+    store = OpenSearchLexical(
+        client, index="memspine-owned", owner_id="deploy-a", request_timeout_s=2
+    )
+    record = MemoryRecord(
+        namespace="ns-a", memory_type="semantic", content="Cobalt notes", record_id="r1"
+    )
     await store.index(record)
     assert client.native.indexed[0]["id"] != "r1"
     hits = await store.search("ns-a", 'cobalt OR namespace:ns-b "', top_k=4)
@@ -167,10 +175,14 @@ class _WeaviateData:
     async def exists(self, object_id: str) -> bool:
         return object_id in self.rows
 
-    async def insert(self, *, properties: dict[str, str], uuid: str, vector: list[float] | None) -> None:
+    async def insert(
+        self, *, properties: dict[str, str], uuid: str, vector: list[float] | None
+    ) -> None:
         self.rows[uuid] = properties, vector
 
-    async def replace(self, *, properties: dict[str, str], uuid: str, vector: list[float] | None) -> None:
+    async def replace(
+        self, *, properties: dict[str, str], uuid: str, vector: list[float] | None
+    ) -> None:
         self.rows[uuid] = properties, vector
 
     async def delete_by_id(self, object_id: str) -> None:
@@ -190,11 +202,21 @@ class _WeaviateQuery:
 
     async def near_vector(self, **kwargs: Any) -> Any:
         self.vector_call = kwargs
-        return SimpleNamespace(objects=[SimpleNamespace(properties={"record_id": "r1"}, metadata=SimpleNamespace(distance=0.2))])
+        return SimpleNamespace(
+            objects=[
+                SimpleNamespace(
+                    properties={"record_id": "r1"}, metadata=SimpleNamespace(distance=0.2)
+                )
+            ]
+        )
 
     async def bm25(self, **kwargs: Any) -> Any:
         self.bm25_call = kwargs
-        return SimpleNamespace(objects=[SimpleNamespace(properties={"record_id": "r1"}, metadata=SimpleNamespace(score=2.0))])
+        return SimpleNamespace(
+            objects=[
+                SimpleNamespace(properties={"record_id": "r1"}, metadata=SimpleNamespace(score=2.0))
+            ]
+        )
 
     async def fetch_object_by_id(self, object_id: str, *, return_properties: list[str]) -> Any:
         row = self.data.rows.get(object_id)
@@ -211,7 +233,9 @@ class _WeaviateCollection:
 
 
 @pytest.mark.asyncio
-async def test_weaviate_vector_lexical_scopes_writes_queries_and_deletion(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_weaviate_vector_lexical_scopes_writes_queries_and_deletion(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     class _Filter:
         @staticmethod
         def by_property(name: str) -> Any:
@@ -232,7 +256,9 @@ async def test_weaviate_vector_lexical_scopes_writes_queries_and_deletion(monkey
     monkeypatch.setitem(sys.modules, "weaviate.classes", classes_module)
     monkeypatch.setitem(sys.modules, "weaviate.classes.query", query_module)
     collection = _WeaviateCollection()
-    vector = WeaviateVectorStore(collection, owner_id="deployment-a", embedder_id="hash:4", dimension=4)
+    vector = WeaviateVectorStore(
+        collection, owner_id="deployment-a", embedder_id="hash:4", dimension=4
+    )
     await vector.upsert("record-1", "private", "hash:4", [1.0, 0.0, 0.0, 0.0])
     hits = await vector.query("private", [1.0, 0.0, 0.0, 0.0], "hash:4")
     assert [(hit.record_id, hit.score) for hit in hits] == [("r1", 0.8)]
@@ -248,7 +274,9 @@ async def test_weaviate_vector_lexical_scopes_writes_queries_and_deletion(monkey
         await vector.upsert("zero", "private", "hash:4", [0.0, 0.0, 0.0, 0.0])
 
     lexical = WeaviateLexicalStore(collection, owner_id="deployment-a")
-    record = MemoryRecord(namespace="private", memory_type="semantic", content="violet mountain", record_id="record-1")
+    record = MemoryRecord(
+        namespace="private", memory_type="semantic", content="violet mountain", record_id="record-1"
+    )
     await lexical.index(record)
     lexical_hits = await lexical.search("private", "violet namespace:other")
     assert [(hit.record_id, hit.score) for hit in lexical_hits] == [("r1", 2.0)]

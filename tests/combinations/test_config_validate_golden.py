@@ -151,9 +151,7 @@ def test_provider_change_replaces_inherited_native_settings(
     old_config = nested(
         **{selector: "old-provider", settings_key: {"old_native_option": "discard"}}
     )
-    new_config = nested(
-        **{selector: "new-provider", settings_key: {"new_native_option": "keep"}}
-    )
+    new_config = nested(**{selector: "new-provider", settings_key: {"new_native_option": "keep"}})
     loaded = load_config(
         template="base",
         user_config=old_config,

@@ -179,7 +179,9 @@ async def test_document_text_cannot_inject_template_tokens(fake: list[int]) -> N
     assert reranker._tokenizer.kwargs.get("split_special_tokens") is True
 
 
-async def test_missing_extra_raises_and_the_factory_degrades(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_missing_extra_raises_and_the_factory_degrades(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     from memspine.models.providers.rerank.qwen3_rerank import Qwen3Reranker
 
     monkeypatch.setitem(sys.modules, "transformers", None)  # import -> ImportError

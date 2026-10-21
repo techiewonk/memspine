@@ -129,9 +129,7 @@ class LlamaCppLLM:
                 generation = {**self._generation_defaults, **options}
                 return self._llama.create_chat_completion(messages=chat_messages, **generation)
 
-        data = await asyncio.wait_for(
-            asyncio.to_thread(_run), timeout=self._timeout_seconds
-        )
+        data = await asyncio.wait_for(asyncio.to_thread(_run), timeout=self._timeout_seconds)
         try:
             content = str(data["choices"][0]["message"]["content"])
         except (KeyError, IndexError, TypeError) as exc:

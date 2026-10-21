@@ -148,7 +148,13 @@ async def test_sweep_cleans_only_expired_deployment_owned_projection() -> None:
 
         report = await coordinator.cleanup_expired_projections("deploy-a", limit=10)
 
-        assert (report.scanned, report.eligible, report.cleaned, report.deferred, report.failed) == (
+        assert (
+            report.scanned,
+            report.eligible,
+            report.cleaned,
+            report.deferred,
+            report.failed,
+        ) == (
             3,
             1,
             1,
@@ -217,7 +223,9 @@ async def test_sweep_surfaces_abandoned_cleanup_fence_without_stealing_it() -> N
         assert report.failed == 1
         assert report.failed_operation_ids == (operation.operation_id,)
         assert strategy.cleanup_calls == 0
-        assert (await store.get_operation(operation.operation_id)).status is ChangeStatus.CLEANUP_PENDING
+        assert (
+            await store.get_operation(operation.operation_id)
+        ).status is ChangeStatus.CLEANUP_PENDING
         with pytest.raises(ActiveChangeExists):
             await store.claim_cleanup(operation.operation_id)
     finally:

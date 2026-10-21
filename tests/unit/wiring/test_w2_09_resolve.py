@@ -116,7 +116,15 @@ async def _run(
 
 # --- config and wiring ---------------------------------------------------------------------------
 def test_flag_is_off_by_default_and_stage_registered_only_when_on() -> None:
-    cfg = MemspineConfig(runtime={"provider_services": {"health_timeout_s": 1.0, "close_timeout_s": 1.0, "startup_timeout_s": None}})
+    cfg = MemspineConfig(
+        runtime={
+            "provider_services": {
+                "health_timeout_s": 1.0,
+                "close_timeout_s": 1.0,
+                "startup_timeout_s": None,
+            }
+        }
+    )
     assert cfg.write.resolver_v2 is False
     assert (cfg.write.resolve_high, cfg.write.resolve_grey, cfg.write.resolve_cache) == (
         0.9,
@@ -130,7 +138,13 @@ def test_flag_is_off_by_default_and_stage_registered_only_when_on() -> None:
 
     assert _envelope_stages(Eng(), cfg) == ()
     on = MemspineConfig(
-        runtime={"provider_services": {"health_timeout_s": 1.0, "close_timeout_s": 1.0, "startup_timeout_s": None}},
+        runtime={
+            "provider_services": {
+                "health_timeout_s": 1.0,
+                "close_timeout_s": 1.0,
+                "startup_timeout_s": None,
+            }
+        },
         write={"window_extract": "facts", "envelope_v2": True, "resolver_v2": True},
     )
     (stage,) = _envelope_stages(Eng(), on)
@@ -435,7 +449,15 @@ async def test_taps_report_verdicts(monkeypatch: pytest.MonkeyPatch) -> None:
 
 # --- calibration gate (W-19: no homonym merges above the stated rate) ---------------------------------
 async def test_shipped_thresholds_meet_the_homonym_gate_on_both_halves() -> None:
-    cfg = MemspineConfig(runtime={"provider_services": {"health_timeout_s": 1.0, "close_timeout_s": 1.0, "startup_timeout_s": None}}).write
+    cfg = MemspineConfig(
+        runtime={
+            "provider_services": {
+                "health_timeout_s": 1.0,
+                "close_timeout_s": 1.0,
+                "startup_timeout_s": None,
+            }
+        }
+    ).write
     cases = synthetic_cases()
     assert {c.cls for c in cases} == {"alias", "homonym", "unrelated"}
     for half in (0, 1):
@@ -501,15 +523,17 @@ class WhoLLM:
 async def _engine(monkeypatch: pytest.MonkeyPatch, path: Path, **write: Any) -> Engine:
     llm = WhoLLM()
 
-    async def router(config: MemspineConfig, hooks: object = None, wiring: object = None) -> LLMRouter:
+    async def router(
+        config: MemspineConfig, hooks: object = None, wiring: object = None
+    ) -> LLMRouter:
         return LLMRouter({"window_extract": llm})
 
     monkeypatch.setattr("memspine.runtime.container.build_llm_router", router)
     eng = Engine(
         template="core",
         dotenv_path=None,
-        storage={'provider': "sqlite", 'settings': {'path': str(path), 'busy_timeout_s': 5.0}},
-        embedding={'provider': "hash", 'settings': {}},
+        storage={"provider": "sqlite", "settings": {"path": str(path), "busy_timeout_s": 5.0}},
+        embedding={"provider": "hash", "settings": {}},
         memories={"episodic": {"enabled": True}, "semantic": {"enabled": True}},
         write={
             "window_extract": "facts",
@@ -518,7 +542,14 @@ async def _engine(monkeypatch: pytest.MonkeyPatch, path: Path, **write: Any) -> 
             "envelope_v2": True,
             **write,
         },
-        llm={"roles": {"window_extract": {"provider": "litellm", "settings": {"model": "fake/window", "timeout_seconds": 60.0}}}},
+        llm={
+            "roles": {
+                "window_extract": {
+                    "provider": "litellm",
+                    "settings": {"model": "fake/window", "timeout_seconds": 60.0},
+                }
+            }
+        },
     )
     await eng.start()
     return eng

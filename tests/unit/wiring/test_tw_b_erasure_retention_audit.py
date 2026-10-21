@@ -89,7 +89,15 @@ def test_flags_default_off() -> None:
     assert PrivacyConfig().erasure_v2 is False
     assert RetentionConfig().v2 is False and RetentionConfig().profile is None
     assert AuditConfig().chain_v2 is False
-    cfg = MemspineConfig(runtime={"provider_services": {"health_timeout_s": 1.0, "close_timeout_s": 1.0, "startup_timeout_s": None}})
+    cfg = MemspineConfig(
+        runtime={
+            "provider_services": {
+                "health_timeout_s": 1.0,
+                "close_timeout_s": 1.0,
+                "startup_timeout_s": None,
+            }
+        }
+    )
     assert cfg.privacy.erasure_v2 is False and cfg.audit.chain_v2 is False
 
 

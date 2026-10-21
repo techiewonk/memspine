@@ -139,7 +139,9 @@ def catalog(
                         else None
                     ),
                     plugin_identity=plugins.get(f"{kind}:{name}"),
-                    availability="available" if available else f"missing_dependency:{','.join(missing)}",
+                    availability="available"
+                    if available
+                    else f"missing_dependency:{','.join(missing)}",
                     declared_capabilities=tuple(sorted(value.declared_capabilities)),
                     required_capabilities=(),
                     configured_provider=configured.get(current_category),

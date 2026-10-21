@@ -69,7 +69,9 @@ def build_sleep_v2(eng: Any, config: Any) -> DerivationScheduler:
     path = ":memory:"
     shared_sql_engine = None
     if sql is not None:
-        placement = storage_placement(config, getattr(eng, "_provider_owner_id", None) or "pending-owner")
+        placement = storage_placement(
+            config, getattr(eng, "_provider_owner_id", None) or "pending-owner"
+        )
         capabilities = sql.capabilities
         if placement.in_memory:
             path = ":memory:"

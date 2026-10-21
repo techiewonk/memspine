@@ -32,7 +32,9 @@ class FastembedEmbedding:
         if dim is not None and resolved_dim is not None and dim != resolved_dim:
             raise ValueError("configured fastembed dimension conflicts with known model metadata")
         if resolved_dim is None:
-            raise ValueError("fastembed dimension must be configured for models without known metadata")
+            raise ValueError(
+                "fastembed dimension must be configured for models without known metadata"
+            )
         self._dim = resolved_dim
         self._expected_dim = resolved_dim
         self._lock = asyncio.Lock()
@@ -76,7 +78,9 @@ class FastembedEmbedding:
             if any(len(vector) != actual_dim for vector in vectors):
                 raise ValueError("fastembed returned vectors with inconsistent dimensions")
             if self._expected_dim is not None and actual_dim != self._expected_dim:
-                raise ValueError("fastembed output dimension differs from configured model dimension")
+                raise ValueError(
+                    "fastembed output dimension differs from configured model dimension"
+                )
             self._dim = actual_dim
         return vectors
 

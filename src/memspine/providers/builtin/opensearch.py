@@ -26,33 +26,51 @@ def _target_identity(model: BaseModel) -> dict[str, JsonValue]:
     username = os.environ.get(model.username_env, "") if model.username_env else ""
     password = os.environ.get(model.password_env, "") if model.password_env else ""
     if model.username_env and model.username_env not in os.environ:
-        raise ConfigError(f"OpenSearch authentication needs environment variable {model.username_env}")
+        raise ConfigError(
+            f"OpenSearch authentication needs environment variable {model.username_env}"
+        )
     if model.password_env and model.password_env not in os.environ:
-        raise ConfigError(f"OpenSearch authentication needs environment variable {model.password_env}")
+        raise ConfigError(
+            f"OpenSearch authentication needs environment variable {model.password_env}"
+        )
     return {
         "kind": "opensearch",
         "host": host.lower(),
         "scheme": scheme,
         "port": port,
         "auth_digest": hashlib.sha256(f"{username}\0{password}".encode()).hexdigest(),
-        "canonical_target": {"kind": "opensearch", "host": host.lower(), "port": port, "index_prefix": model.index_prefix},
+        "canonical_target": {
+            "kind": "opensearch",
+            "host": host.lower(),
+            "port": port,
+            "index_prefix": model.index_prefix,
+        },
     }
 
 
 class OpenSearchBuilder:
-    async def build(self, settings: OpenSearchSettings, ctx: LexicalBuildContext) -> BuildResult[LexicalStore]:
+    async def build(
+        self, settings: OpenSearchSettings, ctx: LexicalBuildContext
+    ) -> BuildResult[LexicalStore]:
         from memspine.clients.opensearch import OpenSearchClient
         from memspine.services.lexical.opensearch import OpenSearchLexical
 
         if not ctx.shared.owner_id:
             raise ConfigError("OpenSearch requires a stable runtime.deployment_id")
         scope = hashlib.sha256(ctx.shared.owner_id.encode()).hexdigest()[:20]
-        suffix = "" if ctx.generation_id == "active" else f"-g{generation_component(ctx.generation_id)}"
+        suffix = (
+            "" if ctx.generation_id == "active" else f"-g{generation_component(ctx.generation_id)}"
+        )
         index = f"{settings.index_prefix}-{scope}{suffix}"
         client = OpenSearchClient(settings)
         ref = ctx.shared.resources.own("lexical", client.close)
         await client.connect()
-        service = OpenSearchLexical(client, index=index, owner_id=ctx.shared.owner_id, request_timeout_s=settings.request_timeout_s)
+        service = OpenSearchLexical(
+            client,
+            index=index,
+            owner_id=ctx.shared.owner_id,
+            request_timeout_s=settings.request_timeout_s,
+        )
         await service.ensure_index()
 
         async def probe() -> bool:

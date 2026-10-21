@@ -151,8 +151,8 @@ def _engine(resolve: str = "llm") -> Engine:
         template="core",
         dotenv_path=None,
         runtime={"deployment_id": "unit-test"},
-        storage={'provider': "sqlite", 'settings': {'path': ":memory:", 'busy_timeout_s': 5.0}},
-        embedding={'provider': "hash", 'settings': {}},
+        storage={"provider": "sqlite", "settings": {"path": ":memory:", "busy_timeout_s": 5.0}},
+        embedding={"provider": "hash", "settings": {}},
         memories={
             "semantic": {
                 "enabled": True,
@@ -308,8 +308,8 @@ async def test_off_by_default_changes_nothing() -> None:
     eng = Engine(
         template="core",
         dotenv_path=None,
-        storage={'provider': "sqlite", 'settings': {'path': ":memory:", 'busy_timeout_s': 5.0}},
-        embedding={'provider': "hash", 'settings': {}},
+        storage={"provider": "sqlite", "settings": {"path": ":memory:", "busy_timeout_s": 5.0}},
+        embedding={"provider": "hash", "settings": {}},
         memories={"semantic": {"enabled": True}, "episodic": {"enabled": True}},
     )
     await eng.start()
@@ -355,8 +355,8 @@ async def test_engine_binds_the_batched_prompts() -> None:
         template="core",
         dotenv_path=None,
         runtime={"deployment_id": "unit-test"},
-        storage={'provider': "sqlite", 'settings': {'path': ":memory:", 'busy_timeout_s': 5.0}},
-        embedding={'provider': "hash", 'settings': {}},
+        storage={"provider": "sqlite", "settings": {"path": ":memory:", "busy_timeout_s": 5.0}},
+        embedding={"provider": "hash", "settings": {}},
         memories={
             "semantic": {"enabled": True, "policies": {"extract_graph": {"resolve": "llm"}}},
             "episodic": {"enabled": True},
@@ -415,8 +415,8 @@ async def test_forgetting_any_cited_turn_erases_a_session_decision(forget: str) 
     eng = Engine(
         template="core",
         dotenv_path=None,
-        storage={'provider': "sqlite", 'settings': {'path': ":memory:", 'busy_timeout_s': 5.0}},
-        embedding={'provider': "hash", 'settings': {}},
+        storage={"provider": "sqlite", "settings": {"path": ":memory:", "busy_timeout_s": 5.0}},
+        embedding={"provider": "hash", "settings": {}},
         memories={
             "semantic": {
                 "enabled": True,

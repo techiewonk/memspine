@@ -170,9 +170,7 @@ class BuiltinProjectionGenerationOpener:
             policy=self._policy,
         )
 
-    def _descriptor_for(
-        self, config: MemspineConfig, wiring: Wiring
-    ) -> tuple[Any, object]:
+    def _descriptor_for(self, config: MemspineConfig, wiring: Wiring) -> tuple[Any, object]:
         if self._category == "graph":
             descriptor = _graph_descriptor(config, wiring)
             raw_settings: object = config.graph.settings
