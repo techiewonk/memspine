@@ -403,3 +403,61 @@ status.
 
 Qualifiers are typed fields on claims and edges, filled only from supported evidence or
 system state; a missing qualifier stays unknown and is never inferred to pass a filter.
+
+## Owner review decisions — 2026-10-22 (vocabulary, contracts and maintenance)
+
+Selected in a one-by-one review. These are design selections: names are approved for
+registration in the semantic registry, but registration still activates no extraction
+(BI-06 gate), and every name needs fixtures before activation. Live statuses stay in
+the tracker.
+
+### Lifecycle stages (RM-57)
+
+Two axes shared by commitments, work status and event lifecycle:
+
+- `status`: proposed, planned, scheduled, open, in_progress, blocked, postponed,
+  closed, cancelled, superseded. Terminal statuses: closed, cancelled, superseded.
+- `outcome`: done, missed, failed, declined. Required when status is closed, absent
+  otherwise.
+- Rescheduling is a new scheduled time plus a link to the previous one, not a stage.
+
+### Vocabulary selected for registration
+
+| Family | Predicates | Keys / roles |
+|---|---|---|
+| 1 Commitments and deadlines (RM-50) | `committed_to` (obligor, beneficiary, action), `due_by`, `requested_of` (requester, addressee) | key `priority`; reuse intends, assigned_to, completed_on, recurrence_interval |
+| 2 Decisions and work status (RM-50) | `decided` (decider; chosen/rejected via preferred/alternative), `works_on`, `blocked_by` | keys `progress`, `outcome`; status via the stage axes |
+| 3 Documents and citations (RM-50) | `cites`, `about`, `derived_from`, `revision_of` | keys `locator`, `publisher`, `licence`; authorship reuses made/maker |
+| A Social (RM-58) | `partner_of`, `relative_of`, `colleague_of`, `acquainted_with`, `mentor_of`, `caregiver_of`, `neighbour_of` | keys `kinship_type`, `relationship_type`; symmetry per RM-46 |
+| B+C Instructions and constraints (RM-59) | `instructed` (instructor, addressee, action, context) with directive polarity must / must_not / permitted and an applicability condition; `restricted_by` | keys `tone`, `detail_level`, `rule_strength`; never a user fact |
+| G Goals (RM-60) | `has_goal`, `wishes` | keys `target_value`, `target_date`; achievement = closed + done |
+| K Identity and contact (RM-61) | `citizen_of`, `speaks`, `affiliated_with` | keys `occupation`, `pronouns`, `nationality`, `contact_channel`, `preferred_contact_time` (contact keys need RM-52 labels before activation) |
+| D, E, F, H, I, J, L, M, N (RM-62, RM-63) | Scheduled now from the survey candidate lists | names confirmed per family during registration review |
+
+### Contracts
+
+- RM-46: `symmetric` flag and `inverse_view` name in PredicateSpec. Stored once as
+  asserted; the reverse direction is a read view, never a second fact or extra evidence.
+- RM-47: general event roles actor, location, time (TemporalRef), instrument,
+  beneficiary, topic, companion, origin, destination, theme/patient, cause, result,
+  audience/participant, manner, amount (typed number plus unit). Per-slot cardinality
+  and evidence requirements still apply.
+- RM-48: source origins add tool_output, structured_record, agent_observation,
+  reflection, transcript, ocr, caption, external_catalogue, email, calendar_event,
+  web_page (explicit fetch only), form_input, profile_import, code_repository and
+  system_event. Origin, sender, assertion owner and trust stay distinct; derived text
+  keeps a link to its asset.
+- RM-44: core/simple mechanics tests use the real default embedder, provided by an
+  explicit documented download step (and a CI step); no hidden download at test time.
+- RM-49 / RM-54: cutover acceptance covers all nine memory types plus fixtures F1–F13
+  as executable tests before BI-01 promotion.
+- RM-51: entity types add concept/topic, document/artifact, software/system and event
+  (named events, distinct from event-log IDs and occurrences).
+- RM-52: optional sensitivity classes (health, financial, contact, identity, location)
+  that can only tighten firewall and retention, never weaken source policy.
+- RM-53: three vocabulary sources under one contract: the built-in default vocabulary,
+  data-only plugin packs and custom config-file vocabularies. All are versioned, scoped,
+  digest-pinned and conflict-checked; activation is a policy revision (RM-43); withdrawal
+  stops new jobs and keeps history.
+- RS-09: evidence budget configurable with 4K default; reranker a configurable stage
+  (none, TinyBERT or MiniLM). Default reranker not yet selected.
