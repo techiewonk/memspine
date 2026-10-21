@@ -8,6 +8,10 @@ This file is loaded into every Claude Code session. Keep it accurate and terse.
 
 **Status:** pre-alpha, under active construction. **P0–P7 are all implemented and review-passed** (substrate · working memory + retrieval · semantic · episodic + lifecycle · Memory Firewall · procedural + reflective · associative graph · prospective + shared + REST), plus the C6 combination matrix — **2378** tests collected (`uv run pytest --collect-only -q`; +530 in `evals/tests`), `ruff` + `mypy --strict` clean, **64 ADRs** (ADR-001…ADR-065, 038 unassigned; ADR-029/030/031 *proposed*), decision register through D-89. All 9 memory types and E1–E9 are landed. User-facing docs: `docs/FEATURES.md` + `docs/USAGE.md`. Ecosystem comparison: `docs/ECOSYSTEM_COMPARISON.md` + `docs/ARCHITECTURE_FLOWS.md` (pass #3: stages, packages, prompts, memory I/O). Current snapshot lives in `STATUS.md` (manually refreshed; the 30-min auto-refresh stopped in July). The design docs in `docs/` are the **single source of truth** — read them before writing code.
 
+## Single live task/status tracker
+
+Use **docs/PROVIDER_TODO.md** for all current task IDs, statuses, completed work/evidence and next milestones. Claude and Codex share this one register. Do not create another TASKS.md, roadmap checklist or copied handoff status inventory. Plans/handoffs/logs are context or historical evidence. `python scripts/refresh_tracker.py` refreshes totals and the read-only HTML view; `--check` detects stale output. This status authority does not replace design or schema specifications.
+
 ## Read these first (in order)
 
 1. `docs/memspine-structure-plan.md` — **the buildable blueprint**: repo tree, extras matrix, decision register (D-01…D-80), phase plan (P0…P7), enhancement program (E1–E9). This is authoritative.
@@ -19,7 +23,7 @@ This file is loaded into every Claude Code session. Keep it accurate and terse.
 ## Golden rules (do not violate without an ADR)
 
 - **Event-sourced core.** An append-only `memory_events` log is the source of truth. Vector/graph/FTS/cache are **rebuildable projectors** — never a second source of truth.
-- **Anti-lock-in (D-17).** Background pipelines are plain, idempotent step functions in `workers/pipelines.py`. Runners (inline/DBOS/taskiq) *decorate* them — no runner imports inside pipeline code.
+- **Anti-lock-in (D-17).** Background pipelines are plain, idempotent step functions in `workers/pipelines.py`. Runners (inline/Temporal+Resonate/taskiq) *decorate* them — no runner imports inside pipeline code.
 - **Ports & adapters (D-22/M14).** Engine/memories/policies talk only to `services/*` capability ports. `clients/*` own connections; services never open a connection.
 - **Slim core (D-03).** Zero heavy deps in core. Everything optional lives behind a `pip install memspine[extra]`. `torch`/`transformers` never enter core.
 - **Run the test suite in chunks on low-memory machines** (a single-process run can die silently, exit 127); always pass `-p no:deepeval` (the deepeval plugin hides pytest's summary).
@@ -40,7 +44,7 @@ This file is loaded into every Claude Code session. Keep it accurate and terse.
 | Lexical | **FTS5 / Tantivy** BM25, RRF fusion | D-25; **CJK dropped** (D-34) |
 | Embedder | **fastembed** (ONNX, CPU) | torch behind `[st]` only (D-08) |
 | LLM | local: **Ollama/vLLM/llama.cpp/LM Studio/OpenAI-compatible** + Bedrock | per-role providers; litellm adapter-only (D-07/D-33/D-39) |
-| Workers | **inline** default, **DBOS** durable, **taskiq** brokered | D-16 |
+| Workers | **inline** default, **Temporal + embedded Resonate** durable, **taskiq** brokered | ADR-071; Temporal requires external cluster + persistent local journal |
 | Dedup | **datasketch** MinHash-LSH → cosine confirm | D-27 |
 | Entities | **gliner2** CPU NER (flag) + LLM fallback | D-28 |
 | Ingest | **markitdown + chonkie** `[ingest]` | D-29 |
@@ -63,6 +67,13 @@ This file is loaded into every Claude Code session. Keep it accurate and terse.
 - **One decision = one ADR.** New/changed decisions get a `docs/adr/ADR-NNN.md` and a row in the structure-plan register.
 
 ## Commands
+
+Dependency baseline (D-92 / ADR-070): Python 3.13 and uv >=0.13.1. Install with
+`uv sync --locked --extra dev`; validate with `uv pip check` and
+`python scripts/audit_dependencies.py --check`. See `docs/PYTHON313_DEPENDENCIES.md`
+for current versions, intentional caps and actual runtime coverage. DeepEval is
+no longer a development dependency; no Click override is permitted. Heavy model
+extras remain optional and are not proven by metadata/lock resolution alone.
 
 ```bash
 uv sync --all-extras          # install dev env
@@ -105,3 +116,13 @@ OpenAI-compatible backends only, and QA mode refuses to start without an explici
 
 
 Provider architecture: [ADR-068](docs/adr/ADR-068-provider-contracts-and-controlled-changes.md), [ADR-069](docs/adr/ADR-069-remote-providers-and-explicit-recovery.md) and [the accepted plan](docs/PROVIDER_ARCHITECTURE_PLAN.md). Descriptors are owned by `memspine.providers.registry`; no old registry modules or config retirement layer. Constructor fields use nested settings. OpenSearch lexical, Weaviate lexical/vector and pgvector vector are optional adapters; lexical/vector ports remain independent. Pgvector projection DDL requires explicit opt-in, and SQL DELETE is not physical-erasure proof. Cleanup fence recovery requires an application quiescence guard and audited CAS; never steal a lock by age. HTTP service-change execution requires the actual deployment controller; health checks alone do not validate production.
+
+Structured GLiNER extraction (D-94 / ADR-072) returns typed source-cited candidates only and cannot bypass canonical grounding. D-97 / ADR-075 uses named `models.profiles` and task bindings for independently selected GLiNER/LLM models, superseding the single D-96 `models.gliner` field without an alias. Share weights for identical effective settings, never user result caches. Model escalation is explicit, bounded and opt-in; consent gates apply to every candidate. Bounded RRF prefixes apply only to fixed-prefix callers; the main router retains full ranking. Performance validation remains kernel-only.
+
+D-98 / ADR-076: GLiNER mentions are exact source-bound annotations with `asserted=False`; they never key a record as an asserted fact or replace window support evidence. Source sender/message identity comes from the canonical message envelope, not model output. Dedup retains dropped-source annotations in MERGE audit snapshots without rebinding them to kept text.
+
+D-99 / ADR-077 accepts raw-first ingestion plus durable background grounding, source-bound unasserted graph mentions, recoverable lossless raw encoding and separate summaries. Implementation is planned in docs/BACKGROUND_INGESTION_PLAN.md; no target defaults are enabled by the plan. Keep annotation persistence independent of fact yield and derivation readiness separate from raw acceptance.
+
+D-100 / ADR-078 accepts evidence-bound identity/aliases, supported dated residence transitions with multiple homes, and source-local temporal precision plus evidence-known time. Initial contextual linking is engineering-first; retrieval similarity proposes candidates only. See docs/INGESTION_CONTEXT_ENRICHMENT.md; remaining contracts are in review, not implemented.
+
+D-100 schema selection Q-S1..5 B/B/A/A/B: coordinated replacement of affected envelopes, aware-only resolved times (timezone-free dates remain text), typed claim values, explicit domain occurrences and persisted excerpt copies with cascade erasure. docs/ENRICHMENT_SCHEMA_CONTRACTS.md is the target; not implemented.

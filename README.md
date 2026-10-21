@@ -224,7 +224,7 @@ pip install "memspine[community]"              # graspologic-native — Leiden g
 pip install "memspine[cache]"                  # cashews — disk / redis / valkey cache backends
 pip install "memspine[rest]"                   # FastAPI + uvicorn — REST protocol
  # OpenSearch / Weaviate adapters are planned; no shipped extra is claimed.
-pip install "memspine[dbos]" / "[taskiq]"      # durable / brokered background workers
+pip install "memspine[temporal]" / "[taskiq]"      # Temporal Server + embedded Resonate / brokered workers
 pip install "memspine[llmlocal]"               # llama-cpp-python in-proc inference
 ```
 
@@ -242,7 +242,7 @@ pip install "memspine[llmlocal]"               # llama-cpp-python in-proc infere
 | `static` | E4 model2vec static-embedding prefilter (ADR-020) |
 | `community` | Leiden graph community detection (graspologic-native, MIT, D-40/ADR-043 — needs numpy + scipy, no numpy ceiling) |
 | Future adapters | OpenSearch / Weaviate lexical and vector adapters require implementation and backend verification |
-| `dbos` / `taskiq` | durable / brokered worker runners (D-16) |
+| `temporal` / `taskiq` | Temporal Server + local Resonate / brokered worker runners (ADR-071) |
 | `rest` | REST protocol (FastAPI, D-06) |
 | `llmlocal` | in-proc open-weight inference (llama-cpp-python) |
 | `postgres` | PostgreSQL storage backend (ADR-025) |
@@ -252,7 +252,7 @@ pip install "memspine[llmlocal]"               # llama-cpp-python in-proc infere
 
 > Both the **LiteLLM** gateway (cloud + local LLM/embedding/rerank, ADR-024) and the **Tantivy** BM25 leg (default-on hybrid, D-25) are **core** dependencies — no extra needed.
 
-Convenience bundles: `local` (`graph,cache,dbos,ingest,ner`), `prod-aws`, `all`. Dev: `uv sync --all-extras`.
+Convenience bundles: `local` (`graph,cache,ingest,ner`), `prod-aws`, `all`. Dev: `uv sync --all-extras`.
 
 ---
 
@@ -266,14 +266,14 @@ Construct with `Engine(template="...")`. Each template is a partial overlay on t
 | `coding` | + procedural | coding agents with reusable skills; `conflict_bias: newest` |
 | `personal` | + reflective + prospective | personal assistants (reflective auto-enables episodic) |
 | `voice` | rolling+zstd event log; larger working window | high-volume voice transcripts |
-| `multi_agent` | + shared; **DBOS** durable workers; secure defaults (integrity gate, secret + PII redaction, untrusted-data wrapper) | namespace grants across agents (R2), server-grade durability |
-| `regulated_financial` | full audit log, strict PII, no forgetting; **DBOS** durable workers; secure defaults (integrity gate, secret + PII redaction, untrusted-data wrapper) | audited / compliant deployments |
+| `multi_agent` | + shared; **Temporal + embedded Resonate** durable workers; secure defaults (integrity gate, secret + PII redaction, untrusted-data wrapper) | namespace grants across agents (R2), server-grade durability |
+| `regulated_financial` | full audit log, strict PII, no forgetting; **Temporal + embedded Resonate** durable workers; secure defaults (integrity gate, secret + PII redaction, untrusted-data wrapper) | audited / compliant deployments |
 | `assistant` (**default**) | = `base`: the measured read-path advantages (relative dates resolved, time-ordered answers for ordering questions, relevance-first scoring; LoCoMo 70.7 → 78.3%; reranker opt-in) | chat assistants |
 | `core` | the bare configuration (no read-path enhancements) | tests, baselines |
 
 > `Engine()` with no template uses **`assistant`** (ADR-032). Since ADR-033 the read-path advantages are in **`base`** (`profile="simple"`), so every template has them; `template="core"` gives the bare configuration.
 
-> Server profiles (`multi_agent`, `regulated_financial`) pin `workers.runner: dbos` at the **template** layer (A4/ADR-005) — DBOS defaults to a colocated SQLite system database, so this needs only `memspine[dbos]`, no external infra. Embedded profiles stay `inline`.
+> Server profiles (`multi_agent`, `regulated_financial`) select `workers.runner: temporal` (ADR-071). Install `memspine[temporal]`, configure an external Temporal Server and a persistent local journal volume. Embedded profiles stay `inline`.
 
 ---
 
@@ -429,7 +429,7 @@ Every capability is a port. The engine plans against capabilities, degrades grac
 | **LLM** | **local**: Ollama · vLLM · llama.cpp `[llmlocal]` · LM Studio · any OpenAI-compatible | **LiteLLM** prefix routing: `openai/` · `bedrock/` · `vertex_ai/` · `azure/` *(ADR-024)* |
 | **Lexical** | **Tantivy BM25** *(core, hybrid on by default)* | OpenSearch / Weaviate *(planned adapters)* |
 | **Secrets** | env / `.env` *(core, ADR-023)* | **AWS Secrets Manager** `[aws]` via `MEMSPINE_SECRETS_BACKEND=aws` |
-| **Workers** | **inline** | DBOS `[dbos]` · taskiq `[taskiq]` |
+| **Workers** | **inline** | Temporal + embedded Resonate `[temporal]` · taskiq `[taskiq]` |
 
 ---
 
@@ -439,7 +439,7 @@ memspine is **pre-alpha**. What's shipped vs. deferred, so you're not surprised:
 
 - **Retrieval is hybrid *by default* (v0.2).** `search` runs `[static_prefilter?] → vector + Tantivy BM25 fused by RRF → [rerank?] → score`. Set `read.hybrid: false` for the bit-identical vector-only pipeline. The embedded Tantivy index is **single-writer per directory**, so two live Engine instances can't share one file-backed lexical index — use one writer per index directory. OpenSearch and Weaviate adapters remain planned extensions; they are not shipped alternatives.
 - **Graph selection defaults to `auto`.** It chooses a compatible local provider; SQLite adjacency is the zero-dependency option for SQLite; `ladybug` (`[graph]`) is the embedded-Cypher opt-in. Direct Neo4j and an independent optional mirror use typed graph construction; real-server parity remains a separate verification gate. Graphiti-style `extract_graph` is **opt-in** (`memories.semantic.policies.extract_graph`).
-- **The autonomous scheduler is off by default and skipped on `:memory:`.** Set `workers.sleep_interval_seconds` to drive dynamics on a file-backed DB; production autonomous scheduling should pair with a durable runner (`[dbos]`/`[taskiq]`).
+- **The autonomous scheduler is off by default and skipped on `:memory:`.** Set `workers.sleep_interval_seconds` to drive dynamics on a file-backed DB; production autonomous scheduling should pair with a durable runner (`[temporal]`/`[taskiq]`).
 - **Provider support is explicit.** Tantivy supplies lexical retrieval; OpenSearch and Weaviate remain future adapters. Direct Neo4j construction and a separate optional mirror use the graph contract; real-server verification is a separate release gate. Unknown providers fail selection. See the [provider architecture plan](docs/PROVIDER_ARCHITECTURE_PLAN.md) and [ADR-068](docs/adr/ADR-068-provider-contracts-and-controlled-changes.md).
 - **Extras gate features.** `ingest`, `compress`, `rerank`, `static`, `community`, `cache` (disk/redis/valkey), `postgres`, `neo4j`, `aws`, and durable/brokered workers each need their extra installed.
 - **REST has no authentication in v0.1.** The namespace comes from the `X-Memspine-Namespace` header verbatim — binding caller → namespace is the deployer's job (ADR-017/018). REST writes are forced onto the low-trust `rest` channel.

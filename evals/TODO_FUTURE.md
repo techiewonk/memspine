@@ -1,4 +1,6 @@
-# Future work (not scheduled)
+# Historical evaluation research notes
+
+Current task status is maintained only in [the shared register](../docs/PROVIDER_TODO.md). These dated observations are not a second task tracker; active evaluation migration remains PA-107 and deferred unless explicitly selected.
 
 - **word2vec + BM25 retrieval** (raised 2026-10-09): IMPLEMENTED 2026-10-10 as `read.word_vector_leg`
   (model2vec `minishlab/potion-retrieval-32M` by default, or gensim word2vec via `read.word_vector_provider: word2vec`

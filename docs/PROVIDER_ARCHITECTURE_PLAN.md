@@ -1,5 +1,25 @@
 # Provider architecture: consolidated review specification
 
+> Multi-model update (ADR-075): named `models.profiles` and `models.bindings`
+> select native LLM/GLiNER providers per task. The single `models.gliner` field
+> is removed without an alias. Resource sharing does not force one model on all
+> roles. Optional `models.escalation` provides bounded per-chat failure/format
+> escalation, with each candidate's consent gate and actual attempt accounting.
+> See [current contracts and example](MULTI_MODEL_PROFILES.md) and
+> [ADR-075](adr/ADR-075-named-model-profiles-and-escalation.md).
+
+> Durable orchestration update (ADR-071): the active DBOS runner, dependency,
+> selector and old system-database field are removed. Use `workers.runner: temporal`
+> with typed `workers.temporal` and `workers.resonate` settings. The maintenance
+> runner combines external Temporal with embedded Resonate and an application-owned
+> SQLite step journal. [Operations](TEMPORAL_RESONATE_OPERATIONS.md) and
+> [verified scope](provider_verification/temporal-runtime-final-state.json).
+
+
+Track implementation evidence and next work packages in the
+[125-item status tracker](PROVIDER_TODO.md). Proposed follow-ups are distinct
+from confirmed defects and deployment prerequisites.
+
 **Date:** 2026-10-17. **Status:** agreed provider implementation and follow-up code are recorded locally. Q1–Q35 and subsequent scope decisions are reflected in code and documentation. See [final verification](provider_verification/README.md), including the investigated startup regressions and actual deployment prerequisites. No push or production migration has been performed. This specification replaces the accumulated draft/question transcript.
 
 **Scope:** centralized registry and catalog; provider construction/lifecycle for SQL, vector, graph, lexical, cache, LLM, embedding and reranking; breaking config migration; direct Neo4j primary graph support; service-wide controlled changes with category-specific strategies. OpenSearch lexical, Weaviate lexical/vector and pgvector vector were added by the follow-up authorization in ADR-069. Guard-backed cleanup recovery and the typed HTTP service-change execution adapter are implemented; actual production controller/access integration remains deployment-specific.

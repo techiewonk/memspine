@@ -14,7 +14,7 @@
 |---|---|---|
 | D-01 | Name / facade | `memspine`, entry class `Engine` |
 | D-02 | Python | 3.13 floor |
-| D-03 | Packaging | slim core + extras: `pip install memspine[graph,rest,aws,dbos,taskiq]` — **LanceDB in core** (ADR-021; no `[lance]` extra) |
+| D-03 | Packaging | slim core + extras: `pip install memspine[graph,rest,aws,temporal,taskiq]` — **LanceDB in core** (ADR-021; no `[lance]` extra) |
 | D-04 | Tooling | uv, ruff, pytest, mkdocs-material |
 | D-05 | `clients/` meaning | service clients (LLM, AWS) with settings — not the user API |
 | D-06 | Protocols | REST only in v1; layout reserves WS/gRPC/MCP |
@@ -27,7 +27,7 @@
 | D-13 | Memory deps | C1(b): auto-enable dependencies with logged notice |
 | D-14 | Combination granularity | v0.1 per-instance type enablement + per-namespace *policy* overrides; per-namespace *type* enablement reserved for v0.2 (config key reserved now) |
 | D-15 | Custom memory types | registry internal-only v1; interfaces written plugin-ready |
-| D-16 | Background execution | `TaskRunner` seam with three runners: `inline` / **`dbos`** (blessed worker; real per-invocation checkpointing via `@DBOS.workflow` + `DBOS.launch()` auto-recovery; SQLite system-db default, Postgres via `workers.dbos_system_database_url` override, verified against dbos 2.26 — see ADR-005 update) / `taskiq` (Valkey-Streams & other brokers; durable work-marker + claim-recovery, not step-checkpointed) |
+| D-16 | Background execution | `TaskRunner` seam: `inline` default; `temporal` external macro-orchestration + embedded Resonate with application-owned SQLite journal; `taskiq` brokered. DBOS removed with no aliases (ADR-071). |
 | D-17 | Anti-lock-in rule | pipelines are plain idempotent step functions; runners decorate them |
 | D-18 | Dead-letter severity | consolidation = warning; M7 hard-delete cascade = alert |
 | D-19 | Evals | repo root, not in `src/`; hardening deferred |
@@ -103,6 +103,15 @@
 | **D-89** | **Per-user isolation (I1–I9) and Graphiti/SimpleMem gaps (G-1..G-22, GR-14/15, C2/C6/C7)** | Accepted, ADR-065. Namespace index, per-read snapshot, per-namespace vector tables, indexed sessions, session/role/type/tag filters, ledger_id; edge end times, cross-key contradictions, dated event identity, turn mentions, ontology, hints, MMR, focal entity, view-tag leg, completeness rounds, structured summaries, brief(), gist assembly, graph template, balanced rerank pool. All off/unchanged by default. |
 | **D-90** | **Configurable provider contracts and controlled changes** | Accepted, [ADR-068](adr/ADR-068-provider-contracts-and-controlled-changes.md), Q1–Q35 in the provider plan. One descriptor registry per category (storage, cache, lexical, vector, graph, embedding, LLM, reranker), strict nested settings, engine-local lifecycle/SQL access, explicit deadlines and durable ownership. Breaking migration: no old keys, aliases, retirement maps or registry re-exports. Projection changes require verified replay, erasure and scoped activation/cleanup; remote adapters require real-backend evidence. |
 | **D-91** | **Remote search adapters and explicit fence recovery** | Accepted, [ADR-069](adr/ADR-069-remote-providers-and-explicit-recovery.md). OpenSearch lexical, Weaviate lexical/vector and pgvector vector use the same descriptors. Guard-issued quiescence proof plus audited CAS enables crash-held cleanup-fence recovery. HTTP execution adapter requires a real deployment controller; readiness alone never claims complete production validation. |
+| **D-92** | **Current compatible Python 3.13 dependencies** | Accepted, [ADR-070](adr/ADR-070-python313-dependency-refresh.md). Refresh stable releases and direct minimums, retain explicit compatibility caps, remove unused DeepEval/Click override, validate in an isolated 3.13 environment and install the committed lock in CI. Metadata support is distinct from native/model runtime proof. |
+| **D-93** | **Temporal + embedded Resonate** | Accepted, [ADR-071](adr/ADR-071-temporal-resonate-orchestration.md). Remove DBOS from active code, dependencies and config; external Temporal Workflows coordinate local Resonate Activities with an application-owned SQLite step journal. No aliases or history conversion; local volume recovery is deployment-specific. |
+| **D-94** | **Source-cited GLiNER structured candidates** | Accepted bounded adapter, [ADR-072](adr/ADR-072-gliner-structured-candidates.md). Explicit caller-owned model and strict task schemas return source-cited candidates only; no new ingestion path, automatic activation or assertion persistence. Canonical grounding/integration remain required; shared lifecycle and loader-policy integration stay separate gates. |
+| **D-95** | **Measured output-identical SimHash kernel** | Accepted, [ADR-073](adr/ADR-073-measured-simhash-kernel.md). Chunked NumPy votes above the measured crossover preserve exact signed-64 xxh64 sketches; short inputs retain Python voting. No new dependency, hash identity or provider setting. Measurements and parity tests are kernel-only; JSON alternatives keep existing behavior where guarded replacement is slower. |
+| **D-96** | **Bounded ranking and shared GLiNER ownership** | Accepted, [ADR-074](adr/ADR-074-bounded-ranking-and-shared-gliner.md). Exact optional RRF prefixes only at fixed-prefix graph seed callers; full router ranking preserved. One lazy Engine-owned model pool shares weights across decision, semantic and prepass under strict `models.gliner` settings, bounded calls and drained shutdown. No `decision.model` alias, global cache or new ingestion path. Focused correctness checks and kernel-only measurements. |
+| **D-97** | **Named model profiles and explicit escalation** | Accepted, [ADR-075](adr/ADR-075-named-model-profiles-and-escalation.md). `models.profiles` and task bindings allow different GLiNER/LLM models per role while identical configurations share resources. Supersedes D-96's single `models.gliner` field without an alias. Explicit bounded opt-in generative escalation; per-candidate consent gates and per-attempt accounting. Production acceptance is separate from development completion. |
+| **D-98** | **Source-bound GLiNER mention ingestion** | Accepted, [ADR-076](adr/ADR-076-grounded-gliner-mention-ingestion.md). Exact validated spans retain confidence and authoritative message/sender provenance as unasserted annotations. Mention presence does not create fact keys or bypass window assertion grounding. Canonical record events and assertion envelopes retain annotations; real offline message/window acceptance is checked separately. |
+| **D-99** | **Raw-first background grounded ingestion** | Accepted policy, [ADR-077](adr/ADR-077-background-grounded-ingestion.md). One canonical gateway; recoverable raw source plus durable background grounded facts/annotations; graph mention occurrences remain unasserted; lossless raw encoding and separate summaries. Implementation BI-01..12 is planned, not enabled. |
+| **D-100** | **Engineering-first evidence-bound context enrichment** | Accepted E1/R1/T1 policies, [ADR-078](adr/ADR-078-engineering-first-context-enrichment.md): explicit identity/aliases; supported dated residence changes with multiple homes; source-local precision and evidence-known time. E2/C1/L1 follow-up: unique evidence-bound references, targeted corrections with history, bounded automatic retrospective linking. Schema Q-S1..5 accepted B/B/A/A/B: coordinated replacement, aware-only resolved time, typed values, explicit domain events, persisted excerpts/cascade erasure. [Target contracts](ENRICHMENT_SCHEMA_CONTRACTS.md); owner selected 4K evidence tokens, [operating defaults](ENRICHMENT_OPERATING_POLICY.md) accepted O1..O4 A/A/A/A, unmeasured; runtime implementation remains planned. |
 
 **Anti-decisions (recorded):** litellm as *core* LLM layer — rejected (adapter only, D-33) · sqlmodel for storage — rejected (D-36 uses SQLAlchemy Core) · celery/apscheduler workers — rejected (D-16) · baml — rejected for instructor (D-31) · **jieba/CJK — dropped (D-34)** · **nltk in core — rejected** (heavy corpora downloads; Tantivy/FTS5 tokenizers suffice) · **igraph — rejected** (networkx is the pure-Python default; graspologic covers the community-detection need, D-40) · **dydantic — deferred** (only a transitive of langmem/trustcall; revisit for D-15 dynamic custom-type schemas) · **soundfile/librosa — deferred** to a future `[audio]` multimodal extra (SimpleMem-Omni-only) · **mmh3 / rake-nltk — not needed** (xxhash covers hashing; keyword tags come from NER/LLM).
 
@@ -229,7 +238,7 @@ memspine/
 │   ├── workers/                    # ── BACKGROUND EXECUTION (D-16/17) ──
 │   │   ├── pipelines.py            # ★ ANTI-LOCK-IN CORE: consolidation, decay sweep, compression
 │   │   │                           #   (zstandard cold-tier D-32), tier transitions, hard-delete cascade
-│   │   ├── runner.py · inline.py (DEFAULT) · dbos_runner.py [dbos] · taskiq_runner.py [taskiq] · schedule.py
+│   │   ├── runner.py · inline.py (DEFAULT) · temporal_runner.py [temporal] · temporal_workflow.py · step_journal.py · taskiq_runner.py [taskiq] · schedule.py
 │   │
 │   ├── config/
 │   │   ├── schema.py               # pydantic-settings tree; namespaces.<ns>.memories RESERVED (D-14)
@@ -286,7 +295,7 @@ memspine/
 | `compress` | llmlingua | E5 assembly-time context compression |
 | `rerank` | **flashrank** ★NEW | E8 cross-encoder rerank alternative (D-51/ADR-017); fastembed's `TextCrossEncoder` rides the core dep where the installed version ships it, so this extra exists only for the flashrank fallback (upgrade fastembed otherwise) |
 | `static` | **model2vec** ★NEW | E4 static-embedding prefilter (D-54/ADR-020): cheap CPU static embeddings narrow candidates before the real embedder + float32 rescore; opt-in, default off |
-| `dbos` | dbos | durable worker runner |
+| `temporal` | temporalio + resonate-sdk | external Temporal + embedded Resonate, application-owned local SQLite journal |
 | `taskiq` | taskiq, taskiq-redis | broker runner (Valkey Streams) |
 | `rest` | fastapi, uvicorn | REST protocol |
 | `aws` | boto3 | Bedrock LLM/embeddings + Secrets Manager |
@@ -294,7 +303,7 @@ memspine/
 | `all` | everything above | kitchen sink / CI |
 
 Notes: **zstandard** (D-32) and **datasketch** (D-27) are small pure-ish wheels → folded into **core**. **deepeval** (D-35) and **fakeredis** (D-41) live in `evals/`/dev deps, never in the wheel. **orjson/xxhash/fastuuid** (D-37/38) are tiny compiled wheels → core.
-Convenience bundles: `memspine[local]` = graph+lmdb+dbos+ingest+ner; `memspine[prod-aws]` = aws+taskiq+rest.
+Convenience bundles: `memspine[local]` = graph+cache+ingest+ner; `memspine[prod-aws]` = aws+taskiq+rest.
 
 ## 3. Memory dependency graph (drives C1(b) auto-enable)
 
@@ -313,7 +322,7 @@ resource ──(none)                consolidation pipeline ──needs──> e
 2. **Validate combination**: dependency closure (C1b), reserved-key rejection, policy value bounds; **resolve the prompt pack** (defaults → template → user overrides, D-43) and verify every enabled role has an active prompt + output_model.
 3. **Construct services** from manifests; unmet `required_services` → `MissingServiceError` naming the extra (D-10), unless `strict_services: false`.
 4. **Open the write door**: event log in WAL mode; register projectors for enabled memories.
-5. **Start runner** (inline default; dbos/taskiq per config); register `schedule.py` sleep cycle.
+5. **Start runner** (inline default; temporal/taskiq per config); register `schedule.py` sleep cycle.
 6. **Catch-up**: projectors replay from high-water marks.
 7. `engine.describe()` returns the effective world.
 
@@ -324,7 +333,7 @@ resource ──(none)                consolidation pipeline ──needs──> e
 | 0 Substrate | core/* (all), config/*, services/base + **storage/sqlite (SQLAlchemy Core + Alembic, D-36; async engine via aiosqlite, D-44)** + secrets, observability/logging, cli config commands, ADR-001..011 — incl. E1 columns + ★minhash/simhash + **xxhash fingerprint + fastuuid id + orjson payloads (D-37/38)**, ★MemOS provenance/lifecycle fields (`status`/`version`/`history`/`evolve_to`/`source`, D-42), **json-repair in core** (D-31), **★D-45 configurable event-log retention (full/rolling/ephemeral + zstd payload compression)** |
 | 1 Working + retrieval | memories/working/*, services/llm (**local: Ollama/vLLM/LM Studio/OpenAI-compat + llama_cpp `[llmlocal]`, D-39**) + embedding+vector+cache defaults, policies/scoring+assembly (E2), workers/inline, E3 embedding cache, examples/01–02 |
 | 2 Semantic | memories/semantic/*, policies/conflict+dedup **(★datasketch D-27)**, entity resolution **(★gliner2 D-28, `[ner]`)**, **★prompts/ subsystem: registry+loader+defaults pack, extract/judge/dedupe YAML prompts, config-layered overrides (D-43)**, E9 YAML/CoD format, **★instructor `[structured]` D-31** |
-| 3 Episodic + lifecycle | memories/episodic/*, policies/consolidation+decay+compression **(★zstandard cold-tier D-32)**, workers/pipelines+dbos_runner+schedule, resource ingest **(★markitdown+chonkie `[ingest]` D-29)**, E3 extraction cache, E7 hook |
+| 3 Episodic + lifecycle | memories/episodic/*, policies/consolidation+decay+compression **(★zstandard cold-tier D-32)**, workers/pipelines+temporal_runner+schedule, resource ingest **(★markitdown+chonkie `[ingest]` D-29)**, E3 extraction cache, E7 hook |
 | 4 Governance + Firewall | M7 delete hooks, cli forget --verify, memories/resource/*, E1 full Memory Firewall, example 03 |
 | 5 Procedural + reflective | memories/procedural/*, memories/reflective/*, E6 plan-skill subtype |
 | 6 Associative | memories/associative/*, services/graph/sqlite_adjacency **(v0.1 default — D-26 amended by D-49)** + **★services/graph/kuzu `[kuzu]` alt** + **★services/graph/ladybug `[graph]` real adapter (published 2026-07-01, wired 2026-07-09)**, **★associative/communities.py leidenalg `[community]` (D-40/ADR-028)** + background reorganizer (D-42), E4 two-stage retrieval |
@@ -332,7 +341,7 @@ resource ──(none)                consolidation pipeline ──needs──> e
 
 ## 6. Combination test matrix (C6, v0.1 scope)
 
-5 templates + 9 single-type minimal configs + 1 kitchen-sink = **15 boots**, each asserting clean startup, one write→read round-trip per enabled type, clean shutdown, `describe()` schema. Plus `config validate` golden tests (dep auto-enable, missing-service hard-fail, reserved-key rejection, `extends` cycles) and runner tests (dbos crash-resume, inline flush-on-exit, dead-letter severity). ★NEW: graph-adapter parity suite (`tests/unit/services/graph/test_parity.py`: ladybug and sqlite_adjacency against one reference BFS; random, hub, tombstones, multi-namespace, forget cascade, rebuild equality), dedup two-stage test (D-27), ingest smoke on docx/pdf/pptx (D-29).
+5 templates + 9 single-type minimal configs + 1 kitchen-sink = **15 boots**, each asserting clean startup, one write→read round-trip per enabled type, clean shutdown, `describe()` schema. Plus `config validate` golden tests (dep auto-enable, missing-service hard-fail, reserved-key rejection, `extends` cycles) and runner tests (Temporal retry + journal crash/reopen, inline flush-on-exit, dead-letter severity). ★NEW: graph-adapter parity suite (`tests/unit/services/graph/test_parity.py`: ladybug and sqlite_adjacency against one reference BFS; random, hub, tombstones, multi-namespace, forget cascade, rebuild equality), dedup two-stage test (D-27), ingest smoke on docx/pdf/pptx (D-29).
 
 ## 7. Deliberate non-goals for v0.1
 

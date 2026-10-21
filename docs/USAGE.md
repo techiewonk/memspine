@@ -26,7 +26,7 @@ just check        # ruff + mypy --strict + pytest
 
 Common extras: `graph` (LadybugDB), `ingest` (markitdown+chonkie), `ner` (gliner2),
 `compress` (llmlingua, E5), `rerank` (flashrank, E8),
-`community` (graspologic-native), `rest` (FastAPI), no extra for the MCP server or the agent tools (stdlib only), `dbos`/`taskiq` (durable/brokered workers). See the
+`community` (graspologic-native), `rest` (FastAPI), no extra for the MCP server or the agent tools (stdlib only), `temporal`/`taskiq` (external Temporal + embedded Resonate / brokered workers). See the
 [README extras table](../README.md#-install--extras) for the full set.
 
 > A feature that needs a missing extra raises `MissingServiceError` naming the
@@ -611,7 +611,7 @@ Every connection (and the schema migration) is opened through SQLCipher and keye
 from `$MEMSPINE_DB_KEY`; a wrong key fails `start()`, and a
 missing driver with `MissingServiceError` naming `[encrypt]`. Only the SQLite file is
 encrypted: LanceDB vectors, the Tantivy lexical index (it holds record text), disk
-caches and a DBOS system database are separate files; protect them with volume
+caches and the application-owned Resonate step journal are separate files; protect them with volume
 encryption (ADR-035). A lost key is a lost database.
 
 Every store is a port; configuration selects its adapter while the event log remains authoritative. Changing an existing deployment also requires the applicable controlled migration or projection rebuild.
@@ -741,8 +741,7 @@ in the schema — or if the schema gains a key not documented here.
 | `data_shape.language` | `null` | I25: a language code; anything not `en*` selects `non_english` (I23 guard). |
 | `data_shape.speaker_kind` | `unknown` | I25: `named` (-> `named_speakers`) \| `user_assistant` (-> `chat_roles`) \| `single_author` \| `unknown`. |
 | `data_shape.turn_length` | `unknown` | I25: `short` \| `medium` \| `long` (-> `long_turns`) \| `unknown`. Typical (median) characters per turn: <= 300 short, >= 800 long. |
-| `decision.model` | `fastino/gliner2-base-v1` | H24: the GLiNER2 checkpoint (Hugging Face id; `-large-v1` and `-multi-v1` also exist). |
-| `decision.provider` | `off` | H24: optional decision provider for calibrated choices among described options without generation. `gliner2` uses the `[ner]` extra (GLiNER2, Apache-2.0). |
+| `decision.provider` | `off` | H24: optional decision provider for calibrated choices among described options without generation. `gliner2` uses the `[ner]` extra (GLiNER2, Apache-2.0); bind `gliner_decision` to a GLiNER profile in `models.bindings`. |
 | `economy.budget` | `null` | W2-12 (W-26 D, P-22 C; needs `economy.ledger_v2` and `workers.outbox`): optional spend limit per namespace. When spent, window extraction pauses and the windows are parked in the outbox marked underived (never dropped); `Engine.resume_deferred(namespace)` derives them once the budget allows. Sleep stages are paused as one engine-wide pool (`-`), or per namespace under `offline.sleep_scoped`. Sub-keys: `max_calls` (generative calls per namespace per period), `max_tokens` (generative tokens in + out per namespace per period), `period_s` (period length in seconds; spend resets when it rolls; `null` = one period for the run). Tap: `economy.budget`. |
 | `economy.ledger_persist` | `false` | FU-SLEEP (needs `economy.ledger_v2`). `true`: every ledger entry is also kept as a compact row (ids, namespace hash, layer, stage, kind, calls, tokens, latency; no names, no content) in a sibling SQLite file of the storage database (`<storage.settings.path>.cost`; with Postgres `<storage.settings.data_dir>/memspine.cost`), buffered and written in batches, and the totals are reloaded at start, so `cost_report` survives a restart. A reloaded row carries only the namespace hash: `cost_report(namespace)` matches it by hash and `by_namespace` names it once the namespace is seen again. Budget spend is not reloaded (it is per period). `:memory:` storage: not persisted (a warning is logged). `false`: in-process only. |
 | `economy.ledger_v2` | `false` | W2-12 (W-26, P-22 C, LIB-27): count model calls, tokens in/out, latency and embed calls of every write, per layer, per namespace and per stage (`window_extract`, each sleep stage). Read with `Engine.cost_report(namespace)` or `Memory.cost_report()`. `false` records nothing and changes nothing. Tap: `economy.cost`. |
@@ -830,6 +829,10 @@ in the schema — or if the schema gains a key not documented here.
 | `models.embedder_profile` | `auto` | MD-01. `auto`/`cpu`/`gpu`: the GPU instruction embedder is chosen only when it lands on a GPU, else the CPU default. |
 | `models.gpu_headroom_mb` | `512` | MD-01. VRAM kept free on every GPU. |
 | `models.gpus` | `[]` | MD-01. Declared CUDA devices (`name`, `vram_mb`); empty = CPU only. A non-NVIDIA name (AMD, Intel, DirectML) is ignored: MD-03 measured the iGPU 5-8x slower than the CPU. |
+| `models.bindings` | `{}` | Consumer role -> named provider profile. Active GLiNER consumers require explicit bindings: `gliner_decision`, `gliner_semantic`, and `gliner_prepass`. |
+| `models.escalation` | `{}` | Opt-in per-role LLM profile ladder. Fields: `targets`, `triggers` (`error`, `empty`, `invalid_json`), `max_attempts`, required positive `timeout_s`, required positive `max_tokens_per_attempt`. Limits apply per routed chat invocation; profile/caller output limits remain in force. Every candidate retains consent gates; cancellation propagates. See [multi-model guide](MULTI_MODEL_PROFILES.md). |
+| `models.gliner_max_models` | `1` | Maximum simultaneously loaded GLiNER checkpoints owned by this Engine. Raise it when distinct active profiles must stay resident together; idle entries can be evicted. |
+| `models.profiles` | `{}` | Named provider profiles with `kind`, `provider`, and native `settings`. GLiNER profile settings are strict: `model` (`fastino/gliner2.5-base-v1`), `revision` (`null`), `device` (`cpu` or `cuda`), `local_files_only` (`true`), `tasks` (for example `[entities, classification]`), and `inference_concurrency` (`1`). Different profile names with identical settings share one model. |
 | `models.on_missing_model` | `error` | MD-01 (P-03). `error` fails start for a required role with no model; `rules`/`skip` record the role's fallback (rules or skip, as the role defines) and carry on. |
 | `models.pins` | `{}` | MD-01. Catalogue role -> declared model id (wins over tier choice; a hosted pin on a local-only role is an error). |
 | `models.ram_mb` | `0` | MD-01. Host RAM budget for CPU placement; 0 = not checked. |
@@ -837,7 +840,7 @@ in the schema — or if the schema gains a key not documented here.
 | `models.rerank` | `chain` | MD-01. `off` leaves reranking out of the plan (results unscored). |
 | `models.role_tier` | `{}` | MD-01. Catalogue role -> tier name. `none` turns the role off (the no-model path); another name picks the smallest declared model at that tier or above. Roles: `extract`, `extract_edges`, `summarize`, `call2`, `resolve`, `dedupe`, `sufficiency`, `query_rewrite`, `relevance`, `chat`, `verify`, `judge`, `reflect`, `plan`. |
 | `models.thinking` | `{}` | MD-01 (P-15). Catalogue role -> capped thinking budget in tokens. Honoured only for `judge` and `reflect` on a model declared `supports_thinking`; every other role stays thinking off. Screen before enabling (paired conflict cases, truncations counted). |
-| `models.tiers_v2` | `false` | MD-01 (P-01, P-02, P-03, P-15, P-19). Roles with no `llm.roles` entry resolve through tier, placement and fallback (`memspine.models.resolve`); a role no model serves gets no provider and makes zero model calls. Off = roles resolve from `llm.roles` exactly as before. Taps: `models.resolve`, `models.placement`, `models.rerank_chain`. `describe()["models"]` holds the plan. |
+| `models.tiers_v2` | `false` | MD-01 (P-01, P-02, P-03, P-15, P-19). Roles with no explicit `llm.roles` or `models.bindings` entry resolve through tier, placement and fallback; explicit bindings win. A role no model serves gets no provider. Off leaves named/inline bindings active. Taps: `models.resolve`, `models.placement`, `models.rerank_chain`. `describe()["models"]` holds the plan. |
 | `namespaces.*.policies` | `{}` | Per-namespace policy overrides (D-14). |
 | `observability.inspect` | `false` | TI-1 (Trace Inspector): extra wiretap events that follow one turn or question through every stage: `store.index.record` (vector / lexical / graph membership per record), `write.turn.bound`, `write.window.members` (also skipped and failed windows), `write.extract.io`, `write.envelope.trace` (per envelope per stage, `occ -> rid` at deposit), `write.integrate.ladder`, `write.edges.pending` / `.consumed`, `job.stage.item` (per output of each sleep stage), `compose.headers`, `read.rerank.components`, `read.planner.io`, `read.retrieve.writeback`, and outbox prepare / commit inside a `job` request. Also enables `inspect_scope(**keys)` (`memspine.observability.inspect`): keys such as `run_id`, `item`, `turn_id`, `query_id` and `window_id` are merged into every tap event emitted inside the scope. Needs the wiretap: `Engine.start()` switches it on with the configured sink (default `jsonl`) when `observability.tap.enabled` is off. Off: no event is built, no scope key is set, behaviour and goldens are unchanged. See `docs/v2/TRACE_INSPECTOR_PLAN.md`. |
 | `observability.inspect_content` | `false` | TI-1: with `observability.inspect` on, also keep text payloads in the inspect events (rendered extraction prompt, raw reply, parsed sections, index text, envelope text, header text, planner input / output, ladder entity and attribute), truncated at 20000 characters and redacted by the tap. Switches the tap content opt-in on. Off: ids, hashes, counts and decisions only. Keep it off outside local debugging. |
@@ -1256,9 +1259,9 @@ in the schema — or if the schema gains a key not documented here.
 | `vector.provider` | — | Provider and policy fields are validated by their typed configuration schema. |
 | `vector.settings` | — | Provider and policy fields are validated by their typed configuration schema. |
 | `workers.broker_url` | `redis://localhost:6379/0` | taskiq broker endpoint (ignored by other runners). |
-| `workers.dbos_system_database_url` | `null` | DBOS system db; `null` derives a SQLite file beside `storage.settings.path`. |
+| `workers.resonate.journal_path` | `./memspine-resonate.sqlite` | Application-owned SQLite step-result journal on a persistent local volume. |
 | `workers.outbox` | `false` | F-04: durable outbox. Window jobs are rows first, an inline runner drains them after each write and at start, a stop keeps unfinished jobs; model calls run outside namespace locks. `false` keeps the in-memory queue. |
-| `workers.runner` | `inline` | `inline` \| `dbos` `[dbos]` \| `taskiq` `[taskiq]` (D-16). |
+| `workers.runner` | `inline` | `inline` \| `temporal` `[temporal]` \| `taskiq` `[taskiq]` (ADR-071). |
 | `workers.sleep_interval_seconds` | `null` | D1: when set (seconds), the engine runs the full sleep cycle on that interval autonomously; `null` keeps v0.1 behavior (cycle runs only on `Engine.sleep()`). |
 | `workers.transport` | `"inline"` | RT-01 (G-19, W-13): `"taskiq"` (with `workers.outbox` on) also sends each enqueued outbox job id over a taskiq broker and re-sends every unfinished row (queued, or lease expired) at start. The message carries only the id; the outbox stays the truth. `"inline"` is unchanged. Tap: `runtime.transport.*`. |
 | `workers.transport_broker` | `"memory"` | RT-01: broker for `workers.transport="taskiq"`. `"memory"`: taskiq `InMemoryBroker`, drained in this process (library mode). `"redis"`: Redis stream on `workers.broker_url` (needs `memspine[taskiq]`); this process only enqueues, and `python -m memspine.runtime.worker` drains. |

@@ -2,10 +2,32 @@
 
 The blueprint and evidence base for the engine. **The structure plan is authoritative;** if any doc disagrees with it, the plan wins.
 
+## Current work and context
+
+[PROVIDER_TODO.md](PROVIDER_TODO.md) is the **only live task/status register** for Claude, Codex and maintainers. [Claude context](CLAUDE_CONTEXT_AND_TRACKER_2026-10-20.md) and [deep review](DEEP_SCAN_REVIEW_2026-10-21.md) supply rationale/evidence, not separate editable task lists.
+
 ## Using memspine
+
+[Engine performance alternatives](ENGINE_PERFORMANCE_AUDIT.md) maps existing fast libraries, measured candidates and adoption rules.
+
+See the [follow-up delivery standard](PROVIDER_DELIVERY_STANDARD.md) and [all selected proposed items](PROVIDER_PROPOSED_DELIVERY.md) for implementation evidence and remaining gates.
 
 | Doc | What it is |
 |-----|------------|
+| [`TEMPORAL_RESONATE_OPERATIONS.md`](./TEMPORAL_RESONATE_OPERATIONS.md) | Current durable runner setup, configuration defaults, retry/journal semantics and deployment requirements. |
+| [`TEMPORAL_RESONATE_CHANGE_DIRECTIVE.md`](./TEMPORAL_RESONATE_CHANGE_DIRECTIVE.md) | Temporal + embedded Resonate directive: local/server boundaries, application journal, migration gates and reference example. |
+| [`GLINER25_LOCAL_RESULTS.md`](./GLINER25_LOCAL_RESULTS.md) | Real Python 3.13 Base/Small inference, fixed synthetic comparison and measured limits. |
+| [`GLINER25_STRUCTURED_EXTRACTION.md`](./GLINER25_STRUCTURED_EXTRACTION.md) | Typed source-cited record/relation candidates; explicit model ownership and canonical grounding boundary. |
+| [`PROVIDER_PERFORMANCE_FOLLOWUP.md`](./PROVIDER_PERFORMANCE_FOLLOWUP.md) | Config/import/serialization/scaling measurements and disposable remote-service timing. |
+| [`GLINER25_INGESTION_PLAN.md`](./GLINER25_INGESTION_PLAN.md) | GLiNER2.5 source-backed feasibility, checkpoint choices, ingestion gaps and focused adoption plan. |
+| [`PYTHON313_DEPENDENCIES.md`](./PYTHON313_DEPENDENCIES.md) | Current dependency audit, Python 3.13 checks, deliberate compatibility caps and repeatable upgrade commands. |
+| [`MEMORY_TYPE_PROVIDER_MATRIX.md`](./MEMORY_TYPE_PROVIDER_MATRIX.md) | Source-backed nine-type provider requirements and remaining behavioral acceptance coverage. |
+| [`MEMORY_LIFECYCLE_DEBUGGING.md`](./MEMORY_LIFECYCLE_DEBUGGING.md) | One persisted synthetic message through ingest, derive, offline and retrieval; debugger breakpoints and evidence. |
+| [`PROVIDER_UPGRADE_GUIDE.md`](./PROVIDER_UPGRADE_GUIDE.md) | Current breaking configuration schema and validated examples, without compatibility aliases. |
+| [`PROVIDER_PLUGIN_EXAMPLE.md`](./PROVIDER_PLUGIN_EXAMPLE.md) | Installed third-party provider wheel, strict contract/pin checks and owned lifecycle. |
+| [`PROVIDER_PLATFORM_MATRIX.md`](./PROVIDER_PLATFORM_MATRIX.md) | Observed platform/install coverage, configured CI and explicit untested combinations. |
+| [`PROVIDER_CI_COVERAGE.md`](./PROVIDER_CI_COVERAGE.md) | Existing gates and the manually dispatched disposable native-provider gate. |
+| [`PROVIDER_TODO.md`](./PROVIDER_TODO.md) | 125-item provider tracker: status, priority, dependencies, completion criteria, evidence and proposed memory-type coverage. |
 | [`PROVIDER_ARCHITECTURE_PLAN.md`](./PROVIDER_ARCHITECTURE_PLAN.md) | Provider decisions, typed contracts, controlled changes, lexical/vector extension design and verification gates. |
 | [`PROVIDER_OPERATIONS.md`](./PROVIDER_OPERATIONS.md) | Current provider settings, runtime inspection, explicit change-control API, generation restart rules and verification limits. |
 | [`PROVIDER_DEFAULTS.md`](./PROVIDER_DEFAULTS.md) | Generated defaults and required fields for every registered provider; includes embedding dimensions and LLM generation settings. |

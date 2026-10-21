@@ -2092,7 +2092,7 @@ _ENGINE = "src/memspine/engine.py"
 _RT = _src(
     "runtime/**",
     "ingest/commit.py",
-    "workers/{inline,runner,scheduler,schedule,dbos_runner,taskiq_runner}.py",
+    "workers/{inline,runner,scheduler,schedule,temporal_runner,temporal_workflow,step_journal,taskiq_runner}.py",
 )
 _F02 = _src(
     "store/{envelope,layers}.py",

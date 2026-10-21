@@ -1,3 +1,5 @@
+> Current task status is maintained only in [../PROVIDER_TODO.md](../PROVIDER_TODO.md). This dated review brief and v2 package manifests are historical design context.
+
 # Deep review request: MemSpine restructure plan (2026-10-13)
 
 You are asked for an independent deep review of the plan to restructure MemSpine. Read the files below in order, check
@@ -16,7 +18,7 @@ Do not change code. Never quote benchmark dataset text; use invented names.
 | 6 | `docs/v2/PLAN.md` (generated from `docs/v2/data/packages.py`) | 109 work packages: layers, operators, dependencies, kind, agent lane, gate, status |
 | 7 | `docs/v2/EXECUTION.md`, `docs/v2/briefs/TEMPLATE.md` | How Sonnet agents execute packages (integration branch, review gates, up to 8 agents) |
 | 8 | `docs/v2/DECISIONS.md`, `docs/v2/areas/*.md`, `docs/v2/data/*.json` | All 155 decisions, per-area verification, owner follow-ups |
-| - | `docs/v2/tracker.html` | Offline copy of the live tracker (open in a browser; notes stay in that browser) |
+| - | `docs/v2/tracker.html` | Read-only generated view of docs/PROVIDER_TODO.md; no independent browser notes/statuses |
 
 ## Questions for the review
 

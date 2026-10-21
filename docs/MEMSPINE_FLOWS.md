@@ -49,7 +49,7 @@ flowchart TB
     ASM["θ-abstain → MMR → E5 fit → E2 cache-aware placement"]
   end
 
-  subgraph Sleep["Sleep cycle — runner: inline / DBOS / taskiq (D-16)"]
+  subgraph Sleep["Sleep cycle — runner: inline / Temporal+Resonate / taskiq (D-16)"]
     PL["consolidate · decay_sweep · compress<br/>reorganize (Leiden) · extract_graph · check_watches · prune"]
   end
 

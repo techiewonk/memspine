@@ -272,7 +272,7 @@ truth. Startup selects the configured adapter; existing data needs a controlled 
 | LLM (per role) | `llm.roles.<role>.provider` and `.settings` | Explicit `litellm` or `llamacpp` adapter; model ID and applicable timeout belong in settings. Plugins may register other adapters. |
 | Reranker | `read.rerank` and `read.rerank_settings` | Selected registered adapter or explicit chain policy; shares provider validation and lifecycle. |
 | Secrets | `MEMSPINE_SECRETS_BACKEND` *(env var)* | `env` (default) · `aws` `[aws]` (ADR-023) |
-| Workers | `workers.runner` | `inline` (default) · `dbos` `[dbos]` · `taskiq` `[taskiq]` |
+| Workers | `workers.runner` | `inline` (default) · `temporal` `[temporal]` · `taskiq` `[taskiq]` |
 
 The full key-by-key reference (defaults + notes) is in
 [`USAGE.md` § Config-key reference](./USAGE.md#config-key-reference); swap recipes

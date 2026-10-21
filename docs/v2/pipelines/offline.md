@@ -661,7 +661,7 @@ Every stage returns a `StageReport`.
 | 4 | Idle reached but K not met | Re-armed for `last_run_at + K`; no job | 1 | to add |
 | 5 | Manual `sleep()` while an idle-triggered job holds the lease | Never two jobs on one namespace; manual coalesces onto the pending follow-up handle; `handle.wait()` blocks (OF-1) | 2 | to add (concurrency) |
 | 6 | Two processes on one SQLite file (REST host + CLI) | Lease row arbitrates; second process skips the namespace | 2 | `tests/integration/test_concurrent_engines.py` (extend) |
-| 7 | Holder process killed mid-stage | Lease expires; E8 reclaims; resumes from the last committed watermark; no duplicate effects | 2, 22 | RV01 to add; `tests/integration/test_dbos_crash_resume.py` pattern |
+| 7 | Holder process killed mid-stage | Lease expires; E8 reclaims; resumes from the last committed watermark; no duplicate effects | 2, 22 | RV01 to add; `tests/integration/test_temporal_resonate_recovery.py` pattern |
 | 8 | Kill after inference, before deposit (call 2) | Outbox row returns to pending; call repeated once; exactly one summary | 3 | RV01 to add |
 | 9 | Kill after partial deposit of S2 batch | Re-run skips existing assertion keys; remaining items deposited | 5 | RV01 to add |
 | 10 | Partial stage failure (one entity summary batch fails) | Stage `partial`, extractive fallback for that batch, other stages run | 12 | `tests/unit/test_entity_summaries.py` |
