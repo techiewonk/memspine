@@ -23,7 +23,11 @@ resolution never runs a model call, and RESTRUCTURE section 4 keeps model calls 
 from __future__ import annotations
 
 import asyncio
+import importlib
+import importlib.util
 import os
+import sys
+import threading
 import uuid
 from collections.abc import AsyncIterator, Awaitable, Callable, Collection, Mapping
 from contextlib import asynccontextmanager
@@ -153,6 +157,7 @@ __all__ = [
     "memory_policy",
     "neo4j_outbox_on",
     "preflight_projection_bindings",
+    "prewarm_provider_imports",
     "request_scope",
     "set_neo4j_executor_factory",
 ]
@@ -173,6 +178,42 @@ def _descriptor(registry: Any, name: str, path: str) -> ProviderDescriptor:
 
 def _settings(descriptor: ProviderDescriptor, raw: Any) -> Any:
     return validate_settings(descriptor, raw if isinstance(raw, Mapping) else {})
+
+
+def prewarm_provider_imports(config: MemspineConfig) -> threading.Thread | None:
+    """PA-046: import the selected providers' declared ``prewarm_modules`` on a daemon
+    thread, so a slow third-party import overlaps the rest of startup.
+
+    Best effort only: an unknown provider, a missing package or an import error is left
+    for the provider build to report through its normal (Missing)ServiceError path.
+    Returns the thread (None when there is nothing to import) for tests.
+    """
+    selected = ((PROVIDER_VECTOR_STORES, config.vector.provider, "vector.provider"),)
+    modules: list[str] = []
+    for registry, name, path in selected:
+        try:
+            descriptor = _descriptor(registry, name, path)
+        except ConfigError:
+            continue
+        modules.extend(
+            module
+            for module in descriptor.prewarm_modules
+            if module not in sys.modules and importlib.util.find_spec(module) is not None
+        )
+    if not modules:
+        return None
+
+    def _import_all() -> None:
+        for module in modules:
+            try:
+                importlib.import_module(module)
+            except Exception:
+                # Best effort: the provider build reports the real import error.
+                return
+
+    thread = threading.Thread(target=_import_all, name="memspine-prewarm", daemon=True)
+    thread.start()
+    return thread
 
 
 def _owner_id(config: MemspineConfig, wiring: Wiring | None = None) -> str:

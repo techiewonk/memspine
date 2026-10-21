@@ -112,5 +112,8 @@ def register() -> None:
                 ),
                 (),
                 LanceDBBuilder(),
+                # PA-046: `import lancedb` is ~1.2 s, mostly its eager lance_namespace
+                # REST-model import; prewarming overlaps it with the rest of startup.
+                prewarm_modules=("lancedb",),
             ),
         )

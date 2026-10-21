@@ -232,6 +232,7 @@ from memspine.runtime.container import (
     memory_policy,
     neo4j_outbox_on,
     preflight_projection_bindings,
+    prewarm_provider_imports,
 )
 from memspine.schemas.durable import AssertionEnvelope, OwnerScope
 from memspine.schemas.durable.erasure import RetentionBoundary
@@ -574,6 +575,7 @@ class Engine:
         )
         self._resolved = await container.get(ResolvedConfig)
         config = self._resolved.config
+        prewarm_provider_imports(config)  # PA-046: overlap slow provider imports with startup
         cleanup_settings = config.runtime.service_switches.projections
         if cleanup_settings.cleanup_interval_s is not None:
             runtime = self._provider_change_runtime

@@ -227,6 +227,10 @@ class ProviderDescriptor:
     projection_settings: Callable[[BaseModel], Mapping[str, JsonValue]] | None = field(
         default=None, kw_only=True
     )
+    #: PA-046: modules that are side-effect free to import before build(). When this
+    #: provider is selected, startup imports them on a background thread so a slow
+    #: third-party import overlaps config/storage work instead of blocking build().
+    prewarm_modules: tuple[str, ...] = field(default=(), kw_only=True)
 
     def __post_init__(self) -> None:
         expected_kind = _CATEGORY_TO_KIND.get(self.ref.category)
@@ -246,6 +250,10 @@ class ProviderDescriptor:
             raise TypeError("target_identity must be callable")
         if self.projection_settings is not None and not callable(self.projection_settings):
             raise TypeError("projection_settings must be callable")
+        if not isinstance(self.prewarm_modules, tuple) or not all(
+            isinstance(name, str) and name and name.strip() == name for name in self.prewarm_modules
+        ):
+            raise TypeError("prewarm_modules must be a tuple of non-empty module names")
 
 
 def provider_target_identity(

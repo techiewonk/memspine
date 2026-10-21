@@ -12,26 +12,26 @@ Keep one row per stable ID. PA IDs preserve the 136-item provider program; BI ID
 | BLOCKED | 1 |
 | DEFERRED | 5 |
 | DEPLOYMENT_CHECK | 19 |
-| DONE | 132 |
+| DONE | 133 |
 | EXCLUDED | 4 |
 | IN_PROGRESS | 28 |
-| NEEDS_INPUT | 4 |
+| NEEDS_INPUT | 3 |
 | NEEDS_TOOLCHAIN | 1 |
 | OPEN | 15 |
 | OPEN_REVIEW | 18 |
 | PLANNED | 11 |
 | PROPOSED | 3 |
-| REVIEW | 6 |
+| REVIEW | 7 |
 
 | Program | Items |
 |---|---:|
 | BI | 12 |
 | DS | 21 |
 | PA | 136 |
-| RM | 69 |
+| RM | 70 |
 | RS | 9 |
 
-Total: **247 unique task IDs**. Provider-only historical denominator stays 136; the combined total also includes BI, DS, RS and imported review suggestions.
+Total: **248 unique task IDs**. Provider-only historical denominator stays 136; the combined total also includes BI, DS, RS and imported review suggestions.
 <!-- CURRENT_SUMMARY_END -->
 
 ## Status and column legend
@@ -112,7 +112,7 @@ its scope is narrower than the prerequisite (say so in the row) or its status is
 | PA-043 | DONE | P2 | Provider maintainer | Test clean installs of each optional remote extra | Recorded local gate: OpenSearch, Weaviate and Postgres extras install independently. [Independent extra installs](provider_verification/installed-wheel-checks.json) | Completed for recorded scope; revalidate affected gates on change | PA-042 |
 | PA-044 | DONE | P2 | Provider maintainer | Review the supported Python/OS/dependency test matrix | Recorded local gate: A documented matrix identifies tested and untested combinations. [Platform matrix](PROVIDER_PLATFORM_MATRIX.md) | Completed for recorded scope; revalidate affected gates on change | PA-040 |
 | PA-045 | DONE | P2 | Provider maintainer | Exercise a sample third-party provider plugin | Recorded local gate: Pinned plugin discovery, bad contracts and lifecycle behavior are checked. [Plugin wheel evidence](provider_verification/plugin-wheel-checks.json) | Completed for recorded scope; revalidate affected gates on change | PA-001, PA-043 |
-| PA-046 | NEEDS_INPUT | P1 | Performance maintainer; budget approval by application owner | Resolve or explicitly accept the cold-start regression | Re-measured 2026-10-22 on 0cc4da34 vs a81e7f0 baseline (5 paired trials, shared host, behaviour identical): cold start +13.5% median (paired +2.6 to +26.5, paired median about +6%), import -4.9%, import+start +1.1%, ingest +7.2%, search p95 -8.3%, RSS +2.4%. [re-measure](provider_verification/pa046-coldstart-remeasure-2026-10-22.json) | Owner accepts the cold-start shift (total ready time about +1%) or asks for the SQLite/LanceDB import levers; ingest +7% to confirm on the PA-051 host | PA-034 |
+| PA-046 | DONE | P1 | Performance maintainer; budget approval by application owner | Resolve or explicitly accept the cold-start regression | Owner selected optimise (2026-10-22). Profile: import lancedb is about 1.26 s of start, mostly its eager lance_namespace REST models. Fix: ProviderDescriptor.prewarm_modules plus a startup prewarm thread after config resolution (LanceDB declares lancedb). Re-measure vs a81e7f0 (5 paired trials, behaviour identical): cold start -5.3% (was +13.5%), import+start -12.7%, ingest -5.9%, nothing over the 10% threshold. [before](provider_verification/pa046-coldstart-remeasure-2026-10-22.json) [after](provider_verification/pa046-coldstart-prewarm-2026-10-22.json) | Completed on a shared host; controlled-host confirmation stays under PA-051. Broader warm-up and sharing tracked in RM-70 | PA-034 |
 | PA-047 | DONE | P2 | Provider maintainer | Profile the final configuration-admission code | Recorded local gate: New profile includes final range/cross-field revalidation, unlike earlier component profile. [Performance profile](PROVIDER_PERFORMANCE_FOLLOWUP.md) | Completed for recorded scope; revalidate affected gates on change | PA-030 |
 | PA-048 | DONE | P2 | Provider maintainer | Evaluate SQLite migration/import startup cost | Recorded local gate: import/connect/schema phases sampled once (shared host); no code change retained. A single sample cannot support an optimization decision. [Performance profile](PROVIDER_PERFORMANCE_FOLLOWUP.md) | Completed for evaluate-only scope; optimization decision deferred to the PA-046 budget | Prereq: PA-047; Feeds: PA-046 |
 | PA-049 | DONE | P2 | Provider maintainer | Evaluate LanceDB first-connect/import cost | Recorded local gate: import, connect, table create and table open timed separately (one shared-host sample, import 858 ms); no optimization selected. [Performance profile](PROVIDER_PERFORMANCE_FOLLOWUP.md) | Completed for recorded scope; revalidate affected gates on change | Prereq: PA-047; Feeds: PA-046 |
@@ -314,6 +314,7 @@ its scope is narrower than the prerequisite (say so in the row) or its status is
 | RM-67 | OPEN | P3 | Docs / config maintainer | Remove the dead workers.dbos_system_database_url key from docs/v2/data/stage_params_manual.json | 2026-10-22: key matches nothing after ADR-071; replacing with workers.temporal.* changes stage ownership | Owner-approved mapping or removal; regenerate STAGE_PARAMS | Prereq: none |
 | RM-68 | OPEN | P3 | Observability maintainer | Fix test_t5_06_observability opentelemetry _ExtendedAttributes import error | 2026-10-22: fails in the current .venv (installed opentelemetry version mismatch); seen during RM-18 regression | Pin or adapt to the locked opentelemetry version; test passes after RM-02 sync | Prereq: RM-02 |
 | RM-69 | OPEN | P3 | Docs maintainer | Add the missing decision-register row for ADR-067 and update engine-wide alias notes in older docs | 2026-10-22: ADR-066 got D-101 in RM-10; ADR-067 has no row. PROVIDER_NEXT_MILESTONES.md, PERFORMANCE_IMPLEMENTATION_RESULTS.md and verification notes still call aliases engine-wide | Register row added; alias notes say namespace-scoped since RM-18 | Prereq: RM-18 |
+| RM-70 | REVIEW | P1 | Provider / runtime maintainer | Warm up once and share every client across all internal consumers (keyed, refcounted resource registry) | Owner request 2026-10-22: clients warmed up and shared by all internal processes. Audit 2026-10-22: within one Engine most clients are shared, but Postgres opens up to 4 pools to one database, Weaviate 2 clients, one broker per outbox runner, llama.cpp loads per role, static prefilter duplicates the embedder, GLiNER can thrash at max_models=1, Resonate is rebuilt per Temporal activity; embedder, Tantivy, rerankers, GLiNER and OpenDecider load lazily inside the first request; scheduler singleton is unkeyed. Current docs (PROVIDER_ARCHITECTURE_PLAN R-19 and section 920, ADR-074) forbid process-global connected caches | Owner approves design and ADR; then per-process ResourceRegistry keyed by target identity, settings digest, event loop and pid, refcounted with a warm-up hook; Engine start warm-up phase; fork reset; per-process warm pools for separate worker processes | Prereq: none; Feeds: PA-046, PA-051, PA-053 |
 <!-- TASK_REGISTER_END -->
 
 ## Imported roadmap detail (no independent statuses)
