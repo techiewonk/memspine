@@ -188,7 +188,7 @@ async def _learn_run(
         await _send(eng, "a", "s1", _turns("trip", 3))
         await eng.flush_windows()
         env = eng._windows._env  # type: ignore[union-attr]
-        return list(env.compiler.kinds.kinds), eng._windows._prepass.known_aliases()  # type: ignore[union-attr]
+        return list(env.compiler.kinds.kinds), eng._windows._prepass.known_aliases("a")  # type: ignore[union-attr]
     finally:
         await eng.stop()
 

@@ -33,7 +33,7 @@ class _Stage:
 
 async def test_prepass_source_reports_entity_and_alias_spans() -> None:
     pre = Prepass("rules")
-    pre.learn(["Ilsa"])
+    pre.learn(["Ilsa"], namespace="a")
     found = await prepass_known(pre)("a", TEXT)
     names = {e.name for e in found}
     assert {"Bram", "Kelmark", "Ilsa"} <= names

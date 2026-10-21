@@ -17,8 +17,10 @@ snapshot; they are not unioned onto the kept record's different text. Retrieving
 the kept record does not automatically aggregate all merged mentions.
 
 The cache isolation checks cover model-result annotations and source snapshots.
-The pre-existing learned-alias collection is Engine-wide; this change does not
-claim complete namespace isolation for every alias/prompt hint. Mentions do not
+Learned pre-pass aliases are namespace-scoped since RM-18 (learned, hinted,
+persisted as `learned.alias` markers and reloaded per namespace; namespace
+erasure writes `learned.alias.reset`). They are surface hints without a source
+manifest (DS-11), so per-record/subject erasure does not remove them. Mentions do not
 establish relationships, resolve relative dates or supersede canonical evidence.
 See [ADR-076](adr/ADR-076-grounded-gliner-mention-ingestion.md) and
 [the real offline acceptance gate](GLINER_INGESTION_ACCEPTANCE.md).

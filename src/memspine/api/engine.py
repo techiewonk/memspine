@@ -5606,6 +5606,10 @@ class Engine:
     async def _window_session_closed(self, info: SessionClosed) -> dict[str, object]:
         return await ingest_windows._window_session_closed(self, info)
 
+    async def _forget_learned_aliases(self, namespace: str) -> None:
+        """RM-18: drop the W2-13 aliases ``namespace`` learned (namespace erasure)."""
+        await ingest_windows.forget_learned_aliases(self, namespace)
+
     async def flush_windows(
         self, namespace: str | None = None, *, final: bool = True
     ) -> dict[str, Any]:

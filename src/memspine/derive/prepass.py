@@ -428,7 +428,7 @@ class Prepass:
         gliner: Any = None,
         gliner_pool: GLiNERModelPool | None = None,
         gliner_settings: GlinerSettings | None = None,
-        aliases: Callable[[], Iterable[str]] | None = None,
+        aliases: Callable[[str], Iterable[str]] | None = None,
         cache_size: int = 64,
     ) -> None:
         if mode == "gliner" and gliner is None:
@@ -454,8 +454,10 @@ class Prepass:
         self.mode: PrepassMode = mode
         self._gliner = gliner
         self._aliases = aliases
-        self._learned: dict[str, None] = {}
-        self._fresh: list[str] = []  # FU-GAPS: aliases learned since the last drain
+        #: RM-18: learned aliases per namespace; one namespace's surfaces never hint in another
+        self._learned: dict[str, dict[str, None]] = {}
+        #: FU-GAPS: aliases learned since the last drain, per namespace
+        self._fresh: dict[str, list[str]] = {}
         self._cache: OrderedDict[tuple[str, ...], Hints] = OrderedDict()
         self._cache_size = cache_size
         self.skipped = 0
@@ -464,32 +466,45 @@ class Prepass:
     def uses_gliner(self) -> bool:
         return self.mode == "gliner" and self._gliner is not None
 
-    def learn(self, names: Iterable[str]) -> None:
-        """Remember entity surfaces the pipeline deposited (the 'known aliases' of later windows)."""
+    def learn(self, names: Iterable[str], *, namespace: str) -> None:
+        """Remember entity surfaces the pipeline deposited in ``namespace`` (the 'known aliases'
+        of that namespace's later windows only)."""
+        learned = self._learned.setdefault(namespace, {})
         for n in names:
-            if n and len(n) > 1 and n not in self._learned:
-                self._learned[n] = None
-                self._fresh.append(n)
+            if n and len(n) > 1 and n not in learned:
+                learned[n] = None
+                self._fresh.setdefault(namespace, []).append(n)
 
-    def drain_new(self) -> list[str]:
-        """Aliases learned since the last drain (what the learned-state log has not seen)."""
-        out, self._fresh = self._fresh, []
-        return out
+    def drain_new(self, namespace: str) -> list[str]:
+        """Aliases ``namespace`` learned since its last drain (what its markers have not seen)."""
+        return self._fresh.pop(namespace, [])
 
-    def restore(self, names: Iterable[str]) -> int:
-        """Re-learn logged aliases at start (not queued again); returns how many were added."""
+    def restore(self, names: Iterable[str], *, namespace: str) -> int:
+        """Re-learn ``namespace``'s logged aliases at start (not queued again); returns how many
+        were added."""
+        learned = self._learned.setdefault(namespace, {})
         n = 0
         for name in names:
-            if name and len(name) > 1 and name not in self._learned:
-                self._learned[name] = None
+            if name and len(name) > 1 and name not in learned:
+                learned[name] = None
                 n += 1
         return n
 
-    def known_aliases(self) -> list[str]:
-        extra = list(self._aliases()) if self._aliases is not None else []
-        return [*self._learned, *extra]
+    def forget(self, namespace: str) -> None:
+        """Drop everything ``namespace`` learned, queued or not (its erasure); cached hints of the
+        namespace go too."""
+        self._learned.pop(namespace, None)
+        self._fresh.pop(namespace, None)
+        marker = f"namespace:{namespace}"
+        for key in [k for k in self._cache if len(k) > 1 and k[1] == marker]:
+            del self._cache[key]
 
-    def hints(self, records: Sequence[Any], *, namespace: str | None = None) -> Hints:
+    def known_aliases(self, namespace: str) -> list[str]:
+        """The aliases learned in ``namespace`` plus the configured extra source's for it."""
+        extra = list(self._aliases(namespace)) if self._aliases is not None else []
+        return [*self._learned.get(namespace, {}), *extra]
+
+    def hints(self, records: Sequence[Any], *, namespace: str) -> Hints:
         """Synchronous rules-only hints; model inference is restricted to :meth:`ahints`."""
         key = self._cache_key(records, "sync", namespace)
         hit = self._cache.get(key)
@@ -498,7 +513,7 @@ class Prepass:
         out = prepass_hints(
             records,
             mode=self.mode,
-            known_aliases=self.known_aliases(),
+            known_aliases=self.known_aliases(namespace),
             gliner=(self._gliner if hasattr(self._gliner, "entities") else None),
         )
         self._cache[key] = out
@@ -506,14 +521,14 @@ class Prepass:
             self._cache.popitem(last=False)
         return out
 
-    async def ahints(self, records: Sequence[Any], *, namespace: str | None = None) -> Hints:
+    async def ahints(self, records: Sequence[Any], *, namespace: str) -> Hints:
         """Hints without blocking the event loop (GLiNER2 runs in a worker thread)."""
         producer = str(getattr(self._gliner, "producer_id", "rules"))
         key = self._cache_key(records, f"async:{producer}", namespace)
         hit = self._cache.get(key)
         if hit is not None:
             return hit
-        aliases = self.known_aliases()
+        aliases = self.known_aliases(namespace)
         base = rule_hints(records, known_aliases=aliases, mode=self.mode)
         finder = self._gliner
         if self.mode == "gliner" and finder is not None:
@@ -554,7 +569,7 @@ class Prepass:
         return base
 
     @staticmethod
-    def _cache_key(records: Sequence[Any], producer: str, namespace: str | None) -> tuple[str, ...]:
+    def _cache_key(records: Sequence[Any], producer: str, namespace: str) -> tuple[str, ...]:
         identities: list[str] = []
         for record in records:
             source = getattr(record, "source", None)
@@ -578,7 +593,7 @@ class Prepass:
             identities.append(hashlib.sha256(encoded).hexdigest())
         return (
             producer,
-            f"namespace:{namespace or ''}",
+            f"namespace:{namespace}",
             *identities,
         )
 
@@ -598,7 +613,7 @@ def prepass_stage(prepass: Prepass) -> EnvelopeStage:
         envelopes: list[AssertionEnvelope], ctx: EnvelopeStageContext
     ) -> list[AssertionEnvelope]:
         hints = await prepass.ahints(ctx.records, namespace=ctx.namespace)
-        seen = hints.names() | {a.lower() for a in prepass.known_aliases()}
+        seen = hints.names() | {a.lower() for a in prepass.known_aliases(ctx.namespace)}
         records_by_id = {str(getattr(record, "record_id", "")): record for record in ctx.records}
         mentions_by_record: dict[str, list[MentionSpan]] = {}
         for line, mention in hints.gliner_mentions:
@@ -650,10 +665,13 @@ def prepass_stage(prepass: Prepass) -> EnvelopeStage:
         if hints.nothing_extractable and envelopes:
             ctx.notes["prepass_filler_with_facts"] += len(envelopes)
         prepass.learn(
-            m.surface
-            for e in out
-            for m in (e.subject, e.object)
-            if m is not None and _checkable(m.surface)
+            (
+                m.surface
+                for e in out
+                for m in (e.subject, e.object)
+                if m is not None and _checkable(m.surface)
+            ),
+            namespace=ctx.namespace,
         )
         return out
 

@@ -215,7 +215,7 @@ Follow handoff section 8; Q-S1..5 and the operating policy are settled, do not r
 - Uncommitted working tree (section 1).
 - No clean full sweep since the follow-up waves; later work ran focused gates only.
 - Cold start +12.1% and first config serialization +967% measured on `e6596f44` only.
-- Learned aliases are engine-wide, not namespace-isolated.
+- Learned aliases were engine-wide, not namespace-isolated (fixed by RM-18: scoped per namespace).
 - Graph edges have no temporal fields; controlled mirror switching rejected; Neo4j binding breaks
   on credential rotation; prospective watches pull-only.
 - Temporal: no volume affinity/failover; journal fencing does not fence external effects; native

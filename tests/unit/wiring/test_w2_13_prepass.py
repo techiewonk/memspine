@@ -212,7 +212,8 @@ async def test_no_real_fact_window_is_skipped_100_windows() -> None:
     for i in range(100):
         fact = i % 2 == 0
         h = Prepass("rules").hints(
-            [Rec(t["content"], f"w{i}-{k}") for k, t in enumerate(window(i, fact=fact))]
+            [Rec(t["content"], f"w{i}-{k}") for k, t in enumerate(window(i, fact=fact))],
+            namespace="a",
         )
         if fact and h.nothing_extractable:
             skipped_fact.append(i)
@@ -365,7 +366,7 @@ def test_sync_finder_drops_entire_malformed_result() -> None:
 def test_gliner_unavailable_falls_back_to_rules(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(GlinerHints, "available", staticmethod(lambda: False))
     p = Prepass("gliner")
-    assert not p.uses_gliner and p.hints(recs("Hi!")).nothing_extractable
+    assert not p.uses_gliner and p.hints(recs("Hi!"), namespace="a").nothing_extractable
 
 
 async def test_async_hint_cache_is_scoped_by_namespace() -> None:

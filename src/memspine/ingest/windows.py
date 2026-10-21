@@ -397,6 +397,18 @@ def _prepass(eng: Any, config: MemspineConfig) -> Prepass | None:
     return shared
 
 
+async def forget_learned_aliases(eng: Any, namespace: str) -> None:
+    """RM-18: forget every pre-pass alias ``namespace`` learned, in memory and, with a
+    ``learned.alias.reset`` marker, for the replay at the next start. A no-op without a pre-pass."""
+    pre: Prepass | None = getattr(eng, "_window_prepass", None)
+    if pre is None:
+        return
+    from memspine.derive.learned_state import alias_reset_event
+
+    pre.forget(namespace)
+    await eng._require_started().append_event(alias_reset_event(namespace))
+
+
 def _resolve_stage(eng: Any, config: MemspineConfig) -> Any:
     """W2-09 (``write.resolver_v2``): the resolve stage; event log and embedder bound lazily."""
     w = config.write

@@ -225,7 +225,7 @@ month.`, with a supplied historical `created_at` and `message_id`.
 | P2 | SQL-only mode is not established by toggling hybrid | Decide whether no-embedding ingestion is a supported capability; never create a bypassing write path |
 | P2 | Sender metadata retention is not proof of an efficient sender index | Trace sender filters/query plans before promising per-sender search performance |
 | P2 | Compression occurs at several independent representations | Record policy per representation and retention, protect raw source recoverability, measure storage and token effects separately |
-| P2 | Scope/alias/sleep limitations remain configuration-dependent | Do not claim complete namespace isolation from mention-cache fixes; learned aliases remain Engine-wide, enhanced sleep scoping is opt-in |
+| P2 | Scope/alias/sleep limitations remain configuration-dependent | Do not claim complete namespace isolation from mention-cache fixes; learned pre-pass aliases are namespace-scoped since RM-18 (no source manifest yet, DS-11), enhanced sleep scoping is opt-in |
 | Documentation | Older prose suggests FTS5/current window summary or simple-no-lexical behavior | Follow current provider registration and flags: FTS5 removed; no persisted per-window summary found; `read.hybrid` controls lexical projection |
 
 A configured current Engine instance's effective configuration is still needed

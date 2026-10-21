@@ -139,6 +139,7 @@ async def erase_namespace(
         drop = getattr(eng._vector, "drop_namespace", None)
         if drop is not None:  # I4: per-namespace tables: the user's table goes too
             await drop(ns)
+        await eng._forget_learned_aliases(ns)  # RM-18: the namespace's learned aliases go too
     await eng._audit_action("erase_namespace", ns, ids, actor=actor, reason=reason)
     return ids
 
