@@ -29,7 +29,9 @@ The review found three gaps in a hard forget, and in the `verify_forget` proof t
 - **Vector purge.** After the log is redacted, a hard forget calls `LanceDBVectorStore.purge_deleted`.
   This rewrites every live row with a no-op update, so every old fragment ends fully deleted and is
   dropped. It then runs `optimize(cleanup_older_than=0)`, which keeps only the latest version and
-  removes the files that only older versions used. The purge runs under the store's write lock.
+  removes the files that only older versions used. The purge runs under the store's write lock
+  and holds the store's version gate exclusively, so no read of this store is on a version it
+  removes (RM-39; see ADR-053).
   `delete_unverified` stays off, so the files of another engine's in-flight commit are kept.
   `rebuild()` also purges, because replay re-deletes the forgotten rows.
 - **Proof.** `verify_forget` adds `vector_history_absent`. It scans every retained table version, up

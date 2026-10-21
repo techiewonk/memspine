@@ -93,6 +93,22 @@ For fault probes against an unused local port, all six clients returned by the
 reported error bound. PostgreSQL's `connect_timeout=1s` took about 2.01 seconds
 to report `ConnectionTimeout`; its measured effective bound was 2.5 seconds.
 
+**RM-40 follow-up (2026-10-22).** The probe called `psycopg.connect` directly.
+psycopg follows libpq: it raises any `connect_timeout` below 2 s to 2 s, uses
+whole seconds, and applies the value to *each* host/address attempt
+(`psycopg.conninfo.timeout_from_conninfo`). Measured on Windows with psycopg
+3.3.4 against a closed port and against a listener that never answers:
+`127.0.0.1` with 1 s took 2.03 s and with 3 s took 3.04 s; `localhost` (::1
+then 127.0.0.1) with 1 s took 4.07 s and with 3 s took 6.04 s. MemSpine's
+`PostgresClient.connect` now enforces `connect_timeout_s` as one overall
+deadline (`TimeoutError`) across all attempts: 1.0 s configured returned in
+1.15 s instead of 4.12 s. The per-attempt driver value is
+`max(2, ceil(connect_timeout_s))` (`PG_DRIVER_MIN_CONNECT_TIMEOUT_S`), which
+still bounds pooled reconnects after start-up and the sync (Alembic) engine.
+Those have no overall deadline: allow that value times the number of
+resolved addresses. `tests/unit/clients/test_postgres_client.py` checks the
+deadline against a silent local listener; no live server is needed.
+
 No provider implementation was changed. In particular, the local component
 timings do not isolate a repeatable startup bottleneck with enough evidence to
 justify an optimization. There is no latency SLO in this report. Real

@@ -632,6 +632,10 @@ read:
 graph:
   provider: ladybug           # sqlite_adjacency is SQLite-only; use ladybug with postgres
 ```
+`connect_timeout_s` is the overall deadline for the start-up connect, across
+every resolved address. Later pooled reconnects and the sync (Alembic) engine
+use the driver's own per-attempt timeout: whole seconds, at least 2 s, and
+repeated for each address (`localhost` is usually two).
 
 **Cache: in-process → Redis** *(needs `memspine[cache]`; `valkey` is wire-compatible)* —
 `disk` supplies a persistent single-process cache through the same extra.

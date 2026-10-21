@@ -38,6 +38,15 @@ LEG_TIE_FETCH_MAX_FACTOR = 8
 # not consult the busy handler.
 SQLITE_BUSY_TIMEOUT_MS = 5000
 
+#: RM-40 (docs/PROVIDER_PERFORMANCE_FOLLOWUP.md, PA-054): the smallest per-attempt
+#: ``connect_timeout`` psycopg/libpq honour, in whole seconds. psycopg's
+#: ``conninfo.timeout_from_conninfo`` (after libpq ``connectDBComplete``) raises
+#: any smaller positive value to 2 and applies it to *each* host/address attempt,
+#: so ``localhost`` (::1 then 127.0.0.1) can wait twice as long. The async
+#: client enforces ``connect_timeout_s`` as one overall deadline on top of this;
+#: a sync (Alembic) connection is bounded only per attempt.
+PG_DRIVER_MIN_CONNECT_TIMEOUT_S = 2
+
 # Lexical query DoS guard (E8/D-25): user queries are bounded before they reach
 # the FTS5 parser (one quoted OR-phrase per token → super-linear parse) and
 # before the raw string becomes a cache key. Terms past the cap are dropped;

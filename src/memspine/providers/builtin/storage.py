@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-import asyncio
 import hashlib
-import math
 from pathlib import Path
 
 from pydantic import BaseModel, JsonValue
@@ -105,7 +103,11 @@ class PostgresBuilder:
     async def build(
         self, settings: PostgresSettings, ctx: StorageBuildContext
     ) -> StorageBuildResult[SqlStorage]:
-        from memspine.clients.postgres import PostgresClient, normalize_pg_url
+        from memspine.clients.postgres import (
+            PostgresClient,
+            driver_connect_timeout,
+            normalize_pg_url,
+        )
         from memspine.services.storage.postgres.engine import PostgresStorage
 
         url = (
@@ -119,8 +121,8 @@ class PostgresBuilder:
             statement_timeout_s=settings.statement_timeout_s,
         )
         ref = ctx.shared.resources.own("sql", client.close)
-        async with asyncio.timeout(settings.connect_timeout_s):
-            await client.connect()
+        # The client enforces connect_timeout_s as the overall deadline (RM-40).
+        await client.connect()
 
         async def checkpoint() -> None:
             # PostgreSQL durability/erasure is verified by SQL operations; no SQLite WAL exists.
@@ -136,7 +138,8 @@ class PostgresBuilder:
             sync_factory=lambda: create_engine(
                 normalize_pg_url(url),
                 connect_args={
-                    "connect_timeout": max(1, math.ceil(settings.connect_timeout_s)),
+                    # Sync (Alembic) connects are bounded per attempt only (RM-40).
+                    "connect_timeout": driver_connect_timeout(settings.connect_timeout_s),
                     "options": f"-c statement_timeout={max(1, int(settings.statement_timeout_s * 1000))}",
                 },
             ),

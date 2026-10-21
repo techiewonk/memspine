@@ -38,6 +38,15 @@ be changed from our layer.
 3. **Small metadata cache for `memory://` connections.** `LanceDBClient.connect` passes
    `lancedb.Session(metadata_cache_size_bytes=LANCE_MEMORY_METADATA_CACHE_BYTES)` (1 MiB) for a
    `memory://` path. The index cache keeps its default. File paths connect exactly as before.
+4. **Gate reads against the zero-age cleanup (RM-39, 2026-10-22).** "No other writer" was not
+   enough: a read of the same store still on an older version failed with `Not found` when the
+   cleanup deleted its files (87 of 1,592 concurrent in-memory reads in a stress run). Every
+   table read now holds the store's `_VersionGate` shared; the zero-age compaction and the
+   erasure purge hold it exclusively, so a cleanup waits for running reads and new reads wait
+   for the cleanup. With the gate the same run has 0 failures, and LanceDB's
+   `cleanup_older_than=0` UserWarning is ignored for these two calls only (message, category
+   and module matched). A zero-age call made outside the store still warns
+   (`tests/unit/services/vector/test_lancedb_version_cleanup.py`).
 
 Compaction keeps rows and their order, and removing old versions does not touch the latest one,
 so query results are unchanged (`tests/unit/services/vector/test_lancedb_exclusive.py`,

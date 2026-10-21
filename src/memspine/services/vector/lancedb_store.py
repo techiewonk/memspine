@@ -11,8 +11,11 @@ from __future__ import annotations
 import asyncio
 import json
 import re
+import threading
+import warnings
+from collections.abc import Callable
 from datetime import timedelta
-from typing import Any
+from typing import Any, TypeVar
 
 from memspine.clients.lancedb import LanceDBClient
 from memspine.config import constants
@@ -23,6 +26,75 @@ from memspine.services.vector.base import VectorHit
 __all__ = ["LanceDBVectorStore"]
 
 _log = get_logger(__name__)
+
+_T = TypeVar("_T")
+
+#: LanceDB's UserWarning for ``optimize(cleanup_older_than=0)``. Silenced only for
+#: the two zero-age calls below, after :class:`_VersionGate` has excluded every
+#: reader of this store (RM-39).
+_ZERO_AGE_WARNING = r"optimize\(cleanup_older_than=0\) removes every version except the latest"
+#: ``catch_warnings`` swaps the process-wide filter list (Python 3.13), so two
+#: of these calls on different threads must not interleave their enter/exit.
+_ZERO_AGE_FILTER_LOCK = threading.Lock()
+
+
+def _drop_older_versions(table: Any) -> None:
+    """``optimize`` that keeps only the latest table version (ADR-039, ADR-053).
+
+    Call only inside :meth:`_VersionGate.exclusive`. LanceDB warns that a reader
+    still on an older version fails; the gate ensures no reader of this store
+    is running, and a LanceDB table has a single live engine (concurrent
+    engines share the event log, not the derived vector table). The filter
+    matches only this message, raised by this module's own call."""
+    with _ZERO_AGE_FILTER_LOCK, warnings.catch_warnings():
+        warnings.filterwarnings(
+            "ignore",
+            message=_ZERO_AGE_WARNING,
+            category=UserWarning,
+            module=re.escape(__name__) + r"\Z",
+        )
+        table.optimize(cleanup_older_than=timedelta(0))
+
+
+class _VersionGate:
+    """Keeps table reads and zero-age version cleanup apart (RM-39).
+
+    A read checks out the table's current version and opens its data files; a
+    cleanup that drops every older version deletes files an in-flight read may
+    still be reading (measured: 87 of 1,592 concurrent in-memory reads failed
+    with "Not found" before this gate). Reads share the gate; a cleanup waits
+    for running reads to finish and holds new ones back until it is done.
+    Thread-level, so the gate is held for the actual duration of the work even
+    if the awaiting task is cancelled."""
+
+    def __init__(self) -> None:
+        self._cond = threading.Condition()
+        self._readers = 0
+        self._cleaning = False
+
+    def shared(self, fn: Callable[[], _T]) -> _T:
+        with self._cond:
+            self._cond.wait_for(lambda: not self._cleaning)
+            self._readers += 1
+        try:
+            return fn()
+        finally:
+            with self._cond:
+                self._readers -= 1
+                if not self._readers:
+                    self._cond.notify_all()
+
+    def exclusive(self, fn: Callable[[], _T]) -> _T:
+        with self._cond:
+            self._cond.wait_for(lambda: not self._cleaning)
+            self._cleaning = True
+            self._cond.wait_for(lambda: self._readers == 0)
+        try:
+            return fn()
+        finally:
+            with self._cond:
+                self._cleaning = False
+                self._cond.notify_all()
 
 
 def _table_name(embedder_id: str) -> str:
@@ -103,6 +175,8 @@ class LanceDBVectorStore:
         # Guards table creation and every write this store makes to the table, so
         # the erasure purge never interleaves with this process's own upserts.
         self._lock = asyncio.Lock()
+        # Reads vs. zero-age version cleanup (RM-39): see _VersionGate.
+        self._gate = _VersionGate()
         # Ids deleted since the last successful purge: their vectors may still
         # sit in older table versions and in rewritten-but-unreclaimed files.
         self._unpurged: set[str] = set()
@@ -208,9 +282,11 @@ class LanceDBVectorStore:
         if self._upserts_since_compact < self._compact_every:
             return
         self._upserts_since_compact = 0
-        cleanup = timedelta(0) if self._ids is not None else None
         try:
-            await asyncio.to_thread(lambda: table.optimize(cleanup_older_than=cleanup))
+            if self._ids is not None:
+                await asyncio.to_thread(self._gate.exclusive, lambda: _drop_older_versions(table))
+            else:
+                await asyncio.to_thread(table.optimize)
         except Exception as exc:
             # Compaction is an optimisation only: a failure leaves the rows
             # exactly as they were, so it must never fail the write.
@@ -234,7 +310,7 @@ class LanceDBVectorStore:
             )
             return result
 
-        rows = await asyncio.to_thread(_search)
+        rows = await asyncio.to_thread(self._gate.shared, _search)
         # LanceDB returns cosine _distance_; similarity = 1 - distance.
         return [
             VectorHit(record_id=row["record_id"], score=1.0 - float(row["_distance"]))
@@ -262,7 +338,7 @@ class LanceDBVectorStore:
             )
             return result
 
-        rows = await asyncio.to_thread(_search)
+        rows = await asyncio.to_thread(self._gate.shared, _search)
         return {row["record_id"]: 1.0 - float(row["_distance"]) for row in rows}
 
     async def query_many(
@@ -288,7 +364,7 @@ class LanceDBVectorStore:
             )
             return result
 
-        rows = await asyncio.to_thread(_search)
+        rows = await asyncio.to_thread(self._gate.shared, _search)
         out: list[list[VectorHit]] = [[] for _ in vectors]
         for row in rows:
             index = int(row.get("query_index") or 0)
@@ -337,11 +413,11 @@ class LanceDBVectorStore:
                 indices = table.list_indices()
                 return any("vector" in getattr(idx, "columns", []) for idx in indices)
 
-            if await asyncio.to_thread(_existing_vector_index):
+            if await asyncio.to_thread(self._gate.shared, _existing_vector_index):
                 self._index_ready = True
                 return True
 
-            rows = await asyncio.to_thread(table.count_rows)
+            rows = await asyncio.to_thread(self._gate.shared, table.count_rows)
             if rows < constants.LANCE_ANN_MIN_ROWS:
                 if not self._deferred_logged:
                     _log.info(
@@ -353,7 +429,7 @@ class LanceDBVectorStore:
                     self._deferred_logged = True
                 return False
             try:
-                await asyncio.to_thread(self._create_index, table)
+                await asyncio.to_thread(self._gate.shared, lambda: self._create_index(table))
             except Exception as exc:
                 # Sticky-disable (ADR-020 §5 precedent): a genuine training/build
                 # failure won't fix itself, so stop retrying an expensive create
@@ -396,7 +472,7 @@ class LanceDBVectorStore:
             )
             return result
 
-        rows = await asyncio.to_thread(_search)
+        rows = await asyncio.to_thread(self._gate.shared, _search)
         # Same scoring as query(): LanceDB returns cosine _distance_; sim = 1 - d.
         return [
             VectorHit(record_id=row["record_id"], score=1.0 - float(row["_distance"]))
@@ -432,7 +508,8 @@ class LanceDBVectorStore:
         unchanged; the cost is one pass over the table.
 
         Runs under the store's write lock, so no write of this process
-        interleaves. Another engine writing the same file-backed table can make
+        interleaves, and inside the version gate, so no read of this store is
+        still on a version the cleanup removes. Another engine writing the same file-backed table can make
         the rewrite fail on a commit conflict; files of its in-flight commit are
         kept (``delete_unverified`` stays off). Returns False when the purge did
         not complete; :meth:`history_absent` then keeps reporting residue."""
@@ -447,10 +524,10 @@ class LanceDBVectorStore:
                     table.update(
                         where="record_id IS NOT NULL", values_sql={"namespace": "namespace"}
                     )
-                table.optimize(cleanup_older_than=timedelta(0))
+                _drop_older_versions(table)
 
             try:
-                await asyncio.to_thread(_purge)
+                await asyncio.to_thread(self._gate.exclusive, _purge)
             except Exception as exc:
                 _log.warning("vector.lance_purge_failed", error=str(exc), pending=len(pending))
                 return False
@@ -484,7 +561,7 @@ class LanceDBVectorStore:
                     return False
             return True
 
-        return await asyncio.to_thread(_scan)
+        return await asyncio.to_thread(self._gate.shared, _scan)
 
     async def exists(self, record_id: str) -> bool:
         """M7 ``forget --verify`` support: is a row still present? Without this
@@ -495,4 +572,4 @@ class LanceDBVectorStore:
         def _count() -> int:
             return int(table.count_rows(f"record_id = '{escaped}'"))
 
-        return await asyncio.to_thread(_count) > 0
+        return await asyncio.to_thread(self._gate.shared, _count) > 0
