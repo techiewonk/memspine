@@ -1,0 +1,288 @@
+{
+  "schema_version": 1,
+  "trace": "PA-084",
+  "safety": {
+    "synthetic_content_only": true,
+    "external_model_or_network_calls": false,
+    "model_downloads": false,
+    "paid_calls": false,
+    "content_capture": false
+  },
+  "configuration": {
+    "storage": "sqlite",
+    "vector": "lancedb",
+    "lexical": "tantivy",
+    "graph": "ladybug",
+    "embedding": "hash",
+    "database_file_backed": true,
+    "sqlite_file_exists_during_trace": true,
+    "same_engine_for_all_four_stages": true
+  },
+  "provider_selection": [
+    {
+      "logical_service_id": "cache.memory",
+      "category": "cache",
+      "configured_provider": "memory",
+      "resolved_provider": "memory",
+      "lifecycle_state": "started",
+      "readiness_state": null
+    },
+    {
+      "logical_service_id": "embedding",
+      "category": "embedding",
+      "configured_provider": "hash",
+      "resolved_provider": "hash",
+      "lifecycle_state": "started",
+      "readiness_state": null
+    },
+    {
+      "logical_service_id": "graph.primary",
+      "category": "graph",
+      "configured_provider": "auto",
+      "resolved_provider": "ladybug",
+      "lifecycle_state": "started",
+      "readiness_state": null
+    },
+    {
+      "logical_service_id": "lexical",
+      "category": "lexical",
+      "configured_provider": "tantivy",
+      "resolved_provider": "tantivy",
+      "lifecycle_state": "started",
+      "readiness_state": null
+    },
+    {
+      "logical_service_id": "llm.window_extract",
+      "category": "llm",
+      "configured_provider": "litellm",
+      "resolved_provider": "litellm",
+      "lifecycle_state": "started",
+      "readiness_state": null
+    },
+    {
+      "logical_service_id": "storage.sqlite.sql",
+      "category": "storage",
+      "configured_provider": "sqlite",
+      "resolved_provider": "sqlite",
+      "lifecycle_state": "started",
+      "readiness_state": null
+    },
+    {
+      "logical_service_id": "vector",
+      "category": "vector",
+      "configured_provider": "lancedb",
+      "resolved_provider": "lancedb",
+      "lifecycle_state": "started",
+      "readiness_state": null
+    }
+  ],
+  "source": {
+    "namespace": "pa084-lifecycle",
+    "session_id": "pa084-session-001",
+    "conversation_id": "pa084-conversation-001",
+    "message_id": "pa084-message-001",
+    "event_time": "2024-03-09T14:45:00+05:30",
+    "timestamp_matches_input": true,
+    "sender": {
+      "id": "mira",
+      "kind": "human",
+      "name": "Mira"
+    },
+    "content": "Mira: I collect vintage maps in Utrecht."
+  },
+  "stages": {
+    "ingest": {
+      "outcome": "ok",
+      "raw_turn": {
+        "record_id": "dab39633-ff4d-46cc-94fb-9fb024a0fe59",
+        "namespace": "pa084-lifecycle",
+        "memory_type": "episodic",
+        "layer": "L0",
+        "status": "activated",
+        "content": "Mira: I collect vintage maps in Utrecht.",
+        "valid_from": "2024-03-09T09:15:00+00:00",
+        "source_precision": "instant",
+        "source_channel": "messages",
+        "parent_ids": [],
+        "tags": [
+          "derive_use:stated",
+          "idem:w_82eed53293d2b01d161f69265f457e4c",
+          "message_id:pa084-message-001",
+          "session_id:pa084-session-001",
+          "conversation_id:pa084-conversation-001",
+          "sender_id:mira",
+          "spk:mira",
+          "sender_kind:human",
+          "participant:mira"
+        ],
+        "message": {
+          "message_id": "pa084-message-001",
+          "session_id": "pa084-session-001",
+          "conversation_id": "pa084-conversation-001",
+          "sender": {
+            "id": "mira",
+            "kind": "human",
+            "name": "Mira"
+          },
+          "created_at": "2024-03-09T14:45:00+05:30",
+          "created_at_generated": false
+        }
+      },
+      "source_identity_matches": true,
+      "timestamp_matches_input": true,
+      "sender_identity": {
+        "id": "mira",
+        "kind": "human",
+        "name": "Mira"
+      }
+    },
+    "derive": {
+      "outcome": "ok",
+      "method": "flush_windows with deterministic existing offline extraction stub",
+      "stats": {
+        "windows_processed": 1,
+        "calls": 1,
+        "facts_returned": 1,
+        "facts_deposited": 1,
+        "items_valid": 1
+      },
+      "derived_records": [
+        {
+          "record_id": "5f4be304-17e0-41f5-9f5e-7c867d4b900d",
+          "namespace": "pa084-lifecycle",
+          "memory_type": "semantic",
+          "layer": "L1",
+          "status": "activated",
+          "content": "Mira: I collect vintage maps in Utrecht.",
+          "valid_from": "2024-03-09T09:15:00+00:00",
+          "source_precision": "instant",
+          "source_channel": "mining",
+          "parent_ids": [
+            "dab39633-ff4d-46cc-94fb-9fb024a0fe59"
+          ],
+          "tags": [
+            "atomic_fact",
+            "mined:win:b5cfa7adc479",
+            "window_fact",
+            "window:b5cfa7adc479",
+            "envelope_v2",
+            "src:user_stated",
+            "integ:append",
+            "integ_rung:cardinality",
+            "spk:mira",
+            "kind:state"
+          ],
+          "message": {}
+        }
+      ],
+      "lineage_valid": true
+    },
+    "offline": {
+      "outcome": "ok",
+      "failed_stages": {},
+      "stages": {
+        "consolidate": {
+          "status": "ok",
+          "summaries": 0
+        },
+        "mine_facts": {
+          "status": "skipped",
+          "reason": "consolidation.mine_facts is off"
+        },
+        "anticipate": {
+          "status": "skipped",
+          "reason": "consolidation.anticipate is off"
+        },
+        "reflect_profile": {
+          "status": "skipped",
+          "reason": "consolidation.reflect_profile is off"
+        },
+        "extract_graph": {
+          "status": "skipped",
+          "reason": "extract_graph disabled or no extract_edges role"
+        },
+        "pattern_observations": {
+          "status": "ok"
+        },
+        "standing_answers": {
+          "status": "ok",
+          "built": 1
+        },
+        "compile_edges": {
+          "status": "ok",
+          "written": 2
+        },
+        "summarize_entities": {
+          "status": "skipped",
+          "reason": "associative.policies.entity_summaries is off"
+        },
+        "reorganize": {
+          "status": "ok"
+        },
+        "check_watches": {
+          "status": "ok"
+        },
+        "session_lifecycle": {
+          "status": "skipped",
+          "reason": "episodic.policies.sessions.passive_after unset"
+        },
+        "decay_sweep": {
+          "status": "ok"
+        },
+        "compress": {
+          "status": "ok"
+        },
+        "sleep_compute": {
+          "status": "noop"
+        },
+        "event_log_prune": {
+          "status": "skipped",
+          "reason": "event_log.mode != rolling"
+        }
+      }
+    },
+    "retrieval": {
+      "outcome": "ok",
+      "query": "Where do I collect vintage maps?",
+      "engine_search_record_ids": [
+        "20a2a53f-d2cb-42d9-b220-05adbd5501d8",
+        "dab39633-ff4d-46cc-94fb-9fb024a0fe59",
+        "5f4be304-17e0-41f5-9f5e-7c867d4b900d",
+        "709d9aac-3ee1-4729-8b69-d13052bd9290"
+      ],
+      "vector_leg_record_ids": [
+        "20a2a53f-d2cb-42d9-b220-05adbd5501d8",
+        "dab39633-ff4d-46cc-94fb-9fb024a0fe59",
+        "5f4be304-17e0-41f5-9f5e-7c867d4b900d",
+        "709d9aac-3ee1-4729-8b69-d13052bd9290"
+      ],
+      "lexical_leg_record_ids": [
+        "20a2a53f-d2cb-42d9-b220-05adbd5501d8",
+        "dab39633-ff4d-46cc-94fb-9fb024a0fe59",
+        "5f4be304-17e0-41f5-9f5e-7c867d4b900d",
+        "709d9aac-3ee1-4729-8b69-d13052bd9290"
+      ],
+      "raw_or_derived_found": true,
+      "raw_record_found": true,
+      "derived_record_found": true,
+      "namespace": "pa084-lifecycle",
+      "record_count_after_offline": 4
+    }
+  },
+  "provider_and_coverage_boundaries": {
+    "graph": {
+      "provider": "ladybug",
+      "outcome": "ok",
+      "written_edges": 2
+    },
+    "reranker": {
+      "provider": "off",
+      "outcome": "disabled for this trace"
+    },
+    "cache": {
+      "provider": "memory",
+      "outcome": "not a persistence/retrieval acceptance target"
+    },
+    "other_memory_types": "not exercised; this trace does not cover all nine type/provider combinations"
+  }
+}

@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import asyncio
 import os
-import sys
 import uuid
 from pathlib import Path
 from typing import Any
@@ -20,14 +19,6 @@ from sqlalchemy import text
 from memspine import Engine
 from memspine.providers.health import ProbeStatus
 from memspine.providers.lifecycle import LifecycleState
-
-
-@pytest.fixture
-def event_loop_policy(request: pytest.FixtureRequest) -> asyncio.AbstractEventLoopPolicy:
-    """Use psycopg's supported Windows selector loop for the live PostgreSQL case."""
-    if sys.platform == "win32" and request.node.name == "test_postgres_storage_contract":
-        return asyncio.WindowsSelectorEventLoopPolicy()  # type: ignore[attr-defined,no-any-return]
-    return asyncio.get_event_loop_policy()
 
 
 def _runtime() -> dict[str, str]:
@@ -61,7 +52,9 @@ async def _close_and_assert_owned_resources_stopped(engine: Engine) -> None:
     assert all(state is LifecycleState.STOPPED for state in manager.states.values())
 
 
-async def _assert_provider_bindings(engine: Engine, deployment_id: str) -> tuple[tuple[str, str, str], ...]:
+async def _assert_provider_bindings(
+    engine: Engine, deployment_id: str
+) -> tuple[tuple[str, str, str], ...]:
     assert engine._sql is not None
     async with engine._sql.engine.connect() as connection:
         rows = await connection.execute(
@@ -129,7 +122,9 @@ async def test_embedded_storage_vector_lexical_graph_and_cache_contracts(
         await engine._graph.upsert_edge(
             "source", "other-target", "related", namespace=f"{graph_namespace}-other"
         )
-        assert [n.node_id for n in await engine._graph.neighbors("source", namespace=graph_namespace)] == ["target"]
+        assert [
+            n.node_id for n in await engine._graph.neighbors("source", namespace=graph_namespace)
+        ] == ["target"]
         assert len(await engine._graph.edge_list(namespace=graph_namespace)) == 1
         await engine._graph.delete_node("source")
         assert await engine._graph.edge_list(namespace=graph_namespace) == []
@@ -153,7 +148,9 @@ async def test_embedded_storage_vector_lexical_graph_and_cache_contracts(
 def _require_env(*names: str) -> dict[str, str]:
     absent = [name for name in names if not os.environ.get(name)]
     if absent:
-        pytest.skip(f"local service not configured; missing environment variable names: {', '.join(absent)}")
+        pytest.skip(
+            f"local service not configured; missing environment variable names: {', '.join(absent)}"
+        )
     return {name: os.environ[name] for name in names}
 
 
@@ -191,7 +188,9 @@ async def test_postgres_storage_contract(tmp_path: Path) -> None:
         await _assert_healthy(engine, ("storage", "postgres"))
         await engine.write(content, namespace="postgres-live-contract")
         bindings_before = await _assert_provider_bindings(engine, deployment_id)
-        found = await engine.search("quartz replication", namespace="postgres-live-contract", top_k=5)
+        found = await engine.search(
+            "quartz replication", namespace="postgres-live-contract", top_k=5
+        )
         assert any(record.content == content for record, _ in found)
     finally:
         await _close_and_assert_owned_resources_stopped(engine)
@@ -200,7 +199,9 @@ async def test_postgres_storage_contract(tmp_path: Path) -> None:
     await reopened.start()
     try:
         assert await _assert_provider_bindings(reopened, deployment_id) == bindings_before
-        found = await reopened.search("quartz replication", namespace="postgres-live-contract", top_k=5)
+        found = await reopened.search(
+            "quartz replication", namespace="postgres-live-contract", top_k=5
+        )
         assert any(record.content == content for record, _ in found)
     finally:
         await _close_and_assert_owned_resources_stopped(reopened)
@@ -239,15 +240,19 @@ async def test_neo4j_graph_contract() -> None:
         assert engine._graph is not None
         namespace = f"live-contract-{uuid.uuid4().hex}"
         other_namespace = f"{namespace}-other"
-        source, target, other_target = (f"{uuid.uuid4().hex}-{suffix}" for suffix in ("s", "t", "o"))
+        source, target, other_target = (
+            f"{uuid.uuid4().hex}-{suffix}" for suffix in ("s", "t", "o")
+        )
         await engine._graph.upsert_node(source, namespace=namespace)
         await engine._graph.upsert_node(target, namespace=namespace)
         await engine._graph.upsert_node(other_target, namespace=other_namespace)
         await engine._graph.upsert_edge(source, target, "live_related", namespace=namespace)
-        await engine._graph.upsert_edge(source, other_target, "live_related", namespace=other_namespace)
-        assert {node.node_id for node in await engine._graph.neighbors(source, namespace=namespace)} == {
-            target
-        }
+        await engine._graph.upsert_edge(
+            source, other_target, "live_related", namespace=other_namespace
+        )
+        assert {
+            node.node_id for node in await engine._graph.neighbors(source, namespace=namespace)
+        } == {target}
         assert len(await engine._graph.edge_list(namespace=namespace)) == 1
         await engine._graph.delete_node(source)
         await engine._graph.delete_node(target)

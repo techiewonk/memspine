@@ -1,6 +1,140 @@
 # Provider implementation verification — 2026-10-17
 
-## Latest follow-up: ADR-069
+## Six selected guard repairs — completed 2026-10-18
+
+[Focused gate](guard-fixes-focused.log): **80 passed, 2 legitimate live Temporal
+address skips**. All six M-GUARDS findings are repaired; required/broken imports
+fail and temporal correctness assertions execute. Genuine absent optional SDKs
+still skip. Installed OpenTelemetry exporter executed. The source review now has
+**156 sites** (73 importorskip, 53 skip, 30 skipif), with no stale/missing review.
+All 21 standalone evaluator Engine guards and 3 deferred records are unchanged.
+[Current review](../TEST_SKIP_REVIEW.md), [mapping/history](guard-fixes-review-mapping.json),
+[final evidence](guard-fixes-final-state.json). The prior PA-038 snapshot below
+records the original 162-site review and is superseded for current counts.
+
+## Skip review and work-package ownership — 2026-10-18
+
+PA-038/090/091 cover the authorized source review and ownership plan, not a full
+pytest sweep or closure of every skipped coverage path. The expanded inventory
+has **162 source sites**: 77 `importorskip`, 54 `skip`, 31 `skipif`. All sites
+have reviewed reasons, accountable owner roles, prerequisites and milestones.
+Static declarations are not parameterized/executed skip counts.
+
+- [Per-site review and open guard findings](../TEST_SKIP_REVIEW.md)
+- [Reviewed source inventory](test-skip-inventory.json) and
+  [dispositions/source pins](test-skip-dispositions.json)
+- [Accountable roles and milestones](../PROVIDER_NEXT_MILESTONES.md)
+- [Focused audit tests](test-skip-audit-focused.log): **9 passed**
+- [Source audit](test-skip-audit.log): zero parse errors, incomplete or stale reviews
+- [Final evidence manifest](pa038-090-091-final-state.json)
+
+Regenerate and validate the current review without importing test modules:
+
+```powershell
+python scripts/audit_test_skips.py `
+  --dispositions docs/provider_verification/test-skip-dispositions.json
+```
+
+Changed source hashes, missing per-site reviews and orphan review IDs fail the
+review gate. The six test-guard findings remain open repair work; three evaluation
+findings retain PA-107's deferred boundary. Legitimate optional Engine guards in
+the standalone evaluation harness are preserved. Historical reports below retain
+their original run scope and cannot supply missing individual skip outcomes.
+
+## Named profiles and reasoning levels — 2026-10-18
+
+The single GLiNER settings field from the earlier performance pass is superseded
+by named profiles and explicit task bindings (ADR-075), with no alias. These
+are local implementation checks; deployment acceptance remains separate.
+
+| Evidence | Result |
+|---|---|
+| [Configuration](model-profiles-config-focused.log) | 78 passed |
+| [GLiNER/windows](model-profiles-gliner-focused.log) | 130 passed, one intentional real-model inference skip, 16 existing LanceDB warnings |
+| [LLM/lifecycle/privacy](model-profiles-llm-focused.log) | 148 passed; one example test also appears in configuration group |
+| [Lint](model-profiles-ruff.log) / [format](model-profiles-format.log) | 21 selected Python files clean |
+| [Typing](model-profiles-mypy.log) | 15 source files strict mypy clean |
+| [References](model-profiles-reference-check.json) | Defaults, stage catalog and schema snapshot match |
+| [Final state](model-profiles-final-state.json) | Dirty-tree source/artifact hashes and explicit chunk counts |
+
+[Guide and example](../MULTI_MODEL_PROFILES.md). No full-suite run, complete-Engine
+performance benchmark or paid/remote model call is implied by this evidence.
+
+## Performance follow-up — 2026-10-18
+
+| Evidence | Meaning |
+|---|---|
+| [Focused checks](performance-final-focused.log) | 192 passed, one intentional real-model ingestion skip; 17 existing LanceDB cleanup warnings |
+| [RRF prefixes](bounded-topk.json) / [log](bounded-topk.log) | Final production kernel versus frozen full-sort reference; only two fixed-prefix graph seed callers changed |
+| [MinHash](minhash-batch.json) / [log](minhash-batch.log) | Exact persisted signature and LSH fixture parity; bounded batch matrix comparison |
+| [GLiNER ownership](gliner-ownership-kernel.json) | Three fake consumers, three independent loads versus one shared load; no model latency/RAM claim |
+| [Actual GLiNER load](gliner-ownership-local-load.json) / [log](gliner-ownership-local-load.log) | One cached Base snapshot load/release, offline; no inference |
+| [Embedding batches](embedding-batch-kernel.json) / [log](embedding-batch-kernel.log) | Actual local ONNX inference and vector parity; temporary staging required because standard cached snapshot resolution failed |
+| [SQLite startup](sqlite-startup-kernel.json) / [log](sqlite-startup-kernel.log) | Five fresh-process standalone client probes; no Engine or Alembic measurement |
+| [Ruff](performance-final-ruff.log), [format](performance-final-format.log), [typing](performance-final-mypy.log) | 26 selected Python files lint/format clean; 16 source files strict typing clean |
+| [References](performance-reference-check.json) | Generated defaults, catalog and configuration snapshots match |
+| [Final state](performance-final-state.json) | Dirty-tree source/artifact hashes and explicit verification counts |
+
+[Implementation summary](../PERFORMANCE_IMPLEMENTATION_RESULTS.md). Per owner scope,
+no complete-Engine performance test or full-suite rerun accompanies this change.
+
+## Current durable runner: Temporal + embedded Resonate
+
+DBOS is removed from active source, templates, configuration and packaging.
+Install `[temporal]` for the server-backed durable runner; see
+[operations](../TEMPORAL_RESONATE_OPERATIONS.md) and
+[ADR-071](../adr/ADR-071-temporal-resonate-orchestration.md).
+
+| Gate | Actual result | Evidence |
+|---|---|---|
+| True live Temporal Server + local Resonate | **9 passed, no skips** | [Final live log](temporal-live-final-tests.log) |
+| Final config/runner/journal/boot/import regressions | **161 passed** | [Focused log](temporal-migration-final-state-tests.log) |
+| Earlier expanded selection | 1,308 passed, 13 skipped, 1 config failure during implementation; corrected config is covered by final green gate | [Original log](temporal-migration-regression.log) |
+| Static | Ruff passed; mypy passed across 608 source files | [Ruff](temporal-migration-ruff-final.log), [mypy](temporal-migration-mypy.log) |
+| Packaging/dependencies | Wheel built and inspected; lock/current direct dependencies checked; 174 installed distributions compatible | [Final manifest](temporal-runtime-final-state.json), [build](temporal-migration-build.log) |
+
+The live gate uses `MEMSPINE_TEST_TEMPORAL_ADDRESS`; pytest scrubs other
+`MEMSPINE_*` variables. The initial unprefixed-gate attempt skipped live dispatch;
+it is not live evidence. The final nine-test run used a real task-owned Temporal
+Server 1.32.0 (CLI 1.9.1), SDK 1.34.0 and Resonate 0.8.1 on Python 3.13.5.
+
+Verified behavior includes actual Engine sleep/reopen, failed Activity retry,
+Worker reopen with committed result reuse, and changed-input rejection. Recovery
+uses the same event database and journal volume. These tests do not prove hard
+container failover, cross-host storage attachment, production authorization or
+exactly-once external effects. The checkpoint unit is a registered maintenance
+pipeline; the ingestion outbox remains its own inline/taskiq transport.
+
+The optional import/packaging gate passed 3 tests, and Workflow/runner type checking
+passed with both SDKs absent. The final full source type check also passed with
+the SDKs installed; CI includes that optional-SDK matrix.
+
+Earlier DBOS/dependency/template reports below are historical. Their hashes and
+results are preserved; they do not describe active DBOS support.
+
+## Refreshed Python 3.13 lock follow-up
+
+The reports below supersede the dependency compatibility gate only. Historical
+performance and earlier test reports remain unchanged; they are not measurements
+of the refreshed source/dependency tree.
+
+| Gate | Result | Evidence |
+|---|---|---|
+| Native Postgres/Neo4j/Redis/Valkey/OpenSearch/Weaviate contracts | 8 passed, no skips | [Refreshed lock report](live-provider-refreshed-lock.json) |
+| Native pgvector contract and migration inspection | 1 passed; Alembic head and recovery table confirmed | [pgvector report](pgvector-live-refreshed-lock.json) |
+| Granular synthetic ingestion F1.8 | 7/7 checks passed; no model weights | [Trace](ingest-f18-trace.log) |
+| Synthetic offline flow | 30/30 checks passed | [Trace](sleep-flow-trace.log) |
+| Synthetic retrieval flow | 33/33 checks passed | [Trace](read-flow-trace.log) |
+| GLiNER AutoExtractor adapters/config defaults | 69 passed, 1 skipped; fake SDKs | [Log](gliner25-adapters-tests.log) |
+| SQLite journal and verification ledger | 27 passed; subprocess-exit recovery and stale fencing included | [Log](journal-and-ledger-tests.log) |
+| Real Resonate + Temporal ActivityEnvironment | Committed-step reuse and sandbox preparation passed | [Report](temporal-resonate-journal-template.json) |
+
+These three flow scripts use separate in-memory fixtures. They do not prove one
+message traverses a single persisted end-to-end run or every provider combination.
+[Ledger usage](LEDGER_USAGE.md) explains the manually recorded, hashed evidence
+index. Deployment failover and real GLiNER model inference remain separate gates.
+
+## Historical implementation follow-up: ADR-069
 
 Repository changes include OpenSearch lexical, Weaviate lexical/vector,
 pgvector vector, audited cleanup-fence recovery, dependency-safe teardown,
@@ -172,3 +306,71 @@ Cleanup is opt-in and drains on graceful shutdown; its public recovery API
 requires verified quiescence and persists an audited fence/revision CAS.
 See [provider operations](../PROVIDER_OPERATIONS.md) and the
 [architecture plan](../PROVIDER_ARCHITECTURE_PLAN.md).
+
+
+## Delegated follow-up wave — 2026-10-17
+
+| Gate | Observed result | Evidence |
+|---|---|---|
+| Affected provider/config/runner/tooling/lifecycle regression | 355 passed, 1 skipped; skip explicitly requires a Temporal Server endpoint | [Final regression](provider-followup-final-regression.log) |
+| Strict disposable native contracts | 8 passed, zero skips; PostgreSQL, Neo4j, Redis, Valkey, OpenSearch, Weaviate; task-owned cleanup | [Report](native-strict-final.json), [log](native-strict-final.log) |
+| Installed-wheel and independent extras | Fresh Windows/Python 3.13.5 wheel Engine write/search/shutdown; isolated OpenSearch/Weaviate/Postgres extras and dependency checks | [Report](installed-wheel-checks.json), [log](installed-wheel-checks.log) |
+| Installed plugin wheel | Version/RECORD pins, incompatible contract rejected before build, strict settings, Engine write/search and owned close | [Report](plugin-wheel-checks.json), [example](../PROVIDER_PLUGIN_EXAMPLE.md) |
+| One persisted message lifecycle | Raw source identity/time, L1 lineage, offline outcomes and derived retrieval verified; scoped offline model stub | [Report](memory-lifecycle-trace.json), [focused tests](memory-lifecycle-trace-tests.log), [debugging](../MEMORY_LIFECYCLE_DEBUGGING.md) |
+| Modern asyncio hook | Combined hook/config gate 124 passed with deprecation warnings treated as errors; native Windows/Postgres also exercised | [Audit](ASYNCIO_AND_SKIP_AUDIT.md), [log](asyncio-hook-tests.log) |
+| Static skip inventory | 98 callsites, zero parse errors; historical node-level reasons remain unresolved | [Inventory](test-skip-inventory.json) |
+| Breaking guide examples | Four YAML examples validate; services not started | [Report](upgrade-examples-validation.json), [guide](../PROVIDER_UPGRADE_GUIDE.md) |
+| Changed tooling/tests | Ruff check and format passed | [Log](provider-followup-final-ruff.log) |
+
+The [CI review](../PROVIDER_CI_COVERAGE.md) and
+[platform matrix](../PROVIDER_PLATFORM_MATRIX.md) distinguish configured workflows
+from executions observed here. The new native workflow is manual, digest-pinned
+and strict about skipped contracts; no remote CI run was triggered. Existing CI
+pytest commands now preserve `-rs` reasons. No historical skip attribution or
+production acceptance is inferred from these local gates. The earlier full-sweep
+failure/retest split is not replaced by this focused regression.
+
+The [wave manifest](provider-followup-final-state.json) binds final source/tooling,
+config and evidence hashes. The portable [ledger](runs.jsonl) records selected
+executed gates separately from configuration-only checks. See the
+[tracker](../PROVIDER_TODO.md) for completed items and remaining boundaries.
+
+
+## Selected proposals and measured kernels — 2026-10-18
+
+[All 31 selected proposals](../PROVIDER_PROPOSED_DELIVERY.md) now have an explicit
+disposition: 25 local gates completed, six implementation/environment/release gates
+remain. The [stable tracker](../PROVIDER_TODO.md) now has 125 IDs including PA-124/125
+for the owner's fast-library request. Selection is not counted as execution.
+
+| Evidence | Observed scope |
+|---|---|
+| [Memory types](memory-types-acceptance.json) / [log](memory-types-acceptance.log) | 12 passes: six behaviors under memory and disk cache providers |
+| [Graph, literal and accented-Latin](graph-scope-acceptance.json) / [log](graph-scope-acceptance.log) | Six passes, installed Ladybug included |
+| [Compression](compression-acceptance.json) | Two deterministic cases; no LLMLingua quality claim |
+| [GLiNER structured runtime](gliner-structured-real.json) | Three-call gate ends in live record/relation/mention mapping; candidates remain unasserted |
+| [Base](ner-base-comparison.json) / [Small](ner-small-comparison.json) | Ten calls per model on five fixed invented cases; no broad model ranking |
+| [Local profiles/scaling](provider-performance-followup.json) | Current validation/import/dump and 100/500/1,000-record diagnostics |
+| [Remote timing](provider-remote-latency-followup.json) | Six disposable service operations/fault probes; not search/production workload latency |
+| [Finite resource soak](provider-resource-soak.json) | Five warmups + 30 cycles; 105 connects/closes, zero open DBAPI connections after each stop |
+| [Native hybrid](native-hybrid-evaluation.json) | Weaviate versus portable RRF synthetic diagnostic; distinct candidate-budget caveat |
+| [Earlier affected regression](proposed-wave-regression.log) | 411 passed, one live-Temporal skip before final guard/kernel changes |
+| [Final focused gate](proposed-wave-final-focused.log) | 45 passed on final kernels, candidate guards and measurement boundary tests |
+| [Final source typing](proposed-wave-final-mypy.log) | Three changed source files pass |
+| [JSON benchmark](json-path-benchmark.json) | Existing orjson paths retained; guarded control-metadata replacement slower |
+| [CPU primitive benchmark](engine-primitives-benchmark.json) | Final production SimHash kernel versus frozen reference; exact parity, bounded chunk memory |
+| [Read-only references](release-reference-check.json) | Defaults, stage catalog and schema/template snapshot match |
+
+The owner explicitly requested **kernel-only** performance validation and no full
+engine test for that optimization. No full-engine speedup or final full-suite run
+is implied. See [performance audit](../ENGINE_PERFORMANCE_AUDIT.md),
+[delivery standard](../PROVIDER_DELIVERY_STANDARD.md) and
+[hashed final state](proposed-wave-final-state.json). The final wheel is checked
+for source parity; earlier installed Engine smoke predates final source changes.
+A final installed import/kernel-only check is separate evidence, not an Engine
+acceptance run. PR/release destination and model/representative-host gates remain
+explicit in the delivery register. No push or production activation occurred.
+
+Source review pins hash UTF-8 source text after Python universal-newline
+normalization, matching the AST audit input; CRLF/LF alone does not invalidate a
+review. The final verification manifest separately hashes exact file bytes.

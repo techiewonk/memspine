@@ -1,0 +1,69 @@
+{
+  "run_id": "memory-types-acceptance-2026-10-17",
+  "commit_inspected": "e6596f44c1e9937050ef68938037f2cf2341ee34",
+  "status": "passed",
+  "command": "C:/Users/hembad/AppData/Local/Temp/memspine-dependency-validation-313/Scripts/python.exe -m pytest -p no:deepeval -o addopts='' tests/integration/test_provider_memory_acceptance.py -q --tb=short -rs",
+  "environment": {
+    "PYTHONPATH": "src;evals",
+    "HF_HUB_OFFLINE": "1",
+    "TRANSFORMERS_OFFLINE": "1",
+    "python": "Python 3.13 dependency-validation environment"
+  },
+  "provider_scope": {
+    "storage_event_log": "SQLite file-backed",
+    "embedding": "hash, dim=64",
+    "vector": "LanceDB local",
+    "lexical": "Tantivy local",
+    "cache": [
+      "in-memory",
+      "disk (cashews/diskcache)"
+    ],
+    "network_services": false,
+    "selected_combinations": 2
+  },
+  "llm_scope": {
+    "llm_provider_configured": false,
+    "reflection_text": "caller supplied",
+    "stubbed_llm": false,
+    "model_quality_evaluated": false
+  },
+  "result": {
+    "tests_passed": 12,
+    "tests_failed": 0,
+    "warnings": [
+      "Two LanceDB isolated erasure warnings; no concurrent readers/writers used by these tests."
+    ],
+    "ruff_version": "0.17.1",
+    "ruff_check": "passed",
+    "ruff_format_check": "passed"
+  },
+  "items": {
+    "PA-075": {
+      "behavior": "demonstrated",
+      "evidence": "Semantic source message identity, duplicate merge, same-key contradiction update, closed historical interval, and fact_at historical/current answers on SQLite/hash/LanceDB/Tantivy.",
+      "unproven": "Two selected local cache combinations with the same SQLite/hash/LanceDB/Tantivy foundation; no backend cross-product or extractor/model quality."
+    },
+    "PA-076": {
+      "behavior": "demonstrated",
+      "evidence": "Working page-size overflow, stable persona retention, identity-preserving page-out, and separate tenant records."
+    },
+    "PA-077": {
+      "behavior": "demonstrated",
+      "evidence": "Out-of-order historical writes read in event-time order; sender, message, session and conversation IDs remain in the source envelope; sessions split by a 60-minute event-time gap."
+    },
+    "PA-078": {
+      "behavior": "partial",
+      "evidence": "Document chunk IDs and source paths, idempotent re-ingest, namespace-isolated retrieval, and hard erasure of every returned chunk were exercised.",
+      "unproven": "There is no asset-level delete-by-source API in this tested public path; chunks were erased individually, so source-asset erasure automation is unproven."
+    },
+    "PA-079": {
+      "behavior": "demonstrated",
+      "evidence": "Skill stage gates, dry-run requirement, usable-only listing, namespace-safe promotion, and staged/active plan recall scoped by namespace using local hash embeddings."
+    },
+    "PA-080": {
+      "behavior": "demonstrated",
+      "evidence": "Reflection parent IDs, low-trust parent cap, depth increment/limit, cross-namespace parent refusal, persisted reflection retrieval and reflective-type search isolation."
+    }
+  },
+  "tracker_status": "Root reviewed both selected local cache combinations; broader native memory-type matrices and automatic asset-level erasure remain separate gates."
+}

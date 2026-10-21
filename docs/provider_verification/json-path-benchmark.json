@@ -1,0 +1,538 @@
+{
+  "runtime": {
+    "python": "3.13.5",
+    "implementation": "cpython",
+    "packages": {
+      "orjson": "3.13.0",
+      "pydantic": "2.14.1",
+      "pydantic-core": "2.50.1",
+      "sqlalchemy": "2.1.5"
+    }
+  },
+  "benchmark": {
+    "loops_per_repeat": 1500,
+    "repeats": 7,
+    "warmup": "one call per variant outside timed samples",
+    "clock": "time.perf_counter; medians reported"
+  },
+  "payloads": {
+    "operation_record": {
+      "dump_bytes_stdlib": 6590,
+      "dump_bytes_orjson": 5740,
+      "dump_bytes_model_dump_json": 5740,
+      "nested_items": 48
+    },
+    "event": {
+      "kind": "memory.write",
+      "canonical_payload_bytes": 213,
+      "payload_keys": 6
+    },
+    "envelope": {
+      "record_id": "record-bench",
+      "pydantic_json_bytes": 2383,
+      "orjson_bytes": 2383,
+      "stdlib_json_bytes": 2383,
+      "record_roundtrip_equal": true
+    }
+  },
+  "correctness": {
+    "operation_jsonmode_stdlib_orjson_pythonmode_equal_on_json_tree": true,
+    "operation_model_validate_on_jsonmode_db_mapping": {
+      "status": "error",
+      "error_type": "ValidationError",
+      "error": "3 validation errors for OperationRecord\nstatus\n  Input should be an instance of ChangeStatus [type=is_instance_of, input_value='running', input_type=str]\n    For further informatio"
+    },
+    "event_orjson_and_stdlib_utf8_canonical_bytes_equal": true,
+    "event_stdlib_utf8_fingerprint_equals_orjson": true,
+    "event_orjson_bytes_prefix": "{\"nested\":{\"a\":[1,true,null],\"\u00e9\":\"\u2615\"},\"ordinal\":9007199254740993,\"record_id\":\"rec-bench",
+    "event_stdlib_bytes_prefix": "{\"nested\":{\"a\":[1,true,null],\"\u00e9\":\"\u2615\"},\"ordinal\":9007199254740993,\"record_id\":\"rec-bench",
+    "envelope_encodings_semantically_equal": true,
+    "event_stdlib_ascii_sha256_equals_orjson_payload_sha256": false
+  },
+  "operation_timings": [
+    {
+      "name": "operation stdlib json.dumps + model_validate_json",
+      "loops_per_repeat": 1500,
+      "repeats": 7,
+      "median_seconds": 0.122098,
+      "ops_per_second": 12285.2,
+      "samples_seconds": [
+        0.122887,
+        0.121625,
+        0.121532,
+        0.122098,
+        0.122435,
+        0.121581,
+        0.122848
+      ]
+    },
+    {
+      "name": "operation stdlib compact json.dumps + model_validate_json",
+      "loops_per_repeat": 1500,
+      "repeats": 7,
+      "median_seconds": 0.123652,
+      "ops_per_second": 12130.8,
+      "samples_seconds": [
+        0.122676,
+        0.123817,
+        0.123652,
+        0.123859,
+        0.124286,
+        0.123152,
+        0.122886
+      ]
+    },
+    {
+      "name": "operation orjson.dumps + model_validate_json",
+      "loops_per_repeat": 1500,
+      "repeats": 7,
+      "median_seconds": 0.092668,
+      "ops_per_second": 16186.7,
+      "samples_seconds": [
+        0.092101,
+        0.091351,
+        0.092668,
+        0.093321,
+        0.092774,
+        0.09275,
+        0.09076
+      ]
+    },
+    {
+      "name": "operation guarded orjson + model_validate_json",
+      "loops_per_repeat": 1500,
+      "repeats": 7,
+      "median_seconds": 0.191754,
+      "ops_per_second": 7822.5,
+      "samples_seconds": [
+        0.191754,
+        0.191311,
+        0.194363,
+        0.193115,
+        0.191991,
+        0.191711,
+        0.190447
+      ]
+    },
+    {
+      "name": "operation model_validate(python-mode model_dump)",
+      "loops_per_repeat": 1500,
+      "repeats": 7,
+      "median_seconds": 0.076541,
+      "ops_per_second": 19597.4,
+      "samples_seconds": [
+        0.076615,
+        0.077047,
+        0.078343,
+        0.076541,
+        0.075803,
+        0.075593,
+        0.07593
+      ]
+    },
+    {
+      "name": "operation model_dump_json",
+      "loops_per_repeat": 1500,
+      "repeats": 7,
+      "median_seconds": 0.021457,
+      "ops_per_second": 69906.3,
+      "samples_seconds": [
+        0.021685,
+        0.021371,
+        0.021562,
+        0.021248,
+        0.021333,
+        0.021665,
+        0.021457
+      ]
+    },
+    {
+      "name": "operation model_validate_json(model_dump_json)",
+      "loops_per_repeat": 1500,
+      "repeats": 7,
+      "median_seconds": 0.115108,
+      "ops_per_second": 13031.3,
+      "samples_seconds": [
+        0.115824,
+        0.116334,
+        0.114895,
+        0.115259,
+        0.115108,
+        0.113845,
+        0.114284
+      ]
+    },
+    {
+      "name": "event canonical_payload orjson sorted",
+      "loops_per_repeat": 1500,
+      "repeats": 7,
+      "median_seconds": 0.000359,
+      "ops_per_second": 4184099.8,
+      "samples_seconds": [
+        0.000366,
+        0.000362,
+        0.000358,
+        0.000358,
+        0.000359,
+        0.00036,
+        0.000356
+      ]
+    },
+    {
+      "name": "event stdlib sorted compact UTF8 allow_nan_false",
+      "loops_per_repeat": 1500,
+      "repeats": 7,
+      "median_seconds": 0.004459,
+      "ops_per_second": 336413.4,
+      "samples_seconds": [
+        0.004497,
+        0.004476,
+        0.004527,
+        0.00439,
+        0.004392,
+        0.004459,
+        0.004403
+      ]
+    },
+    {
+      "name": "envelope pydantic model_dump_json",
+      "loops_per_repeat": 1500,
+      "repeats": 7,
+      "median_seconds": 0.011483,
+      "ops_per_second": 130630.2,
+      "samples_seconds": [
+        0.011732,
+        0.011437,
+        0.01148,
+        0.011547,
+        0.01159,
+        0.011463,
+        0.011483
+      ]
+    },
+    {
+      "name": "envelope orjson of model_dump(mode=json)",
+      "loops_per_repeat": 1500,
+      "repeats": 7,
+      "median_seconds": 0.011782,
+      "ops_per_second": 127311.8,
+      "samples_seconds": [
+        0.012013,
+        0.011862,
+        0.011659,
+        0.011735,
+        0.011792,
+        0.011782,
+        0.011591
+      ]
+    },
+    {
+      "name": "envelope stdlib compact UTF8 of model_dump(mode=json)",
+      "loops_per_repeat": 1500,
+      "repeats": 7,
+      "median_seconds": 0.022208,
+      "ops_per_second": 67543.8,
+      "samples_seconds": [
+        0.022832,
+        0.022439,
+        0.022111,
+        0.022083,
+        0.022164,
+        0.022208,
+        0.022358
+      ]
+    }
+  ],
+  "provider_payload_edge_probes": {
+    "nan": {
+      "guard_allows_orjson": false,
+      "stdlib_encode": {
+        "status": "ok",
+        "bytes": 451
+      },
+      "orjson_encode": {
+        "status": "ok",
+        "bytes": 417
+      },
+      "stdlib_jsonmode_validate": {
+        "status": "ok",
+        "value": "NaN"
+      },
+      "stdlib_compact_jsonmode_validate": {
+        "status": "ok",
+        "value": "NaN"
+      },
+      "orjson_jsonmode_validate": {
+        "status": "ok",
+        "value": null
+      },
+      "guarded_jsonmode_validate": {
+        "status": "ok",
+        "value": "NaN"
+      },
+      "pythonmode_validate": {
+        "status": "ok",
+        "value_type": "OperationRecord"
+      },
+      "pythonmode_value": "NaN"
+    },
+    "positive_infinity": {
+      "guard_allows_orjson": false,
+      "stdlib_encode": {
+        "status": "ok",
+        "bytes": 456
+      },
+      "orjson_encode": {
+        "status": "ok",
+        "bytes": 417
+      },
+      "stdlib_jsonmode_validate": {
+        "status": "ok",
+        "value": "Infinity"
+      },
+      "stdlib_compact_jsonmode_validate": {
+        "status": "ok",
+        "value": "Infinity"
+      },
+      "orjson_jsonmode_validate": {
+        "status": "ok",
+        "value": null
+      },
+      "guarded_jsonmode_validate": {
+        "status": "ok",
+        "value": "Infinity"
+      },
+      "pythonmode_validate": {
+        "status": "ok",
+        "value_type": "OperationRecord"
+      },
+      "pythonmode_value": "Infinity"
+    },
+    "negative_infinity": {
+      "guard_allows_orjson": false,
+      "stdlib_encode": {
+        "status": "ok",
+        "bytes": 457
+      },
+      "orjson_encode": {
+        "status": "ok",
+        "bytes": 417
+      },
+      "stdlib_jsonmode_validate": {
+        "status": "ok",
+        "value": "-Infinity"
+      },
+      "stdlib_compact_jsonmode_validate": {
+        "status": "ok",
+        "value": "-Infinity"
+      },
+      "orjson_jsonmode_validate": {
+        "status": "ok",
+        "value": null
+      },
+      "guarded_jsonmode_validate": {
+        "status": "ok",
+        "value": "-Infinity"
+      },
+      "pythonmode_validate": {
+        "status": "ok",
+        "value_type": "OperationRecord"
+      },
+      "pythonmode_value": "-Infinity"
+    },
+    "integer_above_u64": {
+      "guard_allows_orjson": false,
+      "stdlib_encode": {
+        "status": "ok",
+        "bytes": 473
+      },
+      "orjson_encode": {
+        "status": "error",
+        "error_type": "TypeError"
+      },
+      "stdlib_jsonmode_validate": {
+        "status": "ok",
+        "value": {
+          "type": "bigint",
+          "decimal": "1208925819614629174706176"
+        }
+      },
+      "stdlib_compact_jsonmode_validate": {
+        "status": "ok",
+        "value": {
+          "type": "bigint",
+          "decimal": "1208925819614629174706176"
+        }
+      },
+      "guarded_jsonmode_validate": {
+        "status": "ok",
+        "value": {
+          "type": "bigint",
+          "decimal": "1208925819614629174706176"
+        }
+      },
+      "pythonmode_validate": {
+        "status": "ok",
+        "value_type": "OperationRecord"
+      },
+      "pythonmode_value": {
+        "type": "bigint",
+        "decimal": "1208925819614629174706176"
+      }
+    },
+    "non_string_key": {
+      "guard_allows_orjson": false,
+      "stdlib_encode": {
+        "status": "ok",
+        "bytes": 462
+      },
+      "orjson_encode": {
+        "status": "error",
+        "error_type": "TypeError"
+      },
+      "stdlib_jsonmode_validate": {
+        "status": "ok",
+        "value": {
+          "7": "value"
+        }
+      },
+      "stdlib_compact_jsonmode_validate": {
+        "status": "ok",
+        "value": {
+          "7": "value"
+        }
+      },
+      "guarded_jsonmode_validate": {
+        "status": "ok",
+        "value": {
+          "7": "value"
+        }
+      },
+      "pythonmode_validate": {
+        "status": "ok",
+        "value_type": "OperationRecord"
+      },
+      "pythonmode_value": {
+        "7": "value"
+      }
+    },
+    "lone_surrogate": {
+      "guard_allows_orjson": false,
+      "stdlib_encode": {
+        "status": "ok",
+        "bytes": 466
+      },
+      "orjson_encode": {
+        "status": "error",
+        "error_type": "TypeError"
+      },
+      "stdlib_jsonmode_validate": {
+        "status": "error",
+        "error_type": "ValidationError"
+      },
+      "stdlib_compact_jsonmode_validate": {
+        "status": "error",
+        "error_type": "ValidationError"
+      },
+      "guarded_jsonmode_validate": {
+        "status": "error",
+        "error_type": "ValidationError"
+      },
+      "pythonmode_validate": {
+        "status": "ok",
+        "value_type": "OperationRecord"
+      },
+      "pythonmode_value": "bad-\\ud800-value"
+    },
+    "datetime_object": {
+      "guard_allows_orjson": false,
+      "stdlib_encode": {
+        "status": "error",
+        "error_type": "TypeError"
+      },
+      "orjson_encode": {
+        "status": "ok",
+        "bytes": 440
+      },
+      "orjson_jsonmode_validate": {
+        "status": "ok",
+        "value": "2026-01-01T00:00:00+00:00"
+      },
+      "pythonmode_validate": {
+        "status": "ok",
+        "value_type": "OperationRecord"
+      },
+      "pythonmode_value": {
+        "type": "datetime",
+        "iso": "2026-01-01T00:00:00+00:00"
+      }
+    },
+    "custom_object": {
+      "guard_allows_orjson": false,
+      "stdlib_encode": {
+        "status": "error",
+        "error_type": "TypeError"
+      },
+      "orjson_encode": {
+        "status": "error",
+        "error_type": "TypeError"
+      },
+      "pythonmode_validate": {
+        "status": "ok",
+        "value_type": "OperationRecord"
+      },
+      "pythonmode_value": {
+        "type": "object"
+      }
+    }
+  },
+  "event_canonical_byte_edge_probes": {
+    "unicode": {
+      "orjson_sorted": "{\"text\":\"caf\u00e9 \u2615\"}",
+      "orjson_fingerprint": "13634d3d6124753c",
+      "orjson_sha256": "0dca39af872343484bb26306c25a69f72eb44f04daa9eb53bb2d8623e7624b82",
+      "stdlib_sorted_strict": "{\"text\":\"caf\\u00e9 \\u2615\"}",
+      "stdlib_sorted_strict_sha256": "55704e466005da58ef3faacb83d55e6a0ac8be753bb1bb157e1daa9fd55d6407",
+      "stdlib_sorted_allow_nan": "{\"text\":\"caf\\u00e9 \\u2615\"}",
+      "stdlib_sorted_allow_nan_sha256": "55704e466005da58ef3faacb83d55e6a0ac8be753bb1bb157e1daa9fd55d6407"
+    },
+    "nan": {
+      "orjson_sorted": "{\"value\":null}",
+      "orjson_fingerprint": "560312b269e5a607",
+      "orjson_sha256": "1c197daef20de3f47eec5e2f735ec6669869d3180cc29f35be4788511e0af0f8",
+      "stdlib_sorted_strict": {
+        "error_type": "ValueError"
+      },
+      "stdlib_sorted_allow_nan": "{\"value\":NaN}"
+    },
+    "positive_infinity": {
+      "orjson_sorted": "{\"value\":null}",
+      "orjson_fingerprint": "560312b269e5a607",
+      "orjson_sha256": "1c197daef20de3f47eec5e2f735ec6669869d3180cc29f35be4788511e0af0f8",
+      "stdlib_sorted_strict": {
+        "error_type": "ValueError"
+      },
+      "stdlib_sorted_allow_nan": "{\"value\":Infinity}"
+    },
+    "integer_above_u64": {
+      "orjson_sorted": {
+        "error_type": "TypeError"
+      },
+      "stdlib_sorted_strict": "{\"value\":1208925819614629174706176}",
+      "stdlib_sorted_allow_nan": "{\"value\":1208925819614629174706176}"
+    },
+    "negative_zero_and_float": {
+      "orjson_sorted": "{\"values\":[-0.0,1.2345678901234567]}",
+      "orjson_fingerprint": "4629a076fb34b2f5",
+      "orjson_sha256": "a5d95de3597141a42c18a792032c1f5e6402fe60cf136860b3530a4086a0a80e",
+      "stdlib_sorted_strict": "{\"values\":[-0.0,1.2345678901234567]}",
+      "stdlib_sorted_allow_nan": "{\"values\":[-0.0,1.2345678901234567]}"
+    }
+  },
+  "interpretation": [
+    "Timing results apply only to these schemas, payload sizes, Python/runtime versions, and benchmark process.",
+    "Canonical event bytes and fingerprints are identity/replay inputs; byte differences prohibit a drop-in encoder change without a versioned contract.",
+    "Provider change checkpoints permit arbitrary nested details, so encoder alternatives must preserve invalid and unknown values as well as normal JSON trees.",
+    "Direct model_validate is Python-mode validation and is not equivalent to existing JSON-mode validation unless separately proven for the full contract."
+  ]
+}

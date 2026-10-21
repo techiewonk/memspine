@@ -1,0 +1,30 @@
+{
+  "status": "passed",
+  "skip_sites": 162,
+  "source_files_with_sites": 111,
+  "categories": {
+    "optionaldependency": 84,
+    "externalenv": 44,
+    "platform": 7,
+    "model": 5,
+    "deferred": 3,
+    "intentionallycovered": 13,
+    "defect": 6
+  },
+  "review_fields_complete": true,
+  "normalized_source_pins_fresh": true,
+  "human_table_complete": true,
+  "ownership_rows": 36,
+  "tracker_counts": {
+    "DONE": 103,
+    "OPEN": 5,
+    "NEEDS_INPUT": 3,
+    "DEPLOYMENT_CHECK": 19,
+    "EXCLUDED": 4,
+    "DEFERRED": 1,
+    "NEEDS_TOOLCHAIN": 1
+  },
+  "local_links_checked": 281,
+  "next_review_date": "2026-10-25",
+  "runtime_skip_outcomes_inferred": false
+}

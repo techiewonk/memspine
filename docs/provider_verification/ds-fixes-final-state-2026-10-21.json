@@ -1,0 +1,74 @@
+{
+  "date": "2026-10-21",
+  "record_kind": "Historical targeted verification; current task statuses belong only to docs/PROVIDER_TODO.md",
+  "baseline_head": "e6596f44c1e9937050ef68938037f2cf2341ee34",
+  "working_tree": "Dirty working tree with pre-existing changes; no commit created",
+  "focused_gate": {
+    "exit_code": 0,
+    "tests": 185,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 185,
+    "warnings": 10,
+    "duration_seconds": 46.08,
+    "warning_context": "Existing LanceDB optimize cleanup_older_than=0 warnings",
+    "log": "docs/provider_verification/ds-fixes-focused-2026-10-21.log",
+    "junit": "docs/provider_verification/ds-fixes-focused-2026-10-21.xml",
+    "command": "PYTHONPATH=src python -m pytest tests/unit/runtime/test_window_staging_recovery.py tests/unit/runtime/test_outbox_windows.py tests/unit/test_window_write.py tests/unit/runtime/test_readiness_deadline.py tests/unit/runtime/test_outbox.py tests/unit/wiring/test_w2_06c_online_extractor.py tests/unit/test_rule_miner_scope.py tests/unit/test_rule_miner.py -p no:deepeval -o addopts= -q --junitxml=docs/provider_verification/ds-fixes-focused-2026-10-21.xml"
+  },
+  "targeted_fixes": {
+    "DS-01": {
+      "gate_passed": true,
+      "scope": "Unaccepted staging suffix preserved across errors/cancellation; accepted prefix not re-staged; concurrent ordering, backpressure and worker wakeup covered",
+      "limits": "Cancellation settles provider acceptance; unknown committed acceptance is at-least-once. Open-window crash recovery/source discovery remains BI work."
+    },
+    "DS-02": {
+      "gate_passed": true,
+      "scope": "Monotonic cooperative deadline surrounds drain/poll/barrier; zero timeout snapshot; pending job retry and cancellation checks",
+      "limits": "Blocking/cancellation-suppressing I/O or cancellation cleanup requires provider-native bounds; not a process hard deadline."
+    },
+    "DS-21": {
+      "gate_passed": true,
+      "scope": "Tested English quotation/reporting/condition/modality/alternative guards across rule families with positive controls",
+      "limits": "Conservative omission, not full discourse resolution, unresolved annotation persistence or canonical sender authorization."
+    }
+  },
+  "isolated_probes": "docs/provider_verification/ds-fixes-probes-2026-10-21.json",
+  "original_baseline_probes_preserved": "docs/schema_review/deep_scan_probes_2026-10-21.json",
+  "focused_lint": {
+    "ruff_check": "passed on 8 touched Python files",
+    "ruff_format_check": "8 files already formatted"
+  },
+  "tracker_validation": {
+    "authority": "docs/PROVIDER_TODO.md",
+    "unique_items": 206,
+    "provider_items": 136,
+    "duplicate_and_unknown_status_rejected": true,
+    "read_only_view_matches_source_hash": true,
+    "duplicated_handoff_snapshot_removed": true,
+    "refresh_command": "python scripts/refresh_tracker.py --check"
+  },
+  "excluded_actions": [
+    "Full test suite",
+    "Generative calls",
+    "Model inference/downloads",
+    "Deployment",
+    "Historical re-embedding",
+    "Database copying",
+    "Commit or push"
+  ],
+  "sha256": {
+    "src/memspine/workers/windows.py": "d6666e21a7eaef6fe8334df07c4d50ce83235044e0260526df0ffff335b1ff0f",
+    "src/memspine/runtime/runner.py": "fcd92d8bc298beb89e137d395794d84bb28dd2a43b5ab249d55106b9aa72b880",
+    "src/memspine/core/rule_miner.py": "0a1570510031dc5be8957e8731b1bf6ea32914516b72296acf3fc3d6b0484906",
+    "tests/unit/runtime/test_window_staging_recovery.py": "7472c61076dc181eb22afc9fcef6ee9bf5d9d9c34aa318ea4e35992e9fdef1e0",
+    "tests/unit/runtime/test_readiness_deadline.py": "5ae6936a11d732f9fb381acc7e2d2f225676cac1a4a97ec09f24fdab3860b3a1",
+    "tests/unit/test_rule_miner_scope.py": "a9e2bc6fbb88449a5ab69b0dd2b82843296432d94f826d3fda4528d84ac44664",
+    "scripts/refresh_tracker.py": "1f7a34b148fe62efa8392f506591f4a67a458b05ee11fb627606b7b4569b6017",
+    "evals/bench/deep_scan_review_probes.py": "36997abc1f17b2431d1afa6b95f1eb1995e4cad798b99061601ac9eac120ecd2",
+    "docs/PROVIDER_TODO.md": "e965d8584c81b0b1a993ab5f7012a21ae65a4bd99389ed0054db8329b087630a",
+    "docs/v2/tracker.html": "3557d1690d71dc1ae69e063361da84b1eb14dd731506adb7f9cccc485f963923",
+    "docs/CLAUDE_CONTEXT_AND_TRACKER_2026-10-20.md": "39f08a6b5d45c905ba23ced299611a70fe00f22a77dec8ee28ab2cc3482b9343"
+  }
+}

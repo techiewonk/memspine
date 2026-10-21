@@ -1,0 +1,47 @@
+{
+  "snapshot_date": "2026-10-17",
+  "source_revision": "e6596f44",
+  "scope": "PA-081 through PA-089 selected behavioral and acceptance review",
+  "test_file": "tests/integration/test_provider_graph_scope_acceptance.py",
+  "test_command": "python -m pytest -p no:deepeval -o addopts='' tests/integration/test_provider_graph_scope_acceptance.py -q --tb=short -rs",
+  "environment": {
+    "python": "3.13",
+    "python_executable": "C:/Users/hembad/AppData/Local/Temp/memspine-dependency-validation-313/Scripts/python.exe",
+    "offline_flags": ["HF_HUB_OFFLINE=1", "TRANSFORMERS_OFFLINE=1"],
+    "providers": {
+      "storage": "sqlite",
+      "embedding": "hash (dim=64)",
+      "vector": "lancedb 0.40.0",
+      "lexical": "tantivy 0.26.2",
+      "graph": "sqlite_adjacency and ladybug 0.21.2",
+      "cache": "memory"
+    }
+  },
+  "result": {
+    "passed": 6,
+    "failed": 0,
+    "skipped": 0,
+    "duration_seconds": 4.18,
+    "checks": [
+      "association direction and namespace/entity endpoint identity; record-time filters on hybrid retrieval",
+      "prospective pull repeatability, due boundary, acknowledgement idempotence and namespace ownership",
+      "shared hybrid retrieval before and after grant revocation with warm owner and reader hybrid projections, graph namespace isolation",
+      "literal quotes/operators/field-like text/unmatched delimiters and punctuation-only queries remain parser-safe and namespace-fixed in Tantivy and public hybrid search",
+      "accented-Latin exact-term retrieval (niño, pidió, café, Málaga) succeeds in Tantivy and public hybrid search without crossing namespaces",
+      "Ladybug namespace-filtered graph traversal"
+    ]
+  },
+  "static_checks": {
+    "ruff_check": "passed",
+    "ruff_format_check": "passed"
+  },
+  "limitations": [
+    "GraphStore exposes no temporal edge filtering; temporal assertions cover record retrieval only.",
+    "Watch tests do not prove concurrent worker claim or exactly-once external side effects.",
+    "No retrieval-result cache path exists in the selected shared search contract; arbitrary application cache invalidation is not claimed.",
+    "Accented-Latin cases verify deterministic exact-term behavior for the selected default Tantivy analyzer only; no multilingual relevance-quality run or other lexical-adapter claim was made.",
+    "No LLMLingua/model-quality run was made because no explicit local model budget was supplied.",
+    "No native hybrid capability is advertised; no native-vs-portable ranking comparison was run.",
+    "Results cover selected local providers only and do not establish production acceptance."
+  ]
+}

@@ -30,6 +30,37 @@ TESTS = (
     "tests/integration/providers/test_remote_search_live_contracts.py",
 )
 MANAGED_LABEL = "memspine.live-provider-contract=true"
+REQUIRED_SERVICE_ENV = (
+    "MEMSPINE_TEST_LIVE_POSTGRES_URL",
+    "MEMSPINE_TEST_NEO4J_URL",
+    "MEMSPINE_TEST_NEO4J_USER",
+    "MEMSPINE_TEST_NEO4J_PASSWORD",
+    "MEMSPINE_TEST_LIVE_REDIS_URL",
+    "MEMSPINE_TEST_LIVE_VALKEY_URL",
+    "MEMSPINE_TEST_LIVE_OPENSEARCH_URL",
+    "MEMSPINE_TEST_LIVE_WEAVIATE_URL",
+    "MEMSPINE_TEST_LIVE_WEAVIATE_GRPC_PORT",
+)
+
+
+def missing_required_services(environment: dict[str, str]) -> list[str]:
+    """Return names only, never credential-bearing values."""
+    return [name for name in REQUIRED_SERVICE_ENV if not environment.get(name)]
+
+
+def gate_exit_code(pytest_code: int, summary: str, skips: list[str], *, require_all: bool) -> int:
+    """Strict native gates require actual passes and no skipped cases."""
+    if pytest_code != 0 or not require_all:
+        return pytest_code
+    if skips or re.search(r"\b[1-9]\d* skipped\b", summary):
+        return 2
+    return 0 if re.search(r"\b[1-9]\d* passed\b", summary) else 2
+
+
+def selected_images(key: str, primary: str, fallback: str | None) -> tuple[str, str | None]:
+    """An explicit test image pin must never fall back to a different image."""
+    override = os.environ.get(f"MEMSPINE_TEST_IMAGE_{key.upper()}")
+    return (override, None) if override else (primary, fallback)
 
 
 @dataclass
@@ -57,13 +88,16 @@ def run(args: list[str], *, check: bool = True, capture: bool = True) -> str:
 
 
 def image_present(image: str) -> bool:
-    return subprocess.run(
-        ["docker", "image", "inspect", image],
-        cwd=ROOT,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-        check=False,
-    ).returncode == 0
+    return (
+        subprocess.run(
+            ["docker", "image", "inspect", image],
+            cwd=ROOT,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=False,
+        ).returncode
+        == 0
+    )
 
 
 def select_image(primary: str, fallback: str | None, *, pull_missing: bool) -> str | None:
@@ -126,7 +160,7 @@ def start_service(
     extra_ports: tuple[int, ...] = (),
 ) -> Service:
     name = f"memspine-live-{suffix}-{key}"
-    args = ["docker", "run", "--detach", "--name", name, "--label", MANAGED_LABEL]
+    args = ["docker", "run", "--detach", "--rm", "--name", name, "--label", MANAGED_LABEL]
     args += ["--publish", f"127.0.0.1::{internal_port}"]
     for extra_port in extra_ports:
         args += ["--publish", f"127.0.0.1::{extra_port}"]
@@ -137,7 +171,7 @@ def start_service(
         run(args)
     except RuntimeError:
         subprocess.run(
-            ["docker", "rm", "--force", name],
+            ["docker", "rm", "--force", "--volumes", name],
             cwd=ROOT,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
@@ -161,7 +195,9 @@ def service_version(service: Service) -> str:
         try:
             with urlopen(f"http://127.0.0.1:{port}{path}", timeout=5) as response:
                 payload = json.load(response)
-            return str(payload.get("version") or payload.get("Version") or "runtime version unavailable")
+            return str(
+                payload.get("version") or payload.get("Version") or "runtime version unavailable"
+            )
         except Exception:
             return "runtime version unavailable"
     command_by_service = {
@@ -181,12 +217,36 @@ def provision(
     *, pull_missing: bool, suffix: str, services: list[Service]
 ) -> tuple[list[Service], dict[str, str], list[str]]:
     specs = (
-        ("postgres", "MEMSPINE_TEST_LIVE_POSTGRES_URL", "pgvector/pgvector:pg16", "postgres:16-alpine", 5432),
+        (
+            "postgres",
+            "MEMSPINE_TEST_LIVE_POSTGRES_URL",
+            "pgvector/pgvector:pg16",
+            "postgres:16-alpine",
+            5432,
+        ),
         ("neo4j", "MEMSPINE_TEST_NEO4J_URL", "neo4j:5", "neo4j:5-community", 7687),
         ("redis", "MEMSPINE_TEST_LIVE_REDIS_URL", "redis:7-alpine", None, 6379),
-        ("valkey", "MEMSPINE_TEST_LIVE_VALKEY_URL", "valkey/valkey:8.1", "valkey/valkey:8-alpine", 6379),
-        ("opensearch", "MEMSPINE_TEST_LIVE_OPENSEARCH_URL", "opensearchproject/opensearch:2.19.5", None, 9200),
-        ("weaviate", "MEMSPINE_TEST_LIVE_WEAVIATE_URL", "cr.weaviate.io/semitechnologies/weaviate:1.32.4", None, 8080),
+        (
+            "valkey",
+            "MEMSPINE_TEST_LIVE_VALKEY_URL",
+            "valkey/valkey:8.1",
+            "valkey/valkey:8-alpine",
+            6379,
+        ),
+        (
+            "opensearch",
+            "MEMSPINE_TEST_LIVE_OPENSEARCH_URL",
+            "opensearchproject/opensearch:2.19.5",
+            None,
+            9200,
+        ),
+        (
+            "weaviate",
+            "MEMSPINE_TEST_LIVE_WEAVIATE_URL",
+            "cr.weaviate.io/semitechnologies/weaviate:1.32.4",
+            None,
+            8080,
+        ),
     )
     child_env: dict[str, str] = {}
     images: list[str] = []
@@ -198,9 +258,12 @@ def provision(
             for name in ("MEMSPINE_TEST_NEO4J_USER", "MEMSPINE_TEST_NEO4J_PASSWORD")
         ):
             continue
+        primary, fallback = selected_images(key, primary, fallback)
         image = select_image(primary, fallback, pull_missing=pull_missing)
         if image is None:
-            print(f"UNAVAILABLE {key}: Docker image is not cached; pass --pull-missing to fetch the public image")
+            print(
+                f"UNAVAILABLE {key}: Docker image is not cached; pass --pull-missing to fetch the public image"
+            )
             continue
         images.append(f"{key}: {digest(image)}")
         if key == "postgres":
@@ -214,7 +277,9 @@ def provision(
             )
             services.append(service)
             host_port = container_port(service.container_name, port)
-            child_env[url_var] = f"postgresql+psycopg://{user}:{password}@127.0.0.1:{host_port}/{database}"
+            child_env[url_var] = (
+                f"postgresql+psycopg://{user}:{password}@127.0.0.1:{host_port}/{database}"
+            )
         elif key == "neo4j":
             password = secrets.token_hex(16)
             service = start_service(
@@ -301,8 +366,19 @@ def redact(text: str, env: dict[str, str]) -> str:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--docker", action="store_true", help="start disposable local provider containers")
-    parser.add_argument("--pull-missing", action="store_true", help="pull missing public Docker images (implies --docker)")
+    parser.add_argument(
+        "--docker", action="store_true", help="start disposable local provider containers"
+    )
+    parser.add_argument(
+        "--pull-missing",
+        action="store_true",
+        help="pull missing public Docker images (implies --docker)",
+    )
+    parser.add_argument(
+        "--require-all",
+        action="store_true",
+        help="fail unless every native service is configured and all collected contracts execute without skips",
+    )
     parser.add_argument("--report", type=Path, help="write a JSON evidence report to this path")
     options = parser.parse_args()
     if options.pull_missing:
@@ -322,6 +398,7 @@ def main() -> int:
     )
     report: dict[str, Any] = {
         "docker": options.docker,
+        "require_all": options.require_all,
         "images": [],
         "services_started": [],
         "pytest_exit_code": None,
@@ -342,7 +419,12 @@ def main() -> int:
     }
     try:
         if options.docker:
-            if subprocess.run(["docker", "version"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False).returncode:
+            if subprocess.run(
+                ["docker", "version"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                check=False,
+            ).returncode:
                 print("UNAVAILABLE Docker daemon; remote provider cases will be pytest SKIP")
             else:
                 services, provided_env, image_report = provision(
@@ -402,6 +484,14 @@ def main() -> int:
                     )
                 }
 
+        if options.require_all:
+            missing = missing_required_services(child_env)
+            if missing:
+                report["preflight_missing"] = missing
+                report["gate_exit_code"] = 2
+                print("FAILED required native services are missing: " + ", ".join(missing))
+                return 2
+
         command = [
             sys.executable,
             "-m",
@@ -430,24 +520,43 @@ def main() -> int:
         print(output, end="" if output.endswith("\n") else "\n")
         report["pytest_exit_code"] = result.returncode
         report["pytest_summary"] = next(
-            (line for line in reversed(output.splitlines()) if " passed" in line or " failed" in line),
+            (
+                line
+                for line in reversed(output.splitlines())
+                if " passed" in line or " failed" in line
+            ),
             "NO SUMMARY",
         )
-        report["pytest_skips"] = [line for line in output.splitlines() if "SKIPPED" in line or "Skipped:" in line]
+        report["pytest_skips"] = [
+            line for line in output.splitlines() if "SKIPPED" in line or "Skipped:" in line
+        ]
         report["image_digests"] = image_report
-        if options.report:
-            options.report.parent.mkdir(parents=True, exist_ok=True)
-            options.report.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
-        return result.returncode
+        report["gate_exit_code"] = gate_exit_code(
+            result.returncode,
+            report["pytest_summary"],
+            report["pytest_skips"],
+            require_all=options.require_all,
+        )
+        if options.require_all and report["gate_exit_code"] != result.returncode:
+            print("FAILED strict native gate requires executed passes and zero skips")
+        return int(report["gate_exit_code"])
+    except Exception as exc:
+        report["runner_error_code"] = type(exc).__name__
+        report["gate_exit_code"] = 2
+        print(f"FAILED native runner: {type(exc).__name__}")
+        return 2
     finally:
         for service in reversed(services):
             subprocess.run(
-                ["docker", "rm", "--force", service.container_name],
+                ["docker", "rm", "--force", "--volumes", service.container_name],
                 cwd=ROOT,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
                 check=False,
             )
+        if options.report:
+            options.report.parent.mkdir(parents=True, exist_ok=True)
+            options.report.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
 
 
 if __name__ == "__main__":

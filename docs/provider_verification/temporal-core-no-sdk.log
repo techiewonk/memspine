@@ -1,0 +1,10 @@
+...                                                                      [100%]
+============================== warnings summary ===============================
+tests/unit/workers/test_orchestration_packaging.py::test_durable_extra_contains_both_frameworks_and_no_removed_dependency
+tests/unit/workers/test_orchestration_packaging.py::test_inline_import_and_lifecycle_do_not_import_optional_orchestration_sdks
+tests/unit/workers/test_orchestration_packaging.py::test_selected_temporal_runner_names_extra_when_sdk_import_is_unavailable
+  C:\Users\hembad\AppData\Local\Temp\memspine-dependency-validation-313\Lib\site-packages\pytest_asyncio\plugin.py:916: PytestDeprecationWarning: Overriding the "event_loop_policy" fixture is deprecated and will be removed in a future version of pytest-asyncio. Use the "pytest_asyncio_loop_factories" hook to customize event loop creation.
+    warnings.warn(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+3 passed, 3 warnings in 4.39s

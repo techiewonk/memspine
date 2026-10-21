@@ -1,0 +1,10 @@
+src\memspine\workers\temporal_workflow.py:8: error: Cannot find implementation or library stub for module named "temporalio"  [import-not-found]
+src\memspine\workers\temporal_workflow.py:9: error: Cannot find implementation or library stub for module named "temporalio.common"  [import-not-found]
+src\memspine\workers\temporal_workflow.py:9: note: See https://mypy.readthedocs.io/en/stable/running_mypy.html#missing-imports
+src\memspine\workers\temporal_workflow.py:29: error: Untyped decorator makes function "run" untyped  [untyped-decorator]
+src\memspine\workers\temporal_runner.py:52: error: Cannot find implementation or library stub for module named "temporalio.client"  [import-not-found]
+src\memspine\workers\temporal_runner.py:241: error: Cannot find implementation or library stub for module named "temporalio"  [import-not-found]
+src\memspine\workers\temporal_runner.py:243: error: Cannot find implementation or library stub for module named "temporalio.worker"  [import-not-found]
+src\memspine\workers\temporal_runner.py:265: error: Cannot find implementation or library stub for module named "temporalio.exceptions"  [import-not-found]
+src\memspine\workers\temporal_runner.py:492: error: Cannot find implementation or library stub for module named "temporalio.common"  [import-not-found]
+Found 8 errors in 2 files (checked 2 source files)

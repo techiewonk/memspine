@@ -1,0 +1,27 @@
+{
+  "benchmark": "gliner-model-ownership-kernel",
+  "consumers": 3,
+  "independent_client_model_loads": 3,
+  "independent_loader_elapsed_seconds": 0.0047012000577524304,
+  "load_reduction_fraction": 0.6666666666666667,
+  "performance_claim": "load-count behavior only; elapsed values are not a model latency comparison",
+  "platform": "Windows-11-10.0.26340-SP0",
+  "python": "3.13.5",
+  "repeats_per_consumer": 100,
+  "scope": "fake loader + callback; no GLiNER SDK, model weights, or inference",
+  "settings_key": {
+    "device": "cpu",
+    "inference_concurrency": 1,
+    "local_files_only": true,
+    "model": "fixture/gliner",
+    "revision": "fixed-test-revision",
+    "tasks": [
+      "entities",
+      "classification",
+      "records",
+      "relations"
+    ]
+  },
+  "shared_pool_elapsed_seconds_including_calls_and_close": 0.02758450002875179,
+  "shared_pool_model_loads": 1
+}

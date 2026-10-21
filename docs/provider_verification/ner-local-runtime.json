@@ -1,0 +1,150 @@
+{
+  "python": "3.13.5",
+  "platform": "Windows-11-10.0.26340-SP0",
+  "versions": {
+    "gliner2": "2.1.0",
+    "torch": "2.14.1",
+    "transformers": "5.20.1"
+  },
+  "snapshot_revision": "ca906247640776a07753514055be9726f9080ead",
+  "artifact_sha256": {
+    "config.json": "0eb92d00584d613aab32b2178f84a85176b62c87ae3689ce9084e83f6eba64d1",
+    "model.safetensors": "7274094de2e0c2a37a386f55fc4e23061a954da5bd7a335e7dfe56f2743c277a"
+  },
+  "offline": true,
+  "threads": 2,
+  "device": "cpu",
+  "model_call_cap": 4,
+  "status": "passed",
+  "limits": [
+    "Synthetic SDK entity smoke; not held-out quality or full Engine ingestion acceptance."
+  ],
+  "load_seconds": 3.0592426999937743,
+  "calls": [
+    {
+      "seconds": 0.21214529999997467,
+      "output": {
+        "entities": {
+          "person": [
+            {
+              "text": "Mira",
+              "confidence": 0.9977084398269653,
+              "start": 0,
+              "end": 4
+            }
+          ],
+          "organization": [
+            {
+              "text": "Acme",
+              "confidence": 0.9977445602416992,
+              "start": 14,
+              "end": 18
+            }
+          ],
+          "location": [
+            {
+              "text": "Utrecht",
+              "confidence": 0.9970805048942566,
+              "start": 22,
+              "end": 29
+            }
+          ]
+        }
+      }
+    },
+    {
+      "seconds": 0.16122000000905246,
+      "output": {
+        "entities": {
+          "person": [
+            {
+              "text": "Mira",
+              "confidence": 0.9977084398269653,
+              "start": 0,
+              "end": 4
+            }
+          ],
+          "organization": [
+            {
+              "text": "Acme",
+              "confidence": 0.9977445602416992,
+              "start": 14,
+              "end": 18
+            }
+          ],
+          "location": [
+            {
+              "text": "Utrecht",
+              "confidence": 0.9970805048942566,
+              "start": 22,
+              "end": 29
+            }
+          ]
+        }
+      }
+    },
+    {
+      "seconds": 0.15943280002102256,
+      "output": {
+        "entities": {
+          "person": [
+            {
+              "text": "Mira",
+              "confidence": 0.9977084398269653,
+              "start": 0,
+              "end": 4
+            }
+          ],
+          "organization": [
+            {
+              "text": "Acme",
+              "confidence": 0.9977445602416992,
+              "start": 14,
+              "end": 18
+            }
+          ],
+          "location": [
+            {
+              "text": "Utrecht",
+              "confidence": 0.9970805048942566,
+              "start": 22,
+              "end": 29
+            }
+          ]
+        }
+      }
+    },
+    {
+      "seconds": 0.12225180002860725,
+      "output": {
+        "entities": {
+          "person": [
+            {
+              "text": "Mira",
+              "confidence": 0.9977084398269653,
+              "start": 0,
+              "end": 4
+            }
+          ],
+          "organization": [
+            {
+              "text": "Acme",
+              "confidence": 0.9977445602416992,
+              "start": 14,
+              "end": 18
+            }
+          ],
+          "location": [
+            {
+              "text": "Utrecht",
+              "confidence": 0.9970805048942566,
+              "start": 22,
+              "end": 29
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "grounded_nonempty_spans": true
+}

@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-import asyncio
 import os
-import sys
 import uuid
 from pathlib import Path
 
@@ -14,13 +12,6 @@ from memspine import Engine
 from memspine.exceptions import ConfigError
 from memspine.providers.health import ProbeStatus
 from memspine.providers.lifecycle import LifecycleState
-
-
-@pytest.fixture
-def event_loop_policy() -> asyncio.AbstractEventLoopPolicy:
-    if sys.platform == "win32":
-        return asyncio.WindowsSelectorEventLoopPolicy()  # type: ignore[attr-defined,no-any-return]
-    return asyncio.get_event_loop_policy()
 
 
 def _require_postgres_url() -> str:
@@ -70,7 +61,9 @@ async def test_pgvector_native_projection_contract(tmp_path: Path) -> None:
     try:
         report = await engine.provider_health()
         vector_health = [
-            item for item in report.providers if item.category == "vector" and item.provider == "pgvector"
+            item
+            for item in report.providers
+            if item.category == "vector" and item.provider == "pgvector"
         ]
         assert vector_health and all(item.status is ProbeStatus.HEALTHY for item in vector_health)
         assert engine._vector is not None

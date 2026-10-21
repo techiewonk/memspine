@@ -1,0 +1,17 @@
+[build-system]
+requires = ["hatchling>=1.27.0"]
+build-backend = "hatchling.build"
+
+[project]
+name = "memspine-provider-plugin-fixture"
+version = "1.2.3"
+description = "Tiny installed-wheel provider plugin fixture for memspine"
+requires-python = ">=3.13"
+dependencies = ["memspine==0.0.1"]
+
+[project.entry-points."memspine.embedders"]
+fixture_hash = "memspine_provider_plugin_fixture:DESCRIPTOR"
+fixture_bad_contract = "memspine_provider_plugin_fixture:BAD_CONTRACT_DESCRIPTOR"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/memspine_provider_plugin_fixture"]

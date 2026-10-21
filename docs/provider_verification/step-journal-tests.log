@@ -1,0 +1,9 @@
+Command: $env:PYTHONPATH = 'src;evals'; & 'C:/Users/hembad/AppData/Local/Temp/memspine-dependency-validation-313/Scripts/python.exe' -m pytest -p no:deepeval -o addopts='' -q --tb=short tests/unit/test_temporal_resonate_journal.py
+..........                                                               [100%]
+============================== warnings summary ===============================
+tests/unit/test_temporal_resonate_journal.py: 10 warnings
+  C:\Users\hembad\AppData\Local\Temp\memspine-dependency-validation-313\Lib\site-packages\pytest_asyncio\plugin.py:916: PytestDeprecationWarning: Overriding the "event_loop_policy" fixture is deprecated and will be removed in a future version of pytest-asyncio. Use the "pytest_asyncio_loop_factories" hook to customize event loop creation.
+    warnings.warn(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+10 passed, 10 warnings in 0.48s

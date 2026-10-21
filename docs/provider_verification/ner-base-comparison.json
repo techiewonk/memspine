@@ -1,0 +1,209 @@
+{
+  "python": "3.13.5",
+  "platform": "Windows-11-10.0.26340-SP0",
+  "checkpoint_revision": "ca906247640776a07753514055be9726f9080ead",
+  "versions": {
+    "gliner2": "2.1.0",
+    "torch": "2.14.1",
+    "transformers": "5.20.1"
+  },
+  "corpus_sha256": "e50b75077f256b35f0755b3ef0681d99ae05115b7137ce1e73b4d857fe06ceb3",
+  "settings": {
+    "device": "cpu",
+    "threads": 2,
+    "labels": [
+      "person",
+      "organization",
+      "location"
+    ],
+    "threshold": "SDK default, not tuned",
+    "offline": true
+  },
+  "model_calls": 10,
+  "call_cap": 11,
+  "host_cpu_percent_before_cases": 11.1,
+  "load_seconds": 2.888679699972272,
+  "first_inference_seconds": 0.2094422000227496,
+  "warm_seconds": {
+    "median": 0.16366990003734827,
+    "p95": 0.1651922999881208,
+    "samples": [
+      0.1651922999881208,
+      0.1628070999868214,
+      0.15897620003670454,
+      0.16366990003734827,
+      0.16373060003388673
+    ]
+  },
+  "rss_before_load_bytes": 383606784,
+  "rss_after_cases_bytes": 1380388864,
+  "peak_working_set_bytes": 2119376896,
+  "exact_typed_span_scores": {
+    "tp": 11,
+    "predicted": 11,
+    "expected": 11,
+    "precision": 1.0,
+    "recall": 1.0,
+    "f1": 1.0
+  },
+  "cases": [
+    {
+      "case": 0,
+      "source": "Mira works at Acme in Utrecht.",
+      "predicted": [
+        [
+          "location",
+          22,
+          29
+        ],
+        [
+          "organization",
+          14,
+          18
+        ],
+        [
+          "person",
+          0,
+          4
+        ]
+      ],
+      "expected": [
+        [
+          "location",
+          22,
+          29
+        ],
+        [
+          "organization",
+          14,
+          18
+        ],
+        [
+          "person",
+          0,
+          4
+        ]
+      ],
+      "ungrounded_outputs": 0
+    },
+    {
+      "case": 1,
+      "source": "Tomas moved from Braga to Rotterdam in 2022.",
+      "predicted": [
+        [
+          "location",
+          17,
+          22
+        ],
+        [
+          "location",
+          26,
+          35
+        ],
+        [
+          "person",
+          0,
+          5
+        ]
+      ],
+      "expected": [
+        [
+          "location",
+          17,
+          22
+        ],
+        [
+          "location",
+          26,
+          35
+        ],
+        [
+          "person",
+          0,
+          5
+        ]
+      ],
+      "ungrounded_outputs": 0
+    },
+    {
+      "case": 2,
+      "source": "Leena joined Northstar Labs last spring.",
+      "predicted": [
+        [
+          "organization",
+          13,
+          27
+        ],
+        [
+          "person",
+          0,
+          5
+        ]
+      ],
+      "expected": [
+        [
+          "organization",
+          13,
+          27
+        ],
+        [
+          "person",
+          0,
+          5
+        ]
+      ],
+      "ungrounded_outputs": 0
+    },
+    {
+      "case": 3,
+      "source": "Our meeting was postponed until next Tuesday.",
+      "predicted": [],
+      "expected": [],
+      "ungrounded_outputs": 0
+    },
+    {
+      "case": 4,
+      "source": "Nora and Elias visited Oslo together.",
+      "predicted": [
+        [
+          "location",
+          23,
+          27
+        ],
+        [
+          "person",
+          0,
+          4
+        ],
+        [
+          "person",
+          9,
+          14
+        ]
+      ],
+      "expected": [
+        [
+          "location",
+          23,
+          27
+        ],
+        [
+          "person",
+          0,
+          4
+        ],
+        [
+          "person",
+          9,
+          14
+        ]
+      ],
+      "ungrounded_outputs": 0
+    }
+  ],
+  "limits": [
+    "Five fixed invented English cases authored before inference; never tuned against these results.",
+    "Not a statistically powered quality benchmark, unknown pretraining overlap, not an LLM answer benchmark.",
+    "Shared development host; no production latency guarantee; threshold unchanged."
+  ]
+}

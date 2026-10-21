@@ -1,0 +1,2 @@
+PASS: local processing, verification, committed-step reuse, input rejection, workflow sandbox
+NOT TESTED: live Temporal dispatch, heartbeat failover, live container failover or volume reattachment

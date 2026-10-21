@@ -1,0 +1,57 @@
+{
+  "provider": "pgvector",
+  "runner": "scripts/run_provider_live_contracts.py workflow (focused contract invocation)",
+  "image": "pgvector/pgvector:pg16",
+  "container_owned_by_run": "memspine-refreshed-pgvector-1e3b3fd00263",
+  "bind": "127.0.0.1",
+  "host_mounts": false,
+  "synthetic_data_only": true,
+  "source_hashes": {
+    "pyproject.toml": "cbca0fe4bf3f680be836a53c8381c5e845485fa6a5786d077edd837e6eb56784",
+    "uv.lock": "1b3bb1e14085579db21878f8e6d991222a614d562c29608ff2d16d9151f90fd8"
+  },
+  "environment": {
+    "sqlalchemy": "2.1.5",
+    "psycopg": "3.3.6",
+    "pgvector": "0.5.1",
+    "alembic": "1.20.0",
+    "pytest": "9.1.1"
+  },
+  "backend": {
+    "postgres_version": "PostgreSQL 16.15 (Debian 16.15-1.pgdg12+2) on x86_64-pc-linux-gnu, compiled by gcc (Debian 12.2.0-14+deb12u1) 12.2.0, 64-bit"
+  },
+  "test": {
+    "path": "tests/integration/providers/test_pgvector_contract.py",
+    "exit_code": 0,
+    "summary": "1 passed, 1 warning in 1.37s",
+    "command": "refreshed Python 3.13 -m pytest -p no:deepeval -o addopts='' -q -rs --tb=short tests/integration/providers/test_pgvector_contract.py"
+  },
+  "image_id": "sha256:7b822b0aac60967beb1ea5e576b8602c94c300a157d187f385ae3e0da199b90a",
+  "repo_digests": [
+    "pgvector/pgvector@sha256:7b822b0aac60967beb1ea5e576b8602c94c300a157d187f385ae3e0da199b90a"
+  ],
+  "python": "3.13.5",
+  "refreshed_lock_validation": {
+    "python": "3.13.5",
+    "source_hashes": {
+      "pyproject.toml": "cbca0fe4bf3f680be836a53c8381c5e845485fa6a5786d077edd837e6eb56784",
+      "uv.lock": "1b3bb1e14085579db21878f8e6d991222a614d562c29608ff2d16d9151f90fd8"
+    },
+    "installed_distributions": {
+      "sqlalchemy": "2.1.5",
+      "psycopg": "3.3.6",
+      "pgvector": "0.5.1",
+      "alembic": "1.20.0",
+      "pytest": "9.1.1",
+      "neo4j": "6.4.1",
+      "cashews": "7.6.0",
+      "opensearch-py": "3.2.0",
+      "weaviate-client": "4.23.1"
+    }
+  },
+  "container_removed": true,
+  "postgres_migration": {
+    "alembic_version": "pg_cleanup_fence_recovery",
+    "cleanup_fence_recovery_audit_table_exists": true
+  }
+}

@@ -1,0 +1,157 @@
+........................................................................ [  5%]
+......s................................................................. [ 10%]
+..............................................................F......... [ 16%]
+.......................s.s.s.s.s.s...................................... [ 21%]
+........................s...s.......................ss.................. [ 27%]
+........................................................................ [ 32%]
+........................................................................ [ 38%]
+........................................................................ [ 43%]
+........................................................................ [ 49%]
+........................................................................ [ 54%]
+........................................................................ [ 59%]
+........................................................................ [ 65%]
+........................................................................ [ 70%]
+.............
+W2-05 stub calls per turn (200 turns, one session, 1 min apart, facts mode)
+  off (v1)           windows= 35 calls= 35 calls/turn=0.1750 facts=200
+  batch only         windows= 35 calls=  5 calls/turn=0.0250 facts=200
+  adaptive only      windows= 22 calls= 22 calls/turn=0.1100 facts=200
+  adaptive + batch   windows= 22 calls=  3 calls/turn=0.0150 facts=200
+........................................................... [ 76%]
+........................................................................ [ 81%]
+........................................................................ [ 87%]
+.................................s...................................... [ 92%]
+........................................................................ [ 98%]
+.......................s..                                               [100%]
+================================== FAILURES ===================================
+______ test_temporal_worker_deadlines_and_journal_must_be_safe[workers0] ______
+tests\unit\config\test_worker_config.py:50: in test_temporal_worker_deadlines_and_journal_must_be_safe
+    with pytest.raises(ValueError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+============================== warnings summary ===============================
+tests/unit/workers/test_check_watches.py: 3 warnings
+tests/unit/workers/test_event_edge_identity.py: 5 warnings
+tests/unit/workers/test_extract_graph.py: 12 warnings
+tests/unit/workers/test_extract_graph_session.py: 8 warnings
+tests/unit/workers/test_lifecycle_pipelines.py: 16 warnings
+tests/unit/workers/test_reorganize.py: 18 warnings
+tests/unit/workers/test_scheduler.py: 5 warnings
+tests/unit/workers/test_session_summary_incremental.py: 7 warnings
+tests/unit/workers/test_taskiq_runner.py: 12 warnings
+tests/unit/workers/test_temporal_worker_settings.py: 3 warnings
+tests/unit/workers/test_workers.py: 4 warnings
+tests/unit/config/test_assistant_template.py: 7 warnings
+tests/unit/config/test_config_split_equivalence.py: 28 warnings
+tests/unit/config/test_effective_config_snapshot.py: 6 warnings
+tests/unit/config/test_loader.py: 16 warnings
+tests/unit/config/test_requires.py: 32 warnings
+tests/unit/config/test_secure_templates.py: 8 warnings
+tests/unit/config/test_strict_config_inputs.py: 15 warnings
+tests/unit/config/test_worker_config.py: 6 warnings
+tests/unit/wiring/test_f_02c_edge_compiler.py: 11 warnings
+tests/unit/wiring/test_f_16c_scope.py: 16 warnings
+tests/unit/wiring/test_f_16e_neo4j_outbox.py: 27 warnings
+tests/unit/wiring/test_fu_asset_on_read_verbs.py: 12 warnings
+tests/unit/wiring/test_fu_close_followups.py: 8 warnings
+tests/unit/wiring/test_fu_erase_rederive.py: 9 warnings
+tests/unit/wiring/test_fu_gaps.py: 21 warnings
+tests/unit/wiring/test_fu_rrpool.py: 5 warnings
+tests/unit/wiring/test_fu_safe.py: 6 warnings
+tests/unit/wiring/test_fu_sleep.py: 14 warnings
+tests/unit/wiring/test_fu_temporal_parity.py: 19 warnings
+tests/unit/wiring/test_fx_eval_order.py: 6 warnings
+tests/unit/wiring/test_fx_ex1a_findings.py: 11 warnings
+tests/unit/wiring/test_fx_readpath.py: 5 warnings
+tests/unit/wiring/test_glift_derived_lift.py: 13 warnings
+tests/unit/wiring/test_gtemp_derived.py: 8 warnings
+tests/unit/wiring/test_gtime_graph_time_guard.py: 8 warnings
+tests/unit/wiring/test_md_01_model_tiers.py: 28 warnings
+tests/unit/wiring/test_md_02_embedding_profile.py: 13 warnings
+tests/unit/wiring/test_o4_01a_sleep_v2.py: 21 warnings
+tests/unit/wiring/test_o4_01b_budget_freshness.py: 24 warnings
+tests/unit/wiring/test_ow_a_close_call2_profile.py: 16 warnings
+tests/unit/wiring/test_ow_b_reconcile_histories.py: 11 warnings
+tests/unit/wiring/test_ow_c_patterns_standing.py: 12 warnings
+tests/unit/wiring/test_ow_d_communities.py: 8 warnings
+tests/unit/wiring/test_ow_d_decay.py: 8 warnings
+tests/unit/wiring/test_ow_e_advisory_feedback.py: 19 warnings
+tests/unit/wiring/test_owner_bound_handles.py: 2 warnings
+tests/unit/wiring/test_r14_dateprior.py: 8 warnings
+tests/unit/wiring/test_r14_decomp.py: 19 warnings
+tests/unit/wiring/test_r14_indexview.py: 11 warnings
+tests/unit/wiring/test_r14_listcov.py: 13 warnings
+tests/unit/wiring/test_r3_04_legs.py: 21 warnings
+tests/unit/wiring/test_r3_05b_graph_leg.py: 12 warnings
+tests/unit/wiring/test_r3_05c_episode_leg.py: 16 warnings
+tests/unit/wiring/test_rt_01_transport.py: 12 warnings
+tests/unit/wiring/test_rt_02_scheduler.py: 25 warnings
+tests/unit/wiring/test_rw_a_read_entry.py: 5 warnings
+tests/unit/wiring/test_rw_b_fusion_lift_rerank.py: 12 warnings
+tests/unit/wiring/test_rw_c_compose.py: 10 warnings
+tests/unit/wiring/test_rw_d_gate_deep.py: 12 warnings
+tests/unit/wiring/test_rw_e_time_entity_neighbours.py: 9 warnings
+tests/unit/wiring/test_rw_f_cache_external.py: 9 warnings
+tests/unit/wiring/test_t5_06_observability.py: 24 warnings
+tests/unit/wiring/test_tw_a_trust.py: 19 warnings
+tests/unit/wiring/test_tw_b_erasure_retention_audit.py: 14 warnings
+tests/unit/wiring/test_w2_01_intake.py: 25 warnings
+tests/unit/wiring/test_w2_02_stamping.py: 68 warnings
+tests/unit/wiring/test_w2_03_roles.py: 14 warnings
+tests/unit/wiring/test_w2_05_segmentation.py: 25 warnings
+tests/unit/wiring/test_w2_06a_envelope.py: 20 warnings
+tests/unit/wiring/test_w2_06b_prompt_v2.py: 25 warnings
+tests/unit/wiring/test_w2_06c_known_sources.py: 5 warnings
+tests/unit/wiring/test_w2_06c_online_extractor.py: 12 warnings
+tests/unit/wiring/test_w2_07_prompt_layout.py: 63 warnings
+tests/unit/wiring/test_w2_08_grounding.py: 17 warnings
+tests/unit/wiring/test_w2_09_resolve.py: 21 warnings
+tests/unit/wiring/test_w2_10_integration.py: 25 warnings
+tests/unit/wiring/test_w2_11_asset_describer.py: 8 warnings
+tests/unit/wiring/test_w2_12_cost_ledger.py: 18 warnings
+tests/unit/wiring/test_w2_13_prepass.py: 14 warnings
+tests/unit/wiring/test_w2_14_temporal.py: 75 warnings
+tests/unit/wiring/test_w2_15_coverage.py: 14 warnings
+tests/unit/test_engine_p3.py: 11 warnings
+tests/unit/test_temporal_resonate_journal.py: 10 warnings
+tests/unit/test_import_contracts.py: 5 warnings
+tests/combinations/test_runner_boots.py: 5 warnings
+tests/combinations/test_template_boots.py: 12 warnings
+tests/integration/test_runner_parity.py: 2 warnings
+tests/integration/test_temporal_resonate_recovery.py: 2 warnings
+  C:\Users\hembad\AppData\Local\Temp\memspine-dependency-validation-313\Lib\site-packages\pytest_asyncio\plugin.py:916: PytestDeprecationWarning: Overriding the "event_loop_policy" fixture is deprecated and will be removed in a future version of pytest-asyncio. Use the "pytest_asyncio_loop_factories" hook to customize event loop creation.
+    warnings.warn(
+
+tests/unit/wiring/test_f_02c_edge_compiler.py: 2 warnings
+tests/unit/wiring/test_f_16e_neo4j_outbox.py: 1 warning
+tests/unit/wiring/test_fu_asset_on_read_verbs.py: 1 warning
+tests/unit/wiring/test_fu_close_followups.py: 4 warnings
+tests/unit/wiring/test_fu_erase_rederive.py: 7 warnings
+tests/unit/wiring/test_fu_safe.py: 1 warning
+tests/unit/wiring/test_fx_ex1a_findings.py: 5 warnings
+tests/unit/wiring/test_ow_a_close_call2_profile.py: 1 warning
+tests/unit/wiring/test_ow_d_communities.py: 1 warning
+tests/unit/wiring/test_r3_05b_graph_leg.py: 1 warning
+tests/unit/wiring/test_r3_05c_episode_leg.py: 1 warning
+tests/unit/wiring/test_rw_f_cache_external.py: 1 warning
+tests/unit/wiring/test_tw_b_erasure_retention_audit.py: 10 warnings
+tests/unit/wiring/test_w2_11_asset_describer.py: 1 warning
+  C:\Users\hembad\Documents\GitHub\memspine-restructure\src\memspine\services\vector\lancedb_store.py:450: UserWarning: optimize(cleanup_older_than=0) removes every version except the latest. Any concurrent reader or writer still using an older version will fail. Use a longer cleanup_older_than unless no other process is working on this table.
+    table.optimize(cleanup_older_than=timedelta(0))
+
+tests/unit/wiring/test_fu_rrpool.py: 4 warnings
+tests/unit/wiring/test_fx_readpath.py: 3 warnings
+tests/unit/wiring/test_r14_dateprior.py: 2 warnings
+tests/unit/wiring/test_r14_decomp.py: 4 warnings
+tests/unit/wiring/test_rw_b_fusion_lift_rerank.py: 1 warning
+tests/unit/wiring/test_w2_05_segmentation.py: 7 warnings
+tests/unit/wiring/test_w2_06a_envelope.py: 1 warning
+tests/unit/wiring/test_w2_06b_prompt_v2.py: 8 warnings
+tests/unit/wiring/test_w2_13_prepass.py: 2 warnings
+  C:\Users\hembad\Documents\GitHub\memspine-restructure\src\memspine\services\vector\lancedb_store.py:213: UserWarning: optimize(cleanup_older_than=0) removes every version except the latest. Any concurrent reader or writer still using an older version will fail. Use a longer cleanup_older_than unless no other process is working on this table.
+    await asyncio.to_thread(lambda: table.optimize(cleanup_older_than=cleanup))
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/unit/config/test_worker_config.py::test_temporal_worker_deadlines_and_journal_must_be_safe[workers0]
+1 failed, 1308 passed, 13 skipped, 1388 warnings in 406.99s (0:06:46)

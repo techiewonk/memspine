@@ -1,0 +1,246 @@
+
+[read F4.1] prepare: five dated records in one namespace, one in another
+    code: api/engine.py:write
+    records: {"move": "9b14953f", "cello": "3792ce58", "bike": "093f4537", "strings": "4c36045a", "locker": "6ad9212b", "foreign": "771fa573"}
+    [PASS] five records in the namespace: expected 5, got 5
+    [PASS] one record in the other namespace: expected 1, got 1
+    events (30):
+      write.received  {"memory_type": "episodic", "actor": "user", "chars": 31, "has_entity": false, "reply": false}
+      write.firewall.verdict  {"id": "9b14953f-4bee-4070-a77c-c35d30efab71", "firewall": true, "trust": 0.7, "quarantine": false, "anomalous": false, "instruction_flag": false, "reasons": []}
+      write.route  {"id": "9b14953f-4bee-4070-a77c-c35d30efab71", "memory_type": "episodic", "route": "plain"}
+      write.deposit  {"id": "9b14953f-4bee-4070-a77c-c35d30efab71", "memory_type": "episodic", "action": "added", "trust": 0.7, "parents": 0}
+      write.forensics.firewall  {"record_id": "9b14953f-4bee-4070-a77c-c35d30efab71", "role": "user", "channel": "internal", "trust": 0.7, "trust_tier": null, "instruction_screen": "base", "instruction_flag": false, "semantic_risk": null, "embedding_ou
+      write.received  {"memory_type": "episodic", "actor": "user", "chars": 41, "has_entity": false, "reply": false}
+      write.firewall.verdict  {"id": "3792ce58-5e95-409b-ad60-d7f99e8ed902", "firewall": true, "trust": 0.7, "quarantine": false, "anomalous": false, "instruction_flag": false, "reasons": []}
+      write.route  {"id": "3792ce58-5e95-409b-ad60-d7f99e8ed902", "memory_type": "episodic", "route": "plain"}
+      write.deposit  {"id": "3792ce58-5e95-409b-ad60-d7f99e8ed902", "memory_type": "episodic", "action": "added", "trust": 0.7, "parents": 0}
+      write.forensics.firewall  {"record_id": "3792ce58-5e95-409b-ad60-d7f99e8ed902", "role": "user", "channel": "internal", "trust": 0.7, "trust_tier": null, "instruction_screen": "base", "instruction_flag": false, "semantic_risk": null, "embedding_ou
+      write.received  {"memory_type": "episodic", "actor": "user", "chars": 37, "has_entity": false, "reply": false}
+      write.firewall.verdict  {"id": "093f4537-7d83-4b2f-bb49-920b1b6667e5", "firewall": true, "trust": 0.7, "quarantine": false, "anomalous": false, "instruction_flag": false, "reasons": []}
+      write.route  {"id": "093f4537-7d83-4b2f-bb49-920b1b6667e5", "memory_type": "episodic", "route": "plain"}
+      write.deposit  {"id": "093f4537-7d83-4b2f-bb49-920b1b6667e5", "memory_type": "episodic", "action": "added", "trust": 0.7, "parents": 0}
+      write.forensics.firewall  {"record_id": "093f4537-7d83-4b2f-bb49-920b1b6667e5", "role": "user", "channel": "internal", "trust": 0.7, "trust_tier": null, "instruction_screen": "base", "instruction_flag": false, "semantic_risk": null, "embedding_ou
+      write.received  {"memory_type": "episodic", "actor": "user", "chars": 41, "has_entity": false, "reply": false}
+      write.firewall.verdict  {"id": "4c36045a-65a5-4e61-b5fe-fb7bc128281d", "firewall": true, "trust": 0.7, "quarantine": false, "anomalous": false, "instruction_flag": false, "reasons": []}
+      write.route  {"id": "4c36045a-65a5-4e61-b5fe-fb7bc128281d", "memory_type": "episodic", "route": "plain"}
+      write.deposit  {"id": "4c36045a-65a5-4e61-b5fe-fb7bc128281d", "memory_type": "episodic", "action": "added", "trust": 0.7, "parents": 0}
+      write.forensics.firewall  {"record_id": "4c36045a-65a5-4e61-b5fe-fb7bc128281d", "role": "user", "channel": "internal", "trust": 0.7, "trust_tier": null, "instruction_screen": "base", "instruction_flag": false, "semantic_risk": null, "embedding_ou
+      write.received  {"memory_type": "episodic", "actor": "user", "chars": 52, "has_entity": false, "reply": false}
+      write.firewall.verdict  {"id": "6ad9212b-2be3-445c-86c7-2d7e33f0f474", "firewall": true, "trust": 0.7, "quarantine": false, "anomalous": false, "instruction_flag": false, "reasons": []}
+      write.route  {"id": "6ad9212b-2be3-445c-86c7-2d7e33f0f474", "memory_type": "episodic", "route": "plain"}
+      write.deposit  {"id": "6ad9212b-2be3-445c-86c7-2d7e33f0f474", "memory_type": "episodic", "action": "added", "trust": 0.7, "parents": 0}
+      write.forensics.firewall  {"record_id": "6ad9212b-2be3-445c-86c7-2d7e33f0f474", "role": "user", "channel": "internal", "trust": 0.7, "trust_tier": null, "instruction_screen": "base", "instruction_flag": false, "semantic_risk": null, "embedding_ou
+      write.received  {"memory_type": "episodic", "actor": "user", "chars": 66, "has_entity": false, "reply": false}
+      write.firewall.verdict  {"id": "771fa573-44eb-4816-9bf8-a092737865c1", "firewall": true, "trust": 0.7, "quarantine": false, "anomalous": false, "instruction_flag": false, "reasons": []}
+      write.route  {"id": "771fa573-44eb-4816-9bf8-a092737865c1", "memory_type": "episodic", "route": "plain"}
+      write.deposit  {"id": "771fa573-44eb-4816-9bf8-a092737865c1", "memory_type": "episodic", "action": "added", "trust": 0.7, "parents": 0}
+      write.forensics.firewall  {"record_id": "771fa573-44eb-4816-9bf8-a092737865c1", "role": "user", "channel": "internal", "trust": 0.7, "trust_tier": null, "instruction_screen": "base", "instruction_flag": false, "semantic_risk": null, "embedding_ou
+
+[read F4.2] C8 vector leg (private _vector_leg)
+    code: read/pipeline/legs.py:_vector_leg
+    vector hits (private _vector_leg): [["cello", 0.866], ["locker", 0.118], ["move", -0.167], ["bike", -0.183], ["strings", -0.183]]
+    [PASS] the closest text ranks first: expected '3792ce58-5e95-409b-ad60-d7f99e8ed902', got '3792ce58-5e95-409b-ad60-d7f99e8ed902'
+    [PASS] scores are descending
+    [PASS] the other namespace's record is not in the leg
+    events (0):
+
+[read F4.3] C9 lexical (BM25) leg (private _lexical_leg)
+    code: read/pipeline/legs.py:_lexical_leg
+    'cello': [["strings", 0.977], ["cello", 0.94]]
+    'bicycles': [["bike", 2.072]]
+    'Zoltan' (a word only the other namespace has): []
+    [PASS] a word finds exactly the records that contain it: expected {'4c36045a-65a5-4e61-b5fe-fb7bc128281d', '3792ce58-5e95-409b-ad60-d7f99e8ed902'}, got {'4c36045a-65a5-4e61-b5fe-fb7bc128281d', '3792ce58-5e95-409b-ad60-d7f99e8ed902'}
+    [PASS] a rare word finds its one record: expected ['093f4537-7d83-4b2f-bb49-920b1b6667e5'], got ['093f4537-7d83-4b2f-bb49-920b1b6667e5']
+    [PASS] a word from another namespace finds nothing: expected [], got []
+    events (0):
+
+[read F4.4] C16 fusion: reciprocal-rank fusion of the legs, then search()
+    code: services/lexical/base.py:rrf_fuse, read/pipeline/router.py:_search
+    vector rank: ["cello", "move", "bike", "strings", "locker"]
+    lexical rank: ["cello", "strings"]
+    RRF fused: [["cello", 0.0328], ["strings", 0.0318], ["move", 0.0161], ["bike", 0.0159], ["locker", 0.0154]]
+    [PASS] the fused score of a record in both legs is the sum of 1/(k+rank) per leg ((0.03279, 0.03279))
+    [PASS] the record both legs agree on ranks first: expected '3792ce58-5e95-409b-ad60-d7f99e8ed902', got '3792ce58-5e95-409b-ad60-d7f99e8ed902'
+    engine.search (fusion + gates + score): [["cello", 0.667], ["strings", 0.656], ["move", 0.497], ["bike", 0.495], ["locker", 0.49]]
+    [PASS] public search puts the same record first: expected '3792ce58-5e95-409b-ad60-d7f99e8ed902', got '3792ce58-5e95-409b-ad60-d7f99e8ed902'
+    [PASS] search scores are descending
+    [PASS] top_k is respected: expected 2, got 2
+    events (19):
+      read.forensics.vector  {"n": 5, "ids": ["3792ce58-5e95-409b-ad60-d7f99e8ed902", "9b14953f-4bee-4070-a77c-c35d30efab71", "093f4537-7d83-4b2f-bb49-920b1b6667e5", "4c36045a-65a5-4e61-b5fe-fb7bc128281d", "6ad9212b-2be3-445c-86c7-2d7e33f0f474"], "s
+      read.forensics.lexical  {"n": 2, "ids": ["3792ce58-5e95-409b-ad60-d7f99e8ed902", "4c36045a-65a5-4e61-b5fe-fb7bc128281d"], "scores": [1.978433, 0.977332]}
+      read.forensics.extra_legs  {"n": 0, "ids": []}
+      read.forensics.fused  {"n": 5, "ids": ["3792ce58-5e95-409b-ad60-d7f99e8ed902", "4c36045a-65a5-4e61-b5fe-fb7bc128281d", "9b14953f-4bee-4070-a77c-c35d30efab71", "093f4537-7d83-4b2f-bb49-920b1b6667e5", "6ad9212b-2be3-445c-86c7-2d7e33f0f474"], "s
+      read.forensics.pool  {"n": 5, "ids": ["3792ce58-5e95-409b-ad60-d7f99e8ed902", "4c36045a-65a5-4e61-b5fe-fb7bc128281d", "9b14953f-4bee-4070-a77c-c35d30efab71", "093f4537-7d83-4b2f-bb49-920b1b6667e5", "6ad9212b-2be3-445c-86c7-2d7e33f0f474"], "s
+      read.forensics.reranker  {"value": null}
+      read.forensics.query_contract  {"value": {"mode": "off", "status": "absent"}}
+      read.forensics.final  {"n": 5, "ids": ["3792ce58-5e95-409b-ad60-d7f99e8ed902", "4c36045a-65a5-4e61-b5fe-fb7bc128281d", "9b14953f-4bee-4070-a77c-c35d30efab71", "093f4537-7d83-4b2f-bb49-920b1b6667e5", "6ad9212b-2be3-445c-86c7-2d7e33f0f474"], "s
+      read.forensics.cut  {"id": "9b14953f-4bee-4070-a77c-c35d30efab71", "reason": "pool_cut", "pool": 2, "fused_rank": 3, "best_leg": "vector", "best_leg_rank": 2}
+      read.forensics.cut  {"id": "093f4537-7d83-4b2f-bb49-920b1b6667e5", "reason": "pool_cut", "pool": 2, "fused_rank": 4, "best_leg": "vector", "best_leg_rank": 3}
+      read.forensics.cut  {"id": "6ad9212b-2be3-445c-86c7-2d7e33f0f474", "reason": "pool_cut", "pool": 2, "fused_rank": 5, "best_leg": "vector", "best_leg_rank": 5}
+      read.forensics.vector  {"n": 5, "ids": ["3792ce58-5e95-409b-ad60-d7f99e8ed902", "9b14953f-4bee-4070-a77c-c35d30efab71", "093f4537-7d83-4b2f-bb49-920b1b6667e5", "4c36045a-65a5-4e61-b5fe-fb7bc128281d", "6ad9212b-2be3-445c-86c7-2d7e33f0f474"], "s
+      read.forensics.lexical  {"n": 2, "ids": ["3792ce58-5e95-409b-ad60-d7f99e8ed902", "4c36045a-65a5-4e61-b5fe-fb7bc128281d"], "scores": [1.978433, 0.977332]}
+      read.forensics.extra_legs  {"n": 0, "ids": []}
+      read.forensics.fused  {"n": 2, "ids": ["3792ce58-5e95-409b-ad60-d7f99e8ed902", "4c36045a-65a5-4e61-b5fe-fb7bc128281d"], "scores": [1.0, 0.968498]}
+      read.forensics.pool  {"n": 2, "ids": ["3792ce58-5e95-409b-ad60-d7f99e8ed902", "4c36045a-65a5-4e61-b5fe-fb7bc128281d"], "scores": [1.0, 0.968498]}
+      read.forensics.reranker  {"value": null}
+      read.forensics.query_contract  {"value": {"mode": "off", "status": "absent"}}
+      read.forensics.final  {"n": 2, "ids": ["3792ce58-5e95-409b-ad60-d7f99e8ed902", "4c36045a-65a5-4e61-b5fe-fb7bc128281d"], "scores": [0.666667, 0.656166]}
+
+[read F4.5] C23/C25 assemble: records, tokens, dates rendered
+    code: compose/pack.py:AssemblyPolicy.assemble, compose/pipeline/render.py:_render
+    assembled: {"records": 5, "tokens_used": 75, "boundary_index": 0, "abstained": false}
+      record: [2024-04-10 Wed] Bram moved to Utrecht in April.
+      record: [2024-02-01 Thu] Bram keeps his gym locker code, 4471, in a notebook.
+      record: [2024-03-02 Sat] Ilse teaches cello at a school in Leiden.
+      record: [2024-03-09 Sat] Tomasz repairs bicycles on Saturdays.
+      record: [2024-05-03 Fri] Noor brought the cello strings on Friday.
+    [PASS] the context holds the namespace's records and is not abstained
+    [PASS] tokens_used is positive and inside the budget (75)
+    [PASS] the relevant record is in the context
+    [PASS] every record is rendered with its date
+    [PASS] each rendered date is the record's valid_from (the message date, not today)
+    [PASS] no record of the other namespace is in it
+    events (9):
+      compose.budget  {"total": 2000, "reserves": {"reply": 0}, "headers": 0, "used": 75, "accounting": "estimated", "tokenizer": "estimate:len//4+1", "exact_budget": false}
+      read.forensics.vector  {"n": 5, "ids": ["9b14953f-4bee-4070-a77c-c35d30efab71", "3792ce58-5e95-409b-ad60-d7f99e8ed902", "093f4537-7d83-4b2f-bb49-920b1b6667e5", "4c36045a-65a5-4e61-b5fe-fb7bc128281d", "6ad9212b-2be3-445c-86c7-2d7e33f0f474"], "s
+      read.forensics.lexical  {"n": 2, "ids": ["9b14953f-4bee-4070-a77c-c35d30efab71", "6ad9212b-2be3-445c-86c7-2d7e33f0f474"], "scores": [1.396136, 1.184178]}
+      read.forensics.extra_legs  {"n": 0, "ids": []}
+      read.forensics.fused  {"n": 5, "ids": ["9b14953f-4bee-4070-a77c-c35d30efab71", "6ad9212b-2be3-445c-86c7-2d7e33f0f474", "3792ce58-5e95-409b-ad60-d7f99e8ed902", "093f4537-7d83-4b2f-bb49-920b1b6667e5", "4c36045a-65a5-4e61-b5fe-fb7bc128281d"], "s
+      read.forensics.pool  {"n": 5, "ids": ["9b14953f-4bee-4070-a77c-c35d30efab71", "6ad9212b-2be3-445c-86c7-2d7e33f0f474", "3792ce58-5e95-409b-ad60-d7f99e8ed902", "093f4537-7d83-4b2f-bb49-920b1b6667e5", "4c36045a-65a5-4e61-b5fe-fb7bc128281d"], "s
+      read.forensics.reranker  {"value": null}
+      read.forensics.query_contract  {"value": {"mode": "off", "status": "absent"}}
+      read.forensics.final  {"n": 5, "ids": ["9b14953f-4bee-4070-a77c-c35d30efab71", "6ad9212b-2be3-445c-86c7-2d7e33f0f474", "3792ce58-5e95-409b-ad60-d7f99e8ed902", "093f4537-7d83-4b2f-bb49-920b1b6667e5", "4c36045a-65a5-4e61-b5fe-fb7bc128281d"], "s
+
+[read F4.6] C23 budget: a small token budget keeps the relevant records
+    code: compose/pack.py, compose/pipeline/windows.py
+    budget 2000: {"records": 5, "tokens": 75}
+    budget 40: {"records": 2, "tokens": 30, "text": ["[2024-03-02 Sat] Ilse teaches cello at a school in", "[2024-05-03 Fri] Noor brought the cello strings on"]}
+    [PASS] a small budget keeps fewer records
+    [PASS] and stays inside the budget (30)
+    [PASS] the records kept are the relevant ones (cello), not the leftovers (['[2024-03-02 Sat] Ilse teaches ', '[2024-05-03 Fri] Noor brought '])
+    events (19):
+      compose.budget  {"total": 2000, "reserves": {"reply": 0}, "headers": 0, "used": 75, "accounting": "estimated", "tokenizer": "estimate:len//4+1", "exact_budget": false}
+      read.forensics.vector  {"n": 5, "ids": ["6ad9212b-2be3-445c-86c7-2d7e33f0f474", "9b14953f-4bee-4070-a77c-c35d30efab71", "3792ce58-5e95-409b-ad60-d7f99e8ed902", "093f4537-7d83-4b2f-bb49-920b1b6667e5", "4c36045a-65a5-4e61-b5fe-fb7bc128281d"], "s
+      read.forensics.lexical  {"n": 2, "ids": ["3792ce58-5e95-409b-ad60-d7f99e8ed902", "4c36045a-65a5-4e61-b5fe-fb7bc128281d"], "scores": [2.493559, 0.977332]}
+      read.forensics.extra_legs  {"n": 0, "ids": []}
+      read.forensics.fused  {"n": 5, "ids": ["3792ce58-5e95-409b-ad60-d7f99e8ed902", "4c36045a-65a5-4e61-b5fe-fb7bc128281d", "6ad9212b-2be3-445c-86c7-2d7e33f0f474", "9b14953f-4bee-4070-a77c-c35d30efab71", "093f4537-7d83-4b2f-bb49-920b1b6667e5"], "s
+      read.forensics.pool  {"n": 5, "ids": ["3792ce58-5e95-409b-ad60-d7f99e8ed902", "4c36045a-65a5-4e61-b5fe-fb7bc128281d", "6ad9212b-2be3-445c-86c7-2d7e33f0f474", "9b14953f-4bee-4070-a77c-c35d30efab71", "093f4537-7d83-4b2f-bb49-920b1b6667e5"], "s
+      read.forensics.reranker  {"value": null}
+      read.forensics.query_contract  {"value": {"mode": "off", "status": "absent"}}
+      read.forensics.final  {"n": 5, "ids": ["3792ce58-5e95-409b-ad60-d7f99e8ed902", "4c36045a-65a5-4e61-b5fe-fb7bc128281d", "6ad9212b-2be3-445c-86c7-2d7e33f0f474", "9b14953f-4bee-4070-a77c-c35d30efab71", "093f4537-7d83-4b2f-bb49-920b1b6667e5"], "s
+      compose.budget  {"total": 40, "reserves": {"reply": 0}, "headers": 0, "used": 30, "accounting": "estimated", "tokenizer": "estimate:len//4+1", "exact_budget": false}
+      read.forensics.vector  {"n": 5, "ids": ["6ad9212b-2be3-445c-86c7-2d7e33f0f474", "9b14953f-4bee-4070-a77c-c35d30efab71", "3792ce58-5e95-409b-ad60-d7f99e8ed902", "093f4537-7d83-4b2f-bb49-920b1b6667e5", "4c36045a-65a5-4e61-b5fe-fb7bc128281d"], "s
+      read.forensics.lexical  {"n": 2, "ids": ["3792ce58-5e95-409b-ad60-d7f99e8ed902", "4c36045a-65a5-4e61-b5fe-fb7bc128281d"], "scores": [2.493559, 0.977332]}
+      read.forensics.extra_legs  {"n": 0, "ids": []}
+      read.forensics.fused  {"n": 5, "ids": ["3792ce58-5e95-409b-ad60-d7f99e8ed902", "4c36045a-65a5-4e61-b5fe-fb7bc128281d", "6ad9212b-2be3-445c-86c7-2d7e33f0f474", "9b14953f-4bee-4070-a77c-c35d30efab71", "093f4537-7d83-4b2f-bb49-920b1b6667e5"], "s
+      read.forensics.pool  {"n": 5, "ids": ["3792ce58-5e95-409b-ad60-d7f99e8ed902", "4c36045a-65a5-4e61-b5fe-fb7bc128281d", "6ad9212b-2be3-445c-86c7-2d7e33f0f474", "9b14953f-4bee-4070-a77c-c35d30efab71", "093f4537-7d83-4b2f-bb49-920b1b6667e5"], "s
+      read.forensics.reranker  {"value": null}
+      read.forensics.query_contract  {"value": {"mode": "off", "status": "absent"}}
+      read.forensics.final  {"n": 5, "ids": ["3792ce58-5e95-409b-ad60-d7f99e8ed902", "4c36045a-65a5-4e61-b5fe-fb7bc128281d", "6ad9212b-2be3-445c-86c7-2d7e33f0f474", "9b14953f-4bee-4070-a77c-c35d30efab71", "093f4537-7d83-4b2f-bb49-920b1b6667e5"], "s
+      read.forensics.cut  {"id": "6ad9212b-2be3-445c-86c7-2d7e33f0f474", "reason": "budget", "used": 40, "budget": 40, "field_rejected": ["note"]}
+
+[read F4.7] C28 relevance gate: read() abstains off-topic, answers on-topic
+    code: read/pipeline/gate.py:_calibrated_gate
+    read('Ilse teaches cello at a school in Leiden'): {"mode": "full", "abstained": false, "records": 5, "tokens": 75}
+    [PASS] abstained for 'Ilse teaches cello at a school in Leiden': expected False, got False
+    [PASS] an answered context carries records
+    read('Where did Bram move?'): {"mode": "full", "abstained": false, "records": 5, "tokens": 75}
+    [PASS] abstained for 'Where did Bram move?': expected False, got False
+    [PASS] an answered context carries records
+    read('quantum chromodynamics lattice'): {"mode": "full", "abstained": true, "records": 0, "tokens": 0}
+    [PASS] abstained for 'quantum chromodynamics lattice': expected True, got True
+    [PASS] an abstained context is empty and costs no tokens
+    read('Tell me about Zoltan'): {"mode": "full", "abstained": true, "records": 0, "tokens": 0}
+    [PASS] abstained for 'Tell me about Zoltan': expected True, got True
+    [PASS] an abstained context is empty and costs no tokens
+    events (16):
+      read.forensics.relevance_bypass  {"value": {"mode": "named", "fired": true, "kind": "named", "names": ["Leiden"]}}
+      read.forensics.relevance_bypass  {"value": {"mode": "named", "fired": true, "kind": "named", "names": ["Bram"]}}
+      read.forensics.relevance_bypass  {"value": {"mode": "named", "fired": false}}
+      read.forensics.relevance_calibration  {"value": {"margin_sd": 1.0, "legs": {"vector": {"raw_top": 0.333333, "threshold": 0.535882, "pass": false, "leg": "vector", "n_probes": 20, "mu": 0.241899, "sigma": 0.125882, "p95": 0.41, "n_records": 5}}, "recalibrated
+      read.forensics.cut  {"id": "6ad9212b-2be3-445c-86c7-2d7e33f0f474", "reason": "relevance_gate_calibrated"}
+      read.forensics.cut  {"id": "3792ce58-5e95-409b-ad60-d7f99e8ed902", "reason": "relevance_gate_calibrated"}
+      read.forensics.cut  {"id": "093f4537-7d83-4b2f-bb49-920b1b6667e5", "reason": "relevance_gate_calibrated"}
+      read.forensics.cut  {"id": "9b14953f-4bee-4070-a77c-c35d30efab71", "reason": "relevance_gate_calibrated"}
+      read.forensics.cut  {"id": "4c36045a-65a5-4e61-b5fe-fb7bc128281d", "reason": "relevance_gate_calibrated"}
+      read.forensics.relevance_bypass  {"value": {"mode": "named", "fired": false}}
+      read.forensics.relevance_calibration  {"value": {"margin_sd": 1.0, "legs": {"vector": {"raw_top": 0.176777, "threshold": 0.535882, "pass": false, "leg": "vector", "n_probes": 20, "mu": 0.241899, "sigma": 0.125882, "p95": 0.41, "n_records": 5}}, "recalibrated
+      read.forensics.cut  {"id": "6ad9212b-2be3-445c-86c7-2d7e33f0f474", "reason": "relevance_gate_calibrated"}
+      read.forensics.cut  {"id": "3792ce58-5e95-409b-ad60-d7f99e8ed902", "reason": "relevance_gate_calibrated"}
+      read.forensics.cut  {"id": "093f4537-7d83-4b2f-bb49-920b1b6667e5", "reason": "relevance_gate_calibrated"}
+      read.forensics.cut  {"id": "9b14953f-4bee-4070-a77c-c35d30efab71", "reason": "relevance_gate_calibrated"}
+      read.forensics.cut  {"id": "4c36045a-65a5-4e61-b5fe-fb7bc128281d", "reason": "relevance_gate_calibrated"}
+
+[read F4.8] namespace isolation across search, assemble, read and both legs
+    code: read/pipeline/router.py, store scope
+    'Zoltan cello Leiden hall code 9988': {"search": 5, "assemble": 5, "read": 5}
+    'cello Leiden': {"search": 5, "assemble": 5, "read": 5}
+    'hall code': {"search": 5, "assemble": 5, "read": 0}
+    [PASS] no verb in the first namespace ever returns the other namespace's record: expected [], got []
+    search in the other namespace: [["foreign", 0.667]]
+    [PASS] the other namespace sees only its own record: expected ['771fa573-44eb-4816-9bf8-a092737865c1'], got ['771fa573-44eb-4816-9bf8-a092737865c1']
+    [PASS] a namespace that holds nothing returns nothing: expected [], got []
+    events (76):
+      read.forensics.vector  {"n": 5, "ids": ["3792ce58-5e95-409b-ad60-d7f99e8ed902", "9b14953f-4bee-4070-a77c-c35d30efab71", "093f4537-7d83-4b2f-bb49-920b1b6667e5", "4c36045a-65a5-4e61-b5fe-fb7bc128281d", "6ad9212b-2be3-445c-86c7-2d7e33f0f474"], "s
+      read.forensics.lexical  {"n": 3, "ids": ["3792ce58-5e95-409b-ad60-d7f99e8ed902", "6ad9212b-2be3-445c-86c7-2d7e33f0f474", "4c36045a-65a5-4e61-b5fe-fb7bc128281d"], "scores": [1.978433, 1.184178, 0.977332]}
+      read.forensics.extra_legs  {"n": 0, "ids": []}
+      read.forensics.fused  {"n": 5, "ids": ["3792ce58-5e95-409b-ad60-d7f99e8ed902", "6ad9212b-2be3-445c-86c7-2d7e33f0f474", "4c36045a-65a5-4e61-b5fe-fb7bc128281d", "9b14953f-4bee-4070-a77c-c35d30efab71", "093f4537-7d83-4b2f-bb49-920b1b6667e5"], "s
+      read.forensics.pool  {"n": 5, "ids": ["3792ce58-5e95-409b-ad60-d7f99e8ed902", "6ad9212b-2be3-445c-86c7-2d7e33f0f474", "4c36045a-65a5-4e61-b5fe-fb7bc128281d", "9b14953f-4bee-4070-a77c-c35d30efab71", "093f4537-7d83-4b2f-bb49-920b1b6667e5"], "s
+      read.forensics.reranker  {"value": null}
+      read.forensics.query_contract  {"value": {"mode": "off", "status": "absent"}}
+      read.forensics.final  {"n": 5, "ids": ["3792ce58-5e95-409b-ad60-d7f99e8ed902", "6ad9212b-2be3-445c-86c7-2d7e33f0f474", "4c36045a-65a5-4e61-b5fe-fb7bc128281d", "9b14953f-4bee-4070-a77c-c35d30efab71", "093f4537-7d83-4b2f-bb49-920b1b6667e5"], "s
+      compose.budget  {"total": 2000, "reserves": {"reply": 0}, "headers": 0, "used": 75, "accounting": "estimated", "tokenizer": "estimate:len//4+1", "exact_budget": false}
+      read.forensics.vector  {"n": 5, "ids": ["3792ce58-5e95-409b-ad60-d7f99e8ed902", "9b14953f-4bee-4070-a77c-c35d30efab71", "093f4537-7d83-4b2f-bb49-920b1b6667e5", "4c36045a-65a5-4e61-b5fe-fb7bc128281d", "6ad9212b-2be3-445c-86c7-2d7e33f0f474"], "s
+      read.forensics.lexical  {"n": 3, "ids": ["3792ce58-5e95-409b-ad60-d7f99e8ed902", "6ad9212b-2be3-445c-86c7-2d7e33f0f474", "4c36045a-65a5-4e61-b5fe-fb7bc128281d"], "scores": [1.978433, 1.184178, 0.977332]}
+      read.forensics.extra_legs  {"n": 0, "ids": []}
+      read.forensics.fused  {"n": 5, "ids": ["3792ce58-5e95-409b-ad60-d7f99e8ed902", "6ad9212b-2be3-445c-86c7-2d7e33f0f474", "4c36045a-65a5-4e61-b5fe-fb7bc128281d", "9b14953f-4bee-4070-a77c-c35d30efab71", "093f4537-7d83-4b2f-bb49-920b1b6667e5"], "s
+      read.forensics.pool  {"n": 5, "ids": ["3792ce58-5e95-409b-ad60-d7f99e8ed902", "6ad9212b-2be3-445c-86c7-2d7e33f0f474", "4c36045a-65a5-4e61-b5fe-fb7bc128281d", "9b14953f-4bee-4070-a77c-c35d30efab71", "093f4537-7d83-4b2f-bb49-920b1b6667e5"], "s
+      read.forensics.reranker  {"value": null}
+      read.forensics.query_contract  {"value": {"mode": "off", "status": "absent"}}
+      read.forensics.final  {"n": 5, "ids": ["3792ce58-5e95-409b-ad60-d7f99e8ed902", "6ad9212b-2be3-445c-86c7-2d7e33f0f474", "4c36045a-65a5-4e61-b5fe-fb7bc128281d", "9b14953f-4bee-4070-a77c-c35d30efab71", "093f4537-7d83-4b2f-bb49-920b1b6667e5"], "s
+      read.forensics.relevance_bypass  {"value": {"mode": "named", "fired": true, "kind": "named", "names": ["Leiden"]}}
+      read.forensics.vector  {"n": 5, "ids": ["3792ce58-5e95-409b-ad60-d7f99e8ed902", "9b14953f-4bee-4070-a77c-c35d30efab71", "093f4537-7d83-4b2f-bb49-920b1b6667e5", "4c36045a-65a5-4e61-b5fe-fb7bc128281d", "6ad9212b-2be3-445c-86c7-2d7e33f0f474"], "s
+      read.forensics.lexical  {"n": 2, "ids": ["3792ce58-5e95-409b-ad60-d7f99e8ed902", "4c36045a-65a5-4e61-b5fe-fb7bc128281d"], "scores": [1.978433, 0.977332]}
+      read.forensics.extra_legs  {"n": 0, "ids": []}
+      read.forensics.fused  {"n": 5, "ids": ["3792ce58-5e95-409b-ad60-d7f99e8ed902", "4c36045a-65a5-4e61-b5fe-fb7bc128281d", "9b14953f-4bee-4070-a77c-c35d30efab71", "093f4537-7d83-4b2f-bb49-920b1b6667e5", "6ad9212b-2be3-445c-86c7-2d7e33f0f474"], "s
+      read.forensics.pool  {"n": 5, "ids": ["3792ce58-5e95-409b-ad60-d7f99e8ed902", "4c36045a-65a5-4e61-b5fe-fb7bc128281d", "9b14953f-4bee-4070-a77c-c35d30efab71", "093f4537-7d83-4b2f-bb49-920b1b6667e5", "6ad9212b-2be3-445c-86c7-2d7e33f0f474"], "s
+      read.forensics.reranker  {"value": null}
+      read.forensics.query_contract  {"value": {"mode": "off", "status": "absent"}}
+      read.forensics.final  {"n": 5, "ids": ["3792ce58-5e95-409b-ad60-d7f99e8ed902", "4c36045a-65a5-4e61-b5fe-fb7bc128281d", "9b14953f-4bee-4070-a77c-c35d30efab71", "093f4537-7d83-4b2f-bb49-920b1b6667e5", "6ad9212b-2be3-445c-86c7-2d7e33f0f474"], "s
+      compose.budget  {"total": 2000, "reserves": {"reply": 0}, "headers": 0, "used": 75, "accounting": "estimated", "tokenizer": "estimate:len//4+1", "exact_budget": false}
+      read.forensics.vector  {"n": 5, "ids": ["3792ce58-5e95-409b-ad60-d7f99e8ed902", "9b14953f-4bee-4070-a77c-c35d30efab71", "093f4537-7d83-4b2f-bb49-920b1b6667e5", "4c36045a-65a5-4e61-b5fe-fb7bc128281d", "6ad9212b-2be3-445c-86c7-2d7e33f0f474"], "s
+      read.forensics.lexical  {"n": 2, "ids": ["3792ce58-5e95-409b-ad60-d7f99e8ed902", "4c36045a-65a5-4e61-b5fe-fb7bc128281d"], "scores": [1.978433, 0.977332]}
+      read.forensics.extra_legs  {"n": 0, "ids": []}
+      read.forensics.fused  {"n": 5, "ids": ["3792ce58-5e95-409b-ad60-d7f99e8ed902", "4c36045a-65a5-4e61-b5fe-fb7bc128281d", "9b14953f-4bee-4070-a77c-c35d30efab71", "093f4537-7d83-4b2f-bb49-920b1b6667e5", "6ad9212b-2be3-445c-86c7-2d7e33f0f474"], "s
+      read.forensics.pool  {"n": 5, "ids": ["3792ce58-5e95-409b-ad60-d7f99e8ed902", "4c36045a-65a5-4e61-b5fe-fb7bc128281d", "9b14953f-4bee-4070-a77c-c35d30efab71", "093f4537-7d83-4b2f-bb49-920b1b6667e5", "6ad9212b-2be3-445c-86c7-2d7e33f0f474"], "s
+      read.forensics.reranker  {"value": null}
+      read.forensics.query_contract  {"value": {"mode": "off", "status": "absent"}}
+      read.forensics.final  {"n": 5, "ids": ["3792ce58-5e95-409b-ad60-d7f99e8ed902", "4c36045a-65a5-4e61-b5fe-fb7bc128281d", "9b14953f-4bee-4070-a77c-c35d30efab71", "093f4537-7d83-4b2f-bb49-920b1b6667e5", "6ad9212b-2be3-445c-86c7-2d7e33f0f474"], "s
+      read.forensics.relevance_bypass  {"value": {"mode": "named", "fired": true, "kind": "named", "names": ["Leiden"]}}
+      read.forensics.vector  {"n": 5, "ids": ["9b14953f-4bee-4070-a77c-c35d30efab71", "3792ce58-5e95-409b-ad60-d7f99e8ed902", "093f4537-7d83-4b2f-bb49-920b1b6667e5", "4c36045a-65a5-4e61-b5fe-fb7bc128281d", "6ad9212b-2be3-445c-86c7-2d7e33f0f474"], "s
+      read.forensics.lexical  {"n": 1, "ids": ["6ad9212b-2be3-445c-86c7-2d7e33f0f474"], "scores": [1.184178]}
+      read.forensics.extra_legs  {"n": 0, "ids": []}
+      read.forensics.fused  {"n": 5, "ids": ["6ad9212b-2be3-445c-86c7-2d7e33f0f474", "9b14953f-4bee-4070-a77c-c35d30efab71", "3792ce58-5e95-409b-ad60-d7f99e8ed902", "093f4537-7d83-4b2f-bb49-920b1b6667e5", "4c36045a-65a5-4e61-b5fe-fb7bc128281d"], "s
+      read.forensics.pool  {"n": 5, "ids": ["6ad9212b-2be3-445c-86c7-2d7e33f0f474", "9b14953f-4bee-4070-a77c-c35d30efab71", "3792ce58-5e95-409b-ad60-d7f99e8ed902", "093f4537-7d83-4b2f-bb49-920b1b6667e5", "4c36045a-65a5-4e61-b5fe-fb7bc128281d"], "s
+      read.forensics.reranker  {"value": null}
+      read.forensics.query_contract  {"value": {"mode": "off", "status": "absent"}}
+      read.forensics.final  {"n": 5, "ids": ["6ad9212b-2be3-445c-86c7-2d7e33f0f474", "9b14953f-4bee-4070-a77c-c35d30efab71", "3792ce58-5e95-409b-ad60-d7f99e8ed902", "093f4537-7d83-4b2f-bb49-920b1b6667e5", "4c36045a-65a5-4e61-b5fe-fb7bc128281d"], "s
+      compose.budget  {"total": 2000, "reserves": {"reply": 0}, "headers": 0, "used": 75, "accounting": "estimated", "tokenizer": "estimate:len//4+1", "exact_budget": false}
+      read.forensics.vector  {"n": 5, "ids": ["9b14953f-4bee-4070-a77c-c35d30efab71", "3792ce58-5e95-409b-ad60-d7f99e8ed902", "093f4537-7d83-4b2f-bb49-920b1b6667e5", "4c36045a-65a5-4e61-b5fe-fb7bc128281d", "6ad9212b-2be3-445c-86c7-2d7e33f0f474"], "s
+      read.forensics.lexical  {"n": 1, "ids": ["6ad9212b-2be3-445c-86c7-2d7e33f0f474"], "scores": [1.184178]}
+      read.forensics.extra_legs  {"n": 0, "ids": []}
+      read.forensics.fused  {"n": 5, "ids": ["6ad9212b-2be3-445c-86c7-2d7e33f0f474", "9b14953f-4bee-4070-a77c-c35d30efab71", "3792ce58-5e95-409b-ad60-d7f99e8ed902", "093f4537-7d83-4b2f-bb49-920b1b6667e5", "4c36045a-65a5-4e61-b5fe-fb7bc128281d"], "s
+      read.forensics.pool  {"n": 5, "ids": ["6ad9212b-2be3-445c-86c7-2d7e33f0f474", "9b14953f-4bee-4070-a77c-c35d30efab71", "3792ce58-5e95-409b-ad60-d7f99e8ed902", "093f4537-7d83-4b2f-bb49-920b1b6667e5", "4c36045a-65a5-4e61-b5fe-fb7bc128281d"], "s
+      read.forensics.reranker  {"value": null}
+      read.forensics.query_contract  {"value": {"mode": "off", "status": "absent"}}
+      read.forensics.final  {"n": 5, "ids": ["6ad9212b-2be3-445c-86c7-2d7e33f0f474", "9b14953f-4bee-4070-a77c-c35d30efab71", "3792ce58-5e95-409b-ad60-d7f99e8ed902", "093f4537-7d83-4b2f-bb49-920b1b6667e5", "4c36045a-65a5-4e61-b5fe-fb7bc128281d"], "s
+      read.forensics.relevance_bypass  {"value": {"mode": "named", "fired": false}}
+      read.forensics.relevance_calibration  {"value": {"margin_sd": 1.0, "legs": {"vector": {"raw_top": 0.0, "threshold": 0.535882, "pass": false, "leg": "vector", "n_probes": 20, "mu": 0.241899, "sigma": 0.125882, "p95": 0.41, "n_records": 5}}, "recalibrated": fa
+      read.forensics.cut  {"id": "6ad9212b-2be3-445c-86c7-2d7e33f0f474", "reason": "relevance_gate_calibrated"}
+      read.forensics.cut  {"id": "3792ce58-5e95-409b-ad60-d7f99e8ed902", "reason": "relevance_gate_calibrated"}
+      read.forensics.cut  {"id": "093f4537-7d83-4b2f-bb49-920b1b6667e5", "reason": "relevance_gate_calibrated"}
+      read.forensics.cut  {"id": "9b14953f-4bee-4070-a77c-c35d30efab71", "reason": "relevance_gate_calibrated"}
+      read.forensics.cut  {"id": "4c36045a-65a5-4e61-b5fe-fb7bc128281d", "reason": "relevance_gate_calibrated"}
+      ... 16 more
+
+33/33 checks passed

@@ -1,0 +1,711 @@
+{
+  "status": "passed",
+  "before_sites": 162,
+  "after_sites": 156,
+  "removed_declarations": [
+    "tests/integration/test_runner_parity.py:160:importorskip",
+    "tests/unit/observability/test_stage_trace_coverage.py:100:importorskip",
+    "tests/unit/services/lexical/test_tantivy.py:12:importorskip",
+    "tests/unit/services/test_ladybug_fts_install.py:13:importorskip",
+    "tests/unit/wiring/test_rw_d_gate_deep.py:55:skip",
+    "tests/unit/wiring/test_t5_06_observability.py:376:skipif",
+    "tests/unit/wiring/test_t5_06_observability.py:386:skip"
+  ],
+  "added_narrow_optional_guard": [
+    "tests/unit/wiring/test_t5_06_observability.py:392:skip"
+  ],
+  "resolved_guard_findings": [
+    {
+      "original_site": "tests/integration/test_runner_parity.py:160:importorskip",
+      "source_file": "tests/integration/test_runner_parity.py",
+      "original_node": "test_temporal_runner_dispatches_across_worker_restart",
+      "status": "DONE",
+      "owner_role": "Test maintainers",
+      "completed_at": "2026-10-18",
+      "evidence": "docs/provider_verification/guard-fixes-focused.log"
+    },
+    {
+      "original_site": "tests/unit/observability/test_stage_trace_coverage.py:100:importorskip",
+      "source_file": "tests/unit/observability/test_stage_trace_coverage.py",
+      "original_node": "test_every_sleep_stage_is_registered",
+      "status": "DONE",
+      "owner_role": "Test maintainers",
+      "completed_at": "2026-10-18",
+      "evidence": "docs/provider_verification/guard-fixes-focused.log"
+    },
+    {
+      "original_site": "tests/unit/services/lexical/test_tantivy.py:12:importorskip",
+      "source_file": "tests/unit/services/lexical/test_tantivy.py",
+      "original_node": "<module>",
+      "status": "DONE",
+      "owner_role": "Test maintainers",
+      "completed_at": "2026-10-18",
+      "evidence": "docs/provider_verification/guard-fixes-focused.log"
+    },
+    {
+      "original_site": "tests/unit/services/test_ladybug_fts_install.py:13:importorskip",
+      "source_file": "tests/unit/services/test_ladybug_fts_install.py",
+      "original_node": "<module>",
+      "status": "DONE",
+      "owner_role": "Test maintainers",
+      "completed_at": "2026-10-18",
+      "evidence": "docs/provider_verification/guard-fixes-focused.log"
+    },
+    {
+      "original_site": "tests/unit/wiring/test_rw_d_gate_deep.py:55:skip",
+      "source_file": "tests/unit/wiring/test_rw_d_gate_deep.py",
+      "original_node": "test_gate_contract_time_view_needs_support",
+      "status": "DONE",
+      "owner_role": "Test maintainers",
+      "completed_at": "2026-10-18",
+      "evidence": "docs/provider_verification/guard-fixes-focused.log"
+    },
+    {
+      "original_site": "tests/unit/wiring/test_t5_06_observability.py:386:skip",
+      "source_file": "tests/unit/wiring/test_t5_06_observability.py",
+      "original_node": "test_sdk_in_memory_exporter_if_the_sdk_imports",
+      "status": "DONE",
+      "owner_role": "Test maintainers",
+      "completed_at": "2026-10-18",
+      "evidence": "docs/provider_verification/guard-fixes-focused.log"
+    }
+  ],
+  "mapped_existing_sites": [
+    {
+      "before": "docs/v2/data/test_build_plan.py:122:skip",
+      "after": "docs/v2/data/test_build_plan.py:122:skip"
+    },
+    {
+      "before": "evals/tests/test_adapter_parity.py:20:importorskip",
+      "after": "evals/tests/test_adapter_parity.py:20:importorskip"
+    },
+    {
+      "before": "evals/tests/test_asb.py:47:importorskip",
+      "after": "evals/tests/test_asb.py:47:importorskip"
+    },
+    {
+      "before": "evals/tests/test_b5_arms.py:12:importorskip",
+      "after": "evals/tests/test_b5_arms.py:12:importorskip"
+    },
+    {
+      "before": "evals/tests/test_b7_b8_arms.py:15:importorskip",
+      "after": "evals/tests/test_b7_b8_arms.py:15:importorskip"
+    },
+    {
+      "before": "evals/tests/test_batch_consistency.py:18:importorskip",
+      "after": "evals/tests/test_batch_consistency.py:18:importorskip"
+    },
+    {
+      "before": "evals/tests/test_batch_turns.py:73:importorskip",
+      "after": "evals/tests/test_batch_turns.py:73:importorskip"
+    },
+    {
+      "before": "evals/tests/test_beam.py:10:importorskip",
+      "after": "evals/tests/test_beam.py:10:importorskip"
+    },
+    {
+      "before": "evals/tests/test_beam.py:11:importorskip",
+      "after": "evals/tests/test_beam.py:11:importorskip"
+    },
+    {
+      "before": "evals/tests/test_beam.py:82:skipif",
+      "after": "evals/tests/test_beam.py:82:skipif"
+    },
+    {
+      "before": "evals/tests/test_blind_validation.py:55:skipif",
+      "after": "evals/tests/test_blind_validation.py:55:skipif"
+    },
+    {
+      "before": "evals/tests/test_cat5_slice.py:21:skipif",
+      "after": "evals/tests/test_cat5_slice.py:21:skipif"
+    },
+    {
+      "before": "evals/tests/test_cat5_slice.py:110:skip",
+      "after": "evals/tests/test_cat5_slice.py:110:skip"
+    },
+    {
+      "before": "evals/tests/test_convomem.py:13:skipif",
+      "after": "evals/tests/test_convomem.py:13:skipif"
+    },
+    {
+      "before": "evals/tests/test_cpb.py:49:skipif",
+      "after": "evals/tests/test_cpb.py:49:skipif"
+    },
+    {
+      "before": "evals/tests/test_data_shape.py:79:importorskip",
+      "after": "evals/tests/test_data_shape.py:79:importorskip"
+    },
+    {
+      "before": "evals/tests/test_dataset_adapters_w4.py:120:importorskip",
+      "after": "evals/tests/test_dataset_adapters_w4.py:120:importorskip"
+    },
+    {
+      "before": "evals/tests/test_dataset_adapters_w4.py:121:importorskip",
+      "after": "evals/tests/test_dataset_adapters_w4.py:121:importorskip"
+    },
+    {
+      "before": "evals/tests/test_dataset_adapters_w4.py:142:importorskip",
+      "after": "evals/tests/test_dataset_adapters_w4.py:142:importorskip"
+    },
+    {
+      "before": "evals/tests/test_event_time_adapter.py:10:importorskip",
+      "after": "evals/tests/test_event_time_adapter.py:10:importorskip"
+    },
+    {
+      "before": "evals/tests/test_fail_slices.py:21:skipif",
+      "after": "evals/tests/test_fail_slices.py:21:skipif"
+    },
+    {
+      "before": "evals/tests/test_fail_slices.py:196:skip",
+      "after": "evals/tests/test_fail_slices.py:196:skip"
+    },
+    {
+      "before": "evals/tests/test_fu_rrpool_arm.py:12:importorskip",
+      "after": "evals/tests/test_fu_rrpool_arm.py:12:importorskip"
+    },
+    {
+      "before": "evals/tests/test_fx_eval_adapter.py:13:importorskip",
+      "after": "evals/tests/test_fx_eval_adapter.py:13:importorskip"
+    },
+    {
+      "before": "evals/tests/test_gc_arms.py:10:importorskip",
+      "after": "evals/tests/test_gc_arms.py:10:importorskip"
+    },
+    {
+      "before": "evals/tests/test_gliner2_planner_eval.py:55:skip",
+      "after": "evals/tests/test_gliner2_planner_eval.py:55:skip"
+    },
+    {
+      "before": "evals/tests/test_gliner2_planner_eval.py:120:skip",
+      "after": "evals/tests/test_gliner2_planner_eval.py:120:skip"
+    },
+    {
+      "before": "evals/tests/test_harness_tools_e.py:95:importorskip",
+      "after": "evals/tests/test_harness_tools_e.py:95:importorskip"
+    },
+    {
+      "before": "evals/tests/test_i77_conventions_v2.py:110:skip",
+      "after": "evals/tests/test_i77_conventions_v2.py:110:skip"
+    },
+    {
+      "before": "evals/tests/test_i77_conventions_v2.py:173:skip",
+      "after": "evals/tests/test_i77_conventions_v2.py:173:skip"
+    },
+    {
+      "before": "evals/tests/test_infra_gaps.py:582:skip",
+      "after": "evals/tests/test_infra_gaps.py:582:skip"
+    },
+    {
+      "before": "evals/tests/test_inspect_step.py:12:importorskip",
+      "after": "evals/tests/test_inspect_step.py:12:importorskip"
+    },
+    {
+      "before": "evals/tests/test_knn_lamp_memorycd.py:74:skipif",
+      "after": "evals/tests/test_knn_lamp_memorycd.py:74:skipif"
+    },
+    {
+      "before": "evals/tests/test_locomo_atlas_turns.py:100:skip",
+      "after": "evals/tests/test_locomo_atlas_turns.py:100:skip"
+    },
+    {
+      "before": "evals/tests/test_locomo_category_counts.py:24:skipif",
+      "after": "evals/tests/test_locomo_category_counts.py:24:skipif"
+    },
+    {
+      "before": "evals/tests/test_locomo_f1.py:7:importorskip",
+      "after": "evals/tests/test_locomo_f1.py:7:importorskip"
+    },
+    {
+      "before": "evals/tests/test_locomo_plus.py:20:skipif",
+      "after": "evals/tests/test_locomo_plus.py:20:skipif"
+    },
+    {
+      "before": "evals/tests/test_mab_gold.py:113:importorskip",
+      "after": "evals/tests/test_mab_gold.py:113:importorskip"
+    },
+    {
+      "before": "evals/tests/test_measurement_gaps.py:144:importorskip",
+      "after": "evals/tests/test_measurement_gaps.py:144:importorskip"
+    },
+    {
+      "before": "evals/tests/test_measurement_gaps.py:435:importorskip",
+      "after": "evals/tests/test_measurement_gaps.py:435:importorskip"
+    },
+    {
+      "before": "evals/tests/test_memoryagentbench.py:19:skipif",
+      "after": "evals/tests/test_memoryagentbench.py:19:skipif"
+    },
+    {
+      "before": "evals/tests/test_memoryagentbench.py:21:importorskip",
+      "after": "evals/tests/test_memoryagentbench.py:21:importorskip"
+    },
+    {
+      "before": "evals/tests/test_multiagent_constructions.py:13:importorskip",
+      "after": "evals/tests/test_multiagent_constructions.py:13:importorskip"
+    },
+    {
+      "before": "evals/tests/test_op_bench.py:73:skipif",
+      "after": "evals/tests/test_op_bench.py:73:skipif"
+    },
+    {
+      "before": "evals/tests/test_perltqa.py:52:skipif",
+      "after": "evals/tests/test_perltqa.py:52:skipif"
+    },
+    {
+      "before": "evals/tests/test_personabench.py:66:skipif",
+      "after": "evals/tests/test_personabench.py:66:skipif"
+    },
+    {
+      "before": "evals/tests/test_pinned_run.py:14:skipif",
+      "after": "evals/tests/test_pinned_run.py:14:skipif"
+    },
+    {
+      "before": "evals/tests/test_plan_commands.py:31:importorskip",
+      "after": "evals/tests/test_plan_commands.py:31:importorskip"
+    },
+    {
+      "before": "evals/tests/test_plan_extra.py:76:skip",
+      "after": "evals/tests/test_plan_extra.py:76:skip"
+    },
+    {
+      "before": "evals/tests/test_prefeval.py:56:skipif",
+      "after": "evals/tests/test_prefeval.py:56:skipif"
+    },
+    {
+      "before": "evals/tests/test_r14_inference_gate.py:58:skip",
+      "after": "evals/tests/test_r14_inference_gate.py:58:skip"
+    },
+    {
+      "before": "evals/tests/test_r14_judge.py:137:skip",
+      "after": "evals/tests/test_r14_judge.py:137:skip"
+    },
+    {
+      "before": "evals/tests/test_review_r3.py:177:skipif",
+      "after": "evals/tests/test_review_r3.py:177:skipif"
+    },
+    {
+      "before": "evals/tests/test_session_id_leak.py:17:importorskip",
+      "after": "evals/tests/test_session_id_leak.py:17:importorskip"
+    },
+    {
+      "before": "evals/tests/test_studio_http.py:12:importorskip",
+      "after": "evals/tests/test_studio_http.py:12:importorskip"
+    },
+    {
+      "before": "evals/tests/test_studio_server.py:15:importorskip",
+      "after": "evals/tests/test_studio_server.py:15:importorskip"
+    },
+    {
+      "before": "evals/tests/test_sweep_wrapper_threshold.py:53:importorskip",
+      "after": "evals/tests/test_sweep_wrapper_threshold.py:53:importorskip"
+    },
+    {
+      "before": "evals/tests/test_sweep_wrapper_threshold.py:74:importorskip",
+      "after": "evals/tests/test_sweep_wrapper_threshold.py:74:importorskip"
+    },
+    {
+      "before": "evals/tests/test_tempdir_storage.py:10:importorskip",
+      "after": "evals/tests/test_tempdir_storage.py:10:importorskip"
+    },
+    {
+      "before": "evals/tests/test_tofu_muse.py:109:skipif",
+      "after": "evals/tests/test_tofu_muse.py:109:skipif"
+    },
+    {
+      "before": "evals/tests/test_v2_arms.py:16:importorskip",
+      "after": "evals/tests/test_v2_arms.py:16:importorskip"
+    },
+    {
+      "before": "evals/tests/test_v2_arms.py:261:skip",
+      "after": "evals/tests/test_v2_arms.py:261:skip"
+    },
+    {
+      "before": "evals/tests/test_v2_sample.py:268:skipif",
+      "after": "evals/tests/test_v2_sample.py:268:skipif"
+    },
+    {
+      "before": "tests/combinations/test_dedup_and_ingest_smoke.py:90:skip",
+      "after": "tests/combinations/test_dedup_and_ingest_smoke.py:90:skip"
+    },
+    {
+      "before": "tests/e2e/test_ex1a_server.py:91:skip",
+      "after": "tests/e2e/test_ex1a_server.py:91:skip"
+    },
+    {
+      "before": "tests/e2e/test_ex1a_server.py:92:importorskip",
+      "after": "tests/e2e/test_ex1a_server.py:92:importorskip"
+    },
+    {
+      "before": "tests/e2e/test_ex1a_server.py:112:skip",
+      "after": "tests/e2e/test_ex1a_server.py:112:skip"
+    },
+    {
+      "before": "tests/e2e/test_f16f_matrix.py:169:skip",
+      "after": "tests/e2e/test_f16f_matrix.py:169:skip"
+    },
+    {
+      "before": "tests/e2e/test_f16f_matrix.py:170:importorskip",
+      "after": "tests/e2e/test_f16f_matrix.py:170:importorskip"
+    },
+    {
+      "before": "tests/e2e/test_f16f_matrix.py:394:skip",
+      "after": "tests/e2e/test_f16f_matrix.py:394:skip"
+    },
+    {
+      "before": "tests/integration/providers/test_pgvector_contract.py:20:skip",
+      "after": "tests/integration/providers/test_pgvector_contract.py:20:skip"
+    },
+    {
+      "before": "tests/integration/providers/test_provider_live_contracts.py:151:skip",
+      "after": "tests/integration/providers/test_provider_live_contracts.py:151:skip"
+    },
+    {
+      "before": "tests/integration/providers/test_remote_search_live_contracts.py:24:skip",
+      "after": "tests/integration/providers/test_remote_search_live_contracts.py:24:skip"
+    },
+    {
+      "before": "tests/integration/test_provider_graph_scope_acceptance.py:249:skip",
+      "after": "tests/integration/test_provider_graph_scope_acceptance.py:249:skip"
+    },
+    {
+      "before": "tests/integration/test_runner_parity.py:145:skip",
+      "after": "tests/integration/test_runner_parity.py:147:skip"
+    },
+    {
+      "before": "tests/integration/test_runner_parity.py:156:skip",
+      "after": "tests/integration/test_runner_parity.py:158:skip"
+    },
+    {
+      "before": "tests/integration/test_runner_parity.py:157:importorskip",
+      "after": "tests/integration/test_runner_parity.py:159:importorskip"
+    },
+    {
+      "before": "tests/integration/test_runner_parity.py:262:skip",
+      "after": "tests/integration/test_runner_parity.py:262:skip"
+    },
+    {
+      "before": "tests/integration/test_runner_parity.py:263:importorskip",
+      "after": "tests/integration/test_runner_parity.py:263:importorskip"
+    },
+    {
+      "before": "tests/integration/test_storage_backends.py:51:skip",
+      "after": "tests/integration/test_storage_backends.py:51:skip"
+    },
+    {
+      "before": "tests/integration/test_storage_backends.py:52:importorskip",
+      "after": "tests/integration/test_storage_backends.py:52:importorskip"
+    },
+    {
+      "before": "tests/integration/test_storage_backends.py:61:skip",
+      "after": "tests/integration/test_storage_backends.py:61:skip"
+    },
+    {
+      "before": "tests/integration/test_temporal_resonate_recovery.py:127:skip",
+      "after": "tests/integration/test_temporal_resonate_recovery.py:127:skip"
+    },
+    {
+      "before": "tests/integration/test_temporal_resonate_recovery.py:128:importorskip",
+      "after": "tests/integration/test_temporal_resonate_recovery.py:128:importorskip"
+    },
+    {
+      "before": "tests/integration/test_temporal_resonate_recovery.py:195:importorskip",
+      "after": "tests/integration/test_temporal_resonate_recovery.py:195:importorskip"
+    },
+    {
+      "before": "tests/integration/test_temporal_resonate_recovery.py:196:importorskip",
+      "after": "tests/integration/test_temporal_resonate_recovery.py:196:importorskip"
+    },
+    {
+      "before": "tests/unit/api/rest/test_app.py:11:importorskip",
+      "after": "tests/unit/api/rest/test_app.py:11:importorskip"
+    },
+    {
+      "before": "tests/unit/api/rest/test_auth.py:12:importorskip",
+      "after": "tests/unit/api/rest/test_auth.py:12:importorskip"
+    },
+    {
+      "before": "tests/unit/api/rest/test_auth_hardening.py:21:importorskip",
+      "after": "tests/unit/api/rest/test_auth_hardening.py:21:importorskip"
+    },
+    {
+      "before": "tests/unit/api/rest/test_feedback_route.py:9:importorskip",
+      "after": "tests/unit/api/rest/test_feedback_route.py:9:importorskip"
+    },
+    {
+      "before": "tests/unit/api/rest/test_scoped_handle.py:15:importorskip",
+      "after": "tests/unit/api/rest/test_scoped_handle.py:15:importorskip"
+    },
+    {
+      "before": "tests/unit/api/rest/test_search_date_filters.py:10:importorskip",
+      "after": "tests/unit/api/rest/test_search_date_filters.py:10:importorskip"
+    },
+    {
+      "before": "tests/unit/clients/test_sqlite_encryption.py:203:skipif",
+      "after": "tests/unit/clients/test_sqlite_encryption.py:203:skipif"
+    },
+    {
+      "before": "tests/unit/memories/associative/test_communities.py:44:skip",
+      "after": "tests/unit/memories/associative/test_communities.py:44:skip"
+    },
+    {
+      "before": "tests/unit/memories/associative/test_communities.py:53:skip",
+      "after": "tests/unit/memories/associative/test_communities.py:53:skip"
+    },
+    {
+      "before": "tests/unit/memories/associative/test_communities.py:72:skip",
+      "after": "tests/unit/memories/associative/test_communities.py:72:skip"
+    },
+    {
+      "before": "tests/unit/memories/associative/test_communities.py:128:skip",
+      "after": "tests/unit/memories/associative/test_communities.py:128:skip"
+    },
+    {
+      "before": "tests/unit/memories/associative/test_communities.py:243:skip",
+      "after": "tests/unit/memories/associative/test_communities.py:243:skip"
+    },
+    {
+      "before": "tests/unit/memories/resource/test_extraction.py:25:skip",
+      "after": "tests/unit/memories/resource/test_extraction.py:25:skip"
+    },
+    {
+      "before": "tests/unit/schemas/test_strict_tiers.py:132:skip",
+      "after": "tests/unit/schemas/test_strict_tiers.py:132:skip"
+    },
+    {
+      "before": "tests/unit/schemas/test_strict_tiers.py:134:skip",
+      "after": "tests/unit/schemas/test_strict_tiers.py:134:skip"
+    },
+    {
+      "before": "tests/unit/services/cache/test_cache_wiring.py:54:importorskip",
+      "after": "tests/unit/services/cache/test_cache_wiring.py:54:importorskip"
+    },
+    {
+      "before": "tests/unit/services/cache/test_cashews_cache.py:10:importorskip",
+      "after": "tests/unit/services/cache/test_cashews_cache.py:10:importorskip"
+    },
+    {
+      "before": "tests/unit/services/decision/test_decider.py:376:skipif",
+      "after": "tests/unit/services/decision/test_decider.py:376:skipif"
+    },
+    {
+      "before": "tests/unit/services/decision/test_decider_cpu_knobs.py:356:skipif",
+      "after": "tests/unit/services/decision/test_decider_cpu_knobs.py:356:skipif"
+    },
+    {
+      "before": "tests/unit/services/decision/test_decider_cpu_knobs.py:367:skipif",
+      "after": "tests/unit/services/decision/test_decider_cpu_knobs.py:367:skipif"
+    },
+    {
+      "before": "tests/unit/services/embedding/test_static_local.py:17:skipif",
+      "after": "tests/unit/services/embedding/test_static_local.py:17:skipif"
+    },
+    {
+      "before": "tests/unit/services/embedding/test_static_local.py:24:skipif",
+      "after": "tests/unit/services/embedding/test_static_local.py:24:skipif"
+    },
+    {
+      "before": "tests/unit/services/graph/test_ladybug.py:16:importorskip",
+      "after": "tests/unit/services/graph/test_ladybug.py:16:importorskip"
+    },
+    {
+      "before": "tests/unit/services/graph/test_parity.py:36:importorskip",
+      "after": "tests/unit/services/graph/test_parity.py:36:importorskip"
+    },
+    {
+      "before": "tests/unit/services/graph/test_wiring.py:92:importorskip",
+      "after": "tests/unit/services/graph/test_wiring.py:92:importorskip"
+    },
+    {
+      "before": "tests/unit/services/rerank/test_rerank.py:45:skip",
+      "after": "tests/unit/services/rerank/test_rerank.py:45:skip"
+    },
+    {
+      "before": "tests/unit/services/rerank/test_rerank.py:60:skip",
+      "after": "tests/unit/services/rerank/test_rerank.py:60:skip"
+    },
+    {
+      "before": "tests/unit/services/secrets/test_secrets.py:108:importorskip",
+      "after": "tests/unit/services/secrets/test_secrets.py:108:importorskip"
+    },
+    {
+      "before": "tests/unit/services/vector/test_lancedb_exclusive.py:16:importorskip",
+      "after": "tests/unit/services/vector/test_lancedb_exclusive.py:16:importorskip"
+    },
+    {
+      "before": "tests/unit/services/vector/test_lancedb_memory_bound.py:15:importorskip",
+      "after": "tests/unit/services/vector/test_lancedb_memory_bound.py:15:importorskip"
+    },
+    {
+      "before": "tests/unit/services/vector/test_lancedb_memory_bound.py:16:importorskip",
+      "after": "tests/unit/services/vector/test_lancedb_memory_bound.py:16:importorskip"
+    },
+    {
+      "before": "tests/unit/services/vector/test_lancedb_memory_bound.py:37:skipif",
+      "after": "tests/unit/services/vector/test_lancedb_memory_bound.py:37:skipif"
+    },
+    {
+      "before": "tests/unit/services/vector/test_lancedb_namespace_index.py:11:importorskip",
+      "after": "tests/unit/services/vector/test_lancedb_namespace_index.py:11:importorskip"
+    },
+    {
+      "before": "tests/unit/services/vector/test_lancedb_rescore.py:22:importorskip",
+      "after": "tests/unit/services/vector/test_lancedb_rescore.py:22:importorskip"
+    },
+    {
+      "before": "tests/unit/services/vector/test_per_namespace_store.py:9:importorskip",
+      "after": "tests/unit/services/vector/test_per_namespace_store.py:9:importorskip"
+    },
+    {
+      "before": "tests/unit/store/test_f16d_storage_profile.py:233:skip",
+      "after": "tests/unit/store/test_f16d_storage_profile.py:233:skip"
+    },
+    {
+      "before": "tests/unit/store/test_f16d_storage_profile.py:241:skip",
+      "after": "tests/unit/store/test_f16d_storage_profile.py:241:skip"
+    },
+    {
+      "before": "tests/unit/store/test_f16d_storage_profile.py:247:importorskip",
+      "after": "tests/unit/store/test_f16d_storage_profile.py:247:importorskip"
+    },
+    {
+      "before": "tests/unit/store/test_f16d_storage_profile.py:257:skip",
+      "after": "tests/unit/store/test_f16d_storage_profile.py:257:skip"
+    },
+    {
+      "before": "tests/unit/store/test_vector_spaces.py:353:importorskip",
+      "after": "tests/unit/store/test_vector_spaces.py:353:importorskip"
+    },
+    {
+      "before": "tests/unit/test_engine_e4.py:141:skipif",
+      "after": "tests/unit/test_engine_e4.py:141:skipif"
+    },
+    {
+      "before": "tests/unit/test_engine_p7b.py:96:skip",
+      "after": "tests/unit/test_engine_p7b.py:96:skip"
+    },
+    {
+      "before": "tests/unit/test_forensic_schema.py:14:importorskip",
+      "after": "tests/unit/test_forensic_schema.py:14:importorskip"
+    },
+    {
+      "before": "tests/unit/test_forensic_schema.py:69:skip",
+      "after": "tests/unit/test_forensic_schema.py:69:skip"
+    },
+    {
+      "before": "tests/unit/test_forensic_schema.py:76:importorskip",
+      "after": "tests/unit/test_forensic_schema.py:76:importorskip"
+    },
+    {
+      "before": "tests/unit/test_graph_semantic_entities.py:37:importorskip",
+      "after": "tests/unit/test_graph_semantic_entities.py:37:importorskip"
+    },
+    {
+      "before": "tests/unit/test_graph_semantic_entities.py:61:importorskip",
+      "after": "tests/unit/test_graph_semantic_entities.py:61:importorskip"
+    },
+    {
+      "before": "tests/unit/test_graph_semantic_entities.py:82:importorskip",
+      "after": "tests/unit/test_graph_semantic_entities.py:82:importorskip"
+    },
+    {
+      "before": "tests/unit/test_list_mode_round2.py:93:skip",
+      "after": "tests/unit/test_list_mode_round2.py:93:skip"
+    },
+    {
+      "before": "tests/unit/test_list_mode_round2.py:282:skip",
+      "after": "tests/unit/test_list_mode_round2.py:282:skip"
+    },
+    {
+      "before": "tests/unit/test_no_dataset_text.py:205:skip",
+      "after": "tests/unit/test_no_dataset_text.py:205:skip"
+    },
+    {
+      "before": "tests/unit/test_no_dataset_text.py:208:skip",
+      "after": "tests/unit/test_no_dataset_text.py:208:skip"
+    },
+    {
+      "before": "tests/unit/test_prompt_gold_lint.py:195:skipif",
+      "after": "tests/unit/test_prompt_gold_lint.py:195:skipif"
+    },
+    {
+      "before": "tests/unit/wiring/test_f_16c_scope.py:287:importorskip",
+      "after": "tests/unit/wiring/test_f_16c_scope.py:287:importorskip"
+    },
+    {
+      "before": "tests/unit/wiring/test_f_16e_neo4j_outbox.py:290:skip",
+      "after": "tests/unit/wiring/test_f_16e_neo4j_outbox.py:290:skip"
+    },
+    {
+      "before": "tests/unit/wiring/test_fu_gaps.py:401:skipif",
+      "after": "tests/unit/wiring/test_fu_gaps.py:401:skipif"
+    },
+    {
+      "before": "tests/unit/wiring/test_fu_gaps.py:506:skipif",
+      "after": "tests/unit/wiring/test_fu_gaps.py:506:skipif"
+    },
+    {
+      "before": "tests/unit/wiring/test_fu_sleep.py:358:skip",
+      "after": "tests/unit/wiring/test_fu_sleep.py:358:skip"
+    },
+    {
+      "before": "tests/unit/wiring/test_fu_sleep.py:359:importorskip",
+      "after": "tests/unit/wiring/test_fu_sleep.py:359:importorskip"
+    },
+    {
+      "before": "tests/unit/wiring/test_glift_derived_lift.py:262:importorskip",
+      "after": "tests/unit/wiring/test_glift_derived_lift.py:262:importorskip"
+    },
+    {
+      "before": "tests/unit/wiring/test_md_02_embedding_profile.py:282:skipif",
+      "after": "tests/unit/wiring/test_md_02_embedding_profile.py:282:skipif"
+    },
+    {
+      "before": "tests/unit/wiring/test_rt_01_transport.py:17:importorskip",
+      "after": "tests/unit/wiring/test_rt_01_transport.py:17:importorskip"
+    },
+    {
+      "before": "tests/unit/wiring/test_rt_01_transport.py:181:importorskip",
+      "after": "tests/unit/wiring/test_rt_01_transport.py:181:importorskip"
+    },
+    {
+      "before": "tests/unit/wiring/test_t5_06_observability.py:410:importorskip",
+      "after": "tests/unit/wiring/test_t5_06_observability.py:458:importorskip"
+    },
+    {
+      "before": "tests/unit/wiring/test_w2_13_prepass.py:566:skip",
+      "after": "tests/unit/wiring/test_w2_13_prepass.py:566:skip"
+    },
+    {
+      "before": "tests/unit/workers/test_reorganize.py:301:skip",
+      "after": "tests/unit/workers/test_reorganize.py:301:skip"
+    },
+    {
+      "before": "tests/unit/workers/test_taskiq_runner.py:92:skip",
+      "after": "tests/unit/workers/test_taskiq_runner.py:92:skip"
+    },
+    {
+      "before": "tests/unit/workers/test_temporal_runner.py:25:importorskip",
+      "after": "tests/unit/workers/test_temporal_runner.py:25:importorskip"
+    },
+    {
+      "before": "tests/unit/workers/test_temporal_runner.py:28:importorskip",
+      "after": "tests/unit/workers/test_temporal_runner.py:28:importorskip"
+    }
+  ],
+  "categories": {
+    "intentionallycovered": 13,
+    "optionaldependency": 84,
+    "externalenv": 44,
+    "platform": 7,
+    "model": 5,
+    "deferred": 3
+  },
+  "deferred_review_records_unchanged": true,
+  "evaluation_review_records_unchanged": true,
+  "test_result": {
+    "passed": 80,
+    "failed": 0,
+    "skipped": 2,
+    "skip_reason": "MEMSPINE_TEST_TEMPORAL_ADDRESS is not configured"
+  }
+}

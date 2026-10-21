@@ -1,0 +1,612 @@
+{
+  "schema_version": 1,
+  "task": "PA-121",
+  "status": "passed",
+  "safety": {
+    "synthetic_content_only": true,
+    "gliner_is_real_local_sdk_inference": true,
+    "gliner_downloads": false,
+    "gliner_hub_offline": true,
+    "transformers_offline": true,
+    "external_llm_endpoint_calls": false,
+    "window_llm": "deterministic PA-121 supported-claim fixture (not a real generative model)",
+    "paid_calls": false,
+    "tap_content_capture": false
+  },
+  "runtime": {
+    "python": "3.13.5",
+    "packages": {
+      "gliner2": "2.1.0",
+      "torch": "2.14.1",
+      "transformers": "5.20.1"
+    },
+    "device": "cpu",
+    "timeout_seconds": 180.0,
+    "max_gliner_calls": 12,
+    "gliner_calls_used": 6,
+    "max_window_fixture_calls": 12,
+    "window_fixture_calls_used": 1,
+    "unexpected_window_prompts": 0
+  },
+  "model": {
+    "provider": "gliner2.AutoExtractor",
+    "profile": "local-gliner",
+    "bindings": [
+      "gliner_prepass",
+      "gliner_semantic"
+    ],
+    "tasks": [
+      "entities"
+    ],
+    "local_files_only": true,
+    "snapshot": {
+      "path": "C:\\Users\\hembad\\.cache\\huggingface\\hub\\models--fastino--gliner2.5-base-v1\\snapshots\\ca906247640776a07753514055be9726f9080ead",
+      "revision": "ca906247640776a07753514055be9726f9080ead",
+      "files": {
+        "config.json": {
+          "bytes": 3150
+        },
+        "model.safetensors": {
+          "bytes": 774366564
+        }
+      },
+      "config_sha256": "0eb92d00584d613aab32b2178f84a85176b62c87ae3689ce9084e83f6eba64d1"
+    }
+  },
+  "engine": {
+    "api": "Engine.ingest_messages -> Engine.flush_windows(final=True)",
+    "same_engine_for_ingest_and_flush": true,
+    "sqlite_database_file_backed": true,
+    "storage_path_temporary": true,
+    "provider_catalog": [
+      {
+        "logical_service_id": "cache.memory",
+        "category": "cache",
+        "configured_provider": "memory",
+        "resolved_provider": "memory",
+        "lifecycle_state": "started"
+      },
+      {
+        "logical_service_id": "embedding",
+        "category": "embedding",
+        "configured_provider": "hash",
+        "resolved_provider": "hash",
+        "lifecycle_state": "started"
+      },
+      {
+        "logical_service_id": "lexical",
+        "category": "lexical",
+        "configured_provider": "tantivy",
+        "resolved_provider": "tantivy",
+        "lifecycle_state": "started"
+      },
+      {
+        "logical_service_id": "llm.window_extract",
+        "category": "llm",
+        "configured_provider": "litellm",
+        "resolved_provider": "litellm",
+        "lifecycle_state": "started"
+      },
+      {
+        "logical_service_id": "storage.sqlite.sql",
+        "category": "storage",
+        "configured_provider": "sqlite",
+        "resolved_provider": "sqlite",
+        "lifecycle_state": "started"
+      },
+      {
+        "logical_service_id": "vector",
+        "category": "vector",
+        "configured_provider": "lancedb",
+        "resolved_provider": "lancedb",
+        "lifecycle_state": "started"
+      },
+      {
+        "logical_service_id": null,
+        "category": "cache",
+        "configured_provider": null,
+        "resolved_provider": null,
+        "lifecycle_state": null
+      },
+      {
+        "logical_service_id": null,
+        "category": "cache",
+        "configured_provider": null,
+        "resolved_provider": null,
+        "lifecycle_state": null
+      },
+      {
+        "logical_service_id": null,
+        "category": "cache",
+        "configured_provider": null,
+        "resolved_provider": null,
+        "lifecycle_state": null
+      },
+      {
+        "logical_service_id": null,
+        "category": "embedding",
+        "configured_provider": null,
+        "resolved_provider": null,
+        "lifecycle_state": null
+      },
+      {
+        "logical_service_id": null,
+        "category": "embedding",
+        "configured_provider": null,
+        "resolved_provider": null,
+        "lifecycle_state": null
+      },
+      {
+        "logical_service_id": null,
+        "category": "embedding",
+        "configured_provider": null,
+        "resolved_provider": null,
+        "lifecycle_state": null
+      },
+      {
+        "logical_service_id": null,
+        "category": "embedding",
+        "configured_provider": null,
+        "resolved_provider": null,
+        "lifecycle_state": null
+      },
+      {
+        "logical_service_id": null,
+        "category": "graph",
+        "configured_provider": null,
+        "resolved_provider": null,
+        "lifecycle_state": null
+      },
+      {
+        "logical_service_id": null,
+        "category": "graph",
+        "configured_provider": null,
+        "resolved_provider": null,
+        "lifecycle_state": null
+      },
+      {
+        "logical_service_id": null,
+        "category": "graph",
+        "configured_provider": null,
+        "resolved_provider": null,
+        "lifecycle_state": null
+      },
+      {
+        "logical_service_id": null,
+        "category": "lexical",
+        "configured_provider": null,
+        "resolved_provider": null,
+        "lifecycle_state": null
+      },
+      {
+        "logical_service_id": null,
+        "category": "lexical",
+        "configured_provider": null,
+        "resolved_provider": null,
+        "lifecycle_state": null
+      },
+      {
+        "logical_service_id": null,
+        "category": "llm",
+        "configured_provider": null,
+        "resolved_provider": null,
+        "lifecycle_state": null
+      },
+      {
+        "logical_service_id": null,
+        "category": "reranker",
+        "configured_provider": null,
+        "resolved_provider": null,
+        "lifecycle_state": null
+      },
+      {
+        "logical_service_id": null,
+        "category": "reranker",
+        "configured_provider": null,
+        "resolved_provider": null,
+        "lifecycle_state": null
+      },
+      {
+        "logical_service_id": null,
+        "category": "reranker",
+        "configured_provider": null,
+        "resolved_provider": null,
+        "lifecycle_state": null
+      },
+      {
+        "logical_service_id": null,
+        "category": "reranker",
+        "configured_provider": null,
+        "resolved_provider": null,
+        "lifecycle_state": null
+      },
+      {
+        "logical_service_id": null,
+        "category": "reranker",
+        "configured_provider": null,
+        "resolved_provider": null,
+        "lifecycle_state": null
+      },
+      {
+        "logical_service_id": null,
+        "category": "storage",
+        "configured_provider": null,
+        "resolved_provider": null,
+        "lifecycle_state": null
+      },
+      {
+        "logical_service_id": null,
+        "category": "vector",
+        "configured_provider": null,
+        "resolved_provider": null,
+        "lifecycle_state": null
+      },
+      {
+        "logical_service_id": null,
+        "category": "vector",
+        "configured_provider": null,
+        "resolved_provider": null,
+        "lifecycle_state": null
+      }
+    ]
+  },
+  "source_messages": {
+    "namespace": "pa121-gliner-source",
+    "session_id": "pa121-session-001",
+    "conversation_id": "pa121-conversation-001",
+    "requested_event_time": "2024-03-09T14:45:00+05:30",
+    "rows": [
+      {
+        "record_id": "64b7454b-5e42-4ef8-9ea2-b266264e145b",
+        "message_id": "pa121-message-001",
+        "session_id": "pa121-session-001",
+        "conversation_id": "pa121-conversation-001",
+        "reply_to": null,
+        "role": "user",
+        "sender": {
+          "id": "mira-user-17",
+          "kind": "human",
+          "name": "Mira"
+        },
+        "created_at": "2024-03-09T14:45:00+05:30",
+        "content": "Mira works for Acme in Utrecht.",
+        "actual_source_text_fingerprint": "086516d73c7936d4",
+        "stored_content_fingerprint_matches_actual": true,
+        "namespace": "pa121-gliner-source"
+      },
+      {
+        "record_id": "23f4144b-adcf-4bd7-a8fe-6309d2b675f6",
+        "message_id": "pa121-message-002",
+        "session_id": "pa121-session-001",
+        "conversation_id": "pa121-conversation-001",
+        "reply_to": "pa121-message-001",
+        "role": "assistant",
+        "sender": {
+          "id": "assistant-local-1",
+          "kind": "agent",
+          "name": "Assistant"
+        },
+        "created_at": "2024-03-09T14:46:00+05:30",
+        "content": "Thanks, I will remember that.",
+        "actual_source_text_fingerprint": "0f4ebda875112b92",
+        "stored_content_fingerprint_matches_actual": true,
+        "namespace": "pa121-gliner-source"
+      }
+    ],
+    "status": "passed",
+    "errors": []
+  },
+  "window": {
+    "flush_stats": {
+      "windows_processed": 1,
+      "calls": 1,
+      "facts_returned": 1,
+      "facts_deposited": 1,
+      "items_valid": 1,
+      "items_dropped": 0,
+      "facts_invalid": 0,
+      "facts_ungrounded": 0,
+      "facts_uncited": 0,
+      "facts_skipped_parent_gone": 0,
+      "facts_deposit_errors": 0,
+      "items_dead": 0,
+      "items_duplicate": 0,
+      "dead_letters": 0,
+      "items_dead_by_code": {}
+    },
+    "stage_events": [
+      {
+        "stage": "write.item.valid",
+        "fields": {}
+      },
+      {
+        "stage": "write.ground.checked",
+        "fields": {
+          "label": "supported",
+          "rules": "supported"
+        }
+      },
+      {
+        "stage": "write.ground.summary",
+        "fields": {
+          "before": 1,
+          "after": 1
+        }
+      },
+      {
+        "stage": "write.envelope.stage",
+        "fields": {
+          "stage": "grounding",
+          "before": 1,
+          "after": 1
+        }
+      },
+      {
+        "stage": "write.integrate.decision",
+        "fields": {
+          "op": "append",
+          "rung": "cardinality",
+          "keyed": true
+        }
+      },
+      {
+        "stage": "write.integrate.stage",
+        "fields": {}
+      },
+      {
+        "stage": "write.envelope.stage",
+        "fields": {
+          "stage": "integration",
+          "before": 1,
+          "after": 1
+        }
+      },
+      {
+        "stage": "write.envelope.stage",
+        "fields": {
+          "stage": "prepass",
+          "before": 1,
+          "after": 1
+        }
+      },
+      {
+        "stage": "write.extract.facts",
+        "fields": {}
+      },
+      {
+        "stage": "write.extract.deposit",
+        "fields": {
+          "layer": "facts",
+          "parents": 1
+        }
+      }
+    ],
+    "fact_count": 1,
+    "facts": [
+      {
+        "record_id": "9723e722-1717-44e6-aa32-25af1e7ce081",
+        "content": "Mira works for Acme.",
+        "parent_ids": [
+          "64b7454b-5e42-4ef8-9ea2-b266264e145b"
+        ],
+        "namespace": "pa121-gliner-source",
+        "entity": "Mira",
+        "attribute": "works_for",
+        "grounding": {
+          "status": "ok",
+          "grounding": "grounded",
+          "evidence": [
+            {
+              "role": "support",
+              "turn_record_id": "64b7454b-5e42-4ef8-9ea2-b266264e145b",
+              "turn_source_version": 1,
+              "span": {
+                "start": 0,
+                "end": 31,
+                "quote": "Mira works for Acme in Utrecht."
+              },
+              "source_found": true
+            }
+          ],
+          "all_turns_resolve_to_ingested_messages": true,
+          "all_quotes_match_source_content": true,
+          "missing_source_ids": []
+        }
+      }
+    ],
+    "status": "passed"
+  },
+  "mentions": {
+    "count": 6,
+    "samples": [
+      {
+        "text": "Mira",
+        "label": "person",
+        "start": 0,
+        "end": 4,
+        "confidence": 0.9976000189781189,
+        "asserted": false,
+        "source_namespace": "pa121-gliner-source",
+        "source_record_id": "4638deb7-e897-49f6-8fa2-275e331d2e6c",
+        "source_version": 1,
+        "source_content_fingerprint": "086516d73c7936d4",
+        "source_binding_hash": "4235b23e55fbbfda",
+        "source_role": "user",
+        "source_channel": "messages",
+        "source_message_id": "pa121-message-001",
+        "sender_id": "mira-user-17",
+        "sender_role": "user",
+        "created_at": "2024-03-09T14:45:00+05:30",
+        "parents": [
+          "64b7454b-5e42-4ef8-9ea2-b266264e145b"
+        ]
+      },
+      {
+        "text": "Acme",
+        "label": "organization",
+        "start": 15,
+        "end": 19,
+        "confidence": 0.9983781576156616,
+        "asserted": false,
+        "source_namespace": "pa121-gliner-source",
+        "source_record_id": "4638deb7-e897-49f6-8fa2-275e331d2e6c",
+        "source_version": 1,
+        "source_content_fingerprint": "086516d73c7936d4",
+        "source_binding_hash": "4235b23e55fbbfda",
+        "source_role": "user",
+        "source_channel": "messages",
+        "source_message_id": "pa121-message-001",
+        "sender_id": "mira-user-17",
+        "sender_role": "user",
+        "created_at": "2024-03-09T14:45:00+05:30",
+        "parents": [
+          "64b7454b-5e42-4ef8-9ea2-b266264e145b"
+        ]
+      },
+      {
+        "text": "Utrecht",
+        "label": "location",
+        "start": 23,
+        "end": 30,
+        "confidence": 0.996901273727417,
+        "asserted": false,
+        "source_namespace": "pa121-gliner-source",
+        "source_record_id": "4638deb7-e897-49f6-8fa2-275e331d2e6c",
+        "source_version": 1,
+        "source_content_fingerprint": "086516d73c7936d4",
+        "source_binding_hash": "4235b23e55fbbfda",
+        "source_role": "user",
+        "source_channel": "messages",
+        "source_message_id": "pa121-message-001",
+        "sender_id": "mira-user-17",
+        "sender_role": "user",
+        "created_at": "2024-03-09T14:45:00+05:30",
+        "parents": [
+          "64b7454b-5e42-4ef8-9ea2-b266264e145b"
+        ]
+      },
+      {
+        "text": "Mira",
+        "label": "person",
+        "start": 0,
+        "end": 4,
+        "confidence": 0.998254120349884,
+        "asserted": false,
+        "source_namespace": "pa121-gliner-source",
+        "source_record_id": "64b7454b-5e42-4ef8-9ea2-b266264e145b",
+        "source_version": 1,
+        "source_content_fingerprint": "086516d73c7936d4",
+        "source_binding_hash": "7749380dab4d06e9",
+        "source_role": "user",
+        "source_channel": "messages",
+        "source_message_id": "pa121-message-001",
+        "sender_id": "mira-user-17",
+        "sender_role": "user",
+        "created_at": "2024-03-09T14:45:00+05:30",
+        "parents": []
+      },
+      {
+        "text": "Acme",
+        "label": "organization",
+        "start": 15,
+        "end": 19,
+        "confidence": 0.9985091090202332,
+        "asserted": false,
+        "source_namespace": "pa121-gliner-source",
+        "source_record_id": "64b7454b-5e42-4ef8-9ea2-b266264e145b",
+        "source_version": 1,
+        "source_content_fingerprint": "086516d73c7936d4",
+        "source_binding_hash": "7749380dab4d06e9",
+        "source_role": "user",
+        "source_channel": "messages",
+        "source_message_id": "pa121-message-001",
+        "sender_id": "mira-user-17",
+        "sender_role": "user",
+        "created_at": "2024-03-09T14:45:00+05:30",
+        "parents": []
+      },
+      {
+        "text": "Utrecht",
+        "label": "place",
+        "start": 23,
+        "end": 30,
+        "confidence": 0.9971729516983032,
+        "asserted": false,
+        "source_namespace": "pa121-gliner-source",
+        "source_record_id": "64b7454b-5e42-4ef8-9ea2-b266264e145b",
+        "source_version": 1,
+        "source_content_fingerprint": "086516d73c7936d4",
+        "source_binding_hash": "7749380dab4d06e9",
+        "source_role": "user",
+        "source_channel": "messages",
+        "source_message_id": "pa121-message-001",
+        "sender_id": "mira-user-17",
+        "sender_role": "user",
+        "created_at": "2024-03-09T14:45:00+05:30",
+        "parents": []
+      }
+    ],
+    "semantic_write_record_id": "4638deb7-e897-49f6-8fa2-275e331d2e6c",
+    "source_raw_turn_parent_id": "64b7454b-5e42-4ef8-9ea2-b266264e145b",
+    "semantic_door_probe_is_separately_reported": true,
+    "all_exact_source_spans_and_attributions": true,
+    "window_mentions_count": 3,
+    "window_mentions_valid": true,
+    "semantic_probe_mentions_valid": true,
+    "asserted_false": true,
+    "confidence_valid_or_none": true,
+    "errors": [],
+    "semantic_probe_errors": [],
+    "window_errors": []
+  },
+  "semantic_annotation_probe": {
+    "method": "Engine.write(memory_type='semantic') on the first ingested turn's exact content",
+    "separate_from_message_ingest_and_window_flush": true,
+    "record_id": "4638deb7-e897-49f6-8fa2-275e331d2e6c",
+    "parent_message_record_id": "64b7454b-5e42-4ef8-9ea2-b266264e145b",
+    "entity_mentions_count": 3,
+    "has_entity_or_attribute_fact_key": false,
+    "status": "passed"
+  },
+  "mention_fact_separation": {
+    "no_semantic_fact_with_attribute_mention": true,
+    "status": "passed"
+  },
+  "namespace_isolation": {
+    "other_namespace_record_count": 0,
+    "cross_namespace_get_record_is_hidden": true,
+    "status": "passed"
+  },
+  "retrieval": {
+    "query": "Where does Mira work?",
+    "hit_record_ids": [
+      "9723e722-1717-44e6-aa32-25af1e7ce081",
+      "64b7454b-5e42-4ef8-9ea2-b266264e145b",
+      "4638deb7-e897-49f6-8fa2-275e331d2e6c",
+      "23f4144b-adcf-4bd7-a8fe-6309d2b675f6"
+    ],
+    "window_fact_retrieved": true,
+    "status": "passed"
+  },
+  "limits": [
+    "One cached Base snapshot and one synthetic conversation; this is not a quality benchmark.",
+    "Window compilation uses a deterministic fixture, so no claim is made about generative model quality or endpoint behavior.",
+    "This focused acceptance does not cover all nine memory types or all provider combinations.",
+    "No CPU performance claim is made."
+  ],
+  "reopen_projection": {
+    "status": "passed",
+    "expected_source_ids": [
+      "23f4144b-adcf-4bd7-a8fe-6309d2b675f6",
+      "64b7454b-5e42-4ef8-9ea2-b266264e145b"
+    ],
+    "expected_window_fact_ids": [
+      "9723e722-1717-44e6-aa32-25af1e7ce081"
+    ],
+    "all_ids_reopened": true,
+    "reopened_mention_count": 3,
+    "reopened_semantic_probe_id": "4638deb7-e897-49f6-8fa2-275e331d2e6c",
+    "reopened_semantic_annotation_count": 3
+  },
+  "elapsed_seconds": 16.964741099975072
+}

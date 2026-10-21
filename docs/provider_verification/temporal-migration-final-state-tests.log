@@ -1,0 +1,24 @@
+........................................................................ [ 44%]
+........................................................................ [ 89%]
+.................                                                        [100%]
+============================== warnings summary ===============================
+tests/unit/config/test_assistant_template.py: 7 warnings
+tests/unit/config/test_config_split_equivalence.py: 28 warnings
+tests/unit/config/test_effective_config_snapshot.py: 6 warnings
+tests/unit/config/test_loader.py: 16 warnings
+tests/unit/config/test_requires.py: 32 warnings
+tests/unit/config/test_secure_templates.py: 8 warnings
+tests/unit/config/test_strict_config_inputs.py: 15 warnings
+tests/unit/config/test_worker_config.py: 6 warnings
+tests/unit/workers/test_temporal_runner.py: 5 warnings
+tests/unit/workers/test_temporal_worker_settings.py: 3 warnings
+tests/unit/workers/test_orchestration_packaging.py: 3 warnings
+tests/unit/test_temporal_resonate_journal.py: 10 warnings
+tests/unit/test_import_contracts.py: 5 warnings
+tests/combinations/test_runner_boots.py: 5 warnings
+tests/combinations/test_template_boots.py: 12 warnings
+  C:\Users\hembad\AppData\Local\Temp\memspine-dependency-validation-313\Lib\site-packages\pytest_asyncio\plugin.py:916: PytestDeprecationWarning: Overriding the "event_loop_policy" fixture is deprecated and will be removed in a future version of pytest-asyncio. Use the "pytest_asyncio_loop_factories" hook to customize event loop creation.
+    warnings.warn(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+161 passed, 161 warnings in 14.27s

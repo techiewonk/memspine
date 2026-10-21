@@ -1,0 +1,236 @@
+{
+  "date": "2026-10-18",
+  "selected_count": 31,
+  "done_count": 25,
+  "pending_count": 6,
+  "tasks": [
+    {
+      "id": "PA-047",
+      "status": "DONE",
+      "title": "Profile the final configuration-admission code",
+      "evidence": "[Performance profile](PROVIDER_PERFORMANCE_FOLLOWUP.md)",
+      "remaining": "None for the stated local gate; documented scope limits remain."
+    },
+    {
+      "id": "PA-048",
+      "status": "DONE",
+      "title": "Evaluate SQLite migration/import startup cost",
+      "evidence": "[Performance profile](PROVIDER_PERFORMANCE_FOLLOWUP.md)",
+      "remaining": "None for the stated local gate; documented scope limits remain."
+    },
+    {
+      "id": "PA-049",
+      "status": "DONE",
+      "title": "Evaluate LanceDB first-connect/import cost",
+      "evidence": "[Performance profile](PROVIDER_PERFORMANCE_FOLLOWUP.md)",
+      "remaining": "None for the stated local gate; documented scope limits remain."
+    },
+    {
+      "id": "PA-050",
+      "status": "DONE",
+      "title": "Measure first serialization separately from startup",
+      "evidence": "[Performance profile](PROVIDER_PERFORMANCE_FOLLOWUP.md)",
+      "remaining": "None for the stated local gate; documented scope limits remain."
+    },
+    {
+      "id": "PA-051",
+      "status": "NEEDS_ENV",
+      "title": "Repeat timing on a controlled representative host",
+      "evidence": "[Performance profile](PROVIDER_PERFORMANCE_FOLLOWUP.md)",
+      "remaining": "Dedicated representative host and accepted startup/workload budget are not supplied."
+    },
+    {
+      "id": "PA-052",
+      "status": "DONE",
+      "title": "Measure vector and lexical scaling with larger synthetic corpora",
+      "evidence": "[Performance profile](PROVIDER_PERFORMANCE_FOLLOWUP.md)",
+      "remaining": "None for the stated local gate; documented scope limits remain."
+    },
+    {
+      "id": "PA-053",
+      "status": "OPEN",
+      "title": "Measure concurrent ingest/search and queue backpressure",
+      "evidence": "[Performance profile](PROVIDER_PERFORMANCE_FOLLOWUP.md)",
+      "remaining": "Concurrent raw ingest/search measured; derivation queue lag and an agreed budget remain unverified."
+    },
+    {
+      "id": "PA-054",
+      "status": "DONE",
+      "title": "Measure remote-provider tail latency and timeout behavior",
+      "evidence": "[Performance profile](PROVIDER_PERFORMANCE_FOLLOWUP.md)",
+      "remaining": "None for the stated local gate; documented scope limits remain."
+    },
+    {
+      "id": "PA-055",
+      "status": "DONE",
+      "title": "Profile long-running memory and connection growth",
+      "evidence": "[30-cycle resource soak](provider_verification/provider-resource-soak.json)",
+      "remaining": "None for the stated local gate; documented scope limits remain."
+    },
+    {
+      "id": "PA-075",
+      "status": "DONE",
+      "title": "Check semantic facts across selected backend combinations",
+      "evidence": "[Memory-type acceptance](provider_verification/memory-types-acceptance.json)",
+      "remaining": "None for the stated local gate; documented scope limits remain."
+    },
+    {
+      "id": "PA-076",
+      "status": "DONE",
+      "title": "Check working-memory overflow and persona behavior",
+      "evidence": "[Memory-type acceptance](provider_verification/memory-types-acceptance.json)",
+      "remaining": "None for the stated local gate; documented scope limits remain."
+    },
+    {
+      "id": "PA-077",
+      "status": "DONE",
+      "title": "Check episodic chronology, historical ingestion and sessions",
+      "evidence": "[Memory-type acceptance](provider_verification/memory-types-acceptance.json)",
+      "remaining": "None for the stated local gate; documented scope limits remain."
+    },
+    {
+      "id": "PA-078",
+      "status": "DONE",
+      "title": "Check resource/document chunk lineage and retrieval",
+      "evidence": "[Memory-type acceptance](provider_verification/memory-types-acceptance.json)",
+      "remaining": "None for the stated local gate; documented scope limits remain."
+    },
+    {
+      "id": "PA-079",
+      "status": "DONE",
+      "title": "Check procedural promotion and plan-cache validity",
+      "evidence": "[Memory-type acceptance](provider_verification/memory-types-acceptance.json)",
+      "remaining": "None for the stated local gate; documented scope limits remain."
+    },
+    {
+      "id": "PA-080",
+      "status": "DONE",
+      "title": "Check reflective memory provenance and depth limits",
+      "evidence": "[Memory-type acceptance](provider_verification/memory-types-acceptance.json)",
+      "remaining": "None for the stated local gate; documented scope limits remain."
+    },
+    {
+      "id": "PA-081",
+      "status": "DONE",
+      "title": "Check associative graph direction, time and entity ownership",
+      "evidence": "[Retrieval acceptance](PROVIDER_RETRIEVAL_ACCEPTANCE.md)",
+      "remaining": "None for the stated local gate; documented scope limits remain."
+    },
+    {
+      "id": "PA-082",
+      "status": "NEEDS_ENV",
+      "title": "Check prospective watches and worker execution",
+      "evidence": "[Retrieval acceptance](PROVIDER_RETRIEVAL_ACCEPTANCE.md)",
+      "remaining": "Pull/ack idempotency passes; actual consumer/worker execution protocol and handover environment are not supplied."
+    },
+    {
+      "id": "PA-083",
+      "status": "DONE",
+      "title": "Check shared-memory grants and revocation",
+      "evidence": "[Retrieval acceptance](PROVIDER_RETRIEVAL_ACCEPTANCE.md)",
+      "remaining": "None for the stated local gate; documented scope limits remain."
+    },
+    {
+      "id": "PA-085",
+      "status": "DONE",
+      "title": "Define cross-provider retrieval relevance acceptance cases",
+      "evidence": "[Retrieval acceptance](PROVIDER_RETRIEVAL_ACCEPTANCE.md)",
+      "remaining": "None for the stated local gate; documented scope limits remain."
+    },
+    {
+      "id": "PA-086",
+      "status": "DONE",
+      "title": "Review multilingual and literal-query behavior",
+      "evidence": "[Retrieval acceptance](PROVIDER_RETRIEVAL_ACCEPTANCE.md)",
+      "remaining": "None for the stated local gate; documented scope limits remain."
+    },
+    {
+      "id": "PA-087",
+      "status": "DONE",
+      "title": "Review compression and token budgets by memory layer",
+      "evidence": "[Compression acceptance](provider_verification/compression-acceptance.json); lossy model quality remains PA-088",
+      "remaining": "None for the stated local gate; documented scope limits remain."
+    },
+    {
+      "id": "PA-088",
+      "status": "NEEDS_ENV",
+      "title": "Run clean model-quality evaluations when explicitly budgeted",
+      "evidence": "[Retrieval acceptance](PROVIDER_RETRIEVAL_ACCEPTANCE.md)",
+      "remaining": "Local answer-model endpoint/name and call budget requested; no responding Ollama endpoint observed."
+    },
+    {
+      "id": "PA-089",
+      "status": "DONE",
+      "title": "Evaluate native hybrid search as a separate future capability",
+      "evidence": "[Native hybrid diagnostic](provider_verification/native-hybrid-evaluation.json)",
+      "remaining": "None for the stated local gate; documented scope limits remain."
+    },
+    {
+      "id": "PA-093",
+      "status": "DONE",
+      "title": "Check defaults/runbook/examples for drift during release",
+      "evidence": "[Read-only release reference gate](provider_verification/release-reference-check.json)",
+      "remaining": "None for the stated local gate; documented scope limits remain."
+    },
+    {
+      "id": "PA-094",
+      "status": "DONE",
+      "title": "Prepare a focused release summary and evidence index",
+      "evidence": "[Selected-work delivery and review packet](PROVIDER_PROPOSED_DELIVERY.md)",
+      "remaining": "None for the stated local gate; documented scope limits remain."
+    },
+    {
+      "id": "PA-095",
+      "status": "OPEN",
+      "title": "Prepare branch review and PR when requested",
+      "evidence": "[Local review packet; PR pending destination](PROVIDER_PROPOSED_DELIVERY.md)",
+      "remaining": "Local review/evidence packet is prepared; PR destination remains unspecified and no PR was created."
+    },
+    {
+      "id": "PA-096",
+      "status": "NEEDS_ENV",
+      "title": "Publish or push only through the requested release workflow",
+      "evidence": "[Release boundary](PROVIDER_PROPOSED_DELIVERY.md)",
+      "remaining": "Release workflow/destination/revision authorization remains unspecified; nothing published."
+    },
+    {
+      "id": "PA-108",
+      "status": "DONE",
+      "title": "Validate GLiNER2 local inference on Python 3.13",
+      "evidence": "[Real GLiNER runtime](GLINER25_LOCAL_RESULTS.md)",
+      "remaining": "None for the stated local gate; documented scope limits remain."
+    },
+    {
+      "id": "PA-111",
+      "status": "DONE",
+      "title": "Expand installed optional-extra/platform coverage",
+      "evidence": "[Expanded optional runtime matrix](PROVIDER_PLATFORM_MATRIX.md)",
+      "remaining": "None for the stated local gate; documented scope limits remain."
+    },
+    {
+      "id": "PA-120",
+      "status": "DONE",
+      "title": "Add GLiNER2.5 typed record/relation extraction",
+      "evidence": "[Typed source-cited adapter](GLINER25_STRUCTURED_EXTRACTION.md); [real runtime gate](provider_verification/gliner-structured-real.json)",
+      "remaining": "None for the stated local gate; documented scope limits remain."
+    },
+    {
+      "id": "PA-122",
+      "status": "DONE",
+      "title": "Compare GLiNER2.5 Base and Small for ingestion",
+      "evidence": "[Base/Small bounded comparison](GLINER25_LOCAL_RESULTS.md)",
+      "remaining": "None for the stated local gate; documented scope limits remain."
+    }
+  ],
+  "new_kernel_tasks": [
+    "PA-124",
+    "PA-125"
+  ],
+  "tracker_counts": {
+    "DONE": 85,
+    "OPEN": 12,
+    "NEEDS_ENV": 23,
+    "EXCLUDED": 4,
+    "DEFERRED": 1
+  }
+}

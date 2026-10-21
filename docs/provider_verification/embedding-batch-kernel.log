@@ -1,0 +1,219 @@
+status=passed
+{
+  "benchmark": "fastembed-real-cpu-batch-kernel",
+  "cache_dir": "C:\\Users\\hembad\\AppData\\Local\\Temp\\fastembed_cache",
+  "cache_materialization": {
+    "cache_repo_dir": "C:\\Users\\hembad\\AppData\\Local\\Temp\\fastembed_cache\\models--qdrant--bge-small-en-v1.5-onnx-q",
+    "files": [
+      {
+        "metadata_blob_id": "0d7726d0cdccb62ee17c03bd1595cff07199b8f8",
+        "name": "config.json",
+        "sha256": "13582bcf2effc85b7bf3d3f5532e686bc1c9ce86bb009d10f0ec33cbe92299dd",
+        "size_bytes": 706,
+        "source_blob_name": "0d7726d0cdccb62ee17c03bd1595cff07199b8f8"
+      },
+      {
+        "metadata_blob_id": "94f6925f5e2ad78878198fa757195c25f74d6bc2",
+        "name": "model_optimized.onnx",
+        "sha256": "51f1bd0addd6e859e42c2c8021a5e5461385bb676a649f4b269aa445449f2431",
+        "size_bytes": 66465124,
+        "source_blob_name": "51f1bd0addd6e859e42c2c8021a5e5461385bb676a649f4b269aa445449f2431"
+      },
+      {
+        "metadata_blob_id": "9bbecc17cabbcbd3112c14d6982b51403b264bfa",
+        "name": "special_tokens_map.json",
+        "sha256": "5d5b662e421ea9fac075174bb0688ee0d9431699900b90662acd44b2a350503a",
+        "size_bytes": 695,
+        "source_blob_name": "9bbecc17cabbcbd3112c14d6982b51403b264bfa"
+      },
+      {
+        "metadata_blob_id": "688882a79f44442ddc1f60d70334a7ff5df0fb47",
+        "name": "tokenizer.json",
+        "sha256": "d241a60d5e8f04cc1b2b3e9ef7a4921b27bf526d9f6050ab90f9267a1f9e5c66",
+        "size_bytes": 711396,
+        "source_blob_name": "688882a79f44442ddc1f60d70334a7ff5df0fb47"
+      },
+      {
+        "metadata_blob_id": "75305659f7795d4549f0e23688b52fa20a32f925",
+        "name": "tokenizer_config.json",
+        "sha256": "0b29c7bfc889e53b36d9dd3e686dd4300f6525110eaa98c76a5dafceb2029f53",
+        "size_bytes": 1242,
+        "source_blob_name": "75305659f7795d4549f0e23688b52fa20a32f925"
+      }
+    ],
+    "metadata_path": "C:\\Users\\hembad\\AppData\\Local\\Temp\\fastembed_cache\\models--qdrant--bge-small-en-v1.5-onnx-q\\files_metadata.json",
+    "snapshot_entry_count_before_staging": 0,
+    "snapshot_revision": "aa8f8b060edb00e03bfdd08813a2949946c8ba55",
+    "staging": "temporary copy selected by unique metadata size; no cache mutation"
+  },
+  "cases": [
+    {
+      "batch_size": 1,
+      "dimension": 384,
+      "documents_per_second_median": 171.13461722080748,
+      "mean_seconds": 0.1835313799791038,
+      "median_seconds": 0.18698729993775487,
+      "parity": {
+        "matches_batch_size_1": true,
+        "max_abs_difference": 0.0
+      },
+      "repeat_max_abs_difference": 0.0,
+      "text_count": 32,
+      "vectors": 32
+    },
+    {
+      "batch_size": 8,
+      "dimension": 384,
+      "documents_per_second_median": 288.00313939223497,
+      "mean_seconds": 0.10943723998498171,
+      "median_seconds": 0.11110989993903786,
+      "parity": {
+        "matches_batch_size_1": true,
+        "max_abs_difference": 0.0
+      },
+      "repeat_max_abs_difference": 0.0,
+      "text_count": 32,
+      "vectors": 32
+    },
+    {
+      "batch_size": 32,
+      "dimension": 384,
+      "documents_per_second_median": 293.68198281045795,
+      "mean_seconds": 0.10977295998018236,
+      "median_seconds": 0.10896139999385923,
+      "parity": {
+        "matches_batch_size_1": true,
+        "max_abs_difference": 0.0
+      },
+      "repeat_max_abs_difference": 0.0,
+      "text_count": 32,
+      "vectors": 32
+    },
+    {
+      "batch_size": 64,
+      "dimension": 384,
+      "documents_per_second_median": 310.54363575699904,
+      "mean_seconds": 0.10478636000771076,
+      "median_seconds": 0.10304509999696165,
+      "parity": {
+        "matches_batch_size_1": true,
+        "max_abs_difference": 0.0
+      },
+      "repeat_max_abs_difference": 0.0,
+      "text_count": 32,
+      "vectors": 32
+    },
+    {
+      "batch_size": 1,
+      "dimension": 384,
+      "documents_per_second_median": 169.14794365125888,
+      "mean_seconds": 0.38508741999976337,
+      "median_seconds": 0.3783670000266284,
+      "parity": {
+        "matches_batch_size_1": true,
+        "max_abs_difference": 0.0
+      },
+      "repeat_max_abs_difference": 0.0,
+      "text_count": 64,
+      "vectors": 64
+    },
+    {
+      "batch_size": 8,
+      "dimension": 384,
+      "documents_per_second_median": 270.5973182254876,
+      "mean_seconds": 0.2350283999927342,
+      "median_seconds": 0.23651379998773336,
+      "parity": {
+        "matches_batch_size_1": true,
+        "max_abs_difference": 0.0
+      },
+      "repeat_max_abs_difference": 0.0,
+      "text_count": 64,
+      "vectors": 64
+    },
+    {
+      "batch_size": 32,
+      "dimension": 384,
+      "documents_per_second_median": 275.6366885785113,
+      "mean_seconds": 0.23164801998063922,
+      "median_seconds": 0.23218969989102334,
+      "parity": {
+        "matches_batch_size_1": true,
+        "max_abs_difference": 0.0
+      },
+      "repeat_max_abs_difference": 0.0,
+      "text_count": 64,
+      "vectors": 64
+    },
+    {
+      "batch_size": 64,
+      "dimension": 384,
+      "documents_per_second_median": 248.7199665081465,
+      "mean_seconds": 0.2576429800130427,
+      "median_seconds": 0.2573175000725314,
+      "parity": {
+        "matches_batch_size_1": true,
+        "max_abs_difference": 0.0
+      },
+      "repeat_max_abs_difference": 0.0,
+      "text_count": 64,
+      "vectors": 64
+    }
+  ],
+  "command": "scripts/benchmark_embedding_batches.py --json-out docs/provider_verification/embedding-batch-kernel.json --log-out docs/provider_verification/embedding-batch-kernel.log",
+  "conclusion": "All batch sizes returned one 384-dimensional vector per input in order and were allclose to batch_size=1 at the recorded tolerance. Timing is a single-host kernel observation and does not justify changing a provider default.",
+  "elapsed_seconds": 11.704434899962507,
+  "model": "BAAI/bge-small-en-v1.5",
+  "model_info": {
+    "dimension": 384,
+    "model_file_sha256": "51f1bd0addd6e859e42c2c8021a5e5461385bb676a649f4b269aa445449f2431",
+    "revision": "aa8f8b060edb00e03bfdd08813a2949946c8ba55",
+    "runtime_class": "OnnxTextEmbedding"
+  },
+  "offline_environment": {
+    "HF_HUB_OFFLINE": "1",
+    "TRANSFORMERS_OFFLINE": "1",
+    "local_files_only": true
+  },
+  "provider": "fastembed/ONNX Runtime CPUExecutionProvider",
+  "scope": "Single-host local benchmark over invented fixed English text; no full MemSpine engine, no network, no model-quality claim.",
+  "settings": {
+    "allclose": {
+      "atol": 1e-06,
+      "rtol": 1e-05
+    },
+    "batch_sizes": [
+      1,
+      8,
+      32,
+      64
+    ],
+    "cuda": false,
+    "maximum_runtime_seconds": 180,
+    "parallel": null,
+    "providers": [
+      "CPUExecutionProvider"
+    ],
+    "text_counts": [
+      32,
+      64
+    ],
+    "threads": 1,
+    "trials": 5,
+    "warmups": 2
+  },
+  "standard_offline_cache_probe": {
+    "error": "Could not load model BAAI/bge-small-en-v1.5 from any source.",
+    "error_type": "ValueError",
+    "status": "unavailable"
+  },
+  "started_at_utc": "2026-10-17T19:01:11.665358+00:00",
+  "status": "passed",
+  "versions": {
+    "fastembed": "0.9.0",
+    "numpy": "2.5.4",
+    "onnxruntime": "1.31.0",
+    "platform": "Windows-11-10.0.26340-SP0",
+    "python": "3.13.5 (main, Jul 11 2025, 22:38:12) [MSC v.1944 64 bit (AMD64)]"
+  }
+}

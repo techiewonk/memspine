@@ -1,0 +1,9 @@
+2026-10-18T04:20:07.090769Z [info     ] memory.write                   namespace=pa121-gliner-source record_id=04c13c34-d306-440c-a4b5-8df2966f5274
+2026-10-18T04:20:07.117447Z [info     ] memory.write                   namespace=pa121-gliner-source record_id=68c15981-7d78-4dce-b632-8c9986a909a1
+[transformers] You are using a model of type `extractor` to instantiate a model of type ``. This may be expected if you are loading a checkpoint that shares a subset of the architecture (e.g., loading a `sam2_video` checkpoint into `Sam2Model`), but is otherwise not supported and can yield errors. Please verify that the checkpoint is compatible with the model you are instantiating.
+C:\Users\hembad\AppData\Local\Temp\memspine-ner-runtime-313\Lib\site-packages\torch\jit\_script.py:1491: FutureWarning: `torch.jit.script` is deprecated. Please switch to `torch.compile` or `torch.export`.
+  warnings.warn(
+2026-10-18T04:20:10.588209Z [info     ] memory.write                   action=added namespace=pa121-gliner-source record_id=635d54bb-c2c3-4399-9545-b4f3af49e77b
+2026-10-18T04:20:10.591743Z [info     ] memory.retrieve                count=0 memory_type=None namespace=pa121-gliner-isolation-check
+2026-10-18T04:20:10.619653Z [info     ] memory.retrieve                count=3 namespace=pa121-gliner-source query=True
+GLiNER ingestion acceptance: failed

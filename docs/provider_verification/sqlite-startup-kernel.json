@@ -1,0 +1,193 @@
+{
+  "created_at_utc": "2026-10-17T18:58:21+00:00",
+  "environment": {
+    "controlled_host": false,
+    "cpu_count": 32,
+    "platform": "Windows-11-10.0.26340-SP0",
+    "python": "3.13.5"
+  },
+  "limitations": [
+    "Host load and filesystem cache state were not controlled; five fresh processes do not isolate OS page cache.",
+    "Import phase times are sequential and cold-process, not independent concurrent imports.",
+    "SQLiteClient.connect establishes its engine and WAL/pragma connection; the schema probe is a read, not Alembic migration timing.",
+    "Deferring imports could shift work to first use but would not remove the SQLAlchemy/aiosqlite requirement or necessarily reduce DB service startup cost."
+  ],
+  "method": {
+    "client_path": "one file-backed SQLiteClient per trial",
+    "import_order": "sequential; dependencies remain imported in later phases",
+    "imports": [
+      "sqlalchemy",
+      "aiosqlite",
+      "memspine.clients.sqlite"
+    ],
+    "per_trial_temporary_directory": true,
+    "process_model": "one fresh Python subprocess per trial",
+    "schema_probe": "SELECT count(*) FROM sqlite_schema; PRAGMA schema_version",
+    "scope": "standalone SQLiteClient connect, schema read, and close; no Engine/Alembic migration",
+    "total_wall_clock_ms_including_subprocesses": 4174.873,
+    "trials": 5
+  },
+  "phases": {
+    "aiosqlite_import_ms": {
+      "count": 5,
+      "median_ms": 12.282,
+      "min_ms": 11.696,
+      "samples_ms": [
+        11.696,
+        11.83,
+        12.282,
+        12.45,
+        15.386
+      ]
+    },
+    "client_close_ms": {
+      "count": 5,
+      "median_ms": 1.077,
+      "min_ms": 0.959,
+      "samples_ms": [
+        0.988,
+        1.618,
+        1.077,
+        1.311,
+        0.959
+      ]
+    },
+    "client_connect_ms": {
+      "count": 5,
+      "median_ms": 22.096,
+      "min_ms": 20.204,
+      "samples_ms": [
+        21.971,
+        22.096,
+        20.204,
+        26.215,
+        23.577
+      ]
+    },
+    "schema_probe_ms": {
+      "count": 5,
+      "median_ms": 2.322,
+      "min_ms": 2.179,
+      "samples_ms": [
+        2.322,
+        2.179,
+        2.195,
+        2.733,
+        2.796
+      ]
+    },
+    "sqlalchemy_import_ms": {
+      "count": 5,
+      "median_ms": 197.72,
+      "min_ms": 190.28,
+      "samples_ms": [
+        196.716,
+        190.28,
+        197.72,
+        210.375,
+        232.381
+      ]
+    },
+    "sqlite_client_module_import_ms": {
+      "count": 5,
+      "median_ms": 77.538,
+      "min_ms": 71.207,
+      "samples_ms": [
+        77.538,
+        71.207,
+        72.412,
+        79.308,
+        79.406
+      ]
+    }
+  },
+  "schema_version": 1,
+  "source": {
+    "path": "src/memspine/clients/sqlite.py",
+    "sha256": "b0b96122bc81a8e0ad3567ca1edaba27bfc94d2353d187235ed6d8c08e3eac35"
+  },
+  "subprocess_wall_ms_including_python_startup": {
+    "count": 5,
+    "median_ms": 708.194,
+    "min_ms": 578.908,
+    "samples_ms": [
+      737.854,
+      708.194,
+      578.908,
+      1419.987,
+      638.207
+    ]
+  },
+  "trials": [
+    {
+      "database_file_bytes": 4096,
+      "samples_ms": {
+        "aiosqlite_import_ms": 11.6959,
+        "client_close_ms": 0.9882,
+        "client_connect_ms": 21.9715,
+        "schema_probe_ms": 2.3223,
+        "sqlalchemy_import_ms": 196.7161,
+        "sqlite_client_module_import_ms": 77.5381
+      },
+      "schema_object_count": 0,
+      "temporary_directory_removed_after_trial": true,
+      "trial": 1
+    },
+    {
+      "database_file_bytes": 4096,
+      "samples_ms": {
+        "aiosqlite_import_ms": 11.8298,
+        "client_close_ms": 1.6183,
+        "client_connect_ms": 22.0956,
+        "schema_probe_ms": 2.1786,
+        "sqlalchemy_import_ms": 190.2804,
+        "sqlite_client_module_import_ms": 71.2067
+      },
+      "schema_object_count": 0,
+      "temporary_directory_removed_after_trial": true,
+      "trial": 2
+    },
+    {
+      "database_file_bytes": 4096,
+      "samples_ms": {
+        "aiosqlite_import_ms": 12.2822,
+        "client_close_ms": 1.0772,
+        "client_connect_ms": 20.2045,
+        "schema_probe_ms": 2.1952,
+        "sqlalchemy_import_ms": 197.7204,
+        "sqlite_client_module_import_ms": 72.4124
+      },
+      "schema_object_count": 0,
+      "temporary_directory_removed_after_trial": true,
+      "trial": 3
+    },
+    {
+      "database_file_bytes": 4096,
+      "samples_ms": {
+        "aiosqlite_import_ms": 12.4498,
+        "client_close_ms": 1.311,
+        "client_connect_ms": 26.2148,
+        "schema_probe_ms": 2.7333,
+        "sqlalchemy_import_ms": 210.3751,
+        "sqlite_client_module_import_ms": 79.3083
+      },
+      "schema_object_count": 0,
+      "temporary_directory_removed_after_trial": true,
+      "trial": 4
+    },
+    {
+      "database_file_bytes": 4096,
+      "samples_ms": {
+        "aiosqlite_import_ms": 15.3855,
+        "client_close_ms": 0.9585,
+        "client_connect_ms": 23.5769,
+        "schema_probe_ms": 2.7959,
+        "sqlalchemy_import_ms": 232.3806,
+        "sqlite_client_module_import_ms": 79.406
+      },
+      "schema_object_count": 0,
+      "temporary_directory_removed_after_trial": true,
+      "trial": 5
+    }
+  ]
+}

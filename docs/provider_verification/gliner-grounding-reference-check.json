@@ -1,0 +1,43 @@
+{
+  "recorded_at": "2026-10-18T04:30:53.806243+00:00",
+  "checks": [
+    {
+      "name": "provider_defaults",
+      "passed": true,
+      "returncode": 0,
+      "command": [
+        "scripts/dump_provider_defaults.py",
+        "--check"
+      ]
+    },
+    {
+      "name": "stage_parameters",
+      "passed": true,
+      "returncode": 0,
+      "command": [
+        "scripts/build_stage_params.py",
+        "--check"
+      ]
+    },
+    {
+      "name": "configuration_snapshot",
+      "passed": true,
+      "returncode": 0,
+      "command": [
+        "scripts/dump_config_baseline.py"
+      ]
+    }
+  ],
+  "passed": true,
+  "sha256": {
+    "docs/PROVIDER_DEFAULTS.md": "5d10f80cf660bdc864be07503303453f542c5c5157e5471dffab964d63b0bfe5",
+    "docs/v2/STAGE_PARAMS.md": "6142fa9436294228e2e50e2cd990dac2a746ebd6c0a9df83555034723a2ecc60",
+    "docs/v2/data/stage_params.json": "a7c8d6aa2ac7d187bdd92d3da084c559039f799633efb8de435769962b1fad18",
+    "tests/unit/config/data/config_dump_baseline.json": "4a0eb6a4069f520a0c90263bfe1f17ca39b8fad82cee15b522eec033a2f103ea",
+    "pyproject.toml": "d612a620cc254f4d2467d39155a5c2aea7fd3bdcc1af95de27629cbff67075ca",
+    "uv.lock": "519b815049f45ea11286a9e358f996d74d3f8da8fecff9b364b709bab96e6c09"
+  },
+  "limits": [
+    "Read-only generated-reference comparison; not a full release sweep or service workload acceptance."
+  ]
+}

@@ -1,0 +1,1827 @@
+{
+  "created_at_utc": "2026-10-17T18:57:15+00:00",
+  "environment": {
+    "cpu_count": 32,
+    "datasketch": "2.0.0",
+    "host_load_controlled": false,
+    "numpy": "2.5.4",
+    "platform": "Windows-11-10.0.26340-SP0",
+    "python": "3.13.5"
+  },
+  "lsh_parity": [
+    {
+      "candidate_ids": [
+        "id-0"
+      ],
+      "lsh_candidates_identical": true,
+      "num_perm": 128,
+      "restored_signature_jaccard": 1.0,
+      "signature_bytes_identical": true
+    },
+    {
+      "candidate_ids": [
+        "id-0"
+      ],
+      "lsh_candidates_identical": true,
+      "num_perm": 256,
+      "restored_signature_jaccard": 1.0,
+      "signature_bytes_identical": true
+    },
+    {
+      "candidate_ids": [
+        "id-0",
+        "id-1"
+      ],
+      "lsh_candidates_identical": true,
+      "num_perm": 512,
+      "restored_signature_jaccard": 1.0,
+      "signature_bytes_identical": true
+    }
+  ],
+  "notes": [
+    "Prototype uses existing datasketch MinHash.update_batch and never changes MinHash scheme, seed, hashfunc, or permutation setup.",
+    "max_cells bounds rows \u00d7 num_perm per update_batch call; datasketch may hold multiple arrays of this bounded shape temporarily.",
+    "Timings are kernel-only and make no retrieval-quality or end-to-end throughput claim."
+  ],
+  "results": [
+    {
+      "baseline_median_us": 64.844,
+      "baseline_trial_us": [
+        65.861,
+        64.336,
+        64.862,
+        64.423,
+        69.469,
+        64.182,
+        64.844
+      ],
+      "candidate_median_us": 64.855,
+      "candidate_over_baseline": 1.0002,
+      "candidate_trial_us": [
+        65.808,
+        64.855,
+        64.391,
+        64.857,
+        75.362,
+        64.392,
+        64.391
+      ],
+      "case": "raw_0_unique_0_perm_128_cells_65536",
+      "loops_per_trial": 589,
+      "trials": 7
+    },
+    {
+      "baseline_median_us": 64.262,
+      "baseline_trial_us": [
+        64.546,
+        64.144,
+        65.331,
+        64.042,
+        65.047,
+        64.262,
+        64.222
+      ],
+      "candidate_median_us": 64.917,
+      "candidate_over_baseline": 1.0102,
+      "candidate_trial_us": [
+        64.318,
+        65.019,
+        64.701,
+        65.589,
+        64.492,
+        64.917,
+        64.951
+      ],
+      "case": "raw_0_unique_0_perm_128_cells_262144",
+      "loops_per_trial": 600,
+      "trials": 7
+    },
+    {
+      "baseline_median_us": 71.855,
+      "baseline_trial_us": [
+        70.615,
+        70.908,
+        81.025,
+        71.855,
+        75.757,
+        72.485,
+        71.583
+      ],
+      "candidate_median_us": 74.346,
+      "candidate_over_baseline": 1.0347,
+      "candidate_trial_us": [
+        70.274,
+        70.449,
+        77.54,
+        77.987,
+        78.295,
+        74.346,
+        72.165
+      ],
+      "case": "raw_1_unique_1_perm_128_cells_65536",
+      "loops_per_trial": 573,
+      "trials": 7
+    },
+    {
+      "baseline_median_us": 71.281,
+      "baseline_trial_us": [
+        85.441,
+        71.73,
+        70.573,
+        71.546,
+        71.281,
+        70.526,
+        70.221
+      ],
+      "candidate_median_us": 70.899,
+      "candidate_over_baseline": 0.9946,
+      "candidate_trial_us": [
+        73.217,
+        71.791,
+        70.369,
+        70.771,
+        71.217,
+        70.218,
+        70.899
+      ],
+      "case": "raw_1_unique_1_perm_128_cells_262144",
+      "loops_per_trial": 564,
+      "trials": 7
+    },
+    {
+      "baseline_median_us": 70.478,
+      "baseline_trial_us": [
+        70.478,
+        70.394,
+        71.109,
+        70.741,
+        70.25,
+        70.99,
+        70.285
+      ],
+      "candidate_median_us": 71.644,
+      "candidate_over_baseline": 1.0165,
+      "candidate_trial_us": [
+        70.455,
+        71.644,
+        70.44,
+        70.735,
+        71.661,
+        71.652,
+        78.54
+      ],
+      "case": "raw_2_unique_2_perm_128_cells_65536",
+      "loops_per_trial": 563,
+      "trials": 7
+    },
+    {
+      "baseline_median_us": 71.107,
+      "baseline_trial_us": [
+        80.256,
+        70.993,
+        71.579,
+        71.249,
+        70.781,
+        70.842,
+        71.107
+      ],
+      "candidate_median_us": 70.888,
+      "candidate_over_baseline": 0.9969,
+      "candidate_trial_us": [
+        70.888,
+        70.591,
+        70.832,
+        71.446,
+        73.344,
+        71.102,
+        70.571
+      ],
+      "case": "raw_2_unique_2_perm_128_cells_262144",
+      "loops_per_trial": 355,
+      "trials": 7
+    },
+    {
+      "baseline_median_us": 77.57,
+      "baseline_trial_us": [
+        77.57,
+        76.205,
+        77.455,
+        78.134,
+        77.457,
+        78.388,
+        77.593
+      ],
+      "candidate_median_us": 78.295,
+      "candidate_over_baseline": 1.0093,
+      "candidate_trial_us": [
+        77.29,
+        76.897,
+        77.015,
+        78.295,
+        79.847,
+        79.032,
+        79.282
+      ],
+      "case": "raw_4_unique_4_perm_128_cells_65536",
+      "loops_per_trial": 488,
+      "trials": 7
+    },
+    {
+      "baseline_median_us": 77.559,
+      "baseline_trial_us": [
+        77.238,
+        78.376,
+        77.559,
+        77.465,
+        77.559,
+        77.853,
+        77.928
+      ],
+      "candidate_median_us": 77.529,
+      "candidate_over_baseline": 0.9996,
+      "candidate_trial_us": [
+        77.693,
+        78.001,
+        77.057,
+        77.424,
+        78.498,
+        77.529,
+        77.391
+      ],
+      "case": "raw_4_unique_4_perm_128_cells_262144",
+      "loops_per_trial": 525,
+      "trials": 7
+    },
+    {
+      "baseline_median_us": 96.83,
+      "baseline_trial_us": [
+        97.539,
+        96.83,
+        96.826,
+        97.17,
+        96.914,
+        96.26,
+        95.862
+      ],
+      "candidate_median_us": 96.657,
+      "candidate_over_baseline": 0.9982,
+      "candidate_trial_us": [
+        97.259,
+        97.673,
+        97.196,
+        96.383,
+        96.657,
+        96.524,
+        95.631
+      ],
+      "case": "raw_8_unique_8_perm_128_cells_65536",
+      "loops_per_trial": 408,
+      "trials": 7
+    },
+    {
+      "baseline_median_us": 95.896,
+      "baseline_trial_us": [
+        95.351,
+        95.65,
+        95.967,
+        95.902,
+        95.896,
+        95.767,
+        96.214
+      ],
+      "candidate_median_us": 95.61,
+      "candidate_over_baseline": 0.997,
+      "candidate_trial_us": [
+        96.362,
+        95.716,
+        95.61,
+        96.065,
+        95.451,
+        95.463,
+        95.468
+      ],
+      "case": "raw_8_unique_8_perm_128_cells_262144",
+      "loops_per_trial": 414,
+      "trials": 7
+    },
+    {
+      "baseline_median_us": 133.707,
+      "baseline_trial_us": [
+        133.004,
+        133.752,
+        134.86,
+        131.484,
+        133.276,
+        134.396,
+        133.707
+      ],
+      "candidate_median_us": 80.884,
+      "candidate_over_baseline": 0.6049,
+      "candidate_trial_us": [
+        82.27,
+        81.671,
+        81.459,
+        80.759,
+        80.884,
+        80.404,
+        80.29
+      ],
+      "case": "raw_16_unique_16_perm_128_cells_65536",
+      "loops_per_trial": 269,
+      "trials": 7
+    },
+    {
+      "baseline_median_us": 134.34,
+      "baseline_trial_us": [
+        134.023,
+        134.484,
+        134.298,
+        135.673,
+        135.403,
+        134.223,
+        134.34
+      ],
+      "candidate_median_us": 81.358,
+      "candidate_over_baseline": 0.6056,
+      "candidate_trial_us": [
+        81.358,
+        80.782,
+        81.4,
+        81.226,
+        81.576,
+        82.201,
+        80.985
+      ],
+      "case": "raw_16_unique_16_perm_128_cells_262144",
+      "loops_per_trial": 298,
+      "trials": 7
+    },
+    {
+      "baseline_median_us": 73.222,
+      "baseline_trial_us": [
+        73.706,
+        75.577,
+        74.88,
+        71.491,
+        73.222,
+        72.353,
+        72.391
+      ],
+      "candidate_median_us": 72.476,
+      "candidate_over_baseline": 0.9898,
+      "candidate_trial_us": [
+        74.068,
+        71.578,
+        70.968,
+        72.476,
+        74.249,
+        79.565,
+        72.275
+      ],
+      "case": "raw_16_unique_1_perm_128_cells_65536",
+      "loops_per_trial": 239,
+      "trials": 7
+    },
+    {
+      "baseline_median_us": 72.545,
+      "baseline_trial_us": [
+        72.545,
+        74.502,
+        76.66,
+        74.095,
+        72.22,
+        71.858,
+        71.758
+      ],
+      "candidate_median_us": 76.037,
+      "candidate_over_baseline": 1.0481,
+      "candidate_trial_us": [
+        71.176,
+        79.181,
+        76.037,
+        77.215,
+        77.721,
+        75.526,
+        70.783
+      ],
+      "case": "raw_16_unique_1_perm_128_cells_262144",
+      "loops_per_trial": 563,
+      "trials": 7
+    },
+    {
+      "baseline_median_us": 227.245,
+      "baseline_trial_us": [
+        221.406,
+        231.76,
+        237.222,
+        224.062,
+        267.054,
+        227.245,
+        226.944
+      ],
+      "candidate_median_us": 95.068,
+      "candidate_over_baseline": 0.4184,
+      "candidate_trial_us": [
+        98.168,
+        94.664,
+        95.068,
+        93.872,
+        101.664,
+        102.474,
+        94.413
+      ],
+      "case": "raw_64_unique_32_perm_128_cells_65536",
+      "loops_per_trial": 185,
+      "trials": 7
+    },
+    {
+      "baseline_median_us": 222.376,
+      "baseline_trial_us": [
+        225.173,
+        224.098,
+        222.376,
+        221.952,
+        223.691,
+        216.435,
+        218.346
+      ],
+      "candidate_median_us": 94.269,
+      "candidate_over_baseline": 0.4239,
+      "candidate_trial_us": [
+        94.269,
+        94.097,
+        96.617,
+        94.412,
+        94.623,
+        91.539,
+        92.782
+      ],
+      "case": "raw_64_unique_32_perm_128_cells_262144",
+      "loops_per_trial": 183,
+      "trials": 7
+    },
+    {
+      "baseline_median_us": 1460.622,
+      "baseline_trial_us": [
+        1464.867,
+        1460.622,
+        1446.104,
+        1466.174,
+        1454.263,
+        1461.83,
+        1457.4
+      ],
+      "candidate_median_us": 249.626,
+      "candidate_over_baseline": 0.1709,
+      "candidate_trial_us": [
+        249.626,
+        245.167,
+        259.567,
+        245.615,
+        258.696,
+        245.97,
+        250.256
+      ],
+      "case": "raw_512_unique_256_perm_128_cells_65536",
+      "loops_per_trial": 27,
+      "trials": 7
+    },
+    {
+      "baseline_median_us": 1459.285,
+      "baseline_trial_us": [
+        1457.841,
+        1491.507,
+        1476.3,
+        1459.278,
+        1465.715,
+        1459.285,
+        1444.304
+      ],
+      "candidate_median_us": 249.322,
+      "candidate_over_baseline": 0.1709,
+      "candidate_trial_us": [
+        257.819,
+        247.33,
+        247.33,
+        251.704,
+        249.322,
+        245.215,
+        252.274
+      ],
+      "case": "raw_512_unique_256_perm_128_cells_262144",
+      "loops_per_trial": 27,
+      "trials": 7
+    },
+    {
+      "baseline_median_us": 5733.471,
+      "baseline_trial_us": [
+        5760.243,
+        5842.514,
+        5780.829,
+        5733.471,
+        5673.257,
+        5720.229,
+        5690.471
+      ],
+      "candidate_median_us": 792.357,
+      "candidate_over_baseline": 0.1382,
+      "candidate_trial_us": [
+        792.357,
+        778.671,
+        813.186,
+        785.943,
+        811.757,
+        784.486,
+        831.886
+      ],
+      "case": "raw_2048_unique_1024_perm_128_cells_65536",
+      "loops_per_trial": 7,
+      "trials": 7
+    },
+    {
+      "baseline_median_us": 5685.043,
+      "baseline_trial_us": [
+        5707.1,
+        5673.571,
+        5685.043,
+        5697.671,
+        5714.329,
+        5674.486,
+        5657.229
+      ],
+      "candidate_median_us": 798.371,
+      "candidate_over_baseline": 0.1404,
+      "candidate_trial_us": [
+        798.371,
+        791.429,
+        810.486,
+        808.1,
+        797.529,
+        764.257,
+        806.229
+      ],
+      "case": "raw_2048_unique_1024_perm_128_cells_262144",
+      "loops_per_trial": 7,
+      "trials": 7
+    },
+    {
+      "baseline_median_us": 22786.4,
+      "baseline_trial_us": [
+        22775.2,
+        22718.9,
+        23428.4,
+        23319.4,
+        23025.5,
+        22564.2,
+        22786.4
+      ],
+      "candidate_median_us": 3347.0,
+      "candidate_over_baseline": 0.1469,
+      "candidate_trial_us": [
+        3438.1,
+        3231.3,
+        3518.9,
+        3249.4,
+        3630.1,
+        3220.4,
+        3347.0
+      ],
+      "case": "raw_8193_unique_4096_perm_128_cells_65536",
+      "loops_per_trial": 1,
+      "trials": 7
+    },
+    {
+      "baseline_median_us": 23698.3,
+      "baseline_trial_us": [
+        22878.9,
+        25792.1,
+        23698.3,
+        24878.3,
+        23878.6,
+        23284.4,
+        23361.1
+      ],
+      "candidate_median_us": 3864.4,
+      "candidate_over_baseline": 0.1631,
+      "candidate_trial_us": [
+        3785.6,
+        3800.9,
+        4298.0,
+        4393.7,
+        4277.4,
+        3676.1,
+        3864.4
+      ],
+      "case": "raw_8193_unique_4096_perm_128_cells_262144",
+      "loops_per_trial": 1,
+      "trials": 7
+    },
+    {
+      "baseline_median_us": 66.388,
+      "baseline_trial_us": [
+        65.218,
+        70.047,
+        66.522,
+        66.388,
+        74.166,
+        64.502,
+        65.029
+      ],
+      "candidate_median_us": 66.844,
+      "candidate_over_baseline": 1.0069,
+      "candidate_trial_us": [
+        66.474,
+        66.844,
+        69.041,
+        68.58,
+        71.024,
+        65.088,
+        65.083
+      ],
+      "case": "raw_0_unique_0_perm_256_cells_65536",
+      "loops_per_trial": 617,
+      "trials": 7
+    },
+    {
+      "baseline_median_us": 64.751,
+      "baseline_trial_us": [
+        65.433,
+        65.09,
+        64.916,
+        64.503,
+        64.751,
+        63.886,
+        64.134
+      ],
+      "candidate_median_us": 64.841,
+      "candidate_over_baseline": 1.0014,
+      "candidate_trial_us": [
+        64.87,
+        65.321,
+        64.853,
+        64.841,
+        64.188,
+        63.859,
+        64.609
+      ],
+      "case": "raw_0_unique_0_perm_256_cells_262144",
+      "loops_per_trial": 597,
+      "trials": 7
+    },
+    {
+      "baseline_median_us": 71.125,
+      "baseline_trial_us": [
+        71.125,
+        70.946,
+        71.42,
+        71.604,
+        70.699,
+        73.101,
+        71.109
+      ],
+      "candidate_median_us": 71.187,
+      "candidate_over_baseline": 1.0009,
+      "candidate_trial_us": [
+        70.622,
+        71.049,
+        71.306,
+        71.754,
+        71.025,
+        71.187,
+        72.088
+      ],
+      "case": "raw_1_unique_1_perm_256_cells_65536",
+      "loops_per_trial": 566,
+      "trials": 7
+    },
+    {
+      "baseline_median_us": 71.087,
+      "baseline_trial_us": [
+        71.588,
+        69.65,
+        70.198,
+        72.541,
+        70.991,
+        71.571,
+        71.087
+      ],
+      "candidate_median_us": 70.893,
+      "candidate_over_baseline": 0.9973,
+      "candidate_trial_us": [
+        70.159,
+        71.012,
+        70.718,
+        71.193,
+        71.466,
+        70.893,
+        70.764
+      ],
+      "case": "raw_1_unique_1_perm_256_cells_262144",
+      "loops_per_trial": 565,
+      "trials": 7
+    },
+    {
+      "baseline_median_us": 71.265,
+      "baseline_trial_us": [
+        70.916,
+        70.369,
+        70.697,
+        71.37,
+        71.265,
+        71.409,
+        71.571
+      ],
+      "candidate_median_us": 71.21,
+      "candidate_over_baseline": 0.9992,
+      "candidate_trial_us": [
+        70.832,
+        71.417,
+        70.284,
+        70.684,
+        72.247,
+        71.942,
+        71.21
+      ],
+      "case": "raw_2_unique_2_perm_256_cells_65536",
+      "loops_per_trial": 559,
+      "trials": 7
+    },
+    {
+      "baseline_median_us": 71.849,
+      "baseline_trial_us": [
+        71.849,
+        72.783,
+        73.727,
+        71.609,
+        71.716,
+        69.849,
+        72.949
+      ],
+      "candidate_median_us": 71.527,
+      "candidate_over_baseline": 0.9955,
+      "candidate_trial_us": [
+        72.14,
+        71.527,
+        72.051,
+        71.384,
+        69.599,
+        69.816,
+        72.128
+      ],
+      "case": "raw_2_unique_2_perm_256_cells_262144",
+      "loops_per_trial": 558,
+      "trials": 7
+    },
+    {
+      "baseline_median_us": 78.858,
+      "baseline_trial_us": [
+        78.984,
+        78.47,
+        79.543,
+        79.128,
+        78.782,
+        78.858,
+        78.767
+      ],
+      "candidate_median_us": 78.829,
+      "candidate_over_baseline": 0.9996,
+      "candidate_trial_us": [
+        78.339,
+        78.509,
+        78.635,
+        79.01,
+        80.784,
+        78.829,
+        79.311
+      ],
+      "case": "raw_4_unique_4_perm_256_cells_65536",
+      "loops_per_trial": 491,
+      "trials": 7
+    },
+    {
+      "baseline_median_us": 79.068,
+      "baseline_trial_us": [
+        79.521,
+        78.391,
+        79.475,
+        77.714,
+        77.391,
+        81.265,
+        79.068
+      ],
+      "candidate_median_us": 78.744,
+      "candidate_over_baseline": 0.9959,
+      "candidate_trial_us": [
+        78.744,
+        80.536,
+        78.117,
+        77.381,
+        79.975,
+        79.342,
+        77.895
+      ],
+      "case": "raw_4_unique_4_perm_256_cells_262144",
+      "loops_per_trial": 510,
+      "trials": 7
+    },
+    {
+      "baseline_median_us": 98.81,
+      "baseline_trial_us": [
+        98.81,
+        98.277,
+        100.568,
+        99.625,
+        101.859,
+        97.499,
+        97.289
+      ],
+      "candidate_median_us": 98.898,
+      "candidate_over_baseline": 1.0009,
+      "candidate_trial_us": [
+        98.559,
+        99.584,
+        98.898,
+        99.721,
+        98.26,
+        99.708,
+        97.159
+      ],
+      "case": "raw_8_unique_8_perm_256_cells_65536",
+      "loops_per_trial": 407,
+      "trials": 7
+    },
+    {
+      "baseline_median_us": 98.044,
+      "baseline_trial_us": [
+        98.66,
+        98.415,
+        98.044,
+        96.101,
+        96.064,
+        97.657,
+        98.396
+      ],
+      "candidate_median_us": 98.291,
+      "candidate_over_baseline": 1.0025,
+      "candidate_trial_us": [
+        99.085,
+        99.375,
+        98.939,
+        97.488,
+        98.291,
+        97.81,
+        97.375
+      ],
+      "case": "raw_8_unique_8_perm_256_cells_262144",
+      "loops_per_trial": 410,
+      "trials": 7
+    },
+    {
+      "baseline_median_us": 137.736,
+      "baseline_trial_us": [
+        136.843,
+        137.6,
+        137.791,
+        138.086,
+        138.186,
+        137.736,
+        137.123
+      ],
+      "candidate_median_us": 82.942,
+      "candidate_over_baseline": 0.6022,
+      "candidate_trial_us": [
+        82.205,
+        83.098,
+        82.942,
+        84.6,
+        82.403,
+        83.39,
+        82.404
+      ],
+      "case": "raw_16_unique_16_perm_256_cells_65536",
+      "loops_per_trial": 278,
+      "trials": 7
+    },
+    {
+      "baseline_median_us": 136.948,
+      "baseline_trial_us": [
+        137.014,
+        136.948,
+        137.401,
+        137.043,
+        136.29,
+        136.541,
+        136.648
+      ],
+      "candidate_median_us": 82.973,
+      "candidate_over_baseline": 0.6059,
+      "candidate_trial_us": [
+        82.312,
+        82.973,
+        81.972,
+        85.981,
+        83.676,
+        83.321,
+        81.955
+      ],
+      "case": "raw_16_unique_16_perm_256_cells_262144",
+      "loops_per_trial": 296,
+      "trials": 7
+    },
+    {
+      "baseline_median_us": 71.362,
+      "baseline_trial_us": [
+        72.044,
+        72.286,
+        71.308,
+        71.362,
+        71.18,
+        70.879,
+        71.605
+      ],
+      "candidate_median_us": 71.245,
+      "candidate_over_baseline": 0.9984,
+      "candidate_trial_us": [
+        71.522,
+        71.748,
+        71.245,
+        71.176,
+        71.261,
+        70.902,
+        70.801
+      ],
+      "case": "raw_16_unique_1_perm_256_cells_65536",
+      "loops_per_trial": 544,
+      "trials": 7
+    },
+    {
+      "baseline_median_us": 71.963,
+      "baseline_trial_us": [
+        71.191,
+        71.33,
+        73.034,
+        71.077,
+        71.963,
+        72.937,
+        72.468
+      ],
+      "candidate_median_us": 71.65,
+      "candidate_over_baseline": 0.9956,
+      "candidate_trial_us": [
+        70.157,
+        70.71,
+        71.65,
+        70.674,
+        71.918,
+        72.955,
+        77.335
+      ],
+      "case": "raw_16_unique_1_perm_256_cells_262144",
+      "loops_per_trial": 571,
+      "trials": 7
+    },
+    {
+      "baseline_median_us": 232.141,
+      "baseline_trial_us": [
+        228.507,
+        232.803,
+        232.141,
+        227.922,
+        233.664,
+        235.039,
+        230.309
+      ],
+      "candidate_median_us": 97.186,
+      "candidate_over_baseline": 0.4187,
+      "candidate_trial_us": [
+        95.787,
+        96.698,
+        97.186,
+        96.586,
+        131.333,
+        102.636,
+        98.807
+      ],
+      "case": "raw_64_unique_32_perm_256_cells_65536",
+      "loops_per_trial": 180,
+      "trials": 7
+    },
+    {
+      "baseline_median_us": 233.29,
+      "baseline_trial_us": [
+        233.901,
+        233.631,
+        232.525,
+        233.29,
+        237.254,
+        226.175,
+        222.196
+      ],
+      "candidate_median_us": 99.148,
+      "candidate_over_baseline": 0.425,
+      "candidate_trial_us": [
+        99.584,
+        99.93,
+        98.067,
+        97.706,
+        99.148,
+        105.165,
+        95.383
+      ],
+      "case": "raw_64_unique_32_perm_256_cells_262144",
+      "loops_per_trial": 178,
+      "trials": 7
+    },
+    {
+      "baseline_median_us": 1518.872,
+      "baseline_trial_us": [
+        1507.248,
+        1544.104,
+        1538.304,
+        1540.704,
+        1518.872,
+        1507.328,
+        1473.256
+      ],
+      "candidate_median_us": 275.572,
+      "candidate_over_baseline": 0.1814,
+      "candidate_trial_us": [
+        270.264,
+        275.572,
+        275.772,
+        275.764,
+        271.784,
+        273.608,
+        278.652
+      ],
+      "case": "raw_512_unique_256_perm_256_cells_65536",
+      "loops_per_trial": 25,
+      "trials": 7
+    },
+    {
+      "baseline_median_us": 1505.656,
+      "baseline_trial_us": [
+        1500.226,
+        1510.511,
+        1497.489,
+        1513.741,
+        1512.285,
+        1503.115,
+        1505.656
+      ],
+      "candidate_median_us": 268.581,
+      "candidate_over_baseline": 0.1784,
+      "candidate_trial_us": [
+        267.889,
+        268.581,
+        267.833,
+        272.093,
+        269.726,
+        264.0,
+        273.852
+      ],
+      "case": "raw_512_unique_256_perm_256_cells_262144",
+      "loops_per_trial": 27,
+      "trials": 7
+    },
+    {
+      "baseline_median_us": 5885.033,
+      "baseline_trial_us": [
+        5885.033,
+        5879.25,
+        5909.083,
+        5864.033,
+        5933.633,
+        5897.833,
+        5882.383
+      ],
+      "candidate_median_us": 923.3,
+      "candidate_over_baseline": 0.1569,
+      "candidate_trial_us": [
+        942.017,
+        906.033,
+        923.3,
+        887.867,
+        925.217,
+        906.817,
+        991.867
+      ],
+      "case": "raw_2048_unique_1024_perm_256_cells_65536",
+      "loops_per_trial": 6,
+      "trials": 7
+    },
+    {
+      "baseline_median_us": 5907.117,
+      "baseline_trial_us": [
+        6238.4,
+        5934.983,
+        5989.683,
+        5907.117,
+        5859.8,
+        5877.4,
+        5830.9
+      ],
+      "candidate_median_us": 1190.917,
+      "candidate_over_baseline": 0.2016,
+      "candidate_trial_us": [
+        1191.9,
+        1153.75,
+        1190.917,
+        1197.417,
+        1125.217,
+        1327.333,
+        1143.55
+      ],
+      "case": "raw_2048_unique_1024_perm_256_cells_262144",
+      "loops_per_trial": 6,
+      "trials": 7
+    },
+    {
+      "baseline_median_us": 23898.8,
+      "baseline_trial_us": [
+        23496.2,
+        32714.0,
+        24251.3,
+        23768.5,
+        23942.1,
+        23656.4,
+        23898.8
+      ],
+      "candidate_median_us": 3833.0,
+      "candidate_over_baseline": 0.1604,
+      "candidate_trial_us": [
+        3631.2,
+        3536.3,
+        3899.5,
+        3912.2,
+        3833.0,
+        3612.2,
+        4257.3
+      ],
+      "case": "raw_8193_unique_4096_perm_256_cells_65536",
+      "loops_per_trial": 1,
+      "trials": 7
+    },
+    {
+      "baseline_median_us": 23821.2,
+      "baseline_trial_us": [
+        23603.6,
+        23821.2,
+        23762.3,
+        23627.6,
+        23893.4,
+        23901.3,
+        23823.8
+      ],
+      "candidate_median_us": 4448.0,
+      "candidate_over_baseline": 0.1867,
+      "candidate_trial_us": [
+        4448.0,
+        4137.9,
+        4396.0,
+        4609.2,
+        4539.4,
+        4172.2,
+        4664.5
+      ],
+      "case": "raw_8193_unique_4096_perm_256_cells_262144",
+      "loops_per_trial": 1,
+      "trials": 7
+    },
+    {
+      "baseline_median_us": 65.78,
+      "baseline_trial_us": [
+        66.799,
+        65.459,
+        66.094,
+        65.78,
+        65.78,
+        65.911,
+        65.34
+      ],
+      "candidate_median_us": 65.927,
+      "candidate_over_baseline": 1.0022,
+      "candidate_trial_us": [
+        66.562,
+        66.165,
+        65.711,
+        65.927,
+        65.729,
+        65.398,
+        65.958
+      ],
+      "case": "raw_0_unique_0_perm_512_cells_65536",
+      "loops_per_trial": 605,
+      "trials": 7
+    },
+    {
+      "baseline_median_us": 66.455,
+      "baseline_trial_us": [
+        65.691,
+        66.455,
+        65.851,
+        65.935,
+        71.419,
+        67.942,
+        70.401
+      ],
+      "candidate_median_us": 65.728,
+      "candidate_over_baseline": 0.9891,
+      "candidate_trial_us": [
+        65.616,
+        65.717,
+        65.728,
+        66.349,
+        66.512,
+        65.653,
+        66.852
+      ],
+      "case": "raw_0_unique_0_perm_512_cells_262144",
+      "loops_per_trial": 606,
+      "trials": 7
+    },
+    {
+      "baseline_median_us": 73.861,
+      "baseline_trial_us": [
+        73.861,
+        73.397,
+        72.842,
+        73.933,
+        73.975,
+        73.136,
+        74.04
+      ],
+      "candidate_median_us": 73.759,
+      "candidate_over_baseline": 0.9986,
+      "candidate_trial_us": [
+        73.964,
+        73.195,
+        73.683,
+        73.048,
+        73.759,
+        73.974,
+        75.127
+      ],
+      "case": "raw_1_unique_1_perm_512_cells_65536",
+      "loops_per_trial": 548,
+      "trials": 7
+    },
+    {
+      "baseline_median_us": 78.097,
+      "baseline_trial_us": [
+        73.357,
+        73.059,
+        88.326,
+        84.563,
+        95.776,
+        78.097,
+        75.581
+      ],
+      "candidate_median_us": 77.323,
+      "candidate_over_baseline": 0.9901,
+      "candidate_trial_us": [
+        73.786,
+        75.577,
+        75.835,
+        77.323,
+        87.061,
+        77.787,
+        78.643
+      ],
+      "case": "raw_1_unique_1_perm_512_cells_262144",
+      "loops_per_trial": 550,
+      "trials": 7
+    },
+    {
+      "baseline_median_us": 75.142,
+      "baseline_trial_us": [
+        75.142,
+        74.302,
+        75.832,
+        76.777,
+        76.909,
+        72.784,
+        74.309
+      ],
+      "candidate_median_us": 74.124,
+      "candidate_over_baseline": 0.9864,
+      "candidate_trial_us": [
+        78.189,
+        78.16,
+        74.124,
+        76.19,
+        73.256,
+        73.395,
+        73.167
+      ],
+      "case": "raw_2_unique_2_perm_512_cells_65536",
+      "loops_per_trial": 539,
+      "trials": 7
+    },
+    {
+      "baseline_median_us": 73.27,
+      "baseline_trial_us": [
+        73.522,
+        73.159,
+        73.248,
+        76.827,
+        73.27,
+        73.124,
+        73.417
+      ],
+      "candidate_median_us": 73.258,
+      "candidate_over_baseline": 0.9998,
+      "candidate_trial_us": [
+        73.342,
+        73.258,
+        73.449,
+        72.997,
+        73.174,
+        73.879,
+        72.861
+      ],
+      "case": "raw_2_unique_2_perm_512_cells_262144",
+      "loops_per_trial": 542,
+      "trials": 7
+    },
+    {
+      "baseline_median_us": 80.17,
+      "baseline_trial_us": [
+        80.226,
+        79.193,
+        80.816,
+        80.17,
+        79.485,
+        80.507,
+        80.093
+      ],
+      "candidate_median_us": 80.164,
+      "candidate_over_baseline": 0.9999,
+      "candidate_trial_us": [
+        80.005,
+        80.269,
+        81.734,
+        79.758,
+        80.164,
+        80.235,
+        79.048
+      ],
+      "case": "raw_4_unique_4_perm_512_cells_65536",
+      "loops_per_trial": 496,
+      "trials": 7
+    },
+    {
+      "baseline_median_us": 79.984,
+      "baseline_trial_us": [
+        79.061,
+        79.984,
+        79.773,
+        80.643,
+        80.421,
+        80.422,
+        79.971
+      ],
+      "candidate_median_us": 79.912,
+      "candidate_over_baseline": 0.9991,
+      "candidate_trial_us": [
+        79.654,
+        79.912,
+        82.364,
+        81.186,
+        79.698,
+        79.624,
+        80.081
+      ],
+      "case": "raw_4_unique_4_perm_512_cells_262144",
+      "loops_per_trial": 496,
+      "trials": 7
+    },
+    {
+      "baseline_median_us": 101.043,
+      "baseline_trial_us": [
+        101.835,
+        101.437,
+        101.043,
+        100.029,
+        100.885,
+        100.503,
+        105.173
+      ],
+      "candidate_median_us": 101.355,
+      "candidate_over_baseline": 1.0031,
+      "candidate_trial_us": [
+        100.317,
+        101.413,
+        101.044,
+        100.5,
+        101.355,
+        101.903,
+        106.37
+      ],
+      "case": "raw_8_unique_8_perm_512_cells_65536",
+      "loops_per_trial": 397,
+      "trials": 7
+    },
+    {
+      "baseline_median_us": 105.553,
+      "baseline_trial_us": [
+        104.807,
+        105.728,
+        107.57,
+        105.553,
+        104.881,
+        105.177,
+        106.986
+      ],
+      "candidate_median_us": 106.61,
+      "candidate_over_baseline": 1.01,
+      "candidate_trial_us": [
+        105.109,
+        107.662,
+        107.881,
+        105.973,
+        107.005,
+        105.809,
+        106.61
+      ],
+      "case": "raw_8_unique_8_perm_512_cells_262144",
+      "loops_per_trial": 400,
+      "trials": 7
+    },
+    {
+      "baseline_median_us": 146.341,
+      "baseline_trial_us": [
+        146.617,
+        143.437,
+        146.839,
+        146.341,
+        144.954,
+        145.099,
+        148.337
+      ],
+      "candidate_median_us": 89.594,
+      "candidate_over_baseline": 0.6122,
+      "candidate_trial_us": [
+        87.869,
+        95.199,
+        90.995,
+        88.005,
+        89.882,
+        89.594,
+        87.808
+      ],
+      "case": "raw_16_unique_16_perm_512_cells_65536",
+      "loops_per_trial": 278,
+      "trials": 7
+    },
+    {
+      "baseline_median_us": 147.787,
+      "baseline_trial_us": [
+        147.787,
+        149.776,
+        153.849,
+        148.828,
+        143.914,
+        143.092,
+        145.154
+      ],
+      "candidate_median_us": 87.852,
+      "candidate_over_baseline": 0.5945,
+      "candidate_trial_us": [
+        90.405,
+        85.957,
+        87.737,
+        90.192,
+        87.023,
+        88.212,
+        87.852
+      ],
+      "case": "raw_16_unique_16_perm_512_cells_262144",
+      "loops_per_trial": 286,
+      "trials": 7
+    },
+    {
+      "baseline_median_us": 74.504,
+      "baseline_trial_us": [
+        74.526,
+        74.658,
+        74.504,
+        74.251,
+        74.292,
+        74.786,
+        74.329
+      ],
+      "candidate_median_us": 74.762,
+      "candidate_over_baseline": 1.0035,
+      "candidate_trial_us": [
+        75.029,
+        74.762,
+        74.574,
+        74.883,
+        74.654,
+        73.89,
+        75.032
+      ],
+      "case": "raw_16_unique_1_perm_512_cells_65536",
+      "loops_per_trial": 542,
+      "trials": 7
+    },
+    {
+      "baseline_median_us": 74.531,
+      "baseline_trial_us": [
+        75.175,
+        75.093,
+        73.954,
+        74.346,
+        74.531,
+        74.946,
+        73.922
+      ],
+      "candidate_median_us": 74.985,
+      "candidate_over_baseline": 1.0061,
+      "candidate_trial_us": [
+        75.827,
+        75.401,
+        74.181,
+        73.761,
+        78.632,
+        74.985,
+        74.371
+      ],
+      "case": "raw_16_unique_1_perm_512_cells_262144",
+      "loops_per_trial": 547,
+      "trials": 7
+    },
+    {
+      "baseline_median_us": 233.078,
+      "baseline_trial_us": [
+        233.389,
+        230.904,
+        228.644,
+        232.119,
+        233.078,
+        242.147,
+        255.953
+      ],
+      "candidate_median_us": 102.432,
+      "candidate_over_baseline": 0.4395,
+      "candidate_trial_us": [
+        102.432,
+        101.5,
+        100.806,
+        102.426,
+        103.262,
+        107.448,
+        105.126
+      ],
+      "case": "raw_64_unique_32_perm_512_cells_65536",
+      "loops_per_trial": 165,
+      "trials": 7
+    },
+    {
+      "baseline_median_us": 248.499,
+      "baseline_trial_us": [
+        240.795,
+        247.008,
+        262.727,
+        234.286,
+        248.499,
+        251.236,
+        252.752
+      ],
+      "candidate_median_us": 106.021,
+      "candidate_over_baseline": 0.4266,
+      "candidate_trial_us": [
+        111.16,
+        115.464,
+        115.389,
+        103.951,
+        104.211,
+        104.281,
+        106.021
+      ],
+      "case": "raw_64_unique_32_perm_512_cells_262144",
+      "loops_per_trial": 170,
+      "trials": 7
+    },
+    {
+      "baseline_median_us": 1646.371,
+      "baseline_trial_us": [
+        1801.757,
+        1646.371,
+        1618.076,
+        1664.329,
+        2205.424,
+        1600.943,
+        1595.929
+      ],
+      "candidate_median_us": 333.59,
+      "candidate_over_baseline": 0.2026,
+      "candidate_trial_us": [
+        400.429,
+        338.805,
+        320.743,
+        327.148,
+        333.59,
+        330.014,
+        333.705
+      ],
+      "case": "raw_512_unique_256_perm_512_cells_65536",
+      "loops_per_trial": 21,
+      "trials": 7
+    },
+    {
+      "baseline_median_us": 1582.024,
+      "baseline_trial_us": [
+        1602.148,
+        1574.62,
+        1953.176,
+        1582.024,
+        1587.42,
+        1575.496,
+        1580.032
+      ],
+      "candidate_median_us": 312.976,
+      "candidate_over_baseline": 0.1978,
+      "candidate_trial_us": [
+        312.976,
+        319.476,
+        313.512,
+        303.676,
+        311.172,
+        318.44,
+        306.172
+      ],
+      "case": "raw_512_unique_256_perm_512_cells_262144",
+      "loops_per_trial": 25,
+      "trials": 7
+    },
+    {
+      "baseline_median_us": 6126.4,
+      "baseline_trial_us": [
+        6051.333,
+        6126.867,
+        6104.417,
+        6176.967,
+        6153.283,
+        6105.583,
+        6126.4
+      ],
+      "candidate_median_us": 1105.25,
+      "candidate_over_baseline": 0.1804,
+      "candidate_trial_us": [
+        1105.25,
+        1111.867,
+        1113.417,
+        1077.9,
+        1090.333,
+        1113.217,
+        1095.183
+      ],
+      "case": "raw_2048_unique_1024_perm_512_cells_65536",
+      "loops_per_trial": 6,
+      "trials": 7
+    },
+    {
+      "baseline_median_us": 6274.733,
+      "baseline_trial_us": [
+        6147.3,
+        6330.5,
+        6274.733,
+        6277.3,
+        6434.6,
+        6161.983,
+        6119.733
+      ],
+      "candidate_median_us": 1357.533,
+      "candidate_over_baseline": 0.2163,
+      "candidate_trial_us": [
+        1382.433,
+        1287.017,
+        1362.2,
+        1291.217,
+        1357.533,
+        1411.5,
+        1304.867
+      ],
+      "case": "raw_2048_unique_1024_perm_512_cells_262144",
+      "loops_per_trial": 6,
+      "trials": 7
+    },
+    {
+      "baseline_median_us": 24602.1,
+      "baseline_trial_us": [
+        24715.3,
+        24728.7,
+        24770.2,
+        24602.1,
+        24509.2,
+        24460.3,
+        24567.4
+      ],
+      "candidate_median_us": 4637.7,
+      "candidate_over_baseline": 0.1885,
+      "candidate_trial_us": [
+        4637.7,
+        4674.3,
+        4581.6,
+        4395.1,
+        4649.3,
+        4412.7,
+        4700.1
+      ],
+      "case": "raw_8193_unique_4096_perm_512_cells_65536",
+      "loops_per_trial": 1,
+      "trials": 7
+    },
+    {
+      "baseline_median_us": 24887.0,
+      "baseline_trial_us": [
+        25058.3,
+        24919.0,
+        24973.4,
+        24723.2,
+        24887.0,
+        24792.2,
+        24750.1
+      ],
+      "candidate_median_us": 6152.4,
+      "candidate_over_baseline": 0.2472,
+      "candidate_trial_us": [
+        6000.2,
+        6289.7,
+        6275.4,
+        6291.9,
+        5927.4,
+        5929.5,
+        6152.4
+      ],
+      "case": "raw_8193_unique_4096_perm_512_cells_262144",
+      "loops_per_trial": 1,
+      "trials": 7
+    }
+  ],
+  "schema_version": 1,
+  "settings": {
+    "batch_min_unique_tokens": 8,
+    "max_temporary_cells": [
+      65536,
+      262144
+    ],
+    "permutation_counts": [
+      128,
+      256,
+      512
+    ],
+    "raw_unique_token_sizes": [
+      [
+        0,
+        0
+      ],
+      [
+        1,
+        1
+      ],
+      [
+        2,
+        2
+      ],
+      [
+        4,
+        4
+      ],
+      [
+        8,
+        8
+      ],
+      [
+        16,
+        16
+      ],
+      [
+        16,
+        1
+      ],
+      [
+        64,
+        32
+      ],
+      [
+        512,
+        256
+      ],
+      [
+        2048,
+        1024
+      ],
+      [
+        8193,
+        4096
+      ]
+    ],
+    "target_seconds_per_implementation_trial": 0.04,
+    "trial_order": "alternating baseline-first and candidate-first",
+    "trials": 7
+  },
+  "signature_parity": "exact bytes, checked before every timed case"
+}

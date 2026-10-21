@@ -1,0 +1,18 @@
+Command: $env:PYTHONPATH = 'src;evals'; $env:MEMSPINE_TEST_TEMPORAL_ADDRESS = '127.0.0.1:17233'; $env:MEMSPINE_TEST_TEMPORAL_NAMESPACE = 'default'; & 'C:/Users/hembad/AppData/Local/Temp/memspine-dependency-validation-313/Scripts/python.exe' -m pytest -p no:deepeval -o addopts='' -q --tb=short tests/integration/test_runner_parity.py tests/integration/test_temporal_resonate_recovery.py tests/unit/workers/test_temporal_worker_settings.py
+
+........                                                                 [100%]
+============================== warnings summary ===============================
+tests/integration/test_runner_parity.py::test_sleep_cycle_parity_across_available_runners
+tests/integration/test_runner_parity.py::test_temporal_runner_dispatches_across_worker_restart
+tests/integration/test_temporal_resonate_recovery.py::test_inline_crash_resume_is_idempotent
+tests/integration/test_temporal_resonate_recovery.py::test_temporal_engine_cycle_persists_across_engine_reopen
+tests/integration/test_temporal_resonate_recovery.py::test_activity_environment_reuses_committed_micro_steps
+tests/unit/workers/test_temporal_worker_settings.py::test_resonate_journal_uses_explicit_persistent_file_path
+tests/unit/workers/test_temporal_worker_settings.py::test_resonate_journal_path_defaults_to_a_local_file
+tests/unit/workers/test_temporal_worker_settings.py::test_temporal_settings_require_a_stable_deployment_identity
+  C:\Users\hembad\AppData\Local\Temp\memspine-dependency-validation-313\Lib\site-packages\pytest_asyncio\plugin.py:916: PytestDeprecationWarning: Overriding the "event_loop_policy" fixture is deprecated and will be removed in a future version of pytest-asyncio. Use the "pytest_asyncio_loop_factories" hook to customize event loop creation.
+    warnings.warn(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+8 passed, 8 warnings in 12.93s
+

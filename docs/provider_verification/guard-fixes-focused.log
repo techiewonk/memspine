@@ -1,0 +1,6 @@
+.....................................................................ss. [ 87%]
+..........                                                               [100%]
+=========================== short test summary info ===========================
+SKIPPED [1] tests\integration\test_runner_parity.py:158: set MEMSPINE_TEST_TEMPORAL_ADDRESS to run the live Temporal integration gate
+SKIPPED [1] tests\integration\test_runner_parity.py:262: set MEMSPINE_TEST_TEMPORAL_ADDRESS to run the live Temporal integration gate
+80 passed, 2 skipped in 5.09s

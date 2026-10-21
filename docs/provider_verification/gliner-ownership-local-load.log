@@ -1,0 +1,11 @@
+One offline local-load verification using the isolated Python 3.13 environment.
+The already-cached Base snapshot `ca906247640776a07753514055be9726f9080ead`
+was passed as a local directory with `local_files_only=True`. Both
+`HF_HUB_OFFLINE=1` and `TRANSFORMERS_OFFLINE=1` were set for the process.
+The final pool revision loaded one `BoundaryExtractor` in 10.255 seconds, then
+closed and cleared the retained lease's model reference. No inference was called.
+
+SDK/runtime versions: gliner2 2.1.0, torch 2.14.1, transformers 5.20.1,
+huggingface-hub 1.33.0, safetensors 0.8.0. Transformers emitted a checkpoint
+type/model type warning and Torch emitted a `torch.jit.script` deprecation
+warning; both warnings and the limited scope are recorded in the JSON result.

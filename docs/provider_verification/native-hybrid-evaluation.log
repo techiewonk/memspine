@@ -1,0 +1,44 @@
+Task: PA-089 bounded external native Weaviate hybrid evaluation
+Date: 2026-10-17
+Source revision: e6596f44c1e9937050ef68938037f2cf2341ee34
+Python: C:/Users/hembad/AppData/Local/Temp/memspine-dependency-validation-313/Scripts/python.exe (Python 3.13)
+Environment: PYTHONPATH=src HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1
+
+Command:
+python scripts/evaluate_native_hybrid.py --report docs/provider_verification/native-hybrid-evaluation.json
+
+Result: completed; exit code 0
+Owned service: memspine-live-pa089-native-hybrid-82efc71b-weaviate
+Image: cr.weaviate.io/semitechnologies/weaviate@sha256:920463cf9a9b2b8d38e5b925d63f6928fa703277c93df11d5a75fc75e1fff758
+Runtime: Weaviate 1.32.4; weaviate-client 4.23.1
+Portable providers: Tantivy 0.26.2; LanceDB 0.40.0; Memspine `rrf_fuse`
+Corpus/query/call bounds: 26 records, 5 queries, 18 provider search calls (cap 30)
+Retrieval stack: Weaviate native hybrid vs. real Tantivy BM25 + LanceDB vector + Memspine RRF; hash embeddings, dim 64
+
+Correctness checks:
+- Exact namespace and owner-scope filters on each native/portable query path.
+- A duplicate scope sentinel existed in the foreign namespace; no out-of-scope ID was returned.
+- Tombstone was found by native hybrid, Tantivy and LanceDB before deletion; hard erase then removed it from all three projections and no later result contained its ID.
+- Every native and portable fused result had unique record IDs.
+- Four positive synthetic diagnostic cases put the fixture's expected ID first in both methods; the post-delete case contained no relevant/live tombstone ID.
+
+Static checks:
+python -m ruff check scripts/evaluate_native_hybrid.py
+All checks passed!
+python -m ruff format --check scripts/evaluate_native_hybrid.py
+1 file already formatted
+
+The runner used the existing live-provider helpers for loopback-only port
+publishing and HTTP/TCP readiness. The report records the exact image digest and
+the installed SDK hybrid method signature/source location. The script removed
+its uniquely named container using `docker rm --force --volumes` in `finally`;
+the two unrelated pre-existing containers were left untouched. A harmless
+Authlib deprecation notice and LanceDB cleanup warning appeared during the run.
+
+The native SDK exposes one fused-result limit and no separate native BM25/vector
+candidate-pool cap. The harness requested ten native fused candidates and five
+from each portable leg (at most ten unique union candidates), then compared the
+top five. This matches exposed result budgets but cannot match hidden internal
+native candidate work. Hash-64 fixture metrics are plumbing diagnostics, not
+semantic-quality or production evidence. No model calls, image pulls, defaults,
+provider descriptors or Engine routing changes were made.

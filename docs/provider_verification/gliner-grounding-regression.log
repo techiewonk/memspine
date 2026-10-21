@@ -1,0 +1,9 @@
+........................................................................ [ 94%]
+....                                                                     [100%]
+============================== warnings summary ===============================
+tests/unit/runtime/test_outbox_windows.py::test_forget_removes_a_turn_from_a_queued_outbox_window
+  C:\Users\hembad\Documents\GitHub\memspine-restructure\src\memspine\services\vector\lancedb_store.py:450: UserWarning: optimize(cleanup_older_than=0) removes every version except the latest. Any concurrent reader or writer still using an older version will fail. Use a longer cleanup_older_than unless no other process is working on this table.
+    table.optimize(cleanup_older_than=timedelta(0))
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+76 passed, 1 warning in 26.49s

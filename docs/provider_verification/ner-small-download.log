@@ -1,0 +1,3 @@
+C:\Users\hembad\AppData\Local\Temp\memspine-ner-runtime-313\Lib\site-packages\huggingface_hub\cli\download.py:158: UserWarning: Ignoring `--include` since filenames have been explicitly set.
+  warnings.warn("Ignoring `--include` since filenames have been explicitly set.")
+{"path": "C:\\Users\\hembad\\.cache\\huggingface\\hub\\models--fastino--gliner2.5-small-v1\\snapshots\\df5910e44bc4ffdb0d95399a83b0ca4516349aa5"}

@@ -1,0 +1,54 @@
+Installed third-party provider plugin wheel check (PA-045)
+Date: 2026-10-17
+Host: Windows 11 x64, CPython 3.13.5
+Global uv: 0.8.0 (unchanged)
+Test uv: 0.13.1 using `uv tool run --from uv==0.13.1 uv`
+
+Source revision: e6596f44c1e9937050ef68938037f2cf2341ee34 (worktree dirty)
+memspine wheel: dist/memspine-0.0.1-py3-none-any.whl
+memspine wheel SHA-256: 5b5f1707636176a8ce50074efb7b1f6deea5f4b6b1ba90833c29f7e34d6ab3db
+Plugin fixture: tests/fixtures/provider_plugin
+Plugin wheel: %TEMP%\memspine-plugin-wheel-dist\memspine_provider_plugin_fixture-1.2.3-py3-none-any.whl
+Plugin wheel SHA-256: 9c634a5a229514466ca299367c15d37d395d1dfbe11c2ed5a3b50431e0b04f48
+Plugin distribution: memspine-provider-plugin-fixture 1.2.3
+Fixture source SHA-256: 098dd1db498fb4951d7b0ff107587d13a440505331bab8b156def3c095762dcf
+Installed RECORD pin: sha256:d89780bc822e39525a00525f072e243590dc9c9d46feef0f564279abbbd75220
+
+Result: PASS
+- The actual wheel entry point `memspine.embedders:fixture_hash` was discovered without enabling/importing it.
+- An exact version and RECORD hash pin loaded the descriptor through Engine config.
+- Engine selected `fixture_hash:64`, wrote and searched for a record, and returned the matching ID.
+- The builder registered its encoder closer with the Engine lifecycle manager; `Engine.stop()` invoked it exactly once.
+- A mismatched version was rejected as PluginVersionError; a mismatched RECORD hash as PluginHashError. Both checks happened before importing the plugin module.
+- A second installed entry point declared provider contract version 2 and was rejected as PluginContractError; its builder call counter stayed at zero.
+- The descriptor's strict settings model rejected an unknown key as ProviderRegistryError.
+- `uv pip check` passed with 97 installed distributions.
+- The plugin package module in the built wheel matches the fixture source byte-for-byte.
+
+One initial fixture boot omitted `ProviderDescriptor.target_identity`; Engine projection preflight correctly refused the custom embedder because its table identity was unknown. The fixture now reports `embedder_id` and `dimension` through that no-load callback. No memspine source change was needed.
+
+Exact commands (PowerShell):
+```powershell
+$repo = 'C:\Users\hembad\Documents\GitHub\memspine-restructure'
+$fixture = Join-Path $repo 'tests\fixtures\provider_plugin'
+$python = 'C:\Users\hembad\AppData\Local\Temp\memspine-dependency-validation-313\Scripts\python.exe'
+uv tool run --from uv==0.13.1 uv build --wheel --out-dir 'C:\Users\hembad\AppData\Local\Temp\memspine-plugin-wheel-dist' $fixture
+uv tool run --from uv==0.13.1 uv venv --python $python 'C:\Users\hembad\AppData\Local\Temp\memspine-plugin-wheel-proof-313'
+uv tool run --from uv==0.13.1 uv pip install --python 'C:\Users\hembad\AppData\Local\Temp\memspine-plugin-wheel-proof-313\Scripts\python.exe' (Join-Path $repo 'dist\memspine-0.0.1-py3-none-any.whl') 'C:\Users\hembad\AppData\Local\Temp\memspine-plugin-wheel-dist\memspine_provider_plugin_fixture-1.2.3-py3-none-any.whl'
+uv tool run --from uv==0.13.1 uv pip check --python 'C:\Users\hembad\AppData\Local\Temp\memspine-plugin-wheel-proof-313\Scripts\python.exe'
+Set-Location $env:TEMP
+Remove-Item Env:PYTHONPATH -ErrorAction SilentlyContinue
+& 'C:\Users\hembad\AppData\Local\Temp\memspine-plugin-wheel-proof-313\Scripts\python.exe' (Join-Path $repo 'tests\fixtures\provider_plugin\smoke_installed.py')
+```
+
+The venv contains the supplied memspine wheel and the independently built plugin wheel; the smoke ran from `%TEMP%`, with `PYTHONPATH` cleared. Exact resolved versions and structured results are in [plugin-wheel-checks.json](plugin-wheel-checks.json). Contract and packaging notes are in [PROVIDER_PLUGIN_EXAMPLE.md](../PROVIDER_PLUGIN_EXAMPLE.md).
+
+
+
+
+
+
+
+Ruff verification after fixture edits:
+- `uv tool run --from ruff==0.17.1 ruff format tests/fixtures/provider_plugin/src/memspine_provider_plugin_fixture/__init__.py tests/fixtures/provider_plugin/smoke_installed.py` — passed; one file reformatted.
+- `uv tool run --from ruff==0.17.1 ruff check tests/fixtures/provider_plugin/src/memspine_provider_plugin_fixture/__init__.py tests/fixtures/provider_plugin/smoke_installed.py` — passed.

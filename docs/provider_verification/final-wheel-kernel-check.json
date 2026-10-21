@@ -1,0 +1,10 @@
+{
+  "status": "passed",
+  "cwd": "C:\\Users\\hembad\\AppData\\Local\\Temp",
+  "PYTHONPATH": "cleared",
+  "package_path": "C:\\Users\\hembad\\AppData\\Local\\Temp\\memspine-ner-runtime-313\\Lib\\site-packages\\memspine\\core\\policies\\dedup.py",
+  "torch_imported": false,
+  "kernel_cases": 4,
+  "source_file_matches": true,
+  "scope": "installed import and kernel only; no Engine startup or end-to-end performance test"
+}

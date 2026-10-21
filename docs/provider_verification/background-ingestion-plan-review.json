@@ -1,0 +1,13 @@
+{
+  "status": "passed",
+  "implementation_steps": 12,
+  "local_links_checked": 52,
+  "accepted_policies": [
+    "raw plus background grounded facts and annotations",
+    "source-bound unasserted graph mentions",
+    "recoverable raw with lossless compression and separate summaries"
+  ],
+  "implementation_started": false,
+  "runtime_tests_run": false,
+  "checks": "document structure, accepted-decision consistency and local link existence only"
+}

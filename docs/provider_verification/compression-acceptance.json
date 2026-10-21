@@ -1,0 +1,46 @@
+{
+  "snapshot_date": "2026-10-17",
+  "source_revision": "e6596f44",
+  "task": "PA-087 deterministic cold-tier and assembly token-budget acceptance",
+  "test_file": "tests/integration/test_provider_compression_acceptance.py",
+  "test_command": "python -m pytest -p no:deepeval -o addopts='' tests/integration/test_provider_compression_acceptance.py -q --tb=short -rs",
+  "environment": {
+    "python": "3.13",
+    "python_executable": "C:/Users/hembad/AppData/Local/Temp/memspine-dependency-validation-313/Scripts/python.exe",
+    "offline_flags": ["HF_HUB_OFFLINE=1", "TRANSFORMERS_OFFLINE=1"],
+    "providers": {
+      "storage": "SQLite",
+      "embedding": "hash (dim=64)",
+      "vector": "LanceDB",
+      "lexical": "Tantivy",
+      "cold_tier_codec": "zstandard",
+      "lossy_compressor": "deterministic test double at optional model boundary"
+    }
+  },
+  "result": {
+    "passed": 2,
+    "failed": 0,
+    "skipped": 0,
+    "duration_seconds": 2.0,
+    "checks": [
+      "real SQLite maintenance compression stage persists dormant record content as zstd bytes and public retrieve restores exact text, fingerprint, source, tags, axes and event time",
+      "public Engine.assemble invokes configured compression stage, keeps the entire selected evidence record, preserves embedded facts plus sender/source/time metadata, and meets the exact calculated char/4 estimate budget"
+    ]
+  },
+  "budget_accounting": {
+    "counter": "memspine.compose.pack.estimate_tokens",
+    "formula": "len(text) // 4 + 1",
+    "budget": "exact estimate_tokens count of expected deterministic compressed text; zero added slack",
+    "meaning": "the repository's documented estimated counter, not an exact model-tokenizer result"
+  },
+  "static_checks": {
+    "ruff_check": "passed",
+    "ruff_format_check": "passed"
+  },
+  "limitations": [
+    "Assembly compressor is a deterministic boundary stub; no LLMLingua model was loaded or scored.",
+    "The test validates metadata preservation for returned items, not semantic quality of a learned compressor.",
+    "Budget uses the documented chars/4 estimate, so it is not a hard guarantee for an external model tokenizer.",
+    "The previous PA-081–083 partial statuses and tracker summary were not changed."
+  ]
+}

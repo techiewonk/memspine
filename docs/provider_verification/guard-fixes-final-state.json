@@ -1,0 +1,138 @@
+{
+  "schema_version": 1,
+  "recorded_at": "2026-10-18T05:08:49.118732+00:00",
+  "gate": "M-GUARDS-six-test-guard-repairs",
+  "status": "passed",
+  "command": "PYTHONPATH=src;evals HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 MEMSPINE_TEST_TEMPORAL_ADDRESS=unset python -m pytest tests/unit/observability/test_stage_trace_coverage.py tests/unit/services/lexical/test_tantivy.py tests/unit/services/test_ladybug_fts_install.py tests/unit/wiring/test_rw_d_gate_deep.py tests/unit/wiring/test_t5_06_observability.py tests/integration/test_runner_parity.py tests/unit/test_audit_test_skips.py -p no:deepeval -o addopts= -q --tb=short -rs",
+  "source": {
+    "git_head": "e6596f44c1e9937050ef68938037f2cf2341ee34",
+    "git_dirty": true,
+    "pyproject_toml_sha256": "d612a620cc254f4d2467d39155a5c2aea7fd3bdcc1af95de27629cbff67075ca",
+    "uv_lock_sha256": "519b815049f45ea11286a9e358f996d74d3f8da8fecff9b364b709bab96e6c09"
+  },
+  "runtime": {
+    "python": "3.13.5",
+    "implementation": "CPython",
+    "platform": "Windows-11-10.0.26340-SP0"
+  },
+  "counts": {
+    "passed": 80,
+    "failed": 0,
+    "skipped": 2
+  },
+  "artifacts": [
+    {
+      "path": "tests/unit/observability/test_stage_trace_coverage.py",
+      "sha256": "da1538cefe8c3f9bb8199bc9546d741d37f128490fd07f032b996ae88ea704a1"
+    },
+    {
+      "path": "tests/unit/services/lexical/test_tantivy.py",
+      "sha256": "77684e5eaf7c81d7c471a59db87c698a237552914cf6ccadb9db8ad9bf3bd974"
+    },
+    {
+      "path": "tests/unit/services/test_ladybug_fts_install.py",
+      "sha256": "35316e3a97b1cb172dacb0aef8553f15d8f0715a7db6e3f25892bd6b1cf1ee2c"
+    },
+    {
+      "path": "tests/unit/wiring/test_rw_d_gate_deep.py",
+      "sha256": "fc614a2fd7cf9de9dd5af09462ca5061ac724801b2710bffb765cc0236546897"
+    },
+    {
+      "path": "tests/unit/wiring/test_t5_06_observability.py",
+      "sha256": "ac3249d5c4f0b3ad8d4dc8aca592265923ce511c972a8e46c9b0dad7814bce63"
+    },
+    {
+      "path": "tests/integration/test_runner_parity.py",
+      "sha256": "f2554fb38cb74b6b791997b3b6cc884f60a11f3bbf9027cb9d2e2fcec70a1b68"
+    },
+    {
+      "path": "tests/unit/test_audit_test_skips.py",
+      "sha256": "f156d6b970f6857c1f41ac1f3c65fda5278eb7fc6611f6ced1b0376d4b6a4f6a"
+    },
+    {
+      "path": "scripts/audit_test_skips.py",
+      "sha256": "6fedc03751891978bea6d8c002cfe5453c40f4d9868b1fbcead1a4b961dc0686"
+    },
+    {
+      "path": "docs/PROVIDER_TODO.md",
+      "sha256": "f27ab0a3ddc9b1d83cbd326a9ccd54474288426e24481448623edad54dac2998"
+    },
+    {
+      "path": "docs/TEST_SKIP_REVIEW.md",
+      "sha256": "a755955a5d905ebfab61e76dd3502132c75c161bd6595937bf25d6e85f0a7a7e"
+    },
+    {
+      "path": "docs/PROVIDER_NEXT_MILESTONES.md",
+      "sha256": "a3c5c4e6e1692da86f9a63130fc9f50d6497f711446a3c02037aee06df213eb3"
+    },
+    {
+      "path": "docs/provider_verification/README.md",
+      "sha256": "0bdae3a7442e6f4890b564b51fe1e59687a24c085330b60c1a0280985cbb0b26"
+    },
+    {
+      "path": "docs/provider_verification/test-skip-inventory.json",
+      "sha256": "f7970c8b50001bd9a0935fff03487cf6fea5b10d138a7d12e771546d1a60b4cc"
+    },
+    {
+      "path": "docs/provider_verification/test-skip-dispositions.json",
+      "sha256": "fdb5975ce30b7cdb4792b12eb9c34e9141921b40bc4b049ae1d3dd4dd57d2191"
+    },
+    {
+      "path": "docs/provider_verification/test-skip-inventory-before-guard-fixes.json",
+      "sha256": "86a6da72f2bdb80b397f491df774810f5cdd8fd24be7a5199a96445930f5e531"
+    },
+    {
+      "path": "docs/provider_verification/test-skip-dispositions-before-guard-fixes.json",
+      "sha256": "03b1197c4f0fbf72bdb79f9e10d74b288cb8d70d932331a4a485fa0a3ae8c0ee"
+    },
+    {
+      "path": "docs/provider_verification/guard-fixes-focused.log",
+      "sha256": "87b3fa916e7b1e255b2ba15a18a6574195f67aa07cf69cdeba2011870bb1ed4f"
+    },
+    {
+      "path": "docs/provider_verification/guard-fixes-skip-audit.log",
+      "sha256": "7c542101a963ae42923a048276016fa28cddac112be11e90b8aa63cf03aa42e7"
+    },
+    {
+      "path": "docs/provider_verification/guard-fixes-review-mapping.json",
+      "sha256": "bdf1b33d04e92ebb4721b8eedcd373396d192b8e81b045a4d0d226e554db613b"
+    },
+    {
+      "path": "docs/provider_verification/guard-fixes-consistency.json",
+      "sha256": "9f0c4001fec927145109f8c56d86d08aa1a970725117ecf427b44cb0229b7f8f"
+    }
+  ],
+  "evidence": [
+    "All6selected guard findings DONE; no production behavior change. Required imports normal, time-view preconditions asserted, absentSDK only skips; faultinjected brokenSDK/internal imports propagate.",
+    "2legitimate skips both require live Temporal address; installed OTel in-memory exporter passed; no live endpoint,models,downloads,fullsuite or benchmark.",
+    "Source review156sites73importorskip53skip30skipif; zero missing/stale/parse errors; all21optional Engine evaluator guards and3deferred records unchanged. Ruffcheck/format8files pass."
+  ],
+  "consistency": {
+    "status": "passed",
+    "current_sites": 156,
+    "kind_counts": {
+      "importorskip": 73,
+      "skip": 53,
+      "skipif": 30
+    },
+    "categories": {
+      "intentionallycovered": 13,
+      "optionaldependency": 84,
+      "externalenv": 44,
+      "platform": 7,
+      "model": 5,
+      "deferred": 3
+    },
+    "resolved_guard_findings": 6,
+    "deferred_review_records_unchanged": true,
+    "evaluation_review_records_unchanged": true,
+    "fresh_source_pins": true,
+    "focused_tests": {
+      "passed": 80,
+      "failed": 0,
+      "skipped": 2
+    },
+    "skips": "Missing MEMSPINE_TEST_TEMPORAL_ADDRESS only",
+    "no_production_engine_or_eval_migration_changes": true
+  }
+}

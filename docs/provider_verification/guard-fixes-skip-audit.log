@@ -1,0 +1,3 @@
+Wrote 156 static skip call sites to C:\Users\hembad\Documents\GitHub\memspine-restructure\docs\provider_verification\test-skip-inventory.json
+Kinds: {"importorskip": 73, "skip": 53, "skipif": 30}
+Parse errors: 0

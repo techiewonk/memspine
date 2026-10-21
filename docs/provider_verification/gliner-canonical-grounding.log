@@ -1,0 +1,8 @@
+.....................................                                    [100%]
+============================== warnings summary ===============================
+tests/unit/wiring/test_w2_06a_envelope.py::test_batched_windows_keep_citations_per_window
+  C:\Users\hembad\Documents\GitHub\memspine-restructure\src\memspine\services\vector\lancedb_store.py:213: UserWarning: optimize(cleanup_older_than=0) removes every version except the latest. Any concurrent reader or writer still using an older version will fail. Use a longer cleanup_older_than unless no other process is working on this table.
+    await asyncio.to_thread(lambda: table.optimize(cleanup_older_than=cleanup))
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+37 passed, 1 warning in 8.14s

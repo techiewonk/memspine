@@ -1,0 +1,62 @@
+{
+  "date": "2026-10-22",
+  "record_kind": "Focused semantic foundation evidence; task statuses belong only to docs/PROVIDER_TODO.md",
+  "owner_selections": {
+    "BI-Q1": "A unresolved mentions",
+    "BI-Q2": "B expanded 53 predicates and 44 keys",
+    "BI-Q3": "Refined A shared typed role system",
+    "BI-Q4": "B cancel and requeue on effective policy changes",
+    "BI-Q5": "B require embedding and vector services"
+  },
+  "scope": "Pure packaged vocabulary/specification/compatibility foundation; no alternate writer or partial canonical envelope cutover",
+  "registry": {
+    "predicates": 53,
+    "properties": 44,
+    "role_definitions": 12,
+    "digest": "4dc47fe2eacd217849de6dee22ad6e72ff0658e3cf69682429a015a0d27f50fc",
+    "selected_names_match": true,
+    "extraction_rules_active": false
+  },
+  "focused_tests": {
+    "command": "PYTHONPATH=src python -m pytest tests/unit/semantics/test_registry.py -p no:deepeval -o addopts= -q --junitxml=docs/provider_verification/bi01-semantics-2026-10-22.xml",
+    "exit_code": 0,
+    "tests": 23,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "log": "docs/provider_verification/bi01-semantics-2026-10-22.log",
+    "junit": "docs/provider_verification/bi01-semantics-2026-10-22.xml"
+  },
+  "static_checks": {
+    "ruff_check": "passed on the new package and test",
+    "ruff_format_check": "4 files already formatted",
+    "mypy": "Success: no issues found in 3 source files; follow-imports=silent",
+    "mypy_log": "docs/provider_verification/bi01-semantics-mypy-2026-10-22.log",
+    "tracker_check": "scripts/refresh_tracker.py --check passed"
+  },
+  "remaining_gates": [
+    "Canonical shared RoleBinding/value and role-slot cardinality schemas",
+    "F1..F5 behavioural fixtures with source evidence and known-time/erasure cases",
+    "Compiler/gateway/storage/projector/read coordinated cutover",
+    "Policy activation/fencing/cancel-requeue implementation",
+    "Embedding/vector profile capability enforcement",
+    "Actual grounding, identity authority and extraction activation"
+  ],
+  "limits": [
+    "Compatibility checks are not grounding or factual validity",
+    "Currency format checks do not validate a catalogue of currency codes",
+    "No unit conversion or inferred implicit unit",
+    "No complete deployed profile or runtime erasure acceptance",
+    "No full suite, model calls/downloads, provider activation, data conversion/re-embedding, commit or push"
+  ],
+  "sha256": {
+    "src/memspine/semantics/catalog.json": "0388924f225ce5e4dab56b156064cccb251cb99c7f003d4ebfde5bc025be86b7",
+    "src/memspine/semantics/registry.py": "1d5eee8c7be872d1978fbb518a944f58def1d8af7333a210dc8e285ab8c0ec3d",
+    "src/memspine/semantics/specs.py": "aa0022b9c5b027d62f175cff04f40f833c6ffeaba4ea6dea14de26be9633ed1e",
+    "src/memspine/semantics/__init__.py": "75e7584bc101822b2d40cf5a805c5ac817d84893d07f66f754e4b29194f07af9",
+    "tests/unit/semantics/test_registry.py": "927b4925307f4d4d4e22c94c252f9e7ac430dc4ccf71c6e88c14035953e620de",
+    "docs/PROVIDER_TODO.md": "3dc8572f4c811c152a5792e8c78f89369db282cf36a40bf5a5072f7edb1a52e7",
+    "docs/BI01_CONTRACT_REWRITE_PLAN.md": "f5b3e899978dabbaa142d8947e819b1dfd835a1b37125722474570f6c3d143a9",
+    "docs/schema_review/generic_catalog_review.json": "f2429a129a87307ef54494712a014221c464129ec9bbb69fcf4b5c25e37dce52"
+  }
+}

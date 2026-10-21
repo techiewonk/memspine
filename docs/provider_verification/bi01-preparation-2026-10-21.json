@@ -1,0 +1,976 @@
+{
+  "date": "2026-10-21",
+  "record_kind": "BI-01 preparation evidence, not a live task register or runtime acceptance",
+  "task_authority": "docs/PROVIDER_TODO.md",
+  "design": "docs/BI01_CONTRACT_REWRITE_PLAN.md",
+  "selected_scope": [
+    "Correct RM-07/33/38/39/41",
+    "Prepare BI-01 and RM-22/23/24; wait for schema answers before implementation"
+  ],
+  "questions_presented": [
+    "BI-Q1",
+    "BI-Q2",
+    "BI-Q3",
+    "BI-Q4",
+    "BI-Q5"
+  ],
+  "review_shape_gate": {
+    "schema_draft": "2020-12",
+    "definitions": 41,
+    "positive_examples": 15,
+    "negative_shape_checks": [
+      "unknown field",
+      "resolved time without value",
+      "ambiguous mention with canonical ID",
+      "empty entity reference",
+      "duplicate asserted negation encoding",
+      "complete scope without snapshot",
+      "unresolved computation with answer",
+      "invalid timestamp",
+      "instant without offset",
+      "resolved temporal value without offset",
+      "rejected civil date value shape",
+      "persisted bundle without copy manifest"
+    ],
+    "gap_mapping": 52,
+    "behavioural_contracts": "C01-C22 specified, not implemented or runtime validated",
+    "engine_code_changed": false
+  },
+  "starter_predicates_unique": 43,
+  "consumer_inventory_method": "AST-parsed src files containing selected canonical type names; impact seed, not a complete dynamic call graph",
+  "consumer_inventory": [
+    {
+      "path": "src/memspine/api/engine.py",
+      "referenced_names": [
+        "AssertionEnvelope"
+      ],
+      "sha256": "6deb90b1a8c9bfee8f50f20e8ec52f5c969c189e608a0caa70725c8e4db37ff3",
+      "top_level_types": [
+        "_EngineTeardownError",
+        "Engine"
+      ]
+    },
+    {
+      "path": "src/memspine/compose/bundles.py",
+      "referenced_names": [
+        "AssertionEnvelope",
+        "EvidenceBundle"
+      ],
+      "sha256": "935cac6972a358ee2f78fa4d3880cfe1d53d09b5a249bb5af712f7d2f25ac75b",
+      "top_level_types": [
+        "TurnText",
+        "DroppedBundle",
+        "PackResult",
+        "_Packer"
+      ]
+    },
+    {
+      "path": "src/memspine/compose/pipeline/render.py",
+      "referenced_names": [
+        "AssertionEnvelope",
+        "TimeAxes"
+      ],
+      "sha256": "817e66127b002217f35954d63e481bb935037cad7071eac1a7223dabeb1cefd5",
+      "top_level_types": [
+        "_OfflineOnly"
+      ]
+    },
+    {
+      "path": "src/memspine/compose/render_trust.py",
+      "referenced_names": [
+        "AssertionEnvelope"
+      ],
+      "sha256": "84724b376e5499c4642a48b6ab884de43c4c46eaa6739d00c81c17b60da65deb",
+      "top_level_types": [
+        "TrustItem",
+        "TrustStyle",
+        "RenderedTrust"
+      ]
+    },
+    {
+      "path": "src/memspine/config/schema/write.py",
+      "referenced_names": [
+        "AssertionEnvelope"
+      ],
+      "sha256": "6bd94f735b35e333dbe7c766c325f9fbb6c821c1873326c58f2ad82ab03c4e51",
+      "top_level_types": [
+        "WriteConfig",
+        "IngestConfig",
+        "DataShapeConfig"
+      ]
+    },
+    {
+      "path": "src/memspine/derive/compile.py",
+      "referenced_names": [
+        "AssertionEnvelope",
+        "TemporalRef",
+        "TimeAxes"
+      ],
+      "sha256": "e019e665bf2af6cfb83ba922a35586c0572f5972e0f7ada292fe12a105426348",
+      "top_level_types": [
+        "RejectionCode",
+        "Rejection",
+        "CompileNote",
+        "ParseFailure",
+        "CompileResult",
+        "WindowLine",
+        "RolePolicy",
+        "CompileContext"
+      ]
+    },
+    {
+      "path": "src/memspine/derive/coverage.py",
+      "referenced_names": [
+        "AssertionEnvelope"
+      ],
+      "sha256": "275b7aa94ea4c0de8106981181eff994a5c2743235625016c846a9ce9e11d20c",
+      "top_level_types": [
+        "WindowLine",
+        "SalientSpan",
+        "Omission",
+        "LineCoverage",
+        "CoverageReport",
+        "CoverageBudget",
+        "ReextractionWindow",
+        "SkippedLine",
+        "ReextractionPlan",
+        "_Content"
+      ]
+    },
+    {
+      "path": "src/memspine/derive/coverage_stage.py",
+      "referenced_names": [
+        "AssertionEnvelope"
+      ],
+      "sha256": "5d03078f7d734c00513f163b712739f9c7908a53cf17ad4528bc07df08fd3eb0",
+      "top_level_types": [
+        "WindowCoverage",
+        "CoverageStats",
+        "CoverageStage"
+      ]
+    },
+    {
+      "path": "src/memspine/derive/edges.py",
+      "referenced_names": [
+        "AssertionEnvelope"
+      ],
+      "sha256": "fce5cd240e15aed7e56c978ecdd87649f219043331a96a8b40b7e94ed24c2441",
+      "top_level_types": [
+        "GraphNode",
+        "GraphEdge",
+        "GraphDelta",
+        "GraphSnapshot"
+      ]
+    },
+    {
+      "path": "src/memspine/derive/envelope_compiler.py",
+      "referenced_names": [
+        "AssertionEnvelope"
+      ],
+      "sha256": "3b93f68444a32239099f91a48444a8614ab6d0b2ac2771cdfa3713e004de3845",
+      "top_level_types": [
+        "KindRegistry",
+        "EnvelopeCompiler"
+      ]
+    },
+    {
+      "path": "src/memspine/derive/envelope_stages.py",
+      "referenced_names": [
+        "AssertionEnvelope"
+      ],
+      "sha256": "3f22eb2115623520536781a4a4305b3d6cf1934e1020797c8b30260ca8865aff",
+      "top_level_types": [
+        "EnvelopeStageContext",
+        "EnvelopeStage"
+      ]
+    },
+    {
+      "path": "src/memspine/derive/feedback.py",
+      "referenced_names": [
+        "AssertionEnvelope",
+        "TimeAxes"
+      ],
+      "sha256": "7a40e43a6a4b6a15fe9e0d06557486bbea4bfea3159c90f764fc9fb44da7bf7c",
+      "top_level_types": [
+        "FeedbackError",
+        "_Frozen",
+        "Actor",
+        "FeedbackEvent",
+        "ExposureRecord",
+        "LatencyStats",
+        "ObservableRecord",
+        "ViewItem"
+      ]
+    },
+    {
+      "path": "src/memspine/derive/gliner_structured.py",
+      "referenced_names": [
+        "AssertionEnvelope"
+      ],
+      "sha256": "d974a933cb63641820c762fdee8173902d431e18bd3dbaa2247526b367dcadca",
+      "top_level_types": [
+        "StructuredExtractionError",
+        "_StrictModel",
+        "FieldSchema",
+        "RecordSchema",
+        "RelationSchema",
+        "StructuredExtractionSchema",
+        "SourceContext",
+        "TypedFieldCandidate",
+        "RecordCandidate",
+        "RelationCandidate",
+        "StructuredCandidates",
+        "_Extractor",
+        "GLiNER25StructuredExtractor"
+      ]
+    },
+    {
+      "path": "src/memspine/derive/ground.py",
+      "referenced_names": [
+        "AssertionEnvelope"
+      ],
+      "sha256": "a301b01d4bdc1ea19fe53a711db50c9c94eaf06fe0df3aa9945e43c0ce19e893",
+      "top_level_types": [
+        "_Frozen",
+        "WindowTurn",
+        "CitedSpan",
+        "Cite",
+        "Claim",
+        "CheckOutcome",
+        "FoundSpan",
+        "GroundingResult",
+        "_Qty",
+        "_Clause",
+        "_Acc"
+      ]
+    },
+    {
+      "path": "src/memspine/derive/grounding_stage.py",
+      "referenced_names": [
+        "AssertionEnvelope"
+      ],
+      "sha256": "cfa49ce1a9705b397d13975411a01aad271b28d103e691fa36ce3c08526aab52",
+      "top_level_types": [
+        "AdjudicationVerdict",
+        "_DeciderLike",
+        "Adjudicator",
+        "GroundingVerdict",
+        "GroundingChecker",
+        "_Stage",
+        "_EngineDecider"
+      ]
+    },
+    {
+      "path": "src/memspine/derive/histories.py",
+      "referenced_names": [
+        "AssertionEnvelope"
+      ],
+      "sha256": "02cbfd00f123109920b69157cb33ce24a5f4f24cfc1a39aba1f48bf8ac18274d",
+      "top_level_types": [
+        "DupThresholds",
+        "DupPair",
+        "DupGroup",
+        "DupScan",
+        "MergePlan",
+        "HistoryKey",
+        "ValueSpan",
+        "TentativeEntry",
+        "ChangeEvent",
+        "KeyHistory",
+        "ValueHistory"
+      ]
+    },
+    {
+      "path": "src/memspine/derive/integrate.py",
+      "referenced_names": [
+        "AssertionEnvelope",
+        "TemporalRef",
+        "TimeAxes"
+      ],
+      "sha256": "e4984ad740a47c93fdc08155ef77a8baef624d8f9db28b659018e519d6c05f30",
+      "top_level_types": [
+        "KindInfo",
+        "CardinalityRegistry",
+        "Closure",
+        "IntegrationDecision",
+        "_Occ",
+        "_Group",
+        "_Res",
+        "FinalState"
+      ]
+    },
+    {
+      "path": "src/memspine/derive/integration_stage.py",
+      "referenced_names": [
+        "AssertionEnvelope"
+      ],
+      "sha256": "11ce19d5c3ca17937641d4743c8464f61beee9b2c5a7a42082e9dda3e4e1d2ce",
+      "top_level_types": [
+        "DefaultVerdict",
+        "LadderVerdict",
+        "ConflictLadder"
+      ]
+    },
+    {
+      "path": "src/memspine/derive/items.py",
+      "referenced_names": [
+        "AssertionEnvelope"
+      ],
+      "sha256": "cb9834001cc639fd778f6106648f6a2712e6d4d85174e4955875592f43b67e27",
+      "top_level_types": [
+        "InvalidItem",
+        "Validated",
+        "ItemValidator",
+        "RepairAsk",
+        "ItemsOutcome"
+      ]
+    },
+    {
+      "path": "src/memspine/derive/online_extractor.py",
+      "referenced_names": [
+        "AssertionEnvelope"
+      ],
+      "sha256": "b781f3304e520e75e8c9b2e69f2b03fec6816d4717cc8888c7ebc7d074ed755b",
+      "top_level_types": [
+        "OnlineExtractor"
+      ]
+    },
+    {
+      "path": "src/memspine/derive/patterns.py",
+      "referenced_names": [
+        "AssertionEnvelope"
+      ],
+      "sha256": "7c9105f11fb4298ff6cb65120bad6be3ca123048cfb00b7d1224113622c284ff",
+      "top_level_types": [
+        "PatternConfig",
+        "Observation",
+        "_Occ"
+      ]
+    },
+    {
+      "path": "src/memspine/derive/pipeline/advisory.py",
+      "referenced_names": [
+        "AssertionEnvelope",
+        "TemporalRef",
+        "TimeAxes"
+      ],
+      "sha256": "f9e228773e2f0e7c0574585b95c4373cdfb1272f85858e16366e3dbb62966c47",
+      "top_level_types": [
+        "_Storage",
+        "ProspectiveReport",
+        "ProceduralReport"
+      ]
+    },
+    {
+      "path": "src/memspine/derive/pipeline/stages/edge_compiler_v2.py",
+      "referenced_names": [
+        "AssertionEnvelope"
+      ],
+      "sha256": "2cb85e0e54144776516443f64a522b151291126857822c7c581ca7f8fc165bca",
+      "top_level_types": [
+        "CompiledEdges",
+        "EdgeCompiler",
+        "ProjectionStats",
+        "LinkProjection"
+      ]
+    },
+    {
+      "path": "src/memspine/derive/pipeline/stages/envelope_adapter.py",
+      "referenced_names": [
+        "AssertionEnvelope",
+        "TemporalRef",
+        "TimeAxes"
+      ],
+      "sha256": "68583e0fb44760d922796741bf03ab019f217e2d43be806e6af0c9161dd1976f",
+      "top_level_types": []
+    },
+    {
+      "path": "src/memspine/derive/pipeline/stages/offline_common.py",
+      "referenced_names": [
+        "AssertionEnvelope",
+        "TemporalRef",
+        "TimeAxes"
+      ],
+      "sha256": "0ad7d389d2693dbb853bbe71dc86b1276abed0cb432bd84e17dcc791634d6620",
+      "top_level_types": []
+    },
+    {
+      "path": "src/memspine/derive/pipeline/stages/profile_card.py",
+      "referenced_names": [
+        "AssertionEnvelope",
+        "TimeAxes"
+      ],
+      "sha256": "dd7ee036cf0fd526cb159877d3cd0fba92a42e73bfd5d2a59d4e75feb592008c",
+      "top_level_types": []
+    },
+    {
+      "path": "src/memspine/derive/pipeline/stages/reconcile.py",
+      "referenced_names": [
+        "AssertionEnvelope"
+      ],
+      "sha256": "6031dc2f1507b7ec328e1e951273219cc1989683cfff102d4fa2d494117e8d89",
+      "top_level_types": []
+    },
+    {
+      "path": "src/memspine/derive/prepass.py",
+      "referenced_names": [
+        "AssertionEnvelope"
+      ],
+      "sha256": "a8339286e419e3ea65784278e02e52914fc8b4adc2c8ce12bc28c5b2617cf84d",
+      "top_level_types": [
+        "Span",
+        "Hints",
+        "GlinerHints",
+        "Prepass"
+      ]
+    },
+    {
+      "path": "src/memspine/derive/profile.py",
+      "referenced_names": [
+        "AssertionEnvelope"
+      ],
+      "sha256": "3622f6577aa308b45117c36a497c9e6a7c91ba94ea18bc79ef60acec437b973f",
+      "top_level_types": [
+        "ProfileConfig",
+        "SupportRef",
+        "ContestNote",
+        "DriftState",
+        "ProfileEntry",
+        "ProfileCard",
+        "ProfileOp",
+        "OpOutcome",
+        "OpReport",
+        "_Reject",
+        "ReflectionItem",
+        "ReflectionPlan",
+        "ChangedGroup",
+        "InvalidationReport"
+      ]
+    },
+    {
+      "path": "src/memspine/derive/reconcile.py",
+      "referenced_names": [
+        "AssertionEnvelope"
+      ],
+      "sha256": "5c16267c4d57c5e3928d7a18d0584818be8930c0bcf43e8ce5e10b8141614618",
+      "top_level_types": [
+        "QueueItem",
+        "ReconcileQueue",
+        "PendingMerge",
+        "EntityMerge",
+        "EntitySplit",
+        "Unresolved",
+        "KeyChange",
+        "StatusChange",
+        "ContestFlag",
+        "ReconcilePlan",
+        "SweepReport"
+      ]
+    },
+    {
+      "path": "src/memspine/derive/resolve_stage.py",
+      "referenced_names": [
+        "AssertionEnvelope"
+      ],
+      "sha256": "e07e13e6caba84a402ba8c5a85aa5d0b4d52184af4d19e64df70c518a29851d1",
+      "top_level_types": [
+        "ResolveSettings",
+        "_VectorCache",
+        "EntityResolveStage"
+      ]
+    },
+    {
+      "path": "src/memspine/derive/session_close.py",
+      "referenced_names": [
+        "TemporalRef"
+      ],
+      "sha256": "d440ebfd7e2cc1d7649da1c8b24bbee47e0181598469758e886f9858bdb7fcd6",
+      "top_level_types": [
+        "PlanLine",
+        "ExistingEpisode",
+        "StitchRule",
+        "Call2Plan",
+        "PromptParts",
+        "RejectionReason",
+        "Call2Rejection",
+        "DerivedSessionRecord",
+        "ProposedProfileOp",
+        "Call2Result"
+      ]
+    },
+    {
+      "path": "src/memspine/derive/standing.py",
+      "referenced_names": [
+        "AssertionEnvelope"
+      ],
+      "sha256": "e1b48dd4a0bb915fbc3c02440a96b6f938e010ab74237313df027639d7c0c788",
+      "top_level_types": [
+        "GroupKey",
+        "QuestionKey",
+        "StandingAnswer",
+        "HitEvent",
+        "UsageStats",
+        "Selection",
+        "StandingInstruction"
+      ]
+    },
+    {
+      "path": "src/memspine/derive/temporal.py",
+      "referenced_names": [
+        "TemporalRef",
+        "TimeAxes"
+      ],
+      "sha256": "987783546243d09e3d89611bdcd8591e67e47fe15d90d1aa86349625b5a444b4",
+      "top_level_types": [
+        "TemporalCandidate",
+        "Span",
+        "_Fuzzy"
+      ]
+    },
+    {
+      "path": "src/memspine/derive/temporal_stage.py",
+      "referenced_names": [
+        "AssertionEnvelope",
+        "TemporalRef"
+      ],
+      "sha256": "48a23331ced667fde806428ad951d5194b6e1330b459e02cb22ffaf916cfcc6d",
+      "top_level_types": [
+        "Found",
+        "RelFound",
+        "Resolved"
+      ]
+    },
+    {
+      "path": "src/memspine/memory/procedural.py",
+      "referenced_names": [
+        "AssertionEnvelope"
+      ],
+      "sha256": "a9b587d38e22815ba8ac6015e8543635e88f2e6744877f110e5a285242507dfc",
+      "top_level_types": [
+        "ImplicitFeedbackError",
+        "HowTo",
+        "ProcedureVersion",
+        "Procedure",
+        "Outcome",
+        "Suggestion"
+      ]
+    },
+    {
+      "path": "src/memspine/memory/prospective.py",
+      "referenced_names": [
+        "AssertionEnvelope",
+        "TemporalRef"
+      ],
+      "sha256": "dfb823f4c606e4c3e0367baa5125ff6756c22671d618ed3ac4eadb469053a52d",
+      "top_level_types": [
+        "ProspectiveRules",
+        "Trigger",
+        "Intention",
+        "Reminder"
+      ]
+    },
+    {
+      "path": "src/memspine/read/obligations.py",
+      "referenced_names": [
+        "EvidenceBundle"
+      ],
+      "sha256": "9189ad63960f0499b3ebf8a48104a394c91f4fee331cf385d9b8cdeb1611bd66",
+      "top_level_types": [
+        "_Model",
+        "QueryDescription",
+        "EvidenceFact",
+        "EvidenceBundle",
+        "Obligation",
+        "FollowUp",
+        "Hole",
+        "ObligationResult",
+        "ObligationReport",
+        "_Ev"
+      ]
+    },
+    {
+      "path": "src/memspine/read/pipeline/deep.py",
+      "referenced_names": [
+        "EvidenceBundle"
+      ],
+      "sha256": "4c86f1af30c12c411cddc88d8e6d0ddd06e979c2d69d7621b29eb96ab7bc78cb",
+      "top_level_types": []
+    },
+    {
+      "path": "src/memspine/read/pipeline/timeview.py",
+      "referenced_names": [
+        "AssertionEnvelope",
+        "TemporalRef",
+        "TimeAxes"
+      ],
+      "sha256": "5e772e1408cbbcf9e38322a8523bf8ebe31a45589330b011d0da0190dd649de3",
+      "top_level_types": []
+    },
+    {
+      "path": "src/memspine/read/tiers.py",
+      "referenced_names": [
+        "EvidenceBundle"
+      ],
+      "sha256": "95d2f64383cbf011450ac542f89b38ab6ae4980b50dfe1a57e9b9eeb863fb9b5",
+      "top_level_types": [
+        "ReadRequestError",
+        "ReadConfigError",
+        "Tier",
+        "ReadConfig",
+        "PreparedRead",
+        "EvidenceUnit"
+      ]
+    },
+    {
+      "path": "src/memspine/read/timeview.py",
+      "referenced_names": [
+        "AssertionEnvelope",
+        "TemporalRef",
+        "TimeAxes"
+      ],
+      "sha256": "5a3e211eaaef0716e56e599c2f3e14242ed570aa75774e793b3456404af98cd4",
+      "top_level_types": [
+        "_Frozen",
+        "TimeViewInput",
+        "TimeView",
+        "TimeHit",
+        "LiveValue",
+        "HistoryEntry",
+        "HistoryRun",
+        "TimeViewResult",
+        "_Span",
+        "_Fuzzy"
+      ]
+    },
+    {
+      "path": "src/memspine/schemas/durable/__init__.py",
+      "referenced_names": [
+        "AssertionEnvelope",
+        "TemporalRef",
+        "TimeAxes"
+      ],
+      "sha256": "e503bca61418a79f8a5adb68a8b8794a439cc07e5efa3ab74ac1d41473dd4137",
+      "top_level_types": []
+    },
+    {
+      "path": "src/memspine/schemas/durable/assertion.py",
+      "referenced_names": [
+        "AssertionEnvelope",
+        "GlinerMentionAnnotation",
+        "TimeAxes"
+      ],
+      "sha256": "8ccdf57f4fba3933d72c40661eb4e091a1ee253ebf66a50cb91c81d1422e15df",
+      "top_level_types": [
+        "Mention",
+        "GroundingChecks",
+        "IntegrationVerdict",
+        "AssertionEnvelope"
+      ]
+    },
+    {
+      "path": "src/memspine/schemas/durable/temporal.py",
+      "referenced_names": [
+        "TemporalRef",
+        "TimeAxes"
+      ],
+      "sha256": "e4065c47a634915e7fb473029e55f9d8daeabeede97616db7a165e9c91b606c6",
+      "top_level_types": [
+        "Duration",
+        "TemporalRelation",
+        "TemporalRef",
+        "Interval",
+        "TimeAxes"
+      ]
+    },
+    {
+      "path": "src/memspine/schemas/public/__init__.py",
+      "referenced_names": [
+        "EvidenceBundle"
+      ],
+      "sha256": "5caf5bf4ef48303d72d208ce82846fa378e8752d634b29985fd9d394473ace6f",
+      "top_level_types": []
+    },
+    {
+      "path": "src/memspine/schemas/public/read.py",
+      "referenced_names": [
+        "AssertionEnvelope",
+        "EvidenceBundle",
+        "TemporalRef"
+      ],
+      "sha256": "724968743d64a068fbefd47af8ffbaf40f5b0ebd1edb7b865c43e59b6b7d61de",
+      "top_level_types": [
+        "ReadRequest",
+        "EvidenceBundle",
+        "RenderedLine",
+        "ContextBlock",
+        "ScoredItem",
+        "ReadResult"
+      ]
+    },
+    {
+      "path": "src/memspine/schemas/steps/insert.py",
+      "referenced_names": [
+        "AssertionEnvelope"
+      ],
+      "sha256": "12948f56318be7810c89cb61f7e3db9b596ef7488394014982d2b443e85b452c",
+      "top_level_types": [
+        "SegmentIdentity",
+        "StampedSegment",
+        "NamespaceContext",
+        "ExplicitKey",
+        "RoutedRecord",
+        "BacklogState",
+        "LedgerBudget",
+        "LiveMember",
+        "AliasTarget",
+        "RenderedPrompt",
+        "DecodingParams",
+        "Usage",
+        "ValidItem",
+        "ParentState",
+        "EntityMention",
+        "Resolution",
+        "RegistryEntry",
+        "Incumbent",
+        "AttachDecision",
+        "InsertStep01Input",
+        "InsertStep01Output",
+        "InsertStep02Input",
+        "InsertStep02Output",
+        "InsertStep03Input",
+        "InsertStep03Output",
+        "InsertStep04Input",
+        "InsertStep04Output",
+        "InsertStep05Input",
+        "InsertStep05Output",
+        "InsertStep06Input",
+        "InsertStep06Output",
+        "InsertStep07Input",
+        "InsertStep07Output",
+        "InsertStep08Input",
+        "InsertStep08Output",
+        "InsertStep09Input",
+        "InsertStep09Output",
+        "InsertStep10Input",
+        "InsertStep10Output",
+        "InsertStep11Input",
+        "InsertStep11Output",
+        "InsertStep12Input",
+        "InsertStep12Output",
+        "InsertStep13Input",
+        "InsertStep13Output",
+        "InsertStep14Input",
+        "InsertStep14Output",
+        "InsertStep15Input",
+        "InsertStep15Output",
+        "InsertStep16Input",
+        "InsertStep16Output",
+        "InsertStep17Input",
+        "InsertStep17Output",
+        "InsertStep18Input",
+        "InsertStep18Output",
+        "InsertStep19Input",
+        "InsertStep19Output",
+        "InsertStep20Input",
+        "InsertStep20Output",
+        "InsertStep21Input",
+        "InsertStep21Output",
+        "DeposableEnvelope",
+        "InsertStep22Input",
+        "InsertStep22Output",
+        "CallUsage",
+        "OutcomeCounters",
+        "InsertStep23Input",
+        "InsertStep23Output"
+      ]
+    },
+    {
+      "path": "src/memspine/schemas/steps/offline.py",
+      "referenced_names": [
+        "AssertionEnvelope",
+        "TemporalRef"
+      ],
+      "sha256": "5e996eacfd7d20e17de08518bd1faec9fcedbb2d8b681810a7ce89ee43cf9436",
+      "top_level_types": [
+        "NamespaceTriggerState",
+        "CycleReport",
+        "TriggerInput",
+        "TriggerDecision",
+        "JobRequest",
+        "DirtySet",
+        "SessionClosed",
+        "Call2Input",
+        "Call2Summary",
+        "Call2Episode",
+        "Call2Result",
+        "RetentionClass",
+        "PendingMerge",
+        "ResolutionDecision",
+        "ContradictionCandidate",
+        "ContradictionVerdict",
+        "DedupPair",
+        "ValueSpan",
+        "ValueHistoryView",
+        "PatternGroup",
+        "SessionGap",
+        "EntityWork",
+        "PartitionResult",
+        "StandingQuestion",
+        "AnswerSection",
+        "StandingAnswer",
+        "WatchReport",
+        "Cue",
+        "OutcomeReceipt",
+        "LessonCase",
+        "TierTransition",
+        "CompressResult",
+        "OfflineStep01Input",
+        "OfflineStep01Output",
+        "OfflineStep02Input",
+        "OfflineStep02Output",
+        "OfflineStep03Input",
+        "OfflineStep03Output",
+        "OfflineStep04Input",
+        "OfflineStep04Output",
+        "OfflineStep05Input",
+        "OfflineStep05Output",
+        "OfflineStep06Input",
+        "OfflineStep06Output",
+        "OfflineStep07Input",
+        "OfflineStep07Output",
+        "OfflineStep08Input",
+        "OfflineStep08Output",
+        "OfflineStep09Input",
+        "OfflineStep09Output",
+        "OfflineStep10Input",
+        "OfflineStep10Output",
+        "OfflineStep11Input",
+        "OfflineStep11Output",
+        "OfflineStep12Input",
+        "OfflineStep12Output",
+        "OfflineStep13Input",
+        "OfflineStep13Output",
+        "OfflineStep14Input",
+        "OfflineStep14Output",
+        "OfflineStep15Input",
+        "OfflineStep15Output",
+        "OfflineStep16Input",
+        "OfflineStep16Output",
+        "OfflineStep17Input",
+        "OfflineStep17Output",
+        "OfflineStep18Input",
+        "OfflineStep18Output",
+        "OfflineStep19Input",
+        "OfflineStep19Output",
+        "OfflineStep20Input",
+        "OfflineStep20Output",
+        "OfflineStep21Input",
+        "OfflineStep21Output",
+        "OfflineStep22Input",
+        "OfflineStep22Output"
+      ]
+    },
+    {
+      "path": "src/memspine/schemas/steps/shared.py",
+      "referenced_names": [
+        "AssertionEnvelope",
+        "EvidenceBundle"
+      ],
+      "sha256": "fa23f61f6b715e209c5b185edd0fea7918a456e2ac34de526a0c7ae0d4d861ce",
+      "top_level_types": [
+        "Scope",
+        "AssetRef",
+        "Segment",
+        "SourceEnvelope",
+        "IntentStatus",
+        "FirewallVerdict",
+        "ItemV1",
+        "Record",
+        "WindowTurn",
+        "Window",
+        "CallBatch",
+        "FailureRecord",
+        "LedgerEntry",
+        "Turn",
+        "ProfileOp",
+        "CardEntry",
+        "ProfileCard",
+        "StageReport",
+        "DerivationBudget",
+        "QueryContract",
+        "LegHit",
+        "NamedLeg",
+        "PoolEntry",
+        "ScoredHit",
+        "NoteItem",
+        "SkipRecord",
+        "PackedEvidence",
+        "ReadTrace"
+      ]
+    },
+    {
+      "path": "src/memspine/store/envelope.py",
+      "referenced_names": [
+        "AssertionEnvelope",
+        "TemporalRef",
+        "TimeAxes"
+      ],
+      "sha256": "3891aa18a8b395c61ec1be034f12238c1a296d656d0f8f5fa82aaa0889f08cee",
+      "top_level_types": []
+    },
+    {
+      "path": "src/memspine/store/records.py",
+      "referenced_names": [
+        "AssertionEnvelope"
+      ],
+      "sha256": "046d6a11258d77e3e494979578cd4ce14e4b808c6a414f98c84c7a824a74ef5c",
+      "top_level_types": [
+        "RecordStatus",
+        "SkillStage",
+        "PiiTier",
+        "SourceInfo",
+        "ScoringState",
+        "ArchivedVersion",
+        "RecordAxes",
+        "RecordFingerprint",
+        "MemoryRecord"
+      ]
+    },
+    {
+      "path": "src/memspine/workers/windows.py",
+      "referenced_names": [
+        "AssertionEnvelope"
+      ],
+      "sha256": "d6666e21a7eaef6fe8334df07c4d50ce83235044e0260526df0ffff335b1ff0f",
+      "top_level_types": [
+        "WindowExtractor",
+        "PromptWindowExtractor",
+        "FactsOutcome",
+        "EdgesOutcome",
+        "EpisodeOutcome",
+        "WindowCallFailed",
+        "EnvelopeWrite",
+        "_Prepared",
+        "_Job",
+        "_Store",
+        "WindowPipeline"
+      ]
+    }
+  ],
+  "runtime_files_changed_by_this_preparation": false,
+  "limits": [
+    "Review shape checks are not behavioural engine proof",
+    "No model calls/downloads, full suites, provider/deployment actions or commits",
+    "Pending schema answers are not inferred or auto-selected",
+    "Existing review schema/files were copied to a temporary directory for validation; historical validation.json was not overwritten"
+  ],
+  "tracker_refresh_check_passed": true,
+  "sha256": {
+    "docs/PROVIDER_TODO.md": "b7aa5dbff0ec3cf5a6b321551bc54934d43410dad25828b4a1c130fc1f53f702",
+    "docs/v2/tracker.html": "0f53f1066b318d5294363e6ae8f1d97c37ba87947b1eadf5716409db9dcdf8bd",
+    "docs/BI01_CONTRACT_REWRITE_PLAN.md": "7fb2b274439e0de6503a7b5b6006a196701cfe53c20283a6f0d749711b5bf497",
+    "docs/CLAUDE_CONTEXT_AND_TRACKER_2026-10-20.md": "95eb44c87f0df592c2a0221d035b8b481f65f88b3666b79a3e38b0e609a661b4",
+    "docs/schema_review/enrichment.schema.json": "d763a744cb803d88867a833e77f10844adfec2102c726010118ff85207b6fd3e",
+    "docs/schema_review/predicate_vocabulary.json": "def4469662e5636d78d4041e59e4149acd25755cf4c87262567191424f07953d"
+  }
+}

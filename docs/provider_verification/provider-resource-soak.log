@@ -1,0 +1,272 @@
+{"declared_before_run": {"warmup_cycles": 5, "measured_cycles": 30, "post_warmup_rss_spread_guard_bytes": 104857600, "guard_is_diagnostic_not_slo": true, "wall_time_limit_s": 180}}
+2026-10-17T18:21:00.953308Z [info     ] memory.write                   namespace=provider-soak record_id=13d5b782-def5-44af-9c14-6b0c69cc87eb
+2026-10-17T18:21:00.977818Z [info     ] memory.write                   namespace=provider-soak record_id=94495738-97e9-459e-bff1-6df69ba89463
+2026-10-17T18:21:01.035279Z [info     ] memory.retrieve                count=2 namespace=provider-soak query=True
+2026-10-17T18:21:01.041073Z [info     ] memory.retrieve                count=2 namespace=provider-soak query=True
+2026-10-17T18:21:01.511951Z [info     ] memory.write                   namespace=provider-soak record_id=720a471d-c866-4870-a87d-40bbca3d7e1c
+2026-10-17T18:21:01.534714Z [info     ] memory.write                   namespace=provider-soak record_id=19e43f64-54fd-4bd4-a763-ae18850e353a
+2026-10-17T18:21:01.587534Z [info     ] memory.retrieve                count=2 namespace=provider-soak query=True
+2026-10-17T18:21:01.593874Z [info     ] memory.retrieve                count=2 namespace=provider-soak query=True
+2026-10-17T18:21:02.055673Z [info     ] memory.write                   namespace=provider-soak record_id=0622748a-8661-4806-8fd2-17b25971b509
+2026-10-17T18:21:02.077388Z [info     ] memory.write                   namespace=provider-soak record_id=3970577f-c5cf-409a-a6c2-415a8f7d3c68
+2026-10-17T18:21:02.132822Z [info     ] memory.retrieve                count=2 namespace=provider-soak query=True
+2026-10-17T18:21:02.138686Z [info     ] memory.retrieve                count=2 namespace=provider-soak query=True
+2026-10-17T18:21:02.613814Z [info     ] memory.write                   namespace=provider-soak record_id=195f42f9-8e84-42b2-a5eb-d65ee64e153f
+2026-10-17T18:21:02.635063Z [info     ] memory.write                   namespace=provider-soak record_id=6c71b49f-a23b-42bb-846d-a40051cee589
+2026-10-17T18:21:02.689642Z [info     ] memory.retrieve                count=2 namespace=provider-soak query=True
+2026-10-17T18:21:02.695210Z [info     ] memory.retrieve                count=2 namespace=provider-soak query=True
+2026-10-17T18:21:03.158722Z [info     ] memory.write                   namespace=provider-soak record_id=675147b9-1927-45b5-a500-936e29867793
+2026-10-17T18:21:03.179507Z [info     ] memory.write                   namespace=provider-soak record_id=ff5028e8-c716-4b82-b466-f7127f61a24a
+2026-10-17T18:21:03.233202Z [info     ] memory.retrieve                count=2 namespace=provider-soak query=True
+2026-10-17T18:21:03.239772Z [info     ] memory.retrieve                count=2 namespace=provider-soak query=True
+2026-10-17T18:21:03.716772Z [info     ] memory.write                   namespace=provider-soak record_id=13bc2906-54cf-4418-9346-28e4cb4e6c42
+2026-10-17T18:21:03.739378Z [info     ] memory.write                   namespace=provider-soak record_id=c0bc8e62-5501-48b1-af66-4861cf2dfa08
+2026-10-17T18:21:03.794275Z [info     ] memory.retrieve                count=2 namespace=provider-soak query=True
+2026-10-17T18:21:03.801231Z [info     ] memory.retrieve                count=2 namespace=provider-soak query=True
+2026-10-17T18:21:04.275225Z [info     ] memory.write                   namespace=provider-soak record_id=15e31fb8-78bc-466b-b415-fe84acf45ce6
+2026-10-17T18:21:04.297148Z [info     ] memory.write                   namespace=provider-soak record_id=57264e81-0695-4b86-8384-d099c34a167b
+2026-10-17T18:21:04.351378Z [info     ] memory.retrieve                count=2 namespace=provider-soak query=True
+2026-10-17T18:21:04.356705Z [info     ] memory.retrieve                count=2 namespace=provider-soak query=True
+2026-10-17T18:21:04.840187Z [info     ] memory.write                   namespace=provider-soak record_id=0b238944-8a3e-49d7-a291-662d0a8ce9d2
+2026-10-17T18:21:04.863977Z [info     ] memory.write                   namespace=provider-soak record_id=4a68db19-1d03-4941-9354-bdc5b0d8e657
+2026-10-17T18:21:04.920839Z [info     ] memory.retrieve                count=2 namespace=provider-soak query=True
+2026-10-17T18:21:04.925961Z [info     ] memory.retrieve                count=2 namespace=provider-soak query=True
+2026-10-17T18:21:05.391336Z [info     ] memory.write                   namespace=provider-soak record_id=15f6b6b5-cef3-4fc4-b1d7-46c0cd1586fc
+2026-10-17T18:21:05.413704Z [info     ] memory.write                   namespace=provider-soak record_id=22643e83-a79d-4ec9-bba9-c979843c2189
+2026-10-17T18:21:05.480578Z [info     ] memory.retrieve                count=2 namespace=provider-soak query=True
+2026-10-17T18:21:05.486455Z [info     ] memory.retrieve                count=2 namespace=provider-soak query=True
+2026-10-17T18:21:05.952795Z [info     ] memory.write                   namespace=provider-soak record_id=3eaf5acb-14cb-4eea-be79-adc73d0c527f
+2026-10-17T18:21:05.973628Z [info     ] memory.write                   namespace=provider-soak record_id=86453143-a4e4-4524-bbe7-13c640716a97
+2026-10-17T18:21:06.025153Z [info     ] memory.retrieve                count=2 namespace=provider-soak query=True
+2026-10-17T18:21:06.030505Z [info     ] memory.retrieve                count=2 namespace=provider-soak query=True
+2026-10-17T18:21:06.511361Z [info     ] memory.write                   namespace=provider-soak record_id=68eeb07d-5bee-4a2c-9be2-d0f5b9502426
+2026-10-17T18:21:06.533378Z [info     ] memory.write                   namespace=provider-soak record_id=b7087dd5-0119-4447-8762-5cd35d4cebbe
+2026-10-17T18:21:06.586740Z [info     ] memory.retrieve                count=2 namespace=provider-soak query=True
+2026-10-17T18:21:06.592188Z [info     ] memory.retrieve                count=2 namespace=provider-soak query=True
+2026-10-17T18:21:07.063573Z [info     ] memory.write                   namespace=provider-soak record_id=84561f74-a780-4521-88ba-76b147f69ac4
+2026-10-17T18:21:07.085489Z [info     ] memory.write                   namespace=provider-soak record_id=591ad301-f3f1-4cb1-9a99-db6b97b75640
+2026-10-17T18:21:07.138430Z [info     ] memory.retrieve                count=2 namespace=provider-soak query=True
+2026-10-17T18:21:07.144067Z [info     ] memory.retrieve                count=2 namespace=provider-soak query=True
+2026-10-17T18:21:07.630557Z [info     ] memory.write                   namespace=provider-soak record_id=3ebc6dca-3b0d-432f-8586-c7a3986ad8de
+2026-10-17T18:21:07.652599Z [info     ] memory.write                   namespace=provider-soak record_id=58a15f29-46b0-41fb-ade6-e8e2f215da44
+2026-10-17T18:21:07.705173Z [info     ] memory.retrieve                count=2 namespace=provider-soak query=True
+2026-10-17T18:21:07.712019Z [info     ] memory.retrieve                count=2 namespace=provider-soak query=True
+2026-10-17T18:21:08.193524Z [info     ] memory.write                   namespace=provider-soak record_id=6d889c53-ea4c-4035-8d92-e0b8e01c6990
+2026-10-17T18:21:08.217375Z [info     ] memory.write                   namespace=provider-soak record_id=24675190-3a25-4cc6-ba0b-2ca43cd1c1da
+2026-10-17T18:21:08.272780Z [info     ] memory.retrieve                count=2 namespace=provider-soak query=True
+2026-10-17T18:21:08.278375Z [info     ] memory.retrieve                count=2 namespace=provider-soak query=True
+2026-10-17T18:21:08.773219Z [info     ] memory.write                   namespace=provider-soak record_id=85817a39-2fd0-421c-8730-5430ca48bafa
+2026-10-17T18:21:08.797620Z [info     ] memory.write                   namespace=provider-soak record_id=cebe9a64-2f18-4a04-8fc9-757aa7beee75
+2026-10-17T18:21:08.857562Z [info     ] memory.retrieve                count=2 namespace=provider-soak query=True
+2026-10-17T18:21:08.864945Z [info     ] memory.retrieve                count=2 namespace=provider-soak query=True
+2026-10-17T18:21:09.392579Z [info     ] memory.write                   namespace=provider-soak record_id=5551e052-fb9d-4363-8df8-1ec816ff61ce
+2026-10-17T18:21:09.415879Z [info     ] memory.write                   namespace=provider-soak record_id=b6109379-955b-405e-8253-1d0b3ccb2b48
+2026-10-17T18:21:09.473683Z [info     ] memory.retrieve                count=2 namespace=provider-soak query=True
+2026-10-17T18:21:09.479012Z [info     ] memory.retrieve                count=2 namespace=provider-soak query=True
+2026-10-17T18:21:09.949751Z [info     ] memory.write                   namespace=provider-soak record_id=d09da8a6-370e-48ca-a3c8-29e0d08ef771
+2026-10-17T18:21:09.971179Z [info     ] memory.write                   namespace=provider-soak record_id=d7ca1630-8e60-4104-9420-d5cefa7222c0
+2026-10-17T18:21:10.023459Z [info     ] memory.retrieve                count=2 namespace=provider-soak query=True
+2026-10-17T18:21:10.029010Z [info     ] memory.retrieve                count=2 namespace=provider-soak query=True
+2026-10-17T18:21:10.503056Z [info     ] memory.write                   namespace=provider-soak record_id=fb399615-c7a9-4914-ba3f-260f0a565267
+2026-10-17T18:21:10.524909Z [info     ] memory.write                   namespace=provider-soak record_id=bfbacf26-253b-420f-a209-9bbfe953ba66
+2026-10-17T18:21:10.581952Z [info     ] memory.retrieve                count=2 namespace=provider-soak query=True
+2026-10-17T18:21:10.587467Z [info     ] memory.retrieve                count=2 namespace=provider-soak query=True
+2026-10-17T18:21:11.080152Z [info     ] memory.write                   namespace=provider-soak record_id=968f1042-d4ee-498c-9ef3-a9c1c9f97d08
+2026-10-17T18:21:11.103839Z [info     ] memory.write                   namespace=provider-soak record_id=e0a84df9-0304-4c3e-9978-576441ef856a
+2026-10-17T18:21:11.172552Z [info     ] memory.retrieve                count=2 namespace=provider-soak query=True
+2026-10-17T18:21:11.181157Z [info     ] memory.retrieve                count=2 namespace=provider-soak query=True
+2026-10-17T18:21:11.676962Z [info     ] memory.write                   namespace=provider-soak record_id=10b86310-331b-419f-bbf1-634cd327f994
+2026-10-17T18:21:11.697949Z [info     ] memory.write                   namespace=provider-soak record_id=d49f73f0-1037-46ed-8759-581b5f011755
+2026-10-17T18:21:11.753146Z [info     ] memory.retrieve                count=2 namespace=provider-soak query=True
+2026-10-17T18:21:11.758640Z [info     ] memory.retrieve                count=2 namespace=provider-soak query=True
+2026-10-17T18:21:12.227673Z [info     ] memory.write                   namespace=provider-soak record_id=121c0b6d-338c-4953-b8c7-11917eecec7a
+2026-10-17T18:21:12.250635Z [info     ] memory.write                   namespace=provider-soak record_id=5102f465-e0eb-4976-ab3a-a6a04a0af1ff
+2026-10-17T18:21:12.303832Z [info     ] memory.retrieve                count=2 namespace=provider-soak query=True
+2026-10-17T18:21:12.309699Z [info     ] memory.retrieve                count=2 namespace=provider-soak query=True
+2026-10-17T18:21:12.797736Z [info     ] memory.write                   namespace=provider-soak record_id=c9a5b30a-2af4-4207-9771-65d5655fbbc0
+2026-10-17T18:21:12.819679Z [info     ] memory.write                   namespace=provider-soak record_id=493900b6-f807-48ba-bca4-0ad88a18f151
+2026-10-17T18:21:12.872523Z [info     ] memory.retrieve                count=2 namespace=provider-soak query=True
+2026-10-17T18:21:12.877686Z [info     ] memory.retrieve                count=2 namespace=provider-soak query=True
+2026-10-17T18:21:13.331369Z [info     ] memory.write                   namespace=provider-soak record_id=4baec200-9500-424c-9a79-d2512ba0910d
+2026-10-17T18:21:13.354356Z [info     ] memory.write                   namespace=provider-soak record_id=5651f83a-4ca7-4de0-ba51-853e182d97b1
+2026-10-17T18:21:13.408610Z [info     ] memory.retrieve                count=2 namespace=provider-soak query=True
+2026-10-17T18:21:13.414102Z [info     ] memory.retrieve                count=2 namespace=provider-soak query=True
+2026-10-17T18:21:13.938610Z [info     ] memory.write                   namespace=provider-soak record_id=b117eb46-7bb9-4fe0-91bc-87027495dab8
+2026-10-17T18:21:13.962894Z [info     ] memory.write                   namespace=provider-soak record_id=ab3d3e4e-03bd-4aac-aac8-e154db38c6e9
+2026-10-17T18:21:14.016734Z [info     ] memory.retrieve                count=2 namespace=provider-soak query=True
+2026-10-17T18:21:14.022298Z [info     ] memory.retrieve                count=2 namespace=provider-soak query=True
+2026-10-17T18:21:14.500278Z [info     ] memory.write                   namespace=provider-soak record_id=cdc09b05-f26d-45b0-9518-f88ec4facbee
+2026-10-17T18:21:14.524649Z [info     ] memory.write                   namespace=provider-soak record_id=69b77848-2030-47c7-8766-cb5aaeec9eec
+2026-10-17T18:21:14.581700Z [info     ] memory.retrieve                count=2 namespace=provider-soak query=True
+2026-10-17T18:21:14.587556Z [info     ] memory.retrieve                count=2 namespace=provider-soak query=True
+2026-10-17T18:21:15.066565Z [info     ] memory.write                   namespace=provider-soak record_id=121166ab-a9c1-464b-9db1-fe75875141cd
+2026-10-17T18:21:15.089457Z [info     ] memory.write                   namespace=provider-soak record_id=115ee50c-bbea-4cc5-a302-7f0421177913
+2026-10-17T18:21:15.142270Z [info     ] memory.retrieve                count=2 namespace=provider-soak query=True
+2026-10-17T18:21:15.148123Z [info     ] memory.retrieve                count=2 namespace=provider-soak query=True
+2026-10-17T18:21:15.646134Z [info     ] memory.write                   namespace=provider-soak record_id=6e9ad917-c658-4388-8d1a-1fa2ab0049a4
+2026-10-17T18:21:15.669557Z [info     ] memory.write                   namespace=provider-soak record_id=46bced4c-b873-49ab-867d-83c398ce3506
+2026-10-17T18:21:15.730066Z [info     ] memory.retrieve                count=2 namespace=provider-soak query=True
+2026-10-17T18:21:15.737354Z [info     ] memory.retrieve                count=2 namespace=provider-soak query=True
+2026-10-17T18:21:16.286922Z [info     ] memory.write                   namespace=provider-soak record_id=ddd08c27-4eb0-4af2-a8fd-f5c679d89dd1
+2026-10-17T18:21:16.309225Z [info     ] memory.write                   namespace=provider-soak record_id=18538c7f-ce17-4d5b-a4dc-0d472ea9124b
+2026-10-17T18:21:16.368697Z [info     ] memory.retrieve                count=2 namespace=provider-soak query=True
+2026-10-17T18:21:16.376074Z [info     ] memory.retrieve                count=2 namespace=provider-soak query=True
+2026-10-17T18:21:16.865677Z [info     ] memory.write                   namespace=provider-soak record_id=a5b83611-3a6b-4ab0-8f12-e1192655ff3a
+2026-10-17T18:21:16.887373Z [info     ] memory.write                   namespace=provider-soak record_id=ee362da9-ea42-4060-bf2a-8cb6b9f3e3b3
+2026-10-17T18:21:16.938644Z [info     ] memory.retrieve                count=2 namespace=provider-soak query=True
+2026-10-17T18:21:16.944117Z [info     ] memory.retrieve                count=2 namespace=provider-soak query=True
+2026-10-17T18:21:17.407150Z [info     ] memory.write                   namespace=provider-soak record_id=77f31eb2-18c8-4c77-a3f2-b6c2d521bcbf
+2026-10-17T18:21:17.429688Z [info     ] memory.write                   namespace=provider-soak record_id=f1996ca8-a375-4767-9779-be6f6f6c6783
+2026-10-17T18:21:17.485415Z [info     ] memory.retrieve                count=2 namespace=provider-soak query=True
+2026-10-17T18:21:17.490787Z [info     ] memory.retrieve                count=2 namespace=provider-soak query=True
+2026-10-17T18:21:17.972635Z [info     ] memory.write                   namespace=provider-soak record_id=db085612-813d-42ab-a6d1-db5d99bb2087
+2026-10-17T18:21:17.994992Z [info     ] memory.write                   namespace=provider-soak record_id=86e8eeba-ca69-40d3-909e-2b744b8ce83b
+2026-10-17T18:21:18.049797Z [info     ] memory.retrieve                count=2 namespace=provider-soak query=True
+2026-10-17T18:21:18.055359Z [info     ] memory.retrieve                count=2 namespace=provider-soak query=True
+2026-10-17T18:21:18.531630Z [info     ] memory.write                   namespace=provider-soak record_id=655929d2-cc2e-437c-a302-fbf8ff1613f4
+2026-10-17T18:21:18.559825Z [info     ] memory.write                   namespace=provider-soak record_id=727db70b-f74f-4c46-98b9-8cd2c54332e8
+2026-10-17T18:21:18.616063Z [info     ] memory.retrieve                count=2 namespace=provider-soak query=True
+2026-10-17T18:21:18.623540Z [info     ] memory.retrieve                count=2 namespace=provider-soak query=True
+2026-10-17T18:21:19.140763Z [info     ] memory.write                   namespace=provider-soak record_id=1e72e3d9-89d2-4946-bb09-3e32a6ee3460
+2026-10-17T18:21:19.162380Z [info     ] memory.write                   namespace=provider-soak record_id=a26c710c-da9d-4257-833a-bd253f2d7ec7
+2026-10-17T18:21:19.220215Z [info     ] memory.retrieve                count=2 namespace=provider-soak query=True
+2026-10-17T18:21:19.226189Z [info     ] memory.retrieve                count=2 namespace=provider-soak query=True
+2026-10-17T18:21:19.727265Z [info     ] memory.write                   namespace=provider-soak record_id=cc98f1dd-11a6-4616-b256-15a4f7ab1c77
+2026-10-17T18:21:19.749428Z [info     ] memory.write                   namespace=provider-soak record_id=7c1722f7-b76a-4586-a1f4-f519423811ac
+2026-10-17T18:21:19.801492Z [info     ] memory.retrieve                count=2 namespace=provider-soak query=True
+2026-10-17T18:21:19.809021Z [info     ] memory.retrieve                count=2 namespace=provider-soak query=True
+2026-10-17T18:21:20.329799Z [info     ] memory.write                   namespace=provider-soak record_id=3d894894-d591-455b-92ab-ffac59d4c374
+2026-10-17T18:21:20.355703Z [info     ] memory.write                   namespace=provider-soak record_id=ea698ba6-374b-495a-939a-4fb0eaa420fb
+2026-10-17T18:21:20.416138Z [info     ] memory.retrieve                count=2 namespace=provider-soak query=True
+2026-10-17T18:21:20.422655Z [info     ] memory.retrieve                count=2 namespace=provider-soak query=True
+{
+  "worker_process_id": 27088,
+  "host": "Windows-11-10.0.26340-SP0",
+  "python": "3.13.5",
+  "process_start_rss_bytes": 173654016,
+  "process_start_handles": 248,
+  "warmup_cycles_requested": 5,
+  "measured_cycles_requested": 30,
+  "warmup_cycles_completed": 5,
+  "measured_cycles_completed": 30,
+  "messages_per_cycle": 2,
+  "searches_per_cycle": 2,
+  "wall_time_limit_s": 180,
+  "wall_time_s": 20.83123330003582,
+  "post_warmup_rss_spread_guard_bytes": 104857600,
+  "post_warmup_rss_values_bytes": [
+    277188608,
+    277512192,
+    277929984,
+    278290432,
+    278626304,
+    278814720,
+    279166976,
+    279400448,
+    279605248,
+    279724032,
+    279920640,
+    280604672,
+    280653824,
+    280813568,
+    280965120,
+    281137152,
+    281149440,
+    281280512,
+    281309184,
+    281419776,
+    281436160,
+    281550848,
+    281591808,
+    281706496,
+    281858048,
+    281911296,
+    282021888,
+    282058752,
+    282112000,
+    282267648
+  ],
+  "post_warmup_rss_spread_bytes": 5079040,
+  "post_warmup_rss_sample_count": 30,
+  "post_warmup_rss_guard_exceeded": false,
+  "post_warmup_rss_guard_interpretation": "diagnostic only; not a production SLO and cannot prove unbounded leak freedom",
+  "all_cycles_had_zero_open_dbapi_connections_after_stop": true,
+  "pool_event_observation_available": true,
+  "pool_connect_events": 105,
+  "pool_close_events": 105,
+  "pool_event_counts_balanced": true,
+  "all_cycles_stopped_owned_resources": true,
+  "sqlalchemy_pool_events": {
+    "connect_events": 105,
+    "close_events": 105,
+    "connect_events_without_close": 0
+  },
+  "measured_latency_summary_ms": {
+    "startup": {
+      "sample_count": 30,
+      "estimator": "nearest-rank (ceil(p*n), one-based)",
+      "p50": 174.70069997943938,
+      "p95": 201.76600001286715,
+      "p99": 217.15380006935447
+    },
+    "ingest": {
+      "sample_count": 30,
+      "estimator": "nearest-rank (ceil(p*n), one-based)",
+      "p50": 106.84559994842857,
+      "p95": 122.64760001562536,
+      "p99": 123.19660000503063
+    },
+    "search": {
+      "sample_count": 60,
+      "estimator": "nearest-rank (ceil(p*n), one-based)",
+      "p50": 8.59189999755472,
+      "p95": 13.272999902255833,
+      "p99": 15.547799994237721
+    },
+    "stop": {
+      "sample_count": 30,
+      "estimator": "nearest-rank (ceil(p*n), one-based)",
+      "p50": 4.9869000213220716,
+      "p95": 5.782100022770464,
+      "p99": 6.024400005117059
+    }
+  },
+  "measured_post_stop_handles": [
+    348,
+    348,
+    348,
+    348,
+    348,
+    348,
+    348,
+    348,
+    348,
+    348,
+    348,
+    348,
+    348,
+    348,
+    348,
+    348,
+    348,
+    348,
+    348,
+    348,
+    348,
+    348,
+    348,
+    348,
+    348,
+    348,
+    348,
+    348,
+    348,
+    348
+  ],
+  "open_dbapi_connections_at_end": 0,
+  "process_end_rss_bytes": 282300416,
+  "process_end_handles": 348,
+  "schema_version": 1,
+  "source_revision": "e6596f44c1e9937050ef68938037f2cf2341ee34",
+  "harness_sha256": "a4e0e3aec53e0010d931d30d629096e712970f318e07c476752a222ef3fffb1b"
+}

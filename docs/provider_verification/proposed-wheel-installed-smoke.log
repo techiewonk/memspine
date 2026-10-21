@@ -1,0 +1,58 @@
+Using Python 3.13.5 environment at: C:\Users\hembad\AppData\Local\Temp\memspine-ner-runtime-313
+Resolved 1 package in 8ms
+Prepared 1 package in 248ms
+Uninstalled 1 package in 70ms
+Installed 1 package in 414ms
+ - memspine==0.0.1 (from file:///C:/Users/hembad/Documents/GitHub/memspine-restructure/dist/memspine-0.0.1-py3-none-any.whl)
+ + memspine==0.0.1 (from file:///C:/Users/hembad/Documents/GitHub/memspine-restructure/dist/proposed-wave/memspine-0.0.1-py3-none-any.whl)
+Traceback (most recent call last):
+  File "C:\Users\hembad\Documents\GitHub\memspine-restructure\docs\examples\provider_wheel_smoke.py", line 58, in <module>
+    asyncio.run(main())
+    ~~~~~~~~~~~^^^^^^^^
+  File "C:\Users\hembad\AppData\Roaming\uv\python\cpython-3.13.5-windows-x86_64-none\Lib\asyncio\runners.py", line 195, in run
+    return runner.run(main)
+           ~~~~~~~~~~^^^^^^
+  File "C:\Users\hembad\AppData\Roaming\uv\python\cpython-3.13.5-windows-x86_64-none\Lib\asyncio\runners.py", line 118, in run
+    return self._loop.run_until_complete(task)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "C:\Users\hembad\AppData\Roaming\uv\python\cpython-3.13.5-windows-x86_64-none\Lib\asyncio\base_events.py", line 725, in run_until_complete
+    return future.result()
+           ~~~~~~~~~~~~~^^
+  File "C:\Users\hembad\Documents\GitHub\memspine-restructure\docs\examples\provider_wheel_smoke.py", line 47, in main
+    await engine.start()
+  File "C:\Users\hembad\AppData\Local\Temp\memspine-ner-runtime-313\Lib\site-packages\memspine\api\engine.py", line 546, in start
+    return await self._start_inner()
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\hembad\AppData\Local\Temp\memspine-ner-runtime-313\Lib\site-packages\memspine\api\engine.py", line 597, in _start_inner
+    self._storage = await container.get(SqlStorage)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\hembad\AppData\Local\Temp\memspine-ner-runtime-313\Lib\site-packages\dishka\async_container.py", line 171, in get
+    return await self._get_unlocked(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<2 lines>...
+    )
+    ^
+  File "C:\Users\hembad\AppData\Local\Temp\memspine-ner-runtime-313\Lib\site-packages\dishka\async_container.py", line 294, in _get_unlocked
+    return await compiled(
+           ^^^^^^^^^^^^^^^
+    ...<6 lines>...
+    )
+    ^
+  File "<get_SqlStorage_async>", line 5, in get_SqlStorage
+    solved = await build_storage(await get_MemspineConfig(getter,
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<9 lines>...
+             has))
+             ^^^^^
+  File "C:\Users\hembad\AppData\Local\Temp\memspine-ner-runtime-313\Lib\site-packages\memspine\runtime\container.py", line 663, in build_storage
+    settings = _settings(descriptor, config.storage.settings)
+  File "C:\Users\hembad\AppData\Local\Temp\memspine-ner-runtime-313\Lib\site-packages\memspine\runtime\container.py", line 168, in _settings
+    return validate_settings(descriptor, raw if isinstance(raw, Mapping) else {})
+  File "C:\Users\hembad\AppData\Local\Temp\memspine-ner-runtime-313\Lib\site-packages\memspine\providers\registry.py", line 318, in validate_settings
+    raise ProviderRegistryError(
+    ...<2 lines>...
+    ) from None
+memspine.providers.registry.ProviderRegistryError: invalid settings for storage.sqlite: check fields busy_timeout_s
+2026-10-17T18:18:03.968382Z [info     ] memory.write                   action=added namespace=wheel record_id=b8c9ad56-e533-41d0-8b99-477914e8f25b
+2026-10-17T18:18:03.988646Z [info     ] memory.retrieve                count=1 namespace=wheel query=True
+{"status": "passed", "package_path": "C:\\Users\\hembad\\AppData\\Local\\Temp\\memspine-ner-runtime-313\\Lib\\site-packages\\memspine\\__init__.py", "candidate_adapter": "passed", "engine_lifecycle": "passed"}

@@ -1,0 +1,479 @@
+
+[ingest F1.8] window extraction with the offline stub: L1 facts with lineage (A15-A24)
+    code: ingest/windows.py, derive/pipeline/integrate.py
+      memspine/derive/pipeline/graph.py:126 _evolve_links: eng._associative is None
+      memspine/derive/pipeline/graph.py:127 _evolve_links: or record.quarantined
+      memspine/derive/pipeline/graph.py:128 _evolve_links: or record.memory_type not in ("semantic", "episodic")
+      memspine/derive/pipeline/graph.py:131 _evolve_links: assert eng._graph is not None and eng._storage is not None
+      memspine/derive/pipeline/graph.py:132 _evolve_links: if eng._embedder is None or eng._vector is None:
+      memspine/derive/pipeline/graph.py:134 _evolve_links: try:
+      memspine/derive/pipeline/graph.py:135 _evolve_links: [vector] = await eng._embedder.embed([record.content])
+      memspine/derive/pipeline/graph.py:136 _evolve_links: hits = await eng._vector.query(
+      memspine/derive/pipeline/graph.py:137 _evolve_links: ns, vector, embedder_id=eng._embedder.embedder_id, top_k=constants.SEARCH_TOP_K
+      memspine/derive/pipeline/graph.py:136 _evolve_links: hits = await eng._vector.query(
+      memspine/derive/pipeline/graph.py:139 _evolve_links: created = await propose_links(
+      memspine/derive/pipeline/graph.py:140 _evolve_links: namespace=ns,
+      memspine/derive/pipeline/graph.py:141 _evolve_links: record=record,
+      memspine/derive/pipeline/graph.py:142 _evolve_links: hits=hits,
+      memspine/derive/pipeline/graph.py:143 _evolve_links: storage=eng._storage,
+      memspine/derive/pipeline/graph.py:144 _evolve_links: graph=eng._graph,
+      memspine/derive/pipeline/graph.py:145 _evolve_links: append_event=eng._append_and_project,
+      memspine/derive/pipeline/graph.py:139 _evolve_links: created = await propose_links(
+      memspine/derive/pipeline/graph.py:147 _evolve_links: if created:
+      memspine/derive/pipeline/graph.py:148 _evolve_links: _log.info(
+      memspine/derive/pipeline/graph.py:149 _evolve_links: EVENT_LINK,
+      memspine/derive/pipeline/graph.py:150 _evolve_links: namespace=ns,
+      memspine/derive/pipeline/graph.py:151 _evolve_links: record_id=record.record_id,
+      memspine/derive/pipeline/graph.py:152 _evolve_links: links=created,
+      memspine/derive/pipeline/graph.py:153 _evolve_links: reason="evolution",
+      memspine/derive/pipeline/graph.py:148 _evolve_links: _log.info(
+      memspine/derive/segmenter.py:65 add: closed: list[Window] = []
+      memspine/derive/segmenter.py:66 add: s = self.settings
+      memspine/derive/segmenter.py:67 add: seg = self.segmentation
+      memspine/derive/segmenter.py:68 add: previous = self._open[-1] if self._open else None
+      memspine/derive/segmenter.py:69 add: if previous is not None and previous.session != turn.session:
+      memspine/derive/segmenter.py:72 add: if previous is not None and seg.gap_s > 0 and previous.when and turn.when:
+      memspine/derive/segmenter.py:91 add: similarity: float | None = None
+      memspine/derive/segmenter.py:92 add: if previous is not None and previous.vector is not None and turn.vector is not None:
+      memspine/derive/segmenter.py:101 add: if similarity is not None:
+      memspine/derive/segmenter.py:103 add: if self._open and sum(t.tokens for t in self._open) + turn.tokens > s.max_tokens:
+      memspine/derive/segmenter.py:105 add: self._open.append(turn)
+      memspine/derive/segmenter.py:106 add: if self._turn_limit_reached():
+      memspine/derive/segmenter.py:55 _turn_limit_reached: base = self.settings.max_turns
+      memspine/derive/segmenter.py:56 _turn_limit_reached: cap = max(self.segmentation.max_turns_cap, base)
+      memspine/derive/segmenter.py:57 _turn_limit_reached: n = len(self._open)
+      memspine/derive/segmenter.py:58 _turn_limit_reached: if n >= cap:
+      memspine/derive/segmenter.py:60 _turn_limit_reached: if n < base:
+      memspine/derive/segmenter.py:61 _turn_limit_reached: return False
+      memspine/derive/segmenter.py:108 add: return closed
+      memspine/derive/pipeline/graph.py:126 _evolve_links: eng._associative is None
+      memspine/derive/pipeline/graph.py:127 _evolve_links: or record.quarantined
+      memspine/derive/pipeline/graph.py:128 _evolve_links: or record.memory_type not in ("semantic", "episodic")
+      memspine/derive/pipeline/graph.py:131 _evolve_links: assert eng._graph is not None and eng._storage is not None
+      memspine/derive/pipeline/graph.py:132 _evolve_links: if eng._embedder is None or eng._vector is None:
+      memspine/derive/pipeline/graph.py:134 _evolve_links: try:
+      memspine/derive/pipeline/graph.py:135 _evolve_links: [vector] = await eng._embedder.embed([record.content])
+      memspine/derive/pipeline/graph.py:136 _evolve_links: hits = await eng._vector.query(
+      memspine/derive/pipeline/graph.py:137 _evolve_links: ns, vector, embedder_id=eng._embedder.embedder_id, top_k=constants.SEARCH_TOP_K
+      memspine/derive/pipeline/graph.py:136 _evolve_links: hits = await eng._vector.query(
+      memspine/derive/pipeline/graph.py:139 _evolve_links: created = await propose_links(
+      memspine/derive/pipeline/graph.py:140 _evolve_links: namespace=ns,
+      memspine/derive/pipeline/graph.py:141 _evolve_links: record=record,
+      memspine/derive/pipeline/graph.py:142 _evolve_links: hits=hits,
+      memspine/derive/pipeline/graph.py:143 _evolve_links: storage=eng._storage,
+      memspine/derive/pipeline/graph.py:144 _evolve_links: graph=eng._graph,
+      memspine/derive/pipeline/graph.py:145 _evolve_links: append_event=eng._append_and_project,
+      memspine/derive/pipeline/graph.py:139 _evolve_links: created = await propose_links(
+      memspine/derive/pipeline/graph.py:147 _evolve_links: if created:
+      memspine/derive/segmenter.py:65 add: closed: list[Window] = []
+      memspine/derive/segmenter.py:66 add: s = self.settings
+      memspine/derive/segmenter.py:67 add: seg = self.segmentation
+      memspine/derive/segmenter.py:68 add: previous = self._open[-1] if self._open else None
+      memspine/derive/segmenter.py:69 add: if previous is not None and previous.session != turn.session:
+      memspine/derive/segmenter.py:72 add: if previous is not None and seg.gap_s > 0 and previous.when and turn.when:
+      memspine/derive/segmenter.py:91 add: similarity: float | None = None
+      memspine/derive/segmenter.py:92 add: if previous is not None and previous.vector is not None and turn.vector is not None:
+      memspine/derive/segmenter.py:101 add: if similarity is not None:
+      memspine/derive/segmenter.py:103 add: if self._open and sum(t.tokens for t in self._open) + turn.tokens > s.max_tokens:
+      memspine/derive/segmenter.py:105 add: self._open.append(turn)
+      memspine/derive/segmenter.py:106 add: if self._turn_limit_reached():
+      memspine/derive/segmenter.py:55 _turn_limit_reached: base = self.settings.max_turns
+      memspine/derive/segmenter.py:56 _turn_limit_reached: cap = max(self.segmentation.max_turns_cap, base)
+      memspine/derive/segmenter.py:57 _turn_limit_reached: n = len(self._open)
+      memspine/derive/segmenter.py:58 _turn_limit_reached: if n >= cap:
+      memspine/derive/segmenter.py:60 _turn_limit_reached: if n < base:
+      memspine/derive/segmenter.py:61 _turn_limit_reached: return False
+      memspine/derive/segmenter.py:108 add: return closed
+      memspine/derive/pipeline/graph.py:126 _evolve_links: eng._associative is None
+      memspine/derive/pipeline/graph.py:127 _evolve_links: or record.quarantined
+      memspine/derive/pipeline/graph.py:128 _evolve_links: or record.memory_type not in ("semantic", "episodic")
+      memspine/derive/pipeline/graph.py:131 _evolve_links: assert eng._graph is not None and eng._storage is not None
+      memspine/derive/pipeline/graph.py:132 _evolve_links: if eng._embedder is None or eng._vector is None:
+      memspine/derive/pipeline/graph.py:134 _evolve_links: try:
+      memspine/derive/pipeline/graph.py:135 _evolve_links: [vector] = await eng._embedder.embed([record.content])
+      memspine/derive/pipeline/graph.py:136 _evolve_links: hits = await eng._vector.query(
+      memspine/derive/pipeline/graph.py:137 _evolve_links: ns, vector, embedder_id=eng._embedder.embedder_id, top_k=constants.SEARCH_TOP_K
+      memspine/derive/pipeline/graph.py:136 _evolve_links: hits = await eng._vector.query(
+      memspine/derive/pipeline/graph.py:139 _evolve_links: created = await propose_links(
+      memspine/derive/pipeline/graph.py:140 _evolve_links: namespace=ns,
+      memspine/derive/pipeline/graph.py:141 _evolve_links: record=record,
+      memspine/derive/pipeline/graph.py:142 _evolve_links: hits=hits,
+      memspine/derive/pipeline/graph.py:143 _evolve_links: storage=eng._storage,
+      memspine/derive/pipeline/graph.py:144 _evolve_links: graph=eng._graph,
+      memspine/derive/pipeline/graph.py:145 _evolve_links: append_event=eng._append_and_project,
+      memspine/derive/pipeline/graph.py:139 _evolve_links: created = await propose_links(
+      memspine/derive/pipeline/graph.py:147 _evolve_links: if created:
+      memspine/derive/segmenter.py:65 add: closed: list[Window] = []
+      memspine/derive/segmenter.py:66 add: s = self.settings
+      memspine/derive/segmenter.py:67 add: seg = self.segmentation
+      memspine/derive/segmenter.py:68 add: previous = self._open[-1] if self._open else None
+      memspine/derive/segmenter.py:69 add: if previous is not None and previous.session != turn.session:
+      memspine/derive/segmenter.py:72 add: if previous is not None and seg.gap_s > 0 and previous.when and turn.when:
+      memspine/derive/segmenter.py:91 add: similarity: float | None = None
+      memspine/derive/segmenter.py:92 add: if previous is not None and previous.vector is not None and turn.vector is not None:
+      memspine/derive/segmenter.py:101 add: if similarity is not None:
+      memspine/derive/segmenter.py:103 add: if self._open and sum(t.tokens for t in self._open) + turn.tokens > s.max_tokens:
+      memspine/derive/segmenter.py:105 add: self._open.append(turn)
+      memspine/derive/segmenter.py:106 add: if self._turn_limit_reached():
+      memspine/derive/segmenter.py:55 _turn_limit_reached: base = self.settings.max_turns
+      memspine/derive/segmenter.py:56 _turn_limit_reached: cap = max(self.segmentation.max_turns_cap, base)
+      memspine/derive/segmenter.py:57 _turn_limit_reached: n = len(self._open)
+      memspine/derive/segmenter.py:58 _turn_limit_reached: if n >= cap:
+      memspine/derive/segmenter.py:60 _turn_limit_reached: if n < base:
+      memspine/derive/segmenter.py:61 _turn_limit_reached: return False
+      memspine/derive/segmenter.py:108 add: return closed
+      memspine/derive/online_extractor.py:36 __init__: self._pipeline = pipeline
+      memspine/derive/online_extractor.py:52 flush: if self._pipeline is None:
+      memspine/derive/online_extractor.py:54 flush: out: dict[str, Any] = await self._pipeline.flush(namespace, final=final)
+      memspine/derive/call_batcher.py:55 plan: out: list[Batch] = []
+      memspine/derive/call_batcher.py:56 plan: cur: list[BatchItem] = []
+      memspine/derive/call_batcher.py:57 plan: tokens = 0
+      memspine/derive/call_batcher.py:59 plan: def close(reason: BatchReason) -> None:
+      memspine/derive/call_batcher.py:65 plan: for item in items:
+      memspine/derive/call_batcher.py:66 plan: if cur and item.key != cur[0].key:
+      memspine/derive/call_batcher.py:68 plan: if cur and (len(cur) >= self.max_windows or tokens + item.tokens > self.max_tokens):
+      memspine/derive/call_batcher.py:70 plan: cur.append(item)
+      memspine/derive/call_batcher.py:71 plan: tokens += item.tokens
+      memspine/derive/call_batcher.py:65 plan: for item in items:
+      memspine/derive/call_batcher.py:66 plan: if cur and item.key != cur[0].key:
+      memspine/derive/call_batcher.py:68 plan: if cur and (len(cur) >= self.max_windows or tokens + item.tokens > self.max_tokens):
+      memspine/derive/call_batcher.py:70 plan: cur.append(item)
+      memspine/derive/call_batcher.py:71 plan: tokens += item.tokens
+      memspine/derive/call_batcher.py:65 plan: for item in items:
+      memspine/derive/call_batcher.py:66 plan: if cur and item.key != cur[0].key:
+      memspine/derive/call_batcher.py:67 plan: close("key")
+      memspine/derive/call_batcher.py:61 close: if cur:
+      memspine/derive/call_batcher.py:62 close: out.append(Batch(cur[0].key, tuple(cur), reason))
+      memspine/derive/call_batcher.py:63 close: cur, tokens = [], 0
+      memspine/derive/call_batcher.py:68 plan: if cur and (len(cur) >= self.max_windows or tokens + item.tokens > self.max_tokens):
+      memspine/derive/call_batcher.py:70 plan: cur.append(item)
+      memspine/derive/call_batcher.py:71 plan: tokens += item.tokens
+      memspine/derive/call_batcher.py:65 plan: for item in items:
+      memspine/derive/call_batcher.py:66 plan: if cur and item.key != cur[0].key:
+      memspine/derive/call_batcher.py:67 plan: close("key")
+      memspine/derive/call_batcher.py:61 close: if cur:
+      memspine/derive/call_batcher.py:62 close: out.append(Batch(cur[0].key, tuple(cur), reason))
+      memspine/derive/call_batcher.py:63 close: cur, tokens = [], 0
+      memspine/derive/call_batcher.py:68 plan: if cur and (len(cur) >= self.max_windows or tokens + item.tokens > self.max_tokens):
+      memspine/derive/call_batcher.py:70 plan: cur.append(item)
+      memspine/derive/call_batcher.py:71 plan: tokens += item.tokens
+      memspine/derive/call_batcher.py:65 plan: for item in items:
+      memspine/derive/call_batcher.py:72 plan: if cur:
+      memspine/derive/call_batcher.py:73 plan: full = len(cur) >= self.max_windows or tokens >= self.max_tokens
+      memspine/derive/call_batcher.py:74 plan: if final:
+      memspine/derive/call_batcher.py:75 plan: close("final")
+      memspine/derive/call_batcher.py:61 close: if cur:
+      memspine/derive/call_batcher.py:62 close: out.append(Batch(cur[0].key, tuple(cur), reason))
+      memspine/derive/call_batcher.py:63 close: cur, tokens = [], 0
+      memspine/derive/call_batcher.py:80 plan: return out
+      memspine/derive/role_filter.py:25 block_reason: tags = list(tags)
+      memspine/derive/role_filter.py:26 block_reason: if constants.ECHO_TAG in tags:
+      memspine/derive/role_filter.py:28 block_reason: if derive_use_of(tags) == "excluded":
+      memspine/derive/role_filter.py:17 derive_use_of: for tag in tags:
+      memspine/derive/role_filter.py:20 derive_use_of: return None
+      memspine/derive/role_filter.py:30 block_reason: return None
+      memspine/derive/role_filter.py:25 block_reason: tags = list(tags)
+      memspine/derive/role_filter.py:26 block_reason: if constants.ECHO_TAG in tags:
+      memspine/derive/role_filter.py:28 block_reason: if derive_use_of(tags) == "excluded":
+      memspine/derive/role_filter.py:17 derive_use_of: for tag in tags:
+      memspine/derive/role_filter.py:18 derive_use_of: if tag.startswith(constants.ROLE_USE_TAG_PREFIX):
+      memspine/derive/role_filter.py:19 derive_use_of: return tag[len(constants.ROLE_USE_TAG_PREFIX) :]
+      memspine/derive/role_filter.py:30 block_reason: return None
+      memspine/derive/prompt_context.py:79 build: context = "\n".join(context_lines[-self.context_turns :]) if self.context_turns else ""
+      memspine/derive/prompt_context.py:80 build: if self.cap <= 0:
+      memspine/derive/prompt_context.py:82 build: merged: dict[str, tuple[str, list[str]]] = {}
+      memspine/derive/prompt_context.py:83 build: by_source: dict[str, int] = {}
+      memspine/derive/prompt_context.py:85 build: ("prepass", self.prepass),
+      memspine/derive/prompt_context.py:86 build: ("resolver", self.resolver),
+      memspine/derive/prompt_context.py:87 build: ("store", self.store),
+      memspine/derive/prompt_context.py:84 build: for label, source in (
+      memspine/derive/prompt_context.py:89 build: if source is None:
+      memspine/derive/prompt_context.py:90 build: continue
+      memspine/derive/prompt_context.py:84 build: for label, source in (
+      memspine/derive/prompt_context.py:89 build: if source is None:
+      memspine/derive/prompt_context.py:90 build: continue
+      memspine/derive/prompt_context.py:84 build: for label, source in (
+      memspine/derive/prompt_context.py:89 build: if source is None:
+      memspine/derive/prompt_context.py:91 build: try:
+      memspine/derive/prompt_context.py:92 build: found = await source(ns, new_text)
+      memspine/derive/pipeline/stages/index.py:158 refresh: while True:
+      memspine/derive/pipeline/stages/index.py:159 refresh: events = await storage.read_events(after_seq=self.after_seq, limit=1000)
+      memspine/derive/pipeline/stages/index.py:160 refresh: if not events:
+      memspine/derive/pipeline/stages/index.py:162 refresh: for event in events:
+      memspine/derive/pipeline/stages/index.py:163 refresh: self.observe(event)
+      memspine/derive/pipeline/stages/index.py:167 observe: payload = event.payload or {}
+      memspine/derive/pipeline/stages/index.py:168 observe: if event.kind is EventKind.FORGET:
+      memspine/derive/pipeline/stages/index.py:172 observe: elif event.kind is EventKind.CONSOLIDATE:
+      memspine/derive/pipeline/stages/index.py:179 observe: elif event.kind is EventKind.MARKER:
+      memspine/derive/pipeline/stages/index.py:162 refresh: for event in events:
+      memspine/derive/pipeline/stages/index.py:163 refresh: self.observe(event)
+      memspine/derive/pipeline/stages/index.py:167 observe: payload = event.payload or {}
+      memspine/derive/pipeline/stages/index.py:168 observe: if event.kind is EventKind.FORGET:
+      memspine/derive/pipeline/stages/index.py:172 observe: elif event.kind is EventKind.CONSOLIDATE:
+      memspine/derive/pipeline/stages/index.py:179 observe: elif event.kind is EventKind.MARKER:
+      memspine/derive/pipeline/stages/index.py:162 refresh: for event in events:
+      memspine/derive/pipeline/stages/index.py:163 refresh: self.observe(event)
+      memspine/derive/pipeline/stages/index.py:167 observe: payload = event.payload or {}
+      memspine/derive/pipeline/stages/index.py:168 observe: if event.kind is EventKind.FORGET:
+      memspine/derive/pipeline/stages/index.py:172 observe: elif event.kind is EventKind.CONSOLIDATE:
+      memspine/derive/pipeline/stages/index.py:179 observe: elif event.kind is EventKind.MARKER:
+      memspine/derive/pipeline/stages/index.py:162 refresh: for event in events:
+      memspine/derive/pipeline/stages/index.py:163 refresh: self.observe(event)
+      memspine/derive/pipeline/stages/index.py:167 observe: payload = event.payload or {}
+      memspine/derive/pipeline/stages/index.py:168 observe: if event.kind is EventKind.FORGET:
+      memspine/derive/pipeline/stages/index.py:172 observe: elif event.kind is EventKind.CONSOLIDATE:
+      memspine/derive/pipeline/stages/index.py:179 observe: elif event.kind is EventKind.MARKER:
+      memspine/derive/pipeline/stages/index.py:162 refresh: for event in events:
+      memspine/derive/pipeline/stages/index.py:163 refresh: self.observe(event)
+      memspine/derive/pipeline/stages/index.py:167 observe: payload = event.payload or {}
+      memspine/derive/pipeline/stages/index.py:168 observe: if event.kind is EventKind.FORGET:
+      memspine/derive/pipeline/stages/index.py:172 observe: elif event.kind is EventKind.CONSOLIDATE:
+      memspine/derive/pipeline/stages/index.py:179 observe: elif event.kind is EventKind.MARKER:
+      memspine/derive/pipeline/stages/index.py:162 refresh: for event in events:
+      memspine/derive/pipeline/stages/index.py:163 refresh: self.observe(event)
+      memspine/derive/pipeline/stages/index.py:167 observe: payload = event.payload or {}
+      memspine/derive/pipeline/stages/index.py:168 observe: if event.kind is EventKind.FORGET:
+      memspine/derive/pipeline/stages/index.py:172 observe: elif event.kind is EventKind.CONSOLIDATE:
+      memspine/derive/pipeline/stages/index.py:179 observe: elif event.kind is EventKind.MARKER:
+      memspine/derive/pipeline/stages/index.py:162 refresh: for event in events:
+      memspine/derive/pipeline/stages/index.py:163 refresh: self.observe(event)
+      memspine/derive/pipeline/stages/index.py:167 observe: payload = event.payload or {}
+      memspine/derive/pipeline/stages/index.py:168 observe: if event.kind is EventKind.FORGET:
+      memspine/derive/pipeline/stages/index.py:172 observe: elif event.kind is EventKind.CONSOLIDATE:
+      memspine/derive/pipeline/stages/index.py:179 observe: elif event.kind is EventKind.MARKER:
+      memspine/derive/pipeline/stages/index.py:162 refresh: for event in events:
+      memspine/derive/pipeline/stages/index.py:163 refresh: self.observe(event)
+      memspine/derive/pipeline/stages/index.py:167 observe: payload = event.payload or {}
+      memspine/derive/pipeline/stages/index.py:168 observe: if event.kind is EventKind.FORGET:
+      memspine/derive/pipeline/stages/index.py:172 observe: elif event.kind is EventKind.CONSOLIDATE:
+      memspine/derive/pipeline/stages/index.py:179 observe: elif event.kind is EventKind.MARKER:
+      memspine/derive/pipeline/stages/index.py:162 refresh: for event in events:
+      memspine/derive/pipeline/stages/index.py:163 refresh: self.observe(event)
+      memspine/derive/pipeline/stages/index.py:167 observe: payload = event.payload or {}
+      memspine/derive/pipeline/stages/index.py:168 observe: if event.kind is EventKind.FORGET:
+      memspine/derive/pipeline/stages/index.py:172 observe: elif event.kind is EventKind.CONSOLIDATE:
+      memspine/derive/pipeline/stages/index.py:179 observe: elif event.kind is EventKind.MARKER:
+      memspine/derive/pipeline/stages/index.py:162 refresh: for event in events:
+      memspine/derive/pipeline/stages/index.py:163 refresh: self.observe(event)
+      memspine/derive/pipeline/stages/index.py:167 observe: payload = event.payload or {}
+      memspine/derive/pipeline/stages/index.py:168 observe: if event.kind is EventKind.FORGET:
+      memspine/derive/pipeline/stages/index.py:172 observe: elif event.kind is EventKind.CONSOLIDATE:
+      memspine/derive/pipeline/stages/index.py:179 observe: elif event.kind is EventKind.MARKER:
+      memspine/derive/pipeline/stages/index.py:162 refresh: for event in events:
+      memspine/derive/pipeline/stages/index.py:163 refresh: self.observe(event)
+      memspine/derive/pipeline/stages/index.py:167 observe: payload = event.payload or {}
+      memspine/derive/pipeline/stages/index.py:168 observe: if event.kind is EventKind.FORGET:
+      memspine/derive/pipeline/stages/index.py:172 observe: elif event.kind is EventKind.CONSOLIDATE:
+      memspine/derive/pipeline/stages/index.py:179 observe: elif event.kind is EventKind.MARKER:
+      memspine/derive/pipeline/stages/index.py:162 refresh: for event in events:
+      memspine/derive/pipeline/stages/index.py:163 refresh: self.observe(event)
+      memspine/derive/pipeline/stages/index.py:167 observe: payload = event.payload or {}
+      memspine/derive/pipeline/stages/index.py:168 observe: if event.kind is EventKind.FORGET:
+      memspine/derive/pipeline/stages/index.py:172 observe: elif event.kind is EventKind.CONSOLIDATE:
+      memspine/derive/pipeline/stages/index.py:179 observe: elif event.kind is EventKind.MARKER:
+      memspine/derive/pipeline/stages/index.py:162 refresh: for event in events:
+      memspine/derive/pipeline/stages/index.py:163 refresh: self.observe(event)
+      memspine/derive/pipeline/stages/index.py:167 observe: payload = event.payload or {}
+      memspine/derive/pipeline/stages/index.py:168 observe: if event.kind is EventKind.FORGET:
+      memspine/derive/pipeline/stages/index.py:172 observe: elif event.kind is EventKind.CONSOLIDATE:
+      memspine/derive/pipeline/stages/index.py:179 observe: elif event.kind is EventKind.MARKER:
+      memspine/derive/pipeline/stages/index.py:162 refresh: for event in events:
+      memspine/derive/pipeline/stages/index.py:163 refresh: self.observe(event)
+      memspine/derive/pipeline/stages/index.py:167 observe: payload = event.payload or {}
+      memspine/derive/pipeline/stages/index.py:168 observe: if event.kind is EventKind.FORGET:
+      memspine/derive/pipeline/stages/index.py:172 observe: elif event.kind is EventKind.CONSOLIDATE:
+      memspine/derive/pipeline/stages/index.py:179 observe: elif event.kind is EventKind.MARKER:
+      memspine/derive/pipeline/stages/index.py:162 refresh: for event in events:
+      memspine/derive/pipeline/stages/index.py:163 refresh: self.observe(event)
+      memspine/derive/pipeline/stages/index.py:167 observe: payload = event.payload or {}
+      memspine/derive/pipeline/stages/index.py:168 observe: if event.kind is EventKind.FORGET:
+      memspine/derive/pipeline/stages/index.py:172 observe: elif event.kind is EventKind.CONSOLIDATE:
+      memspine/derive/pipeline/stages/index.py:179 observe: elif event.kind is EventKind.MARKER:
+      memspine/derive/pipeline/stages/index.py:162 refresh: for event in events:
+      memspine/derive/pipeline/stages/index.py:164 refresh: self.after_seq = max([self.after_seq, *(e.seq for e in events if e.seq is not None)])
+      memspine/derive/pipeline/stages/index.py:164 <genexpr>: self.after_seq = max([self.after_seq, *(e.seq for e in events if e.seq is not None)])
+      memspine/derive/pipeline/stages/index.py:164 <genexpr>: self.after_seq = max([self.after_seq, *(e.seq for e in events if e.seq is not None)])
+      memspine/derive/pipeline/stages/index.py:164 <genexpr>: self.after_seq = max([self.after_seq, *(e.seq for e in events if e.seq is not None)])
+      memspine/derive/pipeline/stages/index.py:164 <genexpr>: self.after_seq = max([self.after_seq, *(e.seq for e in events if e.seq is not None)])
+      memspine/derive/pipeline/stages/index.py:164 <genexpr>: self.after_seq = max([self.after_seq, *(e.seq for e in events if e.seq is not None)])
+      memspine/derive/pipeline/stages/index.py:164 <genexpr>: self.after_seq = max([self.after_seq, *(e.seq for e in events if e.seq is not None)])
+      memspine/derive/pipeline/stages/index.py:164 <genexpr>: self.after_seq = max([self.after_seq, *(e.seq for e in events if e.seq is not None)])
+      memspine/derive/pipeline/stages/index.py:164 <genexpr>: self.after_seq = max([self.after_seq, *(e.seq for e in events if e.seq is not None)])
+      memspine/derive/pipeline/stages/index.py:164 <genexpr>: self.after_seq = max([self.after_seq, *(e.seq for e in events if e.seq is not None)])
+      memspine/derive/pipeline/stages/index.py:164 <genexpr>: self.after_seq = max([self.after_seq, *(e.seq for e in events if e.seq is not None)])
+      memspine/derive/pipeline/stages/index.py:164 <genexpr>: self.after_seq = max([self.after_seq, *(e.seq for e in events if e.seq is not None)])
+      memspine/derive/pipeline/stages/index.py:164 <genexpr>: self.after_seq = max([self.after_seq, *(e.seq for e in events if e.seq is not None)])
+      memspine/derive/pipeline/stages/index.py:164 <genexpr>: self.after_seq = max([self.after_seq, *(e.seq for e in events if e.seq is not None)])
+      memspine/derive/pipeline/stages/index.py:164 <genexpr>: self.after_seq = max([self.after_seq, *(e.seq for e in events if e.seq is not None)])
+      memspine/derive/pipeline/stages/index.py:164 <genexpr>: self.after_seq = max([self.after_seq, *(e.seq for e in events if e.seq is not None)])
+      memspine/derive/pipeline/stages/index.py:164 <genexpr>: self.after_seq = max([self.after_seq, *(e.seq for e in events if e.seq is not None)])
+      memspine/derive/pipeline/stages/index.py:158 refresh: while True:
+      memspine/derive/pipeline/stages/index.py:159 refresh: events = await storage.read_events(after_seq=self.after_seq, limit=1000)
+      memspine/derive/pipeline/stages/index.py:160 refresh: if not events:
+      memspine/derive/pipeline/stages/index.py:161 refresh: return
+      memspine/derive/prompt_context.py:96 build: fresh = 0
+      memspine/derive/prompt_context.py:97 build: for entity in found:
+      memspine/derive/prompt_context.py:98 build: key = _key(entity.name)
+      memspine/derive/prompt_context.py:49 _key: return " ".join(unicodedata.normalize("NFKC", name).casefold().split())
+      memspine/derive/prompt_context.py:99 build: if not key:
+      memspine/derive/prompt_context.py:101 build: if key not in merged:
+      memspine/derive/prompt_context.py:102 build: merged[key] = (entity.name, [])
+      memspine/derive/prompt_context.py:103 build: fresh += 1
+      memspine/derive/prompt_context.py:104 build: for alias in entity.aliases:
+      memspine/derive/prompt_context.py:97 build: for entity in found:
+      memspine/derive/prompt_context.py:98 build: key = _key(entity.name)
+      memspine/derive/prompt_context.py:49 _key: return " ".join(unicodedata.normalize("NFKC", name).casefold().split())
+      memspine/derive/prompt_context.py:99 build: if not key:
+      memspine/derive/prompt_context.py:101 build: if key not in merged:
+      memspine/derive/prompt_context.py:102 build: merged[key] = (entity.name, [])
+      memspine/derive/prompt_context.py:103 build: fresh += 1
+      memspine/derive/prompt_context.py:104 build: for alias in entity.aliases:
+      memspine/derive/prompt_context.py:97 build: for entity in found:
+      memspine/derive/prompt_context.py:107 build: by_source[label] = fresh
+      memspine/derive/prompt_context.py:84 build: for label, source in (
+      memspine/derive/prompt_context.py:111 build: for name, aliases in merged.values()
+      memspine/derive/prompt_context.py:109 build: entries = [
+      memspine/derive/prompt_context.py:111 build: for name, aliases in merged.values()
+      memspine/derive/prompt_context.py:110 build: (name, [a for a in aliases if _key(a) not in merged])
+      memspine/derive/prompt_context.py:111 build: for name, aliases in merged.values()
+      memspine/derive/prompt_context.py:110 build: (name, [a for a in aliases if _key(a) not in merged])
+      memspine/derive/prompt_context.py:111 build: for name, aliases in merged.values()
+      memspine/derive/prompt_context.py:109 build: entries = [
+      memspine/derive/prompt_context.py:113 build: haystack = _key(new_text)
+      memspine/derive/prompt_context.py:49 _key: return " ".join(unicodedata.normalize("NFKC", name).casefold().split())
+      memspine/derive/prompt_context.py:115 build: e for e in entries if _key(e[0]) in haystack or any(_key(a) in haystack for a in e[1])
+      memspine/derive/prompt_context.py:114 build: mentioned = [
+      memspine/derive/prompt_context.py:115 build: e for e in entries if _key(e[0]) in haystack or any(_key(a) in haystack for a in e[1])
+      memspine/derive/prompt_context.py:49 _key: return " ".join(unicodedata.normalize("NFKC", name).casefold().split())
+      memspine/derive/prompt_context.py:115 <genexpr>: e for e in entries if _key(e[0]) in haystack or any(_key(a) in haystack for a in e[1])
+      memspine/derive/prompt_context.py:115 build: e for e in entries if _key(e[0]) in haystack or any(_key(a) in haystack for a in e[1])
+      memspine/derive/prompt_context.py:49 _key: return " ".join(unicodedata.normalize("NFKC", name).casefold().split())
+      memspine/derive/prompt_context.py:115 <genexpr>: e for e in entries if _key(e[0]) in haystack or any(_key(a) in haystack for a in e[1])
+      memspine/derive/prompt_context.py:115 build: e for e in entries if _key(e[0]) in haystack or any(_key(a) in haystack for a in e[1])
+      memspine/derive/prompt_context.py:114 build: mentioned = [
+      memspine/derive/prompt_context.py:117 build: rest = [e for e in entries if e not in mentioned]
+      memspine/derive/prompt_context.py:117 build: rest = [e for e in entries if e not in mentioned]
+      memspine/derive/prompt_context.py:117 build: rest = [e for e in entries if e not in mentioned]
+      memspine/derive/prompt_context.py:118 build: chosen = (mentioned + rest)[: self.cap]
+      memspine/derive/prompt_context.py:119 build: rendered = render_known(chosen, max_aliases=self.max_aliases, max_chars=self.max_chars)
+      memspine/derive/prompt_context.py:120 build: return PromptContext(
+      memspine/derive/prompt_context.py:121 build: context=context,
+      memspine/derive/prompt_context.py:122 build: known=rendered,
+      memspine/derive/prompt_context.py:123 build: known_count=len(rendered.splitlines()) if rendered else 0,
+      memspine/derive/prompt_context.py:124 build: by_source=by_source,
+      memspine/derive/prompt_context.py:120 build: return PromptContext(
+      memspine/derive/prompt_context.py:76 tail: return list(line_texts[-self.context_turns :]) if self.context_turns else []
+      memspine/derive/envelope_compiler.py:132 context: "role_policy": self._role_policy,
+      memspine/derive/envelope_compiler.py:133 context: "prompt_hash": self._prompt_hash,
+      memspine/derive/envelope_compiler.py:134 context: "recorded_at": self._clock(),
+      memspine/derive/envelope_compiler.py:120 <lambda>: self._clock = clock or (lambda: datetime.now(UTC))
+      memspine/derive/envelope_compiler.py:135 context: "kind_registry": self.kinds,
+      memspine/derive/envelope_compiler.py:136 context: "time_anchor": self._anchor,
+      memspine/derive/envelope_compiler.py:131 context: base: dict[str, Any] = {
+      memspine/derive/envelope_compiler.py:138 context: base.update(fields)
+      memspine/derive/envelope_compiler.py:139 context: return CompileContext(scope=scope, source_id=source_id, window=dict(window), **base)
+      memspine/derive/items.py:200 process_items: first = validator.validate(raw, ctx)
+      memspine/derive/items.py:102 validate: items, failure = parse_output(raw)
+      memspine/derive/compile.py:244 parse_output: if isinstance(raw, str):
+      memspine/derive/compile.py:256 parse_output: data = raw
+      memspine/derive/compile.py:257 parse_output: if isinstance(data, Mapping):
+      memspine/derive/compile.py:265 parse_output: if isinstance(data, (list, tuple)):
+      memspine/derive/compile.py:266 parse_output: return list(data), None
+      memspine/derive/items.py:103 validate: if failure is not None or items is None:
+      memspine/derive/items.py:105 validate: result = self.compiler.compile(items, ctx)
+      memspine/derive/envelope_compiler.py:142 compile: return compile_items(raw, ctx)
+      memspine/derive/compile.py:360 compile_items: items, failure = parse_output(raw)
+      memspine/derive/compile.py:244 parse_output: if isinstance(raw, str):
+      memspine/derive/compile.py:256 parse_output: data = raw
+      memspine/derive/compile.py:257 parse_output: if isinstance(data, Mapping):
+      memspine/derive/compile.py:265 parse_output: if isinstance(data, (list, tuple)):
+      memspine/derive/compile.py:266 parse_output: return list(data), None
+      memspine/derive/compile.py:361 compile_items: if failure is not None or items is None:
+      memspine/derive/compile.py:364 compile_items: envelopes: list[AssertionEnvelope] = []
+      memspine/derive/compile.py:365 compile_items: rejections: list[Rejection] = []
+      memspine/derive/compile.py:366 compile_items: notes: list[CompileNote] = []
+      memspine/derive/compile.py:367 compile_items: seen: set[tuple[str, str]] = set()
+      memspine/derive/compile.py:368 compile_items: for index, item in enumerate(items):
+      memspine/derive/compile.py:381 compile_items: return CompileResult(
+      memspine/derive/compile.py:382 compile_items: envelopes=tuple(envelopes),
+      memspine/derive/compile.py:383 compile_items: rejections=tuple(rejections),
+      memspine/derive/compile.py:384 compile_items: notes=tuple(notes),
+      memspine/derive/compile.py:385 compile_items: item_count=len(items),
+      memspine/derive/compile.py:381 compile_items: return CompileResult(
+      memspine/derive/items.py:106 validate: invalid: list[InvalidItem] = []
+    flush stats: {"windows_processed": 8, "calls": 7, "facts_returned": 5, "facts_deposited": 4, "items_valid": 5, "sessions_closed": 2}
+    fact: {"id": "1bb1b4aa", "layer": "L1", "type": "semantic", "valid_from": "2024-02-26T00:00:00+00:00", "precision": "day", "trust": 0.5, "speaker": null, "quarantined": false, "instruction_flag": false, "tags": ["atomic_fact", "mined:win:5a9c8c90c114", "happened:2024-02-26..2024-03-03", "said:2024-03-09", "window_fact"], "text": "Bram: I finally moved to Utrecht last week.", "parents": ["b3664610"]}
+    fact: {"id": "9ba5c020", "layer": "L1", "type": "semantic", "valid_from": "2024-03-09T00:00:00+00:00", "precision": "day", "trust": 0.4, "speaker": null, "quarantined": false, "instruction_flag": false, "tags": ["atomic_fact", "mined:win:42193c071330", "window_fact", "window:42193c071330", "envelope_v2"], "text": "Ilse: Utrecht sounds Wonderful, Bram, congratulati", "parents": ["e1697720"]}
+    fact: {"id": "3b51e3b2", "layer": "L1", "type": "semantic", "valid_from": "2024-03-09T00:00:00+00:00", "precision": "day", "trust": 0.5, "speaker": null, "quarantined": false, "instruction_flag": false, "tags": ["atomic_fact", "mined:win:44a56197faa5", "window_fact", "window:44a56197faa5", "envelope_v2"], "text": "Bram: My new address is Oudegracht 12.", "parents": ["25d09272"]}
+    [PASS] the stub extractor deposited facts (3)
+    [PASS] every fact is layer L1 with at least one parent
+    [PASS] every parent is one of the raw turns of this window
+    [PASS] fact trust <= the least-trusted parent
+    [PASS] a fact from an assistant turn carries the assistant cap (below 0.5) (0.4)
+    [PASS] every fact is tagged with its window and an integration verdict
+    [PASS] 'last week' on 2024-03-09 resolves to the previous week 2024-02-26..2024-03-03 (happened tag) (['atomic_fact', 'mined:win:5a9c8c90c114', 'happened:2024-02-26..2024-03-03', 'said:2024-03-09', 'window_fact', 'window:5a9c8c90c114', 'envelope_v2', 'src:user_stated', 'integ:append', 'integ_rung:cardinality', 'kind:state'])
+      ... line limit 400 reached (--limit N)
+    events (173):
+      ingest.messages.resolved  {"namespace": "flowcheck", "messages": 3, "sessions": 1, "conversations": 3}
+      write.time.parsed  {"anchored": true, "unknown_tz": true, "assumed": "UTC"}
+      write.time.parsed  {"anchored": true, "unknown_tz": true, "assumed": "UTC"}
+      write.time.parsed  {"anchored": true, "unknown_tz": true, "assumed": "UTC"}
+      write.intake.received  {"kind": "conversation", "source_id": "S2#cd98ef8047efe3f1eb585c13", "segments": 3, "version": 1, "replayed": false, "noop": false, "new_events": 3, "intent_id": "intent-9ced8efd81ca3cbdc77dcc5a843832a0"}
+      write.intake.committed  {"intent_id": "intent-9ced8efd81ca3cbdc77dcc5a843832a0", "fresh": 3, "retried": 0, "version": 1}
+      write.messages.received  {"turns": 3, "depositable": 3, "session": "S2", "channel": "messages"}
+      write.role.turn  {"role": "user", "derive_use": "stated", "src_class": "user_stated", "trust_cap": 0.7, "session": "S2"}
+      write.time.parsed  {"anchored": true, "unknown_tz": true, "assumed": "UTC"}
+      write.stamp.turn  {"turn": 0, "role": "user", "src_class": "user_stated", "spk": "bram", "addr": null, "participants": 2, "source_tz": "unknown", "tz_unknown": true, "precision": "day", "dated": true, "flags": ["tz_unknown"]}
+      write.role.turn  {"role": "assistant", "derive_use": "proposal", "src_class": "assistant_proposed", "trust_cap": 0.5, "session": "S2"}
+      write.time.parsed  {"anchored": true, "unknown_tz": true, "assumed": "UTC"}
+      write.stamp.turn  {"turn": 1, "role": "assistant", "src_class": "assistant_proposed", "spk": "ilse", "addr": null, "participants": 3, "source_tz": "unknown", "tz_unknown": true, "precision": "day", "dated": true, "flags": ["tz_unknown"]}
+      write.role.turn  {"role": "user", "derive_use": "stated", "src_class": "user_stated", "trust_cap": 0.7, "session": "S2"}
+      write.time.parsed  {"anchored": true, "unknown_tz": true, "assumed": "UTC"}
+      write.stamp.turn  {"turn": 2, "role": "user", "src_class": "user_stated", "spk": "bram", "addr": null, "participants": 2, "source_tz": "unknown", "tz_unknown": true, "precision": "day", "dated": true, "flags": ["tz_unknown"]}
+      write.route.decision  {"turns": 3, "keyed": 0, "unkeyed": 3}
+      write.intake.applied  {"intent_id": "intent-9ced8efd81ca3cbdc77dcc5a843832a0", "records": 3, "resumed": false, "raw_search": "ready"}
+      write.forensics.firewall  {"record_id": "b3664610-6991-408a-ae53-8ab561efa76e", "role": "user", "channel": "messages", "trust": 0.7, "trust_tier": null, "instruction_screen": "base", "instruction_flag": false, "semantic_risk": null, "embedding_ou
+      write.forensics.firewall  {"record_id": "e1697720-3252-4bd5-8850-da57e509e91d", "role": "assistant", "channel": "messages", "trust": 0.5, "trust_tier": null, "instruction_screen": "base", "instruction_flag": false, "semantic_risk": null, "embeddi
+      write.forensics.firewall  {"record_id": "25d09272-ab2d-444a-ab75-a7053971a9bf", "role": "user", "channel": "messages", "trust": 0.7, "trust_tier": null, "instruction_screen": "base", "instruction_flag": false, "semantic_risk": null, "embedding_ou
+      write.received  {"memory_type": "episodic", "actor": "user", "chars": 43, "has_entity": false, "reply": false}
+      write.firewall.verdict  {"id": "b3664610-6991-408a-ae53-8ab561efa76e", "firewall": true, "trust": 0.7, "quarantine": false, "anomalous": false, "instruction_flag": false, "reasons": []}
+      write.route  {"id": "b3664610-6991-408a-ae53-8ab561efa76e", "memory_type": "episodic", "route": "plain"}
+      write.deposit  {"id": "b3664610-6991-408a-ae53-8ab561efa76e", "memory_type": "episodic", "action": "added", "trust": 0.7, "parents": 0}
+      write.segment.cut  {"reason": "flush", "turns": 1, "tokens": 11, "grown": false}
+      write.window.cut  {"reason": "flush", "turns": 1, "tokens": 11, "session": null, "queued": 6}
+      write.received  {"memory_type": "episodic", "actor": "user", "chars": 66, "has_entity": false, "reply": false}
+      write.firewall.verdict  {"id": "e1697720-3252-4bd5-8850-da57e509e91d", "firewall": true, "trust": 0.5, "quarantine": false, "anomalous": false, "instruction_flag": false, "reasons": []}
+      write.route  {"id": "e1697720-3252-4bd5-8850-da57e509e91d", "memory_type": "episodic", "route": "plain"}
+      write.deposit  {"id": "e1697720-3252-4bd5-8850-da57e509e91d", "memory_type": "episodic", "action": "added", "trust": 0.5, "parents": 0}
+      write.segment.cut  {"reason": "flush", "turns": 1, "tokens": 10, "grown": false}
+      write.window.cut  {"reason": "flush", "turns": 1, "tokens": 10, "session": "S2", "queued": 7}
+      write.received  {"memory_type": "episodic", "actor": "user", "chars": 38, "has_entity": false, "reply": false}
+      write.firewall.verdict  {"id": "25d09272-ab2d-444a-ab75-a7053971a9bf", "firewall": true, "trust": 0.7, "quarantine": false, "anomalous": false, "instruction_flag": false, "reasons": []}
+      write.route  {"id": "25d09272-ab2d-444a-ab75-a7053971a9bf", "memory_type": "episodic", "route": "plain"}
+      write.deposit  {"id": "25d09272-ab2d-444a-ab75-a7053971a9bf", "memory_type": "episodic", "action": "added", "trust": 0.7, "parents": 0}
+      write.segment.cut  {"reason": "flush", "turns": 1, "tokens": 16, "grown": false}
+      write.window.cut  {"reason": "flush", "turns": 1, "tokens": 16, "session": "S2", "queued": 8}
+      write.segment.cut  {"reason": "flush", "turns": 1, "tokens": 9, "grown": false}
+      write.window.cut  {"reason": "flush", "turns": 1, "tokens": 9, "session": "S2", "queued": 9}
+      write.batch.planned  {"id": "0f33e4817c83", "windows": 2, "turns": 2, "tokens": 35, "reason": "key", "sections": ["facts"]}
+      write.extract.call.start  {"sections": ["facts"], "cached": false}
+      write.prompt.v2  {"sections": ["facts"], "known_count": 2, "schema_mode": "none", "batched": true}
+      model.call  {"role": "window_extract", "model": "stub/window", "outcome": "ok", "prompt_tokens": 675, "completion_tokens": 77, "tokens_estimated": false, "duration_ms": 0.842}
+      write.extract.call.end  {"duration_ms": 3.167}
+      write.batch.window  {"id": "7293942e0b81", "batch": "0f33e4817c83", "first_line": 1, "turns": 1}
+      write.temporal  {"window": "7293942e0b81"}
+      write.envelope.stage  {"stage": "temporal", "before": 0, "after": 0, "window": "7293942e0b81"}
+      write.ground.summary  {"window": "7293942e0b81", "before": 0, "after": 0}
+      write.envelope.stage  {"stage": "grounding", "before": 0, "after": 0, "window": "7293942e0b81"}
+      write.envelope.stage  {"stage": "integration", "before": 0, "after": 0, "window": "7293942e0b81"}
+      write.batch.window  {"id": "6d058a3fdf1b", "batch": "0f33e4817c83", "first_line": 2, "turns": 1}
+      write.item.valid  {"id": "oc_35bf61b9530ecc9d3a8f86aeda83d23d", "window": "6d058a3fdf1b", "kind": "state"}
+      write.temporal  {"window": "6d058a3fdf1b", "temporal_rung2": 1}
+      write.envelope.stage  {"stage": "temporal", "before": 1, "after": 1, "window": "6d058a3fdf1b"}
+      write.ground.checked  {"window": "6d058a3fdf1b", "write_id": "wr_7b3098ec099a83eb756855d12cda8ffe", "label": "supported", "rules": "supported", "reasons": [], "adjudicated": null}
+      write.ground.summary  {"window": "6d058a3fdf1b", "before": 1, "after": 1}
+      write.envelope.stage  {"stage": "grounding", "before": 1, "after": 1, "window": "6d058a3fdf1b"}
+      write.integrate.decision  {"id": "oc_35bf61b9530ecc9d3a8f86aeda83d23d", "op": "append", "rung": "cardinality", "hint": null, "target": null, "keyed": true, "window": "6d058a3fdf1b"}
+      ... 113 more
+
+7/7 checks passed

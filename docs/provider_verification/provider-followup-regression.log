@@ -1,0 +1,34 @@
+...........FFFFF........................................................ [ 20%]
+........................................................................ [ 40%]
+........................................................................ [ 61%]
+........................................................................ [ 81%]
+..............................................................s.         [100%]
+================================== FAILURES ===================================
+____________ test_windows_live_postgres_uses_selector_loop_factory ____________
+tests\unit\test_asyncio_loop_factory_hook.py:16: in test_windows_live_postgres_uses_selector_loop_factory
+    monkeypatch.setattr(conftest.sys, "platform", "win32")
+                        ^^^^^^^^^^^^
+E   AttributeError: module 'conftest' has no attribute 'sys'
+_____________ test_selector_factory_requires_live_postgres_opt_in _____________
+tests\unit\test_asyncio_loop_factory_hook.py:30: in test_selector_factory_requires_live_postgres_opt_in
+    monkeypatch.setattr(conftest.sys, "platform", "win32")
+                        ^^^^^^^^^^^^
+E   AttributeError: module 'conftest' has no attribute 'sys'
+____________ test_selector_factory_is_limited_to_postgres_modules _____________
+tests\unit\test_asyncio_loop_factory_hook.py:40: in test_selector_factory_is_limited_to_postgres_modules
+    monkeypatch.setattr(conftest.sys, "platform", "win32")
+                        ^^^^^^^^^^^^
+E   AttributeError: module 'conftest' has no attribute 'sys'
+________ test_windows_native_pgvector_contract_uses_live_postgres_url _________
+tests\unit\test_asyncio_loop_factory_hook.py:49: in test_windows_native_pgvector_contract_uses_live_postgres_url
+    monkeypatch.setattr(conftest.sys, "platform", "win32")
+                        ^^^^^^^^^^^^
+E   AttributeError: module 'conftest' has no attribute 'sys'
+______ test_windows_provider_postgres_contract_is_selected_by_test_name _______
+tests\unit\test_asyncio_loop_factory_hook.py:60: in test_windows_provider_postgres_contract_is_selected_by_test_name
+    monkeypatch.setattr(conftest.sys, "platform", "win32")
+                        ^^^^^^^^^^^^
+E   AttributeError: module 'conftest' has no attribute 'sys'
+=========================== short test summary info ===========================
+SKIPPED [1] tests\integration\test_temporal_resonate_recovery.py:127: set MEMSPINE_TEST_TEMPORAL_ADDRESS for the live Engine/Temporal gate
+5 failed, 346 passed, 1 skipped in 23.76s

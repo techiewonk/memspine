@@ -1,0 +1,65 @@
+JSON implementation alternatives benchmark
+Date: 2026-10-17
+Command: python scripts/benchmark_json_paths.py --loops 1500 --repeats 7 --output docs/provider_verification/json-path-benchmark.json
+Environment: CPython 3.13.5; orjson 3.13.0; pydantic 2.14.1;
+             pydantic-core 2.50.1; SQLAlchemy 2.1.5
+Payloads: actual OperationRecord with 48 nested checkpoint items, MemoryEvent,
+          MemoryRecord -> AssertionEnvelope via to_envelope
+Warm-up: 1 call per variant; reported metric is median across 7 repeats
+
+OperationRecord JSON-mode validation (ops/s; larger typed payload)
+  json.dumps + model_validate_json:                    12,285.2
+  compact json.dumps + model_validate_json:            12,130.8
+  orjson.dumps + model_validate_json:                  16,186.7
+  recursive compatibility guard + orjson/fallback:      7,822.5
+  model_validate(python-mode model_dump):              19,597.4
+  model_dump_json:                                      69,906.3
+  model_validate_json(model_dump_json):                 13,031.3
+`model_validate(python-mode model_dump)` is not a replacement for DB row
+validation: direct model_validate on the actual JSON-mode DB mapping failed
+strict enum and timestamp checks. The model_dump_json figures benchmark another
+input shape and do not establish interchangeable persisted bytes.
+
+Actual edge cases in arbitrary OperationCheckpoint.details
+  NaN / +Inf / -Inf:
+    stdlib json dumps + JSON-mode validation preserved the non-finite float;
+    orjson serialized it as null and validation produced None.
+  Integer 2**80:
+    stdlib round trip preserved the exact integer; orjson encoding raised
+    TypeError due to its default 64-bit integer bound.
+  Integer dictionary key:
+    stdlib JSON coercion preserved prior JSON behavior by turning it into "7";
+    orjson raised TypeError without a non-string-key option.
+  Lone surrogate:
+    stdlib encoded an escape but the Pydantic JSON parser rejected it;
+    orjson raised TypeError earlier.
+  Datetime object in unknown details:
+    stdlib raised TypeError; orjson silently emitted an ISO string.
+  Custom object:
+    both encoders raised TypeError.
+The recursive guard retained these distinctions but cost more than the stdlib
+path on the ordinary payload. No provider source changes were adopted.
+
+Canonical event payload
+  Existing orjson canonical_payload:                    4,184,099.8 ops/s
+  stdlib sorted/compact UTF-8, allow_nan=False:            336,413.4 ops/s
+  Bytes and xxhash fingerprint matched for the sampled payload when stdlib was
+  explicitly configured for UTF-8 and compact sorted output. Default ASCII
+  escaping changed the sample hash. NaN, infinities, and >64-bit integers also
+  have different or incompatible canonical outputs; the production encoder is
+  unchanged.
+
+Envelope serialization
+  AssertionEnvelope.model_dump_json:                    130,630.2 ops/s
+  orjson(model_dump(mode="json")):                     127,311.8 ops/s
+  compact UTF-8 stdlib(model_dump(mode="json")):        67,543.8 ops/s
+  Parsed output values and record round trip matched. No envelope source change.
+
+Decision
+  Keep the existing orjson event fingerprint and selected store/API paths.
+  Keep provider change JSON-mode validation using stdlib serialization because
+  unconditional orjson changes unknown-extra values/errors and a compatibility
+  tree walk erased the apparent ordinary-payload speedup. Keep envelope's
+  Pydantic serializer; no measured gain justified replacing it.
+  This is evidence for these sampled shapes and installed versions, not a
+  universal JSON library ranking.

@@ -1,0 +1,24 @@
+Source revision: e6596f44
+Python: C:\Users\hembad\AppData\Local\Temp\memspine-dependency-validation-313\Scripts\python.exe (Python 3.13)
+Environment: PYTHONPATH=src HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1
+
+Command:
+python -m pytest -p no:deepeval -o addopts='' tests/integration/test_provider_compression_acceptance.py -q --tb=short -rs
+
+Result:
+..                                                                       [100%]
+2 passed in 2.00s
+
+Static checks:
+python -m ruff check tests/integration/test_provider_compression_acceptance.py
+All checks passed!
+python -m ruff format --check tests/integration/test_provider_compression_acceptance.py
+1 file already formatted
+
+The cold-tier test uses the real SQLite event/projector path and zstandard;
+the normal Engine retrieve inflates the durable row and restores text and
+metadata. The assembly test uses public Engine.assemble with a deterministic
+test double only at the optional compressor boundary. Its budget equals the
+repository's documented chars/4 estimate for expected compressed output, with
+no added margin. It is not exact model-token accounting or semantic-quality
+evidence for LLMLingua.

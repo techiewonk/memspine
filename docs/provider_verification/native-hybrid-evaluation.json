@@ -1,0 +1,356 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-17",
+  "task": "PA-089 bounded experimental native Weaviate hybrid versus portable RRF",
+  "status": "completed",
+  "source_revision": "e6596f44c1e9937050ef68938037f2cf2341ee34",
+  "harness_sha256": "ca524246b03a7f416f60967f72fa58274500080d7341bd0a80f968d33400c7e2",
+  "host": {
+    "python": "3.13.5",
+    "platform": "Windows-11-10.0.26340-SP0"
+  },
+  "image": {
+    "reference": "cr.weaviate.io/semitechnologies/weaviate@sha256:920463cf9a9b2b8d38e5b925d63f6928fa703277c93df11d5a75fc75e1fff758",
+    "inspection": "sha256:920463cf9a9b2b8d38e5b925d63f6928fa703277c93df11d5a75fc75e1fff758 [cr.weaviate.io/semitechnologies/weaviate@sha256:920463cf9a9b2b8d38e5b925d63f6928fa703277c93df11d5a75fc75e1fff758]",
+    "runtime_version": "1.32.4"
+  },
+  "container": {
+    "owned_name": "memspine-live-pa089-native-hybrid-82efc71b-weaviate",
+    "http_port": 51698,
+    "grpc_port": 51699,
+    "loopback_only": true,
+    "cleanup": "docker rm --force --volumes in finally"
+  },
+  "sdk": {
+    "distribution": "weaviate-client",
+    "version": "4.23.1",
+    "native_method": "CollectionAsync.query.hybrid",
+    "signature": "(self, query: Optional[str], *, alpha: Union[int, float, NoneType] = None, vector: Union[Sequence[Union[int, float]], Sequence[Sequence[Union[int, float]]], Mapping[str, Union[Sequence[Union[int, float]], Sequence[Sequence[Union[int, float]]], weaviate.collections.classes.grpc._ListOfVectorsQuery[Sequence[Union[int, float]]], weaviate.collections.classes.grpc._ListOfVectorsQuery[Sequence[Sequence[Union[int, float]]]]]], weaviate.collections.classes.grpc._HybridNearText, weaviate.collections.classes.grpc._HybridNearVector, NoneType] = None, query_properties: Optional[List[str]] = None, fusion_type: Optional[weaviate.collections.classes.grpc.HybridFusion] = None, max_vector_distance: Union[int, float, NoneType] = None, limit: Optional[int] = None, offset: Optional[int] = None, bm25_operator: Optional[weaviate.collections.classes.grpc.BM25OperatorOptions] = None, auto_limit: Optional[int] = None, filters: Optional[weaviate.collections.classes.filters._Filters] = None, group_by: Optional[weaviate.collections.classes.grpc.GroupBy] = None, rerank: Optional[weaviate.collections.classes.grpc.Rerank] = None, boost: Optional[weaviate.collections.classes.grpc._Boost] = None, diversity_selection: Optional[weaviate.collections.classes.grpc.MMR] = None, target_vector: Union[str, List[str], weaviate.collections.classes.grpc._MultiTargetVectorJoin, NoneType] = None, include_vector: Union[bool, str, List[str]] = False, return_metadata: Union[List[Literal['creation_time', 'last_update_time', 'distance', 'certainty', 'score', 'explain_score', 'is_consistent', 'query_profile']], weaviate.collections.classes.grpc.MetadataQuery, NoneType] = None, return_properties: Union[Sequence[Union[str, weaviate.collections.classes.grpc.QueryNested]], str, weaviate.collections.classes.grpc.QueryNested, bool, Type[~TProperties], NoneType] = None, return_references: Union[weaviate.collections.classes.grpc._QueryReference, Sequence[weaviate.collections.classes.grpc._QueryReference], Type[~TReferences], NoneType] = None) -> Union[weaviate.collections.classes.internal.QueryReturn[-Properties, ~References], weaviate.collections.classes.internal.QueryReturn[~TProperties, ~TReferences], weaviate.collections.classes.internal.QueryReturn[-Properties, Mapping[str, weaviate.collections.classes.internal._CrossReference[Mapping[str, Union[NoneType, str, bool, int, float, datetime.datetime, uuid.UUID, weaviate.collections.classes.types.GeoCoordinate, weaviate.collections.classes.types.PhoneNumber, weaviate.collections.classes.types._PhoneNumber, Mapping[str, ForwardRef('WeaviateField')], Sequence[str], Sequence[bool], Sequence[int], Sequence[float], Sequence[datetime.datetime], Sequence[uuid.UUID], Sequence[Mapping[str, ForwardRef('WeaviateField')]]]], ForwardRef('CrossReferences')]]], weaviate.collections.classes.internal.QueryReturn[-Properties, ~TReferences], weaviate.collections.classes.internal.QueryReturn[~TProperties, ~References], weaviate.collections.classes.internal.QueryReturn[~TProperties, Mapping[str, weaviate.collections.classes.internal._CrossReference[Mapping[str, Union[NoneType, str, bool, int, float, datetime.datetime, uuid.UUID, weaviate.collections.classes.types.GeoCoordinate, weaviate.collections.classes.types.PhoneNumber, weaviate.collections.classes.types._PhoneNumber, Mapping[str, ForwardRef('WeaviateField')], Sequence[str], Sequence[bool], Sequence[int], Sequence[float], Sequence[datetime.datetime], Sequence[uuid.UUID], Sequence[Mapping[str, ForwardRef('WeaviateField')]]]], ForwardRef('CrossReferences')]]], weaviate.collections.classes.internal.GroupByReturn[-Properties, ~References], weaviate.collections.classes.internal.GroupByReturn[~TProperties, ~TReferences], weaviate.collections.classes.internal.GroupByReturn[-Properties, Mapping[str, weaviate.collections.classes.internal._CrossReference[Mapping[str, Union[NoneType, str, bool, int, float, datetime.datetime, uuid.UUID, weaviate.collections.classes.types.GeoCoordinate, weaviate.collections.classes.types.PhoneNumber, weaviate.collections.classes.types._PhoneNumber, Mapping[str, ForwardRef('WeaviateField')], Sequence[str], Sequence[bool], Sequence[int], Sequence[float], Sequence[datetime.datetime], Sequence[uuid.UUID], Sequence[Mapping[str, ForwardRef('WeaviateField')]]]], ForwardRef('CrossReferences')]]], weaviate.collections.classes.internal.GroupByReturn[-Properties, ~TReferences], weaviate.collections.classes.internal.GroupByReturn[~TProperties, ~References], weaviate.collections.classes.internal.GroupByReturn[~TProperties, Mapping[str, weaviate.collections.classes.internal._CrossReference[Mapping[str, Union[NoneType, str, bool, int, float, datetime.datetime, uuid.UUID, weaviate.collections.classes.types.GeoCoordinate, weaviate.collections.classes.types.PhoneNumber, weaviate.collections.classes.types._PhoneNumber, Mapping[str, ForwardRef('WeaviateField')], Sequence[str], Sequence[bool], Sequence[int], Sequence[float], Sequence[datetime.datetime], Sequence[uuid.UUID], Sequence[Mapping[str, ForwardRef('WeaviateField')]]]], ForwardRef('CrossReferences')]]], Awaitable[Union[weaviate.collections.classes.internal.QueryReturn[-Properties, ~References], weaviate.collections.classes.internal.QueryReturn[~TProperties, ~TReferences], weaviate.collections.classes.internal.QueryReturn[-Properties, Mapping[str, weaviate.collections.classes.internal._CrossReference[Mapping[str, Union[NoneType, str, bool, int, float, datetime.datetime, uuid.UUID, weaviate.collections.classes.types.GeoCoordinate, weaviate.collections.classes.types.PhoneNumber, weaviate.collections.classes.types._PhoneNumber, Mapping[str, ForwardRef('WeaviateField')], Sequence[str], Sequence[bool], Sequence[int], Sequence[float], Sequence[datetime.datetime], Sequence[uuid.UUID], Sequence[Mapping[str, ForwardRef('WeaviateField')]]]], ForwardRef('CrossReferences')]]], weaviate.collections.classes.internal.QueryReturn[-Properties, ~TReferences], weaviate.collections.classes.internal.QueryReturn[~TProperties, ~References], weaviate.collections.classes.internal.QueryReturn[~TProperties, Mapping[str, weaviate.collections.classes.internal._CrossReference[Mapping[str, Union[NoneType, str, bool, int, float, datetime.datetime, uuid.UUID, weaviate.collections.classes.types.GeoCoordinate, weaviate.collections.classes.types.PhoneNumber, weaviate.collections.classes.types._PhoneNumber, Mapping[str, ForwardRef('WeaviateField')], Sequence[str], Sequence[bool], Sequence[int], Sequence[float], Sequence[datetime.datetime], Sequence[uuid.UUID], Sequence[Mapping[str, ForwardRef('WeaviateField')]]]], ForwardRef('CrossReferences')]]], weaviate.collections.classes.internal.GroupByReturn[-Properties, ~References], weaviate.collections.classes.internal.GroupByReturn[~TProperties, ~TReferences], weaviate.collections.classes.internal.GroupByReturn[-Properties, Mapping[str, weaviate.collections.classes.internal._CrossReference[Mapping[str, Union[NoneType, str, bool, int, float, datetime.datetime, uuid.UUID, weaviate.collections.classes.types.GeoCoordinate, weaviate.collections.classes.types.PhoneNumber, weaviate.collections.classes.types._PhoneNumber, Mapping[str, ForwardRef('WeaviateField')], Sequence[str], Sequence[bool], Sequence[int], Sequence[float], Sequence[datetime.datetime], Sequence[uuid.UUID], Sequence[Mapping[str, ForwardRef('WeaviateField')]]]], ForwardRef('CrossReferences')]]], weaviate.collections.classes.internal.GroupByReturn[-Properties, ~TReferences], weaviate.collections.classes.internal.GroupByReturn[~TProperties, ~References], weaviate.collections.classes.internal.GroupByReturn[~TProperties, Mapping[str, weaviate.collections.classes.internal._CrossReference[Mapping[str, Union[NoneType, str, bool, int, float, datetime.datetime, uuid.UUID, weaviate.collections.classes.types.GeoCoordinate, weaviate.collections.classes.types.PhoneNumber, weaviate.collections.classes.types._PhoneNumber, Mapping[str, ForwardRef('WeaviateField')], Sequence[str], Sequence[bool], Sequence[int], Sequence[float], Sequence[datetime.datetime], Sequence[uuid.UUID], Sequence[Mapping[str, ForwardRef('WeaviateField')]]]], ForwardRef('CrossReferences')]]]]]]",
+    "installed_source_file": "C:\\Users\\hembad\\AppData\\Local\\Temp\\memspine-dependency-validation-313\\Lib\\site-packages\\weaviate\\collections\\queries\\hybrid\\query\\executor.py",
+    "evidence_basis": "installed official SDK implementation source, not an Engine capability descriptor"
+  },
+  "corpus": {
+    "fixture_count": 26,
+    "namespace_a_count": 25,
+    "namespace_b_count": 1,
+    "fixed_fixture_content_sha256": "ae6165f682f2a07f26ead9f8c4df34270e00f438a0907fe829802dcd95a06d16",
+    "fixture_names_to_record_ids": {
+      "entity": "0179af66-1005-4ed2-84d7-3f3a702277f3",
+      "renewal": "a9126c1b-c571-4528-9066-7d0e38d26bc7",
+      "literal": "1d570f28-b4ad-4729-adb3-7439009ee35e",
+      "scope": "127f9e01-8961-4493-ac19-7f86b566c0c3",
+      "tombstone": "8ee729bb-d649-457f-a0cb-0011110790e8",
+      "foreign-scope": "9afa01a8-8d1b-498b-9cf6-65c0e3ba923e",
+      "distractor-00": "d21812e7-9aac-43ec-8041-f53d3cd8e790",
+      "distractor-01": "39a9cc26-571d-430c-99ec-782fb3e2d211",
+      "distractor-02": "ff2101f5-7371-4d99-ae27-06a5c1daaa21",
+      "distractor-03": "55b1041b-c59c-4e90-8549-7fbd5c16a302",
+      "distractor-04": "3825e30c-fcdd-4e01-9fec-6c75aa6aa1a9",
+      "distractor-05": "13c6edd8-b27d-48c9-b23b-4c3ab4b7db77",
+      "distractor-06": "f08d6e9b-187f-4688-ac48-8ed6fd473081",
+      "distractor-07": "50cdf531-f4c0-4a04-94d7-4ae014db27da",
+      "distractor-08": "06fe72d3-8120-4815-b440-81bc1bfa5a99",
+      "distractor-09": "5c6af366-1fb9-43f3-81ef-159b55efa745",
+      "distractor-10": "41c24869-90c0-4cf1-90f7-02cb9f4f3a80",
+      "distractor-11": "ea220a36-35b2-447a-b3ab-1162162594a7",
+      "distractor-12": "64aeade2-3d14-4ab2-b8b2-4b2d4e362fc8",
+      "distractor-13": "b45e9909-aea8-4502-bccc-a11667e92653",
+      "distractor-14": "57214750-1286-4fda-a78f-c0a05aa2fb14",
+      "distractor-15": "59aed95f-a512-4da7-a370-4ae72ff3f719",
+      "distractor-16": "e248b672-14b3-4aa8-94f9-d853e4506bc9",
+      "distractor-17": "e1b19ed5-d06e-42b8-a863-0a5e35957afe",
+      "distractor-18": "6bd5f0fd-7dee-484d-a83a-4a1416e7201f",
+      "distractor-19": "4cd17a6d-a5b8-45bb-a8b4-cafbef187f08"
+    },
+    "embedding": {
+      "provider": "hash",
+      "dimension": 64,
+      "embedder_id": "hash:64"
+    },
+    "model_calls": 0
+  },
+  "portable_stack": {
+    "lexical": {
+      "provider": "Tantivy",
+      "version": "0.26.2"
+    },
+    "vector": {
+      "provider": "LanceDB",
+      "version": "0.40.0"
+    },
+    "fusion": "memspine.services.lexical.base.rrf_fuse"
+  },
+  "budgets": {
+    "query_count": 5,
+    "search_calls_including_tombstone_control": 18,
+    "call_cap": 30,
+    "portable_candidates_per_leg": 5,
+    "portable_union_candidate_cap": 10,
+    "native_exposed_candidate_limit": 10,
+    "final_top_k": 5,
+    "native_alpha": 0.5,
+    "scope_filter": "exact namespace and owner_scope on all native/portable query legs"
+  },
+  "tombstone_control": {
+    "record_id": "8ee729bb-d649-457f-a0cb-0011110790e8",
+    "native_pre_delete_found": true,
+    "portable_vector_pre_delete_found": true,
+    "portable_lexical_pre_delete_found": true,
+    "hard_delete_verified_in_native_and_both_portable_projections": true,
+    "post_delete_searches_excluded_record": true
+  },
+  "results": [
+    {
+      "case_id": "entity",
+      "namespace": "pa089/team-a",
+      "query": "Mira cobalt observability playbook project A17",
+      "expected_relevant_record_ids": [
+        "0179af66-1005-4ed2-84d7-3f3a702277f3"
+      ],
+      "native_candidate_count": 10,
+      "native_ranked_record_ids": [
+        "0179af66-1005-4ed2-84d7-3f3a702277f3",
+        "ff2101f5-7371-4d99-ae27-06a5c1daaa21",
+        "127f9e01-8961-4493-ac19-7f86b566c0c3",
+        "e1b19ed5-d06e-42b8-a863-0a5e35957afe",
+        "d21812e7-9aac-43ec-8041-f53d3cd8e790"
+      ],
+      "portable_vector_candidate_ids": [
+        "0179af66-1005-4ed2-84d7-3f3a702277f3",
+        "e1b19ed5-d06e-42b8-a863-0a5e35957afe",
+        "127f9e01-8961-4493-ac19-7f86b566c0c3",
+        "ff2101f5-7371-4d99-ae27-06a5c1daaa21",
+        "41c24869-90c0-4cf1-90f7-02cb9f4f3a80"
+      ],
+      "portable_lexical_candidate_ids": [
+        "0179af66-1005-4ed2-84d7-3f3a702277f3",
+        "ff2101f5-7371-4d99-ae27-06a5c1daaa21",
+        "1d570f28-b4ad-4729-adb3-7439009ee35e",
+        "127f9e01-8961-4493-ac19-7f86b566c0c3",
+        "d21812e7-9aac-43ec-8041-f53d3cd8e790"
+      ],
+      "portable_ranked_record_ids": [
+        "0179af66-1005-4ed2-84d7-3f3a702277f3",
+        "ff2101f5-7371-4d99-ae27-06a5c1daaa21",
+        "127f9e01-8961-4493-ac19-7f86b566c0c3",
+        "e1b19ed5-d06e-42b8-a863-0a5e35957afe",
+        "1d570f28-b4ad-4729-adb3-7439009ee35e"
+      ],
+      "native_diagnostic_metrics": {
+        "relevant_in_top_k": 1,
+        "mrr_at_k": 1.0,
+        "ndcg_at_k": 1.0
+      },
+      "portable_diagnostic_metrics": {
+        "relevant_in_top_k": 1,
+        "mrr_at_k": 1.0,
+        "ndcg_at_k": 1.0
+      },
+      "scope_and_tombstone_assertions_passed": true
+    },
+    {
+      "case_id": "renewal",
+      "namespace": "pa089/team-a",
+      "query": "Acme renewal signed 2025-04-02 Utrecht",
+      "expected_relevant_record_ids": [
+        "a9126c1b-c571-4528-9066-7d0e38d26bc7"
+      ],
+      "native_candidate_count": 10,
+      "native_ranked_record_ids": [
+        "a9126c1b-c571-4528-9066-7d0e38d26bc7",
+        "39a9cc26-571d-430c-99ec-782fb3e2d211",
+        "4cd17a6d-a5b8-45bb-a8b4-cafbef187f08",
+        "b45e9909-aea8-4502-bccc-a11667e92653",
+        "41c24869-90c0-4cf1-90f7-02cb9f4f3a80"
+      ],
+      "portable_vector_candidate_ids": [
+        "a9126c1b-c571-4528-9066-7d0e38d26bc7",
+        "b45e9909-aea8-4502-bccc-a11667e92653",
+        "41c24869-90c0-4cf1-90f7-02cb9f4f3a80",
+        "13c6edd8-b27d-48c9-b23b-4c3ab4b7db77",
+        "f08d6e9b-187f-4688-ac48-8ed6fd473081"
+      ],
+      "portable_lexical_candidate_ids": [
+        "a9126c1b-c571-4528-9066-7d0e38d26bc7",
+        "4cd17a6d-a5b8-45bb-a8b4-cafbef187f08",
+        "39a9cc26-571d-430c-99ec-782fb3e2d211",
+        "b45e9909-aea8-4502-bccc-a11667e92653",
+        "3825e30c-fcdd-4e01-9fec-6c75aa6aa1a9"
+      ],
+      "portable_ranked_record_ids": [
+        "a9126c1b-c571-4528-9066-7d0e38d26bc7",
+        "b45e9909-aea8-4502-bccc-a11667e92653",
+        "4cd17a6d-a5b8-45bb-a8b4-cafbef187f08",
+        "41c24869-90c0-4cf1-90f7-02cb9f4f3a80",
+        "39a9cc26-571d-430c-99ec-782fb3e2d211"
+      ],
+      "native_diagnostic_metrics": {
+        "relevant_in_top_k": 1,
+        "mrr_at_k": 1.0,
+        "ndcg_at_k": 1.0
+      },
+      "portable_diagnostic_metrics": {
+        "relevant_in_top_k": 1,
+        "mrr_at_k": 1.0,
+        "ndcg_at_k": 1.0
+      },
+      "scope_and_tombstone_assertions_passed": true
+    },
+    {
+      "case_id": "literal",
+      "namespace": "pa089/team-a",
+      "query": "COBALT-77/AX9",
+      "expected_relevant_record_ids": [
+        "1d570f28-b4ad-4729-adb3-7439009ee35e"
+      ],
+      "native_candidate_count": 10,
+      "native_ranked_record_ids": [
+        "1d570f28-b4ad-4729-adb3-7439009ee35e",
+        "57214750-1286-4fda-a78f-c0a05aa2fb14",
+        "ff2101f5-7371-4d99-ae27-06a5c1daaa21",
+        "0179af66-1005-4ed2-84d7-3f3a702277f3",
+        "6bd5f0fd-7dee-484d-a83a-4a1416e7201f"
+      ],
+      "portable_vector_candidate_ids": [
+        "1d570f28-b4ad-4729-adb3-7439009ee35e",
+        "0179af66-1005-4ed2-84d7-3f3a702277f3",
+        "a9126c1b-c571-4528-9066-7d0e38d26bc7",
+        "127f9e01-8961-4493-ac19-7f86b566c0c3",
+        "d21812e7-9aac-43ec-8041-f53d3cd8e790"
+      ],
+      "portable_lexical_candidate_ids": [
+        "1d570f28-b4ad-4729-adb3-7439009ee35e",
+        "57214750-1286-4fda-a78f-c0a05aa2fb14",
+        "ff2101f5-7371-4d99-ae27-06a5c1daaa21",
+        "0179af66-1005-4ed2-84d7-3f3a702277f3",
+        "6bd5f0fd-7dee-484d-a83a-4a1416e7201f"
+      ],
+      "portable_ranked_record_ids": [
+        "1d570f28-b4ad-4729-adb3-7439009ee35e",
+        "0179af66-1005-4ed2-84d7-3f3a702277f3",
+        "57214750-1286-4fda-a78f-c0a05aa2fb14",
+        "a9126c1b-c571-4528-9066-7d0e38d26bc7",
+        "ff2101f5-7371-4d99-ae27-06a5c1daaa21"
+      ],
+      "native_diagnostic_metrics": {
+        "relevant_in_top_k": 1,
+        "mrr_at_k": 1.0,
+        "ndcg_at_k": 1.0
+      },
+      "portable_diagnostic_metrics": {
+        "relevant_in_top_k": 1,
+        "mrr_at_k": 1.0,
+        "ndcg_at_k": 1.0
+      },
+      "scope_and_tombstone_assertions_passed": true
+    },
+    {
+      "case_id": "scope",
+      "namespace": "pa089/team-a",
+      "query": "Project ember scope sentinel",
+      "expected_relevant_record_ids": [
+        "127f9e01-8961-4493-ac19-7f86b566c0c3"
+      ],
+      "native_candidate_count": 10,
+      "native_ranked_record_ids": [
+        "127f9e01-8961-4493-ac19-7f86b566c0c3",
+        "06fe72d3-8120-4815-b440-81bc1bfa5a99",
+        "0179af66-1005-4ed2-84d7-3f3a702277f3",
+        "ff2101f5-7371-4d99-ae27-06a5c1daaa21",
+        "a9126c1b-c571-4528-9066-7d0e38d26bc7"
+      ],
+      "portable_vector_candidate_ids": [
+        "127f9e01-8961-4493-ac19-7f86b566c0c3",
+        "06fe72d3-8120-4815-b440-81bc1bfa5a99",
+        "0179af66-1005-4ed2-84d7-3f3a702277f3",
+        "ff2101f5-7371-4d99-ae27-06a5c1daaa21",
+        "a9126c1b-c571-4528-9066-7d0e38d26bc7"
+      ],
+      "portable_lexical_candidate_ids": [
+        "127f9e01-8961-4493-ac19-7f86b566c0c3",
+        "06fe72d3-8120-4815-b440-81bc1bfa5a99",
+        "0179af66-1005-4ed2-84d7-3f3a702277f3",
+        "d21812e7-9aac-43ec-8041-f53d3cd8e790",
+        "e248b672-14b3-4aa8-94f9-d853e4506bc9"
+      ],
+      "portable_ranked_record_ids": [
+        "127f9e01-8961-4493-ac19-7f86b566c0c3",
+        "06fe72d3-8120-4815-b440-81bc1bfa5a99",
+        "0179af66-1005-4ed2-84d7-3f3a702277f3",
+        "ff2101f5-7371-4d99-ae27-06a5c1daaa21",
+        "d21812e7-9aac-43ec-8041-f53d3cd8e790"
+      ],
+      "native_diagnostic_metrics": {
+        "relevant_in_top_k": 1,
+        "mrr_at_k": 1.0,
+        "ndcg_at_k": 1.0
+      },
+      "portable_diagnostic_metrics": {
+        "relevant_in_top_k": 1,
+        "mrr_at_k": 1.0,
+        "ndcg_at_k": 1.0
+      },
+      "scope_and_tombstone_assertions_passed": true
+    },
+    {
+      "case_id": "tombstone",
+      "namespace": "pa089/team-a",
+      "query": "Retire marker ORBIT-REVOKED-999",
+      "expected_relevant_record_ids": [],
+      "native_candidate_count": 10,
+      "native_ranked_record_ids": [
+        "b45e9909-aea8-4502-bccc-a11667e92653",
+        "a9126c1b-c571-4528-9066-7d0e38d26bc7",
+        "64aeade2-3d14-4ab2-b8b2-4b2d4e362fc8",
+        "41c24869-90c0-4cf1-90f7-02cb9f4f3a80",
+        "55b1041b-c59c-4e90-8549-7fbd5c16a302"
+      ],
+      "portable_vector_candidate_ids": [
+        "b45e9909-aea8-4502-bccc-a11667e92653",
+        "a9126c1b-c571-4528-9066-7d0e38d26bc7",
+        "41c24869-90c0-4cf1-90f7-02cb9f4f3a80",
+        "64aeade2-3d14-4ab2-b8b2-4b2d4e362fc8",
+        "55b1041b-c59c-4e90-8549-7fbd5c16a302"
+      ],
+      "portable_lexical_candidate_ids": [],
+      "portable_ranked_record_ids": [
+        "b45e9909-aea8-4502-bccc-a11667e92653",
+        "a9126c1b-c571-4528-9066-7d0e38d26bc7",
+        "41c24869-90c0-4cf1-90f7-02cb9f4f3a80",
+        "64aeade2-3d14-4ab2-b8b2-4b2d4e362fc8",
+        "55b1041b-c59c-4e90-8549-7fbd5c16a302"
+      ],
+      "native_diagnostic_metrics": {
+        "relevant_in_top_k": 0,
+        "mrr_at_k": 0.0,
+        "ndcg_at_k": null
+      },
+      "portable_diagnostic_metrics": {
+        "relevant_in_top_k": 0,
+        "mrr_at_k": 0.0,
+        "ndcg_at_k": null
+      },
+      "scope_and_tombstone_assertions_passed": true
+    }
+  ],
+  "ranking_interpretation": {
+    "metrics": "synthetic fixture diagnostics (MRR@5, nDCG@5), not semantic/model quality",
+    "same_queries_embeddings_data_namespace_filters_and_final_top_k": true,
+    "same_max_candidate_return_budget": true,
+    "internal_candidate_equivalence": "not available: Weaviate's native hybrid API exposes one fused-result limit and does not expose a separate BM25/vector candidate-pool cap. Portable RRF requests five from each leg (at most ten unique union candidates); native requests ten fused candidates, then both report top five. Server-internal native candidate behavior is opaque.",
+    "native_fusion": "Weaviate server hybrid with caller-supplied hash vector and alpha=0.5",
+    "portable_fusion": "independent local Tantivy BM25 and LanceDB vector legs, each top-5, fused once by memspine rrf_fuse"
+  },
+  "engine_capability": {
+    "advertised_native_hybrid": false,
+    "default_or_engine_routing_changed": false,
+    "claim": "experimental external backend capability only; not a shipped Memspine feature or production approval"
+  },
+  "limitations": [
+    "Hash dim=64 is deterministic plumbing and fixture material, not semantic embedding quality.",
+    "The synthetic labels are authored from the fixed fixture and metrics are diagnostic only.",
+    "The native backend has no exposed internal candidate-pool budget equivalent to two portable legs.",
+    "One Weaviate server version, one local run, five queries, and 26 records do not establish production relevance or latency.",
+    "No native results were merged into portable RRF; each backend contributed one unique-record ranking per query."
+  ]
+}

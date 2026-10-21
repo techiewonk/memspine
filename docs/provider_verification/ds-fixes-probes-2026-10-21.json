@@ -1,0 +1,51 @@
+{
+  "date": "2026-10-21",
+  "scope": "Isolated current-code methods; not Engine/DB integration or full suite",
+  "queue_failure": {
+    "before": 2,
+    "after": 2,
+    "enqueue_calls": 1,
+    "gap_reproduced": false
+  },
+  "barrier_timeout": {
+    "requested_seconds": 0.002,
+    "simulated_drain_seconds": 0.06,
+    "elapsed_seconds": 0.010723000013967976,
+    "gap_reproduced": false,
+    "boundary": "Low-level wait; read.PendingBarrier has a separate asyncio.wait_for guard"
+  },
+  "rule_candidates": {
+    "method": "Actual rule parser; only output container stubbed, no Engine persistence",
+    "cases": {
+      "explicit": [
+        {
+          "entity": "Asha",
+          "attribute": "home",
+          "value": "Lisbon",
+          "date": "2026-10-01",
+          "kind": "state",
+          "turns": [
+            1
+          ],
+          "persons": [
+            "Asha"
+          ]
+        }
+      ],
+      "conditional": [],
+      "reported_speech": []
+    },
+    "interpretation": "Inspect conditional/reported candidates against explicit control; downstream integration not exercised"
+  },
+  "source_time": {
+    "input": "2026-10-01",
+    "accepted_created_at": "2026-10-01",
+    "classification": "Contract gap; conversion also has an explicit naive-time assumption policy"
+  },
+  "unknown_input_key": {
+    "unknown_id_accepted": true,
+    "canonical_id_different": true,
+    "second_normalisation_new_id": true,
+    "classification": "id is not canonical; reject unknown fields rather than add aliases"
+  }
+}

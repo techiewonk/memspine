@@ -1,0 +1,256 @@
+{
+  "artifacts": [
+    {
+      "path": "src/memspine/config/schema/llm.py",
+      "sha256": "eaefedeecd4f782f6636ddaa8bc93f55b9575f9223e47d27e99baf5c4ef85412"
+    },
+    {
+      "path": "src/memspine/config/schema/root.py",
+      "sha256": "0134b753e27bbc541eadfdc9474a495d5ef0d7a043225498532057b7eb2a47ff"
+    },
+    {
+      "path": "src/memspine/config/schema/__init__.py",
+      "sha256": "83ae92f126fdce595426b4d18fad87f66eea20dfb4a12a80483ccc3be445c284"
+    },
+    {
+      "path": "src/memspine/models/profiles.py",
+      "sha256": "2e8306aadc5fafe5845713a3ef2004b8ceb56e35997246373d36e4ba41c6cd26"
+    },
+    {
+      "path": "src/memspine/models/runtime/escalation.py",
+      "sha256": "f9d1b91ef442c89f586b2f3a3f1fca09fde3837626c7b4c1b541aa470415993c"
+    },
+    {
+      "path": "src/memspine/models/providers/llm/base.py",
+      "sha256": "7d2c15cdb13c99fa1e7626abed543c56e0a8dfc89df51f7b92f72376ec707da5"
+    },
+    {
+      "path": "src/memspine/runtime/container.py",
+      "sha256": "09e3fe36eac13bbb74a98d06a4b95606727c9164171f42a1b4cae3898d53f229"
+    },
+    {
+      "path": "src/memspine/api/engine.py",
+      "sha256": "6deb90b1a8c9bfee8f50f20e8ec52f5c969c189e608a0caa70725c8e4db37ff3"
+    },
+    {
+      "path": "src/memspine/ingest/windows.py",
+      "sha256": "6d4781fc21d4eaf8a37cdfb3a5da250db06370e03b2eeb68b5d27807b92d5dd7"
+    },
+    {
+      "path": "src/memspine/derive/prepass.py",
+      "sha256": "5fc0f2215a77a6a2f8fb3d0294e5fb5ea865476dfe6e321f939956ee0b5e661f"
+    },
+    {
+      "path": "src/memspine/derive/known_sources.py",
+      "sha256": "cc84c41417de154b55088620b2e613b49424ffa98cba9579571615feee24809a"
+    },
+    {
+      "path": "src/memspine/memories/semantic/entities.py",
+      "sha256": "a56207c3cb99ae289437a7f398d5712f5da4c9fa47dd42a418386e6683e75d25"
+    },
+    {
+      "path": "src/memspine/models/providers/decision/gliner2_decision.py",
+      "sha256": "fa7a40a769442dd070d8c3590ed7568bf4f36db443521ef2887a6b108d2b1c4b"
+    },
+    {
+      "path": "src/memspine/providers/contexts.py",
+      "sha256": "aef6af05c64aad18685170864227aa420701cd4cd66495a501c7d8737281470b"
+    },
+    {
+      "path": "src/memspine/providers/builtin/models.py",
+      "sha256": "8cb82606fe68c4e505b99390a6877f1a3cdc77659220fafc6b17e12c1895830b"
+    },
+    {
+      "path": "tests/unit/config/test_model_profiles.py",
+      "sha256": "c04a14794a9b338a79e80f5c13f529eb14b24deb7ed4cf4c28fa8cb0c587144d"
+    },
+    {
+      "path": "tests/unit/config/test_model_profile_example.py",
+      "sha256": "27286c651fe6f641b0498828818e3ae2d71d9a42f5ed2d0256eb66d10d123259"
+    },
+    {
+      "path": "tests/unit/models/test_escalation.py",
+      "sha256": "72e6a099577ac76e96cc7ac848d69b384f98bcc25c05b18dcd0e4f4da96046c2"
+    },
+    {
+      "path": "tests/unit/providers/test_provider_llamacpp_lifecycle.py",
+      "sha256": "74ebd9682b38289ca8be44ce6e8a7e1b79c0c91eae6ccf6939602def774ad6ac"
+    },
+    {
+      "path": "tests/unit/services/decision/test_decision.py",
+      "sha256": "136f545e704bd0a8feb0fc1d41f6c6231d5ae1b038966ae31509d5c73a22feac"
+    },
+    {
+      "path": "tests/unit/wiring/test_w2_13_prepass.py",
+      "sha256": "7a09e278971222d0aee777fda62bae49e0d10a156484b8561ba733ab1eae57f7"
+    },
+    {
+      "path": "tests/unit/config/test_requires.py",
+      "sha256": "94b7e6d013b9537d2639e38bbcadcd3c81b8fd00eada1e6dce1d2578575097f7"
+    },
+    {
+      "path": "tests/unit/config/test_config_split_equivalence.py",
+      "sha256": "f3080fb40f4923a6254391e8d391a8bf1481e8eb8d92b2234edf3807b5049cf6"
+    },
+    {
+      "path": "tests/unit/test_simple_profile_golden.py",
+      "sha256": "dee372e1e1b6435797cabfe8153cb91ecfdd18b69642b57a89b3dc8e0a7692c7"
+    },
+    {
+      "path": "tests/unit/models/runtime/test_gliner_runtime.py",
+      "sha256": "d18a80d4d45fc201ca79a64258bc27faba959558af844763b70f231edf702582"
+    },
+    {
+      "path": "tests/unit/wiring/test_w2_06c_known_sources.py",
+      "sha256": "7a0d473e56c8d6641f8feccbd2f36793838a8fc8f20cd4e08116f5363727a0b4"
+    },
+    {
+      "path": "tests/unit/test_window_write.py",
+      "sha256": "a36fcceb9bb8aafef5b57dcc80a47a864de7bf377e81e70de9d5e20fb2375b6a"
+    },
+    {
+      "path": "tests/unit/test_assembly_window_dedupe.py",
+      "sha256": "623a7bae2b2b035a45f43acbb81663109eb911ac68db695080cee813164d9246"
+    },
+    {
+      "path": "tests/unit/wiring/test_md_01_model_tiers.py",
+      "sha256": "8099a587ba940a64d11002b886e3134d4e9def3f70741425bc16e775027d46a8"
+    },
+    {
+      "path": "tests/unit/services/test_llm_call_counting.py",
+      "sha256": "13199dfd749a39bf4dd2d45296aa7a44e1efbe782866b3a1314f5f173112bd5c"
+    },
+    {
+      "path": "tests/unit/services/test_prompt_usage.py",
+      "sha256": "18a22e3e3fe64d04e4ca3cc944c918cb33e6281ca60356c0e619e099293888ac"
+    },
+    {
+      "path": "tests/unit/services/llm/test_llm.py",
+      "sha256": "d4dbdae7a5c10992ba9826d40fad89a542b32e438b6d9fcd77c114028603cad7"
+    },
+    {
+      "path": "tests/unit/services/llm/test_no_think.py",
+      "sha256": "f9165e718e646180ac20dbdb009413bcd42da6ef4054c4a409dd5e15888a3ab4"
+    },
+    {
+      "path": "tests/unit/services/llm/test_structured_retry.py",
+      "sha256": "5478a56543342bcc14e85f873aa11643e1dbdcf37b8165c99302e2c9848d0df6"
+    },
+    {
+      "path": "tests/unit/test_external_privacy.py",
+      "sha256": "df0e25f0b69cdf72059fb598e9f4293798686e69bcdb62848f6180f384f58ec4"
+    },
+    {
+      "path": "tests/combinations/test_profiles_v2.py",
+      "sha256": "cd399ec3dfdc267f161856df20c5c99410e8bb73557fe6a642897879f4b1182f"
+    },
+    {
+      "path": "CLAUDE.md",
+      "sha256": "236e71121dfa90f56d9eed4ea4f3d2d58c71ccf3cd3c3fc8a5b97825b1a392f3"
+    },
+    {
+      "path": "docs/PROVIDER_TODO.md",
+      "sha256": "5780c64d4c6ad9247cfecacf07a9b18868a74e2393f995fb3d33eb9b94e31802"
+    },
+    {
+      "path": "docs/PROVIDER_ARCHITECTURE_PLAN.md",
+      "sha256": "911a3af5d2450625b4450036b433bdfb2ca38fbf2c07316a455bd8eb2e2423a3"
+    },
+    {
+      "path": "docs/memspine-structure-plan.md",
+      "sha256": "071a8c4b3b3bb9b3dc8bcd5795375eab59e2485c57fa77db9247d2d11bb34bae"
+    },
+    {
+      "path": "docs/MULTI_MODEL_PROFILES.md",
+      "sha256": "53bc50b54a3d0906944f25913724e2bbef1263eafce79e85cf66a368484a48f6"
+    },
+    {
+      "path": "docs/examples/model_profiles.yaml",
+      "sha256": "16c3ce11653d9fccf123c4bf2e27a1fb61f090e331ff4ef00937567277744a47"
+    },
+    {
+      "path": "docs/adr/ADR-075-named-model-profiles-and-escalation.md",
+      "sha256": "2ed811edd676cb194400936abe1f3484858c7b19254a5d160a4e164b35bafc0f"
+    },
+    {
+      "path": "docs/USAGE.md",
+      "sha256": "b281e1b5a42e41add366656031ad771c59ae4da07e0ffcb074746c8434fac276"
+    },
+    {
+      "path": "docs/GLINER_SHARED_RUNTIME.md",
+      "sha256": "0a9f35abccd059709f7b17c8deba63bfbe76f2cdfcdca75318c74d52be344633"
+    },
+    {
+      "path": "docs/v2/STAGE_PARAMS.md",
+      "sha256": "6142fa9436294228e2e50e2cd990dac2a746ebd6c0a9df83555034723a2ecc60"
+    },
+    {
+      "path": "docs/v2/data/stage_params.json",
+      "sha256": "a7c8d6aa2ac7d187bdd92d3da084c559039f799633efb8de435769962b1fad18"
+    },
+    {
+      "path": "docs/v2/data/stage_params_manual.json",
+      "sha256": "60a84033baf07662590fdfa55cfa378058db86d7ba3637b1ade5dfd7fc2dc2b8"
+    },
+    {
+      "path": "tests/unit/config/data/config_dump_baseline.json",
+      "sha256": "4a0eb6a4069f520a0c90263bfe1f17ca39b8fad82cee15b522eec033a2f103ea"
+    },
+    {
+      "path": "docs/provider_verification/README.md",
+      "sha256": "3b8b592f8e52032a3ff0636092b1f788d2f8cb0ba74368143e78ae8e4475950f"
+    },
+    {
+      "path": "docs/provider_verification/model-profiles-config-focused.log",
+      "sha256": "dc7840743503262ab9ce8bfce12bbbd84c24187d3da81bcdf6bd17c819f76900"
+    },
+    {
+      "path": "docs/provider_verification/model-profiles-gliner-focused.log",
+      "sha256": "24748e2f7f4d1067267ce86b7929cba43b0492bc0a46d3248576329e946841b2"
+    },
+    {
+      "path": "docs/provider_verification/model-profiles-llm-focused.log",
+      "sha256": "c60cd750c628e9f073b5569b580802b7d39ed693130e37bf13e1beeb09c565a8"
+    },
+    {
+      "path": "docs/provider_verification/model-profiles-ruff.log",
+      "sha256": "a4443afdcfb6d7363adb285762515ccf7cf50473b1a05c20c1a50f6bed4d26b0"
+    },
+    {
+      "path": "docs/provider_verification/model-profiles-format.log",
+      "sha256": "b004a97f0dd372a0e7a6b47ad48fe21aa9527174013e745021007146a0e2b7d0"
+    },
+    {
+      "path": "docs/provider_verification/model-profiles-mypy.log",
+      "sha256": "61a62a318fa6bf09a97778c351a33c9175e14fc182f248ae957f3efef9249a7b"
+    },
+    {
+      "path": "docs/provider_verification/model-profiles-reference-check.json",
+      "sha256": "aa33f6556b3d090f885cb0a7001b40089cbd59e0b3ae2c811cb55bf9bf8e5adb"
+    }
+  ],
+  "command": "config: python -m pytest tests/unit/config/test_model_profiles.py tests/unit/config/test_model_profile_example.py tests/unit/config/test_requires.py tests/unit/config/test_config_split_equivalence.py tests/unit/test_simple_profile_golden.py -p no:deepeval -o addopts= -q --tb=short -rs; gliner: python -m pytest tests/unit/models/runtime/test_gliner_runtime.py tests/unit/services/decision/test_decision.py tests/unit/wiring/test_w2_13_prepass.py tests/unit/wiring/test_w2_06c_known_sources.py tests/unit/test_window_write.py tests/unit/test_assembly_window_dedupe.py -p no:deepeval -o addopts= -q --tb=short -rs; llm: python -m pytest tests/unit/models/test_escalation.py tests/unit/providers/test_provider_llamacpp_lifecycle.py tests/unit/wiring/test_md_01_model_tiers.py tests/unit/services/test_llm_call_counting.py tests/unit/services/test_prompt_usage.py tests/unit/services/llm/test_llm.py tests/unit/services/llm/test_no_think.py tests/unit/services/llm/test_structured_retry.py tests/unit/test_external_privacy.py tests/combinations/test_profiles_v2.py tests/unit/config/test_model_profile_example.py -p no:deepeval -o addopts= -q --tb=short -rs",
+  "counts": {
+    "failed": 0,
+    "passed": 356,
+    "skipped": 1
+  },
+  "evidence": [
+    "Three focused chunks: config 78, GLiNER 130 plus 1 intentional skip, LLM 148. Counts are pass executions and include one repeated example test. Ruff check/format 21 Python files and strict mypy 15 source files pass. No full-suite or complete-Engine performance run; no remote model calls. Tracker 136 IDs: 98 DONE, 10 OPEN, 19 DEPLOYMENT_CHECK, 3 NEEDS_INPUT, 1 NEEDS_TOOLCHAIN, 4 EXCLUDED, 1 DEFERRED."
+  ],
+  "gate": "named-model-profiles-final",
+  "recorded_at": "2026-10-18T09:31:10.776172+05:30",
+  "runtime": {
+    "implementation": "CPython",
+    "platform": "Windows-11-10.0.26340-SP0",
+    "python": "3.13.5"
+  },
+  "schema_version": 1,
+  "source": {
+    "git_dirty": true,
+    "git_head": "e6596f44c1e9937050ef68938037f2cf2341ee34",
+    "pyproject_toml_sha256": "d612a620cc254f4d2467d39155a5c2aea7fd3bdcc1af95de27629cbff67075ca",
+    "uv_lock_sha256": "519b815049f45ea11286a9e358f996d74d3f8da8fecff9b364b709bab96e6c09"
+  },
+  "status": "passed"
+}

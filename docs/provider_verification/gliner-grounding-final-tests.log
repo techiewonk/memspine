@@ -1,0 +1,24 @@
+........................................................................ [ 26%]
+....s................................................................... [ 53%]
+........................................................................ [ 80%]
+...................................................                      [100%]
+============================== warnings summary ===============================
+tests/unit/services/decision/test_decision.py: 5 warnings
+tests/unit/wiring/test_w2_13_prepass.py: 2 warnings
+tests/unit/wiring/test_w2_06a_envelope.py: 1 warning
+tests/unit/test_window_write.py: 4 warnings
+  C:\Users\hembad\Documents\GitHub\memspine-restructure\src\memspine\services\vector\lancedb_store.py:213: UserWarning: optimize(cleanup_older_than=0) removes every version except the latest. Any concurrent reader or writer still using an older version will fail. Use a longer cleanup_older_than unless no other process is working on this table.
+    await asyncio.to_thread(lambda: table.optimize(cleanup_older_than=cleanup))
+
+tests/unit/test_window_write.py::test_forget_cascades_to_window_facts_and_purges_the_cache
+tests/unit/test_window_write.py::test_forget_while_the_call_is_running_leaves_no_fact
+tests/unit/test_window_write.py::test_forget_removes_the_turn_from_queued_and_open_windows
+tests/unit/test_window_write.py::test_forget_of_every_turn_of_a_queued_window_drops_the_window
+tests/unit/test_window_write.py::test_forgotten_turn_loses_its_pending_edge
+  C:\Users\hembad\Documents\GitHub\memspine-restructure\src\memspine\services\vector\lancedb_store.py:450: UserWarning: optimize(cleanup_older_than=0) removes every version except the latest. Any concurrent reader or writer still using an older version will fail. Use a longer cleanup_older_than unless no other process is working on this table.
+    table.optimize(cleanup_older_than=timedelta(0))
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+SKIPPED [1] tests\unit\wiring\test_w2_13_prepass.py:566: real model inference is covered by the explicit offline smoke tool
+266 passed, 1 skipped, 17 warnings in 52.92s

@@ -1,0 +1,10 @@
+Command:
+`$env:PYTHONPATH='src'; C:/Users/hembad/AppData/Local/Temp/memspine-dependency-validation-313/Scripts/python.exe scripts/benchmark_gliner_ownership.py --repeats 100`
+
+Result: completed on Python 3.13.5 / Windows 11 after the final pool lifecycle
+changes. Three independent fake clients
+performed 3 loader calls; three concurrent leases sharing one key performed 1
+loader call. This is a kernel load-count check only. No GLiNER SDK import,
+checkpoint/model load, model inference, Hub request, or quality claim is part
+of this benchmark. The focused pool suite passes 20 tests; targeted Ruff and
+mypy checks pass. Raw machine-readable output is in `gliner-ownership-kernel.json`.

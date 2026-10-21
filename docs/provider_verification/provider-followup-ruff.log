@@ -1,0 +1,124 @@
+UP035 [*] Import from `collections.abc` instead: `Iterator`
+  --> scripts\trace_memory_lifecycle.py:21:1
+   |
+19 | from contextlib import contextmanager
+20 | from pathlib import Path
+21 | from typing import Any, Iterator
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+22 |
+23 | ROOT = Path(__file__).resolve().parents[1]
+   |
+help: Import from `collections.abc`
+   |
+20 | from pathlib import Path
+   - from typing import Any, Iterator
+21 + from typing import Any
+22 + from collections.abc import Iterator
+23 |
+   |
+
+I001 [*] Import block is un-sorted or un-formatted
+   --> scripts\trace_memory_lifecycle.py:160:5
+    |
+159 |   async def run_trace(database: Path) -> dict[str, Any]:
+160 | /     from memspine import Engine
+161 | |     from flows.f01_ingest import CONFIG
+    | |_______________________________________^
+162 |
+163 |       if database.exists():
+    |
+help: Organize imports
+    |
+159 | async def run_trace(database: Path) -> dict[str, Any]:
+    -     from memspine import Engine
+160 |     from flows.f01_ingest import CONFIG
+161 |
+162 +     from memspine import Engine
+163 +
+164 |     if database.exists():
+    |
+
+I001 [*] Import block is un-sorted or un-formatted
+  --> tests\fixtures\provider_plugin\smoke_installed.py:1:1
+   |
+ 1 | / import asyncio
+ 2 | | import hashlib
+ 3 | | import importlib.metadata as metadata
+ 4 | | import json
+ 5 | | import pathlib
+ 6 | | import sys
+ 7 | |
+ 8 | | from memspine import Engine, plugins
+ 9 | | from memspine.providers.registry import EMBEDDERS, ProviderRegistryError
+   | |________________________________________________________________________^
+10 |
+11 |   async def main():
+   |
+help: Organize imports
+   |
+10 |
+11 +
+12 | async def main():
+   |
+
+B009 [*] Do not call `getattr` with a constant attribute value. It is not any safer than normal property access.
+  --> tests\fixtures\provider_plugin\src\memspine_provider_plugin_fixture\__init__.py:73:21
+   |
+71 |         self, settings: FixtureHashSettings, ctx: object
+72 |     ) -> BuildResult[FixtureHashEmbedder]:
+73 |         resources = getattr(ctx, "resources")
+   |                     ^^^^^^^^^^^^^^^^^^^^^^^^^
+74 |         service = FixtureHashEmbedder(settings.dim)
+75 |         resource = resources.own("fixture-plugin-embedder", service.aclose)
+   |
+help: Replace `getattr` with attribute access
+   |
+72 |     ) -> BuildResult[FixtureHashEmbedder]:
+   -         resources = getattr(ctx, "resources")
+73 +         resources = ctx.resources
+74 |         service = FixtureHashEmbedder(settings.dim)
+   |
+
+I001 [*] Import block is un-sorted or un-formatted
+  --> tests\unit\test_native_provider_gate.py:3:1
+   |
+ 1 |   """Strict native evidence must fail closed on incomplete execution."""
+ 2 |
+ 3 | / from __future__ import annotations
+ 4 | |
+ 5 | | import pytest
+ 6 | |
+ 7 | | from scripts.run_provider_live_contracts import (
+ 8 | |     REQUIRED_SERVICE_ENV,
+ 9 | |     gate_exit_code,
+10 | |     missing_required_services,
+11 | |     selected_images,
+12 | | )
+   | |_^
+help: Organize imports
+  |
+5 | import pytest
+  -
+6 | from scripts.run_provider_live_contracts import (
+  |
+
+I001 [*] Import block is un-sorted or un-formatted
+  --> tests\unit\test_native_provider_gate.py:50:5
+   |
+49 |   def test_strict_preflight_writes_failure_report_without_executing_pytest(monkeypatch, tmp_path):
+50 | /     import json
+51 | |     import sys
+52 | |     from scripts import run_provider_live_contracts as runner
+   | |_____________________________________________________________^
+53 |
+54 |       for name in REQUIRED_SERVICE_ENV:
+   |
+help: Organize imports
+   |
+51 |     import sys
+52 +
+53 |     from scripts import run_provider_live_contracts as runner
+   |
+
+Found 6 errors.
+[*] 6 fixable with `--fix`.

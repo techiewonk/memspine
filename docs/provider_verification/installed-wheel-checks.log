@@ -1,0 +1,86 @@
+Installed wheel and independent optional-extra checks
+Date: 2026-10-17
+Host: Windows 11 x64, CPython 3.13.5
+Global uv: 0.8.0 (unchanged)
+Test uv: uv 0.13.1 through `uv tool run --from uv==0.13.1 uv`
+Working directory for runtime smoke: C:\Users\hembad\AppData\Local\Temp\memspine-wheel-smoke-run
+PYTHONPATH: cleared for installed-wheel runtime smoke
+
+Source revision: e6596f44c1e9937050ef68938037f2cf2341ee34 (worktree dirty)
+Wheel: dist/memspine-0.0.1-py3-none-any.whl
+Wheel SHA-256: 5b5f1707636176a8ce50074efb7b1f6deea5f4b6b1ba90833c29f7e34d6ab3db
+Package source manifest SHA-256: 6eb6db38a985c1510f1a9708bfeb808ed338182959131a34a682d0aa4817db5a
+Wheel content comparison: all 696 packaged memspine files matched the current src/memspine files byte-for-byte.
+
+PA-042: PASS
+- Clean venv: %TEMP%\memspine-wheel-smoke-313
+- `uv pip check`: 96 packages compatible.
+- Engine imported from that venv's site-packages with PYTHONPATH cleared and an external cwd.
+- Engine(core, in-memory SQLite, hash embedder): start -> write -> semantic search returned the written record ID -> stop.
+- No model weights downloaded.
+
+PA-043: PASS, each in an independent new venv
+- OpenSearch: %TEMP%\memspine-wheel-opensearch-313; 100 installed distributions; opensearch-py 3.2.0; `uv pip check` clean; OpenSearchLexical adapter import passed.
+- Weaviate: %TEMP%\memspine-wheel-weaviate-313; 104 installed distributions; weaviate-client 4.23.1; `uv pip check` clean; WeaviateLexicalStore and WeaviateVectorStore imports passed.
+- Postgres: %TEMP%\memspine-wheel-postgres-313; 100 installed distributions; psycopg 3.3.6 and pgvector 0.5.1; `uv pip check` clean; PostgresStorage and PgVectorStore imports passed.
+- No live remote service was contacted.
+
+Repeat commands (PowerShell):
+```powershell
+$wheel = 'C:\Users\hembad\Documents\GitHub\memspine-restructure\dist\memspine-0.0.1-py3-none-any.whl'
+$python = 'C:\Users\hembad\AppData\Local\Temp\memspine-dependency-validation-313\Scripts\python.exe'
+uv tool run --from uv==0.13.1 uv venv --python $python 'C:\Users\hembad\AppData\Local\Temp\memspine-wheel-smoke-313'
+uv tool run --from uv==0.13.1 uv pip install --python 'C:\Users\hembad\AppData\Local\Temp\memspine-wheel-smoke-313\Scripts\python.exe' $wheel
+uv tool run --from uv==0.13.1 uv pip check --python 'C:\Users\hembad\AppData\Local\Temp\memspine-wheel-smoke-313\Scripts\python.exe'
+# Run from a directory outside the repository, with PYTHONPATH removed:
+Remove-Item Env:PYTHONPATH -ErrorAction SilentlyContinue
+& 'C:\Users\hembad\AppData\Local\Temp\memspine-wheel-smoke-313\Scripts\python.exe' 'C:\Users\hembad\AppData\Local\Temp\memspine-wheel-smoke-run\wheel_smoke.py'
+
+uv tool run --from uv==0.13.1 uv venv --python $python 'C:\Users\hembad\AppData\Local\Temp\memspine-wheel-opensearch-313'
+uv tool run --from uv==0.13.1 uv pip install --python 'C:\Users\hembad\AppData\Local\Temp\memspine-wheel-opensearch-313\Scripts\python.exe' "${wheel}[opensearch]"
+uv tool run --from uv==0.13.1 uv pip check --python 'C:\Users\hembad\AppData\Local\Temp\memspine-wheel-opensearch-313\Scripts\python.exe'
+& 'C:\Users\hembad\AppData\Local\Temp\memspine-wheel-opensearch-313\Scripts\python.exe' -c "import memspine, opensearchpy; from memspine.services.lexical.opensearch import OpenSearchLexical"
+
+uv tool run --from uv==0.13.1 uv venv --python $python 'C:\Users\hembad\AppData\Local\Temp\memspine-wheel-weaviate-313'
+uv tool run --from uv==0.13.1 uv pip install --python 'C:\Users\hembad\AppData\Local\Temp\memspine-wheel-weaviate-313\Scripts\python.exe' "${wheel}[weaviate]"
+uv tool run --from uv==0.13.1 uv pip check --python 'C:\Users\hembad\AppData\Local\Temp\memspine-wheel-weaviate-313\Scripts\python.exe'
+& 'C:\Users\hembad\AppData\Local\Temp\memspine-wheel-weaviate-313\Scripts\python.exe' -c "import memspine, weaviate; from memspine.services.lexical.weaviate_store import WeaviateLexicalStore; from memspine.services.vector.weaviate_store import WeaviateVectorStore"
+
+uv tool run --from uv==0.13.1 uv venv --python $python 'C:\Users\hembad\AppData\Local\Temp\memspine-wheel-postgres-313'
+uv tool run --from uv==0.13.1 uv pip install --python 'C:\Users\hembad\AppData\Local\Temp\memspine-wheel-postgres-313\Scripts\python.exe' "${wheel}[postgres]"
+uv tool run --from uv==0.13.1 uv pip check --python 'C:\Users\hembad\AppData\Local\Temp\memspine-wheel-postgres-313\Scripts\python.exe'
+& 'C:\Users\hembad\AppData\Local\Temp\memspine-wheel-postgres-313\Scripts\python.exe' -c "import memspine, psycopg, pgvector; from memspine.services.storage.postgres.engine import PostgresStorage; from memspine.services.vector.pgvector_store import PgVectorStore"
+```
+
+`uv pip freeze` equivalents are captured as exact installed distribution/version maps in installed-wheel-checks.json. See PROVIDER_PLATFORM_MATRIX.md for CI versus local scope.
+
+Exact installed-wheel smoke program (`%TEMP%\memspine-wheel-smoke-run\wheel_smoke.py`):
+```python
+import asyncio
+import pathlib
+import sys
+
+import memspine
+from memspine import Engine
+
+async def main():
+    origin = pathlib.Path(memspine.__file__).resolve()
+    venv = pathlib.Path(sys.prefix).resolve()
+    assert origin.is_relative_to(venv), (origin, venv)
+    engine = Engine(
+        template='core', dotenv_path=None,
+        storage={'provider': 'sqlite', 'settings': {'path': ':memory:', 'busy_timeout_s': 5.0}},
+        embedding={'provider': 'hash', 'settings': {}},
+    )
+    await engine.start()
+    try:
+        written = await engine.write(
+            'wheel smoke: the cobalt fox crosses the bridge', namespace='wheel-smoke'
+        )
+        matches = await engine.search('cobalt fox bridge', namespace='wheel-smoke', top_k=3)
+        assert matches and any(record.record_id == written.record_id for record, _ in matches)
+    finally:
+        await engine.stop()
+
+asyncio.run(main())
+```

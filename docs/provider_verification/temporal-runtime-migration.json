@@ -1,0 +1,74 @@
+{
+  "checked_at": "2026-10-17T17:22:11.385475+00:00",
+  "source_revision": "e6596f44c1e9937050ef68938037f2cf2341ee34",
+  "working_tree_dirty": true,
+  "python": "3.13.5",
+  "frameworks": {
+    "temporalio": "1.34.0",
+    "resonate-sdk": "0.8.1"
+  },
+  "test_server": {
+    "cli": "1.9.1",
+    "server": "1.32.0",
+    "address": "127.0.0.1:17233",
+    "scope": "task-owned local dev server; not production"
+  },
+  "gates": {
+    "live_temporal": {
+      "passed": 9,
+      "skipped": 0,
+      "log": "temporal-live-final-tests.log"
+    },
+    "final_focused": {
+      "passed": 160,
+      "skipped": 0,
+      "log": "temporal-migration-final-focused.log"
+    },
+    "initial_expanded": {
+      "passed": 1308,
+      "failed": 1,
+      "skipped": 13,
+      "log": "temporal-migration-regression.log",
+      "followup": "One config validation failure during concurrent implementation; final config/focused suite now passes. Full expanded selection not rerun."
+    },
+    "ruff": "passed",
+    "mypy": "608 source files passed",
+    "wheel": "built and inspected, no DBOS runner/dependency",
+    "lock": "248 packages, lock --check passed",
+    "pip_check": "174 installed distributions compatible",
+    "dependency_audit": "67 direct/build dependencies, 0 outdated direct lock entries",
+    "generated_config_and_stage_references": "checked"
+  },
+  "coverage": [
+    "Temporal dispatch to embedded Resonate with default Workflow sandbox",
+    "Actual Engine sleep and reopen on same event DB/journal",
+    "Completed same-operation output reused after Worker reopen",
+    "Changed source input fingerprint rejected without pipeline execution",
+    "Transient pipeline failure retried through real Temporal and journal reclaimed at fencing token 2",
+    "Journal subprocess exit and stale/concurrent ownership unit tests",
+    "Inline lifecycle/import remains free of optional orchestration SDK imports",
+    "No PipelineContext/storage handles/credentials in Workflow invocation payload"
+  ],
+  "not_claimed": [
+    "Hard container death during Activity / cross-host volume reattachment",
+    "Production cluster auth/capacity/deployment acceptance",
+    "Temporal ingestion outbox transport (existing inline/taskiq seam remains)",
+    "Checkpointing each nested model call; current unit is one registered maintenance pipeline",
+    "Exactly-once external side effects or DBOS history migration",
+    "Real GLiNER model inference"
+  ],
+  "source_sha256": {
+    "pyproject.toml": "960ae30295e2825e2f2f2f05a7fbb6d287a0aedd06c7fcd39efa60e938f4a3e2",
+    "uv.lock": "519b815049f45ea11286a9e358f996d74d3f8da8fecff9b364b709bab96e6c09",
+    "src/memspine/__init__.py": "cd90e0458ec44721e7dc1ea69e357282f8481ebf8fe86464017e60b00e3ad625",
+    "src/memspine/workers/temporal_runner.py": "f91975e25d309d379d3fc544e770f0536ec4568d4570a6c59bc31e5ead49c19d",
+    "src/memspine/workers/temporal_workflow.py": "3a5cf007cbfd9a78d7efbe9f54055bb3131d345f1118b9d2edf846469774c173",
+    "src/memspine/workers/step_journal.py": "ca581a347c897ba65ccd582470fdd6ba6656a497d0d59e1305e64575b52163a1",
+    "src/memspine/config/schema/llm.py": "c59784adb869b9c8aca2522ef39ce6be493e89c14a7cc5116554c6b1826b3915",
+    "src/memspine/runtime/container.py": "0bbad90424dc8e4119a15762c3467686b8ebcbc7f08ef4827091e17e3d588f5c",
+    "src/memspine/api/engine.py": "5fd56efbb97c16d98c3c1fd28307a6cc8f1a1414fbdf92c95311a131b06c71f8",
+    "tests/integration/test_runner_parity.py": "a79affb780bcf3a359738dc9fb7d9fd6b5dcf4185ad644a94f1d62f83491d7b3",
+    "tests/integration/test_temporal_resonate_recovery.py": "fa54feea8a3d98a896b71f347b2082067eb795445092f6440b4b165b95fa0586",
+    "tests/unit/workers/test_temporal_runner.py": "d6e56d222ee6692fa7dd0f86019314a0f0c9d8478cc057d24782fea3c6bb2cc3"
+  }
+}

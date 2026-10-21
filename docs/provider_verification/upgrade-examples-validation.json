@@ -1,0 +1,29 @@
+{
+  "examples": [
+    {
+      "yaml_example": 1,
+      "config_validation": "passed",
+      "native_settings_validation": "passed",
+      "services_started": false
+    },
+    {
+      "yaml_example": 2,
+      "config_validation": "passed",
+      "native_settings_validation": "passed",
+      "services_started": false
+    },
+    {
+      "yaml_example": 3,
+      "config_validation": "passed",
+      "native_settings_validation": "passed",
+      "services_started": false
+    },
+    {
+      "yaml_example": 4,
+      "config_validation": "passed",
+      "native_settings_validation": "passed",
+      "services_started": false
+    }
+  ],
+  "manual_native_workflow_structure": "validated; no GitHub run triggered"
+}

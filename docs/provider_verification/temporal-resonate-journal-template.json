@@ -1,0 +1,36 @@
+{
+  "checked_at": "2026-10-17T17:01:02.260868+00:00",
+  "python": "3.13.5",
+  "sdk_versions": {
+    "resonate-sdk": "0.8.1",
+    "temporalio": "1.34.0"
+  },
+  "selected_policy": "B: embedded Resonate + application-owned SQLite step-result journal",
+  "checks": [
+    "27 journal + ledger tests passed, including subprocess exit, result reuse, stale fencing and concurrent claims",
+    "Real SDK ActivityEnvironment repeated run reuses 3 completed step rows at fencing token 1",
+    "Workflow sandbox preparation and invalid-input rejection pass",
+    "Ambient RESONATE_URL ignored; local transport used",
+    "Ruff checks pass",
+    "Tampered identity/items/rounds rejected against originating Job",
+    "Uncertain timeout retains running lease"
+  ],
+  "not_tested": [
+    "Main MemSpine orchestration replacement",
+    "Live Temporal Server dispatch or worker failover",
+    "Persistent volume reattachment across hosts",
+    "External side effect idempotency",
+    "Real GLiNER model inference"
+  ],
+  "template_source_sha256": {
+    "docs/examples/temporal_resonate/activities.py": "4d9687042e2e6c8601e58cca6f064590ac201e3ccc1f9b93eb5b97b41db12558",
+    "docs/examples/temporal_resonate/contracts.py": "dedb76cfef9790f8b925ca76322bb8f829f092fd7d2d020ecbacbd93c479e3cf",
+    "docs/examples/temporal_resonate/durable.py": "f050d6286fe5da7ab4e3ed4e7af1682b9dd96f7eeac0cb15aba645faf916eb89",
+    "docs/examples/temporal_resonate/journal.py": "2d9658333afaf49dd838334c810a7ab04dff2134cdbc6354767211fe8998660d",
+    "docs/examples/temporal_resonate/micro.py": "abebc157701235cb7ccb724ae00fe2843204568cab685b8cd42f69959e778ac7",
+    "docs/examples/temporal_resonate/verify_template.py": "e1d447b58080b5d4bce1bf2ac32a253738c7a1885c3735671b7feeecc9741335",
+    "docs/examples/temporal_resonate/worker.py": "e81803281f4be1cc108da0dd5608a6123edb667bd61e49bbdb3c6a5f98eab77d",
+    "docs/examples/temporal_resonate/workflows.py": "aefbe30dc3cf9fa2525ddb6832b607a92c4eb4cb06926b35963e85e1b5b268d1",
+    "docs/examples/temporal_resonate/__init__.py": "19c7d4a3d0661f414cb7ee20e7016aec0290f2ff1b14bd492e82a25e97b15198"
+  }
+}

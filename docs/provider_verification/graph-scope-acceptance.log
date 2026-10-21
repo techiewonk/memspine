@@ -1,0 +1,29 @@
+Source revision: e6596f44
+Python: C:\Users\hembad\AppData\Local\Temp\memspine-dependency-validation-313\Scripts\python.exe (Python 3.13)
+Environment: PYTHONPATH=src HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1
+Providers: SQLite; hash (dim=64); LanceDB 0.40.0; Tantivy 0.26.2; SQLite adjacency; LadybugDB 0.21.2; in-memory KV
+
+Command:
+python -m pytest -p no:deepeval -o addopts='' tests/integration/test_provider_graph_scope_acceptance.py -q --tb=short -rs
+
+Result:
+......                                                                   [100%]
+6 passed in 4.18s
+
+Static checks:
+python -m ruff check tests/integration/test_provider_graph_scope_acceptance.py
+All checks passed!
+python -m ruff format --check tests/integration/test_provider_graph_scope_acceptance.py
+1 file already formatted
+
+The added literal-query case sends quotes, OR/wildcard text, field-like
+expressions, an unmatched quote, and punctuation-only input through the real
+Tantivy lexical store and public hybrid Engine.search. It verifies parser safety
+and namespace isolation. The accented-Latin case confirms exact `niño`, `pidió`,
+`café`, and `Málaga` terms retrieve the local record through both paths while
+excluding an identically worded foreign-namespace record. These tests check the
+selected analyzer's deterministic behavior, not cross-language relevance.
+
+The passing Ladybug case exercised the installed LadybugDB runtime. No remote,
+paid or model inference calls were made. This is selected local behavioral
+evidence only; see PROVIDER_RETRIEVAL_ACCEPTANCE.md for unmet boundaries.

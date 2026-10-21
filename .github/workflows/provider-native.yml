@@ -1,0 +1,43 @@
+name: disposable-native-providers
+
+# Explicit opt-in: never contact a configured production service.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  native-contracts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      PYTHONPATH: src
+      HF_HUB_OFFLINE: "1"
+      TRANSFORMERS_OFFLINE: "1"
+      MEMSPINE_TEST_IMAGE_POSTGRES: "pgvector/pgvector@sha256:7b822b0aac60967beb1ea5e576b8602c94c300a157d187f385ae3e0da199b90a"
+      MEMSPINE_TEST_IMAGE_NEO4J: "neo4j@sha256:f1e52d4dc6da122468c4a3c1050a4f5e117f6d3268625237c34d49166f0d6082"
+      MEMSPINE_TEST_IMAGE_REDIS: "redis@sha256:858f009f9709ce576febc734aa78b8f6d624b82571f9ddb6bda4377c833b3499"
+      MEMSPINE_TEST_IMAGE_VALKEY: "valkey/valkey@sha256:640c5e62cea04b6d6f2084232651d0cc70362d31f4f805e7be94dbed6855e8f2"
+      MEMSPINE_TEST_IMAGE_OPENSEARCH: "opensearchproject/opensearch@sha256:4ee82ecb35d837a6186c81aaa64c8a5bce71aa956edbd87f1f684ab56af52c44"
+      MEMSPINE_TEST_IMAGE_WEAVIATE: "cr.weaviate.io/semitechnologies/weaviate@sha256:920463cf9a9b2b8d38e5b925d63f6928fa703277c93df11d5a75fc75e1fff758"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          version: "0.13.1"
+          python-version: "3.13"
+          enable-cache: true
+      - name: Install only the required remote extras
+        run: uv sync --locked --extra dev --extra cache --extra postgres --extra neo4j --extra opensearch --extra weaviate
+      - name: Validate dependency consistency
+        run: uv pip check
+      - name: Native provider contracts (all services, zero skips)
+        run: uv run python scripts/run_provider_live_contracts.py --docker --pull-missing --require-all --report docs/provider_verification/ci-native-report.json
+      - name: Preserve sanitized native evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-provider-evidence
+          path: docs/provider_verification/ci-native-report.json
+          if-no-files-found: warn

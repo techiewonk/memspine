@@ -1,0 +1,90 @@
+{
+  "checked_at": "2026-10-17T16:31:20.690358+00:00",
+  "package": "gliner2",
+  "package_version": "2.1.0",
+  "model_family": "GLiNER2.5",
+  "weights_downloaded": false,
+  "inference_run": false,
+  "models": [
+    {
+      "model": "fastino/gliner2.5-base-v1",
+      "revision": "54785d51df8d86a0d8f2eb212fec15871aad2c4d",
+      "architecture": "boundary",
+      "parameters": 193581591,
+      "license": "apache-2.0",
+      "languages": [
+        "en"
+      ],
+      "heads": {
+        "enable_records": true,
+        "enable_relations": true,
+        "enable_abstention": true
+      },
+      "config_sha256": "d6b515c21ae2100c12267fb42a3f02c1e99ad87580366aebedb161efd74441c7",
+      "source": "https://huggingface.co/fastino/gliner2.5-base-v1/blob/54785d51df8d86a0d8f2eb212fec15871aad2c4d/config.json"
+    },
+    {
+      "model": "fastino/GLiNER2.5-Decide",
+      "revision": "9d1bfb848cd16d93ee56ccbc59cd92bf0f284d90",
+      "architecture": "span",
+      "parameters": 486444053,
+      "license": "apache-2.0",
+      "languages": [
+        "en"
+      ],
+      "heads": {},
+      "config_sha256": "501c6579278518e72dbba5a1f248b421dd5bfb13600db45d86c94c224368670b",
+      "source": "https://huggingface.co/fastino/GLiNER2.5-Decide/blob/9d1bfb848cd16d93ee56ccbc59cd92bf0f284d90/config.json"
+    },
+    {
+      "model": "fastino/gliner2.5-multi-v1",
+      "revision": "cf5593a5d45e3bbf204b9df621b13b1c0cf25ee3",
+      "architecture": "boundary",
+      "parameters": 287355159,
+      "license": "apache-2.0",
+      "languages": [
+        "multilingual",
+        "en"
+      ],
+      "heads": {
+        "enable_records": true,
+        "enable_relations": true,
+        "enable_abstention": true
+      },
+      "config_sha256": "3e4a96bf01da1094180f2d8998411c1a9fd6e2ae4b5b3e4bc6950318cee95bb7",
+      "source": "https://huggingface.co/fastino/gliner2.5-multi-v1/blob/cf5593a5d45e3bbf204b9df621b13b1c0cf25ee3/config.json"
+    },
+    {
+      "model": "fastino/gliner2.5-small-v1",
+      "revision": "df5910e44bc4ffdb0d95399a83b0ca4516349aa5",
+      "architecture": "boundary",
+      "parameters": 73881879,
+      "license": "apache-2.0",
+      "languages": [
+        "en"
+      ],
+      "heads": {
+        "enable_records": true,
+        "enable_relations": true,
+        "enable_abstention": true
+      },
+      "config_sha256": "1b4e63ac964dc4204165bd1420735cd4c2e4bce97394d0b69fa3f7ea192a8e97",
+      "source": "https://huggingface.co/fastino/gliner2.5-small-v1/blob/df5910e44bc4ffdb0d95399a83b0ca4516349aa5/config.json"
+    }
+  ],
+  "sdk_source_hashes": {
+    "auto.py": "00acf7529ca40469de4ac2dc29bcfe46a05b8a26e10347b8e56a7129a6d7ffcb",
+    "__init__.py": "c3df4a0b19472e1b3b96f3adbae0c64d8dbb9717f49213820feae8db226301fc",
+    "inference/schema.py": "63f9f16a27d45bece89c7f7ebdf14afaa7150b0e8e58001161efe4b16de21898",
+    "inference/runtime.py": "acc500efe68209df7620c5810b5ff38a4d6151e8799063e0139ec60220183a60",
+    "models/loading.py": "217b9392cbae4c1794f96892edd064e27bafa766ec5b9bc4e08715f9e8af453e",
+    "models/boundary/model.py": "e2e006a1a9f05ec4830f284f6dc90c4e6744311197e06deb556e9b75d8219faf"
+  },
+  "memspine_findings": [
+    "Semantic NER imports span-only GLiNER2 directly and hard-codes gliner2-base-v1",
+    "Decision adapter prefers GLiNER2 before AutoExtractor",
+    "Semantic adapter currently emits mentions only; decision entity path returns names only",
+    "Actual Python 3.13 local inference remains unverified",
+    "SDK source inspection: AutoExtractor does not forward separated Hub kwargs to the selected model loader; verify revision/offline behavior or use a verified local snapshot"
+  ]
+}

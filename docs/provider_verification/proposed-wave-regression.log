@@ -1,0 +1,16 @@
+........................................................................ [ 17%]
+........................................................................ [ 34%]
+........................................................................ [ 52%]
+........................................................................ [ 69%]
+........................................................................ [ 87%]
+..........................s.........................                     [100%]
+============================== warnings summary ===============================
+tests/integration/test_provider_memory_acceptance.py::test_resource_chunks_keep_lineage_search_scope_and_hard_erasure[memory]
+tests/integration/test_provider_memory_acceptance.py::test_resource_chunks_keep_lineage_search_scope_and_hard_erasure[disk]
+  C:\Users\hembad\Documents\GitHub\memspine-restructure\src\memspine\services\vector\lancedb_store.py:450: UserWarning: optimize(cleanup_older_than=0) removes every version except the latest. Any concurrent reader or writer still using an older version will fail. Use a longer cleanup_older_than unless no other process is working on this table.
+    table.optimize(cleanup_older_than=timedelta(0))
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+SKIPPED [1] tests\integration\test_temporal_resonate_recovery.py:127: set MEMSPINE_TEST_TEMPORAL_ADDRESS for the live Engine/Temporal gate
+411 passed, 1 skipped, 2 warnings in 40.62s

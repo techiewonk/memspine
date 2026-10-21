@@ -1,0 +1,162 @@
+{
+  "recorded_at": "2026-10-17",
+  "task": "PA120 GLiNER2.5 typed structured candidate runtime gate",
+  "overall_status": "live_real_sdk_structured_adapter_passed",
+  "scope": {
+    "provider": "GLiNER2 AutoExtractor",
+    "model": "fastino/gliner2.5-base-v1",
+    "model_revision": "ca906247640776a07753514055be9726f9080ead",
+    "model_snapshot": "C:/Users/hembad/.cache/huggingface/hub/models--fastino--gliner2.5-base-v1/snapshots/ca906247640776a07753514055be9726f9080ead",
+    "sdk": {
+      "gliner2": "2.1.0",
+      "torch": "2.14.1",
+      "transformers": "5.20.1",
+      "pydantic": "2.14.1",
+      "huggingface_hub": "1.33.0",
+      "python": "3.13.5"
+    },
+    "runtime": {
+      "python_executable": "C:/Users/hembad/AppData/Local/Temp/memspine-ner-runtime-313/Scripts/python.exe",
+      "hf_hub_offline": true,
+      "transformers_offline": true,
+      "device": "SDK default; not explicitly selected"
+    },
+    "inference_calls_authorized": 3,
+    "inference_calls_used": 3,
+    "schema": {
+      "threshold": 0.5,
+      "entity_types": ["person", "organization", "location"],
+      "record": {
+        "name": "employment",
+        "fields": [
+          {"name": "employee", "type_label": "person", "required": true},
+          {"name": "employer", "type_label": "organization", "required": true},
+          {"name": "location", "type_label": "location", "required": false}
+        ]
+      },
+      "relation": {
+        "name": "works_for",
+        "head_type": "person",
+        "tail_type": "organization",
+        "description": "A person works for an organization"
+      }
+    },
+    "source": {
+      "text": "Mira works for Acme in Paris.",
+      "source_id": "gliner-structured-smoke-1",
+      "source_version": 1,
+      "segment_index": 0,
+      "tenant": "tenant-smoke",
+      "owner": "owner-smoke",
+      "sender_id": "smoke-user"
+    }
+  },
+  "calls": [
+    {
+      "call": 1,
+      "mode": "adapter real inference",
+      "status": "adapter_rejected_sdk_output",
+      "error": "StructuredExtractionError: unexpected fields for employment: ['confidence']",
+      "inference_completed": true,
+      "payload_retained": false,
+      "implication": "Real SDK record items include an outer candidate confidence in addition to configured fields; adapter was too strict. This call is not claimed as mapped acceptance evidence."
+    },
+    {
+      "call": 2,
+      "mode": "raw SDK schema output inspection",
+      "status": "success",
+      "inference_completed": true,
+      "payload_retained": true,
+      "raw_payload": {
+        "employment": [
+          {
+            "employee": {"text": "Mira", "confidence": 0.9992045760154724, "start": 0, "end": 4},
+            "employer": {"text": "Acme", "confidence": 0.9993299245834351, "start": 15, "end": 19},
+            "location": {"text": "Paris", "confidence": 0.9871655702590942, "start": 23, "end": 28},
+            "confidence": 0.9992045760154724
+          }
+        ],
+        "entities": {
+          "person": [{"text": "Mira", "confidence": 0.9993953704833984, "start": 0, "end": 4}],
+          "organization": [{"text": "Acme", "confidence": 0.9997256398200989, "start": 15, "end": 19}],
+          "location": [{"text": "Paris", "confidence": 0.9994010925292969, "start": 23, "end": 28}]
+        },
+        "relation_extraction": {
+          "works_for": [
+            {
+              "head": {"text": "Mira", "start": 0, "end": 4, "confidence": 0.9983160495758057},
+              "tail": {"text": "Acme", "start": 15, "end": 19, "confidence": 0.9984182119369507},
+              "confidence": 0.9982839226722717
+            }
+          ]
+        }
+      },
+      "counts": {"employment_records": 1, "entity_mentions": 3, "works_for_relations": 1}
+    },
+    {
+      "call": 3,
+      "mode": "post-fix adapter over actual local SDK inference",
+      "status": "passed",
+      "inference_completed": true,
+      "counts": {"records": 1, "relations": 1, "mentions": 3},
+      "record": {
+        "schema": "employment",
+        "confidence": 0.9992045760154724,
+        "asserted": false,
+        "fields": [
+          {"name": "employee", "type_label": "person", "text": "Mira", "start": 0, "end": 4, "confidence": 0.9992045760154724},
+          {"name": "employer", "type_label": "organization", "text": "Acme", "start": 15, "end": 19, "confidence": 0.9993299245834351},
+          {"name": "location", "type_label": "location", "text": "Paris", "start": 23, "end": 28, "confidence": 0.9871655702590942}
+        ]
+      },
+      "relation": {
+        "type": "works_for",
+        "confidence": 0.9982839226722717,
+        "asserted": false,
+        "head": {"type_label": "person", "text": "Mira", "start": 0, "end": 4, "confidence": 0.9983160495758057},
+        "tail": {"type_label": "organization", "text": "Acme", "start": 15, "end": 19, "confidence": 0.9984182119369507}
+      },
+      "mentions": [
+        {"type_label": "person", "text": "Mira", "start": 0, "end": 4, "confidence": 0.9993953704833984},
+        {"type_label": "organization", "text": "Acme", "start": 15, "end": 19, "confidence": 0.9997256398200989},
+        {"type_label": "location", "text": "Paris", "start": 23, "end": 28, "confidence": 0.9994010925292969}
+      ],
+      "grounding_claim": "Mira works for Acme in Paris",
+      "grounding_label": "supported",
+      "source_bound_to_candidates": true
+    }
+  ],
+  "adapter_replay": {
+    "status": "passed",
+    "additional_model_inference": false,
+    "input": "Captured raw payload from call 2 replayed through current GLiNER25StructuredExtractor using a fake extractor.",
+    "output_counts": {"records": 1, "relations": 1, "mentions": 3},
+    "preserved_candidate_scores": {
+      "record": 0.9992045760154724,
+      "relation": 0.9982839226722717,
+      "fields": {
+        "employee": 0.9992045760154724,
+        "employer": 0.9993299245834351,
+        "location": 0.9871655702590942
+      }
+    },
+    "source_spans": [
+      {"type": "person", "text": "Mira", "start": 0, "end": 4},
+      {"type": "organization", "text": "Acme", "start": 15, "end": 19},
+      {"type": "location", "text": "Paris", "start": 23, "end": 28}
+    ],
+    "grounding_claim": "Mira works for Acme in Paris",
+    "grounding_label": "supported",
+    "source_bound_to_candidates": true,
+    "candidate_asserted": false
+  },
+  "warnings": [
+    "Transformers warned about loading an extractor checkpoint into a model type with an empty name; inference completed.",
+    "PyTorch emitted a torch.jit.script deprecation warning; inference completed."
+  ],
+  "limits": [
+    "Two local calls on one invented sentence establish only a real SDK output shape and mapping replay.",
+    "No held-out quality, truth, calibration, cross-document relation behavior, or production model-loading policy was tested.",
+    "Record and relation candidates remain asserted=false; grounding a caller-authored claim does not make the model proposal true."
+  ]
+}

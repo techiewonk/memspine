@@ -1,0 +1,10 @@
+2026-10-18T04:24:13.479312Z [info     ] memory.write                   namespace=pa121-gliner-source record_id=82e5eb45-d5d3-416c-bb56-e1210c3bf116
+2026-10-18T04:24:13.505090Z [info     ] memory.write                   namespace=pa121-gliner-source record_id=161714d8-96ed-479e-a664-7d21f465e775
+[transformers] You are using a model of type `extractor` to instantiate a model of type ``. This may be expected if you are loading a checkpoint that shares a subset of the architecture (e.g., loading a `sam2_video` checkpoint into `Sam2Model`), but is otherwise not supported and can yield errors. Please verify that the checkpoint is compatible with the model you are instantiating.
+C:\Users\hembad\AppData\Local\Temp\memspine-ner-runtime-313\Lib\site-packages\torch\jit\_script.py:1491: FutureWarning: `torch.jit.script` is deprecated. Please switch to `torch.compile` or `torch.export`.
+  warnings.warn(
+2026-10-18T04:24:16.370853Z [warning  ] window.call_failed             error="litellm chat failed for model 'stub/window': window request did not match the deterministic F1.8 fixture" kind=call_errors namespace=pa121-gliner-source
+2026-10-18T04:24:16.545729Z [info     ] memory.write                   action=added namespace=pa121-gliner-source record_id=7e1eeab1-6bd4-40b5-92b9-f575c09ebc30
+2026-10-18T04:24:16.551180Z [info     ] memory.retrieve                count=0 memory_type=None namespace=pa121-gliner-isolation-check
+2026-10-18T04:24:16.588434Z [info     ] memory.retrieve                count=3 namespace=pa121-gliner-source query=True
+GLiNER ingestion acceptance: failed

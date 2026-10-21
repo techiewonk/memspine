@@ -1,0 +1,42 @@
+{
+  "checked_at": "2026-10-17T16:47:38.777844+00:00",
+  "python": "3.13.5 Windows x64",
+  "sdk_versions": {
+    "temporalio": "1.34.0",
+    "resonate-sdk": "0.8.1"
+  },
+  "scope": "Isolated template only; no MemSpine runtime/dependency migration",
+  "checks": [
+    "Local Resonate real async leaf chain under Temporal ActivityEnvironment",
+    "Repeated Activity inputs return equal pure-processing results",
+    "Invalid input raises non-retryable Temporal ApplicationError",
+    "Temporal Workflow sandbox prepares successfully",
+    "Ambient RESONATE_URL cannot switch the runtime to remote mode",
+    "Template Ruff checks pass"
+  ],
+  "not_tested": [
+    "Temporal Server connection/dispatch",
+    "Hard crash or cross-Worker retry",
+    "Persisted Resonate micro-state or SQLite connector",
+    "Application deposit idempotency or external provider calls",
+    "Production deployment acceptance"
+  ],
+  "sdk_source_sha256": {
+    "resonate.py": "b1c39fb8d6c5d8384be401c38a411adef052e9e2445e9d33f30d3ea2a3eba447",
+    "connections/local.py": "12b2e081da069f012872538aadb217c15e6672557a499eabb4d784ab01ca5941",
+    "context.py": "d40508d816c27b52245f528ba1e723d87f2f20951dc61a59ef17b430f5275f70",
+    "handle.py": "d6da176865caa60d3e7a553e4069ab4d8fc5ded3b645a0eebc3da10c92e39bc3",
+    "retry.py": "d26ea0744efad867c3dfd22b1e2d01cda3cf70902aae7c21718304d2863b5512"
+  },
+  "template_source_sha256": {
+    "docs\\examples\\temporal_resonate\\activities.py": "54b8826c92778c47c91867c0ce6f63f11862454ace9969b6c16589000a9e20dd",
+    "docs\\examples\\temporal_resonate\\contracts.py": "dedb76cfef9790f8b925ca76322bb8f829f092fd7d2d020ecbacbd93c479e3cf",
+    "docs\\examples\\temporal_resonate\\micro.py": "abebc157701235cb7ccb724ae00fe2843204568cab685b8cd42f69959e778ac7",
+    "docs\\examples\\temporal_resonate\\verify_template.py": "2897c47e98de33a5550ab092404e39b520c1ba704f14a672fbc2f4389962ff94",
+    "docs\\examples\\temporal_resonate\\worker.py": "051aef415fdeca2eb704b09c232ca62c3bd6f1badb8eb21598e23d1d08f638cf",
+    "docs\\examples\\temporal_resonate\\workflows.py": "30880a3a4ad8a78185913e6fb79d5e86a175551fff3e6e062b4aa8f81b2a8fce",
+    "docs\\examples\\temporal_resonate\\__init__.py": "19c7d4a3d0661f414cb7ee20e7016aec0290f2ff1b14bd492e82a25e97b15198"
+  },
+  "local_persistence_finding": "Resonate 0.8.1 selects in-memory LocalConnection/ServerState; no native SQLite constructor verified",
+  "retry_policy": "Temporal owns retries; local Resonate uses Never and a fresh attempt-scoped runtime"
+}

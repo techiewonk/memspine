@@ -1,0 +1,624 @@
+{
+  "created_at_utc": "2026-10-17T18:29:18+00:00",
+  "environment": {
+    "cpu_count": 32,
+    "model_loaded": false,
+    "network_used": false,
+    "packages": {
+      "datasketch": "2.0.0",
+      "fastembed": "0.9.0",
+      "lancedb": "0.40.0",
+      "numpy": "2.5.4",
+      "onnxruntime": "1.31.0",
+      "orjson": "3.13.0",
+      "tantivy": "0.26.2",
+      "xxhash": "4.0.1",
+      "zstandard": "0.25.0"
+    },
+    "platform": "Windows-11-10.0.26340-SP0",
+    "python": "3.13.5"
+  },
+  "hash_embedding_batches": {
+    "results": [
+      {
+        "baseline_median_us": 1412.181,
+        "baseline_trial_us": [
+          1438.789,
+          1412.181,
+          1405.73,
+          1423.1,
+          1410.622
+        ],
+        "candidate_median_us": 1416.296,
+        "candidate_over_baseline": 1.0029,
+        "candidate_trial_us": [
+          1406.752,
+          1416.033,
+          1424.237,
+          1423.693,
+          1416.296
+        ],
+        "case": "hash_embedding_64_items_batch_1",
+        "loops_per_trial": 27,
+        "target_trial_seconds": 0.04,
+        "trials": 5
+      },
+      {
+        "baseline_median_us": 1408.586,
+        "baseline_trial_us": [
+          1402.686,
+          1408.586,
+          1400.807,
+          1535.579,
+          1475.254
+        ],
+        "candidate_median_us": 1403.311,
+        "candidate_over_baseline": 0.9963,
+        "candidate_trial_us": [
+          1403.311,
+          1389.975,
+          1411.507,
+          1398.179,
+          1487.45
+        ],
+        "case": "hash_embedding_64_items_batch_8",
+        "loops_per_trial": 28,
+        "target_trial_seconds": 0.04,
+        "trials": 5
+      },
+      {
+        "baseline_median_us": 1429.529,
+        "baseline_trial_us": [
+          1750.479,
+          1434.021,
+          1409.121,
+          1429.529,
+          1421.543
+        ],
+        "candidate_median_us": 1425.514,
+        "candidate_over_baseline": 0.9972,
+        "candidate_trial_us": [
+          1448.9,
+          1425.514,
+          1427.3,
+          1413.493,
+          1422.271
+        ],
+        "case": "hash_embedding_64_items_batch_32",
+        "loops_per_trial": 14,
+        "target_trial_seconds": 0.04,
+        "trials": 5
+      },
+      {
+        "baseline_median_us": 1426.436,
+        "baseline_trial_us": [
+          1432.354,
+          1419.064,
+          1435.343,
+          1426.436,
+          1426.229
+        ],
+        "candidate_median_us": 1415.596,
+        "candidate_over_baseline": 0.9924,
+        "candidate_trial_us": [
+          1416.025,
+          1415.596,
+          1417.336,
+          1414.793,
+          1414.636
+        ],
+        "case": "hash_embedding_64_items_batch_64",
+        "loops_per_trial": 28,
+        "target_trial_seconds": 0.04,
+        "trials": 5
+      }
+    ],
+    "semantic_quality_claim": false,
+    "vector_parity": true
+  },
+  "notes": [
+    "Timings are this host's bounded microbenchmark, not service-level latency or production throughput.",
+    "The event fingerprint and stable table/cache identifiers remain unchanged.",
+    "No cryptographic integrity primitive was benchmarked or replaced.",
+    "No model was loaded and no network access was used."
+  ],
+  "rrf": {
+    "exact_order_and_score_parity": true,
+    "results": [
+      {
+        "baseline_median_us": 6.852,
+        "baseline_trial_us": [
+          6.862,
+          6.899,
+          6.887,
+          6.852,
+          6.742,
+          6.767,
+          6.74
+        ],
+        "candidate_median_us": 7.276,
+        "candidate_over_baseline": 1.0619,
+        "candidate_trial_us": [
+          7.32,
+          7.375,
+          7.262,
+          7.256,
+          7.278,
+          7.276,
+          7.16
+        ],
+        "case": "rrf_16_per_leg_top_5",
+        "loops_per_trial": 13157,
+        "target_trial_seconds": 0.1,
+        "trials": 7
+      },
+      {
+        "baseline_median_us": 6.85,
+        "baseline_trial_us": [
+          6.71,
+          6.85,
+          6.787,
+          6.932,
+          6.881,
+          7.104,
+          6.779
+        ],
+        "candidate_median_us": 7.852,
+        "candidate_over_baseline": 1.1463,
+        "candidate_trial_us": [
+          7.825,
+          7.829,
+          7.852,
+          7.928,
+          8.54,
+          8.136,
+          7.821
+        ],
+        "case": "rrf_16_per_leg_top_10",
+        "loops_per_trial": 13698,
+        "target_trial_seconds": 0.1,
+        "trials": 7
+      },
+      {
+        "baseline_median_us": 25.506,
+        "baseline_trial_us": [
+          24.75,
+          24.733,
+          24.818,
+          25.506,
+          25.596,
+          25.758,
+          25.797
+        ],
+        "candidate_median_us": 24.455,
+        "candidate_over_baseline": 0.9588,
+        "candidate_trial_us": [
+          23.849,
+          24.04,
+          25.213,
+          24.432,
+          24.455,
+          25.585,
+          24.619
+        ],
+        "case": "rrf_64_per_leg_top_5",
+        "loops_per_trial": 3937,
+        "target_trial_seconds": 0.1,
+        "trials": 7
+      },
+      {
+        "baseline_median_us": 25.304,
+        "baseline_trial_us": [
+          25.63,
+          25.304,
+          25.22,
+          25.092,
+          24.961,
+          25.91,
+          26.753
+        ],
+        "candidate_median_us": 25.476,
+        "candidate_over_baseline": 1.0068,
+        "candidate_trial_us": [
+          25.476,
+          25.516,
+          25.099,
+          25.052,
+          26.091,
+          24.795,
+          25.937
+        ],
+        "case": "rrf_64_per_leg_top_10",
+        "loops_per_trial": 3861,
+        "target_trial_seconds": 0.1,
+        "trials": 7
+      },
+      {
+        "baseline_median_us": 105.27,
+        "baseline_trial_us": [
+          108.546,
+          105.27,
+          104.34,
+          104.847,
+          104.688,
+          106.544,
+          106.766
+        ],
+        "candidate_median_us": 94.17,
+        "candidate_over_baseline": 0.8946,
+        "candidate_trial_us": [
+          96.245,
+          94.17,
+          96.4,
+          93.089,
+          92.641,
+          92.576,
+          95.006
+        ],
+        "case": "rrf_256_per_leg_top_5",
+        "loops_per_trial": 942,
+        "target_trial_seconds": 0.1,
+        "trials": 7
+      },
+      {
+        "baseline_median_us": 104.19,
+        "baseline_trial_us": [
+          105.086,
+          107.747,
+          105.93,
+          104.19,
+          103.423,
+          103.4,
+          103.589
+        ],
+        "candidate_median_us": 94.157,
+        "candidate_over_baseline": 0.9037,
+        "candidate_trial_us": [
+          93.612,
+          94.157,
+          93.412,
+          94.47,
+          94.626,
+          92.776,
+          94.385
+        ],
+        "case": "rrf_256_per_leg_top_10",
+        "loops_per_trial": 958,
+        "target_trial_seconds": 0.1,
+        "trials": 7
+      },
+      {
+        "baseline_median_us": 466.372,
+        "baseline_trial_us": [
+          472.559,
+          466.933,
+          467.436,
+          466.372,
+          465.649,
+          465.01,
+          464.875
+        ],
+        "candidate_median_us": 382.91,
+        "candidate_over_baseline": 0.821,
+        "candidate_trial_us": [
+          386.909,
+          385.732,
+          381.394,
+          382.91,
+          379.678,
+          381.627,
+          402.568
+        ],
+        "case": "rrf_1024_per_leg_top_5",
+        "loops_per_trial": 208,
+        "target_trial_seconds": 0.1,
+        "trials": 7
+      },
+      {
+        "baseline_median_us": 478.341,
+        "baseline_trial_us": [
+          479.161,
+          484.215,
+          478.341,
+          477.801,
+          496.887,
+          476.138,
+          477.141
+        ],
+        "candidate_median_us": 394.985,
+        "candidate_over_baseline": 0.8257,
+        "candidate_trial_us": [
+          395.369,
+          396.725,
+          394.985,
+          392.783,
+          397.06,
+          389.436,
+          393.067
+        ],
+        "case": "rrf_1024_per_leg_top_10",
+        "loops_per_trial": 206,
+        "target_trial_seconds": 0.1,
+        "trials": 7
+      }
+    ]
+  },
+  "schema_version": 1,
+  "settings": {
+    "host_load_controlled": false,
+    "rrf_per_leg_candidates": [
+      16,
+      64,
+      256,
+      1024
+    ],
+    "rrf_top_k": [
+      5,
+      10
+    ],
+    "seed": 8119,
+    "simhash_cases_tokens": [
+      1,
+      2,
+      4,
+      8,
+      16,
+      64,
+      512,
+      2048,
+      8193
+    ],
+    "simhash_chunk_tokens": 4096,
+    "trial_order": "alternating baseline-first and candidate-first",
+    "trials": 7,
+    "warmups": 2
+  },
+  "simhash": {
+    "exact_bit_parity": true,
+    "results": [
+      {
+        "baseline_median_us": 5.659,
+        "baseline_trial_us": [
+          5.676,
+          5.878,
+          5.627,
+          5.624,
+          5.659,
+          5.84,
+          5.567
+        ],
+        "candidate_median_us": 5.296,
+        "candidate_over_baseline": 0.9358,
+        "candidate_trial_us": [
+          5.296,
+          5.383,
+          6.098,
+          5.315,
+          5.267,
+          5.239,
+          5.292
+        ],
+        "case": "simhash_1_tokens",
+        "loops_per_trial": 15384,
+        "target_trial_seconds": 0.1,
+        "trials": 7
+      },
+      {
+        "baseline_median_us": 8.212,
+        "baseline_trial_us": [
+          8.143,
+          8.046,
+          8.268,
+          8.26,
+          8.288,
+          8.212,
+          8.188
+        ],
+        "candidate_median_us": 7.828,
+        "candidate_over_baseline": 0.9532,
+        "candidate_trial_us": [
+          7.828,
+          7.84,
+          7.828,
+          7.826,
+          7.991,
+          7.937,
+          7.614
+        ],
+        "case": "simhash_2_tokens",
+        "loops_per_trial": 11363,
+        "target_trial_seconds": 0.1,
+        "trials": 7
+      },
+      {
+        "baseline_median_us": 14.14,
+        "baseline_trial_us": [
+          14.146,
+          14.239,
+          14.13,
+          14.117,
+          14.14,
+          14.974,
+          14.057
+        ],
+        "candidate_median_us": 13.96,
+        "candidate_over_baseline": 0.9873,
+        "candidate_trial_us": [
+          13.872,
+          13.898,
+          13.984,
+          13.916,
+          13.96,
+          13.993,
+          14.096
+        ],
+        "case": "simhash_4_tokens",
+        "loops_per_trial": 6802,
+        "target_trial_seconds": 0.1,
+        "trials": 7
+      },
+      {
+        "baseline_median_us": 27.02,
+        "baseline_trial_us": [
+          27.839,
+          27.108,
+          26.902,
+          27.609,
+          26.914,
+          26.982,
+          27.02
+        ],
+        "candidate_median_us": 8.645,
+        "candidate_over_baseline": 0.32,
+        "candidate_trial_us": [
+          8.856,
+          8.654,
+          8.645,
+          8.635,
+          8.599,
+          8.606,
+          8.665
+        ],
+        "case": "simhash_8_tokens",
+        "loops_per_trial": 2087,
+        "target_trial_seconds": 0.1,
+        "trials": 7
+      },
+      {
+        "baseline_median_us": 52.618,
+        "baseline_trial_us": [
+          52.618,
+          53.495,
+          52.601,
+          52.622,
+          53.827,
+          52.344,
+          51.659
+        ],
+        "candidate_median_us": 10.075,
+        "candidate_over_baseline": 0.1915,
+        "candidate_trial_us": [
+          10.482,
+          10.297,
+          10.221,
+          9.985,
+          10.075,
+          10.011,
+          9.879
+        ],
+        "case": "simhash_16_tokens",
+        "loops_per_trial": 1862,
+        "target_trial_seconds": 0.1,
+        "trials": 7
+      },
+      {
+        "baseline_median_us": 215.178,
+        "baseline_trial_us": [
+          214.266,
+          215.88,
+          214.328,
+          215.178,
+          215.086,
+          217.747,
+          218.002
+        ],
+        "candidate_median_us": 17.651,
+        "candidate_over_baseline": 0.082,
+        "candidate_trial_us": [
+          17.637,
+          17.401,
+          17.657,
+          17.651,
+          17.884,
+          17.923,
+          17.622
+        ],
+        "case": "simhash_64_tokens",
+        "loops_per_trial": 461,
+        "target_trial_seconds": 0.1,
+        "trials": 7
+      },
+      {
+        "baseline_median_us": 1813.22,
+        "baseline_trial_us": [
+          1804.209,
+          1799.953,
+          1808.32,
+          1813.22,
+          1908.551,
+          1850.356,
+          1884.962
+        ],
+        "candidate_median_us": 86.145,
+        "candidate_over_baseline": 0.0475,
+        "candidate_trial_us": [
+          88.615,
+          84.24,
+          90.715,
+          84.596,
+          86.145,
+          93.998,
+          85.525
+        ],
+        "case": "simhash_512_tokens",
+        "loops_per_trial": 55,
+        "target_trial_seconds": 0.1,
+        "trials": 7
+      },
+      {
+        "baseline_median_us": 7274.517,
+        "baseline_trial_us": [
+          7264.708,
+          7242.725,
+          7336.508,
+          7274.517,
+          7253.075,
+          7401.275,
+          7300.725
+        ],
+        "candidate_median_us": 316.333,
+        "candidate_over_baseline": 0.0435,
+        "candidate_trial_us": [
+          351.5,
+          302.842,
+          316.333,
+          344.975,
+          314.483,
+          308.25,
+          319.483
+        ],
+        "case": "simhash_2048_tokens",
+        "loops_per_trial": 12,
+        "target_trial_seconds": 0.1,
+        "trials": 7
+      },
+      {
+        "baseline_median_us": 28589.2,
+        "baseline_trial_us": [
+          28624.533,
+          28714.633,
+          28732.233,
+          28190.6,
+          28235.267,
+          28453.967,
+          28589.2
+        ],
+        "candidate_median_us": 1237.467,
+        "candidate_over_baseline": 0.0433,
+        "candidate_trial_us": [
+          1264.5,
+          1267.267,
+          1237.467,
+          1190.3,
+          1227.233,
+          1233.867,
+          1244.367
+        ],
+        "case": "simhash_8193_tokens",
+        "loops_per_trial": 3,
+        "target_trial_seconds": 0.1,
+        "trials": 7
+      }
+    ]
+  }
+}

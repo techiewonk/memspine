@@ -1,0 +1,284 @@
+{
+  "artifacts": [
+    {
+      "path": "src/memspine/models/runtime/gliner_runtime.py",
+      "sha256": "583d2927104cfc6a134449c2da4828712d28092bd38e136349aca0fe69d34dd8"
+    },
+    {
+      "path": "src/memspine/config/schema/llm.py",
+      "sha256": "a61abea7449c4b5b32afd1135ed0449f4d11b5637310ebc94af483c6d54c31b2"
+    },
+    {
+      "path": "src/memspine/config/schema/root.py",
+      "sha256": "e7b0bfc27a24d685559e9f76d88626d05bdb1cafa30198a24fb790667dea72ea"
+    },
+    {
+      "path": "src/memspine/config/schema/__init__.py",
+      "sha256": "e17c182422c4599d464497ac993bda4b50ab2686a3b2221f63b80c1ee72c294d"
+    },
+    {
+      "path": "src/memspine/memories/semantic/entities.py",
+      "sha256": "70329f441644ef9999490104357217381525a12d80b7ae430585b2bc43e41d47"
+    },
+    {
+      "path": "src/memspine/models/providers/decision/gliner2_decision.py",
+      "sha256": "9e366e3de80be136b74ce84410a04a05b33cf4e32b8ea9201d778929b0d87008"
+    },
+    {
+      "path": "src/memspine/derive/prepass.py",
+      "sha256": "0ac3b6e75f17720a857a9efa7615d2f5b998207b7d08d4ffc636dc2faa5a72cf"
+    },
+    {
+      "path": "src/memspine/derive/known_sources.py",
+      "sha256": "cc84c41417de154b55088620b2e613b49424ffa98cba9579571615feee24809a"
+    },
+    {
+      "path": "src/memspine/runtime/container.py",
+      "sha256": "09db4890e50a0bc4f6dc6f416914d8aff586c0e116ba716e97aa0940c6d7b865"
+    },
+    {
+      "path": "src/memspine/api/engine.py",
+      "sha256": "1d830fdb8479a9531f45183e3748d5ad7482881d5ac6d7f415580b0d0fb8ac6b"
+    },
+    {
+      "path": "src/memspine/ingest/windows.py",
+      "sha256": "8f13769ce4c5a03d9424b46ed4c5dcd2dfb3d7e81f447271b2c278918cea2220"
+    },
+    {
+      "path": "src/memspine/workers/windows.py",
+      "sha256": "1d5a30898cd07c47a738ed9037fc72ac273fe4afd1b4209b392b5fe6134515df"
+    },
+    {
+      "path": "src/memspine/core/policies/dedup.py",
+      "sha256": "fb117d766b59650be9e60e617a52a8396455cccf624c6ac9800549e8dc8268f2"
+    },
+    {
+      "path": "src/memspine/services/lexical/base.py",
+      "sha256": "1b331438935690b8dbfb2a65c5f942c852ae1c567b8b9c3daaea3e7363b6ff60"
+    },
+    {
+      "path": "src/memspine/read/pipeline/legs.py",
+      "sha256": "61557c16f9d4cc66a96a395a9feccb9f2bbfac9bf5f12d4f923d68bc3b6b0203"
+    },
+    {
+      "path": "src/memspine/config/constants.py",
+      "sha256": "7f6be9ee39f4853e8d38df5a45d1a0ec8568f663351271cc3567cb181370df87"
+    },
+    {
+      "path": "scripts/benchmark_bounded_topk.py",
+      "sha256": "96d8327540ef23e246507fa6ae63490d491bfc102cd93f0627f2697073d5197c"
+    },
+    {
+      "path": "scripts/benchmark_gliner_ownership.py",
+      "sha256": "2f00e433aae1f41798efea3c5b363e7dc67bb273ec87c2c3d381b32815734986"
+    },
+    {
+      "path": "scripts/benchmark_minhash_batch.py",
+      "sha256": "761bd141a24d7a7ed7222eece785af3808e50b34b7e2ba9cb71919d2daed13ec"
+    },
+    {
+      "path": "scripts/benchmark_embedding_batches.py",
+      "sha256": "d56e8d7f662dc2026a060bd59338e897dd44383fcc14880b51466ebc450da5f2"
+    },
+    {
+      "path": "scripts/benchmark_sqlite_startup_kernels.py",
+      "sha256": "0950bff31edd2252b2cc37a893aa2c8f2184add1032d59f4ba1fb236113672ad"
+    },
+    {
+      "path": "tests/unit/models/runtime/test_gliner_runtime.py",
+      "sha256": "d18a80d4d45fc201ca79a64258bc27faba959558af844763b70f231edf702582"
+    },
+    {
+      "path": "tests/unit/services/decision/test_decision.py",
+      "sha256": "028d1cd96f8b1d261b34c10bdbd528af9cefc7d549e78507a39392e42f7c8847"
+    },
+    {
+      "path": "tests/unit/wiring/test_w2_13_prepass.py",
+      "sha256": "7a09e278971222d0aee777fda62bae49e0d10a156484b8561ba733ab1eae57f7"
+    },
+    {
+      "path": "tests/unit/services/lexical/test_rrf_fuse.py",
+      "sha256": "48cbc09291cdbd822f880197b64d81610606478d04a9f73420f436174ce4a37b"
+    },
+    {
+      "path": "tests/unit/core/policies/test_dedup.py",
+      "sha256": "2bc50f802c2cd43fa42e4e54f65152ad8e6e25a68f66e6bf9ff9e1e0e7a86242"
+    },
+    {
+      "path": "tests/unit/wiring/test_r3_05b_graph_leg.py",
+      "sha256": "f24977ea499ab23798081031bc0136adbff96f4143d5fcc13af7a1d6a6386ff5"
+    },
+    {
+      "path": "tests/unit/test_graph_leg_off_golden.py",
+      "sha256": "e8706217ac932cac9f7923004545185d592893fc846dcaa41392ffe5b0694236"
+    },
+    {
+      "path": "tests/unit/config/test_config_split_equivalence.py",
+      "sha256": "f3080fb40f4923a6254391e8d391a8bf1481e8eb8d92b2234edf3807b5049cf6"
+    },
+    {
+      "path": "tests/unit/test_simple_profile_golden.py",
+      "sha256": "dee372e1e1b6435797cabfe8153cb91ecfdd18b69642b57a89b3dc8e0a7692c7"
+    },
+    {
+      "path": "tests/unit/wiring/test_w2_06c_known_sources.py",
+      "sha256": "7a0d473e56c8d6641f8feccbd2f36793838a8fc8f20cd4e08116f5363727a0b4"
+    },
+    {
+      "path": "tests/unit/test_window_write.py",
+      "sha256": "a36fcceb9bb8aafef5b57dcc80a47a864de7bf377e81e70de9d5e20fb2375b6a"
+    },
+    {
+      "path": "tests/unit/test_assembly_window_dedupe.py",
+      "sha256": "623a7bae2b2b035a45f43acbb81663109eb911ac68db695080cee813164d9246"
+    },
+    {
+      "path": "docs/provider_verification/bounded-topk.json",
+      "sha256": "039e878ae86129f36db4fa71b87fb918ffd29a9f6ec162193b6c18cd4003c3fb"
+    },
+    {
+      "path": "docs/provider_verification/bounded-topk.log",
+      "sha256": "039e878ae86129f36db4fa71b87fb918ffd29a9f6ec162193b6c18cd4003c3fb"
+    },
+    {
+      "path": "docs/provider_verification/minhash-batch.json",
+      "sha256": "84facc832c1668f18e3a3fe4a414b91166826cbc4cdb3f93142d36cd548870bf"
+    },
+    {
+      "path": "docs/provider_verification/minhash-batch.log",
+      "sha256": "84facc832c1668f18e3a3fe4a414b91166826cbc4cdb3f93142d36cd548870bf"
+    },
+    {
+      "path": "docs/provider_verification/gliner-ownership-kernel.json",
+      "sha256": "8f1156a72d2adf9543282b03a6a517f018f8a3c115be7a8b1b868c6399a2f65f"
+    },
+    {
+      "path": "docs/provider_verification/gliner-ownership-kernel.log",
+      "sha256": "e683ee9b674a39ae5fd7ce962afa542ddec893d8933f14a814616f0b7da83a76"
+    },
+    {
+      "path": "docs/provider_verification/gliner-ownership-local-load.json",
+      "sha256": "33925e9efdbfefefca79746b9077c4a6661fc3f9568e3aee0056fcf374e881a5"
+    },
+    {
+      "path": "docs/provider_verification/gliner-ownership-local-load.log",
+      "sha256": "6ecf8bdc0f6452d1f77205243ec62569ca54c1f432adebacbdb96f27eac2442a"
+    },
+    {
+      "path": "docs/provider_verification/embedding-batch-kernel.json",
+      "sha256": "7bb9cb32688657aa1b7901e00cd949ad0d2a22a2e74e755910484fbcaf39a997"
+    },
+    {
+      "path": "docs/provider_verification/embedding-batch-kernel.log",
+      "sha256": "2e373a3a279df39f4d97a5f9094b9d1a2754c850f8a69acba01bbb5ae104f9e1"
+    },
+    {
+      "path": "docs/provider_verification/sqlite-startup-kernel.json",
+      "sha256": "268d4e3b864da0fd12ed18b84fb5fa4e30fcb006a0bd5a75a6edc1b3015702e8"
+    },
+    {
+      "path": "docs/provider_verification/sqlite-startup-kernel.log",
+      "sha256": "268d4e3b864da0fd12ed18b84fb5fa4e30fcb006a0bd5a75a6edc1b3015702e8"
+    },
+    {
+      "path": "docs/provider_verification/performance-final-focused.log",
+      "sha256": "a958936c2230989f1d026c734eed71f62f740f4e8ef9fbd7c2733819a28b0c9c"
+    },
+    {
+      "path": "docs/provider_verification/performance-final-ruff.log",
+      "sha256": "a4443afdcfb6d7363adb285762515ccf7cf50473b1a05c20c1a50f6bed4d26b0"
+    },
+    {
+      "path": "docs/provider_verification/performance-final-format.log",
+      "sha256": "46a55c59a9b68ffa874e533263add44e79e47059066a18547203f33ef5846f9e"
+    },
+    {
+      "path": "docs/provider_verification/performance-final-mypy.log",
+      "sha256": "2ea17864b2fae3692d354a40d996a3e5e904fbb9b766aa2ba1f83ab52a36747d"
+    },
+    {
+      "path": "docs/provider_verification/performance-reference-check.json",
+      "sha256": "8829701c1468877db9dcc0144444f2500a284a2fab5097d21909bd7bbc278f29"
+    },
+    {
+      "path": "docs/PERFORMANCE_IMPLEMENTATION_RESULTS.md",
+      "sha256": "45c8b73a5f803608fe67127dbd83e245e74197eb895aaa75667b5f090a5714db"
+    },
+    {
+      "path": "docs/PROVIDER_TODO.md",
+      "sha256": "ea5e1cb1a12f24a284208cb648f673b79026b0528d4a32d0a5f74ced3e5e8d38"
+    },
+    {
+      "path": "docs/GLINER_SHARED_RUNTIME.md",
+      "sha256": "38e942bc42394f6574ec82cc62683e7635a7904951f38a2c4f3d3f32fb736d06"
+    },
+    {
+      "path": "docs/BOUNDED_TOPK_IMPLEMENTATION.md",
+      "sha256": "406f915faada8bd5f8f54dc471c8928e5bec25bc2459b7bb978b1d051b9f5286"
+    },
+    {
+      "path": "docs/MINHASH_BATCH_KERNEL.md",
+      "sha256": "f3f4c34b486c1c4bb0eeb3af69e6776dfe16a9c2571a5f4dacdb5f4ddd917072"
+    },
+    {
+      "path": "docs/EMBEDDING_BATCH_KERNEL.md",
+      "sha256": "c741494ca210e20157f1b683e490f7f4795fa677deccec7e836938bb56dd2fa9"
+    },
+    {
+      "path": "docs/SQLITE_STARTUP_KERNEL.md",
+      "sha256": "d5b8eda1bf736450bb250c1ae058284c3c45cfae60e857212a83aa998528b43c"
+    },
+    {
+      "path": "docs/adr/ADR-074-bounded-ranking-and-shared-gliner.md",
+      "sha256": "7ffb41e521c5af19b809dd1d2f100fadf7c61009f8fcea261738114d094eb522"
+    },
+    {
+      "path": "docs/USAGE.md",
+      "sha256": "361cde7d537b4703af8f8e55f41813c3e47cf8e33ca1c042d4d33a51baa32326"
+    },
+    {
+      "path": "docs/v2/STAGE_PARAMS.md",
+      "sha256": "90b7fd9820a7e6f9015c1609c7d9c4754dddc0b472151c95034b2c855753f8f1"
+    },
+    {
+      "path": "docs/v2/data/stage_params.json",
+      "sha256": "22c7193a7cd3529f4df6fbca91a8b84d3f11b92e368ae880e45a98881d7da5d9"
+    },
+    {
+      "path": "docs/v2/data/stage_params_manual.json",
+      "sha256": "64180aca1f4f72e25ae4e47b21f4f03db932d5f60b8d9ca00253115b2bb79a1d"
+    },
+    {
+      "path": "tests/unit/config/data/config_dump_baseline.json",
+      "sha256": "9a1ee47ca3ab3bc7828f5e2d0ee027588ea10ab2d845d95fe62dd6d4a7a5a06b"
+    },
+    {
+      "path": "tests/unit/golden/simple_profile_defaults.json",
+      "sha256": "63da9c1e9424a9e88c6acc2718a86cb81edabf893606fa23f4a45830760f3b34"
+    }
+  ],
+  "command": "python -m pytest tests/unit/models/runtime/test_gliner_runtime.py tests/unit/services/lexical/test_rrf_fuse.py tests/unit/core/policies/test_dedup.py tests/unit/wiring/test_r3_05b_graph_leg.py tests/unit/test_graph_leg_off_golden.py tests/unit/config/test_config_split_equivalence.py tests/unit/test_simple_profile_golden.py tests/unit/services/decision/test_decision.py tests/unit/wiring/test_w2_13_prepass.py tests/unit/wiring/test_w2_06c_known_sources.py tests/unit/test_window_write.py tests/unit/test_assembly_window_dedupe.py -p no:deepeval -o addopts= -q --tb=short -rs",
+  "counts": {
+    "failed": 0,
+    "passed": 192,
+    "skipped": 1
+  },
+  "evidence": [
+    "Kernel-only performance; focused correctness checks only. No complete-Engine performance or full-suite run. Ruff 26 files; strict mypy 16 source files. Cached embedding files required temporary staging; provider defaults unchanged."
+  ],
+  "gate": "performance-kernel-ownership-final",
+  "recorded_at": "2026-10-18T00:35:34.799202+05:30",
+  "runtime": {
+    "implementation": "CPython",
+    "platform": "Windows-11-10.0.26340-SP0",
+    "python": "3.13.5"
+  },
+  "schema_version": 1,
+  "source": {
+    "git_dirty": true,
+    "git_head": "e6596f44c1e9937050ef68938037f2cf2341ee34",
+    "pyproject_toml_sha256": "d612a620cc254f4d2467d39155a5c2aea7fd3bdcc1af95de27629cbff67075ca",
+    "uv_lock_sha256": "519b815049f45ea11286a9e358f996d74d3f8da8fecff9b364b709bab96e6c09"
+  },
+  "status": "passed"
+}

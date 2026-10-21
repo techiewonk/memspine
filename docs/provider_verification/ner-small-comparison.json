@@ -1,0 +1,220 @@
+{
+  "python": "3.13.5",
+  "platform": "Windows-11-10.0.26340-SP0",
+  "checkpoint_revision": "df5910e44bc4ffdb0d95399a83b0ca4516349aa5",
+  "versions": {
+    "gliner2": "2.1.0",
+    "torch": "2.14.1",
+    "transformers": "5.20.1"
+  },
+  "corpus_sha256": "e50b75077f256b35f0755b3ef0681d99ae05115b7137ce1e73b4d857fe06ceb3",
+  "settings": {
+    "device": "cpu",
+    "threads": 2,
+    "labels": [
+      "person",
+      "organization",
+      "location"
+    ],
+    "threshold": "SDK default, not tuned",
+    "offline": true
+  },
+  "model_calls": 10,
+  "call_cap": 11,
+  "host_cpu_percent_before_cases": 17.9,
+  "load_seconds": 1.8655933999689296,
+  "first_inference_seconds": 0.10334359994158149,
+  "warm_seconds": {
+    "median": 0.04281400004401803,
+    "p95": 0.05448609997984022,
+    "samples": [
+      0.05448609997984022,
+      0.036840899963863194,
+      0.03994369995780289,
+      0.04281400004401803,
+      0.04875209997408092
+    ]
+  },
+  "rss_before_load_bytes": 383229952,
+  "rss_after_cases_bytes": 903421952,
+  "peak_working_set_bytes": 1180098560,
+  "exact_typed_span_scores": {
+    "tp": 11,
+    "predicted": 13,
+    "expected": 11,
+    "precision": 0.8461538461538461,
+    "recall": 1.0,
+    "f1": 0.9166666666666666
+  },
+  "cases": [
+    {
+      "case": 0,
+      "source": "Mira works at Acme in Utrecht.",
+      "predicted": [
+        [
+          "location",
+          22,
+          29
+        ],
+        [
+          "organization",
+          14,
+          18
+        ],
+        [
+          "person",
+          0,
+          4
+        ]
+      ],
+      "expected": [
+        [
+          "location",
+          22,
+          29
+        ],
+        [
+          "organization",
+          14,
+          18
+        ],
+        [
+          "person",
+          0,
+          4
+        ]
+      ],
+      "ungrounded_outputs": 0
+    },
+    {
+      "case": 1,
+      "source": "Tomas moved from Braga to Rotterdam in 2022.",
+      "predicted": [
+        [
+          "location",
+          17,
+          22
+        ],
+        [
+          "location",
+          26,
+          35
+        ],
+        [
+          "organization",
+          17,
+          22
+        ],
+        [
+          "person",
+          0,
+          5
+        ]
+      ],
+      "expected": [
+        [
+          "location",
+          17,
+          22
+        ],
+        [
+          "location",
+          26,
+          35
+        ],
+        [
+          "person",
+          0,
+          5
+        ]
+      ],
+      "ungrounded_outputs": 0
+    },
+    {
+      "case": 2,
+      "source": "Leena joined Northstar Labs last spring.",
+      "predicted": [
+        [
+          "organization",
+          13,
+          27
+        ],
+        [
+          "person",
+          0,
+          5
+        ]
+      ],
+      "expected": [
+        [
+          "organization",
+          13,
+          27
+        ],
+        [
+          "person",
+          0,
+          5
+        ]
+      ],
+      "ungrounded_outputs": 0
+    },
+    {
+      "case": 3,
+      "source": "Our meeting was postponed until next Tuesday.",
+      "predicted": [
+        [
+          "organization",
+          4,
+          11
+        ]
+      ],
+      "expected": [],
+      "ungrounded_outputs": 0
+    },
+    {
+      "case": 4,
+      "source": "Nora and Elias visited Oslo together.",
+      "predicted": [
+        [
+          "location",
+          23,
+          27
+        ],
+        [
+          "person",
+          0,
+          4
+        ],
+        [
+          "person",
+          9,
+          14
+        ]
+      ],
+      "expected": [
+        [
+          "location",
+          23,
+          27
+        ],
+        [
+          "person",
+          0,
+          4
+        ],
+        [
+          "person",
+          9,
+          14
+        ]
+      ],
+      "ungrounded_outputs": 0
+    }
+  ],
+  "limits": [
+    "Five fixed invented English cases authored before inference; never tuned against these results.",
+    "Not a statistically powered quality benchmark, unknown pretraining overlap, not an LLM answer benchmark.",
+    "Shared development host; no production latency guarantee; threshold unchanged."
+  ]
+}

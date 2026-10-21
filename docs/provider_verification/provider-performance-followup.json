@@ -1,0 +1,199 @@
+{
+  "schema_version": 1,
+  "created_at_utc": "2026-10-17T18:17:29Z",
+  "host": {
+    "python": "3.13.5",
+    "platform": "Windows-11-10.0.26340-SP0",
+    "controlled_host": false,
+    "cpu_count": 32,
+    "cpu_percent_sample": 24.803149606299215,
+    "working_set_bytes": 614289408,
+    "load_average": null
+  },
+  "source_revision": "e6596f44c1e9937050ef68938037f2cf2341ee34",
+  "harness_sha256": "3904ec5e19536a4a0b0b5012353e81cbce0dfc940e18b6cc1bfa3aa49ea7596a",
+  "settings": {
+    "sizes": [
+      100,
+      500,
+      1000
+    ],
+    "searches_per_size": 30,
+    "config_repetitions": 100,
+    "concurrent_ingest_records": 20,
+    "concurrent_searches_minimum": 40,
+    "concurrent_timeout_s": 180.0,
+    "visibility_timeout_s": 30.0,
+    "lifecycle_cycles": 5,
+    "embedding": "hash",
+    "remote_calls": false,
+    "model_downloads": false
+  },
+  "component_phases": {
+    "sqlite": {
+      "sqlalchemy_import_ms": 183.21439996361732,
+      "aiosqlite_import_ms": 10.518700000829995,
+      "sqlite_client_module_import_ms": 67.18560005538166,
+      "connect_and_schema_startup_ms": 20.247100037522614
+    },
+    "lancedb": {
+      "module_import_ms": 858.3112000487745,
+      "client_module_import_ms": 0.3410999197512865,
+      "connect_ms": 3.408399992622435,
+      "table_create_ms": 9.015999967232347,
+      "table_open_ms": 6.252899998798966
+    }
+  },
+  "engine_workload": {
+    "configuration_admission": {
+      "effective_config_revalidation_ms_median": 2.994899987243116,
+      "repetitions": 100,
+      "path": "Config.effective_config() with template=core and hash embedding"
+    },
+    "serialization": {
+      "first_config_dump_ms": 0.08330005221068859,
+      "subsequent_dump_median_ms": 0.039899954572319984,
+      "subsequent_dump_repetitions": 100,
+      "mode": "json"
+    },
+    "corpora": [
+      {
+        "size": 100,
+        "engine_start_ms": 319.46859997697175,
+        "ingest_ms": 2813.596999971196,
+        "search_p50_ms": 88.34575000219047,
+        "search_p95_ms": 116.29559996072203,
+        "search_sample_count": 30,
+        "percentile_method": "nearest-rank for p95; Python median for p50",
+        "synthetic_label_recall_at_20": 0.8,
+        "synthetic_label_precision_at_20": 1.0,
+        "synthetic_label_oracle_recall_at_20": 0.8,
+        "synthetic_label_relevant_count_across_queries": 100,
+        "synthetic_label_hits_at_20_across_queries": 80,
+        "synthetic_label_candidates_returned_across_queries": 80,
+        "synthetic_label_recall_definition": "matching activity phrase hits across four queries divided by all matching records across those queries; hash embeddings, not semantic quality",
+        "corpus_integrity": true,
+        "rss_before_bytes": 247861248,
+        "rss_after_bytes": 299646976
+      },
+      {
+        "size": 500,
+        "engine_start_ms": 182.7336000278592,
+        "ingest_ms": 15287.681300076656,
+        "search_p50_ms": 192.1847999910824,
+        "search_p95_ms": 251.86780001968145,
+        "search_sample_count": 30,
+        "percentile_method": "nearest-rank for p95; Python median for p50",
+        "synthetic_label_recall_at_20": 0.16,
+        "synthetic_label_precision_at_20": 1.0,
+        "synthetic_label_oracle_recall_at_20": 0.16,
+        "synthetic_label_relevant_count_across_queries": 500,
+        "synthetic_label_hits_at_20_across_queries": 80,
+        "synthetic_label_candidates_returned_across_queries": 80,
+        "synthetic_label_recall_definition": "matching activity phrase hits across four queries divided by all matching records across those queries; hash embeddings, not semantic quality",
+        "corpus_integrity": true,
+        "rss_before_bytes": 297095168,
+        "rss_after_bytes": 393736192
+      },
+      {
+        "size": 1000,
+        "engine_start_ms": 188.59399994835258,
+        "ingest_ms": 41832.33600005042,
+        "search_p50_ms": 435.1529500563629,
+        "search_p95_ms": 503.020100062713,
+        "search_sample_count": 30,
+        "percentile_method": "nearest-rank for p95; Python median for p50",
+        "synthetic_label_recall_at_20": 0.08,
+        "synthetic_label_precision_at_20": 1.0,
+        "synthetic_label_oracle_recall_at_20": 0.08,
+        "synthetic_label_relevant_count_across_queries": 1000,
+        "synthetic_label_hits_at_20_across_queries": 80,
+        "synthetic_label_candidates_returned_across_queries": 80,
+        "synthetic_label_recall_definition": "matching activity phrase hits across four queries divided by all matching records across those queries; hash embeddings, not semantic quality",
+        "corpus_integrity": true,
+        "rss_before_bytes": 391139328,
+        "rss_after_bytes": 595988480
+      }
+    ],
+    "concurrent_ingest_search": {
+      "base_corpus_size": 1000,
+      "ingest_records": 20,
+      "search_count": 40,
+      "elapsed_ms": 20540.517600020394,
+      "search_p50_ms": 484.79474999476224,
+      "search_p95_ms": 585.7459000544623,
+      "search_sample_count": 40,
+      "percentile_method": "nearest-rank for p95; Python median for p50",
+      "visibility_detection_ms_from_concurrent_start": 2307.0931000402197,
+      "post_ingest_visibility_check_ms": null,
+      "visibility_detected_before_ingest_return": true,
+      "visibility_poll_count": 11,
+      "visibility_poll_interval_ms": 100,
+      "derivation_lag_measured": false,
+      "note": "ingest-to-list visibility is not background derivation lag"
+    },
+    "repeated_lifecycle": {
+      "cycles": 5,
+      "samples": [
+        {
+          "startup_ms": 217.37229998689145,
+          "stop_ms": 5.706000025384128,
+          "rss_live_bytes": 616759296.0,
+          "rss_after_stop_bytes": 614100992.0,
+          "owned_resources_owned": 3.0,
+          "owned_resources_stopped": 3.0
+        },
+        {
+          "startup_ms": 398.2970000943169,
+          "stop_ms": 5.6594000197947025,
+          "rss_live_bytes": 616816640.0,
+          "rss_after_stop_bytes": 614150144.0,
+          "owned_resources_owned": 3.0,
+          "owned_resources_stopped": 3.0
+        },
+        {
+          "startup_ms": 218.08860008604825,
+          "stop_ms": 5.12190000154078,
+          "rss_live_bytes": 616861696.0,
+          "rss_after_stop_bytes": 614203392.0,
+          "owned_resources_owned": 3.0,
+          "owned_resources_stopped": 3.0
+        },
+        {
+          "startup_ms": 250.57849998120219,
+          "stop_ms": 6.08640001155436,
+          "rss_live_bytes": 616919040.0,
+          "rss_after_stop_bytes": 614256640.0,
+          "owned_resources_owned": 3.0,
+          "owned_resources_stopped": 3.0
+        },
+        {
+          "startup_ms": 224.847000092268,
+          "stop_ms": 6.7492000525817275,
+          "rss_live_bytes": 616984576.0,
+          "rss_after_stop_bytes": 614330368.0,
+          "owned_resources_owned": 3.0,
+          "owned_resources_stopped": 3.0
+        }
+      ],
+      "owned_resources_stopped_per_cycle": [
+        3.0,
+        3.0,
+        3.0,
+        3.0,
+        3.0
+      ],
+      "database_connection_count_available": false,
+      "database_connection_count_unavailable_reason": "No OS-level per-provider connection collector is installed in the provided environment.",
+      "post_stop_rss_endpoint_delta_bytes": 229376.0,
+      "rss_delta_interpretation": "difference between first and last post-stop process working-set samples; not leak proof"
+    }
+  },
+  "limitations": [
+    "Shared host; timings are exploratory and cannot set latency budgets.",
+    "Synthetic content and hash embeddings; recall field checks fixture retrieval only, not semantic quality.",
+    "SQLite connect metric includes schema startup/migrations; no optimization was made from a single sample.",
+    "Remote tail latency and bounded timeout behavior are recorded in the separate remote follow-up report.",
+    "Process RSS and connection samples cover only this bounded run, not a representative long-running deployment."
+  ]
+}

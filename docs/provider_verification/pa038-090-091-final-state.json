@@ -1,0 +1,127 @@
+{
+  "schema_version": 1,
+  "recorded_at": "2026-10-18T04:41:34.033661+00:00",
+  "gate": "PA-038-PA-090-PA-091-skip-review-and-ownership",
+  "status": "passed",
+  "command": "PYTHONPATH=src;evals python -m pytest tests/unit/test_audit_test_skips.py -p no:deepeval -o addopts= -q --tb=short -rs; python scripts/audit_test_skips.py --dispositions docs/provider_verification/test-skip-dispositions.json; focused review/ownership consistency assertions",
+  "source": {
+    "git_head": "e6596f44c1e9937050ef68938037f2cf2341ee34",
+    "git_dirty": true,
+    "pyproject_toml_sha256": "d612a620cc254f4d2467d39155a5c2aea7fd3bdcc1af95de27629cbff67075ca",
+    "uv_lock_sha256": "519b815049f45ea11286a9e358f996d74d3f8da8fecff9b364b709bab96e6c09"
+  },
+  "runtime": {
+    "python": "3.13.5",
+    "implementation": "CPython",
+    "platform": "Windows-11-10.0.26340-SP0"
+  },
+  "counts": {
+    "passed": 9,
+    "failed": 0,
+    "skipped": 0
+  },
+  "artifacts": [
+    {
+      "path": "scripts/audit_test_skips.py",
+      "sha256": "6fedc03751891978bea6d8c002cfe5453c40f4d9868b1fbcead1a4b961dc0686"
+    },
+    {
+      "path": "tests/unit/test_audit_test_skips.py",
+      "sha256": "f156d6b970f6857c1f41ac1f3c65fda5278eb7fc6611f6ced1b0376d4b6a4f6a"
+    },
+    {
+      "path": "docs/PROVIDER_TODO.md",
+      "sha256": "13338fc5d654c96328b9943f866a26ba5f8049cb6d14f06138a835cd1f228b8c"
+    },
+    {
+      "path": "docs/TEST_SKIP_REVIEW.md",
+      "sha256": "936f5e0c2fe0e3383ec84b635e57a41655f01885e27391a8622c5e917169b3ad"
+    },
+    {
+      "path": "docs/PROVIDER_NEXT_MILESTONES.md",
+      "sha256": "ecf2dc37062cd65e84b5d0d3dd039529c52294b3e624d1fff74b26144ce83531"
+    },
+    {
+      "path": "docs/PROVIDER_PROPOSED_DELIVERY.md",
+      "sha256": "c9c752edc65b28c4ddfa31b95c565741c9efdf62c5b08776f46f84bdea8b442b"
+    },
+    {
+      "path": "docs/provider_verification/README.md",
+      "sha256": "d8b98ae59882a392d041880c2852aa769f166a14abf7a8d49df1b558d480ef5f"
+    },
+    {
+      "path": "docs/provider_verification/ASYNCIO_AND_SKIP_AUDIT.md",
+      "sha256": "2e4d4344b1ba881c4d94a49682aafc34f06c87278991b143221c26c1b9850874"
+    },
+    {
+      "path": "docs/provider_verification/test-skip-inventory.json",
+      "sha256": "86a6da72f2bdb80b397f491df774810f5cdd8fd24be7a5199a96445930f5e531"
+    },
+    {
+      "path": "docs/provider_verification/test-skip-dispositions.json",
+      "sha256": "03b1197c4f0fbf72bdb79f9e10d74b288cb8d70d932331a4a485fa0a3ae8c0ee"
+    },
+    {
+      "path": "docs/provider_verification/test-skip-audit-focused.log",
+      "sha256": "b3e572fd3d8a3f4c975146505d679b9462022453130a665332651bb74a69fff5"
+    },
+    {
+      "path": "docs/provider_verification/test-skip-audit.log",
+      "sha256": "edd218d8adad0719472cf0be6d87f8c145c893099271ea284b6a42a314c75c31"
+    },
+    {
+      "path": "docs/provider_verification/pa038-skip-audit-tests.log",
+      "sha256": "bca794c6321f1de3bb05303c06918364e88677ac1880652e53e1298207505917"
+    },
+    {
+      "path": "docs/provider_verification/pa038-skip-inventory.log",
+      "sha256": "edd218d8adad0719472cf0be6d87f8c145c893099271ea284b6a42a314c75c31"
+    },
+    {
+      "path": "docs/provider_verification/pa038-090-091-consistency.json",
+      "sha256": "8bac7fd566bbfba9f7d59bd33f03131f5359bcb8c77ee4480515965e91ddf694"
+    }
+  ],
+  "evidence": [
+    "162 source sites:77importorskip54skip31skipif,111 files with sites; zero parse errors,missing reasons,incomplete reviews,stale IDs; normalized-source pins verified.",
+    "Reviewed categories84optionaldependency44externalenv13intentionallycovered7platform6defect5model3deferred. Preserve21legitimate optionalEngine eval imports.",
+    "All36initial unresolved/disposition PA IDs have roles,actions,gates,prerequisites,milestones and dates; selected18Oct2026,remaining25Oct2026 or earlier trigger. No scheduled automation.",
+    "Nine focused tool tests passed; Ruff check/format2files; targeted mypy1script;281local links checked. No test guards or engine behavior changed.",
+    "Six guard defects remain subordinate OPEN M-GUARDS;3eval masks remain DEFERRED PA107. Static sites are not executed/parameterized skips; historical aggregate attribution unresolved. No full-suite/collection,downloads,model/services,benchmark,commit,push,rollout."
+  ],
+  "consistency": {
+    "status": "passed",
+    "skip_sites": 162,
+    "source_files_with_sites": 111,
+    "categories": {
+      "optionaldependency": 84,
+      "externalenv": 44,
+      "platform": 7,
+      "model": 5,
+      "deferred": 3,
+      "intentionallycovered": 13,
+      "defect": 6
+    },
+    "review_fields_complete": true,
+    "normalized_source_pins_fresh": true,
+    "human_table_complete": true,
+    "ownership_rows": 36,
+    "tracker_counts": {
+      "DONE": 103,
+      "OPEN": 5,
+      "NEEDS_INPUT": 3,
+      "DEPLOYMENT_CHECK": 19,
+      "EXCLUDED": 4,
+      "DEFERRED": 1,
+      "NEEDS_TOOLCHAIN": 1
+    },
+    "local_links_checked": 281,
+    "next_review_date": "2026-10-25",
+    "runtime_skip_outcomes_inferred": false
+  },
+  "status_changes": {
+    "PA-038": "DONE",
+    "PA-090": "DONE",
+    "PA-091": "DONE"
+  }
+}

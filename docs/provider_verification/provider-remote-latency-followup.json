@@ -1,0 +1,161 @@
+{
+  "schema_version": 1,
+  "created_at_utc": "2026-10-17T18:14:59Z",
+  "host_controlled": false,
+  "services": [
+    "neo4j",
+    "opensearch",
+    "postgres",
+    "redis",
+    "valkey",
+    "weaviate"
+  ],
+  "service_images_and_versions": [
+    "postgres: sha256:7b822b0aac60967beb1ea5e576b8602c94c300a157d187f385ae3e0da199b90a [pgvector/pgvector@sha256:7b822b0aac60967beb1ea5e576b8602c94c300a157d187f385ae3e0da199b90a] (postgres (PostgreSQL) 16.15 (Debian 16.15-1.pgdg12+2))",
+    "neo4j: sha256:f1e52d4dc6da122468c4a3c1050a4f5e117f6d3268625237c34d49166f0d6082 [neo4j@sha256:f1e52d4dc6da122468c4a3c1050a4f5e117f6d3268625237c34d49166f0d6082] (5.26.32)",
+    "redis: sha256:858f009f9709ce576febc734aa78b8f6d624b82571f9ddb6bda4377c833b3499 [redis@sha256:858f009f9709ce576febc734aa78b8f6d624b82571f9ddb6bda4377c833b3499] (Redis server v=7.4.11 sha=00000000:0 malloc=jemalloc-5.3.0 bits=64 build=40ff01a501d8e4b6)",
+    "valkey: sha256:640c5e62cea04b6d6f2084232651d0cc70362d31f4f805e7be94dbed6855e8f2 [valkey/valkey@sha256:640c5e62cea04b6d6f2084232651d0cc70362d31f4f805e7be94dbed6855e8f2] (Valkey server v=8.1.10 sha=00000000:0 malloc=jemalloc-5.3.0 bits=64 build=f1f7d07da9c59343)",
+    "opensearch: sha256:4ee82ecb35d837a6186c81aaa64c8a5bce71aa956edbd87f1f684ab56af52c44 [opensearchproject/opensearch@sha256:4ee82ecb35d837a6186c81aaa64c8a5bce71aa956edbd87f1f684ab56af52c44] ({'distribution': 'opensearch', 'number': '2.19.5', 'build_type': 'tar', 'build_hash': '688434c5163e9b107f339df25b4e98a96c10ddc6', 'build_date': '2026-03-06T19:08:40.322930395Z', 'build_snapshot': False, 'lucene_version': '9.12.3', 'minimum_wire_compatibility_version': '7.10.0', 'minimum_index_compatibility_version': '7.0.0'})",
+    "weaviate: sha256:920463cf9a9b2b8d38e5b925d63f6928fa703277c93df11d5a75fc75e1fff758 [cr.weaviate.io/semitechnologies/weaviate@sha256:920463cf9a9b2b8d38e5b925d63f6928fa703277c93df11d5a75fc75e1fff758] (1.32.4)"
+  ],
+  "owned_container_suffix": "5198340ffc",
+  "samples_per_service": 30,
+  "operation_results": {
+    "postgresql": {
+      "samples": 30,
+      "connect_ms": 13.306999928317964,
+      "operation": "SQL SELECT 1 round trip",
+      "client_timeout_settings": {
+        "connect_timeout_s": 5
+      },
+      "p50_ms": 0.6695000920444727,
+      "p95_ms": 1.4590999344363809,
+      "p99_ms": 1.562100020237267,
+      "min_ms": 0.6238999776542187,
+      "max_ms": 1.562100020237267
+    },
+    "neo4j": {
+      "samples": 30,
+      "connect_ms": 67.32469995040447,
+      "operation": "Cypher RETURN 1 round trip",
+      "client_timeout_settings": {
+        "connection_timeout_s": 5.0
+      },
+      "p50_ms": 4.988200031220913,
+      "p95_ms": 10.843499912880361,
+      "p99_ms": 598.6476000398397,
+      "min_ms": 4.059099941514432,
+      "max_ms": 598.6476000398397
+    },
+    "redis": {
+      "samples": 30,
+      "connect_ms": 5.361499963328242,
+      "operation": "Redis protocol PING round trip",
+      "client_timeout_settings": {
+        "socket_connect_timeout_s": 5.0,
+        "socket_timeout_s": 5.0
+      },
+      "p50_ms": 0.5593999521806836,
+      "p95_ms": 0.8336999453604221,
+      "p99_ms": 1.065900083631277,
+      "min_ms": 0.5319999763742089,
+      "max_ms": 1.065900083631277
+    },
+    "valkey": {
+      "samples": 30,
+      "connect_ms": 5.411199992522597,
+      "operation": "Redis protocol PING round trip",
+      "client_timeout_settings": {
+        "socket_connect_timeout_s": 5.0,
+        "socket_timeout_s": 5.0
+      },
+      "p50_ms": 0.5813500029034913,
+      "p95_ms": 0.7051000138744712,
+      "p99_ms": 0.7169999880716205,
+      "min_ms": 0.5468999734148383,
+      "max_ms": 0.7169999880716205
+    },
+    "opensearch": {
+      "samples": 30,
+      "connect_ms": 6.6226000199094415,
+      "operation": "OpenSearch HTTP ping",
+      "client_timeout_settings": {
+        "request_timeout_s": 5.0,
+        "max_retries": 0
+      },
+      "p50_ms": 1.1480500106699765,
+      "p95_ms": 1.6286000609397888,
+      "p99_ms": 1.7293000128120184,
+      "min_ms": 0.9645000100135803,
+      "max_ms": 1.7293000128120184
+    },
+    "weaviate": {
+      "samples": 30,
+      "connect_ms": 572.9783000424504,
+      "operation": "Weaviate SDK readiness round trip",
+      "client_timeout_settings": {
+        "init_timeout_s": 5,
+        "query_timeout_s": 5,
+        "insert_timeout_s": 5
+      },
+      "p50_ms": 0.9435999672859907,
+      "p95_ms": 1.2376999948173761,
+      "p99_ms": 1.2799999676644802,
+      "min_ms": 0.8974999655038118,
+      "max_ms": 1.2799999676644802
+    }
+  },
+  "unavailable_endpoint_results": {
+    "target": "unused loopback port, no service contacted",
+    "attempts": {
+      "postgresql": {
+        "expected_error": "ConnectionTimeout",
+        "elapsed_ms": 2011.0181999625638,
+        "configured_timeout_bound_s": 2.5,
+        "returned_within_bound": true
+      },
+      "redis": {
+        "expected_error": "TimeoutError",
+        "elapsed_ms": 1011.5553000941873,
+        "configured_timeout_bound_s": 1.0,
+        "returned_within_bound": true
+      },
+      "valkey": {
+        "expected_error": "TimeoutError",
+        "elapsed_ms": 1007.3990999953821,
+        "configured_timeout_bound_s": 1.0,
+        "returned_within_bound": true
+      },
+      "neo4j": {
+        "expected_error": "ServiceUnavailable",
+        "elapsed_ms": 1006.8717000540346,
+        "configured_timeout_bound_s": 1.0,
+        "returned_within_bound": true
+      },
+      "opensearch": {
+        "expected_error": "health probe returned false",
+        "elapsed_ms": 1010.1290000602603,
+        "configured_timeout_bound_s": 1.0,
+        "returned_within_bound": true
+      },
+      "weaviate": {
+        "expected_error": "WeaviateConnectionError",
+        "elapsed_ms": 1168.4963000006974,
+        "configured_timeout_bound_s": 1.5,
+        "returned_within_bound": true
+      }
+    },
+    "all_bounded": true,
+    "postgresql_driver_setting_s": 1.0,
+    "postgresql_observation": "driver connect_timeout=1s returned in about 2s; bound uses 2.5s to capture its effective multi-attempt failure"
+  },
+  "container_setup_and_measurement_wall_seconds": 28.192448499961756,
+  "credentials_recorded": false,
+  "source_revision": "e6596f44c1e9937050ef68938037f2cf2341ee34",
+  "harness_sha256": "4ba39201b324634dabbf24c22d04cf873b2a601e4dcfb400c81675c5b3af1b1e",
+  "limitations": [
+    "Disposable local Docker services on shared Windows host; these results are not production tail latency or an SLO.",
+    "Each measured operation is a small read/health round trip, not the full provider workload.",
+    "Unavailable-port tests exercise all six provider clients. PostgreSQL configured connect_timeout=1s and returned its multi-attempt timeout in about 2s; Redis/Valkey, Neo4j, OpenSearch and Weaviate returned within the configured 1s attempt bound (plus 500ms measurement allowance)."
+  ]
+}

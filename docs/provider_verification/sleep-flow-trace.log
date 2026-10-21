@@ -1,0 +1,243 @@
+
+[sleep F3.1] prepare: two sessions written and their windows flushed (L0 + L1 only)
+    code: ingest/windows.py:flush_windows
+2026-10-17 22:26:20 [warning  ] write.naive_datetime           assumed_timezone=UTC hint="pass an aware datetime or set read.naive_timezone to the source's zone"
+C:\Users\hembad\Documents\GitHub\memspine-restructure\src\memspine\services\vector\lancedb_store.py:213: UserWarning: optimize(cleanup_older_than=0) removes every version except the latest. Any concurrent reader or writer still using an older version will fail. Use a longer cleanup_older_than unless no other process is working on this table.
+  await asyncio.to_thread(lambda: table.optimize(cleanup_older_than=cleanup))
+    window flush: {"windows_processed": 7, "facts_deposited": 7, "sessions_closed": 2}
+    records per layer before sleep: {"L1": 7, "L0": 7}
+    [PASS] only L0 and L1 exist before sleep: expected {'L1', 'L0'}, got {'L1', 'L0'}
+    [PASS] seven raw turns: expected 7, got 7
+    events (243):
+      ingest.messages.resolved  {"namespace": "flowcheck", "messages": 4, "sessions": 1, "conversations": 4}
+      write.time.parsed  {"anchored": true, "unknown_tz": true, "assumed": "UTC"}
+      write.time.parsed  {"anchored": true, "unknown_tz": true, "assumed": "UTC"}
+      write.time.parsed  {"anchored": true, "unknown_tz": true, "assumed": "UTC"}
+      write.time.parsed  {"anchored": true, "unknown_tz": true, "assumed": "UTC"}
+      write.intake.received  {"kind": "conversation", "source_id": "S1#4338b3dc95b3a76df43ec877", "segments": 4, "version": 1, "replayed": false, "noop": false, "new_events": 4, "intent_id": "intent-328fb498a9162c21a08548415fe96eb7"}
+      write.intake.committed  {"intent_id": "intent-328fb498a9162c21a08548415fe96eb7", "fresh": 4, "retried": 0, "version": 1}
+      write.messages.received  {"turns": 4, "depositable": 4, "session": "S1", "channel": "messages"}
+      write.role.turn  {"role": "user", "derive_use": "stated", "src_class": "user_stated", "trust_cap": 0.7, "session": "S1"}
+      write.time.parsed  {"anchored": true, "unknown_tz": true, "assumed": "UTC"}
+      write.stamp.turn  {"turn": 0, "role": "user", "src_class": "user_stated", "spk": "bram", "addr": null, "participants": 1, "source_tz": "unknown", "tz_unknown": true, "precision": "day", "dated": true, "flags": ["tz_unknown"]}
+      write.role.turn  {"role": "user", "derive_use": "stated", "src_class": "user_stated", "trust_cap": 0.7, "session": "S1"}
+      write.time.parsed  {"anchored": true, "unknown_tz": true, "assumed": "UTC"}
+      write.stamp.turn  {"turn": 1, "role": "user", "src_class": "user_stated", "spk": "bram", "addr": null, "participants": 1, "source_tz": "unknown", "tz_unknown": true, "precision": "day", "dated": true, "flags": ["tz_unknown"]}
+      write.role.turn  {"role": "user", "derive_use": "stated", "src_class": "user_stated", "trust_cap": 0.7, "session": "S1"}
+      write.time.parsed  {"anchored": true, "unknown_tz": true, "assumed": "UTC"}
+      write.stamp.turn  {"turn": 2, "role": "user", "src_class": "user_stated", "spk": "bram", "addr": null, "participants": 1, "source_tz": "unknown", "tz_unknown": true, "precision": "day", "dated": true, "flags": ["tz_unknown"]}
+      write.role.turn  {"role": "user", "derive_use": "stated", "src_class": "user_stated", "trust_cap": 0.7, "session": "S1"}
+      write.time.parsed  {"anchored": true, "unknown_tz": true, "assumed": "UTC"}
+      write.stamp.turn  {"turn": 3, "role": "user", "src_class": "user_stated", "spk": "bram", "addr": null, "participants": 1, "source_tz": "unknown", "tz_unknown": true, "precision": "day", "dated": true, "flags": ["tz_unknown"]}
+      write.route.decision  {"turns": 4, "keyed": 0, "unkeyed": 4}
+      write.intake.applied  {"intent_id": "intent-328fb498a9162c21a08548415fe96eb7", "records": 4, "resumed": false, "raw_search": "ready"}
+      write.forensics.firewall  {"record_id": "d30d96e6-32fa-4e9f-a477-0017e08e6744", "role": "user", "channel": "messages", "trust": 0.7, "trust_tier": null, "instruction_screen": "base", "instruction_flag": false, "semantic_risk": null, "embedding_ou
+      write.forensics.firewall  {"record_id": "f412e12e-6ca6-4c11-b773-9ab71a2835f2", "role": "user", "channel": "messages", "trust": 0.7, "trust_tier": null, "instruction_screen": "base", "instruction_flag": false, "semantic_risk": null, "embedding_ou
+      write.forensics.firewall  {"record_id": "2131d323-b068-42c1-b4c0-241af0b2fdba", "role": "user", "channel": "messages", "trust": 0.7, "trust_tier": null, "instruction_screen": "base", "instruction_flag": false, "semantic_risk": null, "embedding_ou
+      write.forensics.firewall  {"record_id": "d8c02574-f860-4b26-a55d-9f1f0b2fd795", "role": "user", "channel": "messages", "trust": 0.7, "trust_tier": null, "instruction_screen": "base", "instruction_flag": false, "semantic_risk": null, "embedding_ou
+      write.received  {"memory_type": "episodic", "actor": "user", "chars": 33, "has_entity": false, "reply": false}
+      write.firewall.verdict  {"id": "d30d96e6-32fa-4e9f-a477-0017e08e6744", "firewall": true, "trust": 0.7, "quarantine": false, "anomalous": false, "instruction_flag": false, "reasons": []}
+      write.route  {"id": "d30d96e6-32fa-4e9f-a477-0017e08e6744", "memory_type": "episodic", "route": "plain"}
+      write.deposit  {"id": "d30d96e6-32fa-4e9f-a477-0017e08e6744", "memory_type": "episodic", "action": "added", "trust": 0.7, "parents": 0}
+      write.received  {"memory_type": "episodic", "actor": "user", "chars": 44, "has_entity": false, "reply": false}
+      write.firewall.verdict  {"id": "f412e12e-6ca6-4c11-b773-9ab71a2835f2", "firewall": true, "trust": 0.7, "quarantine": false, "anomalous": false, "instruction_flag": false, "reasons": []}
+      write.route  {"id": "f412e12e-6ca6-4c11-b773-9ab71a2835f2", "memory_type": "episodic", "route": "plain"}
+      write.deposit  {"id": "f412e12e-6ca6-4c11-b773-9ab71a2835f2", "memory_type": "episodic", "action": "added", "trust": 0.7, "parents": 0}
+      write.segment.cut  {"reason": "flush", "turns": 1, "tokens": 8, "grown": false}
+      write.window.cut  {"reason": "flush", "turns": 1, "tokens": 8, "session": "S1", "queued": 1}
+      write.received  {"memory_type": "episodic", "actor": "user", "chars": 47, "has_entity": false, "reply": false}
+      write.firewall.verdict  {"id": "2131d323-b068-42c1-b4c0-241af0b2fdba", "firewall": true, "trust": 0.7, "quarantine": false, "anomalous": false, "instruction_flag": false, "reasons": []}
+      write.route  {"id": "2131d323-b068-42c1-b4c0-241af0b2fdba", "memory_type": "episodic", "route": "plain"}
+      write.deposit  {"id": "2131d323-b068-42c1-b4c0-241af0b2fdba", "memory_type": "episodic", "action": "added", "trust": 0.7, "parents": 0}
+      write.segment.cut  {"reason": "flush", "turns": 1, "tokens": 11, "grown": false}
+      write.window.cut  {"reason": "flush", "turns": 1, "tokens": 11, "session": "S1", "queued": 2}
+      write.received  {"memory_type": "episodic", "actor": "user", "chars": 40, "has_entity": false, "reply": false}
+      write.firewall.verdict  {"id": "d8c02574-f860-4b26-a55d-9f1f0b2fd795", "firewall": true, "trust": 0.7, "quarantine": false, "anomalous": false, "instruction_flag": false, "reasons": []}
+      write.route  {"id": "d8c02574-f860-4b26-a55d-9f1f0b2fd795", "memory_type": "episodic", "route": "plain"}
+      write.deposit  {"id": "d8c02574-f860-4b26-a55d-9f1f0b2fd795", "memory_type": "episodic", "action": "added", "trust": 0.7, "parents": 0}
+      write.segment.cut  {"reason": "flush", "turns": 1, "tokens": 11, "grown": false}
+      write.window.cut  {"reason": "flush", "turns": 1, "tokens": 11, "session": "S1", "queued": 3}
+      ingest.messages.resolved  {"namespace": "flowcheck", "messages": 3, "sessions": 1, "conversations": 3}
+      write.time.parsed  {"anchored": true, "unknown_tz": true, "assumed": "UTC"}
+      write.time.parsed  {"anchored": true, "unknown_tz": true, "assumed": "UTC"}
+      write.time.parsed  {"anchored": true, "unknown_tz": true, "assumed": "UTC"}
+      write.intake.received  {"kind": "conversation", "source_id": "S2#203666c21093d45b95a4437e", "segments": 3, "version": 1, "replayed": false, "noop": false, "new_events": 3, "intent_id": "intent-942ef63095e91d94cc9afbca286ceabe"}
+      write.intake.committed  {"intent_id": "intent-942ef63095e91d94cc9afbca286ceabe", "fresh": 3, "retried": 0, "version": 1}
+      write.messages.received  {"turns": 3, "depositable": 3, "session": "S2", "channel": "messages"}
+      write.role.turn  {"role": "user", "derive_use": "stated", "src_class": "user_stated", "trust_cap": 0.7, "session": "S2"}
+      write.time.parsed  {"anchored": true, "unknown_tz": true, "assumed": "UTC"}
+      write.stamp.turn  {"turn": 0, "role": "user", "src_class": "user_stated", "spk": "bram", "addr": null, "participants": 1, "source_tz": "unknown", "tz_unknown": true, "precision": "day", "dated": true, "flags": ["tz_unknown"]}
+      write.role.turn  {"role": "user", "derive_use": "stated", "src_class": "user_stated", "trust_cap": 0.7, "session": "S2"}
+      write.time.parsed  {"anchored": true, "unknown_tz": true, "assumed": "UTC"}
+      ... 183 more
+
+[sleep F3.2] engine.sleep(): the per-stage report (B0-B17)
+    code: api/engine.py:sleep -> derive/pipeline/scheduler.py:sleep
+     B6 consolidate: {"status": "ok", "summaries": 2, "superseded": 0}
+     B7 mine_facts: {"status": "skipped", "reason": "consolidation.mine_facts is off"}
+     B7 anticipate: {"status": "skipped", "reason": "consolidation.anticipate is off"}
+     B8 reflect_profile: {"status": "skipped", "reason": "consolidation.reflect_profile is off"}
+     B9 extract_graph: {"status": "skipped", "reason": "extract_graph disabled or no extract_edges role"}
+    B11 pattern_observations: {"status": "ok", "observations": 0, "invalidated": 0, "retired": 0, "deferred": 0, "skipped_parents": 0, "errors": []}
+    B11 standing_answers: {"status": "ok", "built": 1, "stale": 0, "evicted": 0, "emptied": 0, "skipped_parents": 0, "errors": []}
+    B12 compile_edges: {"status": "ok", "nodes": 10, "written": 14, "closed": 12}
+    B13 summarize_entities: {"status": "skipped", "reason": "associative.policies.entity_summaries is off"}
+    B14 reorganize: {"status": "ok", "communities": 4, "parents": 3, "superseded": 0}
+    B15 check_watches: {"status": "ok", "fired": 0, "due": 0, "invalidated": 0}
+    B15 session_lifecycle: {"status": "skipped", "reason": "episodic.policies.sessions.passive_after unset"}
+    B16 decay_sweep: {"status": "ok", "transitions": 0}
+    B16 compress: {"status": "ok", "compressed": 0}
+    B16 sleep_compute: {"status": "noop", "hook": "E7"}
+    B16 event_log_prune: {"status": "skipped", "reason": "event_log.mode != rolling"}
+    [PASS] the report has one entry per stage, each with a status (16)
+    [PASS] no stage failed ({})
+    [PASS] every skipped stage says why
+    [PASS] the stages this flow depends on ran
+    stage order: ["consolidate", "mine_facts", "anticipate", "reflect_profile", "extract_graph", "pattern_observations", "standing_answers", "compile_edges", "summarize_entities", "reorganize", "check_watches", "session_lifecycle", "decay_sweep", "compress", "sleep_compute", "event_log_prune"]
+    [PASS] consolidate runs before standing answers, which run before edge compile
+    events (48):
+      write.forensics.firewall  {"record_id": "6d14d936-3cef-484b-96ca-4ef2b096b401", "role": "assistant", "channel": "standing", "trust": 0.5, "trust_tier": null, "instruction_screen": "base", "instruction_flag": false, "semantic_risk": null, "embeddi
+      write.forensics.conflict  {"record_id": "6d14d936-3cef-484b-96ca-4ef2b096b401", "incumbent": null, "verdict": "add", "rule": "unkeyed_record", "key": [null, null]}
+      job.stage.start  {"stage": "consolidate"}
+      derive.lineage.write  {"site": "consolidate", "record": "0e4c4367-e147-4c53-aae5-6946312e2efd", "parents": ["d30d96e6-32fa-4e9f-a477-0017e08e6744", "f412e12e-6ca6-4c11-b773-9ab71a2835f2", "2131d323-b068-42c1-b4c0-241af0b2fdba", "d8c02574-f860
+      derive.lineage.write  {"site": "consolidate", "record": "87e3bc99-9f24-48ea-aa9b-847cd26144e2", "parents": ["01aadca3-7007-42fb-b443-92cfec0ac7b4", "e76ea636-5f20-4351-ad07-d2e32ab47206", "69bbb1f3-c0d7-4bb1-9601-b96cad4ce4e4"], "roles": ["su
+      job.stage.end  {"stage": "consolidate", "status": "ok", "summaries": 2, "superseded": 0}
+      job.stage.start  {"stage": "mine_facts"}
+      job.stage.end  {"stage": "mine_facts", "status": "skipped", "skipped": true, "reason_text": "consolidation.mine_facts is off"}
+      job.stage.start  {"stage": "anticipate"}
+      job.stage.end  {"stage": "anticipate", "status": "skipped", "skipped": true, "reason_text": "consolidation.anticipate is off"}
+      job.stage.start  {"stage": "reflect_profile"}
+      job.stage.end  {"stage": "reflect_profile", "status": "skipped", "skipped": true, "reason_text": "consolidation.reflect_profile is off"}
+      job.stage.start  {"stage": "extract_graph"}
+      job.stage.end  {"stage": "extract_graph", "status": "skipped", "skipped": true, "reason_text": "extract_graph disabled or no extract_edges role"}
+      job.stage.start  {"stage": "pattern_observations"}
+      job.patterns  {"by_kind": {}, "emitted": 0, "invalidated": 0, "groups_changed": 0, "retired": 0, "deferred": 0, "skipped_parents": 0}
+      job.stage.end  {"stage": "pattern_observations", "status": "ok", "observations": 0, "invalidated": 0, "retired": 0, "deferred": 0, "skipped_parents": 0}
+      job.stage.start  {"stage": "standing_answers"}
+      write.firewall.verdict  {"id": "6d14d936-3cef-484b-96ca-4ef2b096b401", "firewall": true, "trust": 0.5, "quarantine": false, "anomalous": false, "instruction_flag": false, "reasons": []}
+      write.route  {"id": "6d14d936-3cef-484b-96ca-4ef2b096b401", "memory_type": "semantic", "route": "semantic_pipeline"}
+      write.deposit  {"id": "6d14d936-3cef-484b-96ca-4ef2b096b401", "memory_type": "semantic", "action": "added", "trust": 0.5, "parents": 1}
+      derive.lineage.write  {"site": "standing", "record": "6d14d936-3cef-484b-96ca-4ef2b096b401", "parents": ["e007847c-da74-4a0f-a756-4ef8fe768b61"], "roles": ["support"], "edges": 1, "trust": 0.5, "trust_cap": 0.5, "layer": "L5"}
+      job.standing  {"built": 1, "stale": 0, "evicted": 0, "emptied": 0, "skipped_parents": 0}
+      job.stage.end  {"stage": "standing_answers", "status": "ok", "built": 1, "stale": 0, "evicted": 0, "emptied": 0, "skipped_parents": 0}
+      job.stage.start  {"stage": "compile_edges"}
+      graph.compile.start  {"namespace": "flowcheck", "records": 10}
+      graph.compile.delta  {"namespace": "flowcheck", "assertions": 7, "edges": 14, "tentative": 0, "closed": 12, "unbound": 0, "skipped": 0, "scoped": false}
+      graph.compile.project  {"namespace": "flowcheck", "written": 14, "unchanged": 0, "tentative": 0}
+      job.stage.end  {"stage": "compile_edges", "status": "ok", "nodes": 10, "written": 14, "closed": 12}
+      job.stage.start  {"stage": "summarize_entities"}
+      job.stage.end  {"stage": "summarize_entities", "status": "skipped", "skipped": true, "reason_text": "associative.policies.entity_summaries is off"}
+      job.stage.start  {"stage": "reorganize"}
+      derive.lineage.write  {"site": "reorganize", "record": "185c5a75-468e-48a0-987a-483a30affb39", "parents": ["01aadca3-7007-42fb-b443-92cfec0ac7b4", "87e3bc99-9f24-48ea-aa9b-847cd26144e2", "e76ea636-5f20-4351-ad07-d2e32ab47206"], "roles": ["sup
+      derive.lineage.write  {"site": "reorganize", "record": "2f3820c7-55df-4af5-9936-f8a0ae9ecdb2", "parents": ["0e4c4367-e147-4c53-aae5-6946312e2efd", "2131d323-b068-42c1-b4c0-241af0b2fdba", "d30d96e6-32fa-4e9f-a477-0017e08e6744", "d8c02574-f860-
+      derive.lineage.write  {"site": "reorganize", "record": "d6bd552e-3ef8-46f1-a716-c9a55e90f215", "parents": ["69bbb1f3-c0d7-4bb1-9601-b96cad4ce4e4", "6d14d936-3cef-484b-96ca-4ef2b096b401", "e007847c-da74-4a0f-a756-4ef8fe768b61"], "roles": ["sup
+      job.stage.end  {"stage": "reorganize", "status": "ok", "communities": 4, "parents": 3, "superseded": 0}
+      job.stage.start  {"stage": "check_watches"}
+      job.stage.end  {"stage": "check_watches", "status": "ok", "fired": 0, "due": 0, "invalidated": 0}
+      job.stage.start  {"stage": "session_lifecycle"}
+      job.stage.end  {"stage": "session_lifecycle", "status": "skipped", "skipped": true, "reason_text": "episodic.policies.sessions.passive_after unset"}
+      job.stage.start  {"stage": "decay_sweep"}
+      job.stage.end  {"stage": "decay_sweep", "status": "ok", "transitions": 0}
+      job.stage.start  {"stage": "compress"}
+      job.stage.end  {"stage": "compress", "status": "ok", "compressed": 0}
+      job.stage.start  {"stage": "sleep_compute"}
+      job.stage.end  {"stage": "sleep_compute", "status": "noop"}
+      job.stage.start  {"stage": "event_log_prune"}
+      job.stage.end  {"stage": "event_log_prune", "status": "skipped", "skipped": true, "reason_text": "event_log.mode != rolling"}
+
+[sleep F3.3] B6 consolidate: one L2 summary per session, with parents
+    code: derive/pipeline/stages/consolidate.py
+    consolidate report: {"status": "ok", "summaries": 2, "superseded": 0}
+    L2 summary: {"id": "87e3bc99", "text": "Bram: Now I live in Utrecht, close to Tomasz. Bram: Ilse still teaches", "parents": 3, "trust": 0.7}
+    L2 summary: {"id": "0e4c4367", "text": "Bram: I live in Leiden with Ilse. Bram: Ilse teaches cello at the Noor", "parents": 4, "trust": 0.7}
+    [PASS] one L2 summary per session: expected 2, got 2
+    [PASS] the report counts the same summaries: expected 2, got 2
+    [PASS] every summary has parents, all existing records
+    [PASS] each summary's parents come from exactly one session ([{'S2'}, {'S1'}])
+    [PASS] the two summaries cover different sessions
+    [PASS] summary trust <= its least-trusted parent
+    events (0):
+
+[sleep F3.4] B11 standing answers: L5 current value resting on live L1 facts
+    code: derive/pipeline/stages/standing.py
+    standing report: {"status": "ok", "built": 1, "stale": 0, "evicted": 0, "emptied": 0, "skipped_parents": 0, "errors": []}
+    L5: {"id": "6d14d936", "text": "bram said (current): The new flat has an address on Oudegracht 12.", "parents": ["Bram: The new flat has an address o"], "status": "activated"}
+    [PASS] at least one standing answer was built (1)
+    [PASS] the standing answer is the latest value on the key (the stub keys every Bram line as 'bram said') (bram said (current): The new flat has an address on Oudegracht 12.)
+    [PASS] no older session's text leaks into the current answer (bram said (current): The new flat has an address on Oudegracht 12.)
+    [PASS] it rests on live L1 facts (parents exist, are L1, are not archived) (['activated'])
+    [PASS] the older value stays in the store as history (archived L1)
+    events (0):
+
+[sleep F3.5] B12 edge compile (graph.edge_compiler_v2): typed edges with lineage (private _graph)
+    code: derive/pipeline/stages/edge_compiler_v2.py
+    compile_edges report: {"status": "ok", "nodes": 10, "written": 14, "closed": 12}
+    edge counts: {"all": 59, "compiled": 14}
+    compiled edge: {"src": "an_f8252007a2a22df91b5b9", "rel": "role:subject", "dst": "ent:flowcheck:bram", "kind": "role", "record_id": "f9d31683", "weight": 0.5}
+    compiled edge: {"src": "an_3134189bac5251ae5bb80", "rel": "role:subject", "dst": "ent:flowcheck:bram", "kind": "role", "record_id": "31d20003", "weight": 0.5}
+    compiled edge: {"src": "an_afe660b3de86dc05f1552", "rel": "role:subject", "dst": "ent:flowcheck:bram", "kind": "role", "record_id": "422ad801", "weight": 0.5}
+    [PASS] the stage wrote edges (14)
+    [PASS] every compiled edge names the L1 fact it came from (lineage by record_id)
+    [PASS] the subject role edge points at the entity node for Bram (['role:subject', 'role:time'])
+    [PASS] the superseded facts' edges were closed (report.closed > 0) (12)
+    [PASS] the entity node is reachable and has neighbours (14)
+    events (0):
+
+[sleep F3.6] B16 decay / compress: no change on a fresh store
+    code: derive/pipeline/stages/maintenance.py, decay_v2.py
+    decay_sweep: {"status": "ok", "transitions": 0}
+    compress: {"status": "ok", "compressed": 0}
+    [PASS] a fresh store has no tier transitions: expected 0, got 0
+    [PASS] every live record is still in the hot tier (['hot'])
+    [PASS] nothing was compressed: expected 0, got 0
+    events (0):
+
+[sleep F3.7] a second sleep cycle is idempotent
+    code: derive/pipeline/scheduler.py
+    second sleep: consolidate: {"status": "ok", "summaries": 0, "superseded": 0}
+    second sleep: standing: {"status": "ok", "built": 0, "stale": 0, "evicted": 0, "emptied": 0, "skipped_parents": 0, "errors": []}
+    second sleep: compile_edges: {"status": "ok", "nodes": 10, "unchanged": 14}
+    [PASS] a second cycle adds no records: expected 20, got 20
+    [PASS] the summaries are the same records: expected ['0e4c4367-e147-4c53-aae5-6946312e2efd', '87e3bc99-9f24-48ea-aa9b-847cd26144e2'], got ['0e4c4367-e147-4c53-aae5-6946312e2efd', '87e3bc99-9f24-48ea-aa9b-847cd26144e2']
+    [PASS] the standing answers are the same records: expected ['6d14d936-3cef-484b-96ca-4ef2b096b401'], got ['6d14d936-3cef-484b-96ca-4ef2b096b401']
+    [PASS] the edge count is unchanged: expected 59, got 59
+    events (37):
+      job.stage.start  {"stage": "consolidate"}
+      job.stage.end  {"stage": "consolidate", "status": "ok", "summaries": 0, "superseded": 0}
+      job.stage.start  {"stage": "mine_facts"}
+      job.stage.end  {"stage": "mine_facts", "status": "skipped", "skipped": true, "reason_text": "consolidation.mine_facts is off"}
+      job.stage.start  {"stage": "anticipate"}
+      job.stage.end  {"stage": "anticipate", "status": "skipped", "skipped": true, "reason_text": "consolidation.anticipate is off"}
+      job.stage.start  {"stage": "reflect_profile"}
+      job.stage.end  {"stage": "reflect_profile", "status": "skipped", "skipped": true, "reason_text": "consolidation.reflect_profile is off"}
+      job.stage.start  {"stage": "extract_graph"}
+      job.stage.end  {"stage": "extract_graph", "status": "skipped", "skipped": true, "reason_text": "extract_graph disabled or no extract_edges role"}
+      job.stage.start  {"stage": "pattern_observations"}
+      job.patterns  {"by_kind": {}, "emitted": 0, "invalidated": 0, "groups_changed": 0, "retired": 0, "deferred": 0, "skipped_parents": 0}
+      job.stage.end  {"stage": "pattern_observations", "status": "ok", "observations": 0, "invalidated": 0, "retired": 0, "deferred": 0, "skipped_parents": 0}
+      job.stage.start  {"stage": "standing_answers"}
+      job.standing  {"built": 0, "stale": 0, "evicted": 0, "emptied": 0, "skipped_parents": 0}
+      job.stage.end  {"stage": "standing_answers", "status": "ok", "built": 0, "stale": 0, "evicted": 0, "emptied": 0, "skipped_parents": 0}
+      job.stage.start  {"stage": "compile_edges"}
+      graph.compile.start  {"namespace": "flowcheck", "records": 13}
+      graph.compile.delta  {"namespace": "flowcheck", "assertions": 7, "edges": 14, "tentative": 0, "closed": 12, "unbound": 0, "skipped": 0, "scoped": false}
+      graph.compile.project  {"namespace": "flowcheck", "written": 0, "unchanged": 14, "tentative": 0}
+      job.stage.end  {"stage": "compile_edges", "status": "ok", "nodes": 10, "unchanged": 14}
+      job.stage.start  {"stage": "summarize_entities"}
+      job.stage.end  {"stage": "summarize_entities", "status": "skipped", "skipped": true, "reason_text": "associative.policies.entity_summaries is off"}
+      job.stage.start  {"stage": "reorganize"}
+      job.stage.end  {"stage": "reorganize", "status": "ok", "communities": 4, "parents": 0, "superseded": 0}
+      job.stage.start  {"stage": "check_watches"}
+      job.stage.end  {"stage": "check_watches", "status": "ok", "fired": 0, "due": 0, "invalidated": 0}
+      job.stage.start  {"stage": "session_lifecycle"}
+      job.stage.end  {"stage": "session_lifecycle", "status": "skipped", "skipped": true, "reason_text": "episodic.policies.sessions.passive_after unset"}
+      job.stage.start  {"stage": "decay_sweep"}
+      job.stage.end  {"stage": "decay_sweep", "status": "ok", "transitions": 0}
+      job.stage.start  {"stage": "compress"}
+      job.stage.end  {"stage": "compress", "status": "ok", "compressed": 0}
+      job.stage.start  {"stage": "sleep_compute"}
+      job.stage.end  {"stage": "sleep_compute", "status": "noop"}
+      job.stage.start  {"stage": "event_log_prune"}
+      job.stage.end  {"stage": "event_log_prune", "status": "skipped", "skipped": true, "reason_text": "event_log.mode != rolling"}
+
+30/30 checks passed

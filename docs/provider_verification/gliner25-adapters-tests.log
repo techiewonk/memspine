@@ -1,0 +1,21 @@
+.....................................................................s   [100%]
+============================== warnings summary ===============================
+tests/unit/config/test_config_split_equivalence.py: 28 warnings
+tests/unit/test_simple_profile_golden.py: 1 warning
+tests/unit/services/decision/test_decision.py: 26 warnings
+tests/unit/wiring/test_w2_13_prepass.py: 14 warnings
+  C:\Users\hembad\AppData\Local\Temp\memspine-dependency-validation-313\Lib\site-packages\pytest_asyncio\plugin.py:916: PytestDeprecationWarning: Overriding the "event_loop_policy" fixture is deprecated and will be removed in a future version of pytest-asyncio. Use the "pytest_asyncio_loop_factories" hook to customize event loop creation.
+    warnings.warn(
+
+tests/unit/services/decision/test_decision.py::test_planner_routes_read_auto
+tests/unit/services/decision/test_decision.py::test_confidence_gate_keeps_the_default_mode[0.4-0.6-replay]
+tests/unit/services/decision/test_decision.py::test_confidence_gate_keeps_the_default_mode[0.9-0.6-compose]
+tests/unit/services/decision/test_decision.py::test_confidence_gate_keeps_the_default_mode[0.1-0.0-compose]
+tests/unit/services/decision/test_decision.py::test_confidence_gate_keeps_the_default_mode[0.6-0.6-compose]
+tests/unit/wiring/test_w2_13_prepass.py::test_flag_off_is_unchanged
+tests/unit/wiring/test_w2_13_prepass.py::test_skip_cuts_stub_calls_and_loses_no_fact_window
+  C:\Users\hembad\Documents\GitHub\memspine-restructure\src\memspine\services\vector\lancedb_store.py:213: UserWarning: optimize(cleanup_older_than=0) removes every version except the latest. Any concurrent reader or writer still using an older version will fail. Use a longer cleanup_older_than unless no other process is working on this table.
+    await asyncio.to_thread(lambda: table.optimize(cleanup_older_than=cleanup))
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+69 passed, 1 skipped, 76 warnings in 36.27s

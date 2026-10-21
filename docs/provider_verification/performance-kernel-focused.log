@@ -1,0 +1,8 @@
+......................................................                   [100%]
+============================== warnings summary ===============================
+tests/unit/wiring/test_r3_05b_graph_leg.py::test_erased_evidence_is_not_returned
+  C:\Users\hembad\Documents\GitHub\memspine-restructure\src\memspine\services\vector\lancedb_store.py:450: UserWarning: optimize(cleanup_older_than=0) removes every version except the latest. Any concurrent reader or writer still using an older version will fail. Use a longer cleanup_older_than unless no other process is working on this table.
+    table.optimize(cleanup_older_than=timedelta(0))
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+54 passed, 1 warning in 11.32s

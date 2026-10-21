@@ -1,0 +1,80 @@
+{
+  "date": "2026-10-22",
+  "record_kind": "Historical generic-memory review reconciliation, not a second task-status register",
+  "task_authority": "docs/PROVIDER_TODO.md",
+  "input_attachment_sha256": "5d2c12c5c035c98abb811704b49ae80c6a231624915137da1f97ec6d8b569314",
+  "owner_decisions": {
+    "RM-36": "A inherit authorised stored-parent scope",
+    "RM-42": "A raw plus evidence-bound unmapped annotation",
+    "RM-43": "A scoped unfinished work and explicit policy activation",
+    "RM-55": "B grant-authorised identity merges; evidence and revocation constraints preserved"
+  },
+  "runtime_changed": false,
+  "new_requirement_rows": [
+    "RM-42",
+    "RM-43",
+    "RM-44",
+    "RM-45",
+    "RM-46",
+    "RM-47",
+    "RM-48",
+    "RM-49",
+    "RM-50",
+    "RM-51",
+    "RM-52",
+    "RM-53",
+    "RM-54",
+    "RM-55",
+    "RM-56"
+  ],
+  "focused_tests": {
+    "command": "PYTHONPATH=src python -m pytest tests/unit/semantics/test_registry.py -p no:deepeval -o addopts= -q --junitxml=docs/provider_verification/bi01-generic-review-2026-10-22.xml",
+    "tests": 23,
+    "errors": 0,
+    "failures": 0,
+    "skipped": 0,
+    "passed": 23,
+    "log": "docs/provider_verification/bi01-generic-review-2026-10-22.log"
+  },
+  "probes": {
+    "scope": "Pure message normalisation; no Engine/database/model integration",
+    "stored_parent_without_session_current_result": "reply to an existing message requires an explicit session_id",
+    "same_batch_parent_inheritance": true,
+    "tool_role_accepted": true
+  },
+  "registry_observations": {
+    "predicates": 53,
+    "properties": 44,
+    "roles": 12,
+    "cardinalities": {
+      "many": 53
+    },
+    "predicates_with_required_roles": 9,
+    "source_origins": [
+      "attachment_text",
+      "document",
+      "raw_message"
+    ]
+  },
+  "checks": {
+    "unique_task_ids": 234,
+    "existing_evidence_links_resolve": true,
+    "no_missing_or_self_explicit_prerequisites": true,
+    "foundation_source_and_test_hashes_unchanged": true,
+    "read_only_tracker_view_matches_source": true
+  },
+  "limitations": [
+    "No generic-memory features implemented by this review",
+    "Existing 23 tests validate registry foundation, not F6..F13 behaviours",
+    "Source inspection does not prove every memory/provider combination",
+    "Current stored-parent runtime rejection remains until its selected fix",
+    "No full suite, generation, provider deployment, dependency updates, data copying, commit or push"
+  ],
+  "sha256": {
+    "docs/PROVIDER_TODO.md": "af734944c5a166d592fc58861a7d5255af5181d3011568d225b03f63110e7957",
+    "docs/BI01_CONTRACT_REWRITE_PLAN.md": "1bf3de048685b8417f0205048d419701cc678e11fefea63c7c4f0a9fbee93298",
+    "docs/ENRICHMENT_SCHEMA_CONTRACTS.md": "dd2e2b4f8927447a38fdc0d20a6c2de5129ffe0663648a8cd5148738ea640604",
+    "docs/CLAUDE_CONTEXT_AND_TRACKER_2026-10-20.md": "1bf459ccf16b56c8ebfb486f0e9e0a7e8604d1fc790a0fe508cb320f9f3a96ce",
+    "docs/v2/tracker.html": "168c8e836c9bae3bc917f2fedeb57dba1ad15c6f56608d09e9d7121868136fe1"
+  }
+}

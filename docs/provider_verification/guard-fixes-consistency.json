@@ -1,0 +1,28 @@
+{
+  "status": "passed",
+  "current_sites": 156,
+  "kind_counts": {
+    "importorskip": 73,
+    "skip": 53,
+    "skipif": 30
+  },
+  "categories": {
+    "intentionallycovered": 13,
+    "optionaldependency": 84,
+    "externalenv": 44,
+    "platform": 7,
+    "model": 5,
+    "deferred": 3
+  },
+  "resolved_guard_findings": 6,
+  "deferred_review_records_unchanged": true,
+  "evaluation_review_records_unchanged": true,
+  "fresh_source_pins": true,
+  "focused_tests": {
+    "passed": 80,
+    "failed": 0,
+    "skipped": 2
+  },
+  "skips": "Missing MEMSPINE_TEST_TEMPORAL_ADDRESS only",
+  "no_production_engine_or_eval_migration_changes": true
+}
