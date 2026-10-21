@@ -94,3 +94,20 @@ defaults in `config/constants.py`:
 | `sql.pool_size` / `max_overflow` / `pool_recycle_s` / `pool_pre_ping` | 5 / 10 / 1800 / true |
 | `http.max_connections` / `keepalive_s` | 100 / 30 |
 | `model_server` | reserved for a future opt-in local model server (RM-79) |
+
+## Evidence-based defaults (RM-80)
+
+Owner, 2026-10-22: defaults are confirmed or changed by measurement, not judgement.
+Harness: `scripts/benchmark_shared_resources.py` (fresh process per scenario; N Engines,
+real cached fastembed model, no download). Baseline captured before sharing lands, then
+re-run per variant on an idle host (latency) and any host (RSS, handles, threads).
+
+| Setting | Variants | Primary metric | Decision rule |
+|---|---|---|---|
+| `scope` | process, engine | RSS and handles per extra Engine; second-Engine start | `process` unless isolation tests fail or saving < 10% |
+| `warmup` | lazy, background, blocking | start time, first-request latency, time to all warm | `background` if first request after settle is within 20% of steady and start stays within 10% of lazy |
+| `warmup_concurrency` | 1, 2, 4 | time to all warm, peak RSS, CPU | smallest value within 10% of the fastest |
+| `sql.pool_size` / `max_overflow` | 2, 5, 10 / 0, 10 | concurrent ingest+search throughput, p95, connection count | smallest size within 5% of best throughput |
+| `http.max_connections` | 10, 100 | p95 against a local stub server under concurrency | smallest within 5% of best p95 |
+| `keep_warm` / `idle_ttl_s` | owner-fixed (keep warm, no TTL) | reload cost after release | documented, not re-decided |
+| `memory_budget_mb` | opt-in | measured RSS per model | documented typical sizes |

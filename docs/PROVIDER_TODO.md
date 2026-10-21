@@ -14,7 +14,7 @@ Keep one row per stable ID. PA IDs preserve the 136-item provider program; BI ID
 | DEPLOYMENT_CHECK | 19 |
 | DONE | 134 |
 | EXCLUDED | 4 |
-| IN_PROGRESS | 29 |
+| IN_PROGRESS | 30 |
 | NEEDS_INPUT | 3 |
 | NEEDS_TOOLCHAIN | 1 |
 | OPEN | 22 |
@@ -28,10 +28,10 @@ Keep one row per stable ID. PA IDs preserve the 136-item provider program; BI ID
 | BI | 12 |
 | DS | 21 |
 | PA | 136 |
-| RM | 79 |
+| RM | 80 |
 | RS | 9 |
 
-Total: **257 unique task IDs**. Provider-only historical denominator stays 136; the combined total also includes BI, DS, RS and imported review suggestions.
+Total: **258 unique task IDs**. Provider-only historical denominator stays 136; the combined total also includes BI, DS, RS and imported review suggestions.
 <!-- CURRENT_SUMMARY_END -->
 
 ## Status and column legend
@@ -324,6 +324,7 @@ its scope is narrower than the prerequisite (say so in the row) or its status is
 | RM-77 | OPEN | P1 | Verification lead | Multi-engine acceptance for shared resources (extends tracker T13) | Required by ADR-079 consequences | Stop-one-while-another-active, different-settings isolation, single-writer path sharing, loop affinity, fork reset, :memory: uniqueness, no result sharing | Prereq: RM-72, RM-73, RM-75 |
 | RM-78 | OPEN | P1 | Config / runtime maintainer | Add the runtime.shared_resources settings block (scope, warmup and limits, keep_warm, idle TTL, memory budget, per-category caps, SQL and HTTP pools) | Owner adopted all proposed settings 2026-10-22; default keep warm with no TTL [ADR-079 addendum](adr/ADR-079-keyed-shared-warm-resources.md) | Strict schema, constants, USAGE.md rows, wiring into the registry, warm-up and pools; tests per setting; implement after RM-72/73/75 merge to avoid schema conflicts | Prereq: RM-72, RM-73, RM-75; Feeds: RM-74, RM-76 |
 | RM-79 | DEFERRED | P3 | Model / deployment maintainer | Opt-in shared local model server for cross-process RAM sharing (embedder, GLiNER, reranker) | Owner 2026-10-22: reserve the model_server setting, build later [ADR-079 addendum](adr/ADR-079-keyed-shared-warm-resources.md) | Select when multi-process deployments need shared model RAM | Prereq: RM-76 |
+| RM-80 | IN_PROGRESS | P1 | Performance / runtime maintainer | Decide client and shared_resources defaults from measurements (scope, warm-up mode and concurrency, SQL and HTTP pools) | Owner 2026-10-22: decisions based on tests. Harness scripts/benchmark_shared_resources.py; rules in the ADR-079 RM-80 section. Baseline before sharing (3 trials, cached bge-small): each extra identical Engine adds about 124 MB RSS, 23 threads and 32 OS handles; first request pays 280-700 ms lazy model load. [baseline](provider_verification/rm80-shared-resources-baseline-2026-10-22.json) | Run each variant after RM-72/73/75/78 merge (latency on an idle host); record evidence JSON; set defaults per rule; regression test guards the chosen defaults | Prereq: RM-72, RM-73, RM-75, RM-78; Feeds: RM-74, RM-76 |
 <!-- TASK_REGISTER_END -->
 
 ## Imported roadmap detail (no independent statuses)
