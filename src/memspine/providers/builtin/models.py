@@ -34,7 +34,7 @@ from memspine.providers.settings import (
     LlamaCppRoleSettings,
     StrictSettings,
 )
-from memspine.providers.shared import ResourceRegistry, shared_registry
+from memspine.providers.shared import ResourceRegistry
 from memspine.services.base import CapabilityManifest
 
 __all__ = ["register"]
@@ -86,7 +86,7 @@ class _RerankerBuilder:
             return BuildResult(self.construct(settings, ctx), self.ref, (), self.capabilities)
         # Engine build: weights come from the process registry; this Engine's lease is
         # released by its lifecycle, never by another Engine (ADR-079 / RM-73).
-        service = self.construct(settings, ctx, shared_registry())
+        service = self.construct(settings, ctx, shared.resource_registry())
         release = getattr(service, "aclose", None)
         refs = (
             (shared.resources.own(f"reranker.weights:{self.ref.name}", release),)
@@ -119,7 +119,7 @@ class _EmbeddingBuilder:
     async def build(self, settings: Any, ctx: Any) -> BuildResult[Any]:
         if not isinstance(ctx, SharedBuildContext):
             return BuildResult(self.factory(settings, None), self.ref, (), self.capabilities)
-        service = self.factory(settings, shared_registry())
+        service = self.factory(settings, ctx.resource_registry())
         release = getattr(service, "aclose", None)
         refs = (
             (ctx.resources.own(f"embedding.weights:{self.ref.name}", release),)
@@ -156,7 +156,7 @@ class _LlamaCppBuilder:
         try:
             await service.initialize_shared(
                 settings.model[len(prefix) :],
-                registry=shared_registry(),
+                registry=ctx.shared.resource_registry(),
                 n_ctx=settings.n_ctx,
                 timeout_seconds=settings.timeout_seconds,
                 temperature=settings.temperature,

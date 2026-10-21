@@ -66,9 +66,13 @@ class OpenSearchBuilder:
         # One connected client per target and transport settings (ADR-079); the index
         # stays per service. The key holds only the target identity and an auth digest.
         knobs = settings.model_dump(mode="json", exclude={"index_prefix"})
+        http = ctx.shared.http_pool
+        pool_size = http.max_connections if http is not None else None
+        knobs["http_max_connections"] = pool_size
+        pool = {} if pool_size is None else {"max_connections": pool_size}
 
         async def open_client() -> OpenSearchClient:
-            opened = OpenSearchClient(settings)
+            opened = OpenSearchClient(settings, **pool)
             await opened.connect()
             return opened
 
@@ -81,6 +85,7 @@ class OpenSearchBuilder:
             resource_key("opensearch.client", _target_identity(settings), knobs, scope="loop"),
             open_client,
             close=close_client,
+            registry=ctx.shared.resource_registry(),
         )
         service = OpenSearchLexical(
             client,

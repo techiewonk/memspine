@@ -446,10 +446,11 @@ async def test_engine_profiles_select_distinct_models_and_share_equal_settings(
     loaded: list[str] = []
     pools: list[GLiNERModelPool] = []
 
-    def make_pool(*, max_models: int) -> GLiNERModelPool:
+    def make_pool(*, max_models: int, registry: Any = None) -> GLiNERModelPool:
         pool = GLiNERModelPool(
             max_models=max_models,
             loader=lambda settings: (loaded.append(settings.model), _FakeModel())[1],
+            registry=registry,
         )
         pools.append(pool)
         return pool

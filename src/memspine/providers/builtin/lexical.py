@@ -57,6 +57,7 @@ class TantivyBuilder:
                 ),
                 open_index,
                 close=close_index,
+                registry=ctx.shared.resource_registry(),
             )
 
         async def probe() -> bool:

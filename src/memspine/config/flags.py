@@ -109,6 +109,15 @@ FLAG_EVIDENCE: dict[str, dict[str, str]] = {
         "note": "commit 7d17b8a (P0.2 layered config) introduced it; ADR-031 mentions it; "
         "validation behaviour, no measured verdict",
     },
+    # --- runtime.shared_resources (RM-78) ---
+    "SharedResourcesConfig.keep_warm": {
+        "evidence": "ADR-079 (addendum + RM-80 table: owner-fixed, keep warm, no TTL)",
+        "note": "model weights only; connections still close on their last release",
+    },
+    "SharedSqlPoolConfig.pool_pre_ping": {
+        "evidence": "ADR-079 (addendum settings table: sql.pool_pre_ping true)",
+        "note": "SQLAlchemy pre-ping on checkout; Postgres and file SQLite pools",
+    },
 }
 
 

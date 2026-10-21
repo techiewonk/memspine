@@ -83,6 +83,9 @@ from memspine.config.schema.runtime import (
     ProviderServicesConfig,
     RuntimeConfig,
     ServiceSwitchesConfig,
+    SharedHttpPoolConfig,
+    SharedResourcesConfig,
+    SharedSqlPoolConfig,
     StorageSwitchConfig,
 )
 from memspine.config.schema.storage import (
@@ -167,6 +170,9 @@ __all__ = [
     "RuntimeConfig",
     "SentenceTransformersEmbeddingSettings",
     "ServiceSwitchesConfig",
+    "SharedHttpPoolConfig",
+    "SharedResourcesConfig",
+    "SharedSqlPoolConfig",
     "SqliteAdjacencySettings",
     "SqliteEncryptionSettings",
     "SqliteSettings",

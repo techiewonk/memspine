@@ -6,7 +6,7 @@ can override per profile (D-11/D-14).
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Final, Literal
 
 # Hybrid retrieval fusion (D-25): reciprocal-rank-fusion constant.
 RRF_K = 60
@@ -892,3 +892,27 @@ CONTRADICTION_CANDIDATES = 3
 #: G-8 (Graphiti custom extraction instructions): a record's extraction hint rides as a
 #: tag with this prefix (``write(extraction_hint=...)``), read by ``extract_graph``.
 EXTRACTION_HINT_PREFIX = "extract_hint:"
+
+# RM-78 (ADR-079 addendum "settings selected", RM-80 evidence): ``runtime.shared_resources``.
+#: ``process`` shares keyed clients and weights across Engines; ``engine`` isolates them.
+SHARED_RESOURCES_SCOPE: Final = "process"
+#: ADR-079 decision 3: warm model weights, index handles and rerankers after ``start()``.
+SHARED_WARMUP_MODE: Final = "background"
+#: Upper bound (seconds) on one Engine's whole warm-up pass.
+SHARED_WARMUP_TIMEOUT_S = 120.0
+#: Resources warmed at once (RM-80 decision rule: smallest within 10% of the fastest).
+SHARED_WARMUP_CONCURRENCY = 2
+#: Warm-up target categories, in warm-up order.
+SHARED_WARMUP_CATEGORIES: Final[
+    tuple[Literal["embedder", "reranker", "gliner", "lexical", "llm", "decider"], ...]
+] = ("embedder", "reranker", "gliner", "lexical", "llm", "decider")
+#: Owner-fixed (ADR-079 RM-80 table): weights stay loaded for the process life, no TTL.
+SHARED_KEEP_WARM = True
+#: SQLAlchemy pool defaults applied to the async and shared sync engines (ADR-079 addendum).
+SHARED_SQL_POOL_SIZE = 5
+SHARED_SQL_MAX_OVERFLOW = 10
+SHARED_SQL_POOL_RECYCLE_S = 1800
+SHARED_SQL_POOL_PRE_PING = True
+#: HTTP connection-pool defaults for clients memspine constructs (ADR-079 addendum).
+SHARED_HTTP_MAX_CONNECTIONS = 100
+SHARED_HTTP_KEEPALIVE_S = 30.0

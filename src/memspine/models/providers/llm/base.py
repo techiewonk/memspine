@@ -272,6 +272,14 @@ class LLMRouter:
     def roles(self) -> list[str]:
         return sorted(self._providers)
 
+    def services(self) -> list[LLMService]:
+        """Every distinct bound provider, including fallback attempts (RM-74 warm-up)."""
+        seen: dict[int, LLMService] = {}
+        for provider in self._providers.values():
+            for item in (provider, *getattr(provider, "_memspine_attempt_providers", ())):
+                seen.setdefault(id(item), item)
+        return list(seen.values())
+
     def provider(self, role: str) -> LLMService:
         """The bound provider itself (uncounted); for wiring checks."""
         provider = self._providers.get(role)

@@ -630,6 +630,36 @@
      "mode": "controlled",
      "strategy": "verified_migration"
     }
+   },
+   "shared_resources": {
+    "http": {
+     "keepalive_s": 30.0,
+     "max_connections": 100
+    },
+    "idle_ttl_s": null,
+    "keep_warm": true,
+    "max_models_per_category": null,
+    "memory_budget_mb": null,
+    "model_server": null,
+    "scope": "process",
+    "sql": {
+     "max_overflow": 10,
+     "pool_pre_ping": true,
+     "pool_recycle_s": 1800,
+     "pool_size": 5
+    },
+    "warmup": "background",
+    "warmup_concurrency": 2,
+    "warmup_exclude": [],
+    "warmup_include": [
+     "embedder",
+     "reranker",
+     "gliner",
+     "lexical",
+     "llm",
+     "decider"
+    ],
+    "warmup_timeout_s": 120.0
    }
   },
   "storage": {
@@ -722,7 +752,7 @@
    "window_topic_k": 2.0
   }
  },
- "json_schema_sha256": "85a3db4c496ce201dffa4d33f298ecf7f7f70c1d208e01ef03f779c900a63591",
+ "json_schema_sha256": "ececc264c819049cf55885a0fe4dc08d9895d73b43e5fced97daad8cbb36a90f",
  "preset:chat_roles": {
   "audit": {
    "actions": false,
@@ -1385,6 +1415,36 @@
      "mode": "controlled",
      "strategy": "verified_migration"
     }
+   },
+   "shared_resources": {
+    "http": {
+     "keepalive_s": 30.0,
+     "max_connections": 100
+    },
+    "idle_ttl_s": null,
+    "keep_warm": true,
+    "max_models_per_category": null,
+    "memory_budget_mb": null,
+    "model_server": null,
+    "scope": "process",
+    "sql": {
+     "max_overflow": 10,
+     "pool_pre_ping": true,
+     "pool_recycle_s": 1800,
+     "pool_size": 5
+    },
+    "warmup": "background",
+    "warmup_concurrency": 2,
+    "warmup_exclude": [],
+    "warmup_include": [
+     "embedder",
+     "reranker",
+     "gliner",
+     "lexical",
+     "llm",
+     "decider"
+    ],
+    "warmup_timeout_s": 120.0
    }
   },
   "storage": {
@@ -2138,6 +2198,36 @@
      "mode": "controlled",
      "strategy": "verified_migration"
     }
+   },
+   "shared_resources": {
+    "http": {
+     "keepalive_s": 30.0,
+     "max_connections": 100
+    },
+    "idle_ttl_s": null,
+    "keep_warm": true,
+    "max_models_per_category": null,
+    "memory_budget_mb": null,
+    "model_server": null,
+    "scope": "process",
+    "sql": {
+     "max_overflow": 10,
+     "pool_pre_ping": true,
+     "pool_recycle_s": 1800,
+     "pool_size": 5
+    },
+    "warmup": "background",
+    "warmup_concurrency": 2,
+    "warmup_exclude": [],
+    "warmup_include": [
+     "embedder",
+     "reranker",
+     "gliner",
+     "lexical",
+     "llm",
+     "decider"
+    ],
+    "warmup_timeout_s": 120.0
    }
   },
   "storage": {
@@ -2891,6 +2981,36 @@
      "mode": "controlled",
      "strategy": "verified_migration"
     }
+   },
+   "shared_resources": {
+    "http": {
+     "keepalive_s": 30.0,
+     "max_connections": 100
+    },
+    "idle_ttl_s": null,
+    "keep_warm": true,
+    "max_models_per_category": null,
+    "memory_budget_mb": null,
+    "model_server": null,
+    "scope": "process",
+    "sql": {
+     "max_overflow": 10,
+     "pool_pre_ping": true,
+     "pool_recycle_s": 1800,
+     "pool_size": 5
+    },
+    "warmup": "background",
+    "warmup_concurrency": 2,
+    "warmup_exclude": [],
+    "warmup_include": [
+     "embedder",
+     "reranker",
+     "gliner",
+     "lexical",
+     "llm",
+     "decider"
+    ],
+    "warmup_timeout_s": 120.0
    }
   },
   "storage": {
@@ -3644,6 +3764,36 @@
      "mode": "controlled",
      "strategy": "verified_migration"
     }
+   },
+   "shared_resources": {
+    "http": {
+     "keepalive_s": 30.0,
+     "max_connections": 100
+    },
+    "idle_ttl_s": null,
+    "keep_warm": true,
+    "max_models_per_category": null,
+    "memory_budget_mb": null,
+    "model_server": null,
+    "scope": "process",
+    "sql": {
+     "max_overflow": 10,
+     "pool_pre_ping": true,
+     "pool_recycle_s": 1800,
+     "pool_size": 5
+    },
+    "warmup": "background",
+    "warmup_concurrency": 2,
+    "warmup_exclude": [],
+    "warmup_include": [
+     "embedder",
+     "reranker",
+     "gliner",
+     "lexical",
+     "llm",
+     "decider"
+    ],
+    "warmup_timeout_s": 120.0
    }
   },
   "storage": {
@@ -4397,6 +4547,36 @@
      "mode": "controlled",
      "strategy": "verified_migration"
     }
+   },
+   "shared_resources": {
+    "http": {
+     "keepalive_s": 30.0,
+     "max_connections": 100
+    },
+    "idle_ttl_s": null,
+    "keep_warm": true,
+    "max_models_per_category": null,
+    "memory_budget_mb": null,
+    "model_server": null,
+    "scope": "process",
+    "sql": {
+     "max_overflow": 10,
+     "pool_pre_ping": true,
+     "pool_recycle_s": 1800,
+     "pool_size": 5
+    },
+    "warmup": "background",
+    "warmup_concurrency": 2,
+    "warmup_exclude": [],
+    "warmup_include": [
+     "embedder",
+     "reranker",
+     "gliner",
+     "lexical",
+     "llm",
+     "decider"
+    ],
+    "warmup_timeout_s": 120.0
    }
   },
   "storage": {
@@ -5150,6 +5330,36 @@
      "mode": "controlled",
      "strategy": "verified_migration"
     }
+   },
+   "shared_resources": {
+    "http": {
+     "keepalive_s": 30.0,
+     "max_connections": 100
+    },
+    "idle_ttl_s": null,
+    "keep_warm": true,
+    "max_models_per_category": null,
+    "memory_budget_mb": null,
+    "model_server": null,
+    "scope": "process",
+    "sql": {
+     "max_overflow": 10,
+     "pool_pre_ping": true,
+     "pool_recycle_s": 1800,
+     "pool_size": 5
+    },
+    "warmup": "background",
+    "warmup_concurrency": 2,
+    "warmup_exclude": [],
+    "warmup_include": [
+     "embedder",
+     "reranker",
+     "gliner",
+     "lexical",
+     "llm",
+     "decider"
+    ],
+    "warmup_timeout_s": 120.0
    }
   },
   "storage": {
@@ -5903,6 +6113,36 @@
      "mode": "controlled",
      "strategy": "verified_migration"
     }
+   },
+   "shared_resources": {
+    "http": {
+     "keepalive_s": 30.0,
+     "max_connections": 100
+    },
+    "idle_ttl_s": null,
+    "keep_warm": true,
+    "max_models_per_category": null,
+    "memory_budget_mb": null,
+    "model_server": null,
+    "scope": "process",
+    "sql": {
+     "max_overflow": 10,
+     "pool_pre_ping": true,
+     "pool_recycle_s": 1800,
+     "pool_size": 5
+    },
+    "warmup": "background",
+    "warmup_concurrency": 2,
+    "warmup_exclude": [],
+    "warmup_include": [
+     "embedder",
+     "reranker",
+     "gliner",
+     "lexical",
+     "llm",
+     "decider"
+    ],
+    "warmup_timeout_s": 120.0
    }
   },
   "storage": {
@@ -6660,6 +6900,36 @@
      "mode": "controlled",
      "strategy": "verified_migration"
     }
+   },
+   "shared_resources": {
+    "http": {
+     "keepalive_s": 30.0,
+     "max_connections": 100
+    },
+    "idle_ttl_s": null,
+    "keep_warm": true,
+    "max_models_per_category": null,
+    "memory_budget_mb": null,
+    "model_server": null,
+    "scope": "process",
+    "sql": {
+     "max_overflow": 10,
+     "pool_pre_ping": true,
+     "pool_recycle_s": 1800,
+     "pool_size": 5
+    },
+    "warmup": "background",
+    "warmup_concurrency": 2,
+    "warmup_exclude": [],
+    "warmup_include": [
+     "embedder",
+     "reranker",
+     "gliner",
+     "lexical",
+     "llm",
+     "decider"
+    ],
+    "warmup_timeout_s": 120.0
    }
   },
   "storage": {
@@ -7413,6 +7683,36 @@
      "mode": "controlled",
      "strategy": "verified_migration"
     }
+   },
+   "shared_resources": {
+    "http": {
+     "keepalive_s": 30.0,
+     "max_connections": 100
+    },
+    "idle_ttl_s": null,
+    "keep_warm": true,
+    "max_models_per_category": null,
+    "memory_budget_mb": null,
+    "model_server": null,
+    "scope": "process",
+    "sql": {
+     "max_overflow": 10,
+     "pool_pre_ping": true,
+     "pool_recycle_s": 1800,
+     "pool_size": 5
+    },
+    "warmup": "background",
+    "warmup_concurrency": 2,
+    "warmup_exclude": [],
+    "warmup_include": [
+     "embedder",
+     "reranker",
+     "gliner",
+     "lexical",
+     "llm",
+     "decider"
+    ],
+    "warmup_timeout_s": 120.0
    }
   },
   "storage": {
@@ -8166,6 +8466,36 @@
      "mode": "controlled",
      "strategy": "verified_migration"
     }
+   },
+   "shared_resources": {
+    "http": {
+     "keepalive_s": 30.0,
+     "max_connections": 100
+    },
+    "idle_ttl_s": null,
+    "keep_warm": true,
+    "max_models_per_category": null,
+    "memory_budget_mb": null,
+    "model_server": null,
+    "scope": "process",
+    "sql": {
+     "max_overflow": 10,
+     "pool_pre_ping": true,
+     "pool_recycle_s": 1800,
+     "pool_size": 5
+    },
+    "warmup": "background",
+    "warmup_concurrency": 2,
+    "warmup_exclude": [],
+    "warmup_include": [
+     "embedder",
+     "reranker",
+     "gliner",
+     "lexical",
+     "llm",
+     "decider"
+    ],
+    "warmup_timeout_s": 120.0
    }
   },
   "storage": {
@@ -8919,6 +9249,36 @@
      "mode": "controlled",
      "strategy": "verified_migration"
     }
+   },
+   "shared_resources": {
+    "http": {
+     "keepalive_s": 30.0,
+     "max_connections": 100
+    },
+    "idle_ttl_s": null,
+    "keep_warm": true,
+    "max_models_per_category": null,
+    "memory_budget_mb": null,
+    "model_server": null,
+    "scope": "process",
+    "sql": {
+     "max_overflow": 10,
+     "pool_pre_ping": true,
+     "pool_recycle_s": 1800,
+     "pool_size": 5
+    },
+    "warmup": "background",
+    "warmup_concurrency": 2,
+    "warmup_exclude": [],
+    "warmup_include": [
+     "embedder",
+     "reranker",
+     "gliner",
+     "lexical",
+     "llm",
+     "decider"
+    ],
+    "warmup_timeout_s": 120.0
    }
   },
   "storage": {
@@ -9672,6 +10032,36 @@
      "mode": "controlled",
      "strategy": "verified_migration"
     }
+   },
+   "shared_resources": {
+    "http": {
+     "keepalive_s": 30.0,
+     "max_connections": 100
+    },
+    "idle_ttl_s": null,
+    "keep_warm": true,
+    "max_models_per_category": null,
+    "memory_budget_mb": null,
+    "model_server": null,
+    "scope": "process",
+    "sql": {
+     "max_overflow": 10,
+     "pool_pre_ping": true,
+     "pool_recycle_s": 1800,
+     "pool_size": 5
+    },
+    "warmup": "background",
+    "warmup_concurrency": 2,
+    "warmup_exclude": [],
+    "warmup_include": [
+     "embedder",
+     "reranker",
+     "gliner",
+     "lexical",
+     "llm",
+     "decider"
+    ],
+    "warmup_timeout_s": 120.0
    }
   },
   "storage": {
@@ -10425,6 +10815,36 @@
      "mode": "controlled",
      "strategy": "verified_migration"
     }
+   },
+   "shared_resources": {
+    "http": {
+     "keepalive_s": 30.0,
+     "max_connections": 100
+    },
+    "idle_ttl_s": null,
+    "keep_warm": true,
+    "max_models_per_category": null,
+    "memory_budget_mb": null,
+    "model_server": null,
+    "scope": "process",
+    "sql": {
+     "max_overflow": 10,
+     "pool_pre_ping": true,
+     "pool_recycle_s": 1800,
+     "pool_size": 5
+    },
+    "warmup": "background",
+    "warmup_concurrency": 2,
+    "warmup_exclude": [],
+    "warmup_include": [
+     "embedder",
+     "reranker",
+     "gliner",
+     "lexical",
+     "llm",
+     "decider"
+    ],
+    "warmup_timeout_s": 120.0
    }
   },
   "storage": {
@@ -11178,6 +11598,36 @@
      "mode": "controlled",
      "strategy": "verified_migration"
     }
+   },
+   "shared_resources": {
+    "http": {
+     "keepalive_s": 30.0,
+     "max_connections": 100
+    },
+    "idle_ttl_s": null,
+    "keep_warm": true,
+    "max_models_per_category": null,
+    "memory_budget_mb": null,
+    "model_server": null,
+    "scope": "process",
+    "sql": {
+     "max_overflow": 10,
+     "pool_pre_ping": true,
+     "pool_recycle_s": 1800,
+     "pool_size": 5
+    },
+    "warmup": "background",
+    "warmup_concurrency": 2,
+    "warmup_exclude": [],
+    "warmup_include": [
+     "embedder",
+     "reranker",
+     "gliner",
+     "lexical",
+     "llm",
+     "decider"
+    ],
+    "warmup_timeout_s": 120.0
    }
   },
   "storage": {
@@ -11931,6 +12381,36 @@
      "mode": "controlled",
      "strategy": "verified_migration"
     }
+   },
+   "shared_resources": {
+    "http": {
+     "keepalive_s": 30.0,
+     "max_connections": 100
+    },
+    "idle_ttl_s": null,
+    "keep_warm": true,
+    "max_models_per_category": null,
+    "memory_budget_mb": null,
+    "model_server": null,
+    "scope": "process",
+    "sql": {
+     "max_overflow": 10,
+     "pool_pre_ping": true,
+     "pool_recycle_s": 1800,
+     "pool_size": 5
+    },
+    "warmup": "background",
+    "warmup_concurrency": 2,
+    "warmup_exclude": [],
+    "warmup_include": [
+     "embedder",
+     "reranker",
+     "gliner",
+     "lexical",
+     "llm",
+     "decider"
+    ],
+    "warmup_timeout_s": 120.0
    }
   },
   "storage": {
@@ -12684,6 +13164,36 @@
      "mode": "controlled",
      "strategy": "verified_migration"
     }
+   },
+   "shared_resources": {
+    "http": {
+     "keepalive_s": 30.0,
+     "max_connections": 100
+    },
+    "idle_ttl_s": null,
+    "keep_warm": true,
+    "max_models_per_category": null,
+    "memory_budget_mb": null,
+    "model_server": null,
+    "scope": "process",
+    "sql": {
+     "max_overflow": 10,
+     "pool_pre_ping": true,
+     "pool_recycle_s": 1800,
+     "pool_size": 5
+    },
+    "warmup": "background",
+    "warmup_concurrency": 2,
+    "warmup_exclude": [],
+    "warmup_include": [
+     "embedder",
+     "reranker",
+     "gliner",
+     "lexical",
+     "llm",
+     "decider"
+    ],
+    "warmup_timeout_s": 120.0
    }
   },
   "storage": {
@@ -13448,6 +13958,36 @@
      "mode": "controlled",
      "strategy": "verified_migration"
     }
+   },
+   "shared_resources": {
+    "http": {
+     "keepalive_s": 30.0,
+     "max_connections": 100
+    },
+    "idle_ttl_s": null,
+    "keep_warm": true,
+    "max_models_per_category": null,
+    "memory_budget_mb": null,
+    "model_server": null,
+    "scope": "process",
+    "sql": {
+     "max_overflow": 10,
+     "pool_pre_ping": true,
+     "pool_recycle_s": 1800,
+     "pool_size": 5
+    },
+    "warmup": "background",
+    "warmup_concurrency": 2,
+    "warmup_exclude": [],
+    "warmup_include": [
+     "embedder",
+     "reranker",
+     "gliner",
+     "lexical",
+     "llm",
+     "decider"
+    ],
+    "warmup_timeout_s": 120.0
    }
   },
   "storage": {
@@ -14208,6 +14748,36 @@
      "mode": "controlled",
      "strategy": "verified_migration"
     }
+   },
+   "shared_resources": {
+    "http": {
+     "keepalive_s": 30.0,
+     "max_connections": 100
+    },
+    "idle_ttl_s": null,
+    "keep_warm": true,
+    "max_models_per_category": null,
+    "memory_budget_mb": null,
+    "model_server": null,
+    "scope": "process",
+    "sql": {
+     "max_overflow": 10,
+     "pool_pre_ping": true,
+     "pool_recycle_s": 1800,
+     "pool_size": 5
+    },
+    "warmup": "background",
+    "warmup_concurrency": 2,
+    "warmup_exclude": [],
+    "warmup_include": [
+     "embedder",
+     "reranker",
+     "gliner",
+     "lexical",
+     "llm",
+     "decider"
+    ],
+    "warmup_timeout_s": 120.0
    }
   },
   "storage": {
@@ -14947,6 +15517,36 @@
      "mode": "controlled",
      "strategy": "verified_migration"
     }
+   },
+   "shared_resources": {
+    "http": {
+     "keepalive_s": 30.0,
+     "max_connections": 100
+    },
+    "idle_ttl_s": null,
+    "keep_warm": true,
+    "max_models_per_category": null,
+    "memory_budget_mb": null,
+    "model_server": null,
+    "scope": "process",
+    "sql": {
+     "max_overflow": 10,
+     "pool_pre_ping": true,
+     "pool_recycle_s": 1800,
+     "pool_size": 5
+    },
+    "warmup": "background",
+    "warmup_concurrency": 2,
+    "warmup_exclude": [],
+    "warmup_include": [
+     "embedder",
+     "reranker",
+     "gliner",
+     "lexical",
+     "llm",
+     "decider"
+    ],
+    "warmup_timeout_s": 120.0
    }
   },
   "storage": {
@@ -15708,6 +16308,36 @@
      "mode": "controlled",
      "strategy": "verified_migration"
     }
+   },
+   "shared_resources": {
+    "http": {
+     "keepalive_s": 30.0,
+     "max_connections": 100
+    },
+    "idle_ttl_s": null,
+    "keep_warm": true,
+    "max_models_per_category": null,
+    "memory_budget_mb": null,
+    "model_server": null,
+    "scope": "process",
+    "sql": {
+     "max_overflow": 10,
+     "pool_pre_ping": true,
+     "pool_recycle_s": 1800,
+     "pool_size": 5
+    },
+    "warmup": "background",
+    "warmup_concurrency": 2,
+    "warmup_exclude": [],
+    "warmup_include": [
+     "embedder",
+     "reranker",
+     "gliner",
+     "lexical",
+     "llm",
+     "decider"
+    ],
+    "warmup_timeout_s": 120.0
    }
   },
   "storage": {
@@ -16465,6 +17095,36 @@
      "mode": "controlled",
      "strategy": "verified_migration"
     }
+   },
+   "shared_resources": {
+    "http": {
+     "keepalive_s": 30.0,
+     "max_connections": 100
+    },
+    "idle_ttl_s": null,
+    "keep_warm": true,
+    "max_models_per_category": null,
+    "memory_budget_mb": null,
+    "model_server": null,
+    "scope": "process",
+    "sql": {
+     "max_overflow": 10,
+     "pool_pre_ping": true,
+     "pool_recycle_s": 1800,
+     "pool_size": 5
+    },
+    "warmup": "background",
+    "warmup_concurrency": 2,
+    "warmup_exclude": [],
+    "warmup_include": [
+     "embedder",
+     "reranker",
+     "gliner",
+     "lexical",
+     "llm",
+     "decider"
+    ],
+    "warmup_timeout_s": 120.0
    }
   },
   "storage": {
@@ -17239,6 +17899,36 @@
      "mode": "controlled",
      "strategy": "verified_migration"
     }
+   },
+   "shared_resources": {
+    "http": {
+     "keepalive_s": 30.0,
+     "max_connections": 100
+    },
+    "idle_ttl_s": null,
+    "keep_warm": true,
+    "max_models_per_category": null,
+    "memory_budget_mb": null,
+    "model_server": null,
+    "scope": "process",
+    "sql": {
+     "max_overflow": 10,
+     "pool_pre_ping": true,
+     "pool_recycle_s": 1800,
+     "pool_size": 5
+    },
+    "warmup": "background",
+    "warmup_concurrency": 2,
+    "warmup_exclude": [],
+    "warmup_include": [
+     "embedder",
+     "reranker",
+     "gliner",
+     "lexical",
+     "llm",
+     "decider"
+    ],
+    "warmup_timeout_s": 120.0
    }
   },
   "storage": {
@@ -17992,6 +18682,36 @@
      "mode": "controlled",
      "strategy": "verified_migration"
     }
+   },
+   "shared_resources": {
+    "http": {
+     "keepalive_s": 30.0,
+     "max_connections": 100
+    },
+    "idle_ttl_s": null,
+    "keep_warm": true,
+    "max_models_per_category": null,
+    "memory_budget_mb": null,
+    "model_server": null,
+    "scope": "process",
+    "sql": {
+     "max_overflow": 10,
+     "pool_pre_ping": true,
+     "pool_recycle_s": 1800,
+     "pool_size": 5
+    },
+    "warmup": "background",
+    "warmup_concurrency": 2,
+    "warmup_exclude": [],
+    "warmup_include": [
+     "embedder",
+     "reranker",
+     "gliner",
+     "lexical",
+     "llm",
+     "decider"
+    ],
+    "warmup_timeout_s": 120.0
    }
   },
   "storage": {
@@ -18746,6 +19466,36 @@
      "mode": "controlled",
      "strategy": "verified_migration"
     }
+   },
+   "shared_resources": {
+    "http": {
+     "keepalive_s": 30.0,
+     "max_connections": 100
+    },
+    "idle_ttl_s": null,
+    "keep_warm": true,
+    "max_models_per_category": null,
+    "memory_budget_mb": null,
+    "model_server": null,
+    "scope": "process",
+    "sql": {
+     "max_overflow": 10,
+     "pool_pre_ping": true,
+     "pool_recycle_s": 1800,
+     "pool_size": 5
+    },
+    "warmup": "background",
+    "warmup_concurrency": 2,
+    "warmup_exclude": [],
+    "warmup_include": [
+     "embedder",
+     "reranker",
+     "gliner",
+     "lexical",
+     "llm",
+     "decider"
+    ],
+    "warmup_timeout_s": 120.0
    }
   },
   "storage": {
@@ -19514,6 +20264,36 @@
      "mode": "controlled",
      "strategy": "verified_migration"
     }
+   },
+   "shared_resources": {
+    "http": {
+     "keepalive_s": 30.0,
+     "max_connections": 100
+    },
+    "idle_ttl_s": null,
+    "keep_warm": true,
+    "max_models_per_category": null,
+    "memory_budget_mb": null,
+    "model_server": null,
+    "scope": "process",
+    "sql": {
+     "max_overflow": 10,
+     "pool_pre_ping": true,
+     "pool_recycle_s": 1800,
+     "pool_size": 5
+    },
+    "warmup": "background",
+    "warmup_concurrency": 2,
+    "warmup_exclude": [],
+    "warmup_include": [
+     "embedder",
+     "reranker",
+     "gliner",
+     "lexical",
+     "llm",
+     "decider"
+    ],
+    "warmup_timeout_s": 120.0
    }
   },
   "storage": {

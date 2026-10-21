@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import dataclasses
 import threading
 import uuid
 from collections import Counter
@@ -28,7 +29,7 @@ from collections.abc import (
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any, ClassVar, Self, TypeVar, cast
+from typing import TYPE_CHECKING, Any, ClassVar, Self, TypeVar, cast
 
 import orjson
 from dishka import AsyncContainer
@@ -191,7 +192,7 @@ from memspine.providers.projection_bindings import (
     projection_target_bindings,
 )
 from memspine.providers.recovery import CleanupQuiescenceGuard
-from memspine.providers.shared import Lease, resource_key, shared_registry
+from memspine.providers.shared import Lease, ResourceRegistry, resource_key, shared_registry
 from memspine.providers.switching import verified_active_projection_routes
 from memspine.read.contract import (
     QueryContract,
@@ -237,6 +238,10 @@ from memspine.runtime.container import (
     preflight_projection_bindings,
     prewarm_provider_imports,
 )
+from memspine.runtime.warmup import WarmState, WarmTarget, WarmupController, find_warm_hook
+
+if TYPE_CHECKING:
+    from memspine.models.profiles import GlinerConsumerRole
 from memspine.schemas.durable import AssertionEnvelope, OwnerScope
 from memspine.schemas.durable.erasure import RetentionBoundary
 from memspine.services.graph.base import GraphStore
@@ -518,6 +523,11 @@ class Engine:
         self._passive_sessions: dict[str, set[str]] = {}
         #: F-08: the DI container of the current start (None before start and after stop).
         self._container: AsyncContainer | None = None
+        #: RM-78: the registry this Engine shares resources through (set at start).
+        self._resource_registry: ResourceRegistry | None = None
+        self._wiring: Wiring | None = None
+        #: RM-74: this Engine's warm-up (None before start and after stop).
+        self._warmup: WarmupController | None = None
 
     # ── lifecycle ────────────────────────────────────────────────────────────
 
@@ -620,6 +630,8 @@ class Engine:
         self._sql, self._provider_resources = wiring.sql, wiring.resources
         self._gliner_pool = wiring.gliner_pool
         self._provider_results = wiring.provider_results
+        self._resource_registry = wiring.registry  # RM-78: process or private (scope)
+        self._wiring = wiring
         _snapshot_listings(self._storage)  # I2
         await self._storage.start()
         assert self._sql is not None
@@ -646,7 +658,7 @@ class Engine:
         # settings, shared with Engines that have the same (RM-75); None when both are off, and
         # then nothing below changes.
         seams = self._binding
-        self._sched_lease = await _scheduler_rt.acquire(config.runtime)
+        self._sched_lease = await _scheduler_rt.acquire(config.runtime, self._resource_registry)
         if self._sched_lease is not None:
             sched = self._sched_v2 = self._sched_lease.value
             seams.scheduler, seams.gate = sched, sched.gate
@@ -832,6 +844,7 @@ class Engine:
                 graph_entities,
                 _EDGE_COMPILED,
                 self._provider_results,
+                registry=self._resource_registry,
             )
             self._projectors.append(self._neo4j.projector)
 
@@ -902,7 +915,7 @@ class Engine:
                 await self._derive_sched.on_open()
         self._install_write_timers(config)
         if config.observability.ops_ledger:  # T5-06: per-stage ops ledger, off by default
-            self._ops_lease = await shared_registry().acquire(
+            self._ops_lease = await self._registry().acquire(
                 resource_key(
                     "observability.ops_ledger",
                     _seam_target(config, self._seam_token),
@@ -951,7 +964,123 @@ class Engine:
             controller = self._build_provider_changes_controller(runtime)
             self._provider_changes_controller = controller
             await controller.start_cleanup_worker()
+        await self._start_warmup(config)
         return self
+
+    # -- RM-74: warm-up after start (ADR-079 decision 3) ----------------------------------
+
+    def _registry(self) -> ResourceRegistry:
+        """The resource registry of this start (``runtime.shared_resources.scope``)."""
+        return self._resource_registry or shared_registry()
+
+    async def _start_warmup(self, config: MemspineConfig) -> None:
+        shared = config.runtime.shared_resources
+        controller = self._warmup = WarmupController(
+            self._warm_targets(config),
+            mode=shared.warmup,
+            categories=shared.warmup_categories(),
+            timeout_s=shared.warmup_timeout_s,
+            concurrency=shared.warmup_concurrency,
+        )
+        if shared.warmup == "blocking":
+            await controller.run_blocking()
+        elif shared.warmup == "background":
+            controller.start_background()
+
+    def _warm_targets(self, config: MemspineConfig) -> list[WarmTarget]:
+        """One target per configured resource that has a warm hook; nothing optional is
+        imported here (each hook builds or loads only when the warm-up runs it)."""
+        targets: list[WarmTarget] = []
+        embed_hook = find_warm_hook(self._embedder)
+        if embed_hook is not None:
+            targets.append(WarmTarget("embedder", "embedder", embed_hook))
+        read = config.read
+        if read.rerank != "off":
+
+            async def warm_reranker() -> None:
+                hook = find_warm_hook(await self._rerank_provider())
+                if hook is not None:
+                    await hook()
+
+            targets.append(WarmTarget(f"reranker:{read.rerank}", "reranker", warm_reranker))
+        if read.rerank_v2:
+            for mode in dict.fromkeys(read.rerank_v2_chain):
+                if mode in (read.rerank, "off"):
+                    continue
+                targets.append(
+                    WarmTarget(f"reranker:{mode}", "reranker", self._chain_warm_hook(mode))
+                )
+        if self._gliner_pool is not None:
+            semantic = self._memory_policy(config, "semantic").get("entity_extraction", "off")
+            gliner_tasks: tuple[tuple[GlinerConsumerRole, bool], ...] = (
+                ("gliner_decision", config.decision.provider == "gliner2"),
+                ("gliner_semantic", semantic == "gliner"),
+                ("gliner_prepass", config.write.prepass == "gliner"),
+            )
+            for task, on in gliner_tasks:
+                if on:
+                    targets.append(
+                        WarmTarget(f"gliner:{task}", "gliner", self._gliner_warm_hook(config, task))
+                    )
+        lexical_hook = find_warm_hook(self._lexical)
+        if lexical_hook is not None:
+            targets.append(WarmTarget("lexical", "lexical", lexical_hook))
+        llm_services = getattr(self._llm, "services", None)
+        if callable(llm_services):
+            for index, service in enumerate(llm_services()):
+                hook = find_warm_hook(service)
+                if hook is not None:
+                    name = getattr(service, "provider_id", f"llm-{index}")
+                    targets.append(WarmTarget(f"llm:{name}", "llm", hook))
+        if getattr(self, "_decider_override", None) is None and any(
+            self._decider_active(task) for task in (*read.decider_tasks, "sensitivity_scope")
+        ):
+
+            async def warm_decider() -> None:
+                hook = find_warm_hook(self._decider_adapter())
+                if hook is not None:
+                    await hook()
+
+            targets.append(WarmTarget("decider", "decider", warm_decider))
+        unique: dict[str, WarmTarget] = {}
+        for target in targets:
+            unique.setdefault(target.name, target)
+        return list(unique.values())
+
+    def _chain_warm_hook(self, mode: str) -> Callable[[], Awaitable[None]]:
+        async def warm() -> None:
+            from memspine.read.pipeline.rerank import _chain_provider
+
+            hook = find_warm_hook(await _chain_provider(self, mode, self._config().read, None))
+            if hook is not None:
+                await hook()
+
+        return warm
+
+    def _gliner_warm_hook(
+        self, config: MemspineConfig, task: GlinerConsumerRole
+    ) -> Callable[[], Awaitable[None]]:
+        async def warm() -> None:
+            from memspine.models.profiles import resolve_gliner_settings
+
+            pool = self._gliner_pool
+            if pool is None:
+                return
+            lease = await pool.acquire(resolve_gliner_settings(config, task))
+            await lease.aclose()  # the pool keeps the loaded weights resident
+
+        return warm
+
+    def warm_state(self) -> dict[str, WarmState]:
+        """RM-74: warm state per resource (``warm`` | ``warming`` | ``failed`` with the error
+        type | ``not_requested``); empty before start."""
+        return {} if self._warmup is None else self._warmup.states()
+
+    async def wait_until_warm(self, timeout_s: float | None = None) -> dict[str, WarmState]:
+        """RM-74: wait for a background warm-up (returns at once in the other modes)."""
+        if self._warmup is None:
+            return {}
+        return dict(await self._warmup.wait(timeout_s))
 
     async def _acquire_cost_ledger(
         self, config: MemspineConfig
@@ -970,7 +1099,7 @@ class Engine:
             {"economy": config.economy.model_dump(mode="json"), "outbox": config.workers.outbox},
             scope="thread",
         )
-        return await shared_registry().acquire(key, build, close=close)
+        return await self._registry().acquire(key, build, close=close)
 
     @staticmethod
     async def _new_ops_ledger() -> _ops.OpsLedger:
@@ -986,7 +1115,7 @@ class Engine:
             tap.close_state(state)
 
         key = resource_key("observability.tap", {}, tap_cfg.model_dump(mode="json"), scope="thread")
-        return await shared_registry().acquire(key, build, close=close)
+        return await self._registry().acquire(key, build, close=close)
 
     def _install_write_timers(self, config: MemspineConfig) -> None:
         """I73: wrap the write-door steps with monotonic timers, only when
@@ -1066,6 +1195,9 @@ class Engine:
 
     async def _teardown_inner(self) -> None:
         self._provider_tearing_down = True
+        if self._warmup is not None:
+            # RM-74: a pending background warm-up stops first (before its resources close).
+            await self._warmup.cancel()
         try:
             await self._drain_reranker_build()
         except Exception as exc:
@@ -1207,6 +1339,16 @@ class Engine:
         await attempt("debug tap", release_tap)
         seams.clear()
         _bindings.unregister(seams)
+
+        async def release_registry() -> None:
+            # RM-78: withdraw this Engine's retention policy (a private registry also closes
+            # what it still retains); idempotent with the container's own release.
+            wiring, self._wiring = self._wiring, None
+            if wiring is not None:
+                await wiring.release_registry()
+
+        await attempt("resource registry", release_registry)
+        self._resource_registry = None
         self._started = False
         self._gliner_pool = None
         self._decision = None
@@ -2946,8 +3088,6 @@ class Engine:
         )
         cached = getattr(self, "_decider_cache", None)
         if cached is None or cached[0] != key:
-            from memspine.providers.shared import shared_registry
-
             if cached is not None:
                 # A replaced decider keeps its weight lease until teardown releases it
                 # (an in-flight decision may still be using it).
@@ -2964,7 +3104,7 @@ class Engine:
                     workers=workers,
                     dtype=dtype,
                     # RM-73: weights shared per process; this Engine's teardown releases.
-                    registry=shared_registry(),
+                    registry=self._registry(),
                 ),
             )
             self._decider_cache = cached
@@ -4441,6 +4581,9 @@ class Engine:
                 resources=self._provider_resources,
                 owner_id=self._provider_owner_id or "pending-owner",
                 health_timeout_s=cfg.runtime.provider_services.health_timeout_s,
+                registry=self._registry(),
+                sql_pool=cfg.runtime.shared_resources.sql,
+                http_pool=cfg.runtime.shared_resources.http,
             ),
             chunk_chars=settings.chunk_chars,
             chunk_overlap=settings.chunk_overlap,
@@ -5432,7 +5575,8 @@ class Engine:
                     )
             except Exception:
                 catchup[projector.name] = False
-        return await self._provider_status_service().readiness(projector_catchup=catchup)
+        report = await self._provider_status_service().readiness(projector_catchup=catchup)
+        return dataclasses.replace(report, warm=self.warm_state())  # RM-74
 
     def describe(self) -> dict[str, Any]:
         """The effective world (§4 step 7). Only meaningful on a started engine."""

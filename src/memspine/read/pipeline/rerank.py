@@ -64,7 +64,8 @@ async def _static_embedding_prefilter(
                 from memspine.providers.lifecycle import ResourceOwnershipError
                 from memspine.providers.shared import shared_registry
 
-                embedder = StaticEmbedder(registry=shared_registry())
+                registry = getattr(eng, "_resource_registry", None) or shared_registry()
+                embedder = StaticEmbedder(registry=registry)
                 try:
                     resources.own("embedding.weights:static-prefilter", embedder.aclose)
                 except ResourceOwnershipError:

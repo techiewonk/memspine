@@ -206,6 +206,9 @@ class TantivyLexical:
         # commit, which every read and flush() performs first.
         self._deferring = False
         self._uncommitted = False
+        #: Set by close(): an open still running on a worker thread (a cancelled RM-74
+        #: warm-up) must not take the writer lock after the store was closed.
+        self._closed = False
 
     async def _ensure(self) -> None:
         """Open the index and its single long-lived writer once, off the loop."""
@@ -215,6 +218,8 @@ class TantivyLexical:
 
     def _open(self) -> None:
         with self._lock:
+            if self._closed:
+                raise RuntimeError("lexical index is closed")
             if self._index is None:
                 self._open_unlocked()
 
@@ -222,16 +227,19 @@ class TantivyLexical:
         import tantivy
 
         if self._path is None:
-            self._index = tantivy.Index(self._schema)
+            index = tantivy.Index(self._schema)
         else:
             Path(self._path).mkdir(parents=True, exist_ok=True)
-            self._index = tantivy.Index(self._schema, path=self._path)
+            index = tantivy.Index(self._schema, path=self._path)
         if self._analyzer is not None:
-            self._index.register_tokenizer(ENGLISH_TOKENIZER, self._analyzer)
+            index.register_tokenizer(ENGLISH_TOKENIZER, self._analyzer)
         # One writer for the store's life: commit() is reusable across mutations,
         # so the heap is allocated once (wait_merging_threads, which consumes the
-        # writer, is deferred to close()).
-        self._writer = self._index.writer(self._heap, 1)
+        # writer, is deferred to close()). ``_index`` is published last: ``_ensure``
+        # skips the lock when it is set, so a concurrent first use (an RM-74 warm-up
+        # racing a write) must never see an index without its writer.
+        self._writer = index.writer(self._heap, 1)
+        self._index = index
 
     def _add_doc(self, record_id: str, namespace: str, content: str) -> None:
         import tantivy
@@ -313,6 +321,10 @@ class TantivyLexical:
             _commit_with_retry(self._writer)
             self._index.reload()
             self._uncommitted = False
+
+    async def warm(self) -> None:
+        """ADR-079 / RM-74 warm hook: open the index and its searcher with one tiny query."""
+        await self.search("__memspine_warmup__", "memspine", top_k=1)
 
     async def search(self, namespace: str, query: str, top_k: int = 8) -> list[LexicalHit]:
         await self._ensure()
@@ -402,12 +414,13 @@ class TantivyLexical:
             self._uncommitted = False
 
     async def close(self) -> None:
-        if self._writer is None:
+        if self._closed:
             return
         await asyncio.to_thread(self._close)
 
     def _close(self) -> None:
         with self._lock:
+            self._closed = True
             if self._writer is None:
                 return
             if self._uncommitted:

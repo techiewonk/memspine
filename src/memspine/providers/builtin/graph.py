@@ -128,6 +128,7 @@ class LadybugBuilder:
                 resource_key("graph.ladybug", {"path": path_identity(path)}, scope="thread"),
                 open_store,
                 close=close_store,
+                registry=ctx.shared.resource_registry(),
             )
 
         async def probe() -> bool:
@@ -157,6 +158,7 @@ class Neo4jBuilder:
         ).hexdigest()[:24]
         from memspine.services.graph.neo4j import DriverExecutor
 
+        http = ctx.shared.http_pool
         client = Neo4jClient(
             settings,
             executor_factory=lambda driver: DriverExecutor(
@@ -165,6 +167,8 @@ class Neo4jBuilder:
                 node_label=f"MemNode_{scope}",
                 rel_type=f"MemRel_{scope}",
             ),
+            max_connections=http.max_connections if http is not None else None,
+            keepalive_s=http.keepalive_s if http is not None else None,
         )
         ref = ctx.shared.resources.own(ctx.resource_id, client.close)
         await client.connect()

@@ -12,8 +12,11 @@ from memspine.exceptions import ConfigError, MissingServiceError
 
 
 class WeaviateClient:
-    def __init__(self, settings: WeaviateSettings) -> None:
+    def __init__(self, settings: WeaviateSettings, *, max_connections: int | None = None) -> None:
+        """``max_connections``: the HTTP session pool size (``runtime.shared_resources.http``);
+        None keeps the client library default."""
         self.settings = settings
+        self._max_connections = max_connections
         self._client: Any = None
 
     async def connect(self) -> None:
@@ -22,7 +25,7 @@ class WeaviateClient:
         try:
             import weaviate
             from weaviate.auth import Auth
-            from weaviate.config import AdditionalConfig, Timeout
+            from weaviate.config import AdditionalConfig, ConnectionConfig, Timeout
         except ImportError:
             raise MissingServiceError("provider:weaviate", extra="weaviate") from None
         host, _scheme, port, secure = endpoint_from_env(
@@ -41,6 +44,9 @@ class WeaviateClient:
                     f"Weaviate authentication needs environment variable {self.settings.api_key_env}"
                 )
             auth = Auth.api_key(api_key)
+        pool: dict[str, Any] = {}
+        if self._max_connections is not None:
+            pool["connection"] = ConnectionConfig(session_pool_maxsize=self._max_connections)
         client = weaviate.use_async_with_custom(
             http_host=host,
             http_port=port,
@@ -54,7 +60,8 @@ class WeaviateClient:
                     init=self.settings.connect_timeout_s,
                     query=self.settings.request_timeout_s,
                     insert=self.settings.request_timeout_s,
-                )
+                ),
+                **pool,
             ),
         )
         self._client = client

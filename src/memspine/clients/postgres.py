@@ -11,6 +11,8 @@ from __future__ import annotations
 
 import asyncio
 import math
+from collections.abc import Mapping
+from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 
@@ -51,13 +53,16 @@ class PostgresClient(Client):
         *,
         connect_timeout_s: float | None = None,
         statement_timeout_s: float | None = None,
+        pool_options: Mapping[str, Any] | None = None,
     ) -> None:
         """``connect_timeout_s``: the overall deadline for :meth:`connect`, across
         every host/address attempt; it raises ``TimeoutError`` when it expires.
         Each driver attempt is separately bounded by
         :func:`driver_connect_timeout`, so a pooled reconnect after ``connect``
         can take up to that value per attempt (RM-40). ``None`` leaves both to
-        the driver default."""
+        the driver default. ``pool_options`` (``runtime.shared_resources.sql``): SQLAlchemy
+        queue-pool keyword arguments."""
+        self._pool_options: dict[str, Any] = dict(pool_options or {})
         self._url = normalize_pg_url(url)
         self._echo = echo
         self._connect_timeout_s = connect_timeout_s
@@ -83,7 +88,9 @@ class PostgresClient(Client):
             import psycopg  # noqa: F401  # the psycopg3 driver SQLAlchemy binds
         except ImportError as exc:
             raise MissingServiceError("storage:postgres", extra="postgres") from exc
-        engine = create_async_engine(self._url, echo=self._echo, connect_args=self._connect_args)
+        engine = create_async_engine(
+            self._url, echo=self._echo, connect_args=self._connect_args, **self._pool_options
+        )
         # Verify reachability at start (D-10): a bad DSN / down server must fail
         # loudly here, not on the first write mid-request.
         try:

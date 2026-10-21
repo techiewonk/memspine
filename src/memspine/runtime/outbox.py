@@ -25,7 +25,7 @@ from __future__ import annotations
 import json
 import math
 import threading
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterator, Mapping
 from contextlib import contextmanager
 from datetime import UTC, datetime
 from typing import Any
@@ -138,10 +138,12 @@ def sqlite_engine(
     creator: Callable[[], Any] | None = None,
     *,
     busy_timeout_s: float,
+    pool_options: Mapping[str, Any] | None = None,
 ) -> Engine:
     """A sync engine over a file-backed SQLite database (the one the storage layer uses).
 
-    ``creator`` opens a keyed connection for an encrypted database (#52)."""
+    ``creator`` opens a keyed connection for an encrypted database (#52; no pool, so
+    ``pool_options`` - SQLAlchemy queue-pool keyword arguments - apply only without it)."""
     if isinstance(busy_timeout_s, bool) or not math.isfinite(busy_timeout_s) or busy_timeout_s <= 0:
         raise ValueError("busy_timeout_s must be finite and positive")
     if creator is not None:
@@ -149,6 +151,7 @@ def sqlite_engine(
     return create_engine(
         f"sqlite:///{path}",
         connect_args={"timeout": busy_timeout_s, "check_same_thread": False},
+        **dict(pool_options or {}),
     )
 
 

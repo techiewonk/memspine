@@ -8,9 +8,11 @@ from typing import Literal
 
 from pydantic import JsonValue
 
+from memspine.config.schema.runtime import SharedHttpPoolConfig, SharedSqlPoolConfig
 from memspine.config.schema.storage import EventLogConfig
 from memspine.models.encoders.embedding.base import EmbeddingService
 from memspine.providers.contracts import LifecycleManager, ProjectionPlacement, SqlAccess
+from memspine.providers.shared import ResourceRegistry, shared_registry
 
 
 @dataclass(frozen=True)
@@ -18,6 +20,16 @@ class SharedBuildContext:
     resources: LifecycleManager
     owner_id: str
     health_timeout_s: float
+    #: RM-78: the Engine's resource registry (``runtime.shared_resources.scope``); None =
+    #: the process registry.
+    registry: ResourceRegistry | None = None
+    #: RM-78: pool options for SQL engines and HTTP clients memspine constructs; None = the
+    #: library defaults (direct builds outside an Engine).
+    sql_pool: SharedSqlPoolConfig | None = None
+    http_pool: SharedHttpPoolConfig | None = None
+
+    def resource_registry(self) -> ResourceRegistry:
+        return self.registry if self.registry is not None else shared_registry()
 
 
 @dataclass(frozen=True)

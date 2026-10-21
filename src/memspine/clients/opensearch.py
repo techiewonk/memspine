@@ -11,8 +11,11 @@ from memspine.exceptions import ConfigError, MissingServiceError
 
 
 class OpenSearchClient:
-    def __init__(self, settings: OpenSearchSettings) -> None:
+    def __init__(self, settings: OpenSearchSettings, *, max_connections: int | None = None) -> None:
+        """``max_connections``: the aiohttp connector limit (``runtime.shared_resources.http``);
+        None keeps the client library default."""
         self.settings = settings
+        self._max_connections = max_connections
         self._client: Any = None
 
     async def connect(self) -> None:
@@ -35,6 +38,9 @@ class OpenSearchClient:
                 )
                 raise ConfigError(f"OpenSearch authentication needs environment variable {missing}")
             auth = (username, password)
+        pool: dict[str, Any] = (
+            {} if self._max_connections is None else {"maxsize": self._max_connections}
+        )
         client = AsyncOpenSearch(
             hosts=[{"host": host, "port": port, "scheme": scheme}],
             http_auth=auth,
@@ -45,6 +51,7 @@ class OpenSearchClient:
             max_retries=2,
             retry_on_timeout=True,
             retry_on_status=(429, 502, 503, 504),
+            **pool,
         )
         self._client = client
         try:

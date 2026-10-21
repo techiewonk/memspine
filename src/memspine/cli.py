@@ -306,6 +306,11 @@ def mcp_cmd(
         raise typer.Exit(code=1) from exc
     protocol_out = sys.stdout
     sys.stdout = sys.stderr  # a stray print must never corrupt the protocol stream
+    # Diagnostics (including background warm-up warnings, RM-74) go to stderr too: the
+    # default log sink was bound to the protocol stream's fd at import.
+    from memspine.observability.logging import configure_logging
+
+    configure_logging()
 
     async def _inner() -> None:
         overrides: dict[str, Any] = {"storage": {"settings": {"path": str(db)}}} if db else {}

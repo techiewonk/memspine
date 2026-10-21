@@ -255,10 +255,14 @@ async def test_weaviate_different_credentials_do_not_share(
     resources = _manager()
     base = WeaviateSettings(connect_timeout_s=1.0, request_timeout_s=1.0)
     await weaviate_builtin._shared_client(
-        base.model_copy(update={"api_key_env": "KEY_A"}), resources, "a"
+        base.model_copy(update={"api_key_env": "KEY_A"}),
+        SharedBuildContext(resources, "owner", 2.0),
+        "a",
     )
     await weaviate_builtin._shared_client(
-        base.model_copy(update={"api_key_env": "KEY_B"}), resources, "b"
+        base.model_copy(update={"api_key_env": "KEY_B"}),
+        SharedBuildContext(resources, "owner", 2.0),
+        "b",
     )
     assert len(_FakeWeaviateClient.instances) == 2
     for stats in shared_registry().stats():

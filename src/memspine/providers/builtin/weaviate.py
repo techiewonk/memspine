@@ -11,11 +11,14 @@ from pydantic import BaseModel, JsonValue
 from memspine.config.remote import endpoint_from_env
 from memspine.config.schema.remote_providers import WeaviateSettings
 from memspine.exceptions import ConfigError
-from memspine.providers.contexts import LexicalBuildContext, VectorBuildContext
+from memspine.providers.contexts import (
+    LexicalBuildContext,
+    SharedBuildContext,
+    VectorBuildContext,
+)
 from memspine.providers.contracts import (
     BuildResult,
     DependencyRequirement,
-    LifecycleManager,
     ProviderRef,
     ResourceRef,
 )
@@ -62,7 +65,7 @@ def _target_identity(model: BaseModel) -> dict[str, JsonValue]:
 
 
 async def _shared_client(
-    settings: WeaviateSettings, resources: LifecycleManager, resource_id: str
+    settings: WeaviateSettings, shared: SharedBuildContext, resource_id: str
 ) -> tuple[WeaviateClient, ResourceRef]:
     """One connected client per Weaviate target and transport settings (ADR-079).
 
@@ -72,9 +75,12 @@ async def _shared_client(
     from memspine.clients.weaviate import WeaviateClient
 
     knobs = settings.model_dump(mode="json", exclude={"collection_prefix"})
+    pool_size = shared.http_pool.max_connections if shared.http_pool is not None else None
+    knobs["http_max_connections"] = pool_size
+    pool = {} if pool_size is None else {"max_connections": pool_size}
 
     async def open_client() -> WeaviateClient:
-        client = WeaviateClient(settings)
+        client = WeaviateClient(settings, **pool)
         await client.connect()
         return client
 
@@ -82,11 +88,12 @@ async def _shared_client(
         await client.close()
 
     return await own_shared(
-        resources,
+        shared.resources,
         resource_id,
         resource_key("weaviate.client", _target_identity(settings), knobs, scope="loop"),
         open_client,
         close=close_client,
+        registry=shared.resource_registry(),
     )
 
 
@@ -108,7 +115,7 @@ class WeaviateVectorBuilder:
         name = collection_name(
             settings.collection_prefix, "Vector", ctx.shared.owner_id, vector_space
         )
-        client, ref = await _shared_client(settings, ctx.shared.resources, "vector")
+        client, ref = await _shared_client(settings, ctx.shared, "vector")
         collection = await ensure_collection(client.native, name, include_content=False)
         service = WeaviateVectorStore(
             collection,
@@ -144,7 +151,7 @@ class WeaviateLexicalBuilder:
         name = collection_name(
             settings.collection_prefix, "Lexical", ctx.shared.owner_id, ctx.generation_id
         )
-        client, ref = await _shared_client(settings, ctx.shared.resources, "lexical")
+        client, ref = await _shared_client(settings, ctx.shared, "lexical")
         collection = await ensure_collection(client.native, name, include_content=True)
         service = WeaviateLexicalStore(collection, owner_id=ctx.shared.owner_id)
 

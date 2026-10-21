@@ -46,8 +46,23 @@ class _BorrowedExecutor:
 
 
 class Neo4jClient(Client):
-    def __init__(self, settings: Neo4jSettings, *, executor_factory: ExecutorFactory) -> None:
+    def __init__(
+        self,
+        settings: Neo4jSettings,
+        *,
+        executor_factory: ExecutorFactory,
+        max_connections: int | None = None,
+        keepalive_s: float | None = None,
+    ) -> None:
+        """``max_connections`` / ``keepalive_s`` (``runtime.shared_resources.http``): the
+        driver's connection pool size and liveness-check idle time; None keeps the driver
+        default."""
         self._settings = settings
+        self._pool: dict[str, Any] = {}
+        if max_connections is not None:
+            self._pool["max_connection_pool_size"] = max_connections
+        if keepalive_s is not None:
+            self._pool["liveness_check_timeout"] = keepalive_s
         self._executor_factory = executor_factory
         self._driver: NativeNeo4jDriver | None = None
         self._executor: Neo4jOperationExecutor | None = None
@@ -69,6 +84,7 @@ class Neo4jClient(Client):
             url,
             auth=(user, password or "") if user else None,
             connection_timeout=settings.connect_timeout_s,
+            **self._pool,
         )
         self._driver = driver
         try:

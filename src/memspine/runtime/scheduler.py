@@ -40,7 +40,7 @@ from memspine.derive.backpressure import Backpressure
 from memspine.economy.slo import SloLedger
 from memspine.models.concurrency import Priority, current_priority, priority_scope
 from memspine.observability import tap
-from memspine.providers.shared import Lease, resource_key, shared_registry
+from memspine.providers.shared import Lease, ResourceRegistry, resource_key, shared_registry
 
 if TYPE_CHECKING:
     from memspine.config.schema.runtime import RuntimeConfig
@@ -427,7 +427,9 @@ def settings_of(cfg: RuntimeConfig) -> dict[str, Any]:
     return cfg.model_dump(include=set(_SCHED_FIELDS))
 
 
-async def acquire(cfg: RuntimeConfig) -> Lease[Scheduler] | None:
+async def acquire(
+    cfg: RuntimeConfig, registry: ResourceRegistry | None = None
+) -> Lease[Scheduler] | None:
     """Engine start: a lease on the Scheduler for these settings, or None when both flags are off.
     Engines with identical settings on one loop share ONE Scheduler (one gate); others do not."""
     if not (cfg.scheduler_v2 or cfg.model_concurrency > 0):
@@ -442,7 +444,7 @@ async def acquire(cfg: RuntimeConfig) -> Lease[Scheduler] | None:
         await sched.close()
 
     key = resource_key("runtime.scheduler", {}, settings_of(cfg), scope="loop")
-    return await shared_registry().acquire(key, build, close=close)
+    return await (registry or shared_registry()).acquire(key, build, close=close)
 
 
 async def release(lease: Lease[Scheduler] | None) -> None:

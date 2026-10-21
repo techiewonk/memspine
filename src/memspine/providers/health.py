@@ -9,13 +9,14 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Awaitable, Callable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import cast
 
 from sqlalchemy import text
 
 from memspine.providers.contracts import BuildResult, Category, SqlAccess
+from memspine.runtime.warmup import WarmState
 
 HealthProbe = Callable[[], Awaitable[bool]]
 
@@ -48,6 +49,10 @@ class ReadinessReport:
     reasons: tuple[str, ...]
     health: ProviderHealthReport
     projector_catchup: Mapping[str, bool]
+    #: RM-74 (ADR-079): warm state per resource name (``embedder``, ``reranker:<mode>`` ...).
+    #: Informational: a resource that is not warm yet is still served (the request waits for
+    #: the shared build), so it never makes the Engine not ready.
+    warm: Mapping[str, WarmState] = field(default_factory=dict)
 
 
 @dataclass(frozen=True, slots=True)

@@ -120,6 +120,7 @@ from memspine.providers.registry import (
     validate_settings,
 )
 from memspine.providers.selection import select_provider
+from memspine.providers.shared import ResourceRegistry, RetentionPolicy, shared_registry
 from memspine.runtime.outbox import SqlJobStore
 from memspine.runtime.runner import InlineRunner as OutboxRunner
 from memspine.services.graph.base import GraphStore
@@ -463,6 +464,22 @@ class Wiring:
     gliner_pool: GLiNERModelPool | None = None
     #: E4: whether the vector leg runs the two-stage quantized rescore
     rescore_active: bool = False
+    #: RM-78: the registry this Engine's builders share resources through (the process one,
+    #: or a private one under ``runtime.shared_resources.scope: engine``).
+    registry: ResourceRegistry = field(default_factory=shared_registry)
+    #: RM-78: this Engine's retention policy token on ``registry`` (None when not registered)
+    retention_token: int | None = None
+    #: RM-78: True when ``registry`` belongs to this Engine alone
+    private_registry: bool = False
+
+    async def release_registry(self) -> None:
+        """Withdraw this Engine's retention policy; a private registry also closes the weights
+        it still retains (nothing else can reuse them). Idempotent."""
+        token, self.retention_token = self.retention_token, None
+        if token is not None:
+            self.registry.remove_retention(token)
+        if self.private_registry:
+            await self.registry.evict_idle()
 
     async def close_clients(self) -> None:
         report = await self.resources.close_all()
@@ -690,14 +707,30 @@ def check_capabilities(config: MemspineConfig) -> Capabilities:
     return Capabilities(enabled=enabled, auto_enabled=auto_enabled)
 
 
+def retention_policy(config: MemspineConfig) -> RetentionPolicy:
+    """RM-78: the weight retention this config asks of its resource registry."""
+    shared = config.runtime.shared_resources
+    return RetentionPolicy(
+        keep_warm=shared.keep_warm,
+        idle_ttl_s=shared.idle_ttl_s,
+        memory_budget_mb=shared.memory_budget_mb,
+        max_models_per_category=shared.max_models_per_category,
+    )
+
+
 async def wiring_of(config: MemspineConfig, _caps: Capabilities) -> AsyncIterator[Wiring]:
     timeouts = config.runtime.provider_services
+    private = config.runtime.shared_resources.scope == "engine"
+    registry = ResourceRegistry() if private else shared_registry()
     wiring = Wiring(
         resources=ProviderLifecycleManager(close_timeout_s=timeouts.close_timeout_s),
         health_timeout_s=timeouts.health_timeout_s,
         startup_timeout_s=timeouts.startup_timeout_s,
         owner_id=config.runtime.deployment_id,
         explicit_owner_id=config.runtime.deployment_id is not None,
+        registry=registry,
+        retention_token=registry.add_retention(retention_policy(config)),
+        private_registry=private,
     )
     gliner_active = (
         config.decision.provider == "gliner2"
@@ -705,12 +738,31 @@ async def wiring_of(config: MemspineConfig, _caps: Capabilities) -> AsyncIterato
         or config.write.prepass == "gliner"
     )
     if gliner_active:
-        wiring.gliner_pool = GLiNERModelPool(max_models=config.models.gliner_max_models)
+        wiring.gliner_pool = GLiNERModelPool(
+            max_models=config.models.gliner_max_models, registry=wiring.registry
+        )
         wiring.resources.own("gliner-model-pool", wiring.gliner_pool.aclose)
     try:
         yield wiring
     finally:
-        await wiring.close_clients()
+        try:
+            await wiring.close_clients()
+        finally:
+            await wiring.release_registry()
+
+
+def shared_build_context(config: MemspineConfig, wiring: Wiring) -> SharedBuildContext:
+    """The build context every provider builder of this Engine receives (RM-78: its resource
+    registry and the ``runtime.shared_resources`` pool options)."""
+    shared = config.runtime.shared_resources
+    return SharedBuildContext(
+        wiring.resources,
+        _owner_id(config, wiring),
+        wiring.health_timeout_s,
+        registry=wiring.registry,
+        sql_pool=shared.sql,
+        http_pool=shared.http,
+    )
 
 
 # ── APP providers: services ──────────────────────────────────────────────────────────────
@@ -720,9 +772,7 @@ async def build_storage(config: MemspineConfig, wiring: Wiring) -> SqlStorage:
     resolve_profile(config.storage)  # F-16d: taps store.profile.resolved
     descriptor = _descriptor(PROVIDER_STORAGE_BACKENDS, config.storage.provider, "storage.provider")
     settings = _settings(descriptor, config.storage.settings)
-    shared = SharedBuildContext(
-        wiring.resources, _owner_id(config, wiring), wiring.health_timeout_s
-    )
+    shared = shared_build_context(config, wiring)
     result = await _build_provider(
         wiring,
         descriptor,
@@ -739,9 +789,7 @@ async def build_cache(config: MemspineConfig, wiring: Wiring) -> KVCache:
     descriptor = _descriptor(PROVIDER_CACHE_BACKENDS, config.cache.provider, "cache.provider")
     settings = _settings(descriptor, config.cache.settings)
     placement = _storage_placement(config, wiring)
-    shared = SharedBuildContext(
-        wiring.resources, _owner_id(config, wiring), wiring.health_timeout_s
-    )
+    shared = shared_build_context(config, wiring)
     result = await _build_provider(
         wiring, descriptor, settings, CacheBuildContext(shared, placement)
     )
@@ -841,9 +889,7 @@ async def provide_embedder(
     effective = resolved_embedding(config)
     descriptor = _descriptor(PROVIDER_EMBEDDERS, effective.provider, "embedding.provider")
     settings = _settings(descriptor, effective.settings)
-    shared = SharedBuildContext(
-        wiring.resources, _owner_id(config, wiring), wiring.health_timeout_s
-    )
+    shared = shared_build_context(config, wiring)
     result = await _build_provider(wiring, descriptor, settings, shared, result_key="embedding")
     return CachedEmbedding(cast(EmbeddingService, result.service), cache)
 
@@ -869,7 +915,7 @@ async def build_vector_store(
         effective_embedding.settings,
     )
     context = VectorBuildContext(
-        SharedBuildContext(wiring.resources, _owner_id(config, wiring), wiring.health_timeout_s),
+        shared_build_context(config, wiring),
         placement,
         embedder,
         quantization,
@@ -895,7 +941,7 @@ async def build_lexical_store(
         raise ConfigError("read.lexical_provider does not match its verified switch target")
     settings = _settings(descriptor, config.read.lexical_settings)
     context = LexicalBuildContext(
-        SharedBuildContext(wiring.resources, _owner_id(config, wiring), wiring.health_timeout_s),
+        shared_build_context(config, wiring),
         _storage_placement(config, wiring),
         getattr(route, "physical_generation_id", "active"),
     )
@@ -1040,7 +1086,7 @@ async def build_graph_store(config: MemspineConfig, wiring: Wiring) -> GraphStor
         )
     settings = _settings(descriptor, config.graph.settings)
     context = GraphBuildContext(
-        SharedBuildContext(wiring.resources, _owner_id(config, wiring), wiring.health_timeout_s),
+        shared_build_context(config, wiring),
         _storage_placement(config, wiring),
         wiring.sql,
         getattr(route, "physical_generation_id", "active"),
@@ -1056,9 +1102,7 @@ async def build_llm_router(config: MemspineConfig, hooks: WiringHooks, wiring: W
     providers: dict[str, LLMService] = {}
     role_configs = bound_llm_roles(config)
     profile_services: dict[str, LLMService] = {}
-    shared = SharedBuildContext(
-        wiring.resources, _owner_id(config, wiring), wiring.health_timeout_s
-    )
+    shared = shared_build_context(config, wiring)
 
     async def build_profile(profile_name: str, role: str) -> LLMService:
         existing = profile_services.get(profile_name)
@@ -1253,9 +1297,7 @@ async def _bind_tiered_roles(
             descriptor,
             typed,
             LLMBuildContext(
-                SharedBuildContext(
-                    wiring.resources, _owner_id(config, wiring), wiring.health_timeout_s
-                ),
+                shared_build_context(config, wiring),
                 role,
             ),
             result_key=f"llm.{role}",
@@ -1593,6 +1635,7 @@ async def make_neo4j_projection(
     entities: Any,
     compiled: str,
     provider_results: dict[str, BuildResult[Any]] | None = None,
+    registry: ResourceRegistry | None = None,
 ) -> Neo4jProjection:
     """Build the outbox runner, the Neo4j store and the registered ``graph_projection`` handler."""
     from memspine.memories.associative.graph_outbox import Neo4jGraphHandler, Neo4jOutboxProjector
@@ -1604,6 +1647,9 @@ async def make_neo4j_projection(
         resources,
         _owner_id(config),
         config.runtime.provider_services.health_timeout_s,
+        registry=registry,
+        sql_pool=config.runtime.shared_resources.sql,
+        http_pool=config.runtime.shared_resources.http,
     )
     graph_context = GraphBuildContext(
         shared,

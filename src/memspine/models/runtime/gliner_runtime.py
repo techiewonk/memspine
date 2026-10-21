@@ -253,7 +253,7 @@ class GLiNERModelPool:
                 scope="thread",
             )
             shared = await self._registry.acquire(
-                registry_key, lambda: self._load_model(settings), close=_dispose
+                registry_key, lambda: self._load_model(settings), close=_dispose, kind="weights"
             )
             entry = _Entry(key=key, model=shared.value, shared=shared)
             async with self._changed:

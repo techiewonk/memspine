@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 import os
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from pydantic import BaseModel, JsonValue
 from sqlalchemy import Engine, create_engine
@@ -81,6 +81,20 @@ def sqlite_shared_identity(
     return target, knobs
 
 
+def sql_pool_options(ctx: StorageBuildContext) -> dict[str, Any]:
+    """SQLAlchemy queue-pool keyword arguments from ``runtime.shared_resources.sql`` (RM-78);
+    empty for a direct build without an Engine (library defaults)."""
+    pool = ctx.shared.sql_pool
+    if pool is None:
+        return {}
+    return {
+        "pool_size": pool.pool_size,
+        "max_overflow": pool.max_overflow,
+        "pool_recycle": pool.pool_recycle_s,
+        "pool_pre_ping": pool.pool_pre_ping,
+    }
+
+
 async def _close_client(client: Any) -> None:
     await client.close()
 
@@ -117,10 +131,17 @@ class SqliteBuilder:
             )
         else:
             target, knobs = sqlite_shared_identity(settings)
+            # SQLCipher opens through one keyed connection (fixed pool): pool options are
+            # ignored there and stay out of the key.
+            pool = {} if key is not None else sql_pool_options(ctx)
+            knobs = {**knobs, "pool": cast(JsonValue, pool)}
 
             async def open_client() -> SQLiteClient:
                 opened = SQLiteClient(
-                    settings.path, cipher_key_env=key, busy_timeout_s=settings.busy_timeout_s
+                    settings.path,
+                    cipher_key_env=key,
+                    busy_timeout_s=settings.busy_timeout_s,
+                    pool_options=pool,
                 )
                 await opened.connect()
                 return opened
@@ -131,6 +152,7 @@ class SqliteBuilder:
                 resource_key("sql.sqlite.async", target, knobs, scope="loop"),
                 open_client,
                 close=_close_client,
+                registry=ctx.shared.resource_registry(),
             )
             shared_client = client
 
@@ -139,6 +161,7 @@ class SqliteBuilder:
                     shared_client.path,
                     shared_client.sync_creator,
                     busy_timeout_s=settings.busy_timeout_s,
+                    pool_options=pool,
                 )
 
             sync_engine, sync_ref = await own_shared(
@@ -147,6 +170,7 @@ class SqliteBuilder:
                 resource_key("sql.sqlite.sync", target, knobs, scope="thread"),
                 open_sync,
                 close=_dispose_sync,
+                registry=ctx.shared.resource_registry(),
                 depends_on=(ref.resource_id,),
             )
             access = ManagedSqlAccess(
@@ -191,12 +215,15 @@ class PostgresBuilder:
             "connect_timeout_s": settings.connect_timeout_s,
             "statement_timeout_s": settings.statement_timeout_s,
         }
+        pool = sql_pool_options(ctx)
+        knobs["pool"] = cast(JsonValue, pool)
 
         async def open_client() -> PostgresClient:
             opened = PostgresClient(
                 url,
                 connect_timeout_s=settings.connect_timeout_s,
                 statement_timeout_s=settings.statement_timeout_s,
+                pool_options=pool,
             )
             # The client enforces connect_timeout_s as the overall deadline (RM-40).
             await opened.connect()
@@ -208,6 +235,7 @@ class PostgresBuilder:
             resource_key("sql.postgres.async", target, knobs, scope="loop"),
             open_client,
             close=_close_client,
+            registry=ctx.shared.resource_registry(),
         )
 
         async def open_sync() -> Engine:
@@ -219,6 +247,7 @@ class PostgresBuilder:
                     "connect_timeout": driver_connect_timeout(settings.connect_timeout_s),
                     "options": f"-c statement_timeout={max(1, int(settings.statement_timeout_s * 1000))}",
                 },
+                **pool,
             )
 
         sync_engine, sync_ref = await own_shared(
@@ -227,6 +256,7 @@ class PostgresBuilder:
             resource_key("sql.postgres.sync", target, knobs, scope="thread"),
             open_sync,
             close=_dispose_sync,
+            registry=ctx.shared.resource_registry(),
             depends_on=(ref.resource_id,),
         )
 

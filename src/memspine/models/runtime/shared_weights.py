@@ -74,7 +74,11 @@ class SharedWeights[T]:
                     # The key is built here, not at construction: it carries the process id.
                     key = resource_key(self._category, self._target, self._settings, scope="thread")
                     self._lease = await self._registry.acquire(
-                        key, self._build, close=self._close_value, warm=self._warm_value
+                        key,
+                        self._build,
+                        close=self._close_value,
+                        warm=self._warm_value,
+                        kind="weights",  # RM-78: may stay loaded at zero holders (keep_warm)
                     )
                 lease = self._lease
         return lease.value

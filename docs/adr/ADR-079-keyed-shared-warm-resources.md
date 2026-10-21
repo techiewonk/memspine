@@ -73,6 +73,28 @@ A 2026-10-22 audit found that inside one Engine most clients are shared, but:
   configured static embedder of the same model. Load failures are never cached. Each adapter
   exposes `warm()` (load plus one fixed short inference) for RM-74; RM-73 schedules no
   warm-up itself. Result caches (`CachedEmbedding`, extraction caches) stay per Engine.
+- **RM-78 (settings).** `runtime.shared_resources` (`config/schema/runtime.py`, defaults in
+  `config/constants.py`, rows in USAGE.md). Builders receive the Engine's registry through
+  `SharedBuildContext.registry` (`scope: engine` = a private registry per Engine) together
+  with the `sql` / `http` pool options. Retention: entries acquired with `kind="weights"`
+  (SharedWeights, the GLiNER pool) stay loaded at zero holders while any registered
+  `RetentionPolicy` keeps them warm; policies of Engines sharing a registry merge to the
+  most retaining one; `idle_ttl_s`, `memory_budget_mb` (RSS growth measured at load) and
+  `max_models_per_category` evict least-recently-used idle weights, never weights in use.
+  A private registry closes what it retains when its Engine stops. SQL pool options reach
+  the async and shared sync SQLAlchemy engines of Postgres and file SQLite (SQLCipher and
+  `:memory:` keep fixed pools); HTTP options reach OpenSearch, Weaviate and Neo4j only.
+  `model_server` accepts only null/`off` until RM-79.
+- **RM-74 (warm-up).** `memspine.runtime.warmup.WarmupController` runs after `start()`:
+  targets exist only for configured resources with a warm hook (embedder, rerankers of
+  `read.rerank` and `read.rerank_v2_chain`, GLiNER bindings, Tantivy, llama.cpp, decider).
+  `background` runs in an Engine-owned task, `blocking` raises `WarmupError` naming the
+  categories, `lazy` does nothing; concurrency and an overall deadline bound the pass, and
+  `stop()` cancels and drains it first. A cancelled builder or warmer hands the shared build
+  to its waiters instead of failing them, so a request never fails because a warm-up was
+  cancelled. `ReadinessReport.warm` and `Engine.warm_state()` report
+  `warm` / `warming` / `failed(error type)` / `not_requested` per resource; warm state never
+  makes an Engine not ready.
 
 ## Consequences
 

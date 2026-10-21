@@ -201,6 +201,14 @@ class LlamaCppLLM:
     def provider_id(self) -> str:
         return f"llama_cpp:{self._model_path}"
 
+    async def warm(self) -> None:
+        """ADR-079 / RM-74 warm hook: make sure the shared native model is loaded (the
+        Engine build loads it; this re-joins a load a cancelled warm-up interrupted)."""
+        with self._state_lock:
+            weights = self._weights
+        if weights is not None:
+            await weights.warm()
+
     async def close(self) -> None:
         """Release this holder once. The native model closes after in-flight inference
         ends, and only when no other holder shares it."""

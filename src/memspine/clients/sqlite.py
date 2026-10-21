@@ -28,7 +28,7 @@ import importlib
 import itertools
 import math
 import os
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from pathlib import Path
 from typing import Any
 
@@ -146,7 +146,10 @@ class SQLiteClient(Client):
         *,
         cipher_key_env: str | None = None,
         busy_timeout_s: float = constants.SQLITE_BUSY_TIMEOUT_MS / 1000,
+        pool_options: Mapping[str, Any] | None = None,
     ) -> None:
+        """``pool_options`` (``runtime.shared_resources.sql``): SQLAlchemy queue-pool keyword
+        arguments for a file database; ignored by ``:memory:`` and SQLCipher (fixed pools)."""
         if (
             isinstance(busy_timeout_s, bool)
             or not math.isfinite(busy_timeout_s)
@@ -157,6 +160,7 @@ class SQLiteClient(Client):
         self._echo = echo
         self._cipher_key_env = cipher_key_env
         self._busy_timeout_ms = max(1, math.ceil(busy_timeout_s * 1000))
+        self._pool_options: dict[str, Any] = dict(pool_options or {})
         self._engine: AsyncEngine | None = None
         self._anchor: AsyncConnection | None = None
         #: #52: opens one keyed SQLCipher DB-API connection (set by ``connect()``).
@@ -209,7 +213,7 @@ class SQLiteClient(Client):
         else:
             Path(self._path).parent.mkdir(parents=True, exist_ok=True)
             url = f"sqlite+aiosqlite:///{self._path}"
-            engine = create_async_engine(url, echo=self._echo)
+            engine = create_async_engine(url, echo=self._echo, **self._pool_options)
 
         @sa_event.listens_for(engine.sync_engine, "connect")
         def _set_pragmas(dbapi_conn: Any, _record: Any) -> None:

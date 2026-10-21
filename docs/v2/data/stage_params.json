@@ -9370,6 +9370,23 @@
   "runtime.service_switches.storage.auto_delete_source": "scheduler, backpressure and concurrency budgets: apply to the whole engine, not to one stage",
   "runtime.service_switches.storage.mode": "scheduler, backpressure and concurrency budgets: apply to the whole engine, not to one stage",
   "runtime.service_switches.storage.strategy": "scheduler, backpressure and concurrency budgets: apply to the whole engine, not to one stage",
+  "runtime.shared_resources.http.keepalive_s": "scheduler, backpressure and concurrency budgets: apply to the whole engine, not to one stage",
+  "runtime.shared_resources.http.max_connections": "scheduler, backpressure and concurrency budgets: apply to the whole engine, not to one stage",
+  "runtime.shared_resources.idle_ttl_s": "scheduler, backpressure and concurrency budgets: apply to the whole engine, not to one stage",
+  "runtime.shared_resources.keep_warm": "scheduler, backpressure and concurrency budgets: apply to the whole engine, not to one stage",
+  "runtime.shared_resources.max_models_per_category": "scheduler, backpressure and concurrency budgets: apply to the whole engine, not to one stage",
+  "runtime.shared_resources.memory_budget_mb": "scheduler, backpressure and concurrency budgets: apply to the whole engine, not to one stage",
+  "runtime.shared_resources.model_server": "scheduler, backpressure and concurrency budgets: apply to the whole engine, not to one stage",
+  "runtime.shared_resources.scope": "scheduler, backpressure and concurrency budgets: apply to the whole engine, not to one stage",
+  "runtime.shared_resources.sql.max_overflow": "scheduler, backpressure and concurrency budgets: apply to the whole engine, not to one stage",
+  "runtime.shared_resources.sql.pool_pre_ping": "scheduler, backpressure and concurrency budgets: apply to the whole engine, not to one stage",
+  "runtime.shared_resources.sql.pool_recycle_s": "scheduler, backpressure and concurrency budgets: apply to the whole engine, not to one stage",
+  "runtime.shared_resources.sql.pool_size": "scheduler, backpressure and concurrency budgets: apply to the whole engine, not to one stage",
+  "runtime.shared_resources.warmup": "scheduler, backpressure and concurrency budgets: apply to the whole engine, not to one stage",
+  "runtime.shared_resources.warmup_concurrency": "scheduler, backpressure and concurrency budgets: apply to the whole engine, not to one stage",
+  "runtime.shared_resources.warmup_exclude": "scheduler, backpressure and concurrency budgets: apply to the whole engine, not to one stage",
+  "runtime.shared_resources.warmup_include": "scheduler, backpressure and concurrency budgets: apply to the whole engine, not to one stage",
+  "runtime.shared_resources.warmup_timeout_s": "scheduler, backpressure and concurrency budgets: apply to the whole engine, not to one stage",
   "storage.profile": "embedded vs server storage preset: applies to every stage that persists",
   "strict_services": "engine start-up check (missing service raises or skips), not a stage knob",
   "workers.resonate.journal_busy_timeout_s": "no read site matched an inventory stage",
@@ -9380,6 +9397,6 @@
   "workers.resonate.task_timeout_s": "no read site matched an inventory stage",
   "workers.temporal": "no read site matched an inventory stage"
  },
- "unattributed_count": 122,
- "schema_key_count": 614
+ "unattributed_count": 139,
+ "schema_key_count": 631
 }
