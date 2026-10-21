@@ -25,15 +25,21 @@ import threading
 import weakref
 from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass, field
-from typing import Any, Literal
+from pathlib import Path
+from typing import TYPE_CHECKING, Any, Literal
 
 from memspine.observability.logging import get_logger
+
+if TYPE_CHECKING:
+    from memspine.providers.contracts import LifecycleManager, ResourceRef
 
 __all__ = [
     "Lease",
     "ResourceKey",
     "ResourceRegistry",
     "SharedResourceStats",
+    "own_shared",
+    "path_identity",
     "resource_key",
     "shared_registry",
 ]
@@ -96,6 +102,12 @@ def resource_key(
         raise ValueError(f"unknown scope {scope!r}")
     identity = _digest({"target": dict(target), "settings": dict(settings or {})})
     return ResourceKey(category, identity, scope_id, os.getpid())
+
+
+def path_identity(path: str | os.PathLike[str]) -> str:
+    """Canonical identity of a local file or directory path (absolute, case-folded where
+    the platform folds case), so two spellings of one path share one resource."""
+    return os.path.normcase(str(Path(path).expanduser().resolve(strict=False)))
 
 
 @dataclass(frozen=True, slots=True)
@@ -271,6 +283,34 @@ class ResourceRegistry:
 
 
 _REGISTRY = ResourceRegistry()
+
+
+async def own_shared[T](
+    resources: LifecycleManager,
+    resource_id: str,
+    key: ResourceKey,
+    factory: Callable[[], Awaitable[T]],
+    *,
+    close: Callable[[T], Awaitable[None]] | None,
+    depends_on: tuple[str, ...] = (),
+    registry: ResourceRegistry | None = None,
+) -> tuple[T, ResourceRef]:
+    """Acquire a shared resource and register its lease release with one Engine.
+
+    The Engine owns only its lease: its ``resource_id`` closer releases that lease, and the
+    registry closes the resource when the last holder (in any Engine) releases. The closer
+    is registered before the acquisition so a failed build still leaves a valid owner.
+    """
+    held: list[Lease[T]] = []
+
+    async def release() -> None:
+        if held:
+            await held.pop().aclose()
+
+    ref = resources.own(resource_id, release, depends_on=depends_on)
+    lease = await (registry or _REGISTRY).acquire(key, factory, close=close)
+    held.append(lease)
+    return lease.value, ref
 
 
 def shared_registry() -> ResourceRegistry:

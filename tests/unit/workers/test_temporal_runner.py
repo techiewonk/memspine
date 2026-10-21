@@ -84,33 +84,37 @@ class _FakeWorker:
 
 
 class _FakeResonate:
+    instances: list[_FakeResonate] = []
+
     def __init__(self, **kwargs: object) -> None:
         self.functions: dict[str, Any] = {}
+        self.started = 0
+        self.stopped = 0
+        self.promise_ids: list[str] = []
+        type(self).instances.append(self)
 
     def register(self, fn: Any, *, name: str) -> None:
         self.functions[name] = fn
 
     def start(self) -> None:
-        pass
+        self.started += 1
 
     def options(self, *, timeout: timedelta) -> _FakeResonate:
         self.timeout = timeout
         return self
 
-    def run(self, operation_id: str, name: str) -> Any:
+    def run(self, operation_id: str, name: str, *args: object) -> Any:
         fn = self.functions[name]
+        self.promise_ids.append(operation_id)
 
         class Handle:
             async def result(self) -> dict[str, object]:
-                async def execute(ctx: object, *_: object) -> dict[str, object]:
-                    return await ctx.run(fn)
-
-                return await execute(_FakeResonateContext())
+                return await fn(_FakeResonateContext(), *args)
 
         return Handle()
 
     async def stop(self) -> None:
-        pass
+        self.stopped += 1
 
 
 class _FakeResonateContext:
@@ -133,6 +137,7 @@ def fake_sdks(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setitem(sys.modules, "resonate.retry", retry_module)
 
     _FakeClient.calls = []
+    _FakeResonate.instances = []
     monkeypatch.setattr(client_module, "Client", _FakeClient)
     monkeypatch.setattr(worker_module, "Worker", _FakeWorker)
     resonate_module.Resonate = _FakeResonate  # type: ignore[attr-defined]
@@ -289,3 +294,35 @@ def test_temporal_fingerprint_resolves_sqlite_paths_and_rejects_memory_storage(
     )
     with pytest.raises(ConfigError, match="filesystem-backed SQLite"):
         _validate_temporal_storage(in_memory)
+
+
+def test_one_resonate_runtime_per_start_with_a_fresh_promise_per_attempt(
+    tmp_path: Path, fake_sdks: None
+) -> None:
+    config = _config()
+
+    async def pipeline(ctx: PipelineContext) -> dict[str, object]:
+        return {"status": "ok"}
+
+    runner = TemporalRunner(
+        address="localhost:7233",
+        namespace="test",
+        task_queue="test-deployment",
+        deployment_id="test-deployment",
+        journal_path=tmp_path / "steps.sqlite",
+        context_factory=lambda: _context(config),
+    )
+    runner.register("sleep", pipeline)
+
+    async def exercise() -> None:
+        await runner.start()
+        await runner.run("sleep", _context(config))
+        await runner.run("sleep", _context(config))
+        assert len(_FakeResonate.instances) == 1
+        runtime = _FakeResonate.instances[0]
+        assert runtime.started == 1 and runtime.stopped == 0
+        assert len(set(runtime.promise_ids)) == 2
+        await runner.close()
+        assert runtime.stopped == 1
+
+    asyncio.run(exercise())

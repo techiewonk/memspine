@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import weakref
 from collections.abc import Awaitable, Callable
 from datetime import timedelta
 from typing import Any, Literal
@@ -43,6 +44,8 @@ __all__ = [
     "TASK_NAME",
     "TransportRunner",
     "make_broker",
+    "shutdown_broker",
+    "start_broker",
 ]
 
 _log = get_logger(__name__)
@@ -50,6 +53,29 @@ _log = get_logger(__name__)
 TASK_NAME = "memspine.outbox.drain"
 DEFAULT_QUEUE = "memspine-outbox"
 BrokerKind = Literal["memory", "redis"]
+
+#: Brokers whose client-side startup already ran. One Engine shares one broker between its
+#: outbox runners (ADR-079), so startup and shutdown happen once per broker, not per runner.
+_STARTED_BROKERS: weakref.WeakSet[Any] = weakref.WeakSet()
+_STARTUP_LOCKS: weakref.WeakKeyDictionary[Any, asyncio.Lock] = weakref.WeakKeyDictionary()
+
+
+async def start_broker(broker: Any) -> None:
+    """Run the broker's client-side startup once (idempotent, concurrency-safe)."""
+    if broker in _STARTED_BROKERS:
+        return
+    lock = _STARTUP_LOCKS.setdefault(broker, asyncio.Lock())
+    async with lock:
+        if broker not in _STARTED_BROKERS:
+            await broker.startup()
+            _STARTED_BROKERS.add(broker)
+
+
+async def shutdown_broker(broker: Any) -> None:
+    """Shut a started broker down once; a broker that never started is left alone."""
+    if broker in _STARTED_BROKERS:
+        _STARTED_BROKERS.discard(broker)
+        await broker.shutdown()
 
 
 def make_broker(
@@ -90,6 +116,7 @@ class TransportRunner(InlineRunner):
         commit_lock: NamespaceLock | None = None,
         sleeper: Sleeper | None = None,
         poll_s: float = 0.02,
+        task_name: str = TASK_NAME,
     ) -> None:
         super().__init__(
             store,
@@ -103,9 +130,11 @@ class TransportRunner(InlineRunner):
         )
         self.broker = broker
         self.local_drain = local_drain
-        self._broker_started = False
         self._kick_failures = 0
-        self._task: Any = broker.register_task(self._make_handler(), task_name=TASK_NAME)
+        #: Distinct per runner sharing one broker, so each job id reaches the runner that
+        #: holds its stage handlers.
+        self.task_name = task_name
+        self._task: Any = broker.register_task(self._make_handler(), task_name=task_name)
 
     # ------------------------------------------------------------------ the task
     def _make_handler(self) -> Callable[[str], Awaitable[dict[str, Any]]]:
@@ -133,10 +162,8 @@ class TransportRunner(InlineRunner):
 
     # ------------------------------------------------------------------ sending
     async def start_broker(self) -> None:
-        """Client-side startup of the broker (idempotent)."""
-        if not self._broker_started:
-            self._broker_started = True
-            await self.broker.startup()
+        """Client-side startup of the broker (idempotent; once per shared broker)."""
+        await start_broker(self.broker)
 
     async def kick(self, job_id: str) -> bool:
         """Send one job id. Returns False (never raises) when the broker refused it."""

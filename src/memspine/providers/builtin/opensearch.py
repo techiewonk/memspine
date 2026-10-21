@@ -15,6 +15,7 @@ from memspine.providers.contexts import LexicalBuildContext
 from memspine.providers.contracts import BuildResult, DependencyRequirement, ProviderRef
 from memspine.providers.placement import generation_component
 from memspine.providers.registry import LEXICAL_INDEXES, ProviderDescriptor
+from memspine.providers.shared import own_shared, resource_key
 from memspine.services.base import CapabilityManifest
 from memspine.services.lexical.base import LexicalStore
 
@@ -62,9 +63,25 @@ class OpenSearchBuilder:
             "" if ctx.generation_id == "active" else f"-g{generation_component(ctx.generation_id)}"
         )
         index = f"{settings.index_prefix}-{scope}{suffix}"
-        client = OpenSearchClient(settings)
-        ref = ctx.shared.resources.own("lexical", client.close)
-        await client.connect()
+        # One connected client per target and transport settings (ADR-079); the index
+        # stays per service. The key holds only the target identity and an auth digest.
+        knobs = settings.model_dump(mode="json", exclude={"index_prefix"})
+
+        async def open_client() -> OpenSearchClient:
+            opened = OpenSearchClient(settings)
+            await opened.connect()
+            return opened
+
+        async def close_client(opened: OpenSearchClient) -> None:
+            await opened.close()
+
+        client, ref = await own_shared(
+            ctx.shared.resources,
+            "lexical",
+            resource_key("opensearch.client", _target_identity(settings), knobs, scope="loop"),
+            open_client,
+            close=close_client,
+        )
         service = OpenSearchLexical(
             client,
             index=index,

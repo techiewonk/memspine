@@ -3,14 +3,17 @@
 from __future__ import annotations
 
 import hashlib
+import os
 from pathlib import Path
+from typing import Any
 
 from pydantic import BaseModel, JsonValue
-from sqlalchemy import create_engine
+from sqlalchemy import Engine, create_engine
 from sqlalchemy.engine import make_url
 
 from memspine.config.schema.providers import PostgresSettings, SqliteSettings
 from memspine.exceptions import ConfigError
+from memspine.providers.async_utils import run_blocking_drained
 from memspine.providers.contexts import StorageBuildContext
 from memspine.providers.contracts import (
     DependencyRequirement,
@@ -20,6 +23,7 @@ from memspine.providers.contracts import (
 )
 from memspine.providers.health import sql_health_probe
 from memspine.providers.registry import STORAGE_BACKENDS, ProviderDescriptor
+from memspine.providers.shared import own_shared, path_identity, resource_key
 from memspine.providers.sql import ManagedSqlAccess
 from memspine.services.base import CapabilityManifest
 from memspine.services.storage.sql_base import SqlStorage
@@ -56,6 +60,35 @@ def postgres_target_identity(settings: BaseModel) -> dict[str, JsonValue]:
     }
 
 
+def sqlite_shared_identity(
+    settings: SqliteSettings,
+) -> tuple[dict[str, JsonValue], dict[str, JsonValue]]:
+    """Credential-free registry identity of a file SQLite database (ADR-079).
+
+    The SQLCipher passphrase enters only as a digest, so a different key never shares
+    a pool with the right one."""
+    key_env = settings.encryption.key_env if settings.encryption.mode == "sqlcipher" else None
+    key_digest = (
+        hashlib.sha256(os.environ.get(key_env, "").encode("utf-8")).hexdigest() if key_env else None
+    )
+    target: dict[str, JsonValue] = {"kind": "sqlite", "path": path_identity(settings.path)}
+    knobs: dict[str, JsonValue] = {
+        "busy_timeout_s": settings.busy_timeout_s,
+        "encryption": settings.encryption.mode,
+        "key_env": key_env,
+        "key_digest": key_digest,
+    }
+    return target, knobs
+
+
+async def _close_client(client: Any) -> None:
+    await client.close()
+
+
+async def _dispose_sync(engine: Engine) -> None:
+    await run_blocking_drained(engine.dispose)
+
+
 class SqliteBuilder:
     async def build(
         self, settings: SqliteSettings, ctx: StorageBuildContext
@@ -65,29 +98,66 @@ class SqliteBuilder:
         from memspine.services.storage.sqlite.engine import SQLiteStorage
 
         key = settings.encryption.key_env if settings.encryption.mode == "sqlcipher" else None
-        client = SQLiteClient(
-            settings.path,
-            cipher_key_env=key,
-            busy_timeout_s=settings.busy_timeout_s,
-        )
-        ref = ctx.shared.resources.own("sql", client.close)
-        await client.connect()
-        access = ManagedSqlAccess(
-            client.engine,
-            is_memory=client.is_memory,
-            capabilities=frozenset({"sql", "sql.sqlite", "transactions", "sync_sql"}),
-            checkpoint=client.checkpoint,
-            sync_factory=(
-                memory_engine
-                if client.is_memory
-                else lambda: sqlite_engine(
-                    client.path,
-                    client.sync_creator,
+        resources = ctx.shared.resources
+        capabilities = frozenset({"sql", "sql.sqlite", "transactions", "sync_sql"})
+        if settings.path == ":memory:":
+            # Unique per Engine (a private shared-cache name); never registered for sharing.
+            client = SQLiteClient(
+                settings.path, cipher_key_env=key, busy_timeout_s=settings.busy_timeout_s
+            )
+            ref = resources.own("sql", client.close)
+            await client.connect()
+            access = ManagedSqlAccess(
+                client.engine,
+                is_memory=True,
+                capabilities=capabilities,
+                checkpoint=client.checkpoint,
+                sync_factory=memory_engine,
+                owner_resource_id=ref.resource_id,
+            )
+        else:
+            target, knobs = sqlite_shared_identity(settings)
+
+            async def open_client() -> SQLiteClient:
+                opened = SQLiteClient(
+                    settings.path, cipher_key_env=key, busy_timeout_s=settings.busy_timeout_s
+                )
+                await opened.connect()
+                return opened
+
+            client, ref = await own_shared(
+                resources,
+                "sql",
+                resource_key("sql.sqlite.async", target, knobs, scope="loop"),
+                open_client,
+                close=_close_client,
+            )
+            shared_client = client
+
+            async def open_sync() -> Engine:
+                return sqlite_engine(
+                    shared_client.path,
+                    shared_client.sync_creator,
                     busy_timeout_s=settings.busy_timeout_s,
                 )
-            ),
-            owner_resource_id=ref.resource_id,
-        )
+
+            sync_engine, sync_ref = await own_shared(
+                resources,
+                "sql:sync",
+                resource_key("sql.sqlite.sync", target, knobs, scope="thread"),
+                open_sync,
+                close=_dispose_sync,
+                depends_on=(ref.resource_id,),
+            )
+            access = ManagedSqlAccess(
+                client.engine,
+                is_memory=False,
+                capabilities=capabilities,
+                checkpoint=client.checkpoint,
+                sync_engine=sync_engine,
+                sync_resource_id=sync_ref.resource_id,
+                owner_resource_id=ref.resource_id,
+            )
         service = SQLiteStorage(client, mode=ctx.event_log.mode, compress=ctx.event_log.compress)
         return StorageBuildResult(
             service,
@@ -115,14 +185,50 @@ class PostgresBuilder:
             if hasattr(settings.url, "get_secret_value")
             else str(settings.url)
         )
-        client = PostgresClient(
-            url,
-            connect_timeout_s=settings.connect_timeout_s,
-            statement_timeout_s=settings.statement_timeout_s,
+        resources = ctx.shared.resources
+        target = postgres_target_identity(settings)
+        knobs: dict[str, JsonValue] = {
+            "connect_timeout_s": settings.connect_timeout_s,
+            "statement_timeout_s": settings.statement_timeout_s,
+        }
+
+        async def open_client() -> PostgresClient:
+            opened = PostgresClient(
+                url,
+                connect_timeout_s=settings.connect_timeout_s,
+                statement_timeout_s=settings.statement_timeout_s,
+            )
+            # The client enforces connect_timeout_s as the overall deadline (RM-40).
+            await opened.connect()
+            return opened
+
+        client, ref = await own_shared(
+            resources,
+            "sql",
+            resource_key("sql.postgres.async", target, knobs, scope="loop"),
+            open_client,
+            close=_close_client,
         )
-        ref = ctx.shared.resources.own("sql", client.close)
-        # The client enforces connect_timeout_s as the overall deadline (RM-40).
-        await client.connect()
+
+        async def open_sync() -> Engine:
+            # One sync pool per database for every purpose (outbox, pgvector, sleep leases).
+            return create_engine(
+                normalize_pg_url(url),
+                connect_args={
+                    # Sync (Alembic) connects are bounded per attempt only (RM-40).
+                    "connect_timeout": driver_connect_timeout(settings.connect_timeout_s),
+                    "options": f"-c statement_timeout={max(1, int(settings.statement_timeout_s * 1000))}",
+                },
+            )
+
+        sync_engine, sync_ref = await own_shared(
+            resources,
+            "sql:sync",
+            resource_key("sql.postgres.sync", target, knobs, scope="thread"),
+            open_sync,
+            close=_dispose_sync,
+            depends_on=(ref.resource_id,),
+        )
 
         async def checkpoint() -> None:
             # PostgreSQL durability/erasure is verified by SQL operations; no SQLite WAL exists.
@@ -135,14 +241,8 @@ class PostgresBuilder:
                 {"sql", "sql.postgres", "sql.shared_leases", "transactions", "sync_sql"}
             ),
             checkpoint=checkpoint,
-            sync_factory=lambda: create_engine(
-                normalize_pg_url(url),
-                connect_args={
-                    # Sync (Alembic) connects are bounded per attempt only (RM-40).
-                    "connect_timeout": driver_connect_timeout(settings.connect_timeout_s),
-                    "options": f"-c statement_timeout={max(1, int(settings.statement_timeout_s * 1000))}",
-                },
-            ),
+            sync_engine=sync_engine,
+            sync_resource_id=sync_ref.resource_id,
             owner_resource_id=ref.resource_id,
         )
         service = PostgresStorage(

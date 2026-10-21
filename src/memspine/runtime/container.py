@@ -29,6 +29,7 @@ import os
 import sys
 import threading
 import uuid
+import weakref
 from collections.abc import AsyncIterator, Awaitable, Callable, Collection, Mapping
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
@@ -1428,32 +1429,89 @@ class OutboxHandle:
     runner: OutboxRunner | None
 
 
+@dataclass
+class _EngineOutbox:
+    """The outbox pieces one Engine's runners share (ADR-079): one job store (one schema
+    check) per outbox database and one taskiq broker, with a distinct task per runner."""
+
+    store: SqlJobStore
+    brokers: dict[tuple[str, str | None], Any] = field(default_factory=dict)
+    task_names: set[str] = field(default_factory=set)
+
+    def task_name(self, label: str) -> str:
+        from memspine.runtime.transport import TASK_NAME
+
+        base = TASK_NAME if label == "windows" else f"{TASK_NAME}.{label}"
+        name, n = base, 1
+        while name in self.task_names:
+            n += 1
+            name = f"{base}.{n}"
+        self.task_names.add(name)
+        return name
+
+
+#: Per Engine (its lifecycle manager), per outbox sync engine. Weak keys: a stopped Engine's
+#: manager is dropped with its entry.
+_ENGINE_OUTBOXES: weakref.WeakKeyDictionary[ProviderLifecycleManager, dict[Any, _EngineOutbox]] = (
+    weakref.WeakKeyDictionary()
+)
+
+
+def _engine_outbox(resources: ProviderLifecycleManager, engine: Any) -> _EngineOutbox:
+    per_engine = _ENGINE_OUTBOXES.setdefault(resources, {})
+    shared = per_engine.get(engine)
+    if shared is None:
+        shared = per_engine[engine] = _EngineOutbox(SqlJobStore(engine, close_engine=False))
+    return shared
+
+
+def _engine_broker(
+    resources: ProviderLifecycleManager, shared: _EngineOutbox, kind: Any, url: str | None
+) -> Any:
+    from memspine.runtime.transport import make_broker, shutdown_broker
+
+    broker = shared.brokers.get((kind, url))
+    if broker is None:
+        broker = shared.brokers[(kind, url)] = make_broker(kind, url)
+
+        async def close() -> None:
+            await shutdown_broker(broker)
+
+        resources.own(f"outbox:broker:{id(broker):x}", close)
+    return broker
+
+
 def make_outbox_runner(
     config: MemspineConfig,
     sql: SqlAccess,
     resources: ProviderLifecycleManager,
     commit_lock: Callable[[str], Any] | None = None,
+    *,
+    label: str = "windows",
 ) -> OutboxRunner:
-    """Build the outbox store on the storage database and an inline runner over it.
+    """Build an inline runner over the Engine's outbox store on the storage database.
 
     The sync SQLAlchemy engine is an owned lease from the storage provider, so
-    runtime does not inspect or retain a vendor client.
+    runtime does not inspect or retain a vendor client. Every runner of one Engine shares
+    one job store and (under the taskiq transport) one broker; ``label`` names the
+    runner's broker task (``windows`` keeps the task the worker entry point consumes).
     """
     lease = sql.sync_lease(resources, "outbox")
-    engine = lease.engine
+    parts = _engine_outbox(resources, lease.engine)
     runner: OutboxRunner
     if config.workers.transport == "taskiq":  # RT-01: the same outbox, ids sent over taskiq
-        from memspine.runtime.transport import TransportRunner, make_broker
+        from memspine.runtime.transport import TransportRunner
 
         kind = config.workers.transport_broker
         runner = TransportRunner(
-            SqlJobStore(engine, close_engine=False),
-            broker=make_broker(kind, config.workers.broker_url),
+            parts.store,
+            broker=_engine_broker(resources, parts, kind, config.workers.broker_url),
             local_drain=kind == "memory",
             commit_lock=commit_lock,
+            task_name=parts.task_name(label),
         )
     else:
-        runner = OutboxRunner(SqlJobStore(engine, close_engine=False), commit_lock=commit_lock)
+        runner = OutboxRunner(parts.store, commit_lock=commit_lock)
     if config.runtime.scheduler_v2:  # RT-02: backpressure + SLO ledger + background priority
         from memspine.runtime import scheduler as _sched
 
@@ -1469,7 +1527,7 @@ def build_outbox(config: MemspineConfig, wiring: Wiring, _storage: SqlStorage) -
         return OutboxHandle(None)
     if wiring.sql is None:
         raise ConfigError("workers.outbox requires the storage SQL capability")
-    return OutboxHandle(make_outbox_runner(config, wiring.sql, wiring.resources))
+    return OutboxHandle(make_outbox_runner(config, wiring.sql, wiring.resources, label="outbox"))
 
 
 # ── F-16e: Neo4j graph projection through the outbox ─────────────────────────────────────
@@ -1563,7 +1621,7 @@ async def make_neo4j_projection(
     if provider_results is not None:
         provider_results["graph.mirror"] = built
     store = built.service
-    runner = make_outbox_runner(config, sql, resources, commit_lock)
+    runner = make_outbox_runner(config, sql, resources, commit_lock, label="graph_mirror")
     Neo4jGraphHandler(store, entities, compiled=compiled).register(runner)
     return Neo4jProjection(Neo4jOutboxProjector(runner), runner, store)
 

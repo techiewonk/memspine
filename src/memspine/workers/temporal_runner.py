@@ -15,7 +15,7 @@ import inspect
 import json
 import math
 import uuid
-from collections.abc import Callable, Mapping
+from collections.abc import Awaitable, Callable, Mapping
 from contextlib import suppress
 from datetime import timedelta
 from pathlib import Path
@@ -212,6 +212,10 @@ class TemporalRunner:
         self._started = False
         self._closing = False
         self._journal: StepJournal | None = None
+        #: One embedded Resonate runtime per runner start (ADR-079), reused by every
+        #: activity; ``_resonate_calls`` maps a per-attempt promise id to its pipeline call.
+        self._resonate: Any = None
+        self._resonate_calls: dict[str, Callable[[], Awaitable[dict[str, Any]]]] = {}
 
     def __repr__(self) -> str:
         return (
@@ -259,6 +263,8 @@ class TemporalRunner:
                 api_key=self._api_key,
             )
         self._client = client
+
+        calls = self._resonate_calls
 
         async def run_pipeline(invocation: dict[str, Any]) -> dict[str, Any]:
             from temporalio.exceptions import ApplicationError
@@ -361,26 +367,18 @@ class TemporalRunner:
                     raise ConfigError("completed pipeline result exceeds configured result limit")
                 return cast(dict[str, object], claim.output)
 
-            async def execute(_: Context) -> dict[str, Any]:
+            async def execute() -> dict[str, Any]:
                 async with asyncio.timeout(self.step_timeout_s):
                     return await pipeline(context)
 
-            runtime = Resonate(
-                env={},
-                autostart=False,
-                retry_policy=Never(),
-                max_concurrent_tasks=self.resonate_max_concurrent_tasks,
-            )
-
-            async def coordinator(resonate_context: Context) -> dict[str, Any]:
-                return await cast(asyncio.Future[dict[str, Any]], resonate_context.run(execute))
-
-            runtime.register(coordinator, name="memspine.pipeline.activity.v1")
-            runtime.start()
+            # A fresh promise id per attempt: the runtime outlives activities, and a retried
+            # attempt must execute again rather than read the earlier attempt's promise.
+            call_id = hashlib.sha256(f"{invocation_id}\0{owner_id}".encode()).hexdigest()
+            calls[call_id] = execute
             try:
                 handle = runtime.options(
                     timeout=timedelta(seconds=self.resonate_task_timeout_s)
-                ).run(invocation_id, "memspine.pipeline.activity.v1")
+                ).run(call_id, "memspine.pipeline.activity.v1", call_id)
                 result = await handle.result()
                 if not isinstance(result, dict):
                     raise ConfigError("pipeline result must be a dictionary")
@@ -398,15 +396,29 @@ class TemporalRunner:
                 # still-running prior attempt and commit stale output.
                 raise
             finally:
-                stop_task = asyncio.create_task(runtime.stop())
-                try:
-                    await asyncio.shield(stop_task)
-                except asyncio.CancelledError:
-                    await asyncio.shield(stop_task)
-                    raise
+                calls.pop(call_id, None)
 
         activity_function = activity.defn(name="memspine.run_pipeline.v1")(run_pipeline)
         try:
+            runtime = Resonate(
+                env={},
+                autostart=False,
+                retry_policy=Never(),
+                max_concurrent_tasks=self.resonate_max_concurrent_tasks,
+            )
+
+            async def coordinator(resonate_context: Context, call_id: str) -> dict[str, Any]:
+                call = calls[call_id]
+
+                async def execute(_: Context) -> dict[str, Any]:
+                    return await call()
+
+                return await cast(asyncio.Future[dict[str, Any]], resonate_context.run(execute))
+
+            runtime.register(coordinator, name="memspine.pipeline.activity.v1")
+            self._resonate = runtime
+            runtime.start()
+
             worker = Worker(
                 client,
                 task_queue=self.task_queue,
@@ -526,6 +538,13 @@ class TemporalRunner:
                     await asyncio.shield(worker_task)
             raise
         finally:
+            runtime, self._resonate = self._resonate, None
+            self._resonate_calls.clear()
+            if runtime is not None:
+                # After the worker drained: no activity still uses the runtime.
+                stop_task = asyncio.create_task(runtime.stop())
+                with suppress(Exception):
+                    await asyncio.shield(stop_task)
             self._worker = None
             self._worker_task = None
             self._client = None

@@ -15,6 +15,7 @@ from memspine.providers.contracts import BuildResult, DependencyRequirement, Pro
 from memspine.providers.placement import generation_component
 from memspine.providers.registry import GRAPH_STORES, ProviderDescriptor
 from memspine.providers.settings import Neo4jSettings
+from memspine.providers.shared import own_shared, path_identity, resource_key
 from memspine.services.base import CapabilityManifest
 from memspine.services.graph.base import GraphStore
 
@@ -103,10 +104,31 @@ class LadybugBuilder:
             if ctx.placement.in_memory
             else f"{ctx.placement.base_path}.ladybug{generation_suffix}"
         )
-        client = LadybugClient(path)
-        ref = ctx.shared.resources.own(ctx.resource_id, client.close)
-        await client.connect()
-        service = LadybugGraphStore(client)
+        service: LadybugGraphStore
+        if path == ":memory:":
+            client = LadybugClient(path)
+            ref = ctx.shared.resources.own(ctx.resource_id, client.close)
+            await client.connect()
+            service = LadybugGraphStore(client)
+        else:
+
+            async def open_store() -> tuple[LadybugClient, LadybugGraphStore]:
+                opened = LadybugClient(path)
+                await opened.connect()
+                return opened, LadybugGraphStore(opened)
+
+            async def close_store(handle: tuple[LadybugClient, LadybugGraphStore]) -> None:
+                await handle[0].close()
+
+            # Single-writer embedded database (ADR-079): one Database/Connection and one
+            # store (whose statement lock is a threading lock) per path per process.
+            (_client, service), ref = await own_shared(
+                ctx.shared.resources,
+                ctx.resource_id,
+                resource_key("graph.ladybug", {"path": path_identity(path)}, scope="thread"),
+                open_store,
+                close=close_store,
+            )
 
         async def probe() -> bool:
             await service.node_count()

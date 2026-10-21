@@ -6,6 +6,7 @@ from memspine.providers.contexts import LexicalBuildContext
 from memspine.providers.contracts import BuildResult, ProviderRef
 from memspine.providers.placement import generation_component
 from memspine.providers.registry import LEXICAL_INDEXES, ProviderDescriptor
+from memspine.providers.shared import own_shared, path_identity, resource_key
 from memspine.services.lexical.base import LexicalStore
 
 
@@ -25,9 +26,38 @@ class TantivyBuilder:
                     "controlled lexical generations require durable storage placement"
                 )
             suffix += f"-generation-{generation_component(ctx.generation_id)}"
-        path = None if ctx.placement.in_memory else f"{ctx.placement.base_path}{suffix}"
-        service = TantivyLexical(path, analyzer=settings.analyzer, date_tokens=settings.date_tokens)
-        ref = ctx.shared.resources.own("lexical", service.close)
+        service: TantivyLexical
+        if ctx.placement.in_memory:
+            # An in-RAM index is private to this Engine, like its ``:memory:`` event log.
+            service = TantivyLexical(
+                None, analyzer=settings.analyzer, date_tokens=settings.date_tokens
+            )
+            ref = ctx.shared.resources.own("lexical", service.close)
+        else:
+            path = f"{ctx.placement.base_path}{suffix}"
+
+            async def open_index() -> TantivyLexical:
+                return TantivyLexical(
+                    path, analyzer=settings.analyzer, date_tokens=settings.date_tokens
+                )
+
+            async def close_index(index: TantivyLexical) -> None:
+                await index.close()
+
+            # Single-writer store (ADR-079): one handle per path per process. Its writer lock
+            # is a threading lock, so Engines on different event loops share it safely.
+            service, ref = await own_shared(
+                ctx.shared.resources,
+                "lexical",
+                resource_key(
+                    "lexical.tantivy",
+                    {"path": path_identity(path)},
+                    {"analyzer": settings.analyzer, "date_tokens": settings.date_tokens},
+                    scope="thread",
+                ),
+                open_index,
+                close=close_index,
+            )
 
         async def probe() -> bool:
             await service.search("__memspine_health_probe__", "", top_k=1)

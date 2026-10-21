@@ -12,8 +12,10 @@ tantivy-py is **synchronous** — it owns an on-disk (or in-RAM) index directory
 a schema, a single ``IndexWriter`` (holding the index-wide writer lock) and a
 snapshot ``Searcher``. Every one of those calls is wrapped in
 :func:`asyncio.to_thread` so the async port contract holds, and all mutations
-are serialized through one :class:`asyncio.Lock` (tantivy permits exactly one
-writer at a time). One long-lived writer is reused across commits — allocating
+are serialized through one :class:`threading.Lock` taken on the worker thread
+(tantivy permits exactly one writer at a time). The lock is not bound to an event
+loop, so one on-disk index is shared by every Engine in the process, whatever loop
+each runs on (ADR-079: a single-writer store is opened once per path). One long-lived writer is reused across commits — allocating
 its heap once — and is finalized in :meth:`close`.
 
 Schema (D-25): ``record_id`` (stored + ``raw``-indexed, for exact upsert/delete
@@ -34,6 +36,7 @@ length/term-bounded before it ever reaches the index.
 from __future__ import annotations
 
 import asyncio
+import threading
 from collections.abc import Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -197,7 +200,8 @@ class TantivyLexical:
         self._schema = builder.build()
         self._index: Any = None
         self._writer: Any = None
-        self._lock = asyncio.Lock()
+        #: Serialises opening and every writer call; taken on worker threads only.
+        self._lock = threading.Lock()
         # Batched ingest (see defer_commits): added documents wait for one
         # commit, which every read and flush() performs first.
         self._deferring = False
@@ -207,12 +211,14 @@ class TantivyLexical:
         """Open the index and its single long-lived writer once, off the loop."""
         if self._index is not None:
             return
-        async with self._lock:
-            if self._index is not None:
-                return
-            await asyncio.to_thread(self._open)
+        await asyncio.to_thread(self._open)
 
     def _open(self) -> None:
+        with self._lock:
+            if self._index is None:
+                self._open_unlocked()
+
+    def _open_unlocked(self) -> None:
         import tantivy
 
         if self._path is None:
@@ -246,13 +252,15 @@ class TantivyLexical:
         # elsewhere and carries no lexical signal); the record store keeps the
         # content verbatim, so a NUL can never poison the projector chain.
         content = self._body(record)
-        rid, ns = record.record_id, record.namespace
-        async with self._lock:
+        await asyncio.to_thread(self._index_one, record.record_id, record.namespace, content)
+
+    def _index_one(self, record_id: str, namespace: str, content: str) -> None:
+        with self._lock:
             if self._deferring:
-                await asyncio.to_thread(self._add_doc, rid, ns, content)
+                self._add_doc(record_id, namespace, content)
                 self._uncommitted = True
             else:
-                await asyncio.to_thread(self._commit_index, rid, ns, content)
+                self._commit_index(record_id, namespace, content)
                 self._uncommitted = False
 
     def defer_commits(self) -> None:
@@ -272,9 +280,12 @@ class TantivyLexical:
     async def _commit_pending(self) -> None:
         if not self._uncommitted:
             return
-        async with self._lock:
+        await asyncio.to_thread(self._commit_if_pending)
+
+    def _commit_if_pending(self) -> None:
+        with self._lock:
             if self._uncommitted:
-                await asyncio.to_thread(self._commit)
+                self._commit()
                 self._uncommitted = False
 
     def _commit(self) -> None:
@@ -293,15 +304,15 @@ class TantivyLexical:
         cleaned = [(record.record_id, record.namespace, self._body(record)) for record in records]
         if not cleaned:
             return
-        async with self._lock:
-            await asyncio.to_thread(self._commit_index_many, cleaned)
-            self._uncommitted = False
+        await asyncio.to_thread(self._commit_index_many, cleaned)
 
     def _commit_index_many(self, cleaned: list[tuple[str, str, str]]) -> None:
-        for rid, ns, content in cleaned:
-            self._add_doc(rid, ns, content)
-        _commit_with_retry(self._writer)
-        self._index.reload()
+        with self._lock:
+            for rid, ns, content in cleaned:
+                self._add_doc(rid, ns, content)
+            _commit_with_retry(self._writer)
+            self._index.reload()
+            self._uncommitted = False
 
     async def search(self, namespace: str, query: str, top_k: int = 8) -> list[LexicalHit]:
         await self._ensure()
@@ -356,14 +367,14 @@ class TantivyLexical:
 
     async def delete(self, record_id: str) -> None:
         await self._ensure()
-        async with self._lock:
-            await asyncio.to_thread(self._commit_delete, record_id)
-            self._uncommitted = False
+        await asyncio.to_thread(self._commit_delete, record_id)
 
     def _commit_delete(self, record_id: str) -> None:
-        self._writer.delete_documents_by_term("record_id", record_id)
-        _commit_with_retry(self._writer)
-        self._index.reload()
+        with self._lock:
+            self._writer.delete_documents_by_term("record_id", record_id)
+            _commit_with_retry(self._writer)
+            self._index.reload()
+            self._uncommitted = False
 
     async def exists(self, record_id: str) -> bool:
         """M7 ``forget --verify`` support: is this record still indexed? The
@@ -381,26 +392,29 @@ class TantivyLexical:
 
     async def clear(self) -> None:
         await self._ensure()
-        async with self._lock:
-            await asyncio.to_thread(self._commit_clear)
-            self._uncommitted = False
+        await asyncio.to_thread(self._commit_clear)
 
     def _commit_clear(self) -> None:
-        self._writer.delete_all_documents()
-        _commit_with_retry(self._writer)
-        self._index.reload()
+        with self._lock:
+            self._writer.delete_all_documents()
+            _commit_with_retry(self._writer)
+            self._index.reload()
+            self._uncommitted = False
 
     async def close(self) -> None:
         if self._writer is None:
             return
-        async with self._lock:
+        await asyncio.to_thread(self._close)
+
+    def _close(self) -> None:
+        with self._lock:
             if self._writer is None:
                 return
             if self._uncommitted:
                 # Documents held by defer_commits are committed, never dropped.
-                await asyncio.to_thread(self._commit)
+                self._commit()
                 self._uncommitted = False
             writer, self._writer = self._writer, None
             # Join merge threads so an on-disk index leaves no dangling temp
             # segments (this consumes the writer — the store is done).
-            await asyncio.to_thread(_wait_merging_threads, writer)
+            _wait_merging_threads(writer)

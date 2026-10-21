@@ -28,12 +28,14 @@ level, one query per level, applying
 ``LIMIT`` inside a recursive pattern).
 
 The Python API is synchronous — every call is pushed to a worker thread, and a
-single lock serializes them (one embedded connection is not a pool).
+single threading lock serializes them (one embedded connection is not a pool), so
+Engines on different event loops can share one store per path (ADR-079).
 """
 
 from __future__ import annotations
 
 import asyncio
+import threading
 from collections.abc import Mapping, Sequence
 from typing import Any, Protocol
 
@@ -152,28 +154,29 @@ class LadybugGraphStore:
         self._ready = False
         self._entity_dim: int | None = None  # GR-3: EntityVec table created
         self._fts_ok: bool | None = None  # FTS extension loaded (None = not tried yet)
-        self._lock = asyncio.Lock()
+        #: One embedded connection is not a pool: every statement unit runs under this
+        #: lock on a worker thread. A threading lock (not an asyncio one) lets Engines on
+        #: different event loops share one store per path (ADR-079).
+        self._lock = threading.Lock()
 
     async def _execute(
         self, query: str, parameters: dict[str, Any] | None = None
     ) -> list[list[Any]]:
-        async with self._lock:
-            return await self._execute_unlocked(query, parameters)
+        return (await self._execute_unit(((query, parameters or {}),)))[-1]
 
-    async def _execute_unlocked(
-        self, query: str, parameters: dict[str, Any] | None = None
-    ) -> list[list[Any]]:
-        """The raw statement runner — caller MUST hold ``self._lock`` (one
-        embedded connection is not a pool). Exists so multi-statement units
-        like ``upsert_edge`` stay atomic under a single lock acquisition."""
-        if not self._ready:
-            await asyncio.to_thread(self._prepare)
-            self._ready = True
+    async def _execute_unit(
+        self, statements: Sequence[tuple[str, dict[str, Any]]]
+    ) -> list[list[list[Any]]]:
+        """Run statements atomically with respect to every other caller (one lock
+        acquisition), so multi-statement units like ``upsert_edge`` never interleave."""
+        return await asyncio.to_thread(self._run_unit, statements)
 
-        def _run() -> list[list[Any]]:
-            return self._rows(query, parameters or {})
-
-        return await asyncio.to_thread(_run)
+    def _run_unit(self, statements: Sequence[tuple[str, dict[str, Any]]]) -> list[list[list[Any]]]:
+        with self._lock:
+            if not self._ready:
+                self._prepare()
+                self._ready = True
+            return [self._rows(query, parameters) for query, parameters in statements]
 
     def _rows(self, query: str, parameters: dict[str, Any]) -> list[list[Any]]:
         result = self._client.connection.execute(query, parameters=parameters)
@@ -256,21 +259,24 @@ class LadybugGraphStore:
         # must never depend on node-event ordering. One lock acquisition spans
         # all three statements so a concurrent caller cannot interleave
         # between the ensure-node and upsert-edge steps.
-        async with self._lock:
-            for endpoint in (src, dst):
-                await self._execute_unlocked(_ENSURE_NODE, {"node_id": endpoint, "namespace": ns})
-            await self._execute_unlocked(
-                _UPSERT_EDGE,
-                {
-                    "src": src,
-                    "dst": dst,
-                    "rel_type": rel_type,
-                    "properties": orjson.dumps(props).decode(),
-                    "namespace": ns,
-                    "weight": edge_weight(props),
-                    "kind": edge_kind(props),
-                },
+        await self._execute_unit(
+            (
+                (_ENSURE_NODE, {"node_id": src, "namespace": ns}),
+                (_ENSURE_NODE, {"node_id": dst, "namespace": ns}),
+                (
+                    _UPSERT_EDGE,
+                    {
+                        "src": src,
+                        "dst": dst,
+                        "rel_type": rel_type,
+                        "properties": orjson.dumps(props).decode(),
+                        "namespace": ns,
+                        "weight": edge_weight(props),
+                        "kind": edge_kind(props),
+                    },
+                ),
             )
+        )
 
     async def _hops(
         self,

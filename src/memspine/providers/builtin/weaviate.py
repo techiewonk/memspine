@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import os
-from typing import cast
+from typing import TYPE_CHECKING, cast
 
 from pydantic import BaseModel, JsonValue
 
@@ -12,12 +12,22 @@ from memspine.config.remote import endpoint_from_env
 from memspine.config.schema.remote_providers import WeaviateSettings
 from memspine.exceptions import ConfigError
 from memspine.providers.contexts import LexicalBuildContext, VectorBuildContext
-from memspine.providers.contracts import BuildResult, DependencyRequirement, ProviderRef
+from memspine.providers.contracts import (
+    BuildResult,
+    DependencyRequirement,
+    LifecycleManager,
+    ProviderRef,
+    ResourceRef,
+)
 from memspine.providers.registry import LEXICAL_INDEXES, VECTOR_STORES, ProviderDescriptor
+from memspine.providers.shared import own_shared, resource_key
 from memspine.services.base import CapabilityManifest
 from memspine.services.lexical.base import LexicalStore
 from memspine.services.vector.base import VectorStore
 from memspine.services.weaviate_projection import collection_name, ensure_collection
+
+if TYPE_CHECKING:
+    from memspine.clients.weaviate import WeaviateClient
 
 
 def _target_identity(model: BaseModel) -> dict[str, JsonValue]:
@@ -51,11 +61,39 @@ def _target_identity(model: BaseModel) -> dict[str, JsonValue]:
     }
 
 
+async def _shared_client(
+    settings: WeaviateSettings, resources: LifecycleManager, resource_id: str
+) -> tuple[WeaviateClient, ResourceRef]:
+    """One connected client per Weaviate target and transport settings (ADR-079).
+
+    The vector and lexical services of one Engine (and Engines in this process on the same
+    loop) share it; each service still ensures its own collection. The key holds only the
+    credential-free target identity and an auth digest."""
+    from memspine.clients.weaviate import WeaviateClient
+
+    knobs = settings.model_dump(mode="json", exclude={"collection_prefix"})
+
+    async def open_client() -> WeaviateClient:
+        client = WeaviateClient(settings)
+        await client.connect()
+        return client
+
+    async def close_client(client: WeaviateClient) -> None:
+        await client.close()
+
+    return await own_shared(
+        resources,
+        resource_id,
+        resource_key("weaviate.client", _target_identity(settings), knobs, scope="loop"),
+        open_client,
+        close=close_client,
+    )
+
+
 class WeaviateVectorBuilder:
     async def build(
         self, settings: WeaviateSettings, ctx: VectorBuildContext
     ) -> BuildResult[VectorStore]:
-        from memspine.clients.weaviate import WeaviateClient
         from memspine.services.vector.weaviate_store import WeaviateVectorStore
 
         if not ctx.shared.owner_id:
@@ -70,9 +108,7 @@ class WeaviateVectorBuilder:
         name = collection_name(
             settings.collection_prefix, "Vector", ctx.shared.owner_id, vector_space
         )
-        client = WeaviateClient(settings)
-        ref = ctx.shared.resources.own("vector", client.close)
-        await client.connect()
+        client, ref = await _shared_client(settings, ctx.shared.resources, "vector")
         collection = await ensure_collection(client.native, name, include_content=False)
         service = WeaviateVectorStore(
             collection,
@@ -101,7 +137,6 @@ class WeaviateLexicalBuilder:
     async def build(
         self, settings: WeaviateSettings, ctx: LexicalBuildContext
     ) -> BuildResult[LexicalStore]:
-        from memspine.clients.weaviate import WeaviateClient
         from memspine.services.lexical.weaviate_store import WeaviateLexicalStore
 
         if not ctx.shared.owner_id:
@@ -109,9 +144,7 @@ class WeaviateLexicalBuilder:
         name = collection_name(
             settings.collection_prefix, "Lexical", ctx.shared.owner_id, ctx.generation_id
         )
-        client = WeaviateClient(settings)
-        ref = ctx.shared.resources.own("lexical", client.close)
-        await client.connect()
+        client, ref = await _shared_client(settings, ctx.shared.resources, "lexical")
         collection = await ensure_collection(client.native, name, include_content=True)
         service = WeaviateLexicalStore(collection, owner_id=ctx.shared.owner_id)
 
