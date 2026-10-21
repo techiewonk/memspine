@@ -14,24 +14,24 @@ Keep one row per stable ID. PA IDs preserve the 136-item provider program; BI ID
 | DEPLOYMENT_CHECK | 19 |
 | DONE | 133 |
 | EXCLUDED | 4 |
-| IN_PROGRESS | 28 |
+| IN_PROGRESS | 29 |
 | NEEDS_INPUT | 3 |
 | NEEDS_TOOLCHAIN | 1 |
-| OPEN | 15 |
+| OPEN | 22 |
 | OPEN_REVIEW | 18 |
 | PLANNED | 11 |
 | PROPOSED | 3 |
-| REVIEW | 7 |
+| REVIEW | 6 |
 
 | Program | Items |
 |---|---:|
 | BI | 12 |
 | DS | 21 |
 | PA | 136 |
-| RM | 70 |
+| RM | 77 |
 | RS | 9 |
 
-Total: **248 unique task IDs**. Provider-only historical denominator stays 136; the combined total also includes BI, DS, RS and imported review suggestions.
+Total: **255 unique task IDs**. Provider-only historical denominator stays 136; the combined total also includes BI, DS, RS and imported review suggestions.
 <!-- CURRENT_SUMMARY_END -->
 
 ## Status and column legend
@@ -314,7 +314,14 @@ its scope is narrower than the prerequisite (say so in the row) or its status is
 | RM-67 | OPEN | P3 | Docs / config maintainer | Remove the dead workers.dbos_system_database_url key from docs/v2/data/stage_params_manual.json | 2026-10-22: key matches nothing after ADR-071; replacing with workers.temporal.* changes stage ownership | Owner-approved mapping or removal; regenerate STAGE_PARAMS | Prereq: none |
 | RM-68 | OPEN | P3 | Observability maintainer | Fix test_t5_06_observability opentelemetry _ExtendedAttributes import error | 2026-10-22: fails in the current .venv (installed opentelemetry version mismatch); seen during RM-18 regression | Pin or adapt to the locked opentelemetry version; test passes after RM-02 sync | Prereq: RM-02 |
 | RM-69 | OPEN | P3 | Docs maintainer | Add the missing decision-register row for ADR-067 and update engine-wide alias notes in older docs | 2026-10-22: ADR-066 got D-101 in RM-10; ADR-067 has no row. PROVIDER_NEXT_MILESTONES.md, PERFORMANCE_IMPLEMENTATION_RESULTS.md and verification notes still call aliases engine-wide | Register row added; alias notes say namespace-scoped since RM-18 | Prereq: RM-18 |
-| RM-70 | REVIEW | P1 | Provider / runtime maintainer | Warm up once and share every client across all internal consumers (keyed, refcounted resource registry) | Owner request 2026-10-22: clients warmed up and shared by all internal processes. Audit 2026-10-22: within one Engine most clients are shared, but Postgres opens up to 4 pools to one database, Weaviate 2 clients, one broker per outbox runner, llama.cpp loads per role, static prefilter duplicates the embedder, GLiNER can thrash at max_models=1, Resonate is rebuilt per Temporal activity; embedder, Tantivy, rerankers, GLiNER and OpenDecider load lazily inside the first request; scheduler singleton is unkeyed. Current docs (PROVIDER_ARCHITECTURE_PLAN R-19 and section 920, ADR-074) forbid process-global connected caches | Owner approves design and ADR; then per-process ResourceRegistry keyed by target identity, settings digest, event loop and pid, refcounted with a warm-up hook; Engine start warm-up phase; fork reset; per-process warm pools for separate worker processes | Prereq: none; Feeds: PA-046, PA-051, PA-053 |
+| RM-70 | IN_PROGRESS | P1 | Provider / runtime maintainer | Warm up once and share every client across all internal consumers (keyed, refcounted resource registry) | Owner selected 2026-10-22: share within and across Engines (new ADR), background warm-up after start, per-process warm pools for separate workers, keyed process globals. Recorded as D-102 / [ADR-079](adr/ADR-079-keyed-shared-warm-resources.md). Audit findings: up to 4 Postgres pools per database, 2 Weaviate clients, per-runner brokers, per-role llama.cpp loads, duplicate static embedder, GLiNER thrash, Resonate per activity, lazy first-request model loads, unkeyed globals | Umbrella: complete when RM-71..RM-77 are DONE | Prereq: none; Feeds: RM-71, RM-72, RM-73, RM-74, RM-75, RM-76, RM-77 |
+| RM-71 | OPEN | P1 | Provider / runtime maintainer | ResourceRegistry core: keyed (target identity, settings digest, loop, pid), refcounted leases, coalesced first build, warm hook, fork reset | Design [ADR-079](adr/ADR-079-keyed-shared-warm-resources.md); GLiNERModelPool is the template | Registry module plus unit tests for keying, coalescing, refcount close, loop affinity and fork reset; lifecycle integration via lease release | Prereq: RM-70 |
+| RM-72 | OPEN | P1 | Provider maintainer | Remove in-engine duplicates: one sync SQL engine per database (purposes become leases), one Weaviate client per target, one broker per Engine, Resonate per runner, static prefilter reuses the configured static embedder | Audit 2026-10-22 file references in RM-70 | Each duplicate shares one registry entry; Postgres and Weaviate focused tests; connection counts measured | Prereq: RM-71 |
+| RM-73 | OPEN | P1 | Model maintainer | Share model weights through the registry: embedders, GLiNER (tasks and concurrency become per-lease limits, lease held per consumer), llama.cpp keyed by path and native options, rerankers, OpenDecider | Audit: per-role llama.cpp copies, GLiNER thrash at max_models=1, OpenDecider process global never freed | One weight copy per identical model per process; results never shared; erasure caches stay Engine-scoped | Prereq: RM-71 |
+| RM-74 | OPEN | P1 | Runtime / API maintainer | Background warm-up after start with per-resource readiness; requests wait only for resources not yet warm | Audit: embedder, Tantivy, rerankers, GLiNER and decider load inside the first request | start() returns after connect; warm state in readiness; first request after warm-up pays no load; failures visible | Prereq: RM-71, RM-73 |
+| RM-75 | OPEN | P2 | Runtime maintainer | Key the process globals in the registry: model scheduler, economy and ops ledgers, tap sink, concurrency gate | Audit: unkeyed scheduler singleton and last-Engine-wins ledgers/tap/gate | Two Engines with different settings keep their own instances; refcounted close | Prereq: RM-71 |
+| RM-76 | OPEN | P2 | Worker / deployment maintainer | Per-process warm pools for separate workers: taskiq worker, uvicorn workers, MCP subprocess | Audit: each separate process builds a full Engine and repeats warm-up | Registry built and warmed at worker start after fork/spawn; documented process model | Prereq: RM-71, RM-74 |
+| RM-77 | OPEN | P1 | Verification lead | Multi-engine acceptance for shared resources (extends tracker T13) | Required by ADR-079 consequences | Stop-one-while-another-active, different-settings isolation, single-writer path sharing, loop affinity, fork reset, :memory: uniqueness, no result sharing | Prereq: RM-72, RM-73, RM-75 |
 <!-- TASK_REGISTER_END -->
 
 ## Imported roadmap detail (no independent statuses)
