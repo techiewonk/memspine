@@ -5,6 +5,7 @@ skipped when the model is not downloaded. No network, no GPU."""
 from __future__ import annotations
 
 import asyncio
+import importlib
 import sys
 import threading
 import time
@@ -318,21 +319,27 @@ _PROBES: list[tuple[str, str, str | None]] = [
 ]
 
 
-def _cached(repo: str, filename: str) -> bool:
-    try:
-        from huggingface_hub import try_to_load_from_cache
+def _optional_runtime_installed(*names: str) -> bool:
+    """False only when a named optional top-level package is absent; a broken
+    installed runtime propagates instead of reading as "not downloaded" (M-MODEL)."""
+    for name in names:
+        try:
+            importlib.import_module(name)
+        except ModuleNotFoundError as exc:
+            if exc.name != name:
+                raise
+            return False
+    return True
 
-        return isinstance(try_to_load_from_cache(repo, filename), str)
-    except Exception:
-        return False
+
+def _cached(repo: str, filename: str) -> bool:
+    from huggingface_hub import try_to_load_from_cache
+
+    return isinstance(try_to_load_from_cache(repo, filename), str)
 
 
 def _torch_model_cached() -> bool:
-    try:
-        import safetensors  # noqa: F401
-        import torch  # noqa: F401
-        import transformers  # noqa: F401
-    except Exception:
+    if not _optional_runtime_installed("safetensors", "torch", "transformers", "huggingface_hub"):
         return False
     return all(
         _cached(decider_mod.DEFAULT_MODEL, f)
@@ -341,11 +348,26 @@ def _torch_model_cached() -> bool:
 
 
 def _onnx_cached() -> bool:
-    try:
-        import onnxruntime  # noqa: F401
-    except Exception:
+    if not _optional_runtime_installed("onnxruntime"):
         return False
     return _torch_model_cached() and _cached(nano.ONNX_REPO, "onnx/model_q8.onnx")
+
+
+def test_onnx_cache_guard_does_not_hide_a_broken_runtime(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Absent onnxruntime reads as not cached; a transitive import failure surfaces."""
+
+    def absent(name: str) -> None:
+        raise ModuleNotFoundError(f"No module named {name!r}", name=name)
+
+    monkeypatch.setattr(importlib, "import_module", absent)
+    assert _onnx_cached() is False
+
+    def broken(name: str) -> None:
+        raise ModuleNotFoundError("No module named 'onnx_dep'", name="onnx_dep")
+
+    monkeypatch.setattr(importlib, "import_module", broken)
+    with pytest.raises(ModuleNotFoundError):
+        _onnx_cached()
 
 
 def _p_yes(**kw: Any) -> list[float]:

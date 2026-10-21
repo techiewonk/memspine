@@ -7,6 +7,8 @@ The only taskiq-specific behavior — the import gate — is asserted directly.
 
 from __future__ import annotations
 
+import sys
+
 import fakeredis.aioredis
 import pytest
 
@@ -83,13 +85,11 @@ def test_unknown_labels_sort_after_everything_shipped() -> None:
     assert max(PIPELINE_PRIORITIES.values()) < DEFAULT_PRIORITY
 
 
-def test_missing_taskiq_raises_missing_service_naming_the_extra() -> None:
-    try:
-        import taskiq  # noqa: F401
-    except ImportError:
-        pass
-    else:  # pragma: no cover - env with the extra installed
-        pytest.skip("taskiq installed — the import-gate branch is unreachable")
+def test_missing_taskiq_raises_missing_service_naming_the_extra(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # M-BRANCH: simulate the absent [taskiq] extra whatever this environment has installed.
+    monkeypatch.setitem(sys.modules, "taskiq", None)
     with pytest.raises(MissingServiceError, match=r"memspine\[taskiq\]"):
         TaskiqRunner()
 

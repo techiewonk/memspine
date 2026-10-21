@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import importlib
 import sys
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -358,19 +359,65 @@ async def test_decide_many_mixes_tasks_in_one_call(monkeypatch: pytest.MonkeyPat
 # -- optional smoke test: the real model, skipped unless it is downloaded --------------------
 
 
-def _real_model_cached() -> bool:
-    try:
-        import safetensors  # noqa: F401
-        import torch  # noqa: F401
-        import transformers  # noqa: F401
-        from huggingface_hub import try_to_load_from_cache
+_DECIDER_RUNTIME = ("safetensors", "torch", "transformers", "huggingface_hub")
 
-        for f in ("opendecider.json", "model.safetensors", "head.safetensors"):
-            if not isinstance(try_to_load_from_cache(decider_mod.DEFAULT_MODEL, f), str):
-                return False
-        return True
-    except Exception:
+
+def _optional_runtime_installed(*names: str) -> bool:
+    """False only when a named optional top-level package is absent.
+
+    A broken installed runtime (a missing transitive dependency, an ImportError
+    raised inside the package, any other error) propagates instead of being
+    reported as "not downloaded" (M-MODEL)."""
+    for name in names:
+        try:
+            importlib.import_module(name)
+        except ModuleNotFoundError as exc:
+            if exc.name != name:
+                raise
+            return False
+    return True
+
+
+def _real_model_cached() -> bool:
+    if not _optional_runtime_installed(*_DECIDER_RUNTIME):
         return False
+    from huggingface_hub import try_to_load_from_cache
+
+    return all(
+        isinstance(try_to_load_from_cache(decider_mod.DEFAULT_MODEL, f), str)
+        for f in ("opendecider.json", "model.safetensors", "head.safetensors")
+    )
+
+
+@pytest.mark.parametrize("missing", _DECIDER_RUNTIME)
+def test_cache_guard_reports_only_an_absent_optional_package(
+    monkeypatch: pytest.MonkeyPatch, missing: str
+) -> None:
+    def absent(name: str) -> None:
+        if name == missing:
+            raise ModuleNotFoundError(f"No module named {name!r}", name=name)
+
+    monkeypatch.setattr(importlib, "import_module", absent)
+    assert _optional_runtime_installed(*_DECIDER_RUNTIME) is False
+
+
+@pytest.mark.parametrize(
+    "error",
+    [
+        ModuleNotFoundError("No module named 'torch_transitive'", name="torch_transitive"),
+        ImportError("broken torch install"),
+        RuntimeError("runtime initialisation failed"),
+    ],
+)
+def test_cache_guard_does_not_hide_a_broken_runtime(
+    monkeypatch: pytest.MonkeyPatch, error: Exception
+) -> None:
+    def broken(name: str) -> None:
+        raise error
+
+    monkeypatch.setattr(importlib, "import_module", broken)
+    with pytest.raises(type(error)):
+        _optional_runtime_installed(*_DECIDER_RUNTIME)
 
 
 @pytest.mark.skipif(not _real_model_cached(), reason="opendecider-nano is not downloaded")

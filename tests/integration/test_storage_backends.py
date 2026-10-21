@@ -1,9 +1,10 @@
 """Storage-contract parity (Phase 6): the SAME assertions run against sqlite and
 postgres, proving :class:`SqlStorage` is backend-agnostic (D-36, ADR-025).
 
-Postgres is skip-if-unavailable: set ``MEMSPINE_TEST_POSTGRES_URL`` to a DSN
+Postgres is opt-in: set ``MEMSPINE_TEST_POSTGRES_URL`` to a DSN
 (e.g. ``postgresql://user:pass@localhost:5432/memspine_test``) to exercise it;
-without it, only the sqlite parametrization runs. The postgres run drops and
+without it, only the sqlite parametrization runs. Once set, an unreachable
+server fails the cell rather than skipping it. The postgres run drops and
 recreates the shared schema for isolation.
 """
 
@@ -57,8 +58,10 @@ async def _postgres() -> tuple[Any, Any]:
     client = PostgresClient(url)
     try:
         await client.connect()
-    except Exception as exc:  # server down / bad DSN → skip, not fail
-        pytest.skip(f"postgres not reachable: {exc}")
+    except Exception as exc:
+        # M-LIVE: the URL is an explicit opt-in, so an unreachable server or bad
+        # DSN is a failure of the requested gate, never a silent skip.
+        pytest.fail(f"MEMSPINE_TEST_POSTGRES_URL is set but postgres is not reachable: {exc}")
     async with client.engine.begin() as conn:
         await conn.run_sync(metadata.drop_all)  # fresh schema for isolation
     storage = PostgresStorage(client, mode=EventLogMode.ROLLING)

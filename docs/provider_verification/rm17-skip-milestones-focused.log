@@ -1,0 +1,22 @@
+﻿RM-17 focused skip-milestone checks, 2026-10-22 (M-MODEL, M-BRANCH, M-LIVE, M-PLAN)
+Command: python -m pytest -o addopts='' -q -p no:deepeval -p no:cacheprovider -rs <11 files below>
+Environment: Python 3.13.5; absent here: markitdown, model2vec, flashrank, taskiq, torch, transformers, safetensors, psycopg; installed: fastembed (with TextCrossEncoder), onnxruntime, huggingface_hub. No Postgres URL set.
+Files: docs/v2/data/test_build_plan.py tests/unit/services/decision/test_decider.py tests/unit/services/decision/test_decider_cpu_knobs.py tests/unit/memories/resource/test_extraction.py tests/unit/services/embedding/test_static_local.py tests/unit/services/rerank/test_rerank.py tests/unit/test_engine_e4.py tests/unit/test_engine_p7b.py tests/unit/workers/test_taskiq_runner.py tests/integration/test_storage_backends.py tests/unit/store/test_f16d_storage_profile.py
+
+.............s........................s.....................ss.......s.. [ 60%]
+.................................s............ss                         [100%]
+=========================== short test summary info ===========================
+SKIPPED [1] docs\v2\data\test_build_plan.py:136: no concurrently open owned package without dependencies
+SKIPPED [1] tests\unit\services\decision\test_decider.py:423: opendecider-nano is not downloaded
+SKIPPED [1] tests\unit\services\decision\test_decider_cpu_knobs.py:378: opendecider-nano is not downloaded
+SKIPPED [1] tests\unit\services\decision\test_decider_cpu_knobs.py:389: opendecider-nano ONNX build is not downloaded
+SKIPPED [1] tests\unit\services\embedding\test_static_local.py:26: [static] not installed
+SKIPPED [1] tests\integration\test_storage_backends.py:52: set MEMSPINE_TEST_POSTGRES_URL to run the postgres storage contract
+SKIPPED [1] tests\unit\store\test_f16d_storage_profile.py:307: could not import 'psycopg': No module named 'psycopg'
+SKIPPED [1] tests\unit\store\test_f16d_storage_profile.py:361: could not import 'psycopg': No module named 'psycopg'
+112 passed, 8 skipped in 11.33s
+
+
+M-BRANCH installed-package cell: stub modules markitdown, model2vec, flashrank, taskiq pre-registered in sys.modules (simulating installed extras) before running the negative gates:
+..........                                                               [100%]
+10 passed in 4.84s

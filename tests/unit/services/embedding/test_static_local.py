@@ -5,6 +5,7 @@ with the D-10 fix-hint; the real path (extra installed) embeds deterministically
 from __future__ import annotations
 
 import importlib.util
+import sys
 
 import pytest
 
@@ -14,8 +15,9 @@ from memspine.models.encoders.embedding.static_local import StaticEmbedder
 _HAS_MODEL2VEC = importlib.util.find_spec("model2vec") is not None
 
 
-@pytest.mark.skipif(_HAS_MODEL2VEC, reason="[static] installed — the miss path cannot be exercised")
-def test_missing_extra_raises_missing_service_error() -> None:
+def test_missing_extra_raises_missing_service_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    # M-BRANCH: simulate the absent [static] extra whatever this environment has installed.
+    monkeypatch.setitem(sys.modules, "model2vec", None)
     with pytest.raises(MissingServiceError) as excinfo:
         StaticEmbedder()
     assert excinfo.value.extra == "static"  # names the pip install to run

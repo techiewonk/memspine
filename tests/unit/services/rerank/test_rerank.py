@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import sys
+
 import pytest
 
 from memspine.exceptions import MissingServiceError
@@ -36,28 +38,22 @@ def test_concat_background_minimal_record_still_carries_type() -> None:
     assert concat_background(record) == "[type: episodic]\nplain"
 
 
-def test_flashrank_adapter_names_the_extra_when_absent() -> None:
-    try:
-        import flashrank  # noqa: F401
-    except ImportError:
-        pass
-    else:  # pragma: no cover - env with the extra installed
-        pytest.skip("flashrank installed — the import-gate branch is unreachable")
+def test_flashrank_adapter_names_the_extra_when_absent(monkeypatch: pytest.MonkeyPatch) -> None:
+    # M-BRANCH: simulate the absent [rerank] extra whatever this environment has installed.
+    monkeypatch.setitem(sys.modules, "flashrank", None)
     from memspine.models.providers.rerank.flashrank_rerank import FlashrankReranker
 
     with pytest.raises(MissingServiceError, match=r"memspine\[rerank\]"):
         FlashrankReranker()
 
 
-def test_fastembed_adapter_names_the_upgrade_remedy_when_too_old() -> None:
+def test_fastembed_adapter_names_the_upgrade_remedy_when_too_old(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """CMP-2: fastembed is a CORE dep, so the remedy is an upgrade (or flashrank),
     not a bare 'service unavailable'. The message must say so."""
-    try:
-        from fastembed.rerank.cross_encoder import TextCrossEncoder  # noqa: F401
-    except ImportError:
-        pass
-    else:  # pragma: no cover - fastembed new enough ships the reranker
-        pytest.skip("fastembed ships TextCrossEncoder — the guard branch is unreachable")
+    # M-BRANCH: simulate a fastembed release without the cross-encoder module.
+    monkeypatch.setitem(sys.modules, "fastembed.rerank.cross_encoder", None)
     from memspine.models.providers.rerank.fastembed_rerank import FastembedReranker
 
     with pytest.raises(MissingServiceError, match="upgrade fastembed"):

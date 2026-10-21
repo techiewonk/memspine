@@ -92,6 +92,34 @@ class Collisions(unittest.TestCase):
         self.assertEqual(bad, [])
 
 
+class ForbiddenConcurrentOwner(unittest.TestCase):
+    """M-PLAN: the forbidden-owner branch runs on a synthetic plan, whatever the live plan holds."""
+
+    def setUp(self):
+        self.rows = [
+            row("W"),
+            row("P"),  # open, independent: its paths must be forbidden to W
+            row("Q", ["W"]),  # depends on W: not concurrent
+            row("R", status="Done"),  # released: not concurrent
+            row("S"),  # open and independent, but sharing with W is allowed
+        ]
+        self.owns = {
+            "W": ["w/**"],
+            "P": ["p/x.py"],
+            "Q": ["q/**"],
+            "R": ["r/**"],
+            "S": ["s/**"],
+        }
+
+    def test_brief_forbids_only_concurrent_owners(self):
+        text = bp.render_brief(
+            "W", self.rows, self.owns, {}, [("W", "S", "one agent")], "{{forbidden}}", anchors={}
+        )
+        self.assertIn("- `p/x.py` (P)", text)
+        for pid in ("Q", "R", "S"):
+            self.assertNotIn(f"({pid})", text)
+
+
 class RealPlan(unittest.TestCase):
     def test_current_plan_has_no_collisions(self):
         rows, _ = bp._build_rows()
@@ -119,6 +147,7 @@ class RealPlan(unittest.TestCase):
             and r["status"] not in bp.RELEASED
         ]
         if not live:
+            # Input-shape inapplicability only; ForbiddenConcurrentOwner always exercises the branch.
             self.skipTest("no concurrently open owned package without dependencies")
         self.assertTrue(any(f"({pid})" in text for pid in live), text)
 

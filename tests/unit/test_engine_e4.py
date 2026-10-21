@@ -6,7 +6,7 @@ prefilter self-disables (skip-log) when [static] is absent — never crashes.
 
 from __future__ import annotations
 
-import importlib.util
+import sys
 from collections.abc import AsyncIterator
 
 import pytest
@@ -16,8 +16,6 @@ from memspine.config.schema import MemspineConfig
 from memspine.exceptions import ConfigError
 from memspine.models.encoders.embedding.base import EmbedderManifest
 from memspine.runtime.container import rescore_settings
-
-_HAS_MODEL2VEC = importlib.util.find_spec("model2vec") is not None
 
 
 class _FakeEmbedder:
@@ -150,8 +148,9 @@ async def test_int8_engine_matches_plain_search_top1(int8_engine: Engine) -> Non
 # ── model2vec static prefilter: self-disables when [static] is absent ─────────
 
 
-@pytest.mark.skipif(_HAS_MODEL2VEC, reason="[static] installed — the miss path cannot be exercised")
-async def test_static_prefilter_skiplogs_when_extra_absent() -> None:
+async def test_static_prefilter_skiplogs_when_extra_absent(monkeypatch: pytest.MonkeyPatch) -> None:
+    # M-BRANCH: simulate the absent [static] extra whatever this environment has installed.
+    monkeypatch.setitem(sys.modules, "model2vec", None)
     eng = make_engine(static_embedding_prefilter=True)
     await eng.start()
     try:

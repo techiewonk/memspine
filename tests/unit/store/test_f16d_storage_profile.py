@@ -1,9 +1,10 @@
 """F-16d (M-04 C): the storage-profile contract, the Postgres Alembic tree and its parity.
 
 The store contract runs on both profiles. ``embedded`` (SQLite file) runs everywhere. ``server``
-(Postgres through the Alembic tree) runs only when a server is reachable: set
+(Postgres through the Alembic tree) runs only when a server is requested: set
 ``MEMSPINE_TEST_PG_URL`` (or the older ``MEMSPINE_TEST_POSTGRES_URL``) to a DSN of a scratch
-database, or install ``testcontainers`` (with a Docker daemon). Otherwise it skips with the reason.
+database, or install ``testcontainers`` (with a Docker daemon). Otherwise it skips with the reason;
+a requested server (DSN set or container started) that is unreachable fails instead.
 The tree-parity test needs no server: the Postgres revisions are dialect-neutral DDL, so they are
 replayed on SQLite and compared with the SQLite tree; with a server the same comparison also runs
 against the reflected Postgres schema.
@@ -260,7 +261,10 @@ def pg_url() -> Iterator[str]:
             pass
     except Exception as exc:
         engine.dispose()
-        pytest.skip(f"server profile: postgres not reachable: {exc}")
+        # M-LIVE: the URL is either an explicit opt-in (MEMSPINE_TEST_PG_URL /
+        # MEMSPINE_TEST_POSTGRES_URL) or a container that already started, so an
+        # unreachable server is a failure of the requested gate, never a skip.
+        pytest.fail(f"server profile: requested postgres is not reachable: {exc}")
     engine.dispose()
     yield url
 

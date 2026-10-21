@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
 import pytest
@@ -16,15 +17,13 @@ def test_plain_text_reads_without_the_ingest_extra(tmp_path: Path) -> None:
     assert "Paragraph one." in extract_text(doc)
 
 
-def test_rich_formats_require_ingest_extra_or_fail_loudly(tmp_path: Path) -> None:
+def test_rich_formats_require_ingest_extra_or_fail_loudly(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     doc = tmp_path / "report.docx"
     doc.write_bytes(b"PK\x03\x04 not a real docx")
-    try:
-        import markitdown  # noqa: F401
-
-        pytest.skip("markitdown installed — the extra path is live, not refusable")
-    except ImportError:
-        pass
+    # M-BRANCH: simulate the absent [ingest] extra whatever this environment has installed.
+    monkeypatch.setitem(sys.modules, "markitdown", None)
     with pytest.raises(MissingServiceError, match=r"memspine\[ingest\]"):
         extract_text(doc)
 

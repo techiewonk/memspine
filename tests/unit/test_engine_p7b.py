@@ -6,6 +6,7 @@ Both programs are opt-in and default OFF — the first tests here pin the
 
 from __future__ import annotations
 
+import sys
 from collections.abc import AsyncIterator
 from typing import Any
 
@@ -87,13 +88,11 @@ async def test_injected_reranker_reorders_results() -> None:
         await eng.stop()
 
 
-async def test_missing_rerank_provider_skips_loudly_but_search_works() -> None:
-    try:
-        import flashrank  # noqa: F401
-    except ImportError:
-        pass
-    else:  # pragma: no cover - env with the extra installed
-        pytest.skip("flashrank installed — skip-path unreachable")
+async def test_missing_rerank_provider_skips_loudly_but_search_works(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # M-BRANCH: simulate the absent [rerank] extra whatever this environment has installed.
+    monkeypatch.setitem(sys.modules, "flashrank", None)
     eng = make_engine(rerank="flashrank")
     await eng.start()
     try:
