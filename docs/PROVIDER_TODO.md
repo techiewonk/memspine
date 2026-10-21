@@ -15,9 +15,9 @@ Keep one row per stable ID. PA IDs preserve the 136-item provider program; BI ID
 | DONE | 132 |
 | EXCLUDED | 4 |
 | IN_PROGRESS | 28 |
-| NEEDS_INPUT | 3 |
+| NEEDS_INPUT | 4 |
 | NEEDS_TOOLCHAIN | 1 |
-| OPEN | 16 |
+| OPEN | 15 |
 | OPEN_REVIEW | 18 |
 | PLANNED | 11 |
 | PROPOSED | 3 |
@@ -112,7 +112,7 @@ its scope is narrower than the prerequisite (say so in the row) or its status is
 | PA-043 | DONE | P2 | Provider maintainer | Test clean installs of each optional remote extra | Recorded local gate: OpenSearch, Weaviate and Postgres extras install independently. [Independent extra installs](provider_verification/installed-wheel-checks.json) | Completed for recorded scope; revalidate affected gates on change | PA-042 |
 | PA-044 | DONE | P2 | Provider maintainer | Review the supported Python/OS/dependency test matrix | Recorded local gate: A documented matrix identifies tested and untested combinations. [Platform matrix](PROVIDER_PLATFORM_MATRIX.md) | Completed for recorded scope; revalidate affected gates on change | PA-040 |
 | PA-045 | DONE | P2 | Provider maintainer | Exercise a sample third-party provider plugin | Recorded local gate: Pinned plugin discovery, bad contracts and lifecycle behavior are checked. [Plugin wheel evidence](provider_verification/plugin-wheel-checks.json) | Completed for recorded scope; revalidate affected gates on change | PA-001, PA-043 |
-| PA-046 | OPEN | P1 | Performance maintainer; budget approval by application owner | Resolve or explicitly accept the cold-start regression | Gate not complete; prior evidence: [README.md](../docs/provider_verification/README.md) | Owner selected 2026-10-22: re-measure the five-trial startup benchmark on the committed revision, then owner accepts or fixes | PA-034 |
+| PA-046 | NEEDS_INPUT | P1 | Performance maintainer; budget approval by application owner | Resolve or explicitly accept the cold-start regression | Re-measured 2026-10-22 on 0cc4da34 vs a81e7f0 baseline (5 paired trials, shared host, behaviour identical): cold start +13.5% median (paired +2.6 to +26.5, paired median about +6%), import -4.9%, import+start +1.1%, ingest +7.2%, search p95 -8.3%, RSS +2.4%. [re-measure](provider_verification/pa046-coldstart-remeasure-2026-10-22.json) | Owner accepts the cold-start shift (total ready time about +1%) or asks for the SQLite/LanceDB import levers; ingest +7% to confirm on the PA-051 host | PA-034 |
 | PA-047 | DONE | P2 | Provider maintainer | Profile the final configuration-admission code | Recorded local gate: New profile includes final range/cross-field revalidation, unlike earlier component profile. [Performance profile](PROVIDER_PERFORMANCE_FOLLOWUP.md) | Completed for recorded scope; revalidate affected gates on change | PA-030 |
 | PA-048 | DONE | P2 | Provider maintainer | Evaluate SQLite migration/import startup cost | Recorded local gate: import/connect/schema phases sampled once (shared host); no code change retained. A single sample cannot support an optimization decision. [Performance profile](PROVIDER_PERFORMANCE_FOLLOWUP.md) | Completed for evaluate-only scope; optimization decision deferred to the PA-046 budget | Prereq: PA-047; Feeds: PA-046 |
 | PA-049 | DONE | P2 | Provider maintainer | Evaluate LanceDB first-connect/import cost | Recorded local gate: import, connect, table create and table open timed separately (one shared-host sample, import 858 ms); no optimization selected. [Performance profile](PROVIDER_PERFORMANCE_FOLLOWUP.md) | Completed for recorded scope; revalidate affected gates on change | Prereq: PA-047; Feeds: PA-046 |
