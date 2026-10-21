@@ -14,14 +14,15 @@ frontier) and ``graph`` (GR-14) ship today. We boot all of them and pin the coun
 
 from __future__ import annotations
 
+import sys
+from types import ModuleType
+
 import pytest
 
 #: template -> (expected profile, expected enabled set after closure, expected runner).
-#: Server profiles (multi_agent, regulated_financial) default to the durable DBOS
-#: runner (DEC-4/A4); the embedded profiles stay on inline. A dbos template only
-#: boots when [dbos] is installed — otherwise start() hard-fails naming the extra
-#: (D-10), which the boot below asserts instead, so the matrix stays honest in
-#: both zero-extra and all-extras environments.
+#: Server profiles use Temporal; embedded profiles stay on inline. The Temporal
+#: runner is replaced with a local fake in this template-shape test so no server
+#: is required here.
 TEMPLATES: dict[str, tuple[str, frozenset[str], str]] = {
     "assistant": ("assistant", frozenset({"working", "episodic", "semantic"}), "inline"),
     "base": ("simple", frozenset({"working", "episodic", "semantic"}), "inline"),
@@ -38,7 +39,7 @@ TEMPLATES: dict[str, tuple[str, frozenset[str], str]] = {
     "multi_agent": (
         "multi_agent",
         frozenset({"working", "episodic", "semantic", "shared"}),
-        "dbos",
+        "temporal",
     ),
     "graph": (
         "graph",
@@ -54,7 +55,7 @@ TEMPLATES: dict[str, tuple[str, frozenset[str], str]] = {
     "regulated_financial": (
         "regulated_financial",
         frozenset({"working", "episodic", "semantic"}),
-        "dbos",
+        "temporal",
     ),
     "voice": ("voice", frozenset({"working", "episodic", "semantic"}), "inline"),
 }
@@ -89,21 +90,29 @@ def test_all_shipped_templates_are_in_the_matrix() -> None:
 
 
 @pytest.mark.parametrize("template", sorted(TEMPLATES))
-async def test_template_boots_clean(template: str, make_engine) -> None:
-    import importlib.util
+async def test_template_boots_clean(template: str, monkeypatch, make_engine) -> None:
+    class FakeTemporalRunner:
+        def __init__(self, **kwargs: object) -> None:
+            self.pipelines = {}
 
-    from memspine.exceptions import MissingServiceError
+        def register(self, name, pipeline) -> None:
+            self.pipelines[name] = pipeline
+
+        async def start(self) -> None:
+            assert self.pipelines
+
+        async def run(self, name, ctx) -> dict[str, object]:
+            return {"status": "ok"}
+
+        async def close(self) -> None:
+            return None
+
+    module = ModuleType("memspine.workers.temporal_runner")
+    module.TemporalRunner = FakeTemporalRunner  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "memspine.workers.temporal_runner", module)
 
     expected_profile, expected_enabled, expected_runner = TEMPLATES[template]
     engine = make_engine(template=template)
-
-    # A server profile pins runner=dbos (DEC-4): it can only boot when [dbos] is
-    # installed; without it, start() hard-fails naming the extra (D-10).
-    if expected_runner == "dbos" and importlib.util.find_spec("dbos") is None:
-        with pytest.raises(MissingServiceError) as excinfo:
-            await engine.start()
-        assert excinfo.value.extra == "dbos"
-        return
 
     await engine.start()
     try:

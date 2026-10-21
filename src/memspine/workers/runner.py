@@ -1,7 +1,7 @@
-"""TaskRunner seam (D-16): the three runners implement this one protocol.
+"""TaskRunner seam: all background runners implement this one protocol.
 
-``inline`` (default, this phase) · ``dbos`` (durable, P3) · ``taskiq``
-(Valkey-Streams brokered, P7, with per-scope keys + priority labels, D-42).
+``inline`` runs locally, ``temporal`` runs durable workflows with an embedded
+Resonate step journal, and ``taskiq`` dispatches over Redis/Valkey Streams.
 """
 
 from __future__ import annotations
@@ -16,6 +16,10 @@ __all__ = ["TaskRunner"]
 @runtime_checkable
 class TaskRunner(Protocol):
     def register(self, name: str, pipeline: Pipeline) -> None: ...
+
+    async def start(self) -> None:
+        """Initialize remote workers after every pipeline has been registered."""
+        ...
 
     async def run(self, name: str, ctx: PipelineContext) -> dict[str, object]:
         """Execute one pipeline by name (immediately or via the broker)."""

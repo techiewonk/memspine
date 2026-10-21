@@ -119,6 +119,8 @@ async def test_reorganize_writes_summary_parent_and_membership_links(
     assert stats == {"status": "ok", "communities": 1, "parents": 1, "superseded": 0}
     [parent] = await parents_of(ctx)
     assert parent.status is RecordStatus.ACTIVATED
+    assert parent.valid_from == max(member.valid_from for member in members)
+    assert parent.recorded_at > parent.valid_from
     # N2: a derived summary parent is never privileged, and never out-trusts a member.
     assert parent.source.role == constants.DERIVED_ROLE
     assert parent.trust <= min(m.trust for m in members)
@@ -253,7 +255,7 @@ def with_community(ctx: PipelineContext, **options: object) -> None:
     """Set ``memories.associative.policies.community`` on a test context."""
     ctx.config = load_config(
         template="core",
-        user_config={"memories": {"associative": {"policies": {"community": options}}}}
+        user_config={"memories": {"associative": {"policies": {"community": options}}}},
     ).config
 
 

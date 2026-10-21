@@ -11,8 +11,9 @@ It is deliberately thin: a single asyncio task that sleeps ``interval`` then run
 one cycle, forever, until cancelled. Overlap is impossible (await-then-sleep in
 one task), so a slow cycle simply delays the next tick rather than stacking.
 Each run is guarded — a failing cycle is logged and the loop continues, never
-crashing the engine. Durability of the *work* is the runner's job (inline/dbos/
-taskiq); the scheduler only decides *when*, so it stays anti-lock-in (D-17).
+crashing the engine. Durability of the *work* is the runner's job
+(inline/temporal/taskiq); the scheduler only decides *when*, so it stays
+anti-lock-in (D-17).
 
 Off by default (``workers.sleep_interval_seconds = None``): ``profile="simple"``
 and every existing deployment behave exactly as before.

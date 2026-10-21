@@ -16,7 +16,7 @@ D-42 §3 (the MemOS ``SchedulerRedisQueue`` pattern, adopted):
 
 HONESTY NOTE (P7): this is the seam plus the durable at-least-once work
 record — not yet a distributed worker fleet, and not a checkpointed workflow
-engine (``dbos_runner`` gained that distinction in a later hardening pass).
+engine.
 ``PipelineContext`` holds live connections and callables, so the pipeline body
 executes in-process; re-execution after claim-recovery is safe because
 pipelines are idempotent by the D-17 contract. Claim-recovery is best-effort:
@@ -177,6 +177,10 @@ class TaskiqRunner:
 
     def register(self, name: str, pipeline: Pipeline) -> None:
         self._pipelines[name] = pipeline
+
+    async def start(self) -> None:
+        """Taskiq's client is ready at construction; no worker startup is needed."""
+        return None
 
     async def run(self, name: str, ctx: PipelineContext) -> dict[str, object]:
         pipeline = self._pipelines.get(name)

@@ -8,11 +8,12 @@ event_log:
   mode: full           # never rolling/ephemeral here: audit + rebuild required
   compress: true       # compression is fine; deletion is not
 
-# Server profile (DEC-4): durability is non-negotiable here, so background
-# pipelines run on the durable DBOS runner (colocated SQLite system db, D-16).
-# A regulated deployment installs memspine[dbos].
+# Server profile: durability is non-negotiable here, so background pipelines
+# run through Temporal with an embedded Resonate step journal.
 workers:
-  runner: dbos
+  runner: temporal
+  temporal:
+    deployment_id: regulated-financial
 
 memories:
   semantic:

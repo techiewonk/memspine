@@ -19,8 +19,7 @@ async def make_ctx(
     mode: str = "rolling", retention_days: int = 1
 ) -> tuple[PipelineContext, SQLiteStorage]:
     config = load_config(
-        template="core",
-        overrides={"event_log": {"mode": mode, "retention_days": retention_days}}
+        template="core", overrides={"event_log": {"mode": mode, "retention_days": retention_days}}
     ).config
     client = SQLiteClient(":memory:")
     await client.connect()
@@ -45,7 +44,16 @@ async def test_pipelines_contain_no_runner_imports() -> None:
 
     for info in pkgutil.iter_modules(stages.__path__, f"{stages.__name__}."):
         source = inspect.getsource(importlib.import_module(info.name))
-        for forbidden in ("inline", "dbos", "taskiq", "runner"):
+        for forbidden in (
+            "inline",
+            "dbos",
+            "temporal",
+            "temporal_runner",
+            "temporal_workflow",
+            "resonate",
+            "taskiq",
+            "runner",
+        ):
             assert f"workers.{forbidden}" not in source, info.name
 
 

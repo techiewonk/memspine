@@ -23,6 +23,10 @@ class InlineRunner:
     def register(self, name: str, pipeline: Pipeline) -> None:
         self._pipelines[name] = pipeline
 
+    async def start(self) -> None:
+        """Inline execution needs no asynchronous startup work."""
+        return None
+
     async def run(self, name: str, ctx: PipelineContext) -> dict[str, object]:
         pipeline = self._pipelines.get(name)
         if pipeline is None:

@@ -1,5 +1,8 @@
 # ADR-005 — Background execution: TaskRunner seam, pipelines stay plain functions
 
+> Superseded for active configuration by [ADR-071](ADR-071-temporal-resonate-orchestration.md).
+> The DBOS implementation described below is historical; it is removed from source and packaging.
+
 - **Status:** accepted
 - **Date:** 2026-07-07
 - **Decision id:** D-16 / D-17 / D-18

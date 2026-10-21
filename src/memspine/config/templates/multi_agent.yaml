@@ -2,11 +2,12 @@
 extends: base
 profile: multi_agent
 
-# Server profile (DEC-4): durable, crash-recoverable background execution.
-# DBOS defaults to a colocated SQLite system database (zero external infra,
-# D-16) — a deployed multi-agent server installs memspine[dbos].
+# Server profile: durable background execution through Temporal, with an
+# embedded Resonate step journal local to this deployment.
 workers:
-  runner: dbos
+  runner: temporal
+  temporal:
+    deployment_id: multi-agent
 
 memories:
   shared:

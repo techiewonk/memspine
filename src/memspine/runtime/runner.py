@@ -546,8 +546,20 @@ class InlineRunner:
         the offset enqueued when this call began (later writes do not extend the target), or give
         up at ``timeout`` and return ``partial`` naming what is missing. A capability with no
         registered handler is ``unavailable`` and never waited for. While work is pending and no
-        drain runs, the caller drains inline (that is the inline runner's contract)."""
-        limit = timeout if isinstance(timeout, timedelta) else timedelta(seconds=timeout)
+        drain runs, the caller drains inline within a monotonic asyncio deadline. The injected
+        clock still controls barrier/lease semantics, but a frozen clock cannot make a slow
+        prepare/commit exceed the wait budget indefinitely. A non-positive timeout only reads
+        readiness and never starts a drain.
+
+        Expiry cancels this caller's inline drain through its normal claim-release path; items
+        remain durable for a later drain. An independently running drain is not cancelled. Caller
+        cancellation propagates unchanged. Handler effects retain the outbox's at-least-once
+        semantics and must remain idempotent if interrupted before checkpointing. Like every
+        asyncio deadline this is cooperative: blocking I/O or cancellation cleanup may delay
+        return."""
+        limit = max(
+            timedelta(0), timeout if isinstance(timeout, timedelta) else timedelta(seconds=timeout)
+        )
         started = self.clock()
         targets = {c: self.store.last_offset(scope, c) for c in capabilities}
         tap.event(
@@ -556,21 +568,31 @@ class InlineRunner:
             capabilities=sorted(capabilities),
             timeout_s=limit.total_seconds(),
         )
-        while True:
-            outcome, waiting = self._barrier(scope, targets, limit, started)
-            if waiting and not self._drain_lock.locked() and not self._stopping:
-                await self.drain(scope)
-                outcome, waiting = self._barrier(scope, targets, limit, started)
-            if not waiting:
-                tap.event(
-                    "runtime.barrier.wait",
-                    phase="end",
-                    status=outcome.status,
-                    missing=list(outcome.missing),
-                    holes=sum(len(v) for v in outcome.holes.values()),
-                )
-                return outcome
-            await self._sleep(self._poll_s)
+        deadline = asyncio.timeout(max(0.0, limit.total_seconds()))
+        try:
+            async with deadline:
+                while True:
+                    outcome, waiting = self._barrier(scope, targets, limit, started)
+                    if waiting and not self._drain_lock.locked() and not self._stopping:
+                        await self.drain(scope)
+                        outcome, waiting = self._barrier(scope, targets, limit, started)
+                    if not waiting:
+                        break
+                    await self._sleep(self._poll_s)
+        except TimeoutError:
+            if not deadline.expired():
+                raise
+            # The injected clock may not have advanced. A zero-wait snapshot reports any
+            # remaining work as partial rather than restarting a wait on that frozen clock.
+            outcome, _ = self._barrier(scope, targets, timedelta(0), self.clock())
+        tap.event(
+            "runtime.barrier.wait",
+            phase="end",
+            status=outcome.status,
+            missing=list(outcome.missing),
+            holes=sum(len(v) for v in outcome.holes.values()),
+        )
+        return outcome
 
     def _barrier(
         self, scope: OwnerScope, targets: Mapping[str, int], limit: timedelta, started: datetime

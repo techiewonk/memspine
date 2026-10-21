@@ -3,9 +3,8 @@ under every available runner (D-16).
 
 ``inline`` always participates. ``taskiq`` participates against ``fakeredis``
 (a dev dependency — the same seam the taskiq unit test drives, so the extra
-itself need not be installed). ``dbos`` participates only when ``[dbos]`` is
-installed (``pytest.importorskip``), else it is silently absent from the
-comparison — never a failure.
+itself need not be installed). Server-backed Temporal execution is covered by
+the separately gated Temporal integration test.
 
 Each runner gets its OWN file-backed database seeded with identical data, so the
 comparison is of independent runs of the same idempotent pipelines, not of
@@ -16,8 +15,14 @@ SLEEP_CYCLE_ORDER, every stage ok/noop/skipped) and the materialized effect
 
 from __future__ import annotations
 
+import builtins
+import os
+import sqlite3
+import uuid
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from types import SimpleNamespace
+from typing import Any
 
 import pytest
 
@@ -93,7 +98,7 @@ async def _summary_count(storage: SQLiteStorage) -> int:
     )
 
 
-def _available_runners(tmp_path: Path) -> dict[str, TaskRunner]:
+def _available_runners() -> dict[str, TaskRunner]:
     runners: dict[str, TaskRunner] = {"inline": InlineRunner()}
     try:
         import fakeredis.aioredis
@@ -103,38 +108,17 @@ def _available_runners(tmp_path: Path) -> dict[str, TaskRunner]:
         runners["taskiq"] = TaskiqRunner(redis=fakeredis.aioredis.FakeRedis())
     except ImportError:  # pragma: no cover - fakeredis is a dev dependency
         pass
-    try:
-        import dbos  # noqa: F401
-
-        from memspine.workers.dbos_runner import DBOSRunner, default_system_database_url
-
-        # No PipelineContext exists yet at this point — this test builds one
-        # PER RUNNER NAME below, unlike the engine, which builds DBOSRunner
-        # AFTER its own storage/config already exist (see engine.py's
-        # `_build_runner`). `context_factory` is reassigned once the real
-        # `ctx` is built, just before `run_sleep_cycle` needs it.
-        runners["dbos"] = DBOSRunner(
-            system_database_url=default_system_database_url(str(tmp_path / "dbos.db")),
-        )
-    except ImportError:  # pragma: no cover - env-dependent
-        pass
     return runners
 
 
 async def test_sleep_cycle_parity_across_available_runners(tmp_path: Path) -> None:
-    runners = _available_runners(tmp_path)
+    runners = _available_runners()
     effects: dict[str, tuple[int, int]] = {}
 
     for name, runner in runners.items():
         for pipeline_name, pipeline in PIPELINES.items():
             runner.register(pipeline_name, pipeline)
         ctx, storage, client = await _build_ctx(str(tmp_path / f"{name}.db"))
-        if hasattr(runner, "_context_factory"):  # dbos: bind the context built above
-            runner._context_factory = lambda ctx=ctx: ctx  # type: ignore[attr-defined]
-            # Pipelines are registered (above) BEFORE launch(), same ordering
-            # `Engine._build_runner` follows — see dbos_runner's docstring on
-            # why launch() must never race an empty pipeline registry.
-            runner.launch()  # type: ignore[attr-defined]
         try:
             await _seed(ctx)
             stats = await run_sleep_cycle(runner, ctx)
@@ -160,4 +144,201 @@ async def test_sleep_cycle_parity_across_available_runners(tmp_path: Path) -> No
         assert effect == baseline, f"{name} diverged from inline: {effect} != {baseline}"
 
     if len(effects) == 1:  # only inline available in this env — record why
-        pytest.skip("only the inline runner is available (no fakeredis, no dbos) — parity trivial")
+        pytest.skip(
+            "only the inline runner is available (fakeredis/taskiq not installed) — parity trivial"
+        )
+
+
+async def test_temporal_runner_dispatches_across_worker_restart(tmp_path: Path) -> None:
+    """Exercise the external Temporal server and reopen the same local journal."""
+    # tests/conftest.py scrubs MEMSPINE_* configuration variables; the test-only
+    # prefix is deliberately preserved for explicit live service gates.
+    address = os.environ.get("MEMSPINE_TEST_TEMPORAL_ADDRESS")
+    if not address:
+        pytest.skip("set MEMSPINE_TEST_TEMPORAL_ADDRESS to run the live Temporal integration gate")
+    pytest.importorskip("temporalio", reason="Temporal SDK extra is not installed")
+    from temporalio.client import WorkflowFailureError
+
+    from memspine.workers.temporal_runner import TemporalRunner, fingerprint_input
+
+    executions: list[int] = []
+
+    async def probe(_ctx: PipelineContext) -> dict[str, object]:
+        executions.append(len(executions) + 1)
+        return {"status": "ok", "execution": executions[-1]}
+
+    ctx, storage, client = await _build_ctx(str(tmp_path / "temporal-engine.db"))
+    journal_path = tmp_path / "temporal-journal.sqlite"
+    task_queue = f"memspine-test-{uuid.uuid4().hex}"
+    deployment_id = f"temporal-test-{uuid.uuid4().hex}"
+
+    def create_runner() -> Any:
+        runner = TemporalRunner(
+            address=address,
+            namespace=os.environ.get("MEMSPINE_TEMPORAL_NAMESPACE", "default"),
+            task_queue=task_queue,
+            deployment_id=deployment_id,
+            journal_path=str(journal_path),
+            context_factory=lambda: ctx,
+            rpc_timeout_s=30,
+            workflow_timeout_s=240,
+            activity_timeout_s=60,
+            max_concurrent_activities=1,
+            retry_max_attempts=1,
+            resonate_task_timeout_s=20,
+            step_timeout_s=15,
+            step_lease_s=90,
+        )
+        runner.register("journal-smoke-v1", probe)
+        return runner
+
+    try:
+        first_worker = create_runner()
+        try:
+            await first_worker.start()
+            first_result = await first_worker.run(
+                "journal-smoke-v1",
+                ctx,
+                operation_id="same-business-operation",
+                input_fingerprint=fingerprint_input({"source": "business-payload-v1"}),
+            )
+        finally:
+            await first_worker.close()
+        assert first_result == {"status": "ok", "execution": 1}
+        assert executions == [1]
+        assert journal_path.is_file()
+        with sqlite3.connect(journal_path) as connection:
+            assert (
+                connection.execute(
+                    "SELECT count(*) FROM micro_steps WHERE state = 'COMPLETED'"
+                ).fetchone()[0]
+                == 1
+            )
+
+        second_worker = create_runner()
+        try:
+            await second_worker.start()
+            second_result = await second_worker.run(
+                "journal-smoke-v1",
+                ctx,
+                operation_id="same-business-operation",
+                input_fingerprint=fingerprint_input({"source": "business-payload-v1"}),
+            )
+        finally:
+            await second_worker.close()
+        assert second_result == first_result
+        assert executions == [1]  # completed same-operation output was reused
+        assert journal_path.is_file()
+        with sqlite3.connect(journal_path) as connection:
+            assert (
+                connection.execute(
+                    "SELECT count(*) FROM micro_steps WHERE state = 'COMPLETED'"
+                ).fetchone()[0]
+                == 1
+            )
+
+        changed_input_worker = create_runner()
+        try:
+            await changed_input_worker.start()
+            with pytest.raises(WorkflowFailureError):
+                await changed_input_worker.run(
+                    "journal-smoke-v1",
+                    ctx,
+                    operation_id="same-business-operation",
+                    input_fingerprint=fingerprint_input({"source": "business-payload-v2"}),
+                )
+        finally:
+            await changed_input_worker.close()
+        assert executions == [1]
+    finally:
+        await storage.stop()
+        await client.close()
+
+
+async def test_temporal_retry_reclaims_failed_pipeline_lease(tmp_path: Path) -> None:
+    """A real Temporal Activity retry reclaims the local journal lease."""
+    address = os.environ.get("MEMSPINE_TEST_TEMPORAL_ADDRESS")
+    if not address:
+        pytest.skip("set MEMSPINE_TEST_TEMPORAL_ADDRESS to run the live Temporal integration gate")
+    pytest.importorskip("temporalio", reason="Temporal SDK extra is not installed")
+
+    from memspine.workers.temporal_runner import TemporalRunner, fingerprint_input
+
+    calls = 0
+
+    async def fail_once(_ctx: PipelineContext) -> dict[str, object]:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            raise RuntimeError("transient failure before side effect")
+        return {"status": "ok", "calls": calls}
+
+    ctx, storage, client = await _build_ctx(str(tmp_path / "temporal-retry-engine.db"))
+    journal_path = tmp_path / "temporal-retry-journal.sqlite"
+    runner = TemporalRunner(
+        address=address,
+        namespace=os.environ.get("MEMSPINE_TEST_TEMPORAL_NAMESPACE", "default"),
+        task_queue=f"memspine-retry-test-{uuid.uuid4().hex}",
+        deployment_id=f"temporal-retry-test-{uuid.uuid4().hex}",
+        journal_path=str(journal_path),
+        context_factory=lambda: ctx,
+        rpc_timeout_s=10,
+        workflow_timeout_s=30,
+        activity_timeout_s=1,
+        max_concurrent_activities=1,
+        retry_max_attempts=3,
+        resonate_task_timeout_s=0.4,
+        step_timeout_s=0.2,
+        step_lease_s=1.5,
+        journal_busy_timeout_s=0.05,
+    )
+    runner.register("retry-smoke-v1", fail_once)
+    try:
+        await runner.start()
+        result = await runner.run(
+            "retry-smoke-v1",
+            ctx,
+            operation_id="same-retry-operation",
+            input_fingerprint=fingerprint_input({"source": "transient-retry-payload"}),
+        )
+        assert result == {"status": "ok", "calls": 2}
+        assert calls == 2
+        with sqlite3.connect(journal_path) as connection:
+            rows = connection.execute("SELECT state, fencing_token FROM micro_steps").fetchall()
+        assert rows == [("COMPLETED", 2)]
+    finally:
+        await runner.close()
+        await storage.stop()
+        await client.close()
+
+
+@pytest.mark.parametrize(
+    "error",
+    [
+        ImportError("internal adapter broken"),
+        ModuleNotFoundError(name="memspine.workers.temporal_runner"),
+    ],
+)
+async def test_temporal_gate_does_not_skip_internal_import_failure(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, error: ImportError
+) -> None:
+    """A configured service and available SDK must expose internal import defects."""
+    monkeypatch.setenv("MEMSPINE_TEST_TEMPORAL_ADDRESS", "unused.invalid:7233")
+    original_import = builtins.__import__
+
+    def sdk_available(name: str, **kwargs: Any) -> object:
+        assert name == "temporalio"  # internal adapters must never use importorskip
+        return object()
+
+    def guarded_import(name: str, *args: Any, **kwargs: Any) -> Any:
+        if name == "temporalio.client":
+            return SimpleNamespace(WorkflowFailureError=RuntimeError)
+        if name == "memspine.workers.temporal_runner":
+            raise error
+        return original_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(pytest, "importorskip", sdk_available)
+    monkeypatch.setattr(builtins, "__import__", guarded_import)
+    with pytest.raises(type(error)) as caught:
+        await test_temporal_runner_dispatches_across_worker_restart(tmp_path)
+    assert caught.value is error
