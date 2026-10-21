@@ -15,6 +15,7 @@ from memspine import Engine
 from memspine.config.schema import EventLogConfig
 from memspine.config.schema.providers import SqliteSettings
 from memspine.config.schema.remote_providers import WeaviateSettings
+from memspine.providers import shared
 from memspine.providers.builtin import weaviate as weaviate_builtin
 from memspine.providers.builtin.lexical import TantivyBuilder
 from memspine.providers.builtin.storage import SqliteBuilder
@@ -26,7 +27,14 @@ from memspine.providers.contexts import (
 )
 from memspine.providers.contracts import ProjectionPlacement
 from memspine.providers.lifecycle import LifecycleState, ProviderLifecycleManager
-from memspine.providers.shared import shared_registry
+from memspine.providers.shared import ResourceRegistry, shared_registry
+
+
+@pytest.fixture(autouse=True)
+def _fresh_registry(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Each test asserts on its own registry entries; other tests may deliberately leave
+    a lease held (e.g. a startup test that makes a closer fail), so never share state."""
+    monkeypatch.setattr(shared, "_REGISTRY", ResourceRegistry())
 
 
 def _manager() -> ProviderLifecycleManager:
