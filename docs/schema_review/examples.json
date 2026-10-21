@@ -1,0 +1,1167 @@
+[
+  {
+    "kind": "Entity",
+    "value": {
+      "entity_id": "person-123",
+      "revision": 1,
+      "scope": {
+        "tenant": "tenant-demo",
+        "owner": "owner-demo",
+        "owner_kind": "user",
+        "namespace": "personal"
+      },
+      "type": "person",
+      "world": "real",
+      "label": "Hembad",
+      "identity_basis": "stable_id",
+      "identity_evidence_ids": [],
+      "status": "active",
+      "known_since": "2026-10-18T04:30:01Z",
+      "known_seq": 100
+    }
+  },
+  {
+    "kind": "Evidence",
+    "value": {
+      "evidence_id": "ev-001",
+      "role": "support",
+      "origin": "raw_message",
+      "source": {
+        "source": {
+          "id": "raw-001",
+          "version": 1
+        },
+        "scope": {
+          "tenant": "tenant-demo",
+          "owner": "owner-demo",
+          "owner_kind": "user",
+          "namespace": "personal"
+        },
+        "content_hash": "249d949b01a3ea34e3f5eb02236afb608d2c40f534df26ca3804f438d3578bf5",
+        "message_id": "msg-001",
+        "session_id": "S2",
+        "conversation_id": "C1",
+        "sender_id": "user-123",
+        "clock": {
+          "created_at": "2026-10-18T10:00:00+05:30",
+          "original_text": "2026-10-18T10:00:00+05:30",
+          "timezone": "Asia/Kolkata",
+          "timestamp_origin": "provided",
+          "timezone_origin": "provided"
+        },
+        "erasure_generation": 0,
+        "available_at": "2026-10-18T04:30:01Z",
+        "available_seq": 100
+      },
+      "seg_index": 0,
+      "span": {
+        "start": 0,
+        "end": 40,
+        "quote": "I moved from Porto to Lisbon last month."
+      },
+      "source_family": "principal:user-123"
+    }
+  },
+  {
+    "kind": "TemporalRef",
+    "value": {
+      "temporal_id": "time-sep",
+      "text": "last month",
+      "resolution": "resolved",
+      "value": {
+        "at": "2026-09-01T00:00:00+05:30",
+        "end_exclusive": "2026-10-01T00:00:00+05:30"
+      },
+      "precision": "month",
+      "text_precision": "month",
+      "approximate": false,
+      "basis": "source_time",
+      "timezone": "Asia/Kolkata",
+      "anchor": {
+        "kind": "source_clock",
+        "source": {
+          "source": {
+            "id": "raw-001",
+            "version": 1
+          },
+          "scope": {
+            "tenant": "tenant-demo",
+            "owner": "owner-demo",
+            "owner_kind": "user",
+            "namespace": "personal"
+          },
+          "content_hash": "249d949b01a3ea34e3f5eb02236afb608d2c40f534df26ca3804f438d3578bf5",
+          "message_id": "msg-001",
+          "session_id": "S2",
+          "conversation_id": "C1",
+          "sender_id": "user-123",
+          "clock": {
+            "created_at": "2026-10-18T10:00:00+05:30",
+            "original_text": "2026-10-18T10:00:00+05:30",
+            "timezone": "Asia/Kolkata",
+            "timestamp_origin": "provided",
+            "timezone_origin": "provided"
+          },
+          "erasure_generation": 0,
+          "available_at": "2026-10-18T04:30:01Z",
+          "available_seq": 100
+        },
+        "event": null,
+        "boundary": null,
+        "evidence_ids": [
+          "ev-001"
+        ]
+      },
+      "relation": null,
+      "evidence_ids": [
+        "ev-001"
+      ]
+    }
+  },
+  {
+    "kind": "Claim",
+    "value": {
+      "claim_id": "claim-001",
+      "revision": 1,
+      "scope": {
+        "tenant": "tenant-demo",
+        "owner": "owner-demo",
+        "owner_kind": "user",
+        "namespace": "personal"
+      },
+      "subject": {
+        "entity_id": "person-123",
+        "mention_id": null
+      },
+      "predicate": "move_destination",
+      "attribute_key": null,
+      "object": {
+        "kind": "entity",
+        "ref": {
+          "entity_id": "place-lisbon",
+          "mention_id": null
+        }
+      },
+      "event_id": "move-001",
+      "asserted_by": "user-123",
+      "reported_by": null,
+      "source_class": "user_stated",
+      "text": "The stated move destination is Lisbon.",
+      "time": {
+        "valid": null,
+        "occurred": {
+          "temporal_id": "time-sep",
+          "text": "last month",
+          "resolution": "resolved",
+          "value": {
+            "at": "2026-09-01T00:00:00+05:30",
+            "end_exclusive": "2026-10-01T00:00:00+05:30"
+          },
+          "precision": "month",
+          "text_precision": "month",
+          "approximate": false,
+          "basis": "source_time",
+          "timezone": "Asia/Kolkata",
+          "anchor": {
+            "kind": "source_clock",
+            "source": {
+              "source": {
+                "id": "raw-001",
+                "version": 1
+              },
+              "scope": {
+                "tenant": "tenant-demo",
+                "owner": "owner-demo",
+                "owner_kind": "user",
+                "namespace": "personal"
+              },
+              "content_hash": "249d949b01a3ea34e3f5eb02236afb608d2c40f534df26ca3804f438d3578bf5",
+              "message_id": "msg-001",
+              "session_id": "S2",
+              "conversation_id": "C1",
+              "sender_id": "user-123",
+              "clock": {
+                "created_at": "2026-10-18T10:00:00+05:30",
+                "original_text": "2026-10-18T10:00:00+05:30",
+                "timezone": "Asia/Kolkata",
+                "timestamp_origin": "provided",
+                "timezone_origin": "provided"
+              },
+              "erasure_generation": 0,
+              "available_at": "2026-10-18T04:30:01Z",
+              "available_seq": 100
+            },
+            "event": null,
+            "boundary": null,
+            "evidence_ids": [
+              "ev-001"
+            ]
+          },
+          "relation": null,
+          "evidence_ids": [
+            "ev-001"
+          ]
+        },
+        "source_clock": {
+          "created_at": "2026-10-18T10:00:00+05:30",
+          "original_text": "2026-10-18T10:00:00+05:30",
+          "timezone": "Asia/Kolkata",
+          "timestamp_origin": "provided",
+          "timezone_origin": "provided"
+        },
+        "recorded_at": "2026-10-18T04:30:02Z",
+        "known_since": "2026-10-18T04:30:02Z",
+        "known_seq": 101
+      },
+      "assessment": {
+        "source_trust": 1.0,
+        "modality": "asserted",
+        "negated": false,
+        "binding": "bound",
+        "support_families": [
+          "principal:user-123"
+        ],
+        "restated": 0,
+        "grounding": "grounded"
+      },
+      "status": "active",
+      "evidence": [
+        {
+          "evidence_id": "ev-001",
+          "role": "support",
+          "origin": "raw_message",
+          "source": {
+            "source": {
+              "id": "raw-001",
+              "version": 1
+            },
+            "scope": {
+              "tenant": "tenant-demo",
+              "owner": "owner-demo",
+              "owner_kind": "user",
+              "namespace": "personal"
+            },
+            "content_hash": "249d949b01a3ea34e3f5eb02236afb608d2c40f534df26ca3804f438d3578bf5",
+            "message_id": "msg-001",
+            "session_id": "S2",
+            "conversation_id": "C1",
+            "sender_id": "user-123",
+            "clock": {
+              "created_at": "2026-10-18T10:00:00+05:30",
+              "original_text": "2026-10-18T10:00:00+05:30",
+              "timezone": "Asia/Kolkata",
+              "timestamp_origin": "provided",
+              "timezone_origin": "provided"
+            },
+            "erasure_generation": 0,
+            "available_at": "2026-10-18T04:30:01Z",
+            "available_seq": 100
+          },
+          "seg_index": 0,
+          "span": {
+            "start": 0,
+            "end": 40,
+            "quote": "I moved from Porto to Lisbon last month."
+          },
+          "source_family": "principal:user-123"
+        }
+      ],
+      "links": [],
+      "producer": {
+        "kind": "rule",
+        "name": "explicit-move",
+        "version": "1",
+        "settings_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+        "model_id": null
+      },
+      "effect_id": "effect-001"
+    }
+  },
+  {
+    "kind": "EventOccurrence",
+    "value": {
+      "event_id": "move-001",
+      "revision": 1,
+      "scope": {
+        "tenant": "tenant-demo",
+        "owner": "owner-demo",
+        "owner_kind": "user",
+        "namespace": "personal"
+      },
+      "event_type": "move",
+      "participants": [
+        {
+          "role": "mover",
+          "entity": {
+            "entity_id": "person-123",
+            "mention_id": null
+          },
+          "evidence_ids": [
+            "ev-001"
+          ]
+        }
+      ],
+      "stage": "completed",
+      "participation_mode": "physical",
+      "time": {
+        "valid": null,
+        "occurred": {
+          "temporal_id": "time-sep",
+          "text": "last month",
+          "resolution": "resolved",
+          "value": {
+            "at": "2026-09-01T00:00:00+05:30",
+            "end_exclusive": "2026-10-01T00:00:00+05:30"
+          },
+          "precision": "month",
+          "text_precision": "month",
+          "approximate": false,
+          "basis": "source_time",
+          "timezone": "Asia/Kolkata",
+          "anchor": {
+            "kind": "source_clock",
+            "source": {
+              "source": {
+                "id": "raw-001",
+                "version": 1
+              },
+              "scope": {
+                "tenant": "tenant-demo",
+                "owner": "owner-demo",
+                "owner_kind": "user",
+                "namespace": "personal"
+              },
+              "content_hash": "249d949b01a3ea34e3f5eb02236afb608d2c40f534df26ca3804f438d3578bf5",
+              "message_id": "msg-001",
+              "session_id": "S2",
+              "conversation_id": "C1",
+              "sender_id": "user-123",
+              "clock": {
+                "created_at": "2026-10-18T10:00:00+05:30",
+                "original_text": "2026-10-18T10:00:00+05:30",
+                "timezone": "Asia/Kolkata",
+                "timestamp_origin": "provided",
+                "timezone_origin": "provided"
+              },
+              "erasure_generation": 0,
+              "available_at": "2026-10-18T04:30:01Z",
+              "available_seq": 100
+            },
+            "event": null,
+            "boundary": null,
+            "evidence_ids": [
+              "ev-001"
+            ]
+          },
+          "relation": null,
+          "evidence_ids": [
+            "ev-001"
+          ]
+        },
+        "source_clock": {
+          "created_at": "2026-10-18T10:00:00+05:30",
+          "original_text": "2026-10-18T10:00:00+05:30",
+          "timezone": "Asia/Kolkata",
+          "timestamp_origin": "provided",
+          "timezone_origin": "provided"
+        },
+        "recorded_at": "2026-10-18T04:30:02Z",
+        "known_since": "2026-10-18T04:30:02Z",
+        "known_seq": 101
+      },
+      "claim_refs": [
+        {
+          "id": "claim-001",
+          "version": 1
+        }
+      ],
+      "same_event_links": [],
+      "identity_status": "resolved",
+      "producer": {
+        "kind": "rule",
+        "name": "explicit-move",
+        "version": "1",
+        "settings_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+        "model_id": null
+      }
+    }
+  },
+  {
+    "kind": "Bundle",
+    "value": {
+      "bundle_id": "bundle-001",
+      "scope": {
+        "tenant": "tenant-demo",
+        "owner": "owner-demo",
+        "owner_kind": "user",
+        "namespace": "personal"
+      },
+      "claims": [
+        {
+          "id": "claim-001",
+          "version": 1
+        }
+      ],
+      "evidence": [
+        {
+          "evidence_id": "ev-001",
+          "role": "support",
+          "origin": "raw_message",
+          "source": {
+            "source": {
+              "id": "raw-001",
+              "version": 1
+            },
+            "scope": {
+              "tenant": "tenant-demo",
+              "owner": "owner-demo",
+              "owner_kind": "user",
+              "namespace": "personal"
+            },
+            "content_hash": "249d949b01a3ea34e3f5eb02236afb608d2c40f534df26ca3804f438d3578bf5",
+            "message_id": "msg-001",
+            "session_id": "S2",
+            "conversation_id": "C1",
+            "sender_id": "user-123",
+            "clock": {
+              "created_at": "2026-10-18T10:00:00+05:30",
+              "original_text": "2026-10-18T10:00:00+05:30",
+              "timezone": "Asia/Kolkata",
+              "timestamp_origin": "provided",
+              "timezone_origin": "provided"
+            },
+            "erasure_generation": 0,
+            "available_at": "2026-10-18T04:30:01Z",
+            "available_seq": 100
+          },
+          "seg_index": 0,
+          "span": {
+            "start": 0,
+            "end": 40,
+            "quote": "I moved from Porto to Lisbon last month."
+          },
+          "source_family": "principal:user-123"
+        }
+      ],
+      "copy_manifest": [
+        {
+          "copy_id": "copy-001",
+          "evidence_id": "ev-001",
+          "source": {
+            "id": "raw-001",
+            "version": 1
+          },
+          "excerpt_hash": "249d949b01a3ea34e3f5eb02236afb608d2c40f534df26ca3804f438d3578bf5",
+          "erasure_generation": 0,
+          "child_copy_ids": []
+        }
+      ],
+      "dependencies": [
+        {
+          "dependency_id": "dep-001",
+          "kind": "support",
+          "evidence_ids": [
+            "ev-001"
+          ],
+          "claim_refs": [
+            {
+              "id": "claim-001",
+              "version": 1
+            }
+          ],
+          "mandatory": true,
+          "branch_id": null
+        },
+        {
+          "dependency_id": "dep-002",
+          "kind": "time_anchor",
+          "evidence_ids": [
+            "ev-001"
+          ],
+          "claim_refs": [],
+          "mandatory": true,
+          "branch_id": null
+        }
+      ],
+      "temporal_refs": [
+        {
+          "temporal_id": "time-sep",
+          "text": "last month",
+          "resolution": "resolved",
+          "value": {
+            "at": "2026-09-01T00:00:00+05:30",
+            "end_exclusive": "2026-10-01T00:00:00+05:30"
+          },
+          "precision": "month",
+          "text_precision": "month",
+          "approximate": false,
+          "basis": "source_time",
+          "timezone": "Asia/Kolkata",
+          "anchor": {
+            "kind": "source_clock",
+            "source": {
+              "source": {
+                "id": "raw-001",
+                "version": 1
+              },
+              "scope": {
+                "tenant": "tenant-demo",
+                "owner": "owner-demo",
+                "owner_kind": "user",
+                "namespace": "personal"
+              },
+              "content_hash": "249d949b01a3ea34e3f5eb02236afb608d2c40f534df26ca3804f438d3578bf5",
+              "message_id": "msg-001",
+              "session_id": "S2",
+              "conversation_id": "C1",
+              "sender_id": "user-123",
+              "clock": {
+                "created_at": "2026-10-18T10:00:00+05:30",
+                "original_text": "2026-10-18T10:00:00+05:30",
+                "timezone": "Asia/Kolkata",
+                "timestamp_origin": "provided",
+                "timezone_origin": "provided"
+              },
+              "erasure_generation": 0,
+              "available_at": "2026-10-18T04:30:01Z",
+              "available_seq": 100
+            },
+            "event": null,
+            "boundary": null,
+            "evidence_ids": [
+              "ev-001"
+            ]
+          },
+          "relation": null,
+          "evidence_ids": [
+            "ev-001"
+          ]
+        }
+      ],
+      "coverage": {
+        "kind": "observed_subset",
+        "requested_scope": "all moves mentioned by this owner",
+        "enumerated_scope": "this source only",
+        "scope_snapshot_hash": null,
+        "continuation": null,
+        "reasons": [
+          "No exhaustive lifetime evidence"
+        ],
+        "proof_evidence_ids": []
+      },
+      "cost": {
+        "value": 60,
+        "unit": "tokens",
+        "method": "estimated",
+        "tokenizer_id": null
+      },
+      "producer": {
+        "kind": "rule",
+        "name": "explicit-move",
+        "version": "1",
+        "settings_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+        "model_id": null
+      }
+    }
+  },
+  {
+    "kind": "Mention",
+    "value": {
+      "mention_id": "mention-cambridge",
+      "source": {
+        "source": {
+          "id": "raw-002",
+          "version": 1
+        },
+        "scope": {
+          "tenant": "tenant-demo",
+          "owner": "owner-demo",
+          "owner_kind": "user",
+          "namespace": "personal"
+        },
+        "content_hash": "edffd26e19660e695bfb615031162daf0aaf38bc794a76aa36991d2575e0a273",
+        "message_id": "msg-002",
+        "session_id": "S2",
+        "conversation_id": "C1",
+        "sender_id": "user-123",
+        "clock": {
+          "created_at": "2026-10-18T10:00:00+05:30",
+          "original_text": "2026-10-18T10:00:00+05:30",
+          "timezone": "Asia/Kolkata",
+          "timestamp_origin": "provided",
+          "timezone_origin": "provided"
+        },
+        "erasure_generation": 0,
+        "available_at": "2026-10-18T04:30:01Z",
+        "available_seq": 100
+      },
+      "seg_index": 0,
+      "span": {
+        "start": 11,
+        "end": 20,
+        "quote": "Cambridge"
+      },
+      "entity_type_hint": "place",
+      "world_hint": "real",
+      "resolution": "ambiguous",
+      "entity_id": null,
+      "candidate_entity_ids": [
+        "place-cambridge-uk",
+        "place-cambridge-us"
+      ],
+      "reasons": [
+        "Illustration only: candidate list does not establish location"
+      ],
+      "asserted": false
+    }
+  },
+  {
+    "kind": "Evidence",
+    "value": {
+      "evidence_id": "ev-missing",
+      "role": "support",
+      "origin": "raw_message",
+      "source": {
+        "source": {
+          "id": "raw-missing",
+          "version": 1
+        },
+        "scope": {
+          "tenant": "tenant-demo",
+          "owner": "owner-demo",
+          "owner_kind": "user",
+          "namespace": "personal"
+        },
+        "content_hash": "de0c3205d01359c5a5b357c7826779f281083b32e355df36e0c728c77e53fcb4",
+        "message_id": "msg-missing",
+        "session_id": "S2",
+        "conversation_id": "C1",
+        "sender_id": "user-123",
+        "clock": {
+          "created_at": "2026-10-18T10:00:00+05:30",
+          "original_text": null,
+          "timezone": "Asia/Kolkata",
+          "timestamp_origin": "generated",
+          "timezone_origin": "provided"
+        },
+        "erasure_generation": 0,
+        "available_at": "2026-10-18T04:30:01Z",
+        "available_seq": 100
+      },
+      "seg_index": 0,
+      "span": {
+        "start": 0,
+        "end": 19,
+        "quote": "I moved last month."
+      },
+      "source_family": "principal:user-123"
+    }
+  },
+  {
+    "kind": "TemporalRef",
+    "value": {
+      "temporal_id": "time-unknown",
+      "text": "last month",
+      "resolution": "unresolved",
+      "value": null,
+      "precision": "unknown",
+      "text_precision": "month",
+      "approximate": false,
+      "basis": "none",
+      "timezone": null,
+      "anchor": null,
+      "relation": null,
+      "evidence_ids": [
+        "ev-missing"
+      ]
+    }
+  },
+  {
+    "kind": "Evidence",
+    "value": {
+      "evidence_id": "ev-civil",
+      "role": "support",
+      "origin": "raw_message",
+      "source": {
+        "source": {
+          "id": "raw-civil",
+          "version": 1
+        },
+        "scope": {
+          "tenant": "tenant-demo",
+          "owner": "owner-demo",
+          "owner_kind": "user",
+          "namespace": "personal"
+        },
+        "content_hash": "f7931244511c4450b248a4f5d5971689bc85534e876fc3ab6b42ba42812495ea",
+        "message_id": "msg-civil",
+        "session_id": "S2",
+        "conversation_id": "C1",
+        "sender_id": "user-123",
+        "clock": {
+          "created_at": null,
+          "original_text": null,
+          "timezone": null,
+          "timestamp_origin": "unknown",
+          "timezone_origin": "unknown"
+        },
+        "erasure_generation": 0,
+        "available_at": "2026-10-18T04:30:01Z",
+        "available_seq": 100
+      },
+      "seg_index": 0,
+      "span": {
+        "start": 0,
+        "end": 24,
+        "quote": "I visited on 7 May 2023."
+      },
+      "source_family": "principal:user-123"
+    }
+  },
+  {
+    "kind": "TemporalRef",
+    "value": {
+      "temporal_id": "civil-date",
+      "text": "7 May 2023",
+      "resolution": "unresolved",
+      "value": null,
+      "precision": "unknown",
+      "text_precision": "day",
+      "approximate": false,
+      "basis": "none",
+      "timezone": null,
+      "anchor": null,
+      "relation": null,
+      "evidence_ids": [
+        "ev-civil"
+      ]
+    }
+  },
+  {
+    "kind": "Claim",
+    "value": {
+      "claim_id": "claim-plan",
+      "revision": 1,
+      "scope": {
+        "tenant": "tenant-demo",
+        "owner": "owner-demo",
+        "owner_kind": "user",
+        "namespace": "personal"
+      },
+      "subject": {
+        "entity_id": "person-123",
+        "mention_id": null
+      },
+      "predicate": "intends",
+      "attribute_key": null,
+      "object": {
+        "kind": "text",
+        "text": "move to Lisbon",
+        "language": "en"
+      },
+      "event_id": null,
+      "asserted_by": "user-123",
+      "reported_by": null,
+      "source_class": "user_stated",
+      "text": "The source proposes a future move.",
+      "time": {
+        "valid": null,
+        "occurred": null,
+        "source_clock": {
+          "created_at": "2026-10-18T10:00:00+05:30",
+          "original_text": "2026-10-18T10:00:00+05:30",
+          "timezone": "Asia/Kolkata",
+          "timestamp_origin": "provided",
+          "timezone_origin": "provided"
+        },
+        "recorded_at": "2026-10-18T04:30:02Z",
+        "known_since": "2026-10-18T04:30:02Z",
+        "known_seq": 101
+      },
+      "assessment": {
+        "source_trust": 1.0,
+        "modality": "planned",
+        "negated": false,
+        "binding": "bound",
+        "support_families": [
+          "principal:user-123"
+        ],
+        "restated": 0,
+        "grounding": "grounded"
+      },
+      "status": "tentative",
+      "evidence": [
+        {
+          "evidence_id": "ev-plan",
+          "role": "support",
+          "origin": "raw_message",
+          "source": {
+            "source": {
+              "id": "raw-plan",
+              "version": 1
+            },
+            "scope": {
+              "tenant": "tenant-demo",
+              "owner": "owner-demo",
+              "owner_kind": "user",
+              "namespace": "personal"
+            },
+            "content_hash": "41b501e16b9eaf6ae7d441c48de173687be495239386f113d55383ab87bad167",
+            "message_id": "msg-plan",
+            "session_id": "S2",
+            "conversation_id": "C1",
+            "sender_id": "user-123",
+            "clock": {
+              "created_at": "2026-10-18T10:00:00+05:30",
+              "original_text": "2026-10-18T10:00:00+05:30",
+              "timezone": "Asia/Kolkata",
+              "timestamp_origin": "provided",
+              "timezone_origin": "provided"
+            },
+            "erasure_generation": 0,
+            "available_at": "2026-10-18T04:30:01Z",
+            "available_seq": 100
+          },
+          "seg_index": 0,
+          "span": {
+            "start": 0,
+            "end": 25,
+            "quote": "I plan to move to Lisbon."
+          },
+          "source_family": "principal:user-123"
+        }
+      ],
+      "links": [],
+      "producer": {
+        "kind": "rule",
+        "name": "explicit-move",
+        "version": "1",
+        "settings_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+        "model_id": null
+      },
+      "effect_id": "effect-plan"
+    }
+  },
+  {
+    "kind": "Claim",
+    "value": {
+      "claim_id": "claim-correction",
+      "revision": 1,
+      "scope": {
+        "tenant": "tenant-demo",
+        "owner": "owner-demo",
+        "owner_kind": "user",
+        "namespace": "personal"
+      },
+      "subject": {
+        "entity_id": "person-123",
+        "mention_id": null
+      },
+      "predicate": "move_destination",
+      "attribute_key": null,
+      "object": {
+        "kind": "entity",
+        "ref": {
+          "entity_id": "place-coimbra",
+          "mention_id": null
+        }
+      },
+      "event_id": "move-001",
+      "asserted_by": "user-123",
+      "reported_by": null,
+      "source_class": "user_stated",
+      "text": "The corrected stated move destination is Coimbra.",
+      "time": {
+        "valid": null,
+        "occurred": {
+          "temporal_id": "time-sep",
+          "text": "last month",
+          "resolution": "resolved",
+          "value": {
+            "at": "2026-09-01T00:00:00+05:30",
+            "end_exclusive": "2026-10-01T00:00:00+05:30"
+          },
+          "precision": "month",
+          "text_precision": "month",
+          "approximate": false,
+          "basis": "source_time",
+          "timezone": "Asia/Kolkata",
+          "anchor": {
+            "kind": "source_clock",
+            "source": {
+              "source": {
+                "id": "raw-001",
+                "version": 1
+              },
+              "scope": {
+                "tenant": "tenant-demo",
+                "owner": "owner-demo",
+                "owner_kind": "user",
+                "namespace": "personal"
+              },
+              "content_hash": "249d949b01a3ea34e3f5eb02236afb608d2c40f534df26ca3804f438d3578bf5",
+              "message_id": "msg-001",
+              "session_id": "S2",
+              "conversation_id": "C1",
+              "sender_id": "user-123",
+              "clock": {
+                "created_at": "2026-10-18T10:00:00+05:30",
+                "original_text": "2026-10-18T10:00:00+05:30",
+                "timezone": "Asia/Kolkata",
+                "timestamp_origin": "provided",
+                "timezone_origin": "provided"
+              },
+              "erasure_generation": 0,
+              "available_at": "2026-10-18T04:30:01Z",
+              "available_seq": 100
+            },
+            "event": null,
+            "boundary": null,
+            "evidence_ids": [
+              "ev-001"
+            ]
+          },
+          "relation": null,
+          "evidence_ids": [
+            "ev-001"
+          ]
+        },
+        "source_clock": {
+          "created_at": "2026-10-18T10:00:00+05:30",
+          "original_text": "2026-10-18T10:00:00+05:30",
+          "timezone": "Asia/Kolkata",
+          "timestamp_origin": "provided",
+          "timezone_origin": "provided"
+        },
+        "recorded_at": "2026-10-18T04:30:02Z",
+        "known_since": "2026-10-18T04:30:02Z",
+        "known_seq": 101
+      },
+      "assessment": {
+        "source_trust": 1.0,
+        "modality": "asserted",
+        "negated": false,
+        "binding": "bound",
+        "support_families": [
+          "principal:user-123"
+        ],
+        "restated": 0,
+        "grounding": "grounded"
+      },
+      "status": "active",
+      "evidence": [
+        {
+          "evidence_id": "ev-correction",
+          "role": "support",
+          "origin": "raw_message",
+          "source": {
+            "source": {
+              "id": "raw-correction",
+              "version": 1
+            },
+            "scope": {
+              "tenant": "tenant-demo",
+              "owner": "owner-demo",
+              "owner_kind": "user",
+              "namespace": "personal"
+            },
+            "content_hash": "060e85feb190706fbc6e187fcbd6436956ef7af0d5dc1d284c1dce0f90e1e006",
+            "message_id": "msg-correction",
+            "session_id": "S2",
+            "conversation_id": "C1",
+            "sender_id": "user-123",
+            "clock": {
+              "created_at": "2026-10-18T10:00:00+05:30",
+              "original_text": "2026-10-18T10:00:00+05:30",
+              "timezone": "Asia/Kolkata",
+              "timestamp_origin": "provided",
+              "timezone_origin": "provided"
+            },
+            "erasure_generation": 0,
+            "available_at": "2026-10-18T04:30:01Z",
+            "available_seq": 100
+          },
+          "seg_index": 0,
+          "span": {
+            "start": 0,
+            "end": 40,
+            "quote": "Correction: I meant Coimbra, not Lisbon."
+          },
+          "source_family": "principal:user-123"
+        },
+        {
+          "evidence_id": "ev-001",
+          "role": "binding",
+          "origin": "raw_message",
+          "source": {
+            "source": {
+              "id": "raw-001",
+              "version": 1
+            },
+            "scope": {
+              "tenant": "tenant-demo",
+              "owner": "owner-demo",
+              "owner_kind": "user",
+              "namespace": "personal"
+            },
+            "content_hash": "249d949b01a3ea34e3f5eb02236afb608d2c40f534df26ca3804f438d3578bf5",
+            "message_id": "msg-001",
+            "session_id": "S2",
+            "conversation_id": "C1",
+            "sender_id": "user-123",
+            "clock": {
+              "created_at": "2026-10-18T10:00:00+05:30",
+              "original_text": "2026-10-18T10:00:00+05:30",
+              "timezone": "Asia/Kolkata",
+              "timestamp_origin": "provided",
+              "timezone_origin": "provided"
+            },
+            "erasure_generation": 0,
+            "available_at": "2026-10-18T04:30:01Z",
+            "available_seq": 100
+          },
+          "seg_index": 0,
+          "span": {
+            "start": 0,
+            "end": 40,
+            "quote": "I moved from Porto to Lisbon last month."
+          },
+          "source_family": "principal:user-123"
+        }
+      ],
+      "links": [
+        {
+          "relation": "corrects",
+          "target": {
+            "id": "claim-001",
+            "version": 1
+          }
+        }
+      ],
+      "producer": {
+        "kind": "rule",
+        "name": "explicit-move",
+        "version": "1",
+        "settings_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+        "model_id": null
+      },
+      "effect_id": "effect-correction"
+    }
+  },
+  {
+    "kind": "Unresolved",
+    "value": {
+      "annotation_id": "unresolved-cambridge",
+      "revision": 1,
+      "scope": {
+        "tenant": "tenant-demo",
+        "owner": "owner-demo",
+        "owner_kind": "user",
+        "namespace": "personal"
+      },
+      "source": {
+        "source": {
+          "id": "raw-002",
+          "version": 1
+        },
+        "scope": {
+          "tenant": "tenant-demo",
+          "owner": "owner-demo",
+          "owner_kind": "user",
+          "namespace": "personal"
+        },
+        "content_hash": "edffd26e19660e695bfb615031162daf0aaf38bc794a76aa36991d2575e0a273",
+        "message_id": "msg-002",
+        "session_id": "S2",
+        "conversation_id": "C1",
+        "sender_id": "user-123",
+        "clock": {
+          "created_at": "2026-10-18T10:00:00+05:30",
+          "original_text": "2026-10-18T10:00:00+05:30",
+          "timezone": "Asia/Kolkata",
+          "timestamp_origin": "provided",
+          "timezone_origin": "provided"
+        },
+        "erasure_generation": 0,
+        "available_at": "2026-10-18T04:30:01Z",
+        "available_seq": 100
+      },
+      "mention_ids": [
+        "mention-cambridge"
+      ],
+      "reason": "ambiguous_place",
+      "candidates": [],
+      "search": {
+        "scope": {
+          "tenant": "tenant-demo",
+          "owner": "owner-demo",
+          "owner_kind": "user",
+          "namespace": "personal"
+        },
+        "as_of_known": null,
+        "as_of_seq": null,
+        "methods": [
+          "exact",
+          "bm25"
+        ],
+        "limit": 20,
+        "covered_all_relevant_scope": false,
+        "continuation": "opaque-cursor"
+      },
+      "retry_eligible": true,
+      "retry_on": [
+        "new_evidence"
+      ],
+      "producer": {
+        "kind": "rule",
+        "name": "explicit-move",
+        "version": "1",
+        "settings_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+        "model_id": null
+      },
+      "known_since": "2026-10-18T04:30:01Z"
+    }
+  },
+  {
+    "kind": "Computation",
+    "value": {
+      "computation_id": "count-demo",
+      "operator": "count",
+      "input_claim_refs": [
+        {
+          "id": "claim-001",
+          "version": 1
+        }
+      ],
+      "event_ids": [
+        "move-001"
+      ],
+      "coverage": {
+        "kind": "observed_subset",
+        "requested_scope": "all moves mentioned by this owner",
+        "enumerated_scope": "this source only",
+        "scope_snapshot_hash": null,
+        "continuation": null,
+        "reasons": [
+          "No exhaustive lifetime evidence"
+        ],
+        "proof_evidence_ids": []
+      },
+      "result": {
+        "kind": "number",
+        "amount": 1,
+        "unit": "event",
+        "currency": null
+      },
+      "result_kind": "lower_bound",
+      "duration": null,
+      "producer": {
+        "kind": "rule",
+        "name": "explicit-move",
+        "version": "1",
+        "settings_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+        "model_id": null
+      }
+    }
+  }
+]

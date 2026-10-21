@@ -1,0 +1,15 @@
+{
+  "date": "2026-10-21",
+  "status": "passed",
+  "meaning": "Review artifact/source consistency passed; identified defects remain open",
+  "source_hashes_verified": 615,
+  "finding_count": 21,
+  "isolated_failures_reproduced": 2,
+  "unsafe_rule_candidate_cases": 2,
+  "unknown_id_and_civil_time_probes": "observed current behaviour",
+  "runtime_changes": false,
+  "full_suite": false,
+  "generative_or_model_calls": 0,
+  "provider_statuses_advanced": false,
+  "BI_statuses_advanced": false
+}

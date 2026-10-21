@@ -1,0 +1,13 @@
+{
+  "status": "passed",
+  "models": 6,
+  "conditions": 288,
+  "replayed_pack_outcomes": 1728,
+  "fixtures": 48,
+  "source_spans": "exact source substring matches",
+  "message_lengths": "all exactly 64/128/256 common BERT tokens",
+  "dependencies": "all references resolve; all linked accepted bundles complete",
+  "budget_counters": "all saved selections, costs, retention and completeness reproduced",
+  "scope": "kernel only; no generative calls, no whole engine or full suite",
+  "fit_boundary_checks": "oversize skip, exact fit, duplicate and whole-unit rejection passed separately"
+}

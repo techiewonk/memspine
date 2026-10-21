@@ -1,0 +1,15 @@
+{
+  "status": "passed",
+  "primary": 10,
+  "similarity": 4,
+  "label_sensitivity": 1,
+  "checks": [
+    "finite JSON scores/timings",
+    "fixture hashes for primary/similarity",
+    "NER TP/FP/FN/F1 recomputation",
+    "script packaging hashes",
+    "Python AST",
+    "failure description matches TinyBERT output"
+  ],
+  "scope": "kernel artifact validation only; no full suite"
+}

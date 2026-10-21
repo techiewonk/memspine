@@ -1,0 +1,1405 @@
+{
+  "status": "ACCEPTED_VOCABULARY_EXTRACTION_GATED",
+  "version": 1,
+  "runtime_implemented": false,
+  "predicates": [
+    {
+      "spec": {
+        "name": "resides_in",
+        "version": 1,
+        "subject_types": [
+          "person",
+          "agent",
+          "group"
+        ],
+        "value_kinds": [
+          "entity"
+        ],
+        "semantics": "state",
+        "cardinality": "many",
+        "closed_world": false,
+        "transition_policy": "explicit_only",
+        "inference_rule_ids": [],
+        "allowed_source_origins": [
+          "raw_message",
+          "document",
+          "attachment_text"
+        ]
+      },
+      "object_entity_types": [
+        "place"
+      ],
+      "attribute_keys": [],
+      "enablement": "accepted_vocabulary_extraction_gated_not_implemented",
+      "notes": "Separate roles; no nationality/residence inference. Multiple supported places allowed."
+    },
+    {
+      "spec": {
+        "name": "works_in",
+        "version": 1,
+        "subject_types": [
+          "person",
+          "agent",
+          "group"
+        ],
+        "value_kinds": [
+          "entity"
+        ],
+        "semantics": "state",
+        "cardinality": "many",
+        "closed_world": false,
+        "transition_policy": "explicit_only",
+        "inference_rule_ids": [],
+        "allowed_source_origins": [
+          "raw_message",
+          "document",
+          "attachment_text"
+        ]
+      },
+      "object_entity_types": [
+        "place"
+      ],
+      "attribute_keys": [],
+      "enablement": "accepted_vocabulary_extraction_gated_not_implemented",
+      "notes": "Separate roles; no nationality/residence inference. Multiple supported places allowed."
+    },
+    {
+      "spec": {
+        "name": "home_country",
+        "version": 1,
+        "subject_types": [
+          "person",
+          "agent",
+          "group"
+        ],
+        "value_kinds": [
+          "entity"
+        ],
+        "semantics": "relation",
+        "cardinality": "many",
+        "closed_world": false,
+        "transition_policy": "explicit_only",
+        "inference_rule_ids": [],
+        "allowed_source_origins": [
+          "raw_message",
+          "document",
+          "attachment_text"
+        ]
+      },
+      "object_entity_types": [
+        "place"
+      ],
+      "attribute_keys": [],
+      "enablement": "accepted_vocabulary_extraction_gated_not_implemented",
+      "notes": "Separate roles; no nationality/residence inference. Multiple supported places allowed."
+    },
+    {
+      "spec": {
+        "name": "born_in",
+        "version": 1,
+        "subject_types": [
+          "person",
+          "agent",
+          "group"
+        ],
+        "value_kinds": [
+          "entity"
+        ],
+        "semantics": "relation",
+        "cardinality": "many",
+        "closed_world": false,
+        "transition_policy": "explicit_only",
+        "inference_rule_ids": [],
+        "allowed_source_origins": [
+          "raw_message",
+          "document",
+          "attachment_text"
+        ]
+      },
+      "object_entity_types": [
+        "place"
+      ],
+      "attribute_keys": [],
+      "enablement": "accepted_vocabulary_extraction_gated_not_implemented",
+      "notes": "Separate roles; no nationality/residence inference. Multiple supported places allowed."
+    },
+    {
+      "spec": {
+        "name": "grew_up_in",
+        "version": 1,
+        "subject_types": [
+          "person",
+          "agent",
+          "group"
+        ],
+        "value_kinds": [
+          "entity"
+        ],
+        "semantics": "relation",
+        "cardinality": "many",
+        "closed_world": false,
+        "transition_policy": "explicit_only",
+        "inference_rule_ids": [],
+        "allowed_source_origins": [
+          "raw_message",
+          "document",
+          "attachment_text"
+        ]
+      },
+      "object_entity_types": [
+        "place"
+      ],
+      "attribute_keys": [],
+      "enablement": "accepted_vocabulary_extraction_gated_not_implemented",
+      "notes": "Separate roles; no nationality/residence inference. Multiple supported places allowed."
+    },
+    {
+      "spec": {
+        "name": "move_origin",
+        "version": 1,
+        "subject_types": [
+          "person",
+          "agent",
+          "group"
+        ],
+        "value_kinds": [
+          "entity"
+        ],
+        "semantics": "event",
+        "cardinality": "many",
+        "closed_world": false,
+        "transition_policy": "append_only",
+        "inference_rule_ids": [],
+        "allowed_source_origins": [
+          "raw_message",
+          "document",
+          "attachment_text"
+        ]
+      },
+      "object_entity_types": [
+        "place"
+      ],
+      "attribute_keys": [],
+      "enablement": "accepted_vocabulary_extraction_gated_not_implemented",
+      "notes": "Domain event/occurrence and source support required; visit does not change residence."
+    },
+    {
+      "spec": {
+        "name": "move_destination",
+        "version": 1,
+        "subject_types": [
+          "person",
+          "agent",
+          "group"
+        ],
+        "value_kinds": [
+          "entity"
+        ],
+        "semantics": "event",
+        "cardinality": "many",
+        "closed_world": false,
+        "transition_policy": "append_only",
+        "inference_rule_ids": [],
+        "allowed_source_origins": [
+          "raw_message",
+          "document",
+          "attachment_text"
+        ]
+      },
+      "object_entity_types": [
+        "place"
+      ],
+      "attribute_keys": [],
+      "enablement": "accepted_vocabulary_extraction_gated_not_implemented",
+      "notes": "Domain event/occurrence and source support required; visit does not change residence."
+    },
+    {
+      "spec": {
+        "name": "visited",
+        "version": 1,
+        "subject_types": [
+          "person",
+          "agent",
+          "group"
+        ],
+        "value_kinds": [
+          "entity"
+        ],
+        "semantics": "event",
+        "cardinality": "many",
+        "closed_world": false,
+        "transition_policy": "append_only",
+        "inference_rule_ids": [],
+        "allowed_source_origins": [
+          "raw_message",
+          "document",
+          "attachment_text"
+        ]
+      },
+      "object_entity_types": [
+        "place"
+      ],
+      "attribute_keys": [],
+      "enablement": "accepted_vocabulary_extraction_gated_not_implemented",
+      "notes": "Domain event/occurrence and source support required; visit does not change residence."
+    },
+    {
+      "spec": {
+        "name": "temporarily_present_in",
+        "version": 1,
+        "subject_types": [
+          "person",
+          "agent",
+          "group"
+        ],
+        "value_kinds": [
+          "entity"
+        ],
+        "semantics": "event",
+        "cardinality": "many",
+        "closed_world": false,
+        "transition_policy": "append_only",
+        "inference_rule_ids": [],
+        "allowed_source_origins": [
+          "raw_message",
+          "document",
+          "attachment_text"
+        ]
+      },
+      "object_entity_types": [
+        "place"
+      ],
+      "attribute_keys": [],
+      "enablement": "accepted_vocabulary_extraction_gated_not_implemented",
+      "notes": "Domain event/occurrence and source support required; visit does not change residence."
+    },
+    {
+      "spec": {
+        "name": "parent_of",
+        "version": 1,
+        "subject_types": [
+          "person"
+        ],
+        "value_kinds": [
+          "entity"
+        ],
+        "semantics": "relation",
+        "cardinality": "many",
+        "closed_world": false,
+        "transition_policy": "explicit_only",
+        "inference_rule_ids": [],
+        "allowed_source_origins": [
+          "raw_message",
+          "document",
+          "attachment_text"
+        ]
+      },
+      "object_entity_types": [
+        "person"
+      ],
+      "attribute_keys": [],
+      "enablement": "accepted_vocabulary_extraction_gated_not_implemented",
+      "notes": "Explicit relation only; coattendance is not friendship."
+    },
+    {
+      "spec": {
+        "name": "sibling_of",
+        "version": 1,
+        "subject_types": [
+          "person"
+        ],
+        "value_kinds": [
+          "entity"
+        ],
+        "semantics": "relation",
+        "cardinality": "many",
+        "closed_world": false,
+        "transition_policy": "explicit_only",
+        "inference_rule_ids": [],
+        "allowed_source_origins": [
+          "raw_message",
+          "document",
+          "attachment_text"
+        ]
+      },
+      "object_entity_types": [
+        "person"
+      ],
+      "attribute_keys": [],
+      "enablement": "accepted_vocabulary_extraction_gated_not_implemented",
+      "notes": "Explicit relation only; coattendance is not friendship."
+    },
+    {
+      "spec": {
+        "name": "spouse_of",
+        "version": 1,
+        "subject_types": [
+          "person"
+        ],
+        "value_kinds": [
+          "entity"
+        ],
+        "semantics": "relation",
+        "cardinality": "many",
+        "closed_world": false,
+        "transition_policy": "explicit_only",
+        "inference_rule_ids": [],
+        "allowed_source_origins": [
+          "raw_message",
+          "document",
+          "attachment_text"
+        ]
+      },
+      "object_entity_types": [
+        "person"
+      ],
+      "attribute_keys": [],
+      "enablement": "accepted_vocabulary_extraction_gated_not_implemented",
+      "notes": "Explicit relation only; coattendance is not friendship."
+    },
+    {
+      "spec": {
+        "name": "friend_of",
+        "version": 1,
+        "subject_types": [
+          "person",
+          "agent",
+          "group"
+        ],
+        "value_kinds": [
+          "entity"
+        ],
+        "semantics": "relation",
+        "cardinality": "many",
+        "closed_world": false,
+        "transition_policy": "explicit_only",
+        "inference_rule_ids": [],
+        "allowed_source_origins": [
+          "raw_message",
+          "document",
+          "attachment_text"
+        ]
+      },
+      "object_entity_types": [
+        "person"
+      ],
+      "attribute_keys": [],
+      "enablement": "accepted_vocabulary_extraction_gated_not_implemented",
+      "notes": "Explicit relation only; coattendance is not friendship."
+    },
+    {
+      "spec": {
+        "name": "member_of",
+        "version": 1,
+        "subject_types": [
+          "person",
+          "agent",
+          "group"
+        ],
+        "value_kinds": [
+          "entity"
+        ],
+        "semantics": "relation",
+        "cardinality": "many",
+        "closed_world": false,
+        "transition_policy": "explicit_only",
+        "inference_rule_ids": [],
+        "allowed_source_origins": [
+          "raw_message",
+          "document",
+          "attachment_text"
+        ]
+      },
+      "object_entity_types": [
+        "organisation",
+        "group"
+      ],
+      "attribute_keys": [],
+      "enablement": "accepted_vocabulary_extraction_gated_not_implemented",
+      "notes": "Explicit relation only; coattendance is not friendship."
+    },
+    {
+      "spec": {
+        "name": "employed_by",
+        "version": 1,
+        "subject_types": [
+          "person"
+        ],
+        "value_kinds": [
+          "entity"
+        ],
+        "semantics": "relation",
+        "cardinality": "many",
+        "closed_world": false,
+        "transition_policy": "explicit_only",
+        "inference_rule_ids": [],
+        "allowed_source_origins": [
+          "raw_message",
+          "document",
+          "attachment_text"
+        ]
+      },
+      "object_entity_types": [
+        "organisation"
+      ],
+      "attribute_keys": [],
+      "enablement": "accepted_vocabulary_extraction_gated_not_implemented",
+      "notes": "Explicit relation only; coattendance is not friendship."
+    },
+    {
+      "spec": {
+        "name": "owns",
+        "version": 1,
+        "subject_types": [
+          "person",
+          "agent",
+          "group",
+          "organisation"
+        ],
+        "value_kinds": [
+          "entity",
+          "text"
+        ],
+        "semantics": "state",
+        "cardinality": "many",
+        "closed_world": false,
+        "transition_policy": "explicit_only",
+        "inference_rule_ids": [],
+        "allowed_source_origins": [
+          "raw_message",
+          "document",
+          "attachment_text"
+        ]
+      },
+      "object_entity_types": [
+        "object",
+        "work",
+        "project",
+        "place"
+      ],
+      "attribute_keys": [],
+      "enablement": "accepted_vocabulary_extraction_gated_not_implemented",
+      "notes": "Typed role checks; maker/donor/recipient distinct. Title text stays text until identity resolved; offered does not mean attended."
+    },
+    {
+      "spec": {
+        "name": "adopted",
+        "version": 1,
+        "subject_types": [
+          "person",
+          "agent",
+          "group",
+          "organisation"
+        ],
+        "value_kinds": [
+          "entity",
+          "text"
+        ],
+        "semantics": "event",
+        "cardinality": "many",
+        "closed_world": false,
+        "transition_policy": "append_only",
+        "inference_rule_ids": [],
+        "allowed_source_origins": [
+          "raw_message",
+          "document",
+          "attachment_text"
+        ]
+      },
+      "object_entity_types": [
+        "person",
+        "object"
+      ],
+      "attribute_keys": [],
+      "enablement": "accepted_vocabulary_extraction_gated_not_implemented",
+      "notes": "Typed role checks; maker/donor/recipient distinct. Title text stays text until identity resolved; offered does not mean attended."
+    },
+    {
+      "spec": {
+        "name": "made",
+        "version": 1,
+        "subject_types": [
+          "person",
+          "agent",
+          "group",
+          "organisation"
+        ],
+        "value_kinds": [
+          "entity",
+          "text"
+        ],
+        "semantics": "event",
+        "cardinality": "many",
+        "closed_world": false,
+        "transition_policy": "append_only",
+        "inference_rule_ids": [],
+        "allowed_source_origins": [
+          "raw_message",
+          "document",
+          "attachment_text"
+        ]
+      },
+      "object_entity_types": [
+        "object",
+        "work",
+        "project"
+      ],
+      "attribute_keys": [],
+      "enablement": "accepted_vocabulary_extraction_gated_not_implemented",
+      "notes": "Typed role checks; maker/donor/recipient distinct. Title text stays text until identity resolved; offered does not mean attended."
+    },
+    {
+      "spec": {
+        "name": "gave",
+        "version": 1,
+        "subject_types": [
+          "person",
+          "agent",
+          "group",
+          "organisation"
+        ],
+        "value_kinds": [
+          "entity",
+          "text"
+        ],
+        "semantics": "event",
+        "cardinality": "many",
+        "closed_world": false,
+        "transition_policy": "append_only",
+        "inference_rule_ids": [],
+        "allowed_source_origins": [
+          "raw_message",
+          "document",
+          "attachment_text"
+        ]
+      },
+      "object_entity_types": [
+        "object",
+        "work",
+        "project",
+        "place"
+      ],
+      "attribute_keys": [],
+      "enablement": "accepted_vocabulary_extraction_gated_not_implemented",
+      "notes": "Typed role checks; maker/donor/recipient distinct. Title text stays text until identity resolved; offered does not mean attended."
+    },
+    {
+      "spec": {
+        "name": "received",
+        "version": 1,
+        "subject_types": [
+          "person",
+          "agent",
+          "group",
+          "organisation"
+        ],
+        "value_kinds": [
+          "entity",
+          "text"
+        ],
+        "semantics": "event",
+        "cardinality": "many",
+        "closed_world": false,
+        "transition_policy": "append_only",
+        "inference_rule_ids": [],
+        "allowed_source_origins": [
+          "raw_message",
+          "document",
+          "attachment_text"
+        ]
+      },
+      "object_entity_types": [
+        "object",
+        "work",
+        "project",
+        "place"
+      ],
+      "attribute_keys": [],
+      "enablement": "accepted_vocabulary_extraction_gated_not_implemented",
+      "notes": "Typed role checks; maker/donor/recipient distinct. Title text stays text until identity resolved; offered does not mean attended."
+    },
+    {
+      "spec": {
+        "name": "commissioned",
+        "version": 1,
+        "subject_types": [
+          "person",
+          "agent",
+          "group",
+          "organisation"
+        ],
+        "value_kinds": [
+          "entity",
+          "text"
+        ],
+        "semantics": "event",
+        "cardinality": "many",
+        "closed_world": false,
+        "transition_policy": "append_only",
+        "inference_rule_ids": [],
+        "allowed_source_origins": [
+          "raw_message",
+          "document",
+          "attachment_text"
+        ]
+      },
+      "object_entity_types": [
+        "object",
+        "work",
+        "project"
+      ],
+      "attribute_keys": [],
+      "enablement": "accepted_vocabulary_extraction_gated_not_implemented",
+      "notes": "Typed role checks; maker/donor/recipient distinct. Title text stays text until identity resolved; offered does not mean attended."
+    },
+    {
+      "spec": {
+        "name": "read",
+        "version": 1,
+        "subject_types": [
+          "person",
+          "agent",
+          "group",
+          "organisation"
+        ],
+        "value_kinds": [
+          "entity",
+          "text"
+        ],
+        "semantics": "event",
+        "cardinality": "many",
+        "closed_world": false,
+        "transition_policy": "append_only",
+        "inference_rule_ids": [],
+        "allowed_source_origins": [
+          "raw_message",
+          "document",
+          "attachment_text"
+        ]
+      },
+      "object_entity_types": [
+        "work"
+      ],
+      "attribute_keys": [],
+      "enablement": "accepted_vocabulary_extraction_gated_not_implemented",
+      "notes": "Typed role checks; maker/donor/recipient distinct. Title text stays text until identity resolved; offered does not mean attended."
+    },
+    {
+      "spec": {
+        "name": "listened_to",
+        "version": 1,
+        "subject_types": [
+          "person",
+          "agent",
+          "group",
+          "organisation"
+        ],
+        "value_kinds": [
+          "entity",
+          "text"
+        ],
+        "semantics": "event",
+        "cardinality": "many",
+        "closed_world": false,
+        "transition_policy": "append_only",
+        "inference_rule_ids": [],
+        "allowed_source_origins": [
+          "raw_message",
+          "document",
+          "attachment_text"
+        ]
+      },
+      "object_entity_types": [
+        "work"
+      ],
+      "attribute_keys": [],
+      "enablement": "accepted_vocabulary_extraction_gated_not_implemented",
+      "notes": "Typed role checks; maker/donor/recipient distinct. Title text stays text until identity resolved; offered does not mean attended."
+    },
+    {
+      "spec": {
+        "name": "watched",
+        "version": 1,
+        "subject_types": [
+          "person",
+          "agent",
+          "group",
+          "organisation"
+        ],
+        "value_kinds": [
+          "entity",
+          "text"
+        ],
+        "semantics": "event",
+        "cardinality": "many",
+        "closed_world": false,
+        "transition_policy": "append_only",
+        "inference_rule_ids": [],
+        "allowed_source_origins": [
+          "raw_message",
+          "document",
+          "attachment_text"
+        ]
+      },
+      "object_entity_types": [
+        "work"
+      ],
+      "attribute_keys": [],
+      "enablement": "accepted_vocabulary_extraction_gated_not_implemented",
+      "notes": "Typed role checks; maker/donor/recipient distinct. Title text stays text until identity resolved; offered does not mean attended."
+    },
+    {
+      "spec": {
+        "name": "played",
+        "version": 1,
+        "subject_types": [
+          "person",
+          "agent",
+          "group",
+          "organisation"
+        ],
+        "value_kinds": [
+          "entity",
+          "text"
+        ],
+        "semantics": "event",
+        "cardinality": "many",
+        "closed_world": false,
+        "transition_policy": "append_only",
+        "inference_rule_ids": [],
+        "allowed_source_origins": [
+          "raw_message",
+          "document",
+          "attachment_text"
+        ]
+      },
+      "object_entity_types": [
+        "work",
+        "object"
+      ],
+      "attribute_keys": [],
+      "enablement": "accepted_vocabulary_extraction_gated_not_implemented",
+      "notes": "Typed role checks; maker/donor/recipient distinct. Title text stays text until identity resolved; offered does not mean attended."
+    },
+    {
+      "spec": {
+        "name": "participated_in",
+        "version": 1,
+        "subject_types": [
+          "person",
+          "agent",
+          "group",
+          "organisation"
+        ],
+        "value_kinds": [
+          "entity",
+          "text"
+        ],
+        "semantics": "event",
+        "cardinality": "many",
+        "closed_world": false,
+        "transition_policy": "append_only",
+        "inference_rule_ids": [],
+        "allowed_source_origins": [
+          "raw_message",
+          "document",
+          "attachment_text"
+        ]
+      },
+      "object_entity_types": [
+        "work",
+        "project",
+        "group",
+        "organisation"
+      ],
+      "attribute_keys": [],
+      "enablement": "accepted_vocabulary_extraction_gated_not_implemented",
+      "notes": "Typed role checks; maker/donor/recipient distinct. Title text stays text until identity resolved; offered does not mean attended."
+    },
+    {
+      "spec": {
+        "name": "attended",
+        "version": 1,
+        "subject_types": [
+          "person",
+          "agent",
+          "group",
+          "organisation"
+        ],
+        "value_kinds": [
+          "entity",
+          "text"
+        ],
+        "semantics": "event",
+        "cardinality": "many",
+        "closed_world": false,
+        "transition_policy": "append_only",
+        "inference_rule_ids": [],
+        "allowed_source_origins": [
+          "raw_message",
+          "document",
+          "attachment_text"
+        ]
+      },
+      "object_entity_types": [
+        "work",
+        "organisation"
+      ],
+      "attribute_keys": [],
+      "enablement": "accepted_vocabulary_extraction_gated_not_implemented",
+      "notes": "Typed role checks; maker/donor/recipient distinct. Title text stays text until identity resolved; offered does not mean attended."
+    },
+    {
+      "spec": {
+        "name": "offered",
+        "version": 1,
+        "subject_types": [
+          "person",
+          "agent",
+          "group",
+          "organisation"
+        ],
+        "value_kinds": [
+          "entity",
+          "text"
+        ],
+        "semantics": "event",
+        "cardinality": "many",
+        "closed_world": false,
+        "transition_policy": "append_only",
+        "inference_rule_ids": [],
+        "allowed_source_origins": [
+          "raw_message",
+          "document",
+          "attachment_text"
+        ]
+      },
+      "object_entity_types": [
+        "work",
+        "project",
+        "object"
+      ],
+      "attribute_keys": [],
+      "enablement": "accepted_vocabulary_extraction_gated_not_implemented",
+      "notes": "Typed role checks; maker/donor/recipient distinct. Title text stays text until identity resolved; offered does not mean attended."
+    },
+    {
+      "spec": {
+        "name": "likes",
+        "version": 1,
+        "subject_types": [
+          "person",
+          "agent",
+          "group"
+        ],
+        "value_kinds": [
+          "entity",
+          "text"
+        ],
+        "semantics": "state",
+        "cardinality": "many",
+        "closed_world": false,
+        "transition_policy": "explicit_only",
+        "inference_rule_ids": [],
+        "allowed_source_origins": [
+          "raw_message",
+          "document",
+          "attachment_text"
+        ]
+      },
+      "object_entity_types": [
+        "object",
+        "work",
+        "project",
+        "person",
+        "agent",
+        "group"
+      ],
+      "attribute_keys": [],
+      "enablement": "accepted_vocabulary_extraction_gated_not_implemented",
+      "notes": "No recommendation adoption or genre-to-every-item inference."
+    },
+    {
+      "spec": {
+        "name": "dislikes",
+        "version": 1,
+        "subject_types": [
+          "person",
+          "agent",
+          "group"
+        ],
+        "value_kinds": [
+          "entity",
+          "text"
+        ],
+        "semantics": "state",
+        "cardinality": "many",
+        "closed_world": false,
+        "transition_policy": "explicit_only",
+        "inference_rule_ids": [],
+        "allowed_source_origins": [
+          "raw_message",
+          "document",
+          "attachment_text"
+        ]
+      },
+      "object_entity_types": [
+        "object",
+        "work",
+        "project",
+        "person",
+        "agent",
+        "group"
+      ],
+      "attribute_keys": [],
+      "enablement": "accepted_vocabulary_extraction_gated_not_implemented",
+      "notes": "No recommendation adoption or genre-to-every-item inference."
+    },
+    {
+      "spec": {
+        "name": "prefers",
+        "version": 1,
+        "subject_types": [
+          "person",
+          "agent",
+          "group"
+        ],
+        "value_kinds": [
+          "entity",
+          "text"
+        ],
+        "semantics": "state",
+        "cardinality": "many",
+        "closed_world": false,
+        "transition_policy": "explicit_only",
+        "inference_rule_ids": [],
+        "allowed_source_origins": [
+          "raw_message",
+          "document",
+          "attachment_text"
+        ]
+      },
+      "object_entity_types": [
+        "object",
+        "work",
+        "project",
+        "person",
+        "agent",
+        "group"
+      ],
+      "attribute_keys": [],
+      "enablement": "accepted_vocabulary_extraction_gated_not_implemented",
+      "notes": "No recommendation adoption or genre-to-every-item inference."
+    },
+    {
+      "spec": {
+        "name": "interested_in",
+        "version": 1,
+        "subject_types": [
+          "person",
+          "agent",
+          "group"
+        ],
+        "value_kinds": [
+          "entity",
+          "text"
+        ],
+        "semantics": "state",
+        "cardinality": "many",
+        "closed_world": false,
+        "transition_policy": "explicit_only",
+        "inference_rule_ids": [],
+        "allowed_source_origins": [
+          "raw_message",
+          "document",
+          "attachment_text"
+        ]
+      },
+      "object_entity_types": [
+        "object",
+        "work",
+        "project",
+        "person",
+        "agent",
+        "group"
+      ],
+      "attribute_keys": [],
+      "enablement": "accepted_vocabulary_extraction_gated_not_implemented",
+      "notes": "No recommendation adoption or genre-to-every-item inference."
+    },
+    {
+      "spec": {
+        "name": "intends",
+        "version": 1,
+        "subject_types": [
+          "person",
+          "agent",
+          "group"
+        ],
+        "value_kinds": [
+          "entity",
+          "text"
+        ],
+        "semantics": "relation",
+        "cardinality": "many",
+        "closed_world": false,
+        "transition_policy": "explicit_only",
+        "inference_rule_ids": [],
+        "allowed_source_origins": [
+          "raw_message",
+          "document",
+          "attachment_text"
+        ]
+      },
+      "object_entity_types": [
+        "object",
+        "work",
+        "project",
+        "person",
+        "agent",
+        "group"
+      ],
+      "attribute_keys": [],
+      "enablement": "accepted_vocabulary_extraction_gated_not_implemented",
+      "notes": "No recommendation adoption or genre-to-every-item inference."
+    },
+    {
+      "spec": {
+        "name": "suggested_to",
+        "version": 1,
+        "subject_types": [
+          "person",
+          "agent",
+          "group"
+        ],
+        "value_kinds": [
+          "entity",
+          "text"
+        ],
+        "semantics": "relation",
+        "cardinality": "many",
+        "closed_world": false,
+        "transition_policy": "explicit_only",
+        "inference_rule_ids": [],
+        "allowed_source_origins": [
+          "raw_message",
+          "document",
+          "attachment_text"
+        ]
+      },
+      "object_entity_types": [
+        "object",
+        "work",
+        "project",
+        "person",
+        "agent",
+        "group"
+      ],
+      "attribute_keys": [],
+      "enablement": "accepted_vocabulary_extraction_gated_not_implemented",
+      "notes": "No recommendation adoption or genre-to-every-item inference."
+    },
+    {
+      "spec": {
+        "name": "started_on",
+        "version": 1,
+        "subject_types": [
+          "person",
+          "agent",
+          "group",
+          "organisation",
+          "project",
+          "work"
+        ],
+        "value_kinds": [
+          "temporal"
+        ],
+        "semantics": "event",
+        "cardinality": "many",
+        "closed_world": false,
+        "transition_policy": "append_only",
+        "inference_rule_ids": [],
+        "allowed_source_origins": [
+          "raw_message",
+          "document",
+          "attachment_text"
+        ]
+      },
+      "object_entity_types": [],
+      "attribute_keys": [],
+      "enablement": "accepted_vocabulary_extraction_gated_not_implemented",
+      "notes": "Only aware resolved times for arithmetic; civil wording remains unresolved text inside TemporalRef. Distinguish plan/start/open/finish."
+    },
+    {
+      "spec": {
+        "name": "opened_on",
+        "version": 1,
+        "subject_types": [
+          "person",
+          "agent",
+          "group",
+          "organisation",
+          "project",
+          "work"
+        ],
+        "value_kinds": [
+          "temporal"
+        ],
+        "semantics": "event",
+        "cardinality": "many",
+        "closed_world": false,
+        "transition_policy": "append_only",
+        "inference_rule_ids": [],
+        "allowed_source_origins": [
+          "raw_message",
+          "document",
+          "attachment_text"
+        ]
+      },
+      "object_entity_types": [],
+      "attribute_keys": [],
+      "enablement": "accepted_vocabulary_extraction_gated_not_implemented",
+      "notes": "Only aware resolved times for arithmetic; civil wording remains unresolved text inside TemporalRef. Distinguish plan/start/open/finish."
+    },
+    {
+      "spec": {
+        "name": "completed_on",
+        "version": 1,
+        "subject_types": [
+          "person",
+          "agent",
+          "group",
+          "organisation",
+          "project",
+          "work"
+        ],
+        "value_kinds": [
+          "temporal"
+        ],
+        "semantics": "event",
+        "cardinality": "many",
+        "closed_world": false,
+        "transition_policy": "append_only",
+        "inference_rule_ids": [],
+        "allowed_source_origins": [
+          "raw_message",
+          "document",
+          "attachment_text"
+        ]
+      },
+      "object_entity_types": [],
+      "attribute_keys": [],
+      "enablement": "accepted_vocabulary_extraction_gated_not_implemented",
+      "notes": "Only aware resolved times for arithmetic; civil wording remains unresolved text inside TemporalRef. Distinguish plan/start/open/finish."
+    },
+    {
+      "spec": {
+        "name": "occurred_on",
+        "version": 1,
+        "subject_types": [
+          "person",
+          "agent",
+          "group",
+          "organisation",
+          "project",
+          "work"
+        ],
+        "value_kinds": [
+          "temporal"
+        ],
+        "semantics": "event",
+        "cardinality": "many",
+        "closed_world": false,
+        "transition_policy": "append_only",
+        "inference_rule_ids": [],
+        "allowed_source_origins": [
+          "raw_message",
+          "document",
+          "attachment_text"
+        ]
+      },
+      "object_entity_types": [],
+      "attribute_keys": [],
+      "enablement": "accepted_vocabulary_extraction_gated_not_implemented",
+      "notes": "Only aware resolved times for arithmetic; civil wording remains unresolved text inside TemporalRef. Distinguish plan/start/open/finish."
+    },
+    {
+      "spec": {
+        "name": "has_quantity",
+        "version": 1,
+        "subject_types": [
+          "person",
+          "agent",
+          "group",
+          "organisation",
+          "object",
+          "project"
+        ],
+        "value_kinds": [
+          "number",
+          "text"
+        ],
+        "semantics": "attribute",
+        "cardinality": "many",
+        "closed_world": false,
+        "transition_policy": "append_only",
+        "inference_rule_ids": [],
+        "allowed_source_origins": [
+          "raw_message",
+          "document",
+          "attachment_text"
+        ]
+      },
+      "object_entity_types": [],
+      "attribute_keys": [],
+      "enablement": "accepted_vocabulary_extraction_gated_not_implemented",
+      "notes": "Preserve units/currency; observed intervals do not establish frequency."
+    },
+    {
+      "spec": {
+        "name": "has_measurement",
+        "version": 1,
+        "subject_types": [
+          "person",
+          "agent",
+          "group",
+          "organisation",
+          "object",
+          "project"
+        ],
+        "value_kinds": [
+          "number",
+          "text"
+        ],
+        "semantics": "attribute",
+        "cardinality": "many",
+        "closed_world": false,
+        "transition_policy": "append_only",
+        "inference_rule_ids": [],
+        "allowed_source_origins": [
+          "raw_message",
+          "document",
+          "attachment_text"
+        ]
+      },
+      "object_entity_types": [],
+      "attribute_keys": [],
+      "enablement": "accepted_vocabulary_extraction_gated_not_implemented",
+      "notes": "Preserve units/currency; observed intervals do not establish frequency."
+    },
+    {
+      "spec": {
+        "name": "explicit_frequency",
+        "version": 1,
+        "subject_types": [
+          "person",
+          "agent",
+          "group",
+          "organisation",
+          "object",
+          "project"
+        ],
+        "value_kinds": [
+          "number",
+          "text"
+        ],
+        "semantics": "attribute",
+        "cardinality": "many",
+        "closed_world": false,
+        "transition_policy": "append_only",
+        "inference_rule_ids": [],
+        "allowed_source_origins": [
+          "raw_message",
+          "document",
+          "attachment_text"
+        ]
+      },
+      "object_entity_types": [],
+      "attribute_keys": [],
+      "enablement": "accepted_vocabulary_extraction_gated_not_implemented",
+      "notes": "Preserve units/currency; observed intervals do not establish frequency."
+    },
+    {
+      "spec": {
+        "name": "explicit_reason",
+        "version": 1,
+        "subject_types": [
+          "person",
+          "agent",
+          "group",
+          "organisation",
+          "project"
+        ],
+        "value_kinds": [
+          "text"
+        ],
+        "semantics": "relation",
+        "cardinality": "many",
+        "closed_world": false,
+        "transition_policy": "append_only",
+        "inference_rule_ids": [],
+        "allowed_source_origins": [
+          "raw_message",
+          "document",
+          "attachment_text"
+        ]
+      },
+      "object_entity_types": [],
+      "attribute_keys": [],
+      "enablement": "accepted_vocabulary_extraction_gated_not_implemented",
+      "notes": "Explicit causal statement only; event links preserve the relevant subject."
+    },
+    {
+      "spec": {
+        "name": "has_attribute",
+        "version": 1,
+        "subject_types": [
+          "person",
+          "agent",
+          "group",
+          "organisation",
+          "object",
+          "work",
+          "project",
+          "place"
+        ],
+        "value_kinds": [
+          "text",
+          "number",
+          "boolean",
+          "entity"
+        ],
+        "semantics": "attribute",
+        "cardinality": "many",
+        "closed_world": false,
+        "transition_policy": "append_only",
+        "inference_rule_ids": [],
+        "allowed_source_origins": [
+          "raw_message",
+          "document",
+          "attachment_text"
+        ]
+      },
+      "object_entity_types": [
+        "object",
+        "work",
+        "project",
+        "place",
+        "species"
+      ],
+      "attribute_keys": [
+        "colour",
+        "material",
+        "breed",
+        "model",
+        "title",
+        "language",
+        "genre",
+        "activity_type",
+        "art_form"
+      ],
+      "enablement": "accepted_vocabulary_extraction_gated_not_implemented",
+      "notes": "Extension allowlist required; not a catch-all for diagnosis, protected traits or unsupported inference."
+    }
+  ]
+}

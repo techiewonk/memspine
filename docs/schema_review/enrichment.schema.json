@@ -1,0 +1,3478 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://memspine.invalid/review/enrichment-contracts-v1",
+  "title": "Proposed enrichment contracts \u2014 review artifacts, not runtime schema",
+  "$defs": {
+    "Scope": {
+      "type": "object",
+      "properties": {
+        "tenant": {
+          "type": "string",
+          "minLength": 1
+        },
+        "owner": {
+          "type": "string",
+          "minLength": 1
+        },
+        "owner_kind": {
+          "enum": [
+            "user",
+            "group"
+          ]
+        },
+        "namespace": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "tenant",
+        "owner",
+        "owner_kind",
+        "namespace"
+      ],
+      "additionalProperties": false
+    },
+    "Ref": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "required": [
+        "id",
+        "version"
+      ],
+      "additionalProperties": false
+    },
+    "Producer": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "enum": [
+            "rule",
+            "lexical",
+            "embedding",
+            "ner",
+            "reranker",
+            "catalogue",
+            "generative_llm"
+          ]
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "settings_hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "model_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "kind",
+        "name",
+        "version",
+        "settings_hash",
+        "model_id"
+      ],
+      "additionalProperties": false
+    },
+    "SourceClock": {
+      "type": "object",
+      "properties": {
+        "created_at": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "original_text": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "timezone": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "timestamp_origin": {
+          "enum": [
+            "provided",
+            "generated",
+            "unknown"
+          ]
+        },
+        "timezone_origin": {
+          "enum": [
+            "provided",
+            "explicit_context",
+            "unknown"
+          ]
+        }
+      },
+      "required": [
+        "created_at",
+        "original_text",
+        "timezone",
+        "timestamp_origin",
+        "timezone_origin"
+      ],
+      "additionalProperties": false
+    },
+    "SourceSnapshot": {
+      "type": "object",
+      "properties": {
+        "source": {
+          "$ref": "#/$defs/Ref"
+        },
+        "scope": {
+          "$ref": "#/$defs/Scope"
+        },
+        "content_hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "message_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "session_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "conversation_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "sender_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "clock": {
+          "$ref": "#/$defs/SourceClock"
+        },
+        "erasure_generation": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "available_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "available_seq": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "source",
+        "scope",
+        "content_hash",
+        "message_id",
+        "session_id",
+        "conversation_id",
+        "sender_id",
+        "clock",
+        "erasure_generation",
+        "available_at",
+        "available_seq"
+      ],
+      "additionalProperties": false
+    },
+    "Span": {
+      "type": "object",
+      "properties": {
+        "start": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "end": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "quote": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "start",
+        "end",
+        "quote"
+      ],
+      "additionalProperties": false
+    },
+    "Evidence": {
+      "type": "object",
+      "properties": {
+        "evidence_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "role": {
+          "enum": [
+            "support",
+            "binding",
+            "context"
+          ]
+        },
+        "origin": {
+          "enum": [
+            "raw_message",
+            "document",
+            "attachment_text",
+            "image_caption",
+            "catalogue",
+            "collection_metadata"
+          ]
+        },
+        "source": {
+          "$ref": "#/$defs/SourceSnapshot"
+        },
+        "seg_index": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "span": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Span"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "source_family": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "evidence_id",
+        "role",
+        "origin",
+        "source",
+        "seg_index",
+        "span",
+        "source_family"
+      ],
+      "additionalProperties": false
+    },
+    "EntityRef": {
+      "type": "object",
+      "properties": {
+        "entity_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "mention_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "entity_id",
+        "mention_id"
+      ],
+      "additionalProperties": false,
+      "anyOf": [
+        {
+          "properties": {
+            "entity_id": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        {
+          "properties": {
+            "mention_id": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        }
+      ]
+    },
+    "Entity": {
+      "type": "object",
+      "properties": {
+        "entity_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "scope": {
+          "$ref": "#/$defs/Scope"
+        },
+        "type": {
+          "enum": [
+            "person",
+            "agent",
+            "group",
+            "organisation",
+            "place",
+            "object",
+            "work",
+            "project",
+            "species",
+            "other"
+          ]
+        },
+        "world": {
+          "enum": [
+            "real",
+            "fictional",
+            "symbolic",
+            "depicted",
+            "unknown"
+          ]
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1
+        },
+        "identity_basis": {
+          "enum": [
+            "stable_id",
+            "explicit_identity"
+          ]
+        },
+        "identity_evidence_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 0
+        },
+        "status": {
+          "enum": [
+            "active",
+            "archived"
+          ]
+        },
+        "known_since": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "known_seq": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "entity_id",
+        "revision",
+        "scope",
+        "type",
+        "world",
+        "label",
+        "identity_basis",
+        "identity_evidence_ids",
+        "status",
+        "known_since",
+        "known_seq"
+      ],
+      "additionalProperties": false
+    },
+    "Mention": {
+      "type": "object",
+      "properties": {
+        "mention_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source": {
+          "$ref": "#/$defs/SourceSnapshot"
+        },
+        "seg_index": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "span": {
+          "$ref": "#/$defs/Span"
+        },
+        "entity_type_hint": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "world_hint": {
+          "enum": [
+            "real",
+            "fictional",
+            "symbolic",
+            "depicted",
+            "unknown"
+          ]
+        },
+        "resolution": {
+          "enum": [
+            "resolved",
+            "ambiguous",
+            "unresolved"
+          ]
+        },
+        "entity_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "candidate_entity_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 0
+        },
+        "reasons": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 0
+        },
+        "asserted": {
+          "const": false
+        }
+      },
+      "required": [
+        "mention_id",
+        "source",
+        "seg_index",
+        "span",
+        "entity_type_hint",
+        "world_hint",
+        "resolution",
+        "entity_id",
+        "candidate_entity_ids",
+        "reasons",
+        "asserted"
+      ],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "resolution": {
+                "const": "resolved"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "entity_id": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "entity_id": {
+                "type": "null"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "IdentityLink": {
+      "type": "object",
+      "properties": {
+        "link_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "scope": {
+          "$ref": "#/$defs/Scope"
+        },
+        "relation": {
+          "enum": [
+            "alias_of",
+            "same_as",
+            "distinct_from"
+          ]
+        },
+        "left": {
+          "$ref": "#/$defs/EntityRef"
+        },
+        "right": {
+          "$ref": "#/$defs/EntityRef"
+        },
+        "evidence_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 1
+        },
+        "status": {
+          "enum": [
+            "proposed",
+            "accepted",
+            "contested",
+            "invalidated"
+          ]
+        },
+        "producer": {
+          "$ref": "#/$defs/Producer"
+        },
+        "known_since": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "link_id",
+        "scope",
+        "relation",
+        "left",
+        "right",
+        "evidence_ids",
+        "status",
+        "producer",
+        "known_since"
+      ],
+      "additionalProperties": false
+    },
+    "AwareTimeValue": {
+      "type": "object",
+      "properties": {
+        "at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "end_exclusive": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "at",
+        "end_exclusive"
+      ],
+      "additionalProperties": false
+    },
+    "Anchor": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "enum": [
+            "source_clock",
+            "event_boundary"
+          ]
+        },
+        "source": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SourceSnapshot"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "event": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Ref"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "boundary": {
+          "anyOf": [
+            {
+              "enum": [
+                "start",
+                "end"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "evidence_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 1
+        }
+      },
+      "required": [
+        "kind",
+        "source",
+        "event",
+        "boundary",
+        "evidence_ids"
+      ],
+      "additionalProperties": false
+    },
+    "TemporalRelation": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "enum": [
+            "before",
+            "after",
+            "during",
+            "since",
+            "until"
+          ]
+        },
+        "target": {
+          "$ref": "#/$defs/Ref"
+        },
+        "offset": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Duration"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "evidence_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 1
+        }
+      },
+      "required": [
+        "kind",
+        "target",
+        "offset",
+        "evidence_ids"
+      ],
+      "additionalProperties": false
+    },
+    "Duration": {
+      "type": "object",
+      "properties": {
+        "minimum": {
+          "type": "number",
+          "minimum": 0
+        },
+        "maximum": {
+          "anyOf": [
+            {
+              "type": "number",
+              "minimum": 0
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "unit": {
+          "enum": [
+            "second",
+            "minute",
+            "hour",
+            "day",
+            "week",
+            "month",
+            "year"
+          ]
+        },
+        "convention": {
+          "enum": [
+            "elapsed",
+            "inclusive_calendar",
+            "calendar_difference",
+            "unspecified"
+          ]
+        },
+        "approximate": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "minimum",
+        "maximum",
+        "unit",
+        "convention",
+        "approximate"
+      ],
+      "additionalProperties": false
+    },
+    "TemporalRef": {
+      "type": "object",
+      "properties": {
+        "temporal_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "text": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "resolution": {
+          "enum": [
+            "resolved",
+            "ambiguous",
+            "unresolved"
+          ]
+        },
+        "value": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AwareTimeValue"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "precision": {
+          "enum": [
+            "instant",
+            "minute",
+            "hour",
+            "day",
+            "week",
+            "month",
+            "season",
+            "year",
+            "decade",
+            "unknown"
+          ]
+        },
+        "text_precision": {
+          "enum": [
+            "instant",
+            "minute",
+            "hour",
+            "day",
+            "week",
+            "month",
+            "season",
+            "year",
+            "decade",
+            "unknown"
+          ]
+        },
+        "approximate": {
+          "type": "boolean"
+        },
+        "basis": {
+          "enum": [
+            "explicit",
+            "source_time",
+            "relation",
+            "none"
+          ]
+        },
+        "timezone": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "anchor": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Anchor"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "relation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TemporalRelation"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "evidence_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 0
+        }
+      },
+      "required": [
+        "temporal_id",
+        "text",
+        "resolution",
+        "value",
+        "precision",
+        "text_precision",
+        "approximate",
+        "basis",
+        "timezone",
+        "anchor",
+        "relation",
+        "evidence_ids"
+      ],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "resolution": {
+                "const": "resolved"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "value": {
+                "type": "object"
+              },
+              "precision": {
+                "not": {
+                  "const": "unknown"
+                }
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "value": {
+                "type": "null"
+              },
+              "precision": {
+                "const": "unknown"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "basis": {
+                "const": "none"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "value": {
+                "type": "null"
+              },
+              "anchor": {
+                "type": "null"
+              },
+              "relation": {
+                "type": "null"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "basis": {
+                "const": "explicit"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "value": {
+                "type": "object"
+              },
+              "anchor": {
+                "type": "null"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "basis": {
+                "const": "source_time"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "value": {
+                "type": "object"
+              },
+              "anchor": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "basis": {
+                "const": "relation"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "relation": {
+                "type": "object"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "Interval": {
+      "type": "object",
+      "properties": {
+        "start": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TemporalRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "end": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TemporalRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "end_semantics": {
+          "enum": [
+            "exclusive",
+            "inclusive",
+            "unknown"
+          ]
+        },
+        "start_status": {
+          "enum": [
+            "known",
+            "unknown",
+            "unbounded"
+          ]
+        },
+        "end_status": {
+          "enum": [
+            "known",
+            "unknown",
+            "unbounded"
+          ]
+        }
+      },
+      "required": [
+        "start",
+        "end",
+        "end_semantics",
+        "start_status",
+        "end_status"
+      ],
+      "additionalProperties": false
+    },
+    "TimeAxes": {
+      "type": "object",
+      "properties": {
+        "valid": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Interval"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "occurred": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TemporalRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "source_clock": {
+          "$ref": "#/$defs/SourceClock"
+        },
+        "recorded_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "known_since": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "known_seq": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "valid",
+        "occurred",
+        "source_clock",
+        "recorded_at",
+        "known_since",
+        "known_seq"
+      ],
+      "additionalProperties": false
+    },
+    "Value": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "entity"
+            },
+            "ref": {
+              "$ref": "#/$defs/EntityRef"
+            }
+          },
+          "required": [
+            "kind",
+            "ref"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "text"
+            },
+            "text": {
+              "type": "string",
+              "minLength": 1
+            },
+            "language": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "kind",
+            "text",
+            "language"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "number"
+            },
+            "amount": {
+              "type": "number"
+            },
+            "unit": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "currency": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "kind",
+            "amount",
+            "unit",
+            "currency"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "boolean"
+            },
+            "value": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "kind",
+            "value"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "temporal"
+            },
+            "ref": {
+              "$ref": "#/$defs/TemporalRef"
+            }
+          },
+          "required": [
+            "kind",
+            "ref"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "Assessment": {
+      "type": "object",
+      "properties": {
+        "source_trust": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "modality": {
+          "enum": [
+            "asserted",
+            "negated",
+            "hypothetical",
+            "planned",
+            "reported",
+            "question"
+          ]
+        },
+        "negated": {
+          "type": "boolean"
+        },
+        "binding": {
+          "enum": [
+            "bound",
+            "partly",
+            "unbound"
+          ]
+        },
+        "support_families": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 0
+        },
+        "restated": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "grounding": {
+          "enum": [
+            "grounded",
+            "uncertain",
+            "rejected"
+          ]
+        }
+      },
+      "required": [
+        "source_trust",
+        "modality",
+        "negated",
+        "binding",
+        "support_families",
+        "restated",
+        "grounding"
+      ],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "negated": {
+                "const": true
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "modality": {
+                "not": {
+                  "enum": [
+                    "asserted",
+                    "negated"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "ClaimLink": {
+      "type": "object",
+      "properties": {
+        "relation": {
+          "enum": [
+            "corrects",
+            "supersedes",
+            "contradicts",
+            "equivalent_to",
+            "derived_from"
+          ]
+        },
+        "target": {
+          "$ref": "#/$defs/Ref"
+        }
+      },
+      "required": [
+        "relation",
+        "target"
+      ],
+      "additionalProperties": false
+    },
+    "Claim": {
+      "type": "object",
+      "properties": {
+        "claim_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "scope": {
+          "$ref": "#/$defs/Scope"
+        },
+        "subject": {
+          "$ref": "#/$defs/EntityRef"
+        },
+        "predicate": {
+          "type": "string",
+          "minLength": 1
+        },
+        "attribute_key": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "object": {
+          "$ref": "#/$defs/Value"
+        },
+        "event_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "asserted_by": {
+          "type": "string",
+          "minLength": 1
+        },
+        "reported_by": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "source_class": {
+          "enum": [
+            "user_stated",
+            "assistant_proposed",
+            "user_confirmed",
+            "tool",
+            "document",
+            "external",
+            "derived"
+          ]
+        },
+        "text": {
+          "type": "string",
+          "minLength": 1
+        },
+        "time": {
+          "$ref": "#/$defs/TimeAxes"
+        },
+        "assessment": {
+          "$ref": "#/$defs/Assessment"
+        },
+        "status": {
+          "enum": [
+            "active",
+            "tentative",
+            "contested",
+            "superseded",
+            "hidden"
+          ]
+        },
+        "evidence": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Evidence"
+          },
+          "minItems": 1
+        },
+        "links": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ClaimLink"
+          },
+          "minItems": 0
+        },
+        "producer": {
+          "$ref": "#/$defs/Producer"
+        },
+        "effect_id": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "claim_id",
+        "revision",
+        "scope",
+        "subject",
+        "predicate",
+        "attribute_key",
+        "object",
+        "event_id",
+        "asserted_by",
+        "reported_by",
+        "source_class",
+        "text",
+        "time",
+        "assessment",
+        "status",
+        "evidence",
+        "links",
+        "producer",
+        "effect_id"
+      ],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "predicate": {
+                "const": "has_attribute"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "attribute_key": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "attribute_key": {
+                "type": "null"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "Participant": {
+      "type": "object",
+      "properties": {
+        "role": {
+          "type": "string",
+          "minLength": 1
+        },
+        "entity": {
+          "$ref": "#/$defs/EntityRef"
+        },
+        "evidence_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 1
+        }
+      },
+      "required": [
+        "role",
+        "entity",
+        "evidence_ids"
+      ],
+      "additionalProperties": false
+    },
+    "EventOccurrence": {
+      "type": "object",
+      "properties": {
+        "event_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "scope": {
+          "$ref": "#/$defs/Scope"
+        },
+        "event_type": {
+          "type": "string",
+          "minLength": 1
+        },
+        "participants": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Participant"
+          },
+          "minItems": 1
+        },
+        "stage": {
+          "enum": [
+            "proposed",
+            "planned",
+            "started",
+            "ongoing",
+            "completed",
+            "cancelled",
+            "unknown"
+          ]
+        },
+        "participation_mode": {
+          "enum": [
+            "physical",
+            "remote",
+            "mixed",
+            "unknown"
+          ]
+        },
+        "time": {
+          "$ref": "#/$defs/TimeAxes"
+        },
+        "claim_refs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Ref"
+          },
+          "minItems": 1
+        },
+        "same_event_links": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Ref"
+          },
+          "minItems": 0
+        },
+        "identity_status": {
+          "enum": [
+            "resolved",
+            "provisional",
+            "contested"
+          ]
+        },
+        "producer": {
+          "$ref": "#/$defs/Producer"
+        }
+      },
+      "required": [
+        "event_id",
+        "revision",
+        "scope",
+        "event_type",
+        "participants",
+        "stage",
+        "participation_mode",
+        "time",
+        "claim_refs",
+        "same_event_links",
+        "identity_status",
+        "producer"
+      ],
+      "additionalProperties": false
+    },
+    "PredicateSpec": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "subject_types": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 1
+        },
+        "value_kinds": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 1
+        },
+        "semantics": {
+          "enum": [
+            "state",
+            "event",
+            "relation",
+            "attribute"
+          ]
+        },
+        "cardinality": {
+          "enum": [
+            "one",
+            "many",
+            "unknown"
+          ]
+        },
+        "closed_world": {
+          "const": false
+        },
+        "transition_policy": {
+          "enum": [
+            "explicit_only",
+            "append_only"
+          ]
+        },
+        "inference_rule_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 0
+        },
+        "allowed_source_origins": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 1
+        }
+      },
+      "required": [
+        "name",
+        "version",
+        "subject_types",
+        "value_kinds",
+        "semantics",
+        "cardinality",
+        "closed_world",
+        "transition_policy",
+        "inference_rule_ids",
+        "allowed_source_origins"
+      ],
+      "additionalProperties": false
+    },
+    "CandidateSearch": {
+      "type": "object",
+      "properties": {
+        "scope": {
+          "$ref": "#/$defs/Scope"
+        },
+        "as_of_known": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "as_of_seq": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "methods": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "exact",
+              "alias",
+              "reply",
+              "bm25",
+              "embedding",
+              "reranker",
+              "temporal",
+              "catalogue"
+            ]
+          },
+          "minItems": 1
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "covered_all_relevant_scope": {
+          "type": "boolean"
+        },
+        "continuation": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "scope",
+        "as_of_known",
+        "as_of_seq",
+        "methods",
+        "limit",
+        "covered_all_relevant_scope",
+        "continuation"
+      ],
+      "additionalProperties": false
+    },
+    "Candidate": {
+      "type": "object",
+      "properties": {
+        "candidate_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "target": {
+          "$ref": "#/$defs/Ref"
+        },
+        "target_kind": {
+          "enum": [
+            "entity",
+            "claim",
+            "event",
+            "source",
+            "catalogue"
+          ]
+        },
+        "retrieval_method": {
+          "type": "string",
+          "minLength": 1
+        },
+        "relevance_score": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "evidence_refs": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 0
+        },
+        "reasons": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 0
+        }
+      },
+      "required": [
+        "candidate_id",
+        "target",
+        "target_kind",
+        "retrieval_method",
+        "relevance_score",
+        "evidence_refs",
+        "reasons"
+      ],
+      "additionalProperties": false
+    },
+    "Unresolved": {
+      "type": "object",
+      "properties": {
+        "annotation_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "scope": {
+          "$ref": "#/$defs/Scope"
+        },
+        "source": {
+          "$ref": "#/$defs/SourceSnapshot"
+        },
+        "mention_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 0
+        },
+        "reason": {
+          "enum": [
+            "ambiguous_entity",
+            "ambiguous_place",
+            "missing_anchor",
+            "missing_support",
+            "unsupported_form",
+            "unsupported_language",
+            "conflict",
+            "budget",
+            "incomplete_search",
+            "missing_media"
+          ]
+        },
+        "candidates": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Candidate"
+          },
+          "minItems": 0
+        },
+        "search": {
+          "$ref": "#/$defs/CandidateSearch"
+        },
+        "retry_eligible": {
+          "type": "boolean"
+        },
+        "retry_on": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "new_evidence",
+              "source_revision",
+              "rule_revision",
+              "catalogue_revision",
+              "capacity"
+            ]
+          },
+          "minItems": 0
+        },
+        "producer": {
+          "$ref": "#/$defs/Producer"
+        },
+        "known_since": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "annotation_id",
+        "revision",
+        "scope",
+        "source",
+        "mention_ids",
+        "reason",
+        "candidates",
+        "search",
+        "retry_eligible",
+        "retry_on",
+        "producer",
+        "known_since"
+      ],
+      "additionalProperties": false
+    },
+    "Dependency": {
+      "type": "object",
+      "properties": {
+        "dependency_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "kind": {
+          "enum": [
+            "support",
+            "entity_binding",
+            "time_anchor",
+            "polarity",
+            "modality",
+            "list_member",
+            "join_branch",
+            "duration_endpoint"
+          ]
+        },
+        "evidence_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 1
+        },
+        "claim_refs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Ref"
+          },
+          "minItems": 0
+        },
+        "mandatory": {
+          "type": "boolean"
+        },
+        "branch_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "dependency_id",
+        "kind",
+        "evidence_ids",
+        "claim_refs",
+        "mandatory",
+        "branch_id"
+      ],
+      "additionalProperties": false
+    },
+    "Coverage": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "enum": [
+            "complete_scope",
+            "observed_subset",
+            "unknown"
+          ]
+        },
+        "requested_scope": {
+          "type": "string",
+          "minLength": 1
+        },
+        "enumerated_scope": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "scope_snapshot_hash": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "continuation": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reasons": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 0
+        },
+        "proof_evidence_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 0
+        }
+      },
+      "required": [
+        "kind",
+        "requested_scope",
+        "enumerated_scope",
+        "scope_snapshot_hash",
+        "continuation",
+        "reasons",
+        "proof_evidence_ids"
+      ],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "complete_scope"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "enumerated_scope": {
+                "type": "string",
+                "minLength": 1
+              },
+              "scope_snapshot_hash": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "continuation": {
+                "type": "null"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "ExcerptCopy": {
+      "type": "object",
+      "properties": {
+        "copy_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "evidence_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source": {
+          "$ref": "#/$defs/Ref"
+        },
+        "excerpt_hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "erasure_generation": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "child_copy_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 0
+        }
+      },
+      "required": [
+        "copy_id",
+        "evidence_id",
+        "source",
+        "excerpt_hash",
+        "erasure_generation",
+        "child_copy_ids"
+      ],
+      "additionalProperties": false
+    },
+    "Bundle": {
+      "type": "object",
+      "properties": {
+        "bundle_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "scope": {
+          "$ref": "#/$defs/Scope"
+        },
+        "claims": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Ref"
+          },
+          "minItems": 1
+        },
+        "evidence": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Evidence"
+          },
+          "minItems": 1
+        },
+        "copy_manifest": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ExcerptCopy"
+          },
+          "minItems": 1
+        },
+        "dependencies": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Dependency"
+          },
+          "minItems": 1
+        },
+        "temporal_refs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/TemporalRef"
+          },
+          "minItems": 0
+        },
+        "coverage": {
+          "$ref": "#/$defs/Coverage"
+        },
+        "cost": {
+          "$ref": "#/$defs/Cost"
+        },
+        "producer": {
+          "$ref": "#/$defs/Producer"
+        }
+      },
+      "required": [
+        "bundle_id",
+        "scope",
+        "claims",
+        "evidence",
+        "copy_manifest",
+        "dependencies",
+        "temporal_refs",
+        "coverage",
+        "cost",
+        "producer"
+      ],
+      "additionalProperties": false
+    },
+    "Cost": {
+      "type": "object",
+      "properties": {
+        "value": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "unit": {
+          "enum": [
+            "tokens",
+            "characters"
+          ]
+        },
+        "method": {
+          "enum": [
+            "exact_tokenizer",
+            "estimated",
+            "characters"
+          ]
+        },
+        "tokenizer_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "value",
+        "unit",
+        "method",
+        "tokenizer_id"
+      ],
+      "additionalProperties": false
+    },
+    "Selection": {
+      "type": "object",
+      "properties": {
+        "kept_bundle_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 0
+        },
+        "dropped": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Drop"
+          },
+          "minItems": 0
+        },
+        "coverage": {
+          "$ref": "#/$defs/Coverage"
+        },
+        "used": {
+          "$ref": "#/$defs/Cost"
+        },
+        "budget": {
+          "$ref": "#/$defs/Cost"
+        },
+        "outcome": {
+          "enum": [
+            "complete",
+            "partial",
+            "unresolved"
+          ]
+        },
+        "policy_version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 0
+        }
+      },
+      "required": [
+        "kept_bundle_ids",
+        "dropped",
+        "coverage",
+        "used",
+        "budget",
+        "outcome",
+        "policy_version",
+        "warnings"
+      ],
+      "additionalProperties": false
+    },
+    "Drop": {
+      "type": "object",
+      "properties": {
+        "bundle_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "reason": {
+          "enum": [
+            "over_budget",
+            "duplicate",
+            "scope",
+            "stale",
+            "low_relevance",
+            "missing_dependency"
+          ]
+        }
+      },
+      "required": [
+        "bundle_id",
+        "reason"
+      ],
+      "additionalProperties": false
+    },
+    "Computation": {
+      "type": "object",
+      "properties": {
+        "computation_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "operator": {
+          "enum": [
+            "count",
+            "union",
+            "intersection",
+            "duration"
+          ]
+        },
+        "input_claim_refs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Ref"
+          },
+          "minItems": 1
+        },
+        "event_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 0
+        },
+        "coverage": {
+          "$ref": "#/$defs/Coverage"
+        },
+        "result": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Value"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "result_kind": {
+          "enum": [
+            "exact",
+            "lower_bound",
+            "interval",
+            "unresolved"
+          ]
+        },
+        "duration": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Duration"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "producer": {
+          "$ref": "#/$defs/Producer"
+        }
+      },
+      "required": [
+        "computation_id",
+        "operator",
+        "input_claim_refs",
+        "event_ids",
+        "coverage",
+        "result",
+        "result_kind",
+        "duration",
+        "producer"
+      ],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "result_kind": {
+                "const": "unresolved"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "result": {
+                "type": "null"
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "result": {
+                "type": "object"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "Invalidation": {
+      "type": "object",
+      "properties": {
+        "target": {
+          "$ref": "#/$defs/Ref"
+        },
+        "reason": {
+          "enum": [
+            "erasure",
+            "source_revision",
+            "access_revoked",
+            "rule_revision"
+          ]
+        },
+        "source_refs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Ref"
+          },
+          "minItems": 1
+        }
+      },
+      "required": [
+        "target",
+        "reason",
+        "source_refs"
+      ],
+      "additionalProperties": false
+    },
+    "Effect": {
+      "type": "object",
+      "properties": {
+        "effect_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "kind": {
+          "enum": [
+            "entity_recorded",
+            "mention_recorded",
+            "identity_link_recorded",
+            "claim_recorded",
+            "claim_revised",
+            "event_recorded",
+            "unresolved_recorded",
+            "annotation_invalidated"
+          ]
+        },
+        "target": {
+          "$ref": "#/$defs/Ref"
+        },
+        "expected_target_revision": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "source_snapshot_refs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SourceSnapshot"
+          },
+          "minItems": 1
+        },
+        "lease_epoch": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "expected_erasure_generation": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "producer": {
+          "$ref": "#/$defs/Producer"
+        },
+        "idempotency_key": {
+          "type": "string",
+          "minLength": 1
+        },
+        "committed_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "committed_seq": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "payload_hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "payload": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/Entity"
+            },
+            {
+              "$ref": "#/$defs/Mention"
+            },
+            {
+              "$ref": "#/$defs/IdentityLink"
+            },
+            {
+              "$ref": "#/$defs/Claim"
+            },
+            {
+              "$ref": "#/$defs/EventOccurrence"
+            },
+            {
+              "$ref": "#/$defs/Unresolved"
+            },
+            {
+              "$ref": "#/$defs/Invalidation"
+            }
+          ]
+        }
+      },
+      "required": [
+        "effect_id",
+        "kind",
+        "target",
+        "expected_target_revision",
+        "source_snapshot_refs",
+        "lease_epoch",
+        "expected_erasure_generation",
+        "producer",
+        "idempotency_key",
+        "committed_at",
+        "committed_seq",
+        "payload_hash",
+        "payload"
+      ],
+      "additionalProperties": false
+    },
+    "WorkBudget": {
+      "type": "object",
+      "properties": {
+        "max_candidates": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "max_source_characters": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "max_jobs_per_batch": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "max_dependency_hops": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "model_calls_allowed": {
+          "type": "boolean"
+        },
+        "generative_calls_allowed": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "max_candidates",
+        "max_source_characters",
+        "max_jobs_per_batch",
+        "max_dependency_hops",
+        "model_calls_allowed",
+        "generative_calls_allowed"
+      ],
+      "additionalProperties": false
+    },
+    "ContextBundle": {
+      "type": "object",
+      "properties": {
+        "context_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "scope": {
+          "$ref": "#/$defs/Scope"
+        },
+        "source_snapshots": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SourceSnapshot"
+          },
+          "minItems": 1
+        },
+        "candidates": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Candidate"
+          },
+          "minItems": 0
+        },
+        "evidence": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Evidence"
+          },
+          "minItems": 0
+        },
+        "search": {
+          "$ref": "#/$defs/CandidateSearch"
+        },
+        "budget": {
+          "$ref": "#/$defs/WorkBudget"
+        },
+        "policy_version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "producer": {
+          "$ref": "#/$defs/Producer"
+        },
+        "snapshot_hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      },
+      "required": [
+        "context_id",
+        "scope",
+        "source_snapshots",
+        "candidates",
+        "evidence",
+        "search",
+        "budget",
+        "policy_version",
+        "producer",
+        "snapshot_hash"
+      ],
+      "additionalProperties": false
+    },
+    "DerivationResult": {
+      "type": "object",
+      "properties": {
+        "operation_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "outcome": {
+          "enum": [
+            "complete",
+            "partial",
+            "unresolved",
+            "rejected",
+            "retryable"
+          ]
+        },
+        "effect_refs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Ref"
+          },
+          "minItems": 0
+        },
+        "unresolved_refs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Ref"
+          },
+          "minItems": 0
+        },
+        "reasons": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 0
+        },
+        "continuation": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "policy_version": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "operation_id",
+        "outcome",
+        "effect_refs",
+        "unresolved_refs",
+        "reasons",
+        "continuation",
+        "policy_version"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "type": "object",
+  "properties": {
+    "kind": {
+      "enum": [
+        "Scope",
+        "Ref",
+        "Producer",
+        "SourceClock",
+        "SourceSnapshot",
+        "Span",
+        "Evidence",
+        "EntityRef",
+        "Entity",
+        "Mention",
+        "IdentityLink",
+        "AwareTimeValue",
+        "Anchor",
+        "TemporalRelation",
+        "Duration",
+        "TemporalRef",
+        "Interval",
+        "TimeAxes",
+        "Value",
+        "Assessment",
+        "ClaimLink",
+        "Claim",
+        "Participant",
+        "EventOccurrence",
+        "PredicateSpec",
+        "CandidateSearch",
+        "Candidate",
+        "Unresolved",
+        "Dependency",
+        "Coverage",
+        "ExcerptCopy",
+        "Bundle",
+        "Cost",
+        "Selection",
+        "Drop",
+        "Computation",
+        "Invalidation",
+        "Effect",
+        "WorkBudget",
+        "ContextBundle",
+        "DerivationResult"
+      ]
+    },
+    "value": {}
+  },
+  "required": [
+    "kind",
+    "value"
+  ],
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "Scope"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "value": {
+            "$ref": "#/$defs/Scope"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "Ref"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "value": {
+            "$ref": "#/$defs/Ref"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "Producer"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "value": {
+            "$ref": "#/$defs/Producer"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "SourceClock"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "value": {
+            "$ref": "#/$defs/SourceClock"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "SourceSnapshot"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "value": {
+            "$ref": "#/$defs/SourceSnapshot"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "Span"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "value": {
+            "$ref": "#/$defs/Span"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "Evidence"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "value": {
+            "$ref": "#/$defs/Evidence"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "EntityRef"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "value": {
+            "$ref": "#/$defs/EntityRef"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "Entity"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "value": {
+            "$ref": "#/$defs/Entity"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "Mention"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "value": {
+            "$ref": "#/$defs/Mention"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "IdentityLink"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "value": {
+            "$ref": "#/$defs/IdentityLink"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "AwareTimeValue"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "value": {
+            "$ref": "#/$defs/AwareTimeValue"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "Anchor"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "value": {
+            "$ref": "#/$defs/Anchor"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "TemporalRelation"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "value": {
+            "$ref": "#/$defs/TemporalRelation"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "Duration"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "value": {
+            "$ref": "#/$defs/Duration"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "TemporalRef"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "value": {
+            "$ref": "#/$defs/TemporalRef"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "Interval"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "value": {
+            "$ref": "#/$defs/Interval"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "TimeAxes"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "value": {
+            "$ref": "#/$defs/TimeAxes"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "Value"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "value": {
+            "$ref": "#/$defs/Value"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "Assessment"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "value": {
+            "$ref": "#/$defs/Assessment"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "ClaimLink"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "value": {
+            "$ref": "#/$defs/ClaimLink"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "Claim"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "value": {
+            "$ref": "#/$defs/Claim"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "Participant"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "value": {
+            "$ref": "#/$defs/Participant"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "EventOccurrence"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "value": {
+            "$ref": "#/$defs/EventOccurrence"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "PredicateSpec"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "value": {
+            "$ref": "#/$defs/PredicateSpec"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "CandidateSearch"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "value": {
+            "$ref": "#/$defs/CandidateSearch"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "Candidate"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "value": {
+            "$ref": "#/$defs/Candidate"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "Unresolved"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "value": {
+            "$ref": "#/$defs/Unresolved"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "Dependency"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "value": {
+            "$ref": "#/$defs/Dependency"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "Coverage"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "value": {
+            "$ref": "#/$defs/Coverage"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "ExcerptCopy"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "value": {
+            "$ref": "#/$defs/ExcerptCopy"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "Bundle"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "value": {
+            "$ref": "#/$defs/Bundle"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "Cost"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "value": {
+            "$ref": "#/$defs/Cost"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "Selection"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "value": {
+            "$ref": "#/$defs/Selection"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "Drop"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "value": {
+            "$ref": "#/$defs/Drop"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "Computation"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "value": {
+            "$ref": "#/$defs/Computation"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "Invalidation"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "value": {
+            "$ref": "#/$defs/Invalidation"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "Effect"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "value": {
+            "$ref": "#/$defs/Effect"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "WorkBudget"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "value": {
+            "$ref": "#/$defs/WorkBudget"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "ContextBundle"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "value": {
+            "$ref": "#/$defs/ContextBundle"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "DerivationResult"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "value": {
+            "$ref": "#/$defs/DerivationResult"
+          }
+        }
+      }
+    }
+  ]
+}

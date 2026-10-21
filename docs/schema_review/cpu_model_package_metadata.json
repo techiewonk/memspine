@@ -1,0 +1,70 @@
+{
+  "review_date": "2026-10-18",
+  "note": "Distribution availability only; no runtime install/inference/quality validation",
+  "packages": {
+    "model2vec": {
+      "version": "0.10.0",
+      "requires_python": ">=3.10",
+      "pure_python_wheel": true,
+      "cp313_windows_wheels": [],
+      "source_archive": true
+    },
+    "scikit-learn": {
+      "version": "1.9.1",
+      "requires_python": ">=3.11",
+      "pure_python_wheel": false,
+      "cp313_windows_wheels": [
+        "scikit_learn-1.9.1-cp313-cp313-win_amd64.whl"
+      ],
+      "source_archive": true
+    },
+    "fasttext": {
+      "version": "0.9.3",
+      "requires_python": null,
+      "pure_python_wheel": false,
+      "cp313_windows_wheels": [],
+      "source_archive": true
+    },
+    "gensim": {
+      "version": "4.4.0",
+      "requires_python": ">=3.9",
+      "pure_python_wheel": false,
+      "cp313_windows_wheels": [
+        "gensim-4.4.0-cp313-cp313-win_amd64.whl"
+      ],
+      "source_archive": true
+    },
+    "spacy": {
+      "version": "3.8.16",
+      "requires_python": "<3.15,>=3.9",
+      "pure_python_wheel": false,
+      "cp313_windows_wheels": [
+        "spacy-3.8.16-cp313-cp313-win_amd64.whl"
+      ],
+      "source_archive": true
+    },
+    "gliner2": {
+      "version": "2.1.0",
+      "requires_python": ">=3.10",
+      "pure_python_wheel": true,
+      "cp313_windows_wheels": [],
+      "source_archive": true
+    },
+    "flashrank": {
+      "version": "0.2.10",
+      "requires_python": ">=3.6",
+      "pure_python_wheel": true,
+      "cp313_windows_wheels": [],
+      "source_archive": true
+    },
+    "onnxruntime": {
+      "version": "1.31.0",
+      "requires_python": ">=3.11",
+      "pure_python_wheel": false,
+      "cp313_windows_wheels": [
+        "onnxruntime-1.31.0-cp313-cp313-win_amd64.whl"
+      ],
+      "source_archive": false
+    }
+  }
+}

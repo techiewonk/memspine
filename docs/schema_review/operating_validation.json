@@ -1,0 +1,9 @@
+{
+  "status": "review-data consistency passed",
+  "predicate_specs": 43,
+  "copy_classes": 20,
+  "owner_selected_evidence_tokens": 4096,
+  "other_numeric_defaults": "accepted starting design, unmeasured",
+  "runtime_implementation": false,
+  "erasure_proof": false
+}

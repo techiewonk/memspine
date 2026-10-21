@@ -1,0 +1,190 @@
+{
+  "status": "STRUCTURE_REVIEW_NO_RUNTIME_IMPLEMENTATION",
+  "date": "2026-10-18",
+  "registry": "one immutable semantic registry, separate from service provider registry",
+  "accepted_predicate_pack_ownership": {
+    "core": [
+      "has_quantity",
+      "has_measurement",
+      "explicit_frequency",
+      "explicit_reason",
+      "has_attribute"
+    ],
+    "human": [
+      "resides_in",
+      "works_in",
+      "home_country",
+      "born_in",
+      "grew_up_in",
+      "move_origin",
+      "move_destination",
+      "visited",
+      "temporarily_present_in",
+      "parent_of",
+      "sibling_of",
+      "spouse_of",
+      "friend_of",
+      "member_of",
+      "employed_by",
+      "likes",
+      "dislikes",
+      "prefers",
+      "interested_in",
+      "intends",
+      "suggested_to"
+    ],
+    "activities": [
+      "read",
+      "listened_to",
+      "watched",
+      "played",
+      "participated_in",
+      "attended"
+    ],
+    "objects": [
+      "owns",
+      "adopted",
+      "made",
+      "gave",
+      "received",
+      "commissioned"
+    ],
+    "work": [
+      "offered",
+      "started_on",
+      "opened_on",
+      "completed_on",
+      "occurred_on"
+    ]
+  },
+  "pack_dependencies": {
+    "core": [],
+    "human": [
+      "core"
+    ],
+    "activities": [
+      "core"
+    ],
+    "objects": [
+      "core"
+    ],
+    "work": [
+      "core"
+    ],
+    "operational": [
+      "core",
+      "work"
+    ],
+    "catalogue": [
+      "core"
+    ]
+  },
+  "accepted_keys": [
+    "colour",
+    "material",
+    "breed",
+    "model",
+    "title",
+    "language",
+    "genre",
+    "activity_type",
+    "art_form"
+  ],
+  "proposed_extensions": {
+    "predicates": [
+      "located_in",
+      "part_of",
+      "uses",
+      "requires",
+      "depends_on",
+      "manages",
+      "has_role",
+      "assigned_to",
+      "communicated_with",
+      "has_capability"
+    ],
+    "property_keys": {
+      "descriptive": [
+        "description",
+        "category",
+        "purpose",
+        "format",
+        "medium",
+        "style",
+        "shape",
+        "condition",
+        "brand",
+        "manufacturer",
+        "edition",
+        "version",
+        "external_identifier",
+        "domain_status",
+        "skill_level"
+      ],
+      "measurement": [
+        "length",
+        "width",
+        "height",
+        "depth",
+        "distance",
+        "area",
+        "volume",
+        "mass",
+        "temperature",
+        "duration",
+        "speed",
+        "capacity",
+        "age",
+        "price",
+        "cost"
+      ],
+      "quantity": [
+        "item_count",
+        "event_count",
+        "participant_count"
+      ],
+      "frequency": [
+        "occurrence_rate",
+        "recurrence_interval"
+      ]
+    }
+  },
+  "proposed_property_categories": {
+    "has_attribute": "descriptive",
+    "has_measurement": "measurement",
+    "has_quantity": "quantity",
+    "explicit_frequency": "frequency"
+  },
+  "proposed_property_spec_fields": [
+    "key",
+    "version",
+    "category",
+    "permitted_predicates",
+    "subject_types",
+    "value_kinds",
+    "unit_dimension",
+    "allowed_units",
+    "context_requirements",
+    "cardinality",
+    "evidence_origins",
+    "extraction_rule_ids",
+    "pack_id"
+  ],
+  "refinements_not_yet_runtime_schema": [
+    "extend attribute_key predicate-category validation",
+    "typed multi-party/comparison qualifiers",
+    "domain constrained entity roles and subtypes"
+  ],
+  "activation_states": [
+    "registered",
+    "extractable",
+    "queryable",
+    "projected"
+  ],
+  "accepted_invariants": {
+    "evidence_budget_tokens": 4096,
+    "resolved_time": "aware datetime only",
+    "bundle_storage": "persist full excerpts with cascade erasure",
+    "generative_fallback": "separately controlled, disabled by default"
+  }
+}

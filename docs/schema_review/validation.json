@@ -1,0 +1,22 @@
+{
+  "schema_draft": "2020-12",
+  "definitions": 41,
+  "positive_examples": 15,
+  "negative_shape_checks": [
+    "unknown field",
+    "resolved time without value",
+    "ambiguous mention with canonical ID",
+    "empty entity reference",
+    "duplicate asserted negation encoding",
+    "complete scope without snapshot",
+    "unresolved computation with answer",
+    "invalid timestamp",
+    "instant without offset",
+    "resolved temporal value without offset",
+    "rejected civil date value shape",
+    "persisted bundle without copy manifest"
+  ],
+  "gap_mapping": 52,
+  "behavioural_contracts": "C01-C22 specified, not implemented or runtime validated",
+  "engine_code_changed": false
+}

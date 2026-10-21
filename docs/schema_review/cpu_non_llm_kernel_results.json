@@ -1,0 +1,2070 @@
+{
+  "date": "2026-10-18",
+  "hardware": "AMD Ryzen 9 9950X3D, 16 cores / 32 logical CPUs; four threads per isolated worker",
+  "policy": "CPU-only; no generative calls; three repeats, tiny synthetic diagnostics, not a leaderboard",
+  "primary": [
+    {
+      "model": "BAAI/bge-small-en-v1.5",
+      "kind": "encoder",
+      "threads": 4,
+      "python": "3.13.5 (main, Jul 11 2025, 22:38:12) [MSC v.1944 64 bit (AMD64)]",
+      "fixture_sha256": "7a42e4f27bc1427a38cfa127fa733e1655dccd0e20ff19acbe882c51dadce173",
+      "limitations": [
+        "Tiny synthetic diagnostic, not standard benchmark or held-out quality estimate.",
+        "No generative model; CPU only; each model in a separate process.",
+        "Latency includes tokenization/model/scoring for the indicated kernel; warmed weights.",
+        "Memory is sampled process RSS, not whole-system memory or guaranteed OS peak."
+      ],
+      "parameter_count": 33360000,
+      "load_and_label_setup_ms": 6704.353500041179,
+      "parameter_dtypes": {
+        "torch.float32": 199
+      },
+      "package_versions": {
+        "numpy": "2.5.4",
+        "torch": "2.14.1",
+        "transformers": "5.20.1",
+        "model2vec": "0.10.0",
+        "gliner2": "2.1.0",
+        "gliclass": "0.1.21",
+        "scikit-learn": "1.9.1"
+      },
+      "routing": {
+        "n_items": 24,
+        "repeats": 3,
+        "warm_p50_ms": 7.692250015679747,
+        "warm_p95_ms": 9.298114979173988,
+        "outputs": [
+          0,
+          0,
+          0,
+          0,
+          1,
+          2,
+          1,
+          1,
+          2,
+          2,
+          2,
+          2,
+          3,
+          0,
+          0,
+          3,
+          4,
+          4,
+          4,
+          4,
+          5,
+          5,
+          5,
+          5
+        ],
+        "top1_correct": 21
+      },
+      "status": "ok",
+      "sampled_peak_rss_mb": 542.6171875,
+      "snapshot_revision": "5c38ec7c405ec4b44b94cc5a9bb96e735b38267a",
+      "worker_exit_code": 0,
+      "worker_wall_seconds": 7.949679500074126
+    },
+    {
+      "model": "bm25-labels",
+      "kind": "bm25",
+      "threads": 4,
+      "python": "3.13.5 (main, Jul 11 2025, 22:38:12) [MSC v.1944 64 bit (AMD64)]",
+      "fixture_sha256": "7a42e4f27bc1427a38cfa127fa733e1655dccd0e20ff19acbe882c51dadce173",
+      "limitations": [
+        "Tiny synthetic diagnostic, not standard benchmark or held-out quality estimate.",
+        "No generative model; CPU only; each model in a separate process.",
+        "Latency includes tokenization/model/scoring for the indicated kernel; warmed weights.",
+        "Memory is sampled process RSS, not whole-system memory or guaranteed OS peak."
+      ],
+      "load_and_label_setup_ms": 0.10920001659542322,
+      "package_versions": {
+        "numpy": "2.5.4",
+        "torch": "2.14.1",
+        "transformers": "5.20.1",
+        "model2vec": "0.10.0",
+        "gliner2": "2.1.0",
+        "gliclass": "0.1.21",
+        "scikit-learn": "1.9.1"
+      },
+      "routing": {
+        "n_items": 24,
+        "repeats": 3,
+        "warm_p50_ms": 0.02819998189806938,
+        "warm_p95_ms": 0.03707004943862558,
+        "outputs": [
+          1,
+          0,
+          0,
+          1,
+          5,
+          2,
+          0,
+          0,
+          0,
+          0,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          4,
+          2,
+          4,
+          4,
+          5,
+          5,
+          5,
+          5
+        ],
+        "top1_correct": 11
+      },
+      "status": "ok",
+      "sampled_peak_rss_mb": 35.87890625,
+      "snapshot_revision": null,
+      "worker_exit_code": 0,
+      "worker_wall_seconds": 0.3169734999537468
+    },
+    {
+      "model": "cross-encoder/ms-marco-MiniLM-L-6-v2",
+      "kind": "reranker",
+      "threads": 4,
+      "python": "3.13.5 (main, Jul 11 2025, 22:38:12) [MSC v.1944 64 bit (AMD64)]",
+      "fixture_sha256": "7a42e4f27bc1427a38cfa127fa733e1655dccd0e20ff19acbe882c51dadce173",
+      "limitations": [
+        "Tiny synthetic diagnostic, not standard benchmark or held-out quality estimate.",
+        "No generative model; CPU only; each model in a separate process.",
+        "Latency includes tokenization/model/scoring for the indicated kernel; warmed weights.",
+        "Memory is sampled process RSS, not whole-system memory or guaranteed OS peak."
+      ],
+      "parameter_count": 22713601,
+      "load_and_label_setup_ms": 6615.786700043827,
+      "parameter_dtypes": {
+        "torch.float32": 105
+      },
+      "package_versions": {
+        "numpy": "2.5.4",
+        "torch": "2.14.1",
+        "transformers": "5.20.1",
+        "model2vec": "0.10.0",
+        "gliner2": "2.1.0",
+        "gliclass": "0.1.21",
+        "scikit-learn": "1.9.1"
+      },
+      "rerank": {
+        "n_items": 8,
+        "repeats": 3,
+        "warm_p50_ms": 8.604799979366362,
+        "warm_p95_ms": 11.479910009074954,
+        "outputs": [
+          {
+            "best": 0,
+            "scores": [
+              9.05933666229248,
+              3.1003732681274414,
+              -4.40057373046875,
+              5.52474308013916
+            ]
+          },
+          {
+            "best": 1,
+            "scores": [
+              5.742321014404297,
+              9.352832794189453,
+              -5.227570056915283,
+              2.8897452354431152
+            ]
+          },
+          {
+            "best": 2,
+            "scores": [
+              0.8432173728942871,
+              -5.1514387130737305,
+              8.894916534423828,
+              0.7631030678749084
+            ]
+          },
+          {
+            "best": 3,
+            "scores": [
+              8.167821884155273,
+              5.689488410949707,
+              -2.3454651832580566,
+              9.115692138671875
+            ]
+          },
+          {
+            "best": 1,
+            "scores": [
+              -1.9553930759429932,
+              6.560919284820557,
+              -9.53866958618164,
+              -0.9096803069114685
+            ]
+          },
+          {
+            "best": 2,
+            "scores": [
+              -0.5034918189048767,
+              -2.2197015285491943,
+              7.819748878479004,
+              -5.796103477478027
+            ]
+          },
+          {
+            "best": 0,
+            "scores": [
+              8.46906852722168,
+              3.453274726867676,
+              5.9743547439575195,
+              -5.959356784820557
+            ]
+          },
+          {
+            "best": 3,
+            "scores": [
+              6.182406425476074,
+              -3.344010829925537,
+              7.560801982879639,
+              8.738630294799805
+            ]
+          }
+        ],
+        "top1_correct": 8
+      },
+      "status": "ok",
+      "sampled_peak_rss_mb": 505.0625,
+      "snapshot_revision": "c5ee24cb16019beea0893ab7796b1df96625c6b8",
+      "worker_exit_code": 0,
+      "worker_wall_seconds": 7.593985399929807
+    },
+    {
+      "model": "cross-encoder/ms-marco-TinyBERT-L2-v2",
+      "kind": "reranker",
+      "threads": 4,
+      "python": "3.13.5 (main, Jul 11 2025, 22:38:12) [MSC v.1944 64 bit (AMD64)]",
+      "fixture_sha256": "7a42e4f27bc1427a38cfa127fa733e1655dccd0e20ff19acbe882c51dadce173",
+      "limitations": [
+        "Tiny synthetic diagnostic, not standard benchmark or held-out quality estimate.",
+        "No generative model; CPU only; each model in a separate process.",
+        "Latency includes tokenization/model/scoring for the indicated kernel; warmed weights.",
+        "Memory is sampled process RSS, not whole-system memory or guaranteed OS peak."
+      ],
+      "parameter_count": 4386049,
+      "load_and_label_setup_ms": 6977.360999910161,
+      "parameter_dtypes": {
+        "torch.float32": 41
+      },
+      "package_versions": {
+        "numpy": "2.5.4",
+        "torch": "2.14.1",
+        "transformers": "5.20.1",
+        "model2vec": "0.10.0",
+        "gliner2": "2.1.0",
+        "gliclass": "0.1.21",
+        "scikit-learn": "1.9.1"
+      },
+      "rerank": {
+        "n_items": 8,
+        "repeats": 3,
+        "warm_p50_ms": 1.0637500090524554,
+        "warm_p95_ms": 1.716530008707195,
+        "outputs": [
+          {
+            "best": 0,
+            "scores": [
+              8.170361518859863,
+              -1.8502668142318726,
+              -10.857134819030762,
+              -0.5667041540145874
+            ]
+          },
+          {
+            "best": 1,
+            "scores": [
+              -3.9074881076812744,
+              8.033361434936523,
+              -10.776729583740234,
+              -3.3388617038726807
+            ]
+          },
+          {
+            "best": 2,
+            "scores": [
+              5.5508317947387695,
+              -8.394598960876465,
+              9.638385772705078,
+              2.5696191787719727
+            ]
+          },
+          {
+            "best": 3,
+            "scores": [
+              7.2170515060424805,
+              3.6137962341308594,
+              -3.761528730392456,
+              8.82607364654541
+            ]
+          },
+          {
+            "best": 1,
+            "scores": [
+              -5.461608409881592,
+              7.277515411376953,
+              -11.33173942565918,
+              -4.590528964996338
+            ]
+          },
+          {
+            "best": 2,
+            "scores": [
+              2.7912075519561768,
+              -4.842115879058838,
+              4.431163311004639,
+              -10.756647109985352
+            ]
+          },
+          {
+            "best": 0,
+            "scores": [
+              8.975733757019043,
+              5.53666877746582,
+              5.6918134689331055,
+              -7.979151725769043
+            ]
+          },
+          {
+            "best": 2,
+            "scores": [
+              3.100536346435547,
+              -9.613483428955078,
+              8.495792388916016,
+              8.295232772827148
+            ]
+          }
+        ],
+        "top1_correct": 7
+      },
+      "status": "ok",
+      "sampled_peak_rss_mb": 427.546875,
+      "snapshot_revision": "81d1926f67cb8eee2c2be17ca9f793c7c3bd20cc",
+      "worker_exit_code": 0,
+      "worker_wall_seconds": 7.8008044000016525
+    },
+    {
+      "model": "fastino/gliner2.5-base-v1",
+      "kind": "gliner",
+      "threads": 4,
+      "python": "3.13.5 (main, Jul 11 2025, 22:38:12) [MSC v.1944 64 bit (AMD64)]",
+      "fixture_sha256": "7a42e4f27bc1427a38cfa127fa733e1655dccd0e20ff19acbe882c51dadce173",
+      "limitations": [
+        "Tiny synthetic diagnostic, not standard benchmark or held-out quality estimate.",
+        "No generative model; CPU only; each model in a separate process.",
+        "Latency includes tokenization/model/scoring for the indicated kernel; warmed weights.",
+        "Memory is sampled process RSS, not whole-system memory or guaranteed OS peak."
+      ],
+      "parameter_count": 193581591,
+      "load_and_label_setup_ms": 9318.551299977116,
+      "parameter_dtypes": {
+        "torch.float32": 334
+      },
+      "package_versions": {
+        "numpy": "2.5.4",
+        "torch": "2.14.1",
+        "transformers": "5.20.1",
+        "model2vec": "0.10.0",
+        "gliner2": "2.1.0",
+        "gliclass": "0.1.21",
+        "scikit-learn": "1.9.1"
+      },
+      "routing": {
+        "n_items": 24,
+        "repeats": 3,
+        "warm_p50_ms": 141.79324998985976,
+        "warm_p95_ms": 154.49874500045553,
+        "outputs": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          2,
+          2,
+          2,
+          2,
+          3,
+          3,
+          3,
+          3,
+          4,
+          4,
+          4,
+          4,
+          5,
+          5,
+          5,
+          5
+        ],
+        "top1_correct": 21
+      },
+      "ner": {
+        "n_items": 8,
+        "repeats": 3,
+        "warm_p50_ms": 94.42440001294017,
+        "warm_p95_ms": 104.89742499776185,
+        "outputs": [
+          [
+            [
+              "Sofia",
+              "person",
+              0,
+              5
+            ],
+            [
+              "Porto",
+              "location",
+              17,
+              22
+            ],
+            [
+              "Lisbon",
+              "location",
+              26,
+              32
+            ]
+          ],
+          [
+            [
+              "Anita",
+              "person",
+              0,
+              5
+            ],
+            [
+              "Bristol",
+              "location",
+              24,
+              31
+            ],
+            [
+              "Acme",
+              "organization",
+              16,
+              20
+            ]
+          ],
+          [
+            [
+              "David",
+              "person",
+              0,
+              5
+            ],
+            [
+              "Elena",
+              "person",
+              24,
+              29
+            ],
+            [
+              "Rome",
+              "location",
+              14,
+              18
+            ]
+          ],
+          [
+            [
+              "Maya",
+              "person",
+              0,
+              4
+            ],
+            [
+              "Oliver",
+              "person",
+              26,
+              32
+            ],
+            [
+              "York",
+              "location",
+              36,
+              40
+            ],
+            [
+              "Oliver",
+              "organization",
+              26,
+              32
+            ]
+          ],
+          [
+            [
+              "Nora",
+              "person",
+              0,
+              4
+            ],
+            [
+              "London",
+              "location",
+              28,
+              34
+            ],
+            [
+              "Microsoft",
+              "organization",
+              15,
+              24
+            ]
+          ],
+          [
+            [
+              "Leo",
+              "person",
+              0,
+              3
+            ],
+            [
+              "Priya",
+              "person",
+              8,
+              13
+            ],
+            [
+              "Paris",
+              "location",
+              17,
+              22
+            ]
+          ],
+          [
+            [
+              "Sara",
+              "person",
+              0,
+              4
+            ],
+            [
+              "Madrid",
+              "location",
+              14,
+              20
+            ],
+            [
+              "Google",
+              "organization",
+              35,
+              41
+            ]
+          ],
+          [
+            [
+              "Daniel",
+              "person",
+              0,
+              6
+            ],
+            [
+              "Berlin",
+              "location",
+              22,
+              28
+            ],
+            [
+              "Vienna",
+              "location",
+              32,
+              38
+            ]
+          ]
+        ],
+        "tp": 24,
+        "fp": 1,
+        "fn": 0,
+        "micro_f1": 0.9795918367346939
+      },
+      "status": "ok",
+      "sampled_peak_rss_mb": 1989.24609375,
+      "snapshot_revision": "ca906247640776a07753514055be9726f9080ead",
+      "worker_exit_code": 0,
+      "worker_wall_seconds": 22.856631799950264
+    },
+    {
+      "model": "fastino/gliner2.5-small-v1",
+      "kind": "gliner",
+      "threads": 4,
+      "python": "3.13.5 (main, Jul 11 2025, 22:38:12) [MSC v.1944 64 bit (AMD64)]",
+      "fixture_sha256": "7a42e4f27bc1427a38cfa127fa733e1655dccd0e20ff19acbe882c51dadce173",
+      "limitations": [
+        "Tiny synthetic diagnostic, not standard benchmark or held-out quality estimate.",
+        "No generative model; CPU only; each model in a separate process.",
+        "Latency includes tokenization/model/scoring for the indicated kernel; warmed weights.",
+        "Memory is sampled process RSS, not whole-system memory or guaranteed OS peak."
+      ],
+      "parameter_count": 73881879,
+      "load_and_label_setup_ms": 8248.585500055924,
+      "parameter_dtypes": {
+        "torch.float32": 334
+      },
+      "package_versions": {
+        "numpy": "2.5.4",
+        "torch": "2.14.1",
+        "transformers": "5.20.1",
+        "model2vec": "0.10.0",
+        "gliner2": "2.1.0",
+        "gliclass": "0.1.21",
+        "scikit-learn": "1.9.1"
+      },
+      "routing": {
+        "n_items": 24,
+        "repeats": 3,
+        "warm_p50_ms": 43.4285500086844,
+        "warm_p95_ms": 50.186720030615106,
+        "outputs": [
+          0,
+          0,
+          0,
+          0,
+          1,
+          1,
+          1,
+          1,
+          2,
+          2,
+          2,
+          2,
+          3,
+          3,
+          0,
+          3,
+          4,
+          4,
+          4,
+          4,
+          5,
+          5,
+          5,
+          5
+        ],
+        "top1_correct": 23
+      },
+      "ner": {
+        "n_items": 8,
+        "repeats": 3,
+        "warm_p50_ms": 31.84100001817569,
+        "warm_p95_ms": 34.85158495022915,
+        "outputs": [
+          [
+            [
+              "Sofia",
+              "person",
+              0,
+              5
+            ],
+            [
+              "Porto",
+              "location",
+              17,
+              22
+            ],
+            [
+              "Lisbon",
+              "location",
+              26,
+              32
+            ]
+          ],
+          [
+            [
+              "Anita",
+              "person",
+              0,
+              5
+            ],
+            [
+              "Bristol",
+              "location",
+              24,
+              31
+            ],
+            [
+              "Acme",
+              "organization",
+              16,
+              20
+            ]
+          ],
+          [
+            [
+              "David",
+              "person",
+              0,
+              5
+            ],
+            [
+              "Elena",
+              "person",
+              24,
+              29
+            ],
+            [
+              "Rome",
+              "location",
+              14,
+              18
+            ]
+          ],
+          [
+            [
+              "Maya",
+              "person",
+              0,
+              4
+            ],
+            [
+              "York",
+              "location",
+              36,
+              40
+            ],
+            [
+              "Oliver",
+              "organization",
+              26,
+              32
+            ]
+          ],
+          [
+            [
+              "Nora",
+              "person",
+              0,
+              4
+            ],
+            [
+              "London",
+              "location",
+              28,
+              34
+            ],
+            [
+              "Microsoft",
+              "organization",
+              15,
+              24
+            ]
+          ],
+          [
+            [
+              "Priya",
+              "person",
+              8,
+              13
+            ],
+            [
+              "Leo",
+              "person",
+              0,
+              3
+            ],
+            [
+              "Paris",
+              "location",
+              17,
+              22
+            ]
+          ],
+          [
+            [
+              "Sara",
+              "person",
+              0,
+              4
+            ],
+            [
+              "Madrid",
+              "location",
+              14,
+              20
+            ],
+            [
+              "Google",
+              "organization",
+              35,
+              41
+            ]
+          ],
+          [
+            [
+              "Daniel",
+              "person",
+              0,
+              6
+            ],
+            [
+              "Berlin",
+              "location",
+              22,
+              28
+            ],
+            [
+              "Vienna",
+              "location",
+              32,
+              38
+            ]
+          ]
+        ],
+        "tp": 23,
+        "fp": 1,
+        "fn": 1,
+        "micro_f1": 0.9583333333333334
+      },
+      "status": "ok",
+      "sampled_peak_rss_mb": 1146.93359375,
+      "snapshot_revision": "df5910e44bc4ffdb0d95399a83b0ca4516349aa5",
+      "worker_exit_code": 0,
+      "worker_wall_seconds": 13.008857199922204
+    },
+    {
+      "model": "knowledgator/gliclass-instruct-edge-v1.0",
+      "kind": "gliclass",
+      "threads": 4,
+      "python": "3.13.5 (main, Jul 11 2025, 22:38:12) [MSC v.1944 64 bit (AMD64)]",
+      "fixture_sha256": "7a42e4f27bc1427a38cfa127fa733e1655dccd0e20ff19acbe882c51dadce173",
+      "limitations": [
+        "Tiny synthetic diagnostic, not standard benchmark or held-out quality estimate.",
+        "No generative model; CPU only; each model in a separate process.",
+        "Latency includes tokenization/model/scoring for the indicated kernel; warmed weights.",
+        "Memory is sampled process RSS, not whole-system memory or guaranteed OS peak."
+      ],
+      "parameter_count": 32706690,
+      "load_and_label_setup_ms": 7112.529999925755,
+      "parameter_dtypes": {
+        "torch.float32": 78
+      },
+      "package_versions": {
+        "numpy": "2.5.4",
+        "torch": "2.14.1",
+        "transformers": "5.20.1",
+        "model2vec": "0.10.0",
+        "gliner2": "2.1.0",
+        "gliclass": "0.1.21",
+        "scikit-learn": "1.9.1"
+      },
+      "routing": {
+        "n_items": 24,
+        "repeats": 3,
+        "warm_p50_ms": 14.58705001277849,
+        "warm_p95_ms": 17.50296000391245,
+        "outputs": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "top1_correct": 4
+      },
+      "status": "ok",
+      "sampled_peak_rss_mb": 568.2734375,
+      "snapshot_revision": "727be8a417f6a7718e591b025e07054c146d8139",
+      "worker_exit_code": 0,
+      "worker_wall_seconds": 8.896640499937348
+    },
+    {
+      "model": "minishlab/potion-base-8M",
+      "kind": "static",
+      "threads": 4,
+      "python": "3.13.5 (main, Jul 11 2025, 22:38:12) [MSC v.1944 64 bit (AMD64)]",
+      "fixture_sha256": "7a42e4f27bc1427a38cfa127fa733e1655dccd0e20ff19acbe882c51dadce173",
+      "limitations": [
+        "Tiny synthetic diagnostic, not standard benchmark or held-out quality estimate.",
+        "No generative model; CPU only; each model in a separate process.",
+        "Latency includes tokenization/model/scoring for the indicated kernel; warmed weights.",
+        "Memory is sampled process RSS, not whole-system memory or guaranteed OS peak."
+      ],
+      "load_and_label_setup_ms": 610.2989000501111,
+      "package_versions": {
+        "numpy": "2.5.4",
+        "torch": "2.14.1",
+        "transformers": "5.20.1",
+        "model2vec": "0.10.0",
+        "gliner2": "2.1.0",
+        "gliclass": "0.1.21",
+        "scikit-learn": "1.9.1"
+      },
+      "routing": {
+        "n_items": 24,
+        "repeats": 3,
+        "warm_p50_ms": 0.03974995343014598,
+        "warm_p95_ms": 0.05159004358574749,
+        "outputs": [
+          0,
+          0,
+          0,
+          0,
+          1,
+          2,
+          1,
+          1,
+          2,
+          2,
+          2,
+          2,
+          3,
+          3,
+          3,
+          3,
+          4,
+          4,
+          4,
+          4,
+          5,
+          5,
+          5,
+          5
+        ],
+        "top1_correct": 23
+      },
+      "status": "ok",
+      "sampled_peak_rss_mb": 126.0078125,
+      "snapshot_revision": "bf8b056651a2c21b8d2565580b8569da283cab23",
+      "worker_exit_code": 0,
+      "worker_wall_seconds": 1.0128379999659956
+    },
+    {
+      "model": "minishlab/potion-retrieval-32M",
+      "kind": "static",
+      "threads": 4,
+      "python": "3.13.5 (main, Jul 11 2025, 22:38:12) [MSC v.1944 64 bit (AMD64)]",
+      "fixture_sha256": "7a42e4f27bc1427a38cfa127fa733e1655dccd0e20ff19acbe882c51dadce173",
+      "limitations": [
+        "Tiny synthetic diagnostic, not standard benchmark or held-out quality estimate.",
+        "No generative model; CPU only; each model in a separate process.",
+        "Latency includes tokenization/model/scoring for the indicated kernel; warmed weights.",
+        "Memory is sampled process RSS, not whole-system memory or guaranteed OS peak."
+      ],
+      "load_and_label_setup_ms": 682.9729001037776,
+      "package_versions": {
+        "numpy": "2.5.4",
+        "torch": "2.14.1",
+        "transformers": "5.20.1",
+        "model2vec": "0.10.0",
+        "gliner2": "2.1.0",
+        "gliclass": "0.1.21",
+        "scikit-learn": "1.9.1"
+      },
+      "routing": {
+        "n_items": 24,
+        "repeats": 3,
+        "warm_p50_ms": 0.039499951526522636,
+        "warm_p95_ms": 0.05092503852210939,
+        "outputs": [
+          1,
+          0,
+          0,
+          1,
+          1,
+          2,
+          1,
+          1,
+          2,
+          2,
+          2,
+          2,
+          3,
+          3,
+          3,
+          3,
+          4,
+          4,
+          4,
+          4,
+          5,
+          5,
+          5,
+          5
+        ],
+        "top1_correct": 21
+      },
+      "status": "ok",
+      "sampled_peak_rss_mb": 319.9140625,
+      "snapshot_revision": "6fc8051fab2a1e0ee76689cf08c853792ac285e7",
+      "worker_exit_code": 0,
+      "worker_wall_seconds": 1.0829762000357732
+    },
+    {
+      "model": "sentence-transformers/all-MiniLM-L6-v2",
+      "kind": "encoder",
+      "threads": 4,
+      "python": "3.13.5 (main, Jul 11 2025, 22:38:12) [MSC v.1944 64 bit (AMD64)]",
+      "fixture_sha256": "7a42e4f27bc1427a38cfa127fa733e1655dccd0e20ff19acbe882c51dadce173",
+      "limitations": [
+        "Tiny synthetic diagnostic, not standard benchmark or held-out quality estimate.",
+        "No generative model; CPU only; each model in a separate process.",
+        "Latency includes tokenization/model/scoring for the indicated kernel; warmed weights.",
+        "Memory is sampled process RSS, not whole-system memory or guaranteed OS peak."
+      ],
+      "parameter_count": 22713216,
+      "load_and_label_setup_ms": 18733.447200036608,
+      "parameter_dtypes": {
+        "torch.float32": 103
+      },
+      "package_versions": {
+        "numpy": "2.5.4",
+        "torch": "2.14.1",
+        "transformers": "5.20.1",
+        "model2vec": "0.10.0",
+        "gliner2": "2.1.0",
+        "gliclass": "0.1.21",
+        "scikit-learn": "1.9.1"
+      },
+      "routing": {
+        "n_items": 24,
+        "repeats": 3,
+        "warm_p50_ms": 2.7902000001631677,
+        "warm_p95_ms": 4.267194960266352,
+        "outputs": [
+          1,
+          0,
+          0,
+          0,
+          1,
+          0,
+          1,
+          1,
+          2,
+          2,
+          2,
+          2,
+          2,
+          3,
+          0,
+          3,
+          4,
+          4,
+          4,
+          4,
+          5,
+          5,
+          5,
+          5
+        ],
+        "top1_correct": 20
+      },
+      "status": "ok",
+      "sampled_peak_rss_mb": 506.484375,
+      "snapshot_revision": "1110a243fdf4706b3f48f1d95db1a4f5529b4d41",
+      "worker_exit_code": 0,
+      "worker_wall_seconds": 19.661576400045305
+    }
+  ],
+  "cached_document_similarity": [
+    {
+      "model": "BAAI/bge-small-en-v1.5",
+      "kind": "encoder",
+      "threads": 4,
+      "label_style": "descriptive",
+      "python": "3.13.5 (main, Jul 11 2025, 22:38:12) [MSC v.1944 64 bit (AMD64)]",
+      "fixture_sha256": "7a42e4f27bc1427a38cfa127fa733e1655dccd0e20ff19acbe882c51dadce173",
+      "limitations": [
+        "Tiny synthetic diagnostic, not standard benchmark or held-out quality estimate.",
+        "No generative model; CPU only; each model in a separate process.",
+        "Latency includes tokenization/model/scoring for the indicated kernel; warmed weights.",
+        "Memory is sampled process RSS, not whole-system memory or guaranteed OS peak."
+      ],
+      "parameter_count": 33360000,
+      "load_and_label_setup_ms": 6829.375100089237,
+      "parameter_dtypes": {
+        "torch.float32": 199
+      },
+      "package_versions": {
+        "numpy": "2.5.4",
+        "torch": "2.14.1",
+        "transformers": "5.20.1",
+        "model2vec": "0.10.0",
+        "gliner2": "2.1.0",
+        "gliclass": "0.1.21",
+        "scikit-learn": "1.9.1"
+      },
+      "routing": {
+        "n_items": 24,
+        "repeats": 3,
+        "warm_p50_ms": 6.919299950823188,
+        "warm_p95_ms": 9.275955002522096,
+        "outputs": [
+          0,
+          0,
+          0,
+          0,
+          1,
+          2,
+          1,
+          1,
+          2,
+          2,
+          2,
+          2,
+          3,
+          0,
+          0,
+          3,
+          4,
+          4,
+          4,
+          4,
+          5,
+          5,
+          5,
+          5
+        ],
+        "top1_correct": 21
+      },
+      "passage_vector_setup_ms": 77.52290007192641,
+      "cached_similarity": {
+        "n_items": 8,
+        "repeats": 3,
+        "warm_p50_ms": 7.347550010308623,
+        "warm_p95_ms": 8.299390005413443,
+        "outputs": [
+          {
+            "best": 0,
+            "scores": [
+              0.7912683486938477,
+              0.6870279312133789,
+              0.5920716524124146,
+              0.7211615443229675
+            ]
+          },
+          {
+            "best": 0,
+            "scores": [
+              0.7343974113464355,
+              0.7256554365158081,
+              0.5400136709213257,
+              0.5672975778579712
+            ]
+          },
+          {
+            "best": 2,
+            "scores": [
+              0.6359500288963318,
+              0.6291723251342773,
+              0.8581735491752625,
+              0.7718768119812012
+            ]
+          },
+          {
+            "best": 3,
+            "scores": [
+              0.8123671412467957,
+              0.7722918391227722,
+              0.5806897878646851,
+              0.8226390480995178
+            ]
+          },
+          {
+            "best": 1,
+            "scores": [
+              0.6445069313049316,
+              0.7863335609436035,
+              0.4542029798030853,
+              0.6110163927078247
+            ]
+          },
+          {
+            "best": 2,
+            "scores": [
+              0.6066576242446899,
+              0.6502152681350708,
+              0.7311946153640747,
+              0.48117440938949585
+            ]
+          },
+          {
+            "best": 0,
+            "scores": [
+              0.7468796968460083,
+              0.667073130607605,
+              0.7047713994979858,
+              0.61537104845047
+            ]
+          },
+          {
+            "best": 3,
+            "scores": [
+              0.7594523429870605,
+              0.519116997718811,
+              0.7156182527542114,
+              0.8172065615653992
+            ]
+          }
+        ],
+        "top1_correct": 7
+      },
+      "status": "ok",
+      "sampled_peak_rss_mb": 543.94921875,
+      "snapshot_revision": "5c38ec7c405ec4b44b94cc5a9bb96e735b38267a"
+    },
+    {
+      "model": "minishlab/potion-base-8M",
+      "kind": "static",
+      "threads": 4,
+      "label_style": "descriptive",
+      "python": "3.13.5 (main, Jul 11 2025, 22:38:12) [MSC v.1944 64 bit (AMD64)]",
+      "fixture_sha256": "7a42e4f27bc1427a38cfa127fa733e1655dccd0e20ff19acbe882c51dadce173",
+      "limitations": [
+        "Tiny synthetic diagnostic, not standard benchmark or held-out quality estimate.",
+        "No generative model; CPU only; each model in a separate process.",
+        "Latency includes tokenization/model/scoring for the indicated kernel; warmed weights.",
+        "Memory is sampled process RSS, not whole-system memory or guaranteed OS peak."
+      ],
+      "load_and_label_setup_ms": 520.0127999996766,
+      "package_versions": {
+        "numpy": "2.5.4",
+        "torch": "2.14.1",
+        "transformers": "5.20.1",
+        "model2vec": "0.10.0",
+        "gliner2": "2.1.0",
+        "gliclass": "0.1.21",
+        "scikit-learn": "1.9.1"
+      },
+      "routing": {
+        "n_items": 24,
+        "repeats": 3,
+        "warm_p50_ms": 0.0381499994546175,
+        "warm_p95_ms": 0.05133004160597921,
+        "outputs": [
+          0,
+          0,
+          0,
+          0,
+          1,
+          2,
+          1,
+          1,
+          2,
+          2,
+          2,
+          2,
+          3,
+          3,
+          3,
+          3,
+          4,
+          4,
+          4,
+          4,
+          5,
+          5,
+          5,
+          5
+        ],
+        "top1_correct": 23
+      },
+      "passage_vector_setup_ms": 0.8475999347865582,
+      "cached_similarity": {
+        "n_items": 8,
+        "repeats": 3,
+        "warm_p50_ms": 0.04014995647594333,
+        "warm_p95_ms": 0.09510996169410638,
+        "outputs": [
+          {
+            "best": 0,
+            "scores": [
+              0.6522172689437866,
+              0.532735288143158,
+              0.22936980426311493,
+              0.5892723798751831
+            ]
+          },
+          {
+            "best": 1,
+            "scores": [
+              0.5040692090988159,
+              0.7442527413368225,
+              0.18774566054344177,
+              0.5363918542861938
+            ]
+          },
+          {
+            "best": 2,
+            "scores": [
+              0.6886472105979919,
+              0.4717962443828583,
+              0.7998944520950317,
+              0.6933916211128235
+            ]
+          },
+          {
+            "best": 0,
+            "scores": [
+              0.795575737953186,
+              0.6161194443702698,
+              0.5224718451499939,
+              0.7897505760192871
+            ]
+          },
+          {
+            "best": 3,
+            "scores": [
+              0.38979655504226685,
+              0.5228239893913269,
+              0.19523008167743683,
+              0.5748733282089233
+            ]
+          },
+          {
+            "best": 2,
+            "scores": [
+              0.5574005246162415,
+              0.380462110042572,
+              0.6657450199127197,
+              0.09040206670761108
+            ]
+          },
+          {
+            "best": 2,
+            "scores": [
+              0.6605292558670044,
+              0.39608335494995117,
+              0.7102631330490112,
+              0.39297038316726685
+            ]
+          },
+          {
+            "best": 0,
+            "scores": [
+              0.7058992385864258,
+              0.28925085067749023,
+              0.6395491361618042,
+              0.703692615032196
+            ]
+          }
+        ],
+        "top1_correct": 4
+      },
+      "status": "ok",
+      "sampled_peak_rss_mb": 126.73046875,
+      "snapshot_revision": "bf8b056651a2c21b8d2565580b8569da283cab23"
+    },
+    {
+      "model": "minishlab/potion-retrieval-32M",
+      "kind": "static",
+      "threads": 4,
+      "label_style": "descriptive",
+      "python": "3.13.5 (main, Jul 11 2025, 22:38:12) [MSC v.1944 64 bit (AMD64)]",
+      "fixture_sha256": "7a42e4f27bc1427a38cfa127fa733e1655dccd0e20ff19acbe882c51dadce173",
+      "limitations": [
+        "Tiny synthetic diagnostic, not standard benchmark or held-out quality estimate.",
+        "No generative model; CPU only; each model in a separate process.",
+        "Latency includes tokenization/model/scoring for the indicated kernel; warmed weights.",
+        "Memory is sampled process RSS, not whole-system memory or guaranteed OS peak."
+      ],
+      "load_and_label_setup_ms": 634.0260000433773,
+      "package_versions": {
+        "numpy": "2.5.4",
+        "torch": "2.14.1",
+        "transformers": "5.20.1",
+        "model2vec": "0.10.0",
+        "gliner2": "2.1.0",
+        "gliclass": "0.1.21",
+        "scikit-learn": "1.9.1"
+      },
+      "routing": {
+        "n_items": 24,
+        "repeats": 3,
+        "warm_p50_ms": 0.04020007327198982,
+        "warm_p95_ms": 0.06492002867162229,
+        "outputs": [
+          1,
+          0,
+          0,
+          1,
+          1,
+          2,
+          1,
+          1,
+          2,
+          2,
+          2,
+          2,
+          3,
+          3,
+          3,
+          3,
+          4,
+          4,
+          4,
+          4,
+          5,
+          5,
+          5,
+          5
+        ],
+        "top1_correct": 21
+      },
+      "passage_vector_setup_ms": 0.8420000085607171,
+      "cached_similarity": {
+        "n_items": 8,
+        "repeats": 3,
+        "warm_p50_ms": 0.03985001239925623,
+        "warm_p95_ms": 0.04376498400233686,
+        "outputs": [
+          {
+            "best": 0,
+            "scores": [
+              0.7191448211669922,
+              0.5734173655509949,
+              0.11210262775421143,
+              0.6990980505943298
+            ]
+          },
+          {
+            "best": 1,
+            "scores": [
+              0.5767782926559448,
+              0.7435503602027893,
+              0.10483072698116302,
+              0.550615668296814
+            ]
+          },
+          {
+            "best": 3,
+            "scores": [
+              0.6173077821731567,
+              0.26667696237564087,
+              0.7824547290802002,
+              0.8266505599021912
+            ]
+          },
+          {
+            "best": 0,
+            "scores": [
+              0.9224856495857239,
+              0.8630098104476929,
+              0.3592627942562103,
+              0.6520484685897827
+            ]
+          },
+          {
+            "best": 1,
+            "scores": [
+              0.4858245849609375,
+              0.6255252361297607,
+              0.06255225837230682,
+              0.6252142786979675
+            ]
+          },
+          {
+            "best": 2,
+            "scores": [
+              0.46464359760284424,
+              0.36136746406555176,
+              0.6158558130264282,
+              0.14299887418746948
+            ]
+          },
+          {
+            "best": 0,
+            "scores": [
+              0.8460667729377747,
+              0.3916371464729309,
+              0.7773171067237854,
+              0.33762097358703613
+            ]
+          },
+          {
+            "best": 3,
+            "scores": [
+              0.8049805164337158,
+              0.35617977380752563,
+              0.8338516354560852,
+              0.8613861799240112
+            ]
+          }
+        ],
+        "top1_correct": 6
+      },
+      "status": "ok",
+      "sampled_peak_rss_mb": 320.55859375,
+      "snapshot_revision": "6fc8051fab2a1e0ee76689cf08c853792ac285e7"
+    },
+    {
+      "model": "sentence-transformers/all-MiniLM-L6-v2",
+      "kind": "encoder",
+      "threads": 4,
+      "label_style": "descriptive",
+      "python": "3.13.5 (main, Jul 11 2025, 22:38:12) [MSC v.1944 64 bit (AMD64)]",
+      "fixture_sha256": "7a42e4f27bc1427a38cfa127fa733e1655dccd0e20ff19acbe882c51dadce173",
+      "limitations": [
+        "Tiny synthetic diagnostic, not standard benchmark or held-out quality estimate.",
+        "No generative model; CPU only; each model in a separate process.",
+        "Latency includes tokenization/model/scoring for the indicated kernel; warmed weights.",
+        "Memory is sampled process RSS, not whole-system memory or guaranteed OS peak."
+      ],
+      "parameter_count": 22713216,
+      "load_and_label_setup_ms": 6777.103399974294,
+      "parameter_dtypes": {
+        "torch.float32": 103
+      },
+      "package_versions": {
+        "numpy": "2.5.4",
+        "torch": "2.14.1",
+        "transformers": "5.20.1",
+        "model2vec": "0.10.0",
+        "gliner2": "2.1.0",
+        "gliclass": "0.1.21",
+        "scikit-learn": "1.9.1"
+      },
+      "routing": {
+        "n_items": 24,
+        "repeats": 3,
+        "warm_p50_ms": 3.055150038562715,
+        "warm_p95_ms": 3.7375349376816303,
+        "outputs": [
+          1,
+          0,
+          0,
+          0,
+          1,
+          0,
+          1,
+          1,
+          2,
+          2,
+          2,
+          2,
+          2,
+          3,
+          0,
+          3,
+          4,
+          4,
+          4,
+          4,
+          5,
+          5,
+          5,
+          5
+        ],
+        "top1_correct": 20
+      },
+      "passage_vector_setup_ms": 48.98880003020167,
+      "cached_similarity": {
+        "n_items": 8,
+        "repeats": 3,
+        "warm_p50_ms": 2.590699994470924,
+        "warm_p95_ms": 3.1725100125186145,
+        "outputs": [
+          {
+            "best": 0,
+            "scores": [
+              0.8275517821311951,
+              0.7133136987686157,
+              0.4943859577178955,
+              0.7290771007537842
+            ]
+          },
+          {
+            "best": 1,
+            "scores": [
+              0.7622077465057373,
+              0.8478473424911499,
+              0.4539022743701935,
+              0.599536120891571
+            ]
+          },
+          {
+            "best": 2,
+            "scores": [
+              0.5745915174484253,
+              0.5517373085021973,
+              0.843095600605011,
+              0.7934126853942871
+            ]
+          },
+          {
+            "best": 3,
+            "scores": [
+              0.8718539476394653,
+              0.7826226949691772,
+              0.4810037314891815,
+              0.902555525302887
+            ]
+          },
+          {
+            "best": 1,
+            "scores": [
+              0.6374581456184387,
+              0.6828309297561646,
+              0.32993897795677185,
+              0.38938239216804504
+            ]
+          },
+          {
+            "best": 2,
+            "scores": [
+              0.5436663627624512,
+              0.6207006573677063,
+              0.7355108857154846,
+              0.29340222477912903
+            ]
+          },
+          {
+            "best": 0,
+            "scores": [
+              0.8038274049758911,
+              0.729325532913208,
+              0.7767467498779297,
+              0.5021139979362488
+            ]
+          },
+          {
+            "best": 3,
+            "scores": [
+              0.7740816473960876,
+              0.4720858931541443,
+              0.7304143309593201,
+              0.8232572078704834
+            ]
+          }
+        ],
+        "top1_correct": 8
+      },
+      "status": "ok",
+      "sampled_peak_rss_mb": 503.11328125,
+      "snapshot_revision": "1110a243fdf4706b3f48f1d95db1a4f5529b4d41"
+    }
+  ],
+  "label_sensitivity": {
+    "model": "knowledgator/gliclass-instruct-edge-v1.0",
+    "kind": "gliclass",
+    "threads": 4,
+    "label_style": "short",
+    "python": "3.13.5 (main, Jul 11 2025, 22:38:12) [MSC v.1944 64 bit (AMD64)]",
+    "fixture_sha256": "2f377609ea71ea08698e5aea82db6b507118e6824c62256ff198afcb02e5f608",
+    "limitations": [
+      "Tiny synthetic diagnostic, not standard benchmark or held-out quality estimate.",
+      "No generative model; CPU only; each model in a separate process.",
+      "Latency includes tokenization/model/scoring for the indicated kernel; warmed weights.",
+      "Memory is sampled process RSS, not whole-system memory or guaranteed OS peak."
+    ],
+    "parameter_count": 32706690,
+    "load_and_label_setup_ms": 7237.920099985786,
+    "parameter_dtypes": {
+      "torch.float32": 78
+    },
+    "package_versions": {
+      "numpy": "2.5.4",
+      "torch": "2.14.1",
+      "transformers": "5.20.1",
+      "model2vec": "0.10.0",
+      "gliner2": "2.1.0",
+      "gliclass": "0.1.21",
+      "scikit-learn": "1.9.1"
+    },
+    "routing": {
+      "n_items": 24,
+      "repeats": 3,
+      "warm_p50_ms": 6.93475006846711,
+      "warm_p95_ms": 9.110779967159033,
+      "outputs": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        3,
+        3,
+        0,
+        0,
+        0,
+        4,
+        0,
+        4,
+        0,
+        0,
+        0,
+        0
+      ],
+      "top1_correct": 9
+    },
+    "status": "ok",
+    "sampled_peak_rss_mb": 566.75390625
+  },
+  "fixtures": {
+    "routing_labels": [
+      "The speaker states where they currently live or reside.",
+      "The speaker states their workplace location, not their home.",
+      "The speaker describes a completed visit or trip to a place.",
+      "The speaker plans or intends a future move, not a completed relocation.",
+      "Someone gave or received an item as a gift.",
+      "The speaker read or is reading a book or novel."
+    ],
+    "routing": [
+      [
+        "My home is in Lisbon now.",
+        0
+      ],
+      [
+        "I currently reside in Porto.",
+        0
+      ],
+      [
+        "I live in a flat in Bristol.",
+        0
+      ],
+      [
+        "I have made York my permanent home.",
+        0
+      ],
+      [
+        "My office is in Lisbon.",
+        1
+      ],
+      [
+        "I work at a clinic in Porto.",
+        1
+      ],
+      [
+        "My workplace is in Bristol although I live elsewhere.",
+        1
+      ],
+      [
+        "The company employs me at its York office.",
+        1
+      ],
+      [
+        "I visited Lisbon during my holiday.",
+        2
+      ],
+      [
+        "I spent last weekend sightseeing in Porto.",
+        2
+      ],
+      [
+        "My trip to Bristol finished yesterday.",
+        2
+      ],
+      [
+        "I went to York for a short vacation.",
+        2
+      ],
+      [
+        "I plan to move to Lisbon next month.",
+        3
+      ],
+      [
+        "I might relocate to Porto if I find a job.",
+        3
+      ],
+      [
+        "I intend to settle in Bristol after graduation.",
+        3
+      ],
+      [
+        "Moving to York is a goal, not something I have done.",
+        3
+      ],
+      [
+        "I gave Anita my guitar as a present.",
+        4
+      ],
+      [
+        "My brother gifted me a watch.",
+        4
+      ],
+      [
+        "I received a birthday present from a friend.",
+        4
+      ],
+      [
+        "I bought a painting as a gift for my mother.",
+        4
+      ],
+      [
+        "I finished reading a novel yesterday.",
+        5
+      ],
+      [
+        "I am halfway through this book.",
+        5
+      ],
+      [
+        "I read the biography during my holiday.",
+        5
+      ],
+      [
+        "I spent the evening reading a mystery story.",
+        5
+      ]
+    ],
+    "ner": [
+      [
+        "Sofia moved from Porto to Lisbon.",
+        [
+          [
+            "Sofia",
+            "person"
+          ],
+          [
+            "Porto",
+            "location"
+          ],
+          [
+            "Lisbon",
+            "location"
+          ]
+        ]
+      ],
+      [
+        "Anita works for Acme in Bristol.",
+        [
+          [
+            "Anita",
+            "person"
+          ],
+          [
+            "Acme",
+            "organization"
+          ],
+          [
+            "Bristol",
+            "location"
+          ]
+        ]
+      ],
+      [
+        "David visited Rome with Elena.",
+        [
+          [
+            "David",
+            "person"
+          ],
+          [
+            "Rome",
+            "location"
+          ],
+          [
+            "Elena",
+            "person"
+          ]
+        ]
+      ],
+      [
+        "Maya received a gift from Oliver in York.",
+        [
+          [
+            "Maya",
+            "person"
+          ],
+          [
+            "Oliver",
+            "person"
+          ],
+          [
+            "York",
+            "location"
+          ]
+        ]
+      ],
+      [
+        "Nora works for Microsoft in London.",
+        [
+          [
+            "Nora",
+            "person"
+          ],
+          [
+            "Microsoft",
+            "organization"
+          ],
+          [
+            "London",
+            "location"
+          ]
+        ]
+      ],
+      [
+        "Leo met Priya in Paris.",
+        [
+          [
+            "Leo",
+            "person"
+          ],
+          [
+            "Priya",
+            "person"
+          ],
+          [
+            "Paris",
+            "location"
+          ]
+        ]
+      ],
+      [
+        "Sara lives in Madrid and works for Google.",
+        [
+          [
+            "Sara",
+            "person"
+          ],
+          [
+            "Madrid",
+            "location"
+          ],
+          [
+            "Google",
+            "organization"
+          ]
+        ]
+      ],
+      [
+        "Daniel travelled from Berlin to Vienna.",
+        [
+          [
+            "Daniel",
+            "person"
+          ],
+          [
+            "Berlin",
+            "location"
+          ],
+          [
+            "Vienna",
+            "location"
+          ]
+        ]
+      ]
+    ],
+    "rerank": [
+      [
+        "Where does Sofia live?",
+        [
+          "Sofia lives in Lisbon.",
+          "Sofia visited Porto.",
+          "Anita lives in Rome.",
+          "Sofia works in York."
+        ],
+        0
+      ],
+      [
+        "Where does Anita work?",
+        [
+          "Anita lives in Bristol.",
+          "Anita works in York.",
+          "Sofia works in Paris.",
+          "Anita visited Lisbon."
+        ],
+        1
+      ],
+      [
+        "Who gave Maya the guitar?",
+        [
+          "Maya gave David a watch.",
+          "Oliver made a guitar.",
+          "Anita gave Maya the guitar.",
+          "Maya plans to buy a guitar."
+        ],
+        2
+      ],
+      [
+        "Did David attend the class?",
+        [
+          "David was invited to the class.",
+          "David offers a class.",
+          "Elena attended the class.",
+          "David attended the class yesterday."
+        ],
+        3
+      ],
+      [
+        "What does Nora plan to do?",
+        [
+          "Nora moved to Paris last year.",
+          "Nora plans to move to Rome.",
+          "Leo plans to visit Rome.",
+          "Nora did not attend a class."
+        ],
+        1
+      ],
+      [
+        "What is the colour of the guitar?",
+        [
+          "The blue sofa is next to the guitar.",
+          "The guitar belongs to Maya.",
+          "The guitar is red.",
+          "The watch is red."
+        ],
+        2
+      ],
+      [
+        "When did the studio open?",
+        [
+          "The studio opened in September.",
+          "The studio was planned in March.",
+          "Another studio opened in May.",
+          "The studio offers yoga."
+        ],
+        0
+      ],
+      [
+        "How far did Leo walk?",
+        [
+          "Leo walked for two hours.",
+          "Priya walked five kilometres.",
+          "Leo plans to walk ten kilometres.",
+          "Leo walked three kilometres."
+        ],
+        3
+      ]
+    ]
+  },
+  "validation": {
+    "primary_models_or_baselines": 10,
+    "similarity_models": 4,
+    "sensitivity_runs": 1,
+    "checks": "status, parameter cap, timing finiteness/order, output cardinality, recomputed top1, exact NER offsets and Python AST passed"
+  },
+  "script_sha256_at_packaging": {
+    "cpu_non_llm_kernels.py": "bdf70bfd18a43882f7c0a9f523b06162a979635b57229c995b1f4c572ff9da6a",
+    "run_cpu_non_llm_review.py": "305525f039cef795e1ac95d3daff05a474df060e6ebe704352d12083deb5577b"
+  }
+}

@@ -1,0 +1,831 @@
+[
+  {
+    "gap_id": "NL-01",
+    "schemas": [
+      "Entity",
+      "Mention",
+      "IdentityLink",
+      "Claim",
+      "EventOccurrence"
+    ],
+    "contract_checks": [
+      "C02",
+      "C03",
+      "C06",
+      "C09"
+    ],
+    "status": "proposed; schema shape plus behavioural validation required"
+  },
+  {
+    "gap_id": "NL-02",
+    "schemas": [
+      "Entity",
+      "Mention",
+      "IdentityLink",
+      "Claim",
+      "EventOccurrence"
+    ],
+    "contract_checks": [
+      "C02",
+      "C03",
+      "C06",
+      "C09"
+    ],
+    "status": "proposed; schema shape plus behavioural validation required"
+  },
+  {
+    "gap_id": "NL-03",
+    "schemas": [
+      "Entity",
+      "Mention",
+      "IdentityLink",
+      "Claim",
+      "EventOccurrence"
+    ],
+    "contract_checks": [
+      "C02",
+      "C03",
+      "C06",
+      "C09"
+    ],
+    "status": "proposed; schema shape plus behavioural validation required"
+  },
+  {
+    "gap_id": "NL-04",
+    "schemas": [
+      "Entity",
+      "Mention",
+      "IdentityLink",
+      "Claim",
+      "EventOccurrence"
+    ],
+    "contract_checks": [
+      "C02",
+      "C03",
+      "C06",
+      "C09"
+    ],
+    "status": "proposed; schema shape plus behavioural validation required"
+  },
+  {
+    "gap_id": "NL-05",
+    "schemas": [
+      "Entity",
+      "Mention",
+      "IdentityLink",
+      "Claim",
+      "EventOccurrence"
+    ],
+    "contract_checks": [
+      "C02",
+      "C03",
+      "C06",
+      "C09"
+    ],
+    "status": "proposed; schema shape plus behavioural validation required"
+  },
+  {
+    "gap_id": "NL-06",
+    "schemas": [
+      "Evidence",
+      "SourceSnapshot",
+      "ContextBundle"
+    ],
+    "contract_checks": [
+      "C01",
+      "C04",
+      "C05"
+    ],
+    "status": "proposed; schema shape plus behavioural validation required"
+  },
+  {
+    "gap_id": "NL-07",
+    "schemas": [
+      "TemporalRef",
+      "TimeAxes",
+      "EventOccurrence",
+      "Duration"
+    ],
+    "contract_checks": [
+      "C07",
+      "C08",
+      "C09",
+      "C10"
+    ],
+    "status": "proposed; schema shape plus behavioural validation required"
+  },
+  {
+    "gap_id": "NL-08",
+    "schemas": [
+      "TemporalRef",
+      "TimeAxes",
+      "EventOccurrence",
+      "Duration"
+    ],
+    "contract_checks": [
+      "C07",
+      "C08",
+      "C09",
+      "C10"
+    ],
+    "status": "proposed; schema shape plus behavioural validation required"
+  },
+  {
+    "gap_id": "NL-09",
+    "schemas": [
+      "Claim",
+      "PredicateSpec",
+      "Assessment",
+      "IdentityLink"
+    ],
+    "contract_checks": [
+      "C03",
+      "C06",
+      "C11",
+      "C12"
+    ],
+    "status": "proposed; schema shape plus behavioural validation required"
+  },
+  {
+    "gap_id": "NL-10",
+    "schemas": [
+      "Claim",
+      "PredicateSpec",
+      "Assessment",
+      "IdentityLink"
+    ],
+    "contract_checks": [
+      "C03",
+      "C06",
+      "C11",
+      "C12"
+    ],
+    "status": "proposed; schema shape plus behavioural validation required"
+  },
+  {
+    "gap_id": "NL-11",
+    "schemas": [
+      "TemporalRef",
+      "TimeAxes",
+      "EventOccurrence",
+      "Duration"
+    ],
+    "contract_checks": [
+      "C07",
+      "C08",
+      "C09",
+      "C10"
+    ],
+    "status": "proposed; schema shape plus behavioural validation required"
+  },
+  {
+    "gap_id": "NL-12",
+    "schemas": [
+      "TemporalRef",
+      "TimeAxes",
+      "EventOccurrence",
+      "Duration"
+    ],
+    "contract_checks": [
+      "C07",
+      "C08",
+      "C09",
+      "C10"
+    ],
+    "status": "proposed; schema shape plus behavioural validation required"
+  },
+  {
+    "gap_id": "NL-13",
+    "schemas": [
+      "TemporalRef",
+      "TimeAxes",
+      "EventOccurrence",
+      "Duration"
+    ],
+    "contract_checks": [
+      "C07",
+      "C08",
+      "C09",
+      "C10"
+    ],
+    "status": "proposed; schema shape plus behavioural validation required"
+  },
+  {
+    "gap_id": "NL-14",
+    "schemas": [
+      "TemporalRef",
+      "TimeAxes",
+      "EventOccurrence",
+      "Duration"
+    ],
+    "contract_checks": [
+      "C07",
+      "C08",
+      "C09",
+      "C10"
+    ],
+    "status": "proposed; schema shape plus behavioural validation required"
+  },
+  {
+    "gap_id": "NL-15",
+    "schemas": [
+      "TemporalRef",
+      "TimeAxes",
+      "EventOccurrence",
+      "Duration"
+    ],
+    "contract_checks": [
+      "C07",
+      "C08",
+      "C09",
+      "C10"
+    ],
+    "status": "proposed; schema shape plus behavioural validation required"
+  },
+  {
+    "gap_id": "NL-16",
+    "schemas": [
+      "TemporalRef",
+      "TimeAxes",
+      "EventOccurrence",
+      "Duration"
+    ],
+    "contract_checks": [
+      "C07",
+      "C08",
+      "C09",
+      "C10"
+    ],
+    "status": "proposed; schema shape plus behavioural validation required"
+  },
+  {
+    "gap_id": "NL-17",
+    "schemas": [
+      "TemporalRef",
+      "TimeAxes",
+      "EventOccurrence",
+      "Duration"
+    ],
+    "contract_checks": [
+      "C07",
+      "C08",
+      "C09",
+      "C10"
+    ],
+    "status": "proposed; schema shape plus behavioural validation required"
+  },
+  {
+    "gap_id": "NL-18",
+    "schemas": [
+      "Claim",
+      "PredicateSpec",
+      "Assessment",
+      "IdentityLink"
+    ],
+    "contract_checks": [
+      "C03",
+      "C06",
+      "C11",
+      "C12"
+    ],
+    "status": "proposed; schema shape plus behavioural validation required"
+  },
+  {
+    "gap_id": "NL-19",
+    "schemas": [
+      "Claim",
+      "PredicateSpec",
+      "Assessment",
+      "IdentityLink"
+    ],
+    "contract_checks": [
+      "C03",
+      "C06",
+      "C11",
+      "C12"
+    ],
+    "status": "proposed; schema shape plus behavioural validation required"
+  },
+  {
+    "gap_id": "NL-20",
+    "schemas": [
+      "Claim",
+      "PredicateSpec",
+      "Assessment",
+      "IdentityLink"
+    ],
+    "contract_checks": [
+      "C03",
+      "C06",
+      "C11",
+      "C12"
+    ],
+    "status": "proposed; schema shape plus behavioural validation required"
+  },
+  {
+    "gap_id": "NL-21",
+    "schemas": [
+      "Claim",
+      "PredicateSpec",
+      "Assessment",
+      "IdentityLink"
+    ],
+    "contract_checks": [
+      "C03",
+      "C06",
+      "C11",
+      "C12"
+    ],
+    "status": "proposed; schema shape plus behavioural validation required"
+  },
+  {
+    "gap_id": "NL-22",
+    "schemas": [
+      "Claim",
+      "PredicateSpec",
+      "Assessment",
+      "IdentityLink"
+    ],
+    "contract_checks": [
+      "C03",
+      "C06",
+      "C11",
+      "C12"
+    ],
+    "status": "proposed; schema shape plus behavioural validation required"
+  },
+  {
+    "gap_id": "NL-23",
+    "schemas": [
+      "Computation",
+      "Coverage",
+      "EventOccurrence",
+      "Bundle"
+    ],
+    "contract_checks": [
+      "C09",
+      "C13",
+      "C14"
+    ],
+    "status": "proposed; schema shape plus behavioural validation required"
+  },
+  {
+    "gap_id": "NL-24",
+    "schemas": [
+      "Computation",
+      "Coverage",
+      "EventOccurrence",
+      "Bundle"
+    ],
+    "contract_checks": [
+      "C09",
+      "C13",
+      "C14"
+    ],
+    "status": "proposed; schema shape plus behavioural validation required"
+  },
+  {
+    "gap_id": "NL-25",
+    "schemas": [
+      "Computation",
+      "Coverage",
+      "EventOccurrence",
+      "Bundle"
+    ],
+    "contract_checks": [
+      "C09",
+      "C13",
+      "C14"
+    ],
+    "status": "proposed; schema shape plus behavioural validation required"
+  },
+  {
+    "gap_id": "NL-26",
+    "schemas": [
+      "CandidateSearch",
+      "Candidate",
+      "Bundle",
+      "Selection",
+      "Dependency"
+    ],
+    "contract_checks": [
+      "C02",
+      "C05",
+      "C14",
+      "C15",
+      "C16"
+    ],
+    "status": "proposed; schema shape plus behavioural validation required"
+  },
+  {
+    "gap_id": "NL-27",
+    "schemas": [
+      "CandidateSearch",
+      "Candidate",
+      "Bundle",
+      "Selection",
+      "Dependency"
+    ],
+    "contract_checks": [
+      "C02",
+      "C05",
+      "C14",
+      "C15",
+      "C16"
+    ],
+    "status": "proposed; schema shape plus behavioural validation required"
+  },
+  {
+    "gap_id": "NL-28",
+    "schemas": [
+      "CandidateSearch",
+      "Candidate",
+      "Bundle",
+      "Selection",
+      "Dependency"
+    ],
+    "contract_checks": [
+      "C02",
+      "C05",
+      "C14",
+      "C15",
+      "C16"
+    ],
+    "status": "proposed; schema shape plus behavioural validation required"
+  },
+  {
+    "gap_id": "NL-29",
+    "schemas": [
+      "CandidateSearch",
+      "Candidate",
+      "Bundle",
+      "Selection",
+      "Dependency"
+    ],
+    "contract_checks": [
+      "C02",
+      "C05",
+      "C14",
+      "C15",
+      "C16"
+    ],
+    "status": "proposed; schema shape plus behavioural validation required"
+  },
+  {
+    "gap_id": "NL-30",
+    "schemas": [
+      "CandidateSearch",
+      "Candidate",
+      "Bundle",
+      "Selection",
+      "Dependency"
+    ],
+    "contract_checks": [
+      "C02",
+      "C05",
+      "C14",
+      "C15",
+      "C16"
+    ],
+    "status": "proposed; schema shape plus behavioural validation required"
+  },
+  {
+    "gap_id": "NL-31",
+    "schemas": [
+      "CandidateSearch",
+      "Candidate",
+      "Bundle",
+      "Selection",
+      "Dependency"
+    ],
+    "contract_checks": [
+      "C02",
+      "C05",
+      "C14",
+      "C15",
+      "C16"
+    ],
+    "status": "proposed; schema shape plus behavioural validation required"
+  },
+  {
+    "gap_id": "NL-32",
+    "schemas": [
+      "CandidateSearch",
+      "Candidate",
+      "Bundle",
+      "Selection",
+      "Dependency"
+    ],
+    "contract_checks": [
+      "C02",
+      "C05",
+      "C14",
+      "C15",
+      "C16"
+    ],
+    "status": "proposed; schema shape plus behavioural validation required"
+  },
+  {
+    "gap_id": "NL-33",
+    "schemas": [
+      "CandidateSearch",
+      "Candidate",
+      "Bundle",
+      "Selection",
+      "Dependency"
+    ],
+    "contract_checks": [
+      "C02",
+      "C05",
+      "C14",
+      "C15",
+      "C16"
+    ],
+    "status": "proposed; schema shape plus behavioural validation required"
+  },
+  {
+    "gap_id": "NL-34",
+    "schemas": [
+      "CandidateSearch",
+      "Candidate",
+      "Bundle",
+      "Selection",
+      "Dependency"
+    ],
+    "contract_checks": [
+      "C02",
+      "C05",
+      "C14",
+      "C15",
+      "C16"
+    ],
+    "status": "proposed; schema shape plus behavioural validation required"
+  },
+  {
+    "gap_id": "NL-35",
+    "schemas": [
+      "Evidence",
+      "SourceSnapshot",
+      "ContextBundle"
+    ],
+    "contract_checks": [
+      "C01",
+      "C04",
+      "C05"
+    ],
+    "status": "proposed; schema shape plus behavioural validation required"
+  },
+  {
+    "gap_id": "NL-36",
+    "schemas": [
+      "Value",
+      "Unresolved",
+      "Evidence",
+      "Producer"
+    ],
+    "contract_checks": [
+      "C04",
+      "C06",
+      "C17"
+    ],
+    "status": "proposed; schema shape plus behavioural validation required"
+  },
+  {
+    "gap_id": "NL-37",
+    "schemas": [
+      "Value",
+      "Unresolved",
+      "Evidence",
+      "Producer"
+    ],
+    "contract_checks": [
+      "C04",
+      "C06",
+      "C17"
+    ],
+    "status": "proposed; schema shape plus behavioural validation required"
+  },
+  {
+    "gap_id": "NL-38",
+    "schemas": [
+      "Value",
+      "Unresolved",
+      "Evidence",
+      "Producer"
+    ],
+    "contract_checks": [
+      "C04",
+      "C06",
+      "C17"
+    ],
+    "status": "proposed; schema shape plus behavioural validation required"
+  },
+  {
+    "gap_id": "NL-39",
+    "schemas": [
+      "Effect",
+      "SourceSnapshot",
+      "ExcerptCopy",
+      "Bundle",
+      "DerivationResult",
+      "WorkBudget"
+    ],
+    "contract_checks": [
+      "C01",
+      "C02",
+      "C18",
+      "C19"
+    ],
+    "status": "proposed; schema shape plus behavioural validation required"
+  },
+  {
+    "gap_id": "NL-40",
+    "schemas": [
+      "Effect",
+      "SourceSnapshot",
+      "ExcerptCopy",
+      "Bundle",
+      "DerivationResult",
+      "WorkBudget"
+    ],
+    "contract_checks": [
+      "C01",
+      "C02",
+      "C18",
+      "C19"
+    ],
+    "status": "proposed; schema shape plus behavioural validation required"
+  },
+  {
+    "gap_id": "NL-41",
+    "schemas": [
+      "Evidence",
+      "Unresolved",
+      "Coverage"
+    ],
+    "contract_checks": [
+      "C20"
+    ],
+    "status": "proposed; schema shape plus behavioural validation required"
+  },
+  {
+    "gap_id": "NL-42",
+    "schemas": [
+      "Evidence",
+      "Unresolved",
+      "Coverage"
+    ],
+    "contract_checks": [
+      "C20"
+    ],
+    "status": "proposed; schema shape plus behavioural validation required"
+  },
+  {
+    "gap_id": "NL-43",
+    "schemas": [
+      "Evidence",
+      "Unresolved",
+      "Coverage"
+    ],
+    "contract_checks": [
+      "C20"
+    ],
+    "status": "proposed; schema shape plus behavioural validation required"
+  },
+  {
+    "gap_id": "NL-44",
+    "schemas": [
+      "Evidence",
+      "Unresolved",
+      "Coverage"
+    ],
+    "contract_checks": [
+      "C20"
+    ],
+    "status": "proposed; schema shape plus behavioural validation required"
+  },
+  {
+    "gap_id": "NL-45",
+    "schemas": [
+      "Producer",
+      "Selection",
+      "Coverage",
+      "Effect"
+    ],
+    "contract_checks": [
+      "C21",
+      "C22"
+    ],
+    "status": "proposed; schema shape plus behavioural validation required"
+  },
+  {
+    "gap_id": "NL-46",
+    "schemas": [
+      "Producer",
+      "Selection",
+      "Coverage",
+      "Effect"
+    ],
+    "contract_checks": [
+      "C21",
+      "C22"
+    ],
+    "status": "proposed; schema shape plus behavioural validation required"
+  },
+  {
+    "gap_id": "NL-47",
+    "schemas": [
+      "Producer",
+      "Selection",
+      "Coverage",
+      "Effect"
+    ],
+    "contract_checks": [
+      "C21",
+      "C22"
+    ],
+    "status": "proposed; schema shape plus behavioural validation required"
+  },
+  {
+    "gap_id": "NL-48",
+    "schemas": [
+      "Producer",
+      "Selection",
+      "Coverage",
+      "Effect"
+    ],
+    "contract_checks": [
+      "C21",
+      "C22"
+    ],
+    "status": "proposed; schema shape plus behavioural validation required"
+  },
+  {
+    "gap_id": "NL-49",
+    "schemas": [
+      "Entity",
+      "Mention",
+      "IdentityLink",
+      "Claim",
+      "EventOccurrence"
+    ],
+    "contract_checks": [
+      "C02",
+      "C03",
+      "C06",
+      "C09"
+    ],
+    "status": "proposed; schema shape plus behavioural validation required"
+  },
+  {
+    "gap_id": "NL-50",
+    "schemas": [
+      "Entity",
+      "Mention",
+      "IdentityLink",
+      "Claim",
+      "EventOccurrence"
+    ],
+    "contract_checks": [
+      "C02",
+      "C03",
+      "C06",
+      "C09"
+    ],
+    "status": "proposed; schema shape plus behavioural validation required"
+  },
+  {
+    "gap_id": "NL-51",
+    "schemas": [
+      "Entity",
+      "Mention",
+      "IdentityLink",
+      "Claim",
+      "EventOccurrence"
+    ],
+    "contract_checks": [
+      "C02",
+      "C03",
+      "C06",
+      "C09"
+    ],
+    "status": "proposed; schema shape plus behavioural validation required"
+  },
+  {
+    "gap_id": "NL-52",
+    "schemas": [
+      "Entity",
+      "Mention",
+      "IdentityLink",
+      "Claim",
+      "EventOccurrence"
+    ],
+    "contract_checks": [
+      "C02",
+      "C03",
+      "C06",
+      "C09"
+    ],
+    "status": "proposed; schema shape plus behavioural validation required"
+  }
+]

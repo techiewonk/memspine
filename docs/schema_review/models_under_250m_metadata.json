@@ -1,0 +1,296 @@
+{
+  "review_date": "2026-10-18",
+  "method": "hf models info metadata only; no weights downloaded. Safetensors totals may include integer buffers; not measured runtime RSS.",
+  "models": [
+    {
+      "id": "minishlab/potion-base-8M",
+      "sha": "bf8b056651a2c21b8d2565580b8569da283cab23",
+      "pipeline_tag": null,
+      "license": "mit",
+      "safetensors_total": 7559168,
+      "under_250m": true,
+      "architectures": [
+        "StaticModel"
+      ],
+      "files": [
+        "onnx/model.onnx"
+      ]
+    },
+    {
+      "id": "fastino/gliner2.5-small-v1",
+      "sha": "df5910e44bc4ffdb0d95399a83b0ca4516349aa5",
+      "pipeline_tag": null,
+      "license": "apache-2.0",
+      "safetensors_total": 73881879,
+      "under_250m": true,
+      "architectures": [
+        "Gliner2ForSchemaExtraction"
+      ],
+      "files": []
+    },
+    {
+      "id": "fastino/gliner2.5-base-v1",
+      "sha": "54785d51df8d86a0d8f2eb212fec15871aad2c4d",
+      "pipeline_tag": null,
+      "license": "apache-2.0",
+      "safetensors_total": 193581591,
+      "under_250m": true,
+      "architectures": [
+        "Gliner2ForSchemaExtraction"
+      ],
+      "files": []
+    },
+    {
+      "id": "sentence-transformers/all-MiniLM-L6-v2",
+      "sha": "1110a243fdf4706b3f48f1d95db1a4f5529b4d41",
+      "pipeline_tag": "sentence-similarity",
+      "license": "apache-2.0",
+      "safetensors_total": 22713728,
+      "under_250m": true,
+      "architectures": [
+        "BertModel"
+      ],
+      "files": [
+        "onnx/model.onnx",
+        "onnx/model_O1.onnx",
+        "onnx/model_O2.onnx",
+        "onnx/model_O3.onnx",
+        "onnx/model_O4.onnx",
+        "onnx/model_qint8_arm64.onnx",
+        "onnx/model_qint8_avx512.onnx",
+        "onnx/model_qint8_avx512_vnni.onnx",
+        "onnx/model_quint8_avx2.onnx"
+      ]
+    },
+    {
+      "id": "BAAI/bge-small-en-v1.5",
+      "sha": "5c38ec7c405ec4b44b94cc5a9bb96e735b38267a",
+      "pipeline_tag": "feature-extraction",
+      "license": "mit",
+      "safetensors_total": 33360512,
+      "under_250m": true,
+      "architectures": [
+        "BertModel"
+      ],
+      "files": [
+        "onnx/model.onnx"
+      ]
+    },
+    {
+      "id": "intfloat/e5-small-v2",
+      "sha": "ffb93f3bd4047442299a41ebb6fa998a38507c52",
+      "pipeline_tag": "sentence-similarity",
+      "license": "mit",
+      "safetensors_total": 33360512,
+      "under_250m": true,
+      "architectures": [
+        "BertModel"
+      ],
+      "files": [
+        "model.onnx",
+        "onnx/model_O4.onnx",
+        "onnx/model_qint8_avx512_vnni.onnx"
+      ]
+    },
+    {
+      "id": "mixedbread-ai/mxbai-embed-xsmall-v1",
+      "sha": "e6ac24e5d6efb8782b59de1647b3ececb4ece94e",
+      "pipeline_tag": "feature-extraction",
+      "license": "apache-2.0",
+      "safetensors_total": 24089472,
+      "under_250m": true,
+      "architectures": [
+        "BertModel"
+      ],
+      "files": [
+        "onnx/model.onnx",
+        "onnx/model_bnb4.onnx",
+        "onnx/model_fp16.onnx",
+        "onnx/model_int8.onnx",
+        "onnx/model_q4.onnx",
+        "onnx/model_q4f16.onnx",
+        "onnx/model_quantized.onnx",
+        "onnx/model_uint8.onnx"
+      ]
+    },
+    {
+      "id": "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
+      "sha": "e8f8c211226b894fcb81acc59f3b34ba3efd5f42",
+      "pipeline_tag": "sentence-similarity",
+      "license": "apache-2.0",
+      "safetensors_total": 117654272,
+      "under_250m": true,
+      "architectures": [
+        "BertModel"
+      ],
+      "files": [
+        "onnx/model.onnx",
+        "onnx/model_O1.onnx",
+        "onnx/model_O2.onnx",
+        "onnx/model_O3.onnx",
+        "onnx/model_O4.onnx",
+        "onnx/model_qint8_arm64.onnx",
+        "onnx/model_qint8_avx512.onnx",
+        "onnx/model_qint8_avx512_vnni.onnx",
+        "onnx/model_quint8_avx2.onnx"
+      ]
+    },
+    {
+      "id": "cross-encoder/ms-marco-TinyBERT-L2-v2",
+      "sha": "81d1926f67cb8eee2c2be17ca9f793c7c3bd20cc",
+      "pipeline_tag": "text-ranking",
+      "license": "apache-2.0",
+      "safetensors_total": 4386561,
+      "under_250m": true,
+      "architectures": [
+        "BertForSequenceClassification"
+      ],
+      "files": [
+        "onnx/model.onnx",
+        "onnx/model_O1.onnx",
+        "onnx/model_O2.onnx",
+        "onnx/model_O3.onnx",
+        "onnx/model_O4.onnx",
+        "onnx/model_qint8_arm64.onnx",
+        "onnx/model_qint8_avx512.onnx",
+        "onnx/model_qint8_avx512_vnni.onnx",
+        "onnx/model_quint8_avx2.onnx"
+      ]
+    },
+    {
+      "id": "cross-encoder/ms-marco-MiniLM-L-6-v2",
+      "sha": "233902d25c440f23af6f7d6e94d2946bac0bee0a",
+      "pipeline_tag": "text-ranking",
+      "license": "apache-2.0",
+      "safetensors_total": 22714113,
+      "under_250m": true,
+      "architectures": [
+        "BertForSequenceClassification"
+      ],
+      "files": [
+        "onnx/model.onnx",
+        "onnx/model_O1.onnx",
+        "onnx/model_O2.onnx",
+        "onnx/model_O3.onnx",
+        "onnx/model_O4.onnx",
+        "onnx/model_qint8_arm64.onnx",
+        "onnx/model_qint8_avx512.onnx",
+        "onnx/model_qint8_avx512_vnni.onnx",
+        "onnx/model_quint8_avx2.onnx"
+      ]
+    },
+    {
+      "id": "mixedbread-ai/mxbai-rerank-xsmall-v1",
+      "sha": "b5c6e9da73abc3711f593f705371cdbe9e0fe422",
+      "pipeline_tag": "text-ranking",
+      "license": "apache-2.0",
+      "safetensors_total": 70830337,
+      "under_250m": true,
+      "architectures": [
+        "DebertaV2ForSequenceClassification"
+      ],
+      "files": [
+        "onnx/model.onnx",
+        "onnx/model_quantized.onnx",
+        "onnx/quantize_config.json"
+      ]
+    },
+    {
+      "id": "knowledgator/gliclass-instruct-edge-v1.0",
+      "sha": "727be8a417f6a7718e591b025e07054c146d8139",
+      "pipeline_tag": "text-classification",
+      "license": "apache-2.0",
+      "safetensors_total": 32706689,
+      "under_250m": true,
+      "architectures": [
+        "GLiClassModel"
+      ],
+      "files": []
+    },
+    {
+      "id": "knowledgator/gliclass-small-v1.0",
+      "sha": "21edefaf7951f68c68c505f9139ba536d3b448f7",
+      "pipeline_tag": "zero-shot-classification",
+      "license": "apache-2.0",
+      "safetensors_total": 143592192,
+      "under_250m": true,
+      "architectures": [
+        "GLiClassModel"
+      ],
+      "files": [
+        "onnx/config.json",
+        "onnx/model-int8-quantized.onnx",
+        "onnx/model.onnx"
+      ]
+    },
+    {
+      "id": "knowledgator/gliner-bi-small-v2.0",
+      "sha": "3d74c1bf459b8b1c0be1ecbddd679416ce005418",
+      "pipeline_tag": "token-classification",
+      "license": "apache-2.0",
+      "safetensors_total": null,
+      "under_250m": null,
+      "architectures": null,
+      "files": []
+    },
+    {
+      "id": "urchade/gliner_small-v2.1",
+      "sha": "4e091416cf7c3481db542c2a3d26156916f3a47f",
+      "pipeline_tag": "token-classification",
+      "license": "apache-2.0",
+      "safetensors_total": null,
+      "under_250m": null,
+      "architectures": null,
+      "files": []
+    },
+    {
+      "id": "deepset/tinyroberta-squad2",
+      "sha": "12b287c9df677e28b07f0a023850dba68c997dbf",
+      "pipeline_tag": "question-answering",
+      "license": "cc-by-4.0",
+      "safetensors_total": 81529860,
+      "under_250m": true,
+      "architectures": [
+        "RobertaForQuestionAnswering"
+      ],
+      "files": []
+    },
+    {
+      "id": "answerdotai/answerai-colbert-small-v1",
+      "sha": "934fa8bb4ce2284f4c2baa232d81aca4d076fa5e",
+      "pipeline_tag": null,
+      "license": "apache-2.0",
+      "safetensors_total": 33396864,
+      "under_250m": true,
+      "architectures": [
+        "HF_ColBERT"
+      ],
+      "files": [
+        "model.onnx",
+        "model_int8.onnx",
+        "onnx/model.onnx",
+        "onnx/model_bnb4.onnx",
+        "onnx/model_fp16.onnx",
+        "onnx/model_int8.onnx",
+        "onnx/model_q4.onnx",
+        "onnx/model_q4f16.onnx",
+        "onnx/model_quantized.onnx",
+        "onnx/model_uint8.onnx",
+        "onnx_config.json",
+        "vespa_colbert.onnx"
+      ]
+    },
+    {
+      "id": "knowledgator/gliclass-base-v3.0",
+      "sha": "77a70e6cd52e602ed18184ef37d18bdd3741e3d5",
+      "pipeline_tag": "text-classification",
+      "license": "apache-2.0",
+      "safetensors_total": 186545921,
+      "under_250m": true,
+      "architectures": [
+        "GLiClassModel"
+      ],
+      "files": []
+    }
+  ]
+}

@@ -1,0 +1,93 @@
+{
+  "status": "ACCEPTED_DESIGN_UNMEASURED",
+  "accepted_decisions": [
+    "O1-A",
+    "O2-A",
+    "O3-A",
+    "O4-A"
+  ],
+  "runtime_implemented": false,
+  "profile": "balanced_non_llm",
+  "windows": {
+    "max_turns": 6,
+    "estimated_tokens": 1500,
+    "idle_seconds": 120,
+    "oversize_source_chunk_characters": 6000,
+    "chunk_overlap_characters": 256
+  },
+  "context": {
+    "max_sources": 32,
+    "max_characters": 24000,
+    "reply_hops": 2
+  },
+  "retrieval": {
+    "exact_alias_candidates": 16,
+    "bm25_candidates": 40,
+    "optional_vector_candidates": 40,
+    "temporal_candidates": 16,
+    "fused_candidates": 96,
+    "expanded_source_limit": 128,
+    "neighbours_before": 2,
+    "neighbours_after": 2,
+    "dependency_hops": 3,
+    "max_sources_per_bundle": 8
+  },
+  "ranking": {
+    "optional_rerank_pool": 48,
+    "reranker_batch_size": 16,
+    "max_selected_bundles": 12,
+    "identity_similarity_auto_accept": false,
+    "uncalibrated_score_threshold": null
+  },
+  "assembly": {
+    "budget_tokens": 4096,
+    "hard_character_limit": 16384,
+    "deep_opt_in_budget_tokens": 4096,
+    "deep_opt_in_hard_character_limit": 16384,
+    "tokenizer_required_for_exact_token_claim": true,
+    "mandatory_dependency_drop_allowed": false
+  },
+  "workers": {
+    "active_per_engine": 1,
+    "active_per_namespace": 1,
+    "pending_window_high_water_namespace": 256,
+    "pending_window_high_water_engine": 1024,
+    "reconcile_items_per_batch": 100,
+    "cooperative_slice_seconds": 2,
+    "lease_seconds": 60,
+    "heartbeat_seconds": 10,
+    "recovery_attempts": 3,
+    "retry_backoff_seconds": [
+      1,
+      5
+    ],
+    "scan_interval_seconds": 5,
+    "unresolved_retention_days": null
+  },
+  "inference": {
+    "generative_calls": 0,
+    "auto_download": false,
+    "logical_ner_operations_per_job": 6,
+    "logical_embedding_operations_per_job": 2,
+    "logical_rerank_operations_per_read": 1,
+    "concurrent_inference_per_shared_model": 1,
+    "required_model_deadline_seconds": 30
+  },
+  "erasure": {
+    "deny_reads_after_tombstone": true,
+    "poll_interval_seconds": 5,
+    "purge_page_size": 100,
+    "foreground_wait_seconds": 2,
+    "verification_attempts": 3,
+    "verification_backoff_seconds": [
+      1,
+      5
+    ],
+    "active_copy_target_seconds": 60,
+    "development_backups_enabled": false,
+    "backup_content_expiry_days": 7,
+    "content_logging": false,
+    "manifest_retention_days": null,
+    "physical_completion_on_timeout": false
+  }
+}

@@ -1,0 +1,125 @@
+{
+  "status": "ACCEPTED_CHECK_SCOPE_IMPLEMENTATION_PENDING",
+  "copies": [
+    {
+      "id": 1,
+      "class": "raw_records",
+      "payload": "Raw message/document/attachment text",
+      "verification": "Hide then purge/tombstone content; retained IDs cannot reproduce text"
+    },
+    {
+      "id": 2,
+      "class": "claim_payloads",
+      "payload": "Claims, value text, explanations and notes",
+      "verification": "Purge affected text, recompute unaffected state from remaining evidence"
+    },
+    {
+      "id": 3,
+      "class": "bundle_excerpts",
+      "payload": "Persisted bundle evidence quotes",
+      "verification": "Reverse source-to-copy enumeration; invalidate full affected bundle"
+    },
+    {
+      "id": 4,
+      "class": "event_log_payloads",
+      "payload": "Source-bearing WRITE/effect/audit payloads",
+      "verification": "Purge/redact content while retaining non-content event tombstones; never replay erased text"
+    },
+    {
+      "id": 5,
+      "class": "sql_journal_wal",
+      "payload": "SQLite WAL/journals and freed database pages",
+      "verification": "Backend-specific checkpoint/compaction and storage-boundary evidence; logical DELETE is not physical proof"
+    },
+    {
+      "id": 6,
+      "class": "vector_index",
+      "payload": "Vectors plus stored text/metadata",
+      "verification": "Delete target entries and verify; compact/rebuild where backend retains old segments"
+    },
+    {
+      "id": 7,
+      "class": "lexical_index",
+      "payload": "Tantivy/OpenSearch/Weaviate text projections",
+      "verification": "Delete and verify visibility; account for refresh, segments and inactive generations"
+    },
+    {
+      "id": 8,
+      "class": "graph",
+      "payload": "Mentions, entity labels, edges, summaries",
+      "verification": "Remove source-bound occurrences; preserve shared entities only when independently supported"
+    },
+    {
+      "id": 9,
+      "class": "cache",
+      "payload": "KV, result caches, embedding results",
+      "verification": "Invalidate source/namespace generation keys; expire/evict payloads"
+    },
+    {
+      "id": 10,
+      "class": "queue_outbox",
+      "payload": "Pending jobs and source snapshots",
+      "verification": "Cancel/invalidate; no text retry payload may survive under an untracked key"
+    },
+    {
+      "id": 11,
+      "class": "local_step_journal",
+      "payload": "Resonate/application-owned step results",
+      "verification": "Invalidate stored outputs and resume markers; resumed job must honour tombstones"
+    },
+    {
+      "id": 12,
+      "class": "external_workflow_history",
+      "payload": "Temporal activity/workflow inputs/results",
+      "verification": "Use opaque IDs initially; any accidental content-bearing history is an explicit external retention boundary"
+    },
+    {
+      "id": 13,
+      "class": "summaries_profiles",
+      "payload": "Summaries, profiles, observations, standing answers",
+      "verification": "Invalidate and rederive from retained support; do not erase unrelated shared facts blindly"
+    },
+    {
+      "id": 14,
+      "class": "media_derivatives",
+      "payload": "OCR text, captions, thumbnails, downloaded assets",
+      "verification": "Delete every engine-owned derivative and object version; external originals are outside engine ownership"
+    },
+    {
+      "id": 15,
+      "class": "temporary_files",
+      "payload": "Spills, temporary batches, worker files",
+      "verification": "Track ownership, close handles, purge all tracked paths"
+    },
+    {
+      "id": 16,
+      "class": "telemetry",
+      "payload": "Logs, traces, exceptions, crash dumps",
+      "verification": "Content logging off; treat accidental dumps as tracked incidents/copies, not silently exempt"
+    },
+    {
+      "id": 17,
+      "class": "inactive_generations",
+      "payload": "Old index generations and saved corpus snapshots",
+      "verification": "Include in manifest and verification, not just active provider"
+    },
+    {
+      "id": 18,
+      "class": "exports",
+      "payload": "Engine-owned exports and reports",
+      "verification": "Track and purge copies; external recipient copies need declared outside-control state"
+    },
+    {
+      "id": 19,
+      "class": "backups",
+      "payload": "Snapshots, object versions, replicas and scheduled backups",
+      "verification": "Restore gate applies tombstones before access; configured expiry/key destruction required for completion"
+    },
+    {
+      "id": 20,
+      "class": "process_memory",
+      "payload": "Hydrated excerpts/in-flight inference buffers",
+      "verification": "Fence/cancel use, invalidate caches and bound lifetimes; do not claim arbitrary RAM/SSD forensic sanitisation"
+    }
+  ]
+}
