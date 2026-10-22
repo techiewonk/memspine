@@ -175,6 +175,11 @@ read, so no graph result bypasses the filter. Vector, lexical and other legs are
 affected, and no filter means unchanged behaviour. Times must be timezone-aware. The
 read cache keys on the filter. `POST /search` takes `graph_filter` as JSON.
 
+Every graph provider (SQL adjacency, LadybugDB, Neo4j) implements the one `GraphStore`
+port, so direct store calls take the same filter: `neighbors(node, ..., qualifier_filter=f)`
+and `subgraph(seeds, ..., qualifier_filter=f)`. `qualifier_filter=None` is the unfiltered
+walk; any filter, even an empty `QualifierFilter()`, never traverses erased edges.
+
 Caller visibility (RM-88): under a filter an edge also has to pass two checks. Its `scope`
 must be the reading namespace, or a namespace the reader holds an active grant on
 (`engine.grant`) that covers semantic records. Grants are looked up again on every

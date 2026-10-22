@@ -26,15 +26,16 @@ already persists ``properties`` losslessly as a JSON blob, so the contract needs
 schema migration and survives projector rebuilds unchanged (D0.1). Malformed stored
 qualifiers read back as unknown.
 
-Traversal: :func:`qualified_hops` is the one level-by-level walk every supporting
-adapter uses. An adapter supplies only ``frontier_edges(nodes)`` (public since RM-104,
-also used by the read-path graph leg to fetch only its seeds' edges), its live
-(``weight > 0``) edges touching the frontier inside the namespace and relation
-filter; the walk then drops edges that fail the filter and applies the shared fan-out
-cap (:func:`~memspine.services.graph.base.capped_neighbors`) to the edges that pass,
-so the cap ranks only admissible neighbours. Adapters declare support with
-``supports_qualifier_filters``; an adapter that cannot honour the contract raises
-:class:`UnsupportedQualifierFilterError` rather than silently ignoring the filter.
+Traversal: :func:`qualified_hops` is the one level-by-level walk every adapter uses.
+There is one graph port (2026-10-23, ADR-080): ``GraphStore.neighbors`` /
+``GraphStore.subgraph`` take ``qualifier_filter`` (None = the unfiltered walk; any
+filter, even an empty one, = the qualified walk, which never traverses erased edges).
+An adapter supplies only ``frontier_edges(nodes)`` (a port method, also used by the
+read-path graph leg to fetch only its seeds' edges), its live (``weight > 0``) edges
+touching the frontier inside the namespace and relation filter; the walk then drops
+edges that fail the filter and applies the shared fan-out cap
+(:func:`~memspine.services.graph.base.capped_neighbors`) to the edges that pass, so the
+cap ranks only admissible neighbours.
 
 Write validation (RM-84): every adapter passes edge properties through
 :func:`sanitize_qualifiers` on ``upsert_edge``. Malformed qualifiers are dropped (the
@@ -53,7 +54,7 @@ from contextlib import contextmanager
 from contextvars import ContextVar
 from datetime import datetime, timedelta
 from enum import StrEnum
-from typing import Any, Literal, Protocol, runtime_checkable
+from typing import Any, Literal
 
 from pydantic import (
     BaseModel,
@@ -66,13 +67,12 @@ from pydantic import (
 )
 
 from memspine.config.constants import EDGE_TRUST_TIERS
-from memspine.exceptions import MemspineError
 from memspine.observability.logging import get_logger
 from memspine.semantics.domains import DOMAIN_PATTERN, DomainSource, domain_in, is_domain_id
 from memspine.semantics.lifecycle import LifecycleOutcome, LifecycleStatus
 from memspine.semantics.origins import SourceOrigin
 from memspine.semantics.sensitivity import SensitivityLabel
-from memspine.services.graph.base import GraphEdge, GraphNode, capped_neighbors
+from memspine.services.graph.base import GraphEdge, capped_neighbors
 
 __all__ = [
     "QUALIFIERS_PROP",
@@ -85,17 +85,14 @@ __all__ = [
     "ErasureState",
     "Polarity",
     "Provenance",
-    "QualifiedGraphStore",
     "QualifierFilter",
     "TimePrecision",
     "TrustTier",
-    "UnsupportedQualifierFilterError",
     "active_graph_filter",
     "edge_qualifiers",
     "graph_filter_scope",
     "qualified_hops",
     "qualified_subgraph",
-    "require_qualifier_support",
     "sanitize_qualifiers",
     "trust_tier_for",
     "with_qualifiers",
@@ -760,69 +757,6 @@ def graph_filter_scope(qualifier_filter: QualifierFilter | None) -> Iterator[Non
         yield
     finally:
         _ACTIVE.reset(token)
-
-
-class UnsupportedQualifierFilterError(MemspineError):
-    """The graph provider cannot honour a qualifier filter (never silently ignored)."""
-
-    def __init__(self, provider: str) -> None:
-        super().__init__(
-            f"graph provider {provider!r} does not support qualifier-filtered traversal "
-            "(RM-41); use sql_adjacency, ladybug or neo4j, or drop the qualifier filter"
-        )
-        self.provider = provider
-
-
-@runtime_checkable
-class QualifiedGraphStore(Protocol):
-    """The optional qualifier-filtered traversal surface of a graph adapter."""
-
-    supports_qualifier_filters: bool
-
-    async def frontier_edges(
-        self,
-        nodes: Sequence[str],
-        *,
-        namespace: str | None = None,
-        rel_type: str | None = None,
-    ) -> list[GraphEdge]:
-        """RM-104: every live (``weight > 0``) edge with an endpoint in ``nodes``, either
-        direction, inside the namespace / relation filter (None = any); each edge once,
-        unordered, no qualifier filtering. Empty ``nodes`` gives ``[]``. The one level
-        query of :func:`qualified_hops`, and the read-path graph leg's seed fetch."""
-        ...
-
-    async def neighbors_qualified(
-        self,
-        node_id: str,
-        qualifier_filter: QualifierFilter,
-        rel_type: str | None = None,
-        depth: int = 1,
-        *,
-        namespace: str | None = None,
-        max_degree: int | None = None,
-    ) -> list[GraphNode]:
-        """Like ``neighbors``, traversing only edges the filter admits."""
-        ...
-
-    async def subgraph_qualified(
-        self,
-        seeds: Sequence[str],
-        qualifier_filter: QualifierFilter,
-        depth: int = 1,
-        *,
-        namespace: str | None = None,
-        max_degree: int | None = None,
-    ) -> list[GraphEdge]:
-        """Like ``subgraph``, over admitted edges only (the induced edges too)."""
-        ...
-
-
-def require_qualifier_support(store: object) -> QualifiedGraphStore:
-    """``store`` as a :class:`QualifiedGraphStore`, or a clear error naming it."""
-    if isinstance(store, QualifiedGraphStore) and store.supports_qualifier_filters:
-        return store
-    raise UnsupportedQualifierFilterError(type(store).__name__)
 
 
 #: ``frontier -> live edges touching it`` (namespace / relation already applied).

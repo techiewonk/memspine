@@ -4,7 +4,7 @@
 Builds one synthetic namespace of ``--edges`` qualified compiled edges (default 100k over
 ``--nodes`` entity nodes, with a few hubs) on each available backend and times:
 
-* ``walk_d1`` / ``walk_d2``: ``neighbors_qualified`` (the shared ``qualified_hops`` walk)
+* ``walk_d1`` / ``walk_d2``: ``neighbors(qualifier_filter=...)`` (the shared ``qualified_hops`` walk)
   from typical seeds at depth 1 and 2 under a representative filter;
 * ``leg_scan``: the read-path graph leg before RM-104 (and still the unfiltered one):
   load every edge of the namespace with ``edge_list`` and keep the compiled, live ones
@@ -178,7 +178,9 @@ async def measure(store: Any, seeds: Sequence[str], reps: int, leg_reps: int) ->
         for seed in seeds:
 
             async def walk(seed: str = seed, depth: int = depth) -> Any:
-                return await store.neighbors_qualified(seed, FILTER, depth=depth, namespace=NS)
+                return await store.neighbors(
+                    seed, depth=depth, namespace=NS, qualifier_filter=FILTER
+                )
 
             sizes.append(len(await walk()))
             samples += await _time(walk, max(1, reps // len(seeds)), warmup=1)
@@ -452,7 +454,7 @@ async def main() -> None:
         },
         "filter": FILTER.model_dump(mode="json", exclude_none=True),
         "measures": {
-            "walk_d1/walk_d2": "neighbors_qualified (qualified_hops) from each seed",
+            "walk_d1/walk_d2": "neighbors(qualifier_filter=...) (qualified_hops) from each seed",
             "leg_edge_list": "edge_list(namespace): the read-path graph leg's load",
             "leg_filter": "compiled/live selection + QualifierFilter.admits over that list",
             "leg_scan": "leg_edge_list + leg_filter (the leg before RM-104; unfiltered reads)",

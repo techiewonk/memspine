@@ -673,7 +673,7 @@ def _install_fake_mirror(monkeypatch: pytest.MonkeyPatch, fake: FakeNeo4j) -> No
             store,
             ProviderRef("graph", "neo4j"),
             (ref,),
-            frozenset({"graph", "namespace_filter", "erase", "mirror", "qualifier_filter"}),
+            frozenset({"graph", "namespace_filter", "erase", "mirror"}),
             health_probe=probe,
         )
 

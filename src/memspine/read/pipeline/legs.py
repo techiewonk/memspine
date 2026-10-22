@@ -497,10 +497,10 @@ class _LegEdges:
 
 
 def _frontier_capable(graph: Any) -> bool:
-    """RM-104: the store can fetch the edges touching given nodes (``frontier_edges``)."""
-    return bool(getattr(graph, "supports_qualifier_filters", False)) and callable(
-        getattr(graph, "frontier_edges", None)
-    )
+    """RM-104: the store can fetch the edges touching given nodes (``frontier_edges``, a
+    ``GraphStore`` port method since the 2026-10-23 one-port decision; a partial fake
+    without it keeps the namespace scan)."""
+    return callable(getattr(graph, "frontier_edges", None))
 
 
 async def _graph_leg_edges(

@@ -18,13 +18,22 @@ Leiden never scan another tenant's edges. ``max_degree`` caps the fan-out per
 node during a walk: from each node only its ``max_degree`` strongest live
 neighbours are followed (weight descending, then node id), the same rule in
 every adapter (:func:`capped_neighbors`).
+
+One port (2026-10-23, ADR-080): qualifier-filtered traversal is part of this port, not a
+separate protocol. ``neighbors``/``subgraph`` take ``qualifier_filter`` (None = the
+unfiltered walk, unchanged; any :class:`~memspine.services.graph.qualifiers.QualifierFilter`,
+even an empty one, = the shared qualified walk, which never traverses erased edges, RM-83),
+and ``frontier_edges`` is the one level query that walk and the read-path graph leg use.
 """
 
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Protocol, runtime_checkable
+
+if TYPE_CHECKING:  # qualifiers imports this module; the port only names the type
+    from memspine.services.graph.qualifiers import QualifierFilter
 
 __all__ = [
     "GraphEdge",
@@ -125,6 +134,7 @@ class GraphStore(Protocol):
         *,
         namespace: str | None = None,
         max_degree: int | None = None,
+        qualifier_filter: QualifierFilter | None = None,
     ) -> list[GraphNode]:
         """Nodes reachable within ``depth`` undirected hops (start excluded),
         nearest first, then by node id.
@@ -132,7 +142,8 @@ class GraphStore(Protocol):
         Tombstoned edges (weight ``<= 0``, the ADR-015 prune marker) are not
         traversed — every reader treats them as gone. ``namespace`` restricts
         the walk to that namespace's edges; ``max_degree`` caps the fan-out per
-        node (:func:`capped_neighbors`).
+        node (:func:`capped_neighbors`). With ``qualifier_filter`` (RM-41) only
+        edges the filter admits are traversed, and the cap ranks only those.
         """
         ...
 
@@ -143,9 +154,24 @@ class GraphStore(Protocol):
         *,
         namespace: str | None = None,
         max_degree: int | None = None,
+        qualifier_filter: QualifierFilter | None = None,
     ) -> list[GraphEdge]:
         """Every live edge between nodes reachable within ``depth`` hops of any
-        seed (seeds included), under the same filters as :meth:`neighbors`."""
+        seed (seeds included), under the same filters as :meth:`neighbors`
+        (with ``qualifier_filter``, the induced edges are admitted ones too)."""
+        ...
+
+    async def frontier_edges(
+        self,
+        nodes: Sequence[str],
+        *,
+        namespace: str | None = None,
+        rel_type: str | None = None,
+    ) -> list[GraphEdge]:
+        """RM-104: every live (``weight > 0``) edge with an endpoint in ``nodes``, either
+        direction, inside the namespace / relation filter (None = any); each edge once,
+        unordered, no qualifier filtering. Empty ``nodes`` gives ``[]``. The one level
+        query of the qualified walk, and the read-path graph leg's seed fetch."""
         ...
 
     async def edges_of(self, node_id: str) -> list[GraphEdge]:

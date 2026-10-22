@@ -49,6 +49,12 @@ Factories map slot settings to the spec.
 | gliner (extraction) | **none** | `models/runtime/gliner_runtime.py` | **no descriptor** (built in the container) | consumers import the concrete pool |
 | decider | **none** | `models/providers/decision/*` | **no descriptor** (built in `api/engine.py`) | the engine builds the adapter |
 
+Graph port (2026-10-23, one port): the three graph rows implement one port,
+`services/graph/base.py` `GraphStore`. Qualifier-filtered traversal is part of it
+(`neighbors` / `subgraph` take `qualifier_filter`, and `frontier_edges` is a port method);
+there is no separate qualified protocol and no `qualifier_filter` descriptor capability
+(ADR-080 item 10 note).
+
 Connections are also opened outside providers:
 - **In services:**
   - `services/assets/registry.py`: sqlite3;

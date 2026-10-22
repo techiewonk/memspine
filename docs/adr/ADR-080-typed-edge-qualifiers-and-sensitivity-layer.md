@@ -63,6 +63,17 @@ sensitivity and support.
    it.
 10. **Providers.** SQLite adjacency, LadybugDB and Neo4j all run one shared filtered walk
     and pass one contract.
+    *2026-10-23 note, one port (owner decision):* because every graph provider supports
+    qualifier filters, there is a single graph port, `GraphStore`
+    (`services/graph/base.py`). `neighbors(..., qualifier_filter=None)` and
+    `subgraph(..., qualifier_filter=None)` take the filter directly, and
+    `frontier_edges(nodes, *, namespace, rel_type)` is a port method. `None` is the
+    unfiltered walk, unchanged. Any `QualifierFilter`, including an empty one, runs the
+    shared qualified walk, which still never traverses erased or erasure-pending edges.
+    The separate optional protocol (`QualifiedGraphStore`, `neighbors_qualified` /
+    `subgraph_qualified`, `supports_qualifier_filters`, `require_qualifier_support`,
+    `UnsupportedQualifierFilterError`) and the `qualifier_filter` descriptor capability
+    were removed with no aliases (ADR-068).
 11. **Backfill.** Old edges get qualifiers on the next sleep cycle, or through
     `memspine graph requalify`.
 12. **New model binding roles.** `gliner_sensitivity` and `gliner_topic` join

@@ -1,9 +1,9 @@
 """RM-41 provider contract: qualifier-filtered traversal answers identically per adapter.
 
-Every graph provider that declares ``supports_qualifier_filters`` must pass these
-fixtures; a provider that does not must raise :class:`UnsupportedQualifierFilterError`
-instead of silently ignoring a filter. To run the contract against a new provider, add
-it to :data:`ADAPTERS` and the ``store`` fixture below. Every adapter (Neo4j too)
+There is one graph port (2026-10-23, ADR-080): every ``GraphStore`` must pass these
+fixtures through ``neighbors`` / ``subgraph`` with ``qualifier_filter=...`` (None = the
+unfiltered walk). To run the contract against a new provider, add it to
+:data:`ADAPTERS` and the ``store`` fixture below. Every adapter (Neo4j too)
 also validates qualifiers on write (RM-84): malformed ones are dropped with a
 ``graph.qualifiers_dropped`` warning and the edge is stored unqualified.
 
@@ -49,11 +49,8 @@ from memspine.services.graph.qualifiers import (
     ErasureState,
     Polarity,
     Provenance,
-    QualifiedGraphStore,
     QualifierFilter,
-    UnsupportedQualifierFilterError,
     edge_qualifiers,
-    require_qualifier_support,
     with_qualifiers,
 )
 from memspine.services.storage.sqlite.schema import metadata
@@ -278,57 +275,56 @@ async def test_qualified_neighbors_contract(
     store: GraphStore, name: str, spec: Mapping[str, Any], depth: int, expected: list[str]
 ) -> None:
     await _load(store)
-    qstore = require_qualifier_support(store)
-    found = await qstore.neighbors_qualified(
-        "a", QualifierFilter.model_validate(dict(spec)), depth=depth, namespace=NS
+    found = await store.neighbors(
+        "a", depth=depth, namespace=NS, qualifier_filter=QualifierFilter.model_validate(dict(spec))
     )
     assert [n.node_id for n in found] == expected, name
 
 
 async def test_namespace_isolation_under_filter(store: GraphStore) -> None:
     await _load(store)
-    qstore = require_qualifier_support(store)
     flt = QualifierFilter(topical_domains=frozenset({"work"}))
-    assert [n.node_id for n in await qstore.neighbors_qualified("a", flt, namespace=NS)] == ["b"]
-    other = await qstore.neighbors_qualified("a", flt, namespace="ns/other")
+    assert [n.node_id for n in await store.neighbors("a", namespace=NS, qualifier_filter=flt)] == [
+        "b"
+    ]
+    other = await store.neighbors("a", namespace="ns/other", qualifier_filter=flt)
     assert [n.node_id for n in other] == ["x"]
 
 
 async def test_rel_type_and_cap_apply_to_admitted_edges(store: GraphStore) -> None:
     await _load(store)
-    qstore = require_qualifier_support(store)
     residence = QualifierFilter(topical_domains=frozenset({"residence"}))
-    by_rel = await qstore.neighbors_qualified("a", residence, rel_type="lives_in", namespace=NS)
+    by_rel = await store.neighbors(
+        "a", rel_type="lives_in", namespace=NS, qualifier_filter=residence
+    )
     assert [n.node_id for n in by_rel] == ["c", "f"]
     # The cap ranks only admitted neighbours: d (no qualifiers) never takes a slot.
     flt = QualifierFilter(claim_states=ALL_CLAIM_STATES)
     unfiltered = await store.neighbors("a", depth=1, namespace=NS, max_degree=1)
     assert [n.node_id for n in unfiltered] == ["d"]
-    capped = await qstore.neighbors_qualified("a", flt, depth=1, namespace=NS, max_degree=1)
+    capped = await store.neighbors("a", depth=1, namespace=NS, max_degree=1, qualifier_filter=flt)
     assert [n.node_id for n in capped] == ["b"]
 
 
 async def test_tombstones_stay_gone_under_filter(store: GraphStore) -> None:
     await _load(store)
-    qstore = require_qualifier_support(store)
     await store.upsert_edge(
         "a", "b", "works_on", with_qualifiers({"weight": 0.0}, FULL), namespace=NS
     )
     flt = QualifierFilter(topical_domains=frozenset({"work"}))
-    assert await qstore.neighbors_qualified("a", flt, depth=2, namespace=NS) == []
+    assert await store.neighbors("a", depth=2, namespace=NS, qualifier_filter=flt) == []
 
 
 async def test_qualified_subgraph(store: GraphStore) -> None:
     await _load(store)
-    qstore = require_qualifier_support(store)
     flt = QualifierFilter(topical_domains=frozenset({"work"}))
-    sub = await qstore.subgraph_qualified(["a"], flt, depth=2, namespace=NS)
+    sub = await store.subgraph(["a"], depth=2, namespace=NS, qualifier_filter=flt)
     assert [(e.src, e.dst, e.rel_type) for e in sub] == [
         ("a", "b", "works_on"),
         ("b", "e", "cites"),
     ]
     assert all(edge_qualifiers(e.properties) is not None for e in sub)
-    assert await qstore.subgraph_qualified([], flt, depth=2, namespace=NS) == []
+    assert await store.subgraph([], depth=2, namespace=NS, qualifier_filter=flt) == []
 
 
 async def test_qualifiers_round_trip_through_the_store(store: GraphStore) -> None:
@@ -348,9 +344,7 @@ def _keys(edges: list[Any]) -> list[tuple[str, str, str]]:
 async def test_frontier_edges_contract(store: GraphStore) -> None:
     """RM-104: the public ``frontier_edges`` (live edges touching the nodes) per adapter."""
     await _load(store)
-    qstore = require_qualifier_support(store)
-    assert isinstance(qstore, QualifiedGraphStore)
-    around_a = await qstore.frontier_edges(["a"], namespace=NS)
+    around_a = await store.frontier_edges(["a"], namespace=NS)
     assert _keys(around_a) == [
         ("a", "b", "works_on"),
         ("a", "c", "lives_in"),
@@ -360,27 +354,27 @@ async def test_frontier_edges_contract(store: GraphStore) -> None:
     by_ab = {(e.src, e.dst): e for e in around_a}
     assert edge_qualifiers(by_ab[("a", "b")].properties) == FULL  # properties intact
     # either direction; an edge with both endpoints in the set comes back once
-    assert _keys(await qstore.frontier_edges(["b", "a", "b"], namespace=NS)) == [
+    assert _keys(await store.frontier_edges(["b", "a", "b"], namespace=NS)) == [
         ("a", "b", "works_on"),
         ("a", "c", "lives_in"),
         ("a", "d", "related"),
         ("a", "f", "lives_in"),
         ("b", "e", "cites"),
     ]
-    assert _keys(await qstore.frontier_edges(["e"], namespace=NS)) == [("b", "e", "cites")]
-    lives = await qstore.frontier_edges(["a"], namespace=NS, rel_type="lives_in")
+    assert _keys(await store.frontier_edges(["e"], namespace=NS)) == [("b", "e", "cites")]
+    lives = await store.frontier_edges(["a"], namespace=NS, rel_type="lives_in")
     assert _keys(lives) == [("a", "c", "lives_in"), ("a", "f", "lives_in")]
-    assert _keys(await qstore.frontier_edges(["a"], namespace="ns/other")) == [
+    assert _keys(await store.frontier_edges(["a"], namespace="ns/other")) == [
         ("a", "x", "works_on")
     ]
-    assert ("a", "x", "works_on") in _keys(await qstore.frontier_edges(["a"]))  # None = any ns
-    assert await qstore.frontier_edges([], namespace=NS) == []
-    assert await qstore.frontier_edges(["nobody"], namespace=NS) == []
+    assert ("a", "x", "works_on") in _keys(await store.frontier_edges(["a"]))  # None = any ns
+    assert await store.frontier_edges([], namespace=NS) == []
+    assert await store.frontier_edges(["nobody"], namespace=NS) == []
     # tombstones (weight <= 0) are not live
     await store.upsert_edge(
         "a", "b", "works_on", with_qualifiers({"weight": 0.0}, FULL), namespace=NS
     )
-    assert ("a", "b", "works_on") not in _keys(await qstore.frontier_edges(["a"], namespace=NS))
+    assert ("a", "b", "works_on") not in _keys(await store.frontier_edges(["a"], namespace=NS))
 
 
 MALFORMED: list[tuple[str, object, str]] = [
@@ -410,12 +404,12 @@ async def test_malformed_qualifiers_are_dropped_with_a_warning(
     assert (entry["src"], entry["dst"], entry["rel_type"]) == ("a", "b", "works_on")
     assert why in entry["error"]
     # unqualified now: the empty filter passes it, any constraint does not
-    qstore = require_qualifier_support(store)
     assert [
-        n.node_id for n in await qstore.neighbors_qualified("a", QualifierFilter(), namespace=NS)
+        n.node_id
+        for n in await store.neighbors("a", namespace=NS, qualifier_filter=QualifierFilter())
     ] == ["b"]
     flt = QualifierFilter(claim_states=ALL_CLAIM_STATES)
-    assert await qstore.neighbors_qualified("a", flt, namespace=NS) == []
+    assert await store.neighbors("a", namespace=NS, qualifier_filter=flt) == []
 
 
 async def test_valid_qualifiers_are_stored_without_a_warning(store: GraphStore) -> None:
@@ -450,7 +444,7 @@ async def test_neo4j_drops_malformed_qualifiers_with_a_warning() -> None:
     assert len(dropped) == 1 and dropped[0]["provider"] == "neo4j"
 
 
-async def test_neo4j_declares_support_and_uses_the_frontier_op() -> None:
+async def test_neo4j_qualified_walk_uses_the_frontier_op() -> None:
     """RM-94: Neo4j runs the shared walk over the ``frontier_edges`` op only."""
     from memspine.services.graph.neo4j import CYPHER, Neo4jGraphStore
 
@@ -465,19 +459,40 @@ async def test_neo4j_declares_support_and_uses_the_frontier_op() -> None:
             return None
 
     neo = Neo4jGraphStore(_Recorder())
-    assert neo.supports_qualifier_filters is True
-    assert isinstance(neo, QualifiedGraphStore)
-    assert require_qualifier_support(neo) is neo
-    assert await neo.neighbors_qualified("a", QualifierFilter(), depth=2) == []
-    assert await neo.subgraph_qualified(["a"], QualifierFilter()) == []
+    assert isinstance(neo, GraphStore)
+    assert await neo.neighbors("a", depth=2, qualifier_filter=QualifierFilter()) == []
+    assert await neo.subgraph(["a"], qualifier_filter=QualifierFilter()) == []
     assert set(calls) - {"schema"} == {"frontier_edges"}
     assert "r.weight > 0" in CYPHER["frontier_edges"]
     assert "$ns IS NULL OR r.namespace = $ns" in CYPHER["frontier_edges"]
 
 
-def test_unsupported_store_still_raises() -> None:
-    class _Plain:
-        supports_qualifier_filters = False
+async def test_one_port_none_vs_empty_filter(store: GraphStore) -> None:
+    """One port (2026-10-23): ``qualifier_filter=None`` is the unfiltered walk; any filter,
+    even an empty one, is the qualified walk, which never traverses erased edges (RM-83)."""
+    erased = EdgeQualifiers(erasure_state=ErasureState.ERASED)
+    await store.upsert_edge("a", "b", "r", with_qualifiers({"weight": 1.0}, erased), namespace=NS)
+    await store.upsert_edge("a", "c", "r", {"weight": 1.0}, namespace=NS)
+    assert isinstance(store, GraphStore)
+    unfiltered = await store.neighbors("a", namespace=NS, qualifier_filter=None)
+    assert [n.node_id for n in unfiltered] == [
+        n.node_id for n in await store.neighbors("a", namespace=NS)
+    ]
+    assert [n.node_id for n in unfiltered] == ["b", "c"]
+    empty = await store.neighbors("a", namespace=NS, qualifier_filter=QualifierFilter())
+    assert [n.node_id for n in empty] == ["c"]
+    assert _keys(await store.subgraph(["a"], namespace=NS)) == [("a", "b", "r"), ("a", "c", "r")]
+    sub = await store.subgraph(["a"], namespace=NS, qualifier_filter=QualifierFilter())
+    assert _keys(sub) == [("a", "c", "r")]
 
-    with pytest.raises(UnsupportedQualifierFilterError, match="_Plain"):
-        require_qualifier_support(_Plain())
+
+def test_the_split_port_is_gone() -> None:
+    """ADR-068/ADR-080: no ``QualifiedGraphStore`` alias or capability-gated surface."""
+    from memspine.services.graph import qualifiers
+
+    for name in (
+        "QualifiedGraphStore",
+        "UnsupportedQualifierFilterError",
+        "require_qualifier_support",
+    ):
+        assert not hasattr(qualifiers, name)

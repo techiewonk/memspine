@@ -82,7 +82,7 @@ class AdjacencyBuilder:
             service,
             ProviderRef("graph", "sql_adjacency"),
             (ref,),
-            frozenset({"graph", "namespace_filter", "erase", "qualifier_filter"}),
+            frozenset({"graph", "namespace_filter", "erase"}),
             health_probe=probe,
         )
 
@@ -141,7 +141,7 @@ class LadybugBuilder:
             service,
             ProviderRef("graph", "ladybug"),
             (ref,),
-            frozenset({"graph", "namespace_filter", "erase", "qualifier_filter"}),
+            frozenset({"graph", "namespace_filter", "erase"}),
             health_probe=probe,
         )
 
@@ -184,7 +184,7 @@ class Neo4jBuilder:
             service,
             ProviderRef("graph", "neo4j"),
             (ref,),
-            frozenset({"graph", "namespace_filter", "erase", "mirror", "qualifier_filter"}),
+            frozenset({"graph", "namespace_filter", "erase", "mirror"}),
             health_probe=probe,
         )
 
@@ -196,21 +196,21 @@ def register() -> None:
             SqlAdjacencySettings,
             AdjacencyBuilder(),
             (),
-            {"graph", "namespace_filter", "erase", "qualifier_filter"},
+            {"graph", "namespace_filter", "erase"},
         ),
         (
             "ladybug",
             LadybugSettings,
             LadybugBuilder(),
             (DependencyRequirement("package", "ladybug"),),
-            {"graph", "namespace_filter", "erase", "qualifier_filter"},
+            {"graph", "namespace_filter", "erase"},
         ),
         (
             "neo4j",
             Neo4jSettings,
             Neo4jBuilder(),
             (DependencyRequirement("package", "neo4j"),),
-            {"graph", "namespace_filter", "erase", "mirror", "qualifier_filter"},
+            {"graph", "namespace_filter", "erase", "mirror"},
         ),
     ):
         if name not in GRAPH_STORES:

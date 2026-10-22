@@ -27,7 +27,7 @@ filters inside the path predicate), not one round trip per hop. A walk with a ``
 keeps the per-hop loop: the cap ranks each node's own neighbours (weight, then id), which a path
 pattern cannot express.
 
-Qualified walks (RM-94). ``neighbors_qualified`` / ``subgraph_qualified`` run the shared
+Qualified walks (RM-94). ``neighbors`` / ``subgraph`` with a ``qualifier_filter`` run the shared
 level-by-level walk (:func:`~memspine.services.graph.qualifiers.qualified_hops`): one
 ``frontier_edges`` query per hop returns the live edges touching the frontier inside the
 namespace and relation filter, and the shared Python filter then drops edges the
@@ -257,9 +257,6 @@ def _load(raw: object) -> dict[str, object]:
 class Neo4jGraphStore:
     """``GraphStore`` over a :class:`Neo4jExecutor`. See the module docstring."""
 
-    #: RM-94: the shared qualified walk over the ``frontier_edges`` op (filter in Python).
-    supports_qualifier_filters = True
-
     def __init__(self, executor: Neo4jExecutor | None = None, *, scoped: bool = False) -> None:
         if executor is None:
             raise MissingServiceError("graph:neo4j", extra="neo4j")
@@ -413,7 +410,12 @@ class Neo4jGraphStore:
         *,
         namespace: str | None = None,
         max_degree: int | None = None,
+        qualifier_filter: QualifierFilter | None = None,
     ) -> list[GraphNode]:
+        if qualifier_filter is not None:
+            return await self._neighbors_qualified(
+                node_id, qualifier_filter, rel_type, depth, namespace, max_degree
+            )
         if depth <= 0:
             return []
         if max_degree is None and depth <= MAX_WALK_DEPTH:  # FU-GAPS: one variable-length query
@@ -448,7 +450,14 @@ class Neo4jGraphStore:
         *,
         namespace: str | None = None,
         max_degree: int | None = None,
+        qualifier_filter: QualifierFilter | None = None,
     ) -> list[GraphEdge]:
+        if qualifier_filter is not None:  # RM-94: the shared walk over ``frontier_edges``
+
+            async def frontier(nodes: Sequence[str]) -> list[GraphEdge]:
+                return await self.frontier_edges(nodes, namespace=namespace)
+
+            return await qualified_subgraph(frontier, seeds, depth, qualifier_filter, max_degree)
         if max_degree is None and seeds and 0 < depth <= MAX_WALK_DEPTH:  # FU-GAPS: one query
             rows = await self._run(
                 "walk_edges", seeds=list(dict.fromkeys(seeds)), depth=depth, ns=namespace
@@ -479,15 +488,14 @@ class Neo4jGraphStore:
         edges = [self._edge(r) for r in rows if namespace is None or r.get("ns") == namespace]
         return [e for e in edges if e.weight > 0 and (rel_type is None or e.rel_type == rel_type)]
 
-    async def neighbors_qualified(
+    async def _neighbors_qualified(
         self,
         node_id: str,
         qualifier_filter: QualifierFilter,
-        rel_type: str | None = None,
-        depth: int = 1,
-        *,
-        namespace: str | None = None,
-        max_degree: int | None = None,
+        rel_type: str | None,
+        depth: int,
+        namespace: str | None,
+        max_degree: int | None,
     ) -> list[GraphNode]:
         """RM-94: ``neighbors`` over the edges ``qualifier_filter`` admits only."""
 
@@ -510,22 +518,6 @@ class Neo4jGraphStore:
             labels = tuple(str(x) for x in row.get("labels") or ())
             out.append(GraphNode(n, labels, _load(row.get("props"))))
         return out
-
-    async def subgraph_qualified(
-        self,
-        seeds: Sequence[str],
-        qualifier_filter: QualifierFilter,
-        depth: int = 1,
-        *,
-        namespace: str | None = None,
-        max_degree: int | None = None,
-    ) -> list[GraphEdge]:
-        """RM-94: ``subgraph`` over the edges ``qualifier_filter`` admits only."""
-
-        async def frontier_edges(frontier: Sequence[str]) -> list[GraphEdge]:
-            return await self.frontier_edges(frontier, namespace=namespace)
-
-        return await qualified_subgraph(frontier_edges, seeds, depth, qualifier_filter, max_degree)
 
     async def node_count(self) -> int:
         rows = await self._run("node_count")

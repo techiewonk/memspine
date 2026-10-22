@@ -209,9 +209,6 @@ def _subgraph_rows(namespace: str | None) -> str:
 
 
 class SqlAdjacencyGraph:
-    #: RM-41: typed edge qualifiers ride in the properties JSON; filtered walks supported.
-    supports_qualifier_filters = True
-
     def __init__(self, client: _SqlEngineAccess) -> None:
         self._client = client
 
@@ -316,7 +313,12 @@ class SqlAdjacencyGraph:
         *,
         namespace: str | None = None,
         max_degree: int | None = None,
+        qualifier_filter: QualifierFilter | None = None,
     ) -> list[GraphNode]:
+        if qualifier_filter is not None:
+            return await self._neighbors_qualified(
+                node_id, qualifier_filter, rel_type, depth, namespace, max_degree
+            )
         rows = await self._walk(
             [node_id], depth, namespace, rel_type, max_degree, select=_NEIGHBOR_ROWS
         )
@@ -330,7 +332,14 @@ class SqlAdjacencyGraph:
         *,
         namespace: str | None = None,
         max_degree: int | None = None,
+        qualifier_filter: QualifierFilter | None = None,
     ) -> list[GraphEdge]:
+        if qualifier_filter is not None:
+
+            async def frontier(nodes: Sequence[str]) -> list[GraphEdge]:
+                return await self.frontier_edges(nodes, namespace=namespace)
+
+            return await qualified_subgraph(frontier, seeds, depth, qualifier_filter, max_degree)
         rows = await self._walk(
             seeds, depth, namespace, None, max_degree, select=_subgraph_rows(namespace)
         )
@@ -364,15 +373,14 @@ class SqlAdjacencyGraph:
             rows = (await conn.execute(sql, params)).all()
         return [_edge(row) for row in rows]
 
-    async def neighbors_qualified(
+    async def _neighbors_qualified(
         self,
         node_id: str,
         qualifier_filter: QualifierFilter,
-        rel_type: str | None = None,
-        depth: int = 1,
-        *,
-        namespace: str | None = None,
-        max_degree: int | None = None,
+        rel_type: str | None,
+        depth: int,
+        namespace: str | None,
+        max_degree: int | None,
     ) -> list[GraphNode]:
         """RM-41: ``neighbors`` over the edges ``qualifier_filter`` admits only."""
 
@@ -391,22 +399,6 @@ class SqlAdjacencyGraph:
             rows = (await conn.execute(sql, {"ids": orjson.dumps(list(hops)).decode()})).all()
         nodes = [_node(row) for row in rows]
         return sorted(nodes, key=lambda node: (hops[node.node_id], node.node_id))
-
-    async def subgraph_qualified(
-        self,
-        seeds: Sequence[str],
-        qualifier_filter: QualifierFilter,
-        depth: int = 1,
-        *,
-        namespace: str | None = None,
-        max_degree: int | None = None,
-    ) -> list[GraphEdge]:
-        """RM-41: ``subgraph`` over the edges ``qualifier_filter`` admits only."""
-
-        async def frontier_edges(frontier: Sequence[str]) -> list[GraphEdge]:
-            return await self.frontier_edges(frontier, namespace=namespace)
-
-        return await qualified_subgraph(frontier_edges, seeds, depth, qualifier_filter, max_degree)
 
     async def edges_of(self, node_id: str) -> list[GraphEdge]:
         stmt = self._edge_select().where(
