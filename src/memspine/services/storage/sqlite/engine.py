@@ -14,7 +14,6 @@ import asyncio
 from typing import TYPE_CHECKING
 
 from memspine.clients.sqlite import SQLiteClient
-from memspine.exceptions import StorageError
 from memspine.services.base import CapabilityManifest
 from memspine.services.storage.sql_base import SqlStorage
 from memspine.services.storage.sqlite.migrations import ensure_schema
@@ -22,6 +21,8 @@ from memspine.services.storage.sqlite.schema import metadata
 from memspine.store.events import EventLogMode
 
 if TYPE_CHECKING:
+    from sqlalchemy import Engine
+
     from memspine.derive.job import LeaseStore
     from memspine.services.storage.records_port import LeasePort
 
@@ -40,6 +41,7 @@ class SQLiteStorage(SqlStorage):
         super().__init__(client, mode, compress)
         self._sqlite = client  # typed handle for is_memory/path in start()
         self._leases: LeaseStore | None = None
+        self._lease_engine: Engine | None = None
 
     @property
     def manifest(self) -> CapabilityManifest:
@@ -70,18 +72,27 @@ class SQLiteStorage(SqlStorage):
         """ADR-081 records port: the lease tables in this database (a private in-process
         table for ``:memory:``). Opened on first use, closed by :meth:`stop`."""
         from memspine.derive.job import LeaseStore
+        from memspine.runtime.outbox import sqlite_engine
 
         if self._leases is None:
-            if self._sqlite.encrypted:
-                raise StorageError(
-                    "leases on an encrypted SQLite database are not available through the "
-                    "records port yet (RM-111 WP5 moves the sleep leases into the database)"
+            if self._sqlite.is_memory:
+                self._leases = LeaseStore(":memory:")
+            else:
+                # The WP5 side tables of this database, over a sync engine (keyed under
+                # SQLCipher, like the outbox's).
+                self._lease_engine = sqlite_engine(
+                    self._sqlite.path,
+                    self._sqlite.sync_creator,
+                    busy_timeout_s=self._sqlite.busy_timeout_s,
                 )
-            self._leases = LeaseStore(":memory:" if self._sqlite.is_memory else self._sqlite.path)
+                self._leases = LeaseStore(self._lease_engine)
         return self._leases
 
     async def stop(self) -> None:
         if self._leases is not None:
             self._leases.close()
             self._leases = None
+        if self._lease_engine is not None:
+            await asyncio.to_thread(self._lease_engine.dispose)
+            self._lease_engine = None
         await super().stop()

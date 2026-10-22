@@ -704,7 +704,7 @@ Models:
 | Key | Default | Type / range | Effect | Rebuild | Screens |
 |---|---|---|---|---|---|
 | `economy.budget` | `null` | BudgetConfig \| None | Optional spend limit per namespace. | - | - |
-| `economy.ledger_persist` | `false` | bool | `true`: every ledger entry is also kept as a compact row (ids, namespace hash, layer, stage, kind, calls, tokens, latency; no names, no content) in the `cost_entry` table of the storage database (RM-111 WP5) | - | S66 |
+| `economy.ledger_persist` | `false` | bool | `true`: every ledger entry is also kept as a compact row (ids, namespace hash, layer, stage, kind, calls, tokens, latency; no names, no content) in the `cost_entry` table of the storage database (RM-1 | - | S66 |
 | `economy.ledger_v2` | `false` | bool | Count model calls, tokens in/out, latency and embed calls of every write, per layer, per namespace and per stage (`window_extract`, each sleep stage). | - | S66 |
 | `offline.budget_calls_per_cycle` | `null` | int \| None ge 0 | Model calls a namespace may spend per cycle; | sleep | - |
 | `offline.budget_tokens_per_cycle` | `null` | int \| None ge 0 | Tokens a namespace may spend per cycle; | sleep | - |

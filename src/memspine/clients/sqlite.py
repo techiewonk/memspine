@@ -187,6 +187,10 @@ class SQLiteClient(Client):
         return self._path
 
     @property
+    def busy_timeout_s(self) -> float:
+        return self._busy_timeout_ms / 1000
+
+    @property
     def is_memory(self) -> bool:
         return self._path == ":memory:"
 

@@ -344,6 +344,11 @@ async def test_leases_are_exclusive_expiring_and_fenced(handle: Handle) -> None:
     assert leases.heartbeat(b, ttl=30.0) is None
     held = leases.get_lease("ns/a")
     assert held is not None and (held.owner, held.epoch) == ("proc-c", c.epoch)
+    if handle.reopen is not None:  # the lease table lives in the store (RM-111 WP5 side tables)
+        other = (await handle.reopen()).leases()
+        seen = other.get_lease("ns/a")
+        assert seen is not None and (seen.owner, seen.epoch) == ("proc-c", c.epoch)
+        assert other.claim("ns/a", "proc-d", "job-d", ttl=30.0) is None  # exclusive across handles
 
 
 async def test_concurrent_claims_have_exactly_one_winner(handle: Handle) -> None:
