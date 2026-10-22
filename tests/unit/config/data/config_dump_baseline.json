@@ -21350,9 +21350,7 @@
    "records": {
     "provider": "postgres",
     "settings": {
-     "busy_timeout_s": 5.0,
      "connect_timeout_s": 5.0,
-     "path": "./memspine.db",
      "statement_timeout_s": 30.0,
      "url": "postgresql://memspine@localhost:5432/memspine"
     }

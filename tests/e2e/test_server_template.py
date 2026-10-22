@@ -3,7 +3,8 @@
 Needs a scratch Postgres with the pgvector extension available: set ``MEMSPINE_TEST_PG_URL``
 (skipped otherwise). The template's placeholder URL, deployment id and data_dir are overridden;
 everything else (records postgres, vector pgvector with provisioning, lexical tantivy under
-``deployment.data_dir``) comes from the template.
+``deployment.data_dir``) comes from the template. Already on the ADR-081 shape
+(migrate_config_keys_adr081: skip).
 """
 
 from __future__ import annotations
