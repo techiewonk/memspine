@@ -268,12 +268,18 @@ class SQLiteAdjacencyGraph:
         )
         return sorted((_edge(row) for row in rows), key=lambda e: (e.src, e.dst, e.rel_type))
 
-    async def _frontier_edges(
-        self, frontier: Sequence[str], namespace: str | None, rel_type: str | None
+    async def frontier_edges(
+        self,
+        nodes: Sequence[str],
+        *,
+        namespace: str | None = None,
+        rel_type: str | None = None,
     ) -> list[GraphEdge]:
-        """RM-41: the live edges touching ``frontier`` (one query; the frontier is a
+        """RM-41/RM-104: the live edges touching ``nodes`` (one query; the node list is a
         json array, never a bound ``IN (...)`` list that overflows the variable limit)."""
-        params: dict[str, object] = {"frontier": orjson.dumps(list(frontier)).decode()}
+        if not nodes:
+            return []
+        params: dict[str, object] = {"frontier": orjson.dumps(list(nodes)).decode()}
         if namespace is not None:
             params["namespace"] = namespace
         if rel_type is not None:
@@ -302,7 +308,7 @@ class SQLiteAdjacencyGraph:
         """RM-41: ``neighbors`` over the edges ``qualifier_filter`` admits only."""
 
         async def frontier_edges(frontier: Sequence[str]) -> list[GraphEdge]:
-            return await self._frontier_edges(frontier, namespace, rel_type)
+            return await self.frontier_edges(frontier, namespace=namespace, rel_type=rel_type)
 
         hops = await qualified_hops(frontier_edges, [node_id], depth, qualifier_filter, max_degree)
         hops.pop(node_id, None)
@@ -329,7 +335,7 @@ class SQLiteAdjacencyGraph:
         """RM-41: ``subgraph`` over the edges ``qualifier_filter`` admits only."""
 
         async def frontier_edges(frontier: Sequence[str]) -> list[GraphEdge]:
-            return await self._frontier_edges(frontier, namespace, None)
+            return await self.frontier_edges(frontier, namespace=namespace)
 
         return await qualified_subgraph(frontier_edges, seeds, depth, qualifier_filter, max_degree)
 

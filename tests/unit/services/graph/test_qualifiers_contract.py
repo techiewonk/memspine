@@ -317,6 +317,48 @@ async def test_qualifiers_round_trip_through_the_store(store: GraphStore) -> Non
     assert {n.node_id for n in await store.neighbors("a", namespace=NS)} == {"b", "c", "d", "f"}
 
 
+def _keys(edges: list[Any]) -> list[tuple[str, str, str]]:
+    return sorted((e.src, e.dst, e.rel_type) for e in edges)
+
+
+async def test_frontier_edges_contract(store: GraphStore) -> None:
+    """RM-104: the public ``frontier_edges`` (live edges touching the nodes) per adapter."""
+    await _load(store)
+    qstore = require_qualifier_support(store)
+    assert isinstance(qstore, QualifiedGraphStore)
+    around_a = await qstore.frontier_edges(["a"], namespace=NS)
+    assert _keys(around_a) == [
+        ("a", "b", "works_on"),
+        ("a", "c", "lives_in"),
+        ("a", "d", "related"),
+        ("a", "f", "lives_in"),
+    ]  # ns/other's a->x never leaks in; qualifiers are not filtered
+    by_ab = {(e.src, e.dst): e for e in around_a}
+    assert edge_qualifiers(by_ab[("a", "b")].properties) == FULL  # properties intact
+    # either direction; an edge with both endpoints in the set comes back once
+    assert _keys(await qstore.frontier_edges(["b", "a", "b"], namespace=NS)) == [
+        ("a", "b", "works_on"),
+        ("a", "c", "lives_in"),
+        ("a", "d", "related"),
+        ("a", "f", "lives_in"),
+        ("b", "e", "cites"),
+    ]
+    assert _keys(await qstore.frontier_edges(["e"], namespace=NS)) == [("b", "e", "cites")]
+    lives = await qstore.frontier_edges(["a"], namespace=NS, rel_type="lives_in")
+    assert _keys(lives) == [("a", "c", "lives_in"), ("a", "f", "lives_in")]
+    assert _keys(await qstore.frontier_edges(["a"], namespace="ns/other")) == [
+        ("a", "x", "works_on")
+    ]
+    assert ("a", "x", "works_on") in _keys(await qstore.frontier_edges(["a"]))  # None = any ns
+    assert await qstore.frontier_edges([], namespace=NS) == []
+    assert await qstore.frontier_edges(["nobody"], namespace=NS) == []
+    # tombstones (weight <= 0) are not live
+    await store.upsert_edge(
+        "a", "b", "works_on", with_qualifiers({"weight": 0.0}, FULL), namespace=NS
+    )
+    assert ("a", "b", "works_on") not in _keys(await qstore.frontier_edges(["a"], namespace=NS))
+
+
 MALFORMED: list[tuple[str, object, str]] = [
     ("not_a_mapping", "current", "must be a mapping"),
     ("unknown_value", {"claim_state": "invented"}, "claim_state"),

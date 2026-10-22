@@ -15,6 +15,7 @@ import pytest
 from memspine import Engine
 from memspine.derive.pipeline.stages.edge_compiler_v2 import compile_graph_edges
 from memspine.observability import tap
+from memspine.read.pipeline import legs as pipeline_legs
 from memspine.services.graph.qualifiers import (
     EdgeQualifiers,
     ErasureState,
@@ -26,6 +27,15 @@ from memspine.store.records import SourceInfo
 
 T0 = datetime(2023, 5, 7, 10, 0, tzinfo=UTC)
 QUERY = "How are Ilse and Tomasz connected"
+
+
+@pytest.fixture(autouse=True)
+def _namespace_scan(monkeypatch: pytest.MonkeyPatch) -> None:
+    """These tests read the ``read.graph_filter`` counts over the namespace's edges (the
+    rows they plant do not touch the query's seeds), so they pin the leg to the namespace
+    scan. The seed-scoped fetch (RM-104) runs the same caller check
+    (``_caller_visible_edges``); its own visibility tests are in test_rm104_graph_leg_frontier."""
+    monkeypatch.setattr(pipeline_legs, "_frontier_capable", lambda graph: False)
 
 
 def _flt(**kw: Any) -> QualifierFilter:

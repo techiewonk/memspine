@@ -463,12 +463,18 @@ class Neo4jGraphStore:
         live = [e for e in keep if e.weight > 0 and e.src in dist and e.dst in dist]
         return sorted(live, key=lambda e: (e.src, e.dst, e.rel_type))
 
-    async def _frontier_edges(
-        self, frontier: Sequence[str], namespace: str | None, rel_type: str | None
+    async def frontier_edges(
+        self,
+        nodes: Sequence[str],
+        *,
+        namespace: str | None = None,
+        rel_type: str | None = None,
     ) -> list[GraphEdge]:
-        """RM-94: the live edges touching ``frontier`` (one level of the qualified walk)."""
+        """RM-94/RM-104: the live edges touching ``nodes`` (one ``frontier_edges`` op)."""
+        if not nodes:
+            return []
         rows = await self._run(
-            "frontier_edges", ids=list(dict.fromkeys(frontier)), ns=namespace, rel=rel_type
+            "frontier_edges", ids=list(dict.fromkeys(nodes)), ns=namespace, rel=rel_type
         )
         edges = [self._edge(r) for r in rows if namespace is None or r.get("ns") == namespace]
         return [e for e in edges if e.weight > 0 and (rel_type is None or e.rel_type == rel_type)]
@@ -486,7 +492,7 @@ class Neo4jGraphStore:
         """RM-94: ``neighbors`` over the edges ``qualifier_filter`` admits only."""
 
         async def frontier_edges(frontier: Sequence[str]) -> list[GraphEdge]:
-            return await self._frontier_edges(frontier, namespace, rel_type)
+            return await self.frontier_edges(frontier, namespace=namespace, rel_type=rel_type)
 
         hops = await qualified_hops(frontier_edges, [node_id], depth, qualifier_filter, max_degree)
         hops.pop(node_id, None)
@@ -517,7 +523,7 @@ class Neo4jGraphStore:
         """RM-94: ``subgraph`` over the edges ``qualifier_filter`` admits only."""
 
         async def frontier_edges(frontier: Sequence[str]) -> list[GraphEdge]:
-            return await self._frontier_edges(frontier, namespace, None)
+            return await self.frontier_edges(frontier, namespace=namespace)
 
         return await qualified_subgraph(frontier_edges, seeds, depth, qualifier_filter, max_degree)
 

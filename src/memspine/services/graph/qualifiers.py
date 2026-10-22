@@ -27,7 +27,8 @@ schema migration and survives projector rebuilds unchanged (D0.1). Malformed sto
 qualifiers read back as unknown.
 
 Traversal: :func:`qualified_hops` is the one level-by-level walk every supporting
-adapter uses. An adapter supplies only ``frontier_edges(frontier)``, its live
+adapter uses. An adapter supplies only ``frontier_edges(nodes)`` (public since RM-104,
+also used by the read-path graph leg to fetch only its seeds' edges), its live
 (``weight > 0``) edges touching the frontier inside the namespace and relation
 filter; the walk then drops edges that fail the filter and applies the shared fan-out
 cap (:func:`~memspine.services.graph.base.capped_neighbors`) to the edges that pass,
@@ -777,6 +778,19 @@ class QualifiedGraphStore(Protocol):
     """The optional qualifier-filtered traversal surface of a graph adapter."""
 
     supports_qualifier_filters: bool
+
+    async def frontier_edges(
+        self,
+        nodes: Sequence[str],
+        *,
+        namespace: str | None = None,
+        rel_type: str | None = None,
+    ) -> list[GraphEdge]:
+        """RM-104: every live (``weight > 0``) edge with an endpoint in ``nodes``, either
+        direction, inside the namespace / relation filter (None = any); each edge once,
+        unordered, no qualifier filtering. Empty ``nodes`` gives ``[]``. The one level
+        query of :func:`qualified_hops`, and the read-path graph leg's seed fetch."""
+        ...
 
     async def neighbors_qualified(
         self,

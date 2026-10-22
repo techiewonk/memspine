@@ -1,14 +1,20 @@
 #!/usr/bin/env python
-"""RM-96: qualifier-filtered graph walks at 100k edges per namespace.
+"""RM-96 / RM-104: qualifier-filtered graph walks at 100k edges per namespace.
 
 Builds one synthetic namespace of ``--edges`` qualified compiled edges (default 100k over
 ``--nodes`` entity nodes, with a few hubs) on each available backend and times:
 
 * ``walk_d1`` / ``walk_d2``: ``neighbors_qualified`` (the shared ``qualified_hops`` walk)
   from typical seeds at depth 1 and 2 under a representative filter;
-* ``leg_scan``: the read-path graph leg as it runs today (``_graph_hop_leg``): load every
-  edge of the namespace with ``edge_list`` and keep the compiled, live ones the filter
-  admits; split into ``leg_edge_list`` (the load) and ``leg_filter`` (the Python filter).
+* ``leg_scan``: the read-path graph leg before RM-104 (and still the unfiltered one):
+  load every edge of the namespace with ``edge_list`` and keep the compiled, live ones
+  the filter admits; split into ``leg_edge_list`` (the load) and ``leg_filter`` (the
+  Python filter);
+* ``leg_frontier`` (RM-104): the filtered leg's edge selection as it runs now
+  (``_graph_leg_edges``: ``frontier_edges`` over the seeds, compiled/live selection, one
+  qualifier parse per edge, filter, caller-scope check), over the read's seed set (all
+  six seeds) and each seed alone; ``leg_frontier_fetch`` is the store query alone. Each
+  seed set is checked to give one_hop the same hits as the namespace scan.
 
 Budget (owner, 2026-10-22): p95 <= 50 ms for the filtered graph leg at 100k edges.
 Backends: SQLite adjacency (always), LadybugDB (when ``ladybug`` imports) and Neo4j when
@@ -17,6 +23,8 @@ the per-edge upsert path (it is setup, not what is measured) but writes the exac
 layout each adapter's ``upsert_edge`` writes.
 
     python scripts/benchmark_graph_filter.py [--edges 100000] [--reps 30] [--out PATH]
+
+The RM-96 baseline is docs/provider_verification/rm96-graph-filter-scale-2026-10-22.json.
 """
 
 from __future__ import annotations
@@ -36,10 +44,13 @@ import time
 import uuid
 from collections.abc import Awaitable, Callable, Sequence
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import orjson
 
+from memspine.read.legs.graph import HopEdge, one_hop
+from memspine.read.pipeline.legs import _graph_leg_edges
 from memspine.services.graph.base import GraphEdge
 from memspine.services.graph.qualifiers import (
     AssertionModality,
@@ -55,7 +66,7 @@ COMPILED = "edge_compiler_v2"
 BUDGET_P95_MS = 50.0
 DOMAINS = ("work", "residence", "health", "family", "travel", "finance", "hobby", "school")
 T0 = dt.datetime(2024, 1, 1, tzinfo=dt.UTC)
-OUT = Path("docs/provider_verification/rm96-graph-filter-scale-2026-10-22.json")
+OUT = Path("docs/provider_verification/rm104-graph-leg-frontier-2026-10-22.json")
 
 #: The representative read filter: asserted, current claims known by now, valid in 2026.
 FILTER = QualifierFilter(
@@ -187,12 +198,64 @@ async def measure(store: Any, seeds: Sequence[str], reps: int, leg_reps: int) ->
         return _leg_filter(await store.edge_list(NS))
 
     result["leg_scan"] = _summary(await _time(leg, leg_reps, 1))
+
+    # RM-104: the leg as it runs now (``_graph_leg_edges``) under the filter, on the seed
+    # fetch; ``leg_seed_sets`` are the seed sets of a read (all six seeds, then each alone).
+    eng = SimpleNamespace(_graph=store, _shared=None, _storage=_NoStorage())
+    by_id = {str(e.properties["record_id"]): _RECORD for e in edges}
+    seed_sets = [list(seeds), *([s] for s in seeds)]
+    frontier_samples: list[float] = []
+    fetch_samples: list[float] = []
+    sizes: list[dict[str, int]] = []
+    for seed_set in seed_sets:
+
+        async def leg_frontier(seed_set: list[str] = seed_set) -> Any:
+            return await _graph_leg_edges(eng, NS, seed_set, by_id, FILTER, use_frontier=True)
+
+        async def fetch(seed_set: list[str] = seed_set) -> Any:
+            return await store.frontier_edges(seed_set, namespace=NS)
+
+        got = await leg_frontier()
+        fetched = await fetch()
+        sizes.append({"seeds": len(seed_set), "fetched": len(fetched), "admitted": len(got.edges)})
+        _check_same_hits(seed_set, admitted, got.edges)
+        frontier_samples += await _time(leg_frontier, max(1, leg_reps), 1)
+        fetch_samples += await _time(fetch, max(1, leg_reps), 1)
+    result["leg_frontier"] = _summary(frontier_samples)
+    result["leg_frontier_fetch"] = _summary(fetch_samples)
+    result["leg_frontier_sizes"] = sizes
     result["reached_nodes"] = {k: {"min": min(v), "max": max(v)} for k, v in reached.items()}
     result["leg_edges"] = {"namespace": len(edges), "admitted": len(admitted)}
     result["within_budget"] = {
-        k: result[k]["p95_ms"] <= BUDGET_P95_MS for k in ("walk_d1", "walk_d2", "leg_scan")
+        k: result[k]["p95_ms"] <= BUDGET_P95_MS
+        for k in ("walk_d1", "walk_d2", "leg_scan", "leg_frontier")
     }
     return result
+
+
+class _NoStorage:
+    async def get_record(self, record_id: str) -> None:
+        return None
+
+
+#: Every benchmark edge's source record exists and has no viewer restriction.
+_RECORD = SimpleNamespace(tags=[])
+
+
+def _check_same_hits(
+    seeds: Sequence[str], scanned: Sequence[GraphEdge], fetched: Sequence[GraphEdge]
+) -> None:
+    """RM-104 sanity at scale: one_hop over the scan and over the seed fetch agree."""
+
+    def hop(edges: Sequence[GraphEdge]) -> Any:
+        res = one_hop(
+            seeds,
+            [HopEdge(e.src, e.dst, str(e.properties["record_id"])) for e in edges],
+            min_seeds=1,
+        )
+        return res.scores, res.reached
+
+    assert hop(scanned) == hop(fetched), "seed fetch disagrees with the namespace scan"
 
 
 # ---------------------------------------------------------------------------- loaders
@@ -327,6 +390,7 @@ async def main() -> None:
     parser.add_argument("--leg-reps", type=int, default=20, help="read-path leg timings")
     parser.add_argument("--seed", type=int, default=96)
     parser.add_argument("--out", type=Path, default=OUT)
+    parser.add_argument("--task", default="RM-104")
     parser.add_argument("--backends", default="sqlite_adjacency,ladybug,neo4j")
     args = parser.parse_args()
 
@@ -375,7 +439,7 @@ async def main() -> None:
         except importlib.metadata.PackageNotFoundError:
             versions[pkg] = None
     report = {
-        "task": "RM-96",
+        "task": args.task,
         "date": "2026-10-22",
         "budget": {"p95_ms": BUDGET_P95_MS, "edges_per_namespace": args.edges},
         "graph": {
@@ -391,7 +455,9 @@ async def main() -> None:
             "walk_d1/walk_d2": "neighbors_qualified (qualified_hops) from each seed",
             "leg_edge_list": "edge_list(namespace): the read-path graph leg's load",
             "leg_filter": "compiled/live selection + QualifierFilter.admits over that list",
-            "leg_scan": "leg_edge_list + leg_filter (what _graph_hop_leg runs per read)",
+            "leg_scan": "leg_edge_list + leg_filter (the leg before RM-104; unfiltered reads)",
+            "leg_frontier": "_graph_leg_edges on frontier_edges(seeds) (the filtered leg now)",
+            "leg_frontier_fetch": "frontier_edges(seeds, namespace) alone",
         },
         "results": results,
         "skipped": skipped,

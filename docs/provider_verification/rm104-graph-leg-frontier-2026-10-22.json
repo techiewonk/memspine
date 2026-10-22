@@ -1,0 +1,363 @@
+{
+  "task": "RM-104",
+  "date": "2026-10-22",
+  "budget": {
+    "p95_ms": 50.0,
+    "edges_per_namespace": 100000
+  },
+  "graph": {
+    "edges": 100000,
+    "nodes": 20000,
+    "hubs": 200,
+    "hub_endpoint_share": 0.2,
+    "generate_s": 1.2,
+    "seeds": [
+      "ent:bench/rm96:n006574",
+      "ent:bench/rm96:n014256",
+      "ent:bench/rm96:n012391",
+      "ent:bench/rm96:n001869",
+      "ent:bench/rm96:n019020",
+      "ent:bench/rm96:n000000"
+    ]
+  },
+  "filter": {
+    "valid_at": "2026-03-01T00:00:00Z",
+    "known_as_of": "2026-10-22T00:00:00Z",
+    "assertion_modalities": [
+      "asserted"
+    ],
+    "claim_states": [
+      "current"
+    ],
+    "unchecked_sensitivity": "fail"
+  },
+  "measures": {
+    "walk_d1/walk_d2": "neighbors_qualified (qualified_hops) from each seed",
+    "leg_edge_list": "edge_list(namespace): the read-path graph leg's load",
+    "leg_filter": "compiled/live selection + QualifierFilter.admits over that list",
+    "leg_scan": "leg_edge_list + leg_filter (the leg before RM-104; unfiltered reads)",
+    "leg_frontier": "_graph_leg_edges on frontier_edges(seeds) (the filtered leg now)",
+    "leg_frontier_fetch": "frontier_edges(seeds, namespace) alone"
+  },
+  "results": {
+    "sqlite_adjacency": {
+      "load_s": 5.0,
+      "walk_d1": {
+        "n": 60,
+        "p50_ms": 1.21,
+        "p95_ms": 4.761,
+        "max_ms": 5.937
+      },
+      "walk_d2": {
+        "n": 60,
+        "p50_ms": 6.775,
+        "p95_ms": 159.089,
+        "max_ms": 235.644
+      },
+      "leg_edge_list": {
+        "n": 20,
+        "p50_ms": 1185.976,
+        "p95_ms": 1355.672,
+        "max_ms": 1408.666
+      },
+      "leg_filter": {
+        "n": 20,
+        "p50_ms": 981.604,
+        "p95_ms": 1144.198,
+        "max_ms": 1146.597
+      },
+      "leg_scan": {
+        "n": 20,
+        "p50_ms": 2083.692,
+        "p95_ms": 2283.459,
+        "max_ms": 2471.241
+      },
+      "leg_frontier": {
+        "n": 140,
+        "p50_ms": 0.853,
+        "p95_ms": 4.96,
+        "max_ms": 5.669
+      },
+      "leg_frontier_fetch": {
+        "n": 140,
+        "p50_ms": 0.577,
+        "p95_ms": 1.644,
+        "max_ms": 1.99
+      },
+      "leg_frontier_sizes": [
+        {
+          "seeds": 6,
+          "fetched": 267,
+          "admitted": 122
+        },
+        {
+          "seeds": 1,
+          "fetched": 6,
+          "admitted": 3
+        },
+        {
+          "seeds": 1,
+          "fetched": 13,
+          "admitted": 3
+        },
+        {
+          "seeds": 1,
+          "fetched": 14,
+          "admitted": 6
+        },
+        {
+          "seeds": 1,
+          "fetched": 8,
+          "admitted": 5
+        },
+        {
+          "seeds": 1,
+          "fetched": 8,
+          "admitted": 3
+        },
+        {
+          "seeds": 1,
+          "fetched": 220,
+          "admitted": 103
+        }
+      ],
+      "reached_nodes": {
+        "walk_d1": {
+          "min": 3,
+          "max": 102
+        },
+        "walk_d2": {
+          "min": 9,
+          "max": 1511
+        }
+      },
+      "leg_edges": {
+        "namespace": 100000,
+        "admitted": 42036
+      },
+      "within_budget": {
+        "walk_d1": true,
+        "walk_d2": false,
+        "leg_scan": false,
+        "leg_frontier": true
+      }
+    },
+    "ladybug": {
+      "load_s": 134.2,
+      "walk_d1": {
+        "n": 60,
+        "p50_ms": 35.085,
+        "p95_ms": 41.723,
+        "max_ms": 57.199
+      },
+      "walk_d2": {
+        "n": 60,
+        "p50_ms": 73.334,
+        "p95_ms": 262.34,
+        "max_ms": 270.486
+      },
+      "leg_edge_list": {
+        "n": 20,
+        "p50_ms": 811.41,
+        "p95_ms": 997.335,
+        "max_ms": 1067.237
+      },
+      "leg_filter": {
+        "n": 20,
+        "p50_ms": 1054.11,
+        "p95_ms": 1248.147,
+        "max_ms": 1261.822
+      },
+      "leg_scan": {
+        "n": 20,
+        "p50_ms": 1709.741,
+        "p95_ms": 1917.504,
+        "max_ms": 1925.081
+      },
+      "leg_frontier": {
+        "n": 140,
+        "p50_ms": 28.521,
+        "p95_ms": 37.775,
+        "max_ms": 40.15
+      },
+      "leg_frontier_fetch": {
+        "n": 140,
+        "p50_ms": 28.427,
+        "p95_ms": 32.149,
+        "max_ms": 37.743
+      },
+      "leg_frontier_sizes": [
+        {
+          "seeds": 6,
+          "fetched": 267,
+          "admitted": 122
+        },
+        {
+          "seeds": 1,
+          "fetched": 6,
+          "admitted": 3
+        },
+        {
+          "seeds": 1,
+          "fetched": 13,
+          "admitted": 3
+        },
+        {
+          "seeds": 1,
+          "fetched": 14,
+          "admitted": 6
+        },
+        {
+          "seeds": 1,
+          "fetched": 8,
+          "admitted": 5
+        },
+        {
+          "seeds": 1,
+          "fetched": 8,
+          "admitted": 3
+        },
+        {
+          "seeds": 1,
+          "fetched": 220,
+          "admitted": 103
+        }
+      ],
+      "reached_nodes": {
+        "walk_d1": {
+          "min": 3,
+          "max": 102
+        },
+        "walk_d2": {
+          "min": 9,
+          "max": 1511
+        }
+      },
+      "leg_edges": {
+        "namespace": 100000,
+        "admitted": 42036
+      },
+      "within_budget": {
+        "walk_d1": true,
+        "walk_d2": false,
+        "leg_scan": false,
+        "leg_frontier": true
+      }
+    },
+    "neo4j": {
+      "load_s": 8.4,
+      "walk_d1": {
+        "n": 60,
+        "p50_ms": 18.308,
+        "p95_ms": 39.264,
+        "max_ms": 42.557
+      },
+      "walk_d2": {
+        "n": 60,
+        "p50_ms": 40.205,
+        "p95_ms": 368.455,
+        "max_ms": 484.538
+      },
+      "leg_edge_list": {
+        "n": 20,
+        "p50_ms": 3038.699,
+        "p95_ms": 3381.707,
+        "max_ms": 3891.148
+      },
+      "leg_filter": {
+        "n": 20,
+        "p50_ms": 1173.431,
+        "p95_ms": 1488.824,
+        "max_ms": 1580.804
+      },
+      "leg_scan": {
+        "n": 20,
+        "p50_ms": 4246.007,
+        "p95_ms": 4559.675,
+        "max_ms": 5050.913
+      },
+      "leg_frontier": {
+        "n": 140,
+        "p50_ms": 6.079,
+        "p95_ms": 14.437,
+        "max_ms": 16.461
+      },
+      "leg_frontier_fetch": {
+        "n": 140,
+        "p50_ms": 5.923,
+        "p95_ms": 10.489,
+        "max_ms": 11.643
+      },
+      "leg_frontier_sizes": [
+        {
+          "seeds": 6,
+          "fetched": 267,
+          "admitted": 122
+        },
+        {
+          "seeds": 1,
+          "fetched": 6,
+          "admitted": 3
+        },
+        {
+          "seeds": 1,
+          "fetched": 13,
+          "admitted": 3
+        },
+        {
+          "seeds": 1,
+          "fetched": 14,
+          "admitted": 6
+        },
+        {
+          "seeds": 1,
+          "fetched": 8,
+          "admitted": 5
+        },
+        {
+          "seeds": 1,
+          "fetched": 8,
+          "admitted": 3
+        },
+        {
+          "seeds": 1,
+          "fetched": 220,
+          "admitted": 103
+        }
+      ],
+      "reached_nodes": {
+        "walk_d1": {
+          "min": 3,
+          "max": 102
+        },
+        "walk_d2": {
+          "min": 9,
+          "max": 1511
+        }
+      },
+      "leg_edges": {
+        "namespace": 100000,
+        "admitted": 42036
+      },
+      "within_budget": {
+        "walk_d1": true,
+        "walk_d2": false,
+        "leg_scan": false,
+        "leg_frontier": true
+      }
+    }
+  },
+  "skipped": {},
+  "environment": {
+    "python": "3.13.5",
+    "platform": "Windows-11-10.0.26340-SP0",
+    "machine": "AMD64",
+    "versions": {
+      "sqlalchemy": "2.1.4",
+      "aiosqlite": "0.22.1",
+      "ladybug": "0.21.2",
+      "neo4j": "6.4.1",
+      "pydantic": "2.14.0"
+    }
+  }
+}

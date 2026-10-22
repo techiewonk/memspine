@@ -9,6 +9,7 @@ from collections.abc import (
     Mapping,
     Sequence,
 )
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -100,7 +101,14 @@ from memspine.read.pipeline.state import (
     _passive_hidden,
 )
 from memspine.scope import Scope
-from memspine.services.graph.qualifiers import CallerVisibility, active_graph_filter
+from memspine.services.graph.base import GraphEdge
+from memspine.services.graph.qualifiers import (
+    CallerVisibility,
+    EdgeQualifiers,
+    QualifierFilter,
+    active_graph_filter,
+    edge_qualifiers,
+)
 from memspine.services.lexical.base import LexicalHit, rrf_fuse
 from memspine.services.storage.sql_base import SqlStorage
 from memspine.services.vector.base import VectorHit
@@ -439,19 +447,24 @@ async def _caller_visibility(eng: Any, ns: str) -> CallerVisibility:
 
 
 async def _caller_visible_edges(
-    eng: Any, ns: str, edges: Sequence[Any], by_id: Mapping[str, MemoryRecord]
-) -> list[Any]:
+    eng: Any,
+    ns: str,
+    edges: Sequence[tuple[GraphEdge, EdgeQualifiers | None]],
+    by_id: Mapping[str, MemoryRecord],
+) -> list[GraphEdge]:
     """RM-88: the edges the caller may see. Both layers must pass: the edge's scope is
     the caller's own or one it holds an active grant on, AND its source record (the
     ``record_id`` property) exists and passes the read's record viewer check (I53
-    ``visible_to`` with the read's ``viewer``). A missing source record fails."""
+    ``visible_to`` with the read's ``viewer``). A missing source record fails.
+
+    ``edges`` pairs each edge with its already parsed qualifiers (RM-104: parsed once)."""
     caller = await _caller_visibility(eng, ns)
     record_scope = active_record_scope()
     viewer = record_scope.viewer if record_scope is not None else None
     seen: dict[str, bool] = {}
-    out: list[Any] = []
-    for edge in edges:
-        if not caller.admits(edge):
+    out: list[GraphEdge] = []
+    for edge, quals in edges:
+        if not caller.admits_scope(quals):
             continue
         rid = str(edge.properties.get("record_id") or "")
         if rid not in seen:
@@ -460,6 +473,81 @@ async def _caller_visible_edges(
         if seen[rid]:
             out.append(edge)
     return out
+
+
+def _compiled_edges(edges: Sequence[GraphEdge]) -> list[GraphEdge]:
+    """R3-05b: the edges the graph leg may use (compiled, live, with a source record)."""
+    return [
+        e
+        for e in edges
+        if e.properties.get("compiled") == "edge_compiler_v2"
+        and e.weight > 0
+        and e.properties.get("record_id")
+    ]
+
+
+@dataclass(frozen=True)
+class _LegEdges:
+    """The graph leg's edges after selection, filter and caller visibility."""
+
+    edges: list[GraphEdge]
+    compiled: int  # compiled live edges fetched (the namespace, or the seeds' edges)
+    hidden: int  # admitted by the filter, hidden from the caller (RM-88)
+    scope: str  # "namespace" (edge_list) or "seeds" (frontier_edges, RM-104)
+
+
+def _frontier_capable(graph: Any) -> bool:
+    """RM-104: the store can fetch the edges touching given nodes (``frontier_edges``)."""
+    return bool(getattr(graph, "supports_qualifier_filters", False)) and callable(
+        getattr(graph, "frontier_edges", None)
+    )
+
+
+async def _graph_leg_edges(
+    eng: Any,
+    ns: str,
+    seeds: Sequence[str],
+    by_id: Mapping[str, MemoryRecord],
+    qualifier_filter: QualifierFilter | None,
+    *,
+    use_frontier: bool | None = None,
+) -> _LegEdges:
+    """R3-05b/RM-93/RM-104: the compiled edges the graph one-hop leg walks.
+
+    Without a qualifier filter: every compiled edge of the namespace (``edge_list``), as
+    before; the leg's MF-07 readiness reason (``no_edges`` = no compiled edge of the
+    namespace has a live record) and the L3 artefact count are namespace-wide, which a
+    seed-scoped fetch cannot reproduce, so the unfiltered read keeps that path.
+
+    With a filter, on a store that supports it (``use_frontier`` None = auto): only the
+    live edges touching the seeds (``frontier_edges``). ``one_hop`` reads only edges with
+    an endpoint in the seed set, so the leg's hits are identical to the namespace scan;
+    the diagnostics (``read.graph_filter`` counts, the ``read.graph_hop`` tentative
+    count, the L3 artefact count and the empty reason) then describe the seeds' edges
+    (``scope="seeds"``). Qualifiers are parsed once per edge for both the filter and the
+    caller-scope check."""
+    graph = eng._graph
+    frontier = (
+        qualifier_filter is not None and _frontier_capable(graph)
+        if use_frontier is None
+        else use_frontier
+    )
+    raw = (
+        await graph.frontier_edges(list(dict.fromkeys(seeds)), namespace=ns)
+        if frontier
+        else await graph.edge_list(ns)
+    )
+    compiled = _compiled_edges(raw)
+    scope = "seeds" if frontier else "namespace"
+    if qualifier_filter is None:
+        return _LegEdges(compiled, len(compiled), 0, scope)
+    passing: list[tuple[GraphEdge, EdgeQualifiers | None]] = []
+    for edge in compiled:
+        quals = edge_qualifiers(edge.properties)  # RM-104: one parse per edge
+        if qualifier_filter.matches(quals):
+            passing.append((edge, quals))
+    visible = await _caller_visible_edges(eng, ns, passing, by_id)  # RM-88: both layers
+    return _LegEdges(visible, len(compiled), len(passing) - len(visible), scope)
 
 
 async def _graph_hop_leg(
@@ -496,26 +584,16 @@ async def _graph_hop_leg(
     edges: list[Any] = []
     if eng._graph is not None:
         qualifier_filter = active_graph_filter()  # RM-93: typed qualifiers gate each edge
-        compiled = [
-            e
-            for e in await eng._graph.edge_list(ns)
-            if e.properties.get("compiled") == "edge_compiler_v2"
-            and e.weight > 0
-            and e.properties.get("record_id")
-        ]
-        admitted = [e for e in compiled if qualifier_filter is None or qualifier_filter.admits(e)]
-        hidden = 0
-        if qualifier_filter is not None:  # RM-88: caller visibility, both layers
-            visible = await _caller_visible_edges(eng, ns, admitted, by_id)
-            hidden = len(admitted) - len(visible)
-            admitted = visible
+        selected = await _graph_leg_edges(eng, ns, seeds, by_id, qualifier_filter)
+        admitted = selected.edges
         if qualifier_filter is not None and tap.enabled():
             tap.event(
                 "read.graph_filter",
                 namespace=ns,
-                edges=len(compiled),
+                edges=selected.compiled,
                 admitted=len(admitted),
-                caller_hidden=hidden,
+                caller_hidden=selected.hidden,
+                scope=selected.scope,
             )
         edges = [
             lib.HopEdge(
