@@ -37,6 +37,7 @@ from memspine.models.providers.decision.opendecider_nano import (
     physical_cores,
 )
 from memspine.models.runtime.shared_weights import SharedWeights
+from memspine.observability.bindings import run_in_executor
 from memspine.providers.shared import ResourceRegistry
 
 __all__ = [
@@ -430,7 +431,8 @@ class OpenDeciderDecider:
             return await asyncio.to_thread(fn, *args)
         if self._pool is None:
             self._pool = ThreadPoolExecutor(self.workers, thread_name_prefix="decider")
-        return await asyncio.get_running_loop().run_in_executor(self._pool, fn, *args)
+        # RM-75: keep the caller's context (its Engine binding) on the pool thread
+        return await run_in_executor(self._pool, fn, *args)
 
     async def decide(self, task: str, question: str, context: str | None = None) -> Decision:
         return await self._run(self.decide_sync, task, question, context)  # type: ignore[no-any-return]  # CI-GREEN: pre-existing typing debt

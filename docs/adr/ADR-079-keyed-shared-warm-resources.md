@@ -140,6 +140,25 @@ A 2026-10-22 audit found that inside one Engine most clients are shared, but:
 - Work is phased: RM-71 registry core, RM-72 in-engine duplicates, RM-73 model sharing,
   RM-74 background warm-up and readiness, RM-75 keyed globals, RM-76 per-process warm
   pools, RM-77 multi-engine acceptance tests.
+- RM-77 (2026-10-22, `tests/unit/providers/test_shared_multi_engine.py`) covers those cases
+  with real Engines and found two cross-Engine staleness bugs, both fixed: the LanceDB
+  connection is now one per path per process (`vector.lancedb`, `scope="thread"`) and each
+  store checks out the latest table version when another store on that connection has
+  committed since its handle last moved (an integer compare otherwise); the read-result
+  cache key adds a per-store count of state-changing events from every Engine in the
+  process, so one Engine's cache never serves a result another Engine's write or erasure
+  made stale. Separate processes still do not see each other's commits until reopen.
+- RM-75 follow-ups: every coroutine method of the Engine (private ones too), of the scoped
+  `Memory` handle and of `AgentMemoryTools` runs bound; the REST app binds each request;
+  `bindings.run_in_executor` (used by the decider pool) and `asyncio.to_thread` keep the
+  binding on worker threads; the taskiq worker serves inside its Engine's binding;
+  `Engine.bound()` lets host threads and direct pipeline calls opt in. The model scheduler,
+  cost ledger and ops ledger leases belong to the `ProviderLifecycleManager` (released in
+  its ordered close). The tap lease stays an Engine teardown step after the lifecycle
+  close, because provider closers may still emit tap events and the manager closes the
+  most recently registered resource first. Inspect switches (`observability.inspect`,
+  `inspect_content`) and the inline sleep-cycle counter live in the Engine binding;
+  `inspect.configure` sets only the process default for unbound code.
 
 ## Addendum 2026-10-22: alternatives re-verified and settings selected
 

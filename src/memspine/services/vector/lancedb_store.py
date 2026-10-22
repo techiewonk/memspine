@@ -172,6 +172,9 @@ class LanceDBVectorStore:
         # Ids present in an exclusive table (None: not exclusive, always merge).
         self._ids: set[str] | None = set() if exclusive else None
         self._table: Any = None
+        self._name = ""
+        #: RM-77: the client write epoch of the table version this store's handle is on
+        self._seen_epoch = 0
         # Guards table creation and every write this store makes to the table, so
         # the erasure purge never interleaves with this process's own upserts.
         self._lock = asyncio.Lock()
@@ -212,6 +215,7 @@ class LanceDBVectorStore:
                             {"memspine.embedding_profile": json.dumps(self._profile_meta)}
                         )
                     name = _table_name(self._embedder.embedder_id) + self._table_suffix
+                    seen = self._client.write_epoch(name)  # before the open: never too new
                     # ``exist_ok=True`` makes create-or-open one atomic call on
                     # LanceDB's side: a check-then-act (table_names() then
                     # create_table()) races two engines opening the same file
@@ -224,8 +228,27 @@ class LanceDBVectorStore:
                     )
                     if self._ids is not None:
                         self._ids = await asyncio.to_thread(_record_ids, table)
+                    self._name, self._seen_epoch = name, seen
                     self._table = table
+                    return table
+        await self._sync_latest(self._table)
         return self._table
+
+    async def _sync_latest(self, table: Any) -> None:
+        """RM-77: move the handle to the latest version when another store sharing this client
+        (another Engine on the same path) committed since this handle last moved."""
+        epoch = self._client.write_epoch(self._name)
+        if epoch == self._seen_epoch:
+            return
+        await asyncio.to_thread(self._gate.exclusive, table.checkout_latest)
+        self._seen_epoch = epoch
+
+    def _wrote(self, before: int) -> None:
+        """Report this store's commit; the handle stays current unless another store committed
+        between the handle's last move (``before``) and this commit."""
+        after = self._client.note_write(self._name)
+        if after == before + 1:
+            self._seen_epoch = after
 
     async def upsert(
         self, record_id: str, namespace: str, embedder_id: str, vector: list[float]
@@ -233,6 +256,7 @@ class LanceDBVectorStore:
         table = await self._ensure_table()
         row = [{"record_id": record_id, "namespace": namespace, "vector": vector}]
         async with self._lock:
+            before = self._seen_epoch
             if self._ids is not None and record_id not in self._ids:
                 # Exclusive table, unseen id: the merge would take its insert branch.
                 await asyncio.to_thread(table.add, row)
@@ -246,6 +270,7 @@ class LanceDBVectorStore:
                         .execute(row)
                     )
                 )
+            self._wrote(before)
             await self._maybe_compact(table)
             await self._maybe_index_namespace(table)
 
@@ -483,7 +508,9 @@ class LanceDBVectorStore:
         table = await self._ensure_table()
         escaped = record_id.replace("'", "''")
         async with self._lock:
+            before = self._seen_epoch
             await asyncio.to_thread(table.delete, f"record_id = '{escaped}'")
+            self._wrote(before)
             self._unpurged.add(record_id)
             if self._ids is not None:
                 self._ids.discard(record_id)
@@ -493,7 +520,9 @@ class LanceDBVectorStore:
     async def delete_all(self) -> None:
         table = await self._ensure_table()
         async with self._lock:
+            before = self._seen_epoch
             await asyncio.to_thread(table.delete, "record_id IS NOT NULL")
+            self._wrote(before)
             if self._ids is not None:
                 self._ids.clear()
 
@@ -526,11 +555,14 @@ class LanceDBVectorStore:
                     )
                 _drop_older_versions(table)
 
+            before = self._seen_epoch
             try:
                 await asyncio.to_thread(self._gate.exclusive, _purge)
             except Exception as exc:
                 _log.warning("vector.lance_purge_failed", error=str(exc), pending=len(pending))
                 return False
+            finally:
+                self._wrote(before)  # a failed rewrite may still have committed a version
             self._unpurged -= pending
         return True
 

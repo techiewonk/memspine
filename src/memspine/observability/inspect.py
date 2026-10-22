@@ -31,6 +31,7 @@ from contextlib import contextmanager, nullcontext
 from contextvars import ContextVar
 from typing import Any
 
+from memspine.observability import bindings as _bindings
 from memspine.observability import tap
 
 __all__ = [
@@ -61,6 +62,7 @@ __all__ = [
     "sleep_cycle",
     "sleep_item",
     "sleep_stage",
+    "switches",
     "turn_bound",
     "window_members",
 ]
@@ -79,24 +81,38 @@ _INLINE_CYCLES: dict[str, int] = {}
 
 
 def configure(on: bool, content: bool = False) -> None:
-    """Set the inspect switches (``Engine.start`` calls it with the config; off by default)."""
+    """Set the process default inspect switches, used by code outside any Engine binding (off by
+    default). An Engine carries its own switches in its binding (RM-75), so two Engines with
+    different ``observability.inspect`` settings never overwrite each other."""
     global _ON, _CONTENT
     _ON = bool(on)
     _CONTENT = bool(on and content)
 
 
+def switches(on: bool, content: bool = False) -> tuple[bool, bool]:
+    """The ``(inspect, inspect_content)`` pair an Engine stores in its binding."""
+    return bool(on), bool(on and content)
+
+
+def _flags() -> tuple[bool, bool]:
+    flags: tuple[bool, bool] = _bindings.resolve("inspect", (_ON, _CONTENT))
+    return flags
+
+
 def inspect_enabled() -> bool:
-    return _ON and tap.enabled()
+    return _flags()[0] and tap.enabled()
 
 
 def inspect_content() -> bool:
-    return _ON and _CONTENT and tap.content_enabled()
+    on, content = _flags()
+    return on and content and tap.content_enabled()
 
 
 def ic(text: object) -> tap.Content:
     """Text for an inspect payload: kept (truncated, redacted by the tap) only under
     ``observability.inspect_content``; otherwise silently absent from the event."""
-    if not (_ON and _CONTENT):
+    on, content = _flags()
+    if not (on and content):
         return tap._NO_CONTENT  # the tap's dropped marker: the field is silently absent
     return tap.content(str(text))
 
@@ -188,7 +204,9 @@ def sleep_cycle(cycle: int | None, namespace: str | None = None) -> Iterator[Non
         if namespace is None or _CYCLE.get() is not None:
             yield
             return
-        cycle = _INLINE_CYCLES[namespace] = _INLINE_CYCLES.get(namespace, 0) + 1
+        binding = _bindings.current()
+        counts = binding.inspect_cycles if binding is not None else _INLINE_CYCLES
+        cycle = counts[namespace] = counts.get(namespace, 0) + 1
     token = _CYCLE.set(int(cycle))
     try:
         yield

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import dataclasses
 import hashlib
+import threading
 import time
 from collections.abc import (
     Sequence,
@@ -288,6 +289,11 @@ async def _query_rewrite_probes(eng: Any, query: str) -> list[str]:
 # --- R3-15 / LIB-19: read-result cache (ER-31 B: off until enabled; POL-1: revalidate every hit)
 
 _NON_MUTATING = frozenset({EventKind.RETRIEVE, EventKind.EXPOSE})
+#: RM-77: state-changing events per durable store, counted over every Engine of the process on
+#: it (``Engine._store_identity``), so one Engine's read cache never serves a result another
+#: Engine's write or erasure on the same store has made stale. Separate processes are not seen.
+_PEER_GENERATIONS: dict[str, int] = {}
+_PEER_LOCK = threading.Lock()
 
 
 def _bump_generations(eng: Any, event: Any) -> None:
@@ -299,6 +305,18 @@ def _bump_generations(eng: Any, event: Any) -> None:
     d["_store_generation"] = d.get("_store_generation", 0) + 1
     if event.kind == EventKind.FORGET:
         d["_erasure_generation"] = d.get("_erasure_generation", 0) + 1
+    store = getattr(eng, "_store_identity", None)
+    if store is not None:
+        with _PEER_LOCK:
+            _PEER_GENERATIONS[store] = _PEER_GENERATIONS.get(store, 0) + 1
+
+
+def _key_store_generation(eng: Any) -> int:
+    """The store generation of a read-cache key: this Engine's own count plus, for a durable
+    store, the count of every Engine of the process on that store (both only grow)."""
+    own: int = eng.__dict__.get("_store_generation", 0)
+    store = getattr(eng, "_store_identity", None)
+    return own if store is None else own + _PEER_GENERATIONS.get(store, 0)
 
 
 def _read_cache(eng: Any) -> ReadCache[ReadResult] | None:
@@ -346,7 +364,7 @@ def _read_cache_key(eng: Any, query: str, namespace: str, viewer: str | None, pa
             query=query,
             config_hash=config_hash,
             model_ids=model_ids,
-            store_generation=eng.__dict__.get("_store_generation", 0),
+            store_generation=_key_store_generation(eng),
             erasure_generation=eng.__dict__.get("_erasure_generation", 0),
             consent_generation=trust_consent.generation(eng),  # T5-03: None unless consent.v2
         )

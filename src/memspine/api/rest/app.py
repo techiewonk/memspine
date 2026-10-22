@@ -302,6 +302,18 @@ def build_app(
         with principal_scope(principal.name if principal else None):
             return await call_next(request)
 
+    # ── RM-75: every request runs as this app's Engine ───────────────────────
+    # Registered last, so it is the outermost middleware: the request trace, the auth checks,
+    # the routes and the sync routes FastAPI runs on its thread pool (the context is copied)
+    # all read this Engine's tap, ledgers and gate, also with other Engines in the process.
+
+    @app.middleware("http")
+    async def _bind_engine(
+        request: Request, call_next: Callable[[Request], Awaitable[Response]]
+    ) -> Response:
+        with engine.bound():
+            return await call_next(request)
+
     # ── error mapping (never leak stack traces) ──────────────────────────────
 
     async def _conflict(_request: Request, exc: Exception) -> Response:

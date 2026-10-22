@@ -8,6 +8,7 @@ purpose) filled in. The module-level functions are the engine's scoped views (``
 
 from __future__ import annotations
 
+import contextlib
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -16,6 +17,7 @@ from memspine.compose.pack import estimate_tokens
 from memspine.config import constants
 from memspine.core.escaping import escape_markers
 from memspine.exceptions import MemspineError
+from memspine.observability import bindings as _bindings
 from memspine.read.pipeline.scope_guard import declare_multi_party, viewer_required
 from memspine.read.tiers import ReadRequestError
 from memspine.schemas.durable import OwnerScope
@@ -262,6 +264,12 @@ class Memory:
             f"viewer={self.viewer!r})"
         )
 
+    @property
+    def _binding(self) -> Any:
+        """RM-75: the Engine's binding, so the handle's verbs (and the private Engine helpers
+        they call) run as that Engine (see :mod:`memspine.observability.bindings`)."""
+        return getattr(self._engine, "_binding", None)
+
     @staticmethod
     def _check(kwargs: Mapping[str, Any]) -> None:
         clash = _BOUND_KEYS & set(kwargs)
@@ -489,6 +497,12 @@ def _check_owner_bound(engine: Engine, namespace: str, principal: str) -> None:
 
     owner = Scope.from_namespace(namespace).owner
     if owner and owner != principal.strip():
-        if tap.enabled():
-            tap.event("scope.refused", reason="cross_owner", site="handle")
+        binding = getattr(engine, "_binding", None)
+        with _bindings.bound(binding) if binding is not None else contextlib.nullcontext():
+            if tap.enabled():
+                tap.event("scope.refused", reason="cross_owner", site="handle")
         raise ScopeRefused("cross_owner", "this handle's principal does not own the namespace")
+
+
+# RM-75: the handle's verbs run as its Engine, also when called from REST, MCP or a host thread.
+_bindings.bind_public_methods(Memory)

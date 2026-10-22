@@ -43,6 +43,7 @@ from memspine.api.handle import Memory
 from memspine.core.escaping import escape_markers
 from memspine.exceptions import MemspineError
 from memspine.memories.episodic.lifecycle import session_of
+from memspine.observability import bindings as _bindings
 from memspine.observability import tap
 from memspine.observability.logging import get_logger
 from memspine.store.records import MemoryRecord, RecordStatus, SourceInfo
@@ -269,6 +270,12 @@ class AgentMemoryTools:
     _turn_writes: int = 0
 
     # ── public surface ──────────────────────────────────────────────────────
+
+    @property
+    def _binding(self) -> Any:
+        """RM-75: the Engine's binding; ``call`` (MCP, framework adapters) runs as that Engine,
+        so its request trace and audit land in that Engine's tap and ledgers."""
+        return getattr(self.engine, "_binding", None)
 
     def _mem(self, purpose: str | None = None) -> Memory:
         """The scoped handle for one call: namespace and principal come from the host's
@@ -584,3 +591,7 @@ class AgentMemoryTools:
             )
         except Exception as exc:  # auditing never breaks the call
             _log.warning("agent_tool.audit_failed", error=str(exc))
+
+
+# RM-75: `call` runs as the tool-set's Engine (MCP and framework adapters are unbound callers).
+_bindings.bind_public_methods(AgentMemoryTools)

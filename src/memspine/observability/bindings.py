@@ -16,32 +16,43 @@ Resolution for a seam (``resolve``):
 3. code running outside any binding (a raw thread, a direct pipeline call in a test) uses the
    only live Engine's binding when exactly one Engine is started in the process, which is
    exactly the single-Engine behaviour; with several live Engines such code gets nothing,
-   rather than another Engine's instance.
+   rather than another Engine's instance. Such code runs as one Engine with
+   ``with Engine.bound():`` (or :func:`bound`); work an Engine hands to an executor thread keeps
+   the binding through :func:`run_in_executor` (``asyncio.to_thread`` already copies it).
+
+Every coroutine method of the Engine (private ones too, so the pipeline context callbacks and
+the facade helpers are covered) and of the scoped ``Memory`` handle and the agent tool-set runs
+bound; the REST app binds every request to its Engine.
 
 Stdlib only: every layer may import it.
 """
 
 from __future__ import annotations
 
+import asyncio
 import contextlib
+import contextvars
 import functools
 import inspect
 import os
 import threading
 import weakref
 from collections.abc import Awaitable, Callable, Iterator
+from concurrent.futures import Executor
 from contextvars import ContextVar
 from dataclasses import dataclass, field
 from typing import Any
 
 __all__ = [
     "EngineBinding",
+    "bind_methods",
     "bind_public_methods",
     "bound",
     "current",
     "live",
     "register",
     "resolve",
+    "run_in_executor",
     "unregister",
 ]
 
@@ -57,11 +68,16 @@ class EngineBinding:
     tap: Any = None
     tap_sinks: list[Any] = field(default_factory=list)
     scheduler: Any = None
+    #: ``(observability.inspect, observability.inspect_content)`` of this Engine (TI-1)
+    inspect: tuple[bool, bool] | None = None
+    #: TI-1 inline sleep cycle counter per namespace (one per Engine, never shared)
+    inspect_cycles: dict[str, int] = field(default_factory=dict)
 
     def clear(self) -> None:
         self.gate = self.slo_ledger = self.cost_ledger = self.ops_ledger = None
-        self.tap = self.scheduler = None
+        self.tap = self.scheduler = self.inspect = None
         self.tap_sinks = []
+        self.inspect_cycles = {}
 
 
 _CURRENT: ContextVar[EngineBinding | None] = ContextVar("memspine_engine_binding", default=None)
@@ -119,13 +135,33 @@ def live() -> tuple[EngineBinding, ...]:
     return tuple(b for b, r in _LIVE if r() is not None)
 
 
+def run_in_executor[T](
+    executor: Executor | None, fn: Callable[..., T], *args: Any
+) -> asyncio.Future[T]:
+    """``loop.run_in_executor`` that keeps the caller's context (and so its Engine binding);
+    the plain loop method runs ``fn`` with the worker thread's empty context."""
+    ctx = contextvars.copy_context()
+    return asyncio.get_running_loop().run_in_executor(
+        executor, functools.partial(ctx.run, fn, *args)
+    )
+
+
 def bind_public_methods(cls: type, attr: str = "_binding") -> None:
     """Make every public coroutine method of ``cls`` (and ``__aenter__`` / ``__aexit__``) run
     with the instance's binding (``getattr(self, attr)``) as the current binding."""
+    bind_methods(cls, attr, private=False)
+
+
+def bind_methods(cls: type, attr: str = "_binding", *, private: bool = True) -> None:
+    """Like :func:`bind_public_methods`; ``private=True`` also binds the ``_`` methods (dunder
+    methods other than ``__aenter__`` / ``__aexit__`` never)."""
     for name, fn in list(vars(cls).items()):
-        if name.startswith("_") and name not in ("__aenter__", "__aexit__"):
+        dunder = name.startswith("__") and name.endswith("__")
+        if dunder and name not in ("__aenter__", "__aexit__"):
             continue
-        if inspect.iscoroutinefunction(fn):
+        if not private and name.startswith("_") and not dunder:
+            continue
+        if inspect.iscoroutinefunction(fn) and not getattr(fn, "_memspine_bound", False):
             setattr(cls, name, _bound_method(fn, attr))
 
 
@@ -141,6 +177,7 @@ def _bound_method(fn: Callable[..., Awaitable[Any]], attr: str) -> Callable[...,
         finally:
             _CURRENT.reset(token)
 
+    inner._memspine_bound = True  # type: ignore[attr-defined]
     return inner
 
 

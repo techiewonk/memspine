@@ -192,7 +192,13 @@ from memspine.providers.projection_bindings import (
     projection_target_bindings,
 )
 from memspine.providers.recovery import CleanupQuiescenceGuard
-from memspine.providers.shared import Lease, ResourceRegistry, resource_key, shared_registry
+from memspine.providers.shared import (
+    Lease,
+    ResourceRegistry,
+    path_identity,
+    resource_key,
+    shared_registry,
+)
 from memspine.providers.switching import verified_active_projection_routes
 from memspine.read.contract import (
     QueryContract,
@@ -525,6 +531,8 @@ class Engine:
         self._container: AsyncContainer | None = None
         #: RM-78: the registry this Engine shares resources through (set at start).
         self._resource_registry: ResourceRegistry | None = None
+        #: RM-77: the durable store this Engine shares with others (None: ``:memory:``)
+        self._store_identity: str | None = None
         self._wiring: Wiring | None = None
         #: RM-74: this Engine's warm-up (None before start and after stop).
         self._warmup: WarmupController | None = None
@@ -552,6 +560,13 @@ class Engine:
             viewer=viewer,
             multi_party=multi_party,
         )
+
+    def bound(self) -> contextlib.AbstractContextManager[None]:
+        """RM-75: run a block as this Engine, so code that is not an Engine call (a raw thread,
+        a direct pipeline call, a host callback) reads this Engine's model gate, ledgers, tap
+        and inspect switches. Engine calls bind themselves; with one started Engine in the
+        process unbound code already resolves to it."""
+        return _bindings.bound(self._binding)
 
     async def __aenter__(self) -> Self:
         return await self.start()
@@ -604,6 +619,13 @@ class Engine:
         )
         self._resolved = await container.get(ResolvedConfig)
         config = self._resolved.config
+        try:  # RM-77: read-cache generations count every Engine of the process on this store
+            store_base: str | None = derived_base(config)
+        except ConfigError:  # no projection placement: the build reports it below
+            store_base = None
+        self._store_identity = (
+            None if store_base in (None, ":memory:") else path_identity(str(store_base))
+        )
         prewarm_provider_imports(config)  # PA-046: overlap slow provider imports with startup
         cleanup_settings = config.runtime.service_switches.projections
         if cleanup_settings.cleanup_interval_s is not None:
@@ -658,14 +680,18 @@ class Engine:
         # settings, shared with Engines that have the same (RM-75); None when both are off, and
         # then nothing below changes.
         seams = self._binding
-        self._sched_lease = await _scheduler_rt.acquire(config.runtime, self._resource_registry)
+        self._sched_lease = self._own_lease(
+            "seam.model_scheduler",
+            await _scheduler_rt.acquire(config.runtime, self._resource_registry),
+        )
         if self._sched_lease is not None:
             sched = self._sched_v2 = self._sched_lease.value
             seams.scheduler, seams.gate = sched, sched.gate
             seams.slo_ledger = sched.slo_ledger
         if config.economy.ledger_v2:  # W2-12 (W-26, P-22 C): the write-side cost ledger
-            self._cost_lease = await self._acquire_cost_ledger(config)
-            self._cost_ledger = seams.cost_ledger = self._cost_lease.value
+            cost_lease = self._cost_lease = await self._acquire_cost_ledger(config)
+            self._own_lease("seam.cost_ledger", cost_lease)
+            self._cost_ledger = seams.cost_ledger = cost_lease.value
         self._embedder = await container.get(EmbeddingService)
         if self._sched_v2 is not None:
             self._embedder = self._sched_v2.wrap_embedder(self._embedder)
@@ -915,7 +941,7 @@ class Engine:
                 await self._derive_sched.on_open()
         self._install_write_timers(config)
         if config.observability.ops_ledger:  # T5-06: per-stage ops ledger, off by default
-            self._ops_lease = await self._registry().acquire(
+            ops_lease = self._ops_lease = await self._registry().acquire(
                 resource_key(
                     "observability.ops_ledger",
                     _seam_target(config, self._seam_token),
@@ -924,9 +950,11 @@ class Engine:
                 ),
                 self._new_ops_ledger,
             )
-            self._ops_ledger = seams.ops_ledger = self._ops_lease.value
+            self._own_lease("seam.ops_ledger", ops_lease)
+            self._ops_ledger = seams.ops_ledger = ops_lease.value
         obs = config.observability
-        inspect_obs.configure(obs.inspect, obs.inspect_content)  # TI-1: off unless asked
+        # TI-1: off unless asked; RM-75: this Engine's switches, never the process default
+        seams.inspect = inspect_obs.switches(obs.inspect, obs.inspect_content)
         if obs.tap.enabled or obs.otel.enabled or obs.inspect:
             # WT-01: debugging wiretap, off by default. T5-06: the OTel exporter is a second sink
             # on the tap; without a tap config it runs on a sink-less, content-free tap.
@@ -972,6 +1000,18 @@ class Engine:
     def _registry(self) -> ResourceRegistry:
         """The resource registry of this start (``runtime.shared_resources.scope``)."""
         return self._resource_registry or shared_registry()
+
+    def _own_lease[L: Lease[Any]](self, resource_id: str, lease: L | None) -> L | None:
+        """RM-75: hand a shared seam lease to this Engine's ``ProviderLifecycleManager``; its
+        ordered close (the ``provider resources`` teardown step, after every worker that could
+        use the seam has stopped) releases it, and the last holder in the process closes it."""
+        if lease is None:
+            return None
+        resources = self._provider_resources
+        if resources is None:  # pragma: no cover - start always wires the manager first
+            raise MemspineError("no lifecycle manager to own a shared lease")
+        resources.own(resource_id, lease.aclose)
+        return lease
 
     async def _start_warmup(self, config: MemspineConfig) -> None:
         shared = config.runtime.shared_resources
@@ -1234,34 +1274,21 @@ class Engine:
         await attempt("provider cleanup worker", stop_provider_cleanup_worker)
 
         seams = self._binding
-
-        async def close_ops_ledger() -> None:
-            self._ops_ledger = seams.ops_ledger = None
-            if self._ops_lease is not None:
-                lease, self._ops_lease = self._ops_lease, None
-                await lease.aclose()
-
-        await attempt("ops ledger", close_ops_ledger)
+        # RM-75: the ops / cost ledger and model scheduler leases belong to the lifecycle
+        # manager (``_own_lease``), which releases them in its ordered close below; here this
+        # Engine only stops using them.
+        self._ops_ledger = seams.ops_ledger = self._ops_lease = None
         self._otel = None
+        self._cost_ledger = seams.cost_ledger = self._cost_lease = None
 
-        async def close_cost_ledger() -> None:
-            self._cost_ledger = seams.cost_ledger = None
-            if self._cost_lease is not None:
-                lease, self._cost_lease = self._cost_lease, None
-                await lease.aclose()  # the last Engine holding it closes the ledger
-
-        await attempt("cost ledger", close_cost_ledger)
-
-        async def release_model_scheduler() -> None:
+        async def detach_model_scheduler() -> None:
             seams.scheduler = seams.gate = seams.slo_ledger = None
             sched, self._sched_v2 = self._sched_v2, None
+            self._sched_lease = None
             if sched is not None:
                 await sched.close_embedder(self._embedder)  # this Engine's executors only
-            if self._sched_lease is not None:
-                lease, self._sched_lease = self._sched_lease, None
-                await _scheduler_rt.release(lease)
 
-        await attempt("model scheduler", release_model_scheduler)
+        await attempt("model scheduler", detach_model_scheduler)
 
         async def stop_scheduler() -> None:
             if self._scheduler is not None:
@@ -6196,4 +6223,7 @@ class Engine:
 
 
 # RM-75: every public coroutine verb runs with this Engine's binding (gate, ledgers, tap).
-_bindings.bind_public_methods(Engine)
+# RM-75: every coroutine method, private ones too: the pipeline context callbacks, the facade
+# helpers called from ``api.ops_*`` / ``api.handle`` and the window and sleep callbacks run as
+# this Engine even when their caller (a direct pipeline call, a host thread) is unbound.
+_bindings.bind_methods(Engine)

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import cast
+from typing import TYPE_CHECKING, cast
 
 from memspine.config import constants
 from memspine.config.schema.providers import LanceDBSettings
@@ -13,7 +13,11 @@ from memspine.providers.contexts import VectorBuildContext
 from memspine.providers.contracts import BuildResult, ProviderRef
 from memspine.providers.placement import generation_component
 from memspine.providers.registry import VECTOR_STORES, ProviderDescriptor
+from memspine.providers.shared import own_shared, path_identity, resource_key
 from memspine.services.vector.base import VectorStore
+
+if TYPE_CHECKING:
+    from memspine.clients.lancedb import LanceDBClient
 
 
 class LanceDBBuilder:
@@ -37,9 +41,32 @@ class LanceDBBuilder:
             if placement.in_memory
             else f"{placement.base_path}.lance{generation_suffix}"
         )
-        client = LanceDBClient(path)
-        ref = ctx.shared.resources.own("vector", client.close)
-        await client.connect()
+        client: LanceDBClient
+        if placement.in_memory:
+            # An in-memory database is private to this Engine, like its ``:memory:`` event log.
+            client = LanceDBClient(path)
+            ref = ctx.shared.resources.own("vector", client.close)
+            await client.connect()
+        else:
+
+            async def open_client() -> LanceDBClient:
+                opened = LanceDBClient(path)
+                await opened.connect()
+                return opened
+
+            async def close_client(opened: LanceDBClient) -> None:
+                await opened.close()
+
+            # RM-77 (ADR-079): one connection per database path per process, so the stores of
+            # every Engine on the path share its write epochs and read each other's commits.
+            client, ref = await own_shared(
+                ctx.shared.resources,
+                "vector",
+                resource_key("vector.lancedb", {"path": path_identity(path)}, scope="thread"),
+                open_client,
+                close=close_client,
+                registry=ctx.shared.resource_registry(),
+            )
 
         def make(suffix: str = "", embedding: EmbeddingService | None = None) -> LanceDBVectorStore:
             return LanceDBVectorStore(

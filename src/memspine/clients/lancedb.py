@@ -7,6 +7,7 @@ injected and never connects itself.
 from __future__ import annotations
 
 import asyncio
+import threading
 from pathlib import Path
 from typing import Any
 
@@ -18,9 +19,29 @@ __all__ = ["LanceDBClient"]
 
 
 class LanceDBClient(Client):
+    """One connection per database path per process (RM-77: shared by every Engine on the path).
+
+    LanceDB table handles stay on the version they last read or wrote, so a handle opened by
+    one store does not see rows another store committed through its own handle. Each store
+    reports its commits here (:meth:`note_write`); a store whose handle is behind the table's
+    write epoch checks out the latest version before it reads (one integer compare otherwise).
+    """
+
     def __init__(self, path: str | Path) -> None:
         self._path = str(path)
         self._db: Any = None
+        self._epochs: dict[str, int] = {}
+        self._epoch_lock = threading.Lock()
+
+    def write_epoch(self, table: str) -> int:
+        """How many commits the stores of this client made to ``table``."""
+        return self._epochs.get(table, 0)
+
+    def note_write(self, table: str) -> int:
+        """Record one commit to ``table``; returns the new epoch."""
+        with self._epoch_lock:
+            epoch = self._epochs[table] = self._epochs.get(table, 0) + 1
+            return epoch
 
     @property
     def db(self) -> Any:
