@@ -161,7 +161,6 @@ __all__ = [
     "preflight_projection_bindings",
     "prewarm_provider_imports",
     "request_scope",
-    "set_neo4j_executor_factory",
 ]
 
 _log = get_logger(__name__)
@@ -1578,15 +1577,6 @@ def build_outbox(config: MemspineConfig, wiring: Wiring, _storage: SqlStorage) -
 
 
 # ── F-16e: Neo4j graph projection through the outbox ─────────────────────────────────────
-
-Neo4jExecutorFactory = Callable[["MemspineConfig"], Any]
-_neo4j_executor_factory: Neo4jExecutorFactory | None = None
-
-
-def set_neo4j_executor_factory(factory: Neo4jExecutorFactory | None) -> None:
-    """Replace how the Neo4j executor is built (tests stand in a recorder; None = the driver)."""
-    global _neo4j_executor_factory
-    _neo4j_executor_factory = factory
 
 
 def neo4j_outbox_on(config: MemspineConfig) -> bool:

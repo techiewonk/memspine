@@ -12,12 +12,12 @@ Keep one row per stable ID. PA IDs preserve the 136-item provider program; BI ID
 | BLOCKED | 1 |
 | DEFERRED | 6 |
 | DEPLOYMENT_CHECK | 19 |
-| DONE | 177 |
+| DONE | 178 |
 | EXCLUDED | 4 |
 | IN_PROGRESS | 27 |
 | NEEDS_INPUT | 4 |
 | NEEDS_TOOLCHAIN | 1 |
-| OPEN | 11 |
+| OPEN | 10 |
 | OPEN_REVIEW | 18 |
 | PLANNED | 11 |
 | PROPOSED | 3 |
@@ -353,7 +353,7 @@ its scope is narrower than the prerequisite (say so in the row) or its status is
 | RM-106 | OPEN | P3 | Model maintainer | Wire a real GLiNER topic tagger for topical domains | 2026-10-22 RM-91: the opt-in topic source works only with an injected tagger; nothing sets Engine._topic_tagger even when models.bindings.gliner_topic is bound | Build the tagger from the bound GLiNER profile (offline, local_files_only) like the sensitivity detector; topic labels map to domain ids from packs; stays off unless bound; stub and offline tests | Prereq: RM-91; Feeds: RM-91 |
 | RM-107 | NEEDS_INPUT | P3 | Domain vocabulary owner | Decide top domains for the built-in vocabulary packs | 2026-10-22 RM-91: the pack top-domain source is tested only with a custom pack; memspine.core and memspine.proposed span many topics, so no top domain was invented | Owner decides whether built-in packs get a top domain (or stay without one and rely on predicate/key defaults) | Prereq: RM-91 |
 | RM-108 | OPEN | P2 | Config / storage maintainer | storage.provider=postgres with the default storage.profile=embedded silently skips Alembic | 2026-10-22 found by RM-105: StorageConfig accepts provider postgres while profile defaults to embedded; the builder uses Alembic only when profile is server (providers/builtin/storage.py use_alembic), so a postgres store configured by provider alone is created without migrations and reports profile embedded | Decide: infer profile=server from provider=postgres (and reject embedded+postgres), or document the pair as required; add a config test either way | Prereq: none; Feeds: PA-057 |
-| RM-109 | OPEN | P3 | Runtime maintainer | Remove the dead set_neo4j_executor_factory hook | 2026-10-22 found by RM-105: runtime/container.py keeps set_neo4j_executor_factory and _neo4j_executor_factory, but nothing reads them any more; tests now patch the Neo4j descriptor builder | Delete the hook and its export (no alias, ADR-068) after confirming no external caller | Prereq: none |
+| RM-109 | DONE | P3 | Runtime maintainer | Remove the dead set_neo4j_executor_factory hook | 2026-10-22 found by RM-105: runtime/container.py kept set_neo4j_executor_factory and _neo4j_executor_factory, but nothing read them; tests patch the Neo4j descriptor builder. Removed with its export (no alias, ADR-068); repo-wide search found no other caller; runtime + F-16e + import-contract tests 109 passed, 6 skipped | Completed | Prereq: none |
 <!-- TASK_REGISTER_END -->
 
 ## Imported roadmap detail (no independent statuses)
