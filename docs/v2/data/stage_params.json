@@ -742,8 +742,8 @@
      "key": "storage.documents",
      "default": null,
      "type": "SlotConfig | None",
-     "description": "ADR-081 optional slot for non-structured payloads (attachments, assets, large payloads). Reserved: a non-null value is rejected until a documents provider ships.",
-     "effect": "Optional slot for non-structured payloads (attachments, assets, large payloads).",
+     "description": "ADR-081 optional slot for non-structured payloads (attachments, assets, large payloads, ingest blobs) by namespace and SHA-256 content hash; the event log keeps references. `null` = off. Provider `filesystem` (host-local, single-writer): `settings.root` (default `<records path>.documents`, under `deployment.data_dir` for a non-file records store), `settings.max_bytes` (default 64 MiB, refused above, never truncated), `settings.fsync` (default `true`; writes are atomic). `mongodb`, `s3` and `weaviate` are planned (RM-112) and rejected by name. A started Engine exposes the store as `engine.documents` (`put`/`get`/`stream`/`head`/`delete`/`list`); a hard forget or erasure removes documents whose last referencing record (`record_ids`) was erased, and `erase_namespace` removes every document of the namespace. Removing a file is a logical delete, not physical-erasure proof.",
+     "effect": "Optional slot for non-structured payloads (attachments, assets, large payloads, ingest blobs) by namespace and SHA-256 content hash; the event log keeps references.",
      "rebuild": true,
      "rebuild_scope": "index",
      "screen_ids": []
@@ -9322,6 +9322,7 @@
   "data_shape.turn_length": "profile selector: resolves to preset keys at config load, no stage reads it",
   "deployment.data_dir": "no read site matched an inventory stage",
   "deployment.locality": "no read site matched an inventory stage",
+  "deployment.writer": "no read site matched an inventory stage",
   "integrity.enabled": "cross-cutting master switch for the trust model (A11, A14, C18, C20, C25)",
   "isolation.multi_party_namespaces": "cross-cutting: scope and viewer isolation is enforced at every read and write door, not in one stage",
   "isolation.owner_bound_handles": "cross-cutting: scope and viewer isolation is enforced at every read and write door, not in one stage",
@@ -9447,6 +9448,6 @@
   "workers.resonate.task_timeout_s": "no read site matched an inventory stage",
   "workers.temporal": "no read site matched an inventory stage"
  },
- "unattributed_count": 135,
- "schema_key_count": 633
+ "unattributed_count": 136,
+ "schema_key_count": 634
 }
