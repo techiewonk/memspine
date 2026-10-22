@@ -80,7 +80,7 @@ class AdjacencyBuilder:
             service,
             ProviderRef("graph", "sqlite_adjacency"),
             (ref,),
-            frozenset({"graph", "namespace_filter", "erase"}),
+            frozenset({"graph", "namespace_filter", "erase", "qualifier_filter"}),
             health_probe=probe,
         )
 
@@ -139,7 +139,7 @@ class LadybugBuilder:
             service,
             ProviderRef("graph", "ladybug"),
             (ref,),
-            frozenset({"graph", "namespace_filter", "erase"}),
+            frozenset({"graph", "namespace_filter", "erase", "qualifier_filter"}),
             health_probe=probe,
         )
 
@@ -194,14 +194,14 @@ def register() -> None:
             SqliteAdjacencySettings,
             AdjacencyBuilder(),
             (),
-            {"graph", "namespace_filter", "erase"},
+            {"graph", "namespace_filter", "erase", "qualifier_filter"},
         ),
         (
             "ladybug",
             LadybugSettings,
             LadybugBuilder(),
             (DependencyRequirement("package", "ladybug"),),
-            {"graph", "namespace_filter", "erase"},
+            {"graph", "namespace_filter", "erase", "qualifier_filter"},
         ),
         (
             "neo4j",

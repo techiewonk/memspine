@@ -37,6 +37,11 @@ from memspine.services.graph.base import (
     entity_terms,
     fuse_entity_hits,
 )
+from memspine.services.graph.qualifiers import (
+    QualifierFilter,
+    qualified_hops,
+    qualified_subgraph,
+)
 from memspine.services.storage.sqlite.schema import graph_edges, graph_nodes
 
 __all__ = ["SQLiteAdjacencyGraph"]
@@ -147,6 +152,9 @@ def _subgraph_rows(namespace: str | None) -> str:
 
 
 class SQLiteAdjacencyGraph:
+    #: RM-41: typed edge qualifiers ride in the properties JSON; filtered walks supported.
+    supports_qualifier_filters = True
+
     def __init__(self, client: _SqlEngineAccess) -> None:
         self._client = client
 
@@ -256,6 +264,71 @@ class SQLiteAdjacencyGraph:
             seeds, depth, namespace, None, max_degree, select=_subgraph_rows(namespace)
         )
         return sorted((_edge(row) for row in rows), key=lambda e: (e.src, e.dst, e.rel_type))
+
+    async def _frontier_edges(
+        self, frontier: Sequence[str], namespace: str | None, rel_type: str | None
+    ) -> list[GraphEdge]:
+        """RM-41: the live edges touching ``frontier`` (one query; the frontier is a
+        json array, never a bound ``IN (...)`` list that overflows the variable limit)."""
+        params: dict[str, object] = {"frontier": orjson.dumps(list(frontier)).decode()}
+        if namespace is not None:
+            params["namespace"] = namespace
+        if rel_type is not None:
+            params["rel_type"] = rel_type
+        live = _live("e", namespace, rel_type)
+        sql = text(
+            "SELECT e.src, e.dst, e.rel_type, e.properties FROM graph_edges e "
+            f"WHERE e.src IN (SELECT value FROM json_each(:frontier)) AND {live} "
+            "UNION SELECT e.src, e.dst, e.rel_type, e.properties FROM graph_edges e "
+            f"WHERE e.dst IN (SELECT value FROM json_each(:frontier)) AND {live}"
+        )
+        async with self._client.engine.connect() as conn:
+            rows = (await conn.execute(sql, params)).all()
+        return [_edge(row) for row in rows]
+
+    async def neighbors_qualified(
+        self,
+        node_id: str,
+        qualifier_filter: QualifierFilter,
+        rel_type: str | None = None,
+        depth: int = 1,
+        *,
+        namespace: str | None = None,
+        max_degree: int | None = None,
+    ) -> list[GraphNode]:
+        """RM-41: ``neighbors`` over the edges ``qualifier_filter`` admits only."""
+
+        async def frontier_edges(frontier: Sequence[str]) -> list[GraphEdge]:
+            return await self._frontier_edges(frontier, namespace, rel_type)
+
+        hops = await qualified_hops(frontier_edges, [node_id], depth, qualifier_filter, max_degree)
+        hops.pop(node_id, None)
+        if not hops:
+            return []
+        sql = text(
+            "SELECT n.node_id, n.labels, n.properties FROM graph_nodes n "
+            "WHERE n.node_id IN (SELECT value FROM json_each(:ids))"
+        )
+        async with self._client.engine.connect() as conn:
+            rows = (await conn.execute(sql, {"ids": orjson.dumps(list(hops)).decode()})).all()
+        nodes = [_node(row) for row in rows]
+        return sorted(nodes, key=lambda node: (hops[node.node_id], node.node_id))
+
+    async def subgraph_qualified(
+        self,
+        seeds: Sequence[str],
+        qualifier_filter: QualifierFilter,
+        depth: int = 1,
+        *,
+        namespace: str | None = None,
+        max_degree: int | None = None,
+    ) -> list[GraphEdge]:
+        """RM-41: ``subgraph`` over the edges ``qualifier_filter`` admits only."""
+
+        async def frontier_edges(frontier: Sequence[str]) -> list[GraphEdge]:
+            return await self._frontier_edges(frontier, namespace, None)
+
+        return await qualified_subgraph(frontier_edges, seeds, depth, qualifier_filter, max_degree)
 
     async def edges_of(self, node_id: str) -> list[GraphEdge]:
         stmt = self._edge_select().where(

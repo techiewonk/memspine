@@ -46,6 +46,7 @@ from memspine.services.graph.base import (
     edge_namespace,
     edge_weight,
 )
+from memspine.services.graph.qualifiers import QualifierFilter, UnsupportedQualifierFilterError
 
 __all__ = [
     "CYPHER",
@@ -231,6 +232,32 @@ def _load(raw: object) -> dict[str, object]:
 
 class Neo4jGraphStore:
     """``GraphStore`` over a :class:`Neo4jExecutor`. See the module docstring."""
+
+    #: RM-41: no qualifier-filtered Cypher op exists yet; filters raise, never pass silently.
+    supports_qualifier_filters = False
+
+    async def neighbors_qualified(
+        self,
+        node_id: str,
+        qualifier_filter: QualifierFilter,
+        rel_type: str | None = None,
+        depth: int = 1,
+        *,
+        namespace: str | None = None,
+        max_degree: int | None = None,
+    ) -> list[GraphNode]:
+        raise UnsupportedQualifierFilterError("neo4j")
+
+    async def subgraph_qualified(
+        self,
+        seeds: Sequence[str],
+        qualifier_filter: QualifierFilter,
+        depth: int = 1,
+        *,
+        namespace: str | None = None,
+        max_degree: int | None = None,
+    ) -> list[GraphEdge]:
+        raise UnsupportedQualifierFilterError("neo4j")
 
     def __init__(self, executor: Neo4jExecutor | None = None, *, scoped: bool = False) -> None:
         if executor is None:

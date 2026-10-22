@@ -52,6 +52,11 @@ from memspine.services.graph.base import (
     entity_terms,
     fuse_entity_hits,
 )
+from memspine.services.graph.qualifiers import (
+    QualifierFilter,
+    qualified_hops,
+    qualified_subgraph,
+)
 
 __all__ = ["CypherClient", "LadybugGraphStore"]
 
@@ -148,6 +153,9 @@ def _filters(
 
 class LadybugGraphStore:
     """GraphStore over an embedded LadybugDB (or, deprecated, Kùzu) connection."""
+
+    #: RM-41: qualifiers ride in the properties blob; filtered walks run level by level.
+    supports_qualifier_filters = True
 
     def __init__(self, client: CypherClient) -> None:
         self._client = client
@@ -366,6 +374,61 @@ class LadybugGraphStore:
             params,
         )
         return sorted((_edge(row) for row in rows), key=lambda e: (e.src, e.dst, e.rel_type))
+
+    async def _frontier_edges(
+        self, frontier: Sequence[str], namespace: str | None, rel_type: str | None
+    ) -> list[GraphEdge]:
+        """RM-41: the live edges touching ``frontier`` (the capped walk's level query)."""
+        params: dict[str, Any] = {"frontier": list(frontier)}
+        where = " AND ".join(_filters("e", namespace, rel_type, params))
+        rows = await self._execute(
+            f"{_EDGE_MATCH} WHERE (s.node_id IN $frontier OR d.node_id IN $frontier) "
+            f"AND {where} {_EDGE_RETURN}",
+            params,
+        )
+        return [_edge(row) for row in rows]
+
+    async def neighbors_qualified(
+        self,
+        node_id: str,
+        qualifier_filter: QualifierFilter,
+        rel_type: str | None = None,
+        depth: int = 1,
+        *,
+        namespace: str | None = None,
+        max_degree: int | None = None,
+    ) -> list[GraphNode]:
+        """RM-41: ``neighbors`` over the edges ``qualifier_filter`` admits only."""
+
+        async def frontier_edges(frontier: Sequence[str]) -> list[GraphEdge]:
+            return await self._frontier_edges(frontier, namespace, rel_type)
+
+        hops = await qualified_hops(frontier_edges, [node_id], depth, qualifier_filter, max_degree)
+        hops.pop(node_id, None)
+        if not hops:
+            return []
+        rows = await self._execute(
+            f"MATCH (b:MemoryNode) WHERE b.node_id IN $ids RETURN {_NODE_RETURN}",
+            {"ids": list(hops)},
+        )
+        nodes = [_node(row) for row in rows]
+        return sorted(nodes, key=lambda node: (hops[node.node_id], node.node_id))
+
+    async def subgraph_qualified(
+        self,
+        seeds: Sequence[str],
+        qualifier_filter: QualifierFilter,
+        depth: int = 1,
+        *,
+        namespace: str | None = None,
+        max_degree: int | None = None,
+    ) -> list[GraphEdge]:
+        """RM-41: ``subgraph`` over the edges ``qualifier_filter`` admits only."""
+
+        async def frontier_edges(frontier: Sequence[str]) -> list[GraphEdge]:
+            return await self._frontier_edges(frontier, namespace, None)
+
+        return await qualified_subgraph(frontier_edges, seeds, depth, qualifier_filter, max_degree)
 
     async def edges_of(self, node_id: str) -> list[GraphEdge]:
         rows = await self._execute(

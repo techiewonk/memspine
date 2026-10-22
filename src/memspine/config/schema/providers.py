@@ -146,6 +146,8 @@ class HashEmbeddingSettings(StrictSettings):
 class StaticEmbeddingSettings(StrictSettings):
     model: str = "minishlab/potion-base-8M"
     dim: int | None = Field(default=None, ge=1)
+    #: RM-38 no-download policy: resolve the artifact locally or fail visibly.
+    local_files_only: bool = False
 
     @model_validator(mode="after")
     def _dimension_matches_known_model(self) -> StaticEmbeddingSettings:

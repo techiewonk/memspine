@@ -201,7 +201,12 @@ def _embed_static(settings: StaticEmbeddingSettings, registry: ResourceRegistry 
         raise ConfigError("embedding.settings.dim could not be resolved")
     from memspine.models.encoders.embedding.static_local import StaticEmbedder
 
-    return StaticEmbedder(model=settings.model, dim=settings.dim, registry=registry)
+    return StaticEmbedder(
+        model=settings.model,
+        dim=settings.dim,
+        local_files_only=settings.local_files_only,
+        registry=registry,
+    )
 
 
 def _embed_litellm(settings: LiteLLMEmbeddingSettings, _registry: ResourceRegistry | None) -> Any:
