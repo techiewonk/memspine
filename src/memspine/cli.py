@@ -288,8 +288,8 @@ def mcp_cmd(
     import asyncio
     import sys
 
-    from memspine import Engine
     from memspine.api.mcp import McpServer, serve_stdio
+    from memspine.api.process import EngineSpec, process_engine, worker_readiness
     from memspine.api.tools import AgentMemoryTools, ToolContext
 
     try:
@@ -308,19 +308,22 @@ def mcp_cmd(
     sys.stdout = sys.stderr  # a stray print must never corrupt the protocol stream
     # Diagnostics (including background warm-up warnings, RM-74) go to stderr too: the
     # default log sink was bound to the protocol stream's fd at import.
-    from memspine.observability.logging import configure_logging
+    from memspine.observability.logging import configure_logging, get_logger
 
     configure_logging()
 
     async def _inner() -> None:
         overrides: dict[str, Any] = {"storage": {"settings": {"path": str(db)}}} if db else {}
-        engine = Engine(template=template, user_config=config_file, **overrides)
-        await engine.start()
-        try:
+        spec = EngineSpec(template, str(config_file) if config_file else None, overrides)
+        # RM-76 start-up hook: this subprocess builds, starts and warms its own Engine and
+        # registry (runtime.shared_resources.warmup); readiness is logged to stderr.
+        async with process_engine(spec, role="mcp") as engine:
+            ready = worker_readiness()
+            get_logger("memspine.cli").info(
+                "runtime.worker_ready", role="mcp", pid=ready["pid"], ready=ready["ready"]
+            )
             server = McpServer(AgentMemoryTools(engine, ctx))
             await serve_stdio(server, sys.stdin, protocol_out)
-        finally:
-            await engine.stop()
 
     try:
         asyncio.run(_inner())

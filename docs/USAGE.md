@@ -500,6 +500,10 @@ app = create_app(engine)         # serve with: uvicorn my_module:app
 `MissingServiceError("protocols.rest", extra="rest")` if the `rest` extra is
 missing.
 
+For multi-worker serving, `memspine.api.rest.create_worker_app` / `worker_app` own the
+Engine instead (started and warmed in each worker's lifespan, plus `GET /ready`); see
+[Worker processes and warm pools](#worker-processes-and-warm-pools-rm-76-adr-079).
+
 ### Routes
 
 | Method & path | Verb |
@@ -590,6 +594,53 @@ verbatim** — whoever can reach the app can read and write every namespace.
   ```
 
 Never expose this app to an untrusted network without filling the auth seam.
+
+---
+
+## Worker processes and warm pools (RM-76, ADR-079)
+
+Shared clients and model weights live in **one `ResourceRegistry` per OS process**.
+Engines in one process share it; separate processes never share a handle (each loads its
+own model weights; a shared cross-process model server is the deferred RM-79). Every
+memspine worker process therefore builds and warms its own pool **in that process**, from
+its start-up hook, using `runtime.shared_resources` (`warmup`, `warmup_timeout_s`,
+`warmup_concurrency`, `warmup_include` / `warmup_exclude`, `keep_warm`, pools):
+
+| Process | Start-up hook | Readiness |
+|---------|---------------|-----------|
+| taskiq outbox worker: `python -m memspine.api.worker -t <template> -c <file>` | starts the Engine before it consumes the outbox stream | `runtime.worker_ready` log line |
+| REST server workers: `uvicorn --factory memspine.api.rest:worker_app --workers N` (template and config from `MEMSPINE_TEMPLATE` / `MEMSPINE_CONFIG`), or `create_worker_app(EngineSpec(...))` | the app's ASGI lifespan, run in each worker | `GET /ready`: 200 once the Engine is started, 503 before; pid, warm state per resource |
+| MCP stdio subprocess: `memspine mcp ...` | starts the Engine before serving stdin | `runtime.worker_ready` on stderr |
+
+```python
+from memspine.api.process import EngineSpec, process_engine, worker_readiness
+
+async with process_engine(EngineSpec("assistant", "memspine.yaml"), role="my-worker") as engine:
+    print(worker_readiness())   # pid, engines (state, holders, warm), shared_resources
+    ...
+```
+
+- Every handler in one process that asks for an equal `EngineSpec` (template, config file,
+  overrides) gets the **same started Engine**; the last holder stops it. Different specs get
+  separate Engines that still share identical resources through the process registry.
+- `warmup: background` (default) lets the worker serve while weights load; `blocking`
+  fails the worker start (`WarmupError`) if a resource cannot be warmed; `lazy` warms
+  nothing. Warm state is reported but never makes a worker not ready.
+- **Fork safety.** `uvicorn --workers` spawns fresh worker processes, so each imports the
+  app and runs its own lifespan. With a pre-forking server that imports the app in the
+  parent (`gunicorn --preload`), the Engine is only constructed there and is started in
+  each child. A forked child forgets every registry entry and every Engine that was
+  starting or started in the parent (`os.register_at_fork`); those handles are never
+  closed or reused in the child, and the REST worker app refuses to serve an Engine that
+  was started before the fork. Do not start an Engine in a parent process that forks
+  workers.
+- **Scaling the taskiq worker.** Run one `python -m memspine.api.worker` per worker
+  process (systemd units, container replicas); each has its own registry and warm-up, and
+  the job lease keeps a commit single across them. The memspine worker does not run under
+  the `taskiq worker` CLI (the broker is built by the Engine), so taskiq's
+  `WORKER_STARTUP` event is not used: the Engine start in `main` is the start-up hook.
+- RAM: each process holds its own copy of every warmed model (`memory_budget_mb` and
+  `max_models_per_category` apply per process). Size worker counts accordingly.
 
 ---
 

@@ -36,9 +36,12 @@ length/term-bounded before it ever reaches the index.
 from __future__ import annotations
 
 import asyncio
+import contextvars
+import itertools
 import threading
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from pathlib import Path
+from types import MappingProxyType
 from typing import TYPE_CHECKING, Any
 
 from memspine.config.constants import (
@@ -73,6 +76,14 @@ _log = get_logger(__name__)
 
 #: N58: the registered name of the English (stop words + stemmer) analyzer.
 ENGLISH_TOKENIZER = "memspine_english"
+
+#: RM-72: open ``defer_commits`` batches of the calling context, per store token (depth).
+#: Deferral belongs to the caller (one Engine's projection batch), never to a store handle
+#: that the registry shares between Engines (ADR-079).
+_DEFERRING: contextvars.ContextVar[Mapping[int, int]] = contextvars.ContextVar(
+    "memspine_tantivy_deferring", default=MappingProxyType({})
+)
+_STORE_TOKENS = itertools.count(1)
 
 
 def tokenize_content(query: str) -> list[str]:
@@ -203,8 +214,9 @@ class TantivyLexical:
         #: Serialises opening and every writer call; taken on worker threads only.
         self._lock = threading.Lock()
         # Batched ingest (see defer_commits): added documents wait for one
-        # commit, which every read and flush() performs first.
-        self._deferring = False
+        # commit, which every read and flush() performs first. Whether a call defers
+        # is the caller's context (_DEFERRING), not shared state of this handle.
+        self._token = next(_STORE_TOKENS)
         self._uncommitted = False
         #: Set by close(): an open still running on a worker thread (a cancelled RM-74
         #: warm-up) must not take the writer lock after the store was closed.
@@ -260,29 +272,48 @@ class TantivyLexical:
         # elsewhere and carries no lexical signal); the record store keeps the
         # content verbatim, so a NUL can never poison the projector chain.
         content = self._body(record)
-        await asyncio.to_thread(self._index_one, record.record_id, record.namespace, content)
+        defer = self._deferring()
+        await asyncio.to_thread(self._index_one, record.record_id, record.namespace, content, defer)
 
-    def _index_one(self, record_id: str, namespace: str, content: str) -> None:
+    def _index_one(self, record_id: str, namespace: str, content: str, defer: bool) -> None:
         with self._lock:
-            if self._deferring:
+            if defer:
                 self._add_doc(record_id, namespace, content)
                 self._uncommitted = True
             else:
+                # Commits every held document too: committing early is always safe.
                 self._commit_index(record_id, namespace, content)
                 self._uncommitted = False
 
+    def _deferring(self) -> bool:
+        return _DEFERRING.get().get(self._token, 0) > 0
+
     def defer_commits(self) -> None:
-        """Hold the commit of indexed documents until :meth:`flush` or a read.
+        """Hold the commit of documents this caller indexes until :meth:`flush` or a read.
 
         A commit (and reload) per document dominates the cost of indexing one
         turn. Searches and ``exists`` commit pending documents first, and
         deletes commit them together with the delete in the writer's order,
-        so every read sees exactly what per-document commits would show."""
-        self._deferring = True
+        so every read sees exactly what per-document commits would show.
+
+        RM-72: the hold is scoped to the calling context (the task running one
+        Engine's projection batch and the tasks it starts), not to this handle. A
+        handle shared by several Engines (ADR-079) therefore commits another
+        caller's write before it returns, so that caller never checkpoints ahead of
+        the index, and one caller's :meth:`flush` never ends another's batch."""
+        held = dict(_DEFERRING.get())
+        held[self._token] = held.get(self._token, 0) + 1
+        _DEFERRING.set(held)
 
     async def flush(self) -> None:
-        """Commit documents held by :meth:`defer_commits` and stop holding."""
-        self._deferring = False
+        """Commit held documents and end this caller's :meth:`defer_commits` hold.
+
+        Every held document is committed, whoever indexed it (early commits are safe)."""
+        held = dict(_DEFERRING.get())
+        depth = held.pop(self._token, 0)
+        if depth > 1:
+            held[self._token] = depth - 1
+        _DEFERRING.set(held)
         await self._commit_pending()
 
     async def _commit_pending(self) -> None:

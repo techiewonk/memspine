@@ -15,9 +15,10 @@ if TYPE_CHECKING:
     from fastapi import FastAPI
 
     from memspine.api.engine import Engine
+    from memspine.api.process import EngineSpec
     from memspine.config.schema import RestConfig
 
-__all__ = ["create_app"]
+__all__ = ["create_app", "create_worker_app", "worker_app"]
 
 
 def create_app(engine: Engine, rest: RestConfig | None = None) -> FastAPI:
@@ -35,3 +36,24 @@ def create_app(engine: Engine, rest: RestConfig | None = None) -> FastAPI:
     except ImportError as exc:
         raise MissingServiceError("api.rest", extra="rest") from exc
     return build_app(engine, rest)
+
+
+def create_worker_app(spec: EngineSpec, rest: RestConfig | None = None) -> FastAPI:
+    """RM-76: an app that OWNS this process's Engine for ``spec``. Its lifespan (run in
+    each server worker process) starts and warms the Engine; ``GET /ready`` reports the
+    worker's readiness. See :mod:`memspine.api.rest.worker`."""
+    try:
+        from memspine.api.rest.worker import build_worker_app
+    except ImportError as exc:
+        raise MissingServiceError("api.rest", extra="rest") from exc
+    return build_worker_app(spec, rest)
+
+
+def worker_app() -> FastAPI:
+    """``uvicorn --factory memspine.api.rest:worker_app --workers N``: template and user
+    config come from ``MEMSPINE_TEMPLATE`` / ``MEMSPINE_CONFIG``."""
+    try:
+        from memspine.api.rest.worker import worker_app as factory
+    except ImportError as exc:
+        raise MissingServiceError("api.rest", extra="rest") from exc
+    return factory()

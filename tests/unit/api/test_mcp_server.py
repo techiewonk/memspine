@@ -121,7 +121,10 @@ async def test_real_subprocess_stdout_is_protocol_only(tmp_path: Any) -> None:
         env=env,
     )
     script = _req(1, "initialize", protocolVersion="2024-11-05") + _req(2, "tools/list")
-    stdout, _ = await asyncio.wait_for(proc.communicate(script.encode()), timeout=120)
+    stdout, stderr = await asyncio.wait_for(proc.communicate(script.encode()), timeout=120)
     frames = [json.loads(line) for line in stdout.decode().splitlines() if line.strip()]
     assert [f["id"] for f in frames] == [1, 2]
     assert len(frames[1]["result"]["tools"]) == 5
+    # RM-76: the subprocess started (and warmed) its own Engine from its start-up hook.
+    diagnostics = stderr.decode(errors="replace")
+    assert "runtime.worker_engine_started" in diagnostics and "runtime.worker_ready" in diagnostics

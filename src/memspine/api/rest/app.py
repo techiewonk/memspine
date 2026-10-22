@@ -30,6 +30,7 @@ Design notes:
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
+from contextlib import AbstractAsyncContextManager
 from datetime import datetime
 from typing import Annotated, Any
 
@@ -196,9 +197,15 @@ def _bound_source(request: Request, source: SourceInfo) -> SourceInfo:
     return source.model_copy(update=update)
 
 
-def build_app(engine: Engine, rest: RestConfig | None = None) -> FastAPI:
+def build_app(
+    engine: Engine,
+    rest: RestConfig | None = None,
+    *,
+    lifespan: Callable[[FastAPI], AbstractAsyncContextManager[None]] | None = None,
+) -> FastAPI:
     """The app over ``engine``. ``rest`` overrides the engine's ``rest`` config
-    (auth mode, API keys, rate limit); None reads it from the started engine."""
+    (auth mode, API keys, rate limit); None reads it from the started engine.
+    ``lifespan`` (RM-76) lets a worker app own the Engine's start and stop."""
     auth_state = _AuthState(engine, rest)
     if rest is not None or engine.is_started:
         auth_state.ready()  # fail fast on a bad auth config (e.g. pyjwt missing)
@@ -218,6 +225,7 @@ def build_app(engine: Engine, rest: RestConfig | None = None) -> FastAPI:
         summary="Cognitive-memory engine — REST protocol (D-06). "
         "NO AUTHN in v0.1: namespace binding is the deployer's job (ADR-017).",
         default_response_class=ORJSONResponse,
+        lifespan=lifespan,
     )
 
     # ── request-body cap (SEC-M3/ADR-018): a cheap DoS guard ─────────────────

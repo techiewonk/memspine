@@ -96,6 +96,41 @@ A 2026-10-22 audit found that inside one Engine most clients are shared, but:
   `warm` / `warming` / `failed(error type)` / `not_requested` per resource; warm state never
   makes an Engine not ready.
 
+- **RM-72 follow-up (Tantivy `defer_commits`).** A shared on-disk Tantivy handle kept the
+  projection-batch hold as handle state, so while one Engine's batch was open another
+  Engine's write stayed uncommitted after that Engine had advanced its checkpoint, and one
+  Engine's `flush()` ended the other's batch. The hold now belongs to the calling context
+  (a context variable per store, with nesting depth): a caller that is not batching
+  commits before `index()` returns (taking any held documents with it, which is always
+  safe), a flush ends only its own hold, and the last lease's `close()` commits whatever
+  is still held. Stopping one Engine leaves the shared handle open for the other.
+
+## Addendum 2026-10-22: RM-76 process model
+
+- **One registry per process.** Each OS process has exactly one process
+  `ResourceRegistry` and one Engine pool (`memspine.api.process.ProcessEngines`). Nothing
+  is shared across processes: each worker process loads its own clients and model
+  weights, and per-process limits (`memory_budget_mb`, `max_models_per_category`) apply
+  per process. Cross-process sharing of model RAM is deferred to RM-79 (model server).
+- **Which process warms what.** The taskiq outbox worker (`python -m memspine.api.worker`)
+  starts its Engine before consuming the stream; each REST server worker starts it in the
+  ASGI lifespan of `create_worker_app` / `worker_app` (`uvicorn --factory ... --workers N`,
+  whose workers are spawned); the MCP stdio subprocess starts it before serving stdin.
+  Each start runs the warm-up selected by `runtime.shared_resources` for the resources
+  that Engine configures. Handlers in one process asking for an equal `EngineSpec` share
+  one started Engine (refcounted; the last holder stops it).
+- **Fork safety.** The registry and the Engine pool both reset in a forked child
+  (`os.register_at_fork`): entries and Engines that were starting or started in the
+  parent are forgotten, never closed or reused; an Engine that was only constructed in
+  the parent holds no handles and is started in the child. The REST worker app refuses an
+  Engine started before the fork. Readiness reports `inherited_resources` (always 0).
+- **Readiness.** `worker_readiness()` (and `GET /ready` on the REST worker app) reports
+  the pid, each Engine's start state, holders, roles and warm state per resource; warm
+  state never gates readiness. The taskiq worker and MCP log `runtime.worker_ready`.
+- The memspine worker does not run under the `taskiq worker` CLI (the Engine builds the
+  broker), so taskiq's `WORKER_STARTUP` event is not the hook; scaling is one memspine
+  worker process per replica.
+
 ## Consequences
 
 - Fewer connections and less RAM; no first-request model load once warm.
