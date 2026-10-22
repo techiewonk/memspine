@@ -32,6 +32,11 @@ state is a separate concern: this change does not establish complete namespace
 isolation for every prepass learning/persistence path. Structured record/relation
 grounding and real Engine ingestion acceptance remain PA-119/121.
 
+> **Note (2026-10-22, RM-69):** since RM-18 (commit 6fba3c69) learned aliases are
+> namespace-scoped (hints, KNOWN prompt context, unseen-entity check, flush, reload;
+> `learned.alias.reset` on namespace erasure). The measurements above are unchanged
+> and were taken before that fix.
+
 See [ADR-074](adr/ADR-074-bounded-ranking-and-shared-gliner.md) and
 [the todo register](PROVIDER_TODO.md) for decisions, verification status and
 remaining deployment/quality work. No global serializer, database backend,

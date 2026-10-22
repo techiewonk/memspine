@@ -141,5 +141,11 @@ current tracker supersede that narrower earlier snapshot. The Engine-wide
 learned-alias collection remains a documented limitation; no scoped-isolation
 completion is inferred from the newer mention-result cache.
 
+> **Note (2026-10-22, RM-69):** superseded by RM-18 (commit 6fba3c69). Learned
+> aliases are now namespace-scoped: hints, KNOWN prompt context, the unseen-entity
+> check, flush and reload are per namespace, and namespace erasure writes
+> `learned.alias.reset`. The paragraph above is kept as the earlier snapshot.
+> Aliases still carry no source-evidence links (DS-11); pre-fix logs are RM-66.
+
 No full test sweep, production drill, remote model call, performance benchmark,
 push or rollout is performed by this planning package.

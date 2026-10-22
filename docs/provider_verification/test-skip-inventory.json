@@ -40,49 +40,49 @@
     },
     {
       "source": "docs/provider_verification/README.md",
-      "line": 92,
+      "line": 103,
       "aggregate_text": "| Earlier expanded selection | 1,308 passed, 13 skipped, 1 config failure during implementation; corrected config is covered by final green gate | [Original log](temporal-migration-regression.log) |",
       "individual_skip_attribution": "unattributed_aggregate",
       "reason": "retained source contains aggregate skipped count without node IDs/reasons"
     },
     {
       "source": "docs/provider_verification/README.md",
-      "line": 128,
+      "line": 139,
       "aggregate_text": "| GLiNER AutoExtractor adapters/config defaults | 69 passed, 1 skipped; fake SDKs | [Log](gliner25-adapters-tests.log) |",
       "individual_skip_attribution": "unattributed_aggregate",
       "reason": "retained source contains aggregate skipped count without node IDs/reasons"
     },
     {
       "source": "docs/provider_verification/README.md",
-      "line": 146,
+      "line": 157,
       "aggregate_text": "| Full offline unit sweep, 513 files | 7,434 passed, 61 skipped; three metadata failures were corrected and retested |",
       "individual_skip_attribution": "unattributed_aggregate",
       "reason": "retained source contains aggregate skipped count without node IDs/reasons"
     },
     {
       "source": "docs/provider_verification/README.md",
-      "line": 149,
+      "line": 160,
       "aggregate_text": "| Combinations/integration | 96 passed, 9 skipped (unconfigured live-service gates) |",
       "individual_skip_attribution": "unattributed_aggregate",
       "reason": "retained source contains aggregate skipped count without node IDs/reasons"
     },
     {
       "source": "docs/provider_verification/README.md",
-      "line": 217,
+      "line": 228,
       "aggregate_text": "| Full offline unit suite, 506 files | 7,440 passed, 31 skipped, zero failures/errors |",
       "individual_skip_attribution": "unattributed_aggregate",
       "reason": "retained source contains aggregate skipped count without node IDs/reasons"
     },
     {
       "source": "docs/provider_verification/README.md",
-      "line": 218,
+      "line": 229,
       "aggregate_text": "| Combinations and integration | 96 passed, 5 skipped |",
       "individual_skip_attribution": "unattributed_aggregate",
       "reason": "retained source contains aggregate skipped count without node IDs/reasons"
     },
     {
       "source": "docs/provider_verification/README.md",
-      "line": 315,
+      "line": 326,
       "aggregate_text": "| Affected provider/config/runner/tooling/lifecycle regression | 355 passed, 1 skipped; skip explicitly requires a Temporal Server endpoint | [Final regression](provider-followup-final-regression.log) |",
       "individual_skip_attribution": "unattributed_aggregate",
       "reason": "retained source contains aggregate skipped count without node IDs/reasons"

@@ -1,5 +1,16 @@
 # Provider implementation verification — 2026-10-17
 
+## Notes added 2026-10-22 (RM-65, RM-69)
+
+- **Learned aliases are namespace-scoped since RM-18** (commit 6fba3c69). Evidence
+  files here that say learned aliases remain Engine-wide (for example the limitation
+  line in `gliner-grounding-final-state.json`) record the state before that fix and
+  are kept unchanged as history. Pre-fix event logs are reviewed under RM-66 with
+  `scripts/audit_learned_alias_events.py`.
+- **Skip review re-pinned (RM-65).** The source audit exits 0 again: 143 sites, all
+  reviewed; eight `importorskip("lancedb")` guards were removed because `lancedb` is a
+  core dependency. See [the current review](../TEST_SKIP_REVIEW.md).
+
 ## Six selected guard repairs — completed 2026-10-18
 
 [Focused gate](guard-fixes-focused.log): **80 passed, 2 legitimate live Temporal
