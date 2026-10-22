@@ -181,7 +181,7 @@ class SqlStorage(ServiceAdapter):
         advisory lock per ``(scope, stage)`` serialises concurrent appenders (SQLite has one
         writer); a conflicting offset can therefore only fail the whole commit, never
         half-apply it."""
-        from memspine.runtime.outbox import outbox_item
+        from memspine.services.storage.outbox_tables import outbox_item
 
         if event.seq is not None:
             raise StorageError("event already has a seq — events pass the write door once")
@@ -231,7 +231,7 @@ class SqlStorage(ServiceAdapter):
         self, scope: OwnerScope, stage: str, after: int = -1
     ) -> list[tuple[int, dict[str, Any]]]:
         """Queued items of ``(scope, stage)`` after offset ``after`` (ascending)."""
-        from memspine.runtime.outbox import outbox_item
+        from memspine.services.storage.outbox_tables import outbox_item
 
         stmt = (
             select(outbox_item.c.item_offset, outbox_item.c.payload)

@@ -26,8 +26,8 @@ from memspine.store.events import EventLogMode
 if TYPE_CHECKING:
     from sqlalchemy import Engine
 
-    from memspine.derive.job import LeaseStore
     from memspine.services.storage.records_port import LeasePort
+    from memspine.store.leases import LeaseStore
 
 __all__ = ["PostgresStorage"]
 
@@ -62,7 +62,7 @@ class PostgresStorage(SqlStorage):
             await asyncio.to_thread(ensure_schema, self._pg._url)
             self._started = True
             return
-        from memspine.runtime.outbox import outbox_metadata
+        from memspine.services.storage.outbox_tables import outbox_metadata
 
         async with self._pg.engine.begin() as conn:
             await conn.run_sync(metadata.create_all)
@@ -77,7 +77,7 @@ class PostgresStorage(SqlStorage):
         over a private sync engine, closed by :meth:`stop`."""
         from sqlalchemy import create_engine
 
-        from memspine.derive.job import LeaseStore
+        from memspine.store.leases import LeaseStore
 
         if self._leases is None:
             self._lease_engine = create_engine(self._pg._url)

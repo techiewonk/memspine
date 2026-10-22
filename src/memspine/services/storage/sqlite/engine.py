@@ -23,8 +23,8 @@ from memspine.store.events import EventLogMode
 if TYPE_CHECKING:
     from sqlalchemy import Engine
 
-    from memspine.derive.job import LeaseStore
     from memspine.services.storage.records_port import LeasePort
+    from memspine.store.leases import LeaseStore
 
 __all__ = ["SQLiteStorage"]
 
@@ -56,7 +56,7 @@ class SQLiteStorage(SqlStorage):
         migration path), ``create_all`` only for ``:memory:`` engines, which a
         separate migration connection cannot reach."""
         if self._sqlite.is_memory:
-            from memspine.runtime.outbox import outbox_metadata
+            from memspine.services.storage.outbox_tables import outbox_metadata
 
             async with self._sqlite.engine.begin() as conn:
                 await conn.run_sync(metadata.create_all)
@@ -71,8 +71,8 @@ class SQLiteStorage(SqlStorage):
     def leases(self) -> LeasePort:
         """ADR-081 records port: the lease tables in this database (a private in-process
         table for ``:memory:``). Opened on first use, closed by :meth:`stop`."""
-        from memspine.derive.job import LeaseStore
         from memspine.runtime.outbox import sqlite_engine
+        from memspine.store.leases import LeaseStore
 
         if self._leases is None:
             if self._sqlite.is_memory:
