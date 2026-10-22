@@ -12,7 +12,7 @@ deployment:
   data_dir: /var/lib/memspine   # only required when a host-local slot is chosen
 
 storage:                        # data providers: where memory lives
-  structured: {provider: postgres, settings: {url: ${PG_URL}, connect_timeout_s: 5, statement_timeout_s: 30}}
+  records:    {provider: postgres, settings: {url: ${PG_URL}, connect_timeout_s: 5, statement_timeout_s: 30}}
   vector:     {provider: pgvector, settings: {url: ${PG_URL}, connect_timeout_s: 5, statement_timeout_s: 30}}
   lexical:    {provider: opensearch, settings: {url: ${OS_URL}}}
   graph:      {provider: neo4j, settings: {url_env: MEMSPINE_NEO4J_URL}}
@@ -28,7 +28,7 @@ models: {...}                                       # profiles/bindings, unchang
 database file's directory):
 ```yaml
 storage:
-  structured: {provider: sqlite, settings: {path: ./memspine.db, busy_timeout_s: 5}}
+  records:    {provider: sqlite, settings: {path: ./memspine.db, busy_timeout_s: 5}}
   vector:  {provider: lancedb}
   lexical: {provider: tantivy}
   graph:   {provider: auto}     # resolved once, then pinned
@@ -36,9 +36,9 @@ storage:
 ```
 
 **Sharing rule.** Each slot keeps its own settings (owner choice). Two slots with the
-same target, for example `structured` and `vector` on one Postgres URL, share one
+same target, for example `records` and `vector` on one Postgres URL, share one
 client and pool through the ADR-079 registry. A slot whose provider needs a SQL
-connection (pgvector) may omit `settings.url` to mean "the structured slot's database".
+connection (pgvector) may omit `settings.url` to mean "the records slot's database".
 That is the one implicit link, and it is validated.
 
 ## 2. Old key to new key
@@ -46,7 +46,7 @@ That is the one implicit link, and it is validated.
 | Today | New | Notes |
 |---|---|---|
 | `storage.profile` | removed | Alembic always for durable SQL; templates replace profiles |
-| `storage.provider` / `storage.settings` | `storage.structured.provider` / `.settings` | `settings.data_dir` moves to `deployment.data_dir` |
+| `storage.provider` / `storage.settings` | `storage.records.provider` / `.settings` | `settings.data_dir` moves to `deployment.data_dir` |
 | `vector.provider` / `vector.settings` | `storage.vector.*` | |
 | `read.lexical_provider` / `read.lexical_settings` | `storage.lexical.*` | `read.lexical_scorer`, `lexical_language`, `lexical_strip_names`, `lexical_namespace_languages`, `short_query_lexical_weight` stay in `read` |
 | `graph.provider` / `graph.settings` | `storage.graph.*` | `graph.edge_compiler_v2`, `key_v2`, `entity_embeddings` stay in `graph` |
@@ -82,7 +82,7 @@ new location.
    - `sqlite_adjacency` is renamed `sql_adjacency` and supports SQLite and Postgres (no
      alias).
 6. **Side files.** Sleep leases, the cost ledger and dead letters move to tables in
-   `structured`. A one-time import reads an existing `.sleep`, `.cost` or `.deadletters`
+   `records`. A one-time import reads an existing `.sleep`, `.cost` or `.deadletters`
    file and then renames it to `*.imported`.
 
 ## 4. Work packages (after approval)
@@ -93,7 +93,7 @@ new location.
 | 2 | Container wiring: build each category from its slot; locality traits on descriptors; `data_dir` placement | provider and wiring suites, combinations |
 | 3 | Schema: Alembic always; advisory lock; legacy adoption test; delete `services/storage/profile.py` (or replace it with a read-only topology report) | storage, migration and Postgres e2e (disposable container) |
 | 4 | Pinning `auto` in projector bindings; `sql_adjacency` on Postgres; capability-based mirror gate | graph contract on SQLite, LadybugDB and Postgres; binding drift tests |
-| 5 | Side files into `structured`, with one-time import; encryption covered | SQLCipher test, import test, leases on SQLite and Postgres |
+| 5 | Side files into `records`, with one-time import; encryption covered | SQLCipher test, import test, leases on SQLite and Postgres |
 | 6 | Locality validation (`multi_node` / `multi_process`) | config-rule unit tests; e2e with two engines on one Postgres |
 | 7 | A codemod moves the old keys in tests, examples, docs and eval configs (about 300+ sites); full regression plus e2e on Postgres | full chunked regression, e2e, combinations |
 
@@ -109,12 +109,47 @@ WP7 runs with WP1 so the tree stays green.
 - **The eval harness still uses old flat configs (PA-107).** Migrate in WP7 or keep PA-107
   as the tracked follow-up.
 
-## 6. Questions for the owner before building
+## 6. Owner answers (2026-10-23)
 
-1. Should the embedded template's `graph` be `auto` (pinned on first start), or fixed to
-   `sql_adjacency` so it does not depend on optional extras?
-2. Should `multi_process` hard-fail single-writer stores outside the writer process, or
-   open them read-only?
-3. Should `storage.vector` and `storage.lexical` be allowed to be `null` (no vector or
-   lexical store)? Today the vector store is mandatory (RM-44).
-4. Is `sqlite_adjacency` → `sql_adjacency` acceptable as a breaking rename?
+1. Embedded template `storage.graph`: `auto`, resolved once on first start and pinned.
+2. `multi_process`: single-writer host-local stores (tantivy, ladybug) hard-fail outside
+   the designated writer process.
+3. `storage.vector` and `storage.lexical` are both required (never null).
+4. `sqlite_adjacency` is renamed `sql_adjacency` (SQLite and Postgres), with no alias.
+5. Non-structured data stores (for example MongoDB) must be possible. The design
+   question is open, see section 7.
+
+## 7. Non-structured (document) stores
+
+**Owner decision (2026-10-23): both readings, contract now and provider later.**
+- The authoritative slot is `storage.records`, with a SQL-independent storage port and a
+  conformance suite in RM-111.
+- An optional `storage.documents` slot is added for non-structured payloads.
+- The MongoDB provider is built later, as RM-112.
+- Weaviate becomes a `documents` provider (objects with properties) next to its vector
+  and lexical roles. It cannot be the `records` store: it has no ordered append-only log
+  and no multi-object transactions.
+
+Original analysis:
+
+The owner wants non-SQL data stores such as MongoDB. Two readings, possibly both:
+
+- **(a) The authoritative store on a document database.** The slot is renamed from
+  `storage.records` to `storage.records`, so the name does not assume SQL. The
+  provider may be `sqlite`, `postgres` or `mongodb`. Every provider in this slot must meet
+  the event-sourcing contract:
+  - append-only event log with a monotonic sequence;
+  - atomic append-plus-outbox (MongoDB needs a replica set for multi-document
+    transactions);
+  - projector offsets;
+  - leases;
+  - erasure and lineage queries;
+  - migrations, which become versioned collection and index setup, not Alembic.
+- **(b) A separate optional slot for non-structured payloads.** For example
+  `storage.documents` for raw attachments, assets, large payloads and ingest blobs. Its
+  providers could be `filesystem`, `s3`, `mongodb` (GridFS) or others. The event log
+  keeps only references and content hashes.
+
+Today the record and event model is SQL-only (SQLAlchemy Core). Reading (a) needs a
+storage-port contract and conformance suite that are independent of SQL. Reading (b) is
+additive.

@@ -12,12 +12,12 @@ Keep one row per stable ID. PA IDs preserve the 136-item provider program; BI ID
 | BLOCKED | 1 |
 | DEFERRED | 6 |
 | DEPLOYMENT_CHECK | 19 |
-| DONE | 180 |
+| DONE | 181 |
 | EXCLUDED | 4 |
-| IN_PROGRESS | 28 |
-| NEEDS_INPUT | 5 |
+| IN_PROGRESS | 27 |
+| NEEDS_INPUT | 4 |
 | NEEDS_TOOLCHAIN | 1 |
-| OPEN | 8 |
+| OPEN | 10 |
 | OPEN_REVIEW | 18 |
 | PLANNED | 11 |
 | PROPOSED | 3 |
@@ -28,10 +28,10 @@ Keep one row per stable ID. PA IDs preserve the 136-item provider program; BI ID
 | BI | 12 |
 | DS | 21 |
 | PA | 136 |
-| RM | 111 |
+| RM | 112 |
 | RS | 9 |
 
-Total: **289 unique task IDs**. Provider-only historical denominator stays 136; the combined total also includes BI, DS, RS and imported review suggestions.
+Total: **290 unique task IDs**. Provider-only historical denominator stays 136; the combined total also includes BI, DS, RS and imported review suggestions.
 <!-- CURRENT_SUMMARY_END -->
 
 ## Status and column legend
@@ -352,10 +352,11 @@ its scope is narrower than the prerequisite (say so in the row) or its status is
 | RM-105 | DONE | P2 | Verification lead | Bring tests/e2e onto the provider config schema | 2026-10-22: test_ex1a_embedded/test_ex1a_server/test_f16f_matrix migrated to provider/settings (sqlite path+busy timeout; postgres url, data_dir, timeouts, profile server, deployment id), LLM roles to provider litellm + settings, stub router signature (wiring arg), Neo4j mirror cells to graph.mirror with the F-16e descriptor-builder fake (the old set_neo4j_executor_factory hook is no longer read). Local: 32 passed, 30 skipped (server profile); with a disposable pgvector/pgvector:pg16 Postgres: 59 passed, 3 skipped (replay on server is rebuild, by design) | Completed; e2e is not yet part of the chunked regression script (add it when the full sweep RM-15 runs) | Prereq: none; Feeds: PA-039, RM-15 |
 | RM-106 | DONE | P3 | Model maintainer | Wire a real GLiNER topic tagger for topical domains | 2026-10-22: derive/topics.GlinerTopicTagger built at Engine start from the bound gliner_topic profile (classification task; local_files_only enforced by config and constructor; lazy pool binding, no download); labels = active-pack domain ids (readable form) plus operator map models.topic.labels (targets validated as domain ids at load); hit >= models.topic.min_confidence (default constants.TOPIC_MIN_CONFIDENCE 0.5; unscored never) sets the domain; runs on write (async, failure logged as topic.tagger_failed, write proceeds) and before compile_edges and graph requalify for facts without a higher source (lowest precedence gliner_topic); requalify now also passes the sensitivity model; tests/unit/derive/test_topics.py + tests/unit/wiring/test_rm106_topic_tagger.py (stub model) | Completed; threshold 0.5 not measured (no labelled topic set) | Prereq: RM-91; Feeds: RM-91 |
 | RM-107 | NEEDS_INPUT | P3 | Domain vocabulary owner | Decide top domains for the built-in vocabulary packs | 2026-10-22 RM-91: the pack top-domain source is tested only with a custom pack; memspine.core and memspine.proposed span many topics, so no top domain was invented | Owner decides whether built-in packs get a top domain (or stay without one and rely on predicate/key defaults) | Prereq: RM-91 |
-| RM-108 | IN_PROGRESS | P1 | Config / storage maintainer | storage.provider=postgres with the default storage.profile=embedded silently skips Alembic | 2026-10-22 found by RM-105; deep review [topology](STORAGE_TOPOLOGY_REVIEW_2026-10-22.md): storage.profile switches only Alembic vs create_all on Postgres (plus a dead mirror gate); also found multi-node offset/index divergence, no migration lock, unencrypted side files, graph auto drift, data_dir always required. Owner selected 2026-10-22: one storage block with a slot per data category (storage.structured/vector/lexical/graph/graph_mirror/cache), settings per slot (sharing by identical target via ADR-079), deployment block (id, locality, data_dir) now, ADR + plan before building. Proposed [ADR-081](adr/ADR-081-storage-slots-and-deployment.md) and [plan](STORAGE_SLOTS_MIGRATION_PLAN.md) | Owner reviews ADR-081 and answers the four plan questions; then RM-111 builds it | Prereq: none; Feeds: RM-111, PA-057 |
+| RM-108 | DONE | P1 | Config / storage maintainer | storage.provider=postgres with the default storage.profile=embedded silently skips Alembic | 2026-10-22 found by RM-105; deep review [topology](STORAGE_TOPOLOGY_REVIEW_2026-10-22.md). Decided 2026-10-23: [ADR-081](adr/ADR-081-storage-slots-and-deployment.md) / D-105 accepted, which removes storage.profile (Alembic for every durable SQL DB) inside a storage-slot redesign; [plan](STORAGE_SLOTS_MIGRATION_PLAN.md) with owner answers | Completed as a decision; the fix ships with RM-111 | Prereq: none; Feeds: RM-111, PA-057 |
 | RM-109 | DONE | P3 | Runtime maintainer | Remove the dead set_neo4j_executor_factory hook | 2026-10-22 found by RM-105: runtime/container.py kept set_neo4j_executor_factory and _neo4j_executor_factory, but nothing read them; tests patch the Neo4j descriptor builder. Removed with its export (no alias, ADR-068); repo-wide search found no other caller; runtime + F-16e + import-contract tests 109 passed, 6 skipped | Completed | Prereq: none |
 | RM-110 | OPEN | P2 | Retrieval / graph performance maintainer | Stop the graph seed lookup scanning the namespace | 2026-10-22 found by RM-104: _graph_seeds builds AssociativeMemory.entity_index(ns) (and entity_mentions for the entity leg) from edge_list(ns) on every graph read, filtered or not, keeping only live mentions edges; at 100k edges edge_list alone was 0.9-3.8 s p95 in RM-96, so a read that runs the graph leg still pays that before the (now fast) RM-104 leg | Fetch mentions edges by relation (a rel_type-filtered edge query or an indexed entity-name lookup), or cache the index per namespace and invalidate on LINK events; prove identical seeds; benchmark at 100k edges | Prereq: RM-104 |
-| RM-111 | NEEDS_INPUT | P1 | Config / storage / runtime maintainers | Implement ADR-081 storage slots and deployment block | Waiting for owner approval of ADR-081 and the plan questions (embedded graph default, multi_process single-writer rule, nullable vector/lexical, sqlite_adjacency rename) | Work packages WP1-WP7 in STORAGE_SLOTS_MIGRATION_PLAN.md: schema + templates + baseline; container wiring with locality traits; Alembic always + advisory lock + legacy adoption; pinned auto + sql_adjacency on Postgres + capability mirror gate; side files into structured; locality validation; codemod of ~300 config sites; full regression + Postgres e2e | Prereq: RM-108 approval; Feeds: PA-057, PA-066, PA-069, PA-107 |
+| RM-111 | OPEN | P1 | Config / storage / runtime maintainers | Implement ADR-081 storage slots and deployment block | Approved 2026-10-23 (ADR-081 accepted; owner answers: storage.<slot> naming, settings per slot, deployment block now, graph auto pinned, multi_process hard-fail for single-writer stores, vector and lexical required, sqlite_adjacency -> sql_adjacency, records contract SQL-independent, optional documents slot) | WP1-WP7 in STORAGE_SLOTS_MIGRATION_PLAN.md: schema + templates + baseline; container wiring with locality traits; Alembic always + advisory lock + legacy adoption; pinned auto + sql_adjacency on Postgres + capability mirror gate; side files into records; locality validation; SQL-independent records port + conformance suite; documents slot with a filesystem provider; codemod of ~300 config sites; full regression + Postgres e2e | Prereq: RM-108; Feeds: RM-112, PA-057, PA-066, PA-069, PA-107 |
+| RM-112 | OPEN | P2 | Storage provider maintainers | Non-structured store providers: MongoDB (records + documents), Weaviate and S3 (documents) | Owner 2026-10-23: contract now (RM-111), providers later; MongoDB needs a replica set for atomic append-plus-outbox; Weaviate can serve documents but not records (no ordered append-only log or multi-object transactions) | Each provider passes the RM-111 conformance suite for its slot; live tests in disposable containers (mongo replica set, weaviate, minio for S3); optional extras, nothing in core | Prereq: RM-111 |
 <!-- TASK_REGISTER_END -->
 
 ## Imported roadmap detail (no independent statuses)

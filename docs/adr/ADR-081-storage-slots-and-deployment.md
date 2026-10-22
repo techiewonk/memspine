@@ -1,9 +1,9 @@
 # ADR-081: One storage block with a slot per data category, plus a deployment block
 
-**Status:** Proposed. Awaiting owner review of the plan in
-`docs/STORAGE_SLOTS_MIGRATION_PLAN.md`.
-**Date:** 2026-10-22
-**Deciders:** Owner (RM-108 discussion, 2026-10-22)
+**Status:** Accepted (design) on 2026-10-23. Implementation is RM-111; providers are
+RM-112.
+**Date:** 2026-10-22 (proposed), 2026-10-23 (accepted)
+**Deciders:** Owner (RM-108 discussion, 2026-10-22 and 2026-10-23)
 **Supersedes:** the `storage.profile` selector (F-16d / M-04 C, plan Q11 "preserve SQL
 bring-up modes"). It also supersedes, for data stores only, the scattering of provider
 selection across `storage`, `vector`, `graph`, `cache` and `read.lexical_*`.
@@ -28,14 +28,31 @@ following.
 
 The owner wants many data providers and service providers, each selected separately.
 
-## Decision (proposed)
+## Decision
 
 1. **Data providers live under one `storage` block, one slot per data category.** Each
    slot is `{provider, settings}`:
-   - `storage.structured`: event log, records, lineage, offsets, outbox and job store,
+   - `storage.records`: event log, records, lineage, offsets, outbox and job store,
      sleep leases, cost and economy ledgers, dead letters, deployment identity.
-   - `storage.vector`, `storage.lexical`, `storage.graph`, `storage.graph_mirror`
-     (optional), and `storage.cache`.
+   - `storage.vector` and `storage.lexical` (both required), `storage.graph`,
+     `storage.graph_mirror` (optional), `storage.cache`, and `storage.documents`
+     (optional; non-structured payloads such as attachments, assets, large payloads and
+     ingest blobs; the event log keeps references and content hashes).
+   - **`records` is not tied to SQL.** Its storage port is defined by a SQL-independent
+     contract and conformance suite:
+     - append-only event log with a monotonic sequence;
+     - atomic append-plus-outbox;
+     - projector offsets and leases;
+     - lineage and erasure queries;
+     - versioned schema and index setup.
+
+     SQLite and Postgres implement it today. MongoDB, with a replica set for
+     multi-document transactions, is a planned provider (RM-112).
+   - **Weaviate can serve the `documents` slot** (objects with properties), alongside its
+     vector and lexical roles. It cannot serve `records`: it has no ordered append-only
+     log and no multi-object transactions. MongoDB can serve `records` and `documents`
+     (GridFS for large payloads). Filesystem and S3-compatible stores are the other
+     planned `documents` providers.
 2. **Service providers stay outside `storage`.** These are compute: `embedding` (the
    embedding model), `llm`, `models` (profiles and bindings; GLiNER, rerankers, decider).
    The vector store that holds embeddings is the `storage.vector` slot. The embedding
@@ -65,13 +82,28 @@ The owner wants many data providers and service providers, each selected separat
 6. **Pinned slots.** `storage.graph: auto` (and any future `auto`) resolves once and is
    recorded in the projector binding. Installing an extra later never changes it; a
    change is an explicit provider change (ADR-068 controlled changes).
-7. **Side files move into `storage.structured`.** Sleep leases, the cost ledger and dead
+7. **Side files move into `storage.records`.** Sleep leases, the cost ledger and dead
    letters are stored there: encrypted with the database on SQLite, shared on Postgres. A
    one-time import reads any existing side file.
 8. **Mirror gate by capability.** `storage.graph_mirror` requires a provider with the
    `mirror` capability, not a profile.
 9. **Templates instead of profiles.** `embedded` and `server` presets ship as config
    templates that fill the slots. They are data, not a runtime switch.
+
+## Owner selections (2026-10-23)
+
+- **Slot naming:** `storage.<slot>`, with settings per slot (no shared `connections`
+  block).
+- **Deployment block:** included in the same change.
+- **Graph in the embedded template:** `auto`, resolved once and pinned.
+- **`multi_process`:** single-writer host-local stores hard-fail outside the writer
+  process.
+- **Required slots:** `vector` and `lexical`.
+- **Rename:** `sqlite_adjacency` becomes `sql_adjacency` (SQLite and Postgres), with no
+  alias.
+- **Non-structured stores:** both the SQL-independent `records` contract and the optional
+  `documents` slot. The contract ships now; the MongoDB provider comes later.
+- **Weaviate:** used as a `documents` provider where possible.
 
 ## Consequences
 
