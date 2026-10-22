@@ -1,5 +1,12 @@
 {
-  "version": 1,
+  "schema_version": 1,
+  "pack_id": "memspine.core",
+  "pack_version": 2,
+  "source": "builtin",
+  "status": "approved",
+  "default_active": true,
+  "description": "Built-in default vocabulary: the selected 53/44 foundation plus owner-approved RM-50, RM-58..RM-61 families. Registration never enables extraction (BI-06).",
+  "dependencies": [],
   "predicates": [
     {
       "name": "resides_in",
@@ -27,7 +34,11 @@
       "property_category": null,
       "role_names": [],
       "required_roles": [],
-      "extraction_rule_ids": []
+      "extraction_rule_ids": [],
+      "cardinality_scope": [],
+      "sensitivity": [
+        "location"
+      ]
     },
     {
       "name": "works_in",
@@ -55,7 +66,8 @@
       "property_category": null,
       "role_names": [],
       "required_roles": [],
-      "extraction_rule_ids": []
+      "extraction_rule_ids": [],
+      "cardinality_scope": []
     },
     {
       "name": "home_country",
@@ -83,7 +95,8 @@
       "property_category": null,
       "role_names": [],
       "required_roles": [],
-      "extraction_rule_ids": []
+      "extraction_rule_ids": [],
+      "cardinality_scope": []
     },
     {
       "name": "born_in",
@@ -95,7 +108,7 @@
         "entity"
       ],
       "semantics": "relation",
-      "cardinality": "many",
+      "cardinality": "one",
       "transition_policy": "explicit_only",
       "closed_world": false,
       "allowed_source_origins": [
@@ -109,7 +122,10 @@
       "property_category": null,
       "role_names": [],
       "required_roles": [],
-      "extraction_rule_ids": []
+      "extraction_rule_ids": [],
+      "cardinality_scope": [
+        "precision"
+      ]
     },
     {
       "name": "grew_up_in",
@@ -135,7 +151,8 @@
       "property_category": null,
       "role_names": [],
       "required_roles": [],
-      "extraction_rule_ids": []
+      "extraction_rule_ids": [],
+      "cardinality_scope": []
     },
     {
       "name": "move_origin",
@@ -163,7 +180,9 @@
       "property_category": null,
       "role_names": [],
       "required_roles": [],
-      "extraction_rule_ids": []
+      "extraction_rule_ids": [],
+      "cardinality_scope": [],
+      "event_family": "move"
     },
     {
       "name": "move_destination",
@@ -191,7 +210,9 @@
       "property_category": null,
       "role_names": [],
       "required_roles": [],
-      "extraction_rule_ids": []
+      "extraction_rule_ids": [],
+      "cardinality_scope": [],
+      "event_family": "move"
     },
     {
       "name": "visited",
@@ -219,7 +240,8 @@
       "property_category": null,
       "role_names": [],
       "required_roles": [],
-      "extraction_rule_ids": []
+      "extraction_rule_ids": [],
+      "cardinality_scope": []
     },
     {
       "name": "temporarily_present_in",
@@ -247,7 +269,8 @@
       "property_category": null,
       "role_names": [],
       "required_roles": [],
-      "extraction_rule_ids": []
+      "extraction_rule_ids": [],
+      "cardinality_scope": []
     },
     {
       "name": "parent_of",
@@ -273,7 +296,9 @@
       "property_category": null,
       "role_names": [],
       "required_roles": [],
-      "extraction_rule_ids": []
+      "extraction_rule_ids": [],
+      "cardinality_scope": [],
+      "inverse_view": "child_of"
     },
     {
       "name": "sibling_of",
@@ -299,7 +324,9 @@
       "property_category": null,
       "role_names": [],
       "required_roles": [],
-      "extraction_rule_ids": []
+      "extraction_rule_ids": [],
+      "cardinality_scope": [],
+      "symmetric": true
     },
     {
       "name": "spouse_of",
@@ -325,7 +352,9 @@
       "property_category": null,
       "role_names": [],
       "required_roles": [],
-      "extraction_rule_ids": []
+      "extraction_rule_ids": [],
+      "cardinality_scope": [],
+      "symmetric": true
     },
     {
       "name": "friend_of",
@@ -348,12 +377,16 @@
         "attachment_text"
       ],
       "object_entity_types": [
-        "person"
+        "person",
+        "agent",
+        "group"
       ],
       "property_category": null,
       "role_names": [],
       "required_roles": [],
-      "extraction_rule_ids": []
+      "extraction_rule_ids": [],
+      "cardinality_scope": [],
+      "symmetric": true
     },
     {
       "name": "member_of",
@@ -382,7 +415,9 @@
       "property_category": null,
       "role_names": [],
       "required_roles": [],
-      "extraction_rule_ids": []
+      "extraction_rule_ids": [],
+      "cardinality_scope": [],
+      "inverse_view": "has_member"
     },
     {
       "name": "employed_by",
@@ -408,7 +443,9 @@
       "property_category": null,
       "role_names": [],
       "required_roles": [],
-      "extraction_rule_ids": []
+      "extraction_rule_ids": [],
+      "cardinality_scope": [],
+      "inverse_view": "employer_of"
     },
     {
       "name": "owns",
@@ -436,12 +473,15 @@
         "object",
         "work",
         "project",
-        "place"
+        "place",
+        "document",
+        "software"
       ],
       "property_category": null,
       "role_names": [],
       "required_roles": [],
-      "extraction_rule_ids": []
+      "extraction_rule_ids": [],
+      "cardinality_scope": []
     },
     {
       "name": "adopted",
@@ -472,7 +512,8 @@
       "property_category": null,
       "role_names": [],
       "required_roles": [],
-      "extraction_rule_ids": []
+      "extraction_rule_ids": [],
+      "cardinality_scope": []
     },
     {
       "name": "made",
@@ -499,12 +540,15 @@
       "object_entity_types": [
         "object",
         "work",
-        "project"
+        "project",
+        "document",
+        "software"
       ],
       "property_category": null,
       "role_names": [],
       "required_roles": [],
-      "extraction_rule_ids": []
+      "extraction_rule_ids": [],
+      "cardinality_scope": []
     },
     {
       "name": "gave",
@@ -545,7 +589,9 @@
         "recipient",
         "item"
       ],
-      "extraction_rule_ids": []
+      "extraction_rule_ids": [],
+      "cardinality_scope": [],
+      "event_family": "transfer"
     },
     {
       "name": "received",
@@ -586,7 +632,9 @@
         "recipient",
         "item"
       ],
-      "extraction_rule_ids": []
+      "extraction_rule_ids": [],
+      "cardinality_scope": [],
+      "event_family": "transfer"
     },
     {
       "name": "commissioned",
@@ -626,7 +674,8 @@
         "maker",
         "item"
       ],
-      "extraction_rule_ids": []
+      "extraction_rule_ids": [],
+      "cardinality_scope": []
     },
     {
       "name": "read",
@@ -651,12 +700,14 @@
         "attachment_text"
       ],
       "object_entity_types": [
-        "work"
+        "work",
+        "document"
       ],
       "property_category": null,
       "role_names": [],
       "required_roles": [],
-      "extraction_rule_ids": []
+      "extraction_rule_ids": [],
+      "cardinality_scope": []
     },
     {
       "name": "listened_to",
@@ -686,7 +737,8 @@
       "property_category": null,
       "role_names": [],
       "required_roles": [],
-      "extraction_rule_ids": []
+      "extraction_rule_ids": [],
+      "cardinality_scope": []
     },
     {
       "name": "watched",
@@ -716,7 +768,8 @@
       "property_category": null,
       "role_names": [],
       "required_roles": [],
-      "extraction_rule_ids": []
+      "extraction_rule_ids": [],
+      "cardinality_scope": []
     },
     {
       "name": "played",
@@ -747,7 +800,8 @@
       "property_category": null,
       "role_names": [],
       "required_roles": [],
-      "extraction_rule_ids": []
+      "extraction_rule_ids": [],
+      "cardinality_scope": []
     },
     {
       "name": "participated_in",
@@ -775,12 +829,14 @@
         "work",
         "project",
         "group",
-        "organisation"
+        "organisation",
+        "event"
       ],
       "property_category": null,
       "role_names": [],
       "required_roles": [],
-      "extraction_rule_ids": []
+      "extraction_rule_ids": [],
+      "cardinality_scope": []
     },
     {
       "name": "attended",
@@ -806,12 +862,14 @@
       ],
       "object_entity_types": [
         "work",
-        "organisation"
+        "organisation",
+        "event"
       ],
       "property_category": null,
       "role_names": [],
       "required_roles": [],
-      "extraction_rule_ids": []
+      "extraction_rule_ids": [],
+      "cardinality_scope": []
     },
     {
       "name": "offered",
@@ -838,12 +896,15 @@
       "object_entity_types": [
         "work",
         "project",
-        "object"
+        "object",
+        "document",
+        "software"
       ],
       "property_category": null,
       "role_names": [],
       "required_roles": [],
-      "extraction_rule_ids": []
+      "extraction_rule_ids": [],
+      "cardinality_scope": []
     },
     {
       "name": "likes",
@@ -877,7 +938,8 @@
       "property_category": null,
       "role_names": [],
       "required_roles": [],
-      "extraction_rule_ids": []
+      "extraction_rule_ids": [],
+      "cardinality_scope": []
     },
     {
       "name": "dislikes",
@@ -911,7 +973,8 @@
       "property_category": null,
       "role_names": [],
       "required_roles": [],
-      "extraction_rule_ids": []
+      "extraction_rule_ids": [],
+      "cardinality_scope": []
     },
     {
       "name": "prefers",
@@ -951,7 +1014,8 @@
         "preferred",
         "alternative"
       ],
-      "extraction_rule_ids": []
+      "extraction_rule_ids": [],
+      "cardinality_scope": []
     },
     {
       "name": "interested_in",
@@ -985,7 +1049,8 @@
       "property_category": null,
       "role_names": [],
       "required_roles": [],
-      "extraction_rule_ids": []
+      "extraction_rule_ids": [],
+      "cardinality_scope": []
     },
     {
       "name": "intends",
@@ -1019,7 +1084,8 @@
       "property_category": null,
       "role_names": [],
       "required_roles": [],
-      "extraction_rule_ids": []
+      "extraction_rule_ids": [],
+      "cardinality_scope": []
     },
     {
       "name": "suggested_to",
@@ -1061,7 +1127,8 @@
         "recipient",
         "action"
       ],
-      "extraction_rule_ids": []
+      "extraction_rule_ids": [],
+      "cardinality_scope": []
     },
     {
       "name": "started_on",
@@ -1072,13 +1139,16 @@
         "group",
         "organisation",
         "project",
-        "work"
+        "work",
+        "document",
+        "software",
+        "event"
       ],
       "value_kinds": [
         "temporal"
       ],
       "semantics": "event",
-      "cardinality": "many",
+      "cardinality": "contextual",
       "transition_policy": "append_only",
       "closed_world": false,
       "allowed_source_origins": [
@@ -1090,7 +1160,11 @@
       "property_category": null,
       "role_names": [],
       "required_roles": [],
-      "extraction_rule_ids": []
+      "extraction_rule_ids": [],
+      "cardinality_scope": [
+        "context",
+        "precision"
+      ]
     },
     {
       "name": "opened_on",
@@ -1101,13 +1175,16 @@
         "group",
         "organisation",
         "project",
-        "work"
+        "work",
+        "document",
+        "software",
+        "event"
       ],
       "value_kinds": [
         "temporal"
       ],
       "semantics": "event",
-      "cardinality": "many",
+      "cardinality": "contextual",
       "transition_policy": "append_only",
       "closed_world": false,
       "allowed_source_origins": [
@@ -1119,7 +1196,11 @@
       "property_category": null,
       "role_names": [],
       "required_roles": [],
-      "extraction_rule_ids": []
+      "extraction_rule_ids": [],
+      "cardinality_scope": [
+        "context",
+        "precision"
+      ]
     },
     {
       "name": "completed_on",
@@ -1130,13 +1211,16 @@
         "group",
         "organisation",
         "project",
-        "work"
+        "work",
+        "document",
+        "software",
+        "event"
       ],
       "value_kinds": [
         "temporal"
       ],
       "semantics": "event",
-      "cardinality": "many",
+      "cardinality": "contextual",
       "transition_policy": "append_only",
       "closed_world": false,
       "allowed_source_origins": [
@@ -1148,7 +1232,11 @@
       "property_category": null,
       "role_names": [],
       "required_roles": [],
-      "extraction_rule_ids": []
+      "extraction_rule_ids": [],
+      "cardinality_scope": [
+        "context",
+        "precision"
+      ]
     },
     {
       "name": "occurred_on",
@@ -1159,13 +1247,16 @@
         "group",
         "organisation",
         "project",
-        "work"
+        "work",
+        "document",
+        "software",
+        "event"
       ],
       "value_kinds": [
         "temporal"
       ],
       "semantics": "event",
-      "cardinality": "many",
+      "cardinality": "contextual",
       "transition_policy": "append_only",
       "closed_world": false,
       "allowed_source_origins": [
@@ -1177,7 +1268,11 @@
       "property_category": null,
       "role_names": [],
       "required_roles": [],
-      "extraction_rule_ids": []
+      "extraction_rule_ids": [],
+      "cardinality_scope": [
+        "context",
+        "precision"
+      ]
     },
     {
       "name": "has_quantity",
@@ -1192,13 +1287,17 @@
         "work",
         "project",
         "species",
+        "concept",
+        "document",
+        "software",
+        "event",
         "other"
       ],
       "value_kinds": [
         "number"
       ],
       "semantics": "attribute",
-      "cardinality": "many",
+      "cardinality": "contextual",
       "transition_policy": "append_only",
       "closed_world": false,
       "allowed_source_origins": [
@@ -1210,7 +1309,12 @@
       "property_category": "quantity",
       "role_names": [],
       "required_roles": [],
-      "extraction_rule_ids": []
+      "extraction_rule_ids": [],
+      "cardinality_scope": [
+        "attribute_key",
+        "valid_time",
+        "context"
+      ]
     },
     {
       "name": "has_measurement",
@@ -1225,13 +1329,17 @@
         "work",
         "project",
         "species",
+        "concept",
+        "document",
+        "software",
+        "event",
         "other"
       ],
       "value_kinds": [
         "number"
       ],
       "semantics": "attribute",
-      "cardinality": "many",
+      "cardinality": "contextual",
       "transition_policy": "append_only",
       "closed_world": false,
       "allowed_source_origins": [
@@ -1243,7 +1351,12 @@
       "property_category": "measurement",
       "role_names": [],
       "required_roles": [],
-      "extraction_rule_ids": []
+      "extraction_rule_ids": [],
+      "cardinality_scope": [
+        "attribute_key",
+        "valid_time",
+        "context"
+      ]
     },
     {
       "name": "explicit_frequency",
@@ -1258,6 +1371,10 @@
         "work",
         "project",
         "species",
+        "concept",
+        "document",
+        "software",
+        "event",
         "other"
       ],
       "value_kinds": [
@@ -1276,7 +1393,8 @@
       "property_category": "frequency",
       "role_names": [],
       "required_roles": [],
-      "extraction_rule_ids": []
+      "extraction_rule_ids": [],
+      "cardinality_scope": []
     },
     {
       "name": "explicit_reason",
@@ -1304,7 +1422,8 @@
       "property_category": null,
       "role_names": [],
       "required_roles": [],
-      "extraction_rule_ids": []
+      "extraction_rule_ids": [],
+      "cardinality_scope": []
     },
     {
       "name": "has_attribute",
@@ -1319,6 +1438,10 @@
         "work",
         "project",
         "species",
+        "concept",
+        "document",
+        "software",
+        "event",
         "other"
       ],
       "value_kinds": [
@@ -1340,7 +1463,8 @@
       "property_category": "descriptive",
       "role_names": [],
       "required_roles": [],
-      "extraction_rule_ids": []
+      "extraction_rule_ids": [],
+      "cardinality_scope": []
     },
     {
       "name": "located_in",
@@ -1355,6 +1479,10 @@
         "work",
         "project",
         "species",
+        "concept",
+        "document",
+        "software",
+        "event",
         "other"
       ],
       "value_kinds": [
@@ -1364,7 +1492,7 @@
         "place"
       ],
       "semantics": "state",
-      "cardinality": "many",
+      "cardinality": "one",
       "transition_policy": "explicit_only",
       "closed_world": false,
       "allowed_source_origins": [
@@ -1375,7 +1503,11 @@
       "property_category": null,
       "role_names": [],
       "required_roles": [],
-      "extraction_rule_ids": []
+      "extraction_rule_ids": [],
+      "cardinality_scope": [
+        "valid_time",
+        "precision"
+      ]
     },
     {
       "name": "part_of",
@@ -1390,6 +1522,10 @@
         "work",
         "project",
         "species",
+        "concept",
+        "document",
+        "software",
+        "event",
         "other"
       ],
       "value_kinds": [
@@ -1405,6 +1541,10 @@
         "work",
         "project",
         "species",
+        "concept",
+        "document",
+        "software",
+        "event",
         "other"
       ],
       "semantics": "relation",
@@ -1419,7 +1559,9 @@
       "property_category": null,
       "role_names": [],
       "required_roles": [],
-      "extraction_rule_ids": []
+      "extraction_rule_ids": [],
+      "cardinality_scope": [],
+      "inverse_view": "has_part"
     },
     {
       "name": "uses",
@@ -1428,7 +1570,8 @@
         "person",
         "agent",
         "group",
-        "organisation"
+        "organisation",
+        "software"
       ],
       "value_kinds": [
         "entity"
@@ -1443,6 +1586,10 @@
         "work",
         "project",
         "species",
+        "concept",
+        "document",
+        "software",
+        "event",
         "other"
       ],
       "semantics": "event",
@@ -1457,7 +1604,8 @@
       "property_category": null,
       "role_names": [],
       "required_roles": [],
-      "extraction_rule_ids": []
+      "extraction_rule_ids": [],
+      "cardinality_scope": []
     },
     {
       "name": "requires",
@@ -1485,6 +1633,10 @@
         "work",
         "project",
         "species",
+        "concept",
+        "document",
+        "software",
+        "event",
         "other"
       ],
       "semantics": "relation",
@@ -1503,7 +1655,8 @@
       "required_roles": [
         "resource"
       ],
-      "extraction_rule_ids": []
+      "extraction_rule_ids": [],
+      "cardinality_scope": []
     },
     {
       "name": "depends_on",
@@ -1531,6 +1684,10 @@
         "work",
         "project",
         "species",
+        "concept",
+        "document",
+        "software",
+        "event",
         "other"
       ],
       "semantics": "relation",
@@ -1549,7 +1706,8 @@
       "required_roles": [
         "resource"
       ],
-      "extraction_rule_ids": []
+      "extraction_rule_ids": [],
+      "cardinality_scope": []
     },
     {
       "name": "manages",
@@ -1573,6 +1731,10 @@
         "work",
         "project",
         "species",
+        "concept",
+        "document",
+        "software",
+        "event",
         "other"
       ],
       "semantics": "relation",
@@ -1587,7 +1749,9 @@
       "property_category": null,
       "role_names": [],
       "required_roles": [],
-      "extraction_rule_ids": []
+      "extraction_rule_ids": [],
+      "cardinality_scope": [],
+      "inverse_view": "managed_by"
     },
     {
       "name": "has_role",
@@ -1618,7 +1782,8 @@
       "required_roles": [
         "context"
       ],
-      "extraction_rule_ids": []
+      "extraction_rule_ids": [],
+      "cardinality_scope": []
     },
     {
       "name": "assigned_to",
@@ -1653,7 +1818,8 @@
       "required_roles": [
         "assignee"
       ],
-      "extraction_rule_ids": []
+      "extraction_rule_ids": [],
+      "cardinality_scope": []
     },
     {
       "name": "communicated_with",
@@ -1685,7 +1851,9 @@
       "property_category": null,
       "role_names": [],
       "required_roles": [],
-      "extraction_rule_ids": []
+      "extraction_rule_ids": [],
+      "cardinality_scope": [],
+      "symmetric": true
     },
     {
       "name": "has_capability",
@@ -1696,7 +1864,8 @@
         "group",
         "organisation",
         "object",
-        "project"
+        "project",
+        "software"
       ],
       "value_kinds": [
         "text",
@@ -1712,6 +1881,10 @@
         "work",
         "project",
         "species",
+        "concept",
+        "document",
+        "software",
+        "event",
         "other"
       ],
       "semantics": "state",
@@ -1722,6 +1895,936 @@
         "raw_message",
         "document",
         "attachment_text"
+      ],
+      "property_category": null,
+      "role_names": [],
+      "required_roles": [],
+      "extraction_rule_ids": [],
+      "cardinality_scope": []
+    },
+    {
+      "name": "committed_to",
+      "version": 1,
+      "subject_types": [
+        "person",
+        "agent",
+        "group",
+        "organisation"
+      ],
+      "value_kinds": [
+        "entity",
+        "text"
+      ],
+      "object_entity_types": [
+        "project",
+        "work",
+        "document",
+        "software",
+        "event",
+        "object",
+        "concept"
+      ],
+      "semantics": "state",
+      "cardinality": "many",
+      "cardinality_scope": [],
+      "transition_policy": "explicit_only",
+      "closed_world": false,
+      "allowed_source_origins": [
+        "raw_message",
+        "document",
+        "attachment_text",
+        "email",
+        "calendar_event",
+        "transcript",
+        "form_input"
+      ],
+      "property_category": null,
+      "role_names": [
+        "obligor",
+        "beneficiary",
+        "action"
+      ],
+      "required_roles": [
+        "obligor",
+        "action"
+      ],
+      "extraction_rule_ids": [],
+      "lifecycle": true
+    },
+    {
+      "name": "due_by",
+      "version": 1,
+      "subject_types": [
+        "project",
+        "work",
+        "document",
+        "software",
+        "event",
+        "object"
+      ],
+      "value_kinds": [
+        "temporal"
+      ],
+      "object_entity_types": [],
+      "semantics": "state",
+      "cardinality": "one",
+      "cardinality_scope": [
+        "precision"
+      ],
+      "transition_policy": "explicit_only",
+      "closed_world": false,
+      "allowed_source_origins": [
+        "raw_message",
+        "document",
+        "attachment_text",
+        "email",
+        "calendar_event",
+        "transcript",
+        "form_input"
+      ],
+      "property_category": null,
+      "role_names": [],
+      "required_roles": [],
+      "extraction_rule_ids": []
+    },
+    {
+      "name": "requested_of",
+      "version": 1,
+      "subject_types": [
+        "person",
+        "agent",
+        "group",
+        "organisation"
+      ],
+      "value_kinds": [
+        "entity",
+        "text"
+      ],
+      "object_entity_types": [
+        "project",
+        "work",
+        "document",
+        "software",
+        "event",
+        "object",
+        "concept"
+      ],
+      "semantics": "relation",
+      "cardinality": "many",
+      "cardinality_scope": [],
+      "transition_policy": "explicit_only",
+      "closed_world": false,
+      "allowed_source_origins": [
+        "raw_message",
+        "document",
+        "attachment_text",
+        "email",
+        "calendar_event",
+        "transcript",
+        "form_input"
+      ],
+      "property_category": null,
+      "role_names": [
+        "requester",
+        "addressee",
+        "action"
+      ],
+      "required_roles": [
+        "requester",
+        "addressee",
+        "action"
+      ],
+      "extraction_rule_ids": [],
+      "lifecycle": true
+    },
+    {
+      "name": "decided",
+      "version": 1,
+      "subject_types": [
+        "person",
+        "agent",
+        "group",
+        "organisation"
+      ],
+      "value_kinds": [
+        "entity",
+        "text"
+      ],
+      "object_entity_types": [
+        "project",
+        "work",
+        "document",
+        "software",
+        "event",
+        "object",
+        "concept",
+        "person",
+        "agent",
+        "group",
+        "organisation",
+        "place"
+      ],
+      "semantics": "event",
+      "cardinality": "many",
+      "cardinality_scope": [],
+      "transition_policy": "explicit_only",
+      "closed_world": false,
+      "allowed_source_origins": [
+        "raw_message",
+        "document",
+        "attachment_text",
+        "email",
+        "calendar_event",
+        "transcript",
+        "form_input"
+      ],
+      "property_category": null,
+      "role_names": [
+        "decider",
+        "preferred",
+        "alternative"
+      ],
+      "required_roles": [
+        "decider",
+        "preferred"
+      ],
+      "extraction_rule_ids": []
+    },
+    {
+      "name": "works_on",
+      "version": 1,
+      "subject_types": [
+        "person",
+        "agent",
+        "group",
+        "organisation",
+        "software"
+      ],
+      "value_kinds": [
+        "entity"
+      ],
+      "object_entity_types": [
+        "project",
+        "work",
+        "document",
+        "software",
+        "event",
+        "object",
+        "concept"
+      ],
+      "semantics": "state",
+      "cardinality": "many",
+      "cardinality_scope": [],
+      "transition_policy": "explicit_only",
+      "closed_world": false,
+      "allowed_source_origins": [
+        "raw_message",
+        "document",
+        "attachment_text",
+        "email",
+        "calendar_event",
+        "transcript",
+        "form_input",
+        "code_repository"
+      ],
+      "property_category": null,
+      "role_names": [],
+      "required_roles": [],
+      "extraction_rule_ids": [],
+      "lifecycle": true
+    },
+    {
+      "name": "blocked_by",
+      "version": 1,
+      "subject_types": [
+        "project",
+        "work",
+        "document",
+        "software",
+        "event",
+        "object",
+        "concept"
+      ],
+      "value_kinds": [
+        "entity",
+        "text"
+      ],
+      "object_entity_types": [
+        "project",
+        "work",
+        "document",
+        "software",
+        "event",
+        "object",
+        "concept",
+        "person",
+        "agent",
+        "group",
+        "organisation"
+      ],
+      "semantics": "state",
+      "cardinality": "many",
+      "cardinality_scope": [],
+      "transition_policy": "explicit_only",
+      "closed_world": false,
+      "allowed_source_origins": [
+        "raw_message",
+        "document",
+        "attachment_text",
+        "email",
+        "calendar_event",
+        "transcript",
+        "form_input",
+        "code_repository"
+      ],
+      "property_category": null,
+      "role_names": [],
+      "required_roles": [],
+      "extraction_rule_ids": [],
+      "inverse_view": "blocks"
+    },
+    {
+      "name": "cites",
+      "version": 1,
+      "subject_types": [
+        "document",
+        "work",
+        "software",
+        "project"
+      ],
+      "value_kinds": [
+        "entity"
+      ],
+      "object_entity_types": [
+        "document",
+        "work",
+        "software",
+        "project"
+      ],
+      "semantics": "relation",
+      "cardinality": "many",
+      "cardinality_scope": [],
+      "transition_policy": "explicit_only",
+      "closed_world": false,
+      "allowed_source_origins": [
+        "raw_message",
+        "document",
+        "attachment_text",
+        "web_page",
+        "code_repository",
+        "external_catalogue",
+        "structured_record"
+      ],
+      "property_category": null,
+      "role_names": [],
+      "required_roles": [],
+      "extraction_rule_ids": [],
+      "inverse_view": "cited_by"
+    },
+    {
+      "name": "about",
+      "version": 1,
+      "subject_types": [
+        "document",
+        "work",
+        "software",
+        "project",
+        "event",
+        "object"
+      ],
+      "value_kinds": [
+        "entity",
+        "text"
+      ],
+      "object_entity_types": [
+        "person",
+        "agent",
+        "group",
+        "organisation",
+        "place",
+        "object",
+        "work",
+        "project",
+        "species",
+        "concept",
+        "document",
+        "software",
+        "event",
+        "other"
+      ],
+      "semantics": "relation",
+      "cardinality": "many",
+      "cardinality_scope": [],
+      "transition_policy": "explicit_only",
+      "closed_world": false,
+      "allowed_source_origins": [
+        "raw_message",
+        "document",
+        "attachment_text",
+        "web_page",
+        "code_repository",
+        "external_catalogue",
+        "structured_record"
+      ],
+      "property_category": null,
+      "role_names": [],
+      "required_roles": [],
+      "extraction_rule_ids": []
+    },
+    {
+      "name": "derived_from",
+      "version": 1,
+      "subject_types": [
+        "document",
+        "work",
+        "software",
+        "project",
+        "object"
+      ],
+      "value_kinds": [
+        "entity"
+      ],
+      "object_entity_types": [
+        "document",
+        "work",
+        "software",
+        "project",
+        "object"
+      ],
+      "semantics": "relation",
+      "cardinality": "many",
+      "cardinality_scope": [],
+      "transition_policy": "explicit_only",
+      "closed_world": false,
+      "allowed_source_origins": [
+        "raw_message",
+        "document",
+        "attachment_text",
+        "web_page",
+        "code_repository",
+        "external_catalogue",
+        "structured_record"
+      ],
+      "property_category": null,
+      "role_names": [],
+      "required_roles": [],
+      "extraction_rule_ids": [],
+      "inverse_view": "source_of"
+    },
+    {
+      "name": "revision_of",
+      "version": 1,
+      "subject_types": [
+        "document",
+        "work",
+        "software"
+      ],
+      "value_kinds": [
+        "entity"
+      ],
+      "object_entity_types": [
+        "document",
+        "work",
+        "software"
+      ],
+      "semantics": "relation",
+      "cardinality": "many",
+      "cardinality_scope": [],
+      "transition_policy": "explicit_only",
+      "closed_world": false,
+      "allowed_source_origins": [
+        "raw_message",
+        "document",
+        "attachment_text",
+        "web_page",
+        "code_repository",
+        "external_catalogue",
+        "structured_record"
+      ],
+      "property_category": null,
+      "role_names": [],
+      "required_roles": [],
+      "extraction_rule_ids": [],
+      "inverse_view": "revised_by"
+    },
+    {
+      "name": "partner_of",
+      "version": 1,
+      "subject_types": [
+        "person"
+      ],
+      "value_kinds": [
+        "entity"
+      ],
+      "object_entity_types": [
+        "person"
+      ],
+      "semantics": "relation",
+      "cardinality": "many",
+      "cardinality_scope": [],
+      "transition_policy": "explicit_only",
+      "closed_world": false,
+      "allowed_source_origins": [
+        "raw_message",
+        "document",
+        "attachment_text"
+      ],
+      "property_category": null,
+      "role_names": [],
+      "required_roles": [],
+      "extraction_rule_ids": [],
+      "symmetric": true
+    },
+    {
+      "name": "relative_of",
+      "version": 1,
+      "subject_types": [
+        "person"
+      ],
+      "value_kinds": [
+        "entity"
+      ],
+      "object_entity_types": [
+        "person"
+      ],
+      "semantics": "relation",
+      "cardinality": "many",
+      "cardinality_scope": [],
+      "transition_policy": "explicit_only",
+      "closed_world": false,
+      "allowed_source_origins": [
+        "raw_message",
+        "document",
+        "attachment_text"
+      ],
+      "property_category": null,
+      "role_names": [],
+      "required_roles": [],
+      "extraction_rule_ids": [],
+      "symmetric": true
+    },
+    {
+      "name": "colleague_of",
+      "version": 1,
+      "subject_types": [
+        "person"
+      ],
+      "value_kinds": [
+        "entity"
+      ],
+      "object_entity_types": [
+        "person"
+      ],
+      "semantics": "relation",
+      "cardinality": "many",
+      "cardinality_scope": [],
+      "transition_policy": "explicit_only",
+      "closed_world": false,
+      "allowed_source_origins": [
+        "raw_message",
+        "document",
+        "attachment_text"
+      ],
+      "property_category": null,
+      "role_names": [],
+      "required_roles": [],
+      "extraction_rule_ids": [],
+      "symmetric": true
+    },
+    {
+      "name": "acquainted_with",
+      "version": 1,
+      "subject_types": [
+        "person"
+      ],
+      "value_kinds": [
+        "entity"
+      ],
+      "object_entity_types": [
+        "person"
+      ],
+      "semantics": "relation",
+      "cardinality": "many",
+      "cardinality_scope": [],
+      "transition_policy": "explicit_only",
+      "closed_world": false,
+      "allowed_source_origins": [
+        "raw_message",
+        "document",
+        "attachment_text"
+      ],
+      "property_category": null,
+      "role_names": [],
+      "required_roles": [],
+      "extraction_rule_ids": [],
+      "symmetric": true
+    },
+    {
+      "name": "mentor_of",
+      "version": 1,
+      "subject_types": [
+        "person"
+      ],
+      "value_kinds": [
+        "entity"
+      ],
+      "object_entity_types": [
+        "person"
+      ],
+      "semantics": "relation",
+      "cardinality": "many",
+      "cardinality_scope": [],
+      "transition_policy": "explicit_only",
+      "closed_world": false,
+      "allowed_source_origins": [
+        "raw_message",
+        "document",
+        "attachment_text"
+      ],
+      "property_category": null,
+      "role_names": [],
+      "required_roles": [],
+      "extraction_rule_ids": [],
+      "inverse_view": "mentee_of"
+    },
+    {
+      "name": "caregiver_of",
+      "version": 1,
+      "subject_types": [
+        "person"
+      ],
+      "value_kinds": [
+        "entity"
+      ],
+      "object_entity_types": [
+        "person",
+        "species",
+        "object"
+      ],
+      "semantics": "relation",
+      "cardinality": "many",
+      "cardinality_scope": [],
+      "transition_policy": "explicit_only",
+      "closed_world": false,
+      "allowed_source_origins": [
+        "raw_message",
+        "document",
+        "attachment_text"
+      ],
+      "property_category": null,
+      "role_names": [],
+      "required_roles": [],
+      "extraction_rule_ids": [],
+      "inverse_view": "cared_for_by"
+    },
+    {
+      "name": "neighbour_of",
+      "version": 1,
+      "subject_types": [
+        "person"
+      ],
+      "value_kinds": [
+        "entity"
+      ],
+      "object_entity_types": [
+        "person"
+      ],
+      "semantics": "relation",
+      "cardinality": "many",
+      "cardinality_scope": [],
+      "transition_policy": "explicit_only",
+      "closed_world": false,
+      "allowed_source_origins": [
+        "raw_message",
+        "document",
+        "attachment_text"
+      ],
+      "property_category": null,
+      "role_names": [],
+      "required_roles": [],
+      "extraction_rule_ids": [],
+      "symmetric": true
+    },
+    {
+      "name": "instructed",
+      "version": 1,
+      "subject_types": [
+        "person",
+        "agent",
+        "group",
+        "organisation",
+        "software"
+      ],
+      "value_kinds": [
+        "entity",
+        "text"
+      ],
+      "object_entity_types": [
+        "project",
+        "work",
+        "document",
+        "software",
+        "event",
+        "object",
+        "concept",
+        "person",
+        "agent",
+        "group",
+        "organisation"
+      ],
+      "semantics": "state",
+      "cardinality": "many",
+      "cardinality_scope": [],
+      "transition_policy": "explicit_only",
+      "closed_world": false,
+      "allowed_source_origins": [
+        "raw_message",
+        "document",
+        "attachment_text",
+        "form_input",
+        "profile_import"
+      ],
+      "property_category": null,
+      "role_names": [
+        "instructor",
+        "addressee",
+        "action",
+        "context",
+        "condition"
+      ],
+      "required_roles": [
+        "instructor",
+        "addressee",
+        "action"
+      ],
+      "extraction_rule_ids": [],
+      "required_qualifiers": [
+        "directive_polarity"
+      ],
+      "statement_kind": "directive"
+    },
+    {
+      "name": "restricted_by",
+      "version": 1,
+      "subject_types": [
+        "person",
+        "agent",
+        "group",
+        "organisation",
+        "software",
+        "project",
+        "work",
+        "document",
+        "object"
+      ],
+      "value_kinds": [
+        "entity",
+        "text"
+      ],
+      "object_entity_types": [
+        "document",
+        "concept",
+        "organisation",
+        "software"
+      ],
+      "semantics": "state",
+      "cardinality": "many",
+      "cardinality_scope": [],
+      "transition_policy": "explicit_only",
+      "closed_world": false,
+      "allowed_source_origins": [
+        "raw_message",
+        "document",
+        "attachment_text",
+        "form_input",
+        "profile_import",
+        "structured_record"
+      ],
+      "property_category": null,
+      "role_names": [
+        "condition"
+      ],
+      "required_roles": [],
+      "extraction_rule_ids": []
+    },
+    {
+      "name": "has_goal",
+      "version": 1,
+      "subject_types": [
+        "person",
+        "agent",
+        "group",
+        "organisation",
+        "project"
+      ],
+      "value_kinds": [
+        "entity",
+        "text"
+      ],
+      "object_entity_types": [
+        "project",
+        "work",
+        "document",
+        "software",
+        "event",
+        "object",
+        "concept",
+        "place"
+      ],
+      "semantics": "state",
+      "cardinality": "many",
+      "cardinality_scope": [],
+      "transition_policy": "explicit_only",
+      "closed_world": false,
+      "allowed_source_origins": [
+        "raw_message",
+        "document",
+        "attachment_text",
+        "form_input",
+        "profile_import"
+      ],
+      "property_category": null,
+      "role_names": [],
+      "required_roles": [],
+      "extraction_rule_ids": [],
+      "lifecycle": true
+    },
+    {
+      "name": "wishes",
+      "version": 1,
+      "subject_types": [
+        "person",
+        "agent",
+        "group",
+        "organisation"
+      ],
+      "value_kinds": [
+        "entity",
+        "text"
+      ],
+      "object_entity_types": [
+        "project",
+        "work",
+        "document",
+        "software",
+        "event",
+        "object",
+        "concept",
+        "place",
+        "person",
+        "agent",
+        "group",
+        "organisation"
+      ],
+      "semantics": "state",
+      "cardinality": "many",
+      "cardinality_scope": [],
+      "transition_policy": "explicit_only",
+      "closed_world": false,
+      "allowed_source_origins": [
+        "raw_message",
+        "document",
+        "attachment_text",
+        "form_input"
+      ],
+      "property_category": null,
+      "role_names": [],
+      "required_roles": [],
+      "extraction_rule_ids": [],
+      "lifecycle": true
+    },
+    {
+      "name": "citizen_of",
+      "version": 1,
+      "subject_types": [
+        "person"
+      ],
+      "value_kinds": [
+        "entity"
+      ],
+      "object_entity_types": [
+        "place"
+      ],
+      "semantics": "relation",
+      "cardinality": "many",
+      "cardinality_scope": [],
+      "transition_policy": "explicit_only",
+      "closed_world": false,
+      "allowed_source_origins": [
+        "raw_message",
+        "document",
+        "attachment_text",
+        "profile_import",
+        "form_input"
+      ],
+      "property_category": null,
+      "role_names": [],
+      "required_roles": [],
+      "extraction_rule_ids": [],
+      "sensitivity": [
+        "identity"
+      ]
+    },
+    {
+      "name": "speaks",
+      "version": 1,
+      "subject_types": [
+        "person",
+        "agent",
+        "group"
+      ],
+      "value_kinds": [
+        "entity",
+        "text"
+      ],
+      "object_entity_types": [
+        "concept"
+      ],
+      "semantics": "state",
+      "cardinality": "many",
+      "cardinality_scope": [],
+      "transition_policy": "explicit_only",
+      "closed_world": false,
+      "allowed_source_origins": [
+        "raw_message",
+        "document",
+        "attachment_text",
+        "profile_import",
+        "form_input"
+      ],
+      "property_category": null,
+      "role_names": [],
+      "required_roles": [],
+      "extraction_rule_ids": []
+    },
+    {
+      "name": "affiliated_with",
+      "version": 1,
+      "subject_types": [
+        "person",
+        "agent",
+        "group",
+        "organisation"
+      ],
+      "value_kinds": [
+        "entity"
+      ],
+      "object_entity_types": [
+        "organisation",
+        "group",
+        "project"
+      ],
+      "semantics": "relation",
+      "cardinality": "many",
+      "cardinality_scope": [],
+      "transition_policy": "explicit_only",
+      "closed_world": false,
+      "allowed_source_origins": [
+        "raw_message",
+        "document",
+        "attachment_text",
+        "profile_import",
+        "form_input"
       ],
       "property_category": null,
       "role_names": [],
@@ -1747,6 +2850,10 @@
         "work",
         "project",
         "species",
+        "concept",
+        "document",
+        "software",
+        "event",
         "other"
       ],
       "value_kinds": [
@@ -1776,6 +2883,10 @@
         "work",
         "project",
         "species",
+        "concept",
+        "document",
+        "software",
+        "event",
         "other"
       ],
       "value_kinds": [
@@ -1826,6 +2937,10 @@
         "work",
         "project",
         "species",
+        "concept",
+        "document",
+        "software",
+        "event",
         "other"
       ],
       "value_kinds": [
@@ -1855,6 +2970,10 @@
         "work",
         "project",
         "species",
+        "concept",
+        "document",
+        "software",
+        "event",
         "other"
       ],
       "value_kinds": [
@@ -1884,6 +3003,10 @@
         "work",
         "project",
         "species",
+        "concept",
+        "document",
+        "software",
+        "event",
         "other"
       ],
       "value_kinds": [
@@ -1913,6 +3036,10 @@
         "work",
         "project",
         "species",
+        "concept",
+        "document",
+        "software",
+        "event",
         "other"
       ],
       "value_kinds": [
@@ -1942,6 +3069,10 @@
         "work",
         "project",
         "species",
+        "concept",
+        "document",
+        "software",
+        "event",
         "other"
       ],
       "value_kinds": [
@@ -1971,6 +3102,10 @@
         "work",
         "project",
         "species",
+        "concept",
+        "document",
+        "software",
+        "event",
         "other"
       ],
       "value_kinds": [
@@ -2000,6 +3135,10 @@
         "work",
         "project",
         "species",
+        "concept",
+        "document",
+        "software",
+        "event",
         "other"
       ],
       "value_kinds": [
@@ -2028,6 +3167,10 @@
         "work",
         "project",
         "species",
+        "concept",
+        "document",
+        "software",
+        "event",
         "other"
       ],
       "value_kinds": [
@@ -2057,6 +3200,10 @@
         "work",
         "project",
         "species",
+        "concept",
+        "document",
+        "software",
+        "event",
         "other"
       ],
       "value_kinds": [
@@ -2085,6 +3232,10 @@
         "work",
         "project",
         "species",
+        "concept",
+        "document",
+        "software",
+        "event",
         "other"
       ],
       "value_kinds": [
@@ -2114,6 +3265,10 @@
         "work",
         "project",
         "species",
+        "concept",
+        "document",
+        "software",
+        "event",
         "other"
       ],
       "value_kinds": [
@@ -2143,6 +3298,10 @@
         "work",
         "project",
         "species",
+        "concept",
+        "document",
+        "software",
+        "event",
         "other"
       ],
       "value_kinds": [
@@ -2172,6 +3331,10 @@
         "work",
         "project",
         "species",
+        "concept",
+        "document",
+        "software",
+        "event",
         "other"
       ],
       "value_kinds": [
@@ -2201,6 +3364,10 @@
         "work",
         "project",
         "species",
+        "concept",
+        "document",
+        "software",
+        "event",
         "other"
       ],
       "value_kinds": [
@@ -2229,6 +3396,10 @@
         "work",
         "project",
         "species",
+        "concept",
+        "document",
+        "software",
+        "event",
         "other"
       ],
       "value_kinds": [
@@ -2258,6 +3429,10 @@
         "work",
         "project",
         "species",
+        "concept",
+        "document",
+        "software",
+        "event",
         "other"
       ],
       "value_kinds": [
@@ -2287,6 +3462,10 @@
         "work",
         "project",
         "species",
+        "concept",
+        "document",
+        "software",
+        "event",
         "other"
       ],
       "value_kinds": [
@@ -2316,6 +3495,10 @@
         "work",
         "project",
         "species",
+        "concept",
+        "document",
+        "software",
+        "event",
         "other"
       ],
       "value_kinds": [
@@ -2345,6 +3528,10 @@
         "work",
         "project",
         "species",
+        "concept",
+        "document",
+        "software",
+        "event",
         "other"
       ],
       "value_kinds": [
@@ -2375,6 +3562,10 @@
         "work",
         "project",
         "species",
+        "concept",
+        "document",
+        "software",
+        "event",
         "other"
       ],
       "value_kinds": [
@@ -2403,6 +3594,10 @@
         "work",
         "project",
         "species",
+        "concept",
+        "document",
+        "software",
+        "event",
         "other"
       ],
       "value_kinds": [
@@ -2432,6 +3627,10 @@
         "work",
         "project",
         "species",
+        "concept",
+        "document",
+        "software",
+        "event",
         "other"
       ],
       "value_kinds": [
@@ -2469,6 +3668,10 @@
         "work",
         "project",
         "species",
+        "concept",
+        "document",
+        "software",
+        "event",
         "other"
       ],
       "value_kinds": [
@@ -2506,6 +3709,10 @@
         "work",
         "project",
         "species",
+        "concept",
+        "document",
+        "software",
+        "event",
         "other"
       ],
       "value_kinds": [
@@ -2543,6 +3750,10 @@
         "work",
         "project",
         "species",
+        "concept",
+        "document",
+        "software",
+        "event",
         "other"
       ],
       "value_kinds": [
@@ -2580,6 +3791,10 @@
         "work",
         "project",
         "species",
+        "concept",
+        "document",
+        "software",
+        "event",
         "other"
       ],
       "value_kinds": [
@@ -2617,6 +3832,10 @@
         "work",
         "project",
         "species",
+        "concept",
+        "document",
+        "software",
+        "event",
         "other"
       ],
       "value_kinds": [
@@ -2653,6 +3872,10 @@
         "work",
         "project",
         "species",
+        "concept",
+        "document",
+        "software",
+        "event",
         "other"
       ],
       "value_kinds": [
@@ -2686,6 +3909,10 @@
         "work",
         "project",
         "species",
+        "concept",
+        "document",
+        "software",
+        "event",
         "other"
       ],
       "value_kinds": [
@@ -2720,6 +3947,10 @@
         "work",
         "project",
         "species",
+        "concept",
+        "document",
+        "software",
+        "event",
         "other"
       ],
       "value_kinds": [
@@ -2752,6 +3983,10 @@
         "work",
         "project",
         "species",
+        "concept",
+        "document",
+        "software",
+        "event",
         "other"
       ],
       "value_kinds": [
@@ -2788,6 +4023,10 @@
         "work",
         "project",
         "species",
+        "concept",
+        "document",
+        "software",
+        "event",
         "other"
       ],
       "value_kinds": [
@@ -2820,6 +4059,10 @@
         "work",
         "project",
         "species",
+        "concept",
+        "document",
+        "software",
+        "event",
         "other"
       ],
       "value_kinds": [
@@ -2859,6 +4102,10 @@
         "work",
         "project",
         "species",
+        "concept",
+        "document",
+        "software",
+        "event",
         "other"
       ],
       "value_kinds": [
@@ -2892,6 +4139,10 @@
         "work",
         "project",
         "species",
+        "concept",
+        "document",
+        "software",
+        "event",
         "other"
       ],
       "value_kinds": [
@@ -2920,6 +4171,10 @@
         "work",
         "project",
         "species",
+        "concept",
+        "document",
+        "software",
+        "event",
         "other"
       ],
       "value_kinds": [
@@ -2948,6 +4203,10 @@
         "work",
         "project",
         "species",
+        "concept",
+        "document",
+        "software",
+        "event",
         "other"
       ],
       "value_kinds": [
@@ -2978,6 +4237,10 @@
         "work",
         "project",
         "species",
+        "concept",
+        "document",
+        "software",
+        "event",
         "other"
       ],
       "value_kinds": [
@@ -3008,6 +4271,10 @@
         "work",
         "project",
         "species",
+        "concept",
+        "document",
+        "software",
+        "event",
         "other"
       ],
       "value_kinds": [
@@ -3038,6 +4305,10 @@
         "work",
         "project",
         "species",
+        "concept",
+        "document",
+        "software",
+        "event",
         "other"
       ],
       "value_kinds": [
@@ -3073,6 +4344,10 @@
         "work",
         "project",
         "species",
+        "concept",
+        "document",
+        "software",
+        "event",
         "other"
       ],
       "value_kinds": [
@@ -3092,6 +4367,299 @@
       "nonnegative_integer": false,
       "context_requirements": [
         "activity_scope"
+      ]
+    },
+    {
+      "name": "priority",
+      "version": 1,
+      "category": "qualifier",
+      "predicates": [
+        "committed_to",
+        "requested_of",
+        "works_on",
+        "has_goal"
+      ],
+      "subject_types": [],
+      "value_kinds": [
+        "text"
+      ]
+    },
+    {
+      "name": "progress",
+      "version": 1,
+      "category": "qualifier",
+      "predicates": [
+        "works_on",
+        "has_goal"
+      ],
+      "subject_types": [],
+      "value_kinds": [
+        "text"
+      ]
+    },
+    {
+      "name": "outcome",
+      "version": 1,
+      "category": "qualifier",
+      "predicates": [
+        "decided",
+        "works_on"
+      ],
+      "subject_types": [],
+      "value_kinds": [
+        "text"
+      ]
+    },
+    {
+      "name": "locator",
+      "version": 1,
+      "category": "qualifier",
+      "predicates": [
+        "cites",
+        "derived_from"
+      ],
+      "subject_types": [],
+      "value_kinds": [
+        "text"
+      ]
+    },
+    {
+      "name": "publisher",
+      "version": 1,
+      "category": "descriptive",
+      "predicates": [
+        "has_attribute"
+      ],
+      "subject_types": [
+        "document",
+        "work",
+        "software"
+      ],
+      "value_kinds": [
+        "text",
+        "entity"
+      ]
+    },
+    {
+      "name": "licence",
+      "version": 1,
+      "category": "descriptive",
+      "predicates": [
+        "has_attribute"
+      ],
+      "subject_types": [
+        "document",
+        "work",
+        "software"
+      ],
+      "value_kinds": [
+        "text",
+        "entity"
+      ]
+    },
+    {
+      "name": "kinship_type",
+      "version": 1,
+      "category": "qualifier",
+      "predicates": [
+        "relative_of"
+      ],
+      "subject_types": [],
+      "value_kinds": [
+        "text"
+      ]
+    },
+    {
+      "name": "relationship_type",
+      "version": 1,
+      "category": "qualifier",
+      "predicates": [
+        "partner_of",
+        "relative_of",
+        "colleague_of",
+        "acquainted_with",
+        "mentor_of",
+        "caregiver_of",
+        "neighbour_of",
+        "friend_of"
+      ],
+      "subject_types": [],
+      "value_kinds": [
+        "text"
+      ]
+    },
+    {
+      "name": "directive_polarity",
+      "version": 1,
+      "category": "qualifier",
+      "predicates": [
+        "instructed"
+      ],
+      "subject_types": [],
+      "value_kinds": [
+        "text"
+      ],
+      "allowed_values": [
+        "must",
+        "must_not",
+        "permitted"
+      ]
+    },
+    {
+      "name": "tone",
+      "version": 1,
+      "category": "qualifier",
+      "predicates": [
+        "instructed",
+        "prefers"
+      ],
+      "subject_types": [],
+      "value_kinds": [
+        "text"
+      ]
+    },
+    {
+      "name": "detail_level",
+      "version": 1,
+      "category": "qualifier",
+      "predicates": [
+        "instructed",
+        "prefers"
+      ],
+      "subject_types": [],
+      "value_kinds": [
+        "text"
+      ]
+    },
+    {
+      "name": "rule_strength",
+      "version": 1,
+      "category": "qualifier",
+      "predicates": [
+        "instructed",
+        "restricted_by"
+      ],
+      "subject_types": [],
+      "value_kinds": [
+        "text"
+      ]
+    },
+    {
+      "name": "target_value",
+      "version": 1,
+      "category": "qualifier",
+      "predicates": [
+        "has_goal",
+        "wishes"
+      ],
+      "subject_types": [],
+      "value_kinds": [
+        "text",
+        "number"
+      ]
+    },
+    {
+      "name": "target_date",
+      "version": 1,
+      "category": "qualifier",
+      "predicates": [
+        "has_goal",
+        "wishes"
+      ],
+      "subject_types": [],
+      "value_kinds": [
+        "temporal"
+      ]
+    },
+    {
+      "name": "occupation",
+      "version": 1,
+      "category": "descriptive",
+      "predicates": [
+        "has_attribute"
+      ],
+      "subject_types": [
+        "person"
+      ],
+      "value_kinds": [
+        "text",
+        "entity"
+      ]
+    },
+    {
+      "name": "pronouns",
+      "version": 1,
+      "category": "descriptive",
+      "predicates": [
+        "has_attribute"
+      ],
+      "subject_types": [
+        "person",
+        "agent"
+      ],
+      "value_kinds": [
+        "text"
+      ],
+      "sensitivity": [
+        "identity"
+      ]
+    },
+    {
+      "name": "nationality",
+      "version": 1,
+      "category": "descriptive",
+      "predicates": [
+        "has_attribute"
+      ],
+      "subject_types": [
+        "person"
+      ],
+      "value_kinds": [
+        "text",
+        "entity"
+      ],
+      "sensitivity": [
+        "identity"
+      ]
+    },
+    {
+      "name": "contact_channel",
+      "version": 1,
+      "category": "descriptive",
+      "predicates": [
+        "has_attribute"
+      ],
+      "subject_types": [
+        "person",
+        "agent",
+        "group",
+        "organisation"
+      ],
+      "value_kinds": [
+        "text"
+      ],
+      "sensitivity": [
+        "contact"
+      ]
+    },
+    {
+      "name": "preferred_contact_time",
+      "version": 1,
+      "category": "descriptive",
+      "predicates": [
+        "has_attribute"
+      ],
+      "subject_types": [
+        "person",
+        "agent",
+        "group",
+        "organisation"
+      ],
+      "value_kinds": [
+        "text"
+      ],
+      "sensitivity": [
+        "contact"
       ]
     }
   ],
@@ -3113,8 +4681,14 @@
         "work",
         "project",
         "species",
+        "concept",
+        "document",
+        "software",
+        "event",
         "other"
-      ]
+      ],
+      "max_bindings": 1,
+      "evidence_requirement": "exact_span"
     },
     {
       "name": "alternative",
@@ -3133,8 +4707,14 @@
         "work",
         "project",
         "species",
+        "concept",
+        "document",
+        "software",
+        "event",
         "other"
-      ]
+      ],
+      "max_bindings": 1,
+      "evidence_requirement": "exact_span"
     },
     {
       "name": "assignee",
@@ -3147,7 +4727,9 @@
         "agent",
         "group",
         "organisation"
-      ]
+      ],
+      "max_bindings": 1,
+      "evidence_requirement": "exact_span"
     },
     {
       "name": "commissioner",
@@ -3160,7 +4742,9 @@
         "agent",
         "group",
         "organisation"
-      ]
+      ],
+      "max_bindings": 1,
+      "evidence_requirement": "span_or_envelope"
     },
     {
       "name": "context",
@@ -3178,8 +4762,14 @@
         "work",
         "project",
         "species",
+        "concept",
+        "document",
+        "software",
+        "event",
         "other"
-      ]
+      ],
+      "max_bindings": 1,
+      "evidence_requirement": "exact_span"
     },
     {
       "name": "giver",
@@ -3192,7 +4782,9 @@
         "agent",
         "group",
         "organisation"
-      ]
+      ],
+      "max_bindings": 1,
+      "evidence_requirement": "span_or_envelope"
     },
     {
       "name": "item",
@@ -3210,8 +4802,14 @@
         "work",
         "project",
         "species",
+        "concept",
+        "document",
+        "software",
+        "event",
         "other"
-      ]
+      ],
+      "max_bindings": 1,
+      "evidence_requirement": "exact_span"
     },
     {
       "name": "maker",
@@ -3224,7 +4822,9 @@
         "agent",
         "group",
         "organisation"
-      ]
+      ],
+      "max_bindings": 1,
+      "evidence_requirement": "exact_span"
     },
     {
       "name": "preferred",
@@ -3243,8 +4843,14 @@
         "work",
         "project",
         "species",
+        "concept",
+        "document",
+        "software",
+        "event",
         "other"
-      ]
+      ],
+      "max_bindings": 1,
+      "evidence_requirement": "exact_span"
     },
     {
       "name": "proposer",
@@ -3257,7 +4863,9 @@
         "agent",
         "group",
         "organisation"
-      ]
+      ],
+      "max_bindings": 1,
+      "evidence_requirement": "span_or_envelope"
     },
     {
       "name": "recipient",
@@ -3270,7 +4878,9 @@
         "agent",
         "group",
         "organisation"
-      ]
+      ],
+      "max_bindings": 1,
+      "evidence_requirement": "exact_span"
     },
     {
       "name": "resource",
@@ -3289,8 +4899,373 @@
         "work",
         "project",
         "species",
+        "concept",
+        "document",
+        "software",
+        "event",
         "other"
-      ]
+      ],
+      "max_bindings": 1,
+      "evidence_requirement": "exact_span"
+    },
+    {
+      "name": "actor",
+      "version": 1,
+      "value_kinds": [
+        "entity"
+      ],
+      "entity_types": [
+        "person",
+        "agent",
+        "group",
+        "organisation",
+        "software"
+      ],
+      "max_bindings": null,
+      "evidence_requirement": "span_or_envelope"
+    },
+    {
+      "name": "location",
+      "version": 1,
+      "value_kinds": [
+        "entity",
+        "text"
+      ],
+      "entity_types": [
+        "place"
+      ],
+      "max_bindings": 1,
+      "evidence_requirement": "exact_span"
+    },
+    {
+      "name": "time",
+      "version": 1,
+      "value_kinds": [
+        "temporal"
+      ],
+      "entity_types": [],
+      "max_bindings": 1,
+      "evidence_requirement": "temporal_ref"
+    },
+    {
+      "name": "instrument",
+      "version": 1,
+      "value_kinds": [
+        "entity",
+        "text"
+      ],
+      "entity_types": [
+        "object",
+        "software",
+        "work",
+        "document",
+        "concept"
+      ],
+      "max_bindings": null,
+      "evidence_requirement": "exact_span"
+    },
+    {
+      "name": "beneficiary",
+      "version": 1,
+      "value_kinds": [
+        "entity"
+      ],
+      "entity_types": [
+        "person",
+        "agent",
+        "group",
+        "organisation"
+      ],
+      "max_bindings": null,
+      "evidence_requirement": "exact_span"
+    },
+    {
+      "name": "topic",
+      "version": 1,
+      "value_kinds": [
+        "entity",
+        "text"
+      ],
+      "entity_types": [
+        "person",
+        "agent",
+        "group",
+        "organisation",
+        "place",
+        "object",
+        "work",
+        "project",
+        "species",
+        "concept",
+        "document",
+        "software",
+        "event",
+        "other"
+      ],
+      "max_bindings": null,
+      "evidence_requirement": "exact_span"
+    },
+    {
+      "name": "companion",
+      "version": 1,
+      "value_kinds": [
+        "entity"
+      ],
+      "entity_types": [
+        "person",
+        "agent",
+        "group",
+        "species"
+      ],
+      "max_bindings": null,
+      "evidence_requirement": "exact_span"
+    },
+    {
+      "name": "origin",
+      "version": 1,
+      "value_kinds": [
+        "entity",
+        "text"
+      ],
+      "entity_types": [
+        "place"
+      ],
+      "max_bindings": 1,
+      "evidence_requirement": "exact_span"
+    },
+    {
+      "name": "destination",
+      "version": 1,
+      "value_kinds": [
+        "entity",
+        "text"
+      ],
+      "entity_types": [
+        "place"
+      ],
+      "max_bindings": 1,
+      "evidence_requirement": "exact_span"
+    },
+    {
+      "name": "theme",
+      "version": 1,
+      "value_kinds": [
+        "entity",
+        "text"
+      ],
+      "entity_types": [
+        "person",
+        "agent",
+        "group",
+        "organisation",
+        "place",
+        "object",
+        "work",
+        "project",
+        "species",
+        "concept",
+        "document",
+        "software",
+        "event",
+        "other"
+      ],
+      "max_bindings": null,
+      "evidence_requirement": "exact_span"
+    },
+    {
+      "name": "cause",
+      "version": 1,
+      "value_kinds": [
+        "entity",
+        "text"
+      ],
+      "entity_types": [
+        "person",
+        "agent",
+        "group",
+        "organisation",
+        "place",
+        "object",
+        "work",
+        "project",
+        "species",
+        "concept",
+        "document",
+        "software",
+        "event",
+        "other"
+      ],
+      "max_bindings": null,
+      "evidence_requirement": "exact_span"
+    },
+    {
+      "name": "result",
+      "version": 1,
+      "value_kinds": [
+        "entity",
+        "text"
+      ],
+      "entity_types": [
+        "person",
+        "agent",
+        "group",
+        "organisation",
+        "place",
+        "object",
+        "work",
+        "project",
+        "species",
+        "concept",
+        "document",
+        "software",
+        "event",
+        "other"
+      ],
+      "max_bindings": null,
+      "evidence_requirement": "exact_span"
+    },
+    {
+      "name": "participant",
+      "version": 1,
+      "value_kinds": [
+        "entity"
+      ],
+      "entity_types": [
+        "person",
+        "agent",
+        "group",
+        "organisation"
+      ],
+      "max_bindings": null,
+      "evidence_requirement": "exact_span"
+    },
+    {
+      "name": "manner",
+      "version": 1,
+      "value_kinds": [
+        "text"
+      ],
+      "entity_types": [],
+      "max_bindings": 1,
+      "evidence_requirement": "exact_span"
+    },
+    {
+      "name": "amount",
+      "version": 1,
+      "value_kinds": [
+        "number"
+      ],
+      "entity_types": [],
+      "max_bindings": 1,
+      "evidence_requirement": "exact_span",
+      "requires_unit": true
+    },
+    {
+      "name": "obligor",
+      "version": 1,
+      "value_kinds": [
+        "entity"
+      ],
+      "entity_types": [
+        "person",
+        "agent",
+        "group",
+        "organisation",
+        "software"
+      ],
+      "max_bindings": 1,
+      "evidence_requirement": "span_or_envelope"
+    },
+    {
+      "name": "requester",
+      "version": 1,
+      "value_kinds": [
+        "entity"
+      ],
+      "entity_types": [
+        "person",
+        "agent",
+        "group",
+        "organisation",
+        "software"
+      ],
+      "max_bindings": 1,
+      "evidence_requirement": "span_or_envelope"
+    },
+    {
+      "name": "addressee",
+      "version": 1,
+      "value_kinds": [
+        "entity"
+      ],
+      "entity_types": [
+        "person",
+        "agent",
+        "group",
+        "organisation",
+        "software"
+      ],
+      "max_bindings": null,
+      "evidence_requirement": "exact_span"
+    },
+    {
+      "name": "decider",
+      "version": 1,
+      "value_kinds": [
+        "entity"
+      ],
+      "entity_types": [
+        "person",
+        "agent",
+        "group",
+        "organisation",
+        "software"
+      ],
+      "max_bindings": null,
+      "evidence_requirement": "span_or_envelope"
+    },
+    {
+      "name": "instructor",
+      "version": 1,
+      "value_kinds": [
+        "entity"
+      ],
+      "entity_types": [
+        "person",
+        "agent",
+        "group",
+        "organisation",
+        "software"
+      ],
+      "max_bindings": 1,
+      "evidence_requirement": "span_or_envelope"
+    },
+    {
+      "name": "condition",
+      "version": 1,
+      "value_kinds": [
+        "entity",
+        "text"
+      ],
+      "entity_types": [
+        "person",
+        "agent",
+        "group",
+        "organisation",
+        "place",
+        "object",
+        "work",
+        "project",
+        "species",
+        "concept",
+        "document",
+        "software",
+        "event",
+        "other"
+      ],
+      "max_bindings": null,
+      "evidence_requirement": "exact_span"
     }
-  ]
+  ],
+  "withdrawn": []
 }

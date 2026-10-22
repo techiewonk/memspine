@@ -1,0 +1,1320 @@
+{
+  "schema_version": 1,
+  "pack_id": "memspine.proposed",
+  "pack_version": 1,
+  "source": "builtin",
+  "status": "proposed",
+  "default_active": false,
+  "description": "Proposed names, pending owner confirmation (RM-62 families D, E, F, H, I, J, L; RM-63 families M, N). Not active by default; never enables extraction.",
+  "dependencies": [
+    {
+      "pack_id": "memspine.core",
+      "digest": "b4b7d83fa1031b8b970dcd5805bcd9cf669083aa9f31e5e34daba232a62c2898"
+    }
+  ],
+  "predicates": [
+    {
+      "name": "has_condition",
+      "version": 1,
+      "subject_types": [
+        "person"
+      ],
+      "value_kinds": [
+        "entity",
+        "text"
+      ],
+      "object_entity_types": [
+        "concept"
+      ],
+      "semantics": "state",
+      "cardinality": "many",
+      "cardinality_scope": [],
+      "transition_policy": "explicit_only",
+      "closed_world": false,
+      "allowed_source_origins": [
+        "raw_message",
+        "document",
+        "attachment_text",
+        "form_input",
+        "profile_import"
+      ],
+      "property_category": null,
+      "role_names": [],
+      "required_roles": [],
+      "extraction_rule_ids": [],
+      "sensitivity": [
+        "health"
+      ]
+    },
+    {
+      "name": "allergic_to",
+      "version": 1,
+      "subject_types": [
+        "person"
+      ],
+      "value_kinds": [
+        "entity",
+        "text"
+      ],
+      "object_entity_types": [
+        "concept",
+        "object",
+        "species"
+      ],
+      "semantics": "state",
+      "cardinality": "many",
+      "cardinality_scope": [],
+      "transition_policy": "explicit_only",
+      "closed_world": false,
+      "allowed_source_origins": [
+        "raw_message",
+        "document",
+        "attachment_text",
+        "form_input",
+        "profile_import"
+      ],
+      "property_category": null,
+      "role_names": [],
+      "required_roles": [],
+      "extraction_rule_ids": [],
+      "sensitivity": [
+        "health"
+      ]
+    },
+    {
+      "name": "intolerant_of",
+      "version": 1,
+      "subject_types": [
+        "person"
+      ],
+      "value_kinds": [
+        "entity",
+        "text"
+      ],
+      "object_entity_types": [
+        "concept",
+        "object"
+      ],
+      "semantics": "state",
+      "cardinality": "many",
+      "cardinality_scope": [],
+      "transition_policy": "explicit_only",
+      "closed_world": false,
+      "allowed_source_origins": [
+        "raw_message",
+        "document",
+        "attachment_text",
+        "form_input",
+        "profile_import"
+      ],
+      "property_category": null,
+      "role_names": [],
+      "required_roles": [],
+      "extraction_rule_ids": [],
+      "sensitivity": [
+        "health"
+      ]
+    },
+    {
+      "name": "takes_medication",
+      "version": 1,
+      "subject_types": [
+        "person"
+      ],
+      "value_kinds": [
+        "entity",
+        "text"
+      ],
+      "object_entity_types": [
+        "concept",
+        "object"
+      ],
+      "semantics": "state",
+      "cardinality": "many",
+      "cardinality_scope": [],
+      "transition_policy": "explicit_only",
+      "closed_world": false,
+      "allowed_source_origins": [
+        "raw_message",
+        "document",
+        "attachment_text",
+        "form_input",
+        "profile_import"
+      ],
+      "property_category": null,
+      "role_names": [],
+      "required_roles": [],
+      "extraction_rule_ids": [],
+      "sensitivity": [
+        "health"
+      ]
+    },
+    {
+      "name": "experienced_symptom",
+      "version": 1,
+      "subject_types": [
+        "person"
+      ],
+      "value_kinds": [
+        "entity",
+        "text"
+      ],
+      "object_entity_types": [
+        "concept"
+      ],
+      "semantics": "event",
+      "cardinality": "many",
+      "cardinality_scope": [],
+      "transition_policy": "explicit_only",
+      "closed_world": false,
+      "allowed_source_origins": [
+        "raw_message",
+        "document",
+        "attachment_text",
+        "form_input",
+        "profile_import"
+      ],
+      "property_category": null,
+      "role_names": [
+        "time"
+      ],
+      "required_roles": [],
+      "extraction_rule_ids": [],
+      "sensitivity": [
+        "health"
+      ]
+    },
+    {
+      "name": "feels",
+      "version": 1,
+      "subject_types": [
+        "person",
+        "agent",
+        "group"
+      ],
+      "value_kinds": [
+        "entity",
+        "text"
+      ],
+      "object_entity_types": [
+        "concept"
+      ],
+      "semantics": "state",
+      "cardinality": "many",
+      "cardinality_scope": [],
+      "transition_policy": "explicit_only",
+      "closed_world": false,
+      "allowed_source_origins": [
+        "raw_message",
+        "document",
+        "attachment_text"
+      ],
+      "property_category": null,
+      "role_names": [
+        "topic",
+        "cause"
+      ],
+      "required_roles": [],
+      "extraction_rule_ids": [],
+      "statement_kind": "attributed"
+    },
+    {
+      "name": "believes",
+      "version": 1,
+      "subject_types": [
+        "person",
+        "agent",
+        "group",
+        "organisation"
+      ],
+      "value_kinds": [
+        "text"
+      ],
+      "object_entity_types": [],
+      "semantics": "state",
+      "cardinality": "many",
+      "cardinality_scope": [],
+      "transition_policy": "explicit_only",
+      "closed_world": false,
+      "allowed_source_origins": [
+        "raw_message",
+        "document",
+        "attachment_text"
+      ],
+      "property_category": null,
+      "role_names": [
+        "topic"
+      ],
+      "required_roles": [],
+      "extraction_rule_ids": [],
+      "statement_kind": "attributed"
+    },
+    {
+      "name": "values",
+      "version": 1,
+      "subject_types": [
+        "person",
+        "agent",
+        "group",
+        "organisation"
+      ],
+      "value_kinds": [
+        "entity",
+        "text"
+      ],
+      "object_entity_types": [
+        "concept"
+      ],
+      "semantics": "state",
+      "cardinality": "many",
+      "cardinality_scope": [],
+      "transition_policy": "explicit_only",
+      "closed_world": false,
+      "allowed_source_origins": [
+        "raw_message",
+        "document",
+        "attachment_text"
+      ],
+      "property_category": null,
+      "role_names": [],
+      "required_roles": [],
+      "extraction_rule_ids": [],
+      "statement_kind": "attributed"
+    },
+    {
+      "name": "worried_about",
+      "version": 1,
+      "subject_types": [
+        "person",
+        "agent",
+        "group"
+      ],
+      "value_kinds": [
+        "entity",
+        "text"
+      ],
+      "object_entity_types": [
+        "person",
+        "agent",
+        "group",
+        "organisation",
+        "place",
+        "object",
+        "work",
+        "project",
+        "species",
+        "concept",
+        "document",
+        "software",
+        "event",
+        "other"
+      ],
+      "semantics": "state",
+      "cardinality": "many",
+      "cardinality_scope": [],
+      "transition_policy": "explicit_only",
+      "closed_world": false,
+      "allowed_source_origins": [
+        "raw_message",
+        "document",
+        "attachment_text"
+      ],
+      "property_category": null,
+      "role_names": [],
+      "required_roles": [],
+      "extraction_rule_ids": [],
+      "statement_kind": "attributed"
+    },
+    {
+      "name": "learning",
+      "version": 1,
+      "subject_types": [
+        "person",
+        "agent",
+        "group"
+      ],
+      "value_kinds": [
+        "entity",
+        "text"
+      ],
+      "object_entity_types": [
+        "concept",
+        "software",
+        "work"
+      ],
+      "semantics": "state",
+      "cardinality": "many",
+      "cardinality_scope": [],
+      "transition_policy": "explicit_only",
+      "closed_world": false,
+      "allowed_source_origins": [
+        "raw_message",
+        "document",
+        "attachment_text"
+      ],
+      "property_category": null,
+      "role_names": [],
+      "required_roles": [],
+      "extraction_rule_ids": [],
+      "lifecycle": true
+    },
+    {
+      "name": "teaches",
+      "version": 1,
+      "subject_types": [
+        "person",
+        "agent",
+        "organisation"
+      ],
+      "value_kinds": [
+        "entity"
+      ],
+      "object_entity_types": [
+        "person",
+        "group"
+      ],
+      "semantics": "relation",
+      "cardinality": "many",
+      "cardinality_scope": [],
+      "transition_policy": "explicit_only",
+      "closed_world": false,
+      "allowed_source_origins": [
+        "raw_message",
+        "document",
+        "attachment_text"
+      ],
+      "property_category": null,
+      "role_names": [
+        "topic"
+      ],
+      "required_roles": [
+        "topic"
+      ],
+      "extraction_rule_ids": []
+    },
+    {
+      "name": "enrolled_in",
+      "version": 1,
+      "subject_types": [
+        "person"
+      ],
+      "value_kinds": [
+        "entity"
+      ],
+      "object_entity_types": [
+        "organisation",
+        "project",
+        "event",
+        "concept"
+      ],
+      "semantics": "state",
+      "cardinality": "many",
+      "cardinality_scope": [],
+      "transition_policy": "explicit_only",
+      "closed_world": false,
+      "allowed_source_origins": [
+        "raw_message",
+        "document",
+        "attachment_text",
+        "form_input",
+        "profile_import"
+      ],
+      "property_category": null,
+      "role_names": [],
+      "required_roles": [],
+      "extraction_rule_ids": []
+    },
+    {
+      "name": "studied_at",
+      "version": 1,
+      "subject_types": [
+        "person"
+      ],
+      "value_kinds": [
+        "entity"
+      ],
+      "object_entity_types": [
+        "organisation",
+        "place"
+      ],
+      "semantics": "relation",
+      "cardinality": "many",
+      "cardinality_scope": [],
+      "transition_policy": "explicit_only",
+      "closed_world": false,
+      "allowed_source_origins": [
+        "raw_message",
+        "document",
+        "attachment_text",
+        "form_input",
+        "profile_import"
+      ],
+      "property_category": null,
+      "role_names": [],
+      "required_roles": [],
+      "extraction_rule_ids": []
+    },
+    {
+      "name": "purchased",
+      "version": 1,
+      "subject_types": [
+        "person",
+        "agent",
+        "group",
+        "organisation"
+      ],
+      "value_kinds": [
+        "entity",
+        "text"
+      ],
+      "object_entity_types": [
+        "object",
+        "work",
+        "document",
+        "software",
+        "species"
+      ],
+      "semantics": "event",
+      "cardinality": "many",
+      "cardinality_scope": [],
+      "transition_policy": "explicit_only",
+      "closed_world": false,
+      "allowed_source_origins": [
+        "raw_message",
+        "document",
+        "attachment_text",
+        "email",
+        "structured_record"
+      ],
+      "property_category": null,
+      "role_names": [
+        "buyer",
+        "seller",
+        "item",
+        "amount"
+      ],
+      "required_roles": [
+        "buyer",
+        "item"
+      ],
+      "extraction_rule_ids": [],
+      "event_family": "sale",
+      "sensitivity": [
+        "financial"
+      ]
+    },
+    {
+      "name": "sold",
+      "version": 1,
+      "subject_types": [
+        "person",
+        "agent",
+        "group",
+        "organisation"
+      ],
+      "value_kinds": [
+        "entity",
+        "text"
+      ],
+      "object_entity_types": [
+        "object",
+        "work",
+        "document",
+        "software",
+        "species"
+      ],
+      "semantics": "event",
+      "cardinality": "many",
+      "cardinality_scope": [],
+      "transition_policy": "explicit_only",
+      "closed_world": false,
+      "allowed_source_origins": [
+        "raw_message",
+        "document",
+        "attachment_text",
+        "email",
+        "structured_record"
+      ],
+      "property_category": null,
+      "role_names": [
+        "buyer",
+        "seller",
+        "item",
+        "amount"
+      ],
+      "required_roles": [
+        "seller",
+        "item"
+      ],
+      "extraction_rule_ids": [],
+      "event_family": "sale",
+      "sensitivity": [
+        "financial"
+      ]
+    },
+    {
+      "name": "paid",
+      "version": 1,
+      "subject_types": [
+        "person",
+        "agent",
+        "group",
+        "organisation"
+      ],
+      "value_kinds": [
+        "entity",
+        "text"
+      ],
+      "object_entity_types": [
+        "person",
+        "agent",
+        "group",
+        "organisation"
+      ],
+      "semantics": "event",
+      "cardinality": "many",
+      "cardinality_scope": [],
+      "transition_policy": "explicit_only",
+      "closed_world": false,
+      "allowed_source_origins": [
+        "raw_message",
+        "document",
+        "attachment_text",
+        "email",
+        "structured_record"
+      ],
+      "property_category": null,
+      "role_names": [
+        "giver",
+        "recipient",
+        "amount"
+      ],
+      "required_roles": [
+        "giver",
+        "amount"
+      ],
+      "extraction_rule_ids": [],
+      "sensitivity": [
+        "financial"
+      ]
+    },
+    {
+      "name": "lent",
+      "version": 1,
+      "subject_types": [
+        "person",
+        "agent",
+        "group",
+        "organisation"
+      ],
+      "value_kinds": [
+        "entity",
+        "text"
+      ],
+      "object_entity_types": [
+        "object",
+        "work",
+        "document",
+        "software",
+        "species"
+      ],
+      "semantics": "event",
+      "cardinality": "many",
+      "cardinality_scope": [],
+      "transition_policy": "explicit_only",
+      "closed_world": false,
+      "allowed_source_origins": [
+        "raw_message",
+        "document",
+        "attachment_text"
+      ],
+      "property_category": null,
+      "role_names": [
+        "giver",
+        "recipient",
+        "item"
+      ],
+      "required_roles": [
+        "giver",
+        "item"
+      ],
+      "extraction_rule_ids": [],
+      "event_family": "loan",
+      "sensitivity": [
+        "financial"
+      ]
+    },
+    {
+      "name": "borrowed",
+      "version": 1,
+      "subject_types": [
+        "person",
+        "agent",
+        "group",
+        "organisation"
+      ],
+      "value_kinds": [
+        "entity",
+        "text"
+      ],
+      "object_entity_types": [
+        "object",
+        "work",
+        "document",
+        "software",
+        "species"
+      ],
+      "semantics": "event",
+      "cardinality": "many",
+      "cardinality_scope": [],
+      "transition_policy": "explicit_only",
+      "closed_world": false,
+      "allowed_source_origins": [
+        "raw_message",
+        "document",
+        "attachment_text"
+      ],
+      "property_category": null,
+      "role_names": [
+        "giver",
+        "recipient",
+        "item"
+      ],
+      "required_roles": [
+        "recipient",
+        "item"
+      ],
+      "extraction_rule_ids": [],
+      "event_family": "loan",
+      "sensitivity": [
+        "financial"
+      ]
+    },
+    {
+      "name": "acquired",
+      "version": 1,
+      "subject_types": [
+        "person",
+        "agent",
+        "group",
+        "organisation"
+      ],
+      "value_kinds": [
+        "entity",
+        "text"
+      ],
+      "object_entity_types": [
+        "object",
+        "work",
+        "document",
+        "software",
+        "species"
+      ],
+      "semantics": "event",
+      "cardinality": "many",
+      "cardinality_scope": [],
+      "transition_policy": "explicit_only",
+      "closed_world": false,
+      "allowed_source_origins": [
+        "raw_message",
+        "document",
+        "attachment_text"
+      ],
+      "property_category": null,
+      "role_names": [],
+      "required_roles": [],
+      "extraction_rule_ids": [],
+      "state_effect": "opens",
+      "affects_state": "owns"
+    },
+    {
+      "name": "disposed_of",
+      "version": 1,
+      "subject_types": [
+        "person",
+        "agent",
+        "group",
+        "organisation"
+      ],
+      "value_kinds": [
+        "entity",
+        "text"
+      ],
+      "object_entity_types": [
+        "object",
+        "work",
+        "document",
+        "software",
+        "species"
+      ],
+      "semantics": "event",
+      "cardinality": "many",
+      "cardinality_scope": [],
+      "transition_policy": "explicit_only",
+      "closed_world": false,
+      "allowed_source_origins": [
+        "raw_message",
+        "document",
+        "attachment_text"
+      ],
+      "property_category": null,
+      "role_names": [],
+      "required_roles": [],
+      "extraction_rule_ids": [],
+      "state_effect": "closes",
+      "affects_state": "owns"
+    },
+    {
+      "name": "lost",
+      "version": 1,
+      "subject_types": [
+        "person",
+        "agent",
+        "group",
+        "organisation"
+      ],
+      "value_kinds": [
+        "entity",
+        "text"
+      ],
+      "object_entity_types": [
+        "object",
+        "work",
+        "document",
+        "software",
+        "species"
+      ],
+      "semantics": "event",
+      "cardinality": "many",
+      "cardinality_scope": [],
+      "transition_policy": "explicit_only",
+      "closed_world": false,
+      "allowed_source_origins": [
+        "raw_message",
+        "document",
+        "attachment_text"
+      ],
+      "property_category": null,
+      "role_names": [],
+      "required_roles": [],
+      "extraction_rule_ids": [],
+      "state_effect": "closes",
+      "affects_state": "owns"
+    },
+    {
+      "name": "repaired",
+      "version": 1,
+      "subject_types": [
+        "person",
+        "agent",
+        "group",
+        "organisation"
+      ],
+      "value_kinds": [
+        "entity",
+        "text"
+      ],
+      "object_entity_types": [
+        "object",
+        "work",
+        "document",
+        "software",
+        "species"
+      ],
+      "semantics": "event",
+      "cardinality": "many",
+      "cardinality_scope": [],
+      "transition_policy": "explicit_only",
+      "closed_world": false,
+      "allowed_source_origins": [
+        "raw_message",
+        "document",
+        "attachment_text"
+      ],
+      "property_category": null,
+      "role_names": [],
+      "required_roles": [],
+      "extraction_rule_ids": []
+    },
+    {
+      "name": "returned",
+      "version": 1,
+      "subject_types": [
+        "person",
+        "agent",
+        "group",
+        "organisation"
+      ],
+      "value_kinds": [
+        "entity",
+        "text"
+      ],
+      "object_entity_types": [
+        "object",
+        "work",
+        "document",
+        "software",
+        "species"
+      ],
+      "semantics": "event",
+      "cardinality": "many",
+      "cardinality_scope": [],
+      "transition_policy": "explicit_only",
+      "closed_world": false,
+      "allowed_source_origins": [
+        "raw_message",
+        "document",
+        "attachment_text"
+      ],
+      "property_category": null,
+      "role_names": [
+        "recipient"
+      ],
+      "required_roles": [],
+      "extraction_rule_ids": [],
+      "state_effect": "closes",
+      "affects_state": "owns"
+    },
+    {
+      "name": "rated",
+      "version": 1,
+      "subject_types": [
+        "person",
+        "agent",
+        "group",
+        "organisation"
+      ],
+      "value_kinds": [
+        "entity",
+        "text"
+      ],
+      "object_entity_types": [
+        "person",
+        "agent",
+        "group",
+        "organisation",
+        "place",
+        "object",
+        "work",
+        "project",
+        "species",
+        "concept",
+        "document",
+        "software",
+        "event",
+        "other"
+      ],
+      "semantics": "event",
+      "cardinality": "many",
+      "cardinality_scope": [],
+      "transition_policy": "explicit_only",
+      "closed_world": false,
+      "allowed_source_origins": [
+        "raw_message",
+        "document",
+        "attachment_text",
+        "form_input",
+        "external_catalogue"
+      ],
+      "property_category": null,
+      "role_names": [],
+      "required_roles": [],
+      "extraction_rule_ids": []
+    },
+    {
+      "name": "has_routine",
+      "version": 1,
+      "subject_types": [
+        "person",
+        "agent",
+        "group"
+      ],
+      "value_kinds": [
+        "entity",
+        "text"
+      ],
+      "object_entity_types": [
+        "concept",
+        "event",
+        "work"
+      ],
+      "semantics": "state",
+      "cardinality": "many",
+      "cardinality_scope": [],
+      "transition_policy": "explicit_only",
+      "closed_world": false,
+      "allowed_source_origins": [
+        "raw_message",
+        "document",
+        "attachment_text"
+      ],
+      "property_category": null,
+      "role_names": [
+        "context",
+        "location"
+      ],
+      "required_roles": [],
+      "extraction_rule_ids": []
+    },
+    {
+      "name": "attempted",
+      "version": 1,
+      "subject_types": [
+        "agent",
+        "person",
+        "software"
+      ],
+      "value_kinds": [
+        "entity",
+        "text"
+      ],
+      "object_entity_types": [
+        "project",
+        "work",
+        "document",
+        "software",
+        "event",
+        "object",
+        "concept"
+      ],
+      "semantics": "event",
+      "cardinality": "many",
+      "cardinality_scope": [],
+      "transition_policy": "explicit_only",
+      "closed_world": false,
+      "allowed_source_origins": [
+        "tool_output",
+        "system_event",
+        "agent_observation",
+        "raw_message",
+        "transcript"
+      ],
+      "property_category": null,
+      "role_names": [
+        "actor",
+        "action",
+        "instrument"
+      ],
+      "required_roles": [
+        "action"
+      ],
+      "extraction_rule_ids": [],
+      "lifecycle": true
+    },
+    {
+      "name": "failed_with",
+      "version": 1,
+      "subject_types": [
+        "agent",
+        "person",
+        "software",
+        "project"
+      ],
+      "value_kinds": [
+        "text"
+      ],
+      "object_entity_types": [],
+      "semantics": "event",
+      "cardinality": "many",
+      "cardinality_scope": [],
+      "transition_policy": "explicit_only",
+      "closed_world": false,
+      "allowed_source_origins": [
+        "tool_output",
+        "system_event",
+        "agent_observation",
+        "raw_message",
+        "transcript"
+      ],
+      "property_category": null,
+      "role_names": [
+        "instrument"
+      ],
+      "required_roles": [],
+      "extraction_rule_ids": []
+    },
+    {
+      "name": "workaround_for",
+      "version": 1,
+      "subject_types": [
+        "concept",
+        "software",
+        "document",
+        "work"
+      ],
+      "value_kinds": [
+        "entity",
+        "text"
+      ],
+      "object_entity_types": [
+        "concept",
+        "software",
+        "document",
+        "work"
+      ],
+      "semantics": "relation",
+      "cardinality": "many",
+      "cardinality_scope": [],
+      "transition_policy": "explicit_only",
+      "closed_world": false,
+      "allowed_source_origins": [
+        "tool_output",
+        "system_event",
+        "agent_observation",
+        "raw_message",
+        "transcript",
+        "document",
+        "code_repository"
+      ],
+      "property_category": null,
+      "role_names": [],
+      "required_roles": [],
+      "extraction_rule_ids": []
+    }
+  ],
+  "properties": [
+    {
+      "name": "severity",
+      "version": 1,
+      "category": "qualifier",
+      "predicates": [
+        "has_condition",
+        "allergic_to",
+        "intolerant_of",
+        "experienced_symptom"
+      ],
+      "subject_types": [],
+      "value_kinds": [
+        "text"
+      ],
+      "sensitivity": [
+        "health"
+      ]
+    },
+    {
+      "name": "diagnosis_status",
+      "version": 1,
+      "category": "qualifier",
+      "predicates": [
+        "has_condition"
+      ],
+      "subject_types": [],
+      "value_kinds": [
+        "text"
+      ],
+      "allowed_values": [
+        "self_reported",
+        "suspected",
+        "diagnosed",
+        "ruled_out"
+      ],
+      "sensitivity": [
+        "health"
+      ]
+    },
+    {
+      "name": "intensity",
+      "version": 1,
+      "category": "qualifier",
+      "predicates": [
+        "feels",
+        "worried_about"
+      ],
+      "subject_types": [],
+      "value_kinds": [
+        "text"
+      ]
+    },
+    {
+      "name": "field_of_study",
+      "version": 1,
+      "category": "qualifier",
+      "predicates": [
+        "enrolled_in",
+        "studied_at",
+        "learning"
+      ],
+      "subject_types": [],
+      "value_kinds": [
+        "text"
+      ]
+    },
+    {
+      "name": "qualification",
+      "version": 1,
+      "category": "qualifier",
+      "predicates": [
+        "studied_at",
+        "enrolled_in"
+      ],
+      "subject_types": [],
+      "value_kinds": [
+        "text"
+      ]
+    },
+    {
+      "name": "speech_act",
+      "version": 1,
+      "category": "qualifier",
+      "predicates": [
+        "communicated_with"
+      ],
+      "subject_types": [],
+      "value_kinds": [
+        "text"
+      ],
+      "allowed_values": [
+        "ask",
+        "answer",
+        "inform",
+        "request",
+        "agree",
+        "decline",
+        "apologise",
+        "thank"
+      ]
+    },
+    {
+      "name": "rating",
+      "version": 1,
+      "category": "qualifier",
+      "predicates": [
+        "rated"
+      ],
+      "subject_types": [],
+      "value_kinds": [
+        "number",
+        "text"
+      ]
+    },
+    {
+      "name": "sentiment",
+      "version": 1,
+      "category": "qualifier",
+      "predicates": [
+        "rated"
+      ],
+      "subject_types": [],
+      "value_kinds": [
+        "text"
+      ],
+      "allowed_values": [
+        "positive",
+        "negative",
+        "neutral",
+        "mixed"
+      ]
+    },
+    {
+      "name": "time_of_day",
+      "version": 1,
+      "category": "qualifier",
+      "predicates": [
+        "has_routine"
+      ],
+      "subject_types": [],
+      "value_kinds": [
+        "text"
+      ]
+    },
+    {
+      "name": "day_of_week",
+      "version": 1,
+      "category": "qualifier",
+      "predicates": [
+        "has_routine"
+      ],
+      "subject_types": [],
+      "value_kinds": [
+        "text"
+      ],
+      "allowed_values": [
+        "monday",
+        "tuesday",
+        "wednesday",
+        "thursday",
+        "friday",
+        "saturday",
+        "sunday"
+      ]
+    },
+    {
+      "name": "transport_mode",
+      "version": 1,
+      "category": "qualifier",
+      "predicates": [
+        "visited",
+        "temporarily_present_in",
+        "attended"
+      ],
+      "subject_types": [],
+      "value_kinds": [
+        "text"
+      ]
+    },
+    {
+      "name": "participation_mode",
+      "version": 1,
+      "category": "qualifier",
+      "predicates": [
+        "attended",
+        "participated_in",
+        "visited"
+      ],
+      "subject_types": [],
+      "value_kinds": [
+        "text"
+      ],
+      "allowed_values": [
+        "in_person",
+        "remote",
+        "hybrid"
+      ]
+    },
+    {
+      "name": "error_type",
+      "version": 1,
+      "category": "qualifier",
+      "predicates": [
+        "failed_with"
+      ],
+      "subject_types": [],
+      "value_kinds": [
+        "text"
+      ]
+    }
+  ],
+  "roles": [
+    {
+      "name": "buyer",
+      "version": 1,
+      "value_kinds": [
+        "entity"
+      ],
+      "entity_types": [
+        "person",
+        "agent",
+        "group",
+        "organisation"
+      ],
+      "max_bindings": 1,
+      "evidence_requirement": "span_or_envelope"
+    },
+    {
+      "name": "seller",
+      "version": 1,
+      "value_kinds": [
+        "entity"
+      ],
+      "entity_types": [
+        "person",
+        "agent",
+        "group",
+        "organisation"
+      ],
+      "max_bindings": 1,
+      "evidence_requirement": "exact_span"
+    }
+  ],
+  "withdrawn": []
+}

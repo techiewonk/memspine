@@ -20,8 +20,8 @@ def registry() -> SemanticRegistry:
 
 
 def test_selected_catalog_is_packaged_without_extraction_activation(registry):
-    assert len(registry.predicates) == 53
-    assert len(registry.properties) == 44
+    assert len(registry.predicates) == 77
+    assert len(registry.properties) == 63
     assert "located_in" in registry.predicates
     assert "event_count" in registry.properties
     assert all(
@@ -236,7 +236,7 @@ def test_package_import_and_catalog_need_no_models_providers_or_docs():
 import sys
 from memspine.semantics import load_builtin_registry
 registry = load_builtin_registry()
-assert len(registry.predicates) == 53
+assert len(registry.predicates) == 77
 assert not any(name.startswith(('torch', 'transformers', 'memspine.providers', 'memspine.clients', 'memspine.services')) for name in sys.modules)
 """
     subprocess.run([sys.executable, "-c", code], check=True, timeout=20)
