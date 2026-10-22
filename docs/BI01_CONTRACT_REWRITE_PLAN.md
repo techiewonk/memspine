@@ -171,6 +171,11 @@ truth or source identity. Canonical type/role consumers still need integration.
 Focused foundation gate: 23 tests pass; Ruff check/format pass; mypy reports no
 issues in the three Python source files. See the dated verification artifacts.
 
+Registry contracts (later 2026-10-22, commit `f17e476b`) grow the default
+`memspine.core` pack to 77 predicates, 63 property keys and 33 roles, and add a
+`memspine.proposed` pack (28/13/2) that is not active by default. Details in
+[Registry contracts implemented](#registry-contracts-implemented--2026-10-22).
+
 ## RM-24 coordinated cutover and focused gates
 
 1. Apply the recorded BI-Q1..Q5 answers and freeze exact schema/semantic invariants. Retain Q-S/O
@@ -200,10 +205,11 @@ provider checks do not prove the new contracts integrated across all types.
 
 ### Verified observations and qualifications
 
-- Packaged definitions contain 53 predicates, 44 properties and 12 role specs;
-  all 53 predicates have cardinality many, closed_world false and no enabled
-  extraction rules. Nine predicates declare required roles. Origin allowlists
-  contain raw_message, document and attachment_text only.
+- At review time packaged definitions contained 53 predicates, 44 properties and
+  12 role specs; all 53 predicates had cardinality many, closed_world false and no
+  enabled extraction rules. Nine predicates declared required roles. Origin
+  allowlists contained raw_message, document and attachment_text only. (Superseded
+  by the registry contracts below: 77/63/33 in the default pack.)
 - `message_identity.normalise_messages` inherits same-batch parent scope, but
   explicitly rejects a stored-parent reply with no supplied session. Therefore
   the review identifies a real target-policy gap, not failure of every reply.
@@ -461,3 +467,53 @@ Two axes shared by commitments, work status and event lifecycle:
   stops new jobs and keeps history.
 - RS-09: evidence budget configurable with 4K default; reranker a configurable stage
   (none, TinyBERT or MiniLM). Default reranker not yet selected.
+
+## Registry contracts implemented — 2026-10-22
+
+Commit `f17e476b`, `src/memspine/semantics` only. Pure data and validators: no
+extraction rule, compiler, gateway, persistence, projector or reader changes;
+extraction stays gated by BI-06 and activation by an RM-43 policy revision.
+
+| Item | Contract in code | Not yet done (runtime) |
+|---|---|---|
+| RM-45 | `cardinality` one/many/contextual/unknown + `cardinality_scope` (valid_time, role, precision, attribute_key, context); `detect_cardinality_conflicts` flags a second distinct supported value with all claim ids, reports scope-less claims as incomparable, never supersedes. Scoped one-value review of the 53: born_in, located_in (one); started_on, opened_on, completed_on, occurred_on, has_measurement, has_quantity (contextual); plus due_by. resides_in stays many | Conflict state on canonical claims (BI-06/BI-08) |
+| RM-46 | `symmetric`, `inverse_view`, `event_family`; pair checks (symmetric needs identical subject/object types, inverse view cannot equal a predicate or another view, family members share roles); `edge_views` renders the reverse with the same claim/evidence ids and `asserted=False`. child_of, has_member, employer_of, managed_by, has_part, blocks, cited_by, source_of, revised_by, mentee_of, cared_for_by are views, not predicates | Graph read views, replay/erasure tests (BI-08) |
+| RM-47 | RoleSpec `max_bindings`, `evidence_requirement` (exact_span, span_or_envelope, temporal_ref), `requires_unit`; 15 general roles (theme covers patient, participant covers audience) and family roles obligor, requester, addressee, decider, instructor, condition; `validate_role_bindings` | RoleBinding integration in the canonical envelope; per-family fixtures |
+| RM-48 | `SourceOrigin` (18 values); `SourceProvenance` keeps origin, sender, assertion owner and trust as separate fields; derived text needs an asset link; web_page needs explicit fetch; system-produced origins never count as independent corroboration | Canonical tool/structured adapters (BI-02/BI-05) |
+| RM-51 | EntityType adds concept (topics), document (artifacts), software (systems), event (named events, never event-log or occurrence ids) | Entity resolver/type consumers |
+| RM-52 | `sensitivity` on predicates and keys; `tighten` takes the pointwise strictest policy; exhaustive test over all label combinations shows the result is never looser; legal hold is never cleared and defers retention caps | Firewall/retention enforcement (BI-07/BI-10) |
+| RM-53 | `PackManifest` (schema_version 1, pack id/version, source builtin/plugin/config, approved/proposed, dependencies with digest pins, withdrawn list); `memspine.*` reserved for built-in packs; packs cannot enable extraction; conflicts rejected, no last-loaded-wins; withdrawal blocks new work and keeps the definition; `check_pack_upgrade` forbids removal, reverting a withdrawal and silent content change | Activation as a policy revision (RM-43, BI-06) |
+| RM-57 | `LifecycleState` status/outcome axes, terminal statuses, `validate_transition` (explicit, new evidence, no exit from terminal), `RescheduleLink` (time change plus link), `is_achieved` = closed + done | Typed fields on occurrences/claims in the envelope |
+
+Vocabulary in `memspine.core` (default active): family 1 committed_to, due_by,
+requested_of; family 2 decided, works_on, blocked_by; family 3 cites, about,
+derived_from, revision_of; A partner_of, relative_of, colleague_of,
+acquainted_with, mentor_of, caregiver_of, neighbour_of; B+C instructed
+(statement_kind directive, required `directive_polarity` must/must_not/permitted,
+optional `condition` role), restricted_by; G has_goal, wishes; K citizen_of,
+speaks, affiliated_with. Keys: priority, progress, outcome, locator, kinship_type,
+relationship_type, directive_polarity, tone, detail_level, rule_strength,
+target_value, target_date (all claim *qualifiers*, new category `qualifier`);
+publisher, licence, occupation, pronouns, nationality, contact_channel,
+preferred_contact_time (subject attributes). Contact keys carry the contact label;
+pronouns, nationality and citizen_of carry identity; resides_in carries location.
+`directive_polarity` was added to type the selected polarity; it is the only key
+not named in the decision. The `outcome` key is a free-text result; the terminal
+outcome is the RM-57 axis.
+
+`memspine.proposed` (**proposed names, pending owner confirmation**, not active by
+default, must be selected explicitly with `load_registry`): D has_condition,
+allergic_to, intolerant_of, takes_medication, experienced_symptom (health label)
++ severity, diagnosis_status; E feels, believes, values, worried_about
+(statement_kind attributed) + intensity; F learning, teaches, enrolled_in,
+studied_at + field_of_study, qualification; H reuses communicated_with + speech_act;
+I purchased, sold (family sale), paid, lent, borrowed (family loan), financial
+label, amounts through the core amount role; J acquired, disposed_of, lost,
+repaired, returned (explicit open/close of owns), rated + rating, sentiment; L
+has_routine + time_of_day, day_of_week; M reuses the core origin, destination and
+companion roles + transport_mode, participation_mode; N attempted (tool_output
+origin, lifecycle outcome), failed_with + error_type, workaround_for. New roles
+buyer, seller.
+
+Focused gate: 80 tests in `tests/unit/semantics` pass; Ruff check/format pass;
+mypy shows the 11 known import-not-found errors and nothing else.
