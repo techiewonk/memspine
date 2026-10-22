@@ -436,6 +436,16 @@ GRAPH_LEG_MAX_DEGREE = 50
 # first-hop nodes' 16 strongest neighbours instead of every node within two hops.
 QUALIFIED_WALK_FRONTIER_CAP = 16
 QUALIFIED_WALK_DEEP_MAX_DEGREE = 16
+# RM-115 (batch record reads for the RM-88 caller check): ids per SQLite ``IN`` list in
+# ``SqlStorage.get_records``. Below SQLite's historical 999 bound-variable limit
+# (SQLITE_MAX_VARIABLE_NUMBER before 3.32), so any linked SQLite build accepts a chunk.
+RECORD_BATCH_CHUNK = 900
+# RM-116 (RM-96 budget above; evidence docs/provider_verification/graph-read-perf-2026-10-23.json):
+# LadybugDB ``frontier_edges`` runs one primary-key-anchored query per node for frontiers of
+# at most this many nodes, and one ``IN``-anchored UNION ALL query above it. Probed at 100k
+# edges (LadybugDB 0.21.2): one node 3 ms per node query vs 24 ms IN query; six nodes about
+# equal (24 / 25 ms); sixteen nodes 133 ms per node vs 32 ms IN.
+LADYBUG_FRONTIER_PER_NODE_MAX = 3
 # #22 (``read.graph_rerank``): local push-PPR over the seeds' subgraph. Restart
 # probability alpha (= 1 - PPR_DAMPING, the global PPR's convention) and the
 # residual threshold epsilon per unit degree (Andersen, Chung & Lang 2006); the

@@ -1,0 +1,771 @@
+{
+  "task": "RM-96/RM-115/RM-116",
+  "date": "2026-10-23",
+  "budget": {
+    "p95_ms": 50.0,
+    "edges_per_namespace": 100000
+  },
+  "graph": {
+    "edges": 100000,
+    "mentions_edges": 20000,
+    "namespace_edges_total": 120000,
+    "nodes": 20000,
+    "hubs": 200,
+    "hub_endpoint_share": 0.2,
+    "generate_s": 1.2,
+    "seeds": [
+      "ent:bench/rm96:n006574",
+      "ent:bench/rm96:n014256",
+      "ent:bench/rm96:n012391",
+      "ent:bench/rm96:n001869",
+      "ent:bench/rm96:n019020",
+      "ent:bench/rm96:n000000"
+    ]
+  },
+  "filter": {
+    "valid_at": "2026-03-01T00:00:00Z",
+    "known_as_of": "2026-10-22T00:00:00Z",
+    "assertion_modalities": [
+      "asserted"
+    ],
+    "claim_states": [
+      "current"
+    ],
+    "unchecked_sensitivity": "fail"
+  },
+  "measures": {
+    "walk_d1/walk_d2": "neighbors(qualifier_filter=...) (qualified_hops) from each seed",
+    "leg_edge_list": "edge_list(namespace): the read-path graph leg's load",
+    "leg_filter": "compiled/live selection + QualifierFilter.admits over that list",
+    "leg_scan": "leg_edge_list + leg_filter (the leg before RM-104; unfiltered reads)",
+    "leg_frontier": "_graph_leg_edges on frontier_edges(seeds) (the filtered leg now)",
+    "leg_frontier_fetch": "frontier_edges(seeds, namespace) alone",
+    "walk_d2_uncapped": "qualified_hops depth 2 with both RM-96 caps lifted (before)",
+    "seeds_scan": "_graph_seeds with the entity index rebuilt from edge_list (before)",
+    "seeds_cached": "_graph_seeds on the maintained entity index (RM-110, after)",
+    "seeds_cold_build_ms": "the first read of a namespace: one index build",
+    "read_path_before/after": "seeds + _graph_leg_edges (frontier) + one_hop",
+    "engine_search_before/after": "Engine.search with graph_filter end to end",
+    "engine_search_per_id_records": "Engine.search, caller check one get_record per edge (before RM-115); engine_search_after uses one get_records batch",
+    "lb_frontier_<set>_before/after": "LadybugDB frontier query: OR predicate (before RM-116) vs anchored UNION ALL (after); hub, read seeds, 16-node frontier",
+    "walk_d1/d2_before_rm116": "LadybugDB walks on the OR frontier query (before)"
+  },
+  "results": {
+    "sql_adjacency": {
+      "load_s": 5.4,
+      "walk_d1": {
+        "n": 60,
+        "p50_ms": 1.075,
+        "p95_ms": 4.442,
+        "max_ms": 5.119
+      },
+      "walk_d2": {
+        "n": 60,
+        "p50_ms": 7.28,
+        "p95_ms": 25.831,
+        "max_ms": 30.439
+      },
+      "walk_d2_uncapped": {
+        "n": 60,
+        "p50_ms": 5.753,
+        "p95_ms": 115.989,
+        "max_ms": 121.555
+      },
+      "seeds_scan": {
+        "n": 20,
+        "p50_ms": 1012.085,
+        "p95_ms": 1147.874,
+        "max_ms": 1196.229
+      },
+      "seeds_cached": {
+        "n": 100,
+        "p50_ms": 0.009,
+        "p95_ms": 0.01,
+        "max_ms": 0.027
+      },
+      "seeds_cold_build_ms": 1106.133,
+      "seeds_found": 6,
+      "leg_edge_list": {
+        "n": 20,
+        "p50_ms": 1023.658,
+        "p95_ms": 1234.34,
+        "max_ms": 1260.432
+      },
+      "leg_filter": {
+        "n": 20,
+        "p50_ms": 794.348,
+        "p95_ms": 803.816,
+        "max_ms": 820.193
+      },
+      "leg_scan": {
+        "n": 20,
+        "p50_ms": 1932.536,
+        "p95_ms": 2608.905,
+        "max_ms": 2729.493
+      },
+      "leg_frontier": {
+        "n": 140,
+        "p50_ms": 3.342,
+        "p95_ms": 9.627,
+        "max_ms": 11.863
+      },
+      "leg_frontier_fetch": {
+        "n": 140,
+        "p50_ms": 0.625,
+        "p95_ms": 1.944,
+        "max_ms": 2.236
+      },
+      "leg_frontier_sizes": [
+        {
+          "seeds": 6,
+          "fetched": 301,
+          "admitted": 122
+        },
+        {
+          "seeds": 1,
+          "fetched": 7,
+          "admitted": 3
+        },
+        {
+          "seeds": 1,
+          "fetched": 14,
+          "admitted": 3
+        },
+        {
+          "seeds": 1,
+          "fetched": 16,
+          "admitted": 6
+        },
+        {
+          "seeds": 1,
+          "fetched": 10,
+          "admitted": 5
+        },
+        {
+          "seeds": 1,
+          "fetched": 11,
+          "admitted": 3
+        },
+        {
+          "seeds": 1,
+          "fetched": 245,
+          "admitted": 103
+        }
+      ],
+      "read_path_before": {
+        "n": 20,
+        "p50_ms": 1381.798,
+        "p95_ms": 1601.184,
+        "max_ms": 1611.793
+      },
+      "read_path_after": {
+        "n": 20,
+        "p50_ms": 7.649,
+        "p95_ms": 8.57,
+        "max_ms": 8.597
+      },
+      "reached_nodes": {
+        "walk_d1": {
+          "min": 3,
+          "max": 102
+        },
+        "walk_d2": {
+          "min": 9,
+          "max": 201
+        },
+        "walk_d2_uncapped": {
+          "min": 9,
+          "max": 1511
+        }
+      },
+      "leg_edges": {
+        "namespace": 120000,
+        "admitted": 42036
+      },
+      "within_budget": {
+        "walk_d1": true,
+        "walk_d2": true,
+        "walk_d2_uncapped": false,
+        "leg_scan": false,
+        "leg_frontier": true,
+        "seeds_scan": false,
+        "seeds_cached": true,
+        "read_path_before": false,
+        "read_path_after": true,
+        "engine_search_before": false,
+        "engine_search_per_id_records": false,
+        "engine_search_after": true
+      },
+      "engine_search_empty_graph": {
+        "n": 20,
+        "p50_ms": 5.611,
+        "p95_ms": 6.282,
+        "max_ms": 7.249
+      },
+      "engine_search_before": {
+        "n": 5,
+        "p50_ms": 1421.416,
+        "p95_ms": 1753.387,
+        "max_ms": 1753.387
+      },
+      "engine_search_after": {
+        "n": 20,
+        "p50_ms": 13.257,
+        "p95_ms": 14.542,
+        "max_ms": 14.917
+      },
+      "engine_search_per_id_records": {
+        "n": 20,
+        "p50_ms": 102.469,
+        "p95_ms": 110.794,
+        "max_ms": 112.472
+      },
+      "engine_caller_check_records": 122,
+      "engine_search_cold_first_ms": 1625.372,
+      "engine_leg_seed_fetch_nodes": 6
+    },
+    "ladybug": {
+      "load_s": 469.3,
+      "walk_d1": {
+        "n": 60,
+        "p50_ms": 9.567,
+        "p95_ms": 20.316,
+        "max_ms": 22.302
+      },
+      "walk_d2": {
+        "n": 60,
+        "p50_ms": 37.037,
+        "p95_ms": 64.497,
+        "max_ms": 65.392
+      },
+      "walk_d2_uncapped": {
+        "n": 60,
+        "p50_ms": 32.584,
+        "p95_ms": 164.458,
+        "max_ms": 259.273
+      },
+      "seeds_scan": {
+        "n": 20,
+        "p50_ms": 907.927,
+        "p95_ms": 981.905,
+        "max_ms": 1005.601
+      },
+      "seeds_cached": {
+        "n": 100,
+        "p50_ms": 0.009,
+        "p95_ms": 0.013,
+        "max_ms": 0.026
+      },
+      "seeds_cold_build_ms": 819.837,
+      "seeds_found": 6,
+      "leg_edge_list": {
+        "n": 20,
+        "p50_ms": 1011.373,
+        "p95_ms": 1098.537,
+        "max_ms": 1133.116
+      },
+      "leg_filter": {
+        "n": 20,
+        "p50_ms": 1134.019,
+        "p95_ms": 1315.174,
+        "max_ms": 1356.374
+      },
+      "leg_scan": {
+        "n": 20,
+        "p50_ms": 2083.02,
+        "p95_ms": 2190.666,
+        "max_ms": 2603.426
+      },
+      "leg_frontier": {
+        "n": 140,
+        "p50_ms": 7.677,
+        "p95_ms": 33.901,
+        "max_ms": 35.649
+      },
+      "leg_frontier_fetch": {
+        "n": 140,
+        "p50_ms": 4.791,
+        "p95_ms": 30.09,
+        "max_ms": 39.712
+      },
+      "leg_frontier_sizes": [
+        {
+          "seeds": 6,
+          "fetched": 301,
+          "admitted": 122
+        },
+        {
+          "seeds": 1,
+          "fetched": 7,
+          "admitted": 3
+        },
+        {
+          "seeds": 1,
+          "fetched": 14,
+          "admitted": 3
+        },
+        {
+          "seeds": 1,
+          "fetched": 16,
+          "admitted": 6
+        },
+        {
+          "seeds": 1,
+          "fetched": 10,
+          "admitted": 5
+        },
+        {
+          "seeds": 1,
+          "fetched": 11,
+          "admitted": 3
+        },
+        {
+          "seeds": 1,
+          "fetched": 245,
+          "admitted": 103
+        }
+      ],
+      "read_path_before": {
+        "n": 20,
+        "p50_ms": 1122.437,
+        "p95_ms": 1197.025,
+        "max_ms": 1215.703
+      },
+      "read_path_after": {
+        "n": 20,
+        "p50_ms": 34.158,
+        "p95_ms": 38.905,
+        "max_ms": 47.907
+      },
+      "lb_frontier_hub_before": {
+        "n": 20,
+        "p50_ms": 31.302,
+        "p95_ms": 33.019,
+        "max_ms": 33.309
+      },
+      "lb_frontier_hub_after": {
+        "n": 20,
+        "p50_ms": 8.432,
+        "p95_ms": 10.015,
+        "max_ms": 10.372
+      },
+      "lb_frontier_hub_rows": 245,
+      "lb_frontier_read_seeds_before": {
+        "n": 20,
+        "p50_ms": 34.759,
+        "p95_ms": 37.441,
+        "max_ms": 37.657
+      },
+      "lb_frontier_read_seeds_after": {
+        "n": 20,
+        "p50_ms": 27.39,
+        "p95_ms": 33.392,
+        "max_ms": 38.322
+      },
+      "lb_frontier_read_seeds_rows": 301,
+      "lb_frontier_frontier16_before": {
+        "n": 20,
+        "p50_ms": 46.783,
+        "p95_ms": 52.177,
+        "max_ms": 56.362
+      },
+      "lb_frontier_frontier16_after": {
+        "n": 20,
+        "p50_ms": 32.938,
+        "p95_ms": 36.546,
+        "max_ms": 44.854
+      },
+      "lb_frontier_frontier16_rows": 3569,
+      "walk_d1_before_rm116": {
+        "n": 60,
+        "p50_ms": 35.806,
+        "p95_ms": 45.636,
+        "max_ms": 54.605
+      },
+      "walk_d2_before_rm116": {
+        "n": 60,
+        "p50_ms": 77.108,
+        "p95_ms": 93.908,
+        "max_ms": 101.914
+      },
+      "reached_nodes": {
+        "walk_d1": {
+          "min": 3,
+          "max": 102
+        },
+        "walk_d2": {
+          "min": 9,
+          "max": 201
+        },
+        "walk_d2_uncapped": {
+          "min": 9,
+          "max": 1511
+        }
+      },
+      "leg_edges": {
+        "namespace": 120000,
+        "admitted": 42036
+      },
+      "within_budget": {
+        "walk_d1": true,
+        "walk_d2": false,
+        "walk_d2_uncapped": false,
+        "leg_scan": false,
+        "leg_frontier": true,
+        "seeds_scan": false,
+        "seeds_cached": true,
+        "read_path_before": false,
+        "read_path_after": true,
+        "engine_search_before": false,
+        "engine_search_per_id_records": false,
+        "engine_search_after": true
+      },
+      "engine_search_empty_graph": {
+        "n": 20,
+        "p50_ms": 4.902,
+        "p95_ms": 5.633,
+        "max_ms": 6.519
+      },
+      "engine_search_before": {
+        "n": 5,
+        "p50_ms": 1539.727,
+        "p95_ms": 1629.67,
+        "max_ms": 1629.67
+      },
+      "engine_search_after": {
+        "n": 20,
+        "p50_ms": 43.801,
+        "p95_ms": 48.078,
+        "max_ms": 48.1
+      },
+      "engine_search_per_id_records": {
+        "n": 20,
+        "p50_ms": 136.23,
+        "p95_ms": 147.751,
+        "max_ms": 149.549
+      },
+      "engine_caller_check_records": 122,
+      "engine_search_cold_first_ms": 1482.117,
+      "engine_leg_seed_fetch_nodes": 6
+    },
+    "neo4j": {
+      "load_s": 9.2,
+      "walk_d1": {
+        "n": 60,
+        "p50_ms": 24.437,
+        "p95_ms": 54.299,
+        "max_ms": 63.612
+      },
+      "walk_d2": {
+        "n": 60,
+        "p50_ms": 53.598,
+        "p95_ms": 73.209,
+        "max_ms": 83.665
+      },
+      "walk_d2_uncapped": {
+        "n": 60,
+        "p50_ms": 29.401,
+        "p95_ms": 266.322,
+        "max_ms": 291.129
+      },
+      "seeds_scan": {
+        "n": 20,
+        "p50_ms": 3890.023,
+        "p95_ms": 4155.786,
+        "max_ms": 4413.392
+      },
+      "seeds_cached": {
+        "n": 100,
+        "p50_ms": 0.009,
+        "p95_ms": 0.01,
+        "max_ms": 0.026
+      },
+      "seeds_cold_build_ms": 3923.955,
+      "seeds_found": 6,
+      "leg_edge_list": {
+        "n": 20,
+        "p50_ms": 3864.602,
+        "p95_ms": 4267.458,
+        "max_ms": 4417.353
+      },
+      "leg_filter": {
+        "n": 20,
+        "p50_ms": 1115.358,
+        "p95_ms": 1175.463,
+        "max_ms": 1190.23
+      },
+      "leg_scan": {
+        "n": 20,
+        "p50_ms": 4860.819,
+        "p95_ms": 5258.753,
+        "max_ms": 5425.969
+      },
+      "leg_frontier": {
+        "n": 140,
+        "p50_ms": 12.854,
+        "p95_ms": 20.254,
+        "max_ms": 314.624
+      },
+      "leg_frontier_fetch": {
+        "n": 140,
+        "p50_ms": 9.661,
+        "p95_ms": 14.255,
+        "max_ms": 18.942
+      },
+      "leg_frontier_sizes": [
+        {
+          "seeds": 6,
+          "fetched": 301,
+          "admitted": 122
+        },
+        {
+          "seeds": 1,
+          "fetched": 7,
+          "admitted": 3
+        },
+        {
+          "seeds": 1,
+          "fetched": 14,
+          "admitted": 3
+        },
+        {
+          "seeds": 1,
+          "fetched": 16,
+          "admitted": 6
+        },
+        {
+          "seeds": 1,
+          "fetched": 10,
+          "admitted": 5
+        },
+        {
+          "seeds": 1,
+          "fetched": 11,
+          "admitted": 3
+        },
+        {
+          "seeds": 1,
+          "fetched": 245,
+          "admitted": 103
+        }
+      ],
+      "read_path_before": {
+        "n": 20,
+        "p50_ms": 3801.934,
+        "p95_ms": 4087.0,
+        "max_ms": 4241.937
+      },
+      "read_path_after": {
+        "n": 20,
+        "p50_ms": 20.143,
+        "p95_ms": 22.672,
+        "max_ms": 26.451
+      },
+      "reached_nodes": {
+        "walk_d1": {
+          "min": 3,
+          "max": 102
+        },
+        "walk_d2": {
+          "min": 9,
+          "max": 201
+        },
+        "walk_d2_uncapped": {
+          "min": 9,
+          "max": 1511
+        }
+      },
+      "leg_edges": {
+        "namespace": 120000,
+        "admitted": 42036
+      },
+      "within_budget": {
+        "walk_d1": false,
+        "walk_d2": false,
+        "walk_d2_uncapped": false,
+        "leg_scan": false,
+        "leg_frontier": true,
+        "seeds_scan": false,
+        "seeds_cached": true,
+        "read_path_before": false,
+        "read_path_after": true
+      }
+    },
+    "ladybug_union_only_run": {
+      "walk_d1": {
+        "n": 60,
+        "p50_ms": 30.996,
+        "p95_ms": 36.978,
+        "max_ms": 46.969
+      },
+      "walk_d2": {
+        "n": 60,
+        "p50_ms": 61.244,
+        "p95_ms": 86.184,
+        "max_ms": 99.96
+      },
+      "walk_d2_uncapped": {
+        "n": 60,
+        "p50_ms": 56.108,
+        "p95_ms": 171.116,
+        "max_ms": 174.838
+      },
+      "leg_frontier": {
+        "n": 140,
+        "p50_ms": 30.514,
+        "p95_ms": 38.223,
+        "max_ms": 48.447
+      },
+      "leg_frontier_fetch": {
+        "n": 140,
+        "p50_ms": 26.704,
+        "p95_ms": 32.482,
+        "max_ms": 45.254
+      },
+      "leg_frontier_sizes": [
+        {
+          "seeds": 6,
+          "fetched": 301,
+          "admitted": 122
+        },
+        {
+          "seeds": 1,
+          "fetched": 7,
+          "admitted": 3
+        },
+        {
+          "seeds": 1,
+          "fetched": 14,
+          "admitted": 3
+        },
+        {
+          "seeds": 1,
+          "fetched": 16,
+          "admitted": 6
+        },
+        {
+          "seeds": 1,
+          "fetched": 10,
+          "admitted": 5
+        },
+        {
+          "seeds": 1,
+          "fetched": 11,
+          "admitted": 3
+        },
+        {
+          "seeds": 1,
+          "fetched": 245,
+          "admitted": 103
+        }
+      ],
+      "read_path_before": {
+        "n": 20,
+        "p50_ms": 1146.192,
+        "p95_ms": 1472.013,
+        "max_ms": 1472.846
+      },
+      "read_path_after": {
+        "n": 20,
+        "p50_ms": 40.489,
+        "p95_ms": 45.537,
+        "max_ms": 47.993
+      },
+      "lb_frontier_hub_before": {
+        "n": 20,
+        "p50_ms": 36.941,
+        "p95_ms": 39.189,
+        "max_ms": 61.305
+      },
+      "lb_frontier_hub_after": {
+        "n": 20,
+        "p50_ms": 30.601,
+        "p95_ms": 39.655,
+        "max_ms": 45.449
+      },
+      "lb_frontier_hub_rows": 245,
+      "lb_frontier_read_seeds_before": {
+        "n": 20,
+        "p50_ms": 38.223,
+        "p95_ms": 44.586,
+        "max_ms": 50.988
+      },
+      "lb_frontier_read_seeds_after": {
+        "n": 20,
+        "p50_ms": 29.805,
+        "p95_ms": 31.983,
+        "max_ms": 34.021
+      },
+      "lb_frontier_read_seeds_rows": 301,
+      "lb_frontier_frontier16_before": {
+        "n": 20,
+        "p50_ms": 51.141,
+        "p95_ms": 53.511,
+        "max_ms": 69.217
+      },
+      "lb_frontier_frontier16_after": {
+        "n": 20,
+        "p50_ms": 36.825,
+        "p95_ms": 45.904,
+        "max_ms": 54.291
+      },
+      "lb_frontier_frontier16_rows": 3569,
+      "walk_d1_before_rm116": {
+        "n": 60,
+        "p50_ms": 39.603,
+        "p95_ms": 45.683,
+        "max_ms": 63.245
+      },
+      "walk_d2_before_rm116": {
+        "n": 60,
+        "p50_ms": 82.272,
+        "p95_ms": 105.889,
+        "max_ms": 118.561
+      },
+      "engine_search_empty_graph": {
+        "n": 20,
+        "p50_ms": 5.788,
+        "p95_ms": 6.539,
+        "max_ms": 6.707
+      },
+      "engine_search_before": {
+        "n": 5,
+        "p50_ms": 1242.513,
+        "p95_ms": 1324.544,
+        "max_ms": 1324.544
+      },
+      "engine_search_after": {
+        "n": 20,
+        "p50_ms": 39.125,
+        "p95_ms": 45.685,
+        "max_ms": 49.054
+      },
+      "engine_search_per_id_records": {
+        "n": 20,
+        "p50_ms": 121.16,
+        "p95_ms": 128.737,
+        "max_ms": 128.76
+      },
+      "engine_search_cold_first_ms": 1011.403
+    }
+  },
+  "skipped": {},
+  "environment": {
+    "python": "3.13.5",
+    "platform": "Windows-11-10.0.26340-SP0",
+    "machine": "AMD64",
+    "versions": {
+      "sqlalchemy": "2.1.4",
+      "aiosqlite": "0.22.1",
+      "ladybug": "0.21.2",
+      "neo4j": "6.4.1",
+      "pydantic": "2.14.0"
+    }
+  },
+  "notes": [
+    "sql_adjacency and neo4j: one run of the RM-115/RM-116 code (neo4j:5 disposable container bolt://localhost:57690, stopped after). ladybug: rerun after the RM-116 hybrid frontier query (per-node primary-key queries for <= LADYBUG_FRONTIER_PER_NODE_MAX = 3 nodes, anchored UNION ALL above); ladybug_union_only_run keeps the first run, where every frontier used the UNION ALL query.",
+    "*_before_rm116 / lb_frontier_*_before: the old single OR-predicate frontier query, same process, same data. engine_search_per_id_records: one get_record per admitted edge's source record (before RM-115); engine_search_after: one get_records batch.",
+    "The synthetic world has no source records, so the caller check fetches 122 ids, finds none and admits no edge: the leg's full cost without the lift.",
+    "Host shared with other agents' work during the run; timings are indicative."
+  ]
+}

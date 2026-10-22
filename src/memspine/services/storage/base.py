@@ -50,6 +50,11 @@ class StorageService(Protocol):
 
     async def get_record(self, record_id: str) -> MemoryRecord | None: ...
 
+    async def get_records(self, record_ids: Sequence[str]) -> dict[str, MemoryRecord]:
+        """RM-115: the existing records among ``record_ids`` keyed by id (missing ids
+        absent), equal to one :meth:`get_record` per id, in one round trip per chunk."""
+        ...
+
     async def find_active_fact(
         self, namespace: str, entity: str, attribute: str
     ) -> MemoryRecord | None:

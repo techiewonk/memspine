@@ -25,12 +25,13 @@ from typing import TYPE_CHECKING, Any, Protocol
 
 import orjson
 import zstandard
-from sqlalchemy import ColumnElement, delete, func, inspect, select, text
+from sqlalchemy import ColumnElement, String, any_, bindparam, delete, func, inspect, select, text
+from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.ext.asyncio import AsyncEngine
 
-from memspine.config.constants import STORAGE_HEALTH_DEADLINE_S, ZSTD_LEVEL
+from memspine.config.constants import RECORD_BATCH_CHUNK, STORAGE_HEALTH_DEADLINE_S, ZSTD_LEVEL
 from memspine.exceptions import StorageError
 from memspine.services.base import CapabilityManifest, ServiceAdapter
 from memspine.services.storage.sqlite.schema import (
@@ -456,6 +457,34 @@ class SqlStorage(ServiceAdapter):
         async with self._client.engine.connect() as conn:
             row = (await conn.execute(stmt)).first()
         return self._row_to_record(row._mapping) if row is not None else None
+
+    async def get_records(self, record_ids: Sequence[str]) -> dict[str, MemoryRecord]:
+        """The records among ``record_ids`` that exist, keyed by id (missing ids are
+        absent); duplicates are read once. Equal to one :meth:`get_record` per id, in
+        one query per chunk: Postgres binds the ids as one array (``= ANY``), SQLite
+        as ``IN`` lists of at most :data:`RECORD_BATCH_CHUNK` ids (its bind limit)."""
+        ids = list(dict.fromkeys(str(r) for r in record_ids if r))
+        if not ids:
+            return {}
+        if self._is_postgres:
+            chunks = [ids]
+        else:
+            chunks = [
+                ids[i : i + RECORD_BATCH_CHUNK] for i in range(0, len(ids), RECORD_BATCH_CHUNK)
+            ]
+        out: dict[str, MemoryRecord] = {}
+        async with self._client.engine.connect() as conn:
+            for chunk in chunks:
+                cond = (
+                    memory_records.c.record_id
+                    == any_(bindparam("record_ids", chunk, type_=ARRAY(String)))
+                    if self._is_postgres
+                    else memory_records.c.record_id.in_(chunk)
+                )
+                for row in (await conn.execute(select(memory_records).where(cond))).all():
+                    record = self._row_to_record(row._mapping)
+                    out[record.record_id] = record
+        return out
 
     async def list_namespaces(self) -> list[str]:
         """Every namespace with at least one materialized record — the sweep

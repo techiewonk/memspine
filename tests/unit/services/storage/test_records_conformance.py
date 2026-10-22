@@ -433,6 +433,29 @@ async def test_the_record_read_model_round_trips(handle: Handle) -> None:
     assert await store.list_namespaces() == []
 
 
+async def test_batch_record_read_equals_one_read_per_id(handle: Handle) -> None:
+    """RM-115: ``get_records`` returns exactly the records ``get_record`` returns per id
+    (missing ids absent, duplicates once), including across the SQLite chunk boundary."""
+    from memspine.config.constants import RECORD_BATCH_CHUNK
+
+    store = handle.store
+    assert await store.get_records([]) == {}
+    count = RECORD_BATCH_CHUNK + 7  # spans two SQLite IN chunks
+    for n in range(count):
+        await store.upsert_record(
+            _record(f"r-{n:05d}", f"fact {n}", namespace="ns/a" if n % 2 else "ns/b")
+        )
+    wanted = [f"r-{n:05d}" for n in range(0, count, 1)] + ["r-missing", "r-00003", ""]
+    batch = await store.get_records(wanted)
+    single = {
+        rid: rec for rid in dict.fromkeys(wanted) if rid and (rec := await store.get_record(rid))
+    }
+    assert set(batch) == set(single) == {f"r-{n:05d}" for n in range(count)}
+    for rid, record in single.items():
+        assert batch[rid].model_dump(mode="json") == record.model_dump(mode="json")
+    assert await store.get_records(["r-missing"]) == {}
+
+
 # ------------------------------------------------------------------------------- lineage
 async def test_lineage_edges_and_queries(handle: Handle) -> None:
     store = handle.store

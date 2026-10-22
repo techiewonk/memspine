@@ -41,6 +41,7 @@ from typing import Any, Protocol
 
 import orjson
 
+from memspine.config.constants import LADYBUG_FRONTIER_PER_NODE_MAX
 from memspine.observability.logging import get_logger
 from memspine.services.graph.base import (
     GraphEdge,
@@ -317,14 +318,7 @@ class LadybugGraphStore:
         # Capped walk: one query per level, the shared per-node cap rule.
         frontier = list(seeds)
         for level in range(1, depth + 1):
-            params = {"frontier": frontier}
-            where = " AND ".join(_filters("e", namespace, rel_type, params))
-            rows = await self._execute(
-                f"{_EDGE_MATCH} WHERE (s.node_id IN $frontier OR d.node_id IN $frontier) "
-                f"AND {where} {_EDGE_RETURN}",
-                params,
-            )
-            edges = [_edge(row) for row in rows]
+            edges = [_edge(row) for row in await self._frontier_rows(frontier, namespace, rel_type)]
             next_frontier: list[str] = []
             for node_id in frontier:
                 for other in capped_neighbors(edges, node_id, max_degree):
@@ -402,14 +396,45 @@ class LadybugGraphStore:
         """RM-41/RM-104: the live edges touching ``nodes`` (the walk's level query)."""
         if not nodes:
             return []
-        params: dict[str, Any] = {"frontier": list(dict.fromkeys(nodes))}
+        rows = await self._frontier_rows(list(dict.fromkeys(nodes)), namespace, rel_type)
+        return [_edge(row) for row in rows]
+
+    async def _frontier_rows(
+        self, frontier: list[str], namespace: str | None, rel_type: str | None
+    ) -> list[list[Any]]:
+        """RM-116: the live edges touching ``frontier``, each once.
+
+        One ``s IN .. OR d IN ..`` predicate made LadybugDB scan every relationship. A
+        small frontier (at most ``LADYBUG_FRONTIER_PER_NODE_MAX`` nodes) runs one query
+        per node anchored on the primary key (``{node_id: $x}``, an index lookup): its
+        outgoing edges plus its incoming edges from other nodes; an edge between two
+        frontier nodes is kept once. A larger frontier runs two anchored MATCHes joined by
+        ``UNION ALL``: edges leaving a frontier node, then edges entering one from outside
+        the frontier (``IN`` costs a node scan, cheaper than one query per node there)."""
+        params: dict[str, Any] = {"frontier": frontier}
         where = " AND ".join(_filters("e", namespace, rel_type, params))
-        rows = await self._execute(
-            f"{_EDGE_MATCH} WHERE (s.node_id IN $frontier OR d.node_id IN $frontier) "
-            f"AND {where} {_EDGE_RETURN}",
+        if len(frontier) <= LADYBUG_FRONTIER_PER_NODE_MAX:
+            seen: dict[tuple[str, str, str], list[Any]] = {}
+            query = (
+                f"MATCH (s:MemoryNode {{node_id: $x}})-[e:MemoryLink]->(d:MemoryNode) "
+                f"WHERE {where} {_EDGE_RETURN} UNION ALL "
+                f"MATCH (s:MemoryNode)-[e:MemoryLink]->(d:MemoryNode {{node_id: $x}}) "
+                f"WHERE s.node_id <> $x AND {where} {_EDGE_RETURN}"
+            )
+            single = {k: v for k, v in params.items() if k != "frontier"}
+            for node_id in frontier:
+                for row in await self._execute(query, {**single, "x": node_id}):
+                    seen.setdefault((str(row[0]), str(row[1]), str(row[2])), row)
+            return list(seen.values())
+        return await self._execute(
+            "MATCH (s:MemoryNode) WHERE s.node_id IN $frontier "
+            f"MATCH (s)-[e:MemoryLink]->(d:MemoryNode) WHERE {where} {_EDGE_RETURN} "
+            "UNION ALL "
+            "MATCH (d:MemoryNode) WHERE d.node_id IN $frontier "
+            "MATCH (s:MemoryNode)-[e:MemoryLink]->(d) "
+            f"WHERE NOT (s.node_id IN $frontier) AND {where} {_EDGE_RETURN}",
             params,
         )
-        return [_edge(row) for row in rows]
 
     async def edges_of(self, node_id: str) -> list[GraphEdge]:
         rows = await self._execute(

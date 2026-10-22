@@ -537,6 +537,14 @@ class MongoRecordsStore(ServiceAdapter):
         doc = await self._c("records").find_one({"_id": record_id}, {"doc": 1})
         return self._doc_to_record(doc) if doc is not None else None
 
+    async def get_records(self, record_ids: Sequence[str]) -> dict[str, MemoryRecord]:
+        """RM-115: one ``$in`` query (missing ids absent; duplicates read once)."""
+        ids = list(dict.fromkeys(str(r) for r in record_ids if r))
+        if not ids:
+            return {}
+        cursor = self._c("records").find({"_id": {"$in": ids}}, {"doc": 1})
+        return {str(doc["_id"]): self._doc_to_record(doc) async for doc in cursor}
+
     async def _find_records(self, query: Doc) -> list[MemoryRecord]:
         cursor = self._c("records").find(query, {"doc": 1}, sort=[("order", ASCENDING)])
         return [self._doc_to_record(doc) async for doc in cursor]

@@ -457,22 +457,45 @@ async def _caller_visible_edges(
     ``record_id`` property) exists and passes the read's record viewer check (I53
     ``visible_to`` with the read's ``viewer``). A missing source record fails.
 
-    ``edges`` pairs each edge with its already parsed qualifiers (RM-104: parsed once)."""
+    ``edges`` pairs each edge with its already parsed qualifiers (RM-104: parsed once).
+    Source records the read has not loaded are fetched in one batch (RM-115,
+    ``get_records``) instead of one ``get_record`` per edge."""
     caller = await _caller_visibility(eng, ns)
     record_scope = active_record_scope()
     viewer = record_scope.viewer if record_scope is not None else None
+    in_scope = [
+        (edge, str(edge.properties.get("record_id") or ""))
+        for edge, quals in edges
+        if caller.admits_scope(quals)
+    ]
+    records: dict[str, MemoryRecord] = dict(by_id)
+    missing = list(dict.fromkeys(rid for _, rid in in_scope if rid and rid not in records))
+    if missing:
+        records.update(await _fetch_records(eng._storage, missing))
     seen: dict[str, bool] = {}
     out: list[GraphEdge] = []
-    for edge, quals in edges:
-        if not caller.admits_scope(quals):
-            continue
-        rid = str(edge.properties.get("record_id") or "")
+    for edge, rid in in_scope:
         if rid not in seen:
-            record = by_id.get(rid) or (await eng._storage.get_record(rid) if rid else None)
+            record = records.get(rid) if rid else None
             seen[rid] = record is not None and (viewer is None or visible_to(record.tags, viewer))
         if seen[rid]:
             out.append(edge)
     return out
+
+
+async def _fetch_records(storage: Any, record_ids: Sequence[str]) -> Mapping[str, MemoryRecord]:
+    """RM-115: the existing records among ``record_ids`` in one ``get_records`` call; a
+    storage without the batch method (a partial test fake) is read one id at a time."""
+    batch = getattr(storage, "get_records", None)
+    if callable(batch):
+        result: Mapping[str, MemoryRecord] = await batch(record_ids)
+        return result
+    found: dict[str, MemoryRecord] = {}
+    for rid in record_ids:
+        record = await storage.get_record(rid)
+        if record is not None:
+            found[rid] = record
+    return found
 
 
 def _compiled_edges(edges: Sequence[GraphEdge]) -> list[GraphEdge]:

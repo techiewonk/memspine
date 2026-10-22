@@ -66,7 +66,10 @@ SQL. This page is the contract a provider must meet. It is written for the next 
 
 ## 5. Record read model
 
-`upsert_record` (an idempotent upsert keyed by `record_id`), `get_record`, `list_records`
+`upsert_record` (an idempotent upsert keyed by `record_id`), `get_record`, `get_records`
+(RM-115: the existing records among a list of ids keyed by id, missing ids absent, equal to one
+`get_record` per id; SQL chunks SQLite `IN` lists at 900 ids and binds one array on Postgres,
+MongoDB uses one `$in` query), `list_records`
 (by namespace, optionally by type or group), `list_namespaces`, `find_active_fact`
 (semantic only, open validity, not quarantined, latest), `list_session_records`, and
 `delete_all_records` (rebuild: the read model is dropped and the log is kept).

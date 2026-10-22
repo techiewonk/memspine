@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""RM-96 / RM-104: qualifier-filtered graph walks at 100k edges per namespace.
+"""RM-96 / RM-104 / RM-110 / RM-115 / RM-116: qualifier-filtered graph reads at 100k edges.
 
 Builds one synthetic namespace of ``--edges`` qualified compiled edges (default 100k over
 ``--nodes`` entity nodes, with a few hubs) on each available backend and times:
@@ -67,7 +67,7 @@ COMPILED = "edge_compiler_v2"
 BUDGET_P95_MS = 50.0
 DOMAINS = ("work", "residence", "health", "family", "travel", "finance", "hobby", "school")
 T0 = dt.datetime(2024, 1, 1, tzinfo=dt.UTC)
-OUT = Path("docs/provider_verification/rm110-graph-seeds-2026-10-23.json")
+OUT = Path("docs/provider_verification/graph-read-perf-2026-10-23.json")
 
 #: The representative read filter: asserted, current claims known by now, valid in 2026.
 FILTER = QualifierFilter(
@@ -283,6 +283,8 @@ async def measure(store: Any, seeds: Sequence[str], reps: int, leg_reps: int) ->
     assert (await read_path(seeds_eng)).scores == (await read_path(scan_eng)).scores
     result["read_path_before"] = _summary(await _time(lambda: read_path(scan_eng), leg_reps, 1))
     result["read_path_after"] = _summary(await _time(lambda: read_path(seeds_eng), leg_reps, 1))
+    if hasattr(store, "_frontier_rows"):
+        result.update(await measure_ladybug_frontier(store, seeds, reps, leg_reps))
     result["reached_nodes"] = {k: {"min": min(v), "max": max(v)} for k, v in reached.items()}
     result["leg_edges"] = {"namespace": len(edges), "admitted": len(admitted)}
     result["within_budget"] = {
@@ -300,6 +302,66 @@ async def measure(store: Any, seeds: Sequence[str], reps: int, leg_reps: int) ->
         )
     }
     return result
+
+
+async def measure_ladybug_frontier(
+    store: Any, seeds: Sequence[str], reps: int, leg_reps: int
+) -> dict[str, Any]:
+    """RM-116: LadybugDB's frontier query before (one ``s IN .. OR d IN ..`` predicate over
+    every relationship) and after (two anchored MATCHes joined by UNION ALL), on the hub
+    seed, the read's six seeds and a 16-node frontier (a capped depth-2 level), plus the
+    depth-1/2 walks on the old query. Each frontier is checked to return the same edges."""
+    from memspine.services.graph.ladybug import _EDGE_MATCH, _EDGE_RETURN, _filters
+
+    async def legacy_rows(
+        frontier: list[str], namespace: str | None, rel_type: str | None
+    ) -> list[list[Any]]:
+        params: dict[str, Any] = {"frontier": frontier}
+        where = " AND ".join(_filters("e", namespace, rel_type, params))
+        rows: list[list[Any]] = await store._execute(
+            f"{_EDGE_MATCH} WHERE (s.node_id IN $frontier OR d.node_id IN $frontier) "
+            f"AND {where} {_EDGE_RETURN}",
+            params,
+        )
+        return rows
+
+    hub = seeds[-1]
+    first_hop = await store.neighbors(hub, depth=1, namespace=NS, qualifier_filter=FILTER)
+    sixteen = [n.node_id for n in first_hop][:16]
+    frontiers = {"hub": [hub], "read_seeds": list(seeds), "frontier16": sixteen}
+    out: dict[str, Any] = {}
+    real = store._frontier_rows
+    for name, frontier in frontiers.items():
+        old = await legacy_rows(frontier, NS, None)
+        new = await real(frontier, NS, None)
+        key = sorted((str(r[0]), str(r[1]), str(r[2])) for r in old)
+        assert key == sorted((str(r[0]), str(r[1]), str(r[2])) for r in new), name
+
+        async def before(f: list[str] = frontier) -> Any:
+            return await legacy_rows(f, NS, None)
+
+        async def after(f: list[str] = frontier) -> Any:
+            return await real(f, NS, None)
+
+        out[f"lb_frontier_{name}_before"] = _summary(await _time(before, leg_reps, 1))
+        out[f"lb_frontier_{name}_after"] = _summary(await _time(after, leg_reps, 1))
+        out[f"lb_frontier_{name}_rows"] = len(old)
+    store._frontier_rows = legacy_rows
+    try:
+        for depth in (1, 2):
+            samples: list[float] = []
+            for seed in seeds:
+
+                async def walk(seed: str = seed, depth: int = depth) -> Any:
+                    return await store.neighbors(
+                        seed, depth=depth, namespace=NS, qualifier_filter=FILTER
+                    )
+
+                samples += await _time(walk, max(1, reps // len(seeds)), warmup=1)
+            out[f"walk_d{depth}_before_rm116"] = _summary(samples)
+    finally:
+        del store._frontier_rows
+    return out
 
 
 def _query(seeds: Sequence[str]) -> str:
@@ -599,6 +661,21 @@ async def engine_read(
         await search()
         assert frontier_calls, "the filtered graph leg did not run"
         after = await _time(search, reps, 1)
+        # RM-115: the caller check's source-record reads, one batch (now) vs one per edge
+        from memspine.read.pipeline import legs as pipeline_legs
+
+        real_fetch = pipeline_legs._fetch_records
+        fetched: list[int] = []
+
+        async def per_id(storage: Any, record_ids: Sequence[str]) -> Any:
+            fetched.append(len(record_ids))
+            return await real_fetch(SimpleNamespace(get_record=storage.get_record), record_ids)
+
+        pipeline_legs._fetch_records = per_id
+        try:
+            per_id_samples = await _time(search, reps, 1)
+        finally:
+            pipeline_legs._fetch_records = real_fetch
         real_lookup = assoc.entity_lookup
 
         async def scan_lookup(ns: str) -> Any:
@@ -612,10 +689,13 @@ async def engine_read(
             "engine_search_empty_graph": _summary(empty),
             "engine_search_before": _summary(before),
             "engine_search_after": _summary(after),
+            "engine_search_per_id_records": _summary(per_id_samples),
+            "engine_caller_check_records": fetched[0] if fetched else 0,
             "engine_search_cold_first_ms": round(cold_ms, 3),
             "engine_leg_seed_fetch_nodes": frontier_calls[0],
             "within_budget": {
                 "engine_search_before": _pct(before, 0.95) <= BUDGET_P95_MS,
+                "engine_search_per_id_records": _pct(per_id_samples, 0.95) <= BUDGET_P95_MS,
                 "engine_search_after": _pct(after, 0.95) <= BUDGET_P95_MS,
             },
         }
@@ -631,7 +711,7 @@ async def main() -> None:
     parser.add_argument("--leg-reps", type=int, default=20, help="read-path leg timings")
     parser.add_argument("--seed", type=int, default=96)
     parser.add_argument("--out", type=Path, default=OUT)
-    parser.add_argument("--task", default="RM-110")
+    parser.add_argument("--task", default="RM-96/RM-115/RM-116")
     parser.add_argument("--date", default="2026-10-23")
     parser.add_argument("--mentions", type=int, default=20_000, help="entity mentions edges")
     parser.add_argument("--engine-reps", type=int, default=20, help="Engine.search timings")
@@ -718,6 +798,11 @@ async def main() -> None:
             "seeds_cold_build_ms": "the first read of a namespace: one index build",
             "read_path_before/after": "seeds + _graph_leg_edges (frontier) + one_hop",
             "engine_search_before/after": "Engine.search with graph_filter end to end",
+            "engine_search_per_id_records": "Engine.search, caller check one get_record per "
+            "edge (before RM-115); engine_search_after uses one get_records batch",
+            "lb_frontier_<set>_before/after": "LadybugDB frontier query: OR predicate (before "
+            "RM-116) vs anchored UNION ALL (after); hub, read seeds, 16-node frontier",
+            "walk_d1/d2_before_rm116": "LadybugDB walks on the OR frontier query (before)",
         },
         "results": results,
         "skipped": skipped,
