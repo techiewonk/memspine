@@ -34,6 +34,15 @@ cap (:func:`~memspine.services.graph.base.capped_neighbors`) to the edges that p
 so the cap ranks only admissible neighbours. Adapters declare support with
 ``supports_qualifier_filters``; an adapter that cannot honour the contract raises
 :class:`UnsupportedQualifierFilterError` rather than silently ignoring the filter.
+
+Write validation (RM-84): every adapter passes edge properties through
+:func:`sanitize_qualifiers` on ``upsert_edge``. Malformed qualifiers are dropped (the
+edge is stored unqualified, so no filter admits it) and a structured
+``graph.qualifiers_dropped`` warning names the edge and the error; the write never fails.
+
+Shared vocabularies (RM-85): lifecycle status/outcome, sensitivity labels and source
+origins are the ``memspine.semantics`` types (RM-57, RM-52, RM-48); this module defines
+no copy of them.
 """
 
 from __future__ import annotations
@@ -55,27 +64,30 @@ from pydantic import (
     model_validator,
 )
 
+from memspine.config.constants import EDGE_TRUST_TIERS
 from memspine.exceptions import MemspineError
+from memspine.observability.logging import get_logger
 from memspine.semantics.domains import DOMAIN_PATTERN, DomainSource, domain_in, is_domain_id
+from memspine.semantics.lifecycle import LifecycleOutcome, LifecycleStatus
+from memspine.semantics.origins import SourceOrigin
 from memspine.semantics.sensitivity import SensitivityLabel
 from memspine.services.graph.base import GraphEdge, GraphNode, capped_neighbors
 
 __all__ = [
     "QUALIFIERS_PROP",
     "AssertionModality",
+    "BindingStatus",
     "CallerVisibility",
     "ClaimState",
     "Completeness",
     "EdgeQualifiers",
     "ErasureState",
-    "LifecycleOutcome",
-    "LifecycleStatus",
     "Polarity",
     "Provenance",
     "QualifiedGraphStore",
     "QualifierFilter",
-    "SensitivityClass",
     "TimePrecision",
+    "TrustTier",
     "UnsupportedQualifierFilterError",
     "active_graph_filter",
     "edge_qualifiers",
@@ -83,11 +95,30 @@ __all__ = [
     "qualified_hops",
     "qualified_subgraph",
     "require_qualifier_support",
+    "sanitize_qualifiers",
+    "trust_tier_for",
     "with_qualifiers",
 ]
 
+_log = get_logger(__name__)
+
 #: The reserved edge-properties key holding the JSON dump of :class:`EdgeQualifiers`.
 QUALIFIERS_PROP = "qualifiers"
+
+#: RM-90: how the compiler bound the claim's mentions to entity nodes.
+BindingStatus = Literal["bound", "partly", "unbound"]
+
+#: RM-102: named edge trust tiers, derived from the 0..1 trust by
+#: :data:`~memspine.config.constants.EDGE_TRUST_TIERS`.
+TrustTier = Literal["untrusted", "low", "normal", "high"]
+
+
+def trust_tier_for(trust: float) -> TrustTier:
+    """The named tier of a 0..1 trust (lower bounds inclusive, RM-102)."""
+    for tier, lower in EDGE_TRUST_TIERS:
+        if trust >= lower:
+            return tier  # type: ignore[return-value]
+    return "untrusted"
 
 
 class TimePrecision(StrEnum):
@@ -118,30 +149,6 @@ class Polarity(StrEnum):
     NEGATIVE = "negative"
 
 
-class LifecycleStatus(StrEnum):
-    """The shared RM-57 ``status`` axis (commitments, work status, event lifecycle)."""
-
-    PROPOSED = "proposed"
-    PLANNED = "planned"
-    SCHEDULED = "scheduled"
-    OPEN = "open"
-    IN_PROGRESS = "in_progress"
-    BLOCKED = "blocked"
-    POSTPONED = "postponed"
-    CLOSED = "closed"
-    CANCELLED = "cancelled"
-    SUPERSEDED = "superseded"
-
-
-class LifecycleOutcome(StrEnum):
-    """The RM-57 ``outcome`` axis: required when status is closed, absent otherwise."""
-
-    DONE = "done"
-    MISSED = "missed"
-    FAILED = "failed"
-    DECLINED = "declined"
-
-
 class ClaimState(StrEnum):
     CURRENT = "current"
     SUPERSEDED = "superseded"
@@ -154,16 +161,6 @@ class ErasureState(StrEnum):
     ACTIVE = "active"
     ERASURE_PENDING = "erasure_pending"
     ERASED = "erased"
-
-
-class SensitivityClass(StrEnum):
-    """RM-52 optional sensitivity classes (can only tighten policy, never weaken it)."""
-
-    HEALTH = "health"
-    FINANCIAL = "financial"
-    CONTACT = "contact"
-    IDENTITY = "identity"
-    LOCATION = "location"
 
 
 class Completeness(StrEnum):
@@ -226,7 +223,8 @@ class Provenance(_Frozen):
     principal: str | None = None
     source_id: str | None = None
     source_span: tuple[int, int] | None = None
-    origin_type: str | None = None
+    #: RM-48 source origin; unknown unless the source channel maps to one (RM-85).
+    origin_type: SourceOrigin | None = None
     lineage_root: str | None = None
 
 
@@ -249,8 +247,15 @@ class EdgeQualifiers(_Frozen):
     lifecycle_outcome: LifecycleOutcome | None = None
     claim_state: ClaimState | None = None
     supersedes: str | None = None
+    #: RM-89: the claim this edge projects (the source record id) and its evidence ids.
+    claim_id: str | None = None
+    evidence_ids: tuple[str, ...] | None = None
     provenance: Provenance | None = None
-    trust_tier: str | None = None
+    #: RM-102: the 0..1 trust and its named tier (the tier is derived when only trust is given).
+    trust: float | None = Field(default=None, ge=0.0, le=1.0)
+    trust_tier: TrustTier | None = None
+    #: RM-90: bound / partly / unbound (how the claim's mentions resolved to entity nodes).
+    binding_status: BindingStatus | None = None
     subject_binding: str | None = None
     perspective: str | None = None
     scope: str | None = None
@@ -295,6 +300,16 @@ class EdgeQualifiers(_Frozen):
 
     _aware = field_validator("valid_from", "valid_to", "known_at")(_require_aware)
 
+    @model_validator(mode="before")
+    @classmethod
+    def _derive_trust_tier(cls, data: Any) -> Any:
+        """RM-102: a trust without a tier gets its derived tier."""
+        if isinstance(data, Mapping) and data.get("trust_tier") is None:
+            trust = data.get("trust")
+            if isinstance(trust, int | float) and not isinstance(trust, bool) and 0 <= trust <= 1:
+                return {**data, "trust_tier": trust_tier_for(float(trust))}
+        return data
+
     @property
     def traversable(self) -> bool:
         """False for erased or erasure-pending edges (never walked, RM-83)."""
@@ -310,12 +325,15 @@ class EdgeQualifiers(_Frozen):
             raise ValueError("valid_to must be after valid_from (half-open interval)")
         if self.valid_open_ended and self.valid_to is not None:
             raise ValueError("an open-ended interval has no valid_to")
-        if self.lifecycle_outcome is not None and self.lifecycle_status not in (
-            None,
-            LifecycleStatus.CLOSED,
-        ):
+        if self.lifecycle_outcome is not None and self.lifecycle_status not in (None, "closed"):
             raise ValueError("lifecycle_outcome is only allowed when status is closed")
         self._sensitivity_coherent()
+        if (
+            self.trust is not None
+            and self.trust_tier is not None
+            and trust_tier_for(self.trust) != self.trust_tier
+        ):
+            raise ValueError("trust_tier does not match trust (RM-102 thresholds)")
         return self
 
     def _sensitivity_coherent(self) -> None:
@@ -413,6 +431,48 @@ def edge_qualifiers(properties: Mapping[str, object]) -> EdgeQualifiers | None:
         return None
 
 
+def sanitize_qualifiers(
+    properties: Mapping[str, object] | None,
+    *,
+    src: str,
+    dst: str,
+    rel_type: str,
+    provider: str,
+) -> dict[str, object]:
+    """RM-84: a copy of ``properties`` whose qualifiers are valid, or carry none.
+
+    Malformed qualifiers are dropped (the edge is stored unqualified, so no filter
+    admits it) and a structured ``graph.qualifiers_dropped`` warning names the edge
+    and the error. The write itself never fails on qualifiers."""
+    props = dict(properties or {})
+    if QUALIFIERS_PROP not in props:
+        return props
+    raw = props[QUALIFIERS_PROP]
+    error: str | None = None
+    if not isinstance(raw, Mapping):
+        error = f"qualifiers must be a mapping, got {type(raw).__name__}"
+    else:
+        try:
+            EdgeQualifiers.model_validate(dict(raw))
+        except ValidationError as exc:
+            error = "; ".join(
+                f"{'.'.join(str(p) for p in e['loc']) or '<root>'}: {e['msg']}"
+                for e in exc.errors()
+            )
+    if error is None:
+        return props
+    del props[QUALIFIERS_PROP]
+    _log.warning(
+        "graph.qualifiers_dropped",
+        provider=provider,
+        src=src,
+        dst=dst,
+        rel_type=rel_type,
+        error=error[:500],
+    )
+    return props
+
+
 def with_qualifiers(
     properties: Mapping[str, object] | None, qualifiers: EdgeQualifiers
 ) -> dict[str, object]:
@@ -433,6 +493,7 @@ _SET_FIELDS: dict[str, str] = {
     "lifecycle_outcomes": "lifecycle_outcome",
     "claim_states": "claim_state",
     "trust_tiers": "trust_tier",
+    "binding_statuses": "binding_status",
     "subject_bindings": "subject_binding",
     "perspectives": "perspective",
     "scopes": "scope",
@@ -501,10 +562,13 @@ class QualifierFilter(_Frozen):
     lifecycle_outcomes: frozenset[LifecycleOutcome] | None = None
     claim_states: frozenset[ClaimState] | None = None
     principals: frozenset[str] | None = None
-    origin_types: frozenset[str] | None = None
+    origin_types: frozenset[SourceOrigin] | None = None
     source_ids: frozenset[str] | None = None
     lineage_roots: frozenset[str] | None = None
-    trust_tiers: frozenset[str] | None = None
+    #: RM-102: the edge's 0..1 trust must be at least this.
+    min_trust: float | None = Field(default=None, ge=0.0, le=1.0)
+    trust_tiers: frozenset[TrustTier] | None = None
+    binding_statuses: frozenset[BindingStatus] | None = None
     subject_bindings: frozenset[str] | None = None
     perspectives: frozenset[str] | None = None
     scopes: frozenset[str] | None = None
@@ -605,6 +669,8 @@ class QualifierFilter(_Frozen):
         if self.sensitivities is not None and not (q.sensitivity or frozenset()) & (
             self.sensitivities
         ):
+            return False
+        if self.min_trust is not None and (q.trust is None or q.trust < self.min_trust):
             return False
         if self.required_grants is not None and (
             q.grants is None or not self.required_grants.issubset(q.grants)

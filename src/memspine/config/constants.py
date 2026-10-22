@@ -454,6 +454,21 @@ GRAPH_RERANK_PUSH_MAX = 10_000
 # GP-10 (#16): the default ``read.graph_min_trust``: a graph walk never enters a
 # record below the trust the firewall quarantines at.
 GRAPH_MIN_TRUST_DEFAULT = QUARANTINE_TRUST_THRESHOLD
+# RM-102 (docs/BI01_CONTRACT_REWRITE_PLAN.md, "Edge and claim qualifiers for filtered
+# traversal", P1 authority/trust tier; E1 Memory Firewall): the named trust tier of a
+# compiled graph edge, from its 0..1 trust. Lower bounds are inclusive, highest first.
+# ``untrusted`` is below the firewall quarantine threshold (0.25), ``low`` below the
+# default write trust (TRUST_DEFAULT, 0.5), ``normal`` up to 0.8, ``high`` from 0.8.
+EDGE_TRUST_TIERS: tuple[tuple[str, float], ...] = (
+    ("high", 0.8),
+    ("normal", TRUST_DEFAULT),
+    ("low", QUARANTINE_TRUST_THRESHOLD),
+    ("untrusted", 0.0),
+)
+# RM-89 (same section, P3 independent-support count): how many ``source.parents`` hops
+# the edge compiler follows from an evidence record to its lineage roots. A deeper
+# chain leaves the support count unknown rather than guessing.
+EDGE_LINEAGE_MAX_DEPTH = 8
 # GP-5 (#15): header of the graph facts block (``read.cards_include_edges``) and
 # the tag on its synthetic record. A read-time projection, never stored.
 GRAPH_FACTS_MARKER = "GRAPH FACTS (validity: from → until or present; sources = episodes):"

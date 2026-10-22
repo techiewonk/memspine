@@ -198,6 +198,26 @@ default, then the predicate's default, then the owning pack's top domain
 used in `topical_domain_source`. The topic tagger stays off unless
 `models.bindings.gliner_topic` is set and a tagger is attached. Callers cannot supply
 `gliner_topic:` tags. If no source gives a domain, the domain is unknown.
+
+Compiled edges also carry the claim id and its evidence ids, the independent-support count
+(distinct lineage roots of the evidence, unknown when a root cannot be resolved), the 0..1
+trust and its named tier (`untrusted` below 0.25, `low` below 0.5, `normal` below 0.8,
+`high` from 0.8; `config/constants.EDGE_TRUST_TIERS`), the binding status (`bound`,
+`partly`, `unbound`), the source origin where the source channel names one (for example
+`raw_message`, `document`, `reflection`; otherwise unknown), the lifecycle status and
+outcome when the record carries `lifecycle:` / `outcome:` tags, and the vocabulary pack
+and version when the predicate is defined in the default semantics registry. Lifecycle,
+sensitivity and origin values are the `memspine.semantics` vocabularies. Filter on them
+with `min_trust`, `trust_tiers`, `binding_statuses`, `origin_types`, `lifecycle_statuses`,
+`vocabulary_packs` and `min_independent_support`. Erasing a record that is evidence for a
+claim removes its id from the claim's edges and marks them contested; an edge left with no
+evidence is removed. Every graph adapter checks qualifiers on write: invalid ones are
+dropped with a `graph.qualifiers_dropped` warning and the edge is stored without them.
+
+Edges compiled before these fields existed get them on the next sleep cycle. To backfill
+one namespace now, run `memspine graph requalify --namespace ops --dry-run` (counts only),
+then the same command without `--dry-run`; pass `--db` and `--config` for the store. It
+needs `graph.edge_compiler_v2` on and rewrites only edges whose stored form differs.
 ```python
 from datetime import UTC, datetime
 from memspine.services.graph.qualifiers import AssertionModality, QualifierFilter
@@ -205,6 +225,8 @@ from memspine.services.graph.qualifiers import AssertionModality, QualifierFilte
 asserted_then = QualifierFilter(
     assertion_modalities={AssertionModality.ASSERTED},
     valid_at=datetime(2023, 5, 15, tzinfo=UTC),
+    trust_tiers={"normal", "high"},
+    binding_statuses={"bound"},
 )
 hits = await engine.search("how are Ilse and Tomasz connected", namespace="ops",
                            graph_filter=asserted_then)

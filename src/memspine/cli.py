@@ -332,6 +332,53 @@ def mcp_cmd(
         raise typer.Exit(code=1) from exc
 
 
+graph_app = typer.Typer(help="Graph maintenance of the compiled edge layer (RM-100).")
+app.add_typer(graph_app, name="graph")
+
+
+@graph_app.command("requalify")
+def graph_requalify_cmd(
+    namespace: Annotated[str, typer.Option("--namespace", "-n", help="Namespace to re-project")],
+    dry_run: Annotated[
+        bool, typer.Option("--dry-run", help="Count the edges that would change; write nothing")
+    ] = False,
+    db: Annotated[Path | None, typer.Option("--db", help="SQLite path (overrides config)")] = None,
+    template: TemplateOpt = None,
+    config_file: FileOpt = None,
+) -> None:
+    """Re-project one namespace's compiled edges so each carries current qualifiers (RM-100).
+
+    Idempotent: only edges whose stored form differs are rewritten. Needs
+    ``graph.edge_compiler_v2`` on in the effective configuration."""
+    import asyncio
+
+    from memspine import Engine
+    from memspine.derive.pipeline.stages.edge_compiler_v2 import requalify_namespace
+
+    async def _inner() -> dict[str, object]:
+        overrides: dict[str, Any] = {"embedding": {"provider": "hash"}}
+        if db is not None:
+            overrides["storage"] = {"settings": {"path": str(db)}}
+        engine = Engine(
+            template=default_template(template, config_file),
+            user_config=config_file,
+            dotenv_path=None,
+            **overrides,
+        )
+        await engine.start()
+        try:
+            return await requalify_namespace(engine._pipeline_ctx(), namespace, dry_run=dry_run)
+        finally:
+            await engine.stop()
+
+    try:
+        report = asyncio.run(_inner())
+    except (ConfigError, ValueError) as exc:
+        typer.secho(f"cannot requalify: {exc}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1) from exc
+    typer.echo(yaml.safe_dump(report, sort_keys=False).strip())
+
+
 @tap_app.command("report")
 def tap_report_cmd(
     path: Annotated[Path, typer.Argument(help="Tap directory, tap-*.jsonl file or tap.sqlite")],

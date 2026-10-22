@@ -12,7 +12,6 @@ from memspine.services.graph.qualifiers import (
     ClaimState,
     EdgeQualifiers,
     ErasureState,
-    LifecycleStatus,
     Provenance,
     QualifierFilter,
     edge_qualifiers,
@@ -135,9 +134,9 @@ def test_exclusion_and_allow_set_combine() -> None:
         ),
         (
             "exclude_lifecycle_statuses",
-            {LifecycleStatus.CANCELLED},
-            {"lifecycle_status": LifecycleStatus.CANCELLED},
-            {"lifecycle_status": LifecycleStatus.OPEN},
+            {"cancelled"},
+            {"lifecycle_status": "cancelled"},
+            {"lifecycle_status": "open"},
         ),
         (
             "exclude_assertion_modalities",

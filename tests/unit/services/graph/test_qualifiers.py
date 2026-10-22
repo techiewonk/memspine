@@ -12,11 +12,10 @@ from memspine.services.graph.qualifiers import (
     QUALIFIERS_PROP,
     ClaimState,
     EdgeQualifiers,
-    LifecycleOutcome,
-    LifecycleStatus,
     Provenance,
     QualifierFilter,
     edge_qualifiers,
+    trust_tier_for,
     with_qualifiers,
 )
 
@@ -51,10 +50,8 @@ def test_validation_rejects_incoherent_qualifiers() -> None:
     with pytest.raises(ValidationError, match="open-ended"):
         EdgeQualifiers(valid_from=_t(2026), valid_to=_t(2027), valid_open_ended=True)
     with pytest.raises(ValidationError, match="only allowed when status is closed"):
-        EdgeQualifiers(
-            lifecycle_status=LifecycleStatus.OPEN, lifecycle_outcome=LifecycleOutcome.DONE
-        )
-    EdgeQualifiers(lifecycle_status=LifecycleStatus.CLOSED, lifecycle_outcome=LifecycleOutcome.DONE)
+        EdgeQualifiers(lifecycle_status="open", lifecycle_outcome="done")
+    EdgeQualifiers(lifecycle_status="closed", lifecycle_outcome="done")
     with pytest.raises(ValidationError):
         EdgeQualifiers(extraction_confidence=1.5)
     with pytest.raises(ValidationError):
@@ -137,3 +134,110 @@ def test_filter_matches_and_rejects_on_values() -> None:
     edge = GraphEdge("a", "b", "r", with_qualifiers({}, q))
     assert QualifierFilter(topical_domains=frozenset({"work"})).admits(edge)
     assert not QualifierFilter(topical_domains=frozenset({"work"})).admits(GraphEdge("a", "b", "r"))
+
+
+# ------------------------------------------------------------------ RM-85: one vocabulary
+
+
+def test_semantics_types_are_the_only_definition() -> None:
+    from memspine.semantics import lifecycle, origins, sensitivity
+    from memspine.services.graph import qualifiers
+
+    for gone in ("SensitivityClass", "LifecycleStatus", "LifecycleOutcome"):
+        assert gone not in qualifiers.__all__
+    assert qualifiers.LifecycleStatus is lifecycle.LifecycleStatus  # imported, not redefined
+    assert qualifiers.SensitivityLabel is sensitivity.SensitivityLabel
+    assert qualifiers.SourceOrigin is origins.SourceOrigin
+    for value in lifecycle.LIFECYCLE_STATUSES:
+        assert EdgeQualifiers(lifecycle_status=value).lifecycle_status == value  # type: ignore[arg-type]
+    for label in sensitivity.SENSITIVITY_LABELS:  # a label set since RM-87
+        q = EdgeQualifiers(sensitivity=frozenset({label}), sensitivity_checked=True)  # type: ignore[arg-type]
+        assert q.sensitivity == {label}
+    for origin in origins.SOURCE_ORIGINS:
+        assert Provenance(origin_type=origin).origin_type == origin  # type: ignore[arg-type]
+    with pytest.raises(ValidationError):
+        EdgeQualifiers(lifecycle_status="achieved")  # type: ignore[arg-type]
+    with pytest.raises(ValidationError):
+        EdgeQualifiers(sensitivity=frozenset({"secret"}), sensitivity_checked=True)  # type: ignore[arg-type]
+    with pytest.raises(ValidationError):
+        Provenance(origin_type="rumour")  # type: ignore[arg-type]
+    with pytest.raises(ValidationError):
+        QualifierFilter(origin_types=frozenset({"rumour"}))  # type: ignore[arg-type]
+
+
+# ------------------------------------------------------------------ RM-102: trust number + tier
+
+
+@pytest.mark.parametrize(
+    ("trust", "tier"),
+    [
+        (0.0, "untrusted"),
+        (0.2499, "untrusted"),
+        (0.25, "low"),
+        (0.4999, "low"),
+        (0.5, "normal"),
+        (0.7999, "normal"),
+        (0.8, "high"),
+        (1.0, "high"),
+    ],
+)
+def test_trust_tier_boundaries(trust: float, tier: str) -> None:
+    assert trust_tier_for(trust) == tier
+    q = EdgeQualifiers(trust=trust)
+    assert q.trust_tier == tier  # derived when only the number is given
+    assert edge_qualifiers(with_qualifiers({}, q)) == q  # round trip keeps both
+
+
+def test_trust_tier_thresholds_live_in_constants() -> None:
+    from memspine.config.constants import (
+        EDGE_TRUST_TIERS,
+        QUARANTINE_TRUST_THRESHOLD,
+        TRUST_DEFAULT,
+    )
+
+    assert dict(EDGE_TRUST_TIERS) == {
+        "high": 0.8,
+        "normal": TRUST_DEFAULT,
+        "low": QUARANTINE_TRUST_THRESHOLD,
+        "untrusted": 0.0,
+    }
+
+
+def test_trust_and_tier_must_agree() -> None:
+    with pytest.raises(ValidationError, match="trust_tier does not match"):
+        EdgeQualifiers(trust=0.9, trust_tier="low")
+    assert EdgeQualifiers(trust_tier="high").trust is None  # a tier alone is allowed
+    with pytest.raises(ValidationError):
+        EdgeQualifiers(trust=1.2)
+    with pytest.raises(ValidationError):
+        EdgeQualifiers(trust_tier="verified")  # type: ignore[arg-type]
+
+
+def test_min_trust_and_trust_tier_filters() -> None:
+    q = EdgeQualifiers(trust=0.5)
+    assert QualifierFilter(min_trust=0.5).matches(q)
+    assert not QualifierFilter(min_trust=0.51).matches(q)
+    assert QualifierFilter(trust_tiers=frozenset({"normal", "high"})).matches(q)
+    assert not QualifierFilter(trust_tiers=frozenset({"high"})).matches(q)
+    unknown = EdgeQualifiers(claim_state=ClaimState.CURRENT)
+    assert not QualifierFilter(min_trust=0.0).matches(unknown)  # unknown never passes
+    assert not QualifierFilter(trust_tiers=frozenset({"untrusted"})).matches(unknown)
+
+
+# ------------------------------------------------------------------ RM-90 / RM-89 fields
+
+
+def test_binding_status_filter() -> None:
+    bound = EdgeQualifiers(binding_status="bound")
+    partly = EdgeQualifiers(binding_status="partly")
+    flt = QualifierFilter(binding_statuses=frozenset({"bound"}))
+    assert flt.matches(bound) and not flt.matches(partly)
+    assert not flt.matches(EdgeQualifiers(trust=0.9))  # unknown binding never passes
+    with pytest.raises(ValidationError):
+        EdgeQualifiers(binding_status="half")  # type: ignore[arg-type]
+
+
+def test_claim_and_evidence_ids_round_trip() -> None:
+    q = EdgeQualifiers(claim_id="rec-1", evidence_ids=("t1", "t2"), independent_support_count=2)
+    assert edge_qualifiers(with_qualifiers({}, q)) == q
+    assert q.to_properties()["evidence_ids"] == ["t1", "t2"]

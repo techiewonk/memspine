@@ -3,7 +3,9 @@
 Every graph provider that declares ``supports_qualifier_filters`` must pass these
 fixtures; a provider that does not must raise :class:`UnsupportedQualifierFilterError`
 instead of silently ignoring a filter. To run the contract against a new provider, add
-it to :data:`ADAPTERS` and the ``store`` fixture below.
+it to :data:`ADAPTERS` and the ``store`` fixture below. Every adapter (Neo4j too)
+also validates qualifiers on write (RM-84): malformed ones are dropped with a
+``graph.qualifiers_dropped`` warning and the edge is stored unqualified.
 
 The fixture graph (namespace ``ns/q``, seed ``a``)::
 
@@ -18,11 +20,13 @@ The fixture graph (namespace ``ns/q``, seed ``a``)::
 
 from __future__ import annotations
 
+import json
 from collections.abc import AsyncIterator, Mapping
 from datetime import UTC, datetime
 from typing import Any
 
 import pytest
+from structlog.testing import capture_logs
 
 from memspine.clients.sqlite import SQLiteClient
 from memspine.services.graph.base import GraphStore
@@ -33,7 +37,6 @@ from memspine.services.graph.qualifiers import (
     Completeness,
     EdgeQualifiers,
     ErasureState,
-    LifecycleStatus,
     Polarity,
     Provenance,
     QualifiedGraphStore,
@@ -81,10 +84,10 @@ FULL = EdgeQualifiers(
     known_at=_t(2026, 1, 2),
     assertion_modality=AssertionModality.ASSERTED,
     polarity=Polarity.POSITIVE,
-    lifecycle_status=LifecycleStatus.IN_PROGRESS,
+    lifecycle_status="in_progress",
     claim_state=ClaimState.CURRENT,
     provenance=Provenance(principal="user", source_id="msg-1", origin_type="transcript"),
-    trust_tier="verified",
+    trust=0.9,
     subject_binding="person:alice",
     scope="private",
     grants=("team",),
@@ -275,6 +278,73 @@ async def test_qualifiers_round_trip_through_the_store(store: GraphStore) -> Non
     assert QUALIFIERS_PROP not in edges[("a", "d")].properties
     # The unfiltered walk is unchanged by qualifiers.
     assert {n.node_id for n in await store.neighbors("a", namespace=NS)} == {"b", "c", "d", "f"}
+
+
+MALFORMED: list[tuple[str, object, str]] = [
+    ("not_a_mapping", "current", "must be a mapping"),
+    ("unknown_value", {"claim_state": "invented"}, "claim_state"),
+    ("unknown_field", {"no_such_qualifier": 1}, "no_such_qualifier"),
+    ("naive_time", {"valid_from": "2026-01-01T00:00:00"}, "timezone-aware"),
+    ("tier_mismatch", {"trust": 0.9, "trust_tier": "low"}, "trust_tier does not match"),
+]
+
+
+@pytest.mark.parametrize(("name", "raw", "why"), MALFORMED, ids=[m[0] for m in MALFORMED])
+async def test_malformed_qualifiers_are_dropped_with_a_warning(
+    store: GraphStore, name: str, raw: object, why: str
+) -> None:
+    """RM-84: invalid qualifiers never fail the write; the edge is stored unqualified."""
+    with capture_logs() as logs:
+        await store.upsert_edge(
+            "a", "b", "works_on", {"weight": 0.7, QUALIFIERS_PROP: raw, "k": 1}, namespace=NS
+        )
+    (edge,) = await store.edge_list(NS)
+    assert QUALIFIERS_PROP not in edge.properties, name
+    assert edge.properties["k"] == 1 and edge.weight == pytest.approx(0.7)  # rest kept
+    dropped = [entry for entry in logs if entry["event"] == "graph.qualifiers_dropped"]
+    assert len(dropped) == 1 and dropped[0]["log_level"] == "warning"
+    entry = dropped[0]
+    assert (entry["src"], entry["dst"], entry["rel_type"]) == ("a", "b", "works_on")
+    assert why in entry["error"]
+    # unqualified now: the empty filter passes it, any constraint does not
+    qstore = require_qualifier_support(store)
+    assert [
+        n.node_id for n in await qstore.neighbors_qualified("a", QualifierFilter(), namespace=NS)
+    ] == ["b"]
+    flt = QualifierFilter(claim_states=ALL_CLAIM_STATES)
+    assert await qstore.neighbors_qualified("a", flt, namespace=NS) == []
+
+
+async def test_valid_qualifiers_are_stored_without_a_warning(store: GraphStore) -> None:
+    with capture_logs() as logs:
+        await store.upsert_edge("a", "b", "works_on", with_qualifiers({}, FULL), namespace=NS)
+    assert not [e for e in logs if e["event"] == "graph.qualifiers_dropped"]
+    (edge,) = await store.edge_list(NS)
+    assert edge_qualifiers(edge.properties) == FULL
+
+
+async def test_neo4j_drops_malformed_qualifiers_with_a_warning() -> None:
+    from memspine.services.graph.neo4j import Neo4jGraphStore
+
+    calls: list[tuple[str, Mapping[str, Any]]] = []
+
+    class _Recorder:
+        async def run(self, op: str, params: Mapping[str, Any]) -> list[dict[str, Any]]:
+            calls.append((op, params))
+            return []
+
+        async def close(self) -> None:
+            return None
+
+    neo = Neo4jGraphStore(_Recorder())
+    with capture_logs() as logs:
+        await neo.upsert_edge("a", "b", "r", {QUALIFIERS_PROP: {"polarity": "maybe"}}, namespace=NS)
+        await neo.upsert_edge("a", "c", "r", with_qualifiers({}, FULL), namespace=NS)
+    stored = [json.loads(p["props"]) for op, p in calls if op == "upsert_edge"]
+    assert QUALIFIERS_PROP not in stored[0]
+    assert edge_qualifiers(stored[1]) == FULL
+    dropped = [e for e in logs if e["event"] == "graph.qualifiers_dropped"]
+    assert len(dropped) == 1 and dropped[0]["provider"] == "neo4j"
 
 
 async def test_neo4j_declares_unsupported_and_raises() -> None:

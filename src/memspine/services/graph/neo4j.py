@@ -46,7 +46,11 @@ from memspine.services.graph.base import (
     edge_namespace,
     edge_weight,
 )
-from memspine.services.graph.qualifiers import QualifierFilter, UnsupportedQualifierFilterError
+from memspine.services.graph.qualifiers import (
+    QualifierFilter,
+    UnsupportedQualifierFilterError,
+    sanitize_qualifiers,
+)
 
 __all__ = [
     "CYPHER",
@@ -314,7 +318,9 @@ class Neo4jGraphStore:
         namespace: str | None = None,
     ) -> None:
         ns = edge_namespace(namespace, properties)
-        props = dict(properties or {})
+        props = sanitize_qualifiers(
+            properties, src=src, dst=dst, rel_type=rel_type, provider="neo4j"
+        )
         await self._run(
             "upsert_edge",
             skey=self.node_key(src, ns),

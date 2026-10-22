@@ -41,6 +41,7 @@ from memspine.services.graph.qualifiers import (
     QualifierFilter,
     qualified_hops,
     qualified_subgraph,
+    sanitize_qualifiers,
 )
 from memspine.services.storage.sqlite.schema import graph_edges, graph_nodes
 
@@ -190,7 +191,9 @@ class SQLiteAdjacencyGraph:
     ) -> None:
         from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
-        props = dict(properties or {})
+        props = sanitize_qualifiers(
+            properties, src=src, dst=dst, rel_type=rel_type, provider="sqlite_adjacency"
+        )
         ns = edge_namespace(namespace, None)
         empty = {"labels": orjson.dumps([]), "properties": orjson.dumps({}), "namespace": ns}
         values = {

@@ -20,6 +20,14 @@ default; the stage then reports ``skipped`` and the sleep cycle does not schedul
   assertion node and the value / time nodes nobody else uses are deleted); a superseded record keeps
   closed edges (``valid_to``). :meth:`LinkProjection.retract_records` is the erasure hook (lineage: edges
   carry the source ``record_id``).
+* **Evidence erasure** (RM-89): erasing a record that is *evidence* of another claim (one of its
+  ``evidence_ids``, not its source record) removes the id from the edge's evidence, marks the edge
+  contested and tombstones it once no evidence remains. The erased ids ride in the edge properties
+  (``evidence_erased``), so a later re-projection never restores them and replay reproduces the state.
+* **Qualifiers** (RM-92): every projected edge carries typed :class:`EdgeQualifiers`; a value the
+  compiler does not know stays unknown. :func:`requalify_namespace` (CLI ``memspine graph
+  requalify``) re-projects one namespace on demand (RM-100); the sleep cycle does the same for
+  every namespace, rewriting only edges whose stored form differs.
 
 Edge properties hold ids, times, flags and trust only; never record text.
 """
@@ -28,13 +36,19 @@ from __future__ import annotations
 
 from collections import Counter
 from collections.abc import Awaitable, Callable, Iterable, Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime
-from typing import Any
+from typing import Any, get_args
 
+from memspine.config.constants import EDGE_LINEAGE_MAX_DEPTH
 from memspine.derive.edges import GraphDelta, GraphEdge, GraphNode, compile_edges
 from memspine.derive.fact_policy import FactPurpose
-from memspine.derive.pipeline.stages.context import PipelineContext, live_records, sweep_namespaces
+from memspine.derive.pipeline.stages.context import (
+    PipelineContext,
+    live_record,
+    live_records,
+    sweep_namespaces,
+)
 from memspine.derive.pipeline.stages.envelope_adapter import is_fact
 from memspine.derive.sensitivity import (
     NOT_CHECKED,
@@ -56,18 +70,26 @@ from memspine.schemas.durable.common import OwnerScope
 from memspine.schemas.durable.identity import AssertionKey, occurrence_id
 from memspine.scope import Scope
 from memspine.semantics.domains import resolve_domain
-from memspine.semantics.registry import SemanticRegistry, load_builtin_registry
+from memspine.semantics.lifecycle import LIFECYCLE_OUTCOMES, LIFECYCLE_STATUSES
+from memspine.semantics.origins import SourceOrigin
+from memspine.semantics.registry import (
+    SemanticRegistry,
+    load_builtin_packs,
+    load_builtin_registry,
+)
 from memspine.services.graph.base import GraphEdge as StoredEdge
 from memspine.services.graph.base import GraphStore
 from memspine.services.graph.qualifiers import (
     QUALIFIERS_PROP,
     AssertionModality,
+    BindingStatus,
     ClaimState,
     EdgeQualifiers,
     ErasureState,
     Polarity,
     Provenance,
     TimePrecision,
+    edge_qualifiers,
 )
 from memspine.store.envelope import to_envelope
 from memspine.store.events import EventKind, MemoryEvent
@@ -81,9 +103,12 @@ __all__ = [
     "EdgeCompiler",
     "LinkProjection",
     "ProjectionStats",
+    "attach_lineage",
     "compile_graph_edges",
     "edge_qualifiers_for",
+    "requalify_namespace",
     "retract_after_forget",
+    "source_origin_for",
 ]
 
 #: The marker every projected edge and node carries.
@@ -100,6 +125,58 @@ def _tag(record: MemoryRecord, prefix: str) -> str | None:
     return next((t[len(prefix) :] for t in record.tags if t.startswith(prefix)), None)
 
 
+#: RM-85: write channel -> source origin, whatever the provenance class.
+_CHANNEL_ORIGIN: dict[str, SourceOrigin] = {
+    "reflection": "reflection",
+    "observation": "agent_observation",
+    "agent_tool": "tool_output",
+}
+#: RM-85: (provenance class, write channel) -> source origin.
+_CLASS_CHANNEL_ORIGIN: dict[tuple[str, str], SourceOrigin] = {
+    ("user_stated", "message"): "raw_message",
+    ("assistant_proposed", "message"): "raw_message",
+    ("user_confirmed", "message"): "raw_message",
+    ("document", "ingest"): "document",
+}
+#: RM-85: provenance class -> source origin, whatever the channel.
+_CLASS_ORIGIN: dict[str, SourceOrigin] = {"document": "document"}
+
+
+def source_origin_for(provenance_class: str, channel: str) -> SourceOrigin | None:
+    """RM-85 code map: a record's provenance class and source channel -> its RM-48 origin.
+
+    Only pairs that name the kind of source record are mapped; everything else (derived
+    extraction channels, internal writes, REST) stays unknown. A record origin field
+    (BI-02) replaces this map once records carry one."""
+    return (
+        _CHANNEL_ORIGIN.get(channel)
+        or _CLASS_CHANNEL_ORIGIN.get((provenance_class, channel))
+        or _CLASS_ORIGIN.get(provenance_class)
+    )
+
+
+def _lifecycle(record: MemoryRecord) -> tuple[str | None, str | None]:
+    """RM-57 status / outcome the record carries (``lifecycle:`` / ``outcome:`` tags).
+
+    An unknown value, or an outcome that does not fit the status axis, leaves both unknown."""
+    status, outcome = _tag(record, "lifecycle:"), _tag(record, "outcome:")
+    if status is None or status not in LIFECYCLE_STATUSES:
+        return None, None
+    if outcome is not None and (outcome not in LIFECYCLE_OUTCOMES or status != "closed"):
+        return None, None
+    return status, outcome
+
+
+def _vocabulary(predicate: str) -> tuple[str | None, str | None]:
+    """The default-active pack that defines ``predicate``, and its version (else unknown)."""
+    pack_id = load_builtin_registry().owner("predicate", predicate)
+    if pack_id is None:
+        return None, None
+    versions = {p.pack_id: p.pack_version for p in load_builtin_packs()}
+    version = versions.get(pack_id)
+    return pack_id, str(version) if version is not None else None
+
+
 # --------------------------------------------------------------------------- compiler
 
 
@@ -109,7 +186,8 @@ class CompiledEdges:
 
     namespace: str
     delta: GraphDelta
-    #: record id -> (trust, sorted evidence ids, evidence role counts, event precision, source_at iso)
+    #: record id -> (trust, sorted evidence ids, evidence role counts, event precision, source_at iso,
+    #: and the RM-92 qualifier inputs: claim id, binding, origin, lifecycle, vocabulary, lineage)
     meta: Mapping[str, Mapping[str, Any]] = field(default_factory=dict)
     #: Records that were not compiled, with the reason.
     skipped: Mapping[str, str] = field(default_factory=dict)
@@ -268,9 +346,25 @@ class EdgeCompiler:
                 # RM-99: labels, check state and labeller (never the matched text).
                 "sensitivity": (sensitivity or {}).get(record.record_id)
                 or self.labeller.label(self.claim_of(record)),
+                "claim_id": record.record_id,
+                "binding": env.assessment.binding,
+                "origin": source_origin_for(record.provenance_class, record.source.channel),
+                "lifecycle": _lifecycle(record),
+                "vocabulary": _vocabulary(env.assertion_key.rel),
             }
         delta = compile_edges(envs)
         return CompiledEdges(namespace, delta, meta, skipped)
+
+
+def attach_lineage(compiled: CompiledEdges, roots: Mapping[str, Sequence[str]]) -> CompiledEdges:
+    """RM-89: ``compiled`` with each record's resolved evidence lineage roots (evidence id ->
+    sorted root ids). An evidence id missing from ``roots`` is unresolved: the record's
+    independent-support count then stays unknown."""
+    meta: dict[str, Mapping[str, Any]] = {}
+    for record_id, m in compiled.meta.items():
+        known = {str(e): sorted(roots[e]) for e in m.get("evidence_ids", ()) if roots.get(e)}
+        meta[record_id] = {**m, "evidence_roots": known} if known else m
+    return replace(compiled, meta=meta)
 
 
 # --------------------------------------------------------------------------- projection
@@ -286,6 +380,8 @@ class ProjectionStats:
     retracted_edges: int = 0
     retracted_nodes: int = 0
     unbound: int = 0
+    #: RM-89: edges that lost erased evidence and turned contested.
+    contested: int = 0
 
     def as_dict(self) -> dict[str, int]:
         return {k: v for k, v in self.__dict__.items() if v}
@@ -313,7 +409,7 @@ def _edge_props(edge: GraphEdge, meta: Mapping[str, Any]) -> dict[str, object]:
         "owner": edge.owner,
         "tentative": edge.tentative,
         "negated": edge.negated,
-        "contested": edge.contested,
+        "contested": edge.contested or bool(meta.get("evidence_erased")),
         "closed": edge.closed,
         "valid_from": _iso(edge.valid_from),
         "valid_to": _iso(edge.valid_to),
@@ -325,7 +421,43 @@ def _edge_props(edge: GraphEdge, meta: Mapping[str, Any]) -> dict[str, object]:
         "event_basis": meta.get("event_basis"),
         QUALIFIERS_PROP: edge_qualifiers_for(edge, meta).to_properties(),
     }
+    roots = meta.get("evidence_roots")
+    if roots:
+        props["evidence_roots"] = {str(k): list(v) for k, v in sorted(roots.items())}
+    erased = meta.get("evidence_erased")
+    if erased:
+        props["evidence_erased"] = sorted(erased)
     return props
+
+
+def _support(
+    evidence_ids: Sequence[str], roots: Mapping[str, Sequence[str]] | None
+) -> tuple[int | None, str | None]:
+    """RM-89: (distinct lineage roots of the evidence, the single root if only one).
+
+    Unknown (None) when there is no evidence or any evidence id has no resolved root."""
+    if not evidence_ids or not roots or any(not roots.get(e) for e in evidence_ids):
+        return None, None
+    distinct = {r for e in evidence_ids for r in roots[e]}
+    return len(distinct), (next(iter(distinct)) if len(distinct) == 1 else None)
+
+
+def _ids(raw: object) -> list[str]:
+    """A stored id list (anything else reads as empty)."""
+    return [str(i) for i in raw] if isinstance(raw, list | tuple) else []
+
+
+def _without_erased(meta: Mapping[str, Any], erased: Iterable[str]) -> dict[str, Any]:
+    """RM-89: ``meta`` with the erased evidence ids removed and remembered."""
+    gone = set(erased)
+    remaining = [e for e in meta.get("evidence_ids", ()) if e not in gone]
+    roots = {k: v for k, v in (meta.get("evidence_roots") or {}).items() if k in remaining}
+    out = {**meta, "evidence_ids": remaining, "evidence_erased": sorted(gone)}
+    if roots:
+        out["evidence_roots"] = roots
+    else:
+        out.pop("evidence_roots", None)
+    return out
 
 
 #: Envelope modality -> qualifier modality. ``negated`` is an asserted negative (polarity).
@@ -352,14 +484,15 @@ def edge_qualifiers_for(edge: GraphEdge, meta: Mapping[str, Any]) -> EdgeQualifi
 
     Nothing is inferred: a value the compiler does not know stays unknown (and then fails
     any filter on it). The edge is live when projected, so its erasure state is active;
-    erasure tombstones the edge (weight 0) rather than rewriting qualifiers."""
+    erasure of the source record tombstones the edge (weight 0). Erasure of some of its
+    evidence (``evidence_erased``) makes the claim contested (RM-89)."""
     valid_from, valid_to = _aware(edge.valid_from), _aware(edge.valid_to)
     if valid_from is not None and valid_to is not None and valid_to <= valid_from:
         valid_to = None  # incoherent bounds: keep the start, the end stays unknown
     precision = meta.get("event_precision")
     claim_state = (
         ClaimState.CONTESTED
-        if edge.contested
+        if edge.contested or meta.get("evidence_erased")
         else ClaimState.SUPERSEDED
         if edge.closed
         else ClaimState.CURRENT
@@ -369,6 +502,22 @@ def edge_qualifiers_for(edge: GraphEdge, meta: Mapping[str, Any]) -> EdgeQualifi
     source_id = meta.get("source_message_id")
     labelled = meta.get("sensitivity")
     sens = labelled if isinstance(labelled, SensitivityResult) else NOT_CHECKED
+    evidence = tuple(str(e) for e in meta.get("evidence_ids", ()))
+    support, root = _support(evidence, meta.get("evidence_roots"))
+    origin = meta.get("origin")
+    provenance = (
+        Provenance(
+            source_id=str(source_id) if source_id else None,
+            origin_type=origin,
+            lineage_root=root,
+        )
+        if source_id or origin or root
+        else None
+    )
+    trust = meta.get("trust")
+    binding = meta.get("binding")
+    status, outcome = meta.get("lifecycle") or (None, None)
+    pack, version = meta.get("vocabulary") or (None, None)
     return EdgeQualifiers(
         sensitivity=sens.labels if sens.checked is not None else None,
         sensitivity_checked=sens.checked,
@@ -388,15 +537,31 @@ def edge_qualifiers_for(edge: GraphEdge, meta: Mapping[str, Any]) -> EdgeQualifi
         known_at=_aware(meta.get("known_at")),
         assertion_modality=_MODALITY.get(str(meta.get("modality"))),
         polarity=Polarity.NEGATIVE if edge.negated else Polarity.POSITIVE,
+        lifecycle_status=status,
+        lifecycle_outcome=outcome,
         claim_state=claim_state,
-        provenance=Provenance(source_id=str(source_id)) if source_id else None,
+        claim_id=meta.get("claim_id") or edge.record_id or None,
+        evidence_ids=evidence or None,
+        provenance=provenance,
+        trust=(
+            max(0.0, min(1.0, float(trust)))
+            if isinstance(trust, int | float) and not isinstance(trust, bool)
+            else None
+        ),
+        binding_status=binding if binding in _BINDINGS else None,
         scope=meta.get("namespace"),
         erasure_state=ErasureState.ACTIVE,
         event_role=edge.label if edge.kind == "role" else None,
         occurrence_id=edge.occurrence_id or None,
         topical_domain=meta.get("topical_domain"),
         topical_domain_source=meta.get("topical_domain_source"),
+        vocabulary_pack=pack,
+        vocabulary_version=version,
+        independent_support_count=support,
     )
+
+
+_BINDINGS = frozenset(get_args(BindingStatus))
 
 
 def _weight(meta: Mapping[str, Any]) -> float:
@@ -439,21 +604,31 @@ class LinkProjection:
             if e.weight > 0 and e.properties.get("record_id")
         }
 
-    async def project(self, compiled: CompiledEdges) -> ProjectionStats:
-        """Append a LINK event for every edge whose stored form differs; idempotent."""
+    async def plan(
+        self, compiled: CompiledEdges
+    ) -> tuple[list[tuple[GraphEdge, dict[str, object]]], int]:
+        """The LINK payloads :meth:`project` would append (edge, payload), and the unchanged count.
+
+        A stored edge's ``evidence_erased`` ids stay erased (RM-89): they are removed from the
+        recompiled evidence, the claim stays contested, and an edge left with no evidence stays a
+        tombstone."""
         ns = compiled.namespace
-        stats = ProjectionStats(unbound=len(compiled.delta.unbound))
-        stored = {(e.src, e.dst, e.rel_type): e.properties for e in await self._current(ns)}
+        stored = {(e.src, e.dst, e.rel_type): e for e in await self._current(ns)}
         nodes = {n.id: n for n in compiled.delta.nodes}
+        out: list[tuple[GraphEdge, dict[str, object]]] = []
+        unchanged = 0
         for edge in compiled.delta.edges:
-            meta = compiled.meta.get(edge.record_id, {})
-            props = _edge_props(edge, meta)
-            weight = _weight(meta)
+            meta: Mapping[str, Any] = compiled.meta.get(edge.record_id, {})
             rel = _rel_type(edge)
-            expected = {**props, "weight": weight}
             have = stored.get((edge.src, edge.dst, rel))
-            if have is not None and all(have.get(k) == v for k, v in expected.items()):
-                stats.unchanged += 1
+            erased = _ids(have.properties.get("evidence_erased")) if have is not None else []
+            if erased:
+                meta = _without_erased(meta, erased)
+            props = _edge_props(edge, meta)
+            weight = _weight(meta) if not erased or meta.get("evidence_ids") else 0.0
+            expected = {**props, "weight": weight}
+            if have is not None and all(have.properties.get(k) == v for k, v in expected.items()):
+                unchanged += 1
                 continue
             payload: dict[str, object] = {
                 "src": edge.src,
@@ -467,13 +642,87 @@ class LinkProjection:
                 node = nodes.get(nid)
                 if node is not None and node.kind != "entity":
                     payload[side] = _node_payload(node, ns, edge.record_id)
+            out.append((edge, payload))
+        return out, unchanged
+
+    async def project(self, compiled: CompiledEdges) -> ProjectionStats:
+        """Append a LINK event for every edge whose stored form differs; idempotent."""
+        ns = compiled.namespace
+        stats = ProjectionStats(unbound=len(compiled.delta.unbound))
+        planned, stats.unchanged = await self.plan(compiled)
+        for edge, payload in planned:
             await self._append(
                 MemoryEvent(kind=EventKind.LINK, namespace=ns, actor="system", payload=payload)
             )
             stats.written += 1
             stats.tentative += int(edge.tentative)
             stats.closed += int(edge.closed)
-        stats.nodes = len(nodes)
+        stats.nodes = len(compiled.delta.nodes)
+        return stats
+
+    async def _erase_evidence(
+        self, namespace: str, wanted: set[str], skip: set[tuple[str, str, str]]
+    ) -> ProjectionStats:
+        """RM-89: live compiled edges citing an erased id as evidence lose it and turn contested;
+        an edge left with no evidence is tombstoned (its properties keep the erased ids, so a
+        re-projection never restores them)."""
+        stats = ProjectionStats()
+        for e in await self._current(namespace):
+            if e.weight <= 0 or (e.src, e.dst, e.rel_type) in skip:
+                continue
+            evidence = _ids(e.properties.get("evidence_ids"))
+            lost = wanted.intersection(evidence)
+            if not lost:
+                continue
+            prior = set(_ids(e.properties.get("evidence_erased")))
+            meta = _without_erased(
+                {
+                    "evidence_ids": evidence,
+                    "evidence_roots": e.properties.get("evidence_roots") or {},
+                },
+                prior | lost,
+            )
+            remaining: list[str] = meta["evidence_ids"]
+            props = {k: v for k, v in e.properties.items() if k != "weight"}
+            props["evidence_ids"] = remaining
+            props["evidence_erased"] = meta["evidence_erased"]
+            props["contested"] = True
+            props.pop("evidence_roots", None)
+            if meta.get("evidence_roots"):
+                props["evidence_roots"] = meta["evidence_roots"]
+            q = edge_qualifiers(e.properties) or EdgeQualifiers()
+            support, root = _support(remaining, meta.get("evidence_roots"))
+            provenance = q.provenance
+            if provenance is not None or root is not None:
+                provenance = (provenance or Provenance()).model_copy(update={"lineage_root": root})
+                if not provenance.model_dump(exclude_none=True):
+                    provenance = None
+            props[QUALIFIERS_PROP] = q.model_copy(
+                update={
+                    "claim_state": ClaimState.CONTESTED,
+                    "evidence_ids": tuple(remaining) or None,
+                    "independent_support_count": support,
+                    "provenance": provenance,
+                }
+            ).to_properties()
+            weight = e.weight if remaining else 0.0
+            await self._append(
+                MemoryEvent(
+                    kind=EventKind.LINK,
+                    namespace=namespace,
+                    actor="system",
+                    payload={
+                        "src": e.src,
+                        "dst": e.dst,
+                        "rel": e.rel_type,
+                        "weight": weight,
+                        "reason": f"{COMPILED}:evidence_erased",
+                        "props": props,
+                    },
+                )
+            )
+            stats.contested += 1
+            stats.retracted_edges += int(not remaining)
         return stats
 
     async def retract_records(
@@ -482,7 +731,9 @@ class LinkProjection:
         """Remove every compiled edge sourced from ``record_ids`` (erasure / retire, by lineage).
 
         Edges are tombstoned with a LINK event (weight 0, properties replaced, so the log replays to the
-        same graph) and the assertion node plus any value / time node nobody else uses is deleted."""
+        same graph) and the assertion node plus any value / time node nobody else uses is deleted.
+        On erasure (``reason="erasure"``) the other edges citing an erased id as evidence lose it
+        (RM-89, :meth:`_erase_evidence`)."""
         wanted = {str(r) for r in record_ids}
         stats = ProjectionStats()
         if not wanted:
@@ -492,6 +743,12 @@ class LinkProjection:
             for e in await self._current(namespace)
             if e.weight > 0 and str(e.properties.get("record_id")) in wanted
         ]
+        if reason == "erasure":
+            ev = await self._erase_evidence(
+                namespace, wanted, {(e.src, e.dst, e.rel_type) for e in hit}
+            )
+            stats.contested += ev.contested
+            stats.retracted_edges += ev.retracted_edges
         assertions: set[str] = set()
         others: set[str] = set()
         for e in hit:
@@ -539,13 +796,49 @@ class LinkProjection:
 # --------------------------------------------------------------------------- stage
 
 
-async def _compile_one(
+async def _lineage_roots(ctx: PipelineContext, ids: Iterable[str]) -> dict[str, list[str]]:
+    """RM-89: evidence id -> its sorted lineage roots (records without parents), following
+    ``source.parents`` through live records. An id that is not a live record, a chain deeper
+    than :data:`EDGE_LINEAGE_MAX_DEPTH`, or a cycle leaves that id unresolved (absent)."""
+    cache: dict[str, frozenset[str] | None] = {}
+
+    async def roots_of(record_id: str, depth: int) -> frozenset[str] | None:
+        if record_id in cache:
+            return cache[record_id]
+        cache[record_id] = None  # cycle guard: a record met again on its own chain is unresolved
+        record = await live_record(ctx, record_id)
+        found: frozenset[str] | None
+        if record is None or depth > EDGE_LINEAGE_MAX_DEPTH:
+            found = None
+        elif not record.source.parents:
+            found = frozenset({record_id})
+        else:
+            acc: set[str] = set()
+            found = frozenset()
+            for parent in dict.fromkeys(record.source.parents):
+                sub = await roots_of(parent, depth + 1)
+                if sub is None:
+                    found = None
+                    break
+                acc |= sub
+            if found is not None:
+                found = frozenset(acc)
+        cache[record_id] = found
+        return found
+
+    out: dict[str, list[str]] = {}
+    for evidence_id in dict.fromkeys(ids):
+        got = await roots_of(evidence_id, 0)
+        if got:
+            out[evidence_id] = sorted(got)
+    return out
+
+
+async def _compile_namespace(
     ctx: PipelineContext, namespace: str, compiler: EdgeCompiler
-) -> dict[str, int]:
-    assert ctx.graph is not None and ctx.append_event is not None
-    projection = LinkProjection(ctx.graph, ctx.append_event)
+) -> tuple[list[MemoryRecord], CompiledEdges]:
+    """The namespace's live semantic records and their compiled edges, lineage attached."""
     records = await live_records(ctx, namespace, "semantic")
-    tap.event("graph.compile.start", namespace=namespace, records=len(records))
     labels: dict[str, SensitivityResult] | None = None
     if compiler.labeller.model is not None:  # RM-99 opt-in model detector (async)
         labels = {
@@ -554,6 +847,17 @@ async def _compile_one(
             if compiler.eligible(r)
         }
     compiled = compiler.compile(records, namespace, sensitivity=labels)
+    evidence = (str(e) for m in compiled.meta.values() for e in m.get("evidence_ids", ()))
+    return records, attach_lineage(compiled, await _lineage_roots(ctx, evidence))
+
+
+async def _compile_one(
+    ctx: PipelineContext, namespace: str, compiler: EdgeCompiler
+) -> dict[str, int]:
+    assert ctx.graph is not None and ctx.append_event is not None
+    projection = LinkProjection(ctx.graph, ctx.append_event)
+    records, compiled = await _compile_namespace(ctx, namespace, compiler)
+    tap.event("graph.compile.start", namespace=namespace, records=len(records))
     delta = compiled.delta
     if tap.enabled():
         tap.event(
@@ -620,6 +924,47 @@ async def compile_graph_edges(ctx: PipelineContext) -> dict[str, object]:
     return stats
 
 
+async def requalify_namespace(
+    ctx: PipelineContext, namespace: str, *, dry_run: bool = False
+) -> dict[str, object]:
+    """RM-100: re-project one namespace's compiled edges now, so every edge carries current
+    qualifiers. Only edges whose stored form differs are rewritten (idempotent); ``dry_run``
+    counts without writing. Records that are no longer assertions are left to the sleep cycle.
+
+    Report: ``edges`` (live compiled edges before), ``missing_qualifiers`` (of those, without
+    valid qualifiers), ``to_update`` (edges whose stored form differs), ``unchanged`` and, when
+    not a dry run, ``updated``."""
+    if not ctx.config.graph.edge_compiler_v2:
+        raise ValueError("graph.edge_compiler_v2 is off: there is no compiled edge layer")
+    if ctx.graph is None:
+        raise ValueError("no graph store configured")
+    if not dry_run and ctx.append_event is None:
+        raise ValueError("read-only context (no write door)")
+
+    async def _refuse(_event: MemoryEvent) -> None:
+        raise RuntimeError("dry run: no event is appended")
+
+    compiler = EdgeCompiler(scoped=bool(ctx.config.isolation.scope_keys_v2))
+    projection = LinkProjection(ctx.graph, ctx.append_event or _refuse)
+    async with ctx.lock(namespace):
+        live = [e for e in await projection._current(namespace) if e.weight > 0]
+        _, compiled = await _compile_namespace(ctx, namespace, compiler)
+        planned, unchanged = await projection.plan(compiled)
+        report: dict[str, object] = {
+            "namespace": namespace,
+            "dry_run": dry_run,
+            "edges": len(live),
+            "missing_qualifiers": sum(1 for e in live if edge_qualifiers(e.properties) is None),
+            "to_update": len(planned),
+            "unchanged": unchanged,
+        }
+        if not dry_run:
+            stats = await projection.project(compiled)
+            report["updated"] = stats.written
+    tap.event("graph.requalify", **report)
+    return report
+
+
 async def retract_after_forget(eng: Any, namespace: str, record_ids: Sequence[str]) -> None:
     """Erasure hook (flag on): the forgotten records' compiled edges go with them (by lineage)."""
     graph = getattr(eng, "_graph", None)
@@ -634,5 +979,6 @@ async def retract_after_forget(eng: Any, namespace: str, record_ids: Sequence[st
         records=len(record_ids),
         edges=stats.retracted_edges,
         nodes=stats.retracted_nodes,
+        contested=stats.contested,
         reason="erasure",
     )

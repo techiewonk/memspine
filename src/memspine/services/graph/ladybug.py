@@ -56,6 +56,7 @@ from memspine.services.graph.qualifiers import (
     QualifierFilter,
     qualified_hops,
     qualified_subgraph,
+    sanitize_qualifiers,
 )
 
 __all__ = ["CypherClient", "LadybugGraphStore"]
@@ -261,7 +262,9 @@ class LadybugGraphStore:
         *,
         namespace: str | None = None,
     ) -> None:
-        props = dict(properties or {})
+        props = sanitize_qualifiers(
+            properties, src=src, dst=dst, rel_type=rel_type, provider="ladybug"
+        )
         ns = edge_namespace(namespace, None)
         # Endpoints are implicitly created bare (port contract): link replay
         # must never depend on node-event ordering. One lock acquisition spans
