@@ -28,30 +28,43 @@ Every connector implements one protocol:
 The connector receives a transport **spec** (frozen dataclass), never a pydantic config model.
 Factories map slot settings to the spec.
 
+As implemented (G, 2026-10-23): the protocol is `clients/base.py` `Connector[H]` with
+`ConnectorIdentity(kind, target, auth_digest, knobs, canonical)`; `key_target()` is the
+registry target and `descriptor_target()` the provider descriptor's `target_identity`
+(byte-identical to the factory functions it replaces, so fingerprints do not move). A
+private target (`:memory:` SQLite or Ladybug, `memory://` LanceDB, an in-RAM Tantivy index,
+`mem://` cache) gets a unique identity and is never shared. Shared helpers live in
+`clients/_common/` (`endpoints`, `secrets` with `auth_digest` and `Secret`, `deadlines.probe`).
+Transport constants (SQLite busy timeout, the psycopg connect-timeout floor, the LanceDB
+memory metadata cache, Tantivy writer heap and commit retries) moved from
+`config/constants.py` into their connector modules; `config/remote.py` moved to
+`clients/_common/endpoints.py` (no alias). Factories acquire a shared connector with
+`providers/connectors.py` `acquire(ctx, ConnectorCls, spec, resource_id=...)`.
+
 ## 2a. Live status by provider (updated after each merge; RM-113 row holds the evidence)
 
-Last update: 2026-10-23, after enforcement (`26068983`); import contracts 17 kept / 1 broken (the sqlite sync-engine chain, closing with G).
+Last update: 2026-10-23, after the connector merge (G, `7a7493b3`) and the models move (F, `05ef3138`); import contracts 18 kept / 0 broken.
 ✅ done · 🔧 in progress (agent) · ⏳ queued · ⚠️ known gap
 
 | Slot | Provider | Connector | Adapter | Factory | Status | Work |
 |---|---|---|---|---|---|---|
-| records | sqlite | 🔧 sync engine → `clients/sqlite` | ✅ records port + conformance | 🔧 slot wiring | 🔧 | G (connector, Alembic over connector), A (slot) |
-| records | postgres | 🔧 sync engine, advisory lock | ✅ records port + conformance | 🔧 slot wiring | 🔧 | G, A |
+| records | sqlite | ✅ `clients/sqlite` (spec, `SELECT 1`, sync engines, migration connection) | ✅ records port + conformance; Alembic over the lent connection | 🔧 slot wiring | 🔧 | A (slot) |
+| records | postgres | ✅ `clients/postgres` (spec, `SELECT 1`, sync engines, advisory lock) | ✅ records port + conformance; Alembic over the lent connection | 🔧 slot wiring | 🔧 | A |
 | records | mongodb | ✅ `clients/mongodb` (replica-set check, `hello` health, driver vocabulary in `driver.py`) | ✅ records port, 14/14 conformance on a replica set | ⏳ registration after the slot rewrite; uv.lock refresh (RM-02) | 🔧 b41eadaf | I (RM-112) |
-| vector | lancedb | 🔧 Connector + real health | ✅ | 🔧 slot wiring | 🔧 | G, A |
+| vector | lancedb | ✅ Connector + `list_tables` health | ✅ | 🔧 slot wiring | 🔧 | A |
 | vector | pgvector | ⏳ borrows the postgres connector | ⏳ DDL into the adapter | 🔧 slot wiring | ⏳ | after G/A |
-| vector | weaviate | 🔧 Connector + single identity (shared with lexical/documents) | ⏳ collection binding instead of native handle | 🔧 `acquire()` | 🔧 | G |
-| lexical | tantivy | 🔧 new `clients/tantivy` | 🔧 uses the connector | 🔧 slot wiring | 🔧 | G, A |
-| lexical | opensearch | 🔧 Connector + single identity | ✅ | 🔧 `acquire()` | 🔧 | G |
-| lexical | weaviate | 🔧 same shared Weaviate connector | ⏳ collection binding instead of native handle | 🔧 `acquire()` | 🔧 | G |
-| graph | ladybug | 🔧 Connector + real health | ✅ one port | 🔧 slot wiring | 🔧 | G, A |
+| vector | weaviate | ✅ Connector + single identity, `is_ready` health (shared with lexical/documents) | ⏳ collection binding instead of native handle (item 12) | ✅ `acquire()`, identity from the connector | ⏳ | item 12 |
+| lexical | tantivy | ✅ `clients/tantivy` (index open, mkdir, writer lock, commit+reload, searcher health) | ✅ uses the connector; RM-72 holds unchanged | 🔧 slot wiring (still shares the adapter) | 🔧 | A |
+| lexical | opensearch | ✅ Connector + single identity, cluster-health round trip | ✅ | ✅ `acquire()`, identity from the connector | ✅ | G (7a7493b3) |
+| lexical | weaviate | ✅ same shared Weaviate connector | ⏳ collection binding instead of native handle (item 12) | ✅ `acquire()` | ⏳ | item 12 |
+| graph | ladybug | ✅ Connector + `RETURN 1` health, shared statement lock | ✅ one port | 🔧 slot wiring | 🔧 | A |
 | graph | sql_adjacency | ✅ borrows the SQL connector | ✅ one port, SQLite + Postgres | 🔧 slot wiring | 🔧 | A |
-| graph | neo4j | 🔧 Connector, no providers import, shared | ✅ one port | 🔧 slot wiring | 🔧 | G, A |
-| graph_mirror | neo4j | 🔧 same Neo4j connector | ✅ one port | 🔧 mirror slot + capability gate | 🔧 | G, A |
+| graph | neo4j | ✅ Connector (spec, `RETURN 1`), no providers import; executor built adapter-side, never closes the driver | ✅ one port | 🔧 slot wiring; not yet shared (item 6) | 🔧 | A |
+| graph_mirror | neo4j | ✅ same Neo4j connector | ✅ one port | 🔧 mirror slot + capability gate | 🔧 | A |
 | cache | memory | n/a (process) | ✅ `services/cache` (F) | 🔧 slot wiring | 🔧 | F, A |
-| cache | disk | 🔧 cashews connector, placement under `data_dir` | ✅ `services/cache` (F) | 🔧 slot wiring | 🔧 | G, F, A |
-| cache | redis | 🔧 cashews connector, shared | ✅ `services/cache` (F) | 🔧 slot wiring | 🔧 | G, F, A |
-| cache | valkey | 🔧 cashews connector, shared | ✅ `services/cache` (F) | 🔧 slot wiring | 🔧 | G, F, A |
+| cache | disk | ✅ cashews Connector (spec, `get` health) | ✅ `services/cache` (F) | 🔧 slot wiring; placement under `data_dir`; not yet shared (item 6) | 🔧 | A |
+| cache | redis | ✅ cashews Connector (spec, `get` health) | ✅ `services/cache` (F) | 🔧 slot wiring; not yet shared (item 6) | 🔧 | A |
+| cache | valkey | ✅ cashews Connector (spec, `get` health) | ✅ `services/cache` (F) | 🔧 slot wiring; not yet shared (item 6) | 🔧 | A |
 | documents | filesystem | ⏳ `clients/fs` | ⏳ | ⏳ | ⏳ | after A (slot) |
 | documents | s3 | ⏳ `clients/s3` | ⏳ | ⏳ | ⏳ | RM-112 |
 | documents | mongodb | ✅ `clients/mongodb` (shared with records) | ⏳ GridFS adapter | ⏳ | ⏳ | RM-112 |
@@ -75,18 +88,18 @@ Last update: 2026-10-23, after enforcement (`26068983`); import contracts 17 kep
 | model.decider | gliner2 | ✅ leases the extraction pool | ✅ `services/decider/gliner2_decision.py` | ✅ `decider` descriptor | ✅ | F (fa543ba0) |
 | model.decider | jepa (JEPA-style, joint-embedding predictive) | ⏳ future `clients/weights/<lib>` | ⏳ future `services/decider/jepa.py` | ⏳ future descriptor | ⏳ future | not scheduled |
 | model.decider | yolo-style (fast single-pass classifier) | ⏳ future `clients/weights/<lib>` | ⏳ future `services/decider/<name>.py` | ⏳ future descriptor | ⏳ future | not scheduled |
-| assets | fetch / vision | 🔧 `clients/http` | 🔧 | n/a | 🔧 | G |
-| external | provider / wikipedia | 🔧 `clients/http` | 🔧 | n/a | 🔧 | G |
-| secrets | aws | 🔧 `clients/aws` | 🔧 | n/a | 🔧 | G |
-| — | enforcement (import rules, constructor denylist) | — | — | — | ✅ 26068983 (37 import + 25 constructor baseline entries, shrink-only) | E |
+| assets | fetch / vision | ✅ `clients/http` (one pooled httpx client per Engine, no redirect following) | ✅ takes the connector; the asset registry's sqlite3 stays (item 18) | n/a | ✅ | G (7a7493b3) |
+| external | provider / wikipedia | ✅ `clients/http` | ✅ takes the connector | n/a | ✅ | G (7a7493b3) |
+| secrets | aws | ✅ `clients/aws` (boto3 session, STS health) | ✅ takes the connector | n/a | ✅ | G (7a7493b3) |
+| — | enforcement (import rules, constructor denylist) | — | — | — | ✅ 26068983; baselines shrinking (F and G removed lines) | E |
 
 Model slots (owner 2026-10-23): service providers are named `model.<slot>`: `model.embedding`, `model.llm`, `model.rerank`, `model.extraction` (GLiNER entity/relation spans, source-grounded) and `model.decider` (choose among described options). Extraction and decider stay separate slots with separate ports; the same GLiNER weights are loaded once through the shared registry when both are bound to it. Future `model.decider` providers: a JEPA-style decider and a YOLO-style fast classifier (reserved names, not scheduled).
 
-**Import contracts:** 17 kept (5 new), 1 broken. The one remaining chain is
-`store.migrate → services.storage.sqlite.engine → runtime.outbox.sqlite_engine`, and it
-closes when G moves the sync engines into `clients/sqlite`. Two other chains are already
-fixed in `8368c356`: the outbox tables moved to `services/storage/outbox_tables.py`, and
-the lease store moved to `store/leases.py`.
+**Import contracts:** 18 kept, 0 broken (after G). The last chain
+(`store.migrate → services.storage.sqlite.engine → runtime.outbox.sqlite_engine`) closed
+when the sync engines moved into `clients/sqlite/sync.py`; the lease engine is lent by the
+connector. Earlier fixes: outbox tables in `services/storage/outbox_tables.py`, lease store in
+`store/leases.py` (`8368c356`).
 
 ## 2. Audit result (summary)
 
@@ -147,6 +160,33 @@ Section 4 records the enforcement added on 2026-10-23.
 12. Weaviate adapters take the connector plus a collection binding.
 13. Cache adapters move to `services/cache/`.
 14. A `clients/http` shared httpx connector for vision, external search and asset fetch; a `clients/aws` connector.
+
+**Connector layer (G) status, 2026-10-23.** Done: 1 (OpenSearch and Weaviate factories
+now take their identity from the connector), 2, 3 (plus Tantivy, HTTP and AWS), 4, 5, 8, 9
+(Postgres runs hold the `MIGRATION_LOCK_KEY` session advisory lock; the legacy stamp adoption
+is unchanged), 10 and 14. Open: 6 (Neo4j and cache are connectors but still per-Engine),
+7, 11, 12, 13. Behaviour notes: `TantivyLexical.close()` only commits held documents; the
+connector's owner closes the index. `DriverExecutor.close()` never closes the driver. Every
+connector opens with `open()` (no `connect()`), and every constructor takes its spec.
+
+**Factories still to adopt `acquire()`** (left to the storage-slot rewrite, which owns these
+files; each one drops a hand-written `own_shared` closure and, where noted, a duplicate
+identity parser):
+- `providers/builtin/storage.py`: SQLite and Postgres async connectors; drop
+  `sqlite_shared_identity` and `postgres_target_identity` in favour of
+  `SQLiteClient.identity` / `PostgresClient.identity` (`.target` equals the old dict). The
+  shared sync engine stays a second lease on `client.sync_engine(pool)`.
+- `providers/builtin/vector.py`: `LanceDBClient` (path identity already matches).
+- `providers/builtin/lexical.py`: share the `TantivyConnector` (`lexical.tantivy`) and build an
+  adapter per Engine; the RM-72 hold is per adapter token and the uncommitted flag lives on the
+  connector, so this is safe, but `test_tantivy_one_writer_per_path_and_memory_is_private`
+  asserts the shared adapter and must change with it.
+- `providers/builtin/graph.py`: `LadybugClient` (today a shared (client, adapter) pair) and
+  `Neo4jClient` (item 6; drop `_neo4j_target_identity` for
+  `Neo4jClient.identity(spec).descriptor_target()`).
+- `providers/builtin/cache.py`: `CashewsClient` for disk/redis/valkey (item 6).
+- `providers/builtin/pgvector.py`: no connector of its own; item 11 moves the DDL into the
+  adapter and lends it the Postgres connector.
 
 **P2, high risk (wide import churn, done with a codemod):**
 
@@ -221,9 +261,10 @@ python scripts/ci_importlinter.py --print  # show the filtered config with injec
 - The baseline must reach zero when section 3 is done. A contract with no baseline lines and no
   `ignore_imports` is fully enforced.
 
-`target-layers` was already broken under `lint-imports` before this change. It fails through
-indirect chains such as `services.storage.sql_base -> runtime.outbox`, which item 8 removes. The
-AST mirror checks direct imports only and passes. This baseline does not cover it.
+`target-layers` was already broken under `lint-imports` before this change, through indirect
+chains such as `services.storage.sql_base -> runtime.outbox`. Item 8 removed the last one;
+`scripts/ci_importlinter.py` reports 18 kept, 0 broken. The AST mirror checks direct imports
+only.
 
 ## 5. How it composes with ADR-081
 
