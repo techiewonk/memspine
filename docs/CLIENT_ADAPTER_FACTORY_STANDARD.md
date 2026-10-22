@@ -105,7 +105,7 @@ the lease store moved to `store/leases.py`.
 | cache memory/disk/redis/valkey | `clients/cashews.py` | `models/cache/*` (wrong package) | `providers/builtin/cache.py` | adapters live in `models`; not shared through the registry (one Redis connection per Engine) |
 | embedding (fastembed/st/static/litellm) | **none** | `models/encoders/embedding/*` | `providers/builtin/models.py` | adapters load weights, download or hold transport themselves |
 | llm (litellm, llamacpp) | **none** | `models/providers/llm/*` | `models.py` | transport in the adapter; ollama/vllm/bedrock are model prefixes, not descriptors |
-| model.rerank | **none** | `models/providers/rerank/*` | `models.py` and a second `rerank/factory.py` | duplicate factory; circular dependency |
+| rerank | **none** | `models/providers/rerank/*` | `models.py` and a second `rerank/factory.py` | duplicate factory; circular dependency |
 | gliner (extraction) | **none** | `models/runtime/gliner_runtime.py` | **no descriptor** (built in the container) | consumers import the concrete pool |
 | decider | **none** | `models/providers/decision/*` | **no descriptor** (built in `api/engine.py`) | the engine builds the adapter |
 
