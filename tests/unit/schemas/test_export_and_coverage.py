@@ -74,6 +74,18 @@ def test_model_names_unique_and_tiers_correct():
             assert cls.model_config["extra"] == "allow"
 
 
+def test_runtime_built_subclasses_are_not_exported():
+    # Frozen config snapshots subclass public models at runtime (same __module__); an earlier
+    # test that freezes a config with plugins must not change the export.
+    from memspine.config.schema.root import _frozen_config_model
+    from memspine.schemas.public.plugins import CapabilityManifest
+
+    frozen = _frozen_config_model(CapabilityManifest)
+    names = {cls.__name__ for classes in collect_models().values() for cls in classes}
+    assert frozen.__name__ not in names
+    assert "CapabilityManifest" in names
+
+
 # --- every spec step has an Input and an Output model ------------------------------------------------------
 
 _STEP_RE = re.compile(r"^### (\d+)\. ", re.M)

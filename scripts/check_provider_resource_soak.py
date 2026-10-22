@@ -1,8 +1,12 @@
 """Run a bounded fresh-process SQLite/provider lifecycle resource soak.
 
-The post-warmup RSS spread is a diagnostic guard only, not a production SLO
-or evidence of unbounded leak freedom. SQLAlchemy connection events are scoped
-to this worker process and removed before it exits.
+The post-warmup RSS spread and the RSS/handle slopes are diagnostic guards
+only, not a production SLO or evidence of unbounded leak freedom. SQLAlchemy
+connection events are scoped to this worker process and removed before it exits.
+
+    python scripts/check_provider_resource_soak.py --out soak.json
+    python scripts/check_provider_resource_soak.py --measured-cycles 300 --wall-time-s 1800 \\
+        --out soak-300.json   # RM-29 extended soak
 """
 
 from __future__ import annotations
@@ -27,6 +31,9 @@ WARMUP_CYCLES = 5
 MEASURED_CYCLES = 30
 MAX_WALL_TIME_S = 180
 POST_WARMUP_RSS_SPREAD_GUARD_BYTES = 100 * 1024 * 1024
+# RM-29 slope guards (least-squares over post-stop measured samples), declared before running.
+RSS_SLOPE_GUARD_BYTES_PER_CYCLE = 256 * 1024
+HANDLE_SLOPE_GUARD_PER_CYCLE = 0.5
 MESSAGES_PER_CYCLE = 2
 SEARCHES_PER_CYCLE = 2
 
@@ -97,6 +104,17 @@ def percentile_summary(values: list[float]) -> dict[str, Any]:
         "p95": nearest_rank(95),
         "p99": nearest_rank(99),
     }
+
+
+def slope_per_cycle(values: list[float]) -> float | None:
+    """Least-squares slope of values against their sample index."""
+    if len(values) < 2:
+        return None
+    mean_x = (len(values) - 1) / 2
+    mean_y = sum(values) / len(values)
+    numerator = sum((x - mean_x) * (y - mean_y) for x, y in enumerate(values))
+    denominator = sum((x - mean_x) ** 2 for x in range(len(values)))
+    return numerator / denominator
 
 
 def connection_event_probe() -> tuple[Any, set[int], dict[str, int]]:
@@ -263,6 +281,13 @@ async def run_cycles(
         if sample["rss_after_stop_bytes"] is not None
     ]
     rss_spread = max(rss_values) - min(rss_values) if rss_values else None
+    rss_slope = slope_per_cycle([float(value) for value in rss_values])
+    handle_values = [
+        float(sample["handles_after_stop"])
+        for sample in measured
+        if sample["handles_after_stop"] is not None
+    ]
+    handle_slope = slope_per_cycle(handle_values)
     stop_connection_counts = [sample["open_dbapi_connections_after_stop"] for sample in samples]
     completed_connects = event_totals["connect_events"]
     completed_closes = event_totals["close_events"]
@@ -289,6 +314,16 @@ async def run_cycles(
             rss_spread > POST_WARMUP_RSS_SPREAD_GUARD_BYTES if rss_spread is not None else None
         ),
         "post_warmup_rss_guard_interpretation": "diagnostic only; not a production SLO and cannot prove unbounded leak freedom",
+        "rss_slope_guard_bytes_per_cycle": RSS_SLOPE_GUARD_BYTES_PER_CYCLE,
+        "rss_slope_bytes_per_cycle": rss_slope,
+        "rss_slope_guard_exceeded": (
+            rss_slope > RSS_SLOPE_GUARD_BYTES_PER_CYCLE if rss_slope is not None else None
+        ),
+        "handle_slope_guard_per_cycle": HANDLE_SLOPE_GUARD_PER_CYCLE,
+        "handle_slope_per_cycle": handle_slope,
+        "handle_slope_guard_exceeded": (
+            handle_slope > HANDLE_SLOPE_GUARD_PER_CYCLE if handle_slope is not None else None
+        ),
         "all_cycles_had_zero_open_dbapi_connections_after_stop": all(
             count == 0 for count in stop_connection_counts if count is not None
         )
@@ -329,6 +364,8 @@ def worker(out: Path) -> int:
                     "warmup_cycles": WARMUP_CYCLES,
                     "measured_cycles": MEASURED_CYCLES,
                     "post_warmup_rss_spread_guard_bytes": POST_WARMUP_RSS_SPREAD_GUARD_BYTES,
+                    "rss_slope_guard_bytes_per_cycle": RSS_SLOPE_GUARD_BYTES_PER_CYCLE,
+                    "handle_slope_guard_per_cycle": HANDLE_SLOPE_GUARD_PER_CYCLE,
                     "guard_is_diagnostic_not_slo": True,
                     "wall_time_limit_s": MAX_WALL_TIME_S,
                 }
@@ -374,9 +411,13 @@ def worker(out: Path) -> int:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--out", type=Path, required=True)
+    parser.add_argument("--measured-cycles", type=int, default=MEASURED_CYCLES)
+    parser.add_argument("--wall-time-s", type=float, default=MAX_WALL_TIME_S)
     parser.add_argument("--worker", action="store_true", help=argparse.SUPPRESS)
     args = parser.parse_args()
     args.out.parent.mkdir(parents=True, exist_ok=True)
+    global MEASURED_CYCLES, MAX_WALL_TIME_S
+    MEASURED_CYCLES, MAX_WALL_TIME_S = args.measured_cycles, args.wall_time_s
     if args.worker:
         return worker(args.out)
 
@@ -394,6 +435,10 @@ def main() -> int:
         "--worker",
         "--out",
         str(args.out.resolve()),
+        "--measured-cycles",
+        str(MEASURED_CYCLES),
+        "--wall-time-s",
+        str(MAX_WALL_TIME_S),
     ]
     try:
         completed = subprocess.run(
@@ -403,7 +448,7 @@ def main() -> int:
             text=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
-            timeout=MAX_WALL_TIME_S,
+            timeout=MAX_WALL_TIME_S + 60,  # margin for the last stop and the report
             check=False,
         )
         out = args.out.with_suffix(".log")
