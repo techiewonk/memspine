@@ -30,7 +30,7 @@ Factories map slot settings to the spec.
 
 ## 2a. Live status by provider (updated after each merge; RM-113 row holds the evidence)
 
-Last update: 2026-10-23, after the single graph port and the layering fixes (`8368c356`).
+Last update: 2026-10-23, after enforcement (`26068983`); import contracts 17 kept / 1 broken (the sqlite sync-engine chain, closing with G).
 ✅ done · 🔧 in progress (agent) · ⏳ queued · ⚠️ known gap
 
 | Provider | Connector | Adapter | Factory | Status | Work |
@@ -54,9 +54,9 @@ Last update: 2026-10-23, after the single graph port and the layering fixes (`83
 | decider | 🔧 weights | 🔧 move to `services/decision` | 🔧 new descriptor | 🔧 | F |
 | assets / external / secrets | 🔧 `clients/http`, `clients/aws` | 🔧 | n/a | 🔧 | G |
 | documents (filesystem, s3, mongodb, weaviate) | ⏳ | ⏳ | ⏳ | ⏳ | after A (slot), RM-112 |
-| enforcement (import rules, constructor denylist) | — | — | — | 🔧 | E |
+| enforcement (import rules, constructor denylist) | — | — | — | ✅ 26068983 (37 import + 25 constructor baseline entries, shrink-only) | E |
 
-**Import contracts:** 13 kept, 1 broken. The one remaining chain is
+**Import contracts:** 17 kept (5 new), 1 broken. The one remaining chain is
 `store.migrate → services.storage.sqlite.engine → runtime.outbox.sqlite_engine`, and it
 closes when G moves the sync engines into `clients/sqlite`. Two other chains are already
 fixed in `8368c356`: the outbox tables moved to `services/storage/outbox_tables.py`, and
