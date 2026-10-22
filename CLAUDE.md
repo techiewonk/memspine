@@ -6,7 +6,7 @@ This file is loaded into every Claude Code session. Keep it accurate and terse.
 
 `memspine` is an open-source **cognitive-memory engine** for AI agents: one clean API (`Engine`) over a real write pipeline, hybrid + graph retrieval, and background learning dynamics — with pluggable, composable stores. It is the *engine*, not a product.
 
-**Status:** pre-alpha, under active construction. **P0–P7 are all implemented and review-passed** (substrate · working memory + retrieval · semantic · episodic + lifecycle · Memory Firewall · procedural + reflective · associative graph · prospective + shared + REST), plus the C6 combination matrix. Get the current test count with `uv run pytest --collect-only -q` (evals add `evals/tests`); `ruff` + `mypy --strict` are the gate. **77 ADRs** (ADR-001…ADR-079; 038 and 045 unassigned; ADR-029/030/031 *proposed*), decision register through D-103. All 9 memory types and E1–E9 are landed. User-facing docs: `docs/FEATURES.md` + `docs/USAGE.md`. Ecosystem comparison: `docs/ECOSYSTEM_COMPARISON.md` + `docs/ARCHITECTURE_FLOWS.md` (pass #3: stages, packages, prompts, memory I/O). Current task/status lives only in `docs/PROVIDER_TODO.md` (see below). The design docs in `docs/` are the **single source of truth** — read them before writing code.
+**Status:** pre-alpha, under active construction. **P0–P7 are all implemented and review-passed** (substrate · working memory + retrieval · semantic · episodic + lifecycle · Memory Firewall · procedural + reflective · associative graph · prospective + shared + REST), plus the C6 combination matrix. Get the current test count with `uv run pytest --collect-only -q` (evals add `evals/tests`); `ruff` + `mypy --strict` are the gate. **78 ADRs** (ADR-001…ADR-080; 038 and 045 unassigned; ADR-029/030/031 *proposed*), decision register through D-104. All 9 memory types and E1–E9 are landed. User-facing docs: `docs/FEATURES.md` + `docs/USAGE.md`. Ecosystem comparison: `docs/ECOSYSTEM_COMPARISON.md` + `docs/ARCHITECTURE_FLOWS.md` (pass #3: stages, packages, prompts, memory I/O). Current task/status lives only in `docs/PROVIDER_TODO.md` (see below). The design docs in `docs/` are the **single source of truth** — read them before writing code.
 
 ## Single live task/status tracker
 
@@ -14,7 +14,7 @@ Use **docs/PROVIDER_TODO.md** for all current task IDs, statuses, completed work
 
 ## Read these first (in order)
 
-1. `docs/memspine-structure-plan.md` — **the buildable blueprint**: repo tree, extras matrix, decision register (D-01…D-103), phase plan (P0…P7), enhancement program (E1–E9). This is authoritative.
+1. `docs/memspine-structure-plan.md` — **the buildable blueprint**: repo tree, extras matrix, decision register (D-01…D-104), phase plan (P0…P7), enhancement program (E1–E9). This is authoritative.
 2. `docs/UNIMEM_V2_REWORK_PROPOSAL.md` — architecture rationale (why, and the evidence base).
 3. `docs/DEPENDENCY_ANALYSIS.md` + `docs/PACKAGE_CATALOG.md` — why each dependency was chosen; every candidate package with "does what".
 
@@ -30,7 +30,7 @@ Use **docs/PROVIDER_TODO.md** for all current task IDs, statuses, completed work
 - **Profiles stay green.** Preserve `simple` retrieval behaviour while applying the accepted breaking provider schema. No legacy configuration aliases or compatibility modules (ADR-068); `core` is the bare reference used by mechanics tests.
 - **Hard-fail clearly (D-10).** Missing service → `MissingServiceError` naming the extra to install, unless `strict_services: false`.
 
-## Locked defaults (decision register — see plan for D-01…D-103)
+## Locked defaults (decision register — see plan for D-01…D-104)
 
 | Area | Default | Notes |
 |------|---------|-------|
@@ -89,7 +89,7 @@ uv run ruff check . && uv run ruff format --check .
 ## How to work here
 
 1. **Find the phase.** Work follows P0→P7 (see plan §5). Confirm which phase a task belongs to; don't build P4 before P1's contracts exist.
-2. **Check the register.** Before adding a dependency or pattern, confirm it against D-01…D-103. New dep → justify like `DEPENDENCY_ANALYSIS.md` (what it does, who proves it, which extra) and record a decision.
+2. **Check the register.** Before adding a dependency or pattern, confirm it against D-01…D-104. New dep → justify like `DEPENDENCY_ANALYSIS.md` (what it does, who proves it, which extra) and record a decision.
 3. **Keep the core slim and `simple` green.** Guard both in every PR.
 4. **Update docs with the code.** If you change a contract, update the structure plan + this file in the same change.
 
@@ -128,3 +128,5 @@ D-99 / ADR-077 accepts raw-first ingestion plus durable background grounding, so
 D-100 / ADR-078 accepts evidence-bound identity/aliases, supported dated residence transitions with multiple homes, and source-local temporal precision plus evidence-known time. Initial contextual linking is engineering-first; retrieval similarity proposes candidates only. See docs/INGESTION_CONTEXT_ENRICHMENT.md; remaining contracts are in review, not implemented.
 
 D-100 schema selection Q-S1..5 B/B/A/A/B: coordinated replacement of affected envelopes, aware-only resolved times (timezone-free dates remain text), typed claim values, explicit domain occurrences and persisted excerpt copies with cascade erasure. docs/ENRICHMENT_SCHEMA_CONTRACTS.md is the target; not implemented.
+
+D-104 / ADR-080: compiled graph edges carry typed qualifiers (aware-only times; semantics vocabularies for lifecycle, sensitivity and origin). `graph_filter` on search/read/REST/MCP gates only the compiled-edge leg. Unknown never passes an allow-filter and erased edges never pass; unqualified graph paths are skipped under a filter. Sensitivity is a separate three-state labelling layer that only tightens policy. Malformed qualifiers are dropped with a warning, never failing the write.
