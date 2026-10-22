@@ -16,7 +16,12 @@ async def engine() -> AsyncIterator[Engine]:
     eng = Engine(
         template="core",
         dotenv_path=None,
-        storage={"provider": "sqlite", "settings": {"path": ":memory:", "busy_timeout_s": 5.0}},
+        storage={
+            "records": {
+                "provider": "sqlite",
+                "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
+            }
+        },
         embedding={"provider": "hash", "settings": {}},
         memories={
             "working": {"enabled": True},
@@ -281,7 +286,12 @@ async def test_verbs_fail_loudly_when_types_disabled() -> None:
     eng = Engine(
         template="core",
         dotenv_path=None,
-        storage={"provider": "sqlite", "settings": {"path": ":memory:", "busy_timeout_s": 5.0}},
+        storage={
+            "records": {
+                "provider": "sqlite",
+                "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
+            }
+        },
         embedding={"provider": "hash", "settings": {}},
     )
     await eng.start()

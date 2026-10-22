@@ -37,7 +37,12 @@ async def _answers(order: list[str], mode: str) -> dict[str, list[str]]:
     eng = Engine(
         template="base",
         dotenv_path=None,
-        storage={"provider": "sqlite", "settings": {"path": ":memory:", "busy_timeout_s": 5.0}},
+        storage={
+            "records": {
+                "provider": "sqlite",
+                "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
+            }
+        },
         embedding={"provider": "hash", "settings": {}},
     )
     await eng.start()

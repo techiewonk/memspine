@@ -38,7 +38,12 @@ def _engine(*, firewall: dict[str, Any] | None = None, policy: Any = None, **rea
     return Engine(
         template="core",
         dotenv_path=None,
-        storage={"provider": "sqlite", "settings": {"path": ":memory:", "busy_timeout_s": 5.0}},
+        storage={
+            "records": {
+                "provider": "sqlite",
+                "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
+            }
+        },
         embedding={"provider": "hash", "settings": {}},
         memories={
             "episodic": {"enabled": True, "policies": {"perspective": policy or "heuristic"}},
@@ -342,7 +347,12 @@ async def test_i55_mined_fact_inherits_and_the_conflict_key_uses_it() -> None:
     eng = Engine(
         template="core",
         dotenv_path=None,
-        storage={"provider": "sqlite", "settings": {"path": ":memory:", "busy_timeout_s": 5.0}},
+        storage={
+            "records": {
+                "provider": "sqlite",
+                "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
+            }
+        },
         embedding={"provider": "hash", "settings": {}},
         memories={
             "episodic": {"enabled": True, "policies": {"perspective": "heuristic"}},

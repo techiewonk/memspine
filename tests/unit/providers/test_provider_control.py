@@ -46,9 +46,9 @@ async def test_engine_change_control_is_explicit_deployment_scoped_and_lifetime_
     engine = Engine(
         template="core",
         dotenv_path=None,
-        storage={"settings": {"path": ":memory:", "busy_timeout_s": 5.0}},
+        storage={"records": {"settings": {"path": ":memory:", "busy_timeout_s": 5.0}}},
         embedding={"provider": "hash", "settings": {}},
-        runtime={"deployment_id": "control-test"},
+        deployment={"id": "control-test"},
     )
     async with engine:
         control = engine.provider_changes(revision_guard=Guard(), strategies={}, plan_ttl_s=60.0)

@@ -17,7 +17,9 @@ async def _engine(interval: float | None, path: str = ":memory:") -> Engine:
     engine = Engine(
         template="core",
         dotenv_path=None,
-        storage={"provider": "sqlite", "settings": {"path": path, "busy_timeout_s": 5.0}},
+        storage={
+            "records": {"provider": "sqlite", "settings": {"path": path, "busy_timeout_s": 5.0}}
+        },
         embedding={"provider": "hash", "settings": {}},
         memories={"episodic": {"enabled": True}, "semantic": {"enabled": True}},
         workers=workers,

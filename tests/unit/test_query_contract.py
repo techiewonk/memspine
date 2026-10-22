@@ -186,7 +186,12 @@ def _engine(monkeypatch: pytest.MonkeyPatch, stub: _PlanStub | None = None, **re
     return Engine(
         template="core",
         dotenv_path=None,
-        storage={"provider": "sqlite", "settings": {"path": ":memory:", "busy_timeout_s": 5.0}},
+        storage={
+            "records": {
+                "provider": "sqlite",
+                "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
+            }
+        },
         embedding={"provider": "hash", "settings": {}},
         memories={"episodic": {"enabled": True}},
         read={"hybrid": False, "record_access": False, **read},

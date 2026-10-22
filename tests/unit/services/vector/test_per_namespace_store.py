@@ -14,11 +14,13 @@ def _engine(path: Path, isolation: str) -> Engine:
         template="core",
         dotenv_path=None,
         storage={
-            "provider": "sqlite",
-            "settings": {"path": str(path / "m.db"), "busy_timeout_s": 5.0},
+            "records": {
+                "provider": "sqlite",
+                "settings": {"path": str(path / "m.db"), "busy_timeout_s": 5.0},
+            },
+            "vector": {"provider": "lancedb", "settings": {"isolation": isolation}},
         },
         embedding={"provider": "hash", "settings": {}},
-        vector={"provider": "lancedb", "settings": {"isolation": isolation}},
         read={"record_access": False},
     )
 

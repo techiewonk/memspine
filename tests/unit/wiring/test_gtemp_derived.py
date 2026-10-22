@@ -119,7 +119,12 @@ async def test_replay_read_runs_with_both_flags_on() -> None:
     eng = Engine(
         template="core",
         dotenv_path=None,
-        storage={"provider": "sqlite", "settings": {"path": ":memory:", "busy_timeout_s": 5.0}},
+        storage={
+            "records": {
+                "provider": "sqlite",
+                "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
+            }
+        },
         embedding={"provider": "hash", "settings": {}},
         memories={"episodic": {"enabled": True}},
         read={"record_access": False, "rerank": "off", "derived_dates": True, "derived_cap": 1},

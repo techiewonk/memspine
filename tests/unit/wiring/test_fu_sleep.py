@@ -46,8 +46,10 @@ def _engine(path: Path, *, offline: dict[str, Any] | None = None, **extra: Any) 
         template="core",
         dotenv_path=None,
         storage={
-            "provider": "sqlite",
-            "settings": {"path": str(path / "m.db"), "busy_timeout_s": 5.0},
+            "records": {
+                "provider": "sqlite",
+                "settings": {"path": str(path / "m.db"), "busy_timeout_s": 5.0},
+            }
         },
         embedding={"provider": "hash", "settings": {}},
         memories={
@@ -338,14 +340,16 @@ def test_shared_sql_lease_capability_uses_owned_sync_lease(monkeypatch: pytest.M
             }
         },
         storage={
-            "provider": "postgres",
-            "settings": {
-                "url": "postgresql://u@h/db",
-                "data_dir": "./derived",
-                "connect_timeout_s": 1.0,
-                "statement_timeout_s": 5.0,
-            },
+            "records": {
+                "provider": "postgres",
+                "settings": {
+                    "url": "postgresql://u@h/db",
+                    "connect_timeout_s": 1.0,
+                    "statement_timeout_s": 5.0,
+                },
+            }
         },
+        deployment={"data_dir": "./derived"},
     )
     access = SimpleNamespace(capabilities=frozenset({"sql.shared_leases"}), is_memory=False)
     access.sync_lease = lambda resources, purpose: SimpleNamespace(engine=purpose)

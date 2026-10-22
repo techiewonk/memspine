@@ -31,7 +31,12 @@ def _engine(**extra: Any) -> Engine:
     kwargs: dict[str, Any] = {
         "template": "base",
         "dotenv_path": None,
-        "storage": {"provider": "sqlite", "settings": {"path": ":memory:", "busy_timeout_s": 5.0}},
+        "storage": {
+            "records": {
+                "provider": "sqlite",
+                "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
+            }
+        },
         "embedding": {"provider": "hash"},
         "memories": {
             "episodic": {"enabled": True},
@@ -77,7 +82,12 @@ async def _by_channel(eng: Engine, channel: str, namespace: str = "a") -> list[M
 async def test_n2_consolidation_summary_is_non_privileged_and_parent_capped() -> None:
     eng = Engine(
         dotenv_path=None,
-        storage={"provider": "sqlite", "settings": {"path": ":memory:", "busy_timeout_s": 5.0}},
+        storage={
+            "records": {
+                "provider": "sqlite",
+                "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
+            }
+        },
         embedding={"provider": "hash", "settings": {}},
     )
     await eng.start()  # the default (simple) profile: consolidation must still run

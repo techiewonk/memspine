@@ -113,7 +113,12 @@ async def test_no_model_template_makes_zero_calls_with_every_write_flag_on(
     eng = Engine(
         template="core",
         dotenv_path=None,
-        storage={"provider": "sqlite", "settings": {"path": ":memory:", "busy_timeout_s": 5.0}},
+        storage={
+            "records": {
+                "provider": "sqlite",
+                "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
+            }
+        },
         embedding={"provider": "hash", "settings": {}},
         write={**flags, "window_extract": "facts", "window_async": False, "window_idle_s": 0.0},
     )
@@ -135,7 +140,12 @@ async def test_no_model_start_still_fails_with_the_flag_off() -> None:
     eng = Engine(
         template="core",
         dotenv_path=None,
-        storage={"provider": "sqlite", "settings": {"path": ":memory:", "busy_timeout_s": 5.0}},
+        storage={
+            "records": {
+                "provider": "sqlite",
+                "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
+            }
+        },
         embedding={"provider": "hash", "settings": {}},
         write={"window_extract": "facts"},
     )
@@ -198,7 +208,12 @@ async def _outbox_engine(monkeypatch: pytest.MonkeyPatch, path: Path, **read: An
     eng = Engine(
         template="core",
         dotenv_path=None,
-        storage={"provider": "sqlite", "settings": {"path": str(path), "busy_timeout_s": 5.0}},
+        storage={
+            "records": {
+                "provider": "sqlite",
+                "settings": {"path": str(path), "busy_timeout_s": 5.0},
+            }
+        },
         embedding={"provider": "hash", "settings": {}},
         memories={"episodic": {"enabled": True}, "semantic": {"enabled": True}},
         write={"window_extract": "facts", "window_async": False, "window_idle_s": 0.0},

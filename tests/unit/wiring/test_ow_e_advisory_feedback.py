@@ -54,8 +54,10 @@ def _engine(memories: dict[str, Any] | None = None, write: dict[str, Any] | None
         template="core",
         dotenv_path=None,
         storage={
-            "provider": "sqlite",
-            "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
+            "records": {
+                "provider": "sqlite",
+                "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
+            }
         },
         embedding={"provider": "hash", "settings": {}},
         memories={"episodic": {"enabled": True}, **(memories or {})},

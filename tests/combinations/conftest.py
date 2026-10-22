@@ -31,8 +31,10 @@ def make_engine() -> EngineFactory:
         overrides.setdefault(
             "storage",
             {
-                "provider": "sqlite",
-                "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
+                "records": {
+                    "provider": "sqlite",
+                    "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
+                }
             },
         )
         overrides.setdefault("embedding", {"provider": "hash", "settings": {}})

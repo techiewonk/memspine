@@ -17,7 +17,9 @@ def _engine(path: str, mode: str) -> Engine:
     return Engine(
         template="core",
         dotenv_path=None,
-        storage={"provider": "sqlite", "settings": {"path": path, "busy_timeout_s": 5.0}},
+        storage={
+            "records": {"provider": "sqlite", "settings": {"path": path, "busy_timeout_s": 5.0}}
+        },
         event_log={"mode": mode},
         embedding={"provider": "hash", "settings": {}},
         read={"hybrid": False},

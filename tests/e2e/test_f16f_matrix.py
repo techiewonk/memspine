@@ -137,27 +137,21 @@ class Cell:
     def overrides(self, db: Path | None = None) -> dict[str, Any]:
         o = _overrides(db or self.db, rederive=self.rederive)
         if self.profile == "server":
-            o["storage"] = {
-                "profile": "server",
+            o.setdefault("storage", {})["records"] = {
                 "provider": "postgres",
                 "settings": {
                     "url": _pg_url(),
-                    "data_dir": str(self.tmp / "derived"),
                     "connect_timeout_s": 5.0,
                     "statement_timeout_s": 30.0,
                 },
             }
-            o["runtime"] = {**o.get("runtime", {}), "deployment_id": "e2e-f16f"}
+            o["deployment"] = {"id": "e2e-f16f", "data_dir": str(self.tmp / "derived")}
         if self.graph == "neo4j":  # the F-16e mirror fed through the outbox
-            o["graph"] = {
-                **o["graph"],
-                "mirror": {
-                    "enabled": True,
-                    "provider": "neo4j",
-                    "settings": {"connect_timeout_s": 2.0, "request_timeout_s": 2.0},
-                },
+            o.setdefault("storage", {})["graph_mirror"] = {
+                "provider": "neo4j",
+                "settings": {"connect_timeout_s": 2.0, "request_timeout_s": 2.0},
             }
-            o["runtime"] = {**o.get("runtime", {}), "deployment_id": "e2e-f16f"}  # shared Neo4j
+            o.setdefault("deployment", {})["id"] = "e2e-f16f"  # shared Neo4j
         return o
 
     async def open(self, db: Path | None = None) -> World:

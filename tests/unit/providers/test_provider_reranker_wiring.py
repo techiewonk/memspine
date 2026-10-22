@@ -99,7 +99,7 @@ async def test_permission_error_from_plugin_builder_propagates() -> None:
 
 
 def test_startup_validation_checks_shared_provider_identity_without_building() -> None:
-    with pytest.raises(ConfigError, match="runtime.deployment_id is required"):
+    with pytest.raises(ConfigError, match="deployment.id is required"):
         validate_reranker_settings(
             "litellm",
             {"model": "cohere/rerank-v3.5", "request_timeout_s": 5.0},
@@ -161,7 +161,7 @@ async def test_engine_start_rejects_shared_reranker_before_builder_invocation(
     engine = Engine(
         template="core",
         dotenv_path=None,
-        storage={"settings": {"path": str(tmp_path / "rerank-start.db")}},
+        storage={"records": {"settings": {"path": str(tmp_path / "rerank-start.db")}}},
         embedding={"provider": "hash", "settings": {}},
         read={
             "hybrid": False,
@@ -173,7 +173,7 @@ async def test_engine_start_rejects_shared_reranker_before_builder_invocation(
         },
         memories={"semantic": {"enabled": True}},
     )
-    with pytest.raises(ConfigError, match="runtime.deployment_id is required"):
+    with pytest.raises(ConfigError, match="deployment.id is required"):
         await engine.start()
     assert not called
 
@@ -207,7 +207,7 @@ async def test_engine_shares_async_lazy_build_and_closes_owned_resource_once(tmp
     engine = Engine(
         template="core",
         dotenv_path=None,
-        storage={"settings": {"path": str(tmp_path / "singleflight.db")}},
+        storage={"records": {"settings": {"path": str(tmp_path / "singleflight.db")}}},
         embedding={"provider": "hash", "settings": {}},
         read={
             "hybrid": False,
@@ -264,7 +264,7 @@ async def test_engine_stop_cancels_and_drains_blocked_async_builder(tmp_path) ->
     engine = Engine(
         template="core",
         dotenv_path=None,
-        storage={"settings": {"path": str(tmp_path / "stop-build.db")}},
+        storage={"records": {"settings": {"path": str(tmp_path / "stop-build.db")}}},
         embedding={"provider": "hash", "settings": {}},
         read={
             "hybrid": False,

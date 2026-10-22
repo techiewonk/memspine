@@ -21,7 +21,7 @@ import pytest
 
 from memspine import Engine
 from memspine.clients.sqlite.sync import memory_sync_engine, sqlite_sync_engine
-from memspine.config.schema import GraphConfig
+from memspine.config.schema import StorageConfig
 from memspine.config.schema.observability import TapConfig
 from memspine.exceptions import ConfigError
 from memspine.memories.associative.entities import EntityPolicy, entity_node_id
@@ -624,37 +624,60 @@ def _engine(*, mirror: bool = False, deployment_id: str | None = None) -> Engine
     return Engine(
         template="core",
         dotenv_path=None,
-        storage={"provider": "sqlite", "settings": {"path": ":memory:", "busy_timeout_s": 5.0}},
+        storage={
+            "records": {
+                "provider": "sqlite",
+                "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
+            },
+            "graph": {"provider": "sql_adjacency", "settings": {}},
+            "graph_mirror": (
+                {
+                    "provider": "neo4j",
+                    "settings": {"connect_timeout_s": 2.0, "request_timeout_s": 2.0},
+                }
+                if mirror
+                else None
+            ),
+        },
         embedding={"provider": "hash", "settings": {}},
         memories={
             "semantic": {"enabled": True},
             "associative": {"enabled": True, "policies": {"entity_nodes": True}},
         },
         read={"record_access": False},
-        graph={
-            "provider": "sql_adjacency",
-            "settings": {},
-            "mirror": {
-                "enabled": mirror,
-                "provider": "neo4j",
-                "settings": {"connect_timeout_s": 2.0, "request_timeout_s": 2.0},
-            },
-        },
-        runtime={"deployment_id": deployment_id} if deployment_id is not None else {},
+        deployment={"id": deployment_id} if deployment_id is not None else {},
     )
 
 
 def test_flag_default_off() -> None:
-    g = GraphConfig()
-    assert g.mirror.enabled is False and g.provider == "auto"
+    storage = StorageConfig()
+    assert storage.graph_mirror is None and storage.graph.provider == "auto"
 
 
-async def test_flag_on_without_server_profile_or_backend_is_refused(
+async def test_mirror_without_deployment_id_is_refused(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv("MEMSPINE_NEO4J_URL", "bolt://localhost:7687")
     eng = _engine(mirror=True)
-    with pytest.raises(ConfigError, match=r"runtime\.deployment_id"):
+    with pytest.raises(ConfigError, match=r"deployment\.id"):
+        await eng.start()
+
+
+async def test_mirror_provider_without_the_mirror_capability_is_refused() -> None:
+    """ADR-081: the mirror gate is the provider's ``mirror`` capability, not a profile."""
+    eng = Engine(
+        template="core",
+        dotenv_path=None,
+        storage={
+            "records": {"settings": {"path": ":memory:", "busy_timeout_s": 5.0}},
+            "graph": {"provider": "sql_adjacency"},
+            "graph_mirror": {"provider": "sql_adjacency"},
+        },
+        embedding={"provider": "hash", "settings": {}},
+        memories={"semantic": {"enabled": True}, "associative": {"enabled": True}},
+        deployment={"id": "test-deployment"},
+    )
+    with pytest.raises(ConfigError, match="'mirror' capability"):
         await eng.start()
 
 
@@ -727,20 +750,21 @@ async def test_scope_keys_flag_reaches_the_neo4j_store(monkeypatch: pytest.Monke
     eng = Engine(
         template="core",
         dotenv_path=None,
-        storage={"provider": "sqlite", "settings": {"path": ":memory:", "busy_timeout_s": 5.0}},
-        embedding={"provider": "hash", "settings": {}},
-        memories={"semantic": {"enabled": True}, "associative": {"enabled": True}},
-        read={"record_access": False},
-        graph={
-            "provider": "sql_adjacency",
-            "settings": {},
-            "mirror": {
-                "enabled": True,
+        storage={
+            "records": {
+                "provider": "sqlite",
+                "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
+            },
+            "graph_mirror": {
                 "provider": "neo4j",
                 "settings": {"connect_timeout_s": 2.0, "request_timeout_s": 2.0},
             },
+            "graph": {"provider": "sql_adjacency", "settings": {}},
         },
-        runtime={"deployment_id": "test-deployment"},
+        embedding={"provider": "hash", "settings": {}},
+        memories={"semantic": {"enabled": True}, "associative": {"enabled": True}},
+        read={"record_access": False},
+        deployment={"id": "test-deployment"},
         isolation={"scope_keys_v2": True},
     )
     await eng.start()

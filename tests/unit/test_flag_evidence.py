@@ -92,8 +92,10 @@ def test_removed_fields_use_strict_schema_errors():
 def test_future_lexical_provider_name_is_not_reserved_by_the_schema():
     from memspine.config.loader import load_config
 
-    config = load_config(template="base", overrides={"read": {"lexical_provider": "opensearch"}})
-    assert config.config.read.lexical_provider == "opensearch"
+    config = load_config(
+        template="base", overrides={"storage": {"lexical": {"provider": "opensearch"}}}
+    )
+    assert config.config.storage.lexical.provider == "opensearch"
 
 
 def test_removed_relevance_gate_mode_is_rejected_by_its_enum():

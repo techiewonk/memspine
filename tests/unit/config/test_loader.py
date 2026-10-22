@@ -84,15 +84,15 @@ def test_validation_error_reports_path_without_rejected_value() -> None:
 def test_secret_resolution_and_missing_secret() -> None:
     resolved = load_config(
         template="base",
-        overrides={"storage": {"settings": {"path": "${secret:DB_PATH}"}}},
+        overrides={"storage": {"records": {"settings": {"path": "${secret:DB_PATH}"}}}},
         secret_resolver=lambda name: "/tmp/x.db" if name == "DB_PATH" else None,
     )
-    assert resolved.config.storage.settings["path"] == "/tmp/x.db"
+    assert resolved.config.storage.records.settings["path"] == "/tmp/x.db"
 
     with pytest.raises(ConfigError, match="unresolved secret"):
         load_config(
             template="base",
-            overrides={"storage": {"settings": {"path": "${secret:MISSING}"}}},
+            overrides={"storage": {"records": {"settings": {"path": "${secret:MISSING}"}}}},
         )
 
 
@@ -132,9 +132,9 @@ def test_unrelated_memspine_env_vars_are_ignored() -> None:
 def test_yaml_hostile_env_value_falls_back_to_string() -> None:
     """Regression: '@data/db.sqlite' used to raise a raw yaml.ScannerError."""
     resolved = load_config(
-        template="base", env={"MEMSPINE_STORAGE__SETTINGS__PATH": "@data/db.sqlite"}
+        template="base", env={"MEMSPINE_STORAGE__RECORDS__SETTINGS__PATH": "@data/db.sqlite"}
     )
-    assert resolved.config.storage.settings["path"] == "@data/db.sqlite"
+    assert resolved.config.storage.records.settings["path"] == "@data/db.sqlite"
 
 
 def test_missing_user_config_file_is_config_error(tmp_path: Path) -> None:

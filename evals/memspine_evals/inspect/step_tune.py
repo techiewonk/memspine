@@ -46,7 +46,7 @@ REBUILD_PREFIXES = (
     "read.rerank_settings",
     "read.hybrid",
     "read.static_embedding_prefilter",
-    "read.lexical_provider",
+    "storage.lexical.provider",
     "read.lexical_analyzer",
 )
 #: prompts that are code constants, not registry files: replaced in the model call instead

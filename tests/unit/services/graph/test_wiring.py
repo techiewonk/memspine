@@ -8,6 +8,7 @@ a ConfigError (a dead store handle no projector maintains — M6, P6 review).
 from __future__ import annotations
 
 import sys
+from typing import Any
 
 import pytest
 
@@ -15,11 +16,18 @@ from memspine import Engine
 from memspine.exceptions import ConfigError, MissingServiceError
 
 
-def _engine(**overrides: object) -> Engine:
+def _engine(**overrides: Any) -> Engine:
+    storage = {
+        "records": {
+            "provider": "sqlite",
+            "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
+        },
+        **overrides.pop("storage", {}),
+    }
     return Engine(
         template="core",
         dotenv_path=None,
-        storage={"provider": "sqlite", "settings": {"path": ":memory:", "busy_timeout_s": 5.0}},
+        storage=storage,
         embedding={"provider": "hash", "settings": {}},
         **overrides,
     )
@@ -46,7 +54,7 @@ async def test_associative_memory_enables_the_default_graph_store() -> None:
         expected = (
             "LadybugGraphStore"
             if importlib.util.find_spec("ladybug") is not None
-            else "SqlAdjacencyGraph"
+            else "SQLiteAdjacencyGraph"
         )
         assert world["graph"] == expected
     finally:
@@ -54,10 +62,13 @@ async def test_associative_memory_enables_the_default_graph_store() -> None:
 
 
 async def test_explicit_sql_adjacency_is_still_honoured() -> None:
-    eng = _engine(memories={"associative": {"enabled": True}}, graph={"provider": "sql_adjacency"})
+    eng = _engine(
+        memories={"associative": {"enabled": True}},
+        storage={"graph": {"provider": "sql_adjacency"}},
+    )
     await eng.start()
     try:
-        assert eng.describe()["graph"] == "SqlAdjacencyGraph"
+        assert eng.describe()["graph"] == "SQLiteAdjacencyGraph"
     finally:
         await eng.stop()
 
@@ -65,7 +76,7 @@ async def test_explicit_sql_adjacency_is_still_honoured() -> None:
 async def test_explicit_graph_config_without_associative_is_a_config_error() -> None:
     """A graph store no projector ever writes is a dead handle — refuse the
     config loudly instead of constructing it (M6, P6 review)."""
-    eng = _engine(graph={"provider": "sql_adjacency"})
+    eng = _engine(storage={"graph": {"provider": "sql_adjacency"}})
     with pytest.raises(ConfigError, match=r"memories\.associative not enabled"):
         await eng.start()
 
@@ -78,7 +89,7 @@ async def test_ladybug_provider_without_package_fails_actionably_naming_the_extr
     # not [graph] happens to be installed in the running environment.
     monkeypatch.setitem(sys.modules, "ladybug", None)
     eng = _engine(
-        graph={"provider": "ladybug"},
+        storage={"graph": {"provider": "ladybug"}},
         memories={"associative": {"enabled": True}},
     )
     with pytest.raises(MissingServiceError) as excinfo:
@@ -89,7 +100,7 @@ async def test_ladybug_provider_without_package_fails_actionably_naming_the_extr
 async def test_ladybug_provider_constructs_the_real_adapter() -> None:
     pytest.importorskip("ladybug")
     eng = _engine(
-        graph={"provider": "ladybug"},
+        storage={"graph": {"provider": "ladybug"}},
         memories={"associative": {"enabled": True}},
     )
     await eng.start()
@@ -102,7 +113,7 @@ async def test_ladybug_provider_constructs_the_real_adapter() -> None:
 
 async def test_unknown_graph_provider_is_a_config_error() -> None:
     eng = _engine(
-        graph={"provider": "carrier_pigeon"},
+        storage={"graph": {"provider": "carrier_pigeon"}},
         memories={"associative": {"enabled": True}},
     )
     with pytest.raises(ConfigError, match="carrier_pigeon"):

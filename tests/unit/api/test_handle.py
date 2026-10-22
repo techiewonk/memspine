@@ -101,7 +101,12 @@ async def test_open_lifecycle_and_round_trip() -> None:
     engine = await memspine.open(
         template="core",
         dotenv_path=None,
-        storage={"provider": "sqlite", "settings": {"path": ":memory:", "busy_timeout_s": 5.0}},
+        storage={
+            "records": {
+                "provider": "sqlite",
+                "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
+            }
+        },
         embedding={"provider": "hash", "settings": {}},
         memories={"episodic": {"enabled": True}, "semantic": {"enabled": True}},
     )
@@ -121,7 +126,12 @@ async def test_engine_is_an_async_context_manager() -> None:
     async with Engine(
         template="core",
         dotenv_path=None,
-        storage={"provider": "sqlite", "settings": {"path": ":memory:", "busy_timeout_s": 5.0}},
+        storage={
+            "records": {
+                "provider": "sqlite",
+                "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
+            }
+        },
     ) as engine:
         assert engine.is_started
     assert not engine.is_started

@@ -84,8 +84,10 @@ async def make_engine(config: dict[str, Any] | None = None, template: str = "cor
 
     cfg: dict[str, Any] = {
         "storage": {
-            "provider": "sqlite",
-            "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
+            "records": {
+                "provider": "sqlite",
+                "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
+            }
         },
         "embedding": {"provider": "hash", "settings": {}},
         "memories": {"episodic": {"enabled": True}, "semantic": {"enabled": True}},

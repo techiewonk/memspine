@@ -16,9 +16,14 @@ def _engine(path: Path) -> Engine:
     return Engine(
         template="core",
         dotenv_path=None,
-        storage={"provider": "sqlite", "settings": {"path": str(path), "busy_timeout_s": 5.0}},
+        storage={
+            "records": {
+                "provider": "sqlite",
+                "settings": {"path": str(path), "busy_timeout_s": 5.0},
+            },
+            "cache": {"provider": "memory", "settings": {}},
+        },
         embedding={"provider": "hash", "settings": {}},
-        cache={"provider": "memory", "settings": {}},
         memories={"semantic": {"enabled": True}},
     )
 

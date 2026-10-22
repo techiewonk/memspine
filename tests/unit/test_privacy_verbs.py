@@ -24,10 +24,12 @@ def _engine(**extra: Any) -> Engine:
     base: dict[str, Any] = {
         "template": "core",
         "dotenv_path": None,
-        "runtime": {"deployment_id": "unit-test"},
+        "deployment": {"id": "unit-test"},
         "storage": {
-            "provider": "sqlite",
-            "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
+            "records": {
+                "provider": "sqlite",
+                "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
+            }
         },
         "embedding": {"provider": "hash", "settings": {}},
         "read": {"hybrid": False},
@@ -119,7 +121,12 @@ async def test_correct_bypasses_contest_lower_trust() -> None:
     eng = await Engine(
         template="base",
         dotenv_path=None,
-        storage={"provider": "sqlite", "settings": {"path": ":memory:", "busy_timeout_s": 5.0}},
+        storage={
+            "records": {
+                "provider": "sqlite",
+                "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
+            }
+        },
         embedding={"provider": "hash", "settings": {}},
     ).start()
     try:
@@ -259,8 +266,10 @@ async def test_audit_chain_detects_tampering_and_survives_restart(tmp_path: Path
     def make() -> Engine:
         return _engine(
             storage={
-                "provider": "sqlite",
-                "settings": {"path": str(db), "busy_timeout_s": 5.0},
+                "records": {
+                    "provider": "sqlite",
+                    "settings": {"path": str(db), "busy_timeout_s": 5.0},
+                }
             },
             audit={"reads": True},
         )

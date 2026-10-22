@@ -37,7 +37,12 @@ from memspine.store.records import SourceInfo
 def _engine() -> Engine:
     return Engine(
         dotenv_path=None,
-        storage={"provider": "sqlite", "settings": {"path": ":memory:", "busy_timeout_s": 5.0}},
+        storage={
+            "records": {
+                "provider": "sqlite",
+                "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
+            }
+        },
         embedding={"provider": "hash", "settings": {}},
         memories={"semantic": {"enabled": True}},
     )

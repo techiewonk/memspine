@@ -21,8 +21,8 @@ from memspine.providers.health import ProbeStatus
 from memspine.providers.lifecycle import LifecycleState
 
 
-def _runtime() -> dict[str, str]:
-    return {"deployment_id": f"provider-live-{uuid.uuid4().hex}"}
+def _deployment() -> dict[str, str]:
+    return {"id": f"provider-live-{uuid.uuid4().hex}"}
 
 
 def _sqlite(path: Path) -> dict[str, Any]:
@@ -83,16 +83,17 @@ async def test_embedded_storage_vector_lexical_graph_and_cache_contracts(
         return Engine(
             template="core",
             dotenv_path=None,
-            runtime={"deployment_id": deployment_id},
-            storage=_sqlite(tmp_path / "events.sqlite"),
-            embedding={"provider": "hash", "settings": {"dim": 64}},
-            vector={"provider": "lancedb", "settings": {"isolation": "shared"}},
-            cache={
-                "provider": "disk",
-                "settings": {"path": str(tmp_path / "cache"), "namespace": "live-contract"},
+            deployment={"id": deployment_id},
+            storage={
+                "vector": {"provider": "lancedb", "settings": {"isolation": "shared"}},
+                "cache": {
+                    "provider": "disk",
+                    "settings": {"path": str(tmp_path / "cache"), "namespace": "live-contract"},
+                },
+                "graph": {"provider": "ladybug", "settings": {}},
+                "lexical": {"provider": "tantivy", "settings": {}},
             },
-            graph={"provider": "ladybug", "settings": {}},
-            read={"lexical_provider": "tantivy", "lexical_settings": {}},
+            embedding={"provider": "hash", "settings": {"dim": 64}},
             memories={"semantic": {"enabled": True}, "associative": {"enabled": True}},
         )
 
@@ -164,20 +165,20 @@ async def test_postgres_storage_contract(tmp_path: Path) -> None:
         return Engine(
             template="core",
             dotenv_path=None,
-            runtime={"deployment_id": deployment_id},
+            deployment={"data_dir": str(tmp_path / "derived"), "id": deployment_id},
             storage={
-                "profile": "server",
-                "provider": "postgres",
-                "settings": {
-                    "url": env["MEMSPINE_TEST_LIVE_POSTGRES_URL"],
-                    "data_dir": str(tmp_path / "derived"),
-                    "connect_timeout_s": 10.0,
-                    "statement_timeout_s": 10.0,
+                "records": {
+                    "provider": "postgres",
+                    "settings": {
+                        "url": env["MEMSPINE_TEST_LIVE_POSTGRES_URL"],
+                        "connect_timeout_s": 10.0,
+                        "statement_timeout_s": 10.0,
+                    },
                 },
+                "vector": {"provider": "lancedb", "settings": {"isolation": "shared"}},
+                "cache": {"provider": "memory", "settings": {}},
             },
             embedding={"provider": "hash", "settings": {"dim": 64}},
-            vector={"provider": "lancedb", "settings": {"isolation": "shared"}},
-            cache={"provider": "memory", "settings": {}},
             memories={"semantic": {"enabled": True}},
         )
 
@@ -218,20 +219,21 @@ async def test_neo4j_graph_contract() -> None:
     engine = Engine(
         template="core",
         dotenv_path=None,
-        runtime=_runtime(),
-        storage=_sqlite(Path(":memory:")),
-        embedding={"provider": "hash", "settings": {"dim": 64}},
-        cache={"provider": "memory", "settings": {}},
-        graph={
-            "provider": "neo4j",
-            "settings": {
-                "url_env": "MEMSPINE_TEST_NEO4J_URL",
-                "user_env": "MEMSPINE_TEST_NEO4J_USER",
-                "password_env": "MEMSPINE_TEST_NEO4J_PASSWORD",
-                "connect_timeout_s": 10.0,
-                "request_timeout_s": 10.0,
+        deployment=_deployment(),
+        storage={
+            "cache": {"provider": "memory", "settings": {}},
+            "graph": {
+                "provider": "neo4j",
+                "settings": {
+                    "url_env": "MEMSPINE_TEST_NEO4J_URL",
+                    "user_env": "MEMSPINE_TEST_NEO4J_USER",
+                    "password_env": "MEMSPINE_TEST_NEO4J_PASSWORD",
+                    "connect_timeout_s": 10.0,
+                    "request_timeout_s": 10.0,
+                },
             },
         },
+        embedding={"provider": "hash", "settings": {"dim": 64}},
         memories={"semantic": {"enabled": True}, "associative": {"enabled": True}},
     )
     await engine.start()
@@ -281,19 +283,24 @@ async def test_remote_cache_contract(provider: str, url_env: str) -> None:
         return Engine(
             template="core",
             dotenv_path=None,
-            runtime={"deployment_id": deployment_id},
-            storage={"provider": "sqlite", "settings": {"path": ":memory:", "busy_timeout_s": 5.0}},
-            embedding={"provider": "hash", "settings": {"dim": 64}},
-            cache={
-                "provider": provider,
-                "settings": {
-                    "url": env[url_env],
-                    "namespace": "provider-live",
-                    "default_ttl_seconds": 30.0,
-                    "connect_timeout_s": 10.0,
-                    "request_timeout_s": 10.0,
+            deployment={"id": deployment_id},
+            storage={
+                "records": {
+                    "provider": "sqlite",
+                    "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
+                },
+                "cache": {
+                    "provider": provider,
+                    "settings": {
+                        "url": env[url_env],
+                        "namespace": "provider-live",
+                        "default_ttl_seconds": 30.0,
+                        "connect_timeout_s": 10.0,
+                        "request_timeout_s": 10.0,
+                    },
                 },
             },
+            embedding={"provider": "hash", "settings": {"dim": 64}},
             memories={"semantic": {"enabled": True}},
         )
 

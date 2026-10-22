@@ -17,7 +17,12 @@ async def test_runtime_inventory_counts_latest_card_without_inventing_record_row
     eng = Engine(
         template="core",
         dotenv_path=None,
-        storage={"provider": "sqlite", "settings": {"path": ":memory:", "busy_timeout_s": 5.0}},
+        storage={
+            "records": {
+                "provider": "sqlite",
+                "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
+            }
+        },
         embedding={"provider": "hash", "settings": {}},
         memories={"episodic": {"enabled": True}, "semantic": {"enabled": True}},
         offline={"session_close_v2": True, "profile_card_v2": True, "patterns_v2": True},

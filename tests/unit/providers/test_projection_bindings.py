@@ -154,11 +154,13 @@ def _graph_engine(database: Path, graph_provider: str) -> Engine:
         template="core",
         dotenv_path=None,
         storage={
-            "provider": "sqlite",
-            "settings": {"path": str(database), "busy_timeout_s": 5.0},
+            "records": {
+                "provider": "sqlite",
+                "settings": {"path": str(database), "busy_timeout_s": 5.0},
+            },
+            "graph": {"provider": graph_provider},
         },
         embedding={"provider": "hash", "settings": {}},
-        graph={"provider": graph_provider},
         memories={"associative": {"enabled": True}},
     )
 
@@ -248,24 +250,23 @@ async def test_engine_rejects_same_primary_mirror_target_before_builder_connects
         template="core",
         dotenv_path=None,
         storage={
-            "provider": "sqlite",
-            "settings": {"path": str(tmp_path / "same-target.sqlite"), "busy_timeout_s": 5.0},
+            "records": {
+                "provider": "sqlite",
+                "settings": {"path": str(tmp_path / "same-target.sqlite"), "busy_timeout_s": 5.0},
+            },
+            "graph_mirror": {"provider": "neo4j", "settings": timeout_settings},
+            "graph": {"provider": name, "settings": timeout_settings},
         },
         embedding={"provider": "hash", "settings": {}},
-        graph={
-            "provider": name,
-            "settings": timeout_settings,
-            "mirror": {"enabled": True, "provider": "neo4j", "settings": timeout_settings},
-        },
         memories={"associative": {"enabled": True}},
         runtime={
-            "deployment_id": "same-target-test",
             "provider_services": {
                 "health_timeout_s": 1.0,
                 "close_timeout_s": 1.0,
                 "startup_timeout_s": None,
-            },
+            }
         },
+        deployment={"id": "same-target-test"},
     )
     try:
         with pytest.raises(ConfigError, match="distinct canonical targets"):

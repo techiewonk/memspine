@@ -33,26 +33,26 @@ async def test_pgvector_native_projection_contract(tmp_path: Path) -> None:
         return Engine(
             template="core",
             dotenv_path=None,
-            runtime={"deployment_id": deployment_id},
+            deployment={"data_dir": str(tmp_path / "derived"), "id": deployment_id},
             storage={
-                "profile": "server",
-                "provider": "postgres",
-                "settings": {
-                    "url": url,
-                    "data_dir": str(tmp_path / "derived"),
-                    "connect_timeout_s": 10.0,
-                    "statement_timeout_s": 10.0,
+                "records": {
+                    "provider": "postgres",
+                    "settings": {
+                        "url": url,
+                        "connect_timeout_s": 10.0,
+                        "statement_timeout_s": 10.0,
+                    },
                 },
+                "vector": {
+                    "provider": "pgvector",
+                    "settings": {
+                        "provision_projection": provision_projection,
+                        "create_extension": provision_projection,
+                    },
+                },
+                "cache": {"provider": "memory", "settings": {}},
             },
             embedding={"provider": "hash", "settings": {"dim": 64}},
-            vector={
-                "provider": "pgvector",
-                "settings": {
-                    "provision_projection": provision_projection,
-                    "create_extension": provision_projection,
-                },
-            },
-            cache={"provider": "memory", "settings": {}},
             memories={"semantic": {"enabled": True}},
         )
 

@@ -83,9 +83,11 @@ async def test_missing_graph_service_hard_fails_naming_the_extra(
     engine = make_engine(
         template="core",
         memories={"associative": {"enabled": True}},
-        graph={
-            "provider": provider,
-            "settings": {"connect_timeout_s": 1.0, "request_timeout_s": 1.0},
+        storage={
+            "graph": {
+                "provider": provider,
+                "settings": {"connect_timeout_s": 1.0, "request_timeout_s": 1.0},
+            }
         },
     )
     with pytest.raises(MissingServiceError) as excinfo:
@@ -104,7 +106,7 @@ async def test_missing_ladybug_package_hard_fails_naming_the_graph_extra(
     engine = make_engine(
         template="core",
         memories={"associative": {"enabled": True}},
-        graph={"provider": "ladybug"},
+        storage={"graph": {"provider": "ladybug"}},
     )
     with pytest.raises(MissingServiceError) as excinfo:
         await engine.start()
@@ -125,12 +127,12 @@ async def test_strict_services_is_the_gate_default(make_engine) -> None:
 @pytest.mark.parametrize(
     ("group", "selector", "settings_key"),
     [
-        ("storage", "provider", "settings"),
-        ("vector", "provider", "settings"),
-        ("cache", "provider", "settings"),
-        ("graph", "provider", "settings"),
+        ("storage.records", "provider", "settings"),
+        ("storage.vector", "provider", "settings"),
+        ("storage.cache", "provider", "settings"),
+        ("storage.graph", "provider", "settings"),
         ("embedding", "provider", "settings"),
-        ("read", "lexical_provider", "lexical_settings"),
+        ("storage.lexical", "provider", "settings"),
         ("read", "rerank", "rerank_settings"),
         ("llm.roles.window_extract", "provider", "settings"),
     ],
@@ -167,10 +169,14 @@ def test_provider_change_replaces_inherited_native_settings(
 def test_provider_settings_overlay_merges_same_provider_and_refreshes_sources() -> None:
     loaded = load_config(
         template="base",
-        user_config={"storage": {"provider": "sqlite", "settings": {"path": "first.db"}}},
-        overrides={"storage": {"provider": "sqlite", "settings": {"busy_timeout_s": 7.0}}},
+        user_config={
+            "storage": {"records": {"provider": "sqlite", "settings": {"path": "first.db"}}}
+        },
+        overrides={
+            "storage": {"records": {"provider": "sqlite", "settings": {"busy_timeout_s": 7.0}}}
+        },
     )
-    assert loaded.config.storage.settings == {"path": "first.db", "busy_timeout_s": 7.0}
+    assert loaded.config.storage.records.settings == {"path": "first.db", "busy_timeout_s": 7.0}
     assert loaded.sources["storage.settings.path"] == "user"
     assert loaded.sources["storage.settings.busy_timeout_s"] == "kwargs"
     assert "embedding.settings.model" not in loaded.sources

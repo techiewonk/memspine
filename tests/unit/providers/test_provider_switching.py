@@ -442,9 +442,14 @@ async def test_tantivy_cleanup_route_survives_fresh_engine_restart(tmp_path) -> 
     engine = Engine(
         template="core",
         dotenv_path=None,
-        storage={"provider": "sqlite", "settings": {"path": str(database), "busy_timeout_s": 5.0}},
+        storage={
+            "records": {
+                "provider": "sqlite",
+                "settings": {"path": str(database), "busy_timeout_s": 5.0},
+            },
+            "cache": {"provider": "memory", "settings": {}},
+        },
         embedding={"provider": "hash", "settings": {}},
-        cache={"provider": "memory", "settings": {}},
         memories={"semantic": {"enabled": True}},
     )
     await engine.start()
@@ -458,7 +463,7 @@ async def test_tantivy_cleanup_route_survives_fresh_engine_restart(tmp_path) -> 
     config = engine._resolved.config
     result = engine._provider_results["lexical"]
     descriptor = get_registry("lexical_indexes").get(result.provider.name)
-    settings = validate_settings(descriptor, config.read.lexical_settings)
+    settings = validate_settings(descriptor, config.storage.lexical.settings)
     fingerprint = projection_target_fingerprint(
         config,
         category="lexical",
@@ -588,9 +593,14 @@ async def test_tantivy_cleanup_route_survives_fresh_engine_restart(tmp_path) -> 
     restarted = Engine(
         template="core",
         dotenv_path=None,
-        storage={"provider": "sqlite", "settings": {"path": str(database), "busy_timeout_s": 5.0}},
+        storage={
+            "records": {
+                "provider": "sqlite",
+                "settings": {"path": str(database), "busy_timeout_s": 5.0},
+            },
+            "cache": {"provider": "memory", "settings": {}},
+        },
         embedding={"provider": "hash", "settings": {}},
-        cache={"provider": "memory", "settings": {}},
         memories={"semantic": {"enabled": True}},
     )
     await restarted.start()

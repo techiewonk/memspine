@@ -34,10 +34,12 @@ def test_two_phase_bootstrap_with_loader(tmp_path: Path) -> None:
         template="core",
         overrides={
             "storage": {
-                "provider": "sqlite",
-                "settings": {"path": "${secret:DB_PATH}", "busy_timeout_s": 5.0},
+                "records": {
+                    "provider": "sqlite",
+                    "settings": {"path": "${secret:DB_PATH}", "busy_timeout_s": 5.0},
+                }
             }
         },
         secret_resolver=secrets.get,
     )
-    assert resolved.config.storage.settings["path"] == "/data/spine.db"
+    assert resolved.config.storage.records.settings["path"] == "/data/spine.db"

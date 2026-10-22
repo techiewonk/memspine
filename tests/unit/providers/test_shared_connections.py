@@ -44,7 +44,7 @@ def _manager() -> ProviderLifecycleManager:
 
 def _storage_ctx(resources: ProviderLifecycleManager) -> StorageBuildContext:
     return StorageBuildContext(
-        SharedBuildContext(resources, "owner", 2.0), EventLogConfig(), "embedded"
+        SharedBuildContext(resources, "owner", 2.0), EventLogConfig()
     )
 
 
@@ -135,11 +135,13 @@ async def test_two_engines_on_one_file_share_sql_and_survive_one_stop(tmp_path: 
             template="core",
             dotenv_path=None,
             storage={
-                "provider": "sqlite",
-                "settings": {"path": str(tmp_path / "engines.db"), "busy_timeout_s": 5.0},
+                "records": {
+                    "provider": "sqlite",
+                    "settings": {"path": str(tmp_path / "engines.db"), "busy_timeout_s": 5.0},
+                },
+                "cache": {"provider": "memory", "settings": {}},
             },
             embedding={"provider": "hash", "settings": {}},
-            cache={"provider": "memory", "settings": {}},
             memories={"semantic": {"enabled": True}},
         )
 

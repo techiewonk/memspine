@@ -34,7 +34,9 @@ def _engine(path: str = ":memory:") -> Engine:
     return Engine(
         template="core",
         dotenv_path=None,
-        storage={"provider": "sqlite", "settings": {"path": path, "busy_timeout_s": 5.0}},
+        storage={
+            "records": {"provider": "sqlite", "settings": {"path": path, "busy_timeout_s": 5.0}}
+        },
         embedding={"provider": "hash", "settings": {}},
         memories={
             "semantic": {"enabled": True},
@@ -310,7 +312,12 @@ async def test_requalify_refuses_without_the_compiled_layer() -> None:
     eng = Engine(
         template="core",
         dotenv_path=None,
-        storage={"provider": "sqlite", "settings": {"path": ":memory:", "busy_timeout_s": 5.0}},
+        storage={
+            "records": {
+                "provider": "sqlite",
+                "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
+            }
+        },
         embedding={"provider": "hash", "settings": {}},
     )
     await eng.start()

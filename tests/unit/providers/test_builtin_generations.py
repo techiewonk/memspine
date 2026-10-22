@@ -152,9 +152,8 @@ def test_neo4j_target_identity_tracks_resolved_endpoint_without_exposing_secrets
     config = load_config(
         template="core",
         overrides={
-            "graph": {
-                "provider": "neo4j",
-                "settings": settings.model_dump(mode="python"),
+            "storage": {
+                "graph": {"provider": "neo4j", "settings": settings.model_dump(mode="python")}
             }
         },
     ).config
@@ -304,20 +303,22 @@ async def test_builtin_tantivy_generation_opener_reopens_owned_file_generation(
         template="core",
         overrides={
             "storage": {
-                "provider": "sqlite",
-                "settings": {
-                    "path": str(tmp_path / "events.sqlite"),
-                    "busy_timeout_s": 5.0,
+                "records": {
+                    "provider": "sqlite",
+                    "settings": {
+                        "path": str(tmp_path / "events.sqlite"),
+                        "busy_timeout_s": 5.0,
+                    },
                 },
-            },
-            "read": {
-                "lexical_provider": "tantivy",
-                "lexical_settings": {"analyzer": "default", "date_tokens": False},
+                "lexical": {
+                    "provider": "tantivy",
+                    "settings": {"analyzer": "default", "date_tokens": False},
+                },
             },
         },
     ).config
     descriptor = get_registry("lexical_indexes").get("tantivy")
-    settings = validate_settings(descriptor, config.read.lexical_settings)
+    settings = validate_settings(descriptor, config.storage.lexical.settings)
     fingerprint = projection_target_fingerprint(
         config,
         category="lexical",
@@ -390,16 +391,18 @@ async def test_tantivy_switch_replays_then_engine_reopens_activated_generation(
             template="core",
             dotenv_path=None,
             storage={
-                "provider": "sqlite",
-                "settings": {"path": str(database), "busy_timeout_s": 5.0},
+                "records": {
+                    "provider": "sqlite",
+                    "settings": {"path": str(database), "busy_timeout_s": 5.0},
+                },
+                "cache": {"provider": "memory", "settings": {}},
+                "lexical": {
+                    "provider": "tantivy",
+                    "settings": {"analyzer": "default", "date_tokens": False},
+                },
             },
             embedding={"provider": "hash", "settings": {}},
-            cache={"provider": "memory", "settings": {}},
-            read={
-                "hybrid": True,
-                "lexical_provider": "tantivy",
-                "lexical_settings": {"analyzer": "default", "date_tokens": False},
-            },
+            read={"hybrid": True},
         )
 
     engine = make_engine()

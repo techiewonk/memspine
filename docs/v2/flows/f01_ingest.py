@@ -48,7 +48,7 @@ CONFIG: dict[str, Any] = {
             }
         }
     },
-    "runtime": {"deployment_id": "offline-flow-check"},
+    "deployment": {"id": "offline-flow-check"},
     "offline": {"session_close_v2": True, "patterns_v2": True, "standing_v2": True},
     "graph": {"edge_compiler_v2": True},
 }

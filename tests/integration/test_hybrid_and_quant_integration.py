@@ -96,18 +96,16 @@ async def test_rebuild_reprojects_and_int8_rescore_returns_exact_top1(
     # A changed provider configuration cannot silently reuse a persisted
     # projection target; changing it requires an explicitly verified switch.
     changed_target = make_file_engine(
-        storage=float_storage,
+        storage={"vector": {"settings": {"quantization": "int8"}}},
         memories=_SEMANTIC["memories"],
-        vector={"settings": {"quantization": "int8"}},
     )
     with pytest.raises(ConfigError, match="different target|verified projection switch"):
         await changed_target.start()
 
     # ── int8 on an independent target, with the same source records ───────────
     quant = make_file_engine(
-        storage=int8_storage,
+        storage={"vector": {"settings": {"quantization": "int8"}}},
         memories=_SEMANTIC["memories"],
-        vector={"settings": {"quantization": "int8"}},
     )
     await quant.start()
     try:

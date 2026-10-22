@@ -46,9 +46,14 @@ async def main() -> None:
     engine = Engine(
         template="core",
         dotenv_path=None,
-        storage={"provider": "sqlite", "settings": {"path": ":memory:", "busy_timeout_s": 5.0}},
+        storage={
+            "records": {
+                "provider": "sqlite",
+                "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
+            },
+            "cache": {"provider": "memory", "settings": {}},
+        },
         embedding={"provider": "hash", "settings": {"dim": 64}},
-        cache={"provider": "memory", "settings": {}},
     )
     await engine.start()
     try:

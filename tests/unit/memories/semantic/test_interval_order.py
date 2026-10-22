@@ -133,7 +133,12 @@ async def test_engine_reads_interval_order_from_config() -> None:
     engine = Engine(
         template="core",
         dotenv_path=None,
-        storage={"provider": "sqlite", "settings": {"path": ":memory:", "busy_timeout_s": 5.0}},
+        storage={
+            "records": {
+                "provider": "sqlite",
+                "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
+            }
+        },
         embedding={"provider": "hash", "settings": {}},
         memories={
             "semantic": {"enabled": True, "policies": {"conflict": {"interval_order": True}}}

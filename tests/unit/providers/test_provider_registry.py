@@ -38,12 +38,12 @@ def test_central_registry_is_unique_per_kind_and_includes_provider_kinds() -> No
 def test_legacy_flat_provider_options_are_rejected() -> None:
     from pydantic import ValidationError
 
-    from memspine.config.schema.storage import CacheConfig, StorageConfig, VectorConfig
+    from memspine.config.schema.storage import CacheSlotConfig, StorageConfig, VectorSlotConfig
 
     for model, payload in (
         (StorageConfig, {"path": ":memory:"}),
-        (CacheConfig, {"backend": "disk", "path": "cache"}),
-        (VectorConfig, {"isolation": "per_namespace"}),
+        (CacheSlotConfig, {"backend": "disk", "path": "cache"}),
+        (VectorSlotConfig, {"isolation": "per_namespace"}),
     ):
         with pytest.raises(ValidationError):
             model.model_validate(payload)

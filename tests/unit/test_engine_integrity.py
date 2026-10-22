@@ -19,8 +19,10 @@ def _engine(integrity: dict[str, Any] | None = None) -> Engine:
         "template": "base",
         "dotenv_path": None,
         "storage": {
-            "provider": "sqlite",
-            "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
+            "records": {
+                "provider": "sqlite",
+                "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
+            }
         },
         "embedding": {"provider": "hash", "settings": {}},
         "memories": {
@@ -602,7 +604,12 @@ async def test_principal_reputation_lowers_trust_after_rollback() -> None:
     eng = Engine(
         template="core",
         dotenv_path=None,
-        storage={"provider": "sqlite", "settings": {"path": ":memory:", "busy_timeout_s": 5.0}},
+        storage={
+            "records": {
+                "provider": "sqlite",
+                "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
+            }
+        },
         embedding={"provider": "hash", "settings": {}},
         memories={"semantic": {"enabled": True}, "episodic": {"enabled": True}},
         integrity={"enabled": True, "principal_reputation": True},
@@ -647,7 +654,12 @@ async def test_principal_reputation_off_by_default() -> None:
     eng = Engine(
         template="core",
         dotenv_path=None,
-        storage={"provider": "sqlite", "settings": {"path": ":memory:", "busy_timeout_s": 5.0}},
+        storage={
+            "records": {
+                "provider": "sqlite",
+                "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
+            }
+        },
         embedding={"provider": "hash", "settings": {}},
         memories={"episodic": {"enabled": True}},
         integrity={"enabled": True},

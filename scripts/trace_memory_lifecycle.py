@@ -174,17 +174,15 @@ async def _run_trace_in_scope(database: Path) -> dict[str, Any]:
     config = {
         **CONFIG,
         "storage": {
-            "provider": "sqlite",
-            "settings": {"path": str(database), "busy_timeout_s": 5.0},
+            "records": {
+                "provider": "sqlite",
+                "settings": {"path": str(database), "busy_timeout_s": 5.0},
+            },
+            "vector": {"provider": "lancedb", "settings": {"isolation": "shared"}},
+            "lexical": {"provider": "tantivy", "settings": {}},
         },
-        "vector": {"provider": "lancedb", "settings": {"isolation": "shared"}},
         "embedding": {"provider": "hash", "settings": {"dim": 64}},
-        "read": {
-            **CONFIG["read"],
-            "hybrid": True,
-            "lexical_provider": "tantivy",
-            "lexical_settings": {},
-        },
+        "read": {**CONFIG["read"], "hybrid": True},
         "runtime": CONFIG["runtime"],
         "observability": {"tap": {"enabled": True, "sink": "memory", "content": False}},
     }
@@ -365,10 +363,10 @@ async def _run_trace_in_scope(database: Path) -> dict[str, Any]:
             },
             "provider_and_coverage_boundaries": {
                 "graph": {
-                    "provider": selected_provider("graph"),
                     "outcome": graph_outcome,
                     "written_edges": offline.get("compile_edges", {}).get("written", 0),
                 },
+                "storage": {"graph": {"provider": selected_provider("graph")}},
                 "reranker": {"provider": "off", "outcome": "disabled for this trace"},
                 "cache": {
                     "provider": "memory",

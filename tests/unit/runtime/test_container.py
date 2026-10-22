@@ -47,7 +47,7 @@ _SPEC = EngineSpec(
     template="core",
     dotenv_path=None,
     overrides={
-        "storage": {"settings": {"path": ":memory:"}},
+        "storage": {"records": {"settings": {"path": ":memory:"}}},
         "embedding": {"provider": "hash"},
         "runtime": {
             "provider_services": {
@@ -240,7 +240,7 @@ async def test_job_scope_needs_the_pipeline_hook() -> None:
 
 async def test_a_ready_config_skips_the_bootstrap() -> None:
     config = MemspineConfig(
-        storage={"settings": {"path": ":memory:"}},
+        storage={"records": {"settings": {"path": ":memory:"}}},
         embedding={"provider": "hash"},
         runtime={
             "provider_services": {
@@ -254,9 +254,13 @@ async def test_a_ready_config_skips_the_bootstrap() -> None:
     try:
         resolved = await c.get(MemspineConfig)
         assert resolved is not config
-        assert resolved.storage.settings["path"] == config.storage.settings["path"] == ":memory:"
+        assert (
+            resolved.storage.records.settings["path"]
+            == config.storage.records.settings["path"]
+            == ":memory:"
+        )
         with pytest.raises(TypeError, match="immutable"):
-            resolved.storage.settings["path"] = "changed.db"
+            resolved.storage.records.settings["path"] = "changed.db"
     finally:
         await c.close()
 
@@ -312,7 +316,7 @@ async def test_plugin_pins_in_config_apply(monkeypatch: pytest.MonkeyPatch) -> N
         template="core",
         dotenv_path=None,
         overrides={
-            "storage": {"settings": {"path": ":memory:"}},
+            "storage": {"records": {"settings": {"path": ":memory:"}}},
             "embedding": {"provider": "acme"},
             "plugins": [pin],
         },
@@ -400,7 +404,7 @@ async def test_shared_provider_requires_explicit_deployment_id() -> None:
         requires_deployment_id=True,
     )
     wiring = Wiring(ProviderLifecycleManager(close_timeout_s=2.0), 2.0, None, owner_id="generated")
-    with pytest.raises(ConfigError, match="runtime.deployment_id is required"):
+    with pytest.raises(ConfigError, match="deployment.id is required"):
         await _build_provider(wiring, descriptor, EmptySettings(), None)
 
     wiring.explicit_owner_id = True
@@ -491,7 +495,7 @@ def test_graph_auto_uses_sql_capability_not_storage_provider_name(
     from types import SimpleNamespace
 
     config = MemspineConfig(
-        storage={"provider": "some-sqlite-compatible-plugin"},
+        storage={"records": {"provider": "some-sqlite-compatible-plugin"}},
         runtime={
             "provider_services": {
                 "health_timeout_s": 2.0,

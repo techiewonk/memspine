@@ -384,8 +384,10 @@ async def test_engine_with_the_transport_flag_gives_the_same_facts(
             template="core",
             dotenv_path=None,
             storage={
-                "provider": "sqlite",
-                "settings": {"path": str(tmp_path / f"{transport}.db"), "busy_timeout_s": 5.0},
+                "records": {
+                    "provider": "sqlite",
+                    "settings": {"path": str(tmp_path / f"{transport}.db"), "busy_timeout_s": 5.0},
+                }
             },
             embedding={"provider": "hash", "settings": {}},
             memories={"episodic": {"enabled": True}, "semantic": {"enabled": True}},

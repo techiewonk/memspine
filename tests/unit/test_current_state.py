@@ -13,7 +13,12 @@ def _engine(**extra: Any) -> Engine:
     return Engine(
         template="core",
         dotenv_path=None,
-        storage={"provider": "sqlite", "settings": {"path": ":memory:", "busy_timeout_s": 5.0}},
+        storage={
+            "records": {
+                "provider": "sqlite",
+                "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
+            }
+        },
         embedding={"provider": "hash", "settings": {}},
         memories={"semantic": {"enabled": True}},
         **extra,
@@ -235,7 +240,12 @@ async def test_contested_fact_keeps_one_current_and_shows_the_dispute() -> None:
     eng = Engine(
         template="core",
         dotenv_path=None,
-        storage={"provider": "sqlite", "settings": {"path": ":memory:", "busy_timeout_s": 5.0}},
+        storage={
+            "records": {
+                "provider": "sqlite",
+                "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
+            }
+        },
         embedding={"provider": "hash", "settings": {}},
         memories={"semantic": {"enabled": True, "policies": {"conflict": {"contest_ties": True}}}},
         read={"current_state_view": True, "hybrid": False},

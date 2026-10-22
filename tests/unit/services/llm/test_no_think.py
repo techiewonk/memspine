@@ -178,8 +178,13 @@ async def test_router_estimates_tokens_without_usage() -> None:
 async def test_engine_binds_no_think_from_config(monkeypatch: pytest.MonkeyPatch) -> None:
     eng = Engine(
         dotenv_path=None,
-        runtime={"deployment_id": "unit-test"},
-        storage={"provider": "sqlite", "settings": {"path": ":memory:", "busy_timeout_s": 5.0}},
+        deployment={"id": "unit-test"},
+        storage={
+            "records": {
+                "provider": "sqlite",
+                "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
+            }
+        },
         embedding={"provider": "hash", "settings": {}},
         llm={
             "roles": {

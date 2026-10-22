@@ -56,8 +56,10 @@ def _engine(path: Path, **offline: object) -> Engine:
         template="core",
         dotenv_path=None,
         storage={
-            "provider": "sqlite",
-            "settings": {"path": str(path / "m.db"), "busy_timeout_s": 5.0},
+            "records": {
+                "provider": "sqlite",
+                "settings": {"path": str(path / "m.db"), "busy_timeout_s": 5.0},
+            }
         },
         embedding={"provider": "hash", "settings": {}},
         memories={"episodic": {"enabled": True}, "semantic": {"enabled": True}},

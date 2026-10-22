@@ -24,18 +24,21 @@ def _engine(tmp_path: Path, *, page_size: int = 8, cache_provider: str = "memory
     return Engine(
         template="core",
         dotenv_path=None,
-        runtime={"deployment_id": f"memory-acceptance-{uuid4().hex}"},
+        deployment={"id": f"memory-acceptance-{uuid4().hex}"},
         storage={
-            "provider": "sqlite",
-            "settings": {"path": str(tmp_path / "events.sqlite"), "busy_timeout_s": 5.0},
+            "records": {
+                "provider": "sqlite",
+                "settings": {"path": str(tmp_path / "events.sqlite"), "busy_timeout_s": 5.0},
+            },
+            "vector": {"provider": "lancedb", "settings": {"isolation": "shared"}},
+            "cache": {
+                "provider": cache_provider,
+                "settings": ({"path": str(tmp_path / "cache")} if cache_provider == "disk" else {}),
+            },
+            "lexical": {"provider": "tantivy", "settings": {}},
         },
         embedding={"provider": "hash", "settings": {"dim": 64}},
-        vector={"provider": "lancedb", "settings": {"isolation": "shared"}},
-        cache={
-            "provider": cache_provider,
-            "settings": ({"path": str(tmp_path / "cache")} if cache_provider == "disk" else {}),
-        },
-        read={"hybrid": True, "lexical_provider": "tantivy", "lexical_settings": {}},
+        read={"hybrid": True},
         memories={
             "semantic": {"enabled": True},
             "working": {"enabled": True, "policies": {"page_size": page_size}},

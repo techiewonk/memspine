@@ -265,7 +265,7 @@ def bedrock_engine_config(
                 for role in roles
             }
         },
-        "runtime": {"deployment_id": "bedrock-evaluation"},
+        "deployment": {"id": "bedrock-evaluation"},
     }
 
 

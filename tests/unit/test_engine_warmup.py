@@ -51,7 +51,9 @@ def _engine(path: str = ":memory:", **shared: Any) -> Engine:
     return Engine(
         template="core",
         dotenv_path=None,
-        storage={"provider": "sqlite", "settings": {"path": path, "busy_timeout_s": 5.0}},
+        storage={
+            "records": {"provider": "sqlite", "settings": {"path": path, "busy_timeout_s": 5.0}}
+        },
         embedding={"provider": "hash", "settings": {}},
         runtime={"shared_resources": shared},
     )
@@ -226,8 +228,10 @@ async def test_configured_lexical_index_is_warmed(tmp_path: Path, gate: _Gate) -
         template="core",
         dotenv_path=None,
         storage={
-            "provider": "sqlite",
-            "settings": {"path": str(tmp_path / "lex.db"), "busy_timeout_s": 5.0},
+            "records": {
+                "provider": "sqlite",
+                "settings": {"path": str(tmp_path / "lex.db"), "busy_timeout_s": 5.0},
+            }
         },
         embedding={"provider": "hash", "settings": {}},
         read={"hybrid": True},

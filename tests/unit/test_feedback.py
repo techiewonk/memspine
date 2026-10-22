@@ -27,7 +27,12 @@ async def engine() -> AsyncIterator[Engine]:
     eng = Engine(
         template="core",
         dotenv_path=None,
-        storage={"provider": "sqlite", "settings": {"path": ":memory:", "busy_timeout_s": 5.0}},
+        storage={
+            "records": {
+                "provider": "sqlite",
+                "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
+            }
+        },
         **_BASE,
     )
     await eng.start()
@@ -97,7 +102,12 @@ async def test_dislike_demotes_in_search_when_utility_weighted() -> None:
     eng = Engine(
         template="core",
         dotenv_path=None,
-        storage={"provider": "sqlite", "settings": {"path": ":memory:", "busy_timeout_s": 5.0}},
+        storage={
+            "records": {
+                "provider": "sqlite",
+                "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
+            }
+        },
         embedding={"provider": "hash", "settings": {}},
         read={"hybrid": False, "record_access": False, "scoring": {"utility_weight": 1.0}},
     )
@@ -120,8 +130,10 @@ async def test_counts_survive_rebuild(tmp_path: Path) -> None:
         template="core",
         dotenv_path=None,
         storage={
-            "provider": "sqlite",
-            "settings": {"path": str(tmp_path / "f.db"), "busy_timeout_s": 5.0},
+            "records": {
+                "provider": "sqlite",
+                "settings": {"path": str(tmp_path / "f.db"), "busy_timeout_s": 5.0},
+            }
         },
         **_BASE,
     )
@@ -146,8 +158,10 @@ async def test_hard_forget_erases_the_note(tmp_path: Path) -> None:
         template="core",
         dotenv_path=None,
         storage={
-            "provider": "sqlite",
-            "settings": {"path": str(tmp_path / "f.db"), "busy_timeout_s": 5.0},
+            "records": {
+                "provider": "sqlite",
+                "settings": {"path": str(tmp_path / "f.db"), "busy_timeout_s": 5.0},
+            }
         },
         **_BASE,
     )
@@ -170,7 +184,12 @@ async def test_note_is_screened_by_the_firewall_redaction() -> None:
     eng = Engine(
         template="core",
         dotenv_path=None,
-        storage={"provider": "sqlite", "settings": {"path": ":memory:", "busy_timeout_s": 5.0}},
+        storage={
+            "records": {
+                "provider": "sqlite",
+                "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
+            }
+        },
         firewall={"redact_secrets": True},
         **_BASE,
     )

@@ -16,7 +16,12 @@ async def engine() -> AsyncIterator[Engine]:
     eng = Engine(
         template="core",
         dotenv_path=None,
-        storage={"provider": "sqlite", "settings": {"path": ":memory:", "busy_timeout_s": 5.0}},
+        storage={
+            "records": {
+                "provider": "sqlite",
+                "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
+            }
+        },
         embedding={"provider": "hash", "settings": {}},
     )
     await eng.start()
@@ -66,7 +71,12 @@ async def test_personal_template_auto_enables_dependencies() -> None:
     eng = Engine(
         template="personal",
         dotenv_path=None,
-        storage={"provider": "sqlite", "settings": {"path": ":memory:", "busy_timeout_s": 5.0}},
+        storage={
+            "records": {
+                "provider": "sqlite",
+                "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
+            }
+        },
         embedding={"provider": "hash", "settings": {}},
     )
     await eng.start()
@@ -83,7 +93,12 @@ async def test_ephemeral_engine_writes_but_cannot_rebuild() -> None:
     eng = Engine(
         template="core",
         dotenv_path=None,
-        storage={"provider": "sqlite", "settings": {"path": ":memory:", "busy_timeout_s": 5.0}},
+        storage={
+            "records": {
+                "provider": "sqlite",
+                "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
+            }
+        },
         event_log={"mode": "ephemeral"},
         embedding={"provider": "hash", "settings": {}},
     )
@@ -122,7 +137,12 @@ async def test_working_memory_pages_out_to_episodic() -> None:
     eng = Engine(
         template="core",
         dotenv_path=None,
-        storage={"provider": "sqlite", "settings": {"path": ":memory:", "busy_timeout_s": 5.0}},
+        storage={
+            "records": {
+                "provider": "sqlite",
+                "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
+            }
+        },
         embedding={"provider": "hash", "settings": {}},
         memories={"working": {"enabled": True, "policies": {"page_size": 2}}},
     )
@@ -206,7 +226,12 @@ async def test_failed_start_leaks_nothing() -> None:
     eng = Engine(
         template="core",
         dotenv_path=None,
-        storage={"provider": "sqlite", "settings": {"path": ":memory:", "busy_timeout_s": 5.0}},
+        storage={
+            "records": {
+                "provider": "sqlite",
+                "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
+            }
+        },
         # A mid-start ConfigError (unknown embedder) fires AFTER the storage
         # client connects, exercising the teardown-on-failure leak path.
         embedding={"provider": "bogus", "settings": {}},
@@ -267,7 +292,12 @@ async def test_prompt_override_flows_through_engine() -> None:
     eng = Engine(
         template="core",
         dotenv_path=None,
-        storage={"provider": "sqlite", "settings": {"path": ":memory:", "busy_timeout_s": 5.0}},
+        storage={
+            "records": {
+                "provider": "sqlite",
+                "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
+            }
+        },
         embedding={"provider": "hash", "settings": {}},
         prompts={"overrides": {"extract": {"body": "custom {{ content }}"}}},
     )
@@ -322,7 +352,12 @@ def test_sync_wrappers_round_trip() -> None:
     eng = Engine(
         template="core",
         dotenv_path=None,
-        storage={"provider": "sqlite", "settings": {"path": ":memory:", "busy_timeout_s": 5.0}},
+        storage={
+            "records": {
+                "provider": "sqlite",
+                "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
+            }
+        },
         embedding={"provider": "hash", "settings": {}},
     )
     eng.start_sync()
@@ -338,7 +373,12 @@ async def test_sync_wrapper_refuses_running_loop() -> None:
     eng = Engine(
         template="core",
         dotenv_path=None,
-        storage={"provider": "sqlite", "settings": {"path": ":memory:", "busy_timeout_s": 5.0}},
+        storage={
+            "records": {
+                "provider": "sqlite",
+                "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
+            }
+        },
         embedding={"provider": "hash", "settings": {}},
     )
     with pytest.raises(MemspineError, match="running event loop"):
@@ -350,7 +390,12 @@ async def test_describe_requires_started_even_after_stop() -> None:
     eng = Engine(
         template="core",
         dotenv_path=None,
-        storage={"provider": "sqlite", "settings": {"path": ":memory:", "busy_timeout_s": 5.0}},
+        storage={
+            "records": {
+                "provider": "sqlite",
+                "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
+            }
+        },
         embedding={"provider": "hash", "settings": {}},
     )
     await eng.start()
@@ -378,8 +423,10 @@ async def test_strict_services_hard_fails_with_extra_name(monkeypatch: pytest.Mo
     cfg = {
         "memories": {"associative": {"enabled": True}},
         "storage": {
-            "provider": "sqlite",
-            "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
+            "records": {
+                "provider": "sqlite",
+                "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
+            }
         },
         "embedding": {"provider": "hash", "settings": {}},
     }
@@ -402,7 +449,9 @@ async def test_rolling_engine_prunes_on_start(tmp_path: object) -> None:
 
     db = str(Path(str(tmp_path)) / "roll.db")
     cfg = {
-        "storage": {"provider": "sqlite", "settings": {"path": db, "busy_timeout_s": 5.0}},
+        "storage": {
+            "records": {"provider": "sqlite", "settings": {"path": db, "busy_timeout_s": 5.0}}
+        },
         "event_log": {"mode": "rolling", "retention_days": 1},
         "embedding": {"provider": "hash", "settings": {}},
     }

@@ -71,8 +71,13 @@ async def test_litellm_rerank_maps_scores_to_input_order(monkeypatch: pytest.Mon
 async def test_engine_routes_litellm_model_prefix() -> None:
     eng = Engine(
         dotenv_path=None,
-        runtime={"deployment_id": "unit-test"},
-        storage={"provider": "sqlite", "settings": {"path": ":memory:", "busy_timeout_s": 5.0}},
+        deployment={"id": "unit-test"},
+        storage={
+            "records": {
+                "provider": "sqlite",
+                "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
+            }
+        },
         embedding={"provider": "hash", "settings": {}},
         llm={
             "roles": {
@@ -95,8 +100,13 @@ async def test_engine_routes_litellm_model_prefix() -> None:
 async def test_engine_empty_model_raises() -> None:
     eng = Engine(
         dotenv_path=None,
-        runtime={"deployment_id": "unit-test"},
-        storage={"provider": "sqlite", "settings": {"path": ":memory:", "busy_timeout_s": 5.0}},
+        deployment={"id": "unit-test"},
+        storage={
+            "records": {
+                "provider": "sqlite",
+                "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
+            }
+        },
         embedding={"provider": "hash", "settings": {}},
         llm={
             "roles": {
@@ -125,8 +135,13 @@ async def test_litellm_embedder_requires_dim() -> None:
 
     eng = Engine(
         dotenv_path=None,
-        runtime={"deployment_id": "unit-test"},
-        storage={"provider": "sqlite", "settings": {"path": ":memory:", "busy_timeout_s": 5.0}},
+        deployment={"id": "unit-test"},
+        storage={
+            "records": {
+                "provider": "sqlite",
+                "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
+            }
+        },
         embedding={
             "provider": "litellm",
             "settings": {
@@ -147,8 +162,13 @@ async def test_read_rerank_litellm_accepted_at_start() -> None:
     predated the litellm rerank branch. The reranker itself loads lazily."""
     eng = Engine(
         dotenv_path=None,
-        runtime={"deployment_id": "unit-test"},
-        storage={"provider": "sqlite", "settings": {"path": ":memory:", "busy_timeout_s": 5.0}},
+        deployment={"id": "unit-test"},
+        storage={
+            "records": {
+                "provider": "sqlite",
+                "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
+            }
+        },
         embedding={"provider": "hash", "settings": {}},
         memories={"semantic": {"enabled": True}},
         read={

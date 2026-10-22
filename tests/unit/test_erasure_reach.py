@@ -24,8 +24,10 @@ def _engine(**extra: Any) -> Engine:
         "template": "core",
         "dotenv_path": None,
         "storage": {
-            "provider": "sqlite",
-            "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
+            "records": {
+                "provider": "sqlite",
+                "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
+            }
         },
         "embedding": {"provider": "hash", "settings": {}},
         "memories": {"episodic": {"enabled": True}, "semantic": {"enabled": True}},
@@ -156,8 +158,10 @@ def _files_holding(directory: Path, needle: bytes) -> list[Path]:
 async def test_hard_forget_leaves_no_vector_in_older_versions(tmp_path: Path) -> None:
     eng = _engine(
         storage={
-            "provider": "sqlite",
-            "settings": {"path": str(tmp_path / "m.db"), "busy_timeout_s": 5.0},
+            "records": {
+                "provider": "sqlite",
+                "settings": {"path": str(tmp_path / "m.db"), "busy_timeout_s": 5.0},
+            }
         }
     )
     await eng.start()
@@ -181,8 +185,10 @@ async def test_verify_forget_is_unproven_when_vector_history_was_not_purged(
 ) -> None:
     eng = _engine(
         storage={
-            "provider": "sqlite",
-            "settings": {"path": str(tmp_path / "m.db"), "busy_timeout_s": 5.0},
+            "records": {
+                "provider": "sqlite",
+                "settings": {"path": str(tmp_path / "m.db"), "busy_timeout_s": 5.0},
+            }
         }
     )
     await eng.start()

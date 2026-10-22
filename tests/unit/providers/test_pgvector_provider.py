@@ -66,7 +66,7 @@ async def test_pgvector_requires_postgres_sql_before_constructing_a_lease() -> N
         embedding=SimpleNamespace(embedder_id="hash:64", dim=64),
     )
 
-    with pytest.raises(ConfigError, match="requires storage.provider=postgres"):
+    with pytest.raises(ConfigError, match="requires storage.records.provider=postgres"):
         await PgvectorBuilder().build(PgvectorSettings(), ctx)
 
 
@@ -173,7 +173,6 @@ def test_postgres_storage_target_identity_is_specific_and_contains_no_password()
     def settings(url: str) -> PostgresSettings:
         return PostgresSettings(
             url=url,
-            data_dir="./derived",
             connect_timeout_s=5.0,
             statement_timeout_s=5.0,
         )

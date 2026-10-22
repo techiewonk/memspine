@@ -16,7 +16,7 @@ from memspine_evals.systems.memspine_system import TEMPDIR_STORAGE, MemspineSyst
 def test_tempdir_storage_is_per_item_and_removed() -> None:
     system = MemspineSystem(
         config={
-            "storage": {"provider": "sqlite", "settings": {"path": TEMPDIR_STORAGE}},
+            "storage": {"records": {"provider": "sqlite", "settings": {"path": TEMPDIR_STORAGE}}},
             "embedding": {"provider": "hash", "settings": {}},
         },
         template="core",

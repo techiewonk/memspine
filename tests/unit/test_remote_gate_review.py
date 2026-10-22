@@ -74,8 +74,13 @@ def _engine() -> Engine:
     return Engine(
         template="core",
         dotenv_path=None,
-        runtime={"deployment_id": "unit-test"},
-        storage={"provider": "sqlite", "settings": {"path": ":memory:", "busy_timeout_s": 5.0}},
+        deployment={"id": "unit-test"},
+        storage={
+            "records": {
+                "provider": "sqlite",
+                "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
+            }
+        },
         embedding={"provider": "hash", "settings": {}},
         read={"hybrid": False},
         memories={"semantic": {"enabled": True}},

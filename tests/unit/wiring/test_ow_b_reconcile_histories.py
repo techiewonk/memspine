@@ -27,8 +27,10 @@ def _engine(path: Path, *, reconcile: bool = False, histories: bool = False, lin
         template="core",
         dotenv_path=None,
         storage={
-            "provider": "sqlite",
-            "settings": {"path": str(path / "m.db"), "busy_timeout_s": 5.0},
+            "records": {
+                "provider": "sqlite",
+                "settings": {"path": str(path / "m.db"), "busy_timeout_s": 5.0},
+            }
         },
         embedding={"provider": "hash", "settings": {}},
         memories={"episodic": {"enabled": True}, "semantic": {"enabled": True}},

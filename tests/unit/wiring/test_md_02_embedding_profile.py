@@ -51,8 +51,10 @@ def _engine(path: Path, **embedding: Any) -> Engine:
         template="core",
         dotenv_path=None,
         storage={
-            "provider": "sqlite",
-            "settings": {"path": str(path), "busy_timeout_s": 5.0},
+            "records": {
+                "provider": "sqlite",
+                "settings": {"path": str(path), "busy_timeout_s": 5.0},
+            }
         },
         embedding={"provider": "hash", "settings": {}, **embedding},
         read={"hybrid": False, "record_access": False},
@@ -255,8 +257,10 @@ async def test_memory_store_pins_nothing() -> None:
         template="core",
         dotenv_path=None,
         storage={
-            "provider": "sqlite",
-            "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
+            "records": {
+                "provider": "sqlite",
+                "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
+            }
         },
         embedding={"provider": "hash", "profile": "fake_a", "pin_profile": True, "settings": {}},
         memories={"semantic": {"enabled": True}},

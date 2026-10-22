@@ -47,7 +47,7 @@ class _CloseLLM:
 def _config(**offline: Any) -> dict[str, Any]:
     return {
         "embedding": {"provider": "hash", "settings": {}},
-        "runtime": {"deployment_id": "unit-test"},
+        "deployment": {"id": "unit-test"},
         "dotenv_path": None,
         "memories": {"episodic": {"enabled": True}, "semantic": {"enabled": True}},
         "offline": {"session_close_v2": True, **offline},

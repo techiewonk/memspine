@@ -63,16 +63,14 @@ def _engine(path: Path, analyzer: str) -> Engine:
         template="core",
         dotenv_path=None,
         storage={
-            "provider": "sqlite",
-            "settings": {"path": str(path / "m.db"), "busy_timeout_s": 5.0},
+            "records": {
+                "provider": "sqlite",
+                "settings": {"path": str(path / "m.db"), "busy_timeout_s": 5.0},
+            },
+            "lexical": {"provider": "tantivy", "settings": {"analyzer": analyzer}},
         },
         embedding={"provider": "hash", "settings": {}},
-        read={
-            "hybrid": True,
-            "lexical_provider": "tantivy",
-            "lexical_settings": {"analyzer": analyzer},
-            "record_access": False,
-        },
+        read={"hybrid": True, "record_access": False},
     )
 
 
@@ -118,15 +116,17 @@ async def test_dates_variant_has_its_own_index_and_projector(tmp_path: Path) -> 
         template="core",
         dotenv_path=None,
         storage={
-            "provider": "sqlite",
-            "settings": {"path": str(tmp_path / "m.db"), "busy_timeout_s": 5.0},
+            "records": {
+                "provider": "sqlite",
+                "settings": {"path": str(tmp_path / "m.db"), "busy_timeout_s": 5.0},
+            },
+            "lexical": {
+                "provider": "tantivy",
+                "settings": {"analyzer": "english", "date_tokens": True},
+            },
         },
         embedding={"provider": "hash", "settings": {}},
-        read={
-            "hybrid": True,
-            "lexical_provider": "tantivy",
-            "lexical_settings": {"analyzer": "english", "date_tokens": True},
-        },
+        read={"hybrid": True},
     )
     await eng.start()
     try:

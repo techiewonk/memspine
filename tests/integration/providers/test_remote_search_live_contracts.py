@@ -164,32 +164,34 @@ async def test_engine_builds_selected_remote_vector_and_lexical_providers(tmp_pa
     engine = Engine(
         template="core",
         dotenv_path=None,
-        runtime={"deployment_id": deployment_id},
+        deployment={"id": deployment_id},
         storage={
-            "provider": "sqlite",
-            "settings": {"path": str(tmp_path / "events.sqlite"), "busy_timeout_s": 5.0},
+            "records": {
+                "provider": "sqlite",
+                "settings": {"path": str(tmp_path / "events.sqlite"), "busy_timeout_s": 5.0},
+            },
+            "vector": {
+                "provider": "weaviate",
+                "settings": {
+                    "url_env": "MEMSPINE_TEST_LIVE_WEAVIATE_URL",
+                    "grpc_port": grpc_port,
+                    "connect_timeout_s": 20.0,
+                    "request_timeout_s": 20.0,
+                },
+            },
+            "cache": {"provider": "memory", "settings": {}},
+            "graph": {"provider": "sql_adjacency", "settings": {}},
+            "lexical": {
+                "provider": "opensearch",
+                "settings": {
+                    "url_env": "MEMSPINE_TEST_LIVE_OPENSEARCH_URL",
+                    "index_prefix": f"memspine{uuid.uuid4().hex[:10]}",
+                    "connect_timeout_s": 20.0,
+                    "request_timeout_s": 20.0,
+                },
+            },
         },
         embedding={"provider": "hash", "settings": {"dim": 64}},
-        vector={
-            "provider": "weaviate",
-            "settings": {
-                "url_env": "MEMSPINE_TEST_LIVE_WEAVIATE_URL",
-                "grpc_port": grpc_port,
-                "connect_timeout_s": 20.0,
-                "request_timeout_s": 20.0,
-            },
-        },
-        cache={"provider": "memory", "settings": {}},
-        graph={"provider": "sql_adjacency", "settings": {}},
-        read={
-            "lexical_provider": "opensearch",
-            "lexical_settings": {
-                "url_env": "MEMSPINE_TEST_LIVE_OPENSEARCH_URL",
-                "index_prefix": f"memspine{uuid.uuid4().hex[:10]}",
-                "connect_timeout_s": 20.0,
-                "request_timeout_s": 20.0,
-            },
-        },
         memories={
             "semantic": {"enabled": True},
             "associative": {"enabled": True},

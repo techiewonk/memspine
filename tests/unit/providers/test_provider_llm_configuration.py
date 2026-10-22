@@ -69,7 +69,7 @@ async def test_explicit_plugin_uses_its_schema_and_role_context_and_closes_once(
         engine = Engine(
             template="core",
             dotenv_path=None,
-            storage={"settings": {"path": ":memory:", "busy_timeout_s": 5.0}},
+            storage={"records": {"settings": {"path": ":memory:", "busy_timeout_s": 5.0}}},
             embedding={"provider": "hash", "settings": {}},
             llm={
                 "roles": {
@@ -124,7 +124,7 @@ async def test_two_engines_keep_independent_structured_retry_policies() -> None:
         return Engine(
             template="core",
             dotenv_path=None,
-            storage={"settings": {"path": ":memory:", "busy_timeout_s": 5.0}},
+            storage={"records": {"settings": {"path": ":memory:", "busy_timeout_s": 5.0}}},
             embedding={"provider": "hash", "settings": {}},
             llm={
                 "structured": {"retry_on_error": retry},

@@ -377,7 +377,12 @@ async def engine(monkeypatch: pytest.MonkeyPatch, llm: Any, **write: Any) -> Eng
     eng = Engine(
         template="core",
         dotenv_path=None,
-        storage={"provider": "sqlite", "settings": {"path": ":memory:", "busy_timeout_s": 5.0}},
+        storage={
+            "records": {
+                "provider": "sqlite",
+                "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
+            }
+        },
         embedding={"provider": "hash", "settings": {}},
         memories={"episodic": {"enabled": True}, "semantic": {"enabled": True}},
         write={
@@ -543,8 +548,10 @@ def test_behavioural_inv_order_swap_passes_with_the_flag_and_fails_without(tmp_p
                 template="core",
                 dotenv_path=None,
                 storage={
-                    "provider": "sqlite",
-                    "settings": {"path": str(d / "b.db"), "busy_timeout_s": 5.0},
+                    "records": {
+                        "provider": "sqlite",
+                        "settings": {"path": str(d / "b.db"), "busy_timeout_s": 5.0},
+                    }
                 },
                 embedding={"provider": "hash", "settings": {}},
                 read={"rerank": "off", "record_access": False},

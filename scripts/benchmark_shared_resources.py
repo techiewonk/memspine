@@ -72,28 +72,28 @@ def _engine_kwargs(
     )
     if args.storage == "postgres":
         base_url = args.pg_url.rsplit("/", 1)[0]
-        storage: dict[str, Any] = {
+        records: dict[str, Any] = {
             "provider": "postgres",
             "settings": {
                 "url": f"{base_url}/{database}",
-                "data_dir": str(work / f"pg{index}"),
                 "connect_timeout_s": 5.0,
                 "statement_timeout_s": 30.0,
             },
         }
     else:
-        storage = {
+        records = {
             "provider": "sqlite",
             "settings": {"path": str(work / f"e{index}.db"), "busy_timeout_s": 5.0},
         }
     base: dict[str, Any] = {
         "template": "core",
         "dotenv_path": None,
-        "storage": storage,
+        "storage": {"records": records},
         "embedding": embedding,
     }
     if args.storage == "postgres":
-        base["runtime"] = {"deployment_id": "rm80-bench"}  # required by shared Postgres
+        # ADR-081: required by shared Postgres; host-local slots live under data_dir.
+        base["deployment"] = {"id": "rm80-bench", "data_dir": str(work / f"pg{index}")}
     return _deep_merge(base, _overrides(args))
 
 

@@ -374,8 +374,10 @@ class MemspineSystem:
         self._version = getattr(memspine, "__version__", "unknown")
         overrides: dict[str, Any] = {
             "storage": {
-                "provider": "sqlite",
-                "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
+                "records": {
+                    "provider": "sqlite",
+                    "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
+                }
             },
             **self.config,
         }

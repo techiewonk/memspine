@@ -183,13 +183,14 @@ async def run_cycles(
                 template="core",
                 dotenv_path=None,
                 storage={
-                    "provider": "sqlite",
-                    "settings": {"path": str(database), "busy_timeout_s": 5.0},
+                    "records": {
+                        "provider": "sqlite",
+                        "settings": {"path": str(database), "busy_timeout_s": 5.0},
+                    },
+                    "lexical": {"provider": "tantivy", "settings": {}},
                 },
                 embedding={"provider": "hash", "settings": {"dim": 64}},
                 read={
-                    "lexical_provider": "tantivy",
-                    "lexical_settings": {},
                     "record_access": False,
                     "scoring": {
                         "recency_weight": 0.0,

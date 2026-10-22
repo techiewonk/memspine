@@ -128,8 +128,10 @@ async def _engine(
         "template": "core",
         "dotenv_path": None,
         "storage": {
-            "provider": "sqlite",
-            "settings": {"path": str(path), "busy_timeout_s": 5.0},
+            "records": {
+                "provider": "sqlite",
+                "settings": {"path": str(path), "busy_timeout_s": 5.0},
+            }
         },
         "embedding": {"provider": "hash", "settings": {}},
         "read": {"rerank": "off", "record_access": True},

@@ -27,7 +27,12 @@ def _engine(**read: Any) -> Engine:
     eng = Engine(
         template="core",
         dotenv_path=None,
-        storage={"provider": "sqlite", "settings": {"path": ":memory:", "busy_timeout_s": 5.0}},
+        storage={
+            "records": {
+                "provider": "sqlite",
+                "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
+            }
+        },
         embedding={"provider": "hash", "settings": {}},
         read={"hybrid": False, "record_access": False, **read},
         memories={"episodic": {"enabled": True}},

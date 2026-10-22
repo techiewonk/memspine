@@ -590,8 +590,10 @@ async def test_engine_flag_on_gives_the_same_facts_and_releases_the_gate(
             template="core",
             dotenv_path=None,
             storage={
-                "provider": "sqlite",
-                "settings": {"path": str(tmp_path / f"{on}.db"), "busy_timeout_s": 5.0},
+                "records": {
+                    "provider": "sqlite",
+                    "settings": {"path": str(tmp_path / f"{on}.db"), "busy_timeout_s": 5.0},
+                }
             },
             embedding={"provider": "hash", "settings": {}},
             memories={"episodic": {"enabled": True}, "semantic": {"enabled": True}},

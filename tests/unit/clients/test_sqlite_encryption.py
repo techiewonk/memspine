@@ -94,12 +94,14 @@ async def test_engine_start_fails_with_missing_service_error(
         template="core",
         dotenv_path=None,
         storage={
-            "provider": "sqlite",
-            "settings": {
-                "path": str(tmp_path / "enc.db"),
-                "encryption": {"mode": "sqlcipher", "key_env": KEY_ENV},
-                "busy_timeout_s": 5.0,
-            },
+            "records": {
+                "provider": "sqlite",
+                "settings": {
+                    "path": str(tmp_path / "enc.db"),
+                    "encryption": {"mode": "sqlcipher", "key_env": KEY_ENV},
+                    "busy_timeout_s": 5.0,
+                },
+            }
         },
         embedding={"provider": "hash", "settings": {}},
         read={"hybrid": False},
@@ -166,12 +168,14 @@ async def test_engine_round_trip_never_logs_the_key(
     db = tmp_path / "enc.db"
     overrides: dict[str, Any] = {
         "storage": {
-            "provider": "sqlite",
-            "settings": {
-                "path": str(db),
-                "busy_timeout_s": 5.0,
-                "encryption": {"mode": "sqlcipher", "key_env": KEY_ENV},
-            },
+            "records": {
+                "provider": "sqlite",
+                "settings": {
+                    "path": str(db),
+                    "busy_timeout_s": 5.0,
+                    "encryption": {"mode": "sqlcipher", "key_env": KEY_ENV},
+                },
+            }
         },
         "embedding": {"provider": "hash", "settings": {}},
         "read": {"hybrid": False},
@@ -199,7 +203,6 @@ def test_postgres_provider_rejects_sqlcipher_setting() -> None:
         PostgresSettings.model_validate(
             {
                 "url": "postgresql://unused",
-                "data_dir": ".",
                 "connect_timeout_s": 5.0,
                 "statement_timeout_s": 5.0,
                 "encryption": {"mode": "sqlcipher", "key_env": KEY_ENV},
@@ -217,12 +220,14 @@ async def test_real_sqlcipher_file_is_unreadable_without_the_key(
         template="core",
         dotenv_path=None,
         storage={
-            "provider": "sqlite",
-            "settings": {
-                "path": str(db),
-                "encryption": {"mode": "sqlcipher", "key_env": KEY_ENV},
-                "busy_timeout_s": 5.0,
-            },
+            "records": {
+                "provider": "sqlite",
+                "settings": {
+                    "path": str(db),
+                    "encryption": {"mode": "sqlcipher", "key_env": KEY_ENV},
+                    "busy_timeout_s": 5.0,
+                },
+            }
         },
         embedding={"provider": "hash", "settings": {}},
         read={"hybrid": False},

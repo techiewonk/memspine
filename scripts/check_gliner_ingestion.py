@@ -341,8 +341,10 @@ def _snapshot_metadata(snapshot: Path) -> dict[str, Any]:
 def _engine_config(database: Path, snapshot: Path) -> dict[str, Any]:
     return {
         "storage": {
-            "provider": "sqlite",
-            "settings": {"path": str(database), "busy_timeout_s": 5.0},
+            "records": {
+                "provider": "sqlite",
+                "settings": {"path": str(database), "busy_timeout_s": 5.0},
+            }
         },
         "embedding": {"provider": "hash", "settings": {"dim": 64}},
         "memories": {
@@ -393,7 +395,7 @@ def _engine_config(database: Path, snapshot: Path) -> dict[str, Any]:
                 }
             }
         },
-        "runtime": {"deployment_id": "pa121-local-acceptance"},
+        "deployment": {"id": "pa121-local-acceptance"},
         "observability": {"tap": {"enabled": True, "sink": "memory", "content": False}},
     }
 

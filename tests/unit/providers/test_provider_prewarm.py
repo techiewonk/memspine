@@ -36,7 +36,7 @@ def test_lancedb_descriptor_declares_its_slow_import() -> None:
 
 
 def _config(provider: str) -> Any:
-    return SimpleNamespace(vector=SimpleNamespace(provider=provider))
+    return SimpleNamespace(storage=SimpleNamespace(vector=SimpleNamespace(provider=provider)))
 
 
 def test_unknown_provider_is_left_to_the_build_error_path() -> None:

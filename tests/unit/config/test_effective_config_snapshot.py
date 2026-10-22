@@ -21,7 +21,7 @@ def test_mutated_typed_config_rechecks_ranges_without_disclosing_settings() -> N
         }
     )
     config.write.window_max_turns = 0
-    config.storage.settings["private_token"] = "sensitive-example-value"
+    config.storage.records.settings["private_token"] = "sensitive-example-value"
     with pytest.raises(ConfigInputError, match="write.window_max_turns") as caught:
         freeze_effective_config(config)
     assert "sensitive-example-value" not in str(caught.value)
@@ -40,7 +40,7 @@ def test_mutated_typed_config_rechecks_cross_field_rules() -> None:
         }
     )
     config.runtime.environment = "production"
-    with pytest.raises(ConfigError, match="requires runtime.deployment_id"):
+    with pytest.raises(ConfigError, match="requires deployment.id"):
         freeze_effective_config(config)
 
 
@@ -75,7 +75,7 @@ def test_effective_config_is_detached_and_recursively_immutable() -> None:
                     "startup_timeout_s": 1.0,
                 },
             },
-            "storage": {"settings": {"path": "memory.db"}},
+            "storage": {"records": {"settings": {"path": "memory.db"}}},
             "firewall": {"signals": {"minja_bridge_exempt_roles": ["assistant"]}},
             "memories": {
                 "semantic": {"enabled": True, "policies": {"nested": {"weights": [1, 2]}}}
@@ -87,21 +87,21 @@ def test_effective_config_is_detached_and_recursively_immutable() -> None:
 
     assert snapshot is not config
     assert second_snapshot is not snapshot
-    assert second_snapshot.storage.settings is not snapshot.storage.settings
+    assert second_snapshot.storage.records.settings is not snapshot.storage.records.settings
     assert isinstance(snapshot, MemspineConfig)
     assert snapshot.storage is not config.storage
     assert snapshot.storage.model_fields_set == config.storage.model_fields_set
     assert snapshot.storage == config.storage
-    assert snapshot.storage.settings == {"path": "memory.db"}
+    assert snapshot.storage.records.settings == {"path": "memory.db"}
     assert snapshot.firewall.signals.minja_bridge_exempt_roles == ["assistant"]
     assert snapshot.memories["semantic"].policies["nested"]["weights"] == [1, 2]
 
     with pytest.raises(ValidationError, match="frozen"):
-        snapshot.storage.provider = "postgres"  # type: ignore[misc]
+        snapshot.storage.records.provider = "postgres"  # type: ignore[misc]
     with pytest.raises(TypeError, match="immutable"):
         snapshot.storage.model_fields_set.add("path")
     with pytest.raises(TypeError, match="immutable"):
-        snapshot.storage.settings["path"] = "changed.db"
+        snapshot.storage.records.settings["path"] = "changed.db"
     with pytest.raises(TypeError, match="immutable"):
         snapshot.memories["semantic"].policies["nested"]["extra"] = True
     with pytest.raises(TypeError, match="immutable"):
@@ -110,9 +110,9 @@ def test_effective_config_is_detached_and_recursively_immutable() -> None:
         snapshot.firewall.signals.minja_bridge_exempt_roles.append("user")
 
     # A caller holding the mutable config used to create the snapshot cannot mutate it indirectly.
-    config.storage.settings["path"] = "changed.db"
+    config.storage.records.settings["path"] = "changed.db"
     config.memories["semantic"].policies["nested"]["weights"].append(3)
-    assert snapshot.storage.settings["path"] == "memory.db"
+    assert snapshot.storage.records.settings["path"] == "memory.db"
     assert snapshot.memories["semantic"].policies["nested"]["weights"] == [1, 2]
 
 
@@ -126,14 +126,14 @@ def test_snapshot_preserves_explicit_field_presence_and_schema_config() -> None:
                     "startup_timeout_s": 1.0,
                 }
             },
-            "storage": {"provider": "sqlite"},
+            "storage": {"records": {"provider": "sqlite"}},
         }
     )
     before = dict(MemspineConfig.model_config)
     snapshot = freeze_effective_config(config)
 
-    assert snapshot.storage.model_fields_set == {"provider"}
-    assert config.storage.model_fields_set == {"provider"}
+    assert snapshot.storage.records.model_fields_set == {"provider"}
+    assert config.storage.records.model_fields_set == {"provider"}
     assert MemspineConfig.model_config == before
     assert MemspineConfig.model_config.get("frozen") is None
 
@@ -148,14 +148,14 @@ def test_snapshot_serialization_and_revalidation_preserve_values_and_freezing() 
                     "startup_timeout_s": None,
                 }
             },
-            "storage": {"settings": {"path": "snapshot.db"}},
+            "storage": {"records": {"settings": {"path": "snapshot.db"}}},
         }
     )
     snapshot = freeze_effective_config(config)
     assert snapshot.model_dump(mode="json") == config.model_dump(mode="json")
     assert snapshot.storage.model_dump_json() == config.storage.model_dump_json()
-    validated = type(snapshot.storage).model_validate({"provider": "sqlite"})
+    validated = type(snapshot.storage.records).model_validate({"provider": "sqlite"})
     with pytest.raises(ValidationError, match="frozen"):
         validated.provider = "postgres"  # type: ignore[misc]
     with pytest.raises(ValidationError):
-        type(snapshot.storage).model_validate({"provider": 17})
+        type(snapshot.storage.records).model_validate({"provider": 17})

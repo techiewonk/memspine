@@ -97,7 +97,7 @@ def test_resolve_arm_and_offline_swap() -> None:
     cfg = {
         "embedding": {"provider": "st", "settings": {"model": "test/embedder"}},
         "read": {"rerank": "qwen3", "rerank_settings": {"model": "test/reranker"}},
-        "storage": {"provider": "sqlite", "settings": {"path": "tempdir"}},
+        "storage": {"records": {"provider": "sqlite", "settings": {"path": "tempdir"}}},
     }
     off, notes = step.offline_config(cfg)
     assert off["embedding"] == {"provider": "hash", "settings": {}}

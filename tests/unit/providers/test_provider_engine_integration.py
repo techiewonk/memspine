@@ -19,9 +19,14 @@ def _engine(path: Path) -> Engine:
     return Engine(
         template="core",
         dotenv_path=None,
-        storage={"provider": "sqlite", "settings": {"path": str(path), "busy_timeout_s": 5.0}},
+        storage={
+            "records": {
+                "provider": "sqlite",
+                "settings": {"path": str(path), "busy_timeout_s": 5.0},
+            },
+            "cache": {"provider": "memory", "settings": {}},
+        },
         embedding={"provider": "hash", "settings": {}},
-        cache={"provider": "memory", "settings": {}},
         memories={"semantic": {"enabled": True}},
     )
 
@@ -60,9 +65,14 @@ def _cleanup_engine(path: Path, *, provider_change_runtime: ProviderChangeRuntim
     return Engine(
         template="core",
         dotenv_path=None,
-        storage={"provider": "sqlite", "settings": {"path": str(path), "busy_timeout_s": 5.0}},
+        storage={
+            "records": {
+                "provider": "sqlite",
+                "settings": {"path": str(path), "busy_timeout_s": 5.0},
+            },
+            "cache": {"provider": "memory", "settings": {}},
+        },
         embedding={"provider": "hash", "settings": {}},
-        cache={"provider": "memory", "settings": {}},
         memories={"semantic": {"enabled": True}},
         runtime={
             "service_switches": {
@@ -127,11 +137,16 @@ async def test_primary_graph_and_lexical_health_results_keep_distinct_ids(tmp_pa
     engine = Engine(
         template="core",
         dotenv_path=None,
-        storage={"provider": "sqlite", "settings": {"path": ":memory:", "busy_timeout_s": 5.0}},
+        storage={
+            "records": {
+                "provider": "sqlite",
+                "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
+            },
+            "cache": {"provider": "memory", "settings": {}},
+            "graph": {"provider": "sql_adjacency", "settings": {}},
+        },
         embedding={"provider": "hash", "settings": {}},
-        cache={"provider": "memory", "settings": {}},
         memories={"associative": {"enabled": True}},
-        graph={"provider": "sql_adjacency", "settings": {}},
     )
     await engine.start()
     try:
@@ -146,7 +161,10 @@ async def test_primary_graph_and_lexical_health_results_keep_distinct_ids(tmp_pa
 @pytest.mark.asyncio
 async def test_startup_failure_closes_already_built_providers(tmp_path: Path) -> None:
     engine = _engine(tmp_path / "startup-cleanup.db")
-    engine._overrides["graph"] = {"provider": "sql_adjacency", "settings": {}}
+    engine._overrides.setdefault("storage", {})["graph"] = {
+        "provider": "sql_adjacency",
+        "settings": {},
+    }
 
     with pytest.raises(ConfigError, match="graph configured but memories.associative not enabled"):
         await engine.start()

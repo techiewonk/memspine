@@ -18,7 +18,12 @@ def _engine(**read: Any) -> Engine:
     return Engine(
         template="core",
         dotenv_path=None,
-        storage={"provider": "sqlite", "settings": {"path": ":memory:", "busy_timeout_s": 5.0}},
+        storage={
+            "records": {
+                "provider": "sqlite",
+                "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
+            }
+        },
         embedding={"provider": "hash", "settings": {}},
         memories={"episodic": {"enabled": True}},
         read={"record_access": False, **read},
@@ -103,7 +108,12 @@ async def test_perspective_multiplier_only_adds_no_leg() -> None:
         eng = Engine(
             template="core",
             dotenv_path=None,
-            storage={"provider": "sqlite", "settings": {"path": ":memory:", "busy_timeout_s": 5.0}},
+            storage={
+                "records": {
+                    "provider": "sqlite",
+                    "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
+                }
+            },
             embedding={"provider": "hash", "settings": {}},
             memories={"episodic": {"enabled": True, "policies": {"perspective": "heuristic"}}},
             read={

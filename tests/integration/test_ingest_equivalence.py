@@ -179,8 +179,10 @@ async def _observe_engine(template: str, storage_path: str) -> dict[str, Any]:
         template=template,
         dotenv_path=None,
         storage={
-            "provider": "sqlite",
-            "settings": {"path": storage_path, "busy_timeout_s": 5.0},
+            "records": {
+                "provider": "sqlite",
+                "settings": {"path": storage_path, "busy_timeout_s": 5.0},
+            }
         },
         embedding={"provider": "hash", "settings": {}, "batch_size": 32},
     )

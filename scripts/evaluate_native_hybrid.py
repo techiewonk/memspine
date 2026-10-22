@@ -162,15 +162,18 @@ async def evaluate() -> dict[str, Any]:
             engine = Engine(
                 template="core",
                 dotenv_path=None,
-                runtime={"deployment_id": f"pa089-portable-{uuid.uuid4().hex}"},
+                deployment={"id": f"pa089-portable-{uuid.uuid4().hex}"},
                 storage={
-                    "provider": "sqlite",
-                    "settings": {"path": str(work / "events.sqlite"), "busy_timeout_s": 5.0},
+                    "records": {
+                        "provider": "sqlite",
+                        "settings": {"path": str(work / "events.sqlite"), "busy_timeout_s": 5.0},
+                    },
+                    "vector": {"provider": "lancedb", "settings": {"isolation": "shared"}},
+                    "cache": {"provider": "memory", "settings": {}},
+                    "lexical": {"provider": "tantivy", "settings": {}},
                 },
                 embedding={"provider": "hash", "settings": {"dim": DIMENSION}},
-                vector={"provider": "lancedb", "settings": {"isolation": "shared"}},
-                cache={"provider": "memory", "settings": {}},
-                read={"hybrid": True, "lexical_provider": "tantivy", "lexical_settings": {}},
+                read={"hybrid": True},
             )
             await engine.start()
 

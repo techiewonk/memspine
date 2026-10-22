@@ -31,7 +31,9 @@ def _engine(db: Path) -> Engine:
     return Engine(
         template="core",
         dotenv_path=None,
-        storage={"provider": "sqlite", "settings": {"path": str(db), "busy_timeout_s": 5.0}},
+        storage={
+            "records": {"provider": "sqlite", "settings": {"path": str(db), "busy_timeout_s": 5.0}}
+        },
         embedding={"provider": "hash", "settings": {}},
         read={"hybrid": True},
         runtime={"shared_resources": {"warmup": "lazy"}},

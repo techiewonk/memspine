@@ -171,7 +171,9 @@ def _overrides(db: Path, redact: bool = False, rederive: bool = False) -> dict[s
     """
     return {
         "template": "core",
-        "storage": {"provider": "sqlite", "settings": {"path": str(db), "busy_timeout_s": 5.0}},
+        "storage": {
+            "records": {"provider": "sqlite", "settings": {"path": str(db), "busy_timeout_s": 5.0}}
+        },
         "embedding": {"provider": "hash"},
         "memories": {
             "episodic": {"enabled": True},

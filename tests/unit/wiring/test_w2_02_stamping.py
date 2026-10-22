@@ -28,7 +28,9 @@ async def build(db: Path, **write: Any) -> Engine:
     eng = Engine(
         template="core",
         dotenv_path=None,
-        storage={"provider": "sqlite", "settings": {"path": str(db), "busy_timeout_s": 5.0}},
+        storage={
+            "records": {"provider": "sqlite", "settings": {"path": str(db), "busy_timeout_s": 5.0}}
+        },
         embedding={"provider": "hash", "settings": {}},
         memories={"episodic": {"enabled": True}},
         write=write,

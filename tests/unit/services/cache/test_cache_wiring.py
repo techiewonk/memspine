@@ -16,9 +16,14 @@ from memspine.services.cache.base import MemoryKV
 
 def _engine(**cfg: object) -> Engine:
     options: dict[str, object] = {
-        "storage": {"provider": "sqlite", "settings": {"path": ":memory:", "busy_timeout_s": 5.0}},
+        "storage": {
+            "records": {
+                "provider": "sqlite",
+                "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
+            },
+            "cache": {"provider": "memory", "settings": {}},
+        },
         "embedding": {"provider": "hash", "settings": {}},
-        "cache": {"provider": "memory", "settings": {}},
         "memories": {"semantic": {"enabled": True}},
     }
     options.update(cfg)
@@ -54,7 +59,9 @@ async def test_disk_backend_wires_and_closes(tmp_path: Path) -> None:
     pytest.importorskip("cashews")
     from memspine.services.cache.cashews import CashewsCache
 
-    eng = _engine(cache={"provider": "disk", "settings": {"path": str(tmp_path / "cache")}})
+    eng = _engine(
+        storage={"cache": {"provider": "disk", "settings": {"path": str(tmp_path / "cache")}}}
+    )
     await eng.start()
     try:
         assert eng.describe()["cache"] == "disk"
@@ -69,7 +76,7 @@ async def test_disk_backend_wires_and_closes(tmp_path: Path) -> None:
 
 
 async def test_unknown_backend_raises_config_error() -> None:
-    eng = _engine(cache={"provider": "bogus", "settings": {}})
+    eng = _engine(storage={"cache": {"provider": "bogus", "settings": {}}})
     with pytest.raises(ConfigError, match=r"cache\.provider"):
         await eng.start()
     await eng.stop()

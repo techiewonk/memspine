@@ -1,7 +1,7 @@
 """EX-1a on the server profile (Postgres): the same five steps as ``test_ex1a_embedded``.
 
 The embedded module's step functions are re-used unchanged. An autouse fixture swaps the two
-profile-specific helpers (``_overrides`` -> ``storage.profile: server``, ``_sql`` -> the lineage /
+profile-specific helpers (``_overrides`` -> ``storage.records.provider: postgres``, ``_sql`` -> the lineage /
 outbox probes over the Postgres DSN) and wipes the scratch database before each test.
 
 Needs a scratch Postgres with pgvector: set ``MEMSPINE_TEST_PG_URL`` (skipped otherwise); see
@@ -52,17 +52,12 @@ def _pg_url() -> str | None:
 
 def _server_overrides(db: Path, redact: bool = False, rederive: bool = False) -> dict[str, Any]:
     o = _EMBEDDED_OVERRIDES(db, redact, rederive)
-    o["storage"] = {
-        "profile": "server",
+    o.setdefault("storage", {})["records"] = {
         "provider": "postgres",
-        "settings": {
-            "url": _pg_url(),
-            "data_dir": str(db.parent / "derived"),
-            "connect_timeout_s": 5.0,
-            "statement_timeout_s": 30.0,
-        },
+        "settings": {"url": _pg_url(), "connect_timeout_s": 5.0, "statement_timeout_s": 30.0},
     }
-    o["runtime"] = {**o.get("runtime", {}), "deployment_id": "e2e-ex1a"}  # shared Postgres
+    # ADR-081: host-local slots live under deployment.data_dir; shared Postgres needs an id.
+    o["deployment"] = {"id": "e2e-ex1a", "data_dir": str(db.parent / "derived")}
     return o
 
 
@@ -108,7 +103,7 @@ def report() -> Report:
 
 async def test_server_profile_is_live(world: Any) -> None:
     """The steps above really ran on Postgres (not a silent SQLite fallback)."""
-    assert world.eng.config.storage.profile == "server"
+    assert world.eng.config.storage.records.provider == "postgres"
     assert not world.db.exists(), "a SQLite file was created"
     assert _pg_sql(world.db, "SELECT COUNT(*) FROM memory_records")[0][0] > 0
     assert _pg_sql(world.db, "SELECT COUNT(*) FROM lineage")[0][0] >= 0

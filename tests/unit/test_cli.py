@@ -71,7 +71,12 @@ def test_forget_hard_verify_exit_codes(tmp_path: Path) -> None:
         eng = Engine(
             template="core",
             dotenv_path=None,
-            storage={"provider": "sqlite", "settings": {"path": str(db), "busy_timeout_s": 5.0}},
+            storage={
+                "records": {
+                    "provider": "sqlite",
+                    "settings": {"path": str(db), "busy_timeout_s": 5.0},
+                }
+            },
             embedding={"provider": "hash", "settings": {}},
         )
         await eng.start()
@@ -110,7 +115,12 @@ def test_export_writes_jsonl(tmp_path: Path) -> None:
         eng = Engine(
             template="core",
             dotenv_path=None,
-            storage={"provider": "sqlite", "settings": {"path": str(db), "busy_timeout_s": 5.0}},
+            storage={
+                "records": {
+                    "provider": "sqlite",
+                    "settings": {"path": str(db), "busy_timeout_s": 5.0},
+                }
+            },
             embedding={"provider": "hash", "settings": {}},
         )
         await eng.start()

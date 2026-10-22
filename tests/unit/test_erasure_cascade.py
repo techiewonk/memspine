@@ -20,8 +20,10 @@ def _engine(**extra: Any) -> Engine:
         "template": "core",
         "dotenv_path": None,
         "storage": {
-            "provider": "sqlite",
-            "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
+            "records": {
+                "provider": "sqlite",
+                "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
+            }
         },
         "embedding": {"provider": "hash", "settings": {}},
     }
@@ -206,8 +208,7 @@ async def test_file_database_keeps_no_erased_bytes(tmp_path: Path) -> None:
     db = tmp_path / "erase.db"
     eng = _engine(
         storage={
-            "provider": "sqlite",
-            "settings": {"path": str(db), "busy_timeout_s": 5.0},
+            "records": {"provider": "sqlite", "settings": {"path": str(db), "busy_timeout_s": 5.0}}
         }
     )
     await eng.start()

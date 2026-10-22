@@ -41,7 +41,12 @@ def _spec(db: Path | str = ":memory:", **shared_resources: Any) -> EngineSpec:
         "core",
         None,
         {
-            "storage": {"provider": "sqlite", "settings": {"path": str(db), "busy_timeout_s": 5.0}},
+            "storage": {
+                "records": {
+                    "provider": "sqlite",
+                    "settings": {"path": str(db), "busy_timeout_s": 5.0},
+                }
+            },
             "embedding": {"provider": "hash", "settings": {}},
             "read": {"hybrid": True},
             "runtime": {"shared_resources": shared_resources},
@@ -263,8 +268,8 @@ async def test_taskiq_worker_hook_starts_the_engine_before_serving(
     gate.release.set()
     cfg = tmp_path / "c.yaml"
     cfg.write_text(
-        "storage:\n  provider: sqlite\n  settings:\n"
-        f"    path: '{(tmp_path / 'm.db').as_posix()}'\n    busy_timeout_s: 5.0\n"
+        "storage:\n  records:\n    provider: sqlite\n    settings:\n"
+        f"      path: '{(tmp_path / 'm.db').as_posix()}'\n      busy_timeout_s: 5.0\n"
         "embedding:\n  provider: hash\n",
         encoding="utf-8",
     )
@@ -294,7 +299,7 @@ def test_spawned_worker_process_builds_and_warms_its_own_registry(tmp_path: Path
         from memspine.api.process import EngineSpec, process_engine, worker_readiness
 
         spec = EngineSpec("core", None, {{
-            "storage": {{"provider": "sqlite", "settings": {{"path": "{db}", "busy_timeout_s": 5.0}}}},
+            "storage": {{"records": {{"provider": "sqlite", "settings": {{"path": "{db}", "busy_timeout_s": 5.0}}}}}},
             "embedding": {{"provider": "hash", "settings": {{}}}},
             "read": {{"hybrid": True}},
         }}, dotenv_path=None)

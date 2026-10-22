@@ -92,7 +92,12 @@ async def main():
         template="core",
         dotenv_path=None,
         user_config={"plugins": [pin]},
-        storage={"provider": "sqlite", "settings": {"path": ":memory:", "busy_timeout_s": 5.0}},
+        storage={
+            "records": {
+                "provider": "sqlite",
+                "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
+            }
+        },
         embedding={"provider": "fixture_hash", "settings": {"dim": 64}},
     )
     await engine.start()

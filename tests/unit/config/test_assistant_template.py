@@ -14,7 +14,12 @@ def _engine(template: str) -> Engine:
     return Engine(
         template=template,
         dotenv_path=None,
-        storage={"provider": "sqlite", "settings": {"path": ":memory:", "busy_timeout_s": 5.0}},
+        storage={
+            "records": {
+                "provider": "sqlite",
+                "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
+            }
+        },
         embedding={"provider": "hash", "settings": {}},
     )
 
@@ -81,7 +86,12 @@ async def test_engine_without_a_template_uses_assistant() -> None:
     """ADR-032: Engine() defaults to the assistant template; base stays simple."""
     eng = Engine(
         dotenv_path=None,
-        storage={"provider": "sqlite", "settings": {"path": ":memory:", "busy_timeout_s": 5.0}},
+        storage={
+            "records": {
+                "provider": "sqlite",
+                "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
+            }
+        },
         embedding={"provider": "hash", "settings": {}},
     )
     await eng.start()
@@ -106,7 +116,7 @@ async def test_profile_simple_without_a_template_is_base(where: str) -> None:
     from memspine.config.loader import load_config
 
     common = {
-        "storage": {"settings": {"path": ":memory:"}},
+        "storage": {"records": {"settings": {"path": ":memory:"}}},
         "embedding": {"provider": "hash"},
     }
     if where == "kwargs":

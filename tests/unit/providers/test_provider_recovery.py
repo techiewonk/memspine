@@ -361,11 +361,13 @@ async def test_engine_provider_changes_uses_injected_recovery_guard(tmp_path) ->
         template="core",
         dotenv_path=None,
         storage={
-            "provider": "sqlite",
-            "settings": {"path": str(tmp_path / "engine-recovery.db"), "busy_timeout_s": 5.0},
+            "records": {
+                "provider": "sqlite",
+                "settings": {"path": str(tmp_path / "engine-recovery.db"), "busy_timeout_s": 5.0},
+            },
+            "cache": {"provider": "memory", "settings": {}},
         },
         embedding={"provider": "hash", "settings": {}},
-        cache={"provider": "memory", "settings": {}},
         memories={"semantic": {"enabled": True}},
         provider_change_runtime=ProviderChangeRuntime(
             revision_guard=_RevisionGuard(),

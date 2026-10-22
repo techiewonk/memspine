@@ -27,6 +27,8 @@ TEMPLATES: dict[str, tuple[str, frozenset[str], str]] = {
     "assistant": ("assistant", frozenset({"working", "episodic", "semantic"}), "inline"),
     "base": ("simple", frozenset({"working", "episodic", "semantic"}), "inline"),
     "core": ("core", frozenset({"working", "episodic", "semantic"}), "inline"),
+    # ADR-081 storage preset: base plus an explicit slot block.
+    "embedded": ("simple", frozenset({"working", "episodic", "semantic"}), "inline"),
     # Measurement profile: `working` is off (no paging window in LoCoMo /
     # LongMemEval) and `associative` is on, satisfying its C1(b) hard dependency
     # on `semantic`.
@@ -84,9 +86,13 @@ def test_all_shipped_templates_are_in_the_matrix() -> None:
     from memspine.config.loader import template_dir
 
     shipped = {p.stem for p in template_dir().glob("*.yaml")}
-    assert shipped == set(TEMPLATES), f"matrix out of sync with shipped templates: {shipped}"
-    assert len(TEMPLATES) == 11
-    assert len(TEMPLATES) == 11
+    assert shipped == set(TEMPLATES) | SERVER_ONLY, f"matrix out of sync: {shipped}"
+    assert len(TEMPLATES) == 12
+
+
+#: ADR-081: the `server` storage preset needs a Postgres records store, so it is not booted
+#: hermetically here; `tests/e2e/test_server_template.py` boots it on Postgres.
+SERVER_ONLY = frozenset({"server"})
 
 
 @pytest.mark.parametrize("template", sorted(TEMPLATES))

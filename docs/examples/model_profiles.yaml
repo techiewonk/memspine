@@ -1,8 +1,9 @@
 # Configuration example only: replace the local endpoint/model names before use.
 # Validation does not download weights or contact these endpoints.
 # Timeouts and output limits illustrate the contract; size them for your prompts.
+deployment:
+  id: local-multi-model
 runtime:
-  deployment_id: local-multi-model
   provider_services:
     health_timeout_s: 5.0
     close_timeout_s: 10.0

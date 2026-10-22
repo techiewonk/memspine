@@ -30,11 +30,13 @@ def _engine(path: Path | None = None, **over: Any) -> Engine:
         "template": "core",
         "dotenv_path": None,
         "storage": {
-            "provider": "sqlite",
-            "settings": {
-                "path": str(path / "m.db") if path else ":memory:",
-                "busy_timeout_s": 5.0,
-            },
+            "records": {
+                "provider": "sqlite",
+                "settings": {
+                    "path": str(path / "m.db") if path else ":memory:",
+                    "busy_timeout_s": 5.0,
+                },
+            }
         },
         "embedding": {"provider": "hash", "settings": {}},
         "read": {"hybrid": False, "record_access": False, "cache": {"enabled": True}},

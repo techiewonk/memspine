@@ -21,11 +21,14 @@ def _engine(path: Path, provider: str, **read: object) -> Engine:
         template="core",
         dotenv_path=None,
         storage={
-            "provider": "sqlite",
-            "settings": {"path": str(path / "m.db"), "busy_timeout_s": 5.0},
+            "records": {
+                "provider": "sqlite",
+                "settings": {"path": str(path / "m.db"), "busy_timeout_s": 5.0},
+            },
+            "graph": {"provider": provider},
         },
         embedding={"provider": "hash", "settings": {}},
-        graph={"provider": provider, "entity_embeddings": True},
+        graph={"entity_embeddings": True},
         memories={
             "semantic": {"enabled": True},
             "associative": {"enabled": True, "policies": {"entity_nodes": True}},
@@ -87,11 +90,14 @@ async def test_turn_mentions_let_the_graph_reach_raw_turns(tmp_path: Path, provi
         template="core",
         dotenv_path=None,
         storage={
-            "provider": "sqlite",
-            "settings": {"path": str(tmp_path / "m.db"), "busy_timeout_s": 5.0},
+            "records": {
+                "provider": "sqlite",
+                "settings": {"path": str(tmp_path / "m.db"), "busy_timeout_s": 5.0},
+            },
+            "graph": {"provider": provider},
         },
         embedding={"provider": "hash", "settings": {}},
-        graph={"provider": provider, "entity_embeddings": True},
+        graph={"entity_embeddings": True},
         memories={
             "episodic": {"enabled": True},
             "associative": {

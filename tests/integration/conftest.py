@@ -45,7 +45,12 @@ def make_file_engine(db_path: str) -> FileEngineFactory:
         overrides.setdefault("template", "core")
         overrides.setdefault(
             "storage",
-            {"provider": "sqlite", "settings": {"path": db_path, "busy_timeout_s": 5.0}},
+            {
+                "records": {
+                    "provider": "sqlite",
+                    "settings": {"path": db_path, "busy_timeout_s": 5.0},
+                }
+            },
         )
         overrides.setdefault("embedding", {"provider": "hash", "settings": {}})
         return Engine(dotenv_path=None, **overrides)

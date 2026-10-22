@@ -150,8 +150,13 @@ def _engine(resolve: str = "llm") -> Engine:
     return Engine(
         template="core",
         dotenv_path=None,
-        runtime={"deployment_id": "unit-test"},
-        storage={"provider": "sqlite", "settings": {"path": ":memory:", "busy_timeout_s": 5.0}},
+        deployment={"id": "unit-test"},
+        storage={
+            "records": {
+                "provider": "sqlite",
+                "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
+            }
+        },
         embedding={"provider": "hash", "settings": {}},
         memories={
             "semantic": {
@@ -308,7 +313,12 @@ async def test_off_by_default_changes_nothing() -> None:
     eng = Engine(
         template="core",
         dotenv_path=None,
-        storage={"provider": "sqlite", "settings": {"path": ":memory:", "busy_timeout_s": 5.0}},
+        storage={
+            "records": {
+                "provider": "sqlite",
+                "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
+            }
+        },
         embedding={"provider": "hash", "settings": {}},
         memories={"semantic": {"enabled": True}, "episodic": {"enabled": True}},
     )
@@ -354,8 +364,13 @@ async def test_engine_binds_the_batched_prompts() -> None:
     eng = Engine(
         template="core",
         dotenv_path=None,
-        runtime={"deployment_id": "unit-test"},
-        storage={"provider": "sqlite", "settings": {"path": ":memory:", "busy_timeout_s": 5.0}},
+        deployment={"id": "unit-test"},
+        storage={
+            "records": {
+                "provider": "sqlite",
+                "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
+            }
+        },
         embedding={"provider": "hash", "settings": {}},
         memories={
             "semantic": {"enabled": True, "policies": {"extract_graph": {"resolve": "llm"}}},
@@ -415,7 +430,12 @@ async def test_forgetting_any_cited_turn_erases_a_session_decision(forget: str) 
     eng = Engine(
         template="core",
         dotenv_path=None,
-        storage={"provider": "sqlite", "settings": {"path": ":memory:", "busy_timeout_s": 5.0}},
+        storage={
+            "records": {
+                "provider": "sqlite",
+                "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
+            }
+        },
         embedding={"provider": "hash", "settings": {}},
         memories={
             "semantic": {

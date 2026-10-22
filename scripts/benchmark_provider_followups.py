@@ -185,7 +185,12 @@ async def run_engine(args: argparse.Namespace) -> dict[str, Any]:
         engine = Engine(
             template="core",
             dotenv_path=None,
-            storage={"provider": "sqlite", "settings": {"path": str(path), "busy_timeout_s": 5.0}},
+            storage={
+                "records": {
+                    "provider": "sqlite",
+                    "settings": {"path": str(path), "busy_timeout_s": 5.0},
+                }
+            },
             **config_for_engine,
         )
         start = time.perf_counter()

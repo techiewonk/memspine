@@ -368,8 +368,10 @@ async def test_engine_flag_on_matches_flag_off_and_names_table_by_space(tmp_path
             template="core",
             dotenv_path=None,
             storage={
-                "provider": "sqlite",
-                "settings": {"path": str(tmp_path / sub / "m.db"), "busy_timeout_s": 5.0},
+                "records": {
+                    "provider": "sqlite",
+                    "settings": {"path": str(tmp_path / sub / "m.db"), "busy_timeout_s": 5.0},
+                }
             },
             embedding={"provider": "hash", "versioned_spaces": on, "settings": {}},
             read={"record_access": False},

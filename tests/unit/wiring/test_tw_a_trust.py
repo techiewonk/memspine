@@ -32,7 +32,12 @@ def _engine(**sections: Any) -> Engine:
     return Engine(
         template="base",
         dotenv_path=None,
-        storage={"provider": "sqlite", "settings": {"path": ":memory:", "busy_timeout_s": 5.0}},
+        storage={
+            "records": {
+                "provider": "sqlite",
+                "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
+            }
+        },
         embedding={"provider": "hash", "settings": {}},
         memories={
             "episodic": {"enabled": True},
@@ -263,8 +268,10 @@ async def test_consent_registry_survives_restart_from_the_log(tmp_path: Any) -> 
             template="base",
             dotenv_path=None,
             storage={
-                "provider": "sqlite",
-                "settings": {"path": str(tmp_path / "m.db"), "busy_timeout_s": 5.0},
+                "records": {
+                    "provider": "sqlite",
+                    "settings": {"path": str(tmp_path / "m.db"), "busy_timeout_s": 5.0},
+                }
             },
             embedding={"provider": "hash", "settings": {}},
             memories={"episodic": {"enabled": True}, "semantic": {"enabled": True}},

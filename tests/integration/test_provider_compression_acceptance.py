@@ -27,15 +27,17 @@ def _engine(path: Path, *, read: dict[str, Any] | None = None) -> Engine:
     return Engine(
         template="core",
         dotenv_path=None,
-        runtime={"deployment_id": f"compression-acceptance-{path.stem}"},
+        deployment={"id": f"compression-acceptance-{path.stem}"},
         storage={
-            "provider": "sqlite",
-            "settings": {"path": str(path), "busy_timeout_s": 5.0},
+            "records": {
+                "provider": "sqlite",
+                "settings": {"path": str(path), "busy_timeout_s": 5.0},
+            },
+            "vector": {"provider": "lancedb", "settings": {"isolation": "shared"}},
+            "cache": {"provider": "memory", "settings": {}},
         },
         embedding={"provider": "hash", "settings": {"dim": 64}},
-        vector={"provider": "lancedb", "settings": {"isolation": "shared"}},
-        cache={"provider": "memory", "settings": {}},
-        read=read or {"hybrid": True, "lexical_provider": "tantivy"},
+        read=read or {"hybrid": True},
         memories={
             "semantic": {"enabled": True},
             "episodic": {"enabled": True},
@@ -115,7 +117,6 @@ async def test_engine_assembly_compresses_text_without_dropping_evidence_or_meta
 ) -> None:
     read = {
         "hybrid": True,
-        "lexical_provider": "tantivy",
         "render": "plain",
         "reply_reserve_tokens": 0,
         "assembly": {"theta_abstain": 0.0, "mmr_lambda": 1.0},
