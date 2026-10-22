@@ -12,7 +12,7 @@ Keep one row per stable ID. PA IDs preserve the 136-item provider program; BI ID
 | BLOCKED | 1 |
 | DEFERRED | 6 |
 | DEPLOYMENT_CHECK | 19 |
-| DONE | 154 |
+| DONE | 155 |
 | EXCLUDED | 4 |
 | IN_PROGRESS | 27 |
 | NEEDS_INPUT | 3 |
@@ -21,7 +21,7 @@ Keep one row per stable ID. PA IDs preserve the 136-item provider program; BI ID
 | OPEN_REVIEW | 18 |
 | PLANNED | 11 |
 | PROPOSED | 3 |
-| REVIEW | 6 |
+| REVIEW | 5 |
 
 | Program | Items |
 |---|---:|
@@ -273,7 +273,7 @@ its scope is narrower than the prerequisite (say so in the row) or its status is
 | RM-26 | REVIEW | P2 | Owning maintainer | **[local]** CPU model envelope: thread sweep, batch variants, ONNX/int8 parity. | Revalidated 2026-10-21: claim still holds; not executed | Review scope/evidence and select explicitly; keep PA-107 deferred and no broad sweep/deploy/commit implied | Prereq: none; roadmap Phase F: performance follow-ups (need owner budgets) |
 | RM-27 | REVIEW | P2 | Deployment maintainer | **[deploy]** ACD-09 (check for old DBOS jobs), ACD-11 (volume failover drill), ACD-12 (canary rollout). | Revalidated 2026-10-21: claim still holds; not executed | Review scope/evidence and select explicitly; keep PA-107 deferred and no broad sweep/deploy/commit implied | Prereq: none; roadmap Phase G: release and deployment |
 | RM-28 | DONE | P1 | Claude / Codex / maintainers | Consolidate all current task statuses into one shared register | Provider, BI, DS, research and roadmap items mapped to unique IDs; completed work, current status, owner and next gate recorded. Duplicate handoff snapshot removed; read-only HTML generated from this file | Completed register consolidation; all future status edits stay here and regenerate the read-only view with scripts/refresh_tracker.py | None |
-| RM-29 | REVIEW | P2 | Provider maintainer (performance) | Extend the lifecycle resource soak beyond 30 cycles (follow-up previously folded into DONE PA-055) | Not started; PA-055 covered a finite 20.8 s local run | Fresh-process soak on a recorded clean revision; cycle count or wall time and RSS-slope, handle and connection guards declared before running; zero open connections after each stop | Prereq: PA-055, RM-01; Feeds: PA-051, RM-31 |
+| RM-29 | DONE | P2 | Provider maintainer (performance) | Extend the lifecycle resource soak beyond 30 cycles (follow-up previously folded into DONE PA-055) | 2026-10-22 on clean revision 50378ea2: scripts/check_provider_resource_soak.py gains --measured-cycles/--wall-time-s and least-squares slope guards declared before running (RSS 256 KiB/cycle, handles 0.5/cycle). 5 warm-up + 300 measured fresh Engine start/ingest/search/stop cycles in 169.5 s: RSS slope 37 KiB/cycle (guard not exceeded; post-warm-up spread 12.4 MB), handle slope -0.03/cycle, 0 open DBAPI connections after every stop and at end, 915/915 connect/close events, all owned resources stopped; startup p50 178 ms, search p95 13 ms. Harness bug fixed on the way (timestamps invalid past cycle 59). [evidence](provider_verification/rm29-lifecycle-soak-300-2026-10-22.json) | Completed locally; the small positive RSS slope (about 9 MB over 250 cycles) is below the diagnostic guard and is not a leak proof; repeat on the PA-051 controlled host | Prereq: PA-055, RM-01; Feeds: PA-051, RM-31 |
 | RM-30 | PROPOSED | P2 | Release maintainer | Revalidate the release candidate: installed-wheel smoke (core and 3 extras), read-only reference check, runbook and examples/*.py execution | Not started; PA-042 and PA-093 evidence predates final sources | Owner selected 2026-10-22: run at release time on the release-candidate revision | Prereq: PA-039, PA-042, PA-093; Feeds: PA-095 |
 | RM-31 | PROPOSED | P3 | Platform reliability maintainer | Check remote-provider connection-pool growth over repeated lifecycles (PA-055 covered local providers only) | Not started | Owner selected 2026-10-22: run with deployment checks alongside PA-069 | Prereq: PA-054, RM-29; Feeds: PA-072 |
 | RM-32 | DONE | P2 | Claude / maintainers | Tracker consistency pass: status legend, Prereq/Feeds dependency labels, BI ordering, mislabelled DONE dependencies, imported-roadmap remapping, missing decision rows, glued-number typos | 2026-10-21: four read-only review agents re-checked evidence; changes applied to this register and the refresh_tracker.py summary text; independent review findings (12) applied; duplicate H heading renamed and stale next-sequence marked historical; scripts/refresh_tracker.py --check passes | Completed for the register; PA-048/055 wording in PROVIDER_PERFORMANCE_FOLLOWUP.md and the delivery packet stays under RM-12 and PA-095 | Prereq: RM-28; Feeds: RM-12, PA-095 |
