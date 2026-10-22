@@ -12,7 +12,7 @@ import pytest
 from memspine import Engine
 from memspine.config.schema import MemspineConfig
 from memspine.memories.semantic.write_pipeline import SemanticWriteOptions, extraction_rounds
-from memspine.models.providers.llm.base import LLMRouter, LLMService
+from memspine.services.llm.base import LLMRouter, LLMService
 
 
 class _Edges:

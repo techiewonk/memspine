@@ -21,7 +21,6 @@ from memspine.derive.session_close import CALL2_SCHEMA
 from memspine.exceptions import ConfigError
 from memspine.memories.associative.resolution import ResolveBatch
 from memspine.memories.semantic.write_pipeline import EdgeContext, ExtractEdges, extraction_rounds
-from memspine.models.providers.llm.structured import structured_call
 from memspine.prompts.base import RenderedMessages
 from memspine.prompts.models import (
     AnticipatedCue,
@@ -39,6 +38,7 @@ from memspine.prompts.models import (
     FactDates,
     Insights,
 )
+from memspine.services.llm.structured import structured_call
 from memspine.store.events import fingerprint_payload
 from memspine.workers.list_cards import LabelClasses
 

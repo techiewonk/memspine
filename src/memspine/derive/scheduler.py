@@ -32,9 +32,9 @@ from memspine.derive.job import (
     SleepHandle,
 )
 from memspine.derive.triggers import TriggerDecision, TriggerPolicy, TriggerState
-from memspine.models.concurrency import Priority, priority_scope
 from memspine.observability import tap
 from memspine.observability.logging import get_logger
+from memspine.services.concurrency import Priority, priority_scope
 
 __all__ = ["ALL_NAMESPACES", "DerivationScheduler", "in_derive_job", "job_namespace"]
 

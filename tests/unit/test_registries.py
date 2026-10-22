@@ -21,7 +21,9 @@ def test_all_kinds_exist() -> None:
 def test_builtin_names_match_config_values() -> None:
     assert _names("embedders") == ("fastembed", "hash", "static", "litellm", "st")
     assert _names("rerankers") == ("fastembed", "flashrank", "litellm", "qwen3", "jina")
-    assert _names("llm_providers") == ("litellm", "llamacpp")
+    assert _names("llm_providers") == ("litellm", "ollama", "vllm", "bedrock", "llamacpp")
+    assert _names("extractors") == ("gliner2",)
+    assert _names("deciders") == ("heuristic", "opendecider", "gliner2")
     assert set(_names("vector_stores")) == {"lancedb", "pgvector", "weaviate"}
     assert set(_names("lexical_indexes")) == {"tantivy", "opensearch", "weaviate"}
     assert _names("graph_stores") == ("sql_adjacency", "ladybug", "neo4j")
@@ -52,7 +54,7 @@ def test_read_legs_families() -> None:
 
 
 def test_rerank_modes_come_from_the_registry() -> None:
-    from memspine.models.providers.rerank.factory import register_reranker, rerank_modes
+    from memspine.providers.rerank import register_reranker, rerank_modes
 
     modes = rerank_modes()
     assert modes[:6] == ("off", "fastembed", "flashrank", "litellm", "qwen3", "jina")
@@ -63,12 +65,12 @@ def test_rerank_modes_come_from_the_registry() -> None:
     class Builder:
         async def build(self, settings, ctx):
             return BuildResult(
-                object(), ProviderRef("reranker", "mod02_tmp"), (), frozenset({"rerank"})
+                object(), ProviderRef("rerank", "mod02_tmp"), (), frozenset({"rerank"})
             )
 
     register_reranker(
         ProviderDescriptor(
-            ProviderRef("reranker", "mod02_tmp"),
+            ProviderRef("rerank", "mod02_tmp"),
             EmptySettings,
             frozenset({"rerank"}),
             (),

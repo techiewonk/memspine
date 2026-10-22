@@ -18,10 +18,6 @@ memspine/services/storage/postgres/engine.py create_engine -- RM-113 item 8: syn
 memspine/services/storage/postgres/migrations.py create_engine -- RM-113 item 9: Alembic runs over a connector-lent connection
 memspine/services/storage/sqlite/migrations.py create_engine -- RM-113 item 9: Alembic runs over a connector-lent connection
 
-# --- models/** (compute adapters)
-memspine/models/encoders/embedding/static_local.py snapshot_download -- RM-113 item 15: weight download moves to clients/weights
-memspine/models/providers/decision/opendecider_nano.py snapshot_download -- RM-113 item 15: weight download moves to clients/weights
-memspine/models/runtime/gliner_runtime.py snapshot_download -- RM-113 item 15: weight download moves to clients/weights
 
 # --- providers/** (factories: should borrow a connector, not build engines)
 memspine/providers/builtin/storage.py create_engine -- RM-113 item 8: factory stops building the sync engine inline; clients/{sqlite,postgres}/sync.py

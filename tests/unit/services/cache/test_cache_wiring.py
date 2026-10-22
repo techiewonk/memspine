@@ -9,9 +9,9 @@ import pytest
 
 from memspine import Engine
 from memspine.exceptions import ConfigError
-from memspine.models.cache.base import MemoryKV
 from memspine.providers.health import ProbeStatus
 from memspine.providers.lifecycle import LifecycleState
+from memspine.services.cache.base import MemoryKV
 
 
 def _engine(**cfg: object) -> Engine:
@@ -52,7 +52,7 @@ async def test_shared_cache_serves_repeat_embeds() -> None:
 
 async def test_disk_backend_wires_and_closes(tmp_path: Path) -> None:
     pytest.importorskip("cashews")
-    from memspine.models.cache.cashews_cache import CashewsCache
+    from memspine.services.cache.cashews import CashewsCache
 
     eng = _engine(cache={"provider": "disk", "settings": {"path": str(tmp_path / "cache")}})
     await eng.start()

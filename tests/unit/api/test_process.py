@@ -21,10 +21,10 @@ import pytest
 
 from memspine.api import process as process_mod
 from memspine.api.process import EngineSpec, ProcessEngines, process_engine, worker_readiness
-from memspine.models.encoders.embedding.hash_local import HashEmbedding
 from memspine.providers import shared
 from memspine.providers.shared import ResourceRegistry, shared_registry
 from memspine.runtime.warmup import WarmupError
+from memspine.services.embedding.hash import HashEmbedding
 
 
 @pytest.fixture(autouse=True)

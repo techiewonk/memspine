@@ -26,7 +26,6 @@ from memspine.derive.envelope_compiler import KIND_CAP, EnvelopeCompiler, KindRe
 from memspine.derive.failure_ledger import FailureLedger
 from memspine.derive.items import ItemValidator, RepairAsk, process_items
 from memspine.exceptions import LLMError
-from memspine.models.providers.llm.base import LLMRouter
 from memspine.observability import tap
 from memspine.prompts.structured import (
     STRUCTURED_SYSTEM,
@@ -35,6 +34,7 @@ from memspine.prompts.structured import (
     repair_messages,
 )
 from memspine.schemas.durable import OwnerScope
+from memspine.services.llm.base import LLMRouter
 from memspine.workers.windows import _Job, build_transcript
 
 LINE = re.compile(r"^\[(\d+)\] \[[\d-]+\] (.+)$", re.M)

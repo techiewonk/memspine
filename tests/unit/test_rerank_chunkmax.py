@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from itertools import pairwise
 
-from memspine.models.providers.rerank.chunking import ChunkMaxReranker, split_windows
-from memspine.models.providers.rerank.factory import RerankSettings, build_reranker
+from memspine.providers.rerank import RerankSettings, build_reranker
+from memspine.services.rerank.chunking import ChunkMaxReranker, split_windows
 
 
 class _Scorer:
@@ -65,20 +65,20 @@ async def test_empty_and_id() -> None:
 
 
 async def test_factory_default_unwrapped() -> None:
-    from memspine.models.providers.rerank.factory import register_reranker
     from memspine.providers.contracts import BuildResult, ProviderRef
     from memspine.providers.registry import ProviderDescriptor, get_registry
+    from memspine.providers.rerank import register_reranker
     from memspine.providers.settings import EmptySettings
 
     class Builder:
         async def build(self, _settings: EmptySettings, _context: object) -> BuildResult[_Scorer]:
             return BuildResult(
-                _Scorer(), ProviderRef("reranker", "fakemode"), (), frozenset({"rerank"})
+                _Scorer(), ProviderRef("rerank", "fakemode"), (), frozenset({"rerank"})
             )
 
     register_reranker(
         ProviderDescriptor(
-            ProviderRef("reranker", "fakemode"),
+            ProviderRef("rerank", "fakemode"),
             EmptySettings,
             frozenset({"rerank"}),
             (),

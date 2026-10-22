@@ -368,7 +368,7 @@ async def test_engine_with_the_transport_flag_gives_the_same_facts(
     from test_window_write import FakeWindowLLM, _facts, _send, _turns
 
     from memspine import Engine
-    from memspine.models.providers.llm.base import LLMRouter
+    from memspine.services.llm.base import LLMRouter
 
     async def run(transport: str) -> tuple[list[str], dict[str, Any]]:
         llm = FakeWindowLLM()

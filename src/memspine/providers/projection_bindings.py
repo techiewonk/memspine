@@ -21,7 +21,6 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 
 from memspine.config.schema import MemspineConfig
 from memspine.exceptions import ConfigError
-from memspine.models.encoders.embedding.base import EmbeddingService
 from memspine.observability.logging import get_logger
 from memspine.providers.contracts import BuildResult
 from memspine.providers.engine_changes import resolved_config_fingerprint
@@ -31,6 +30,7 @@ from memspine.providers.registry import (
     provider_target_identity,
     validate_settings,
 )
+from memspine.services.embedding.base import EmbeddingService
 from memspine.services.storage.sqlite.schema import (
     projector_offsets,
     provider_projector_bindings,

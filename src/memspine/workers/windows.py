@@ -69,10 +69,6 @@ from memspine.derive.segmenter import SegmentationSettings, StreamSegmenter
 from memspine.derive.temporal_stage import happened_label_for
 from memspine.economy import ledger as _costs
 from memspine.exceptions import LLMError
-from memspine.models.concurrency import Priority, priority_scope
-from memspine.models.providers.llm.base import LLMService, lenient_json
-from memspine.models.providers.llm.capabilities import schema_options
-from memspine.models.providers.llm.structured import structured_call
 from memspine.observability import inspect as insp
 from memspine.observability import tap
 from memspine.observability.logging import get_logger
@@ -96,6 +92,10 @@ from memspine.prompts.structured import (
 )
 from memspine.schemas.durable import AssertionEnvelope
 from memspine.schemas.durable.common import OwnerScope
+from memspine.services.concurrency import Priority, priority_scope
+from memspine.services.llm.base import LLMService, lenient_json
+from memspine.services.llm.capabilities import schema_options
+from memspine.services.llm.structured import structured_call
 from memspine.store.events import fingerprint_payload
 from memspine.store.records import MemoryRecord, RecordStatus
 

@@ -18,8 +18,8 @@ from memspine.derive.backpressure import UNDERIVED_KEY
 from memspine.economy import ledger as costs
 from memspine.economy.ledger import Budget, WriteCostLedger, cost_scope
 from memspine.economy.targets import TargetFailure, TargetSet
-from memspine.models.providers.llm.base import LLMRouter
 from memspine.observability import bindings
+from memspine.services.llm.base import LLMRouter
 
 EDGES = [
     {

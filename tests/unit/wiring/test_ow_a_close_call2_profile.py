@@ -18,7 +18,7 @@ from memspine import Engine
 from memspine.config.schema import MemspineConfig
 from memspine.derive.pipeline.stages import profile_card
 from memspine.derive.profile import ProfileCard
-from memspine.models.providers.llm.base import LLMRouter
+from memspine.services.llm.base import LLMRouter
 from memspine.store import lineage as lineage_store
 
 T0 = datetime(2023, 5, 8, 13, 0, tzinfo=UTC)

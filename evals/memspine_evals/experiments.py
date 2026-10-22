@@ -500,7 +500,7 @@ def _retry_decider_kwargs(config: C01Config) -> dict[str, Any]:
     match = {"refusal_match": config.refusal_match} if config.refusal_match != "whole" else {}
     if config.decider == "heuristic":
         return {**guard, **match}
-    from memspine.models.providers.decision.decider import build_decider
+    from memspine.providers.decider import build_decider
 
     return {
         **guard,

@@ -269,7 +269,7 @@ truth. Startup selects the configured adapter; existing data needs a controlled 
 | Cache / KV | `cache.provider` | `memory` (default) · `disk` · `redis` · `valkey` (external caches need `[cache]`) |
 | Lexical (hybrid leg) | `read.lexical_provider` | `tantivy` (core); future OpenSearch / Weaviate adapters |
 | Embedding | `embedding.provider` | `fastembed` (default) · `hash` · `static` `[static]` · `litellm` (cloud; `dim` required) |
-| LLM (per role) | `llm.roles.<role>.provider` and `.settings` | Explicit `litellm` or `llamacpp` adapter; model ID and applicable timeout belong in settings. Plugins may register other adapters. |
+| LLM (per role) | `llm.roles.<role>.provider` and `.settings` | Explicit `litellm`, `ollama`, `vllm`, `bedrock` (RM-113: own descriptors over the LiteLLM connector) or `llamacpp` adapter; model ID and applicable timeout belong in settings. Plugins may register other adapters. |
 | Reranker | `read.rerank` and `read.rerank_settings` | Selected registered adapter or explicit chain policy; shares provider validation and lifecycle. |
 | Secrets | `MEMSPINE_SECRETS_BACKEND` *(env var)* | `env` (default) · `aws` `[aws]` (ADR-023) |
 | Workers | `workers.runner` | `inline` (default) · `temporal` `[temporal]` · `taskiq` `[taskiq]` |

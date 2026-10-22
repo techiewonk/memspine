@@ -19,7 +19,6 @@ from memspine.core.event_ledger import (
 from memspine.core.reference_edges import reference_kinds
 from memspine.models.encoders.query.shape import is_multi_hop
 from memspine.models.encoders.query.temporal_query import LegHit
-from memspine.models.providers.llm.structured import structured_call
 from memspine.observability import tap
 from memspine.observability.logging import get_logger
 from memspine.prompts.models import (
@@ -45,6 +44,7 @@ from memspine.read.obligations import (
 from memspine.read.pipeline.request import tier_allows_generative
 from memspine.read.pipeline.router import _reply_targets
 from memspine.read.pipeline.state import _FORENSICS, ReadResult
+from memspine.services.llm.structured import structured_call
 from memspine.store.records import MemoryRecord
 
 _log = get_logger(__name__)

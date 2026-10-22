@@ -349,7 +349,7 @@ class RefusalRetryReader:
         #: content word with the retrieved context
         self.require_context_overlap = require_context_overlap
         self.instruction = RETRY_MODES[mode] if instruction is None else instruction
-        #: I28: optional ``memspine.models.providers.decision.decider.Decider``. When set and sure
+        #: I28: optional ``memspine.services.decider.decider.Decider``. When set and sure
         #: enough, it replaces the ``is_refusal`` regex on question + answer text only (never
         #: the gold, the category or the abstention flag); otherwise the regex decides.
         self.decider = decider

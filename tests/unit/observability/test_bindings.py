@@ -12,9 +12,9 @@ import pytest
 from memspine import Engine
 from memspine.economy import ledger as costs
 from memspine.economy.slo import installed_ledger
-from memspine.models.concurrency import installed_gate, model_slot
 from memspine.observability import bindings, tap
 from memspine.ops import ledger as ops
+from memspine.services.concurrency import installed_gate, model_slot
 
 
 @pytest.fixture(autouse=True)

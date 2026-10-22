@@ -232,7 +232,7 @@ re-projects idempotently.
   no new dependency.
 - A GLiNER sensitivity binding must set `local_files_only: true`. The config validator and
   the detector both refuse otherwise. Weights load through the shared GLiNER pool
-  (`models/runtime/gliner_runtime.py`), which validates a complete local snapshot before
+  (`services/extraction/gliner2.py`), which validates a complete local snapshot before
   constructing the SDK.
 - No generative model and no paid or remote API is used for labelling.
 - Edge properties hold labels, confidences and detector ids only, never the matched text.

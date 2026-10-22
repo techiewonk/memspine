@@ -105,7 +105,7 @@ FEATURES = [
     (
         "H24",
         "learned/encoder query planner (decision port)",
-        ["services/decision", "DecisionProvider"],
+        ["services/decider", "DecisionProvider"],
         code,
     ),
     ("H25", "OmniMemEval protocol profile", ["omnimemeval"], evals),
@@ -200,7 +200,7 @@ class _Stub:
 
 async def _stubbed(stubs: dict[str, _Stub], **kw: Any) -> Any:
     """An engine whose LLM router is a real ``LLMRouter`` over stub providers."""
-    from memspine.models.providers.llm.base import LLMRouter
+    from memspine.services.llm.base import LLMRouter
 
     engine = _engine_kw(**kw)
 
@@ -537,8 +537,8 @@ async def check_event_time() -> bool:
 
 
 async def check_c2_query_input_type() -> bool:
-    from memspine.models.encoders.embedding.base import embed_queries
-    from memspine.models.encoders.embedding.litellm_embed import LiteLLMEmbedding
+    from memspine.services.embedding.base import embed_queries
+    from memspine.services.embedding.litellm import LiteLLMEmbedding
 
     calls: list[dict[str, Any]] = []
 

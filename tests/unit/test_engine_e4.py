@@ -14,8 +14,8 @@ import pytest
 from memspine import Engine
 from memspine.config.schema import MemspineConfig
 from memspine.exceptions import ConfigError
-from memspine.models.encoders.embedding.base import EmbedderManifest
 from memspine.runtime.container import rescore_settings
+from memspine.services.embedding.base import EmbedderManifest
 
 
 class _FakeEmbedder:

@@ -224,7 +224,7 @@ Chat = Callable[..., Awaitable[str]]
 
 async def extract_rows(chat: Chat, question: str, lines: Sequence[Line]) -> TableOut:
     """ONE structured call (``structured_call``: format-aware parse, JSON repair, opt-in retry)."""
-    from memspine.models.providers.llm.structured import structured_call
+    from memspine.services.llm.structured import structured_call
 
     class _ChatLLM:
         provider_id = "harness:evidence_table"
@@ -690,7 +690,7 @@ class EvidenceTableBuilder:
         self.failures = 0
         self.seen = 0
         # I69: repair + one retry of a malformed extraction (process-wide, opt-in switch).
-        from memspine.models.providers.llm import structured
+        from memspine.services.llm import structured
 
         if not structured._OPTIONS.retry_on_error:
             structured.configure(

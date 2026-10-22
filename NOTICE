@@ -1,7 +1,7 @@
 memspine
 Third-party notices
 
-services/decision/opendecider_nano.py
+src/memspine/clients/weights/opendecider.py
   Derived from OpenDecider (https://github.com/manjunathshiva/opendecider), tag v0.8.1,
   commit 4fa58ceb88d15fe27643d89064fecc286c3be4e9 (opendecider/nano.py, prompt.py,
   questions.py). Copyright 2026 Manjunath Janardhan. Licensed under the Apache License,

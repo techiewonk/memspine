@@ -23,7 +23,9 @@ Category = Literal[
     "cache",
     "llm",
     "embedding",
-    "reranker",
+    "rerank",
+    "extraction",
+    "decider",
 ]
 Ownership = Literal["owned", "borrowed"]
 DependencyKind = Literal["package", "service", "capability"]

@@ -8,12 +8,12 @@ from pydantic import BaseModel, ValidationError
 from memspine import Engine
 from memspine.config.schema.llm import LLMRoleConfig, ModelDecl
 from memspine.exceptions import LLMError
-from memspine.models.providers.llm.structured import structured_call
 from memspine.prompts.base import Prompt, PromptFormat
 from memspine.providers.contexts import LLMBuildContext
 from memspine.providers.contracts import BuildResult, ProviderRef
 from memspine.providers.registry import LLM_PROVIDERS, ProviderDescriptor
 from memspine.providers.settings import StrictSettings
+from memspine.services.llm.structured import structured_call
 
 
 class PluginOptions(StrictSettings):

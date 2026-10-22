@@ -14,11 +14,11 @@ import pytest
 
 from memspine import Engine
 from memspine.core.read_filters import as_of_scope
-from memspine.models.encoders.embedding.base import embed_queries
 from memspine.read import legs as lib
 from memspine.read.legs import core as legs_core
 from memspine.read.pipeline import request as read_request
 from memspine.read.pipeline.legs import registry_base_legs
+from memspine.services.embedding.base import embed_queries
 from memspine.store.records import MemoryRecord
 
 NOW = datetime(2023, 5, 10, 9, 0, tzinfo=UTC)

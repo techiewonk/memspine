@@ -24,13 +24,6 @@ from memspine.derive.backpressure import (
     BackpressureRejected,
 )
 from memspine.economy.slo import SloLedger, percentile, timed_read
-from memspine.models.concurrency import (
-    Priority,
-    current_priority,
-    installed_gate,
-    model_slot,
-    priority_scope,
-)
 from memspine.observability import bindings, tap
 from memspine.runtime import scheduler as sched
 from memspine.runtime.jobs import ManualClock, RetryBudget
@@ -38,6 +31,13 @@ from memspine.runtime.outbox import SqlJobStore, memory_engine
 from memspine.runtime.runner import InlineRunner
 from memspine.runtime.scheduler import EncoderExecutor, ModelGate
 from memspine.schemas.durable.common import OwnerScope
+from memspine.services.concurrency import (
+    Priority,
+    current_priority,
+    installed_gate,
+    model_slot,
+    priority_scope,
+)
 
 SCOPE = OwnerScope(tenant="t", owner="ns")
 T0 = datetime(2026, 10, 13, tzinfo=UTC)
@@ -277,7 +277,7 @@ async def test_executor_failure_reaches_every_caller_and_it_keeps_working() -> N
 
 
 async def test_batched_embedding_matches_the_hash_embedder() -> None:
-    from memspine.models.encoders.embedding.hash_local import HashEmbedding
+    from memspine.services.embedding.hash import HashEmbedding
 
     inner = (
         HashEmbedding(dim=16)
@@ -563,7 +563,7 @@ async def test_engine_flag_on_gives_the_same_facts_and_releases_the_gate(
     from test_outbox_windows import FakeWindowLLM, _contents, _facts, _send, _turns
 
     from memspine import Engine
-    from memspine.models.providers.llm.base import LLMRouter
+    from memspine.services.llm.base import LLMRouter
 
     async def run(on: bool) -> list[str]:
         llm = FakeWindowLLM()

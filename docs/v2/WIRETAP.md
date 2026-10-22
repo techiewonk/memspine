@@ -122,7 +122,7 @@ under `tap.content`).
 | `write.extract.deposit` | `workers/windows.py` | id, layer, parents |
 | `job` request, `stage=<name>` | `workers/schedule.py`: one child trace per sleep stage; `workers/windows.py`: one per window job | stage |
 | `job.stage.start` / `job.stage.end` | `workers/schedule.py` | stage, status, every numeric or boolean stat of the stage (in/out/skipped counts, budget_full ...), skipped, failed, reason_text / error_text (content) |
-| `model.call` | `models/providers/llm/base.py` (the one counting wrapper) | role, model, outcome (ok / error / timeout), prompt_tokens, completion_tokens, tokens_estimated, duration_ms, error |
+| `model.call` | `services/llm/base.py` (the one counting wrapper) | role, model, outcome (ok / error / timeout), prompt_tokens, completion_tokens, tokens_estimated, duration_ms, error |
 
 Limits: window jobs run by the async worker (`write.window_async`) outlive the request that created them, so their
 events are only recorded when a sleep or flush drives them (batch mode). Provider-internal retries are not visible

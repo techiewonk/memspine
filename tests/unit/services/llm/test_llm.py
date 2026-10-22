@@ -7,8 +7,8 @@ from typing import Any
 import pytest
 
 from memspine.exceptions import ConfigError, LLMError, MissingServiceError
-from memspine.models.providers.llm.base import LLMRouter, lenient_json
-from memspine.models.providers.llm.litellm_llm import LiteLLMLLM
+from memspine.services.llm.base import LLMRouter, lenient_json
+from memspine.services.llm.litellm import LiteLLMLLM
 
 
 class _Msg:
@@ -123,7 +123,7 @@ def test_llama_cpp_without_extra_names_the_fix() -> None:
 
     builtins.__import__ = no_llama  # type: ignore[assignment]
     try:
-        from memspine.models.providers.llm.llama_cpp import LlamaCppLLM
+        from memspine.services.llm.llamacpp import LlamaCppLLM
 
         with pytest.raises(MissingServiceError, match=r"memspine\[llmlocal\]"):
             LlamaCppLLM(model_path="model.gguf")

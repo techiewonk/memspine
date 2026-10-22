@@ -9,8 +9,8 @@ from memspine.core.policies.conflict import ConflictPolicy
 from memspine.core.policies.dedup import DedupPolicy
 from memspine.memories.semantic.facts import fact_at
 from memspine.memories.semantic.store import SemanticMemory
-from memspine.models.encoders.embedding.hash_local import HashEmbedding
 from memspine.prompts.models import ExtractedFact
+from memspine.services.embedding.hash import HashEmbedding
 from memspine.services.storage.projector import RecordProjector
 from memspine.services.storage.sqlite.engine import SQLiteStorage
 from memspine.store.events import EventKind, MemoryEvent

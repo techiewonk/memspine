@@ -14,7 +14,7 @@ from typing import Any
 import pytest
 
 from memspine.clients.lancedb import LanceDBClient
-from memspine.models.encoders.embedding.hash_local import HashEmbedding
+from memspine.services.embedding.hash import HashEmbedding
 from memspine.services.vector.base import VectorHit
 from memspine.services.vector.lancedb_store import LanceDBVectorStore
 

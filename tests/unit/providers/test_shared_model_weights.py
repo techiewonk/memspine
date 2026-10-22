@@ -15,14 +15,12 @@ from typing import Any
 
 import pytest
 
+from memspine.clients.weights.shared import SharedWeights
 from memspine.config.schema.providers import (
     FastembedEmbeddingSettings,
     SentenceTransformersEmbeddingSettings,
     StaticEmbeddingSettings,
 )
-from memspine.models.cache.base import MemoryKV
-from memspine.models.cache.semantic import CachedEmbedding
-from memspine.models.runtime.shared_weights import SharedWeights
 from memspine.providers.builtin.models import register
 from memspine.providers.contexts import (
     LLMBuildContext,
@@ -33,6 +31,8 @@ from memspine.providers.lifecycle import ProviderLifecycleManager
 from memspine.providers.registry import EMBEDDERS, LLM_PROVIDERS
 from memspine.providers.settings import LlamaCppRoleSettings
 from memspine.providers.shared import ResourceRegistry, shared_registry
+from memspine.services.cache.base import MemoryKV
+from memspine.services.cache.semantic import CachedEmbedding
 
 
 def _engine() -> ProviderLifecycleManager:
@@ -221,8 +221,8 @@ async def test_st_weight_key_excludes_prompts_and_includes_device(
 async def test_static_prefilter_reuses_the_configured_static_embedder_entry(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from memspine.models.encoders.embedding.static_local import _DEFAULT_MODEL
     from memspine.read.pipeline.rerank import _static_embedding_prefilter
+    from memspine.services.embedding.static import DEFAULT_MODEL as _DEFAULT_MODEL
     from memspine.store.records import MemoryRecord
 
     loads: list[str] = []
@@ -338,7 +338,7 @@ async def test_fastembed_reranker_shared_across_engines_with_warm_hook(
 ) -> None:
     import fastembed.rerank.cross_encoder as cross_encoder
 
-    from memspine.models.providers.rerank.factory import RerankSettings, build_reranker_result
+    from memspine.providers.rerank import RerankSettings, build_reranker_result
 
     loads: list[str] = []
     scored: list[str] = []
@@ -377,7 +377,7 @@ async def test_fastembed_reranker_shared_across_engines_with_warm_hook(
 async def test_standalone_reranker_build_stays_private(monkeypatch: pytest.MonkeyPatch) -> None:
     import fastembed.rerank.cross_encoder as cross_encoder
 
-    from memspine.models.providers.rerank.factory import RerankSettings, build_reranker
+    from memspine.providers.rerank import RerankSettings, build_reranker
 
     monkeypatch.setattr(
         cross_encoder,
@@ -395,7 +395,7 @@ async def test_standalone_reranker_build_stays_private(monkeypatch: pytest.Monke
 async def test_opendecider_weights_shared_and_freed_on_last_close(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from memspine.models.providers.decision import decider as decider_mod
+    from memspine.services.decider import decider as decider_mod
 
     loads: list[tuple[Any, ...]] = []
 

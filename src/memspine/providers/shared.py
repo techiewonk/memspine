@@ -341,6 +341,22 @@ class ResourceRegistry:
                 raise
             return Lease(self, entry)
 
+    async def acquire_weights[T](
+        self,
+        category: str,
+        target: Mapping[str, Any],
+        settings: Mapping[str, Any] | None,
+        factory: Callable[[], Awaitable[T]],
+        *,
+        close: Callable[[T], Awaitable[None]] | None = None,
+        warm: Callable[[T], Awaitable[None]] | None = None,
+    ) -> Lease[T]:
+        """Lease thread-scoped model weights (RM-113: the ``clients.weights`` connectors call
+        this through a protocol, so they never import providers). The key carries the
+        process id and is built here, at acquisition."""
+        key = resource_key(category, target, settings, scope="thread")
+        return await self.acquire(key, factory, close=close, warm=warm, kind="weights")
+
     async def _warm(self, entry: _Entry[Any]) -> None:
         if entry.warm_fn is None:
             return

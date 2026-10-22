@@ -86,7 +86,7 @@ async def test_executor_threads_keep_the_engine_binding(tmp_path: Path) -> None:
 
 
 async def test_decider_pool_threads_keep_the_engine_binding(tmp_path: Path) -> None:
-    from memspine.models.providers.decision.decider import OpenDeciderDecider
+    from memspine.services.decider.decider import OpenDeciderDecider
 
     a, b = await _two(tmp_path)
     decider = OpenDeciderDecider(workers=2)
@@ -214,7 +214,7 @@ async def test_seam_leases_are_released_by_the_lifecycle_manager(tmp_path: Path)
         assert all(resources.states[s] is LifecycleState.STOPPED for s in seams)
         assert sched is not None and sched._opened  # b still holds the shared scheduler
         with b.bound():
-            from memspine.models.concurrency import installed_gate
+            from memspine.services.concurrency import installed_gate
 
             assert installed_gate() is sched.gate
     finally:

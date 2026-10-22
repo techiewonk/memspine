@@ -11,11 +11,11 @@ from structlog.testing import capture_logs
 
 from memspine import Engine
 from memspine.config.schema import MemspineConfig
-from memspine.models.providers.llm.base import LLMRouter, LLMService
 from memspine.observability.logging import configure_logging
 from memspine.observability.usage import UNNAMED_PROMPT
 from memspine.prompts.base import RenderedMessages
 from memspine.prompts.registry import PromptRegistry
+from memspine.services.llm.base import LLMRouter, LLMService
 
 
 class _Stub:

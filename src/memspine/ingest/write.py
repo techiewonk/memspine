@@ -52,7 +52,6 @@ from memspine.ingest.message_helpers import (
 from memspine.ingest.stamping import PENDING_STAMP, apply_stamp
 from memspine.ingest.timeparse import _zone_of
 from memspine.memories.episodic.lifecycle import session_of
-from memspine.models.encoders.embedding.base import EmbeddingService
 from memspine.models.encoders.query.shape import (
     content_words,
 )
@@ -68,6 +67,7 @@ from memspine.observability.logging import (
 )
 from memspine.read.pipeline import scope_guard
 from memspine.semantics.domains import TOPIC_TAG_PREFIX, atopic_tags, topic_hook
+from memspine.services.embedding.base import EmbeddingService
 from memspine.services.storage.sql_base import SqlStorage
 from memspine.services.vector.base import VectorHit
 from memspine.store.events import EventKind, MemoryEvent, fingerprint_payload

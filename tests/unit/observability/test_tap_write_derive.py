@@ -8,8 +8,8 @@ import pytest
 
 from memspine import Engine
 from memspine.config.schema.observability import TapConfig
-from memspine.models.providers.llm.base import LLMRouter
 from memspine.observability import tap, tap_report
+from memspine.services.llm.base import LLMRouter
 
 
 @pytest.fixture(autouse=True)

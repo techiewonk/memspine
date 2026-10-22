@@ -668,7 +668,7 @@ Current source anchors:
 - [Runtime builders/outbox/mirror](../src/memspine/runtime/container.py), [Engine lifecycle and ingestion](../src/memspine/api/engine.py).
 - [Service manifest](../src/memspine/services/base.py), [plugin manifest](../src/memspine/schemas/public/plugins.py).
 - [Storage/vector/graph/cache schemas](../src/memspine/config/schema/storage.py), [runtime schema](../src/memspine/config/schema/runtime.py), [root schema](../src/memspine/config/schema/root.py), [secrets/loader](../src/memspine/config/loader.py).
-- [Storage port](../src/memspine/services/storage/base.py), [graph port](../src/memspine/services/graph/base.py), [vector port](../src/memspine/services/vector/base.py), [lexical port](../src/memspine/services/lexical/base.py), [cache port](../src/memspine/models/cache/base.py).
+- [Storage port](../src/memspine/services/storage/base.py), [graph port](../src/memspine/services/graph/base.py), [vector port](../src/memspine/services/vector/base.py), [lexical port](../src/memspine/services/lexical/base.py), [cache port](../src/memspine/services/cache/base.py).
 - [Lance native adapter](../src/memspine/services/vector/lancedb_store.py), [namespace wrapper](../src/memspine/services/vector/per_namespace.py), [versioned spaces](../src/memspine/store/vector_spaces.py), [Ladybug adapter](../src/memspine/services/graph/ladybug.py), [Neo4j adapter](../src/memspine/services/graph/neo4j.py).
 - [SQLite/SQLCipher client](../src/memspine/clients/sqlite.py), [PostgreSQL client](../src/memspine/clients/postgres.py), [identity/erasure metadata](../src/memspine/ingest/message_store.py).
 

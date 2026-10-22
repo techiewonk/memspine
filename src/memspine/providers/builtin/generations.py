@@ -15,7 +15,6 @@ from memspine.config.schema import MemspineConfig
 from memspine.exceptions import ConfigError
 from memspine.memories.associative.entities import EntityPolicy
 from memspine.memories.associative.projector import GraphProjector
-from memspine.models.encoders.embedding.base import EmbeddingService
 from memspine.providers.contracts import SqlAccess
 from memspine.providers.lifecycle import ProviderLifecycleManager
 from memspine.providers.projection_bindings import projection_target_fingerprint
@@ -37,6 +36,7 @@ from memspine.runtime.container import (
     lexical_projector_name,
     memory_policy,
 )
+from memspine.services.embedding.base import EmbeddingService
 from memspine.services.lexical.projector import LexicalProjector
 from memspine.services.vector.projector import VectorProjector
 from memspine.store.projections.projector import Projector

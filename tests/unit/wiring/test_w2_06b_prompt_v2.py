@@ -21,10 +21,10 @@ from test_window_write import _facts, _send, _turns
 from memspine.config.schema import MemspineConfig
 from memspine.derive.prompt_context import KnownEntity, PromptContextBuilder
 from memspine.exceptions import LLMError
-from memspine.models.providers.llm.capabilities import schema_options
 from memspine.observability import tap
 from memspine.prompts.layout_aliases import render_known
 from memspine.prompts.structured import default_partial, window_messages, window_schema
+from memspine.services.llm.capabilities import schema_options
 from memspine.workers.windows import split_batch_episodes
 
 LINE = re.compile(r"^\[(\d+)\] \[[\d-]+\] (.+)$", re.M)

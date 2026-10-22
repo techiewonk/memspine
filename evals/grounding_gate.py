@@ -91,7 +91,7 @@ def main() -> None:
     a = ap.parse_args()
     decider = None
     if a.adjudicator == "decider":
-        from memspine.models.providers.decision.decider import build_decider
+        from memspine.providers.decider import build_decider
 
         decider = build_decider("opendecider", device="cpu")
     r = asyncio.run(run(a.adjudicator, decider, a.spans))

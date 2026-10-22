@@ -10,7 +10,7 @@ import pytest
 pytest.importorskip("cashews")
 
 from memspine.clients.cashews import CashewsClient
-from memspine.models.cache.cashews_cache import CashewsCache
+from memspine.services.cache.cashews import CashewsCache
 
 
 async def test_round_trip_and_delete() -> None:

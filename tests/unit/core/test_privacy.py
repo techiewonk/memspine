@@ -8,7 +8,7 @@ from typing import Any
 import orjson
 
 from memspine.config.schema import ConsentConfig, RetentionClassConfig
-from memspine.models.providers.llm.tier_gate import is_local_provider, withheld_variants
+from memspine.services.llm.tier_gate import is_local_provider, withheld_variants
 from memspine.store.events import EventKind, MemoryEvent
 from memspine.store.records import MemoryRecord
 from memspine.trust.privacy import (

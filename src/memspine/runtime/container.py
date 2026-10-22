@@ -54,25 +54,13 @@ from memspine.memories.semantic.write_pipeline import (
     cardinality_map,
     extraction_rounds,
 )
-from memspine.models.cache.base import KVCache
-from memspine.models.cache.semantic import CachedEmbedding, CachedExtractor
-from memspine.models.encoders.embedding.base import EmbeddingService
 from memspine.models.profiles import bound_llm_roles, resolve_llm_profile
-from memspine.models.providers.llm import structured as _structured
-from memspine.models.providers.llm.base import LLMRouter, LLMService
-from memspine.models.providers.llm.tier_gate import TierGatedLLM, is_local_binding
-from memspine.models.providers.rerank.base import Reranker
-from memspine.models.runtime.escalation import (
-    EscalatingLLM,
-    ProfiledLLM,
-    profiled_provider_identity,
-)
-from memspine.models.runtime.gliner_runtime import GLiNERModelPool
 from memspine.observability.logging import get_logger
 from memspine.plugins import enable as enable_plugins
 from memspine.prompts.registry import PromptRegistry
 from memspine.providers.contexts import (
     CacheBuildContext,
+    ExtractionBuildContext,
     GraphBuildContext,
     LexicalBuildContext,
     LLMBuildContext,
@@ -100,6 +88,9 @@ from memspine.providers.registry import (
     EMBEDDERS as PROVIDER_EMBEDDERS,
 )
 from memspine.providers.registry import (
+    EXTRACTORS as PROVIDER_EXTRACTORS,
+)
+from memspine.providers.registry import (
     GRAPH_STORES as PROVIDER_GRAPH_STORES,
 )
 from memspine.providers.registry import (
@@ -124,8 +115,21 @@ from memspine.providers.selection import ProviderSelectionError, select_provider
 from memspine.providers.shared import ResourceRegistry, RetentionPolicy, shared_registry
 from memspine.runtime.outbox import SqlJobStore
 from memspine.runtime.runner import InlineRunner as OutboxRunner
+from memspine.services.cache.base import KVCache
+from memspine.services.cache.semantic import CachedEmbedding, CachedExtractor
+from memspine.services.embedding.base import EmbeddingService
+from memspine.services.extraction.base import ExtractionModels
 from memspine.services.graph.base import GraphStore
 from memspine.services.lexical.base import LexicalStore
+from memspine.services.llm import structured as _structured
+from memspine.services.llm.base import LLMRouter, LLMService
+from memspine.services.llm.escalation import (
+    EscalatingLLM,
+    ProfiledLLM,
+    profiled_provider_identity,
+)
+from memspine.services.llm.tier_gate import TierGatedLLM, is_local_binding
+from memspine.services.rerank.base import Reranker
 from memspine.services.secrets.base import SecretsService
 from memspine.services.secrets.chained import ChainedSecrets
 from memspine.services.secrets.env import EnvSecrets
@@ -322,7 +326,9 @@ _PROVIDER_BASE_CAPABILITIES: dict[str, frozenset[str]] = {
     "lexical": frozenset({"lexical", "namespace_filter", "erase"}),
     "embedding": frozenset({"embedding"}),
     "llm": frozenset({"llm"}),
-    "reranker": frozenset({"rerank"}),
+    "rerank": frozenset({"rerank"}),
+    "extraction": frozenset({"extraction"}),
+    "decider": frozenset({"decider"}),
 }
 
 
@@ -374,7 +380,9 @@ def _validate_provider_result(
         "lexical": LexicalStore,
         "embedding": EmbeddingService,
         "llm": LLMService,
-        "reranker": Reranker,
+        "rerank": Reranker,
+        "extraction": ExtractionModels,
+        "decider": object,
     }
     if not isinstance(result.service, ports[category]):
         raise ConfigError(f"provider {identity} service does not satisfy its port contract")
@@ -462,7 +470,7 @@ class Wiring:
     #: #43: the extraction cache, kept so erasure can purge an erased text's entry
     cached_extractor: CachedExtractor | None = None
     #: Optional engine-owned local GLiNER model pool. Created only when a GLiNER feature is on.
-    gliner_pool: GLiNERModelPool | None = None
+    gliner_pool: ExtractionModels | None = None
     #: E4: whether the vector leg runs the two-stage quantized rescore
     rescore_active: bool = False
     #: RM-78: the registry this Engine's builders share resources through (the process one,
@@ -746,12 +754,19 @@ async def wiring_of(config: MemspineConfig, _caps: Capabilities) -> AsyncIterato
         or "gliner_sensitivity" in config.models.bindings  # RM-99 opt-in
         or "gliner_topic" in config.models.bindings  # RM-106 opt-in
     )
-    if gliner_active:
-        wiring.gliner_pool = GLiNERModelPool(
-            max_models=config.models.gliner_max_models, registry=wiring.registry
-        )
-        wiring.resources.own("gliner-model-pool", wiring.gliner_pool.aclose)
     try:
+        if gliner_active:
+            # RM-113: the model.extraction descriptor builds the pool and registers its close.
+            descriptor = _descriptor(PROVIDER_EXTRACTORS, "gliner2", "models.gliner_max_models")
+            settings = _settings(descriptor, {"max_models": config.models.gliner_max_models})
+            built = await _build_provider(
+                wiring,
+                descriptor,
+                settings,
+                ExtractionBuildContext(shared_build_context(config, wiring)),
+                result_key="extraction.gliner2",
+            )
+            wiring.gliner_pool = cast(ExtractionModels, built.service)
         yield wiring
     finally:
         try:
@@ -810,7 +825,7 @@ def resolved_embedding(config: MemspineConfig) -> Any:
     cfg = config.embedding
     if cfg.profile is None:
         return cfg
-    from memspine.models.encoders.embedding.profiles import resolve_profile
+    from memspine.models.embedding_profiles import resolve_profile
     from memspine.observability import tap
 
     # Provider-native options moved into ``settings``.  In particular, a profile
@@ -843,7 +858,7 @@ def _pin_embedding_profile(
     cfg = config.embedding
     if not cfg.pin_profile:
         return None
-    from memspine.models.encoders.embedding.profiles import (
+    from memspine.models.embedding_profiles import (
         EmbeddingProfile,
         EmbeddingProfileMismatch,
         check_or_pin,
@@ -1324,7 +1339,6 @@ async def _bind_tiered_roles(
     tier plan. A role the plan cannot serve gets no provider, so its feature takes the role's
     fallback (L1/L3/summaries off, rules, calibrated gate) and makes zero model calls. Explicit
     ``llm.roles`` entries win and are left exactly as built above."""
-    from memspine.models.providers.llm.base import ThinkingCapped
     from memspine.models.resolve import (
         emit_taps,
         resolve_models,
@@ -1334,6 +1348,7 @@ async def _bind_tiered_roles(
     from memspine.models.tiers import ROLE_CATALOGUE
     from memspine.observability import tap
     from memspine.prompts.roles import CATALOGUE_ROLE
+    from memspine.services.llm.base import ThinkingCapped
 
     explicit_roles = set(role_configs)
     explicit_catalogue_roles = {
@@ -1405,7 +1420,7 @@ def check_decision_provider(config: MemspineConfig) -> DecisionState:
     """
     if config.decision.provider == "off":
         return DecisionState(off=False)
-    from memspine.models.providers.decision.gliner2_decision import auto_extractor_class
+    from memspine.services.decider.gliner2 import auto_extractor_class
 
     try:
         auto_extractor_class()

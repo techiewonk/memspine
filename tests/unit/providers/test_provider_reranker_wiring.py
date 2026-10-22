@@ -8,16 +8,16 @@ from pydantic import BaseModel
 
 from memspine import Engine
 from memspine.exceptions import ConfigError
-from memspine.models.providers.rerank.factory import (
+from memspine.providers.contexts import RerankerBuildContext, SharedBuildContext
+from memspine.providers.contracts import BuildResult, ProviderRef
+from memspine.providers.lifecycle import ProviderLifecycleManager
+from memspine.providers.registry import ProviderDescriptor, get_registry
+from memspine.providers.rerank import (
     RerankSettings,
     build_reranker_result,
     register_reranker,
     validate_reranker_settings,
 )
-from memspine.providers.contexts import RerankerBuildContext, SharedBuildContext
-from memspine.providers.contracts import BuildResult, ProviderRef
-from memspine.providers.lifecycle import ProviderLifecycleManager
-from memspine.providers.registry import ProviderDescriptor, get_registry
 from memspine.providers.settings import StrictSettings
 
 
@@ -34,7 +34,7 @@ class FakeReranker:
 
 @pytest.mark.asyncio
 async def test_async_plugin_builder_receives_typed_settings_and_lifecycle_context() -> None:
-    ref = ProviderRef("reranker", "async_test")
+    ref = ProviderRef("rerank", "async_test")
     calls: list[tuple[PluginSettings, RerankerBuildContext]] = []
 
     class Builder:
@@ -75,7 +75,7 @@ async def test_async_plugin_builder_receives_typed_settings_and_lifecycle_contex
 
 @pytest.mark.asyncio
 async def test_permission_error_from_plugin_builder_propagates() -> None:
-    ref = ProviderRef("reranker", "permission_test")
+    ref = ProviderRef("rerank", "permission_test")
 
     class PermissionBuilder:
         async def build(self, _settings: PluginSettings, _context: RerankerBuildContext) -> Any:
@@ -113,7 +113,7 @@ def test_startup_validation_checks_shared_provider_identity_without_building() -
     )
     assert validated is not None
     descriptor, typed = validated
-    assert descriptor.ref == ProviderRef("reranker", "litellm")
+    assert descriptor.ref == ProviderRef("rerank", "litellm")
     assert isinstance(typed, BaseModel)
     assert typed.request_timeout_s == 5.0
 
@@ -180,7 +180,7 @@ async def test_engine_start_rejects_shared_reranker_before_builder_invocation(
 
 @pytest.mark.asyncio
 async def test_engine_shares_async_lazy_build_and_closes_owned_resource_once(tmp_path) -> None:
-    ref = ProviderRef("reranker", "async_singleflight_test")
+    ref = ProviderRef("rerank", "async_singleflight_test")
     entered = asyncio.Event()
     release = asyncio.Event()
     calls = 0
@@ -238,7 +238,7 @@ async def test_engine_shares_async_lazy_build_and_closes_owned_resource_once(tmp
 
 @pytest.mark.asyncio
 async def test_engine_stop_cancels_and_drains_blocked_async_builder(tmp_path) -> None:
-    ref = ProviderRef("reranker", "async_stop_test")
+    ref = ProviderRef("rerank", "async_stop_test")
     entered = asyncio.Event()
     calls = 0
     closes = 0

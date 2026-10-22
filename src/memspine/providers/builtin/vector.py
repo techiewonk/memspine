@@ -8,12 +8,12 @@ from typing import TYPE_CHECKING, cast
 from memspine.config import constants
 from memspine.config.schema.providers import LanceDBSettings
 from memspine.exceptions import ConfigError
-from memspine.models.encoders.embedding.base import EmbeddingService
 from memspine.providers.contexts import VectorBuildContext
 from memspine.providers.contracts import BuildResult, ProviderRef
 from memspine.providers.placement import generation_component
 from memspine.providers.registry import VECTOR_STORES, ProviderDescriptor
 from memspine.providers.shared import own_shared, path_identity, resource_key
+from memspine.services.embedding.base import EmbeddingService
 from memspine.services.vector.base import VectorStore
 
 if TYPE_CHECKING:

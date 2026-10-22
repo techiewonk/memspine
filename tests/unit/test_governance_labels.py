@@ -29,7 +29,7 @@ from memspine.core.sensitivity import (
     passes_gate,
     query_topics,
 )
-from memspine.models.providers.decision.decider import Decision, HeuristicDecider
+from memspine.services.decider.decider import Decision, HeuristicDecider
 from memspine.store.records import MemoryRecord, SourceInfo
 from memspine.trust.visibility import (
     inherit_tags,

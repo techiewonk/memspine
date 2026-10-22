@@ -42,12 +42,12 @@ Resource descriptions below are qualitative architectural expectations, not meas
 
 | Component | Current source finding | Integration assessment |
 |---|---|---|
-| Static embeddings | `models/encoders/embedding/static_local.py`; `StaticEmbeddingSettings` | Existing adapter; current loader can fetch weights, so offline/local-artifact enforcement needed |
+| Static embeddings | `services/embedding/static.py`; `StaticEmbeddingSettings` | Existing adapter; current loader can fetch weights, so offline/local-artifact enforcement needed |
 | Static read prefilter | `read/pipeline/rerank.py::_static_embedding_prefilter` | Existing read-side code, not automatically ingestion routing |
 | Fastembed CPU encoder/reranker | Existing ONNX embedding and `FastembedReranker` adapters | Candidate infrastructure already exists; exact model/task profiles and quality checks needed |
-| FlashRank | `models/providers/rerank/flashrank_rerank.py` | Existing optional adapter; explicit model/cache/length/offline policy must be verified |
-| GLiNER | Shared runtime in `models/runtime/gliner_runtime.py`; architecture-aware AutoExtractor and named profiles | Reuse shared ownership and grounding. Small checkpoint is a separate explicit profile, not silent replacement |
-| OpenDecider | `models/providers/decision/opendecider_nano.py` | Local code describes approximately 395M parameters plus head and ONNX option; not default cheapest router |
+| FlashRank | `services/rerank/flashrank.py` | Existing optional adapter; explicit model/cache/length/offline policy must be verified |
+| GLiNER | Shared runtime in `services/extraction/gliner2.py`; architecture-aware AutoExtractor and named profiles | Reuse shared ownership and grounding. Small checkpoint is a separate explicit profile, not silent replacement |
+| OpenDecider | `clients/weights/opendecider.py` | Local code describes approximately 395M parameters plus head and ONNX option; not default cheapest router |
 | Sparse linear classifier | No dedicated ingestion predicate-classifier adapter established in this review | Proposed optional component, requires labels/abstention calibration |
 | fastText/spaCy | No canonical ingestion adapters established in reviewed paths | Additional dependency/adapter engineering; compare only for a demonstrated gap |
 

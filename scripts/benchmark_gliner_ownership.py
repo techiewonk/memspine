@@ -10,7 +10,7 @@ import time
 from dataclasses import dataclass
 from typing import Any
 
-from memspine.models.runtime.gliner_runtime import GLiNERModelPool
+from memspine.services.extraction.gliner2 import GLiNERModelPool
 
 
 @dataclass(frozen=True)

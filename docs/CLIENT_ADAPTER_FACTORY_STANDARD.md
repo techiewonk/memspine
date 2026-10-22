@@ -48,31 +48,31 @@ Last update: 2026-10-23, after enforcement (`26068983`); import contracts 17 kep
 | graph | sql_adjacency | ✅ borrows the SQL connector | ✅ one port, SQLite + Postgres | 🔧 slot wiring | 🔧 | A |
 | graph | neo4j | 🔧 Connector, no providers import, shared | ✅ one port | 🔧 slot wiring | 🔧 | G, A |
 | graph_mirror | neo4j | 🔧 same Neo4j connector | ✅ one port | 🔧 mirror slot + capability gate | 🔧 | G, A |
-| cache | memory | n/a (process) | 🔧 move to `services/cache` | 🔧 slot wiring | 🔧 | F, A |
-| cache | disk | 🔧 cashews connector, placement under `data_dir` | 🔧 move to `services/cache` | 🔧 slot wiring | 🔧 | G, F, A |
-| cache | redis | 🔧 cashews connector, shared | 🔧 move to `services/cache` | 🔧 slot wiring | 🔧 | G, F, A |
-| cache | valkey | 🔧 cashews connector, shared | 🔧 move to `services/cache` | 🔧 slot wiring | 🔧 | G, F, A |
+| cache | memory | n/a (process) | ✅ `services/cache` (F) | 🔧 slot wiring | 🔧 | F, A |
+| cache | disk | 🔧 cashews connector, placement under `data_dir` | ✅ `services/cache` (F) | 🔧 slot wiring | 🔧 | G, F, A |
+| cache | redis | 🔧 cashews connector, shared | ✅ `services/cache` (F) | 🔧 slot wiring | 🔧 | G, F, A |
+| cache | valkey | 🔧 cashews connector, shared | ✅ `services/cache` (F) | 🔧 slot wiring | 🔧 | G, F, A |
 | documents | filesystem | ⏳ `clients/fs` | ⏳ | ⏳ | ⏳ | after A (slot) |
 | documents | s3 | ⏳ `clients/s3` | ⏳ | ⏳ | ⏳ | RM-112 |
 | documents | mongodb | ✅ `clients/mongodb` (shared with records) | ⏳ GridFS adapter | ⏳ | ⏳ | RM-112 |
 | documents | weaviate | ⏳ shared Weaviate connector | ⏳ | ⏳ | ⏳ | RM-112 |
-| model.embedding | fastembed | 🔧 `clients/weights/fastembed` | 🔧 → `services/embedding` | 🔧 | 🔧 | F |
-| model.embedding | sentence_transformers | 🔧 `clients/weights/sentence_transformers` | 🔧 → `services/embedding` | 🔧 | 🔧 | F |
-| model.embedding | static (model2vec) | 🔧 `clients/weights/model2vec` | 🔧 → `services/embedding` | 🔧 | 🔧 | F |
-| model.embedding | litellm | 🔧 `clients/litellm` | 🔧 → `services/embedding` | 🔧 | 🔧 | F |
-| model.embedding | hash | n/a | 🔧 → `services/embedding` | ✅ | 🔧 | F |
-| model.llm | litellm | 🔧 `clients/litellm` | 🔧 → `services/llm` | 🔧 | 🔧 | F |
-| model.llm | ollama | 🔧 `clients/litellm` | 🔧 → `services/llm` | 🔧 own descriptor (was a model prefix) | 🔧 | F |
-| model.llm | vllm | 🔧 `clients/litellm` | 🔧 → `services/llm` | 🔧 own descriptor | 🔧 | F |
-| model.llm | bedrock | 🔧 `clients/litellm` | 🔧 → `services/llm` | 🔧 own descriptor | 🔧 | F |
-| model.llm | llamacpp | 🔧 `clients/weights/llama_cpp` | 🔧 → `services/llm` | 🔧 | 🔧 | F |
-| model.rerank | fastembed | 🔧 `clients/weights/fastembed` | 🔧 → `services/rerank` | 🔧 one factory | 🔧 | F |
-| model.rerank | flashrank | 🔧 `clients/weights/flashrank` | 🔧 → `services/rerank` | 🔧 one factory | 🔧 | F |
-| model.rerank | qwen3 / jina | 🔧 `clients/weights/transformers` | 🔧 → `services/rerank` | 🔧 one factory | 🔧 | F |
-| model.rerank | litellm | 🔧 `clients/litellm` | 🔧 → `services/rerank` | 🔧 one factory | 🔧 | F |
-| model.extraction | gliner2 | 🔧 `clients/weights/gliner2` | 🔧 → `services/extraction` | 🔧 new descriptor | 🔧 | F |
-| model.decider | opendecider | 🔧 `clients/weights/opendecider` | 🔧 → `services/decision` | 🔧 new descriptor | 🔧 | F |
-| model.decider | gliner2 | 🔧 `clients/weights/gliner2` | 🔧 → `services/decision` | 🔧 new descriptor | 🔧 | F |
+| model.embedding | fastembed | ✅ `clients/weights/fastembed` | ✅ `services/embedding/fastembed.py` | ✅ `providers/builtin/models.py` | ✅ | F (fa543ba0) |
+| model.embedding | sentence_transformers | ✅ `clients/weights/sentence_transformers` | ✅ `services/embedding/st.py` | ✅ | ✅ | F (fa543ba0) |
+| model.embedding | static (model2vec) | ✅ `clients/weights/model2vec` | ✅ `services/embedding/static.py` | ✅ | ✅ | F (fa543ba0) |
+| model.embedding | litellm | ✅ `clients/litellm` | ✅ `services/embedding/litellm.py` | ✅ | ✅ | F (fa543ba0) |
+| model.embedding | hash | n/a | ✅ `services/embedding/hash.py` | ✅ | ✅ | F (fa543ba0) |
+| model.llm | litellm | ✅ `clients/litellm` | ✅ `services/llm/litellm.py` | ✅ | ✅ | F (fa543ba0) |
+| model.llm | ollama | ✅ `clients/litellm` | ✅ `services/llm/litellm.py` | ✅ own descriptor (route fixed by the descriptor) | ✅ | F (fa543ba0) |
+| model.llm | vllm | ✅ `clients/litellm` | ✅ `services/llm/litellm.py` | ✅ own descriptor | ✅ | F (fa543ba0) |
+| model.llm | bedrock | ✅ `clients/litellm` | ✅ `services/llm/litellm.py` | ✅ own descriptor | ✅ | F (fa543ba0) |
+| model.llm | llamacpp | ✅ `clients/weights/llama_cpp` | ✅ `services/llm/llamacpp.py` | ✅ | ✅ | F (fa543ba0) |
+| model.rerank | fastembed | ✅ `clients/weights/fastembed` | ✅ `services/rerank/fastembed.py` | ✅ one factory `providers/builtin/rerank.py` | ✅ | F (fa543ba0) |
+| model.rerank | flashrank | ✅ `clients/weights/flashrank` | ✅ `services/rerank/flashrank.py` | ✅ one factory | ✅ | F (fa543ba0) |
+| model.rerank | qwen3 / jina | ✅ `clients/weights/transformers` | ✅ `services/rerank/{qwen3,jina}.py` | ✅ one factory | ✅ | F (fa543ba0) |
+| model.rerank | litellm | ✅ `clients/litellm` | ✅ `services/rerank/litellm.py` | ✅ one factory | ✅ | F (fa543ba0) |
+| model.extraction | gliner2 | ✅ `clients/weights/gliner2` (the only `snapshot_download`) | ✅ `services/extraction` (port `base.py`, pool `gliner2.py`) | ✅ `extraction` descriptor, container builds through it | ✅ | F (fa543ba0) |
+| model.decider | opendecider | ✅ `clients/weights/opendecider` | ✅ `services/decider/opendecider_nano.py` | ✅ `decider` descriptor via `providers/decider.py` | ✅ | F (fa543ba0) |
+| model.decider | gliner2 | ✅ leases the extraction pool | ✅ `services/decider/gliner2_decision.py` | ✅ `decider` descriptor | ✅ | F (fa543ba0) |
 | model.decider | jepa (JEPA-style, joint-embedding predictive) | ⏳ future `clients/weights/<lib>` | ⏳ future `services/decider/jepa.py` | ⏳ future descriptor | ⏳ future | not scheduled |
 | model.decider | yolo-style (fast single-pass classifier) | ⏳ future `clients/weights/<lib>` | ⏳ future `services/decider/<name>.py` | ⏳ future descriptor | ⏳ future | not scheduled |
 | assets | fetch / vision | 🔧 `clients/http` | 🔧 | n/a | 🔧 | G |
@@ -102,12 +102,12 @@ the lease store moved to `store/leases.py`.
 | graph ladybug | `clients/ladybug.py` | `services/graph/ladybug.py` | `providers/builtin/graph.py` | the registry caches a (client, adapter) pair; handle-only health |
 | graph sql_adjacency | none (borrows SQL) | `services/graph/sql_adjacency.py` | `graph.py` | adapter typed to the raw engine |
 | graph neo4j | `clients/neo4j.py` | `services/graph/neo4j.py` | `graph.py` | client imports providers and builds the domain executor; not shared; service has its own driver factory; adapter closes a driver it does not own |
-| cache memory/disk/redis/valkey | `clients/cashews.py` | `models/cache/*` (wrong package) | `providers/builtin/cache.py` | adapters live in `models`; not shared through the registry (one Redis connection per Engine) |
-| embedding (fastembed/st/static/litellm) | **none** | `models/encoders/embedding/*` | `providers/builtin/models.py` | adapters load weights, download or hold transport themselves |
-| llm (litellm, llamacpp) | **none** | `models/providers/llm/*` | `models.py` | transport in the adapter; ollama/vllm/bedrock are model prefixes, not descriptors |
-| rerank | **none** | `models/providers/rerank/*` | `models.py` and a second `rerank/factory.py` | duplicate factory; circular dependency |
-| gliner (extraction) | **none** | `models/runtime/gliner_runtime.py` | **no descriptor** (built in the container) | consumers import the concrete pool |
-| decider | **none** | `models/providers/decision/*` | **no descriptor** (built in `api/engine.py`) | the engine builds the adapter |
+| cache memory/disk/redis/valkey | `clients/cashews.py` | `services/cache/*` (wrong package) | `providers/builtin/cache.py` | adapters live in `models`; not shared through the registry (one Redis connection per Engine) |
+| embedding (fastembed/st/static/litellm) | **none** | `services/embedding/*` | `providers/builtin/models.py` | adapters load weights, download or hold transport themselves |
+| llm (litellm, llamacpp) | **none** | `services/llm/*` | `models.py` | transport in the adapter; ollama/vllm/bedrock are model prefixes, not descriptors |
+| rerank | **none** | `services/rerank/*` | `models.py` and a second `rerank/factory.py` | duplicate factory; circular dependency |
+| gliner (extraction) | **none** | `services/extraction/gliner2.py` | **no descriptor** (built in the container) | consumers import the concrete pool |
+| decider | **none** | `services/decider/*` | **no descriptor** (built in `api/engine.py`) | the engine builds the adapter |
 
 Graph port (2026-10-23, one port): the three graph rows implement one port,
 `services/graph/base.py` `GraphStore`. Qualifier-filtered traversal is part of it
@@ -150,9 +150,18 @@ Section 4 records the enforcement added on 2026-10-23.
 
 **P2, high risk (wide import churn, done with a codemod):**
 
-15. Compute ports and adapters move from `models/...` to `services/{embedding,llm,rerank,extraction,decision}/`, and weight loading to `clients/weights/<lib>.py`.
-16. Descriptors and categories for `extraction` (GLiNER) and `decision`; no ad hoc construction.
-17. A `clients/litellm` connector; ollama, vllm and bedrock become their own descriptors; collapse the second rerank factory.
+15. ✅ Compute ports and adapters move from `models/...` to `services/{embedding,llm,rerank,extraction,decider}/`, and weight loading to `clients/weights/<lib>.py` (codemod `scripts/move_models_to_services_rm113.py`).
+16. ✅ Descriptors and categories for `extraction` (GLiNER) and `decider` (owner naming 2026-10-23: slots `model.embedding`, `model.llm`, `model.rerank`, `model.extraction`, `model.decider`; the `reranker` category is now `rerank`); no ad hoc construction.
+17. ✅ A `clients/litellm` connector; ollama, vllm and bedrock become their own descriptors; the second rerank factory is collapsed.
+
+What stays in `models/`: pure model metadata and planning (`profiles.py`, `embedding_profiles.py`,
+`tiers.py`, `resolve.py`) and the rule-based query analysis `encoders/query` (no model; `core`
+depends on it and may not import `services`). Known limits of the P2 pass: adapters built
+standalone (scripts, tests) still make a private connector when none is injected; the
+OpenDecider adapter takes the weight registry (it builds its connector lazily per worker
+setting); retry policy stays in `services/_retry.py` (it logs through observability, which
+clients may not import); the config keys `decision.provider` and `read.decider*` are unchanged
+in this pass.
 18. ADR-081 alignment (`records`, `documents` and `locality` on descriptors); the assets registry moves to records/documents.
 
 ## 4. Enforcement

@@ -13,11 +13,11 @@ from typing import Any
 import pytest
 
 from memspine.api.engine import Engine
-from memspine.models.encoders.embedding.base import EmbeddingService
-from memspine.models.encoders.embedding.hash_local import HashEmbedding
 from memspine.providers.builtin.models import HashEmbeddingSettings
 from memspine.providers.contracts import BuildResult, ProviderRef
 from memspine.providers.registry import EMBEDDERS, ProviderDescriptor, get_registry
+from memspine.services.embedding.base import EmbeddingService
+from memspine.services.embedding.hash import HashEmbedding
 
 _TURNS = [
     "Caroline: I went to the LGBTQ support group yesterday.",

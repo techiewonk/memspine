@@ -23,7 +23,9 @@ from memspine.services.base import CapabilityManifest as ServiceManifest
 
 __all__ = [
     "CACHE_BACKENDS",
+    "DECIDERS",
     "EMBEDDERS",
+    "EXTRACTORS",
     "GRAPH_STORES",
     "KINDS",
     "LEXICAL_INDEXES",
@@ -52,6 +54,8 @@ KINDS: dict[str, str] = {
     "llm_providers": "memspine.providers.registry",
     "embedders": "memspine.providers.registry",
     "rerankers": "memspine.providers.registry",
+    "extractors": "memspine.providers.registry",
+    "deciders": "memspine.providers.registry",
     "read_legs": "memspine.read.registry",
     "derive_stages": "memspine.derive.registry",
     "memory_types": "memspine.memory.registry",
@@ -66,7 +70,11 @@ KIND_TO_CATEGORY: dict[str, Category] = {
     "cache_backends": "cache",
     "llm_providers": "llm",
     "embedders": "embedding",
-    "rerankers": "reranker",
+    # RM-113 (owner naming 2026-10-23): the model slots are model.embedding, model.llm,
+    # model.rerank, model.extraction and model.decider.
+    "rerankers": "rerank",
+    "extractors": "extraction",
+    "deciders": "decider",
 }
 _CATEGORY_TO_KIND = {category: kind for kind, category in KIND_TO_CATEGORY.items()}
 
@@ -214,7 +222,9 @@ _REGISTRIES: dict[str, Registry[Any]] = {}
 _BUILTIN_MODULES: dict[str, tuple[str, ...]] = {
     "llm_providers": ("memspine.providers.builtin.models",),
     "embedders": ("memspine.providers.builtin.models",),
-    "rerankers": ("memspine.providers.builtin.models",),
+    "rerankers": ("memspine.providers.builtin.rerank",),
+    "extractors": ("memspine.providers.builtin.extraction",),
+    "deciders": ("memspine.providers.builtin.decider",),
     "storage_backends": ("memspine.providers.builtin.storage",),
     "vector_stores": (
         "memspine.providers.builtin.vector",
@@ -342,6 +352,8 @@ CACHE_BACKENDS: Registry[ProviderDescriptor] = Registry("cache_backends")
 LLM_PROVIDERS: Registry[ProviderDescriptor] = Registry("llm_providers")
 EMBEDDERS: Registry[ProviderDescriptor] = Registry("embedders")
 RERANKERS: Registry[ProviderDescriptor] = Registry("rerankers")
+EXTRACTORS: Registry[ProviderDescriptor] = Registry("extractors")
+DECIDERS: Registry[ProviderDescriptor] = Registry("deciders")
 
 
 def validate_settings(descriptor: ProviderDescriptor, settings: Mapping[str, Any]) -> BaseModel:

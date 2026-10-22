@@ -142,10 +142,6 @@ from memspine.memory.pipeline import shared as memory_shared
 from memspine.memory.pipeline import working as memory_working
 from memspine.memory.procedural import Suggestion
 from memspine.memory.prospective import Reminder
-from memspine.models.cache.base import KVCache
-from memspine.models.cache.semantic import CachedExtractor
-from memspine.models.concurrency import Priority, prioritised
-from memspine.models.encoders.embedding.base import EmbeddingService
 from memspine.models.encoders.query import QueryEncoder
 from memspine.models.encoders.query.perspective import (
     PerspectiveOptions,
@@ -154,15 +150,6 @@ from memspine.models.encoders.query.perspective import (
 from memspine.models.encoders.query.temporal_query import (
     LegHit,
     NamedLeg,
-)
-from memspine.models.providers.decision.decider import Decider, build_decider
-from memspine.models.providers.llm.base import LLMRouter, LLMService
-from memspine.models.providers.rerank.base import Reranker
-from memspine.models.providers.rerank.factory import (
-    RerankSettings,
-    build_reranker_result,
-    rerank_modes,
-    validate_reranker_settings,
 )
 from memspine.observability import bindings as _bindings
 from memspine.observability import inspect as inspect_obs
@@ -181,6 +168,7 @@ from memspine.prompts.registry import PromptRegistry
 from memspine.providers.changes import ChangeCategory, ChangeStrategy, RevisionGuard, SqlChangeStore
 from memspine.providers.contracts import SqlAccess
 from memspine.providers.control import EngineProviderChanges, ProviderChangeRuntime
+from memspine.providers.decider import build_decider
 from memspine.providers.engine_changes import build_engine_change_support
 from memspine.providers.health import ProviderHealthReport, ProviderStatusService, ReadinessReport
 from memspine.providers.identity import resolve_deployment
@@ -193,6 +181,12 @@ from memspine.providers.projection_bindings import (
     projection_target_bindings,
 )
 from memspine.providers.recovery import CleanupQuiescenceGuard
+from memspine.providers.rerank import (
+    RerankSettings,
+    build_reranker_result,
+    rerank_modes,
+    validate_reranker_settings,
+)
 from memspine.providers.shared import (
     Lease,
     ResourceRegistry,
@@ -246,6 +240,13 @@ from memspine.runtime.container import (
     prewarm_provider_imports,
 )
 from memspine.runtime.warmup import WarmState, WarmTarget, WarmupController, find_warm_hook
+from memspine.services.cache.base import KVCache
+from memspine.services.cache.semantic import CachedExtractor
+from memspine.services.concurrency import Priority, prioritised
+from memspine.services.decider.decider import Decider
+from memspine.services.embedding.base import EmbeddingService
+from memspine.services.llm.base import LLMRouter, LLMService
+from memspine.services.rerank.base import Reranker
 
 if TYPE_CHECKING:
     from memspine.models.profiles import GlinerConsumerRole
@@ -6083,12 +6084,13 @@ class Engine:
             return None
         if getattr(self, "_decision", None) is None:
             from memspine.models.profiles import resolve_gliner_settings
-            from memspine.models.providers.decision.gliner2_decision import GLiNER2Decision
+            from memspine.providers.decider import build_decision_provider
 
             if self._gliner_pool is None:
                 raise ConfigError("decision GLiNER provider needs the engine GLiNER pool")
             settings = resolve_gliner_settings(config, "gliner_decision")
-            self._decision = GLiNER2Decision(settings, self._gliner_pool)
+            # RM-113: the model.decider descriptor builds it over the extraction pool.
+            self._decision = build_decision_provider(settings, self._gliner_pool)
         return self._decision
 
     async def _plan_read_mode(self, query: str) -> str | None:

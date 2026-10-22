@@ -30,9 +30,9 @@ def chat_verifier(chat: Callable[..., Awaitable[str]]) -> tuple[Verify, str]:
     """A verifier over a bare ``async (prompt, system=None) -> str`` chat callable, and
     the ``prompt_version`` of the memspine ``verify_answer`` prompt it renders."""
     from memspine.compose.answer import numbered_context, verification
-    from memspine.models.providers.llm.structured import structured_call
     from memspine.prompts.models import AnswerVerdictOut
     from memspine.prompts.registry import PromptRegistry
+    from memspine.services.llm.structured import structured_call
 
     prompt = PromptRegistry().get("verify_answer")
 

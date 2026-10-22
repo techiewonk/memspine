@@ -19,7 +19,7 @@ from datetime import timedelta
 import pytest
 
 from memspine.clients.lancedb import LanceDBClient
-from memspine.models.encoders.embedding.hash_local import HashEmbedding
+from memspine.services.embedding.hash import HashEmbedding
 from memspine.services.vector.lancedb_store import LanceDBVectorStore
 
 _DIM = 16

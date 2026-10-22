@@ -99,9 +99,9 @@ class _ConstReranker:
 
 
 def _register_reranker() -> None:
-    from memspine.models.providers.rerank.factory import register_reranker
     from memspine.providers.contracts import BuildResult, ProviderRef
     from memspine.providers.registry import ProviderDescriptor
+    from memspine.providers.rerank import register_reranker
     from memspine.providers.settings import EmptySettings
 
     class Builder:
@@ -111,14 +111,14 @@ def _register_reranker() -> None:
         async def build(self, settings: EmptySettings, ctx: Any) -> BuildResult[_ConstReranker]:
             return BuildResult(
                 _ConstReranker(),
-                ProviderRef("reranker", "leak_probe_const"),
+                ProviderRef("rerank", "leak_probe_const"),
                 (),
                 frozenset({"rerank"}),
             )
 
     register_reranker(
         ProviderDescriptor(
-            ProviderRef("reranker", "leak_probe_const"),
+            ProviderRef("rerank", "leak_probe_const"),
             EmptySettings,
             frozenset({"rerank"}),
             (),

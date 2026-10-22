@@ -75,7 +75,7 @@ class ServiceChangeBackend(Protocol):
 _CATEGORY_CONFIG: dict[tuple[ChangeCategory, str], tuple[str, type[ChangeResult]]] = {
     ("embedding", "reembed"): ("embedding_space", EmbeddingMigrationResult),
     ("llm", "forward_revision"): ("model_config", ModelRevisionResult),
-    ("reranker", "forward_revision"): ("model_config", ModelRevisionResult),
+    ("rerank", "forward_revision"): ("model_config", ModelRevisionResult),
     ("storage", "verified_migration"): ("authoritative_database", DatabaseMigrationResult),
     ("cache", "coldstart_reset"): ("cache", CacheResetResult),
     ("worker", "handover"): ("worker", WorkerHandoverResult),
@@ -83,7 +83,7 @@ _CATEGORY_CONFIG: dict[tuple[ChangeCategory, str], tuple[str, type[ChangeResult]
 _CATEGORY_POLICY: dict[tuple[ChangeCategory, str], str] = {
     ("embedding", "reembed"): "explicit_reembed",
     ("llm", "forward_revision"): "forward_only_revision",
-    ("reranker", "forward_revision"): "forward_only_revision",
+    ("rerank", "forward_revision"): "forward_only_revision",
     ("storage", "verified_migration"): "verified_fenced_migration",
     ("cache", "coldstart_reset"): "owned_namespace_coldstart",
     ("worker", "handover"): "fenced_worker_handover",

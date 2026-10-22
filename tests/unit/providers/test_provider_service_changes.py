@@ -69,7 +69,7 @@ class FakeBackend(ServiceChangeBackend):
             policy={
                 "embedding": "explicit_reembed",
                 "llm": "forward_only_revision",
-                "reranker": "forward_only_revision",
+                "rerank": "forward_only_revision",
                 "storage": "verified_fenced_migration",
                 "cache": "owned_namespace_coldstart",
                 "worker": "fenced_worker_handover",
@@ -104,7 +104,7 @@ class FakeBackend(ServiceChangeBackend):
                 pending_record_count=0,
                 verification_report_id="embedding-report",
             )
-        if category in {"llm", "reranker"}:
+        if category in {"llm", "rerank"}:
             return ModelRevisionResult(
                 **common,
                 logical_role=plan.request.logical_service_id,
@@ -215,7 +215,7 @@ def make_request(category: str, strategy: str, resource: str) -> ChangeRequest:
 CASES = (
     ("embedding", "reembed", "embedding_space", True),
     ("llm", "forward_revision", "model_config", False),
-    ("reranker", "forward_revision", "model_config", False),
+    ("rerank", "forward_revision", "model_config", False),
     ("storage", "verified_migration", "authoritative_database", False),
     ("cache", "coldstart_reset", "cache", True),
     ("worker", "handover", "worker", True),

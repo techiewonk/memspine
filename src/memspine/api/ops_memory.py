@@ -7,11 +7,11 @@ from memspine.config import constants
 from memspine.exceptions import MemspineError, StorageError
 from memspine.memories.procedural.knn import Exemplar, knn_vote, render_table
 from memspine.memories.procedural.lessons import action_signature, failures_dominate, outcome_rank
-from memspine.models.encoders.embedding.base import embed_queries
 from memspine.models.encoders.query.shape import content_words
 from memspine.observability import tap
 from memspine.observability.logging import EVENT_RETRIEVE, get_logger
 from memspine.read.pipeline.fusion import _cosine, _jaccard
+from memspine.services.embedding.base import embed_queries
 from memspine.store.events import EventKind, MemoryEvent
 from memspine.store.records import MemoryRecord, RecordStatus
 from memspine.store.scope import grant_allows, validate_namespace

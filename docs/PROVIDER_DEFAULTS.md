@@ -25,17 +25,24 @@ For configuration paths and execution rules see [provider operations](PROVIDER_O
 | cache | <code>redis</code> | <code>namespace = &quot;memspine&quot;</code><br><code>default_ttl_seconds = null</code> | <code>url</code>, <code>connect_timeout_s</code>, <code>request_timeout_s</code> |
 | cache | <code>valkey</code> | <code>namespace = &quot;memspine&quot;</code><br><code>default_ttl_seconds = null</code> | <code>url</code>, <code>connect_timeout_s</code>, <code>request_timeout_s</code> |
 | llm | <code>litellm</code> | <code>temperature = 0.2</code><br><code>top_p = 1.0</code><br><code>max_tokens = 2048</code><br><code>api_base = null</code><br><code>api_key = null</code><br><code>aws_region = null</code><br><code>no_think = null</code> | <code>model</code>, <code>timeout_seconds</code> |
+| llm | <code>ollama</code> | <code>temperature = 0.2</code><br><code>top_p = 1.0</code><br><code>max_tokens = 2048</code><br><code>api_base = &quot;http://localhost:11434&quot;</code><br><code>no_think = null</code> | <code>model</code>, <code>timeout_seconds</code> |
+| llm | <code>vllm</code> | <code>temperature = 0.2</code><br><code>top_p = 1.0</code><br><code>max_tokens = 2048</code><br><code>api_key = null</code><br><code>no_think = null</code> | <code>model</code>, <code>timeout_seconds</code>, <code>api_base</code> |
+| llm | <code>bedrock</code> | <code>temperature = 0.2</code><br><code>top_p = 1.0</code><br><code>max_tokens = 2048</code><br><code>aws_region = null</code><br><code>no_think = null</code> | <code>model</code>, <code>timeout_seconds</code> |
 | llm | <code>llamacpp</code> | <code>temperature = 0.8</code><br><code>top_p = 0.95</code><br><code>max_tokens = 2048</code><br><code>n_ctx = 8192</code><br><code>n_gpu_layers = 0</code><br><code>n_batch = 512</code><br><code>n_threads = null</code><br><code>no_think = null</code> | <code>model</code>, <code>timeout_seconds</code> |
 | embedding | <code>fastembed</code> | <code>model = &quot;BAAI/bge-small-en-v1.5&quot;</code><br><code>query_instruction = null</code><br><code>dim = 384</code> | None |
 | embedding | <code>hash</code> | <code>dim = 64</code> | None |
 | embedding | <code>static</code> | <code>model = &quot;minishlab/potion-base-8M&quot;</code><br><code>dim = 256</code><br><code>local_files_only = false</code> | None |
 | embedding | <code>litellm</code> | <code>model = &quot;openai/text-embedding-3-small&quot;</code><br><code>dim = 1536</code><br><code>api_base = null</code><br><code>api_key = null</code><br><code>aws_region = null</code><br><code>request_dimensions = false</code><br><code>query_input_type = null</code><br><code>document_input_type = null</code> | <code>request_timeout_s</code> |
 | embedding | <code>st</code> | <code>model = &quot;sentence-transformers/all-MiniLM-L6-v2&quot;</code><br><code>dim = 384</code><br><code>query_instruction = null</code><br><code>device = null</code><br><code>dtype = null</code><br><code>query_prompt_name = null</code><br><code>document_prompt_name = null</code><br><code>trust_remote_code = false</code> | None |
-| reranker | <code>fastembed</code> | <code>model = &quot;Xenova/ms-marco-MiniLM-L-6-v2&quot;</code> | None |
-| reranker | <code>flashrank</code> | <code>model = null</code> | None |
-| reranker | <code>litellm</code> | <code>api_base = null</code><br><code>api_key = null</code><br><code>aws_region = null</code> | <code>model</code>, <code>request_timeout_s</code> |
-| reranker | <code>qwen3</code> | <code>model = &quot;Qwen/Qwen3-Reranker-0.6B&quot;</code><br><code>instruction = &quot;Given a question about a user&#x27;s past conversations, judge whether the memory helps answer it&quot;</code><br><code>batch_size = 8</code><br><code>max_length = 8192</code><br><code>device = null</code><br><code>quant = null</code> | None |
-| reranker | <code>jina</code> | <code>model = &quot;jinaai/jina-reranker-v3.5&quot;</code><br><code>device = null</code><br><code>max_documents = 64</code> | None |
+| rerank | <code>fastembed</code> | <code>model = &quot;Xenova/ms-marco-MiniLM-L-6-v2&quot;</code> | None |
+| rerank | <code>flashrank</code> | <code>model = null</code> | None |
+| rerank | <code>litellm</code> | <code>api_base = null</code><br><code>api_key = null</code><br><code>aws_region = null</code> | <code>model</code>, <code>request_timeout_s</code> |
+| rerank | <code>qwen3</code> | <code>model = &quot;Qwen/Qwen3-Reranker-0.6B&quot;</code><br><code>instruction = &quot;Given a question about a user&#x27;s past conversations, judge whether the memory helps answer it&quot;</code><br><code>batch_size = 8</code><br><code>max_length = 8192</code><br><code>device = null</code><br><code>quant = null</code> | None |
+| rerank | <code>jina</code> | <code>model = &quot;jinaai/jina-reranker-v3.5&quot;</code><br><code>device = null</code><br><code>max_documents = 64</code> | None |
+| extraction | <code>gliner2</code> | <code>max_models = 1</code> | None |
+| decider | <code>heuristic</code> | No native options | None |
+| decider | <code>opendecider</code> | <code>model = &quot;manjunathshiva/opendecider-nano&quot;</code><br><code>device = &quot;cpu&quot;</code><br><code>threads = 0</code><br><code>backend = &quot;torch&quot;</code><br><code>workers = 1</code><br><code>dtype = &quot;float32&quot;</code> | None |
+| decider | <code>gliner2</code> | <code>model = &quot;fastino/gliner2.5-base-v1&quot;</code><br><code>revision = null</code><br><code>device = &quot;cpu&quot;</code><br><code>local_files_only = true</code><br><code>tasks = [&quot;entities&quot;, &quot;classification&quot;]</code><br><code>inference_concurrency = 1</code> | None |
 
 Schema defaults do not include credentials or live Engine configuration. Nullable fields
 remain explicit: a null device delegates placement to the selected provider; an omitted

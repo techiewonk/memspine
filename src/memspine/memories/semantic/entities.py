@@ -18,12 +18,12 @@ from typing import Protocol, runtime_checkable
 
 from memspine.config.schema.llm import GlinerSettings
 from memspine.derive.gliner_mentions import MentionSpan, parse_gliner_mentions
-from memspine.models.providers.llm.base import LLMService
-from memspine.models.providers.llm.structured import structured_call
-from memspine.models.runtime.gliner_runtime import GLiNERModelPool
 from memspine.observability.logging import get_logger
 from memspine.prompts.base import Prompt
 from memspine.prompts.models import ExtractedFact, ExtractedFacts
+from memspine.services.extraction.base import ExtractionModels
+from memspine.services.llm.base import LLMService
+from memspine.services.llm.structured import structured_call
 
 __all__ = ["EntityExtractor", "GlinerEntityExtractor", "LLMEntityExtractor"]
 
@@ -82,7 +82,7 @@ class GlinerEntityExtractor:
 
     def __init__(
         self,
-        pool: GLiNERModelPool,
+        pool: ExtractionModels,
         settings: GlinerSettings,
         labels: tuple[str, ...] = _DEFAULT_LABELS,
     ) -> None:

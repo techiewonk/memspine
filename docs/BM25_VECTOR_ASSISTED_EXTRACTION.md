@@ -46,7 +46,7 @@ These are intended behaviours, not claims that the current rules already support
 
 ## What current code provides
 
-- `models/encoders/embedding/static_local.py::StaticEmbedder` wraps model2vec static embeddings, normalises outputs and performs inference in a thread. Model2vec is not the same algorithm/library as classic Word2Vec.
+- `services/embedding/static.py::StaticEmbedder` wraps model2vec static embeddings, normalises outputs and performs inference in a thread. Model2vec is not the same algorithm/library as classic Word2Vec.
 - `read/pipeline/rerank.py::_static_embedding_prefilter` already ranks read candidates with static vectors. It is a read-side feature, not a wired ingestion extractor.
 - `config/schema/providers.py::StaticEmbeddingSettings` provides explicit static model/dimension settings.
 - Existing static model loading uses `StaticModel.from_pretrained`; this can fetch weights. Therefore the accepted no-auto-download ingestion policy is NOT established by merely reusing that loader. Future ingestion integration needs local-artifact/offline enforcement, explicit task binding and observable missing-model behaviour.

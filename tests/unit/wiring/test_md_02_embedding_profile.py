@@ -13,8 +13,7 @@ import pytest
 from memspine import Engine
 from memspine.config.loader import load_config
 from memspine.exceptions import ConfigError
-from memspine.models.encoders.embedding.base import EmbedderManifest
-from memspine.models.encoders.embedding.profiles import (
+from memspine.models.embedding_profiles import (
     CPU_MULTILINGUAL,
     GPU_QWEN3,
     EmbeddingProfile,
@@ -28,6 +27,7 @@ from memspine.providers.contracts import BuildResult
 from memspine.providers.lifecycle import ProviderLifecycleManager
 from memspine.providers.registry import ProviderDescriptor, get_registry
 from memspine.runtime.container import Capabilities, Wiring, provide_embedder, resolved_embedding
+from memspine.services.embedding.base import EmbedderManifest
 
 FAKE_A = EmbeddingProfile(name="fake_a", provider="hash", model_id="fake-a", dim=64)
 FAKE_B = EmbeddingProfile(name="fake_b", provider="hash", model_id="fake-b", dim=64)

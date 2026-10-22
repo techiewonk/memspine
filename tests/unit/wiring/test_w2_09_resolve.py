@@ -30,11 +30,11 @@ from memspine.derive.items import ItemValidator
 from memspine.derive.resolve_calibration import calibrate, evaluate, synthetic_cases
 from memspine.derive.resolve_stage import EntityResolveStage, ResolveSettings
 from memspine.ingest.windows import _envelope_stages
-from memspine.models.encoders.embedding.hash_local import HashEmbedding
-from memspine.models.providers.llm.base import LLMRouter
 from memspine.observability import tap
 from memspine.schemas.durable import OwnerScope
 from memspine.schemas.reserved import reserved_hits
+from memspine.services.embedding.hash import HashEmbedding
+from memspine.services.llm.base import LLMRouter
 from memspine.services.storage.sqlite.engine import SQLiteStorage
 from memspine.store.events import EventKind
 from memspine.store.migrate import ReplayBuilder

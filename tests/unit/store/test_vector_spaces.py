@@ -8,8 +8,8 @@ import pytest
 
 from memspine.config.schema import MemspineConfig
 from memspine.config.schema.observability import TapConfig
-from memspine.models.encoders.embedding.hash_local import HashEmbedding
 from memspine.observability import tap
+from memspine.services.embedding.hash import HashEmbedding
 from memspine.store.records import MemoryRecord, RecordFingerprint
 from memspine.store.vector_spaces import (
     JsonSpaceState,

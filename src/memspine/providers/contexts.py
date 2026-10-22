@@ -4,15 +4,15 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import JsonValue
 
 from memspine.config.schema.runtime import SharedHttpPoolConfig, SharedSqlPoolConfig
 from memspine.config.schema.storage import EventLogConfig
-from memspine.models.encoders.embedding.base import EmbeddingService
 from memspine.providers.contracts import LifecycleManager, ProjectionPlacement, SqlAccess
 from memspine.providers.shared import ResourceRegistry, shared_registry
+from memspine.services.embedding.base import EmbeddingService
 
 
 @dataclass(frozen=True)
@@ -91,3 +91,22 @@ class RerankerBuildContext:
     shared: SharedBuildContext
     chunk_chars: int | None = None
     chunk_overlap: int = 0
+
+
+@dataclass(frozen=True)
+class ExtractionBuildContext:
+    """RM-113: the Engine's extraction pool build (``model.extraction``)."""
+
+    shared: SharedBuildContext
+
+
+@dataclass(frozen=True)
+class DeciderBuildContext:
+    """RM-113: a decider build (``model.decider``). ``extraction`` is the Engine's extraction
+    pool, which the GLiNER decider shares (one weights connector through the registry)."""
+
+    shared: SharedBuildContext | None = None
+    extraction: Any = None
+    #: The weight registry of a lifecycle-less build (the engine's config-reloadable decider
+    #: releases its own leases); ignored when ``shared`` is set.
+    registry: Any = None

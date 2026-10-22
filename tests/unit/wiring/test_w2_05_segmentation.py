@@ -22,7 +22,7 @@ from memspine.config.schema import MemspineConfig
 from memspine.core.window import WindowSegmenter, WindowSettings, WindowTurn
 from memspine.derive.call_batcher import BatchItem, CallBatcher
 from memspine.derive.segmenter import SegmentationSettings, StreamSegmenter
-from memspine.models.providers.llm.base import LLMRouter
+from memspine.services.llm.base import LLMRouter
 from memspine.workers.windows import split_batch_section
 
 T0 = datetime(2023, 5, 8, 9, 0, tzinfo=UTC)

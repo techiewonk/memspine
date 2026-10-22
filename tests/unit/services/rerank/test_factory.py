@@ -5,14 +5,14 @@ from __future__ import annotations
 import pytest
 
 from memspine.exceptions import ConfigError
-from memspine.models.providers.rerank.factory import (
+from memspine.providers.contracts import BuildResult, ProviderRef
+from memspine.providers.registry import ProviderDescriptor, get_registry
+from memspine.providers.rerank import (
     RerankSettings,
     build_reranker,
     register_reranker,
     rerank_modes,
 )
-from memspine.providers.contracts import BuildResult, ProviderRef
-from memspine.providers.registry import ProviderDescriptor, get_registry
 from memspine.providers.settings import EmptySettings
 
 
@@ -48,12 +48,12 @@ async def test_register_reranker_extends_modes_and_builds() -> None:
     class Builder:
         async def build(self, settings: EmptySettings, ctx: object) -> BuildResult[_FakeReranker]:
             return BuildResult(
-                _FakeReranker(), ProviderRef("reranker", "fake_test"), (), frozenset({"rerank"})
+                _FakeReranker(), ProviderRef("rerank", "fake_test"), (), frozenset({"rerank"})
             )
 
     register_reranker(
         ProviderDescriptor(
-            ProviderRef("reranker", "fake_test"),
+            ProviderRef("rerank", "fake_test"),
             EmptySettings,
             frozenset({"rerank"}),
             (),

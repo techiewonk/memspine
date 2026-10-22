@@ -27,7 +27,7 @@ from memspine.config.loader import load_config
 from memspine.config.presets import load_preset, preset_names
 from memspine.config.requires import check_requires, is_active, resolve_path
 from memspine.economy.targets import TargetSet
-from memspine.models.providers.llm.base import LLMRouter
+from memspine.services.llm.base import LLMRouter
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "unit" / "wiring"))
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "unit"))

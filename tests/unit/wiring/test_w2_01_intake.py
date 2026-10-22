@@ -24,9 +24,9 @@ from memspine.ingest import gateway as gw_mod
 from memspine.ingest import intake_store
 from memspine.ingest.gateway import SimulatedCrash, gateway_of
 from memspine.memories.resource.extraction import _paragraph_chunks
-from memspine.models.providers.llm.base import LLMRouter
 from memspine.schemas.public import QuotaExceeded
 from memspine.schemas.public.errors import QuotaExceededError
+from memspine.services.llm.base import LLMRouter
 from memspine.store import lineage as lineage_store
 from memspine.store.events import EventKind
 from memspine.store.records import RecordStatus

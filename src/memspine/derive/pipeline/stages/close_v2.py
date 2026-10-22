@@ -43,9 +43,9 @@ from memspine.derive.session_close import (
     validate_call2,
 )
 from memspine.memories.episodic.lifecycle import session_of
-from memspine.models.providers.llm.base import lenient_json
 from memspine.observability import tap
 from memspine.schemas.steps.shared import Turn
+from memspine.services.llm.base import lenient_json
 from memspine.store.events import EventLogMode
 from memspine.store.records import MemoryRecord, RecordStatus
 

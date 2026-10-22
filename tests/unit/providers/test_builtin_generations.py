@@ -218,7 +218,7 @@ def test_builtin_embedding_defaults_are_model_specific() -> None:
     assert HashEmbeddingSettings().dim == 64
     assert HashEmbeddingSettings(dim=768).dim == 768
     from memspine.config.schema import EmbeddingConfig
-    from memspine.models.encoders.embedding.profiles import EmbeddingProfile
+    from memspine.models.embedding_profiles import EmbeddingProfile
 
     profiled_hash = EmbeddingProfile(
         name="hash-768", provider="hash", model_id="ignored", dim=768
@@ -263,7 +263,7 @@ def test_builtin_embedding_defaults_are_model_specific() -> None:
 async def test_mock_embedding_dimensions_must_match_the_declared_table(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from memspine.models.encoders.embedding.fastembed_local import FastembedEmbedding
+    from memspine.services.embedding.fastembed import FastembedEmbedding
 
     class FakeFastembedModel:
         def embed(self, _texts: list[str]) -> list[list[float]]:
@@ -282,7 +282,7 @@ async def test_mock_embedding_dimensions_must_match_the_declared_table(
     from types import ModuleType
 
     monkeypatch.setitem(sys.modules, "model2vec", ModuleType("model2vec"))
-    from memspine.models.encoders.embedding.static_local import StaticEmbedder
+    from memspine.services.embedding.static import StaticEmbedder
 
     class FakeStaticModel:
         def encode(self, _texts: list[str]) -> list[list[float]]:

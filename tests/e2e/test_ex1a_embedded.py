@@ -36,10 +36,10 @@ import pytest
 
 import memspine
 from memspine import Engine, Memory
-from memspine.models.providers.llm.base import LLMRouter
 from memspine.runtime.jobs import TERMINAL
 from memspine.schemas.durable import OwnerScope
 from memspine.scope import ScopeRefused
+from memspine.services.llm.base import LLMRouter
 from memspine.store import lineage as lineage_store
 from memspine.store.migrate import dump_store, migrate_sqlite
 from memspine.trust.pipeline import consent as trust_consent

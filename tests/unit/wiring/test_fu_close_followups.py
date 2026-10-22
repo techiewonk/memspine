@@ -14,7 +14,7 @@ from test_ow_a_close_call2_profile import FakeCloseLLM, _derived, _markers, _sen
 from memspine import Engine
 from memspine.config.schema import MemspineConfig
 from memspine.derive.pipeline.stages import profile_card
-from memspine.models.providers.llm.base import LLMRouter
+from memspine.services.llm.base import LLMRouter
 from memspine.store import lineage as lineage_store
 
 

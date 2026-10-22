@@ -9,8 +9,8 @@ from memspine.compose.answer import numbered_context, verification
 from memspine.compose.pack import AssembledContext
 from memspine.compose.pipeline.state import AnswerVerification
 from memspine.exceptions import MissingServiceError
-from memspine.models.providers.llm.structured import structured_call
 from memspine.prompts.models import AnswerVerdictOut
+from memspine.services.llm.structured import structured_call
 from memspine.store.records import MemoryRecord
 
 

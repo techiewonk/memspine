@@ -25,7 +25,7 @@ from pathlib import Path
 import xxhash
 
 from memspine.core.policies.dedup import DedupPolicy
-from memspine.models.encoders.embedding.hash_local import HashEmbedding
+from memspine.services.embedding.hash import HashEmbedding
 from memspine.services.lexical.base import LexicalHit, rrf_fuse
 
 

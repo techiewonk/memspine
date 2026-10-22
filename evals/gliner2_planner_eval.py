@@ -450,7 +450,7 @@ def select(tune_scores: Sequence[Score]) -> str:
 
 
 def load_model(model: str) -> Any:
-    from memspine.models.providers.decision.gliner2_decision import gliner2_class
+    from memspine.services.decider.gliner2 import gliner2_class
 
     return gliner2_class().from_pretrained(model)
 

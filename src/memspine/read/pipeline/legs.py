@@ -42,7 +42,6 @@ from memspine.memories.associative.entities import (
     parse_entity_node,
 )
 from memspine.memories.associative.store import match_key
-from memspine.models.encoders.embedding.base import embed_queries
 from memspine.models.encoders.query import CueQueryEncoder, NoopQueryEncoder, QueryEncoder
 from memspine.models.encoders.query.perspective import (
     active_asker,
@@ -101,6 +100,7 @@ from memspine.read.pipeline.state import (
     _passive_hidden,
 )
 from memspine.scope import Scope
+from memspine.services.embedding.base import embed_queries
 from memspine.services.graph.base import GraphEdge
 from memspine.services.graph.qualifiers import (
     CallerVisibility,

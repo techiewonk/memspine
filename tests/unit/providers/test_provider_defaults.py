@@ -22,8 +22,8 @@ from memspine.providers.settings import StrictSettings
         ("lexical", "opensearch", "index_prefix", "memspine"),
         ("cache", "disk", "namespace", "memspine"),
         ("graph", "neo4j", "database", "neo4j"),
-        ("reranker", "qwen3", "batch_size", 8),
-        ("reranker", "jina", "max_documents", 64),
+        ("rerank", "qwen3", "batch_size", 8),
+        ("rerank", "jina", "max_documents", 64),
     ],
 )
 def test_each_provider_publishes_its_native_defaults(category, provider, key, expected) -> None:
@@ -129,7 +129,7 @@ def test_discovery_redacts_credentials_embedded_in_endpoint_defaults(
 async def test_qwen_reranker_native_defaults_and_overrides_reach_constructor(
     monkeypatch: pytest.MonkeyPatch, overrides: dict[str, int]
 ) -> None:
-    from memspine.models.providers.rerank import qwen3_rerank
+    from memspine.services.rerank import qwen3 as qwen3_rerank
 
     seen = {}
 

@@ -7,12 +7,12 @@ from typing import Any
 
 from memspine.config import constants
 from memspine.exceptions import MissingServiceError
-from memspine.models.providers.rerank.base import concat_background, gated_rerank
-from memspine.models.providers.rerank.factory import RerankSettings, build_reranker
 from memspine.observability import tap
 from memspine.observability.logging import get_logger
+from memspine.providers.rerank import RerankSettings, build_reranker
 from memspine.read.pipeline.fusion import _minmax_normalize, _minmax_quiet
 from memspine.read.pipeline.state import _FORENSICS, _RAW_SCORES, _RERANK_SUPPORT
+from memspine.services.rerank.base import concat_background, gated_rerank
 from memspine.store.records import (
     MemoryRecord,
 )
@@ -52,7 +52,7 @@ async def _static_embedding_prefilter(
     search retries. Either way retrieval degrades to the unfiltered set."""
     if eng._static_embedder is None:
         try:
-            from memspine.models.encoders.embedding.static_local import StaticEmbedder
+            from memspine.services.embedding.static import StaticEmbedder
 
             resources = getattr(eng, "_provider_resources", None)
             if resources is None:
@@ -62,10 +62,11 @@ async def _static_embedding_prefilter(
                 # model, so the prefilter never loads a second copy; this Engine's lifecycle
                 # releases its lease.
                 from memspine.providers.lifecycle import ResourceOwnershipError
+                from memspine.providers.rerank import static_prefilter_embedder
                 from memspine.providers.shared import shared_registry
 
                 registry = getattr(eng, "_resource_registry", None) or shared_registry()
-                embedder = StaticEmbedder(registry=registry)
+                embedder = static_prefilter_embedder(registry)
                 try:
                     resources.own("embedding.weights:static-prefilter", embedder.aclose)
                 except ResourceOwnershipError:

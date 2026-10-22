@@ -23,7 +23,6 @@ from memspine.derive.integration_stage import (
     deposit_tags,
     integration_stage,
 )
-from memspine.models.providers.llm.base import LLMRouter
 from memspine.observability import tap
 from memspine.prompts.structured import STRUCTURED_SYSTEM
 from memspine.schemas.durable.assertion import AssertionEnvelope, Mention
@@ -32,6 +31,7 @@ from memspine.schemas.durable.common import OwnerScope
 from memspine.schemas.durable.evidence import Evidence, TurnRef
 from memspine.schemas.durable.identity import AssertionKey
 from memspine.schemas.durable.temporal import Interval, TemporalRef, TimeAxes
+from memspine.services.llm.base import LLMRouter
 from memspine.store.records import MemoryRecord, SourceInfo
 
 T0 = datetime(2023, 3, 1, 9, 0, tzinfo=UTC)

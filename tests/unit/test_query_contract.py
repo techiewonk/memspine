@@ -10,7 +10,6 @@ import pytest
 
 from memspine import Engine
 from memspine.config.schema import MemspineConfig, ReadConfig
-from memspine.models.providers.llm.base import LLMRouter, LLMService
 from memspine.read.contract import (
     QueryContract,
     build_contract,
@@ -20,6 +19,7 @@ from memspine.read.contract import (
     parse_contract,
     rerank_hint,
 )
+from memspine.services.llm.base import LLMRouter, LLMService
 
 T0 = datetime(2023, 5, 7, 10, 0, tzinfo=UTC)
 

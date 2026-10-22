@@ -30,10 +30,10 @@ from memspine.derive.compile import (
 from memspine.derive.envelope_compiler import EnvelopeCompiler
 from memspine.derive.failure_ledger import FailureLedger
 from memspine.exceptions import LLMError
-from memspine.models.providers.llm.base import LLMService, lenient_json
 from memspine.observability import tap
 from memspine.prompts.structured import RepairItem, repair_messages
 from memspine.schemas.durable import AssertionEnvelope
+from memspine.services.llm.base import LLMService, lenient_json
 
 __all__ = [
     "InvalidItem",

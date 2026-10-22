@@ -7,7 +7,7 @@ from collections.abc import Mapping
 from types import MappingProxyType
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, SecretStr
+from pydantic import BaseModel, ConfigDict, Field, SecretStr, field_validator
 
 type FrozenJsonValue = (
     bool
@@ -110,6 +110,57 @@ class LiteLLMRoleSettings(_LLMGenerationSettings):
     api_key: SecretStr | None = None
     aws_region: str | None = None
     no_think: bool | None = None
+
+
+def _bare_model(model: str, routes: tuple[str, ...], provider: str) -> str:
+    """ADR-068: a model-name prefix never selects an adapter, so the route belongs to the
+    descriptor; a model id that repeats it is rejected with a pointer."""
+    for route in routes:
+        if model.startswith(route):
+            raise ValueError(
+                f"{provider} settings.model is the bare model id: drop the {route!r} prefix "
+                f"(the {provider} provider adds its own route)"
+            )
+    return model
+
+
+class OllamaRoleSettings(_LLMGenerationSettings):
+    """RM-113: an Ollama server through the LiteLLM connector (route ``ollama_chat/``)."""
+
+    api_base: str = Field(default="http://localhost:11434", min_length=1)
+    no_think: bool | None = None
+
+    @field_validator("model")
+    @classmethod
+    def _bare(cls, value: str) -> str:
+        return _bare_model(value, ("ollama/", "ollama_chat/"), "ollama")
+
+
+class VllmRoleSettings(_LLMGenerationSettings):
+    """RM-113: a vLLM OpenAI-compatible server through the LiteLLM connector
+    (route ``hosted_vllm/``). ``api_base`` is the server URL (e.g. ``http://host:8000/v1``)."""
+
+    api_base: str = Field(min_length=1)
+    api_key: SecretStr | None = None
+    no_think: bool | None = None
+
+    @field_validator("model")
+    @classmethod
+    def _bare(cls, value: str) -> str:
+        return _bare_model(value, ("hosted_vllm/", "openai/"), "vllm")
+
+
+class BedrockRoleSettings(_LLMGenerationSettings):
+    """RM-113: AWS Bedrock through the LiteLLM connector (route ``bedrock/``); credentials
+    come from the boto3 credential chain, ``aws_region`` selects the region."""
+
+    aws_region: str | None = None
+    no_think: bool | None = None
+
+    @field_validator("model")
+    @classmethod
+    def _bare(cls, value: str) -> str:
+        return _bare_model(value, ("bedrock/",), "bedrock")
 
 
 class LlamaCppRoleSettings(_LLMGenerationSettings):

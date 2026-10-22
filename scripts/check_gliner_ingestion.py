@@ -121,18 +121,18 @@ def _deterministic_window_reply(messages: Any) -> str | None:
 @contextmanager
 def _offline_gliner(counter: dict[str, int]) -> Iterator[None]:
     """Count real model calls at the engine pool loader boundary; leave loader behavior intact."""
-    from memspine.models.runtime import gliner_runtime
+    from memspine.clients.weights import gliner2 as gliner_runtime
 
-    original = gliner_runtime._load_local_gliner
+    original = gliner_runtime.load_local_gliner
 
     def counted_loader(settings: Any) -> Any:
         return _CountingExtractor(original(settings), counter)
 
-    gliner_runtime._load_local_gliner = counted_loader
+    gliner_runtime.load_local_gliner = counted_loader
     try:
         yield
     finally:
-        gliner_runtime._load_local_gliner = original
+        gliner_runtime.load_local_gliner = original
 
 
 @contextmanager

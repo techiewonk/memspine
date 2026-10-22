@@ -15,7 +15,6 @@ from uuid import uuid4
 
 from memspine.memories.associative.entities import EntityPolicy
 from memspine.memories.associative.projector import GraphProjector
-from memspine.models.encoders.embedding.base import EmbeddingService
 from memspine.providers.switching import (
     CleanupEvidence,
     GenerationStatus,
@@ -25,6 +24,7 @@ from memspine.providers.switching import (
     ReplayBatch,
     SourceSnapshot,
 )
+from memspine.services.embedding.base import EmbeddingService
 from memspine.services.graph.base import GraphStore
 from memspine.services.lexical.base import LexicalStore
 from memspine.services.lexical.projector import LexicalProjector

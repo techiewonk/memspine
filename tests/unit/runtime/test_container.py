@@ -12,9 +12,6 @@ from memspine import plugins
 from memspine.config.loader import ResolvedConfig
 from memspine.config.schema import MemspineConfig
 from memspine.exceptions import ConfigError
-from memspine.models.cache.base import KVCache
-from memspine.models.encoders.embedding.base import EmbedderManifest, EmbeddingService
-from memspine.models.providers.llm.base import LLMRouter
 from memspine.providers.contracts import BuildResult, ProviderRef, ResourceRef
 from memspine.providers.lifecycle import LifecycleState, ProviderLifecycleManager
 from memspine.providers.registry import EMBEDDERS, ProviderDescriptor
@@ -36,8 +33,11 @@ from memspine.runtime.container import (
     request_scope,
     resolve_config,
 )
+from memspine.services.cache.base import KVCache
+from memspine.services.embedding.base import EmbedderManifest, EmbeddingService
 from memspine.services.graph.base import GraphStore
 from memspine.services.lexical.base import LexicalStore
+from memspine.services.llm.base import LLMRouter
 from memspine.services.secrets.env import EnvSecrets
 from memspine.services.storage.sql_base import SqlStorage
 from memspine.services.vector.base import VectorStore

@@ -24,30 +24,10 @@ providers-composition-only memspine/providers/builtin/generations.py memspine.me
 providers-composition-only memspine/providers/projection_backend.py memspine.memories -- RM-113 item 18: graph projector/entity policy injected, not imported by providers
 
 # --- services-no-transport
-services-no-transport memspine/models/encoders/embedding/litellm_embed.py litellm -- RM-113 item 17: clients/litellm connector
-services-no-transport memspine/models/providers/llm/litellm_llm.py litellm -- RM-113 item 17: clients/litellm connector
-services-no-transport memspine/models/providers/rerank/litellm_rerank.py litellm -- RM-113 item 17: clients/litellm connector
-services-no-transport memspine/models/encoders/embedding/static_local.py huggingface_hub -- RM-113 item 15: weight loading moves to clients/weights
-services-no-transport memspine/models/providers/decision/opendecider_nano.py huggingface_hub -- RM-113 item 15: weight loading moves to clients/weights
-services-no-transport memspine/models/runtime/gliner_runtime.py huggingface_hub -- RM-113 item 15: weight loading moves to clients/weights
 services-no-transport memspine/services/graph/neo4j.py neo4j -- RM-113 item 5: adapter drops its own driver factory, takes the shared connector
 services-no-transport memspine/services/secrets/aws.py boto3 -- RM-113 item 14: clients/aws connector
 
 # --- services-not-composition
-services-not-composition memspine/models/encoders/embedding/fastembed_local.py memspine.providers -- RM-113 item 15: compute adapter move; weight sharing via injected connector
-services-not-composition memspine/models/encoders/embedding/st_local.py memspine.providers -- RM-113 item 15: compute adapter move; weight sharing via injected connector
-services-not-composition memspine/models/encoders/embedding/static_local.py memspine.providers -- RM-113 item 15: compute adapter move; weight sharing via injected connector
-services-not-composition memspine/models/providers/decision/decider.py memspine.providers -- RM-113 item 16: decision descriptor; adapter stops importing providers
-services-not-composition memspine/models/providers/decision/opendecider_nano.py memspine.providers -- RM-113 item 16: decision descriptor; adapter stops importing providers
-services-not-composition memspine/models/providers/llm/llama_cpp.py memspine.providers -- RM-113 item 15: compute adapter move; weight sharing via injected connector
-services-not-composition memspine/models/providers/rerank/factory.py memspine.providers -- RM-113 item 17: collapse the second rerank factory
-services-not-composition memspine/models/providers/rerank/fastembed_rerank.py memspine.providers -- RM-113 item 15: compute adapter move; weight sharing via injected connector
-services-not-composition memspine/models/providers/rerank/flashrank_rerank.py memspine.providers -- RM-113 item 15: compute adapter move; weight sharing via injected connector
-services-not-composition memspine/models/providers/rerank/jina_rerank.py memspine.providers -- RM-113 item 15: compute adapter move; weight sharing via injected connector
-services-not-composition memspine/models/providers/rerank/qwen3_rerank.py memspine.providers -- RM-113 item 15: compute adapter move; weight sharing via injected connector
-services-not-composition memspine/models/runtime/escalation.py memspine.providers -- RM-113 item 16: extraction descriptor; no providers import from compute
-services-not-composition memspine/models/runtime/gliner_runtime.py memspine.providers -- RM-113 item 16: extraction descriptor; no providers import from compute
-services-not-composition memspine/models/runtime/shared_weights.py memspine.providers -- RM-113 item 15: shared weights become a clients/weights connector
 services-not-composition memspine/services/storage/postgres/alembic/versions/pg0012_provider_changes.py memspine.providers -- RM-113 item 9: migration snapshots provider-change schema; inline the DDL
 services-not-composition memspine/services/storage/sqlite/alembic/versions/0012_provider_changes.py memspine.providers -- RM-113 item 9: migration snapshots provider-change schema; inline the DDL
 services-not-composition memspine/services/storage/sqlite/engine.py memspine.runtime -- RM-113 item 8: sync engines move into clients/sqlite

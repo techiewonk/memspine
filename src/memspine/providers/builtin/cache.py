@@ -10,11 +10,11 @@ from memspine.config.schema.providers import (
     MemoryCacheSettings,
     RemoteCacheSettings,
 )
-from memspine.models.cache.base import KVCache, MemoryKV
 from memspine.providers.contexts import CacheBuildContext
 from memspine.providers.contracts import BuildResult, DependencyRequirement, ProviderRef
 from memspine.providers.registry import CACHE_BACKENDS, ProviderDescriptor
 from memspine.services.base import CapabilityManifest
+from memspine.services.cache.base import KVCache, MemoryKV
 
 
 def _owned_namespace(namespace: str, ctx: CacheBuildContext) -> str:
@@ -47,7 +47,7 @@ class DiskBuilder:
         self, settings: DiskCacheSettings, ctx: CacheBuildContext
     ) -> BuildResult[KVCache]:
         from memspine.clients.cashews import CashewsClient
-        from memspine.models.cache.cashews_cache import CashewsCache
+        from memspine.services.cache.cashews import CashewsCache
 
         client = CashewsClient(f"disk://?directory={settings.path}")
         ref = ctx.shared.resources.own("cache", client.close)
@@ -79,7 +79,7 @@ class RemoteBuilder:
         self, settings: RemoteCacheSettings, ctx: CacheBuildContext
     ) -> BuildResult[KVCache]:
         from memspine.clients.cashews import CashewsClient
-        from memspine.models.cache.cashews_cache import CashewsCache
+        from memspine.services.cache.cashews import CashewsCache
 
         client = CashewsClient(settings.url)
         ref = ctx.shared.resources.own("cache", client.close)

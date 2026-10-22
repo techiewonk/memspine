@@ -8,11 +8,11 @@ from dataclasses import dataclass
 
 from pydantic import Field
 
-from memspine.models.encoders.embedding.base import EmbedderManifest
 from memspine.providers.contexts import SharedBuildContext
 from memspine.providers.contracts import BuildResult, ProviderRef
 from memspine.providers.registry import ProviderDescriptor
 from memspine.providers.settings import StrictSettings
+from memspine.services.embedding.base import EmbedderManifest
 
 __version__ = "1.2.3"
 CLOSE_EVENTS: list[str] = []

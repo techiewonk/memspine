@@ -120,11 +120,11 @@ def bench_llm() -> None:
 
 
 async def main() -> None:
-    from memspine.models.encoders.embedding.fastembed_local import FastembedEmbedding
-    from memspine.models.encoders.embedding.st_local import SentenceTransformersEmbedding
-    from memspine.models.providers.rerank.fastembed_rerank import FastembedReranker
-    from memspine.models.providers.rerank.jina_rerank import JinaReranker
-    from memspine.models.providers.rerank.qwen3_rerank import Qwen3Reranker
+    from memspine.services.embedding.fastembed import FastembedEmbedding
+    from memspine.services.embedding.st import SentenceTransformersEmbedding
+    from memspine.services.rerank.fastembed import FastembedReranker
+    from memspine.services.rerank.jina import JinaReranker
+    from memspine.services.rerank.qwen3 import Qwen3Reranker
 
     mode = sys.argv[2] if len(sys.argv) > 2 else "all"  # all | llm | nollm
     load = subprocess.run(

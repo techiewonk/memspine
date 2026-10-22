@@ -8,10 +8,10 @@ import pytest
 
 from memspine import Engine
 from memspine.exceptions import ConfigError
-from memspine.models.cache.base import MemoryKV
-from memspine.models.cache.semantic import CachedExtractor
 from memspine.prompts.models import ExtractedFact
 from memspine.read.pipeline import request as rq
+from memspine.services.cache.base import MemoryKV
+from memspine.services.cache.semantic import CachedExtractor
 
 _ENGINES: list[Engine] = []
 

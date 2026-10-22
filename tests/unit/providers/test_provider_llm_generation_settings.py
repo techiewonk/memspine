@@ -5,12 +5,12 @@ from typing import Any
 
 import pytest
 
-from memspine.models.providers.llm.base import LLMRouter
 from memspine.providers.builtin.models import register
 from memspine.providers.contexts import LLMBuildContext, SharedBuildContext
 from memspine.providers.lifecycle import ProviderLifecycleManager
 from memspine.providers.registry import LLM_PROVIDERS
 from memspine.providers.settings import LiteLLMRoleSettings
+from memspine.services.llm.base import LLMRouter
 
 
 @pytest.mark.asyncio

@@ -20,7 +20,7 @@ from test_window_write import FakeWindowLLM, _facts, _send, _turns
 from memspine import Engine
 from memspine.config.schema import MemspineConfig
 from memspine.ingest import windows as ingest_windows
-from memspine.models.providers.llm.base import LLMRouter
+from memspine.services.llm.base import LLMRouter
 
 
 async def _engine(

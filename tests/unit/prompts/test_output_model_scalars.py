@@ -9,9 +9,9 @@ from __future__ import annotations
 
 import yaml
 
-from memspine.models.providers.llm.structured import _parse_payload
 from memspine.prompts.base import PromptFormat
 from memspine.prompts.models import ExtractedEdges, ExtractedFacts
+from memspine.services.llm.structured import _parse_payload
 
 
 def test_unquoted_dates_and_numbers_validate_as_text() -> None:

@@ -9,9 +9,9 @@ from typing import Any
 import pytest
 
 from memspine import Engine
-from memspine.models.encoders.embedding.hash_local import HashEmbedding
 from memspine.providers.shared import resource_key, shared_registry
 from memspine.runtime.warmup import WarmState, WarmupError
+from memspine.services.embedding.hash import HashEmbedding
 
 
 class _Gate:

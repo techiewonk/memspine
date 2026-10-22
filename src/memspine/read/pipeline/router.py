@@ -35,7 +35,6 @@ from memspine.exceptions import (
     MissingServiceError,
 )
 from memspine.memories.episodic.sessions import topic_segments
-from memspine.models.encoders.embedding.base import embed_queries
 from memspine.models.encoders.query.perspective import (
     QuestionPerspective,
 )
@@ -48,7 +47,6 @@ from memspine.models.encoders.query.temporal_query import (
     LegHit,
     NamedLeg,
 )
-from memspine.models.providers.rerank.base import concat_background, gated_rerank
 from memspine.observability import inspect as insp
 from memspine.observability import tap
 from memspine.observability.logging import (
@@ -95,8 +93,10 @@ from memspine.read.pipeline.state import (
     _passive_hidden,
 )
 from memspine.read.pipeline.time_guard import legs_guarded
+from memspine.services.embedding.base import embed_queries
 from memspine.services.graph.qualifiers import QualifierFilter, graph_filter_scope
 from memspine.services.lexical.base import minmax_fuse, rrf_fuse
+from memspine.services.rerank.base import concat_background, gated_rerank
 from memspine.store.events import EventKind, MemoryEvent
 from memspine.store.records import (
     MemoryRecord,

@@ -97,7 +97,7 @@ class HTTPServiceChangeBackend:
         checkpoint: OperationCheckpoint | None = None,
         result: ChangeResult | None = None,
     ) -> bytes:
-        if plan.request.category not in {"llm", "reranker", "cache", "worker"}:
+        if plan.request.category not in {"llm", "rerank", "cache", "worker"}:
             raise ChangeConflict(
                 "HTTP service changes support model, cache and worker revisions only"
             )

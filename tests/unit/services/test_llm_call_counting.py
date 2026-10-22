@@ -11,7 +11,7 @@ import pytest
 
 from memspine import Engine
 from memspine.config.schema import MemspineConfig
-from memspine.models.providers.llm.base import LLMRouter, LLMService, _Counted
+from memspine.services.llm.base import LLMRouter, LLMService, _Counted
 
 
 class _Stub:

@@ -10,10 +10,10 @@ from typing import Any
 import pytest
 
 from memspine import Engine
-from memspine.models.providers.rerank.factory import register_reranker
 from memspine.observability.trace import search_forensics
 from memspine.providers.contracts import BuildResult, ProviderRef
 from memspine.providers.registry import ProviderDescriptor, get_registry
+from memspine.providers.rerank import register_reranker
 from memspine.providers.settings import EmptySettings
 
 
@@ -31,7 +31,7 @@ class _ConstBuilder:
     async def build(self, settings: EmptySettings, ctx: Any) -> BuildResult[_ConstReranker]:
         return BuildResult(
             self.construct(settings),
-            ProviderRef("reranker", "const_test"),
+            ProviderRef("rerank", "const_test"),
             (),
             frozenset({"rerank"}),
         )
@@ -41,7 +41,7 @@ class _ConstBuilder:
 def _const_provider():
     register_reranker(
         ProviderDescriptor(
-            ProviderRef("reranker", "const_test"),
+            ProviderRef("rerank", "const_test"),
             EmptySettings,
             frozenset({"rerank"}),
             (),

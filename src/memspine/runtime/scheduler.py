@@ -38,9 +38,9 @@ from typing import TYPE_CHECKING, Any
 
 from memspine.derive.backpressure import Backpressure
 from memspine.economy.slo import SloLedger
-from memspine.models.concurrency import Priority, current_priority, priority_scope
 from memspine.observability import tap
 from memspine.providers.shared import Lease, ResourceRegistry, resource_key, shared_registry
+from memspine.services.concurrency import Priority, current_priority, priority_scope
 
 if TYPE_CHECKING:
     from memspine.config.schema.runtime import RuntimeConfig

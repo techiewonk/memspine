@@ -45,11 +45,11 @@ from memspine.derive.gliner_mentions import (
     bind_gliner_mentions,
     parse_gliner_mentions,
 )
-from memspine.models.runtime.gliner_runtime import GLiNERModelPool
 from memspine.observability import tap
 from memspine.observability.logging import get_logger
 from memspine.schemas.durable.assertion import AssertionEnvelope
 from memspine.schemas.durable.entity_mentions import EntityMention
+from memspine.services.extraction.base import ExtractionModels
 
 __all__ = [
     "FILLER_VOCAB",
@@ -319,7 +319,7 @@ class GlinerHints:
     """GLiNER2 entity finder (local CPU, ``[ner]``). Loads lazily; ``available()`` is False when
     the package is missing, in which case the caller uses the rules alone."""
 
-    def __init__(self, pool: GLiNERModelPool, settings: GlinerSettings) -> None:
+    def __init__(self, pool: ExtractionModels, settings: GlinerSettings) -> None:
         self._settings = settings
         # RM-73: one Engine-lifetime lease, not an acquire/release per call.
         self._model = pool.binding(settings)
@@ -340,7 +340,7 @@ class GlinerHints:
     @staticmethod
     def available() -> bool:
         try:
-            from memspine.models.providers.decision.gliner2_decision import auto_extractor_class
+            from memspine.services.decider.gliner2 import auto_extractor_class
 
             auto_extractor_class()
         except Exception:
@@ -423,7 +423,7 @@ class Prepass:
         mode: PrepassMode = "rules",
         *,
         gliner: Any = None,
-        gliner_pool: GLiNERModelPool | None = None,
+        gliner_pool: ExtractionModels | None = None,
         gliner_settings: GlinerSettings | None = None,
         aliases: Callable[[str], Iterable[str]] | None = None,
         cache_size: int = 64,
@@ -439,7 +439,7 @@ class Prepass:
                     detail="engine GLiNER pool is unavailable; using the rules",
                 )
         if mode == "gliner" and gliner is None:
-            from memspine.models.providers.decision.gliner2_decision import auto_extractor_class
+            from memspine.services.decider.gliner2 import auto_extractor_class
 
             try:
                 auto_extractor_class()

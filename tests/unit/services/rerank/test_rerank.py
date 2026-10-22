@@ -7,7 +7,7 @@ import sys
 import pytest
 
 from memspine.exceptions import MissingServiceError
-from memspine.models.providers.rerank.base import Reranker, concat_background
+from memspine.services.rerank.base import Reranker, concat_background
 from memspine.store.records import MemoryRecord, SourceInfo
 
 
@@ -41,7 +41,7 @@ def test_concat_background_minimal_record_still_carries_type() -> None:
 def test_flashrank_adapter_names_the_extra_when_absent(monkeypatch: pytest.MonkeyPatch) -> None:
     # M-BRANCH: simulate the absent [rerank] extra whatever this environment has installed.
     monkeypatch.setitem(sys.modules, "flashrank", None)
-    from memspine.models.providers.rerank.flashrank_rerank import FlashrankReranker
+    from memspine.services.rerank.flashrank import FlashrankReranker
 
     with pytest.raises(MissingServiceError, match=r"memspine\[rerank\]"):
         FlashrankReranker()
@@ -54,7 +54,7 @@ def test_fastembed_adapter_names_the_upgrade_remedy_when_too_old(
     not a bare 'service unavailable'. The message must say so."""
     # M-BRANCH: simulate a fastembed release without the cross-encoder module.
     monkeypatch.setitem(sys.modules, "fastembed.rerank.cross_encoder", None)
-    from memspine.models.providers.rerank.fastembed_rerank import FastembedReranker
+    from memspine.services.rerank.fastembed import FastembedReranker
 
     with pytest.raises(MissingServiceError, match="upgrade fastembed"):
         FastembedReranker()

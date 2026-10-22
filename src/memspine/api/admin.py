@@ -3,8 +3,8 @@ from __future__ import annotations
 from typing import Any
 
 from memspine.exceptions import MemspineError
-from memspine.models.providers.llm import structured as _structured
-from memspine.models.providers.llm.base import LLMService
+from memspine.services.llm import structured as _structured
+from memspine.services.llm.base import LLMService
 
 
 def asset_stats(eng: Any) -> dict[str, int]:

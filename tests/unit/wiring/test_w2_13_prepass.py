@@ -429,8 +429,8 @@ async def test_gliner_hints_uses_shared_settings_and_pool(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from memspine.config.schema.llm import GlinerSettings
-    from memspine.models.providers.decision.gliner2_decision import DEFAULT_MODEL
-    from memspine.models.runtime.gliner_runtime import GLiNERModelPool
+    from memspine.services.decider.gliner2 import DEFAULT_MODEL
+    from memspine.services.extraction.gliner2 import GLiNERModelPool
 
     loaded: list[str] = []
 

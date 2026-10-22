@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing import Any
 
-from memspine.models.providers.llm.tier_gate import WITHHELD_MARKER, is_local_binding
+from memspine.services.llm.tier_gate import WITHHELD_MARKER, is_local_binding
 from memspine.store.records import MemoryRecord
 from memspine.trust.privacy import pii_rank
 

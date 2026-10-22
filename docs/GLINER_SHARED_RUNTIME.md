@@ -1,7 +1,7 @@
 # Shared GLiNER runtime ownership
 
 `GLiNERModelPool` is an explicitly constructed, engine-owned optional resource
-in `memspine.models.runtime.gliner_runtime`. It does not introduce an ingress
+in `memspine.services.extraction.gliner2`. It does not introduce an ingress
 path or make GLiNER a core dependency. Semantic NER, decision classification and
 prepass consumers resolve their own named model profile and hold one
 Engine-lifetime binding (`pool.binding(settings)`) on the same Engine pool: the

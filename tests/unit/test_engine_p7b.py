@@ -175,7 +175,7 @@ async def test_reranker_construction_failure_for_explicit_provider_propagates(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """An explicitly selected provider's programming/build failure is not hidden."""
-    import memspine.models.providers.rerank.fastembed_rerank as fastembed_module
+    import memspine.services.rerank.fastembed as fastembed_module
 
     class ExplodingReranker:
         def __init__(self, *args: Any, **kwargs: Any) -> None:

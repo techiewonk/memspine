@@ -34,7 +34,7 @@ the report carries a ``token_measurement`` verdict (``exact`` / ``estimated`` / 
 / ``none``). Nothing here fabricates a number: when usage is unavailable the estimate is
 labelled as one. See the module note on the LLM port below.
 
-**The LLM port exposes no usage.** ``memspine.models.providers.llm.base.LLMService.chat`` returns
+**The LLM port exposes no usage.** ``memspine.services.llm.base.LLMService.chat`` returns
 a bare ``str``. There is therefore no exact-usage path for memspine's *internal* calls
 (entity extraction, conflict resolution, consolidation summaries) without a hook in
 ``src/``; :class:`CountingLLM` wraps the port and estimates, flagging every such call.
@@ -1036,7 +1036,7 @@ def _require_non_negative(value: int, name: str) -> int:
 
 
 class LLMPort(Protocol):
-    """Structural mirror of ``memspine.models.providers.llm.base.LLMService``.
+    """Structural mirror of ``memspine.services.llm.base.LLMService``.
 
     Declared here rather than imported so this module stays free of memspine imports;
     protocols are structural, so a :class:`CountingLLM` still satisfies the real port.

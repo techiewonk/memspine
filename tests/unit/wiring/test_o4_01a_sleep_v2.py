@@ -18,7 +18,7 @@ from memspine.derive.job import (
 )
 from memspine.derive.scheduler import DerivationScheduler, in_derive_job
 from memspine.derive.triggers import TriggerConfig, TriggerPolicy, TriggerState
-from memspine.models.concurrency import Priority, current_priority
+from memspine.services.concurrency import Priority, current_priority
 from memspine.workers.schedule import SLEEP_CYCLE_ORDER
 
 

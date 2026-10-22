@@ -874,6 +874,25 @@ without `provider` is invalid. Tiered LLM catalogue declarations also require an
 explicit `timeout_seconds`; role binding does not silently extend that deadline.
 Shared/remote adapters require an explicit `runtime.deployment_id`.
 
+RM-113: `ollama`, `vllm` and `bedrock` are their own LLM providers over the same LiteLLM
+connector. Their `settings.model` is the bare model id; the provider adds the route
+(`ollama_chat/`, `hosted_vllm/`, `bedrock/`) and rejects a model id that repeats it.
+`litellm` keeps accepting any LiteLLM model id, unchanged.
+
+| Provider | Settings beyond the shared generation keys (`model`, `timeout_seconds`, `temperature`, `top_p`, `max_tokens`, `no_think`) | Local for `consent.remote_llm_max_tier` |
+|---|---|---|
+| `ollama` | `api_base` (default `http://localhost:11434`) | when `api_base` is a local host |
+| `vllm` | `api_base` (required, e.g. `http://host:8000/v1`), `api_key` | when `api_base` is a local host |
+| `bedrock` | `aws_region` (credentials from the boto3 chain) | never |
+
+```yaml
+llm:
+  roles:
+    extract:
+      provider: ollama
+      settings: {model: "qwen3:8b", timeout_seconds: 30.0}
+```
+
 **Embedding: local → cloud (LiteLLM)** — a cloud embedder's output dimension is not
 locally discoverable, so `dim` is **required** when `provider: litellm`.
 ```yaml

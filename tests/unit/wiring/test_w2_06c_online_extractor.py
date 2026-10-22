@@ -24,8 +24,8 @@ from memspine.config.schema import MemspineConfig
 from memspine.config.schema.write import WriteConfig
 from memspine.derive.online_extractor import OnlineExtractor
 from memspine.ingest import windows as ingest_windows
-from memspine.models.providers.llm.base import LLMRouter
 from memspine.read.pending_barrier import PendingBarrier
+from memspine.services.llm.base import LLMRouter
 
 # --- config ---------------------------------------------------------------------------------------
 

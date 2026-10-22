@@ -224,7 +224,7 @@ async def test_i47_ack_off_writes_no_ack_tags() -> None:
 
 
 def test_i47_decider_task_exists() -> None:
-    from memspine.models.providers.decision.decider import TASKS, HeuristicDecider
+    from memspine.services.decider.decider import TASKS, HeuristicDecider
 
     assert "acknowledges" in TASKS
     d = HeuristicDecider().decide_sync("acknowledges", "Yes, that's right", "You like jazz.")

@@ -18,10 +18,10 @@ from test_window_write import FakeWindowLLM
 
 from memspine import Engine
 from memspine.config.schema import MemspineConfig
-from memspine.models.providers.llm.base import LLMRouter
 from memspine.observability import bindings, tap
 from memspine.observability import inspect as insp
 from memspine.prompts.structured import STRUCTURED_SYSTEM
+from memspine.services.llm.base import LLMRouter
 
 T0 = datetime(2023, 3, 1, 9, 0, tzinfo=UTC)
 LINE = re.compile(r"^\[(\d+)\] \[[\d-]+\] (.+)$", re.M)

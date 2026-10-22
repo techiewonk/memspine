@@ -60,7 +60,7 @@ A 2026-10-22 audit found that inside one Engine most clients are shared, but:
 
 ## Implementation notes
 
-- **RM-73 (model weights).** `memspine.models.runtime.shared_weights.SharedWeights` is a lazy,
+- **RM-73 (model weights).** `memspine.clients.weights.shared.SharedWeights` is a lazy,
   refcounted lease on a `scope="thread"` registry entry; the key holds only weight-affecting
   options. Embedders (fastembed: model; sentence-transformers: model, device, dtype,
   trust_remote_code; model2vec: model), rerankers (fastembed, flashrank: model; Qwen3: model,

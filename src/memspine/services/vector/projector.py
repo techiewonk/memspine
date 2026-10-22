@@ -6,7 +6,7 @@ cache makes that cheap when content is unchanged).
 
 from __future__ import annotations
 
-from memspine.models.encoders.embedding.base import EmbeddingService
+from memspine.services.embedding.base import EmbeddingService
 from memspine.services.vector.base import VectorStore
 from memspine.store.events import EventKind, MemoryEvent
 from memspine.store.projections.projector import Projector

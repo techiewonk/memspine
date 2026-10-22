@@ -12,7 +12,6 @@ from memspine import Engine
 from memspine.config.schema import MemspineConfig
 from memspine.config.schema.llm import GpuDecl, ModelDecl, ModelsConfig
 from memspine.exceptions import ConfigError
-from memspine.models.providers.llm.base import LLMRouter, ThinkingCapped
 from memspine.models.resolve import (
     emit_taps,
     rerank_chain,
@@ -26,6 +25,7 @@ from memspine.prompts.roles import CATALOGUE_ROLE, PROMPT_ROLES
 from memspine.providers.contracts import BuildResult
 from memspine.providers.lifecycle import ProviderLifecycleManager
 from memspine.runtime import container
+from memspine.services.llm.base import LLMRouter, ThinkingCapped
 
 SMALL = ModelDecl(
     id="ollama/small-3b",

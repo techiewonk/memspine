@@ -13,9 +13,9 @@ import pytest
 from memspine import Engine
 from memspine.config.schema import MemspineConfig
 from memspine.core.fact_views import normalise_view, tag_values, view_tags
-from memspine.models.providers.llm.base import LLMRouter, LLMService
 from memspine.prompts.models import ExtractedFact, ExtractedFacts
 from memspine.prompts.registry import PromptRegistry
+from memspine.services.llm.base import LLMRouter, LLMService
 from memspine.store.records import MemoryRecord
 
 T0 = datetime(2023, 7, 15, 9, 0, tzinfo=UTC)

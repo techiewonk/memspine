@@ -68,7 +68,7 @@ async def _run(
     llm = _CloseLLM()
 
     async def router(cfg: Any, hooks: object = None, wiring: object = None) -> Any:
-        from memspine.models.providers.llm.base import LLMRouter
+        from memspine.services.llm.base import LLMRouter
 
         return LLMRouter({"session_close": llm})  # type: ignore[dict-item]
 

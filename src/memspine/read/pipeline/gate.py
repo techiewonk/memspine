@@ -14,9 +14,6 @@ from memspine.core.owner_check import first_person, referenced_names
 from memspine.core.read_filters import active_as_of
 from memspine.core.relevance_probes import OFF_TOPIC_PROBES, Calibration, calibrate
 from memspine.exceptions import StorageError
-from memspine.models.encoders.embedding.base import embed_queries
-from memspine.models.providers.llm.structured import structured_call
-from memspine.models.providers.rerank.base import concat_background, gated_rerank
 from memspine.observability import tap
 from memspine.observability.logging import get_logger, redact_error
 from memspine.prompts.models import RelevanceLabels
@@ -37,6 +34,9 @@ from memspine.read.pipeline.state import (
     _passive_hidden,
 )
 from memspine.read.pipeline.timeview import _current_at
+from memspine.services.embedding.base import embed_queries
+from memspine.services.llm.structured import structured_call
+from memspine.services.rerank.base import concat_background, gated_rerank
 from memspine.store.records import MemoryRecord, RecordStatus
 from memspine.trust.pipeline import consent as trust_consent
 from memspine.trust.pipeline import gates_v2

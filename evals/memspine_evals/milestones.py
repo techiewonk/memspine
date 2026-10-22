@@ -263,7 +263,7 @@ async def extract_milestones(
     chat: Chat, question: str, lines: Sequence[tuple[date, str]]
 ) -> MilestoneOut:
     """ONE structured call (``structured_call``: format-aware parse, JSON repair, opt-in retry)."""
-    from memspine.models.providers.llm.structured import structured_call
+    from memspine.services.llm.structured import structured_call
 
     class _ChatLLM:
         provider_id = "harness:milestones"
@@ -588,7 +588,7 @@ class MilestoneReader:
         self.rewritten = 0
         self.failures = 0
         # I69: repair + one retry of a malformed extraction (process-wide, opt-in switch).
-        from memspine.models.providers.llm import structured
+        from memspine.services.llm import structured
 
         if not structured._OPTIONS.retry_on_error:
             structured.configure(

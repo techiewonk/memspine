@@ -14,11 +14,9 @@ from typing import NoReturn
 
 import pytest
 
+from memspine.clients.weights.model2vec import StaticModelUnavailableError
 from memspine.exceptions import MissingServiceError
-from memspine.models.encoders.embedding.static_local import (
-    StaticEmbedder,
-    StaticModelUnavailableError,
-)
+from memspine.services.embedding.static import StaticEmbedder
 
 _HAS_MODEL2VEC = importlib.util.find_spec("model2vec") is not None
 

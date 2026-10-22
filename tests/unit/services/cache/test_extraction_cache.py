@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from memspine.models.cache.base import MemoryKV
-from memspine.models.cache.semantic import CachedExtractor
 from memspine.prompts.models import ExtractedFact
+from memspine.services.cache.base import MemoryKV
+from memspine.services.cache.semantic import CachedExtractor
 
 
 class StubExtractor:

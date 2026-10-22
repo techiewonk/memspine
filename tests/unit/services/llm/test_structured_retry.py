@@ -10,15 +10,15 @@ from pydantic import BaseModel
 
 from memspine.config.schema import MemspineConfig
 from memspine.exceptions import LLMError
-from memspine.models.providers.llm import structured
-from memspine.models.providers.llm.structured import (
+from memspine.prompts.base import Prompt, PromptFormat
+from memspine.services.llm import structured
+from memspine.services.llm.structured import (
     StructuredOptions,
     configure,
     reset_structured_stats,
     structured_call,
     structured_stats,
 )
-from memspine.prompts.base import Prompt, PromptFormat
 
 
 class Out(BaseModel):

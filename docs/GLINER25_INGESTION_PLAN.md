@@ -58,7 +58,7 @@ by default merely because each supports a different task.
 | Area | What code does today | Required/recommended change | Status |
 |---|---|---|---|
 | Semantic NER loader | `memories/semantic/entities.py` imports `GLiNER2` directly | Use the architecture-dispatching `AutoExtractor` | Implemented 2026-10-17; fake SDK test only |
-| Decision loader | `models/providers/decision/gliner2_decision.py` prefers `GLiNER2` before `AutoExtractor` | Use `AutoExtractor` directly; no legacy-loader shim needed | Implemented 2026-10-17; fake SDK test only |
+| Decision loader | `services/decider/gliner2.py` prefers `GLiNER2` before `AutoExtractor` | Use `AutoExtractor` directly; no legacy-loader shim needed | Implemented 2026-10-17; fake SDK test only |
 | Checkpoint settings | NER has a module constant; decision has an independent config default | Centralize configurable model/revision/device/task settings through the agreed provider approach | Planned design work |
 | Current defaults | Both paths name `fastino/gliner2-base-v1` | Select `fastino/gliner2.5-base-v1` for the proposed baseline; retain explicit model choice | Implemented for decision, semantic NER, and prepass on 2026-10-17 |
 | NER result | Converts entity names into facts with `attribute="mention"` | Keep mentions separate from asserted facts and typed relationships | Required before richer deposits |

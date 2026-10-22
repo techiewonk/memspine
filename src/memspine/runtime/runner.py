@@ -34,7 +34,6 @@ from memspine.derive.backpressure import (
     BackpressureRejected,
 )
 from memspine.economy.slo import SloLedger
-from memspine.models.concurrency import Priority, priority_scope
 from memspine.observability import inspect as insp
 from memspine.observability import tap
 from memspine.observability.logging import get_logger
@@ -43,6 +42,7 @@ from memspine.runtime.jobs import Claim, Clock, Job, JobBook, JobStore, RetryBud
 from memspine.runtime.outbox import SqlJobStore
 from memspine.schemas.durable.common import OwnerScope
 from memspine.schemas.public import JobHandle
+from memspine.services.concurrency import Priority, priority_scope
 
 __all__ = [
     "BarrierOutcome",

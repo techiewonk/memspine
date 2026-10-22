@@ -16,7 +16,6 @@ from typing import Any
 
 from memspine.compose.pack import estimate_tokens
 from memspine.config import constants
-from memspine.models.encoders.embedding.base import embed_queries
 from memspine.models.encoders.query.shape import (
     is_aggregation,
     is_count,
@@ -25,7 +24,6 @@ from memspine.models.encoders.query.shape import (
     is_set_question_wide,
     rule_read_mode,
 )
-from memspine.models.providers.llm.structured import structured_call
 from memspine.observability import inspect as insp
 from memspine.observability import tap
 from memspine.observability.logging import get_logger
@@ -54,6 +52,8 @@ from memspine.read.tiers import Tier, choose_tier, normalise_request
 from memspine.schemas.durable.common import OwnerScope
 from memspine.schemas.public.read import ReadRequest
 from memspine.scope import Scope
+from memspine.services.embedding.base import embed_queries
+from memspine.services.llm.structured import structured_call
 from memspine.store.events import EventKind
 from memspine.store.layer_registry import LayerRegistry, LayerTemplate
 from memspine.store.records import (

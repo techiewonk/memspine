@@ -52,11 +52,11 @@ from memspine.derive.coverage import (
 from memspine.derive.envelope_stages import EnvelopeStage, EnvelopeStageContext, run_envelope_stages
 from memspine.derive.grounding_stage import _strip_speaker, make_grounding_stage
 from memspine.derive.items import parse_reply
-from memspine.models.providers.llm.base import lenient_json
 from memspine.observability import tap
 from memspine.prompts.layout_aliases import render_known
 from memspine.prompts.structured import window_messages
 from memspine.schemas.durable.assertion import AssertionEnvelope
+from memspine.services.llm.base import lenient_json
 
 __all__ = [
     "COVERAGE_COST_STAGE",

@@ -83,7 +83,7 @@ def test_builtin_optional_model_packages_are_discoverable_without_importing_them
     with pytest.raises(MissingServiceError, match=r"memspine\[llmlocal\]"):
         select_provider("llm", "llamacpp")
     with pytest.raises(MissingServiceError, match=r"memspine\[rerank\]"):
-        select_provider("reranker", "flashrank")
+        select_provider("rerank", "flashrank")
 
 
 def test_duplicate_provider_name_is_rejected() -> None:
