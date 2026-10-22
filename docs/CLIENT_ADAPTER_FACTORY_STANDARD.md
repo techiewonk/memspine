@@ -96,9 +96,10 @@ Connections are also opened outside providers:
   - `services/secrets/aws.py`: boto3.
 - **Elsewhere:** `derive/job.py`, `store/side_tables.py`, `observability/tap_sinks.py`, `workers/step_journal.py` and `workers/taskiq_runner.py` (Redis).
 
-**Nothing enforces layering.** `.importlinter` has `include_external_packages = False`, and
-the CI script filters out every non-memspine module, so no contract can name a driver
-package. No contract covers `memspine.providers`.
+**Nothing enforced layering at audit time.** `.importlinter` had
+`include_external_packages = False`, and the CI script filtered out every non-memspine
+module, so no contract could name a driver package. No contract covered `memspine.providers`.
+Section 4 records the enforcement added on 2026-10-23.
 
 ## 3. Refactor plan (prioritised)
 
@@ -130,26 +131,64 @@ package. No contract covers `memspine.providers`.
 
 ## 4. Enforcement
 
-**Prerequisites:**
-- `include_external_packages = True`.
-- The CI script and AST mirror keep external edges.
-- A symbol-denylist AST test for connection constructors in `services/**` and `models/**`:
-  `create_engine`, `sqlite3.connect`, `lancedb.connect`, `tantivy.Index`, `GraphDatabase.driver`,
-  `AsyncOpenSearch`, weaviate `connect_to_*`, `Redis(`, `httpx.Client(`, `urlopen`, `boto3.client`,
-  `MongoClient`, `snapshot_download`.
+In place since 2026-10-23. Two checks, each with a **shrink-only baseline** under
+`tests/unit/baselines/`.
 
-**New import-linter contracts:**
+**1. Import contracts** (`.importlinter`, `include_external_packages = True`):
 
-| Contract | Rule |
-|---|---|
-| `clients-isolated` | clients import only stdlib, drivers, `memspine.exceptions` and `memspine.clients` |
-| `services-no-transport` | services and models never import transport packages (psycopg, aiosqlite, redis, cashews, httpx, boto3, pymongo, neo4j, litellm, huggingface_hub) |
-| `services-not-composition` | services and models never import providers, runtime or api |
-| `consumers-never-see-clients` | engine, memories, derive, read, ingest, compose, store and trust never import clients or provider builders |
-| `providers-composition-only` | factories never import consumers |
+| Contract | Rule | Baseline at seeding |
+|---|---|---|
+| `clients-isolated` | clients import only stdlib, drivers, `memspine.exceptions` and `memspine.clients` (replaces `v1-clients-low`) | 6 |
+| `services-no-transport` | services and models never import psycopg, aiosqlite, sqlcipher3, pysqlcipher3, redis, cashews, httpx, aiohttp, boto3, botocore, aioboto3, pymongo, motor, neo4j, litellm, huggingface_hub. Alembic `env.py` and `versions/*` are exempt through `ignore_imports` | 8 |
+| `services-not-composition` | services and models never import providers, runtime or api | 20 |
+| `consumers-never-see-clients` | `api.engine`, memories, memory, derive, read, ingest, compose, store and trust never import clients or `providers.builtin` | 1 |
+| `providers-composition-only` | providers never import api, memories, derive, read, ingest or compose | 2 |
 
-The current violations go into the existing BASELINE so the tree stays green. The baseline
-shrinks as each refactor item lands.
+- `tests/unit/test_import_contracts.py` checks them with `ast`. Third-party imports are
+  recorded by their top-level package. A violation is keyed `(file, forbidden module)`.
+- `scripts/ci_importlinter.py` keeps external modules in the filtered config. It turns each
+  baseline line into extra `ignore_imports` for `lint-imports`, with
+  `unmatched_ignore_imports_alerting = none`, because the AST test owns the vanished-entry check.
+- Baseline: `tests/unit/baselines/import_contracts.txt`.
+  Format: `<contract> <file under src/> <imported> -- <reason citing RM-113 item N>`.
+- A permanent, reviewed exemption goes into the contract's own `ignore_imports` in
+  `.importlinter`. Never put one in the baseline.
+
+**2. Connection constructors** (`tests/unit/test_connection_constructors.py`):
+- Flags calls of `create_engine`, `create_async_engine`, `sqlite3.connect`, `psycopg.connect`,
+  `lancedb.connect`, `tantivy.Index`, `*GraphDatabase.driver`, `AsyncOpenSearch`, weaviate
+  `connect_to_*`/`use_async_with_*`, `Redis(`/`Redis.from_url`, `httpx.Client`/`AsyncClient`,
+  `urlopen`/`build_opener`, `boto3.client`/`Session`, `MongoClient`/`AsyncIOMotorClient`,
+  `snapshot_download`/`hf_hub_download` and temporalio `Client.connect`.
+- Import aliases are resolved.
+- These calls are allowed only in `src/memspine/clients/**` and Alembic `env.py`. All other
+  packages are scanned: services, models, providers, runtime, derive, store, observability and
+  workers.
+- Baseline: `tests/unit/baselines/connection_constructors.txt`, 25 entries at seeding.
+  Format: `<file under src/> <symbol> -- <reason citing RM-113>`.
+
+**Run:**
+
+```bash
+python -m pytest tests/unit/test_import_contracts.py tests/unit/test_ci_importlinter.py \
+  tests/unit/test_connection_constructors.py -o addopts="" -q
+python scripts/ci_importlinter.py          # lint-imports on the filtered config + baseline
+python scripts/ci_importlinter.py --print  # show the filtered config with injected ignores
+```
+
+**Shrink rules:**
+- A new violation fails the test. Fix the import or inject a connector. Never add a
+  baseline line.
+- When a refactor item removes a violation, the test fails with "no longer occur" and names
+  the line. Delete it in the same PR.
+- A move such as `models/` to `services/` changes the file path, so the old line goes and a new
+  one appears. Re-key the line only if the violation really remains, and keep its reason.
+- The baseline must reach zero when section 3 is done. A contract with no baseline lines and no
+  `ignore_imports` is fully enforced.
+
+`target-layers` was already broken under `lint-imports` before this change. It fails through
+indirect chains such as `services.storage.sql_base -> runtime.outbox`, which item 8 removes. The
+AST mirror checks direct imports only and passes. This baseline does not cover it.
 
 ## 5. How it composes with ADR-081
 

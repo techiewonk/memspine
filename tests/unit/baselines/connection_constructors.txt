@@ -1,0 +1,41 @@
+# Shrink-only baseline of connection constructors outside src/memspine/clients (RM-113,
+# seeded 2026-10-23). Checked by tests/unit/test_connection_constructors.py.
+#
+# Format: <file under src/> <symbol> -- <reason / RM-113 work item>
+# "item N" refers to docs/CLIENT_ADAPTER_FACTORY_STANDARD.md section 3.
+# Never add a line; inject a connector instead. Delete a line when its call is gone.
+
+# --- services/** (adapters)
+memspine/services/assets/fetch.py urlopen -- RM-113 item 14: clients/http shared connector for asset fetch
+memspine/services/assets/registry.py sqlite3.connect -- RM-113 item 18: assets registry moves to records/documents slots
+memspine/services/assets/vision.py urlopen -- RM-113 item 14: clients/http shared connector for vision
+memspine/services/external/provider.py urlopen -- RM-113 item 14: clients/http shared connector for external search
+memspine/services/external/wikipedia.py urlopen -- RM-113 item 14: clients/http shared connector for external search
+memspine/services/graph/neo4j.py GraphDatabase.driver -- RM-113 item 5: adapter drops its own driver factory (executor_from_env)
+memspine/services/lexical/tantivy.py tantivy.Index -- RM-113 item 10: clients/tantivy connector owns index open/reload/writer lock
+memspine/services/secrets/aws.py boto3.client -- RM-113 item 14: clients/aws connector
+memspine/services/storage/postgres/engine.py create_engine -- RM-113 item 8: sync engine moves into clients/postgres
+memspine/services/storage/postgres/migrations.py create_engine -- RM-113 item 9: Alembic runs over a connector-lent connection
+memspine/services/storage/sqlite/migrations.py create_engine -- RM-113 item 9: Alembic runs over a connector-lent connection
+
+# --- models/** (compute adapters)
+memspine/models/encoders/embedding/static_local.py snapshot_download -- RM-113 item 15: weight download moves to clients/weights
+memspine/models/providers/decision/opendecider_nano.py snapshot_download -- RM-113 item 15: weight download moves to clients/weights
+memspine/models/runtime/gliner_runtime.py snapshot_download -- RM-113 item 15: weight download moves to clients/weights
+
+# --- providers/** (factories: should borrow a connector, not build engines)
+memspine/providers/builtin/storage.py create_engine -- RM-113 item 8: factory stops building the sync engine inline; clients/{sqlite,postgres}/sync.py
+
+# --- runtime/**
+memspine/runtime/outbox.py create_engine -- RM-113 item 8: sync engines move out of runtime/outbox.py into clients
+
+# --- derive/** store/** observability/** workers/**
+memspine/store/leases.py psycopg.connect -- RM-113 item 8: sleep-lease store borrows the postgres connector
+memspine/store/leases.py sqlite3.connect -- RM-113 item 8: sleep-lease store borrows the sqlite connector
+memspine/store/side_tables.py create_engine -- RM-113 item 8: side tables borrow the storage connector's sync engine
+memspine/store/side_tables.py sqlite3.connect -- RM-113 item 8: side tables borrow the storage connector
+memspine/observability/tap_report.py sqlite3.connect -- RM-113 section 2: tap report opens its own sqlite file; needs a clients/sqlite file connector
+memspine/observability/tap_sinks.py sqlite3.connect -- RM-113 section 2: tap sink opens its own sqlite file; needs a clients/sqlite file connector
+memspine/workers/step_journal.py sqlite3.connect -- RM-113 section 2: step journal opens its own sqlite file; needs a clients/sqlite file connector
+memspine/workers/taskiq_runner.py Redis -- RM-113 item 6: share the Redis connection through a clients connector and the registry
+memspine/workers/temporal_runner.py temporalio.Client.connect -- RM-113 section 2: Temporal cluster connection belongs in a clients/temporal connector

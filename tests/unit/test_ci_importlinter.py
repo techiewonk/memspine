@@ -105,5 +105,52 @@ def test_real_config_filters_to_existing_modules():
             if key in out[sec]:
                 for line in out[sec][key].splitlines():
                     for m in line.replace("|", ":").split(":"):
-                        if m.strip():
-                            assert mod.module_exists(m.strip()), (sec, m)
+                        m = m.strip()
+                        if m and (m == "memspine" or m.startswith("memspine.")):
+                            assert mod.module_exists(m), (sec, m)
+
+
+def test_external_modules_are_kept(tmp_path: Path):
+    mod = _load()
+    cfg, src = _tree(tmp_path, ["memspine", "memspine.read"])
+    cfg.write_text(
+        "[importlinter]\nroot_package = memspine\ninclude_external_packages = True\n\n"
+        "[importlinter:contract:ext]\nname = e\ntype = forbidden\n"
+        "source_modules =\n    memspine.read\nforbidden_modules =\n    redis\n    httpx\n",
+        encoding="utf-8",
+    )
+    out = mod.filter_config(cfg, src, baseline=None)
+    assert mod.kept_ids(out) == ["ext"]
+    assert "redis" in out["importlinter:contract:ext"]["forbidden_modules"]
+
+
+def test_baseline_becomes_ignore_imports(tmp_path: Path):
+    mod = _load()
+    cfg, src = _tree(tmp_path, ["memspine", "memspine.read", "memspine.derive", "memspine.api"])
+    base = tmp_path / "baseline.txt"
+    base.write_text(
+        "# comment\n"
+        "forbid memspine/read/x/__init__.py memspine.api -- RM-113 test\n"
+        "forbid memspine/derive/y.py redis -- RM-113 test\n",
+        encoding="utf-8",
+    )
+    out = mod.filter_config(cfg, src, baseline=base)
+    sec = out["importlinter:contract:forbid"]
+    ignores = [ln.strip() for ln in sec["ignore_imports"].splitlines() if ln.strip()]
+    assert ignores == [
+        "memspine.read.x -> memspine.api",
+        "memspine.read.x -> memspine.api.**",
+        "memspine.derive.y -> redis",
+    ]
+    assert sec["unmatched_ignore_imports_alerting"] == "none"
+    assert "ignore_imports" not in out["importlinter:contract:layers"]
+
+
+def test_baseline_rejects_entries_without_reason(tmp_path: Path):
+    import pytest
+
+    mod = _load()
+    base = tmp_path / "baseline.txt"
+    base.write_text("forbid memspine/read/x.py memspine.api\n", encoding="utf-8")
+    with pytest.raises(ValueError):
+        mod.load_baseline(base)

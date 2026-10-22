@@ -21,10 +21,17 @@
 ; enforced from the commit it appears in. The AST test reads this full file.
 ; Today's v1 packages (core, services, memories, workers, protocols, clients) get their
 ; own transitional contracts at the bottom; delete those as the packages are moved.
+;
+; External packages (RM-113): include_external_packages = True, so a forbidden contract may
+; name a third-party top-level package (redis, httpx, boto3, ...). Name ROOT packages only.
+; `ignore_imports` in a contract is a PERMANENT, reviewed exemption (both checkers honour it,
+; `*` = one module segment, `**` = one or more). Temporary violations never go here: they live
+; in tests/unit/baselines/import_contracts.txt, which must only shrink
+; (docs/CLIENT_ADAPTER_FACTORY_STANDARD.md section 4).
 
 [importlinter]
 root_package = memspine
-include_external_packages = False
+include_external_packages = True
 
 ; ---------------------------------------------------------------------------------------
 ; Target contracts
@@ -140,6 +147,119 @@ forbidden_modules =
 allow_indirect_imports = True
 
 ; ---------------------------------------------------------------------------------------
+; RM-113 client / adapter / factory isolation (docs/CLIENT_ADAPTER_FACTORY_STANDARD.md)
+; Port = services/<slot>/base.py, connector = clients/<tech>, adapter = services/<slot>/<tech>.py,
+; factory = providers/builtin/<slot>.py. clients-isolated replaces the old v1-clients-low.
+; ---------------------------------------------------------------------------------------
+
+[importlinter:contract:clients-isolated]
+name = clients import only stdlib, drivers, memspine.exceptions and memspine.clients
+type = forbidden
+source_modules =
+    memspine.clients
+forbidden_modules =
+    memspine.api
+    memspine.cli
+    memspine.compose
+    memspine.config
+    memspine.core
+    memspine.derive
+    memspine.economy
+    memspine.ingest
+    memspine.memories
+    memspine.memory
+    memspine.models
+    memspine.observability
+    memspine.ops
+    memspine.plugins
+    memspine.prompts
+    memspine.providers
+    memspine.read
+    memspine.runtime
+    memspine.schemas
+    memspine.scope
+    memspine.semantics
+    memspine.services
+    memspine.store
+    memspine.trust
+    memspine.workers
+allow_indirect_imports = True
+
+; Alembic env.py and revision scripts are migration tooling that runs on a connection of its
+; own; they are exempt (permanent ignore below).
+[importlinter:contract:services-no-transport]
+name = services and models (ports, adapters) never import transport or driver packages
+type = forbidden
+source_modules =
+    memspine.services
+    memspine.models
+forbidden_modules =
+    psycopg
+    aiosqlite
+    sqlcipher3
+    pysqlcipher3
+    redis
+    cashews
+    httpx
+    aiohttp
+    boto3
+    botocore
+    aioboto3
+    pymongo
+    motor
+    neo4j
+    litellm
+    huggingface_hub
+ignore_imports =
+    memspine.services.storage.*.alembic.env -> *
+    memspine.services.storage.*.alembic.versions.* -> *
+allow_indirect_imports = True
+
+[importlinter:contract:services-not-composition]
+name = services and models never import providers, runtime or api
+type = forbidden
+source_modules =
+    memspine.services
+    memspine.models
+forbidden_modules =
+    memspine.providers
+    memspine.runtime
+    memspine.api
+allow_indirect_imports = True
+
+[importlinter:contract:consumers-never-see-clients]
+name = engine, memories, memory, pipelines, store and trust never import clients or provider builders
+type = forbidden
+source_modules =
+    memspine.api.engine
+    memspine.memories
+    memspine.memory
+    memspine.derive
+    memspine.read
+    memspine.ingest
+    memspine.compose
+    memspine.store
+    memspine.trust
+forbidden_modules =
+    memspine.clients
+    memspine.providers.builtin
+allow_indirect_imports = True
+
+[importlinter:contract:providers-composition-only]
+name = providers (factories) never import consumers
+type = forbidden
+source_modules =
+    memspine.providers
+forbidden_modules =
+    memspine.api
+    memspine.memories
+    memspine.derive
+    memspine.read
+    memspine.ingest
+    memspine.compose
+allow_indirect_imports = True
+
+; ---------------------------------------------------------------------------------------
 ; Transitional contracts for the v1 layout (true today; delete a contract when the
 ; packages it names have moved). They stop new upward imports while the moves are under way.
 ; ---------------------------------------------------------------------------------------
@@ -158,23 +278,6 @@ forbidden_modules =
     memspine.memories
     memspine.services
     memspine.clients
-    memspine.cli
-allow_indirect_imports = True
-
-[importlinter:contract:v1-clients-low]
-name = v1 clients import only config and exceptions
-type = forbidden
-source_modules =
-    memspine.clients
-forbidden_modules =
-    memspine.api.engine
-    memspine.api.rest
-    memspine.api.mcp
-    memspine.api.tools
-    memspine.workers
-    memspine.memories
-    memspine.services
-    memspine.core
     memspine.cli
 allow_indirect_imports = True
 

@@ -1,0 +1,54 @@
+# Shrink-only baseline of import-contract violations (RM-113, seeded 2026-10-23).
+#
+# Format: <contract-id> <file under src/> <imported module> -- <reason / RM-113 work item>
+# <imported module> is the forbidden module the import falls under (a third-party package is
+# its top-level name). "item N" refers to docs/CLIENT_ADAPTER_FACTORY_STANDARD.md section 3.
+#
+# Rules (tests/unit/test_import_contracts.py, scripts/ci_importlinter.py):
+#   * never add a line; fix the import instead;
+#   * when a refactor removes a violation, the test fails until you delete its line here.
+
+# --- clients-isolated: connectors take a frozen transport spec, not config models (section 1)
+clients-isolated memspine/clients/lancedb.py memspine.config -- RM-113 item 3: lancedb connector takes a transport spec, not the config model
+clients-isolated memspine/clients/opensearch.py memspine.config -- RM-113 item 1: OpenSearch connector base + spec, no config import
+clients-isolated memspine/clients/postgres.py memspine.config -- RM-113 item 8: postgres connector takes a transport spec, not the config model
+clients-isolated memspine/clients/sqlite.py memspine.config -- RM-113 item 8: sqlite connector takes a transport spec, not the config model
+clients-isolated memspine/clients/weaviate.py memspine.config -- RM-113 item 1: Weaviate connector base + spec, no config import
+clients-isolated memspine/clients/neo4j.py memspine.providers -- RM-113 item 2: Neo4j spec; drop the client's providers import, executor built by the adapter
+
+# --- consumers-never-see-clients
+consumers-never-see-clients memspine/store/migrate.py memspine.clients -- RM-113 item 7: route store/migrate.py through the storage descriptor
+
+# --- providers-composition-only
+providers-composition-only memspine/providers/builtin/generations.py memspine.memories -- RM-113 item 18: graph projector wiring leaves the factory layer
+providers-composition-only memspine/providers/projection_backend.py memspine.memories -- RM-113 item 18: graph projector/entity policy injected, not imported by providers
+
+# --- services-no-transport
+services-no-transport memspine/models/encoders/embedding/litellm_embed.py litellm -- RM-113 item 17: clients/litellm connector
+services-no-transport memspine/models/providers/llm/litellm_llm.py litellm -- RM-113 item 17: clients/litellm connector
+services-no-transport memspine/models/providers/rerank/litellm_rerank.py litellm -- RM-113 item 17: clients/litellm connector
+services-no-transport memspine/models/encoders/embedding/static_local.py huggingface_hub -- RM-113 item 15: weight loading moves to clients/weights
+services-no-transport memspine/models/providers/decision/opendecider_nano.py huggingface_hub -- RM-113 item 15: weight loading moves to clients/weights
+services-no-transport memspine/models/runtime/gliner_runtime.py huggingface_hub -- RM-113 item 15: weight loading moves to clients/weights
+services-no-transport memspine/services/graph/neo4j.py neo4j -- RM-113 item 5: adapter drops its own driver factory, takes the shared connector
+services-no-transport memspine/services/secrets/aws.py boto3 -- RM-113 item 14: clients/aws connector
+
+# --- services-not-composition
+services-not-composition memspine/models/encoders/embedding/fastembed_local.py memspine.providers -- RM-113 item 15: compute adapter move; weight sharing via injected connector
+services-not-composition memspine/models/encoders/embedding/st_local.py memspine.providers -- RM-113 item 15: compute adapter move; weight sharing via injected connector
+services-not-composition memspine/models/encoders/embedding/static_local.py memspine.providers -- RM-113 item 15: compute adapter move; weight sharing via injected connector
+services-not-composition memspine/models/providers/decision/decider.py memspine.providers -- RM-113 item 16: decision descriptor; adapter stops importing providers
+services-not-composition memspine/models/providers/decision/opendecider_nano.py memspine.providers -- RM-113 item 16: decision descriptor; adapter stops importing providers
+services-not-composition memspine/models/providers/llm/llama_cpp.py memspine.providers -- RM-113 item 15: compute adapter move; weight sharing via injected connector
+services-not-composition memspine/models/providers/rerank/factory.py memspine.providers -- RM-113 item 17: collapse the second rerank factory
+services-not-composition memspine/models/providers/rerank/fastembed_rerank.py memspine.providers -- RM-113 item 15: compute adapter move; weight sharing via injected connector
+services-not-composition memspine/models/providers/rerank/flashrank_rerank.py memspine.providers -- RM-113 item 15: compute adapter move; weight sharing via injected connector
+services-not-composition memspine/models/providers/rerank/jina_rerank.py memspine.providers -- RM-113 item 15: compute adapter move; weight sharing via injected connector
+services-not-composition memspine/models/providers/rerank/qwen3_rerank.py memspine.providers -- RM-113 item 15: compute adapter move; weight sharing via injected connector
+services-not-composition memspine/models/runtime/escalation.py memspine.providers -- RM-113 item 16: extraction descriptor; no providers import from compute
+services-not-composition memspine/models/runtime/gliner_runtime.py memspine.providers -- RM-113 item 16: extraction descriptor; no providers import from compute
+services-not-composition memspine/models/runtime/shared_weights.py memspine.providers -- RM-113 item 15: shared weights become a clients/weights connector
+services-not-composition memspine/services/storage/postgres/alembic/versions/pg0012_provider_changes.py memspine.providers -- RM-113 item 9: migration snapshots provider-change schema; inline the DDL
+services-not-composition memspine/services/storage/sqlite/alembic/versions/0012_provider_changes.py memspine.providers -- RM-113 item 9: migration snapshots provider-change schema; inline the DDL
+services-not-composition memspine/services/storage/sqlite/engine.py memspine.runtime -- RM-113 item 8: sync engines move into clients/sqlite
+services-not-composition memspine/services/vector/pgvector_store.py memspine.providers -- RM-113 item 11: pgvector adapter takes the postgres connector, no providers import

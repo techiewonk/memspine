@@ -1,27 +1,33 @@
-"""AST enforcement of the import-boundary contracts in ``.importlinter`` (P0-04).
+"""AST enforcement of the import-boundary contracts in ``.importlinter`` (P0-04, RM-113).
 
-import-linter is not a dependency yet, so this test reads the same ``.importlinter``
-file with ``configparser`` (one source of truth) and checks ``src/memspine/**`` with
-``ast``. It understands the subset the file documents: ``layers`` and ``forbidden``
-contracts, direct imports only (function-level and ``TYPE_CHECKING`` imports count,
-as in import-linter).
+This test reads the same ``.importlinter`` file with ``configparser`` (one source of
+truth) and checks ``src/memspine/**`` with ``ast``. It understands the subset the file
+documents: ``layers`` and ``forbidden`` contracts, direct imports only (function-level and
+``TYPE_CHECKING`` imports count, as in import-linter), plus each contract's permanent
+``ignore_imports`` (``*`` = one module segment, ``**`` = one or more).
 
-Baseline: ``BASELINE`` lists the violations that exist today as
-``contract id -> {(importing file relative to src/, imported module)}``. Rules:
+External packages (RM-113): imports outside ``memspine`` are recorded as their top-level
+package name (``redis.asyncio`` -> ``redis``), as import-linter does with
+``include_external_packages = True``. A forbidden-contract violation is reported as
+``(file under src/, matched forbidden module)``, so one entry covers every submodule of the
+forbidden target that file imports.
+
+Baseline: ``tests/unit/baselines/import_contracts.txt`` lists the violations that exist
+today, one per line, ``<contract> <file under src/> <imported> -- <reason>``.
+``scripts/ci_importlinter.py`` feeds the same file to ``lint-imports`` as extra
+``ignore_imports``. Rules:
 
 * a violation that is not in the baseline fails the test (no new violation);
-* a baselined violation that no longer occurs fails the test (shrink the list in the
-  same PR, so it stays honest).
-
-Every move PR must shrink ``BASELINE`` and never grow it. At the time of writing the
-v1 tree has no violation of any contract, so the baseline is empty; the target-tree
-contracts bite as soon as the packages exist.
+* a baselined violation that no longer occurs fails the test (delete its line in the
+  same PR, so the baseline only shrinks).
 """
 
 from __future__ import annotations
 
 import ast
 import configparser
+import importlib.util
+import re
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -31,8 +37,31 @@ REPO = Path(__file__).resolve().parents[2]
 SRC = REPO / "src"
 CONFIG = REPO / ".importlinter"
 
+
+def _ci_script():
+    spec = importlib.util.spec_from_file_location(
+        "ci_importlinter", REPO / "scripts" / "ci_importlinter.py"
+    )
+    assert spec
+    assert spec.loader
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+_CI = _ci_script()
+BASELINE_FILE: Path = _CI.BASELINE
+
+
+def load_baseline(path: Path = BASELINE_FILE) -> dict[str, set[tuple[str, str]]]:
+    out: dict[str, set[tuple[str, str]]] = {}
+    for e in _CI.load_baseline(path):
+        out.setdefault(e.contract, set()).add((e.file, e.imported))
+    return out
+
+
 # contract id (the part after "importlinter:contract:") -> {(file under src/, imported module)}
-BASELINE: dict[str, set[tuple[str, str]]] = {}
+BASELINE: dict[str, set[tuple[str, str]]] = load_baseline()
 
 
 @dataclass(frozen=True)
@@ -43,10 +72,33 @@ class Contract:
     layers: tuple[tuple[tuple[str, ...], bool], ...] = ()
     sources: tuple[str, ...] = ()
     forbidden: tuple[str, ...] = ()
+    ignores: tuple[tuple[re.Pattern[str], re.Pattern[str]], ...] = ()
 
 
 def _lines(value: str) -> list[str]:
     return [ln.strip() for ln in value.splitlines() if ln.strip()]
+
+
+def _wildcard(expr: str) -> re.Pattern[str]:
+    parts = []
+    for seg in expr.strip().split("."):
+        if seg == "**":
+            parts.append(r"[^.]+(?:\.[^.]+)*")
+        elif seg == "*":
+            parts.append(r"[^.]+")
+        else:
+            parts.append(re.escape(seg))
+    return re.compile(r"\.".join(parts) + r"\Z")
+
+
+def _ignores(value: str) -> tuple[tuple[re.Pattern[str], re.Pattern[str]], ...]:
+    out = []
+    for line in _lines(value):
+        a, sep, b = line.partition("->")
+        if not sep:
+            raise ValueError(f"bad ignore_imports line {line!r}")
+        out.append((_wildcard(a), _wildcard(b)))
+    return tuple(out)
 
 
 def load_contracts(path: Path = CONFIG) -> tuple[str, list[Contract]]:
@@ -59,6 +111,7 @@ def load_contracts(path: Path = CONFIG) -> tuple[str, list[Contract]]:
             continue
         cid = section.split(":", 2)[2]
         kind = cp.get(section, "type")
+        ignores = _ignores(cp.get(section, "ignore_imports", fallback=""))
         if kind == "layers":
             layers: list[tuple[tuple[str, ...], bool]] = []
             for line in _lines(cp.get(section, "layers")):
@@ -68,7 +121,7 @@ def load_contracts(path: Path = CONFIG) -> tuple[str, list[Contract]]:
                     layers.append((tuple(p.strip() for p in line.split(":")), False))
                 else:
                     layers.append(((line,), False))
-            out.append(Contract(cid, kind, layers=tuple(layers)))
+            out.append(Contract(cid, kind, layers=tuple(layers), ignores=ignores))
         elif kind == "forbidden":
             out.append(
                 Contract(
@@ -76,6 +129,7 @@ def load_contracts(path: Path = CONFIG) -> tuple[str, list[Contract]]:
                     kind,
                     sources=tuple(_lines(cp.get(section, "source_modules"))),
                     forbidden=tuple(_lines(cp.get(section, "forbidden_modules"))),
+                    ignores=ignores,
                 )
             )
         else:  # fail loudly: the checker must not silently skip a contract type
@@ -93,7 +147,10 @@ def _module_name(file: Path, src: Path) -> tuple[str, bool]:
 
 
 def collect_imports(src: Path, root: str) -> tuple[set[str], list[tuple[str, str, str]]]:
-    """Return (all module names, [(file rel to src, importer module, imported module)])."""
+    """Return (all module names, [(file rel to src, importer module, imported module)]).
+
+    Imports outside ``root`` are recorded as their top-level package name.
+    """
     files = sorted((src / root).rglob("*.py"))
     known = {_module_name(f, src)[0] for f in files}
     edges: list[tuple[str, str, str]] = []
@@ -119,8 +176,12 @@ def collect_imports(src: Path, root: str) -> tuple[set[str], list[tuple[str, str
                     f"{module}.{a.name}" for a in node.names if f"{module}.{a.name}" in known
                 ]
             for t in targets:
+                if not t:
+                    continue
                 if t == root or t.startswith(root + "."):
                     edges.append((rel, mod, t))
+                else:
+                    edges.append((rel, mod, t.split(".")[0]))
     return known, edges
 
 
@@ -136,14 +197,21 @@ def _layer_of(module: str, layers) -> tuple[int, str] | None:
     return None
 
 
+def _ignored(contract: Contract, importer: str, imported: str) -> bool:
+    return any(a.match(importer) and b.match(imported) for a, b in contract.ignores)
+
+
 def check(contract: Contract, edges: list[tuple[str, str, str]]) -> set[tuple[str, str]]:
     found: set[tuple[str, str]] = set()
     for rel, importer, imported in edges:
+        if _ignored(contract, importer, imported):
+            continue
         if contract.kind == "forbidden":
-            if any(_within(importer, s) for s in contract.sources) and any(
-                _within(imported, f) for f in contract.forbidden
-            ):
-                found.add((rel, imported))
+            if not any(_within(importer, s) for s in contract.sources):
+                continue
+            hits = [f for f in contract.forbidden if _within(imported, f)]
+            if hits:
+                found.add((rel, max(hits, key=len)))
         else:
             a = _layer_of(importer, contract.layers)
             b = _layer_of(imported, contract.layers)
@@ -179,6 +247,14 @@ def compare(found: dict[str, set[tuple[str, str]]], baseline: dict[str, set[tupl
 # Tests
 # ---------------------------------------------------------------------------------------
 
+RM113_CONTRACTS = {
+    "clients-isolated",
+    "services-no-transport",
+    "services-not-composition",
+    "consumers-never-see-clients",
+    "providers-composition-only",
+}
+
 
 def test_config_parses_and_has_contracts():
     root, contracts = load_contracts()
@@ -186,17 +262,39 @@ def test_config_parses_and_has_contracts():
     ids = {c.cid for c in contracts}
     assert {"target-layers", "schemas-leaf", "store-below-pipelines", "read-not-derive"} <= ids
     assert "engine-only-from-api" in ids
+    assert ids >= RM113_CONTRACTS
+    assert "v1-clients-low" not in ids  # replaced by clients-isolated
+
+
+def test_external_packages_enabled():
+    cp = configparser.ConfigParser(interpolation=None)
+    cp.read(CONFIG, encoding="utf-8")
+    assert cp.getboolean("importlinter", "include_external_packages")
+
+
+def test_baseline_entries_are_well_formed():
+    _root, contracts = load_contracts()
+    ids = {c.cid for c in contracts}
+    seen: set[tuple[str, str, str]] = set()
+    for e in _CI.load_baseline(BASELINE_FILE):
+        assert e.contract in ids, f"line {e.line}: unknown contract {e.contract!r}"
+        assert "RM-113" in e.reason, f"line {e.line}: reason must cite an RM-113 work item"
+        key = (e.contract, e.file, e.imported)
+        assert key not in seen, f"line {e.line}: duplicate entry {key}"
+        seen.add(key)
 
 
 def test_no_new_import_violations_and_baseline_is_honest():
     new, gone = compare(violations(), BASELINE)
     assert not new, (
-        "new import-contract violations (fix the import; never grow BASELINE):\n"
-        + "\n".join(f"  [{c}] {f} -> {m}" for c, v in sorted(new.items()) for f, m in sorted(v))
+        "new import-contract violations (fix the import; never grow the baseline "
+        f"{BASELINE_FILE.relative_to(REPO).as_posix()}):\n"
+        + "\n".join(f"  {c} {f} {m}" for c, v in sorted(new.items()) for f, m in sorted(v))
     )
     assert not gone, (
-        "baselined violations no longer occur; remove them from BASELINE in this PR:\n"
-        + "\n".join(f"  [{c}] {f} -> {m}" for c, v in sorted(gone.items()) for f, m in sorted(v))
+        "baselined violations no longer occur; delete these lines from "
+        f"{BASELINE_FILE.relative_to(REPO).as_posix()} in this PR:\n"
+        + "\n".join(f"  {c} {f} {m}" for c, v in sorted(gone.items()) for f, m in sorted(v))
     )
 
 
@@ -237,14 +335,44 @@ def test_checker_detects_new_violations(synthetic: Path):
     _write(synthetic, "memspine/core/c.py", "from memspine.api.engine import Engine\n")
     _write(synthetic, "memspine/derive/d.py", "from memspine.read import x\n")  # sibling layer, ok
     found = violations(synthetic)
-    assert ("memspine/store/y.py", "memspine.read.x") in found["store-below-pipelines"] or (
-        "memspine/store/y.py",
-        "memspine.read",
-    ) in found["store-below-pipelines"]
+    assert ("memspine/store/y.py", "memspine.read") in found["store-below-pipelines"]
     assert ("memspine/read/x.py", "memspine.derive") in found["read-not-derive"]
     assert found["schemas-leaf"], "schemas importing store must be flagged"
     assert ("memspine/core/c.py", "memspine.api.engine") in found["engine-only-from-api"]
     assert found["target-layers"], "store importing read goes up a layer"
+
+
+def test_checker_handles_external_packages_and_ignores(tmp_path: Path):
+    src = tmp_path / "src"
+    _write(src, "memspine/__init__.py")
+    _write(src, "memspine/services/__init__.py")
+    _write(src, "memspine/services/a.py", "import redis.asyncio\nfrom httpx import Client\n")
+    _write(src, "memspine/services/x/alembic/env.py", "import redis\n")
+    _write(src, "memspine/services/b.py", "def f():\n    import json, httpx\n")
+    cfg = tmp_path / ".importlinter"
+    cfg.write_text(
+        "[importlinter]\nroot_package = memspine\ninclude_external_packages = True\n\n"
+        "[importlinter:contract:no-transport]\nname = n\ntype = forbidden\n"
+        "source_modules =\n    memspine.services\n"
+        "forbidden_modules =\n    redis\n    httpx\n"
+        "ignore_imports =\n    memspine.services.*.alembic.env -> *\n",
+        encoding="utf-8",
+    )
+    found = violations(src, cfg)["no-transport"]
+    assert found == {
+        ("memspine/services/a.py", "redis"),
+        ("memspine/services/a.py", "httpx"),
+        ("memspine/services/b.py", "httpx"),
+    }
+
+
+def test_wildcards():
+    assert _wildcard("a.*.c").match("a.b.c")
+    assert not _wildcard("a.*.c").match("a.b.b.c")
+    assert _wildcard("a.**").match("a.b.c")
+    assert not _wildcard("a.**").match("a")
+    assert _wildcard("*").match("redis")
+    assert not _wildcard("*").match("memspine.x")
 
 
 def test_baseline_comparison_flags_new_and_vanished():
