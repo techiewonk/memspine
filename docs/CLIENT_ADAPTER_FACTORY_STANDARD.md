@@ -43,7 +43,7 @@ memory metadata cache, Tantivy writer heap and commit retries) moved from
 
 ## 2a. Live status by provider (updated after each merge; RM-113 row holds the evidence)
 
-Last update: 2026-10-23, after the storage-slot merge (A, `28c54d8e`..`41e66f51`); import contracts 18 kept / 0 broken. In progress: WP6 locality + documents slot; RM-113 leftovers (items 6, 7, 11, 12).
+Last update: 2026-10-23, after the storage-slot merge (A, `28c54d8e`..`41e66f51`) and the RM-113 leftovers (items 6, 7, 11, 12, `8226befe`); import contracts 18 kept / 0 broken. In progress: WP6 locality + documents slot.
 ✅ done · 🔧 in progress (agent) · ⏳ queued · ⚠️ known gap
 
 | Slot | Provider | Connector | Adapter | Factory | Status | Work |
@@ -51,20 +51,20 @@ Last update: 2026-10-23, after the storage-slot merge (A, `28c54d8e`..`41e66f51`
 | records | sqlite | ✅ `clients/sqlite` (spec, `SELECT 1`, sync engines, migration connection) | ✅ records port + conformance; Alembic over the lent connection | ✅ slot wiring (A) | ✅ | — |
 | records | postgres | ✅ `clients/postgres` (spec, `SELECT 1`, sync engines, advisory lock) | ✅ records port + conformance; Alembic over the lent connection | ✅ slot wiring (A) | ✅ | A |
 | records | mongodb | ✅ `clients/mongodb` (replica-set check, `hello` health, driver vocabulary in `driver.py`) | ✅ records port, 14/14 conformance on a replica set | ⏳ registration after the slot rewrite; uv.lock refresh (RM-02) | 🔧 b41eadaf | I (RM-112) |
-| vector | lancedb | ✅ Connector + `list_tables` health | ✅ | ✅ slot wiring (A) | ✅ | A |
-| vector | pgvector | ⏳ borrows the postgres connector | ⏳ DDL into the adapter | ✅ slot wiring (A) | ⏳ | after G/A |
-| vector | weaviate | ✅ Connector + single identity, `is_ready` health (shared with lexical/documents) | ⏳ collection binding instead of native handle (item 12) | ✅ `acquire()`, identity from the connector | ⏳ | item 12 |
-| lexical | tantivy | ✅ `clients/tantivy` (index open, mkdir, writer lock, commit+reload, searcher health) | ✅ uses the connector; RM-72 holds unchanged | ✅ slot wiring (A) (still shares the adapter) | ✅ | A |
+| vector | lancedb | ✅ Connector + `list_tables` health | ✅ | ✅ slot wiring (A); `acquire()` | ✅ | A |
+| vector | pgvector | ✅ borrows the records slot's Postgres connector (`ManagedSqlAccess.connector`) | ✅ `PgVectorStore(connector, PgVectorProjection)`; `ensure_table()` in `start()` honours `provision_projection` / `create_extension`; async over the connector pool; no providers import | ✅ no DDL, no sync lease | ✅ | 8226befe |
+| vector | weaviate | ✅ Connector + single identity, `is_ready` health (shared with lexical/documents) | ✅ connector + `WeaviateCollectionBinding` (name, properties); `ensure_collection` in `start()`; helper in private `services/_weaviate/` | ✅ `acquire()`, identity from the connector | ✅ | 8226befe |
+| lexical | tantivy | ✅ `clients/tantivy` (index open, mkdir, writer lock, commit+reload, searcher health) | ✅ uses the connector; RM-72 holds unchanged | ✅ slot wiring (A); shared connector via `acquire(lazy=True)`, an adapter per Engine | ✅ | A |
 | lexical | opensearch | ✅ Connector + single identity, cluster-health round trip | ✅ | ✅ `acquire()`, identity from the connector | ✅ | G (7a7493b3) |
-| lexical | weaviate | ✅ same shared Weaviate connector | ⏳ collection binding instead of native handle (item 12) | ✅ `acquire()` | ⏳ | item 12 |
-| graph | ladybug | ✅ Connector + `RETURN 1` health, shared statement lock | ✅ one port | ✅ slot wiring (A) | ✅ | A |
+| lexical | weaviate | ✅ same shared Weaviate connector | ✅ connector + collection binding (with `content`); `ensure_collection` in `start()` | ✅ `acquire()` | ✅ | 8226befe |
+| graph | ladybug | ✅ Connector + `RETURN 1` health, shared statement lock | ✅ one port | ✅ slot wiring (A); shared connector via `acquire()`, a store per Engine | ✅ | A |
 | graph | sql_adjacency | ✅ borrows the SQL connector | ✅ one port, SQLite + Postgres | ✅ slot wiring (A) | ✅ | A |
-| graph | neo4j | ✅ Connector (spec, `RETURN 1`), no providers import; executor built adapter-side, never closes the driver | ✅ one port | ✅ slot wiring (A); not yet shared (item 6) | 🔧 item 6 (agent L) | A |
+| graph | neo4j | ✅ Connector (spec, `RETURN 1`), no providers import; executor built adapter-side, never closes the driver | ✅ one port | ✅ slot wiring (A); ✅ shared via `acquire()` (item 6, 8226befe), identity from the connector | ✅ | A, 8226befe |
 | graph_mirror | neo4j | ✅ same Neo4j connector | ✅ one port | ✅ mirror slot + capability gate (A) | ✅ | A |
 | cache | memory | n/a (process) | ✅ `services/cache` (F) | ✅ slot wiring (A) | ✅ | F, A |
-| cache | disk | ✅ cashews Connector (spec, `get` health) | ✅ `services/cache` (F) | ✅ slot wiring (A); placement under `data_dir`; not yet shared (item 6) | 🔧 item 6 (agent L) | A |
-| cache | redis | ✅ cashews Connector (spec, `get` health) | ✅ `services/cache` (F) | ✅ slot wiring (A); not yet shared (item 6) | 🔧 item 6 (agent L) | A |
-| cache | valkey | ✅ cashews Connector (spec, `get` health) | ✅ `services/cache` (F) | ✅ slot wiring (A); not yet shared (item 6) | 🔧 item 6 (agent L) | A |
+| cache | disk | ✅ cashews Connector (spec, `get` health) | ✅ `services/cache` (F) | ✅ slot wiring (A); placement under `data_dir`; ✅ shared via `acquire()` (item 6, 8226befe) per directory | ✅ | A, 8226befe |
+| cache | redis | ✅ cashews Connector (spec, `get` health) | ✅ `services/cache` (F) | ✅ slot wiring (A); ✅ shared via `acquire()` (item 6, 8226befe) per server, database and credentials | ✅ | A, 8226befe |
+| cache | valkey | ✅ cashews Connector (spec, `get` health) | ✅ `services/cache` (F) | ✅ slot wiring (A); ✅ shared via `acquire()` (item 6, 8226befe) per server, database and credentials | ✅ | A, 8226befe |
 | documents | filesystem | ✅ `clients/fs` (writable-root open and probe health, atomic staged writes, confined paths, locality host) | ✅ `services/documents/filesystem.py` on the `DocumentStore` port; conformance suite | ✅ `providers/builtin/documents.py` (`acquire()`, single-writer, locality host) | ✅ | RM-111 (documents) |
 | documents | s3 | ⏳ `clients/s3` | ⏳ (joins the documents conformance suite) | ⏳ | ⏳ | RM-112 |
 | documents | mongodb | ✅ `clients/mongodb` (shared with records) | ⏳ GridFS adapter | ⏳ | ⏳ | RM-112 |
@@ -109,7 +109,7 @@ connector. Earlier fixes: outbox tables in `services/storage/outbox_tables.py`, 
 | storage postgres | `clients/postgres.py` | `services/storage/postgres` | `storage.py` | factory builds the sync engine inline (duplicate URL/timeout logic); migrations call `create_engine` themselves; handle-only health |
 | vector lancedb | `clients/lancedb.py` | `services/vector/lancedb_store.py` | `providers/builtin/vector.py` | factory owns spaces-state file I/O; handle-only health |
 | vector pgvector | none (borrows the SQL engine) | `services/vector/pgvector_store.py` | `providers/builtin/pgvector.py` | DDL in the factory; adapter gets a raw engine; adapter imports providers |
-| vector/lexical weaviate | `clients/weaviate.py` | `services/{vector,lexical}/weaviate_store.py` | `providers/builtin/weaviate.py` | not a `Client`; identity parsing duplicated in the factory; native handle passed to the adapter |
+| vector/lexical weaviate | `clients/weaviate.py` | `services/{vector,lexical}/weaviate_store.py` | `providers/builtin/weaviate.py` | not a `Client`; identity parsing duplicated in the factory; native handle passed to the adapter (all fixed: items 1, 12) |
 | lexical tantivy | **none** | `services/lexical/tantivy.py` | `providers/builtin/lexical.py` | adapter opens index files itself; registry shares the adapter, not a connector |
 | lexical opensearch | `clients/opensearch.py` | `services/lexical/opensearch.py` | `providers/builtin/opensearch.py` | not a `Client`; duplicated identity; untyped client |
 | graph ladybug | `clients/ladybug.py` | `services/graph/ladybug.py` | `providers/builtin/graph.py` | the registry caches a (client, adapter) pair; handle-only health |
@@ -164,29 +164,41 @@ Section 4 records the enforcement added on 2026-10-23.
 **Connector layer (G) status, 2026-10-23.** Done: 1 (OpenSearch and Weaviate factories
 now take their identity from the connector), 2, 3 (plus Tantivy, HTTP and AWS), 4, 5, 8, 9
 (Postgres runs hold the `MIGRATION_LOCK_KEY` session advisory lock; the legacy stamp adoption
-is unchanged), 10 and 14. Open: 6 (Neo4j and cache are connectors but still per-Engine),
-7, 11, 12, 13. Behaviour notes: `TantivyLexical.close()` only commits held documents; the
+is unchanged), 10 and 14. Open at the time: 6, 7, 11, 12, 13 (6, 7, 11 and 12 are
+closed by 8226befe below). Behaviour notes: `TantivyLexical.close()` only commits held documents; the
 connector's owner closes the index. `DriverExecutor.close()` never closes the driver. Every
 connector opens with `open()` (no `connect()`), and every constructor takes its spec.
 
-**Factories still to adopt `acquire()`** (left to the storage-slot rewrite, which owns these
-files; each one drops a hand-written `own_shared` closure and, where noted, a duplicate
-identity parser):
-- `providers/builtin/storage.py`: SQLite and Postgres async connectors; drop
-  `sqlite_shared_identity` and `postgres_target_identity` in favour of
-  `SQLiteClient.identity` / `PostgresClient.identity` (`.target` equals the old dict). The
-  shared sync engine stays a second lease on `client.sync_engine(pool)`.
-- `providers/builtin/vector.py`: `LanceDBClient` (path identity already matches).
-- `providers/builtin/lexical.py`: share the `TantivyConnector` (`lexical.tantivy`) and build an
-  adapter per Engine; the RM-72 hold is per adapter token and the uncommitted flag lives on the
-  connector, so this is safe, but `test_tantivy_one_writer_per_path_and_memory_is_private`
-  asserts the shared adapter and must change with it.
-- `providers/builtin/graph.py`: `LadybugClient` (today a shared (client, adapter) pair) and
-  `Neo4jClient` (item 6; drop `_neo4j_target_identity` for
-  `Neo4jClient.identity(spec).descriptor_target()`).
-- `providers/builtin/cache.py`: `CashewsClient` for disk/redis/valkey (item 6).
-- `providers/builtin/pgvector.py`: no connector of its own; item 11 moves the DDL into the
-  adapter and lends it the Postgres connector.
+**RM-113 leftovers (8226befe), 2026-10-23.** Done: 6, 7, 11, 12 and the factory `acquire()`
+list below. Not in this pass: 13 (cache adapters, F) and 18 (ADR-081 alignment).
+- Item 6: `Neo4jClient` (primary graph and mirror of every Engine share one driver per target,
+  credentials and transport knobs) and `CashewsClient` (disk per directory; redis/valkey per
+  server, database and credentials; each Engine keeps its own key namespace) go through
+  `acquire()`; the registry closes them on the last release.
+- Item 7: `store/migrate.py` builds both stores through the `sqlite` storage descriptor
+  (`get_registry("storage_backends")`), each under its own `ProviderLifecycleManager`; no
+  client construction, no `memspine.clients` import.
+- Item 11: `PgVectorStore(connector, PgVectorProjection(...), embedder_id=...)` takes the
+  records slot's Postgres connector (`ManagedSqlAccess.connector`, a borrowed reference) and
+  owns its DDL in `ensure_table()` (run by `start()`): the extension is created only with
+  `create_extension`, schema/table/indexes only with `provision_projection`, otherwise the
+  operator-provisioned table is validated. Queries run async on the connector's pool; the
+  factory no longer takes a sync lease. The owned table name and the column/index layout are
+  unchanged.
+- Item 12: `WeaviateVectorStore` / `WeaviateLexicalStore` take the shared connector plus a
+  `WeaviateCollectionBinding(name, properties)` and run `ensure_collection` in `start()`;
+  `services/weaviate_projection.py` moved to the private `services/_weaviate/` (no alias).
+  Collection names and property schemas are unchanged.
+- Factories: `storage.py` (SQLite file and Postgres connectors via `acquire()`;
+  `sqlite_shared_identity` deleted; `postgres_target_identity` is
+  `PostgresClient.identity(spec).target`; the shared sync engine stays a second lease keyed
+  `<kind>.sync` by the connector identity), `graph.py` (`_neo4j_target_identity` is
+  `Neo4jClient.identity(spec).descriptor_target()`; Ladybug shares the connector, a store per
+  Engine on the connector's statement lock), `vector.py` (`LanceDBClient`), `lexical.py`
+  (shared `TantivyConnector`, an adapter per Engine; `acquire(..., lazy=True)` keeps the
+  index opening lazily). Descriptor identities are pinned byte-identical to the deleted
+  parsers (`test_descriptor_identities_from_connectors_are_byte_identical`). `:memory:` /
+  in-RAM targets stay private and unregistered.
 
 **P2, high risk (wide import churn, done with a codemod):**
 
