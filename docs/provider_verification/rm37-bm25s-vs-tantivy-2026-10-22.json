@@ -1,0 +1,147 @@
+{
+  "task": "RM-37",
+  "generated_at": "2026-10-22T06:59:49+00:00",
+  "python": "3.13.5",
+  "corpus_docs": 12,
+  "queries": 8,
+  "k": 3,
+  "reps": 50,
+  "status": "ran",
+  "bm25s_version": "0.3.14",
+  "parity": {
+    "mean_jaccard": 1.0,
+    "top1_agreement": 1.0,
+    "exact_order_agreement": 1.0,
+    "per_query": [
+      {
+        "query": "Alice robotics job",
+        "tantivy": [
+          "d00",
+          "d05",
+          "d02"
+        ],
+        "bm25s": [
+          "d00",
+          "d05",
+          "d02"
+        ],
+        "jaccard": 1.0,
+        "top1_agree": true,
+        "order_agree": true
+      },
+      {
+        "query": "budget Friday",
+        "tantivy": [
+          "d07",
+          "d02"
+        ],
+        "bm25s": [
+          "d07",
+          "d02"
+        ],
+        "jaccard": 1.0,
+        "top1_agree": true,
+        "order_agree": true
+      },
+      {
+        "query": "Bob coffee tea",
+        "tantivy": [
+          "d01",
+          "d10",
+          "d04"
+        ],
+        "bm25s": [
+          "d01",
+          "d10",
+          "d04"
+        ],
+        "jaccard": 1.0,
+        "top1_agree": true,
+        "order_agree": true
+      },
+      {
+        "query": "Carol dog",
+        "tantivy": [
+          "d03",
+          "d08",
+          "d04"
+        ],
+        "bm25s": [
+          "d03",
+          "d08",
+          "d04"
+        ],
+        "jaccard": 1.0,
+        "top1_agree": true,
+        "order_agree": true
+      },
+      {
+        "query": "Berlin marathon",
+        "tantivy": [
+          "d09",
+          "d00"
+        ],
+        "bm25s": [
+          "d09",
+          "d00"
+        ],
+        "jaccard": 1.0,
+        "top1_agree": true,
+        "order_agree": true
+      },
+      {
+        "query": "warehouse robots",
+        "tantivy": [
+          "d11",
+          "d05"
+        ],
+        "bm25s": [
+          "d11",
+          "d05"
+        ],
+        "jaccard": 1.0,
+        "top1_agree": true,
+        "order_agree": true
+      },
+      {
+        "query": "spring",
+        "tantivy": [
+          "d09",
+          "d03"
+        ],
+        "bm25s": [
+          "d09",
+          "d03"
+        ],
+        "jaccard": 1.0,
+        "top1_agree": true,
+        "order_agree": true
+      },
+      {
+        "query": "Spanish evening practice",
+        "tantivy": [
+          "d08"
+        ],
+        "bm25s": [
+          "d08"
+        ],
+        "jaccard": 1.0,
+        "top1_agree": true,
+        "order_agree": true
+      }
+    ]
+  },
+  "latency": {
+    "tantivy": {
+      "median_us": 51.9,
+      "p95_us": 100.6,
+      "index_ms": 7.35
+    },
+    "bm25s": {
+      "median_us": 62.2,
+      "p95_us": 71.7,
+      "index_ms": 23.07
+    }
+  },
+  "note": "tiny fixed corpus: a parity/latency smoke, not a quality benchmark"
+}
