@@ -12,10 +12,12 @@ event_log:
   mode: full          # append-only source of truth (D0.1); see D-45 for rolling/ephemeral
   compress: false
 
-storage:
-  settings:
-    path: ./memspine.db
-    busy_timeout_s: 5.0
+storage:             # ADR-081: one slot per data category (records, vector, lexical, graph, cache)
+  records:
+    provider: sqlite
+    settings:
+      path: ./memspine.db
+      busy_timeout_s: 5.0
 
 runtime:
   provider_services:

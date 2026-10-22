@@ -716,9 +716,55 @@
      "screen_ids": []
     },
     {
-     "key": "storage.provider",
-     "default": "sqlite",
+     "key": "storage.cache.provider",
+     "default": "memory",
      "type": "str",
+     "description": "ADR-081 cache slot (was `cache.provider`): `memory` (in-process) | `disk` | `redis` | `valkey` (`[cache]`). An unset disk `settings.path` defaults under `deployment.data_dir` when one is set.",
+     "effect": "Cache slot (was `cache.provider`): `memory` (in-process) | `disk` | `redis` | `valkey` (`[cache]`).",
+     "rebuild": false,
+     "rebuild_scope": "",
+     "screen_ids": [],
+     "range": {
+      "min_length": 1
+     }
+    },
+    {
+     "key": "storage.cache.settings",
+     "default": {},
+     "type": "dict[str, JsonValue]",
+     "description": "Provider and policy fields are validated by their typed configuration schema.",
+     "effect": "Provider and policy fields are validated by their typed configuration schema.",
+     "rebuild": false,
+     "rebuild_scope": "",
+     "screen_ids": []
+    },
+    {
+     "key": "storage.documents",
+     "default": null,
+     "type": "SlotConfig | None",
+     "description": "ADR-081 optional slot for non-structured payloads (attachments, assets, large payloads). Reserved: a non-null value is rejected until a documents provider ships.",
+     "effect": "Optional slot for non-structured payloads (attachments, assets, large payloads).",
+     "rebuild": true,
+     "rebuild_scope": "index",
+     "screen_ids": []
+    },
+    {
+     "key": "storage.graph.provider",
+     "default": "auto",
+     "type": "str",
+     "description": "ADR-081 graph slot (was `graph.provider`). `auto` (GR-1, ADR-064): LadybugDB when the `ladybug` package is installed (`[graph]`), else `sqlite_adjacency`. Explicit: `sqlite_adjacency` | `ladybug` `[graph]` | `neo4j` (D-26). `auto` takes no settings.",
+     "effect": "Graph slot (was `graph.provider`).",
+     "rebuild": true,
+     "rebuild_scope": "index",
+     "screen_ids": [],
+     "range": {
+      "min_length": 1
+     }
+    },
+    {
+     "key": "storage.graph.settings",
+     "default": {},
+     "type": "dict[str, JsonValue]",
      "description": "Provider and policy fields are validated by their typed configuration schema.",
      "effect": "Provider and policy fields are validated by their typed configuration schema.",
      "rebuild": true,
@@ -726,7 +772,76 @@
      "screen_ids": []
     },
     {
-     "key": "storage.settings",
+     "key": "storage.graph_mirror",
+     "default": null,
+     "type": "SlotConfig | None",
+     "description": "ADR-081 optional graph mirror slot `{provider, settings}` fed through the outbox (was `graph.mirror.{enabled,provider,settings}`). Null = off. The provider must declare the `mirror` capability (`neo4j`).",
+     "effect": "Optional graph mirror slot `{provider, settings}` fed through the outbox (was `graph.mirror.{enabled,provider,settings}`).",
+     "rebuild": true,
+     "rebuild_scope": "index",
+     "screen_ids": []
+    },
+    {
+     "key": "storage.lexical.provider",
+     "default": "tantivy",
+     "type": "str",
+     "description": "ADR-081 lexical slot (was `read.lexical_provider`); required. `tantivy` ships in core; `opensearch` and `weaviate` are optional adapters. Used when `read.hybrid` is on.",
+     "effect": "Lexical slot (was `read.lexical_provider`); required.",
+     "rebuild": true,
+     "rebuild_scope": "index",
+     "screen_ids": [],
+     "range": {
+      "min_length": 1
+     }
+    },
+    {
+     "key": "storage.lexical.settings",
+     "default": {},
+     "type": "dict[str, JsonValue]",
+     "description": "Provider and policy fields are validated by their typed configuration schema.",
+     "effect": "Provider and policy fields are validated by their typed configuration schema.",
+     "rebuild": true,
+     "rebuild_scope": "index",
+     "screen_ids": []
+    },
+    {
+     "key": "storage.records.provider",
+     "default": "sqlite",
+     "type": "str",
+     "description": "ADR-081 records slot (was `storage.provider`): event log, records, lineage, offsets and outbox. `sqlite` | `postgres` (`[postgres]`). Every durable SQL database is migrated with Alembic (Postgres under an advisory lock); `create_all` only for `:memory:`. `storage.profile` is removed: start from the `embedded` or `server` template.",
+     "effect": "Records slot (was `storage.provider`): event log, records, lineage, offsets and outbox.",
+     "rebuild": true,
+     "rebuild_scope": "index",
+     "screen_ids": [],
+     "range": {
+      "min_length": 1
+     }
+    },
+    {
+     "key": "storage.records.settings",
+     "default": {},
+     "type": "dict[str, JsonValue]",
+     "description": "Provider and policy fields are validated by their typed configuration schema.",
+     "effect": "Provider and policy fields are validated by their typed configuration schema.",
+     "rebuild": true,
+     "rebuild_scope": "index",
+     "screen_ids": []
+    },
+    {
+     "key": "storage.vector.provider",
+     "default": "lancedb",
+     "type": "str",
+     "description": "ADR-081 vector slot (was `vector.provider`); required. `lancedb` (core) | `pgvector` (`[postgres]`, same database as a Postgres records slot) | `weaviate`.",
+     "effect": "Vector slot (was `vector.provider`); required.",
+     "rebuild": true,
+     "rebuild_scope": "index",
+     "screen_ids": [],
+     "range": {
+      "min_length": 1
+     }
+    },
+    {
+     "key": "storage.vector.settings",
      "default": {},
      "type": "dict[str, JsonValue]",
      "description": "Provider and policy fields are validated by their typed configuration schema.",
@@ -799,36 +914,6 @@
      "type": "bool",
      "description": "F-03 (P-25 C): version the vector space. Each vector belongs to a space (embedder model, dim, dtype, query instruction, normalisation); after an embedder change new writes go to the new space, reads query only a namespace's active space, and `reembed` builds the new space in batches and switches atomically. Off = one table per embedder, unchanged.",
      "effect": "Version the vector space.",
-     "rebuild": true,
-     "rebuild_scope": "index",
-     "screen_ids": []
-    },
-    {
-     "key": "read.lexical_provider",
-     "default": "tantivy",
-     "type": "str",
-     "description": "Registered lexical adapter; Tantivy ships in core. OpenSearch/Weaviate adapters are future work. Used when `hybrid` is on.",
-     "effect": "Registered lexical adapter;",
-     "rebuild": false,
-     "rebuild_scope": "",
-     "screen_ids": []
-    },
-    {
-     "key": "vector.provider",
-     "default": "lancedb",
-     "type": "str",
-     "description": "Provider and policy fields are validated by their typed configuration schema.",
-     "effect": "Provider and policy fields are validated by their typed configuration schema.",
-     "rebuild": true,
-     "rebuild_scope": "index",
-     "screen_ids": []
-    },
-    {
-     "key": "vector.settings",
-     "default": {},
-     "type": "dict[str, JsonValue]",
-     "description": "Provider and policy fields are validated by their typed configuration schema.",
-     "effect": "Provider and policy fields are validated by their typed configuration schema.",
      "rebuild": true,
      "rebuild_scope": "index",
      "screen_ids": []
@@ -1932,18 +2017,8 @@
      "key": "graph.entity_embeddings",
      "default": false,
      "type": "bool",
-     "description": "GR-3: embed entity-node names (GP-2 entity nodes) into the graph store's entity index. LadybugDB keeps them in an `EntityVec` table (`FLOAT[]` column plus its native FTS index), and entity search ranks by exact in-engine cosine; sql_adjacency keeps them in node properties. Rows are written once per entity, removed with the node, and cleared on rebuild.",
+     "description": "GR-3: embed entity-node names (GP-2 entity nodes) into the graph store's entity index. LadybugDB keeps them in an `EntityVec` table (`FLOAT[]` column plus its native FTS index), and entity search ranks by exact in-engine cosine; sqlite_adjacency keeps them in node properties. Rows are written once per entity, removed with the node, and cleared on rebuild.",
      "effect": "Embed entity-node names (GP-2 entity nodes) into the graph store's entity index.",
-     "rebuild": true,
-     "rebuild_scope": "index",
-     "screen_ids": []
-    },
-    {
-     "key": "graph.provider",
-     "default": "auto",
-     "type": "str",
-     "description": "`auto` (GR-1, ADR-064): LadybugDB when the `ladybug` package is installed (`[graph]`), else `sql_adjacency`. ADR-081: `auto` is resolved once on first start and pinned in the projector binding, so installing `ladybug` later is reported as a provider change and never applied silently. Explicit: `sql_adjacency` (SQLite or Postgres, renamed from `sqlite_adjacency`, which is rejected) | `ladybug` `[graph]` | `neo4j` (reserved) (D-26).",
-     "effect": "`auto` (GR-1, ADR-064): LadybugDB when the `ladybug` package is installed (`[graph]`), else `sql_adjacency`.",
      "rebuild": true,
      "rebuild_scope": "index",
      "screen_ids": []
@@ -2140,7 +2215,7 @@
      "key": "offline.sleep_v2",
      "default": false,
      "type": "bool",
-     "description": "O4-01a (O-01..O-03, LIB-07). `true`: `Engine.sleep()` returns a `SleepHandle` immediately (`status()` gives a `JobHandle`, `await wait()` returns the stage stats, `cancel()` stops at the next stage boundary) and the cycle runs as a namespace job under a persisted, epoch-fenced lease (one runner per namespace, even across processes; a second `sleep()` is `coalesced` into the holder) with a per-stage watermark (a restart resumes the open cycle and repeats no completed stage; an expired lease is reclaimed). A `TriggerPolicy` also fires jobs: (N deposits AND M minutes idle) OR context pressure C, behind a gap K; a daily maintenance job runs retention, decay and compress. Lease/watermark tables live in the storage database (RM-111 WP5: encrypted with it under SQLCipher, shared on Postgres; an older `.sleep` side file is imported once at start and renamed `*.imported`; in memory for `:memory:`). With `runtime.scheduler_v2` the job runs at background-derive priority. Taps: `job.sleep.handle`, `job.trigger`, `job.lease`, `job.watermark`. `false`: the blocking sleep, unchanged.",
+     "description": "O4-01a (O-01..O-03, LIB-07). `true`: `Engine.sleep()` returns a `SleepHandle` immediately (`status()` gives a `JobHandle`, `await wait()` returns the stage stats, `cancel()` stops at the next stage boundary) and the cycle runs as a namespace job under a persisted, epoch-fenced lease (one runner per namespace, even across processes; a second `sleep()` is `coalesced` into the holder) with a per-stage watermark (a restart resumes the open cycle and repeats no completed stage; an expired lease is reclaimed). A `TriggerPolicy` also fires jobs: (N deposits AND M minutes idle) OR context pressure C, behind a gap K; a daily maintenance job runs retention, decay and compress. Lease/watermark tables live in `<storage.settings.path>.sleep` (in memory for `:memory:`). With `runtime.scheduler_v2` the job runs at background-derive priority. Taps: `job.sleep.handle`, `job.trigger`, `job.lease`, `job.watermark`. `false`: the blocking sleep, unchanged.",
      "effect": "`true`: `Engine.sleep()` returns a `SleepHandle` immediately (`status()` gives a `JobHandle`, `await wait()` returns the stage stats, `cancel()` stops at the next stage boundary) and the cycle runs as a namespace job under a persisted, epoc",
      "rebuild": true,
      "rebuild_scope": "sleep",
@@ -2218,6 +2293,19 @@
    "name": "Retention and erasure re-derive",
    "file_function": "`stages/retention.py`, `trust/pipeline/retention_v2.py`, `stages/erasure_rederive.py`",
    "keys": [
+    {
+     "key": "deployment.id",
+     "default": null,
+     "type": "str | None",
+     "description": "ADR-081: stable deployment identity (was `runtime.deployment_id`). Required by shared (cluster) providers such as Postgres, pgvector, OpenSearch, Weaviate, Neo4j and Redis/Valkey, and when `runtime.environment: production`.",
+     "effect": "Stable deployment identity (was `runtime.deployment_id`).",
+     "rebuild": false,
+     "rebuild_scope": "",
+     "screen_ids": [],
+     "range": {
+      "min_length": 1
+     }
+    },
     {
      "key": "privacy.erasure_redact_hidden",
      "default": false,
@@ -2514,7 +2602,7 @@
      "key": "graph.entity_embeddings",
      "default": false,
      "type": "bool",
-     "description": "GR-3: embed entity-node names (GP-2 entity nodes) into the graph store's entity index. LadybugDB keeps them in an `EntityVec` table (`FLOAT[]` column plus its native FTS index), and entity search ranks by exact in-engine cosine; sql_adjacency keeps them in node properties. Rows are written once per entity, removed with the node, and cleared on rebuild.",
+     "description": "GR-3: embed entity-node names (GP-2 entity nodes) into the graph store's entity index. LadybugDB keeps them in an `EntityVec` table (`FLOAT[]` column plus its native FTS index), and entity search ranks by exact in-engine cosine; sqlite_adjacency keeps them in node properties. Rows are written once per entity, removed with the node, and cleared on rebuild.",
      "effect": "Embed entity-node names (GP-2 entity nodes) into the graph store's entity index.",
      "rebuild": true,
      "rebuild_scope": "index",
@@ -2644,6 +2732,19 @@
    "name": "patterns, standing answers",
    "file_function": "`stages/patterns.py`, `stages/standing.py`",
    "keys": [
+    {
+     "key": "deployment.id",
+     "default": null,
+     "type": "str | None",
+     "description": "ADR-081: stable deployment identity (was `runtime.deployment_id`). Required by shared (cluster) providers such as Postgres, pgvector, OpenSearch, Weaviate, Neo4j and Redis/Valkey, and when `runtime.environment: production`.",
+     "effect": "Stable deployment identity (was `runtime.deployment_id`).",
+     "rebuild": false,
+     "rebuild_scope": "",
+     "screen_ids": [],
+     "range": {
+      "min_length": 1
+     }
+    },
     {
      "key": "offline.patterns_kinds",
      "default": [],
@@ -3229,8 +3330,8 @@
      "key": "economy.ledger_persist",
      "default": false,
      "type": "bool",
-     "description": "FU-SLEEP (needs `economy.ledger_v2`). `true`: every ledger entry is also kept as a compact row (ids, namespace hash, layer, stage, kind, calls, tokens, latency; no names, no content) in the `cost_entry` table of the storage database (RM-111 WP5: encrypted with it under SQLCipher, shared on Postgres; an older `.cost` side file is imported once at start and renamed `*.imported`), buffered and written in batches, and the totals are reloaded at start, so `cost_report` survives a restart. A reloaded row carries only the namespace hash: `cost_report(namespace)` matches it by hash and `by_namespace` names it once the namespace is seen again. Budget spend is not reloaded (it is per period). `:memory:` storage: not persisted (a warning is logged). `false`: in-process only.",
-     "effect": "`true`: every ledger entry is also kept as a compact row (ids, namespace hash, layer, stage, kind, calls, tokens, latency; no names, no content) in the `cost_entry` table of the storage database (RM-111 WP5: encrypted with it under SQLCiphe",
+     "description": "FU-SLEEP (needs `economy.ledger_v2`). `true`: every ledger entry is also kept as a compact row (ids, namespace hash, layer, stage, kind, calls, tokens, latency; no names, no content) in a sibling SQLite file of the storage database (`<storage.settings.path>.cost`; with Postgres `<storage.settings.data_dir>/memspine.cost`), buffered and written in batches, and the totals are reloaded at start, so `cost_report` survives a restart. A reloaded row carries only the namespace hash: `cost_report(namespace)` matches it by hash and `by_namespace` names it once the namespace is seen again. Budget spend is not reloaded (it is per period). `:memory:` storage: not persisted (a warning is logged). `false`: in-process only.",
+     "effect": "`true`: every ledger entry is also kept as a compact row (ids, namespace hash, layer, stage, kind, calls, tokens, latency; no names, no content) in a sibling SQLite file of the storage database (`<storage.settings.path>.cost`; with Postgres",
      "rebuild": false,
      "rebuild_scope": "",
      "screen_ids": [
@@ -3317,6 +3418,19 @@
    "name": "Request, contract, tier, route",
    "file_function": "`request.plan_read` → `read/tiers`, `read/contract`, `contract_rules`, `router_rules`, `layer_state`",
    "keys": [
+    {
+     "key": "deployment.id",
+     "default": null,
+     "type": "str | None",
+     "description": "ADR-081: stable deployment identity (was `runtime.deployment_id`). Required by shared (cluster) providers such as Postgres, pgvector, OpenSearch, Weaviate, Neo4j and Redis/Valkey, and when `runtime.environment: production`.",
+     "effect": "Stable deployment identity (was `runtime.deployment_id`).",
+     "rebuild": false,
+     "rebuild_scope": "",
+     "screen_ids": [],
+     "range": {
+      "min_length": 1
+     }
+    },
     {
      "key": "firewall.signals.query_anomaly",
      "default": false,
@@ -4939,16 +5053,6 @@
      "screen_ids": []
     },
     {
-     "key": "read.lexical_settings",
-     "default": {},
-     "type": "dict[str, JsonValue]",
-     "description": "Provider and policy fields are validated by their typed configuration schema.",
-     "effect": "Provider and policy fields are validated by their typed configuration schema.",
-     "rebuild": false,
-     "rebuild_scope": "",
-     "screen_ids": []
-    },
-    {
      "key": "read.profile_card_header",
      "default": false,
      "type": "bool",
@@ -4956,26 +5060,6 @@
      "effect": "A `PROFILE NOTES (profile card` header block rendered from the profile card (`offline.profile_card_v2`; stored in `profile_card_v2` event-log markers, not in layered records): the latest card entries (latest marker wins per attribute), one",
      "rebuild": false,
      "rebuild_scope": "",
-     "screen_ids": []
-    },
-    {
-     "key": "vector.provider",
-     "default": "lancedb",
-     "type": "str",
-     "description": "Provider and policy fields are validated by their typed configuration schema.",
-     "effect": "Provider and policy fields are validated by their typed configuration schema.",
-     "rebuild": true,
-     "rebuild_scope": "index",
-     "screen_ids": []
-    },
-    {
-     "key": "vector.settings",
-     "default": {},
-     "type": "dict[str, JsonValue]",
-     "description": "Provider and policy fields are validated by their typed configuration schema.",
-     "effect": "Provider and policy fields are validated by their typed configuration schema.",
-     "rebuild": true,
-     "rebuild_scope": "index",
      "screen_ids": []
     }
    ],
@@ -5017,16 +5101,6 @@
      "screen_ids": []
     },
     {
-     "key": "read.lexical_provider",
-     "default": "tantivy",
-     "type": "str",
-     "description": "Registered lexical adapter; Tantivy ships in core. OpenSearch/Weaviate adapters are future work. Used when `hybrid` is on.",
-     "effect": "Registered lexical adapter;",
-     "rebuild": false,
-     "rebuild_scope": "",
-     "screen_ids": []
-    },
-    {
      "key": "read.lexical_scorer",
      "default": "bm25",
      "type": "Literal['bm25']",
@@ -5038,16 +5112,6 @@
      "choices": [
       "bm25"
      ]
-    },
-    {
-     "key": "read.lexical_settings",
-     "default": {},
-     "type": "dict[str, JsonValue]",
-     "description": "Provider and policy fields are validated by their typed configuration schema.",
-     "effect": "Provider and policy fields are validated by their typed configuration schema.",
-     "rebuild": false,
-     "rebuild_scope": "",
-     "screen_ids": []
     },
     {
      "key": "read.lexical_strip_names",
@@ -5510,16 +5574,6 @@
      "range": {
       "ge": 1
      }
-    },
-    {
-     "key": "read.lexical_settings",
-     "default": {},
-     "type": "dict[str, JsonValue]",
-     "description": "Provider and policy fields are validated by their typed configuration schema.",
-     "effect": "Provider and policy fields are validated by their typed configuration schema.",
-     "rebuild": false,
-     "rebuild_scope": "",
-     "screen_ids": []
     },
     {
      "key": "read.session_leg",
@@ -9257,8 +9311,6 @@
   }
  },
  "unattributed": {
-  "cache.provider": "generic cache backend (memory, lmdb, redis) shared by the embedding and read-result caches; no single stage owns it",
-  "cache.settings": "generic cache backend (memory, lmdb, redis) shared by the embedding and read-result caches; no single stage owns it",
   "consent.local_hosts": "cross-cutting: egress policy for every remote model call",
   "consent.remote_llm_max_tier": "cross-cutting: egress policy for every remote model call",
   "data_profile": "profile selector: resolves to preset keys at config load, no stage reads it",
@@ -9268,10 +9320,8 @@
   "data_shape.history_size": "profile selector: resolves to preset keys at config load, no stage reads it",
   "data_shape.speaker_kind": "profile selector: resolves to preset keys at config load, no stage reads it",
   "data_shape.turn_length": "profile selector: resolves to preset keys at config load, no stage reads it",
-  "graph.mirror.enabled": "no read site matched an inventory stage",
-  "graph.mirror.provider": "no read site matched an inventory stage",
-  "graph.mirror.settings": "no read site matched an inventory stage",
-  "graph.settings": "no read site matched an inventory stage",
+  "deployment.data_dir": "no read site matched an inventory stage",
+  "deployment.locality": "no read site matched an inventory stage",
   "integrity.enabled": "cross-cutting master switch for the trust model (A11, A14, C18, C20, C25)",
   "isolation.multi_party_namespaces": "cross-cutting: scope and viewer isolation is enforced at every read and write door, not in one stage",
   "isolation.owner_bound_handles": "cross-cutting: scope and viewer isolation is enforced at every read and write door, not in one stage",
@@ -9348,7 +9398,6 @@
   "runtime.backlog_max_items": "scheduler, backpressure and concurrency budgets: apply to the whole engine, not to one stage",
   "runtime.backlog_max_total_items": "scheduler, backpressure and concurrency budgets: apply to the whole engine, not to one stage",
   "runtime.backlog_retry_after_s": "scheduler, backpressure and concurrency budgets: apply to the whole engine, not to one stage",
-  "runtime.deployment_id": "scheduler, backpressure and concurrency budgets: apply to the whole engine, not to one stage",
   "runtime.encoder_batch_max": "scheduler, backpressure and concurrency budgets: apply to the whole engine, not to one stage",
   "runtime.encoder_batch_wait_ms": "scheduler, backpressure and concurrency budgets: apply to the whole engine, not to one stage",
   "runtime.environment": "scheduler, backpressure and concurrency budgets: apply to the whole engine, not to one stage",
@@ -9389,7 +9438,6 @@
   "runtime.shared_resources.warmup_exclude": "scheduler, backpressure and concurrency budgets: apply to the whole engine, not to one stage",
   "runtime.shared_resources.warmup_include": "scheduler, backpressure and concurrency budgets: apply to the whole engine, not to one stage",
   "runtime.shared_resources.warmup_timeout_s": "scheduler, backpressure and concurrency budgets: apply to the whole engine, not to one stage",
-  "storage.profile": "embedded vs server storage preset: applies to every stage that persists",
   "strict_services": "engine start-up check (missing service raises or skips), not a stage knob",
   "workers.resonate.journal_busy_timeout_s": "no read site matched an inventory stage",
   "workers.resonate.journal_path": "no read site matched an inventory stage",
@@ -9399,6 +9447,6 @@
   "workers.resonate.task_timeout_s": "no read site matched an inventory stage",
   "workers.temporal": "no read site matched an inventory stage"
  },
- "unattributed_count": 141,
+ "unattributed_count": 135,
  "schema_key_count": 633
 }

@@ -10,9 +10,11 @@ event_log:
   compress: false
 
 storage:
-  settings:
-    path: ./memspine.db
-    busy_timeout_s: 5.0
+  records:
+    provider: sqlite
+    settings:
+      path: ./memspine.db
+      busy_timeout_s: 5.0
 
 runtime:
   provider_services:

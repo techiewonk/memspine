@@ -1,46 +1,50 @@
-"""F-16d (M-04 C): the storage-profile contract, the Postgres Alembic tree and its parity.
+"""Records-store schema (F-16d, M-04 C; ADR-081): the Alembic trees, their parity, legacy
+adoption and the store contract on SQLite and Postgres.
 
-The store contract runs on both profiles. ``embedded`` (SQLite file) runs everywhere. ``server``
-(Postgres through the Alembic tree) runs only when a server is requested: set
+ADR-081 removed ``storage.profile``: every durable SQL database is migrated with its Alembic
+tree (Postgres under an advisory lock) and ``create_all`` is used only for ``:memory:``. A
+Postgres database built by the pre-ADR-081 ``create_all`` path is adopted by stamping
+``LEGACY_STAMP_REVISION``; a test pins that ``create_all`` equals that revision.
+
+The SQLite cells run everywhere. The Postgres cells run only when a server is requested: set
 ``MEMSPINE_TEST_PG_URL`` (or the older ``MEMSPINE_TEST_POSTGRES_URL``) to a DSN of a scratch
-database, or install ``testcontainers`` (with a Docker daemon). Otherwise it skips with the reason;
-a requested server (DSN set or container started) that is unreachable fails instead.
-The tree-parity test needs no server: the Postgres revisions are dialect-neutral DDL, so they are
-replayed on SQLite and compared with the SQLite tree; with a server the same comparison also runs
-against the reflected Postgres schema.
+database, or install ``testcontainers`` (with a Docker daemon). Otherwise they skip with the
+reason; a requested server that is unreachable fails instead. The tree-parity test needs no
+server: the Postgres revisions are dialect-neutral DDL, so they are replayed on SQLite.
 """
 
 from __future__ import annotations
 
 import os
+import threading
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
 import pytest
 import sqlalchemy as sa
+from alembic import command
 from alembic.script import ScriptDirectory
 
+from memspine.clients.postgres.sync import MIGRATION_LOCK_KEY
 from memspine.clients.sqlite import SQLiteClient, SQLiteSpec
-from memspine.config.schema import MemspineConfig
-from memspine.config.schema.storage import StorageConfig
-from memspine.exceptions import ConfigError
 from memspine.observability import tap
 from memspine.runtime.outbox import outbox_metadata
-from memspine.services.storage import profile as profile_mod
 from memspine.services.storage.postgres import migrations as pg_migrations
-from memspine.services.storage.profile import EMBEDDED, SERVER, resolve_profile
 from memspine.services.storage.sqlite import migrations as sqlite_migrations
 from memspine.services.storage.sqlite.engine import SQLiteStorage
+from memspine.services.storage.sqlite.schema import metadata
 from memspine.store.events import EventKind, EventLogMode, MemoryEvent
 from memspine.store.records import MemoryRecord, SourceInfo
+
+SQLITE_TREE = Path(sqlite_migrations.__file__).parent / "alembic"
+POSTGRES_TREE = Path(pg_migrations.__file__).parent / "alembic"
 
 # ---------------------------------------------------------------------------- the trees
 
 
 def test_both_trees_have_a_single_head() -> None:
-    sqlite_dir = Path(sqlite_migrations.__file__).parent / "alembic"
-    assert len(ScriptDirectory(str(sqlite_dir)).get_heads()) == 1
+    assert len(ScriptDirectory(str(SQLITE_TREE)).get_heads()) == 1
     # RM-111 WP5: the side tables (sleep leases, cost ledger, dead letters) are the head in both.
     assert pg_migrations.heads() == ["pg_rm111_side_tables"]
 
@@ -50,7 +54,14 @@ def test_postgres_tree_mirrors_the_sqlite_revision_count() -> None:
         return len(list(ScriptDirectory(str(tree)).walk_revisions()))
 
     # Provider-contract and projector-binding revisions are mirrored in both trees.
-    assert count(EMBEDDED.migration_tree) == count(SERVER.migration_tree) == 15
+    assert count(SQLITE_TREE) == count(POSTGRES_TREE) == 15
+
+
+def test_storage_profile_module_is_gone() -> None:
+    """ADR-081: no profile selector and no profile description module remain."""
+    import importlib.util
+
+    assert importlib.util.find_spec("memspine.services.storage.profile") is None
 
 
 def _family(col_type: Any) -> str:
@@ -65,11 +76,11 @@ def _family(col_type: Any) -> str:
     return "text"
 
 
-def _logical(engine: sa.Engine) -> dict[str, Any]:
+def _logical(engine: sa.Engine, only: set[str] | None = None) -> dict[str, Any]:
     insp = sa.inspect(engine)
     out: dict[str, Any] = {}
     for table in sorted(insp.get_table_names()):
-        if table == "alembic_version":
+        if table == "alembic_version" or (only is not None and table not in only):
             continue
         cols = {
             c["name"]: (
@@ -96,9 +107,10 @@ def _sqlite_tree(path: Path) -> sa.Engine:
     return sa.create_engine(f"sqlite:///{path}")
 
 
-def _pg_tree_on_sqlite(path: Path) -> sa.Engine:
-    pg_migrations.upgrade_to_head(f"sqlite:///{path}")
-    return sa.create_engine(f"sqlite:///{path}")
+def _pg_tree_on_sqlite(path: Path, revision: str = "head") -> sa.Engine:
+    url = f"sqlite:///{path}"
+    command.upgrade(pg_migrations.alembic_config(url), revision)
+    return sa.create_engine(url)
 
 
 def test_trees_produce_the_same_logical_schema(tmp_path: Path) -> None:
@@ -125,8 +137,6 @@ def test_every_expected_table_exists(tmp_path: Path) -> None:
 
 
 def test_postgres_tree_downgrades_to_empty(tmp_path: Path) -> None:
-    from alembic import command
-
     url = f"sqlite:///{tmp_path / 'd.db'}"
     pg_migrations.upgrade_to_head(url)
     command.downgrade(pg_migrations.alembic_config(url), "base")
@@ -134,86 +144,59 @@ def test_postgres_tree_downgrades_to_empty(tmp_path: Path) -> None:
     assert tables <= {"alembic_version"}
 
 
-# ---------------------------------------------------------------------------- profile + config
+#: Tables ``create_all`` makes that the legacy stamp revision does not have yet. Each is
+#: created by a later revision guarded by an existence check, so the upgrade after the stamp
+#: adopts it instead of failing on a duplicate table.
+CREATE_ALL_AFTER_STAMP = {
+    "provider_change_fences",
+    "provider_change_operations",
+    "provider_change_plans",
+    "provider_cleanup_fence_recoveries",
+    "provider_deployment_identity",
+    "provider_projection_generations",
+    "provider_projection_switches",
+    "provider_projector_bindings",
+}
 
 
-def test_default_profile_is_embedded_and_unchanged() -> None:
-    cfg = MemspineConfig(
-        runtime={
-            "provider_services": {
-                "health_timeout_s": 1.0,
-                "close_timeout_s": 1.0,
-                "startup_timeout_s": None,
-            }
-        }
+def _full_metadata() -> Any:
+    """The shared metadata with every module that registers tables on it imported, as in a
+    started Engine (the provider change, switching and identity tables live there too)."""
+    import memspine.providers.changes
+    import memspine.providers.identity
+    import memspine.providers.switching  # noqa: F401
+
+    return metadata
+
+
+def _assert_same(created: dict[str, Any], stamped: dict[str, Any]) -> None:
+    # The stamp revision also has the outbox tables; ``create_all`` never made them, and the
+    # outbox creates them on first use (``outbox_metadata.create_all(checkfirst=True)``).
+    assert set(stamped) - set(created) <= set(outbox_metadata.tables)
+    assert set(created) - set(stamped) == CREATE_ALL_AFTER_STAMP
+    for table in set(created) & set(stamped):
+        assert created[table]["columns"] == stamped[table]["columns"], table
+        assert created[table]["pk"] == stamped[table]["pk"], table
+        assert created[table]["indexes"] == stamped[table]["indexes"], table
+
+
+def test_create_all_schema_equals_the_legacy_stamp_revision(tmp_path: Path) -> None:
+    """ADR-081 adoption: a pre-ADR-081 ``create_all`` database is stamped at
+    ``LEGACY_STAMP_REVISION``. That is only safe if ``create_all`` builds exactly the schema
+    the tree has at that revision, for every table ``create_all`` makes."""
+    created_engine = sa.create_engine(f"sqlite:///{tmp_path / 'created.db'}")
+    full = _full_metadata()
+    full.create_all(created_engine)
+    tables = set(full.tables)
+    created = _logical(created_engine, tables)
+    stamped = _logical(
+        _pg_tree_on_sqlite(tmp_path / "stamped.db", pg_migrations.LEGACY_STAMP_REVISION)
     )
-    assert cfg.storage.profile == "embedded"
-    assert cfg.storage.provider == "sqlite"
-    assert resolve_profile(cfg.storage) is EMBEDDED
-    assert EMBEDDED.sql_backend == "sqlite" and EMBEDDED.vector == "lancedb"
-
-
-def test_server_profile_selects_postgres_backend() -> None:
-    storage = StorageConfig(
-        profile="server",
-        settings={
-            "url": "postgresql://x/y",
-            "data_dir": "./memspine-server",
-            "connect_timeout_s": 5.0,
-            "statement_timeout_s": 30.0,
-        },
-    )
-    assert storage.provider == "postgres"
-    assert resolve_profile(storage) is SERVER
-    from memspine.providers.registry import get_registry, validate_settings
-
-    assert validate_settings(get_registry("storage_backends").get("postgres"), storage.settings)
-    assert set(SERVER.provides()) == set(EMBEDDED.provides())
-    assert SERVER.migration_tree.name == "alembic" and SERVER.migration_tree.is_dir()
-
-
-def test_server_profile_rejects_a_foreign_backend() -> None:
-    with pytest.raises(ConfigError):
-        StorageConfig(profile="server", provider="sqlite")
-
-
-def test_embedded_profile_can_use_an_explicit_postgres_provider() -> None:
-    storage = StorageConfig(
-        profile="embedded",
-        provider="postgres",
-        settings={
-            "url": "postgresql://x/y",
-            "data_dir": "./memspine-server",
-            "connect_timeout_s": 5.0,
-            "statement_timeout_s": 30.0,
-        },
-    )
-    assert storage.profile == "embedded"
-    assert storage.provider == "postgres"
-    assert resolve_profile(storage) is EMBEDDED
-
-
-def test_profile_events_are_tapped(monkeypatch: pytest.MonkeyPatch) -> None:
-    seen: list[tuple[str, dict[str, Any]]] = []
-    monkeypatch.setattr(tap, "enabled", lambda: True)
-    monkeypatch.setattr(tap, "event", lambda stage, /, **f: seen.append((stage, f)))
-    resolve_profile(StorageConfig(profile="server"))
-    assert seen[-1][0] == "store.profile.resolved"
-    assert seen[-1][1]["profile"] == "server"
-    assert seen[-1][1]["sql_backend"] == "postgres"
-
-
-def test_migrate_is_tapped(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    seen: list[str] = []
-    monkeypatch.setattr(tap, "event", lambda stage, /, **f: seen.append(stage))
-    engine = sa.create_engine(f"sqlite:///{tmp_path / 'm.db'}")
-    try:
-        with engine.connect() as connection:
-            pg_migrations.ensure_schema(connection)
-    finally:
-        engine.dispose()
-    assert seen == ["store.profile.migrate"]
-    assert profile_mod.pgvector_available() in (True, False)
+    _assert_same(created, stamped)
+    # The later guarded revision builds the same table create_all does.
+    head = _logical(_pg_tree_on_sqlite(tmp_path / "head.db"))
+    for table in CREATE_ALL_AFTER_STAMP:
+        assert created[table] == head[table], table
 
 
 # ---------------------------------------------------------------------------- store contract
@@ -242,14 +225,14 @@ def _pg_url() -> str:
         from testcontainers.postgres import PostgresContainer  # type: ignore[import-not-found]
     except ImportError:
         pytest.skip(
-            "server profile: set MEMSPINE_TEST_PG_URL to a scratch Postgres DSN "
+            "postgres records store: set MEMSPINE_TEST_PG_URL to a scratch Postgres DSN "
             "(or install testcontainers with Docker); no server available"
         )
     container = PostgresContainer("postgres:16")  # pragma: no cover - needs Docker
     try:  # pragma: no cover
         container.start()
     except Exception as exc:  # pragma: no cover
-        pytest.skip(f"server profile: testcontainers could not start Postgres: {exc}")
+        pytest.skip(f"postgres records store: testcontainers could not start Postgres: {exc}")
     return container.get_connection_url()  # pragma: no cover
 
 
@@ -268,9 +251,22 @@ def pg_url() -> Iterator[str]:
         # M-LIVE: the URL is either an explicit opt-in (MEMSPINE_TEST_PG_URL /
         # MEMSPINE_TEST_POSTGRES_URL) or a container that already started, so an
         # unreachable server is a failure of the requested gate, never a skip.
-        pytest.fail(f"server profile: requested postgres is not reachable: {exc}")
+        pytest.fail(f"postgres records store: requested postgres is not reachable: {exc}")
     engine.dispose()
     yield url
+
+
+def _ensure(url: str) -> None:
+    """Run the schema bring-up the way ``PostgresStorage.start`` does: over one lent
+    connection, under the migration advisory lock."""
+    from memspine.clients.postgres import normalize_pg_url
+
+    engine = sa.create_engine(normalize_pg_url(url))
+    try:
+        with engine.connect() as connection:
+            pg_migrations.ensure_schema(connection)
+    finally:
+        engine.dispose()
 
 
 def _wipe(url: str) -> None:
@@ -283,7 +279,7 @@ def _wipe(url: str) -> None:
     engine.dispose()
 
 
-async def _embedded(tmp_path: Path, request: pytest.FixtureRequest) -> tuple[Any, Any, sa.Engine]:
+async def _sqlite(tmp_path: Path, request: pytest.FixtureRequest) -> tuple[Any, Any, sa.Engine]:
     path = tmp_path / "contract.db"
     client = SQLiteClient(SQLiteSpec(str(path)))
     await client.open()
@@ -292,7 +288,7 @@ async def _embedded(tmp_path: Path, request: pytest.FixtureRequest) -> tuple[Any
     return client, storage, sa.create_engine(f"sqlite:///{path}")
 
 
-async def _server(tmp_path: Path, request: pytest.FixtureRequest) -> tuple[Any, Any, sa.Engine]:
+async def _postgres(tmp_path: Path, request: pytest.FixtureRequest) -> tuple[Any, Any, sa.Engine]:
     from memspine.clients.postgres import PostgresClient, PostgresSpec, normalize_pg_url
     from memspine.services.storage.postgres.engine import PostgresStorage
 
@@ -300,17 +296,19 @@ async def _server(tmp_path: Path, request: pytest.FixtureRequest) -> tuple[Any, 
     _wipe(url)
     client = PostgresClient(PostgresSpec(url))
     await client.open()
-    storage = PostgresStorage(client, mode=EventLogMode.ROLLING, use_alembic=True)
+    storage = PostgresStorage(client, mode=EventLogMode.ROLLING)
     await storage.start()
     return client, storage, sa.create_engine(normalize_pg_url(url))
 
 
-_PROFILES = {"embedded": _embedded, "server": _server}
+_RECORDS = {"sqlite": _sqlite, "postgres": _postgres}
 
 
-@pytest.mark.parametrize("profile", list(_PROFILES))
-async def test_store_contract(profile: str, tmp_path: Path, request: pytest.FixtureRequest) -> None:
-    client, storage, engine = await _PROFILES[profile](tmp_path, request)
+@pytest.mark.parametrize("provider", list(_RECORDS))
+async def test_store_contract(
+    provider: str, tmp_path: Path, request: pytest.FixtureRequest
+) -> None:
+    client, storage, engine = await _RECORDS[provider](tmp_path, request)
     try:
         # event log: the single write door, monotonic gap-free seq.
         e1 = await storage.append_event(_ev("ns/a", "alpha"))
@@ -348,11 +346,13 @@ async def test_store_contract(profile: str, tmp_path: Path, request: pytest.Fixt
         with engine.connect() as conn:
             assert conn.execute(sa.select(sa.func.count()).select_from(lineage)).scalar() == 1
 
-        # outbox: the F-04 job store runs over this profile's database.
+        # outbox: the F-04 job store runs over this database.
         from memspine.runtime.outbox import SqlJobStore
 
         assert SqlJobStore(engine) is not None
         assert set(outbox_metadata.tables) <= set(sa.inspect(engine).get_table_names())
+        # ADR-081: a durable SQL database is always Alembic-managed.
+        assert "alembic_version" in sa.inspect(engine).get_table_names()
 
         # hard delete drops the read-model row.
         await storage.delete_record("r1")
@@ -376,4 +376,126 @@ def test_server_tree_matches_sqlite_tree_on_a_real_postgres(pg_url: str, tmp_pat
             assert a[table]["columns"] == b[table]["columns"], table
     finally:
         engine.dispose()
+        _wipe(pg_url)
+
+
+def test_create_all_equals_legacy_stamp_on_a_real_postgres(pg_url: str) -> None:
+    from memspine.clients.postgres import normalize_pg_url
+
+    url = normalize_pg_url(pg_url)
+    full = _full_metadata()
+    tables = set(full.tables)
+    engine = sa.create_engine(url)
+    try:
+        _wipe(pg_url)
+        full.create_all(engine)
+        created = _logical(engine, tables)
+        _wipe(pg_url)
+        command.upgrade(pg_migrations.alembic_config(url), pg_migrations.LEGACY_STAMP_REVISION)
+        stamped = _logical(engine)
+        _assert_same(created, stamped)
+    finally:
+        engine.dispose()
+        _wipe(pg_url)
+
+
+def test_legacy_create_all_postgres_is_adopted(
+    pg_url: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A pre-ADR-081 database (tables, no ``alembic_version``) is stamped and upgraded."""
+    from memspine.clients.postgres import normalize_pg_url
+
+    seen: list[tuple[str, dict[str, Any]]] = []
+    monkeypatch.setattr(tap, "event", lambda stage, /, **f: seen.append((stage, f)))
+    engine = sa.create_engine(normalize_pg_url(pg_url))
+    try:
+        _wipe(pg_url)
+        metadata.create_all(engine)
+        _ensure(pg_url)
+        with engine.connect() as conn:
+            version = conn.execute(sa.text("SELECT version_num FROM alembic_version")).scalar()
+        assert version == pg_migrations.heads()[0]
+        # Every migration-only table exists except the outbox, which is created on first use.
+        adopted = set(sa.inspect(engine).get_table_names())
+        _wipe(pg_url)
+        pg_migrations.upgrade_to_head(normalize_pg_url(pg_url))
+        fresh = set(sa.inspect(engine).get_table_names())
+        assert fresh - adopted <= set(outbox_metadata.tables)
+        _wipe(pg_url)
+        metadata.create_all(engine)
+        seen.clear()
+        _ensure(pg_url)
+        assert seen[-1] == (
+            "store.profile.migrate",
+            {"tree": "postgres", "action": "stamped_legacy"},
+        )
+        # A second start is a no-op upgrade at head.
+        _ensure(pg_url)
+        assert seen[-1][1]["action"] == "upgraded"
+    finally:
+        engine.dispose()
+        _wipe(pg_url)
+
+
+def test_concurrent_schema_upgrades_finish_at_head_and_release_the_lock(pg_url: str) -> None:
+    """Two starts against one empty database both succeed (the second finds the database at
+    head) and no advisory lock is left behind. Cross-session blocking is the next test."""
+    from memspine.clients.postgres import normalize_pg_url
+
+    _wipe(pg_url)
+    errors: list[BaseException] = []
+
+    def start() -> None:
+        try:
+            _ensure(pg_url)
+        except BaseException as exc:  # pragma: no cover - reported below
+            errors.append(exc)
+
+    threads = [threading.Thread(target=start) for _ in range(2)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=120)
+    assert not errors
+    engine = sa.create_engine(normalize_pg_url(pg_url))
+    try:
+        with engine.connect() as conn:
+            version = conn.execute(sa.text("SELECT version_num FROM alembic_version")).scalar()
+            held = conn.execute(
+                sa.text("SELECT count(*) FROM pg_locks WHERE locktype = 'advisory' AND objid = :k"),
+                {"k": MIGRATION_LOCK_KEY},
+            ).scalar()
+        assert version == pg_migrations.heads()[0]
+        assert held == 0  # released after the upgrade
+    finally:
+        engine.dispose()
+        _wipe(pg_url)
+
+
+def test_advisory_lock_blocks_a_migration_held_elsewhere(pg_url: str) -> None:
+    """While another session holds the schema lock, ``ensure_schema`` waits for it."""
+    from memspine.clients.postgres import normalize_pg_url
+
+    _wipe(pg_url)
+    holder = sa.create_engine(normalize_pg_url(pg_url))
+    done = threading.Event()
+    try:
+        with holder.connect() as conn:
+            conn.execute(
+                sa.text("SELECT pg_advisory_lock(:k)"), {"k": MIGRATION_LOCK_KEY}
+            )
+            conn.commit()
+            worker = threading.Thread(
+                target=lambda: (_ensure(pg_url), done.set())
+            )
+            worker.start()
+            assert not done.wait(1.5)  # blocked on the advisory lock
+            conn.execute(
+                sa.text("SELECT pg_advisory_unlock(:k)"), {"k": MIGRATION_LOCK_KEY}
+            )
+            conn.commit()
+            worker.join(timeout=120)
+        assert done.is_set()
+    finally:
+        holder.dispose()
         _wipe(pg_url)

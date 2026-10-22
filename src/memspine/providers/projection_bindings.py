@@ -265,11 +265,12 @@ def projection_target_bindings(
 ) -> tuple[ProjectionTargetBinding, ...]:
     """Build safe, deterministic binding identities for active projections."""
     result_keys = {
-        "vectors": ("vector", "vector", config.vector.settings),
-        "graph": ("graph.primary", "graph", config.graph.settings),
-        "graph_neo4j": ("graph.mirror", "graph", config.graph.mirror.settings),
+        "vectors": ("vector", "vector", config.storage.vector.settings),
+        "graph": ("graph.primary", "graph", config.storage.graph.settings),
     }
-    lexical_settings = config.read.lexical_settings
+    if config.storage.graph_mirror is not None:
+        result_keys["graph_neo4j"] = ("graph.mirror", "graph", config.storage.graph_mirror.settings)
+    lexical_settings = config.storage.lexical.settings
     if any(str(getattr(projector, "name", "")).startswith("lexical") for projector in projectors):
         for projector in projectors:
             name = str(getattr(projector, "name", ""))
@@ -375,8 +376,8 @@ def projection_target_fingerprint(
         },
     }
     if category == "vector":
-        storage_descriptor = get_registry("storage_backends").get(config.storage.provider)
-        storage_settings = validate_settings(storage_descriptor, config.storage.settings)
+        storage_descriptor = get_registry("storage_backends").get(config.storage.records.provider)
+        storage_settings = validate_settings(storage_descriptor, config.storage.records.settings)
         storage_identity = provider_target_identity(storage_descriptor, storage_settings)
         if storage_identity is not None:
             identity["sql_target"] = storage_identity

@@ -66,7 +66,6 @@ class SqliteSettings(StrictSettings):
 
 class PostgresSettings(StrictSettings):
     url: str = Field(min_length=1)
-    data_dir: str = Field(min_length=1)
     connect_timeout_s: float = Field(gt=0)
     statement_timeout_s: float = Field(gt=0)
 

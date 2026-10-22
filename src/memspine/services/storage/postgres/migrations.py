@@ -26,10 +26,13 @@ from sqlalchemy.engine import Connection
 from memspine.clients.postgres.sync import advisory_lock
 from memspine.observability import tap
 
-__all__ = ["alembic_config", "ensure_schema", "heads", "upgrade_to_head"]
+__all__ = ["LEGACY_STAMP_REVISION", "alembic_config", "ensure_schema", "heads", "upgrade_to_head"]
 
 _HERE = Path(__file__).parent / "alembic"
 _LOCK = threading.Lock()  # Alembic keeps module-global context: never overlap two runs.
+#: The last metadata-only revision: a database built by the pre-ADR-081 ``create_all`` path is
+#: stamped here, then upgraded (pinned by tests/unit/store/test_f16d_storage_profile.py).
+LEGACY_STAMP_REVISION = "pg_lf_e_layer_backfill"
 
 
 def alembic_config(url: str) -> Config:
@@ -64,7 +67,7 @@ def ensure_schema(connection: Connection) -> None:
         cfg.set_main_option("script_location", str(_HERE))
         cfg.attributes["connection"] = connection
         if legacy:
-            command.stamp(cfg, "pg_lf_e_layer_backfill")
+            command.stamp(cfg, LEGACY_STAMP_REVISION)
             command.upgrade(cfg, "head")
             tap.event("store.profile.migrate", tree="postgres", action="stamped_legacy")
         else:

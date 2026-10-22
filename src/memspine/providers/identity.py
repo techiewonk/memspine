@@ -25,7 +25,7 @@ async def resolve_deployment(
 ) -> str:
     """Create ownership once; reject an identity change against existing data."""
     if environment == "production" and not configured_id:
-        raise ConfigError("production requires runtime.deployment_id")
+        raise ConfigError("production requires deployment.id")
     candidate = configured_id or str(uuid4())
     async with sql.engine.begin() as conn:
         dialect = conn.dialect.name
@@ -51,5 +51,5 @@ async def resolve_deployment(
             )
         ).scalar_one()
         if configured_id is not None and configured_id != existing:
-            raise ConfigError("runtime.deployment_id conflicts with the stored deployment identity")
+            raise ConfigError("deployment.id conflicts with the stored deployment identity")
     return str(existing)

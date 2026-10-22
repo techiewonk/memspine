@@ -38,26 +38,27 @@ event_log:
   compress: false      # zstd at rest costs CPU per append; price it separately
 
 storage:
-  settings:
-    path: ./memspine_benchmark.db   # harness overrides this per sample
-    busy_timeout_s: 5.0
+  records:
+    provider: sqlite
+    settings:
+      path: ./memspine_benchmark.db   # harness overrides this per sample
+      busy_timeout_s: 5.0
+  vector:
+    provider: lancedb
+    settings:
+      quantization: auto   # the default embedder declares none -> exact float32
+  lexical:
+    provider: tantivy      # BM25 leg for hybrid retrieval (D-25); core, no extra
+  graph:
+    provider: sql_adjacency   # zero-dep default (D-26/D-49); legal here only
+                                 # because associative memory is enabled below
+  cache:
+    provider: memory      # in-process E3 embedding cache, zero-dep core (D-03)
 
 embedding:
   provider: fastembed             # ONNX on CPU — torch never enters core (D-08)
   settings:
     model: BAAI/bge-small-en-v1.5  # pinned: an unpinned embedder is an unpinned number
-
-vector:
-  provider: lancedb
-  settings:
-    quantization: auto   # the default embedder declares none -> exact float32
-
-graph:
-  provider: sql_adjacency   # zero-dep default (D-26/D-49); legal here only
-                               # because associative memory is enabled below
-
-cache:
-  provider: memory      # in-process E3 embedding cache, zero-dep core (D-03)
 
 llm:
   roles: {}            # no role bound => no LLM call; provider defaults apply only when bound
@@ -66,7 +67,6 @@ read:
   hybrid: true                    # BM25 leg + RRF fusion (D-25/ADR-019); core
                                   # Tantivy, no extra. `hybrid: false` is the
                                   # ablation row, not the default.
-  lexical_provider: tantivy
   rerank: "off"                   # E8. Quoted: bare `off` is YAML 1.1 false.
   static_prefilter: false         # E8 lexical-overlap gate
   static_embedding_prefilter: false   # E4 model2vec gate ([static])

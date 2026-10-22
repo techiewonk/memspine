@@ -75,7 +75,7 @@ class WeaviateVectorBuilder:
         from memspine.services.vector.weaviate_store import WeaviateVectorStore
 
         if not ctx.shared.owner_id:
-            raise ConfigError("Weaviate requires a stable runtime.deployment_id")
+            raise ConfigError("Weaviate requires a stable deployment.id")
         if ctx.versioned_spaces:
             raise ConfigError("Weaviate does not support versioned embedding spaces")
         if ctx.quantization is not None or ctx.matryoshka_dim is not None:
@@ -118,7 +118,7 @@ class WeaviateLexicalBuilder:
         from memspine.services.lexical.weaviate_store import WeaviateLexicalStore
 
         if not ctx.shared.owner_id:
-            raise ConfigError("Weaviate requires a stable runtime.deployment_id")
+            raise ConfigError("Weaviate requires a stable deployment.id")
         name = collection_name(
             settings.collection_prefix, "Lexical", ctx.shared.owner_id, ctx.generation_id
         )
@@ -156,6 +156,7 @@ def register() -> None:
                 service_manifest=CapabilityManifest("weaviate", "vector", extra="weaviate"),
                 target_identity=_target_identity,
                 requires_deployment_id=True,
+                locality="cluster",
             ),
         )
     if "weaviate" not in LEXICAL_INDEXES:
@@ -170,5 +171,6 @@ def register() -> None:
                 service_manifest=CapabilityManifest("weaviate", "lexical", extra="weaviate"),
                 target_identity=_target_identity,
                 requires_deployment_id=True,
+                locality="cluster",
             ),
         )

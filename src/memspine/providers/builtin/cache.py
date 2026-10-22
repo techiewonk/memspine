@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from hashlib import sha256
+from pathlib import Path
 
 from memspine.config.schema.providers import (
     DiskCacheSettings,
@@ -49,7 +50,13 @@ class DiskBuilder:
         from memspine.clients.cashews import CashewsClient, CashewsSpec
         from memspine.services.cache.cashews import CashewsCache
 
-        client = CashewsClient(CashewsSpec(f"disk://?directory={settings.path}"))
+        # ADR-081: an unset path defaults under deployment.data_dir when one is configured.
+        directory = (
+            str(Path(ctx.data_dir) / "memspine.cache")
+            if ctx.data_dir is not None and "path" not in settings.model_fields_set
+            else settings.path
+        )
+        client = CashewsClient(CashewsSpec(f"disk://?directory={directory}"))
         ref = ctx.shared.resources.own("cache", client.close)
         await client.open()
         cache = CashewsCache(
@@ -138,5 +145,8 @@ def register() -> None:
                         else None
                     ),
                     requires_deployment_id=name in {"redis", "valkey"},
+                    locality=(
+                        "process" if name == "memory" else "host" if name == "disk" else "cluster"
+                    ),
                 ),
             )

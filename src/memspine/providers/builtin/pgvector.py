@@ -54,7 +54,7 @@ class PgvectorBuilder:
     ) -> BuildResult[VectorStore]:
         if ctx.sql is None or "sql.postgres" not in ctx.sql.capabilities:
             raise ConfigError(
-                "vector.provider=pgvector requires storage.provider=postgres and its SQL access"
+                "storage.vector.provider=pgvector requires storage.records.provider=postgres and its SQL access"
             )
         if ctx.versioned_spaces:
             raise ConfigError(
@@ -72,8 +72,8 @@ class PgvectorBuilder:
             )
         if settings.create_extension and not settings.provision_projection:
             raise ConfigError(
-                "vector.settings.create_extension requires explicit "
-                "vector.settings.provision_projection=true"
+                "storage.vector.settings.create_extension requires explicit "
+                "storage.vector.settings.provision_projection=true"
             )
         try:
             from pgvector.sqlalchemy import VECTOR
@@ -119,7 +119,7 @@ class PgvectorBuilder:
                 if not has_extension:
                     raise ConfigError(
                         "the selected PostgreSQL database does not have the pgvector extension; "
-                        "install it or explicitly set vector.settings.create_extension=true"
+                        "install it or explicitly set storage.vector.settings.create_extension=true"
                     )
                 if settings.provision_projection:
                     connection.execute(text("CREATE SCHEMA IF NOT EXISTS memspine_vectors"))
@@ -130,7 +130,7 @@ class PgvectorBuilder:
             if not inspector.has_table(table_name, schema="memspine_vectors"):
                 raise ConfigError(
                     "the owned pgvector projection table is missing; explicitly set "
-                    "vector.settings.provision_projection=true during operator provisioning"
+                    "storage.vector.settings.provision_projection=true during operator provisioning"
                 )
             columns = inspector.get_columns(table_name, schema="memspine_vectors")
             by_name = {str(column["name"]): column["type"] for column in columns}
@@ -194,5 +194,6 @@ def register() -> None:
             service_manifest=CapabilityManifest("pgvector", "vector", extra="postgres"),
             requires_deployment_id=True,
             projection_settings=_projection_settings,
+            locality="cluster",
         ),
     )

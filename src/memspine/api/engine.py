@@ -673,7 +673,7 @@ class Engine:
         await self._storage.start()
         assert self._sql is not None
         wiring.owner_id = await resolve_deployment(
-            self._sql, config.runtime.deployment_id, config.runtime.environment
+            self._sql, config.deployment.id, config.runtime.environment
         )
         self._provider_owner_id = wiring.owner_id
         await self._import_side_files(store_base)
@@ -730,10 +730,14 @@ class Engine:
         # projector ever writes it), so it is a config error, not a store.
         if "associative" in self._enabled:
             self._graph = await container.get(GraphStore)
-        elif "graph" in config.model_fields_set:
+        elif "graph" in config.model_fields_set or (
+            "graph" in config.storage.model_fields_set
+            and (config.storage.graph.provider != "auto" or config.storage.graph.settings)
+        ):
+            # ADR-081: an explicit (non-auto) storage.graph slot is a graph block too.
             raise ConfigError(
                 "graph configured but memories.associative not enabled — "
-                "enable it or remove the graph block"
+                "enable it or remove the graph block (graph or storage.graph)"
             )
         self._llm = await container.get(LLMRouter)
         self._decision_off = (await container.get(DecisionState)).off  # H24
@@ -755,14 +759,14 @@ class Engine:
             validate_reranker_settings(
                 config.read.rerank,
                 config.read.rerank_settings,
-                explicit_deployment_id=config.runtime.deployment_id is not None,
+                explicit_deployment_id=config.deployment.id is not None,
             )
         if config.read.rerank_v2:
             for mode in config.read.rerank_v2_chain:
                 validate_reranker_settings(
                     mode,
                     config.read.rerank_settings,
-                    explicit_deployment_id=config.runtime.deployment_id is not None,
+                    explicit_deployment_id=config.deployment.id is not None,
                     allow_irrelevant=True,
                 )
         self._working = WorkingMemory(
@@ -4687,7 +4691,7 @@ class Engine:
             built = await build_reranker_result(
                 settings,
                 context,
-                explicit_deployment_id=cfg.runtime.deployment_id is not None,
+                explicit_deployment_id=cfg.deployment.id is not None,
             )
         except (MissingServiceError, ConnectionError, TimeoutError) as exc:
             _log.warning("rerank.provider_unavailable", mode=mode, error=type(exc).__name__)
@@ -5617,18 +5621,19 @@ class Engine:
         config = self._resolved.config
         configured: dict[str, str] = {}
         category_names = {
-            "storage": config.storage.provider,
-            "cache": config.cache.provider,
-            "vector": config.vector.provider,
+            "storage": config.storage.records.provider,
+            "cache": config.storage.cache.provider,
+            "vector": config.storage.vector.provider,
             "embedding": config.embedding.provider,
-            "lexical": config.read.lexical_provider,
+            "lexical": config.storage.lexical.provider,
         }
         for logical_id, result in self._provider_results.items():
             configured[logical_id] = category_names.get(
                 result.provider.category, result.provider.name
             )
-        configured["graph.primary"] = config.graph.provider
-        configured["graph.mirror"] = config.graph.mirror.provider
+        configured["graph.primary"] = config.storage.graph.provider
+        if config.storage.graph_mirror is not None:
+            configured["graph.mirror"] = config.storage.graph_mirror.provider
         report = await self.readiness() if probe_health else None
         diagnostics = {}
         diagnostic_error = False

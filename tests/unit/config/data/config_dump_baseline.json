@@ -5,10 +5,6 @@
    "chain_v2": false,
    "reads": false
   },
-  "cache": {
-   "provider": "memory",
-   "settings": {}
-  },
   "consent": {
    "enforce": false,
    "local_hosts": [],
@@ -28,6 +24,11 @@
   },
   "decision": {
    "provider": "off"
+  },
+  "deployment": {
+   "data_dir": null,
+   "id": null,
+   "locality": "single_process"
   },
   "economy": {
    "budget": null,
@@ -77,14 +78,7 @@
   "graph": {
    "edge_compiler_v2": false,
    "entity_embeddings": false,
-   "key_v2": false,
-   "mirror": {
-    "enabled": false,
-    "provider": "neo4j",
-    "settings": {}
-   },
-   "provider": "auto",
-   "settings": {}
+   "key_v2": false
   },
   "ingest": {
    "asset_allowed_mime": [
@@ -397,9 +391,7 @@
    "legs_v2": false,
    "lexical_language": "en",
    "lexical_namespace_languages": {},
-   "lexical_provider": "tantivy",
    "lexical_scorer": "bm25",
-   "lexical_settings": {},
    "lexical_strip_names": false,
    "lift_before_rerank": false,
    "lift_max_turns": 2,
@@ -597,7 +589,6 @@
    "backlog_max_items": 2000,
    "backlog_max_total_items": 0,
    "backlog_retry_after_s": 1.0,
-   "deployment_id": null,
    "encoder_batch_max": 32,
    "encoder_batch_wait_ms": 5.0,
    "environment": "development",
@@ -667,15 +658,30 @@
    }
   },
   "storage": {
-   "profile": "embedded",
-   "provider": "sqlite",
-   "settings": {}
+   "cache": {
+    "provider": "memory",
+    "settings": {}
+   },
+   "documents": null,
+   "graph": {
+    "provider": "auto",
+    "settings": {}
+   },
+   "graph_mirror": null,
+   "lexical": {
+    "provider": "tantivy",
+    "settings": {}
+   },
+   "records": {
+    "provider": "sqlite",
+    "settings": {}
+   },
+   "vector": {
+    "provider": "lancedb",
+    "settings": {}
+   }
   },
   "strict_services": true,
-  "vector": {
-   "provider": "lancedb",
-   "settings": {}
-  },
   "workers": {
    "broker_url": "redis://localhost:6379/0",
    "outbox": false,
@@ -756,16 +762,12 @@
    "window_topic_k": 2.0
   }
  },
- "json_schema_sha256": "007cb1a24f3b9f5e10a22106d96c42a277739b3182ae3595d11929b6e2d3929f",
+ "json_schema_sha256": "e3c49b3b24f34e8d91cb0ad4bbb97ae6ccd22ecead8b3016c82e6d743d361764",
  "preset:chat_roles": {
   "audit": {
    "actions": false,
    "chain_v2": false,
    "reads": false
-  },
-  "cache": {
-   "provider": "memory",
-   "settings": {}
   },
   "consent": {
    "enforce": false,
@@ -786,6 +788,11 @@
   },
   "decision": {
    "provider": "off"
+  },
+  "deployment": {
+   "data_dir": null,
+   "id": null,
+   "locality": "single_process"
   },
   "economy": {
    "budget": null,
@@ -837,14 +844,7 @@
   "graph": {
    "edge_compiler_v2": false,
    "entity_embeddings": false,
-   "key_v2": false,
-   "mirror": {
-    "enabled": false,
-    "provider": "neo4j",
-    "settings": {}
-   },
-   "provider": "auto",
-   "settings": {}
+   "key_v2": false
   },
   "ingest": {
    "asset_allowed_mime": [
@@ -1182,9 +1182,7 @@
    "legs_v2": false,
    "lexical_language": "en",
    "lexical_namespace_languages": {},
-   "lexical_provider": "tantivy",
    "lexical_scorer": "bm25",
-   "lexical_settings": {},
    "lexical_strip_names": false,
    "lift_before_rerank": false,
    "lift_max_turns": 2,
@@ -1386,7 +1384,6 @@
    "backlog_max_items": 2000,
    "backlog_max_total_items": 0,
    "backlog_retry_after_s": 1.0,
-   "deployment_id": null,
    "encoder_batch_max": 32,
    "encoder_batch_wait_ms": 5.0,
    "environment": "development",
@@ -1456,18 +1453,33 @@
    }
   },
   "storage": {
-   "profile": "embedded",
-   "provider": "sqlite",
-   "settings": {
-    "busy_timeout_s": 5.0,
-    "path": "./memspine.db"
+   "cache": {
+    "provider": "memory",
+    "settings": {}
+   },
+   "documents": null,
+   "graph": {
+    "provider": "auto",
+    "settings": {}
+   },
+   "graph_mirror": null,
+   "lexical": {
+    "provider": "tantivy",
+    "settings": {}
+   },
+   "records": {
+    "provider": "sqlite",
+    "settings": {
+     "busy_timeout_s": 5.0,
+     "path": "./memspine.db"
+    }
+   },
+   "vector": {
+    "provider": "lancedb",
+    "settings": {}
    }
   },
   "strict_services": true,
-  "vector": {
-   "provider": "lancedb",
-   "settings": {}
-  },
   "workers": {
    "broker_url": "redis://localhost:6379/0",
    "outbox": false,
@@ -1554,10 +1566,6 @@
    "chain_v2": false,
    "reads": false
   },
-  "cache": {
-   "provider": "memory",
-   "settings": {}
-  },
   "consent": {
    "enforce": false,
    "local_hosts": [],
@@ -1577,6 +1585,11 @@
   },
   "decision": {
    "provider": "off"
+  },
+  "deployment": {
+   "data_dir": null,
+   "id": null,
+   "locality": "single_process"
   },
   "economy": {
    "budget": null,
@@ -1626,14 +1639,7 @@
   "graph": {
    "edge_compiler_v2": false,
    "entity_embeddings": false,
-   "key_v2": false,
-   "mirror": {
-    "enabled": false,
-    "provider": "neo4j",
-    "settings": {}
-   },
-   "provider": "auto",
-   "settings": {}
+   "key_v2": false
   },
   "ingest": {
    "asset_allowed_mime": [
@@ -1969,9 +1975,7 @@
    "legs_v2": false,
    "lexical_language": "en",
    "lexical_namespace_languages": {},
-   "lexical_provider": "tantivy",
    "lexical_scorer": "bm25",
-   "lexical_settings": {},
    "lexical_strip_names": false,
    "lift_before_rerank": false,
    "lift_max_turns": 2,
@@ -2173,7 +2177,6 @@
    "backlog_max_items": 2000,
    "backlog_max_total_items": 0,
    "backlog_retry_after_s": 1.0,
-   "deployment_id": null,
    "encoder_batch_max": 32,
    "encoder_batch_wait_ms": 5.0,
    "environment": "development",
@@ -2243,18 +2246,33 @@
    }
   },
   "storage": {
-   "profile": "embedded",
-   "provider": "sqlite",
-   "settings": {
-    "busy_timeout_s": 5.0,
-    "path": "./memspine.db"
+   "cache": {
+    "provider": "memory",
+    "settings": {}
+   },
+   "documents": null,
+   "graph": {
+    "provider": "auto",
+    "settings": {}
+   },
+   "graph_mirror": null,
+   "lexical": {
+    "provider": "tantivy",
+    "settings": {}
+   },
+   "records": {
+    "provider": "sqlite",
+    "settings": {
+     "busy_timeout_s": 5.0,
+     "path": "./memspine.db"
+    }
+   },
+   "vector": {
+    "provider": "lancedb",
+    "settings": {}
    }
   },
   "strict_services": true,
-  "vector": {
-   "provider": "lancedb",
-   "settings": {}
-  },
   "workers": {
    "broker_url": "redis://localhost:6379/0",
    "outbox": false,
@@ -2341,10 +2359,6 @@
    "chain_v2": false,
    "reads": false
   },
-  "cache": {
-   "provider": "memory",
-   "settings": {}
-  },
   "consent": {
    "enforce": false,
    "local_hosts": [],
@@ -2364,6 +2378,11 @@
   },
   "decision": {
    "provider": "off"
+  },
+  "deployment": {
+   "data_dir": null,
+   "id": null,
+   "locality": "single_process"
   },
   "economy": {
    "budget": null,
@@ -2413,14 +2432,7 @@
   "graph": {
    "edge_compiler_v2": false,
    "entity_embeddings": false,
-   "key_v2": false,
-   "mirror": {
-    "enabled": false,
-    "provider": "neo4j",
-    "settings": {}
-   },
-   "provider": "auto",
-   "settings": {}
+   "key_v2": false
   },
   "ingest": {
    "asset_allowed_mime": [
@@ -2756,9 +2768,7 @@
    "legs_v2": false,
    "lexical_language": "en",
    "lexical_namespace_languages": {},
-   "lexical_provider": "tantivy",
    "lexical_scorer": "bm25",
-   "lexical_settings": {},
    "lexical_strip_names": false,
    "lift_before_rerank": false,
    "lift_max_turns": 2,
@@ -2960,7 +2970,6 @@
    "backlog_max_items": 2000,
    "backlog_max_total_items": 0,
    "backlog_retry_after_s": 1.0,
-   "deployment_id": null,
    "encoder_batch_max": 32,
    "encoder_batch_wait_ms": 5.0,
    "environment": "development",
@@ -3030,18 +3039,33 @@
    }
   },
   "storage": {
-   "profile": "embedded",
-   "provider": "sqlite",
-   "settings": {
-    "busy_timeout_s": 5.0,
-    "path": "./memspine.db"
+   "cache": {
+    "provider": "memory",
+    "settings": {}
+   },
+   "documents": null,
+   "graph": {
+    "provider": "auto",
+    "settings": {}
+   },
+   "graph_mirror": null,
+   "lexical": {
+    "provider": "tantivy",
+    "settings": {}
+   },
+   "records": {
+    "provider": "sqlite",
+    "settings": {
+     "busy_timeout_s": 5.0,
+     "path": "./memspine.db"
+    }
+   },
+   "vector": {
+    "provider": "lancedb",
+    "settings": {}
    }
   },
   "strict_services": true,
-  "vector": {
-   "provider": "lancedb",
-   "settings": {}
-  },
   "workers": {
    "broker_url": "redis://localhost:6379/0",
    "outbox": false,
@@ -3128,10 +3152,6 @@
    "chain_v2": false,
    "reads": false
   },
-  "cache": {
-   "provider": "memory",
-   "settings": {}
-  },
   "consent": {
    "enforce": false,
    "local_hosts": [],
@@ -3151,6 +3171,11 @@
   },
   "decision": {
    "provider": "off"
+  },
+  "deployment": {
+   "data_dir": null,
+   "id": null,
+   "locality": "single_process"
   },
   "economy": {
    "budget": null,
@@ -3200,14 +3225,7 @@
   "graph": {
    "edge_compiler_v2": false,
    "entity_embeddings": false,
-   "key_v2": false,
-   "mirror": {
-    "enabled": false,
-    "provider": "neo4j",
-    "settings": {}
-   },
-   "provider": "auto",
-   "settings": {}
+   "key_v2": false
   },
   "ingest": {
    "asset_allowed_mime": [
@@ -3543,9 +3561,7 @@
    "legs_v2": false,
    "lexical_language": "en",
    "lexical_namespace_languages": {},
-   "lexical_provider": "tantivy",
    "lexical_scorer": "bm25",
-   "lexical_settings": {},
    "lexical_strip_names": false,
    "lift_before_rerank": false,
    "lift_max_turns": 2,
@@ -3747,7 +3763,6 @@
    "backlog_max_items": 2000,
    "backlog_max_total_items": 0,
    "backlog_retry_after_s": 1.0,
-   "deployment_id": null,
    "encoder_batch_max": 32,
    "encoder_batch_wait_ms": 5.0,
    "environment": "development",
@@ -3817,18 +3832,33 @@
    }
   },
   "storage": {
-   "profile": "embedded",
-   "provider": "sqlite",
-   "settings": {
-    "busy_timeout_s": 5.0,
-    "path": "./memspine.db"
+   "cache": {
+    "provider": "memory",
+    "settings": {}
+   },
+   "documents": null,
+   "graph": {
+    "provider": "auto",
+    "settings": {}
+   },
+   "graph_mirror": null,
+   "lexical": {
+    "provider": "tantivy",
+    "settings": {}
+   },
+   "records": {
+    "provider": "sqlite",
+    "settings": {
+     "busy_timeout_s": 5.0,
+     "path": "./memspine.db"
+    }
+   },
+   "vector": {
+    "provider": "lancedb",
+    "settings": {}
    }
   },
   "strict_services": true,
-  "vector": {
-   "provider": "lancedb",
-   "settings": {}
-  },
   "workers": {
    "broker_url": "redis://localhost:6379/0",
    "outbox": false,
@@ -3915,10 +3945,6 @@
    "chain_v2": false,
    "reads": false
   },
-  "cache": {
-   "provider": "memory",
-   "settings": {}
-  },
   "consent": {
    "enforce": false,
    "local_hosts": [],
@@ -3938,6 +3964,11 @@
   },
   "decision": {
    "provider": "off"
+  },
+  "deployment": {
+   "data_dir": null,
+   "id": null,
+   "locality": "single_process"
   },
   "economy": {
    "budget": null,
@@ -3987,14 +4018,7 @@
   "graph": {
    "edge_compiler_v2": false,
    "entity_embeddings": false,
-   "key_v2": false,
-   "mirror": {
-    "enabled": false,
-    "provider": "neo4j",
-    "settings": {}
-   },
-   "provider": "auto",
-   "settings": {}
+   "key_v2": false
   },
   "ingest": {
    "asset_allowed_mime": [
@@ -4330,9 +4354,7 @@
    "legs_v2": false,
    "lexical_language": "en",
    "lexical_namespace_languages": {},
-   "lexical_provider": "tantivy",
    "lexical_scorer": "bm25",
-   "lexical_settings": {},
    "lexical_strip_names": false,
    "lift_before_rerank": false,
    "lift_max_turns": 2,
@@ -4534,7 +4556,6 @@
    "backlog_max_items": 2000,
    "backlog_max_total_items": 0,
    "backlog_retry_after_s": 1.0,
-   "deployment_id": null,
    "encoder_batch_max": 32,
    "encoder_batch_wait_ms": 5.0,
    "environment": "development",
@@ -4604,18 +4625,33 @@
    }
   },
   "storage": {
-   "profile": "embedded",
-   "provider": "sqlite",
-   "settings": {
-    "busy_timeout_s": 5.0,
-    "path": "./memspine.db"
+   "cache": {
+    "provider": "memory",
+    "settings": {}
+   },
+   "documents": null,
+   "graph": {
+    "provider": "auto",
+    "settings": {}
+   },
+   "graph_mirror": null,
+   "lexical": {
+    "provider": "tantivy",
+    "settings": {}
+   },
+   "records": {
+    "provider": "sqlite",
+    "settings": {
+     "busy_timeout_s": 5.0,
+     "path": "./memspine.db"
+    }
+   },
+   "vector": {
+    "provider": "lancedb",
+    "settings": {}
    }
   },
   "strict_services": true,
-  "vector": {
-   "provider": "lancedb",
-   "settings": {}
-  },
   "workers": {
    "broker_url": "redis://localhost:6379/0",
    "outbox": false,
@@ -4702,10 +4738,6 @@
    "chain_v2": false,
    "reads": false
   },
-  "cache": {
-   "provider": "memory",
-   "settings": {}
-  },
   "consent": {
    "enforce": false,
    "local_hosts": [],
@@ -4725,6 +4757,11 @@
   },
   "decision": {
    "provider": "off"
+  },
+  "deployment": {
+   "data_dir": null,
+   "id": null,
+   "locality": "single_process"
   },
   "economy": {
    "budget": null,
@@ -4774,14 +4811,7 @@
   "graph": {
    "edge_compiler_v2": false,
    "entity_embeddings": false,
-   "key_v2": false,
-   "mirror": {
-    "enabled": false,
-    "provider": "neo4j",
-    "settings": {}
-   },
-   "provider": "auto",
-   "settings": {}
+   "key_v2": false
   },
   "ingest": {
    "asset_allowed_mime": [
@@ -5117,9 +5147,7 @@
    "legs_v2": false,
    "lexical_language": "en",
    "lexical_namespace_languages": {},
-   "lexical_provider": "tantivy",
    "lexical_scorer": "bm25",
-   "lexical_settings": {},
    "lexical_strip_names": false,
    "lift_before_rerank": false,
    "lift_max_turns": 2,
@@ -5321,7 +5349,6 @@
    "backlog_max_items": 2000,
    "backlog_max_total_items": 0,
    "backlog_retry_after_s": 1.0,
-   "deployment_id": null,
    "encoder_batch_max": 32,
    "encoder_batch_wait_ms": 5.0,
    "environment": "development",
@@ -5391,18 +5418,33 @@
    }
   },
   "storage": {
-   "profile": "embedded",
-   "provider": "sqlite",
-   "settings": {
-    "busy_timeout_s": 5.0,
-    "path": "./memspine.db"
+   "cache": {
+    "provider": "memory",
+    "settings": {}
+   },
+   "documents": null,
+   "graph": {
+    "provider": "auto",
+    "settings": {}
+   },
+   "graph_mirror": null,
+   "lexical": {
+    "provider": "tantivy",
+    "settings": {}
+   },
+   "records": {
+    "provider": "sqlite",
+    "settings": {
+     "busy_timeout_s": 5.0,
+     "path": "./memspine.db"
+    }
+   },
+   "vector": {
+    "provider": "lancedb",
+    "settings": {}
    }
   },
   "strict_services": true,
-  "vector": {
-   "provider": "lancedb",
-   "settings": {}
-  },
   "workers": {
    "broker_url": "redis://localhost:6379/0",
    "outbox": false,
@@ -5489,10 +5531,6 @@
    "chain_v2": false,
    "reads": false
   },
-  "cache": {
-   "provider": "memory",
-   "settings": {}
-  },
   "consent": {
    "enforce": false,
    "local_hosts": [],
@@ -5512,6 +5550,11 @@
   },
   "decision": {
    "provider": "off"
+  },
+  "deployment": {
+   "data_dir": null,
+   "id": null,
+   "locality": "single_process"
   },
   "economy": {
    "budget": null,
@@ -5561,14 +5604,7 @@
   "graph": {
    "edge_compiler_v2": false,
    "entity_embeddings": false,
-   "key_v2": false,
-   "mirror": {
-    "enabled": false,
-    "provider": "neo4j",
-    "settings": {}
-   },
-   "provider": "auto",
-   "settings": {}
+   "key_v2": false
   },
   "ingest": {
    "asset_allowed_mime": [
@@ -5904,9 +5940,7 @@
    "legs_v2": true,
    "lexical_language": "en",
    "lexical_namespace_languages": {},
-   "lexical_provider": "tantivy",
    "lexical_scorer": "bm25",
-   "lexical_settings": {},
    "lexical_strip_names": false,
    "lift_before_rerank": true,
    "lift_max_turns": 2,
@@ -6108,7 +6142,6 @@
    "backlog_max_items": 2000,
    "backlog_max_total_items": 0,
    "backlog_retry_after_s": 1.0,
-   "deployment_id": null,
    "encoder_batch_max": 32,
    "encoder_batch_wait_ms": 5.0,
    "environment": "development",
@@ -6178,18 +6211,33 @@
    }
   },
   "storage": {
-   "profile": "embedded",
-   "provider": "sqlite",
-   "settings": {
-    "busy_timeout_s": 5.0,
-    "path": "./memspine.db"
+   "cache": {
+    "provider": "memory",
+    "settings": {}
+   },
+   "documents": null,
+   "graph": {
+    "provider": "auto",
+    "settings": {}
+   },
+   "graph_mirror": null,
+   "lexical": {
+    "provider": "tantivy",
+    "settings": {}
+   },
+   "records": {
+    "provider": "sqlite",
+    "settings": {
+     "busy_timeout_s": 5.0,
+     "path": "./memspine.db"
+    }
+   },
+   "vector": {
+    "provider": "lancedb",
+    "settings": {}
    }
   },
   "strict_services": true,
-  "vector": {
-   "provider": "lancedb",
-   "settings": {}
-  },
   "workers": {
    "broker_url": "redis://localhost:6379/0",
    "outbox": false,
@@ -6276,10 +6324,6 @@
    "chain_v2": false,
    "reads": false
   },
-  "cache": {
-   "provider": "memory",
-   "settings": {}
-  },
   "consent": {
    "enforce": false,
    "local_hosts": [],
@@ -6299,6 +6343,11 @@
   },
   "decision": {
    "provider": "off"
+  },
+  "deployment": {
+   "data_dir": null,
+   "id": null,
+   "locality": "single_process"
   },
   "economy": {
    "budget": null,
@@ -6348,14 +6397,7 @@
   "graph": {
    "edge_compiler_v2": true,
    "entity_embeddings": false,
-   "key_v2": false,
-   "mirror": {
-    "enabled": false,
-    "provider": "neo4j",
-    "settings": {}
-   },
-   "provider": "auto",
-   "settings": {}
+   "key_v2": false
   },
   "ingest": {
    "asset_allowed_mime": [
@@ -6695,9 +6737,7 @@
    "legs_v2": true,
    "lexical_language": "en",
    "lexical_namespace_languages": {},
-   "lexical_provider": "tantivy",
    "lexical_scorer": "bm25",
-   "lexical_settings": {},
    "lexical_strip_names": false,
    "lift_before_rerank": true,
    "lift_max_turns": 2,
@@ -6899,7 +6939,6 @@
    "backlog_max_items": 2000,
    "backlog_max_total_items": 0,
    "backlog_retry_after_s": 1.0,
-   "deployment_id": null,
    "encoder_batch_max": 32,
    "encoder_batch_wait_ms": 5.0,
    "environment": "development",
@@ -6969,18 +7008,33 @@
    }
   },
   "storage": {
-   "profile": "embedded",
-   "provider": "sqlite",
-   "settings": {
-    "busy_timeout_s": 5.0,
-    "path": "./memspine.db"
+   "cache": {
+    "provider": "memory",
+    "settings": {}
+   },
+   "documents": null,
+   "graph": {
+    "provider": "auto",
+    "settings": {}
+   },
+   "graph_mirror": null,
+   "lexical": {
+    "provider": "tantivy",
+    "settings": {}
+   },
+   "records": {
+    "provider": "sqlite",
+    "settings": {
+     "busy_timeout_s": 5.0,
+     "path": "./memspine.db"
+    }
+   },
+   "vector": {
+    "provider": "lancedb",
+    "settings": {}
    }
   },
   "strict_services": true,
-  "vector": {
-   "provider": "lancedb",
-   "settings": {}
-  },
   "workers": {
    "broker_url": "redis://localhost:6379/0",
    "outbox": false,
@@ -7067,10 +7121,6 @@
    "chain_v2": false,
    "reads": false
   },
-  "cache": {
-   "provider": "memory",
-   "settings": {}
-  },
   "consent": {
    "enforce": false,
    "local_hosts": [],
@@ -7090,6 +7140,11 @@
   },
   "decision": {
    "provider": "off"
+  },
+  "deployment": {
+   "data_dir": null,
+   "id": null,
+   "locality": "single_process"
   },
   "economy": {
    "budget": null,
@@ -7139,14 +7194,7 @@
   "graph": {
    "edge_compiler_v2": false,
    "entity_embeddings": false,
-   "key_v2": false,
-   "mirror": {
-    "enabled": false,
-    "provider": "neo4j",
-    "settings": {}
-   },
-   "provider": "auto",
-   "settings": {}
+   "key_v2": false
   },
   "ingest": {
    "asset_allowed_mime": [
@@ -7482,9 +7530,7 @@
    "legs_v2": false,
    "lexical_language": "en",
    "lexical_namespace_languages": {},
-   "lexical_provider": "tantivy",
    "lexical_scorer": "bm25",
-   "lexical_settings": {},
    "lexical_strip_names": false,
    "lift_before_rerank": false,
    "lift_max_turns": 2,
@@ -7686,7 +7732,6 @@
    "backlog_max_items": 2000,
    "backlog_max_total_items": 0,
    "backlog_retry_after_s": 1.0,
-   "deployment_id": null,
    "encoder_batch_max": 32,
    "encoder_batch_wait_ms": 5.0,
    "environment": "development",
@@ -7756,18 +7801,33 @@
    }
   },
   "storage": {
-   "profile": "embedded",
-   "provider": "sqlite",
-   "settings": {
-    "busy_timeout_s": 5.0,
-    "path": "./memspine.db"
+   "cache": {
+    "provider": "memory",
+    "settings": {}
+   },
+   "documents": null,
+   "graph": {
+    "provider": "auto",
+    "settings": {}
+   },
+   "graph_mirror": null,
+   "lexical": {
+    "provider": "tantivy",
+    "settings": {}
+   },
+   "records": {
+    "provider": "sqlite",
+    "settings": {
+     "busy_timeout_s": 5.0,
+     "path": "./memspine.db"
+    }
+   },
+   "vector": {
+    "provider": "lancedb",
+    "settings": {}
    }
   },
   "strict_services": true,
-  "vector": {
-   "provider": "lancedb",
-   "settings": {}
-  },
   "workers": {
    "broker_url": "redis://localhost:6379/0",
    "outbox": false,
@@ -7854,10 +7914,6 @@
    "chain_v2": false,
    "reads": false
   },
-  "cache": {
-   "provider": "memory",
-   "settings": {}
-  },
   "consent": {
    "enforce": false,
    "local_hosts": [],
@@ -7877,6 +7933,11 @@
   },
   "decision": {
    "provider": "off"
+  },
+  "deployment": {
+   "data_dir": null,
+   "id": null,
+   "locality": "single_process"
   },
   "economy": {
    "budget": null,
@@ -7926,14 +7987,7 @@
   "graph": {
    "edge_compiler_v2": false,
    "entity_embeddings": false,
-   "key_v2": false,
-   "mirror": {
-    "enabled": false,
-    "provider": "neo4j",
-    "settings": {}
-   },
-   "provider": "auto",
-   "settings": {}
+   "key_v2": false
   },
   "ingest": {
    "asset_allowed_mime": [
@@ -8269,9 +8323,7 @@
    "legs_v2": false,
    "lexical_language": "en",
    "lexical_namespace_languages": {},
-   "lexical_provider": "tantivy",
    "lexical_scorer": "bm25",
-   "lexical_settings": {},
    "lexical_strip_names": false,
    "lift_before_rerank": false,
    "lift_max_turns": 2,
@@ -8473,7 +8525,6 @@
    "backlog_max_items": 2000,
    "backlog_max_total_items": 0,
    "backlog_retry_after_s": 1.0,
-   "deployment_id": null,
    "encoder_batch_max": 32,
    "encoder_batch_wait_ms": 5.0,
    "environment": "development",
@@ -8543,18 +8594,33 @@
    }
   },
   "storage": {
-   "profile": "embedded",
-   "provider": "sqlite",
-   "settings": {
-    "busy_timeout_s": 5.0,
-    "path": "./memspine.db"
+   "cache": {
+    "provider": "memory",
+    "settings": {}
+   },
+   "documents": null,
+   "graph": {
+    "provider": "auto",
+    "settings": {}
+   },
+   "graph_mirror": null,
+   "lexical": {
+    "provider": "tantivy",
+    "settings": {}
+   },
+   "records": {
+    "provider": "sqlite",
+    "settings": {
+     "busy_timeout_s": 5.0,
+     "path": "./memspine.db"
+    }
+   },
+   "vector": {
+    "provider": "lancedb",
+    "settings": {}
    }
   },
   "strict_services": true,
-  "vector": {
-   "provider": "lancedb",
-   "settings": {}
-  },
   "workers": {
    "broker_url": "redis://localhost:6379/0",
    "outbox": true,
@@ -8641,10 +8707,6 @@
    "chain_v2": true,
    "reads": false
   },
-  "cache": {
-   "provider": "memory",
-   "settings": {}
-  },
   "consent": {
    "enforce": false,
    "local_hosts": [],
@@ -8664,6 +8726,11 @@
   },
   "decision": {
    "provider": "off"
+  },
+  "deployment": {
+   "data_dir": null,
+   "id": null,
+   "locality": "single_process"
   },
   "economy": {
    "budget": null,
@@ -8713,14 +8780,7 @@
   "graph": {
    "edge_compiler_v2": false,
    "entity_embeddings": false,
-   "key_v2": false,
-   "mirror": {
-    "enabled": false,
-    "provider": "neo4j",
-    "settings": {}
-   },
-   "provider": "auto",
-   "settings": {}
+   "key_v2": false
   },
   "ingest": {
    "asset_allowed_mime": [
@@ -9056,9 +9116,7 @@
    "legs_v2": false,
    "lexical_language": "en",
    "lexical_namespace_languages": {},
-   "lexical_provider": "tantivy",
    "lexical_scorer": "bm25",
-   "lexical_settings": {},
    "lexical_strip_names": false,
    "lift_before_rerank": false,
    "lift_max_turns": 2,
@@ -9260,7 +9318,6 @@
    "backlog_max_items": 2000,
    "backlog_max_total_items": 0,
    "backlog_retry_after_s": 1.0,
-   "deployment_id": null,
    "encoder_batch_max": 32,
    "encoder_batch_wait_ms": 5.0,
    "environment": "development",
@@ -9330,18 +9387,33 @@
    }
   },
   "storage": {
-   "profile": "embedded",
-   "provider": "sqlite",
-   "settings": {
-    "busy_timeout_s": 5.0,
-    "path": "./memspine.db"
+   "cache": {
+    "provider": "memory",
+    "settings": {}
+   },
+   "documents": null,
+   "graph": {
+    "provider": "auto",
+    "settings": {}
+   },
+   "graph_mirror": null,
+   "lexical": {
+    "provider": "tantivy",
+    "settings": {}
+   },
+   "records": {
+    "provider": "sqlite",
+    "settings": {
+     "busy_timeout_s": 5.0,
+     "path": "./memspine.db"
+    }
+   },
+   "vector": {
+    "provider": "lancedb",
+    "settings": {}
    }
   },
   "strict_services": true,
-  "vector": {
-   "provider": "lancedb",
-   "settings": {}
-  },
   "workers": {
    "broker_url": "redis://localhost:6379/0",
    "outbox": false,
@@ -9428,10 +9500,6 @@
    "chain_v2": false,
    "reads": false
   },
-  "cache": {
-   "provider": "memory",
-   "settings": {}
-  },
   "consent": {
    "enforce": false,
    "local_hosts": [],
@@ -9451,6 +9519,11 @@
   },
   "decision": {
    "provider": "off"
+  },
+  "deployment": {
+   "data_dir": null,
+   "id": null,
+   "locality": "single_process"
   },
   "economy": {
    "budget": null,
@@ -9500,14 +9573,7 @@
   "graph": {
    "edge_compiler_v2": false,
    "entity_embeddings": false,
-   "key_v2": false,
-   "mirror": {
-    "enabled": false,
-    "provider": "neo4j",
-    "settings": {}
-   },
-   "provider": "auto",
-   "settings": {}
+   "key_v2": false
   },
   "ingest": {
    "asset_allowed_mime": [
@@ -9843,9 +9909,7 @@
    "legs_v2": false,
    "lexical_language": "en",
    "lexical_namespace_languages": {},
-   "lexical_provider": "tantivy",
    "lexical_scorer": "bm25",
-   "lexical_settings": {},
    "lexical_strip_names": false,
    "lift_before_rerank": false,
    "lift_max_turns": 2,
@@ -10047,7 +10111,6 @@
    "backlog_max_items": 2000,
    "backlog_max_total_items": 0,
    "backlog_retry_after_s": 1.0,
-   "deployment_id": null,
    "encoder_batch_max": 32,
    "encoder_batch_wait_ms": 5.0,
    "environment": "development",
@@ -10117,18 +10180,33 @@
    }
   },
   "storage": {
-   "profile": "embedded",
-   "provider": "sqlite",
-   "settings": {
-    "busy_timeout_s": 5.0,
-    "path": "./memspine.db"
+   "cache": {
+    "provider": "memory",
+    "settings": {}
+   },
+   "documents": null,
+   "graph": {
+    "provider": "auto",
+    "settings": {}
+   },
+   "graph_mirror": null,
+   "lexical": {
+    "provider": "tantivy",
+    "settings": {}
+   },
+   "records": {
+    "provider": "sqlite",
+    "settings": {
+     "busy_timeout_s": 5.0,
+     "path": "./memspine.db"
+    }
+   },
+   "vector": {
+    "provider": "lancedb",
+    "settings": {}
    }
   },
   "strict_services": true,
-  "vector": {
-   "provider": "lancedb",
-   "settings": {}
-  },
   "workers": {
    "broker_url": "redis://localhost:6379/0",
    "outbox": false,
@@ -10215,10 +10293,6 @@
    "chain_v2": false,
    "reads": false
   },
-  "cache": {
-   "provider": "memory",
-   "settings": {}
-  },
   "consent": {
    "enforce": false,
    "local_hosts": [],
@@ -10238,6 +10312,11 @@
   },
   "decision": {
    "provider": "off"
+  },
+  "deployment": {
+   "data_dir": null,
+   "id": null,
+   "locality": "single_process"
   },
   "economy": {
    "budget": null,
@@ -10287,14 +10366,7 @@
   "graph": {
    "edge_compiler_v2": false,
    "entity_embeddings": false,
-   "key_v2": false,
-   "mirror": {
-    "enabled": false,
-    "provider": "neo4j",
-    "settings": {}
-   },
-   "provider": "auto",
-   "settings": {}
+   "key_v2": false
   },
   "ingest": {
    "asset_allowed_mime": [
@@ -10630,9 +10702,7 @@
    "legs_v2": false,
    "lexical_language": "en",
    "lexical_namespace_languages": {},
-   "lexical_provider": "tantivy",
    "lexical_scorer": "bm25",
-   "lexical_settings": {},
    "lexical_strip_names": false,
    "lift_before_rerank": false,
    "lift_max_turns": 2,
@@ -10834,7 +10904,6 @@
    "backlog_max_items": 2000,
    "backlog_max_total_items": 0,
    "backlog_retry_after_s": 1.0,
-   "deployment_id": null,
    "encoder_batch_max": 32,
    "encoder_batch_wait_ms": 5.0,
    "environment": "development",
@@ -10904,18 +10973,33 @@
    }
   },
   "storage": {
-   "profile": "embedded",
-   "provider": "sqlite",
-   "settings": {
-    "busy_timeout_s": 5.0,
-    "path": "./memspine.db"
+   "cache": {
+    "provider": "memory",
+    "settings": {}
+   },
+   "documents": null,
+   "graph": {
+    "provider": "auto",
+    "settings": {}
+   },
+   "graph_mirror": null,
+   "lexical": {
+    "provider": "tantivy",
+    "settings": {}
+   },
+   "records": {
+    "provider": "sqlite",
+    "settings": {
+     "busy_timeout_s": 5.0,
+     "path": "./memspine.db"
+    }
+   },
+   "vector": {
+    "provider": "lancedb",
+    "settings": {}
    }
   },
   "strict_services": true,
-  "vector": {
-   "provider": "lancedb",
-   "settings": {}
-  },
   "workers": {
    "broker_url": "redis://localhost:6379/0",
    "outbox": false,
@@ -11002,10 +11086,6 @@
    "chain_v2": false,
    "reads": false
   },
-  "cache": {
-   "provider": "memory",
-   "settings": {}
-  },
   "consent": {
    "enforce": false,
    "local_hosts": [],
@@ -11025,6 +11105,11 @@
   },
   "decision": {
    "provider": "off"
+  },
+  "deployment": {
+   "data_dir": null,
+   "id": null,
+   "locality": "single_process"
   },
   "economy": {
    "budget": null,
@@ -11074,14 +11159,7 @@
   "graph": {
    "edge_compiler_v2": false,
    "entity_embeddings": false,
-   "key_v2": false,
-   "mirror": {
-    "enabled": false,
-    "provider": "neo4j",
-    "settings": {}
-   },
-   "provider": "auto",
-   "settings": {}
+   "key_v2": false
   },
   "ingest": {
    "asset_allowed_mime": [
@@ -11417,9 +11495,7 @@
    "legs_v2": false,
    "lexical_language": "en",
    "lexical_namespace_languages": {},
-   "lexical_provider": "tantivy",
    "lexical_scorer": "bm25",
-   "lexical_settings": {},
    "lexical_strip_names": false,
    "lift_before_rerank": false,
    "lift_max_turns": 2,
@@ -11621,7 +11697,6 @@
    "backlog_max_items": 2000,
    "backlog_max_total_items": 0,
    "backlog_retry_after_s": 1.0,
-   "deployment_id": null,
    "encoder_batch_max": 32,
    "encoder_batch_wait_ms": 5.0,
    "environment": "development",
@@ -11691,18 +11766,33 @@
    }
   },
   "storage": {
-   "profile": "embedded",
-   "provider": "sqlite",
-   "settings": {
-    "busy_timeout_s": 5.0,
-    "path": "./memspine.db"
+   "cache": {
+    "provider": "memory",
+    "settings": {}
+   },
+   "documents": null,
+   "graph": {
+    "provider": "auto",
+    "settings": {}
+   },
+   "graph_mirror": null,
+   "lexical": {
+    "provider": "tantivy",
+    "settings": {}
+   },
+   "records": {
+    "provider": "sqlite",
+    "settings": {
+     "busy_timeout_s": 5.0,
+     "path": "./memspine.db"
+    }
+   },
+   "vector": {
+    "provider": "lancedb",
+    "settings": {}
    }
   },
   "strict_services": true,
-  "vector": {
-   "provider": "lancedb",
-   "settings": {}
-  },
   "workers": {
    "broker_url": "redis://localhost:6379/0",
    "outbox": false,
@@ -11789,10 +11879,6 @@
    "chain_v2": false,
    "reads": false
   },
-  "cache": {
-   "provider": "memory",
-   "settings": {}
-  },
   "consent": {
    "enforce": false,
    "local_hosts": [],
@@ -11812,6 +11898,11 @@
   },
   "decision": {
    "provider": "off"
+  },
+  "deployment": {
+   "data_dir": null,
+   "id": null,
+   "locality": "single_process"
   },
   "economy": {
    "budget": null,
@@ -11861,14 +11952,7 @@
   "graph": {
    "edge_compiler_v2": false,
    "entity_embeddings": false,
-   "key_v2": false,
-   "mirror": {
-    "enabled": false,
-    "provider": "neo4j",
-    "settings": {}
-   },
-   "provider": "auto",
-   "settings": {}
+   "key_v2": false
   },
   "ingest": {
    "asset_allowed_mime": [
@@ -12204,9 +12288,7 @@
    "legs_v2": false,
    "lexical_language": "en",
    "lexical_namespace_languages": {},
-   "lexical_provider": "tantivy",
    "lexical_scorer": "bm25",
-   "lexical_settings": {},
    "lexical_strip_names": false,
    "lift_before_rerank": false,
    "lift_max_turns": 2,
@@ -12408,7 +12490,6 @@
    "backlog_max_items": 2000,
    "backlog_max_total_items": 0,
    "backlog_retry_after_s": 1.0,
-   "deployment_id": null,
    "encoder_batch_max": 32,
    "encoder_batch_wait_ms": 5.0,
    "environment": "development",
@@ -12478,18 +12559,33 @@
    }
   },
   "storage": {
-   "profile": "embedded",
-   "provider": "sqlite",
-   "settings": {
-    "busy_timeout_s": 5.0,
-    "path": "./memspine.db"
+   "cache": {
+    "provider": "memory",
+    "settings": {}
+   },
+   "documents": null,
+   "graph": {
+    "provider": "auto",
+    "settings": {}
+   },
+   "graph_mirror": null,
+   "lexical": {
+    "provider": "tantivy",
+    "settings": {}
+   },
+   "records": {
+    "provider": "sqlite",
+    "settings": {
+     "busy_timeout_s": 5.0,
+     "path": "./memspine.db"
+    }
+   },
+   "vector": {
+    "provider": "lancedb",
+    "settings": {}
    }
   },
   "strict_services": true,
-  "vector": {
-   "provider": "lancedb",
-   "settings": {}
-  },
   "workers": {
    "broker_url": "redis://localhost:6379/0",
    "outbox": false,
@@ -12576,10 +12672,6 @@
    "chain_v2": false,
    "reads": false
   },
-  "cache": {
-   "provider": "memory",
-   "settings": {}
-  },
   "consent": {
    "enforce": false,
    "local_hosts": [],
@@ -12599,6 +12691,11 @@
   },
   "decision": {
    "provider": "off"
+  },
+  "deployment": {
+   "data_dir": null,
+   "id": null,
+   "locality": "single_process"
   },
   "economy": {
    "budget": null,
@@ -12648,14 +12745,7 @@
   "graph": {
    "edge_compiler_v2": false,
    "entity_embeddings": false,
-   "key_v2": false,
-   "mirror": {
-    "enabled": false,
-    "provider": "neo4j",
-    "settings": {}
-   },
-   "provider": "auto",
-   "settings": {}
+   "key_v2": false
   },
   "ingest": {
    "asset_allowed_mime": [
@@ -12991,9 +13081,7 @@
    "legs_v2": false,
    "lexical_language": "en",
    "lexical_namespace_languages": {},
-   "lexical_provider": "tantivy",
    "lexical_scorer": "bm25",
-   "lexical_settings": {},
    "lexical_strip_names": false,
    "lift_before_rerank": false,
    "lift_max_turns": 2,
@@ -13195,7 +13283,6 @@
    "backlog_max_items": 2000,
    "backlog_max_total_items": 0,
    "backlog_retry_after_s": 1.0,
-   "deployment_id": null,
    "encoder_batch_max": 32,
    "encoder_batch_wait_ms": 5.0,
    "environment": "development",
@@ -13265,18 +13352,33 @@
    }
   },
   "storage": {
-   "profile": "embedded",
-   "provider": "sqlite",
-   "settings": {
-    "busy_timeout_s": 5.0,
-    "path": "./memspine.db"
+   "cache": {
+    "provider": "memory",
+    "settings": {}
+   },
+   "documents": null,
+   "graph": {
+    "provider": "auto",
+    "settings": {}
+   },
+   "graph_mirror": null,
+   "lexical": {
+    "provider": "tantivy",
+    "settings": {}
+   },
+   "records": {
+    "provider": "sqlite",
+    "settings": {
+     "busy_timeout_s": 5.0,
+     "path": "./memspine.db"
+    }
+   },
+   "vector": {
+    "provider": "lancedb",
+    "settings": {}
    }
   },
   "strict_services": true,
-  "vector": {
-   "provider": "lancedb",
-   "settings": {}
-  },
   "workers": {
    "broker_url": "redis://localhost:6379/0",
    "outbox": false,
@@ -13363,10 +13465,6 @@
    "chain_v2": false,
    "reads": false
   },
-  "cache": {
-   "provider": "memory",
-   "settings": {}
-  },
   "consent": {
    "enforce": false,
    "local_hosts": [],
@@ -13386,6 +13484,11 @@
   },
   "decision": {
    "provider": "off"
+  },
+  "deployment": {
+   "data_dir": null,
+   "id": null,
+   "locality": "single_process"
   },
   "economy": {
    "budget": null,
@@ -13437,14 +13540,7 @@
   "graph": {
    "edge_compiler_v2": false,
    "entity_embeddings": false,
-   "key_v2": false,
-   "mirror": {
-    "enabled": false,
-    "provider": "neo4j",
-    "settings": {}
-   },
-   "provider": "sql_adjacency",
-   "settings": {}
+   "key_v2": false
   },
   "ingest": {
    "asset_allowed_mime": [
@@ -13789,9 +13885,7 @@
    "legs_v2": false,
    "lexical_language": "en",
    "lexical_namespace_languages": {},
-   "lexical_provider": "tantivy",
    "lexical_scorer": "bm25",
-   "lexical_settings": {},
    "lexical_strip_names": false,
    "lift_before_rerank": false,
    "lift_max_turns": 2,
@@ -13993,7 +14087,6 @@
    "backlog_max_items": 2000,
    "backlog_max_total_items": 0,
    "backlog_retry_after_s": 1.0,
-   "deployment_id": null,
    "encoder_batch_max": 32,
    "encoder_batch_wait_ms": 5.0,
    "environment": "development",
@@ -14063,20 +14156,35 @@
    }
   },
   "storage": {
-   "profile": "embedded",
-   "provider": "sqlite",
-   "settings": {
-    "busy_timeout_s": 5.0,
-    "path": "./memspine_benchmark.db"
+   "cache": {
+    "provider": "memory",
+    "settings": {}
+   },
+   "documents": null,
+   "graph": {
+    "provider": "sqlite_adjacency",
+    "settings": {}
+   },
+   "graph_mirror": null,
+   "lexical": {
+    "provider": "tantivy",
+    "settings": {}
+   },
+   "records": {
+    "provider": "sqlite",
+    "settings": {
+     "busy_timeout_s": 5.0,
+     "path": "./memspine_benchmark.db"
+    }
+   },
+   "vector": {
+    "provider": "lancedb",
+    "settings": {
+     "quantization": "auto"
+    }
    }
   },
   "strict_services": true,
-  "vector": {
-   "provider": "lancedb",
-   "settings": {
-    "quantization": "auto"
-   }
-  },
   "workers": {
    "broker_url": "redis://localhost:6379/0",
    "outbox": false,
@@ -14163,10 +14271,6 @@
    "chain_v2": false,
    "reads": false
   },
-  "cache": {
-   "provider": "memory",
-   "settings": {}
-  },
   "consent": {
    "enforce": false,
    "local_hosts": [],
@@ -14186,6 +14290,11 @@
   },
   "decision": {
    "provider": "off"
+  },
+  "deployment": {
+   "data_dir": null,
+   "id": null,
+   "locality": "single_process"
   },
   "economy": {
    "budget": null,
@@ -14235,14 +14344,7 @@
   "graph": {
    "edge_compiler_v2": false,
    "entity_embeddings": false,
-   "key_v2": false,
-   "mirror": {
-    "enabled": false,
-    "provider": "neo4j",
-    "settings": {}
-   },
-   "provider": "auto",
-   "settings": {}
+   "key_v2": false
   },
   "ingest": {
    "asset_allowed_mime": [
@@ -14583,9 +14685,7 @@
    "legs_v2": false,
    "lexical_language": "en",
    "lexical_namespace_languages": {},
-   "lexical_provider": "tantivy",
    "lexical_scorer": "bm25",
-   "lexical_settings": {},
    "lexical_strip_names": false,
    "lift_before_rerank": false,
    "lift_max_turns": 2,
@@ -14787,7 +14887,6 @@
    "backlog_max_items": 2000,
    "backlog_max_total_items": 0,
    "backlog_retry_after_s": 1.0,
-   "deployment_id": null,
    "encoder_batch_max": 32,
    "encoder_batch_wait_ms": 5.0,
    "environment": "development",
@@ -14857,18 +14956,33 @@
    }
   },
   "storage": {
-   "profile": "embedded",
-   "provider": "sqlite",
-   "settings": {
-    "busy_timeout_s": 5.0,
-    "path": "./memspine.db"
+   "cache": {
+    "provider": "memory",
+    "settings": {}
+   },
+   "documents": null,
+   "graph": {
+    "provider": "auto",
+    "settings": {}
+   },
+   "graph_mirror": null,
+   "lexical": {
+    "provider": "tantivy",
+    "settings": {}
+   },
+   "records": {
+    "provider": "sqlite",
+    "settings": {
+     "busy_timeout_s": 5.0,
+     "path": "./memspine.db"
+    }
+   },
+   "vector": {
+    "provider": "lancedb",
+    "settings": {}
    }
   },
   "strict_services": true,
-  "vector": {
-   "provider": "lancedb",
-   "settings": {}
-  },
   "workers": {
    "broker_url": "redis://localhost:6379/0",
    "outbox": false,
@@ -14955,10 +15069,6 @@
    "chain_v2": false,
    "reads": false
   },
-  "cache": {
-   "provider": "memory",
-   "settings": {}
-  },
   "consent": {
    "enforce": false,
    "local_hosts": [],
@@ -14978,6 +15088,11 @@
   },
   "decision": {
    "provider": "off"
+  },
+  "deployment": {
+   "data_dir": null,
+   "id": null,
+   "locality": "single_process"
   },
   "economy": {
    "budget": null,
@@ -15027,14 +15142,7 @@
   "graph": {
    "edge_compiler_v2": false,
    "entity_embeddings": false,
-   "key_v2": false,
-   "mirror": {
-    "enabled": false,
-    "provider": "neo4j",
-    "settings": {}
-   },
-   "provider": "auto",
-   "settings": {}
+   "key_v2": false
   },
   "ingest": {
    "asset_allowed_mime": [
@@ -15360,9 +15468,7 @@
    "legs_v2": false,
    "lexical_language": "en",
    "lexical_namespace_languages": {},
-   "lexical_provider": "tantivy",
    "lexical_scorer": "bm25",
-   "lexical_settings": {},
    "lexical_strip_names": false,
    "lift_before_rerank": false,
    "lift_max_turns": 2,
@@ -15560,7 +15666,6 @@
    "backlog_max_items": 2000,
    "backlog_max_total_items": 0,
    "backlog_retry_after_s": 1.0,
-   "deployment_id": null,
    "encoder_batch_max": 32,
    "encoder_batch_wait_ms": 5.0,
    "environment": "development",
@@ -15630,18 +15735,826 @@
    }
   },
   "storage": {
-   "profile": "embedded",
-   "provider": "sqlite",
-   "settings": {
-    "busy_timeout_s": 5.0,
-    "path": "./memspine.db"
+   "cache": {
+    "provider": "memory",
+    "settings": {}
+   },
+   "documents": null,
+   "graph": {
+    "provider": "auto",
+    "settings": {}
+   },
+   "graph_mirror": null,
+   "lexical": {
+    "provider": "tantivy",
+    "settings": {}
+   },
+   "records": {
+    "provider": "sqlite",
+    "settings": {
+     "busy_timeout_s": 5.0,
+     "path": "./memspine.db"
+    }
+   },
+   "vector": {
+    "provider": "lancedb",
+    "settings": {}
    }
   },
   "strict_services": true,
-  "vector": {
-   "provider": "lancedb",
-   "settings": {}
+  "workers": {
+   "broker_url": "redis://localhost:6379/0",
+   "outbox": false,
+   "resonate": {
+    "journal_busy_timeout_s": 5.0,
+    "journal_path": "./memspine-resonate.sqlite",
+    "max_concurrent_tasks": 4,
+    "step_lease_s": 360.0,
+    "step_timeout_s": 240.0,
+    "task_timeout_s": 270.0
+   },
+   "runner": "inline",
+   "sleep_interval_seconds": null,
+   "temporal": null,
+   "transport": "inline",
+   "transport_broker": "memory"
   },
+  "write": {
+   "asset_describe_timeout_s": 3.0,
+   "asset_describer": "off",
+   "batch_max_age_s": 30.0,
+   "batch_max_tokens": 3000,
+   "batch_max_windows": 8,
+   "coverage_context_lines": 2,
+   "coverage_max_targets": 6,
+   "coverage_threshold": 0.8,
+   "coverage_v2": false,
+   "echo_threshold": 0.6,
+   "envelope_v2": false,
+   "feedback_operators": [],
+   "feedback_v2": false,
+   "ground_action": "drop",
+   "ground_adjudicator": "lexical",
+   "grounding_v2": false,
+   "index_view": false,
+   "index_view_carry": "anaphoric",
+   "index_view_elliptical_max_words": 8,
+   "index_view_elliptical_threshold": 2,
+   "index_view_max_extra_tokens": 48,
+   "inferred": "off",
+   "inferred_explicit_overlap": 0.6,
+   "inferred_support_overlap": 0.3,
+   "inferred_trust_cap": 0.4,
+   "integration_cardinality": {},
+   "integration_decide_unhinted": false,
+   "integration_v2": false,
+   "learned_persist": false,
+   "lineage_table": false,
+   "online_extractor_v2": false,
+   "participants": "off",
+   "prepass": "off",
+   "prompt_context_turns": 3,
+   "prompt_known_cap": 40,
+   "prompt_schema": "auto",
+   "prompt_v2": false,
+   "resolve_cache": 1024,
+   "resolve_grey": 0.7,
+   "resolve_high": 0.9,
+   "resolver_v2": false,
+   "role_policy_v2": false,
+   "segment_calendar_day_cut": false,
+   "segment_gap_s": 1800.0,
+   "segment_grow_tokens": 400,
+   "segment_max_turns": 24,
+   "segmentation_v2": false,
+   "sensitivity": "off",
+   "stamp_default_tz": null,
+   "stamp_participant_tags": "v1",
+   "stamping_v2": false,
+   "temporal_v2": false,
+   "window_async": true,
+   "window_cache": true,
+   "window_extract": "off",
+   "window_idle_s": 120.0,
+   "window_max_tokens": 1500,
+   "window_max_turns": 6,
+   "window_split": "auto",
+   "window_topic_k": 2.0
+  }
+ },
+ "template:embedded": {
+  "audit": {
+   "actions": false,
+   "chain_v2": false,
+   "reads": false
+  },
+  "consent": {
+   "enforce": false,
+   "local_hosts": [],
+   "remote_llm_max_tier": null,
+   "untagged": "allow",
+   "v2": false
+  },
+  "data_profile": "off",
+  "data_shape": {
+   "abstention_possible": null,
+   "has_question_date": null,
+   "has_timestamps": null,
+   "history_size": "unknown",
+   "language": null,
+   "speaker_kind": "unknown",
+   "turn_length": "unknown"
+  },
+  "decision": {
+   "provider": "off"
+  },
+  "deployment": {
+   "data_dir": null,
+   "id": null,
+   "locality": "single_process"
+  },
+  "economy": {
+   "budget": null,
+   "ledger_persist": false,
+   "ledger_v2": false
+  },
+  "embedding": {
+   "batch_size": 32,
+   "migrate_profile": false,
+   "pin_profile": false,
+   "profile": null,
+   "provider": "fastembed",
+   "settings": {},
+   "versioned_spaces": false
+  },
+  "event_log": {
+   "compress": false,
+   "mode": "full",
+   "retention_days": 30
+  },
+  "firewall": {
+   "enabled": true,
+   "gates_v2": false,
+   "hearsay_trust_cap": null,
+   "max_content_chars": null,
+   "pii": "off",
+   "pii_extended": false,
+   "protected_keys": [],
+   "redact_secrets": false,
+   "sensitive_topics": false,
+   "signals": {
+    "anomaly": true,
+    "anomaly_exempt_roles": [],
+    "instruction": true,
+    "instruction_extended": false,
+    "minja_bridge": true,
+    "minja_bridge_exempt_roles": [],
+    "minja_bridge_prefix_chars": null,
+    "query_anomaly": false,
+    "query_anomaly_kappa": 3.0,
+    "semantic_risk": false
+   },
+   "skip_injected_recall": false,
+   "skip_message_roles": [],
+   "tag_assistant_claims": false
+  },
+  "graph": {
+   "edge_compiler_v2": false,
+   "entity_embeddings": false,
+   "key_v2": false
+  },
+  "ingest": {
+   "asset_allowed_mime": [
+    "image/jpeg",
+    "image/png",
+    "image/gif",
+    "image/webp"
+   ],
+   "asset_dir": null,
+   "asset_max_bytes": 5000000,
+   "asset_timeout_s": 15.0,
+   "asset_vision": "none",
+   "asset_vision_model": "qwen2.5vl:3b",
+   "asset_vision_timeout_s": 120.0,
+   "asset_vision_url": "http://localhost:11434",
+   "assets": "off"
+  },
+  "integrity": {
+   "admission_threshold": 0.0,
+   "attenuation": "product",
+   "claims_only_below": 0.0,
+   "corroboration_roots": false,
+   "derivation_decay": 1.0,
+   "edge_kappa": {},
+   "enabled": false,
+   "grant_horizon": null,
+   "horizon_v2": false,
+   "implicit_parents": "off",
+   "kappa": 0.5,
+   "live_reevaluation": false,
+   "merge_reinforcement_gate": true,
+   "principal_bound_corroboration": true,
+   "principal_reputation": false,
+   "trust_weighted_ranking": true,
+   "untrusted_wrap_below": 0.0,
+   "verification_bonus": 1.0
+  },
+  "isolation": {
+   "multi_party_namespaces": [],
+   "owner_bound_handles": false,
+   "scope_keys_v2": false,
+   "viewer_required": false
+  },
+  "llm": {
+   "roles": {},
+   "structured": {
+    "constrained_retry": false,
+    "retry_on_error": false
+   }
+  },
+  "memories": {
+   "episodic": {
+    "enabled": true,
+    "policies": {}
+   },
+   "semantic": {
+    "enabled": true,
+    "policies": {
+     "conflict": {
+      "contest_lower_trust": true
+     }
+    }
+   },
+   "working": {
+    "enabled": true,
+    "policies": {}
+   }
+  },
+  "models": {
+   "allow_hosted": false,
+   "bindings": {},
+   "catalogue": [],
+   "default_rerankers": "shipped",
+   "detect_gpus": false,
+   "embedder_profile": "auto",
+   "escalation": {},
+   "gliner_max_models": 1,
+   "gpu_headroom_mb": 512,
+   "gpus": [],
+   "on_missing_model": "error",
+   "pins": {},
+   "profiles": {},
+   "ram_mb": 0,
+   "required_roles": [],
+   "rerank": "chain",
+   "role_tier": {},
+   "thinking": {},
+   "tiers_v2": false,
+   "topic": {
+    "labels": {},
+    "min_confidence": 0.5
+   }
+  },
+  "namespaces": {},
+  "observability": {
+   "inspect": false,
+   "inspect_content": false,
+   "ops_ledger": false,
+   "otel": {
+    "enabled": false
+   },
+   "tap": {
+    "content": false,
+    "dir": "runs/_tap",
+    "enabled": false,
+    "kinds": [
+     "read",
+     "write",
+     "job"
+    ],
+    "max_content_chars": 200,
+    "sample_rate": 1.0,
+    "sink": "jsonl"
+   },
+   "write_timers": false
+  },
+  "offline": {
+   "budget_calls_per_cycle": null,
+   "budget_tokens_per_cycle": null,
+   "budget_v2": false,
+   "communities_v2": false,
+   "community_hub_fraction": 0.5,
+   "community_hubs": [],
+   "community_max_entities_per_record": 8,
+   "community_max_size": 200,
+   "community_min_size": 3,
+   "community_summary_budget_tokens": 20000,
+   "decay_boundaries": [
+    0.5,
+    0.3,
+    0.15
+   ],
+   "decay_group_min_size": 2,
+   "decay_margin": 0.05,
+   "decay_multires_jobs": 0,
+   "decay_protected_kinds": [],
+   "decay_v2": false,
+   "histories_v2": false,
+   "near_duplicate_text": 0.8,
+   "patterns_kinds": [],
+   "patterns_max_new": 50,
+   "patterns_v2": false,
+   "profile_allow_inferred": false,
+   "profile_alpha": 0.3,
+   "profile_card_v2": false,
+   "profile_kappa_p": 24,
+   "profile_max_chars": 2400,
+   "reconcile_v2": false,
+   "session_close_budget": 6000,
+   "session_close_v2": false,
+   "sleep_context_pressure": 0.7,
+   "sleep_idle_minutes": 10.0,
+   "sleep_lease_ttl_seconds": 300.0,
+   "sleep_maintenance_hours": 24.0,
+   "sleep_manual_only": false,
+   "sleep_min_gap_minutes": 60.0,
+   "sleep_min_turns": 20,
+   "sleep_scoped": false,
+   "sleep_v2": false,
+   "standing_idle_after": 5,
+   "standing_max_answers": 50,
+   "standing_v2": false
+  },
+  "plugins": [],
+  "privacy": {
+   "erasure_redact_hidden": false,
+   "erasure_rederive": false,
+   "erasure_v2": false
+  },
+  "profile": "simple",
+  "prompts": {
+   "layout_partials": [
+    "same_language",
+    "coarse_date"
+   ],
+   "layout_v2": false,
+   "overrides": {},
+   "partials": {},
+   "selection": {
+    "chat": {
+     "condition": "dated"
+    }
+   }
+  },
+  "read": {
+   "abstain_on_raw": false,
+   "agentic": false,
+   "agentic_first_share": 0.6,
+   "agentic_max_new": 6,
+   "agentic_max_steps": 2,
+   "agentic_top_k": 8,
+   "agentic_trigger": "multi_hop",
+   "aggregate_in_replay": false,
+   "aggregate_top_k": null,
+   "anticipatory_cues": false,
+   "assembly": {
+    "relative_floor": 0.3
+   },
+   "asset_evidence": "off",
+   "asset_max_per_read": 2,
+   "bridge_hop": false,
+   "bridge_hop_gate": "always",
+   "bridge_hop_top_k": 10,
+   "bridge_hop_weak_threshold": 0.4,
+   "bundle_fact_share": 0.6,
+   "bundle_pool_factor": 2.0,
+   "cache": {
+    "enabled": false,
+    "max_entries": 256,
+    "ttl_seconds": null
+   },
+   "candidate_pool": 1,
+   "cards": "off",
+   "cards_budget_share": 0.25,
+   "cards_event_date": false,
+   "cards_include_edges": false,
+   "cards_only_aggregate": false,
+   "cards_skip_hides_facts": false,
+   "cards_skip_temporal": false,
+   "cards_temporal": "skip",
+   "cards_top_k": 10,
+   "cards_when_weak": false,
+   "causal_walk": "off",
+   "causal_walk_hops": 2,
+   "cluster_expand": false,
+   "cohesion_leg": false,
+   "completeness_check": false,
+   "completeness_rounds": 1,
+   "compose_replay": false,
+   "compose_rewrites": false,
+   "compression": {},
+   "concentration_filter": false,
+   "concentration_jaccard": 0.2,
+   "contract_rules": false,
+   "core_terms_leg": false,
+   "count_budget_share": 0.1,
+   "count_dedupe": false,
+   "count_timeline": false,
+   "coverage_select": false,
+   "coverage_session_penalty": 0.15,
+   "cue_min_trust": 0.5,
+   "current_state_view": false,
+   "date_prior": false,
+   "date_prior_boost": 1.0,
+   "date_prior_days": 14,
+   "decider": "heuristic",
+   "decider_backend": "torch",
+   "decider_device": "cpu",
+   "decider_dtype": "float32",
+   "decider_min_confidence": 0.5,
+   "decider_model": "manjunathshiva/opendecider-nano",
+   "decider_tasks": [
+    "list_mode",
+    "bridge_hop"
+   ],
+   "decider_threads": 0,
+   "decider_workers": 1,
+   "decompose_v2": false,
+   "decompose_v2_max_entities": 3,
+   "dedupe": "off",
+   "dedupe_keep": "best",
+   "dedupe_threshold": 0.9,
+   "deep_v2": false,
+   "default_mode": "replay",
+   "derived_cap": 0,
+   "derived_dates": false,
+   "derived_lift": "off",
+   "derived_lift_max_parents": 3,
+   "entity_check": "off",
+   "entity_expand_leg": false,
+   "entity_leg": false,
+   "entity_leg_v2": false,
+   "entity_summaries": false,
+   "episode_leg_v2": false,
+   "episode_lift_carry": 0.9,
+   "episode_lift_max_turns": 8,
+   "event_ledger": "off",
+   "event_ledger_trigger": "event_questions",
+   "evidence_bundles": false,
+   "evidence_first": false,
+   "evidence_line": false,
+   "evidence_signal": false,
+   "evidence_weak_below": null,
+   "exact_budget": false,
+   "exact_budget_max_skips": 8,
+   "external_cache_dir": null,
+   "external_evidence": "off",
+   "external_max_calls": 20,
+   "external_max_results": 3,
+   "external_provider": "none",
+   "external_v2": false,
+   "external_v2_budget_tokens": 300,
+   "facts_to_sources": false,
+   "family_fusion": false,
+   "focused_excerpt": false,
+   "freshness_fallback": false,
+   "freshness_fallback_max": 20,
+   "freshness_stale_gap": 20,
+   "freshness_v2": false,
+   "fusion": "rrf",
+   "gap_markers": false,
+   "gate_v2": false,
+   "gate_v2_named": "hit",
+   "gate_v2_weak": "keep",
+   "gist_after": null,
+   "graph_communities": false,
+   "graph_depth": 2,
+   "graph_leg": false,
+   "graph_leg_carry": 0.9,
+   "graph_leg_k": 10,
+   "graph_leg_lift_max_turns": 8,
+   "graph_leg_min_seeds": 2,
+   "graph_leg_seed_hits": 3,
+   "graph_leg_v2": false,
+   "graph_min_trust": 0.25,
+   "graph_node_search": false,
+   "graph_rerank": "off",
+   "graph_rerank_weight": 0.2,
+   "graph_time_guard": "off",
+   "graph_time_guard_shape": "temporal",
+   "hybrid": true,
+   "inference_mode": "off",
+   "inferred_gate": "off",
+   "inferred_min_support": 2,
+   "language_guard": "off",
+   "latest_wins": "off",
+   "latest_wins_min_overlap": 0.5,
+   "lead_budget_share": null,
+   "lead_budget_tokens": 400,
+   "leg_min_scores": {},
+   "leg_weights": {},
+   "leg_weights_by_shape": {},
+   "legs_v2": false,
+   "lexical_language": "en",
+   "lexical_namespace_languages": {},
+   "lexical_scorer": "bm25",
+   "lexical_strip_names": false,
+   "lift_before_rerank": false,
+   "lift_max_turns": 2,
+   "list_cards_only_aggregate": false,
+   "list_mode": false,
+   "list_mode_trigger_v2": false,
+   "list_pool": 3,
+   "list_trigger": "set_question",
+   "list_vote_depth": 100,
+   "list_vote_top_k": 30,
+   "maxsim_leg": false,
+   "metadata_leg": false,
+   "mmr_lambda": null,
+   "multi_intent_split": false,
+   "naive_timezone": "UTC",
+   "neighbours_v2": false,
+   "novelty_exclusions": false,
+   "obligations": false,
+   "order_by_time_for_ordering": true,
+   "owner_check": "off",
+   "parallel_legs": false,
+   "person_time_leg_k": 10,
+   "perspective_as_of_subject": false,
+   "perspective_asker": null,
+   "perspective_axes": [
+    "subject"
+   ],
+   "perspective_leg": true,
+   "perspective_marker": false,
+   "perspective_min_keep": 3,
+   "perspective_mode": "off",
+   "perspective_weight": 0.4,
+   "planner": "rules",
+   "planner_min_confidence": 0.0,
+   "planner_version": "v1",
+   "pool_protect_mode": "per_leg",
+   "pool_protect_per_leg": 0,
+   "present_order": "relevance",
+   "prf_expansion": false,
+   "profile_budget_share": 0.15,
+   "profile_card_header": false,
+   "profile_card_header_budget": 200,
+   "profile_card_max_age_days": 365,
+   "profile_header": false,
+   "profile_header_budget": 300,
+   "profile_header_packing": false,
+   "profile_relevance_gate": "off",
+   "profile_scope_gate": false,
+   "profile_sensitive": false,
+   "profile_skip_temporal": false,
+   "profile_slots_header": false,
+   "profile_subject_card": false,
+   "query_contract": "off",
+   "query_contract_use": [
+    "header"
+   ],
+   "query_encoder": "none",
+   "raw_turn_floor": false,
+   "reader_tokenizer": null,
+   "recency_leg": false,
+   "recent_exchanges": 0,
+   "record_access": false,
+   "reference_edges": "off",
+   "reference_max_per_read": 4,
+   "reference_short_words": 6,
+   "reinjection_penalty": 0.0,
+   "reinjection_window": 5,
+   "relative_dates_anchored": false,
+   "relative_dates_happened": false,
+   "relative_dates_weekdays": false,
+   "relative_week": "calendar",
+   "relevance_filter": false,
+   "relevance_gate": "off",
+   "relevance_gate_bypass": "named",
+   "relevance_gate_candidates": 10,
+   "relevance_gate_leg": "auto",
+   "relevance_gate_margin_sd": 1.0,
+   "relevance_gate_regrow": 2.0,
+   "relevance_safety_net": 10,
+   "render": "plain",
+   "replay_budget_reference": 4096,
+   "replay_budget_scaling": false,
+   "replay_hits_first": false,
+   "replay_topic_segments": false,
+   "replay_window_after": null,
+   "replay_window_before": null,
+   "replay_window_tokens_after": 512,
+   "replay_window_tokens_before": 256,
+   "replay_window_unit": "turns",
+   "reply_links": false,
+   "reply_reserve_tokens": 0,
+   "rerank": "off",
+   "rerank_balanced": false,
+   "rerank_blend": null,
+   "rerank_chunk_chars": null,
+   "rerank_chunk_overlap": 0,
+   "rerank_context": 0,
+   "rerank_date_prefix": false,
+   "rerank_floor": "minmax",
+   "rerank_gate": null,
+   "rerank_keep": null,
+   "rerank_max_top_k": null,
+   "rerank_settings": {},
+   "rerank_v2": false,
+   "rerank_v2_chain": [
+    "jina",
+    "qwen3",
+    "fastembed"
+   ],
+   "rerank_v2_pool": 64,
+   "rerank_v2_search_pool": 0,
+   "resolve_durations": false,
+   "resolve_relative_dates": true,
+   "role_aware": false,
+   "router_rules": false,
+   "rrf_k": null,
+   "scoring": {
+    "importance_weight": 0.0,
+    "recency_weight": 0.0,
+    "utility_weight": 0.0
+   },
+   "second_round": false,
+   "section_captions": false,
+   "sensitivity_gate": "off",
+   "sentence_leg": false,
+   "session_cap": null,
+   "session_digest": false,
+   "session_leg": false,
+   "session_leg_per_session": 2,
+   "session_leg_top_sessions": 3,
+   "session_sequence": false,
+   "short_query_lexical_weight": null,
+   "skip_defaulted_dates": false,
+   "skip_rerank_for_ordering": false,
+   "span_line": false,
+   "speaker_probe": false,
+   "speaker_vote_mode": "name",
+   "standing_answers_budget": 120,
+   "standing_instructions": false,
+   "standing_min_trust": 0.7,
+   "standing_patterns": "narrow",
+   "standing_v2": false,
+   "statement_probe": false,
+   "static_embedding_prefilter": false,
+   "static_prefilter": false,
+   "subject_leg": false,
+   "temporal_infer_year": false,
+   "temporal_leg": true,
+   "temporal_leg_event_dates": false,
+   "temporal_leg_mentions": false,
+   "temporal_precision_aware": false,
+   "temporal_rank": "midpoint",
+   "temporal_relative": false,
+   "temporal_soft": false,
+   "tiers_v2": false,
+   "tiers_v2_depth": "fast",
+   "timeline_entities": 3,
+   "timeline_items": 8,
+   "timeview_v2": false,
+   "topic_timelines": false,
+   "trust_rendering": false,
+   "type_quotas": {},
+   "user_header": "off",
+   "verbatim_raw_only": false,
+   "view_tag_leg": false,
+   "wait_for_pending_s": 0.0,
+   "window_full_hits": 10
+  },
+  "rest": {
+   "auth": {
+    "api_keys": [],
+    "jwt": {
+     "admin_role": "memspine-admin",
+     "algorithms": [
+      "RS256"
+     ],
+     "audience": null,
+     "issuer": null,
+     "jwks_url": null,
+     "key_env": null,
+     "namespaces_claim": "memspine_namespaces",
+     "principal_claim": "sub",
+     "roles_claim": "roles"
+    },
+    "mode": "none"
+   },
+   "rate_limit": null
+  },
+  "retention": {
+   "classes": [],
+   "profile": null,
+   "v2": false
+  },
+  "runtime": {
+   "background_reserve": 1,
+   "backlog_coalesce_age_s": 60.0,
+   "backlog_coalesce_items": 200,
+   "backlog_max_age_s": 900.0,
+   "backlog_max_items": 2000,
+   "backlog_max_total_items": 0,
+   "backlog_retry_after_s": 1.0,
+   "encoder_batch_max": 32,
+   "encoder_batch_wait_ms": 5.0,
+   "environment": "development",
+   "lag_p95_budget_s": null,
+   "model_concurrency": 0,
+   "provider_services": {
+    "close_timeout_s": 10.0,
+    "health_timeout_s": 5.0,
+    "startup_timeout_s": null
+   },
+   "read_p95_budget_s": null,
+   "scheduler_v2": false,
+   "service_switches": {
+    "cache": {
+     "mode": "controlled",
+     "strategy": "cold_start"
+    },
+    "embeddings": {
+     "mode": "controlled",
+     "strategy": "reembed"
+    },
+    "models": {
+     "historical_derivation": "forward_only",
+     "mode": "controlled"
+    },
+    "projections": {
+     "cleanup_batch_size": 50,
+     "cleanup_interval_s": null,
+     "mode": "controlled",
+     "retention_s": null
+    },
+    "storage": {
+     "auto_delete_source": false,
+     "mode": "controlled",
+     "strategy": "verified_migration"
+    }
+   },
+   "shared_resources": {
+    "http": {
+     "keepalive_s": 30.0,
+     "max_connections": 100
+    },
+    "idle_ttl_s": null,
+    "keep_warm": true,
+    "max_models_per_category": null,
+    "memory_budget_mb": null,
+    "model_server": null,
+    "scope": "process",
+    "sql": {
+     "max_overflow": 0,
+     "pool_pre_ping": true,
+     "pool_recycle_s": 1800,
+     "pool_size": 5
+    },
+    "warmup": "background",
+    "warmup_concurrency": 2,
+    "warmup_exclude": [],
+    "warmup_include": [
+     "embedder",
+     "reranker",
+     "gliner",
+     "lexical",
+     "llm",
+     "decider"
+    ],
+    "warmup_timeout_s": 120.0
+   }
+  },
+  "storage": {
+   "cache": {
+    "provider": "memory",
+    "settings": {}
+   },
+   "documents": null,
+   "graph": {
+    "provider": "auto",
+    "settings": {}
+   },
+   "graph_mirror": null,
+   "lexical": {
+    "provider": "tantivy",
+    "settings": {}
+   },
+   "records": {
+    "provider": "sqlite",
+    "settings": {
+     "busy_timeout_s": 5.0,
+     "path": "./memspine.db"
+    }
+   },
+   "vector": {
+    "provider": "lancedb",
+    "settings": {}
+   }
+  },
+  "strict_services": true,
   "workers": {
    "broker_url": "redis://localhost:6379/0",
    "outbox": false,
@@ -15728,10 +16641,6 @@
    "chain_v2": false,
    "reads": false
   },
-  "cache": {
-   "provider": "memory",
-   "settings": {}
-  },
   "consent": {
    "enforce": false,
    "local_hosts": [],
@@ -15751,6 +16660,11 @@
   },
   "decision": {
    "provider": "off"
+  },
+  "deployment": {
+   "data_dir": null,
+   "id": null,
+   "locality": "single_process"
   },
   "economy": {
    "budget": null,
@@ -15800,14 +16714,7 @@
   "graph": {
    "edge_compiler_v2": false,
    "entity_embeddings": true,
-   "key_v2": false,
-   "mirror": {
-    "enabled": false,
-    "provider": "neo4j",
-    "settings": {}
-   },
-   "provider": "auto",
-   "settings": {}
+   "key_v2": false
   },
   "ingest": {
    "asset_allowed_mime": [
@@ -16151,9 +17058,7 @@
    "legs_v2": false,
    "lexical_language": "en",
    "lexical_namespace_languages": {},
-   "lexical_provider": "tantivy",
    "lexical_scorer": "bm25",
-   "lexical_settings": {},
    "lexical_strip_names": false,
    "lift_before_rerank": false,
    "lift_max_turns": 2,
@@ -16355,7 +17260,6 @@
    "backlog_max_items": 2000,
    "backlog_max_total_items": 0,
    "backlog_retry_after_s": 1.0,
-   "deployment_id": null,
    "encoder_batch_max": 32,
    "encoder_batch_wait_ms": 5.0,
    "environment": "development",
@@ -16425,18 +17329,33 @@
    }
   },
   "storage": {
-   "profile": "embedded",
-   "provider": "sqlite",
-   "settings": {
-    "busy_timeout_s": 5.0,
-    "path": "./memspine.db"
+   "cache": {
+    "provider": "memory",
+    "settings": {}
+   },
+   "documents": null,
+   "graph": {
+    "provider": "auto",
+    "settings": {}
+   },
+   "graph_mirror": null,
+   "lexical": {
+    "provider": "tantivy",
+    "settings": {}
+   },
+   "records": {
+    "provider": "sqlite",
+    "settings": {
+     "busy_timeout_s": 5.0,
+     "path": "./memspine.db"
+    }
+   },
+   "vector": {
+    "provider": "lancedb",
+    "settings": {}
    }
   },
   "strict_services": true,
-  "vector": {
-   "provider": "lancedb",
-   "settings": {}
-  },
   "workers": {
    "broker_url": "redis://localhost:6379/0",
    "outbox": false,
@@ -16523,10 +17442,6 @@
    "chain_v2": false,
    "reads": false
   },
-  "cache": {
-   "provider": "memory",
-   "settings": {}
-  },
   "consent": {
    "enforce": false,
    "local_hosts": [],
@@ -16546,6 +17461,11 @@
   },
   "decision": {
    "provider": "off"
+  },
+  "deployment": {
+   "data_dir": null,
+   "id": null,
+   "locality": "single_process"
   },
   "economy": {
    "budget": null,
@@ -16595,14 +17515,7 @@
   "graph": {
    "edge_compiler_v2": false,
    "entity_embeddings": false,
-   "key_v2": false,
-   "mirror": {
-    "enabled": false,
-    "provider": "neo4j",
-    "settings": {}
-   },
-   "provider": "auto",
-   "settings": {}
+   "key_v2": false
   },
   "ingest": {
    "asset_allowed_mime": [
@@ -16942,9 +17855,7 @@
    "legs_v2": false,
    "lexical_language": "en",
    "lexical_namespace_languages": {},
-   "lexical_provider": "tantivy",
    "lexical_scorer": "bm25",
-   "lexical_settings": {},
    "lexical_strip_names": false,
    "lift_before_rerank": false,
    "lift_max_turns": 2,
@@ -17146,7 +18057,6 @@
    "backlog_max_items": 2000,
    "backlog_max_total_items": 0,
    "backlog_retry_after_s": 1.0,
-   "deployment_id": null,
    "encoder_batch_max": 32,
    "encoder_batch_wait_ms": 5.0,
    "environment": "development",
@@ -17216,18 +18126,33 @@
    }
   },
   "storage": {
-   "profile": "embedded",
-   "provider": "sqlite",
-   "settings": {
-    "busy_timeout_s": 5.0,
-    "path": "./memspine.db"
+   "cache": {
+    "provider": "memory",
+    "settings": {}
+   },
+   "documents": null,
+   "graph": {
+    "provider": "auto",
+    "settings": {}
+   },
+   "graph_mirror": null,
+   "lexical": {
+    "provider": "tantivy",
+    "settings": {}
+   },
+   "records": {
+    "provider": "sqlite",
+    "settings": {
+     "busy_timeout_s": 5.0,
+     "path": "./memspine.db"
+    }
+   },
+   "vector": {
+    "provider": "lancedb",
+    "settings": {}
    }
   },
   "strict_services": true,
-  "vector": {
-   "provider": "lancedb",
-   "settings": {}
-  },
   "workers": {
    "broker_url": "redis://localhost:6379/0",
    "outbox": false,
@@ -17327,10 +18252,6 @@
    "chain_v2": false,
    "reads": false
   },
-  "cache": {
-   "provider": "memory",
-   "settings": {}
-  },
   "consent": {
    "enforce": false,
    "local_hosts": [],
@@ -17350,6 +18271,11 @@
   },
   "decision": {
    "provider": "off"
+  },
+  "deployment": {
+   "data_dir": null,
+   "id": null,
+   "locality": "single_process"
   },
   "economy": {
    "budget": null,
@@ -17399,14 +18325,7 @@
   "graph": {
    "edge_compiler_v2": false,
    "entity_embeddings": false,
-   "key_v2": false,
-   "mirror": {
-    "enabled": false,
-    "provider": "neo4j",
-    "settings": {}
-   },
-   "provider": "auto",
-   "settings": {}
+   "key_v2": false
   },
   "ingest": {
    "asset_allowed_mime": [
@@ -17750,9 +18669,7 @@
    "legs_v2": false,
    "lexical_language": "en",
    "lexical_namespace_languages": {},
-   "lexical_provider": "tantivy",
    "lexical_scorer": "bm25",
-   "lexical_settings": {},
    "lexical_strip_names": false,
    "lift_before_rerank": false,
    "lift_max_turns": 2,
@@ -17954,7 +18871,6 @@
    "backlog_max_items": 2000,
    "backlog_max_total_items": 0,
    "backlog_retry_after_s": 1.0,
-   "deployment_id": null,
    "encoder_batch_max": 32,
    "encoder_batch_wait_ms": 5.0,
    "environment": "development",
@@ -18024,18 +18940,33 @@
    }
   },
   "storage": {
-   "profile": "embedded",
-   "provider": "sqlite",
-   "settings": {
-    "busy_timeout_s": 5.0,
-    "path": "./memspine.db"
+   "cache": {
+    "provider": "memory",
+    "settings": {}
+   },
+   "documents": null,
+   "graph": {
+    "provider": "auto",
+    "settings": {}
+   },
+   "graph_mirror": null,
+   "lexical": {
+    "provider": "tantivy",
+    "settings": {}
+   },
+   "records": {
+    "provider": "sqlite",
+    "settings": {
+     "busy_timeout_s": 5.0,
+     "path": "./memspine.db"
+    }
+   },
+   "vector": {
+    "provider": "lancedb",
+    "settings": {}
    }
   },
   "strict_services": true,
-  "vector": {
-   "provider": "lancedb",
-   "settings": {}
-  },
   "workers": {
    "broker_url": "redis://localhost:6379/0",
    "outbox": false,
@@ -18122,10 +19053,6 @@
    "chain_v2": false,
    "reads": false
   },
-  "cache": {
-   "provider": "memory",
-   "settings": {}
-  },
   "consent": {
    "enforce": false,
    "local_hosts": [],
@@ -18145,6 +19072,11 @@
   },
   "decision": {
    "provider": "off"
+  },
+  "deployment": {
+   "data_dir": null,
+   "id": null,
+   "locality": "single_process"
   },
   "economy": {
    "budget": null,
@@ -18194,14 +19126,7 @@
   "graph": {
    "edge_compiler_v2": false,
    "entity_embeddings": false,
-   "key_v2": false,
-   "mirror": {
-    "enabled": false,
-    "provider": "neo4j",
-    "settings": {}
-   },
-   "provider": "auto",
-   "settings": {}
+   "key_v2": false
   },
   "ingest": {
    "asset_allowed_mime": [
@@ -18537,9 +19462,7 @@
    "legs_v2": false,
    "lexical_language": "en",
    "lexical_namespace_languages": {},
-   "lexical_provider": "tantivy",
    "lexical_scorer": "bm25",
-   "lexical_settings": {},
    "lexical_strip_names": false,
    "lift_before_rerank": false,
    "lift_max_turns": 2,
@@ -18741,7 +19664,6 @@
    "backlog_max_items": 2000,
    "backlog_max_total_items": 0,
    "backlog_retry_after_s": 1.0,
-   "deployment_id": null,
    "encoder_batch_max": 32,
    "encoder_batch_wait_ms": 5.0,
    "environment": "development",
@@ -18811,18 +19733,33 @@
    }
   },
   "storage": {
-   "profile": "embedded",
-   "provider": "sqlite",
-   "settings": {
-    "busy_timeout_s": 5.0,
-    "path": "./memspine.db"
+   "cache": {
+    "provider": "memory",
+    "settings": {}
+   },
+   "documents": null,
+   "graph": {
+    "provider": "auto",
+    "settings": {}
+   },
+   "graph_mirror": null,
+   "lexical": {
+    "provider": "tantivy",
+    "settings": {}
+   },
+   "records": {
+    "provider": "sqlite",
+    "settings": {
+     "busy_timeout_s": 5.0,
+     "path": "./memspine.db"
+    }
+   },
+   "vector": {
+    "provider": "lancedb",
+    "settings": {}
    }
   },
   "strict_services": true,
-  "vector": {
-   "provider": "lancedb",
-   "settings": {}
-  },
   "workers": {
    "broker_url": "redis://localhost:6379/0",
    "outbox": false,
@@ -18909,10 +19846,6 @@
    "chain_v2": false,
    "reads": false
   },
-  "cache": {
-   "provider": "memory",
-   "settings": {}
-  },
   "consent": {
    "enforce": false,
    "local_hosts": [],
@@ -18932,6 +19865,11 @@
   },
   "decision": {
    "provider": "off"
+  },
+  "deployment": {
+   "data_dir": null,
+   "id": null,
+   "locality": "single_process"
   },
   "economy": {
    "budget": null,
@@ -18981,14 +19919,7 @@
   "graph": {
    "edge_compiler_v2": false,
    "entity_embeddings": false,
-   "key_v2": false,
-   "mirror": {
-    "enabled": false,
-    "provider": "neo4j",
-    "settings": {}
-   },
-   "provider": "auto",
-   "settings": {}
+   "key_v2": false
   },
   "ingest": {
    "asset_allowed_mime": [
@@ -19325,9 +20256,7 @@
    "legs_v2": false,
    "lexical_language": "en",
    "lexical_namespace_languages": {},
-   "lexical_provider": "tantivy",
    "lexical_scorer": "bm25",
-   "lexical_settings": {},
    "lexical_strip_names": false,
    "lift_before_rerank": false,
    "lift_max_turns": 2,
@@ -19529,7 +20458,6 @@
    "backlog_max_items": 2000,
    "backlog_max_total_items": 0,
    "backlog_retry_after_s": 1.0,
-   "deployment_id": null,
    "encoder_batch_max": 32,
    "encoder_batch_wait_ms": 5.0,
    "environment": "development",
@@ -19599,18 +20527,33 @@
    }
   },
   "storage": {
-   "profile": "embedded",
-   "provider": "sqlite",
-   "settings": {
-    "busy_timeout_s": 5.0,
-    "path": "./memspine.db"
+   "cache": {
+    "provider": "memory",
+    "settings": {}
+   },
+   "documents": null,
+   "graph": {
+    "provider": "auto",
+    "settings": {}
+   },
+   "graph_mirror": null,
+   "lexical": {
+    "provider": "tantivy",
+    "settings": {}
+   },
+   "records": {
+    "provider": "sqlite",
+    "settings": {
+     "busy_timeout_s": 5.0,
+     "path": "./memspine.db"
+    }
+   },
+   "vector": {
+    "provider": "lancedb",
+    "settings": {}
    }
   },
   "strict_services": true,
-  "vector": {
-   "provider": "lancedb",
-   "settings": {}
-  },
   "workers": {
    "broker_url": "redis://localhost:6379/0",
    "outbox": false,
@@ -19704,15 +20647,11 @@
    "window_topic_k": 2.0
   }
  },
- "template:voice": {
+ "template:server": {
   "audit": {
    "actions": false,
    "chain_v2": false,
    "reads": false
-  },
-  "cache": {
-   "provider": "memory",
-   "settings": {}
   },
   "consent": {
    "enforce": false,
@@ -19733,6 +20672,809 @@
   },
   "decision": {
    "provider": "off"
+  },
+  "deployment": {
+   "data_dir": "./memspine-data",
+   "id": "memspine-server",
+   "locality": "single_process"
+  },
+  "economy": {
+   "budget": null,
+   "ledger_persist": false,
+   "ledger_v2": false
+  },
+  "embedding": {
+   "batch_size": 32,
+   "migrate_profile": false,
+   "pin_profile": false,
+   "profile": null,
+   "provider": "fastembed",
+   "settings": {},
+   "versioned_spaces": false
+  },
+  "event_log": {
+   "compress": false,
+   "mode": "full",
+   "retention_days": 30
+  },
+  "firewall": {
+   "enabled": true,
+   "gates_v2": false,
+   "hearsay_trust_cap": null,
+   "max_content_chars": null,
+   "pii": "off",
+   "pii_extended": false,
+   "protected_keys": [],
+   "redact_secrets": false,
+   "sensitive_topics": false,
+   "signals": {
+    "anomaly": true,
+    "anomaly_exempt_roles": [],
+    "instruction": true,
+    "instruction_extended": false,
+    "minja_bridge": true,
+    "minja_bridge_exempt_roles": [],
+    "minja_bridge_prefix_chars": null,
+    "query_anomaly": false,
+    "query_anomaly_kappa": 3.0,
+    "semantic_risk": false
+   },
+   "skip_injected_recall": false,
+   "skip_message_roles": [],
+   "tag_assistant_claims": false
+  },
+  "graph": {
+   "edge_compiler_v2": false,
+   "entity_embeddings": false,
+   "key_v2": false
+  },
+  "ingest": {
+   "asset_allowed_mime": [
+    "image/jpeg",
+    "image/png",
+    "image/gif",
+    "image/webp"
+   ],
+   "asset_dir": null,
+   "asset_max_bytes": 5000000,
+   "asset_timeout_s": 15.0,
+   "asset_vision": "none",
+   "asset_vision_model": "qwen2.5vl:3b",
+   "asset_vision_timeout_s": 120.0,
+   "asset_vision_url": "http://localhost:11434",
+   "assets": "off"
+  },
+  "integrity": {
+   "admission_threshold": 0.0,
+   "attenuation": "product",
+   "claims_only_below": 0.0,
+   "corroboration_roots": false,
+   "derivation_decay": 1.0,
+   "edge_kappa": {},
+   "enabled": false,
+   "grant_horizon": null,
+   "horizon_v2": false,
+   "implicit_parents": "off",
+   "kappa": 0.5,
+   "live_reevaluation": false,
+   "merge_reinforcement_gate": true,
+   "principal_bound_corroboration": true,
+   "principal_reputation": false,
+   "trust_weighted_ranking": true,
+   "untrusted_wrap_below": 0.0,
+   "verification_bonus": 1.0
+  },
+  "isolation": {
+   "multi_party_namespaces": [],
+   "owner_bound_handles": false,
+   "scope_keys_v2": false,
+   "viewer_required": false
+  },
+  "llm": {
+   "roles": {},
+   "structured": {
+    "constrained_retry": false,
+    "retry_on_error": false
+   }
+  },
+  "memories": {
+   "episodic": {
+    "enabled": true,
+    "policies": {}
+   },
+   "semantic": {
+    "enabled": true,
+    "policies": {
+     "conflict": {
+      "contest_lower_trust": true
+     }
+    }
+   },
+   "working": {
+    "enabled": true,
+    "policies": {}
+   }
+  },
+  "models": {
+   "allow_hosted": false,
+   "bindings": {},
+   "catalogue": [],
+   "default_rerankers": "shipped",
+   "detect_gpus": false,
+   "embedder_profile": "auto",
+   "escalation": {},
+   "gliner_max_models": 1,
+   "gpu_headroom_mb": 512,
+   "gpus": [],
+   "on_missing_model": "error",
+   "pins": {},
+   "profiles": {},
+   "ram_mb": 0,
+   "required_roles": [],
+   "rerank": "chain",
+   "role_tier": {},
+   "thinking": {},
+   "tiers_v2": false,
+   "topic": {
+    "labels": {},
+    "min_confidence": 0.5
+   }
+  },
+  "namespaces": {},
+  "observability": {
+   "inspect": false,
+   "inspect_content": false,
+   "ops_ledger": false,
+   "otel": {
+    "enabled": false
+   },
+   "tap": {
+    "content": false,
+    "dir": "runs/_tap",
+    "enabled": false,
+    "kinds": [
+     "read",
+     "write",
+     "job"
+    ],
+    "max_content_chars": 200,
+    "sample_rate": 1.0,
+    "sink": "jsonl"
+   },
+   "write_timers": false
+  },
+  "offline": {
+   "budget_calls_per_cycle": null,
+   "budget_tokens_per_cycle": null,
+   "budget_v2": false,
+   "communities_v2": false,
+   "community_hub_fraction": 0.5,
+   "community_hubs": [],
+   "community_max_entities_per_record": 8,
+   "community_max_size": 200,
+   "community_min_size": 3,
+   "community_summary_budget_tokens": 20000,
+   "decay_boundaries": [
+    0.5,
+    0.3,
+    0.15
+   ],
+   "decay_group_min_size": 2,
+   "decay_margin": 0.05,
+   "decay_multires_jobs": 0,
+   "decay_protected_kinds": [],
+   "decay_v2": false,
+   "histories_v2": false,
+   "near_duplicate_text": 0.8,
+   "patterns_kinds": [],
+   "patterns_max_new": 50,
+   "patterns_v2": false,
+   "profile_allow_inferred": false,
+   "profile_alpha": 0.3,
+   "profile_card_v2": false,
+   "profile_kappa_p": 24,
+   "profile_max_chars": 2400,
+   "reconcile_v2": false,
+   "session_close_budget": 6000,
+   "session_close_v2": false,
+   "sleep_context_pressure": 0.7,
+   "sleep_idle_minutes": 10.0,
+   "sleep_lease_ttl_seconds": 300.0,
+   "sleep_maintenance_hours": 24.0,
+   "sleep_manual_only": false,
+   "sleep_min_gap_minutes": 60.0,
+   "sleep_min_turns": 20,
+   "sleep_scoped": false,
+   "sleep_v2": false,
+   "standing_idle_after": 5,
+   "standing_max_answers": 50,
+   "standing_v2": false
+  },
+  "plugins": [],
+  "privacy": {
+   "erasure_redact_hidden": false,
+   "erasure_rederive": false,
+   "erasure_v2": false
+  },
+  "profile": "simple",
+  "prompts": {
+   "layout_partials": [
+    "same_language",
+    "coarse_date"
+   ],
+   "layout_v2": false,
+   "overrides": {},
+   "partials": {},
+   "selection": {
+    "chat": {
+     "condition": "dated"
+    }
+   }
+  },
+  "read": {
+   "abstain_on_raw": false,
+   "agentic": false,
+   "agentic_first_share": 0.6,
+   "agentic_max_new": 6,
+   "agentic_max_steps": 2,
+   "agentic_top_k": 8,
+   "agentic_trigger": "multi_hop",
+   "aggregate_in_replay": false,
+   "aggregate_top_k": null,
+   "anticipatory_cues": false,
+   "assembly": {
+    "relative_floor": 0.3
+   },
+   "asset_evidence": "off",
+   "asset_max_per_read": 2,
+   "bridge_hop": false,
+   "bridge_hop_gate": "always",
+   "bridge_hop_top_k": 10,
+   "bridge_hop_weak_threshold": 0.4,
+   "bundle_fact_share": 0.6,
+   "bundle_pool_factor": 2.0,
+   "cache": {
+    "enabled": false,
+    "max_entries": 256,
+    "ttl_seconds": null
+   },
+   "candidate_pool": 1,
+   "cards": "off",
+   "cards_budget_share": 0.25,
+   "cards_event_date": false,
+   "cards_include_edges": false,
+   "cards_only_aggregate": false,
+   "cards_skip_hides_facts": false,
+   "cards_skip_temporal": false,
+   "cards_temporal": "skip",
+   "cards_top_k": 10,
+   "cards_when_weak": false,
+   "causal_walk": "off",
+   "causal_walk_hops": 2,
+   "cluster_expand": false,
+   "cohesion_leg": false,
+   "completeness_check": false,
+   "completeness_rounds": 1,
+   "compose_replay": false,
+   "compose_rewrites": false,
+   "compression": {},
+   "concentration_filter": false,
+   "concentration_jaccard": 0.2,
+   "contract_rules": false,
+   "core_terms_leg": false,
+   "count_budget_share": 0.1,
+   "count_dedupe": false,
+   "count_timeline": false,
+   "coverage_select": false,
+   "coverage_session_penalty": 0.15,
+   "cue_min_trust": 0.5,
+   "current_state_view": false,
+   "date_prior": false,
+   "date_prior_boost": 1.0,
+   "date_prior_days": 14,
+   "decider": "heuristic",
+   "decider_backend": "torch",
+   "decider_device": "cpu",
+   "decider_dtype": "float32",
+   "decider_min_confidence": 0.5,
+   "decider_model": "manjunathshiva/opendecider-nano",
+   "decider_tasks": [
+    "list_mode",
+    "bridge_hop"
+   ],
+   "decider_threads": 0,
+   "decider_workers": 1,
+   "decompose_v2": false,
+   "decompose_v2_max_entities": 3,
+   "dedupe": "off",
+   "dedupe_keep": "best",
+   "dedupe_threshold": 0.9,
+   "deep_v2": false,
+   "default_mode": "replay",
+   "derived_cap": 0,
+   "derived_dates": false,
+   "derived_lift": "off",
+   "derived_lift_max_parents": 3,
+   "entity_check": "off",
+   "entity_expand_leg": false,
+   "entity_leg": false,
+   "entity_leg_v2": false,
+   "entity_summaries": false,
+   "episode_leg_v2": false,
+   "episode_lift_carry": 0.9,
+   "episode_lift_max_turns": 8,
+   "event_ledger": "off",
+   "event_ledger_trigger": "event_questions",
+   "evidence_bundles": false,
+   "evidence_first": false,
+   "evidence_line": false,
+   "evidence_signal": false,
+   "evidence_weak_below": null,
+   "exact_budget": false,
+   "exact_budget_max_skips": 8,
+   "external_cache_dir": null,
+   "external_evidence": "off",
+   "external_max_calls": 20,
+   "external_max_results": 3,
+   "external_provider": "none",
+   "external_v2": false,
+   "external_v2_budget_tokens": 300,
+   "facts_to_sources": false,
+   "family_fusion": false,
+   "focused_excerpt": false,
+   "freshness_fallback": false,
+   "freshness_fallback_max": 20,
+   "freshness_stale_gap": 20,
+   "freshness_v2": false,
+   "fusion": "rrf",
+   "gap_markers": false,
+   "gate_v2": false,
+   "gate_v2_named": "hit",
+   "gate_v2_weak": "keep",
+   "gist_after": null,
+   "graph_communities": false,
+   "graph_depth": 2,
+   "graph_leg": false,
+   "graph_leg_carry": 0.9,
+   "graph_leg_k": 10,
+   "graph_leg_lift_max_turns": 8,
+   "graph_leg_min_seeds": 2,
+   "graph_leg_seed_hits": 3,
+   "graph_leg_v2": false,
+   "graph_min_trust": 0.25,
+   "graph_node_search": false,
+   "graph_rerank": "off",
+   "graph_rerank_weight": 0.2,
+   "graph_time_guard": "off",
+   "graph_time_guard_shape": "temporal",
+   "hybrid": true,
+   "inference_mode": "off",
+   "inferred_gate": "off",
+   "inferred_min_support": 2,
+   "language_guard": "off",
+   "latest_wins": "off",
+   "latest_wins_min_overlap": 0.5,
+   "lead_budget_share": null,
+   "lead_budget_tokens": 400,
+   "leg_min_scores": {},
+   "leg_weights": {},
+   "leg_weights_by_shape": {},
+   "legs_v2": false,
+   "lexical_language": "en",
+   "lexical_namespace_languages": {},
+   "lexical_scorer": "bm25",
+   "lexical_strip_names": false,
+   "lift_before_rerank": false,
+   "lift_max_turns": 2,
+   "list_cards_only_aggregate": false,
+   "list_mode": false,
+   "list_mode_trigger_v2": false,
+   "list_pool": 3,
+   "list_trigger": "set_question",
+   "list_vote_depth": 100,
+   "list_vote_top_k": 30,
+   "maxsim_leg": false,
+   "metadata_leg": false,
+   "mmr_lambda": null,
+   "multi_intent_split": false,
+   "naive_timezone": "UTC",
+   "neighbours_v2": false,
+   "novelty_exclusions": false,
+   "obligations": false,
+   "order_by_time_for_ordering": true,
+   "owner_check": "off",
+   "parallel_legs": false,
+   "person_time_leg_k": 10,
+   "perspective_as_of_subject": false,
+   "perspective_asker": null,
+   "perspective_axes": [
+    "subject"
+   ],
+   "perspective_leg": true,
+   "perspective_marker": false,
+   "perspective_min_keep": 3,
+   "perspective_mode": "off",
+   "perspective_weight": 0.4,
+   "planner": "rules",
+   "planner_min_confidence": 0.0,
+   "planner_version": "v1",
+   "pool_protect_mode": "per_leg",
+   "pool_protect_per_leg": 0,
+   "present_order": "relevance",
+   "prf_expansion": false,
+   "profile_budget_share": 0.15,
+   "profile_card_header": false,
+   "profile_card_header_budget": 200,
+   "profile_card_max_age_days": 365,
+   "profile_header": false,
+   "profile_header_budget": 300,
+   "profile_header_packing": false,
+   "profile_relevance_gate": "off",
+   "profile_scope_gate": false,
+   "profile_sensitive": false,
+   "profile_skip_temporal": false,
+   "profile_slots_header": false,
+   "profile_subject_card": false,
+   "query_contract": "off",
+   "query_contract_use": [
+    "header"
+   ],
+   "query_encoder": "none",
+   "raw_turn_floor": false,
+   "reader_tokenizer": null,
+   "recency_leg": false,
+   "recent_exchanges": 0,
+   "record_access": false,
+   "reference_edges": "off",
+   "reference_max_per_read": 4,
+   "reference_short_words": 6,
+   "reinjection_penalty": 0.0,
+   "reinjection_window": 5,
+   "relative_dates_anchored": false,
+   "relative_dates_happened": false,
+   "relative_dates_weekdays": false,
+   "relative_week": "calendar",
+   "relevance_filter": false,
+   "relevance_gate": "off",
+   "relevance_gate_bypass": "named",
+   "relevance_gate_candidates": 10,
+   "relevance_gate_leg": "auto",
+   "relevance_gate_margin_sd": 1.0,
+   "relevance_gate_regrow": 2.0,
+   "relevance_safety_net": 10,
+   "render": "plain",
+   "replay_budget_reference": 4096,
+   "replay_budget_scaling": false,
+   "replay_hits_first": false,
+   "replay_topic_segments": false,
+   "replay_window_after": null,
+   "replay_window_before": null,
+   "replay_window_tokens_after": 512,
+   "replay_window_tokens_before": 256,
+   "replay_window_unit": "turns",
+   "reply_links": false,
+   "reply_reserve_tokens": 0,
+   "rerank": "off",
+   "rerank_balanced": false,
+   "rerank_blend": null,
+   "rerank_chunk_chars": null,
+   "rerank_chunk_overlap": 0,
+   "rerank_context": 0,
+   "rerank_date_prefix": false,
+   "rerank_floor": "minmax",
+   "rerank_gate": null,
+   "rerank_keep": null,
+   "rerank_max_top_k": null,
+   "rerank_settings": {},
+   "rerank_v2": false,
+   "rerank_v2_chain": [
+    "jina",
+    "qwen3",
+    "fastembed"
+   ],
+   "rerank_v2_pool": 64,
+   "rerank_v2_search_pool": 0,
+   "resolve_durations": false,
+   "resolve_relative_dates": true,
+   "role_aware": false,
+   "router_rules": false,
+   "rrf_k": null,
+   "scoring": {
+    "importance_weight": 0.0,
+    "recency_weight": 0.0,
+    "utility_weight": 0.0
+   },
+   "second_round": false,
+   "section_captions": false,
+   "sensitivity_gate": "off",
+   "sentence_leg": false,
+   "session_cap": null,
+   "session_digest": false,
+   "session_leg": false,
+   "session_leg_per_session": 2,
+   "session_leg_top_sessions": 3,
+   "session_sequence": false,
+   "short_query_lexical_weight": null,
+   "skip_defaulted_dates": false,
+   "skip_rerank_for_ordering": false,
+   "span_line": false,
+   "speaker_probe": false,
+   "speaker_vote_mode": "name",
+   "standing_answers_budget": 120,
+   "standing_instructions": false,
+   "standing_min_trust": 0.7,
+   "standing_patterns": "narrow",
+   "standing_v2": false,
+   "statement_probe": false,
+   "static_embedding_prefilter": false,
+   "static_prefilter": false,
+   "subject_leg": false,
+   "temporal_infer_year": false,
+   "temporal_leg": true,
+   "temporal_leg_event_dates": false,
+   "temporal_leg_mentions": false,
+   "temporal_precision_aware": false,
+   "temporal_rank": "midpoint",
+   "temporal_relative": false,
+   "temporal_soft": false,
+   "tiers_v2": false,
+   "tiers_v2_depth": "fast",
+   "timeline_entities": 3,
+   "timeline_items": 8,
+   "timeview_v2": false,
+   "topic_timelines": false,
+   "trust_rendering": false,
+   "type_quotas": {},
+   "user_header": "off",
+   "verbatim_raw_only": false,
+   "view_tag_leg": false,
+   "wait_for_pending_s": 0.0,
+   "window_full_hits": 10
+  },
+  "rest": {
+   "auth": {
+    "api_keys": [],
+    "jwt": {
+     "admin_role": "memspine-admin",
+     "algorithms": [
+      "RS256"
+     ],
+     "audience": null,
+     "issuer": null,
+     "jwks_url": null,
+     "key_env": null,
+     "namespaces_claim": "memspine_namespaces",
+     "principal_claim": "sub",
+     "roles_claim": "roles"
+    },
+    "mode": "none"
+   },
+   "rate_limit": null
+  },
+  "retention": {
+   "classes": [],
+   "profile": null,
+   "v2": false
+  },
+  "runtime": {
+   "background_reserve": 1,
+   "backlog_coalesce_age_s": 60.0,
+   "backlog_coalesce_items": 200,
+   "backlog_max_age_s": 900.0,
+   "backlog_max_items": 2000,
+   "backlog_max_total_items": 0,
+   "backlog_retry_after_s": 1.0,
+   "encoder_batch_max": 32,
+   "encoder_batch_wait_ms": 5.0,
+   "environment": "development",
+   "lag_p95_budget_s": null,
+   "model_concurrency": 0,
+   "provider_services": {
+    "close_timeout_s": 10.0,
+    "health_timeout_s": 5.0,
+    "startup_timeout_s": null
+   },
+   "read_p95_budget_s": null,
+   "scheduler_v2": false,
+   "service_switches": {
+    "cache": {
+     "mode": "controlled",
+     "strategy": "cold_start"
+    },
+    "embeddings": {
+     "mode": "controlled",
+     "strategy": "reembed"
+    },
+    "models": {
+     "historical_derivation": "forward_only",
+     "mode": "controlled"
+    },
+    "projections": {
+     "cleanup_batch_size": 50,
+     "cleanup_interval_s": null,
+     "mode": "controlled",
+     "retention_s": null
+    },
+    "storage": {
+     "auto_delete_source": false,
+     "mode": "controlled",
+     "strategy": "verified_migration"
+    }
+   },
+   "shared_resources": {
+    "http": {
+     "keepalive_s": 30.0,
+     "max_connections": 100
+    },
+    "idle_ttl_s": null,
+    "keep_warm": true,
+    "max_models_per_category": null,
+    "memory_budget_mb": null,
+    "model_server": null,
+    "scope": "process",
+    "sql": {
+     "max_overflow": 0,
+     "pool_pre_ping": true,
+     "pool_recycle_s": 1800,
+     "pool_size": 5
+    },
+    "warmup": "background",
+    "warmup_concurrency": 2,
+    "warmup_exclude": [],
+    "warmup_include": [
+     "embedder",
+     "reranker",
+     "gliner",
+     "lexical",
+     "llm",
+     "decider"
+    ],
+    "warmup_timeout_s": 120.0
+   }
+  },
+  "storage": {
+   "cache": {
+    "provider": "memory",
+    "settings": {}
+   },
+   "documents": null,
+   "graph": {
+    "provider": "auto",
+    "settings": {}
+   },
+   "graph_mirror": null,
+   "lexical": {
+    "provider": "tantivy",
+    "settings": {}
+   },
+   "records": {
+    "provider": "postgres",
+    "settings": {
+     "busy_timeout_s": 5.0,
+     "connect_timeout_s": 5.0,
+     "path": "./memspine.db",
+     "statement_timeout_s": 30.0,
+     "url": "postgresql://memspine@localhost:5432/memspine"
+    }
+   },
+   "vector": {
+    "provider": "pgvector",
+    "settings": {
+     "provision_projection": true
+    }
+   }
+  },
+  "strict_services": true,
+  "workers": {
+   "broker_url": "redis://localhost:6379/0",
+   "outbox": false,
+   "resonate": {
+    "journal_busy_timeout_s": 5.0,
+    "journal_path": "./memspine-resonate.sqlite",
+    "max_concurrent_tasks": 4,
+    "step_lease_s": 360.0,
+    "step_timeout_s": 240.0,
+    "task_timeout_s": 270.0
+   },
+   "runner": "inline",
+   "sleep_interval_seconds": null,
+   "temporal": null,
+   "transport": "inline",
+   "transport_broker": "memory"
+  },
+  "write": {
+   "asset_describe_timeout_s": 3.0,
+   "asset_describer": "off",
+   "batch_max_age_s": 30.0,
+   "batch_max_tokens": 3000,
+   "batch_max_windows": 8,
+   "coverage_context_lines": 2,
+   "coverage_max_targets": 6,
+   "coverage_threshold": 0.8,
+   "coverage_v2": false,
+   "echo_threshold": 0.6,
+   "envelope_v2": false,
+   "feedback_operators": [],
+   "feedback_v2": false,
+   "ground_action": "drop",
+   "ground_adjudicator": "lexical",
+   "grounding_v2": false,
+   "index_view": false,
+   "index_view_carry": "anaphoric",
+   "index_view_elliptical_max_words": 8,
+   "index_view_elliptical_threshold": 2,
+   "index_view_max_extra_tokens": 48,
+   "inferred": "off",
+   "inferred_explicit_overlap": 0.6,
+   "inferred_support_overlap": 0.3,
+   "inferred_trust_cap": 0.4,
+   "integration_cardinality": {},
+   "integration_decide_unhinted": false,
+   "integration_v2": false,
+   "learned_persist": false,
+   "lineage_table": false,
+   "online_extractor_v2": false,
+   "participants": "off",
+   "prepass": "off",
+   "prompt_context_turns": 3,
+   "prompt_known_cap": 40,
+   "prompt_schema": "auto",
+   "prompt_v2": false,
+   "resolve_cache": 1024,
+   "resolve_grey": 0.7,
+   "resolve_high": 0.9,
+   "resolver_v2": false,
+   "role_policy_v2": false,
+   "segment_calendar_day_cut": false,
+   "segment_gap_s": 1800.0,
+   "segment_grow_tokens": 400,
+   "segment_max_turns": 24,
+   "segmentation_v2": false,
+   "sensitivity": "off",
+   "stamp_default_tz": null,
+   "stamp_participant_tags": "v1",
+   "stamping_v2": false,
+   "temporal_v2": false,
+   "window_async": true,
+   "window_cache": true,
+   "window_extract": "off",
+   "window_idle_s": 120.0,
+   "window_max_tokens": 1500,
+   "window_max_turns": 6,
+   "window_split": "auto",
+   "window_topic_k": 2.0
+  }
+ },
+ "template:voice": {
+  "audit": {
+   "actions": false,
+   "chain_v2": false,
+   "reads": false
+  },
+  "consent": {
+   "enforce": false,
+   "local_hosts": [],
+   "remote_llm_max_tier": null,
+   "untagged": "allow",
+   "v2": false
+  },
+  "data_profile": "off",
+  "data_shape": {
+   "abstention_possible": null,
+   "has_question_date": null,
+   "has_timestamps": null,
+   "history_size": "unknown",
+   "language": null,
+   "speaker_kind": "unknown",
+   "turn_length": "unknown"
+  },
+  "decision": {
+   "provider": "off"
+  },
+  "deployment": {
+   "data_dir": null,
+   "id": null,
+   "locality": "single_process"
   },
   "economy": {
    "budget": null,
@@ -19782,14 +21524,7 @@
   "graph": {
    "edge_compiler_v2": false,
    "entity_embeddings": false,
-   "key_v2": false,
-   "mirror": {
-    "enabled": false,
-    "provider": "neo4j",
-    "settings": {}
-   },
-   "provider": "auto",
-   "settings": {}
+   "key_v2": false
   },
   "ingest": {
    "asset_allowed_mime": [
@@ -20127,9 +21862,7 @@
    "legs_v2": false,
    "lexical_language": "en",
    "lexical_namespace_languages": {},
-   "lexical_provider": "tantivy",
    "lexical_scorer": "bm25",
-   "lexical_settings": {},
    "lexical_strip_names": false,
    "lift_before_rerank": false,
    "lift_max_turns": 2,
@@ -20331,7 +22064,6 @@
    "backlog_max_items": 2000,
    "backlog_max_total_items": 0,
    "backlog_retry_after_s": 1.0,
-   "deployment_id": null,
    "encoder_batch_max": 32,
    "encoder_batch_wait_ms": 5.0,
    "environment": "development",
@@ -20401,18 +22133,33 @@
    }
   },
   "storage": {
-   "profile": "embedded",
-   "provider": "sqlite",
-   "settings": {
-    "busy_timeout_s": 5.0,
-    "path": "./memspine.db"
+   "cache": {
+    "provider": "memory",
+    "settings": {}
+   },
+   "documents": null,
+   "graph": {
+    "provider": "auto",
+    "settings": {}
+   },
+   "graph_mirror": null,
+   "lexical": {
+    "provider": "tantivy",
+    "settings": {}
+   },
+   "records": {
+    "provider": "sqlite",
+    "settings": {
+     "busy_timeout_s": 5.0,
+     "path": "./memspine.db"
+    }
+   },
+   "vector": {
+    "provider": "lancedb",
+    "settings": {}
    }
   },
   "strict_services": true,
-  "vector": {
-   "provider": "lancedb",
-   "settings": {}
-  },
   "workers": {
    "broker_url": "redis://localhost:6379/0",
    "outbox": false,

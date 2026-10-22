@@ -12,7 +12,7 @@ from memspine.config.schema.providers import LadybugSettings, SqlAdjacencySettin
 from memspine.exceptions import ConfigError
 from memspine.providers.contexts import GraphBuildContext
 from memspine.providers.contracts import BuildResult, DependencyRequirement, ProviderRef
-from memspine.providers.placement import generation_component
+from memspine.providers.placement import generation_component, host_base_path
 from memspine.providers.registry import GRAPH_STORES, ProviderDescriptor
 from memspine.providers.settings import Neo4jSettings
 from memspine.providers.shared import own_shared, path_identity, resource_key
@@ -104,7 +104,7 @@ class LadybugBuilder:
         path = (
             ":memory:"
             if ctx.placement.in_memory
-            else f"{ctx.placement.base_path}.ladybug{generation_suffix}"
+            else f"{host_base_path(ctx.placement, 'graph', 'ladybug')}.ladybug{generation_suffix}"
         )
         service: LadybugGraphStore
         if path == ":memory:":
@@ -154,7 +154,7 @@ class Neo4jBuilder:
         from memspine.services.graph.neo4j import Neo4jGraphStore, connector_executor
 
         if not ctx.shared.owner_id:
-            raise ConfigError("Neo4j needs an explicit stable runtime.deployment_id")
+            raise ConfigError("Neo4j needs an explicit stable deployment.id")
         scope = sha256(
             f"{ctx.shared.owner_id}:{ctx.resource_id}:{ctx.generation_id}".encode()
         ).hexdigest()[:24]
@@ -233,5 +233,9 @@ def register() -> None:
                     ),
                     target_identity=_neo4j_target_identity if name == "neo4j" else None,
                     requires_deployment_id=name == "neo4j",
+                    # sql_adjacency lives inside the records SQL database, so its effective
+                    # locality is the records slot's (cluster on Postgres). The static trait
+                    # is the conservative one; WP6 validation should resolve it via records.
+                    locality="cluster" if name == "neo4j" else "host",
                 ),
             )

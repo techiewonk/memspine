@@ -35,11 +35,11 @@ from memspine.config.schema.read import ReadConfig
 from memspine.config.schema.rest import RestConfig
 from memspine.config.schema.runtime import RuntimeConfig
 from memspine.config.schema.storage import (
-    CacheConfig,
+    DeploymentConfig,
     EventLogConfig,
     GraphConfig,
     StorageConfig,
-    VectorConfig,
+    reject_moved_keys,
 )
 from memspine.config.schema.write import DataShapeConfig, IngestConfig, WriteConfig
 from memspine.core.registry import validate_types
@@ -77,10 +77,12 @@ class MemspineConfig(ConfigModel):
     data_shape: DataShapeConfig = Field(default_factory=DataShapeConfig)
     strict_services: bool = True
     event_log: EventLogConfig = Field(default_factory=EventLogConfig)
+    #: ADR-081: deployment identity, locality and the host-local data directory.
+    deployment: DeploymentConfig = Field(default_factory=DeploymentConfig)
+    #: ADR-081: one slot per data category (records, vector, lexical, graph, graph_mirror,
+    #: cache, documents). Service providers (embedding, llm, models) stay outside.
     storage: StorageConfig = Field(default_factory=StorageConfig)
     embedding: EmbeddingConfig = Field(default_factory=EmbeddingConfig)
-    vector: VectorConfig = Field(default_factory=VectorConfig)
-    cache: CacheConfig = Field(default_factory=CacheConfig)
     graph: GraphConfig = Field(default_factory=GraphConfig)
     llm: LLMConfig = Field(default_factory=LLMConfig)
     models: ModelsConfig = Field(default_factory=ModelsConfig)
@@ -110,6 +112,15 @@ class MemspineConfig(ConfigModel):
     #: Empty (default) = no plug-in code is imported.
     plugins: list[CapabilityManifest] = Field(default_factory=list)
 
+    @model_validator(mode="before")
+    @classmethod
+    def _reject_moved_roots(cls, value: Any) -> Any:
+        """ADR-081: ``vector`` and ``cache`` moved under ``storage``; no aliases (ADR-068)."""
+        reject_moved_keys(value, "", ("vector", "cache"))
+        if isinstance(value, Mapping) and isinstance(value.get("storage"), Mapping):
+            StorageConfig.reject_moved_and_null(value["storage"])
+        return value
+
     @model_validator(mode="after")
     def _asset_keys_agree(self) -> MemspineConfig:
         """E04: ``read.asset_evidence`` needs the identities ``ingest.assets`` registers, and
@@ -118,8 +129,8 @@ class MemspineConfig(ConfigModel):
             raise ConfigError("read.asset_evidence needs ingest.assets: on")
         if self.read.asset_evidence == "fetch" and not self.ingest.asset_dir:
             raise ConfigError("read.asset_evidence: fetch needs ingest.asset_dir (the cache)")
-        if self.runtime.environment == "production" and self.runtime.deployment_id is None:
-            raise ConfigError("runtime.environment=production requires runtime.deployment_id")
+        if self.runtime.environment == "production" and self.deployment.id is None:
+            raise ConfigError("runtime.environment=production requires deployment.id")
         return self
 
     @model_validator(mode="after")

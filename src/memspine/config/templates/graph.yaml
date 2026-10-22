@@ -6,8 +6,11 @@
 extends: base
 profile: graph
 
+storage:
+  graph:
+    provider: auto          # LadybugDB when installed (ADR-064), else sql_adjacency
+
 graph:
-  provider: auto            # LadybugDB when installed (ADR-064), else sql_adjacency
   entity_embeddings: true
 
 memories:

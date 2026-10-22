@@ -122,7 +122,7 @@ def validate_reranker_settings(
             f"unknown reranker provider {mode!r} (valid: {', '.join(rerank_modes())})"
         )
     if descriptor.requires_deployment_id and not explicit_deployment_id:
-        raise ConfigError(f"runtime.deployment_id is required by shared provider rerank.{mode}")
+        raise ConfigError(f"deployment.id is required by shared provider rerank.{mode}")
     values = dict(settings)
     if allow_irrelevant:
         values = {

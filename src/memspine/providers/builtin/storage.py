@@ -12,7 +12,6 @@ from sqlalchemy import Engine
 from sqlalchemy.engine import make_url
 
 from memspine.config.schema.providers import PostgresSettings, SqliteSettings
-from memspine.exceptions import ConfigError
 from memspine.providers.async_utils import run_blocking_drained
 from memspine.providers.contexts import StorageBuildContext
 from memspine.providers.contracts import (
@@ -29,19 +28,33 @@ from memspine.services.base import CapabilityManifest
 from memspine.services.storage.sql_base import SqlStorage
 
 
-def sqlite_placement(settings: BaseModel, owner_id: str) -> ProjectionPlacement:
+def sqlite_placement(
+    settings: BaseModel, owner_id: str, data_dir: str | None = None
+) -> ProjectionPlacement:
+    """Host-local projections sit beside the database file (``<path>.lance`` etc.).
+
+    ``deployment.data_dir`` (ADR-081) defaults to the database file's directory, so an
+    unset value keeps today's base path and projection fingerprints byte-identical."""
     if not isinstance(settings, SqliteSettings):
         raise TypeError("sqlite placement requires SqliteSettings")
     memory = settings.path == ":memory:"
-    return ProjectionPlacement(None if memory else Path(settings.path), memory, owner_id)
+    if memory:
+        return ProjectionPlacement(None, True, owner_id)
+    path = Path(settings.path)
+    base = path if data_dir is None else Path(data_dir) / path.name
+    return ProjectionPlacement(base, False, owner_id)
 
 
-def postgres_placement(settings: BaseModel, owner_id: str) -> ProjectionPlacement:
+def postgres_placement(
+    settings: BaseModel, owner_id: str, data_dir: str | None = None
+) -> ProjectionPlacement:
+    """A network database has no file to sit beside: host-local projections live under
+    ``deployment.data_dir/memspine`` (the pre-ADR-081 ``settings.data_dir`` base). Without
+    ``data_dir`` the base is None, and only a host-local slot asks for it."""
     if not isinstance(settings, PostgresSettings):
         raise TypeError("postgres placement requires PostgresSettings")
-    if not settings.data_dir:
-        raise ConfigError("storage.settings.data_dir is required for derived projections")
-    return ProjectionPlacement(Path(settings.data_dir) / "memspine", False, owner_id)
+    base = None if data_dir is None else Path(data_dir) / "memspine"
+    return ProjectionPlacement(base, False, owner_id)
 
 
 def postgres_target_identity(settings: BaseModel) -> dict[str, JsonValue]:
@@ -273,7 +286,6 @@ class PostgresBuilder:
             client,
             mode=ctx.event_log.mode,
             compress=ctx.event_log.compress,
-            use_alembic=ctx.profile == "server",
         )
         return StorageBuildResult(
             service,
@@ -321,5 +333,6 @@ def register() -> None:
                     placement=placement,
                     requires_deployment_id=name == "postgres",
                     target_identity=(postgres_target_identity if name == "postgres" else None),
+                    locality="cluster" if name == "postgres" else "host",
                 ),
             )

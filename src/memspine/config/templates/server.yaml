@@ -1,0 +1,34 @@
+# Server storage preset (ADR-081): a Postgres records store with pgvector in the same
+# database. Replace the placeholder URL and deployment id before use; credentials belong
+# in `${secret:NAME}` references, never in this file. Data, not a runtime switch.
+#
+#   records  Postgres, always migrated by its Alembic tree under an advisory lock
+#   vector   pgvector in the records database (`memspine[postgres]`); the projection
+#            table is provisioned on first start (provision_projection)
+#   lexical  Tantivy under deployment.data_dir (host-local: one writer process)
+#   graph    auto (LadybugDB under deployment.data_dir when installed)
+#   cache    in-process memory
+extends: base
+
+deployment:
+  id: memspine-server        # stable identity; shared providers require it
+  locality: single_process   # host-local lexical/graph slots below; see ADR-081 rules
+  data_dir: ./memspine-data  # base for the host-local slots
+
+storage:
+  records:
+    provider: postgres
+    settings:
+      url: postgresql://memspine@localhost:5432/memspine
+      connect_timeout_s: 5.0
+      statement_timeout_s: 30.0
+  vector:
+    provider: pgvector
+    settings:
+      provision_projection: true
+  lexical:
+    provider: tantivy
+  graph:
+    provider: auto
+  cache:
+    provider: memory

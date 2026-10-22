@@ -142,7 +142,7 @@ def _run_engine_op(db: Path, op: str, **kwargs: object) -> dict[str, object]:
         engine = Engine(
             template="base",
             dotenv_path=None,
-            storage={"settings": {"path": str(db)}},
+            storage={"records": {"settings": {"path": str(db)}}},
             embedding={"provider": "hash"},
         )
         await engine.start()
@@ -248,7 +248,7 @@ def export_cmd(
         engine = Engine(
             template="base",
             dotenv_path=None,
-            storage={"settings": {"path": str(db)}},
+            storage={"records": {"settings": {"path": str(db)}}},
             embedding={"provider": "hash"},
         )
         await engine.start()
@@ -313,7 +313,9 @@ def mcp_cmd(
     configure_logging()
 
     async def _inner() -> None:
-        overrides: dict[str, Any] = {"storage": {"settings": {"path": str(db)}}} if db else {}
+        overrides: dict[str, Any] = (
+            {"storage": {"records": {"settings": {"path": str(db)}}}} if db else {}
+        )
         spec = EngineSpec(template, str(config_file) if config_file else None, overrides)
         # RM-76 start-up hook: this subprocess builds, starts and warms its own Engine and
         # registry (runtime.shared_resources.warmup); readiness is logged to stderr.
@@ -358,7 +360,7 @@ def graph_requalify_cmd(
     async def _inner() -> dict[str, object]:
         overrides: dict[str, Any] = {"embedding": {"provider": "hash"}}
         if db is not None:
-            overrides["storage"] = {"settings": {"path": str(db)}}
+            overrides["storage"] = {"records": {"settings": {"path": str(db)}}}
         engine = Engine(
             template=default_template(template, config_file),
             user_config=config_file,

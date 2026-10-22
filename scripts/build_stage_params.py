@@ -612,8 +612,8 @@ def cli_flags() -> list[dict]:
 
 def rebuild_scope(key: str) -> str:
     k = key
-    if k.startswith(("embedding.", "vector.", "storage.", "event_log.", "graph.", "cache.")):
-        return "index" if not k.startswith("cache.") else ""
+    if k.startswith(("embedding.", "storage.", "deployment.data_dir", "event_log.", "graph.")):
+        return "index" if not k.startswith("storage.cache.") else ""
     if k.startswith(("write.", "ingest.", "data_shape.")):
         return "ingest"
     if k.startswith("offline."):

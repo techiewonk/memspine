@@ -10,7 +10,7 @@ from memspine.config.schema.providers import LanceDBSettings
 from memspine.exceptions import ConfigError
 from memspine.providers.contexts import VectorBuildContext
 from memspine.providers.contracts import BuildResult, ProviderRef
-from memspine.providers.placement import generation_component
+from memspine.providers.placement import generation_component, host_base_path
 from memspine.providers.registry import VECTOR_STORES, ProviderDescriptor
 from memspine.providers.shared import own_shared, path_identity, resource_key
 from memspine.services.embedding.base import EmbeddingService
@@ -39,7 +39,7 @@ class LanceDBBuilder:
         path = (
             "memory://vectors"
             if placement.in_memory
-            else f"{placement.base_path}.lance{generation_suffix}"
+            else f"{host_base_path(placement, 'vector', 'lancedb')}.lance{generation_suffix}"
         )
         client: LanceDBClient
         if placement.in_memory:
@@ -106,7 +106,9 @@ class LanceDBBuilder:
             state = (
                 None
                 if placement.in_memory
-                else JsonSpaceState(f"{placement.base_path}.spaces{generation_suffix}.json")
+                else JsonSpaceState(
+                    f"{host_base_path(placement, 'vector', 'lancedb')}.spaces{generation_suffix}.json"
+                )
             )
             service = cast(VectorStore, VersionedSpaceStore(factory, current, state))
         elif settings.isolation == "per_namespace":
@@ -142,5 +144,6 @@ def register() -> None:
                 # PA-046: `import lancedb` is ~1.2 s, mostly its eager lance_namespace
                 # REST-model import; prewarming overlaps it with the rest of startup.
                 prewarm_modules=("lancedb",),
+                locality="host",
             ),
         )

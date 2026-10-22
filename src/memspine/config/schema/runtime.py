@@ -171,7 +171,6 @@ class RuntimeConfig(ConfigModel):
     model_config = ConfigDict(extra="forbid")
 
     environment: Literal["development", "production"] = "development"
-    deployment_id: str | None = Field(default=None, min_length=1)
     # No defaults: each deadline must be stated even when startup is unbounded.
     provider_services: ProviderServicesConfig
     service_switches: ServiceSwitchesConfig = Field(default_factory=ServiceSwitchesConfig)
@@ -191,3 +190,11 @@ class RuntimeConfig(ConfigModel):
     backlog_retry_after_s: float = Field(default=1.0, ge=0)
     read_p95_budget_s: float | None = Field(default=None, gt=0)
     lag_p95_budget_s: float | None = Field(default=None, gt=0)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _reject_moved(cls, value: Any) -> Any:
+        from memspine.config.schema.storage import reject_moved_keys
+
+        reject_moved_keys(value, "runtime", ("deployment_id",))
+        return value

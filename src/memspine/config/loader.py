@@ -76,11 +76,8 @@ def _provider_settings_resets(
     if "provider" in overlay and overlay.get("provider") != base.get("provider"):
         reset.add(f"{prefix}settings" if prefix else "settings")
 
-    # Read has two provider bindings whose settings use explicit pair names.
-    for selector, settings_key in (
-        ("lexical_provider", "lexical_settings"),
-        ("rerank", "rerank_settings"),
-    ):
+    # Read's reranker binding uses explicit pair names (storage slots use provider/settings).
+    for selector, settings_key in (("rerank", "rerank_settings"),):
         if selector in overlay and overlay.get(selector) != base.get(selector):
             reset.add(f"{prefix}{settings_key}")
 

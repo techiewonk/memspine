@@ -48,7 +48,7 @@ class OpenSearchBuilder:
         from memspine.services.lexical.opensearch import OpenSearchLexical
 
         if not ctx.shared.owner_id:
-            raise ConfigError("OpenSearch requires a stable runtime.deployment_id")
+            raise ConfigError("OpenSearch requires a stable deployment.id")
         scope = hashlib.sha256(ctx.shared.owner_id.encode()).hexdigest()[:20]
         suffix = (
             "" if ctx.generation_id == "active" else f"-g{generation_component(ctx.generation_id)}"
@@ -98,5 +98,6 @@ def register() -> None:
                 service_manifest=CapabilityManifest("opensearch", "lexical", extra="opensearch"),
                 target_identity=_target_identity,
                 requires_deployment_id=True,
+                locality="cluster",
             ),
         )

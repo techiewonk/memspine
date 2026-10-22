@@ -42,14 +42,12 @@ class ReadConfig(ConfigModel):
       core-default intent (see ADR-019); the default ``tantivy`` provider is a
       **core** dependency and is backend-independent, so the default works on
       every storage backend with no extra to install.
-    - ``lexical_provider``: which lexical store backs the hybrid leg —
-      ``tantivy`` (default, standalone Tantivy BM25 index — **core**, no extra,
-      independent of the storage backend; an on-disk index dir beside the db, or
-      in-RAM for a ``:memory:`` log); the ``opensearch`` stub was removed (G-22). A
-      provider satisfies the ``LexicalStore`` port and shares ``LexicalProjector``. The
-      transactional-DB
-      ``sqlite_fts5`` provider was removed (v0.2): the lexical leg is a dedicated
-      search index, never bolted onto the system-of-record.
+    - The lexical store that backs the hybrid leg is the ``storage.lexical`` slot
+      (ADR-081): ``tantivy`` (default, standalone Tantivy BM25 index — **core**, no
+      extra; an on-disk index dir beside the db, or in-RAM for a ``:memory:`` log). A
+      provider satisfies the ``LexicalStore`` port and shares ``LexicalProjector``.
+      The lexical leg is a dedicated search index, never bolted onto the
+      system-of-record.
       Only consulted when ``hybrid`` is on (the default); with ``hybrid: false``
       no store is built. There is intentionally **no lexical-only reranking** — the fused
       RRF result is reranked (when enabled) by the E8 cross-encoder stage
@@ -70,8 +68,6 @@ class ReadConfig(ConfigModel):
     static_prefilter: bool = False
     static_embedding_prefilter: bool = False
     hybrid: bool = True  # v0.2 A3: default-on hybrid retrieval (D-25, ADR-019)
-    lexical_provider: str = "tantivy"  # tantivy (core, default) (D-25)
-    lexical_settings: dict[str, JsonValue] = Field(default_factory=dict)
     compression: dict[str, Any] = Field(default_factory=dict)
     #: Append a RETRIEVE event per search (access stats feed reinforcement, M1).
     #: ``false`` makes reads side-effect free, e.g. so benchmark questions cannot
@@ -1327,6 +1323,15 @@ class ReadConfig(ConfigModel):
     #: ahead with the barrier reported ``partial`` (tap ``read.pending``); it never blocks longer than
     #: this. ``0`` (default): off, no wait. Does nothing without ``workers.outbox``.
     wait_for_pending_s: float = Field(default=0.0, ge=0.0, le=300.0)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _reject_moved(cls, value: Any) -> Any:
+        """ADR-081: the lexical provider selection moved to ``storage.lexical``."""
+        from memspine.config.schema.storage import reject_moved_keys
+
+        reject_moved_keys(value, "read", ("lexical_provider", "lexical_settings"))
+        return value
 
     @model_validator(mode="after")
     def _header_shares_leave_room(self) -> ReadConfig:

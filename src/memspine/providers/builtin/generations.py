@@ -173,15 +173,17 @@ class BuiltinProjectionGenerationOpener:
     def _descriptor_for(self, config: MemspineConfig, wiring: Wiring) -> tuple[Any, object]:
         if self._category == "graph":
             descriptor = _graph_descriptor(config, wiring)
-            raw_settings: object = config.graph.settings
+            raw_settings: object = config.storage.graph.settings
         elif self._category == "vector":
-            descriptor = _descriptor(VECTOR_STORES, config.vector.provider, "vector.provider")
-            raw_settings = config.vector.settings
+            descriptor = _descriptor(
+                VECTOR_STORES, config.storage.vector.provider, "storage.vector.provider"
+            )
+            raw_settings = config.storage.vector.settings
         else:
             descriptor = _descriptor(
-                LEXICAL_INDEXES, config.read.lexical_provider, "read.lexical_provider"
+                LEXICAL_INDEXES, config.storage.lexical.provider, "storage.lexical.provider"
             )
-            raw_settings = config.read.lexical_settings
+            raw_settings = config.storage.lexical.settings
         return descriptor, raw_settings
 
     async def _build(

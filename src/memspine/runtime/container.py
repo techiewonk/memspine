@@ -42,6 +42,7 @@ from memspine.config.loader import ResolvedConfig, default_template, load_config
 from memspine.config.schema import MemspineConfig
 from memspine.config.schema.base import ConfigInputError
 from memspine.config.schema.root import freeze_effective_config
+from memspine.config.schema.storage import SlotConfig
 from memspine.core.registry import SERVICE_EXTRAS, dependency_closure, missing_services
 from memspine.derive.pipeline.stages.context import PipelineContext
 from memspine.exceptions import ConfigError, MissingServiceError
@@ -80,7 +81,11 @@ from memspine.providers.lifecycle import (
     ProviderResourceCleanupError,
     ResourceOwnershipError,
 )
-from memspine.providers.placement import generation_component, storage_placement
+from memspine.providers.placement import (
+    generation_component,
+    host_base_path,
+    storage_placement,
+)
 from memspine.providers.registry import (
     CACHE_BACKENDS as PROVIDER_CACHE_BACKENDS,
 )
@@ -133,7 +138,6 @@ from memspine.services.rerank.base import Reranker
 from memspine.services.secrets.base import SecretsService
 from memspine.services.secrets.chained import ChainedSecrets
 from memspine.services.secrets.env import EnvSecrets
-from memspine.services.storage.profile import resolve_profile
 from memspine.services.storage.sql_base import SqlStorage
 from memspine.services.vector.base import VectorStore
 from memspine.workers.inline import InlineRunner
@@ -195,7 +199,9 @@ def prewarm_provider_imports(config: MemspineConfig) -> threading.Thread | None:
     for the provider build to report through its normal (Missing)ServiceError path.
     Returns the thread (None when there is nothing to import) for tests.
     """
-    selected = ((PROVIDER_VECTOR_STORES, config.vector.provider, "vector.provider"),)
+    selected = (
+        (PROVIDER_VECTOR_STORES, config.storage.vector.provider, "storage.vector.provider"),
+    )
     modules: list[str] = []
     for registry, name, path in selected:
         try:
@@ -225,9 +231,7 @@ def prewarm_provider_imports(config: MemspineConfig) -> threading.Thread | None:
 
 def _owner_id(config: MemspineConfig, wiring: Wiring | None = None) -> str:
     return (
-        config.runtime.deployment_id
-        or (wiring.owner_id if wiring is not None else None)
-        or "pending-owner"
+        config.deployment.id or (wiring.owner_id if wiring is not None else None) or "pending-owner"
     )
 
 
@@ -246,7 +250,7 @@ async def _build_provider(
     """Run a typed builder under the configured startup deadline."""
     if descriptor.requires_deployment_id and not wiring.explicit_owner_id:
         raise ConfigError(
-            f"runtime.deployment_id is required by shared provider "
+            f"deployment.id is required by shared provider "
             f"{descriptor.ref.category}.{descriptor.ref.name}"
         )
     startup_deadline = None
@@ -581,18 +585,13 @@ def client_is_memory(config: MemspineConfig) -> bool:
 def derived_base(config: MemspineConfig) -> str:
     """Base path for the file-backed projections that live OUTSIDE the SQL
     database (LanceDB vectors, Tantivy lexical). For ``sqlite`` it is the db
-    path (``<path>.lance`` etc.); for ``postgres`` it is ``storage.data_dir``
-    (required — the DSN is not a filesystem path)."""
-    descriptor = _descriptor(PROVIDER_STORAGE_BACKENDS, config.storage.provider, "storage.provider")
-    settings = _settings(descriptor, config.storage.settings)
-    if descriptor.placement is None:
-        raise ConfigError(
-            f"storage provider {descriptor.ref.name!r} does not define projection placement"
-        )
-    placement = descriptor.placement(settings, _owner_id(config))
-    if placement.base_path is None:
+    path (``<path>.lance`` etc.); for ``postgres`` it is ``deployment.data_dir/memspine``
+    (ADR-081). ``:memory:`` for an in-memory records store; a ``ConfigError`` naming
+    ``deployment.data_dir`` when the records store is not a file and none is set."""
+    placement = storage_placement(config, _owner_id(config))
+    if placement.in_memory:
         return ":memory:"
-    return str(placement.base_path)
+    return str(host_base_path(placement, "records", config.storage.records.provider))
 
 
 def lexical_variant(config: MemspineConfig) -> str:
@@ -600,9 +599,9 @@ def lexical_variant(config: MemspineConfig) -> str:
     when not ``default``, and ``dates`` with ``read.lexical_dates``."""
     settings = _settings(
         _descriptor(
-            PROVIDER_LEXICAL_INDEXES, config.read.lexical_provider, "read.lexical_provider"
+            PROVIDER_LEXICAL_INDEXES, config.storage.lexical.provider, "storage.lexical.provider"
         ),
-        config.read.lexical_settings,
+        config.storage.lexical.settings,
     )
     analyzer = getattr(settings, "analyzer", "default")
     date_tokens = getattr(settings, "date_tokens", False)
@@ -637,7 +636,7 @@ def rescore_settings(
     prefix dim (max prefilter savings; the rescore restores full precision).
     """
     manifest = embedder.manifest
-    override = config.vector.settings.get("quantization", "auto")
+    override = config.storage.vector.settings.get("quantization", "auto")
     if override == "none":
         quantization = None
     elif override in ("int8", "binary"):
@@ -746,8 +745,8 @@ async def wiring_of(config: MemspineConfig, _caps: Capabilities) -> AsyncIterato
         resources=ProviderLifecycleManager(close_timeout_s=timeouts.close_timeout_s),
         health_timeout_s=timeouts.health_timeout_s,
         startup_timeout_s=timeouts.startup_timeout_s,
-        owner_id=config.runtime.deployment_id,
-        explicit_owner_id=config.runtime.deployment_id is not None,
+        owner_id=config.deployment.id,
+        explicit_owner_id=config.deployment.id is not None,
         registry=registry,
         retention_token=registry.add_retention(retention_policy(config)),
         private_registry=private,
@@ -798,29 +797,37 @@ def shared_build_context(config: MemspineConfig, wiring: Wiring) -> SharedBuildC
 
 
 async def build_storage(config: MemspineConfig, wiring: Wiring) -> SqlStorage:
-    resolve_profile(config.storage)  # F-16d: taps store.profile.resolved
-    descriptor = _descriptor(PROVIDER_STORAGE_BACKENDS, config.storage.provider, "storage.provider")
-    settings = _settings(descriptor, config.storage.settings)
+    descriptor = _descriptor(
+        PROVIDER_STORAGE_BACKENDS, config.storage.records.provider, "storage.records.provider"
+    )
+    settings = _settings(descriptor, config.storage.records.settings)
     shared = shared_build_context(config, wiring)
     result = await _build_provider(
         wiring,
         descriptor,
         settings,
-        StorageBuildContext(shared, config.event_log, config.storage.profile),
+        StorageBuildContext(shared, config.event_log),
     )
     if not isinstance(result, StorageBuildResult):
-        raise ConfigError(f"storage provider {config.storage.provider!r} did not expose SQL access")
+        raise ConfigError(
+            f"storage provider {config.storage.records.provider!r} did not expose SQL access"
+        )
     wiring.sql = result.sql  # Engine receives only this capability, never the native client.
     return cast(SqlStorage, result.service)
 
 
 async def build_cache(config: MemspineConfig, wiring: Wiring) -> KVCache:
-    descriptor = _descriptor(PROVIDER_CACHE_BACKENDS, config.cache.provider, "cache.provider")
-    settings = _settings(descriptor, config.cache.settings)
+    descriptor = _descriptor(
+        PROVIDER_CACHE_BACKENDS, config.storage.cache.provider, "storage.cache.provider"
+    )
+    settings = _settings(descriptor, config.storage.cache.settings)
     placement = _storage_placement(config, wiring)
     shared = shared_build_context(config, wiring)
     result = await _build_provider(
-        wiring, descriptor, settings, CacheBuildContext(shared, placement)
+        wiring,
+        descriptor,
+        settings,
+        CacheBuildContext(shared, placement, data_dir=config.deployment.data_dir),
     )
     return cast(KVCache, result.service)
 
@@ -933,10 +940,12 @@ async def build_vector_store(
     )  # MD-02 (flag off: returns at once)
     quantization, matryoshka_dim = rescore_settings(config, embedder)
     wiring.rescore_active = quantization is not None or matryoshka_dim is not None
-    descriptor = _descriptor(PROVIDER_VECTOR_STORES, config.vector.provider, "vector.provider")
+    descriptor = _descriptor(
+        PROVIDER_VECTOR_STORES, config.storage.vector.provider, "storage.vector.provider"
+    )
     if route is not None and descriptor.ref.name != route.provider:
-        raise ConfigError("vector.provider does not match its verified switch target")
-    settings = _settings(descriptor, config.vector.settings)
+        raise ConfigError("storage.vector.provider does not match its verified switch target")
+    settings = _settings(descriptor, config.storage.vector.settings)
     placement = _storage_placement(config, wiring)
     effective_embedding = resolved_embedding(config)
     effective_embedding_settings = _settings(
@@ -963,12 +972,12 @@ async def build_lexical_store(
     config: MemspineConfig, _caps: Capabilities, wiring: Wiring
 ) -> LexicalStore:
     descriptor = _descriptor(
-        PROVIDER_LEXICAL_INDEXES, config.read.lexical_provider, "read.lexical_provider"
+        PROVIDER_LEXICAL_INDEXES, config.storage.lexical.provider, "storage.lexical.provider"
     )
     route = wiring.projection_routes.get("lexical")
     if route is not None and descriptor.ref.name != route.provider:
-        raise ConfigError("read.lexical_provider does not match its verified switch target")
-    settings = _settings(descriptor, config.read.lexical_settings)
+        raise ConfigError("storage.lexical.provider does not match its verified switch target")
+    settings = _settings(descriptor, config.storage.lexical.settings)
     context = LexicalBuildContext(
         shared_build_context(config, wiring),
         _storage_placement(config, wiring),
@@ -990,7 +999,7 @@ def _graph_auto_descriptor(config: MemspineConfig, wiring: Wiring) -> ProviderDe
         eligible_names |= {"sql_adjacency"}
     selection = select_provider(
         "graph",
-        config.graph.provider,
+        config.storage.graph.provider,
         required_capabilities=_GRAPH_REQUIRED,
         preferred_names=("ladybug", "sql_adjacency"),
         eligible_names=eligible_names,
@@ -1070,41 +1079,35 @@ async def preflight_projection_bindings(
 
     candidates: list[tuple[str, str, ProviderDescriptor, Any]] = []
     vector_descriptor = _descriptor(
-        PROVIDER_VECTOR_STORES, config.vector.provider, "vector.provider"
+        PROVIDER_VECTOR_STORES, config.storage.vector.provider, "storage.vector.provider"
     )
-    candidates.append(("vectors", "vector", vector_descriptor, config.vector.settings))
+    candidates.append(("vectors", "vector", vector_descriptor, config.storage.vector.settings))
     if config.read.hybrid:
         lexical_descriptor = _descriptor(
             PROVIDER_LEXICAL_INDEXES,
-            config.read.lexical_provider,
-            "read.lexical_provider",
+            config.storage.lexical.provider,
+            "storage.lexical.provider",
         )
         candidates.append(
             (
                 lexical_projector_name(config),
                 "lexical",
                 lexical_descriptor,
-                config.read.lexical_settings,
+                config.storage.lexical.settings,
             )
         )
     if "associative" in enabled:
         await resolve_graph_pin(config, wiring)  # ADR-081: auto resolves once, then pinned
         graph_descriptor = _graph_descriptor(config, wiring)
-        candidates.append(("graph", "graph", graph_descriptor, config.graph.settings))
-        if neo4j_outbox_on(config):
+        candidates.append(("graph", "graph", graph_descriptor, config.storage.graph.settings))
+        mirror_slot = graph_mirror_slot(config)
+        if mirror_slot is not None:
             mirror_descriptor = _descriptor(
                 PROVIDER_GRAPH_STORES,
-                config.graph.mirror.provider,
-                "graph.mirror.provider",
+                mirror_slot.provider,
+                "storage.graph_mirror.provider",
             )
-            candidates.append(
-                (
-                    "graph_neo4j",
-                    "graph",
-                    mirror_descriptor,
-                    config.graph.mirror.settings,
-                )
-            )
+            candidates.append(("graph_neo4j", "graph", mirror_descriptor, mirror_slot.settings))
 
     bindings: list[Any] = []
     for projector_name, category, descriptor, raw_settings in candidates:
@@ -1159,27 +1162,28 @@ async def preflight_projection_bindings(
 
 async def build_graph_store(config: MemspineConfig, wiring: Wiring) -> GraphStore:
     descriptor = _graph_descriptor(config, wiring)
-    if config.graph.mirror.enabled:
+    mirror_slot = config.storage.graph_mirror
+    if mirror_slot is not None:
         from memspine.providers.graph_targets import require_distinct_graph_targets
 
         mirror_descriptor = _descriptor(
             PROVIDER_GRAPH_STORES,
-            config.graph.mirror.provider,
-            "graph.mirror.provider",
+            mirror_slot.provider,
+            "storage.graph_mirror.provider",
         )
-        mirror_settings = _settings(mirror_descriptor, config.graph.mirror.settings)
-        primary_settings = _settings(descriptor, config.graph.settings)
+        mirror_settings = _settings(mirror_descriptor, mirror_slot.settings)
+        primary_settings = _settings(descriptor, config.storage.graph.settings)
         require_distinct_graph_targets(
             descriptor, primary_settings, mirror_descriptor, mirror_settings
         )
     route = wiring.projection_routes.get("graph")
     if route is not None and descriptor.ref.name != route.provider:
-        raise ConfigError("graph.provider does not match its verified switch target")
+        raise ConfigError("storage.graph.provider does not match its verified switch target")
     if route is not None and descriptor.ref.name == "sql_adjacency":
         raise ConfigError(
             "controlled graph switching is unsupported for sql_adjacency because it shares the authoritative SQL database"
         )
-    settings = _settings(descriptor, config.graph.settings)
+    settings = _settings(descriptor, config.storage.graph.settings)
     context = GraphBuildContext(
         shared_build_context(config, wiring),
         _storage_placement(config, wiring),
@@ -1674,17 +1678,24 @@ def build_outbox(config: MemspineConfig, wiring: Wiring, _storage: SqlStorage) -
 # ── F-16e: Neo4j graph projection through the outbox ─────────────────────────────────────
 
 
+def graph_mirror_slot(config: MemspineConfig) -> SlotConfig | None:
+    """The ``storage.graph_mirror`` slot when one is configured (ADR-081).
+
+    The mirror gate is a capability check: the selected provider must declare ``mirror``."""
+    slot = config.storage.graph_mirror
+    if slot is None:
+        return None
+    descriptor = _descriptor(PROVIDER_GRAPH_STORES, slot.provider, "storage.graph_mirror.provider")
+    if "mirror" not in descriptor.declared_capabilities:
+        raise ConfigError(
+            f"storage.graph_mirror provider {slot.provider!r} lacks the 'mirror' capability"
+        )
+    return slot
+
+
 def neo4j_outbox_on(config: MemspineConfig) -> bool:
     """Whether the separately configured graph mirror is enabled."""
-    if not config.graph.mirror.enabled:
-        return False
-    from memspine.services.storage.profile import resolve_profile
-
-    if resolve_profile(config.storage).name != "server" and config.graph.mirror.provider != "neo4j":
-        raise ConfigError(
-            "graph.mirror needs storage.profile=server or graph.mirror.provider=neo4j"
-        )
-    return True
+    return graph_mirror_slot(config) is not None
 
 
 @dataclass
@@ -1726,8 +1737,12 @@ async def make_neo4j_projection(
     """Build the outbox runner, the Neo4j store and the registered ``graph_projection`` handler."""
     from memspine.memories.associative.graph_outbox import Neo4jGraphHandler, Neo4jOutboxProjector
 
-    mirror = config.graph.mirror
-    descriptor = _descriptor(PROVIDER_GRAPH_STORES, mirror.provider, "graph.mirror.provider")
+    mirror = graph_mirror_slot(config)
+    if mirror is None:
+        raise ConfigError("make_neo4j_projection needs storage.graph_mirror")
+    descriptor = _descriptor(
+        PROVIDER_GRAPH_STORES, mirror.provider, "storage.graph_mirror.provider"
+    )
     settings = _settings(descriptor, mirror.settings)
     shared = SharedBuildContext(
         resources,
@@ -1741,15 +1756,15 @@ async def make_neo4j_projection(
         shared,
         storage_placement(config, _owner_id(config)),  # mirror uses deployment-scoped ownership
         sql,
-        generation_id=config.runtime.deployment_id or "localdev",
+        generation_id=config.deployment.id or "localdev",
         resource_id="graph:mirror",
     )
     mirror_wiring = Wiring(
         resources,
         shared.health_timeout_s,
         config.runtime.provider_services.startup_timeout_s,
-        owner_id=config.runtime.deployment_id,
-        explicit_owner_id=config.runtime.deployment_id is not None,
+        owner_id=config.deployment.id,
+        explicit_owner_id=config.deployment.id is not None,
     )
     built = await _build_provider(
         mirror_wiring, descriptor, settings, graph_context, result_key="graph.mirror"

@@ -1,0 +1,28 @@
+# Embedded storage preset (ADR-081): every slot filled explicitly for one process on one
+# host. This is what `base` already resolves to; the template names it so a deployment can
+# start from a complete, readable storage block. Data, not a runtime switch.
+#
+#   records  SQLite file (event log, records, lineage, offsets, outbox), Alembic-migrated
+#   vector   LanceDB beside the database file (<path>.lance)
+#   lexical  Tantivy BM25 index beside the database file
+#   graph    auto: LadybugDB when installed, else SQL adjacency in the records database
+#   cache    in-process memory
+extends: base
+
+deployment:
+  locality: single_process   # data_dir defaults to the database file's directory
+
+storage:
+  records:
+    provider: sqlite
+    settings:
+      path: ./memspine.db
+      busy_timeout_s: 5.0
+  vector:
+    provider: lancedb
+  lexical:
+    provider: tantivy
+  graph:
+    provider: auto
+  cache:
+    provider: memory

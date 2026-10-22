@@ -7,7 +7,7 @@ import importlib.util
 from collections.abc import Callable, ItemsView, Iterator, Mapping
 from dataclasses import dataclass, field
 from types import MappingProxyType
-from typing import Any, cast
+from typing import Any, Literal, cast
 
 from pydantic import BaseModel, JsonValue, ValidationError
 
@@ -24,6 +24,7 @@ from memspine.services.base import CapabilityManifest as ServiceManifest
 __all__ = [
     "CACHE_BACKENDS",
     "DECIDERS",
+    "DATA_CATEGORIES",
     "EMBEDDERS",
     "EXTRACTORS",
     "GRAPH_STORES",
@@ -31,9 +32,11 @@ __all__ = [
     "LEXICAL_INDEXES",
     "LLM_PROVIDERS",
     "RENAMED_PROVIDERS",
+    "LOCALITIES",
     "RERANKERS",
     "STORAGE_BACKENDS",
     "VECTOR_STORES",
+    "Locality",
     "ProviderDescriptor",
     "ProviderRegistryError",
     "Registry",
@@ -95,6 +98,14 @@ def renamed_provider_message(kind: str, name: str) -> str | None:
         f"{category} provider {name!r} was renamed to {new!r} (ADR-081; no alias): "
         f"set the provider to {new!r}"
     )
+#: ADR-081: where a data provider's state lives. ``process`` = inside this process (memory,
+#: ``:memory:``); ``host`` = files on this machine (sqlite, lancedb, tantivy, ladybug, disk
+#: cache); ``cluster`` = a network service every node can reach (postgres, pgvector,
+#: opensearch, weaviate, neo4j, redis, valkey). The validation rules that use it are WP6.
+Locality = Literal["process", "host", "cluster"]
+LOCALITIES: tuple[Locality, ...] = ("process", "host", "cluster")
+#: Categories whose providers hold data and therefore declare a locality.
+DATA_CATEGORIES: frozenset[Category] = frozenset({"storage", "vector", "graph", "lexical", "cache"})
 
 
 class ProviderRegistryError(ConfigError):
@@ -252,7 +263,8 @@ class ProviderDescriptor:
     requirements: tuple[DependencyRequirement, ...]
     builder: ProviderBuilder[Any, Any, Any]
     service_manifest: ServiceManifest | None = None
-    placement: Callable[[BaseModel, str], ProjectionPlacement] | None = None
+    #: ``(settings, owner_id, deployment.data_dir) -> placement`` (ADR-081).
+    placement: Callable[[BaseModel, str, str | None], ProjectionPlacement] | None = None
     requires_deployment_id: bool = False
     target_identity: Callable[[BaseModel], Mapping[str, JsonValue]] | None = field(
         default=None, kw_only=True
@@ -264,6 +276,9 @@ class ProviderDescriptor:
     #: provider is selected, startup imports them on a background thread so a slow
     #: third-party import overlaps config/storage work instead of blocking build().
     prewarm_modules: tuple[str, ...] = field(default=(), kw_only=True)
+    #: ADR-081 / RM-111 WP2: ``process`` | ``host`` | ``cluster``. Every built-in data
+    #: provider declares it; model providers (llm, embedding, reranker) leave it None.
+    locality: Locality | None = field(default=None, kw_only=True)
 
     def __post_init__(self) -> None:
         expected_kind = _CATEGORY_TO_KIND.get(self.ref.category)
@@ -287,6 +302,10 @@ class ProviderDescriptor:
             isinstance(name, str) and name and name.strip() == name for name in self.prewarm_modules
         ):
             raise TypeError("prewarm_modules must be a tuple of non-empty module names")
+        if self.locality is not None and self.locality not in LOCALITIES:
+            raise ValueError(f"locality must be one of {', '.join(LOCALITIES)}")
+        if self.locality is not None and self.ref.category not in DATA_CATEGORIES:
+            raise ValueError("locality is declared only by data-store providers")
 
 
 def provider_target_identity(

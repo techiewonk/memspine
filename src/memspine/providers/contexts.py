@@ -36,13 +36,14 @@ class SharedBuildContext:
 class StorageBuildContext:
     shared: SharedBuildContext
     event_log: EventLogConfig
-    profile: Literal["embedded", "server"]
 
 
 @dataclass(frozen=True)
 class CacheBuildContext:
     shared: SharedBuildContext
     placement: ProjectionPlacement
+    #: ADR-081: ``deployment.data_dir`` (None = unset).
+    data_dir: str | None = None
 
 
 @dataclass(frozen=True)

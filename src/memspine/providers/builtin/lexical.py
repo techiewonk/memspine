@@ -4,7 +4,7 @@ from memspine.config.schema.providers import TantivySettings
 from memspine.exceptions import ConfigError
 from memspine.providers.contexts import LexicalBuildContext
 from memspine.providers.contracts import BuildResult, ProviderRef
-from memspine.providers.placement import generation_component
+from memspine.providers.placement import generation_component, host_base_path
 from memspine.providers.registry import LEXICAL_INDEXES, ProviderDescriptor
 from memspine.providers.shared import own_shared, path_identity, resource_key
 from memspine.services.lexical.base import LexicalStore
@@ -34,7 +34,7 @@ class TantivyBuilder:
             service = TantivyLexical(connector, date_tokens=settings.date_tokens)
             ref = ctx.shared.resources.own("lexical", connector.close)
         else:
-            path = f"{ctx.placement.base_path}{suffix}"
+            path = f"{host_base_path(ctx.placement, 'lexical', 'tantivy')}{suffix}"
 
             async def open_index() -> TantivyLexical:
                 connector = TantivyConnector(tantivy_spec(path, analyzer=settings.analyzer))
@@ -82,5 +82,6 @@ def register() -> None:
                 frozenset({"lexical", "namespace_filter", "erase"}),
                 (),
                 TantivyBuilder(),
+                locality="host",
             ),
         )
