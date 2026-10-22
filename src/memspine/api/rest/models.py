@@ -12,6 +12,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 from memspine.config import constants
+from memspine.services.graph.qualifiers import QualifierFilter
 from memspine.store.records import MemoryRecord, PiiTier, SourceInfo
 
 __all__ = [
@@ -104,6 +105,8 @@ class SearchRequest(_Request):
     recorded_after: datetime | None = None
     recorded_before: datetime | None = None
     date_filter_mode: Literal["and", "or"] = "and"
+    #: RM-93: typed qualifier filter on graph traversal (aware times only), see Engine.search.
+    graph_filter: QualifierFilter | None = None
 
 
 class AssembleRequest(_Request):

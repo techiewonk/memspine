@@ -417,6 +417,7 @@ def build_app(
             recorded_after=body.recorded_after,
             recorded_before=body.recorded_before,
             date_filter_mode=body.date_filter_mode,
+            graph_filter=body.graph_filter,
         )
         return [ScoredRecord(record=record, score=score) for record, score in scored]
 

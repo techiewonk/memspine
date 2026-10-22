@@ -410,6 +410,13 @@ status.
 Qualifiers are typed fields on claims and edges, filled only from supported evidence or
 system state; a missing qualifier stays unknown and is never inferred to pass a filter.
 
+Status 2026-10-22 (RM-82/83/92/93): `edge_compiler_v2` writes typed qualifiers on every
+compiled edge, and `Engine.search`/`read`, the `Memory` handle and `POST /search` take a
+`graph_filter`. The compiled-edge graph leg walks only edges the filter admits. Graph
+paths over links without claim qualifiers are skipped while a filter is active.
+Timezone-naive qualifier times are rejected, and erased edges never pass. Remaining
+qualifier sources and filter kinds are tracked as RM-84..RM-91, RM-94, RM-96 and RM-97.
+
 ## Owner review decisions — 2026-10-22 (vocabulary, contracts and maintenance)
 
 Selected in a one-by-one review. These are design selections: names are approved for

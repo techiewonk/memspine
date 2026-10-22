@@ -38,12 +38,21 @@ so the cap ranks only admissible neighbours. Adapters declare support with
 
 from __future__ import annotations
 
-from collections.abc import Awaitable, Callable, Mapping, Sequence
+from collections.abc import Awaitable, Callable, Iterator, Mapping, Sequence
+from contextlib import contextmanager
+from contextvars import ContextVar
 from datetime import datetime
 from enum import StrEnum
 from typing import Any, Protocol, runtime_checkable
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    ValidationError,
+    field_validator,
+    model_validator,
+)
 
 from memspine.exceptions import MemspineError
 from memspine.services.graph.base import GraphEdge, GraphNode, capped_neighbors
@@ -64,7 +73,9 @@ __all__ = [
     "SensitivityClass",
     "TimePrecision",
     "UnsupportedQualifierFilterError",
+    "active_graph_filter",
     "edge_qualifiers",
+    "graph_filter_scope",
     "qualified_hops",
     "qualified_subgraph",
     "require_qualifier_support",
@@ -160,6 +171,17 @@ class _Frozen(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
 
+def _require_aware(value: datetime | None) -> datetime | None:
+    """D-100 Q-S2: resolved times are timezone-aware (timezone-free dates stay text)."""
+    if value is not None and value.utcoffset() is None:
+        raise ValueError("qualifier times must be timezone-aware (D-100)")
+    return value
+
+
+#: Erasure states that are never traversed, whatever the filter says (RM-83).
+_NOT_TRAVERSABLE = frozenset({"erased", "erasure_pending"})
+
+
 class Provenance(_Frozen):
     """Where an edge came from (P1). Origin, principal and trust stay distinct (RM-48)."""
 
@@ -215,6 +237,13 @@ class EdgeQualifiers(_Frozen):
     # ── P3 ──
     #: Distinct lineage roots supporting the claim.
     independent_support_count: int | None = Field(default=None, ge=0)
+
+    _aware = field_validator("valid_from", "valid_to", "known_at")(_require_aware)
+
+    @property
+    def traversable(self) -> bool:
+        """False for erased or erasure-pending edges (never walked, RM-83)."""
+        return self.erasure_state not in _NOT_TRAVERSABLE
 
     @model_validator(mode="after")
     def _coherent(self) -> EdgeQualifiers:
@@ -356,6 +385,18 @@ class QualifierFilter(_Frozen):
     completeness: frozenset[Completeness] | None = None
     min_independent_support: int | None = Field(default=None, ge=0)
 
+    _aware = field_validator("valid_at", "known_as_of")(_require_aware)
+
+    @field_validator("valid_window")
+    @classmethod
+    def _aware_window(
+        cls, value: tuple[datetime, datetime] | None
+    ) -> tuple[datetime, datetime] | None:
+        if value is not None:
+            _require_aware(value[0])
+            _require_aware(value[1])
+        return value
+
     @model_validator(mode="after")
     def _window_order(self) -> QualifierFilter:
         if self.valid_window is not None and self.valid_window[1] <= self.valid_window[0]:
@@ -367,7 +408,11 @@ class QualifierFilter(_Frozen):
         return not self.model_dump(exclude_none=True)
 
     def matches(self, qualifiers: EdgeQualifiers | None) -> bool:
-        """Whether an edge with ``qualifiers`` passes every constraint."""
+        """Whether an edge with ``qualifiers`` passes every constraint.
+
+        An erased or erasure-pending edge never passes, not even the empty filter (RM-83)."""
+        if qualifiers is not None and not qualifiers.traversable:
+            return False
         if self.is_empty:
             return True
         if qualifiers is None:
@@ -405,6 +450,27 @@ class QualifierFilter(_Frozen):
 
     def admits(self, edge: GraphEdge) -> bool:
         return self.matches(edge_qualifiers(edge.properties))
+
+
+#: The qualifier filter of the read in progress (RM-93); None = no graph filter.
+_ACTIVE: ContextVar[QualifierFilter | None] = ContextVar("memspine_graph_filter", default=None)
+
+
+def active_graph_filter() -> QualifierFilter | None:
+    """The graph qualifier filter of the current read, if any."""
+    return _ACTIVE.get()
+
+
+@contextmanager
+def graph_filter_scope(qualifier_filter: QualifierFilter | None) -> Iterator[None]:
+    """Bind ``qualifier_filter`` for the reads inside the block (an empty filter binds none)."""
+    token = _ACTIVE.set(
+        None if qualifier_filter is None or qualifier_filter.is_empty else qualifier_filter
+    )
+    try:
+        yield
+    finally:
+        _ACTIVE.reset(token)
 
 
 class UnsupportedQualifierFilterError(MemspineError):

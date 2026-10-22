@@ -55,9 +55,8 @@ def _walk(roots: tuple[type[TierModel], ...]) -> list[type[TierModel]]:
         if not cls.__module__.startswith("memspine.schemas."):
             continue  # models defined in tests or plug-ins are not part of the schema package
         path = cls.__qualname__.split(".")
-        owner = reduce(
-            lambda obj, name: getattr(obj, name, None), path, sys.modules.get(cls.__module__)
-        )
+        start: object = sys.modules.get(cls.__module__)
+        owner = reduce(lambda obj, name: getattr(obj, name, None), path, start)
         if owner is not cls:
             continue  # runtime-built subclasses (e.g. frozen config snapshots) are not importable
         if cls.__name__ in seen and seen[cls.__name__] is not cls:

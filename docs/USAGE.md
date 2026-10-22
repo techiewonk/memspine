@@ -163,6 +163,29 @@ may = await engine.search(
 )
 ```
 
+**Graph qualifier filter (RM-93).** `search()` and `read()` take `graph_filter=`, a
+`QualifierFilter` (`memspine.services.graph.qualifiers`), applied to graph traversal only.
+Compiled claim edges (`graph.edge_compiler_v2`) carry typed qualifiers: valid time, known
+time, assertion modality and polarity, claim state, provenance source, scope, event role
+and occurrence. With a filter, the graph leg (`read.graph_leg_v2`) walks only the edges
+that pass it; a qualifier an edge does not carry is unknown and never passes; erased
+edges never pass. Graph paths over links without claim qualifiers (association walk,
+entity and node legs, causal walk, proximity rerank, communities) are skipped for that
+read, so no graph result bypasses the filter. Vector, lexical and other legs are not
+affected, and no filter means unchanged behaviour. Times must be timezone-aware. The
+read cache keys on the filter. `POST /search` takes `graph_filter` as JSON.
+```python
+from datetime import UTC, datetime
+from memspine.services.graph.qualifiers import AssertionModality, QualifierFilter
+
+asserted_then = QualifierFilter(
+    assertion_modalities={AssertionModality.ASSERTED},
+    valid_at=datetime(2023, 5, 15, tzinfo=UTC),
+)
+hits = await engine.search("how are Ilse and Tomasz connected", namespace="ops",
+                           graph_filter=asserted_then)
+```
+
 **Answer verification (#39).** `await engine.verify_answer(question, answer, context)`
 checks an answer against a read's context (an `AssembledContext`, its records, or text)
 with one call to the `verify_answer` LLM role (the `chat` role when that one is not

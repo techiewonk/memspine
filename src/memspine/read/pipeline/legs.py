@@ -97,6 +97,7 @@ from memspine.read.pipeline.state import (
     CUE_TAG,
     _passive_hidden,
 )
+from memspine.services.graph.qualifiers import active_graph_filter
 from memspine.services.lexical.base import LexicalHit, rrf_fuse
 from memspine.services.storage.sql_base import SqlStorage
 from memspine.services.vector.base import VectorHit
@@ -407,6 +408,13 @@ async def registry_base_legs(
     return vector_hits, lexical_hits, extra_legs
 
 
+def _unqualified_graph_blocked() -> bool:
+    """RM-93: while a graph qualifier filter is active, graph paths over links that carry no
+    claim qualifiers (association, mention, causal and community walks) contribute nothing,
+    so no graph evidence bypasses the filter. Only the compiled-edge leg is filtered."""
+    return active_graph_filter() is not None
+
+
 async def _graph_hop_leg(
     eng: Any,
     ns: str,
@@ -440,6 +448,22 @@ async def _graph_hop_leg(
                 seeds.append(node)
     edges: list[Any] = []
     if eng._graph is not None:
+        qualifier_filter = active_graph_filter()  # RM-93: typed qualifiers gate each edge
+        compiled = [
+            e
+            for e in await eng._graph.edge_list(ns)
+            if e.properties.get("compiled") == "edge_compiler_v2"
+            and e.weight > 0
+            and e.properties.get("record_id")
+        ]
+        admitted = [e for e in compiled if qualifier_filter is None or qualifier_filter.admits(e)]
+        if qualifier_filter is not None and tap.enabled():
+            tap.event(
+                "read.graph_filter",
+                namespace=ns,
+                edges=len(compiled),
+                admitted=len(admitted),
+            )
         edges = [
             lib.HopEdge(
                 e.src,
@@ -448,10 +472,7 @@ async def _graph_hop_leg(
                 bool(e.properties.get("tentative")),
                 bool(e.properties.get("closed")),
             )
-            for e in await eng._graph.edge_list(ns)
-            if e.properties.get("compiled") == "edge_compiler_v2"
-            and e.weight > 0
-            and e.properties.get("record_id")
+            for e in admitted
         ]
     ctx.graph_seeds = seeds
     ctx.graph_edges = edges
@@ -484,7 +505,7 @@ async def _entity_leg_v2(
     the Mem0 boost, max over the matched entities, capped, with hub damping by degree. The
     role of an entity in a record is subject (the record's ``entity``), object (its ``dst:``
     tag) or mention. One named leg ``entity_v2`` (family ``structured``)."""
-    if eng._associative is None:
+    if eng._associative is None or _unqualified_graph_blocked():
         return []
     seeds = await eng._graph_seeds(ns, query)
     if not seeds:
@@ -638,7 +659,7 @@ async def _graph_walk(
     eng: Any, ns: str, query: str, fallback_ids: Sequence[str] = (), *, history: bool = False
 ) -> list[tuple[MemoryRecord, int]]:
     """GP-3: the records reached from the query's seed entities (nearest first)."""
-    if eng._associative is None:
+    if eng._associative is None or _unqualified_graph_blocked():
         return []
     read_cfg = eng._config().read
     seeds = await eng._graph_seeds(ns, query, fallback_ids)
@@ -672,7 +693,7 @@ async def _graph_leg(
     ``read.graph_leg_k`` form the leg. Its hits then pass every search gate
     (status, quarantine, admission) like any other leg's. Failures degrade to
     no leg (an enhancer, never a gate)."""
-    if eng._associative is None:
+    if eng._associative is None or _unqualified_graph_blocked():
         return []
     try:
         if use_hybrid or extra_legs:
@@ -716,7 +737,7 @@ async def _graph_node_legs(
     (embedded names by cosine + text match, fused in the graph store), then the
     records that mention them, best entity first. One named leg ("graph_nodes")."""
     search = getattr(eng._graph, "search_entities", None)
-    if search is None or eng._graph is None:
+    if search is None or eng._graph is None or _unqualified_graph_blocked():
         return []
     try:
         entities = await search(ns, query_vector, query, constants.GRAPH_NODE_SEARCH_TOP)
@@ -1423,7 +1444,7 @@ async def _graph_rerank(
     if weight <= 0.0:
         return candidates
     proximity: dict[str, float] = {}
-    if eng._associative is not None:
+    if eng._associative is not None and not _unqualified_graph_blocked():
         try:
             fallback = [r.record_id for r, _ in candidates[: constants.GRAPH_LEG_FALLBACK_HITS]]
             seeds = await eng._graph_seeds(ns, query, fallback)
@@ -1475,6 +1496,8 @@ async def _causal_walk(
     search gates as every leg. The stable re-sort keeps ties in fused order.
     Failures leave the candidates as they were (an enhancer, never a gate)."""
     assert eng._associative is not None
+    if _unqualified_graph_blocked():
+        return candidates
     seeds = candidates[: constants.CAUSAL_WALK_SEEDS]
     seed_score = {record.record_id: relevance for record, relevance in seeds}
     try:
@@ -1520,7 +1543,7 @@ async def _community_gate(
     membership goes through the mentioned records). Seeds as for the graph leg.
     Parents pass the graph admission gate. Failures admit none (the gate
     stays shut)."""
-    if eng._associative is None:
+    if eng._associative is None or _unqualified_graph_blocked():
         return []
     try:
         if use_hybrid or extra_legs:

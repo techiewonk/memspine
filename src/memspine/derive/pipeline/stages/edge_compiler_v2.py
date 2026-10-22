@@ -29,6 +29,7 @@ from __future__ import annotations
 from collections import Counter
 from collections.abc import Awaitable, Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
+from datetime import datetime
 from typing import Any
 
 from memspine.derive.edges import GraphDelta, GraphEdge, GraphNode, compile_edges
@@ -50,6 +51,16 @@ from memspine.schemas.durable.identity import AssertionKey, occurrence_id
 from memspine.scope import Scope
 from memspine.services.graph.base import GraphEdge as StoredEdge
 from memspine.services.graph.base import GraphStore
+from memspine.services.graph.qualifiers import (
+    QUALIFIERS_PROP,
+    AssertionModality,
+    ClaimState,
+    EdgeQualifiers,
+    ErasureState,
+    Polarity,
+    Provenance,
+    TimePrecision,
+)
 from memspine.store.envelope import to_envelope
 from memspine.store.events import EventKind, MemoryEvent
 from memspine.store.records import MemoryRecord
@@ -63,6 +74,7 @@ __all__ = [
     "LinkProjection",
     "ProjectionStats",
     "compile_graph_edges",
+    "edge_qualifiers_for",
     "retract_after_forget",
 ]
 
@@ -201,6 +213,11 @@ class EdgeCompiler:
                     else None
                 ),
                 "source_at": env.time.source_time.isoformat() if env.time.source_time else None,
+                # RM-92: inputs of the edge qualifiers (never record text).
+                "namespace": record.namespace,
+                "modality": env.assessment.modality,
+                "known_at": record.recorded_at,
+                "source_message_id": record.source.message_id,
             }
         delta = compile_edges(envs)
         return CompiledEdges(namespace, delta, meta, skipped)
@@ -256,8 +273,71 @@ def _edge_props(edge: GraphEdge, meta: Mapping[str, Any]) -> dict[str, object]:
         "source_at": meta.get("source_at"),
         "event_precision": meta.get("event_precision"),
         "event_basis": meta.get("event_basis"),
+        QUALIFIERS_PROP: edge_qualifiers_for(edge, meta).to_properties(),
     }
     return props
+
+
+#: Envelope modality -> qualifier modality. ``negated`` is an asserted negative (polarity).
+_MODALITY = {
+    "asserted": AssertionModality.ASSERTED,
+    "negated": AssertionModality.ASSERTED,
+    "hypothetical": AssertionModality.HYPOTHETICAL,
+    "planned": AssertionModality.INTENDED,
+    "reported": AssertionModality.REPORTED,
+    "question": AssertionModality.QUESTIONED,
+}
+
+
+_PRECISIONS = frozenset(p.value for p in TimePrecision)
+
+
+def _aware(value: Any) -> datetime | None:
+    """An aware datetime, else unknown (a naive time is never guessed into a zone)."""
+    return value if isinstance(value, datetime) and value.utcoffset() is not None else None
+
+
+def edge_qualifiers_for(edge: GraphEdge, meta: Mapping[str, Any]) -> EdgeQualifiers:
+    """RM-92: the typed qualifiers of one compiled edge, from the edge and its record only.
+
+    Nothing is inferred: a value the compiler does not know stays unknown (and then fails
+    any filter on it). The edge is live when projected, so its erasure state is active;
+    erasure tombstones the edge (weight 0) rather than rewriting qualifiers."""
+    valid_from, valid_to = _aware(edge.valid_from), _aware(edge.valid_to)
+    if valid_from is not None and valid_to is not None and valid_to <= valid_from:
+        valid_to = None  # incoherent bounds: keep the start, the end stays unknown
+    precision = meta.get("event_precision")
+    claim_state = (
+        ClaimState.CONTESTED
+        if edge.contested
+        else ClaimState.SUPERSEDED
+        if edge.closed
+        else ClaimState.CURRENT
+        if edge.status == "active"
+        else None
+    )
+    source_id = meta.get("source_message_id")
+    return EdgeQualifiers(
+        valid_from=valid_from,
+        valid_to=valid_to,
+        valid_open_ended=(
+            True if valid_from is not None and valid_to is None and not edge.closed else None
+        ),
+        valid_precision=(
+            TimePrecision(precision)
+            if isinstance(precision, str) and precision in _PRECISIONS
+            else None
+        ),
+        known_at=_aware(meta.get("known_at")),
+        assertion_modality=_MODALITY.get(str(meta.get("modality"))),
+        polarity=Polarity.NEGATIVE if edge.negated else Polarity.POSITIVE,
+        claim_state=claim_state,
+        provenance=Provenance(source_id=str(source_id)) if source_id else None,
+        scope=meta.get("namespace"),
+        erasure_state=ErasureState.ACTIVE,
+        event_role=edge.label if edge.kind == "role" else None,
+        occurrence_id=edge.occurrence_id or None,
+    )
 
 
 def _weight(meta: Mapping[str, Any]) -> float:

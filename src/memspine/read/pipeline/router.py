@@ -95,6 +95,7 @@ from memspine.read.pipeline.state import (
     _passive_hidden,
 )
 from memspine.read.pipeline.time_guard import legs_guarded
+from memspine.services.graph.qualifiers import QualifierFilter, graph_filter_scope
 from memspine.services.lexical.base import minmax_fuse, rrf_fuse
 from memspine.store.events import EventKind, MemoryEvent
 from memspine.store.records import (
@@ -335,6 +336,7 @@ async def search(
     recorded_before: DateBound | None = None,
     date_filter_mode: str = "and",
     viewer: str | None = None,
+    graph_filter: QualifierFilter | None = None,
 ) -> list[tuple[MemoryRecord, float]]:
     """Semantic retrieval (P1 + E8 opt-in stages, D-51):
     ``[static_prefilter?] → vector/hybrid → [rerank?] → score`` (MMR and
@@ -391,6 +393,7 @@ async def search(
     with (
         read_scope(purpose) as outer,
         date_filter_scope(date_filter),
+        graph_filter_scope(graph_filter),  # RM-93
         record_scope(  # I7/I8/G-12, I53 viewer, I48/I52 bars
             RecordScope.build(
                 sessions,
@@ -1130,6 +1133,7 @@ async def read(
     date_filter_mode: str = "and",
     as_of: DateBound | None = None,
     viewer: str | None = None,
+    graph_filter: QualifierFilter | None = None,
 ) -> ReadResult:
     """C7': mode-routed read. Rules decide; no model on the read path.
 
@@ -1221,6 +1225,7 @@ async def read(
             viewer,
             include_passive=include_passive,
             focal_entity=focal_entity,
+            graph_filter=graph_filter,
         )
     finally:
         if plan_token is not None:
@@ -1254,6 +1259,7 @@ async def _read_planned(
     *,
     include_passive: bool = False,
     focal_entity: str | None = None,
+    graph_filter: QualifierFilter | None = None,
 ) -> ReadResult:
     """:meth:`read` after the v2 request stage (R3-01/02/03); the body of the read."""
     if as_of is not None:
@@ -1272,6 +1278,7 @@ async def _read_planned(
         read_scope(purpose) as outer,
         date_filter_scope(date_filter),
         as_of_scope(as_of),
+        graph_filter_scope(graph_filter),  # RM-93
         language_scope(eng._config().read.language_guard == "on"),  # I23
         record_scope(  # I7/I8/G-12, I53 viewer, I48/I52 bars
             RecordScope.build(
@@ -1295,6 +1302,8 @@ async def _read_planned(
                 *(include_passive, sessions, roles, memory_types, tags_any, focal_entity, as_of),
                 *(date_filter_mode, valid_from_after, valid_from_before, valid_to_after),
                 *(valid_to_before, recorded_after, recorded_before),
+                # RM-93: a filtered read never shares a cached result with another filter.
+                graph_filter.model_dump_json() if graph_filter is not None else None,
             ),
         )
         if hit is not None:

@@ -58,3 +58,19 @@ async def test_search_date_fields(client: httpx.AsyncClient) -> None:
         "/search", json={"query": "x", "date_filter_mode": "xor"}, headers=headers
     )
     assert bad.status_code == 422
+
+
+async def test_search_graph_filter_field(client: httpx.AsyncClient) -> None:
+    # RM-93: the typed graph filter rides on /search; naive times are rejected (RM-82)
+    headers = {"X-Memspine-Namespace": "a"}
+    body = {
+        "query": "charity race",
+        "graph_filter": {"assertion_modalities": ["asserted"], "topical_domains": ["sport"]},
+    }
+    ok = await client.post("/search", json=body, headers=headers)
+    assert ok.status_code == 200
+    assert [hit["record"]["content"] for hit in ok.json()][0] == "charity race in May"
+    naive = {"query": "x", "graph_filter": {"valid_at": "2023-05-01T00:00:00"}}
+    assert (await client.post("/search", json=naive, headers=headers)).status_code == 422
+    unknown = {"query": "x", "graph_filter": {"no_such_field": 1}}
+    assert (await client.post("/search", json=unknown, headers=headers)).status_code == 422

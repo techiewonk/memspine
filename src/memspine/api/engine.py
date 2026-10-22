@@ -251,6 +251,7 @@ if TYPE_CHECKING:
 from memspine.schemas.durable import AssertionEnvelope, OwnerScope
 from memspine.schemas.durable.erasure import RetentionBoundary
 from memspine.services.graph.base import GraphStore
+from memspine.services.graph.qualifiers import QualifierFilter
 from memspine.services.lexical.base import LexicalHit, LexicalStore
 from memspine.services.lexical.projector import LexicalProjector
 from memspine.services.storage.projector import RecordProjector
@@ -2446,6 +2447,7 @@ class Engine:
         recorded_before: DateBound | None = None,
         date_filter_mode: str = "and",
         viewer: str | None = None,
+        graph_filter: QualifierFilter | None = None,
     ) -> list[tuple[MemoryRecord, float]]:
         """Semantic retrieval (P1 + E8 opt-in stages, D-51):
         ``[static_prefilter?] → vector/hybrid → [rerank?] → score`` (MMR and
@@ -2486,6 +2488,12 @@ class Engine:
         ``or``: any). They restrict every leg to the matching records BEFORE fusion and
         the ``top_k`` cut (each leg looks over the whole namespace), so a filter never
         costs recall. No bound: unchanged.
+
+        ``graph_filter`` (RM-93, :class:`~memspine.services.graph.qualifiers.QualifierFilter`):
+        graph evidence comes only from compiled claim edges whose typed qualifiers pass
+        the filter (unknown never passes; erased edges never). Graph paths that walk
+        unqualified association or mention links are skipped for that read, so no graph
+        result bypasses the filter. Non-graph legs are unaffected. None: unchanged.
         """
         wait_s = self._config().read.wait_for_pending_s
         if wait_s > 0:  # W2-06c: bounded wait for pending outbox extraction (partial on timeout)
@@ -2514,6 +2522,7 @@ class Engine:
             recorded_before=recorded_before,
             date_filter_mode=date_filter_mode,
             viewer=viewer,
+            graph_filter=graph_filter,
         )
         return hits
 
@@ -2869,6 +2878,7 @@ class Engine:
         date_filter_mode: str = "and",
         as_of: DateBound | None = None,
         viewer: str | None = None,
+        graph_filter: QualifierFilter | None = None,
     ) -> ReadResult:
         """C7': mode-routed read. Rules decide; no model on the read path.
 
@@ -2918,6 +2928,8 @@ class Engine:
         ``valid_from_before`` says otherwise), a fact superseded after it counts as the
         current one, and relative phrases in the question resolve against it. For
         "what did memory know then" add ``recorded_before``. None: unchanged.
+
+        ``graph_filter`` (RM-93): as in :meth:`search`, for every search of the read.
         """
         return await read_router.read(
             self,
@@ -2946,6 +2958,7 @@ class Engine:
             date_filter_mode=date_filter_mode,
             as_of=as_of,
             viewer=viewer,
+            graph_filter=graph_filter,
         )
 
     async def _read(
