@@ -1013,7 +1013,7 @@ def _graph_descriptor(config: MemspineConfig, wiring: Wiring) -> ProviderDescrip
     pin (``wiring.graph_pin``, from the graph projector binding) the pinned provider is
     selected explicitly, and a different resolution today is recorded in
     ``wiring.provider_drift`` and logged as a required provider change, never applied."""
-    pinned = wiring.graph_pin if config.graph.provider == "auto" else None
+    pinned = wiring.graph_pin if config.storage.graph.provider == "auto" else None
     if pinned is None:
         return _graph_auto_descriptor(config, wiring)
     available_capabilities = wiring.sql.capabilities if wiring.sql is not None else frozenset()
@@ -1034,7 +1034,7 @@ def _graph_descriptor(config: MemspineConfig, wiring: Wiring) -> ProviderDescrip
             category="graph",
             pinned=pinned,
             resolved=resolved,
-            action="graph.provider auto stays pinned; switching needs an explicit provider change",
+            action="storage.graph.provider auto stays pinned; switching needs an explicit provider change",
         )
     return descriptor
 
@@ -1046,7 +1046,7 @@ async def resolve_graph_pin(config: MemspineConfig, wiring: Wiring) -> str | Non
     rename is adopted under the new name. Returns the pin (None when not ``auto``)."""
     from memspine.providers.projection_bindings import SqlProjectionBindingStore
 
-    if config.graph.provider != "auto":
+    if config.storage.graph.provider != "auto":
         return None
     if wiring.sql is None or wiring.owner_id is None:
         raise ConfigError("graph auto pinning requires started SQL and deployment identity")

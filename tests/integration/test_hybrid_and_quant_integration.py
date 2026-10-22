@@ -72,12 +72,16 @@ async def test_rebuild_reprojects_and_int8_rescore_returns_exact_top1(
 ) -> None:
     contents = ("the sky is blue today", "green grass grows", "red apples fall")
     float_storage = {
-        "provider": "sqlite",
-        "settings": {"path": str(tmp_path / "float.db"), "busy_timeout_s": 5.0},
+        "records": {
+            "provider": "sqlite",
+            "settings": {"path": str(tmp_path / "float.db"), "busy_timeout_s": 5.0},
+        }
     }
     int8_storage = {
-        "provider": "sqlite",
-        "settings": {"path": str(tmp_path / "int8.db"), "busy_timeout_s": 5.0},
+        "records": {
+            "provider": "sqlite",
+            "settings": {"path": str(tmp_path / "int8.db"), "busy_timeout_s": 5.0},
+        }
     }
 
     # Each quantization setting gets its own target, populated with the same
@@ -96,7 +100,7 @@ async def test_rebuild_reprojects_and_int8_rescore_returns_exact_top1(
     # A changed provider configuration cannot silently reuse a persisted
     # projection target; changing it requires an explicitly verified switch.
     changed_target = make_file_engine(
-        storage={"vector": {"settings": {"quantization": "int8"}}},
+        storage={**float_storage, "vector": {"settings": {"quantization": "int8"}}},
         memories=_SEMANTIC["memories"],
     )
     with pytest.raises(ConfigError, match="different target|verified projection switch"):
@@ -104,7 +108,7 @@ async def test_rebuild_reprojects_and_int8_rescore_returns_exact_top1(
 
     # ── int8 on an independent target, with the same source records ───────────
     quant = make_file_engine(
-        storage={"vector": {"settings": {"quantization": "int8"}}},
+        storage={**int8_storage, "vector": {"settings": {"quantization": "int8"}}},
         memories=_SEMANTIC["memories"],
     )
     await quant.start()

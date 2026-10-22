@@ -145,7 +145,7 @@ def _engine(db: Path, **extra: Any) -> Engine:
     return Engine(
         template="core",
         dotenv_path=None,
-        storage={"provider": "sqlite", "settings": storage_settings},
+        storage={"records": {"provider": "sqlite", "settings": storage_settings}},
         embedding={"provider": "hash", "settings": {}},
         memories={"episodic": {"enabled": True}, "semantic": {"enabled": True}},
         offline={"sleep_v2": True, "sleep_manual_only": True},
@@ -407,15 +407,12 @@ async def test_postgres_engine_keeps_side_tables_in_the_database(tmp_path: Path)
         template="core",
         dotenv_path=None,
         storage={
-            "provider": "postgres",
-            "settings": {
-                "url": PG_URL,
-                "data_dir": str(data_dir),
-                "connect_timeout_s": 5.0,
-                "statement_timeout_s": 30.0,
-            },
+            "records": {
+                "provider": "postgres",
+                "settings": {"url": PG_URL, "connect_timeout_s": 5.0, "statement_timeout_s": 30.0},
+            }
         },
-        runtime={"deployment_id": f"rm111-{uuid.uuid4().hex[:8]}"},
+        deployment={"data_dir": str(data_dir), "id": f"rm111-{uuid.uuid4().hex[:8]}"},
         embedding={"provider": "hash", "settings": {}},
         memories={"episodic": {"enabled": True}, "semantic": {"enabled": True}},
         offline={"sleep_v2": True, "sleep_manual_only": True},

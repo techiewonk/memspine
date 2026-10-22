@@ -10,7 +10,7 @@ For configuration paths and execution rules see [provider operations](PROVIDER_O
 | Category | Provider | Defaults | Required fields |
 |---|---|---|---|
 | storage | <code>sqlite</code> | <code>path = &quot;./memspine.db&quot;</code><br><code>encryption = {&quot;key_env&quot;: null, &quot;mode&quot;: &quot;none&quot;}</code> | <code>busy_timeout_s</code> |
-| storage | <code>postgres</code> | No native options | <code>url</code>, <code>data_dir</code>, <code>connect_timeout_s</code>, <code>statement_timeout_s</code> |
+| storage | <code>postgres</code> | No native options | <code>url</code>, <code>connect_timeout_s</code>, <code>statement_timeout_s</code> |
 | vector | <code>lancedb</code> | <code>quantization = &quot;auto&quot;</code><br><code>namespace_index = false</code><br><code>isolation = &quot;shared&quot;</code> | None |
 | vector | <code>pgvector</code> | <code>index = &quot;hnsw&quot;</code><br><code>hnsw_m = 16</code><br><code>hnsw_ef_construction = 64</code><br><code>hnsw_ef_search = 40</code><br><code>namespace_index = true</code><br><code>provision_projection = false</code><br><code>create_extension = false</code> | None |
 | vector | <code>weaviate</code> | <code>url_env = &quot;MEMSPINE_WEAVIATE_URL&quot;</code><br><code>grpc_url_env = null</code><br><code>api_key_env = null</code><br><code>collection_prefix = &quot;Memspine&quot;</code><br><code>grpc_port = 50051</code> | <code>connect_timeout_s</code>, <code>request_timeout_s</code> |

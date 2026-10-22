@@ -183,7 +183,7 @@ async def _run_trace_in_scope(database: Path) -> dict[str, Any]:
         },
         "embedding": {"provider": "hash", "settings": {"dim": 64}},
         "read": {**CONFIG["read"], "hybrid": True},
-        "runtime": CONFIG["runtime"],
+        "deployment": CONFIG["deployment"],
         "observability": {"tap": {"enabled": True, "sink": "memory", "content": False}},
     }
 
@@ -363,10 +363,10 @@ async def _run_trace_in_scope(database: Path) -> dict[str, Any]:
             },
             "provider_and_coverage_boundaries": {
                 "graph": {
+                    "provider": selected_provider("graph"),
                     "outcome": graph_outcome,
                     "written_edges": offline.get("compile_edges", {}).get("written", 0),
                 },
-                "storage": {"graph": {"provider": selected_provider("graph")}},
                 "reranker": {"provider": "off", "outcome": "disabled for this trace"},
                 "cache": {
                     "provider": "memory",

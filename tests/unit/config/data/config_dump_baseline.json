@@ -14162,7 +14162,7 @@
    },
    "documents": null,
    "graph": {
-    "provider": "sqlite_adjacency",
+    "provider": "sql_adjacency",
     "settings": {}
    },
    "graph_mirror": null,

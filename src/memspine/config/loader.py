@@ -166,7 +166,9 @@ def _load_template_chain(name: str, search_dirs: list[Path]) -> dict[str, Any]:
         chain.append(data)
     merged: dict[str, Any] = {}
     for layer in reversed(chain):  # base first, leaf last
-        merged = _deep_merge(merged, layer)
+        # A template that changes a slot's provider (``server`` over ``base``) must not inherit
+        # the parent's settings for the old provider (ADR-081).
+        merged = _merge_layer(merged, layer)
     return merged
 
 

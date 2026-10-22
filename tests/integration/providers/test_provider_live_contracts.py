@@ -85,6 +85,7 @@ async def test_embedded_storage_vector_lexical_graph_and_cache_contracts(
             dotenv_path=None,
             deployment={"id": deployment_id},
             storage={
+                "records": _sqlite(tmp_path / "events.sqlite"),
                 "vector": {"provider": "lancedb", "settings": {"isolation": "shared"}},
                 "cache": {
                     "provider": "disk",
@@ -221,6 +222,7 @@ async def test_neo4j_graph_contract() -> None:
         dotenv_path=None,
         deployment=_deployment(),
         storage={
+            "records": _sqlite(Path(":memory:")),
             "cache": {"provider": "memory", "settings": {}},
             "graph": {
                 "provider": "neo4j",

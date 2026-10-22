@@ -63,7 +63,7 @@ def test_old_graph_provider_name_is_rejected_with_the_new_name() -> None:
 
 
 async def test_engine_refuses_the_old_graph_provider_name(tmp_path: Path) -> None:
-    eng = _engine(tmp_path, graph={"provider": "sqlite_adjacency"})
+    eng = _engine(tmp_path, storage={"graph": {"provider": "sqlite_adjacency"}})
     with pytest.raises(ConfigError, match="renamed to 'sql_adjacency'"):
         await eng.start()
     await eng.stop()
@@ -71,13 +71,17 @@ async def test_engine_refuses_the_old_graph_provider_name(tmp_path: Path) -> Non
 
 # ------------------------------------------------------------------------------- engine e2e
 def _engine(path: Path, **overrides: Any) -> Engine:
-    return Engine(
-        template="core",
-        dotenv_path=None,
-        storage={
+    storage = {
+        "records": {
             "provider": "sqlite",
             "settings": {"path": str(path / "pin.db"), "busy_timeout_s": 5.0},
         },
+        **overrides.pop("storage", {}),
+    }
+    return Engine(
+        template="core",
+        dotenv_path=None,
+        storage=storage,
         embedding={"provider": "hash", "settings": {}},
         memories={"semantic": {"enabled": True}, "associative": {"enabled": True}},
         **overrides,
@@ -137,7 +141,7 @@ async def test_explicit_provider_change_is_blocked_without_a_verified_switch(
     await first.write("alpha one")
     await first.stop()
     ladybug["installed"] = True
-    explicit = _engine(tmp_path, graph={"provider": "ladybug"})
+    explicit = _engine(tmp_path, storage={"graph": {"provider": "ladybug"}})
     with pytest.raises(ConfigError, match="verified projection switch"):
         await explicit.start()
     await explicit.stop()
@@ -160,7 +164,7 @@ async def test_a_binding_recorded_under_the_old_name_is_adopted(
             .values(provider="graph:sqlite_adjacency:v1", target_fingerprint="0" * 64)
         )
     await client.close()
-    for graph in ({}, {"graph": {"provider": "sql_adjacency"}}):
+    for graph in ({}, {"storage": {"graph": {"provider": "sql_adjacency"}}}):
         eng = _engine(tmp_path, **graph)
         await eng.start()
         try:
@@ -219,7 +223,7 @@ def _wiring(sql: Any) -> Wiring:
 
 async def test_resolve_graph_pin_per_dialect(sql: Any, ladybug: dict[str, bool]) -> None:
     config = _config()
-    assert config.graph.provider == "auto"
+    assert config.storage.graph.provider == "auto"
     wiring = _wiring(sql)
     # no binding yet: today's resolution (no ladybug -> sql_adjacency, SQLite and Postgres)
     assert await resolve_graph_pin(config, wiring) == "sql_adjacency"
@@ -239,7 +243,7 @@ async def test_resolve_graph_pin_per_dialect(sql: Any, ladybug: dict[str, bool])
     assert await resolve_graph_pin(config, fresh) == "ladybug"
     assert fresh.provider_drift == {}
     # an explicit provider is never pinned
-    explicit = _config(graph={"provider": "sql_adjacency"})
+    explicit = _config(storage={"graph": {"provider": "sql_adjacency"}})
     assert await resolve_graph_pin(explicit, _wiring(sql)) is None
 
 

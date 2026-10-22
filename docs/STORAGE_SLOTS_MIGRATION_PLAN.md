@@ -133,7 +133,9 @@ WP7 runs with WP1 so the tree stays green.
 **Contract shipped (RM-111, 2026-10-23).** The port is
 `services/storage/records_port.py` (`RecordsStore`). The conformance suite is
 `tests/unit/services/storage/test_records_conformance.py`, which runs on SQLite (memory and
-file) and on Postgres (Alembic and `create_all`). The contract text for future providers
+file) and on Postgres (Alembic; WP3 removed the Postgres `create_all` path, and a legacy
+`create_all` database is adopted by the stamp, pinned in
+`tests/unit/store/test_f16d_storage_profile.py`). The contract text for future providers
 is `docs/RECORDS_STORE_CONTRACT.md`.
 
 Original analysis:
@@ -159,3 +161,24 @@ The owner wants non-SQL data stores such as MongoDB. Two readings, possibly both
 Today the record and event model is SQL-only (SQLAlchemy Core). Reading (a) needs a
 storage-port contract and conformance suite that are independent of SQL. Reading (b) is
 additive.
+
+## 8. Implementation notes (WP1-WP3, WP7; 2026-10-23)
+
+- **Rejections.** Each removed key raises `ConfigError: config key '<old>' was removed by
+  ADR-081; use <new>` (`config/schema/storage.py::MOVED_KEYS`). A null `vector`, `lexical`,
+  `records`, `graph` or `cache` slot is rejected; a non-null `documents` slot is rejected until
+  a documents provider ships.
+- **`data_dir`.** The records descriptor's placement receives `deployment.data_dir`. SQLite with
+  it unset keeps `<path>` as the base; Postgres uses `<data_dir>/memspine` (the old
+  `settings.data_dir` base). A host-local slot with no base raises naming `deployment.data_dir`.
+  An unset disk-cache `path` defaults to `<data_dir>/memspine.cache` when `data_dir` is set.
+  Projection fingerprints are pinned byte-identical in `tests/unit/config/test_storage_slots.py`.
+- **`profile.py`.** Deleted rather than replaced: the resolved topology is already the validated
+  config (`storage.*`, `deployment.*`) plus `describe()` and `provider_inspection()`; a second
+  description module would drift, as the old one had.
+- **Template chain.** `extends:` now resets a slot's settings when a child template changes its
+  provider (`server` over `base`), as the user/env/kwargs layers already did.
+- **Locality.** `sql_adjacency` is declared `host` statically; its effective locality is the
+  records slot's. WP6 should resolve it through the records slot.
+- **Codemod.** `scripts/migrate_config_keys_adr081.py` is idempotent; a file containing the
+  marker `migrate_config_keys_adr081: skip` is left alone.

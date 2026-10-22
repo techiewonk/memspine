@@ -1,5 +1,7 @@
 """ADR-081 / RM-111 WP1-WP2: storage slots, the deployment block, locality traits and the
-byte-identical placement default."""
+byte-identical placement default.
+
+This file spells the removed keys on purpose (migrate_config_keys_adr081: skip)."""
 
 from __future__ import annotations
 

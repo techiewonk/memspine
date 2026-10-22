@@ -31,8 +31,8 @@ __all__ = [
     "KINDS",
     "LEXICAL_INDEXES",
     "LLM_PROVIDERS",
-    "RENAMED_PROVIDERS",
     "LOCALITIES",
+    "RENAMED_PROVIDERS",
     "RERANKERS",
     "STORAGE_BACKENDS",
     "VECTOR_STORES",
@@ -98,6 +98,8 @@ def renamed_provider_message(kind: str, name: str) -> str | None:
         f"{category} provider {name!r} was renamed to {new!r} (ADR-081; no alias): "
         f"set the provider to {new!r}"
     )
+
+
 #: ADR-081: where a data provider's state lives. ``process`` = inside this process (memory,
 #: ``:memory:``); ``host`` = files on this machine (sqlite, lancedb, tantivy, ladybug, disk
 #: cache); ``cluster`` = a network service every node can reach (postgres, pgvector,

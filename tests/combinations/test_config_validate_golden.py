@@ -177,8 +177,8 @@ def test_provider_settings_overlay_merges_same_provider_and_refreshes_sources() 
         },
     )
     assert loaded.config.storage.records.settings == {"path": "first.db", "busy_timeout_s": 7.0}
-    assert loaded.sources["storage.settings.path"] == "user"
-    assert loaded.sources["storage.settings.busy_timeout_s"] == "kwargs"
+    assert loaded.sources["storage.records.settings.path"] == "user"
+    assert loaded.sources["storage.records.settings.busy_timeout_s"] == "kwargs"
     assert "embedding.settings.model" not in loaded.sources
 
 

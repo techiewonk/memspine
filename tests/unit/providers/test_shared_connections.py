@@ -43,9 +43,7 @@ def _manager() -> ProviderLifecycleManager:
 
 
 def _storage_ctx(resources: ProviderLifecycleManager) -> StorageBuildContext:
-    return StorageBuildContext(
-        SharedBuildContext(resources, "owner", 2.0), EventLogConfig()
-    )
+    return StorageBuildContext(SharedBuildContext(resources, "owner", 2.0), EventLogConfig())
 
 
 async def _build_sqlite(path: str, resources: ProviderLifecycleManager) -> Any:

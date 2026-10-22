@@ -9,7 +9,7 @@ The contract text is ``docs/RECORDS_STORE_CONTRACT.md``.
 
 Providers: ``sqlite_memory`` (``create_all``), ``sqlite_file`` (Alembic), and with
 ``MEMSPINE_TEST_PG_URL`` (a scratch server; each test gets its own throwaway database)
-``postgres_alembic`` and ``postgres_create_all``; with ``MEMSPINE_TEST_MONGO_URL`` (a replica set,
+``postgres`` (always Alembic: ADR-081 removed the Postgres ``create_all`` path); with ``MEMSPINE_TEST_MONGO_URL`` (a replica set,
 e.g. ``mongodb://127.0.0.1:57017/?directConnection=true``; each test gets its own throwaway
 database) ``mongodb`` (RM-112).
 """
@@ -42,7 +42,7 @@ from memspine.store.records import MemoryRecord, SourceInfo
 
 PG_URL = os.environ.get("MEMSPINE_TEST_PG_URL")
 MONGO_URL = os.environ.get("MEMSPINE_TEST_MONGO_URL")
-PROVIDERS = ["sqlite_memory", "sqlite_file", "postgres_alembic", "postgres_create_all", "mongodb"]
+PROVIDERS = ["sqlite_memory", "sqlite_file", "postgres", "mongodb"]
 SCOPE = OwnerScope(tenant="t1", owner="alice")
 OTHER = OwnerScope(tenant="t1", owner="bob")
 
@@ -125,13 +125,13 @@ async def _open_sqlite(path: str) -> tuple[RecordsStore, Callable[[], Awaitable[
     return store, close
 
 
-async def _open_pg(url: str, alembic: bool) -> tuple[RecordsStore, Callable[[], Awaitable[None]]]:
+async def _open_pg(url: str) -> tuple[RecordsStore, Callable[[], Awaitable[None]]]:
     from memspine.clients.postgres import PostgresClient, PostgresSpec
     from memspine.services.storage.postgres.engine import PostgresStorage
 
     client = PostgresClient(PostgresSpec(url))
     await client.open()
-    store = PostgresStorage(client, use_alembic=alembic)
+    store = PostgresStorage(client)
     await store.start()
 
     async def close() -> None:
@@ -165,10 +165,9 @@ async def handle(request: pytest.FixtureRequest, tmp_path: Path) -> AsyncIterato
             return _open_mongo(database)
     else:
         url = request.getfixturevalue("pg_database")
-        alembic = kind == "postgres_alembic"
 
         def opener() -> Awaitable[tuple[RecordsStore, Callable[[], Awaitable[None]]]]:
-            return _open_pg(url, alembic)
+            return _open_pg(url)
 
     store, close = await opener()
     closers.append(close)

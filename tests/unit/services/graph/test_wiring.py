@@ -54,7 +54,7 @@ async def test_associative_memory_enables_the_default_graph_store() -> None:
         expected = (
             "LadybugGraphStore"
             if importlib.util.find_spec("ladybug") is not None
-            else "SQLiteAdjacencyGraph"
+            else "SqlAdjacencyGraph"
         )
         assert world["graph"] == expected
     finally:
@@ -68,7 +68,7 @@ async def test_explicit_sql_adjacency_is_still_honoured() -> None:
     )
     await eng.start()
     try:
-        assert eng.describe()["graph"] == "SQLiteAdjacencyGraph"
+        assert eng.describe()["graph"] == "SqlAdjacencyGraph"
     finally:
         await eng.stop()
 

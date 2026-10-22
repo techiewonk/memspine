@@ -32,11 +32,14 @@ from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
 
+#: A file containing this marker is left untouched (it tests the old keys on purpose).
+SKIP_MARKER = "migrate_config_keys_adr081: skip"
 SLOT_ROOT_KEYS = ("vector", "cache")
 CONFIG_KEYS = {"storage", "vector", "cache", "graph", "read", "runtime", "deployment"}
 OLD_STORAGE_KEYS = {"profile", "provider", "settings"}
 SLOT_KEYS = {"provider", "settings"}
 GRAPH_MOVED = {"provider", "settings", "mirror"}
+GRAPH_FLAGS = {"entity_embeddings", "key_v2", "edge_compiler_v2"}
 READ_MOVED = {"lexical_provider", "lexical_settings"}
 
 # ── attribute paths (Python) ──────────────────────────────────────────────────────────
@@ -51,8 +54,6 @@ ATTRIBUTE_SUBS: tuple[tuple[str, str], ...] = (
     (r"\.read\.lexical_provider\b", ".storage.lexical.provider"),
     (r"\.read\.lexical_settings\b", ".storage.lexical.settings"),
     (r"\.runtime\.deployment_id\b", ".deployment.id"),
-    # ADR-081 / RM-111: the SQL adjacency graph provider is `sql_adjacency` (no alias).
-    (r"(["'])sqlite_adjacency\1", r"\1sql_adjacency\1"),
 )
 
 
@@ -147,7 +148,11 @@ def _is_slot_dict(node: ast.expr) -> bool:
 
 def _is_old_graph(node: ast.expr) -> bool:
     d = _literal_dict(node)
-    return d is not None and bool({_const_key(k) for k in d.keys} & GRAPH_MOVED)
+    if d is None:
+        return False
+    keys = {_const_key(k) for k in d.keys}
+    # Only a real graph config block (a report dict such as {"provider", "outcome"} is not).
+    return bool(keys & GRAPH_MOVED) and keys <= GRAPH_MOVED | GRAPH_FLAGS
 
 
 def _is_old_read(node: ast.expr) -> bool:
@@ -205,6 +210,11 @@ def plan_root(items: list[tuple[str | None, ast.expr]], src: Source) -> Plan | N
         elif d is not None:
             for key, value in _dict_items(d, src):
                 plan.storage_extra.append(Item(key, src.seg(value)))
+        else:
+            # A storage value held in a variable or call: keep it as a spread so moved slots
+            # merge into it, and flag it, since its shape cannot be proven here.
+            plan.storage_extra.append(Item(None, src.seg(storage)))
+            plan.manual.append("storage is not a literal: check its value has the slot shape")
     for key in SLOT_ROOT_KEYS:
         value = by_key.get(key)
         if value is not None and _is_slot_dict(value):
@@ -314,6 +324,13 @@ class PyRewriter(ast.NodeVisitor):
         self.path = path
         self.edits: list[Edit] = []
         self.manual: list[str] = []
+        #: ids of mappings that are already a `storage` value (never a config root), so a
+        #: second run over migrated code is a no-op.
+        self.storage_values: set[int] = set()
+
+    def _mark_storage(self, key: str | None, value: ast.expr) -> None:
+        if key == "storage" and isinstance(value, ast.Dict):
+            self.storage_values.add(id(value))
 
     def _covered(self, node: ast.AST) -> bool:
         start, end = self.src.span(node)
@@ -323,8 +340,10 @@ class PyRewriter(ast.NodeVisitor):
         if self._covered(node):
             return
         items = _dict_items(node, self.src)
+        for key, value in items:
+            self._mark_storage(key, value)
         keys = {k for k, _ in items}
-        if keys & CONFIG_KEYS:
+        if keys & CONFIG_KEYS and id(node) not in self.storage_values:
             plan = plan_root(items, self.src)
             if plan is not None:
                 self._apply_dict(node, items, plan)
@@ -347,6 +366,10 @@ class PyRewriter(ast.NodeVisitor):
         if self._covered(node):
             return
         kws = [(kw.arg, kw.value) for kw in node.keywords]
+        for key, value in kws:
+            self._mark_storage(key, value)
+        if len(node.args) == 2:
+            self._mark_storage(_const_key(node.args[0]), node.args[1])
         keys = {k for k, _ in kws}
         plan = plan_root(kws, self.src) if keys & CONFIG_KEYS else None
         if plan is not None:
@@ -439,6 +462,8 @@ class PyRewriter(ast.NodeVisitor):
         self, node: ast.AST, target: ast.expr, key: str | None, value: ast.expr, *, call: bool
     ) -> bool:
         target_src = self.src.seg(target)
+        if re.search(r"""["']storage["']""", target_src):
+            return False  # already under storage (x.setdefault("storage", {})["graph"] = ...)
         value_src = self.src.seg(value)
         if key == "storage":
             d = _literal_dict(value)
@@ -479,6 +504,7 @@ class PyRewriter(ast.NodeVisitor):
         if len(node.targets) == 1 and isinstance(node.targets[0], ast.Subscript):
             sub = node.targets[0]
             key = _const_key(sub.slice)
+            self._mark_storage(key, node.value)
             if key in {"storage", "vector", "cache", "graph"}:
                 if self._rewrite_single(node, sub.value, key, node.value, call=False):
                     return
@@ -544,7 +570,11 @@ def migrate_mapping(data: dict) -> bool:
             new_storage[key] = data.pop(key)
             changed = True
     graph = data.get("graph")
-    if isinstance(graph, dict) and set(graph) & GRAPH_MOVED:
+    if (
+        isinstance(graph, dict)
+        and set(graph) & GRAPH_MOVED
+        and set(graph) <= GRAPH_MOVED | GRAPH_FLAGS
+    ):
         slot = {k: graph.pop(k) for k in ("provider", "settings") if k in graph}
         if slot:
             new_storage["graph"] = slot
@@ -618,6 +648,8 @@ def main(argv: list[str] | None = None) -> int:
     for path in iter_files(args.paths):
         if path.resolve() == Path(__file__).resolve():
             continue
+        if SKIP_MARKER in path.read_text(encoding="utf-8", errors="replace"):
+            continue  # a file that must keep old keys (e.g. the rejection tests)
         if path.suffix == ".py":
             new, notes = rewrite_python(path)
             if new != path.read_text(encoding="utf-8"):

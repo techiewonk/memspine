@@ -43,15 +43,14 @@ def make_file_engine(db_path: str) -> FileEngineFactory:
 
     def _factory(**overrides: Any) -> Engine:
         overrides.setdefault("template", "core")
-        overrides.setdefault(
-            "storage",
-            {
-                "records": {
-                    "provider": "sqlite",
-                    "settings": {"path": db_path, "busy_timeout_s": 5.0},
-                }
+        # ADR-081: a caller's storage slots merge over the default records slot.
+        overrides["storage"] = {
+            "records": {
+                "provider": "sqlite",
+                "settings": {"path": db_path, "busy_timeout_s": 5.0},
             },
-        )
+            **overrides.get("storage", {}),
+        }
         overrides.setdefault("embedding", {"provider": "hash", "settings": {}})
         return Engine(dotenv_path=None, **overrides)
 

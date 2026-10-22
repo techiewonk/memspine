@@ -51,9 +51,10 @@ async def _postgres() -> tuple[Any, Any]:
     if not url:
         pytest.skip("set MEMSPINE_TEST_POSTGRES_URL to run the postgres storage contract")
     pytest.importorskip("psycopg")
+    from sqlalchemy import MetaData
+
     from memspine.clients.postgres import PostgresClient, PostgresSpec
     from memspine.services.storage.postgres.engine import PostgresStorage
-    from memspine.services.storage.sqlite.schema import metadata
 
     client = PostgresClient(PostgresSpec(url))
     try:
@@ -62,8 +63,15 @@ async def _postgres() -> tuple[Any, Any]:
         # M-LIVE: the URL is an explicit opt-in, so an unreachable server or bad
         # DSN is a failure of the requested gate, never a silent skip.
         pytest.fail(f"MEMSPINE_TEST_POSTGRES_URL is set but postgres is not reachable: {exc}")
+
+    def _drop_everything(sync_conn: Any) -> None:
+        # ADR-081: the schema is Alembic-managed, so alembic_version must go too.
+        reflected = MetaData()
+        reflected.reflect(bind=sync_conn)
+        reflected.drop_all(bind=sync_conn)
+
     async with client.engine.begin() as conn:
-        await conn.run_sync(metadata.drop_all)  # fresh schema for isolation
+        await conn.run_sync(_drop_everything)  # fresh schema for isolation
     storage = PostgresStorage(client, mode=EventLogMode.ROLLING)
     await storage.start()
     return client, storage
