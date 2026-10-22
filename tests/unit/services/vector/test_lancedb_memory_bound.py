@@ -12,7 +12,6 @@ import random
 
 import pytest
 
-pytest.importorskip("lancedb")
 pytest.importorskip("psutil")
 
 import psutil

@@ -7,7 +7,7 @@
     "evals/conftest.py",
     "docs/v2/data/test_build_plan.py"
   ],
-  "callsite_count": 147,
+  "callsite_count": 143,
   "coverage_limits": [
     "Source sites are not executed skip counts; parametrization and module guards can affect multiple tests.",
     "No imports, condition evaluation, external plugins, generated code or environment probes are executed.",
@@ -17,7 +17,7 @@
   ],
   "missing_reason_sites": [],
   "callsite_counts_by_kind": {
-    "importorskip": 73,
+    "importorskip": 69,
     "skip": 46,
     "skipif": 28
   },
@@ -89,45 +89,8 @@
     }
   ],
   "parse_errors": [],
-  "missing_reviews": [
-    "evals/tests/test_review_r3.py:177:skipif",
-    "tests/integration/providers/test_remote_search_live_contracts.py:24:skip",
-    "tests/unit/api/rest/test_app.py:11:importorskip",
-    "tests/unit/api/rest/test_auth.py:12:importorskip",
-    "tests/unit/api/rest/test_auth_hardening.py:21:importorskip",
-    "tests/unit/api/rest/test_feedback_route.py:9:importorskip",
-    "tests/unit/api/rest/test_scoped_handle.py:15:importorskip",
-    "tests/unit/api/rest/test_search_date_filters.py:10:importorskip",
-    "tests/unit/clients/test_sqlite_encryption.py:210:skipif",
-    "tests/unit/services/cache/test_cache_wiring.py:54:importorskip",
-    "tests/unit/services/graph/test_wiring.py:92:importorskip",
-    "tests/unit/services/vector/test_per_namespace_store.py:9:importorskip",
-    "tests/unit/store/test_vector_spaces.py:364:importorskip",
-    "tests/unit/test_graph_semantic_entities.py:40:importorskip",
-    "tests/unit/test_graph_semantic_entities.py:64:importorskip",
-    "tests/unit/test_graph_semantic_entities.py:85:importorskip",
-    "tests/unit/test_list_mode_round2.py:93:skip",
-    "tests/unit/test_list_mode_round2.py:282:skip",
-    "tests/unit/wiring/test_f_16c_scope.py:287:importorskip",
-    "tests/unit/wiring/test_f_16e_neo4j_outbox.py:290:skip",
-    "tests/unit/wiring/test_fu_sleep.py:361:skip",
-    "tests/unit/wiring/test_fu_sleep.py:362:importorskip",
-    "tests/unit/wiring/test_glift_derived_lift.py:262:importorskip",
-    "tests/unit/wiring/test_md_02_embedding_profile.py:280:skipif",
-    "tests/unit/wiring/test_rt_01_transport.py:17:importorskip",
-    "tests/unit/wiring/test_rt_01_transport.py:181:importorskip",
-    "tests/unit/workers/test_reorganize.py:301:skip"
-  ],
-  "stale_review_sites": [
-    "tests/unit/clients/test_sqlite_encryption.py:203:skipif",
-    "tests/unit/store/test_vector_spaces.py:353:importorskip",
-    "tests/unit/test_graph_semantic_entities.py:37:importorskip",
-    "tests/unit/test_graph_semantic_entities.py:61:importorskip",
-    "tests/unit/test_graph_semantic_entities.py:82:importorskip",
-    "tests/unit/wiring/test_fu_sleep.py:358:skip",
-    "tests/unit/wiring/test_fu_sleep.py:359:importorskip",
-    "tests/unit/wiring/test_md_02_embedding_profile.py:282:skipif"
-  ],
+  "missing_reviews": [],
+  "stale_review_sites": [],
   "review_metadata_supplied": true,
   "callsites": [
     {
@@ -2522,14 +2485,15 @@
         "reason": "LoCoMo not on disk (evals/data/locomo10.json or $MEMSPINE_LOCOMO_JSON)",
         "owner_assignment": "Role assigned for this authorized review; not an invented individual or historical CODEOWNER.",
         "prerequisites": "Named local dataset/calibration/reference-run file from source condition; provision separately, preserve immutable benchmark history.",
-        "review_date": "2026-10-18",
+        "review_date": "2026-10-22",
         "replacement_evidence": [],
         "priority": "P2",
         "recommended_action": "Run fixture gate after local assets are explicitly provisioned; retain synthetic unit coverage separately. Audit performs no asset fetch or benchmark.",
-        "source_sha256": "442f701fe985fe4db9f15a12029dba64a912040585d0675f2e3f22ec8c9ee77e",
+        "source_sha256": "4eb35b1b2792f0232a4eb3a27399e6c8ea00f9564cc10fcadc736fdd94d17be1",
         "node": "test_r3_1_preset_loads_1540_questions_and_no_cat5_gold_is_a_distractor",
         "context": "test",
-        "next_review_date": "2026-10-25"
+        "next_review_date": "2026-10-25",
+        "rm65_review": "RM-65 2026-10-22: skip source re-read; condition, reason and prerequisite still hold."
       }
     },
     {
@@ -3567,7 +3531,7 @@
         "reason": "f'local remote-provider service unavailable; set {name}'",
         "owner_assignment": "Role assigned for this authorized review; not an invented individual or historical CODEOWNER.",
         "prerequisites": "f'local remote-provider service unavailable; set {name}'; scratch resource only; source environment references are not proof each variable guards this site.",
-        "review_date": "2026-10-18",
+        "review_date": "2026-10-22",
         "replacement_evidence": [
           {
             "path": "docs/provider_verification/native-strict-final.json",
@@ -3576,10 +3540,11 @@
         ],
         "priority": "P2",
         "recommended_action": "Run exact opt-in live contract with task-owned scratch endpoint. Retained prior service evidence is separate from this audit and not universal provider coverage.",
-        "source_sha256": "5427edf8d178587bd26fabf527d41cf25f6455fd0833e730ab1fadaf9b16714e",
+        "source_sha256": "f0e7ac4731089c1734c37dd7b13c4c8fa90ae037b121fc6142ab8a3ba41f68d8",
         "node": "_configured",
         "context": "helper",
-        "next_review_date": "2026-10-25"
+        "next_review_date": "2026-10-25",
+        "rm65_review": "RM-65 2026-10-22: skip source re-read; condition, reason and prerequisite still hold."
       }
     },
     {
@@ -4437,14 +4402,15 @@
         "reason": "Import unavailable: fastapi",
         "owner_assignment": "Role assigned for this authorized review; not an invented individual or historical CODEOWNER.",
         "prerequisites": "fastapi",
-        "review_date": "2026-10-18",
+        "review_date": "2026-10-22",
         "replacement_evidence": [],
         "priority": "P2",
         "recommended_action": "Run this exact node in a dependency cell containing the named optional extra; preserve the absent-extra behavior cell.",
-        "source_sha256": "9a61760d81e95c3a32c11fdf8548fa999913caf80ca92205ba7f715355c4db75",
+        "source_sha256": "2599d5cda08bc77b98d9b872f10096412c0038ec96acc8dd07e676b89f0338f7",
         "node": "<module>",
         "context": "module",
-        "next_review_date": "2026-10-25"
+        "next_review_date": "2026-10-25",
+        "rm65_review": "RM-65 2026-10-22: skip source re-read; condition, reason and prerequisite still hold."
       }
     },
     {
@@ -4481,14 +4447,15 @@
         "reason": "Import unavailable: fastapi",
         "owner_assignment": "Role assigned for this authorized review; not an invented individual or historical CODEOWNER.",
         "prerequisites": "fastapi",
-        "review_date": "2026-10-18",
+        "review_date": "2026-10-22",
         "replacement_evidence": [],
         "priority": "P2",
         "recommended_action": "Run this exact node in a dependency cell containing the named optional extra; preserve the absent-extra behavior cell.",
-        "source_sha256": "ca8b7979fff05cae10ad92caf49b5536ef5912aa355d451af9b2fc86b8772b26",
+        "source_sha256": "bb74472362fbf239f3d900ce82fc82ce2f641558e73fa97341c46aec171cf9c8",
         "node": "<module>",
         "context": "module",
-        "next_review_date": "2026-10-25"
+        "next_review_date": "2026-10-25",
+        "rm65_review": "RM-65 2026-10-22: skip source re-read; condition, reason and prerequisite still hold."
       }
     },
     {
@@ -4525,14 +4492,15 @@
         "reason": "Import unavailable: fastapi",
         "owner_assignment": "Role assigned for this authorized review; not an invented individual or historical CODEOWNER.",
         "prerequisites": "fastapi",
-        "review_date": "2026-10-18",
+        "review_date": "2026-10-22",
         "replacement_evidence": [],
         "priority": "P2",
         "recommended_action": "Run this exact node in a dependency cell containing the named optional extra; preserve the absent-extra behavior cell.",
-        "source_sha256": "2ad6727d96c6a64033df990f89a6ac69050795c90594cdf7424f1cd145c8cd4f",
+        "source_sha256": "7a7be4718674b6f5875cbbdd801a80113ef791a76e57a5ca65414498c6937ffb",
         "node": "<module>",
         "context": "module",
-        "next_review_date": "2026-10-25"
+        "next_review_date": "2026-10-25",
+        "rm65_review": "RM-65 2026-10-22: skip source re-read; condition, reason and prerequisite still hold."
       }
     },
     {
@@ -4569,14 +4537,15 @@
         "reason": "Import unavailable: fastapi",
         "owner_assignment": "Role assigned for this authorized review; not an invented individual or historical CODEOWNER.",
         "prerequisites": "fastapi",
-        "review_date": "2026-10-18",
+        "review_date": "2026-10-22",
         "replacement_evidence": [],
         "priority": "P2",
         "recommended_action": "Run this exact node in a dependency cell containing the named optional extra; preserve the absent-extra behavior cell.",
-        "source_sha256": "a267a2575e80d3496ec994463cee9b524fc14ace97e8835cb169894b30b340da",
+        "source_sha256": "db496b61eb74530a41bc3c5eefe70f1a3be580b9cda65dc7a89260d5091b7707",
         "node": "<module>",
         "context": "module",
-        "next_review_date": "2026-10-25"
+        "next_review_date": "2026-10-25",
+        "rm65_review": "RM-65 2026-10-22: skip source re-read; condition, reason and prerequisite still hold."
       }
     },
     {
@@ -4613,14 +4582,15 @@
         "reason": "Import unavailable: fastapi",
         "owner_assignment": "Role assigned for this authorized review; not an invented individual or historical CODEOWNER.",
         "prerequisites": "fastapi",
-        "review_date": "2026-10-18",
+        "review_date": "2026-10-22",
         "replacement_evidence": [],
         "priority": "P2",
         "recommended_action": "Run this exact node in a dependency cell containing the named optional extra; preserve the absent-extra behavior cell.",
-        "source_sha256": "06e786e24656b78d1c85207b396f4125fcd93a909ccfa4ad0bb3cb65339df1cf",
+        "source_sha256": "ca6eeaa9d64f2800889d6f10e29febd1d617eeaeab4f4ef4b0ba6affc9724706",
         "node": "<module>",
         "context": "module",
-        "next_review_date": "2026-10-25"
+        "next_review_date": "2026-10-25",
+        "rm65_review": "RM-65 2026-10-22: skip source re-read; condition, reason and prerequisite still hold."
       }
     },
     {
@@ -4657,14 +4627,60 @@
         "reason": "Import unavailable: fastapi",
         "owner_assignment": "Role assigned for this authorized review; not an invented individual or historical CODEOWNER.",
         "prerequisites": "fastapi",
-        "review_date": "2026-10-18",
+        "review_date": "2026-10-22",
         "replacement_evidence": [],
         "priority": "P2",
         "recommended_action": "Run this exact node in a dependency cell containing the named optional extra; preserve the absent-extra behavior cell.",
-        "source_sha256": "1259396339da375580ce571c6fe14a18d017ffe986cc710016316d4cedf2ca23",
+        "source_sha256": "6e297d3e795e041a26f254c7e8f5928fb54aab2a98897c02142d337e4107096d",
         "node": "<module>",
         "context": "module",
-        "next_review_date": "2026-10-25"
+        "next_review_date": "2026-10-25",
+        "rm65_review": "RM-65 2026-10-22: skip source re-read; condition, reason and prerequisite still hold."
+      }
+    },
+    {
+      "id": "tests/unit/clients/test_postgres_client.py:20:importorskip",
+      "file": "tests/unit/clients/test_postgres_client.py",
+      "line": 20,
+      "kind": "importorskip",
+      "form": "import availability guard",
+      "node": "<module>",
+      "context": "module",
+      "category": "optional_import",
+      "condition_expression": null,
+      "condition_known_literal": "psycopg",
+      "reason_expression": null,
+      "reason_known_literal": null,
+      "reason_status": "implicit_import_unavailable_reason",
+      "import_target_expression": "'psycopg'",
+      "import_target_known_literal": "psycopg",
+      "module_env_refs": {
+        "explicit_names": [],
+        "dynamic_name_expressions": [],
+        "interpretation": "Static references only; their presence is not proof that any skip site is guarded by that variable."
+      },
+      "owner_role": {
+        "role": "feature/test maintainers for unit/clients",
+        "provenance": "inferred from source path; no individual owner metadata was consulted"
+      },
+      "source_sha256": "751c6f6c030af497944a8f815fee335ebfc0b9734a3ed09a99dd04b947ed6193",
+      "review": {
+        "owner_role": "Provider integration maintainer",
+        "next_milestone": "M-EXTRAS: exercise the named package matrix when its dependency/provider changes; review at release-candidate gate.",
+        "disposition": "Retain explicit optional-extra guard; run positive and negative paths in separate dependency cells.",
+        "category": "optionaldependency",
+        "reason": "Import unavailable: psycopg",
+        "owner_assignment": "Role assigned for this authorized review; not an invented individual or historical CODEOWNER.",
+        "prerequisites": "psycopg",
+        "replacement_evidence": [],
+        "priority": "P2",
+        "recommended_action": "Run this exact node in a dependency cell containing the [postgres] extra; preserve the absent-extra behavior cell.",
+        "next_review_date": "2026-10-25",
+        "source_sha256": "751c6f6c030af497944a8f815fee335ebfc0b9734a3ed09a99dd04b947ed6193",
+        "node": "<module>",
+        "context": "module",
+        "review_date": "2026-10-22",
+        "rm65_review": "RM-65 2026-10-22: skip source re-read; condition, reason and prerequisite still hold. New site; reviewed under RM-65."
       }
     },
     {
@@ -4700,7 +4716,24 @@
         "provenance": "inferred from source path; no individual owner metadata was consulted"
       },
       "source_sha256": "d3ca775b2a39dbb27e8b683e70adadc99b7fd46f0f2e5f63ad78bc0b0875ac61",
-      "review": {}
+      "review": {
+        "owner_role": "Provider integration maintainer",
+        "next_milestone": "M-EXTRAS: exercise the named package matrix when its dependency/provider changes; review at release-candidate gate.",
+        "disposition": "Retain explicit optional-extra guard; run positive and negative paths in separate dependency cells.",
+        "category": "optionaldependency",
+        "reason": "SQLCipher driver ([encrypt]) not installed",
+        "owner_assignment": "Role assigned for this authorized review; not an invented individual or historical CODEOWNER.",
+        "prerequisites": "SQLCipher driver ([encrypt]) not installed",
+        "review_date": "2026-10-22",
+        "replacement_evidence": [],
+        "priority": "P2",
+        "recommended_action": "Run this exact node in a dependency cell containing the named optional extra; preserve the absent-extra behavior cell.",
+        "source_sha256": "d3ca775b2a39dbb27e8b683e70adadc99b7fd46f0f2e5f63ad78bc0b0875ac61",
+        "node": "test_real_sqlcipher_file_is_unreadable_without_the_key",
+        "context": "test",
+        "next_review_date": "2026-10-25",
+        "rm65_review": "RM-65 2026-10-22: skip source re-read; condition, reason and prerequisite still hold. Moved from tests/unit/clients/test_sqlite_encryption.py:203:skipif."
+      }
     },
     {
       "id": "tests/unit/memories/associative/test_communities.py:44:skip",
@@ -4923,6 +4956,110 @@
       }
     },
     {
+      "id": "tests/unit/providers/test_shared_connections.py:357:importorskip",
+      "file": "tests/unit/providers/test_shared_connections.py",
+      "line": 357,
+      "kind": "importorskip",
+      "form": "import availability guard",
+      "node": "test_ladybug_shared_across_two_event_loops",
+      "context": "test",
+      "category": "optional_import",
+      "condition_expression": null,
+      "condition_known_literal": "ladybug",
+      "reason_expression": "'LadybugDB [graph] extra is not installed'",
+      "reason_known_literal": "LadybugDB [graph] extra is not installed",
+      "reason_status": "literal_or_module_constant",
+      "import_target_expression": "'ladybug'",
+      "import_target_known_literal": "ladybug",
+      "module_env_refs": {
+        "explicit_names": [
+          {
+            "name": "MEMSPINE_WEAVIATE_URL",
+            "source_forms": [
+              "module string literal (environment-like name)"
+            ]
+          }
+        ],
+        "dynamic_name_expressions": [],
+        "interpretation": "Static references only; their presence is not proof that any skip site is guarded by that variable."
+      },
+      "owner_role": {
+        "role": "feature/test maintainers for unit/providers",
+        "provenance": "inferred from source path; no individual owner metadata was consulted"
+      },
+      "source_sha256": "8aecc2ec5a78bff43b5e62eef5c980796c523a8671b56560e56f247a712ce75e",
+      "review": {
+        "owner_role": "Provider integration maintainer",
+        "next_milestone": "M-EXTRAS: exercise the named package matrix when its dependency/provider changes; review at release-candidate gate.",
+        "disposition": "Retain explicit optional-extra guard; run positive and negative paths in separate dependency cells.",
+        "category": "optionaldependency",
+        "reason": "LadybugDB [graph] extra is not installed",
+        "owner_assignment": "Role assigned for this authorized review; not an invented individual or historical CODEOWNER.",
+        "prerequisites": "ladybug",
+        "replacement_evidence": [],
+        "priority": "P2",
+        "recommended_action": "Run this exact node in a dependency cell containing the [graph] extra; preserve the absent-extra behavior cell.",
+        "next_review_date": "2026-10-25",
+        "source_sha256": "8aecc2ec5a78bff43b5e62eef5c980796c523a8671b56560e56f247a712ce75e",
+        "node": "test_ladybug_shared_across_two_event_loops",
+        "context": "test",
+        "review_date": "2026-10-22",
+        "rm65_review": "RM-65 2026-10-22: skip source re-read; condition, reason and prerequisite still hold. New site; reviewed under RM-65."
+      }
+    },
+    {
+      "id": "tests/unit/providers/test_shared_connections.py:466:importorskip",
+      "file": "tests/unit/providers/test_shared_connections.py",
+      "line": 466,
+      "kind": "importorskip",
+      "form": "import availability guard",
+      "node": "test_taskiq_runners_of_one_engine_share_one_broker",
+      "context": "test",
+      "category": "optional_import",
+      "condition_expression": null,
+      "condition_known_literal": "taskiq",
+      "reason_expression": "'taskiq extra is not installed'",
+      "reason_known_literal": "taskiq extra is not installed",
+      "reason_status": "literal_or_module_constant",
+      "import_target_expression": "'taskiq'",
+      "import_target_known_literal": "taskiq",
+      "module_env_refs": {
+        "explicit_names": [
+          {
+            "name": "MEMSPINE_WEAVIATE_URL",
+            "source_forms": [
+              "module string literal (environment-like name)"
+            ]
+          }
+        ],
+        "dynamic_name_expressions": [],
+        "interpretation": "Static references only; their presence is not proof that any skip site is guarded by that variable."
+      },
+      "owner_role": {
+        "role": "feature/test maintainers for unit/providers",
+        "provenance": "inferred from source path; no individual owner metadata was consulted"
+      },
+      "source_sha256": "8aecc2ec5a78bff43b5e62eef5c980796c523a8671b56560e56f247a712ce75e",
+      "review": {
+        "owner_role": "Orchestration maintainer",
+        "next_milestone": "M-EXTRAS: exercise the named package matrix when its dependency/provider changes; review at release-candidate gate.",
+        "disposition": "Retain explicit optional-extra guard; run positive and negative paths in separate dependency cells.",
+        "category": "optionaldependency",
+        "reason": "taskiq extra is not installed",
+        "owner_assignment": "Role assigned for this authorized review; not an invented individual or historical CODEOWNER.",
+        "prerequisites": "taskiq",
+        "replacement_evidence": [],
+        "priority": "P2",
+        "recommended_action": "Run this exact node in a dependency cell containing the [taskiq] extra; preserve the absent-extra behavior cell.",
+        "next_review_date": "2026-10-25",
+        "source_sha256": "8aecc2ec5a78bff43b5e62eef5c980796c523a8671b56560e56f247a712ce75e",
+        "node": "test_taskiq_runners_of_one_engine_share_one_broker",
+        "context": "test",
+        "review_date": "2026-10-22",
+        "rm65_review": "RM-65 2026-10-22: skip source re-read; condition, reason and prerequisite still hold. New site; reviewed under RM-65."
+      }
+    },
+    {
       "id": "tests/unit/schemas/test_strict_tiers.py:132:skip",
       "file": "tests/unit/schemas/test_strict_tiers.py",
       "line": 132,
@@ -5060,14 +5197,15 @@
         "reason": "Import unavailable: cashews",
         "owner_assignment": "Role assigned for this authorized review; not an invented individual or historical CODEOWNER.",
         "prerequisites": "cashews",
-        "review_date": "2026-10-18",
+        "review_date": "2026-10-22",
         "replacement_evidence": [],
         "priority": "P2",
         "recommended_action": "Run this exact node in a dependency cell containing the named optional extra; preserve the absent-extra behavior cell.",
-        "source_sha256": "12ef70e3ba392252c2aff6dc96c3c3c162a8cb1756a12c1a54bdd8b8e0a7e856",
+        "source_sha256": "4e454019d9595f197ce31d6fdf39ee4b9db94560c51fca5a7d665bd292d29095",
         "node": "test_disk_backend_wires_and_closes",
         "context": "test",
-        "next_review_date": "2026-10-25"
+        "next_review_date": "2026-10-25",
+        "rm65_review": "RM-65 2026-10-22: skip source re-read; condition, reason and prerequisite still hold."
       }
     },
     {
@@ -5139,7 +5277,7 @@
         "role": "feature/test maintainers for unit/services/decision",
         "provenance": "inferred from source path; no individual owner metadata was consulted"
       },
-      "source_sha256": "0357674b2f99e8960e89200919bfaf6ebdc57945477c2bf691377f40babc4641",
+      "source_sha256": "157ddedb25c70741f97934cc4dd20e16786153b812035dea800478fcd34ee82e",
       "review": {
         "owner_role": "Model integration maintainer",
         "next_milestone": "M-MODEL closed 2026-10-22 (RM-17); cache-only opt-in retained. Provision exact offline artifacts and run bounded gate when model/runtime settings change.",
@@ -5152,17 +5290,18 @@
         "replacement_evidence": [],
         "priority": "P3",
         "recommended_action": "Run exact bounded offline smoke in matching model environment. Missing artifacts skip; broken installed runtime fails. Do not claim GLiNER gate covers another model.",
-        "source_sha256": "0357674b2f99e8960e89200919bfaf6ebdc57945477c2bf691377f40babc4641",
+        "source_sha256": "157ddedb25c70741f97934cc4dd20e16786153b812035dea800478fcd34ee82e",
         "node": "test_real_opendecider_nano_on_cpu_matches_the_model_card",
         "context": "test",
         "next_review_date": "2026-10-25",
-        "rekeyed_from": "tests/unit/services/decision/test_decider.py:376:skipif"
+        "rekeyed_from": "tests/unit/services/decision/test_decider.py:376:skipif",
+        "rm65_review": "RM-65 2026-10-22: skip source re-read; condition, reason and prerequisite still hold."
       }
     },
     {
-      "id": "tests/unit/services/decision/test_decider_cpu_knobs.py:378:skipif",
+      "id": "tests/unit/services/decision/test_decider_cpu_knobs.py:408:skipif",
       "file": "tests/unit/services/decision/test_decider_cpu_knobs.py",
-      "line": 378,
+      "line": 408,
       "kind": "skipif",
       "form": "conditional marker",
       "node": "test_real_bf16_agrees_with_fp32",
@@ -5184,7 +5323,7 @@
         "role": "feature/test maintainers for unit/services/decision",
         "provenance": "inferred from source path; no individual owner metadata was consulted"
       },
-      "source_sha256": "c148ccaa4ec527b5c81b23932bdf28aa2e7e12244add634efb37713caee6843e",
+      "source_sha256": "28e9c2b3698d17538cf66acda04d08fb7652505e6e7d3b331c43367b086e65d6",
       "review": {
         "owner_role": "Model integration maintainer",
         "next_milestone": "M-MODEL closed 2026-10-22 (RM-17); cache-only opt-in retained. Provision exact offline artifacts and run bounded gate when model/runtime settings change.",
@@ -5197,17 +5336,18 @@
         "replacement_evidence": [],
         "priority": "P3",
         "recommended_action": "Run exact bounded offline smoke in matching model environment. Missing artifacts skip; broken installed runtime fails. Do not claim GLiNER gate covers another model.",
-        "source_sha256": "c148ccaa4ec527b5c81b23932bdf28aa2e7e12244add634efb37713caee6843e",
+        "source_sha256": "28e9c2b3698d17538cf66acda04d08fb7652505e6e7d3b331c43367b086e65d6",
         "node": "test_real_bf16_agrees_with_fp32",
         "context": "test",
         "next_review_date": "2026-10-25",
-        "rekeyed_from": "tests/unit/services/decision/test_decider_cpu_knobs.py:356:skipif"
+        "rekeyed_from": "tests/unit/services/decision/test_decider_cpu_knobs.py:356:skipif",
+        "rm65_review": "RM-65 2026-10-22: skip source re-read; condition, reason and prerequisite still hold. Moved from tests/unit/services/decision/test_decider_cpu_knobs.py:378:skipif."
       }
     },
     {
-      "id": "tests/unit/services/decision/test_decider_cpu_knobs.py:389:skipif",
+      "id": "tests/unit/services/decision/test_decider_cpu_knobs.py:419:skipif",
       "file": "tests/unit/services/decision/test_decider_cpu_knobs.py",
-      "line": 389,
+      "line": 419,
       "kind": "skipif",
       "form": "conditional marker",
       "node": "test_real_onnx_agrees_with_fp32",
@@ -5229,7 +5369,7 @@
         "role": "feature/test maintainers for unit/services/decision",
         "provenance": "inferred from source path; no individual owner metadata was consulted"
       },
-      "source_sha256": "c148ccaa4ec527b5c81b23932bdf28aa2e7e12244add634efb37713caee6843e",
+      "source_sha256": "28e9c2b3698d17538cf66acda04d08fb7652505e6e7d3b331c43367b086e65d6",
       "review": {
         "owner_role": "Model integration maintainer",
         "next_milestone": "M-MODEL closed 2026-10-22 (RM-17); cache-only opt-in retained. Provision exact offline artifacts and run bounded gate when model/runtime settings change.",
@@ -5242,11 +5382,12 @@
         "replacement_evidence": [],
         "priority": "P3",
         "recommended_action": "Run exact bounded offline smoke in matching model environment. Missing artifacts skip; broken installed runtime fails. Do not claim GLiNER gate covers another model.",
-        "source_sha256": "c148ccaa4ec527b5c81b23932bdf28aa2e7e12244add634efb37713caee6843e",
+        "source_sha256": "28e9c2b3698d17538cf66acda04d08fb7652505e6e7d3b331c43367b086e65d6",
         "node": "test_real_onnx_agrees_with_fp32",
         "context": "test",
         "next_review_date": "2026-10-25",
-        "rekeyed_from": "tests/unit/services/decision/test_decider_cpu_knobs.py:367:skipif"
+        "rekeyed_from": "tests/unit/services/decision/test_decider_cpu_knobs.py:367:skipif",
+        "rm65_review": "RM-65 2026-10-22: skip source re-read; condition, reason and prerequisite still hold. Moved from tests/unit/services/decision/test_decider_cpu_knobs.py:389:skipif."
       }
     },
     {
@@ -5416,14 +5557,15 @@
         "reason": "Import unavailable: ladybug",
         "owner_assignment": "Role assigned for this authorized review; not an invented individual or historical CODEOWNER.",
         "prerequisites": "ladybug",
-        "review_date": "2026-10-18",
+        "review_date": "2026-10-22",
         "replacement_evidence": [],
         "priority": "P2",
         "recommended_action": "Run this exact node in a dependency cell containing the named optional extra; preserve the absent-extra behavior cell.",
-        "source_sha256": "c2901dfb2129ce3c8c5b1da89e244041dad09e8fa35c1bf01b8450ce51842964",
+        "source_sha256": "6e58f96ff1c1d1966607ad471fb6b9e8cdc0666231deafe8ec4dea70db34eebd",
         "node": "test_ladybug_provider_constructs_the_real_adapter",
         "context": "test",
-        "next_review_date": "2026-10-25"
+        "next_review_date": "2026-10-25",
+        "rm65_review": "RM-65 2026-10-22: skip source re-read; condition, reason and prerequisite still hold."
       }
     },
     {
@@ -5478,97 +5620,9 @@
       }
     },
     {
-      "id": "tests/unit/services/vector/test_lancedb_exclusive.py:16:importorskip",
-      "file": "tests/unit/services/vector/test_lancedb_exclusive.py",
-      "line": 16,
-      "kind": "importorskip",
-      "form": "import availability guard",
-      "node": "<module>",
-      "context": "module",
-      "category": "optional_import",
-      "condition_expression": null,
-      "condition_known_literal": "lancedb",
-      "reason_expression": null,
-      "reason_known_literal": null,
-      "reason_status": "implicit_import_unavailable_reason",
-      "import_target_expression": "'lancedb'",
-      "import_target_known_literal": "lancedb",
-      "module_env_refs": {
-        "explicit_names": [],
-        "dynamic_name_expressions": [],
-        "interpretation": "Static references only; their presence is not proof that any skip site is guarded by that variable."
-      },
-      "owner_role": {
-        "role": "feature/test maintainers for unit/services/vector",
-        "provenance": "inferred from source path; no individual owner metadata was consulted"
-      },
-      "source_sha256": "d7337baede3fb32addf0c488e4dfc7cf4450817d3118feb7bb4b174212a7b4fd",
-      "review": {
-        "owner_role": "Provider integration maintainer",
-        "next_milestone": "M-EXTRAS: exercise the named package matrix when its dependency/provider changes; review at release-candidate gate.",
-        "disposition": "Retain explicit optional-extra guard; run positive and negative paths in separate dependency cells.",
-        "category": "optionaldependency",
-        "reason": "Import unavailable: lancedb",
-        "owner_assignment": "Role assigned for this authorized review; not an invented individual or historical CODEOWNER.",
-        "prerequisites": "lancedb",
-        "review_date": "2026-10-18",
-        "replacement_evidence": [],
-        "priority": "P2",
-        "recommended_action": "Run this exact node in a dependency cell containing the named optional extra; preserve the absent-extra behavior cell.",
-        "source_sha256": "d7337baede3fb32addf0c488e4dfc7cf4450817d3118feb7bb4b174212a7b4fd",
-        "node": "<module>",
-        "context": "module",
-        "next_review_date": "2026-10-25"
-      }
-    },
-    {
       "id": "tests/unit/services/vector/test_lancedb_memory_bound.py:15:importorskip",
       "file": "tests/unit/services/vector/test_lancedb_memory_bound.py",
       "line": 15,
-      "kind": "importorskip",
-      "form": "import availability guard",
-      "node": "<module>",
-      "context": "module",
-      "category": "optional_import",
-      "condition_expression": null,
-      "condition_known_literal": "lancedb",
-      "reason_expression": null,
-      "reason_known_literal": null,
-      "reason_status": "implicit_import_unavailable_reason",
-      "import_target_expression": "'lancedb'",
-      "import_target_known_literal": "lancedb",
-      "module_env_refs": {
-        "explicit_names": [],
-        "dynamic_name_expressions": [],
-        "interpretation": "Static references only; their presence is not proof that any skip site is guarded by that variable."
-      },
-      "owner_role": {
-        "role": "feature/test maintainers for unit/services/vector",
-        "provenance": "inferred from source path; no individual owner metadata was consulted"
-      },
-      "source_sha256": "ead02f124b81252414efd1c35af9023484b0a26dc24d8c260de620f1d3a29cd6",
-      "review": {
-        "owner_role": "Provider integration maintainer",
-        "next_milestone": "M-EXTRAS: exercise the named package matrix when its dependency/provider changes; review at release-candidate gate.",
-        "disposition": "Retain explicit optional-extra guard; run positive and negative paths in separate dependency cells.",
-        "category": "optionaldependency",
-        "reason": "Import unavailable: lancedb",
-        "owner_assignment": "Role assigned for this authorized review; not an invented individual or historical CODEOWNER.",
-        "prerequisites": "lancedb",
-        "review_date": "2026-10-18",
-        "replacement_evidence": [],
-        "priority": "P2",
-        "recommended_action": "Run this exact node in a dependency cell containing the named optional extra; preserve the absent-extra behavior cell.",
-        "source_sha256": "ead02f124b81252414efd1c35af9023484b0a26dc24d8c260de620f1d3a29cd6",
-        "node": "<module>",
-        "context": "module",
-        "next_review_date": "2026-10-25"
-      }
-    },
-    {
-      "id": "tests/unit/services/vector/test_lancedb_memory_bound.py:16:importorskip",
-      "file": "tests/unit/services/vector/test_lancedb_memory_bound.py",
-      "line": 16,
       "kind": "importorskip",
       "form": "import availability guard",
       "node": "<module>",
@@ -5590,7 +5644,7 @@
         "role": "feature/test maintainers for unit/services/vector",
         "provenance": "inferred from source path; no individual owner metadata was consulted"
       },
-      "source_sha256": "ead02f124b81252414efd1c35af9023484b0a26dc24d8c260de620f1d3a29cd6",
+      "source_sha256": "d3dc2ddf98ba9049afd84d25507ae461d62cf00d045fa6661895f0e44e5463e6",
       "review": {
         "owner_role": "Provider integration maintainer",
         "next_milestone": "M-EXTRAS: exercise the named package matrix when its dependency/provider changes; review at release-candidate gate.",
@@ -5599,20 +5653,21 @@
         "reason": "Import unavailable: psutil",
         "owner_assignment": "Role assigned for this authorized review; not an invented individual or historical CODEOWNER.",
         "prerequisites": "psutil",
-        "review_date": "2026-10-18",
+        "review_date": "2026-10-22",
         "replacement_evidence": [],
         "priority": "P2",
         "recommended_action": "Run this exact node in a dependency cell containing the named optional extra; preserve the absent-extra behavior cell.",
-        "source_sha256": "ead02f124b81252414efd1c35af9023484b0a26dc24d8c260de620f1d3a29cd6",
+        "source_sha256": "d3dc2ddf98ba9049afd84d25507ae461d62cf00d045fa6661895f0e44e5463e6",
         "node": "<module>",
         "context": "module",
-        "next_review_date": "2026-10-25"
+        "next_review_date": "2026-10-25",
+        "rm65_review": "RM-65 2026-10-22: skip source re-read; condition, reason and prerequisite still hold. Moved from tests/unit/services/vector/test_lancedb_memory_bound.py:16:importorskip."
       }
     },
     {
-      "id": "tests/unit/services/vector/test_lancedb_memory_bound.py:37:skipif",
+      "id": "tests/unit/services/vector/test_lancedb_memory_bound.py:36:skipif",
       "file": "tests/unit/services/vector/test_lancedb_memory_bound.py",
-      "line": 37,
+      "line": 36,
       "kind": "skipif",
       "form": "conditional marker",
       "node": "test_in_memory_store_private_memory_stays_bounded",
@@ -5634,7 +5689,7 @@
         "role": "feature/test maintainers for unit/services/vector",
         "provenance": "inferred from source path; no individual owner metadata was consulted"
       },
-      "source_sha256": "ead02f124b81252414efd1c35af9023484b0a26dc24d8c260de620f1d3a29cd6",
+      "source_sha256": "d3dc2ddf98ba9049afd84d25507ae461d62cf00d045fa6661895f0e44e5463e6",
       "review": {
         "owner_role": "Platform maintainer",
         "next_milestone": "M-PLATFORM: execute on matching platform/toolchain in release matrix.",
@@ -5643,146 +5698,15 @@
         "reason": "psutil reports private memory on Windows only",
         "owner_assignment": "Role assigned for this authorized review; not an invented individual or historical CODEOWNER.",
         "prerequisites": "psutil reports private memory on Windows only",
-        "review_date": "2026-10-18",
+        "review_date": "2026-10-22",
         "replacement_evidence": [],
         "priority": "P2",
         "recommended_action": "Run exact node with required git/bash/ref or Windows private-memory metric; platform-inapplicable cells remain labeled.",
-        "source_sha256": "ead02f124b81252414efd1c35af9023484b0a26dc24d8c260de620f1d3a29cd6",
+        "source_sha256": "d3dc2ddf98ba9049afd84d25507ae461d62cf00d045fa6661895f0e44e5463e6",
         "node": "test_in_memory_store_private_memory_stays_bounded",
         "context": "test",
-        "next_review_date": "2026-10-25"
-      }
-    },
-    {
-      "id": "tests/unit/services/vector/test_lancedb_namespace_index.py:11:importorskip",
-      "file": "tests/unit/services/vector/test_lancedb_namespace_index.py",
-      "line": 11,
-      "kind": "importorskip",
-      "form": "import availability guard",
-      "node": "<module>",
-      "context": "module",
-      "category": "optional_import",
-      "condition_expression": null,
-      "condition_known_literal": "lancedb",
-      "reason_expression": null,
-      "reason_known_literal": null,
-      "reason_status": "implicit_import_unavailable_reason",
-      "import_target_expression": "'lancedb'",
-      "import_target_known_literal": "lancedb",
-      "module_env_refs": {
-        "explicit_names": [],
-        "dynamic_name_expressions": [],
-        "interpretation": "Static references only; their presence is not proof that any skip site is guarded by that variable."
-      },
-      "owner_role": {
-        "role": "feature/test maintainers for unit/services/vector",
-        "provenance": "inferred from source path; no individual owner metadata was consulted"
-      },
-      "source_sha256": "da162fca50fa94ac8558ccc33cd5af143e4c6fa1065f90319dcdcd4b56511d74",
-      "review": {
-        "owner_role": "Provider integration maintainer",
-        "next_milestone": "M-EXTRAS: exercise the named package matrix when its dependency/provider changes; review at release-candidate gate.",
-        "disposition": "Retain explicit optional-extra guard; run positive and negative paths in separate dependency cells.",
-        "category": "optionaldependency",
-        "reason": "Import unavailable: lancedb",
-        "owner_assignment": "Role assigned for this authorized review; not an invented individual or historical CODEOWNER.",
-        "prerequisites": "lancedb",
-        "review_date": "2026-10-18",
-        "replacement_evidence": [],
-        "priority": "P2",
-        "recommended_action": "Run this exact node in a dependency cell containing the named optional extra; preserve the absent-extra behavior cell.",
-        "source_sha256": "da162fca50fa94ac8558ccc33cd5af143e4c6fa1065f90319dcdcd4b56511d74",
-        "node": "<module>",
-        "context": "module",
-        "next_review_date": "2026-10-25"
-      }
-    },
-    {
-      "id": "tests/unit/services/vector/test_lancedb_rescore.py:22:importorskip",
-      "file": "tests/unit/services/vector/test_lancedb_rescore.py",
-      "line": 22,
-      "kind": "importorskip",
-      "form": "import availability guard",
-      "node": "<module>",
-      "context": "module",
-      "category": "optional_import",
-      "condition_expression": null,
-      "condition_known_literal": "lancedb",
-      "reason_expression": null,
-      "reason_known_literal": null,
-      "reason_status": "implicit_import_unavailable_reason",
-      "import_target_expression": "'lancedb'",
-      "import_target_known_literal": "lancedb",
-      "module_env_refs": {
-        "explicit_names": [],
-        "dynamic_name_expressions": [],
-        "interpretation": "Static references only; their presence is not proof that any skip site is guarded by that variable."
-      },
-      "owner_role": {
-        "role": "feature/test maintainers for unit/services/vector",
-        "provenance": "inferred from source path; no individual owner metadata was consulted"
-      },
-      "source_sha256": "cbfee472599ec89eb4850d00a2940928297026c3bd4caa049281b3b266511159",
-      "review": {
-        "owner_role": "Provider integration maintainer",
-        "next_milestone": "M-EXTRAS: exercise the named package matrix when its dependency/provider changes; review at release-candidate gate.",
-        "disposition": "Retain explicit optional-extra guard; run positive and negative paths in separate dependency cells.",
-        "category": "optionaldependency",
-        "reason": "Import unavailable: lancedb",
-        "owner_assignment": "Role assigned for this authorized review; not an invented individual or historical CODEOWNER.",
-        "prerequisites": "lancedb",
-        "review_date": "2026-10-18",
-        "replacement_evidence": [],
-        "priority": "P2",
-        "recommended_action": "Run this exact node in a dependency cell containing the named optional extra; preserve the absent-extra behavior cell.",
-        "source_sha256": "cbfee472599ec89eb4850d00a2940928297026c3bd4caa049281b3b266511159",
-        "node": "<module>",
-        "context": "module",
-        "next_review_date": "2026-10-25"
-      }
-    },
-    {
-      "id": "tests/unit/services/vector/test_per_namespace_store.py:9:importorskip",
-      "file": "tests/unit/services/vector/test_per_namespace_store.py",
-      "line": 9,
-      "kind": "importorskip",
-      "form": "import availability guard",
-      "node": "<module>",
-      "context": "module",
-      "category": "optional_import",
-      "condition_expression": null,
-      "condition_known_literal": "lancedb",
-      "reason_expression": null,
-      "reason_known_literal": null,
-      "reason_status": "implicit_import_unavailable_reason",
-      "import_target_expression": "'lancedb'",
-      "import_target_known_literal": "lancedb",
-      "module_env_refs": {
-        "explicit_names": [],
-        "dynamic_name_expressions": [],
-        "interpretation": "Static references only; their presence is not proof that any skip site is guarded by that variable."
-      },
-      "owner_role": {
-        "role": "feature/test maintainers for unit/services/vector",
-        "provenance": "inferred from source path; no individual owner metadata was consulted"
-      },
-      "source_sha256": "6be727ca8ccf872c37c4600b0a39b730630b3dc8724d678108420d278d77a90e",
-      "review": {
-        "owner_role": "Provider integration maintainer",
-        "next_milestone": "M-EXTRAS: exercise the named package matrix when its dependency/provider changes; review at release-candidate gate.",
-        "disposition": "Retain explicit optional-extra guard; run positive and negative paths in separate dependency cells.",
-        "category": "optionaldependency",
-        "reason": "Import unavailable: lancedb",
-        "owner_assignment": "Role assigned for this authorized review; not an invented individual or historical CODEOWNER.",
-        "prerequisites": "lancedb",
-        "review_date": "2026-10-18",
-        "replacement_evidence": [],
-        "priority": "P2",
-        "recommended_action": "Run this exact node in a dependency cell containing the named optional extra; preserve the absent-extra behavior cell.",
-        "source_sha256": "8da5e9c5bd638df06fb2102e755723e5eec9e4f812d55da14d223c8781a1a35b",
-        "node": "<module>",
-        "context": "module",
-        "next_review_date": "2026-10-25"
+        "next_review_date": "2026-10-25",
+        "rm65_review": "RM-65 2026-10-22: skip source re-read; condition, reason and prerequisite still hold. Moved from tests/unit/services/vector/test_lancedb_memory_bound.py:37:skipif."
       }
     },
     {
@@ -5976,34 +5900,6 @@
       }
     },
     {
-      "id": "tests/unit/store/test_vector_spaces.py:364:importorskip",
-      "file": "tests/unit/store/test_vector_spaces.py",
-      "line": 364,
-      "kind": "importorskip",
-      "form": "import availability guard",
-      "node": "test_engine_flag_on_matches_flag_off_and_names_table_by_space",
-      "context": "test",
-      "category": "optional_import",
-      "condition_expression": null,
-      "condition_known_literal": "lancedb",
-      "reason_expression": null,
-      "reason_known_literal": null,
-      "reason_status": "implicit_import_unavailable_reason",
-      "import_target_expression": "'lancedb'",
-      "import_target_known_literal": "lancedb",
-      "module_env_refs": {
-        "explicit_names": [],
-        "dynamic_name_expressions": [],
-        "interpretation": "Static references only; their presence is not proof that any skip site is guarded by that variable."
-      },
-      "owner_role": {
-        "role": "feature/test maintainers for unit/store",
-        "provenance": "inferred from source path; no individual owner metadata was consulted"
-      },
-      "source_sha256": "3ceb0372fad2db2e4394617507e313906ec56bbb3676ebabbad692f2f71fc708",
-      "review": {}
-    },
-    {
       "id": "tests/unit/test_forensic_schema.py:14:importorskip",
       "file": "tests/unit/test_forensic_schema.py",
       "line": 14,
@@ -6161,7 +6057,24 @@
         "provenance": "inferred from source path; no individual owner metadata was consulted"
       },
       "source_sha256": "554f526c9808f04b417cb972b9220e1caf619e8ac67ee0b1782ccb7d2eee14c2",
-      "review": {}
+      "review": {
+        "owner_role": "Provider integration maintainer",
+        "next_milestone": "M-EXTRAS: exercise the named package matrix when its dependency/provider changes; review at release-candidate gate.",
+        "disposition": "Retain explicit optional-extra guard; run positive and negative paths in separate dependency cells.",
+        "category": "optionaldependency",
+        "reason": "Import unavailable: ladybug",
+        "owner_assignment": "Role assigned for this authorized review; not an invented individual or historical CODEOWNER.",
+        "prerequisites": "ladybug",
+        "review_date": "2026-10-22",
+        "replacement_evidence": [],
+        "priority": "P2",
+        "recommended_action": "Run this exact node in a dependency cell containing the named optional extra; preserve the absent-extra behavior cell.",
+        "source_sha256": "554f526c9808f04b417cb972b9220e1caf619e8ac67ee0b1782ccb7d2eee14c2",
+        "node": "test_entity_search_and_node_leg",
+        "context": "test",
+        "next_review_date": "2026-10-25",
+        "rm65_review": "RM-65 2026-10-22: skip source re-read; condition, reason and prerequisite still hold. Moved from tests/unit/test_graph_semantic_entities.py:37:importorskip."
+      }
     },
     {
       "id": "tests/unit/test_graph_semantic_entities.py:64:importorskip",
@@ -6189,7 +6102,24 @@
         "provenance": "inferred from source path; no individual owner metadata was consulted"
       },
       "source_sha256": "554f526c9808f04b417cb972b9220e1caf619e8ac67ee0b1782ccb7d2eee14c2",
-      "review": {}
+      "review": {
+        "owner_role": "Provider integration maintainer",
+        "next_milestone": "M-EXTRAS: exercise the named package matrix when its dependency/provider changes; review at release-candidate gate.",
+        "disposition": "Retain explicit optional-extra guard; run positive and negative paths in separate dependency cells.",
+        "category": "optionaldependency",
+        "reason": "Import unavailable: ladybug",
+        "owner_assignment": "Role assigned for this authorized review; not an invented individual or historical CODEOWNER.",
+        "prerequisites": "ladybug",
+        "review_date": "2026-10-22",
+        "replacement_evidence": [],
+        "priority": "P2",
+        "recommended_action": "Run this exact node in a dependency cell containing the named optional extra; preserve the absent-extra behavior cell.",
+        "source_sha256": "554f526c9808f04b417cb972b9220e1caf619e8ac67ee0b1782ccb7d2eee14c2",
+        "node": "test_entity_index_survives_reopen",
+        "context": "test",
+        "next_review_date": "2026-10-25",
+        "rm65_review": "RM-65 2026-10-22: skip source re-read; condition, reason and prerequisite still hold. Moved from tests/unit/test_graph_semantic_entities.py:61:importorskip."
+      }
     },
     {
       "id": "tests/unit/test_graph_semantic_entities.py:85:importorskip",
@@ -6217,7 +6147,24 @@
         "provenance": "inferred from source path; no individual owner metadata was consulted"
       },
       "source_sha256": "554f526c9808f04b417cb972b9220e1caf619e8ac67ee0b1782ccb7d2eee14c2",
-      "review": {}
+      "review": {
+        "owner_role": "Provider integration maintainer",
+        "next_milestone": "M-EXTRAS: exercise the named package matrix when its dependency/provider changes; review at release-candidate gate.",
+        "disposition": "Retain explicit optional-extra guard; run positive and negative paths in separate dependency cells.",
+        "category": "optionaldependency",
+        "reason": "Import unavailable: ladybug",
+        "owner_assignment": "Role assigned for this authorized review; not an invented individual or historical CODEOWNER.",
+        "prerequisites": "ladybug",
+        "review_date": "2026-10-22",
+        "replacement_evidence": [],
+        "priority": "P2",
+        "recommended_action": "Run this exact node in a dependency cell containing the named optional extra; preserve the absent-extra behavior cell.",
+        "source_sha256": "554f526c9808f04b417cb972b9220e1caf619e8ac67ee0b1782ccb7d2eee14c2",
+        "node": "test_turn_mentions_let_the_graph_reach_raw_turns",
+        "context": "test",
+        "next_review_date": "2026-10-25",
+        "rm65_review": "RM-65 2026-10-22: skip source re-read; condition, reason and prerequisite still hold. Moved from tests/unit/test_graph_semantic_entities.py:82:importorskip."
+      }
     },
     {
       "id": "tests/unit/test_list_mode_round2.py:93:skip",
@@ -6253,14 +6200,15 @@
         "reason": "data/locomo10.json not present",
         "owner_assignment": "Role assigned for this authorized review; not an invented individual or historical CODEOWNER.",
         "prerequisites": "Named local dataset/calibration/reference-run file from source condition; provision separately, preserve immutable benchmark history.",
-        "review_date": "2026-10-18",
+        "review_date": "2026-10-22",
         "replacement_evidence": [],
         "priority": "P2",
         "recommended_action": "Run fixture gate after local assets are explicitly provisioned; retain synthetic unit coverage separately. Audit performs no asset fetch or benchmark.",
-        "source_sha256": "b4ad63d8d9efabb09c8ae2e80dbf012fc748d9bbb27e6cd729803c0e20fc2d4e",
+        "source_sha256": "b786ad2872a57f74ad1d329f6928599681ae3da0514ac0589a9bf23c4cbcd548",
         "node": "test_wide_trigger_precision_over_locomo",
         "context": "test",
-        "next_review_date": "2026-10-25"
+        "next_review_date": "2026-10-25",
+        "rm65_review": "RM-65 2026-10-22: skip source re-read; condition, reason and prerequisite still hold."
       }
     },
     {
@@ -6297,14 +6245,15 @@
         "reason": "LoCoMo data/locomo10.json not on disk",
         "owner_assignment": "Role assigned for this authorized review; not an invented individual or historical CODEOWNER.",
         "prerequisites": "Named local dataset/calibration/reference-run file from source condition; provision separately, preserve immutable benchmark history.",
-        "review_date": "2026-10-18",
+        "review_date": "2026-10-22",
         "replacement_evidence": [],
         "priority": "P2",
         "recommended_action": "Run fixture gate after local assets are explicitly provisioned; retain synthetic unit coverage separately. Audit performs no asset fetch or benchmark.",
-        "source_sha256": "b4ad63d8d9efabb09c8ae2e80dbf012fc748d9bbb27e6cd729803c0e20fc2d4e",
+        "source_sha256": "b786ad2872a57f74ad1d329f6928599681ae3da0514ac0589a9bf23c4cbcd548",
         "node": "test_bridge_cue_on_dev_questions_is_rare",
         "context": "test",
-        "next_review_date": "2026-10-25"
+        "next_review_date": "2026-10-25",
+        "rm65_review": "RM-65 2026-10-22: skip source re-read; condition, reason and prerequisite still hold."
       }
     },
     {
@@ -6497,14 +6446,15 @@
         "reason": "Import unavailable: fastapi",
         "owner_assignment": "Role assigned for this authorized review; not an invented individual or historical CODEOWNER.",
         "prerequisites": "fastapi",
-        "review_date": "2026-10-18",
+        "review_date": "2026-10-22",
         "replacement_evidence": [],
         "priority": "P2",
         "recommended_action": "Run this exact node in a dependency cell containing the named optional extra; preserve the absent-extra behavior cell.",
-        "source_sha256": "b04b2cf37af1f0438dbe42267ddfd3e09b0dca1b89daee8a0305aa3d7d8f2456",
+        "source_sha256": "cd24adfe9d90ec985c1176a25c296fafd28c956f53cdc5fa2944d504997057eb",
         "node": "test_rest_cannot_cross_scopes",
         "context": "test",
-        "next_review_date": "2026-10-25"
+        "next_review_date": "2026-10-25",
+        "rm65_review": "RM-65 2026-10-22: skip source re-read; condition, reason and prerequisite still hold."
       }
     },
     {
@@ -6567,7 +6517,7 @@
         "reason": "needs the neo4j driver and MEMSPINE_TEST_NEO4J_URL (a live server)",
         "owner_assignment": "Role assigned for this authorized review; not an invented individual or historical CODEOWNER.",
         "prerequisites": "needs the neo4j driver and MEMSPINE_TEST_NEO4J_URL (a live server); scratch resource only; source environment references are not proof each variable guards this site.",
-        "review_date": "2026-10-18",
+        "review_date": "2026-10-22",
         "replacement_evidence": [
           {
             "path": "docs/provider_verification/native-strict-final.json",
@@ -6576,10 +6526,11 @@
         ],
         "priority": "P2",
         "recommended_action": "Run exact opt-in live contract with task-owned scratch endpoint. Retained prior service evidence is separate from this audit and not universal provider coverage.",
-        "source_sha256": "897bc7b236acb3e4a55f58b80aa73ae4c5ba66ed156915a4475fa158e699c819",
+        "source_sha256": "1abacf4e61d312fc6b3f90fd24ac1e63fee678ddc1742e1fa5be9b295b0be6ed",
         "node": "executor",
         "context": "fixture",
-        "next_review_date": "2026-10-25"
+        "next_review_date": "2026-10-25",
+        "rm65_review": "RM-65 2026-10-22: skip source re-read; condition, reason and prerequisite still hold."
       }
     },
     {
@@ -6635,7 +6586,7 @@
         "role": "feature/test maintainers for unit/wiring",
         "provenance": "inferred from source path; no individual owner metadata was consulted"
       },
-      "source_sha256": "15719371a3c07cd9fa41b7cdbabb3cedb5a62091af8e22faabe34d8c1ded5b43",
+      "source_sha256": "37f0de8910e3e7d280abcbe52321860672d61d6d4c2231e69ef2c28e64c92798",
       "review": {
         "owner_role": "Provider integration maintainer",
         "next_milestone": "M-LIVE: run the exact node with a task-owned scratch service or local fixture when its prerequisites are provisioned; review before deployment.",
@@ -6644,7 +6595,7 @@
         "reason": "needs a live server: MEMSPINE_TEST_NEO4J_URL",
         "owner_assignment": "Role assigned for this authorized review; not an invented individual or historical CODEOWNER.",
         "prerequisites": "needs a live server: MEMSPINE_TEST_NEO4J_URL; scratch resource only; source environment references are not proof each variable guards this site.",
-        "review_date": "2026-10-18",
+        "review_date": "2026-10-22",
         "replacement_evidence": [
           {
             "path": "docs/provider_verification/native-strict-final.json",
@@ -6653,10 +6604,11 @@
         ],
         "priority": "P2",
         "recommended_action": "Run exact opt-in live contract with task-owned scratch endpoint. Retained prior service evidence is separate from this audit and not universal provider coverage.",
-        "source_sha256": "15719371a3c07cd9fa41b7cdbabb3cedb5a62091af8e22faabe34d8c1ded5b43",
+        "source_sha256": "37f0de8910e3e7d280abcbe52321860672d61d6d4c2231e69ef2c28e64c92798",
         "node": "test_live_walks_match_the_stepwise_walk",
         "context": "test",
-        "next_review_date": "2026-10-25"
+        "next_review_date": "2026-10-25",
+        "rm65_review": "RM-65 2026-10-22: skip source re-read; condition, reason and prerequisite still hold."
       }
     },
     {
@@ -6712,7 +6664,7 @@
         "role": "feature/test maintainers for unit/wiring",
         "provenance": "inferred from source path; no individual owner metadata was consulted"
       },
-      "source_sha256": "15719371a3c07cd9fa41b7cdbabb3cedb5a62091af8e22faabe34d8c1ded5b43",
+      "source_sha256": "37f0de8910e3e7d280abcbe52321860672d61d6d4c2231e69ef2c28e64c92798",
       "review": {
         "owner_role": "Provider integration maintainer",
         "next_milestone": "M-LIVE: run the exact node with a task-owned scratch service or local fixture when its prerequisites are provisioned; review before deployment.",
@@ -6721,7 +6673,7 @@
         "reason": "Postgres leases: set MEMSPINE_TEST_PG_URL",
         "owner_assignment": "Role assigned for this authorized review; not an invented individual or historical CODEOWNER.",
         "prerequisites": "Postgres leases: set MEMSPINE_TEST_PG_URL; scratch resource only; source environment references are not proof each variable guards this site.",
-        "review_date": "2026-10-18",
+        "review_date": "2026-10-22",
         "replacement_evidence": [
           {
             "path": "docs/provider_verification/native-strict-final.json",
@@ -6730,10 +6682,11 @@
         ],
         "priority": "P2",
         "recommended_action": "Run exact opt-in live contract with task-owned scratch endpoint. Retained prior service evidence is separate from this audit and not universal provider coverage.",
-        "source_sha256": "15719371a3c07cd9fa41b7cdbabb3cedb5a62091af8e22faabe34d8c1ded5b43",
+        "source_sha256": "37f0de8910e3e7d280abcbe52321860672d61d6d4c2231e69ef2c28e64c92798",
         "node": "test_live_pg_lease_expiry_ignores_a_skewed_process_clock",
         "context": "test",
-        "next_review_date": "2026-10-25"
+        "next_review_date": "2026-10-25",
+        "rm65_review": "RM-65 2026-10-22: skip source re-read; condition, reason and prerequisite still hold."
       }
     },
     {
@@ -6770,7 +6723,29 @@
         "provenance": "inferred from source path; no individual owner metadata was consulted"
       },
       "source_sha256": "801d5768b044ad065a7324b4836a238cdf75f6e616a461a142e1031cc7fffb74",
-      "review": {}
+      "review": {
+        "owner_role": "Provider integration maintainer",
+        "next_milestone": "M-LIVE: run the exact node with a task-owned scratch service or local fixture when its prerequisites are provisioned; review before deployment.",
+        "disposition": "Retain opt-in guard; require failures after explicit strict service opt-in to remain failures.",
+        "category": "externalenv",
+        "reason": "Postgres leases: set MEMSPINE_TEST_PG_URL to a scratch Postgres DSN",
+        "owner_assignment": "Role assigned for this authorized review; not an invented individual or historical CODEOWNER.",
+        "prerequisites": "Postgres leases: set MEMSPINE_TEST_PG_URL to a scratch Postgres DSN; scratch resource only; source environment references are not proof each variable guards this site.",
+        "review_date": "2026-10-22",
+        "replacement_evidence": [
+          {
+            "path": "docs/provider_verification/native-strict-final.json",
+            "scope": "Historical eight native scratch-service contracts; exact node/provider overlap must be checked, not blanket replacement."
+          }
+        ],
+        "priority": "P2",
+        "recommended_action": "Run exact opt-in live contract with task-owned scratch endpoint. Retained prior service evidence is separate from this audit and not universal provider coverage.",
+        "source_sha256": "801d5768b044ad065a7324b4836a238cdf75f6e616a461a142e1031cc7fffb74",
+        "node": "pg_store",
+        "context": "fixture",
+        "next_review_date": "2026-10-25",
+        "rm65_review": "RM-65 2026-10-22: skip source re-read; condition, reason and prerequisite still hold. Moved from tests/unit/wiring/test_fu_sleep.py:358:skip."
+      }
     },
     {
       "id": "tests/unit/wiring/test_fu_sleep.py:362:importorskip",
@@ -6806,50 +6781,23 @@
         "provenance": "inferred from source path; no individual owner metadata was consulted"
       },
       "source_sha256": "801d5768b044ad065a7324b4836a238cdf75f6e616a461a142e1031cc7fffb74",
-      "review": {}
-    },
-    {
-      "id": "tests/unit/wiring/test_glift_derived_lift.py:262:importorskip",
-      "file": "tests/unit/wiring/test_glift_derived_lift.py",
-      "line": 262,
-      "kind": "importorskip",
-      "form": "import availability guard",
-      "node": "test_lancedb_scores_for_matches_query_cosine",
-      "context": "test",
-      "category": "optional_import",
-      "condition_expression": null,
-      "condition_known_literal": "lancedb",
-      "reason_expression": null,
-      "reason_known_literal": null,
-      "reason_status": "implicit_import_unavailable_reason",
-      "import_target_expression": "'lancedb'",
-      "import_target_known_literal": "lancedb",
-      "module_env_refs": {
-        "explicit_names": [],
-        "dynamic_name_expressions": [],
-        "interpretation": "Static references only; their presence is not proof that any skip site is guarded by that variable."
-      },
-      "owner_role": {
-        "role": "feature/test maintainers for unit/wiring",
-        "provenance": "inferred from source path; no individual owner metadata was consulted"
-      },
-      "source_sha256": "e060f659a7b102485c48e189377074c7f033787d0fa5df24a21785b3f309dfbd",
       "review": {
         "owner_role": "Provider integration maintainer",
         "next_milestone": "M-EXTRAS: exercise the named package matrix when its dependency/provider changes; review at release-candidate gate.",
         "disposition": "Retain explicit optional-extra guard; run positive and negative paths in separate dependency cells.",
         "category": "optionaldependency",
-        "reason": "Import unavailable: lancedb",
+        "reason": "Import unavailable: psycopg",
         "owner_assignment": "Role assigned for this authorized review; not an invented individual or historical CODEOWNER.",
-        "prerequisites": "lancedb",
-        "review_date": "2026-10-18",
+        "prerequisites": "psycopg",
+        "review_date": "2026-10-22",
         "replacement_evidence": [],
         "priority": "P2",
         "recommended_action": "Run this exact node in a dependency cell containing the named optional extra; preserve the absent-extra behavior cell.",
-        "source_sha256": "092591d5e6ecfabf02c7841a4c41de4abce44eb943fe7fad57fc526d6c0a0242",
-        "node": "test_lancedb_scores_for_matches_query_cosine",
-        "context": "test",
-        "next_review_date": "2026-10-25"
+        "source_sha256": "801d5768b044ad065a7324b4836a238cdf75f6e616a461a142e1031cc7fffb74",
+        "node": "pg_store",
+        "context": "fixture",
+        "next_review_date": "2026-10-25",
+        "rm65_review": "RM-65 2026-10-22: skip source re-read; condition, reason and prerequisite still hold. Moved from tests/unit/wiring/test_fu_sleep.py:359:importorskip."
       }
     },
     {
@@ -6893,7 +6841,24 @@
         "provenance": "inferred from source path; no individual owner metadata was consulted"
       },
       "source_sha256": "3fe7549b6c5a0616909b0073c46f5da1c9642a770109248a00454c57b4c88812",
-      "review": {}
+      "review": {
+        "owner_role": "Model integration maintainer",
+        "next_milestone": "M-MODEL: provision exact offline artifacts and run bounded gate when model/runtime settings change; review at release candidate.",
+        "disposition": "Retain cache-only opt-in; no downloads or heavy model calls during this audit.",
+        "category": "model",
+        "reason": "paraphrase-multilingual-MiniLM-L12-v2 is not in the local fastembed/HF cache",
+        "owner_assignment": "Role assigned for this authorized review; not an invented individual or historical CODEOWNER.",
+        "prerequisites": "Exact locally cached model/tokenizer and matching optional runtime; cache helpers may also return false for broken imports, so validate installed runtime independently.",
+        "review_date": "2026-10-22",
+        "replacement_evidence": [],
+        "priority": "P2",
+        "recommended_action": "Run exact bounded offline smoke in matching model environment; report missing artifacts separately from installed-runtime errors. Do not claim GLiNER gate covers another model.",
+        "source_sha256": "3fe7549b6c5a0616909b0073c46f5da1c9642a770109248a00454c57b4c88812",
+        "node": "test_cpu_multilingual_profile_resolves",
+        "context": "test",
+        "next_review_date": "2026-10-25",
+        "rm65_review": "RM-65 2026-10-22: skip source re-read; condition, reason and prerequisite still hold. Moved from tests/unit/wiring/test_md_02_embedding_profile.py:282:skipif."
+      }
     },
     {
       "id": "tests/unit/wiring/test_rt_01_transport.py:17:importorskip",
@@ -6929,14 +6894,15 @@
         "reason": "Import unavailable: taskiq",
         "owner_assignment": "Role assigned for this authorized review; not an invented individual or historical CODEOWNER.",
         "prerequisites": "taskiq",
-        "review_date": "2026-10-18",
+        "review_date": "2026-10-22",
         "replacement_evidence": [],
         "priority": "P2",
         "recommended_action": "Run this exact node in a dependency cell containing the named optional extra; preserve the absent-extra behavior cell.",
-        "source_sha256": "a3a9cee76f21a3d9a19f56ba19814028eec2bae2b358b7b9ee7a52d593966f8e",
+        "source_sha256": "9b1c14221fd6a675d9d9fdece51a2bac709bed63342e9a539a63f36fd3193637",
         "node": "<module>",
         "context": "module",
-        "next_review_date": "2026-10-25"
+        "next_review_date": "2026-10-25",
+        "rm65_review": "RM-65 2026-10-22: skip source re-read; condition, reason and prerequisite still hold."
       }
     },
     {
@@ -6973,20 +6939,21 @@
         "reason": "Import unavailable: taskiq_redis",
         "owner_assignment": "Role assigned for this authorized review; not an invented individual or historical CODEOWNER.",
         "prerequisites": "taskiq_redis",
-        "review_date": "2026-10-18",
+        "review_date": "2026-10-22",
         "replacement_evidence": [],
         "priority": "P2",
         "recommended_action": "Run this exact node in a dependency cell containing the named optional extra; preserve the absent-extra behavior cell.",
-        "source_sha256": "a3a9cee76f21a3d9a19f56ba19814028eec2bae2b358b7b9ee7a52d593966f8e",
+        "source_sha256": "9b1c14221fd6a675d9d9fdece51a2bac709bed63342e9a539a63f36fd3193637",
         "node": "test_redis_broker_is_built_lazily_from_the_url",
         "context": "test",
-        "next_review_date": "2026-10-25"
+        "next_review_date": "2026-10-25",
+        "rm65_review": "RM-65 2026-10-22: skip source re-read; condition, reason and prerequisite still hold."
       }
     },
     {
-      "id": "tests/unit/wiring/test_t5_06_observability.py:392:skip",
+      "id": "tests/unit/wiring/test_t5_06_observability.py:394:skip",
       "file": "tests/unit/wiring/test_t5_06_observability.py",
-      "line": 392,
+      "line": 394,
       "kind": "skip",
       "form": "runtime call",
       "node": "_require_otel_sdk",
@@ -7008,7 +6975,7 @@
         "role": "feature/test maintainers for unit/wiring",
         "provenance": "inferred from source path; no individual owner metadata was consulted"
       },
-      "source_sha256": "cc25f6c5e07f302335b5054ac48646415bd4002b4d08815222f3f4a4c62ece76",
+      "source_sha256": "3d9461e9f551680fe8a501e1c52115b356b102ced862e78b46292018ca2ab70e",
       "review": {
         "owner_role": "Observability/Test maintainer",
         "next_milestone": "M-EXTRAS: rerun installed exporter and fault-injected missing/broken SDK cases when observability dependencies change, before release candidate.",
@@ -7017,22 +6984,23 @@
         "reason": "Only a missing opentelemetry or opentelemetry.sdk package skips the exporter gate; all other import/runtime failures propagate.",
         "owner_assignment": "Role assigned by the selected M-GUARDS repair package.",
         "prerequisites": "Install opentelemetry-sdk for the positive exporter path; missing SDK is tested deterministically without installation.",
-        "review_date": "2026-10-18",
+        "review_date": "2026-10-22",
         "next_review_date": "2026-10-25",
         "replacement_evidence": [
           "docs/provider_verification/guard-fixes-focused.log"
         ],
         "priority": "P2",
         "recommended_action": "Keep both optional-absence and installed/broken-runtime tests; do not broaden exception handling.",
-        "source_sha256": "cc25f6c5e07f302335b5054ac48646415bd4002b4d08815222f3f4a4c62ece76",
+        "source_sha256": "3d9461e9f551680fe8a501e1c52115b356b102ced862e78b46292018ca2ab70e",
         "node": "_require_otel_sdk",
-        "context": "helper"
+        "context": "helper",
+        "rm65_review": "RM-65 2026-10-22: skip source re-read; condition, reason and prerequisite still hold. Moved from tests/unit/wiring/test_t5_06_observability.py:392:skip."
       }
     },
     {
-      "id": "tests/unit/wiring/test_t5_06_observability.py:458:importorskip",
+      "id": "tests/unit/wiring/test_t5_06_observability.py:460:importorskip",
       "file": "tests/unit/wiring/test_t5_06_observability.py",
-      "line": 458,
+      "line": 460,
       "kind": "importorskip",
       "form": "import availability guard",
       "node": "test_rest_ops_report_route",
@@ -7054,7 +7022,7 @@
         "role": "feature/test maintainers for unit/wiring",
         "provenance": "inferred from source path; no individual owner metadata was consulted"
       },
-      "source_sha256": "cc25f6c5e07f302335b5054ac48646415bd4002b4d08815222f3f4a4c62ece76",
+      "source_sha256": "3d9461e9f551680fe8a501e1c52115b356b102ced862e78b46292018ca2ab70e",
       "review": {
         "owner_role": "Provider integration maintainer",
         "next_milestone": "M-EXTRAS: exercise the named package matrix when its dependency/provider changes; review at release-candidate gate.",
@@ -7063,20 +7031,21 @@
         "reason": "Import unavailable: fastapi",
         "owner_assignment": "Role assigned for this authorized review; not an invented individual or historical CODEOWNER.",
         "prerequisites": "fastapi",
-        "review_date": "2026-10-18",
+        "review_date": "2026-10-22",
         "replacement_evidence": [],
         "priority": "P2",
         "recommended_action": "Run this exact node in a dependency cell containing the named optional extra; preserve the absent-extra behavior cell.",
-        "source_sha256": "cc25f6c5e07f302335b5054ac48646415bd4002b4d08815222f3f4a4c62ece76",
+        "source_sha256": "3d9461e9f551680fe8a501e1c52115b356b102ced862e78b46292018ca2ab70e",
         "node": "test_rest_ops_report_route",
         "context": "test",
-        "next_review_date": "2026-10-25"
+        "next_review_date": "2026-10-25",
+        "rm65_review": "RM-65 2026-10-22: skip source re-read; condition, reason and prerequisite still hold. Moved from tests/unit/wiring/test_t5_06_observability.py:458:importorskip."
       }
     },
     {
-      "id": "tests/unit/wiring/test_w2_13_prepass.py:566:skip",
+      "id": "tests/unit/wiring/test_w2_13_prepass.py:567:skip",
       "file": "tests/unit/wiring/test_w2_13_prepass.py",
-      "line": 566,
+      "line": 567,
       "kind": "skip",
       "form": "unconditional marker",
       "node": "test_gliner_adapter_real_model",
@@ -7098,7 +7067,7 @@
         "role": "feature/test maintainers for unit/wiring",
         "provenance": "inferred from source path; no individual owner metadata was consulted"
       },
-      "source_sha256": "4d870c0c4bd0c8a022b4cc2915148d7a9841db65c291c8fe6a0396ae25e2ca05",
+      "source_sha256": "3039ba95398eb6ae5a82dde7d2fd4d213686dde5a38b441daca0c604d5db9d9f",
       "review": {
         "owner_role": "Model integration maintainer",
         "next_milestone": "M-BRANCH: rerun matching deterministic positive/negative path on feature changes; review at release candidate.",
@@ -7107,7 +7076,7 @@
         "reason": "real model inference is covered by the explicit offline smoke tool",
         "owner_assignment": "Role assigned for this authorized review; not an invented individual or historical CODEOWNER.",
         "prerequisites": "Cached fastino/gliner2.5-base-v1 snapshot ca906247640776a07753514055be9726f9080ead, optional NER environment; deterministic generative fixture is explicit.",
-        "review_date": "2026-10-18",
+        "review_date": "2026-10-22",
         "replacement_evidence": [
           {
             "path": "docs/provider_verification/gliner-ingestion-real.json",
@@ -7120,10 +7089,11 @@
         ],
         "priority": "P2",
         "recommended_action": "Keep heavyweight inference outside hermetic unit suite. Use explicit PA-121 offline Engine ingestion/window gate after GLiNER binding/parser changes; unit tests remain fake-sdk checks.",
-        "source_sha256": "4d870c0c4bd0c8a022b4cc2915148d7a9841db65c291c8fe6a0396ae25e2ca05",
+        "source_sha256": "3039ba95398eb6ae5a82dde7d2fd4d213686dde5a38b441daca0c604d5db9d9f",
         "node": "test_gliner_adapter_real_model",
         "context": "test",
-        "next_review_date": "2026-10-25"
+        "next_review_date": "2026-10-25",
+        "rm65_review": "RM-65 2026-10-22: skip source re-read; condition, reason and prerequisite still hold. Moved from tests/unit/wiring/test_w2_13_prepass.py:566:skip."
       }
     },
     {
@@ -7160,14 +7130,15 @@
         "reason": "graspologic-native not installed ([community] extra)",
         "owner_assignment": "Role assigned for this authorized review; not an invented individual or historical CODEOWNER.",
         "prerequisites": "graspologic-native not installed ([community] extra)",
-        "review_date": "2026-10-18",
+        "review_date": "2026-10-22",
         "replacement_evidence": [],
         "priority": "P2",
         "recommended_action": "Run this exact node in a dependency cell containing the named optional extra; preserve the absent-extra behavior cell.",
-        "source_sha256": "903ba13a03c38c1bab1e13e61a4bb098c2a3ecca2b2cb203a863438f728eaba1",
+        "source_sha256": "705ffa2f1efb4f371020a2b8398a58ce74c32edc991569f91ea6a234f6a74c88",
         "node": "test_a_summary_parent_never_joins_its_own_community",
         "context": "test",
-        "next_review_date": "2026-10-25"
+        "next_review_date": "2026-10-25",
+        "rm65_review": "RM-65 2026-10-22: skip source re-read; condition, reason and prerequisite still hold."
       }
     },
     {
@@ -7195,7 +7166,7 @@
         "role": "feature/test maintainers for unit/workers",
         "provenance": "inferred from source path; no individual owner metadata was consulted"
       },
-      "source_sha256": "0388c3f7cb06a85672b1a29786e559e42179a56d5fdb4231ec01d6f097791f6b",
+      "source_sha256": "d951e1de7a944fad646f72e226569c69890d4d6c9e6f025aad6f0214669273c5",
       "review": {
         "owner_role": "Orchestration maintainer",
         "next_milestone": "M-EXTRAS: exercise the named package matrix when its dependency/provider changes; review at release-candidate gate.",
@@ -7204,7 +7175,7 @@
         "reason": "requires [temporal]",
         "owner_assignment": "Role assigned for this authorized review; not an invented individual or historical CODEOWNER.",
         "prerequisites": "temporalio.exceptions",
-        "review_date": "2026-10-18",
+        "review_date": "2026-10-22",
         "replacement_evidence": [
           {
             "path": "docs/provider_verification/temporal-live-final-tests.log",
@@ -7213,10 +7184,11 @@
         ],
         "priority": "P2",
         "recommended_action": "Run this exact node in a dependency cell containing the named optional extra; preserve the absent-extra behavior cell.",
-        "source_sha256": "0388c3f7cb06a85672b1a29786e559e42179a56d5fdb4231ec01d6f097791f6b",
+        "source_sha256": "d951e1de7a944fad646f72e226569c69890d4d6c9e6f025aad6f0214669273c5",
         "node": "<module>",
         "context": "module",
-        "next_review_date": "2026-10-25"
+        "next_review_date": "2026-10-25",
+        "rm65_review": "RM-65 2026-10-22: skip source re-read; condition, reason and prerequisite still hold."
       }
     },
     {
@@ -7244,7 +7216,7 @@
         "role": "feature/test maintainers for unit/workers",
         "provenance": "inferred from source path; no individual owner metadata was consulted"
       },
-      "source_sha256": "0388c3f7cb06a85672b1a29786e559e42179a56d5fdb4231ec01d6f097791f6b",
+      "source_sha256": "d951e1de7a944fad646f72e226569c69890d4d6c9e6f025aad6f0214669273c5",
       "review": {
         "owner_role": "Orchestration maintainer",
         "next_milestone": "M-EXTRAS: exercise the named package matrix when its dependency/provider changes; review at release-candidate gate.",
@@ -7253,7 +7225,7 @@
         "reason": "requires [temporal]",
         "owner_assignment": "Role assigned for this authorized review; not an invented individual or historical CODEOWNER.",
         "prerequisites": "resonate",
-        "review_date": "2026-10-18",
+        "review_date": "2026-10-22",
         "replacement_evidence": [
           {
             "path": "docs/provider_verification/temporal-live-final-tests.log",
@@ -7262,10 +7234,11 @@
         ],
         "priority": "P2",
         "recommended_action": "Run this exact node in a dependency cell containing the named optional extra; preserve the absent-extra behavior cell.",
-        "source_sha256": "0388c3f7cb06a85672b1a29786e559e42179a56d5fdb4231ec01d6f097791f6b",
+        "source_sha256": "d951e1de7a944fad646f72e226569c69890d4d6c9e6f025aad6f0214669273c5",
         "node": "<module>",
         "context": "module",
-        "next_review_date": "2026-10-25"
+        "next_review_date": "2026-10-25",
+        "rm65_review": "RM-65 2026-10-22: skip source re-read; condition, reason and prerequisite still hold."
       }
     }
   ]

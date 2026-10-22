@@ -17,10 +17,6 @@ import random
 from pathlib import Path
 from typing import Any
 
-import pytest
-
-pytest.importorskip("lancedb")
-
 from memspine.clients.lancedb import LanceDBClient
 from memspine.config import constants
 from memspine.models.encoders.embedding.hash_local import HashEmbedding

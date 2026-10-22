@@ -4,10 +4,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
-
-pytest.importorskip("lancedb")
-
 from memspine import Engine
 from memspine.config.schema.providers import LanceDBSettings
 from memspine.services.vector.per_namespace import PerNamespaceVectorStore

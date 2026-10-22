@@ -215,9 +215,6 @@
   "workers.broker_url": [
    "B0"
   ],
-  "workers.dbos_system_database_url": [
-   "B0"
-  ],
   "retention.*": [
    "B5"
   ],

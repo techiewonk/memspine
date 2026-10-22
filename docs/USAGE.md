@@ -834,9 +834,15 @@ in the schema — or if the schema gains a key not documented here.
 | `models.gpu_headroom_mb` | `512` | MD-01. VRAM kept free on every GPU. |
 | `models.gpus` | `[]` | MD-01. Declared CUDA devices (`name`, `vram_mb`); empty = CPU only. A non-NVIDIA name (AMD, Intel, DirectML) is ignored: MD-03 measured the iGPU 5-8x slower than the CPU. |
 | `models.bindings` | `{}` | Consumer role -> named provider profile. Active GLiNER consumers require explicit bindings: `gliner_decision`, `gliner_semantic`, and `gliner_prepass`. |
-| `models.escalation` | `{}` | Opt-in per-role LLM profile ladder. Fields: `targets`, `triggers` (`error`, `empty`, `invalid_json`), `max_attempts`, required positive `timeout_s`, required positive `max_tokens_per_attempt`. Limits apply per routed chat invocation; profile/caller output limits remain in force. Every candidate retains consent gates; cancellation propagates. See [multi-model guide](MULTI_MODEL_PROFILES.md). |
+| `models.escalation.*.targets` | `[]` | Opt-in per-role LLM profile ladder (`models.escalation.<role>`, default `{}` = no escalation). Ordered, unique profile names tried after the primary. Limits apply per routed chat invocation; profile/caller output limits remain in force. Every candidate retains consent gates; cancellation propagates. See [multi-model guide](MULTI_MODEL_PROFILES.md). |
+| `models.escalation.*.triggers` | `[error]` | Non-empty, duplicate-free list of `error`, `empty`, `invalid_json`: the outcomes that move to the next target. |
+| `models.escalation.*.max_attempts` | `2` | Total attempts including the primary; at least 2 when `targets` is set, at most 1 + number of targets. |
+| `models.escalation.*.timeout_s` | required | Positive finite seconds per attempt (strict float). |
+| `models.escalation.*.max_tokens_per_attempt` | required | Positive output-token cap per attempt (strict int). |
 | `models.gliner_max_models` | `1` | Maximum distinct GLiNER checkpoints (model, revision, device, offline policy) this Engine keeps resident. Profiles differing only in tasks or concurrency share one checkpoint. Raise it when distinct checkpoints must stay resident together; an idle checkpoint can be evicted and reloads on its next call. Weights are shared with other Engines in the process (RM-73). |
-| `models.profiles` | `{}` | Named provider profiles with `kind`, `provider`, and native `settings`. GLiNER profile settings are strict: `model` (`fastino/gliner2.5-base-v1`), `revision` (`null`), `device` (`cpu` or `cuda`), `local_files_only` (`true`), `tasks` (for example `[entities, classification]`), and `inference_concurrency` (`1`). Different profile names with identical settings share one model. |
+| `models.profiles.*.kind` | required | Named provider profile (`models.profiles.<name>`, default `{}`), validated only as data until a consumer resolves it. `llm` or `gliner`. Different profile names with identical settings share one model. |
+| `models.profiles.*.provider` | required | Non-empty provider name with no surrounding whitespace; GLiNER profiles require `gliner2`. |
+| `models.profiles.*.settings` | `{}` | Provider-native settings. GLiNER profile settings are strict: `model` (`fastino/gliner2.5-base-v1`), `revision` (`null`), `device` (`cpu` or `cuda`), `local_files_only` (`true`), `tasks` (for example `[entities, classification]`), and `inference_concurrency` (`1`). |
 | `models.on_missing_model` | `error` | MD-01 (P-03). `error` fails start for a required role with no model; `rules`/`skip` record the role's fallback (rules or skip, as the role defines) and carry on. |
 | `models.pins` | `{}` | MD-01. Catalogue role -> declared model id (wins over tier choice; a hosted pin on a local-only role is an error). |
 | `models.ram_mb` | `0` | MD-01. Host RAM budget for CPU placement; 0 = not checked. |
@@ -1280,7 +1286,13 @@ in the schema — or if the schema gains a key not documented here.
 | `vector.provider` | — | Provider and policy fields are validated by their typed configuration schema. |
 | `vector.settings` | — | Provider and policy fields are validated by their typed configuration schema. |
 | `workers.broker_url` | `redis://localhost:6379/0` | taskiq broker endpoint (ignored by other runners). |
-| `workers.resonate.journal_path` | `./memspine-resonate.sqlite` | Application-owned SQLite step-result journal on a persistent local volume. |
+| `workers.resonate.journal_path` | `./memspine-resonate.sqlite` | Application-owned SQLite step-result journal on a persistent local volume (`:memory:` and `file:` URIs are rejected). |
+| `workers.resonate.task_timeout_s` | `270.0` | Embedded Resonate promise timeout per task, seconds (0 < x <= 604800). |
+| `workers.resonate.step_timeout_s` | `240.0` | Timeout for one journaled step, seconds (0 < x <= 86400). |
+| `workers.resonate.step_lease_s` | `360.0` | Step lease in the journal before another worker may reclaim it, seconds (0 < x <= 86400). |
+| `workers.resonate.journal_busy_timeout_s` | `5.0` | SQLite busy timeout for the step journal, seconds (0 < x <= 3600). |
+| `workers.resonate.max_concurrent_tasks` | `4` | Concurrent Resonate tasks in this process (1..1024). |
+| `workers.temporal` | `null` | Remote Temporal connection for `workers.runner: temporal` `[temporal]` (ADR-071; external cluster required). Fields: `deployment_id` (required), `address` (`localhost:7233`), `namespace` (`default`), `task_queue` (`null`), `tls` (`false`), `api_key` (`null`, secret), `rpc_timeout_s` (`30.0`), `activity_timeout_s` (`300.0`), `workflow_timeout_s` (`3600.0`), `max_concurrent_activities` (`4`), `retry_max_attempts` (`3`), `max_result_bytes` (`65536`). |
 | `workers.outbox` | `false` | F-04: durable outbox. Window jobs are rows first, an inline runner drains them after each write and at start, a stop keeps unfinished jobs; model calls run outside namespace locks. `false` keeps the in-memory queue. |
 | `workers.runner` | `inline` | `inline` \| `temporal` `[temporal]` \| `taskiq` `[taskiq]` (ADR-071). |
 | `workers.sleep_interval_seconds` | `null` | D1: when set (seconds), the engine runs the full sleep cycle on that interval autonomously; `null` keeps v0.1 behavior (cycle runs only on `Engine.sleep()`). |

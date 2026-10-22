@@ -118,7 +118,19 @@ FLAG_EVIDENCE: dict[str, dict[str, str]] = {
         "evidence": "ADR-079 (addendum settings table: sql.pool_pre_ping true)",
         "note": "SQLAlchemy pre-ping on checkout; Postgres and file SQLite pools",
     },
+    # --- models.profiles.*.settings (GLiNER profile, RM-81) ---
+    "GlinerSettings.local_files_only": {
+        "evidence": "commit 47526490 (named GLiNER profiles); ADR-074 (explicit offline policy)",
+        "note": "missing local artifacts fail; a download needs the profile to set it false",
+    },
 }
+
+#: Strict native settings that live inside an opaque ``settings`` mapping but are validated
+#: by the config schema itself (not by a provider descriptor). The registry walks them under
+#: their wildcard key so their flags are visible and evidenced like any other.
+_PROFILE_SETTINGS: tuple[tuple[str, type[BaseModel]], ...] = (
+    ("models.profiles.*.settings.", schema.GlinerSettings),
+)
 
 
 @dataclass(frozen=True)
@@ -217,7 +229,10 @@ def _walk(model: type[BaseModel], prefix: str) -> Iterator[FlagSpec]:
 
 def registry() -> dict[str, FlagSpec]:
     """Dotted YAML key -> :class:`FlagSpec` for every flag and mode of ``MemspineConfig``."""
-    return {spec.key: spec for spec in _walk(schema.MemspineConfig, "")}
+    specs = list(_walk(schema.MemspineConfig, ""))
+    for prefix, model in _PROFILE_SETTINGS:
+        specs.extend(_walk(model, prefix))
+    return {spec.key: spec for spec in specs}
 
 
 def default_on_flags() -> set[str]:

@@ -259,7 +259,6 @@ async def test_engine_read_on_never_puts_the_derived_record_in_context() -> None
 
 
 async def test_lancedb_scores_for_matches_query_cosine(tmp_path: Any) -> None:
-    pytest.importorskip("lancedb")
     from memspine.clients.lancedb import LanceDBClient
     from memspine.models.encoders.embedding.hash_local import HashEmbedding
     from memspine.services.vector.lancedb_store import LanceDBVectorStore

@@ -8,8 +8,6 @@ from pathlib import Path
 
 import pytest
 
-pytest.importorskip("lancedb")
-
 from memspine.clients.lancedb import LanceDBClient
 from memspine.config import constants
 from memspine.config.schema.providers import LanceDBSettings

@@ -361,7 +361,6 @@ def test_flag_off_by_default():
 
 
 async def test_engine_flag_on_matches_flag_off_and_names_table_by_space(tmp_path):
-    pytest.importorskip("lancedb")
     from memspine import Engine
 
     def make(sub: str, on: bool) -> Engine:
