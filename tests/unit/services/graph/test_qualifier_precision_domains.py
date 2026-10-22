@@ -174,3 +174,13 @@ def test_caller_scope_layer() -> None:
     assert not caller.admits(_edge(None))  # unknown scope never passes
     grantor = CallerVisibility(namespace="a")
     assert not grantor.admits(_edge("b"))  # F13: a grantee-scoped edge is not the grantor's
+
+
+def test_excluding_a_domain_also_excludes_its_descendants() -> None:
+    # merge of RM-86 and RM-91: exclusion follows the same hierarchy as the allow-set
+    flt = QualifierFilter(exclude_topical_domains=frozenset({"health"}))
+    assert not flt.matches(EdgeQualifiers(topical_domain="health/condition"))
+    assert not flt.matches(EdgeQualifiers(topical_domain="health"))
+    assert flt.matches(EdgeQualifiers(topical_domain="healthcare"))
+    assert flt.matches(EdgeQualifiers(topical_domain="work/project"))
+    assert flt.matches(EdgeQualifiers())  # unknown passes a non-sensitivity exclusion

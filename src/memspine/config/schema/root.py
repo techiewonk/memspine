@@ -138,6 +138,8 @@ class MemspineConfig(ConfigModel):
             "gliner_prepass": "entities",
             # RM-91 (d): opt-in topic tags for topical domains; inert unless bound
             "gliner_topic": "classification",
+            # RM-99: opt-in sensitivity detector; active whenever bound, offline only.
+            "gliner_sensitivity": "entities",
         }
         llm_roles = set(PROMPT_ROLES) | set(CATALOGUE_ROLE)
         valid_roles = llm_roles | set(gliner_roles)
@@ -202,7 +204,19 @@ class MemspineConfig(ConfigModel):
             "gliner_decision": self.decision.provider == "gliner2",
             "gliner_semantic": semantic_mode == "gliner",
             "gliner_prepass": self.write.prepass == "gliner",
+            "gliner_sensitivity": "gliner_sensitivity" in self.models.bindings,
         }
+        sensitivity_profile = self.models.bindings.get("gliner_sensitivity")
+        if (
+            sensitivity_profile is not None
+            and not GlinerSettings.model_validate(
+                self.models.profiles[sensitivity_profile].settings
+            ).local_files_only
+        ):
+            raise ConfigError(
+                "models.bindings.gliner_sensitivity is offline only: its GLiNER profile "
+                "needs local_files_only: true"
+            )
         for role, active in active_consumers.items():
             if active:
                 tasks = tasks_by_role.get(role)

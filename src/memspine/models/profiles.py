@@ -12,7 +12,9 @@ from typing import Literal
 from memspine.config.schema.llm import GlinerSettings, LLMRoleConfig, ModelProfile
 from memspine.config.schema.root import MemspineConfig
 
-GlinerConsumerRole = Literal["gliner_decision", "gliner_semantic", "gliner_prepass"]
+GlinerConsumerRole = Literal[
+    "gliner_decision", "gliner_semantic", "gliner_prepass", "gliner_sensitivity"
+]
 
 __all__ = [
     "GlinerConsumerRole",

@@ -333,6 +333,10 @@ class PipelineContext:
     #: lineage edges of a summary a legacy stage appended as a raw WRITE event. None (flag off, bare
     #: contexts) => no edges, as before. See ``offline_door.stamp_summary`` / ``link_summary``.
     link_derived: Callable[[str, MemoryRecord, Sequence[str], str], Awaitable[None]] | None = None
+    #: RM-99: the opt-in offline model detector of the sensitivity labelling layer
+    #: (``models.bindings.gliner_sensitivity``; a ``derive.sensitivity.SensitivityModel``). None
+    #: => deterministic labels only (vocabulary defaults and rule/pattern detectors).
+    sensitivity_model: Any | None = None
 
 
 async def gate_records(ctx: PipelineContext, records: list[MemoryRecord]) -> list[MemoryRecord]:

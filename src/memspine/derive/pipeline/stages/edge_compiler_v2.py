@@ -36,6 +36,12 @@ from memspine.derive.edges import GraphDelta, GraphEdge, GraphNode, compile_edge
 from memspine.derive.fact_policy import FactPurpose
 from memspine.derive.pipeline.stages.context import PipelineContext, live_records, sweep_namespaces
 from memspine.derive.pipeline.stages.envelope_adapter import is_fact
+from memspine.derive.sensitivity import (
+    NOT_CHECKED,
+    ClaimText,
+    SensitivityLabeller,
+    SensitivityResult,
+)
 from memspine.memories.associative.entities import (
     EntityPolicy,
     canonical_entity,
@@ -118,12 +124,26 @@ class EdgeCompiler:
         scoped: bool = False,
         policy: EntityPolicy | None = None,
         registry: SemanticRegistry | None = None,
+        labeller: SensitivityLabeller | None = None,
     ) -> None:
         self.scoped = scoped
         self.policy = policy or EntityPolicy.from_policy(True)
         assert self.policy is not None
         #: RM-91: the vocabulary whose predicate / property / pack domains apply.
         self.registry = registry if registry is not None else load_builtin_registry()
+        #: RM-99: the sensitivity labelling layer (deterministic unless a model is bound).
+        self.labeller = labeller or SensitivityLabeller()
+
+    @staticmethod
+    def claim_of(record: MemoryRecord) -> ClaimText:
+        """What the sensitivity labeller sees of ``record``: predicate, key and value texts."""
+        dst = _tag(record, "dst:")
+        return ClaimText(
+            predicate=_tag(record, "rel:"),
+            attribute_key=record.attribute or _tag(record, "attr:"),
+            values=tuple(dict.fromkeys(v for v in (record.content, dst) if v and v.strip())),
+            tags=tuple(record.tags),
+        )
 
     def eligible(self, record: MemoryRecord) -> bool:
         """A semantic fact with a subject entity, live or superseded with a successor."""
@@ -199,7 +219,15 @@ class EdgeCompiler:
             }
         )
 
-    def compile(self, records: Iterable[MemoryRecord], namespace: str) -> CompiledEdges:
+    def compile(
+        self,
+        records: Iterable[MemoryRecord],
+        namespace: str,
+        *,
+        sensitivity: Mapping[str, SensitivityResult] | None = None,
+    ) -> CompiledEdges:
+        """``sensitivity``: precomputed labels per record id (the async model path); a record
+        without one is labelled here by the deterministic detectors."""
         envs: list[AssertionEnvelope] = []
         meta: dict[str, dict[str, Any]] = {}
         skipped: dict[str, str] = {}
@@ -237,6 +265,9 @@ class EdgeCompiler:
                 # RM-91: the domain and which of the four sources set it
                 "topical_domain": domain.domain if domain else None,
                 "topical_domain_source": domain.source if domain else None,
+                # RM-99: labels, check state and labeller (never the matched text).
+                "sensitivity": (sensitivity or {}).get(record.record_id)
+                or self.labeller.label(self.claim_of(record)),
             }
         delta = compile_edges(envs)
         return CompiledEdges(namespace, delta, meta, skipped)
@@ -336,7 +367,14 @@ def edge_qualifiers_for(edge: GraphEdge, meta: Mapping[str, Any]) -> EdgeQualifi
         else None
     )
     source_id = meta.get("source_message_id")
+    labelled = meta.get("sensitivity")
+    sens = labelled if isinstance(labelled, SensitivityResult) else NOT_CHECKED
     return EdgeQualifiers(
+        sensitivity=sens.labels if sens.checked is not None else None,
+        sensitivity_checked=sens.checked,
+        sensitivity_labeller=sens.labeller_id,
+        sensitivity_labeller_version=sens.labeller_version,
+        sensitivity_confidence=dict(sens.confidence) if sens.confidence else None,
         valid_from=valid_from,
         valid_to=valid_to,
         valid_open_ended=(
@@ -508,7 +546,14 @@ async def _compile_one(
     projection = LinkProjection(ctx.graph, ctx.append_event)
     records = await live_records(ctx, namespace, "semantic")
     tap.event("graph.compile.start", namespace=namespace, records=len(records))
-    compiled = compiler.compile(records, namespace)
+    labels: dict[str, SensitivityResult] | None = None
+    if compiler.labeller.model is not None:  # RM-99 opt-in model detector (async)
+        labels = {
+            r.record_id: await compiler.labeller.alabel(compiler.claim_of(r))
+            for r in records
+            if compiler.eligible(r)
+        }
+    compiled = compiler.compile(records, namespace, sensitivity=labels)
     delta = compiled.delta
     if tap.enabled():
         tap.event(
@@ -556,7 +601,10 @@ async def compile_graph_edges(ctx: PipelineContext) -> dict[str, object]:
         return {"status": "skipped", "reason": "no graph store"}
     if ctx.append_event is None:
         return {"status": "skipped", "reason": "read-only context (no write door)"}
-    compiler = EdgeCompiler(scoped=bool(ctx.config.isolation.scope_keys_v2))
+    compiler = EdgeCompiler(
+        scoped=bool(ctx.config.isolation.scope_keys_v2),
+        labeller=SensitivityLabeller(model=getattr(ctx, "sensitivity_model", None)),
+    )
     totals: Counter[str] = Counter()
     errors: list[str] = []
     for namespace in await sweep_namespaces(ctx):

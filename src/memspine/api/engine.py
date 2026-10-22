@@ -5881,7 +5881,27 @@ class Engine:
                 if self._windows is not None and "edges" in self._windows.sections
                 else None
             ),
+            sensitivity_model=self._sensitivity_model(),
         )
+
+    def _sensitivity_model(self) -> Any | None:
+        """RM-99: the opt-in GLiNER sensitivity detector (``models.bindings.gliner_sensitivity``),
+        built once per Engine so its pool lease is reused; None when unbound."""
+        config = self._config()
+        if "gliner_sensitivity" not in config.models.bindings or self._gliner_pool is None:
+            return None
+        pool = self._gliner_pool
+        cached = self.__dict__.get("_sensitivity_detector")
+        if cached is None or cached[0] is not pool:  # a restart builds a new pool
+            from memspine.derive.sensitivity import GlinerSensitivityDetector
+            from memspine.models.profiles import resolve_gliner_settings
+
+            detector = GlinerSensitivityDetector(
+                pool, resolve_gliner_settings(config, "gliner_sensitivity")
+            )
+            cached = (pool, detector)
+            self.__dict__["_sensitivity_detector"] = cached
+        return cached[1]
 
     # ── W1: adaptive-window write (call 1), session close (call 2 hook) ───────────
 

@@ -43,19 +43,21 @@ from contextlib import contextmanager
 from contextvars import ContextVar
 from datetime import datetime, timedelta
 from enum import StrEnum
-from typing import Any, Protocol, runtime_checkable
+from typing import Any, Literal, Protocol, runtime_checkable
 
 from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
     ValidationError,
+    field_serializer,
     field_validator,
     model_validator,
 )
 
 from memspine.exceptions import MemspineError
 from memspine.semantics.domains import DOMAIN_PATTERN, DomainSource, domain_in, is_domain_id
+from memspine.semantics.sensitivity import SensitivityLabel
 from memspine.services.graph.base import GraphEdge, GraphNode, capped_neighbors
 
 __all__ = [
@@ -263,7 +265,21 @@ class EdgeQualifiers(_Frozen):
     topical_domain: str | None = Field(default=None, pattern=DOMAIN_PATTERN)
     #: Which source set ``topical_domain`` (ingest tag, property, predicate, pack, GLiNER topic).
     topical_domain_source: DomainSource | None = None
-    sensitivity: SensitivityClass | None = None
+    #: RM-87/RM-99 sensitivity labels found by the labelling layer (several per edge). Read
+    #: together with ``sensitivity_checked`` (three states, RM-86):
+    #:
+    #: * ``sensitivity_checked=True``: a complete check; the set holds every label found and
+    #:   an empty set is *checked_none* (no detector fired; not a proof of harmlessness);
+    #: * ``sensitivity_checked=False``: an incomplete check (an enabled detector failed); the
+    #:   labels found so far are kept, the absence of others is unknown;
+    #: * ``sensitivity_checked=None``: not checked (``sensitivity`` is None too).
+    sensitivity: frozenset[SensitivityLabel] | None = None
+    sensitivity_checked: bool | None = None
+    #: Which labeller produced the labels, and its version (rules + vocabulary + model).
+    sensitivity_labeller: str | None = None
+    sensitivity_labeller_version: str | None = None
+    #: Per-label confidence in ``[0, 1]`` (keys are a subset of ``sensitivity``).
+    sensitivity_confidence: dict[SensitivityLabel, float] | None = None
     context_location: str | None = None
     participation_mode: str | None = None
     applicability_condition: str | None = None
@@ -299,7 +315,32 @@ class EdgeQualifiers(_Frozen):
             LifecycleStatus.CLOSED,
         ):
             raise ValueError("lifecycle_outcome is only allowed when status is closed")
+        self._sensitivity_coherent()
         return self
+
+    def _sensitivity_coherent(self) -> None:
+        """RM-86/RM-87: the three sensitivity states stay distinguishable."""
+        if self.sensitivity_checked is None:
+            if (
+                self.sensitivity is not None
+                or self.sensitivity_confidence is not None
+                or self.sensitivity_labeller is not None
+                or self.sensitivity_labeller_version is not None
+            ):
+                raise ValueError("sensitivity labels need sensitivity_checked (True or False)")
+            return
+        if self.sensitivity is None:
+            raise ValueError("a sensitivity check records its label set (empty = none found)")
+        if self.sensitivity_confidence is not None:
+            if not set(self.sensitivity_confidence) <= self.sensitivity:
+                raise ValueError("sensitivity_confidence names a label the edge does not carry")
+            if any(not 0.0 <= c <= 1.0 for c in self.sensitivity_confidence.values()):
+                raise ValueError("sensitivity_confidence values must lie in [0, 1]")
+
+    @field_serializer("sensitivity")
+    def _sorted_labels(self, value: frozenset[str] | None) -> list[str] | None:
+        """Sorted, so the stored form is stable across processes (idempotent re-projection)."""
+        return None if value is None else sorted(value)
 
     def to_properties(self) -> dict[str, object]:
         """JSON-mode dump with unknown fields omitted (what adapters persist)."""
@@ -381,6 +422,9 @@ def with_qualifiers(
     return merged
 
 
+#: An edge without qualifiers reads as all-unknown.
+_UNKNOWN = EdgeQualifiers()
+
 #: Allow-set filter field -> the qualifier attribute it constrains.
 _SET_FIELDS: dict[str, str] = {
     "assertion_modalities": "assertion_modality",
@@ -396,7 +440,6 @@ _SET_FIELDS: dict[str, str] = {
     "event_roles": "event_role",
     "occurrence_ids": "occurrence_id",
     "vocabulary_packs": "vocabulary_pack",
-    "sensitivities": "sensitivity",
     "context_locations": "context_location",
     "participation_modes": "participation_mode",
     "applicability_conditions": "applicability_condition",
@@ -413,12 +456,37 @@ _PROVENANCE_FIELDS: dict[str, str] = {
     "lineage_roots": "lineage_root",
 }
 
+#: RM-86 exclusion (deny-set) filter field -> the qualifier attribute it constrains.
+_EXCLUDE_FIELDS: dict[str, str] = {
+    "exclude_claim_states": "claim_state",
+    "exclude_lifecycle_statuses": "lifecycle_status",
+    "exclude_assertion_modalities": "assertion_modality",
+}
+
+#: Filter fields that only modify another constraint (never a constraint on their own).
+_MODIFIER_FIELDS = frozenset({"unchecked_sensitivity"})
+
 
 class QualifierFilter(_Frozen):
     """Conjunctive constraints on :class:`EdgeQualifiers`; ``None`` = unconstrained.
 
     Allow-set fields pass when the edge's value is in the set; every constraint on a
-    qualifier the edge does not carry fails (unknown never passes).
+    qualifier the edge does not carry fails (unknown never passes an allow-set).
+
+    Exclusion fields (``exclude_*``, RM-86) drop an edge whose known value is in the set.
+    Per-field unknown rules:
+
+    * ``exclude_claim_states`` / ``exclude_lifecycle_statuses`` /
+      ``exclude_assertion_modalities`` / ``exclude_topical_domains`` /
+      ``exclude_origin_types``: an unknown value **passes** the exclusion (it is not known to
+      be excluded). Combine with the matching allow-set to also require a known value.
+    * ``exclude_sensitivities``: a labelled match drops the edge; a complete check that found
+      none of the excluded labels (including *checked_none*) passes; an edge that was not
+      checked, or checked incompletely, follows ``unchecked_sensitivity`` (``"fail"`` by
+      default: an unchecked edge is dropped).
+
+    ``sensitivities`` (allow-set) passes when the edge carries ANY listed label; an unchecked
+    edge or a checked_none edge fails it. Erased edges never pass (RM-83).
     """
 
     #: Valid-time point: the edge must be valid at this instant.
@@ -449,7 +517,8 @@ class QualifierFilter(_Frozen):
     #: RM-91: a domain matches itself and its descendants (``health`` admits
     #: ``health/condition``, never ``healthcare``); an unknown domain never passes.
     topical_domains: frozenset[str] | None = None
-    sensitivities: frozenset[SensitivityClass] | None = None
+    #: The edge must carry at least one of these labels (unchecked / none found fails).
+    sensitivities: frozenset[SensitivityLabel] | None = None
     context_locations: frozenset[str] | None = None
     participation_modes: frozenset[str] | None = None
     applicability_conditions: frozenset[str] | None = None
@@ -458,6 +527,16 @@ class QualifierFilter(_Frozen):
     recurrence_series_ids: frozenset[str] | None = None
     completeness: frozenset[Completeness] | None = None
     min_independent_support: int | None = Field(default=None, ge=0)
+    # ── RM-86 exclusions (deny-sets) ──
+    exclude_sensitivities: frozenset[SensitivityLabel] | None = None
+    exclude_claim_states: frozenset[ClaimState] | None = None
+    exclude_lifecycle_statuses: frozenset[LifecycleStatus] | None = None
+    exclude_assertion_modalities: frozenset[AssertionModality] | None = None
+    exclude_topical_domains: frozenset[str] | None = None
+    exclude_origin_types: frozenset[str] | None = None
+    #: What ``exclude_sensitivities`` does with an edge whose sensitivity was not (fully)
+    #: checked: ``"fail"`` drops it (default, the safe choice), ``"pass"`` keeps it.
+    unchecked_sensitivity: Literal["pass", "fail"] = "fail"
 
     _aware = field_validator("valid_at", "known_as_of")(_require_aware)
 
@@ -487,19 +566,22 @@ class QualifierFilter(_Frozen):
 
     @property
     def is_empty(self) -> bool:
-        return not self.model_dump(exclude_none=True)
+        """No constraint set (``unchecked_sensitivity`` alone constrains nothing)."""
+        return not self.model_dump(exclude_none=True, exclude=set(_MODIFIER_FIELDS))
 
     def matches(self, qualifiers: EdgeQualifiers | None) -> bool:
         """Whether an edge with ``qualifiers`` passes every constraint.
 
-        An erased or erasure-pending edge never passes, not even the empty filter (RM-83)."""
+        An erased or erasure-pending edge never passes, not even the empty filter (RM-83).
+        An edge without qualifiers is read as all-unknown: it fails every allow-set and
+        passes the exclusions whose unknown rule passes."""
         if qualifiers is not None and not qualifiers.traversable:
             return False
         if self.is_empty:
             return True
-        if qualifiers is None:
+        q = qualifiers if qualifiers is not None else _UNKNOWN
+        if not self._passes_exclusions(q):
             return False
-        q = qualifiers
         if self.valid_at is not None and q.valid_at(self.valid_at) is not True:
             return False
         if self.valid_window is not None and q.valid_overlaps(*self.valid_window) is not True:
@@ -520,6 +602,10 @@ class QualifierFilter(_Frozen):
                 q.provenance is None or getattr(q.provenance, attr) not in allowed
             ):
                 return False
+        if self.sensitivities is not None and not (q.sensitivity or frozenset()) & (
+            self.sensitivities
+        ):
+            return False
         if self.required_grants is not None and (
             q.grants is None or not self.required_grants.issubset(q.grants)
         ):
@@ -533,6 +619,30 @@ class QualifierFilter(_Frozen):
             q.independent_support_count is not None
             and q.independent_support_count >= self.min_independent_support
         )
+
+    def _passes_exclusions(self, q: EdgeQualifiers) -> bool:
+        """RM-86 deny-sets: a known excluded value drops; unknown follows the field's rule."""
+        for field_name, attr in _EXCLUDE_FIELDS.items():
+            excluded: frozenset[Any] | None = getattr(self, field_name)
+            value = getattr(q, attr)
+            if excluded is not None and value is not None and value in excluded:
+                return False
+        if (
+            self.exclude_topical_domains is not None
+            and q.topical_domain is not None
+            and domain_in(q.topical_domain, self.exclude_topical_domains)
+        ):
+            return False  # RM-91: excluding a domain also excludes its descendants
+        origin = q.provenance.origin_type if q.provenance is not None else None
+        if self.exclude_origin_types is not None and origin in self.exclude_origin_types:
+            return False
+        if self.exclude_sensitivities is None:
+            return True
+        if q.sensitivity and q.sensitivity & self.exclude_sensitivities:
+            return False  # labelled match
+        if q.sensitivity_checked is True:
+            return True  # complete check, no excluded label (incl. checked_none)
+        return self.unchecked_sensitivity == "pass"  # not (fully) checked: caller decides
 
     def admits(self, edge: GraphEdge) -> bool:
         return self.matches(edge_qualifiers(edge.properties))

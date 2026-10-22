@@ -99,7 +99,10 @@
       "required_roles": [],
       "extraction_rule_ids": [],
       "cardinality_scope": [],
-      "domain": "location/residence"
+      "domain": "location/residence",
+      "sensitivity": [
+        "location"
+      ]
     },
     {
       "name": "born_in",
@@ -129,7 +132,10 @@
       "cardinality_scope": [
         "precision"
       ],
-      "domain": "identity"
+      "domain": "identity",
+      "sensitivity": [
+        "identity"
+      ]
     },
     {
       "name": "grew_up_in",
@@ -279,7 +285,10 @@
       "required_roles": [],
       "extraction_rule_ids": [],
       "cardinality_scope": [],
-      "domain": "location/travel"
+      "domain": "location/travel",
+      "sensitivity": [
+        "location"
+      ]
     },
     {
       "name": "parent_of",

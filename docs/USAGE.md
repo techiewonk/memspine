@@ -210,6 +210,29 @@ hits = await engine.search("how are Ilse and Tomasz connected", namespace="ops",
                            graph_filter=asserted_then)
 ```
 
+**Sensitivity labels and exclusion filters (RM-86/RM-87/RM-99).** Compiled edges also
+carry sensitivity labels (`health`, `financial`, `contact`, `identity`, `location`; several
+per edge) from the labelling layer (`memspine.derive.sensitivity`): vocabulary defaults on
+the predicate or property key, then deterministic rule/pattern detectors (email, phone,
+Luhn-checked cards, mod-97 IBANs, identity numbers, street addresses and postcodes, a small
+medical-term list, the write door's topic tags). A local GLiNER2 detector is opt-in through
+`models.bindings.gliner_sensitivity` (a GLiNER profile with task `entities` and
+`local_files_only: true`). Each edge records one of three states: labels found,
+*checked_none* (a complete check found nothing; not a proof that the claim is harmless), or
+not checked; plus the labeller id, version and per-label confidence. Re-running
+`compile_edges` labels edges compiled before the layer existed. The filter's
+`sensitivities` passes an edge carrying ANY listed label (unchecked and checked_none edges
+fail it). The deny-sets `exclude_sensitivities`, `exclude_claim_states`,
+`exclude_lifecycle_statuses`, `exclude_assertion_modalities`, `exclude_topical_domains` and
+`exclude_origin_types` drop an edge whose known value is listed. An unknown value passes
+those exclusions; combine one with its allow-set to also require a known value. For
+`exclude_sensitivities`, a labelled match is dropped, checked_none passes, and an edge that
+was not (fully) checked follows `unchecked_sensitivity` (`"fail"` by default, or `"pass"`).
+```python
+no_health = QualifierFilter(exclude_sensitivities={"health"}, unchecked_sensitivity="fail")
+```
+Design and evaluation fixtures: `docs/SENSITIVITY_LABELLING_PROPOSAL.md`.
+
 **Answer verification (#39).** `await engine.verify_answer(question, answer, context)`
 checks an answer against a read's context (an `AssembledContext`, its records, or text)
 with one call to the `verify_answer` LLM role (the `chat` role when that one is not

@@ -9,7 +9,7 @@
   "dependencies": [
     {
       "pack_id": "memspine.core",
-      "digest": "1ed89af8e14031cf4d7e2ed71685d4e3819830b1b973799101b16be7ba39dbd3"
+      "digest": "dc365a8f81f3b27be7055a3e3b96b5e243067cace7d4acde76b2463d02d4a0ea"
     }
   ],
   "predicates": [

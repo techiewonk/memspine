@@ -38,7 +38,6 @@ from memspine.services.graph.qualifiers import (
     Provenance,
     QualifiedGraphStore,
     QualifierFilter,
-    SensitivityClass,
     UnsupportedQualifierFilterError,
     edge_qualifiers,
     require_qualifier_support,
@@ -112,7 +111,8 @@ FIXTURE: list[tuple[str, str, str, EdgeQualifiers | None, str]] = [
             assertion_modality=AssertionModality.ASSERTED,
             claim_state=ClaimState.CURRENT,
             topical_domain="residence",
-            sensitivity=SensitivityClass.LOCATION,
+            sensitivity=frozenset({"location"}),
+            sensitivity_checked=True,
             extraction_confidence=0.6,
             independent_support_count=1,
         ),
@@ -189,7 +189,7 @@ CASES: list[tuple[str, dict[str, Any], int, list[str]]] = [
     ("origin_type", {"origin_types": {"transcript"}}, 2, ["b"]),
     ("required_grant", {"required_grants": {"team"}}, 2, ["b"]),
     ("min_support", {"min_independent_support": 2}, 2, ["b"]),
-    ("sensitivity_location", {"sensitivities": {SensitivityClass.LOCATION}}, 2, ["c"]),
+    ("sensitivity_location", {"sensitivities": {"location"}}, 2, ["c"]),
     (
         "combined_domain_state_confidence",
         {
