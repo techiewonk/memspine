@@ -121,7 +121,7 @@ async def test_different_specs_get_separate_engines_on_one_registry(
         assert a._resource_registry is shared_registry() is b._resource_registry
         assert a._sql is not None and b._sql is not None
         assert a._sql.engine is b._sql.engine  # identical resources shared in the process
-        assert a._lexical is b._lexical
+        assert a._lexical.connector is b._lexical.connector  # type: ignore[union-attr]
         assert len(worker_readiness()["engines"]) == 2
 
 

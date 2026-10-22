@@ -301,15 +301,19 @@ async def test_disk_cache_defaults_under_data_dir(
     import sys
     from types import ModuleType
 
+    from memspine.clients.cashews import CashewsClient, CashewsSpec
     from memspine.providers.builtin.cache import DiskBuilder
     from memspine.providers.contexts import CacheBuildContext, SharedBuildContext
     from memspine.providers.lifecycle import ProviderLifecycleManager
 
     seen: list[str] = []
 
-    class FakeClient:
-        def __init__(self, spec: str) -> None:
-            seen.append(spec)
+    class FakeClient(CashewsClient):
+        """The real connector's identity (it is shared through the registry); no backend."""
+
+        def __init__(self, spec: CashewsSpec) -> None:
+            super().__init__(spec)
+            seen.append(spec.url)
 
         async def open(self) -> None:
             return None
@@ -324,7 +328,7 @@ async def test_disk_cache_defaults_under_data_dir(
     # The optional ``cashews`` extra is not needed: both lazy imports are replaced.
     client_module = ModuleType("memspine.clients.cashews")
     client_module.CashewsClient = FakeClient  # type: ignore[attr-defined]
-    client_module.CashewsSpec = str  # type: ignore[attr-defined]
+    client_module.CashewsSpec = CashewsSpec  # type: ignore[attr-defined]
     cache_module = ModuleType("memspine.services.cache.cashews")
     cache_module.CashewsCache = FakeCache  # type: ignore[attr-defined]
     monkeypatch.setitem(sys.modules, "memspine.clients.cashews", client_module)

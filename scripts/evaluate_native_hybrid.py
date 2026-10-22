@@ -144,15 +144,17 @@ async def evaluate() -> dict[str, Any]:
 
         from memspine import Engine
         from memspine.clients.weaviate import WeaviateClient, WeaviateSpec
-        from memspine.services.lexical.base import rrf_fuse
-        from memspine.services.remote_search import owner_scope
-        from memspine.services.weaviate_projection import (
+        from memspine.services._weaviate import (
+            LEXICAL_PROPERTIES,
+            WeaviateCollectionBinding,
             collection_name,
             ensure_collection,
             properties,
             record_uuid,
             upsert_object,
         )
+        from memspine.services.lexical.base import rrf_fuse
+        from memspine.services.remote_search import owner_scope
 
         with tempfile.TemporaryDirectory(
             prefix="memspine-pa089-native-hybrid-", ignore_cleanup_errors=True
@@ -191,7 +193,9 @@ async def evaluate() -> dict[str, Any]:
 
             owner_id = f"pa089-native-{uuid.uuid4().hex}"
             collection_id = collection_name("Memspine", "PA089", owner_id, "active")
-            collection = await ensure_collection(native, collection_id, include_content=True)
+            collection = await ensure_collection(
+                native, WeaviateCollectionBinding(collection_id, LEXICAL_PROPERTIES)
+            )
             records: dict[str, Any] = {}
             namespace_by_id: dict[str, str] = {}
             for key, namespace, content in FIXTURES:

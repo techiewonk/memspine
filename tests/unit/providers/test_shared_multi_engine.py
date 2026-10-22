@@ -26,7 +26,7 @@ from memspine.providers.shared import ResourceKey, ResourceRegistry, shared_regi
 #: the process registry the at-fork hook is registered on (before the fixture swaps it)
 _PROCESS_REGISTRY = shared._REGISTRY
 
-_SINGLE_WRITER = ("sql.sqlite.async", "sql.sqlite.sync", "lexical.tantivy", "vector.lancedb")
+_SINGLE_WRITER = ("sql.sqlite", "sql.sqlite.sync", "lexical.tantivy", "vector.lancedb")
 
 
 @pytest.fixture(autouse=True)
@@ -119,7 +119,7 @@ async def test_different_settings_get_their_own_resources(tmp_path: Path) -> Non
         assert base._lexical is not other_path._lexical
         assert other_knobs._lexical is None
         assert base._vector._client is not other_path._vector._client  # type: ignore[union-attr]
-        assert _refs()["sql.sqlite.async"] == [1, 1, 1]
+        assert _refs()["sql.sqlite"] == [1, 1, 1]
         rid = (await base.write("only in a", namespace="n")).record_id
         assert rid not in await _ids(other_path, "only in a", "n")
     finally:
@@ -138,7 +138,8 @@ async def test_single_writer_paths_share_one_handle_and_see_each_others_data(
     try:
         assert a._sql is not None and b._sql is not None
         assert a._sql.engine is b._sql.engine
-        assert a._lexical is b._lexical  # one Tantivy writer per path
+        # One Tantivy connector (writer) per path; an adapter per Engine.
+        assert a._lexical.connector is b._lexical.connector  # type: ignore[union-attr]
         assert a._vector is not b._vector  # each Engine keeps its own store ...
         assert a._vector._client is b._vector._client  # type: ignore[union-attr]  # ... on one connection
         # b opens the vector table first, so its handle is on the empty version
@@ -172,7 +173,7 @@ def test_engines_on_two_event_loops_share_only_loop_free_resources(tmp_path: Pat
                 assert eng._sql is not None
                 found[index] = {
                     "sql": eng._sql.engine,
-                    "lexical": eng._lexical,
+                    "lexical": eng._lexical.connector,  # type: ignore[union-attr]
                     "client": eng._vector._client,  # type: ignore[union-attr]
                     "scheduler": eng._sched_v2,
                 }
@@ -203,7 +204,7 @@ def test_engines_on_two_event_loops_share_only_loop_free_resources(tmp_path: Pat
     zero, one = found[0], found[1]
     assert zero["sql"] is not one["sql"]  # an async engine is bound to its loop
     assert zero["scheduler"] is not one["scheduler"]  # the model scheduler too
-    assert zero["lexical"] is one["lexical"]  # thread-safe native handles are shared
+    assert zero["lexical"] is one["lexical"]  # thread-safe connectors are shared
     assert zero["client"] is one["client"]
     assert found["rid"] in found["seen"] and found["rid"] in found["seen_vector"]
     assert _refs() == {}

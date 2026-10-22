@@ -1,14 +1,50 @@
-"""Weaviate collection primitives shared by its vector and BM25 adapters."""
+"""Weaviate collection primitives shared by its vector and BM25 adapters (private).
+
+The factory hands each adapter the shared Weaviate connector and a
+:class:`WeaviateCollectionBinding` (collection name and text properties); the adapter runs
+:func:`ensure_collection` in its ``start()`` (RM-113 item 12). No native handle crosses the
+factory."""
 
 from __future__ import annotations
 
 import math
 import uuid
+from dataclasses import dataclass
 from numbers import Real
 from typing import Any
 
 from memspine.exceptions import ConfigError
 from memspine.services.remote_search import bounded_query, document_id, owner_scope
+
+#: Exact-match (``FIELD`` tokenized) properties every owned collection carries.
+BASE_PROPERTIES: tuple[str, ...] = ("record_id", "namespace", "owner_scope", "embedder_id")
+#: Word-tokenized (BM25-searchable) properties.
+FULL_TEXT_PROPERTIES = frozenset({"content"})
+#: The text properties of a vector collection and of a BM25 collection.
+VECTOR_PROPERTIES = BASE_PROPERTIES
+LEXICAL_PROPERTIES: tuple[str, ...] = (*BASE_PROPERTIES, "content")
+
+
+@dataclass(frozen=True, slots=True)
+class WeaviateCollectionBinding:
+    """One owned collection: its name and its text properties (the base exact-match set,
+    plus ``content`` for a BM25 collection)."""
+
+    name: str
+    properties: tuple[str, ...] = VECTOR_PROPERTIES
+
+    def __post_init__(self) -> None:
+        if not self.name:
+            raise ValueError("a Weaviate collection binding needs a name")
+        missing = [name for name in BASE_PROPERTIES if name not in self.properties]
+        if missing:
+            raise ValueError(f"a Weaviate collection binding needs properties {missing}")
+        if len(set(self.properties)) != len(self.properties):
+            raise ValueError("Weaviate collection properties must be unique")
+
+    @property
+    def include_content(self) -> bool:
+        return "content" in self.properties
 
 
 def collection_name(prefix: str, service: str, owner_id: str, generation: str) -> str:
@@ -35,7 +71,10 @@ def exact_filter(**terms: str) -> Any:
     return Filter.all_of([Filter.by_property(key).equal(value) for key, value in terms.items()])
 
 
-async def ensure_collection(client: Any, name: str, *, include_content: bool) -> Any:
+async def ensure_collection(client: Any, binding: WeaviateCollectionBinding) -> Any:
+    """Create ``binding``'s collection unless it exists (race-safe) and return its handle.
+
+    ``client`` is the connector's native async client (``WeaviateClient.handle``)."""
     from weaviate.classes.config import (
         Configure,
         DataType,
@@ -44,16 +83,15 @@ async def ensure_collection(client: Any, name: str, *, include_content: bool) ->
         VectorDistances,
     )
 
+    name = binding.name
     collections = client.collections
     if not await collections.exists(name):
         props = [
-            Property(name="record_id", data_type=DataType.TEXT, tokenization=Tokenization.FIELD),
-            Property(name="namespace", data_type=DataType.TEXT, tokenization=Tokenization.FIELD),
-            Property(name="owner_scope", data_type=DataType.TEXT, tokenization=Tokenization.FIELD),
-            Property(name="embedder_id", data_type=DataType.TEXT, tokenization=Tokenization.FIELD),
+            Property(name=prop, data_type=DataType.TEXT)
+            if prop in FULL_TEXT_PROPERTIES
+            else Property(name=prop, data_type=DataType.TEXT, tokenization=Tokenization.FIELD)
+            for prop in binding.properties
         ]
-        if include_content:
-            props.append(Property(name="content", data_type=DataType.TEXT))
         try:
             await collections.create(
                 name=name,
@@ -127,6 +165,11 @@ async def erase_owner(collection: Any, owner_id: str) -> None:
 
 
 __all__ = [
+    "BASE_PROPERTIES",
+    "FULL_TEXT_PROPERTIES",
+    "LEXICAL_PROPERTIES",
+    "VECTOR_PROPERTIES",
+    "WeaviateCollectionBinding",
     "bounded_query",
     "collection_name",
     "document_id",

@@ -8,11 +8,16 @@ from typing import Any
 import pytest
 
 from memspine.config.schema.remote_providers import OpenSearchSettings, WeaviateSettings
-from memspine.exceptions import ConfigError
+from memspine.exceptions import ConfigError, StorageError
 from memspine.providers.builtin.opensearch import _target_identity as opensearch_identity
 from memspine.providers.builtin.weaviate import _target_identity as weaviate_identity
 from memspine.providers.catalog import catalog
 from memspine.providers.registry import LEXICAL_INDEXES, VECTOR_STORES, get_registry
+from memspine.services._weaviate import (
+    LEXICAL_PROPERTIES,
+    VECTOR_PROPERTIES,
+    WeaviateCollectionBinding,
+)
 from memspine.services.lexical.opensearch import OpenSearchLexical
 from memspine.services.lexical.weaviate_store import WeaviateLexicalStore
 from memspine.services.remote_search import bounded_query, owner_scope
@@ -232,6 +237,51 @@ class _WeaviateCollection:
         self.query = _WeaviateQuery(self.data)
 
 
+class _WeaviateCollections:
+    """``client.collections``: one shared fake collection object per name."""
+
+    def __init__(self, collection: _WeaviateCollection) -> None:
+        self.collection = collection
+        self.created: dict[str, list[Any]] = {}
+
+    async def exists(self, name: str) -> bool:
+        return name in self.created
+
+    async def create(self, *, name: str, vector_config: Any, properties: list[Any]) -> None:
+        self.created[name] = properties
+
+    def get(self, name: str) -> _WeaviateCollection:
+        assert name in self.created
+        return self.collection
+
+
+class _WeaviateConnector:
+    """The connector surface the adapters use: ``handle`` and ``health``."""
+
+    def __init__(self, collection: _WeaviateCollection) -> None:
+        self.handle = SimpleNamespace(collections=_WeaviateCollections(collection))
+        self.closed = False
+
+    async def health(self, deadline_s: float) -> bool:
+        return True
+
+    async def close(self) -> None:  # pragma: no cover - adapters never close it
+        self.closed = True
+
+
+def _weaviate_config_module() -> ModuleType:
+    config = ModuleType("weaviate.classes.config")
+    config.Property = lambda **kwargs: kwargs  # type: ignore[attr-defined]
+    config.DataType = SimpleNamespace(TEXT="text")  # type: ignore[attr-defined]
+    config.Tokenization = SimpleNamespace(FIELD="field")  # type: ignore[attr-defined]
+    config.VectorDistances = SimpleNamespace(COSINE="cosine")  # type: ignore[attr-defined]
+    config.Configure = SimpleNamespace(  # type: ignore[attr-defined]
+        Vectors=SimpleNamespace(self_provided=lambda **kwargs: kwargs),
+        VectorIndex=SimpleNamespace(hnsw=lambda **kwargs: kwargs),
+    )
+    return config
+
+
 @pytest.mark.asyncio
 async def test_weaviate_vector_lexical_scopes_writes_queries_and_deletion(
     monkeypatch: pytest.MonkeyPatch,
@@ -255,10 +305,24 @@ async def test_weaviate_vector_lexical_scopes_writes_queries_and_deletion(
     monkeypatch.setitem(sys.modules, "weaviate", weaviate_module)
     monkeypatch.setitem(sys.modules, "weaviate.classes", classes_module)
     monkeypatch.setitem(sys.modules, "weaviate.classes.query", query_module)
+    monkeypatch.setitem(sys.modules, "weaviate.classes.config", _weaviate_config_module())
     collection = _WeaviateCollection()
+    connector = _WeaviateConnector(collection)
     vector = WeaviateVectorStore(
-        collection, owner_id="deployment-a", embedder_id="hash:4", dimension=4
+        connector,  # type: ignore[arg-type]
+        WeaviateCollectionBinding("MemspineVectorX", VECTOR_PROPERTIES),
+        owner_id="deployment-a",
+        embedder_id="hash:4",
+        dimension=4,
     )
+    with pytest.raises(StorageError, match="not started"):
+        await vector.exists("record-1")
+    await vector.start()  # RM-113 item 12: the adapter ensures its own collection
+    await vector.start()  # idempotent
+    created = connector.handle.collections.created
+    assert [p["name"] for p in created["MemspineVectorX"]] == list(VECTOR_PROPERTIES)
+    assert all(p.get("tokenization") == "field" for p in created["MemspineVectorX"])
+    assert await vector.probe(1.0)
     await vector.upsert("record-1", "private", "hash:4", [1.0, 0.0, 0.0, 0.0])
     hits = await vector.query("private", [1.0, 0.0, 0.0, 0.0], "hash:4")
     assert [(hit.record_id, hit.score) for hit in hits] == [("r1", 0.8)]
@@ -273,7 +337,21 @@ async def test_weaviate_vector_lexical_scopes_writes_queries_and_deletion(
     with pytest.raises(ConfigError, match="nonzero"):
         await vector.upsert("zero", "private", "hash:4", [0.0, 0.0, 0.0, 0.0])
 
-    lexical = WeaviateLexicalStore(collection, owner_id="deployment-a")
+    with pytest.raises(ConfigError, match="content"):
+        WeaviateLexicalStore(
+            connector,  # type: ignore[arg-type]
+            WeaviateCollectionBinding("MemspineLexicalX", VECTOR_PROPERTIES),
+            owner_id="deployment-a",
+        )
+    lexical = WeaviateLexicalStore(
+        connector,  # type: ignore[arg-type]
+        WeaviateCollectionBinding("MemspineLexicalX", LEXICAL_PROPERTIES),
+        owner_id="deployment-a",
+    )
+    await lexical.start()
+    lexical_props = created["MemspineLexicalX"]
+    assert [p["name"] for p in lexical_props] == list(LEXICAL_PROPERTIES)
+    assert "tokenization" not in lexical_props[-1]  # content is word-tokenized for BM25
     record = MemoryRecord(
         namespace="private", memory_type="semantic", content="violet mountain", record_id="record-1"
     )

@@ -26,15 +26,22 @@ async def test_shared_cache_separates_deployments_and_reuses_stable_owner_on_reo
         async def delete(self, key: str) -> None:
             values.pop(key, None)
 
-    class Client:
-        def __init__(self, spec: object) -> None:
-            self.cache = Backend()
+    from memspine.clients.cashews import CashewsClient
+
+    class Client(CashewsClient):
+        """The real connector's identity and scope; an in-memory backend."""
+
+        @property
+        def cache(self) -> Backend:
+            return backend
 
         async def open(self) -> None:
             pass
 
         async def close(self) -> None:
             closes.append("closed")
+
+    backend = Backend()
 
     monkeypatch.setattr("memspine.clients.cashews.CashewsClient", Client)
     owners: list[ProviderLifecycleManager] = []
@@ -67,4 +74,6 @@ async def test_shared_cache_separates_deployments_and_reuses_stable_owner_on_reo
     finally:
         for resources in owners:
             await resources.close_all()
-    assert len(closes) == 3
+    # RM-113 item 6: the three builds on one directory share one connector (ADR-079); it
+    # survives the first owner's stop and closes once, on the last release.
+    assert len(closes) == 1

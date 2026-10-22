@@ -151,7 +151,8 @@ async def test_two_engines_sharing_one_index(tmp_path: Path) -> None:
 
     task = asyncio.create_task(a_batch())
     try:
-        assert a._lexical is b._lexical  # one handle per path per process
+        # One connector (index and writer) per path per process; an adapter per Engine.
+        assert a._lexical.connector is b._lexical.connector
         lexical = a._lexical
         assert isinstance(lexical, TantivyLexical)
         await a_wrote.wait()

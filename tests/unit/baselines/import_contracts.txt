@@ -11,7 +11,6 @@
 # --- clients-isolated: connectors take a frozen transport spec, not config models (section 1)
 
 # --- consumers-never-see-clients
-consumers-never-see-clients memspine/store/migrate.py memspine.clients -- RM-113 item 7: route store/migrate.py through the storage descriptor
 
 # --- providers-composition-only
 providers-composition-only memspine/providers/builtin/generations.py memspine.memories -- RM-113 item 18: graph projector wiring leaves the factory layer
@@ -22,4 +21,3 @@ providers-composition-only memspine/providers/projection_backend.py memspine.mem
 # --- services-not-composition
 services-not-composition memspine/services/storage/postgres/alembic/versions/pg0012_provider_changes.py memspine.providers -- RM-113 item 9: migration snapshots provider-change schema; inline the DDL
 services-not-composition memspine/services/storage/sqlite/alembic/versions/0012_provider_changes.py memspine.providers -- RM-113 item 9: migration snapshots provider-change schema; inline the DDL
-services-not-composition memspine/services/vector/pgvector_store.py memspine.providers -- RM-113 item 11: pgvector adapter takes the postgres connector, no providers import

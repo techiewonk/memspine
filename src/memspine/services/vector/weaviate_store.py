@@ -1,33 +1,77 @@
-"""Self-provided-vector Weaviate store for rebuildable memory projections."""
+"""Self-provided-vector Weaviate store for rebuildable memory projections.
+
+The adapter takes the shared Weaviate connector and a collection binding; :meth:`start`
+ensures the collection (RM-113 item 12). The connector's owner closes the client."""
 
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from memspine.exceptions import ConfigError
-from memspine.services.vector.base import VectorHit
-from memspine.services.weaviate_projection import (
+from memspine.exceptions import ConfigError, StorageError
+from memspine.services._weaviate import (
+    WeaviateCollectionBinding,
+    ensure_collection,
+    erase_owner,
     exact_filter,
     properties,
     record_uuid,
     upsert_object,
     validate_vector,
 )
+from memspine.services.vector.base import VectorHit
+
+if TYPE_CHECKING:
+    from memspine.clients.weaviate import WeaviateClient
+
+_PROBE_ID = "__memspine_health_probe__"
 
 
 class WeaviateVectorStore:
-    def __init__(self, collection: Any, *, owner_id: str, embedder_id: str, dimension: int) -> None:
-        self._collection = collection
+    def __init__(
+        self,
+        connector: WeaviateClient,
+        binding: WeaviateCollectionBinding,
+        *,
+        owner_id: str,
+        embedder_id: str,
+        dimension: int,
+    ) -> None:
+        self._connector = connector
+        self._binding = binding
+        self._collection: Any = None
         self._owner_id = owner_id
         self._embedder_id = embedder_id
         self._dimension = dimension
+
+    @property
+    def binding(self) -> WeaviateCollectionBinding:
+        return self._binding
+
+    async def start(self) -> None:
+        """Ensure the bound collection exists (idempotent, race-safe)."""
+        if self._collection is None:
+            self._collection = await ensure_collection(self._connector.handle, self._binding)
+
+    async def probe(self, deadline_s: float) -> bool:
+        """Connector readiness, the bound collection's presence and one owned lookup."""
+        return bool(
+            await self._connector.health(deadline_s)
+            and await self._connector.handle.collections.exists(self._binding.name)
+            and await self.exists(_PROBE_ID) is False
+        )
+
+    @property
+    def _owned(self) -> Any:
+        if self._collection is None:
+            raise StorageError("Weaviate vector store is not started — call start() first")
+        return self._collection
 
     async def upsert(
         self, record_id: str, namespace: str, embedder_id: str, vector: list[float]
     ) -> None:
         values = self._validate(embedder_id, vector)
         await upsert_object(
-            self._collection,
+            self._owned,
             owner_id=self._owner_id,
             record_id=record_id,
             props=properties(record_id, namespace, self._owner_id, embedder_id=embedder_id),
@@ -42,7 +86,7 @@ class WeaviateVectorStore:
             return []
         from weaviate.classes.query import MetadataQuery
 
-        result = await self._collection.query.near_vector(
+        result = await self._owned.query.near_vector(
             near_vector=values,
             filters=exact_filter(
                 namespace=namespace,
@@ -69,15 +113,13 @@ class WeaviateVectorStore:
     async def delete(self, record_id: str) -> None:
         object_id = record_uuid(self._owner_id, record_id)
         if await self.exists(record_id):
-            await self._collection.data.delete_by_id(object_id)
+            await self._owned.data.delete_by_id(object_id)
 
     async def delete_all(self) -> None:
-        from memspine.services.weaviate_projection import erase_owner
-
-        await erase_owner(self._collection, self._owner_id)
+        await erase_owner(self._owned, self._owner_id)
 
     async def exists(self, record_id: str) -> bool:
-        obj = await self._collection.query.fetch_object_by_id(
+        obj = await self._owned.query.fetch_object_by_id(
             record_uuid(self._owner_id, record_id), return_properties=["owner_scope"]
         )
         return (

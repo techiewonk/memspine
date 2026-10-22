@@ -11,6 +11,7 @@ from memspine.config.schema.providers import (
     MemoryCacheSettings,
     RemoteCacheSettings,
 )
+from memspine.providers.connectors import acquire
 from memspine.providers.contexts import CacheBuildContext
 from memspine.providers.contracts import BuildResult, DependencyRequirement, ProviderRef
 from memspine.providers.registry import CACHE_BACKENDS, ProviderDescriptor
@@ -56,9 +57,13 @@ class DiskBuilder:
             if ctx.data_dir is not None and "path" not in settings.model_fields_set
             else settings.path
         )
-        client = CashewsClient(CashewsSpec(f"disk://?directory={directory}"))
-        ref = ctx.shared.resources.own("cache", client.close)
-        await client.open()
+        # RM-113 item 6: one cashews cache per directory per event loop (ADR-079).
+        client, ref = await acquire(
+            ctx.shared,
+            CashewsClient,
+            CashewsSpec(f"disk://?directory={directory}"),
+            resource_id="cache",
+        )
         cache = CashewsCache(
             client,
             namespace=_owned_namespace(settings.namespace, ctx),
@@ -88,10 +93,13 @@ class RemoteBuilder:
         from memspine.clients.cashews import CashewsClient, CashewsSpec
         from memspine.services.cache.cashews import CashewsCache
 
-        client = CashewsClient(CashewsSpec(settings.url))
-        ref = ctx.shared.resources.own("cache", client.close)
+        # RM-113 item 6: one connection per server, database and credentials per event loop,
+        # shared by every Engine (ADR-079); each Engine keeps its own key namespace. A
+        # cancelled (timed-out) open is not cached: a waiting Engine retries the build.
         async with asyncio.timeout(settings.connect_timeout_s):
-            await client.open()
+            client, ref = await acquire(
+                ctx.shared, CashewsClient, CashewsSpec(settings.url), resource_id="cache"
+            )
         # Remote operations use the explicitly configured request deadline.
         cache = CashewsCache(
             client,

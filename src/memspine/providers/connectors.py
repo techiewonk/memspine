@@ -31,13 +31,17 @@ async def acquire[C: Connector[Any]](
     *,
     resource_id: str,
     depends_on: tuple[str, ...] = (),
+    lazy: bool = False,
 ) -> tuple[C, ResourceRef]:
     """Return an opened connector for ``spec`` (shared through the registry) and the Engine's
     owned :class:`ResourceRef` whose closer releases this Engine's lease.
 
     The key holds the connector kind, its credential-free target, the auth digest and the
     effective transport knobs, never a secret. A failed open is not cached; the connector
-    closes what it opened before the error propagates."""
+    closes what it opened before the error propagates. ``lazy=True`` registers the connector
+    unopened, for connectors that open themselves on first use off the event loop (the
+    Tantivy index, whose open is file I/O deferred to the RM-74 warm-up or the first write).
+    """
     identity = connector_cls.identity(spec)
     key = resource_key(
         identity.kind, identity.key_target(), identity.knobs, scope=connector_cls.scope
@@ -45,7 +49,8 @@ async def acquire[C: Connector[Any]](
 
     async def build() -> C:
         connector = cast(Any, connector_cls)(spec)
-        await connector.open()
+        if not lazy:
+            await connector.open()
         return cast(C, connector)
 
     async def close(connector: C) -> None:

@@ -303,23 +303,47 @@ def _exists(path: str) -> bool:
     return Path(path).exists()
 
 
+#: Owner id of the migration's own provider lifecycle (no Engine, no deployment).
+_MIGRATION_OWNER = "memspine-migrate"
+#: Close deadline of the migration's provider lifecycle, in seconds.
+_MIGRATION_CLOSE_TIMEOUT_S = 30.0
+#: SQLite busy timeout of both stores (the connector default, as before the descriptor build).
+_MIGRATION_BUSY_TIMEOUT_S = 5.0
+
+
 async def migrate_sqlite(source_path: str, target_path: str) -> MigrationReport:
-    """Replay the log of the SQLite store at ``source_path`` into a fresh store at ``target_path``."""
-    from memspine.clients.sqlite import SQLiteClient, SQLiteSpec
-    from memspine.services.storage.sqlite.engine import SQLiteStorage
+    """Replay the log of the SQLite store at ``source_path`` into a fresh store at ``target_path``.
+
+    Both stores are built through the ``sqlite`` storage descriptor (RM-113 item 7), so the
+    connector, its registry sharing and its close come from the provider layer; this module
+    never constructs a client."""
+    from memspine.config.schema import EventLogConfig
+    from memspine.providers.contexts import SharedBuildContext, StorageBuildContext
+    from memspine.providers.lifecycle import ProviderLifecycleManager
+    from memspine.providers.registry import get_registry, validate_settings
 
     if _exists(target_path):
         raise RebuildUnavailableError(f"target {target_path} exists: migration needs a fresh store")
-    src_client = SQLiteClient(SQLiteSpec(source_path))
-    dst_client = SQLiteClient(SQLiteSpec(target_path))
-    await src_client.open()
-    await dst_client.open()
+    descriptor = get_registry("storage_backends").get("sqlite")
+    resources = [ProviderLifecycleManager(close_timeout_s=_MIGRATION_CLOSE_TIMEOUT_S)]
+    resources.append(ProviderLifecycleManager(close_timeout_s=_MIGRATION_CLOSE_TIMEOUT_S))
     try:
-        source = SQLiteStorage(src_client)
-        target = SQLiteStorage(dst_client)
+        stores: list[SqlStorage] = []
+        for path, manager in zip((source_path, target_path), resources, strict=True):
+            built = await descriptor.builder.build(
+                validate_settings(
+                    descriptor, {"path": path, "busy_timeout_s": _MIGRATION_BUSY_TIMEOUT_S}
+                ),
+                StorageBuildContext(
+                    SharedBuildContext(manager, _MIGRATION_OWNER, _MIGRATION_CLOSE_TIMEOUT_S),
+                    EventLogConfig(),
+                ),
+            )
+            stores.append(built.service)
+        source, target = stores
         await source.start()
         await target.start()
         return await ReplayBuilder(source, target).run()
     finally:
-        await src_client.close()
-        await dst_client.close()
+        for manager in resources:
+            await manager.close_all()

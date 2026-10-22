@@ -2,14 +2,16 @@
 
 from __future__ import annotations
 
-import os
 from hashlib import sha256
-from urllib.parse import urlsplit
+from typing import cast
 
 from pydantic import BaseModel, JsonValue
 
+from memspine.clients.neo4j import Neo4jClient, Neo4jSpec
 from memspine.config.schema.providers import LadybugSettings, SqlAdjacencySettings
+from memspine.config.schema.runtime import SharedHttpPoolConfig
 from memspine.exceptions import ConfigError
+from memspine.providers.connectors import acquire
 from memspine.providers.contexts import GraphBuildContext
 from memspine.providers.contracts import BuildResult, DependencyRequirement, ProviderRef
 from memspine.providers.placement import generation_component, host_base_path
@@ -20,46 +22,32 @@ from memspine.providers.registry import (
     records_locality,
 )
 from memspine.providers.settings import Neo4jSettings
-from memspine.providers.shared import own_shared, path_identity, resource_key
 from memspine.services.base import CapabilityManifest
 from memspine.services.graph.base import GraphStore
 
 
+def neo4j_spec(settings: Neo4jSettings, http: SharedHttpPoolConfig | None = None) -> Neo4jSpec:
+    """The Neo4j connector spec of one graph slot (pool size from the Engine's HTTP pool)."""
+    return Neo4jSpec(
+        connect_timeout_s=settings.connect_timeout_s,
+        request_timeout_s=settings.request_timeout_s,
+        url_env=settings.url_env,
+        user_env=settings.user_env,
+        password_env=settings.password_env,
+        database=settings.database,
+        max_connections=http.max_connections if http is not None else None,
+        keepalive_s=http.keepalive_s if http is not None else None,
+    )
+
+
 def _neo4j_target_identity(settings: BaseModel) -> dict[str, JsonValue]:
-    """Resolve endpoint identity without retaining credentials or raw URL data."""
+    """The connector's identity (the one parser): endpoint, auth digest and physical target,
+    without credentials or the raw URL; byte-identical to the pre-connector descriptor."""
     if not isinstance(settings, Neo4jSettings):
         raise ConfigError("Neo4j target identity received incompatible settings")
-    raw_url = os.environ.get(settings.url_env)
-    if not raw_url:
-        raise ConfigError(f"Neo4j target needs environment variable {settings.url_env}")
-    try:
-        parsed = urlsplit(raw_url)
-        hostname = parsed.hostname
-        port = parsed.port
-    except ValueError:
-        raise ConfigError("Neo4j target URL is invalid") from None
-    if not parsed.scheme or not hostname:
-        raise ConfigError("Neo4j target URL is invalid")
-    username = os.environ.get(settings.user_env) or ""
-    password = os.environ.get(settings.password_env) or ""
-    auth_material = "\0".join((username, password, parsed.username or "", parsed.password or ""))
-    auth_digest = sha256(auth_material.encode()).hexdigest()
-    return {
-        "scheme": parsed.scheme.lower(),
-        "host": hostname.lower(),
-        "port": port,
-        "database": settings.database,
-        "url_digest": sha256(raw_url.encode()).hexdigest(),
-        "auth_digest": auth_digest,
-        # Physical target identity intentionally excludes credentials and transport
-        # settings. Two roles with different keys must not mirror into one target.
-        "canonical_target": {
-            "kind": "neo4j",
-            "host": hostname.lower(),
-            "port": port or 7687,
-            "database": settings.database,
-        },
-    }
+    return cast(
+        dict[str, JsonValue], Neo4jClient.identity(neo4j_spec(settings)).descriptor_target()
+    )
 
 
 class AdjacencyBuilder:
@@ -111,32 +99,19 @@ class LadybugBuilder:
             if ctx.placement.in_memory
             else f"{host_base_path(ctx.placement, 'graph', 'ladybug')}.ladybug{generation_suffix}"
         )
-        service: LadybugGraphStore
+        client: LadybugClient
         if path == ":memory:":
             client = LadybugClient(LadybugSpec(path))
             ref = ctx.shared.resources.own(ctx.resource_id, client.close)
             await client.open()
-            service = LadybugGraphStore(client)
         else:
-
-            async def open_store() -> tuple[LadybugClient, LadybugGraphStore]:
-                opened = LadybugClient(LadybugSpec(path))
-                await opened.open()
-                return opened, LadybugGraphStore(opened)
-
-            async def close_store(handle: tuple[LadybugClient, LadybugGraphStore]) -> None:
-                await handle[0].close()
-
-            # Single-writer embedded database (ADR-079): one Database/Connection and one
-            # store (whose statement lock is a threading lock) per path per process.
-            (_client, service), ref = await own_shared(
-                ctx.shared.resources,
-                ctx.resource_id,
-                resource_key("graph.ladybug", {"path": path_identity(path)}, scope="thread"),
-                open_store,
-                close=close_store,
-                registry=ctx.shared.resource_registry(),
+            # Single-writer embedded database (ADR-079): one Database/Connection per path per
+            # process, shared through the connector registry. The connector carries the
+            # statement lock (a threading lock), so every Engine's store serialises on it.
+            client, ref = await acquire(
+                ctx.shared, LadybugClient, LadybugSpec(path), resource_id=ctx.resource_id
             )
+        service = LadybugGraphStore(client)
 
         async def probe() -> bool:
             await service.node_count()
@@ -155,7 +130,6 @@ class Neo4jBuilder:
     async def build(
         self, settings: Neo4jSettings, ctx: GraphBuildContext
     ) -> BuildResult[GraphStore]:
-        from memspine.clients.neo4j import Neo4jClient, Neo4jSpec
         from memspine.services.graph.neo4j import Neo4jGraphStore, connector_executor
 
         if not ctx.shared.owner_id:
@@ -163,21 +137,15 @@ class Neo4jBuilder:
         scope = sha256(
             f"{ctx.shared.owner_id}:{ctx.resource_id}:{ctx.generation_id}".encode()
         ).hexdigest()[:24]
-        http = ctx.shared.http_pool
-        client = Neo4jClient(
-            Neo4jSpec(
-                connect_timeout_s=settings.connect_timeout_s,
-                request_timeout_s=settings.request_timeout_s,
-                url_env=settings.url_env,
-                user_env=settings.user_env,
-                password_env=settings.password_env,
-                database=settings.database,
-                max_connections=http.max_connections if http is not None else None,
-                keepalive_s=http.keepalive_s if http is not None else None,
-            )
+        # RM-113 item 6: one driver per target, credentials and transport knobs, shared by the
+        # primary graph and the mirror of every Engine in the process (ADR-079). The executor
+        # never closes the driver; the registry closes it on the last release.
+        client, ref = await acquire(
+            ctx.shared,
+            Neo4jClient,
+            neo4j_spec(settings, ctx.shared.http_pool),
+            resource_id=ctx.resource_id,
         )
-        ref = ctx.shared.resources.own(ctx.resource_id, client.close)
-        await client.open()
         executor = connector_executor(
             client, node_label=f"MemNode_{scope}", rel_type=f"MemRel_{scope}"
         )

@@ -8,11 +8,11 @@ from typing import TYPE_CHECKING, cast
 from memspine.config import constants
 from memspine.config.schema.providers import LanceDBSettings
 from memspine.exceptions import ConfigError
+from memspine.providers.connectors import acquire
 from memspine.providers.contexts import VectorBuildContext
 from memspine.providers.contracts import BuildResult, ProviderRef
 from memspine.providers.placement import generation_component, host_base_path
 from memspine.providers.registry import VECTOR_STORES, ProviderDescriptor, placed_locality
-from memspine.providers.shared import own_shared, path_identity, resource_key
 from memspine.services.embedding.base import EmbeddingService
 from memspine.services.vector.base import VectorStore
 
@@ -48,24 +48,10 @@ class LanceDBBuilder:
             ref = ctx.shared.resources.own("vector", client.close)
             await client.open()
         else:
-
-            async def open_client() -> LanceDBClient:
-                opened = LanceDBClient(LanceDBSpec(path))
-                await opened.open()
-                return opened
-
-            async def close_client(opened: LanceDBClient) -> None:
-                await opened.close()
-
             # RM-77 (ADR-079): one connection per database path per process, so the stores of
             # every Engine on the path share its write epochs and read each other's commits.
-            client, ref = await own_shared(
-                ctx.shared.resources,
-                "vector",
-                resource_key("vector.lancedb", {"path": path_identity(path)}, scope="thread"),
-                open_client,
-                close=close_client,
-                registry=ctx.shared.resource_registry(),
+            client, ref = await acquire(
+                ctx.shared, LanceDBClient, LanceDBSpec(path), resource_id="vector"
             )
 
         def make(suffix: str = "", embedding: EmbeddingService | None = None) -> LanceDBVectorStore:

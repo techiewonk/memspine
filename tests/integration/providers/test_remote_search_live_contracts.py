@@ -10,10 +10,14 @@ import pytest
 
 from memspine.clients.opensearch import OpenSearchClient, OpenSearchSpec
 from memspine.clients.weaviate import WeaviateClient, WeaviateSpec
+from memspine.services._weaviate import (
+    LEXICAL_PROPERTIES,
+    WeaviateCollectionBinding,
+    collection_name,
+)
 from memspine.services.lexical.opensearch import OpenSearchLexical
 from memspine.services.lexical.weaviate_store import WeaviateLexicalStore
 from memspine.services.vector.weaviate_store import WeaviateVectorStore
-from memspine.services.weaviate_projection import collection_name, ensure_collection
 from memspine.store.records import MemoryRecord
 
 
@@ -104,9 +108,11 @@ async def test_weaviate_vector_and_bm25_crud_namespace_and_deployment_isolation(
     marker = uuid.uuid4().hex
     collection_id = collection_name("MemspineLive", "Both", f"contract-{marker}", "active")
     try:
-        collection = await ensure_collection(client.handle, collection_id, include_content=True)
-        lexical_left = WeaviateLexicalStore(collection, owner_id=f"left-{marker}")
-        lexical_right = WeaviateLexicalStore(collection, owner_id=f"right-{marker}")
+        binding = WeaviateCollectionBinding(collection_id, LEXICAL_PROPERTIES)
+        lexical_left = WeaviateLexicalStore(client, binding, owner_id=f"left-{marker}")
+        lexical_right = WeaviateLexicalStore(client, binding, owner_id=f"right-{marker}")
+        await lexical_left.start()
+        await lexical_right.start()
         await lexical_left.index(
             MemoryRecord(
                 record_id=f"lex-left-{marker}",
@@ -128,11 +134,13 @@ async def test_weaviate_vector_and_bm25_crud_namespace_and_deployment_isolation(
         ]
 
         vector_left = WeaviateVectorStore(
-            collection, owner_id=f"left-{marker}", embedder_id="test:2", dimension=2
+            client, binding, owner_id=f"left-{marker}", embedder_id="test:2", dimension=2
         )
         vector_right = WeaviateVectorStore(
-            collection, owner_id=f"right-{marker}", embedder_id="test:2", dimension=2
+            client, binding, owner_id=f"right-{marker}", embedder_id="test:2", dimension=2
         )
+        await vector_left.start()
+        await vector_right.start()
         await vector_left.upsert(f"vec-left-{marker}", "alpha", "test:2", [1.0, 0.0])
         await vector_right.upsert(f"vec-right-{marker}", "alpha", "test:2", [1.0, 0.0])
         assert [

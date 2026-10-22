@@ -22,10 +22,15 @@ from memspine.providers.contracts import (
     ResourceRef,
 )
 from memspine.providers.registry import LEXICAL_INDEXES, VECTOR_STORES, ProviderDescriptor
+from memspine.services._weaviate import (
+    LEXICAL_PROPERTIES,
+    VECTOR_PROPERTIES,
+    WeaviateCollectionBinding,
+    collection_name,
+)
 from memspine.services.base import CapabilityManifest
 from memspine.services.lexical.base import LexicalStore
 from memspine.services.vector.base import VectorStore
-from memspine.services.weaviate_projection import collection_name, ensure_collection
 
 if TYPE_CHECKING:
     from memspine.clients.weaviate import WeaviateClient
@@ -87,20 +92,17 @@ class WeaviateVectorBuilder:
             settings.collection_prefix, "Vector", ctx.shared.owner_id, vector_space
         )
         client, ref = await _shared_client(settings, ctx.shared, "vector")
-        collection = await ensure_collection(client.handle, name, include_content=False)
         service = WeaviateVectorStore(
-            collection,
+            client,
+            WeaviateCollectionBinding(name, VECTOR_PROPERTIES),
             owner_id=ctx.shared.owner_id,
             embedder_id=ctx.embedding.embedder_id,
             dimension=ctx.embedding.dim,
         )
+        await service.start()
 
         async def probe() -> bool:
-            return bool(
-                await client.health(settings.request_timeout_s)
-                and await client.handle.collections.exists(name)
-                and await service.exists("__memspine_health_probe__") is False
-            )
+            return await service.probe(settings.request_timeout_s)
 
         return BuildResult(
             cast(VectorStore, service),
@@ -123,15 +125,15 @@ class WeaviateLexicalBuilder:
             settings.collection_prefix, "Lexical", ctx.shared.owner_id, ctx.generation_id
         )
         client, ref = await _shared_client(settings, ctx.shared, "lexical")
-        collection = await ensure_collection(client.handle, name, include_content=True)
-        service = WeaviateLexicalStore(collection, owner_id=ctx.shared.owner_id)
+        service = WeaviateLexicalStore(
+            client,
+            WeaviateCollectionBinding(name, LEXICAL_PROPERTIES),
+            owner_id=ctx.shared.owner_id,
+        )
+        await service.start()
 
         async def probe() -> bool:
-            return bool(
-                await client.health(settings.request_timeout_s)
-                and await client.handle.collections.exists(name)
-                and await service.exists("__memspine_health_probe__") is False
-            )
+            return await service.probe(settings.request_timeout_s)
 
         return BuildResult(
             cast(LexicalStore, service),

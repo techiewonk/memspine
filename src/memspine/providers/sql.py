@@ -32,12 +32,17 @@ class ManagedSqlAccess:
         sync_engine: Engine | None = None,
         sync_resource_id: str | None = None,
         sync_factory: Callable[[], Engine] | None = None,
+        connector: object | None = None,
     ) -> None:
         if (sync_engine is None) != (sync_resource_id is None):
             raise ValueError("sync_engine and sync_resource_id are configured together")
         if (sync_engine is None) == (sync_factory is None):
             raise ValueError("configure exactly one of sync_engine or sync_factory")
         self.engine = engine
+        #: The opened SQL connector (``clients/{sqlite,postgres}``) the storage factory holds,
+        #: lent to adapters that share the database (pgvector, RM-113 item 11); never closed
+        #: here: the storage factory's registry lease owns it.
+        self.connector = connector
         self.is_memory = is_memory
         self.capabilities = capabilities
         self._checkpoint = checkpoint

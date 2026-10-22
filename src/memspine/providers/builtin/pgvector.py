@@ -1,4 +1,5 @@
-"""Built-in pgvector descriptor and storage-owned SQL lease integration."""
+"""Built-in pgvector descriptor: settings to a projection binding over the lent Postgres
+connector. The adapter owns the projection DDL (RM-113 item 11)."""
 
 from __future__ import annotations
 
@@ -6,12 +7,9 @@ import hashlib
 import json
 
 from pydantic import BaseModel, JsonValue
-from sqlalchemy import Column, Index, MetaData, String, Table, inspect, text
-from sqlalchemy.engine import Engine
 
 from memspine.config.schema.providers import PgvectorSettings
 from memspine.exceptions import ConfigError, MissingServiceError
-from memspine.providers.async_utils import run_blocking_drained
 from memspine.providers.contexts import VectorBuildContext
 from memspine.providers.contracts import (
     BuildResult,
@@ -76,105 +74,41 @@ class PgvectorBuilder:
                 "storage.vector.settings.provision_projection=true"
             )
         try:
-            from pgvector.sqlalchemy import VECTOR
+            import pgvector.sqlalchemy  # noqa: F401  # the adapter's column type
         except ImportError:
             raise MissingServiceError("vector:pgvector", "postgres") from None
+        # The records slot's opened Postgres connector (one pool per database, ADR-079): the
+        # adapter borrows it and never closes it.
+        connector = getattr(ctx.sql, "connector", None)
+        if connector is None:
+            raise ConfigError("pgvector requires the records slot's Postgres connector")
+
+        from memspine.services.vector.pgvector_store import PgVectorProjection, PgVectorStore
 
         sql_ref = ctx.shared.resources.borrow("sql")
-        lease = ctx.sql.sync_lease(ctx.shared.resources, "pgvector")
-        table_name = _table_name(ctx)
-        metadata = MetaData(schema="memspine_vectors")
-        table = Table(
-            table_name,
-            metadata,
-            Column("record_id", String(512), primary_key=True),
-            Column("namespace", String(512), nullable=False),
-            Column("embedder_id", String(512), nullable=False),
-            Column("embedding", VECTOR(ctx.embedding.dim), nullable=False),
-        )
-        if settings.namespace_index:
-            Index(f"ns_{table_name}", table.c.namespace)
-        if settings.index == "hnsw":
-            Index(
-                f"hnsw_{table_name}",
-                table.c.embedding,
-                postgresql_using="hnsw",
-                postgresql_with={
-                    "m": settings.hnsw_m,
-                    "ef_construction": settings.hnsw_ef_construction,
-                },
-                postgresql_ops={"embedding": "vector_cosine_ops"},
-            )
-
-        def initialize() -> None:
-            with lease.engine.begin() as connection:
-                has_extension = bool(
-                    connection.scalar(
-                        text("SELECT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'vector')")
-                    )
-                )
-                if not has_extension and settings.create_extension:
-                    connection.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
-                    has_extension = True
-                if not has_extension:
-                    raise ConfigError(
-                        "the selected PostgreSQL database does not have the pgvector extension; "
-                        "install it or explicitly set storage.vector.settings.create_extension=true"
-                    )
-                if settings.provision_projection:
-                    connection.execute(text("CREATE SCHEMA IF NOT EXISTS memspine_vectors"))
-            if settings.provision_projection:
-                metadata.create_all(lease.engine)
-                return
-            inspector = inspect(lease.engine)
-            if not inspector.has_table(table_name, schema="memspine_vectors"):
-                raise ConfigError(
-                    "the owned pgvector projection table is missing; explicitly set "
-                    "storage.vector.settings.provision_projection=true during operator provisioning"
-                )
-            columns = inspector.get_columns(table_name, schema="memspine_vectors")
-            by_name = {str(column["name"]): column["type"] for column in columns}
-            embedding_type = by_name.get("embedding")
-            if (
-                not {"record_id", "namespace", "embedder_id", "embedding"}.issubset(by_name)
-                or not isinstance(embedding_type, VECTOR)
-                or embedding_type.dim != ctx.embedding.dim
-            ):
-                raise ConfigError(
-                    "the existing pgvector projection table does not match the selected "
-                    "embedding schema"
-                )
-
-        await run_blocking_drained(initialize)
-
-        from memspine.services.vector.pgvector_store import PgVectorStore
-
         service = PgVectorStore(
-            lease.engine,
-            table,
+            connector,
+            PgVectorProjection(
+                table_name=_table_name(ctx),
+                dimension=ctx.embedding.dim,
+                index=settings.index,
+                hnsw_m=settings.hnsw_m,
+                hnsw_ef_construction=settings.hnsw_ef_construction,
+                hnsw_ef_search=settings.hnsw_ef_search,
+                namespace_index=settings.namespace_index,
+                provision_projection=settings.provision_projection,
+                create_extension=settings.create_extension,
+            ),
             embedder_id=ctx.embedding.embedder_id,
-            dimension=ctx.embedding.dim,
-            hnsw_ef_search=settings.hnsw_ef_search,
-            use_hnsw=settings.index == "hnsw",
         )
-
-        async def probe() -> bool:
-            return await run_blocking_drained(_probe, lease.engine, table)
-
+        await service.start()
         return BuildResult(
             service,
             ProviderRef("vector", "pgvector"),
-            (sql_ref, lease.resource),
+            (sql_ref,),
             frozenset({"vector", "namespace_filter", "erase"}),
-            health_probe=probe,
+            health_probe=service.probe,
         )
-
-
-def _probe(engine: Engine, table: Table) -> bool:
-    from sqlalchemy import select
-
-    with engine.connect() as connection:
-        return connection.execute(select(table.c.record_id).limit(0)).returns_rows
 
 
 def register() -> None:
