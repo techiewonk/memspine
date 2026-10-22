@@ -43,29 +43,29 @@ memory metadata cache, Tantivy writer heap and commit retries) moved from
 
 ## 2a. Live status by provider (updated after each merge; RM-113 row holds the evidence)
 
-Last update: 2026-10-23, after the connector merge (G, `7a7493b3`) and the models move (F, `05ef3138`); import contracts 18 kept / 0 broken.
+Last update: 2026-10-23, after the storage-slot merge (A, `28c54d8e`..`41e66f51`); import contracts 18 kept / 0 broken. In progress: WP6 locality + documents slot; RM-113 leftovers (items 6, 7, 11, 12).
 ✅ done · 🔧 in progress (agent) · ⏳ queued · ⚠️ known gap
 
 | Slot | Provider | Connector | Adapter | Factory | Status | Work |
 |---|---|---|---|---|---|---|
-| records | sqlite | ✅ `clients/sqlite` (spec, `SELECT 1`, sync engines, migration connection) | ✅ records port + conformance; Alembic over the lent connection | 🔧 slot wiring | 🔧 | A (slot) |
-| records | postgres | ✅ `clients/postgres` (spec, `SELECT 1`, sync engines, advisory lock) | ✅ records port + conformance; Alembic over the lent connection | 🔧 slot wiring | 🔧 | A |
+| records | sqlite | ✅ `clients/sqlite` (spec, `SELECT 1`, sync engines, migration connection) | ✅ records port + conformance; Alembic over the lent connection | ✅ slot wiring (A) | ✅ | — |
+| records | postgres | ✅ `clients/postgres` (spec, `SELECT 1`, sync engines, advisory lock) | ✅ records port + conformance; Alembic over the lent connection | ✅ slot wiring (A) | ✅ | A |
 | records | mongodb | ✅ `clients/mongodb` (replica-set check, `hello` health, driver vocabulary in `driver.py`) | ✅ records port, 14/14 conformance on a replica set | ⏳ registration after the slot rewrite; uv.lock refresh (RM-02) | 🔧 b41eadaf | I (RM-112) |
-| vector | lancedb | ✅ Connector + `list_tables` health | ✅ | 🔧 slot wiring | 🔧 | A |
-| vector | pgvector | ⏳ borrows the postgres connector | ⏳ DDL into the adapter | 🔧 slot wiring | ⏳ | after G/A |
+| vector | lancedb | ✅ Connector + `list_tables` health | ✅ | ✅ slot wiring (A) | ✅ | A |
+| vector | pgvector | ⏳ borrows the postgres connector | ⏳ DDL into the adapter | ✅ slot wiring (A) | ⏳ | after G/A |
 | vector | weaviate | ✅ Connector + single identity, `is_ready` health (shared with lexical/documents) | ⏳ collection binding instead of native handle (item 12) | ✅ `acquire()`, identity from the connector | ⏳ | item 12 |
-| lexical | tantivy | ✅ `clients/tantivy` (index open, mkdir, writer lock, commit+reload, searcher health) | ✅ uses the connector; RM-72 holds unchanged | 🔧 slot wiring (still shares the adapter) | 🔧 | A |
+| lexical | tantivy | ✅ `clients/tantivy` (index open, mkdir, writer lock, commit+reload, searcher health) | ✅ uses the connector; RM-72 holds unchanged | ✅ slot wiring (A) (still shares the adapter) | ✅ | A |
 | lexical | opensearch | ✅ Connector + single identity, cluster-health round trip | ✅ | ✅ `acquire()`, identity from the connector | ✅ | G (7a7493b3) |
 | lexical | weaviate | ✅ same shared Weaviate connector | ⏳ collection binding instead of native handle (item 12) | ✅ `acquire()` | ⏳ | item 12 |
-| graph | ladybug | ✅ Connector + `RETURN 1` health, shared statement lock | ✅ one port | 🔧 slot wiring | 🔧 | A |
-| graph | sql_adjacency | ✅ borrows the SQL connector | ✅ one port, SQLite + Postgres | 🔧 slot wiring | 🔧 | A |
-| graph | neo4j | ✅ Connector (spec, `RETURN 1`), no providers import; executor built adapter-side, never closes the driver | ✅ one port | 🔧 slot wiring; not yet shared (item 6) | 🔧 | A |
-| graph_mirror | neo4j | ✅ same Neo4j connector | ✅ one port | 🔧 mirror slot + capability gate | 🔧 | A |
-| cache | memory | n/a (process) | ✅ `services/cache` (F) | 🔧 slot wiring | 🔧 | F, A |
-| cache | disk | ✅ cashews Connector (spec, `get` health) | ✅ `services/cache` (F) | 🔧 slot wiring; placement under `data_dir`; not yet shared (item 6) | 🔧 | A |
-| cache | redis | ✅ cashews Connector (spec, `get` health) | ✅ `services/cache` (F) | 🔧 slot wiring; not yet shared (item 6) | 🔧 | A |
-| cache | valkey | ✅ cashews Connector (spec, `get` health) | ✅ `services/cache` (F) | 🔧 slot wiring; not yet shared (item 6) | 🔧 | A |
-| documents | filesystem | ⏳ `clients/fs` | ⏳ | ⏳ | ⏳ | after A (slot) |
+| graph | ladybug | ✅ Connector + `RETURN 1` health, shared statement lock | ✅ one port | ✅ slot wiring (A) | ✅ | A |
+| graph | sql_adjacency | ✅ borrows the SQL connector | ✅ one port, SQLite + Postgres | ✅ slot wiring (A) | ✅ | A |
+| graph | neo4j | ✅ Connector (spec, `RETURN 1`), no providers import; executor built adapter-side, never closes the driver | ✅ one port | ✅ slot wiring (A); not yet shared (item 6) | ✅ | A |
+| graph_mirror | neo4j | ✅ same Neo4j connector | ✅ one port | ✅ mirror slot + capability gate (A) | ✅ | A |
+| cache | memory | n/a (process) | ✅ `services/cache` (F) | ✅ slot wiring (A) | ✅ | F, A |
+| cache | disk | ✅ cashews Connector (spec, `get` health) | ✅ `services/cache` (F) | ✅ slot wiring (A); placement under `data_dir`; not yet shared (item 6) | ✅ | A |
+| cache | redis | ✅ cashews Connector (spec, `get` health) | ✅ `services/cache` (F) | ✅ slot wiring (A); not yet shared (item 6) | ✅ | A |
+| cache | valkey | ✅ cashews Connector (spec, `get` health) | ✅ `services/cache` (F) | ✅ slot wiring (A); not yet shared (item 6) | ✅ | A |
+| documents | filesystem | ⏳ `clients/fs` | ⏳ | ⏳ | ⏳ | after — |
 | documents | s3 | ⏳ `clients/s3` | ⏳ | ⏳ | ⏳ | RM-112 |
 | documents | mongodb | ✅ `clients/mongodb` (shared with records) | ⏳ GridFS adapter | ⏳ | ⏳ | RM-112 |
 | documents | weaviate | ⏳ shared Weaviate connector | ⏳ | ⏳ | ⏳ | RM-112 |
