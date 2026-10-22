@@ -59,12 +59,12 @@ Last update: 2026-10-23, after the storage-slot merge (A, `28c54d8e`..`41e66f51`
 | lexical | weaviate | ✅ same shared Weaviate connector | ⏳ collection binding instead of native handle (item 12) | ✅ `acquire()` | ⏳ | item 12 |
 | graph | ladybug | ✅ Connector + `RETURN 1` health, shared statement lock | ✅ one port | ✅ slot wiring (A) | ✅ | A |
 | graph | sql_adjacency | ✅ borrows the SQL connector | ✅ one port, SQLite + Postgres | ✅ slot wiring (A) | ✅ | A |
-| graph | neo4j | ✅ Connector (spec, `RETURN 1`), no providers import; executor built adapter-side, never closes the driver | ✅ one port | ✅ slot wiring (A); not yet shared (item 6) | ✅ | A |
+| graph | neo4j | ✅ Connector (spec, `RETURN 1`), no providers import; executor built adapter-side, never closes the driver | ✅ one port | ✅ slot wiring (A); not yet shared (item 6) | 🔧 item 6 (agent L) | A |
 | graph_mirror | neo4j | ✅ same Neo4j connector | ✅ one port | ✅ mirror slot + capability gate (A) | ✅ | A |
 | cache | memory | n/a (process) | ✅ `services/cache` (F) | ✅ slot wiring (A) | ✅ | F, A |
-| cache | disk | ✅ cashews Connector (spec, `get` health) | ✅ `services/cache` (F) | ✅ slot wiring (A); placement under `data_dir`; not yet shared (item 6) | ✅ | A |
-| cache | redis | ✅ cashews Connector (spec, `get` health) | ✅ `services/cache` (F) | ✅ slot wiring (A); not yet shared (item 6) | ✅ | A |
-| cache | valkey | ✅ cashews Connector (spec, `get` health) | ✅ `services/cache` (F) | ✅ slot wiring (A); not yet shared (item 6) | ✅ | A |
+| cache | disk | ✅ cashews Connector (spec, `get` health) | ✅ `services/cache` (F) | ✅ slot wiring (A); placement under `data_dir`; not yet shared (item 6) | 🔧 item 6 (agent L) | A |
+| cache | redis | ✅ cashews Connector (spec, `get` health) | ✅ `services/cache` (F) | ✅ slot wiring (A); not yet shared (item 6) | 🔧 item 6 (agent L) | A |
+| cache | valkey | ✅ cashews Connector (spec, `get` health) | ✅ `services/cache` (F) | ✅ slot wiring (A); not yet shared (item 6) | 🔧 item 6 (agent L) | A |
 | documents | filesystem | ⏳ `clients/fs` | ⏳ | ⏳ | ⏳ | after — |
 | documents | s3 | ⏳ `clients/s3` | ⏳ | ⏳ | ⏳ | RM-112 |
 | documents | mongodb | ✅ `clients/mongodb` (shared with records) | ⏳ GridFS adapter | ⏳ | ⏳ | RM-112 |
