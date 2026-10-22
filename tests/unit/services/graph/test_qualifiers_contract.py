@@ -58,10 +58,12 @@ from memspine.services.graph.qualifiers import (
 )
 from memspine.services.storage.sqlite.schema import metadata
 
-ADAPTERS = ["sqlite_adjacency", "ladybug", "neo4j_fake", "neo4j"]
+ADAPTERS = ["sql_adjacency", "sql_adjacency_postgres", "ladybug", "neo4j_fake", "neo4j"]
 LIVE_NEO4J = bool(os.environ.get("MEMSPINE_TEST_NEO4J_URL")) and (
     importlib.util.find_spec("neo4j") is not None
 )
+#: ADR-081: ``sql_adjacency`` on Postgres runs when a scratch database is given.
+PG_URL = os.environ.get("MEMSPINE_TEST_PG_URL")
 NS = "ns/q"
 
 
@@ -104,14 +106,36 @@ async def store(request: pytest.FixtureRequest) -> AsyncIterator[GraphStore]:
         await ladybug_client.connect()
         yield LadybugGraphStore(ladybug_client)
         await ladybug_client.close()
+    elif request.param == "sql_adjacency_postgres":
+        if not PG_URL or importlib.util.find_spec("psycopg") is None:
+            pytest.skip("sql_adjacency on Postgres: set MEMSPINE_TEST_PG_URL (scratch database)")
+        from sqlalchemy import delete
+
+        from memspine.clients.postgres import PostgresClient
+        from memspine.services.graph.sql_adjacency import SqlAdjacencyGraph
+        from memspine.services.storage.sqlite.schema import graph_edges, graph_nodes
+
+        pg_client = PostgresClient(PG_URL)
+        await pg_client.connect()
+        async with pg_client.engine.begin() as conn:
+            await conn.run_sync(metadata.create_all)
+            await conn.execute(delete(graph_edges))
+            await conn.execute(delete(graph_nodes))
+        try:
+            yield SqlAdjacencyGraph(pg_client)
+        finally:
+            async with pg_client.engine.begin() as conn:
+                await conn.execute(delete(graph_edges))
+                await conn.execute(delete(graph_nodes))
+            await pg_client.close()
     else:
         sqlite_client = SQLiteClient(":memory:")
         await sqlite_client.connect()
         async with sqlite_client.engine.begin() as conn:
             await conn.run_sync(metadata.create_all)
-        from memspine.services.graph.sqlite_adjacency import SQLiteAdjacencyGraph
+        from memspine.services.graph.sql_adjacency import SqlAdjacencyGraph
 
-        yield SQLiteAdjacencyGraph(sqlite_client)
+        yield SqlAdjacencyGraph(sqlite_client)
         await sqlite_client.close()
 
 

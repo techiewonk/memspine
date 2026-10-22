@@ -1,2 +1,2 @@
-"""Graph capability port (D-26): sqlite_adjacency default, ladybug [graph] engine
+"""Graph capability port (D-26): sql_adjacency default, ladybug [graph] engine
 (ADR-034)."""

@@ -19,7 +19,7 @@ def test_synthetic_graph_is_canonical_and_sized() -> None:
 
 def test_bench_size_reports_every_measurement() -> None:
     report = asyncio.run(bench_graph.bench_size(200, queries=3, ppr_queries=2, ladybug=False))
-    sqlite = report["stores"]["sqlite_adjacency"]
+    sqlite = report["stores"]["sql_adjacency"]
     assert set(sqlite["bfs"]) == {"depth_1", "depth_2", "depth_3"}
     assert sqlite["bfs"]["depth_1"]["n"] == 3
     assert report["ppr"]["n"] == 2

@@ -10,7 +10,7 @@ from alembic import command
 from sqlalchemy import create_engine, inspect, text
 
 from memspine.clients.sqlite import SQLiteClient
-from memspine.services.graph.sqlite_adjacency import SQLiteAdjacencyGraph
+from memspine.services.graph.sql_adjacency import SqlAdjacencyGraph
 from memspine.services.storage.sqlite.migrations import alembic_config, upgrade_to_head
 
 
@@ -86,7 +86,7 @@ async def test_upgrade_backfills_a_pre_kb1_graph(tmp_path: Path) -> None:
     client = SQLiteClient(db)
     await client.connect()
     try:
-        graph = SQLiteAdjacencyGraph(client)
+        graph = SqlAdjacencyGraph(client)
         assert [n.node_id for n in await graph.neighbors("r1", namespace="ns/a")] == ["r2"]
         assert [n.node_id for n in await graph.neighbors("r1", rel_type="related")] == []
     finally:
@@ -128,7 +128,7 @@ async def test_upgrade_matches_a_rebuild_for_bare_endpoints(tmp_path: Path) -> N
 
         async with client.engine.begin() as conn:
             await conn.run_sync(metadata.create_all)
-        rebuilt = SQLiteAdjacencyGraph(client)
+        rebuilt = SqlAdjacencyGraph(client)
         await rebuilt.upsert_node("r1", ["semantic"], {"namespace": "ns/b"})
         await rebuilt.upsert_edge("r1", "bare", "related", {"weight": 1.0}, namespace="ns/b")
         async with client.engine.connect() as conn:

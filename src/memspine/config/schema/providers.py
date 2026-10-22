@@ -93,7 +93,7 @@ class LadybugSettings(EmptySettings):
     pass
 
 
-class SqliteAdjacencySettings(EmptySettings):
+class SqlAdjacencySettings(EmptySettings):
     pass
 
 

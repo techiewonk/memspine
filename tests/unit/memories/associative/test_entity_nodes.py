@@ -18,7 +18,7 @@ from memspine.memories.associative.entities import (
 from memspine.memories.associative.links import RESERVED_RELS, link_event
 from memspine.memories.associative.projector import GraphProjector
 from memspine.memories.associative.store import AssociativeMemory
-from memspine.services.graph.sqlite_adjacency import SQLiteAdjacencyGraph
+from memspine.services.graph.sql_adjacency import SqlAdjacencyGraph
 from memspine.store.events import EventKind, MemoryEvent
 from memspine.store.records import MemoryRecord
 
@@ -44,7 +44,7 @@ def _forget(record: MemoryRecord) -> MemoryEvent:
     )
 
 
-async def _state(graph: SQLiteAdjacencyGraph) -> tuple[list[tuple[object, ...]], int]:
+async def _state(graph: SqlAdjacencyGraph) -> tuple[list[tuple[object, ...]], int]:
     edges = sorted((e.src, e.dst, e.rel_type, e.weight) for e in await graph.edge_list())
     return edges, await graph.node_count()
 
@@ -81,7 +81,7 @@ def test_policy_rejects_junk_names_and_honours_the_allowed_list(
 
 
 async def test_write_projects_entity_nodes_and_trust_weighted_mentions(
-    graph: SQLiteAdjacencyGraph,
+    graph: SqlAdjacencyGraph,
     make_record: Callable[..., MemoryRecord],
     write_event: Callable[..., MemoryEvent],
 ) -> None:
@@ -101,7 +101,7 @@ async def test_write_projects_entity_nodes_and_trust_weighted_mentions(
 
 
 async def test_policy_off_projects_no_entities(
-    graph: SQLiteAdjacencyGraph,
+    graph: SqlAdjacencyGraph,
     projector: GraphProjector,
     make_record: Callable[..., MemoryRecord],
     write_event: Callable[..., MemoryEvent],
@@ -111,7 +111,7 @@ async def test_policy_off_projects_no_entities(
 
 
 async def test_forget_cascades_mentions_and_orphaned_entities(
-    graph: SQLiteAdjacencyGraph,
+    graph: SqlAdjacencyGraph,
     make_record: Callable[..., MemoryRecord],
     write_event: Callable[..., MemoryEvent],
 ) -> None:
@@ -131,7 +131,7 @@ async def test_forget_cascades_mentions_and_orphaned_entities(
 
 
 async def test_rebuild_equals_incremental(
-    graph: SQLiteAdjacencyGraph,
+    graph: SqlAdjacencyGraph,
     make_record: Callable[..., MemoryRecord],
     write_event: Callable[..., MemoryEvent],
 ) -> None:
@@ -159,7 +159,7 @@ async def test_rebuild_equals_incremental(
 
 
 async def test_namespaces_get_their_own_entity_nodes(
-    graph: SQLiteAdjacencyGraph,
+    graph: SqlAdjacencyGraph,
     make_record: Callable[..., MemoryRecord],
     write_event: Callable[..., MemoryEvent],
 ) -> None:
@@ -176,7 +176,7 @@ async def test_namespaces_get_their_own_entity_nodes(
 
 
 async def test_mentions_is_a_reserved_rel(
-    graph: SQLiteAdjacencyGraph,
+    graph: SqlAdjacencyGraph,
     make_record: Callable[..., MemoryRecord],
 ) -> None:
     from assoc_helpers import FakeStorage

@@ -13,7 +13,7 @@ from memspine.memories.associative.links import (
     live_links,
     prune_weakest,
 )
-from memspine.services.graph.sqlite_adjacency import SQLiteAdjacencyGraph
+from memspine.services.graph.sql_adjacency import SqlAdjacencyGraph
 
 
 async def _fill_hub(log: EventLog, count: int) -> None:
@@ -26,7 +26,7 @@ async def _fill_hub(log: EventLog, count: int) -> None:
 
 
 async def test_budget_refuses_the_link_past_the_cap(
-    graph: SQLiteAdjacencyGraph, log: EventLog
+    graph: SqlAdjacencyGraph, log: EventLog
 ) -> None:
     await _fill_hub(log, LINK_BUDGET)
     with pytest.raises(ConflictError, match="prune_weakest"):
@@ -36,7 +36,7 @@ async def test_budget_refuses_the_link_past_the_cap(
 
 
 async def test_prune_weakest_emits_a_weight_zero_tombstone(
-    graph: SQLiteAdjacencyGraph, log: EventLog
+    graph: SqlAdjacencyGraph, log: EventLog
 ) -> None:
     await _fill_hub(log, LINK_BUDGET)
     pruned = await prune_weakest(graph, log.append, "default", "hub")
@@ -51,24 +51,20 @@ async def test_prune_weakest_emits_a_weight_zero_tombstone(
 
 
 async def test_prune_weakest_on_a_bare_node_is_none(
-    graph: SQLiteAdjacencyGraph, log: EventLog
+    graph: SqlAdjacencyGraph, log: EventLog
 ) -> None:
     assert await prune_weakest(graph, log.append, "default", "loner") is None
     assert log.events == []
 
 
-async def test_provenance_edges_are_budget_exempt(
-    graph: SQLiteAdjacencyGraph, log: EventLog
-) -> None:
+async def test_provenance_edges_are_budget_exempt(graph: SqlAdjacencyGraph, log: EventLog) -> None:
     for i in range(LINK_BUDGET + 3):
         await graph.upsert_edge("summary", f"member-{i}", "derived_from", {"weight": 1.0})
     assert live_links(await graph.edges_of("summary")) == []
     await assert_within_budget(graph, "summary")  # does not raise
 
 
-async def test_community_edges_are_budget_exempt(
-    graph: SQLiteAdjacencyGraph, log: EventLog
-) -> None:
+async def test_community_edges_are_budget_exempt(graph: SqlAdjacencyGraph, log: EventLog) -> None:
     """H1(a): reorganize membership links (rel=community) never count against
     the budget — a 20-member community keeps all 20 links (ADR-015 §2)."""
     for i in range(LINK_BUDGET + 5):
@@ -77,9 +73,7 @@ async def test_community_edges_are_budget_exempt(
     await assert_within_budget(graph, "parent")  # does not raise
 
 
-async def test_prune_never_selects_a_reserved_edge(
-    graph: SQLiteAdjacencyGraph, log: EventLog
-) -> None:
+async def test_prune_never_selects_a_reserved_edge(graph: SqlAdjacencyGraph, log: EventLog) -> None:
     """H1(c): community/derived_from edges are never prunable — the weakest
     *associative* edge goes, and a node with only reserved edges prunes None."""
     await graph.upsert_edge("hub", "parent", "community", {"weight": 0.01})

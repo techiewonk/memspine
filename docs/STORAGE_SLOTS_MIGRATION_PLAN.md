@@ -130,6 +130,12 @@ WP7 runs with WP1 so the tree stays green.
   and lexical roles. It cannot be the `records` store: it has no ordered append-only log
   and no multi-object transactions.
 
+**Contract shipped (RM-111, 2026-10-23).** The port is
+`services/storage/records_port.py` (`RecordsStore`). The conformance suite is
+`tests/unit/services/storage/test_records_conformance.py`, which runs on SQLite (memory and
+file) and on Postgres (Alembic and `create_all`). The contract text for future providers
+is `docs/RECORDS_STORE_CONTRACT.md`.
+
 Original analysis:
 
 The owner wants non-SQL data stores such as MongoDB. Two readings, possibly both:

@@ -12,24 +12,24 @@ from assoc_helpers import EventLog, FakeStorage
 
 from memspine.clients.sqlite import SQLiteClient
 from memspine.memories.associative.projector import GraphProjector
-from memspine.services.graph.sqlite_adjacency import SQLiteAdjacencyGraph
+from memspine.services.graph.sql_adjacency import SqlAdjacencyGraph
 from memspine.services.storage.sqlite.schema import metadata
 from memspine.store.events import EventKind, MemoryEvent
 from memspine.store.records import MemoryRecord
 
 
 @pytest.fixture
-async def graph() -> AsyncIterator[SQLiteAdjacencyGraph]:
+async def graph() -> AsyncIterator[SqlAdjacencyGraph]:
     client = SQLiteClient(":memory:")
     await client.connect()
     async with client.engine.begin() as conn:
         await conn.run_sync(metadata.create_all)
-    yield SQLiteAdjacencyGraph(client)
+    yield SqlAdjacencyGraph(client)
     await client.close()
 
 
 @pytest.fixture
-async def projector(graph: SQLiteAdjacencyGraph) -> GraphProjector:
+async def projector(graph: SqlAdjacencyGraph) -> GraphProjector:
     return GraphProjector(graph)
 
 

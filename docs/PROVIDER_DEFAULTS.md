@@ -14,7 +14,7 @@ For configuration paths and execution rules see [provider operations](PROVIDER_O
 | vector | <code>lancedb</code> | <code>quantization = &quot;auto&quot;</code><br><code>namespace_index = false</code><br><code>isolation = &quot;shared&quot;</code> | None |
 | vector | <code>pgvector</code> | <code>index = &quot;hnsw&quot;</code><br><code>hnsw_m = 16</code><br><code>hnsw_ef_construction = 64</code><br><code>hnsw_ef_search = 40</code><br><code>namespace_index = true</code><br><code>provision_projection = false</code><br><code>create_extension = false</code> | None |
 | vector | <code>weaviate</code> | <code>url_env = &quot;MEMSPINE_WEAVIATE_URL&quot;</code><br><code>grpc_url_env = null</code><br><code>api_key_env = null</code><br><code>collection_prefix = &quot;Memspine&quot;</code><br><code>grpc_port = 50051</code> | <code>connect_timeout_s</code>, <code>request_timeout_s</code> |
-| graph | <code>sqlite_adjacency</code> | No native options | None |
+| graph | <code>sql_adjacency</code> | No native options | None |
 | graph | <code>ladybug</code> | No native options | None |
 | graph | <code>neo4j</code> | <code>url_env = &quot;MEMSPINE_NEO4J_URL&quot;</code><br><code>user_env = &quot;MEMSPINE_NEO4J_USER&quot;</code><br><code>password_env = &quot;MEMSPINE_NEO4J_PASSWORD&quot;</code><br><code>database = &quot;neo4j&quot;</code> | <code>connect_timeout_s</code>, <code>request_timeout_s</code> |
 | lexical | <code>weaviate</code> | <code>url_env = &quot;MEMSPINE_WEAVIATE_URL&quot;</code><br><code>grpc_url_env = null</code><br><code>api_key_env = null</code><br><code>collection_prefix = &quot;Memspine&quot;</code><br><code>grpc_port = 50051</code> | <code>connect_timeout_s</code>, <code>request_timeout_s</code> |
@@ -28,7 +28,7 @@ For configuration paths and execution rules see [provider operations](PROVIDER_O
 | llm | <code>llamacpp</code> | <code>temperature = 0.8</code><br><code>top_p = 0.95</code><br><code>max_tokens = 2048</code><br><code>n_ctx = 8192</code><br><code>n_gpu_layers = 0</code><br><code>n_batch = 512</code><br><code>n_threads = null</code><br><code>no_think = null</code> | <code>model</code>, <code>timeout_seconds</code> |
 | embedding | <code>fastembed</code> | <code>model = &quot;BAAI/bge-small-en-v1.5&quot;</code><br><code>query_instruction = null</code><br><code>dim = 384</code> | None |
 | embedding | <code>hash</code> | <code>dim = 64</code> | None |
-| embedding | <code>static</code> | <code>model = &quot;minishlab/potion-base-8M&quot;</code><br><code>dim = 256</code> | None |
+| embedding | <code>static</code> | <code>model = &quot;minishlab/potion-base-8M&quot;</code><br><code>dim = 256</code><br><code>local_files_only = false</code> | None |
 | embedding | <code>litellm</code> | <code>model = &quot;openai/text-embedding-3-small&quot;</code><br><code>dim = 1536</code><br><code>api_base = null</code><br><code>api_key = null</code><br><code>aws_region = null</code><br><code>request_dimensions = false</code><br><code>query_input_type = null</code><br><code>document_input_type = null</code> | <code>request_timeout_s</code> |
 | embedding | <code>st</code> | <code>model = &quot;sentence-transformers/all-MiniLM-L6-v2&quot;</code><br><code>dim = 384</code><br><code>query_instruction = null</code><br><code>device = null</code><br><code>dtype = null</code><br><code>query_prompt_name = null</code><br><code>document_prompt_name = null</code><br><code>trust_remote_code = false</code> | None |
 | reranker | <code>fastembed</code> | <code>model = &quot;Xenova/ms-marco-MiniLM-L-6-v2&quot;</code> | None |

@@ -21,7 +21,7 @@ from memspine.memories.associative.entities import entity_node_id
 NOW = datetime(2026, 1, 1, 12, 0, tzinfo=UTC)
 
 
-def _engine(path: Path, *, graph_provider: str = "sqlite_adjacency") -> Engine:
+def _engine(path: Path, *, graph_provider: str = "sql_adjacency") -> Engine:
     return Engine(
         template="core",
         dotenv_path=None,

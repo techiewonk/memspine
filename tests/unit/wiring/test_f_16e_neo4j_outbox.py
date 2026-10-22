@@ -620,7 +620,7 @@ def _engine(*, mirror: bool = False, deployment_id: str | None = None) -> Engine
         },
         read={"record_access": False},
         graph={
-            "provider": "sqlite_adjacency",
+            "provider": "sql_adjacency",
             "settings": {},
             "mirror": {
                 "enabled": mirror,
@@ -720,7 +720,7 @@ async def test_scope_keys_flag_reaches_the_neo4j_store(monkeypatch: pytest.Monke
         memories={"semantic": {"enabled": True}, "associative": {"enabled": True}},
         read={"record_access": False},
         graph={
-            "provider": "sqlite_adjacency",
+            "provider": "sql_adjacency",
             "settings": {},
             "mirror": {
                 "enabled": True,

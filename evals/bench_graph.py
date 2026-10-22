@@ -7,7 +7,7 @@ a share ``mu`` of each node's edges leaving its community, weights 0.3-1.0),
 bulk-loads it into each graph store, and measures:
 
 * **BFS** ``neighbors(seed, depth=d)`` for d = 1..3, p50/p95 over random seeds,
-  on ``sqlite_adjacency`` and, when ``ladybug`` imports, on LadybugDB;
+  on ``sql_adjacency`` and, when ``ladybug`` imports, on LadybugDB;
 * **PPR**: ``edge_list`` export time and ``personalized_pagerank`` p50/p95;
 * **communities**: ``partition_graph`` time for Leiden (when ``[community]`` is
   installed) and LPA, community count, modularity (Leiden extra only), and
@@ -45,7 +45,7 @@ from memspine.memories.associative.communities import (
 )
 from memspine.memories.associative.ppr import personalized_pagerank
 from memspine.services.graph.base import GraphEdge, GraphStore
-from memspine.services.graph.sqlite_adjacency import SQLiteAdjacencyGraph
+from memspine.services.graph.sql_adjacency import SqlAdjacencyGraph
 from memspine.services.storage.sqlite.engine import SQLiteStorage
 from memspine.services.storage.sqlite.schema import graph_edges, graph_nodes
 
@@ -105,7 +105,7 @@ async def _timed(samples: list[float], call: Callable[[], Awaitable[Any]]) -> An
     return out
 
 
-async def _load_sqlite(tuples: list[tuple[str, str, float]]) -> tuple[SQLiteAdjacencyGraph, Any]:
+async def _load_sqlite(tuples: list[tuple[str, str, float]]) -> tuple[SqlAdjacencyGraph, Any]:
     """Bulk insert straight into the projection tables (the per-edge upsert
     path is not what is being measured here)."""
     import orjson
@@ -139,7 +139,7 @@ async def _load_sqlite(tuples: list[tuple[str, str, float]]) -> tuple[SQLiteAdja
                     for a, b, w in tuples[i : i + BATCH]
                 ],
             )
-    return SQLiteAdjacencyGraph(client), client
+    return SqlAdjacencyGraph(client), client
 
 
 async def _load_ladybug(
@@ -248,7 +248,7 @@ async def bench_size(
     try:
         export: list[float] = []
         exported = await _timed(export, lambda: sqlite_store.edge_list(NAMESPACE))
-        report["stores"]["sqlite_adjacency"] = {
+        report["stores"]["sql_adjacency"] = {
             "load_seconds": round(load, 3),
             "bfs": await _bench_bfs(sqlite_store, seeds, depths),
             "edge_list_ms": round(export[0] * 1000, 2),
@@ -310,7 +310,7 @@ def to_markdown(report: dict[str, Any]) -> str:
         "|---|---|---|---|---|---|---|---|---|---|",
     ]
     for size in report["sizes"]:
-        export = size["stores"]["sqlite_adjacency"]["edge_list_ms"]
+        export = size["stores"]["sql_adjacency"]["edge_list_ms"]
         ppr = f"{size['ppr']['p50_ms']} / {size['ppr']['p95_ms']}"
         for algorithm, row in size.get("communities", {}).items():
             lines.append(

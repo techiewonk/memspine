@@ -18,7 +18,7 @@ from memspine.derive.pipeline.stages.context import PipelineContext
 from memspine.derive.pipeline.stages.extract_graph import extract_graph
 from memspine.memories.associative.projector import GraphProjector
 from memspine.prompts.models import ExtractedEdge
-from memspine.services.graph.sqlite_adjacency import SQLiteAdjacencyGraph
+from memspine.services.graph.sql_adjacency import SqlAdjacencyGraph
 from memspine.services.storage.projector import RecordProjector
 from memspine.services.storage.sqlite.engine import SQLiteStorage
 from memspine.store.events import EventKind, MemoryEvent
@@ -35,7 +35,7 @@ def _fresh_now(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 class Harness:
-    def __init__(self, storage: SQLiteStorage, graph: SQLiteAdjacencyGraph) -> None:
+    def __init__(self, storage: SQLiteStorage, graph: SqlAdjacencyGraph) -> None:
         self.storage = storage
         self.projectors = [RecordProjector(storage), GraphProjector(graph)]
 
@@ -58,7 +58,7 @@ async def _make(
     await client.connect()
     storage = SQLiteStorage(client)
     await storage.start()
-    graph = SQLiteAdjacencyGraph(client)
+    graph = SqlAdjacencyGraph(client)
     harness = Harness(storage, graph)
 
     async def fake_extract(content: str, _context: object = None) -> list[ExtractedEdge]:

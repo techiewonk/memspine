@@ -18,13 +18,14 @@ compression (D-45/D-32), and M7 erasure all live here unchanged.
 
 from __future__ import annotations
 
+import json
 from collections.abc import Callable, Mapping, Sequence
 from datetime import UTC, datetime
-from typing import Any, Protocol
+from typing import TYPE_CHECKING, Any, Protocol
 
 import orjson
 import zstandard
-from sqlalchemy import ColumnElement, delete, func, select
+from sqlalchemy import ColumnElement, delete, func, inspect, select, text
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.ext.asyncio import AsyncEngine
@@ -41,6 +42,11 @@ from memspine.store.events import EventKind, EventLogMode, MemoryEvent, canonica
 from memspine.store.layer_classify import classify_stored_layer
 from memspine.store.records import MemoryRecord
 from memspine.trust.erasure import redact_record, scrub_partition_nodes
+
+if TYPE_CHECKING:
+    from memspine.schemas.durable.common import OwnerScope
+    from memspine.schemas.durable.lineage import LineageEdge
+    from memspine.services.storage.records_port import LeasePort, OutboxItem
 
 __all__ = ["SqlClient", "SqlStorage"]
 
@@ -127,20 +133,13 @@ class SqlStorage(ServiceAdapter):
 
     # ── event log: the single write door ─────────────────────────────────────
 
-    async def append_event(self, event: MemoryEvent) -> MemoryEvent:
-        if event.seq is not None:
-            raise StorageError("event already has a seq — events pass the write door once")
-
-        if self._mode is EventLogMode.EPHEMERAL:
-            self._ephemeral_seq += 1
-            return event.model_copy(update={"seq": self._ephemeral_seq})
-
+    def _event_insert(self, event: MemoryEvent) -> Any:
+        """The ``memory_events`` INSERT of one event (canonical, optionally zstd payload)."""
         payload = canonical_payload(event.payload)  # same encoding the fingerprint hashed
         compressed = self._compress
         if compressed:
             payload = self._cctx.compress(payload)
-
-        stmt = self._insert(memory_events).values(
+        return self._insert(memory_events).values(
             event_id=event.event_id,
             kind=event.kind.value,
             namespace=event.namespace,
@@ -151,6 +150,16 @@ class SqlStorage(ServiceAdapter):
             compressed=compressed,
             fingerprint=event.fingerprint,
         )
+
+    async def append_event(self, event: MemoryEvent) -> MemoryEvent:
+        if event.seq is not None:
+            raise StorageError("event already has a seq — events pass the write door once")
+
+        if self._mode is EventLogMode.EPHEMERAL:
+            self._ephemeral_seq += 1
+            return event.model_copy(update={"seq": self._ephemeral_seq})
+
+        stmt = self._event_insert(event)
         # Both dialects return the generated identity via RETURNING (Postgres
         # natively; SQLite via SQLAlchemy's rowid fetch) in inserted_primary_key.
         async with self._client.engine.begin() as conn:
@@ -159,6 +168,127 @@ class SqlStorage(ServiceAdapter):
         if pk is None:
             raise StorageError("insert into memory_events returned no primary key")
         return event.model_copy(update={"seq": int(pk[0])})
+
+    # ── records port (ADR-081): atomic append-plus-outbox ────────────────────
+
+    async def append_with_outbox(
+        self, event: MemoryEvent, items: Sequence[OutboxItem]
+    ) -> tuple[MemoryEvent, list[int]]:
+        """Append ``event`` and queue ``items`` (``outbox_item`` rows, the table the outbox
+        job book reads) in one transaction: a failure on any item rolls the event back.
+
+        Item offsets continue each ``(scope, stage)`` log. On Postgres a transaction-scoped
+        advisory lock per ``(scope, stage)`` serialises concurrent appenders (SQLite has one
+        writer); a conflicting offset can therefore only fail the whole commit, never
+        half-apply it."""
+        from memspine.runtime.outbox import outbox_item
+
+        if event.seq is not None:
+            raise StorageError("event already has a seq — events pass the write door once")
+        if self._mode is EventLogMode.EPHEMERAL:
+            raise StorageError("append-plus-outbox needs a persisted event log (not ephemeral)")
+        stmt = self._event_insert(event)
+        offsets: list[int] = []
+        async with self._client.engine.begin() as conn:
+            result = await conn.execute(stmt)
+            pk = result.inserted_primary_key
+            if pk is None:
+                raise StorageError("insert into memory_events returned no primary key")
+            for item in items:
+                # Encoded inside the transaction: an unencodable item rolls the event back.
+                encoded = json.dumps(dict(item.payload), default=str)
+                scope = item.scope
+                if self._is_postgres:
+                    key = (
+                        f"outbox_item:{scope.tenant}:{scope.owner}:{scope.owner_kind}:{item.stage}"
+                    )
+                    await conn.execute(
+                        text("SELECT pg_advisory_xact_lock(hashtext(:key))"), {"key": key}
+                    )
+                where = (
+                    outbox_item.c.tenant == scope.tenant,
+                    outbox_item.c.owner == scope.owner,
+                    outbox_item.c.owner_kind == scope.owner_kind,
+                    outbox_item.c.stage == item.stage,
+                )
+                top = await conn.scalar(select(func.max(outbox_item.c.item_offset)).where(*where))
+                offset = 0 if top is None else int(top) + 1
+                await conn.execute(
+                    outbox_item.insert().values(
+                        tenant=scope.tenant,
+                        owner=scope.owner,
+                        owner_kind=scope.owner_kind,
+                        stage=item.stage,
+                        item_offset=offset,
+                        payload=encoded,
+                        created_at=_iso(item.at or event.ts),
+                    )
+                )
+                offsets.append(offset)
+        return event.model_copy(update={"seq": int(pk[0])}), offsets
+
+    async def outbox_items(
+        self, scope: OwnerScope, stage: str, after: int = -1
+    ) -> list[tuple[int, dict[str, Any]]]:
+        """Queued items of ``(scope, stage)`` after offset ``after`` (ascending)."""
+        from memspine.runtime.outbox import outbox_item
+
+        stmt = (
+            select(outbox_item.c.item_offset, outbox_item.c.payload)
+            .where(
+                outbox_item.c.tenant == scope.tenant,
+                outbox_item.c.owner == scope.owner,
+                outbox_item.c.owner_kind == scope.owner_kind,
+                outbox_item.c.stage == stage,
+                outbox_item.c.item_offset > after,
+            )
+            .order_by(outbox_item.c.item_offset)
+        )
+        async with self._client.engine.connect() as conn:
+            rows = (await conn.execute(stmt)).all()
+        return [(int(row[0]), dict(json.loads(row[1]))) for row in rows]
+
+    # ── records port (ADR-081): schema version, leases, lineage ─────────────
+
+    async def schema_revision(self) -> str:
+        """The applied Alembic revision, or ``metadata`` for a ``create_all`` schema."""
+
+        def _revision(sync_conn: Any) -> str:
+            if not inspect(sync_conn).has_table("alembic_version"):
+                return "metadata"
+            value = sync_conn.execute(text("SELECT version_num FROM alembic_version")).scalar()
+            return str(value) if value else "metadata"
+
+        async with self._client.engine.connect() as conn:
+            return await conn.run_sync(_revision)
+
+    def leases(self) -> LeasePort:  # pragma: no cover - overridden
+        """The lease table of this store (subclass-supplied: it needs a sync connection)."""
+        raise NotImplementedError
+
+    async def add_lineage(self, edges: Sequence[LineageEdge], namespace: str | None = None) -> int:
+        from memspine.store.lineage import add_edges
+
+        return await add_edges(self._client.engine, edges, namespace)
+
+    async def lineage_parents(
+        self, child_ids: Sequence[str], roles: Sequence[str] | None = None
+    ) -> dict[str, list[LineageEdge]]:
+        from memspine.store.lineage import parents_of
+
+        return await parents_of(self._client.engine, child_ids, roles)
+
+    async def lineage_children(
+        self, parent_ids: Sequence[str], roles: Sequence[str] | None = None
+    ) -> dict[str, list[LineageEdge]]:
+        from memspine.store.lineage import children_of
+
+        return await children_of(self._client.engine, parent_ids, roles)
+
+    async def delete_lineage(self, edges: Sequence[LineageEdge]) -> int:
+        from memspine.store.lineage import delete_edges
+
+        return await delete_edges(self._client.engine, edges)
 
     async def read_events(self, after_seq: int = 0, limit: int = 1000) -> list[MemoryEvent]:
         if self._mode is EventLogMode.EPHEMERAL:

@@ -23,7 +23,7 @@ from memspine.derive.pipeline.stages.context import PipelineContext
 from memspine.derive.pipeline.stages.index import SessionIndex
 from memspine.memories.associative.communities import PartitionResult, communities_available
 from memspine.memories.associative.projector import GraphProjector
-from memspine.services.graph.sqlite_adjacency import SQLiteAdjacencyGraph
+from memspine.services.graph.sql_adjacency import SqlAdjacencyGraph
 from memspine.services.storage.projector import RecordProjector
 from memspine.services.storage.sqlite.engine import SQLiteStorage
 from memspine.store.events import EventKind, MemoryEvent
@@ -40,7 +40,7 @@ def _fresh_now(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 class Harness:
-    def __init__(self, storage: SQLiteStorage, graph: SQLiteAdjacencyGraph) -> None:
+    def __init__(self, storage: SQLiteStorage, graph: SqlAdjacencyGraph) -> None:
         self.storage = storage
         self.projectors = [RecordProjector(storage), GraphProjector(graph)]
 
@@ -52,12 +52,12 @@ class Harness:
             await self.storage.set_offset(projector.name, appended.seq)
 
 
-async def make_ctx() -> tuple[PipelineContext, Harness, SQLiteAdjacencyGraph]:
+async def make_ctx() -> tuple[PipelineContext, Harness, SqlAdjacencyGraph]:
     client = SQLiteClient(":memory:")
     await client.connect()
     storage = SQLiteStorage(client)
     await storage.start()
-    graph = SQLiteAdjacencyGraph(client)
+    graph = SqlAdjacencyGraph(client)
     harness = Harness(storage, graph)
     ctx = PipelineContext(
         storage=storage,

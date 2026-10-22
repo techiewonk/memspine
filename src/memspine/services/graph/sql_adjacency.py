@@ -1,9 +1,18 @@
-"""Zero-dep graph fallback: adjacency lists in SQLite — the DEFAULT provider (D-26).
+"""Zero-dep graph fallback: adjacency lists in the SQL records database (D-26).
 
 LadybugDB is the graph engine for graph features (ADR-034); this adapter keeps
-shallow associative graphs on the same SQLite database as everything else, with
-no extra install (D-03 slim core). Like every derived store it is a rebuildable
+shallow associative graphs on the same SQL database as everything else (SQLite
+or Postgres; ADR-081 renamed it from ``sqlite_adjacency``), with no extra
+install (D-03 slim core). Like every derived store it is a rebuildable
 projection (D0.1): ``clear()`` + replay reproduces it from ``memory_events``.
+
+Dialects. The statements are the same on both; only three spellings differ and
+are chosen from the bound engine's dialect: the upsert construct (``INSERT ...
+ON CONFLICT`` from ``sqlalchemy.dialects.{sqlite,postgresql}``), the JSON array
+of ids (``json_each`` vs ``jsonb_array_elements_text``), and the recursive step.
+Postgres allows only one reference to the recursive CTE in its recursive term,
+so both edge directions of a step are one ``LATERAL`` union instead of two
+recursive selects (same index seeks).
 
 KB-2: a multi-hop walk is ONE recursive-CTE query (not a query per node). The
 CTE walks an undirected view of the live edges (``weight > 0``) of one
@@ -12,8 +21,8 @@ neighbours (a correlated ``ORDER BY weight DESC, other LIMIT k``, served by the
 ``(namespace, src|dst, weight)`` indexes), which is exactly the rule of
 :func:`~memspine.services.graph.base.capped_neighbors`.
 
-Consumes an injected :class:`SQLiteClient` (D-22/D-24) — this service never
-opens a connection itself.
+Consumes an injected SQL client (D-22/D-24) — this service never opens a
+connection itself.
 """
 
 from __future__ import annotations
@@ -45,7 +54,7 @@ from memspine.services.graph.qualifiers import (
 )
 from memspine.services.storage.sqlite.schema import graph_edges, graph_nodes
 
-__all__ = ["SQLiteAdjacencyGraph"]
+__all__ = ["SqlAdjacencyGraph"]
 
 
 class _SqlEngineAccess(Protocol):
@@ -82,7 +91,54 @@ def _live(alias: str, namespace: str | None, rel_type: str | None) -> str:
     return " AND ".join(where)
 
 
-def _walk_sql(namespace: str | None, rel_type: str | None, max_degree: int | None) -> str:
+def _ids(param: str, pg: bool) -> str:
+    """A ``FROM`` source yielding one ``value`` row per id of the ``:param`` json array."""
+    if pg:
+        return f"jsonb_array_elements_text(CAST(:{param} AS jsonb)) AS {param}_ids(value)"
+    return f"json_each(:{param})"
+
+
+def _walk_sql(
+    namespace: str | None, rel_type: str | None, max_degree: int | None, pg: bool = False
+) -> str:
+    """The walk prefix for the bound dialect (see :func:`_walk_sql_sqlite` and
+    :func:`_walk_sql_pg`); callers append the final ``SELECT``."""
+    if pg:
+        return _walk_sql_pg(namespace, rel_type, max_degree)
+    return _walk_sql_sqlite(namespace, rel_type, max_degree)
+
+
+def _walk_sql_pg(namespace: str | None, rel_type: str | None, max_degree: int | None) -> str:
+    """The Postgres form of :func:`_walk_sql_sqlite`: the same walk, one recursive
+    reference. Each frontier node's incident live edges (both directions) are one
+    ``LATERAL`` union of two index seeks; with ``max_degree`` that union is ranked
+    ``MAX(weight) DESC, other`` and cut at ``k`` inside the lateral subquery. Ids
+    compare bytewise (``COLLATE "C"``), the order SQLite uses."""
+    live = _live("c", namespace, rel_type)
+    incident = (
+        f"SELECT c.dst AS other, c.weight AS weight FROM graph_edges c "
+        f"WHERE c.src = w.node AND {live} "
+        f"UNION ALL SELECT c.src, c.weight FROM graph_edges c "
+        f"WHERE c.dst = w.node AND {live}"
+    )
+    if max_degree is not None:
+        step = (
+            f"SELECT other FROM ({incident}) u GROUP BY other "
+            'ORDER BY MAX(weight) DESC, other COLLATE "C" LIMIT :max_degree'
+        )
+    else:
+        step = incident
+    return (
+        "WITH RECURSIVE "
+        "walk(node, depth) AS ("
+        f"SELECT CAST(value AS VARCHAR), 0 FROM {_ids('seeds', True)} "
+        f"UNION SELECT j.other, w.depth + 1 FROM walk w CROSS JOIN LATERAL ({step}) j "
+        "WHERE w.depth < :depth), "
+        "hops(node, hops) AS (SELECT node, MIN(depth) FROM walk GROUP BY node) "
+    )
+
+
+def _walk_sql_sqlite(namespace: str | None, rel_type: str | None, max_degree: int | None) -> str:
     """The recursive-CTE BFS prefix: ``walk(node, depth)`` from the ``:seeds`` json
     array and ``hops(node, hops)``, the hop count from the nearest seed; callers
     append the final ``SELECT``.
@@ -152,12 +208,26 @@ def _subgraph_rows(namespace: str | None) -> str:
     )
 
 
-class SQLiteAdjacencyGraph:
+class SqlAdjacencyGraph:
     #: RM-41: typed edge qualifiers ride in the properties JSON; filtered walks supported.
     supports_qualifier_filters = True
 
     def __init__(self, client: _SqlEngineAccess) -> None:
         self._client = client
+
+    @property
+    def _pg(self) -> bool:
+        return self._client.engine.dialect.name == "postgresql"
+
+    def _insert(self, table: Any) -> Any:
+        """The upsert-capable INSERT of the bound dialect (same shape on both)."""
+        if self._pg:
+            from sqlalchemy.dialects.postgresql import insert as pg_insert
+
+            return pg_insert(table)
+        from sqlalchemy.dialects.sqlite import insert as sqlite_insert
+
+        return sqlite_insert(table)
 
     async def upsert_node(
         self,
@@ -167,15 +237,14 @@ class SQLiteAdjacencyGraph:
         *,
         namespace: str | None = None,
     ) -> None:
-        from sqlalchemy.dialects.sqlite import insert as sqlite_insert
-
+        upsert = self._insert
         values = {
             "labels": orjson.dumps(list(labels)),
             "properties": orjson.dumps(dict(properties or {})),
             "namespace": edge_namespace(namespace, properties),
             "kind": labels[0] if labels else None,
         }
-        stmt = sqlite_insert(graph_nodes).values(node_id=node_id, **values)
+        stmt = upsert(graph_nodes).values(node_id=node_id, **values)
         stmt = stmt.on_conflict_do_update(index_elements=["node_id"], set_=values)
         async with self._client.engine.begin() as conn:
             await conn.execute(stmt)
@@ -189,10 +258,9 @@ class SQLiteAdjacencyGraph:
         *,
         namespace: str | None = None,
     ) -> None:
-        from sqlalchemy.dialects.sqlite import insert as sqlite_insert
-
+        upsert = self._insert
         props = sanitize_qualifiers(
-            properties, src=src, dst=dst, rel_type=rel_type, provider="sqlite_adjacency"
+            properties, src=src, dst=dst, rel_type=rel_type, provider="sql_adjacency"
         )
         ns = edge_namespace(namespace, None)
         empty = {"labels": orjson.dumps([]), "properties": orjson.dumps({}), "namespace": ns}
@@ -202,7 +270,7 @@ class SQLiteAdjacencyGraph:
             "weight": edge_weight(props),
             "kind": edge_kind(props),
         }
-        edge_stmt = sqlite_insert(graph_edges).values(src=src, dst=dst, rel_type=rel_type, **values)
+        edge_stmt = upsert(graph_edges).values(src=src, dst=dst, rel_type=rel_type, **values)
         edge_stmt = edge_stmt.on_conflict_do_update(index_elements=_EDGE_KEY, set_=values)
         async with self._client.engine.begin() as conn:
             # Endpoints are implicitly created bare (port contract): link
@@ -210,7 +278,7 @@ class SQLiteAdjacencyGraph:
             # an existing node's labels/properties are untouched.
             for endpoint in (src, dst):
                 await conn.execute(
-                    sqlite_insert(graph_nodes)
+                    upsert(graph_nodes)
                     .values(node_id=endpoint, **empty)
                     .on_conflict_do_nothing(index_elements=["node_id"])
                 )
@@ -236,7 +304,7 @@ class SQLiteAdjacencyGraph:
             params["rel_type"] = rel_type
         if max_degree is not None:
             params["max_degree"] = max(max_degree, 0)
-        sql = text(_walk_sql(namespace, rel_type, max_degree) + select)
+        sql = text(_walk_sql(namespace, rel_type, max_degree, self._pg) + select)
         async with self._client.engine.connect() as conn:
             return list((await conn.execute(sql, params)).all())
 
@@ -285,11 +353,12 @@ class SQLiteAdjacencyGraph:
         if rel_type is not None:
             params["rel_type"] = rel_type
         live = _live("e", namespace, rel_type)
+        ids = _ids("frontier", self._pg)
         sql = text(
             "SELECT e.src, e.dst, e.rel_type, e.properties FROM graph_edges e "
-            f"WHERE e.src IN (SELECT value FROM json_each(:frontier)) AND {live} "
+            f"WHERE e.src IN (SELECT value FROM {ids}) AND {live} "
             "UNION SELECT e.src, e.dst, e.rel_type, e.properties FROM graph_edges e "
-            f"WHERE e.dst IN (SELECT value FROM json_each(:frontier)) AND {live}"
+            f"WHERE e.dst IN (SELECT value FROM {ids}) AND {live}"
         )
         async with self._client.engine.connect() as conn:
             rows = (await conn.execute(sql, params)).all()
@@ -316,7 +385,7 @@ class SQLiteAdjacencyGraph:
             return []
         sql = text(
             "SELECT n.node_id, n.labels, n.properties FROM graph_nodes n "
-            "WHERE n.node_id IN (SELECT value FROM json_each(:ids))"
+            f"WHERE n.node_id IN (SELECT value FROM {_ids('ids', self._pg)})"
         )
         async with self._client.engine.connect() as conn:
             rows = (await conn.execute(sql, {"ids": orjson.dumps(list(hops)).decode()})).all()
@@ -433,7 +502,7 @@ class SQLiteAdjacencyGraph:
             await conn.execute(delete(graph_nodes))
 
     async def close(self) -> None:
-        """No-op: the injected SQLiteClient owns the connection (D-24)."""
+        """No-op: the injected SQL client owns the connection (D-24)."""
 
     @staticmethod
     def _edge_select() -> Any:

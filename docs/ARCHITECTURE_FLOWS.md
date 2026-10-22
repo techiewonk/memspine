@@ -675,7 +675,7 @@ Condensed **input → stage chain → output** per engine. Full cross-matrix: [`
 
 | Path | Input | Stages (package) | Output |
 |------|-------|------------------|--------|
-| **Write** | `content`, `memory_type`, namespace | firewall (internal) → dedup/conflict (datasketch, fastembed) → event_append (sqlalchemy) → embed (lancedb) → graph_project (sqlite_adjacency) | `MemoryRecord` + events |
+| **Write** | `content`, `memory_type`, namespace | firewall (internal) → dedup/conflict (datasketch, fastembed) → event_append (sqlalchemy) → embed (lancedb) → graph_project (sql_adjacency) | `MemoryRecord` + events |
 | **Read** | `query`, namespace | embed (fastembed) → vector (lancedb) → [bm25 FTS5] → [rrf_fuse] → [rerank] → reinforce (RETRIEVE event) → assemble (MMR) | `(MemoryRecord, score)[]`, `AssembledContext` |
 | **Sleep** | namespace scope | consolidate → reorganize (graspologic) → check_watches → decay_sweep → compress (zstandard) | pipeline stats |
 

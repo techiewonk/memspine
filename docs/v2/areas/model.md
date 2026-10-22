@@ -69,7 +69,7 @@ Record (one shape, all layers)
 
 StorageProfile (embedded | server)
   log: EventLog; records: RecordProjection; vectors: VectorProjection; lexical: LexicalProjection;
-  graph: GraphProjection    # embedded: Ladybug | sqlite_adjacency ; server: pg_tables | neo4j (optional)
+  graph: GraphProjection    # embedded: Ladybug | sql_adjacency ; server: pg_tables | neo4j (optional)
 
 GraphProjection (existing GraphStore protocol, services/graph/base.py:88, extended)
   apply(event) ; neighbours(node, scope, depth) ; erase(source_ids) ; rebuild(from_offset) ; scope_check()
@@ -393,7 +393,7 @@ GraphProjection (existing GraphStore protocol, services/graph/base.py:88, extend
   holds), M-25 / G-13 (erasure must reach the graph backend; holds if the tests are kept), W-10 (graph
   via outbox; holds), G-23 (ADR-064 default; holds). Only M-04 must be revisited.
 - **Where**: `config/schema.py:173-186` (GraphConfig), `services/graph/base.py:88` (GraphStore),
-  `services/graph/ladybug.py`, `sqlite_adjacency.py`, `neo4j.py:16-18` (stub) -> v2 `GraphProjection`.
+  `services/graph/ladybug.py`, `sql_adjacency.py`, `neo4j.py:16-18` (stub) -> v2 `GraphProjection`.
 - **Depends on / affects**: M-04, M-16; M-19, R-09, R-08, O-16, O-17.
 - **Migration**: none (default unchanged); graph rebuilt by replay into the new edge model.
 - **Test or gate**: per-backend isolation, erasure and rebuild tests; Ladybug crash probes rerun on each

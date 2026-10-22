@@ -27,7 +27,7 @@ from memspine.services.storage.sqlite.schema import metadata
 from memspine.store.events import EventKind, MemoryEvent
 from memspine.store.records import MemoryRecord
 
-ADAPTERS = ["sqlite_adjacency", "ladybug"]
+ADAPTERS = ["sql_adjacency", "ladybug"]
 
 
 @pytest.fixture(params=ADAPTERS)
@@ -46,9 +46,9 @@ async def store(request: pytest.FixtureRequest) -> AsyncIterator[GraphStore]:
         await sqlite_client.connect()
         async with sqlite_client.engine.begin() as conn:
             await conn.run_sync(metadata.create_all)
-        from memspine.services.graph.sqlite_adjacency import SQLiteAdjacencyGraph
+        from memspine.services.graph.sql_adjacency import SqlAdjacencyGraph
 
-        yield SQLiteAdjacencyGraph(sqlite_client)
+        yield SqlAdjacencyGraph(sqlite_client)
         await sqlite_client.close()
 
 

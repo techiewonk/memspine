@@ -23,6 +23,9 @@ _PG_MODULES = (
     "test_f16f_matrix",
     "test_ex1a_server",
     "test_pgvector_contract",
+    "test_qualifiers_contract",  # sql_adjacency on Postgres (ADR-081)
+    "test_records_conformance",  # records port on Postgres (ADR-081)
+    "test_graph_auto_pin",
 )
 _PG_LIVE_ONLY_TESTS = {
     "test_provider_live_contracts": frozenset({"test_postgres_storage_contract"}),

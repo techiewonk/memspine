@@ -265,7 +265,7 @@ truth. Startup selects the configured adapter; existing data needs a controlled 
 |------------|-----------|---------|
 | SQL storage / event log | `storage.provider` | `sqlite` (default) · `postgres` `[postgres]` (ADR-025) |
 | Vector | `vector.provider` | `lancedb` (implemented) · Weaviate future adapter |
-| Graph | `graph.provider` | `auto` chooses a compatible local graph · `sqlite_adjacency` · `ladybug` `[graph]` · direct `neo4j` `[neo4j]` (real-server gate pending) |
+| Graph | `graph.provider` | `auto` chooses a compatible local graph · `sql_adjacency` · `ladybug` `[graph]` · direct `neo4j` `[neo4j]` (real-server gate pending) |
 | Cache / KV | `cache.provider` | `memory` (default) · `disk` · `redis` · `valkey` (external caches need `[cache]`) |
 | Lexical (hybrid leg) | `read.lexical_provider` | `tantivy` (core); future OpenSearch / Weaviate adapters |
 | Embedding | `embedding.provider` | `fastembed` (default) · `hash` · `static` `[static]` · `litellm` (cloud; `dim` required) |

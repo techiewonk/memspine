@@ -261,7 +261,7 @@ def _check_same_hits(
 # ---------------------------------------------------------------------------- loaders
 async def sqlite_store(data: list[tuple[str, str, str, dict[str, Any]]], path: Path) -> Any:
     from memspine.clients.sqlite import SQLiteClient
-    from memspine.services.graph.sqlite_adjacency import SQLiteAdjacencyGraph
+    from memspine.services.graph.sql_adjacency import SqlAdjacencyGraph
     from memspine.services.storage.sqlite.schema import graph_edges, graph_nodes, metadata
 
     client = SQLiteClient(str(path))
@@ -285,7 +285,7 @@ async def sqlite_store(data: list[tuple[str, str, str, dict[str, Any]]], path: P
         ]
         for i in range(0, len(rows), 10_000):
             await conn.execute(graph_edges.insert(), rows[i : i + 10_000])
-    return SQLiteAdjacencyGraph(client), client.close
+    return SqlAdjacencyGraph(client), client.close
 
 
 async def ladybug_store(data: list[tuple[str, str, str, dict[str, Any]]], path: Path) -> Any:
@@ -391,7 +391,7 @@ async def main() -> None:
     parser.add_argument("--seed", type=int, default=96)
     parser.add_argument("--out", type=Path, default=OUT)
     parser.add_argument("--task", default="RM-104")
-    parser.add_argument("--backends", default="sqlite_adjacency,ladybug,neo4j")
+    parser.add_argument("--backends", default="sql_adjacency,ladybug,neo4j")
     args = parser.parse_args()
 
     started = time.perf_counter()
@@ -401,7 +401,7 @@ async def main() -> None:
     hubs = max(1, args.nodes // 100)
     seeds = [_node(rng.randrange(hubs, args.nodes)) for _ in range(5)] + [_node(0)]
 
-    loaders: dict[str, Callable[..., Awaitable[Any]]] = {"sqlite_adjacency": sqlite_store}
+    loaders: dict[str, Callable[..., Awaitable[Any]]] = {"sql_adjacency": sqlite_store}
     skipped: dict[str, str] = {}
     if importlib.util.find_spec("ladybug") is not None:
         loaders["ladybug"] = ladybug_store

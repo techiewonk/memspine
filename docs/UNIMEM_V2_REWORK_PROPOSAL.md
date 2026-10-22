@@ -29,7 +29,7 @@ Continues the numbering of `memspine-structure-plan.md` (which locks D-01…D-25
 
 | # | Decision | Locked value | Tier | Slot |
 |---|----------|--------------|------|------|
-| **D-26** | Embedded graph store | **LadybugDB default** (pinned fork); **kuzu** first-class alt adapter; `sqlite_adjacency` zero-dep fallback | DF | `services/graph/` |
+| **D-26** | Embedded graph store | **LadybugDB default** (pinned fork); **kuzu** first-class alt adapter; `sql_adjacency` zero-dep fallback | DF | `services/graph/` |
 | **D-27** | Dedup engine | **datasketch MinHash-LSH** stage-1 candidate gen → embedding-cosine stage-2 confirm | QW | `policies/dedup.py` (M5) |
 | **D-28** | Local entity extraction | **gliner2** CPU NER behind a config flag; LLM extraction is the default fallback | DF | `memories/semantic/entities.py` (M13.3) |
 | **D-29** | Multi-format ingest / chunking | **markitdown** (doc→text) + **chonkie** (chunking) under a `[ingest]` extra | QW | write-path `extract→chunk` (P1) |

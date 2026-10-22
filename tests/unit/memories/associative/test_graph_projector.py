@@ -6,13 +6,13 @@ from collections.abc import Callable
 
 from memspine.memories.associative.links import link_event
 from memspine.memories.associative.projector import GraphProjector
-from memspine.services.graph.sqlite_adjacency import SQLiteAdjacencyGraph
+from memspine.services.graph.sql_adjacency import SqlAdjacencyGraph
 from memspine.store.events import EventKind, MemoryEvent
 from memspine.store.records import MemoryRecord
 
 
 async def test_write_projects_one_node_per_record(
-    graph: SQLiteAdjacencyGraph,
+    graph: SqlAdjacencyGraph,
     projector: GraphProjector,
     make_record: Callable[..., MemoryRecord],
     write_event: Callable[..., MemoryEvent],
@@ -24,7 +24,7 @@ async def test_write_projects_one_node_per_record(
 
 
 async def test_consolidation_and_reflection_payloads_project_derived_from(
-    graph: SQLiteAdjacencyGraph,
+    graph: SqlAdjacencyGraph,
     projector: GraphProjector,
     make_record: Callable[..., MemoryRecord],
     write_event: Callable[..., MemoryEvent],
@@ -55,7 +55,7 @@ async def test_consolidation_and_reflection_payloads_project_derived_from(
 
 
 async def test_link_events_project_weighted_edges_idempotently(
-    graph: SQLiteAdjacencyGraph, projector: GraphProjector
+    graph: SqlAdjacencyGraph, projector: GraphProjector
 ) -> None:
     event = link_event("default", "a", "b", "related", weight=0.8, reason="manual")
     await projector.apply(event)
@@ -67,7 +67,7 @@ async def test_link_events_project_weighted_edges_idempotently(
 
 
 async def test_forget_deletes_the_node_and_every_touching_edge(
-    graph: SQLiteAdjacencyGraph,
+    graph: SqlAdjacencyGraph,
     projector: GraphProjector,
     make_record: Callable[..., MemoryRecord],
     write_event: Callable[..., MemoryEvent],
@@ -84,7 +84,7 @@ async def test_forget_deletes_the_node_and_every_touching_edge(
 
 
 async def test_reset_clears_the_projection_for_rebuild(
-    graph: SQLiteAdjacencyGraph,
+    graph: SqlAdjacencyGraph,
     projector: GraphProjector,
     make_record: Callable[..., MemoryRecord],
     write_event: Callable[..., MemoryEvent],

@@ -17,7 +17,7 @@ from memspine.store.records import SourceInfo
 _AUTO_GRAPH = (
     "LadybugGraphStore"
     if __import__("importlib.util").util.find_spec("ladybug") is not None
-    else "SQLiteAdjacencyGraph"
+    else "SqlAdjacencyGraph"
 )
 
 

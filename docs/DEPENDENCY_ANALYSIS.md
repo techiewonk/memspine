@@ -7,7 +7,7 @@
 > measurements and DBOS comparisons below are historical, not current setup instructions.
 
 
-**Status:** Evidence document · Generated 2026-07-07 from a code-level scan of every dependency manifest (`pyproject.toml`, `requirements*.txt`, `package.json`) across the repos in `D:\mem`. **Last manifest refresh:** 2026-07-07 · **Flow/taxonomy comparison refresh:** 2026-07-10 pass #3–#4 — see [`ECOSYSTEM_COMPARISON.md`](./ECOSYSTEM_COMPARISON.md) §3.10–§3.14 (**§3.12 = complete package union**) and [`exports/ECOSYSTEM_PACKAGE_ADOPTION.csv`](./exports/ECOSYSTEM_PACKAGE_ADOPTION.csv). **LadybugDB note (D-26):** ladybug v0.18.0 published PyPI 2026-07-01; memspine ships `services/graph/ladybug.py` adapter; config default remains `sqlite_adjacency`. **Vector note (ADR-021):** LanceDB is core-only; SQLite brute-force vector fallback removed.
+**Status:** Evidence document · Generated 2026-07-07 from a code-level scan of every dependency manifest (`pyproject.toml`, `requirements*.txt`, `package.json`) across the repos in `D:\mem`. **Last manifest refresh:** 2026-07-07 · **Flow/taxonomy comparison refresh:** 2026-07-10 pass #3–#4 — see [`ECOSYSTEM_COMPARISON.md`](./ECOSYSTEM_COMPARISON.md) §3.10–§3.14 (**§3.12 = complete package union**) and [`exports/ECOSYSTEM_PACKAGE_ADOPTION.csv`](./exports/ECOSYSTEM_PACKAGE_ADOPTION.csv). **LadybugDB note (D-26):** ladybug v0.18.0 published PyPI 2026-07-01; memspine ships `services/graph/ladybug.py` adapter; config default remains `sql_adjacency`. **Vector note (ADR-021):** LanceDB is core-only; SQLite brute-force vector fallback removed.
 **Purpose:** (1) inventory what every repo actually depends on, (2) say what each notable package *does*, (3) map it to *where it slots into `memspine`* (§ references are to `memspine-structure-plan.md`), and (4) flag **advanced packages worth adopting** that the current blueprint does not yet name.
 **How to read the "memspine slot" column:** ✅ already the blueprint default · ➕ candidate to adopt (new) · 🔁 prod swap-in stub already reserved · 🧪 research/eval only · ➖ out of scope.
 
@@ -99,7 +99,7 @@ Each row is a concrete proposal with a default recommendation. These feed the en
 
 | ID | Package(s) | Where in memspine | Recommendation | Rationale |
 |----|-----------|---------------------|----------------|-----------|
-| **A1** | **kuzu** | `services/graph/kuzu.py` | **Adopt as default embedded graph**; keep LadybugDB as an alt, sqlite_adjacency as zero-dep fallback | Embedded, Cypher, columnar, actively maintained; chosen by both graphiti and cognee. Removes the risk of depending on a *pinned fork* (D-09) for the graph headline. |
+| **A1** | **kuzu** | `services/graph/kuzu.py` | **Adopt as default embedded graph**; keep LadybugDB as an alt, sql_adjacency as zero-dep fallback | Embedded, Cypher, columnar, actively maintained; chosen by both graphiti and cognee. Removes the risk of depending on a *pinned fork* (D-09) for the graph headline. |
 | **A2** | **datasketch** (MinHash/LSH) | `policies/dedup.py` (M5) | **Adopt** as the scale pre-filter stage-1 (LSH) before cosine stage-2 | Two-stage detect (M5) needs an O(1) candidate generator; MinHash-LSH is the proven one (MemOS pref-mem). |
 | **A3** | **gliner2** (or spaCy) | `memories/semantic/entities.py` (M13.3) | **Adopt gliner2** behind a config flag for local NER; LLM extraction stays the default fallback | Entity resolution before conflict detection is on the hot write path; a CPU NER pass avoids an LLM call per write. graphiti ships it as an extra. |
 | **A4** | **chonkie** | write-path `extract→chunk` (P1) | **Adopt** as the chunker (extra `[ingest]`) | Purpose-built, fast, pluggable strategies; avoids hand-rolling root-child chunking. |
@@ -134,7 +134,7 @@ These are the code-level decisions the scan surfaces, written in the memspine de
 
 | # | Decision | Proposed value (pending your confirmation) |
 |---|----------|--------------------------------------------|
-| D-26 | Embedded graph store | **kuzu** default (`[graph]`), LadybugDB alt, sqlite_adjacency fallback |
+| D-26 | Embedded graph store | **kuzu** default (`[graph]`), LadybugDB alt, sql_adjacency fallback |
 | D-27 | Dedup engine | **datasketch MinHash-LSH** stage-1 + embedding cosine stage-2 (M5) |
 | D-28 | Local entity extraction | **gliner2** behind flag; LLM extraction default fallback (M13.3) |
 | D-29 | Multi-format ingest / chunk | **markitdown + chonkie** under `[ingest]` extra (P1) |

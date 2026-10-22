@@ -135,7 +135,7 @@ class _AliasedBuilder:
 
 def _register_fake_graph(name: str) -> ProviderDescriptor:
     registry = get_registry("graph_stores")
-    base = registry.get("sqlite_adjacency")
+    base = registry.get("sql_adjacency")
     descriptor = ProviderDescriptor(
         ProviderRef("graph", name),
         base.settings_model,

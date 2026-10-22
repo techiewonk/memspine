@@ -53,7 +53,7 @@ vector:
     quantization: auto   # the default embedder declares none -> exact float32
 
 graph:
-  provider: sqlite_adjacency   # zero-dep default (D-26/D-49); legal here only
+  provider: sql_adjacency   # zero-dep default (D-26/D-49); legal here only
                                # because associative memory is enabled below
 
 cache:

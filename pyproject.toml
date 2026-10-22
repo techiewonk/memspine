@@ -38,7 +38,7 @@ dependencies = [
 # NOTE(ADR-034): ladybug (the maintained, MIT-licensed Kùzu fork; Kùzu itself was
 # archived on 2025-10-10) is the graph engine for graph features. Pinned to one
 # minor: the embedded storage format and Cypher surface move between minors.
-# ``graph.provider`` still defaults to sqlite_adjacency (D-03 slim core).
+# ``graph.provider`` still defaults to sql_adjacency (D-03 slim core).
 graph      = ["ladybug>=0.21.2,<0.22"]                 # embedded Cypher graph engine (D-26, ADR-034)
 cache      = ["cashews[redis,diskcache]>=7.6.0"]       # unified disk + redis/valkey cache (D-09, ADR-022)
 ingest     = ["markitdown>=0.1.8", "chonkie>=1.7.0"]    # multi-format ingest + chunking (D-29)

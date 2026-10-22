@@ -28,6 +28,7 @@ __all__ = [
     "KINDS",
     "LEXICAL_INDEXES",
     "LLM_PROVIDERS",
+    "RENAMED_PROVIDERS",
     "RERANKERS",
     "STORAGE_BACKENDS",
     "VECTOR_STORES",
@@ -38,6 +39,7 @@ __all__ = [
     "provider_kinds",
     "provider_projection_settings",
     "provider_target_identity",
+    "renamed_provider_message",
 ]
 
 # Plugin extensions which are not providers continue to use this same registry owner.
@@ -67,6 +69,24 @@ KIND_TO_CATEGORY: dict[str, Category] = {
     "rerankers": "reranker",
 }
 _CATEGORY_TO_KIND = {category: kind for kind, category in KIND_TO_CATEGORY.items()}
+
+#: Renamed built-in providers (registry kind -> old name -> new name). There is no alias
+#: (ADR-068): the old name is rejected with an error that names the new one.
+RENAMED_PROVIDERS: Mapping[str, Mapping[str, str]] = MappingProxyType(
+    {"graph_stores": MappingProxyType({"sqlite_adjacency": "sql_adjacency"})}  # ADR-081
+)
+
+
+def renamed_provider_message(kind: str, name: str) -> str | None:
+    """The rejection text for a renamed provider name, or None when ``name`` was not renamed."""
+    new = RENAMED_PROVIDERS.get(kind, {}).get(name)
+    if new is None:
+        return None
+    category = KIND_TO_CATEGORY.get(kind, kind)
+    return (
+        f"{category} provider {name!r} was renamed to {new!r} (ADR-081; no alias): "
+        f"set the provider to {new!r}"
+    )
 
 
 class ProviderRegistryError(ConfigError):
@@ -135,6 +155,9 @@ class Registry[T]:
         except KeyError:
             if default:
                 return cast(T, default[0])
+            renamed = renamed_provider_message(self.kind, name)
+            if renamed is not None:
+                raise UnknownProviderError(renamed) from None
             raise UnknownProviderError(
                 f"unknown {self.kind} provider {name!r} (valid: {', '.join(self._items)})"
             ) from None

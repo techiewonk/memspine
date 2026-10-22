@@ -8,7 +8,7 @@ recursive patterns ``-[*1..k]-``), pinned to ``ladybug>=0.21,<0.22``. The releas
 history this adapter was written against: 0.18.0 (2026-07-01, first PyPI
 release) through 0.21.2 (2026-10-01).
 
-``graph.provider`` still defaults to ``sqlite_adjacency`` (zero-dep, D-03 slim
+``graph.provider`` still defaults to ``sql_adjacency`` (zero-dep, D-03 slim
 core); ADR-034 records that LadybugDB is the engine graph features build on,
 without flipping the default.
 

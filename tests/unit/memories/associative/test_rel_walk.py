@@ -9,12 +9,12 @@ from assoc_helpers import EventLog, FakeStorage
 
 from memspine.memories.associative.links import link_event
 from memspine.memories.associative.store import AssociativeMemory
-from memspine.services.graph.sqlite_adjacency import SQLiteAdjacencyGraph
+from memspine.services.graph.sql_adjacency import SqlAdjacencyGraph
 from memspine.store.records import MemoryRecord
 
 
 @pytest.fixture
-def memory(storage: FakeStorage, graph: SQLiteAdjacencyGraph, log: EventLog) -> AssociativeMemory:
+def memory(storage: FakeStorage, graph: SqlAdjacencyGraph, log: EventLog) -> AssociativeMemory:
     return AssociativeMemory(storage, graph, log.append)
 
 

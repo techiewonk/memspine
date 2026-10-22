@@ -11,7 +11,7 @@ from assoc_helpers import EventLog, FakeStorage
 
 from memspine.exceptions import ConfigError
 from memspine.memories.associative.store import AssociativeMemory
-from memspine.services.graph.sqlite_adjacency import SQLiteAdjacencyGraph
+from memspine.services.graph.sql_adjacency import SqlAdjacencyGraph
 from memspine.services.vector.base import VectorHit
 
 
@@ -56,7 +56,7 @@ async def _chain(storage: FakeStorage, memory: AssociativeMemory, n: int) -> lis
 
 
 async def test_ppr_is_the_default_strategy(
-    storage: FakeStorage, graph: SQLiteAdjacencyGraph, log: EventLog
+    storage: FakeStorage, graph: SqlAdjacencyGraph, log: EventLog
 ) -> None:
     memory = _mem(storage, graph, log)
     ids = await _chain(storage, memory, 3)  # a-b-c
@@ -67,7 +67,7 @@ async def test_ppr_is_the_default_strategy(
 
 
 async def test_bfs_strategy_walks_by_hops(
-    storage: FakeStorage, graph: SQLiteAdjacencyGraph, log: EventLog
+    storage: FakeStorage, graph: SqlAdjacencyGraph, log: EventLog
 ) -> None:
     memory = _mem(storage, graph, log, policies={"related": {"strategy": "bfs", "depth": 1}})
     ids = await _chain(storage, memory, 3)  # a-b-c
@@ -77,7 +77,7 @@ async def test_bfs_strategy_walks_by_hops(
 
 
 async def test_rrf_fuses_graph_and_vector_ranks(
-    storage: FakeStorage, graph: SQLiteAdjacencyGraph, log: EventLog
+    storage: FakeStorage, graph: SqlAdjacencyGraph, log: EventLog
 ) -> None:
     ids_holder: list[str] = []
     memory = _mem(
@@ -96,7 +96,7 @@ async def test_rrf_fuses_graph_and_vector_ranks(
 
 
 async def test_rrf_falls_back_to_ppr_without_vector(
-    storage: FakeStorage, graph: SQLiteAdjacencyGraph, log: EventLog
+    storage: FakeStorage, graph: SqlAdjacencyGraph, log: EventLog
 ) -> None:
     memory = _mem(storage, graph, log, policies={"related": {"strategy": "rrf"}})
     ids = await _chain(storage, memory, 3)
@@ -106,7 +106,7 @@ async def test_rrf_falls_back_to_ppr_without_vector(
 
 
 async def test_call_arg_overrides_policy_strategy(
-    storage: FakeStorage, graph: SQLiteAdjacencyGraph, log: EventLog
+    storage: FakeStorage, graph: SqlAdjacencyGraph, log: EventLog
 ) -> None:
     memory = _mem(storage, graph, log, policies={"related": {"strategy": "ppr"}})
     ids = await _chain(storage, memory, 3)
@@ -116,7 +116,7 @@ async def test_call_arg_overrides_policy_strategy(
 
 
 async def test_unknown_strategy_is_a_config_error(
-    storage: FakeStorage, graph: SQLiteAdjacencyGraph, log: EventLog
+    storage: FakeStorage, graph: SqlAdjacencyGraph, log: EventLog
 ) -> None:
     memory = _mem(storage, graph, log)
     ids = await _chain(storage, memory, 2)

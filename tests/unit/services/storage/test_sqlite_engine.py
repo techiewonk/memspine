@@ -201,7 +201,7 @@ async def test_baseline_creates_working_graph_tables(tmp_path: Path) -> None:
     SQLite adjacency adapter round-trips against them (functional proof, not just
     DDL presence). The incremental 0003/0005 column-backfill tests were retired
     with the migration chain — a fresh baseline creates every column at once."""
-    from memspine.services.graph.sqlite_adjacency import SQLiteAdjacencyGraph
+    from memspine.services.graph.sql_adjacency import SqlAdjacencyGraph
 
     db = tmp_path / "fresh.db"
     upgrade_to_head(db)
@@ -209,7 +209,7 @@ async def test_baseline_creates_working_graph_tables(tmp_path: Path) -> None:
     client = SQLiteClient(db)
     await client.connect()
     try:
-        graph = SQLiteAdjacencyGraph(client)
+        graph = SqlAdjacencyGraph(client)
         await graph.upsert_node("m1", labels=["memory"], properties={"kind": "fact"})
         await graph.upsert_edge("m1", "m2", "related", {"weight": 0.8})
         assert await graph.node_count() == 2  # m2 implicitly created

@@ -14,7 +14,7 @@ errors.py            from exceptions.py
 schemas/             versioned Pydantic I/O types of every pipeline step; JSON Schema export (MOD-01)
 store/               truth and projections: records, envelope, scope, keys, events (+upcasters), log, lineage,
                      registry (cardinality), layers (LayerRegistry), projections/, backends/ (sqlite+alembic,
-                     postgres+alembic, lancedb, tantivy, ladybug, sqlite_adjacency, neo4j), profiles, migrate, export
+                     postgres+alembic, lancedb, tantivy, ladybug, sql_adjacency, neo4j), profiles, migrate, export
 ingest/              D: envelope (SourceEnvelope, Receipt), stamp, roles, commit, write, segment, assets
 derive/              online + offline: extract, ground, resolve, integrate, graph (edge compiler), temporal,
                      session (call 2), scheduler, job, stages/ (O-04 order)

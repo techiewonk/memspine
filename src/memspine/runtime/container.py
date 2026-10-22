@@ -109,17 +109,18 @@ from memspine.providers.registry import (
     LLM_PROVIDERS as PROVIDER_LLM_PROVIDERS,
 )
 from memspine.providers.registry import (
+    RENAMED_PROVIDERS,
+    ProviderDescriptor,
+    get_registry,
+    validate_settings,
+)
+from memspine.providers.registry import (
     STORAGE_BACKENDS as PROVIDER_STORAGE_BACKENDS,
 )
 from memspine.providers.registry import (
     VECTOR_STORES as PROVIDER_VECTOR_STORES,
 )
-from memspine.providers.registry import (
-    ProviderDescriptor,
-    get_registry,
-    validate_settings,
-)
-from memspine.providers.selection import select_provider
+from memspine.providers.selection import ProviderSelectionError, select_provider
 from memspine.providers.shared import ResourceRegistry, RetentionPolicy, shared_registry
 from memspine.runtime.outbox import SqlJobStore
 from memspine.runtime.runner import InlineRunner as OutboxRunner
@@ -161,6 +162,7 @@ __all__ = [
     "preflight_projection_bindings",
     "prewarm_provider_imports",
     "request_scope",
+    "resolve_graph_pin",
 ]
 
 _log = get_logger(__name__)
@@ -470,6 +472,12 @@ class Wiring:
     retention_token: int | None = None
     #: RM-78: True when ``registry`` belongs to this Engine alone
     private_registry: bool = False
+    #: ADR-081: the provider ``graph.provider: auto`` is pinned to (read from the graph
+    #: projector binding, or the first resolution). None before the preflight ran.
+    graph_pin: str | None = None
+    #: ADR-081: category -> (pinned, now resolved) when ``auto`` would resolve differently
+    #: today; reported, never applied (an explicit provider change is required).
+    provider_drift: dict[str, tuple[str, str]] = field(default_factory=dict)
 
     async def release_registry(self) -> None:
         """Withdraw this Engine's retention policy; a private registry also closes the weights
@@ -950,20 +958,77 @@ async def build_lexical_store(
     return cast(LexicalStore, result.service)
 
 
-def _graph_descriptor(config: MemspineConfig, wiring: Wiring) -> ProviderDescriptor:
+_GRAPH_REQUIRED = frozenset({"graph", "namespace_filter", "erase"})
+
+
+def _graph_auto_descriptor(config: MemspineConfig, wiring: Wiring) -> ProviderDescriptor:
+    """What ``graph.provider`` resolves to right now (``auto``: ladybug when installed,
+    else ``sql_adjacency`` on a SQLite or Postgres records store)."""
     available_capabilities = wiring.sql.capabilities if wiring.sql is not None else frozenset()
     eligible_names = frozenset({"ladybug"})
-    if "sql.sqlite" in available_capabilities:
-        eligible_names |= {"sqlite_adjacency"}
+    if {"sql.sqlite", "sql.postgres"} & available_capabilities:
+        eligible_names |= {"sql_adjacency"}
     selection = select_provider(
         "graph",
         config.graph.provider,
-        required_capabilities=frozenset({"graph", "namespace_filter", "erase"}),
-        preferred_names=("ladybug", "sqlite_adjacency"),
+        required_capabilities=_GRAPH_REQUIRED,
+        preferred_names=("ladybug", "sql_adjacency"),
         eligible_names=eligible_names,
         available_capabilities=available_capabilities,
     )
     return selection.descriptor
+
+
+def _graph_descriptor(config: MemspineConfig, wiring: Wiring) -> ProviderDescriptor:
+    """The graph provider to build. ``auto`` is resolved once and pinned (ADR-081): with a
+    pin (``wiring.graph_pin``, from the graph projector binding) the pinned provider is
+    selected explicitly, and a different resolution today is recorded in
+    ``wiring.provider_drift`` and logged as a required provider change, never applied."""
+    pinned = wiring.graph_pin if config.graph.provider == "auto" else None
+    if pinned is None:
+        return _graph_auto_descriptor(config, wiring)
+    available_capabilities = wiring.sql.capabilities if wiring.sql is not None else frozenset()
+    descriptor = select_provider(
+        "graph",
+        pinned,
+        required_capabilities=_GRAPH_REQUIRED,
+        available_capabilities=available_capabilities,
+    ).descriptor
+    try:
+        resolved = _graph_auto_descriptor(config, wiring).ref.name
+    except ProviderSelectionError:
+        resolved = pinned
+    if resolved != pinned and wiring.provider_drift.get("graph") != (pinned, resolved):
+        wiring.provider_drift["graph"] = (pinned, resolved)
+        _log.warning(
+            "provider.auto_pin_drift",
+            category="graph",
+            pinned=pinned,
+            resolved=resolved,
+            action="graph.provider auto stays pinned; switching needs an explicit provider change",
+        )
+    return descriptor
+
+
+async def resolve_graph_pin(config: MemspineConfig, wiring: Wiring) -> str | None:
+    """ADR-081: pin ``graph.provider: auto`` to the provider recorded in the graph projector
+    binding of this deployment, or to today's resolution when there is no binding yet (the
+    binding preflight then records it). A binding written before the ``sql_adjacency``
+    rename is adopted under the new name. Returns the pin (None when not ``auto``)."""
+    from memspine.providers.projection_bindings import SqlProjectionBindingStore
+
+    if config.graph.provider != "auto":
+        return None
+    if wiring.sql is None or wiring.owner_id is None:
+        raise ConfigError("graph auto pinning requires started SQL and deployment identity")
+    bound = await SqlProjectionBindingStore(wiring.sql.engine).bound_provider(
+        wiring.owner_id, "graph"
+    )
+    if bound is None:
+        wiring.graph_pin = _graph_auto_descriptor(config, wiring).ref.name
+    else:
+        wiring.graph_pin = RENAMED_PROVIDERS["graph_stores"].get(bound, bound)
+    return wiring.graph_pin
 
 
 async def preflight_projection_bindings(
@@ -1003,6 +1068,7 @@ async def preflight_projection_bindings(
             )
         )
     if "associative" in enabled:
+        await resolve_graph_pin(config, wiring)  # ADR-081: auto resolves once, then pinned
         graph_descriptor = _graph_descriptor(config, wiring)
         candidates.append(("graph", "graph", graph_descriptor, config.graph.settings))
         if neo4j_outbox_on(config):
@@ -1060,6 +1126,14 @@ async def preflight_projection_bindings(
 
     binding_store = SqlProjectionBindingStore(wiring.sql.engine)
     for binding in bindings:
+        if binding.projector_name == "graph" and binding.provider.startswith(
+            "graph:sql_adjacency:"
+        ):
+            # ADR-081: a binding recorded under the old name is the same target (the graph
+            # tables of the records database); adopt it under the new name, once.
+            await binding_store.adopt_renamed_provider(
+                binding, "graph:sqlite_adjacency:" + binding.provider.rsplit(":", 1)[1]
+            )
         await binding_store.ensure(binding)
 
 
@@ -1081,9 +1155,9 @@ async def build_graph_store(config: MemspineConfig, wiring: Wiring) -> GraphStor
     route = wiring.projection_routes.get("graph")
     if route is not None and descriptor.ref.name != route.provider:
         raise ConfigError("graph.provider does not match its verified switch target")
-    if route is not None and descriptor.ref.name == "sqlite_adjacency":
+    if route is not None and descriptor.ref.name == "sql_adjacency":
         raise ConfigError(
-            "controlled graph switching is unsupported for sqlite_adjacency because it shares the authoritative SQL database"
+            "controlled graph switching is unsupported for sql_adjacency because it shares the authoritative SQL database"
         )
     settings = _settings(descriptor, config.graph.settings)
     context = GraphBuildContext(

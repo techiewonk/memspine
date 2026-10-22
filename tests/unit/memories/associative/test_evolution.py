@@ -8,7 +8,7 @@ from assoc_helpers import EventLog, FakeStorage
 
 from memspine.config.constants import EVOLUTION_LINK_MIN_SIMILARITY
 from memspine.memories.associative.evolution import propose_links
-from memspine.services.graph.sqlite_adjacency import SQLiteAdjacencyGraph
+from memspine.services.graph.sql_adjacency import SqlAdjacencyGraph
 from memspine.services.vector.base import VectorHit
 from memspine.store.events import EventKind, MemoryEvent
 from memspine.store.records import MemoryRecord, RecordStatus
@@ -23,7 +23,7 @@ def _write(record: MemoryRecord) -> MemoryEvent:
 
 
 async def test_proposes_links_for_similar_neighbours_bounded(
-    graph: SQLiteAdjacencyGraph,
+    graph: SqlAdjacencyGraph,
     log: EventLog,
     storage: FakeStorage,
     make_record: Callable[..., MemoryRecord],
@@ -53,7 +53,7 @@ async def test_proposes_links_for_similar_neighbours_bounded(
 
 
 async def test_gates_skip_unqualified_neighbours(
-    graph: SQLiteAdjacencyGraph,
+    graph: SqlAdjacencyGraph,
     log: EventLog,
     storage: FakeStorage,
     make_record: Callable[..., MemoryRecord],
@@ -86,7 +86,7 @@ async def test_gates_skip_unqualified_neighbours(
 
 
 async def test_existing_partners_are_not_relinked(
-    graph: SQLiteAdjacencyGraph,
+    graph: SqlAdjacencyGraph,
     log: EventLog,
     storage: FakeStorage,
     make_record: Callable[..., MemoryRecord],
@@ -106,7 +106,7 @@ async def test_existing_partners_are_not_relinked(
 
 
 async def test_neighbours_at_budget_are_skipped_not_errors(
-    graph: SQLiteAdjacencyGraph,
+    graph: SqlAdjacencyGraph,
     log: EventLog,
     storage: FakeStorage,
     make_record: Callable[..., MemoryRecord],

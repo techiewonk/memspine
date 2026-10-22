@@ -131,7 +131,7 @@ async def test_primary_graph_and_lexical_health_results_keep_distinct_ids(tmp_pa
         embedding={"provider": "hash", "settings": {}},
         cache={"provider": "memory", "settings": {}},
         memories={"associative": {"enabled": True}},
-        graph={"provider": "sqlite_adjacency", "settings": {}},
+        graph={"provider": "sql_adjacency", "settings": {}},
     )
     await engine.start()
     try:
@@ -146,7 +146,7 @@ async def test_primary_graph_and_lexical_health_results_keep_distinct_ids(tmp_pa
 @pytest.mark.asyncio
 async def test_startup_failure_closes_already_built_providers(tmp_path: Path) -> None:
     engine = _engine(tmp_path / "startup-cleanup.db")
-    engine._overrides["graph"] = {"provider": "sqlite_adjacency", "settings": {}}
+    engine._overrides["graph"] = {"provider": "sql_adjacency", "settings": {}}
 
     with pytest.raises(ConfigError, match="graph configured but memories.associative not enabled"):
         await engine.start()

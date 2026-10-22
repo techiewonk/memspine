@@ -37,7 +37,7 @@ flowchart TB
     RP["Record / Relational<br/>SQLite"]
     VP["Vector<br/>LanceDB"]
     LP["Lexical<br/>Tantivy BM25"]
-    GP["Graph<br/>sqlite_adjacency"]
+    GP["Graph<br/>sql_adjacency"]
     CP["Cache<br/>LMDB"]
   end
 

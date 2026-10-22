@@ -46,20 +46,18 @@ async def test_associative_memory_enables_the_default_graph_store() -> None:
         expected = (
             "LadybugGraphStore"
             if importlib.util.find_spec("ladybug") is not None
-            else "SQLiteAdjacencyGraph"
+            else "SqlAdjacencyGraph"
         )
         assert world["graph"] == expected
     finally:
         await eng.stop()
 
 
-async def test_explicit_sqlite_adjacency_is_still_honoured() -> None:
-    eng = _engine(
-        memories={"associative": {"enabled": True}}, graph={"provider": "sqlite_adjacency"}
-    )
+async def test_explicit_sql_adjacency_is_still_honoured() -> None:
+    eng = _engine(memories={"associative": {"enabled": True}}, graph={"provider": "sql_adjacency"})
     await eng.start()
     try:
-        assert eng.describe()["graph"] == "SQLiteAdjacencyGraph"
+        assert eng.describe()["graph"] == "SqlAdjacencyGraph"
     finally:
         await eng.stop()
 
@@ -67,7 +65,7 @@ async def test_explicit_sqlite_adjacency_is_still_honoured() -> None:
 async def test_explicit_graph_config_without_associative_is_a_config_error() -> None:
     """A graph store no projector ever writes is a dead handle — refuse the
     config loudly instead of constructing it (M6, P6 review)."""
-    eng = _engine(graph={"provider": "sqlite_adjacency"})
+    eng = _engine(graph={"provider": "sql_adjacency"})
     with pytest.raises(ConfigError, match=r"memories\.associative not enabled"):
         await eng.start()
 

@@ -179,7 +179,7 @@ async def test_engine_builds_selected_remote_vector_and_lexical_providers(tmp_pa
             },
         },
         cache={"provider": "memory", "settings": {}},
-        graph={"provider": "sqlite_adjacency", "settings": {}},
+        graph={"provider": "sql_adjacency", "settings": {}},
         read={
             "lexical_provider": "opensearch",
             "lexical_settings": {

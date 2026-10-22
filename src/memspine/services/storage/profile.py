@@ -77,7 +77,7 @@ EMBEDDED = StorageProfile(
     outbox="sqlite",
     vector="lancedb",
     lexical="tantivy",
-    graph="auto(ladybug|sqlite_adjacency)",
+    graph="auto(ladybug|sql_adjacency)",
     migration_tree=_STORAGE / "sqlite" / "alembic",
 )
 
@@ -90,7 +90,7 @@ SERVER = StorageProfile(
     outbox="postgres",
     vector="pgvector|lancedb",
     lexical="tantivy",
-    graph="sqlite_adjacency(postgres)",
+    graph="sql_adjacency(postgres)",
     migration_tree=_STORAGE / "postgres" / "alembic",
     notes=(
         "vector: pgvector is used when the package is installed, otherwise the LanceDB service",

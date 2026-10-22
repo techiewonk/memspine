@@ -13443,7 +13443,7 @@
     "provider": "neo4j",
     "settings": {}
    },
-   "provider": "sqlite_adjacency",
+   "provider": "sql_adjacency",
    "settings": {}
   },
   "ingest": {

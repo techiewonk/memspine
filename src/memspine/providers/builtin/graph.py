@@ -8,7 +8,7 @@ from urllib.parse import urlsplit
 
 from pydantic import BaseModel, JsonValue
 
-from memspine.config.schema.providers import LadybugSettings, SqliteAdjacencySettings
+from memspine.config.schema.providers import LadybugSettings, SqlAdjacencySettings
 from memspine.exceptions import ConfigError
 from memspine.providers.contexts import GraphBuildContext
 from memspine.providers.contracts import BuildResult, DependencyRequirement, ProviderRef
@@ -59,18 +59,20 @@ def _neo4j_target_identity(settings: BaseModel) -> dict[str, JsonValue]:
 
 class AdjacencyBuilder:
     async def build(
-        self, settings: SqliteAdjacencySettings, ctx: GraphBuildContext
+        self, settings: SqlAdjacencySettings, ctx: GraphBuildContext
     ) -> BuildResult[GraphStore]:
-        from memspine.services.graph.sqlite_adjacency import SQLiteAdjacencyGraph
+        from memspine.services.graph.sql_adjacency import SqlAdjacencyGraph
 
-        if ctx.sql is None or "sql.sqlite" not in ctx.sql.capabilities:
-            raise ConfigError("sqlite_adjacency requires a compatible SQLite SQL capability")
+        if ctx.sql is None or not ({"sql.sqlite", "sql.postgres"} & ctx.sql.capabilities):
+            raise ConfigError(
+                "sql_adjacency requires a compatible SQL records store (SQLite or Postgres)"
+            )
         if ctx.generation_id != "active":
             raise ConfigError(
-                "controlled graph switching is unsupported for sqlite_adjacency because it shares the authoritative SQL database"
+                "controlled graph switching is unsupported for sql_adjacency because it shares the authoritative SQL database"
             )
         ref = ctx.shared.resources.borrow("sql")
-        service = SQLiteAdjacencyGraph(ctx.sql)
+        service = SqlAdjacencyGraph(ctx.sql)
 
         async def probe() -> bool:
             await service.node_count()
@@ -78,7 +80,7 @@ class AdjacencyBuilder:
 
         return BuildResult(
             service,
-            ProviderRef("graph", "sqlite_adjacency"),
+            ProviderRef("graph", "sql_adjacency"),
             (ref,),
             frozenset({"graph", "namespace_filter", "erase", "qualifier_filter"}),
             health_probe=probe,
@@ -190,8 +192,8 @@ class Neo4jBuilder:
 def register() -> None:
     for name, model, builder, requirements, capabilities in (
         (
-            "sqlite_adjacency",
-            SqliteAdjacencySettings,
+            "sql_adjacency",
+            SqlAdjacencySettings,
             AdjacencyBuilder(),
             (),
             {"graph", "namespace_filter", "erase", "qualifier_filter"},

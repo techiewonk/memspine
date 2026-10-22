@@ -332,7 +332,7 @@ note = await engine.reflect("windows builds are flaky", [a.record_id, b.record_i
 chunks = await engine.ingest("docs/runbook.md", namespace="ops")
 ```
 
-**Associative — link + graph recall** *(uses the core `sqlite_adjacency` graph)*
+**Associative — link + graph recall** *(uses the core `sql_adjacency` graph)*
 ```python
 await engine.associate(a.record_id, b.record_id, namespace="dev", rel="related")
 neighbours = await engine.related(a.record_id, namespace="dev", k=10)                  # PPR default
@@ -403,7 +403,7 @@ flowchart TB
         KV["KV cache"]
     end
     subgraph BK["🔌 Backends"]
-        B["LanceDB · Tantivy · ladybug / sqlite_adjacency · SQLite · cashews"]
+        B["LanceDB · Tantivy · ladybug / sql_adjacency · SQLite · cashews"]
     end
     API --> COG --> STORE --> BK
 
@@ -426,7 +426,7 @@ Every capability is a port. The engine plans against capabilities, degrades grac
 | Capability | 🟢 Default *(embedded, offline)* | 🚀 Swap-in *(config alone)* |
 |------------|----------------------------------|-----------|
 | **Vector** | **LanceDB** *(core, ADR-021)* | Weaviate `[weaviate]` · pgvector `[postgres]` *(ADR-069)* |
-| **Graph** | **`sqlite_adjacency`** *(zero-dep)* · **ladybug** with `[graph]` | Direct Neo4j `[neo4j]` |
+| **Graph** | **`sql_adjacency`** *(zero-dep)* · **ladybug** with `[graph]` | Direct Neo4j `[neo4j]` |
 | **Cache / KV** | in-process KV *(core)* · cashews **disk** with `[cache]` | Redis / Valkey via `cache.provider` + `[cache]` *(ADR-022)* |
 | **Relational / event log** | **SQLite** (SQLAlchemy Core + Alembic) | **PostgreSQL** `[postgres]` *(ADR-025)* |
 | **Embeddings** | **fastembed** (ONNX, CPU) · `hash` for tests · model2vec `[static]` | **LiteLLM** cloud (OpenAI / Bedrock / …) via `embedding.provider: litellm` *(ADR-024)* |

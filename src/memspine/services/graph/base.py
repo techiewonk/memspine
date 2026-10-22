@@ -225,7 +225,7 @@ async def walk_neighbors(
 
 
 #: GR-3 (graph engine plan 2026-10-08): the node property holding an entity's embedding
-#: on adapters without a native vector column (sqlite_adjacency), and its source text.
+#: on adapters without a native vector column (sql_adjacency), and its source text.
 ENTITY_VECTOR_PROP = "_entity_vec"
 ENTITY_TEXT_PROP = "_entity_text"
 

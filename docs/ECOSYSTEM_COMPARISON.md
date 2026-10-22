@@ -264,7 +264,7 @@ Full per-repo flow corrections: [`ARCHITECTURE_FLOWS.md`](./ARCHITECTURE_FLOWS.m
 | Row | MS | CG | GT | M0 | MO | HN | OM | RM | UM | LM | PM | MB | MM | LM2 | AM | EO | HS | SM |
 |-----|----|----|----|----|----|----|----|----|-----|----|----|----|----|-----|----|----|----|-----|
 | Vector default | ✅ **LanceDB core** (sole backend) | ✅ LanceDB | 🔶 embeddings on graph | 🔶 15+ backends | ✅ Qdrant/Milvus/tree Neo4j | 🔶 **pgvector default** | 🔶 brute-force SQLite | 🔶 local numpy (FAISS opt) | backend-specific | ✅ Qdrant | ✅ OceanBase/pgvector | 🔶 Neo4j embed | ✅ Qdrant/**sqlite_vector_store** | host store | ✅ ChromaDB | ✅ LanceDB | ✅ pgvector | ✅ LanceDB |
-| Graph default | ✅ sqlite_adjacency; ladybug/kuzu extras | ✅ **kuzu** (embedded default) | ✅ Neo4j/kuzu | ❌ **removed v3** | ✅ neo4j tree | ❌ | 🔶 waypoints | 🔶 neo4j opt | ❌ neo4j extra | 🔶 FluxMem stub | ✅ OceanBase graph | ✅ Neo4j SoT | ✅ Neo4j episodic | ❌ | 🔶 link metadata | 🔶 | ✅ link tables | ❌ |
+| Graph default | ✅ sql_adjacency; ladybug/kuzu extras | ✅ **kuzu** (embedded default) | ✅ Neo4j/kuzu | ❌ **removed v3** | ✅ neo4j tree | ❌ | 🔶 waypoints | 🔶 neo4j opt | ❌ neo4j extra | 🔶 FluxMem stub | ✅ OceanBase graph | ✅ Neo4j SoT | ✅ Neo4j episodic | ❌ | 🔶 link metadata | 🔶 | ✅ link tables | ❌ |
 | Lexical / BM25 | ✅ FTS5 core; Tantivy extra | 🔶 | ✅ fulltext+RRF | 🔶 store-native keyword | ✅ rank-bm25 | 🔶 SQL | 🔶 overlap score | ✅ BM25+RRF | ILIKE/substring | ❌ | ✅ native hybrid | ✅ Lucene | 🔶 | store search | ❌ | ✅ FTS via Lance | ✅ keyword leg | ✅ multi-view |
 | Relational SoT | ✅ SQLite events+records | ✅ SQLAlchemy | ❌ | 🔶 SQLite history | ✅ SQLAlchemy | ✅ Postgres | ✅ SQLite | ❌ | 🔶 Postgres | ❌ | ✅ SQLAlchemy | 🔶 PG sidecar | ✅ SQL episodes | ❌ | ❌ | ✅ SQLite index | ✅ PostgreSQL | ✅ SQLite Cross |
 | Cache / KV | 🔶 in-process `MemoryKV`; LMDB `[lmdb]` extra | 🔶 diskcache | ❌ | 🔶 Redis extra | 🔶 Redis | ✅ cashews | ❌ | ❌ | Redis extra | ❌ | ❌ | ✅ Redis | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
@@ -376,7 +376,7 @@ Stages are **comparable verbs** across engines. For each: **what runs**, **prima
 | **Dedup** | datasketch MinHash → fastembed cosine | content-hash UUID + graph dedup | MinHash-Jaccard + vector + LLM dedupe | MD5 hash + lemmatize | datasketch (pref-mem extra) |
 | **Conflict / merge** | M4 bitemporal ladder | graph merge | edge invalidation (`invalid_at`) | ADD-only (no UPDATE) | MEMORY_MERGE_PROMPT |
 | **Embed** | fastembed → LanceDB projector | fastembed → LanceDB collections | driver embed on persist | embed_batch | tree Neo4j / Milvus |
-| **Graph project** | sqlite_adjacency / ladybug LINK events | **kuzu** + `add_data_points` | Neo4j/kuzu bulk write | entity store (vector coll.) | Neo4j tree `MemoryManager.add` |
+| **Graph project** | sql_adjacency / ladybug LINK events | **kuzu** + `add_data_points` | Neo4j/kuzu bulk write | entity store (vector coll.) | Neo4j tree `MemoryManager.add` |
 | **Event / SoT append** | `memory_events` SQLite | SQL metadata (not event log) | graph direct write | vector row + SQLite history | per-cube stores |
 
 | Stage | honcho | OpenMemory | ReMe | unimem | LightMem |
@@ -870,7 +870,7 @@ Verdict labels: **UNIQUE** · **RARE** (≤2 peers partial) · **CONVERGENT** ·
 |-------|---------------|
 | "Only engine with graph memory" | graphiti, cognee, MemoryBear, MemOS all have graph — memspine delta is **event-projected LINK log + PPR + reorganizer** |
 | "Only hybrid search" | Hybrid is **convergent**; memspine delta is **opt-in default-off** for backward-compat |
-| "LadybugDB default graph" | **Incorrect for v0.1** — default is `sqlite_adjacency` (D-49); ladybug is `[graph]` adapter |
+| "LadybugDB default graph" | **Incorrect for v0.1** — default is `sql_adjacency` (D-49); ladybug is `[graph]` adapter |
 
 ---
 
@@ -946,7 +946,7 @@ Full register: [`memspine-structure-plan.md`](./memspine-structure-plan.md). Sam
 | D-08 fastembed default | ONNX CPU | mem0 `[extras:fastembed]`, cognee fastembed+onnxruntime | sentence-transformers heavier (6 repos) |
 | D-09 LanceDB vector | **core dep** (`lancedb>=0.13`, [ADR-021](./adr/ADR-021-lancedb-core-vector.md)) | EverMemOS, cognee, SimpleMem | honcho default = pgvector; faiss still common (5 repos) |
 | D-16 Workers | inline / DBOS / taskiq | celery MemoryBear; schedule MemOS; deriver honcho | DBOS **unique** — document ops maturity |
-| D-26 Graph | sqlite_adjacency default; ladybug/kuzu adapters | kuzu: graphiti, cognee | memspine default is zero-dep, not kuzu |
+| D-26 Graph | sql_adjacency default; ladybug/kuzu adapters | kuzu: graphiti, cognee | memspine default is zero-dep, not kuzu |
 | D-27 Dedup | datasketch MinHash-LSH | MemOS pref-mem | OpenMemory simhash only |
 | D-30 File-native profile | **skipped** | ReMe, EverMemOS prove trend | memspine gap by choice |
 | D-34 CJK lexical | **dropped** | jieba: ReMe, powermem, EverMemOS | intentional |

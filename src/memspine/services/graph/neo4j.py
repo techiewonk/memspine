@@ -12,7 +12,7 @@ edge relation ride as properties (so no user text is ever spliced into Cypher):
 ``(:MemNode {key, id, namespace, labels, props, compiled, bare})``
 ``(:MemNode)-[:MemRel {key, rel_type, namespace, weight, kind, props}]->(:MemNode)``
 
-Keys. Unscoped (today's keys, parity with ``sqlite_adjacency``): a node is keyed by its id and an
+Keys. Unscoped (today's keys, parity with ``sql_adjacency``): a node is keyed by its id and an
 edge by ``(src, dst, rel_type)``. With ``isolation.scope_keys_v2`` (``scoped=True``) both include
 the namespace, so two tenants never MERGE onto one node or edge. ``delete_node`` and ``edges_of``
 take a bare node id (the port has no namespace there) and match on the ``id`` property.

@@ -11,13 +11,13 @@ from memspine.config.constants import LINK_BUDGET
 from memspine.exceptions import ConflictError
 from memspine.memories.associative.links import link_event
 from memspine.memories.associative.store import AssociativeMemory
-from memspine.services.graph.sqlite_adjacency import SQLiteAdjacencyGraph
+from memspine.services.graph.sql_adjacency import SqlAdjacencyGraph
 from memspine.store.events import EventKind, MemoryEvent
 from memspine.store.records import MemoryRecord, RecordStatus
 
 
 @pytest.fixture
-def memory(storage: FakeStorage, graph: SQLiteAdjacencyGraph, log: EventLog) -> AssociativeMemory:
+def memory(storage: FakeStorage, graph: SqlAdjacencyGraph, log: EventLog) -> AssociativeMemory:
     return AssociativeMemory(storage, graph, log.append)
 
 
@@ -32,7 +32,7 @@ def _write(record: MemoryRecord) -> MemoryEvent:
 async def test_link_appends_a_link_event_and_projects_the_edge(
     memory: AssociativeMemory,
     storage: FakeStorage,
-    graph: SQLiteAdjacencyGraph,
+    graph: SqlAdjacencyGraph,
     log: EventLog,
     make_record: Callable[..., MemoryRecord],
 ) -> None:
@@ -113,7 +113,7 @@ async def test_budget_enforced_and_prune_frees_a_slot(
 async def test_reweighting_an_existing_edge_is_not_double_counted(
     memory: AssociativeMemory,
     storage: FakeStorage,
-    graph: SQLiteAdjacencyGraph,
+    graph: SqlAdjacencyGraph,
     make_record: Callable[..., MemoryRecord],
 ) -> None:
     a, b = storage.add(make_record("a")), storage.add(make_record("b"))
@@ -126,7 +126,7 @@ async def test_reweighting_an_existing_edge_is_not_double_counted(
 async def test_reverse_direction_link_reweights_instead_of_duplicating(
     memory: AssociativeMemory,
     storage: FakeStorage,
-    graph: SQLiteAdjacencyGraph,
+    graph: SqlAdjacencyGraph,
     make_record: Callable[..., MemoryRecord],
 ) -> None:
     """M1: edges are undirected — link(B, A) after link(A, B) re-weights the
@@ -144,7 +144,7 @@ async def test_reverse_direction_link_reweights_instead_of_duplicating(
 async def test_reserved_rels_refused_from_callers(
     memory: AssociativeMemory,
     storage: FakeStorage,
-    graph: SQLiteAdjacencyGraph,
+    graph: SqlAdjacencyGraph,
     make_record: Callable[..., MemoryRecord],
 ) -> None:
     """H1(b): budget-exempt rels would be an unbounded fan-out bypass if a

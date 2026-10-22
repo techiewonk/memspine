@@ -24,7 +24,7 @@ def test_builtin_names_match_config_values() -> None:
     assert _names("llm_providers") == ("litellm", "llamacpp")
     assert set(_names("vector_stores")) == {"lancedb", "pgvector", "weaviate"}
     assert set(_names("lexical_indexes")) == {"tantivy", "opensearch", "weaviate"}
-    assert _names("graph_stores") == ("sqlite_adjacency", "ladybug", "neo4j")
+    assert _names("graph_stores") == ("sql_adjacency", "ladybug", "neo4j")
     assert _names("prompt_sets") == ("default",)
     assert set(_names("derive_stages")) == {
         "compile",

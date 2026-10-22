@@ -309,7 +309,7 @@ RANDOM_FILTERS: list[QualifierFilter] = [
 ]
 
 
-@pytest.fixture(params=["sqlite_adjacency", "ladybug"])
+@pytest.fixture(params=["sql_adjacency", "ladybug"])
 async def graph(request: pytest.FixtureRequest) -> AsyncIterator[Any]:
     if request.param == "ladybug":
         pytest.importorskip("ladybug")
@@ -321,13 +321,13 @@ async def graph(request: pytest.FixtureRequest) -> AsyncIterator[Any]:
         yield LadybugGraphStore(lb)
         await lb.close()
         return
-    from memspine.services.graph.sqlite_adjacency import SQLiteAdjacencyGraph
+    from memspine.services.graph.sql_adjacency import SqlAdjacencyGraph
 
     client = SQLiteClient(":memory:")
     await client.connect()
     async with client.engine.begin() as conn:
         await conn.run_sync(metadata.create_all)
-    yield SQLiteAdjacencyGraph(client)
+    yield SqlAdjacencyGraph(client)
     await client.close()
 
 

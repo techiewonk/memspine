@@ -19,7 +19,7 @@ from memspine.core.registry import MEMORY_TYPES
 _AUTO_GRAPH = (
     "LadybugGraphStore"
     if __import__("importlib.util").util.find_spec("ladybug") is not None
-    else "SQLiteAdjacencyGraph"
+    else "SqlAdjacencyGraph"
 )
 
 ALL_TYPES = sorted(MEMORY_TYPES)

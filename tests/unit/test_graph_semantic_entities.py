@@ -1,5 +1,5 @@
 """GR-3 / GR-5 / GR-6: embedded entity nodes and hybrid entity search, on LadybugDB
-(native HNSW + FTS) and on sqlite_adjacency (Python fallback)."""
+(native HNSW + FTS) and on sql_adjacency (Python fallback)."""
 
 from __future__ import annotations
 
@@ -34,7 +34,7 @@ def _engine(path: Path, provider: str, **read: object) -> Engine:
     )
 
 
-@pytest.mark.parametrize("provider", ["sqlite_adjacency", "ladybug"])
+@pytest.mark.parametrize("provider", ["sql_adjacency", "ladybug"])
 async def test_entity_search_and_node_leg(tmp_path: Path, provider: str) -> None:
     if provider == "ladybug":
         pytest.importorskip("ladybug")
@@ -58,7 +58,7 @@ async def test_entity_search_and_node_leg(tmp_path: Path, provider: str) -> None
     assert getattr(legs[0], "name", None) == "graph_nodes"
 
 
-@pytest.mark.parametrize("provider", ["sqlite_adjacency", "ladybug"])
+@pytest.mark.parametrize("provider", ["sql_adjacency", "ladybug"])
 async def test_entity_index_survives_reopen(tmp_path: Path, provider: str) -> None:
     if provider == "ladybug":
         pytest.importorskip("ladybug")
@@ -78,7 +78,7 @@ async def test_entity_index_survives_reopen(tmp_path: Path, provider: str) -> No
     assert hits and "luna" in hits[0][0]
 
 
-@pytest.mark.parametrize("provider", ["sqlite_adjacency", "ladybug"])
+@pytest.mark.parametrize("provider", ["sql_adjacency", "ladybug"])
 async def test_turn_mentions_let_the_graph_reach_raw_turns(tmp_path: Path, provider: str) -> None:
     """G-7: with ``turn_mentions`` a raw turn's own names become mentions edges."""
     if provider == "ladybug":
@@ -120,7 +120,7 @@ async def test_focal_entity_seeds_the_graph_and_does_not_leak(tmp_path: Path) ->
     """G-11: ``focal_entity=`` adds a graph seed for one read only."""
     from memspine.read.pipeline.state import _FOCAL_ENTITY
 
-    eng = _engine(tmp_path, "sqlite_adjacency", graph_leg=True)
+    eng = _engine(tmp_path, "sql_adjacency", graph_leg=True)
     await eng.start()
     seen: list[list[str]] = []
     real = eng._graph_seeds

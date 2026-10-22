@@ -39,7 +39,7 @@ Use **docs/PROVIDER_TODO.md** for all current task IDs, statuses, completed work
 | Storage | **SQLite** via **SQLAlchemy Core + Alembic**, async engine (**aiosqlite**) | not full ORM; sqlmodel rejected (D-36/D-44) |
 | Event log | `event_log.mode`: **full** (default) / **rolling** / **ephemeral** + optional zstd payload compression | storage-cost control; pruning never passes projector high-water marks (D-45) |
 | Vector | **LanceDB** (+ Tantivy FTS) | D-09 |
-| Graph | **auto** selects compatible LadybugDB `[graph]` or SQLite adjacency; explicit Neo4j is separately configured; no kuzu alias | D-26/D-49/D-60/ADR-068 |
+| Graph | **auto** selects compatible LadybugDB `[graph]` or `sql_adjacency` (SQLite or Postgres; renamed from `sqlite_adjacency`, no alias), resolved once and pinned in the projector binding (ADR-081); explicit Neo4j is separately configured; no kuzu alias | D-26/D-49/D-60/ADR-068/ADR-081 |
 | Cache/KV | **memory** (in-process) default; disk / redis / valkey via cashews `[cache]` | D-09/ADR-022 amendment; LMDB replaced |
 | Lexical | **FTS5 / Tantivy** BM25, RRF fusion | D-25; **CJK dropped** (D-34) |
 | Embedder | **fastembed** (ONNX, CPU) | torch behind `[st]` only (D-08) |

@@ -512,7 +512,7 @@ def test_graph_auto_uses_sql_capability_not_storage_provider_name(
         return None if name == "ladybug" else real_find_spec(name, *args, **kwargs)
 
     monkeypatch.setattr(importlib.util, "find_spec", find_spec)
-    assert _graph_descriptor(config, wiring).ref.name == "sqlite_adjacency"
+    assert _graph_descriptor(config, wiring).ref.name == "sql_adjacency"
 
 
 async def test_closing_the_container_closes_the_real_client() -> None:

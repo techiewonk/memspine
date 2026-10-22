@@ -98,7 +98,7 @@ Scheduler-driven consolidation/decay: memspine (7 ordered pipelines), honcho (dr
 
 ### 1.7 Graph & community
 
-Providers: Neo4j (MemMachine, MemOS, MemoryBear, memory-opensource), multi-driver Cypher (graphiti: Neo4j/FalkorDB/Kuzu/Neptune), **ladybug** (cognee's *new default* at SHA `5b32da7c` — Kuzu fork, core dep), sqlite_adjacency (memspine default, D-49), RDF/Jena (memonto), flat entity-vector masquerading as graph (mem0 `entity_store`, OpenMemory SQLite `temporal_edges`). No graph at all: honcho, langmem (`graph_rag` commented out), LightMem (`GraphMem` stub), Second-Me, telemem, memU, unimem, A-mem, SimpleMem. Community algorithm: label-propagation (graphiti), custom LPA (MemoryBear — `graspologic` declared but ships custom), **Leiden** (memspine `leidenalg`, D-55/ADR-028, `[community]`), LLM-summary buckets (cognee, MemOS). Most have none.
+Providers: Neo4j (MemMachine, MemOS, MemoryBear, memory-opensource), multi-driver Cypher (graphiti: Neo4j/FalkorDB/Kuzu/Neptune), **ladybug** (cognee's *new default* at SHA `5b32da7c` — Kuzu fork, core dep), sql_adjacency (memspine default, D-49), RDF/Jena (memonto), flat entity-vector masquerading as graph (mem0 `entity_store`, OpenMemory SQLite `temporal_edges`). No graph at all: honcho, langmem (`graph_rag` commented out), LightMem (`GraphMem` stub), Second-Me, telemem, memU, unimem, A-mem, SimpleMem. Community algorithm: label-propagation (graphiti), custom LPA (MemoryBear — `graspologic` declared but ships custom), **Leiden** (memspine `leidenalg`, D-55/ADR-028, `[community]`), LLM-summary buckets (cognee, MemOS). Most have none.
 
 ### 1.8 Firewall / trust / security
 
@@ -136,7 +136,7 @@ The honest read: memspine is not an outlier for having reserved seams — it is 
 - **SHA / freshness:** `c6a9fe344c20` (2026-07-11, pull=skipped_local)
 - **Facade:** memspine.Engine (src/memspine/engine.py:Engine) — async-first verbs + thin sync wrappers
 - **Source of truth:** append-only event log memory_events (core/events.py:EventKind); vector/lexical/graph/relational/cache are rebuildable projections
-- **Opaque / divergence notes:** 18 shipped prompt YAMLs / 13 declared LLM roles but only 3 have live call sites (extract, summarize, extract_edges); judge/dedupe/firewall_flag/query_rewrite(HyDE)/reflect/subcluster/resolve_entity/invalidate_edge/consolidate/chat are reserved-unwired seams. firewall_flag has an LLM output model but the runtime firewall is deterministic regex only. neo4j/opensearch/weaviate adapters are stubs that raise; traced default path is SQLite+LanceDB+Tantivy+sqlite_adjacency. pyproject version=0.0.1 while docs describe v0.2.
+- **Opaque / divergence notes:** 18 shipped prompt YAMLs / 13 declared LLM roles but only 3 have live call sites (extract, summarize, extract_edges); judge/dedupe/firewall_flag/query_rewrite(HyDE)/reflect/subcluster/resolve_entity/invalidate_edge/consolidate/chat are reserved-unwired seams. firewall_flag has an LLM output model but the runtime firewall is deterministic regex only. neo4j/opensearch/weaviate adapters are stubs that raise; traced default path is SQLite+LanceDB+Tantivy+sql_adjacency. pyproject version=0.0.1 while docs describe v0.2.
 
 
 Repo: `memspine` · SHA `c6a9fe344c20` · facade `memspine.Engine` (`src/memspine/engine.py:Engine`).
@@ -231,7 +231,7 @@ Runners (D-16): `InlineRunner` (default), `DBOSRunner` (durable), `TaskiqRunner`
 - **DIVERGE (claims-vs-wiring)** — `prompts/roles.py` advertises 13 LLM roles / 18 shipped prompt YAMLs, but only **3 have live call sites**: `extract` (`entities.py:56`), `summarize` (`engine.py:2185`), `extract_edges` (`engine.py:2197`). `judge`, `dedupe`, `firewall_flag`, `query_rewrite` (HyDE/E8), `reflect`, `subcluster`, `resolve_entity`, `invalidate_edge`, `consolidate`, `chat` ship as data with **no wired invocation** (reserved seams). See PROMPTS.md.
 - **DIVERGE** — `search()` docstring lists `query_rewrite`/HyDE as an E8 stage, but `search` never calls the `query_rewrite` prompt — the query is embedded verbatim. HyDE is reserved, not hot.
 - **OPAQUE** — `firewall_flag`'s `InstructionFlagOut` output model implies an LLM classifier path, but the runtime firewall uses only the regex `instruction_shaped`; whether an LLM firewall path is intended is undocumented in code (no call site).
-- **OPAQUE** — Postgres/pgvector, Kuzu/ladybug, OpenSearch, Neo4j, Weaviate adapters exist but several are stubs that "always raise" (`neo4j`, `opensearch`); only SQLite + LanceDB + Tantivy + sqlite_adjacency form the traced default path.
+- **OPAQUE** — Postgres/pgvector, Kuzu/ladybug, OpenSearch, Neo4j, Weaviate adapters exist but several are stubs that "always raise" (`neo4j`, `opensearch`); only SQLite + LanceDB + Tantivy + sql_adjacency form the traced default path.
 
 #### Flows
 
@@ -5512,7 +5512,7 @@ Golden-rule filter applied: anything requiring a second SoT, a heavy core dep, o
 | 3 | **Optional graph + temporal legs into RRF** (four-leg recall) | hindsight fuses vector+BM25+graph+temporal; graphiti fuses full-text+cosine+distance+MMR | ADR-019/D-25: define how optional legs enter `rrf_fuse` and degrade when a service is absent | M |
 | 4 | **Bounded multi-query / intent-planned retrieval** (wire `query_rewrite`/HyDE) | SimpleMem plans targeted queries + completeness check; MemMachine retrieval agent (CoQ/split); hindsight reflect-over-evidence | Wire the reserved `query_rewrite` prompt behind a config flag; bound rounds/cost; deterministic single-shot stays default | M |
 | 5 | **Buffer-then-flush write amortization** | memobase per-user token-threshold buffer; honcho async deriver; telemem batched/clustered writes | Decide: working-memory policy vs `[ingest]` batching vs runner config — **not** a new SoT | M |
-| 6 | **Re-evaluate graph default after cognee's ladybug switch** | cognee default flipped kuzu→**ladybug** at `5b32da7c` (core dep) | D-49: doc/test-priority decision only; do **not** silently promote a heavier backend over `sqlite_adjacency` | S |
+| 6 | **Re-evaluate graph default after cognee's ladybug switch** | cognee default flipped kuzu→**ladybug** at `5b32da7c` (core dep) | D-49: doc/test-priority decision only; do **not** silently promote a heavier backend over `sql_adjacency` | S |
 | 7 | **ACT-R access×importance decay as an alternate policy** | MemoryBear combines access history + importance, merges weak Statement–Entity pairs | New `DecayPolicy` alongside Ebbinghaus (already pluggable); evaluate beside, not instead of | S |
 
 ### 3. Prompt-pack gaps

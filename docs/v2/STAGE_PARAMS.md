@@ -420,7 +420,7 @@ No tunable keys.
 | Key | Default | Type / range | Effect | Rebuild | Screens |
 |---|---|---|---|---|---|
 | `graph.entity_embeddings` | `false` | bool | Embed entity-node names (GP-2 entity nodes) into the graph store's entity index. | index | - |
-| `graph.provider` | `auto` | str | `auto` (GR-1, ADR-064): LadybugDB when the `ladybug` package is installed (`[graph]`), else `sqlite_adjacency`. | index | - |
+| `graph.provider` | `auto` | str | `auto` (GR-1, ADR-064): LadybugDB when the `ladybug` package is installed (`[graph]`), else `sql_adjacency`. | index | - |
 
 ## B0 Trigger
 

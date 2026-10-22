@@ -22,6 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 from memspine.config.schema import MemspineConfig
 from memspine.exceptions import ConfigError
 from memspine.models.encoders.embedding.base import EmbeddingService
+from memspine.observability.logging import get_logger
 from memspine.providers.contracts import BuildResult
 from memspine.providers.engine_changes import resolved_config_fingerprint
 from memspine.providers.registry import (
@@ -35,6 +36,8 @@ from memspine.services.storage.sqlite.schema import (
     provider_projector_bindings,
 )
 from memspine.store.projections.projector import Projector
+
+_log = get_logger(__name__)
 
 
 @dataclass(frozen=True, slots=True)
@@ -55,6 +58,53 @@ class SqlProjectionBindingStore:
 
     def __init__(self, engine: AsyncEngine) -> None:
         self._engine = engine
+
+    async def bound_provider(self, deployment_id: str, projector_name: str) -> str | None:
+        """The provider NAME a projector is bound to (``graph:ladybug:v1`` -> ``ladybug``),
+        or None when it has no binding yet. ADR-081 pins ``auto`` selections to it."""
+        async with self._engine.connect() as conn:
+            provider = await conn.scalar(
+                select(provider_projector_bindings.c.provider).where(
+                    provider_projector_bindings.c.deployment_id == deployment_id,
+                    provider_projector_bindings.c.projector_name == projector_name,
+                )
+            )
+        if provider is None:
+            return None
+        parts = str(provider).split(":")
+        return parts[1] if len(parts) > 1 else str(provider)
+
+    async def adopt_renamed_provider(
+        self, target: ProjectionTargetBinding, old_provider: str
+    ) -> bool:
+        """ADR-081: rewrite a binding recorded under a renamed provider identity (for example
+        ``graph:sqlite_adjacency:v1``) to ``target`` (compare-and-swap on the old identity and
+        the active generation). Only for renames whose physical target is unchanged. Returns
+        True when a row was adopted."""
+        async with self._engine.begin() as conn:
+            result = await conn.execute(
+                update(provider_projector_bindings)
+                .where(
+                    provider_projector_bindings.c.deployment_id == target.deployment_id,
+                    provider_projector_bindings.c.projector_name == target.projector_name,
+                    provider_projector_bindings.c.provider == old_provider,
+                    provider_projector_bindings.c.generation_id == target.generation_id,
+                )
+                .values(
+                    provider=target.provider,
+                    target_fingerprint=target.target_fingerprint,
+                    updated_at=datetime.now(UTC).isoformat(),
+                )
+            )
+        adopted = bool(result.rowcount)
+        if adopted:
+            _log.info(
+                "provider.binding_renamed",
+                projector=target.projector_name,
+                old=old_provider,
+                new=target.provider,
+            )
+        return adopted
 
     async def ensure(self, target: ProjectionTargetBinding) -> str:
         """Bind a target generation, allowing only a verified compare-and-swap.

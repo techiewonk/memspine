@@ -8,25 +8,25 @@ import pytest
 
 from memspine.clients.sqlite import SQLiteClient
 from memspine.services.graph.base import GraphStore
-from memspine.services.graph.sqlite_adjacency import SQLiteAdjacencyGraph
+from memspine.services.graph.sql_adjacency import SqlAdjacencyGraph
 from memspine.services.storage.sqlite.schema import metadata
 
 
 @pytest.fixture
-async def store() -> AsyncIterator[SQLiteAdjacencyGraph]:
+async def store() -> AsyncIterator[SqlAdjacencyGraph]:
     client = SQLiteClient(":memory:")
     await client.connect()
     async with client.engine.begin() as conn:
         await conn.run_sync(metadata.create_all)
-    yield SQLiteAdjacencyGraph(client)
+    yield SqlAdjacencyGraph(client)
     await client.close()
 
 
-async def test_satisfies_graph_store_protocol(store: SQLiteAdjacencyGraph) -> None:
+async def test_satisfies_graph_store_protocol(store: SqlAdjacencyGraph) -> None:
     assert isinstance(store, GraphStore)
 
 
-async def test_upsert_node_is_idempotent_and_replaces(store: SQLiteAdjacencyGraph) -> None:
+async def test_upsert_node_is_idempotent_and_replaces(store: SqlAdjacencyGraph) -> None:
     await store.upsert_node("m1", labels=["memory"], properties={"kind": "fact"})
     await store.upsert_node("m1", labels=["memory", "hot"], properties={"kind": "skill"})
     assert await store.node_count() == 1
@@ -39,7 +39,7 @@ async def test_upsert_node_is_idempotent_and_replaces(store: SQLiteAdjacencyGrap
 
 
 async def test_upsert_edge_creates_bare_endpoints_and_is_idempotent(
-    store: SQLiteAdjacencyGraph,
+    store: SqlAdjacencyGraph,
 ) -> None:
     await store.upsert_edge("a", "b", "related", {"weight": 0.5})
     await store.upsert_edge("a", "b", "related", {"weight": 0.9})  # replace, not duplicate
@@ -52,7 +52,7 @@ async def test_upsert_edge_creates_bare_endpoints_and_is_idempotent(
 
 
 async def test_edge_weight_defaults_to_one_when_absent_or_non_numeric(
-    store: SQLiteAdjacencyGraph,
+    store: SqlAdjacencyGraph,
 ) -> None:
     await store.upsert_edge("a", "b", "related")
     await store.upsert_edge("a", "c", "related", {"weight": "heavy"})
@@ -61,7 +61,7 @@ async def test_edge_weight_defaults_to_one_when_absent_or_non_numeric(
 
 
 async def test_neighbors_filters_rel_type_and_traverses_undirected(
-    store: SQLiteAdjacencyGraph,
+    store: SqlAdjacencyGraph,
 ) -> None:
     await store.upsert_edge("a", "b", "related")
     await store.upsert_edge("c", "a", "derived_from")  # incoming edge still a neighbour
@@ -73,7 +73,7 @@ async def test_neighbors_filters_rel_type_and_traverses_undirected(
 
 
 async def test_neighbors_depth_walk_excludes_start_and_stops_at_depth(
-    store: SQLiteAdjacencyGraph,
+    store: SqlAdjacencyGraph,
 ) -> None:
     # chain a - b - c - d
     await store.upsert_edge("a", "b", "related")
@@ -89,7 +89,7 @@ async def test_neighbors_depth_walk_excludes_start_and_stops_at_depth(
     assert await store.neighbors("a", depth=0) == []
 
 
-async def test_neighbors_treat_tombstoned_edges_as_gone(store: SQLiteAdjacencyGraph) -> None:
+async def test_neighbors_treat_tombstoned_edges_as_gone(store: SqlAdjacencyGraph) -> None:
     """Every reader treats weight <= 0 as gone (ADR-015): a pruned neighbour
     must not resurface via neighbors()/walks (M2, P6 review)."""
     await store.upsert_edge("a", "b", "related", {"weight": 0.5})
@@ -104,7 +104,7 @@ async def test_neighbors_treat_tombstoned_edges_as_gone(store: SQLiteAdjacencyGr
     assert {n.node_id for n in await store.neighbors("c", depth=2)} == {"b"}
 
 
-async def test_delete_node_cascades_edges_both_directions(store: SQLiteAdjacencyGraph) -> None:
+async def test_delete_node_cascades_edges_both_directions(store: SqlAdjacencyGraph) -> None:
     await store.upsert_edge("a", "b", "related")
     await store.upsert_edge("c", "b", "related")
     await store.upsert_edge("b", "d", "related")
@@ -119,7 +119,7 @@ async def test_delete_node_cascades_edges_both_directions(store: SQLiteAdjacency
 
 
 async def test_edge_list_exports_every_edge_for_community_detection(
-    store: SQLiteAdjacencyGraph,
+    store: SqlAdjacencyGraph,
 ) -> None:
     await store.upsert_edge("a", "b", "related", {"weight": 0.7})
     await store.upsert_edge("b", "c", "derived_from")
@@ -128,12 +128,12 @@ async def test_edge_list_exports_every_edge_for_community_detection(
 
 
 async def test_clear_then_replay_reproduces_identical_projection(
-    store: SQLiteAdjacencyGraph,
+    store: SqlAdjacencyGraph,
 ) -> None:
     """The rebuildable-projection contract (D0.1): clear() + replaying the same
     upserts yields the same graph, byte for byte."""
 
-    async def replay(target: SQLiteAdjacencyGraph) -> None:
+    async def replay(target: SqlAdjacencyGraph) -> None:
         await target.upsert_node("m1", labels=["memory"], properties={"kind": "fact"})
         await target.upsert_edge("m1", "m2", "related", {"weight": 0.8})
         await target.upsert_edge("m2", "m3", "derived_from")
@@ -158,7 +158,7 @@ async def test_clear_then_replay_reproduces_identical_projection(
     assert (await store.node_count(), await store.edge_count()) == before_counts
 
 
-async def test_multi_hop_walk_is_one_query(store: SQLiteAdjacencyGraph) -> None:
+async def test_multi_hop_walk_is_one_query(store: SqlAdjacencyGraph) -> None:
     """KB-2: depth-3 BFS is one recursive CTE (nodes joined in SQL), not a query per node."""
     from sqlalchemy import event
 
@@ -181,7 +181,7 @@ async def test_multi_hop_walk_is_one_query(store: SQLiteAdjacencyGraph) -> None:
 
 
 async def test_upsert_mirrors_weight_kind_and_namespace_columns(
-    store: SQLiteAdjacencyGraph,
+    store: SqlAdjacencyGraph,
 ) -> None:
     from sqlalchemy import select
 
@@ -202,7 +202,7 @@ async def test_upsert_mirrors_weight_kind_and_namespace_columns(
     assert nodes == {"r1": "ns/a", "r2": "ns/a"}  # the bare endpoint inherits the edge's ns
 
 
-async def test_walks_past_the_sqlite_variable_limit(store: SQLiteAdjacencyGraph) -> None:
+async def test_walks_past_the_sqlite_variable_limit(store: SqlAdjacencyGraph) -> None:
     """A walk reaching more nodes than SQLite binds in one statement (32,766 on
     current builds) still answers: reached nodes are joined in SQL, never bound
     as an ``IN (...)`` list."""
@@ -234,7 +234,7 @@ async def test_walks_past_the_sqlite_variable_limit(store: SQLiteAdjacencyGraph)
 @pytest.mark.parametrize("rel_type", [None, "related"])
 @pytest.mark.parametrize("max_degree", [None, 3])
 async def test_walk_steps_are_index_seeks_not_edge_scans(
-    store: SQLiteAdjacencyGraph,
+    store: SqlAdjacencyGraph,
     namespace: str | None,
     rel_type: str | None,
     max_degree: int | None,
@@ -243,7 +243,7 @@ async def test_walk_steps_are_index_seeks_not_edge_scans(
     (never a full scan of the edge table), whatever the planner's statistics."""
     from sqlalchemy import text
 
-    from memspine.services.graph.sqlite_adjacency import _walk_sql
+    from memspine.services.graph.sql_adjacency import _walk_sql
 
     for i in range(20):
         await store.upsert_edge(f"n{i}", f"n{i + 1}", "related", namespace="ns")

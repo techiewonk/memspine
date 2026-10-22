@@ -11,13 +11,19 @@ injected :class:`~memspine.clients.sqlite.SQLiteClient` (D-24).
 from __future__ import annotations
 
 import asyncio
+from typing import TYPE_CHECKING
 
 from memspine.clients.sqlite import SQLiteClient
+from memspine.exceptions import StorageError
 from memspine.services.base import CapabilityManifest
 from memspine.services.storage.sql_base import SqlStorage
 from memspine.services.storage.sqlite.migrations import ensure_schema
 from memspine.services.storage.sqlite.schema import metadata
 from memspine.store.events import EventLogMode
+
+if TYPE_CHECKING:
+    from memspine.derive.job import LeaseStore
+    from memspine.services.storage.records_port import LeasePort
 
 __all__ = ["SQLiteStorage"]
 
@@ -33,6 +39,7 @@ class SQLiteStorage(SqlStorage):
     ) -> None:
         super().__init__(client, mode, compress)
         self._sqlite = client  # typed handle for is_memory/path in start()
+        self._leases: LeaseStore | None = None
 
     @property
     def manifest(self) -> CapabilityManifest:
@@ -47,9 +54,34 @@ class SQLiteStorage(SqlStorage):
         migration path), ``create_all`` only for ``:memory:`` engines, which a
         separate migration connection cannot reach."""
         if self._sqlite.is_memory:
+            from memspine.runtime.outbox import outbox_metadata
+
             async with self._sqlite.engine.begin() as conn:
                 await conn.run_sync(metadata.create_all)
+                # ADR-081 records port: the outbox item table commits with the log (the file
+                # path gets it from Alembic revision 0008).
+                await conn.run_sync(outbox_metadata.create_all)
         else:
             # #52: an encrypted client supplies a keyed connection for Alembic.
             await asyncio.to_thread(ensure_schema, self._sqlite.path, self._sqlite.sync_creator)
         self._started = True
+
+    def leases(self) -> LeasePort:
+        """ADR-081 records port: the lease tables in this database (a private in-process
+        table for ``:memory:``). Opened on first use, closed by :meth:`stop`."""
+        from memspine.derive.job import LeaseStore
+
+        if self._leases is None:
+            if self._sqlite.encrypted:
+                raise StorageError(
+                    "leases on an encrypted SQLite database are not available through the "
+                    "records port yet (RM-111 WP5 moves the sleep leases into the database)"
+                )
+            self._leases = LeaseStore(":memory:" if self._sqlite.is_memory else self._sqlite.path)
+        return self._leases
+
+    async def stop(self) -> None:
+        if self._leases is not None:
+            self._leases.close()
+            self._leases = None
+        await super().stop()

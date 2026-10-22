@@ -57,7 +57,8 @@ async def add_edges(
     """Insert edges; an existing (child, parent, role) edge is left as it is. Returns rows added."""
     if not edges:
         return 0
-    insert = pg_insert if engine.dialect.name == "postgresql" else sqlite_insert
+    postgres = engine.dialect.name == "postgresql"
+    insert = pg_insert if postgres else sqlite_insert
     added = 0
     async with engine.begin() as conn:
         for e in edges:
@@ -75,7 +76,13 @@ async def add_edges(
                 )
                 .on_conflict_do_nothing(index_elements=["child_id", "parent_id", "role"])
             )
-            added += int((await conn.execute(stmt)).rowcount or 0)
+            if postgres:
+                # The implicit RETURNING of the identity key leaves rowcount at -1 on
+                # psycopg; count the returned rows (none when the edge already existed).
+                rows = (await conn.execute(stmt.returning(lineage.c.created_seq))).all()
+                added += len(rows)
+            else:
+                added += int((await conn.execute(stmt)).rowcount or 0)
     return added
 
 
