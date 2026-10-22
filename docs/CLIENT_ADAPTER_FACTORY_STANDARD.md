@@ -33,28 +33,50 @@ Factories map slot settings to the spec.
 Last update: 2026-10-23, after enforcement (`26068983`); import contracts 17 kept / 1 broken (the sqlite sync-engine chain, closing with G).
 ✅ done · 🔧 in progress (agent) · ⏳ queued · ⚠️ known gap
 
-| Provider | Connector | Adapter | Factory | Status | Work |
-|---|---|---|---|---|---|
-| records sqlite | 🔧 sync engine → `clients/sqlite` | ✅ records port + conformance | 🔧 slot wiring | 🔧 | G (connector, Alembic over connector), A (slot) |
-| records postgres | 🔧 sync engine, advisory lock | ✅ records port + conformance | 🔧 slot wiring | 🔧 | G, A |
-| records mongodb | 🔧 new `clients/mongodb` | 🔧 new adapter | ⏳ after slots | 🔧 | I (RM-112) |
-| vector lancedb | 🔧 Connector + real health | ✅ | 🔧 slot wiring | 🔧 | G, A |
-| vector pgvector | ⏳ borrows SQL connector | ⏳ DDL into adapter | 🔧 slot wiring | ⏳ | after G/A |
-| vector / lexical weaviate | 🔧 Connector + single identity | ⏳ binding instead of native handle | 🔧 `acquire()` | 🔧 | G |
-| lexical tantivy | 🔧 new `clients/tantivy` | 🔧 uses connector | 🔧 slot wiring | 🔧 | G, A |
-| lexical opensearch | 🔧 Connector + single identity | ✅ | 🔧 `acquire()` | 🔧 | G |
-| graph ladybug | 🔧 Connector + real health | ✅ one port | 🔧 slot wiring | 🔧 | G, A |
-| graph sql_adjacency | ✅ borrows SQL connector | ✅ one port, SQLite + Postgres | 🔧 slot wiring | 🔧 | A |
-| graph neo4j | 🔧 Connector, no providers import, shared | ✅ one port | 🔧 slot wiring | 🔧 | G, A |
-| cache memory/disk/redis/valkey | 🔧 Connector, shared | 🔧 move to `services/cache` | 🔧 slot wiring | 🔧 | G, F, A |
-| embedding | 🔧 `clients/weights/*`, `clients/litellm` | 🔧 move to `services/embedding` | 🔧 | 🔧 | F |
-| llm (litellm, llamacpp, ollama, vllm, bedrock) | 🔧 `clients/litellm`, weights | 🔧 move to `services/llm` | 🔧 own descriptors | 🔧 | F |
-| rerank | 🔧 weights / litellm | 🔧 move to `services/rerank` | 🔧 one factory | 🔧 | F |
-| gliner (extraction) | 🔧 weights | 🔧 move to `services/extraction` | 🔧 new descriptor | 🔧 | F |
-| decider | 🔧 weights | 🔧 move to `services/decision` | 🔧 new descriptor | 🔧 | F |
-| assets / external / secrets | 🔧 `clients/http`, `clients/aws` | 🔧 | n/a | 🔧 | G |
-| documents (filesystem, s3, mongodb, weaviate) | ⏳ | ⏳ | ⏳ | ⏳ | after A (slot), RM-112 |
-| enforcement (import rules, constructor denylist) | — | — | — | ✅ 26068983 (37 import + 25 constructor baseline entries, shrink-only) | E |
+| Slot | Provider | Connector | Adapter | Factory | Status | Work |
+|---|---|---|---|---|---|---|
+| records | sqlite | 🔧 sync engine → `clients/sqlite` | ✅ records port + conformance | 🔧 slot wiring | 🔧 | G (connector, Alembic over connector), A (slot) |
+| records | postgres | 🔧 sync engine, advisory lock | ✅ records port + conformance | 🔧 slot wiring | 🔧 | G, A |
+| records | mongodb | 🔧 new `clients/mongodb` | 🔧 new adapter | ⏳ after slots | 🔧 | I (RM-112) |
+| vector | lancedb | 🔧 Connector + real health | ✅ | 🔧 slot wiring | 🔧 | G, A |
+| vector | pgvector | ⏳ borrows the postgres connector | ⏳ DDL into the adapter | 🔧 slot wiring | ⏳ | after G/A |
+| vector | weaviate | 🔧 Connector + single identity (shared with lexical/documents) | ⏳ collection binding instead of native handle | 🔧 `acquire()` | 🔧 | G |
+| lexical | tantivy | 🔧 new `clients/tantivy` | 🔧 uses the connector | 🔧 slot wiring | 🔧 | G, A |
+| lexical | opensearch | 🔧 Connector + single identity | ✅ | 🔧 `acquire()` | 🔧 | G |
+| lexical | weaviate | 🔧 same shared Weaviate connector | ⏳ collection binding instead of native handle | 🔧 `acquire()` | 🔧 | G |
+| graph | ladybug | 🔧 Connector + real health | ✅ one port | 🔧 slot wiring | 🔧 | G, A |
+| graph | sql_adjacency | ✅ borrows the SQL connector | ✅ one port, SQLite + Postgres | 🔧 slot wiring | 🔧 | A |
+| graph | neo4j | 🔧 Connector, no providers import, shared | ✅ one port | 🔧 slot wiring | 🔧 | G, A |
+| graph_mirror | neo4j | 🔧 same Neo4j connector | ✅ one port | 🔧 mirror slot + capability gate | 🔧 | G, A |
+| cache | memory | n/a (process) | 🔧 move to `services/cache` | 🔧 slot wiring | 🔧 | F, A |
+| cache | disk | 🔧 cashews connector, placement under `data_dir` | 🔧 move to `services/cache` | 🔧 slot wiring | 🔧 | G, F, A |
+| cache | redis | 🔧 cashews connector, shared | 🔧 move to `services/cache` | 🔧 slot wiring | 🔧 | G, F, A |
+| cache | valkey | 🔧 cashews connector, shared | 🔧 move to `services/cache` | 🔧 slot wiring | 🔧 | G, F, A |
+| documents | filesystem | ⏳ `clients/fs` | ⏳ | ⏳ | ⏳ | after A (slot) |
+| documents | s3 | ⏳ `clients/s3` | ⏳ | ⏳ | ⏳ | RM-112 |
+| documents | mongodb | 🔧 `clients/mongodb` (shared with records) | ⏳ GridFS adapter | ⏳ | ⏳ | RM-112 |
+| documents | weaviate | ⏳ shared Weaviate connector | ⏳ | ⏳ | ⏳ | RM-112 |
+| embedding | fastembed | 🔧 `clients/weights/fastembed` | 🔧 → `services/embedding` | 🔧 | 🔧 | F |
+| embedding | sentence_transformers | 🔧 `clients/weights/sentence_transformers` | 🔧 → `services/embedding` | 🔧 | 🔧 | F |
+| embedding | static (model2vec) | 🔧 `clients/weights/model2vec` | 🔧 → `services/embedding` | 🔧 | 🔧 | F |
+| embedding | litellm | 🔧 `clients/litellm` | 🔧 → `services/embedding` | 🔧 | 🔧 | F |
+| embedding | hash | n/a | 🔧 → `services/embedding` | ✅ | 🔧 | F |
+| llm | litellm | 🔧 `clients/litellm` | 🔧 → `services/llm` | 🔧 | 🔧 | F |
+| llm | ollama | 🔧 `clients/litellm` | 🔧 → `services/llm` | 🔧 own descriptor (was a model prefix) | 🔧 | F |
+| llm | vllm | 🔧 `clients/litellm` | 🔧 → `services/llm` | 🔧 own descriptor | 🔧 | F |
+| llm | bedrock | 🔧 `clients/litellm` | 🔧 → `services/llm` | 🔧 own descriptor | 🔧 | F |
+| llm | llamacpp | 🔧 `clients/weights/llama_cpp` | 🔧 → `services/llm` | 🔧 | 🔧 | F |
+| rerank | fastembed | 🔧 `clients/weights/fastembed` | 🔧 → `services/rerank` | 🔧 one factory | 🔧 | F |
+| rerank | flashrank | 🔧 `clients/weights/flashrank` | 🔧 → `services/rerank` | 🔧 one factory | 🔧 | F |
+| rerank | qwen3 / jina | 🔧 `clients/weights/transformers` | 🔧 → `services/rerank` | 🔧 one factory | 🔧 | F |
+| rerank | litellm | 🔧 `clients/litellm` | 🔧 → `services/rerank` | 🔧 one factory | 🔧 | F |
+| extraction | gliner2 | 🔧 `clients/weights/gliner2` | 🔧 → `services/extraction` | 🔧 new descriptor | 🔧 | F |
+| decision | opendecider | 🔧 `clients/weights/opendecider` | 🔧 → `services/decision` | 🔧 new descriptor | 🔧 | F |
+| decision | gliner2 | 🔧 `clients/weights/gliner2` | 🔧 → `services/decision` | 🔧 new descriptor | 🔧 | F |
+| assets | fetch / vision | 🔧 `clients/http` | 🔧 | n/a | 🔧 | G |
+| external | provider / wikipedia | 🔧 `clients/http` | 🔧 | n/a | 🔧 | G |
+| secrets | aws | 🔧 `clients/aws` | 🔧 | n/a | 🔧 | G |
+| — | enforcement (import rules, constructor denylist) | — | — | — | ✅ 26068983 (37 import + 25 constructor baseline entries, shrink-only) | E |
 
 **Import contracts:** 17 kept (5 new), 1 broken. The one remaining chain is
 `store.migrate → services.storage.sqlite.engine → runtime.outbox.sqlite_engine`, and it
