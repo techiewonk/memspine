@@ -20,7 +20,7 @@ import pytest
 import test_rm88_rm91_graph_caller as caller_tests
 from test_rm93_graph_filter import NS, QUERY, _build, _engine, _Spy
 
-from memspine.clients.sqlite import SQLiteClient
+from memspine.clients.sqlite import SQLiteClient, SQLiteSpec
 from memspine.derive.pipeline.stages.edge_compiler_v2 import compile_graph_edges
 from memspine.read.legs.graph import HopEdge, HopResult, one_hop
 from memspine.read.pipeline import legs as pipeline_legs
@@ -315,18 +315,18 @@ RANDOM_FILTERS: list[QualifierFilter] = [
 async def graph(request: pytest.FixtureRequest) -> AsyncIterator[Any]:
     if request.param == "ladybug":
         pytest.importorskip("ladybug")
-        from memspine.clients.ladybug import LadybugClient
+        from memspine.clients.ladybug import LadybugClient, LadybugSpec
         from memspine.services.graph.ladybug import LadybugGraphStore
 
-        lb = LadybugClient(":memory:")
-        await lb.connect()
+        lb = LadybugClient(LadybugSpec(":memory:"))
+        await lb.open()
         yield LadybugGraphStore(lb)
         await lb.close()
         return
     from memspine.services.graph.sql_adjacency import SqlAdjacencyGraph
 
-    client = SQLiteClient(":memory:")
-    await client.connect()
+    client = SQLiteClient(SQLiteSpec(":memory:"))
+    await client.open()
     async with client.engine.begin() as conn:
         await conn.run_sync(metadata.create_all)
     yield SqlAdjacencyGraph(client)

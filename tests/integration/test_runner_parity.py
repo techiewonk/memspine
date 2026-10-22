@@ -26,7 +26,7 @@ from typing import Any
 
 import pytest
 
-from memspine.clients.sqlite import SQLiteClient
+from memspine.clients.sqlite import SQLiteClient, SQLiteSpec
 from memspine.config.loader import load_config
 from memspine.derive.pipeline.stages.context import PipelineContext
 from memspine.derive.pipeline.stages.table import PIPELINES
@@ -46,8 +46,8 @@ _ANCIENT = datetime(2019, 1, 1, 9, 0, 0, tzinfo=UTC)
 async def _build_ctx(path: str) -> tuple[PipelineContext, SQLiteStorage, SQLiteClient]:
     """A file-backed pipeline context with a real RecordProjector behind the
     append-and-project door — the shape the engine injects, materialized to disk."""
-    client = SQLiteClient(path)
-    await client.connect()
+    client = SQLiteClient(SQLiteSpec(path))
+    await client.open()
     storage = SQLiteStorage(client, mode=EventLogMode.FULL)
     await storage.start()
     projector = RecordProjector(storage)

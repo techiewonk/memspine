@@ -11,7 +11,7 @@ from typing import Any
 import pytest
 
 from memspine import Engine
-from memspine.clients.sqlite import SQLiteClient
+from memspine.clients.sqlite import SQLiteClient, SQLiteSpec
 from memspine.core.policies.conflict import ConflictPolicy
 from memspine.core.policies.dedup import DedupPolicy
 from memspine.memories.semantic.store import SemanticMemory
@@ -32,8 +32,8 @@ STATEMENTS = {
 
 
 async def _semantic(interval_order: bool) -> tuple[SemanticMemory, list[MemoryEvent]]:
-    client = SQLiteClient(":memory:")
-    await client.connect()
+    client = SQLiteClient(SQLiteSpec(":memory:"))
+    await client.open()
     storage = SQLiteStorage(client)
     await storage.start()
     projector = RecordProjector(storage)

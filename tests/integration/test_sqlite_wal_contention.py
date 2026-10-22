@@ -13,7 +13,7 @@ from __future__ import annotations
 import asyncio
 import sqlite3
 
-from memspine.clients.sqlite import SQLiteClient
+from memspine.clients.sqlite import SQLiteClient, SQLiteSpec
 from memspine.services.storage.sqlite.engine import SQLiteStorage
 from memspine.store.events import EventKind, MemoryEvent
 from memspine.store.records import MemoryRecord
@@ -30,8 +30,8 @@ def _journal_mode(path: str) -> str:
 
 
 async def _open(path: str) -> tuple[SQLiteClient, SQLiteStorage]:
-    client = SQLiteClient(path)
-    await client.connect()
+    client = SQLiteClient(SQLiteSpec(path))
+    await client.open()
     storage = SQLiteStorage(client)
     await storage.start()
     return client, storage
@@ -51,8 +51,8 @@ async def _write(storage: SQLiteStorage, tag: str) -> None:
 
 
 async def test_file_is_wal_from_connect_before_any_migration(db_path: str) -> None:
-    client = SQLiteClient(db_path)
-    await client.connect()
+    client = SQLiteClient(SQLiteSpec(db_path))
+    await client.open()
     try:
         assert _journal_mode(db_path) == "wal"
     finally:

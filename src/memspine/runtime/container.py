@@ -667,9 +667,14 @@ def build_secrets(spec: EngineSpec) -> SecretsService:
     if backend == "env":
         return env_secrets
     if backend == "aws":
-        from memspine.services.secrets.aws import AwsSecrets
+        from memspine.clients.aws import AwsConnector
+        from memspine.services.secrets.aws import AwsSecrets, secrets_manager_spec
 
-        return ChainedSecrets(env_secrets, AwsSecrets())
+        # Bootstrap phase 1 (no event loop yet): open synchronously. Creating the client
+        # opens no connection; it lives as long as the resolver (the process).
+        connector = AwsConnector(secrets_manager_spec())
+        connector.open_blocking()
+        return ChainedSecrets(env_secrets, AwsSecrets(client=connector.handle))
     raise ConfigError(f"unknown MEMSPINE_SECRETS_BACKEND {backend!r} (valid: env, aws)")
 
 

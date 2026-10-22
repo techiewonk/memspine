@@ -22,7 +22,7 @@ class OpenSearchLexical:
         self._lock = asyncio.Lock()
 
     async def ensure_index(self) -> None:
-        client = self._client.native
+        client = self._client.handle
         if await client.indices.exists(index=self._index):
             return
         try:
@@ -47,7 +47,7 @@ class OpenSearchLexical:
                 raise
 
     async def index(self, record: MemoryRecord) -> None:
-        await self._client.native.index(
+        await self._client.handle.index(
             index=self._index,
             id=document_id(self._owner_id, record.record_id),
             body={
@@ -81,7 +81,7 @@ class OpenSearchLexical:
                 for record in records
             )
             _count, errors = await async_bulk(
-                self._client.native,
+                self._client.handle,
                 actions,
                 raise_on_error=False,
                 refresh="wait_for",
@@ -98,7 +98,7 @@ class OpenSearchLexical:
         )
         if not safe_query:
             return []
-        response = await self._client.native.search(
+        response = await self._client.handle.search(
             index=self._index,
             body={
                 "query": {
@@ -129,7 +129,7 @@ class OpenSearchLexical:
         return {"query": {"bool": {"filter": must}}}
 
     async def delete(self, record_id: str) -> None:
-        await self._client.native.delete(
+        await self._client.handle.delete(
             index=self._index,
             id=document_id(self._owner_id, record_id),
             refresh="wait_for",
@@ -139,7 +139,7 @@ class OpenSearchLexical:
 
     async def exists(self, record_id: str) -> bool:
         return bool(
-            await self._client.native.exists(
+            await self._client.handle.exists(
                 index=self._index,
                 id=document_id(self._owner_id, record_id),
                 request_timeout=self._timeout,
@@ -147,7 +147,7 @@ class OpenSearchLexical:
         )
 
     async def clear(self) -> None:
-        response = await self._client.native.delete_by_query(
+        response = await self._client.handle.delete_by_query(
             index=self._index,
             body=self._scope_query(),
             refresh=True,
@@ -160,7 +160,7 @@ class OpenSearchLexical:
             or response.get("timed_out", False)
         ):
             raise RuntimeError("OpenSearch clear did not delete every owned document")
-        remaining = await self._client.native.count(
+        remaining = await self._client.handle.count(
             index=self._index,
             body=self._scope_query(),
             request_timeout=self._timeout,

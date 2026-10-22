@@ -2,7 +2,8 @@
 
 A provider receives ONLY a :class:`~memspine.services.external.privacy.PublicQuery` text and
 returns snippets. No key is ever hard-coded: the HTTP provider reads its endpoint and
-credential from the environment.
+credential from the environment and sends over the Engine's shared
+:class:`~memspine.clients.http.HttpConnector` (RM-113).
 
 ``MEMSPINE_EXTERNAL_SEARCH_URL``     endpoint; called as ``GET <url>?q=<query>&n=<count>``
 ``MEMSPINE_EXTERNAL_SEARCH_KEY``     optional credential
@@ -15,16 +16,15 @@ objects with ``title``, ``snippet`` (or ``content`` / ``text`` / ``description``
 
 from __future__ import annotations
 
-import asyncio
 import json
 import os
 import re
-import urllib.error
 import urllib.parse
-import urllib.request
 from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any, Protocol
+
+from memspine.clients.http import HttpConnector, HttpError
 
 __all__ = [
     "ExternalProvider",
@@ -96,24 +96,32 @@ def _items(payload: Any) -> list[Mapping[str, Any]]:
 class HttpSearchProvider:
     name = "http"
 
-    def __init__(self, url: str, key: str | None = None, header: str = "Authorization") -> None:
+    def __init__(
+        self,
+        url: str,
+        http: HttpConnector,
+        key: str | None = None,
+        header: str = "Authorization",
+    ) -> None:
         self.url = url
         self.key = key
         self.header = header
         self.timeout = 10.0
+        self._http = http
 
     @classmethod
-    def from_env(cls) -> HttpSearchProvider:
+    def from_env(cls, http: HttpConnector) -> HttpSearchProvider:
         url = os.environ.get(URL_ENV, "").strip()
         if not url:
             raise ProviderUnavailableError(f"{URL_ENV} is not set")
         return cls(
             url,
+            http,
             os.environ.get(KEY_ENV) or None,
             os.environ.get(HEADER_ENV, "Authorization") or "Authorization",
         )
 
-    def _get(self, query: str, max_results: int) -> list[ExternalSnippet]:
+    async def search(self, query: str, max_results: int) -> list[ExternalSnippet]:
         parsed = urllib.parse.urlparse(self.url)
         if parsed.scheme.lower() not in ("http", "https"):
             raise ProviderError(f"unsupported scheme in {URL_ENV}")
@@ -125,11 +133,11 @@ class HttpSearchProvider:
                 f"Bearer {self.key}" if self.header.lower() == "authorization" else self.key
             )
         try:
-            with urllib.request.urlopen(
-                urllib.request.Request(url, headers=headers), timeout=self.timeout
-            ) as response:
-                payload = json.loads(response.read())
-        except (urllib.error.URLError, OSError, ValueError) as exc:
+            reply = await self._http.request("GET", url, headers=headers, timeout_s=self.timeout)
+            if reply.status >= 400:
+                raise ProviderError(f"external search failed: HTTP {reply.status}")
+            payload = json.loads(reply.body)
+        except (HttpError, ValueError) as exc:
             raise ProviderError(f"external search failed: {type(exc).__name__}") from exc
         out: list[ExternalSnippet] = []
         for item in _items(payload):
@@ -150,6 +158,3 @@ class HttpSearchProvider:
             if len(out) >= max_results:
                 break
         return out
-
-    async def search(self, query: str, max_results: int) -> list[ExternalSnippet]:
-        return await asyncio.to_thread(self._get, query, max_results)

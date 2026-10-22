@@ -1,23 +1,23 @@
 """Programmatic Alembic runner (D-36) for file-backed SQLite databases.
 
-``:memory:`` databases cannot be migrated here — a separate migration
+Alembic runs over a connection the SQLite connector lends
+(:meth:`~memspine.clients.sqlite.SQLiteClient.migration_connection`, keyed under SQLCipher)
+and receives it through ``config.attributes['connection']`` (RM-113 P1 #9); this module never
+opens a connection itself. ``:memory:`` databases cannot be migrated — a separate migration
 connection cannot reach another connection's in-memory database — so callers
-(``SQLiteStorage.start``) use ``metadata.create_all`` for those, and this
-module refuses ``:memory:`` loudly instead of "succeeding" against a throwaway
-database.
+(``SQLiteStorage.start``) use ``metadata.create_all`` for those, and the connector refuses
+``:memory:`` loudly instead of "succeeding" against a throwaway database.
 """
 
 from __future__ import annotations
 
 import threading
-from collections.abc import Callable
 from pathlib import Path
-from typing import Any
 
 from alembic import command
 from alembic.config import Config
-from sqlalchemy import create_engine, inspect
-from sqlalchemy.pool import NullPool
+from sqlalchemy import inspect
+from sqlalchemy.engine import Connection
 
 from memspine.exceptions import StorageError
 
@@ -41,6 +41,7 @@ def _reject_memory(db_path: str | Path) -> None:
 
 
 def alembic_config(db_path: str | Path) -> Config:
+    """The Alembic config of the SQLite tree, URL-addressed (offline/CLI use and tests)."""
     _reject_memory(db_path)
     cfg = Config()
     cfg.set_main_option("script_location", str(_HERE))
@@ -52,53 +53,26 @@ def upgrade_to_head(db_path: str | Path) -> None:
     command.upgrade(alembic_config(db_path), "head")
 
 
-def ensure_schema(db_path: str | Path, creator: Callable[[], Any] | None = None) -> None:
-    """Bring a file-backed database to schema head.
+def ensure_schema(connection: Connection) -> None:
+    """Bring the database behind ``connection`` (lent by the connector) to schema head.
 
     Handles the pre-Alembic case: a database whose tables exist (created by an
     older ``create_all`` run) but that has no ``alembic_version`` table is
     stamped at the baseline revision first, so ``upgrade`` applies only what is
-    actually missing instead of failing on existing tables.
-
-    ``creator`` (#52) opens the DB-API connection instead of a plain ``sqlite:///``
-    URL: an encrypted database must be keyed before Alembic touches it, or the
-    migration would read garbage or write plaintext pages.
+    actually missing instead of failing on existing tables. Each Alembic command
+    commits its own transaction on the lent connection.
     """
-    _reject_memory(db_path)
     with _MIGRATION_LOCK:
-        if creator is not None:
-            _ensure_schema_with(db_path, creator)
-        else:
-            _ensure_schema_plain(db_path)
-
-
-def _ensure_schema_plain(db_path: str | Path) -> None:
-    """:func:`ensure_schema` over a plain ``sqlite:///`` URL."""
-    engine = create_engine(f"sqlite:///{db_path}")
-    try:
-        inspector = inspect(engine)
+        inspector = inspect(connection)
         has_version = inspector.has_table("alembic_version")
         has_tables = inspector.has_table("memory_events")
-    finally:
-        engine.dispose()
-    cfg = alembic_config(db_path)
-    if has_tables and not has_version:
-        command.stamp(cfg, "0001")
-    command.upgrade(cfg, "head")
-
-
-def _ensure_schema_with(db_path: str | Path, creator: Callable[[], Any]) -> None:
-    """:func:`ensure_schema` over connections ``creator`` opens (#52)."""
-    engine = create_engine("sqlite://", creator=creator, poolclass=NullPool)
-    try:
-        with engine.begin() as connection:
-            inspector = inspect(connection)
-            has_version = inspector.has_table("alembic_version")
-            has_tables = inspector.has_table("memory_events")
-            cfg = alembic_config(db_path)
-            cfg.attributes["connection"] = connection
-            if has_tables and not has_version:
-                command.stamp(cfg, "0001")
-            command.upgrade(cfg, "head")
-    finally:
-        engine.dispose()
+        if connection.in_transaction():
+            connection.commit()  # end the inspection's implicit transaction
+        cfg = Config()
+        cfg.set_main_option("script_location", str(_HERE))
+        cfg.attributes["connection"] = connection
+        if has_tables and not has_version:
+            command.stamp(cfg, "0001")
+        command.upgrade(cfg, "head")
+        if connection.in_transaction():
+            connection.commit()

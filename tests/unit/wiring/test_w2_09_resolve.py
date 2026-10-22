@@ -19,7 +19,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from test_window_write import FakeWindowLLM, _send
 
 from memspine import Engine
-from memspine.clients.sqlite import SQLiteClient
+from memspine.clients.sqlite import SQLiteClient, SQLiteSpec
 from memspine.config.schema import MemspineConfig
 from memspine.derive import resolve_stage as rs
 from memspine.derive.compile import WindowLine
@@ -356,12 +356,12 @@ async def test_unscoped_keys_use_the_namespace() -> None:
 
 # --- replay ----------------------------------------------------------------------------------------
 async def test_registry_replays_from_payloads_and_through_migrate(tmp_path: Path) -> None:
-    client = SQLiteClient(str(tmp_path / "src.db"))
-    await client.connect()
+    client = SQLiteClient(SQLiteSpec(str(tmp_path / "src.db")))
+    await client.open()
     src = SQLiteStorage(client)
     await src.start()
-    tclient = SQLiteClient(str(tmp_path / "dst.db"))
-    await tclient.connect()
+    tclient = SQLiteClient(SQLiteSpec(str(tmp_path / "dst.db")))
+    await tclient.open()
     dst = SQLiteStorage(tclient)
     await dst.start()
     try:

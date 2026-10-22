@@ -451,7 +451,7 @@ async def test_tantivy_cleanup_route_survives_fresh_engine_restart(tmp_path) -> 
     assert engine._sql is not None and engine._resolved is not None
     assert engine._lexical is not None
     await engine._lexical.search("default", "", top_k=1)
-    source_path = Path(engine._lexical._path or "")
+    source_path = Path(engine._lexical.connector.spec.path or "")
     assert source_path.is_dir()
     deployment_id = engine._provider_owner_id
     assert deployment_id is not None
@@ -596,9 +596,9 @@ async def test_tantivy_cleanup_route_survives_fresh_engine_restart(tmp_path) -> 
     await restarted.start()
     try:
         assert restarted._lexical is not None
-        assert restarted._lexical._path is not None
-        assert ".tantivy-generation-" in restarted._lexical._path
-        assert Path(restarted._lexical._path) != source_path
+        assert restarted._lexical.connector.spec.path is not None
+        assert ".tantivy-generation-" in restarted._lexical.connector.spec.path
+        assert Path(restarted._lexical.connector.spec.path) != source_path
         assert await restarted._lexical.search("health", "", top_k=1) == []
     finally:
         await restarted.stop()

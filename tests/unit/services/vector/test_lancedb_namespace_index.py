@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from memspine.clients.lancedb import LanceDBClient
+from memspine.clients.lancedb import LanceDBClient, LanceDBSpec
 from memspine.config import constants
 from memspine.config.schema.providers import LanceDBSettings
 from memspine.services.embedding.hash import HashEmbedding
@@ -23,8 +23,8 @@ def _unit(v: list[float]) -> list[float]:
 
 
 async def _store(tmp_path: Path, on: bool) -> LanceDBVectorStore:
-    client = LanceDBClient(tmp_path / ("on" if on else "off") / "vec.lance")
-    await client.connect()
+    client = LanceDBClient(LanceDBSpec(tmp_path / ("on" if on else "off") / "vec.lance"))
+    await client.open()
     return LanceDBVectorStore(client, HashEmbedding(dim=_DIM), namespace_index=on)
 
 

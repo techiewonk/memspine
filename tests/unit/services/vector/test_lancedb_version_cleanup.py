@@ -18,7 +18,7 @@ from datetime import timedelta
 
 import pytest
 
-from memspine.clients.lancedb import LanceDBClient
+from memspine.clients.lancedb import LanceDBClient, LanceDBSpec
 from memspine.services.embedding.hash import HashEmbedding
 from memspine.services.vector.lancedb_store import LanceDBVectorStore
 
@@ -28,8 +28,8 @@ _READERS = 4
 
 
 async def _store(path: str) -> LanceDBVectorStore:
-    client = LanceDBClient(path)
-    await client.connect()
+    client = LanceDBClient(LanceDBSpec(path))
+    await client.open()
     return LanceDBVectorStore(client, HashEmbedding(dim=_DIM), compact_every=4, exclusive=True)
 
 

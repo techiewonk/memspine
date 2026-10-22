@@ -14,7 +14,7 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from memspine.clients.sqlite import SQLiteClient
+from memspine.clients.sqlite import SQLiteClient, SQLiteSpec
 from memspine.config import constants
 from memspine.config.loader import load_config
 from memspine.derive.pipeline.stages import communities as pipelines
@@ -53,8 +53,8 @@ class Harness:
 
 
 async def make_ctx() -> tuple[PipelineContext, Harness, SqlAdjacencyGraph]:
-    client = SQLiteClient(":memory:")
-    await client.connect()
+    client = SQLiteClient(SQLiteSpec(":memory:"))
+    await client.open()
     storage = SQLiteStorage(client)
     await storage.start()
     graph = SqlAdjacencyGraph(client)

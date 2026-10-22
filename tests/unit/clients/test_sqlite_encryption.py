@@ -21,7 +21,7 @@ from pydantic import ValidationError
 from structlog.testing import capture_logs
 
 from memspine import Engine
-from memspine.clients.sqlite import SQLiteClient, load_sqlcipher_driver
+from memspine.clients.sqlite import SQLiteClient, SQLiteSpec, load_sqlcipher_driver
 from memspine.config.schema.providers import PostgresSettings, SqliteSettings
 from memspine.exceptions import ConfigError, MissingServiceError, StorageError
 
@@ -112,11 +112,11 @@ async def test_key_comes_only_from_the_named_env_var(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake_driver: types.ModuleType
 ) -> None:
     monkeypatch.delenv(KEY_ENV, raising=False)
-    client = SQLiteClient(tmp_path / "a.db", cipher_key_env=KEY_ENV)
+    client = SQLiteClient(SQLiteSpec(tmp_path / "a.db", cipher_key_env=KEY_ENV))
     with pytest.raises(ConfigError, match=KEY_ENV):
-        await client.connect()
+        await client.open()
     monkeypatch.setenv(KEY_ENV, SECRET)
-    await client.connect()
+    await client.open()
     try:
         assert _Recording.statements[0] == f"PRAGMA key = '{SECRET}'"  # keyed first
     finally:
@@ -124,17 +124,17 @@ async def test_key_comes_only_from_the_named_env_var(
 
 
 async def test_memory_database_is_rejected(fake_driver: types.ModuleType) -> None:
-    client = SQLiteClient(":memory:", cipher_key_env=KEY_ENV)
+    client = SQLiteClient(SQLiteSpec(":memory:", cipher_key_env=KEY_ENV))
     with pytest.raises(ConfigError, match="file database"):
-        await client.connect()
+        await client.open()
 
 
 async def test_quotes_in_the_key_are_escaped(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake_driver: types.ModuleType
 ) -> None:
     monkeypatch.setenv(KEY_ENV, "it's")
-    client = SQLiteClient(tmp_path / "q.db", cipher_key_env=KEY_ENV)
-    await client.connect()
+    client = SQLiteClient(SQLiteSpec(tmp_path / "q.db", cipher_key_env=KEY_ENV))
+    await client.open()
     await client.close()
     assert _Recording.statements[0] == "PRAGMA key = 'it''s'"
 
@@ -149,9 +149,9 @@ async def test_failed_key_check_raises_storage_error_without_the_key(
 
     monkeypatch.setattr(fake_driver, "connect", refuse)
     monkeypatch.setenv(KEY_ENV, SECRET)
-    client = SQLiteClient(tmp_path / "w.db", cipher_key_env=KEY_ENV)
+    client = SQLiteClient(SQLiteSpec(tmp_path / "w.db", cipher_key_env=KEY_ENV))
     with pytest.raises(StorageError) as info:
-        await client.connect()
+        await client.open()
     assert SECRET not in str(info.value)
     assert "wrong key" in str(info.value)
 
@@ -237,4 +237,4 @@ async def test_real_sqlcipher_file_is_unreadable_without_the_key(
         sqlite3.connect(db).execute("SELECT count(*) FROM sqlite_master").fetchone()
     monkeypatch.setenv(KEY_ENV, "wrong")
     with pytest.raises(StorageError):
-        await SQLiteClient(db, cipher_key_env=KEY_ENV).connect()
+        await SQLiteClient(SQLiteSpec(db, cipher_key_env=KEY_ENV)).open()

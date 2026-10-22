@@ -15,11 +15,11 @@ async def test_ladybug_client_without_package_names_the_graph_extra(
     # sys.modules["ladybug"] = None makes `import ladybug` raise ImportError even
     # in an environment that has ladybug installed — the missing-extra path is
     # exercised deterministically everywhere.
-    from memspine.clients.ladybug import LadybugClient
+    from memspine.clients.ladybug import LadybugClient, LadybugSpec
 
     monkeypatch.setitem(sys.modules, "ladybug", None)
     with pytest.raises(MissingServiceError) as excinfo:
-        await LadybugClient(":memory:").connect()
+        await LadybugClient(LadybugSpec(":memory:")).open()
     assert excinfo.value.service == "graph:ladybug"
     assert excinfo.value.extra == "graph"
     assert "pip install memspine[graph]" in str(excinfo.value)

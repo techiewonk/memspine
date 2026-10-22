@@ -13,7 +13,7 @@ from typing import Any
 
 import pytest
 
-from memspine.clients.lancedb import LanceDBClient
+from memspine.clients.lancedb import LanceDBClient, LanceDBSpec
 from memspine.services.embedding.hash import HashEmbedding
 from memspine.services.vector.base import VectorHit
 from memspine.services.vector.lancedb_store import LanceDBVectorStore
@@ -22,8 +22,8 @@ _DIM = 16
 
 
 async def _store(**kwargs: Any) -> LanceDBVectorStore:
-    client = LanceDBClient("memory://vectors")
-    await client.connect()
+    client = LanceDBClient(LanceDBSpec("memory://vectors"))
+    await client.open()
     return LanceDBVectorStore(client, HashEmbedding(dim=_DIM), **kwargs)
 
 

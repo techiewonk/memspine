@@ -5,10 +5,11 @@ No network, no model."""
 from __future__ import annotations
 
 import hashlib
-import urllib.request
 
+import httpx
 import pytest
 
+from memspine.clients.http import HttpConnector, HttpSpec
 from memspine.services.assets import (
     AssetAdapter,
     AssetEntry,
@@ -23,7 +24,7 @@ from memspine.services.assets import (
     parse_attachments,
     sniff_mime,
 )
-from memspine.services.assets.fetch import _SameHostRedirect
+from memspine.services.assets.fetch import check_redirect
 
 JPEG = b"\xff\xd8\xff\xe0" + b"0" * 64
 PNG = b"\x89PNG\r\n\x1a\n" + b"1" * 64
@@ -220,19 +221,56 @@ def test_sniff_mime() -> None:
     assert sniff_mime(b"<html>") is None
 
 
-def test_unsupported_scheme_is_refused_before_any_io() -> None:
-    fetcher = HttpAssetFetcher(("image/jpeg",))
+def _fetcher(handler) -> HttpAssetFetcher:  # type: ignore[no-untyped-def]
+    """The real fetcher over the shared HTTP connector with an in-process transport."""
+    return HttpAssetFetcher(
+        ("image/jpeg",), HttpConnector(HttpSpec(transport=httpx.MockTransport(handler)))
+    )
+
+
+async def test_unsupported_scheme_is_refused_before_any_io() -> None:
+    calls: list[str] = []
+    fetcher = _fetcher(lambda request: calls.append(str(request.url)))
     with pytest.raises(AssetFetchError) as err:
-        fetcher._get("file:///etc/passwd", 100, 1.0)
-    assert err.value.reason == "unsupported_scheme"
+        await fetcher.fetch("file:///etc/passwd", max_bytes=100, timeout_s=1.0)
+    assert err.value.reason == "unsupported_scheme" and not calls
 
 
 def test_cross_host_redirect_is_refused() -> None:
-    handler = _SameHostRedirect()
-    req = urllib.request.Request("https://img.test/a.jpg")
     with pytest.raises(AssetFetchError) as err:
-        handler.redirect_request(req, None, 302, "Found", {}, "https://placeholder.other/gone.png")
+        check_redirect("https://img.test/a.jpg", "https://placeholder.other/gone.png")
     assert err.value.reason == "redirected_offsite"
+    assert check_redirect("https://img.test/a.jpg", "/b.jpg") == "https://img.test/b.jpg"
+
+
+async def test_fetch_follows_a_same_host_redirect_and_checks_the_bytes() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/a.jpg":
+            return httpx.Response(302, headers={"location": "/b.jpg"})
+        return httpx.Response(200, headers={"content-type": "image/jpeg"}, content=JPEG)
+
+    got = await _fetcher(handler).fetch("https://img.test/a.jpg", max_bytes=1000, timeout_s=1.0)
+    assert got.mime == "image/jpeg" and got.data == JPEG
+
+
+async def test_fetch_refuses_an_offsite_redirect_too_large_and_http_errors() -> None:
+    def offsite(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(301, headers={"location": "https://placeholder.other/x.png"})
+
+    def large(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, headers={"content-type": "image/jpeg"}, content=JPEG * 50)
+
+    def missing(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(404)
+
+    for handler, reason in (
+        (offsite, "redirected_offsite"),
+        (large, "too_large"),
+        (missing, "http_404"),
+    ):
+        with pytest.raises(AssetFetchError) as err:
+            await _fetcher(handler).fetch("https://img.test/a.jpg", max_bytes=100, timeout_s=1.0)
+        assert err.value.reason == reason
 
 
 # ── cue ──────────────────────────────────────────────────────────────────────

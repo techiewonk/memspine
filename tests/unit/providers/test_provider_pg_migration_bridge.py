@@ -1,24 +1,42 @@
+from types import SimpleNamespace
+
 from memspine.services.storage.postgres import migrations
 
 
-def test_embedded_schema_bridge_runs_provider_migration_after_stamp(monkeypatch):
-    calls = []
+class _Connection:
+    """A connector-lent connection stand-in (RM-113): not Postgres, so no advisory lock."""
 
-    class Engine:
-        def dispose(self):
-            calls.append(("dispose",))
+    dialect = SimpleNamespace(name="fake")
+
+    def __init__(self, calls: list[tuple[str, ...]]) -> None:
+        self.calls = calls
+
+    def in_transaction(self) -> bool:
+        return False
+
+    def commit(self) -> None:
+        self.calls.append(("commit",))
+
+
+def test_embedded_schema_bridge_runs_provider_migration_after_stamp(monkeypatch):
+    calls: list[tuple[str, ...]] = []
 
     class Inspector:
         def has_table(self, name):
             return name == "memory_events"
 
-    monkeypatch.setattr(migrations, "create_engine", lambda _: Engine())
+    seen: list[object] = []
     monkeypatch.setattr(migrations, "inspect", lambda _: Inspector())
-    monkeypatch.setattr(
-        migrations.command, "stamp", lambda _, revision: calls.append(("stamp", revision))
-    )
+
+    def stamp(cfg, revision):
+        seen.append(cfg.attributes["connection"])
+        calls.append(("stamp", revision))
+
+    monkeypatch.setattr(migrations.command, "stamp", stamp)
     monkeypatch.setattr(
         migrations.command, "upgrade", lambda _, revision: calls.append(("upgrade", revision))
     )
-    migrations.ensure_schema("postgresql://unused/test")
-    assert calls == [("dispose",), ("stamp", "pg_lf_e_layer_backfill"), ("upgrade", "head")]
+    connection = _Connection(calls)
+    migrations.ensure_schema(connection)  # type: ignore[arg-type]
+    assert calls == [("stamp", "pg_lf_e_layer_backfill"), ("upgrade", "head")]
+    assert seen == [connection]  # Alembic runs over the lent connection

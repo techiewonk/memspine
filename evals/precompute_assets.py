@@ -132,15 +132,20 @@ async def precompute(
 
 
 def build_adapter(args: argparse.Namespace) -> AssetAdapter:
+    from memspine.clients.http import HttpConnector, HttpSpec
+
     asset_dir = Path(args.asset_dir)
+    # One shared pool for the run (RM-113); it opens on the first request and the process
+    # exit releases it.
+    http = HttpConnector(HttpSpec(max_connections=max(4, args.concurrency * 2)))
     vision: Any = (
         NoopVision()
         if args.phase == "download"
-        else OllamaVision(args.vision_model, args.vision_url, timeout=args.vision_timeout)
+        else OllamaVision(args.vision_model, http, args.vision_url, timeout=args.vision_timeout)
     )
     return AssetAdapter(
         AssetRegistry(asset_dir),
-        HttpAssetFetcher(DEFAULT_MIME),
+        HttpAssetFetcher(DEFAULT_MIME, http),
         vision,
         asset_dir,
         max_bytes=args.max_bytes,

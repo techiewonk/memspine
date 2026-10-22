@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from memspine.services.lexical import tantivy
+from memspine.clients.tantivy import connector as tantivy
 
 
 class _Writer:
@@ -20,17 +20,17 @@ class _Writer:
 def test_join_retries_until_the_writer_is_free(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(tantivy, "TANTIVY_COMMIT_BACKOFF_S", 0.0)
     w = _Writer(busy=2)
-    tantivy._wait_merging_threads(w)
+    tantivy.wait_merging_threads(w)
     assert w.calls == 3
 
 
 def test_join_gives_up_quietly_when_still_busy(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(tantivy, "TANTIVY_COMMIT_BACKOFF_S", 0.0)
     w = _Writer(busy=99)
-    tantivy._wait_merging_threads(w)  # no raise: shutdown must not fail on a busy writer
+    tantivy.wait_merging_threads(w)  # no raise: shutdown must not fail on a busy writer
     assert w.calls == tantivy.TANTIVY_COMMIT_RETRIES
 
 
 def test_other_runtime_errors_still_raise() -> None:
     with pytest.raises(RuntimeError, match="disk full"):
-        tantivy._wait_merging_threads(_Writer(busy=1, error="disk full"))
+        tantivy.wait_merging_threads(_Writer(busy=1, error="disk full"))

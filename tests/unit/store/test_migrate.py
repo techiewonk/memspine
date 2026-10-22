@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from memspine.clients.sqlite import SQLiteClient
+from memspine.clients.sqlite import SQLiteClient, SQLiteSpec
 from memspine.exceptions import RebuildUnavailableError
 from memspine.schemas import versioning
 from memspine.services.storage.sqlite.engine import SQLiteStorage
@@ -86,8 +86,8 @@ def _v1_events() -> list[MemoryEvent]:
 
 
 async def _open(path: Path) -> tuple[SQLiteClient, SQLiteStorage]:
-    client = SQLiteClient(str(path))
-    await client.connect()
+    client = SQLiteClient(SQLiteSpec(str(path)))
+    await client.open()
     storage = SQLiteStorage(client)
     await storage.start()
     return client, storage
@@ -192,8 +192,8 @@ async def test_source_is_never_written(tmp_path: Path) -> None:
 async def test_pruned_log_is_refused(tmp_path: Path) -> None:
     src = tmp_path / "v1.db"
     await _make_v1(src)
-    client = SQLiteClient(str(src))
-    await client.connect()
+    client = SQLiteClient(SQLiteSpec(str(src)))
+    await client.open()
     storage = SQLiteStorage(client, EventLogMode.ROLLING)
     await storage.start()
     try:

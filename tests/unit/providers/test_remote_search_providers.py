@@ -136,7 +136,7 @@ class _OpenSearchNative:
 
 class _OpenSearchClient:
     def __init__(self) -> None:
-        self.native = _OpenSearchNative()
+        self.handle = _OpenSearchNative()
 
 
 @pytest.mark.asyncio
@@ -149,10 +149,10 @@ async def test_opensearch_search_and_clear_are_namespace_and_owner_scoped() -> N
         namespace="ns-a", memory_type="semantic", content="Cobalt notes", record_id="r1"
     )
     await store.index(record)
-    assert client.native.indexed[0]["id"] != "r1"
+    assert client.handle.indexed[0]["id"] != "r1"
     hits = await store.search("ns-a", 'cobalt OR namespace:ns-b "', top_k=4)
     assert [hit.record_id for hit in hits] == ["r1", "other"]
-    request = client.native.search_request
+    request = client.handle.search_request
     assert request is not None
     filters = request["body"]["query"]["bool"]["filter"]
     assert {"term": {"namespace": "ns-a"}} in filters
@@ -161,8 +161,8 @@ async def test_opensearch_search_and_clear_are_namespace_and_owner_scoped() -> N
         "cobalt OR namespace ns b"
     )
     await store.clear()
-    assert client.native.delete_query is not None
-    clear_filters = client.native.delete_query["body"]["query"]["bool"]["filter"]
+    assert client.handle.delete_query is not None
+    clear_filters = client.handle.delete_query["body"]["query"]["bool"]["filter"]
     assert clear_filters == [{"term": {"owner_scope": owner_scope("deploy-a")}}]
 
 

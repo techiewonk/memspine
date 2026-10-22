@@ -9,12 +9,6 @@
 #   * when a refactor removes a violation, the test fails until you delete its line here.
 
 # --- clients-isolated: connectors take a frozen transport spec, not config models (section 1)
-clients-isolated memspine/clients/lancedb.py memspine.config -- RM-113 item 3: lancedb connector takes a transport spec, not the config model
-clients-isolated memspine/clients/opensearch.py memspine.config -- RM-113 item 1: OpenSearch connector base + spec, no config import
-clients-isolated memspine/clients/postgres.py memspine.config -- RM-113 item 8: postgres connector takes a transport spec, not the config model
-clients-isolated memspine/clients/sqlite.py memspine.config -- RM-113 item 8: sqlite connector takes a transport spec, not the config model
-clients-isolated memspine/clients/weaviate.py memspine.config -- RM-113 item 1: Weaviate connector base + spec, no config import
-clients-isolated memspine/clients/neo4j.py memspine.providers -- RM-113 item 2: Neo4j spec; drop the client's providers import, executor built by the adapter
 
 # --- consumers-never-see-clients
 consumers-never-see-clients memspine/store/migrate.py memspine.clients -- RM-113 item 7: route store/migrate.py through the storage descriptor
@@ -24,11 +18,8 @@ providers-composition-only memspine/providers/builtin/generations.py memspine.me
 providers-composition-only memspine/providers/projection_backend.py memspine.memories -- RM-113 item 18: graph projector/entity policy injected, not imported by providers
 
 # --- services-no-transport
-services-no-transport memspine/services/graph/neo4j.py neo4j -- RM-113 item 5: adapter drops its own driver factory, takes the shared connector
-services-no-transport memspine/services/secrets/aws.py boto3 -- RM-113 item 14: clients/aws connector
 
 # --- services-not-composition
 services-not-composition memspine/services/storage/postgres/alembic/versions/pg0012_provider_changes.py memspine.providers -- RM-113 item 9: migration snapshots provider-change schema; inline the DDL
 services-not-composition memspine/services/storage/sqlite/alembic/versions/0012_provider_changes.py memspine.providers -- RM-113 item 9: migration snapshots provider-change schema; inline the DDL
-services-not-composition memspine/services/storage/sqlite/engine.py memspine.runtime -- RM-113 item 8: sync engines move into clients/sqlite
 services-not-composition memspine/services/vector/pgvector_store.py memspine.providers -- RM-113 item 11: pgvector adapter takes the postgres connector, no providers import

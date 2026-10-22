@@ -15,6 +15,7 @@ from typing import Any
 
 import pytest
 
+from memspine.clients.sqlite.sync import memory_sync_engine
 from memspine.config.schema import MemspineConfig, RuntimeConfig
 from memspine.config.schema.observability import TapConfig
 from memspine.derive.backpressure import (
@@ -27,7 +28,7 @@ from memspine.economy.slo import SloLedger, percentile, timed_read
 from memspine.observability import bindings, tap
 from memspine.runtime import scheduler as sched
 from memspine.runtime.jobs import ManualClock, RetryBudget
-from memspine.runtime.outbox import SqlJobStore, memory_engine
+from memspine.runtime.outbox import SqlJobStore
 from memspine.runtime.runner import InlineRunner
 from memspine.runtime.scheduler import EncoderExecutor, ModelGate
 from memspine.schemas.durable.common import OwnerScope
@@ -328,7 +329,7 @@ def test_zero_disables_a_cap() -> None:
 # ------------------------------------------------------------------------------ runner + outbox
 def _runner(engine: Any = None, clock: Any = None, **kw: Any) -> InlineRunner:
     return InlineRunner(
-        SqlJobStore(engine or memory_engine()),
+        SqlJobStore(engine or memory_sync_engine()),
         clock=clock or ManualClock(T0),
         budget=RetryBudget(base_backoff=timedelta(0)),
         **kw,
@@ -423,17 +424,17 @@ async def test_age_cap_uses_the_clock_and_force_accepts_past_the_hard_cap() -> N
 
 
 async def test_underived_markers_survive_a_restart(tmp_path: Path) -> None:
-    from memspine.runtime.outbox import sqlite_engine
+    from memspine.clients.sqlite.sync import sqlite_sync_engine
 
     path = str(tmp_path / "o.db")
     clock = ManualClock(T0)
-    first = _runner(sqlite_engine(path, busy_timeout_s=5.0), clock)
+    first = _runner(sqlite_sync_engine(path, busy_timeout_s=5.0), clock)
     first.register("derive", prepare=Handler().prepare, commit=Handler().commit)
     for i in range(3):
         await first.enqueue(SCOPE, "derive", {"i": i})
     first.close()
     clock.advance(120)  # nobody was running
-    again = _runner(sqlite_engine(path, busy_timeout_s=5.0), clock)
+    again = _runner(sqlite_sync_engine(path, busy_timeout_s=5.0), clock)
     items, oldest = again.store.backlog()
     assert items == 3 and oldest is not None
     ledger = SloLedger()

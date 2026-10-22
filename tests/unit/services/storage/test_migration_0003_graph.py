@@ -9,7 +9,7 @@ import orjson
 from alembic import command
 from sqlalchemy import create_engine, inspect, text
 
-from memspine.clients.sqlite import SQLiteClient
+from memspine.clients.sqlite import SQLiteClient, SQLiteSpec
 from memspine.services.graph.sql_adjacency import SqlAdjacencyGraph
 from memspine.services.storage.sqlite.migrations import alembic_config, upgrade_to_head
 
@@ -83,8 +83,8 @@ async def test_upgrade_backfills_a_pre_kb1_graph(tmp_path: Path) -> None:
     assert edges["odd"] == ("ns/a", 1.0, None)  # non-numeric weight -> 1.0
 
     # The backfilled tombstone is still gone for the CTE walk.
-    client = SQLiteClient(db)
-    await client.connect()
+    client = SQLiteClient(SQLiteSpec(db))
+    await client.open()
     try:
         graph = SqlAdjacencyGraph(client)
         assert [n.node_id for n in await graph.neighbors("r1", namespace="ns/a")] == ["r2"]
@@ -121,8 +121,8 @@ async def test_upgrade_matches_a_rebuild_for_bare_endpoints(tmp_path: Path) -> N
         upgraded = dict(conn.execute(text("SELECT node_id, namespace FROM graph_nodes")).all())
     engine.dispose()
 
-    client = SQLiteClient(":memory:")
-    await client.connect()
+    client = SQLiteClient(SQLiteSpec(":memory:"))
+    await client.open()
     try:
         from memspine.services.storage.sqlite.schema import metadata
 

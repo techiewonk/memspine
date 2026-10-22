@@ -46,12 +46,12 @@ class DiskBuilder:
     async def build(
         self, settings: DiskCacheSettings, ctx: CacheBuildContext
     ) -> BuildResult[KVCache]:
-        from memspine.clients.cashews import CashewsClient
+        from memspine.clients.cashews import CashewsClient, CashewsSpec
         from memspine.services.cache.cashews import CashewsCache
 
-        client = CashewsClient(f"disk://?directory={settings.path}")
+        client = CashewsClient(CashewsSpec(f"disk://?directory={settings.path}"))
         ref = ctx.shared.resources.own("cache", client.close)
-        await client.connect()
+        await client.open()
         cache = CashewsCache(
             client,
             namespace=_owned_namespace(settings.namespace, ctx),
@@ -78,13 +78,13 @@ class RemoteBuilder:
     async def build(
         self, settings: RemoteCacheSettings, ctx: CacheBuildContext
     ) -> BuildResult[KVCache]:
-        from memspine.clients.cashews import CashewsClient
+        from memspine.clients.cashews import CashewsClient, CashewsSpec
         from memspine.services.cache.cashews import CashewsCache
 
-        client = CashewsClient(settings.url)
+        client = CashewsClient(CashewsSpec(settings.url))
         ref = ctx.shared.resources.own("cache", client.close)
         async with asyncio.timeout(settings.connect_timeout_s):
-            await client.connect()
+            await client.open()
         # Remote operations use the explicitly configured request deadline.
         cache = CashewsCache(
             client,

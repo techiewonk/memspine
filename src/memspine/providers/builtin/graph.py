@@ -91,7 +91,7 @@ class LadybugBuilder:
     async def build(
         self, settings: LadybugSettings, ctx: GraphBuildContext
     ) -> BuildResult[GraphStore]:
-        from memspine.clients.ladybug import LadybugClient
+        from memspine.clients.ladybug import LadybugClient, LadybugSpec
         from memspine.services.graph.ladybug import LadybugGraphStore
 
         if ctx.placement.in_memory and ctx.generation_id != "active":
@@ -108,15 +108,15 @@ class LadybugBuilder:
         )
         service: LadybugGraphStore
         if path == ":memory:":
-            client = LadybugClient(path)
+            client = LadybugClient(LadybugSpec(path))
             ref = ctx.shared.resources.own(ctx.resource_id, client.close)
-            await client.connect()
+            await client.open()
             service = LadybugGraphStore(client)
         else:
 
             async def open_store() -> tuple[LadybugClient, LadybugGraphStore]:
-                opened = LadybugClient(path)
-                await opened.connect()
+                opened = LadybugClient(LadybugSpec(path))
+                await opened.open()
                 return opened, LadybugGraphStore(opened)
 
             async def close_store(handle: tuple[LadybugClient, LadybugGraphStore]) -> None:
@@ -150,31 +150,33 @@ class Neo4jBuilder:
     async def build(
         self, settings: Neo4jSettings, ctx: GraphBuildContext
     ) -> BuildResult[GraphStore]:
-        from memspine.clients.neo4j import Neo4jClient
-        from memspine.services.graph.neo4j import Neo4jGraphStore
+        from memspine.clients.neo4j import Neo4jClient, Neo4jSpec
+        from memspine.services.graph.neo4j import Neo4jGraphStore, connector_executor
 
         if not ctx.shared.owner_id:
             raise ConfigError("Neo4j needs an explicit stable runtime.deployment_id")
         scope = sha256(
             f"{ctx.shared.owner_id}:{ctx.resource_id}:{ctx.generation_id}".encode()
         ).hexdigest()[:24]
-        from memspine.services.graph.neo4j import DriverExecutor
-
         http = ctx.shared.http_pool
         client = Neo4jClient(
-            settings,
-            executor_factory=lambda driver: DriverExecutor(
-                driver,
+            Neo4jSpec(
+                connect_timeout_s=settings.connect_timeout_s,
+                request_timeout_s=settings.request_timeout_s,
+                url_env=settings.url_env,
+                user_env=settings.user_env,
+                password_env=settings.password_env,
                 database=settings.database,
-                node_label=f"MemNode_{scope}",
-                rel_type=f"MemRel_{scope}",
-            ),
-            max_connections=http.max_connections if http is not None else None,
-            keepalive_s=http.keepalive_s if http is not None else None,
+                max_connections=http.max_connections if http is not None else None,
+                keepalive_s=http.keepalive_s if http is not None else None,
+            )
         )
         ref = ctx.shared.resources.own(ctx.resource_id, client.close)
-        await client.connect()
-        service = Neo4jGraphStore(client.executor, scoped=True)
+        await client.open()
+        executor = connector_executor(
+            client, node_label=f"MemNode_{scope}", rel_type=f"MemRel_{scope}"
+        )
+        service = Neo4jGraphStore(executor, scoped=True)
 
         async def probe() -> bool:
             await service.node_count()

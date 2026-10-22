@@ -32,20 +32,6 @@ LEXICAL_FETCH_MULTIPLIER = 3
 # order past the bound (documented in ADR-051).
 LEG_TIE_FETCH_MAX_FACTOR = 8
 
-# SQLite busy timeout (ms) on every file connection: how long a statement waits
-# for another writer's lock before "database is locked". #88: the first connection
-# of a client retries the WAL switch for the same span, since that switch does
-# not consult the busy handler.
-SQLITE_BUSY_TIMEOUT_MS = 5000
-
-#: RM-40 (docs/PROVIDER_PERFORMANCE_FOLLOWUP.md, PA-054): the smallest per-attempt
-#: ``connect_timeout`` psycopg/libpq honour, in whole seconds. psycopg's
-#: ``conninfo.timeout_from_conninfo`` (after libpq ``connectDBComplete``) raises
-#: any smaller positive value to 2 and applies it to *each* host/address attempt,
-#: so ``localhost`` (::1 then 127.0.0.1) can wait twice as long. The async
-#: client enforces ``connect_timeout_s`` as one overall deadline on top of this;
-#: a sync (Alembic) connection is bounded only per attempt.
-PG_DRIVER_MIN_CONNECT_TIMEOUT_S = 2
 
 # Lexical query DoS guard (E8/D-25): user queries are bounded before they reach
 # the FTS5 parser (one quoted OR-phrase per token → super-linear parse) and
@@ -59,11 +45,6 @@ MAX_LEXICAL_QUERY_CHARS = 1024
 # the degraded path an accidental DoS.
 LEXICAL_LIKE_SCAN_MAX_ROWS = 10_000
 
-# Standalone Tantivy lexical adapter (D-25): per-thread heap the single
-# long-lived IndexWriter buffers into before a commit flushes to a segment.
-# tantivy requires a floor around 15 MB per writer thread; one writer serves the
-# whole store (mutations are serialized), so this is allocated once, not per write.
-TANTIVY_WRITER_HEAP_BYTES = 15_000_000
 
 # Two-stage dedup (D-27 / M5).
 DEDUP_COSINE_THRESHOLD = 0.92
@@ -204,6 +185,10 @@ INGEST_CHUNK_MAX_CHARS = 1200
 # payloads at rest, so the two never drift without an ADR.
 ZSTD_LEVEL = 3
 
+#: RM-113: deadline (s) of the storage adapter's ``health()`` — one ``SELECT 1`` round trip
+#: through its connector (docs/CLIENT_ADAPTER_FACTORY_STANDARD.md section 1).
+STORAGE_HEALTH_DEADLINE_S = 5.0
+
 # Replay (D0.1): events per catch-up batch — bounds catch-up memory footprint.
 REPLAY_BATCH_SIZE = 1000
 
@@ -290,11 +275,6 @@ LANCE_ANN_MIN_ROWS = 256
 # In-memory Lance tables merge their fragments after this many upserts: every
 # single-row upsert adds a fragment, and a flat query opens each one.
 LANCE_COMPACT_EVERY = 20
-# Metadata cache of a ``memory://`` Lance connection (ADR-053). A cached entry
-# can keep a whole in-memory object alive (each holds a 5 MB upload buffer)
-# while the cache counts only the entry's own bytes, so the default cache pins
-# gigabytes of dropped table versions; at this size it pins a handful.
-LANCE_MEMORY_METADATA_CACHE_BYTES = 1024 * 1024
 # Partitions probed per ANN query: higher recall (covers more IVF cells) at more
 # read cost. Combined with ``refine_factor = RESCORE_OVERSAMPLE`` this is Lance's
 # native "search the compressed index, re-rank the oversampled window by exact
@@ -781,11 +761,6 @@ QUERY_ENCODER_CUE_MIN_OVERLAP = 0.5
 #: #61: the most cue targets one query adds as a retrieval leg.
 QUERY_ENCODER_MAX_TARGETS = 10
 
-#: Tantivy commit on Windows: retries and base backoff (s, doubled each try) for the
-#: "Access is denied (os error 5)" sharing violation when ``meta.json`` is renamed
-#: while another handle holds it (file-backed stores only).
-TANTIVY_COMMIT_RETRIES = 6
-TANTIVY_COMMIT_BACKOFF_S = 0.05
 
 # ── Plan v3.2 procedural rows W17a-f, N24, N26-N29 (ADR-060). No model calls. ──
 #: W17a: tag carrying a lesson's dedup key (trigger words, action signature, error

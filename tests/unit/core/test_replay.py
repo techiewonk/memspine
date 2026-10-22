@@ -6,7 +6,7 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from memspine.clients.sqlite import SQLiteClient
+from memspine.clients.sqlite import SQLiteClient, SQLiteSpec
 from memspine.exceptions import RebuildUnavailableError
 from memspine.services.storage.sqlite.engine import SQLiteStorage
 from memspine.store.events import EventKind, EventLogMode, MemoryEvent
@@ -27,8 +27,8 @@ class DictProjector(Projector):
 
 
 async def make_storage(mode: EventLogMode = EventLogMode.FULL) -> SQLiteStorage:
-    client = SQLiteClient(":memory:")
-    await client.connect()
+    client = SQLiteClient(SQLiteSpec(":memory:"))
+    await client.open()
     storage = SQLiteStorage(client, mode=mode)
     await storage.start()
     return storage

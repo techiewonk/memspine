@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from memspine.clients.sqlite import SQLiteClient
+from memspine.clients.sqlite import SQLiteClient, SQLiteSpec
 from memspine.core.policies.conflict import ConflictPolicy
 from memspine.core.policies.dedup import DedupPolicy
 from memspine.derive.gliner_mentions import bind_gliner_mentions, parse_gliner_mentions
@@ -40,8 +40,8 @@ class EmptyMentionExtractor:
 
 
 async def make_semantic(*, cosine_threshold: float = 0.9) -> SemanticMemory:
-    client = SQLiteClient(":memory:")
-    await client.connect()
+    client = SQLiteClient(SQLiteSpec(":memory:"))
+    await client.open()
     storage = SQLiteStorage(client)
     await storage.start()
     projector = RecordProjector(storage)

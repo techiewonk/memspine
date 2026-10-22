@@ -15,9 +15,10 @@ from pathlib import Path
 import pytest
 
 from memspine import Engine
+from memspine.clients.tantivy import TantivyConnector
 from memspine.providers import shared
 from memspine.providers.shared import ResourceRegistry
-from memspine.services.lexical.tantivy import TantivyLexical
+from memspine.services.lexical.tantivy import TantivyLexical, tantivy_spec
 from memspine.store.records import MemoryRecord
 
 
@@ -46,8 +47,8 @@ def _committed_docs(store: TantivyLexical) -> int:
 
     Read from disk rather than through a second ``tantivy.Index``: opening another
     index on the path garbage-collects the writer's uncommitted segment files."""
-    assert store._path is not None
-    meta = Path(store._path, "meta.json")
+    assert store.connector.spec.path is not None
+    meta = Path(store.connector.spec.path, "meta.json")
     if not meta.exists():
         return 0
     segments = json.loads(meta.read_text(encoding="utf-8"))["segments"]
@@ -57,7 +58,7 @@ def _committed_docs(store: TantivyLexical) -> int:
 
 
 async def test_deferral_is_scoped_to_the_caller_not_the_shared_handle(tmp_path: Path) -> None:
-    store = TantivyLexical(tmp_path / "idx")
+    store = TantivyLexical(TantivyConnector(tantivy_spec(tmp_path / "idx")))
     entered, release = asyncio.Event(), asyncio.Event()
 
     async def batch_a() -> None:
@@ -74,18 +75,18 @@ async def test_deferral_is_scoped_to_the_caller_not_the_shared_handle(tmp_path: 
         # B is not batching: its document is committed before index() returns
         # (A's held document is committed with it, which is always safe).
         await store.index(_record("kayak on the river"))
-        assert _committed_docs(store) == 2 and not store._uncommitted
+        assert _committed_docs(store) == 2 and not store.connector.uncommitted
         release.set()
         await task
         assert len(await store.search("n", "heron kayak", top_k=5)) == 2
     finally:
         release.set()
         await asyncio.gather(task, return_exceptions=True)
-        await store.close()
+        await store.connector.close()
 
 
 async def test_one_flush_does_not_end_another_callers_batch(tmp_path: Path) -> None:
-    store = TantivyLexical(tmp_path / "idx")
+    store = TantivyLexical(TantivyConnector(tantivy_spec(tmp_path / "idx")))
     b_in_batch, a_flushed = asyncio.Event(), asyncio.Event()
     held_in_b: list[int] = []
 
@@ -111,23 +112,23 @@ async def test_one_flush_does_not_end_another_callers_batch(tmp_path: Path) -> N
     finally:
         a_flushed.set()
         await asyncio.gather(task, return_exceptions=True)
-        await store.close()
+        await store.connector.close()
 
 
 async def test_nested_holds_end_with_the_outermost_flush(tmp_path: Path) -> None:
-    store = TantivyLexical(tmp_path / "idx")
+    store = TantivyLexical(TantivyConnector(tantivy_spec(tmp_path / "idx")))
     try:
         store.defer_commits()
         store.defer_commits()
         await store.index(_record("heron by the lake"))
         await store.flush()  # inner: commits what is held, the outer hold continues
         await store.index(_record("kayak on the river"))
-        assert _committed_docs(store) == 1 and store._uncommitted
+        assert _committed_docs(store) == 1 and store.connector.uncommitted
         await store.flush()
         await store.index(_record("otter in the reeds"))  # no hold: committed at once
         assert _committed_docs(store) == 3
     finally:
-        await store.close()
+        await store.connector.close()
 
 
 async def test_two_engines_sharing_one_index(tmp_path: Path) -> None:
@@ -153,21 +154,21 @@ async def test_two_engines_sharing_one_index(tmp_path: Path) -> None:
         assert isinstance(lexical, TantivyLexical)
         await a_wrote.wait()
         before = _committed_docs(lexical)
-        assert lexical._uncommitted  # A's heron is held by A's batch
+        assert lexical.connector.uncommitted  # A's heron is held by A's batch
         # B's write advances B's checkpoint at once, so it must be committed at once
         # (A's held heron goes into the same commit, which is always safe).
         await b.write("Mira paddled a kayak upriver.", namespace="chat")
-        assert _committed_docs(lexical) == before + 2 and not lexical._uncommitted
+        assert _committed_docs(lexical) == before + 2 and not lexical.connector.uncommitted
         # B stops while A's batch is open: the shared index stays open for A.
         await b.stop()
         stopped_b = True
-        assert lexical._writer is not None
+        assert lexical.connector.is_open
         b_done.set()
         await a_wrote_again.wait()
-        assert lexical._uncommitted  # A's batch still holds its own document
+        assert lexical.connector.uncommitted  # A's batch still holds its own document
         release.set()
         await task
-        assert _committed_docs(lexical) == before + 3 and not lexical._uncommitted
+        assert _committed_docs(lexical) == before + 3 and not lexical.connector.uncommitted
         hits = await lexical.search("chat", "heron kayak otter", top_k=5)
         assert len(hits) == 3
     finally:

@@ -27,10 +27,10 @@ async def test_shared_cache_separates_deployments_and_reuses_stable_owner_on_reo
             values.pop(key, None)
 
     class Client:
-        def __init__(self, url: str) -> None:
+        def __init__(self, spec: object) -> None:
             self.cache = Backend()
 
-        async def connect(self) -> None:
+        async def open(self) -> None:
             pass
 
         async def close(self) -> None:

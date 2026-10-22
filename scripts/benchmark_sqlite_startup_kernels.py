@@ -48,11 +48,12 @@ def _worker(database_path: Path) -> dict[str, Any]:
         samples[label] = (time.perf_counter_ns() - started) / 1_000_000
 
     SQLiteClient = module.SQLiteClient
+    SQLiteSpec = module.SQLiteSpec
 
     async def lifecycle() -> tuple[float, float, float, int]:
-        client = SQLiteClient(database_path)
+        client = SQLiteClient(SQLiteSpec(database_path))
         started = time.perf_counter_ns()
-        await client.connect()
+        await client.open()
         connect_ms = (time.perf_counter_ns() - started) / 1_000_000
 
         started = time.perf_counter_ns()

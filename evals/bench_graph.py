@@ -37,7 +37,7 @@ from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import Any
 
-from memspine.clients.sqlite import SQLiteClient
+from memspine.clients.sqlite import SQLiteClient, SQLiteSpec
 from memspine.memories.associative.communities import (
     canonical_edges,
     communities_available,
@@ -110,8 +110,8 @@ async def _load_sqlite(tuples: list[tuple[str, str, float]]) -> tuple[SqlAdjacen
     path is not what is being measured here)."""
     import orjson
 
-    client = SQLiteClient(":memory:")
-    await client.connect()
+    client = SQLiteClient(SQLiteSpec(":memory:"))
+    await client.open()
     storage = SQLiteStorage(client)
     await storage.start()
     nodes = sorted({n for a, b, _w in tuples for n in (a, b)})
@@ -151,11 +151,11 @@ async def _load_ladybug(
         return None
     import orjson
 
-    from memspine.clients.ladybug import LadybugClient
+    from memspine.clients.ladybug import LadybugClient, LadybugSpec
     from memspine.services.graph.ladybug import LadybugGraphStore
 
-    client = LadybugClient(str(Path(directory) / "bench.lbug"))
-    await client.connect()
+    client = LadybugClient(LadybugSpec(str(Path(directory) / "bench.lbug")))
+    await client.open()
     store = LadybugGraphStore(client)
     await store.edge_count()  # runs the DDL
     conn = client.connection

@@ -64,14 +64,18 @@ class SQLiteStorage(SqlStorage):
                 # path gets it from Alembic revision 0008).
                 await conn.run_sync(outbox_metadata.create_all)
         else:
-            # #52: an encrypted client supplies a keyed connection for Alembic.
-            await asyncio.to_thread(ensure_schema, self._sqlite.path, self._sqlite.sync_creator)
+            # RM-113: Alembic runs over a connection the connector lends (#52: keyed under
+            # SQLCipher).
+            await asyncio.to_thread(self._migrate)
         self._started = True
+
+    def _migrate(self) -> None:
+        with self._sqlite.migration_connection() as connection:
+            ensure_schema(connection)
 
     def leases(self) -> LeasePort:
         """ADR-081 records port: the lease tables in this database (a private in-process
         table for ``:memory:``). Opened on first use, closed by :meth:`stop`."""
-        from memspine.runtime.outbox import sqlite_engine
         from memspine.store.leases import LeaseStore
 
         if self._leases is None:
@@ -80,11 +84,7 @@ class SQLiteStorage(SqlStorage):
             else:
                 # The WP5 side tables of this database, over a sync engine (keyed under
                 # SQLCipher, like the outbox's).
-                self._lease_engine = sqlite_engine(
-                    self._sqlite.path,
-                    self._sqlite.sync_creator,
-                    busy_timeout_s=self._sqlite.busy_timeout_s,
-                )
+                self._lease_engine = self._sqlite.sync_engine()
                 self._leases = LeaseStore(self._lease_engine)
         return self._leases
 

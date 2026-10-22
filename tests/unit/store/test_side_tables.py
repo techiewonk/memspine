@@ -25,10 +25,10 @@ import pytest
 import sqlalchemy as sa
 
 from memspine import Engine
+from memspine.clients.sqlite.sync import sqlite_sync_engine
 from memspine.derive.failure_ledger import FailureLedger
 from memspine.derive.job import LeaseStore
 from memspine.economy.ledger import CallCost, LedgerStore
-from memspine.runtime.outbox import sqlite_engine
 from memspine.services.storage.postgres import migrations as pg_migrations
 from memspine.services.storage.sqlite import migrations as sqlite_migrations
 from memspine.store.side_tables import (
@@ -75,7 +75,7 @@ def _legacy_files(base: Path) -> None:
 
 def _sync_sqlite(db: Path) -> sa.Engine:
     sqlite_migrations.upgrade_to_head(db)
-    return sqlite_engine(str(db), busy_timeout_s=5.0)
+    return sqlite_sync_engine(str(db), busy_timeout_s=5.0)
 
 
 # ---------------------------------------------------------------------------------- schema
@@ -188,8 +188,8 @@ async def test_engine_start_imports_side_files_and_writes_none(tmp_path: Path) -
 def test_two_engines_on_one_file_share_one_exclusive_lease(tmp_path: Path) -> None:
     db = tmp_path / "m.db"
     sqlite_migrations.upgrade_to_head(db)
-    a = LeaseStore(sqlite_engine(str(db), busy_timeout_s=5.0))
-    b = LeaseStore(sqlite_engine(str(db), busy_timeout_s=5.0))
+    a = LeaseStore(sqlite_sync_engine(str(db), busy_timeout_s=5.0))
+    b = LeaseStore(sqlite_sync_engine(str(db), busy_timeout_s=5.0))
     held = a.claim("ns", "a", "job-a", 60.0)
     assert held is not None
     assert b.claim("ns", "b", "job-b", 60.0) is None
@@ -205,8 +205,8 @@ _CLAIM = textwrap.dedent(
     """
     import sys
     from memspine.derive.job import LeaseStore
-    from memspine.runtime.outbox import sqlite_engine
-    store = LeaseStore(sqlite_engine(sys.argv[1], busy_timeout_s=10.0))
+    from memspine.clients.sqlite.sync import sqlite_sync_engine
+    store = LeaseStore(sqlite_sync_engine(sys.argv[1], busy_timeout_s=10.0))
     lease = store.claim("ns", sys.argv[2], "job-" + sys.argv[2], 600.0)
     print("won" if lease is not None else "lost")
     """
@@ -341,9 +341,11 @@ pg = pytest.mark.skipif(not PG_URL, reason="set MEMSPINE_TEST_PG_URL to a scratc
 
 def _pg_engine() -> sa.Engine:
     from memspine.clients.postgres import normalize_pg_url
+    from memspine.clients.postgres.sync import migration_connection
 
     assert PG_URL is not None
-    pg_migrations.ensure_schema(PG_URL)
+    with migration_connection(PG_URL) as connection:  # RM-113: a lent connection
+        pg_migrations.ensure_schema(connection)
     return sa.create_engine(normalize_pg_url(PG_URL))
 
 

@@ -305,15 +305,15 @@ def _exists(path: str) -> bool:
 
 async def migrate_sqlite(source_path: str, target_path: str) -> MigrationReport:
     """Replay the log of the SQLite store at ``source_path`` into a fresh store at ``target_path``."""
-    from memspine.clients.sqlite import SQLiteClient
+    from memspine.clients.sqlite import SQLiteClient, SQLiteSpec
     from memspine.services.storage.sqlite.engine import SQLiteStorage
 
     if _exists(target_path):
         raise RebuildUnavailableError(f"target {target_path} exists: migration needs a fresh store")
-    src_client = SQLiteClient(source_path)
-    dst_client = SQLiteClient(target_path)
-    await src_client.connect()
-    await dst_client.connect()
+    src_client = SQLiteClient(SQLiteSpec(source_path))
+    dst_client = SQLiteClient(SQLiteSpec(target_path))
+    await src_client.open()
+    await dst_client.open()
     try:
         source = SQLiteStorage(src_client)
         target = SQLiteStorage(dst_client)

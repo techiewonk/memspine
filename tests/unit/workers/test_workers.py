@@ -5,7 +5,7 @@ from __future__ import annotations
 import importlib
 from datetime import UTC, datetime
 
-from memspine.clients.sqlite import SQLiteClient
+from memspine.clients.sqlite import SQLiteClient, SQLiteSpec
 from memspine.config.loader import load_config
 from memspine.derive.pipeline.stages.context import PipelineContext
 from memspine.derive.pipeline.stages.table import PIPELINES
@@ -21,8 +21,8 @@ async def make_ctx(
     config = load_config(
         template="core", overrides={"event_log": {"mode": mode, "retention_days": retention_days}}
     ).config
-    client = SQLiteClient(":memory:")
-    await client.connect()
+    client = SQLiteClient(SQLiteSpec(":memory:"))
+    await client.open()
     storage = SQLiteStorage(client, mode=EventLogMode(mode))
     await storage.start()
     return PipelineContext(storage=storage, config=config), storage

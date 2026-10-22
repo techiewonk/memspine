@@ -3,18 +3,29 @@
 No search, no lookalike substitution, no cross-host redirect (a redirect to another host is
 how an expired image becomes a "no longer available" placeholder, which is not the asset).
 Every failure is an :class:`AssetFetchError` with a short machine reason; nothing is silent.
+The transport is the Engine's shared :class:`~memspine.clients.http.HttpConnector` (RM-113);
+it never follows redirects itself, so each hop is checked here first.
 """
 
 from __future__ import annotations
 
-import asyncio
-import urllib.error
-import urllib.request
 from dataclasses import dataclass
 from typing import Protocol
-from urllib.parse import urlparse
+from urllib.parse import urljoin, urlparse
 
-__all__ = ["AssetFetchError", "AssetFetcher", "FetchedAsset", "HttpAssetFetcher", "sniff_mime"]
+from memspine.clients.http import HttpConnector, HttpError, HttpTimeout
+
+__all__ = [
+    "AssetFetchError",
+    "AssetFetcher",
+    "FetchedAsset",
+    "HttpAssetFetcher",
+    "check_redirect",
+    "sniff_mime",
+]
+
+#: Same-host redirect hops followed before the fetch fails (``too_many_redirects``).
+MAX_REDIRECTS = 5
 
 _MAGIC: tuple[tuple[bytes, str], ...] = (
     (b"\xff\xd8\xff", "image/jpeg"),
@@ -53,39 +64,56 @@ class AssetFetcher(Protocol):
     async def fetch(self, uri: str, *, max_bytes: int, timeout_s: float) -> FetchedAsset: ...
 
 
-class _SameHostRedirect(urllib.request.HTTPRedirectHandler):
-    def redirect_request(self, req, fp, code, msg, headers, newurl):  # type: ignore[no-untyped-def]
-        if urlparse(newurl).netloc.lower() != urlparse(req.full_url).netloc.lower():
-            raise AssetFetchError("redirected_offsite", newurl)
-        return super().redirect_request(req, fp, code, msg, headers, newurl)
+def _check_scheme(uri: str) -> None:
+    if urlparse(uri).scheme.lower() not in ("http", "https"):
+        raise AssetFetchError("unsupported_scheme", uri)
+
+
+def check_redirect(current: str, location: str) -> str:
+    """The absolute redirect target, refusing another host or a non-http(s) scheme."""
+    target = urljoin(current, location)
+    if urlparse(target).netloc.lower() != urlparse(current).netloc.lower():
+        raise AssetFetchError("redirected_offsite", target)
+    _check_scheme(target)
+    return target
 
 
 class HttpAssetFetcher:
     """GET one http(s) URI; check size, declared type and the real type of the bytes."""
 
-    def __init__(self, allowed_mime: tuple[str, ...]) -> None:
+    def __init__(self, allowed_mime: tuple[str, ...], http: HttpConnector) -> None:
         self.allowed_mime = tuple(m.lower() for m in allowed_mime)
+        self._http = http
 
-    def _get(self, uri: str, max_bytes: int, timeout_s: float) -> FetchedAsset:
-        if urlparse(uri).scheme.lower() not in ("http", "https"):
-            raise AssetFetchError("unsupported_scheme", uri)
-        opener = urllib.request.build_opener(_SameHostRedirect)
-        request = urllib.request.Request(uri, headers={"User-Agent": "memspine-asset/1"})
-        try:
-            with opener.open(request, timeout=timeout_s) as response:
-                declared = (response.headers.get_content_type() or "").lower()
-                length = response.headers.get("Content-Length")
-                if length and length.isdigit() and int(length) > max_bytes:
-                    raise AssetFetchError("too_large", f"{length} > {max_bytes}")
-                data = response.read(max_bytes + 1)
-        except AssetFetchError:
-            raise
-        except urllib.error.HTTPError as exc:
-            raise AssetFetchError(f"http_{exc.code}", uri) from exc
-        except TimeoutError as exc:
-            raise AssetFetchError("timeout", uri) from exc
-        except (urllib.error.URLError, OSError) as exc:
-            raise AssetFetchError("unreachable", str(exc)) from exc
+    async def fetch(self, uri: str, *, max_bytes: int, timeout_s: float) -> FetchedAsset:
+        _check_scheme(uri)
+        current = uri
+        for _ in range(MAX_REDIRECTS + 1):
+            try:
+                reply = await self._http.request(
+                    "GET",
+                    current,
+                    headers={"User-Agent": "memspine-asset/1"},
+                    timeout_s=timeout_s,
+                    max_bytes=max_bytes,
+                )
+            except HttpTimeout as exc:
+                raise AssetFetchError("timeout", uri) from exc
+            except HttpError as exc:
+                raise AssetFetchError("unreachable", str(exc)) from exc
+            if reply.is_redirect:
+                current = check_redirect(current, reply.headers["location"])
+                continue
+            if reply.status >= 400:
+                raise AssetFetchError(f"http_{reply.status}", uri)
+            declared = (reply.headers.get("content-type") or "").split(";")[0].strip().lower()
+            length = reply.headers.get("content-length")
+            if length and length.isdigit() and int(length) > max_bytes:
+                raise AssetFetchError("too_large", f"{length} > {max_bytes}")
+            return self._check(uri, reply.body, declared, max_bytes)
+        raise AssetFetchError("too_many_redirects", uri)
+
+    def _check(self, uri: str, data: bytes, declared: str, max_bytes: int) -> FetchedAsset:
         if len(data) > max_bytes:
             raise AssetFetchError("too_large", f"> {max_bytes}")
         if not data:
@@ -98,6 +126,3 @@ class HttpAssetFetcher:
         if actual not in self.allowed_mime:
             raise AssetFetchError("mime_not_allowed", actual)
         return FetchedAsset(data=data, mime=actual)
-
-    async def fetch(self, uri: str, *, max_bytes: int, timeout_s: float) -> FetchedAsset:
-        return await asyncio.to_thread(self._get, uri, max_bytes, timeout_s)

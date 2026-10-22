@@ -12,7 +12,7 @@ import pytest
 from alembic import command
 
 from memspine import Engine
-from memspine.clients.sqlite import SQLiteClient
+from memspine.clients.sqlite import SQLiteClient, SQLiteSpec
 from memspine.exceptions import ConfigError
 from memspine.schemas.durable.assertion import AssertionEnvelope
 from memspine.schemas.versioning import latest_version, upcast
@@ -290,8 +290,8 @@ async def test_migration_down_up_and_backfill(tmp_path: Path) -> None:
     # an application must not reuse its remaining nonzero replay offset.
     with pytest.raises(ConfigError, match="without a provider target binding"):
         await eng.start()
-    client = SQLiteClient(str(path), busy_timeout_s=5.0)
-    await client.connect()
+    client = SQLiteClient(SQLiteSpec(str(path), busy_timeout_s=5.0))
+    await client.open()
     storage = SQLiteStorage(client)
     await storage.start()
     try:

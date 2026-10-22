@@ -21,7 +21,7 @@ import pytest
 import sqlalchemy as sa
 from alembic.script import ScriptDirectory
 
-from memspine.clients.sqlite import SQLiteClient
+from memspine.clients.sqlite import SQLiteClient, SQLiteSpec
 from memspine.config.schema import MemspineConfig
 from memspine.config.schema.storage import StorageConfig
 from memspine.exceptions import ConfigError
@@ -206,8 +206,12 @@ def test_profile_events_are_tapped(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_migrate_is_tapped(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     seen: list[str] = []
     monkeypatch.setattr(tap, "event", lambda stage, /, **f: seen.append(stage))
-    monkeypatch.setattr(pg_migrations, "create_engine", lambda url: sa.create_engine(url))
-    pg_migrations.ensure_schema(f"sqlite:///{tmp_path / 'm.db'}")
+    engine = sa.create_engine(f"sqlite:///{tmp_path / 'm.db'}")
+    try:
+        with engine.connect() as connection:
+            pg_migrations.ensure_schema(connection)
+    finally:
+        engine.dispose()
     assert seen == ["store.profile.migrate"]
     assert profile_mod.pgvector_available() in (True, False)
 
@@ -281,21 +285,21 @@ def _wipe(url: str) -> None:
 
 async def _embedded(tmp_path: Path, request: pytest.FixtureRequest) -> tuple[Any, Any, sa.Engine]:
     path = tmp_path / "contract.db"
-    client = SQLiteClient(str(path))
-    await client.connect()
+    client = SQLiteClient(SQLiteSpec(str(path)))
+    await client.open()
     storage = SQLiteStorage(client, mode=EventLogMode.ROLLING)
     await storage.start()
     return client, storage, sa.create_engine(f"sqlite:///{path}")
 
 
 async def _server(tmp_path: Path, request: pytest.FixtureRequest) -> tuple[Any, Any, sa.Engine]:
-    from memspine.clients.postgres import PostgresClient, normalize_pg_url
+    from memspine.clients.postgres import PostgresClient, PostgresSpec, normalize_pg_url
     from memspine.services.storage.postgres.engine import PostgresStorage
 
     url = request.getfixturevalue("pg_url")
     _wipe(url)
-    client = PostgresClient(url)
-    await client.connect()
+    client = PostgresClient(PostgresSpec(url))
+    await client.open()
     storage = PostgresStorage(client, mode=EventLogMode.ROLLING, use_alembic=True)
     await storage.start()
     return client, storage, sa.create_engine(normalize_pg_url(url))

@@ -79,10 +79,11 @@ def _stats(samples_s: list[float]) -> dict[str, float]:
 
 
 async def _tantivy_rankings(k: int, reps: int) -> tuple[list[list[str]], dict[str, float], float]:
-    from memspine.services.lexical.tantivy import TantivyLexical
+    from memspine.clients.tantivy import TantivyConnector
+    from memspine.services.lexical.tantivy import TantivyLexical, tantivy_spec
     from memspine.store.records import MemoryRecord
 
-    store = TantivyLexical()
+    store = TantivyLexical(TantivyConnector(tantivy_spec()))
     records = [
         MemoryRecord(
             namespace=NAMESPACE, memory_type="semantic", content=text, record_id=f"d{i:02d}"

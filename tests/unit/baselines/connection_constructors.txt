@@ -6,24 +6,12 @@
 # Never add a line; inject a connector instead. Delete a line when its call is gone.
 
 # --- services/** (adapters)
-memspine/services/assets/fetch.py urlopen -- RM-113 item 14: clients/http shared connector for asset fetch
 memspine/services/assets/registry.py sqlite3.connect -- RM-113 item 18: assets registry moves to records/documents slots
-memspine/services/assets/vision.py urlopen -- RM-113 item 14: clients/http shared connector for vision
-memspine/services/external/provider.py urlopen -- RM-113 item 14: clients/http shared connector for external search
-memspine/services/external/wikipedia.py urlopen -- RM-113 item 14: clients/http shared connector for external search
-memspine/services/graph/neo4j.py GraphDatabase.driver -- RM-113 item 5: adapter drops its own driver factory (executor_from_env)
-memspine/services/lexical/tantivy.py tantivy.Index -- RM-113 item 10: clients/tantivy connector owns index open/reload/writer lock
-memspine/services/secrets/aws.py boto3.client -- RM-113 item 14: clients/aws connector
-memspine/services/storage/postgres/engine.py create_engine -- RM-113 item 8: sync engine moves into clients/postgres
-memspine/services/storage/postgres/migrations.py create_engine -- RM-113 item 9: Alembic runs over a connector-lent connection
-memspine/services/storage/sqlite/migrations.py create_engine -- RM-113 item 9: Alembic runs over a connector-lent connection
 
 
 # --- providers/** (factories: should borrow a connector, not build engines)
-memspine/providers/builtin/storage.py create_engine -- RM-113 item 8: factory stops building the sync engine inline; clients/{sqlite,postgres}/sync.py
 
 # --- runtime/**
-memspine/runtime/outbox.py create_engine -- RM-113 item 8: sync engines move out of runtime/outbox.py into clients
 
 # --- derive/** store/** observability/** workers/**
 memspine/store/leases.py psycopg.connect -- RM-113 item 8: sleep-lease store borrows the postgres connector

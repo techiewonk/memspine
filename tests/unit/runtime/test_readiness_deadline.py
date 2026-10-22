@@ -9,8 +9,9 @@ from typing import Any
 
 import pytest
 
+from memspine.clients.sqlite.sync import memory_sync_engine
 from memspine.runtime.jobs import ManualClock
-from memspine.runtime.outbox import SqlJobStore, memory_engine
+from memspine.runtime.outbox import SqlJobStore
 from memspine.runtime.runner import InlineRunner
 from memspine.schemas.durable.common import OwnerScope
 
@@ -20,7 +21,7 @@ SCOPE = OwnerScope(tenant="t", owner="readiness")
 def runner() -> InlineRunner:
     # A frozen business clock must not defeat the direct wait's wall deadline.
     return InlineRunner(
-        SqlJobStore(memory_engine()), clock=ManualClock(datetime(2026, 10, 21, tzinfo=UTC))
+        SqlJobStore(memory_sync_engine()), clock=ManualClock(datetime(2026, 10, 21, tzinfo=UTC))
     )
 
 
@@ -180,7 +181,7 @@ async def test_unrelated_timeout_error_is_not_misreported_as_deadline_expiry() -
     async def failing_sleeper(seconds: float) -> None:
         raise TimeoutError("independent sleeper failure")
 
-    outbox = InlineRunner(SqlJobStore(memory_engine()), sleeper=failing_sleeper)
+    outbox = InlineRunner(SqlJobStore(memory_sync_engine()), sleeper=failing_sleeper)
 
     async def prepare(scope: OwnerScope, offset: int, payload: dict[str, Any]) -> Any:
         return payload

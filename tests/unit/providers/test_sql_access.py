@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from sqlalchemy.ext.asyncio import create_async_engine
 
+from memspine.clients.sqlite.sync import memory_sync_engine, sqlite_sync_engine
 from memspine.providers.lifecycle import ProviderLifecycleManager
 from memspine.providers.sql import ManagedSqlAccess
-from memspine.runtime.outbox import memory_engine, sqlite_engine
 
 
 async def test_sync_outbox_lease_is_reused_and_closes_before_storage() -> None:
@@ -22,7 +22,7 @@ async def test_sync_outbox_lease_is_reused_and_closes_before_storage() -> None:
         is_memory=True,
         capabilities=frozenset({"sql", "sync_sql"}),
         checkpoint=lambda: _noop(),
-        sync_factory=memory_engine,
+        sync_factory=memory_sync_engine,
         owner_resource_id=owner.resource_id,
     )
 
@@ -42,7 +42,7 @@ async def test_sync_outbox_lease_is_reused_and_closes_before_storage() -> None:
 
 
 def test_sync_sqlite_engine_uses_configured_busy_timeout(tmp_path) -> None:
-    engine = sqlite_engine(str(tmp_path / "busy.db"), busy_timeout_s=0.25)
+    engine = sqlite_sync_engine(str(tmp_path / "busy.db"), busy_timeout_s=0.25)
     try:
         with engine.connect() as connection:
             value = connection.exec_driver_sql("PRAGMA busy_timeout").scalar_one()

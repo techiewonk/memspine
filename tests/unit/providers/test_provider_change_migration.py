@@ -2,12 +2,14 @@ from __future__ import annotations
 
 from sqlalchemy import create_engine, inspect
 
+from memspine.clients.sqlite.sync import migration_connection
 from memspine.services.storage.sqlite.migrations import ensure_schema
 
 
 def test_sqlite_storage_migration_installs_durable_provider_change_tables(tmp_path) -> None:
     database = tmp_path / "provider-changes.db"
-    ensure_schema(database)
+    with migration_connection(str(database)) as connection:  # RM-113: a lent connection
+        ensure_schema(connection)
     engine = create_engine(f"sqlite:///{database}")
     try:
         inspector = inspect(engine)

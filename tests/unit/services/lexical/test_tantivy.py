@@ -9,8 +9,13 @@ from __future__ import annotations
 
 import tantivy  # noqa: F401 -- required core dependency must import successfully.
 
+from memspine.clients.tantivy import TantivyConnector
 from memspine.config.constants import MAX_LEXICAL_QUERY_TERMS
-from memspine.services.lexical.tantivy import TantivyLexical, tokenize_content
+from memspine.services.lexical.tantivy import (
+    TantivyLexical,
+    tantivy_spec,
+    tokenize_content,
+)
 from memspine.store.records import MemoryRecord, SourceInfo
 
 
@@ -26,7 +31,7 @@ def rec(record_id: str, namespace: str, content: str) -> MemoryRecord:
 
 async def make_store() -> TantivyLexical:
     # index_path=None => in-RAM index (:memory: parity, no on-disk segments).
-    return TantivyLexical()
+    return TantivyLexical(TantivyConnector(tantivy_spec()))
 
 
 async def test_search_ranks_by_term_frequency_within_namespace() -> None:

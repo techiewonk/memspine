@@ -29,7 +29,6 @@ import importlib.util
 import json
 import os
 import sys
-import uuid
 from collections.abc import AsyncIterator, Mapping
 from datetime import UTC, datetime
 from pathlib import Path
@@ -38,7 +37,7 @@ from typing import Any
 import pytest
 from structlog.testing import capture_logs
 
-from memspine.clients.sqlite import SQLiteClient
+from memspine.clients.sqlite import SQLiteClient, SQLiteSpec
 from memspine.services.graph.base import GraphStore
 from memspine.services.graph.qualifiers import (
     QUALIFIERS_PROP,
@@ -71,36 +70,30 @@ def _t(year: int, month: int = 1, day: int = 1) -> datetime:
 @pytest.fixture(params=ADAPTERS)
 async def store(request: pytest.FixtureRequest) -> AsyncIterator[GraphStore]:
     if request.param in ("neo4j", "neo4j_fake"):
-        from memspine.services.graph.neo4j import Neo4jGraphStore, executor_from_env
+        from memspine.services.graph.neo4j import Neo4jGraphStore
+
+        sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "wiring"))
+        from test_f_16e_neo4j_outbox import FakeNeo4j, live_executor
 
         if request.param == "neo4j_fake":
-            sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "wiring"))
-            from test_f_16e_neo4j_outbox import FakeNeo4j
-
             yield Neo4jGraphStore(FakeNeo4j(), scoped=True)
             return
         if not LIVE_NEO4J:
             pytest.skip("needs the neo4j driver and MEMSPINE_TEST_NEO4J_URL (a live server)")
-        ex = executor_from_env(
-            url_env="MEMSPINE_TEST_NEO4J_URL",
-            user_env="MEMSPINE_TEST_NEO4J_USER",
-            password_env="MEMSPINE_TEST_NEO4J_PASSWORD",
-            node_label=f"MemQual{uuid.uuid4().hex[:10]}",
-            rel_type=f"MemQualRel{uuid.uuid4().hex[:10]}",
-        )
+        connector, ex = await live_executor("MemQual")
         try:
             yield Neo4jGraphStore(ex, scoped=True)  # scoped, as the provider builds it
         finally:
             await ex.run("clear", {})
-            await ex.close()
+            await connector.close()
         return
     if request.param == "ladybug":
         pytest.importorskip("ladybug")
-        from memspine.clients.ladybug import LadybugClient
+        from memspine.clients.ladybug import LadybugClient, LadybugSpec
         from memspine.services.graph.ladybug import LadybugGraphStore
 
-        ladybug_client = LadybugClient(":memory:")
-        await ladybug_client.connect()
+        ladybug_client = LadybugClient(LadybugSpec(":memory:"))
+        await ladybug_client.open()
         yield LadybugGraphStore(ladybug_client)
         await ladybug_client.close()
     elif request.param == "sql_adjacency_postgres":
@@ -108,12 +101,12 @@ async def store(request: pytest.FixtureRequest) -> AsyncIterator[GraphStore]:
             pytest.skip("sql_adjacency on Postgres: set MEMSPINE_TEST_PG_URL (scratch database)")
         from sqlalchemy import delete
 
-        from memspine.clients.postgres import PostgresClient
+        from memspine.clients.postgres import PostgresClient, PostgresSpec
         from memspine.services.graph.sql_adjacency import SqlAdjacencyGraph
         from memspine.services.storage.sqlite.schema import graph_edges, graph_nodes
 
-        pg_client = PostgresClient(PG_URL)
-        await pg_client.connect()
+        pg_client = PostgresClient(PostgresSpec(PG_URL))
+        await pg_client.open()
         async with pg_client.engine.begin() as conn:
             await conn.run_sync(metadata.create_all)
             await conn.execute(delete(graph_edges))
@@ -126,8 +119,8 @@ async def store(request: pytest.FixtureRequest) -> AsyncIterator[GraphStore]:
                 await conn.execute(delete(graph_nodes))
             await pg_client.close()
     else:
-        sqlite_client = SQLiteClient(":memory:")
-        await sqlite_client.connect()
+        sqlite_client = SQLiteClient(SQLiteSpec(":memory:"))
+        await sqlite_client.open()
         async with sqlite_client.engine.begin() as conn:
             await conn.run_sync(metadata.create_all)
         from memspine.services.graph.sql_adjacency import SqlAdjacencyGraph

@@ -19,7 +19,7 @@ from collections.abc import AsyncIterator, Sequence
 
 import pytest
 
-from memspine.clients.sqlite import SQLiteClient
+from memspine.clients.sqlite import SQLiteClient, SQLiteSpec
 from memspine.memories.associative.links import link_event
 from memspine.memories.associative.projector import GraphProjector
 from memspine.services.graph.base import GraphEdge, GraphStore, capped_neighbors
@@ -34,16 +34,16 @@ ADAPTERS = ["sql_adjacency", "ladybug"]
 async def store(request: pytest.FixtureRequest) -> AsyncIterator[GraphStore]:
     if request.param == "ladybug":
         pytest.importorskip("ladybug")
-        from memspine.clients.ladybug import LadybugClient
+        from memspine.clients.ladybug import LadybugClient, LadybugSpec
         from memspine.services.graph.ladybug import LadybugGraphStore
 
-        ladybug_client = LadybugClient(":memory:")
-        await ladybug_client.connect()
+        ladybug_client = LadybugClient(LadybugSpec(":memory:"))
+        await ladybug_client.open()
         yield LadybugGraphStore(ladybug_client)
         await ladybug_client.close()
     else:
-        sqlite_client = SQLiteClient(":memory:")
-        await sqlite_client.connect()
+        sqlite_client = SQLiteClient(SQLiteSpec(":memory:"))
+        await sqlite_client.open()
         async with sqlite_client.engine.begin() as conn:
             await conn.run_sync(metadata.create_all)
         from memspine.services.graph.sql_adjacency import SqlAdjacencyGraph

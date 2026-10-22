@@ -4,6 +4,12 @@ The tree under ``postgres/alembic`` mirrors the SQLite tree revision for revisio
 has its own single head. It is a separate tree because the SQLite revisions carry SQLite-only
 backfills (``json_extract``) and a baseline built from live metadata; the Postgres revisions are
 explicit DDL, frozen per revision. A parity test keeps the two trees' logical schema equal.
+
+Alembic runs over a connection the Postgres connector lends
+(:meth:`~memspine.clients.postgres.PostgresClient.migration_connection`) and receives it through
+``config.attributes['connection']`` (RM-113 P1 #9). ADR-081: the run holds the Postgres session
+advisory lock :data:`~memspine.clients.postgres.sync.MIGRATION_LOCK_KEY`, so two processes
+starting on one database never migrate at once; the second one waits, then finds head.
 """
 
 from __future__ import annotations
@@ -14,9 +20,10 @@ from pathlib import Path
 from alembic import command
 from alembic.config import Config
 from alembic.script import ScriptDirectory
-from sqlalchemy import create_engine, inspect
+from sqlalchemy import inspect
+from sqlalchemy.engine import Connection
 
-from memspine.clients.postgres import normalize_pg_url
+from memspine.clients.postgres.sync import advisory_lock
 from memspine.observability import tap
 
 __all__ = ["alembic_config", "ensure_schema", "heads", "upgrade_to_head"]
@@ -26,6 +33,7 @@ _LOCK = threading.Lock()  # Alembic keeps module-global context: never overlap t
 
 
 def alembic_config(url: str) -> Config:
+    """The Alembic config of the Postgres tree, URL-addressed (offline/CLI use and tests)."""
     cfg = Config()
     cfg.set_main_option("script_location", str(_HERE))
     cfg.set_main_option("sqlalchemy.url", url.replace("%", "%%"))
@@ -41,20 +49,20 @@ def upgrade_to_head(url: str) -> None:
     command.upgrade(alembic_config(url), "head")
 
 
-def ensure_schema(url: str) -> None:
-    """Bring a Postgres database to head. A database that already has the tables but no
+def ensure_schema(connection: Connection) -> None:
+    """Bring the database behind ``connection`` (lent by the connector) to head, under the
+    migration advisory lock. A database that already has the tables but no
     ``alembic_version`` (made by the embedded ``create_all`` path) is stamped at the last
     metadata-only revision, then upgraded so migration-only provider tables are created.
     An empty database is migrated from the baseline."""
-    sync_url = normalize_pg_url(url)
-    engine = create_engine(sync_url)
-    try:
-        inspector = inspect(engine)
+    with _LOCK, advisory_lock(connection):
+        inspector = inspect(connection)
         legacy = inspector.has_table("memory_events") and not inspector.has_table("alembic_version")
-    finally:
-        engine.dispose()
-    with _LOCK:
-        cfg = alembic_config(sync_url)
+        if connection.in_transaction():
+            connection.commit()  # end the inspection's implicit transaction
+        cfg = Config()
+        cfg.set_main_option("script_location", str(_HERE))
+        cfg.attributes["connection"] = connection
         if legacy:
             command.stamp(cfg, "pg_lf_e_layer_backfill")
             command.upgrade(cfg, "head")
@@ -62,3 +70,5 @@ def ensure_schema(url: str) -> None:
         else:
             command.upgrade(cfg, "head")
             tap.event("store.profile.migrate", tree="postgres", action="upgraded")
+        if connection.in_transaction():
+            connection.commit()

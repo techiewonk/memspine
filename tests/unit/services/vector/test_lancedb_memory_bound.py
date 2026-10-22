@@ -16,7 +16,7 @@ pytest.importorskip("psutil")
 
 import psutil
 
-from memspine.clients.lancedb import LanceDBClient
+from memspine.clients.lancedb import LanceDBClient, LanceDBSpec
 from memspine.config import constants
 from memspine.services.embedding.hash import HashEmbedding
 from memspine.services.vector.lancedb_store import LanceDBVectorStore
@@ -38,8 +38,8 @@ def _private_mb() -> float:
     reason="psutil reports private memory on Windows only",
 )
 async def test_in_memory_store_private_memory_stays_bounded() -> None:
-    client = LanceDBClient("memory://vectors")
-    await client.connect()
+    client = LanceDBClient(LanceDBSpec("memory://vectors"))
+    await client.open()
     store = LanceDBVectorStore(
         client,
         HashEmbedding(dim=_DIM),

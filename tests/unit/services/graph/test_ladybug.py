@@ -15,14 +15,14 @@ from memspine.services.graph.base import GraphStore
 
 pytest.importorskip("ladybug")
 
-from memspine.clients.ladybug import LadybugClient
+from memspine.clients.ladybug import LadybugClient, LadybugSpec
 from memspine.services.graph.ladybug import LadybugGraphStore
 
 
 @pytest.fixture
 async def store() -> AsyncIterator[GraphStore]:
-    client = LadybugClient(":memory:")
-    await client.connect()
+    client = LadybugClient(LadybugSpec(":memory:"))
+    await client.open()
     yield LadybugGraphStore(client)
     await client.close()
 
@@ -105,8 +105,8 @@ async def test_close_is_a_no_op(store: GraphStore) -> None:
 
 async def test_unbounded_walk_is_one_native_cypher_query() -> None:
     """KB-5: without a fan-out cap, BFS is one variable-length Cypher query."""
-    client = LadybugClient(":memory:")
-    await client.connect()
+    client = LadybugClient(LadybugSpec(":memory:"))
+    await client.open()
     try:
         store = LadybugGraphStore(client)
         for i in range(10):
@@ -135,8 +135,8 @@ async def test_pre_kb1_database_is_altered_and_backfilled(tmp_path: object) -> N
     from pathlib import Path
 
     path = str(Path(str(tmp_path)) / "old.ladybug")
-    client = LadybugClient(path)
-    await client.connect()
+    client = LadybugClient(LadybugSpec(path))
+    await client.open()
     conn = client.connection
     conn.execute(
         "CREATE NODE TABLE MemoryNode(node_id STRING, labels STRING, properties STRING, "

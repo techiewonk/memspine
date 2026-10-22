@@ -467,6 +467,7 @@ class Engine:
         self._assets: Any = None
         self._external: Any = None
         self._external_provider: Any = None
+        self._http: Any = None  # RM-113: shared HTTP connector (see _http_connector)
         #: read.session_leg: unit vector per (record id, content)
         self._session_vectors: dict[tuple[str, str], list[float]] = {}
         # E4 (ADR-020): whether the vector leg runs the two-stage quantized
@@ -1343,6 +1344,12 @@ class Engine:
         await attempt("derive scheduler", stop_derive_scheduler)
         await attempt("asset describer", lambda: asset_describer.shutdown(self))
 
+        async def close_http() -> None:
+            if self._http is not None:
+                await self._http.close()  # the pool reopens on the next request
+
+        await attempt("HTTP connector", close_http)
+
         async def stop_windows() -> None:
             if self._windows is not None:
                 windows, self._windows = self._windows, None
@@ -1924,6 +1931,16 @@ class Engine:
     ) -> AssembledContext:
         return await read_legs._asset_overlay(self, query, ns, context)
 
+    def _http_connector(self) -> Any:
+        """RM-113: the Engine's one shared HTTP connector (asset fetch, vision, external
+        search). Built on first use; its pool opens lazily on the first request and is closed
+        at stop (a restart reopens it)."""
+        if self._http is None:
+            from memspine.providers.connectors import http_connector
+
+            self._http = http_connector(self._config().runtime.shared_resources.http)
+        return self._http
+
     def _external_broker(self) -> Any:
         if self._external is None:
             from memspine.services.external import (
@@ -1940,11 +1957,11 @@ class Engine:
             if provider is None:
                 if read.external_provider == "http":
                     try:
-                        provider = HttpSearchProvider.from_env()
+                        provider = HttpSearchProvider.from_env(self._http_connector())
                     except ProviderUnavailableError:
                         provider = NoopProvider()  # reported per call as provider_unavailable
                 elif read.external_provider == "wikipedia":
-                    provider = WikipediaProvider()
+                    provider = WikipediaProvider(http=self._http_connector())
                 else:
                     provider = NoopProvider()
             self._external = ExternalBroker(

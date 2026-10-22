@@ -11,8 +11,9 @@ Two lookup shapes, in order:
    are negatively cached to avoid re-hitting the API for a name that isn't there.
 
 Synchronous by design (secrets resolve in bootstrap phase 1, before the event
-loop owns anything — D-22). boto3 is import-guarded so a core install never
-imports it and a missing ``[aws]`` extra fails with the D-10 error.
+loop owns anything — D-22). The boto3 client belongs to an
+:class:`~memspine.clients.aws.AwsConnector` (RM-113), opened by the bootstrap; a missing
+``[aws]`` extra fails there with the D-10 error.
 """
 
 from __future__ import annotations
@@ -22,31 +23,34 @@ import os
 from collections.abc import Mapping
 from typing import Any
 
-from memspine.exceptions import MissingServiceError
+from memspine.clients.aws import AwsSpec
 
-__all__ = ["AwsSecrets"]
+__all__ = ["AwsSecrets", "secrets_manager_spec"]
+
+
+def secrets_manager_spec(
+    *, region_name: str | None = None, environ: Mapping[str, str] | None = None
+) -> AwsSpec:
+    """The connector spec of the Secrets Manager client: the region from ``AWS_REGION`` /
+    ``AWS_DEFAULT_REGION`` unless given."""
+    env = environ if environ is not None else os.environ
+    region = region_name or env.get("AWS_REGION") or env.get("AWS_DEFAULT_REGION")
+    return AwsSpec("secretsmanager", region_name=region)
 
 
 class AwsSecrets:
+    """Resolver over an opened Secrets Manager client (the
+    :class:`~memspine.clients.aws.AwsConnector` handle, or a test stand-in)."""
+
     def __init__(
         self,
         *,
+        client: Any,
         bundle_secret_id: str | None = None,
-        region_name: str | None = None,
-        client: Any = None,
         environ: Mapping[str, str] | None = None,
     ) -> None:
         env = environ if environ is not None else os.environ
         self._bundle_id = bundle_secret_id or env.get("MEMSPINE_SECRETS_AWS_SECRET_ID", "memspine")
-        region = region_name or env.get("AWS_REGION") or env.get("AWS_DEFAULT_REGION")
-        if client is None:
-            try:
-                import boto3
-            except ImportError as exc:
-                raise MissingServiceError("secrets:aws", extra="aws") from exc
-            # client() does not open a connection (creds/region are checked on
-            # the first call), so this never blocks or needs network at start.
-            client = boto3.client("secretsmanager", region_name=region)
         self._client = client
         self._bundle: dict[str, str] | None = None  # None => not yet loaded
         self._missing: set[str] = set()  # per-name negative cache

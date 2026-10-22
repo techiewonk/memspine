@@ -259,12 +259,12 @@ async def test_engine_read_on_never_puts_the_derived_record_in_context() -> None
 
 
 async def test_lancedb_scores_for_matches_query_cosine(tmp_path: Any) -> None:
-    from memspine.clients.lancedb import LanceDBClient
+    from memspine.clients.lancedb import LanceDBClient, LanceDBSpec
     from memspine.services.embedding.hash import HashEmbedding
     from memspine.services.vector.lancedb_store import LanceDBVectorStore
 
-    client = LanceDBClient(tmp_path / "vec.lance")
-    await client.connect()
+    client = LanceDBClient(LanceDBSpec(tmp_path / "vec.lance"))
+    await client.open()
     emb = HashEmbedding(dim=16)
     store = LanceDBVectorStore(client, emb)
     vecs = {"a": [1.0] + [0.0] * 15, "b": [0.0, 1.0] + [0.0] * 14, "c": [1.0, 1.0] + [0.0] * 14}

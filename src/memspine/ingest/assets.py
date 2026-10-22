@@ -21,9 +21,11 @@ def _asset_adapter(eng: Any) -> Any:
         )
 
         cfg = eng._config().ingest
+        http = eng._http_connector()  # RM-113: the Engine's shared HTTP connector
         vision: Any = (
             OllamaVision(
                 cfg.asset_vision_model,
+                http,
                 cfg.asset_vision_url,
                 timeout=cfg.asset_vision_timeout_s,
             )
@@ -32,7 +34,7 @@ def _asset_adapter(eng: Any) -> Any:
         )
         eng._assets = AssetAdapter(
             AssetRegistry(cfg.asset_dir),
-            HttpAssetFetcher(tuple(cfg.asset_allowed_mime)),
+            HttpAssetFetcher(tuple(cfg.asset_allowed_mime), http),
             vision,
             cfg.asset_dir,
             max_bytes=cfg.asset_max_bytes,

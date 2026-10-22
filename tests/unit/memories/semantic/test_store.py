@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 
-from memspine.clients.sqlite import SQLiteClient
+from memspine.clients.sqlite import SQLiteClient, SQLiteSpec
 from memspine.core.policies.conflict import ConflictPolicy
 from memspine.core.policies.dedup import DedupPolicy
 from memspine.memories.semantic.facts import fact_at
@@ -36,8 +36,8 @@ class StubExtractor:
 
 
 async def make_semantic(extractor: StubExtractor | None = None) -> SemanticMemory:
-    client = SQLiteClient(":memory:")
-    await client.connect()
+    client = SQLiteClient(SQLiteSpec(":memory:"))
+    await client.open()
     storage = SQLiteStorage(client)
     await storage.start()
     projector = RecordProjector(storage)

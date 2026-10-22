@@ -17,7 +17,7 @@ import random
 from pathlib import Path
 from typing import Any
 
-from memspine.clients.lancedb import LanceDBClient
+from memspine.clients.lancedb import LanceDBClient, LanceDBSpec
 from memspine.config import constants
 from memspine.services.embedding.hash import HashEmbedding
 from memspine.services.vector.lancedb_store import LanceDBVectorStore
@@ -31,8 +31,8 @@ def _normalize(vector: list[float]) -> list[float]:
 
 
 async def _make_store(tmp_path: Path, **kwargs: Any) -> LanceDBVectorStore:
-    client = LanceDBClient(tmp_path / "vec.lance")
-    await client.connect()
+    client = LanceDBClient(LanceDBSpec(tmp_path / "vec.lance"))
+    await client.open()
     return LanceDBVectorStore(client, HashEmbedding(dim=_DIM), **kwargs)
 
 

@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any, cast
 
 from pydantic import BaseModel, JsonValue
-from sqlalchemy import Engine, create_engine
+from sqlalchemy import Engine
 from sqlalchemy.engine import make_url
 
 from memspine.config.schema.providers import PostgresSettings, SqliteSettings
@@ -107,8 +107,8 @@ class SqliteBuilder:
     async def build(
         self, settings: SqliteSettings, ctx: StorageBuildContext
     ) -> StorageBuildResult[SqlStorage]:
-        from memspine.clients.sqlite import SQLiteClient
-        from memspine.runtime.outbox import memory_engine, sqlite_engine
+        from memspine.clients.sqlite import SQLiteClient, SQLiteSpec
+        from memspine.clients.sqlite.sync import memory_sync_engine
         from memspine.services.storage.sqlite.engine import SQLiteStorage
 
         key = settings.encryption.key_env if settings.encryption.mode == "sqlcipher" else None
@@ -117,16 +117,18 @@ class SqliteBuilder:
         if settings.path == ":memory:":
             # Unique per Engine (a private shared-cache name); never registered for sharing.
             client = SQLiteClient(
-                settings.path, cipher_key_env=key, busy_timeout_s=settings.busy_timeout_s
+                SQLiteSpec(
+                    settings.path, cipher_key_env=key, busy_timeout_s=settings.busy_timeout_s
+                )
             )
             ref = resources.own("sql", client.close)
-            await client.connect()
+            await client.open()
             access = ManagedSqlAccess(
                 client.engine,
                 is_memory=True,
                 capabilities=capabilities,
                 checkpoint=client.checkpoint,
-                sync_factory=memory_engine,
+                sync_factory=memory_sync_engine,
                 owner_resource_id=ref.resource_id,
             )
         else:
@@ -138,12 +140,14 @@ class SqliteBuilder:
 
             async def open_client() -> SQLiteClient:
                 opened = SQLiteClient(
-                    settings.path,
-                    cipher_key_env=key,
-                    busy_timeout_s=settings.busy_timeout_s,
-                    pool_options=pool,
+                    SQLiteSpec(
+                        settings.path,
+                        cipher_key_env=key,
+                        busy_timeout_s=settings.busy_timeout_s,
+                        pool_options=pool,
+                    )
                 )
-                await opened.connect()
+                await opened.open()
                 return opened
 
             client, ref = await own_shared(
@@ -157,12 +161,7 @@ class SqliteBuilder:
             shared_client = client
 
             async def open_sync() -> Engine:
-                return sqlite_engine(
-                    shared_client.path,
-                    shared_client.sync_creator,
-                    busy_timeout_s=settings.busy_timeout_s,
-                    pool_options=pool,
-                )
+                return shared_client.sync_engine(pool)
 
             sync_engine, sync_ref = await own_shared(
                 resources,
@@ -199,8 +198,7 @@ class PostgresBuilder:
     ) -> StorageBuildResult[SqlStorage]:
         from memspine.clients.postgres import (
             PostgresClient,
-            driver_connect_timeout,
-            normalize_pg_url,
+            PostgresSpec,
         )
         from memspine.services.storage.postgres.engine import PostgresStorage
 
@@ -220,13 +218,15 @@ class PostgresBuilder:
 
         async def open_client() -> PostgresClient:
             opened = PostgresClient(
-                url,
-                connect_timeout_s=settings.connect_timeout_s,
-                statement_timeout_s=settings.statement_timeout_s,
-                pool_options=pool,
+                PostgresSpec(
+                    url,
+                    connect_timeout_s=settings.connect_timeout_s,
+                    statement_timeout_s=settings.statement_timeout_s,
+                    pool_options=pool,
+                )
             )
             # The client enforces connect_timeout_s as the overall deadline (RM-40).
-            await opened.connect()
+            await opened.open()
             return opened
 
         client, ref = await own_shared(
@@ -239,16 +239,10 @@ class PostgresBuilder:
         )
 
         async def open_sync() -> Engine:
-            # One sync pool per database for every purpose (outbox, pgvector, sleep leases).
-            return create_engine(
-                normalize_pg_url(url),
-                connect_args={
-                    # Sync (Alembic) connects are bounded per attempt only (RM-40).
-                    "connect_timeout": driver_connect_timeout(settings.connect_timeout_s),
-                    "options": f"-c statement_timeout={max(1, int(settings.statement_timeout_s * 1000))}",
-                },
-                **pool,
-            )
+            # One sync pool per database for every purpose (outbox, pgvector, sleep leases);
+            # sync connects are bounded per attempt only (RM-40).
+            engine: Engine = client.sync_engine(pool)
+            return engine
 
         sync_engine, sync_ref = await own_shared(
             resources,

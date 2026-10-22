@@ -13,7 +13,7 @@ from datetime import UTC, datetime
 
 import pytest
 
-from memspine.clients.sqlite import SQLiteClient
+from memspine.clients.sqlite import SQLiteClient, SQLiteSpec
 from memspine.derive.pipeline.stages.context import PipelineContext
 from memspine.derive.pipeline.stages.extract_graph import extract_graph
 from memspine.memories.associative.projector import GraphProjector
@@ -54,8 +54,8 @@ async def _make(
 ):
     from memspine.config.loader import load_config
 
-    client = SQLiteClient(":memory:")
-    await client.connect()
+    client = SQLiteClient(SQLiteSpec(":memory:"))
+    await client.open()
     storage = SQLiteStorage(client)
     await storage.start()
     graph = SqlAdjacencyGraph(client)

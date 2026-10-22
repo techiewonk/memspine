@@ -25,7 +25,7 @@ from __future__ import annotations
 import asyncio
 from typing import Any
 
-from memspine.clients.sqlite import SQLiteClient
+from memspine.clients.sqlite import SQLiteClient, SQLiteSpec
 from memspine.services.storage.sqlite.engine import SQLiteStorage
 from memspine.store.events import EventKind, MemoryEvent
 from memspine.store.records import MemoryRecord
@@ -36,8 +36,8 @@ _PER_WRITER = 25
 
 
 async def _storage(db_path: str) -> tuple[SQLiteClient, SQLiteStorage]:
-    client = SQLiteClient(db_path)
-    await client.connect()
+    client = SQLiteClient(SQLiteSpec(db_path))
+    await client.open()
     storage = SQLiteStorage(client)
     await storage.start()  # create_all is idempotent, so a second opener is safe
     return client, storage

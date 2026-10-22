@@ -20,6 +20,7 @@ from typing import Any
 import pytest
 
 from memspine import Engine
+from memspine.clients.sqlite.sync import memory_sync_engine, sqlite_sync_engine
 from memspine.config.schema import GraphConfig
 from memspine.config.schema.observability import TapConfig
 from memspine.exceptions import ConfigError
@@ -35,7 +36,7 @@ from memspine.observability import tap
 from memspine.providers.contracts import BuildResult, ProviderRef
 from memspine.providers.registry import get_registry
 from memspine.runtime.jobs import ManualClock, RetryBudget
-from memspine.runtime.outbox import SqlJobStore, memory_engine, sqlite_engine
+from memspine.runtime.outbox import SqlJobStore
 from memspine.runtime.runner import InlineRunner
 from memspine.services.graph.base import GraphStore
 from memspine.services.graph.neo4j import CYPHER, Neo4jExecutor, Neo4jGraphStore
@@ -280,15 +281,26 @@ class FakeNeo4j:
 
 
 # --------------------------------------------------------------------------- live executor
-def _live_executor() -> Neo4jExecutor:
-    from memspine.services.graph.neo4j import executor_from_env
+async def live_executor(prefix: str = "MemTest") -> tuple[Any, Neo4jExecutor]:
+    """RM-113: an opened Neo4j connector on the live test server and the adapter's executor
+    over it (unique label and type). The caller clears the graph and closes the connector."""
+    from memspine.clients.neo4j import Neo4jClient, Neo4jSpec
+    from memspine.services.graph.neo4j import connector_executor
 
-    return executor_from_env(
-        url_env="MEMSPINE_TEST_NEO4J_URL",
-        user_env="MEMSPINE_TEST_NEO4J_USER",
-        password_env="MEMSPINE_TEST_NEO4J_PASSWORD",
-        node_label=f"MemTest{uuid.uuid4().hex[:10]}",
-        rel_type=f"MemTestRel{uuid.uuid4().hex[:10]}",
+    connector = Neo4jClient(
+        Neo4jSpec(
+            connect_timeout_s=30.0,
+            request_timeout_s=60.0,
+            url_env="MEMSPINE_TEST_NEO4J_URL",
+            user_env="MEMSPINE_TEST_NEO4J_USER",
+            password_env="MEMSPINE_TEST_NEO4J_PASSWORD",
+        )
+    )
+    await connector.open()
+    return connector, connector_executor(
+        connector,
+        node_label=f"{prefix}{uuid.uuid4().hex[:10]}",
+        rel_type=f"{prefix}Rel{uuid.uuid4().hex[:10]}",
     )
 
 
@@ -299,12 +311,12 @@ async def executor(request: pytest.FixtureRequest):
         return
     if not (HAVE_DRIVER and LIVE_URL):
         pytest.skip(LIVE_SKIP)
-    ex = _live_executor()
+    connector, ex = await live_executor()
     try:
         yield ex
     finally:
         await ex.run("clear", {})
-        await ex.close()
+        await connector.close()
 
 
 def _store(ex: Neo4jExecutor, *, scoped: bool = False) -> Neo4jGraphStore:
@@ -420,7 +432,7 @@ def _forget(seq: int, rid: str) -> MemoryEvent:
 
 def _runner(engine: Any = None, clock: Any = None) -> InlineRunner:
     return InlineRunner(
-        SqlJobStore(engine or memory_engine()),
+        SqlJobStore(engine or memory_sync_engine()),
         clock=clock or ManualClock(T0),
         budget=RetryBudget(base_backoff=timedelta(0)),
     )
@@ -548,7 +560,7 @@ async def test_crash_mid_batch_resumes_from_the_watermark(tmp_path: Path) -> Non
     path = str(tmp_path / "outbox.db")
     clock = ManualClock(T0)
     fake = FakeNeo4j()
-    first = _runner(sqlite_engine(path, busy_timeout_s=5.0), clock)
+    first = _runner(sqlite_sync_engine(path, busy_timeout_s=5.0), clock)
     proj, _ = _wire(fake, first)
     for i, rid in enumerate(["a", "b", "c", "d", "e"], start=1):
         await proj.apply(_write(i, rid))
@@ -560,7 +572,7 @@ async def test_crash_mid_batch_resumes_from_the_watermark(tmp_path: Path) -> Non
     done_before = fake.merges
 
     clock.advance(3600)  # the dead worker's lease expires
-    second = _runner(sqlite_engine(path, busy_timeout_s=5.0), clock)
+    second = _runner(sqlite_sync_engine(path, busy_timeout_s=5.0), clock)
     _wire(fake, second)
     await second.start()
     assert sorted(n["id"] for n in fake.nodes.values()) == ["a", "b", "c", "d", "e"]

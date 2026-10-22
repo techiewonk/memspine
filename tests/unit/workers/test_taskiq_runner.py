@@ -12,7 +12,7 @@ import sys
 import fakeredis.aioredis
 import pytest
 
-from memspine.clients.sqlite import SQLiteClient
+from memspine.clients.sqlite import SQLiteClient, SQLiteSpec
 from memspine.config.loader import load_config
 from memspine.derive.pipeline.stages.context import PipelineContext
 from memspine.derive.pipeline.stages.table import PIPELINES
@@ -44,8 +44,8 @@ def test_redact_masks_broker_credentials() -> None:
 
 async def make_ctx() -> PipelineContext:
     config = load_config(template="core", overrides={"event_log": {"mode": "full"}}).config
-    client = SQLiteClient(":memory:")
-    await client.connect()
+    client = SQLiteClient(SQLiteSpec(":memory:"))
+    await client.open()
     storage = SQLiteStorage(client, mode=EventLogMode.FULL)
     await storage.start()
     return PipelineContext(storage=storage, config=config)

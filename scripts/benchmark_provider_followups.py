@@ -130,10 +130,11 @@ async def component_probe(directory: Path) -> dict[str, Any]:
     sqlite_module = importlib.import_module("memspine.clients.sqlite")
     result["sqlite"]["sqlite_client_module_import_ms"] = (time.perf_counter() - start) * 1000
     SQLiteClient = sqlite_module.SQLiteClient
+    SQLiteSpec = sqlite_module.SQLiteSpec
 
-    sqlite_client = SQLiteClient(str(directory / "component.sqlite"))
+    sqlite_client = SQLiteClient(SQLiteSpec(str(directory / "component.sqlite")))
     start = time.perf_counter()
-    await sqlite_client.connect()
+    await sqlite_client.open()
     result["sqlite"]["connect_and_schema_startup_ms"] = (time.perf_counter() - start) * 1000
     await sqlite_client.close()
 
@@ -144,10 +145,11 @@ async def component_probe(directory: Path) -> dict[str, Any]:
     lancedb_client_module = importlib.import_module("memspine.clients.lancedb")
     result["lancedb"]["client_module_import_ms"] = (time.perf_counter() - start) * 1000
     LanceDBClient = lancedb_client_module.LanceDBClient
+    LanceDBSpec = lancedb_client_module.LanceDBSpec
 
-    client = LanceDBClient(directory / "component-lance")
+    client = LanceDBClient(LanceDBSpec(directory / "component-lance"))
     start = time.perf_counter()
-    await client.connect()
+    await client.open()
     result["lancedb"]["connect_ms"] = (time.perf_counter() - start) * 1000
     start = time.perf_counter()
     await asyncio.to_thread(client.db.create_table, "probe", data=[{"id": 1}], mode="overwrite")

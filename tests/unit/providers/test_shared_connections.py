@@ -12,6 +12,7 @@ import pytest
 from sqlalchemy import text
 
 from memspine import Engine
+from memspine.clients.weaviate import WeaviateClient, WeaviateSpec
 from memspine.config.schema import EventLogConfig
 from memspine.config.schema.providers import SqliteSettings
 from memspine.config.schema.remote_providers import WeaviateSettings
@@ -163,23 +164,28 @@ async def test_two_engines_on_one_file_share_sql_and_survive_one_stop(tmp_path: 
 
 
 # ----------------------------------------------------------------------------- Weaviate
-class _FakeWeaviateClient:
+class _FakeWeaviateClient(WeaviateClient):
+    """The real connector's identity and scope; no transport."""
+
     instances: list[_FakeWeaviateClient] = []
 
-    def __init__(self, settings: WeaviateSettings) -> None:
-        self.settings = settings
+    def __init__(self, spec: WeaviateSpec) -> None:
+        super().__init__(spec)
         self.connected = False
         self.closed = 0
-        self.native = SimpleNamespace()
         type(self).instances.append(self)
 
-    async def connect(self) -> None:
+    @property
+    def handle(self) -> Any:
+        return SimpleNamespace()
+
+    async def open(self) -> None:
         self.connected = True
 
     async def close(self) -> None:
         self.closed += 1
 
-    async def health(self) -> bool:
+    async def health(self, deadline_s: float) -> bool:
         return self.connected
 
 
@@ -396,8 +402,8 @@ def test_ladybug_shared_across_two_event_loops(tmp_path: Path) -> None:
 def _outbox_deps() -> tuple[Any, ProviderLifecycleManager]:
     from sqlalchemy.ext.asyncio import create_async_engine
 
+    from memspine.clients.sqlite.sync import memory_sync_engine
     from memspine.providers.sql import ManagedSqlAccess
-    from memspine.runtime.outbox import memory_engine
 
     async_engine = create_async_engine("sqlite+aiosqlite:///:memory:")
     resources = _manager()
@@ -414,7 +420,7 @@ def _outbox_deps() -> tuple[Any, ProviderLifecycleManager]:
         is_memory=True,
         capabilities=frozenset({"sql"}),
         checkpoint=checkpoint,
-        sync_factory=memory_engine,
+        sync_factory=memory_sync_engine,
         owner_resource_id="storage",
     )
     return sql, resources

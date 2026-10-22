@@ -21,12 +21,13 @@ from taskiq.abc.broker import AsyncBroker
 from taskiq.message import BrokerMessage
 from taskiq.receiver import Receiver
 
+from memspine.clients.sqlite.sync import sqlite_sync_engine
 from memspine.config.schema import MemspineConfig
 from memspine.config.schema.observability import TapConfig
 from memspine.observability import tap
 from memspine.runtime.container import make_outbox_runner
 from memspine.runtime.jobs import ManualClock, RetryBudget
-from memspine.runtime.outbox import SqlJobStore, sqlite_engine
+from memspine.runtime.outbox import SqlJobStore
 from memspine.runtime.runner import InlineRunner, StageHandler
 from memspine.runtime.transport import TASK_NAME, TransportRunner, make_broker
 from memspine.schemas.durable.common import OwnerScope
@@ -40,9 +41,9 @@ def _runner_dependencies() -> tuple[Any, Any]:
     """Create the generic SQL capability and resource owner used by the runtime builder."""
     from sqlalchemy.ext.asyncio import create_async_engine
 
+    from memspine.clients.sqlite.sync import memory_sync_engine
     from memspine.providers.lifecycle import ProviderLifecycleManager
     from memspine.providers.sql import ManagedSqlAccess
-    from memspine.runtime.outbox import memory_engine
 
     async_engine = create_async_engine("sqlite+aiosqlite:///:memory:")
     resources = ProviderLifecycleManager(close_timeout_s=2.0)
@@ -60,7 +61,7 @@ def _runner_dependencies() -> tuple[Any, Any]:
         is_memory=True,
         capabilities=frozenset({"sqlite", "memory"}),
         checkpoint=checkpoint,
-        sync_factory=memory_engine,
+        sync_factory=memory_sync_engine,
         owner_resource_id="storage",
     )
     return sql, resources
@@ -124,7 +125,7 @@ class QueueBroker(AsyncBroker):
 
 
 def db(tmp_path: Path) -> Any:
-    return sqlite_engine(str(tmp_path / "outbox.db"), busy_timeout_s=5.0)
+    return sqlite_sync_engine(str(tmp_path / "outbox.db"), busy_timeout_s=5.0)
 
 
 def make(

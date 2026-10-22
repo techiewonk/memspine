@@ -7,8 +7,9 @@ from pathlib import Path
 import pytest
 
 from memspine import Engine
+from memspine.clients.tantivy import TantivyConnector
 from memspine.config.schema.providers import TantivySettings
-from memspine.services.lexical.tantivy import TantivyLexical
+from memspine.services.lexical.tantivy import TantivyLexical, tantivy_spec
 from memspine.store.records import MemoryRecord, SourceInfo
 
 
@@ -27,26 +28,26 @@ def test_default_analyzer_is_unchanged() -> None:
 
 
 async def test_english_matches_inflected_forms() -> None:
-    store = TantivyLexical(analyzer="english")
+    store = TantivyLexical(TantivyConnector(tantivy_spec(analyzer="english")))
     await store.index(rec("r1", "Melanie went camping and painted a lake"))
     hits = await store.search("a", "does she camp or paint?")
     assert [h.record_id for h in hits] == ["r1"]
 
 
 async def test_default_does_not_stem() -> None:
-    store = TantivyLexical()
+    store = TantivyLexical(TantivyConnector(tantivy_spec()))
     await store.index(rec("r1", "Melanie went camping"))
     assert await store.search("a", "camp") == []
 
 
 async def test_stop_words_alone_match_nothing() -> None:
-    store = TantivyLexical(analyzer="english")
+    store = TantivyLexical(TantivyConnector(tantivy_spec(analyzer="english")))
     await store.index(rec("r1", "the kids and the dog"))
     assert await store.search("a", "the and") == []
 
 
 async def test_namespace_isolation_holds() -> None:
-    store = TantivyLexical(analyzer="english")
+    store = TantivyLexical(TantivyConnector(tantivy_spec(analyzer="english")))
     await store.index(rec("r1", "camping trip", namespace="a"))
     await store.index(rec("r2", "camping trip", namespace="b"))
     assert [h.record_id for h in await store.search("b", "camp")] == ["r2"]
@@ -54,7 +55,7 @@ async def test_namespace_isolation_holds() -> None:
 
 def test_unknown_analyzer_is_rejected() -> None:
     with pytest.raises(ValueError, match="unknown lexical analyzer"):
-        TantivyLexical(analyzer="klingon")
+        tantivy_spec(analyzer="klingon")
 
 
 def _engine(path: Path, analyzer: str) -> Engine:
@@ -99,8 +100,8 @@ async def test_date_tokens_make_a_date_question_match_lexically() -> None:
     said = datetime(2023, 5, 8, 10, 0, tzinfo=UTC)
     turn = rec("r1", "Ana: I went camping yesterday")
     turn = turn.model_copy(update={"valid_from": said})
-    plain = TantivyLexical()
-    dated = TantivyLexical(date_tokens=True)
+    plain = TantivyLexical(TantivyConnector(tantivy_spec()))
+    dated = TantivyLexical(TantivyConnector(tantivy_spec()), date_tokens=True)
     for store in (plain, dated):
         await store.index(turn)
     assert await plain.search("a", "7 May 2023") == []

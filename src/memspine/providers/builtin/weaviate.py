@@ -2,15 +2,14 @@
 
 from __future__ import annotations
 
-import hashlib
-import os
 from typing import TYPE_CHECKING, cast
 
 from pydantic import BaseModel, JsonValue
 
-from memspine.config.remote import endpoint_from_env
+from memspine.clients.weaviate import WeaviateSpec
 from memspine.config.schema.remote_providers import WeaviateSettings
 from memspine.exceptions import ConfigError
+from memspine.providers.connectors import acquire
 from memspine.providers.contexts import (
     LexicalBuildContext,
     SharedBuildContext,
@@ -23,7 +22,6 @@ from memspine.providers.contracts import (
     ResourceRef,
 )
 from memspine.providers.registry import LEXICAL_INDEXES, VECTOR_STORES, ProviderDescriptor
-from memspine.providers.shared import own_shared, resource_key
 from memspine.services.base import CapabilityManifest
 from memspine.services.lexical.base import LexicalStore
 from memspine.services.vector.base import VectorStore
@@ -33,35 +31,25 @@ if TYPE_CHECKING:
     from memspine.clients.weaviate import WeaviateClient
 
 
+def _spec(settings: WeaviateSettings, max_connections: int | None = None) -> WeaviateSpec:
+    return WeaviateSpec(
+        connect_timeout_s=settings.connect_timeout_s,
+        request_timeout_s=settings.request_timeout_s,
+        url_env=settings.url_env,
+        grpc_url_env=settings.grpc_url_env,
+        api_key_env=settings.api_key_env,
+        grpc_port=settings.grpc_port,
+        max_connections=max_connections,
+    )
+
+
 def _target_identity(model: BaseModel) -> dict[str, JsonValue]:
+    """The connector's identity (the one parser): target, auth digest, physical target."""
     if not isinstance(model, WeaviateSettings):
         raise ConfigError("Weaviate target identity received incompatible settings")
-    host, scheme, port, _ = endpoint_from_env(model.url_env, allowed_schemes=("http", "https"))
-    grpc_host, grpc_scheme, grpc_port = host, scheme, model.grpc_port
-    if model.grpc_url_env is not None:
-        grpc_host, grpc_scheme, grpc_port, _ = endpoint_from_env(
-            model.grpc_url_env, allowed_schemes=("http", "https")
-        )
-    token = os.environ.get(model.api_key_env, "") if model.api_key_env else ""
-    if model.api_key_env and not token:
-        raise ConfigError(f"Weaviate authentication needs environment variable {model.api_key_env}")
-    return {
-        "kind": "weaviate",
-        "host": host.lower(),
-        "scheme": scheme,
-        "port": port,
-        "grpc_host": grpc_host.lower(),
-        "grpc_scheme": grpc_scheme,
-        "grpc_port": grpc_port,
-        "auth_digest": hashlib.sha256(token.encode()).hexdigest(),
-        "canonical_target": {
-            "kind": "weaviate",
-            "host": host.lower(),
-            "port": port,
-            "grpc_host": grpc_host.lower(),
-            "grpc_port": grpc_port,
-        },
-    }
+    from memspine.clients.weaviate import WeaviateClient
+
+    return cast(dict[str, JsonValue], WeaviateClient.identity(_spec(model)).descriptor_target())
 
 
 async def _shared_client(
@@ -74,26 +62,9 @@ async def _shared_client(
     credential-free target identity and an auth digest."""
     from memspine.clients.weaviate import WeaviateClient
 
-    knobs = settings.model_dump(mode="json", exclude={"collection_prefix"})
     pool_size = shared.http_pool.max_connections if shared.http_pool is not None else None
-    knobs["http_max_connections"] = pool_size
-    pool = {} if pool_size is None else {"max_connections": pool_size}
-
-    async def open_client() -> WeaviateClient:
-        client = WeaviateClient(settings, **pool)
-        await client.connect()
-        return client
-
-    async def close_client(client: WeaviateClient) -> None:
-        await client.close()
-
-    return await own_shared(
-        shared.resources,
-        resource_id,
-        resource_key("weaviate.client", _target_identity(settings), knobs, scope="loop"),
-        open_client,
-        close=close_client,
-        registry=shared.resource_registry(),
+    return await acquire(
+        shared, WeaviateClient, _spec(settings, pool_size), resource_id=resource_id
     )
 
 
@@ -116,7 +87,7 @@ class WeaviateVectorBuilder:
             settings.collection_prefix, "Vector", ctx.shared.owner_id, vector_space
         )
         client, ref = await _shared_client(settings, ctx.shared, "vector")
-        collection = await ensure_collection(client.native, name, include_content=False)
+        collection = await ensure_collection(client.handle, name, include_content=False)
         service = WeaviateVectorStore(
             collection,
             owner_id=ctx.shared.owner_id,
@@ -126,8 +97,8 @@ class WeaviateVectorBuilder:
 
         async def probe() -> bool:
             return bool(
-                await client.health()
-                and await client.native.collections.exists(name)
+                await client.health(settings.request_timeout_s)
+                and await client.handle.collections.exists(name)
                 and await service.exists("__memspine_health_probe__") is False
             )
 
@@ -152,13 +123,13 @@ class WeaviateLexicalBuilder:
             settings.collection_prefix, "Lexical", ctx.shared.owner_id, ctx.generation_id
         )
         client, ref = await _shared_client(settings, ctx.shared, "lexical")
-        collection = await ensure_collection(client.native, name, include_content=True)
+        collection = await ensure_collection(client.handle, name, include_content=True)
         service = WeaviateLexicalStore(collection, owner_id=ctx.shared.owner_id)
 
         async def probe() -> bool:
             return bool(
-                await client.health()
-                and await client.native.collections.exists(name)
+                await client.health(settings.request_timeout_s)
+                and await client.handle.collections.exists(name)
                 and await service.exists("__memspine_health_probe__") is False
             )
 

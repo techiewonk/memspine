@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from memspine.services.lexical import tantivy
+from memspine.clients.tantivy import connector as tantivy
 
 
 class FlakyWriter:
@@ -24,7 +24,7 @@ class FlakyWriter:
 def test_sharing_violation_is_retried(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(tantivy, "TANTIVY_COMMIT_BACKOFF_S", 0.0)
     writer = FlakyWriter(failures=2)
-    tantivy._commit_with_retry(writer)
+    tantivy.commit_with_retry(writer)
     assert writer.calls == 3
 
 
@@ -32,14 +32,14 @@ def test_persistent_violation_raises(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(tantivy, "TANTIVY_COMMIT_BACKOFF_S", 0.0)
     writer = FlakyWriter(failures=100)
     with pytest.raises(ValueError, match="os error 5"):
-        tantivy._commit_with_retry(writer)
+        tantivy.commit_with_retry(writer)
     assert writer.calls == tantivy.TANTIVY_COMMIT_RETRIES
 
 
 def test_other_errors_are_not_retried() -> None:
     writer = FlakyWriter(failures=1, message="schema mismatch")
     with pytest.raises(ValueError, match="schema mismatch"):
-        tantivy._commit_with_retry(writer)
+        tantivy.commit_with_retry(writer)
     assert writer.calls == 1
 
 
@@ -50,5 +50,5 @@ def test_segment_open_permission_denied_is_retried(monkeypatch: pytest.MonkeyPat
         'PermissionDenied, message: "Access is denied." }, filepath: "x.fast" }\''
     )
     writer = FlakyWriter(failures=2, message=message)
-    tantivy._commit_with_retry(writer)
+    tantivy.commit_with_retry(writer)
     assert writer.calls == 3

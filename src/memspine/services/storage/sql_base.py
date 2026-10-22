@@ -30,7 +30,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.ext.asyncio import AsyncEngine
 
-from memspine.config.constants import ZSTD_LEVEL
+from memspine.config.constants import STORAGE_HEALTH_DEADLINE_S, ZSTD_LEVEL
 from memspine.exceptions import StorageError
 from memspine.services.base import CapabilityManifest, ServiceAdapter
 from memspine.services.storage.sqlite.schema import (
@@ -65,7 +65,7 @@ class SqlClient(Protocol):
     @property
     def engine(self) -> AsyncEngine: ...
 
-    async def health(self) -> bool: ...
+    async def health(self, deadline_s: float) -> bool: ...
 
 
 class SqlStorage(ServiceAdapter):
@@ -119,7 +119,8 @@ class SqlStorage(ServiceAdapter):
         self._started = False
 
     async def health(self) -> bool:
-        return self._started and await self._client.health()
+        # RM-113: a real ``SELECT 1`` round trip through the connector.
+        return self._started and await self._client.health(STORAGE_HEALTH_DEADLINE_S)
 
     @property
     def mode(self) -> EventLogMode:

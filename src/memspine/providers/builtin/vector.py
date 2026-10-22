@@ -24,7 +24,7 @@ class LanceDBBuilder:
     async def build(
         self, settings: LanceDBSettings, ctx: VectorBuildContext
     ) -> BuildResult[VectorStore]:
-        from memspine.clients.lancedb import LanceDBClient
+        from memspine.clients.lancedb import LanceDBClient, LanceDBSpec
         from memspine.services.vector.lancedb_store import LanceDBVectorStore
         from memspine.services.vector.per_namespace import PerNamespaceVectorStore
         from memspine.store.vector_spaces import JsonSpaceState, VectorSpace, VersionedSpaceStore
@@ -44,14 +44,14 @@ class LanceDBBuilder:
         client: LanceDBClient
         if placement.in_memory:
             # An in-memory database is private to this Engine, like its ``:memory:`` event log.
-            client = LanceDBClient(path)
+            client = LanceDBClient(LanceDBSpec(path))
             ref = ctx.shared.resources.own("vector", client.close)
-            await client.connect()
+            await client.open()
         else:
 
             async def open_client() -> LanceDBClient:
-                opened = LanceDBClient(path)
-                await opened.connect()
+                opened = LanceDBClient(LanceDBSpec(path))
+                await opened.open()
                 return opened
 
             async def close_client(opened: LanceDBClient) -> None:

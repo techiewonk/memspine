@@ -9,13 +9,13 @@ import pytest
 
 pytest.importorskip("cashews")
 
-from memspine.clients.cashews import CashewsClient
+from memspine.clients.cashews import CashewsClient, CashewsSpec
 from memspine.services.cache.cashews import CashewsCache
 
 
 async def test_round_trip_and_delete() -> None:
-    client = CashewsClient("mem://")
-    await client.connect()
+    client = CashewsClient(CashewsSpec("mem://"))
+    await client.open()
     try:
         kv = CashewsCache(client)
         assert await kv.get("k") is None
@@ -30,8 +30,8 @@ async def test_round_trip_and_delete() -> None:
 
 
 async def test_namespace_isolates_keys() -> None:
-    client = CashewsClient("mem://")
-    await client.connect()
+    client = CashewsClient(CashewsSpec("mem://"))
+    await client.open()
     try:
         a = CashewsCache(client, namespace="a")
         b = CashewsCache(client, namespace="b")
@@ -45,13 +45,13 @@ async def test_namespace_isolates_keys() -> None:
 
 async def test_disk_survives_reopen(tmp_path: Path) -> None:
     url = f"disk://?directory={tmp_path / 'cache'}"
-    c1 = CashewsClient(url)
-    await c1.connect()
+    c1 = CashewsClient(CashewsSpec(url))
+    await c1.open()
     await CashewsCache(c1).set("k", b"durable")
     await c1.close()
 
-    c2 = CashewsClient(url)
-    await c2.connect()
+    c2 = CashewsClient(CashewsSpec(url))
+    await c2.open()
     try:
         assert await CashewsCache(c2).get("k") == b"durable"  # persisted to disk
     finally:

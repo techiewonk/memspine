@@ -160,10 +160,11 @@ class LadybugGraphStore:
         self._ready = False
         self._entity_dim: int | None = None  # GR-3: EntityVec table created
         self._fts_ok: bool | None = None  # FTS extension loaded (None = not tried yet)
-        #: One embedded connection is not a pool: every statement unit runs under this
-        #: lock on a worker thread. A threading lock (not an asyncio one) lets Engines on
-        #: different event loops share one store per path (ADR-079).
-        self._lock = threading.Lock()
+        #: One embedded connection is not a pool: every statement unit runs under the
+        #: connector's statement lock on a worker thread (shared with its health probe). A
+        #: threading lock (not an asyncio one) lets Engines on different event loops share
+        #: one store per path (ADR-079).
+        self._lock: threading.Lock = getattr(client, "statement_lock", None) or threading.Lock()
 
     async def _execute(
         self, query: str, parameters: dict[str, Any] | None = None

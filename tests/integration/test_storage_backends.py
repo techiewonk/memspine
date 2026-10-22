@@ -36,11 +36,11 @@ def _rec(record_id: str, namespace: str, content: str, **extra: Any) -> MemoryRe
 
 
 async def _sqlite() -> tuple[Any, Any]:
-    from memspine.clients.sqlite import SQLiteClient
+    from memspine.clients.sqlite import SQLiteClient, SQLiteSpec
     from memspine.services.storage.sqlite.engine import SQLiteStorage
 
-    client = SQLiteClient(":memory:")
-    await client.connect()
+    client = SQLiteClient(SQLiteSpec(":memory:"))
+    await client.open()
     storage = SQLiteStorage(client, mode=EventLogMode.ROLLING)
     await storage.start()
     return client, storage
@@ -51,13 +51,13 @@ async def _postgres() -> tuple[Any, Any]:
     if not url:
         pytest.skip("set MEMSPINE_TEST_POSTGRES_URL to run the postgres storage contract")
     pytest.importorskip("psycopg")
-    from memspine.clients.postgres import PostgresClient
+    from memspine.clients.postgres import PostgresClient, PostgresSpec
     from memspine.services.storage.postgres.engine import PostgresStorage
     from memspine.services.storage.sqlite.schema import metadata
 
-    client = PostgresClient(url)
+    client = PostgresClient(PostgresSpec(url))
     try:
-        await client.connect()
+        await client.open()
     except Exception as exc:
         # M-LIVE: the URL is an explicit opt-in, so an unreachable server or bad
         # DSN is a failure of the requested gate, never a silent skip.

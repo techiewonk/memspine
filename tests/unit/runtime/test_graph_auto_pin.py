@@ -85,10 +85,10 @@ def _engine(path: Path, **overrides: Any) -> Engine:
 
 
 async def _bound(path: Path) -> str | None:
-    from memspine.clients.sqlite import SQLiteClient
+    from memspine.clients.sqlite import SQLiteClient, SQLiteSpec
 
-    client = SQLiteClient(str(path / "pin.db"))
-    await client.connect()
+    client = SQLiteClient(SQLiteSpec(str(path / "pin.db")))
+    await client.open()
     try:
         async with client.engine.connect() as conn:
             value = await conn.scalar(
@@ -149,10 +149,10 @@ async def test_a_binding_recorded_under_the_old_name_is_adopted(
     first = _engine(tmp_path)
     await first.start()
     await first.stop()
-    from memspine.clients.sqlite import SQLiteClient
+    from memspine.clients.sqlite import SQLiteClient, SQLiteSpec
 
-    client = SQLiteClient(str(tmp_path / "pin.db"))
-    await client.connect()
+    client = SQLiteClient(SQLiteSpec(str(tmp_path / "pin.db")))
+    await client.open()
     async with client.engine.begin() as conn:  # what a pre-rename database holds
         await conn.execute(
             update(provider_projector_bindings)
@@ -176,10 +176,10 @@ async def sql(request: pytest.FixtureRequest, tmp_path: Path) -> AsyncIterator[A
     if request.param == "postgres":
         if not PG_URL or importlib.util.find_spec("psycopg") is None:
             pytest.skip("graph auto pin on Postgres: set MEMSPINE_TEST_PG_URL")
-        from memspine.clients.postgres import PostgresClient
+        from memspine.clients.postgres import PostgresClient, PostgresSpec
 
-        pg = PostgresClient(PG_URL)
-        await pg.connect()
+        pg = PostgresClient(PostgresSpec(PG_URL))
+        await pg.open()
         async with pg.engine.begin() as conn:
             await conn.run_sync(metadata.create_all)
             await conn.execute(delete(provider_projector_bindings))
@@ -190,10 +190,10 @@ async def sql(request: pytest.FixtureRequest, tmp_path: Path) -> AsyncIterator[A
                 await conn.execute(delete(provider_projector_bindings))
             await pg.close()
         return
-    from memspine.clients.sqlite import SQLiteClient
+    from memspine.clients.sqlite import SQLiteClient, SQLiteSpec
 
-    client = SQLiteClient(str(tmp_path / "pin-unit.db"))
-    await client.connect()
+    client = SQLiteClient(SQLiteSpec(str(tmp_path / "pin-unit.db")))
+    await client.open()
     async with client.engine.begin() as conn:
         await conn.run_sync(metadata.create_all)
     yield SimpleNamespace(engine=client.engine, capabilities=frozenset({"sql", "sql.sqlite"}))

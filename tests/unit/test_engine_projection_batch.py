@@ -12,8 +12,9 @@ from pathlib import Path
 import pytest
 
 from memspine.api.engine import Engine
+from memspine.clients.tantivy import TantivyConnector
 from memspine.services.lexical.projector import LexicalProjector
-from memspine.services.lexical.tantivy import TantivyLexical
+from memspine.services.lexical.tantivy import TantivyLexical, tantivy_spec
 from memspine.store.records import MemoryRecord
 from memspine.store.replay import catch_up
 
@@ -69,7 +70,7 @@ async def test_reads_inside_the_batch_see_every_applied_turn() -> None:
         async with engine._projection_batch():
             await engine.write("Pepper chased a heron at the lake.", namespace="chat")
             # Held commit: the lexical read commits first, so the turn is visible.
-            assert lexical._uncommitted
+            assert lexical.connector.uncommitted
             hits = await lexical.search("chat", "heron", top_k=5)
             assert len(hits) == 1
             assert await lexical.exists(hits[0].record_id)
@@ -112,14 +113,14 @@ async def test_a_failed_flush_keeps_only_that_checkpoint_behind(
 
 async def test_tantivy_close_commits_held_documents(tmp_path: Path) -> None:
     path = tmp_path / "lexical"
-    store = TantivyLexical(path)
+    store = TantivyLexical(TantivyConnector(tantivy_spec(path)))
     store.defer_commits()
     await store.index(
         MemoryRecord(namespace="n", memory_type="episodic", content="kayak on the river")
     )
-    await store.close()
-    reopened = TantivyLexical(path)
+    await store.connector.close()  # the owner's close commits held documents
+    reopened = TantivyLexical(TantivyConnector(tantivy_spec(path)))
     try:
         assert len(await reopened.search("n", "kayak", top_k=3)) == 1
     finally:
-        await reopened.close()
+        await reopened.connector.close()

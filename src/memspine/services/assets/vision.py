@@ -1,20 +1,20 @@
 """The vision/OCR evidence port: an image in, a plain-text description out.
 
 ``NoopVision`` (default) produces nothing, so a run with it is text-only by construction.
-``OllamaVision`` talks to a local Ollama server (``/api/chat`` with an ``images`` list).
+``OllamaVision`` talks to a local Ollama server (``/api/chat`` with an ``images`` list) over
+the Engine's shared :class:`~memspine.clients.http.HttpConnector` (RM-113).
 The description is generic and question-independent, so one call per image suffices and the
 result is cached by content hash.
 """
 
 from __future__ import annotations
 
-import asyncio
 import base64
 import json
-import urllib.error
-import urllib.request
 from dataclasses import dataclass
 from typing import Protocol
+
+from memspine.clients.http import HttpConnector, HttpError
 
 __all__ = ["DESCRIBE_PROMPT", "NoopVision", "OllamaVision", "VisionBackend", "VisionResult"]
 
@@ -50,6 +50,7 @@ class OllamaVision:
     def __init__(
         self,
         model: str,
+        http: HttpConnector,
         base_url: str = "http://localhost:11434",
         *,
         timeout: float = 120.0,
@@ -60,31 +61,28 @@ class OllamaVision:
         self.timeout = timeout
         self.prompt = prompt
         self.name = f"ollama:{model}"
-
-    def _post(self, data: bytes) -> str:
-        body = json.dumps(
-            {
-                "model": self.model,
-                "stream": False,
-                "options": {"temperature": 0},
-                "messages": [
-                    {
-                        "role": "user",
-                        "content": self.prompt,
-                        "images": [base64.b64encode(data).decode("ascii")],
-                    }
-                ],
-            }
-        ).encode()
-        request = urllib.request.Request(
-            f"{self.base_url}/api/chat", data=body, headers={"Content-Type": "application/json"}
-        )
-        try:
-            with urllib.request.urlopen(request, timeout=self.timeout) as response:
-                payload = json.loads(response.read())
-        except (urllib.error.URLError, OSError, ValueError) as exc:
-            raise RuntimeError(f"ollama vision call failed: {exc}") from exc
-        return str((payload.get("message") or {}).get("content") or "").strip()
+        self._http = http
 
     async def describe(self, data: bytes, mime: str) -> VisionResult:
-        return VisionResult(text=await asyncio.to_thread(self._post, data))
+        body = {
+            "model": self.model,
+            "stream": False,
+            "options": {"temperature": 0},
+            "messages": [
+                {
+                    "role": "user",
+                    "content": self.prompt,
+                    "images": [base64.b64encode(data).decode("ascii")],
+                }
+            ],
+        }
+        try:
+            reply = await self._http.request(
+                "POST", f"{self.base_url}/api/chat", json=body, timeout_s=self.timeout
+            )
+            if reply.status >= 400:
+                raise RuntimeError(f"ollama vision call failed: HTTP {reply.status}")
+            payload = json.loads(reply.body)
+        except (HttpError, ValueError) as exc:
+            raise RuntimeError(f"ollama vision call failed: {exc}") from exc
+        return VisionResult(text=str((payload.get("message") or {}).get("content") or "").strip())

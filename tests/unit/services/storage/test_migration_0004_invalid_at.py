@@ -9,7 +9,7 @@ from pathlib import Path
 from alembic import command
 from sqlalchemy import create_engine, inspect
 
-from memspine.clients.sqlite import SQLiteClient
+from memspine.clients.sqlite import SQLiteClient, SQLiteSpec
 from memspine.services.storage.sqlite.engine import SQLiteStorage
 from memspine.services.storage.sqlite.migrations import alembic_config, upgrade_to_head
 from memspine.store.records import MemoryRecord
@@ -38,8 +38,8 @@ async def test_downgrade_then_upgrade_round_trips_records(tmp_path: Path) -> Non
     command.upgrade(cfg, "head")
     assert "invalid_at" in _columns(db)
 
-    client = SQLiteClient(str(db))
-    await client.connect()
+    client = SQLiteClient(SQLiteSpec(str(db)))
+    await client.open()
     try:
         storage = SQLiteStorage(client)
         plain = MemoryRecord(namespace="ns", memory_type="semantic", content="a")

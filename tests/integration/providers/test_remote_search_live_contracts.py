@@ -8,9 +8,8 @@ from pathlib import Path
 
 import pytest
 
-from memspine.clients.opensearch import OpenSearchClient
-from memspine.clients.weaviate import WeaviateClient
-from memspine.config.schema.remote_providers import OpenSearchSettings, WeaviateSettings
+from memspine.clients.opensearch import OpenSearchClient, OpenSearchSpec
+from memspine.clients.weaviate import WeaviateClient, WeaviateSpec
 from memspine.services.lexical.opensearch import OpenSearchLexical
 from memspine.services.lexical.weaviate_store import WeaviateLexicalStore
 from memspine.services.vector.weaviate_store import WeaviateVectorStore
@@ -29,13 +28,14 @@ def _configured(name: str) -> str:
 @pytest.mark.provider_live
 async def test_opensearch_lexical_crud_namespace_and_deployment_isolation() -> None:
     endpoint = _configured("MEMSPINE_TEST_LIVE_OPENSEARCH_URL")
-    settings = OpenSearchSettings(
-        url_env="MEMSPINE_TEST_LIVE_OPENSEARCH_URL",
-        connect_timeout_s=20.0,
-        request_timeout_s=20.0,
+    client = OpenSearchClient(
+        OpenSearchSpec(
+            url_env="MEMSPINE_TEST_LIVE_OPENSEARCH_URL",
+            connect_timeout_s=20.0,
+            request_timeout_s=20.0,
+        )
     )
-    client = OpenSearchClient(settings)
-    await client.connect()
+    await client.open()
     marker = uuid.uuid4().hex
     index_name = f"memspine-live-{marker}"
     left = OpenSearchLexical(
@@ -83,7 +83,7 @@ async def test_opensearch_lexical_crud_namespace_and_deployment_isolation() -> N
     finally:
         await left.clear()
         await right.clear()
-        await client.native.indices.delete(index=index_name, ignore=[404])
+        await client.handle.indices.delete(index=index_name, ignore=[404])
         await client.close()
 
 
@@ -92,18 +92,19 @@ async def test_opensearch_lexical_crud_namespace_and_deployment_isolation() -> N
 async def test_weaviate_vector_and_bm25_crud_namespace_and_deployment_isolation() -> None:
     _configured("MEMSPINE_TEST_LIVE_WEAVIATE_URL")
     grpc_port = int(os.environ.get("MEMSPINE_TEST_LIVE_WEAVIATE_GRPC_PORT", "50051"))
-    settings = WeaviateSettings(
-        url_env="MEMSPINE_TEST_LIVE_WEAVIATE_URL",
-        grpc_port=grpc_port,
-        connect_timeout_s=20.0,
-        request_timeout_s=20.0,
+    client = WeaviateClient(
+        WeaviateSpec(
+            url_env="MEMSPINE_TEST_LIVE_WEAVIATE_URL",
+            grpc_port=grpc_port,
+            connect_timeout_s=20.0,
+            request_timeout_s=20.0,
+        )
     )
-    client = WeaviateClient(settings)
-    await client.connect()
+    await client.open()
     marker = uuid.uuid4().hex
     collection_id = collection_name("MemspineLive", "Both", f"contract-{marker}", "active")
     try:
-        collection = await ensure_collection(client.native, collection_id, include_content=True)
+        collection = await ensure_collection(client.handle, collection_id, include_content=True)
         lexical_left = WeaviateLexicalStore(collection, owner_id=f"left-{marker}")
         lexical_right = WeaviateLexicalStore(collection, owner_id=f"right-{marker}")
         await lexical_left.index(
@@ -146,8 +147,8 @@ async def test_weaviate_vector_and_bm25_crud_namespace_and_deployment_isolation(
         assert await lexical_right.exists(f"lex-right-{marker}")
         assert await lexical_right.search("alpha", f"amber {marker}")
     finally:
-        if await client.native.collections.exists(collection_id):
-            await client.native.collections.delete(collection_id)
+        if await client.handle.collections.exists(collection_id):
+            await client.handle.collections.delete(collection_id)
         await client.close()
 
 

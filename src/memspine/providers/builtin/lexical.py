@@ -14,7 +14,8 @@ class TantivyBuilder:
     async def build(
         self, settings: TantivySettings, ctx: LexicalBuildContext
     ) -> BuildResult[LexicalStore]:
-        from memspine.services.lexical.tantivy import TantivyLexical
+        from memspine.clients.tantivy import TantivyConnector
+        from memspine.services.lexical.tantivy import TantivyLexical, tantivy_spec
 
         parts = ([] if settings.analyzer == "default" else [settings.analyzer]) + (
             ["dates"] if settings.date_tokens else []
@@ -29,20 +30,18 @@ class TantivyBuilder:
         service: TantivyLexical
         if ctx.placement.in_memory:
             # An in-RAM index is private to this Engine, like its ``:memory:`` event log.
-            service = TantivyLexical(
-                None, analyzer=settings.analyzer, date_tokens=settings.date_tokens
-            )
-            ref = ctx.shared.resources.own("lexical", service.close)
+            connector = TantivyConnector(tantivy_spec(None, analyzer=settings.analyzer))
+            service = TantivyLexical(connector, date_tokens=settings.date_tokens)
+            ref = ctx.shared.resources.own("lexical", connector.close)
         else:
             path = f"{ctx.placement.base_path}{suffix}"
 
             async def open_index() -> TantivyLexical:
-                return TantivyLexical(
-                    path, analyzer=settings.analyzer, date_tokens=settings.date_tokens
-                )
+                connector = TantivyConnector(tantivy_spec(path, analyzer=settings.analyzer))
+                return TantivyLexical(connector, date_tokens=settings.date_tokens)
 
             async def close_index(index: TantivyLexical) -> None:
-                await index.close()
+                await index.connector.close()
 
             # Single-writer store (ADR-079): one handle per path per process. Its writer lock
             # is a threading lock, so Engines on different event loops share it safely.

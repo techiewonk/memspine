@@ -143,8 +143,7 @@ async def evaluate() -> dict[str, Any]:
         from weaviate.classes.query import Filter
 
         from memspine import Engine
-        from memspine.clients.weaviate import WeaviateClient
-        from memspine.config.schema.remote_providers import WeaviateSettings
+        from memspine.clients.weaviate import WeaviateClient, WeaviateSpec
         from memspine.services.lexical.base import rrf_fuse
         from memspine.services.remote_search import owner_scope
         from memspine.services.weaviate_projection import (
@@ -176,15 +175,16 @@ async def evaluate() -> dict[str, Any]:
             await engine.start()
 
             os.environ[url_env_name] = f"http://127.0.0.1:{http_port}"
-            settings = WeaviateSettings(
-                url_env=url_env_name,
-                grpc_port=grpc_port,
-                connect_timeout_s=20.0,
-                request_timeout_s=20.0,
+            client = WeaviateClient(
+                WeaviateSpec(
+                    url_env=url_env_name,
+                    grpc_port=grpc_port,
+                    connect_timeout_s=20.0,
+                    request_timeout_s=20.0,
+                )
             )
-            client = WeaviateClient(settings)
-            await client.connect()
-            native = client.native
+            await client.open()
+            native = client.handle
 
             owner_id = f"pa089-native-{uuid.uuid4().hex}"
             collection_id = collection_name("Memspine", "PA089", owner_id, "active")
@@ -457,7 +457,7 @@ async def evaluate() -> dict[str, Any]:
     finally:
         if collection is not None and client is not None:
             try:
-                await client.native.collections.delete(collection_id)
+                await client.handle.collections.delete(collection_id)
             except Exception:
                 pass
         if client is not None:

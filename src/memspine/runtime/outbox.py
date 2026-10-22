@@ -23,16 +23,14 @@ SQLite and Postgres share the SQL: only the engine differs.
 from __future__ import annotations
 
 import json
-import math
 import threading
-from collections.abc import Callable, Iterator, Mapping
+from collections.abc import Iterator
 from contextlib import contextmanager
 from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy import (
     Table,
-    create_engine,
     delete,
     func,
     insert,
@@ -40,7 +38,7 @@ from sqlalchemy import (
     update,
 )
 from sqlalchemy.engine import Connection, Engine
-from sqlalchemy.pool import NullPool, StaticPool
+from sqlalchemy.pool import StaticPool
 
 from memspine.observability import tap
 from memspine.runtime.jobs import FenceEvent, Job, ScopeKey, scope_key
@@ -58,45 +56,14 @@ from memspine.services.storage.outbox_tables import (
 __all__ = [
     "OUTBOX_TABLES",
     "SqlJobStore",
-    "memory_engine",
     "outbox_metadata",
-    "sqlite_engine",
 ]
 
 # The table definitions live with the storage layer (records port, ADR-081).
 
 
-# ---------------------------------------------------------------------------- engines
-def sqlite_engine(
-    path: str,
-    creator: Callable[[], Any] | None = None,
-    *,
-    busy_timeout_s: float,
-    pool_options: Mapping[str, Any] | None = None,
-) -> Engine:
-    """A sync engine over a file-backed SQLite database (the one the storage layer uses).
-
-    ``creator`` opens a keyed connection for an encrypted database (#52; no pool, so
-    ``pool_options`` - SQLAlchemy queue-pool keyword arguments - apply only without it)."""
-    if isinstance(busy_timeout_s, bool) or not math.isfinite(busy_timeout_s) or busy_timeout_s <= 0:
-        raise ValueError("busy_timeout_s must be finite and positive")
-    if creator is not None:
-        return create_engine("sqlite://", creator=creator, poolclass=NullPool)
-    return create_engine(
-        f"sqlite:///{path}",
-        connect_args={"timeout": busy_timeout_s, "check_same_thread": False},
-        **dict(pool_options or {}),
-    )
-
-
-def memory_engine() -> Engine:
-    """A private in-memory engine (one shared connection). Used for ``:memory:`` storage, whose
-    database a second connection cannot reach: the queue then lives as long as the process."""
-    return create_engine(
-        "sqlite://",
-        connect_args={"check_same_thread": False},
-        poolclass=StaticPool,
-    )
+# Sync engines are lent by the storage connector (RM-113): clients/sqlite/sync.py and
+# clients/postgres/sync.py; the job store only receives one.
 
 
 # ---------------------------------------------------------------------------- codecs

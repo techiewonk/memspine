@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from pathlib import Path
 
-from memspine.clients.sqlite import SQLiteClient
+from memspine.clients.sqlite import SQLiteClient, SQLiteSpec
 from memspine.services.storage.projector import RecordProjector
 from memspine.services.storage.sqlite.engine import SQLiteStorage
 from memspine.store.events import EventKind, MemoryEvent
@@ -17,8 +17,8 @@ from memspine.store.replay import rebuild
 async def test_explicit_wrong_producer_layer_needs_migrate_sqlite(tmp_path: Path) -> None:
     source_path = tmp_path / "historical.db"
     target_path = tmp_path / "migrated.db"
-    client = SQLiteClient(str(source_path))
-    await client.connect()
+    client = SQLiteClient(SQLiteSpec(str(source_path)))
+    await client.open()
     storage = SQLiteStorage(client)
     await storage.start()
     try:
@@ -58,8 +58,8 @@ async def test_explicit_wrong_producer_layer_needs_migrate_sqlite(tmp_path: Path
     assert report.events_upcast == 1
 
     # Confirm the input's explicit claim and schema version survived untouched.
-    verify_client = SQLiteClient(str(source_path))
-    await verify_client.connect()
+    verify_client = SQLiteClient(SQLiteSpec(str(source_path)))
+    await verify_client.open()
     verify_storage = SQLiteStorage(verify_client)
     await verify_storage.start()
     try:
@@ -72,8 +72,8 @@ async def test_explicit_wrong_producer_layer_needs_migrate_sqlite(tmp_path: Path
         await verify_client.close()
     assert source_path.read_bytes() == source_before
 
-    target_client = SQLiteClient(str(target_path))
-    await target_client.connect()
+    target_client = SQLiteClient(SQLiteSpec(str(target_path)))
+    await target_client.open()
     target_storage = SQLiteStorage(target_client)
     await target_storage.start()
     try:

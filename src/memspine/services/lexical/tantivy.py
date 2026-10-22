@@ -8,18 +8,17 @@ transactional store. It satisfies the
 identically and it is a fully rebuildable projection (:meth:`clear` truncates so
 a rebuild replays from seq 0).
 
-tantivy-py is **synchronous** — it owns an on-disk (or in-RAM) index directory,
-a schema, a single ``IndexWriter`` (holding the index-wide writer lock) and a
-snapshot ``Searcher``. Every one of those calls is wrapped in
-:func:`asyncio.to_thread` so the async port contract holds, and all mutations
-are serialized through one :class:`threading.Lock` taken on the worker thread
-(tantivy permits exactly one writer at a time). The lock is not bound to an event
-loop, so one on-disk index is shared by every Engine in the process, whatever loop
-each runs on (ADR-079: a single-writer store is opened once per path). One long-lived writer is reused across commits — allocating
-its heap once — and is finalized in :meth:`close`.
+tantivy-py is **synchronous**. The index, its schema, the single ``IndexWriter``
+(holding the index-wide writer lock) and the writer's threading lock belong to an
+injected :class:`~memspine.clients.tantivy.TantivyConnector` (RM-113); this adapter
+never opens an index itself. Every native call is wrapped in :func:`asyncio.to_thread`
+so the async port contract holds, and all mutations are serialized through the
+connector's lock taken on the worker thread. The connector opens lazily on first use
+(or in the RM-74 warm-up) and is closed by its owner (the factory), which commits any
+held documents first; :meth:`TantivyLexical.close` only commits what is held.
 
-Schema (D-25): ``record_id`` (stored + ``raw``-indexed, for exact upsert/delete
-and result retrieval), ``namespace`` (stored + ``raw``-indexed, for the exact
+Schema (D-25, :data:`LEXICAL_FIELDS`): ``record_id`` (stored + ``raw``-indexed, for exact
+upsert/delete and result retrieval), ``namespace`` (stored + ``raw``-indexed, for the exact
 term filter), ``content`` (``default``-tokenized, not stored — the BM25 body).
 
 Namespace isolation: every search ANDs a
@@ -38,27 +37,23 @@ from __future__ import annotations
 import asyncio
 import contextvars
 import itertools
-import threading
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 from types import MappingProxyType
-from typing import TYPE_CHECKING, Any
+from typing import Literal
 
-from memspine.config.constants import (
-    MAX_LEXICAL_QUERY_CHARS,
-    MAX_LEXICAL_QUERY_TERMS,
-    TANTIVY_COMMIT_BACKOFF_S,
-    TANTIVY_COMMIT_RETRIES,
-    TANTIVY_WRITER_HEAP_BYTES,
-)
-from memspine.observability.logging import get_logger
+from memspine.clients.tantivy import ENGLISH_TOKENIZER, TantivyConnector, TantivyField, TantivySpec
+from memspine.config.constants import MAX_LEXICAL_QUERY_CHARS, MAX_LEXICAL_QUERY_TERMS
 from memspine.services.lexical.base import LexicalHit
 from memspine.store.records import MemoryRecord
 
-if TYPE_CHECKING:
-    pass
-
-__all__ = ["TantivyLexical", "strip_control_chars", "tokenize_content"]
+__all__ = [
+    "LEXICAL_FIELDS",
+    "TantivyLexical",
+    "strip_control_chars",
+    "tantivy_spec",
+    "tokenize_content",
+]
 
 # C0 control chars (keeping tab/newline/CR) + DEL. A NUL in content can never
 # poison the projector chain, and a NUL in a query can never crash search().
@@ -72,10 +67,26 @@ def strip_control_chars(text: str) -> str:
     return text.translate(_CONTROL_TABLE)
 
 
-_log = get_logger(__name__)
+#: The stored, ``raw``-indexed fields of the lexical index (D-25); ``content`` follows the
+#: analyzer (see :func:`tantivy_spec`).
+LEXICAL_FIELDS: tuple[TantivyField, ...] = (
+    TantivyField("record_id", stored=True, tokenizer="raw"),
+    TantivyField("namespace", stored=True, tokenizer="raw"),
+)
 
-#: N58: the registered name of the English (stop words + stemmer) analyzer.
-ENGLISH_TOKENIZER = "memspine_english"
+
+def tantivy_spec(
+    path: str | Path | None = None, *, analyzer: Literal["default", "english"] = "default"
+) -> TantivySpec:
+    """The connector spec of a lexical index at ``path`` (``None`` = in RAM). N58:
+    ``english`` = stop words + Snowball stemmer, on the indexed content and the query terms."""
+    content = ENGLISH_TOKENIZER if analyzer == "english" else "default"
+    return TantivySpec(
+        None if path is None else str(path),
+        (*LEXICAL_FIELDS, TantivyField("content", stored=False, tokenizer=content)),
+        analyzer,
+    )
+
 
 #: RM-72: open ``defer_commits`` batches of the calling context, per store token (depth).
 #: Deferral belongs to the caller (one Engine's projection batch), never to a store handle
@@ -109,162 +120,46 @@ def tokenize_content(query: str) -> list[str]:
     return terms
 
 
-def _is_sharing_violation(exc: Exception) -> bool:
-    """A Windows "Access is denied" (error 5) from Tantivy, in any of its wordings:
-    ``An IO error occurred: 'Access is denied. (os error 5)'`` on a rename, or
-    ``Failed to open file for write: 'IoError { ... code: 5, kind: PermissionDenied
-    ... }'`` on a segment file."""
-    text = str(exc)
-    return "os error 5" in text or ("PermissionDenied" in text and "code: 5" in text)
-
-
-def _commit_with_retry(writer: Any) -> None:
-    """Commit, retrying a Windows sharing violation a few times.
-
-    On Windows a commit renames ``meta.json``; while another handle in the process
-    (the reader reload, an indexer or scanner) still has it open, the rename fails
-    with ``Access is denied (os error 5)``. The commit is safe to retry: nothing was
-    published. Any other error, or the last attempt's, is raised unchanged."""
-    import time
-
-    for attempt in range(TANTIVY_COMMIT_RETRIES):
-        try:
-            writer.commit()
-            return
-        except ValueError as exc:
-            if not _is_sharing_violation(exc) or attempt == TANTIVY_COMMIT_RETRIES - 1:
-                raise
-            time.sleep(TANTIVY_COMMIT_BACKOFF_S * (2**attempt))
-
-
-def _wait_merging_threads(writer: Any) -> None:
-    """Join the writer's merge threads at close, tolerating a writer still borrowed.
-
-    A writer call whose awaiting task was cancelled keeps running on its worker thread after the
-    store lock is released; joining then raises ``RuntimeError: Already borrowed`` (PyO3). Retry a
-    few times while that call finishes; if it is still busy, skip the join (the writer is dropped,
-    so at worst an on-disk index keeps a temp segment until the next open merges it)."""
-    import time
-
-    for attempt in range(TANTIVY_COMMIT_RETRIES):
-        try:
-            writer.wait_merging_threads()
-            return
-        except RuntimeError as exc:
-            if "already borrowed" not in str(exc).lower():
-                raise
-            if attempt == TANTIVY_COMMIT_RETRIES - 1:
-                _log.warning("lexical.close.writer_busy", attempts=attempt + 1)
-                return
-            time.sleep(TANTIVY_COMMIT_BACKOFF_S * (2**attempt))
-
-
 class TantivyLexical:
     """Tantivy-backed lexical store (D-25) — the default hybrid leg, **core**.
 
-    ``index_path=None`` builds an in-RAM index (``:memory:`` parity — same
-    lifetime as an in-memory event log, no ghost segments across runs); a path
-    opens/creates an on-disk index directory. Backend-independent: it never
-    touches the transactional store, so hybrid works the same on SQLite and
-    Postgres.
+    Wraps an injected :class:`~memspine.clients.tantivy.TantivyConnector` built from
+    :func:`tantivy_spec` (an in-RAM index for ``:memory:`` parity, or an on-disk
+    directory). Backend-independent: it never touches the transactional store, so
+    hybrid works the same on SQLite and Postgres.
     """
 
-    def __init__(
-        self,
-        index_path: str | Path | None = None,
-        heap_bytes: int = TANTIVY_WRITER_HEAP_BYTES,
-        analyzer: str = "default",
-        date_tokens: bool = False,
-    ) -> None:
-        # tantivy is a CORE dependency (v0.2): it backs the default hybrid leg on
-        # every backend, so a failed import is a broken install, not a missing
-        # optional extra — surface it plainly rather than as a D-10 "pip install".
-        import tantivy
-
-        self._path = str(index_path) if index_path is not None else None
-        self._heap = heap_bytes
-        # Schema building is pure in-memory work — safe in __init__. Opening the
-        # index (filesystem I/O for the on-disk case) is deferred to _ensure so
-        # it runs off the event loop.
-        builder = tantivy.SchemaBuilder()
-        builder.add_text_field("record_id", stored=True, tokenizer_name="raw")
-        builder.add_text_field("namespace", stored=True, tokenizer_name="raw")
+    def __init__(self, connector: TantivyConnector, date_tokens: bool = False) -> None:
+        self._conn = connector
         #: N30 (write side): index each record's date words with its text.
         self._date_tokens = date_tokens
-        #: N58: ``english`` = stop words + Snowball stemmer, applied to the indexed
-        #: content and to the query terms alike (``_terms``).
-        self._analyzer: Any = None
-        content_tokenizer = "default"
-        if analyzer == "english":
-            self._analyzer = (
-                tantivy.TextAnalyzerBuilder(tantivy.Tokenizer.simple())
-                .filter(tantivy.Filter.remove_long(40))
-                .filter(tantivy.Filter.lowercase())
-                .filter(tantivy.Filter.stopword("english"))
-                .filter(tantivy.Filter.stemmer("english"))
-                .build()
-            )
-            content_tokenizer = ENGLISH_TOKENIZER
-        elif analyzer != "default":
-            raise ValueError(f"unknown lexical analyzer {analyzer!r} (default | english)")
-        builder.add_text_field("content", stored=False, tokenizer_name=content_tokenizer)
-        self._schema = builder.build()
-        self._index: Any = None
-        self._writer: Any = None
-        #: Serialises opening and every writer call; taken on worker threads only.
-        self._lock = threading.Lock()
         # Batched ingest (see defer_commits): added documents wait for one
         # commit, which every read and flush() performs first. Whether a call defers
         # is the caller's context (_DEFERRING), not shared state of this handle.
         self._token = next(_STORE_TOKENS)
-        self._uncommitted = False
-        #: Set by close(): an open still running on a worker thread (a cancelled RM-74
-        #: warm-up) must not take the writer lock after the store was closed.
-        self._closed = False
+
+    @property
+    def connector(self) -> TantivyConnector:
+        return self._conn
 
     async def _ensure(self) -> None:
-        """Open the index and its single long-lived writer once, off the loop."""
-        if self._index is not None:
-            return
-        await asyncio.to_thread(self._open)
-
-    def _open(self) -> None:
-        with self._lock:
-            if self._closed:
-                raise RuntimeError("lexical index is closed")
-            if self._index is None:
-                self._open_unlocked()
-
-    def _open_unlocked(self) -> None:
-        import tantivy
-
-        if self._path is None:
-            index = tantivy.Index(self._schema)
-        else:
-            Path(self._path).mkdir(parents=True, exist_ok=True)
-            index = tantivy.Index(self._schema, path=self._path)
-        if self._analyzer is not None:
-            index.register_tokenizer(ENGLISH_TOKENIZER, self._analyzer)
-        # One writer for the store's life: commit() is reusable across mutations,
-        # so the heap is allocated once (wait_merging_threads, which consumes the
-        # writer, is deferred to close()). ``_index`` is published last: ``_ensure``
-        # skips the lock when it is set, so a concurrent first use (an RM-74 warm-up
-        # racing a write) must never see an index without its writer.
-        self._writer = index.writer(self._heap, 1)
-        self._index = index
+        """Open the connector's index and writer once (lazily, off the loop)."""
+        if not self._conn.is_open:
+            await self._conn.open()
 
     def _add_doc(self, record_id: str, namespace: str, content: str) -> None:
         import tantivy
 
+        writer = self._conn.writer
         # Delete-then-add keys the upsert on record_id: the delete carries a lower
         # opstamp than the add, so a re-index replaces the row instead of
         # duplicating it (idempotent under replay/catch-up).
-        self._writer.delete_documents_by_term("record_id", record_id)
+        writer.delete_documents_by_term("record_id", record_id)
         doc = tantivy.Document()
         doc.add_text("record_id", record_id)
         doc.add_text("namespace", namespace)
         doc.add_text("content", content)
-        self._writer.add_document(doc)
+        writer.add_document(doc)
 
     async def index(self, record: MemoryRecord) -> None:
         await self._ensure()
@@ -276,14 +171,13 @@ class TantivyLexical:
         await asyncio.to_thread(self._index_one, record.record_id, record.namespace, content, defer)
 
     def _index_one(self, record_id: str, namespace: str, content: str, defer: bool) -> None:
-        with self._lock:
+        with self._conn.lock:
+            self._add_doc(record_id, namespace, content)
             if defer:
-                self._add_doc(record_id, namespace, content)
-                self._uncommitted = True
+                self._conn.uncommitted = True
             else:
                 # Commits every held document too: committing early is always safe.
-                self._commit_index(record_id, namespace, content)
-                self._uncommitted = False
+                self._conn.commit()
 
     def _deferring(self) -> bool:
         return _DEFERRING.get().get(self._token, 0) > 0
@@ -317,24 +211,14 @@ class TantivyLexical:
         await self._commit_pending()
 
     async def _commit_pending(self) -> None:
-        if not self._uncommitted:
+        if not self._conn.uncommitted:
             return
         await asyncio.to_thread(self._commit_if_pending)
 
     def _commit_if_pending(self) -> None:
-        with self._lock:
-            if self._uncommitted:
-                self._commit()
-                self._uncommitted = False
-
-    def _commit(self) -> None:
-        _commit_with_retry(self._writer)
-        self._index.reload()
-
-    def _commit_index(self, record_id: str, namespace: str, content: str) -> None:
-        self._add_doc(record_id, namespace, content)
-        _commit_with_retry(self._writer)
-        self._index.reload()
+        with self._conn.lock:
+            if self._conn.uncommitted:
+                self._conn.commit()
 
     async def index_many(self, records: Sequence[MemoryRecord]) -> None:
         """Index a sequence under a SINGLE commit + reload (per the port's batch
@@ -346,12 +230,10 @@ class TantivyLexical:
         await asyncio.to_thread(self._commit_index_many, cleaned)
 
     def _commit_index_many(self, cleaned: list[tuple[str, str, str]]) -> None:
-        with self._lock:
+        with self._conn.lock:
             for rid, ns, content in cleaned:
                 self._add_doc(rid, ns, content)
-            _commit_with_retry(self._writer)
-            self._index.reload()
-            self._uncommitted = False
+            self._conn.commit()
 
     async def warm(self) -> None:
         """ADR-079 / RM-74 warm hook: open the index and its searcher with one tiny query."""
@@ -377,22 +259,24 @@ class TantivyLexical:
 
     def _terms(self, query: str) -> list[str]:
         """Query terms, split exactly as the content field's analyzer splits text."""
-        if self._analyzer is None:
+        analyzer = self._conn.analyzer
+        if analyzer is None:
             return tokenize_content(query)
-        terms = list(dict.fromkeys(self._analyzer.analyze(query)))
+        terms = list(dict.fromkeys(analyzer.analyze(query)))
         return terms[:MAX_LEXICAL_QUERY_TERMS]
 
     def _search(self, namespace: str, terms: list[str], top_k: int) -> list[LexicalHit]:
         import tantivy
 
-        searcher = self._index.searcher()
+        schema = self._conn.schema
+        searcher = self._conn.index.searcher()
         # Namespace filter (Must) ANDed with an OR over the content terms (Should).
         # The user query never touches parse_query, so it cannot reference the
         # namespace field or break match syntax — isolation is structural.
-        namespace_query = tantivy.Query.term_query(self._schema, "namespace", namespace)
+        namespace_query = tantivy.Query.term_query(schema, "namespace", namespace)
         content_query = tantivy.Query.boolean_query(
             [
-                (tantivy.Occur.Should, tantivy.Query.term_query(self._schema, "content", term))
+                (tantivy.Occur.Should, tantivy.Query.term_query(schema, "content", term))
                 for term in terms
             ]
         )
@@ -413,11 +297,9 @@ class TantivyLexical:
         await asyncio.to_thread(self._commit_delete, record_id)
 
     def _commit_delete(self, record_id: str) -> None:
-        with self._lock:
-            self._writer.delete_documents_by_term("record_id", record_id)
-            _commit_with_retry(self._writer)
-            self._index.reload()
-            self._uncommitted = False
+        with self._conn.lock:
+            self._conn.writer.delete_documents_by_term("record_id", record_id)
+            self._conn.commit()
 
     async def exists(self, record_id: str) -> bool:
         """M7 ``forget --verify`` support: is this record still indexed? The
@@ -429,8 +311,8 @@ class TantivyLexical:
     def _exists(self, record_id: str) -> bool:
         import tantivy
 
-        searcher = self._index.searcher()
-        query = tantivy.Query.term_query(self._schema, "record_id", record_id)
+        searcher = self._conn.index.searcher()
+        query = tantivy.Query.term_query(self._conn.schema, "record_id", record_id)
         return bool(searcher.search(query, 1).hits)
 
     async def clear(self) -> None:
@@ -438,27 +320,11 @@ class TantivyLexical:
         await asyncio.to_thread(self._commit_clear)
 
     def _commit_clear(self) -> None:
-        with self._lock:
-            self._writer.delete_all_documents()
-            _commit_with_retry(self._writer)
-            self._index.reload()
-            self._uncommitted = False
+        with self._conn.lock:
+            self._conn.writer.delete_all_documents()
+            self._conn.commit()
 
     async def close(self) -> None:
-        if self._closed:
-            return
-        await asyncio.to_thread(self._close)
-
-    def _close(self) -> None:
-        with self._lock:
-            self._closed = True
-            if self._writer is None:
-                return
-            if self._uncommitted:
-                # Documents held by defer_commits are committed, never dropped.
-                self._commit()
-                self._uncommitted = False
-            writer, self._writer = self._writer, None
-            # Join merge threads so an on-disk index leaves no dangling temp
-            # segments (this consumes the writer — the store is done).
-            _wait_merging_threads(writer)
+        """Commit documents still held (never dropped); the connector's owner closes it."""
+        if self._conn.is_open:
+            await self._commit_pending()

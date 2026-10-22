@@ -13,10 +13,11 @@ from typing import Any
 
 import pytest
 
+from memspine.clients.sqlite.sync import memory_sync_engine, sqlite_sync_engine
 from memspine.config.schema.observability import TapConfig
 from memspine.observability import tap
 from memspine.runtime.jobs import ManualClock, RetryBudget
-from memspine.runtime.outbox import OUTBOX_TABLES, SqlJobStore, memory_engine, sqlite_engine
+from memspine.runtime.outbox import OUTBOX_TABLES, SqlJobStore
 from memspine.runtime.runner import InlineRunner, StageHandler
 from memspine.schemas.durable.common import OwnerScope
 
@@ -65,7 +66,7 @@ def make_runner(
 ) -> tuple[InlineRunner, Recorder]:
     rec = rec or Recorder()
     runner = InlineRunner(
-        SqlJobStore(engine or memory_engine()),
+        SqlJobStore(engine or memory_sync_engine()),
         clock=clock or ManualClock(T0),
         budget=kw.pop("budget", RetryBudget(base_backoff=timedelta(0))),
         **kw,
@@ -75,7 +76,7 @@ def make_runner(
 
 
 def file_engine(tmp_path: Path) -> Any:
-    return sqlite_engine(str(tmp_path / "outbox.db"), busy_timeout_s=5.0)
+    return sqlite_sync_engine(str(tmp_path / "outbox.db"), busy_timeout_s=5.0)
 
 
 # --------------------------------------------------------------------------- persistence
@@ -333,7 +334,9 @@ async def test_no_namespace_lock_is_held_during_prepare_but_commit_takes_it() ->
     async def commit(scope: OwnerScope, offset: int, prepared: Any) -> None:
         seen["commit"].append(lock_for(scope.owner).locked())
 
-    runner = InlineRunner(SqlJobStore(memory_engine()), clock=ManualClock(T0), commit_lock=lock_for)
+    runner = InlineRunner(
+        SqlJobStore(memory_sync_engine()), clock=ManualClock(T0), commit_lock=lock_for
+    )
     runner.register("derive", StageHandler(prepare, commit, commit_locked=True))
     for i in range(3):
         await runner.enqueue(SCOPE, "derive", {"n": i})
@@ -353,7 +356,7 @@ async def test_a_writer_is_not_blocked_by_a_model_call_in_flight() -> None:
         return None
 
     runner = InlineRunner(
-        SqlJobStore(memory_engine()), clock=ManualClock(T0), commit_lock=lambda ns: lock
+        SqlJobStore(memory_sync_engine()), clock=ManualClock(T0), commit_lock=lambda ns: lock
     )
     runner.register("derive", StageHandler(prepare, commit, commit_locked=True))
     await runner.enqueue(SCOPE, "derive", {})

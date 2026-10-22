@@ -19,8 +19,12 @@ import pytest
 
 pytest.importorskip("psycopg")
 
-from memspine.clients.postgres import PostgresClient, driver_connect_timeout
-from memspine.config import constants
+from memspine.clients.postgres import (
+    PG_DRIVER_MIN_CONNECT_TIMEOUT_S,
+    PostgresClient,
+    PostgresSpec,
+    driver_connect_timeout,
+)
 
 _DEADLINE_S = 0.5
 #: Scheduling slack on a loaded CI runner; still well below the driver's 2 s floor.
@@ -39,7 +43,7 @@ def silent_port() -> Iterator[int]:
 
 
 def test_driver_timeout_is_whole_seconds_with_the_driver_floor() -> None:
-    floor = constants.PG_DRIVER_MIN_CONNECT_TIMEOUT_S
+    floor = PG_DRIVER_MIN_CONNECT_TIMEOUT_S
     assert driver_connect_timeout(0.5) == floor
     assert driver_connect_timeout(1.0) == floor
     assert driver_connect_timeout(2.0) == 2
@@ -48,17 +52,19 @@ def test_driver_timeout_is_whole_seconds_with_the_driver_floor() -> None:
 
 def test_connect_timeout_is_one_overall_deadline(silent_port: int) -> None:
     client = PostgresClient(
-        f"postgresql://unused:unused@localhost:{silent_port}/unused",
-        connect_timeout_s=_DEADLINE_S,
+        PostgresSpec(
+            f"postgresql://unused:unused@localhost:{silent_port}/unused",
+            connect_timeout_s=_DEADLINE_S,
+        )
     )
 
     async def attempt() -> float:
         start = time.perf_counter()
         with pytest.raises(TimeoutError):
-            await client.connect()
+            await client.open()
         return time.perf_counter() - start
 
     # psycopg's async mode needs a selector loop (Windows defaults to Proactor).
     elapsed = asyncio.run(attempt(), loop_factory=asyncio.SelectorEventLoop)
     assert _DEADLINE_S <= elapsed < _DEADLINE_S + _SLACK_S
-    assert not asyncio.run(client.health(), loop_factory=asyncio.SelectorEventLoop)
+    assert not asyncio.run(client.health(1.0), loop_factory=asyncio.SelectorEventLoop)

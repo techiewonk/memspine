@@ -10,7 +10,7 @@ from typing import Any
 import pytest
 from assoc_helpers import EventLog, FakeStorage
 
-from memspine.clients.sqlite import SQLiteClient
+from memspine.clients.sqlite import SQLiteClient, SQLiteSpec
 from memspine.memories.associative.projector import GraphProjector
 from memspine.services.graph.sql_adjacency import SqlAdjacencyGraph
 from memspine.services.storage.sqlite.schema import metadata
@@ -20,8 +20,8 @@ from memspine.store.records import MemoryRecord
 
 @pytest.fixture
 async def graph() -> AsyncIterator[SqlAdjacencyGraph]:
-    client = SQLiteClient(":memory:")
-    await client.connect()
+    client = SQLiteClient(SQLiteSpec(":memory:"))
+    await client.open()
     async with client.engine.begin() as conn:
         await conn.run_sync(metadata.create_all)
     yield SqlAdjacencyGraph(client)

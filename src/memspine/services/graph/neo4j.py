@@ -38,11 +38,11 @@ predicates is deferred to RM-96.
 
 from __future__ import annotations
 
+import asyncio
 import json
-import os
 import re
 from collections.abc import Mapping, Sequence
-from typing import Any, Protocol
+from typing import TYPE_CHECKING, Any, Protocol
 
 from memspine.exceptions import MissingServiceError
 from memspine.observability import tap
@@ -61,12 +61,15 @@ from memspine.services.graph.qualifiers import (
     sanitize_qualifiers,
 )
 
+if TYPE_CHECKING:
+    from memspine.clients.neo4j import Neo4jClient
+
 __all__ = [
     "CYPHER",
     "DriverExecutor",
     "Neo4jExecutor",
     "Neo4jGraphStore",
-    "executor_from_env",
+    "connector_executor",
 ]
 
 _IDENT = re.compile(r"^[A-Za-z][A-Za-z0-9_]{0,40}$")
@@ -179,7 +182,10 @@ def _check_ident(value: str, what: str) -> str:
 
 
 class DriverExecutor:
-    """:class:`Neo4jExecutor` over the official async driver (``[neo4j]``)."""
+    """:class:`Neo4jExecutor` over a connector-owned async driver (``[neo4j]``).
+
+    It borrows the driver: :meth:`close` never closes it (the connector's owner does).
+    ``request_timeout_s`` bounds each operation (None = unbounded)."""
 
     def __init__(
         self,
@@ -188,9 +194,11 @@ class DriverExecutor:
         database: str = "neo4j",
         node_label: str = "MemNode",
         rel_type: str = "MemRel",
+        request_timeout_s: float | None = None,
     ) -> None:
         self._driver = driver
         self._database = database
+        self._timeout = request_timeout_s
         self._fmt = {"N": _check_ident(node_label, "label"), "R": _check_ident(rel_type, "type")}
 
     async def run(self, op: str, params: Mapping[str, Any]) -> list[dict[str, Any]]:
@@ -203,39 +211,27 @@ class DriverExecutor:
             result = await tx.run(text, dict(params))
             return [dict(record) async for record in result]
 
-        async with self._driver.session(database=self._database) as session:
-            return list(await session.execute_write(work))
+        async with asyncio.timeout(self._timeout):
+            async with self._driver.session(database=self._database) as session:
+                return list(await session.execute_write(work))
 
     async def close(self) -> None:
-        await self._driver.close()
+        # The driver belongs to the connector; its owner closes it.
+        return None
 
 
-def executor_from_env(
-    *,
-    url_env: str,
-    user_env: str,
-    password_env: str,
-    database: str = "neo4j",
-    node_label: str = "MemNode",
-    rel_type: str = "MemRel",
+def connector_executor(
+    connector: Neo4jClient, *, node_label: str = "MemNode", rel_type: str = "MemRel"
 ) -> DriverExecutor:
-    """Build the live executor from environment variables named by config (never from values in
-    the config file). Raises :class:`MissingServiceError` without the driver, ``ValueError``
-    without the URL variable."""
-    try:
-        from neo4j import AsyncGraphDatabase  # type: ignore[import-not-found,unused-ignore]
-    except ImportError as exc:
-        raise MissingServiceError("graph:neo4j", extra="neo4j") from exc
-    url = os.environ.get(url_env)
-    if not url:
-        raise ValueError(f"graph.neo4j_outbox needs the environment variable {url_env} (the URL)")
-    user, password = os.environ.get(user_env), os.environ.get(password_env)
-    auth = (user, password or "") if user else None
+    """The live executor over an opened :class:`~memspine.clients.neo4j.Neo4jClient`
+    (database and request deadline from its spec)."""
+    spec = connector.spec
     return DriverExecutor(
-        AsyncGraphDatabase.driver(url, auth=auth),
-        database=database,
+        connector.handle,
+        database=spec.database,
         node_label=node_label,
         rel_type=rel_type,
+        request_timeout_s=spec.request_timeout_s,
     )
 
 

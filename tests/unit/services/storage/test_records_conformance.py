@@ -110,11 +110,11 @@ async def _open_mongo(database: str) -> tuple[RecordsStore, Callable[[], Awaitab
 
 
 async def _open_sqlite(path: str) -> tuple[RecordsStore, Callable[[], Awaitable[None]]]:
-    from memspine.clients.sqlite import SQLiteClient
+    from memspine.clients.sqlite import SQLiteClient, SQLiteSpec
     from memspine.services.storage.sqlite.engine import SQLiteStorage
 
-    client = SQLiteClient(path, busy_timeout_s=10.0)
-    await client.connect()
+    client = SQLiteClient(SQLiteSpec(path, busy_timeout_s=10.0))
+    await client.open()
     store = SQLiteStorage(client)
     await store.start()
 
@@ -126,11 +126,11 @@ async def _open_sqlite(path: str) -> tuple[RecordsStore, Callable[[], Awaitable[
 
 
 async def _open_pg(url: str, alembic: bool) -> tuple[RecordsStore, Callable[[], Awaitable[None]]]:
-    from memspine.clients.postgres import PostgresClient
+    from memspine.clients.postgres import PostgresClient, PostgresSpec
     from memspine.services.storage.postgres.engine import PostgresStorage
 
-    client = PostgresClient(url)
-    await client.connect()
+    client = PostgresClient(PostgresSpec(url))
+    await client.open()
     store = PostgresStorage(client, use_alembic=alembic)
     await store.start()
 

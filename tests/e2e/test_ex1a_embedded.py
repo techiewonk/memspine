@@ -813,11 +813,11 @@ async def test_step5_replay_migrate(world: World, report: Report, tmp_path: Path
 
 
 async def _dump(db: Path) -> bytes:
-    from memspine.clients.sqlite import SQLiteClient
+    from memspine.clients.sqlite import SQLiteClient, SQLiteSpec
     from memspine.services.storage.sqlite.engine import SQLiteStorage
 
-    client = SQLiteClient(str(db))
-    await client.connect()
+    client = SQLiteClient(SQLiteSpec(str(db)))
+    await client.open()
     try:
         storage = SQLiteStorage(client)
         await storage.start()

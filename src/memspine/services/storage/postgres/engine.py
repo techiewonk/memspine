@@ -59,7 +59,7 @@ class PostgresStorage(SqlStorage):
 
     async def start(self) -> None:
         if self._use_alembic:
-            await asyncio.to_thread(ensure_schema, self._pg._url)
+            await asyncio.to_thread(self._migrate)
             self._started = True
             return
         from memspine.services.storage.outbox_tables import outbox_metadata
@@ -71,16 +71,20 @@ class PostgresStorage(SqlStorage):
             await conn.run_sync(outbox_metadata.create_all)
         self._started = True
 
+    def _migrate(self) -> None:
+        """RM-113: Alembic over a connector-lent connection, under the ADR-081 advisory lock."""
+        with self._pg.migration_connection() as connection:
+            ensure_schema(connection)
+
     def leases(self) -> LeasePort:
         """ADR-081 records port: the lease tables in this database, shared by every
         process on it (database clock, advisory-locked transactions). Opened on first use
         over a private sync engine, closed by :meth:`stop`."""
-        from sqlalchemy import create_engine
-
         from memspine.store.leases import LeaseStore
 
         if self._leases is None:
-            self._lease_engine = create_engine(self._pg._url)
+            # No statement timeout, as before: lease waits are bounded by the lease store.
+            self._lease_engine = self._pg.sync_engine(statement_timeout=False)
             self._leases = LeaseStore(self._lease_engine)
         return self._leases
 

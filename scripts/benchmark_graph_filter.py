@@ -390,12 +390,12 @@ def _check_same_hits(
 
 # ---------------------------------------------------------------------------- loaders
 async def sqlite_store(data: list[tuple[str, str, str, dict[str, Any]]], path: Path) -> Any:
-    from memspine.clients.sqlite import SQLiteClient
+    from memspine.clients.sqlite import SQLiteClient, SQLiteSpec
     from memspine.services.graph.sql_adjacency import SqlAdjacencyGraph
     from memspine.services.storage.sqlite.schema import metadata
 
-    client = SQLiteClient(str(path))
-    await client.connect()
+    client = SQLiteClient(SQLiteSpec(str(path)))
+    await client.open()
     async with client.engine.begin() as conn:
         await conn.run_sync(metadata.create_all)
     await _sqlite_load(client.engine, data)
@@ -427,11 +427,11 @@ async def _sqlite_load(engine: Any, data: list[tuple[str, str, str, dict[str, An
 
 
 async def ladybug_store(data: list[tuple[str, str, str, dict[str, Any]]], path: Path) -> Any:
-    from memspine.clients.ladybug import LadybugClient
+    from memspine.clients.ladybug import LadybugClient, LadybugSpec
     from memspine.services.graph.ladybug import LadybugGraphStore
 
-    client = LadybugClient(str(path))
-    await client.connect()
+    client = LadybugClient(LadybugSpec(str(path)))
+    await client.open()
     store = LadybugGraphStore(client)
     await store.node_count()  # runs the DDL
     await _ladybug_load(client, data)

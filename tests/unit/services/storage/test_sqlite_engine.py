@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from memspine.clients.sqlite import SQLiteClient
+from memspine.clients.sqlite import SQLiteClient, SQLiteSpec
 from memspine.exceptions import RebuildUnavailableError, StorageError
 from memspine.services.storage.sqlite.engine import SQLiteStorage
 from memspine.services.storage.sqlite.migrations import upgrade_to_head
@@ -34,8 +34,8 @@ class DictProjector(Projector):
 async def make_storage(
     mode: EventLogMode = EventLogMode.FULL, compress: bool = False
 ) -> SQLiteStorage:
-    client = SQLiteClient(":memory:")
-    await client.connect()
+    client = SQLiteClient(SQLiteSpec(":memory:"))
+    await client.open()
     storage = SQLiteStorage(client, mode=mode, compress=compress)
     await storage.start()
     return storage
@@ -173,8 +173,8 @@ async def test_ephemeral_offsets_never_touch_the_database_file(tmp_path: Path) -
     full-mode runs on the same file (stale high-water mark > real max seq)."""
     db = tmp_path / "spine.db"
 
-    client1 = SQLiteClient(db)
-    await client1.connect()
+    client1 = SQLiteClient(SQLiteSpec(db))
+    await client1.open()
     ephemeral = SQLiteStorage(client1, mode=EventLogMode.EPHEMERAL)
     await ephemeral.start()
     for i in range(5):
@@ -183,8 +183,8 @@ async def test_ephemeral_offsets_never_touch_the_database_file(tmp_path: Path) -
     assert await ephemeral.get_offset("records") == 5  # in-memory only
     await client1.close()
 
-    client2 = SQLiteClient(db)
-    await client2.connect()
+    client2 = SQLiteClient(SQLiteSpec(db))
+    await client2.open()
     full = SQLiteStorage(client2, mode=EventLogMode.FULL)
     await full.start()
     assert await full.get_offset("records") == 0  # nothing leaked to disk
@@ -206,8 +206,8 @@ async def test_baseline_creates_working_graph_tables(tmp_path: Path) -> None:
     db = tmp_path / "fresh.db"
     upgrade_to_head(db)
 
-    client = SQLiteClient(db)
-    await client.connect()
+    client = SQLiteClient(SQLiteSpec(db))
+    await client.open()
     try:
         graph = SqlAdjacencyGraph(client)
         await graph.upsert_node("m1", labels=["memory"], properties={"kind": "fact"})
@@ -271,8 +271,8 @@ async def test_alembic_migration_builds_same_schema(tmp_path: Path) -> None:
     db = tmp_path / "memspine.db"
     upgrade_to_head(db)
 
-    client = SQLiteClient(db)
-    await client.connect()
+    client = SQLiteClient(SQLiteSpec(db))
+    await client.open()
     storage = SQLiteStorage(client)  # no start(): schema must already exist
     storage._started = True  # bypass start() to prove the Alembic DDL alone suffices
     e1 = await storage.append_event(ev(content="via alembic"))

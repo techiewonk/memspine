@@ -403,17 +403,11 @@ async def test_the_walk_cypher_is_variable_length_and_depth_is_validated() -> No
     reason="needs a live server: MEMSPINE_TEST_NEO4J_URL",
 )
 async def test_live_walks_match_the_stepwise_walk() -> None:
-    import uuid
+    from test_f_16e_neo4j_outbox import live_executor
 
-    from memspine.services.graph.neo4j import Neo4jGraphStore, executor_from_env
+    from memspine.services.graph.neo4j import Neo4jGraphStore
 
-    ex = executor_from_env(
-        url_env="MEMSPINE_TEST_NEO4J_URL",
-        user_env="MEMSPINE_TEST_NEO4J_USER",
-        password_env="MEMSPINE_TEST_NEO4J_PASSWORD",
-        node_label=f"MemFu{uuid.uuid4().hex[:10]}",
-        rel_type=f"MemFuRel{uuid.uuid4().hex[:10]}",
-    )
+    connector, ex = await live_executor("MemFu")
     g = Neo4jGraphStore(ex)
     try:
         edges = [
@@ -435,7 +429,7 @@ async def test_live_walks_match_the_stepwise_walk() -> None:
             assert sub and all(e.weight > 0 for e in sub)
     finally:
         await ex.run("clear", {})
-        await ex.close()
+        await connector.close()
 
 
 # --- 7. lease expiry by the database clock on Postgres ----------------------------------------
