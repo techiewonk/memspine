@@ -1,0 +1,2042 @@
+{
+ "note": "RM-80 decision runs 2026-10-22 on an idle host (Windows, Ryzen desktop); Postgres = local pgvector/pgvector:pg16 container",
+ "groups": {
+  "pool-w16-ps10-mo0": {
+   "revision": "62bce4ce",
+   "runs": [
+    {
+     "mode": "concurrent",
+     "storage": "postgres",
+     "workers": 16,
+     "overrides": {
+      "runtime": {
+       "shared_resources": {
+        "sql": {
+         "pool_size": 10,
+         "max_overflow": 0
+        }
+       }
+      }
+     },
+     "ops_per_s": 36.71354065353313,
+     "ingest_p50_ms": 486.55289999442175,
+     "ingest_p95_ms": 776.0576999862678,
+     "search_p50_ms": 369.38350001582876,
+     "search_p95_ms": 549.6966000064276,
+     "errors": 0,
+     "error_types": [],
+     "server_connections": 10,
+     "trial": 0
+    },
+    {
+     "mode": "concurrent",
+     "storage": "postgres",
+     "workers": 16,
+     "overrides": {
+      "runtime": {
+       "shared_resources": {
+        "sql": {
+         "pool_size": 10,
+         "max_overflow": 0
+        }
+       }
+      }
+     },
+     "ops_per_s": 37.35038246439456,
+     "ingest_p50_ms": 428.123899968341,
+     "ingest_p95_ms": 725.7499999832362,
+     "search_p50_ms": 421.50420002872124,
+     "search_p95_ms": 614.6179999923334,
+     "errors": 0,
+     "error_types": [],
+     "server_connections": 10,
+     "trial": 1
+    }
+   ]
+  },
+  "pool-w16-ps10-mo10": {
+   "revision": "62bce4ce",
+   "runs": [
+    {
+     "mode": "concurrent",
+     "storage": "postgres",
+     "workers": 16,
+     "overrides": {
+      "runtime": {
+       "shared_resources": {
+        "sql": {
+         "pool_size": 10,
+         "max_overflow": 10
+        }
+       }
+      }
+     },
+     "ops_per_s": 36.78447486770477,
+     "ingest_p50_ms": 450.94409998273477,
+     "ingest_p95_ms": 750.2531000063755,
+     "search_p50_ms": 405.31669999472797,
+     "search_p95_ms": 577.3261000285856,
+     "errors": 0,
+     "error_types": [],
+     "server_connections": 10,
+     "trial": 0
+    },
+    {
+     "mode": "concurrent",
+     "storage": "postgres",
+     "workers": 16,
+     "overrides": {
+      "runtime": {
+       "shared_resources": {
+        "sql": {
+         "pool_size": 10,
+         "max_overflow": 10
+        }
+       }
+      }
+     },
+     "ops_per_s": 36.248652300047304,
+     "ingest_p50_ms": 481.8181000300683,
+     "ingest_p95_ms": 805.2366999909282,
+     "search_p50_ms": 397.51219999743626,
+     "search_p95_ms": 572.5182999740355,
+     "errors": 0,
+     "error_types": [],
+     "server_connections": 10,
+     "trial": 1
+    }
+   ]
+  },
+  "pool-w16-ps2-mo0": {
+   "revision": "62bce4ce",
+   "runs": [
+    {
+     "mode": "concurrent",
+     "storage": "postgres",
+     "workers": 16,
+     "overrides": {
+      "runtime": {
+       "shared_resources": {
+        "sql": {
+         "pool_size": 2,
+         "max_overflow": 0
+        }
+       }
+      }
+     },
+     "ops_per_s": 24.546302129750508,
+     "ingest_p50_ms": 566.8342999997549,
+     "ingest_p95_ms": 958.8885999983177,
+     "search_p50_ms": 688.9613000093959,
+     "search_p95_ms": 922.6259999559261,
+     "errors": 0,
+     "error_types": [],
+     "server_connections": 2,
+     "trial": 0
+    },
+    {
+     "mode": "concurrent",
+     "storage": "postgres",
+     "workers": 16,
+     "overrides": {
+      "runtime": {
+       "shared_resources": {
+        "sql": {
+         "pool_size": 2,
+         "max_overflow": 0
+        }
+       }
+      }
+     },
+     "ops_per_s": 24.320785899098592,
+     "ingest_p50_ms": 556.4668999868445,
+     "ingest_p95_ms": 1004.1988000157289,
+     "search_p50_ms": 683.0003000213765,
+     "search_p95_ms": 964.1153999837115,
+     "errors": 0,
+     "error_types": [],
+     "server_connections": 2,
+     "trial": 1
+    }
+   ]
+  },
+  "pool-w16-ps2-mo10": {
+   "revision": "62bce4ce",
+   "runs": [
+    {
+     "mode": "concurrent",
+     "storage": "postgres",
+     "workers": 16,
+     "overrides": {
+      "runtime": {
+       "shared_resources": {
+        "sql": {
+         "pool_size": 2,
+         "max_overflow": 10
+        }
+       }
+      }
+     },
+     "ops_per_s": 22.326681288440685,
+     "ingest_p50_ms": 710.4259000043385,
+     "ingest_p95_ms": 1152.6788999908604,
+     "search_p50_ms": 658.9715000009164,
+     "search_p95_ms": 991.9155000243336,
+     "errors": 0,
+     "error_types": [],
+     "server_connections": 2,
+     "trial": 0
+    },
+    {
+     "mode": "concurrent",
+     "storage": "postgres",
+     "workers": 16,
+     "overrides": {
+      "runtime": {
+       "shared_resources": {
+        "sql": {
+         "pool_size": 2,
+         "max_overflow": 10
+        }
+       }
+      }
+     },
+     "ops_per_s": 24.097161696331973,
+     "ingest_p50_ms": 677.093300037086,
+     "ingest_p95_ms": 1236.7496999795549,
+     "search_p50_ms": 606.0791999916546,
+     "search_p95_ms": 914.189399976749,
+     "errors": 0,
+     "error_types": [],
+     "server_connections": 2,
+     "trial": 1
+    }
+   ]
+  },
+  "pool-w16-ps5-mo0": {
+   "revision": "62bce4ce",
+   "runs": [
+    {
+     "mode": "concurrent",
+     "storage": "postgres",
+     "workers": 16,
+     "overrides": {
+      "runtime": {
+       "shared_resources": {
+        "sql": {
+         "pool_size": 5,
+         "max_overflow": 0
+        }
+       }
+      }
+     },
+     "ops_per_s": 34.58812632898833,
+     "ingest_p50_ms": 466.6583999642171,
+     "ingest_p95_ms": 775.0833000172861,
+     "search_p50_ms": 464.4378999946639,
+     "search_p95_ms": 674.6367999585345,
+     "errors": 0,
+     "error_types": [],
+     "server_connections": 5,
+     "trial": 0
+    },
+    {
+     "mode": "concurrent",
+     "storage": "postgres",
+     "workers": 16,
+     "overrides": {
+      "runtime": {
+       "shared_resources": {
+        "sql": {
+         "pool_size": 5,
+         "max_overflow": 0
+        }
+       }
+      }
+     },
+     "ops_per_s": 35.133660246186714,
+     "ingest_p50_ms": 437.80059996061027,
+     "ingest_p95_ms": 717.0180000248365,
+     "search_p50_ms": 441.6749999509193,
+     "search_p95_ms": 658.2072000019252,
+     "errors": 0,
+     "error_types": [],
+     "server_connections": 5,
+     "trial": 1
+    }
+   ]
+  },
+  "pool-w16-ps5-mo10": {
+   "revision": "62bce4ce",
+   "runs": [
+    {
+     "mode": "concurrent",
+     "storage": "postgres",
+     "workers": 16,
+     "overrides": {
+      "runtime": {
+       "shared_resources": {
+        "sql": {
+         "pool_size": 5,
+         "max_overflow": 10
+        }
+       }
+      }
+     },
+     "ops_per_s": 33.316680755240874,
+     "ingest_p50_ms": 560.5220000143163,
+     "ingest_p95_ms": 890.873099968303,
+     "search_p50_ms": 378.84800002211705,
+     "search_p95_ms": 622.7823999943212,
+     "errors": 0,
+     "error_types": [],
+     "server_connections": 5,
+     "trial": 0
+    },
+    {
+     "mode": "concurrent",
+     "storage": "postgres",
+     "workers": 16,
+     "overrides": {
+      "runtime": {
+       "shared_resources": {
+        "sql": {
+         "pool_size": 5,
+         "max_overflow": 10
+        }
+       }
+      }
+     },
+     "ops_per_s": 33.03475085130239,
+     "ingest_p50_ms": 527.813300024718,
+     "ingest_p95_ms": 819.7065999847837,
+     "search_p50_ms": 451.6015999834053,
+     "search_p95_ms": 677.9066000017338,
+     "errors": 0,
+     "error_types": [],
+     "server_connections": 5,
+     "trial": 1
+    }
+   ]
+  },
+  "pool-w4-ps10-mo0": {
+   "revision": "62bce4ce",
+   "runs": [
+    {
+     "mode": "concurrent",
+     "storage": "postgres",
+     "workers": 4,
+     "overrides": {
+      "runtime": {
+       "shared_resources": {
+        "sql": {
+         "pool_size": 10,
+         "max_overflow": 0
+        }
+       }
+      }
+     },
+     "ops_per_s": 19.565460896264824,
+     "ingest_p50_ms": 188.28439997741953,
+     "ingest_p95_ms": 281.2860999838449,
+     "search_p50_ms": 202.92329997755587,
+     "search_p95_ms": 322.43559998460114,
+     "errors": 0,
+     "error_types": [],
+     "server_connections": 4,
+     "trial": 0
+    },
+    {
+     "mode": "concurrent",
+     "storage": "postgres",
+     "workers": 4,
+     "overrides": {
+      "runtime": {
+       "shared_resources": {
+        "sql": {
+         "pool_size": 10,
+         "max_overflow": 0
+        }
+       }
+      }
+     },
+     "ops_per_s": 19.39650307134326,
+     "ingest_p50_ms": 190.35049999365583,
+     "ingest_p95_ms": 291.6947999619879,
+     "search_p50_ms": 202.43160001700744,
+     "search_p95_ms": 334.1915000346489,
+     "errors": 0,
+     "error_types": [],
+     "server_connections": 4,
+     "trial": 1
+    }
+   ]
+  },
+  "pool-w4-ps10-mo10": {
+   "revision": "62bce4ce",
+   "runs": [
+    {
+     "mode": "concurrent",
+     "storage": "postgres",
+     "workers": 4,
+     "overrides": {
+      "runtime": {
+       "shared_resources": {
+        "sql": {
+         "pool_size": 10,
+         "max_overflow": 10
+        }
+       }
+      }
+     },
+     "ops_per_s": 19.358255607107232,
+     "ingest_p50_ms": 184.95729996357113,
+     "ingest_p95_ms": 289.0917000477202,
+     "search_p50_ms": 210.17450001090765,
+     "search_p95_ms": 332.3246000218205,
+     "errors": 0,
+     "error_types": [],
+     "server_connections": 4,
+     "trial": 0
+    },
+    {
+     "mode": "concurrent",
+     "storage": "postgres",
+     "workers": 4,
+     "overrides": {
+      "runtime": {
+       "shared_resources": {
+        "sql": {
+         "pool_size": 10,
+         "max_overflow": 10
+        }
+       }
+      }
+     },
+     "ops_per_s": 18.869173800921338,
+     "ingest_p50_ms": 211.10740001313388,
+     "ingest_p95_ms": 292.9696000064723,
+     "search_p50_ms": 220.58090002974495,
+     "search_p95_ms": 314.7080999915488,
+     "errors": 0,
+     "error_types": [],
+     "server_connections": 4,
+     "trial": 1
+    }
+   ]
+  },
+  "pool-w4-ps2-mo0": {
+   "revision": "62bce4ce",
+   "runs": [
+    {
+     "mode": "concurrent",
+     "storage": "postgres",
+     "workers": 4,
+     "overrides": {
+      "runtime": {
+       "shared_resources": {
+        "sql": {
+         "pool_size": 2,
+         "max_overflow": 0
+        }
+       }
+      }
+     },
+     "ops_per_s": 16.65399942239181,
+     "ingest_p50_ms": 200.41399996262044,
+     "ingest_p95_ms": 327.5722000398673,
+     "search_p50_ms": 271.0264999768697,
+     "search_p95_ms": 402.34550001332536,
+     "errors": 0,
+     "error_types": [],
+     "server_connections": 2,
+     "trial": 0
+    },
+    {
+     "mode": "concurrent",
+     "storage": "postgres",
+     "workers": 4,
+     "overrides": {
+      "runtime": {
+       "shared_resources": {
+        "sql": {
+         "pool_size": 2,
+         "max_overflow": 0
+        }
+       }
+      }
+     },
+     "ops_per_s": 16.84473999873287,
+     "ingest_p50_ms": 203.37279996601865,
+     "ingest_p95_ms": 288.82110002450645,
+     "search_p50_ms": 264.6832999889739,
+     "search_p95_ms": 410.43360001640394,
+     "errors": 0,
+     "error_types": [],
+     "server_connections": 2,
+     "trial": 1
+    }
+   ]
+  },
+  "pool-w4-ps2-mo10": {
+   "revision": "62bce4ce",
+   "runs": [
+    {
+     "mode": "concurrent",
+     "storage": "postgres",
+     "workers": 4,
+     "overrides": {
+      "runtime": {
+       "shared_resources": {
+        "sql": {
+         "pool_size": 2,
+         "max_overflow": 10
+        }
+       }
+      }
+     },
+     "ops_per_s": 16.947388160399168,
+     "ingest_p50_ms": 216.1476999754086,
+     "ingest_p95_ms": 351.3247999944724,
+     "search_p50_ms": 232.60529997060075,
+     "search_p95_ms": 365.82470004213974,
+     "errors": 0,
+     "error_types": [],
+     "server_connections": 2,
+     "trial": 0
+    },
+    {
+     "mode": "concurrent",
+     "storage": "postgres",
+     "workers": 4,
+     "overrides": {
+      "runtime": {
+       "shared_resources": {
+        "sql": {
+         "pool_size": 2,
+         "max_overflow": 10
+        }
+       }
+      }
+     },
+     "ops_per_s": 17.18513238321926,
+     "ingest_p50_ms": 223.4671000041999,
+     "ingest_p95_ms": 330.92959999339655,
+     "search_p50_ms": 219.56389996921644,
+     "search_p95_ms": 365.76790001709014,
+     "errors": 0,
+     "error_types": [],
+     "server_connections": 2,
+     "trial": 1
+    }
+   ]
+  },
+  "pool-w4-ps5-mo0": {
+   "revision": "62bce4ce",
+   "runs": [
+    {
+     "mode": "concurrent",
+     "storage": "postgres",
+     "workers": 4,
+     "overrides": {
+      "runtime": {
+       "shared_resources": {
+        "sql": {
+         "pool_size": 5,
+         "max_overflow": 0
+        }
+       }
+      }
+     },
+     "ops_per_s": 19.529158394106258,
+     "ingest_p50_ms": 181.33160000434145,
+     "ingest_p95_ms": 286.00469999946654,
+     "search_p50_ms": 209.2918999842368,
+     "search_p95_ms": 330.39720001397654,
+     "errors": 0,
+     "error_types": [],
+     "server_connections": 4,
+     "trial": 0
+    },
+    {
+     "mode": "concurrent",
+     "storage": "postgres",
+     "workers": 4,
+     "overrides": {
+      "runtime": {
+       "shared_resources": {
+        "sql": {
+         "pool_size": 5,
+         "max_overflow": 0
+        }
+       }
+      }
+     },
+     "ops_per_s": 19.287985475016058,
+     "ingest_p50_ms": 200.30840003164485,
+     "ingest_p95_ms": 282.9982000403106,
+     "search_p50_ms": 198.59149999683723,
+     "search_p95_ms": 333.34630000172183,
+     "errors": 0,
+     "error_types": [],
+     "server_connections": 4,
+     "trial": 1
+    }
+   ]
+  },
+  "pool-w4-ps5-mo10": {
+   "revision": "62bce4ce",
+   "runs": [
+    {
+     "mode": "concurrent",
+     "storage": "postgres",
+     "workers": 4,
+     "overrides": {
+      "runtime": {
+       "shared_resources": {
+        "sql": {
+         "pool_size": 5,
+         "max_overflow": 10
+        }
+       }
+      }
+     },
+     "ops_per_s": 19.133815729295268,
+     "ingest_p50_ms": 200.18859999254346,
+     "ingest_p95_ms": 282.36650000326335,
+     "search_p50_ms": 215.8169000176713,
+     "search_p95_ms": 353.28670003218576,
+     "errors": 0,
+     "error_types": [],
+     "server_connections": 4,
+     "trial": 0
+    },
+    {
+     "mode": "concurrent",
+     "storage": "postgres",
+     "workers": 4,
+     "overrides": {
+      "runtime": {
+       "shared_resources": {
+        "sql": {
+         "pool_size": 5,
+         "max_overflow": 10
+        }
+       }
+      }
+     },
+     "ops_per_s": 19.218399265462626,
+     "ingest_p50_ms": 202.3627000162378,
+     "ingest_p95_ms": 282.50929998466745,
+     "search_p50_ms": 212.83939998829737,
+     "search_p95_ms": 326.28989999648184,
+     "errors": 0,
+     "error_types": [],
+     "server_connections": 4,
+     "trial": 1
+    }
+   ]
+  },
+  "pool-w8-ps10-mo0": {
+   "revision": "62bce4ce",
+   "runs": [
+    {
+     "mode": "concurrent",
+     "storage": "postgres",
+     "workers": 8,
+     "overrides": {
+      "runtime": {
+       "shared_resources": {
+        "sql": {
+         "pool_size": 10,
+         "max_overflow": 0
+        }
+       }
+      }
+     },
+     "ops_per_s": 29.548672280794662,
+     "ingest_p50_ms": 262.95880001271144,
+     "ingest_p95_ms": 449.5963000226766,
+     "search_p50_ms": 252.6664999895729,
+     "search_p95_ms": 405.9479999705218,
+     "errors": 0,
+     "error_types": [],
+     "server_connections": 8,
+     "trial": 0
+    },
+    {
+     "mode": "concurrent",
+     "storage": "postgres",
+     "workers": 8,
+     "overrides": {
+      "runtime": {
+       "shared_resources": {
+        "sql": {
+         "pool_size": 10,
+         "max_overflow": 0
+        }
+       }
+      }
+     },
+     "ops_per_s": 28.83057792113196,
+     "ingest_p50_ms": 280.99520003888756,
+     "ingest_p95_ms": 428.33949998021126,
+     "search_p50_ms": 251.42019998747855,
+     "search_p95_ms": 411.05010005412623,
+     "errors": 0,
+     "error_types": [],
+     "server_connections": 8,
+     "trial": 1
+    }
+   ]
+  },
+  "pool-w8-ps10-mo10": {
+   "revision": "62bce4ce",
+   "runs": [
+    {
+     "mode": "concurrent",
+     "storage": "postgres",
+     "workers": 8,
+     "overrides": {
+      "runtime": {
+       "shared_resources": {
+        "sql": {
+         "pool_size": 10,
+         "max_overflow": 10
+        }
+       }
+      }
+     },
+     "ops_per_s": 29.66028952200482,
+     "ingest_p50_ms": 266.0504999803379,
+     "ingest_p95_ms": 414.9551999871619,
+     "search_p50_ms": 270.3201999538578,
+     "search_p95_ms": 397.19530002912506,
+     "errors": 0,
+     "error_types": [],
+     "server_connections": 8,
+     "trial": 0
+    },
+    {
+     "mode": "concurrent",
+     "storage": "postgres",
+     "workers": 8,
+     "overrides": {
+      "runtime": {
+       "shared_resources": {
+        "sql": {
+         "pool_size": 10,
+         "max_overflow": 10
+        }
+       }
+      }
+     },
+     "ops_per_s": 28.51190840934272,
+     "ingest_p50_ms": 280.4093000013381,
+     "ingest_p95_ms": 488.921600044705,
+     "search_p50_ms": 266.0562999662943,
+     "search_p95_ms": 408.533499983605,
+     "errors": 0,
+     "error_types": [],
+     "server_connections": 8,
+     "trial": 1
+    }
+   ]
+  },
+  "pool-w8-ps2-mo0": {
+   "revision": "62bce4ce",
+   "runs": [
+    {
+     "mode": "concurrent",
+     "storage": "postgres",
+     "workers": 8,
+     "overrides": {
+      "runtime": {
+       "shared_resources": {
+        "sql": {
+         "pool_size": 2,
+         "max_overflow": 0
+        }
+       }
+      }
+     },
+     "ops_per_s": 21.349790532087713,
+     "ingest_p50_ms": 309.54620003467426,
+     "ingest_p95_ms": 522.355500026606,
+     "search_p50_ms": 391.5025999885984,
+     "search_p95_ms": 591.3276000064798,
+     "errors": 0,
+     "error_types": [],
+     "server_connections": 2,
+     "trial": 0
+    },
+    {
+     "mode": "concurrent",
+     "storage": "postgres",
+     "workers": 8,
+     "overrides": {
+      "runtime": {
+       "shared_resources": {
+        "sql": {
+         "pool_size": 2,
+         "max_overflow": 0
+        }
+       }
+      }
+     },
+     "ops_per_s": 21.354400984199344,
+     "ingest_p50_ms": 357.33769997023046,
+     "ingest_p95_ms": 508.5171000100672,
+     "search_p50_ms": 384.04840003931895,
+     "search_p95_ms": 570.860099978745,
+     "errors": 0,
+     "error_types": [],
+     "server_connections": 2,
+     "trial": 1
+    }
+   ]
+  },
+  "pool-w8-ps2-mo10": {
+   "revision": "62bce4ce",
+   "runs": [
+    {
+     "mode": "concurrent",
+     "storage": "postgres",
+     "workers": 8,
+     "overrides": {
+      "runtime": {
+       "shared_resources": {
+        "sql": {
+         "pool_size": 2,
+         "max_overflow": 10
+        }
+       }
+      }
+     },
+     "ops_per_s": 21.30580337328028,
+     "ingest_p50_ms": 371.65549997007474,
+     "ingest_p95_ms": 607.3868999956176,
+     "search_p50_ms": 351.27829998964444,
+     "search_p95_ms": 520.3129999572411,
+     "errors": 0,
+     "error_types": [],
+     "server_connections": 2,
+     "trial": 0
+    },
+    {
+     "mode": "concurrent",
+     "storage": "postgres",
+     "workers": 8,
+     "overrides": {
+      "runtime": {
+       "shared_resources": {
+        "sql": {
+         "pool_size": 2,
+         "max_overflow": 10
+        }
+       }
+      }
+     },
+     "ops_per_s": 22.238793767857796,
+     "ingest_p50_ms": 339.3136000377126,
+     "ingest_p95_ms": 568.17859999137,
+     "search_p50_ms": 359.8072999739088,
+     "search_p95_ms": 525.7472999510355,
+     "errors": 0,
+     "error_types": [],
+     "server_connections": 2,
+     "trial": 1
+    }
+   ]
+  },
+  "pool-w8-ps5-mo0": {
+   "revision": "62bce4ce",
+   "runs": [
+    {
+     "mode": "concurrent",
+     "storage": "postgres",
+     "workers": 8,
+     "overrides": {
+      "runtime": {
+       "shared_resources": {
+        "sql": {
+         "pool_size": 5,
+         "max_overflow": 0
+        }
+       }
+      }
+     },
+     "ops_per_s": 28.795645512927525,
+     "ingest_p50_ms": 295.9948999923654,
+     "ingest_p95_ms": 410.5534999980591,
+     "search_p50_ms": 250.41899998905137,
+     "search_p95_ms": 410.1178999990225,
+     "errors": 0,
+     "error_types": [],
+     "server_connections": 5,
+     "trial": 0
+    },
+    {
+     "mode": "concurrent",
+     "storage": "postgres",
+     "workers": 8,
+     "overrides": {
+      "runtime": {
+       "shared_resources": {
+        "sql": {
+         "pool_size": 5,
+         "max_overflow": 0
+        }
+       }
+      }
+     },
+     "ops_per_s": 28.982207918058805,
+     "ingest_p50_ms": 288.7919999775477,
+     "ingest_p95_ms": 397.15089998207986,
+     "search_p50_ms": 254.57119999919087,
+     "search_p95_ms": 413.5233000270091,
+     "errors": 0,
+     "error_types": [],
+     "server_connections": 5,
+     "trial": 1
+    }
+   ]
+  },
+  "pool-w8-ps5-mo10": {
+   "revision": "62bce4ce",
+   "runs": [
+    {
+     "mode": "concurrent",
+     "storage": "postgres",
+     "workers": 8,
+     "overrides": {
+      "runtime": {
+       "shared_resources": {
+        "sql": {
+         "pool_size": 5,
+         "max_overflow": 10
+        }
+       }
+      }
+     },
+     "ops_per_s": 28.433564349855452,
+     "ingest_p50_ms": 283.60930003691465,
+     "ingest_p95_ms": 451.09569997293875,
+     "search_p50_ms": 257.31810001889244,
+     "search_p95_ms": 409.2872000182979,
+     "errors": 0,
+     "error_types": [],
+     "server_connections": 5,
+     "trial": 0
+    },
+    {
+     "mode": "concurrent",
+     "storage": "postgres",
+     "workers": 8,
+     "overrides": {
+      "runtime": {
+       "shared_resources": {
+        "sql": {
+         "pool_size": 5,
+         "max_overflow": 10
+        }
+       }
+      }
+     },
+     "ops_per_s": 28.035779455081407,
+     "ingest_p50_ms": 279.9898000084795,
+     "ingest_p95_ms": 511.8763000355102,
+     "search_p50_ms": 243.18180000409484,
+     "search_p95_ms": 463.93769996939227,
+     "errors": 0,
+     "error_types": [],
+     "server_connections": 5,
+     "trial": 1
+    }
+   ]
+  },
+  "warmconc-1": {
+   "revision": "62bce4ce",
+   "runs": [
+    {
+     "mode": "multi",
+     "engines": 1,
+     "embedder": "fastembed",
+     "storage": "sqlite",
+     "overrides": {
+      "runtime": {
+       "shared_resources": {
+        "warmup": "blocking",
+        "warmup_concurrency": 1
+       }
+      }
+     },
+     "start_ms": [
+      1406.3644999987446
+     ],
+     "first_request_ms": [
+      132.06450000870973
+     ],
+     "steady_search_p50_ms": 9.339499985799193,
+     "rss_delta_started_mb": 225.59375,
+     "rss_delta_end_mb": 251.5078125,
+     "peak_mb": 419.8203125,
+     "threads": 149,
+     "os_handles": 389,
+     "trial": 0
+    },
+    {
+     "mode": "multi",
+     "engines": 1,
+     "embedder": "fastembed",
+     "storage": "sqlite",
+     "overrides": {
+      "runtime": {
+       "shared_resources": {
+        "warmup": "blocking",
+        "warmup_concurrency": 1
+       }
+      }
+     },
+     "start_ms": [
+      1462.792599981185
+     ],
+     "first_request_ms": [
+      147.44710002560169
+     ],
+     "steady_search_p50_ms": 10.919800028204918,
+     "rss_delta_started_mb": 225.4453125,
+     "rss_delta_end_mb": 251.61328125,
+     "peak_mb": 420.28125,
+     "threads": 148,
+     "os_handles": 386,
+     "trial": 1
+    },
+    {
+     "mode": "multi",
+     "engines": 1,
+     "embedder": "fastembed",
+     "storage": "sqlite",
+     "overrides": {
+      "runtime": {
+       "shared_resources": {
+        "warmup": "blocking",
+        "warmup_concurrency": 1
+       }
+      }
+     },
+     "start_ms": [
+      1398.3242000103928
+     ],
+     "first_request_ms": [
+      145.6711000064388
+     ],
+     "steady_search_p50_ms": 11.350199987646192,
+     "rss_delta_started_mb": 225.51953125,
+     "rss_delta_end_mb": 251.59765625,
+     "peak_mb": 420.8359375,
+     "threads": 149,
+     "os_handles": 390,
+     "trial": 2
+    }
+   ]
+  },
+  "warmconc-2": {
+   "revision": "62bce4ce",
+   "runs": [
+    {
+     "mode": "multi",
+     "engines": 1,
+     "embedder": "fastembed",
+     "storage": "sqlite",
+     "overrides": {
+      "runtime": {
+       "shared_resources": {
+        "warmup": "blocking",
+        "warmup_concurrency": 2
+       }
+      }
+     },
+     "start_ms": [
+      1404.4225999969058
+     ],
+     "first_request_ms": [
+      131.839299981948
+     ],
+     "steady_search_p50_ms": 9.956600028090179,
+     "rss_delta_started_mb": 226.44140625,
+     "rss_delta_end_mb": 252.64453125,
+     "peak_mb": 423.43359375,
+     "threads": 149,
+     "os_handles": 390,
+     "trial": 0
+    },
+    {
+     "mode": "multi",
+     "engines": 1,
+     "embedder": "fastembed",
+     "storage": "sqlite",
+     "overrides": {
+      "runtime": {
+       "shared_resources": {
+        "warmup": "blocking",
+        "warmup_concurrency": 2
+       }
+      }
+     },
+     "start_ms": [
+      1350.2095000003465
+     ],
+     "first_request_ms": [
+      140.2142000151798
+     ],
+     "steady_search_p50_ms": 10.21279999986291,
+     "rss_delta_started_mb": 226.15234375,
+     "rss_delta_end_mb": 252.34765625,
+     "peak_mb": 422.95703125,
+     "threads": 149,
+     "os_handles": 390,
+     "trial": 1
+    },
+    {
+     "mode": "multi",
+     "engines": 1,
+     "embedder": "fastembed",
+     "storage": "sqlite",
+     "overrides": {
+      "runtime": {
+       "shared_resources": {
+        "warmup": "blocking",
+        "warmup_concurrency": 2
+       }
+      }
+     },
+     "start_ms": [
+      1437.9687000182457
+     ],
+     "first_request_ms": [
+      142.3489999724552
+     ],
+     "steady_search_p50_ms": 10.95949998125434,
+     "rss_delta_started_mb": 225.6875,
+     "rss_delta_end_mb": 251.46875,
+     "peak_mb": 423.29296875,
+     "threads": 150,
+     "os_handles": 393,
+     "trial": 2
+    }
+   ]
+  },
+  "warmconc-4": {
+   "revision": "62bce4ce",
+   "runs": [
+    {
+     "mode": "multi",
+     "engines": 1,
+     "embedder": "fastembed",
+     "storage": "sqlite",
+     "overrides": {
+      "runtime": {
+       "shared_resources": {
+        "warmup": "blocking",
+        "warmup_concurrency": 4
+       }
+      }
+     },
+     "start_ms": [
+      1420.9922999725677
+     ],
+     "first_request_ms": [
+      143.94619996892288
+     ],
+     "steady_search_p50_ms": 9.52240003971383,
+     "rss_delta_started_mb": 226.28515625,
+     "rss_delta_end_mb": 252.2421875,
+     "peak_mb": 423.0546875,
+     "threads": 149,
+     "os_handles": 390,
+     "trial": 0
+    },
+    {
+     "mode": "multi",
+     "engines": 1,
+     "embedder": "fastembed",
+     "storage": "sqlite",
+     "overrides": {
+      "runtime": {
+       "shared_resources": {
+        "warmup": "blocking",
+        "warmup_concurrency": 4
+       }
+      }
+     },
+     "start_ms": [
+      1410.4428000282496
+     ],
+     "first_request_ms": [
+      143.71099998243153
+     ],
+     "steady_search_p50_ms": 11.12250000005588,
+     "rss_delta_started_mb": 225.5625,
+     "rss_delta_end_mb": 251.82421875,
+     "peak_mb": 422.078125,
+     "threads": 151,
+     "os_handles": 397,
+     "trial": 1
+    },
+    {
+     "mode": "multi",
+     "engines": 1,
+     "embedder": "fastembed",
+     "storage": "sqlite",
+     "overrides": {
+      "runtime": {
+       "shared_resources": {
+        "warmup": "blocking",
+        "warmup_concurrency": 4
+       }
+      }
+     },
+     "start_ms": [
+      1339.1909999772906
+     ],
+     "first_request_ms": [
+      137.0261000120081
+     ],
+     "steady_search_p50_ms": 10.980699968058616,
+     "rss_delta_started_mb": 226.6640625,
+     "rss_delta_end_mb": 252.44921875,
+     "peak_mb": 423.2890625,
+     "threads": 150,
+     "os_handles": 393,
+     "trial": 2
+    }
+   ]
+  },
+  "warmconc-rerank-1": {
+   "revision": "62bce4ce",
+   "runs": [
+    {
+     "mode": "multi",
+     "engines": 1,
+     "embedder": "fastembed",
+     "storage": "sqlite",
+     "overrides": {
+      "read": {
+       "rerank": "fastembed"
+      },
+      "runtime": {
+       "shared_resources": {
+        "warmup": "blocking",
+        "warmup_concurrency": 1
+       }
+      }
+     },
+     "start_ms": [
+      1597.0060999970883
+     ],
+     "first_request_ms": [
+      140.1161999674514
+     ],
+     "steady_search_p50_ms": 17.550499993376434,
+     "rss_delta_started_mb": 324.41796875,
+     "rss_delta_end_mb": 349.015625,
+     "peak_mb": 522.33984375,
+     "threads": 165,
+     "os_handles": 408,
+     "trial": 0
+    },
+    {
+     "mode": "multi",
+     "engines": 1,
+     "embedder": "fastembed",
+     "storage": "sqlite",
+     "overrides": {
+      "read": {
+       "rerank": "fastembed"
+      },
+      "runtime": {
+       "shared_resources": {
+        "warmup": "blocking",
+        "warmup_concurrency": 1
+       }
+      }
+     },
+     "start_ms": [
+      1502.711699984502
+     ],
+     "first_request_ms": [
+      137.65869999770075
+     ],
+     "steady_search_p50_ms": 14.068200020119548,
+     "rss_delta_started_mb": 325.25,
+     "rss_delta_end_mb": 349.94140625,
+     "peak_mb": 523.34765625,
+     "threads": 163,
+     "os_handles": 401,
+     "trial": 1
+    },
+    {
+     "mode": "multi",
+     "engines": 1,
+     "embedder": "fastembed",
+     "storage": "sqlite",
+     "overrides": {
+      "read": {
+       "rerank": "fastembed"
+      },
+      "runtime": {
+       "shared_resources": {
+        "warmup": "blocking",
+        "warmup_concurrency": 1
+       }
+      }
+     },
+     "start_ms": [
+      1565.8892000210471
+     ],
+     "first_request_ms": [
+      130.29080000706017
+     ],
+     "steady_search_p50_ms": 14.189900015480816,
+     "rss_delta_started_mb": 325.5859375,
+     "rss_delta_end_mb": 350.91015625,
+     "peak_mb": 523.8984375,
+     "threads": 165,
+     "os_handles": 408,
+     "trial": 2
+    }
+   ]
+  },
+  "warmconc-rerank-2": {
+   "revision": "62bce4ce",
+   "runs": [
+    {
+     "mode": "multi",
+     "engines": 1,
+     "embedder": "fastembed",
+     "storage": "sqlite",
+     "overrides": {
+      "read": {
+       "rerank": "fastembed"
+      },
+      "runtime": {
+       "shared_resources": {
+        "warmup": "blocking",
+        "warmup_concurrency": 2
+       }
+      }
+     },
+     "start_ms": [
+      1443.9768000156619
+     ],
+     "first_request_ms": [
+      137.95040000695735
+     ],
+     "steady_search_p50_ms": 15.537699975538999,
+     "rss_delta_started_mb": 328.4609375,
+     "rss_delta_end_mb": 353.13671875,
+     "peak_mb": 521.46484375,
+     "threads": 164,
+     "os_handles": 405,
+     "trial": 0
+    },
+    {
+     "mode": "multi",
+     "engines": 1,
+     "embedder": "fastembed",
+     "storage": "sqlite",
+     "overrides": {
+      "read": {
+       "rerank": "fastembed"
+      },
+      "runtime": {
+       "shared_resources": {
+        "warmup": "blocking",
+        "warmup_concurrency": 2
+       }
+      }
+     },
+     "start_ms": [
+      1469.578200019896
+     ],
+     "first_request_ms": [
+      144.28980002412573
+     ],
+     "steady_search_p50_ms": 16.129600000567734,
+     "rss_delta_started_mb": 327.09375,
+     "rss_delta_end_mb": 351.609375,
+     "peak_mb": 520.27734375,
+     "threads": 165,
+     "os_handles": 408,
+     "trial": 1
+    },
+    {
+     "mode": "multi",
+     "engines": 1,
+     "embedder": "fastembed",
+     "storage": "sqlite",
+     "overrides": {
+      "read": {
+       "rerank": "fastembed"
+      },
+      "runtime": {
+       "shared_resources": {
+        "warmup": "blocking",
+        "warmup_concurrency": 2
+       }
+      }
+     },
+     "start_ms": [
+      1501.5797999803908
+     ],
+     "first_request_ms": [
+      140.23709995672107
+     ],
+     "steady_search_p50_ms": 14.559399976860732,
+     "rss_delta_started_mb": 326.7890625,
+     "rss_delta_end_mb": 351.890625,
+     "peak_mb": 520.296875,
+     "threads": 164,
+     "os_handles": 405,
+     "trial": 2
+    }
+   ]
+  },
+  "warmconc-rerank-4": {
+   "revision": "62bce4ce",
+   "runs": [
+    {
+     "mode": "multi",
+     "engines": 1,
+     "embedder": "fastembed",
+     "storage": "sqlite",
+     "overrides": {
+      "read": {
+       "rerank": "fastembed"
+      },
+      "runtime": {
+       "shared_resources": {
+        "warmup": "blocking",
+        "warmup_concurrency": 4
+       }
+      }
+     },
+     "start_ms": [
+      1448.998300009407
+     ],
+     "first_request_ms": [
+      134.26109997089952
+     ],
+     "steady_search_p50_ms": 13.404299970716238,
+     "rss_delta_started_mb": 327.8125,
+     "rss_delta_end_mb": 352.46875,
+     "peak_mb": 521.15625,
+     "threads": 166,
+     "os_handles": 412,
+     "trial": 0
+    },
+    {
+     "mode": "multi",
+     "engines": 1,
+     "embedder": "fastembed",
+     "storage": "sqlite",
+     "overrides": {
+      "read": {
+       "rerank": "fastembed"
+      },
+      "runtime": {
+       "shared_resources": {
+        "warmup": "blocking",
+        "warmup_concurrency": 4
+       }
+      }
+     },
+     "start_ms": [
+      1454.0626999805681
+     ],
+     "first_request_ms": [
+      143.56380002573133
+     ],
+     "steady_search_p50_ms": 16.608600039035082,
+     "rss_delta_started_mb": 327.84375,
+     "rss_delta_end_mb": 352.32421875,
+     "peak_mb": 521.03515625,
+     "threads": 165,
+     "os_handles": 409,
+     "trial": 1
+    },
+    {
+     "mode": "multi",
+     "engines": 1,
+     "embedder": "fastembed",
+     "storage": "sqlite",
+     "overrides": {
+      "read": {
+       "rerank": "fastembed"
+      },
+      "runtime": {
+       "shared_resources": {
+        "warmup": "blocking",
+        "warmup_concurrency": 4
+       }
+      }
+     },
+     "start_ms": [
+      1448.147399991285
+     ],
+     "first_request_ms": [
+      139.54180001746863
+     ],
+     "steady_search_p50_ms": 15.645199979189783,
+     "rss_delta_started_mb": 327.5703125,
+     "rss_delta_end_mb": 351.828125,
+     "peak_mb": 520.6796875,
+     "threads": 166,
+     "os_handles": 412,
+     "trial": 2
+    }
+   ]
+  },
+  "warmup-background-settle0": {
+   "revision": "62bce4ce",
+   "runs": [
+    {
+     "mode": "multi",
+     "engines": 1,
+     "embedder": "fastembed",
+     "storage": "sqlite",
+     "overrides": {
+      "runtime": {
+       "shared_resources": {
+        "warmup": "background"
+       }
+      }
+     },
+     "start_ms": [
+      759.0003000223078
+     ],
+     "first_request_ms": [
+      703.6995000089519
+     ],
+     "steady_search_p50_ms": 9.242850006558001,
+     "rss_delta_started_mb": 62.3046875,
+     "rss_delta_end_mb": 253.41015625,
+     "peak_mb": 423.390625,
+     "threads": 150,
+     "os_handles": 393,
+     "trial": 0
+    },
+    {
+     "mode": "multi",
+     "engines": 1,
+     "embedder": "fastembed",
+     "storage": "sqlite",
+     "overrides": {
+      "runtime": {
+       "shared_resources": {
+        "warmup": "background"
+       }
+      }
+     },
+     "start_ms": [
+      775.0292000127956
+     ],
+     "first_request_ms": [
+      761.831899988465
+     ],
+     "steady_search_p50_ms": 9.791200020117685,
+     "rss_delta_started_mb": 62.7421875,
+     "rss_delta_end_mb": 252.61328125,
+     "peak_mb": 424.140625,
+     "threads": 150,
+     "os_handles": 393,
+     "trial": 1
+    },
+    {
+     "mode": "multi",
+     "engines": 1,
+     "embedder": "fastembed",
+     "storage": "sqlite",
+     "overrides": {
+      "runtime": {
+       "shared_resources": {
+        "warmup": "background"
+       }
+      }
+     },
+     "start_ms": [
+      766.5036999969743
+     ],
+     "first_request_ms": [
+      783.8259999989532
+     ],
+     "steady_search_p50_ms": 9.318100026575848,
+     "rss_delta_started_mb": 61.62890625,
+     "rss_delta_end_mb": 253.140625,
+     "peak_mb": 422.96875,
+     "threads": 150,
+     "os_handles": 393,
+     "trial": 2
+    },
+    {
+     "mode": "multi",
+     "engines": 1,
+     "embedder": "fastembed",
+     "storage": "sqlite",
+     "overrides": {
+      "runtime": {
+       "shared_resources": {
+        "warmup": "background"
+       }
+      }
+     },
+     "start_ms": [
+      767.9069999721833
+     ],
+     "first_request_ms": [
+      796.5319000068121
+     ],
+     "steady_search_p50_ms": 12.010900012683123,
+     "rss_delta_started_mb": 62.33984375,
+     "rss_delta_end_mb": 252.94921875,
+     "peak_mb": 423.19140625,
+     "threads": 150,
+     "os_handles": 393,
+     "trial": 3
+    },
+    {
+     "mode": "multi",
+     "engines": 1,
+     "embedder": "fastembed",
+     "storage": "sqlite",
+     "overrides": {
+      "runtime": {
+       "shared_resources": {
+        "warmup": "background"
+       }
+      }
+     },
+     "start_ms": [
+      783.476900018286
+     ],
+     "first_request_ms": [
+      790.3535999939777
+     ],
+     "steady_search_p50_ms": 9.571900038281456,
+     "rss_delta_started_mb": 62.90625,
+     "rss_delta_end_mb": 253.28515625,
+     "peak_mb": 424.01171875,
+     "threads": 150,
+     "os_handles": 393,
+     "trial": 4
+    }
+   ]
+  },
+  "warmup-background-settle3": {
+   "revision": "62bce4ce",
+   "runs": [
+    {
+     "mode": "multi",
+     "engines": 1,
+     "embedder": "fastembed",
+     "storage": "sqlite",
+     "overrides": {
+      "runtime": {
+       "shared_resources": {
+        "warmup": "background"
+       }
+      }
+     },
+     "start_ms": [
+      789.5413000369444
+     ],
+     "first_request_ms": [
+      145.27830004226416
+     ],
+     "steady_search_p50_ms": 9.453799983020872,
+     "rss_delta_started_mb": 62.328125,
+     "rss_delta_end_mb": 251.9453125,
+     "peak_mb": 421.44921875,
+     "threads": 150,
+     "os_handles": 393,
+     "trial": 0
+    },
+    {
+     "mode": "multi",
+     "engines": 1,
+     "embedder": "fastembed",
+     "storage": "sqlite",
+     "overrides": {
+      "runtime": {
+       "shared_resources": {
+        "warmup": "background"
+       }
+      }
+     },
+     "start_ms": [
+      780.8935000211932
+     ],
+     "first_request_ms": [
+      134.8032999667339
+     ],
+     "steady_search_p50_ms": 9.90224999259226,
+     "rss_delta_started_mb": 62.84765625,
+     "rss_delta_end_mb": 253.234375,
+     "peak_mb": 423.421875,
+     "threads": 150,
+     "os_handles": 393,
+     "trial": 1
+    },
+    {
+     "mode": "multi",
+     "engines": 1,
+     "embedder": "fastembed",
+     "storage": "sqlite",
+     "overrides": {
+      "runtime": {
+       "shared_resources": {
+        "warmup": "background"
+       }
+      }
+     },
+     "start_ms": [
+      769.4214999792166
+     ],
+     "first_request_ms": [
+      134.59110003896058
+     ],
+     "steady_search_p50_ms": 9.469250042457134,
+     "rss_delta_started_mb": 63.25390625,
+     "rss_delta_end_mb": 252.92578125,
+     "peak_mb": 423.359375,
+     "threads": 150,
+     "os_handles": 393,
+     "trial": 2
+    },
+    {
+     "mode": "multi",
+     "engines": 1,
+     "embedder": "fastembed",
+     "storage": "sqlite",
+     "overrides": {
+      "runtime": {
+       "shared_resources": {
+        "warmup": "background"
+       }
+      }
+     },
+     "start_ms": [
+      743.1024000397883
+     ],
+     "first_request_ms": [
+      124.56520000705495
+     ],
+     "steady_search_p50_ms": 8.489449974149466,
+     "rss_delta_started_mb": 62.9609375,
+     "rss_delta_end_mb": 253.16796875,
+     "peak_mb": 423.625,
+     "threads": 151,
+     "os_handles": 396,
+     "trial": 3
+    },
+    {
+     "mode": "multi",
+     "engines": 1,
+     "embedder": "fastembed",
+     "storage": "sqlite",
+     "overrides": {
+      "runtime": {
+       "shared_resources": {
+        "warmup": "background"
+       }
+      }
+     },
+     "start_ms": [
+      737.2329000500031
+     ],
+     "first_request_ms": [
+      132.1409000083804
+     ],
+     "steady_search_p50_ms": 8.905299997422844,
+     "rss_delta_started_mb": 62.9375,
+     "rss_delta_end_mb": 251.57421875,
+     "peak_mb": 422.45703125,
+     "threads": 150,
+     "os_handles": 393,
+     "trial": 4
+    }
+   ]
+  },
+  "warmup-blocking-settle0": {
+   "revision": "62bce4ce",
+   "runs": [
+    {
+     "mode": "multi",
+     "engines": 1,
+     "embedder": "fastembed",
+     "storage": "sqlite",
+     "overrides": {
+      "runtime": {
+       "shared_resources": {
+        "warmup": "blocking"
+       }
+      }
+     },
+     "start_ms": [
+      1435.5633999803104
+     ],
+     "first_request_ms": [
+      143.32249999279156
+     ],
+     "steady_search_p50_ms": 10.182300000451505,
+     "rss_delta_started_mb": 225.0,
+     "rss_delta_end_mb": 252.44921875,
+     "peak_mb": 422.45703125,
+     "threads": 151,
+     "os_handles": 397,
+     "trial": 0
+    },
+    {
+     "mode": "multi",
+     "engines": 1,
+     "embedder": "fastembed",
+     "storage": "sqlite",
+     "overrides": {
+      "runtime": {
+       "shared_resources": {
+        "warmup": "blocking"
+       }
+      }
+     },
+     "start_ms": [
+      1422.4424000130966
+     ],
+     "first_request_ms": [
+      132.13449995964766
+     ],
+     "steady_search_p50_ms": 9.94975000503473,
+     "rss_delta_started_mb": 226.23828125,
+     "rss_delta_end_mb": 252.73046875,
+     "peak_mb": 423.2265625,
+     "threads": 150,
+     "os_handles": 393,
+     "trial": 1
+    },
+    {
+     "mode": "multi",
+     "engines": 1,
+     "embedder": "fastembed",
+     "storage": "sqlite",
+     "overrides": {
+      "runtime": {
+       "shared_resources": {
+        "warmup": "blocking"
+       }
+      }
+     },
+     "start_ms": [
+      1341.8242000043392
+     ],
+     "first_request_ms": [
+      130.12709998292848
+     ],
+     "steady_search_p50_ms": 9.784850000869483,
+     "rss_delta_started_mb": 226.12890625,
+     "rss_delta_end_mb": 252.7734375,
+     "peak_mb": 423.203125,
+     "threads": 150,
+     "os_handles": 393,
+     "trial": 2
+    },
+    {
+     "mode": "multi",
+     "engines": 1,
+     "embedder": "fastembed",
+     "storage": "sqlite",
+     "overrides": {
+      "runtime": {
+       "shared_resources": {
+        "warmup": "blocking"
+       }
+      }
+     },
+     "start_ms": [
+      1369.2388000199571
+     ],
+     "first_request_ms": [
+      145.32999997027218
+     ],
+     "steady_search_p50_ms": 12.570349994348362,
+     "rss_delta_started_mb": 225.3984375,
+     "rss_delta_end_mb": 252.36328125,
+     "peak_mb": 423.44921875,
+     "threads": 151,
+     "os_handles": 396,
+     "trial": 3
+    },
+    {
+     "mode": "multi",
+     "engines": 1,
+     "embedder": "fastembed",
+     "storage": "sqlite",
+     "overrides": {
+      "runtime": {
+       "shared_resources": {
+        "warmup": "blocking"
+       }
+      }
+     },
+     "start_ms": [
+      1409.5537000102922
+     ],
+     "first_request_ms": [
+      141.3878999883309
+     ],
+     "steady_search_p50_ms": 9.342650038888678,
+     "rss_delta_started_mb": 226.19921875,
+     "rss_delta_end_mb": 252.33984375,
+     "peak_mb": 422.984375,
+     "threads": 150,
+     "os_handles": 393,
+     "trial": 4
+    }
+   ]
+  },
+  "warmup-lazy-settle0": {
+   "revision": "62bce4ce",
+   "runs": [
+    {
+     "mode": "multi",
+     "engines": 1,
+     "embedder": "fastembed",
+     "storage": "sqlite",
+     "overrides": {
+      "runtime": {
+       "shared_resources": {
+        "warmup": "lazy"
+       }
+      }
+     },
+     "start_ms": [
+      796.0862999898382
+     ],
+     "first_request_ms": [
+      792.3766999738291
+     ],
+     "steady_search_p50_ms": 9.604749997379258,
+     "rss_delta_started_mb": 62.41796875,
+     "rss_delta_end_mb": 252.109375,
+     "peak_mb": 420.12890625,
+     "threads": 149,
+     "os_handles": 390,
+     "trial": 0
+    },
+    {
+     "mode": "multi",
+     "engines": 1,
+     "embedder": "fastembed",
+     "storage": "sqlite",
+     "overrides": {
+      "runtime": {
+       "shared_resources": {
+        "warmup": "lazy"
+       }
+      }
+     },
+     "start_ms": [
+      775.9380000061356
+     ],
+     "first_request_ms": [
+      781.0451999539509
+     ],
+     "steady_search_p50_ms": 10.092799988342449,
+     "rss_delta_started_mb": 62.40625,
+     "rss_delta_end_mb": 251.5546875,
+     "peak_mb": 419.390625,
+     "threads": 149,
+     "os_handles": 389,
+     "trial": 1
+    },
+    {
+     "mode": "multi",
+     "engines": 1,
+     "embedder": "fastembed",
+     "storage": "sqlite",
+     "overrides": {
+      "runtime": {
+       "shared_resources": {
+        "warmup": "lazy"
+       }
+      }
+     },
+     "start_ms": [
+      778.5053999978118
+     ],
+     "first_request_ms": [
+      746.0627999971621
+     ],
+     "steady_search_p50_ms": 9.838949976256117,
+     "rss_delta_started_mb": 62.96484375,
+     "rss_delta_end_mb": 251.75,
+     "peak_mb": 420.2265625,
+     "threads": 149,
+     "os_handles": 389,
+     "trial": 2
+    },
+    {
+     "mode": "multi",
+     "engines": 1,
+     "embedder": "fastembed",
+     "storage": "sqlite",
+     "overrides": {
+      "runtime": {
+       "shared_resources": {
+        "warmup": "lazy"
+       }
+      }
+     },
+     "start_ms": [
+      754.324399982579
+     ],
+     "first_request_ms": [
+      710.300599981565
+     ],
+     "steady_search_p50_ms": 8.748999971430749,
+     "rss_delta_started_mb": 62.984375,
+     "rss_delta_end_mb": 252.5859375,
+     "peak_mb": 419.73828125,
+     "threads": 149,
+     "os_handles": 389,
+     "trial": 3
+    },
+    {
+     "mode": "multi",
+     "engines": 1,
+     "embedder": "fastembed",
+     "storage": "sqlite",
+     "overrides": {
+      "runtime": {
+       "shared_resources": {
+        "warmup": "lazy"
+       }
+      }
+     },
+     "start_ms": [
+      761.5943999844603
+     ],
+     "first_request_ms": [
+      775.3463999833912
+     ],
+     "steady_search_p50_ms": 10.938499995972961,
+     "rss_delta_started_mb": 62.546875,
+     "rss_delta_end_mb": 252.62890625,
+     "peak_mb": 419.91796875,
+     "threads": 150,
+     "os_handles": 393,
+     "trial": 4
+    }
+   ]
+  }
+ }
+}

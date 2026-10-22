@@ -12,9 +12,9 @@ Keep one row per stable ID. PA IDs preserve the 136-item provider program; BI ID
 | BLOCKED | 1 |
 | DEFERRED | 6 |
 | DEPLOYMENT_CHECK | 19 |
-| DONE | 139 |
+| DONE | 140 |
 | EXCLUDED | 4 |
-| IN_PROGRESS | 30 |
+| IN_PROGRESS | 29 |
 | NEEDS_INPUT | 3 |
 | NEEDS_TOOLCHAIN | 1 |
 | OPEN | 18 |
@@ -324,7 +324,7 @@ its scope is narrower than the prerequisite (say so in the row) or its status is
 | RM-77 | OPEN | P1 | Verification lead | Multi-engine acceptance for shared resources (extends tracker T13) | Required by ADR-079 consequences | Stop-one-while-another-active, different-settings isolation, single-writer path sharing, loop affinity, fork reset, :memory: uniqueness, no result sharing | Prereq: RM-72, RM-73, RM-75 |
 | RM-78 | DONE | P1 | Config / runtime maintainer | Add the runtime.shared_resources settings block (scope, warmup and limits, keep_warm, idle TTL, memory budget, per-category caps, SQL and HTTP pools) | 2026-10-22 6e5e85cf: runtime.shared_resources (scope, warmup and limits, keep_warm, idle_ttl_s, memory_budget_mb, max_models_per_category, sql and http pools, model_server reserved) strict with constants and 17 USAGE rows; scope=engine gives private registries; keep_warm retains weights only. SQL pools honoured by Postgres and file SQLite; HTTP pools by OpenSearch, Weaviate, Neo4j (not LiteLLM). Combined regression 3,385 passed | Completed; defaults confirmed or changed by RM-80 measurements; models.gliner_max_models kept (separate config change) | Prereq: RM-72, RM-73, RM-75; Feeds: RM-74, RM-76 |
 | RM-79 | DEFERRED | P3 | Model / deployment maintainer | Opt-in shared local model server for cross-process RAM sharing (embedder, GLiNER, reranker) | Owner 2026-10-22: reserve the model_server setting, build later [ADR-079 addendum](adr/ADR-079-keyed-shared-warm-resources.md) | Select when multi-process deployments need shared model RAM | Prereq: RM-76 |
-| RM-80 | IN_PROGRESS | P1 | Performance / runtime maintainer | Decide client and shared_resources defaults from measurements (scope, warm-up mode and concurrency, SQL and HTTP pools) | Owner 2026-10-22: decisions based on tests. Harness scripts/benchmark_shared_resources.py; rules in the ADR-079 RM-80 section. Baseline before sharing (3 trials, cached bge-small): each extra identical Engine adds about 124 MB RSS, 23 threads and 32 OS handles; first request pays 280-700 ms lazy model load. [baseline](provider_verification/rm80-shared-resources-baseline-2026-10-22.json) | Run each variant after RM-72/73/75/78 merge (latency on an idle host); record evidence JSON; set defaults per rule; regression test guards the chosen defaults | Prereq: RM-72, RM-73, RM-75, RM-78; Feeds: RM-74, RM-76 |
+| RM-80 | DONE | P1 | Performance / runtime maintainer | Decide client and shared_resources defaults from measurements (scope, warm-up mode and concurrency, SQL and HTTP pools) | 2026-10-22 measured on an idle host: scope=process (extra Engine 124 MB to 6 MB); warmup=background (start -1% vs lazy, warm first request 135 vs 141 ms blocking); warmup_concurrency=2 (owner, 1.5% from best); sql.pool_size=5 (within 1% of best to 8 workers, advise 10 above); sql.max_overflow 10 to 0 (no gain, slight p95 cost); http 100/30 kept but unmeasured. [decisions](provider_verification/rm80-shared-resources-decisions-2026-10-22.json) | Completed; HTTP pool defaults to verify in deployment checks (PA-069/PA-072); repeat on the PA-051 controlled host | Prereq: RM-72, RM-73, RM-75, RM-78; Feeds: RM-74, RM-76 |
 | RM-81 | OPEN | P3 | Config maintainer | Add flag-evidence entry for GlinerSettings.local_files_only (two test_flag_evidence failures) | 2026-10-22: pre-existing failure noted by RM-73/RM-75/RM-78 agents | test_flag_evidence passes | Prereq: none |
 <!-- TASK_REGISTER_END -->
 

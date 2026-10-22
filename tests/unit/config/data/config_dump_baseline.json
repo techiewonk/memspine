@@ -643,7 +643,7 @@
     "model_server": null,
     "scope": "process",
     "sql": {
-     "max_overflow": 10,
+     "max_overflow": 0,
      "pool_pre_ping": true,
      "pool_recycle_s": 1800,
      "pool_size": 5
@@ -752,7 +752,7 @@
    "window_topic_k": 2.0
   }
  },
- "json_schema_sha256": "ececc264c819049cf55885a0fe4dc08d9895d73b43e5fced97daad8cbb36a90f",
+ "json_schema_sha256": "8d840b172b838e9785b9bb82b70031a963beab55d7a2b1951e44b00cc4d116b8",
  "preset:chat_roles": {
   "audit": {
    "actions": false,
@@ -1428,7 +1428,7 @@
     "model_server": null,
     "scope": "process",
     "sql": {
-     "max_overflow": 10,
+     "max_overflow": 0,
      "pool_pre_ping": true,
      "pool_recycle_s": 1800,
      "pool_size": 5
@@ -2211,7 +2211,7 @@
     "model_server": null,
     "scope": "process",
     "sql": {
-     "max_overflow": 10,
+     "max_overflow": 0,
      "pool_pre_ping": true,
      "pool_recycle_s": 1800,
      "pool_size": 5
@@ -2994,7 +2994,7 @@
     "model_server": null,
     "scope": "process",
     "sql": {
-     "max_overflow": 10,
+     "max_overflow": 0,
      "pool_pre_ping": true,
      "pool_recycle_s": 1800,
      "pool_size": 5
@@ -3777,7 +3777,7 @@
     "model_server": null,
     "scope": "process",
     "sql": {
-     "max_overflow": 10,
+     "max_overflow": 0,
      "pool_pre_ping": true,
      "pool_recycle_s": 1800,
      "pool_size": 5
@@ -4560,7 +4560,7 @@
     "model_server": null,
     "scope": "process",
     "sql": {
-     "max_overflow": 10,
+     "max_overflow": 0,
      "pool_pre_ping": true,
      "pool_recycle_s": 1800,
      "pool_size": 5
@@ -5343,7 +5343,7 @@
     "model_server": null,
     "scope": "process",
     "sql": {
-     "max_overflow": 10,
+     "max_overflow": 0,
      "pool_pre_ping": true,
      "pool_recycle_s": 1800,
      "pool_size": 5
@@ -6126,7 +6126,7 @@
     "model_server": null,
     "scope": "process",
     "sql": {
-     "max_overflow": 10,
+     "max_overflow": 0,
      "pool_pre_ping": true,
      "pool_recycle_s": 1800,
      "pool_size": 5
@@ -6913,7 +6913,7 @@
     "model_server": null,
     "scope": "process",
     "sql": {
-     "max_overflow": 10,
+     "max_overflow": 0,
      "pool_pre_ping": true,
      "pool_recycle_s": 1800,
      "pool_size": 5
@@ -7696,7 +7696,7 @@
     "model_server": null,
     "scope": "process",
     "sql": {
-     "max_overflow": 10,
+     "max_overflow": 0,
      "pool_pre_ping": true,
      "pool_recycle_s": 1800,
      "pool_size": 5
@@ -8479,7 +8479,7 @@
     "model_server": null,
     "scope": "process",
     "sql": {
-     "max_overflow": 10,
+     "max_overflow": 0,
      "pool_pre_ping": true,
      "pool_recycle_s": 1800,
      "pool_size": 5
@@ -9262,7 +9262,7 @@
     "model_server": null,
     "scope": "process",
     "sql": {
-     "max_overflow": 10,
+     "max_overflow": 0,
      "pool_pre_ping": true,
      "pool_recycle_s": 1800,
      "pool_size": 5
@@ -10045,7 +10045,7 @@
     "model_server": null,
     "scope": "process",
     "sql": {
-     "max_overflow": 10,
+     "max_overflow": 0,
      "pool_pre_ping": true,
      "pool_recycle_s": 1800,
      "pool_size": 5
@@ -10828,7 +10828,7 @@
     "model_server": null,
     "scope": "process",
     "sql": {
-     "max_overflow": 10,
+     "max_overflow": 0,
      "pool_pre_ping": true,
      "pool_recycle_s": 1800,
      "pool_size": 5
@@ -11611,7 +11611,7 @@
     "model_server": null,
     "scope": "process",
     "sql": {
-     "max_overflow": 10,
+     "max_overflow": 0,
      "pool_pre_ping": true,
      "pool_recycle_s": 1800,
      "pool_size": 5
@@ -12394,7 +12394,7 @@
     "model_server": null,
     "scope": "process",
     "sql": {
-     "max_overflow": 10,
+     "max_overflow": 0,
      "pool_pre_ping": true,
      "pool_recycle_s": 1800,
      "pool_size": 5
@@ -13177,7 +13177,7 @@
     "model_server": null,
     "scope": "process",
     "sql": {
-     "max_overflow": 10,
+     "max_overflow": 0,
      "pool_pre_ping": true,
      "pool_recycle_s": 1800,
      "pool_size": 5
@@ -13971,7 +13971,7 @@
     "model_server": null,
     "scope": "process",
     "sql": {
-     "max_overflow": 10,
+     "max_overflow": 0,
      "pool_pre_ping": true,
      "pool_recycle_s": 1800,
      "pool_size": 5
@@ -14761,7 +14761,7 @@
     "model_server": null,
     "scope": "process",
     "sql": {
-     "max_overflow": 10,
+     "max_overflow": 0,
      "pool_pre_ping": true,
      "pool_recycle_s": 1800,
      "pool_size": 5
@@ -15530,7 +15530,7 @@
     "model_server": null,
     "scope": "process",
     "sql": {
-     "max_overflow": 10,
+     "max_overflow": 0,
      "pool_pre_ping": true,
      "pool_recycle_s": 1800,
      "pool_size": 5
@@ -16321,7 +16321,7 @@
     "model_server": null,
     "scope": "process",
     "sql": {
-     "max_overflow": 10,
+     "max_overflow": 0,
      "pool_pre_ping": true,
      "pool_recycle_s": 1800,
      "pool_size": 5
@@ -17108,7 +17108,7 @@
     "model_server": null,
     "scope": "process",
     "sql": {
-     "max_overflow": 10,
+     "max_overflow": 0,
      "pool_pre_ping": true,
      "pool_recycle_s": 1800,
      "pool_size": 5
@@ -17912,7 +17912,7 @@
     "model_server": null,
     "scope": "process",
     "sql": {
-     "max_overflow": 10,
+     "max_overflow": 0,
      "pool_pre_ping": true,
      "pool_recycle_s": 1800,
      "pool_size": 5
@@ -18695,7 +18695,7 @@
     "model_server": null,
     "scope": "process",
     "sql": {
-     "max_overflow": 10,
+     "max_overflow": 0,
      "pool_pre_ping": true,
      "pool_recycle_s": 1800,
      "pool_size": 5
@@ -19479,7 +19479,7 @@
     "model_server": null,
     "scope": "process",
     "sql": {
-     "max_overflow": 10,
+     "max_overflow": 0,
      "pool_pre_ping": true,
      "pool_recycle_s": 1800,
      "pool_size": 5
@@ -20277,7 +20277,7 @@
     "model_server": null,
     "scope": "process",
     "sql": {
-     "max_overflow": 10,
+     "max_overflow": 0,
      "pool_pre_ping": true,
      "pool_recycle_s": 1800,
      "pool_size": 5

@@ -900,7 +900,8 @@ SHARED_RESOURCES_SCOPE: Final = "process"
 SHARED_WARMUP_MODE: Final = "background"
 #: Upper bound (seconds) on one Engine's whole warm-up pass.
 SHARED_WARMUP_TIMEOUT_S = 120.0
-#: Resources warmed at once (RM-80 decision rule: smallest within 10% of the fastest).
+#: Resources warmed at once. RM-80 (2026-10-22): with 3 warm targets 1/2/4 took 1566/1470/1449 ms
+#: at equal memory; owner kept 2 (within 1.5% of best, robust as warm targets grow).
 SHARED_WARMUP_CONCURRENCY = 2
 #: Warm-up target categories, in warm-up order.
 SHARED_WARMUP_CATEGORIES: Final[
@@ -909,10 +910,14 @@ SHARED_WARMUP_CATEGORIES: Final[
 #: Owner-fixed (ADR-079 RM-80 table): weights stay loaded for the process life, no TTL.
 SHARED_KEEP_WARM = True
 #: SQLAlchemy pool defaults applied to the async and shared sync engines (ADR-079 addendum).
+#: RM-80 Postgres grid (2026-10-22): pool 5 within 1% of the best up to 8 concurrent operations
+#: (10 is 6% faster at 16); overflow connections are opened and dropped per burst request and
+#: gave no throughput gain, so overflow defaults to 0 (bursts queue on the pool).
 SHARED_SQL_POOL_SIZE = 5
-SHARED_SQL_MAX_OVERFLOW = 10
+SHARED_SQL_MAX_OVERFLOW = 0
 SHARED_SQL_POOL_RECYCLE_S = 1800
 SHARED_SQL_POOL_PRE_PING = True
 #: HTTP connection-pool defaults for clients memspine constructs (ADR-079 addendum).
+#: Not measured yet (no local OpenSearch/Weaviate/Neo4j); verify in deployment checks.
 SHARED_HTTP_MAX_CONNECTIONS = 100
 SHARED_HTTP_KEEPALIVE_S = 30.0

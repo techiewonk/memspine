@@ -158,3 +158,16 @@ about 6 MB, +8 threads and +17 handles; first request on additional Engines from
 to about 110 ms. Four Engines: 623 MB to 271 MB. Saving far exceeds the 10% rule and
 isolation tests pass, so **`scope=process` is confirmed as the default**. Evidence:
 `docs/provider_verification/rm80-shared-resources-{baseline,after-rm72-rm73}-2026-10-22.json`.
+
+### RM-80 result 2: warm-up and SQL pool (2026-10-22, idle host)
+
+| Setting | Measured (medians) | Default |
+|---|---|---|
+| `warmup` | lazy start 776 / first 775 ms; blocking 1,410 / 141; background 768 / 784 when asked at once, 769 / 135 after 3 s | **`background`** (rule met: start -1% vs lazy, warm first request within 5% of blocking) |
+| `warmup_concurrency` | 2 targets: 1/2/4 tie (~1,405 ms); 3 targets with reranker: 1,566 / 1,470 / 1,449 ms, equal memory | **2** (owner: within 1.5% of best and robust as targets grow; strict rule would allow 1 at 8%) |
+| `sql.pool_size` | Postgres ops/s at 4/8/16 workers: pool 2 = 16.8/21.4/24.4, 5 = 19.4/28.9/34.9, 10 = 19.5/29.2/37.0 | **5**; USAGE advises about 10 above ~8 sustained concurrent operations |
+| `sql.max_overflow` | overflow connections are opened and dropped per burst request; +10 gave no gain and slightly worse p95 at 16 workers | **0** (changed from 10) |
+| `http.max_connections` / `keepalive_s` | not measurable locally (no OpenSearch, Weaviate or Neo4j server) | **100 / 30, unmeasured**; verify in deployment checks |
+
+Evidence: `docs/provider_verification/rm80-shared-resources-decisions-2026-10-22.json`
+(28 scenario groups; Postgres = disposable local pgvector/pgvector:pg16 container).

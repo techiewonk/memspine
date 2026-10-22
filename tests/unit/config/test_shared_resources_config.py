@@ -36,7 +36,7 @@ def test_defaults_match_the_adr_and_constants() -> None:
     assert cfg.keep_warm is True
     assert cfg.idle_ttl_s is None and cfg.memory_budget_mb is None
     assert cfg.max_models_per_category is None
-    assert (cfg.sql.pool_size, cfg.sql.max_overflow, cfg.sql.pool_recycle_s) == (5, 10, 1800)
+    assert (cfg.sql.pool_size, cfg.sql.max_overflow, cfg.sql.pool_recycle_s) == (5, 0, 1800)
     assert cfg.sql.pool_pre_ping is True
     assert (cfg.http.max_connections, cfg.http.keepalive_s) == (100, 30.0)
     assert cfg.model_server is None
