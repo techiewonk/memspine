@@ -28,6 +28,40 @@ Every connector implements one protocol:
 The connector receives a transport **spec** (frozen dataclass), never a pydantic config model.
 Factories map slot settings to the spec.
 
+## 2a. Live status by provider (updated after each merge; RM-113 row holds the evidence)
+
+Last update: 2026-10-23, after the single graph port and the layering fixes (`8368c356`).
+✅ done · 🔧 in progress (agent) · ⏳ queued · ⚠️ known gap
+
+| Provider | Connector | Adapter | Factory | Status | Work |
+|---|---|---|---|---|---|
+| records sqlite | 🔧 sync engine → `clients/sqlite` | ✅ records port + conformance | 🔧 slot wiring | 🔧 | G (connector, Alembic over connector), A (slot) |
+| records postgres | 🔧 sync engine, advisory lock | ✅ records port + conformance | 🔧 slot wiring | 🔧 | G, A |
+| records mongodb | 🔧 new `clients/mongodb` | 🔧 new adapter | ⏳ after slots | 🔧 | I (RM-112) |
+| vector lancedb | 🔧 Connector + real health | ✅ | 🔧 slot wiring | 🔧 | G, A |
+| vector pgvector | ⏳ borrows SQL connector | ⏳ DDL into adapter | 🔧 slot wiring | ⏳ | after G/A |
+| vector / lexical weaviate | 🔧 Connector + single identity | ⏳ binding instead of native handle | 🔧 `acquire()` | 🔧 | G |
+| lexical tantivy | 🔧 new `clients/tantivy` | 🔧 uses connector | 🔧 slot wiring | 🔧 | G, A |
+| lexical opensearch | 🔧 Connector + single identity | ✅ | 🔧 `acquire()` | 🔧 | G |
+| graph ladybug | 🔧 Connector + real health | ✅ one port | 🔧 slot wiring | 🔧 | G, A |
+| graph sql_adjacency | ✅ borrows SQL connector | ✅ one port, SQLite + Postgres | 🔧 slot wiring | 🔧 | A |
+| graph neo4j | 🔧 Connector, no providers import, shared | ✅ one port | 🔧 slot wiring | 🔧 | G, A |
+| cache memory/disk/redis/valkey | 🔧 Connector, shared | 🔧 move to `services/cache` | 🔧 slot wiring | 🔧 | G, F, A |
+| embedding | 🔧 `clients/weights/*`, `clients/litellm` | 🔧 move to `services/embedding` | 🔧 | 🔧 | F |
+| llm (litellm, llamacpp, ollama, vllm, bedrock) | 🔧 `clients/litellm`, weights | 🔧 move to `services/llm` | 🔧 own descriptors | 🔧 | F |
+| rerank | 🔧 weights / litellm | 🔧 move to `services/rerank` | 🔧 one factory | 🔧 | F |
+| gliner (extraction) | 🔧 weights | 🔧 move to `services/extraction` | 🔧 new descriptor | 🔧 | F |
+| decider | 🔧 weights | 🔧 move to `services/decision` | 🔧 new descriptor | 🔧 | F |
+| assets / external / secrets | 🔧 `clients/http`, `clients/aws` | 🔧 | n/a | 🔧 | G |
+| documents (filesystem, s3, mongodb, weaviate) | ⏳ | ⏳ | ⏳ | ⏳ | after A (slot), RM-112 |
+| enforcement (import rules, constructor denylist) | — | — | — | 🔧 | E |
+
+**Import contracts:** 13 kept, 1 broken. The one remaining chain is
+`store.migrate → services.storage.sqlite.engine → runtime.outbox.sqlite_engine`, and it
+closes when G moves the sync engines into `clients/sqlite`. Two other chains are already
+fixed in `8368c356`: the outbox tables moved to `services/storage/outbox_tables.py`, and
+the lease store moved to `store/leases.py`.
+
 ## 2. Audit result (summary)
 
 | Provider | Connector | Adapter | Factory | Main deviations |
