@@ -21,7 +21,7 @@ from memspine.providers.contracts import (
     StorageBuildResult,
 )
 from memspine.providers.health import sql_health_probe
-from memspine.providers.registry import STORAGE_BACKENDS, ProviderDescriptor
+from memspine.providers.registry import STORAGE_BACKENDS, Locality, ProviderDescriptor
 from memspine.providers.shared import own_shared, path_identity, resource_key
 from memspine.providers.sql import ManagedSqlAccess
 from memspine.services.base import CapabilityManifest
@@ -43,6 +43,13 @@ def sqlite_placement(
     path = Path(settings.path)
     base = path if data_dir is None else Path(data_dir) / path.name
     return ProjectionPlacement(base, False, owner_id)
+
+
+def sqlite_locality(settings: BaseModel, _records: Locality) -> Locality:
+    """ADR-081 WP6: ``:memory:`` lives in this process; a database file lives on this host."""
+    if not isinstance(settings, SqliteSettings):
+        raise TypeError("sqlite locality requires SqliteSettings")
+    return "process" if settings.path == ":memory:" else "host"
 
 
 def postgres_placement(
@@ -334,5 +341,6 @@ def register() -> None:
                     requires_deployment_id=name == "postgres",
                     target_identity=(postgres_target_identity if name == "postgres" else None),
                     locality="cluster" if name == "postgres" else "host",
+                    resolve_locality=sqlite_locality if name == "sqlite" else None,
                 ),
             )

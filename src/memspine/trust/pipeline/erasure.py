@@ -136,6 +136,9 @@ async def erase_namespace(
     async with eng._write_locks.setdefault(ns, asyncio.Lock()):
         ids = [r.record_id for r in await storage.list_records(ns)]
         await eng._forget_many(storage, ns, ids, hard=True)
+        documents = getattr(eng, "_documents", None)
+        if documents is not None:  # ADR-081: every document of the namespace goes too
+            await documents.erase_namespace(ns)
         drop = getattr(eng._vector, "drop_namespace", None)
         if drop is not None:  # I4: per-namespace tables: the user's table goes too
             await drop(ns)
@@ -251,6 +254,10 @@ async def _forget_many(
         redacted=len(redacted),
     )
     await eng._purge_caches(texts)
+    # ADR-081 storage.documents: documents whose last referencing record was erased go too.
+    documents = getattr(eng, "_documents", None)
+    if documents is not None:
+        await documents.erase_records(ns, ids)
     # The vector delete only marks rows deleted; the purge drops their bytes
     # and the older table versions that still return them (verify_forget
     # reports vector history unproven when it did not run).

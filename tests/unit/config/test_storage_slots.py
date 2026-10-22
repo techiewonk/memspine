@@ -72,9 +72,11 @@ def test_required_slots_cannot_be_null(slot: str) -> None:
         MemspineConfig.model_validate({"runtime": _RUNTIME, "storage": {slot: None}})
 
 
-def test_documents_slot_is_reserved() -> None:
+def test_documents_slot_is_optional_and_planned_providers_are_rejected() -> None:
     assert _config().storage.documents is None
-    with pytest.raises(ConfigError, match="not available until"):
+    documents = _config(storage={"documents": {"provider": "filesystem"}}).storage.documents
+    assert documents is not None and documents.provider == "filesystem"
+    with pytest.raises(ConfigError, match=r"planned \(RM-112\)"):
         _config(storage={"documents": {"provider": "mongodb"}})
 
 

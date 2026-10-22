@@ -5,7 +5,7 @@ from memspine.exceptions import ConfigError
 from memspine.providers.contexts import LexicalBuildContext
 from memspine.providers.contracts import BuildResult, ProviderRef
 from memspine.providers.placement import generation_component, host_base_path
-from memspine.providers.registry import LEXICAL_INDEXES, ProviderDescriptor
+from memspine.providers.registry import LEXICAL_INDEXES, ProviderDescriptor, placed_locality
 from memspine.providers.shared import own_shared, path_identity, resource_key
 from memspine.services.lexical.base import LexicalStore
 
@@ -83,5 +83,8 @@ def register() -> None:
                 (),
                 TantivyBuilder(),
                 locality="host",
+                resolve_locality=placed_locality,
+                single_writer=True,
+                needs_placement=True,
             ),
         )

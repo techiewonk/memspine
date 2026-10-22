@@ -253,6 +253,7 @@ if TYPE_CHECKING:
 from memspine.schemas.durable import AssertionEnvelope, OwnerScope
 from memspine.schemas.durable.erasure import RetentionBoundary
 from memspine.semantics.domains import TOPIC_BINDING_ROLE, topic_hook
+from memspine.services.documents.base import DocumentStore
 from memspine.services.graph.base import GraphStore
 from memspine.services.graph.qualifiers import QualifierFilter
 from memspine.services.lexical.base import LexicalHit, LexicalStore
@@ -431,6 +432,8 @@ class Engine:
         self._vector: VectorStore | None = None
         self._lexical: LexicalStore | None = None
         self._graph: GraphStore | None = None
+        #: ADR-081 ``storage.documents`` (None when the slot is not configured).
+        self._documents: DocumentStore | None = None
         self._neo4j: Neo4jProjection | None = None  # F-16e: graph.neo4j_outbox
         self._llm: LLMRouter | None = None
         self._working: WorkingMemory | None = None
@@ -739,6 +742,8 @@ class Engine:
                 "graph configured but memories.associative not enabled — "
                 "enable it or remove the graph block (graph or storage.graph)"
             )
+        if config.storage.documents is not None:  # ADR-081: the optional documents slot
+            self._documents = await container.get(DocumentStore)
         self._llm = await container.get(LLMRouter)
         self._decision_off = (await container.get(DecisionState)).off  # H24
         self._scoring = ScoringPolicy.bind(config.read.scoring)
@@ -4086,6 +4091,14 @@ class Engine:
         """The effective configuration of a started engine (read-only by convention)."""
         self._require_started()
         return self._config()
+
+    @property
+    def documents(self) -> DocumentStore | None:
+        """ADR-081 ``storage.documents``: the started engine's document store (None when the
+        slot is not configured). Documents put with ``record_ids`` are removed by a hard
+        forget or erasure of those records once no other record references them."""
+        self._require_started()
+        return self._documents
 
     def _consent_ok(self, record: MemoryRecord) -> bool:
         """#50: whether the current read's purpose may see ``record``."""

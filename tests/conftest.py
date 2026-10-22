@@ -27,6 +27,7 @@ _PG_MODULES = (
     "test_records_conformance",  # records port on Postgres (ADR-081)
     "test_graph_auto_pin",
     "test_server_template",  # ADR-081 server storage template
+    "test_multi_node_locality",  # ADR-081 WP6: two multi_node Engines on one Postgres
 )
 _PG_LIVE_ONLY_TESTS = {
     "test_provider_live_contracts": frozenset({"test_postgres_storage_contract"}),

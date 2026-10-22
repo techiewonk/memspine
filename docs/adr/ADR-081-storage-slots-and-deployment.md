@@ -115,6 +115,14 @@ The owner wants many data providers and service providers, each selected separat
     in the same change;
   - the eval harness configs move with PA-107;
   - there are no aliases.
+- Implementation notes (RM-111 WP6 and the documents slot, 2026-10-23): the locality rules
+  are `memspine/providers/locality.py`, run in `check_capabilities` before any provider
+  opens; the writer process is designated by `deployment.writer: true` (usually
+  `MEMSPINE_DEPLOYMENT__WRITER=true`); the declared trait wins over the endpoint, so a cluster
+  provider behind a loopback sidecar stays `cluster`; outside `single_process` an `auto` slot
+  must be explicit; `storage.documents` ships with the `filesystem` provider (port
+  `services/documents/base.py`, connector `clients/fs`), host-local and single-writer. Details
+  in `docs/STORAGE_SLOTS_MIGRATION_PLAN.md` section 9.
 - Behaviour flags stay where they are: `graph.edge_compiler_v2`, `graph.key_v2`,
   `graph.entity_embeddings`, `read.lexical_scorer` / `lexical_language`, `event_log.*`
   and `embedding.*`. Only the provider selection moves.

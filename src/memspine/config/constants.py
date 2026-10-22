@@ -942,3 +942,10 @@ TOPIC_MIN_CONFIDENCE = 0.5
 #: Texts whose topic result one tagger keeps (LRU), so a sleep-cycle recompile does not
 #: classify an unchanged record again.
 TOPIC_CACHE_SIZE = 4096
+
+# ADR-081 ``storage.documents`` (RM-111; docs/STORAGE_SLOTS_MIGRATION_PLAN.md section 7): the
+# per-document byte cap a provider enforces while it stages the bytes (a larger payload is
+# refused, never truncated) and the chunk size of a streamed read. Not measured: 64 MiB keeps
+# one staged payload well under a worker's memory, and 1 MiB is a common streaming chunk.
+DOCUMENT_MAX_BYTES = 64 * 1024 * 1024
+DOCUMENT_STREAM_CHUNK_BYTES = 1024 * 1024

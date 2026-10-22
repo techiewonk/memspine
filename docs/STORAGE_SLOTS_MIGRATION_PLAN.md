@@ -166,8 +166,7 @@ additive.
 
 - **Rejections.** Each removed key raises `ConfigError: config key '<old>' was removed by
   ADR-081; use <new>` (`config/schema/storage.py::MOVED_KEYS`). A null `vector`, `lexical`,
-  `records`, `graph` or `cache` slot is rejected; a non-null `documents` slot is rejected until
-  a documents provider ships.
+  `records`, `graph` or `cache` slot is rejected. (`documents`: see section 9.)
 - **`data_dir`.** The records descriptor's placement receives `deployment.data_dir`. SQLite with
   it unset keeps `<path>` as the base; Postgres uses `<data_dir>/memspine` (the old
   `settings.data_dir` base). A host-local slot with no base raises naming `deployment.data_dir`.
@@ -179,6 +178,75 @@ additive.
 - **Template chain.** `extends:` now resets a slot's settings when a child template changes its
   provider (`server` over `base`), as the user/env/kwargs layers already did.
 - **Locality.** `sql_adjacency` is declared `host` statically; its effective locality is the
-  records slot's. WP6 should resolve it through the records slot.
+  records slot's, resolved in WP6 (section 9).
 - **Codemod.** `scripts/migrate_config_keys_adr081.py` is idempotent; a file containing the
   marker `migrate_config_keys_adr081: skip` is left alone.
+
+## 9. Implementation notes (WP6 and the documents slot; 2026-10-23)
+
+**Locality validation (WP6).** `memspine/providers/locality.py`
+(`validate_deployment_locality`) runs inside `check_capabilities`, before the records store or
+any other slot is built, so a refused configuration opens no connection and creates no file. It
+reads only the config and the descriptors:
+
+- Descriptor fields: `locality` (static trait), `resolve_locality(settings, records_locality)`
+  (`:memory:` SQLite is `process`; LanceDB, Tantivy and LadybugDB placed beside an in-memory
+  store are `process`, else `host`; `sql_adjacency` takes the records slot's locality, so it is
+  `cluster` on Postgres, `host` on a SQLite file and `process` for `:memory:`),
+  `single_writer` (Tantivy, LadybugDB, filesystem documents) and `needs_placement` (the slot
+  builds its files from the records placement base).
+- The declared trait wins over the endpoint: a cluster provider reached on a loopback address
+  (a sidecar proxy such as cloud-sql-proxy) stays `cluster`. The connector's `locality(spec)`
+  is endpoint information, not the rule input.
+- Only slots that are built are checked: `lexical` with `read.hybrid`, `graph` with
+  associative memory, `graph_mirror` and `documents` when set.
+- `multi_node`: every built data slot must be `cluster`, except a `process` cache (`memory`
+  only memoises deterministic embeddings and extractions). Host-local features are rejected:
+  `workers.runner: temporal` (Resonate journal), `embedding.pin_profile` (pin file) and
+  `ingest.asset_dir` with `ingest.assets: on` (asset registry and blob cache, until item 18
+  moves it). The error lists the cluster providers registered for the slot.
+- `multi_process`: `:memory:` records are rejected. A single-writer host-local store is allowed
+  only with `deployment.writer: true`; every other process fails at start (read-only opening
+  is not offered). **Writer designation:** `deployment.writer` (default false), normally set
+  per process through the environment layer (`MEMSPINE_DEPLOYMENT__WRITER=true`). Exactly one
+  writer per host cannot be proven from one process's configuration; it is the operator's
+  responsibility (documented in USAGE).
+- Outside `single_process` an `auto` slot must be explicit, because two processes or nodes with
+  different extras installed would resolve it differently (the pin is only readable after the
+  records store opens).
+- `data_dir`: required only when a built `needs_placement` slot (LanceDB, Tantivy, LadybugDB,
+  filesystem documents without `settings.root`) or `embedding.pin_profile` sits on a non-file
+  records store. The disk cache has its own `settings.path` default. The build-time check in
+  `providers/placement.py::host_base_path` stays as a safety net.
+- All violations are reported in one `DeploymentLocalityError` (a `ConfigError`).
+- Tests: `tests/unit/providers/test_locality.py` (one test per rule, plus two Engine tests that
+  prove nothing is opened) and `tests/e2e/test_multi_node_locality.py` (two `multi_node`
+  Engines on one Postgres are refused with no table created; the same config starts in
+  `single_process`; with the `pgvector` package two cluster-only Engines share the database
+  and read each other's writes).
+
+**Documents slot.** `storage.documents: {provider: filesystem, settings: {root, max_bytes,
+fsync}}`.
+
+- Port `services/documents/base.py` (`DocumentStore`): `put` (bytes or a sync/async chunk
+  stream, size cap `max_bytes`, optional `expected_digest`, metadata, `record_ids`), `get`,
+  `stream`, `head`, `delete`, `list`, and the erasure hooks `erase_records` and
+  `erase_namespace`. Addressed by `(namespace, sha256)`; namespaces never share documents.
+- Connector `clients/fs` (`FilesystemConnector`, locality `host`, writable-root open and health
+  probe, staging with a running hash and a size cap, atomic promote with fsync, confined
+  paths, an exclusive section shared by every Engine on the root). Adapter
+  `services/documents/filesystem.py`; factory `providers/builtin/documents.py` (`acquire()`
+  shares the connector per root). An unset `root` is `<records placement base>.documents`.
+- `mongodb`, `s3` and `weaviate` are rejected by name until RM-112 ships them; other unknown
+  names fail at start with the registry's valid list.
+- Erasure: the hard path of `trust/pipeline/erasure.py::_forget_many` (hard forget, cascade,
+  `erase_subject`, erasure v2 and re-derive all go through it) calls `erase_records(ns, ids)`,
+  which drops those references and deletes documents left with none; `erase_namespace` deletes
+  every document of the namespace. Nothing in the engine writes documents yet; callers use
+  `engine.documents`. Removing a file is a logical delete, not physical-erasure proof.
+- Conformance: `tests/unit/services/documents/test_documents_conformance.py`, parametrized by
+  provider name; `mongodb`, `s3` and `weaviate` cases skip until their descriptors register.
+- Not done: the asset registry (`services/assets/registry.py`, a sqlite3 sidecar plus a blob
+  directory) still owns its files; moving it onto `storage.records` (registry rows) and
+  `storage.documents` (blobs) is RM-113 item 18. Until then `ingest.asset_dir` is a host-local
+  feature that `multi_node` rejects.

@@ -25,6 +25,7 @@ __all__ = [
     "CACHE_BACKENDS",
     "DATA_CATEGORIES",
     "DECIDERS",
+    "DOCUMENT_STORES",
     "EMBEDDERS",
     "EXTRACTORS",
     "GRAPH_STORES",
@@ -37,13 +38,16 @@ __all__ = [
     "STORAGE_BACKENDS",
     "VECTOR_STORES",
     "Locality",
+    "LocalityResolver",
     "ProviderDescriptor",
     "ProviderRegistryError",
     "Registry",
     "get_registry",
+    "placed_locality",
     "provider_kinds",
     "provider_projection_settings",
     "provider_target_identity",
+    "records_locality",
     "renamed_provider_message",
 ]
 
@@ -54,6 +58,7 @@ KINDS: dict[str, str] = {
     "graph_stores": "memspine.providers.registry",
     "lexical_indexes": "memspine.providers.registry",
     "cache_backends": "memspine.providers.registry",
+    "document_stores": "memspine.providers.registry",
     "llm_providers": "memspine.providers.registry",
     "embedders": "memspine.providers.registry",
     "rerankers": "memspine.providers.registry",
@@ -71,6 +76,7 @@ KIND_TO_CATEGORY: dict[str, Category] = {
     "graph_stores": "graph",
     "lexical_indexes": "lexical",
     "cache_backends": "cache",
+    "document_stores": "documents",  # ADR-081: storage.documents
     "llm_providers": "llm",
     "embedders": "embedding",
     # RM-113 (owner naming 2026-10-23): the model slots are model.embedding, model.llm,
@@ -102,12 +108,29 @@ def renamed_provider_message(kind: str, name: str) -> str | None:
 
 #: ADR-081: where a data provider's state lives. ``process`` = inside this process (memory,
 #: ``:memory:``); ``host`` = files on this machine (sqlite, lancedb, tantivy, ladybug, disk
-#: cache); ``cluster`` = a network service every node can reach (postgres, pgvector,
-#: opensearch, weaviate, neo4j, redis, valkey). The validation rules that use it are WP6.
+#: cache, filesystem documents); ``cluster`` = a network service every node can reach
+#: (postgres, pgvector, opensearch, weaviate, neo4j, redis, valkey). The
+#: ``deployment.locality`` rules that use it live in :mod:`memspine.providers.locality`.
 Locality = Literal["process", "host", "cluster"]
 LOCALITIES: tuple[Locality, ...] = ("process", "host", "cluster")
 #: Categories whose providers hold data and therefore declare a locality.
-DATA_CATEGORIES: frozenset[Category] = frozenset({"storage", "vector", "graph", "lexical", "cache"})
+DATA_CATEGORIES: frozenset[Category] = frozenset(
+    {"storage", "vector", "graph", "lexical", "cache", "documents"}
+)
+#: ``(settings, records slot locality) -> effective locality`` (ADR-081 WP6). The records
+#: slot itself is resolved with its own locality as the second argument.
+LocalityResolver = Callable[[BaseModel, Locality], Locality]
+
+
+def placed_locality(_settings: BaseModel, records: Locality) -> Locality:
+    """A host-local store placed beside the records store (LanceDB, Tantivy, LadybugDB): it
+    lives in RAM when the records store does (``:memory:``), else in files on this host."""
+    return "process" if records == "process" else "host"
+
+
+def records_locality(_settings: BaseModel, records: Locality) -> Locality:
+    """A store inside the records database (``sql_adjacency``): the records slot's locality."""
+    return records
 
 
 class ProviderRegistryError(ConfigError):
@@ -251,6 +274,7 @@ _BUILTIN_MODULES: dict[str, tuple[str, ...]] = {
         "memspine.providers.builtin.weaviate",
     ),
     "cache_backends": ("memspine.providers.builtin.cache",),
+    "document_stores": ("memspine.providers.builtin.documents",),
 }
 _BUILTINS_LOADED: set[str] = set()
 
@@ -281,6 +305,18 @@ class ProviderDescriptor:
     #: ADR-081 / RM-111 WP2: ``process`` | ``host`` | ``cluster``. Every built-in data
     #: provider declares it; model providers (llm, embedding, reranker) leave it None.
     locality: Locality | None = field(default=None, kw_only=True)
+    #: ADR-081 WP6: the effective locality from the settings and the records slot's locality
+    #: (``:memory:`` SQLite is ``process``; ``sql_adjacency`` follows the records slot). None =
+    #: the static ``locality``. Pure: never opens anything.
+    resolve_locality: LocalityResolver | None = field(default=None, kw_only=True)
+    #: ADR-081 WP6: one writer process per host path (Tantivy, LadybugDB, filesystem
+    #: documents). Under ``deployment.locality: multi_process`` only the process with
+    #: ``deployment.writer: true`` may open it.
+    single_writer: bool = field(default=False, kw_only=True)
+    #: ADR-081 WP6: the provider builds its files from the records placement base
+    #: (``<base>.lance`` etc.), so it needs ``deployment.data_dir`` when the records store is not
+    #: a file. A callable decides from the settings (an explicit path needs no base).
+    needs_placement: bool | Callable[[BaseModel], bool] = field(default=False, kw_only=True)
 
     def __post_init__(self) -> None:
         expected_kind = _CATEGORY_TO_KIND.get(self.ref.category)
@@ -308,6 +344,22 @@ class ProviderDescriptor:
             raise ValueError(f"locality must be one of {', '.join(LOCALITIES)}")
         if self.locality is not None and self.ref.category not in DATA_CATEGORIES:
             raise ValueError("locality is declared only by data-store providers")
+        if self.resolve_locality is not None and not callable(self.resolve_locality):
+            raise TypeError("resolve_locality must be callable")
+        if not isinstance(self.single_writer, bool):
+            raise TypeError("single_writer must be a bool")
+
+    def effective_locality(self, settings: BaseModel, records: Locality) -> Locality | None:
+        """This provider's locality for ``settings`` (ADR-081 WP6); None = undeclared."""
+        if self.resolve_locality is not None:
+            return self.resolve_locality(settings, records)
+        return self.locality
+
+    def placement_needed(self, settings: BaseModel) -> bool:
+        """Whether this provider builds its files from the records placement base."""
+        if callable(self.needs_placement):
+            return bool(self.needs_placement(settings))
+        return bool(self.needs_placement)
 
 
 def provider_target_identity(
@@ -370,6 +422,7 @@ VECTOR_STORES: Registry[ProviderDescriptor] = Registry("vector_stores")
 GRAPH_STORES: Registry[ProviderDescriptor] = Registry("graph_stores")
 LEXICAL_INDEXES: Registry[ProviderDescriptor] = Registry("lexical_indexes")
 CACHE_BACKENDS: Registry[ProviderDescriptor] = Registry("cache_backends")
+DOCUMENT_STORES: Registry[ProviderDescriptor] = Registry("document_stores")
 LLM_PROVIDERS: Registry[ProviderDescriptor] = Registry("llm_providers")
 EMBEDDERS: Registry[ProviderDescriptor] = Registry("embedders")
 RERANKERS: Registry[ProviderDescriptor] = Registry("rerankers")

@@ -61,6 +61,7 @@ from memspine.plugins import enable as enable_plugins
 from memspine.prompts.registry import PromptRegistry
 from memspine.providers.contexts import (
     CacheBuildContext,
+    DocumentsBuildContext,
     ExtractionBuildContext,
     GraphBuildContext,
     LexicalBuildContext,
@@ -81,6 +82,7 @@ from memspine.providers.lifecycle import (
     ProviderResourceCleanupError,
     ResourceOwnershipError,
 )
+from memspine.providers.locality import validate_deployment_locality
 from memspine.providers.placement import (
     generation_component,
     host_base_path,
@@ -88,6 +90,9 @@ from memspine.providers.placement import (
 )
 from memspine.providers.registry import (
     CACHE_BACKENDS as PROVIDER_CACHE_BACKENDS,
+)
+from memspine.providers.registry import (
+    DOCUMENT_STORES as PROVIDER_DOCUMENT_STORES,
 )
 from memspine.providers.registry import (
     EMBEDDERS as PROVIDER_EMBEDDERS,
@@ -122,6 +127,7 @@ from memspine.runtime.outbox import SqlJobStore
 from memspine.runtime.runner import InlineRunner as OutboxRunner
 from memspine.services.cache.base import KVCache
 from memspine.services.cache.semantic import CachedEmbedding, CachedExtractor
+from memspine.services.documents.base import DocumentStore
 from memspine.services.embedding.base import EmbeddingService
 from memspine.services.extraction.base import ExtractionModels
 from memspine.services.graph.base import GraphStore
@@ -328,6 +334,7 @@ _PROVIDER_BASE_CAPABILITIES: dict[str, frozenset[str]] = {
     "vector": frozenset({"vector", "namespace_filter", "erase"}),
     "graph": frozenset({"graph", "namespace_filter", "erase"}),
     "lexical": frozenset({"lexical", "namespace_filter", "erase"}),
+    "documents": frozenset({"documents", "namespace_filter", "erase"}),
     "embedding": frozenset({"embedding"}),
     "llm": frozenset({"llm"}),
     "rerank": frozenset({"rerank"}),
@@ -382,6 +389,7 @@ def _validate_provider_result(
         "vector": VectorStore,
         "graph": GraphStore,
         "lexical": LexicalStore,
+        "documents": DocumentStore,
         "embedding": EmbeddingService,
         "llm": LLMService,
         "rerank": Reranker,
@@ -723,6 +731,8 @@ def check_capabilities(config: MemspineConfig) -> Capabilities:
             first_missing=f"{mem_type} needs {service}",
         )
     enable_plugins(config.plugins)
+    # ADR-081 WP6: deployment.locality and data_dir rules, before any provider opens.
+    validate_deployment_locality(config, enabled=enabled)
     return Capabilities(enabled=enabled, auto_enabled=auto_enabled)
 
 
@@ -830,6 +840,25 @@ async def build_cache(config: MemspineConfig, wiring: Wiring) -> KVCache:
         CacheBuildContext(shared, placement, data_dir=config.deployment.data_dir),
     )
     return cast(KVCache, result.service)
+
+
+async def build_documents(config: MemspineConfig, wiring: Wiring) -> DocumentStore:
+    """ADR-081 ``storage.documents``; requested only when the slot is configured."""
+    slot = config.storage.documents
+    if slot is None:
+        raise ConfigError("storage.documents is not configured")
+    descriptor = _descriptor(PROVIDER_DOCUMENT_STORES, slot.provider, "storage.documents.provider")
+    settings = _settings(descriptor, slot.settings)
+    result = await _build_provider(
+        wiring,
+        descriptor,
+        settings,
+        DocumentsBuildContext(
+            shared_build_context(config, wiring), _storage_placement(config, wiring)
+        ),
+        result_key="documents",
+    )
+    return cast(DocumentStore, result.service)
 
 
 def resolved_embedding(config: MemspineConfig) -> Any:
@@ -1814,6 +1843,7 @@ def _provider() -> Provider:
     p.provide(build_vector_store, provides=VectorStore)
     p.provide(build_lexical_store, provides=LexicalStore)
     p.provide(build_graph_store, provides=GraphStore)
+    p.provide(build_documents, provides=DocumentStore)
     p.provide(provide_llm_router, provides=LLMRouter)
     p.provide(check_decision_provider, provides=DecisionState)
     p.provide(build_prompts, provides=PromptRegistry)

@@ -79,6 +79,11 @@ def reject_moved_keys(value: Any, area: str, keys: tuple[str, ...]) -> None:
             raise ConfigError(f"config key {dotted!r} was removed by ADR-081; {hint}")
 
 
+#: ADR-081 / RM-112: ``storage.documents`` providers that are designed but not shipped. Each is
+#: rejected by name until its provider lands (filesystem ships with RM-111).
+PLANNED_DOCUMENT_PROVIDERS: frozenset[str] = frozenset({"mongodb", "s3", "weaviate"})
+
+
 class SlotConfig(ConfigModel):
     """One storage slot: a provider name plus that provider's native settings (ADR-081).
 
@@ -134,8 +139,9 @@ class StorageConfig(ConfigModel):
     """ADR-081: one slot per data category. Each slot is ``{provider, settings}``.
 
     ``vector`` and ``lexical`` are required (never null). ``graph_mirror`` is optional
-    (null = off) and needs a provider with the ``mirror`` capability. ``documents`` is
-    reserved for non-structured payloads; no built-in provider exists yet."""
+    (null = off) and needs a provider with the ``mirror`` capability. ``documents`` is optional
+    (null = off): non-structured payloads by namespace and content hash; the built-in provider
+    is ``filesystem`` (MongoDB GridFS, S3 and Weaviate are planned, RM-112)."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -154,7 +160,8 @@ class StorageConfig(ConfigModel):
 
     @staticmethod
     def reject_moved_and_null(value: Any) -> Any:
-        """Reject removed keys, null required slots and a non-null documents slot."""
+        """Reject removed keys, null required slots and a planned (not yet shipped)
+        documents provider."""
         reject_moved_keys(value, "storage", ("profile", "provider", "settings"))
         if isinstance(value, Mapping):
             for slot in ("records", "vector", "lexical", "graph", "cache"):
@@ -163,11 +170,14 @@ class StorageConfig(ConfigModel):
                         f"storage.{slot} cannot be null; select a provider "
                         "(vector and lexical are required slots)"
                     )
-            if value.get("documents") is not None:
-                raise ConfigError(
-                    "storage.documents is not available until the RM-111 documents work "
-                    "package ships a provider; leave it null"
-                )
+            documents = value.get("documents")
+            if isinstance(documents, Mapping):
+                provider = documents.get("provider")
+                if provider in PLANNED_DOCUMENT_PROVIDERS:
+                    raise ConfigError(
+                        f"storage.documents provider {provider!r} is planned (RM-112) but not "
+                        "available yet; use provider 'filesystem' or leave storage.documents null"
+                    )
         return value
 
 
@@ -176,16 +186,26 @@ class DeploymentConfig(ConfigModel):
 
     - ``id``: stable deployment identity (was ``runtime.deployment_id``). Required by shared
       (cluster) providers and in production.
-    - ``locality``: ``single_process`` (default) | ``multi_process`` | ``multi_node``.
-      Declared now; the validation rules that use it are RM-111 WP6.
-    - ``data_dir``: base directory for host-local slots (LanceDB, Tantivy, LadybugDB, disk
-      cache) when the records store is not a file. Unset, the placement base is today's:
-      the SQLite database path, so paths and projection fingerprints are unchanged."""
+    - ``locality``: ``single_process`` (default) | ``multi_process`` | ``multi_node``. Checked
+      before any provider opens (RM-111 WP6, ``memspine.providers.locality``):
+      ``multi_node`` rejects every host-local or process-local data slot (except a process
+      ``memory`` cache) and the host-local features (Resonate journal, embedding pin file,
+      asset directory); ``multi_process`` rejects a ``:memory:`` records store and allows a
+      single-writer host-local store (Tantivy, LadybugDB, filesystem documents) only in the
+      writer process; ``auto`` slots must be explicit outside ``single_process``.
+    - ``writer``: this process is the designated writer of the single-writer host-local stores
+      under ``multi_process`` (set it in exactly one process, e.g. with
+      ``MEMSPINE_DEPLOYMENT__WRITER=true``). Ignored in the other modes.
+    - ``data_dir``: base directory for host-local slots (LanceDB, Tantivy, LadybugDB, filesystem
+      documents, disk cache) when the records store is not a file. Unset, the placement base is
+      today's: the SQLite database path, so paths and projection fingerprints are unchanged. It
+      is required only when such a slot is selected."""
 
     model_config = ConfigDict(extra="forbid")
 
     id: str | None = Field(default=None, min_length=1)
     locality: Literal["single_process", "multi_process", "multi_node"] = "single_process"
+    writer: bool = False
     data_dir: str | None = Field(default=None, min_length=1)
 
 

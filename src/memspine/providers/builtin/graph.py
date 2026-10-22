@@ -13,7 +13,12 @@ from memspine.exceptions import ConfigError
 from memspine.providers.contexts import GraphBuildContext
 from memspine.providers.contracts import BuildResult, DependencyRequirement, ProviderRef
 from memspine.providers.placement import generation_component, host_base_path
-from memspine.providers.registry import GRAPH_STORES, ProviderDescriptor
+from memspine.providers.registry import (
+    GRAPH_STORES,
+    ProviderDescriptor,
+    placed_locality,
+    records_locality,
+)
 from memspine.providers.settings import Neo4jSettings
 from memspine.providers.shared import own_shared, path_identity, resource_key
 from memspine.services.base import CapabilityManifest
@@ -234,8 +239,17 @@ def register() -> None:
                     target_identity=_neo4j_target_identity if name == "neo4j" else None,
                     requires_deployment_id=name == "neo4j",
                     # sql_adjacency lives inside the records SQL database, so its effective
-                    # locality is the records slot's (cluster on Postgres). The static trait
-                    # is the conservative one; WP6 validation should resolve it via records.
+                    # locality is the records slot's (cluster on Postgres, host on a SQLite
+                    # file, process for :memory:); WP6 resolves it through the records slot.
                     locality="cluster" if name == "neo4j" else "host",
+                    resolve_locality=(
+                        records_locality
+                        if name == "sql_adjacency"
+                        else placed_locality
+                        if name == "ladybug"
+                        else None
+                    ),
+                    single_writer=name == "ladybug",
+                    needs_placement=name == "ladybug",
                 ),
             )

@@ -11,7 +11,7 @@ from memspine.exceptions import ConfigError
 from memspine.providers.contexts import VectorBuildContext
 from memspine.providers.contracts import BuildResult, ProviderRef
 from memspine.providers.placement import generation_component, host_base_path
-from memspine.providers.registry import VECTOR_STORES, ProviderDescriptor
+from memspine.providers.registry import VECTOR_STORES, ProviderDescriptor, placed_locality
 from memspine.providers.shared import own_shared, path_identity, resource_key
 from memspine.services.embedding.base import EmbeddingService
 from memspine.services.vector.base import VectorStore
@@ -145,5 +145,7 @@ def register() -> None:
                 # REST-model import; prewarming overlaps it with the rest of startup.
                 prewarm_modules=("lancedb",),
                 locality="host",
+                resolve_locality=placed_locality,
+                needs_placement=True,
             ),
         )

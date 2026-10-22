@@ -114,6 +114,15 @@ class RemoteCacheSettings(StrictSettings):
     request_timeout_s: float = Field(gt=0)
 
 
+class FilesystemDocumentsSettings(StrictSettings):
+    """ADR-081 ``storage.documents`` filesystem provider. ``root`` unset: beside the records
+    store (``<base>.documents``, under ``deployment.data_dir`` for a non-file records store)."""
+
+    root: str | None = Field(default=None, min_length=1)
+    max_bytes: int = Field(default=constants.DOCUMENT_MAX_BYTES, ge=1)
+    fsync: bool = True
+
+
 class TantivySettings(StrictSettings):
     analyzer: Literal["default", "english"] = "default"
     date_tokens: bool = False

@@ -77,6 +77,15 @@ class LexicalBuildContext:
 
 
 @dataclass(frozen=True)
+class DocumentsBuildContext:
+    """ADR-081 ``storage.documents``: the records placement (a host-local root defaults
+    beside the records store)."""
+
+    shared: SharedBuildContext
+    placement: ProjectionPlacement
+
+
+@dataclass(frozen=True)
 class LLMBuildContext:
     shared: SharedBuildContext
     role: str

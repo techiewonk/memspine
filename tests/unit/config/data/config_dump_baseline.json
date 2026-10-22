@@ -28,7 +28,8 @@
   "deployment": {
    "data_dir": null,
    "id": null,
-   "locality": "single_process"
+   "locality": "single_process",
+   "writer": false
   },
   "economy": {
    "budget": null,
@@ -762,7 +763,7 @@
    "window_topic_k": 2.0
   }
  },
- "json_schema_sha256": "e3c49b3b24f34e8d91cb0ad4bbb97ae6ccd22ecead8b3016c82e6d743d361764",
+ "json_schema_sha256": "38a2d45f9e503629ef26153264167767111e90fdd9896bc5b4066fe7f88dd3ba",
  "preset:chat_roles": {
   "audit": {
    "actions": false,
@@ -792,7 +793,8 @@
   "deployment": {
    "data_dir": null,
    "id": null,
-   "locality": "single_process"
+   "locality": "single_process",
+   "writer": false
   },
   "economy": {
    "budget": null,
@@ -1589,7 +1591,8 @@
   "deployment": {
    "data_dir": null,
    "id": null,
-   "locality": "single_process"
+   "locality": "single_process",
+   "writer": false
   },
   "economy": {
    "budget": null,
@@ -2382,7 +2385,8 @@
   "deployment": {
    "data_dir": null,
    "id": null,
-   "locality": "single_process"
+   "locality": "single_process",
+   "writer": false
   },
   "economy": {
    "budget": null,
@@ -3175,7 +3179,8 @@
   "deployment": {
    "data_dir": null,
    "id": null,
-   "locality": "single_process"
+   "locality": "single_process",
+   "writer": false
   },
   "economy": {
    "budget": null,
@@ -3968,7 +3973,8 @@
   "deployment": {
    "data_dir": null,
    "id": null,
-   "locality": "single_process"
+   "locality": "single_process",
+   "writer": false
   },
   "economy": {
    "budget": null,
@@ -4761,7 +4767,8 @@
   "deployment": {
    "data_dir": null,
    "id": null,
-   "locality": "single_process"
+   "locality": "single_process",
+   "writer": false
   },
   "economy": {
    "budget": null,
@@ -5554,7 +5561,8 @@
   "deployment": {
    "data_dir": null,
    "id": null,
-   "locality": "single_process"
+   "locality": "single_process",
+   "writer": false
   },
   "economy": {
    "budget": null,
@@ -6347,7 +6355,8 @@
   "deployment": {
    "data_dir": null,
    "id": null,
-   "locality": "single_process"
+   "locality": "single_process",
+   "writer": false
   },
   "economy": {
    "budget": null,
@@ -7144,7 +7153,8 @@
   "deployment": {
    "data_dir": null,
    "id": null,
-   "locality": "single_process"
+   "locality": "single_process",
+   "writer": false
   },
   "economy": {
    "budget": null,
@@ -7937,7 +7947,8 @@
   "deployment": {
    "data_dir": null,
    "id": null,
-   "locality": "single_process"
+   "locality": "single_process",
+   "writer": false
   },
   "economy": {
    "budget": null,
@@ -8730,7 +8741,8 @@
   "deployment": {
    "data_dir": null,
    "id": null,
-   "locality": "single_process"
+   "locality": "single_process",
+   "writer": false
   },
   "economy": {
    "budget": null,
@@ -9523,7 +9535,8 @@
   "deployment": {
    "data_dir": null,
    "id": null,
-   "locality": "single_process"
+   "locality": "single_process",
+   "writer": false
   },
   "economy": {
    "budget": null,
@@ -10316,7 +10329,8 @@
   "deployment": {
    "data_dir": null,
    "id": null,
-   "locality": "single_process"
+   "locality": "single_process",
+   "writer": false
   },
   "economy": {
    "budget": null,
@@ -11109,7 +11123,8 @@
   "deployment": {
    "data_dir": null,
    "id": null,
-   "locality": "single_process"
+   "locality": "single_process",
+   "writer": false
   },
   "economy": {
    "budget": null,
@@ -11902,7 +11917,8 @@
   "deployment": {
    "data_dir": null,
    "id": null,
-   "locality": "single_process"
+   "locality": "single_process",
+   "writer": false
   },
   "economy": {
    "budget": null,
@@ -12695,7 +12711,8 @@
   "deployment": {
    "data_dir": null,
    "id": null,
-   "locality": "single_process"
+   "locality": "single_process",
+   "writer": false
   },
   "economy": {
    "budget": null,
@@ -13488,7 +13505,8 @@
   "deployment": {
    "data_dir": null,
    "id": null,
-   "locality": "single_process"
+   "locality": "single_process",
+   "writer": false
   },
   "economy": {
    "budget": null,
@@ -14294,7 +14312,8 @@
   "deployment": {
    "data_dir": null,
    "id": null,
-   "locality": "single_process"
+   "locality": "single_process",
+   "writer": false
   },
   "economy": {
    "budget": null,
@@ -15092,7 +15111,8 @@
   "deployment": {
    "data_dir": null,
    "id": null,
-   "locality": "single_process"
+   "locality": "single_process",
+   "writer": false
   },
   "economy": {
    "budget": null,
@@ -15871,7 +15891,8 @@
   "deployment": {
    "data_dir": null,
    "id": null,
-   "locality": "single_process"
+   "locality": "single_process",
+   "writer": false
   },
   "economy": {
    "budget": null,
@@ -16664,7 +16685,8 @@
   "deployment": {
    "data_dir": null,
    "id": null,
-   "locality": "single_process"
+   "locality": "single_process",
+   "writer": false
   },
   "economy": {
    "budget": null,
@@ -17465,7 +17487,8 @@
   "deployment": {
    "data_dir": null,
    "id": null,
-   "locality": "single_process"
+   "locality": "single_process",
+   "writer": false
   },
   "economy": {
    "budget": null,
@@ -18275,7 +18298,8 @@
   "deployment": {
    "data_dir": null,
    "id": null,
-   "locality": "single_process"
+   "locality": "single_process",
+   "writer": false
   },
   "economy": {
    "budget": null,
@@ -19076,7 +19100,8 @@
   "deployment": {
    "data_dir": null,
    "id": null,
-   "locality": "single_process"
+   "locality": "single_process",
+   "writer": false
   },
   "economy": {
    "budget": null,
@@ -19869,7 +19894,8 @@
   "deployment": {
    "data_dir": null,
    "id": null,
-   "locality": "single_process"
+   "locality": "single_process",
+   "writer": false
   },
   "economy": {
    "budget": null,
@@ -20676,7 +20702,8 @@
   "deployment": {
    "data_dir": "./memspine-data",
    "id": "memspine-server",
-   "locality": "single_process"
+   "locality": "single_process",
+   "writer": false
   },
   "economy": {
    "budget": null,
@@ -21472,7 +21499,8 @@
   "deployment": {
    "data_dir": null,
    "id": null,
-   "locality": "single_process"
+   "locality": "single_process",
+   "writer": false
   },
   "economy": {
    "budget": null,

@@ -21,6 +21,7 @@ Category = Literal[
     "graph",
     "lexical",
     "cache",
+    "documents",
     "llm",
     "embedding",
     "rerank",

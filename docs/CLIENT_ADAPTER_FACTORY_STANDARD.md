@@ -65,8 +65,8 @@ Last update: 2026-10-23, after the storage-slot merge (A, `28c54d8e`..`41e66f51`
 | cache | disk | ✅ cashews Connector (spec, `get` health) | ✅ `services/cache` (F) | ✅ slot wiring (A); placement under `data_dir`; not yet shared (item 6) | 🔧 item 6 (agent L) | A |
 | cache | redis | ✅ cashews Connector (spec, `get` health) | ✅ `services/cache` (F) | ✅ slot wiring (A); not yet shared (item 6) | 🔧 item 6 (agent L) | A |
 | cache | valkey | ✅ cashews Connector (spec, `get` health) | ✅ `services/cache` (F) | ✅ slot wiring (A); not yet shared (item 6) | 🔧 item 6 (agent L) | A |
-| documents | filesystem | ⏳ `clients/fs` | ⏳ | ⏳ | ⏳ | after — |
-| documents | s3 | ⏳ `clients/s3` | ⏳ | ⏳ | ⏳ | RM-112 |
+| documents | filesystem | ✅ `clients/fs` (writable-root open and probe health, atomic staged writes, confined paths, locality host) | ✅ `services/documents/filesystem.py` on the `DocumentStore` port; conformance suite | ✅ `providers/builtin/documents.py` (`acquire()`, single-writer, locality host) | ✅ | RM-111 (documents) |
+| documents | s3 | ⏳ `clients/s3` | ⏳ (joins the documents conformance suite) | ⏳ | ⏳ | RM-112 |
 | documents | mongodb | ✅ `clients/mongodb` (shared with records) | ⏳ GridFS adapter | ⏳ | ⏳ | RM-112 |
 | documents | weaviate | ⏳ shared Weaviate connector | ⏳ | ⏳ | ⏳ | RM-112 |
 | model.embedding | fastembed | ✅ `clients/weights/fastembed` | ✅ `services/embedding/fastembed.py` | ✅ `providers/builtin/models.py` | ✅ | F (fa543ba0) |
@@ -202,7 +202,7 @@ OpenDecider adapter takes the weight registry (it builds its connector lazily pe
 setting); retry policy stays in `services/_retry.py` (it logs through observability, which
 clients may not import); the config keys `decision.provider` and `read.decider*` are unchanged
 in this pass.
-18. ADR-081 alignment (`records`, `documents` and `locality` on descriptors); the assets registry moves to records/documents.
+18. ADR-081 alignment (`records`, `documents` and `locality` on descriptors); the assets registry moves to records/documents. Status 2026-10-23: `locality`, `resolve_locality`, `single_writer` and `needs_placement` are on the descriptors and checked by `providers/locality.py` (RM-111 WP6); the `documents` slot ships with the filesystem provider; the asset registry move is still open (it keeps its sqlite3 sidecar and blob directory, and `multi_node` rejects `ingest.asset_dir` until it moves).
 
 ## 4. Enforcement
 
