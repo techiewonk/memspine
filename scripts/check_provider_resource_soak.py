@@ -23,6 +23,7 @@ import subprocess
 import sys
 import tempfile
 import time
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -35,6 +36,7 @@ POST_WARMUP_RSS_SPREAD_GUARD_BYTES = 100 * 1024 * 1024
 RSS_SLOPE_GUARD_BYTES_PER_CYCLE = 256 * 1024
 HANDLE_SLOPE_GUARD_PER_CYCLE = 0.5
 MESSAGES_PER_CYCLE = 2
+SOAK_EPOCH = datetime(2026, 10, 17, 10, tzinfo=UTC)  # cycle N writes at epoch + N minutes
 SEARCHES_PER_CYCLE = 2
 
 
@@ -208,7 +210,9 @@ async def run_cycles(
                     "message_id": f"soak-{cycle:02d}-{index}",
                     "role": "user",
                     "content": f"Soak cycle {cycle:02d} message {index}: prefers walking and tea in Lisbon.",
-                    "created_at": f"2026-10-17T10:{cycle:02d}:{index:02d}+00:00",
+                    "created_at": (
+                        SOAK_EPOCH + timedelta(minutes=cycle, seconds=index)
+                    ).isoformat(),
                 }
                 for index in range(MESSAGES_PER_CYCLE)
             ]
@@ -409,6 +413,7 @@ def worker(out: Path) -> int:
 
 
 def main() -> int:
+    global MEASURED_CYCLES, MAX_WALL_TIME_S
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--measured-cycles", type=int, default=MEASURED_CYCLES)
@@ -416,7 +421,6 @@ def main() -> int:
     parser.add_argument("--worker", action="store_true", help=argparse.SUPPRESS)
     args = parser.parse_args()
     args.out.parent.mkdir(parents=True, exist_ok=True)
-    global MEASURED_CYCLES, MAX_WALL_TIME_S
     MEASURED_CYCLES, MAX_WALL_TIME_S = args.measured_cycles, args.wall_time_s
     if args.worker:
         return worker(args.out)
