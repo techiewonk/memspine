@@ -37,7 +37,7 @@ Last update: 2026-10-23, after enforcement (`26068983`); import contracts 17 kep
 |---|---|---|---|---|---|---|
 | records | sqlite | 🔧 sync engine → `clients/sqlite` | ✅ records port + conformance | 🔧 slot wiring | 🔧 | G (connector, Alembic over connector), A (slot) |
 | records | postgres | 🔧 sync engine, advisory lock | ✅ records port + conformance | 🔧 slot wiring | 🔧 | G, A |
-| records | mongodb | 🔧 new `clients/mongodb` | 🔧 new adapter | ⏳ after slots | 🔧 | I (RM-112) |
+| records | mongodb | ✅ `clients/mongodb` (replica-set check, `hello` health, driver vocabulary in `driver.py`) | ✅ records port, 14/14 conformance on a replica set | ⏳ registration after the slot rewrite; uv.lock refresh (RM-02) | 🔧 b41eadaf | I (RM-112) |
 | vector | lancedb | 🔧 Connector + real health | ✅ | 🔧 slot wiring | 🔧 | G, A |
 | vector | pgvector | ⏳ borrows the postgres connector | ⏳ DDL into the adapter | 🔧 slot wiring | ⏳ | after G/A |
 | vector | weaviate | 🔧 Connector + single identity (shared with lexical/documents) | ⏳ collection binding instead of native handle | 🔧 `acquire()` | 🔧 | G |
@@ -54,7 +54,7 @@ Last update: 2026-10-23, after enforcement (`26068983`); import contracts 17 kep
 | cache | valkey | 🔧 cashews connector, shared | 🔧 move to `services/cache` | 🔧 slot wiring | 🔧 | G, F, A |
 | documents | filesystem | ⏳ `clients/fs` | ⏳ | ⏳ | ⏳ | after A (slot) |
 | documents | s3 | ⏳ `clients/s3` | ⏳ | ⏳ | ⏳ | RM-112 |
-| documents | mongodb | 🔧 `clients/mongodb` (shared with records) | ⏳ GridFS adapter | ⏳ | ⏳ | RM-112 |
+| documents | mongodb | ✅ `clients/mongodb` (shared with records) | ⏳ GridFS adapter | ⏳ | ⏳ | RM-112 |
 | documents | weaviate | ⏳ shared Weaviate connector | ⏳ | ⏳ | ⏳ | RM-112 |
 | model.embedding | fastembed | 🔧 `clients/weights/fastembed` | 🔧 → `services/embedding` | 🔧 | 🔧 | F |
 | model.embedding | sentence_transformers | 🔧 `clients/weights/sentence_transformers` | 🔧 → `services/embedding` | 🔧 | 🔧 | F |
