@@ -182,7 +182,7 @@ class Neo4jBuilder:
             service,
             ProviderRef("graph", "neo4j"),
             (ref,),
-            frozenset({"graph", "namespace_filter", "erase", "mirror"}),
+            frozenset({"graph", "namespace_filter", "erase", "mirror", "qualifier_filter"}),
             health_probe=probe,
         )
 
@@ -208,7 +208,7 @@ def register() -> None:
             Neo4jSettings,
             Neo4jBuilder(),
             (DependencyRequirement("package", "neo4j"),),
-            {"graph", "namespace_filter", "erase", "mirror"},
+            {"graph", "namespace_filter", "erase", "mirror", "qualifier_filter"},
         ),
     ):
         if name not in GRAPH_STORES:

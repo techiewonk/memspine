@@ -199,6 +199,17 @@ class FakeNeo4j:
             if self.nodes[e["a"]]["id"] in ids or self.nodes[e["b"]]["id"] in ids
         ]
 
+    def _frontier_edges(self, p: Mapping[str, Any]) -> list[dict[str, Any]]:
+        ids = set(p["ids"])
+        return [
+            self._row(e)
+            for e in self.edges.values()
+            if (self.nodes[e["a"]]["id"] in ids or self.nodes[e["b"]]["id"] in ids)
+            and e["weight"] > 0
+            and (p["ns"] is None or e["ns"] == p["ns"])
+            and (p["rel"] is None or e["rel"] == p["rel"])
+        ]
+
     def _edge_list(self, p: Mapping[str, Any]) -> list[dict[str, Any]]:
         return [self._row(e) for e in self.edges.values() if p["ns"] is None or e["ns"] == p["ns"]]
 
@@ -662,7 +673,7 @@ def _install_fake_mirror(monkeypatch: pytest.MonkeyPatch, fake: FakeNeo4j) -> No
             store,
             ProviderRef("graph", "neo4j"),
             (ref,),
-            frozenset({"graph", "namespace_filter", "erase", "mirror"}),
+            frozenset({"graph", "namespace_filter", "erase", "mirror", "qualifier_filter"}),
             health_probe=probe,
         )
 

@@ -7,6 +7,11 @@ it to :data:`ADAPTERS` and the ``store`` fixture below. Every adapter (Neo4j too
 also validates qualifiers on write (RM-84): malformed ones are dropped with a
 ``graph.qualifiers_dropped`` warning and the edge is stored unqualified.
 
+Neo4j (RM-94) runs twice: ``neo4j_fake`` over the in-memory ``FakeNeo4j`` recorder of the
+F-16e tests (always), and ``neo4j`` against a live server when the driver is installed and
+``MEMSPINE_TEST_NEO4J_URL`` is set (plus optional ``MEMSPINE_TEST_NEO4J_USER`` /
+``MEMSPINE_TEST_NEO4J_PASSWORD``), under a private label that is cleared afterwards.
+
 The fixture graph (namespace ``ns/q``, seed ``a``)::
 
     a -works_on-> b   full P1/P2/P3 qualifiers, valid [2026-01, 2026-06), domain work
@@ -20,9 +25,14 @@ The fixture graph (namespace ``ns/q``, seed ``a``)::
 
 from __future__ import annotations
 
+import importlib.util
 import json
+import os
+import sys
+import uuid
 from collections.abc import AsyncIterator, Mapping
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -48,7 +58,10 @@ from memspine.services.graph.qualifiers import (
 )
 from memspine.services.storage.sqlite.schema import metadata
 
-ADAPTERS = ["sqlite_adjacency", "ladybug"]
+ADAPTERS = ["sqlite_adjacency", "ladybug", "neo4j_fake", "neo4j"]
+LIVE_NEO4J = bool(os.environ.get("MEMSPINE_TEST_NEO4J_URL")) and (
+    importlib.util.find_spec("neo4j") is not None
+)
 NS = "ns/q"
 
 
@@ -58,6 +71,30 @@ def _t(year: int, month: int = 1, day: int = 1) -> datetime:
 
 @pytest.fixture(params=ADAPTERS)
 async def store(request: pytest.FixtureRequest) -> AsyncIterator[GraphStore]:
+    if request.param in ("neo4j", "neo4j_fake"):
+        from memspine.services.graph.neo4j import Neo4jGraphStore, executor_from_env
+
+        if request.param == "neo4j_fake":
+            sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "wiring"))
+            from test_f_16e_neo4j_outbox import FakeNeo4j
+
+            yield Neo4jGraphStore(FakeNeo4j(), scoped=True)
+            return
+        if not LIVE_NEO4J:
+            pytest.skip("needs the neo4j driver and MEMSPINE_TEST_NEO4J_URL (a live server)")
+        ex = executor_from_env(
+            url_env="MEMSPINE_TEST_NEO4J_URL",
+            user_env="MEMSPINE_TEST_NEO4J_USER",
+            password_env="MEMSPINE_TEST_NEO4J_PASSWORD",
+            node_label=f"MemQual{uuid.uuid4().hex[:10]}",
+            rel_type=f"MemQualRel{uuid.uuid4().hex[:10]}",
+        )
+        try:
+            yield Neo4jGraphStore(ex, scoped=True)  # scoped, as the provider builds it
+        finally:
+            await ex.run("clear", {})
+            await ex.close()
+        return
     if request.param == "ladybug":
         pytest.importorskip("ladybug")
         from memspine.clients.ladybug import LadybugClient
@@ -347,22 +384,34 @@ async def test_neo4j_drops_malformed_qualifiers_with_a_warning() -> None:
     assert len(dropped) == 1 and dropped[0]["provider"] == "neo4j"
 
 
-async def test_neo4j_declares_unsupported_and_raises() -> None:
-    from memspine.services.graph.neo4j import Neo4jGraphStore
+async def test_neo4j_declares_support_and_uses_the_frontier_op() -> None:
+    """RM-94: Neo4j runs the shared walk over the ``frontier_edges`` op only."""
+    from memspine.services.graph.neo4j import CYPHER, Neo4jGraphStore
 
-    class _NoExec:
+    calls: list[str] = []
+
+    class _Recorder:
         async def run(self, op: str, params: Mapping[str, Any]) -> list[dict[str, Any]]:
-            raise AssertionError("a qualifier filter must not reach the executor")
+            calls.append(op)
+            return []
 
         async def close(self) -> None:
             return None
 
-    neo = Neo4jGraphStore(_NoExec())
-    assert neo.supports_qualifier_filters is False
+    neo = Neo4jGraphStore(_Recorder())
+    assert neo.supports_qualifier_filters is True
     assert isinstance(neo, QualifiedGraphStore)
-    with pytest.raises(UnsupportedQualifierFilterError, match="Neo4jGraphStore"):
-        require_qualifier_support(neo)
-    with pytest.raises(UnsupportedQualifierFilterError, match="neo4j"):
-        await neo.neighbors_qualified("a", QualifierFilter())
-    with pytest.raises(UnsupportedQualifierFilterError, match="neo4j"):
-        await neo.subgraph_qualified(["a"], QualifierFilter())
+    assert require_qualifier_support(neo) is neo
+    assert await neo.neighbors_qualified("a", QualifierFilter(), depth=2) == []
+    assert await neo.subgraph_qualified(["a"], QualifierFilter()) == []
+    assert set(calls) - {"schema"} == {"frontier_edges"}
+    assert "r.weight > 0" in CYPHER["frontier_edges"]
+    assert "$ns IS NULL OR r.namespace = $ns" in CYPHER["frontier_edges"]
+
+
+def test_unsupported_store_still_raises() -> None:
+    class _Plain:
+        supports_qualifier_filters = False
+
+    with pytest.raises(UnsupportedQualifierFilterError, match="_Plain"):
+        require_qualifier_support(_Plain())

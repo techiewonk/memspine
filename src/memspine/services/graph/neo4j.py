@@ -26,6 +26,14 @@ Walks (FU-GAPS). ``neighbors`` and ``subgraph`` are ONE variable-length Cypher q
 filters inside the path predicate), not one round trip per hop. A walk with a ``max_degree`` cap
 keeps the per-hop loop: the cap ranks each node's own neighbours (weight, then id), which a path
 pattern cannot express.
+
+Qualified walks (RM-94). ``neighbors_qualified`` / ``subgraph_qualified`` run the shared
+level-by-level walk (:func:`~memspine.services.graph.qualifiers.qualified_hops`): one
+``frontier_edges`` query per hop returns the live edges touching the frontier inside the
+namespace and relation filter, and the shared Python filter then drops edges the
+:class:`~memspine.services.graph.qualifiers.QualifierFilter` does not admit before the fan-out
+cap ranks what is left. So every provider answers one contract; Cypher pushdown of qualifier
+predicates is deferred to RM-96.
 """
 
 from __future__ import annotations
@@ -48,7 +56,8 @@ from memspine.services.graph.base import (
 )
 from memspine.services.graph.qualifiers import (
     QualifierFilter,
-    UnsupportedQualifierFilterError,
+    qualified_hops,
+    qualified_subgraph,
     sanitize_qualifiers,
 )
 
@@ -136,6 +145,17 @@ CYPHER: dict[str, str] = {
         "AND ($ns IS NULL OR r.namespace = $ns) "
         "RETURN DISTINCT a.id AS src, b.id AS dst, r.rel_type AS rel, r.namespace AS ns, "
         "r.props AS props"
+    ),
+    # RM-94: one level of the shared qualified walk. Live edges touching the frontier inside
+    # the namespace / relation filter; qualifier predicates are applied by the shared walk.
+    # Anchored on the frontier nodes (expand from them, not a scan of every relationship).
+    "frontier_edges": (
+        "MATCH (n:{N}) WHERE n.id IN $ids "
+        "MATCH (n)-[r:{R}]-(:{N}) WHERE r.weight > 0 AND ($ns IS NULL OR r.namespace = $ns) "
+        "AND ($rel IS NULL OR r.rel_type = $rel) "
+        "WITH DISTINCT r "
+        "RETURN startNode(r).id AS src, endNode(r).id AS dst, r.rel_type AS rel, "
+        "r.namespace AS ns, r.props AS props"
     ),
     "node_count": "MATCH (n:{N}) RETURN count(n) AS c",
     "edge_count": "MATCH (:{N})-[r:{R}]->(:{N}) RETURN count(r) AS c",
@@ -237,31 +257,8 @@ def _load(raw: object) -> dict[str, object]:
 class Neo4jGraphStore:
     """``GraphStore`` over a :class:`Neo4jExecutor`. See the module docstring."""
 
-    #: RM-41: no qualifier-filtered Cypher op exists yet; filters raise, never pass silently.
-    supports_qualifier_filters = False
-
-    async def neighbors_qualified(
-        self,
-        node_id: str,
-        qualifier_filter: QualifierFilter,
-        rel_type: str | None = None,
-        depth: int = 1,
-        *,
-        namespace: str | None = None,
-        max_degree: int | None = None,
-    ) -> list[GraphNode]:
-        raise UnsupportedQualifierFilterError("neo4j")
-
-    async def subgraph_qualified(
-        self,
-        seeds: Sequence[str],
-        qualifier_filter: QualifierFilter,
-        depth: int = 1,
-        *,
-        namespace: str | None = None,
-        max_degree: int | None = None,
-    ) -> list[GraphEdge]:
-        raise UnsupportedQualifierFilterError("neo4j")
+    #: RM-94: the shared qualified walk over the ``frontier_edges`` op (filter in Python).
+    supports_qualifier_filters = True
 
     def __init__(self, executor: Neo4jExecutor | None = None, *, scoped: bool = False) -> None:
         if executor is None:
@@ -465,6 +462,64 @@ class Neo4jGraphStore:
         keep = [self._edge(r) for r in rows if (namespace is None or r.get("ns") == namespace)]
         live = [e for e in keep if e.weight > 0 and e.src in dist and e.dst in dist]
         return sorted(live, key=lambda e: (e.src, e.dst, e.rel_type))
+
+    async def _frontier_edges(
+        self, frontier: Sequence[str], namespace: str | None, rel_type: str | None
+    ) -> list[GraphEdge]:
+        """RM-94: the live edges touching ``frontier`` (one level of the qualified walk)."""
+        rows = await self._run(
+            "frontier_edges", ids=list(dict.fromkeys(frontier)), ns=namespace, rel=rel_type
+        )
+        edges = [self._edge(r) for r in rows if namespace is None or r.get("ns") == namespace]
+        return [e for e in edges if e.weight > 0 and (rel_type is None or e.rel_type == rel_type)]
+
+    async def neighbors_qualified(
+        self,
+        node_id: str,
+        qualifier_filter: QualifierFilter,
+        rel_type: str | None = None,
+        depth: int = 1,
+        *,
+        namespace: str | None = None,
+        max_degree: int | None = None,
+    ) -> list[GraphNode]:
+        """RM-94: ``neighbors`` over the edges ``qualifier_filter`` admits only."""
+
+        async def frontier_edges(frontier: Sequence[str]) -> list[GraphEdge]:
+            return await self._frontier_edges(frontier, namespace, rel_type)
+
+        hops = await qualified_hops(frontier_edges, [node_id], depth, qualifier_filter, max_degree)
+        hops.pop(node_id, None)
+        if not hops:
+            return []
+        rows = await self._run("nodes", ids=list(hops))
+        by_id: dict[str, dict[str, Any]] = {}
+        for row in rows:  # unscoped ids are unique; scoped ones prefer the walked namespace
+            rid = str(row["id"])
+            if rid not in by_id or (namespace is not None and row.get("ns") == namespace):
+                by_id[rid] = row
+        out = []
+        for n in sorted(hops, key=lambda i: (hops[i], i)):
+            row = by_id.get(n) or {}
+            labels = tuple(str(x) for x in row.get("labels") or ())
+            out.append(GraphNode(n, labels, _load(row.get("props"))))
+        return out
+
+    async def subgraph_qualified(
+        self,
+        seeds: Sequence[str],
+        qualifier_filter: QualifierFilter,
+        depth: int = 1,
+        *,
+        namespace: str | None = None,
+        max_degree: int | None = None,
+    ) -> list[GraphEdge]:
+        """RM-94: ``subgraph`` over the edges ``qualifier_filter`` admits only."""
+
+        async def frontier_edges(frontier: Sequence[str]) -> list[GraphEdge]:
+            return await self._frontier_edges(frontier, namespace, None)
+
+        return await qualified_subgraph(frontier_edges, seeds, depth, qualifier_filter, max_degree)
 
     async def node_count(self) -> int:
         rows = await self._run("node_count")

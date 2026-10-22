@@ -10,7 +10,7 @@ evidence (Letta, LangMem, MIRIX, Mem0, Hindsight, Graphiti, Zep) are in
 
 | Tool | Tier | Engine verb | Notes |
 |---|---|---|---|
-| `memory_search` | read | `Engine.search` | `query`, `top_k` (1-20), `kinds`, `purpose`. Rows: `id, text, kind, trust, src, valid_from, score`. Text is marker-escaped, clipped to 500 characters, 6000 in total, and labelled as data. Quarantined records are never returned. |
+| `memory_search` | read | `Engine.search` | `query`, `top_k` (1-20), `kinds`, `purpose`; graph filter (RM-101): presets `asserted_only`, `as_of` (valid time), `known_by` (known time) and an advanced `graph_filter` object (a full `QualifierFilter`, laid over the presets so it wins on shared fields); invalid input is a `bad_graph_filter` error (see USAGE.md, "Graph qualifier filter"). Rows: `id, text, kind, trust, src, valid_from, score`. Text is marker-escaped, clipped to 500 characters, 6000 in total, and labelled as data. Quarantined records are never returned. |
 | `memory_write` | write | `Engine.write_ex` | `content` (max 1000), `kind` (`semantic`/`episodic`), `entity`, `attribute`. Verbatim. Returns a verdict: `stored`, `duplicate`, `rejected` or `quarantined`. |
 | `memory_update` | write | `Engine.correct` | `id`, `content`, `reason`. Supersedes; the old value stays as history. |
 | `memory_forget` | admin | `Engine.forget` | One `id`. Soft. No bulk, hard or erase form exists. |

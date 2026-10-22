@@ -767,7 +767,7 @@ class UnsupportedQualifierFilterError(MemspineError):
     def __init__(self, provider: str) -> None:
         super().__init__(
             f"graph provider {provider!r} does not support qualifier-filtered traversal "
-            "(RM-41); use sqlite_adjacency or ladybug, or drop the qualifier filter"
+            "(RM-41); use sqlite_adjacency, ladybug or neo4j, or drop the qualifier filter"
         )
         self.provider = provider
 

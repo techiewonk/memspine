@@ -1,0 +1,210 @@
+{
+  "task": "RM-96",
+  "date": "2026-10-22",
+  "budget": {
+    "p95_ms": 50.0,
+    "edges_per_namespace": 100000
+  },
+  "graph": {
+    "edges": 100000,
+    "nodes": 20000,
+    "hubs": 200,
+    "hub_endpoint_share": 0.2,
+    "generate_s": 1.0,
+    "seeds": [
+      "ent:bench/rm96:n006574",
+      "ent:bench/rm96:n014256",
+      "ent:bench/rm96:n012391",
+      "ent:bench/rm96:n001869",
+      "ent:bench/rm96:n019020",
+      "ent:bench/rm96:n000000"
+    ]
+  },
+  "filter": {
+    "valid_at": "2026-03-01T00:00:00Z",
+    "known_as_of": "2026-10-22T00:00:00Z",
+    "assertion_modalities": [
+      "asserted"
+    ],
+    "claim_states": [
+      "current"
+    ]
+  },
+  "measures": {
+    "walk_d1/walk_d2": "neighbors_qualified (qualified_hops) from each seed",
+    "leg_edge_list": "edge_list(namespace): the read-path graph leg's load",
+    "leg_filter": "compiled/live selection + QualifierFilter.admits over that list",
+    "leg_scan": "leg_edge_list + leg_filter (what _graph_hop_leg runs per read)"
+  },
+  "results": {
+    "sqlite_adjacency": {
+      "load_s": 6.0,
+      "walk_d1": {
+        "n": 60,
+        "p50_ms": 1.639,
+        "p95_ms": 5.68,
+        "max_ms": 6.751
+      },
+      "walk_d2": {
+        "n": 60,
+        "p50_ms": 6.689,
+        "p95_ms": 172.793,
+        "max_ms": 180.149
+      },
+      "leg_edge_list": {
+        "n": 20,
+        "p50_ms": 935.639,
+        "p95_ms": 1132.553,
+        "max_ms": 1147.111
+      },
+      "leg_filter": {
+        "n": 20,
+        "p50_ms": 717.419,
+        "p95_ms": 730.375,
+        "max_ms": 802.127
+      },
+      "leg_scan": {
+        "n": 20,
+        "p50_ms": 1708.986,
+        "p95_ms": 1958.269,
+        "max_ms": 1970.732
+      },
+      "reached_nodes": {
+        "walk_d1": {
+          "min": 3,
+          "max": 102
+        },
+        "walk_d2": {
+          "min": 9,
+          "max": 1511
+        }
+      },
+      "leg_edges": {
+        "namespace": 100000,
+        "admitted": 42036
+      },
+      "within_budget": {
+        "walk_d1": true,
+        "walk_d2": false,
+        "leg_scan": false
+      }
+    },
+    "ladybug": {
+      "load_s": 162.0,
+      "walk_d1": {
+        "n": 60,
+        "p50_ms": 35.222,
+        "p95_ms": 40.828,
+        "max_ms": 43.932
+      },
+      "walk_d2": {
+        "n": 60,
+        "p50_ms": 76.778,
+        "p95_ms": 294.684,
+        "max_ms": 312.321
+      },
+      "leg_edge_list": {
+        "n": 20,
+        "p50_ms": 928.37,
+        "p95_ms": 1123.714,
+        "max_ms": 1236.185
+      },
+      "leg_filter": {
+        "n": 20,
+        "p50_ms": 843.553,
+        "p95_ms": 907.459,
+        "max_ms": 908.443
+      },
+      "leg_scan": {
+        "n": 20,
+        "p50_ms": 1867.044,
+        "p95_ms": 2194.907,
+        "max_ms": 2228.547
+      },
+      "reached_nodes": {
+        "walk_d1": {
+          "min": 3,
+          "max": 102
+        },
+        "walk_d2": {
+          "min": 9,
+          "max": 1511
+        }
+      },
+      "leg_edges": {
+        "namespace": 100000,
+        "admitted": 42036
+      },
+      "within_budget": {
+        "walk_d1": true,
+        "walk_d2": false,
+        "leg_scan": false
+      }
+    },
+    "neo4j": {
+      "load_s": 6.7,
+      "walk_d1": {
+        "n": 60,
+        "p50_ms": 14.185,
+        "p95_ms": 37.321,
+        "max_ms": 41.184
+      },
+      "walk_d2": {
+        "n": 60,
+        "p50_ms": 38.32,
+        "p95_ms": 329.179,
+        "max_ms": 436.026
+      },
+      "leg_edge_list": {
+        "n": 20,
+        "p50_ms": 3586.984,
+        "p95_ms": 3798.941,
+        "max_ms": 4097.337
+      },
+      "leg_filter": {
+        "n": 20,
+        "p50_ms": 876.543,
+        "p95_ms": 908.678,
+        "max_ms": 915.236
+      },
+      "leg_scan": {
+        "n": 20,
+        "p50_ms": 4165.646,
+        "p95_ms": 4442.324,
+        "max_ms": 4451.785
+      },
+      "reached_nodes": {
+        "walk_d1": {
+          "min": 3,
+          "max": 102
+        },
+        "walk_d2": {
+          "min": 9,
+          "max": 1511
+        }
+      },
+      "leg_edges": {
+        "namespace": 100000,
+        "admitted": 42036
+      },
+      "within_budget": {
+        "walk_d1": true,
+        "walk_d2": false,
+        "leg_scan": false
+      }
+    }
+  },
+  "skipped": {},
+  "environment": {
+    "python": "3.13.5",
+    "platform": "Windows-11-10.0.26340-SP0",
+    "machine": "AMD64",
+    "versions": {
+      "sqlalchemy": "2.1.4",
+      "aiosqlite": "0.22.1",
+      "ladybug": "0.21.2",
+      "neo4j": "6.4.1",
+      "pydantic": "2.14.0"
+    }
+  }
+}

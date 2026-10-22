@@ -218,6 +218,23 @@ Edges compiled before these fields existed get them on the next sleep cycle. To 
 one namespace now, run `memspine graph requalify --namespace ops --dry-run` (counts only),
 then the same command without `--dry-run`; pass `--db` and `--config` for the store. It
 needs `graph.edge_compiler_v2` on and rewrites only edges whose stored form differs.
+Graph providers: SQLite adjacency, LadybugDB and Neo4j (RM-94) all run the same filtered
+walk and pass one contract.
+
+The MCP / agent tool `memory_search` (RM-101) takes the same filter two ways. Named
+presets: `asserted_only: true` (assertion modality asserted), `as_of` (valid at that
+time, maps to `valid_at`) and `known_by` (known by that time, maps to `known_as_of`),
+both ISO 8601 with a timezone offset. The advanced `graph_filter` argument is a full
+`QualifierFilter` JSON object. Presets are expanded first and `graph_filter` is laid over
+them, so the advanced object wins on a field both set. An invalid preset or field is a
+`bad_graph_filter` tool error naming it; the reply echoes the applied filter.
+The `exclude_sensitivity` preset takes sensitivity labels and maps to
+`exclude_sensitivities` (RM-86). Edges not yet checked fail it, unless
+`graph_filter` sets `"unchecked_sensitivity": "pass"`.
+```json
+{"query": "where does Ana live", "asserted_only": true, "as_of": "2026-03-01T00:00:00Z",
+ "exclude_sensitivity": ["health"], "graph_filter": {"topical_domains": ["location"]}}
+```
 ```python
 from datetime import UTC, datetime
 from memspine.services.graph.qualifiers import AssertionModality, QualifierFilter
