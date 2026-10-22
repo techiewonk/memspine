@@ -194,10 +194,30 @@ Topical domains (RM-91): domain ids are hierarchical (`health/condition`), and
 `healthcare`. The compiler picks an edge's domain from the first source that gives one:
 a caller tag `domain:<id>` on the fact record, then the property key's vocabulary
 default, then the predicate's default, then the owning pack's top domain
-(`PackManifest.domain`), then an opt-in `gliner_topic:<id>` tag. It records which one it
-used in `topical_domain_source`. The topic tagger stays off unless
-`models.bindings.gliner_topic` is set and a tagger is attached. Callers cannot supply
-`gliner_topic:` tags. If no source gives a domain, the domain is unknown.
+(`PackManifest.domain`), then the opt-in GLiNER topic tagger. It records which one it
+used in `topical_domain_source`. Callers cannot supply `gliner_topic:` tags. If no source
+gives a domain, the domain is unknown.
+
+The topic tagger (RM-106) stays off unless `models.bindings.gliner_topic` binds a GLiNER
+profile with task `classification` and `local_files_only: true` (offline only; nothing is
+downloaded). The Engine builds it at start. Its candidate labels are the domain ids the
+active vocabulary packs declare, offered in readable form (`health/condition` as `health
+condition`), plus the operator map `models.topic.labels` (free label -> domain id). The best
+hit at or above `models.topic.min_confidence` sets the domain. It runs on each write (a
+`gliner_topic:<id>` tag) and, for facts with no domain from a higher source, before each
+edge compile and `memspine graph requalify`, so facts written before the binding get one.
+A failing tagger is logged (`topic.tagger_failed`) and leaves the domain unknown; it never
+blocks a write.
+```yaml
+models:
+  profiles:
+    topics: {kind: gliner, provider: gliner2,
+             settings: {tasks: [classification], local_files_only: true}}
+  bindings: {gliner_topic: topics}
+  topic:
+    labels: {cinema: media/film, football: leisure/sport}
+    min_confidence: 0.6
+```
 
 Compiled edges also carry the claim id and its evidence ids, the independent-support count
 (distinct lineage roots of the evidence, unknown when a root cannot be resolved), the 0..1
@@ -993,7 +1013,7 @@ in the schema — or if the schema gains a key not documented here.
 | `models.embedder_profile` | `auto` | MD-01. `auto`/`cpu`/`gpu`: the GPU instruction embedder is chosen only when it lands on a GPU, else the CPU default. |
 | `models.gpu_headroom_mb` | `512` | MD-01. VRAM kept free on every GPU. |
 | `models.gpus` | `[]` | MD-01. Declared CUDA devices (`name`, `vram_mb`); empty = CPU only. A non-NVIDIA name (AMD, Intel, DirectML) is ignored: MD-03 measured the iGPU 5-8x slower than the CPU. |
-| `models.bindings` | `{}` | Consumer role -> named provider profile. Active GLiNER consumers require explicit bindings: `gliner_decision`, `gliner_semantic`, and `gliner_prepass`. |
+| `models.bindings` | `{}` | Consumer role -> named provider profile. Active GLiNER consumers require explicit bindings: `gliner_decision`, `gliner_semantic`, and `gliner_prepass`. The opt-in roles `gliner_sensitivity` (task `entities`) and `gliner_topic` (task `classification`) are active whenever bound and need `local_files_only: true`. |
 | `models.escalation.*.targets` | `[]` | Opt-in per-role LLM profile ladder (`models.escalation.<role>`, default `{}` = no escalation). Ordered, unique profile names tried after the primary. Limits apply per routed chat invocation; profile/caller output limits remain in force. Every candidate retains consent gates; cancellation propagates. See [multi-model guide](MULTI_MODEL_PROFILES.md). |
 | `models.escalation.*.triggers` | `[error]` | Non-empty, duplicate-free list of `error`, `empty`, `invalid_json`: the outcomes that move to the next target. |
 | `models.escalation.*.max_attempts` | `2` | Total attempts including the primary; at least 2 when `targets` is set, at most 1 + number of targets. |
@@ -1009,6 +1029,8 @@ in the schema — or if the schema gains a key not documented here.
 | `models.required_roles` | `[]` | MD-01 (P-03). Catalogue roles that must be served; with `on_missing_model: error` a missing one fails start. `write.window_extract` != `off` adds `extract`. |
 | `models.rerank` | `chain` | MD-01. `off` leaves reranking out of the plan (results unscored). |
 | `models.role_tier` | `{}` | MD-01. Catalogue role -> tier name. `none` turns the role off (the no-model path); another name picks the smallest declared model at that tier or above. Roles: `extract`, `extract_edges`, `summarize`, `call2`, `resolve`, `dedupe`, `sufficiency`, `query_rewrite`, `relevance`, `chat`, `verify`, `judge`, `reflect`, `plan`. |
+| `models.topic.labels` | `{}` | RM-106. Operator label map for the opt-in `gliner_topic` tagger: free topic label -> hierarchical domain id (`{cinema: media/film}`). Added to the pack-domain labels; a label equal to a pack label's readable form (`health condition`) overrides it. A target that is not a domain id (lower-case segments joined by `/`) fails config load. Inert unless `models.bindings.gliner_topic` is bound. |
+| `models.topic.min_confidence` | `0.5` | RM-106. A topic hit sets the domain only at or above this confidence (0..1; default `config/constants.TOPIC_MIN_CONFIDENCE`). A hit without a confidence never sets one. |
 | `models.thinking` | `{}` | MD-01 (P-15). Catalogue role -> capped thinking budget in tokens. Honoured only for `judge` and `reflect` on a model declared `supports_thinking`; every other role stays thinking off. Screen before enabling (paired conflict cases, truncations counted). |
 | `models.tiers_v2` | `false` | MD-01 (P-01, P-02, P-03, P-15, P-19). Roles with no explicit `llm.roles` or `models.bindings` entry resolve through tier, placement and fallback; explicit bindings win. A role no model serves gets no provider. Off leaves named/inline bindings active. Taps: `models.resolve`, `models.placement`, `models.rerank_chain`. `describe()["models"]` holds the plan. |
 | `namespaces.*.policies` | `{}` | Per-namespace policy overrides (D-14). |

@@ -205,18 +205,22 @@ class MemspineConfig(ConfigModel):
             "gliner_semantic": semantic_mode == "gliner",
             "gliner_prepass": self.write.prepass == "gliner",
             "gliner_sensitivity": "gliner_sensitivity" in self.models.bindings,
+            # RM-106: the topic tagger is active whenever bound
+            "gliner_topic": "gliner_topic" in self.models.bindings,
         }
-        sensitivity_profile = self.models.bindings.get("gliner_sensitivity")
-        if (
-            sensitivity_profile is not None
-            and not GlinerSettings.model_validate(
-                self.models.profiles[sensitivity_profile].settings
-            ).local_files_only
-        ):
-            raise ConfigError(
-                "models.bindings.gliner_sensitivity is offline only: its GLiNER profile "
-                "needs local_files_only: true"
-            )
+        # ADR-080 decision 12: both opt-in roles are offline only.
+        for offline_role in ("gliner_sensitivity", "gliner_topic"):
+            offline_profile = self.models.bindings.get(offline_role)
+            if (
+                offline_profile is not None
+                and not GlinerSettings.model_validate(
+                    self.models.profiles[offline_profile].settings
+                ).local_files_only
+            ):
+                raise ConfigError(
+                    f"models.bindings.{offline_role} is offline only: its GLiNER profile "
+                    "needs local_files_only: true"
+                )
         for role, active in active_consumers.items():
             if active:
                 tasks = tasks_by_role.get(role)

@@ -6,6 +6,7 @@ from typing import Any, Literal
 
 from pydantic import ConfigDict, Field, JsonValue, SecretStr, model_validator
 
+from memspine.config import constants
 from memspine.config.schema.base import ConfigModel
 
 
@@ -226,6 +227,40 @@ class EscalationPolicy(ConfigModel):
         return self
 
 
+class TopicConfig(ConfigModel):
+    """RM-106: how the opt-in ``gliner_topic`` tagger maps classification hits to domains.
+
+    Candidate labels are the domain ids the active vocabulary packs declare plus the keys of
+    ``labels`` (free topic label -> domain id). Inert unless ``models.bindings.gliner_topic``
+    is bound."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    #: Operator label map: free topic label -> hierarchical domain id (validated at load).
+    labels: dict[str, str] = Field(default_factory=dict)
+    #: A hit sets the domain only at or above this confidence.
+    min_confidence: float = Field(
+        default=constants.TOPIC_MIN_CONFIDENCE, ge=0.0, le=1.0, allow_inf_nan=False
+    )
+
+    @model_validator(mode="after")
+    def _labels_map_to_domains(self) -> TopicConfig:
+        from memspine.semantics.domains import is_domain_id  # lazy: no import cycle
+
+        for label, target in self.labels.items():
+            if not label.strip() or label != label.strip():
+                raise ValueError(
+                    "models.topic.labels keys must be non-empty labels without surrounding "
+                    "whitespace"
+                )
+            if not is_domain_id(target):
+                raise ValueError(
+                    f"models.topic.labels[{label!r}] maps to {target!r}, which is not a domain "
+                    "id (lower-case segments joined by '/', e.g. 'health/condition')"
+                )
+        return self
+
+
 class ModelsConfig(ConfigModel):
     """MD-01 (P-01, P-02, P-03, P-15, P-19): model tiers, placement, no-model fallbacks and thinking
     per role. ``tiers_v2`` off (default) = roles resolve exactly as before, from ``llm.roles``."""
@@ -240,6 +275,8 @@ class ModelsConfig(ConfigModel):
     gliner_max_models: int = Field(default=1, ge=1)
     #: Per-LLM-role bounded escalation policy.
     escalation: dict[str, EscalationPolicy] = Field(default_factory=dict)
+    #: RM-106: label sources and threshold of the opt-in ``gliner_topic`` tagger.
+    topic: TopicConfig = Field(default_factory=TopicConfig)
 
     #: Roles resolve through tier, placement and fallback (``memspine.models.resolve``). A role with
     #: an explicit ``llm.roles`` entry keeps it (explicit wins). Taps: ``models.resolve``,

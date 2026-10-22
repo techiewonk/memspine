@@ -9305,6 +9305,8 @@
   "models.role_tier": "model planning at engine start (tiers, GPU placement, pins); applies to every stage that uses a model role",
   "models.thinking": "model planning at engine start (tiers, GPU placement, pins); applies to every stage that uses a model role",
   "models.tiers_v2": "model planning at engine start (tiers, GPU placement, pins); applies to every stage that uses a model role",
+  "models.topic.labels": "model planning at engine start (tiers, GPU placement, pins); applies to every stage that uses a model role",
+  "models.topic.min_confidence": "model planning at engine start (tiers, GPU placement, pins); applies to every stage that uses a model role",
   "namespaces.*.policies": "per-namespace policy overrides, resolved at engine start",
   "observability.inspect": "wiretap, ops ledger, timers and inspect switches: they observe every stage, they do not change one",
   "observability.inspect_content": "wiretap, ops ledger, timers and inspect switches: they observe every stage, they do not change one",
@@ -9397,6 +9399,6 @@
   "workers.resonate.task_timeout_s": "no read site matched an inventory stage",
   "workers.temporal": "no read site matched an inventory stage"
  },
- "unattributed_count": 139,
- "schema_key_count": 631
+ "unattributed_count": 141,
+ "schema_key_count": 633
 }

@@ -337,6 +337,10 @@ class PipelineContext:
     #: (``models.bindings.gliner_sensitivity``; a ``derive.sensitivity.SensitivityModel``). None
     #: => deterministic labels only (vocabulary defaults and rule/pattern detectors).
     sensitivity_model: Any | None = None
+    #: RM-106: the opt-in topic tagger (``models.bindings.gliner_topic``; a
+    #: ``semantics.domains.AnyTopicTagger``), already gated by the binding. None => no
+    #: ``gliner_topic`` domain source on the compile path.
+    topic_tagger: Any | None = None
 
 
 async def gate_records(ctx: PipelineContext, records: list[MemoryRecord]) -> list[MemoryRecord]:

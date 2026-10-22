@@ -250,6 +250,7 @@ if TYPE_CHECKING:
     from memspine.models.profiles import GlinerConsumerRole
 from memspine.schemas.durable import AssertionEnvelope, OwnerScope
 from memspine.schemas.durable.erasure import RetentionBoundary
+from memspine.semantics.domains import TOPIC_BINDING_ROLE, topic_hook
 from memspine.services.graph.base import GraphStore
 from memspine.services.graph.qualifiers import QualifierFilter
 from memspine.services.lexical.base import LexicalHit, LexicalStore
@@ -398,6 +399,9 @@ class Engine:
         self._sql: SqlAccess | None = None
         self._provider_resources: ProviderLifecycleManager | None = None
         self._gliner_pool: Any | None = None
+        #: RM-106: the opt-in GLiNER topic tagger (``models.bindings.gliner_topic``), set at
+        #: start; None when unbound.
+        self._topic_tagger: Any | None = None
         self._decision: Any | None = None
         self._provider_results: dict[str, Any] = {}
         self._provider_owner_id: str | None = None
@@ -652,6 +656,7 @@ class Engine:
         self._storage = await container.get(SqlStorage)
         self._sql, self._provider_resources = wiring.sql, wiring.resources
         self._gliner_pool = wiring.gliner_pool
+        self._topic_tagger = self._build_topic_tagger(config)
         self._provider_results = wiring.provider_results
         self._resource_registry = wiring.registry  # RM-78: process or private (scope)
         self._wiring = wiring
@@ -1379,6 +1384,7 @@ class Engine:
         self._resource_registry = None
         self._started = False
         self._gliner_pool = None
+        self._topic_tagger = None
         self._decision = None
         self._window_prepass = None
         if failures:
@@ -5882,7 +5888,28 @@ class Engine:
                 else None
             ),
             sensitivity_model=self._sensitivity_model(),
+            topic_tagger=topic_hook(self._config(), self._topic_tagger),
         )
+
+    def _build_topic_tagger(self, config: MemspineConfig) -> Any | None:
+        """RM-106: the opt-in GLiNER topic tagger from the bound ``gliner_topic`` profile
+        (offline, ``local_files_only``); None when unbound. Building never loads a model (the
+        pool loads lazily); a failure is logged and leaves the topic source off."""
+        if TOPIC_BINDING_ROLE not in config.models.bindings or self._gliner_pool is None:
+            return None
+        try:
+            from memspine.derive.topics import GlinerTopicTagger
+            from memspine.models.profiles import resolve_gliner_settings
+
+            return GlinerTopicTagger(
+                self._gliner_pool,
+                resolve_gliner_settings(config, "gliner_topic"),
+                labels=config.models.topic.labels,
+                min_confidence=config.models.topic.min_confidence,
+            )
+        except Exception as exc:
+            _log.warning("topic.tagger_unavailable", error=f"{type(exc).__name__}: {exc}")
+            return None
 
     def _sensitivity_model(self) -> Any | None:
         """RM-99: the opt-in GLiNER sensitivity detector (``models.bindings.gliner_sensitivity``),

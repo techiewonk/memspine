@@ -13,7 +13,7 @@ from memspine.config.schema.llm import GlinerSettings, LLMRoleConfig, ModelProfi
 from memspine.config.schema.root import MemspineConfig
 
 GlinerConsumerRole = Literal[
-    "gliner_decision", "gliner_semantic", "gliner_prepass", "gliner_sensitivity"
+    "gliner_decision", "gliner_semantic", "gliner_prepass", "gliner_sensitivity", "gliner_topic"
 ]
 
 __all__ = [

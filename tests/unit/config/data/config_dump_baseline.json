@@ -155,7 +155,11 @@
    "rerank": "chain",
    "role_tier": {},
    "thinking": {},
-   "tiers_v2": false
+   "tiers_v2": false,
+   "topic": {
+    "labels": {},
+    "min_confidence": 0.5
+   }
   },
   "namespaces": {},
   "observability": {
@@ -752,7 +756,7 @@
    "window_topic_k": 2.0
   }
  },
- "json_schema_sha256": "8d840b172b838e9785b9bb82b70031a963beab55d7a2b1951e44b00cc4d116b8",
+ "json_schema_sha256": "007cb1a24f3b9f5e10a22106d96c42a277739b3182ae3595d11929b6e2d3929f",
  "preset:chat_roles": {
   "audit": {
    "actions": false,
@@ -930,7 +934,11 @@
    "rerank": "chain",
    "role_tier": {},
    "thinking": {},
-   "tiers_v2": false
+   "tiers_v2": false,
+   "topic": {
+    "labels": {},
+    "min_confidence": 0.5
+   }
   },
   "namespaces": {},
   "observability": {
@@ -1713,7 +1721,11 @@
    "rerank": "chain",
    "role_tier": {},
    "thinking": {},
-   "tiers_v2": false
+   "tiers_v2": false,
+   "topic": {
+    "labels": {},
+    "min_confidence": 0.5
+   }
   },
   "namespaces": {},
   "observability": {
@@ -2496,7 +2508,11 @@
    "rerank": "chain",
    "role_tier": {},
    "thinking": {},
-   "tiers_v2": false
+   "tiers_v2": false,
+   "topic": {
+    "labels": {},
+    "min_confidence": 0.5
+   }
   },
   "namespaces": {},
   "observability": {
@@ -3279,7 +3295,11 @@
    "rerank": "chain",
    "role_tier": {},
    "thinking": {},
-   "tiers_v2": false
+   "tiers_v2": false,
+   "topic": {
+    "labels": {},
+    "min_confidence": 0.5
+   }
   },
   "namespaces": {},
   "observability": {
@@ -4062,7 +4082,11 @@
    "rerank": "chain",
    "role_tier": {},
    "thinking": {},
-   "tiers_v2": false
+   "tiers_v2": false,
+   "topic": {
+    "labels": {},
+    "min_confidence": 0.5
+   }
   },
   "namespaces": {},
   "observability": {
@@ -4845,7 +4869,11 @@
    "rerank": "chain",
    "role_tier": {},
    "thinking": {},
-   "tiers_v2": false
+   "tiers_v2": false,
+   "topic": {
+    "labels": {},
+    "min_confidence": 0.5
+   }
   },
   "namespaces": {},
   "observability": {
@@ -5628,7 +5656,11 @@
    "rerank": "chain",
    "role_tier": {},
    "thinking": {},
-   "tiers_v2": false
+   "tiers_v2": false,
+   "topic": {
+    "labels": {},
+    "min_confidence": 0.5
+   }
   },
   "namespaces": {},
   "observability": {
@@ -6415,7 +6447,11 @@
    "rerank": "chain",
    "role_tier": {},
    "thinking": {},
-   "tiers_v2": false
+   "tiers_v2": false,
+   "topic": {
+    "labels": {},
+    "min_confidence": 0.5
+   }
   },
   "namespaces": {},
   "observability": {
@@ -7198,7 +7234,11 @@
    "rerank": "chain",
    "role_tier": {},
    "thinking": {},
-   "tiers_v2": false
+   "tiers_v2": false,
+   "topic": {
+    "labels": {},
+    "min_confidence": 0.5
+   }
   },
   "namespaces": {},
   "observability": {
@@ -7981,7 +8021,11 @@
    "rerank": "chain",
    "role_tier": {},
    "thinking": {},
-   "tiers_v2": false
+   "tiers_v2": false,
+   "topic": {
+    "labels": {},
+    "min_confidence": 0.5
+   }
   },
   "namespaces": {},
   "observability": {
@@ -8764,7 +8808,11 @@
    "rerank": "chain",
    "role_tier": {},
    "thinking": {},
-   "tiers_v2": false
+   "tiers_v2": false,
+   "topic": {
+    "labels": {},
+    "min_confidence": 0.5
+   }
   },
   "namespaces": {},
   "observability": {
@@ -9547,7 +9595,11 @@
    "rerank": "chain",
    "role_tier": {},
    "thinking": {},
-   "tiers_v2": false
+   "tiers_v2": false,
+   "topic": {
+    "labels": {},
+    "min_confidence": 0.5
+   }
   },
   "namespaces": {},
   "observability": {
@@ -10330,7 +10382,11 @@
    "rerank": "chain",
    "role_tier": {},
    "thinking": {},
-   "tiers_v2": false
+   "tiers_v2": false,
+   "topic": {
+    "labels": {},
+    "min_confidence": 0.5
+   }
   },
   "namespaces": {},
   "observability": {
@@ -11113,7 +11169,11 @@
    "rerank": "chain",
    "role_tier": {},
    "thinking": {},
-   "tiers_v2": false
+   "tiers_v2": false,
+   "topic": {
+    "labels": {},
+    "min_confidence": 0.5
+   }
   },
   "namespaces": {},
   "observability": {
@@ -11896,7 +11956,11 @@
    "rerank": "chain",
    "role_tier": {},
    "thinking": {},
-   "tiers_v2": false
+   "tiers_v2": false,
+   "topic": {
+    "labels": {},
+    "min_confidence": 0.5
+   }
   },
   "namespaces": {},
   "observability": {
@@ -12679,7 +12743,11 @@
    "rerank": "chain",
    "role_tier": {},
    "thinking": {},
-   "tiers_v2": false
+   "tiers_v2": false,
+   "topic": {
+    "labels": {},
+    "min_confidence": 0.5
+   }
   },
   "namespaces": {},
   "observability": {
@@ -13471,7 +13539,11 @@
    "rerank": "chain",
    "role_tier": {},
    "thinking": {},
-   "tiers_v2": false
+   "tiers_v2": false,
+   "topic": {
+    "labels": {},
+    "min_confidence": 0.5
+   }
   },
   "namespaces": {},
   "observability": {
@@ -14263,7 +14335,11 @@
    "rerank": "chain",
    "role_tier": {},
    "thinking": {},
-   "tiers_v2": false
+   "tiers_v2": false,
+   "topic": {
+    "labels": {},
+    "min_confidence": 0.5
+   }
   },
   "namespaces": {},
   "observability": {
@@ -15042,7 +15118,11 @@
    "rerank": "chain",
    "role_tier": {},
    "thinking": {},
-   "tiers_v2": false
+   "tiers_v2": false,
+   "topic": {
+    "labels": {},
+    "min_confidence": 0.5
+   }
   },
   "namespaces": {},
   "observability": {
@@ -15823,7 +15903,11 @@
    "rerank": "chain",
    "role_tier": {},
    "thinking": {},
-   "tiers_v2": false
+   "tiers_v2": false,
+   "topic": {
+    "labels": {},
+    "min_confidence": 0.5
+   }
   },
   "namespaces": {},
   "observability": {
@@ -16610,7 +16694,11 @@
    "rerank": "chain",
    "role_tier": {},
    "thinking": {},
-   "tiers_v2": false
+   "tiers_v2": false,
+   "topic": {
+    "labels": {},
+    "min_confidence": 0.5
+   }
   },
   "namespaces": {},
   "observability": {
@@ -17414,7 +17502,11 @@
    "rerank": "chain",
    "role_tier": {},
    "thinking": {},
-   "tiers_v2": false
+   "tiers_v2": false,
+   "topic": {
+    "labels": {},
+    "min_confidence": 0.5
+   }
   },
   "namespaces": {},
   "observability": {
@@ -18197,7 +18289,11 @@
    "rerank": "chain",
    "role_tier": {},
    "thinking": {},
-   "tiers_v2": false
+   "tiers_v2": false,
+   "topic": {
+    "labels": {},
+    "min_confidence": 0.5
+   }
   },
   "namespaces": {},
   "observability": {
@@ -18981,7 +19077,11 @@
    "rerank": "chain",
    "role_tier": {},
    "thinking": {},
-   "tiers_v2": false
+   "tiers_v2": false,
+   "topic": {
+    "labels": {},
+    "min_confidence": 0.5
+   }
   },
   "namespaces": {},
   "observability": {
@@ -19779,7 +19879,11 @@
    "rerank": "chain",
    "role_tier": {},
    "thinking": {},
-   "tiers_v2": false
+   "tiers_v2": false,
+   "topic": {
+    "labels": {},
+    "min_confidence": 0.5
+   }
   },
   "namespaces": {},
   "observability": {

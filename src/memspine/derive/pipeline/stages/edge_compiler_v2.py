@@ -69,7 +69,12 @@ from memspine.schemas.durable.assertion import AssertionEnvelope, Mention
 from memspine.schemas.durable.common import OwnerScope
 from memspine.schemas.durable.identity import AssertionKey, occurrence_id
 from memspine.scope import Scope
-from memspine.semantics.domains import resolve_domain
+from memspine.semantics.domains import (
+    AnyTopicTagger,
+    ResolvedDomain,
+    atopic_domains,
+    resolve_domain,
+)
 from memspine.semantics.lifecycle import LIFECYCLE_OUTCOMES, LIFECYCLE_STATUSES
 from memspine.semantics.origins import SourceOrigin
 from memspine.semantics.registry import (
@@ -203,6 +208,7 @@ class EdgeCompiler:
         policy: EntityPolicy | None = None,
         registry: SemanticRegistry | None = None,
         labeller: SensitivityLabeller | None = None,
+        topic_tagger: AnyTopicTagger | None = None,
     ) -> None:
         self.scoped = scoped
         self.policy = policy or EntityPolicy.from_policy(True)
@@ -211,6 +217,20 @@ class EdgeCompiler:
         self.registry = registry if registry is not None else load_builtin_registry()
         #: RM-99: the sensitivity labelling layer (deterministic unless a model is bound).
         self.labeller = labeller or SensitivityLabeller()
+        #: RM-106: the opt-in topic tagger (already gated by ``models.bindings.gliner_topic``);
+        #: run on the async path before :meth:`compile` (see ``_compile_namespace``).
+        self.topic_tagger = topic_tagger
+
+    def domain_of(self, record: MemoryRecord, topic: str | None = None) -> ResolvedDomain | None:
+        """RM-91: ``record``'s domain and its source; ``topic`` is a tagger result (lowest)."""
+        rel = _tag(record, "rel:") or to_envelope(record).assertion_key.rel
+        return resolve_domain(
+            tags=record.tags,
+            predicate=rel,
+            attribute_key=record.attribute,
+            registry=self.registry,
+            topic=topic,
+        )
 
     @staticmethod
     def claim_of(record: MemoryRecord) -> ClaimText:
@@ -303,9 +323,11 @@ class EdgeCompiler:
         namespace: str,
         *,
         sensitivity: Mapping[str, SensitivityResult] | None = None,
+        topics: Mapping[str, str] | None = None,
     ) -> CompiledEdges:
         """``sensitivity``: precomputed labels per record id (the async model path); a record
-        without one is labelled here by the deterministic detectors."""
+        without one is labelled here by the deterministic detectors. ``topics`` (RM-106):
+        precomputed topic-tagger domains per record id (the ``gliner_topic`` source)."""
         envs: list[AssertionEnvelope] = []
         meta: dict[str, dict[str, Any]] = {}
         skipped: dict[str, str] = {}
@@ -323,6 +345,7 @@ class EdgeCompiler:
                 predicate=env.assertion_key.rel,
                 attribute_key=record.attribute,
                 registry=self.registry,
+                topic=(topics or {}).get(record.record_id),
             )
             meta[record.record_id] = {
                 "trust": env.assessment.source_trust,
@@ -846,7 +869,17 @@ async def _compile_namespace(
             for r in records
             if compiler.eligible(r)
         }
-    compiled = compiler.compile(records, namespace, sensitivity=labels)
+    topics: dict[str, str] | None = None
+    if compiler.topic_tagger is not None:  # RM-106 opt-in topic tagger (async)
+        topics = {}
+        for r in records:
+            # only where no higher-precedence source (or earlier topic tag) gives a domain
+            if not compiler.eligible(r) or compiler.domain_of(r) is not None:
+                continue
+            found = await atopic_domains(r.content, compiler.topic_tagger)
+            if found:
+                topics[r.record_id] = found[0]
+    compiled = compiler.compile(records, namespace, sensitivity=labels, topics=topics)
     evidence = (str(e) for m in compiled.meta.values() for e in m.get("evidence_ids", ()))
     return records, attach_lineage(compiled, await _lineage_roots(ctx, evidence))
 
@@ -908,6 +941,7 @@ async def compile_graph_edges(ctx: PipelineContext) -> dict[str, object]:
     compiler = EdgeCompiler(
         scoped=bool(ctx.config.isolation.scope_keys_v2),
         labeller=SensitivityLabeller(model=getattr(ctx, "sensitivity_model", None)),
+        topic_tagger=getattr(ctx, "topic_tagger", None),
     )
     totals: Counter[str] = Counter()
     errors: list[str] = []
@@ -944,7 +978,12 @@ async def requalify_namespace(
     async def _refuse(_event: MemoryEvent) -> None:
         raise RuntimeError("dry run: no event is appended")
 
-    compiler = EdgeCompiler(scoped=bool(ctx.config.isolation.scope_keys_v2))
+    # The same labelling inputs as the sleep-cycle compile, so a requalify agrees with it.
+    compiler = EdgeCompiler(
+        scoped=bool(ctx.config.isolation.scope_keys_v2),
+        labeller=SensitivityLabeller(model=getattr(ctx, "sensitivity_model", None)),
+        topic_tagger=getattr(ctx, "topic_tagger", None),
+    )
     projection = LinkProjection(ctx.graph, ctx.append_event or _refuse)
     async with ctx.lock(namespace):
         live = [e for e in await projection._current(namespace) if e.weight > 0]

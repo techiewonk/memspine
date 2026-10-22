@@ -222,6 +222,11 @@ class SemanticRegistry:
     def owner(self, kind: str, name: str) -> str | None:
         return self._owners.get((kind, name))
 
+    @property
+    def pack_domains(self) -> Mapping[str, str]:
+        """RM-91: pack id -> its declared top domain (packs without one are absent)."""
+        return self._pack_domains
+
     def pack_domain(self, kind: str, name: str) -> str | None:
         """RM-91: the top domain of the pack owning a definition (None = none declared)."""
         owner = self._owners.get((kind, name))

@@ -936,3 +936,12 @@ SHARED_SQL_POOL_PRE_PING = True
 #: Not measured yet (no local OpenSearch/Weaviate/Neo4j); verify in deployment checks.
 SHARED_HTTP_MAX_CONNECTIONS = 100
 SHARED_HTTP_KEEPALIVE_S = 30.0
+
+# RM-106 (ADR-080 decisions 9 and 12; docs/USAGE.md "Topical domains"): the opt-in GLiNER
+# topic tagger. A classification hit sets a domain only at or above this confidence (the
+# default of ``models.topic.min_confidence``); an unscored hit never does. Not measured: no
+# labelled topic set exists yet, so 0.5 is the classification midpoint, not a tuned value.
+TOPIC_MIN_CONFIDENCE = 0.5
+#: Texts whose topic result one tagger keeps (LRU), so a sleep-cycle recompile does not
+#: classify an unchanged record again.
+TOPIC_CACHE_SIZE = 4096

@@ -736,6 +736,7 @@ async def wiring_of(config: MemspineConfig, _caps: Capabilities) -> AsyncIterato
         or memory_policy(config, "semantic").get("entity_extraction", "off") == "gliner"
         or config.write.prepass == "gliner"
         or "gliner_sensitivity" in config.models.bindings  # RM-99 opt-in
+        or "gliner_topic" in config.models.bindings  # RM-106 opt-in
     )
     if gliner_active:
         wiring.gliner_pool = GLiNERModelPool(
