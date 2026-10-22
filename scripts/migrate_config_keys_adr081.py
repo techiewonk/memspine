@@ -610,6 +610,25 @@ def migrate_mapping(data: dict) -> bool:
     return changed
 
 
+def rewrite_json(path: Path) -> tuple[str | None, list[str]]:
+    """A JSON config (eval arms): migrated in place, keeping compact or indented layout."""
+    import json
+
+    text = path.read_text(encoding="utf-8")
+    try:
+        data = json.loads(text)
+    except json.JSONDecodeError:
+        return None, []
+    if not isinstance(data, dict) or not migrate_mapping(data):
+        return None, []
+    match = re.search(r"\n( +)", text)
+    if match:
+        out = json.dumps(data, indent=len(match.group(1)), ensure_ascii=False)
+    else:
+        out = json.dumps(data, ensure_ascii=False)
+    return out + ("\n" if text.endswith("\n") else ""), []
+
+
 def rewrite_yaml(path: Path) -> tuple[str | None, list[str]]:
     import yaml
 
@@ -634,7 +653,7 @@ def iter_files(paths: Iterable[str]) -> Iterable[Path]:
         for path in sorted(root.rglob("*")):
             if any(part in skip for part in path.parts):
                 continue
-            if path.suffix in {".py", ".yaml", ".yml"} and path.is_file():
+            if path.suffix in {".py", ".yaml", ".yml", ".json"} and path.is_file():
                 yield path
 
 
@@ -657,7 +676,7 @@ def main(argv: list[str] | None = None) -> int:
                 if not args.check:
                     path.write_text(new, encoding="utf-8", newline="\n")
         else:
-            out, notes = rewrite_yaml(path)
+            out, notes = rewrite_json(path) if path.suffix == ".json" else rewrite_yaml(path)
             if out is not None:
                 changed.append(path)
                 if not args.check:

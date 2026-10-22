@@ -156,7 +156,7 @@ def prepare_forensics_dir(directory: str, environ: Mapping[str, str] | None = No
     )
 
 
-#: ``storage.settings.path`` sentinel: one fresh file-backed store per item (see ``_build_engine``).
+#: ``storage.records.settings.path`` sentinel: one fresh file-backed store per item (see ``_build_engine``).
 TEMPDIR_STORAGE = "tempdir"
 
 
@@ -381,18 +381,21 @@ class MemspineSystem:
             },
             **self.config,
         }
-        # ``storage.settings.path: "tempdir"``: a fresh file-backed store per item, removed on
+        # ``storage.records.settings.path: "tempdir"``: a fresh file-backed store per item, removed on
         # close. LanceDB's in-memory tables commit ~18 MB of memory per write that is
         # never released (7.5 GB for one LoCoMo conversation), so parallel paid runs
         # exhaust the machine's commit limit; a file-backed store peaks at ~0.8 GB.
+        # ADR-081: the SQLite path lives in the `storage.records` slot.
         storage = dict(overrides.get("storage") or {})
-        storage_settings = dict(storage.get("settings") or {})
+        records = dict(storage.get("records") or {})
+        storage_settings = dict(records.get("settings") or {})
         if storage_settings.get("path") == TEMPDIR_STORAGE:
             import tempfile
 
             self._tempdir = tempfile.mkdtemp(prefix="memspine-eval-")
             storage_settings["path"] = str(Path(self._tempdir) / "memspine.db")
-            storage["settings"] = storage_settings
+            records["settings"] = storage_settings
+            storage["records"] = records
             overrides["storage"] = storage
         # Never load a .env: the harness passes only what a run needs (a repo .env
         # can hold unrelated secrets, and a benchmark must not depend on it).

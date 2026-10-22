@@ -170,9 +170,9 @@ def merge_engine_llm_roles(
         bound.setdefault(role, binding)
     llm["roles"] = bound
     merged["llm"] = llm
-    runtime = dict(merged.get("runtime") or {})
-    runtime.setdefault("deployment_id", "bedrock-evaluation")
-    merged["runtime"] = runtime
+    deployment = dict(merged.get("deployment") or {})  # ADR-081: was runtime.deployment_id
+    deployment.setdefault("id", "bedrock-evaluation")
+    merged["deployment"] = deployment
     return merged
 
 

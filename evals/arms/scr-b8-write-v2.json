@@ -43,9 +43,11 @@
   }
  },
  "storage": {
-  "provider": "sqlite",
-  "settings": {
-   "path": "tempdir"
+  "records": {
+   "provider": "sqlite",
+   "settings": {
+    "path": "tempdir"
+   }
   }
  },
  "memories": {

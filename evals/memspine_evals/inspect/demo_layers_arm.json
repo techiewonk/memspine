@@ -4,10 +4,12 @@
   "settings": {}
  },
  "storage": {
-  "provider": "sqlite",
-  "settings": {
-   "path": "tempdir",
-   "busy_timeout_s": 5.0
+  "records": {
+   "provider": "sqlite",
+   "settings": {
+    "path": "tempdir",
+    "busy_timeout_s": 5.0
+   }
   }
  },
  "read": {
@@ -68,7 +70,8 @@
  "graph": {
   "edge_compiler_v2": true
  },
- "runtime": {
-  "deployment_id": "inspect-demo"
+ "runtime": {},
+ "deployment": {
+  "id": "inspect-demo"
  }
 }

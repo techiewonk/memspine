@@ -1,4 +1,4 @@
-"""``storage.settings.path: "tempdir"`` gives each item a fresh store, removed on close."""
+"""``storage.records.settings.path: "tempdir"`` gives each item a fresh store, removed on close."""
 
 from __future__ import annotations
 

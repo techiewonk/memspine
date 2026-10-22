@@ -218,9 +218,11 @@ def offline_config(
         read["rerank_settings"] = {}
     out["read"] = read
     storage = dict(out.get("storage") or {})
-    storage_settings = dict(storage.get("settings") or {})
+    records = dict(storage.get("records") or {})
+    storage_settings = dict(records.get("settings") or {})
     if storage_settings.get("path") not in (None, "tempdir", ":memory:"):
-        storage["settings"] = {**storage_settings, "path": "tempdir"}
+        records["settings"] = {**storage_settings, "path": "tempdir"}
+        storage["records"] = records
         out["storage"] = storage
         notes.append("storage: tempdir")
     return out, notes
