@@ -19,7 +19,6 @@ from __future__ import annotations
 
 import contextlib
 import dataclasses
-import sqlite3
 import threading
 import time
 from collections import defaultdict
@@ -28,10 +27,18 @@ from contextvars import ContextVar
 from dataclasses import dataclass
 from typing import Any, Literal
 
+from sqlalchemy import Engine, text
+
 from memspine.observability import bindings as _bindings
 from memspine.observability import tap
 from memspine.observability.stage_ledger import StageEntry, StageLedger, scope_hash
 from memspine.schemas.durable.common import OwnerScope
+from memspine.store.side_tables import (
+    BackgroundWriter,
+    ensure_side_tables,
+    local_engine,
+    write_tx,
+)
 
 __all__ = [
     "SLEEP_POOL",
@@ -214,94 +221,104 @@ def _id(value: str) -> str:
 
 
 # --------------------------------------------------------------------------------- persistence
-_STORE_SCHEMA = """
-CREATE TABLE IF NOT EXISTS cost_entry (
-  id INTEGER PRIMARY KEY AUTOINCREMENT, run TEXT NOT NULL, ns_hash TEXT NOT NULL,
-  layer TEXT NOT NULL, stage TEXT NOT NULL, kind TEXT NOT NULL, model TEXT, calls INTEGER NOT NULL,
-  tokens_in INTEGER NOT NULL, tokens_out INTEGER NOT NULL, latency_ms REAL NOT NULL,
-  outcome TEXT NOT NULL);
-"""
+_INSERT = text(
+    "INSERT INTO cost_entry (run, ns_hash, layer, stage, kind, model, calls, tokens_in, "
+    "tokens_out, latency_ms, outcome) VALUES (:run, :ns_hash, :layer, :stage, :kind, :model, "
+    ":calls, :tokens_in, :tokens_out, :latency_ms, :outcome)"
+)
 
 
 class LedgerStore:
-    """``economy.ledger_persist``: compact ledger rows in a SQLite file (a sibling of the storage
-    database, like the O4-01a lease store), so the totals survive a restart. A row is ids, the
-    namespace *hash*, layer, stage, kind, calls, tokens and latency: never a name or content. Rows
-    are buffered and written in one transaction every ``flush_every`` records, on ``flush()`` and on
-    ``close()``, so the call path pays no per-call commit."""
+    """``economy.ledger_persist``: compact ledger rows in the ``cost_entry`` table, so the totals
+    survive a restart. RM-111 WP5: the table is in the storage database (pass its sync engine:
+    encrypted with it on SQLite, shared on Postgres); a path (``:memory:`` or a plain SQLite file)
+    is for tests and tools. A row is ids, the namespace *hash*, layer, stage, kind, calls, tokens
+    and latency: never a name or content. Rows are buffered and written in one transaction every
+    ``flush_every`` records, on ``flush()`` and on ``close()``, so the call path pays no per-call
+    commit; against the storage database the write runs on a background thread (the event loop
+    never waits on SQLite's write lock), and ``close()`` waits for it."""
 
-    def __init__(self, path: str, *, flush_every: int = 32) -> None:
-        self.path = path
+    def __init__(self, path: str | Engine, *, flush_every: int = 32) -> None:
+        if isinstance(path, Engine):
+            self.path = path.url.render_as_string(hide_password=True)
+            self._engine, self._owned = path, False
+            self._writer: BackgroundWriter | None = BackgroundWriter("cost-ledger")
+        else:
+            self.path = path
+            self._engine, self._owned = local_engine(path), True
+            self._writer = None
         self._flush_every = max(1, flush_every)
         self._run = f"{int(time.time())}-{id(self) & 0xFFFF:x}"
-        self._buf: list[tuple[Any, ...]] = []
+        self._buf: list[dict[str, Any]] = []
         self._lock = threading.Lock()
-        self._con: sqlite3.Connection | None = sqlite3.connect(
-            path, timeout=10.0, isolation_level=None, check_same_thread=False
-        )
-        if path != ":memory:":
-            self._con.execute("PRAGMA journal_mode=WAL")
-        self._con.executescript(_STORE_SCHEMA)
+        self._closed = False
+        ensure_side_tables(self._engine, ("cost_entry",))
 
     def load(self, limit: int) -> list[CallCost]:
         """The newest ``limit`` persisted rows, oldest first, as records (namespace = its hash;
         ``seq`` 0, renumbered by the ledger)."""
         with self._lock:
-            if self._con is None:
+            if self._closed:
                 return []
-            rows = self._con.execute(
-                "SELECT ns_hash, layer, stage, kind, model, calls, tokens_in, tokens_out, "
-                "latency_ms, outcome FROM (SELECT * FROM cost_entry ORDER BY id DESC LIMIT ?) "
-                "ORDER BY id",
-                (limit,),
-            ).fetchall()
+            with self._engine.connect() as con:
+                rows = con.execute(
+                    text(
+                        "SELECT ns_hash, layer, stage, kind, model, calls, tokens_in, tokens_out, "
+                        "latency_ms, outcome FROM (SELECT * FROM cost_entry ORDER BY id DESC "
+                        "LIMIT :n) AS newest ORDER BY id"
+                    ),
+                    {"n": limit},
+                ).fetchall()
         return [CallCost(0, *r) for r in rows]
 
     def add(self, rec: CallCost) -> None:
         ns = rec.namespace if rec.namespace == UNSCOPED else _ns_hash(rec.namespace)
-        row = (
-            self._run,
-            ns,
-            rec.layer,
-            rec.stage,
-            rec.kind,
-            rec.model,
-            rec.calls,
-            rec.tokens_in,
-            rec.tokens_out,
-            rec.latency_ms,
-            rec.outcome,
-        )
+        row = {
+            "run": self._run,
+            "ns_hash": ns,
+            "layer": rec.layer,
+            "stage": rec.stage,
+            "kind": rec.kind,
+            "model": rec.model,
+            "calls": rec.calls,
+            "tokens_in": rec.tokens_in,
+            "tokens_out": rec.tokens_out,
+            "latency_ms": rec.latency_ms,
+            "outcome": rec.outcome,
+        }
         with self._lock:
             self._buf.append(row)
             full = len(self._buf) >= self._flush_every
         if full:
             self.flush()
 
+    def _write(self, rows: list[dict[str, Any]]) -> None:
+        # a private engine may be one shared connection (``:memory:``): one writer at a time. The
+        # storage engine pools its connections, and the buffer lock must never wait on a write.
+        with self._lock if self._owned else contextlib.nullcontext(), write_tx(self._engine) as con:
+            con.execute(_INSERT, rows)
+
     def flush(self) -> None:
         with self._lock:
             rows, self._buf = self._buf, []
-            if not rows or self._con is None:
+            if not rows or self._closed:
                 return
-            self._con.execute("BEGIN")
-            try:
-                self._con.executemany(
-                    "INSERT INTO cost_entry (run, ns_hash, layer, stage, kind, model, calls, "
-                    "tokens_in, tokens_out, latency_ms, outcome) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
-                    rows,
-                )
-            except BaseException:
-                self._con.execute("ROLLBACK")
-                raise
-            self._con.execute("COMMIT")
+        if self._writer is not None:
+            self._writer.submit(self._write, rows)
+        else:
+            self._write(rows)
 
     def close(self) -> None:
         with contextlib.suppress(Exception):
             self.flush()
+        if self._writer is not None:
+            with contextlib.suppress(Exception):
+                self._writer.close()
         with self._lock:
-            if self._con is not None:
-                self._con.close()
-                self._con = None
+            if not self._closed:
+                self._closed = True
+                if self._owned:
+                    self._engine.dispose()
 
 
 # --------------------------------------------------------------------------------- ledger

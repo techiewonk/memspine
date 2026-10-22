@@ -41,8 +41,8 @@ from memspine.store.records import MemoryRecord, SourceInfo
 def test_both_trees_have_a_single_head() -> None:
     sqlite_dir = Path(sqlite_migrations.__file__).parent / "alembic"
     assert len(ScriptDirectory(str(sqlite_dir)).get_heads()) == 1
-    # The audited cleanup-fence recovery migration is the current head in both trees.
-    assert pg_migrations.heads() == ["pg_cleanup_fence_recovery"]
+    # RM-111 WP5: the side tables (sleep leases, cost ledger, dead letters) are the head in both.
+    assert pg_migrations.heads() == ["pg_rm111_side_tables"]
 
 
 def test_postgres_tree_mirrors_the_sqlite_revision_count() -> None:
@@ -50,7 +50,7 @@ def test_postgres_tree_mirrors_the_sqlite_revision_count() -> None:
         return len(list(ScriptDirectory(str(tree)).walk_revisions()))
 
     # Provider-contract and projector-binding revisions are mirrored in both trees.
-    assert count(EMBEDDED.migration_tree) == count(SERVER.migration_tree) == 14
+    assert count(EMBEDDED.migration_tree) == count(SERVER.migration_tree) == 15
 
 
 def _family(col_type: Any) -> str:

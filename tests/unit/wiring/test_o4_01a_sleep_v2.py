@@ -103,7 +103,9 @@ async def test_flag_on_engine_returns_handle_with_same_stats(tmp_path: Path) -> 
         assert handle.status().state == "succeeded"
         assert list(stats) == list(ref_stats)
         assert all(s.get("status") != "error" for s in stats.values())
-        assert (tmp_path / "b" / "m.db.sleep").exists()
+        # RM-111 WP5: the leases are tables of the storage database, never a side file
+        assert not (tmp_path / "b" / "m.db.sleep").exists()
+        assert sched.store.offload
         lease = sched.store.get_lease("*")
         assert lease is not None and lease.lease_until == 0  # released
     finally:

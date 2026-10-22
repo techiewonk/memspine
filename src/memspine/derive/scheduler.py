@@ -209,6 +209,22 @@ class DerivationScheduler:
         if self._stopped or in_derive_job():
             return
         self.store.bump_deposits(ns)
+        self._after_deposit(ns)
+
+    async def on_commit_async(self, ns: str, seq: int = 0) -> None:
+        """:meth:`on_commit` for a caller on the event loop. A store in the storage database
+        (``offload``, RM-111 WP5) counts the deposit on a worker thread: the loop must never wait on
+        SQLite's write lock, which the async storage layer can hold across an await."""
+        self.last_seq = max(self.last_seq, seq)
+        if self._stopped or in_derive_job():
+            return
+        if getattr(self.store, "offload", False):
+            await asyncio.to_thread(self.store.bump_deposits, ns)
+        else:
+            self.store.bump_deposits(ns)
+        self._after_deposit(ns)
+
+    def _after_deposit(self, ns: str) -> None:
         state = self._trigger_state(ns)
         if state is not None and state.deposits_since_run >= max(1, self.policy.cfg.min_turns):
             self._arm(ns, self.policy.cfg.idle.total_seconds())

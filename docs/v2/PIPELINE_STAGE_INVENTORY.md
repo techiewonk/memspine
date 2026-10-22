@@ -90,7 +90,7 @@ The typed edge compiler (assertion → graph) runs only in sleep (B12).
 | # | Phase | file:function | In → out | Persisted | Observable today | Join ids |
 |---|---|---|---|---|---|---|
 | B0 | Trigger | `derive/scheduler.DerivationScheduler`, `Engine.sleep` → `derive/pipeline/scheduler.sleep`, `build_sleep_v2` | deposits, idle, pressure → job | – | `job.trigger` | ns |
-| B1 | Namespace job | `derive/job.py LeaseStore, NamespaceJob._drive, SleepHandle` | per-stage loop | `<path>.sleep`: `sleep_lease`, `sleep_cycle`, `sleep_watermark`, `sleep_state`, `sleep_deferred`, `sleep_fence_log` | `job.lease`, `job.sleep.handle`, `job.watermark`, `job.deferred`, `job.budget` | ns, cycle, stage, epoch |
+| B1 | Namespace job | `derive/job.py LeaseStore, NamespaceJob._drive, SleepHandle` | per-stage loop | storage database (RM-111 WP5): `sleep_lease`, `sleep_cycle`, `sleep_watermark`, `sleep_state`, `sleep_deferred`, `sleep_fence_log` | `job.lease`, `job.sleep.handle`, `job.watermark`, `job.deferred`, `job.budget` | ns, cycle, stage, epoch |
 | B2 | Stage runner | `workers/schedule.run_sleep_stage`, `sleep_stage_order`, `run_sleep_cycle` | stage → stats | – | ops ledger; cost ledger; `job.stage.{start,end}` | stage |
 | B3 | Window flush | `ingest/windows.flush_windows` | closes windows | A15–A26 | `write.*` | win |
 | B4 | Session close (call 2) | `workers/windows.close_session`, `stages/close.session_close` → `close_v2.run_close_v2`; `derive/session_close.py` | session turns + episode stubs → summary, stitched episodes, profile ops | records (channel `session_close`); MARKER `stage_done` (`session_key`, `members_fp`) or `session_closed` | `job.close.{call2,idem,dedup}` | session, members_fp, parent rids |

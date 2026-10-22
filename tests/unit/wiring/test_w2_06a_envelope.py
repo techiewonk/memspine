@@ -7,6 +7,7 @@ from __future__ import annotations
 import copy
 import json
 import re
+import sqlite3
 import sys
 from collections.abc import Callable
 from datetime import UTC, datetime
@@ -485,6 +486,10 @@ async def test_a_still_invalid_item_survives_a_restart_in_the_dead_letters(
         assert letter.content is None
     finally:
         await eng.stop()
+    # RM-111 WP5: the dead letter is a row of the storage database, never a side file
+    assert not (tmp_path / "dead.db.deadletters.sqlite").exists()
+    with sqlite3.connect(db) as con:
+        assert con.execute("SELECT code FROM dead_letters").fetchall() == [("uncited",)]
     eng2 = await _engine(monkeypatch, ItemLLM(), db)
     try:
         (again,) = eng2._windows.failure_ledger.list("a")

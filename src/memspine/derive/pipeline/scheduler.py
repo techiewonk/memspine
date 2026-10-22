@@ -13,7 +13,6 @@ from memspine.derive.triggers import TriggerConfig, TriggerPolicy
 from memspine.exceptions import MemspineError, StorageError
 from memspine.memories.procedural.prompt_registry import prompt_version_records
 from memspine.observability.logging import EVENT_WRITE, get_logger
-from memspine.providers.placement import storage_placement
 from memspine.store.events import EventKind, MemoryEvent
 from memspine.store.records import MemoryRecord, RecordStatus
 from memspine.store.scope import validate_namespace
@@ -60,24 +59,18 @@ async def sync_prompt_versions(eng: Any, namespace: str = "default") -> list[Mem
 
 def build_sleep_v2(eng: Any, config: Any) -> DerivationScheduler:
     """O4-01a: the derivation scheduler for ``offline.sleep_v2``. The lease/watermark tables live in
-    a sibling SQLite file of the storage database (``<path>.sleep``; in memory for ``:memory:`` and
-    for non-file backends), so two processes on one database never overlap and the job bookkeeping
-    never contends with the event-log writer."""
+    the storage database itself (RM-111 WP5: encrypted with it on SQLite, shared on Postgres), so
+    two processes on one database never overlap; in memory for a ``:memory:`` store."""
     off = config.offline
     sql = getattr(eng, "_sql", None)
     resources = getattr(eng, "_provider_resources", None)
     path = ":memory:"
     shared_sql_engine = None
     if sql is not None:
-        placement = storage_placement(
-            config, getattr(eng, "_provider_owner_id", None) or "pending-owner"
-        )
         capabilities = sql.capabilities
-        if placement.in_memory:
+        if sql.is_memory:
             path = ":memory:"
-        elif "sql.sqlite" in capabilities and placement.base_path is not None:
-            path = f"{placement.base_path}.sleep"
-        elif "sql.shared_leases" in capabilities and resources is not None:
+        elif {"sync_sql", "sql.shared_leases"} & capabilities and resources is not None:
             shared_sql_engine = sql.sync_lease(resources, "sleep_leases").engine
         else:
             _log.warning(

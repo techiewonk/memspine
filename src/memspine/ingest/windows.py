@@ -285,11 +285,18 @@ def _envelope_write(eng: Any, config: MemspineConfig) -> EnvelopeWrite:
     """W2-06a (``write.envelope_v2``): compiler, validator, one-shot repair, dead-letter list.
     The repair call uses the router-bound LLM of the extraction, so the cost ledger counts it."""
     llm = eng._llm.for_role("window_extract")
-    from memspine.providers.placement import storage_placement
-
-    placement = storage_placement(config, config.runtime.deployment_id or "local")
-    path = str(placement.base_path) if placement.base_path is not None else ":memory:"
-    ledger_path = ":memory:" if path == ":memory:" else f"{path}.deadletters.sqlite"
+    # RM-111 WP5: the dead letters live in the storage database (encrypted with it on SQLite,
+    # shared on Postgres); a ``:memory:`` store keeps them in memory.
+    sql, resources = getattr(eng, "_sql", None), getattr(eng, "_provider_resources", None)
+    if (
+        sql is not None
+        and resources is not None
+        and not sql.is_memory
+        and "sync_sql" in sql.capabilities
+    ):
+        ledger = FailureLedger(sql.sync_lease(resources, "dead_letters").engine)
+    else:
+        ledger = FailureLedger(":memory:")
     compiler = EnvelopeCompiler(prompt_hash=f"{STRUCTURED_PROMPT_ID}@{STRUCTURED_VERSION}")
     learned = None
     if config.write.learned_persist:  # FU-GAPS: the kind set and the aliases survive a restart
@@ -302,7 +309,7 @@ def _envelope_write(eng: Any, config: MemspineConfig) -> EnvelopeWrite:
         compiler=compiler,
         validator=ItemValidator(compiler),
         repair=RepairAsk(llm, max_tokens=4096),
-        ledger=FailureLedger(ledger_path),
+        ledger=ledger,
         stages=_envelope_stages(eng, config),
         report_stages=config.write.online_extractor_v2,
         learned=learned,

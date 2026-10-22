@@ -11,11 +11,15 @@
 * :class:`SleepHandle` is what a non-blocking ``sleep()`` returns: ``status()``, ``wait()``,
   ``cancel()``.
 
-The store is a small SQLite file (stdlib ``sqlite3``, one short transaction per call), so two
-processes on one database never overlap. On the Postgres backend (``storage.url``; FU-SLEEP) the
-same tables and the same SQL run through psycopg3, so processes on different hosts never overlap
-either: the few SQLite-only spellings are translated by :func:`pg_sql`, and every transaction takes
-one advisory lock, the counterpart of the SQLite ``BEGIN IMMEDIATE`` writer lock.
+RM-111 WP5 (ADR-081): the tables live in the authoritative storage database, reached through its
+sync SQLAlchemy engine (:mod:`memspine.store.side_tables`): encrypted with it on SQLite/SQLCipher,
+shared by every process on it on Postgres. One short transaction per call, so two processes on one
+database never overlap: ``BEGIN IMMEDIATE`` on SQLite, and on Postgres one advisory lock per
+transaction (its counterpart); the few SQLite-only spellings are translated by :func:`pg_sql`. An
+engine-backed store sets ``offload``: its callers run the writes on a worker thread, because the
+event loop must never wait on SQLite's write lock (the async storage layer can hold it across an
+await). A path (``:memory:``, or a plain SQLite file for tests and tools) keeps the stdlib
+``sqlite3`` store; a Postgres DSN string still opens its own psycopg3 connection.
 
 Clock skew (FU-GAPS). Lease expiry is compared against a clock. On SQLite (one host) that is the
 process clock. On Postgres, processes on different hosts would each judge expiry by their own clock,
@@ -34,6 +38,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import functools
 import sqlite3
 import time
 from collections.abc import Awaitable, Callable, Iterator, Sequence
@@ -48,6 +53,7 @@ from memspine.observability import inspect as insp
 from memspine.observability import tap
 from memspine.schemas.public import JobHandle
 from memspine.schemas.public.receipt import JobState
+from memspine.store.side_tables import SIDE_TABLES, ensure_side_tables
 
 __all__ = [
     "JobOutcome",
@@ -193,11 +199,13 @@ class _SqlAlchemyConn:
     def execute(self, sql: str, params: Sequence[object] = ()) -> Any:
         head = sql.strip().upper()
         if head == "BEGIN IMMEDIATE":
-            self._connection.begin()
             if self._postgres:
+                self._connection.begin()
                 self._connection.exec_driver_sql(
                     "SELECT pg_advisory_xact_lock(%s)", (_PG_LOCK_KEY,)
                 )
+            else:  # SQLite: take the writer lock at once (the DB-API would begin deferred)
+                self._connection.exec_driver_sql("BEGIN IMMEDIATE")
             return None
         if head == "COMMIT":
             self._connection.commit()
@@ -224,29 +232,35 @@ class _SqlAlchemyConn:
 
 
 class LeaseStore:
-    """Persisted lease, cycle, watermark and trigger-state tables (SQLite file, or ``:memory:``;
-    a Postgres DSN keeps them in the storage database, shared by every process on it)."""
+    """Persisted lease, cycle, watermark and trigger-state tables: in the storage database (a
+    SQLAlchemy engine, SQLite or Postgres; RM-111 WP5), or ``:memory:`` / a plain file path."""
 
     def __init__(
         self, path: str | SqlAlchemyEngine = ":memory:", *, clock: Clock | None = None
     ) -> None:
         self._engine = path if isinstance(path, SqlAlchemyEngine) else None
-        if self._engine is not None and self._engine.dialect.name != "postgresql":
-            raise ValueError("SQLAlchemy lease engines must provide shared PostgreSQL storage")
         self.path: str
         if self._engine is not None:
-            self.path = str(self._engine.url)
+            self.path = self._engine.url.render_as_string(hide_password=True)
         else:
             assert isinstance(path, str)
             self.path = path
         self.clock: Clock = clock or time.time
-        self._pg = self._engine is not None or is_pg_url(self.path)
+        if self._engine is not None:
+            self._pg = self._engine.dialect.name == "postgresql"
+        else:
+            self._pg = is_pg_url(self.path)
+        #: True for the storage database: callers on the event loop run the writes on a thread.
+        self.offload = self._engine is not None
         self._db_time = self._pg and clock is None  # FU-GAPS: lease times come from the database
         self._shared: sqlite3.Connection | None = None
         if path == ":memory:":
             self._shared = sqlite3.connect(":memory:", isolation_level=None)
-        with self._conn() as con:
-            con.executescript(_SCHEMA)
+        if self._engine is not None:
+            ensure_side_tables(self._engine, SIDE_TABLES["sleep"])
+        else:
+            with self._conn() as con:
+                con.executescript(_SCHEMA)
 
     # ---------------------------------------------------------------- plumbing
     @contextlib.contextmanager
@@ -254,7 +268,7 @@ class LeaseStore:
         if self._engine is not None:
             connection = self._engine.connect()
             try:
-                yield _SqlAlchemyConn(connection, postgres=True)
+                yield _SqlAlchemyConn(connection, postgres=self._pg)
             finally:
                 connection.close()
             return
@@ -631,10 +645,17 @@ class NamespaceJob:
         self.full, self.prepare, self.cancelled, self.head_seq = full, prepare, cancelled, head_seq
         self.budget = budget  # O4-01b (offline.budget_v2); None = no budget, nothing below runs
 
+    async def _io(self, fn: Callable[..., Any], *args: Any) -> Any:
+        """One store write: on a worker thread for the storage database (RM-111 WP5: the loop must
+        never wait on SQLite's write lock), inline for a private ``:memory:`` or file store."""
+        if getattr(self.store, "offload", False):
+            return await asyncio.to_thread(fn, *args)
+        return fn(*args)
+
     async def run(self) -> JobOutcome:
         if self.cancelled():
             return JobOutcome("cancelled")
-        lease = self.store.claim(self.ns, self.owner, self.job_id, self.ttl)
+        lease = await self._io(self.store.claim, self.ns, self.owner, self.job_id, self.ttl)
         if lease is None:
             held = self.store.get_lease(self.ns)
             holder = held.job_id if held is not None else None
@@ -651,16 +672,16 @@ class NamespaceJob:
             tap.event("job.lease", ns=self.ns, op="lost", job=self.job_id, epoch=lease.epoch)
             return JobOutcome("failed", error="lease lost (fenced by a newer epoch)")
         except Exception as exc:
-            self.store.release(lease)
+            await self._io(self.store.release, lease)
             tap.event("job.lease", ns=self.ns, op="release", job=self.job_id, why="failed")
             return JobOutcome("failed", error=f"{type(exc).__name__}: {exc}")
         # simulated process death (any other BaseException) propagates with the lease still held
-        self.store.release(lease)
+        await self._io(self.store.release, lease)
         tap.event("job.lease", ns=self.ns, op="release", job=self.job_id, why=outcome.state)
         return outcome
 
     async def _drive(self, lease: NamespaceLease) -> JobOutcome:
-        opened = self.store.open_cycle(lease, self.kind)
+        opened = await self._io(self.store.open_cycle, lease, self.kind)
         if opened is None:
             raise LeaseLost(self.ns)
         cycle, resumed = opened
@@ -685,12 +706,12 @@ class NamespaceJob:
             if self.cancelled():
                 out.state = "cancelled"
                 return out
-            beat = self.store.heartbeat(lease, self.ttl)
+            beat = await self._io(self.store.heartbeat, lease, self.ttl)
             if beat is None:
                 raise LeaseLost(self.ns)
             lease = beat
             if self.budget is not None and is_model_stage(stage) and self.budget.exhausted(self.ns):
-                if not self.store.defer_stage(lease, self.kind, cycle, stage):
+                if not await self._io(self.store.defer_stage, lease, self.kind, cycle, stage):
                     raise LeaseLost(self.ns)
                 out.deferred.append(stage)
                 out.stats[stage] = {"status": "deferred", "reason": "budget"}
@@ -720,19 +741,24 @@ class NamespaceJob:
                     max_tokens=self.budget.max_tokens,
                     exhausted=self.budget.exhausted(self.ns),
                 )
-                if stage in waiting and not self.store.drain_stage(lease, self.kind, stage):
+                if stage in waiting and not await self._io(
+                    self.store.drain_stage, lease, self.kind, stage
+                ):
                     raise LeaseLost(self.ns)
-            mark = self.store.mark_stage(lease, self.kind, cycle, stage, self.head_seq())
+            mark = await self._io(
+                self.store.mark_stage, lease, self.kind, cycle, stage, self.head_seq()
+            )
             if mark is None:
                 raise LeaseLost(self.ns)
             tap.event(
                 "job.watermark", ns=self.ns, kind=self.kind, cycle=cycle, stage=stage, seq=mark.seq
             )
-        if not self.store.finish_cycle(lease, self.kind, cycle, full=self.full):
+        finish = functools.partial(self.store.finish_cycle, full=self.full)
+        if not await self._io(finish, lease, self.kind, cycle):
             raise LeaseLost(self.ns)
         out.state = "succeeded"
         if out.deferred:  # deferred units count toward N (O-05), so the next trigger fires normally
-            self.store.carry_deferred(self.ns, len(out.deferred))
+            await self._io(self.store.carry_deferred, self.ns, len(out.deferred))
         return out
 
 

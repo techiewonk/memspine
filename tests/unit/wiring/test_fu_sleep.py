@@ -265,7 +265,10 @@ async def test_engine_cost_report_survives_restart(
 
     first = await run(True)
     assert first["after"]["model_calls"] == 1
-    assert (tmp_path / "m.db.cost").exists()
+    # RM-111 WP5: the rows are in the storage database, never a side file
+    assert not (tmp_path / "m.db.cost").exists()
+    with sqlite3.connect(tmp_path / "m.db") as con:
+        assert con.execute("SELECT COUNT(*) FROM cost_entry").fetchone()[0] >= 1
     again = await run(True)  # a fresh engine on the same files
     assert again["before"]["model_calls"] == 1
     assert again["before"]["tokens_in"] == first["after"]["tokens_in"] > 10
@@ -344,7 +347,7 @@ def test_shared_sql_lease_capability_uses_owned_sync_lease(monkeypatch: pytest.M
             },
         },
     )
-    access = SimpleNamespace(capabilities=frozenset({"sql.shared_leases"}))
+    access = SimpleNamespace(capabilities=frozenset({"sql.shared_leases"}), is_memory=False)
     access.sync_lease = lambda resources, purpose: SimpleNamespace(engine=purpose)
     scheduler_engine = SimpleNamespace(
         _sql=access,

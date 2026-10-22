@@ -33,6 +33,7 @@ from typing import TYPE_CHECKING, Any, ClassVar, Self, TypeVar, cast
 
 import orjson
 from dishka import AsyncContainer
+from sqlalchemy import Engine as SyncSqlEngine
 
 from memspine.api import admin, handle, ops_advisory, ops_memory, ops_trust
 from memspine.api.handle import Memory
@@ -259,6 +260,7 @@ from memspine.services.storage.projector import RecordProjector
 from memspine.services.storage.sql_base import SqlStorage
 from memspine.services.vector.base import VectorHit, VectorStore
 from memspine.services.vector.projector import VectorProjector
+from memspine.store import side_tables as _side_tables
 from memspine.store.events import EventKind, EventLogMode, MemoryEvent
 from memspine.store.projections.projector import Projector
 from memspine.store.records import (
@@ -331,11 +333,14 @@ _T = TypeVar("_T")
 _CORE_SERVICES = frozenset({"storage", "secrets"})
 
 
-def _build_cost_ledger(config: MemspineConfig) -> _economy_ledger.WriteCostLedger:
+def _build_cost_ledger(
+    config: MemspineConfig, sql_engine: SyncSqlEngine | None = None
+) -> _economy_ledger.WriteCostLedger:
     """W2-12: the cost ledger, with the optional budget (which needs the durable outbox, since
     paused work is kept there, marked underived)."""
     spec = config.economy.budget
-    store = _build_ledger_store(config)  # FU-SLEEP (economy.ledger_persist); None = in-process
+    # FU-SLEEP (economy.ledger_persist); None = in-process
+    store = _build_ledger_store(config, sql_engine)
     if spec is None:
         return _economy_ledger.WriteCostLedger(store=store)
     if not config.workers.outbox:
@@ -351,20 +356,22 @@ def _build_cost_ledger(config: MemspineConfig) -> _economy_ledger.WriteCostLedge
     )
 
 
-def _build_ledger_store(config: MemspineConfig) -> _economy_ledger.LedgerStore | None:
-    """FU-SLEEP (``economy.ledger_persist``): the sibling SQLite file of the ledger rows
-    (``<storage.path>.cost``; for Postgres ``<storage.data_dir>/memspine.cost``). None when the flag
-    is off, or when there is no file to keep it in (``:memory:`` storage: logged)."""
+def _build_ledger_store(
+    config: MemspineConfig, sql_engine: SyncSqlEngine | None
+) -> _economy_ledger.LedgerStore | None:
+    """FU-SLEEP (``economy.ledger_persist``): the ledger rows, in the ``cost_entry`` table of the
+    storage database (RM-111 WP5: encrypted with it on SQLite, shared on Postgres; ``sql_engine``
+    is its sync engine). None when the flag is off, or when there is no durable database to keep
+    them in (``:memory:`` storage: logged)."""
     if not config.economy.ledger_persist:
         return None
-    base = derived_base(config)
-    if base == ":memory:":
+    if sql_engine is None:
         _log.warning(
-            "ledger_persist.in_memory", detail="no storage file: the cost ledger is not persisted"
+            "ledger_persist.in_memory",
+            detail="no durable storage database: the cost ledger is not persisted",
         )
         return None
-    path = f"{base}.cost"
-    return _economy_ledger.LedgerStore(path)
+    return _economy_ledger.LedgerStore(sql_engine)
 
 
 def _seam_target(config: MemspineConfig, engine_token: str) -> dict[str, str]:
@@ -667,6 +674,7 @@ class Engine:
             self._sql, config.runtime.deployment_id, config.runtime.environment
         )
         self._provider_owner_id = wiring.owner_id
+        await self._import_side_files(store_base)
         async with self._sql.engine.connect() as connection:
             wiring.projection_routes = await verified_active_projection_routes(
                 connection, wiring.owner_id
@@ -1128,13 +1136,36 @@ class Engine:
             return {}
         return dict(await self._warmup.wait(timeout_s))
 
+    async def _import_side_files(self, store_base: str | None) -> None:
+        """RM-111 WP5 (ADR-081): a ``<base>.sleep``, ``<base>.cost`` or
+        ``<base>.deadletters.sqlite`` left by an older version is imported once into the storage
+        database (idempotent) and renamed to ``*.imported``. Nothing to do for ``:memory:``."""
+        sql, resources = self._sql, self._provider_resources
+        if store_base in (None, ":memory:") or sql is None or resources is None:
+            return
+        if sql.is_memory or "sync_sql" not in sql.capabilities:
+            return
+        engine = sql.sync_lease(resources, "side_file_import").engine
+        await asyncio.to_thread(_side_tables.import_side_files, engine, str(store_base))
+
     async def _acquire_cost_ledger(
         self, config: MemspineConfig
     ) -> Lease[_economy_ledger.WriteCostLedger]:
         """RM-75: the cost ledger for this economy config and store, shared by Engines that agree."""
 
+        sql_engine = None
+        sql, resources = self._sql, self._provider_resources
+        if (
+            config.economy.ledger_persist
+            and sql is not None
+            and resources is not None
+            and not sql.is_memory
+            and "sync_sql" in sql.capabilities
+        ):
+            sql_engine = sql.sync_lease(resources, "cost_ledger").engine
+
         async def build() -> _economy_ledger.WriteCostLedger:
-            return _build_cost_ledger(config)
+            return _build_cost_ledger(config, sql_engine)
 
         async def close(ledger: _economy_ledger.WriteCostLedger) -> None:
             ledger.close()
@@ -5704,7 +5735,7 @@ class Engine:
             read_freshness.note_event(self._freshness_tracker, appended)
         if self._derive_sched is not None and event.kind is EventKind.WRITE:
             # O4-01a: count the deposit toward the sleep trigger
-            self._derive_sched.on_commit(event.namespace, appended.seq or 0)
+            await self._derive_sched.on_commit_async(event.namespace, appended.seq or 0)
         read_request._bump_generations(self, event)  # R3-15: read-cache generations
         if appended.seq is None:  # pragma: no cover - write door always assigns seq
             raise MemspineError("write door returned an event without seq")
