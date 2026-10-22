@@ -54,9 +54,15 @@ def _server_overrides(db: Path, redact: bool = False, rederive: bool = False) ->
     o = _EMBEDDED_OVERRIDES(db, redact, rederive)
     o["storage"] = {
         "profile": "server",
-        "url": _pg_url(),
-        "data_dir": str(db.parent / "derived"),
+        "provider": "postgres",
+        "settings": {
+            "url": _pg_url(),
+            "data_dir": str(db.parent / "derived"),
+            "connect_timeout_s": 5.0,
+            "statement_timeout_s": 30.0,
+        },
     }
+    o["runtime"] = {**o.get("runtime", {}), "deployment_id": "e2e-ex1a"}  # shared Postgres
     return o
 
 

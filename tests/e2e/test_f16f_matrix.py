@@ -28,7 +28,6 @@ from typing import Any
 import pytest
 
 import memspine
-from memspine.runtime import container as rt_container
 from memspine.schemas.durable import OwnerScope
 from memspine.scope import ScopeRefused
 from memspine.store import lineage as lineage_store
@@ -92,6 +91,28 @@ def _pg_url() -> str | None:
 # --------------------------------------------------------------------------- the fake Neo4j
 
 
+#: The fake the next Neo4j mirror build uses (a cell swaps it per open).
+_CURRENT_FAKE: dict[str, Any] = {}
+
+
+class _FakeProxy:
+    """Delegates to the cell's current fake, so one patched builder serves every open."""
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(_CURRENT_FAKE["fake"], name)
+
+
+@pytest.fixture(autouse=True)
+def _fake_neo4j_mirror(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The neo4j cells' mirror builds over the fake (same seam as tests/unit F-16e)."""
+    sys.path.insert(0, str(Path(__file__).parents[1] / "unit" / "wiring"))
+    from test_f_16e_neo4j_outbox import (  # type: ignore[import-not-found]
+        _install_fake_mirror,
+    )
+
+    _install_fake_mirror(monkeypatch, _FakeProxy())
+
+
 def _fake_neo4j() -> Any:
     sys.path.insert(0, str(Path(__file__).parents[1] / "unit" / "wiring"))
     from test_f_16e_neo4j_outbox import FakeNeo4j  # type: ignore[import-not-found]
@@ -118,19 +139,32 @@ class Cell:
         if self.profile == "server":
             o["storage"] = {
                 "profile": "server",
-                "url": _pg_url(),
-                "data_dir": str(self.tmp / "derived"),
+                "provider": "postgres",
+                "settings": {
+                    "url": _pg_url(),
+                    "data_dir": str(self.tmp / "derived"),
+                    "connect_timeout_s": 5.0,
+                    "statement_timeout_s": 30.0,
+                },
             }
-        if self.graph == "neo4j":
-            o["graph"] = {**o["graph"], "neo4j_outbox": True, "backend": "neo4j"}
+            o["runtime"] = {**o.get("runtime", {}), "deployment_id": "e2e-f16f"}
+        if self.graph == "neo4j":  # the F-16e mirror fed through the outbox
+            o["graph"] = {
+                **o["graph"],
+                "mirror": {
+                    "enabled": True,
+                    "provider": "neo4j",
+                    "settings": {"connect_timeout_s": 2.0, "request_timeout_s": 2.0},
+                },
+            }
+            o["runtime"] = {**o.get("runtime", {}), "deployment_id": "e2e-f16f"}  # shared Neo4j
         return o
 
     async def open(self, db: Path | None = None) -> World:
         if self.graph == "neo4j":
             if db is None and self.fake is None:
                 self.fake = _fake_neo4j()
-            fake = self.fake if db is None else _fake_neo4j()
-            rt_container.set_neo4j_executor_factory(lambda cfg: fake)
+            _CURRENT_FAKE["fake"] = self.fake if db is None else _fake_neo4j()
         eng = await memspine.open(dotenv_path=None, **self.overrides(db))
         return World._handles(db or self.db, eng, self.ids)
 
@@ -212,7 +246,7 @@ async def cell(
     finally:
         if c.world is not None and c.world.eng.is_started:
             await c.world.eng.stop()
-        rt_container.set_neo4j_executor_factory(None)
+        _CURRENT_FAKE.clear()
 
 
 CELLS = [(p, g) for p in PROFILES for g in GRAPHS]

@@ -171,7 +171,7 @@ def _overrides(db: Path, redact: bool = False, rederive: bool = False) -> dict[s
     """
     return {
         "template": "core",
-        "storage": {"path": str(db)},
+        "storage": {"provider": "sqlite", "settings": {"path": str(db), "busy_timeout_s": 5.0}},
         "embedding": {"provider": "hash"},
         "memories": {
             "episodic": {"enabled": True},
@@ -181,8 +181,8 @@ def _overrides(db: Path, redact: bool = False, rederive: bool = False) -> dict[s
         },
         "llm": {
             "roles": {
-                "window_extract": {"model": "stub/window"},
-                "session_close": {"model": "stub/close"},
+                "window_extract": {"provider": "litellm", "settings": {"model": "stub/window"}},
+                "session_close": {"provider": "litellm", "settings": {"model": "stub/close"}},
             }
         },
         "read": {
@@ -253,7 +253,7 @@ def _turns(lines: tuple[str, ...], start: int) -> list[dict[str, str]]:
 def stubs(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
     window, close = StubWindowLLM(), StubCloseLLM()
 
-    async def router(config: Any, hooks: object = None) -> LLMRouter:
+    async def router(config: Any, hooks: object = None, wiring: object = None) -> LLMRouter:
         return LLMRouter({"window_extract": window, "session_close": close})  # type: ignore[dict-item]
 
     monkeypatch.setattr("memspine.runtime.container.build_llm_router", router)

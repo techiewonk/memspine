@@ -12,12 +12,12 @@ Keep one row per stable ID. PA IDs preserve the 136-item provider program; BI ID
 | BLOCKED | 1 |
 | DEFERRED | 6 |
 | DEPLOYMENT_CHECK | 19 |
-| DONE | 176 |
+| DONE | 177 |
 | EXCLUDED | 4 |
 | IN_PROGRESS | 27 |
 | NEEDS_INPUT | 4 |
 | NEEDS_TOOLCHAIN | 1 |
-| OPEN | 10 |
+| OPEN | 11 |
 | OPEN_REVIEW | 18 |
 | PLANNED | 11 |
 | PROPOSED | 3 |
@@ -28,10 +28,10 @@ Keep one row per stable ID. PA IDs preserve the 136-item provider program; BI ID
 | BI | 12 |
 | DS | 21 |
 | PA | 136 |
-| RM | 107 |
+| RM | 109 |
 | RS | 9 |
 
-Total: **285 unique task IDs**. Provider-only historical denominator stays 136; the combined total also includes BI, DS, RS and imported review suggestions.
+Total: **287 unique task IDs**. Provider-only historical denominator stays 136; the combined total also includes BI, DS, RS and imported review suggestions.
 <!-- CURRENT_SUMMARY_END -->
 
 ## Status and column legend
@@ -349,9 +349,11 @@ its scope is narrower than the prerequisite (say so in the row) or its status is
 | RM-102 | DONE | P1 | Graph / trust maintainer | Store trust as a number and a named tier on edges | 2026-10-22: EdgeQualifiers.trust (0..1) and trust_tier (untrusted, low, normal, high); a trust without a tier gets the derived tier, a mismatched pair is rejected. Thresholds config/constants.EDGE_TRUST_TIERS (cites BI01_CONTRACT_REWRITE_PLAN.md P1 authority/trust tier and E1): untrusted < 0.25 (QUARANTINE_TRUST_THRESHOLD), low < 0.5 (TRUST_DEFAULT), normal < 0.8, high >= 0.8, lower bounds inclusive. Compiler fills both from the record trust; QualifierFilter.min_trust and trust_tiers (unknown never passes). tests/unit/services/graph/test_qualifiers.py::test_trust_tier_boundaries (8 boundary cases), ::test_trust_tier_thresholds_live_in_constants, ::test_trust_and_tier_must_agree, ::test_min_trust_and_trust_tier_filters | Completed | Prereq: RM-85; Feeds: RM-92 |
 | RM-103 | DONE | P1 | Architecture maintainer | Record the graph qualifier and sensitivity decisions as an ADR and register row | 2026-10-22: ADR-080 (typed edge qualifiers, filtered graph reads, sensitivity layer, new gliner_sensitivity/gliner_topic bindings) and D-104 in docs/memspine-structure-plan.md; CLAUDE.md counts (78 ADRs, D-01..D-104) and a D-104 summary line | Completed | Prereq: RM-41..RM-102; Feeds: none |
 | RM-104 | OPEN | P1 | Retrieval / graph performance maintainer | Make the filtered graph leg meet the RM-96 budget | 2026-10-22 RM-96: at 100k edges the read-path graph leg p95 is 1.7 s (SQLite), 2.2 s (LadybugDB), 4.4 s (Neo4j) against 50 ms; it loads every compiled edge via edge_list then checks qualifiers in Python (7-9 us per edge) | Walk from the seed nodes with the frontier op instead of loading the namespace; parse qualifiers once per edge; push erasure, valid/known time, assertion, domain and scope into indexed columns/Cypher if still over budget; cap hub fan-out; rerun scripts/benchmark_graph_filter.py | Prereq: RM-96; Feeds: RM-93, BI-08 |
-| RM-105 | OPEN | P2 | Verification lead | Bring tests/e2e onto the provider config schema | 2026-10-22: tests/e2e/test_f16f_matrix.py (and possibly other e2e files) still use the pre-ADR-068 flat keys (storage.profile/url, graph.backend) and fail at setup; the chunked unit regression never covers tests/e2e | Migrate e2e configs to provider/settings, run tests/e2e with skips recorded, add e2e to the regression chunks | Prereq: none; Feeds: PA-039, RM-15 |
+| RM-105 | DONE | P2 | Verification lead | Bring tests/e2e onto the provider config schema | 2026-10-22: test_ex1a_embedded/test_ex1a_server/test_f16f_matrix migrated to provider/settings (sqlite path+busy timeout; postgres url, data_dir, timeouts, profile server, deployment id), LLM roles to provider litellm + settings, stub router signature (wiring arg), Neo4j mirror cells to graph.mirror with the F-16e descriptor-builder fake (the old set_neo4j_executor_factory hook is no longer read). Local: 32 passed, 30 skipped (server profile); with a disposable pgvector/pgvector:pg16 Postgres: 59 passed, 3 skipped (replay on server is rebuild, by design) | Completed; e2e is not yet part of the chunked regression script (add it when the full sweep RM-15 runs) | Prereq: none; Feeds: PA-039, RM-15 |
 | RM-106 | OPEN | P3 | Model maintainer | Wire a real GLiNER topic tagger for topical domains | 2026-10-22 RM-91: the opt-in topic source works only with an injected tagger; nothing sets Engine._topic_tagger even when models.bindings.gliner_topic is bound | Build the tagger from the bound GLiNER profile (offline, local_files_only) like the sensitivity detector; topic labels map to domain ids from packs; stays off unless bound; stub and offline tests | Prereq: RM-91; Feeds: RM-91 |
 | RM-107 | NEEDS_INPUT | P3 | Domain vocabulary owner | Decide top domains for the built-in vocabulary packs | 2026-10-22 RM-91: the pack top-domain source is tested only with a custom pack; memspine.core and memspine.proposed span many topics, so no top domain was invented | Owner decides whether built-in packs get a top domain (or stay without one and rely on predicate/key defaults) | Prereq: RM-91 |
+| RM-108 | OPEN | P2 | Config / storage maintainer | storage.provider=postgres with the default storage.profile=embedded silently skips Alembic | 2026-10-22 found by RM-105: StorageConfig accepts provider postgres while profile defaults to embedded; the builder uses Alembic only when profile is server (providers/builtin/storage.py use_alembic), so a postgres store configured by provider alone is created without migrations and reports profile embedded | Decide: infer profile=server from provider=postgres (and reject embedded+postgres), or document the pair as required; add a config test either way | Prereq: none; Feeds: PA-057 |
+| RM-109 | OPEN | P3 | Runtime maintainer | Remove the dead set_neo4j_executor_factory hook | 2026-10-22 found by RM-105: runtime/container.py keeps set_neo4j_executor_factory and _neo4j_executor_factory, but nothing reads them any more; tests now patch the Neo4j descriptor builder | Delete the hook and its export (no alias, ADR-068) after confirming no external caller | Prereq: none |
 <!-- TASK_REGISTER_END -->
 
 ## Imported roadmap detail (no independent statuses)
