@@ -306,10 +306,10 @@ async def test_disk_cache_defaults_under_data_dir(
     seen: list[str] = []
 
     class FakeClient:
-        def __init__(self, url: str) -> None:
-            seen.append(url)
+        def __init__(self, spec: str) -> None:
+            seen.append(spec)
 
-        async def connect(self) -> None:
+        async def open(self) -> None:
             return None
 
         async def close(self) -> None:
@@ -322,10 +322,11 @@ async def test_disk_cache_defaults_under_data_dir(
     # The optional ``cashews`` extra is not needed: both lazy imports are replaced.
     client_module = ModuleType("memspine.clients.cashews")
     client_module.CashewsClient = FakeClient  # type: ignore[attr-defined]
-    cache_module = ModuleType("memspine.models.cache.cashews_cache")
+    client_module.CashewsSpec = str  # type: ignore[attr-defined]
+    cache_module = ModuleType("memspine.services.cache.cashews")
     cache_module.CashewsCache = FakeCache  # type: ignore[attr-defined]
     monkeypatch.setitem(sys.modules, "memspine.clients.cashews", client_module)
-    monkeypatch.setitem(sys.modules, "memspine.models.cache.cashews_cache", cache_module)
+    monkeypatch.setitem(sys.modules, "memspine.services.cache.cashews", cache_module)
     descriptor = get_registry("cache_backends").get("disk")
     placement = ProjectionPlacement(None, False, "o")
     for raw in ({}, {"path": "explicit.cache"}):

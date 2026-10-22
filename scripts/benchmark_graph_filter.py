@@ -542,14 +542,20 @@ async def engine_read(
     eng = Engine(
         template="core",
         dotenv_path=None,
-        storage={"provider": "sqlite", "settings": {"path": str(path), "busy_timeout_s": 5.0}},
+        storage={
+            "records": {
+                "provider": "sqlite",
+                "settings": {"path": str(path), "busy_timeout_s": 5.0},
+            },
+            "graph": {"provider": provider},
+        },
         embedding={"provider": "hash", "settings": {}},
         memories={
             "semantic": {"enabled": True},
             "episodic": {"enabled": True},
             "associative": {"enabled": True, "policies": {"entity_nodes": True}},
         },
-        graph={"provider": provider, "edge_compiler_v2": True},
+        graph={"edge_compiler_v2": True},
         read={
             "hybrid": True,
             "record_access": False,

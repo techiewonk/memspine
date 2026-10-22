@@ -462,8 +462,7 @@ def test_concurrent_schema_upgrades_finish_at_head_and_release_the_lock(pg_url: 
         with engine.connect() as conn:
             version = conn.execute(sa.text("SELECT version_num FROM alembic_version")).scalar()
             held = conn.execute(
-                sa.text("SELECT count(*) FROM pg_locks WHERE locktype = 'advisory' AND objid = :k"),
-                {"k": MIGRATION_LOCK_KEY},
+                sa.text("SELECT count(*) FROM pg_locks WHERE locktype = 'advisory'")
             ).scalar()
         assert version == pg_migrations.heads()[0]
         assert held == 0  # released after the upgrade
@@ -481,18 +480,12 @@ def test_advisory_lock_blocks_a_migration_held_elsewhere(pg_url: str) -> None:
     done = threading.Event()
     try:
         with holder.connect() as conn:
-            conn.execute(
-                sa.text("SELECT pg_advisory_lock(:k)"), {"k": MIGRATION_LOCK_KEY}
-            )
+            conn.execute(sa.text("SELECT pg_advisory_lock(:k)"), {"k": MIGRATION_LOCK_KEY})
             conn.commit()
-            worker = threading.Thread(
-                target=lambda: (_ensure(pg_url), done.set())
-            )
+            worker = threading.Thread(target=lambda: (_ensure(pg_url), done.set()))
             worker.start()
             assert not done.wait(1.5)  # blocked on the advisory lock
-            conn.execute(
-                sa.text("SELECT pg_advisory_unlock(:k)"), {"k": MIGRATION_LOCK_KEY}
-            )
+            conn.execute(sa.text("SELECT pg_advisory_unlock(:k)"), {"k": MIGRATION_LOCK_KEY})
             conn.commit()
             worker.join(timeout=120)
         assert done.is_set()

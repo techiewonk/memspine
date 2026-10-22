@@ -73,7 +73,10 @@ async def _entity_engine(path: str = ":memory:", **extra: Any) -> Engine:
     eng = Engine(
         template="core",
         dotenv_path=None,
-        storage={"provider": "sqlite", "settings": {"path": path, "busy_timeout_s": 5.0}},
+        storage={
+            "records": {"provider": "sqlite", "settings": {"path": path, "busy_timeout_s": 5.0}},
+            **extra.pop("storage", {}),
+        },
         embedding={"provider": "hash", "settings": {}},
         memories={
             "semantic": {"enabled": True},
@@ -158,7 +161,7 @@ async def test_randomized_world_seeds_identical(seed: int, provider: str, tmp_pa
     if provider == "ladybug":
         pytest.importorskip("ladybug")
     rng = random.Random(seed)
-    eng = await _entity_engine(str(tmp_path / "m.db"), graph={"provider": provider})
+    eng = await _entity_engine(str(tmp_path / "m.db"), storage={"graph": {"provider": provider}})
     other = "b"
     written: dict[str, list[str]] = {NS: [], other: []}
     queries = [

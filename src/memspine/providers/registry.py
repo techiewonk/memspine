@@ -23,8 +23,8 @@ from memspine.services.base import CapabilityManifest as ServiceManifest
 
 __all__ = [
     "CACHE_BACKENDS",
-    "DECIDERS",
     "DATA_CATEGORIES",
+    "DECIDERS",
     "EMBEDDERS",
     "EXTRACTORS",
     "GRAPH_STORES",
