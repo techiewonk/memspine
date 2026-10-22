@@ -9,7 +9,7 @@
   "dependencies": [
     {
       "pack_id": "memspine.core",
-      "digest": "b4b7d83fa1031b8b970dcd5805bcd9cf669083aa9f31e5e34daba232a62c2898"
+      "digest": "1ed89af8e14031cf4d7e2ed71685d4e3819830b1b973799101b16be7ba39dbd3"
     }
   ],
   "predicates": [
@@ -44,7 +44,8 @@
       "extraction_rule_ids": [],
       "sensitivity": [
         "health"
-      ]
+      ],
+      "domain": "health/condition"
     },
     {
       "name": "allergic_to",
@@ -79,7 +80,8 @@
       "extraction_rule_ids": [],
       "sensitivity": [
         "health"
-      ]
+      ],
+      "domain": "health/allergy"
     },
     {
       "name": "intolerant_of",
@@ -113,7 +115,8 @@
       "extraction_rule_ids": [],
       "sensitivity": [
         "health"
-      ]
+      ],
+      "domain": "health/intolerance"
     },
     {
       "name": "takes_medication",
@@ -147,7 +150,8 @@
       "extraction_rule_ids": [],
       "sensitivity": [
         "health"
-      ]
+      ],
+      "domain": "health/medication"
     },
     {
       "name": "experienced_symptom",
@@ -182,7 +186,8 @@
       "extraction_rule_ids": [],
       "sensitivity": [
         "health"
-      ]
+      ],
+      "domain": "health/symptom"
     },
     {
       "name": "feels",
@@ -356,7 +361,8 @@
       "role_names": [],
       "required_roles": [],
       "extraction_rule_ids": [],
-      "lifecycle": true
+      "lifecycle": true,
+      "domain": "education"
     },
     {
       "name": "teaches",
@@ -390,7 +396,8 @@
       "required_roles": [
         "topic"
       ],
-      "extraction_rule_ids": []
+      "extraction_rule_ids": [],
+      "domain": "education"
     },
     {
       "name": "enrolled_in",
@@ -422,7 +429,8 @@
       "property_category": null,
       "role_names": [],
       "required_roles": [],
-      "extraction_rule_ids": []
+      "extraction_rule_ids": [],
+      "domain": "education"
     },
     {
       "name": "studied_at",
@@ -452,7 +460,8 @@
       "property_category": null,
       "role_names": [],
       "required_roles": [],
-      "extraction_rule_ids": []
+      "extraction_rule_ids": [],
+      "domain": "education"
     },
     {
       "name": "purchased",
@@ -501,7 +510,8 @@
       "event_family": "sale",
       "sensitivity": [
         "financial"
-      ]
+      ],
+      "domain": "finance"
     },
     {
       "name": "sold",
@@ -550,7 +560,8 @@
       "event_family": "sale",
       "sensitivity": [
         "financial"
-      ]
+      ],
+      "domain": "finance"
     },
     {
       "name": "paid",
@@ -596,7 +607,8 @@
       "extraction_rule_ids": [],
       "sensitivity": [
         "financial"
-      ]
+      ],
+      "domain": "finance"
     },
     {
       "name": "lent",
@@ -642,7 +654,8 @@
       "event_family": "loan",
       "sensitivity": [
         "financial"
-      ]
+      ],
+      "domain": "finance"
     },
     {
       "name": "borrowed",
@@ -688,7 +701,8 @@
       "event_family": "loan",
       "sensitivity": [
         "financial"
-      ]
+      ],
+      "domain": "finance"
     },
     {
       "name": "acquired",
@@ -1089,7 +1103,8 @@
       ],
       "sensitivity": [
         "health"
-      ]
+      ],
+      "domain": "health"
     },
     {
       "name": "diagnosis_status",
@@ -1110,7 +1125,8 @@
       ],
       "sensitivity": [
         "health"
-      ]
+      ],
+      "domain": "health/condition"
     },
     {
       "name": "intensity",
@@ -1137,7 +1153,8 @@
       "subject_types": [],
       "value_kinds": [
         "text"
-      ]
+      ],
+      "domain": "education"
     },
     {
       "name": "qualification",
@@ -1150,7 +1167,8 @@
       "subject_types": [],
       "value_kinds": [
         "text"
-      ]
+      ],
+      "domain": "education"
     },
     {
       "name": "speech_act",

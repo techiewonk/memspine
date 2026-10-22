@@ -24,8 +24,8 @@ BUILTIN_PACK_FILES: Mapping[str, str] = MappingProxyType(
 )
 BUILTIN_PACK_DIGESTS: Mapping[str, str] = MappingProxyType(
     {
-        "memspine.core": "b4b7d83fa1031b8b970dcd5805bcd9cf669083aa9f31e5e34daba232a62c2898",
-        "memspine.proposed": "26a3a491aa7e661de207d362c02f55382da5a0dc4f21dcb7a6591915d0aec971",
+        "memspine.core": "1ed89af8e14031cf4d7e2ed71685d4e3819830b1b973799101b16be7ba39dbd3",
+        "memspine.proposed": "e6e581df8ed8751be146ff8caec7e33fcbf106eaa854c9b68a633a173d64ec15",
     }
 )
 
@@ -75,7 +75,15 @@ _EVIDENCE_OK = {
 class SemanticRegistry:
     """Read-only definitions; callers still validate evidence and source authority."""
 
-    __slots__ = ("_digest", "_owners", "_predicates", "_properties", "_roles", "_withdrawn")
+    __slots__ = (
+        "_digest",
+        "_owners",
+        "_pack_domains",
+        "_predicates",
+        "_properties",
+        "_roles",
+        "_withdrawn",
+    )
 
     def __init__(
         self,
@@ -85,12 +93,14 @@ class SemanticRegistry:
         *,
         withdrawn: Iterable[tuple[str, str]] = (),
         owners: Mapping[tuple[str, str], str] | None = None,
+        pack_domains: Mapping[str, str] | None = None,
     ) -> None:
         self._predicates = _index(predicates)
         self._properties = _index(properties)
         self._roles = _index(roles)
         self._withdrawn = frozenset(withdrawn)
         self._owners = MappingProxyType(dict(owners or {}))
+        self._pack_domains = MappingProxyType(dict(pack_domains or {}))
         self._check_references()
         payload: dict[str, object] = {
             label: [spec.model_dump(mode="json") for _, spec in sorted(index.items())]
@@ -101,6 +111,8 @@ class SemanticRegistry:
             )
         }
         payload["withdrawn"] = sorted(self._withdrawn)
+        if self._pack_domains:  # RM-91: a pack's top domain changes what claims resolve to
+            payload["pack_domains"] = dict(sorted(self._pack_domains.items()))
         self._digest = hashlib.sha256(
             json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
         ).hexdigest()
@@ -188,6 +200,7 @@ class SemanticRegistry:
             (spec for pack in packs for spec in pack.roles),
             withdrawn=((item.kind, item.name) for pack in packs for item in pack.withdrawn),
             owners=owners,
+            pack_domains={p.pack_id: p.domain for p in packs if p.domain is not None},
         )
 
     @property
@@ -208,6 +221,11 @@ class SemanticRegistry:
 
     def owner(self, kind: str, name: str) -> str | None:
         return self._owners.get((kind, name))
+
+    def pack_domain(self, kind: str, name: str) -> str | None:
+        """RM-91: the top domain of the pack owning a definition (None = none declared)."""
+        owner = self._owners.get((kind, name))
+        return self._pack_domains.get(owner) if owner is not None else None
 
     def is_withdrawn(self, kind: str, name: str) -> bool:
         return (kind, name) in self._withdrawn

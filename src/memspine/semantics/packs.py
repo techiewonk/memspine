@@ -29,6 +29,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from memspine.semantics.domains import DOMAIN_PATTERN
 from memspine.semantics.specs import PredicateSpec, PropertySpec, RoleSpec
 
 DefinitionKind = Literal["predicate", "property", "role"]
@@ -64,6 +65,9 @@ class PackManifest(BaseModel):
     status: Literal["approved", "proposed"]
     default_active: bool
     description: str = Field(min_length=1)
+    #: RM-91: the pack's top topical domain, the fallback for its predicates that
+    #: declare none (None = a general pack with no single topic).
+    domain: str | None = Field(default=None, pattern=DOMAIN_PATTERN)
     dependencies: tuple[PackDependency, ...] = ()
     predicates: tuple[PredicateSpec, ...] = ()
     properties: tuple[PropertySpec, ...] = ()

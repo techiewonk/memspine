@@ -136,6 +136,8 @@ class MemspineConfig(ConfigModel):
             "gliner_decision": "classification",
             "gliner_semantic": "entities",
             "gliner_prepass": "entities",
+            # RM-91 (d): opt-in topic tags for topical domains; inert unless bound
+            "gliner_topic": "classification",
         }
         llm_roles = set(PROMPT_ROLES) | set(CATALOGUE_ROLE)
         valid_roles = llm_roles | set(gliner_roles)

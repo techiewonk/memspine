@@ -174,6 +174,30 @@ entity and node legs, causal walk, proximity rerank, communities) are skipped fo
 read, so no graph result bypasses the filter. Vector, lexical and other legs are not
 affected, and no filter means unchanged behaviour. Times must be timezone-aware. The
 read cache keys on the filter. `POST /search` takes `graph_filter` as JSON.
+
+Caller visibility (RM-88): under a filter an edge also has to pass two checks. Its `scope`
+must be the reading namespace, or a namespace the reader holds an active grant on
+(`engine.grant`) that covers semantic records. Grants are looked up again on every
+filtered read, so revoking one hides its edges straight away. The edge's source record
+(`record_id`) must also exist and pass the read's `viewer=` check. An identity merge
+that only the grantee may see carries the grantee's scope, so the grantor never sees it.
+
+Valid-time precision (RM-97): a `valid_from`/`valid_to` stored at `valid_precision` year,
+month, day, hour or minute covers its whole period. Month precision covers the whole
+month, measured on the bound's own clock and timezone (UTC for UTC bounds). `valid_at`
+and `valid_window` therefore match against `[start of valid_from's period, end of
+valid_to's period)`. With `valid_approximate=True`, a comparison that lands inside a
+bound's period is unknown, and unknown fails the filter.
+
+Topical domains (RM-91): domain ids are hierarchical (`health/condition`), and
+`topical_domains={"health"}` matches `health` and everything under it, but not
+`healthcare`. The compiler picks an edge's domain from the first source that gives one:
+a caller tag `domain:<id>` on the fact record, then the property key's vocabulary
+default, then the predicate's default, then the owning pack's top domain
+(`PackManifest.domain`), then an opt-in `gliner_topic:<id>` tag. It records which one it
+used in `topical_domain_source`. The topic tagger stays off unless
+`models.bindings.gliner_topic` is set and a tagger is attached. Callers cannot supply
+`gliner_topic:` tags. If no source gives a domain, the domain is unknown.
 ```python
 from datetime import UTC, datetime
 from memspine.services.graph.qualifiers import AssertionModality, QualifierFilter

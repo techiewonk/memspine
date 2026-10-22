@@ -6,6 +6,7 @@ from typing import Literal, get_args
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from memspine.semantics.domains import DOMAIN_PATTERN
 from memspine.semantics.origins import SourceOrigin
 from memspine.semantics.sensitivity import SensitivityLabel
 
@@ -96,6 +97,8 @@ class PropertySpec(_Spec):
     context_requirements: tuple[str, ...] = ()
     allowed_values: tuple[str, ...] = ()
     sensitivity: tuple[SensitivityLabel, ...] = ()
+    # RM-91: default topical domain of claims keyed by this property (hierarchical id).
+    domain: str | None = Field(default=None, pattern=DOMAIN_PATTERN)
 
     @model_validator(mode="after")
     def _numeric_contract(self) -> PropertySpec:
@@ -143,6 +146,8 @@ class PredicateSpec(_Spec):
     # only through an explicit, evidenced transition.
     state_effect: Literal["opens", "closes"] | None = None
     affects_state: str | None = None
+    # RM-91: default topical domain of claims of this predicate (hierarchical id).
+    domain: str | None = Field(default=None, pattern=DOMAIN_PATTERN)
 
     @model_validator(mode="after")
     def _roles(self) -> PredicateSpec:

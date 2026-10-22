@@ -67,6 +67,7 @@ from memspine.observability.logging import (
     redact_error,
 )
 from memspine.read.pipeline import scope_guard
+from memspine.semantics.domains import TOPIC_TAG_PREFIX, topic_hook, topic_tags
 from memspine.services.storage.sql_base import SqlStorage
 from memspine.services.vector.base import VectorHit
 from memspine.store.events import EventKind, MemoryEvent, fingerprint_payload
@@ -122,9 +123,14 @@ def _reply_targets(record: MemoryRecord) -> list[str]:
 def _caller_tags(tags: Sequence[str] | None, ns: str) -> list[str]:
     """Caller-supplied tags without the engine-only ones (``RESERVED_TAGS``): a
     caller must not mark its text as a lead block, a cue or a rolled-back record."""
-    kept = [tag for tag in tags or [] if tag not in constants.RESERVED_TAGS]
+
+    def reserved(tag: str) -> bool:
+        # RM-91: ``gliner_topic:`` tags come only from the opt-in topic tagger
+        return tag in constants.RESERVED_TAGS or tag.startswith(TOPIC_TAG_PREFIX)
+
+    kept = [tag for tag in tags or [] if not reserved(tag)]
     if len(kept) != len(tags or []):
-        dropped = sorted({tag for tag in tags or [] if tag in constants.RESERVED_TAGS})
+        dropped = sorted({tag for tag in tags or [] if reserved(tag)})
         _log.warning("memory.reserved_tags_dropped", namespace=ns, tags=dropped)
     return kept
 
@@ -336,6 +342,11 @@ async def write(
         opts = eng._perspective_options()
         if opts.on:  # I39: speaker / addressee / subject / stance tags; content untouched
             tags = await eng._annotate_perspective(ns, content, source.role, tags, opts, valid_from)
+    # RM-91 (d): opt-in topic tags; off unless models.bindings binds ``gliner_topic`` and
+    # a tagger is attached (nothing here loads a model).
+    tagger = topic_hook(eng._config(), getattr(eng, "_topic_tagger", None))
+    if tagger is not None:
+        tags = [*(tags or []), *topic_tags(content, tagger)]
     implicit = eng._consume_reads(ns, session_id)
     parents = list(dict.fromkeys([*(derived_from or []), *implicit]))
     if parents:

@@ -38,7 +38,8 @@
       "cardinality_scope": [],
       "sensitivity": [
         "location"
-      ]
+      ],
+      "domain": "location/residence"
     },
     {
       "name": "works_in",
@@ -67,7 +68,8 @@
       "role_names": [],
       "required_roles": [],
       "extraction_rule_ids": [],
-      "cardinality_scope": []
+      "cardinality_scope": [],
+      "domain": "work"
     },
     {
       "name": "home_country",
@@ -96,7 +98,8 @@
       "role_names": [],
       "required_roles": [],
       "extraction_rule_ids": [],
-      "cardinality_scope": []
+      "cardinality_scope": [],
+      "domain": "location/residence"
     },
     {
       "name": "born_in",
@@ -125,7 +128,8 @@
       "extraction_rule_ids": [],
       "cardinality_scope": [
         "precision"
-      ]
+      ],
+      "domain": "identity"
     },
     {
       "name": "grew_up_in",
@@ -152,7 +156,8 @@
       "role_names": [],
       "required_roles": [],
       "extraction_rule_ids": [],
-      "cardinality_scope": []
+      "cardinality_scope": [],
+      "domain": "location/residence"
     },
     {
       "name": "move_origin",
@@ -182,7 +187,8 @@
       "required_roles": [],
       "extraction_rule_ids": [],
       "cardinality_scope": [],
-      "event_family": "move"
+      "event_family": "move",
+      "domain": "location/residence"
     },
     {
       "name": "move_destination",
@@ -212,7 +218,8 @@
       "required_roles": [],
       "extraction_rule_ids": [],
       "cardinality_scope": [],
-      "event_family": "move"
+      "event_family": "move",
+      "domain": "location/residence"
     },
     {
       "name": "visited",
@@ -241,7 +248,8 @@
       "role_names": [],
       "required_roles": [],
       "extraction_rule_ids": [],
-      "cardinality_scope": []
+      "cardinality_scope": [],
+      "domain": "location/travel"
     },
     {
       "name": "temporarily_present_in",
@@ -270,7 +278,8 @@
       "role_names": [],
       "required_roles": [],
       "extraction_rule_ids": [],
-      "cardinality_scope": []
+      "cardinality_scope": [],
+      "domain": "location/travel"
     },
     {
       "name": "parent_of",
@@ -298,7 +307,8 @@
       "required_roles": [],
       "extraction_rule_ids": [],
       "cardinality_scope": [],
-      "inverse_view": "child_of"
+      "inverse_view": "child_of",
+      "domain": "relationships/family"
     },
     {
       "name": "sibling_of",
@@ -326,7 +336,8 @@
       "required_roles": [],
       "extraction_rule_ids": [],
       "cardinality_scope": [],
-      "symmetric": true
+      "symmetric": true,
+      "domain": "relationships/family"
     },
     {
       "name": "spouse_of",
@@ -354,7 +365,8 @@
       "required_roles": [],
       "extraction_rule_ids": [],
       "cardinality_scope": [],
-      "symmetric": true
+      "symmetric": true,
+      "domain": "relationships/family"
     },
     {
       "name": "friend_of",
@@ -386,7 +398,8 @@
       "required_roles": [],
       "extraction_rule_ids": [],
       "cardinality_scope": [],
-      "symmetric": true
+      "symmetric": true,
+      "domain": "relationships"
     },
     {
       "name": "member_of",
@@ -445,7 +458,8 @@
       "required_roles": [],
       "extraction_rule_ids": [],
       "cardinality_scope": [],
-      "inverse_view": "employer_of"
+      "inverse_view": "employer_of",
+      "domain": "work"
     },
     {
       "name": "owns",
@@ -707,7 +721,8 @@
       "role_names": [],
       "required_roles": [],
       "extraction_rule_ids": [],
-      "cardinality_scope": []
+      "cardinality_scope": [],
+      "domain": "media"
     },
     {
       "name": "listened_to",
@@ -738,7 +753,8 @@
       "role_names": [],
       "required_roles": [],
       "extraction_rule_ids": [],
-      "cardinality_scope": []
+      "cardinality_scope": [],
+      "domain": "media"
     },
     {
       "name": "watched",
@@ -769,7 +785,8 @@
       "role_names": [],
       "required_roles": [],
       "extraction_rule_ids": [],
-      "cardinality_scope": []
+      "cardinality_scope": [],
+      "domain": "media"
     },
     {
       "name": "played",
@@ -939,7 +956,8 @@
       "role_names": [],
       "required_roles": [],
       "extraction_rule_ids": [],
-      "cardinality_scope": []
+      "cardinality_scope": [],
+      "domain": "preferences"
     },
     {
       "name": "dislikes",
@@ -974,7 +992,8 @@
       "role_names": [],
       "required_roles": [],
       "extraction_rule_ids": [],
-      "cardinality_scope": []
+      "cardinality_scope": [],
+      "domain": "preferences"
     },
     {
       "name": "prefers",
@@ -1015,7 +1034,8 @@
         "alternative"
       ],
       "extraction_rule_ids": [],
-      "cardinality_scope": []
+      "cardinality_scope": [],
+      "domain": "preferences"
     },
     {
       "name": "interested_in",
@@ -1050,7 +1070,8 @@
       "role_names": [],
       "required_roles": [],
       "extraction_rule_ids": [],
-      "cardinality_scope": []
+      "cardinality_scope": [],
+      "domain": "preferences"
     },
     {
       "name": "intends",
@@ -1751,7 +1772,8 @@
       "required_roles": [],
       "extraction_rule_ids": [],
       "cardinality_scope": [],
-      "inverse_view": "managed_by"
+      "inverse_view": "managed_by",
+      "domain": "work"
     },
     {
       "name": "has_role",
@@ -2131,7 +2153,8 @@
       "role_names": [],
       "required_roles": [],
       "extraction_rule_ids": [],
-      "lifecycle": true
+      "lifecycle": true,
+      "domain": "work"
     },
     {
       "name": "blocked_by",
@@ -2373,7 +2396,8 @@
       "role_names": [],
       "required_roles": [],
       "extraction_rule_ids": [],
-      "symmetric": true
+      "symmetric": true,
+      "domain": "relationships"
     },
     {
       "name": "relative_of",
@@ -2401,7 +2425,8 @@
       "role_names": [],
       "required_roles": [],
       "extraction_rule_ids": [],
-      "symmetric": true
+      "symmetric": true,
+      "domain": "relationships/family"
     },
     {
       "name": "colleague_of",
@@ -2429,7 +2454,8 @@
       "role_names": [],
       "required_roles": [],
       "extraction_rule_ids": [],
-      "symmetric": true
+      "symmetric": true,
+      "domain": "work"
     },
     {
       "name": "acquainted_with",
@@ -2457,7 +2483,8 @@
       "role_names": [],
       "required_roles": [],
       "extraction_rule_ids": [],
-      "symmetric": true
+      "symmetric": true,
+      "domain": "relationships"
     },
     {
       "name": "mentor_of",
@@ -2485,7 +2512,8 @@
       "role_names": [],
       "required_roles": [],
       "extraction_rule_ids": [],
-      "inverse_view": "mentee_of"
+      "inverse_view": "mentee_of",
+      "domain": "relationships"
     },
     {
       "name": "caregiver_of",
@@ -2515,7 +2543,8 @@
       "role_names": [],
       "required_roles": [],
       "extraction_rule_ids": [],
-      "inverse_view": "cared_for_by"
+      "inverse_view": "cared_for_by",
+      "domain": "relationships"
     },
     {
       "name": "neighbour_of",
@@ -2543,7 +2572,8 @@
       "role_names": [],
       "required_roles": [],
       "extraction_rule_ids": [],
-      "symmetric": true
+      "symmetric": true,
+      "domain": "relationships"
     },
     {
       "name": "instructed",
@@ -2763,7 +2793,8 @@
       "extraction_rule_ids": [],
       "sensitivity": [
         "identity"
-      ]
+      ],
+      "domain": "identity"
     },
     {
       "name": "speaks",
@@ -2795,7 +2826,8 @@
       "property_category": null,
       "role_names": [],
       "required_roles": [],
-      "extraction_rule_ids": []
+      "extraction_rule_ids": [],
+      "domain": "identity"
     },
     {
       "name": "affiliated_with",
@@ -4152,7 +4184,8 @@
       "allowed_units": [],
       "requires_currency": true,
       "nonnegative_integer": false,
-      "context_requirements": []
+      "context_requirements": [],
+      "domain": "finance"
     },
     {
       "name": "cost",
@@ -4184,7 +4217,8 @@
       "allowed_units": [],
       "requires_currency": true,
       "nonnegative_integer": false,
-      "context_requirements": []
+      "context_requirements": [],
+      "domain": "finance"
     },
     {
       "name": "item_count",
@@ -4584,7 +4618,8 @@
       "value_kinds": [
         "text",
         "entity"
-      ]
+      ],
+      "domain": "work"
     },
     {
       "name": "pronouns",
@@ -4602,7 +4637,8 @@
       ],
       "sensitivity": [
         "identity"
-      ]
+      ],
+      "domain": "identity"
     },
     {
       "name": "nationality",
@@ -4620,7 +4656,8 @@
       ],
       "sensitivity": [
         "identity"
-      ]
+      ],
+      "domain": "identity"
     },
     {
       "name": "contact_channel",
@@ -4640,7 +4677,8 @@
       ],
       "sensitivity": [
         "contact"
-      ]
+      ],
+      "domain": "identity/contact"
     },
     {
       "name": "preferred_contact_time",
@@ -4660,7 +4698,8 @@
       ],
       "sensitivity": [
         "contact"
-      ]
+      ],
+      "domain": "identity/contact"
     }
   ],
   "roles": [

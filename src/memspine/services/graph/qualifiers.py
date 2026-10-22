@@ -41,7 +41,7 @@ from __future__ import annotations
 from collections.abc import Awaitable, Callable, Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from contextvars import ContextVar
-from datetime import datetime
+from datetime import datetime, timedelta
 from enum import StrEnum
 from typing import Any, Protocol, runtime_checkable
 
@@ -55,11 +55,13 @@ from pydantic import (
 )
 
 from memspine.exceptions import MemspineError
+from memspine.semantics.domains import DOMAIN_PATTERN, DomainSource, domain_in, is_domain_id
 from memspine.services.graph.base import GraphEdge, GraphNode, capped_neighbors
 
 __all__ = [
     "QUALIFIERS_PROP",
     "AssertionModality",
+    "CallerVisibility",
     "ClaimState",
     "Completeness",
     "EdgeQualifiers",
@@ -178,6 +180,40 @@ def _require_aware(value: datetime | None) -> datetime | None:
     return value
 
 
+_FIXED_STEPS: dict[TimePrecision, timedelta] = {
+    TimePrecision.DAY: timedelta(days=1),
+    TimePrecision.HOUR: timedelta(hours=1),
+    TimePrecision.MINUTE: timedelta(minutes=1),
+    TimePrecision.SECOND: timedelta(seconds=1),
+}
+
+
+def _period(bound: datetime, precision: TimePrecision | None) -> tuple[datetime, datetime]:
+    """RM-97: ``[start, end)`` of the period ``bound`` names at ``precision``.
+
+    Computed on the bound's own wall clock and timezone (stored bounds are aware; a
+    bound written in UTC has UTC periods). ``instant`` / None: the bound itself."""
+    if precision is None or precision is TimePrecision.INSTANT:
+        return bound, bound
+    if precision is TimePrecision.YEAR:
+        start = bound.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
+        return start, start.replace(year=start.year + 1)
+    if precision is TimePrecision.MONTH:
+        start = bound.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        if start.month == 12:
+            return start, start.replace(year=start.year + 1, month=1)
+        return start, start.replace(month=start.month + 1)
+    zero: dict[str, int] = {"microsecond": 0}
+    if precision in (TimePrecision.DAY, TimePrecision.HOUR, TimePrecision.MINUTE):
+        zero["second"] = 0
+    if precision in (TimePrecision.DAY, TimePrecision.HOUR):
+        zero["minute"] = 0
+    if precision is TimePrecision.DAY:
+        zero["hour"] = 0
+    start = bound.replace(**zero)  # type: ignore[arg-type]
+    return start, start + _FIXED_STEPS[precision]
+
+
 #: Erasure states that are never traversed, whatever the filter says (RM-83).
 _NOT_TRAVERSABLE = frozenset({"erased", "erasure_pending"})
 
@@ -223,7 +259,10 @@ class EdgeQualifiers(_Frozen):
     vocabulary_pack: str | None = None
     vocabulary_version: str | None = None
     # ── P2 ──
-    topical_domain: str | None = None
+    #: RM-91: hierarchical domain id (``health/condition``); see ``memspine.semantics.domains``.
+    topical_domain: str | None = Field(default=None, pattern=DOMAIN_PATTERN)
+    #: Which source set ``topical_domain`` (ingest tag, property, predicate, pack, GLiNER topic).
+    topical_domain_source: DomainSource | None = None
     sensitivity: SensitivityClass | None = None
     context_location: str | None = None
     participation_mode: str | None = None
@@ -267,25 +306,59 @@ class EdgeQualifiers(_Frozen):
         dumped: dict[str, object] = self.model_dump(mode="json", exclude_none=True)
         return dumped
 
+    def _periods(self) -> tuple[datetime, datetime, datetime | None, datetime | None]:
+        """RM-97: ``(from_lo, from_hi, to_lo, to_hi)``, each bound widened to its period.
+
+        A bound stated at ``valid_precision`` covers its whole period (month precision =
+        the whole month), computed in the bound's own timezone. ``instant`` (and no
+        precision) is the bound itself. ``to_*`` are None when ``valid_to`` is."""
+        assert self.valid_from is not None
+        precision = self.valid_precision
+        from_lo, from_hi = _period(self.valid_from, precision)
+        if self.valid_to is None:
+            return from_lo, from_hi, None, None
+        to_lo, to_hi = _period(self.valid_to, precision)
+        return from_lo, from_hi, to_lo, to_hi
+
     def valid_at(self, at: datetime) -> bool | None:
-        """Whether ``at`` falls in ``[valid_from, valid_to)``; None when unknown."""
+        """Whether ``at`` falls in ``[valid_from, valid_to)``; None when unknown.
+
+        RM-97: each bound covers its whole precision period, so the interval is
+        ``[start of valid_from's period, end of valid_to's period)``. With
+        ``valid_approximate`` a point inside a bound's period is unknown (None)."""
         if self.valid_from is None:
             return None
-        if at < self.valid_from:
+        from_lo, from_hi, to_lo, to_hi = self._periods()
+        if at < from_lo:
             return False
-        if self.valid_to is not None:
-            return at < self.valid_to
-        return True if self.valid_open_ended else None
+        if to_hi is not None and at >= to_hi:
+            return False
+        if to_lo is None and not self.valid_open_ended:
+            return None  # the end is unknown
+        on_boundary = at < from_hi or (to_lo is not None and at >= to_lo)
+        if on_boundary and self.valid_approximate:
+            return None
+        return True
 
     def valid_overlaps(self, start: datetime, end: datetime) -> bool | None:
-        """Whether ``[valid_from, valid_to)`` overlaps ``[start, end)``; None when unknown."""
+        """Whether ``[valid_from, valid_to)`` overlaps ``[start, end)``; None when unknown.
+
+        RM-97: the interval is widened to whole precision periods as in :meth:`valid_at`.
+        With ``valid_approximate`` the overlap must hold for the certain core
+        ``[end of valid_from's period, start of valid_to's period)``, else it is unknown."""
         if self.valid_from is None:
             return None
-        if self.valid_from >= end:
+        from_lo, from_hi, to_lo, to_hi = self._periods()
+        if from_lo >= end:
             return False
-        if self.valid_to is not None:
-            return self.valid_to > start
-        return True if self.valid_open_ended else None
+        if to_hi is not None and to_hi <= start:
+            return False
+        if to_lo is None and not self.valid_open_ended:
+            return None
+        if not self.valid_approximate:
+            return True
+        core_end = end if to_lo is None else min(to_lo, end)
+        return True if max(from_hi, start) < core_end else None
 
 
 def edge_qualifiers(properties: Mapping[str, object]) -> EdgeQualifiers | None:
@@ -323,7 +396,6 @@ _SET_FIELDS: dict[str, str] = {
     "event_roles": "event_role",
     "occurrence_ids": "occurrence_id",
     "vocabulary_packs": "vocabulary_pack",
-    "topical_domains": "topical_domain",
     "sensitivities": "sensitivity",
     "context_locations": "context_location",
     "participation_modes": "participation_mode",
@@ -374,6 +446,8 @@ class QualifierFilter(_Frozen):
     event_roles: frozenset[str] | None = None
     occurrence_ids: frozenset[str] | None = None
     vocabulary_packs: frozenset[str] | None = None
+    #: RM-91: a domain matches itself and its descendants (``health`` admits
+    #: ``health/condition``, never ``healthcare``); an unknown domain never passes.
     topical_domains: frozenset[str] | None = None
     sensitivities: frozenset[SensitivityClass] | None = None
     context_locations: frozenset[str] | None = None
@@ -395,6 +469,14 @@ class QualifierFilter(_Frozen):
         if value is not None:
             _require_aware(value[0])
             _require_aware(value[1])
+        return value
+
+    @field_validator("topical_domains")
+    @classmethod
+    def _domain_ids(cls, value: frozenset[str] | None) -> frozenset[str] | None:
+        bad = sorted(d for d in value or () if not is_domain_id(d))
+        if bad:
+            raise ValueError(f"topical_domains must be hierarchical domain ids: {bad}")
         return value
 
     @model_validator(mode="after")
@@ -428,6 +510,10 @@ class QualifierFilter(_Frozen):
             allowed: frozenset[Any] | None = getattr(self, field_name)
             if allowed is not None and getattr(q, attr) not in allowed:
                 return False
+        if self.topical_domains is not None and not domain_in(
+            q.topical_domain, self.topical_domains
+        ):
+            return False
         for field_name, attr in _PROVENANCE_FIELDS.items():
             allowed = getattr(self, field_name)
             if allowed is not None and (
@@ -450,6 +536,32 @@ class QualifierFilter(_Frozen):
 
     def admits(self, edge: GraphEdge) -> bool:
         return self.matches(edge_qualifiers(edge.properties))
+
+
+class CallerVisibility(_Frozen):
+    """RM-88: who is reading, for the edge-scope layer of caller visibility.
+
+    An edge passes this layer only when its ``scope`` qualifier is one of the caller's
+    own scopes (the read namespace, or its typed owner key) or a scope the caller holds
+    an active (non-revoked) grant on. An unknown scope never passes. The second layer,
+    the source record's viewer check, is applied by the read path on the record itself.
+    A grantee-only merge edge (RM-55) carries the grantee's scope, so its grantor, who
+    holds no grant from the grantee, never sees it."""
+
+    namespace: str
+    #: Further scope strings that are the caller's own (e.g. the typed owner key).
+    own_scopes: frozenset[str] = frozenset()
+    #: Scopes the caller holds an active grant on (resolved fresh for every read).
+    granted_scopes: frozenset[str] = frozenset()
+
+    def admits_scope(self, qualifiers: EdgeQualifiers | None) -> bool:
+        scope = qualifiers.scope if qualifiers is not None else None
+        if scope is None:
+            return False
+        return scope == self.namespace or scope in self.own_scopes or scope in self.granted_scopes
+
+    def admits(self, edge: GraphEdge) -> bool:
+        return self.admits_scope(edge_qualifiers(edge.properties))
 
 
 #: The qualifier filter of the read in progress (RM-93); None = no graph filter.

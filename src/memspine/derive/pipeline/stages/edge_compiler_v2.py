@@ -49,6 +49,8 @@ from memspine.schemas.durable.assertion import AssertionEnvelope, Mention
 from memspine.schemas.durable.common import OwnerScope
 from memspine.schemas.durable.identity import AssertionKey, occurrence_id
 from memspine.scope import Scope
+from memspine.semantics.domains import resolve_domain
+from memspine.semantics.registry import SemanticRegistry, load_builtin_registry
 from memspine.services.graph.base import GraphEdge as StoredEdge
 from memspine.services.graph.base import GraphStore
 from memspine.services.graph.qualifiers import (
@@ -110,10 +112,18 @@ class CompiledEdges:
 class EdgeCompiler:
     """Pure: records -> envelopes -> :class:`CompiledEdges`. No I/O, no clock, no model."""
 
-    def __init__(self, *, scoped: bool = False, policy: EntityPolicy | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        scoped: bool = False,
+        policy: EntityPolicy | None = None,
+        registry: SemanticRegistry | None = None,
+    ) -> None:
         self.scoped = scoped
         self.policy = policy or EntityPolicy.from_policy(True)
         assert self.policy is not None
+        #: RM-91: the vocabulary whose predicate / property / pack domains apply.
+        self.registry = registry if registry is not None else load_builtin_registry()
 
     def eligible(self, record: MemoryRecord) -> bool:
         """A semantic fact with a subject entity, live or superseded with a successor."""
@@ -202,6 +212,12 @@ class EdgeCompiler:
             roles = Counter(e.role for e in env.evidence)
             ids = {e.turn.source_id for e in env.evidence if e.turn is not None}
             ids.update(record.source.parents)
+            domain = resolve_domain(
+                tags=record.tags,
+                predicate=env.assertion_key.rel,
+                attribute_key=record.attribute,
+                registry=self.registry,
+            )
             meta[record.record_id] = {
                 "trust": env.assessment.source_trust,
                 "evidence_ids": sorted(ids),
@@ -218,6 +234,9 @@ class EdgeCompiler:
                 "modality": env.assessment.modality,
                 "known_at": record.recorded_at,
                 "source_message_id": record.source.message_id,
+                # RM-91: the domain and which of the four sources set it
+                "topical_domain": domain.domain if domain else None,
+                "topical_domain_source": domain.source if domain else None,
             }
         delta = compile_edges(envs)
         return CompiledEdges(namespace, delta, meta, skipped)
@@ -337,6 +356,8 @@ def edge_qualifiers_for(edge: GraphEdge, meta: Mapping[str, Any]) -> EdgeQualifi
         erasure_state=ErasureState.ACTIVE,
         event_role=edge.label if edge.kind == "role" else None,
         occurrence_id=edge.occurrence_id or None,
+        topical_domain=meta.get("topical_domain"),
+        topical_domain_source=meta.get("topical_domain_source"),
     )
 
 

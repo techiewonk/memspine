@@ -6,6 +6,7 @@ import math
 import re
 from collections.abc import (
     Callable,
+    Mapping,
     Sequence,
 )
 from datetime import UTC, datetime, timedelta
@@ -26,6 +27,7 @@ from memspine.core.owner_check import (
 )
 from memspine.core.read_filters import (
     active_as_of,
+    active_record_scope,
     person_time_leg,
     time_expr_span,
 )
@@ -97,7 +99,8 @@ from memspine.read.pipeline.state import (
     CUE_TAG,
     _passive_hidden,
 )
-from memspine.services.graph.qualifiers import active_graph_filter
+from memspine.scope import Scope
+from memspine.services.graph.qualifiers import CallerVisibility, active_graph_filter
 from memspine.services.lexical.base import LexicalHit, rrf_fuse
 from memspine.services.storage.sql_base import SqlStorage
 from memspine.services.vector.base import VectorHit
@@ -108,6 +111,7 @@ from memspine.store.records import (
     SourceInfo,
     chrono_key,
 )
+from memspine.trust.visibility import visible_to
 
 _log = get_logger(__name__)
 
@@ -415,6 +419,49 @@ def _unqualified_graph_blocked() -> bool:
     return active_graph_filter() is not None
 
 
+async def _caller_visibility(eng: Any, ns: str) -> CallerVisibility:
+    """RM-88: the reading namespace plus the scopes it holds an active grant on.
+
+    Grants are resolved fresh for every filtered read, so a revoked grant hides its
+    edges at once. A grant counts when it covers semantic records (compiled edges
+    are projected from semantic facts)."""
+    granted: set[str] = set()
+    shared = getattr(eng, "_shared", None)
+    if shared is not None:
+        for grantor, types in (await shared.grants_to(ns)).items():
+            if types is None or "semantic" in types:
+                granted.add(grantor)
+    return CallerVisibility(
+        namespace=ns,
+        own_scopes=frozenset({Scope.from_namespace(ns).namespace}),
+        granted_scopes=frozenset(granted),
+    )
+
+
+async def _caller_visible_edges(
+    eng: Any, ns: str, edges: Sequence[Any], by_id: Mapping[str, MemoryRecord]
+) -> list[Any]:
+    """RM-88: the edges the caller may see. Both layers must pass: the edge's scope is
+    the caller's own or one it holds an active grant on, AND its source record (the
+    ``record_id`` property) exists and passes the read's record viewer check (I53
+    ``visible_to`` with the read's ``viewer``). A missing source record fails."""
+    caller = await _caller_visibility(eng, ns)
+    record_scope = active_record_scope()
+    viewer = record_scope.viewer if record_scope is not None else None
+    seen: dict[str, bool] = {}
+    out: list[Any] = []
+    for edge in edges:
+        if not caller.admits(edge):
+            continue
+        rid = str(edge.properties.get("record_id") or "")
+        if rid not in seen:
+            record = by_id.get(rid) or (await eng._storage.get_record(rid) if rid else None)
+            seen[rid] = record is not None and (viewer is None or visible_to(record.tags, viewer))
+        if seen[rid]:
+            out.append(edge)
+    return out
+
+
 async def _graph_hop_leg(
     eng: Any,
     ns: str,
@@ -457,12 +504,18 @@ async def _graph_hop_leg(
             and e.properties.get("record_id")
         ]
         admitted = [e for e in compiled if qualifier_filter is None or qualifier_filter.admits(e)]
+        hidden = 0
+        if qualifier_filter is not None:  # RM-88: caller visibility, both layers
+            visible = await _caller_visible_edges(eng, ns, admitted, by_id)
+            hidden = len(admitted) - len(visible)
+            admitted = visible
         if qualifier_filter is not None and tap.enabled():
             tap.event(
                 "read.graph_filter",
                 namespace=ns,
                 edges=len(compiled),
                 admitted=len(admitted),
+                caller_hidden=hidden,
             )
         edges = [
             lib.HopEdge(
