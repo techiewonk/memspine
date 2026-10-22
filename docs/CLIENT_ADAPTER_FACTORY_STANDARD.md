@@ -56,27 +56,31 @@ Last update: 2026-10-23, after enforcement (`26068983`); import contracts 17 kep
 | documents | s3 | ⏳ `clients/s3` | ⏳ | ⏳ | ⏳ | RM-112 |
 | documents | mongodb | 🔧 `clients/mongodb` (shared with records) | ⏳ GridFS adapter | ⏳ | ⏳ | RM-112 |
 | documents | weaviate | ⏳ shared Weaviate connector | ⏳ | ⏳ | ⏳ | RM-112 |
-| embedding | fastembed | 🔧 `clients/weights/fastembed` | 🔧 → `services/embedding` | 🔧 | 🔧 | F |
-| embedding | sentence_transformers | 🔧 `clients/weights/sentence_transformers` | 🔧 → `services/embedding` | 🔧 | 🔧 | F |
-| embedding | static (model2vec) | 🔧 `clients/weights/model2vec` | 🔧 → `services/embedding` | 🔧 | 🔧 | F |
-| embedding | litellm | 🔧 `clients/litellm` | 🔧 → `services/embedding` | 🔧 | 🔧 | F |
-| embedding | hash | n/a | 🔧 → `services/embedding` | ✅ | 🔧 | F |
-| llm | litellm | 🔧 `clients/litellm` | 🔧 → `services/llm` | 🔧 | 🔧 | F |
-| llm | ollama | 🔧 `clients/litellm` | 🔧 → `services/llm` | 🔧 own descriptor (was a model prefix) | 🔧 | F |
-| llm | vllm | 🔧 `clients/litellm` | 🔧 → `services/llm` | 🔧 own descriptor | 🔧 | F |
-| llm | bedrock | 🔧 `clients/litellm` | 🔧 → `services/llm` | 🔧 own descriptor | 🔧 | F |
-| llm | llamacpp | 🔧 `clients/weights/llama_cpp` | 🔧 → `services/llm` | 🔧 | 🔧 | F |
-| rerank | fastembed | 🔧 `clients/weights/fastembed` | 🔧 → `services/rerank` | 🔧 one factory | 🔧 | F |
-| rerank | flashrank | 🔧 `clients/weights/flashrank` | 🔧 → `services/rerank` | 🔧 one factory | 🔧 | F |
-| rerank | qwen3 / jina | 🔧 `clients/weights/transformers` | 🔧 → `services/rerank` | 🔧 one factory | 🔧 | F |
-| rerank | litellm | 🔧 `clients/litellm` | 🔧 → `services/rerank` | 🔧 one factory | 🔧 | F |
-| extraction | gliner2 | 🔧 `clients/weights/gliner2` | 🔧 → `services/extraction` | 🔧 new descriptor | 🔧 | F |
-| decision | opendecider | 🔧 `clients/weights/opendecider` | 🔧 → `services/decision` | 🔧 new descriptor | 🔧 | F |
-| decision | gliner2 | 🔧 `clients/weights/gliner2` | 🔧 → `services/decision` | 🔧 new descriptor | 🔧 | F |
+| model.embedding | fastembed | 🔧 `clients/weights/fastembed` | 🔧 → `services/embedding` | 🔧 | 🔧 | F |
+| model.embedding | sentence_transformers | 🔧 `clients/weights/sentence_transformers` | 🔧 → `services/embedding` | 🔧 | 🔧 | F |
+| model.embedding | static (model2vec) | 🔧 `clients/weights/model2vec` | 🔧 → `services/embedding` | 🔧 | 🔧 | F |
+| model.embedding | litellm | 🔧 `clients/litellm` | 🔧 → `services/embedding` | 🔧 | 🔧 | F |
+| model.embedding | hash | n/a | 🔧 → `services/embedding` | ✅ | 🔧 | F |
+| model.llm | litellm | 🔧 `clients/litellm` | 🔧 → `services/llm` | 🔧 | 🔧 | F |
+| model.llm | ollama | 🔧 `clients/litellm` | 🔧 → `services/llm` | 🔧 own descriptor (was a model prefix) | 🔧 | F |
+| model.llm | vllm | 🔧 `clients/litellm` | 🔧 → `services/llm` | 🔧 own descriptor | 🔧 | F |
+| model.llm | bedrock | 🔧 `clients/litellm` | 🔧 → `services/llm` | 🔧 own descriptor | 🔧 | F |
+| model.llm | llamacpp | 🔧 `clients/weights/llama_cpp` | 🔧 → `services/llm` | 🔧 | 🔧 | F |
+| model.rerank | fastembed | 🔧 `clients/weights/fastembed` | 🔧 → `services/rerank` | 🔧 one factory | 🔧 | F |
+| model.rerank | flashrank | 🔧 `clients/weights/flashrank` | 🔧 → `services/rerank` | 🔧 one factory | 🔧 | F |
+| model.rerank | qwen3 / jina | 🔧 `clients/weights/transformers` | 🔧 → `services/rerank` | 🔧 one factory | 🔧 | F |
+| model.rerank | litellm | 🔧 `clients/litellm` | 🔧 → `services/rerank` | 🔧 one factory | 🔧 | F |
+| model.extraction | gliner2 | 🔧 `clients/weights/gliner2` | 🔧 → `services/extraction` | 🔧 new descriptor | 🔧 | F |
+| model.decider | opendecider | 🔧 `clients/weights/opendecider` | 🔧 → `services/decision` | 🔧 new descriptor | 🔧 | F |
+| model.decider | gliner2 | 🔧 `clients/weights/gliner2` | 🔧 → `services/decision` | 🔧 new descriptor | 🔧 | F |
+| model.decider | jepa (JEPA-style, joint-embedding predictive) | ⏳ future `clients/weights/<lib>` | ⏳ future `services/decider/jepa.py` | ⏳ future descriptor | ⏳ future | not scheduled |
+| model.decider | yolo-style (fast single-pass classifier) | ⏳ future `clients/weights/<lib>` | ⏳ future `services/decider/<name>.py` | ⏳ future descriptor | ⏳ future | not scheduled |
 | assets | fetch / vision | 🔧 `clients/http` | 🔧 | n/a | 🔧 | G |
 | external | provider / wikipedia | 🔧 `clients/http` | 🔧 | n/a | 🔧 | G |
 | secrets | aws | 🔧 `clients/aws` | 🔧 | n/a | 🔧 | G |
 | — | enforcement (import rules, constructor denylist) | — | — | — | ✅ 26068983 (37 import + 25 constructor baseline entries, shrink-only) | E |
+
+Model slots (owner 2026-10-23): service providers are named `model.<slot>`: `model.embedding`, `model.llm`, `model.rerank`, `model.extraction` (GLiNER entity/relation spans, source-grounded) and `model.decider` (choose among described options). Extraction and decider stay separate slots with separate ports; the same GLiNER weights are loaded once through the shared registry when both are bound to it. Future `model.decider` providers: a JEPA-style decider and a YOLO-style fast classifier (reserved names, not scheduled).
 
 **Import contracts:** 17 kept (5 new), 1 broken. The one remaining chain is
 `store.migrate → services.storage.sqlite.engine → runtime.outbox.sqlite_engine`, and it
@@ -101,7 +105,7 @@ the lease store moved to `store/leases.py`.
 | cache memory/disk/redis/valkey | `clients/cashews.py` | `models/cache/*` (wrong package) | `providers/builtin/cache.py` | adapters live in `models`; not shared through the registry (one Redis connection per Engine) |
 | embedding (fastembed/st/static/litellm) | **none** | `models/encoders/embedding/*` | `providers/builtin/models.py` | adapters load weights, download or hold transport themselves |
 | llm (litellm, llamacpp) | **none** | `models/providers/llm/*` | `models.py` | transport in the adapter; ollama/vllm/bedrock are model prefixes, not descriptors |
-| rerank | **none** | `models/providers/rerank/*` | `models.py` and a second `rerank/factory.py` | duplicate factory; circular dependency |
+| model.rerank | **none** | `models/providers/rerank/*` | `models.py` and a second `rerank/factory.py` | duplicate factory; circular dependency |
 | gliner (extraction) | **none** | `models/runtime/gliner_runtime.py` | **no descriptor** (built in the container) | consumers import the concrete pool |
 | decider | **none** | `models/providers/decision/*` | **no descriptor** (built in `api/engine.py`) | the engine builds the adapter |
 
