@@ -12,12 +12,12 @@ Keep one row per stable ID. PA IDs preserve the 136-item provider program; BI ID
 | BLOCKED | 1 |
 | DEFERRED | 6 |
 | DEPLOYMENT_CHECK | 19 |
-| DONE | 155 |
+| DONE | 156 |
 | EXCLUDED | 4 |
 | IN_PROGRESS | 27 |
 | NEEDS_INPUT | 3 |
 | NEEDS_TOOLCHAIN | 1 |
-| OPEN | 20 |
+| OPEN | 19 |
 | OPEN_REVIEW | 18 |
 | PLANNED | 13 |
 | PROPOSED | 3 |
@@ -338,8 +338,8 @@ its scope is narrower than the prerequisite (say so in the row) or its status is
 | RM-91 | OPEN | P2 | Graph / semantic maintainer | Hierarchical topical-domain matching | 2026-10-22: topical_domains is exact match; domains such as health/medication should match a health filter | Domain ids come from vocabulary packs (RM-53); filter matches a domain and its descendants; unknown domain fails allow-set; tests | Prereq: RM-53; Feeds: RM-41 |
 | RM-92 | PLANNED | P1 | Ingestion / graph maintainer (BI-08) | Fill qualifiers when projecting claims to edges | 2026-10-22: no projector writes qualifiers yet; every existing edge is unqualified (fails any non-empty filter) | BI-08 projection maps claim time, known time, modality, lifecycle, claim state, provenance, trust, scope, role, pack and sensitivity into EdgeQualifiers; replay reproduces identical qualifiers; nothing inferred | Prereq: RM-82, RM-84, RM-85, RM-89; Feeds: BI-08, RM-93 |
 | RM-93 | PLANNED | P1 | Retrieval maintainer (BI-08) | Pass qualifier filters through the read path | 2026-10-22: read/legs/graph.py never calls neighbors_qualified/subgraph_qualified; no request field carries a filter | Search/request API accepts a qualifier filter (as-of, valid-at, domain, exclusions, caller visibility); graph leg uses the qualified walk; default read applies RM-83 erasure rule; simple/core behaviour unchanged when no filter given | Prereq: RM-92, RM-86, RM-88; Feeds: BI-08, BI-12 |
-| RM-94 | OPEN | P2 | Graph maintainer (Neo4j) | Qualifier-filtered traversal for Neo4j | 2026-10-22: Neo4j declares supports_qualifier_filters=False and raises UnsupportedQualifierFilterError | Either Cypher filtering over the stored properties JSON passing the shared contract tests, or an owner decision to keep Neo4j unsupported (documented) | Prereq: RM-84; Feeds: RM-41 |
-| RM-95 | OPEN | P2 | Graph maintainer (LadybugDB) | Run the qualifier contract tests on LadybugDB | 2026-10-22: Ladybug methods reuse its walk query but 19 contract cases skipped (ladybug not installed in .venv) | Install the [graph] extra locally, run tests/unit/services/graph/test_qualifiers_contract.py for LadybugDB, fix failures, record counts | Prereq: none; Feeds: RM-41 |
+| RM-94 | OPEN | P2 | Graph maintainer (Neo4j) | Qualifier-filtered traversal for Neo4j | 2026-10-22: Neo4j declares supports_qualifier_filters=False and raises UnsupportedQualifierFilterError. Not a blocker: the adapter already has a frontier-edges Cypher op (edges touching a set of ids), which is all the shared qualified_hops walk needs; the RM-41 agent skipped it because the driver was not installed. Driver now installed (6.4.1) and a neo4j:5 Docker image is available locally for live tests (MEMSPINE_TEST_NEO4J_URL) | Either Cypher filtering over the stored properties JSON passing the shared contract tests, or an owner decision to keep Neo4j unsupported (documented) | Prereq: RM-84; Feeds: RM-41 |
+| RM-95 | DONE | P2 | Graph maintainer (LadybugDB) | Run the qualifier contract tests on LadybugDB | 2026-10-22: the 19 skips were only the missing package. Installed the locked ladybug 0.21.2 (and neo4j 6.4.1) into .venv; test_qualifiers_contract.py 39 passed, 0 skipped (SQLite 19, LadybugDB 19, Neo4j-unsupported 1); tests/unit/services/graph plus Neo4j client/outbox suites 140 passed, 6 skipped (live Neo4j server tests need MEMSPINE_TEST_NEO4J_URL) | Completed; no code change needed | Prereq: none; Feeds: RM-41 |
 | RM-96 | OPEN | P3 | Graph / performance maintainer | Qualifier filtering at scale | 2026-10-22: filtering happens in Python after loading every edge around the frontier; no index on the qualifier JSON | Benchmark on a large synthetic graph; push common predicates (erasure, valid time, domain, scope) into SQL/JSON indexes if p95 exceeds an owner budget | Prereq: RM-92; Feeds: PA-053 |
 | RM-97 | OPEN | P2 | Graph / temporal maintainer | Precision-aware and approximate valid-time matching | 2026-10-22: valid_precision and valid_approximate are stored but ignored; a day-precision start is compared as an instant | A day/month/year-precision bound covers its whole period; approximate bounds make boundary comparisons unknown (fail allow-filters); tests per precision | Prereq: RM-82; Feeds: RM-41, BI-06 |
 <!-- TASK_REGISTER_END -->
