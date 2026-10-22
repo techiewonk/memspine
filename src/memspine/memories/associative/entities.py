@@ -40,6 +40,7 @@ __all__ = [
     "canonical_entity",
     "entity_node_id",
     "is_entity_node",
+    "match_key",
     "parse_entity_node",
     "record_entity_names",
 ]
@@ -59,6 +60,15 @@ _SPACE = re.compile(r"\s+")
 def canonical_entity(name: str) -> str:
     """NFKC, casefolded, whitespace-collapsed ``name``."""
     return _SPACE.sub(" ", unicodedata.normalize("NFKC", name).casefold()).strip()
+
+
+_WORD = re.compile(r"\w+")
+
+
+def match_key(text: str) -> str:
+    """The form entity names and query n-grams are compared in: the canonical
+    name's words, punctuation dropped ("Charlotte's Web" -> "charlotte s web")."""
+    return " ".join(_WORD.findall(canonical_entity(text)))
 
 
 def entity_node_id(namespace: str, canonical: str) -> str:

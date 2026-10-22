@@ -403,6 +403,10 @@ async def _purge_step(eng: Any, ns: str, step: Any, texts: Sequence[str]) -> Non
         if eng._graph is not None:
             for rid in step.ids:
                 await eng._graph.delete_node(rid)
+            # RM-110: the purged records' mentions went with them; rebuild the entity index.
+            from memspine.memories.associative import entity_cache
+
+            entity_cache.invalidate(eng._graph)
         neo4j = getattr(eng, "_neo4j", None)  # F-16e mirror (graph.neo4j_outbox); F-16f G1
         if neo4j is not None:
             for rid in step.ids:

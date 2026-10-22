@@ -644,7 +644,7 @@ async def _entity_leg_v2(
             tap.event("read.leg.entity", matched=[], damping={}, hits=0, seeds=0)
         return []
     by_id = {r.record_id: r for r in live}
-    mentions = await eng._associative.entity_mentions(ns)
+    mentions = await eng._associative.mentions_of(ns, seeds)  # RM-110: the seeds' edges only
     index: dict[str, list[EntityMention]] = {}
     for node in seeds:
         parsed = parse_entity_node(node)
@@ -753,22 +753,25 @@ async def _graph_seeds(
     matched against the namespace's entity names (canonical words, punctuation
     dropped), plus the names the decision provider's optional ``entities`` hook
     finds (GLiNER2; never required, failures ignored). When nothing is named,
-    the entities mentioned by ``fallback_ids`` (the best non-graph hits)."""
+    the entities mentioned by ``fallback_ids`` (the best non-graph hits).
+
+    RM-110: the names come from the maintained entity index (``entity_lookup``), one
+    lookup per candidate key, not from a scan of every edge of the namespace."""
     assert eng._associative is not None
-    index = await eng._associative.entity_index(ns)
-    if not index:
+    index = await eng._associative.entity_lookup(ns)
+    if not await index.nonempty():
         return []
     words = match_key(query).split()
     seeds: list[str] = []
     focal = _FOCAL_ENTITY.get()
     if focal:
         # G-11: the caller's focal entity seeds the walk first (when it is known).
-        for node in index.get(match_key(focal), []):
+        for node in await index.get(match_key(focal)):
             if node not in seeds:
                 seeds.append(node)
     for size in range(min(constants.GRAPH_SEED_MAX_NGRAM, len(words)), 0, -1):
         for start in range(len(words) - size + 1):
-            for node in index.get(" ".join(words[start : start + size]), []):
+            for node in await index.get(" ".join(words[start : start + size])):
                 if node not in seeds:
                     seeds.append(node)
     provider = eng._decision_provider()
@@ -776,7 +779,7 @@ async def _graph_seeds(
     if callable(hook):
         try:
             for name in await hook(query):
-                for node in index.get(match_key(str(name)), []):
+                for node in await index.get(match_key(str(name))):
                     if node not in seeds:
                         seeds.append(node)
         except Exception as exc:  # an enhancer, never a gate

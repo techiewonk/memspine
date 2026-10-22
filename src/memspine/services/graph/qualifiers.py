@@ -35,7 +35,9 @@ read-path graph leg to fetch only its seeds' edges), its live (``weight > 0``) e
 touching the frontier inside the namespace and relation filter; the walk then drops
 edges that fail the filter and applies the shared fan-out cap
 (:func:`~memspine.services.graph.base.capped_neighbors`) to the edges that pass, so the
-cap ranks only admissible neighbours.
+cap ranks only admissible neighbours. RM-96: levels >= 2 also apply the hub fan-out caps
+``QUALIFIED_WALK_FRONTIER_CAP`` / ``QUALIFIED_WALK_DEEP_MAX_DEGREE`` (the first hop
+never), see :func:`qualified_hops`.
 
 Write validation (RM-84): every adapter passes edge properties through
 :func:`sanitize_qualifiers` on ``upsert_edge``. Malformed qualifiers are dropped (the
@@ -66,7 +68,11 @@ from pydantic import (
     model_validator,
 )
 
-from memspine.config.constants import EDGE_TRUST_TIERS
+from memspine.config.constants import (
+    EDGE_TRUST_TIERS,
+    QUALIFIED_WALK_DEEP_MAX_DEGREE,
+    QUALIFIED_WALK_FRONTIER_CAP,
+)
 from memspine.observability.logging import get_logger
 from memspine.semantics.domains import DOMAIN_PATTERN, DomainSource, domain_in, is_domain_id
 from memspine.semantics.lifecycle import LifecycleOutcome, LifecycleStatus
@@ -763,28 +769,68 @@ def graph_filter_scope(qualifier_filter: QualifierFilter | None) -> Iterator[Non
 FrontierEdgesFn = Callable[[Sequence[str]], Awaitable[list[GraphEdge]]]
 
 
+def _deep_degree(max_degree: int | None, deep_max_degree: int | None) -> int | None:
+    """The per-node fan-out cap on levels >= 2: the tighter of the two (None = no cap)."""
+    caps = [cap for cap in (max_degree, deep_max_degree) if cap is not None]
+    return min(caps) if caps else None
+
+
 async def qualified_hops(
     frontier_edges: FrontierEdgesFn,
     seeds: Sequence[str],
     depth: int,
     qualifier_filter: QualifierFilter,
     max_degree: int | None,
+    *,
+    frontier_cap: int | None = QUALIFIED_WALK_FRONTIER_CAP,
+    deep_max_degree: int | None = QUALIFIED_WALK_DEEP_MAX_DEGREE,
 ) -> dict[str, int]:
-    """node id -> hop count from the nearest seed over admitted edges (seeds at 0)."""
+    """node id -> hop count from the nearest seed over admitted edges (seeds at 0).
+
+    RM-96 hub fan-out cap: level 1 (the seeds' own neighbours) is never capped beyond the
+    caller's ``max_degree``, so a depth-1 walk is unchanged. Each level >= 2 expands at
+    most ``frontier_cap`` frontier nodes, the ones reached by the strongest admitted edge
+    first (then node id), and each follows at most ``deep_max_degree`` neighbours (the
+    tighter of it and ``max_degree``). Both default to the named constants of
+    ``config.constants`` (the 50 ms p95 budget at 100k edges); None lifts a cap. Frontier
+    nodes left unexpanded keep their hop count (they were reached), only their onward
+    neighbours are not walked."""
     hops = {seed: 0 for seed in seeds}
     frontier = list(dict.fromkeys(seeds))
+    strength: dict[str, float] = {}
     for level in range(1, max(depth, 0) + 1):
         if not frontier:
             break
+        degree = max_degree
+        if level >= 2:
+            degree = _deep_degree(max_degree, deep_max_degree)
+            if frontier_cap is not None and len(frontier) > frontier_cap:
+                ranked = sorted(frontier, key=lambda node: (-strength.get(node, 0.0), node))
+                frontier = ranked[: max(frontier_cap, 0)]
         edges = [e for e in await frontier_edges(frontier) if qualifier_filter.admits(e)]
+        best = _best_weights(edges)
         next_frontier: list[str] = []
         for node_id in frontier:
-            for other in capped_neighbors(edges, node_id, max_degree):
+            for other in capped_neighbors(edges, node_id, degree):
                 if other not in hops:
                     hops[other] = level
                     next_frontier.append(other)
+                if hops[other] == level:
+                    weight = best.get((node_id, other), 0.0)
+                    strength[other] = max(strength.get(other, weight), weight)
         frontier = next_frontier
     return hops
+
+
+def _best_weights(edges: Sequence[GraphEdge]) -> dict[tuple[str, str], float]:
+    """(node, neighbour) -> the strongest live edge weight between them, both directions."""
+    best: dict[tuple[str, str], float] = {}
+    for edge in edges:
+        weight = edge.weight
+        for pair in ((edge.src, edge.dst), (edge.dst, edge.src)):
+            if weight > best.get(pair, float("-inf")):
+                best[pair] = weight
+    return best
 
 
 async def qualified_subgraph(

@@ -32,6 +32,7 @@ from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
 
+from memspine.memories.associative import entity_cache
 from memspine.memories.associative.entities import (
     ENTITY_LABEL,
     MENTIONS_REL,
@@ -72,6 +73,10 @@ class GraphProjector(Projector):
         self.last_edges = 0
 
     async def apply(self, event: MemoryEvent) -> None:
+        await self._apply(event)
+        entity_cache.note_applied(self._store, event.seq)  # RM-110: own-process events
+
+    async def _apply(self, event: MemoryEvent) -> None:
         if event.kind is EventKind.WRITE:
             self.last_edges = 0
             record = MemoryRecord.model_validate(event.payload["record"])
@@ -136,19 +141,31 @@ class GraphProjector(Projector):
                         properties=dict(node.get("properties") or {}),
                         namespace=event.namespace,
                     )
+            rel = str(payload.get("rel", "related"))
             await self._store.upsert_edge(
                 str(payload["src"]),
                 str(payload["dst"]),
-                str(payload.get("rel", "related")),
+                rel,
                 properties,
                 namespace=event.namespace,
             )
+            if rel == MENTIONS_REL:  # RM-110: a system-written mention keeps the index current
+                dst = str(payload["dst"])
+                if float(payload.get("weight", 1.0)) > 0:
+                    entity_cache.note_mentioned(self._store, dst)
+                else:
+                    entity_cache.note_unmentioned(self._store, [dst])
         elif event.kind is EventKind.FORGET:
             # A forgotten memory must stop being reachable (M7): the node and
             # every touching edge go, both soft and hard forget.
             record_id = str(event.payload["record_id"])
             mentioned = await self._mentioned(record_id) if self._entities is not None else []
             await self._store.delete_node(record_id)
+            if self._entities is None:
+                # RM-110: the record's mentions (from an earlier policy) are unknown here.
+                entity_cache.invalidate(self._store)
+            else:
+                entity_cache.note_unmentioned(self._store, mentioned)
             await self._drop_orphans(mentioned)
 
     async def _mentioned(self, record_id: str, live_only: bool = False) -> list[str]:
@@ -193,7 +210,9 @@ class GraphProjector(Projector):
                 {"weight": weight, "reason": "entity"},
                 namespace=record.namespace,
             )
+            entity_cache.note_mentioned(self._store, node_id)  # RM-110
         self.last_edges += len(wanted)
+        entity_cache.note_unmentioned(self._store, stale)
         for node_id in stale:
             # The port has no single-edge delete: a weight-0 tombstone (ADR-015).
             await self._store.upsert_edge(
@@ -227,3 +246,4 @@ class GraphProjector(Projector):
 
     async def reset(self) -> None:
         await self._store.clear()
+        entity_cache.invalidate(self._store)  # RM-110

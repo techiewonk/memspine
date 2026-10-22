@@ -50,7 +50,7 @@ from typing import Any
 import orjson
 
 from memspine.read.legs.graph import HopEdge, one_hop
-from memspine.read.pipeline.legs import _graph_leg_edges
+from memspine.read.pipeline.legs import _graph_leg_edges, _graph_seeds
 from memspine.services.graph.base import GraphEdge
 from memspine.services.graph.qualifiers import (
     AssertionModality,
@@ -58,6 +58,7 @@ from memspine.services.graph.qualifiers import (
     EdgeQualifiers,
     ErasureState,
     QualifierFilter,
+    qualified_hops,
     with_qualifiers,
 )
 
@@ -66,7 +67,7 @@ COMPILED = "edge_compiler_v2"
 BUDGET_P95_MS = 50.0
 DOMAINS = ("work", "residence", "health", "family", "travel", "finance", "hobby", "school")
 T0 = dt.datetime(2024, 1, 1, tzinfo=dt.UTC)
-OUT = Path("docs/provider_verification/rm104-graph-leg-frontier-2026-10-22.json")
+OUT = Path("docs/provider_verification/rm110-graph-seeds-2026-10-23.json")
 
 #: The representative read filter: asserted, current claims known by now, valid in 2026.
 FILTER = QualifierFilter(
@@ -131,6 +132,26 @@ def build_edges(edges: int, nodes: int, seed: int) -> list[tuple[str, str, str, 
     return out
 
 
+def build_mentions(
+    count: int, nodes: int, seed: int, must: Sequence[str]
+) -> list[tuple[str, str, str, dict[str, Any]]]:
+    """RM-110: ``count`` live ``mentions`` edges record -> entity (the GP-2 entity layer the
+    seed lookup indexes), hub-biased like the compiled edges; every ``must`` entity (the
+    read's seeds) is mentioned at least once so the query can name it."""
+    rng = random.Random(seed + 7)
+    hubs = max(1, nodes // 100)
+    out: list[tuple[str, str, str, dict[str, Any]]] = []
+    targets = list(must)
+    while len(out) < count:
+        if targets:
+            dst = targets.pop()
+        else:
+            dst = _node(rng.randrange(hubs) if rng.random() < 0.2 else rng.randrange(nodes))
+        props = {"weight": round(0.5 + rng.random() * 0.5, 3), "reason": "entity"}
+        out.append((f"rec-m{len(out):06d}", dst, "mentions", props))
+    return out
+
+
 def _pct(samples: Sequence[float], q: float) -> float:
     ordered = sorted(samples)
     idx = min(len(ordered) - 1, max(0, round(q * (len(ordered) - 1))))
@@ -186,6 +207,24 @@ async def measure(store: Any, seeds: Sequence[str], reps: int, leg_reps: int) ->
             samples += await _time(walk, max(1, reps // len(seeds)), warmup=1)
         result[f"walk_d{depth}"] = _summary(samples)
         reached[f"walk_d{depth}"] = sizes
+
+    # RM-96: the depth-2 walk before the hub caps (both caps lifted), same seeds.
+    async def fetch_level(frontier: Sequence[str]) -> list[GraphEdge]:
+        return list(await store.frontier_edges(frontier, namespace=NS))
+
+    samples, sizes = [], []
+    for seed in seeds:
+
+        async def uncapped(seed: str = seed) -> Any:
+            return await qualified_hops(
+                fetch_level, [seed], 2, FILTER, None, frontier_cap=None, deep_max_degree=None
+            )
+
+        sizes.append(len(await uncapped()) - 1)
+        samples += await _time(uncapped, max(1, reps // len(seeds)), warmup=1)
+    result["walk_d2_uncapped"] = _summary(samples)
+    reached["walk_d2_uncapped"] = sizes
+    result.update(await measure_seeds(store, seeds, leg_reps))
     edges = await store.edge_list(NS)
     admitted = _leg_filter(edges)
     result["leg_edge_list"] = _summary(await _time(lambda: store.edge_list(NS), leg_reps, 1))
@@ -204,7 +243,7 @@ async def measure(store: Any, seeds: Sequence[str], reps: int, leg_reps: int) ->
     # RM-104: the leg as it runs now (``_graph_leg_edges``) under the filter, on the seed
     # fetch; ``leg_seed_sets`` are the seed sets of a read (all six seeds, then each alone).
     eng = SimpleNamespace(_graph=store, _shared=None, _storage=_NoStorage())
-    by_id = {str(e.properties["record_id"]): _RECORD for e in edges}
+    by_id = {str(e.properties["record_id"]): _RECORD for e in edges if "record_id" in e.properties}
     seed_sets = [list(seeds), *([s] for s in seeds)]
     frontier_samples: list[float] = []
     fetch_samples: list[float] = []
@@ -226,13 +265,102 @@ async def measure(store: Any, seeds: Sequence[str], reps: int, leg_reps: int) ->
     result["leg_frontier"] = _summary(frontier_samples)
     result["leg_frontier_fetch"] = _summary(fetch_samples)
     result["leg_frontier_sizes"] = sizes
+
+    # RM-110: the filtered read path's graph part end to end: seeds, then the leg's edges,
+    # then one_hop. "before" = seeds from the namespace scan; "after" = maintained index.
+    seeds_eng = _seed_engine(store, cached=True)
+    scan_eng = _seed_engine(store, cached=False)
+
+    async def read_path(stub: Any) -> Any:
+        found = await _graph_seeds(stub, NS, _query(seeds))
+        got = await _graph_leg_edges(eng, NS, found, by_id, FILTER)
+        return one_hop(
+            found,
+            [HopEdge(e.src, e.dst, str(e.properties["record_id"])) for e in got.edges],
+            min_seeds=1,
+        )
+
+    assert (await read_path(seeds_eng)).scores == (await read_path(scan_eng)).scores
+    result["read_path_before"] = _summary(await _time(lambda: read_path(scan_eng), leg_reps, 1))
+    result["read_path_after"] = _summary(await _time(lambda: read_path(seeds_eng), leg_reps, 1))
     result["reached_nodes"] = {k: {"min": min(v), "max": max(v)} for k, v in reached.items()}
     result["leg_edges"] = {"namespace": len(edges), "admitted": len(admitted)}
     result["within_budget"] = {
         k: result[k]["p95_ms"] <= BUDGET_P95_MS
-        for k in ("walk_d1", "walk_d2", "leg_scan", "leg_frontier")
+        for k in (
+            "walk_d1",
+            "walk_d2",
+            "walk_d2_uncapped",
+            "leg_scan",
+            "leg_frontier",
+            "seeds_scan",
+            "seeds_cached",
+            "read_path_before",
+            "read_path_after",
+        )
     }
     return result
+
+
+def _query(seeds: Sequence[str]) -> str:
+    """The read's question: names every seed entity (its canonical name is the id suffix)."""
+    names = " ".join(seed.rsplit(":", 1)[1] for seed in seeds)
+    return f"how are {names} connected"
+
+
+class _OffsetStorage:
+    """The storage slice the entity index reads: a durable projector mark that does not
+    move (no other writer during the benchmark) and no records."""
+
+    async def get_offset(self, projector_name: str) -> int:
+        return 0
+
+    async def get_record(self, record_id: str) -> None:
+        return None
+
+
+def _seed_engine(store: Any, *, cached: bool) -> Any:
+    """An Engine stand-in for ``_graph_seeds``: the real AssociativeMemory over ``store``;
+    ``cached=False`` rebuilds the entity index from the namespace scan on every lookup
+    (the pre-RM-110 behaviour)."""
+    from memspine.memories.associative import entity_cache
+    from memspine.memories.associative.store import AssociativeMemory
+
+    async def _no_append(event: Any) -> None:
+        return None
+
+    assoc = AssociativeMemory(_OffsetStorage(), store, _no_append)
+    if not cached:
+
+        async def scan_lookup(ns: str) -> Any:
+            entity_cache.invalidate(store)
+            return await entity_cache.entity_lookup(store, None, ns, lambda: assoc.entity_index(ns))
+
+        assoc.entity_lookup = scan_lookup  # type: ignore[method-assign]
+    return SimpleNamespace(_associative=assoc, _decision_provider=lambda: None)
+
+
+async def measure_seeds(store: Any, seeds: Sequence[str], reps: int) -> dict[str, Any]:
+    """RM-110: ``_graph_seeds`` before (namespace scan per read) and after (maintained index),
+    plus the cold first read that builds the index."""
+    from memspine.memories.associative import entity_cache
+
+    query = _query(seeds)
+    scan = _seed_engine(store, cached=False)
+    cached = _seed_engine(store, cached=True)
+    want = await _graph_seeds(scan, NS, query)
+    assert sorted(want) == sorted(seeds), want
+    entity_cache.invalidate(store)
+    start = time.perf_counter()
+    got = await _graph_seeds(cached, NS, query)
+    cold_ms = (time.perf_counter() - start) * 1000.0
+    assert got == want, (got, want)
+    return {
+        "seeds_scan": _summary(await _time(lambda: _graph_seeds(scan, NS, query), reps, 1)),
+        "seeds_cached": _summary(await _time(lambda: _graph_seeds(cached, NS, query), reps * 5, 1)),
+        "seeds_cold_build_ms": round(cold_ms, 3),
+        "seeds_found": len(got),
+    }
 
 
 class _NoStorage:
@@ -264,12 +392,21 @@ def _check_same_hits(
 async def sqlite_store(data: list[tuple[str, str, str, dict[str, Any]]], path: Path) -> Any:
     from memspine.clients.sqlite import SQLiteClient
     from memspine.services.graph.sql_adjacency import SqlAdjacencyGraph
-    from memspine.services.storage.sqlite.schema import graph_edges, graph_nodes, metadata
+    from memspine.services.storage.sqlite.schema import metadata
 
     client = SQLiteClient(str(path))
     await client.connect()
     async with client.engine.begin() as conn:
         await conn.run_sync(metadata.create_all)
+    await _sqlite_load(client.engine, data)
+    return SqlAdjacencyGraph(client), client.close
+
+
+async def _sqlite_load(engine: Any, data: list[tuple[str, str, str, dict[str, Any]]]) -> None:
+    """Bulk rows in the exact layout ``SqlAdjacencyGraph.upsert_edge`` writes."""
+    from memspine.services.storage.sqlite.schema import graph_edges, graph_nodes
+
+    async with engine.begin() as conn:
         ids = sorted({x for s, d, _, _ in data for x in (s, d)})
         empty = {"labels": orjson.dumps([]), "properties": orjson.dumps({}), "namespace": NS}
         await conn.execute(graph_nodes.insert(), [{"node_id": i, **empty} for i in ids])
@@ -287,7 +424,6 @@ async def sqlite_store(data: list[tuple[str, str, str, dict[str, Any]]], path: P
         ]
         for i in range(0, len(rows), 10_000):
             await conn.execute(graph_edges.insert(), rows[i : i + 10_000])
-    return SqlAdjacencyGraph(client), client.close
 
 
 async def ladybug_store(data: list[tuple[str, str, str, dict[str, Any]]], path: Path) -> Any:
@@ -298,6 +434,11 @@ async def ladybug_store(data: list[tuple[str, str, str, dict[str, Any]]], path: 
     await client.connect()
     store = LadybugGraphStore(client)
     await store.node_count()  # runs the DDL
+    await _ladybug_load(client, data)
+    return store, client.close
+
+
+async def _ladybug_load(client: Any, data: list[tuple[str, str, str, dict[str, Any]]]) -> None:
     ids = sorted({x for s, d, _, _ in data for x in (s, d)})
 
     def load() -> None:
@@ -328,7 +469,6 @@ async def ladybug_store(data: list[tuple[str, str, str, dict[str, Any]]], path: 
             )
 
     await asyncio.to_thread(load)
-    return store, client.close
 
 
 async def neo4j_store(data: list[tuple[str, str, str, dict[str, Any]]], _path: Path) -> Any:
@@ -384,6 +524,99 @@ async def neo4j_store(data: list[tuple[str, str, str, dict[str, Any]]], _path: P
     return store, close
 
 
+async def engine_read(
+    provider: str,
+    data: list[tuple[str, str, str, dict[str, Any]]],
+    seeds: Sequence[str],
+    reps: int,
+    path: Path,
+) -> dict[str, Any]:
+    """RM-110: a full filtered ``Engine.search`` end to end (every read leg, the seed lookup,
+    the RM-104 graph leg and its lift) on an Engine whose graph holds the benchmark world.
+    The graph rows are bulk-loaded into the running Engine's own graph store (no source
+    records exist, so the leg's caller check looks each one up and drops it: the leg's full
+    cost with no lift). "before" swaps in the namespace-scan seed lookup on every read."""
+    from memspine import Engine
+    from memspine.memories.associative import entity_cache
+
+    eng = Engine(
+        template="core",
+        dotenv_path=None,
+        storage={"provider": "sqlite", "settings": {"path": str(path), "busy_timeout_s": 5.0}},
+        embedding={"provider": "hash", "settings": {}},
+        memories={
+            "semantic": {"enabled": True},
+            "episodic": {"enabled": True},
+            "associative": {"enabled": True, "policies": {"entity_nodes": True}},
+        },
+        graph={"provider": provider, "edge_compiler_v2": True},
+        read={
+            "hybrid": True,
+            "record_access": False,
+            "legs_v2": True,
+            "graph_leg_v2": True,
+            "graph_leg_seed_hits": 0,
+        },
+    )
+    await eng.start()
+    try:
+        graph = eng._graph
+        query = _query(seeds)
+        # the Engine's fixed read cost (every other leg, no graph world yet)
+        empty = await _time(
+            lambda: eng.search(query, namespace=NS, top_k=8, graph_filter=FILTER), reps, 1
+        )
+        if provider == "sql_adjacency":
+            await _sqlite_load(graph._client.engine, data)
+        else:
+            await graph.node_count()
+            await _ladybug_load(graph._client, data)
+        assoc = eng._associative
+        frontier_calls: list[int] = []
+        real_frontier = graph.frontier_edges
+
+        async def counting_frontier(nodes: Sequence[str], **kw: Any) -> Any:
+            frontier_calls.append(len(nodes))
+            return await real_frontier(nodes, **kw)
+
+        graph.frontier_edges = counting_frontier
+
+        async def search() -> Any:
+            return await eng.search(query, namespace=NS, top_k=8, graph_filter=FILTER)
+
+        entity_cache.invalidate(graph)
+        start = time.perf_counter()
+        await search()
+        cold_ms = (time.perf_counter() - start) * 1000.0
+        assert sorted(await eng._graph_seeds(NS, query)) == sorted(seeds)
+        frontier_calls.clear()
+        await search()
+        assert frontier_calls, "the filtered graph leg did not run"
+        after = await _time(search, reps, 1)
+        real_lookup = assoc.entity_lookup
+
+        async def scan_lookup(ns: str) -> Any:
+            entity_cache.invalidate(graph)
+            return await real_lookup(ns)
+
+        assoc.entity_lookup = scan_lookup
+        before = await _time(search, max(3, reps // 4), 1)
+        assoc.entity_lookup = real_lookup
+        return {
+            "engine_search_empty_graph": _summary(empty),
+            "engine_search_before": _summary(before),
+            "engine_search_after": _summary(after),
+            "engine_search_cold_first_ms": round(cold_ms, 3),
+            "engine_leg_seed_fetch_nodes": frontier_calls[0],
+            "within_budget": {
+                "engine_search_before": _pct(before, 0.95) <= BUDGET_P95_MS,
+                "engine_search_after": _pct(after, 0.95) <= BUDGET_P95_MS,
+            },
+        }
+    finally:
+        await eng.stop()
+
+
 async def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--edges", type=int, default=100_000)
@@ -392,7 +625,10 @@ async def main() -> None:
     parser.add_argument("--leg-reps", type=int, default=20, help="read-path leg timings")
     parser.add_argument("--seed", type=int, default=96)
     parser.add_argument("--out", type=Path, default=OUT)
-    parser.add_argument("--task", default="RM-104")
+    parser.add_argument("--task", default="RM-110")
+    parser.add_argument("--date", default="2026-10-23")
+    parser.add_argument("--mentions", type=int, default=20_000, help="entity mentions edges")
+    parser.add_argument("--engine-reps", type=int, default=20, help="Engine.search timings")
     parser.add_argument("--backends", default="sql_adjacency,ladybug,neo4j")
     args = parser.parse_args()
 
@@ -402,6 +638,8 @@ async def main() -> None:
     rng = random.Random(args.seed + 1)
     hubs = max(1, args.nodes // 100)
     seeds = [_node(rng.randrange(hubs, args.nodes)) for _ in range(5)] + [_node(0)]
+    data += build_mentions(args.mentions, args.nodes, args.seed, seeds)
+    total = args.edges + args.mentions
 
     loaders: dict[str, Callable[..., Awaitable[Any]]] = {"sql_adjacency": sqlite_store}
     skipped: dict[str, str] = {}
@@ -425,13 +663,19 @@ async def main() -> None:
             load_s = time.perf_counter() - t_load
             try:
                 count = len(await store.edge_list(NS))
-                assert count == args.edges, (name, count)
+                assert count == total, (name, count)
                 results[name] = {
                     "load_s": round(load_s, 1),
                     **await measure(store, seeds, args.reps, args.leg_reps),
                 }
             finally:
                 await close()
+            if name in ("sql_adjacency", "ladybug") and args.engine_reps > 0:
+                read = await engine_read(
+                    name, data, seeds, args.engine_reps, Path(tmp) / f"engine-{name}.db"
+                )
+                results[name]["within_budget"].update(read.pop("within_budget"))
+                results[name].update(read)
             print(name, json.dumps(results[name], indent=1))
 
     versions = {}
@@ -442,10 +686,12 @@ async def main() -> None:
             versions[pkg] = None
     report = {
         "task": args.task,
-        "date": "2026-10-22",
+        "date": args.date,
         "budget": {"p95_ms": BUDGET_P95_MS, "edges_per_namespace": args.edges},
         "graph": {
             "edges": args.edges,
+            "mentions_edges": args.mentions,
+            "namespace_edges_total": total,
             "nodes": args.nodes,
             "hubs": max(1, args.nodes // 100),
             "hub_endpoint_share": 0.2,
@@ -460,6 +706,12 @@ async def main() -> None:
             "leg_scan": "leg_edge_list + leg_filter (the leg before RM-104; unfiltered reads)",
             "leg_frontier": "_graph_leg_edges on frontier_edges(seeds) (the filtered leg now)",
             "leg_frontier_fetch": "frontier_edges(seeds, namespace) alone",
+            "walk_d2_uncapped": "qualified_hops depth 2 with both RM-96 caps lifted (before)",
+            "seeds_scan": "_graph_seeds with the entity index rebuilt from edge_list (before)",
+            "seeds_cached": "_graph_seeds on the maintained entity index (RM-110, after)",
+            "seeds_cold_build_ms": "the first read of a namespace: one index build",
+            "read_path_before/after": "seeds + _graph_leg_edges (frontier) + one_hop",
+            "engine_search_before/after": "Engine.search with graph_filter end to end",
         },
         "results": results,
         "skipped": skipped,

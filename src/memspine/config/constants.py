@@ -444,6 +444,18 @@ GRAPH_LEG_FALLBACK_HITS = 3
 GRAPH_SEED_MAX_NGRAM = 4
 # Fan-out cap per node during a graph-leg walk (KB-3), so a hub cannot flood it.
 GRAPH_LEG_MAX_DEGREE = 50
+# RM-96 (budget: qualified walk p95 <= 50 ms at 100k edges per namespace, owner 2026-10-22;
+# evidence docs/provider_verification/rm110-graph-seeds-2026-10-23.json): hub fan-out caps
+# of the qualifier-filtered walk (``services.graph.qualifiers.qualified_hops``) on levels
+# >= 2 only, so depth-1 (one-hop) walks are unchanged. Each level >= 2 expands at most
+# FRONTIER_CAP frontier nodes (strongest admitted edge into the node first, then node id),
+# and each of them follows at most DEEP_MAX_DEGREE neighbours (min with the caller's
+# ``max_degree``). Measured on a hub seed (1% of nodes take 20% of endpoints): uncapped
+# depth 2 fetches ~4,000 edges of ~100 frontier nodes (~150 ms SQLite); capped 16/16 fetches
+# ~800 edges. Recall trade-off: a depth-2 walk from a hub reaches the 16 strongest
+# first-hop nodes' 16 strongest neighbours instead of every node within two hops.
+QUALIFIED_WALK_FRONTIER_CAP = 16
+QUALIFIED_WALK_DEEP_MAX_DEGREE = 16
 # #22 (``read.graph_rerank``): local push-PPR over the seeds' subgraph. Restart
 # probability alpha (= 1 - PPR_DAMPING, the global PPR's convention) and the
 # residual threshold epsilon per unit degree (Andersen, Chung & Lang 2006); the

@@ -156,11 +156,13 @@ async def test_filtered_leg_uses_frontier_and_reports_seed_scope(
         await eng.search(QUERY, namespace=NS, top_k=4)
     finally:
         await eng.stop()
-    # the leg's namespace scan is replaced by one seed fetch (the seed lookup's entity
-    # index still reads edge_list; that is not the leg's edge selection)
+    # the leg's namespace scan is replaced by one seed fetch. RM-110: the seed lookup's
+    # entity index is built by one edge_list on the first graph read and then maintained,
+    # so the second read's only edge_list is the unfiltered leg's own namespace scan.
     assert filtered_calls.count("frontier_edges") == 1
     assert "frontier_edges" not in calls  # unfiltered: unchanged
-    assert filtered_calls.count("edge_list") == calls.count("edge_list") - 1
+    assert filtered_calls.count("edge_list") == 1  # the entity index build (first read)
+    assert calls.count("edge_list") == 1  # the unfiltered leg; the index is cached
     (seen,) = spy.of("read.graph_filter")
     assert seen["scope"] == "seeds" and 0 < seen["admitted"] < seen["edges"]
     hop = spy.of("read.graph_hop")

@@ -9,17 +9,17 @@ projection this module reads, never writes directly.
 from __future__ import annotations
 
 import math
-import re
 from collections.abc import Awaitable, Callable, Collection, Sequence
 from typing import Any, ClassVar, Protocol
 
 from memspine.config.constants import LINK_BUDGET, SEARCH_TOP_K
 from memspine.exceptions import ConfigError, ConflictError
+from memspine.memories.associative import entity_cache
 from memspine.memories.associative import links as link_rules
 from memspine.memories.associative.entities import (
     MENTIONS_REL,
-    canonical_entity,
     is_entity_node,
+    match_key,
     parse_entity_node,
 )
 from memspine.memories.associative.ppr import local_push_ppr, personalized_pagerank
@@ -32,7 +32,7 @@ from memspine.services.vector.base import VectorStore
 from memspine.store.events import EventKind, MemoryEvent
 from memspine.store.records import MemoryRecord, RecordStatus
 
-__all__ = ["AssociativeMemory"]
+__all__ = ["AssociativeMemory", "match_key"]
 
 _log = get_logger(__name__)
 
@@ -43,14 +43,6 @@ _STRATEGIES = frozenset({"ppr", "bfs", "rrf"})
 
 #: GP-3: may a graph walk enter this record node? (trust caps, GP-10)
 Admit = Callable[[MemoryRecord], bool]
-
-_WORD = re.compile(r"\w+")
-
-
-def match_key(text: str) -> str:
-    """The form entity names and query n-grams are compared in: the canonical
-    name's words, punctuation dropped ("Charlotte's Web" -> "charlotte s web")."""
-    return " ".join(_WORD.findall(canonical_entity(text)))
 
 
 def _without_mentions(edges: list[GraphEdge]) -> list[GraphEdge]:
@@ -269,6 +261,41 @@ class AssociativeMemory(BaseMemory):
             if edge.dst not in nodes:
                 nodes.append(edge.dst)
         return index
+
+    async def entity_lookup(self, namespace: str) -> entity_cache.EntityLookup:
+        """RM-110: :meth:`entity_index` served from the maintained per-namespace index
+        (:mod:`.entity_cache`) instead of a scan of every edge of the namespace on each
+        call; ``await lookup.get(match_key)`` gives one key's nodes. Same keys and nodes as
+        :meth:`entity_index` while the cache is fresh (a key's nodes sorted by node id); an entity whose last live
+        mention was removed is re-checked before it is returned, so it never comes back."""
+        return await entity_cache.entity_lookup(
+            self._graph, self._storage, namespace, lambda: self.entity_index(namespace)
+        )
+
+    async def mentions_of(self, namespace: str, entities: Sequence[str]) -> dict[str, list[str]]:
+        """RM-110: :meth:`entity_mentions` for the given entity nodes only (one query for
+        all of them on a store with ``frontier_edges``, else ``edges_of`` per entity), so
+        the entity leg no longer scans the namespace. Same record set per entity; the
+        order of a list is the store's (the entity leg's scoring is order-independent)."""
+        nodes = [n for n in dict.fromkeys(entities) if _entity_in(n, namespace)]
+        if not nodes:
+            return {}
+        fetch = getattr(self._graph, "frontier_edges", None)
+        if callable(fetch):
+            edges = await fetch(nodes, namespace=namespace, rel_type=MENTIONS_REL)
+        else:
+            # The entity node id carries its namespace (``_entity_in``), and its
+            # mentions are projected under that namespace.
+            edges = [e for node in nodes for e in await self._graph.edges_of(node)]
+        wanted = set(nodes)
+        out: dict[str, list[str]] = {}
+        for edge in edges:
+            if edge.rel_type != MENTIONS_REL or edge.weight <= 0 or edge.dst not in wanted:
+                continue
+            rows = out.setdefault(edge.dst, [])
+            if edge.src not in rows:
+                rows.append(edge.src)
+        return out
 
     async def entity_mentions(self, namespace: str) -> dict[str, list[str]]:
         """R3-05a: entity node id -> the records with a live ``mentions`` edge to it
