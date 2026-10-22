@@ -60,6 +60,7 @@ promptopt  = ["langmem>=0.0.30"]                     # RG-only prompt self-optim
 postgres   = ["psycopg[binary]>=3.3.6", "pgvector>=0.5.1"]  # storage backend (D-36, psycopg3: sync Alembic + async runtime)
 weaviate   = ["weaviate-client>=4.23.1,<5"]
 neo4j      = ["neo4j>=6.4.1"]
+mongodb    = ["pymongo>=4.13,<5"]                       # RM-112 records store: native asyncio API (Motor is deprecated); needs a replica set
 # #52/ADR-035: SQLCipher encryption at rest for the SQLite event log + read model
 # (``storage.encryption.mode: sqlcipher``). A native build on some platforms, so it
 # is NOT in ``all``; ``pysqlcipher3`` is accepted too if already installed.
@@ -70,7 +71,7 @@ local      = ["memspine[graph,cache,ingest,ner]"]
 prod-aws   = ["memspine[aws,taskiq,rest]"]
 # `community` (graspologic-native) declares no numpy ceiling (ADR-028/035), so it does not conflict
 # with `ingest` (numpy>=2.1) and is included in `all` — `--all-extras` is unblocked.
-all        = ["memspine[graph,cache,ingest,ner,community,compress,llmlocal,opensearch,temporal,taskiq,rest,rerank,static,aws,postgres,weaviate,neo4j]"]
+all        = ["memspine[graph,cache,ingest,ner,community,compress,llmlocal,opensearch,temporal,taskiq,rest,rerank,static,aws,postgres,weaviate,neo4j,mongodb]"]
 
 dev = [
     "pytest>=9.1.1",

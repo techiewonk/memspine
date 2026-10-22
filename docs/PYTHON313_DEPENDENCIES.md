@@ -156,6 +156,7 @@ query time and manifest/lock hashes: [dependency-audit.json](provider_verificati
 | psycopg | 3.3.6 | 3.3.6 | 3.3.6 | Yes |
 | pydantic | 2.14.1 | 2.14.1 | 2.14.1 | Yes |
 | pydantic-settings | 2.16.0 | 2.16.0 | 2.16.0 | Yes |
+| pymongo | not yet locked (RM-112 `[mongodb]`, 2026-10-23: re-lock needs uv >= 0.13.1) | 4.19.0 | 4.19.0 | Yes |
 | pytest | 9.1.1 | 9.1.1 | 9.1.1 | Yes |
 | pytest-asyncio | 1.4.0 | 1.4.0 | 1.4.0 | Yes |
 | pytest-cov | 7.1.0 | 7.1.0 | 7.1.0 | Yes |

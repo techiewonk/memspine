@@ -13,7 +13,9 @@ SQL. This page is the contract a provider must meet. It is written for the next 
   data can be opened twice, a `reopen` factory for a second independent handle (a second
   process).
 - **Implementations:** `SqlStorage` (`services/storage/sql_base.py`), with `SQLiteStorage`
-  and `PostgresStorage` supplying schema bring-up and leases.
+  and `PostgresStorage` supplying schema bring-up and leases; `MongoRecordsStore`
+  (`services/storage/mongodb.py`, `[mongodb]` extra, RM-112) over the `MongoConnector`
+  (`clients/mongodb/connector.py`). See "MongoDB" below.
 
 ## 1. Event log
 
@@ -41,7 +43,8 @@ SQL. This page is the contract a provider must meet. It is written for the next 
 - Concurrent appenders to one `(scope, stage)` either serialise or fail the whole commit;
   they never half-apply. Postgres takes a transaction advisory lock per `(scope, stage)`.
   SQLite has a single writer.
-- MongoDB needs a replica set (multi-document transactions) to meet this.
+- MongoDB needs a replica set (multi-document transactions) to meet this. Its connector
+  refuses a standalone server at `open()`.
 
 ## 3. Projector offsets
 
@@ -92,6 +95,58 @@ and can filter by role. `delete_lineage` returns the number of edges removed.
 - `schema_revision()` names the applied version: an Alembic revision, or the
   collection-setup version for MongoDB.
 - `stop()` releases what the store opened, including the lease connection.
+
+## MongoDB (RM-112, 2026-10-23)
+
+`MongoRecordsStore` meets every case of the suite against a one-member replica set
+(`mongo:7`). How it maps the contract:
+
+- **Topology.** `MongoConnector.open()` runs `hello` within the connect deadline and refuses
+  a standalone `mongod` (`StandaloneServerError`: no multi-document transactions, so
+  append-plus-outbox could not be atomic). A replica set or a sharded cluster is accepted.
+  Locality is `cluster`.
+- **Sequence.** `events._id` is the `seq`. It comes from the `events` counter document
+  (`findOneAndUpdate` with `$inc`) inside the append transaction. Two appenders conflict on
+  the counter and one retries, so sequences are dense, strictly increasing in commit order
+  and never reused; an aborted append rolls the counter back too. Every append, with or
+  without outbox items, is a transaction (snapshot read concern, majority write concern;
+  the driver retries transient conflicts with backoff). A non-transactional counter would
+  let a reader see seq n+1 before n commits and skip n.
+- **Outbox.** Each `(scope, stage)` has its own counter document in the same transaction.
+  The store-side constraint is a `$jsonSchema` validator on `outbox` (stage, scope fields,
+  offset and payload typed and required); a violating item aborts the transaction.
+- **Payload.** The canonical JSON bytes the fingerprint hashed are stored as BSON binary
+  (optionally zstd), not as a BSON document, so they round-trip exactly (no int64 or
+  key-order drift).
+- **Offsets.** `$max` upsert: advance-only and race-free; `reset_offset` deletes the mark.
+- **Leases.** One atomic single-document upsert per operation, on a sync client the connector
+  lends (lease holders run in threads). Expiry is judged by the server clock (`$$NOW`). The
+  claim is a conditional update pipeline that writes the claimant's token only when the
+  lease is absent or expired; the claim won when its token comes back. (`$expr` is not
+  allowed in an upsert filter, so the condition lives in the pipeline.) The cross-handle and
+  16-thread race cases pass.
+- **Read model.** One document per record: the record's own pydantic JSON (lossless: bytes as
+  base64, big integers exact) plus indexed key fields (namespace, type, group, entity,
+  attribute, open validity, status, quarantine, a sortable `recorded_at`, session key,
+  role, `source.parents`). `list_records` returns insertion order.
+- **Lineage.** Unique `(child, parent, role)` index; a counter reserves an insertion-order
+  block per call so parents/children come back in insertion order across processes.
+- **Erasure.** The redaction pass rewrites each affected event with a compare-and-set on its
+  old payload bytes. It is not one transaction over the whole log (as in SQL), but each
+  rewrite is atomic and the pass is idempotent, so a crash mid-pass is finished by running
+  it again.
+- **Schema.** `meta.schema` holds the collection-setup version (`mongodb-records-v1`).
+  `start()` creates collections, the validator and indexes idempotently and refuses a
+  database written by a newer version.
+- **Modes.** `full` and `rolling` (prune never passes the slowest projector). `ephemeral` is
+  refused: a cluster store that persists nothing has no use, and an in-process seq would
+  not be shared.
+
+Not part of the port, so not built: the sleep scheduler's cycle, watermark and trigger
+tables (`LeaseStore` beyond `claim/heartbeat/release/get_lease`) and the read-model helpers
+outside the port that `SqlStorage` also offers (`quarantined_ids`, `recent_contents`,
+`layer_counts`, `count_quarantined`, `list_quarantined`). Wiring MongoDB as the engine's
+storage needs either those or callers that stay on the port.
 
 ## Known gaps found by the suite (2026-10-23)
 

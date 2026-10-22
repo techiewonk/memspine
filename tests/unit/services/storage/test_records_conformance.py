@@ -9,7 +9,9 @@ The contract text is ``docs/RECORDS_STORE_CONTRACT.md``.
 
 Providers: ``sqlite_memory`` (``create_all``), ``sqlite_file`` (Alembic), and with
 ``MEMSPINE_TEST_PG_URL`` (a scratch server; each test gets its own throwaway database)
-``postgres_alembic`` and ``postgres_create_all``.
+``postgres_alembic`` and ``postgres_create_all``; with ``MEMSPINE_TEST_MONGO_URL`` (a replica set,
+e.g. ``mongodb://127.0.0.1:57017/?directConnection=true``; each test gets its own throwaway
+database) ``mongodb`` (RM-112).
 """
 
 from __future__ import annotations
@@ -39,7 +41,8 @@ from memspine.store.events import EventKind, MemoryEvent
 from memspine.store.records import MemoryRecord, SourceInfo
 
 PG_URL = os.environ.get("MEMSPINE_TEST_PG_URL")
-PROVIDERS = ["sqlite_memory", "sqlite_file", "postgres_alembic", "postgres_create_all"]
+MONGO_URL = os.environ.get("MEMSPINE_TEST_MONGO_URL")
+PROVIDERS = ["sqlite_memory", "sqlite_file", "postgres_alembic", "postgres_create_all", "mongodb"]
 SCOPE = OwnerScope(tenant="t1", owner="alice")
 OTHER = OwnerScope(tenant="t1", owner="bob")
 
@@ -72,6 +75,38 @@ def pg_database() -> Iterator[str]:
     finally:
         with psycopg.connect(admin, autocommit=True) as conn:
             conn.execute(f'DROP DATABASE IF EXISTS "{name}" WITH (FORCE)')
+
+
+@pytest.fixture
+def mongo_database() -> Iterator[str]:
+    """A throwaway database name on the scratch replica set, dropped afterwards."""
+    if not MONGO_URL or importlib.util.find_spec("pymongo") is None:
+        pytest.skip("records conformance on MongoDB: set MEMSPINE_TEST_MONGO_URL (replica set)")
+    from pymongo import MongoClient
+
+    name = f"rc_{uuid.uuid4().hex[:12]}"
+    try:
+        yield name
+    finally:
+        with MongoClient(MONGO_URL) as admin:
+            admin.drop_database(name)
+
+
+async def _open_mongo(database: str) -> tuple[RecordsStore, Callable[[], Awaitable[None]]]:
+    from memspine.clients.mongodb import MongoConnector, MongoSpec
+    from memspine.services.storage.mongodb import MongoRecordsStore
+
+    assert MONGO_URL is not None
+    connector = MongoConnector(MongoSpec(MONGO_URL, database=database))
+    await connector.open()
+    store = MongoRecordsStore(connector)
+    await store.start()
+
+    async def close() -> None:
+        await store.stop()
+        await connector.close()
+
+    return store, close
 
 
 async def _open_sqlite(path: str) -> tuple[RecordsStore, Callable[[], Awaitable[None]]]:
@@ -123,6 +158,11 @@ async def handle(request: pytest.FixtureRequest, tmp_path: Path) -> AsyncIterato
 
         def opener() -> Awaitable[tuple[RecordsStore, Callable[[], Awaitable[None]]]]:
             return _open_sqlite(path)
+    elif kind == "mongodb":
+        database = request.getfixturevalue("mongo_database")
+
+        def opener() -> Awaitable[tuple[RecordsStore, Callable[[], Awaitable[None]]]]:
+            return _open_mongo(database)
     else:
         url = request.getfixturevalue("pg_database")
         alembic = kind == "postgres_alembic"
