@@ -210,9 +210,8 @@ forbidden_modules =
     neo4j
     litellm
     huggingface_hub
-ignore_imports =
-    memspine.services.storage.*.alembic.env -> *
-    memspine.services.storage.*.alembic.versions.* -> *
+# Alembic env/versions no longer import transport packages (RM-113: migrations run over a
+# connector-lent connection), so no ignore_imports exemption is needed.
 allow_indirect_imports = True
 
 [importlinter:contract:services-not-composition]
