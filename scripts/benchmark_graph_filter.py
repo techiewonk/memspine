@@ -1,6 +1,10 @@
 #!/usr/bin/env python
 """RM-96 / RM-104 / RM-110 / RM-115 / RM-116: qualifier-filtered graph reads at 100k edges.
 
+RM-96 (2026-10-23): ``walk_d<n>_shared_before`` / ``walk_d<n>_pushdown_after`` time the
+qualified walk on the shared level-by-level path and with the filter compiled into the
+level queries (``walk_d<n>_queries``: database queries per walk) on the same store.
+
 Builds one synthetic namespace of ``--edges`` qualified compiled edges (default 100k over
 ``--nodes`` entity nodes, with a few hubs) on each available backend and times:
 
@@ -32,6 +36,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import datetime as dt
+import importlib
 import importlib.metadata
 import importlib.util
 import json
@@ -43,6 +48,7 @@ import tempfile
 import time
 import uuid
 from collections.abc import Awaitable, Callable, Sequence
+from functools import partial
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -52,6 +58,7 @@ import orjson
 from memspine.read.legs.graph import HopEdge, one_hop
 from memspine.read.pipeline.legs import _graph_leg_edges, _graph_seeds
 from memspine.services.graph.base import GraphEdge
+from memspine.services.graph.qualifier_columns import qualifier_columns
 from memspine.services.graph.qualifiers import (
     AssertionModality,
     ClaimState,
@@ -67,7 +74,7 @@ COMPILED = "edge_compiler_v2"
 BUDGET_P95_MS = 50.0
 DOMAINS = ("work", "residence", "health", "family", "travel", "finance", "hobby", "school")
 T0 = dt.datetime(2024, 1, 1, tzinfo=dt.UTC)
-OUT = Path("docs/provider_verification/graph-read-perf-2026-10-23.json")
+OUT = Path("docs/provider_verification/rm96-single-query-walks-2026-10-23.json")
 
 #: The representative read filter: asserted, current claims known by now, valid in 2026.
 FILTER = QualifierFilter(
@@ -193,6 +200,7 @@ def _leg_filter(edges: Sequence[GraphEdge]) -> list[GraphEdge]:
 async def measure(store: Any, seeds: Sequence[str], reps: int, leg_reps: int) -> dict[str, Any]:
     result: dict[str, Any] = {}
     reached: dict[str, list[int]] = {}
+    result.update(await measure_pushdown(store, seeds, reps))
     for depth in (1, 2):
         samples: list[float] = []
         sizes: list[int] = []
@@ -292,6 +300,7 @@ async def measure(store: Any, seeds: Sequence[str], reps: int, leg_reps: int) ->
         for k in (
             "walk_d1",
             "walk_d2",
+            *(k for k in result if k.startswith("walk_d") and k.endswith(("_before", "_after"))),
             "walk_d2_uncapped",
             "leg_scan",
             "leg_frontier",
@@ -302,6 +311,66 @@ async def measure(store: Any, seeds: Sequence[str], reps: int, leg_reps: int) ->
         )
     }
     return result
+
+
+def _no_plan(*args: Any, **kwargs: Any) -> None:
+    """Stands in for an adapter's ``_walk_plan``: always the shared-walk fallback."""
+    return None
+
+
+async def measure_pushdown(store: Any, seeds: Sequence[str], reps: int) -> dict[str, Any]:
+    """RM-96: the qualified walk with the filter compiled into its level queries (pushdown)
+    vs the shared level-by-level walk it replaces (``frontier_edges`` per level + the Python
+    filter, forced by disabling the adapter's plan), on the same store and seeds. Every
+    seed's result is checked identical (node ids, hop order, labels, properties) before
+    timing; ``walk_d<n>_queries`` counts the database queries of one walk (min..max)."""
+    module: Any = importlib.import_module(type(store).__module__)
+    if not hasattr(module, "_walk_plan"):
+        return {}
+    real_plan = module._walk_plan
+    exec_name = "_execute" if hasattr(store, "_execute") else "_run"
+    real_exec = getattr(store, exec_name)
+    calls: list[int] = []
+
+    async def counted(*args: Any, **kwargs: Any) -> Any:
+        calls.append(1)
+        return await real_exec(*args, **kwargs)
+
+    out: dict[str, Any] = {}
+    for depth in (1, 2):
+
+        def walk(seed: str, depth: int = depth) -> Any:
+            return store.neighbors(seed, depth=depth, namespace=NS, qualifier_filter=FILTER)
+
+        pushed: list[float] = []
+        shared: list[float] = []
+        queries: dict[str, list[int]] = {"pushdown": [], "shared": []}
+        for seed in seeds:
+            setattr(store, exec_name, counted)
+            calls.clear()
+            got = await walk(seed)
+            queries["pushdown"].append(len(calls))
+            module._walk_plan = _no_plan
+            try:
+                calls.clear()
+                want = await walk(seed)
+                queries["shared"].append(len(calls))
+                delattr(store, exec_name)
+                shared += await _time(partial(walk, seed), max(1, reps // len(seeds)), 1)
+            finally:
+                module._walk_plan = real_plan
+                if exec_name in vars(store):
+                    delattr(store, exec_name)
+            key = [(n.node_id, n.labels, n.properties) for n in got]
+            assert key == [(n.node_id, n.labels, n.properties) for n in want], (seed, depth)
+            pushed += await _time(partial(walk, seed), max(1, reps // len(seeds)), 1)
+        out[f"walk_d{depth}_shared_before"] = _summary(shared)
+        out[f"walk_d{depth}_pushdown_after"] = _summary(pushed)
+        out[f"walk_d{depth}_queries"] = {
+            k: f"{min(v)}..{max(v)}" if min(v) != max(v) else str(v[0]) for k, v in queries.items()
+        }
+    out["pushdown_identical_to_shared"] = True
+    return out
 
 
 async def measure_ladybug_frontier(
@@ -347,6 +416,11 @@ async def measure_ladybug_frontier(
         out[f"lb_frontier_{name}_after"] = _summary(await _time(after, leg_reps, 1))
         out[f"lb_frontier_{name}_rows"] = len(old)
     store._frontier_rows = legacy_rows
+    # RM-96: these walks time the shared walk on the old frontier query, not the pushdown
+    from memspine.services.graph import ladybug as ladybug_module
+
+    real_plan = ladybug_module._walk_plan
+    ladybug_module._walk_plan = _no_plan
     try:
         for depth in (1, 2):
             samples: list[float] = []
@@ -361,6 +435,7 @@ async def measure_ladybug_frontier(
             out[f"walk_d{depth}_before_rm116"] = _summary(samples)
     finally:
         del store._frontier_rows
+        ladybug_module._walk_plan = real_plan
     return out
 
 
@@ -511,24 +586,31 @@ async def _ladybug_load(client: Any, data: list[tuple[str, str, str, dict[str, A
                 "properties: '{}', namespace: $ns})",
                 parameters={"rows": ids[i : i + 5_000], "ns": NS},
             )
-        rows = [
-            {
+        # RM-96: the qualifier columns upsert_edge writes, one batch per column shape (a
+        # LadybugDB list parameter needs one struct type, so rows are grouped by which
+        # columns are null).
+        groups: dict[tuple[str, ...], list[dict[str, Any]]] = {}
+        for s, d, r, p in data:
+            cols = {k: v for k, v in qualifier_columns(p).items() if v is not None}
+            row = {
                 "s": s,
                 "d": d,
                 "r": r,
                 "p": orjson.dumps(p).decode(),
                 "w": float(p["weight"]),
                 "k": str(p.get("kind") or ""),
+                **cols,
             }
-            for s, d, r, p in data
-        ]
-        for i in range(0, len(rows), 5_000):
-            con.execute(
-                "UNWIND $rows AS x MATCH (a:MemoryNode {node_id: x.s}), "
-                "(b:MemoryNode {node_id: x.d}) CREATE (a)-[:MemoryLink {rel_type: x.r, "
-                "properties: x.p, namespace: $ns, weight: x.w, kind: x.k}]->(b)",
-                parameters={"rows": rows[i : i + 5_000], "ns": NS},
-            )
+            groups.setdefault(tuple(sorted(cols)), []).append(row)
+        for names, rows in groups.items():
+            sets = "".join(f", {n}: x.{n}" for n in names)
+            for i in range(0, len(rows), 5_000):
+                con.execute(
+                    "UNWIND $rows AS x MATCH (a:MemoryNode {node_id: x.s}), "
+                    "(b:MemoryNode {node_id: x.d}) CREATE (a)-[:MemoryLink {rel_type: x.r, "
+                    f"properties: x.p, namespace: $ns, weight: x.w, kind: x.k{sets}}}]->(b)",
+                    parameters={"rows": rows[i : i + 5_000], "ns": NS},
+                )
 
     await asyncio.to_thread(load)
 
@@ -711,7 +793,7 @@ async def main() -> None:
     parser.add_argument("--leg-reps", type=int, default=20, help="read-path leg timings")
     parser.add_argument("--seed", type=int, default=96)
     parser.add_argument("--out", type=Path, default=OUT)
-    parser.add_argument("--task", default="RM-96/RM-115/RM-116")
+    parser.add_argument("--task", default="RM-96")
     parser.add_argument("--date", default="2026-10-23")
     parser.add_argument("--mentions", type=int, default=20_000, help="entity mentions edges")
     parser.add_argument("--engine-reps", type=int, default=20, help="Engine.search timings")
@@ -803,6 +885,10 @@ async def main() -> None:
             "lb_frontier_<set>_before/after": "LadybugDB frontier query: OR predicate (before "
             "RM-116) vs anchored UNION ALL (after); hub, read seeds, 16-node frontier",
             "walk_d1/d2_before_rm116": "LadybugDB walks on the OR frontier query (before)",
+            "walk_d<n>_shared_before": "neighbors(qualifier_filter) on the shared level-by-level "
+            "walk (frontier_edges per level + Python filter), the path before RM-96",
+            "walk_d<n>_pushdown_after": "neighbors(qualifier_filter) with the filter compiled into "
+            "each level query (RM-96); checked identical to the shared walk",
         },
         "results": results,
         "skipped": skipped,

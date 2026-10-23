@@ -74,6 +74,16 @@ sensitivity and support.
     `subgraph_qualified`, `supports_qualifier_filters`, `require_qualifier_support`,
     `UnsupportedQualifierFilterError`) and the `qualifier_filter` descriptor capability
     were removed with no aliases (ADR-068).
+    *2026-10-23 note, RM-96 pushdown (LadybugDB):* LadybugDB stores each edge's
+    qualifiers as flat columns too (`services/graph/qualifier_columns.py`, derived on
+    `upsert_edge` from the same parse the shared walk uses, versioned by `q_v`, backfilled
+    on open, and fail-closed while stale). It compiles every `QualifierFilter` field into
+    the level query's WHERE clause. The shared `qualified_hops` still applies the caps and
+    ordering to the rows that come back. A depth-1 walk is one query (node rows included).
+    A depth-2 walk is two queries: in LadybugDB 0.21.2 a two-hop pattern with a predicate
+    on its first relationship returns wrong results, and a MATCH after a WITH scans every
+    relationship. The shared walk stays the reference and the fallback (depth 0 or above
+    2, a cap below 1, a filter field the compiler does not know).
 11. **Backfill.** Old edges get qualifiers on the next sleep cycle, or through
     `memspine graph requalify`.
 12. **New model binding roles.** `gliner_sensitivity` and `gliner_topic` join

@@ -27,6 +27,18 @@ level, one query per level, applying
 :func:`~memspine.services.graph.base.capped_neighbors` (Cypher has no per-node
 ``LIMIT`` inside a recursive pattern).
 
+Qualified walks (RM-96): the edge's qualifiers are also flat rel columns
+(:mod:`~memspine.services.graph.qualifier_columns`, ALTERed in and backfilled on open), and
+``neighbors`` / ``subgraph`` with a ``qualifier_filter`` compile the filter into the WHERE
+clause of one anchored single-hop query per level (node rows included), then run the
+shared :func:`~memspine.services.graph.qualifiers.qualified_hops` (caps, ordering,
+tie-break) over the admitted rows: depth 1 is one query, depth 2 two. ``subgraph`` adds
+one filtered query for the induced edges. Why not one query for depth 2 (probe at 100k
+edges, LadybugDB 0.21.2): a two-hop pattern with a predicate on its first relationship
+drops valid middle nodes, and a MATCH after a WITH (or from an UNWIND / computed ids) is
+planned as a full relationship scan (50-55 ms). Depth 0 or above 2 and caps below 1 run
+the shared walk over ``frontier_edges`` (the reference).
+
 The Python API is synchronous — every call is pushed to a worker thread, and a
 single threading lock serializes them (one embedded connection is not a pool), so
 Engines on different event loops can share one store per path (ADR-079).
@@ -37,11 +49,16 @@ from __future__ import annotations
 import asyncio
 import threading
 from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 from typing import Any, Protocol
 
 import orjson
 
-from memspine.config.constants import LADYBUG_FRONTIER_PER_NODE_MAX
+from memspine.config.constants import (
+    LADYBUG_FRONTIER_PER_NODE_MAX,
+    QUALIFIED_WALK_DEEP_MAX_DEGREE,
+    QUALIFIED_WALK_FRONTIER_CAP,
+)
 from memspine.observability.logging import get_logger
 from memspine.services.graph.base import (
     GraphEdge,
@@ -52,6 +69,12 @@ from memspine.services.graph.base import (
     edge_weight,
     entity_terms,
     fuse_entity_hits,
+)
+from memspine.services.graph.qualifier_columns import (
+    COLUMNS,
+    QUALIFIER_COLUMNS_VERSION,
+    compile_filter,
+    qualifier_columns,
 )
 from memspine.services.graph.qualifiers import (
     QualifierFilter,
@@ -89,6 +112,8 @@ _ALTER = (
     "ALTER TABLE MemoryLink ADD IF NOT EXISTS namespace STRING",
     "ALTER TABLE MemoryLink ADD IF NOT EXISTS weight DOUBLE",
     "ALTER TABLE MemoryLink ADD IF NOT EXISTS kind STRING",
+    # RM-96: the qualifier columns the single-query qualified walk filters on.
+    *(f"ALTER TABLE MemoryLink ADD IF NOT EXISTS {name} {kind}" for name, kind in COLUMNS.items()),
 )
 
 _UPSERT_NODE = (
@@ -104,14 +129,23 @@ _ENSURE_NODE = (
     "ON CREATE SET n.labels = '[]', n.properties = '{}', n.namespace = $namespace"
 )
 
+_SET_QUALIFIER_COLUMNS = ", ".join(f"e.{name} = ${name}" for name in COLUMNS)
+
 _UPSERT_EDGE = (
     "MATCH (a:MemoryNode {node_id: $src}), (b:MemoryNode {node_id: $dst}) "
     "MERGE (a)-[e:MemoryLink {rel_type: $rel_type}]->(b) "
     "ON CREATE SET e.properties = $properties, e.namespace = $namespace, "
-    "e.weight = $weight, e.kind = $kind "
+    f"e.weight = $weight, e.kind = $kind, {_SET_QUALIFIER_COLUMNS} "
     "ON MATCH SET e.properties = $properties, e.namespace = $namespace, "
-    "e.weight = $weight, e.kind = $kind"
+    f"e.weight = $weight, e.kind = $kind, {_SET_QUALIFIER_COLUMNS}"
 )
+
+#: RM-96: (re)derive the qualifier columns of one stored edge.
+_BACKFILL_QUALIFIER_COLUMNS = (
+    "MATCH (s:MemoryNode {node_id: $src})-[e:MemoryLink {rel_type: $rel}]->"
+    f"(d:MemoryNode {{node_id: $dst}}) SET {_SET_QUALIFIER_COLUMNS}"
+)
+
 
 _EDGE_MATCH = "MATCH (s:MemoryNode)-[e:MemoryLink]->(d:MemoryNode)"
 _EDGE_RETURN = "RETURN s.node_id, d.node_id, e.rel_type, e.properties"
@@ -139,6 +173,11 @@ def _node(row: list[Any]) -> GraphNode:
     )
 
 
+def _columns(props: Mapping[str, object]) -> dict[str, Any]:
+    """RM-96: the qualifier column values of an edge with ``props``."""
+    return qualifier_columns(props)
+
+
 def _filters(
     var: str, namespace: str | None, rel_type: str | None, params: dict[str, Any]
 ) -> list[str]:
@@ -151,6 +190,70 @@ def _filters(
         clauses.append(f"{var}.rel_type = $rel_type")
         params["rel_type"] = rel_type
     return clauses
+
+
+@dataclass(frozen=True)
+class _WalkPlan:
+    """RM-96: a qualified walk whose filter runs in the level queries (depth 1 or 2)."""
+
+    seeds: list[str]
+    depth: int
+    where: str  # live + namespace + relation + compiled qualifier predicate on ``e``
+    params: dict[str, Any]
+
+
+def _walk_plan(
+    qualifier_filter: QualifierFilter,
+    seeds: Sequence[str],
+    depth: int,
+    namespace: str | None,
+    rel_type: str | None,
+    max_degree: int | None,
+) -> _WalkPlan | None:
+    """The pushed-down plan of a qualified walk, or None for the shared-walk fallback:
+    depth outside 1..2, no seeds, a cap below 1, or a filter field that does not compile."""
+    caps = (max_degree, QUALIFIED_WALK_FRONTIER_CAP, QUALIFIED_WALK_DEEP_MAX_DEGREE)
+    if depth not in (1, 2) or not seeds or any(c is not None and c < 1 for c in caps):
+        return None
+    params: dict[str, Any] = {}
+    compiled = compile_filter(qualifier_filter, "e", params)
+    if compiled is None:
+        return None
+    where = " AND ".join([*_filters("e", namespace, rel_type, params), compiled])
+    return _WalkPlan(list(dict.fromkeys(seeds)), depth, where, params)
+
+
+#: A level row: the edge, its weight, and both endpoints' labels / properties.
+_LEVEL_RETURN = (
+    "RETURN s.node_id, d.node_id, e.weight, s.labels, s.properties, d.labels, d.properties"
+)
+
+
+def _level_query(frontier: Sequence[str], where: str) -> tuple[str, dict[str, Any]]:
+    """Every admitted live edge touching ``frontier`` in one query (undirected, so an edge
+    between two frontier nodes comes back once from each side; the walk takes the
+    strongest edge per neighbour, so a repeat changes nothing).
+
+    One node is a primary-key lookup on a parameter; more nodes are ``IN``-anchored.
+    Single-hop patterns only (RM-96 probe at 100k edges, LadybugDB 0.21.2): a two-hop
+    pattern with a predicate on its first relationship drops valid middle nodes (wrong
+    results), and a MATCH after a WITH, or from an UNWIND / a computed id, is planned as a
+    scan of every relationship (50-55 ms against 3-16 ms anchored), so one walk cannot
+    be one query here without losing either correctness or the budget."""
+    if len(frontier) == 1:
+        return (
+            f"MATCH (s:MemoryNode {{node_id: $x}})-[e:MemoryLink]-(d:MemoryNode) "
+            f"WHERE {where} {_LEVEL_RETURN}"
+        ), {"x": frontier[0]}
+    return (
+        "MATCH (s:MemoryNode) WHERE s.node_id IN $frontier "
+        f"MATCH (s)-[e:MemoryLink]-(d:MemoryNode) WHERE {where} {_LEVEL_RETURN}"
+    ), {"frontier": list(frontier)}
+
+
+#: The level rows are already filtered in the query, so the shared walk runs with the
+#: empty filter over weight-only edges (no qualifiers to parse; nothing erased is fetched).
+_ADMIT_ALL = QualifierFilter()
 
 
 class LadybugGraphStore:
@@ -232,6 +335,17 @@ class LadybugGraphStore:
                     "ns": src_ns or dst_ns or "",
                 },
             )
+        stale_columns = self._rows(
+            f"{_EDGE_MATCH} WHERE e.q_v IS NULL OR e.q_v <> $v "
+            "RETURN s.node_id, d.node_id, e.rel_type, e.properties",
+            {"v": QUALIFIER_COLUMNS_VERSION},
+        )
+        for src, dst, rel_type, properties in stale_columns:
+            props = dict(_loads(properties) or {})
+            self._rows(
+                _BACKFILL_QUALIFIER_COLUMNS,
+                {"src": src, "dst": dst, "rel": rel_type, **_columns(props)},
+            )
 
     async def upsert_node(
         self,
@@ -283,6 +397,7 @@ class LadybugGraphStore:
                         "namespace": ns,
                         "weight": edge_weight(props),
                         "kind": edge_kind(props),
+                        **_columns(props),
                     },
                 ),
             )
@@ -340,15 +455,20 @@ class LadybugGraphStore:
         max_degree: int | None = None,
         qualifier_filter: QualifierFilter | None = None,
     ) -> list[GraphNode]:
-        if qualifier_filter is None:
-            hops = await self._hops([node_id], depth, namespace, rel_type, max_degree)
-        else:
-            # RM-41: a qualified walk runs level by level over the admitted edges only.
+        if qualifier_filter is not None:
+            plan = _walk_plan(qualifier_filter, [node_id], depth, namespace, rel_type, max_degree)
+            if plan is not None:  # RM-96: the filter runs in the level queries
+                hops, found = await self._pushed_down_walk(plan, max_degree)
+                hops.pop(node_id, None)
+                return sorted((found[n] for n in hops), key=lambda n: (hops[n.node_id], n.node_id))
+            # RM-41 reference: the shared walk, level by level over the admitted edges only.
 
             async def frontier(nodes: Sequence[str]) -> list[GraphEdge]:
                 return await self.frontier_edges(nodes, namespace=namespace, rel_type=rel_type)
 
             hops = await qualified_hops(frontier, [node_id], depth, qualifier_filter, max_degree)
+        else:
+            hops = await self._hops([node_id], depth, namespace, rel_type, max_degree)
         hops.pop(node_id, None)
         if not hops:
             return []
@@ -358,6 +478,28 @@ class LadybugGraphStore:
         )
         nodes = [_node(row) for row in rows]
         return sorted(nodes, key=lambda node: (hops[node.node_id], node.node_id))
+
+    async def _pushed_down_walk(
+        self, plan: _WalkPlan, max_degree: int | None
+    ) -> tuple[dict[str, int], dict[str, GraphNode]]:
+        """RM-96: the shared walk (:func:`qualified_hops`: its caps, ordering and
+        tie-break) over level queries that apply the compiled qualifier filter in the
+        database, one query per level; returns the hops and every fetched node's row."""
+        nodes: dict[str, GraphNode] = {}
+
+        async def level(frontier: Sequence[str]) -> list[GraphEdge]:
+            query, params = _level_query(frontier, plan.where)
+            rows = await self._execute(query, {**plan.params, **params})
+            edges: list[GraphEdge] = []
+            for src, dst, weight, s_labels, s_props, d_labels, d_props in rows:
+                for node_id, labels, props in ((src, s_labels, s_props), (dst, d_labels, d_props)):
+                    if node_id not in nodes:
+                        nodes[str(node_id)] = _node([node_id, labels, props])
+                edges.append(GraphEdge(str(src), str(dst), "", {"weight": float(weight)}))
+            return edges
+
+        hops = await qualified_hops(level, plan.seeds, plan.depth, _ADMIT_ALL, max_degree)
+        return hops, nodes
 
     async def subgraph(
         self,
@@ -369,6 +511,19 @@ class LadybugGraphStore:
         qualifier_filter: QualifierFilter | None = None,
     ) -> list[GraphEdge]:
         if qualifier_filter is not None:
+            plan = _walk_plan(qualifier_filter, seeds, depth, namespace, None, max_degree)
+            if plan is not None:  # RM-96: the walk, then the admitted induced edges
+                hops, _ = await self._pushed_down_walk(plan, max_degree)
+                rows = await self._execute(
+                    "MATCH (s:MemoryNode) WHERE s.node_id IN $ids "
+                    "MATCH (s)-[e:MemoryLink]->(d:MemoryNode) "
+                    f"WHERE d.node_id IN $ids AND d.node_id <> s.node_id AND {plan.where} "
+                    f"{_EDGE_RETURN}",
+                    {**plan.params, "ids": list(hops)},
+                )
+                return sorted(
+                    (_edge(row) for row in rows), key=lambda e: (e.src, e.dst, e.rel_type)
+                )
 
             async def frontier(nodes: Sequence[str]) -> list[GraphEdge]:
                 return await self.frontier_edges(nodes, namespace=namespace)
@@ -409,8 +564,11 @@ class LadybugGraphStore:
         per node anchored on the primary key (``{node_id: $x}``, an index lookup): its
         outgoing edges plus its incoming edges from other nodes; an edge between two
         frontier nodes is kept once. A larger frontier runs two anchored MATCHes joined by
-        ``UNION ALL``: edges leaving a frontier node, then edges entering one from outside
-        the frontier (``IN`` costs a node scan, cheaper than one query per node there)."""
+        ``UNION ALL``: edges leaving a frontier node, then edges entering one (``IN`` costs
+        a node scan, cheaper than one query per node there); an edge between two frontier
+        nodes comes back from both parts and is kept once here. RM-96: deduplicating in
+        Python instead of a ``NOT (s.node_id IN $frontier)`` predicate on the second part
+        cut the query at 100k edges from 25 to 16 ms (6 nodes) and 30 to 20 ms (16)."""
         params: dict[str, Any] = {"frontier": frontier}
         where = " AND ".join(_filters("e", namespace, rel_type, params))
         if len(frontier) <= LADYBUG_FRONTIER_PER_NODE_MAX:
@@ -426,15 +584,18 @@ class LadybugGraphStore:
                 for row in await self._execute(query, {**single, "x": node_id}):
                     seen.setdefault((str(row[0]), str(row[1]), str(row[2])), row)
             return list(seen.values())
-        return await self._execute(
+        rows = await self._execute(
             "MATCH (s:MemoryNode) WHERE s.node_id IN $frontier "
             f"MATCH (s)-[e:MemoryLink]->(d:MemoryNode) WHERE {where} {_EDGE_RETURN} "
             "UNION ALL "
             "MATCH (d:MemoryNode) WHERE d.node_id IN $frontier "
-            "MATCH (s:MemoryNode)-[e:MemoryLink]->(d) "
-            f"WHERE NOT (s.node_id IN $frontier) AND {where} {_EDGE_RETURN}",
+            f"MATCH (s:MemoryNode)-[e:MemoryLink]->(d) WHERE {where} {_EDGE_RETURN}",
             params,
         )
+        unique: dict[tuple[str, str, str], list[Any]] = {}
+        for row in rows:
+            unique.setdefault((str(row[0]), str(row[1]), str(row[2])), row)
+        return list(unique.values())
 
     async def edges_of(self, node_id: str) -> list[GraphEdge]:
         rows = await self._execute(

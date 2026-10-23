@@ -1,0 +1,543 @@
+{
+  "task": "RM-96",
+  "date": "2026-10-23",
+  "budget": {
+    "p95_ms": 50.0,
+    "edges_per_namespace": 100000
+  },
+  "graph": {
+    "edges": 100000,
+    "mentions_edges": 20000,
+    "namespace_edges_total": 120000,
+    "nodes": 20000,
+    "hubs": 200,
+    "hub_endpoint_share": 0.2,
+    "generate_s": 1.4,
+    "seeds": [
+      "ent:bench/rm96:n006574",
+      "ent:bench/rm96:n014256",
+      "ent:bench/rm96:n012391",
+      "ent:bench/rm96:n001869",
+      "ent:bench/rm96:n019020",
+      "ent:bench/rm96:n000000"
+    ]
+  },
+  "filter": {
+    "valid_at": "2026-03-01T00:00:00Z",
+    "known_as_of": "2026-10-22T00:00:00Z",
+    "assertion_modalities": [
+      "asserted"
+    ],
+    "claim_states": [
+      "current"
+    ],
+    "unchecked_sensitivity": "fail"
+  },
+  "measures": {
+    "walk_d1/walk_d2": "neighbors(qualifier_filter=...) (qualified_hops) from each seed",
+    "leg_edge_list": "edge_list(namespace): the read-path graph leg's load",
+    "leg_filter": "compiled/live selection + QualifierFilter.admits over that list",
+    "leg_scan": "leg_edge_list + leg_filter (the leg before RM-104; unfiltered reads)",
+    "leg_frontier": "_graph_leg_edges on frontier_edges(seeds) (the filtered leg now)",
+    "leg_frontier_fetch": "frontier_edges(seeds, namespace) alone",
+    "walk_d2_uncapped": "qualified_hops depth 2 with both RM-96 caps lifted (before)",
+    "seeds_scan": "_graph_seeds with the entity index rebuilt from edge_list (before)",
+    "seeds_cached": "_graph_seeds on the maintained entity index (RM-110, after)",
+    "seeds_cold_build_ms": "the first read of a namespace: one index build",
+    "read_path_before/after": "seeds + _graph_leg_edges (frontier) + one_hop",
+    "engine_search_before/after": "Engine.search with graph_filter end to end",
+    "engine_search_per_id_records": "Engine.search, caller check one get_record per edge (before RM-115); engine_search_after uses one get_records batch",
+    "lb_frontier_<set>_before/after": "LadybugDB frontier query: OR predicate (before RM-116) vs anchored UNION ALL (after); hub, read seeds, 16-node frontier",
+    "walk_d1/d2_before_rm116": "LadybugDB walks on the OR frontier query (before)",
+    "walk_d<n>_shared_before": "neighbors(qualifier_filter) on the shared level-by-level walk (frontier_edges per level + Python filter), the path before RM-96",
+    "walk_d<n>_pushdown_after": "neighbors(qualifier_filter) with the filter compiled into each level query (RM-96); checked identical to the shared walk"
+  },
+  "results": {
+    "sql_adjacency": {
+      "load_s": 8.9,
+      "walk_d1": {
+        "n": 60,
+        "p50_ms": 2.256,
+        "p95_ms": 9.286,
+        "max_ms": 11.42
+      },
+      "walk_d2": {
+        "n": 60,
+        "p50_ms": 11.553,
+        "p95_ms": 43.828,
+        "max_ms": 50.436
+      },
+      "walk_d2_uncapped": {
+        "n": 60,
+        "p50_ms": 10.641,
+        "p95_ms": 233.656,
+        "max_ms": 243.796
+      },
+      "seeds_scan": {
+        "n": 20,
+        "p50_ms": 1760.189,
+        "p95_ms": 1984.204,
+        "max_ms": 1991.387
+      },
+      "seeds_cached": {
+        "n": 100,
+        "p50_ms": 0.022,
+        "p95_ms": 0.026,
+        "max_ms": 0.044
+      },
+      "seeds_cold_build_ms": 1877.627,
+      "seeds_found": 6,
+      "leg_edge_list": {
+        "n": 20,
+        "p50_ms": 1690.708,
+        "p95_ms": 1982.015,
+        "max_ms": 1983.191
+      },
+      "leg_filter": {
+        "n": 20,
+        "p50_ms": 1609.879,
+        "p95_ms": 1631.828,
+        "max_ms": 1639.112
+      },
+      "leg_scan": {
+        "n": 20,
+        "p50_ms": 3292.064,
+        "p95_ms": 3587.047,
+        "max_ms": 3762.776
+      },
+      "leg_frontier": {
+        "n": 140,
+        "p50_ms": 3.694,
+        "p95_ms": 11.367,
+        "max_ms": 12.141
+      },
+      "leg_frontier_fetch": {
+        "n": 140,
+        "p50_ms": 0.994,
+        "p95_ms": 2.382,
+        "max_ms": 3.257
+      },
+      "leg_frontier_sizes": [
+        {
+          "seeds": 6,
+          "fetched": 301,
+          "admitted": 122
+        },
+        {
+          "seeds": 1,
+          "fetched": 7,
+          "admitted": 3
+        },
+        {
+          "seeds": 1,
+          "fetched": 14,
+          "admitted": 3
+        },
+        {
+          "seeds": 1,
+          "fetched": 16,
+          "admitted": 6
+        },
+        {
+          "seeds": 1,
+          "fetched": 10,
+          "admitted": 5
+        },
+        {
+          "seeds": 1,
+          "fetched": 11,
+          "admitted": 3
+        },
+        {
+          "seeds": 1,
+          "fetched": 245,
+          "admitted": 103
+        }
+      ],
+      "read_path_before": {
+        "n": 20,
+        "p50_ms": 1719.239,
+        "p95_ms": 2060.51,
+        "max_ms": 2140.24
+      },
+      "read_path_after": {
+        "n": 20,
+        "p50_ms": 9.962,
+        "p95_ms": 11.878,
+        "max_ms": 12.078
+      },
+      "reached_nodes": {
+        "walk_d1": {
+          "min": 3,
+          "max": 102
+        },
+        "walk_d2": {
+          "min": 9,
+          "max": 201
+        },
+        "walk_d2_uncapped": {
+          "min": 9,
+          "max": 1511
+        }
+      },
+      "leg_edges": {
+        "namespace": 120000,
+        "admitted": 42036
+      },
+      "within_budget": {
+        "walk_d1": true,
+        "walk_d2": true,
+        "walk_d2_uncapped": false,
+        "leg_scan": false,
+        "leg_frontier": true,
+        "seeds_scan": false,
+        "seeds_cached": true,
+        "read_path_before": false,
+        "read_path_after": true,
+        "engine_search_before": false,
+        "engine_search_per_id_records": false,
+        "engine_search_after": true
+      },
+      "engine_search_empty_graph": {
+        "n": 20,
+        "p50_ms": 9.197,
+        "p95_ms": 10.201,
+        "max_ms": 11.468
+      },
+      "engine_search_before": {
+        "n": 5,
+        "p50_ms": 1755.877,
+        "p95_ms": 1868.233,
+        "max_ms": 1868.233
+      },
+      "engine_search_after": {
+        "n": 20,
+        "p50_ms": 18.088,
+        "p95_ms": 19.589,
+        "max_ms": 20.416
+      },
+      "engine_search_per_id_records": {
+        "n": 20,
+        "p50_ms": 164.352,
+        "p95_ms": 184.378,
+        "max_ms": 186.028
+      },
+      "engine_caller_check_records": 122,
+      "engine_search_cold_first_ms": 1761.895,
+      "engine_leg_seed_fetch_nodes": 6
+    },
+    "ladybug": {
+      "load_s": 583.8,
+      "walk_d1_shared_before": {
+        "n": 60,
+        "p50_ms": 13.058,
+        "p95_ms": 24.302,
+        "max_ms": 25.313
+      },
+      "walk_d1_pushdown_after": {
+        "n": 60,
+        "p50_ms": 3.407,
+        "p95_ms": 6.458,
+        "max_ms": 7.111
+      },
+      "walk_d1_queries": {
+        "pushdown": "1",
+        "shared": "2"
+      },
+      "walk_d2_shared_before": {
+        "n": 60,
+        "p50_ms": 39.256,
+        "p95_ms": 71.502,
+        "max_ms": 77.488
+      },
+      "walk_d2_pushdown_after": {
+        "n": 60,
+        "p50_ms": 18.873,
+        "p95_ms": 28.298,
+        "max_ms": 35.41
+      },
+      "walk_d2_queries": {
+        "pushdown": "2",
+        "shared": "3..5"
+      },
+      "pushdown_identical_to_shared": true,
+      "walk_d1": {
+        "n": 60,
+        "p50_ms": 3.071,
+        "p95_ms": 6.121,
+        "max_ms": 6.28
+      },
+      "walk_d2": {
+        "n": 60,
+        "p50_ms": 18.935,
+        "p95_ms": 26.602,
+        "max_ms": 27.528
+      },
+      "walk_d2_uncapped": {
+        "n": 60,
+        "p50_ms": 32.781,
+        "p95_ms": 204.739,
+        "max_ms": 340.211
+      },
+      "seeds_scan": {
+        "n": 20,
+        "p50_ms": 1186.256,
+        "p95_ms": 1308.154,
+        "max_ms": 1348.969
+      },
+      "seeds_cached": {
+        "n": 100,
+        "p50_ms": 0.022,
+        "p95_ms": 0.026,
+        "max_ms": 0.055
+      },
+      "seeds_cold_build_ms": 1261.967,
+      "seeds_found": 6,
+      "leg_edge_list": {
+        "n": 20,
+        "p50_ms": 1391.231,
+        "p95_ms": 1481.119,
+        "max_ms": 1511.488
+      },
+      "leg_filter": {
+        "n": 20,
+        "p50_ms": 1544.349,
+        "p95_ms": 1632.304,
+        "max_ms": 1669.53
+      },
+      "leg_scan": {
+        "n": 20,
+        "p50_ms": 2971.684,
+        "p95_ms": 3058.668,
+        "max_ms": 3095.254
+      },
+      "leg_frontier": {
+        "n": 140,
+        "p50_ms": 9.213,
+        "p95_ms": 33.188,
+        "max_ms": 51.342
+      },
+      "leg_frontier_fetch": {
+        "n": 140,
+        "p50_ms": 6.082,
+        "p95_ms": 25.057,
+        "max_ms": 35.014
+      },
+      "leg_frontier_sizes": [
+        {
+          "seeds": 6,
+          "fetched": 301,
+          "admitted": 122
+        },
+        {
+          "seeds": 1,
+          "fetched": 7,
+          "admitted": 3
+        },
+        {
+          "seeds": 1,
+          "fetched": 14,
+          "admitted": 3
+        },
+        {
+          "seeds": 1,
+          "fetched": 16,
+          "admitted": 6
+        },
+        {
+          "seeds": 1,
+          "fetched": 10,
+          "admitted": 5
+        },
+        {
+          "seeds": 1,
+          "fetched": 11,
+          "admitted": 3
+        },
+        {
+          "seeds": 1,
+          "fetched": 245,
+          "admitted": 103
+        }
+      ],
+      "read_path_before": {
+        "n": 20,
+        "p50_ms": 1384.128,
+        "p95_ms": 1526.258,
+        "max_ms": 1689.702
+      },
+      "read_path_after": {
+        "n": 20,
+        "p50_ms": 30.696,
+        "p95_ms": 33.063,
+        "max_ms": 40.753
+      },
+      "lb_frontier_hub_before": {
+        "n": 20,
+        "p50_ms": 34.599,
+        "p95_ms": 36.06,
+        "max_ms": 36.164
+      },
+      "lb_frontier_hub_after": {
+        "n": 20,
+        "p50_ms": 10.302,
+        "p95_ms": 14.966,
+        "max_ms": 19.007
+      },
+      "lb_frontier_hub_rows": 245,
+      "lb_frontier_read_seeds_before": {
+        "n": 20,
+        "p50_ms": 37.116,
+        "p95_ms": 39.344,
+        "max_ms": 40.156
+      },
+      "lb_frontier_read_seeds_after": {
+        "n": 20,
+        "p50_ms": 21.786,
+        "p95_ms": 24.172,
+        "max_ms": 33.902
+      },
+      "lb_frontier_read_seeds_rows": 301,
+      "lb_frontier_frontier16_before": {
+        "n": 20,
+        "p50_ms": 51.991,
+        "p95_ms": 64.815,
+        "max_ms": 75.741
+      },
+      "lb_frontier_frontier16_after": {
+        "n": 20,
+        "p50_ms": 29.36,
+        "p95_ms": 32.554,
+        "max_ms": 44.059
+      },
+      "lb_frontier_frontier16_rows": 3569,
+      "walk_d1_before_rm116": {
+        "n": 60,
+        "p50_ms": 39.478,
+        "p95_ms": 47.144,
+        "max_ms": 53.613
+      },
+      "walk_d2_before_rm116": {
+        "n": 60,
+        "p50_ms": 85.215,
+        "p95_ms": 117.024,
+        "max_ms": 121.231
+      },
+      "reached_nodes": {
+        "walk_d1": {
+          "min": 3,
+          "max": 102
+        },
+        "walk_d2": {
+          "min": 9,
+          "max": 201
+        },
+        "walk_d2_uncapped": {
+          "min": 9,
+          "max": 1511
+        }
+      },
+      "leg_edges": {
+        "namespace": 120000,
+        "admitted": 42036
+      },
+      "within_budget": {
+        "walk_d1": true,
+        "walk_d2": true,
+        "walk_d1_shared_before": true,
+        "walk_d1_pushdown_after": true,
+        "walk_d2_shared_before": false,
+        "walk_d2_pushdown_after": true,
+        "walk_d2_uncapped": false,
+        "leg_scan": false,
+        "leg_frontier": true,
+        "seeds_scan": false,
+        "seeds_cached": true,
+        "read_path_before": false,
+        "read_path_after": true,
+        "engine_search_before": false,
+        "engine_search_per_id_records": false,
+        "engine_search_after": false
+      },
+      "engine_search_empty_graph": {
+        "n": 20,
+        "p50_ms": 8.238,
+        "p95_ms": 9.839,
+        "max_ms": 10.129
+      },
+      "engine_search_before": {
+        "n": 5,
+        "p50_ms": 1536.243,
+        "p95_ms": 1659.674,
+        "max_ms": 1659.674
+      },
+      "engine_search_after": {
+        "n": 20,
+        "p50_ms": 47.852,
+        "p95_ms": 50.321,
+        "max_ms": 51.78
+      },
+      "engine_search_per_id_records": {
+        "n": 20,
+        "p50_ms": 193.255,
+        "p95_ms": 207.812,
+        "max_ms": 217.841
+      },
+      "engine_caller_check_records": 122,
+      "engine_search_cold_first_ms": 1605.739,
+      "engine_leg_seed_fetch_nodes": 6
+    }
+  },
+  "skipped": {
+    "neo4j": "MEMSPINE_TEST_NEO4J_URL not set (optional)"
+  },
+  "environment": {
+    "python": "3.13.9",
+    "platform": "Windows-11-10.0.26340-SP0",
+    "machine": "AMD64",
+    "versions": {
+      "sqlalchemy": "2.1.6",
+      "aiosqlite": "0.22.1",
+      "ladybug": "0.21.2",
+      "neo4j": "6.4.1",
+      "pydantic": "2.14.1"
+    }
+  },
+  "runs": {
+    "sql_adjacency": "run 1 (adapter unchanged by RM-96; same world, same script)",
+    "ladybug": "run 2, after the RM-96 LadybugDB changes (pushdown + frontier dedupe)"
+  },
+  "summary_p50_p95_ms": {
+    "budget_p95_ms": 50.0,
+    "ladybug": {
+      "walk_d1": {
+        "before_shared_walk": "13.058/24.302",
+        "after_pushdown": "3.407/6.458",
+        "queries_before_after": "2 -> 1"
+      },
+      "walk_d2": {
+        "before_shared_walk": "39.256/71.502",
+        "after_pushdown": "18.873/28.298",
+        "queries_before_after": "3..5 -> 2"
+      },
+      "engine_search_graph_filter": {
+        "before_rm115_116_run": "43.8/48.1 (graph-read-perf-2026-10-23.json)",
+        "after": "47.852/50.321",
+        "empty_graph_baseline": "8.238/9.839"
+      },
+      "frontier_read_seeds_6": "21.786/24.172",
+      "frontier_16": "29.36/32.554"
+    },
+    "sql_adjacency": {
+      "walk_d1": "2.256/9.286",
+      "walk_d2": "11.553/43.828",
+      "engine_search_graph_filter": "18.088/19.589",
+      "note": "SQLite adjacency is not changed by RM-96 (shared walk); listed for the budget table"
+    },
+    "neo4j": "pending (separate step)"
+  },
+  "findings": {
+    "single_query_depth2_ladybug": "Not adopted. LadybugDB 0.21.2, 100k edges: (1) a two-hop pattern (s {node_id:$x})-[e1]-(m)-[e2]-(o) with any predicate on e1 returns wrong results (world seed 11: 33 middle nodes one hop, 25 in the two-hop pattern; pinning a missing middle node returns all its rows); (2) any MATCH after a WITH, from an UNWIND or from computed ids is planned as a full relationship scan: 50-55 ms (anchored on a parameter: 3-5 ms); pipeline variants measured 64-150 ms; (3) in-query collect/list_sort per group costs 3x the plain rows; path property extraction from a recursive rel 40-136 ms. So depth 1 is one query and depth 2 is two filtered queries (one per level).",
+    "engine_search_bottleneck_ladybug": "Engine.search p95 50.3 ms (empty-graph baseline 9.8): the read leg's 6-seed frontier_edges fetch is an IN-anchored two-part union (~22 ms; IN costs a node-table scan in LadybugDB); RM-96 cut it from ~25-36 ms by deduplicating in Python instead of a NOT IN predicate. The run-to-run noise on this host is about +-5 ms (run 1 measured 66.6 ms before the dedupe change, the RM-115 run 48.1 ms)."
+  }
+}
