@@ -17,7 +17,7 @@ Every old key is rejected with an error naming its new key (no aliases, ADR-068)
 | `llm.roles.<role>` | `model.llm.<role>` | |
 | `models.bindings.<llm role>` + `models.profiles.<name>` (kind llm) | `model.llm.<role>` inline | script expands |
 | `llm.structured` | `model.llm.<role>.structured` | script copies into every role |
-| `models.thinking.<role>` | `model.llm.<role>.thinking` | judge / reflect only |
+| `models.thinking.<role>` | `model.llm.<role>.thinking` when the role has an explicit slot; else `model.placement.thinking.<role>` (RM-118) | judge / reflect only; the script decides per config (a dotted key or env name, with no config at hand, goes to `model.placement.thinking`) |
 | `models.escalation.<role>` | `model.llm.<role>.escalation` | targets become inline LLM slots |
 | `ModelDecl.timeout_seconds` (catalogue llm) | unchanged inside `model.placement.catalogue` | catalogue entries are declarations, not slots |
 | `models.bindings.gliner_semantic` | `model.extraction.semantic` | |
@@ -52,6 +52,10 @@ Stays where it is: `read.planner`, `planner_min_confidence`, `relevance_filter`,
   (as today for `llm.roles` and `read.rerank_settings`).
 - `model.llm.<role>`: role must be a known prompt or catalogue role; `thinking` only for
   judge / reflect; escalation targets must differ from the primary slot.
+- `model.placement.thinking` (RM-118): judge / reflect only; a role that also has a
+  `model.llm.<role>` slot is an error (one place per role).
+- `model.decider.<consumer>.workers` (RM-118): a `gliner2` slot rejects any value but 1 (its
+  concurrency is `settings.inference_concurrency`).
 - `model.extraction.*` providers must expose the task the consumer needs (`semantic`,
   `prepass`, `sensitivity`: entities; `topic`: classification); `topic` and `sensitivity`
   need `settings.local_files_only: true`.

@@ -178,7 +178,16 @@ async def _plan_read_mode(eng: Any, query: str) -> str | None:
         return None
     if label not in eng._READ_OPTIONS:
         return None
-    gate = eng._config().read.planner_min_confidence
+    config = eng._config()
+    # RM-118: the decider's own floor (model.decider.route.min_confidence) comes first: below it,
+    # or of unknown confidence, the choice is not used and the heuristic ``auto`` routing stands.
+    route = config.model.decider.route
+    if route is not None and (confidence is None or confidence < route.min_confidence):
+        _log.info(
+            "read.decider_abstained", label=label, confidence=confidence, floor=route.min_confidence
+        )
+        return None
+    gate = config.read.planner_min_confidence
     # A bare label carries no confidence (None): below any positive gate.
     if (confidence is None and gate > 0) or (confidence is not None and confidence < gate):
         # G2b: an unsure choice does not route; keep the default replay read.

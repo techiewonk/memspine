@@ -298,6 +298,27 @@ def test_thinking_only_for_judge_and_reflect() -> None:
         _config(model={"llm": {"chat": _llm(thinking=256)}})
 
 
+def test_placement_thinking_only_for_judge_and_reflect() -> None:
+    """RM-118: ``model.placement.thinking`` replaces ``models.thinking`` for plan-picked roles."""
+    cfg = _config(model={"placement": {"thinking": {"judge": 512, "reflect": 0}}})
+    assert cfg.model.placement.thinking == {"judge": 512, "reflect": 0}
+    with pytest.raises(ConfigError, match=r"model.placement.thinking.chat"):
+        _config(model={"placement": {"thinking": {"chat": 256}}})
+    with pytest.raises(ConfigError, match=r"model.placement.thinking.judge must be"):
+        _config(model={"placement": {"thinking": {"judge": -1}}})
+
+
+def test_placement_thinking_and_an_explicit_slot_are_one_place_per_role() -> None:
+    with pytest.raises(ConfigError, match=r"use model.llm.judge.thinking"):
+        _config(model={"llm": {"judge": _llm()}, "placement": {"thinking": {"judge": 512}}})
+    # Different roles in the two places are fine: judge explicit, reflect planned.
+    cfg = _config(
+        model={"llm": {"judge": _llm(thinking=128)}, "placement": {"thinking": {"reflect": 512}}}
+    )
+    judge = llm_slot(cfg, "judge")
+    assert judge is not None and judge.thinking == 128
+
+
 def test_llm_slot_requires_an_explicit_timeout() -> None:
     with pytest.raises(ValidationError, match="timeout_s"):
         _config(model={"llm": {"chat": {"provider": "litellm", "settings": {"model": "m"}}}})

@@ -521,13 +521,6 @@ def test_llamacpp_catalogue_binding_validates_without_transport_fields_or_model_
     assert typed.timeout_seconds == 30.0
 
 
-#: ADR-082 moved thinking budgets into ``model.llm.<role>.thinking`` (an explicit slot, which wins
-#: over the plan); the engine passes no budget for plan-resolved (tiers_v2) roles.
-_THINKING_KEY_OPEN = pytest.mark.skip(
-    reason="ADR-082: no config key for a plan-resolved role thinking budget (RM-117 open)"
-)
-
-
 def test_capped_thinking_only_for_judge_and_reflect() -> None:
     r = resolve_models(
         _models(
@@ -555,12 +548,35 @@ def test_capped_thinking_needs_a_model_that_can_think() -> None:
     assert role_config(r, "judge").settings.get("no_think") is None
 
 
-@_THINKING_KEY_OPEN
 async def test_router_wraps_a_capped_role_and_leaves_others(stub_providers: list[_Stub]) -> None:
-    cfg = _config(model=_model(catalogue=[NINE], gpus=[RTX]))
+    """RM-118: ``model.placement.thinking`` caps a plan-picked role (was ``models.thinking``)."""
+    cfg = _config(model=_model(catalogue=[NINE], gpus=[RTX], thinking={"judge": 512}))
     router = await _build(cfg)
     judge = router.provider("judge")
     assert isinstance(judge, ThinkingCapped) and judge.cap_tokens == 512
+    assert not isinstance(router.provider("chat"), ThinkingCapped)
+
+
+async def test_explicit_slot_thinking_and_placement_thinking_cap_their_own_roles(
+    stub_providers: list[_Stub],
+) -> None:
+    """RM-118: an explicit judge slot keeps its own budget; the planned reflect role takes
+    ``model.placement.thinking``."""
+    judge_slot = {
+        "provider": "litellm",
+        "timeout_s": 30.0,
+        "thinking": 128,
+        "settings": {"model": "ollama/explicit-judge"},
+    }
+    cfg = _config(
+        model=_model(
+            llm={"judge": judge_slot}, catalogue=[NINE], gpus=[RTX], thinking={"reflect": 700}
+        )
+    )
+    router = await _build(cfg)
+    judge, reflect = router.provider("judge"), router.provider("reflect")
+    assert isinstance(judge, ThinkingCapped) and judge.cap_tokens == 128
+    assert isinstance(reflect, ThinkingCapped) and reflect.cap_tokens == 700
     assert not isinstance(router.provider("chat"), ThinkingCapped)
 
 

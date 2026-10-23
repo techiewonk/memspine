@@ -514,7 +514,7 @@ class _Scored:
 
 @pytest.mark.parametrize(
     ("confidence", "gate", "expected"),
-    [(0.4, 0.6, "replay"), (0.9, 0.6, "compose"), (0.1, 0.0, "compose"), (0.6, 0.6, "compose")],
+    [(0.55, 0.6, "replay"), (0.9, 0.6, "compose"), (0.5, 0.0, "compose"), (0.6, 0.6, "compose")],
 )
 async def test_confidence_gate_keeps_the_default_mode(
     monkeypatch: pytest.MonkeyPatch, confidence: float, gate: float, expected: str
@@ -556,11 +556,13 @@ async def test_confidence_gate_keeps_the_default_mode(
         await eng.stop()
 
 
-@pytest.mark.parametrize(("gate", "expected"), [(0.9, "replay"), (0.0, "compose")])
+@pytest.mark.parametrize("gate", [0.9, 0.0])
 async def test_bare_label_confidence_is_unknown_not_sure(
-    monkeypatch: pytest.MonkeyPatch, gate: float, expected: str
+    monkeypatch: pytest.MonkeyPatch, gate: float
 ) -> None:
-    """A-8: a bare-label result (no confidence) does not pass a positive gate."""
+    """A-8: a bare-label result (no confidence) does not pass a positive gate. RM-118: the
+    decider's own floor (``model.decider.route.min_confidence`` >= 0.5) is always positive, so
+    the decider abstains (None: heuristic ``auto`` routing) whatever the planner gate."""
     _fake_gliner2(monkeypatch, _FakeModel)
     eng = Engine(
         template="core",
@@ -589,9 +591,81 @@ async def test_bare_label_confidence_is_unknown_not_sure(
         )
         _fake_gliner2(monkeypatch, _BareModel)
         monkeypatch.setattr(eng, "_decision_provider", lambda: bare)
+        assert await eng._plan_read_mode("where does Ana live") is None
+    finally:
+        await eng.stop()
+
+
+def _route_engine(route: dict[str, Any], gate: float = 0.0) -> Engine:
+    return Engine(
+        template="core",
+        dotenv_path=None,
+        storage={
+            "records": {
+                "provider": "sqlite",
+                "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
+            }
+        },
+        model={
+            "embedding": {"provider": "hash", "settings": {}},
+            "decider": {"route": {"provider": "gliner2", "settings": {}, **route}},
+        },
+        read={"hybrid": False, "planner": "decision", "planner_min_confidence": gate},
+    )
+
+
+@pytest.mark.parametrize(
+    ("floor", "confidence", "gate", "expected"),
+    [
+        (0.5, 0.4, 0.0, None),  # below the decider floor: heuristic auto routing
+        (0.8, 0.7, 0.0, None),  # a raised decider floor
+        (0.8, 0.85, 0.0, "compose"),
+        (0.5, 0.6, 0.7, "replay"),  # passes the decider floor, not the planner gate
+        (0.8, 0.9, 0.7, "compose"),
+    ],
+)
+async def test_route_min_confidence_is_the_decider_floor(
+    monkeypatch: pytest.MonkeyPatch,
+    floor: float,
+    confidence: float,
+    gate: float,
+    expected: str | None,
+) -> None:
+    """RM-118: ``model.decider.route.min_confidence`` is the decider's own floor (None = the
+    heuristic answer stands); ``read.planner_min_confidence`` stays the planner's routing floor
+    (below it the read keeps ``replay``). The decider floor is applied first."""
+    _fake_gliner2(monkeypatch, _FakeModel)
+    eng = _route_engine({"min_confidence": floor}, gate)
+    await eng.start()
+    try:
+        monkeypatch.setattr(eng, "_decision_provider", lambda: _Scored("count or list", confidence))
         assert await eng._plan_read_mode("where does Ana live") == expected
     finally:
         await eng.stop()
+
+
+def test_gliner2_route_rejects_workers() -> None:
+    """RM-118: ``workers`` sizes the OpenDecider thread pool; gliner2 has none."""
+    from memspine.config.schema import MemspineConfig
+
+    runtime = {
+        "provider_services": {
+            "health_timeout_s": 5.0,
+            "close_timeout_s": 10.0,
+            "startup_timeout_s": None,
+        }
+    }
+
+    def config(**extra: Any) -> MemspineConfig:
+        route = {"provider": "gliner2", "settings": {}, **extra}
+        return MemspineConfig.model_validate(
+            {"runtime": runtime, "model": {"decider": {"route": route}}}
+        )
+
+    with pytest.raises(ConfigError, match=r"model.decider.route.workers has no effect"):
+        config(workers=2)
+    slot = config(workers=1).model.decider.route
+    assert slot is not None and slot.workers == 1
 
 
 # ── G24: rules first, then the provider's labelled options ────────────────────

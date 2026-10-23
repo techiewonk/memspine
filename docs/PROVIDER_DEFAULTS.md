@@ -7,43 +7,46 @@ a model can require a new dimension or an explicit projection migration.
 Vector tables derive their dimensions from the embedder, rather than a conflicting DB default.
 For configuration paths and execution rules see [provider operations](PROVIDER_OPERATIONS.md).
 
-| Category | Provider | Defaults | Required fields |
-|---|---|---|---|
-| storage | <code>sqlite</code> | <code>path = &quot;./memspine.db&quot;</code><br><code>encryption = {&quot;key_env&quot;: null, &quot;mode&quot;: &quot;none&quot;}</code> | <code>busy_timeout_s</code> |
-| storage | <code>postgres</code> | No native options | <code>url</code>, <code>connect_timeout_s</code>, <code>statement_timeout_s</code> |
-| vector | <code>lancedb</code> | <code>quantization = &quot;auto&quot;</code><br><code>namespace_index = false</code><br><code>isolation = &quot;shared&quot;</code> | None |
-| vector | <code>pgvector</code> | <code>index = &quot;hnsw&quot;</code><br><code>hnsw_m = 16</code><br><code>hnsw_ef_construction = 64</code><br><code>hnsw_ef_search = 40</code><br><code>namespace_index = true</code><br><code>provision_projection = false</code><br><code>create_extension = false</code> | None |
-| vector | <code>weaviate</code> | <code>url_env = &quot;MEMSPINE_WEAVIATE_URL&quot;</code><br><code>grpc_url_env = null</code><br><code>api_key_env = null</code><br><code>collection_prefix = &quot;Memspine&quot;</code><br><code>grpc_port = 50051</code> | <code>connect_timeout_s</code>, <code>request_timeout_s</code> |
-| graph | <code>sql_adjacency</code> | No native options | None |
-| graph | <code>ladybug</code> | No native options | None |
-| graph | <code>neo4j</code> | <code>url_env = &quot;MEMSPINE_NEO4J_URL&quot;</code><br><code>user_env = &quot;MEMSPINE_NEO4J_USER&quot;</code><br><code>password_env = &quot;MEMSPINE_NEO4J_PASSWORD&quot;</code><br><code>database = &quot;neo4j&quot;</code> | <code>connect_timeout_s</code>, <code>request_timeout_s</code> |
-| lexical | <code>weaviate</code> | <code>url_env = &quot;MEMSPINE_WEAVIATE_URL&quot;</code><br><code>grpc_url_env = null</code><br><code>api_key_env = null</code><br><code>collection_prefix = &quot;Memspine&quot;</code><br><code>grpc_port = 50051</code> | <code>connect_timeout_s</code>, <code>request_timeout_s</code> |
-| lexical | <code>tantivy</code> | <code>analyzer = &quot;default&quot;</code><br><code>date_tokens = false</code> | None |
-| lexical | <code>opensearch</code> | <code>url_env = &quot;MEMSPINE_OPENSEARCH_URL&quot;</code><br><code>username_env = null</code><br><code>password_env = null</code><br><code>index_prefix = &quot;memspine&quot;</code><br><code>verify_certs = true</code> | <code>connect_timeout_s</code>, <code>request_timeout_s</code> |
-| cache | <code>memory</code> | <code>max_entries = 65536</code> | None |
-| cache | <code>disk</code> | <code>path = &quot;./memspine.cache&quot;</code><br><code>namespace = &quot;memspine&quot;</code><br><code>default_ttl_seconds = null</code> | None |
-| cache | <code>redis</code> | <code>namespace = &quot;memspine&quot;</code><br><code>default_ttl_seconds = null</code> | <code>url</code>, <code>connect_timeout_s</code>, <code>request_timeout_s</code> |
-| cache | <code>valkey</code> | <code>namespace = &quot;memspine&quot;</code><br><code>default_ttl_seconds = null</code> | <code>url</code>, <code>connect_timeout_s</code>, <code>request_timeout_s</code> |
-| documents | <code>filesystem</code> | <code>root = null</code><br><code>max_bytes = 67108864</code><br><code>fsync = true</code> | None |
-| llm | <code>litellm</code> | <code>temperature = 0.2</code><br><code>top_p = 1.0</code><br><code>max_tokens = 2048</code><br><code>api_base = null</code><br><code>api_key = null</code><br><code>aws_region = null</code><br><code>no_think = null</code> | <code>model</code>, <code>timeout_seconds</code> |
-| llm | <code>ollama</code> | <code>temperature = 0.2</code><br><code>top_p = 1.0</code><br><code>max_tokens = 2048</code><br><code>api_base = &quot;http://localhost:11434&quot;</code><br><code>no_think = null</code> | <code>model</code>, <code>timeout_seconds</code> |
-| llm | <code>vllm</code> | <code>temperature = 0.2</code><br><code>top_p = 1.0</code><br><code>max_tokens = 2048</code><br><code>api_key = null</code><br><code>no_think = null</code> | <code>model</code>, <code>timeout_seconds</code>, <code>api_base</code> |
-| llm | <code>bedrock</code> | <code>temperature = 0.2</code><br><code>top_p = 1.0</code><br><code>max_tokens = 2048</code><br><code>aws_region = null</code><br><code>no_think = null</code> | <code>model</code>, <code>timeout_seconds</code> |
-| llm | <code>llamacpp</code> | <code>temperature = 0.8</code><br><code>top_p = 0.95</code><br><code>max_tokens = 2048</code><br><code>n_ctx = 8192</code><br><code>n_gpu_layers = 0</code><br><code>n_batch = 512</code><br><code>n_threads = null</code><br><code>no_think = null</code> | <code>model</code>, <code>timeout_seconds</code> |
-| embedding | <code>fastembed</code> | <code>model = &quot;BAAI/bge-small-en-v1.5&quot;</code><br><code>query_instruction = null</code><br><code>dim = 384</code> | None |
-| embedding | <code>hash</code> | <code>dim = 64</code> | None |
-| embedding | <code>static</code> | <code>model = &quot;minishlab/potion-base-8M&quot;</code><br><code>dim = 256</code><br><code>local_files_only = false</code> | None |
-| embedding | <code>litellm</code> | <code>model = &quot;openai/text-embedding-3-small&quot;</code><br><code>dim = 1536</code><br><code>api_base = null</code><br><code>api_key = null</code><br><code>aws_region = null</code><br><code>request_dimensions = false</code><br><code>query_input_type = null</code><br><code>document_input_type = null</code> | <code>request_timeout_s</code> |
-| embedding | <code>st</code> | <code>model = &quot;sentence-transformers/all-MiniLM-L6-v2&quot;</code><br><code>dim = 384</code><br><code>query_instruction = null</code><br><code>device = null</code><br><code>dtype = null</code><br><code>query_prompt_name = null</code><br><code>document_prompt_name = null</code><br><code>trust_remote_code = false</code> | None |
-| rerank | <code>fastembed</code> | <code>model = &quot;Xenova/ms-marco-MiniLM-L-6-v2&quot;</code> | None |
-| rerank | <code>flashrank</code> | <code>model = null</code> | None |
-| rerank | <code>litellm</code> | <code>api_base = null</code><br><code>api_key = null</code><br><code>aws_region = null</code> | <code>model</code>, <code>request_timeout_s</code> |
-| rerank | <code>qwen3</code> | <code>model = &quot;Qwen/Qwen3-Reranker-0.6B&quot;</code><br><code>instruction = &quot;Given a question about a user&#x27;s past conversations, judge whether the memory helps answer it&quot;</code><br><code>batch_size = 8</code><br><code>max_length = 8192</code><br><code>device = null</code><br><code>quant = null</code> | None |
-| rerank | <code>jina</code> | <code>model = &quot;jinaai/jina-reranker-v3.5&quot;</code><br><code>device = null</code><br><code>max_documents = 64</code> | None |
-| extraction | <code>gliner2</code> | <code>max_models = 1</code> | None |
-| decider | <code>heuristic</code> | No native options | None |
-| decider | <code>opendecider</code> | <code>model = &quot;manjunathshiva/opendecider-nano&quot;</code><br><code>device = &quot;cpu&quot;</code><br><code>threads = 0</code><br><code>backend = &quot;torch&quot;</code><br><code>workers = 1</code><br><code>dtype = &quot;float32&quot;</code> | None |
-| decider | <code>gliner2</code> | <code>model = &quot;fastino/gliner2.5-base-v1&quot;</code><br><code>revision = null</code><br><code>device = &quot;cpu&quot;</code><br><code>local_files_only = true</code><br><code>tasks = [&quot;entities&quot;, &quot;classification&quot;]</code><br><code>inference_concurrency = 1</code> | None |
+Fields in the last column are required by the provider schema but filled from a typed
+slot key (ADR-082), so they are never written in the slot's `settings`.
+
+| Category | Provider | Defaults | Required fields | Supplied by the slot |
+|---|---|---|---|---|
+| storage | <code>sqlite</code> | <code>path = &quot;./memspine.db&quot;</code><br><code>encryption = {&quot;key_env&quot;: null, &quot;mode&quot;: &quot;none&quot;}</code> | <code>busy_timeout_s</code> | None |
+| storage | <code>postgres</code> | No native options | <code>url</code>, <code>connect_timeout_s</code>, <code>statement_timeout_s</code> | None |
+| vector | <code>lancedb</code> | <code>quantization = &quot;auto&quot;</code><br><code>namespace_index = false</code><br><code>isolation = &quot;shared&quot;</code> | None | None |
+| vector | <code>pgvector</code> | <code>index = &quot;hnsw&quot;</code><br><code>hnsw_m = 16</code><br><code>hnsw_ef_construction = 64</code><br><code>hnsw_ef_search = 40</code><br><code>namespace_index = true</code><br><code>provision_projection = false</code><br><code>create_extension = false</code> | None | None |
+| vector | <code>weaviate</code> | <code>url_env = &quot;MEMSPINE_WEAVIATE_URL&quot;</code><br><code>grpc_url_env = null</code><br><code>api_key_env = null</code><br><code>collection_prefix = &quot;Memspine&quot;</code><br><code>grpc_port = 50051</code> | <code>connect_timeout_s</code>, <code>request_timeout_s</code> | None |
+| graph | <code>sql_adjacency</code> | No native options | None | None |
+| graph | <code>ladybug</code> | No native options | None | None |
+| graph | <code>neo4j</code> | <code>url_env = &quot;MEMSPINE_NEO4J_URL&quot;</code><br><code>user_env = &quot;MEMSPINE_NEO4J_USER&quot;</code><br><code>password_env = &quot;MEMSPINE_NEO4J_PASSWORD&quot;</code><br><code>database = &quot;neo4j&quot;</code> | <code>connect_timeout_s</code>, <code>request_timeout_s</code> | None |
+| lexical | <code>weaviate</code> | <code>url_env = &quot;MEMSPINE_WEAVIATE_URL&quot;</code><br><code>grpc_url_env = null</code><br><code>api_key_env = null</code><br><code>collection_prefix = &quot;Memspine&quot;</code><br><code>grpc_port = 50051</code> | <code>connect_timeout_s</code>, <code>request_timeout_s</code> | None |
+| lexical | <code>tantivy</code> | <code>analyzer = &quot;default&quot;</code><br><code>date_tokens = false</code> | None | None |
+| lexical | <code>opensearch</code> | <code>url_env = &quot;MEMSPINE_OPENSEARCH_URL&quot;</code><br><code>username_env = null</code><br><code>password_env = null</code><br><code>index_prefix = &quot;memspine&quot;</code><br><code>verify_certs = true</code> | <code>connect_timeout_s</code>, <code>request_timeout_s</code> | None |
+| cache | <code>memory</code> | <code>max_entries = 65536</code> | None | None |
+| cache | <code>disk</code> | <code>path = &quot;./memspine.cache&quot;</code><br><code>namespace = &quot;memspine&quot;</code><br><code>default_ttl_seconds = null</code> | None | None |
+| cache | <code>redis</code> | <code>namespace = &quot;memspine&quot;</code><br><code>default_ttl_seconds = null</code> | <code>url</code>, <code>connect_timeout_s</code>, <code>request_timeout_s</code> | None |
+| cache | <code>valkey</code> | <code>namespace = &quot;memspine&quot;</code><br><code>default_ttl_seconds = null</code> | <code>url</code>, <code>connect_timeout_s</code>, <code>request_timeout_s</code> | None |
+| documents | <code>filesystem</code> | <code>root = null</code><br><code>max_bytes = 67108864</code><br><code>fsync = true</code> | None | None |
+| llm | <code>litellm</code> | <code>temperature = 0.2</code><br><code>top_p = 1.0</code><br><code>max_tokens = 2048</code><br><code>api_base = null</code><br><code>api_key = null</code><br><code>aws_region = null</code><br><code>no_think = null</code> | <code>model</code> | <code>timeout_seconds</code> from <code>model.llm.&lt;role&gt;.timeout_s</code> |
+| llm | <code>ollama</code> | <code>temperature = 0.2</code><br><code>top_p = 1.0</code><br><code>max_tokens = 2048</code><br><code>api_base = &quot;http://localhost:11434&quot;</code><br><code>no_think = null</code> | <code>model</code> | <code>timeout_seconds</code> from <code>model.llm.&lt;role&gt;.timeout_s</code> |
+| llm | <code>vllm</code> | <code>temperature = 0.2</code><br><code>top_p = 1.0</code><br><code>max_tokens = 2048</code><br><code>api_key = null</code><br><code>no_think = null</code> | <code>model</code>, <code>api_base</code> | <code>timeout_seconds</code> from <code>model.llm.&lt;role&gt;.timeout_s</code> |
+| llm | <code>bedrock</code> | <code>temperature = 0.2</code><br><code>top_p = 1.0</code><br><code>max_tokens = 2048</code><br><code>aws_region = null</code><br><code>no_think = null</code> | <code>model</code> | <code>timeout_seconds</code> from <code>model.llm.&lt;role&gt;.timeout_s</code> |
+| llm | <code>llamacpp</code> | <code>temperature = 0.8</code><br><code>top_p = 0.95</code><br><code>max_tokens = 2048</code><br><code>n_ctx = 8192</code><br><code>n_gpu_layers = 0</code><br><code>n_batch = 512</code><br><code>n_threads = null</code><br><code>no_think = null</code> | <code>model</code> | <code>timeout_seconds</code> from <code>model.llm.&lt;role&gt;.timeout_s</code> |
+| embedding | <code>fastembed</code> | <code>model = &quot;BAAI/bge-small-en-v1.5&quot;</code><br><code>query_instruction = null</code><br><code>dim = 384</code> | None | None |
+| embedding | <code>hash</code> | <code>dim = 64</code> | None | None |
+| embedding | <code>static</code> | <code>model = &quot;minishlab/potion-base-8M&quot;</code><br><code>dim = 256</code><br><code>local_files_only = false</code> | None | None |
+| embedding | <code>litellm</code> | <code>model = &quot;openai/text-embedding-3-small&quot;</code><br><code>dim = 1536</code><br><code>api_base = null</code><br><code>api_key = null</code><br><code>aws_region = null</code><br><code>request_dimensions = false</code><br><code>query_input_type = null</code><br><code>document_input_type = null</code> | <code>request_timeout_s</code> | None |
+| embedding | <code>st</code> | <code>model = &quot;sentence-transformers/all-MiniLM-L6-v2&quot;</code><br><code>dim = 384</code><br><code>query_instruction = null</code><br><code>device = null</code><br><code>dtype = null</code><br><code>query_prompt_name = null</code><br><code>document_prompt_name = null</code><br><code>trust_remote_code = false</code> | None | None |
+| rerank | <code>fastembed</code> | <code>model = &quot;Xenova/ms-marco-MiniLM-L-6-v2&quot;</code> | None | None |
+| rerank | <code>flashrank</code> | <code>model = null</code> | None | None |
+| rerank | <code>litellm</code> | <code>api_base = null</code><br><code>api_key = null</code><br><code>aws_region = null</code> | <code>model</code>, <code>request_timeout_s</code> | None |
+| rerank | <code>qwen3</code> | <code>model = &quot;Qwen/Qwen3-Reranker-0.6B&quot;</code><br><code>instruction = &quot;Given a question about a user&#x27;s past conversations, judge whether the memory helps answer it&quot;</code><br><code>batch_size = 8</code><br><code>max_length = 8192</code><br><code>device = null</code><br><code>quant = null</code> | None | None |
+| rerank | <code>jina</code> | <code>model = &quot;jinaai/jina-reranker-v3.5&quot;</code><br><code>device = null</code><br><code>max_documents = 64</code> | None | None |
+| extraction | <code>gliner2</code> | <code>max_models = 1</code> | None | None |
+| decider | <code>heuristic</code> | No native options | None | None |
+| decider | <code>opendecider</code> | <code>model = &quot;manjunathshiva/opendecider-nano&quot;</code><br><code>device = &quot;cpu&quot;</code><br><code>threads = 0</code><br><code>backend = &quot;torch&quot;</code><br><code>workers = 1</code><br><code>dtype = &quot;float32&quot;</code> | None | None |
+| decider | <code>gliner2</code> | <code>model = &quot;fastino/gliner2.5-base-v1&quot;</code><br><code>revision = null</code><br><code>device = &quot;cpu&quot;</code><br><code>local_files_only = true</code><br><code>tasks = [&quot;entities&quot;, &quot;classification&quot;]</code><br><code>inference_concurrency = 1</code> | None | None |
 
 Schema defaults do not include credentials or live Engine configuration. Nullable fields
 remain explicit: a null device delegates placement to the selected provider; an omitted

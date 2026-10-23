@@ -157,3 +157,44 @@ read:
   the same change; the eval harness configs move with PA-107 where they are already flat.
 - Repetition: a model used by several consumers is written once per slot. The weights are
   still shared; config size is the cost of having no profiles.
+
+## Amendment 2026-10-23 (RM-118)
+
+Owner decisions of 2026-10-23 on the RM-117 follow-ups. The sections above are kept as
+accepted; this amendment adds to them.
+
+- **Thinking for plan-picked roles (item 5, item 11).** Item 5 put `thinking` only on explicit
+  `model.llm.<role>` slots, so a role chosen by the tier plan (`model.placement.tiers_v2`) lost
+  the old `models.thinking` cap. `model.placement` gains `thinking: {role: tokens}` for those
+  roles (0 = off). Same rule as P-15 and the slot key: judge / reflect only, any other role is a
+  config error. One place per role: a role with an explicit `model.llm.<role>` slot sets
+  `model.llm.<role>.thinking`, and naming it in `model.placement.thinking` as well is a config
+  error (an explicit slot is never planned, so the placement value would be inert). The
+  plan-picked role is wrapped exactly as before RM-117 (capped thinking only on a model that
+  declares `supports_thinking`). The migration script maps `models.thinking.<role>` to
+  `model.llm.<role>.thinking` when that role has an explicit slot in the same config, otherwise
+  to `model.placement.thinking.<role>`.
+- **Route decider typed keys (item 8).** `model.decider.route.min_confidence` is the
+  decider's own floor: a choice below it, or of unknown confidence, is not used and the
+  heuristic `auto` routing stands. It is applied before `read.planner_min_confidence`, which
+  stays where it is (item 10) as the planner's routing floor (a choice that passes the decider
+  floor but not the planner floor reads by `replay`). `workers` sizes the OpenDecider thread
+  pool; a `gliner2` decider runs on the shared GLiNER pool (its concurrency is
+  `settings.inference_concurrency`), so a `gliner2` slot rejects any `workers` value but 1
+  instead of ignoring it.
+- **Vision port layout (item 9).** The adapters moved from `services/assets/vision.py` to
+  `services/vision/` (`base`, `noop`, `ollama`), with no re-export left in `services.assets`
+  (ADR-068).
+
+Sample addition:
+
+```yaml
+model:
+  llm:
+    judge: {provider: llamacpp, timeout_s: 60, thinking: 512, settings: {model_path: C:/models/qwen.gguf}}
+  placement:
+    tiers_v2: true
+    thinking: {reflect: 1024}   # reflect is picked by the tier plan; judge has its own slot
+  decider:
+    route: {provider: gliner2, min_confidence: 0.6, settings: {model: fastino/gliner2.5-base-v1}}
+```

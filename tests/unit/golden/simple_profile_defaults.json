@@ -92,6 +92,7 @@
         "ram_mb": 0,
         "required_roles": [],
         "role_tier": {},
+        "thinking": {},
         "tiers_v2": false
       },
       "rerank": {

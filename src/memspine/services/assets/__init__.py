@@ -1,4 +1,5 @@
-"""E04: attachment (image) evidence. Identity at ingest, a controlled fetch, a vision/OCR port.
+"""E04: attachment (image) evidence. Identity at ingest and a controlled fetch; the vision/OCR
+port is :mod:`memspine.services.vision` (RM-118).
 
 Stdlib only. Nothing here runs unless ``ingest.assets`` / ``read.asset_evidence`` are on.
 """
@@ -20,7 +21,6 @@ from memspine.services.assets.models import (
     parse_attachments,
 )
 from memspine.services.assets.registry import AssetRegistry
-from memspine.services.assets.vision import NoopVision, OllamaVision, VisionBackend, VisionResult
 
 __all__ = [
     "ASSET_TAG_PREFIX",
@@ -33,10 +33,6 @@ __all__ = [
     "AssetStats",
     "FetchedAsset",
     "HttpAssetFetcher",
-    "NoopVision",
-    "OllamaVision",
-    "VisionBackend",
-    "VisionResult",
     "asset_id_for",
     "needs_visual_detail",
     "parse_attachments",

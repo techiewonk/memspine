@@ -92,7 +92,8 @@ MOVED_KEYS: dict[str, str] = {
     "model.decider.route (gliner_decision)",
     "models.gliner_max_models": "model.placement.max_loaded_models",
     "models.escalation": "model.llm.<role>.escalation (targets are inline LLM slots)",
-    "models.thinking": "model.llm.<role>.thinking (judge / reflect only)",
+    "models.thinking": "model.placement.thinking.<role> (a role with an explicit slot: "
+    "model.llm.<role>.thinking; judge / reflect only)",
     "models.topic": "model.extraction.topic (labels, min_confidence)",
     "models.embedder_profile": "model.embedding.preset (auto = unset)",
     "models.rerank": "removed: model.rerank.chain: [] is off",
@@ -522,9 +523,15 @@ class DeciderSlot(ModelSlot):
     """``model.decider.route`` (H24 mode routing; was ``decision.provider``). Providers:
     ``heuristic``, ``opendecider``, ``gliner2``; later deciders register as providers."""
 
-    #: A decision below this keeps the heuristic answer.
+    #: The decider's own floor: a decision below this (or of unknown confidence) is not used and
+    #: the heuristic answer stands. ``route`` (RM-118): the H24 read mode falls back to the
+    #: heuristic ``auto`` routing; this is applied before ``read.planner_min_confidence``, the
+    #: planner's routing floor (a choice that passes this floor but not that one reads by
+    #: ``replay``). ``read``: the I28 decision points keep their heuristic label.
     min_confidence: float = Field(default=0.5, ge=0.5, le=1.0)
     #: Concurrent decision calls (a bounded thread pool). 1 keeps the engine path as it is.
+    #: ``opendecider`` only: a ``gliner2`` slot rejects any other value (its concurrency is
+    #: ``settings.inference_concurrency`` on the shared GLiNER pool, RM-118).
     workers: int = Field(default=1, ge=1)
 
     @model_validator(mode="after")
@@ -555,6 +562,21 @@ class DeciderSlots(ConfigModel):
 
     route: DeciderSlot | None = None
     read: DeciderReadSlot | None = None
+
+    @model_validator(mode="after")
+    def _workers_need_a_thread_pool(self) -> DeciderSlots:
+        """RM-118: ``workers`` sizes the OpenDecider thread pool. A ``gliner2`` decider has none:
+        it runs on the shared GLiNER pool, so a non-default value would be silently ignored."""
+        for consumer in ("route", "read"):
+            slot: DeciderSlot | None = getattr(self, consumer)
+            if slot is not None and slot.provider == "gliner2" and slot.workers != 1:
+                raise ConfigError(
+                    f"model.decider.{consumer}.workers has no effect for provider 'gliner2' (its "
+                    "inference runs on the shared GLiNER pool); set "
+                    f"model.decider.{consumer}.settings.inference_concurrency instead and leave "
+                    "workers at 1"
+                )
+        return self
 
 
 # ----------------------------------------------------------------------------- vision
@@ -647,6 +669,25 @@ class PlacementConfig(ConfigModel):
     on_missing_model: Literal["error", "rules", "skip"] = "error"
     #: Upper bound on simultaneously loaded GLiNER checkpoints (was ``gliner_max_models``).
     max_loaded_models: int = Field(default=1, ge=1)
+    #: RM-118 (P-15; was ``models.thinking``): role -> capped thinking token budget for a role the
+    #: tier plan picks (``tiers_v2``). judge / reflect only; 0 = off. A role with an explicit
+    #: ``model.llm.<role>`` slot sets ``model.llm.<role>.thinking`` instead (one place per role).
+    #: Honoured only on a model that declares ``supports_thinking``.
+    thinking: dict[str, int] = Field(default_factory=dict)
+
+    @field_validator("thinking")
+    @classmethod
+    def _thinking_roles(cls, value: dict[str, int]) -> dict[str, int]:
+        for role, budget in value.items():
+            if role not in THINKING_ROLES:
+                raise ConfigError(
+                    f"model.placement.thinking.{role} is honoured only for judge / reflect (P-15)"
+                )
+            if isinstance(budget, bool) or budget < 0:
+                raise ConfigError(
+                    f"model.placement.thinking.{role} must be a token budget >= 0 (0 = off)"
+                )
+        return value
 
 
 # ----------------------------------------------------------------------------- the block
@@ -695,6 +736,18 @@ class ModelConfig(ConfigModel):
                     f"model.llm.{role}.thinking is honoured only for judge / reflect (P-15)"
                 )
         return value
+
+    @model_validator(mode="after")
+    def _thinking_in_one_place(self) -> ModelConfig:
+        """RM-118: a role's thinking budget lives in exactly one place. A role with an explicit
+        ``model.llm`` slot is never planned, so ``model.placement.thinking`` would be inert."""
+        for role in sorted(self.placement.thinking):
+            if role in self.llm:
+                raise ConfigError(
+                    f"model.placement.thinking.{role} is set but model.llm.{role} is an explicit "
+                    f"slot; use model.llm.{role}.thinking (one place per role)"
+                )
+        return self
 
 
 # ----------------------------------------------------------------------------- accessors

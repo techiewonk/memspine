@@ -17,14 +17,13 @@ from memspine.services.assets import (
     AssetRegistry,
     FetchedAsset,
     HttpAssetFetcher,
-    NoopVision,
-    VisionResult,
     asset_id_for,
     needs_visual_detail,
     parse_attachments,
     sniff_mime,
 )
 from memspine.services.assets.fetch import check_redirect
+from memspine.services.vision import NoopVision, VisionResult
 
 JPEG = b"\xff\xd8\xff\xe0" + b"0" * 64
 PNG = b"\x89PNG\r\n\x1a\n" + b"1" * 64

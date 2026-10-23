@@ -6,13 +6,18 @@ import argparse
 import html
 import json
 from pathlib import Path
-from typing import cast
 
 from memspine.providers import provider_settings_reference
 from memspine.providers.contracts import Category
 from memspine.providers.registry import KIND_TO_CATEGORY, get_registry, provider_kinds
 
 ROOT = Path(__file__).resolve().parents[1]
+
+#: RM-118: native settings the ADR-082 slot fills from a typed slot key, so a config never
+#: writes them in ``settings`` (category -> native field -> slot key).
+SLOT_SUPPLIED: dict[str, dict[str, str]] = {
+    "llm": {"timeout_seconds": "model.llm.<role>.timeout_s"},
+}
 
 
 def code(value: str) -> str:
@@ -30,11 +35,14 @@ def render() -> str:
         "Vector tables derive their dimensions from the embedder, rather than a conflicting DB default.",
         "For configuration paths and execution rules see [provider operations](PROVIDER_OPERATIONS.md).",
         "",
-        "| Category | Provider | Defaults | Required fields |",
-        "|---|---|---|---|",
+        "Fields in the last column are required by the provider schema but filled from a typed",
+        "slot key (ADR-082), so they are never written in the slot's `settings`.",
+        "",
+        "| Category | Provider | Defaults | Required fields | Supplied by the slot |",
+        "|---|---|---|---|---|",
     ]
     for kind in provider_kinds():
-        category = cast(Category, KIND_TO_CATEGORY[kind])
+        category: Category = KIND_TO_CATEGORY[kind]
         for name in get_registry(kind).names():
             reference = provider_settings_reference(category, name)
             defaults = (
@@ -44,8 +52,20 @@ def render() -> str:
                 )
                 or "No native options"
             )
-            required = ", ".join(code(key) for key in reference["required"]) or "None"
-            rows.append(f"| {category} | {code(name)} | {defaults} | {required} |")
+            supplied = SLOT_SUPPLIED.get(category, {})
+            required = (
+                ", ".join(code(key) for key in reference["required"] if key not in supplied)
+                or "None"
+            )
+            from_slot = (
+                "<br>".join(
+                    f"{code(key)} from {code(slot_key)}"
+                    for key, slot_key in supplied.items()
+                    if key in reference["required"]
+                )
+                or "None"
+            )
+            rows.append(f"| {category} | {code(name)} | {defaults} | {required} | {from_slot} |")
     rows.extend(
         [
             "",

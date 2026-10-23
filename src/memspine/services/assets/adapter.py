@@ -19,7 +19,7 @@ import structlog
 from memspine.services.assets.fetch import AssetFetcher, AssetFetchError
 from memspine.services.assets.models import AssetEntry
 from memspine.services.assets.registry import AssetRegistry
-from memspine.services.assets.vision import VisionBackend
+from memspine.services.vision import VisionBackend
 
 __all__ = ["AssetAdapter", "AssetStats"]
 

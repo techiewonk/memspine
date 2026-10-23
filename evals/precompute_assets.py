@@ -38,11 +38,10 @@ from memspine.services.assets import (
     AssetEntry,
     AssetRegistry,
     HttpAssetFetcher,
-    NoopVision,
-    OllamaVision,
     asset_id_for,
     parse_attachments,
 )
+from memspine.services.vision import NoopVision, OllamaVision
 
 DEFAULT_MIME = ("image/jpeg", "image/png", "image/gif", "image/webp")
 

@@ -364,7 +364,7 @@ def _asset_engine(cfg: MemspineConfig) -> Any:
 
 def test_vision_null_is_noop() -> None:
     from memspine.ingest.assets import _asset_adapter
-    from memspine.services.assets import NoopVision
+    from memspine.services.vision import NoopVision
 
     adapter = _asset_adapter(_asset_engine(_cfg()))
     assert isinstance(adapter.vision, NoopVision)
@@ -372,7 +372,7 @@ def test_vision_null_is_noop() -> None:
 
 def test_vision_slot_builds_ollama_from_its_settings() -> None:
     from memspine.ingest.assets import _asset_adapter
-    from memspine.services.assets import OllamaVision
+    from memspine.services.vision import OllamaVision
 
     cfg = _cfg(
         model={

@@ -16,13 +16,8 @@ DEFAULT_VISION_URL = "http://localhost:11434"
 
 def _asset_adapter(eng: Any) -> Any:
     if eng._assets is None:
-        from memspine.services.assets import (
-            AssetAdapter,
-            AssetRegistry,
-            HttpAssetFetcher,
-            NoopVision,
-            OllamaVision,
-        )
+        from memspine.services.assets import AssetAdapter, AssetRegistry, HttpAssetFetcher
+        from memspine.services.vision import NoopVision, OllamaVision
 
         config = eng._config()
         cfg = config.ingest

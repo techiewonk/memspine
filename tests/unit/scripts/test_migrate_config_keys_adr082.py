@@ -225,6 +225,43 @@ def test_models_thinking_moves_into_the_role() -> None:
     assert out == {"model": {"llm": {"judge": {"provider": "x", "thinking": 512}}}}
 
 
+def test_models_thinking_for_a_plan_picked_role_moves_into_placement() -> None:
+    """RM-118: a role with no explicit slot in the config is picked by the tier plan."""
+    out, _ = mig(
+        {
+            "llm": {"roles": {"judge": {"provider": "x"}}},
+            "models": {"tiers_v2": True, "thinking": {"judge": 512, "reflect": 900}},
+        }
+    )
+    assert out == {
+        "model": {
+            "llm": {"judge": {"provider": "x", "thinking": 512}},
+            "placement": {"tiers_v2": True, "thinking": {"reflect": 900}},
+        }
+    }
+    again, _ = mig(copy.deepcopy(out))
+    assert again == out  # a second run is a no-op
+
+
+def test_models_thinking_follows_a_binding_expanded_in_the_same_config() -> None:
+    out, _ = mig(
+        {
+            "models": {
+                "profiles": {"p": {"kind": "llm", "provider": "b"}},
+                "bindings": {"reflect": "p"},
+                "thinking": {"reflect": 300},
+            }
+        }
+    )
+    assert out == {"model": {"llm": {"reflect": {"provider": "b", "thinking": 300}}}}
+
+
+def test_migrate_env_thinking_goes_to_placement() -> None:
+    new, note = mod.migrate_env("MEMSPINE_MODELS__THINKING__JUDGE")
+    assert new == "MEMSPINE_MODEL__PLACEMENT__THINKING__JUDGE"
+    assert note is not None and "model.llm.judge.thinking" in note
+
+
 def test_escalation_targets_expand_to_inline_slots() -> None:
     out, notes = mig(
         {
@@ -845,7 +882,7 @@ def test_python_single_quote_style_is_kept() -> None:
         ("embedding.profile", "model.embedding.preset"),
         ("models.embedder_profile", "model.embedding.preset"),
         ("llm.roles.extract", "model.llm.extract"),
-        ("models.thinking.judge", "model.llm.judge.thinking"),
+        ("models.thinking.judge", "model.placement.thinking.judge"),
         ("models.escalation.extract.max_attempts", "model.llm.extract.escalation.max_attempts"),
         ("models.bindings.gliner_semantic", "model.extraction.semantic"),
         ("models.bindings.gliner_decision", "model.decider.route"),

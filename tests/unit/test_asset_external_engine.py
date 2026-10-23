@@ -16,9 +16,9 @@ from memspine.services.assets import (
     AssetFetchError,
     AssetRegistry,
     FetchedAsset,
-    VisionResult,
 )
 from memspine.services.external import PUBLIC_MARKER, ExternalSnippet
+from memspine.services.vision import VisionResult
 
 JPEG = b"\xff\xd8\xff\xe0" + b"7" * 64
 URL = "https://img.test/book.jpg"

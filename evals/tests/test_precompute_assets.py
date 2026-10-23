@@ -13,9 +13,9 @@ from memspine.services.assets import (
     AssetFetchError,
     AssetRegistry,
     FetchedAsset,
-    VisionResult,
     asset_id_for,
 )
+from memspine.services.vision import VisionResult
 
 JPEG = b"\xff\xd8\xff\xe0" + b"fake-jpeg-bytes"
 

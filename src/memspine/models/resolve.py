@@ -205,8 +205,8 @@ def resolve_models(
     ``model.placement.required_roles`` when ``on_missing_model`` is ``error``). ``rerank``
     plans a reranker (the engine passes ``bool(model.rerank.chain)``); ``embedder_profile``
     comes from ``model.embedding.preset``; ``thinking`` maps catalogue roles to a capped
-    thinking budget (ADR-082 puts thinking on explicit ``model.llm`` slots, so the engine
-    passes none).
+    thinking budget (the engine passes ``model.placement.thinking``, RM-118; an explicit
+    ``model.llm.<role>`` slot carries its own ``thinking`` and is never planned).
     """
     notes: list[str] = []
     errors: list[str] = []
@@ -275,7 +275,7 @@ def resolve_models(
     caps: dict[str, int] = {}
     for role, cap in (thinking or {}).items():
         if role not in known:
-            errors.append(f"thinking: unknown role {role!r}")
+            errors.append(f"model.placement.thinking: unknown role {role!r}")
         elif cap > 0:
             caps[role] = cap
 

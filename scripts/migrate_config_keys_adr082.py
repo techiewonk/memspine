@@ -8,7 +8,9 @@ move. The authoritative map is section 1 of ``docs/MODEL_SLOTS_MIGRATION_PLAN.md
     llm.roles.<role>                         -> model.llm.<role>
     llm.structured                           -> copied into every model.llm.<role>.structured
     models.bindings.<role> + models.profiles -> inline slots (model.llm / extraction / decider)
-    models.thinking / escalation.<role>      -> model.llm.<role>.thinking / .escalation
+    models.thinking.<role>                   -> model.llm.<role>.thinking (explicit slot) or
+                                                model.placement.thinking.<role> (RM-118)
+    models.escalation.<role>                 -> model.llm.<role>.escalation
     models.topic                             -> model.extraction.topic.{labels,min_confidence}
     decision.provider gliner2                -> model.decider.route (off = no slot)
     read.decider* (opendecider)              -> model.decider.read (heuristic = no slot)
@@ -530,10 +532,21 @@ def _models(m: Migration) -> None:
 
     thinking = models.get("thinking")
     if isinstance(thinking, dict):
+        # RM-118: a role with an explicit slot in this config takes model.llm.<role>.thinking;
+        # any other role is plan-picked (tiers_v2) and takes model.placement.thinking.<role>.
+        llm = m.model.get("llm")
         for role, budget in list(thinking.items()):
-            slot = m.role(role, f"models.thinking.{role}")
-            if slot is not None and "thinking" not in slot:
+            origin = f"models.thinking.{role}"
+            if isinstance(llm, dict) and role in llm:
+                slot = m.role(role, origin)
+                if slot is None:
+                    continue
+                if "thinking" in slot and slot["thinking"] != budget:
+                    m.note(f"{origin}: model.llm.{role}.thinking is already set; left in place")
+                    continue
                 slot["thinking"] = budget
+                del thinking[role]
+            elif m.put(("placement", "thinking", role), budget, origin):
                 del thinking[role]
         if not thinking:
             del models["thinking"]
@@ -772,7 +785,14 @@ def migrate_path(segs: list[str]) -> tuple[list[str] | None, int, str | None]:
             return ["model", "placement", PLACEMENT_RENAME[second]], 2, None
         if second == "topic":
             return ["model", "extraction", "topic"], 2, None
-        if second in {"thinking", "escalation"} and n > 2:
+        if second == "thinking" and n > 2:
+            # RM-118: without the config at hand the role is taken as plan-picked.
+            return (
+                ["model", "placement", "thinking", segs[2]],
+                3,
+                f"a role with an explicit slot uses model.llm.{s[2]}.thinking",
+            )
+        if second == "escalation" and n > 2:
             return ["model", "llm", segs[2], second], 3, None
         if second == "bindings" and n > 2:
             role = s[2]

@@ -142,6 +142,7 @@
     "ram_mb": 0,
     "required_roles": [],
     "role_tier": {},
+    "thinking": {},
     "tiers_v2": false
    },
    "rerank": {
@@ -737,7 +738,7 @@
    "window_topic_k": 2.0
   }
  },
- "json_schema_sha256": "71e66cde9c10beb8ff83a8f2ae5901e4a01e67a12cea257b9e9641139a52bd4c",
+ "json_schema_sha256": "5484b95ec1180ca76973b5cc42786a070389d48c67534865f1e7e87c4f0d04b1",
  "preset:chat_roles": {
   "audit": {
    "actions": false,
@@ -902,6 +903,7 @@
     "ram_mb": 0,
     "required_roles": [],
     "role_tier": {},
+    "thinking": {},
     "tiers_v2": false
    },
    "rerank": {
@@ -1670,6 +1672,7 @@
     "ram_mb": 0,
     "required_roles": [],
     "role_tier": {},
+    "thinking": {},
     "tiers_v2": false
    },
    "rerank": {
@@ -2438,6 +2441,7 @@
     "ram_mb": 0,
     "required_roles": [],
     "role_tier": {},
+    "thinking": {},
     "tiers_v2": false
    },
    "rerank": {
@@ -3206,6 +3210,7 @@
     "ram_mb": 0,
     "required_roles": [],
     "role_tier": {},
+    "thinking": {},
     "tiers_v2": false
    },
    "rerank": {
@@ -3974,6 +3979,7 @@
     "ram_mb": 0,
     "required_roles": [],
     "role_tier": {},
+    "thinking": {},
     "tiers_v2": false
    },
    "rerank": {
@@ -4742,6 +4748,7 @@
     "ram_mb": 0,
     "required_roles": [],
     "role_tier": {},
+    "thinking": {},
     "tiers_v2": false
    },
    "rerank": {
@@ -5510,6 +5517,7 @@
     "ram_mb": 0,
     "required_roles": [],
     "role_tier": {},
+    "thinking": {},
     "tiers_v2": false
    },
    "rerank": {
@@ -6295,6 +6303,7 @@
     "ram_mb": 0,
     "required_roles": [],
     "role_tier": {},
+    "thinking": {},
     "tiers_v2": false
    },
    "rerank": {
@@ -7076,6 +7085,7 @@
     "ram_mb": 0,
     "required_roles": [],
     "role_tier": {},
+    "thinking": {},
     "tiers_v2": false
    },
    "rerank": {
@@ -7844,6 +7854,7 @@
     "ram_mb": 0,
     "required_roles": [],
     "role_tier": {},
+    "thinking": {},
     "tiers_v2": false
    },
    "rerank": {
@@ -8612,6 +8623,7 @@
     "ram_mb": 0,
     "required_roles": [],
     "role_tier": {},
+    "thinking": {},
     "tiers_v2": false
    },
    "rerank": {
@@ -9380,6 +9392,7 @@
     "ram_mb": 0,
     "required_roles": [],
     "role_tier": {},
+    "thinking": {},
     "tiers_v2": false
    },
    "rerank": {
@@ -10148,6 +10161,7 @@
     "ram_mb": 0,
     "required_roles": [],
     "role_tier": {},
+    "thinking": {},
     "tiers_v2": false
    },
    "rerank": {
@@ -10916,6 +10930,7 @@
     "ram_mb": 0,
     "required_roles": [],
     "role_tier": {},
+    "thinking": {},
     "tiers_v2": false
    },
    "rerank": {
@@ -11684,6 +11699,7 @@
     "ram_mb": 0,
     "required_roles": [],
     "role_tier": {},
+    "thinking": {},
     "tiers_v2": false
    },
    "rerank": {
@@ -12452,6 +12468,7 @@
     "ram_mb": 0,
     "required_roles": [],
     "role_tier": {},
+    "thinking": {},
     "tiers_v2": false
    },
    "rerank": {
@@ -13229,6 +13246,7 @@
     "ram_mb": 0,
     "required_roles": [],
     "role_tier": {},
+    "thinking": {},
     "tiers_v2": false
    },
    "rerank": {
@@ -14006,6 +14024,7 @@
     "ram_mb": 0,
     "required_roles": [],
     "role_tier": {},
+    "thinking": {},
     "tiers_v2": false
    },
    "rerank": {
@@ -14770,6 +14789,7 @@
     "ram_mb": 0,
     "required_roles": [],
     "role_tier": {},
+    "thinking": {},
     "tiers_v2": false
    },
    "rerank": {
@@ -15528,6 +15548,7 @@
     "ram_mb": 0,
     "required_roles": [],
     "role_tier": {},
+    "thinking": {},
     "tiers_v2": false
    },
    "rerank": {
@@ -16304,6 +16325,7 @@
     "ram_mb": 0,
     "required_roles": [],
     "role_tier": {},
+    "thinking": {},
     "tiers_v2": false
    },
    "rerank": {
@@ -17076,6 +17098,7 @@
     "ram_mb": 0,
     "required_roles": [],
     "role_tier": {},
+    "thinking": {},
     "tiers_v2": false
    },
    "rerank": {
@@ -17865,6 +17888,7 @@
     "ram_mb": 0,
     "required_roles": [],
     "role_tier": {},
+    "thinking": {},
     "tiers_v2": false
    },
    "rerank": {
@@ -18633,6 +18657,7 @@
     "ram_mb": 0,
     "required_roles": [],
     "role_tier": {},
+    "thinking": {},
     "tiers_v2": false
    },
    "rerank": {
@@ -19402,6 +19427,7 @@
     "ram_mb": 0,
     "required_roles": [],
     "role_tier": {},
+    "thinking": {},
     "tiers_v2": false
    },
    "rerank": {
@@ -20183,6 +20209,7 @@
     "ram_mb": 0,
     "required_roles": [],
     "role_tier": {},
+    "thinking": {},
     "tiers_v2": false
    },
    "rerank": {
@@ -20956,6 +20983,7 @@
     "ram_mb": 0,
     "required_roles": [],
     "role_tier": {},
+    "thinking": {},
     "tiers_v2": false
    },
    "rerank": {

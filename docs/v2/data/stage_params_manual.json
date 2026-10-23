@@ -651,6 +651,7 @@
   "model.llm.*.thinking": "capped thinking budget of the judge / reflect role: applies to every stage that calls that role",
   "model.extraction.*": "per-consumer GLiNER slots (semantic, prepass, topic, sensitivity); identical effective settings minus per-consumer fields share weights and each Engine owns its resources",
   "model.llm.*.escalation": "opt-in per-chat-invocation model escalation over inline LLM target slots with explicit triggers, attempt limit, total deadline and per-attempt output setting; each candidate retains consent gates",
+  "model.placement.thinking": "capped thinking budget of a judge / reflect role the tier plan picks (an explicit slot uses model.llm.<role>.thinking): applies to every stage that calls that role",
   "model.placement.max_loaded_models": "explicit bound on resident engine-owned GLiNER checkpoints; different slots may use different checkpoints within this resource cap",
   "model.placement.*": "model planning at engine start (tiers, GPU placement, pins); applies to every stage that uses a model role",
   "prompts.*": "prompt layout and override selection: applies to every engine prompt, see each stage's prompts list",

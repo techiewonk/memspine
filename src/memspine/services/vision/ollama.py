@@ -1,49 +1,15 @@
-"""The vision/OCR evidence port: an image in, a plain-text description out.
-
-``NoopVision`` (default) produces nothing, so a run with it is text-only by construction.
-``OllamaVision`` talks to a local Ollama server (``/api/chat`` with an ``images`` list) over
-the Engine's shared :class:`~memspine.clients.http.HttpConnector` (RM-113).
-The description is generic and question-independent, so one call per image suffices and the
-result is cached by content hash.
-"""
+"""``OllamaVision``: a local Ollama server (``/api/chat`` with an ``images`` list) over the
+Engine's shared :class:`~memspine.clients.http.HttpConnector` (RM-113)."""
 
 from __future__ import annotations
 
 import base64
 import json
-from dataclasses import dataclass
-from typing import Protocol
 
 from memspine.clients.http import HttpConnector, HttpError
+from memspine.services.vision.base import DESCRIBE_PROMPT, VisionResult
 
-__all__ = ["DESCRIBE_PROMPT", "NoopVision", "OllamaVision", "VisionBackend", "VisionResult"]
-
-DESCRIBE_PROMPT = (
-    "Describe this image factually in two or three sentences. Transcribe any visible text "
-    "exactly (titles, signs, labels, captions). Name the main objects and the setting. "
-    "Name a place or title only if it is readable in the image. Do not guess."
-)
-
-
-@dataclass(frozen=True, slots=True)
-class VisionResult:
-    text: str
-    confidence: float | None = None
-
-
-class VisionBackend(Protocol):
-    name: str
-
-    async def describe(self, data: bytes, mime: str) -> VisionResult: ...
-
-
-class NoopVision:
-    """No vision available: evidence stays ``skipped`` and the context stays text-only."""
-
-    name = "none"
-
-    async def describe(self, data: bytes, mime: str) -> VisionResult:
-        return VisionResult(text="")
+__all__ = ["OllamaVision"]
 
 
 class OllamaVision:

@@ -1449,6 +1449,9 @@ async def _bind_tiered_roles(
         extra_required=tuple(role for role in extra if role not in explicit_catalogue_roles),
         rerank=bool(config.model.rerank.chain),
         embedder_profile=embedder_preference(config.model.embedding.preset),
+        # RM-118: plan-picked roles take their capped thinking budget from
+        # ``model.placement.thinking``; the schema keeps explicit-slot roles out of it.
+        thinking=placement.thinking,
     )
     resolved.check()
     spec_tokens = {r.name: r.max_tokens for r in ROLE_CATALOGUE}
