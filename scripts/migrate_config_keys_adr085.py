@@ -30,7 +30,7 @@ def migrate(value: Any) -> Any:
         route, bare = "", model
     if route in {"ollama", "ollama_chat", "hosted_vllm", "bedrock"}:
         out["provider"] = {"ollama_chat": "ollama", "hosted_vllm": "vllm"}.get(route, route)
-        settings["model"] = bare
+        settings["model"] = bare.removeprefix("converse/") if route == "bedrock" else bare
     elif route in {"openai", ""}:
         out["provider"] = "openai_compatible"
         settings["model"] = bare

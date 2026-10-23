@@ -4,10 +4,46 @@ from __future__ import annotations
 
 import asyncio
 import json
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
 from memspine.exceptions import MissingServiceError
+
+
+class BedrockRequestError(RuntimeError):
+    """Credential-safe SDK failure: only the operation and a stable code escape."""
+
+
+class BedrockTransientError(BedrockRequestError):
+    """Retryable throttling, service unavailability or transport interruption."""
+
+
+async def _sdk_call(call: Callable[..., Any], **kwargs: Any) -> Any:
+    try:
+        return await asyncio.to_thread(call, **kwargs)
+    except Exception as exc:
+        response = getattr(exc, "response", {})
+        code = (
+            response.get("Error", {}).get("Code", type(exc).__name__)
+            if isinstance(response, dict)
+            else type(exc).__name__
+        )
+        transient = code in {
+            "ThrottlingException",
+            "TooManyRequestsException",
+            "ServiceUnavailableException",
+            "InternalServerException",
+            "ModelTimeoutException",
+            "ModelNotReadyException",
+            "ReadTimeoutError",
+            "ConnectTimeoutError",
+            "EndpointConnectionError",
+            "ConnectionClosedError",
+        }
+        safe_code = code if isinstance(code, str) and code.isidentifier() else "SDKError"
+        error = BedrockTransientError if transient else BedrockRequestError
+        raise error(f"Bedrock request failed ({safe_code})") from None
 
 
 @dataclass(frozen=True, slots=True)
@@ -81,7 +117,7 @@ class BedrockConnector:
         system = [{"text": m["content"]} for m in messages if m["role"] == "system"]
         if system:
             request["system"] = system
-        response = await asyncio.to_thread(self._client.converse, **request)
+        response = await _sdk_call(self._client.converse, **request)
         content = "".join(p.get("text", "") for p in response["output"]["message"]["content"])
         usage = response.get("usage", {})
         return {
@@ -115,7 +151,7 @@ class BedrockConnector:
                 body = {"inputText": text}
                 if "dimensions" in kwargs:
                     body["dimensions"] = kwargs["dimensions"]
-            response = await asyncio.to_thread(
+            response = await _sdk_call(
                 self._client.invoke_model,
                 modelId=model,
                 contentType="application/json",
@@ -155,7 +191,7 @@ class BedrockConnector:
             if model.startswith("arn:")
             else f"arn:aws:bedrock:{region}::foundation-model/{model}"
         )
-        response = await asyncio.to_thread(
+        response = await _sdk_call(
             self._rerank_client.rerank,
             queries=[{"type": "TEXT", "textQuery": {"text": kwargs["query"]}}],
             sources=[

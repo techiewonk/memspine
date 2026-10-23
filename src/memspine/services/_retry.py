@@ -37,6 +37,7 @@ TRANSIENT_ERRORS = frozenset(
         "HttpError",
         "HttpTimeout",
         "ThrottlingException",
+        "BedrockTransientError",
     }
 )
 

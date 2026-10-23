@@ -9,6 +9,7 @@ from scripts.migrate_config_keys_adr085 import migrate
         ("ollama_chat/qwen3", "ollama", "qwen3"),
         ("hosted_vllm/Qwen/Qwen3", "vllm", "Qwen/Qwen3"),
         ("bedrock/anthropic.x", "bedrock", "anthropic.x"),
+        ("bedrock/converse/qwen.qwen3", "bedrock", "qwen.qwen3"),
         ("anthropic/claude", "anyllm", "claude"),
         ("openai/gpt-4", "openai_compatible", "gpt-4"),
     ],

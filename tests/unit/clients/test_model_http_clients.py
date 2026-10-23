@@ -276,3 +276,44 @@ async def test_bedrock_rerank_stubber() -> None:
         assert result["results"] == [{"index": 0, "relevance_score": 0.75}]
         stub.assert_no_pending_responses()
     await connector.close()
+
+
+async def test_bedrock_throttling_is_retryable_and_auth_errors_are_redacted() -> None:
+    boto3 = pytest.importorskip("boto3")
+    from botocore.stub import Stubber
+
+    from memspine.clients.bedrock import (
+        BedrockConnector,
+        BedrockRequestError,
+        BedrockSpec,
+        BedrockTransientError,
+    )
+
+    client = boto3.client(
+        "bedrock-runtime",
+        region_name="us-east-1",
+        aws_access_key_id="fake",
+        aws_secret_access_key="fake",
+    )
+    connector = BedrockConnector(BedrockSpec("us-east-1"), client=client)
+    with Stubber(client) as stub:
+        stub.add_client_error(
+            "converse",
+            service_error_code="ThrottlingException",
+            service_message="secret-vendor-detail",
+            http_status_code=429,
+        )
+        with pytest.raises(BedrockTransientError) as failure:
+            await connector.acompletion(model="test", messages=[])
+        assert "secret-vendor-detail" not in str(failure.value)
+        stub.add_client_error(
+            "converse",
+            service_error_code="AccessDeniedException",
+            service_message="secret-vendor-detail",
+            http_status_code=403,
+        )
+        with pytest.raises(BedrockRequestError) as failure:
+            await connector.acompletion(model="test", messages=[])
+        assert not isinstance(failure.value, BedrockTransientError)
+        assert "secret-vendor-detail" not in str(failure.value)
+    await connector.close()
