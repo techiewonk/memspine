@@ -148,6 +148,7 @@ from memspine.services.secrets.chained import ChainedSecrets
 from memspine.services.secrets.env import EnvSecrets
 from memspine.services.storage.sql_base import SqlStorage
 from memspine.services.vector.base import VectorStore
+from memspine.store.projections.projector import Projector
 from memspine.workers.inline import InlineRunner
 from memspine.workers.runner import TaskRunner
 
@@ -617,6 +618,24 @@ def lexical_variant(config: MemspineConfig) -> str:
     if date_tokens:
         parts.append("dates")
     return "+".join(parts)
+
+
+def graph_projector(
+    store: GraphStore,
+    config: MemspineConfig | None = None,
+    embedder: EmbeddingService | None = None,
+) -> Projector:
+    """The canonical graph projector (entity policy and entity embeddings from ``config``;
+    none without it). RM-113 item 18: built in the composition layer, so the provider
+    factories never import the associative memory type."""
+    from memspine.memories.associative.entities import EntityPolicy
+    from memspine.memories.associative.projector import GraphProjector
+
+    if config is None:
+        return GraphProjector(store)
+    entities = EntityPolicy.from_policy(memory_policy(config, "associative").get("entity_nodes"))
+    embed = embedder.embed if config.graph.entity_embeddings and embedder else None
+    return GraphProjector(store, entities, embed=embed)
 
 
 def lexical_projector_name(config: MemspineConfig) -> str:

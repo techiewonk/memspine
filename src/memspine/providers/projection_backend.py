@@ -13,8 +13,6 @@ from datetime import UTC, datetime
 from typing import Literal, Protocol
 from uuid import uuid4
 
-from memspine.memories.associative.entities import EntityPolicy
-from memspine.memories.associative.projector import GraphProjector
 from memspine.providers.switching import (
     CleanupEvidence,
     GenerationStatus,
@@ -25,7 +23,6 @@ from memspine.providers.switching import (
     SourceSnapshot,
 )
 from memspine.services.embedding.base import EmbeddingService
-from memspine.services.graph.base import GraphStore
 from memspine.services.lexical.base import LexicalStore
 from memspine.services.lexical.projector import LexicalProjector
 from memspine.services.vector.base import VectorStore
@@ -409,16 +406,6 @@ class EventLogProjectionBackend:
             raise ValueError("projection generation identity is required")
 
 
-def graph_projector(
-    store: GraphStore,
-    *,
-    entities: EntityPolicy | None = None,
-    embed: Callable[[list[str]], Awaitable[list[list[float]]]] | None = None,
-) -> Projector:
-    """Construct the canonical graph projector for an isolated generation."""
-    return GraphProjector(store, entities=entities, embed=embed)
-
-
 def vector_projector(store: VectorStore, embedder: EmbeddingService) -> Projector:
     """Construct the canonical vector projector for an isolated generation."""
     return VectorProjector(store, embedder)
@@ -434,7 +421,6 @@ __all__ = [
     "ProjectionCategory",
     "ProjectionGenerationHandle",
     "ReplayEventLog",
-    "graph_projector",
     "lexical_projector",
     "vector_projector",
 ]

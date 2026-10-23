@@ -6,7 +6,6 @@ import pytest
 
 from memspine.providers.projection_backend import (
     EventLogProjectionBackend,
-    graph_projector,
     lexical_projector,
     vector_projector,
 )
@@ -16,6 +15,7 @@ from memspine.providers.switching import (
     ProjectionGeneration,
     ProjectionVerificationEvidence,
 )
+from memspine.runtime.container import graph_projector
 from memspine.services.graph.base import GraphEdge, GraphNode
 from memspine.services.lexical.base import LexicalHit
 from memspine.services.vector.base import VectorHit

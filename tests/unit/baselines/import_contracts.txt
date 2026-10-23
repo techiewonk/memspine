@@ -13,8 +13,6 @@
 # --- consumers-never-see-clients
 
 # --- providers-composition-only
-providers-composition-only memspine/providers/builtin/generations.py memspine.memories -- RM-113 item 18: graph projector wiring leaves the factory layer
-providers-composition-only memspine/providers/projection_backend.py memspine.memories -- RM-113 item 18: graph projector/entity policy injected, not imported by providers
 
 # --- services-no-transport
 

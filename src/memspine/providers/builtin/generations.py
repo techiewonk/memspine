@@ -13,8 +13,6 @@ from typing import Any, Literal, Protocol
 
 from memspine.config.schema import MemspineConfig
 from memspine.exceptions import ConfigError
-from memspine.memories.associative.entities import EntityPolicy
-from memspine.memories.associative.projector import GraphProjector
 from memspine.providers.contracts import SqlAccess
 from memspine.providers.lifecycle import ProviderLifecycleManager
 from memspine.providers.projection_bindings import projection_target_fingerprint
@@ -33,8 +31,8 @@ from memspine.runtime.container import (
     build_graph_store,
     build_lexical_store,
     build_vector_store,
+    graph_projector,
     lexical_projector_name,
-    memory_policy,
 )
 from memspine.services.embedding.base import EmbeddingService
 from memspine.services.lexical.projector import LexicalProjector
@@ -194,15 +192,7 @@ class BuiltinProjectionGenerationOpener:
     ) -> tuple[object, Projector]:
         if self._category == "graph":
             service_graph = await build_graph_store(config, wiring)
-            entities = EntityPolicy.from_policy(
-                memory_policy(config, "associative").get("entity_nodes")
-            )
-            projector = GraphProjector(
-                service_graph,
-                entities,
-                embed=embedder.embed if config.graph.entity_embeddings and embedder else None,
-            )
-            return service_graph, projector
+            return service_graph, graph_projector(service_graph, config, embedder)
         if self._category == "vector":
             if embedder is None:
                 raise ConfigError("vector generation requires its resolved embedding service")
