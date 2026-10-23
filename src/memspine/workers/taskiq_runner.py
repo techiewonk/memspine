@@ -36,6 +36,7 @@ from __future__ import annotations
 import re
 from typing import Any
 
+from memspine.clients.redis import RedisConnector, RedisSpec
 from memspine.config import constants
 from memspine.derive.pipeline.stages.context import Pipeline, PipelineContext
 from memspine.exceptions import MemspineError, MissingServiceError
@@ -160,14 +161,16 @@ class TaskiqRunner:
         claim_min_idle_ms: int = constants.TASKIQ_CLAIM_MIN_IDLE_MS,
         redis: Any | None = None,
     ) -> None:
+        #: RM-113 item 6: without an injected client, the clients/redis connector owns it
+        self._connector: RedisConnector | None = None
         if redis is None:
             try:
                 import taskiq  # noqa: F401  — the extra gate (D-10)
                 import taskiq_redis  # noqa: F401
-                from redis.asyncio import Redis
+                from redis import asyncio as _redis_asyncio  # noqa: F401
             except ImportError as exc:
                 raise MissingServiceError("workers.taskiq", extra="taskiq") from exc
-            redis = Redis.from_url(url)
+            self._connector = RedisConnector(RedisSpec(url))
         self._redis: Any = redis
         self._scope = scope
         self._consumer = consumer
@@ -179,8 +182,16 @@ class TaskiqRunner:
         self._pipelines[name] = pipeline
 
     async def start(self) -> None:
-        """Taskiq's client is ready at construction; no worker startup is needed."""
-        return None
+        """Open the broker connector (the client connects on its first command); no worker
+        startup is needed."""
+        await self._client()
+
+    async def _client(self) -> Any:
+        if self._redis is None:
+            assert self._connector is not None
+            await self._connector.open()
+            self._redis = self._connector.handle
+        return self._redis
 
     async def run(self, name: str, ctx: PipelineContext) -> dict[str, object]:
         pipeline = self._pipelines.get(name)
@@ -210,6 +221,10 @@ class TaskiqRunner:
         return stats
 
     async def close(self) -> None:
+        if self._connector is not None:
+            self._redis = None
+            await self._connector.close()
+            return
         aclose = getattr(self._redis, "aclose", None)
         if callable(aclose):
             await aclose()
@@ -224,13 +239,12 @@ class TaskiqRunner:
         must never depend on broker health (D-16/D-18)."""
         key = stream_key(self._scope, label)
         try:
-            await ensure_group(self._redis, key)
-            marker = await self._redis.xadd(
-                key, {"label": label, "priority": str(priority_for(label))}
-            )
+            redis = await self._client()
+            await ensure_group(redis, key)
+            marker = await redis.xadd(key, {"label": label, "priority": str(priority_for(label))})
             # Move the marker into this consumer's pending list so XACK/XAUTOCLAIM
             # apply; ">" delivers never-delivered entries (ours included).
-            await self._redis.xreadgroup(CONSUMER_GROUP, self._consumer, {key: ">"}, count=64)
+            await redis.xreadgroup(CONSUMER_GROUP, self._consumer, {key: ">"}, count=64)
             # SF-5a/ADR-018: a healthy enqueue re-arms the degraded latch so a
             # LATER outage logs again (the latch is "one warning per outage",
             # not "one warning ever").
@@ -262,17 +276,19 @@ class TaskiqRunner:
         """
         key = stream_key(self._scope, label)
         try:
+            redis = await self._client()
             reclaimed = await claim_stale(
-                self._redis, self._scope, label, self._consumer, self._claim_min_idle_ms
+                redis, self._scope, label, self._consumer, self._claim_min_idle_ms
             )
             for marker in reclaimed:
-                await self._redis.xack(key, CONSUMER_GROUP, marker)
+                await redis.xack(key, CONSUMER_GROUP, marker)
         except Exception as exc:  # broker down / stubbed client — never fatal
             _log.warning("taskiq.recovery_failed", pipeline=label, error=_redact(str(exc)))
 
     async def _ack(self, label: str, marker: str) -> None:
         try:
-            await self._redis.xack(stream_key(self._scope, label), CONSUMER_GROUP, marker)
+            redis = await self._client()
+            await redis.xack(stream_key(self._scope, label), CONSUMER_GROUP, marker)
         except Exception as exc:  # an unacked-but-done marker is safe (idempotent)
             _log.warning(
                 "taskiq.ack_failed", pipeline=label, marker=marker, error=_redact(str(exc))

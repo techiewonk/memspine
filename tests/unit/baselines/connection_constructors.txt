@@ -18,6 +18,3 @@ memspine/store/side_tables.py create_engine -- RM-113 item 8: side tables borrow
 memspine/store/side_tables.py sqlite3.connect -- RM-113 item 8: side tables borrow the storage connector
 memspine/observability/tap_report.py sqlite3.connect -- RM-113 section 2: tap report opens its own sqlite file; needs a clients/sqlite file connector
 memspine/observability/tap_sinks.py sqlite3.connect -- RM-113 section 2: tap sink opens its own sqlite file; needs a clients/sqlite file connector
-memspine/workers/step_journal.py sqlite3.connect -- RM-113 section 2: step journal opens its own sqlite file; needs a clients/sqlite file connector
-memspine/workers/taskiq_runner.py Redis -- RM-113 item 6: share the Redis connection through a clients connector and the registry
-memspine/workers/temporal_runner.py temporalio.Client.connect -- RM-113 section 2: Temporal cluster connection belongs in a clients/temporal connector

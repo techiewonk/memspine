@@ -21,6 +21,8 @@ from datetime import timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Protocol, cast
 
+from memspine.clients._common.secrets import Secret
+from memspine.clients.temporal import TemporalConnector, TemporalSpec
 from memspine.derive.pipeline.stages.context import Pipeline, PipelineContext
 from memspine.exceptions import ConfigError, MissingServiceError
 from memspine.workers.step_journal import (
@@ -242,7 +244,6 @@ class TemporalRunner:
             from resonate.resonate import Resonate
             from resonate.retry import Never
             from temporalio import activity
-            from temporalio.client import Client
             from temporalio.worker import Worker
 
             from memspine.workers.temporal_workflow import PipelineWorkflow
@@ -255,13 +256,18 @@ class TemporalRunner:
             lease_seconds=self.step_lease_s,
             busy_timeout_seconds=self.journal_busy_timeout_s,
         )
-        async with asyncio.timeout(self.rpc_timeout_s):
-            client = await Client.connect(
+        # RM-113: the cluster connection is the clients/temporal connector's
+        connector = TemporalConnector(
+            TemporalSpec(
                 self.address,
-                namespace=self.namespace,
+                self.namespace,
                 tls=self.tls,
-                api_key=self._api_key,
+                api_key=Secret(self._api_key) if self._api_key else None,
+                connect_timeout_s=self.rpc_timeout_s,
             )
+        )
+        await connector.open()
+        client = connector.handle
         self._client = client
 
         calls = self._resonate_calls

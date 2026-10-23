@@ -18,6 +18,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import cast
 
+from memspine.clients.sqlite.files import file_connection
+
 type JsonValue = bool | int | float | str | list["JsonValue"] | dict[str, "JsonValue"] | None
 
 
@@ -250,16 +252,11 @@ class StepJournal:
 
     @contextmanager
     def _connection(self) -> Iterator[sqlite3.Connection]:
-        connection = sqlite3.connect(
-            self.path,
-            timeout=self.busy_timeout_seconds,
-            isolation_level=None,
-        )
-        connection.execute(f"PRAGMA busy_timeout = {int(self.busy_timeout_seconds * 1000)}")
-        try:
+        # RM-113: the file is opened by the clients/sqlite file connector
+        with file_connection(
+            self.path, timeout_s=self.busy_timeout_seconds, autocommit=True
+        ) as connection:
             yield connection
-        finally:
-            connection.close()
 
     @contextmanager
     def _transaction(self) -> Iterator[sqlite3.Connection]:
