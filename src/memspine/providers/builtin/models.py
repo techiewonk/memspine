@@ -20,6 +20,7 @@ from typing import Any
 from pydantic import BaseModel
 
 from memspine.config.schema.providers import (
+    BedrockEmbeddingSettings,
     HashEmbeddingSettings,
     OnnxEmbeddingSettings,
     OpenAICompatEmbeddingSettings,
@@ -229,6 +230,22 @@ def _embed_openai_compat(
     )
 
 
+def _embed_bedrock(settings: BedrockEmbeddingSettings, _registry: ResourceRegistry | None) -> Any:
+    from memspine.clients.bedrock import BedrockConnector, BedrockSpec
+    from memspine.services.embedding.openai_compat import OpenAICompatEmbedding
+
+    return OpenAICompatEmbedding(
+        settings.model,
+        settings.dim,
+        provider="bedrock",
+        connector=BedrockConnector(BedrockSpec(settings.aws_region, settings.request_timeout_s)),
+        request_timeout_s=settings.request_timeout_s,
+        request_dimensions=settings.request_dimensions,
+        query_input_type=settings.query_input_type,
+        document_input_type=settings.document_input_type,
+    )
+
+
 def _embed_st(
     settings: SentenceTransformersEmbeddingSettings, registry: ResourceRegistry | None
 ) -> Any:
@@ -283,6 +300,10 @@ def _openai_compat_llm(
         max_tokens=settings.max_tokens,
         provider=provider,
     )
+    service.supports_json_schema = getattr(settings, "supports_json_schema", True)
+    service.supports_grammar = getattr(settings, "supports_grammar", False)
+    return service
+
     service.supports_json_schema = getattr(settings, "supports_json_schema", True)
     service.supports_grammar = getattr(settings, "supports_grammar", False)
     return service
@@ -434,10 +455,10 @@ def _embedding_target_identity(name: str) -> Callable[[Any], dict[str, Any]]:
             "embedder_id": f"static:{settings.model}",
             "dimension": settings.dim,
         }
-    if name == "openai_compatible":
+    if name in {"openai_compatible", "bedrock"}:
         return lambda settings: {
             "embedder_id": (
-                f"openai_compatible:{settings.model}"
+                f"{name}:{settings.model}"
                 + (f"@{settings.dim}" if settings.request_dimensions else "")
                 + (
                     f"[{settings.document_input_type}|{settings.query_input_type}]"
@@ -568,6 +589,17 @@ def register() -> None:
             True,
             (),
             None,
+        ),
+        (
+            EMBEDDERS,
+            "embedding",
+            "bedrock",
+            BedrockEmbeddingSettings,
+            _embed_bedrock,
+            "embedding",
+            True,
+            (DependencyRequirement("package", "boto3"),),
+            "aws",
         ),
         (
             EMBEDDERS,

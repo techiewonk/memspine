@@ -72,9 +72,8 @@ def test_call_budget_blocks_before_the_call() -> None:
 def test_engine_config_defaults_to_cohere_v4_and_qwen3() -> None:
     cfg = bedrock_engine_config("us-east-1")["model"]  # ADR-082: the model slots
     assert cfg["embedding"] == {
-        "provider": "openai_compatible",
+        "provider": "bedrock",
         "settings": {
-            "api_base": "http://test.invalid/v1",
             "model": COHERE_EMBED_V4,
             "dim": COHERE_EMBED_V4_DIM,
             "aws_region": "us-east-1",

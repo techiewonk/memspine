@@ -281,5 +281,84 @@ def install_stub_openai_compat(stub: StubOpenAICompat | None = None) -> Iterator
         original(self, spec, http=HttpConnector(HttpSpec(transport=httpx.MockTransport(respond))))
         self._owns_http = True
 
-    with patch.object(OpenAICompatConnector, "__init__", initialize):
+    # Bedrock is a distinct SDK transport; fake the SDK handles, not the service.
+    import asyncio
+    import io
+
+    from memspine.clients.bedrock import BedrockConnector
+
+    class Runtime:
+        def converse(self, **request: Any) -> dict[str, Any]:
+            messages = [
+                {"role": "system", "content": item["text"]} for item in request.get("system", [])
+            ]
+            messages.extend(
+                {
+                    "role": item["role"],
+                    "content": "".join(part.get("text", "") for part in item["content"]),
+                }
+                for item in request["messages"]
+            )
+            reply = asyncio.run(stub.acompletion(model=request["modelId"], messages=messages))
+            return {
+                "output": {
+                    "message": {
+                        "role": "assistant",
+                        "content": [{"text": reply.choices[0].message.content}],
+                    }
+                },
+                "usage": {
+                    "inputTokens": reply.usage.prompt_tokens,
+                    "outputTokens": reply.usage.completion_tokens,
+                },
+            }
+
+        def invoke_model(self, **request: Any) -> dict[str, Any]:
+            body = json.loads(request["body"])
+            inputs = body.get("texts", [body.get("inputText", "")])
+            result = asyncio.run(
+                stub.aembedding(
+                    model=request["modelId"],
+                    input=inputs,
+                    dimensions=body.get("output_dimension", body.get("dimensions", 1024)),
+                    input_type=body.get("input_type"),
+                )
+            )
+            vectors = [row["embedding"] for row in result.data]
+            payload = (
+                {"embeddings": {"float": vectors}}
+                if "cohere" in request["modelId"]
+                else {"embedding": vectors[0]}
+            )
+            return {"body": io.BytesIO(json.dumps(payload).encode())}
+
+        def rerank(self, **request: Any) -> dict[str, Any]:
+            result = asyncio.run(
+                stub.arerank(
+                    query=request["queries"][0]["textQuery"]["text"],
+                    documents=[
+                        row["inlineDocumentSource"]["textDocument"]["text"]
+                        for row in request["sources"]
+                    ],
+                )
+            )
+            return {
+                "results": [
+                    {"index": row["index"], "relevanceScore": row["relevance_score"]}
+                    for row in result.results
+                ]
+            }
+
+        def close(self) -> None:
+            pass
+
+    original_bedrock = BedrockConnector.__init__
+
+    def initialize_bedrock(self: Any, spec: Any, **kwargs: Any) -> None:
+        original_bedrock(self, spec, client=Runtime(), rerank_client=Runtime())
+
+    with (
+        patch.object(OpenAICompatConnector, "__init__", initialize),
+        patch.object(BedrockConnector, "__init__", initialize_bedrock),
+    ):
         yield stub

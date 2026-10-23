@@ -44,9 +44,9 @@ CONFIG: dict[str, Any] = {
         "rerank": {"chain": []},
         "llm": {
             "window_extract": {
-                "provider": "litellm",
+                "provider": "openai_compatible",
                 "timeout_s": 30.0,
-                "settings": {"model": "stub/window"},
+                "settings": {"model": "stub/window", "api_base": "http://localhost:8000/v1"},
             }
         },
     },
@@ -60,19 +60,18 @@ _INSTALLED: list[bool] = []
 
 
 def install_offline_llm() -> None:
-    """The inspector's offline transport: the stub LiteLLM plus the deterministic window-extraction reply.
+    """The inspector's offline transport: the stub OpenAICompat plus the deterministic window-extraction reply.
     Idempotent. Needs ``evals/`` on the path (added here); never reaches the network."""
     if _INSTALLED:
         return
     evals = str(Path(__file__).resolve().parents[3] / "evals")
     if evals not in sys.path:
         sys.path.insert(0, evals)
-    import litellm
     from memspine_evals.inspect.step import _offline_window_reply
-    from memspine_evals.stub_llm import install_stub_litellm
+    from memspine_evals.stub_llm import install_stub_openai_compat
 
-    _STACK.enter_context(install_stub_litellm())
-    inner = litellm.acompletion
+    openai_compatible = _STACK.enter_context(install_stub_openai_compat())
+    inner = openai_compatible.acompletion
 
     async def window_aware(**kwargs: Any) -> Any:
         reply = _offline_window_reply(kwargs.get("messages") or [])
@@ -90,7 +89,7 @@ def install_offline_llm() -> None:
             model=kwargs.get("model"),
         )
 
-    litellm.acompletion = window_aware
+    openai_compatible.acompletion = window_aware
     _INSTALLED.append(True)
 
 

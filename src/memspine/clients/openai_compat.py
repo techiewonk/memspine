@@ -128,7 +128,9 @@ class OpenAICompatConnector:
         if self._spec.family == "ollama":
             payload = {k: kwargs[k] for k in ("model", "messages")}
             payload["stream"] = False
-            options = {k: kwargs[k] for k in ("temperature", "top_p") if k in kwargs}
+            options: dict[str, Any] = {
+                k: kwargs[k] for k in ("temperature", "top_p") if k in kwargs
+            }
             if "max_tokens" in kwargs:
                 options["num_predict"] = kwargs["max_tokens"]
             payload["options"] = options

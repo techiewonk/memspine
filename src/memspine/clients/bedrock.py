@@ -85,7 +85,14 @@ class BedrockConnector:
         content = "".join(p.get("text", "") for p in response["output"]["message"]["content"])
         usage = response.get("usage", {})
         return {
-            "choices": [{"message": {"content": content}}],
+            "choices": [
+                {
+                    "message": {"content": content},
+                    "finish_reason": "length"
+                    if response.get("stopReason") == "max_tokens"
+                    else "stop",
+                }
+            ],
             "usage": {
                 "prompt_tokens": usage.get("inputTokens", 0),
                 "completion_tokens": usage.get("outputTokens", 0),
@@ -98,8 +105,12 @@ class BedrockConnector:
         model = kwargs["model"]
         data = []
         for index, text in enumerate(inputs):
-            if model.startswith("cohere."):
+            if "cohere.embed" in model:
                 body = {"texts": [text], "input_type": kwargs.get("input_type", "search_document")}
+                if "v4" in model:
+                    body["embedding_types"] = ["float"]
+                    if "dimensions" in kwargs:
+                        body["output_dimension"] = kwargs["dimensions"]
             else:
                 body = {"inputText": text}
                 if "dimensions" in kwargs:
@@ -112,7 +123,15 @@ class BedrockConnector:
                 body=json.dumps(body),
             )
             result = json.loads(await asyncio.to_thread(response["body"].read))
-            vector = result["embeddings"][0] if "embeddings" in result else result["embedding"]
+            vector = (
+                (
+                    result["embeddings"]["float"][0]
+                    if isinstance(result.get("embeddings"), dict)
+                    else result["embeddings"][0]
+                )
+                if "embeddings" in result
+                else result["embedding"]
+            )
             data.append({"index": index, "embedding": vector})
         return {"data": data}
 

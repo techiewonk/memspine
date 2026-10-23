@@ -1,9 +1,11 @@
 """Harness model transport and response conversion for endpoint HTTP clients."""
 
 from __future__ import annotations
+
 import os
 from types import SimpleNamespace
 from typing import Any
+
 from memspine.clients.openai_compat import OpenAICompatConnector, OpenAICompatSpec
 
 
@@ -32,8 +34,8 @@ def json_reply(value: Any) -> Any:
 class HarnessEndpoint:
     """A local-first endpoint used by readers and transport-contract tests."""
 
-    def __init__(self) -> None:
-        self.connector = OpenAICompatConnector(
+    def __init__(self, connector: Any = None) -> None:
+        self.connector = connector or OpenAICompatConnector(
             OpenAICompatSpec(
                 api_base=os.environ.get("OPENAI_API_BASE", "http://localhost:8000/v1"),
                 api_key_env="OPENAI_API_KEY",

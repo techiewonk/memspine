@@ -16,6 +16,7 @@ from typing import Any
 from pydantic import BaseModel
 
 from memspine.config.schema.providers import (
+    BedrockRerankerSettings,
     FlashrankRerankerSettings,
     JinaRerankerSettings,
     OnnxRerankerSettings,
@@ -71,6 +72,18 @@ def _openai_compat(
                 timeout_s=settings.request_timeout_s,
             )
         ),
+    )
+
+
+def _bedrock(settings: BedrockRerankerSettings, _registry: ResourceRegistry | None) -> Any:
+    from memspine.clients.bedrock import BedrockConnector, BedrockSpec
+    from memspine.services.rerank.openai_compat import OpenAICompatReranker
+
+    return OpenAICompatReranker(
+        settings.model,
+        provider="bedrock",
+        connector=BedrockConnector(BedrockSpec(settings.aws_region, settings.request_timeout_s)),
+        request_timeout_s=settings.request_timeout_s,
     )
 
 
@@ -170,6 +183,13 @@ _RERANKERS: tuple[
     ),
     ("openai_compatible", OpenAICompatRerankerSettings, _openai_compat, (), None),
     (
+        "bedrock",
+        BedrockRerankerSettings,
+        _bedrock,
+        (DependencyRequirement("package", "boto3"),),
+        "aws",
+    ),
+    (
         "qwen3",
         Qwen3RerankerSettings,
         _qwen3,
@@ -209,6 +229,6 @@ def register() -> None:
                 service_manifest=CapabilityManifest(
                     name, "rerank", provides=("rerank",), extra=extra
                 ),
-                requires_deployment_id=name == "openai_compatible",
+                requires_deployment_id=name in {"openai_compatible", "bedrock"},
             ),
         )

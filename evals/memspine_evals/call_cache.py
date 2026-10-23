@@ -396,18 +396,21 @@ class CallCache:
 def wrap_call_cache(cache: CallCache) -> Iterator[CallCache]:
     """Cache connector calls in a task-local binding, preserving concurrent callers."""
     from unittest.mock import patch
+
+    from memspine.clients.bedrock import BedrockConnector
     from memspine.clients.openai_compat import OpenAICompatConnector
-    from .model_transport import object_reply, json_reply
+
+    from .model_transport import json_reply, object_reply
 
     current: contextvars.ContextVar[Any] = contextvars.ContextVar("cache_connector")
-    chat = OpenAICompatConnector.acompletion
-    embed = OpenAICompatConnector.aembedding
+    chats = {cls: cls.acompletion for cls in (OpenAICompatConnector, BedrockConnector)}
+    embeds = {cls: cls.aembedding for cls in (OpenAICompatConnector, BedrockConnector)}
 
     async def inner_chat(**kwargs: Any) -> Any:
-        return object_reply(await chat(current.get(), **kwargs))
+        return object_reply(await chats[type(current.get())](current.get(), **kwargs))
 
     async def inner_embed(**kwargs: Any) -> Any:
-        return object_reply(await embed(current.get(), **kwargs))
+        return object_reply(await embeds[type(current.get())](current.get(), **kwargs))
 
     cache._inner_completion, cache._inner_embedding = inner_chat, inner_embed
 
@@ -428,6 +431,8 @@ def wrap_call_cache(cache: CallCache) -> Iterator[CallCache]:
     with (
         patch.object(OpenAICompatConnector, "acompletion", completion),
         patch.object(OpenAICompatConnector, "aembedding", embedding),
+        patch.object(BedrockConnector, "acompletion", completion),
+        patch.object(BedrockConnector, "aembedding", embedding),
     ):
         yield cache
 

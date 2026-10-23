@@ -183,7 +183,7 @@ def reject_model_moved_keys(value: Any, area: str, keys: tuple[str, ...]) -> Non
 
 def _check_provider(value: str) -> str:
     if value == "litellm":
-        raise ValueError(
+        raise ConfigError(
             "litellm was removed: use openai_compatible or anyllm; "
             "ollama/llama3 becomes {provider: ollama, settings: {model: llama3}}; "
             "bedrock/<model> becomes {provider: bedrock, settings: {model: <model>}}"

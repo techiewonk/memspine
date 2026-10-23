@@ -51,23 +51,23 @@ __all__ = [
     "cached_prompt_tokens",
     "engine_llm_config",
     "estimate_prompt_tokens",
-    "openai_compat_chat",
     "load_aws_credentials",
     "merge_engine_llm_roles",
+    "openai_compat_chat",
     "parse_price",
     "parse_service_price",
 ]
 
 #: OpenAICompat model ids, verified on-demand in us-east-1 on 2026-09-30.
-QWEN3_32B = "bedrock/converse/qwen.qwen3-32b-v1:0"
-QWEN3_NEXT_80B = "bedrock/converse/qwen.qwen3-next-80b-a3b"
+QWEN3_32B = "qwen.qwen3-32b-v1:0"
+QWEN3_NEXT_80B = "qwen.qwen3-next-80b-a3b"
 #: Default embedder: Cohere v4 requested at 1024 dims (Matryoshka; 256/512/1024/1536
 #: are valid, 1536 is the model default). On a 62-question paraphrase test (results/
 #: cohere_dim_test.json) 1024 matched 1536 within noise at 2/3 the storage, and it is
 #: the same size as Titan v2, so the two are swappable without resizing a store.
-COHERE_EMBED_V4 = "bedrock/cohere.embed-v4:0"
+COHERE_EMBED_V4 = "cohere.embed-v4:0"
 COHERE_EMBED_V4_DIM = 1024
-TITAN_V2 = "bedrock/amazon.titan-embed-text-v2:0"
+TITAN_V2 = "amazon.titan-embed-text-v2:0"
 TITAN_V2_DIM = 1024
 
 #: Every LLM role the engine binds through ``Engine.llm`` / ``LLMRouter.for_role``:
@@ -144,10 +144,9 @@ def engine_llm_config(
     ``region``."""
     return {
         role: {
-            "provider": "openai_compatible",
+            "provider": "bedrock",
             "timeout_s": 180.0,
             "settings": {
-                "api_base": "http://test.invalid/v1",
                 "model": model,
                 "aws_region": region,
             },
@@ -256,13 +255,12 @@ def bedrock_engine_config(
         settings["document_input_type"] = "search_document"
     return {
         "model": {
-            "embedding": {"provider": "openai_compatible", "settings": settings},
+            "embedding": {"provider": "bedrock", "settings": settings},
             "llm": {
                 role: {
-                    "provider": "openai_compatible",
+                    "provider": "bedrock",
                     "timeout_s": llm_timeout_seconds,
                     "settings": {
-                        "api_base": "http://test.invalid/v1",
                         "model": llm_model,
                         "aws_region": region,
                     },
@@ -451,7 +449,9 @@ class OpenAICompatReader:
         self.retry_attempts = max(1, int(retry_attempts))
         self.retry_base_delay = retry_base_delay
 
-        self._openai_compat = HarnessEndpoint()
+        from memspine.clients.bedrock import BedrockConnector, BedrockSpec
+
+        self._openai_compat = HarnessEndpoint(BedrockConnector(BedrockSpec(aws_region_from_env())))
         self.budget = budget
         self.model = model
         self.temperature = temperature

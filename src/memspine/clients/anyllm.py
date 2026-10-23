@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import os
-from typing import Any
+from typing import Any, cast
 
 from memspine.exceptions import MissingServiceError
 
@@ -23,7 +23,7 @@ class AnyLLMConnector:
                 from any_llm import AnyLLM
             except ImportError:
                 raise MissingServiceError("anyllm", "anyllm") from None
-            options = {}
+            options: dict[str, Any] = {}
             if self.api_key_env:
                 options["api_key"] = os.environ.get(self.api_key_env)
             if self.api_base:
@@ -33,7 +33,7 @@ class AnyLLMConnector:
     async def acompletion(self, **kwargs: Any) -> dict[str, Any]:
         await self.open()
         response = await self._client.acompletion(**kwargs)
-        return response.model_dump()
+        return cast("dict[str, Any]", response.model_dump())
 
     async def close(self) -> None:
         if self._client is not None:

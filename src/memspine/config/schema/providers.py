@@ -374,6 +374,22 @@ class OpenAICompatEmbeddingSettings(StrictSettings):
         return self
 
 
+class BedrockEmbeddingSettings(StrictSettings):
+    model: str = Field(min_length=1)
+    dim: int = Field(ge=1)
+    aws_region: str | None = None
+    request_timeout_s: float = Field(gt=0)
+    request_dimensions: bool = False
+    query_input_type: str | None = None
+    document_input_type: str | None = None
+
+
+class BedrockRerankerSettings(StrictSettings):
+    model: str = Field(min_length=1)
+    aws_region: str | None = None
+    request_timeout_s: float = Field(gt=0)
+
+
 class SentenceTransformersEmbeddingSettings(StrictSettings):
     model: str = "sentence-transformers/all-MiniLM-L6-v2"
     dim: int | None = Field(default=None, ge=1)

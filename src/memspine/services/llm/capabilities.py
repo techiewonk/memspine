@@ -9,6 +9,8 @@ __all__ = ["schema_options"]
 
 def schema_options(llm: object, schema: dict[str, Any], name: str) -> tuple[str, dict[str, Any]]:
     """``(mode, chat options)``; mode is ``json_schema``, ``grammar`` or ``none``."""
+    if getattr(llm, "supports_grammar", False):
+        return "grammar", {"response_format": {"type": "json_object", "schema": schema}}
     declared = getattr(llm, "supports_json_schema", None)
     grammar = getattr(llm, "supports_grammar", False)
     if declared is not True and grammar is True:

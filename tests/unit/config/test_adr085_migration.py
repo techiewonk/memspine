@@ -1,5 +1,5 @@
-from scripts.migrate_config_keys_adr085 import migrate
 import pytest
+from scripts.migrate_config_keys_adr085 import migrate
 
 
 @pytest.mark.parametrize(
@@ -35,6 +35,7 @@ def test_migration_idempotent(route, provider, bare):
 
 def test_removed_name_rejected():
     from memspine.config.schema.model import ModelSlot
+    from memspine.exceptions import ConfigError
 
-    with pytest.raises(ValueError, match="ollama/llama3 becomes"):
+    with pytest.raises(ConfigError, match="ollama/llama3 becomes"):
         ModelSlot(provider="litellm")
