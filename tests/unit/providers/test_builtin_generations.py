@@ -251,9 +251,7 @@ def test_builtin_embedding_defaults_are_model_specific() -> None:
         1536,
     )
     assert (
-        OpenAICompatEmbeddingSettings(
-            model="openai/text-embedding-3-large", request_timeout_s=10.0
-        ).dim
+        OpenAICompatEmbeddingSettings(model="text-embedding-3-large", request_timeout_s=10.0).dim
         == 3072
     )
     with pytest.raises(ValidationError, match="settings.dim is required"):

@@ -36,8 +36,8 @@ SENTENCE_TRANSFORMERS_MODEL_DIMS = {
 }
 OPENAI_COMPAT_MODEL_DIMS = {
     "text-embedding-3-small": 1536,
-    "openai/text-embedding-3-large": 3072,
-    "openai/text-embedding-ada-002": 1536,
+    "text-embedding-3-large": 3072,
+    "text-embedding-ada-002": 1536,
 }
 
 
