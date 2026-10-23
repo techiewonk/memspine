@@ -9,8 +9,6 @@ from __future__ import annotations
 import sqlalchemy as sa
 from alembic import op
 
-from memspine.providers.identity import DEPLOYMENT_METADATA
-
 revision = "provider_changes"
 down_revision = "lf_e_layer_backfill"
 branch_labels = None
@@ -68,9 +66,14 @@ def upgrade() -> None:
             sa.Column("payload", sa.JSON(), nullable=False),
         )
 
-    # Identity is created by the shared provider metadata; production upgrades
-    # include it here when that table has not already been installed.
-    DEPLOYMENT_METADATA.create(bind=op.get_bind(), checkfirst=True)
+    # The deployment identity table (``memspine.providers.identity``); the DDL is repeated here,
+    # not imported, so the revision stays self-contained (RM-113 item 9).
+    if "provider_deployment_identity" not in _tables():
+        op.create_table(
+            "provider_deployment_identity",
+            sa.Column("id", sa.Integer(), primary_key=True),
+            sa.Column("deployment_id", sa.String(256), nullable=False),
+        )
 
 
 def downgrade() -> None:

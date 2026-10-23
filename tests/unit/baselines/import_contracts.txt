@@ -17,5 +17,3 @@
 # --- services-no-transport
 
 # --- services-not-composition
-services-not-composition memspine/services/storage/postgres/alembic/versions/pg0012_provider_changes.py memspine.providers -- RM-113 item 9: migration snapshots provider-change schema; inline the DDL
-services-not-composition memspine/services/storage/sqlite/alembic/versions/0012_provider_changes.py memspine.providers -- RM-113 item 9: migration snapshots provider-change schema; inline the DDL
