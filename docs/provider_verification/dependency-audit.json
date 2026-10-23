@@ -1,12 +1,12 @@
 {
-  "checked_at": "2026-10-23T07:35:44.975178+00:00",
+  "checked_at": "2026-10-23T17:00:47.198294+00:00",
   "target_python": "3.13.0",
   "evidence_level": "Published Requires-Python and release-file metadata, not runtime proof",
   "host_wheel_scope": "Interpreter/platform running this audit only; not a cross-platform guarantee",
   "manifest_source": "pyproject.toml and uv.lock",
   "source_sha256": {
-    "pyproject.toml": "b2d5240e6df5ab0acda4584628501cef31489a9d197b238ee4bcd2e117c5ac21",
-    "uv.lock": "4ffe7b6f915233978a29c0aa08daf11300405475d2455e244e36bf75b8f2220a"
+    "pyproject.toml": "cb7e02a674d2ac1cc1914b44afc220c61f99ebadd63cd9486226bc2b41421d89",
+    "uv.lock": "09c3d2b98f1a32acce1d07c5748ebbbd250cd350065e791ab677d892ae0d3a12"
   },
   "packages": [
     {
@@ -54,6 +54,29 @@
         "alembic-1.20.1-py3-none-any.whl"
       ],
       "source": "https://pypi.org/pypi/alembic/json"
+    },
+    {
+      "name": "any-llm-sdk",
+      "references": [
+        {
+          "area": "anyllm",
+          "requirement": "any-llm-sdk>=1.40.1,<2"
+        }
+      ],
+      "locked": [
+        "1.40.1"
+      ],
+      "latest_python313": "1.40.1",
+      "latest_within_constraints": "1.40.1",
+      "lock_current": true,
+      "requires_python": [
+        ">=3.11"
+      ],
+      "host_compatible_wheel": true,
+      "wheel_filenames": [
+        "any_llm_sdk-1.40.1-py3-none-any.whl"
+      ],
+      "source": "https://pypi.org/pypi/any-llm-sdk/json"
     },
     {
       "name": "bitsandbytes",
@@ -246,29 +269,6 @@
         "fastapi-0.161.1-py3-none-any.whl"
       ],
       "source": "https://pypi.org/pypi/fastapi/json"
-    },
-    {
-      "name": "fastembed",
-      "references": [
-        {
-          "area": "core",
-          "requirement": "fastembed>=0.9.0"
-        }
-      ],
-      "locked": [
-        "0.9.0"
-      ],
-      "latest_python313": "0.9.0",
-      "latest_within_constraints": "0.9.0",
-      "lock_current": true,
-      "requires_python": [
-        ">=3.10.0"
-      ],
-      "host_compatible_wheel": true,
-      "wheel_filenames": [
-        "fastembed-0.9.0-py3-none-any.whl"
-      ],
-      "source": "https://pypi.org/pypi/fastembed/json"
     },
     {
       "name": "fastuuid",
@@ -592,22 +592,26 @@
       "name": "huggingface-hub",
       "references": [
         {
+          "area": "core",
+          "requirement": "huggingface-hub>=1.33.0,<3"
+        },
+        {
           "area": "decider",
-          "requirement": "huggingface-hub>=1.33.0,<2"
+          "requirement": "huggingface-hub>=2.2.0,<3"
         }
       ],
       "locked": [
-        "1.33.0"
+        "2.3.0"
       ],
-      "latest_python313": "2.2.0",
-      "latest_within_constraints": "1.33.0",
+      "latest_python313": "2.3.0",
+      "latest_within_constraints": "2.3.0",
       "lock_current": true,
       "requires_python": [
         ">=3.10.0"
       ],
       "host_compatible_wheel": true,
       "wheel_filenames": [
-        "huggingface_hub-1.33.0-py3-none-any.whl"
+        "huggingface_hub-2.3.0-py3-none-any.whl"
       ],
       "source": "https://pypi.org/pypi/huggingface-hub/json"
     },
@@ -790,35 +794,6 @@
         "langmem-0.0.30-py3-none-any.whl"
       ],
       "source": "https://pypi.org/pypi/langmem/json"
-    },
-    {
-      "name": "litellm",
-      "references": [
-        {
-          "area": "core",
-          "requirement": "litellm>=1.105.1"
-        }
-      ],
-      "locked": [
-        "1.106.2"
-      ],
-      "latest_python313": "1.106.2",
-      "latest_within_constraints": "1.106.2",
-      "lock_current": true,
-      "requires_python": [
-        "<3.15,>=3.10"
-      ],
-      "host_compatible_wheel": true,
-      "wheel_filenames": [
-        "litellm-1.106.2-cp310-abi3-macosx_10_12_x86_64.whl",
-        "litellm-1.106.2-cp310-abi3-macosx_11_0_arm64.whl",
-        "litellm-1.106.2-cp310-abi3-manylinux_2_28_aarch64.whl",
-        "litellm-1.106.2-cp310-abi3-manylinux_2_28_x86_64.whl",
-        "litellm-1.106.2-cp310-abi3-musllinux_1_2_aarch64.whl",
-        "litellm-1.106.2-cp310-abi3-musllinux_1_2_x86_64.whl",
-        "litellm-1.106.2-cp310-abi3-win_amd64.whl"
-      ],
-      "source": "https://pypi.org/pypi/litellm/json"
     },
     {
       "name": "llama-cpp-python",
@@ -1051,6 +1026,52 @@
         "neo4j-6.4.1-py3-none-any.whl"
       ],
       "source": "https://pypi.org/pypi/neo4j/json"
+    },
+    {
+      "name": "onnxruntime",
+      "references": [
+        {
+          "area": "core",
+          "requirement": "onnxruntime>=1.24.3"
+        }
+      ],
+      "locked": [
+        "1.31.0"
+      ],
+      "latest_python313": "1.31.0",
+      "latest_within_constraints": "1.31.0",
+      "lock_current": true,
+      "requires_python": [
+        ">=3.11"
+      ],
+      "host_compatible_wheel": true,
+      "wheel_filenames": [
+        "onnxruntime-1.31.0-cp311-cp311-macosx_14_0_arm64.whl",
+        "onnxruntime-1.31.0-cp311-cp311-manylinux_2_28_aarch64.whl",
+        "onnxruntime-1.31.0-cp311-cp311-manylinux_2_28_x86_64.whl",
+        "onnxruntime-1.31.0-cp311-cp311-win_amd64.whl",
+        "onnxruntime-1.31.0-cp311-cp311-win_arm64.whl",
+        "onnxruntime-1.31.0-cp312-cp312-macosx_14_0_arm64.whl",
+        "onnxruntime-1.31.0-cp312-cp312-manylinux_2_28_aarch64.whl",
+        "onnxruntime-1.31.0-cp312-cp312-manylinux_2_28_x86_64.whl",
+        "onnxruntime-1.31.0-cp312-cp312-win_amd64.whl",
+        "onnxruntime-1.31.0-cp312-cp312-win_arm64.whl",
+        "onnxruntime-1.31.0-cp313-cp313-macosx_14_0_arm64.whl",
+        "onnxruntime-1.31.0-cp313-cp313-manylinux_2_28_aarch64.whl",
+        "onnxruntime-1.31.0-cp313-cp313-manylinux_2_28_x86_64.whl",
+        "onnxruntime-1.31.0-cp313-cp313t-manylinux_2_28_aarch64.whl",
+        "onnxruntime-1.31.0-cp313-cp313t-manylinux_2_28_x86_64.whl",
+        "onnxruntime-1.31.0-cp313-cp313-win_amd64.whl",
+        "onnxruntime-1.31.0-cp313-cp313-win_arm64.whl",
+        "onnxruntime-1.31.0-cp314-cp314-macosx_14_0_arm64.whl",
+        "onnxruntime-1.31.0-cp314-cp314-manylinux_2_28_aarch64.whl",
+        "onnxruntime-1.31.0-cp314-cp314-manylinux_2_28_x86_64.whl",
+        "onnxruntime-1.31.0-cp314-cp314t-manylinux_2_28_aarch64.whl",
+        "onnxruntime-1.31.0-cp314-cp314t-manylinux_2_28_x86_64.whl",
+        "onnxruntime-1.31.0-cp314-cp314-win_amd64.whl",
+        "onnxruntime-1.31.0-cp314-cp314-win_arm64.whl"
+      ],
+      "source": "https://pypi.org/pypi/onnxruntime/json"
     },
     {
       "name": "opensearch-py",
@@ -2012,6 +2033,51 @@
         "temporalio-1.34.0-cp310-abi3-win_amd64.whl"
       ],
       "source": "https://pypi.org/pypi/temporalio/json"
+    },
+    {
+      "name": "tokenizers",
+      "references": [
+        {
+          "area": "core",
+          "requirement": "tokenizers>=0.23.3"
+        }
+      ],
+      "locked": [
+        "0.23.3"
+      ],
+      "latest_python313": "0.23.3",
+      "latest_within_constraints": "0.23.3",
+      "lock_current": true,
+      "requires_python": [
+        ">=3.10"
+      ],
+      "host_compatible_wheel": true,
+      "wheel_filenames": [
+        "tokenizers-0.23.3-cp310-abi3-macosx_10_12_x86_64.whl",
+        "tokenizers-0.23.3-cp310-abi3-macosx_11_0_arm64.whl",
+        "tokenizers-0.23.3-cp310-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl",
+        "tokenizers-0.23.3-cp310-abi3-manylinux_2_17_armv7l.manylinux2014_armv7l.whl",
+        "tokenizers-0.23.3-cp310-abi3-manylinux_2_17_i686.manylinux2014_i686.whl",
+        "tokenizers-0.23.3-cp310-abi3-manylinux_2_17_ppc64le.manylinux2014_ppc64le.whl",
+        "tokenizers-0.23.3-cp310-abi3-manylinux_2_17_s390x.manylinux2014_s390x.whl",
+        "tokenizers-0.23.3-cp310-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl",
+        "tokenizers-0.23.3-cp310-abi3-manylinux_2_31_riscv64.whl",
+        "tokenizers-0.23.3-cp310-abi3-musllinux_1_2_aarch64.whl",
+        "tokenizers-0.23.3-cp310-abi3-musllinux_1_2_armv7l.whl",
+        "tokenizers-0.23.3-cp310-abi3-musllinux_1_2_i686.whl",
+        "tokenizers-0.23.3-cp310-abi3-musllinux_1_2_x86_64.whl",
+        "tokenizers-0.23.3-cp310-abi3-win32.whl",
+        "tokenizers-0.23.3-cp310-abi3-win_amd64.whl",
+        "tokenizers-0.23.3-cp310-abi3-win_arm64.whl",
+        "tokenizers-0.23.3-cp314-cp314t-macosx_10_12_x86_64.whl",
+        "tokenizers-0.23.3-cp314-cp314t-macosx_11_0_arm64.whl",
+        "tokenizers-0.23.3-cp314-cp314t-manylinux_2_17_aarch64.manylinux2014_aarch64.whl",
+        "tokenizers-0.23.3-cp314-cp314t-manylinux_2_17_x86_64.manylinux2014_x86_64.whl",
+        "tokenizers-0.23.3-cp314-cp314t-musllinux_1_2_aarch64.whl",
+        "tokenizers-0.23.3-cp314-cp314t-musllinux_1_2_x86_64.whl",
+        "tokenizers-0.23.3-cp314-cp314t-win_amd64.whl"
+      ],
+      "source": "https://pypi.org/pypi/tokenizers/json"
     },
     {
       "name": "torch",

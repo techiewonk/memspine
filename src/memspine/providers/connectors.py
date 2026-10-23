@@ -83,6 +83,33 @@ def http_connector(pool: SharedHttpPoolConfig | None = None) -> HttpConnector:
     )
 
 
+async def share_model_http(
+    service: Any, ctx: SharedBuildContext, resource_id: str
+) -> ResourceRef | None:
+    """Lend model adapters one loop-scoped HTTP pool, with per-request credentials.
+
+    A caller-injected test transport keeps its private ownership and isolation.
+    Model connectors keep endpoint/auth identities; only the bare HTTP pool is shared.
+    """
+    from memspine.clients.http import HttpConnector, HttpSpec
+    from memspine.clients.openai_compat import OpenAICompatConnector
+
+    connector = getattr(service, "_connector", None)
+    if not isinstance(connector, OpenAICompatConnector):
+        return None
+    if connector._http.spec.transport is not None:
+        return None
+    pool = ctx.http_pool
+    spec = HttpSpec(
+        timeout_s=60.0,
+        max_connections=None if pool is None else pool.max_connections,
+        keepalive_s=None if pool is None else pool.keepalive_s,
+    )
+    http, ref = await acquire(ctx, HttpConnector, spec, resource_id=resource_id, lazy=True)
+    connector.borrow_http(http)
+    return ref
+
+
 def legacy_sqlite_file(path: str | Path) -> AbstractContextManager[sqlite3.Connection]:
     """A read connection to a legacy plaintext SQLite side file
     (:func:`memspine.clients.sqlite.files.legacy_file_connection`), lent to the one-time

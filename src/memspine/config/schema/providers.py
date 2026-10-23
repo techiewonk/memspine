@@ -302,12 +302,16 @@ class OnnxEmbeddingSettings(StrictSettings):
 
     @model_validator(mode="after")
     def _dimension_matches_known_model(self) -> OnnxEmbeddingSettings:
-        from memspine.clients.weights.onnx_catalogue import resolve_model_spec
-
-        spec = resolve_model_spec(self.model, self.model_spec)
-        if spec.pooling == "score":
-            raise ValueError("model.embedding requires an embedding model, not a score head")
-        known_dim = spec.dim
+        known_dim = ONNX_MODEL_DIMS.get(self.model)
+        if self.model_spec is not None:
+            supplied_dim = self.model_spec.get("dim")
+            if type(supplied_dim) is not int or supplied_dim < 1:
+                raise ValueError("ONNX model_spec.dim must be a positive integer")
+            known_dim = supplied_dim
+            if self.model_spec.get("pooling") == "score":
+                raise ValueError("model.embedding requires an embedding model, not a score head")
+        elif known_dim is None:
+            raise ValueError("Unsupported ONNX model; configure explicit settings.model_spec")
         if self.dim is None:
             if known_dim is None:
                 raise ValueError(
@@ -402,9 +406,9 @@ class OnnxRerankerSettings(StrictSettings):
 
     @model_validator(mode="after")
     def _score_head(self) -> OnnxRerankerSettings:
-        from memspine.clients.weights.onnx_catalogue import resolve_model_spec
-
-        if resolve_model_spec(self.model, self.model_spec).pooling != "score":
+        if self.model_spec is None and self.model != constants.RERANK_ONNX_MODEL:
+            raise ValueError("Unsupported ONNX reranker; configure explicit settings.model_spec")
+        if self.model_spec is not None and self.model_spec.get("pooling") != "score":
             raise ValueError("model.rerank requires an ONNX score head")
         return self
 

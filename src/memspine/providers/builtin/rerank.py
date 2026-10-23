@@ -16,9 +16,9 @@ from typing import Any
 from pydantic import BaseModel
 
 from memspine.config.schema.providers import (
-    OnnxRerankerSettings,
     FlashrankRerankerSettings,
     JinaRerankerSettings,
+    OnnxRerankerSettings,
     OpenAICompatRerankerSettings,
     Qwen3RerankerSettings,
 )
@@ -133,12 +133,20 @@ class _RerankerBuilder:
         # Engine build: weights come from the process registry; this Engine's lease is
         # released by its lifecycle, never by another Engine (ADR-079 / RM-73).
         service = self.construct(settings, shared.resource_registry())
+        from memspine.providers.connectors import share_model_http
+
+        http_ref = await share_model_http(service, shared, f"reranker.http:{self.ref.name}")
         release = getattr(service, "aclose", None)
         refs = (
-            (shared.resources.own(f"reranker.weights:{self.ref.name}", release),)
+            (shared.resources.own(
+                f"reranker.weights:{self.ref.name}", release,
+                depends_on=() if http_ref is None else (http_ref.resource_id,),
+            ),)
             if callable(release)
             else ()
         )
+        if http_ref is not None:
+            refs += (http_ref,)
         return BuildResult(service, self.ref, refs, self.capabilities)
 
 

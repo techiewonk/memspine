@@ -21,8 +21,8 @@ from pydantic import BaseModel
 
 from memspine.config.schema.providers import (
     HashEmbeddingSettings,
-    OpenAICompatEmbeddingSettings,
     OnnxEmbeddingSettings,
+    OpenAICompatEmbeddingSettings,
     SentenceTransformersEmbeddingSettings,
     StaticEmbeddingSettings,
 )
@@ -32,6 +32,7 @@ from memspine.providers.contracts import (
     Category,
     DependencyRequirement,
     ProviderRef,
+    ResourceRef,
 )
 from memspine.providers.registry import EMBEDDERS, LLM_PROVIDERS, ProviderDescriptor
 from memspine.providers.settings import (
@@ -58,9 +59,15 @@ class _SyncBuilder:
     async def build(self, settings: Any, ctx: Any) -> BuildResult[Any]:
         service = self.factory(settings, ctx)
         close = getattr(service, "aclose", None)
-        refs = ()
+        refs: tuple[ResourceRef, ...] = ()
         if isinstance(ctx, LLMBuildContext) and callable(close):
-            refs = (ctx.shared.resources.own(ctx.resource_key or f"llm:{ctx.role}", close),)
+            from memspine.providers.connectors import share_model_http
+
+            key = ctx.resource_key or f"llm:{ctx.role}"
+            http_ref = await share_model_http(service, ctx.shared, f"{key}:http")
+            dependencies = () if http_ref is None else (http_ref.resource_id,)
+            ref = ctx.shared.resources.own(key, close, depends_on=dependencies)
+            refs = (ref,) if http_ref is None else (ref, http_ref)
         return BuildResult(service, self.ref, refs, self.capabilities)
 
 
@@ -77,12 +84,20 @@ class _EmbeddingBuilder:
         if not isinstance(ctx, SharedBuildContext):
             return BuildResult(self.factory(settings, None), self.ref, (), self.capabilities)
         service = self.factory(settings, ctx.resource_registry())
+        from memspine.providers.connectors import share_model_http
+
+        http_ref = await share_model_http(service, ctx, f"embedding.http:{self.ref.name}")
         release = getattr(service, "aclose", None)
         refs = (
-            (ctx.resources.own(f"embedding.weights:{self.ref.name}", release),)
+            (ctx.resources.own(
+                f"embedding.weights:{self.ref.name}", release,
+                depends_on=() if http_ref is None else (http_ref.resource_id,),
+            ),)
             if callable(release)
             else ()
         )
+        if http_ref is not None:
+            refs += (http_ref,)
         return BuildResult(service, self.ref, refs, self.capabilities)
 
 
@@ -251,7 +266,7 @@ def _openai_compat_llm(
     from memspine.clients.openai_compat import OpenAICompatConnector, OpenAICompatSpec
     from memspine.services.llm.openai_compat import OpenAICompatLLM
 
-    return OpenAICompatLLM(
+    service = OpenAICompatLLM(
         route_model,
         connector=OpenAICompatConnector(
             OpenAICompatSpec(
@@ -268,6 +283,9 @@ def _openai_compat_llm(
         max_tokens=settings.max_tokens,
         provider=provider,
     )
+    service.supports_json_schema = getattr(settings, "supports_json_schema", True)
+    service.supports_grammar = getattr(settings, "supports_grammar", False)
+    return service
 
 
 def _secret(value: Any) -> str | None:
@@ -400,7 +418,8 @@ def _embedding_target_identity(name: str) -> Callable[[Any], dict[str, Any]]:
         def onnx_identity(settings: OnnxEmbeddingSettings) -> dict[str, Any]:
             spec = resolve_model_spec(settings.model, settings.model_spec)
             return {
-                "embedder_id": model_embedder_id(settings.model, settings.model_spec),
+                "embedder_id": model_embedder_id(settings.model, settings.model_spec,
+                    query_instruction=settings.query_instruction),
                 "dimension": spec.dim,
             }
 

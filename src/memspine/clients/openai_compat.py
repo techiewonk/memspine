@@ -52,6 +52,11 @@ class OpenAICompatConnector:
     def spec(self) -> OpenAICompatSpec:
         return self._spec
 
+    def borrow_http(self, http: HttpConnector) -> None:
+        """Use a composition-owned pool; its lease, rather than this holder, closes it."""
+        self._http = http
+        self._owns_http = False
+
     def _key(self) -> str | None:
         return (
             os.environ.get(self._spec.api_key_env) if self._spec.api_key_env else self._spec.api_key
