@@ -34,7 +34,7 @@ async def test_defaults_send_no_new_parameters(calls: list[dict[str, Any]]) -> N
     await emb.embed(["doc"])
     await embed_queries(emb, ["q"])
     assert all("dimensions" not in c and "input_type" not in c for c in calls)
-    assert emb.embedder_id == "openai_compatible:bedrock/cohere.embed-v4:0"  # identity unchanged
+    assert emb.embedder_id.startswith("openai_compatible:bedrock/cohere.embed-v4:0#")
 
 
 async def test_requested_dims_and_input_types(calls: list[dict[str, Any]]) -> None:

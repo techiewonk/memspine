@@ -20,6 +20,7 @@ from typing import Any
 from pydantic import BaseModel
 
 from memspine.config.schema.providers import (
+    AnyLLMEmbeddingSettings,
     BedrockEmbeddingSettings,
     EndpointEmbeddingSettings,
     HashEmbeddingSettings,
@@ -257,6 +258,24 @@ def _embed_endpoint_preset(name: str) -> Callable[[Any, Any], Any]:
     return build
 
 
+def _embed_anyllm(settings: AnyLLMEmbeddingSettings, _registry: ResourceRegistry | None) -> Any:
+    from memspine.clients.anyllm import AnyLLMConnector
+    from memspine.services.embedding.openai_compat import OpenAICompatEmbedding
+
+    return OpenAICompatEmbedding(
+        settings.model,
+        settings.dim,
+        provider="anyllm",
+        connector=AnyLLMConnector(
+            settings.upstream_provider, api_key_env=settings.api_key_env, api_base=settings.api_base
+        ),
+        request_timeout_s=settings.request_timeout_s,
+        request_dimensions=settings.request_dimensions,
+        query_input_type=settings.query_input_type,
+        document_input_type=settings.document_input_type,
+    )
+
+
 def _embed_bedrock(settings: BedrockEmbeddingSettings, _registry: ResourceRegistry | None) -> Any:
     from memspine.clients.bedrock import BedrockConnector, BedrockSpec
     from memspine.services.embedding.openai_compat import OpenAICompatEmbedding
@@ -485,16 +504,42 @@ def _embedding_target_identity(name: str) -> Callable[[Any], dict[str, Any]]:
             "embedder_id": f"static:{settings.model}",
             "dimension": settings.dim,
         }
-    if name in {"openai_compatible", "bedrock", "ollama", "vllm", "lmstudio", "llamacpp_server"}:
+    if name in {"openai_compatible", "anyllm", "ollama", "vllm", "lmstudio", "llamacpp_server"}:
+        from memspine.services.embedding.identity import ENDPOINT_DEFAULTS, remote_embedding_id
+
+        def remote_identity(settings: Any) -> dict[str, Any]:
+            upstream = getattr(settings, "upstream_provider", None)
+            family = (
+                str(upstream)
+                if name == "anyllm"
+                else name
+                if name in ENDPOINT_DEFAULTS
+                else settings.family
+            )
+            return {
+                "embedder_id": remote_embedding_id(
+                    name,
+                    settings.model,
+                    settings.dim,
+                    api_base=settings.api_base,
+                    family=family,
+                    upstream_provider=upstream,
+                    request_dimensions=settings.request_dimensions,
+                    query_input_type=settings.query_input_type,
+                    document_input_type=settings.document_input_type,
+                ),
+                "dimension": settings.dim,
+            }
+
+        return remote_identity
+    if name == "bedrock":
         return lambda settings: {
-            "embedder_id": (
-                f"{name}:{settings.model}"
-                + (f"@{settings.dim}" if settings.request_dimensions else "")
-                + (
-                    f"[{settings.document_input_type}|{settings.query_input_type}]"
-                    if settings.query_input_type or settings.document_input_type
-                    else ""
-                )
+            "embedder_id": f"bedrock:{settings.model}"
+            + (f"@{settings.dim}" if settings.request_dimensions else "")
+            + (
+                f"[{settings.document_input_type}|{settings.query_input_type}]"
+                if settings.query_input_type or settings.document_input_type
+                else ""
             ),
             "dimension": settings.dim,
         }
@@ -666,6 +711,19 @@ def register() -> None:
                 requirements=requirements,
                 extra=extra,
             )
+
+    if "anyllm" not in EMBEDDERS:
+        _register(
+            EMBEDDERS,
+            "embedding",
+            "anyllm",
+            AnyLLMEmbeddingSettings,
+            _embed_anyllm,
+            "embedding",
+            requires_deployment_id=True,
+            requirements=(DependencyRequirement("package", "any_llm"),),
+            extra="anyllm",
+        )
 
     for preset in ("ollama", "vllm", "lmstudio", "llamacpp_server"):
         if preset not in EMBEDDERS:

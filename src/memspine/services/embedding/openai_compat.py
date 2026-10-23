@@ -6,11 +6,14 @@ requested dimensions contribute to the vector-space identity.
 
 from __future__ import annotations
 
+import asyncio
 from typing import Any
 
+from memspine.clients.anyllm import AnyLLMConnector
 from memspine.clients.openai_compat import OpenAICompatConnector, OpenAICompatSpec
 from memspine.services._retry import retry_transient
 from memspine.services.embedding.base import EmbedderManifest
+from memspine.services.embedding.identity import remote_embedding_id
 
 __all__ = ["OpenAICompatEmbedding"]
 
@@ -44,8 +47,26 @@ class OpenAICompatEmbedding:
 
     @property
     def embedder_id(self) -> str:
-        # Options that change the vectors change the identity (cache keys, E3);
-        # with none set the id is unchanged from before.
+        if self._provider != "bedrock":
+            if isinstance(self._connector, AnyLLMConnector):
+                endpoint = self._connector.api_base
+                family = self._connector.provider
+                upstream = self._connector.provider
+            else:
+                endpoint = self._connector.spec.api_base
+                family = self._connector.spec.family
+                upstream = None
+            return remote_embedding_id(
+                self._provider,
+                self._model,
+                self._dim,
+                api_base=endpoint,
+                family=family,
+                upstream_provider=upstream,
+                request_dimensions=self._request_dimensions,
+                query_input_type=self._query_input_type,
+                document_input_type=self._document_input_type,
+            )
         suffix = f"@{self._dim}" if self._request_dimensions else ""
         if self._query_input_type or self._document_input_type:
             suffix += f"[{self._document_input_type}|{self._query_input_type}]"
@@ -73,7 +94,10 @@ class OpenAICompatEmbedding:
         if input_type is not None:
             kwargs["input_type"] = input_type
         response = await retry_transient(
-            lambda: self._connector.aembedding(**kwargs), what=f"embed:{self._model}"
+            lambda: asyncio.wait_for(
+                self._connector.aembedding(**kwargs), timeout=self._request_timeout_s
+            ),
+            what=f"embed:{self._model}",
         )
         vectors = [list(map(float, item["embedding"])) for item in response["data"]]
         if any(len(vector) != self._dim for vector in vectors):

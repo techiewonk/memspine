@@ -39,6 +39,14 @@ class AnyLLMConnector:
         response = await self._client.acompletion(**kwargs)
         return cast("dict[str, Any]", response.model_dump())
 
+    async def aembedding(self, **kwargs: Any) -> dict[str, Any]:
+        await self.open()
+        inputs = kwargs.pop("input")
+        if getattr(self._client, "TIMEOUT_SUPPORT", "native") == "unsupported":
+            kwargs.pop("timeout", None)
+        response = await self._client.aembedding(inputs=inputs, **kwargs)
+        return cast("dict[str, Any]", response.model_dump())
+
     async def close(self) -> None:
         provider, self._client = self._client, None
         if provider is None:

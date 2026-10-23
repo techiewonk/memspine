@@ -22,7 +22,8 @@ class _EmbedResponse:
 
 
 async def test_openai_compat_embedding_round_trips(monkeypatch: pytest.MonkeyPatch) -> None:
-    from scripts.model_transport_stub import install_transport, transport_stub as openai_compat
+    from scripts.model_transport_stub import install_transport
+    from scripts.model_transport_stub import transport_stub as openai_compat
 
     install_transport(monkeypatch)
 
@@ -39,7 +40,9 @@ async def test_openai_compat_embedding_round_trips(monkeypatch: pytest.MonkeyPat
     out = await emb.embed(["a", "b"])
     assert out == [[0.1, 0.2], [0.3, 0.4]]
     assert seen["model"] == "openai/text-embedding-3-small" and seen["input"] == ["a", "b"]
-    assert emb.dim == 2 and emb.embedder_id == "openai_compatible:openai/text-embedding-3-small"
+    assert emb.dim == 2 and emb.embedder_id.startswith(
+        "openai_compatible:openai/text-embedding-3-small#"
+    )
     assert emb.manifest.quantization is None  # E4 off for cloud embedders
 
 
@@ -54,7 +57,8 @@ class _RerankResponse:
 async def test_openai_compat_rerank_maps_scores_to_input_order(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from scripts.model_transport_stub import install_transport, transport_stub as openai_compat
+    from scripts.model_transport_stub import install_transport
+    from scripts.model_transport_stub import transport_stub as openai_compat
 
     install_transport(monkeypatch)
 

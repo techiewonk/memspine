@@ -389,6 +389,18 @@ class EndpointEmbeddingSettings(OpenAICompatEmbeddingSettings):
     dim: int = Field(ge=1)
 
 
+class AnyLLMEmbeddingSettings(StrictSettings):
+    upstream_provider: str = Field(min_length=1)
+    model: str = Field(min_length=1)
+    dim: int = Field(ge=1)
+    api_key_env: str | None = None
+    api_base: str | None = None
+    request_timeout_s: float = Field(gt=0)
+    request_dimensions: bool = False
+    query_input_type: str | None = None
+    document_input_type: str | None = None
+
+
 class BedrockEmbeddingSettings(StrictSettings):
     model: str = Field(min_length=1)
     dim: int = Field(ge=1)

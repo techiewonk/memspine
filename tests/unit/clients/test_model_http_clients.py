@@ -348,7 +348,7 @@ async def test_embedding_presets_have_typed_endpoints_and_dimensions(
     service = (await descriptor.builder.build(settings, None)).service
     assert service._connector.spec.api_base == base
     assert service._connector.spec.family == preset
-    assert service.embedder_id == f"{preset}:embedding-model"
+    assert service.embedder_id.startswith(f"{preset}:embedding-model#")
     assert await service.embed(["x"]) == [[0.5, 0.25]]
     await service.aclose()
 
@@ -424,3 +424,122 @@ async def test_anyllm_closes_owned_provider_sdk_and_uses_wall_clock_for_unsuppor
     await connector.close()
     await connector.close()
     assert seen["closed"]
+
+
+async def test_anyllm_embedding_sdk_query_dimensions_and_descriptor_identity(monkeypatch):
+    from memspine.providers.registry import get_registry, validate_settings
+
+    seen = []
+
+    class Provider:
+        TIMEOUT_SUPPORT = "native"
+
+        async def aembedding(self, **kwargs):
+            seen.append(kwargs)
+            return SimpleNamespace(
+                model_dump=lambda: {"data": [{"index": 0, "embedding": [0.1, 0.2]}]}
+            )
+
+    class Factory:
+        @staticmethod
+        def create(*args, **kwargs):
+            return Provider()
+
+    monkeypatch.setitem(sys.modules, "any_llm", SimpleNamespace(AnyLLM=Factory))
+    descriptor = get_registry("embedders").get("anyllm")
+    settings = validate_settings(
+        descriptor,
+        {
+            "model": "embed-model",
+            "upstream_provider": "cohere",
+            "dim": 2,
+            "request_dimensions": True,
+            "query_input_type": "search_query",
+            "document_input_type": "search_document",
+            "request_timeout_s": 1.0,
+        },
+    )
+    service = (await descriptor.builder.build(settings, None)).service
+    assert await service.embed_queries(["query"]) == [[0.1, 0.2]]
+    assert await service.embed(["document"]) == [[0.1, 0.2]]
+    assert (
+        seen[0]["inputs"] == ["query"]
+        and seen[0]["dimensions"] == 2
+        and seen[0]["input_type"] == "search_query"
+    )
+    assert seen[1]["input_type"] == "search_document"
+    assert service.embedder_id.startswith("anyllm:cohere:embed-model#")
+    assert descriptor.target_identity(settings)["embedder_id"] == service.embedder_id
+    other = settings.model_copy(update={"upstream_provider": "voyage"})
+    assert descriptor.target_identity(other)["embedder_id"] != service.embedder_id
+    await service.aclose()
+
+
+async def test_anyllm_embedding_hard_timeout_cancels_sdk_call(monkeypatch):
+    import asyncio
+
+    from memspine.clients.anyllm import AnyLLMConnector
+    from memspine.services.embedding import openai_compat as adapter
+    from memspine.services.embedding.openai_compat import OpenAICompatEmbedding
+
+    cancelled = []
+
+    class Provider:
+        TIMEOUT_SUPPORT = "unsupported"
+
+        async def aembedding(self, **kwargs):
+            assert "timeout" not in kwargs
+            try:
+                await asyncio.Event().wait()
+            except asyncio.CancelledError:
+                cancelled.append(True)
+                raise
+
+    class Factory:
+        @staticmethod
+        def create(*args, **kwargs):
+            return Provider()
+
+    async def single_attempt(call, **kwargs):
+        return await call()
+
+    monkeypatch.setitem(sys.modules, "any_llm", SimpleNamespace(AnyLLM=Factory))
+    monkeypatch.setattr(adapter, "retry_transient", single_attempt)
+    service = OpenAICompatEmbedding(
+        "embed-model",
+        2,
+        provider="anyllm",
+        connector=AnyLLMConnector("cohere"),
+        request_timeout_s=0.01,
+    )
+    with pytest.raises(TimeoutError):
+        await service.embed(["query"])
+    assert cancelled == [True]
+    await service.aclose()
+
+
+@pytest.mark.parametrize(
+    "preset", ["openai_compatible", "ollama", "vllm", "lmstudio", "llamacpp_server"]
+)
+async def test_remote_embedding_endpoint_and_family_change_vector_identity(preset):
+    from memspine.providers.registry import get_registry, validate_settings
+
+    descriptor = get_registry("embedders").get(preset)
+    raw = {
+        "model": "embed-model",
+        "dim": 2,
+        "request_timeout_s": 1.0,
+        "api_base": "https://one.example/v1",
+    }
+    settings = validate_settings(descriptor, raw)
+    service = (await descriptor.builder.build(settings, None)).service
+    identity = descriptor.target_identity(settings)["embedder_id"]
+    assert service.embedder_id == identity
+    changed = settings.model_copy(update={"api_base": "https://two.example/v1"})
+    assert descriptor.target_identity(changed)["embedder_id"] != identity
+    normalized = settings.model_copy(update={"api_base": "https://ONE.example/v1/"})
+    assert descriptor.target_identity(normalized)["embedder_id"] == identity
+    if preset == "openai_compatible":
+        changed = settings.model_copy(update={"family": "ollama"})
+        assert descriptor.target_identity(changed)["embedder_id"] != identity
+    await service.aclose()
