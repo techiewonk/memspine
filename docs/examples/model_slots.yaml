@@ -1,0 +1,95 @@
+# ADR-082 model slots: one `model` block, one slot per model category.
+# Configuration example only: replace the local endpoint/model names before use.
+# Validation does not download weights or contact these endpoints.
+# Every slot is {provider, <typed common keys>, settings}; `settings` belongs to the provider.
+# There are no named profiles: each slot states its model inline. Slots with identical
+# effective settings (minus consumer-only fields such as GLiNER `tasks`) share one load.
+deployment:
+  id: local-multi-model
+runtime:
+  provider_services:
+    health_timeout_s: 5.0
+    close_timeout_s: 10.0
+    startup_timeout_s: null
+model:
+  embedding:
+    provider: fastembed
+    batch_size: 32
+    versioned_spaces: false
+    settings: {model: BAAI/bge-small-en-v1.5}
+  llm:
+    # A role that is not listed is off. LLM slots require an explicit timeout_s.
+    window_extract:
+      provider: litellm
+      timeout_s: 5.0
+      structured: {retry_on_error: true, constrained_retry: false}
+      escalation:
+        # Bounded ladder; each target is itself an inline LLM slot.
+        triggers: [error, invalid_json, empty]
+        max_attempts: 2
+        timeout_s: 10.0
+        max_tokens_per_attempt: 256
+        targets:
+          - provider: litellm
+            timeout_s: 8.0
+            settings: {model: openai/local-reasoning, api_base: http://localhost:8001/v1}
+      settings:
+        model: openai/local-fast
+        api_base: http://localhost:8000/v1
+        temperature: 0.0
+        max_tokens: 256
+    chat:
+      provider: litellm
+      timeout_s: 5.0
+      settings: {model: openai/local-fast, api_base: http://localhost:8000/v1}
+    judge:
+      provider: litellm
+      timeout_s: 8.0
+      thinking: 512          # thinking budget: judge / reflect only (P-15)
+      settings: {model: openai/local-reasoning, api_base: http://localhost:8001/v1}
+  rerank:
+    # Always a chain: the first entry that builds and works wins; [] is off.
+    chain:
+      - {provider: jina, settings: {}}
+      - {provider: fastembed, settings: {}}
+    pool: 64
+    keep: 20
+    floor: minmax
+  extraction:
+    # One slot per consumer. topic and sensitivity are enabled by their slot (offline only,
+    # local_files_only: true); semantic and prepass stay switched by
+    # memories.semantic.policies.entity_extraction / write.prepass.
+    semantic:
+      provider: gliner2
+      settings: {model: fastino/gliner2.5-base-v1, device: cpu, local_files_only: true, tasks: [entities]}
+    prepass:
+      provider: gliner2
+      settings: {model: fastino/gliner2.5-base-v1, device: cpu, local_files_only: true, tasks: [entities]}
+    topic:
+      provider: gliner2
+      labels: {cardiology: health/condition}
+      min_confidence: 0.6
+      settings: {model: fastino/gliner2.5-base-v1, device: cpu, local_files_only: true, tasks: [classification]}
+    sensitivity:
+      provider: gliner2
+      settings: {model: fastino/gliner2.5-base-v1, device: cpu, local_files_only: true, tasks: [entities]}
+  decider:
+    # route: H24 mode routing (read.planner: decision); read: I28 read-path decisions.
+    route:
+      provider: gliner2
+      settings: {model: fastino/GLiNER2.5-Decide, device: cpu, local_files_only: true, tasks: [classification]}
+    read:
+      provider: opendecider
+      tasks: [list_mode, bridge_hop]
+      min_confidence: 0.5
+      settings: {model: manjunathshiva/opendecider-nano, device: cpu, backend: torch}
+  vision:
+    # null = no image description (text only).
+    provider: ollama
+    timeout_s: 120.0
+    settings: {model: qwen2.5vl:3b, api_base: http://localhost:11434}
+  placement:
+    tiers_v2: false
+    max_loaded_models: 2     # distinct GLiNER checkpoints kept resident
+read:
+  planner: decision          # pipeline flag stays in read; it needs model.decider.route

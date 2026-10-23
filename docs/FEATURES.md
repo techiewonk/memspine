@@ -158,7 +158,7 @@ rows inspectable — never feed its output straight to a context window.
 | **E5** | assembly-time context compression | opt-in | `read.compression: {assembly: true}` + `memspine[compress]` |
 | **E6** | plan & tool-value caching → procedural plans | on by default (with procedural) | `record_plan` / `recall_plan` |
 | **E7** | sleep-time compute | reserved hook | 4th `sleep()` cycle slot (no-op default) |
-| **E8** | retrieval-quality stages — cross-encoder rerank + static prefilter | opt-in | `read.rerank: fastembed`\|`flashrank`\|`litellm` (`flashrank` needs `memspine[rerank]`; `litellm` needs `read.rerank_model`); `read.static_prefilter: true` |
+| **E8** | retrieval-quality stages — cross-encoder rerank + static prefilter | opt-in | `model.rerank.chain: [{provider: fastembed}]` (or `flashrank`, `litellm`, `jina`, `qwen3`; `flashrank` needs `memspine[rerank]`; `litellm` needs `settings.model`); `read.static_prefilter: true` |
 | **E9** | token micro-optimizations — YAML/CoD prompt formats + always-on `json-repair` | on by default | prompt `format` per prompt |
 
 **Defaults are safe:** with the shipped config, E5 and E8 are off and results are
@@ -169,7 +169,7 @@ bit-identical to the plain pipeline — `profile="simple"` behavior never change
 `search` fuses a lexical BM25 leg into the vector ranking via reciprocal-rank fusion
 (RRF) **by default** (`read.hybrid: true`, the v0.2 flip, ADR-019), so a record only
 lexical search would surface can still enter results. The lexical store is
-`read.lexical_provider`: `tantivy` (implemented). OpenSearch and Weaviate lexical/vector adapters are planned extensions; hybrid fusion remains read policy.
+`storage.lexical.provider`: `tantivy` (core); `opensearch` and `weaviate` are optional adapters. Hybrid fusion remains read policy.
 `read.hybrid: false` restores the vector-only pipeline bit-identically and builds no
 lexical index. Two further opt-in legs join the same fusion: `read.temporal_leg`
 (records whose event time lies in an absolute date span named in the query) and
@@ -199,11 +199,14 @@ lexical index. Two further opt-in legs join the same fusion: `read.temporal_leg`
 
 Example — turn on hybrid, E8 rerank, and E5 compression:
 ```yaml
+storage:
+  lexical: {provider: tantivy, settings: {}}
+model:
+  rerank:
+    chain:                   # [] = off; first entry that builds and works wins
+      - {provider: fastembed, settings: {}}   # or flashrank [rerank] | litellm | jina / qwen3 [st]
 read:
   hybrid: true               # fuse vector + lexical BM25 via RRF (D-25)
-  lexical_provider: tantivy
-  lexical_settings: {}
-  rerank: fastembed          # off | fastembed | flashrank [rerank] | litellm
   static_prefilter: true     # cheap lexical-overlap gate (post-vector)
   compression:
     assembly: true           # E5 fit stage (needs memspine[compress])
@@ -263,14 +266,17 @@ truth. Startup selects the configured adapter; existing data needs a controlled 
 
 | Capability | Config key | Options |
 |------------|-----------|---------|
-| SQL storage / event log | `storage.provider` | `sqlite` (default) · `postgres` `[postgres]` (ADR-025) |
-| Vector | `vector.provider` | `lancedb` (implemented) · Weaviate future adapter |
-| Graph | `graph.provider` | `auto` chooses a compatible local graph · `sql_adjacency` · `ladybug` `[graph]` · direct `neo4j` `[neo4j]` (real-server gate pending) |
-| Cache / KV | `cache.provider` | `memory` (default) · `disk` · `redis` · `valkey` (external caches need `[cache]`) |
-| Lexical (hybrid leg) | `read.lexical_provider` | `tantivy` (core); future OpenSearch / Weaviate adapters |
-| Embedding | `embedding.provider` | `fastembed` (default) · `hash` · `static` `[static]` · `litellm` (cloud; `dim` required) |
-| LLM (per role) | `llm.roles.<role>.provider` and `.settings` | Explicit `litellm`, `ollama`, `vllm`, `bedrock` (RM-113: own descriptors over the LiteLLM connector) or `llamacpp` adapter; model ID and applicable timeout belong in settings. Plugins may register other adapters. |
-| Reranker | `read.rerank` and `read.rerank_settings` | Selected registered adapter or explicit chain policy; shares provider validation and lifecycle. |
+| SQL storage / event log | `storage.records.provider` | `sqlite` (default) · `postgres` `[postgres]` (ADR-025, ADR-081) |
+| Vector | `storage.vector.provider` | `lancedb` (default) · `pgvector` `[postgres]` · `weaviate` |
+| Graph | `storage.graph.provider` | `auto` chooses a compatible local graph · `sql_adjacency` · `ladybug` `[graph]` · direct `neo4j` `[neo4j]` (real-server gate pending) |
+| Cache / KV | `storage.cache.provider` | `memory` (default) · `disk` · `redis` · `valkey` (external caches need `[cache]`) |
+| Lexical (hybrid leg) | `storage.lexical.provider` | `tantivy` (core) · `opensearch` · `weaviate` |
+| Embedding | `model.embedding.provider` | `fastembed` (default) · `hash` · `static` `[static]` · `litellm` (cloud; `settings.dim` required) |
+| LLM (per role) | `model.llm.<role>` (`provider`, `timeout_s`, `settings`) | Explicit `litellm`, `ollama`, `vllm`, `bedrock` (RM-113: own descriptors over the LiteLLM connector) or `llamacpp` adapter; `timeout_s` is required at the slot root, the model ID belongs in `settings`. A role not listed is off. Plugins may register other adapters. |
+| Reranker | `model.rerank.chain` | List of `{provider, settings}`; the first entry that builds and works wins, `[]` is off. Shares provider validation and lifecycle. |
+| Extraction (GLiNER) | `model.extraction.<consumer>` | `semantic`, `prepass`, `topic`, `sensitivity`; provider `gliner2` `[ner]`. A consumer not listed is off. |
+| Decider | `model.decider.route` / `model.decider.read` | `heuristic` · `opendecider` `[decider]` · `gliner2` `[ner]`; `read` absent = the heuristic rules. |
+| Vision | `model.vision` | `ollama` (local vision model); `null` = no description. |
 | Secrets | `MEMSPINE_SECRETS_BACKEND` *(env var)* | `env` (default) · `aws` `[aws]` (ADR-023) |
 | Workers | `workers.runner` | `inline` (default) · `temporal` `[temporal]` · `taskiq` `[taskiq]` |
 

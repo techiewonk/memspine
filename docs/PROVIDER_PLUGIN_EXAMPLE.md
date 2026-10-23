@@ -45,10 +45,11 @@ plugins:
     hash: sha256:<64-lowercase-hex-digits> # optional RECORD hash
     slot: embedders:fixture_hash
     lifetime: app
-embedding:
-  provider: fixture_hash
-  settings:
-    dim: 64
+model:
+  embedding:
+    provider: fixture_hash
+    settings:
+      dim: 64
 ```
 
 The optional hash is the SHA-256 of the installed distribution's `RECORD`

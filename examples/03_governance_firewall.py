@@ -20,8 +20,8 @@ async def main() -> None:
     engine = Engine(
         template="base",
         dotenv_path=None,
-        storage={"path": ":memory:"},
-        embedding={"provider": "hash"},
+        storage={"records": {"provider": "sqlite", "settings": {"path": ":memory:"}}},
+        model={"embedding": {"provider": "hash"}},
     )
     await engine.start()
 

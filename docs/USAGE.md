@@ -60,14 +60,19 @@ await engine.start()
 ```python
 engine = Engine(
     template="base",
-    storage={"provider": "sqlite", "settings": {"path": "./memspine.db"}},   # ":memory:" for ephemeral
-    embedding={"provider": "hash"},             # deterministic, offline; default is "fastembed"
-    vector={"provider": "lancedb", "settings": {}}, # other adapters require implementation
+    storage={
+        "records": {"provider": "sqlite", "settings": {"path": "./memspine.db"}},  # ":memory:" for ephemeral
+        "vector": {"provider": "lancedb", "settings": {}},
+    },
+    model={
+        "embedding": {"provider": "hash"},     # deterministic, offline; default is "fastembed"
+        "rerank": {"chain": []},               # [] = no reranker (the default)
+    },
     memories={
         "semantic": {"enabled": True, "policies": {"entity_extraction": "off"}},
         "prospective": {"enabled": True},
     },
-    read={"rerank": "off", "hybrid": False},
+    read={"hybrid": False},
     strict_services=True,
 )
 await engine.start()
@@ -118,7 +123,7 @@ exist for a small subset only: `start_sync`, `write_sync`, `retrieve_sync`,
 `stop_sync`. Calling a sync wrapper from inside a running loop raises.
 
 ```python
-engine = Engine(template="base", embedding={"provider": "hash"})
+engine = Engine(template="base", model={"embedding": {"provider": "hash"}})
 engine.start_sync()
 engine.write_sync("hello", namespace="demo")
 print(engine.retrieve_sync(namespace="demo"))
@@ -203,25 +208,24 @@ default, then the predicate's default, then the owning pack's top domain
 used in `topical_domain_source`. Callers cannot supply `gliner_topic:` tags. If no source
 gives a domain, the domain is unknown.
 
-The topic tagger (RM-106) stays off unless `models.bindings.gliner_topic` binds a GLiNER
-profile with task `classification` and `local_files_only: true` (offline only; nothing is
-downloaded). The Engine builds it at start. Its candidate labels are the domain ids the
-active vocabulary packs declare, offered in readable form (`health/condition` as `health
-condition`), plus the operator map `models.topic.labels` (free label -> domain id). The best
-hit at or above `models.topic.min_confidence` sets the domain. It runs on each write (a
+The topic tagger (RM-106) stays off unless the `model.extraction.topic` slot is set: a
+`gliner2` model with task `classification` and `local_files_only: true` (offline only;
+nothing is downloaded). The Engine builds it at start. Its candidate labels are the domain
+ids the active vocabulary packs declare, offered in readable form (`health/condition` as
+`health condition`), plus the slot's operator map `labels` (free label -> domain id). The
+best hit at or above the slot's `min_confidence` sets the domain. It runs on each write (a
 `gliner_topic:<id>` tag) and, for facts with no domain from a higher source, before each
-edge compile and `memspine graph requalify`, so facts written before the binding get one.
-A failing tagger is logged (`topic.tagger_failed`) and leaves the domain unknown; it never
-blocks a write.
+edge compile and `memspine graph requalify`, so facts written before the slot was set get
+one. A failing tagger is logged (`topic.tagger_failed`) and leaves the domain unknown; it
+never blocks a write.
 ```yaml
-models:
-  profiles:
-    topics: {kind: gliner, provider: gliner2,
-             settings: {tasks: [classification], local_files_only: true}}
-  bindings: {gliner_topic: topics}
-  topic:
-    labels: {cinema: media/film, football: leisure/sport}
-    min_confidence: 0.6
+model:
+  extraction:
+    topic:
+      provider: gliner2
+      labels: {cinema: media/film, football: leisure/sport}
+      min_confidence: 0.6
+      settings: {tasks: [classification], local_files_only: true}
 ```
 
 Compiled edges also carry the claim id and its evidence ids, the independent-support count
@@ -280,7 +284,7 @@ per edge) from the labelling layer (`memspine.derive.sensitivity`): vocabulary d
 the predicate or property key, then deterministic rule/pattern detectors (email, phone,
 Luhn-checked cards, mod-97 IBANs, identity numbers, street addresses and postcodes, a small
 medical-term list, the write door's topic tags). A local GLiNER2 detector is opt-in through
-`models.bindings.gliner_sensitivity` (a GLiNER profile with task `entities` and
+the `model.extraction.sensitivity` slot (a `gliner2` model with task `entities` and
 `local_files_only: true`). Each edge records one of three states: labels found,
 *checked_none* (a complete check found nothing; not a proof that the claim is harmless), or
 not checked; plus the labeller id, version and per-label confidence. Re-running
@@ -580,8 +584,9 @@ Every extraction, planner and judge call parses the reply (YAML or JSON), repair
 when the strict parse fails, and validates it. The counters say how often each prompt
 needed a repair or failed outright (process-wide, in memory). If `failure_rate` is
 under about 1% per prompt, leave the recovery switches off. Otherwise enable
-`llm.structured.retry_on_error` (one re-prompt with the validation error) and, for
-backends that support it, `llm.structured.constrained_retry`. The `[structured]`
+`model.llm.<role>.structured.retry_on_error` (one re-prompt with the validation error)
+and, for backends that support it, `model.llm.<role>.structured.constrained_retry`, in
+each role that needs it. The `[structured]`
 extra (instructor) was removed: nothing imported it.
 ---
 
@@ -780,17 +785,23 @@ async with process_engine(EngineSpec("assistant", "memspine.yaml"), role="my-wor
 
 ## Select a provider and plan a controlled change
 
-Provider options now live under `settings`; old keys and aliases are rejected. Selecting a provider at startup does not migrate existing data. Use explicit planning, replay/migration, verification and scoped cleanup for an existing deployment. See [ADR-068](adr/ADR-068-provider-contracts-and-controlled-changes.md) and the [provider plan](PROVIDER_ARCHITECTURE_PLAN.md). Shipped templates state lifecycle deadlines; standalone configs must supply `runtime.provider_services.health_timeout_s`, `close_timeout_s`, and `startup_timeout_s` (explicit null permits unbounded startup). Production and shared services require `runtime.deployment_id`.
+Provider options now live under `settings`; old keys and aliases are rejected. Selecting a provider at startup does not migrate existing data. Use explicit planning, replay/migration, verification and scoped cleanup for an existing deployment. See [ADR-068](adr/ADR-068-provider-contracts-and-controlled-changes.md) and the [provider plan](PROVIDER_ARCHITECTURE_PLAN.md). Shipped templates state lifecycle deadlines; standalone configs must supply `runtime.provider_services.health_timeout_s`, `close_timeout_s`, and `startup_timeout_s` (explicit null permits unbounded startup). Production and shared services require `deployment.id`.
+
+Data providers live in the `storage` block (ADR-081: one slot per category, `records`,
+`vector`, `lexical`, `graph`, `graph_mirror`, `cache`, `documents`). Model providers live
+in the `model` block (ADR-082, see [Model slots](#model-slots) below). Both use the same
+slot shape: `{provider, settings}`, plus typed keys the category shares.
 
 ### Encrypt the SQLite file at rest *(needs `memspine[encrypt]`)*
 ```yaml
 storage:
-  provider: sqlite
-  settings:
-    path: ./memspine.db
-    encryption:
-      mode: sqlcipher
-      key_env: MEMSPINE_DB_KEY     # the NAME of the variable, never the key itself
+  records:
+    provider: sqlite
+    settings:
+      path: ./memspine.db
+      encryption:
+        mode: sqlcipher
+        key_env: MEMSPINE_DB_KEY     # the NAME of the variable, never the key itself
 ```
 Every connection (and the schema migration) is opened through SQLCipher and keyed
 from `$MEMSPINE_DB_KEY`; a wrong key fails `start()`, and a
@@ -802,27 +813,31 @@ ADR-081), so they are encrypted with it; no unencrypted `.sleep`, `.cost` or
 version left next to the database is imported once (idempotently) and renamed to
 `*.imported`; delete those files once you no longer need them, because they are not
 encrypted. Only the SQLite file is encrypted: LanceDB vectors, the Tantivy lexical
-index (it holds record text), disk caches, the embedding profile pin and the
+index (it holds record text), disk caches, the embedding preset pin and the
 application-owned Resonate step journal are separate files; protect them with volume
 encryption (ADR-035). A lost key is a lost database.
 
 Every store is a port; configuration selects its adapter while the event log remains authoritative. Changing an existing deployment also requires the applicable controlled migration or projection rebuild.
 
 **Storage: SQLite → PostgreSQL** *(needs `memspine[postgres]`)* — one dialect-neutral
-schema serves both (ADR-025). `data_dir` is where the file-backed projections
-(LanceDB vectors, Tantivy lexical) live, since a DSN is not a filesystem path.
+schema serves both (ADR-025). `deployment.data_dir` is where the host-local slots
+(LanceDB vectors, Tantivy lexical) live, since a DSN is not a filesystem path. The
+`server` template is a starting point.
 ```yaml
+deployment:
+  id: memspine-prod
+  data_dir: /var/lib/memspine
 storage:
-  provider: postgres
-  settings:
-    url: "${secret:MEMSPINE_POSTGRES_URL}"
-    data_dir: /var/lib/memspine
-    connect_timeout_s: 5.0
-    statement_timeout_s: 30.0
-read:
-  lexical_provider: tantivy   # standalone BM25; independent of SQL backend
-graph:
-  provider: sql_adjacency     # graph tables in the same Postgres database (or ladybug [graph])
+  records:
+    provider: postgres
+    settings:
+      url: "${secret:MEMSPINE_POSTGRES_URL}"
+      connect_timeout_s: 5.0
+      statement_timeout_s: 30.0
+  lexical:
+    provider: tantivy           # standalone BM25; independent of the SQL backend
+  graph:
+    provider: sql_adjacency     # graph tables in the same Postgres database (or ladybug [graph])
 ```
 `connect_timeout_s` is the overall deadline for the start-up connect, across
 every resolved address. Later pooled reconnects and the sync (Alembic) engine
@@ -832,36 +847,39 @@ repeated for each address (`localhost` is usually two).
 **Cache: in-process → Redis** *(needs `memspine[cache]`; `valkey` is wire-compatible)* —
 `disk` supplies a persistent single-process cache through the same extra.
 ```yaml
-cache:
-  provider: redis            # memory (default) | disk | redis | valkey
-  settings:
-    url: redis://localhost:6379/0
-    namespace: memspine
-    default_ttl_seconds: 3600.0
-    connect_timeout_s: 5.0
-    request_timeout_s: 5.0
+storage:
+  cache:
+    provider: redis            # memory (default) | disk | redis | valkey
+    settings:
+      url: redis://localhost:6379/0
+      namespace: memspine
+      default_ttl_seconds: 3600.0
+      connect_timeout_s: 5.0
+      request_timeout_s: 5.0
 ```
 
-**LLM: local → cloud/Bedrock** — each role explicitly selects its adapter.
-The selected descriptor validates `settings`; a model-name prefix never selects
-another MemSpine adapter. LiteLLM itself accepts its usual model IDs.
+**LLM: local → cloud/Bedrock** — each role is a slot `model.llm.<role>` that names
+its adapter explicitly. The selected descriptor validates `settings`; a model-name
+prefix never selects another MemSpine adapter. LiteLLM itself accepts its usual
+model IDs. `timeout_s` is required on every role (`settings.timeout_seconds` is
+rejected).
 ```yaml
-llm:
-  roles:
+model:
+  llm:
     extract:
       provider: litellm
+      timeout_s: 30.0
       settings:
         model: ollama/llama3
         api_base: http://localhost:11434
-        timeout_seconds: 30.0
         temperature: 0.0
         max_tokens: 2048
     judge:
       provider: litellm
+      timeout_s: 30.0
       settings:
         model: bedrock/anthropic.claude-3-5-sonnet-20241022-v2:0
         aws_region: us-east-1
-        timeout_seconds: 30.0
 ```
 LiteLLM defaults to `temperature: 0.2`, `top_p: 1.0`, and `max_tokens: 2048`.
 `llamacpp` defaults to `temperature: 0.8`, `top_p: 0.95`, and `max_tokens: 2048`;
@@ -870,39 +888,42 @@ its native settings also include `n_ctx: 8192`, `n_gpu_layers: 0`, and
 and explicit per-call generation options take precedence. Use `provider: llamacpp`
 for the in-process adapter. Pinned plugins can declare
 their own settings schema, including options unrelated to a model ID. A role
-without `provider` is invalid. Tiered LLM catalogue declarations also require an
+without `provider` or `timeout_s` is invalid; a role that is not listed is off.
+Tiered LLM catalogue declarations (`model.placement.catalogue`) also require an
 explicit `timeout_seconds`; role binding does not silently extend that deadline.
-Shared/remote adapters require an explicit `runtime.deployment_id`.
+Shared/remote adapters require an explicit `deployment.id`.
 
 RM-113: `ollama`, `vllm` and `bedrock` are their own LLM providers over the same LiteLLM
 connector. Their `settings.model` is the bare model id; the provider adds the route
 (`ollama_chat/`, `hosted_vllm/`, `bedrock/`) and rejects a model id that repeats it.
 `litellm` keeps accepting any LiteLLM model id, unchanged.
 
-| Provider | Settings beyond the shared generation keys (`model`, `timeout_seconds`, `temperature`, `top_p`, `max_tokens`, `no_think`) | Local for `consent.remote_llm_max_tier` |
+| Provider | Settings beyond the shared generation keys (`model`, `temperature`, `top_p`, `max_tokens`, `no_think`) | Local for `consent.remote_llm_max_tier` |
 |---|---|---|
 | `ollama` | `api_base` (default `http://localhost:11434`) | when `api_base` is a local host |
 | `vllm` | `api_base` (required, e.g. `http://host:8000/v1`), `api_key` | when `api_base` is a local host |
 | `bedrock` | `aws_region` (credentials from the boto3 chain) | never |
 
 ```yaml
-llm:
-  roles:
+model:
+  llm:
     extract:
       provider: ollama
-      settings: {model: "qwen3:8b", timeout_seconds: 30.0}
+      timeout_s: 30.0
+      settings: {model: "qwen3:8b"}
 ```
 
 **Embedding: local → cloud (LiteLLM)** — a cloud embedder's output dimension is not
-locally discoverable, so `dim` is **required** when `provider: litellm`.
+locally discoverable, so `settings.dim` is **required** when `provider: litellm`.
 ```yaml
-embedding:
-  provider: litellm
-  settings:
-    model: openai/text-embedding-3-small
-    dim: 1536
-    request_timeout_s: 30.0
-    # api_base / api_key / aws_region as your provider needs
+model:
+  embedding:
+    provider: litellm
+    settings:
+      model: openai/text-embedding-3-small
+      dim: 1536
+      request_timeout_s: 30.0
+      # api_base / api_key / aws_region as your provider needs
 ```
 
 **Secrets: env → AWS Secrets Manager** *(needs `memspine[aws]`)* — secrets resolve
@@ -918,11 +939,150 @@ vector-only pipeline until you opt in).
 ```yaml
 read:
   hybrid: true                 # fuse vector + lexical BM25 via RRF (D-25)
-  lexical_provider: tantivy
-  lexical_settings: {}
-  rerank: fastembed            # off (default) | fastembed | flashrank [rerank] | litellm | qwen3 [st]
-  rerank_model: cohere/rerank-english-v3.0   # required only when rerank: litellm
+storage:
+  lexical: {provider: tantivy, settings: {}}
+model:
+  rerank:
+    chain:                     # [] (default) = off; the first entry that builds and works wins
+      - {provider: fastembed, settings: {}}   # fastembed | flashrank [rerank] | litellm | jina [st] | qwen3 [st]
+    # - {provider: litellm, settings: {model: cohere/rerank-english-v3.0}}
 ```
+
+### Model slots
+
+Every model the deployment uses is configured in one `model` block (ADR-082), the compute
+counterpart of the `storage` slots. One slot per category:
+
+| Slot | What it selects | Off when |
+|---|---|---|
+| `model.embedding` | the embedder (`fastembed` default, `hash`, `static`, `litellm`, `st`) | never (always built) |
+| `model.llm.<role>` | the LLM of one prompt role (`extract`, `judge`, `chat`, ...) | the role is not listed |
+| `model.rerank` | a reranker chain plus the rerank behaviour keys | `chain: []` (default) |
+| `model.extraction.<consumer>` | a GLiNER (or other extraction) model for `semantic`, `prepass`, `topic`, `sensitivity` | the consumer is not listed |
+| `model.decider.<consumer>` | a decider for `route` (H24 mode routing, `read.planner: decision`) and `read` (I28 read-path decisions) | not listed (`read` falls back to the heuristic rules) |
+| `model.vision` | the image-description model (`ollama`) | `null` (default) |
+| `model.placement` | device planning over declared models (`tiers_v2`, `catalogue`, `gpus`, ...) | `tiers_v2: false` (default) |
+
+**Slot shape.** Every slot is `{provider, <typed common keys>, settings}`:
+
+- `provider` is resolved by the registry; an unknown provider is a config error.
+- Keys every provider of the category shares are typed at the slot root and validated by
+  memspine: `timeout_s`, `structured`, `thinking`, `escalation` on an LLM role;
+  `pool`, `keep`, `blend`, ... on `model.rerank`; `labels`, `min_confidence` on the topic
+  slot; `tasks`, `min_confidence`, `workers` on a decider; `timeout_s` on vision.
+- Keys that vary by provider (model id, `api_base`, device, dtype, `tasks` of a GLiNER
+  model, `n_ctx`, ...) go in `settings`, a JSON object validated by that provider's
+  descriptor. A new provider never changes the schema. `gliner2` and `opendecider`
+  settings are strict (unknown keys are errors).
+
+**No named profiles.** Each slot states its provider and settings inline; a model used by
+several consumers is written once per slot. The loaded weights are still shared (ADR-079):
+slots with identical effective settings load one copy, and the weights key ignores
+consumer-only fields (GLiNER `tasks` and `inference_concurrency`, OpenDecider `workers`),
+so five consumers of one GLiNER checkpoint load it once.
+
+**Consumers and their switches.** `model.extraction.topic` and `.sensitivity` are on
+whenever their slot is set and are offline only (`settings.local_files_only: true`).
+`semantic` and `prepass` stay switched by `memories.semantic.policies.entity_extraction:
+gliner` and `write.prepass: gliner`, which raise naming the slot when it is missing.
+`read.planner: decision` needs `model.decider.route`; `read.sensitivity_gate: decider`
+needs `model.decider.read`. A `gliner2` slot's model must expose the task its consumer
+needs (`entities` for semantic / prepass / sensitivity, `classification` for topic and the
+deciders). Read-pipeline flags that only consume a model's output (`read.planner`,
+`read.relevance_filter`, `read.cards`, `read.sensitivity_gate`, legs and gates) stay in
+`read`; resource sharing and scheduling stay in `runtime` (`shared_resources`,
+`model_concurrency`). Warm-up categories (`runtime.shared_resources.warmup_include`) follow
+the slots: `embedding`, `rerank`, `extraction`, `lexical`, `llm`, `decider`, `vision`.
+
+```yaml
+model:
+  embedding:
+    provider: fastembed
+    batch_size: 32
+    settings: {model: BAAI/bge-small-en-v1.5}
+  llm:
+    extract:
+      provider: litellm
+      timeout_s: 60
+      structured: {retry_on_error: true, constrained_retry: false}
+      escalation:
+        triggers: [error, invalid_json]
+        max_attempts: 2
+        timeout_s: 120
+        max_tokens_per_attempt: 2048
+        targets:
+          - {provider: litellm, timeout_s: 120, settings: {model: ollama/qwen3.5:27b}}
+      settings: {model: ollama/qwen3.5:9b, api_base: http://localhost:11434}
+    judge:
+      provider: llamacpp
+      timeout_s: 60
+      thinking: 512                # judge / reflect only (P-15)
+      settings: {model_path: C:/models/qwen.gguf, n_ctx: 8192}
+  rerank:
+    chain:
+      - {provider: jina, settings: {}}
+      - {provider: fastembed, settings: {}}
+    pool: 64
+    floor: minmax
+  extraction:
+    semantic: {provider: gliner2, settings: {model: fastino/gliner2.5-base-v1, tasks: [entities]}}
+    topic:
+      provider: gliner2
+      labels: {cardiology: health/condition}
+      min_confidence: 0.6
+      settings: {model: fastino/gliner2.5-base-v1, tasks: [classification], local_files_only: true}
+  decider:
+    route: {provider: gliner2, settings: {model: fastino/gliner2.5-base-v1}}
+    read:
+      provider: opendecider
+      tasks: [list_mode, bridge_hop]
+      min_confidence: 0.5
+      settings: {model: manjunathshiva/opendecider-nano, device: cpu, backend: torch}
+  vision: null
+  placement:
+    tiers_v2: false
+    max_loaded_models: 1
+read:
+  planner: decision      # a pipeline flag: stays in read
+```
+
+A complete, validated example is [`examples/model_slots.yaml`](examples/model_slots.yaml);
+per-consumer GLiNER slots and escalation are covered in
+[multi-model slots](MULTI_MODEL_PROFILES.md).
+
+**Old key → new key.** There are no aliases (ADR-068): every old key is rejected with an
+error naming its new key. `python scripts/migrate_config_keys_adr082.py PATH...` rewrites
+YAML, JSON, `.env` and Python configs (`--check` / `--dry-run` write nothing); it expands
+each old binding into an inline slot and copies `llm.structured` into every role.
+
+| Old | New | Note |
+|---|---|---|
+| `embedding.provider` / `settings` / `batch_size` / `versioned_spaces` | `model.embedding.*` | |
+| `embedding.profile`, `pin_profile`, `migrate_profile` | `model.embedding.preset`, `pin_preset`, `migrate_preset` | |
+| `models.embedder_profile` (auto/cpu/gpu) | `model.embedding.preset` | `auto` = unset |
+| `llm.roles.<role>` | `model.llm.<role>` | `settings.timeout_seconds` -> `timeout_s` |
+| `models.bindings.<llm role>` + `models.profiles.<name>` | `model.llm.<role>` inline | |
+| `llm.structured` | `model.llm.<role>.structured` | set in every role |
+| `models.thinking.<role>` | `model.llm.<role>.thinking` | judge / reflect only |
+| `models.escalation.<role>` | `model.llm.<role>.escalation` | targets are inline LLM slots |
+| `models.bindings.gliner_semantic` / `gliner_prepass` | `model.extraction.semantic` / `prepass` | |
+| `models.bindings.gliner_topic` + `models.topic` | `model.extraction.topic` (+ `labels`, `min_confidence`) | the slot enables it |
+| `models.bindings.gliner_sensitivity` | `model.extraction.sensitivity` | the slot enables it |
+| `models.gliner_max_models` | `model.placement.max_loaded_models` | |
+| `decision.provider` + `models.bindings.gliner_decision` | `model.decider.route` | `off` = no slot |
+| `read.decider`, `decider_model`, `decider_device`, `decider_threads`, `decider_backend`, `decider_dtype` | `model.decider.read.provider` / `settings.{model, device, threads, backend, dtype}` | `heuristic` = no slot |
+| `read.decider_tasks`, `decider_min_confidence`, `decider_workers` | `model.decider.read.tasks`, `min_confidence`, `workers` | |
+| `read.rerank` + `read.rerank_settings` | `model.rerank.chain: [{provider, settings}]` | `off` = `[]` |
+| `read.rerank_v2` + `rerank_v2_chain` | `model.rerank.chain` | mode names become provider entries |
+| `read.rerank_v2_pool`, `rerank_v2_search_pool` | `model.rerank.pool`, `search_pool` | |
+| `read.rerank_{max_top_k, keep, blend, gate, context, date_prefix, balanced, chunk_chars, chunk_overlap, floor}` | `model.rerank.*` without the prefix | |
+| `read.skip_rerank_for_ordering` | `model.rerank.skip_for_ordering` | |
+| `ingest.asset_vision`, `asset_vision_model`, `asset_vision_url`, `asset_vision_timeout_s` | `model.vision.provider`, `settings.model`, `settings.api_base`, `timeout_s` | `none` = `null` |
+| `models.tiers_v2`, `catalogue`, `gpus`, `detect_gpus`, `ram_mb`, `gpu_headroom_mb`, `role_tier`, `pins`, `allow_hosted`, `required_roles`, `on_missing_model` | `model.placement.*` | |
+| `models.default_rerankers` | `model.placement.catalogue_rerankers` | |
+| `models.rerank` (chain/off) | removed | `model.rerank.chain: []` is off |
+| warm-up categories `embedder`, `reranker`, `gliner` | `embedding`, `rerank`, `extraction` (+ `vision`) | |
+| catalogue `kind: reranker`, `embedder` | `rerank`, `embedding` | |
 
 ---
 
@@ -954,21 +1114,13 @@ in the schema — or if the schema gains a key not documented here.
 | `data_shape.language` | `null` | I25: a language code; anything not `en*` selects `non_english` (I23 guard). |
 | `data_shape.speaker_kind` | `unknown` | I25: `named` (-> `named_speakers`) \| `user_assistant` (-> `chat_roles`) \| `single_author` \| `unknown`. |
 | `data_shape.turn_length` | `unknown` | I25: `short` \| `medium` \| `long` (-> `long_turns`) \| `unknown`. Typical (median) characters per turn: <= 300 short, >= 800 long. |
-| `decision.provider` | `off` | H24: optional decision provider for calibrated choices among described options without generation. `gliner2` uses the `[ner]` extra (GLiNER2, Apache-2.0); bind `gliner_decision` to a GLiNER profile in `models.bindings`. |
-| `deployment.data_dir` | — | ADR-081: base directory for host-local slots (LanceDB, Tantivy, LadybugDB, filesystem documents without `settings.root`, disk cache) when the records store is not a file. Unset with SQLite records: the database file's directory, so paths and projection fingerprints are unchanged. Required only when such a slot (or `embedding.pin_profile`) is selected with a non-file records store; the error names the slot. Checked before any provider opens (RM-111 WP6). Was `storage.settings.data_dir` (Postgres). |
+| `deployment.data_dir` | — | ADR-081: base directory for host-local slots (LanceDB, Tantivy, LadybugDB, filesystem documents without `settings.root`, disk cache) when the records store is not a file. Unset with SQLite records: the database file's directory, so paths and projection fingerprints are unchanged. Required only when such a slot (or `model.embedding.pin_preset`) is selected with a non-file records store; the error names the slot. Checked before any provider opens (RM-111 WP6). Was `storage.settings.data_dir` (Postgres). |
 | `deployment.id` | — | ADR-081: stable deployment identity (was `runtime.deployment_id`). Required by shared (cluster) providers such as Postgres, pgvector, OpenSearch, Weaviate, Neo4j and Redis/Valkey, and when `runtime.environment: production`. |
-| `deployment.locality` | `single_process` | ADR-081: `single_process` \| `multi_process` \| `multi_node`. Every data provider declares a locality trait (`process`, `host`, `cluster`), refined from its settings (`:memory:` SQLite is `process`; `sql_adjacency` takes the records slot's locality: `cluster` on Postgres). RM-111 WP6 rules, checked before any provider opens: **`multi_node`** rejects every host-local or in-process slot that is built (records, vector, lexical with `read.hybrid`, graph with associative memory, graph_mirror, documents, disk cache; a `memory` cache is allowed) and the host-local features `workers.runner: temporal` (Resonate journal), `embedding.pin_profile` and `ingest.asset_dir`; **`multi_process`** rejects `:memory:` records and allows the single-writer host-local stores (Tantivy, LadybugDB, filesystem documents) only in the process with `deployment.writer: true`; outside `single_process` an `auto` slot must be explicit. A cluster provider on a loopback address (a sidecar proxy) stays `cluster`. Each error names the slot and the fix. |
+| `deployment.locality` | `single_process` | ADR-081: `single_process` \| `multi_process` \| `multi_node`. Every data provider declares a locality trait (`process`, `host`, `cluster`), refined from its settings (`:memory:` SQLite is `process`; `sql_adjacency` takes the records slot's locality: `cluster` on Postgres). RM-111 WP6 rules, checked before any provider opens: **`multi_node`** rejects every host-local or in-process slot that is built (records, vector, lexical with `read.hybrid`, graph with associative memory, graph_mirror, documents, disk cache; a `memory` cache is allowed) and the host-local features `workers.runner: temporal` (Resonate journal), `model.embedding.pin_preset` and `ingest.asset_dir`; **`multi_process`** rejects `:memory:` records and allows the single-writer host-local stores (Tantivy, LadybugDB, filesystem documents) only in the process with `deployment.writer: true`; outside `single_process` an `auto` slot must be explicit. A cluster provider on a loopback address (a sidecar proxy) stays `cluster`. Each error names the slot and the fix. |
 | `deployment.writer` | `false` | ADR-081 WP6: this process is the designated writer of the single-writer host-local stores (Tantivy, LadybugDB, filesystem documents) under `deployment.locality: multi_process`. Set it in exactly one process per host, usually through the environment (`MEMSPINE_DEPLOYMENT__WRITER=true`); other processes fail at start instead of opening those stores. Exactly one writer cannot be proven from one process's config; it is the operator's responsibility. Ignored in the other modes. |
 | `economy.budget` | `null` | W2-12 (W-26 D, P-22 C; needs `economy.ledger_v2` and `workers.outbox`): optional spend limit per namespace. When spent, window extraction pauses and the windows are parked in the outbox marked underived (never dropped); `Engine.resume_deferred(namespace)` derives them once the budget allows. Sleep stages are paused as one engine-wide pool (`-`), or per namespace under `offline.sleep_scoped`. Sub-keys: `max_calls` (generative calls per namespace per period), `max_tokens` (generative tokens in + out per namespace per period), `period_s` (period length in seconds; spend resets when it rolls; `null` = one period for the run). Tap: `economy.budget`. |
 | `economy.ledger_persist` | `false` | FU-SLEEP (needs `economy.ledger_v2`). `true`: every ledger entry is also kept as a compact row (ids, namespace hash, layer, stage, kind, calls, tokens, latency; no names, no content) in the `cost_entry` table of the storage database (RM-111 WP5: encrypted with it under SQLCipher, shared on Postgres; an older `.cost` side file is imported once at start and renamed `*.imported`), buffered and written in batches, and the totals are reloaded at start, so `cost_report` survives a restart. A reloaded row carries only the namespace hash: `cost_report(namespace)` matches it by hash and `by_namespace` names it once the namespace is seen again. Budget spend is not reloaded (it is per period). `:memory:` storage: not persisted (a warning is logged). `false`: in-process only. |
 | `economy.ledger_v2` | `false` | W2-12 (W-26, P-22 C, LIB-27): count model calls, tokens in/out, latency and embed calls of every write, per layer, per namespace and per stage (`window_extract`, each sleep stage). Read with `Engine.cost_report(namespace)` or `Memory.cost_report()`. `false` records nothing and changes nothing. Tap: `economy.cost`. |
-| `embedding.batch_size` | `32` | G9: most texts per embedding call when `ingest_messages` embeds its turns up front (Cohere on Bedrock: up to 96). |
-| `embedding.migrate_profile` | `False` | MD-02: accept a profile change on open (the pin is replaced, the old hash kept as `previous`). Needs `embedding.versioned_spaces`; run `VersionedSpaceStore.reembed` (F-03) to move the old records. |
-| `embedding.pin_profile` | `False` | MD-02: write the resolved profile (model, dim, dtype, instruction, normalisation, version hash) beside the store at creation (`<db>.embedding-profile.json`, and into the Lance table metadata) and refuse to open the store with a different one. Off = nothing written or checked. In-memory stores pin nothing. |
-| `embedding.profile` | `null` | MD-02 (P-17 C, M-23 B): a named embedding profile that fills provider, model, dim and query instruction. `gpu` = Qwen3-Embedding-0.6B, 1024 dims, bf16 on CUDA, with the evals retrieval instruction (`[st]`); `cpu_multilingual` = paraphrase-multilingual-MiniLM-L12-v2 (ONNX, 384 dims, fastembed). Null = the embedder fields are used as written. |
-| `embedding.provider` || `read.rerank` | `off` | `off` | `fastembed` | `flashrank` `[rerank]` | `litellm` | `jina` `[st]` (Jina listwise reranker; `rerank_model` defaults to `jinaai/jina-reranker-v3.5`, runs the repo's custom code) | `qwen3` `[st]`| `fastembed` (ONNX/CPU) \| `hash` (deterministic, tests) \| `static` (model2vec `[static]`) \| `litellm` (cloud). |
-| `embedding.settings` | — | Provider and policy fields are validated by their typed configuration schema. |
-| `embedding.versioned_spaces` | `False` | F-03 (P-25 C): version the vector space. Each vector belongs to a space (embedder model, dim, dtype, query instruction, normalisation); after an embedder change new writes go to the new space, reads query only a namespace's active space, and `reembed` builds the new space in batches and switches atomically. Off = one table per embedder, unchanged. |
 | `event_log.compress` | `false` | zstd-compress event payloads at rest. |
 | `event_log.mode` | `full` | `full` \| `rolling` (bounded window) \| `ephemeral` (nothing persisted — no rebuild/audit; taint rollback falls back to archiving the seed alone, `strict=True` raises) (D-45, #64). |
 | `event_log.retention_days` | `30` | Rolling-window retention floor; never prunes past a projector high-water mark. |
@@ -1001,10 +1153,6 @@ in the schema — or if the schema gains a key not documented here.
 | `ingest.asset_dir` | `null` | E04: cache directory (gitignored in the harness): `registry.sqlite` and the downloaded bytes under `blobs/` by content hash. Null: in-memory registry, no blobs; `read.asset_evidence: fetch` is then refused. |
 | `ingest.asset_max_bytes` | `5000000` | E04: a larger download fails explicitly (`too_large`). |
 | `ingest.asset_timeout_s` | `15.0` | E04: download timeout in seconds. |
-| `ingest.asset_vision` | `"none"` | E04: the vision/OCR evidence port. `none`: no description (the arm stays text-only; evidence is `skipped`). `ollama`: a local vision model through `/api/chat`. |
-| `ingest.asset_vision_model` | `"qwen2.5vl:3b"` | E04: the Ollama model tag (documented only; the engine never pulls). |
-| `ingest.asset_vision_timeout_s` | `120.0` | E04: timeout of one vision call. |
-| `ingest.asset_vision_url` | `"http://localhost:11434"` | E04: the Ollama base URL. |
 | `ingest.assets` | `"off"` | E04: a message's `attachments` (`[{"uri", "caption", "search_hint", "kind"}]`, plus `turn_id` for the source id) are ignored when off. On: each attachment's identity (source turn, original URI, source caption, availability) goes to the asset registry and the record is tagged `asset:<id>`. Nothing is downloaded at ingest. |
 | `integrity.admission_threshold` | `0.0` | Records whose view trust is below θ are never returned by `search`/`shared_search`. |
 | `integrity.attenuation` | `product` | `product` (trust × κ per grant hop) \| `min` (min(trust, κ)). |
@@ -1028,39 +1176,56 @@ in the schema — or if the schema gains a key not documented here.
 | `isolation.owner_bound_handles` | `false` | Owner-bound handles (coordinator decision 2026-10-13): a single-owner `Memory` handle opened with an authenticated `principal` must belong to it (the namespace owner segment equals the principal); otherwise `ScopeRefused("cross_owner")`. Cross-owner reads go through grants (`shared_search`). Tenant-level namespaces, multi-party/group handles and principal-less library handles are unaffected. |
 | `isolation.scope_keys_v2` | `false` | F-16c (M-05): the read-cache key and the `extract_graph` edge key are built from the typed `Scope` (`memspine.scope`: tenant + owner; the session is provenance and never part of a key). Off: the namespace stands for both scope fields in the cache key and the edge key hashes the raw namespace. Edges keyed with it on do not merge with edges keyed with it off. |
 | `isolation.viewer_required` | `false` | F-16c (G-12 B): every engine read verb (`search`, `read`, `assemble`, `retrieve`, `shared_search`, `get_record`, `brief`, `conversation`, `session_memories`, `timeline`, `sessions`, `namespace_stats`) refuses a read of a multi-party namespace that names no viewer (`ScopeRefused`, reason `viewer_required`; tap `scope.refused`). Verbs with no native viewer filter drop records the viewer may not see (tap `scope.filtered`). Off: no refusal. FX-EX1A (EX-1a finding F1): while on, a multi-party namespace behaves as `write.participants: session` (raw turns tagged with their speakers) and every derived record inherits its parents' participant and visibility tags, never more visible than the strictest parent, whatever `write.participants` says. |
-| `llm.roles.*.provider` | required | Explicit provider descriptor ID; model prefixes never silently select a provider. |
-| `llm.roles.*.settings` | `{}` | Provider-specific JSON object validated against the selected descriptor's settings model. |
-| `llm.structured.constrained_retry` | `false` | I69: on that retry only, request JSON-schema constrained decoding (`response_format`; OpenAI-compatible servers, Ollama via LiteLLM, llama.cpp); a backend that refuses it falls back to a plain retry. |
-| `llm.structured.retry_on_error` | `false` | I69: when a structured reply fails validation, re-prompt ONCE with the validation error appended. Measure first with `engine.structured_stats()`. |
 | `memories.*.enabled` | `false` | Enable a memory type (`working`/`episodic`/`semantic`/…); C1b auto-enables prerequisites. |
 | `memories.*.policies` | `{}` | Per-type policy overrides (conflict/dedup/trust/entity_extraction/page_size/…). `semantic.policies.extract_graph` (`{max_rounds, min_confidence}`) opts into C2 graphiti-style writes: with an `extract_edges` LLM role, the background `extract_graph` sleep stage writes edge facts + `asserted` links. `semantic.policies.write_pipeline: graph` opts into the C3 synchronous variant — edges extracted at write time and written through the M4/M5 ladder (ADR-026). `episodic.policies.sessions.passive_after` (seconds or `"30d"`; default off) opts into the #53 session lifecycle: idle sessions go PASSIVE, out of default reads (ADR-037). |
-| `models.allow_hosted` | `false` | MD-01 (P-02). Hosted models may serve only reader-side roles marked hosted-ok (`chat`, `verify`, `plan`, `sufficiency`, `query_rewrite`); raw-turn roles stay local. |
-| `models.catalogue` | `[]` | MD-01. Declared models with memory estimates: `id` (model id, unchanged), `provider` (required for `llm`; selects its adapter independently of `id`), `kind` (`llm`/`reranker`/`embedder`), `tier` (`none`/`small-local`/`worker`/`frontier`), `family` (reranker: `jina-v3.5`/`qwen3-reranker-0.6b`/`minilm`), `hosted`, `vram_mb`, `ram_mb`, `context_vram_mb`, `placement` (`any`/`gpu`/`cpu`), `supports_thinking`, `profile`, `api_base`, `api_key`, `aws_region`, `timeout_seconds`. The plan is computed from these sizes; no GPU is needed. |
-| `models.default_rerankers` | `shipped` | MD-01. `shipped`: when no reranker is declared, plan the owner-chosen chain (Jina v3.5, then Qwen3-Reranker-0.6B, then MiniLM on CPU) with estimated sizes. With `read.rerank_v2` on, the chain and each link's device come from the plan. |
-| `models.detect_gpus` | `false` | MD-01. Also probe `nvidia-smi` when no GPU is declared. |
-| `models.embedder_profile` | `auto` | MD-01. `auto`/`cpu`/`gpu`: the GPU instruction embedder is chosen only when it lands on a GPU, else the CPU default. |
-| `models.gpu_headroom_mb` | `512` | MD-01. VRAM kept free on every GPU. |
-| `models.gpus` | `[]` | MD-01. Declared CUDA devices (`name`, `vram_mb`); empty = CPU only. A non-NVIDIA name (AMD, Intel, DirectML) is ignored: MD-03 measured the iGPU 5-8x slower than the CPU. |
-| `models.bindings` | `{}` | Consumer role -> named provider profile. Active GLiNER consumers require explicit bindings: `gliner_decision`, `gliner_semantic`, and `gliner_prepass`. The opt-in roles `gliner_sensitivity` (task `entities`) and `gliner_topic` (task `classification`) are active whenever bound and need `local_files_only: true`. |
-| `models.escalation.*.targets` | `[]` | Opt-in per-role LLM profile ladder (`models.escalation.<role>`, default `{}` = no escalation). Ordered, unique profile names tried after the primary. Limits apply per routed chat invocation; profile/caller output limits remain in force. Every candidate retains consent gates; cancellation propagates. See [multi-model guide](MULTI_MODEL_PROFILES.md). |
-| `models.escalation.*.triggers` | `[error]` | Non-empty, duplicate-free list of `error`, `empty`, `invalid_json`: the outcomes that move to the next target. |
-| `models.escalation.*.max_attempts` | `2` | Total attempts including the primary; at least 2 when `targets` is set, at most 1 + number of targets. |
-| `models.escalation.*.timeout_s` | required | Positive finite seconds per attempt (strict float). |
-| `models.escalation.*.max_tokens_per_attempt` | required | Positive output-token cap per attempt (strict int). |
-| `models.gliner_max_models` | `1` | Maximum distinct GLiNER checkpoints (model, revision, device, offline policy) this Engine keeps resident. Profiles differing only in tasks or concurrency share one checkpoint. Raise it when distinct checkpoints must stay resident together; an idle checkpoint can be evicted and reloads on its next call. Weights are shared with other Engines in the process (RM-73). |
-| `models.profiles.*.kind` | required | Named provider profile (`models.profiles.<name>`, default `{}`), validated only as data until a consumer resolves it. `llm` or `gliner`. Different profile names with identical settings share one model. |
-| `models.profiles.*.provider` | required | Non-empty provider name with no surrounding whitespace; GLiNER profiles require `gliner2`. |
-| `models.profiles.*.settings` | `{}` | Provider-native settings. GLiNER profile settings are strict: `model` (`fastino/gliner2.5-base-v1`), `revision` (`null`), `device` (`cpu` or `cuda`), `local_files_only` (`true`), `tasks` (for example `[entities, classification]`), and `inference_concurrency` (`1`). |
-| `models.on_missing_model` | `error` | MD-01 (P-03). `error` fails start for a required role with no model; `rules`/`skip` record the role's fallback (rules or skip, as the role defines) and carry on. |
-| `models.pins` | `{}` | MD-01. Catalogue role -> declared model id (wins over tier choice; a hosted pin on a local-only role is an error). |
-| `models.ram_mb` | `0` | MD-01. Host RAM budget for CPU placement; 0 = not checked. |
-| `models.required_roles` | `[]` | MD-01 (P-03). Catalogue roles that must be served; with `on_missing_model: error` a missing one fails start. `write.window_extract` != `off` adds `extract`. |
-| `models.rerank` | `chain` | MD-01. `off` leaves reranking out of the plan (results unscored). |
-| `models.role_tier` | `{}` | MD-01. Catalogue role -> tier name. `none` turns the role off (the no-model path); another name picks the smallest declared model at that tier or above. Roles: `extract`, `extract_edges`, `summarize`, `call2`, `resolve`, `dedupe`, `sufficiency`, `query_rewrite`, `relevance`, `chat`, `verify`, `judge`, `reflect`, `plan`. |
-| `models.topic.labels` | `{}` | RM-106. Operator label map for the opt-in `gliner_topic` tagger: free topic label -> hierarchical domain id (`{cinema: media/film}`). Added to the pack-domain labels; a label equal to a pack label's readable form (`health condition`) overrides it. A target that is not a domain id (lower-case segments joined by `/`) fails config load. Inert unless `models.bindings.gliner_topic` is bound. |
-| `models.topic.min_confidence` | `0.5` | RM-106. A topic hit sets the domain only at or above this confidence (0..1; default `config/constants.TOPIC_MIN_CONFIDENCE`). A hit without a confidence never sets one. |
-| `models.thinking` | `{}` | MD-01 (P-15). Catalogue role -> capped thinking budget in tokens. Honoured only for `judge` and `reflect` on a model declared `supports_thinking`; every other role stays thinking off. Screen before enabling (paired conflict cases, truncations counted). |
-| `models.tiers_v2` | `false` | MD-01 (P-01, P-02, P-03, P-15, P-19). Roles with no explicit `llm.roles` or `models.bindings` entry resolve through tier, placement and fallback; explicit bindings win. A role no model serves gets no provider. Off leaves named/inline bindings active. Taps: `models.resolve`, `models.placement`, `models.rerank_chain`. `describe()["models"]` holds the plan. |
+| `model.decider.read` | `null` | ADR-082 (I28; was `read.decider*`): who answers the read path's yes/no decisions. `null` = the heuristic regexes and rules, unchanged and with no model. A slot `{provider, tasks, min_confidence, workers, settings}`: `provider: opendecider` runs OpenDecider-nano (`manjunathshiva/opendecider-nano`, Apache-2.0, ~400M parameters, one forward pass, a calibrated probability, no text generated) through memspine's own inference code (the `opendecider` package is not needed; install the `[decider]` extra). `tasks` (default `[list_mode, bridge_hop]`): `list_mode` replaces the set-question regex (only when `read.list_mode` is on); `needs_more_evidence` is the `decider` trigger of `read.agentic`; `bridge_hop` replaces `read.bridge_hop_gate` (only when `read.bridge_hop` is on); `about_target`. `min_confidence` (0.5..1, default 0.5): a decision below it, or any failure (dependencies or weights missing), keeps the heuristic answer. `workers` (default 1): concurrent decision calls in a bounded thread pool. OpenDecider `settings` are strict: `model` (Hugging Face id or local folder, loaded lazily once per process and device; 0.8 GB download, about 2 GB RAM in fp32), `device` (`cpu` default, `cuda`, `mps`, `auto`; one decision is about 0.2-0.4 s on a CPU), `threads` (0 = the physical cores; with `workers` > 1 each worker gets `cores // workers`), `backend` (`torch` fp32 as evaluated, or `onnx`: the published 8-bit build, CPU only, needs `onnxruntime`), `dtype` (`float32` or `bfloat16`: 300 of 300 decisions identical). Every decision is recorded in `search_forensics` under `decisions`. `Engine.set_decider(obj)` injects any object with `async decide(task, question, context) -> Decision`. `read.sensitivity_gate: decider` needs this slot. |
+| `model.decider.route` | `null` | ADR-082 (H24; was `decision.provider` + the `gliner_decision` binding): the decision provider for calibrated choices among described options without generation, used by `read.planner: decision` (which raises naming this slot when it is absent). `{provider, min_confidence, workers, settings}`; providers `heuristic`, `opendecider`, `gliner2` (`[ner]`, GLiNER2, Apache-2.0; strict GLiNER settings, the model needs task `classification`). `null` = off. |
+| `model.embedding.batch_size` | `32` | G9: most texts per embedding call when `ingest_messages` embeds its turns up front (Cohere on Bedrock: up to 96). |
+| `model.embedding.migrate_preset` | `false` | MD-02 (was `embedding.migrate_profile`): accept a preset change on open (the pin is replaced, the old hash kept as `previous`). Needs `model.embedding.versioned_spaces`; run `VersionedSpaceStore.reembed` (F-03) to move the old records. |
+| `model.embedding.pin_preset` | `false` | MD-02 (was `embedding.pin_profile`): write the resolved embedding preset (model, dim, dtype, instruction, normalisation, version hash) beside the store at creation (`<db>.embedding-profile.json`, and into the Lance table metadata) and refuse to open the store with a different one. Off = nothing written or checked. In-memory stores pin nothing. |
+| `model.embedding.preset` | `null` | MD-02 (was `embedding.profile` and `models.embedder_profile`): a shipped embedding preset that fills provider, model, dim and query instruction. `gpu` = Qwen3-Embedding-0.6B, 1024 dims, bf16 on CUDA, with the evals retrieval instruction (`[st]`); `cpu_multilingual` = paraphrase-multilingual-MiniLM-L12-v2 (ONNX, 384 dims, fastembed). Null (`auto`) = the slot fields are used as written. |
+| `model.embedding.provider` | `fastembed` | D-08: `fastembed` (ONNX/CPU) \| `hash` (deterministic, tests) \| `static` (model2vec `[static]`) \| `litellm` (cloud; `settings.dim` required) \| `st` (sentence-transformers, `[st]`). |
+| `model.embedding.settings` | `{}` | Provider-owned settings (model id, dim, api_base, ...), validated by the selected provider's descriptor. |
+| `model.embedding.versioned_spaces` | `false` | F-03 (P-25 C): version the vector space. Each vector belongs to a space (embedder model, dim, dtype, query instruction, normalisation); after an embedder change new writes go to the new space, reads query only a namespace's active space, and `reembed` builds the new space in batches and switches atomically. Off = one table per embedder, unchanged. |
+| `model.extraction.prepass` | `null` | ADR-082 (was the `gliner_prepass` binding): the GLiNER slot of `write.prepass: gliner` (which raises naming this slot when it is absent). `{provider: gliner2, settings}`; the model needs task `entities`. |
+| `model.extraction.semantic` | `null` | ADR-082 (was the `gliner_semantic` binding): the GLiNER slot of `memories.semantic.policies.entity_extraction: gliner` (which raises naming this slot when it is absent). `{provider: gliner2, settings}`; the model needs task `entities`. GLiNER settings are strict: `model` (`fastino/gliner2.5-base-v1`), `revision` (`null`), `device` (`cpu` or `cuda`), `local_files_only` (`true`), `tasks` (default `[entities, classification]`), `inference_concurrency` (`1`). Slots with the same checkpoint, revision and device share one load: `tasks` and `inference_concurrency` are not part of the weights key. |
+| `model.extraction.sensitivity` | `null` | ADR-082 (RM-99; was the `gliner_sensitivity` binding): the opt-in GLiNER sensitivity labeller, on whenever the slot is set. Needs task `entities` and `settings.local_files_only: true` (offline only). |
+| `model.extraction.topic` | `null` | ADR-082 (RM-106; was the `gliner_topic` binding + `models.topic`): the opt-in GLiNER topic tagger, on whenever the slot is set. Needs task `classification` and `settings.local_files_only: true` (offline only). Typed keys: `labels` (free topic label -> hierarchical domain id, `{cinema: media/film}`, added to the pack-domain labels; a target that is not a domain id fails config load) and `min_confidence` (default `0.5`; a hit sets the domain only at or above it). |
+| `model.llm.*.escalation` | `null` | ADR-082 (was `models.escalation.<role>`): opt-in bounded retry ladder for one role. `targets` (ordered, unique inline LLM slots `{provider, timeout_s, settings}` tried after the primary; a target equal to the primary is an error), `triggers` (non-empty list of `error`, `empty`, `invalid_json`; default `[error]`), `max_attempts` (total including the primary; at least 2 with targets, at most 1 + targets; default 2), `timeout_s` (required, seconds per attempt), `max_tokens_per_attempt` (required). Every candidate keeps the consent gates; cancellation propagates. |
+| `model.llm.*.provider` | required | ADR-082 (was `llm.roles.<role>.provider`): explicit LLM provider for the role (`litellm`, `ollama`, `vllm`, `bedrock`, `llamacpp`, ...); model prefixes never select a provider. A role that is not listed is off. Roles must be known prompt or catalogue roles. |
+| `model.llm.*.settings` | `{}` | Provider-owned settings (`model`, `api_base`, `temperature`, `max_tokens`, `n_ctx`, ...) validated by the selected descriptor. `settings.timeout_seconds` is rejected: use `timeout_s`. |
+| `model.llm.*.structured.constrained_retry` | `false` | I69 (was `llm.structured.constrained_retry`): on that retry only, request JSON-schema constrained decoding (`response_format`; OpenAI-compatible servers, Ollama via LiteLLM, llama.cpp); a backend that refuses it falls back to a plain retry. Set per role. |
+| `model.llm.*.structured.retry_on_error` | `false` | I69 (was `llm.structured.retry_on_error`): when a structured reply fails validation, re-prompt ONCE with the validation error appended. Measure first with `engine.structured_stats()`. Set per role. |
+| `model.llm.*.thinking` | `null` | MD-01 (P-15; was `models.thinking.<role>`): capped thinking budget in tokens. Allowed only on `judge` and `reflect` (any other role is a config error); honoured on a model that supports thinking. Screen before enabling. |
+| `model.llm.*.timeout_s` | required | ADR-082: positive finite seconds for one call of the role (strict float). Required on every LLM slot. |
+| `model.placement.allow_hosted` | `false` | MD-01 (P-02). Hosted models may serve only reader-side roles marked hosted-ok (`chat`, `verify`, `plan`, `sufficiency`, `query_rewrite`); raw-turn roles stay local. |
+| `model.placement.catalogue` | `[]` | MD-01. Declared models with memory estimates: `id` (model id), `provider` (required for `llm`), `kind` (`llm`/`rerank`/`embedding`), `tier` (`none`/`small-local`/`worker`/`frontier`), `family` (rerank: `jina-v3.5`/`qwen3-reranker-0.6b`/`minilm`), `hosted`, `vram_mb`, `ram_mb`, `context_vram_mb`, `placement` (`any`/`gpu`/`cpu`), `supports_thinking`, `profile`, `api_base`, `api_key`, `aws_region`, `timeout_seconds` (required for `llm`; catalogue entries are declarations, not slots). The plan is computed from these sizes; no GPU is needed. |
+| `model.placement.catalogue_rerankers` | `shipped` | MD-01 (was `models.default_rerankers`). `shipped`: when no reranker is declared, plan the owner-chosen chain (Jina v3.5, then Qwen3-Reranker-0.6B, then MiniLM on CPU) with estimated sizes; `none`: do not. |
+| `model.placement.detect_gpus` | `false` | MD-01. Also probe `nvidia-smi` when no GPU is declared. |
+| `model.placement.gpu_headroom_mb` | `512` | MD-01. VRAM kept free on every GPU. |
+| `model.placement.gpus` | `[]` | MD-01. Declared CUDA devices (`name`, `vram_mb`); empty = CPU only. A non-NVIDIA name (AMD, Intel, DirectML) is ignored: MD-03 measured the iGPU 5-8x slower than the CPU. |
+| `model.placement.max_loaded_models` | `1` | Was `models.gliner_max_models`: maximum distinct GLiNER checkpoints (model, revision, device, offline policy) this Engine keeps resident. Slots differing only in tasks or concurrency share one checkpoint. An idle checkpoint can be evicted and reloads on its next call. Weights are shared with other Engines in the process (RM-73). |
+| `model.placement.on_missing_model` | `error` | MD-01 (P-03). `error` fails start for a required role with no model; `rules`/`skip` record the role's fallback and carry on. |
+| `model.placement.pins` | `{}` | MD-01. Catalogue role -> declared model id (wins over tier choice; a hosted pin on a local-only role is an error). |
+| `model.placement.ram_mb` | `0` | MD-01. Host RAM budget for CPU placement; 0 = not checked. |
+| `model.placement.required_roles` | `[]` | MD-01 (P-03). Catalogue roles that must be served; with `on_missing_model: error` a missing one fails start. `write.window_extract` != `off` adds `extract`. |
+| `model.placement.role_tier` | `{}` | MD-01. Catalogue role -> tier name. `none` turns the role off (the no-model path); another name picks the smallest declared model at that tier or above. Roles: `extract`, `extract_edges`, `summarize`, `call2`, `resolve`, `dedupe`, `sufficiency`, `query_rewrite`, `relevance`, `chat`, `verify`, `judge`, `reflect`, `plan`. |
+| `model.placement.tiers_v2` | `false` | MD-01 (P-01, P-02, P-03, P-15, P-19). Roles with no `model.llm.<role>` slot resolve through tier, placement and fallback; an explicit slot wins. A role no model serves gets no provider. Taps: `models.resolve`, `models.placement`, `models.rerank_chain`. `describe()["models"]` holds the plan. |
+| `model.rerank.balanced` | `false` | GR-15 (Graphiti's balanced shortlist): the pool cut before reranking takes each leg's best remaining hit in turn (vector, lexical, then the extra legs), so one leg cannot fill the pool. |
+| `model.rerank.blend` | `null` | N41: null = the reranker's relevance replaces the retrieval score. A weight `w` in [0, 1] blends them: `w * rerank + (1 - w) * retrieval`, each min-max normalised over the candidates. |
+| `model.rerank.chain` | `[]` | ADR-082 (was `read.rerank` + `read.rerank_settings` and `read.rerank_v2` + `rerank_v2_chain`): rerankers `{provider, settings}` in preference order; the first that builds and works wins, `[]` = off, one entry = a single reranker. Providers: `fastembed` (ONNX/CPU MiniLM), `flashrank` (`[rerank]`), `litellm` (`settings.model`, e.g. `cohere/rerank-english-v3.0`), `jina` (`[st]`, Jina v3.5 listwise, CC-BY-NC weights), `qwen3` (`[st]`, Qwen3-Reranker-0.6B) — E8 cross-encoder (D-51). Unscored candidates stay unscored and follow the scored ones. Tap: `read.rerank.scored`. |
+| `model.rerank.chunk_chars` | `null` | I9: `null` = a record longer than the reranker's context is cut and its tail dropped. N = records longer than N characters are scored in overlapping windows of N characters and take the MAX window score. |
+| `model.rerank.chunk_overlap` | `0` | I9: characters shared by neighbouring windows. |
+| `model.rerank.context` | `0` | N42: the reranker sees each candidate with this many neighbouring turns of its episodic session on each side (0–3). The stored record and the context shown to the reader are unchanged. |
+| `model.rerank.date_prefix` | `false` | Hindsight: prefix reranker inputs with `[Date: YYYY-MM-DD]`. |
+| `model.rerank.floor` | `minmax` | RETRIEVAL_GAPS finding 3: `minmax` = a reranked list is min-max normalised and `read.assembly.relative_floor` applies. `skip` = a read the reranker scored does not apply the relative floor; a read it did not score (off, gated, failed) still does. |
+| `model.rerank.gate` | `null` | N41 confidence gate: when the reranker's best raw score is below this value, the retrieval order is kept (`rerank_stats()["gated"]` counts these). |
+| `model.rerank.keep` | `null` | G5b: with a reranker and `candidate_pool > 1`, keep only the best `keep` candidates after reranking, before assembly fills the budget. `null` = keep the whole pool. A failed rerank keeps the pool. |
+| `model.rerank.max_top_k` | `null` | H18: run the reranker only when `top_k` is at most this. `null` = always. |
+| `model.rerank.pool` | `64` | R3-07 (was `read.rerank_v2_pool`): candidates sent to the reranker (1..256); the rest stay unscored. |
+| `model.rerank.search_pool` | `0` | FU-RRPOOL (was `read.rerank_v2_search_pool`). > 0: `search` fetches `max(top_k, N)`, reranks them (at most `pool` are scored), then cuts to `top_k`; `assemble` / `read` (replay included) fetch `max(top_k x candidate_pool, N)` before the rerank and cut back to `top_k x candidate_pool`. 0 = off. |
+| `model.rerank.skip_for_ordering` | `false` | Agent Zero (was `read.skip_rerank_for_ordering`): skip the reranker for ordering questions (first / latest / most recent). |
+| `model.vision` | `null` | ADR-082 (E04; was `ingest.asset_vision*`): the vision/OCR evidence port. `null` = no description (the arm stays text-only; evidence is `skipped`). `{provider: ollama, timeout_s: 120.0, settings: {model: qwen2.5vl:3b, api_base: http://localhost:11434}}`: a local vision model through `/api/chat` (the engine never pulls the model). |
 | `namespaces.*.policies` | `{}` | Per-namespace policy overrides (D-14). |
 | `observability.inspect` | `false` | TI-1 (Trace Inspector): extra wiretap events that follow one turn or question through every stage: `store.index.record` (vector / lexical / graph membership per record), `write.turn.bound`, `write.window.members` (also skipped and failed windows), `write.extract.io`, `write.envelope.trace` (per envelope per stage, `occ -> rid` at deposit), `write.integrate.ladder`, `write.edges.pending` / `.consumed`, `job.stage.item` (per output of each sleep stage), `compose.headers`, `read.rerank.components`, `read.planner.io`, `read.retrieve.writeback`, and outbox prepare / commit inside a `job` request. Also enables `inspect_scope(**keys)` (`memspine.observability.inspect`): keys such as `run_id`, `item`, `turn_id`, `query_id` and `window_id` are merged into every tap event emitted inside the scope. Needs the wiretap: `Engine.start()` switches it on with the configured sink (default `jsonl`) when `observability.tap.enabled` is off. Off: no event is built, no scope key is set, behaviour and goldens are unchanged. See `docs/v2/TRACE_INSPECTOR_PLAN.md`. |
 | `observability.inspect_content` | `false` | TI-1: with `observability.inspect` on, also keep text payloads in the inspect events (rendered extraction prompt, raw reply, parsed sections, index text, envelope text, header text, planner input / output, ladder entity and attribute), truncated at 20000 characters and redacted by the tap. Switches the tap content opt-in on. Off: ids, hashes, counts and decisions only. Keep it off outside local debugging. |
@@ -1126,12 +1291,12 @@ in the schema — or if the schema gains a key not documented here.
 | `prompts.partials` | `{}` | Override fragments for shared Jinja `{% include %}` partials (anti-injection block, output footer); `<name>` → replacement text, consulted before the shipped `_partials/` dir (B1). |
 | `prompts.selection` | `{}` | Per-role default scenario selectors: `<role>` → map of optional `memory_type`/`condition`, merged into every `select(role)` query so a deployment can pin a prompt variant without code (B2). Shipped `chat` conditions: `dated` (H12, `chat@dated`), `dated2` (G12, `chat@dated2`: `chat@dated` plus "a line's leading date is when it was said, `[= …]` is when the event happened; answer *when* questions with the happened date"), `infer` (G10, `chat@infer`), `dated3` (#34, `chat@dated3`: brief reasoning then a final `Answer:` line, which `Engine.final_answer()` extracts; quote the specific detail; dates in the granularity asked; "a date in brackets is when it was said; the event may be earlier"; merge repeated mentions before counting; "Not mentioned" only when nothing bears on the question). `temporal` (C1/H11, `chat@temporal`: `chat@dated` plus "infer a date not stated outright from the line's date and any relative phrase; answer dates as DD Month YYYY"), `inference` (C1/H11, `chat@inference`: `chat@dated` with the refusal replaced by "give the most plausible answer and say 'likely'"). C2: the entry `chat_by_shape` (default unset = unchanged) maps a question shape (`temporal`: `query_shape.is_temporal`; `inference`: `is_inference`, a "would / likely / might / could ...?" question; temporal wins) to the `chat` condition `Engine.chat_messages` uses for that question, e.g. `chat_by_shape: {temporal: temporal, inference: inference}` (the harness `--qa-prompt routed` mapping) or `{temporal: infer, inference: infer}`; other questions keep the `chat` selection, a per-call `condition` wins, and an unknown shape or condition is a config error. `plan` condition `v2` is selected by `read.planner_version`; `extract` conditions `session3` / `dates` by the consolidation options. |
 | `read.abstain_on_raw` | `false` | I30. Judge `assembly.theta_abstain` and `assembly.relative_floor` on the reranker's RAW scores (before min-max), so they work under rerank where min-max makes the top candidate 1.0. Raw scores are model-specific (the floor assumes non-negative scores); the portable alternative is `relevance_gate: store_calibrated`. Recorded as `abstain_on_raw` in the forensics. |
-| `read.agentic` | `false` | I67: opt-in agentic multi-step read. Step 0 is the normal read, unchanged. Then, up to `agentic_max_steps` times, the `sufficiency` role (else `plan`; prompt `sufficiency@agentic`) sees the question and a compact view of the evidence (about 800 tokens) and returns one structured action validated through `structured_call` (with the opt-in `llm.structured` repair and retry): `answer_ready`, `search` (a query) or `search_person_time` (a person and/or a time). It is not native tool calling. Each search goes through the same gated search of the same namespace (the model supplies only text; a namespace field is ignored; firewall-quarantined records never appear). New hits of all steps are RRF-fused, de-duplicated by record id, and appended after the step-0 records under the same token budget. Stops on `answer_ready`, `max_steps`, `no_new`, `budget`, `repeat` or `error` (an error or an unbound role keeps the step-0 read). Every step goes to `search_forensics()["agentic_steps"]` (action, query, why, new record ids, LLM calls and seconds, search seconds) and totals to `["agentic"]` (trigger, fired, stop, llm_calls, new_ids, displaced_ids). Off: no call, byte-identical. |
+| `read.agentic` | `false` | I67: opt-in agentic multi-step read. Step 0 is the normal read, unchanged. Then, up to `agentic_max_steps` times, the `sufficiency` role (else `plan`; prompt `sufficiency@agentic`) sees the question and a compact view of the evidence (about 800 tokens) and returns one structured action validated through `structured_call` (with the opt-in `model.llm.<role>.structured` repair and retry): `answer_ready`, `search` (a query) or `search_person_time` (a person and/or a time). It is not native tool calling. Each search goes through the same gated search of the same namespace (the model supplies only text; a namespace field is ignored; firewall-quarantined records never appear). New hits of all steps are RRF-fused, de-duplicated by record id, and appended after the step-0 records under the same token budget. Stops on `answer_ready`, `max_steps`, `no_new`, `budget`, `repeat` or `error` (an error or an unbound role keeps the step-0 read). Every step goes to `search_forensics()["agentic_steps"]` (action, query, why, new record ids, LLM calls and seconds, search seconds) and totals to `["agentic"]` (trigger, fired, stop, llm_calls, new_ids, displaced_ids). Off: no call, byte-identical. |
 | `read.agentic_first_share` | `0.6` | I67: share of the read budget reserved for the step-0 hits, taken in their order. New records may displace only the step-0 records after that share, last first, and only as far as they need room. |
 | `read.agentic_max_new` | `6` | I67: most new records the loop adds over all steps, 1 to 20. |
 | `read.agentic_max_steps` | `2` | I67: most action steps per question, 1 to 5. Each step is one LLM call (two with the structured retry) and at most one extra local search. |
 | `read.agentic_top_k` | `8` | I67: hits one extra search keeps, 1 to 20. |
-| `read.agentic_trigger` | `multi_hop` | I67: when the loop fires. `always`; `multi_hop`: a generic surface heuristic (two or more capitalised names, a relation word such as both / same / before / after / while, a possessive chain, or a bridge cue); `decider`: the `needs_more_evidence` task of the OpenDecider port (needs `read.decider: opendecider` and the task in `decider_tasks`; otherwise, or when unsure or failing, the `multi_hop` heuristic answers). A question that does not fire makes no LLM call. |
+| `read.agentic_trigger` | `multi_hop` | I67: when the loop fires. `always`; `multi_hop`: a generic surface heuristic (two or more capitalised names, a relation word such as both / same / before / after / while, a possessive chain, or a bridge cue); `decider`: the `needs_more_evidence` task of the OpenDecider port (needs a `model.decider.read` slot with the task in its `tasks`; otherwise, or when unsure or failing, the `multi_hop` heuristic answers). A question that does not fire makes no LLM call. |
 | `read.aggregate_in_replay` | `false` | A1 (ADR-055): a `replay` read (also `auto` when it reads by replay) of a list or count question (`query_shape.is_aggregation` / `is_count`) retrieves `read.aggregate_top_k` candidates (when set; else the caller's `top_k`) through the normal replay path: replay rendering, no compose, no completeness round. The budget still caps the context. Off: byte-identical (golden `tests/unit/golden/routed_read_off.json`). |
 | `read.aggregate_top_k` | `null` | G11: the `top_k` of a read that `read(mode="auto")` routes to compose (the LLM planner's `aggregate`, the decision planner's or the rules' compose), so list and count questions whose evidence spans sessions pool more candidates; the budget still caps the context. An explicit `mode="compose"` keeps the caller's `top_k`. `null` = unchanged. |
 | `read.anticipatory_cues` | `false` | C8': a search hit on a cue written with `Engine.add_cues` resolves to its target record; cues are keys, never content (off: invisible). |
@@ -1148,7 +1313,7 @@ in the schema — or if the schema gains a key not documented here.
 | `read.cache.max_entries` | `256` | R3-15: read-cache capacity (oldest evicted). |
 | `read.cache.ttl_seconds` | `null` | R3-15: optional read-cache entry lifetime in seconds. |
 | `read.candidate_pool` | `1` | H11: assembly draws from `candidate_pool × top_k` search candidates, so the token budget rather than a fixed K decides how much evidence enters (LoCoMo: top-10 used ~400 of 4,096 tokens; top-30 lifted multi-hop all-evidence coverage from 5% to 19%). Pair with `read.assembly.relative_floor` (H4: drop candidates below that fraction of the best score; 0 = off). |
-| `read.cards` | `off` | G1b (JustMem cards): `header` opens the volatile context of every read mode and `assemble` with a `FACTS` block of the mined atomic facts relevant to the query, one `[said YYYY-MM-DD] Entity: fact` line each (the date of the fact's earliest source turn; no date without one), fitted as rendered and shown in said order. Facts come from the same hybrid search restricted to `atomic_fact` records and pass every search gate and M12 abstention on their own scores; the rest of the budget goes to the normal read, which then leaves mined facts out (no fact twice) inside its search, before the rerank and `rerank_keep` cut, widening until enough visible records survive. A `full` read leaves out only the facts the header shows. Under `integrity.claims_only_below` a card whose source turn is below the threshold carries the `[CLAIM ...]` marker, and B9 does not put it back as a claim. A header that passed abstention is attached even when the routed read abstains (the read then no longer abstains). Needs `consolidation.mine_facts`. |
+| `read.cards` | `off` | G1b (JustMem cards): `header` opens the volatile context of every read mode and `assemble` with a `FACTS` block of the mined atomic facts relevant to the query, one `[said YYYY-MM-DD] Entity: fact` line each (the date of the fact's earliest source turn; no date without one), fitted as rendered and shown in said order. Facts come from the same hybrid search restricted to `atomic_fact` records and pass every search gate and M12 abstention on their own scores; the rest of the budget goes to the normal read, which then leaves mined facts out (no fact twice) inside its search, before the rerank and `model.rerank.keep` cut, widening until enough visible records survive. A `full` read leaves out only the facts the header shows. Under `integrity.claims_only_below` a card whose source turn is below the threshold carries the `[CLAIM ...]` marker, and B9 does not put it back as a claim. A header that passed abstention is attached even when the routed read abstains (the read then no longer abstains). Needs `consolidation.mine_facts`. |
 | `read.cards_budget_share` | `0.25` | G1b: the share of the budget the cards header may use. With both headers on, `cards_budget_share + profile_budget_share` must be below 1 (config error otherwise). |
 | `read.cards_event_date` | `false` | #29: a card whose mined fact carries a happened date (`consolidation.mine_event_dates`) different from the day it was said renders `[said d1 · happened d2]`. Off: byte-identical. |
 | `read.cards_include_edges` | `false` | GP-5 (#15): after the cards header, a `GRAPH FACTS` block of the edge facts (`rel:`-tagged records) the graph walk reaches from the entities the query names, live and superseded, one `[2023-05-01 → present] Bram read "X" (sources: 2)` line each (a superseded fact shows its end date; `sources` counts the live episodes stating it). Shares `cards_budget_share` with the cards header and counts toward the header-share check; the shown facts are left out of the read below. Off: byte-identical. |
@@ -1181,15 +1346,6 @@ in the schema — or if the schema gains a key not documented here.
 | `read.date_prior` | `false` | R14-M-7. A question naming an explicit date or month (parsed by the temporal parser; never the system clock) multiplies the fused score of candidates whose session or `happened:` date lies within `date_prior_days` of it by up to `1 + date_prior_boost`, and protects up to five boosted candidates that some leg ranks in its top 10 into the rerank pool. Boost only; per-leg RRF path only. Tap: `read.date_prior`. |
 | `read.date_prior_boost` | `1.0` | R14-M-7, with `date_prior`: the largest extra multiplier (a candidate on the date itself scores `1 + boost` times its fused score; linear to 1 at the window edge). |
 | `read.date_prior_days` | `14` | R14-M-7, with `date_prior`: the window in days either side of the question's date span. |
-| `read.decider` | `"heuristic"` | I28. Who answers the read path's yes/no decisions. `heuristic`: the existing regexes and rules, unchanged and with no model. `opendecider`: OpenDecider-nano (`manjunathshiva/opendecider-nano`, Apache-2.0, ~400M parameters, one forward pass, a calibrated probability, no text generated) through memspine's own inference code (`services/decision/opendecider_nano.py`; the `opendecider` package is not needed). Install the `[decider]` extra (torch, transformers, safetensors, huggingface-hub). A decision below `read.decider_min_confidence`, or any failure (dependencies or weights missing), keeps the heuristic answer. Every decision is recorded in `search_forensics` under `decisions` (task, label, confidence, adapter, `used`, the heuristic label). `Engine.set_decider(obj)` injects any object with `async decide(task, question, context) -> Decision`. |
-| `read.decider_backend` | `"torch"` | `torch` (fp32, as the model was evaluated) or `onnx` (the published 8-bit weight-only ONNX build `manjunathshiva/opendecider-nano-ONNX/onnx/model_q8.onnx`, 570 MB extra download, ONNX Runtime CPU provider, graph optimisation ALL; needs `onnxruntime`). Measured speed and agreement with torch are in the GAP_REGISTER row I28. |
-| `read.decider_device` | `"cpu"` | `cpu`, `cuda`, `mps` or `auto`. CPU by default because the GPU is usually shared with the reader; one decision takes about 0.2-0.4 s on a CPU, 17 ms on an L40S. |
-| `read.decider_dtype` | `"float32"` | torch weights dtype: `float32` (as the model was evaluated) or `bfloat16` (about 1.5x faster on a 16-core CPU, 300 of 300 decisions identical to fp32, max probability difference 0.0075). |
-| `read.decider_min_confidence` | `0.5` | Confidence (probability of the chosen label) the decider needs for its answer to replace the heuristic. 0.5 uses the calibrated decision as it is (the winning label always has at least 0.5); raise it to fall back to the heuristic more often. A fixed principled cut, not tuned per dataset. |
-| `read.decider_model` | `"manjunathshiva/opendecider-nano"` | Hugging Face id or local folder; loaded lazily, once per process and device (0.8 GB download, about 2 GB RAM in fp32). |
-| `read.decider_tasks` | `["list_mode", "bridge_hop"]` | The decision points that use the decider when `read.decider` is `opendecider`. `list_mode`: replaces the set-question regex (only when `read.list_mode` is on). `needs_more_evidence`: the `decider` trigger of `read.agentic` (input is the question and the first-pass hits; labels `needs_more` / `enough`). `bridge_hop`: replaces `read.bridge_hop_gate` (only when `read.bridge_hop` is on; input is the question and the first-pass hits). The refusal retry is a harness decision point: `--decider opendecider` with `--retry-refusal` in `memspine_evals`. |
-| `read.decider_threads` | `0` | I38. Intra-op CPU threads of the decider model; `0` = the physical cores. With `decider_workers` > 1 each worker gets `cores // workers`, so the machine is not oversubscribed. Inference always runs under `torch.inference_mode`. |
-| `read.decider_workers` | `1` | Concurrent decision calls (a bounded thread pool; the eval harness uses it for many queries). 1 keeps the engine path unchanged. `OpenDeciderDecider.decide_many([(task, question, context), ...])` answers decisions of several tasks in one batched call: inputs are sorted by length and bucketed (at most 16 per forward pass) so short inputs are not padded to long ones. |
 | `read.decompose_v2` | `false` | R14-M-12 / OBS-10: map-reduce read for a question naming two or more known participants joined by both / and / either / compare / same / each / before / after or "who ... more". One sub-read per entity (the question with the other entities removed, entity as focal entity, equal share of the context budget; concurrent under `read.parallel_legs`), merged under a combine hint and one labelled block per entity. No model call; a `full` read and single-entity questions are unchanged. |
 | `read.decompose_v2_max_entities` | `3` | R14-M-12: most entities one question is split into (2 to 6). |
 | `read.dedupe` | `off` | I31: near-duplicate removal among the candidates before assembly: `exact` (equal text), `jaccard` (content-word Jaccard >= `dedupe_threshold`), `embedding` (vector cosine >= `dedupe_threshold`; falls back to jaccard for a record with no vector). The drops are in `search_forensics()["dedupe_dropped"]` as `(dropped id, kept id, similarity)`. The assembly policy's `dedupe_jaccard` (H23, MMR stage) is separate and unchanged. |
@@ -1273,7 +1429,7 @@ in the schema — or if the schema gains a key not documented here.
 | `read.lift_before_rerank` | `false` | R3-08 (LIB-11, ER-21 B, POL-2). Lift derived hits to their source turns before the rerank (lift, re-admit, dedupe, cap, rerank); a derived hit with a hidden or missing source turn is dropped. Tap: `read.lift.stage`. |
 | `read.lift_max_turns` | `2` | R3-08. At most this many source turns replace one derived hit. |
 | `read.list_cards_only_aggregate` | `false` | A2 (ADR-055): the cards header shows #30 list cards only to list and count questions; other questions get the other cards. With the cards header on, a list card hidden this way also stays out of the read below (the header hides every mined fact). Off: byte-identical. |
-| `read.list_mode` | `false` | Gap B1, list / set questions ("What activities does X do?"). For a question matching `list_trigger` the routed replay/retrieve read (a compose-routed aggregation read is not affected) (1) adds the `speaker_vote` RRF leg when exactly one speaker is named: the vector leg fetched `list_vote_depth` deep, kept to that speaker's turns (`speaker:` tag, else the `Name:` prefix), top `list_vote_top_k`; (2) draws `max(candidate_pool, list_pool) x top_k` candidates and skips the `rerank_keep` cut; (3) gives only the best `window_full_hits` hits their neighbour window, the others are single turns. Any other question reads as before. |
+| `read.list_mode` | `false` | Gap B1, list / set questions ("What activities does X do?"). For a question matching `list_trigger` the routed replay/retrieve read (a compose-routed aggregation read is not affected) (1) adds the `speaker_vote` RRF leg when exactly one speaker is named: the vector leg fetched `list_vote_depth` deep, kept to that speaker's turns (`speaker:` tag, else the `Name:` prefix), top `list_vote_top_k`; (2) draws `max(candidate_pool, list_pool) x top_k` candidates and skips the `model.rerank.keep` cut; (3) gives only the best `window_full_hits` hits their neighbour window, the others are single turns. Any other question reads as before. |
 | `read.list_mode_trigger_v2` | `false` | R14-M-1, no model call. With `read.list_mode` on, replaces the `list_trigger` regex: a fixed logistic score of the question shape (intent cues, wh opener, perfect aspect, plural head, modal wording, length) and the first vector leg's score profile (10th/1st score ratio, first gap) decides list depth. Costs one extra query embedding and one 30-deep vector search per read; falls back to the regex on error. `task=list_mode` of the decider still overrides. |
 | `read.list_pool` | `3` | candidate pool (x `top_k`) of a list-mode read. |
 | `read.list_trigger` | `set_question` | `set_question` = `query_shape.is_set_question` (what/which/who + a plural set noun, "what kind of", "what do/does/has X ..."); `set_question_wide` (R2-3) = `is_set_question_wide`: that, plus "How did/has/does X <multi-way verb> ..." (promote, support, spend, relax ...) and what/which questions with a plural head noun ("What gifts did X buy?"); `aggregation` = `is_aggregation` or `is_count`; `intent` (I4) = `is_intent_list`, a no-model generic heuristic: aggregation cues (how many, total, so far, all the, each, both, in common, list), plural answer heads, "what kind/type of", enumerating conjunctions; quiet on one-item questions ("most recently", "last", "favourite", "most"). With list mode on, a question naming TWO speakers with a comparison cue ("both", "in common", "each", "share") runs the speaker vote once per speaker (legs `speaker_vote_a`, `speaker_vote_b`; R2-2). |
@@ -1288,7 +1444,7 @@ in the schema — or if the schema gains a key not documented here.
 | `read.novelty_exclusions` | `false` | G32 (ADR-059): a request for something new ("a book I haven't read") gets a header of what memory says the asker already likes, does or has (likes, activities, favourite_*, pets facts and list cards). |
 | `read.obligations` | `false` | R3-16 (LIB-15, ER-19): derive evidence obligations (single, join, duration, list, count, comparison, latest) from the typed query contract and check them against the read's keyed semantic records (raw turns are not claimed as facts). No model call. Forensics `obligations` (verdict, holes, caveats); wiretap `read.obligations.report`. Also feeds the rule check of `deep_v2`. Off: nothing runs. |
 | `read.order_by_time_for_ordering` | `false` | H16: for ordering questions ("first", "latest", "most recent", …) the assembled records are presented in event-time order rather than score order. |
-| `read.owner_check` | `off` | I59: read-side owner check after retrieval, before the reader. `mark` prefixes `[Bram, about Bram]` (speaker, subject) on tagged lines; `note` adds one reader note when no line is about the person the question names and some line is about someone else; `both`. Never drops a line; a question naming two people keeps both. Needs the `memories.episodic.policies.perspective` tags; `decider_tasks: [about_target]` lets the decider judge untagged lines. |
+| `read.owner_check` | `off` | I59: read-side owner check after retrieval, before the reader. `mark` prefixes `[Bram, about Bram]` (speaker, subject) on tagged lines; `note` adds one reader note when no line is about the person the question names and some line is about someone else; `both`. Never drops a line; a question naming two people keeps both. Needs the `memories.episodic.policies.perspective` tags; `model.decider.read.tasks: [about_target]` lets the decider judge untagged lines. |
 | `read.parallel_legs` | `false` | R3-15: run the query-only retrieval legs (vector, lexical, metadata, encoder, probes) with `asyncio.gather`; fusion order is unchanged. |
 | `read.person_time_leg_k` | `10` | #36: with `planner_version: v3`, the most records of the persons / time leg. `time_expr` becomes a date span by the H1 rules (an absolute date, month or year first; else a relative phrase, `read.relative_week` applying, anchored on the namespace's newest record); the leg holds the live records whose `valid_from` lies in the span and/or that are about a planned person (a `person:<name>` tag when the record has any, else its `entity` naming the person as a whole word), both first, then closest to the span's middle, else newest. Fused by RRF into the lookup or compose read; every search gate still applies. |
 | `read.perspective_as_of_subject` | `false` | I42: under an as-of read (`as_of`) with a question that resolves to a subject, a superseded record that was current at that time is admitted as history only when it is about a target or carries no subject tags; live records are never dropped. Needs `perspective_mode != off`. |
@@ -1356,22 +1512,6 @@ in the schema — or if the schema gains a key not documented here.
 | `read.replay_window_unit` | `turns` | I6/I20: `turns` = the window counted in turns (unchanged). `tokens` = each hit takes neighbours nearest first, per side, until that side's token allowance is used; a neighbour that would pass it closes the side (long assistant turns, very long histories). |
 | `read.reply_links` | `false` | G27 (ADR-061): in a replay read, a turn written with `reply_to` also shows the message it answers (gated like a replayed neighbour, same namespace only, within the budget). Off: byte-identical. |
 | `read.reply_reserve_tokens` | `0` | ContextPipe: tokens kept free for the reply inside the assembly budget. |
-| `read.rerank` | `off` | `off` | `fastembed` | `flashrank` `[rerank]` | `litellm` | `jina` `[st]` (Jina listwise reranker; `rerank_model` defaults to `jinaai/jina-reranker-v3.5`, runs the repo's custom code) | `qwen3` `[st]`\| `fastembed` \| `flashrank` `[rerank]` \| `litellm` \| `qwen3` `[st]` (Qwen3-Reranker, `rerank_model` defaults to `Qwen/Qwen3-Reranker-0.6B`) — E8 cross-encoder (D-51). |
-| `read.rerank_balanced` | `false` | GR-15 (Graphiti's balanced shortlist): with a reranker on, the pool cut before reranking takes each leg's best remaining hit in turn (vector, lexical, then the extra legs), so one leg cannot fill the pool. |
-| `read.rerank_blend` | `None` | N41: None = the reranker's relevance replaces the retrieval score (unchanged). A weight `w` in [0, 1] blends them: `w * rerank + (1 - w) * retrieval`, each min-max normalised over the candidates. |
-| `read.rerank_chunk_chars` | `null` | I9: `null` = a record longer than the reranker's context is cut and its tail dropped (qwen3: beyond about 8k tokens; ONNX cross-encoders: about 512). N = records longer than N characters are scored in overlapping windows of N characters and take the MAX window score. Opt-in. |
-| `read.rerank_chunk_overlap` | `0` | I9: characters shared by neighbouring windows. |
-| `read.rerank_context` | `0` | N42: the reranker sees each candidate with this many neighbouring turns of its episodic session on each side (0–3), so a short reply ("yes, the lake") is judged with its question. The stored record and the context shown to the reader are unchanged. |
-| `read.rerank_date_prefix` | `false` | Hindsight: prefix reranker inputs with `[Date: YYYY-MM-DD]`, so the cross-encoder sees when each candidate happened. |
-| `read.rerank_floor` | `minmax` | RETRIEVAL_GAPS finding 3: a reranked list is min-max normalised (best 1.0, worst 0.0), so `read.assembly.relative_floor` then deletes about half of the hits and their replay windows whatever the reranker thought of them. `minmax` = unchanged. `skip` = a read the reranker scored does not apply the relative floor (the reranker, `rerank_keep` and the budget bound the context); a read it did not score (off, gated, failed) still does. A `raw` mode (floor on raw reranker probabilities) was left out: only some rerankers are calibrated 0-1, and the floor would still act on the composite score. |
-| `read.rerank_gate` | `None` | N41 confidence gate: when the reranker's best raw score is below this value, it is not confident any candidate answers, and the retrieval order is kept (`rerank_stats()["gated"]` counts these). |
-| `read.rerank_keep` | `null` | G5b: with a reranker and `candidate_pool > 1`, keep only the best `rerank_keep` candidates after reranking, before assembly fills the budget, so a wider pool sharpens the ranking instead of doubling the context. `null` = keep the whole pool. A failed rerank keeps the pool. |
-| `read.rerank_max_top_k` | `null` | H18: run the configured reranker only when `top_k` is at most this. Reranking pays most when few of many candidates are kept. `null` = always. |
-| `read.rerank_settings` | — | Provider and policy fields are validated by their typed configuration schema. |
-| `read.rerank_v2` | `false` | R3-07 (LIB-42). Rerank every read through `rerank_v2_chain` over a pool capped at `rerank_v2_pool`; unscored candidates stay unscored (never 0.0) and follow the scored ones; the Jina tail is None instead of 0.0. Ignores `read.rerank` and the `rerank_max_top_k` gate. Tap: `read.rerank.scored`. |
-| `read.rerank_v2_chain` | `[jina, qwen3, fastembed]` | R3-07. Reranker modes in preference order (Jina v3.5, Qwen3-Reranker-0.6B, MiniLM CPU); all failing means unscored. Drop `jina` to avoid CC-BY-NC weights. |
-| `read.rerank_v2_pool` | `64` | R3-07. Candidates sent to the reranker; the rest stay unscored. |
-| `read.rerank_v2_search_pool` | `0` | FU-RRPOOL (INV-FILLER). Needs `read.rerank_v2`. `search()` fetched only `top_k` candidates, so the reranker could only reorder those. > 0: `search` fetches `max(top_k, N)`, reranks them (at most `rerank_v2_pool` are scored), then cuts to `top_k`. FX-READPATH: `assemble` / `read` (replay included) honour it too: the assembly search fetches `max(top_k x candidate_pool, N)` before the rerank and cuts back to `top_k x candidate_pool`; a pool no larger than that count changes nothing, so nothing is widened twice. 0 = off. |
 | `read.resolve_durations` | `false` | C5: with `resolve_relative_dates`, annotate unambiguous durations against the record's own day, always "about": `for 3 years` (with an ongoing cue such as "has been") and `3 years now` / `a month now` → `[= since about 2020]` / `[= since about 2023-04]`; `since 2019` / `since March 2019` → `[= about 4 years as of 2023-05-20]`. Digits and words one..twelve; units year/month (week/day only with "now"). `for years`, `for a while` and finished spans ("stayed for 3 years") are left alone. Off: byte-identical. |
 | `read.resolve_relative_dates` | `false` | H1: annotate relative-time phrases ("yesterday", "last Friday", "two weeks ago", "last month") in assembled/read records with the absolute date, resolved against each record's event time: `last Friday [= Fri 2023-07-14]`. Rules only, no model. Vague phrases ("recently") are left alone. Stored content is unchanged. On LoCoMo temporal evidence the resolver agrees with the gold date in 126/129 resolvable cases. **Reproducibility (#29, Wave 1):** a mined fact tagged `happened:<date>` is resolved against its `said:` day, and one without a `said:` tag whose `valid_from` is its happened day is not resolved at all, so pre-Wave-1 builds (≤ d6dccc5) rendered e.g. `yesterday [= Thu 2023-06-08]` on it and current builds do not. Runs with this key on (including the `base` template and `read.cards: header`) over happened-tagged facts are therefore not reproducible against pre-Wave-1 builds; with it off, reads are byte-identical (`tests/unit/test_pre_wave1_read_golden.py`). |
 | `read.role_aware` | `false` | W11 (ADR-059): assistant turns that recommend something are tagged `recommendation` at `ingest_messages`; a question about what the assistant said ("what did you recommend") gets an RRF leg of the assistant's turns, recommendations first. |
@@ -1380,7 +1520,7 @@ in the schema — or if the schema gains a key not documented here.
 | `read.scoring` | `{}` | Options for `ScoringPolicy.bind` (M1 composite). |
 | `read.second_round` | `false` | N04 (ADR-059): when the first search's W3 signal is weak (with `evidence_weak_below`), the names and dates its top three hits mention and the question lacks seed a second search over a doubled pool. |
 | `read.section_captions` | `false` | C7: when read headers lead the context, the retrieved part gets its own caption (`RETRIEVED_CAPTION`), so the reader sees which part is which. |
-| `read.sensitivity_gate` | `"off"` | I52. Graded-sensitivity read bar (`core/sensitivity.py`). `off`: as today. `on`: a record graded `medium` or `high` at write time (`write.sensitivity`; a W16 `sensitive:*` tag counts as a grade) is injected only when the question is about its category (a category cue in the question), names its subject (`medium` only) or shares enough content words with it (1 for `medium`, 2 for `high`); `none` and `low` are never gated. Applied in every leg and in `full`/`replay` neighbours, so a generic question ("recommend a gift for my sister") never pulls in the user's gender identity. `decider`: as `on`, and when the question names no sensitive topic the decider task `sensitivity_scope` (`read.decider: opendecider`) may open the gate when sure; it never closes it. |
+| `read.sensitivity_gate` | `"off"` | I52. Graded-sensitivity read bar (`core/sensitivity.py`). `off`: as today. `on`: a record graded `medium` or `high` at write time (`write.sensitivity`; a W16 `sensitive:*` tag counts as a grade) is injected only when the question is about its category (a category cue in the question), names its subject (`medium` only) or shares enough content words with it (1 for `medium`, 2 for `high`); `none` and `low` are never gated. Applied in every leg and in `full`/`replay` neighbours, so a generic question ("recommend a gift for my sister") never pulls in the user's gender identity. `decider`: as `on`, and when the question names no sensitive topic the decider task `sensitivity_scope` (`model.decider.read`) may open the gate when sure; it never closes it. |
 | `read.sentence_leg` | `false` | N05 (ADR-059): an RRF leg ranking records by their single best-matching sentence (shared content words / √length), so one strong sentence in a long turn is not diluted. No model. |
 | `read.session_cap` | `null` | W10 (ADR-059): at most this many raw-turn hits from any one session (episodic gap-split sessions, else the calendar day), drawn from a 4× wider search, so evidence spread over many sessions reaches the read; in replay each hit brings its window. |
 | `read.session_digest` | `false` | N31: a read header (`SESSION DIGESTS`) with one line per episodic session of the first `SESSION_DIGEST_HITS` (5) hits, up to `SESSION_DIGEST_SESSIONS` (3): the `SESSION_DIGEST_SENTENCES` (2) sentences sharing most content words with the question, within `SESSION_DIGEST_SHARE` (10%) of the budget. Unlike other headers it does not hide the quoted turns from the read. |
@@ -1389,8 +1529,7 @@ in the schema — or if the schema gains a key not documented here.
 | `read.session_leg_top_sessions` | `3` | sessions the session leg draws from. |
 | `read.session_sequence` | `false` | F5. When several turns of one session carry the same event time, the n-th is stored n microseconds later so event-time order within the session equals write order. Off: stamps are stored as given. |
 | `read.short_query_lexical_weight` | `None` | N33: the BM25 leg's RRF weight for a question of at most `SHORT_QUERY_WORDS` (5) content words. |
-| `read.skip_defaulted_dates` | `false` | I7: a source with no timestamps (ConvoMem, PrefEval, LaMP shapes) gets `valid_from` = the write clock, so every date prefix would show today. On: a write with no supplied event time is tagged `ts_defaulted`; `render: dated` / the `[YYYY-MM-DD Day]` prefix, the `resolve_relative_dates` annotation, `rerank_date_prefix` and the timeline date skip such records. Timestamped records are never affected; records written with the key off carry no tag (so they render as before). Facts mined later from an undated turn are not tagged. Off: byte-identical. |
-| `read.skip_rerank_for_ordering` | `false` | Agent Zero: skip the reranker for ordering questions (first / latest / most recent). |
+| `read.skip_defaulted_dates` | `false` | I7: a source with no timestamps (ConvoMem, PrefEval, LaMP shapes) gets `valid_from` = the write clock, so every date prefix would show today. On: a write with no supplied event time is tagged `ts_defaulted`; `render: dated` / the `[YYYY-MM-DD Day]` prefix, the `resolve_relative_dates` annotation, `model.rerank.date_prefix` and the timeline date skip such records. Timestamped records are never affected; records written with the key off carry no tag (so they render as before). Facts mined later from an undated turn are not tagged. Off: byte-identical. |
 | `read.span_line` | `false` | N10 (ADR-059): a duration question ("how long after …", "how many weeks between …") gets one engine-computed line from the two best-matching dated turns: "A (date) -> B (date): N days (about W weeks, M months)". |
 | `read.speaker_probe` | `false` | N40: when the question names a speaker, "Name: <core terms>" (the stored-turn form) joins the search as a vector probe. |
 | `read.speaker_vote_mode` | `name` | I5. Who the list-mode speaker vote is for. `name`: the one speaker the question names. `subject`: that, else the question's subject: first-person "I / my / me" votes on the `user` turns, second-person "you / your" on the `assistant` turns (role from a `user:` / `assistant:` text prefix, else the record's source role; both roles must be in the store); a pronoun or mixed subject casts no vote. `perspective` (I39): the vote on the resolved question perspective (see [Perspective layer](#perspective-layer-i39-i46)): a named participant, the asker, the assistant, or a relation-bound third party; falls back to `subject`. |
@@ -1411,7 +1550,7 @@ in the schema — or if the schema gains a key not documented here.
 | `read.temporal_rank` | `midpoint` | N61: order of in-span records in the temporal leg. `midpoint` (closest to the span's middle) or `overlap` (most content words shared with the question first, then midpoint). |
 | `read.temporal_relative` | `false` | F2 (ADR-057): with `temporal_leg`, a question without an absolute date resolves its first relative phrase ("last week", "yesterday", "two months ago") against the engine clock, using `relative_week`. |
 | `read.temporal_soft` | `false` | N44: when fewer than `fetch_k` records fall in the span, the temporal leg is filled with the nearest records outside it, within one span length (at least `TEMPORAL_SOFT_MARGIN_DAYS` = 3 days). In-span records are never displaced. |
-| `read.tiers_v2` | `false` | R3-01 (LIB-47): the v2 read entry. On: the question is NFKC-normalised (whitespace collapsed), the viewer is bound to the principal, and a depth tier (fast / standard / deep, with generative-call and rerank-pool caps) is chosen; the tier is recorded in the wiretap and forensics (`read_plan`). FX-READPATH: the tier is consumed. With `rerank_v2` on, the assembly search fetches at least the tier's rerank pool (fast 32, standard 48, deep 64) before the rerank and cuts back; `deep_v2` runs its sufficiency and rewrite calls only in a tier that allows generative calls (deep), the rule check still runs. Off: unchanged. |
+| `read.tiers_v2` | `false` | R3-01 (LIB-47): the v2 read entry. On: the question is NFKC-normalised (whitespace collapsed), the viewer is bound to the principal, and a depth tier (fast / standard / deep, with generative-call and rerank-pool caps) is chosen; the tier is recorded in the wiretap and forensics (`read_plan`). FX-READPATH: the tier is consumed. With a `model.rerank.chain`, the assembly search fetches at least the tier's rerank pool (fast 32, standard 48, deep 64) before the rerank and cuts back; `deep_v2` runs its sufficiency and rewrite calls only in a tier that allows generative calls (deep), the rule check still runs. Off: unchanged. |
 | `read.tiers_v2_depth` | `fast` | R3-01: default depth under `tiers_v2` (`auto` / `fast` / `standard` / `deep`); `auto` picks deep only for join, list and history shapes when a worker model is bound. |
 | `read.timeline_entities` | `3` | H22: how many entities get a timeline, best-scored first. |
 | `read.timeline_items` | `8` | H22: the newest entries kept per timeline. |
@@ -1484,7 +1623,7 @@ in the schema — or if the schema gains a key not documented here.
 | `runtime.shared_resources.warmup` | `background` | RM-74 (ADR-079 decision 3): `lazy` loads each resource on first use; `background` returns from `start()` and warms the included resources in an Engine-owned task (failures are logged and reported, never raised); `blocking` warms before `start()` returns and raises `WarmupError` naming the category on a failure or timeout. A request needing a resource that is still warming waits for the same shared build. `Engine.warm_state()` / `readiness().warm` report `warm`, `warming`, `failed` (with the error type) or `not_requested` per resource; `Engine.wait_until_warm()` waits for a background pass. `stop()` cancels a pending warm-up. |
 | `runtime.shared_resources.warmup_concurrency` | `2` | RM-74: resources warmed at once. |
 | `runtime.shared_resources.warmup_exclude` | `[]` | RM-74: categories not warmed (subtracted from `warmup_include`); an explicitly set `warmup_include` must not name any of them (an overlap is a validation error). |
-| `runtime.shared_resources.warmup_include` | `[embedder, reranker, gliner, lexical, llm, decider]` | RM-74: categories warmed (only those configured): `embedder` (load + one fixed inference, never cached as a result), `reranker` (`read.rerank` and the `read.rerank_v2_chain` modes), `gliner` (configured decision / semantic / prepass bindings), `lexical` (Tantivy index open), `llm` (local llama.cpp models), `decider` (when a decider task is on). |
+| `runtime.shared_resources.warmup_include` | `[embedding, rerank, extraction, lexical, llm, decider, vision]` | RM-74 (ADR-082 names): categories warmed (only those configured): `embedding` (load + one fixed inference, never cached as a result), `rerank` (the `model.rerank.chain` entries), `extraction` (the GLiNER slots under `model.extraction` and a `gliner2` `model.decider.route`), `lexical` (Tantivy index open), `llm` (local llama.cpp models), `decider` (`model.decider.read`), `vision` (`model.vision`). Were `embedder`, `reranker`, `gliner`. |
 | `runtime.shared_resources.warmup_timeout_s` | `120.0` | RM-74: overall deadline of one warm-up pass; resources not warm by then are reported `failed` (`TimeoutError`) and keep loading lazily on first use. |
 | `storage.cache.provider` | `memory` | ADR-081 cache slot (was `cache.provider`): `memory` (in-process) \| `disk` \| `redis` \| `valkey` (`[cache]`). An unset disk `settings.path` defaults under `deployment.data_dir` when one is set. |
 | `storage.cache.settings` | — | Provider and policy fields are validated by their typed configuration schema. |
@@ -1526,7 +1665,7 @@ in the schema — or if the schema gains a key not documented here.
 | `write.feedback_operators` | `[]` | O4-11. Principals that may give operator feedback (corrections, rejections, ratings) under `write.feedback_v2`. |
 | `write.feedback_v2` | `false` | O4-11 (LIB-44, O-25). `true`: `Engine.feedback` takes explicit feedback only. The `channel` (default `api`) must be `user_message`, `ui_control`, `operator_edit` or `api`; silence, dwell, regeneration, retry, copy, click, abandonment and classifier signals are refused. The actor must be the memory owner (`user` or the namespace) or a name in `write.feedback_operators` (never for a confirmation); an agent (`assistant`, `agent`, `system`, `tool`) never may. Adds the signals `correction` (`new_value`, optional `new_text`), `rejection`, `confirmation` and `rating` (`rating` 1..5, logged only) to `like` / `dislike` / `note`. A correction, rejection or confirmation never edits a record: it becomes a bound assertion (the owner's new value, a negation of the recalled one, a restatement) written through the write door and the conflict ladder; the first written record is returned. Adds `Engine.correction_latency` (reads between a wrong memory first being surfaced and its correction, from the log; needs `event_log.mode` other than `ephemeral`). Taps: `api.feedback` (kind, channel, accepted, reason, assertions), `api.feedback.latency`. `false`: the like / dislike / note verb as before, and the new keywords are refused. |
 | `write.ground_action` | `drop` | W2-08. With `write.grounding_v2`: `drop` removes an assertion the checks find unsupported or only partly supported; `tentative` keeps it with `status: tentative` and `grounding: rejected` (never promoted, never superseding). |
-| `write.ground_adjudicator` | `lexical` | W2-08. With `write.grounding_v2`: who settles the assertions the rules leave undecided. `lexical`: word overlap on CPU (accepts at high coverage, rejects only same-language text with almost none, never rejects other-language text). `decider`: the OpenDecider `grounded` task first (`read.decider` settings, CPU by default; its answer counts only above 0.6 confidence), lexical when it is unsure or unavailable. `off`: undecided assertions are kept with `grounding: uncertain`. |
+| `write.ground_adjudicator` | `lexical` | W2-08. With `write.grounding_v2`: who settles the assertions the rules leave undecided. `lexical`: word overlap on CPU (accepts at high coverage, rejects only same-language text with almost none, never rejects other-language text). `decider`: the OpenDecider `grounded` task first (`model.decider.read` settings, CPU by default; its answer counts only above 0.6 confidence), lexical when it is unsure or unavailable. `off`: undecided assertions are kept with `grounding: uncertain`. |
 | `write.grounding_v2` | `false` | W2-08 (LIB-03; W-17, W-08). With `write.envelope_v2`: an envelope stage (order 200) grounds each compiled assertion before it is deposited. It locates the supporting span in the cited lines and writes the offsets onto the evidence; runs the rule checks (cited turns exist, number / unit / date / name appear in the span, negation and modality preserved, the speaker matches the asserter); settles what the rules cannot decide with the adjudicator (`write.ground_adjudicator`); and promotes an assistant proposal to `user_confirmed` only on a real user yes on the next line (a binding evidence on the user line is added; "ok, thanks" does not promote). An unsupported or partly supported assertion is dropped or marked tentative (`write.ground_action`) with a reason code counted in the window's stage notes as `ground.dropped.<code>`. Taps `write.ground.checked`, `write.ground.dropped`, `write.ground.assent`, `write.ground.summary`. `false` (default): envelopes are deposited as compiled. |
 | `write.index_view` | `false` | R14-INDEXVIEW (OBS-02/03/09/11, R14-M-4, R14-M-5). `true`: each turn written by `ingest_messages` / `write_episode` gets an index text, separate from its display text, with no model call: `<speaker>: <D Month YYYY> <Month> <Weekday> <relative dates resolved> [with <participants>] [re: <previous-turn words>]` followed by the turn. The date is the turn's own timestamp (else the call's `valid_from`), never the system clock; an undated turn gets no date words. Relative expressions (yesterday, last week/month/year, last Friday, N days/weeks ago, in N days) are kept and followed by the calendar date. A bare we/they/you adds the call's participants. The previous turn's content words are added only when the turn is elliptical (rule score of 3: at most `index_view_elliptical_max_words` words, starts with a pronoun or assent word, no content noun; at least `index_view_elliptical_threshold` met). The text rides in the WRITE event payload (`index_text`; no schema change, no migration) and the vector and lexical projectors index it instead of the content; the record, its id, order and display text are unchanged, and a rebuild re-embeds the same text. Needs a re-ingest. The firewall's neighbour check still embeds the plain content. Taps `write.index_view.plan`, `write.index_view.text`. `false` (default): the index sees the content only, event payloads byte-identical. |
 | `write.index_view_carry` | `"anaphoric"` | R14-IVFIX. With `write.index_view`: which turns inherit the previous turn's content words. `"anaphoric"` (default): never a phatic turn (greeting, thanks, laughter, emoji or punctuation only, closed-vocabulary pleasantry such as "that sounds lovely"); otherwise the turn must be short (`index_view_elliptical_max_words`), have a pronoun, deictic or assent word in its first three words, and carry fewer than two content words and no name of its own. A bare answer ("yes", "no, that one") still carries. `"elliptical"`: the R14-INDEXVIEW rule (shortness alone can trigger it), kept for comparability with screen S69. Reason: with `elliptical`, inserting unrelated turns changed what an elliptical turn inherited and moved evidence out of the top 5 (behavioural case INV-FILLER). Date and speaker words are not affected. |
@@ -1542,7 +1681,7 @@ in the schema — or if the schema gains a key not documented here.
 | `write.integration_v2` | `false` | W2-10 (LIB-02; W-21, W-22, M-12). `true` (needs `write.envelope_v2`): an envelope stage at order 400 finds the live assertions on each state envelope's (subject, attribute) key (W2-09's resolved entity id when present, else the normalised name) and decides the integration operator through the conflict ladder: cardinality, then trust tier (the default is above low; an equal tier supersedes; a lower tier contests), then time (a closed past interval coexists as history), then negation binding (a bound negation retires). The verdict (append / supersede / merge / coexist / contest / defer_kc, with rung and hint) rides the envelope and the deposit applies it: supersede retires the old value as history, coexist stores the value without the key (the store holds one active fact per key), contest keeps both and tags `disputed`: the new record at deposit, and the older live peer through a normal tag-update event (so it replays; FU-GAPS). An undeclared attribute with a conflicting live value and no hint that the value changed is deferred to K_C (`offline.reconcile_v2`) and counted (`integrate_defer_kc`). Events and unkeyed facts coexist. Taps `write.integrate.*`. `false` (default): the old write door decides alone, unchanged. |
 | `write.learned_persist` | `false` | FU-GAPS (needs `write.envelope_v2`). `true`: the in-memory learned registries are logged as `memory.marker` events and reloaded once per process before the first window, so a restart does not forget them: the W2-06a open kind set (kinds the model coined, up to the cap of 64; marker `learned.kind`) and, with `write.prepass`, the W2-13 learned aliases (marker `learned.alias`). The alias markers hold entity surface names from the turns, as the `entity.*` markers do. Taps `write.learned.loaded`, `write.learned.flushed`. `false` (default): the registries live in memory only, unchanged. |
 | `write.lineage_table` | `false` | F-16a (M-09, G-08, ER-22, POL-2). `true`: every derived record written through the derived-write door (`derive/write.py`: mined and window facts, calibration, cues, list cards, episode fragments, lessons) gets one `lineage` row per parent (role `support` unless the site names one), its trust capped at the least-trusted parent, `layer:` and `deriv:` tags, and is refused when it has no parent. The lift stage reads the table when `read.lift_before_rerank` is also on. Taps: `derive.lineage.write`, `derive.lineage.refused`. `false`: nothing is written to the table. |
-| `write.online_extractor_v2` | `false` | W2-06c (W-12). `true`: `derive.OnlineExtractor` is the named entry for online extraction over the outbox window stage (`ingest.windows.online_extractor`); the window stats gain `online_extractor` (the stage hook list in run order) and `envelope_stages` (the stages' drop / rewrite counters, e.g. `ground.dropped`), needs `write.envelope_v2`; and a window mode with no `llm.roles.window_extract` (the no-model `core` template) skips extraction with a warning instead of failing at start, so ingestion makes zero model calls and the L1/L2 stages do not run. `false` (default): stats unchanged, that start fails (D-10). |
+| `write.online_extractor_v2` | `false` | W2-06c (W-12). `true`: `derive.OnlineExtractor` is the named entry for online extraction over the outbox window stage (`ingest.windows.online_extractor`); the window stats gain `online_extractor` (the stage hook list in run order) and `envelope_stages` (the stages' drop / rewrite counters, e.g. `ground.dropped`), needs `write.envelope_v2`; and a window mode with no `model.llm.window_extract` slot (the no-model `core` template) skips extraction with a warning instead of failing at start, so ingestion makes zero model calls and the L1/L2 stages do not run. `false` (default): stats unchanged, that start fails (D-10). |
 | `write.participants` | `"off"` | I53. `session`: `ingest_messages` tags each turn `participant:<name>` for every speaker of the call (the turn's own `speaker`/`name`, else its role, first) and honours a turn's `visibility`; a derived record (mined fact) inherits its parents' participants and the strictest visibility. `write(participants=, visibility=)` sets them directly (`private` = the speaker only, `participants`, `owner_shared`). They matter only to a read with `viewer=`; the namespace stays the hard isolation boundary. |
 | `write.prepass` | `"off"` | W2-13 (P-23; needs `write.window_extract`). A small local pre-pass over each window's raw turns, as hints, before the extraction call. `"rules"`: a regex baseline (capitalised names, dates, numbers, aliases learned from deposited envelopes). `"gliner"`: the rules plus GLiNER2 entities (local CPU, `[ner]` extra; the rules alone when gliner2 is absent). Three uses: hint lines for the KNOWN / NEW prompt context (`derive.prepass.prepass_hints(records).prompt_lines()`); a window whose every turn is greeting / thanks / acknowledgement filler and where nothing was seen skips the extraction call (counted as `windows_prepass_skipped` in the window stats); when the `episode` section is on, such a window still gets its episode: the call asks for the episode section only, facts and edges are skipped (counted as `windows_prepass_episode_only`; FU-GAPS); with `write.envelope_v2`, an order-500 envelope stage that flags (`extras.prepass_unseen`) envelopes whose proper-name entity the pre-pass never saw and never adds or drops a fact. Taps `write.prepass.window`, `write.prepass.unseen`. `"off"` (default): unchanged. |
 | `write.prompt_context_turns` | `3` | W2-06b. With `write.prompt_v2`: turns of the previous window shown under CONTEXT. `0`: no CONTEXT. |
@@ -1559,14 +1698,14 @@ in the schema — or if the schema gains a key not documented here.
 | `write.segment_grow_tokens` | `400` | W2-05. A window past `write.window_max_turns` keeps growing until it holds this many (estimated) tokens. Only with `write.segmentation_v2`. |
 | `write.segment_max_turns` | `24` | W2-05. Hard turn cap of a growing window (never below `write.window_max_turns`). Only with `write.segmentation_v2`. |
 | `write.segmentation_v2` | `false` | W2-05 (LIB-14; W-11). `true` (needs `write.window_extract`): windows also cut at a source-time gap and a calendar-day change, and grow adaptively (a window past `write.window_max_turns` keeps taking short turns until `write.segment_grow_tokens` or `write.segment_max_turns`; `write.window_max_tokens` always binds). Closed windows of one namespace wait until `write.batch_max_tokens` / `write.batch_max_windows` / `write.batch_max_age_s` and then share ONE extraction call, each window a separately numbered block; grounding stays per window (an item citing two windows is dropped and counted), episodes stay one call per window. With `workers.outbox` each window is still its own durable row, so a crash loses nothing. A `flush_windows`, `close_session` or `sleep` never holds windows back. Taps `write.segment.*`, `write.batch.*`. `false` (default): the old segmenter and one call per window, unchanged. |
-| `write.sensitivity` | `"off"` | I52. Grade each record `none`/`low`/`medium`/`high` with a category (health, sexuality_gender, religion, ethnicity, credentials = high; politics, finance, legal, location = medium) and tag it `sens:<grade>` / `sensc:<category>` (labels only: the text is never copied into a tag, log line or forensics entry; a `high` record also gets `pii_tier` >= `high`). `heuristic`: the fixed English lexicon. `decider`: the lexicon, raised to `medium` (category `other`) by the decider `sensitivity` task when it is sure (`read.decider: opendecider`); the decider never lowers a grade. |
+| `write.sensitivity` | `"off"` | I52. Grade each record `none`/`low`/`medium`/`high` with a category (health, sexuality_gender, religion, ethnicity, credentials = high; politics, finance, legal, location = medium) and tag it `sens:<grade>` / `sensc:<category>` (labels only: the text is never copied into a tag, log line or forensics entry; a `high` record also gets `pii_tier` >= `high`). `heuristic`: the fixed English lexicon. `decider`: the lexicon, raised to `medium` (category `other`) by the decider `sensitivity` task when it is sure (`model.decider.read`); the decider never lowers a grade. |
 | `write.stamp_default_tz` | `null` | W2-02 (W-04). With `write.stamping_v2`: the zone a naive source time with no declared zone is read in as wall clock (the record is still marked `unknown`). `null`: `read.naive_timezone`. |
 | `write.stamp_participant_tags` | `v1` | W2-02 (W-05). With `write.stamping_v2`: `v1` also writes the v1 `participant:<name>` tags (kept for the dual-read period); `none` writes only the typed column. The tags feed the `viewer` read filter (a record with participants and no visibility tag is a participants-only record), so a deployment that reads with `viewer=` can set `none` and rely on the typed column. No effect while `write.stamping_v2` is `false`. |
 | `write.stamping_v2` | `false` | W2-02 (LIB-29; W-04, W-05, W-08, M-08). `true`: every raw turn written by `ingest_messages` / `write_episode` is stamped. Three clocks: `source_at` from the turn's own `timestamp` (never "now"; an undated turn stays undated), `source_tz` from the turn's `tz` / `timezone` key, else `unknown`, `recorded_at` the engine clock. A naive time with no zone is kept as wall clock and recorded as `source_tz = unknown` (flagged `tz_unknown`; it is not shifted by `read.naive_timezone`); a future-skewed or out-of-order time is flagged and kept. Speaker, addressee and a `participants` list become typed columns (`spk`, `addr`, `participants`; participants are filled from the call's speakers, a turn without a name counts as its role, on by default). The provenance class comes from the role (`user_stated`, `assistant_proposed`, `tool`, `document`, `external`). A user turn that answers an assistant turn of the same call goes through the assent check: a real yes ("yes please", "sí, adelante", "ja, genau") is tagged `assent_of:<assistant record id>` for the derivation step to promote the proposal to `user_confirmed`; "ok, thanks", a refusal, a question or a conditional yes is not. Runs through the canonical intake gateway. The event interval and its precision are filled at derivation, not here. New columns `source_tz`, `participants` (Alembic `w202_stamping`). Taps `write.stamp.turn`, `write.stamp.assent`. `false` (default): turns are stamped as before. |
 | `write.temporal_v2` | `false` | W2-14 (LIB-01; W-04, M-10, R-07; needs `write.envelope_v2`): temporal anchoring as an envelope stage (order 100). For each assertion it fills the event interval with its precision and basis by the anchor ladder: (1) an explicit date in the model's time text, the cited span or the assertion text; (2) a relative phrase ("last Tuesday", "letzte Woche", "il y a trois jours", "hace dos semanas") resolved against the cited turn's `source_at` (`write.stamping_v2`), else the window's nearest stamped turn (basis `source_time`); (3) with `write.stamping_v2` off only, the window `valid_from` as an approximate `inferred` session anchor; (4) else unknown, never "now". Precision is never finer than the evidence ("in 2019" is year precision, never a made-up day). `before` / `after` / `during` / `since` / `until` between two assertions of one window ("the week before her trip") are stored as a typed relation with no date (`since` as `after`, `until` as `before`; the spoken word is kept in `extras.temporal`). The deposited `happened:` label carries the written precision. Tap `write.temporal` (rung counts). `false` (default): the model's time text is kept as text only. |
 | `write.window_async` | `true` | W1: `true` runs window calls in a background task after the write returns (idle debounced); `false` runs them only at `flush_windows()`, `close_session()` or `sleep()`. Same result either way. Ignored (batch) on `:memory:` SQLite. |
 | `write.window_cache` | `true` | W1: cache each call by (model, prompt version, sections, window text), so a re-run on the same history makes no call. A forget deletes the cached replies of windows that held the erased turn. |
-| `write.window_extract` | `"off"` | W1 adaptive-window write, call 1. `facts`: one structured `window_extract` call per window of consecutive turns yields atomic, dated, grounded facts (a verbatim `span` of a cited turn), deposited as semantic `atomic_fact` records with the cited turns as parents. `facts_graph` adds the entity-edge section (handed to the sleep stage `extract_graph`); `all` adds the episode-fragment section. Needs `llm.roles.window_extract` and `memories.episodic` + `memories.semantic`. Run with `Engine.flush_windows()` (batch) or in the background (`window_async`). Counters: `Engine.window_stats()`. |
+| `write.window_extract` | `"off"` | W1 adaptive-window write, call 1. `facts`: one structured `window_extract` call per window of consecutive turns yields atomic, dated, grounded facts (a verbatim `span` of a cited turn), deposited as semantic `atomic_fact` records with the cited turns as parents. `facts_graph` adds the entity-edge section (handed to the sleep stage `extract_graph`); `all` adds the episode-fragment section. Needs `model.llm.window_extract` and `memories.episodic` + `memories.semantic`. Run with `Engine.flush_windows()` (batch) or in the background (`window_async`). Counters: `Engine.window_stats()`. |
 | `write.window_idle_s` | `120.0` | W1 (async mode): seconds without a write in a namespace before its open window is cut. 0: never. |
 | `write.window_max_tokens` | `1500` | W1: a window closes before the turn that would pass this many prompt tokens (4 characters each). |
 | `write.window_max_turns` | `6` | W1: a window closes at this many turns. |
@@ -1593,7 +1732,7 @@ unchanged; `tests/unit/test_simple_profile_golden.py` pins their defaults.
 | `memories.semantic.policies.write.reflexion` | `true` | #32 (GR-16): run the extra edge-extraction rounds (`extract_graph.max_rounds` > 1) of the C2/C3 graph write paths. `false` makes every extraction a single call (one call per source fewer for each extra round), the ablation Graphiti ran before removing reflexion. With the default `max_rounds: 1` there is no extra round, so nothing changes. |
 | `memories.semantic.policies.conflict.contest_lower_trust` | `false` | A same-key write less trusted than the current fact (but within `trust_margin`) CONTESTs it instead of superseding or retracting it, so a lower-trust source cannot archive a higher-trust fact (ADR-029, supersession). |
 | `memories.semantic.policies.conflict.interval_order` | `false` | #19 interval arithmetic: a superseded or retracted fact gets `invalid_at` (when it stopped being true in the world) = the next statement's `valid_from`. An older-arriving statement that contradicts the current fact is stored as history ending where the next statement on its key begins, and the history entry it lands inside is closed at its start, so facts arriving out of order end with the correct current fact and non-overlapping intervals. A statement with the same key and endpoints (`dst:` tag) as the current fact is merged as a duplicate, not a contradiction. Off = the plain R4 backfill, and no `invalid_at` is ever written. |
-| `memories.semantic.policies.extract_graph.granularity` | `record` | #20: `session` sends each consolidated session to the `extract_edges` role in ONE call (`extract_edges@session`: turns numbered `[n] [YYYY-MM-DD]`); each edge cites its turns in `episode_indices`, and those turns become the fact's parents and get its `asserted` links (no citation = the whole session). With a decision provider (`decision.provider: gliner2`) the entities it finds in the session are the prompt's allowed-entity list. A per-session `stage_done` marker (stage `extract_graph`) plus the per-turn watermarks keep a second sweep from calling again. Records outside any session stay per record. `record` = one call per source record. |
+| `memories.semantic.policies.extract_graph.granularity` | `record` | #20: `session` sends each consolidated session to the `extract_edges` role in ONE call (`extract_edges@session`: turns numbered `[n] [YYYY-MM-DD]`); each edge cites its turns in `episode_indices`, and those turns become the fact's parents and get its `asserted` links (no citation = the whole session). With a decision provider (`model.decider.route` with `provider: gliner2`) the entities it finds in the session are the prompt's allowed-entity list. A per-session `stage_done` marker (stage `extract_graph`) plus the per-turn watermarks keep a second sweep from calling again. Records outside any session stay per record. `record` = one call per source record. |
 | `memories.semantic.policies.extract_graph.event_identity` | `plain` | G-3: `plain` keys an extracted edge on (src, rel, dst). `dated` also keys an *event* edge on its event day and the numbers its fact states, so "visited Paris in 2022" and "in 2023" (or "ran 5 km" / "10 km") stay two events. State edges are unaffected. Switching on an existing graph re-extracts events under new keys. |
 | `memories.semantic.policies.extract_graph.close_ended` | `false` | G-1 (Graphiti edge end time): the edge extraction prompts (`extract_edges` v4, `extract_edges@session`) may return `valid_to` when the text says the relation stopped holding ("until 2022", "used to", "no longer"). With `close_ended: true` such a fact is written already closed (`valid_to` set), so current-state reads skip it and as-of reads still see it. |
 | `memories.semantic.policies.extract_graph.contradictions` | `false` | G-2 (Graphiti cross-key contradiction): a new *state* fact is checked against the same subject's live facts on *other* keys (most shared words first, at most `CONTRADICTION_CANDIDATES` = 3) by the `invalidate_edge` role, one call each. An `update` / `invalidate` verdict retracts the old key through the semantic door, so the M4 ladder closes it, with its trust gate. Needs the `invalidate_edge` LLM role; the stage stats report `edges_invalidated`. |
@@ -1627,7 +1766,7 @@ unchanged; `tests/unit/test_simple_profile_golden.py` pins their defaults.
 | `memories.semantic.policies.conflict.inferred_defers` | `false` | I48: an engine-inferred fact (`src:inferred`) never changes a stated fact on the same key (NOOP), and a stated fact supersedes an inferred one whatever their event times (a `retract` still retracts). |
 | `memories.episodic.policies.consolidation.miner` | `llm` | W5 (ADR-059): `rules` mines first-person personal facts without a model (`core/rule_miner.py`): home, origin, job, employer, relationship, age, education, diet, favourites, partner / parents supersede; likes, dislikes, pets, family, activities, plans coexist. With `mine_facts: true`. |
 | `memories.episodic.policies.subject_tagging` | `false` | W8 (ADR-059): an episodic turn written as "Name: text" is tagged `speaker:<name>`. |
-| `memories.episodic.policies.perspective` | `off` | I39-I46: `heuristic` (or `{"mode": "heuristic" or "decider", "axes": [...]}`, axes among `spk addr sub ask mod pol scope cert rep sens`) tags each episodic turn with its speaker, addressee, subject(s), asker, modality, polarity, scope, hedge, reported-speech source and sensitive category; content is untouched. `ingest_messages` turns may carry `speaker` (or `name`) and `addressee`, which beat the rules. `context` = `{"owner": id, "speakers": [ids]}` (I51) seeds the known participants and the default asker. `ack: true` (I47) tags the user turn that acknowledges the assistant turn before it (`ack:<assistant record id>`; cues "yes", "exactly", "that's right"; with `decider` the `acknowledges` task decides); without an acknowledgement an assistant statement stays proposed. Plan turns carry `due_from:` / `due_to:` dates (I49): an absolute date or month goes through the date resolver, a relative phrase is resolved against the turn date, no horizon means no window; past plans render `[past plan]` and are never deleted. Mined facts and graph edges (`extract_graph`, the graph write pipeline) inherit the `sub:`, `scope:` and `pol:` tags of their source turn (I55). `decider` lets the decider port (`read.decider: opendecider`) answer `is_fact`, `is_negated`, `is_standing`, `is_hedged` above `read.decider_min_confidence`. See [Perspective layer](#perspective-layer-i39-i46). |
+| `memories.episodic.policies.perspective` | `off` | I39-I46: `heuristic` (or `{"mode": "heuristic" or "decider", "axes": [...]}`, axes among `spk addr sub ask mod pol scope cert rep sens`) tags each episodic turn with its speaker, addressee, subject(s), asker, modality, polarity, scope, hedge, reported-speech source and sensitive category; content is untouched. `ingest_messages` turns may carry `speaker` (or `name`) and `addressee`, which beat the rules. `context` = `{"owner": id, "speakers": [ids]}` (I51) seeds the known participants and the default asker. `ack: true` (I47) tags the user turn that acknowledges the assistant turn before it (`ack:<assistant record id>`; cues "yes", "exactly", "that's right"; with `decider` the `acknowledges` task decides); without an acknowledgement an assistant statement stays proposed. Plan turns carry `due_from:` / `due_to:` dates (I49): an absolute date or month goes through the date resolver, a relative phrase is resolved against the turn date, no horizon means no window; past plans render `[past plan]` and are never deleted. Mined facts and graph edges (`extract_graph`, the graph write pipeline) inherit the `sub:`, `scope:` and `pol:` tags of their source turn (I55). `decider` lets the decider port (`model.decider.read`) answer `is_fact`, `is_negated`, `is_standing`, `is_hedged` above its `min_confidence`. See [Perspective layer](#perspective-layer-i39-i46). |
 | `memories.episodic.policies.forget_detector` | `false` | G25 (ADR-059): a user turn asking to forget something ("please forget my address") is tagged `forget_request`; `Engine.forget_requests()` lists the candidate records. Nothing is deleted automatically. |
 | `memories.episodic.policies.consolidation.auto_watch` | `false` | G33 (ADR-059): a mined `plans` fact whose source turn names a future time becomes a prospective watch due then (needs prospective memory). |
 | `memories.episodic.policies.consolidation.mining_cache` | `false` | E1 (ADR-059): with the LLM miner, mine at temperature 0 and cache each reply by (model, prompt version, variant, transcript), so the same history always yields the same facts. |
@@ -1731,8 +1870,9 @@ audit but never used as evidence. Report the arm apart from text-only runs (`met
 
 ```python
 eng = Engine(
-    ingest={"assets": "on", "asset_dir": "evals/runs/_asset_cache",
-            "asset_vision": "ollama", "asset_vision_model": "qwen2.5vl:3b"},
+    ingest={"assets": "on", "asset_dir": "evals/runs/_asset_cache"},
+    model={"vision": {"provider": "ollama", "timeout_s": 120.0,
+                      "settings": {"model": "qwen2.5vl:3b", "api_base": "http://localhost:11434"}}},
     read={"asset_evidence": "fetch"},
 )
 await eng.ingest_messages([{"role": "user", "content": "Look at this", "turn_id": "D1:2",

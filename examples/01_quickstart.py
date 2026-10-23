@@ -4,7 +4,7 @@ Run:  uv run python examples/01_quickstart.py
 
 Uses the zero-download hash embedder so the example runs offline; production
 installs use the default fastembed (ONNX, CPU) embedder — just drop the
-``embedding=`` override.
+``model={"embedding": ...}`` override.
 """
 
 from __future__ import annotations
@@ -17,8 +17,8 @@ from memspine import Engine
 async def main() -> None:
     engine = Engine(
         template="base",
-        storage={"path": "./quickstart.db"},
-        embedding={"provider": "hash"},  # offline demo; omit for fastembed
+        storage={"records": {"provider": "sqlite", "settings": {"path": "./quickstart.db"}}},
+        model={"embedding": {"provider": "hash"}},  # offline demo; omit for fastembed
     )
     await engine.start()
 

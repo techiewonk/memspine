@@ -12,26 +12,32 @@ plumbing configuration, with no model downloads, is:
 
 ```yaml
 storage:
-  provider: sqlite
-  settings:
-    path: ./memory.db
-    busy_timeout_s: 5.0
-embedding:
-  provider: hash
-  settings:
-    dim: 64
-vector:
-  provider: lancedb
-  settings:
-    isolation: shared
+  records:
+    provider: sqlite
+    settings:
+      path: ./memory.db
+      busy_timeout_s: 5.0
+  vector:
+    provider: lancedb
+    settings:
+      isolation: shared
+  lexical:
+    provider: tantivy
+    settings: {}
+  cache:
+    provider: memory
+    settings: {}
+model:
+  embedding:
+    provider: hash
+    settings:
+      dim: 64
 read:
   hybrid: true
-  lexical_provider: tantivy
-  lexical_settings: {}
-cache:
-  provider: memory
-  settings: {}
 ```
+
+Data providers live in the `storage` slots (ADR-081); model providers live in the
+`model` slots (ADR-082). Each slot is `{provider, <typed common keys>, settings}`.
 
 Pass this YAML through `Engine(template="core", user_config="providers.yaml")`.
 The shipped template supplies explicit runtime health/close/startup deadlines.
@@ -40,15 +46,16 @@ recommendation or a fair retrieval-quality baseline.
 
 | Caller area | Current configuration path | Responsibility |
 |---|---|---|
-| Authoritative storage | `storage.provider`, `storage.settings` | SQL path/URL, data directory and native deadlines |
-| Embedding | `embedding.provider`, `embedding.settings` | Model, dimension, device and provider-specific inference settings |
-| Vector projection | `vector.provider`, `vector.settings` | Native index and collection/table options; dimensions come from embedder |
-| Lexical retrieval | `read.lexical_provider`, `read.lexical_settings` | Native analyzer, index and transport options; `read.hybrid` enables the leg |
-| Graph | `graph.provider`, `graph.settings` | Primary graph selection; associative memory must be enabled |
-| Graph mirror | `graph.mirror.enabled/provider/settings` | Separately owned projection; not a second authoritative graph |
-| LLM role | `llm.roles.<role>.provider/settings` | Explicit adapter, model, timeout and generation defaults |
-| Reranking | `read.rerank`, `read.rerank_settings` | Selected native reranker or the explicit chain policy |
-| Cache | `cache.provider`, `cache.settings` | Memory/disk/remote cache native settings |
+| Authoritative storage | `storage.records.provider`, `storage.records.settings` | SQL path/URL and native deadlines (`deployment.data_dir` for host-local slots) |
+| Embedding | `model.embedding.provider`, `model.embedding.settings` | Model, dimension, device and provider-specific inference settings |
+| Vector projection | `storage.vector.provider`, `storage.vector.settings` | Native index and collection/table options; dimensions come from embedder |
+| Lexical retrieval | `storage.lexical.provider`, `storage.lexical.settings` | Native analyzer, index and transport options; `read.hybrid` enables the leg |
+| Graph | `storage.graph.provider`, `storage.graph.settings` | Primary graph selection; associative memory must be enabled |
+| Graph mirror | `storage.graph_mirror` (`{provider, settings}`, null = off) | Separately owned projection; not a second authoritative graph |
+| LLM role | `model.llm.<role>.provider/timeout_s/settings` | Explicit adapter, deadline, model and generation defaults |
+| Reranking | `model.rerank.chain` (`[{provider, settings}]`, `[]` = off) | Native rerankers tried in order; behaviour keys (`pool`, `keep`, ...) on `model.rerank` |
+| Extraction / decider / vision | `model.extraction.<consumer>`, `model.decider.{route,read}`, `model.vision` | One inline slot per consumer; no named profiles |
+| Cache | `storage.cache.provider`, `storage.cache.settings` | Memory/disk/remote cache native settings |
 | Durable maintenance runner | `workers.runner`, `workers.temporal`, `workers.resonate` | External Temporal and embedded Resonate; separate runner contracts |
 
 Inspect exact defaults without opening a service:
@@ -69,13 +76,13 @@ ID alone does not authorize historical vector migration.
 This is an optional binding example, not an endpoint probe:
 
 ```yaml
-llm:
-  roles:
+model:
+  llm:
     extract:
       provider: litellm
+      timeout_s: 30.0
       settings:
         model: ollama/your-local-model
-        timeout_seconds: 30.0
         temperature: 0.0
         max_tokens: 2048
 ```
@@ -89,19 +96,21 @@ provider catalogs; do not dump effective secret settings into logs.
 ## 3. Configure server-backed services deliberately
 
 ```yaml
-vector:
-  provider: weaviate
-  settings:
-    url_env: MEMSPINE_WEAVIATE_URL
-    connect_timeout_s: 10.0
-    request_timeout_s: 30.0
+storage:
+  vector:
+    provider: weaviate
+    settings:
+      url_env: MEMSPINE_WEAVIATE_URL
+      connect_timeout_s: 10.0
+      request_timeout_s: 30.0
+  lexical:
+    provider: opensearch
+    settings:
+      url_env: MEMSPINE_OPENSEARCH_URL
+      connect_timeout_s: 10.0
+      request_timeout_s: 30.0
 read:
   hybrid: true
-  lexical_provider: opensearch
-  lexical_settings:
-    url_env: MEMSPINE_OPENSEARCH_URL
-    connect_timeout_s: 10.0
-    request_timeout_s: 30.0
 ```
 
 Install the corresponding `[weaviate]` and `[opensearch]` extras. Their endpoints,
@@ -109,7 +118,7 @@ TLS policy, auth and backend provisioning are explicit deployment concerns.
 Weaviate lexical and vector adapters are separate portable retrieval legs; native
 hybrid fusion is not implied by selecting them.
 
-For Ladybug/Neo4j, select `graph.provider` and the matching settings/extra.
+For Ladybug/Neo4j, select `storage.graph.provider` and the matching settings/extra.
 Controlled switches require their accepted readiness and handover gates; selecting
 a new provider does not itself copy the projection or change a running Engine.
 PostgreSQL storage and pgvector require the SQL/provider fields documented in

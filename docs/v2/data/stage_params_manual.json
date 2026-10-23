@@ -131,11 +131,11 @@
    "A13",
    "C8"
   ],
-  "embedding.*": [
+  "model.embedding.*": [
    "A13",
    "C7"
   ],
-  "embedding.batch_size": [
+  "model.embedding.batch_size": [
    "A4"
   ],
   "event_log.mode": [
@@ -221,13 +221,19 @@
   "privacy.*": [
    "B5"
   ],
-  "decision.*": [
+  "model.decider.route": [
    "C5"
   ],
-  "read.rerank*": [
+  "model.rerank.*": [
    "C20"
   ],
-  "read.skip_rerank_for_ordering": [
+  "model.llm.*.structured.*": [
+   "A19"
+  ],
+  "model.vision": [
+   "A8"
+  ],
+  "model.rerank.skip_for_ordering": [
    "C20"
   ],
   "read.scoring": [
@@ -239,10 +245,10 @@
   "read.static_embedding_prefilter": [
    "C19"
   ],
-  "read.rerank_balanced": [
+  "model.rerank.balanced": [
    "C19"
   ],
-  "read.decider*": [
+  "model.decider.read": [
    "C5"
   ],
   "read.external*": [
@@ -502,9 +508,6 @@
    "A11",
    "C30"
   ],
-  "models.rerank": [
-   "C20"
-  ],
   "read.contract_rules": [
    "C2"
   ],
@@ -642,12 +645,14 @@
   "plugins": "plug-in pinning at engine start, not a stage knob",
   "memories.*": "per-memory-type enablement and policy overrides, resolved at engine start",
   "namespaces.*": "per-namespace policy overrides, resolved at engine start",
-  "llm.roles.*": "role binding (model, endpoint, timeout, no_think): applies to every LLM stage that uses the role; see each stage's prompts and models lists",
-  "models.profiles*": "named native LLM/GLiNER provider settings; explicit task bindings select resources, identical effective GLiNER settings share weights and each Engine owns its resources",
-  "models.bindings*": "explicit role-to-profile selection for generative calls and gliner_decision/gliner_semantic/gliner_prepass; precedence over automatic tier selection",
-  "models.escalation*": "opt-in per-chat-invocation model escalation with explicit triggers, attempt limit, total deadline and per-attempt output setting; each candidate retains consent gates",
-  "models.gliner_max_models": "explicit bound on resident engine-owned GLiNER models; different profiles may use different checkpoints within this resource cap",
-  "models.*": "model planning at engine start (tiers, GPU placement, pins); applies to every stage that uses a model role",
+  "model.llm.*.provider": "role binding (provider, model, endpoint, timeout, no_think): applies to every LLM stage that uses the role; see each stage's prompts and models lists",
+  "model.llm.*.settings": "role binding (provider, model, endpoint, timeout, no_think): applies to every LLM stage that uses the role; see each stage's prompts and models lists",
+  "model.llm.*.timeout_s": "role binding (provider, model, endpoint, timeout, no_think): applies to every LLM stage that uses the role; see each stage's prompts and models lists",
+  "model.llm.*.thinking": "capped thinking budget of the judge / reflect role: applies to every stage that calls that role",
+  "model.extraction.*": "per-consumer GLiNER slots (semantic, prepass, topic, sensitivity); identical effective settings minus per-consumer fields share weights and each Engine owns its resources",
+  "model.llm.*.escalation": "opt-in per-chat-invocation model escalation over inline LLM target slots with explicit triggers, attempt limit, total deadline and per-attempt output setting; each candidate retains consent gates",
+  "model.placement.max_loaded_models": "explicit bound on resident engine-owned GLiNER checkpoints; different slots may use different checkpoints within this resource cap",
+  "model.placement.*": "model planning at engine start (tiers, GPU placement, pins); applies to every stage that uses a model role",
   "prompts.*": "prompt layout and override selection: applies to every engine prompt, see each stage's prompts list",
   "observability.*": "wiretap, ops ledger, timers and inspect switches: they observe every stage, they do not change one",
   "rest.*": "REST server (auth, rate limit): outside the memory pipeline",

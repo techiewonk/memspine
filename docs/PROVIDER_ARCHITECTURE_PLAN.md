@@ -1,12 +1,15 @@
 # Provider architecture: consolidated review specification
 
-> Multi-model update (ADR-075): named `models.profiles` and `models.bindings`
-> select native LLM/GLiNER providers per task. The single `models.gliner` field
-> is removed without an alias. Resource sharing does not force one model on all
-> roles. Optional `models.escalation` provides bounded per-chat failure/format
-> escalation, with each candidate's consent gate and actual attempt accounting.
-> See [current contracts and example](MULTI_MODEL_PROFILES.md) and
-> [ADR-075](adr/ADR-075-named-model-profiles-and-escalation.md).
+> Model-slot update (ADR-082, supersedes the ADR-075 profiles/bindings): every model
+> is selected in one `model` block, one inline slot per category:
+> `model.embedding`, `model.llm.<role>` (typed `timeout_s`, `structured`, `thinking`,
+> `escalation` with inline targets), `model.rerank` (`chain` plus behaviour keys),
+> `model.extraction.<consumer>`, `model.decider.{route,read}`, `model.vision` and
+> `model.placement`. Each slot is `{provider, <typed common keys>, settings}`. There
+> are no named profiles and no aliases; identical effective settings still share
+> weights (ADR-079). See [ADR-082](adr/ADR-082-model-slots.md) and the
+> [migration plan](MODEL_SLOTS_MIGRATION_PLAN.md). Older key names below are the
+> historical review record.
 
 > Durable orchestration update (ADR-071): the active DBOS runner, dependency,
 > selector and old system-database field are removed. Use `workers.runner: temporal`
@@ -890,9 +893,9 @@ Owner selected **Q28 B, Q29 B, Q30-Q35 A** on 2026-10-17.
 | Graph | `graph.provider`, `graph.mirror.enabled/provider`; semantic graph policies | `graph.settings` and independent `graph.mirror.settings`; shared deployment identity injected from runtime |
 | Cache | `cache.provider` | `cache.settings.path/url/namespace/default_ttl_seconds/max_entries` only as applicable to selected provider |
 | Lexical | `read.lexical_provider`; lexical query/scoring policies remain under read | `read.lexical_settings.analyzer/date_tokens` plus descriptor-specific constructor options |
-| Embedding | `embedding.provider`; profile/space/pin/migration policy remains category-level | `embedding.settings` contains model, dimension, endpoint/credentials/region, device/dtype and model-specific prompt/input options; constructor inventory must distinguish batching pipeline policy from provider options |
-| LLM roles | Explicit `llm.roles.<role>.provider`; role identities remain policy | Adapter-specific settings validate model, explicit timeout and native generation defaults. LiteLLM accepts `api_base/api_key/aws_region/no_think/temperature/top_p/max_tokens`; llama.cpp accepts model path, `no_think/temperature/top_p/max_tokens`, and its native `n_ctx/n_gpu_layers/n_batch/n_threads` knobs. Explicit per-call generation options override adapter defaults. |
-| Reranker | `read.rerank` selection; pool/keep/blend/gates/context remain read policy | `read.rerank_settings.model` replaces constructor field read.rerank_model; any selected adapter constructor options join its typed model |
+| Embedding | `model.embedding.provider` (ADR-082; was `embedding.provider`); preset/space/pin/migration policy remains typed on the slot | `model.embedding.settings` contains model, dimension, endpoint/credentials/region, device/dtype and model-specific prompt/input options; constructor inventory must distinguish batching pipeline policy from provider options |
+| LLM roles | Explicit `model.llm.<role>.provider` (ADR-082; was `llm.roles.<role>`); role identities remain policy; the deadline is the typed slot key `timeout_s` | Adapter-specific settings validate model and native generation defaults. LiteLLM accepts `api_base/api_key/aws_region/no_think/temperature/top_p/max_tokens`; llama.cpp accepts model path, `no_think/temperature/top_p/max_tokens`, and its native `n_ctx/n_gpu_layers/n_batch/n_threads` knobs. Explicit per-call generation options override adapter defaults. |
+| Reranker | `model.rerank.chain[].provider` (ADR-082; was `read.rerank` / `read.rerank_v2_chain`); `pool`/`keep`/`blend`/`gate`/`context` are typed `model.rerank` keys | `model.rerank.chain[].settings.model` (was `read.rerank_settings.model`); any selected adapter constructor options join its typed model |
 
 Final schema inventory in S1 must classify every existing setting as constructor or pipeline policy and publish its exact mapping. Do not silently drop undeclared current features while moving fields. Worker/asset/security provider expansion remains separately scoped; their existing policies are not moved by guesswork.
 

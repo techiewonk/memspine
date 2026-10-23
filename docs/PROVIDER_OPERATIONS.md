@@ -13,15 +13,18 @@ provider does not silently migrate data or start model re-embedding calls.
 
 | Service | Selector | Native settings |
 |---|---|---|
-| Authoritative SQL | `storage.provider` | `storage.settings` |
-| Vector | `vector.provider` | `vector.settings` |
-| Lexical | `read.lexical_provider` | `read.lexical_settings` |
-| Primary graph | `graph.provider` | `graph.settings` |
-| Optional graph mirror | `graph.mirror.enabled/provider` | `graph.mirror.settings` |
-| Embedding | `embedding.provider` | `embedding.settings` |
-| LLM role | `llm.roles.<role>.provider` | `llm.roles.<role>.settings` |
-| Reranking | `read.rerank` (selected provider or explicit chain policy) | `read.rerank_settings` |
-| Cache | `cache.provider` | `cache.settings` |
+| Authoritative SQL | `storage.records.provider` | `storage.records.settings` |
+| Vector | `storage.vector.provider` | `storage.vector.settings` |
+| Lexical | `storage.lexical.provider` | `storage.lexical.settings` |
+| Primary graph | `storage.graph.provider` | `storage.graph.settings` |
+| Optional graph mirror | `storage.graph_mirror.provider` (null = off) | `storage.graph_mirror.settings` |
+| Embedding | `model.embedding.provider` | `model.embedding.settings` |
+| LLM role | `model.llm.<role>.provider` (deadline: `model.llm.<role>.timeout_s`) | `model.llm.<role>.settings` |
+| Reranking | `model.rerank.chain[].provider` (first entry that builds wins; `[]` = off) | `model.rerank.chain[].settings` |
+| Extraction (GLiNER) | `model.extraction.<consumer>.provider` | `model.extraction.<consumer>.settings` |
+| Decider | `model.decider.route` / `model.decider.read` `.provider` | `model.decider.<consumer>.settings` |
+| Vision | `model.vision.provider` (null = off) | `model.vision.settings` |
+| Cache | `storage.cache.provider` | `storage.cache.settings` |
 
 Optional remote adapters use these same paths, with no Engine-specific vendor
 branch or alternative ingestion API. For example, this selects a Weaviate vector
@@ -31,15 +34,18 @@ variables):
 ```python
 engine = Engine(
     template="core",
-    runtime={"deployment_id": "my-unique-application-deployment"},
-    vector={"provider": "weaviate", "settings": {
-        "url_env": "MEMSPINE_WEAVIATE_URL",
-        "connect_timeout_s": 10.0, "request_timeout_s": 30.0,
-    }},
-    read={"hybrid": True, "lexical_provider": "opensearch", "lexical_settings": {
-        "url_env": "MEMSPINE_OPENSEARCH_URL",
-        "connect_timeout_s": 10.0, "request_timeout_s": 30.0,
-    }},
+    deployment={"id": "my-unique-application-deployment"},
+    storage={
+        "vector": {"provider": "weaviate", "settings": {
+            "url_env": "MEMSPINE_WEAVIATE_URL",
+            "connect_timeout_s": 10.0, "request_timeout_s": 30.0,
+        }},
+        "lexical": {"provider": "opensearch", "settings": {
+            "url_env": "MEMSPINE_OPENSEARCH_URL",
+            "connect_timeout_s": 10.0, "request_timeout_s": 30.0,
+        }},
+    },
+    read={"hybrid": True},
 )
 ```
 
@@ -132,13 +138,15 @@ from memspine import Engine
 engine = Engine(
     template="core",
     dotenv_path=None,
-    storage={"provider": "sqlite", "settings": {
-        "path": "./memory.db", "busy_timeout_s": 5.0,
-    }},
-    embedding={"provider": "hash", "settings": {}},
-    vector={"provider": "lancedb", "settings": {}},
-    read={"lexical_provider": "tantivy", "lexical_settings": {}},
-    cache={"provider": "memory", "settings": {}},
+    storage={
+        "records": {"provider": "sqlite", "settings": {
+            "path": "./memory.db", "busy_timeout_s": 5.0,
+        }},
+        "vector": {"provider": "lancedb", "settings": {}},
+        "lexical": {"provider": "tantivy", "settings": {}},
+        "cache": {"provider": "memory", "settings": {}},
+    },
+    model={"embedding": {"provider": "hash", "settings": {}}},
 )
 await engine.start()
 print(await engine.provider_catalog())
@@ -154,7 +162,8 @@ Enabled remote services also require their applicable native request/connect
 deadlines and an explicit `runtime.deployment_id`. Local development persists
 an automatically generated deployment identity once in SQL.
 
-LLM bindings explicitly select an adapter, independently of its model ID:
+LLM role slots (`model.llm.<role>`, ADR-082) explicitly select an adapter,
+independently of its model ID:
 
 Generation precedence is explicit call options, then the selected role's validated
 settings, then that provider's own defaults. A deliberately configured thinking
@@ -162,34 +171,34 @@ or structured-output budget still caps its call. Catalogue bindings forward only
 declared generation overrides, so omission does not replace a native default.
 
 ```yaml
-runtime:
-  deployment_id: example-deployment
-llm:
-  roles:
+deployment:
+  id: example-deployment
+model:
+  llm:
     extract:
       provider: litellm
+      timeout_s: 30.0
       settings:
         model: ollama/llama3
         api_base: http://localhost:11434
-        timeout_seconds: 30.0
         # Defaults: temperature 0.2, top_p 1.0, max_tokens 2048.
         # Per-call options override these provider defaults.
 ```
 
 For `llamacpp`, the native defaults are `temperature: 0.8`, `top_p: 0.95`,
 `max_tokens: 2048`, `n_ctx: 8192`, `n_gpu_layers: 0`, and `n_batch: 512`.
-Set them in that role's `settings` when needed; `timeout_seconds` remains
-required. Explicit generation options passed to `chat()` take precedence over
+Set them in that role's `settings` when needed; the slot's `timeout_s` remains
+required (`settings.timeout_seconds` is rejected). Explicit generation options passed to `chat()` take precedence over
 the adapter's configured defaults.
 
 ```yaml
-llm:
-  roles:
+model:
+  llm:
     chat:
       provider: llamacpp
+      timeout_s: 30.0
       settings:
         model: llamacpp/models/chat.gguf
-        timeout_seconds: 30.0
         n_ctx: 4096
         n_gpu_layers: 20
         temperature: 0.4

@@ -17,8 +17,8 @@ from memspine import Engine
 async def main() -> None:
     engine = Engine(
         template="base",
-        storage={"path": ":memory:"},
-        embedding={"provider": "hash"},
+        storage={"records": {"provider": "sqlite", "settings": {"path": ":memory:"}}},
+        model={"embedding": {"provider": "hash"}},
         memories={"working": {"enabled": True, "policies": {"page_size": 3}}},
     )
     await engine.start()

@@ -38,13 +38,13 @@
    "file_function": "`write._prewarm_embeddings`, `_prefetch_neighbours`",
    "keys": [
     {
-     "key": "embedding.batch_size",
+     "key": "model.embedding.batch_size",
      "default": 32,
      "type": "int",
      "description": "G9: most texts per embedding call when `ingest_messages` embeds its turns up front (Cohere on Bedrock: up to 96).",
      "effect": "Most texts per embedding call when `ingest_messages` embeds its turns up front (Cohere on Bedrock: up to 96).",
-     "rebuild": true,
-     "rebuild_scope": "index",
+     "rebuild": false,
+     "rebuild_scope": "",
      "screen_ids": [],
      "range": {
       "ge": 1
@@ -252,53 +252,6 @@
      }
     },
     {
-     "key": "ingest.asset_vision",
-     "default": "none",
-     "type": "Literal['none', 'ollama']",
-     "description": "E04: the vision/OCR evidence port. `none`: no description (the arm stays text-only; evidence is `skipped`). `ollama`: a local vision model through `/api/chat`.",
-     "effect": "The vision/OCR evidence port.",
-     "rebuild": true,
-     "rebuild_scope": "ingest",
-     "screen_ids": [],
-     "choices": [
-      "none",
-      "ollama"
-     ]
-    },
-    {
-     "key": "ingest.asset_vision_model",
-     "default": "qwen2.5vl:3b",
-     "type": "str",
-     "description": "E04: the Ollama model tag (documented only; the engine never pulls).",
-     "effect": "The Ollama model tag (documented only; the engine never pulls).",
-     "rebuild": true,
-     "rebuild_scope": "ingest",
-     "screen_ids": []
-    },
-    {
-     "key": "ingest.asset_vision_timeout_s",
-     "default": 120.0,
-     "type": "float",
-     "description": "E04: timeout of one vision call.",
-     "effect": "Timeout of one vision call.",
-     "rebuild": true,
-     "rebuild_scope": "ingest",
-     "screen_ids": [],
-     "range": {
-      "gt": 0.0
-     }
-    },
-    {
-     "key": "ingest.asset_vision_url",
-     "default": "http://localhost:11434",
-     "type": "str",
-     "description": "E04: the Ollama base URL.",
-     "effect": "The Ollama base URL.",
-     "rebuild": true,
-     "rebuild_scope": "ingest",
-     "screen_ids": []
-    },
-    {
      "key": "ingest.assets",
      "default": "off",
      "type": "Literal['off', 'on']",
@@ -311,6 +264,16 @@
       "off",
       "on"
      ]
+    },
+    {
+     "key": "model.vision",
+     "default": null,
+     "type": "VisionSlot | None",
+     "description": "ADR-082 (E04; was `ingest.asset_vision*`): the vision/OCR evidence port. `null` = no description (the arm stays text-only; evidence is `skipped`). `{provider: ollama, timeout_s: 120.0, settings: {model: qwen2.5vl:3b, api_base: http://localhost:11434}}`: a local vision model through `/api/chat` (the engine never pulls the model).",
+     "effect": "The vision/OCR evidence port.",
+     "rebuild": false,
+     "rebuild_scope": "",
+     "screen_ids": []
     },
     {
      "key": "write.asset_describe_timeout_s",
@@ -373,11 +336,6 @@
     {
      "role": "describe_asset",
      "source": "llm.roles.describe_asset.model"
-    },
-    {
-     "role": "ingest.asset_vision_model",
-     "source": "ingest.asset_vision_model",
-     "default": "qwen2.5vl:3b"
     }
    ]
   },
@@ -674,7 +632,7 @@
      "key": "write.sensitivity",
      "default": "off",
      "type": "Literal['off', 'heuristic', 'decider']",
-     "description": "I52. Grade each record `none`/`low`/`medium`/`high` with a category (health, sexuality_gender, religion, ethnicity, credentials = high; politics, finance, legal, location = medium) and tag it `sens:<grade>` / `sensc:<category>` (labels only: the text is never copied into a tag, log line or forensics entry; a `high` record also gets `pii_tier` >= `high`). `heuristic`: the fixed English lexicon. `decider`: the lexicon, raised to `medium` (category `other`) by the decider `sensitivity` task when it is sure (`read.decider: opendecider`); the decider never lowers a grade.",
+     "description": "I52. Grade each record `none`/`low`/`medium`/`high` with a category (health, sexuality_gender, religion, ethnicity, credentials = high; politics, finance, legal, location = medium) and tag it `sens:<grade>` / `sensc:<category>` (labels only: the text is never copied into a tag, log line or forensics entry; a `high` record also gets `pii_tier` >= `high`). `heuristic`: the fixed English lexicon. `decider`: the lexicon, raised to `medium` (category `other`) by the decider `sensitivity` task when it is sure (`model.decider.read`); the decider never lowers a grade.",
      "effect": "Grade each record `none`/`low`/`medium`/`high` with a category (health, sexuality_gender, religion, ethnicity, credentials = high; politics, finance, legal, location = medium) and tag it `sens:<grade>` / `sensc:<category>` (labels only: the",
      "rebuild": true,
      "rebuild_scope": "ingest",
@@ -859,71 +817,77 @@
    "file_function": "`store/projections/projector.py`; `RecordProjector`, `VectorProjector`, `LexicalProjector`, `GraphProjector`, `Neo4jOutboxProjector`",
    "keys": [
     {
-     "key": "embedding.migrate_profile",
+     "key": "model.embedding.migrate_preset",
      "default": false,
      "type": "bool",
-     "description": "MD-02: accept a profile change on open (the pin is replaced, the old hash kept as `previous`). Needs `embedding.versioned_spaces`; run `VersionedSpaceStore.reembed` (F-03) to move the old records.",
-     "effect": "Accept a profile change on open (the pin is replaced, the old hash kept as `previous`).",
-     "rebuild": true,
-     "rebuild_scope": "index",
+     "description": "MD-02 (was `embedding.migrate_profile`): accept a preset change on open (the pin is replaced, the old hash kept as `previous`). Needs `model.embedding.versioned_spaces`; run `VersionedSpaceStore.reembed` (F-03) to move the old records.",
+     "effect": "Accept a preset change on open (the pin is replaced, the old hash kept as `previous`).",
+     "rebuild": false,
+     "rebuild_scope": "",
      "screen_ids": []
     },
     {
-     "key": "embedding.pin_profile",
+     "key": "model.embedding.pin_preset",
      "default": false,
      "type": "bool",
-     "description": "MD-02: write the resolved profile (model, dim, dtype, instruction, normalisation, version hash) beside the store at creation (`<db>.embedding-profile.json`, and into the Lance table metadata) and refuse to open the store with a different one. Off = nothing written or checked. In-memory stores pin nothing.",
-     "effect": "Write the resolved profile (model, dim, dtype, instruction, normalisation, version hash) beside the store at creation (`<db>.embedding-profile.json`, and into the Lance table metadata) and refuse to open the store with a different one.",
-     "rebuild": true,
-     "rebuild_scope": "index",
+     "description": "MD-02 (was `embedding.pin_profile`): write the resolved embedding preset (model, dim, dtype, instruction, normalisation, version hash) beside the store at creation (`<db>.embedding-profile.json`, and into the Lance table metadata) and refuse to open the store with a different one. Off = nothing written or checked. In-memory stores pin nothing.",
+     "effect": "Write the resolved embedding preset (model, dim, dtype, instruction, normalisation, version hash) beside the store at creation (`<db>.embedding-profile.json`, and into the Lance table metadata) and refuse to open the store with a different",
+     "rebuild": false,
+     "rebuild_scope": "",
      "screen_ids": []
     },
     {
-     "key": "embedding.profile",
+     "key": "model.embedding.preset",
      "default": null,
      "type": "str | None",
-     "description": "MD-02 (P-17 C, M-23 B): a named embedding profile that fills provider, model, dim and query instruction. `gpu` = Qwen3-Embedding-0.6B, 1024 dims, bf16 on CUDA, with the evals retrieval instruction (`[st]`); `cpu_multilingual` = paraphrase-multilingual-MiniLM-L12-v2 (ONNX, 384 dims, fastembed). Null = the embedder fields are used as written.",
-     "effect": "A named embedding profile that fills provider, model, dim and query instruction.",
-     "rebuild": true,
-     "rebuild_scope": "index",
-     "screen_ids": []
+     "description": "MD-02 (was `embedding.profile` and `models.embedder_profile`): a shipped embedding preset that fills provider, model, dim and query instruction. `gpu` = Qwen3-Embedding-0.6B, 1024 dims, bf16 on CUDA, with the evals retrieval instruction (`[st]`); `cpu_multilingual` = paraphrase-multilingual-MiniLM-L12-v2 (ONNX, 384 dims, fastembed). Null (`auto`) = the slot fields are used as written.",
+     "effect": "A shipped embedding preset that fills provider, model, dim and query instruction.",
+     "rebuild": false,
+     "rebuild_scope": "",
+     "screen_ids": [],
+     "range": {
+      "min_length": 1
+     }
     },
     {
-     "key": "embedding.provider",
+     "key": "model.embedding.provider",
      "default": "fastembed",
      "type": "str",
-     "description": "`fastembed` (ONNX/CPU) | `hash` (deterministic, tests) | `static` (model2vec `[static]`) | `litellm` (cloud).",
-     "effect": "`fastembed` (ONNX/CPU) | `hash` (deterministic, tests) | `static` (model2vec `[static]`) | `litellm` (cloud).",
-     "rebuild": true,
-     "rebuild_scope": "index",
-     "screen_ids": []
+     "description": "D-08: `fastembed` (ONNX/CPU) | `hash` (deterministic, tests) | `static` (model2vec `[static]`) | `litellm` (cloud; `settings.dim` required) | `st` (sentence-transformers, `[st]`).",
+     "effect": "`fastembed` (ONNX/CPU) | `hash` (deterministic, tests) | `static` (model2vec `[static]`) | `litellm` (cloud;",
+     "rebuild": false,
+     "rebuild_scope": "",
+     "screen_ids": [],
+     "range": {
+      "min_length": 1
+     }
     },
     {
-     "key": "embedding.settings",
+     "key": "model.embedding.settings",
      "default": {},
      "type": "dict[str, JsonValue]",
-     "description": "Provider and policy fields are validated by their typed configuration schema.",
-     "effect": "Provider and policy fields are validated by their typed configuration schema.",
-     "rebuild": true,
-     "rebuild_scope": "index",
+     "description": "Provider-owned settings (model id, dim, api_base, ...), validated by the selected provider's descriptor.",
+     "effect": "Provider-owned settings (model id, dim, api_base, ...), validated by the selected provider's descriptor.",
+     "rebuild": false,
+     "rebuild_scope": "",
      "screen_ids": []
     },
     {
-     "key": "embedding.versioned_spaces",
+     "key": "model.embedding.versioned_spaces",
      "default": false,
      "type": "bool",
      "description": "F-03 (P-25 C): version the vector space. Each vector belongs to a space (embedder model, dim, dtype, query instruction, normalisation); after an embedder change new writes go to the new space, reads query only a namespace's active space, and `reembed` builds the new space in batches and switches atomically. Off = one table per embedder, unchanged.",
      "effect": "Version the vector space.",
-     "rebuild": true,
-     "rebuild_scope": "index",
+     "rebuild": false,
+     "rebuild_scope": "",
      "screen_ids": []
     }
    ],
    "prompts": [],
    "models": [
     {
-     "role": "embedding.provider",
-     "source": "embedding.provider",
+     "role": "model.embedding.provider",
+     "source": "model.embedding.provider",
      "default": "fastembed"
     }
    ]
@@ -1257,20 +1221,20 @@
    "file_function": "`windows._call`, `PromptWindowExtractor`, `_unified_call`, `_run_groups`, `_prepare_batch`; prompts `structured.window`, `structured.repair`, `window_extract.yaml`",
    "keys": [
     {
-     "key": "llm.structured.constrained_retry",
+     "key": "model.llm.*.structured.constrained_retry",
      "default": false,
      "type": "bool",
-     "description": "I69: on that retry only, request JSON-schema constrained decoding (`response_format`; OpenAI-compatible servers, Ollama via LiteLLM, llama.cpp); a backend that refuses it falls back to a plain retry.",
+     "description": "I69 (was `llm.structured.constrained_retry`): on that retry only, request JSON-schema constrained decoding (`response_format`; OpenAI-compatible servers, Ollama via LiteLLM, llama.cpp); a backend that refuses it falls back to a plain retry. Set per role.",
      "effect": "On that retry only, request JSON-schema constrained decoding (`response_format`;",
      "rebuild": false,
      "rebuild_scope": "",
      "screen_ids": []
     },
     {
-     "key": "llm.structured.retry_on_error",
+     "key": "model.llm.*.structured.retry_on_error",
      "default": false,
      "type": "bool",
-     "description": "I69: when a structured reply fails validation, re-prompt ONCE with the validation error appended. Measure first with `engine.structured_stats()`.",
+     "description": "I69 (was `llm.structured.retry_on_error`): when a structured reply fails validation, re-prompt ONCE with the validation error appended. Measure first with `engine.structured_stats()`. Set per role.",
      "effect": "When a structured reply fails validation, re-prompt ONCE with the validation error appended.",
      "rebuild": false,
      "rebuild_scope": "",
@@ -1320,7 +1284,7 @@
      "key": "write.online_extractor_v2",
      "default": false,
      "type": "bool",
-     "description": "W2-06c (W-12). `true`: `derive.OnlineExtractor` is the named entry for online extraction over the outbox window stage (`ingest.windows.online_extractor`); the window stats gain `online_extractor` (the stage hook list in run order) and `envelope_stages` (the stages' drop / rewrite counters, e.g. `ground.dropped`), needs `write.envelope_v2`; and a window mode with no `llm.roles.window_extract` (the no-model `core` template) skips extraction with a warning instead of failing at start, so ingestion makes zero model calls and the L1/L2 stages do not run. `false` (default): stats unchanged, that start fails (D-10).",
+     "description": "W2-06c (W-12). `true`: `derive.OnlineExtractor` is the named entry for online extraction over the outbox window stage (`ingest.windows.online_extractor`); the window stats gain `online_extractor` (the stage hook list in run order) and `envelope_stages` (the stages' drop / rewrite counters, e.g. `ground.dropped`), needs `write.envelope_v2`; and a window mode with no `model.llm.window_extract` slot (the no-model `core` template) skips extraction with a warning instead of failing at start, so ingestion makes zero model calls and the L1/L2 stages do not run. `false` (default): stats unchanged, that start fails (D-10).",
      "effect": "`true`: `derive.OnlineExtractor` is the named entry for online extraction over the outbox window stage (`ingest.windows.online_extractor`); the window stats gain `online_extractor` (the stage hook list in run order) and `envelope_stages` (t",
      "rebuild": true,
      "rebuild_scope": "ingest",
@@ -1366,7 +1330,7 @@
      "key": "write.window_extract",
      "default": "off",
      "type": "Literal['off', 'facts', 'facts_graph', 'all']",
-     "description": "W1 adaptive-window write, call 1. `facts`: one structured `window_extract` call per window of consecutive turns yields atomic, dated, grounded facts (a verbatim `span` of a cited turn), deposited as semantic `atomic_fact` records with the cited turns as parents. `facts_graph` adds the entity-edge section (handed to the sleep stage `extract_graph`); `all` adds the episode-fragment section. Needs `llm.roles.window_extract` and `memories.episodic` + `memories.semantic`. Run with `Engine.flush_windows()` (batch) or in the background (`window_async`). Counters: `Engine.window_stats()`.",
+     "description": "W1 adaptive-window write, call 1. `facts`: one structured `window_extract` call per window of consecutive turns yields atomic, dated, grounded facts (a verbatim `span` of a cited turn), deposited as semantic `atomic_fact` records with the cited turns as parents. `facts_graph` adds the entity-edge section (handed to the sleep stage `extract_graph`); `all` adds the episode-fragment section. Needs `model.llm.window_extract` and `memories.episodic` + `memories.semantic`. Run with `Engine.flush_windows()` (batch) or in the background (`window_async`). Counters: `Engine.window_stats()`.",
      "effect": "Adaptive-window write, call 1.",
      "rebuild": true,
      "rebuild_scope": "ingest",
@@ -1546,7 +1510,7 @@
      "key": "write.ground_adjudicator",
      "default": "lexical",
      "type": "Literal['lexical', 'decider', 'off']",
-     "description": "W2-08. With `write.grounding_v2`: who settles the assertions the rules leave undecided. `lexical`: word overlap on CPU (accepts at high coverage, rejects only same-language text with almost none, never rejects other-language text). `decider`: the OpenDecider `grounded` task first (`read.decider` settings, CPU by default; its answer counts only above 0.6 confidence), lexical when it is unsure or unavailable. `off`: undecided assertions are kept with `grounding: uncertain`.",
+     "description": "W2-08. With `write.grounding_v2`: who settles the assertions the rules leave undecided. `lexical`: word overlap on CPU (accepts at high coverage, rejects only same-language text with almost none, never rejects other-language text). `decider`: the OpenDecider `grounded` task first (`model.decider.read` settings, CPU by default; its answer counts only above 0.6 confidence), lexical when it is unsure or unavailable. `off`: undecided assertions are kept with `grounding: uncertain`.",
      "effect": "With `write.grounding_v2`: who settles the assertions the rules leave undecided.",
      "rebuild": true,
      "rebuild_scope": "ingest",
@@ -1779,7 +1743,7 @@
      "key": "write.window_extract",
      "default": "off",
      "type": "Literal['off', 'facts', 'facts_graph', 'all']",
-     "description": "W1 adaptive-window write, call 1. `facts`: one structured `window_extract` call per window of consecutive turns yields atomic, dated, grounded facts (a verbatim `span` of a cited turn), deposited as semantic `atomic_fact` records with the cited turns as parents. `facts_graph` adds the entity-edge section (handed to the sleep stage `extract_graph`); `all` adds the episode-fragment section. Needs `llm.roles.window_extract` and `memories.episodic` + `memories.semantic`. Run with `Engine.flush_windows()` (batch) or in the background (`window_async`). Counters: `Engine.window_stats()`.",
+     "description": "W1 adaptive-window write, call 1. `facts`: one structured `window_extract` call per window of consecutive turns yields atomic, dated, grounded facts (a verbatim `span` of a cited turn), deposited as semantic `atomic_fact` records with the cited turns as parents. `facts_graph` adds the entity-edge section (handed to the sleep stage `extract_graph`); `all` adds the episode-fragment section. Needs `model.llm.window_extract` and `memories.episodic` + `memories.semantic`. Run with `Engine.flush_windows()` (batch) or in the background (`window_async`). Counters: `Engine.window_stats()`.",
      "effect": "Adaptive-window write, call 1.",
      "rebuild": true,
      "rebuild_scope": "ingest",
@@ -1816,7 +1780,7 @@
      "key": "write.window_extract",
      "default": "off",
      "type": "Literal['off', 'facts', 'facts_graph', 'all']",
-     "description": "W1 adaptive-window write, call 1. `facts`: one structured `window_extract` call per window of consecutive turns yields atomic, dated, grounded facts (a verbatim `span` of a cited turn), deposited as semantic `atomic_fact` records with the cited turns as parents. `facts_graph` adds the entity-edge section (handed to the sleep stage `extract_graph`); `all` adds the episode-fragment section. Needs `llm.roles.window_extract` and `memories.episodic` + `memories.semantic`. Run with `Engine.flush_windows()` (batch) or in the background (`window_async`). Counters: `Engine.window_stats()`.",
+     "description": "W1 adaptive-window write, call 1. `facts`: one structured `window_extract` call per window of consecutive turns yields atomic, dated, grounded facts (a verbatim `span` of a cited turn), deposited as semantic `atomic_fact` records with the cited turns as parents. `facts_graph` adds the entity-edge section (handed to the sleep stage `extract_graph`); `all` adds the episode-fragment section. Needs `model.llm.window_extract` and `memories.episodic` + `memories.semantic`. Run with `Engine.flush_windows()` (batch) or in the background (`window_async`). Counters: `Engine.window_stats()`.",
      "effect": "Adaptive-window write, call 1.",
      "rebuild": true,
      "rebuild_scope": "ingest",
@@ -1983,7 +1947,7 @@
      "key": "write.window_extract",
      "default": "off",
      "type": "Literal['off', 'facts', 'facts_graph', 'all']",
-     "description": "W1 adaptive-window write, call 1. `facts`: one structured `window_extract` call per window of consecutive turns yields atomic, dated, grounded facts (a verbatim `span` of a cited turn), deposited as semantic `atomic_fact` records with the cited turns as parents. `facts_graph` adds the entity-edge section (handed to the sleep stage `extract_graph`); `all` adds the episode-fragment section. Needs `llm.roles.window_extract` and `memories.episodic` + `memories.semantic`. Run with `Engine.flush_windows()` (batch) or in the background (`window_async`). Counters: `Engine.window_stats()`.",
+     "description": "W1 adaptive-window write, call 1. `facts`: one structured `window_extract` call per window of consecutive turns yields atomic, dated, grounded facts (a verbatim `span` of a cited turn), deposited as semantic `atomic_fact` records with the cited turns as parents. `facts_graph` adds the entity-edge section (handed to the sleep stage `extract_graph`); `all` adds the episode-fragment section. Needs `model.llm.window_extract` and `memories.episodic` + `memories.semantic`. Run with `Engine.flush_windows()` (batch) or in the background (`window_async`). Counters: `Engine.window_stats()`.",
      "effect": "Adaptive-window write, call 1.",
      "rebuild": true,
      "rebuild_scope": "ingest",
@@ -3550,7 +3514,7 @@
      "key": "read.tiers_v2",
      "default": false,
      "type": "bool",
-     "description": "R3-01 (LIB-47): the v2 read entry. On: the question is NFKC-normalised (whitespace collapsed), the viewer is bound to the principal, and a depth tier (fast / standard / deep, with generative-call and rerank-pool caps) is chosen; the tier is recorded in the wiretap and forensics (`read_plan`). FX-READPATH: the tier is consumed. With `rerank_v2` on, the assembly search fetches at least the tier's rerank pool (fast 32, standard 48, deep 64) before the rerank and cuts back; `deep_v2` runs its sufficiency and rewrite calls only in a tier that allows generative calls (deep), the rule check still runs. Off: unchanged.",
+     "description": "R3-01 (LIB-47): the v2 read entry. On: the question is NFKC-normalised (whitespace collapsed), the viewer is bound to the principal, and a depth tier (fast / standard / deep, with generative-call and rerank-pool caps) is chosen; the tier is recorded in the wiretap and forensics (`read_plan`). FX-READPATH: the tier is consumed. With a `model.rerank.chain`, the assembly search fetches at least the tier's rerank pool (fast 32, standard 48, deep 64) before the rerank and cuts back; `deep_v2` runs its sufficiency and rewrite calls only in a tier that allows generative calls (deep), the rule check still runs. Off: unchanged.",
      "effect": "The v2 read entry. On: the question is NFKC-normalised (whitespace collapsed), the viewer is bound to the principal, and a depth tier (fast / standard / deep, with generative-call and rerank-pool caps) is chosen; the tier is recorded in the",
      "rebuild": false,
      "rebuild_scope": "",
@@ -3662,7 +3626,7 @@
      "key": "read.cards",
      "default": "off",
      "type": "Literal['off', 'header']",
-     "description": "G1b (JustMem cards): `header` opens the volatile context of every read mode and `assemble` with a `FACTS` block of the mined atomic facts relevant to the query, one `[said YYYY-MM-DD] Entity: fact` line each (the date of the fact's earliest source turn; no date without one), fitted as rendered and shown in said order. Facts come from the same hybrid search restricted to `atomic_fact` records and pass every search gate and M12 abstention on their own scores; the rest of the budget goes to the normal read, which then leaves mined facts out (no fact twice) inside its search, before the rerank and `rerank_keep` cut, widening until enough visible records survive. A `full` read leaves out only the facts the header shows. Under `integrity.claims_only_below` a card whose source turn is below the threshold carries the `[CLAIM ...]` marker, and B9 does not put it back as a claim. A header that passed abstention is attached even when the routed read abstains (the read then no longer abstains). Needs `consolidation.mine_facts`.",
+     "description": "G1b (JustMem cards): `header` opens the volatile context of every read mode and `assemble` with a `FACTS` block of the mined atomic facts relevant to the query, one `[said YYYY-MM-DD] Entity: fact` line each (the date of the fact's earliest source turn; no date without one), fitted as rendered and shown in said order. Facts come from the same hybrid search restricted to `atomic_fact` records and pass every search gate and M12 abstention on their own scores; the rest of the budget goes to the normal read, which then leaves mined facts out (no fact twice) inside its search, before the rerank and `model.rerank.keep` cut, widening until enough visible records survive. A `full` read leaves out only the facts the header shows. Under `integrity.claims_only_below` a card whose source turn is below the threshold carries the `[CLAIM ...]` marker, and B9 does not put it back as a claim. A header that passed abstention is attached even when the routed read abstains (the read then no longer abstains). Needs `consolidation.mine_facts`.",
      "effect": "`header` opens the volatile context of every read mode and `assemble` with a `FACTS` block of the mined atomic facts relevant to the query, one `[said YYYY-MM-DD] Entity: fact` line each (the date of the fact's earliest source turn; no date",
      "rebuild": false,
      "rebuild_scope": "",
@@ -4235,18 +4199,24 @@
      "screen_ids": []
     },
     {
-     "key": "decision.provider",
-     "default": "off",
-     "type": "Literal['off', 'gliner2']",
-     "description": "H24: optional decision provider for calibrated choices among described options without generation. `gliner2` uses the `[ner]` extra (GLiNER2, Apache-2.0); bind `gliner_decision` to a GLiNER profile in `models.bindings`.",
-     "effect": "Optional decision provider for calibrated choices among described options without generation.",
+     "key": "model.decider.read",
+     "default": null,
+     "type": "DeciderReadSlot | None",
+     "description": "ADR-082 (I28; was `read.decider*`): who answers the read path's yes/no decisions. `null` = the heuristic regexes and rules, unchanged and with no model. A slot `{provider, tasks, min_confidence, workers, settings}`: `provider: opendecider` runs OpenDecider-nano (`manjunathshiva/opendecider-nano`, Apache-2.0, ~400M parameters, one forward pass, a calibrated probability, no text generated) through memspine's own inference code (the `opendecider` package is not needed; install the `[decider]` extra). `tasks` (default `[list_mode, bridge_hop]`): `list_mode` replaces the set-question regex (only when `read.list_mode` is on); `needs_more_evidence` is the `decider` trigger of `read.agentic`; `bridge_hop` replaces `read.bridge_hop_gate` (only when `read.bridge_hop` is on); `about_target`. `min_confidence` (0.5..1, default 0.5): a decision below it, or any failure (dependencies or weights missing), keeps the heuristic answer. `workers` (default 1): concurrent decision calls in a bounded thread pool. OpenDecider `settings` are strict: `model` (Hugging Face id or local folder, loaded lazily once per process and device; 0.8 GB download, about 2 GB RAM in fp32), `device` (`cpu` default, `cuda`, `mps`, `auto`; one decision is about 0.2-0.4 s on a CPU), `threads` (0 = the physical cores; with `workers` > 1 each worker gets `cores // workers`), `backend` (`torch` fp32 as evaluated, or `onnx`: the published 8-bit build, CPU only, needs `onnxruntime`), `dtype` (`float32` or `bfloat16`: 300 of 300 decisions identical). Every decision is recorded in `search_forensics` under `decisions`. `Engine.set_decider(obj)` injects any object with `async decide(task, question, context) -> Decision`. `read.sensitivity_gate: decider` needs this slot.",
+     "effect": "Who answers the read path's yes/no decisions.",
      "rebuild": false,
      "rebuild_scope": "",
-     "screen_ids": [],
-     "choices": [
-      "off",
-      "gliner2"
-     ]
+     "screen_ids": []
+    },
+    {
+     "key": "model.decider.route",
+     "default": null,
+     "type": "DeciderSlot | None",
+     "description": "ADR-082 (H24; was `decision.provider` + the `gliner_decision` binding): the decision provider for calibrated choices among described options without generation, used by `read.planner: decision` (which raises naming this slot when it is absent). `{provider, min_confidence, workers, settings}`; providers `heuristic`, `opendecider`, `gliner2` (`[ner]`, GLiNER2, Apache-2.0; strict GLiNER settings, the model needs task `classification`). `null` = off.",
+     "effect": "The decision provider for calibrated choices among described options without generation, used by `read.planner: decision` (which raises naming this slot when it is absent).",
+     "rebuild": false,
+     "rebuild_scope": "",
+     "screen_ids": []
     },
     {
      "key": "read.aggregate_in_replay",
@@ -4264,133 +4234,6 @@
      "type": "int | None",
      "description": "G11: the `top_k` of a read that `read(mode=\"auto\")` routes to compose (the LLM planner's `aggregate`, the decision planner's or the rules' compose), so list and count questions whose evidence spans sessions pool more candidates; the budget still caps the context. An explicit `mode=\"compose\"` keeps the caller's `top_k`. `null` = unchanged.",
      "effect": "The `top_k` of a read that `read(mode=\"auto\")` routes to compose (the LLM planner's `aggregate`, the decision planner's or the rules' compose), so list and count questions whose evidence spans sessions pool more candidates; the budget still",
-     "rebuild": false,
-     "rebuild_scope": "",
-     "screen_ids": [],
-     "range": {
-      "ge": 1
-     }
-    },
-    {
-     "key": "read.decider",
-     "default": "heuristic",
-     "type": "Literal['heuristic', 'opendecider']",
-     "description": "I28. Who answers the read path's yes/no decisions. `heuristic`: the existing regexes and rules, unchanged and with no model. `opendecider`: OpenDecider-nano (`manjunathshiva/opendecider-nano`, Apache-2.0, ~400M parameters, one forward pass, a calibrated probability, no text generated) through memspine's own inference code (`services/decision/opendecider_nano.py`; the `opendecider` package is not needed). Install the `[decider]` extra (torch, transformers, safetensors, huggingface-hub). A decision below `read.decider_min_confidence`, or any failure (dependencies or weights missing), keeps the heuristic answer. Every decision is recorded in `search_forensics` under `decisions` (task, label, confidence, adapter, `used`, the heuristic label). `Engine.set_decider(obj)` injects any object with `async decide(task, question, context) -> Decision`.",
-     "effect": "Who answers the read path's yes/no decisions.",
-     "rebuild": false,
-     "rebuild_scope": "",
-     "screen_ids": [],
-     "choices": [
-      "heuristic",
-      "opendecider"
-     ]
-    },
-    {
-     "key": "read.decider_backend",
-     "default": "torch",
-     "type": "Literal['torch', 'onnx']",
-     "description": "`torch` (fp32, as the model was evaluated) or `onnx` (the published 8-bit weight-only ONNX build `manjunathshiva/opendecider-nano-ONNX/onnx/model_q8.onnx`, 570 MB extra download, ONNX Runtime CPU provider, graph optimisation ALL; needs `onnxruntime`). Measured speed and agreement with torch are in the GAP_REGISTER row I28.",
-     "effect": "`torch` (fp32, as the model was evaluated) or `onnx` (the published 8-bit weight-only ONNX build `manjunathshiva/opendecider-nano-ONNX/onnx/model_q8.onnx`, 570 MB extra download, ONNX Runtime CPU provider, graph optimisation ALL; needs `onn",
-     "rebuild": false,
-     "rebuild_scope": "",
-     "screen_ids": [],
-     "choices": [
-      "torch",
-      "onnx"
-     ]
-    },
-    {
-     "key": "read.decider_device",
-     "default": "cpu",
-     "type": "Literal['cpu', 'cuda', 'mps', 'auto']",
-     "description": "`cpu`, `cuda`, `mps` or `auto`. CPU by default because the GPU is usually shared with the reader; one decision takes about 0.2-0.4 s on a CPU, 17 ms on an L40S.",
-     "effect": "`cpu`, `cuda`, `mps` or `auto`.",
-     "rebuild": false,
-     "rebuild_scope": "",
-     "screen_ids": [],
-     "choices": [
-      "cpu",
-      "cuda",
-      "mps",
-      "auto"
-     ]
-    },
-    {
-     "key": "read.decider_dtype",
-     "default": "float32",
-     "type": "Literal['float32', 'bfloat16']",
-     "description": "torch weights dtype: `float32` (as the model was evaluated) or `bfloat16` (about 1.5x faster on a 16-core CPU, 300 of 300 decisions identical to fp32, max probability difference 0.0075).",
-     "effect": "torch weights dtype: `float32` (as the model was evaluated) or `bfloat16` (about 1.5x faster on a 16-core CPU, 300 of 300 decisions identical to fp32, max probability difference 0.0075).",
-     "rebuild": false,
-     "rebuild_scope": "",
-     "screen_ids": [],
-     "choices": [
-      "float32",
-      "bfloat16"
-     ]
-    },
-    {
-     "key": "read.decider_min_confidence",
-     "default": 0.5,
-     "type": "float",
-     "description": "Confidence (probability of the chosen label) the decider needs for its answer to replace the heuristic. 0.5 uses the calibrated decision as it is (the winning label always has at least 0.5); raise it to fall back to the heuristic more often. A fixed principled cut, not tuned per dataset.",
-     "effect": "Confidence (probability of the chosen label) the decider needs for its answer to replace the heuristic. 0.5 uses the calibrated decision as it is (the winning label always has at least 0.5); raise it to fall back to the heuristic more often",
-     "rebuild": false,
-     "rebuild_scope": "",
-     "screen_ids": [],
-     "range": {
-      "ge": 0.5,
-      "le": 1.0
-     }
-    },
-    {
-     "key": "read.decider_model",
-     "default": "manjunathshiva/opendecider-nano",
-     "type": "str",
-     "description": "Hugging Face id or local folder; loaded lazily, once per process and device (0.8 GB download, about 2 GB RAM in fp32).",
-     "effect": "Hugging Face id or local folder; loaded lazily, once per process and device (0.8 GB download, about 2 GB RAM in fp32).",
-     "rebuild": false,
-     "rebuild_scope": "",
-     "screen_ids": []
-    },
-    {
-     "key": "read.decider_tasks",
-     "default": [
-      "list_mode",
-      "bridge_hop"
-     ],
-     "type": "list[Literal['list_mode', 'bridge_hop', 'about_target', 'needs_more_evidence']]",
-     "description": "The decision points that use the decider when `read.decider` is `opendecider`. `list_mode`: replaces the set-question regex (only when `read.list_mode` is on). `needs_more_evidence`: the `decider` trigger of `read.agentic` (input is the question and the first-pass hits; labels `needs_more` / `enough`). `bridge_hop`: replaces `read.bridge_hop_gate` (only when `read.bridge_hop` is on; input is the question and the first-pass hits). The refusal retry is a harness decision point: `--decider opendecider` with `--retry-refusal` in `memspine_evals`.",
-     "effect": "The decision points that use the decider when `read.decider` is `opendecider`.",
-     "rebuild": false,
-     "rebuild_scope": "",
-     "screen_ids": [],
-     "choices": [
-      "list_mode",
-      "bridge_hop",
-      "about_target",
-      "needs_more_evidence"
-     ]
-    },
-    {
-     "key": "read.decider_threads",
-     "default": 0,
-     "type": "int",
-     "description": "I38. Intra-op CPU threads of the decider model; `0` = the physical cores. With `decider_workers` > 1 each worker gets `cores // workers`, so the machine is not oversubscribed. Inference always runs under `torch.inference_mode`.",
-     "effect": "Intra-op CPU threads of the decider model;",
-     "rebuild": false,
-     "rebuild_scope": "",
-     "screen_ids": [],
-     "range": {
-      "ge": 0
-     }
-    },
-    {
-     "key": "read.decider_workers",
-     "default": 1,
-     "type": "int",
-     "description": "Concurrent decision calls (a bounded thread pool; the eval harness uses it for many queries). 1 keeps the engine path unchanged. `OpenDeciderDecider.decide_many([(task, question, context), ...])` answers decisions of several tasks in one batched call: inputs are sorted by length and bucketed (at most 16 per forward pass) so short inputs are not padded to long ones.",
-     "effect": "Concurrent decision calls (a bounded thread pool; the eval harness uses it for many queries). 1 keeps the engine path unchanged.",
      "rebuild": false,
      "rebuild_scope": "",
      "screen_ids": [],
@@ -4442,7 +4285,7 @@
      "key": "read.list_mode",
      "default": false,
      "type": "bool",
-     "description": "Gap B1, list / set questions (\"What activities does X do?\"). For a question matching `list_trigger` the routed replay/retrieve read (a compose-routed aggregation read is not affected) (1) adds the `speaker_vote` RRF leg when exactly one speaker is named: the vector leg fetched `list_vote_depth` deep, kept to that speaker's turns (`speaker:` tag, else the `Name:` prefix), top `list_vote_top_k`; (2) draws `max(candidate_pool, list_pool) x top_k` candidates and skips the `rerank_keep` cut; (3) gives only the best `window_full_hits` hits their neighbour window, the others are single turns. Any other question reads as before.",
+     "description": "Gap B1, list / set questions (\"What activities does X do?\"). For a question matching `list_trigger` the routed replay/retrieve read (a compose-routed aggregation read is not affected) (1) adds the `speaker_vote` RRF leg when exactly one speaker is named: the vector leg fetched `list_vote_depth` deep, kept to that speaker's turns (`speaker:` tag, else the `Name:` prefix), top `list_vote_top_k`; (2) draws `max(candidate_pool, list_pool) x top_k` candidates and skips the `model.rerank.keep` cut; (3) gives only the best `window_full_hits` hits their neighbour window, the others are single turns. Any other question reads as before.",
      "effect": "Gap B1, list / set questions (\"What activities does X do?\").",
      "rebuild": false,
      "rebuild_scope": "",
@@ -4594,11 +4437,6 @@
     {
      "role": "plan",
      "source": "llm.roles.plan.model"
-    },
-    {
-     "role": "read.decider_model",
-     "source": "read.decider_model",
-     "default": "manjunathshiva/opendecider-nano"
     }
    ]
   },
@@ -4955,71 +4793,77 @@
    "file_function": "`router._search`, `models/encoders/query`",
    "keys": [
     {
-     "key": "embedding.migrate_profile",
+     "key": "model.embedding.migrate_preset",
      "default": false,
      "type": "bool",
-     "description": "MD-02: accept a profile change on open (the pin is replaced, the old hash kept as `previous`). Needs `embedding.versioned_spaces`; run `VersionedSpaceStore.reembed` (F-03) to move the old records.",
-     "effect": "Accept a profile change on open (the pin is replaced, the old hash kept as `previous`).",
-     "rebuild": true,
-     "rebuild_scope": "index",
+     "description": "MD-02 (was `embedding.migrate_profile`): accept a preset change on open (the pin is replaced, the old hash kept as `previous`). Needs `model.embedding.versioned_spaces`; run `VersionedSpaceStore.reembed` (F-03) to move the old records.",
+     "effect": "Accept a preset change on open (the pin is replaced, the old hash kept as `previous`).",
+     "rebuild": false,
+     "rebuild_scope": "",
      "screen_ids": []
     },
     {
-     "key": "embedding.pin_profile",
+     "key": "model.embedding.pin_preset",
      "default": false,
      "type": "bool",
-     "description": "MD-02: write the resolved profile (model, dim, dtype, instruction, normalisation, version hash) beside the store at creation (`<db>.embedding-profile.json`, and into the Lance table metadata) and refuse to open the store with a different one. Off = nothing written or checked. In-memory stores pin nothing.",
-     "effect": "Write the resolved profile (model, dim, dtype, instruction, normalisation, version hash) beside the store at creation (`<db>.embedding-profile.json`, and into the Lance table metadata) and refuse to open the store with a different one.",
-     "rebuild": true,
-     "rebuild_scope": "index",
+     "description": "MD-02 (was `embedding.pin_profile`): write the resolved embedding preset (model, dim, dtype, instruction, normalisation, version hash) beside the store at creation (`<db>.embedding-profile.json`, and into the Lance table metadata) and refuse to open the store with a different one. Off = nothing written or checked. In-memory stores pin nothing.",
+     "effect": "Write the resolved embedding preset (model, dim, dtype, instruction, normalisation, version hash) beside the store at creation (`<db>.embedding-profile.json`, and into the Lance table metadata) and refuse to open the store with a different",
+     "rebuild": false,
+     "rebuild_scope": "",
      "screen_ids": []
     },
     {
-     "key": "embedding.profile",
+     "key": "model.embedding.preset",
      "default": null,
      "type": "str | None",
-     "description": "MD-02 (P-17 C, M-23 B): a named embedding profile that fills provider, model, dim and query instruction. `gpu` = Qwen3-Embedding-0.6B, 1024 dims, bf16 on CUDA, with the evals retrieval instruction (`[st]`); `cpu_multilingual` = paraphrase-multilingual-MiniLM-L12-v2 (ONNX, 384 dims, fastembed). Null = the embedder fields are used as written.",
-     "effect": "A named embedding profile that fills provider, model, dim and query instruction.",
-     "rebuild": true,
-     "rebuild_scope": "index",
-     "screen_ids": []
+     "description": "MD-02 (was `embedding.profile` and `models.embedder_profile`): a shipped embedding preset that fills provider, model, dim and query instruction. `gpu` = Qwen3-Embedding-0.6B, 1024 dims, bf16 on CUDA, with the evals retrieval instruction (`[st]`); `cpu_multilingual` = paraphrase-multilingual-MiniLM-L12-v2 (ONNX, 384 dims, fastembed). Null (`auto`) = the slot fields are used as written.",
+     "effect": "A shipped embedding preset that fills provider, model, dim and query instruction.",
+     "rebuild": false,
+     "rebuild_scope": "",
+     "screen_ids": [],
+     "range": {
+      "min_length": 1
+     }
     },
     {
-     "key": "embedding.provider",
+     "key": "model.embedding.provider",
      "default": "fastembed",
      "type": "str",
-     "description": "`fastembed` (ONNX/CPU) | `hash` (deterministic, tests) | `static` (model2vec `[static]`) | `litellm` (cloud).",
-     "effect": "`fastembed` (ONNX/CPU) | `hash` (deterministic, tests) | `static` (model2vec `[static]`) | `litellm` (cloud).",
-     "rebuild": true,
-     "rebuild_scope": "index",
-     "screen_ids": []
+     "description": "D-08: `fastembed` (ONNX/CPU) | `hash` (deterministic, tests) | `static` (model2vec `[static]`) | `litellm` (cloud; `settings.dim` required) | `st` (sentence-transformers, `[st]`).",
+     "effect": "`fastembed` (ONNX/CPU) | `hash` (deterministic, tests) | `static` (model2vec `[static]`) | `litellm` (cloud;",
+     "rebuild": false,
+     "rebuild_scope": "",
+     "screen_ids": [],
+     "range": {
+      "min_length": 1
+     }
     },
     {
-     "key": "embedding.settings",
+     "key": "model.embedding.settings",
      "default": {},
      "type": "dict[str, JsonValue]",
-     "description": "Provider and policy fields are validated by their typed configuration schema.",
-     "effect": "Provider and policy fields are validated by their typed configuration schema.",
-     "rebuild": true,
-     "rebuild_scope": "index",
+     "description": "Provider-owned settings (model id, dim, api_base, ...), validated by the selected provider's descriptor.",
+     "effect": "Provider-owned settings (model id, dim, api_base, ...), validated by the selected provider's descriptor.",
+     "rebuild": false,
+     "rebuild_scope": "",
      "screen_ids": []
     },
     {
-     "key": "embedding.versioned_spaces",
+     "key": "model.embedding.versioned_spaces",
      "default": false,
      "type": "bool",
      "description": "F-03 (P-25 C): version the vector space. Each vector belongs to a space (embedder model, dim, dtype, query instruction, normalisation); after an embedder change new writes go to the new space, reads query only a namespace's active space, and `reembed` builds the new space in batches and switches atomically. Off = one table per embedder, unchanged.",
      "effect": "Version the vector space.",
-     "rebuild": true,
-     "rebuild_scope": "index",
+     "rebuild": false,
+     "rebuild_scope": "",
      "screen_ids": []
     }
    ],
    "prompts": [],
    "models": [
     {
-     "role": "embedding.provider",
-     "source": "embedding.provider",
+     "role": "model.embedding.provider",
+     "source": "model.embedding.provider",
      "default": "fastembed"
     }
    ]
@@ -6178,7 +6022,7 @@
      "key": "read.sensitivity_gate",
      "default": "off",
      "type": "Literal['off', 'on', 'decider']",
-     "description": "I52. Graded-sensitivity read bar (`core/sensitivity.py`). `off`: as today. `on`: a record graded `medium` or `high` at write time (`write.sensitivity`; a W16 `sensitive:*` tag counts as a grade) is injected only when the question is about its category (a category cue in the question), names its subject (`medium` only) or shares enough content words with it (1 for `medium`, 2 for `high`); `none` and `low` are never gated. Applied in every leg and in `full`/`replay` neighbours, so a generic question (\"recommend a gift for my sister\") never pulls in the user's gender identity. `decider`: as `on`, and when the question names no sensitive topic the decider task `sensitivity_scope` (`read.decider: opendecider`) may open the gate when sure; it never closes it.",
+     "description": "I52. Graded-sensitivity read bar (`core/sensitivity.py`). `off`: as today. `on`: a record graded `medium` or `high` at write time (`write.sensitivity`; a W16 `sensitive:*` tag counts as a grade) is injected only when the question is about its category (a category cue in the question), names its subject (`medium` only) or shares enough content words with it (1 for `medium`, 2 for `high`); `none` and `low` are never gated. Applied in every leg and in `full`/`replay` neighbours, so a generic question (\"recommend a gift for my sister\") never pulls in the user's gender identity. `decider`: as `on`, and when the question names no sensitive topic the decider task `sensitivity_scope` (`model.decider.read`) may open the gate when sure; it never closes it.",
      "effect": "Graded-sensitivity read bar (`core/sensitivity.py`).",
      "rebuild": false,
      "rebuild_scope": "",
@@ -6210,6 +6054,16 @@
    "name": "Post-pool refinements",
    "file_function": "graph rerank, causal walk, balanced pool, relevance filter, `lift_stage`",
    "keys": [
+    {
+     "key": "model.rerank.balanced",
+     "default": false,
+     "type": "bool",
+     "description": "GR-15 (Graphiti's balanced shortlist): the pool cut before reranking takes each leg's best remaining hit in turn (vector, lexical, then the extra legs), so one leg cannot fill the pool.",
+     "effect": "The pool cut before reranking takes each leg's best remaining hit in turn (vector, lexical, then the extra legs), so one leg cannot fill the pool.",
+     "rebuild": false,
+     "rebuild_scope": "",
+     "screen_ids": []
+    },
     {
      "key": "read.causal_walk",
      "default": "off",
@@ -6293,16 +6147,6 @@
      "screen_ids": []
     },
     {
-     "key": "read.rerank_balanced",
-     "default": false,
-     "type": "bool",
-     "description": "GR-15 (Graphiti's balanced shortlist): with a reranker on, the pool cut before reranking takes each leg's best remaining hit in turn (vector, lexical, then the extra legs), so one leg cannot fill the pool.",
-     "effect": "With a reranker on, the pool cut before reranking takes each leg's best remaining hit in turn (vector, lexical, then the extra legs), so one leg cannot fill the pool.",
-     "rebuild": false,
-     "rebuild_scope": "",
-     "screen_ids": []
-    },
-    {
      "key": "read.static_embedding_prefilter",
      "default": false,
      "type": "bool",
@@ -6341,35 +6185,11 @@
      "screen_ids": []
     },
     {
-     "key": "models.rerank",
-     "default": "chain",
-     "type": "Literal['chain', 'off']",
-     "description": "MD-01. `off` leaves reranking out of the plan (results unscored).",
-     "effect": "`off` leaves reranking out of the plan (results unscored).",
-     "rebuild": false,
-     "rebuild_scope": "",
-     "screen_ids": [],
-     "choices": [
-      "chain",
-      "off"
-     ]
-    },
-    {
-     "key": "read.rerank",
-     "default": "off",
-     "type": "str",
-     "description": "`off` | `fastembed` | `flashrank` `[rerank]` | `litellm` | `jina` `[st]` (Jina listwise reranker; `rerank_model` defaults to `jinaai/jina-reranker-v3.5`, runs the repo's custom code) | `qwen3` `[st]`| `fastembed` | `flashrank` `[rerank]` | `litellm` | `qwen3` `[st]` (Qwen3-Reranker, `rerank_model` defaults to `Qwen/Qwen3-Reranker-0.6B`) — E8 cross-encoder (D-51).",
-     "effect": "`off` | `fastembed` | `flashrank` `[rerank]` | `litellm` | `jina` `[st]` (Jina listwise reranker;",
-     "rebuild": false,
-     "rebuild_scope": "",
-     "screen_ids": []
-    },
-    {
-     "key": "read.rerank_blend",
+     "key": "model.rerank.blend",
      "default": null,
      "type": "float | None",
-     "description": "N41: None = the reranker's relevance replaces the retrieval score (unchanged). A weight `w` in [0, 1] blends them: `w * rerank + (1 - w) * retrieval`, each min-max normalised over the candidates.",
-     "effect": "None = the reranker's relevance replaces the retrieval score (unchanged).",
+     "description": "N41: null = the reranker's relevance replaces the retrieval score. A weight `w` in [0, 1] blends them: `w * rerank + (1 - w) * retrieval`, each min-max normalised over the candidates.",
+     "effect": "Null = the reranker's relevance replaces the retrieval score.",
      "rebuild": false,
      "rebuild_scope": "",
      "screen_ids": [],
@@ -6379,11 +6199,24 @@
      }
     },
     {
-     "key": "read.rerank_chunk_chars",
+     "key": "model.rerank.chain",
+     "default": [],
+     "type": "list[RerankStage]",
+     "description": "ADR-082 (was `read.rerank` + `read.rerank_settings` and `read.rerank_v2` + `rerank_v2_chain`): rerankers `{provider, settings}` in preference order; the first that builds and works wins, `[]` = off, one entry = a single reranker. Providers: `fastembed` (ONNX/CPU MiniLM), `flashrank` (`[rerank]`), `litellm` (`settings.model`, e.g. `cohere/rerank-english-v3.0`), `jina` (`[st]`, Jina v3.5 listwise, CC-BY-NC weights), `qwen3` (`[st]`, Qwen3-Reranker-0.6B) — E8 cross-encoder (D-51). Unscored candidates stay unscored and follow the scored ones. Tap: `read.rerank.scored`.",
+     "effect": "Rerankers `{provider, settings}` in preference order; the first that builds and works wins, `[]` = off, one entry = a single reranker.",
+     "rebuild": false,
+     "rebuild_scope": "",
+     "screen_ids": [
+      "S60",
+      "S61"
+     ]
+    },
+    {
+     "key": "model.rerank.chunk_chars",
      "default": null,
      "type": "int | None",
-     "description": "I9: `null` = a record longer than the reranker's context is cut and its tail dropped (qwen3: beyond about 8k tokens; ONNX cross-encoders: about 512). N = records longer than N characters are scored in overlapping windows of N characters and take the MAX window score. Opt-in.",
-     "effect": "`null` = a record longer than the reranker's context is cut and its tail dropped (qwen3: beyond about 8k tokens;",
+     "description": "I9: `null` = a record longer than the reranker's context is cut and its tail dropped. N = records longer than N characters are scored in overlapping windows of N characters and take the MAX window score.",
+     "effect": "`null` = a record longer than the reranker's context is cut and its tail dropped.",
      "rebuild": false,
      "rebuild_scope": "",
      "screen_ids": [],
@@ -6392,7 +6225,7 @@
      }
     },
     {
-     "key": "read.rerank_chunk_overlap",
+     "key": "model.rerank.chunk_overlap",
      "default": 0,
      "type": "int",
      "description": "I9: characters shared by neighbouring windows.",
@@ -6405,11 +6238,11 @@
      }
     },
     {
-     "key": "read.rerank_context",
+     "key": "model.rerank.context",
      "default": 0,
      "type": "int",
-     "description": "N42: the reranker sees each candidate with this many neighbouring turns of its episodic session on each side (0–3), so a short reply (\"yes, the lake\") is judged with its question. The stored record and the context shown to the reader are unchanged.",
-     "effect": "The reranker sees each candidate with this many neighbouring turns of its episodic session on each side (0–3), so a short reply (\"yes, the lake\") is judged with its question.",
+     "description": "N42: the reranker sees each candidate with this many neighbouring turns of its episodic session on each side (0–3). The stored record and the context shown to the reader are unchanged.",
+     "effect": "The reranker sees each candidate with this many neighbouring turns of its episodic session on each side (0–3).",
      "rebuild": false,
      "rebuild_scope": "",
      "screen_ids": [],
@@ -6419,21 +6252,21 @@
      }
     },
     {
-     "key": "read.rerank_date_prefix",
+     "key": "model.rerank.date_prefix",
      "default": false,
      "type": "bool",
-     "description": "Hindsight: prefix reranker inputs with `[Date: YYYY-MM-DD]`, so the cross-encoder sees when each candidate happened.",
-     "effect": "Hindsight: prefix reranker inputs with `[Date: YYYY-MM-DD]`, so the cross-encoder sees when each candidate happened.",
+     "description": "Hindsight: prefix reranker inputs with `[Date: YYYY-MM-DD]`.",
+     "effect": "Hindsight: prefix reranker inputs with `[Date: YYYY-MM-DD]`.",
      "rebuild": false,
      "rebuild_scope": "",
      "screen_ids": []
     },
     {
-     "key": "read.rerank_floor",
+     "key": "model.rerank.floor",
      "default": "minmax",
      "type": "Literal['minmax', 'skip']",
-     "description": "RETRIEVAL_GAPS finding 3: a reranked list is min-max normalised (best 1.0, worst 0.0), so `read.assembly.relative_floor` then deletes about half of the hits and their replay windows whatever the reranker thought of them. `minmax` = unchanged. `skip` = a read the reranker scored does not apply the relative floor (the reranker, `rerank_keep` and the budget bound the context); a read it did not score (off, gated, failed) still does. A `raw` mode (floor on raw reranker probabilities) was left out: only some rerankers are calibrated 0-1, and the floor would still act on the composite score.",
-     "effect": "RETRIEVAL_GAPS finding 3: a reranked list is min-max normalised (best 1.0, worst 0.0), so `read.assembly.relative_floor` then deletes about half of the hits and their replay windows whatever the reranker thought of them.",
+     "description": "RETRIEVAL_GAPS finding 3: `minmax` = a reranked list is min-max normalised and `read.assembly.relative_floor` applies. `skip` = a read the reranker scored does not apply the relative floor; a read it did not score (off, gated, failed) still does.",
+     "effect": "RETRIEVAL_GAPS finding 3: `minmax` = a reranked list is min-max normalised and `read.assembly.relative_floor` applies.",
      "rebuild": false,
      "rebuild_scope": "",
      "screen_ids": [],
@@ -6443,21 +6276,21 @@
      ]
     },
     {
-     "key": "read.rerank_gate",
+     "key": "model.rerank.gate",
      "default": null,
      "type": "float | None",
-     "description": "N41 confidence gate: when the reranker's best raw score is below this value, it is not confident any candidate answers, and the retrieval order is kept (`rerank_stats()[\"gated\"]` counts these).",
-     "effect": "Confidence gate: when the reranker's best raw score is below this value, it is not confident any candidate answers, and the retrieval order is kept (`rerank_stats()[\"gated\"]` counts these).",
+     "description": "N41 confidence gate: when the reranker's best raw score is below this value, the retrieval order is kept (`rerank_stats()[\"gated\"]` counts these).",
+     "effect": "Confidence gate: when the reranker's best raw score is below this value, the retrieval order is kept (`rerank_stats()[\"gated\"]` counts these).",
      "rebuild": false,
      "rebuild_scope": "",
      "screen_ids": []
     },
     {
-     "key": "read.rerank_keep",
+     "key": "model.rerank.keep",
      "default": null,
      "type": "int | None",
-     "description": "G5b: with a reranker and `candidate_pool > 1`, keep only the best `rerank_keep` candidates after reranking, before assembly fills the budget, so a wider pool sharpens the ranking instead of doubling the context. `null` = keep the whole pool. A failed rerank keeps the pool.",
-     "effect": "With a reranker and `candidate_pool > 1`, keep only the best `rerank_keep` candidates after reranking, before assembly fills the budget, so a wider pool sharpens the ranking instead of doubling the context.",
+     "description": "G5b: with a reranker and `candidate_pool > 1`, keep only the best `keep` candidates after reranking, before assembly fills the budget. `null` = keep the whole pool. A failed rerank keeps the pool.",
+     "effect": "With a reranker and `candidate_pool > 1`, keep only the best `keep` candidates after reranking, before assembly fills the budget.",
      "rebuild": false,
      "rebuild_scope": "",
      "screen_ids": [],
@@ -6466,11 +6299,11 @@
      }
     },
     {
-     "key": "read.rerank_max_top_k",
+     "key": "model.rerank.max_top_k",
      "default": null,
      "type": "int | None",
-     "description": "H18: run the configured reranker only when `top_k` is at most this. Reranking pays most when few of many candidates are kept. `null` = always.",
-     "effect": "Run the configured reranker only when `top_k` is at most this.",
+     "description": "H18: run the reranker only when `top_k` is at most this. `null` = always.",
+     "effect": "Run the reranker only when `top_k` is at most this.",
      "rebuild": false,
      "rebuild_scope": "",
      "screen_ids": [],
@@ -6479,49 +6312,11 @@
      }
     },
     {
-     "key": "read.rerank_settings",
-     "default": {},
-     "type": "dict[str, JsonValue]",
-     "description": "Provider and policy fields are validated by their typed configuration schema.",
-     "effect": "Provider and policy fields are validated by their typed configuration schema.",
-     "rebuild": false,
-     "rebuild_scope": "",
-     "screen_ids": []
-    },
-    {
-     "key": "read.rerank_v2",
-     "default": false,
-     "type": "bool",
-     "description": "R3-07 (LIB-42). Rerank every read through `rerank_v2_chain` over a pool capped at `rerank_v2_pool`; unscored candidates stay unscored (never 0.0) and follow the scored ones; the Jina tail is None instead of 0.0. Ignores `read.rerank` and the `rerank_max_top_k` gate. Tap: `read.rerank.scored`.",
-     "effect": "Rerank every read through `rerank_v2_chain` over a pool capped at `rerank_v2_pool`; unscored candidates stay unscored (never 0.0) and follow the scored ones; the Jina tail is None instead of 0.0.",
-     "rebuild": false,
-     "rebuild_scope": "",
-     "screen_ids": [
-      "S16",
-      "S60",
-      "S61"
-     ]
-    },
-    {
-     "key": "read.rerank_v2_chain",
-     "default": [
-      "jina",
-      "qwen3",
-      "fastembed"
-     ],
-     "type": "list[str]",
-     "description": "R3-07. Reranker modes in preference order (Jina v3.5, Qwen3-Reranker-0.6B, MiniLM CPU); all failing means unscored. Drop `jina` to avoid CC-BY-NC weights.",
-     "effect": "Reranker modes in preference order (Jina v3.5, Qwen3-Reranker-0.6B, MiniLM CPU); all failing means unscored.",
-     "rebuild": false,
-     "rebuild_scope": "",
-     "screen_ids": []
-    },
-    {
-     "key": "read.rerank_v2_pool",
+     "key": "model.rerank.pool",
      "default": 64,
      "type": "int",
-     "description": "R3-07. Candidates sent to the reranker; the rest stay unscored.",
-     "effect": "Candidates sent to the reranker; the rest stay unscored.",
+     "description": "R3-07 (was `read.rerank_v2_pool`): candidates sent to the reranker (1..256); the rest stay unscored.",
+     "effect": "Candidates sent to the reranker (1..256); the rest stay unscored.",
      "rebuild": false,
      "rebuild_scope": "",
      "screen_ids": [],
@@ -6531,20 +6326,28 @@
      }
     },
     {
-     "key": "read.rerank_v2_search_pool",
+     "key": "model.rerank.search_pool",
      "default": 0,
      "type": "int",
-     "description": "FU-RRPOOL (INV-FILLER). Needs `read.rerank_v2`. `search()` fetched only `top_k` candidates, so the reranker could only reorder those. > 0: `search` fetches `max(top_k, N)`, reranks them (at most `rerank_v2_pool` are scored), then cuts to `top_k`. FX-READPATH: `assemble` / `read` (replay included) honour it too: the assembly search fetches `max(top_k x candidate_pool, N)` before the rerank and cuts back to `top_k x candidate_pool`; a pool no larger than that count changes nothing, so nothing is widened twice. 0 = off.",
-     "effect": "FU-RRPOOL (INV-FILLER). Needs `read.rerank_v2`.",
+     "description": "FU-RRPOOL (was `read.rerank_v2_search_pool`). > 0: `search` fetches `max(top_k, N)`, reranks them (at most `pool` are scored), then cuts to `top_k`; `assemble` / `read` (replay included) fetch `max(top_k x candidate_pool, N)` before the rerank and cut back to `top_k x candidate_pool`. 0 = off.",
+     "effect": "> 0: `search` fetches `max(top_k, N)`, reranks them (at most `pool` are scored), then cuts to `top_k`;",
      "rebuild": false,
      "rebuild_scope": "",
-     "screen_ids": [
-      "S67"
-     ],
+     "screen_ids": [],
      "range": {
       "ge": 0,
       "le": 256
      }
+    },
+    {
+     "key": "model.rerank.skip_for_ordering",
+     "default": false,
+     "type": "bool",
+     "description": "Agent Zero (was `read.skip_rerank_for_ordering`): skip the reranker for ordering questions (first / latest / most recent).",
+     "effect": "Agent Zero (was `read.skip_rerank_for_ordering`): skip the reranker for ordering questions (first / latest / most recent).",
+     "rebuild": false,
+     "rebuild_scope": "",
+     "screen_ids": []
     },
     {
      "key": "read.scoring",
@@ -6552,16 +6355,6 @@
      "type": "dict[str, Any]",
      "description": "Options for `ScoringPolicy.bind` (M1 composite).",
      "effect": "Options for `ScoringPolicy.bind` (M1 composite).",
-     "rebuild": false,
-     "rebuild_scope": "",
-     "screen_ids": []
-    },
-    {
-     "key": "read.skip_rerank_for_ordering",
-     "default": false,
-     "type": "bool",
-     "description": "Agent Zero: skip the reranker for ordering questions (first / latest / most recent).",
-     "effect": "Agent Zero: skip the reranker for ordering questions (first / latest / most recent).",
      "rebuild": false,
      "rebuild_scope": "",
      "screen_ids": []
@@ -7247,7 +7040,7 @@
      "key": "read.skip_defaulted_dates",
      "default": false,
      "type": "bool",
-     "description": "I7: a source with no timestamps (ConvoMem, PrefEval, LaMP shapes) gets `valid_from` = the write clock, so every date prefix would show today. On: a write with no supplied event time is tagged `ts_defaulted`; `render: dated` / the `[YYYY-MM-DD Day]` prefix, the `resolve_relative_dates` annotation, `rerank_date_prefix` and the timeline date skip such records. Timestamped records are never affected; records written with the key off carry no tag (so they render as before). Facts mined later from an undated turn are not tagged. Off: byte-identical.",
+     "description": "I7: a source with no timestamps (ConvoMem, PrefEval, LaMP shapes) gets `valid_from` = the write clock, so every date prefix would show today. On: a write with no supplied event time is tagged `ts_defaulted`; `render: dated` / the `[YYYY-MM-DD Day]` prefix, the `resolve_relative_dates` annotation, `model.rerank.date_prefix` and the timeline date skip such records. Timestamped records are never affected; records written with the key off carry no tag (so they render as before). Facts mined later from an undated turn are not tagged. Off: byte-identical.",
      "effect": "A source with no timestamps (ConvoMem, PrefEval, LaMP shapes) gets `valid_from` = the write clock, so every date prefix would show today.",
      "rebuild": false,
      "rebuild_scope": "",
@@ -7383,7 +7176,7 @@
      "key": "read.agentic",
      "default": false,
      "type": "bool",
-     "description": "I67: opt-in agentic multi-step read. Step 0 is the normal read, unchanged. Then, up to `agentic_max_steps` times, the `sufficiency` role (else `plan`; prompt `sufficiency@agentic`) sees the question and a compact view of the evidence (about 800 tokens) and returns one structured action validated through `structured_call` (with the opt-in `llm.structured` repair and retry): `answer_ready`, `search` (a query) or `search_person_time` (a person and/or a time). It is not native tool calling. Each search goes through the same gated search of the same namespace (the model supplies only text; a namespace field is ignored; firewall-quarantined records never appear). New hits of all steps are RRF-fused, de-duplicated by record id, and appended after the step-0 records under the same token budget. Stops on `answer_ready`, `max_steps`, `no_new`, `budget`, `repeat` or `error` (an error or an unbound role keeps the step-0 read). Every step goes to `search_forensics()[\"agentic_steps\"]` (action, query, why, new record ids, LLM calls and seconds, search seconds) and totals to `[\"agentic\"]` (trigger, fired, stop, llm_calls, new_ids, displaced_ids). Off: no call, byte-identical.",
+     "description": "I67: opt-in agentic multi-step read. Step 0 is the normal read, unchanged. Then, up to `agentic_max_steps` times, the `sufficiency` role (else `plan`; prompt `sufficiency@agentic`) sees the question and a compact view of the evidence (about 800 tokens) and returns one structured action validated through `structured_call` (with the opt-in `model.llm.<role>.structured` repair and retry): `answer_ready`, `search` (a query) or `search_person_time` (a person and/or a time). It is not native tool calling. Each search goes through the same gated search of the same namespace (the model supplies only text; a namespace field is ignored; firewall-quarantined records never appear). New hits of all steps are RRF-fused, de-duplicated by record id, and appended after the step-0 records under the same token budget. Stops on `answer_ready`, `max_steps`, `no_new`, `budget`, `repeat` or `error` (an error or an unbound role keeps the step-0 read). Every step goes to `search_forensics()[\"agentic_steps\"]` (action, query, why, new record ids, LLM calls and seconds, search seconds) and totals to `[\"agentic\"]` (trigger, fired, stop, llm_calls, new_ids, displaced_ids). Off: no call, byte-identical.",
      "effect": "Opt-in agentic multi-step read.",
      "rebuild": false,
      "rebuild_scope": "",
@@ -7449,7 +7242,7 @@
      "key": "read.agentic_trigger",
      "default": "multi_hop",
      "type": "Literal['always', 'multi_hop', 'decider']",
-     "description": "I67: when the loop fires. `always`; `multi_hop`: a generic surface heuristic (two or more capitalised names, a relation word such as both / same / before / after / while, a possessive chain, or a bridge cue); `decider`: the `needs_more_evidence` task of the OpenDecider port (needs `read.decider: opendecider` and the task in `decider_tasks`; otherwise, or when unsure or failing, the `multi_hop` heuristic answers). A question that does not fire makes no LLM call.",
+     "description": "I67: when the loop fires. `always`; `multi_hop`: a generic surface heuristic (two or more capitalised names, a relation word such as both / same / before / after / while, a possessive chain, or a bridge cue); `decider`: the `needs_more_evidence` task of the OpenDecider port (needs a `model.decider.read` slot with the task in its `tasks`; otherwise, or when unsure or failing, the `multi_hop` heuristic answers). A question that does not fire makes no LLM call.",
      "effect": "When the loop fires. `always`;",
      "rebuild": false,
      "rebuild_scope": "",
@@ -7840,7 +7633,7 @@
      "key": "read.owner_check",
      "default": "off",
      "type": "Literal['off', 'mark', 'note', 'both']",
-     "description": "I59: read-side owner check after retrieval, before the reader. `mark` prefixes `[Bram, about Bram]` (speaker, subject) on tagged lines; `note` adds one reader note when no line is about the person the question names and some line is about someone else; `both`. Never drops a line; a question naming two people keeps both. Needs the `memories.episodic.policies.perspective` tags; `decider_tasks: [about_target]` lets the decider judge untagged lines.",
+     "description": "I59: read-side owner check after retrieval, before the reader. `mark` prefixes `[Bram, about Bram]` (speaker, subject) on tagged lines; `note` adds one reader note when no line is about the person the question names and some line is about someone else; `both`. Never drops a line; a question naming two people keeps both. Needs the `memories.episodic.policies.perspective` tags; `model.decider.read.tasks: [about_target]` lets the decider judge untagged lines.",
      "effect": "Read-side owner check after retrieval, before the reader.",
      "rebuild": false,
      "rebuild_scope": "",
@@ -9328,36 +9121,30 @@
   "isolation.owner_bound_handles": "cross-cutting: scope and viewer isolation is enforced at every read and write door, not in one stage",
   "isolation.scope_keys_v2": "cross-cutting: scope and viewer isolation is enforced at every read and write door, not in one stage",
   "isolation.viewer_required": "cross-cutting: scope and viewer isolation is enforced at every read and write door, not in one stage",
-  "llm.roles.*.provider": "role binding (model, endpoint, timeout, no_think): applies to every LLM stage that uses the role; see each stage's prompts and models lists",
-  "llm.roles.*.settings": "role binding (model, endpoint, timeout, no_think): applies to every LLM stage that uses the role; see each stage's prompts and models lists",
   "memories.*.enabled": "per-memory-type enablement and policy overrides, resolved at engine start",
   "memories.*.policies": "per-memory-type enablement and policy overrides, resolved at engine start",
-  "models.allow_hosted": "model planning at engine start (tiers, GPU placement, pins); applies to every stage that uses a model role",
-  "models.bindings": "explicit role-to-profile selection for generative calls and gliner_decision/gliner_semantic/gliner_prepass; precedence over automatic tier selection",
-  "models.catalogue": "model planning at engine start (tiers, GPU placement, pins); applies to every stage that uses a model role",
-  "models.default_rerankers": "model planning at engine start (tiers, GPU placement, pins); applies to every stage that uses a model role",
-  "models.detect_gpus": "model planning at engine start (tiers, GPU placement, pins); applies to every stage that uses a model role",
-  "models.embedder_profile": "model planning at engine start (tiers, GPU placement, pins); applies to every stage that uses a model role",
-  "models.escalation.*.max_attempts": "opt-in per-chat-invocation model escalation with explicit triggers, attempt limit, total deadline and per-attempt output setting; each candidate retains consent gates",
-  "models.escalation.*.max_tokens_per_attempt": "opt-in per-chat-invocation model escalation with explicit triggers, attempt limit, total deadline and per-attempt output setting; each candidate retains consent gates",
-  "models.escalation.*.targets": "opt-in per-chat-invocation model escalation with explicit triggers, attempt limit, total deadline and per-attempt output setting; each candidate retains consent gates",
-  "models.escalation.*.timeout_s": "opt-in per-chat-invocation model escalation with explicit triggers, attempt limit, total deadline and per-attempt output setting; each candidate retains consent gates",
-  "models.escalation.*.triggers": "opt-in per-chat-invocation model escalation with explicit triggers, attempt limit, total deadline and per-attempt output setting; each candidate retains consent gates",
-  "models.gliner_max_models": "explicit bound on resident engine-owned GLiNER models; different profiles may use different checkpoints within this resource cap",
-  "models.gpu_headroom_mb": "model planning at engine start (tiers, GPU placement, pins); applies to every stage that uses a model role",
-  "models.gpus": "model planning at engine start (tiers, GPU placement, pins); applies to every stage that uses a model role",
-  "models.on_missing_model": "model planning at engine start (tiers, GPU placement, pins); applies to every stage that uses a model role",
-  "models.pins": "model planning at engine start (tiers, GPU placement, pins); applies to every stage that uses a model role",
-  "models.profiles.*.kind": "named native LLM/GLiNER provider settings; explicit task bindings select resources, identical effective GLiNER settings share weights and each Engine owns its resources",
-  "models.profiles.*.provider": "named native LLM/GLiNER provider settings; explicit task bindings select resources, identical effective GLiNER settings share weights and each Engine owns its resources",
-  "models.profiles.*.settings": "named native LLM/GLiNER provider settings; explicit task bindings select resources, identical effective GLiNER settings share weights and each Engine owns its resources",
-  "models.ram_mb": "model planning at engine start (tiers, GPU placement, pins); applies to every stage that uses a model role",
-  "models.required_roles": "model planning at engine start (tiers, GPU placement, pins); applies to every stage that uses a model role",
-  "models.role_tier": "model planning at engine start (tiers, GPU placement, pins); applies to every stage that uses a model role",
-  "models.thinking": "model planning at engine start (tiers, GPU placement, pins); applies to every stage that uses a model role",
-  "models.tiers_v2": "model planning at engine start (tiers, GPU placement, pins); applies to every stage that uses a model role",
-  "models.topic.labels": "model planning at engine start (tiers, GPU placement, pins); applies to every stage that uses a model role",
-  "models.topic.min_confidence": "model planning at engine start (tiers, GPU placement, pins); applies to every stage that uses a model role",
+  "model.extraction.prepass": "per-consumer GLiNER slots (semantic, prepass, topic, sensitivity); identical effective settings minus per-consumer fields share weights and each Engine owns its resources",
+  "model.extraction.semantic": "per-consumer GLiNER slots (semantic, prepass, topic, sensitivity); identical effective settings minus per-consumer fields share weights and each Engine owns its resources",
+  "model.extraction.sensitivity": "per-consumer GLiNER slots (semantic, prepass, topic, sensitivity); identical effective settings minus per-consumer fields share weights and each Engine owns its resources",
+  "model.extraction.topic": "per-consumer GLiNER slots (semantic, prepass, topic, sensitivity); identical effective settings minus per-consumer fields share weights and each Engine owns its resources",
+  "model.llm.*.escalation": "opt-in per-chat-invocation model escalation over inline LLM target slots with explicit triggers, attempt limit, total deadline and per-attempt output setting; each candidate retains consent gates",
+  "model.llm.*.provider": "role binding (provider, model, endpoint, timeout, no_think): applies to every LLM stage that uses the role; see each stage's prompts and models lists",
+  "model.llm.*.settings": "role binding (provider, model, endpoint, timeout, no_think): applies to every LLM stage that uses the role; see each stage's prompts and models lists",
+  "model.llm.*.thinking": "capped thinking budget of the judge / reflect role: applies to every stage that calls that role",
+  "model.llm.*.timeout_s": "role binding (provider, model, endpoint, timeout, no_think): applies to every LLM stage that uses the role; see each stage's prompts and models lists",
+  "model.placement.allow_hosted": "model planning at engine start (tiers, GPU placement, pins); applies to every stage that uses a model role",
+  "model.placement.catalogue": "model planning at engine start (tiers, GPU placement, pins); applies to every stage that uses a model role",
+  "model.placement.catalogue_rerankers": "model planning at engine start (tiers, GPU placement, pins); applies to every stage that uses a model role",
+  "model.placement.detect_gpus": "model planning at engine start (tiers, GPU placement, pins); applies to every stage that uses a model role",
+  "model.placement.gpu_headroom_mb": "model planning at engine start (tiers, GPU placement, pins); applies to every stage that uses a model role",
+  "model.placement.gpus": "model planning at engine start (tiers, GPU placement, pins); applies to every stage that uses a model role",
+  "model.placement.max_loaded_models": "explicit bound on resident engine-owned GLiNER checkpoints; different slots may use different checkpoints within this resource cap",
+  "model.placement.on_missing_model": "model planning at engine start (tiers, GPU placement, pins); applies to every stage that uses a model role",
+  "model.placement.pins": "model planning at engine start (tiers, GPU placement, pins); applies to every stage that uses a model role",
+  "model.placement.ram_mb": "model planning at engine start (tiers, GPU placement, pins); applies to every stage that uses a model role",
+  "model.placement.required_roles": "model planning at engine start (tiers, GPU placement, pins); applies to every stage that uses a model role",
+  "model.placement.role_tier": "model planning at engine start (tiers, GPU placement, pins); applies to every stage that uses a model role",
+  "model.placement.tiers_v2": "model planning at engine start (tiers, GPU placement, pins); applies to every stage that uses a model role",
   "namespaces.*.policies": "per-namespace policy overrides, resolved at engine start",
   "observability.inspect": "wiretap, ops ledger, timers and inspect switches: they observe every stage, they do not change one",
   "observability.inspect_content": "wiretap, ops ledger, timers and inspect switches: they observe every stage, they do not change one",
@@ -9448,6 +9235,6 @@
   "workers.resonate.task_timeout_s": "no read site matched an inventory stage",
   "workers.temporal": "no read site matched an inventory stage"
  },
- "unattributed_count": 136,
- "schema_key_count": 634
+ "unattributed_count": 130,
+ "schema_key_count": 613
 }

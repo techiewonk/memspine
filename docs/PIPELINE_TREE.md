@@ -1,5 +1,11 @@
 # MemSpine pipeline tree: write path (injection) and read path (retrieval to reader context)
 
+> Historical trace of one benchmark arm on branch `feat/local-qwen-stack`. Config key names are
+> the ones of that time: since ADR-081 data providers live under `storage.<slot>`, and since
+> ADR-082 model keys live under `model.<slot>` (`embedding.*` -> `model.embedding.*`,
+> `read.rerank*` -> `model.rerank.*`, `decision.provider` -> `model.decider.route`,
+> `llm.roles.<role>` -> `model.llm.<role>`). See [MODEL_SLOTS_MIGRATION_PLAN.md](MODEL_SLOTS_MIGRATION_PLAN.md).
+
 Scope: the exact path a LoCoMo conversation takes through MemSpine in the local Qwen-stack arms
 (`evals/arms/qs-eq06-roff.json`, `qs-eq06-rq4b4.json`, `qs-ejina-rjina.json`), run with
 `--memspine-read-mode replay --memspine-batch-turns 32 --budget 4096 --top-k 10 --retrieval-only`

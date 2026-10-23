@@ -3,7 +3,8 @@
 `GLiNERModelPool` is an explicitly constructed, engine-owned optional resource
 in `memspine.services.extraction.gliner2`. It does not introduce an ingress
 path or make GLiNER a core dependency. Semantic NER, decision classification and
-prepass consumers resolve their own named model profile and hold one
+prepass consumers read their own inline slot (`model.extraction.<consumer>` or
+`model.decider.<consumer>`, ADR-082) and hold one
 Engine-lifetime binding (`pool.binding(settings)`) on the same Engine pool: the
 lease is acquired on first call and kept until the pool closes, instead of an
 acquire/release per call. A failed first acquisition is not cached.
@@ -12,50 +13,49 @@ The pool accepts the canonical `GlinerSettings` structurally: `model`,
 `revision`, `device`, `local_files_only`, `tasks` and `inference_concurrency`.
 Since RM-73 (ADR-079) the weight key is only the selected checkpoint, exact
 revision, device and local-only policy. The normalized task set and inference
-concurrency are per-lease limits: profiles that differ only in them share one
-loaded model (so `gliner_max_models=1` no longer thrashes between them), and
+concurrency are per-lease limits (ADR-082 excludes them from the weights key):
+slots that differ only in them share one loaded model (so
+`model.placement.max_loaded_models: 1` does not thrash between them), and
 each distinct limit keeps its own concurrency semaphore. Weights load through
 the process `ResourceRegistry` (`memspine.providers.shared`): identical weights
 are loaded once per process and shared by every Engine; stopping one Engine
 releases only its hold, and the last release disposes the model. Capacity is
 finite (one checkpoint per Engine by default), configured by
-`models.gliner_max_models`. An idle checkpoint (no reservation or running call)
+`model.placement.max_loaded_models`. An idle checkpoint (no reservation or running call)
 may be evicted for a different one even while leased; its leases reload it on
 their next call. When every resident checkpoint is loading or running, a request
 for a different checkpoint raises `GLiNERPoolFullError` rather than loading
 beyond the configured resource bound.
 
-Profiles and role bindings are explicit. Each active GLiNER consumer must bind
-to a profile with `kind: gliner`, `provider: gliner2`, and the task it needs.
-The profile settings are validated as `GlinerSettings` without importing the
-SDK or loading weights. The default model and task values apply inside an
-explicit profile with empty settings:
+Slots are explicit and inline; there are no named profiles (removed by
+ADR-082). Each active GLiNER consumer needs its own slot with
+`provider: gliner2` and a model exposing the task it needs (`semantic`,
+`prepass`, `sensitivity`: `entities`; `topic`, `route`, `read`:
+`classification`). The slot settings are validated as `GlinerSettings` without
+importing the SDK or loading weights. The default model and task values apply
+inside a slot with empty settings:
 
 ```yaml
-models:
-  gliner_max_models: 2
-  profiles:
-    shared-entities:
-      kind: gliner
+model:
+  placement:
+    max_loaded_models: 2
+  extraction:
+    semantic:
       provider: gliner2
-      settings:
-        model: fastino/gliner2.5-base-v1
-        tasks: [entities]
-    decisions:
-      kind: gliner
+      settings: {model: fastino/gliner2.5-base-v1, tasks: [entities]}
+    prepass:
       provider: gliner2
-      settings:
-        model: fastino/gliner2.5-base-v1
-        tasks: [classification]
-  bindings:
-    gliner_semantic: shared-entities
-    gliner_prepass: shared-entities
-    gliner_decision: decisions
+      settings: {model: fastino/gliner2.5-base-v1, tasks: [entities]}
+  decider:
+    route:
+      provider: gliner2
+      settings: {model: fastino/gliner2.5-base-v1, tasks: [classification]}
 ```
 
-Different profile names with identical weight settings share one model because
-the pool keys on resolved weight settings; in the example above all three
-bindings share one checkpoint. Different checkpoints use separate entries,
+Slots with identical weight settings share one model because the pool keys on
+resolved weight settings minus the consumer-only fields (`tasks`,
+`inference_concurrency`); in the example above all three slots share one
+checkpoint. Different checkpoints use separate entries,
 subject to the configured capacity. The model weights are shared; extraction
 results and user data remain owned by the consumer and its namespace-scoped
 caches.
@@ -63,10 +63,10 @@ caches.
 Consumers hold a binding for the Engine lifetime; explicit leases remain available:
 
 ```python
-from memspine.models.profiles import resolve_gliner_settings
+from memspine.config.schema.model import gliner_settings
 
 pool = GLiNERModelPool()
-settings = resolve_gliner_settings(config, "gliner_semantic")
+settings = gliner_settings(config, "semantic")  # model.extraction.semantic
 binding = pool.binding(settings)
 result = await binding.call(lambda model: model.extract_entities(text, labels))
 await pool.aclose()  # releases this Engine's hold; other Engines keep theirs
@@ -99,8 +99,8 @@ authoritative; unsupported architectures fail rather than falling back between
 span and boundary.
 
 The focused pool and adapter tests use synchronized fake loaders/models and
-prove profile resolution, identical-settings sharing across named profiles,
-distinct-profile checkpoint selection, bounded capacity/calls, failed-load
+prove slot resolution, identical-settings sharing across slots,
+distinct-checkpoint selection, bounded capacity/calls, failed-load
 retry behavior, off-loop
 callbacks, close/drain and cancellation handling. The kernel benchmark compares
 load counts for three independent clients and a shared fake pool; it does not
@@ -112,6 +112,8 @@ inference; its warnings and scope are recorded in
 `provider_verification/gliner-ownership-local-load.json` and `.log`.
 
 Runtime wiring and model settings live in the caller/config layer. An active
-consumer needs an explicit profile binding; settings alone do not enable a
-feature. The pool does not validate the semantic meaning or provenance of
+consumer needs its explicit slot; `semantic` and `prepass` are still switched on
+by `memories.semantic.policies.entity_extraction: gliner` / `write.prepass: gliner`
+(a missing slot is a config error naming it), while `topic` and `sensitivity` are
+enabled by their slot. The pool does not validate the semantic meaning or provenance of
 extracted candidates.
