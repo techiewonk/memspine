@@ -17,6 +17,24 @@ from memspine.exceptions import MissingServiceError
 from memspine.services.llm.openai_compat import OpenAICompatLLM
 
 
+async def test_cohere_base_with_version_uses_one_version_segment() -> None:
+    seen = []
+
+    def respond(request):
+        seen.append(request.url.path)
+        return httpx.Response(200, json={"results": []})
+
+    pool = HttpConnector(HttpSpec(transport=httpx.MockTransport(respond)))
+    connector = OpenAICompatConnector(
+        OpenAICompatSpec(api_base="https://example.invalid/v2", family="cohere"), http=pool
+    )
+    try:
+        await connector.arerank(model="rerank", query="question", documents=["passage"])
+        assert seen == ["/v2/rerank"]
+    finally:
+        await pool.close()
+
+
 async def test_native_ollama_schema_no_think_usage_and_timeout() -> None:
     seen = []
 

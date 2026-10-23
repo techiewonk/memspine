@@ -88,7 +88,9 @@ class OpenAICompatConnector:
         base = (self._spec.api_base or "").rstrip("/")
         if path.startswith("/api/"):
             base = base.removesuffix("/v1")
-        elif path.startswith("/v1/") and base.endswith("/v1"):
+        elif (path.startswith("/v1/") and base.endswith("/v1")) or (
+            path.startswith("/v2/") and base.endswith("/v2")
+        ):
             path = path[3:]
         return base + path
 
